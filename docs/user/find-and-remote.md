@@ -13,7 +13,15 @@ Press **Find** in the web app. The robot answers in three ways:
 - **Beep and flash.** Press **Make it beep** and the robot plays a loud, repeating tone and flashes its light bars, even in quiet hours and when it is muted. Tap the robot to stop it.
 - **Warmer or colder.** If Bluetooth is on, the app shows a signal meter you can follow as you walk toward the robot. This depends on whether we keep Bluetooth, which is still under review, so it may not ship.
 
-The robot has no GPS, so it cannot show its position on a map. It also has no ultra-wideband chip, so there is no arrow like the one on a lost phone. The meter and the beep get you close.
+## Where is it
+
+The robot has no GPS chip, but it can still tell you roughly where it is, by the Wi-Fi network it is on.
+
+- **Place names, private by default.** You name the Wi-Fi networks you use, such as "Home", "Office" or "Mia's house". Find shows the name of the place it was last seen, and nothing leaves your network.
+- **Your phone's hotspot.** If the robot is on your phone's hotspot, the app can show your phone's own position, because the two are together. This uses your phone's location, and it stays in the web app.
+- **A map, if you choose.** You can turn on a location lookup that finds the robot's position from the Wi-Fi networks around it, the way a website finds you. It is off by default, because it sends the names of nearby Wi-Fi networks to an outside location service, which breaks the rule that nothing leaves your home. The app says so before you turn it on. The result is about a street or a building, not a room.
+
+There is no ultra-wideband chip, so there is no arrow like the one on a lost phone. The place name, the beep and the meter get you close.
 
 ![The web app Find screen with last seen, a Make it beep button and a signal meter.](../images/find-me.svg)
 

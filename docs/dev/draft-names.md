@@ -104,3 +104,5 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - Own LLM alerts: web app, local API, MQTT, event stream. Phone push depends on decision 21 (web app push over a private-network certificate). Home adds descriptions, who it saw, quiet hours and recipients.
 - Red and blue are now reserved for alerts. The older notes say the lights are never red. Update `lights-and-sounds` rules together with the build session.
 - Alarm and recording notes are not legal advice. Review the Use it fairly section before release.
+
+- Where is it (owner idea 2026-11-15): Wi-Fi positioning. Default private: user-named Wi-Fi networks (by BSSID or name) and the phone's own location when the robot is on its hotspot. Optional lookup sends nearby access point identifiers to an outside geolocation service, off by default with a plain warning; this is an exception to the no-outside-service rule and needs the owner and the build session to approve. Accuracy is a street or building. Map tiles are an outside service too, so the default shows a place name, not a map.
