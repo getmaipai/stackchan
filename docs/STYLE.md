@@ -21,6 +21,10 @@
 
 One master page, `docs/user/lights-and-sounds.md`, holds the full table of lights and tones, with a swatch for each. A feature page does not get its own table. It says what the lights and tones do in one plain sentence in the section where the feature is explained, with a tiny inline swatch (`docs/images/light-*.svg`, made by `scripts/make-lights.py`), and links to the master page. A new light or tone is added to the master page in the same commit.
 
+## Scope
+
+MaiPai for StackChan on its own is one thing: a simple, private voice robot. A new feature goes in the core only if the robot can do it with no brain beyond the LLM and it fits that purpose. Everything else, such as cameras, monitoring, remote control, games and integrations, runs with MaiPai Home and carries the `Needs MaiPai Home` tag. Do not grow the core to hold the kitchen sink.
+
 ## Words to avoid
 
 Do not call the no-hub setup "standalone" in user docs. Say "your own LLM". "Standalone" is design jargon and reads like "stock". The setting value in the docs is `brain = "llm"`.

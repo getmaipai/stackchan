@@ -1,5 +1,10 @@
 # Use the camera
 
+<span class="home-tag">Needs MaiPai Home</span>
+
+This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
+
+
 The camera is off until you turn it on. Frames stay on the host and never go to an outside service.
 The robot's camera has a low resolution, so these pages call the pictures **snapshots**.
 

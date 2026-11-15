@@ -19,23 +19,26 @@ Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) f
 
 ## What it does
 
+MaiPai for StackChan is one thing: a private voice robot. It does a small set of things well, and everything bigger runs with MaiPai Home.
+
+**The robot, with your own LLM**
+
 - **[Voice](docs/user/voice.md):** Say the wake word and talk. Follow-up questions need no wake word, you can interrupt, and ten voice commands work with no model involved.
 - **[Faces and clock](docs/user/face-and-look.md):** Two face styles, any colour or none, a clock face, night mode and optional captions.
 - **[Timers and alarms](docs/user/timers-and-alarms.md):** A ring that empties as time runs out, named timers, snooze and quiet hours.
-- **[Reactions](docs/user/moves-and-moods.md):** Pickup, shake, tilt and petting, a breathing idle, tap-the-face mute and privacy sleep, and low-battery steps.
-- **[Baby and pet monitor](docs/user/baby-and-pet-monitor.md):** Hear and see a nursery from your phone and get alerts, started on the robot, with a clear sign on its screen. Planned.
-- **[No stealth](docs/user/no-stealth.md):** Every listening, looking or watching mode shows on the robot's screen.
-- **[Watch and alerts](docs/user/watch-and-alerts.md):** Notices motion and loud sounds, alerts you with a snapshot, and can flash red and blue with a siren. Planned.
-- **[Music and dance](docs/user/music-and-dance.md):** It hears music and dances to the beat, dances on request, and with MaiPai Home names the song.
-- **[Camera](docs/user/camera.md):** Off until you turn it on. Snapshots, face follow and a local name list, and "what is this" with MaiPai Home. Frames stay on your host.
-- **[Games and a pet mood](docs/user/games-and-pet.md):** Colour memory, an action game, and a mood that depends on how you care for the robot.
-- **[Coding companion](docs/user/coding-companion.md):** A green or red build light and your agent's status on the face.
-- **[Home tools](docs/user/home-tools.md):** A local API, an event stream, MQTT and metrics, all off by default.
+- **[Reactions](docs/user/moves-and-moods.md):** Pickup, shake, tilt and petting, a breathing idle, tap-the-face mute, and low-battery steps.
+- **[Music and dance](docs/user/music-and-dance.md):** It hears music and dances to the beat, and dances on request.
+- **[Privacy controls](docs/user/mute-and-camera-off.md):** Mute, camera off and full quiet, one tap each. [Nothing is ever monitored in secret](docs/user/no-stealth.md).
 - **[On the go](docs/user/use-it-anywhere.md):** Join your phone's hotspot or any Wi-Fi, and reach your host or hub over Tailscale on an encrypted link.
-- **[Security](docs/user/security.md):** Pairing with a code, revocable tokens, signed updates, and an encrypted link over Tailscale.
-- **[Lights and sounds](docs/user/lights-and-sounds.md):** One light colour per meaning, and soft tones that rise for good news and fall for bad.
-- **[Languages](docs/user/languages.md):** English and Spanish, switched at run time with no reflash.
-- **[Updates](docs/user/updates.md):** Signed images, a health check after install and automatic rollback. Nothing installs unless you say so.
+- **[Security](docs/user/security.md), [updates](docs/user/updates.md), [lights and sounds](docs/user/lights-and-sounds.md) and [languages](docs/user/languages.md):** Pairing with a code, signed updates with rollback, soft tones and one light colour per meaning, English and Spanish.
+
+**More, with [MaiPai Home](docs/user/with-maipai-home.md)** (free, open source)
+
+- **Camera:** [snapshots, face follow, a name list and "what is this"](docs/user/camera.md).
+- **Watching:** [watch mode and security alerts](docs/user/watch-and-alerts.md), and a [baby and pet monitor](docs/user/baby-and-pet-monitor.md).
+- **Find and control:** [find my robot, remote beep, lights, talk, pan and tilt, and live view](docs/user/find-and-remote.md).
+- **Play and build:** [games and a pet mood](docs/user/games-and-pet.md), a [coding companion](docs/user/coding-companion.md), and [home tools](docs/user/home-tools.md) such as a local API and MQTT.
+- **The household:** memory across days, people, calendars, announcements, naming songs, and rules for children and teens.
 
 Wake cue in under 150 ms. "Stop" and touch commands in under 300 ms. Replies start on the first finished sentence.
 

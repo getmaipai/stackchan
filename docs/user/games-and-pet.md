@@ -1,5 +1,10 @@
 # Play games and care for your pet
 
+<span class="home-tag">Needs MaiPai Home</span>
+
+This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
+
+
 ## Games
 
 Say "let's play" to see the list, or name a game.

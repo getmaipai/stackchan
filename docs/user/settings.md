@@ -32,7 +32,6 @@ English or Spanish. See `languages.md`. The robot changes at once with no file e
 - `thinking_cue`: dots always, plus a quiet tone by default.
 - `strip_mode`: `petting` (default) or `control` for quick sliders.
 - `update_*`: the updater. Checking is on and installing is off until you turn it on.
-- Privacy keys: camera, retention and presence.
 
 Run `stackchan check` after any change to your addresses. Environment variables override secrets in the file.
 
@@ -53,12 +52,12 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 | `night_mode`, `quiet_from`, `quiet_to` | Dim and quiet at night | off |
 | `thinking_cue` | The tone while it thinks | quiet tone |
 | `strip_mode`, `quick_sliders` | Head strip behaviour and its sliders | petting |
-| `hourly_chime`, `idle_motion`, `pet_mood` | Small behaviours | off, on, on |
-| `camera`, `camera_retention` | The opt-in camera and how long snapshots stay | off |
+| `hourly_chime`, `idle_motion` | Small behaviours | off, on |
 | `local_unmute` | Whether the robot's own face can unmute it | on |
 | `prefer_tailnet` | Minutes to try Tailscale first | 0 |
 | `update_channel`, `update_source`, `update_check`, `update_install` | Updates | stable, official, weekly, ask |
-| `api`, `events`, `mqtt_url`, `ha_bridge`, `metrics`, `mcp` | Home tools, all off | off |
+
+Settings for the camera, watching, remote control, games and home tools live in MaiPai Home, because those features run with it.
 
 Run `stackchan check` after any change to your addresses.
 
@@ -71,10 +70,8 @@ Clears Wi-Fi networks, the Tailscale key, pairing and settings, after a confirma
 - `persona` and `persona_lock`: the personality, and whether a spoken request can change it.
 - `quick_sliders`: which sliders the head strip opens. The default is volume and brightness.
 - `hourly_chime`, `quiet_from` and `quiet_to`: a soft tone each hour, and a window when the robot dims and stays quiet.
-- `idle_motion` and `pet_mood`: turn idle moves and the pet mood off.
-- `camera` and `camera_retention`: the opt-in camera, and how long snapshots stay.
+- `idle_motion`: turn the idle moves off.
 - `prefer_tailnet`: minutes the robot tries Tailscale first. The key itself is pasted on the Network page.
-- `api`, `events`, `mqtt_url`, `ha_bridge`, `metrics` and `mcp`: the home tools. All are off by default.
 
 ![The web settings page with the face, voice and privacy groups open.](../images/web-settings.svg)
 

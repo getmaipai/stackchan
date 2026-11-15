@@ -1,5 +1,10 @@
 # Find the robot and control it remotely
 
+<span class="home-tag">Needs MaiPai Home</span>
+
+This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
+
+
 <span class="planned-tag">Planned</span>
 
 Open the web app to find your robot, make it beep, turn its lights on, or talk through it. This works from your phone or computer, at home or over Tailscale.

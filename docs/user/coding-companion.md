@@ -1,5 +1,10 @@
 # Use the robot as a coding companion
 
+<span class="home-tag">Needs MaiPai Home</span>
+
+This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
+
+
 The robot sits on your desk and shows what your coding agent is doing.
 
 ## Agent status

@@ -4,8 +4,8 @@ Pick the row that sounds like you. The robot is the same hardware in every case.
 
 | If you want | Use | Start here |
 |---|---|---|
-| The simplest private robot, with a small model on one computer | **Your own LLM** | [Getting started](getting-started.md) |
-| Faster answers, memory across days, people and calendars | **With MaiPai Home** | [Use MaiPai Home as the brain](with-maipai-home.md) |
+| A simple, private voice robot with a small model on one computer | **Your own LLM** | [Getting started](getting-started.md) |
+| The camera, watching, a baby or pet monitor, find and remote control, games, a coding companion, faster answers, memory and calendars | **With MaiPai Home** | [Use MaiPai Home as the brain](with-maipai-home.md) |
 | To take the robot to a friend's house or the office | **On the go**, with either of the above | [Take the robot on the go](use-it-anywhere.md) |
 | The phone app, live video, remote avatar control, the ESP-NOW remote or the app centre | **Stay on the factory firmware** | [Compare](compare.md) |
 | To try MaiPai for StackChan and keep the option to return | **Switch, and go back if you want** | [Switch from the factory firmware](switch-from-the-factory-firmware.md) |

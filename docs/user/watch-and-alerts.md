@@ -1,9 +1,14 @@
 # Watch your room and get alerts
 
+<span class="home-tag">Needs MaiPai Home</span>
+
+This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
+
+
 <span class="planned-tag">Planned</span>
 
 Turn the robot into a watch post. It notices motion and loud sounds, tells you right away, and, if you want, flashes red and blue and sounds a siren.
-Most of this works with your own LLM. MaiPai Home adds more, and it is marked where it does.
+It runs with MaiPai Home, which handles the alerts, the recipients and what the robot saw.
 
 ## Arm it
 
@@ -24,7 +29,7 @@ Mute and camera off still work: if you turn the camera off, motion watching stop
 | **Motion** | The host compares snapshots from the camera and sees something move | The camera on |
 | **A loud sound** | The robot measures the loudness of the room. Nothing is recorded or sent unless an alert fires | Sound watching on |
 | **The robot being moved or lifted** | Its motion sensor feels it | Nothing extra |
-| **A person** <span class="home-tag">Needs MaiPai Home</span> | MaiPai Home tells a person from a pet or a curtain, and can say who it is | MaiPai Home |
+| **A person** | MaiPai Home tells a person from a pet or a curtain, and can say who it is | MaiPai Home |
 
 You set how sensitive each one is, and you can draw an area on the picture to ignore, such as a window with trees outside.
 
@@ -45,16 +50,8 @@ Red and blue are used only in alert mode, so you never see them for anything els
 
 ## Where alerts go
 
-| | With your own LLM | With MaiPai Home <span class="home-tag">Needs MaiPai Home</span> |
-|---|---|---|
-| A notice in the web app, with the snapshot | Yes | Yes |
-| The local API, the event stream, MQTT and a home-automation bridge | Yes | Yes |
-| An alert on your phone | Through the web app, over your Tailscale network | Through MaiPai Home, to the people you choose |
-| What it saw, in words ("a person at the door") | No | Yes |
-| Who it saw | A name from your local list, if you enrolled one | Yes |
-| Quiet hours and who gets which alert | No | Yes |
-
-The alert is a short message with a time, what it noticed and the snapshot. The video and the sound stay on your host.
+MaiPai Home sends the alert to the people you choose, with the snapshot, what it noticed and the time. It can say what it saw in words ("a person at the door"), name who it saw, and follow your quiet hours and who gets which alert.
+The robot also sends the alert to the local API and the event stream, so your own tools can react. The video and the sound stay on your host.
 
 ## Keep false alarms down
 

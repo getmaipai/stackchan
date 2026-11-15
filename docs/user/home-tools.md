@@ -1,5 +1,10 @@
 # Connect the robot to your own tools
 
+<span class="home-tag">Needs MaiPai Home</span>
+
+This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
+
+
 Everything here runs on the host. All of it is off by default, and every one needs a token. None of it calls an outside service.
 
 | Tool | What it is for | Turn on |

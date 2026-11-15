@@ -2,6 +2,8 @@
 
 A tour of everything the robot does, grouped by what you want to do. Each group has its own page.
 
+**MaiPai for StackChan on its own is a simple, private voice robot.** It talks, shows a face, keeps time, reacts, dances, and keeps your things private. Anything bigger runs with MaiPai Home and carries the <span class="home-tag">Needs MaiPai Home</span> tag.
+
 A feature that needs something you have not set up hides itself. You never see a raw error for it. The web settings page names what is missing.
 
 ![The web app's feature list with each feature switched on or off.](../images/web-features.svg)
@@ -26,17 +28,17 @@ Page: [Timers and alarms](timers-and-alarms.md).
 Three switches, each a tap on the face. Mute the microphone, stop the camera, or hold still and silent.
 Page: [Mute, camera off and full quiet](mute-and-camera-off.md).
 
-## Find it and control it remotely
+## Find it and control it remotely <span class="home-tag">Needs MaiPai Home</span>
 
 Find the robot, make it beep and flash, and control its lights and voice from the web app. <span class="planned-tag">Planned</span>
 Page: [Find the robot and control it remotely](find-and-remote.md).
 
-## Watch and alert
+## Watch and alert <span class="home-tag">Needs MaiPai Home</span>
 
 Watch for motion and loud sounds, get an alert, and, if you want, flash red and blue and sound a siren. <span class="planned-tag">Planned</span>
 Page: [Watch your room and get alerts](watch-and-alerts.md).
 
-## Baby and pet monitor
+## Baby and pet monitor <span class="home-tag">Needs MaiPai Home</span>
 
 Watch and listen in a nursery or a pet's room, get alerts, and play lullabies or calming sounds, with a clear sign on the robot's screen. <span class="planned-tag">Planned</span>
 Page: [Use the robot as a baby or pet monitor](baby-and-pet-monitor.md).
@@ -51,22 +53,22 @@ Page: [Moves and moods](moves-and-moods.md).
 Dance on request, dance to music by itself, and name the song <span class="home-tag">Needs MaiPai Home</span>.
 Page: [Music and dance](music-and-dance.md).
 
-## Let it see (opt-in)
+## Let it see (opt-in) <span class="home-tag">Needs MaiPai Home</span>
 
 Snapshots, face follow, wave and mirror mode, "take my picture" and a local name list. "What do you see" <span class="planned-tag">Planned</span>. "What is this" <span class="home-tag">Needs MaiPai Home</span>.
 Page: [Camera](camera.md).
 
-## Play
+## Play <span class="home-tag">Needs MaiPai Home</span>
 
 A colour-memory game, an action game, a pet mood that depends on care, and music dance.
 Page: [Games and pet](games-and-pet.md).
 
-## Code with it
+## Code with it <span class="home-tag">Needs MaiPai Home</span>
 
 Agent status on the face and light bars, a build light, dictation and touch approvals.
 Page: [Coding companion](coding-companion.md).
 
-## Connect it to your tools
+## Connect it to your tools <span class="home-tag">Needs MaiPai Home</span>
 
 A local API, an event stream, MQTT, a home-automation bridge and metrics. All off by default.
 Page: [Home tools](home-tools.md).
