@@ -66,18 +66,21 @@ The camera-on cue is the one cue you cannot turn off.
 
 ![The low-battery icon at 10 percent.](../images/low-battery.svg)
 
-## Lights and sounds
+<details>
+<summary><strong>Lights and sounds</strong></summary>
 
 | What you see | What you hear | When |
 |---|---|---|
-| ![Amber light bars, one short pulse](../images/light-amber.svg)<br>Amber light bars, one short pulse every 10 seconds, and a tired face | ![A short chirp](../images/tone-low-battery.svg)<br>A chirp at 20 percent. A spoken request to plug in at 10 percent | The battery is low and the charger is out. The screen says "Battery low" |
-| ![Small red light at the back](../images/light-charging.svg)<br>Lights off. A small red light at the back | ![Two quick rising notes](../images/tone-plug-in.svg)<br>Two quick rising notes | You plugged in the charger. The red light stays on while it charges and goes off when it is full |
-| Lights off | ![Three rising notes](../images/tone-charged.svg)<br>Three rising notes | The battery is full and the cable is still in |
-| Lights off | ![One falling note](../images/tone-unplug.svg)<br>One falling note | You pulled the cable out |
+| <img src="../images/light-amber.svg" alt="Amber light bars, one short pulse" width="64"><br>Amber light bars, one short pulse every 10 seconds, and a tired face | <img src="../images/tone-low-battery.svg" alt="A short chirp" width="52"><br>A chirp at 20 percent. A spoken request to plug in at 10 percent | The battery is low and the charger is out. The screen says "Battery low" |
+| <img src="../images/light-charging.svg" alt="Small red light at the back" width="64"><br>Lights off. A small red light at the back | <img src="../images/tone-plug-in.svg" alt="Two quick rising notes" width="52"><br>Two quick rising notes | You plugged in the charger. The red light stays on while it charges and goes off when it is full |
+| Lights off | <img src="../images/tone-charged.svg" alt="Three rising notes" width="52"><br>Three rising notes | The battery is full and the cable is still in |
+| Lights off | <img src="../images/tone-unplug.svg" alt="One falling note" width="52"><br>One falling note | You pulled the cable out |
 | Lights off, a surprised or dizzy face | A short spoken line, not at night | You picked it up, shook it or turned it over |
-| Lights off, the sleeping face | ![Three falling notes](../images/tone-goodbye.svg)<br>Three slow falling notes | You pressed the power key to turn it off |
+| Lights off, the sleeping face | <img src="../images/tone-goodbye.svg" alt="Three falling notes" width="52"><br>Three slow falling notes | You pressed the power key to turn it off |
 
 See [Lights and sounds](lights-and-sounds.md) for every light and tone.
+
+</details>
 
 ## Still need help?
 

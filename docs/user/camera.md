@@ -46,15 +46,18 @@ Add people to a local name list from the web page. The robot can then say who it
 
 Snapshots are deleted after `camera_retention`. Press Delete all in the web page, or run `stackchan camera delete`, to clear them now.
 
-## Lights and sounds
+<details>
+<summary><strong>Lights and sounds</strong></summary>
 
 | What you see | What you hear | When |
 |---|---|---|
-| ![Pink light bars flashing twice, then steady](../images/light-pink.svg)<br>Pink light bars: two quick flashes, then steady | ![Two short clicks](../images/tone-shutter.svg)<br>A short double click | The camera is taking a picture. This cue is never dimmed, and the click plays at night too |
+| <img src="../images/light-pink.svg" alt="Pink light bars flashing twice, then steady" width="64"><br>Pink light bars: two quick flashes, then steady | <img src="../images/tone-shutter.svg" alt="Two short clicks" width="52"><br>A short double click | The camera is taking a picture. This cue is never dimmed, and the click plays at night too |
 | Camera-on icon on the screen | Nothing | The camera is streaming. You cannot turn this cue off |
 | Calm, half-closed eyes | Nothing | The camera is off |
 
 See [Lights and sounds](lights-and-sounds.md) for every light and tone.
+
+</details>
 
 ## Still need help?
 

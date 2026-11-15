@@ -43,14 +43,17 @@ The flasher accepts the official image or a local file. `stackchan firmware veri
 
 See [Troubleshooting](troubleshooting.md).
 
-## Lights and sounds
+<details>
+<summary><strong>Lights and sounds</strong></summary>
 
 | What you see | What you hear | When |
 |---|---|---|
-| ![White light bars pulsing fast](../images/light-white.svg)<br>White light bars, a fast pulse every second, and an animated updating icon | Nothing | An update is installing. Do not unplug the robot |
-| Neutral face, lights off | ![A rising chime](../images/tone-back-online.svg)<br>A rising chime | The update worked and the robot is back online |
+| <img src="../images/light-white.svg" alt="White light bars pulsing fast" width="64"><br>White light bars, a fast pulse every second, and an animated updating icon | Nothing | An update is installing. Do not unplug the robot |
+| Neutral face, lights off | <img src="../images/tone-back-online.svg" alt="A rising chime" width="52"><br>A rising chime | The update worked and the robot is back online |
 
 See [Lights and sounds](lights-and-sounds.md) for every light and tone.
+
+</details>
 
 ## Still need help?
 

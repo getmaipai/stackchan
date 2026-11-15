@@ -65,17 +65,20 @@ Record them once from the web page.
 Set `llm_url`, `stt_url` and `tts_url` in `robot.toml`. Leave the speech addresses blank to use the built-in engines.
 Run `stackchan check` after any change.
 
-## Lights and sounds
+<details>
+<summary><strong>Lights and sounds</strong></summary>
 
 | What you see | What you hear | When |
 |---|---|---|
-| ![Blue light bars, steady](../images/light-blue.svg)<br>Blue light bars, steady | ![One short rising pop](../images/tone-listening.svg)<br>A short rising pop | You said the wake word or tapped, and it is your turn to talk |
-| ![Green light bars, steady](../images/light-green.svg)<br>Green light bars, steady | Nothing | Your voice is being sent to your host or hub. It stays on the whole time and never dims |
+| <img src="../images/light-blue.svg" alt="Blue light bars, steady" width="64"><br>Blue light bars, steady | <img src="../images/tone-listening.svg" alt="One short rising pop" width="52"><br>A short rising pop | You said the wake word or tapped, and it is your turn to talk |
+| <img src="../images/light-green.svg" alt="Green light bars, steady" width="64"><br>Green light bars, steady | Nothing | Your voice is being sent to your host or hub. It stays on the whole time and never dims |
 | Lights off, thinking dots on the face | A quiet tone. Change it with `thinking_cue` | The robot is working on the reply |
 | Lights off, mood face and moving mouth | Its voice | The robot is speaking |
-| ![Amber light bars, one short pulse](../images/light-amber.svg)<br>Amber light bars, one short pulse every 10 seconds | ![Two falling notes](../images/tone-offline.svg)<br>Two falling notes, once | The robot cannot reach your host. The screen says "Offline" |
+| <img src="../images/light-amber.svg" alt="Amber light bars, one short pulse" width="64"><br>Amber light bars, one short pulse every 10 seconds | <img src="../images/tone-offline.svg" alt="Two falling notes" width="52"><br>Two falling notes, once | The robot cannot reach your host. The screen says "Offline" |
 
 See [Lights and sounds](lights-and-sounds.md) for every light and tone.
+
+</details>
 
 ## Still need help?
 
