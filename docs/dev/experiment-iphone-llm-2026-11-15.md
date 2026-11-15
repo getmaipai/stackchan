@@ -55,3 +55,12 @@ Next step: finish the laptop-host experiment first, then decide whether a native
 - The Personal Hotspot case must be tested first.
 - Background serving is unproven and the main risk, because iOS suspends apps. Plan a foreground app on a dock with the screen on.
 - Speech with the on-device recogniser and the system synthesiser, and the model on the device. A separate client, not core. Experiment.
+
+## Search result: is there an app already? (2026-11-15)
+
+- Searched for an iPhone or Android app that hosts the whole voice pipeline for an ESP32 voice robot. None found.
+- Found instead: open servers that do speech to text, the model and text to speech behind a WebSocket for ESP32 robots. All need a Mac, a Linux machine or Docker. One of them is aimed at this robot.
+- Found: on-device iPhone voice pipelines (Apple speech recognition, Apple's on-device model, a local text to speech engine) with no server, and vendor SDKs for on-device voice. Neither has a robot-facing server.
+- The official robot app only binds and configures the robot through the maker's account and services. It does not host a local model.
+- So a phone-only setup means writing the listener ourselves on top of an on-device pipeline. Not found: any Android route (a server app on Android was not searched in depth). Search Android before deciding.
+- Do not name these projects in the user docs.

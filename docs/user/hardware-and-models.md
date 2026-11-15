@@ -41,7 +41,7 @@ If you use a model that cannot call actions, the voice commands still work. See 
 A phone-only setup is the goal, and it is not ready yet. <span class="planned-tag">Planned</span>
 
 The robot talks to a host program, and the host turns your voice into text, asks the model, and speaks the answer. Today that host runs on a Mac, a Linux machine or a Raspberry Pi 5.
-Some iPhone apps can serve a model, but a model app alone is not enough: the robot also needs the host and the speech parts. An iPhone app could do all of it, with the phone's own speech recogniser and voice, and a model that runs on the phone. It would be a separate app, not part of this one. It can serve the robot while the app is open on the screen. It cannot be counted on once the phone locks, because iOS pauses background apps. So the plan is a phone on a stand with the screen on, and the phone's hotspot case has to be tested first.
+Some iPhone apps can serve a model, but a model app alone is not enough: the robot also needs the host and the speech parts. An iPhone app could do all of it, with the phone's own speech recogniser and voice, and a model that runs on the phone. We have not found a ready-made phone app that does this, so it would be a separate app we build, not part of this one. It can serve the robot while the app is open on the screen. It cannot be counted on once the phone locks, because iOS pauses background apps. So the plan is a phone on a stand with the screen on, and the phone's hotspot case has to be tested first.
 
 Until then, the smallest setup is a Raspberry Pi 5 running the host, with the model on a phone, a laptop or a bigger computer on your network.
 
