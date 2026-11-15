@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 260" width="720" height="260" role="img" aria-label="The robot talks over one link to the host. The host talks to a brain: a local model with speech tools, or MaiPai Home.">
+<rect width="720" height="260" rx="14" fill="#10141b"/>
+<g font-family="system-ui,sans-serif" font-size="14" fill="#e5e7eb" text-anchor="middle">
+<rect x="24" y="70" width="170" height="120" rx="12" fill="#1f2937" stroke="#38bdf8" stroke-width="2"/>
+<text x="109" y="100" font-weight="700">Robot</text>
+<text x="109" y="124" fill="#9ca3af" font-size="12">firmware on the StackChan</text>
+<text x="109" y="146" fill="#9ca3af" font-size="12">face, touch, servos, camera,</text>
+<text x="109" y="164" fill="#9ca3af" font-size="12">mics, speaker, wake word</text>
+<rect x="275" y="70" width="170" height="120" rx="12" fill="#1f2937" stroke="#38bdf8" stroke-width="2"/>
+<text x="360" y="100" font-weight="700">Host</text>
+<text x="360" y="124" fill="#9ca3af" font-size="12">the stackchan program</text>
+<text x="360" y="146" fill="#9ca3af" font-size="12">pairing, features, settings,</text>
+<text x="360" y="164" fill="#9ca3af" font-size="12">web app, local API</text>
+<rect x="526" y="24" width="170" height="92" rx="12" fill="#1f2937" stroke="#22c55e" stroke-width="2"/>
+<text x="611" y="52" font-weight="700">Standalone brain</text>
+<text x="611" y="74" fill="#9ca3af" font-size="12">your local LLM and</text>
+<text x="611" y="92" fill="#9ca3af" font-size="12">speech tools</text>
+<rect x="526" y="144" width="170" height="92" rx="12" fill="#1f2937" stroke="#a855f7" stroke-width="2"/>
+<text x="611" y="172" font-weight="700">MaiPai Home</text>
+<text x="611" y="194" fill="#9ca3af" font-size="12">optional hub: memory,</text>
+<text x="611" y="212" fill="#9ca3af" font-size="12">people, household rules</text>
+<g stroke="#9ca3af" stroke-width="2" fill="none"><line x1="194" y1="130" x2="275" y2="130"/><line x1="445" y1="110" x2="526" y2="70"/><line x1="445" y1="150" x2="526" y2="190"/></g>
+<text x="234" y="118" font-size="11" fill="#9ca3af">one link</text>
+<text x="234" y="152" font-size="11" fill="#9ca3af">Wi-Fi or</text>
+<text x="234" y="166" font-size="11" fill="#9ca3af">Tailscale</text>
+<text x="486" y="106" font-size="11" fill="#9ca3af" transform="rotate(-24 486 106)">HTTP</text>
+<text x="486" y="168" font-size="11" fill="#9ca3af" transform="rotate(24 486 168)">HTTP</text>
+</g></svg>

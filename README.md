@@ -77,7 +77,7 @@ MaiPai for StackChan is free and open source. If it helps you, [sponsoring on Gi
 
 ## Development
 
-Read `docs/dev/contributing.md`, then run `bash scripts/check.sh` before you send a change. Build from source and the host design are under `docs/dev/`.
+Start with [the developer overview](docs/dev/overview.md), read `docs/dev/contributing.md`, then run `bash scripts/check.sh` before you send a change. Build from source and the host design are under `docs/dev/`.
 
 ## Disclaimer
 
