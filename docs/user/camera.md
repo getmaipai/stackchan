@@ -8,7 +8,7 @@ The robot's camera has a low resolution, so these pages call the pictures **snap
 Set `camera = true` in `robot.toml`, or switch it on in the web page. Choose how long the host keeps snapshots with `camera_retention`.
 A camera-on cue shows whenever the camera streams. You cannot turn that cue off.
 
-> **Screenshot placeholder:** `camera-cue.png`. The robot screen with the camera-on icon.
+![The robot screen with the camera-on icon.](../images/camera-cue.svg)
 
 ## What is this
 
@@ -19,7 +19,7 @@ If you set no vision model, the feature hides.
 
 Say "take my picture". The robot counts down, plays a shutter tone and saves the snapshot to a folder on the host.
 
-> **Screenshot placeholder:** `countdown.png`. The countdown screen showing 2.
+![The countdown screen showing 2.](../images/countdown.svg)
 
 ## Face follow, wave and mirror
 
@@ -32,7 +32,7 @@ Say "take my picture". The robot counts down, plays a shutter tone and saves the
 Add people to a local name list from the web page. The robot can then say who it sees, and the host can send an alert such as
 "Atlas is at the door". The list lives in a file on the host.
 
-> **Screenshot placeholder:** `name-list.png`. The name list page with two entries.
+![The name list page with two entries.](../images/name-list.svg)
 
 ## Keep and delete
 

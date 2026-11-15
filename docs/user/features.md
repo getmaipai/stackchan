@@ -4,7 +4,7 @@ A tour of everything the robot does, grouped by what you want to do. Each group 
 
 A feature that needs something you have not set up hides itself. You never see a raw error for it. The web settings page names what is missing.
 
-> **Screenshot placeholder:** `web-features.png`. The web app's feature list with each feature switched on or off.
+![The web app's feature list with each feature switched on or off.](../images/web-features.svg)
 
 ## Make it look the way you like
 

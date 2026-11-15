@@ -9,7 +9,7 @@
 After an answer the robot keeps listening for a few seconds. You can ask a follow-up without the wake word.
 You can also interrupt: speak while it talks and it stops and listens.
 
-> **Screenshot placeholder:** `listening.png`. The robot face in the listening state.
+![The robot face in the listening state.](../images/listening.svg)
 
 ## Voice commands
 
@@ -34,7 +34,7 @@ A persona sets the name, the voice and the way the robot talks. Pick one in the 
 Lock a persona with `persona_lock = true` so a spoken request cannot change it. A family-friendly persona is included.
 It is a prompt, not a guarantee. The model you connect decides what is said.
 
-> **Screenshot placeholder:** `personas.png`. The persona list in the web page with one locked.
+![The persona list in the web page with one locked.](../images/personas.svg)
 
 ## Actions through the model
 

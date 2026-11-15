@@ -7,7 +7,7 @@ The robot sits on your desk and shows what your coding agent is doing.
 The face and the ring show the agent's state: thinking, working, waiting for you or done. Each state has its own shape and motion.
 The robot can also speak a short update, or show it as a caption.
 
-> **Screenshot placeholder:** `agent-status.png`. The face with a working ring and a caption "Running tests".
+![The face with a working ring and a caption "Running tests".](../images/agent-status.svg)
 
 ## Build light
 
@@ -19,7 +19,7 @@ stackchan notify --status pass
 
 Use `--status fail` when the build fails. The ring turns green on pass and red on fail, with a check or a cross, so it reads without colour.
 
-> **Screenshot placeholder:** `build-light.png`. The ring green with a check, then red with a cross.
+![The ring green with a check, then red with a cross.](../images/build-light.svg)
 
 ## Dictation
 

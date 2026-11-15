@@ -12,7 +12,7 @@ Everything here runs on the host. All of it is off by default, and every one nee
 
 Run `stackchan token` to create a token. Run `stackchan check` to test each address.
 
-> **Screenshot placeholder:** `api-settings.png`. The web page with the API, MQTT and metrics switches.
+![The web page with the API, MQTT and metrics switches.](../images/api-settings.svg)
 
 ## Ideas
 

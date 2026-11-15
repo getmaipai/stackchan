@@ -1,17 +1,22 @@
 # MaiPai StackChan
 
-Firmware and a host program for the StackChan desktop robot. The robot talks, shows a face, sets timers, plays games and keeps you
-company, using AI models that run in your own home.
+Custom StackChan firmware and host software for **privacy, speed and more things the robot can do**.
+
+The stock StackChan sends your voice to a cloud service. This replaces that. Your robot listens, thinks and talks using
+models that run on your own computer, so what you say stays in your home. It also reacts faster, because the robot answers
+touch, shake and "stop" by itself without waiting on a server, and it can do things the stock robot cannot: timers with a
+ring, games, a camera that can name the people you enrol, a build light for your coding agent, and a local API for your own tools.
+
+- **Private.** No cloud, no vendor account, no telemetry. The robot talks only to your host program and your Wi-Fi.
+- **Fast.** Wake tone and listening cue in under 150 ms. Stop and local commands in under 300 ms with no model in the path.
+  Replies start on the first sentence, not the last.
+- **More capable.** Faces, a clock, timers, alarms, camera, games, a pet mood, a coding companion and two languages, all in one firmware.
+- **Yours.** AGPL-3.0 source, a build you can reproduce, and updates that never install unless you say so.
 
 > **Draft notice.** These docs are written as if v1.0.0 is finished, so the owner can review the full product. Remove this notice
 > when v1.0.0 ships. Until then, treat every feature as unconfirmed on a unit.
 
-> **Screenshot placeholder:** `hero.png`. The robot on a desk with the big-eyes face, next to a laptop showing the web settings page.
-
-## The promise
-
-Private, local AI that is yours. Nothing leaves your home. The robot talks only to the host program and the Wi-Fi you gave it.
-The host calls only the addresses you put in its settings file. There is no telemetry, no vendor account and no cloud.
+![The robot on a desk with the big-eyes face, next to a laptop showing the web settings page.](docs/images/hero.svg)
 
 ## What it does
 
@@ -28,13 +33,19 @@ The host calls only the addresses you put in its settings file. There is no tele
 
 ## Two ways to run it
 
-- **Standalone (default).** The host program uses a language model you run yourself, reached over a chat-completions style web address.
-  Speech to text and text to speech use the addresses you set, or a built-in local engine when you leave them blank.
-- **With MaiPai Home (optional).** MaiPai Home can act as the robot's brain and add household memory, people and policy.
-  It is one optional brain. The robot is complete without it, and you never need to install anything else to run this repo.
-  [Details](docs/user/with-maipai-home.md)
+**Standalone (default).** The host program runs on a Mac, a Linux machine or a Raspberry Pi 5. It uses a language model you run
+yourself, reached over a chat-completions style web address. Speech to text and text to speech use the addresses you set, or a built-in
+local engine when you leave them blank. You need nothing else.
 
-Switching is one line in `robot.toml`. The robot is not reflashed.
+**With MaiPai Home (optional, faster and smarter).** [MaiPai Home](docs/user/with-maipai-home.md) is a private AI hub for your household.
+Point the robot at it with one line, `brain = "home"`, and the robot gets:
+
+- **Speed.** Home keeps its speech and chat models loaded and warm on one machine built for them, so the first word arrives sooner.
+  It can run bigger, better models than a small always-on host can. A 4B class model answers in under 400 ms warm. A 27B class model on a weak host does not.
+- **Memory.** It remembers across days, and it knows each person by voice and by name.
+- **The household.** Calendars, briefings, announcements, song naming and rules for children and teens.
+
+The robot is complete without Home. Switching is one line in `robot.toml` and the robot is not reflashed.
 
 ## Install
 
@@ -46,7 +57,7 @@ Switching is one line in `robot.toml`. The robot is not reflashed.
 
 Full steps: [Getting started](docs/user/getting-started.md). Windows service support is not in v1.
 
-> **Screenshot placeholder:** `pairing-code.png`. The robot screen showing a 6 digit pairing code.
+![The robot screen showing a 6 digit pairing code.](docs/images/pairing-code.svg)
 
 ## Safety note
 

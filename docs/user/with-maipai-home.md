@@ -20,7 +20,7 @@ The standalone robot does none of these by itself.
 
 The robot is not reflashed. Set `brain = "standalone"` to go back. Your timers, faces and settings stay.
 
-> **Screenshot placeholder:** `brain-switch.png`. The web page with the brain choice set to MaiPai Home.
+![The web page with the brain choice set to MaiPai Home.](../images/brain-switch.svg)
 
 ## What stays on the robot
 

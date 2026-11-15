@@ -14,26 +14,26 @@ About 20 minutes the first time. You do this once.
 1. **Install the host.** Run `pipx install git+https://github.com/getmaipai/stackchan`.
 2. **Flash the robot.** Open the web flasher, plug the robot in by USB and press Install. You can enter your Wi-Fi in the same dialog.
 
-   > **Screenshot placeholder:** `flasher.png`. The web flasher with the Install button and the Wi-Fi fields.
+   ![The web flasher with the Install button and the Wi-Fi fields.](../images/flasher.svg)
 
 3. **Pair.** Run `stackchan pair` on the host. A two minute window opens. The robot shows a 6 digit code. Type it on the host.
 
-   > **Screenshot placeholder:** `pairing-code.png`. The robot screen with the 6 digit code, and the host terminal asking for it.
+   ![The robot screen with the 6 digit code, and the host terminal asking for it.](../images/pairing-code.svg)
 
 4. **Point at your model.** Open `robot.toml` and set `llm_url` to your model address, for example `http://192.0.2.10:8080`.
 5. **Check.** Run `stackchan check`. It tests each address and says in plain words what is wrong.
 
-   > **Screenshot placeholder:** `check-output.png`. The terminal after `stackchan check`, every line marked ok.
+   ![The terminal after `stackchan check`, every line marked ok.](../images/check-output.svg)
 
 6. **Talk.** Say the wake word, then ask a question. The face shows dots while it thinks, then it answers.
 
-   > **Screenshot placeholder:** `first-turn.png`. The robot face with thinking dots.
+   ![The robot face with thinking dots.](../images/first-turn.svg)
 
 ## If the robot cannot join Wi-Fi
 
 It opens a setup page. Connect to its network, pick your Wi-Fi, enter the password and the host address.
 
-> **Screenshot placeholder:** `wifi-setup.png`. The setup page with a list of networks.
+![The setup page with a list of networks.](../images/wifi-setup.svg)
 
 ## Optional
 

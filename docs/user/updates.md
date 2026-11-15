@@ -17,7 +17,7 @@ The check is one small request to your chosen update source. It sends only the f
 
 The same keys appear in `robot.toml`, in the web page and on the robot.
 
-> **Screenshot placeholder:** `update-settings.png`. The update settings with "ask" selected.
+![The update settings with "ask" selected.](../images/update-settings.svg)
 
 ## Install an update
 
@@ -26,7 +26,7 @@ The same keys appear in `robot.toml`, in the web page and on the robot.
 3. The robot downloads the image and checks its signature. An image with a bad signature is refused.
 4. It restarts. If it does not pass its health check in 60 seconds, it rolls back to the old version by itself.
 
-> **Screenshot placeholder:** `update-ready.png`. The update-ready card with Install and Release notes buttons.
+![The update-ready card with Install and Release notes buttons.](../images/update-ready.svg)
 
 ## Your own images
 

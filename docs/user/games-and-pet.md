@@ -9,9 +9,9 @@ Say "let's play" to see the list, or name a game.
 
 Colours always come with a shape, so you can play without telling colours apart.
 
-> **Screenshot placeholder:** `game-memory.png`. The colour-memory game with four shapes.
+![The colour-memory game with four shapes.](../images/game-memory.svg)
 
-> **Screenshot placeholder:** `game-whack.png`. The whack-a-mole variant mid-round.
+![The whack-a-mole variant mid-round.](../images/game-whack.svg)
 
 New games arrive as signed packs for one built-in game engine. You can add a pack in the web page. An unsigned pack is refused.
 
@@ -21,7 +21,7 @@ The robot has a mood that depends on how you care for it. Petting, talking and p
 The mood is saved across days and shows in the face and the idle moves. It never affects what the robot can do for you.
 Turn it off with `pet_mood = false`.
 
-> **Screenshot placeholder:** `mood-faces.png`. Three mood faces: happy, bored and lonely.
+![Three mood faces: happy, bored and lonely.](../images/mood-faces.svg)
 
 ## Music dance
 

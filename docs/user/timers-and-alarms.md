@@ -5,7 +5,7 @@
 Say the wake word, then "set a timer for ten minutes". The screen shows a ring that empties as time runs out.
 When the time is up the robot plays a tone and shows a pulsing icon. Say "stop" or touch the robot to end it.
 
-> **Screenshot placeholder:** `timer-ring.png`. The ring timer at 60 percent, with the time left in the middle.
+![The ring timer at 60 percent, with the time left in the middle.](../images/timer-ring.svg)
 
 ## Several timers
 
@@ -17,7 +17,7 @@ Timers are saved on the host, so they survive a robot restart.
 Say "wake me at seven". When it rings, say "snooze" for a short delay. If you ignore it, it gets louder in steps.
 Each kind of alarm has its own tone, so you know a kitchen timer from a wake-up alarm without looking.
 
-> **Screenshot placeholder:** `alarm-ringing.png`. The alarm screen with a bell icon and the snooze hint.
+![The alarm screen with a bell icon and the snooze hint.](../images/alarm-ringing.svg)
 
 ## Hourly chime
 

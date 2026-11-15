@@ -45,4 +45,4 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 - `camera`, `camera_retention` and `vision_url`: the opt-in camera, how long snapshots stay, and your vision model.
 - `api`, `events`, `mqtt_url`, `ha_bridge`, `metrics` and `mcp`: the home tools. All are off by default.
 
-> **Screenshot placeholder:** `web-settings.png`. The web settings page with the face, voice and privacy groups open.
+![The web settings page with the face, voice and privacy groups open.](../images/web-settings.svg)

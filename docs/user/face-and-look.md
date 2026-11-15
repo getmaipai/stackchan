@@ -7,14 +7,14 @@ You can change every item here at any time. None of it needs a reflash.
 Two styles ship: **big eyes** and **minimal**. Pick one in the web settings page or set `face_style` in `robot.toml`.
 The page shows a live preview that uses the same drawing code as the robot.
 
-> **Screenshot placeholder:** `face-styles.png`. The big-eyes face and the minimal face side by side.
+![The big-eyes face and the minimal face side by side.](../images/face-styles.svg)
 
 ## Face colour
 
 Set `face_color` to none, a named colour or a custom colour. The default is neutral, with no colour until you pick one.
 Colour never carries meaning alone. Every state also has a shape or an icon, so the robot reads well if you cannot tell colours apart.
 
-> **Screenshot placeholder:** `face-colors.png`. The same face in three colours.
+![The same face in three colours.](../images/face-colors.svg)
 
 ## Captions
 
@@ -25,7 +25,7 @@ The screen is small, so long answers are spoken and shown in the web app, not on
 
 The clock shows big digits or a ring. It dims at night. It keeps working if the host is off, once the host has set the time.
 
-> **Screenshot placeholder:** `clock-face.png`. The clock face with big digits, then dimmed in night mode.
+![The clock face with big digits, then dimmed in night mode.](../images/clock-face.svg)
 
 ## Night mode
 
@@ -40,4 +40,4 @@ While the robot thinks, animated dots show on every face, with a quiet tone. Set
 Slide your finger along the head strip to open a small overlay. It shows volume and brightness. Add more with `quick_sliders`.
 If you prefer petting on the strip, leave `strip_mode` at `petting`. Set it to `control` to use the sliders.
 
-> **Screenshot placeholder:** `quick-sliders.png`. The slider overlay for volume on the robot screen.
+![The slider overlay for volume on the robot screen.](../images/quick-sliders.svg)

@@ -11,7 +11,7 @@
 
 Petting uses the head strip. If you set `strip_mode = "control"`, the strip opens quick sliders instead.
 
-> **Screenshot placeholder:** `reactions.png`. Four faces: surprised, dizzy, tilted and happy.
+![Four faces: surprised, dizzy, tilted and happy.](../images/reactions.svg)
 
 ## Idle life
 
@@ -40,4 +40,4 @@ The camera-on cue is the one cue you cannot turn off.
 | 10 percent | It asks you out loud to plug it in. |
 | 5 percent | It goes to sleep before the power runs out. |
 
-> **Screenshot placeholder:** `low-battery.png`. The low-battery icon at 10 percent.
+![The low-battery icon at 10 percent.](../images/low-battery.svg)
