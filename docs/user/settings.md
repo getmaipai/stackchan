@@ -1,11 +1,11 @@
 # Settings
 
-Status: planned. You will find the same settings in three places: the `robot.toml` file, the web settings page and the robot itself.
+You will find the same settings in three places: the `robot.toml` file, the web settings page and the robot itself.
 Changing a setting never needs a reflash.
 
 ## Face style (`face_style`)
 
-Picks the look of the face. Planned packs: big eyes and minimal. The web page shows a preview.
+Picks the look of the face. Packs: big eyes and minimal. The web page shows a preview.
 
 ## Face colour (`face_color`)
 
@@ -35,3 +35,14 @@ English or Spanish. See `languages.md`. The robot changes at once with no file e
 - Privacy keys: camera, retention and presence.
 
 Run `stackchan check` after any change to your addresses. Environment variables override secrets in the file.
+
+## More keys
+
+- `persona` and `persona_lock`: the personality, and whether a spoken request can change it.
+- `quick_sliders`: which sliders the head strip opens. The default is volume and brightness.
+- `hourly_chime` and `quiet_hours`: a soft tone each hour, and a window when the robot dims and stays quiet.
+- `idle_motion` and `pet_mood`: turn idle moves and the pet mood off.
+- `camera`, `camera_retention` and `vision_url`: the opt-in camera, how long snapshots stay, and your vision model.
+- `api`, `events`, `mqtt_url`, `ha_bridge`, `metrics` and `mcp`: the home tools. All are off by default.
+
+> **Screenshot placeholder:** `web-settings.png`. The web settings page with the face, voice and privacy groups open.

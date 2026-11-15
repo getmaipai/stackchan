@@ -1,6 +1,6 @@
 # Build from source
 
-Status: planned. The build script does not exist yet. This is the design.
+Written for the v1.0.0 design. See the Draft notice in the README.
 
 ## Command
 

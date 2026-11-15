@@ -1,6 +1,5 @@
 # Troubleshooting
 
-Status: planned. Messages below are the design. Each says what went wrong and what to do.
 
 Start with `stackchan check`. It tests each address you set and says what is wrong.
 

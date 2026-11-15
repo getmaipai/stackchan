@@ -1,6 +1,6 @@
 # Languages
 
-Status: planned. English and Spanish come first. One firmware works for both, and you pick the language at run time.
+English and Spanish are included. One firmware works for both, and you pick the language at run time.
 
 ## Change the language
 

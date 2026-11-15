@@ -1,6 +1,6 @@
 # Contributing
 
-Status: the repo is a skeleton. Read `docs/design/INDEX.md` and the one design note for your slice. Do not read the whole tree.
+Read `docs/design/INDEX.md` and the one design note for your slice. Do not read the whole tree.
 
 ## Hard rules
 

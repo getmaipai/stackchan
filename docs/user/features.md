@@ -1,51 +1,61 @@
 # Features
 
-Status: every feature here is planned. Nothing is built yet.
+A tour of everything the robot does, grouped by what you want to do. Each group has its own page.
 
-A feature that needs something you have not set up hides itself. You never see a raw error for it.
+A feature that needs something you have not set up hides itself. You never see a raw error for it. The web settings page names what is missing.
 
-## Face and look
+> **Screenshot placeholder:** `web-features.png`. The web app's feature list with each feature switched on or off.
 
-- Face packs: a big-eyes face and a minimal face. You can change the style and colour at any time.
-- A clock face with big digits or a ring. It dims at night.
-- Animated dots show when the robot is thinking, with a quiet tone.
-- Slide the head strip to open quick sliders for volume and brightness.
+## Make it look the way you like
 
-## Moves and moods
+Two face styles, any colour or none, a clock face, night mode and optional captions. Slide the head strip for quick sliders.
+Page: [Face and look](face-and-look.md).
 
-- It reacts when you pick it up, shake it or tilt it. Petting its head makes it happy.
-- It breathes and looks around when idle.
-- Quiet mode makes slow, gentle moves.
-- Privacy sleep turns the robot away from you.
-- Low battery: a chirp at 20 percent, a spoken request at 10 percent, sleep at 5 percent.
+## Talk to it
 
-## Voice
+Wake word, follow-up questions, interrupting, voice commands, personas and offline phrases.
+Page: [Voice](voice.md).
 
-- Wake word, then talk. Follow-up questions do not need the wake word. You can interrupt the robot.
-- Commands: stop, mute, quiet, don't move, volume, brightness, sleep, time and night mode.
-- Timers and alarms with snooze. The ring on screen empties as time runs out.
-- Personas, with a lock. The robot can run its own actions, such as a timer, through the model.
+## Keep time
 
-## Camera (opt-in)
+Timers with a ring that empties, alarms with snooze, an hourly chime and quiet hours.
+Page: [Timers and alarms](timers-and-alarms.md).
 
-- Snapshots, "what is this", face follow, wave and mirror mode, and "take my picture" with a countdown.
-- A local name list lets it say who it sees. Frames stay on the host. You choose how long to keep them and can delete all.
-- A camera-on cue always shows while the camera streams. You cannot turn it off.
+## Let it react
+
+Pickup, shake, tilt and petting, breathing, quiet mode, privacy sleep and the low-battery steps.
+Page: [Moves and moods](moves-and-moods.md).
+
+## Let it see (opt-in)
+
+Snapshots, "what is this", face follow, wave and mirror mode, "take my picture" and a local name list.
+Page: [Camera](camera.md).
 
 ## Play
 
-- A colour-memory game and an action game. A mood that depends on how you care for the robot.
-- The robot can dance to music and show mood faces.
+A colour-memory game, an action game, a pet mood that depends on care, and music dance.
+Page: [Games and pet](games-and-pet.md).
 
-## Coding companion
+## Code with it
 
-- The face and ring show an agent's status. A build light turns green on pass and red on fail.
-- Approvals use touch only by default, never voice alone.
+Agent status on the face and ring, a build light, dictation and touch approvals.
+Page: [Coding companion](coding-companion.md).
 
-## Home tools (off by default)
+## Connect it to your tools
 
-A local API, an event stream, MQTT, a home-automation bridge and a metrics endpoint. All run on the host and need a token.
+A local API, an event stream, MQTT, a home-automation bridge and metrics. All off by default.
+Page: [Home tools](home-tools.md).
 
-## What a household brain adds
+## Keep it current
 
-If you connect MaiPai Home, you can get memory across days, per-person voices, calendars and household rules. These are not built into the standalone robot.
+Checking for updates is on. Installing is off until you turn it on.
+Page: [Updates](updates.md).
+
+## Add a household brain
+
+MaiPai Home can add memory across days, per-person voices, calendars and household rules. The robot is complete without it.
+Page: [With MaiPai Home](with-maipai-home.md).
+
+## Not included
+
+Sound direction, Bluetooth, a phone app and anything that calls an outside service by itself.

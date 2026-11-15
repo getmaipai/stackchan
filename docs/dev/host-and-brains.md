@@ -1,6 +1,6 @@
 # Host and brains
 
-Status: design. Nothing here is built.
+Written for the v1.0.0 design. See the Draft notice in the README.
 
 ## Three layers
 

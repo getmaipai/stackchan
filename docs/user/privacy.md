@@ -2,7 +2,6 @@
 
 Private, local AI that is yours. Nothing leaves your home.
 
-Status: planned. This is the design the build must meet.
 
 ## What talks to what
 
