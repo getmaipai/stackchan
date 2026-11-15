@@ -8,30 +8,30 @@ The robot stays the same. MaiPai for StackChan changes the firmware and adds a h
 The ratings are ours. We rate the factory firmware only where M5Stack's [official project README](https://github.com/m5stack/StackChan) says it has a feature (checked 2026-11-15).
 TBD means the README is silent or we have not tested it. See the [official docs](https://docs.m5stack.com/en/StackChan) for those. Our own stars come from the design and will change as we measure.
 
-| | Factory firmware | MaiPai for StackChan | With MaiPai Home |
-|---|:---:|:---:|:---:|
-| AI agent | ★★★ | ★★★ | ★★★ |
-| Privacy: your voice stays in your home | TBD | ★★★ | ★★★ |
-| Security: who can control the robot | TBD | ★★☆ | ★★☆ |
-| Security: the link (encrypted over Tailscale) | TBD | ★★☆ | ★★☆ |
-| Speed of replies | TBD | ★★☆ | ★★★ |
-| Model size and answer quality | TBD | ★★☆ | ★★★ |
-| Memory across days | TBD | ☆☆☆ | ★★★ |
-| Knows each person | TBD | ★☆☆ | ★★★ |
-| Calendars, briefings, announcements | TBD | ☆☆☆ | ★★★ |
-| Rules for children and teens | TBD | ☆☆☆ | ★★★ |
-| Animated face | ★★★ | ★★★ | ★★★ |
-| Timers and alarms | TBD | ★★★ | ★★★ |
-| Camera features | TBD | ★★★ | ★★★ |
-| Games and a pet mood | TBD | ★★★ | ★★★ |
-| Coding companion | TBD | ★★★ | ★★★ |
-| Local API, MQTT, metrics | TBD | ★★★ | ★★★ |
-| On the go (phone hotspot, any Wi-Fi) | TBD | ★★★ | ★★★ |
-| English and Spanish | TBD | ★★★ | ★★★ |
-| Signed updates with rollback | TBD | ★★★ | ★★★ |
-| Mobile app for video and remote avatar control | ★★★ | ☆☆☆ | ☆☆☆ |
-| Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ |
-| ESP-NOW remote controller | ★★★ | ☆☆☆ | ☆☆☆ |
+| | Factory firmware | MaiPai for StackChan | With MaiPai Home | Why it matters |
+|---|:---:|:---:|:---:|---|
+| AI agent | ★★★ | ★★★ | ★★★ | Talk to it and it answers. Ours uses a model you choose. |
+| Privacy: your voice stays in your home | ★☆☆ | ★★★ | ★★★ | Your voice and habits never leave your home. The official server README lists a backend service with a XiaoZhi integration. You can self-host it, but that is extra work. |
+| Security: who can control the robot | TBD | ★★☆ | ★★☆ | Nobody else can take over your robot. A code you type pairs it, and you can revoke access any time. |
+| Security: the link | TBD | ★★☆ | ★★☆ | Encrypted over Tailscale. On plain home Wi-Fi it is not yet, so we give two stars. |
+| Speed of replies | TBD | ★★☆ | ★★★ | Wake cue under 150 ms, stop under 300 ms, and the reply starts on the first sentence. Home is faster again. |
+| Model size and answer quality | TBD | ★★☆ | ★★★ | Bigger models give better answers. A hub runs them. |
+| Memory across days | TBD | ☆☆☆ | ★★★ | It remembers what you told it yesterday. |
+| Knows each person | TBD | ★☆☆ | ★★★ | It knows who is talking, by voice and by name. |
+| Calendars, briefings, announcements | TBD | ☆☆☆ | ★★★ | Ask about your day and hear household announcements. |
+| Rules for children and teens | TBD | ☆☆☆ | ★★★ | Kids get answers that fit the rules you set. |
+| Animated face | ★★★ | ★★★ | ★★★ | Two styles, any colour or none, and captions if you want them. |
+| Timers and alarms | TBD | ★★★ | ★★★ | A ring empties as time runs out, so you can read it across the room. |
+| Camera features | TBD | ★★★ | ★★★ | Ask "what is this" or have it follow you. Frames stay on your host. |
+| Games and a pet mood | TBD | ★★★ | ★★★ | Something to do together. The pet mood grows with care. |
+| Coding companion | TBD | ★★★ | ★★★ | A green or red light for your build, where you can see it. |
+| Local API, MQTT, metrics | TBD | ★★★ | ★★★ | Wire the robot into your own tools. |
+| On the go (phone hotspot, any Wi-Fi) | TBD | ★★★ | ★★★ | Join your phone's hotspot and take it to a friend's house. |
+| English and Spanish | TBD | ★★★ | ★★★ | Switch language at run time with no reflash. |
+| Signed updates with rollback | TBD | ★★★ | ★★★ | Nothing installs unless you say so, and a bad update rolls back by itself. |
+| Mobile app for video and remote avatar control | ★★★ | ☆☆☆ | ☆☆☆ | We have no phone app. If you rely on it, stay on factory. |
+| Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ | Not in our firmware. If you rely on it, stay on factory. |
+| ESP-NOW remote controller | ★★★ | ☆☆☆ | ☆☆☆ | Not supported yet. If you rely on it, stay on factory. |
 
 ## What the stars mean for you
 
