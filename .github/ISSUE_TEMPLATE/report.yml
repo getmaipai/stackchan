@@ -4,7 +4,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        MaiPai for StackChan is a hobby project. I read everything (eventually), but I may be slow and can't promise to build it. Please don't take silence personally.
+        MaiPai for StackChan is a hobby project. We read everything (eventually), but may be slow and can't promise to build it. Please don't take silence personally.
   - type: dropdown
     id: kind
     attributes:
