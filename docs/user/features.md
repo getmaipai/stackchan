@@ -36,10 +36,10 @@ Page: [Find the robot and control it remotely](find-and-remote.md).
 Watch for motion and loud sounds, get an alert, and, if you want, flash red and blue and sound a siren. <span class="planned-tag">Planned</span>
 Page: [Watch your room and get alerts](watch-and-alerts.md).
 
-## Baby monitor
+## Baby and pet monitor
 
-Watch and listen in a nursery, get alerts, and play lullabies, with a clear sign on the robot's screen. <span class="planned-tag">Planned</span>
-Page: [Use the robot as a baby monitor](baby-monitor.md).
+Watch and listen in a nursery or a pet's room, get alerts, and play lullabies or calming sounds, with a clear sign on the robot's screen. <span class="planned-tag">Planned</span>
+Page: [Use the robot as a baby or pet monitor](baby-and-pet-monitor.md).
 
 ## Let it react
 

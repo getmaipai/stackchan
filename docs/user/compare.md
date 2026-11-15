@@ -37,7 +37,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | On the go (phone hotspot, any Wi-Fi) | TBD | ★★★ | ★★★ | Join your phone's hotspot and take it to a friend's house. |
 | English and Spanish | TBD | ★★★ | ★★★ | Switch language at run time with no reflash. |
 | Signed updates with rollback | TBD | ★★★ | ★★★ | Nothing installs unless you say so, and a bad update rolls back by itself. |
-| Baby monitor <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Hear and see the room from your phone and get alerts. You start it on the robot, and the screen always says so. Not a certified baby monitor. |
+| Baby and pet monitor <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Hear and see a nursery or a pet's room from your phone and get alerts. You start it on the robot, and the screen always says so. Not a certified baby monitor. |
 | No stealth: monitoring always shown on screen | TBD | ★★★ | ★★★ | Every listening, looking and watching mode shows on the robot's screen, and the cue cannot be turned off. |
 | Watch mode: motion and sound alerts <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | The robot notices motion and loud sounds and sends an alert with a snapshot. Better with MaiPai Home, which can say what it saw and who. |
 | Security alarm: red and blue lights, siren <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | A warning or an alarm with swapping lights, a siren and an alert on the screen. |

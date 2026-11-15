@@ -1,31 +1,45 @@
-# Use the robot as a baby monitor
+# Use the robot as a baby or pet monitor
 
 <span class="planned-tag">Planned</span>
 
-The robot can watch and listen in a nursery and tell you when something needs you. It always shows on its own screen that it is doing this.
+The robot can watch and listen in a nursery or a pet's room and tell you when something needs you. It always shows on its own screen that it is doing this.
+
+## Choose baby or pet
+
+When you start it, pick a profile. The robot changes what it listens for and how it comforts.
+
+| | Baby | Pet |
+|---|---|---|
+| **Listens for** | Crying and loud sounds | Barking, howling, meowing and loud sounds |
+| **Comforts with** | A lullaby, a soft sound, or your voice | Your voice, calming music or a soft sound |
+| **Plays by itself** | Only if you turn that on | Only if you turn that on |
+| **Label on the screen** | **Baby monitor**, with a baby icon | **Pet monitor**, with a paw icon |
+
+Detecting a cry, a bark or a meow is planned and not designed yet. At first, alerts come from loudness. <span class="home-tag">Needs MaiPai Home</span> MaiPai Home can tell the difference.
 
 ## Read this first
 
 The robot is a helper, not a certified baby monitor and not a medical device. It can miss a cry, a sound or a movement, or lose its Wi-Fi.
 Do not rely on it to keep a baby safe. Check on your baby in person, and follow the safe sleep advice from your doctor.
+For a pet, it does not replace care. Keep its cable out of a pet's reach, and ask your vet before leaving a pet alone for a long time.
 
 ## Start it on the robot
 
-Baby monitor starts only on the robot itself. Say "baby monitor on", or tap **Baby monitor** on its screen. It cannot be started from the web app or from far away.
+Baby monitor starts only on the robot itself. Say "baby monitor on" or "pet monitor on", or tap **Baby monitor** or **Pet monitor** on its screen. It cannot be started from the web app or from far away.
 That is on purpose: it is the one mode where the robot sends its microphone to your phone, so a person in the room must start it.
 
-While it runs, the screen shows a calm **Baby monitor** label with a microphone icon and a camera icon, and a small **Listening in** mark while your phone is connected. These cues stay on and you cannot turn them off.
+While it runs, the screen shows a calm **Baby monitor** or **Pet monitor** label with a microphone icon and a camera icon, and a small **Listening in** mark while your phone is connected. These cues stay on and you cannot turn them off.
 You stop it the same way, by voice or on the screen, or from your phone.
 
 ![The robot screen with a Baby monitor label, a microphone icon, a camera icon and a Listening in mark.](../images/baby-monitor.svg)
 
 ## What it does
 
-- **Alerts when the room gets loud.** A cry or a loud sound sends an alert to your phone. Cry detection is planned. <span class="home-tag">Needs MaiPai Home</span> MaiPai Home can tell a cry from other noise.
+- **Alerts when the room gets loud.** A cry, a bark or a loud sound sends an alert to your phone.
 - **Alerts on movement.** The camera notices motion and sends an alert with a snapshot. The robot's camera is small and low resolution, so you see shapes, not detail.
 - **Listen in.** Open the web app on your phone to hear the room live.
 - **Look in.** Live view shows a low-resolution picture. In a dark room the picture is dark, so use a night light.
-- **Soothe.** You can play a song or a soft sound, or talk to the baby through the robot. Your phone shows a clear **Playing** or **Talking** mark, and the robot shows the same on its screen.
+- **Soothe.** You can play a song or a soft sound, or talk to your baby or pet through the robot. A familiar voice often calms a pet. Your phone shows a clear **Playing** or **Talking** mark, and the robot shows the same on its screen.
 
 The robot dims its screen and keeps its voice low. It does not flash red and blue or sound a siren in baby monitor mode.
 
@@ -48,10 +62,10 @@ Nothing is recorded by default. Sound and pictures stay on your host and go only
 
 ## Set it up
 
-1. Put the robot where the camera can see the crib, and a little out of reach, so the baby cannot touch it.
+1. Put the robot where the camera can see the crib or the pet's bed, and a little out of reach, so a baby or a pet cannot touch it.
 2. Plug it in. A monitor that runs out of battery stops watching.
 3. Tell the other adults in the house, and open the web app on your phone to check the sound and the picture.
-4. Say "baby monitor on" in the room. You'll know it worked when the screen shows **Baby monitor**.
+4. Say "baby monitor on" in the room. You'll know it worked when the screen shows **Baby monitor** or **Pet monitor**.
 
 ## If it stops working
 
