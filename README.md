@@ -13,7 +13,7 @@ It is faster and smoother than the factory firmware, and it adds timers, a camer
 
 Connect it to [MaiPai Home](docs/user/with-maipai-home.md) for more: faster answers from bigger models, memory across days, people, calendars and household rules.
 
-[See how it compares](docs/user/compare.md) with the factory firmware, and standalone with MaiPai Home, side by side.
+[See how it compares](docs/user/compare.md) with the factory firmware, and with MaiPai Home, side by side.
 
 ![The robot on a desk showing the big-eyes face, with the settings page open on a laptop beside it.](docs/images/hero.svg)
 
