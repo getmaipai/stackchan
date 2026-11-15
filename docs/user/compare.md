@@ -16,13 +16,14 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Security: the link | TBD | ★★☆ | ★★☆ | Encrypted over Tailscale. On plain home Wi-Fi it is not yet, so we give two stars. |
 | Speed of replies | TBD | ★★☆ | ★★★ | Wake cue under 150 ms, stop under 300 ms, and the reply starts on the first sentence. Home is faster again. |
 | Model size and answer quality | TBD | ★★☆ | ★★★ | Bigger models give better answers. A hub runs them. |
-| Memory across days | TBD | ☆☆☆ | ★★★ | It remembers what you told it yesterday. |
-| Knows each person | TBD | ★☆☆ | ★★★ | It knows who is talking, by voice and by name. |
-| Calendars, briefings, announcements | TBD | ☆☆☆ | ★★★ | Ask about your day and hear household announcements. |
-| Rules for children and teens | TBD | ☆☆☆ | ★★★ | Kids get answers that fit the rules you set. |
+| Memory across days <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | It remembers what you told it yesterday. |
+| Knows each person <span class="home-tag">Needs MaiPai Home</span> | TBD | ★☆☆ | ★★★ | It knows who is talking, by voice and by name. |
+| Calendars, briefings, announcements <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Ask about your day and hear household announcements. |
+| Rules for children and teens <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Kids get answers that fit the rules you set. |
 | Animated face | ★★☆ | ★★★ | ★★★ | The official README lists lively, expressive animations. Ours lets you choose between two styles, any colour or none, and captions, and it adds a clock face and night mode. |
 | Timers and alarms | TBD | ★★★ | ★★★ | A ring empties as time runs out, so you can read it across the room. |
-| Camera features | TBD | ★★★ | ★★★ | Ask "what is this" or have it follow you. Frames stay on your host. |
+| Camera: snapshots, face follow, name list | TBD | ★★★ | ★★★ | Have it follow you, take your picture, or say who it sees. Frames stay on your host. |
+| Camera: "what is this" <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Hold something up and hear what it is. Your hub does the looking. |
 | Games and a pet mood | TBD | ★★★ | ★★★ | Something to do together. The pet mood grows with care. |
 | Coding companion | TBD | ★★★ | ★★★ | A green or red light for your build, where you can see it. |
 | Local API, MQTT, metrics | TBD | ★★★ | ★★★ | Wire the robot into your own tools. |

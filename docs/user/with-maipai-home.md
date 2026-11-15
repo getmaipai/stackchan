@@ -5,6 +5,7 @@ MaiPai Home is an optional brain. The robot is complete without it. Use it if yo
 ## What it adds
 
 - Memory across days.
+- "What is this": hold something up to the camera and hear what it is.
 - Voices matched to each person.
 - Calendars, briefings and household announcements.
 - Household rules, including rules for children and teens.

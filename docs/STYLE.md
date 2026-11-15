@@ -17,6 +17,10 @@
 12. Docs change in the same commit as the behaviour they describe.
 13. Run `bash scripts/check.sh` before landing. It must print "hygiene: ok".
 
+## Tags
+
+A feature that needs MaiPai Home carries the tag `<span class="home-tag">Needs MaiPai Home</span>` where it is first described (heading line or feature list) and in the compare table. The site draws it as a small label. On GitHub it shows as plain text.
+
 ## README and page shape
 
 A README opens the way successful firmware projects do:

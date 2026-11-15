@@ -5,7 +5,7 @@ When the build settles each one, rename it in the docs or keep it, then delete i
 
 ## Settings keys
 
-`persona`, `persona_lock`, `hourly_chime`, `idle_motion`, `pet_mood`, `cues`, `camera`, `camera_retention`, `vision_url`,
+`persona`, `persona_lock`, `hourly_chime`, `idle_motion`, `pet_mood`, `cues`, `camera`, `camera_retention`,
 `tailscale` key field on the Network page, `saved_wifi` list, `api`, `events`, `mqtt_url`, `ha_bridge`, `metrics`, `mcp`, `home_url`, `quick_sliders` values (volume, brightness).
 
 ## Commands

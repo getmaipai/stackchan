@@ -12,8 +12,10 @@ A camera-on cue shows whenever the camera streams. You cannot turn that cue off.
 
 ## What is this
 
-Hold something up and say "what is this". The host sends one snapshot to the vision model address you set in `vision_url`.
-If you set no vision model, the feature hides.
+<span class="home-tag">Needs MaiPai Home</span>
+
+Hold something up and say "what is this". The robot sends one snapshot to your MaiPai Home hub, which describes it out loud.
+Without MaiPai Home, this feature is hidden. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
 ## Take my picture
 

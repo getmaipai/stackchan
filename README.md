@@ -11,7 +11,7 @@ What you say to it stays in your home. AI on your own computer answers, with no 
 
 It is faster and smoother than the factory firmware, and it adds timers, a camera that can name the people you enrol, games, a coding companion and a local API. Take it on the go: it joins your phone's hotspot and reaches your host over Tailscale, so it works at a friend's house, a hotel or the office.
 
-Connect it to [MaiPai Home](docs/user/with-maipai-home.md) for more: faster answers from bigger models, memory across days, people, calendars and household rules.
+Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) for more: faster answers from bigger models, memory across days, people, calendars and household rules.
 
 [See how it compares](docs/user/compare.md) with the factory firmware, and with MaiPai Home, side by side.
 
@@ -23,7 +23,7 @@ Connect it to [MaiPai Home](docs/user/with-maipai-home.md) for more: faster answ
 - **[Faces and clock](docs/user/face-and-look.md):** Two face styles, any colour or none, a clock face, night mode and optional captions.
 - **[Timers and alarms](docs/user/timers-and-alarms.md):** A ring that empties as time runs out, named timers, snooze and quiet hours.
 - **[Reactions](docs/user/moves-and-moods.md):** Pickup, shake, tilt and petting, a breathing idle, privacy sleep and low-battery steps.
-- **[Camera](docs/user/camera.md):** Off until you turn it on. Snapshots, "what is this", face follow and a local name list. Frames stay on your host.
+- **[Camera](docs/user/camera.md):** Off until you turn it on. Snapshots, face follow and a local name list, and "what is this" with MaiPai Home. Frames stay on your host.
 - **[Games and a pet mood](docs/user/games-and-pet.md):** Colour memory, an action game, and a mood that depends on how you care for the robot.
 - **[Coding companion](docs/user/coding-companion.md):** A green or red build light and your agent's status on the face.
 - **[Home tools](docs/user/home-tools.md):** A local API, an event stream, MQTT and metrics, all off by default.

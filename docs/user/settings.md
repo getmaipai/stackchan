@@ -46,7 +46,7 @@ Clears Wi-Fi networks, the Tailscale key, pairing and settings, after a confirma
 - `quick_sliders`: which sliders the head strip opens. The default is volume and brightness.
 - `hourly_chime`, `quiet_from` and `quiet_to`: a soft tone each hour, and a window when the robot dims and stays quiet.
 - `idle_motion` and `pet_mood`: turn idle moves and the pet mood off.
-- `camera`, `camera_retention` and `vision_url`: the opt-in camera, how long snapshots stay, and your vision model.
+- `camera` and `camera_retention`: the opt-in camera, and how long snapshots stay.
 - `prefer_tailnet`: minutes the robot tries Tailscale first. The key itself is pasted on the Network page.
 - `api`, `events`, `mqtt_url`, `ha_bridge`, `metrics` and `mcp`: the home tools. All are off by default.
 

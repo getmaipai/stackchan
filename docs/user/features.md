@@ -28,7 +28,7 @@ Page: [Moves and moods](moves-and-moods.md).
 
 ## Let it see (opt-in)
 
-Snapshots, "what is this", face follow, wave and mirror mode, "take my picture" and a local name list.
+Snapshots, face follow, wave and mirror mode, "take my picture" and a local name list. "What is this" <span class="home-tag">Needs MaiPai Home</span>.
 Page: [Camera](camera.md).
 
 ## Play
