@@ -1,4 +1,4 @@
-# Timers and alarms
+# Set a timer or alarm
 
 ## Set a timer
 
@@ -31,3 +31,7 @@ Alarms you set still ring.
 ## Offline
 
 Timers and alarms run without the language model. They need the host only to be set. The clock needs the host once, to learn the time.
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

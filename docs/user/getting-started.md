@@ -49,3 +49,7 @@ In standalone mode the robot adds no content filter. The model you connect decid
 ## Next
 
 Take the tour in [Features](features.md), or change how the robot looks in [Settings](settings.md).
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

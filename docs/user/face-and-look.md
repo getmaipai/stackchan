@@ -1,4 +1,4 @@
-# Face and look
+# Change how the robot looks
 
 You can change every item here at any time. None of it needs a reflash.
 
@@ -41,3 +41,7 @@ Slide your finger along the head strip to open a small overlay. It shows volume 
 If you prefer petting on the strip, leave `strip_mode` at `petting`. Set it to `control` to use the sliders.
 
 ![The slider overlay for volume on the robot screen.](../images/quick-sliders.svg)
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

@@ -1,4 +1,4 @@
-# Coding companion
+# Use the robot as a coding companion
 
 The robot sits on your desk and shows what your coding agent is doing.
 
@@ -34,3 +34,7 @@ Voice alone never approves. This is on purpose, so a stray sentence cannot allow
 
 The host offers an MCP endpoint. An agent can use it to show a face, speak or play a cue. It is off by default. Turn it on with
 `mcp = true` and give the agent the token from `stackchan token`.
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

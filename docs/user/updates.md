@@ -1,4 +1,4 @@
-# Updates
+# Update the robot
 
 ## The default
 
@@ -36,3 +36,7 @@ The flasher accepts the official image or a local file. `stackchan firmware veri
 ## If an update fails
 
 See [Troubleshooting](troubleshooting.md).
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

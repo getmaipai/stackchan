@@ -1,4 +1,4 @@
-# Privacy
+# What stays private
 
 Private, local AI that is yours. Nothing leaves your home.
 
@@ -38,3 +38,7 @@ It is off until you paste a Tailscale key. When on, the robot contacts your Tail
 ## Content
 
 The standalone robot adds no content filter. The model you connect is responsible for what it says.
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

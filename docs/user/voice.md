@@ -1,4 +1,4 @@
-# Voice
+# Talk to the robot
 
 ## Talk to the robot
 
@@ -50,3 +50,7 @@ Record them once from the web page.
 
 Set `llm_url`, `stt_url` and `tts_url` in `robot.toml`. Leave the speech addresses blank to use the built-in engines.
 Run `stackchan check` after any change.
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

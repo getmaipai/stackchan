@@ -1,4 +1,4 @@
-# Home tools
+# Connect the robot to your own tools
 
 Everything here runs on the host. All of it is off by default, and every one needs a token. None of it calls an outside service.
 
@@ -24,3 +24,7 @@ Run `stackchan token` to create a token. Run `stackchan check` to test each addr
 
 Tokens can be revoked at any time. The link between the host and your other tools is as private as your network.
 Use a network you trust until the encrypted link ships.
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

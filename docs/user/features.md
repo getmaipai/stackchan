@@ -1,4 +1,4 @@
-# Features
+# What the robot can do
 
 A tour of everything the robot does, grouped by what you want to do. Each group has its own page.
 
@@ -64,3 +64,7 @@ Page: [With MaiPai Home](with-maipai-home.md).
 ## Not included
 
 Sound direction, Bluetooth, a phone app and anything that calls an outside service by itself.
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

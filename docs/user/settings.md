@@ -1,4 +1,4 @@
-# Settings
+# Change a setting
 
 You will find the same settings in three places: the `robot.toml` file, the web settings page and the robot itself.
 Changing a setting never needs a reflash.
@@ -47,3 +47,7 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 - `api`, `events`, `mqtt_url`, `ha_bridge`, `metrics` and `mcp`: the home tools. All are off by default.
 
 ![The web settings page with the face, voice and privacy groups open.](../images/web-settings.svg)
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

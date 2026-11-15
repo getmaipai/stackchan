@@ -1,4 +1,4 @@
-# Games and pet
+# Play games and care for your pet
 
 ## Games
 
@@ -27,3 +27,7 @@ Turn it off with `pet_mood = false`.
 
 Play music near the robot and say "dance". It sways to the beat and shows a mood face that fits the music.
 It listens through its own microphone and keeps nothing.
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

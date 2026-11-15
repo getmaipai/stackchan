@@ -1,4 +1,4 @@
-# Use it anywhere with Tailscale
+# Use the robot anywhere with Tailscale
 
 The robot can join your Tailscale network. Then it reaches your host, or your MaiPai Home hub, from any Wi-Fi: your living room, a friend's house, a hotel.
 The link is encrypted end to end by Tailscale, and nothing is opened on your router.
@@ -39,3 +39,7 @@ Add one from the robot's setup page or the web settings page. Remove any time. P
 ## Using MaiPai Home
 
 The same setup reaches a MaiPai Home hub on your tailnet. See [With MaiPai Home](with-maipai-home.md).
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

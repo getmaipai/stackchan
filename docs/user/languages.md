@@ -1,4 +1,4 @@
-# Languages
+# Switch the language
 
 English and Spanish are included. One firmware works for both, and you pick the language at run time.
 
@@ -18,3 +18,7 @@ Set `language` in `robot.toml`, on the web settings page or on the robot. No ref
 - The wake word is an English phrase today. A Spanish phrase needs a trained model. Until then the English phrase works as the robot's name.
 - Spanish voice commands on the robot may not be ready. If not, say the wake word first, then the command. The host handles it.
 - Chinese, Japanese and Korean text is an optional font pack. Right-to-left screens are not planned.
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

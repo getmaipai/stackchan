@@ -1,4 +1,4 @@
-# Camera
+# Use the camera
 
 The camera is off until you turn it on. Frames stay on the host and never go to an outside service.
 The robot's camera has a low resolution, so these pages call the pictures **snapshots**.
@@ -37,3 +37,7 @@ Add people to a local name list from the web page. The robot can then say who it
 ## Keep and delete
 
 Snapshots are deleted after `camera_retention`. Press Delete all in the web page, or run `stackchan camera delete`, to clear them now.
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

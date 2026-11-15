@@ -1,4 +1,4 @@
-# Moves and moods
+# How the robot reacts
 
 ## Reactions
 
@@ -41,3 +41,7 @@ The camera-on cue is the one cue you cannot turn off.
 | 5 percent | It goes to sleep before the power runs out. |
 
 ![The low-battery icon at 10 percent.](../images/low-battery.svg)
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

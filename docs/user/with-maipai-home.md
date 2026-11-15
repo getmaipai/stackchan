@@ -1,4 +1,4 @@
-# With MaiPai Home
+# Use MaiPai Home as the brain
 
 MaiPai Home is an optional brain. The robot is complete without it. Use it if you already run a MaiPai Home hub and want the robot to share the household's records.
 
@@ -30,3 +30,7 @@ See [Use it anywhere](use-it-anywhere.md).
 ## What stays on the robot
 
 Timers, faces, reactions, games and the camera name list work the same either way. A feature that needs a service the brain lacks hides itself.
+
+## Still need help?
+
+Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.
