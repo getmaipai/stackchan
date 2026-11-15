@@ -106,3 +106,13 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - Alarm and recording notes are not legal advice. Review the Use it fairly section before release.
 
 - Where is it (owner idea 2026-11-15): Wi-Fi positioning. Default private: user-named Wi-Fi networks (by BSSID or name) and the phone's own location when the robot is on its hotspot. Optional lookup sends nearby access point identifiers to an outside geolocation service, off by default with a plain warning; this is an exception to the no-outside-service rule and needs the owner and the build session to approve. Accuracy is a street or building. Map tiles are an outside service too, so the default shows a place name, not a map.
+
+## No stealth, baby monitor, pan and tilt (2026-11-15, owner requests)
+
+- Owner rule: no stealth monitoring; any monitoring shows clearly on screen. docs/user/no-stealth.md lists each mode and its cue. The build session must give every mode a cue driven by the same code path that opens the mic or camera.
+- CONFLICT to settle: baby monitor needs the mic streamed to the parent's phone. The remote-control rules say structural no remote listening (no host-to-mic message type). The docs make baby monitor the single exception: starts only on the robot, cue always shown, Listening in mark while a phone is connected. Needs the owner and the build session to approve. Also: remote talk plays a tone first, which would wake a baby, so the baby monitor Soothe skips the tone but shows Talking on the phone and the robot.
+- Cue collision: green light bars never dim, but green all night in a nursery is a problem. The docs say baby monitor dims the screen and avoids alarm lights; the light cue for it is not decided.
+- No night vision is documented. The camera is low resolution and the dark picture is dark. Say so; do not promise night view.
+- Cry detection is not designed. Own LLM gets loudness alerts; Home may classify cries.
+- Pan and tilt: official docs recommend keeping the vertical servo in about 5 to 85 degrees and allow continuous horizontal rotation. Preset spots and the Home button are drafts.
+- Legal and safety text on baby-monitor.md (not a certified monitor, safe sleep) needs the owner's review before release.

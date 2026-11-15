@@ -37,10 +37,13 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | On the go (phone hotspot, any Wi-Fi) | TBD | ★★★ | ★★★ | Join your phone's hotspot and take it to a friend's house. |
 | English and Spanish | TBD | ★★★ | ★★★ | Switch language at run time with no reflash. |
 | Signed updates with rollback | TBD | ★★★ | ★★★ | Nothing installs unless you say so, and a bad update rolls back by itself. |
+| Baby monitor <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Hear and see the room from your phone and get alerts. You start it on the robot, and the screen always says so. Not a certified baby monitor. |
+| No stealth: monitoring always shown on screen | TBD | ★★★ | ★★★ | Every listening, looking and watching mode shows on the robot's screen, and the cue cannot be turned off. |
 | Watch mode: motion and sound alerts <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | The robot notices motion and loud sounds and sends an alert with a snapshot. Better with MaiPai Home, which can say what it saw and who. |
 | Security alarm: red and blue lights, siren <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | A warning or an alarm with swapping lights, a siren and an alert on the screen. |
 | Find my robot, beep and flash <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Press Find to see where it was last seen, by place name, and make it beep and flash. No GPS chip. A map lookup from Wi-Fi is an opt-in that uses an outside service. |
 | Remote beep, lights and talk <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Make it beep, light up or speak from the web app. The robot always shows when someone is using it. |
+| Remote pan and tilt <span class="planned-tag">Planned</span> | ★★★ | ☆☆☆ | ☆☆☆ | The factory app moves the head with a joystick. Ours is planned in the web app with a Home button and a safe tilt range. |
 | Live camera view <span class="planned-tag">Planned</span> | ★★★ | ☆☆☆ | ☆☆☆ | The factory app has a monitoring camera mode with a joystick. Ours is planned as a low-resolution live view in the web app, with the pink lights and a LIVE dot always on while it runs. |
 | Control from your phone (app or web app) | ★★★ | ★★☆ | ★★☆ | The factory app does live video and remote avatar control. We have no phone app. Our web app, served by your host, opens in any phone browser and controls settings, faces, timers and snapshots. Live view is planned. We have no remote avatar control. If you rely on those, stay on factory. |
 | Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ | Removed on purpose. The on-device app system took about 548 KB of flash and 24 KB of the robot's scarce working memory, and we used that room for the voice agent and the features above. |

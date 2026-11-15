@@ -34,9 +34,14 @@ Turn on `remote_control` in the settings. Then, from the web app, you can:
 | **Beep** | Plays a tone you pick. |
 | **Turn the lights on** | Lights the light bars in a colour you pick. They stay on until you turn them off or touch the robot. |
 | **Talk** | Speaks what you type, or what you say into a push-to-talk button. The talking goes one way, to the robot. |
-| **Move the head** | Turns and nods the head. |
+| **Pan and tilt** | Turns the head left and right, and nods it up and down, with arrow buttons or a joystick. A **Home** button brings it back to centre. |
 
-There is no remote listening. You can talk to the robot, but you cannot listen in through it. The robot has no way to send its microphone to a remote screen, so this is built in, not a setting.
+There is no remote listening in remote control. You can talk to the robot, but you cannot listen in through it. The one exception is [Baby monitor](baby-monitor.md), which a person must start on the robot itself, and which always shows it on the screen.
+
+## Pan and tilt
+
+Use the arrows or the joystick in the web app, or tap a saved spot, such as "the door". Panning turns all the way around. Tilting stays within a safe range of about 5 to 85 degrees up and down, which protects the motors.
+With live view <span class="planned-tag">Planned</span>, you can look around the room the same way.
 
 A remote head move follows the same limits as any other move. It is refused while the robot is being carried or is blocked, and it is rate limited, so it cannot be used to wear out or jam the motors.
 

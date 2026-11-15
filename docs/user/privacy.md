@@ -26,6 +26,10 @@ That is the full list. If you see anything else on your network, it is a bug: te
 If you leave checking on, the host makes one small request to your chosen update source. It sends only the firmware version.
 You can set the source to your own server or folder, or turn checking off. Nothing installs until you turn that on.
 
+## No stealth
+
+Whenever the robot listens, looks or watches, it shows it on the screen. There are no hidden modes. See [The robot never monitors in secret](no-stealth.md).
+
 ## The camera
 
 The camera is opt-in. Frames stay on the host. You set how long to keep them and you can delete all. A cue shows whenever the camera streams, and you cannot turn it off.

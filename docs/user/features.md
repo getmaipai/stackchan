@@ -36,6 +36,11 @@ Page: [Find the robot and control it remotely](find-and-remote.md).
 Watch for motion and loud sounds, get an alert, and, if you want, flash red and blue and sound a siren. <span class="planned-tag">Planned</span>
 Page: [Watch your room and get alerts](watch-and-alerts.md).
 
+## Baby monitor
+
+Watch and listen in a nursery and get alerts, with a clear sign on the robot's screen. <span class="planned-tag">Planned</span>
+Page: [Use the robot as a baby monitor](baby-monitor.md).
+
 ## Let it react
 
 Pickup, shake, tilt and petting, breathing, quiet mode, privacy sleep and the low-battery steps.
@@ -110,6 +115,11 @@ Pages: [Questions people ask](faq.md), [Which setup is right for me?](which-setu
 
 Install the host, start it at boot, update it, remove it, and set up a firewall.
 Page: [Install, update and remove the host](install-the-host.md).
+
+## No stealth
+
+Every monitoring mode shows on the robot's screen.
+Page: [The robot never monitors in secret](no-stealth.md).
 
 ## Compare
 
