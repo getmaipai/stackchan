@@ -13,7 +13,9 @@ Voice turn and speech (`speech/` except voices and voiceprint), `turn.py`, `repe
 - Old dashboard: `dashboard/` (Home is the dashboard). The core gets its OWN small local settings page, new code, built in the flasher and settings phase: robot status, the `robot.toml` settings, the pairing code, mute, update and the persona text. It is served by the core host, needs no Home, and never shows household data.
 - Moves package: keep in core only if recorded moves are needed for dance; else extras (decide when the dance lane reads it).
 
-## Where moved code ends up (answer to the owner's question, 2026-11-15)
+## Where moved code ends up (owner rule, 2026-11-15)
+
+Every ability to control this bot lives in this repo: the unit protocol, camera, microphone, lights, moves, cues, heartbeat, monitor and remote body halves, and the host side that drives them. Home only decides policy and household matters and calls this repo's interface. The buckets below are for sorting the older modules.
 
 Home is Bun and TypeScript and already owns the household side (identity, voiceprint, face names, announcements, alerts, recipients, memory). Home runs this repo's Python host as its robot driver (the Home pin switches from the old bot repo to this repo). So the moved modules sort into three buckets, decided per module by a lane that reads the code:
 1. Robot driver code (talks to the unit: camera frames, microphone stream, lights, moves, cues, heartbeat). Stays here under `extras/`, installed with the Home adapter. Home calls it; Home never copies it.
