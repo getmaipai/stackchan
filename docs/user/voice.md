@@ -18,8 +18,7 @@ These work in any sentence that starts with the wake word.
 | Say | What happens |
 |---|---|
 | "stop" | It stops talking and any alarm. |
-| "mute" | Quiet mute. It still hears the wake word, so you can say "unmute". |
-| "hard mute" | The microphone is powered down. Only touch, a button or the web app undoes it. |
+| "mute" | Powers the microphone down. The wake word is off too, so unmute by tapping the mouth or in the web app. See [Mute, camera off and full quiet](mute-and-camera-off.md). |
 | "quiet" | Slow, gentle moves and a low voice. |
 | "don't move" | The servos hold still. |
 | "volume up", "volume 40" | Changes the volume. |
@@ -34,9 +33,9 @@ The robot hears "stop" even while it is speaking. Say "StackChan, stop", and it 
 
 ## Say "brighter" or "dimmer"
 
-Say "set brightness to 50 percent", "brighter", "dimmer", or "it's too bright". Swipe down on the screen for a control panel with volume, brightness and the Wi-Fi switch.
+Say "set brightness to 50 percent", "brighter", "dimmer", or "it's too bright". Swipe up on the screen for a control panel with volume, brightness and your saved Wi-Fi. Swipe left or right to change the volume. Swipe down to stop.
 
-![The swipe-down control panel with volume and brightness sliders.](../images/control-panel.svg)
+![The swipe-up control panel with volume and brightness sliders.](../images/control-panel.svg)
 
 ## Sounds
 

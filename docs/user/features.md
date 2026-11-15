@@ -21,6 +21,11 @@ Page: [Voice](voice.md).
 Timers with a ring that empties, alarms with snooze, an hourly chime and quiet hours.
 Page: [Timers and alarms](timers-and-alarms.md).
 
+## Mute, camera off, full quiet
+
+Three switches, each a tap on the face. Mute the microphone, stop the camera, or hold still and silent.
+Page: [Mute, camera off and full quiet](mute-and-camera-off.md).
+
 ## Let it react
 
 Pickup, shake, tilt and petting, breathing, quiet mode, privacy sleep and the low-battery steps.

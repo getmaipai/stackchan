@@ -15,7 +15,7 @@ Petting uses the head strip. If you set `strip_mode = "control"`, the strip open
 
 ## Tap the face
 
-You touch the screen, not the head strip. Each tap has its own screen so you always know what you did.
+You touch the screen, not the head strip. Each tap has its own screen so you always know what you did. Details: [Mute, camera off and full quiet](mute-and-camera-off.md).
 
 | Tap | What happens |
 |---|---|

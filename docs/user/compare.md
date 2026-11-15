@@ -27,7 +27,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Dance to music | TBD | ★★★ | ★★★ | It hears music, shows it likes it, and dances to the beat. Off until you turn it on. |
 | Name the song <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Ask "what song is this" and hear the title and artist. |
 | Announcements <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Hear household news out loud, like "dinner is ready". |
-| Mute and camera off by tapping the face | TBD | ★★★ | ★★★ | Tap the mouth to mute, the eyes to stop the camera, between the eyes for full quiet. |
+| Mute, camera off, full quiet | TBD | ★★★ | ★★★ | Three switches on the face: tap the mouth to mute, the eyes to stop the camera, between the eyes for full quiet. They survive a restart, and the host warns you if the robot leaks. [Details](mute-and-camera-off.md) |
 | Spoken "stop" while it talks | TBD | ★★★ | ★★★ | It stops at once, with no model involved. |
 | Updates over Wi-Fi | TBD | ★★★ | ★★★ | No cable. An animated icon shows the progress. |
 | Games and a pet mood | TBD | ★★★ | ★★★ | Something to do together. The pet mood grows with care. |
