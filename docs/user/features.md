@@ -46,9 +46,9 @@ Page: [Coding companion](coding-companion.md).
 A local API, an event stream, MQTT, a home-automation bridge and metrics. All off by default.
 Page: [Home tools](home-tools.md).
 
-## Take it anywhere
+## Take it on the go
 
-Join your Tailscale network, reach your host or hub from any Wi-Fi over an encrypted link, and remember several Wi-Fi networks.
+Join your phone's hotspot or any Wi-Fi, reach your host or hub over Tailscale on an encrypted link, and remember several Wi-Fi networks.
 Page: [Use it anywhere](use-it-anywhere.md).
 
 ## Keep it current

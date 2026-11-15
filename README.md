@@ -9,7 +9,7 @@
 MaiPai for StackChan is open-source firmware and a host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot.
 What you say to it stays in your home. AI on your own computer answers, with no cloud service, no vendor account and no telemetry, and the host calls only the addresses you list in one settings file.
 
-It is faster and smoother than the factory firmware, and it adds timers, a camera that can name the people you enrol, games, a coding companion and a local API. Over Tailscale it works from any Wi-Fi.
+It is faster and smoother than the factory firmware, and it adds timers, a camera that can name the people you enrol, games, a coding companion and a local API. Take it on the go: it joins your phone's hotspot and reaches your host over Tailscale, so it works at a friend's house, a hotel or the office.
 
 Connect it to [MaiPai Home](docs/user/with-maipai-home.md) for more: faster answers from bigger models, memory across days, people, calendars and household rules.
 
@@ -27,7 +27,7 @@ Connect it to [MaiPai Home](docs/user/with-maipai-home.md) for more: faster answ
 - **[Games and a pet mood](docs/user/games-and-pet.md):** Colour memory, an action game, and a mood that depends on how you care for the robot.
 - **[Coding companion](docs/user/coding-companion.md):** A green or red build light and your agent's status on the face.
 - **[Home tools](docs/user/home-tools.md):** A local API, an event stream, MQTT and metrics, all off by default.
-- **[Anywhere](docs/user/use-it-anywhere.md):** Join your Tailscale network and reach your host from any Wi-Fi over an encrypted link.
+- **[On the go](docs/user/use-it-anywhere.md):** Join your phone's hotspot or any Wi-Fi, and reach your host or hub over Tailscale on an encrypted link.
 - **[Languages](docs/user/languages.md):** English and Spanish, switched at run time with no reflash.
 - **[Updates](docs/user/updates.md):** Signed images, a health check after install and automatic rollback. Nothing installs unless you say so.
 
@@ -50,9 +50,9 @@ Flash the robot from the web flasher, run `stackchan pair`, point `llm_url` at y
 [MaiPai Home](docs/user/with-maipai-home.md) keeps its speech and chat models loaded on one machine built for them, so the first word arrives sooner, and it adds memory across days, people, calendars and household rules.
 Set `brain = "home"` and run `stackchan check`.
 
-### Anywhere with Tailscale
+### On the go with Tailscale
 
-Paste a Tailscale key on the Network page and the robot reaches your host or hub from any Wi-Fi: [Use the robot anywhere](docs/user/use-it-anywhere.md).
+Paste a Tailscale key on the Network page and add your phone's hotspot as a saved Wi-Fi. The robot reaches your host or hub from anywhere: [Use the robot anywhere](docs/user/use-it-anywhere.md).
 
 In standalone mode we add no content filter. The model you connect decides what the robot says.
 

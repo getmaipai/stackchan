@@ -21,7 +21,7 @@ MaiPai for StackChan changes the firmware and adds a host program. The robot is 
 | Games and a pet mood | Not listed in the official README | Colour memory, an action game, a mood that depends on care |
 | Coding companion | Not listed in the official README | Build light and agent status |
 | Local API, MQTT, metrics | Not listed in the official README | Yes, off by default |
-| Works from any Wi-Fi | See the official docs | Yes, over your Tailscale network |
+| On the go (phone hotspot, any Wi-Fi) | See the official docs | Yes, over your Tailscale network |
 | English and Spanish | See the official docs | Yes, switched at run time |
 | Updates | See the official docs | Checked, never installed unless you say so, signed, with rollback |
 | Mobile app for video and remote avatar control | Yes | No. We have no phone app |

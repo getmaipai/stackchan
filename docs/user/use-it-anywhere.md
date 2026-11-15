@@ -1,4 +1,4 @@
-# Use the robot anywhere with Tailscale
+# Take the robot on the go with Tailscale
 
 The robot can join your Tailscale network. Then it reaches your host, or your MaiPai Home hub, from any Wi-Fi: your living room, a friend's house, a hotel.
 The link is encrypted end to end by Tailscale, and nothing is opened on your router.
@@ -20,6 +20,16 @@ The link is encrypted end to end by Tailscale, and nothing is opened on your rou
 4. Run `stackchan check`. It tests the route from the robot to the host over Tailscale and says what is wrong if it fails. You'll know it worked when the route line says ok.
 
 The robot tries your home Wi-Fi first. Set `prefer_tailnet` to a number of minutes if you want it to try Tailscale first for that long.
+
+## Take it on the go with your phone's hotspot
+
+You don't need a travel router or a phone app. The robot joins the hotspot like any Wi-Fi, then reaches your host through Tailscale.
+
+1. Save your phone's hotspot once, while you are at home (see below).
+2. Turn on the hotspot when you are out. Keep the phone close to the robot.
+3. Power the robot on. You'll know it worked when the face shows that it is connected and it answers a question.
+
+A hotspot uses your phone's data plan. A short chat uses little, but a long session with the camera uses more.
 
 ## Saved Wi-Fi networks
 
