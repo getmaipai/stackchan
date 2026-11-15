@@ -116,3 +116,5 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - Cry detection is not designed. Own LLM gets loudness alerts; Home may classify cries.
 - Pan and tilt: official docs recommend keeping the vertical servo in about 5 to 85 degrees and allow continuous horizontal rotation. Preset spots and the Home button are drafts.
 - Legal and safety text on baby-monitor.md (not a certified monitor, safe sleep) needs the owner's review before release.
+
+- Baby monitor songs (owner idea 2026-11-15): built-in soft sounds, the owner's own files in a host music folder, Home library songs. Optional auto-lullaby on a cry alert, off by default, always shown on screen and in an alert. 30 minute default timer, low volume cap. No outside music service. The built-in sounds, the music folder and the Playing mark are drafts. The robot's 1 W speaker limits sound quality.

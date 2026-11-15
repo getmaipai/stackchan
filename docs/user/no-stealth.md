@@ -8,7 +8,7 @@ Whenever the robot listens, looks or watches for you, it shows it on its own scr
 | Taking a picture | Pink light bars flashing twice, then steady, and a camera icon |
 | Showing live view <span class="planned-tag">Planned</span> | Pink light bars, steady, and a camera icon with a LIVE dot |
 | Watching a room <span class="planned-tag">Planned</span> | A camera icon and the word **Watching**, plus a microphone icon if it listens for sounds |
-| Acting as a baby monitor <span class="planned-tag">Planned</span> | The **Baby monitor** label, a microphone icon, a camera icon, and **Listening in** while your phone is connected |
+| Acting as a baby monitor <span class="planned-tag">Planned</span> | The **Baby monitor** label, a microphone icon, a camera icon, **Listening in** while your phone is connected, and **Playing** or **Talking** while it plays a song or speaks |
 | Being controlled remotely <span class="planned-tag">Planned</span> | A **Remote** icon, steady, and a short tone before it speaks |
 
 If none of these show, none of those things are happening. The cue comes from the same part of the robot that turns on the microphone or camera, so it cannot be switched off separately.
