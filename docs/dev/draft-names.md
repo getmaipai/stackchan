@@ -6,7 +6,7 @@ When the build settles each one, rename it in the docs or keep it, then delete i
 ## Settings keys
 
 `persona`, `persona_lock`, `hourly_chime`, `idle_motion`, `pet_mood`, `cues`, `camera`, `camera_retention`, `vision_url`,
-`api`, `events`, `mqtt_url`, `ha_bridge`, `metrics`, `mcp`, `home_url`, `quick_sliders` values (volume, brightness).
+`tailscale` key field on the Network page, `saved_wifi` list, `api`, `events`, `mqtt_url`, `ha_bridge`, `metrics`, `mcp`, `home_url`, `quick_sliders` values (volume, brightness).
 
 ## Commands
 
@@ -35,3 +35,4 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - Entry points today: `stackchan-provision` and `maipai-bot-host`. The `stackchan` command in the docs is planned.
 - Not in the code at all (planned): `camera_retention`, `hourly_chime`, `persona_lock`, `pet_mood`, `ha_bridge`, `mcp`,
   `stackchan token`, `stackchan camera delete`, `stackchan notify --status`.
+- `prefer_tailnet` comes from the unit protocol (`self.network.prefer_tailnet`, 0 to 120 minutes). The Network page and the tailnet status text are drafts. The robot joining the tailnet by itself is design ANYWHERE-01, not built.

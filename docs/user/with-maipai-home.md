@@ -22,6 +22,11 @@ The robot is not reflashed. Set `brain = "standalone"` to go back. Your timers, 
 
 ![The web page with the brain choice set to MaiPai Home.](../images/brain-switch.svg)
 
+## Away from home
+
+If your hub is on your Tailscale network, the robot reaches it from any Wi-Fi. Use the hub's Tailscale address as `home_url`.
+See [Use it anywhere](use-it-anywhere.md).
+
 ## What stays on the robot
 
 Timers, faces, reactions, games and the camera name list work the same either way. A feature that needs a service the brain lacks hides itself.

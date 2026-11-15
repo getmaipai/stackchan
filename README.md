@@ -1,7 +1,9 @@
 # MaiPai StackChan
 
-Custom firmware and a host program for the StackChan desktop robot. Talk to it, and it answers with AI that runs on your own
-computer. Private by design, quick to react, and packed with things to do: timers, games, a camera, a clock, a coding companion and more.
+**StackChan firmware, rewritten: private, faster, more abilities using your own local LLM or MaiPai Home, over Tailscale.**
+
+Talk to your StackChan robot and it answers with AI that runs on your own computer, or on your MaiPai Home hub. Nothing goes to a cloud service.
+It reacts quickly, does far more, and works from any Wi-Fi because it can join your Tailscale network.
 
 > **Draft notice.** These docs are written as if v1.0.0 is finished, so the owner can review the full product. Remove this notice
 > when v1.0.0 ships. Until then, treat every feature as unconfirmed on a unit.
@@ -10,12 +12,14 @@ computer. Private by design, quick to react, and packed with things to do: timer
 
 ## Why use it
 
-- **Your voice stays home.** The robot talks only to a host program on your network, and the host calls only the addresses you list in one settings file.
-  There is no vendor account, no telemetry and no cloud service in the loop. It keeps working with the internet off.
-- **It reacts at once.** The wake tone and listening cue play in under 150 ms. "Stop" and touch commands act in under 300 ms with no model involved.
+- **Private.** The robot talks only to your host program or your MaiPai Home hub, and the host calls only the addresses you list in one settings file.
+  There is no vendor account, no telemetry and no cloud service in the loop.
+- **Faster.** The wake tone and listening cue play in under 150 ms. "Stop" and touch commands act in under 300 ms with no model involved.
   Replies start speaking on the first finished sentence, not the last.
-- **It does far more.** Faces and a clock, timers and alarms, pickup and petting reactions, a camera that can say who it sees, two games,
+- **More abilities.** Faces and a clock, timers and alarms, pickup and petting reactions, a camera that can say who it sees, two games,
   a build light for your coding agent, and a local API for your own tools. All in one firmware.
+- **Your own brain.** Use any local LLM you run, or MaiPai Home for more speed, memory and household features.
+- **Anywhere, over Tailscale.** The robot joins your Tailscale network, so it reaches your host or hub from any Wi-Fi, over an encrypted link.
 - **You stay in charge.** Features are off until you turn them on. Updates are checked but never installed unless you say so, images are signed, and a failed update rolls back.
   The source is AGPL-3.0 and you can build it yourself.
 
@@ -32,6 +36,7 @@ computer. Private by design, quick to react, and packed with things to do: timer
 | [Coding companion](docs/user/coding-companion.md) | Agent status on the face and ring, a green or red build light, dictation, approvals by touch. |
 | [Home tools](docs/user/home-tools.md) | Local REST and WebSocket API, event stream, MQTT, a home-automation bridge and metrics. All off by default. |
 | [Languages](docs/user/languages.md) | English and Spanish, switched at run time with no reflash. |
+| [Use it anywhere](docs/user/use-it-anywhere.md) | Join your Tailscale network, reach your host or hub from any Wi-Fi over an encrypted link, remember several Wi-Fi networks. |
 | [Updates](docs/user/updates.md) | Signed images, a health check after every install, automatic rollback. |
 
 ![The web app's feature list with each feature switched on or off.](docs/images/web-features.svg)
@@ -54,7 +59,7 @@ Full steps: [Getting started](docs/user/getting-started.md).
 
 ## Run it alone, or with MaiPai Home
 
-**Standalone (default).** The host uses a language model you run yourself, reached over a chat-completions style web address.
+**Standalone (default).** The host uses a local LLM you run yourself, reached over a chat-completions style web address.
 Speech to text and text to speech use the addresses you set, or a built-in local engine when you leave them blank.
 You need nothing else.
 
@@ -66,7 +71,7 @@ Set `brain = "home"` and the robot gets:
 - **Memory.** It remembers across days and knows each person by voice and by name.
 - **The household.** Calendars, briefings, announcements, song naming, and rules for children and teens.
 
-The robot is complete without Home. Switching is one line in `robot.toml`, and the robot is not reflashed.
+Either way the robot can reach the host or hub over [Tailscale](docs/user/use-it-anywhere.md). The robot is complete without Home. Switching is one line in `robot.toml`, and the robot is not reflashed.
 
 ## Safety note
 

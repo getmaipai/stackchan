@@ -28,12 +28,12 @@ The host sends the time. The robot does not call public time servers.
 
 ## The link on your network
 
-Until a later security step ships, the link between the robot and host is plain, not encrypted. Use a network you trust.
+On your home network the link between the robot and the host is plain, not encrypted. Use a network you trust, or put the robot on your Tailscale network (see [Use it anywhere](use-it-anywhere.md)), which encrypts it.
 Pairing uses a code and a token you can revoke with `stackchan forget`.
 
-## Optional private-network client
+## Tailscale
 
-It is off by default. When on, it contacts its own control and relay servers. The full list of connections and a firewall sample will be on this page.
+It is off until you paste a Tailscale key. When on, the robot contacts your Tailscale control server and its relay servers to find your devices. It sends no voice, snapshots or settings there.
 
 ## Content
 
