@@ -23,6 +23,10 @@ And the household features:
 
 With your own LLM, the robot does none of these by itself.
 
+## What changes on the robot
+
+When you connect MaiPai Home, Home puts the firmware build on the robot that has the extras. You do not choose a build. The core robot is a small build with no camera streaming, no monitor audio and no remote path, and the Home build adds the parts that Home's features need.
+
 ## Turn it on
 
 1. Open `robot.toml`.

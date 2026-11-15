@@ -43,6 +43,15 @@ Voice (wake word, follow-ups, interrupt, stop, ten commands), faces and clock, t
 - The unit keeps the body half of each (the cues, the camera and microphone switches, the always-on indicators), so the privacy rules hold whatever runs on top.
 - The cue rules stay in the core: any mode that opens the microphone or camera still draws its cue first, from one code path.
 
+## Confirmed by the build session (2026-11-15)
+
+- Moved host modules stay in this repo under `host/maipai_body/extras/` and install only with the Home adapter. An architecture test fails the build if the core imports extras, and extras never import Home code.
+- Firmware: one source and two presets with the same signing key. **Core** is small: no camera streaming, no monitor audio, no remote path. **Home** adds the body halves Home features need, each behind its own Kconfig switch, compiled in only if the memory gate holds. The hub's flash flow picks the preset. A user never chooses.
+- First setup offers one optional, skippable screen: "Do you run MaiPai Home? Enter its address."
+- The cue code path (`monitor_cue_begin`) is in the core and in both presets.
+- The heartbeat that gives "last seen" stays in the core unit protocol, because Home's find-my-robot reads it.
+- Doc line to keep: the core robot never streams a camera or a microphone to anything but the paired host's voice turn. The cue table in `docs/design/monitoring.md` is the Home-feature cue spec.
+
 ## Open
 
 - The firmware already includes some body halves for the moved features (camera capture, streaming, the music detector). Decide which stay compiled in and which become optional builds, to keep the core small and inside the memory gate.

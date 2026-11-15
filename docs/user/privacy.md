@@ -26,6 +26,10 @@ That is the full list. If you see anything else on your network, it is a bug: te
 If you leave checking on, the host makes one small request to your chosen update source. It sends only the firmware version.
 You can set the source to your own server or folder, or turn checking off. Nothing installs until you turn that on.
 
+## What the core robot streams
+
+The core robot never streams a camera or a microphone to anything except your paired host, and only for a voice turn. The extras, such as the camera features, watching and remote control, need the MaiPai Home firmware build, and each shows its cue on the screen. See [The robot never monitors in secret](no-stealth.md).
+
 ## No stealth
 
 Whenever the robot listens, looks or watches, it shows it on the screen. There are no hidden modes. See [The robot never monitors in secret](no-stealth.md).

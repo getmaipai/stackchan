@@ -11,7 +11,7 @@ Whenever the robot listens, looks or watches for you, it shows it on its own scr
 | Acting as a baby or pet monitor <span class="planned-tag">Planned</span> | The **Baby monitor** label, a microphone icon, a camera icon, **Listening in** while your phone is connected, and **Playing** or **Talking** while it plays a song or speaks |
 | Being controlled remotely <span class="planned-tag">Planned</span> | A **Remote** icon, steady, and a short tone before it speaks |
 
-If none of these show, none of those things are happening. The cue comes from the same part of the robot that turns on the microphone or camera, so it cannot be switched off separately.
+If none of these show, none of those things are happening. The core robot never streams a camera or a microphone to anything but your paired host's voice turn. The monitoring modes in this table need the MaiPai Home firmware build. The cue comes from the same part of the robot that turns on the microphone or camera, so it cannot be switched off separately.
 Mute stops listening, and camera off stops looking. You can tap them at any time. See [Mute, camera off and full quiet](mute-and-camera-off.md).
 
 ## Still need help?

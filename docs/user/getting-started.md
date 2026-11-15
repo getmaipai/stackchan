@@ -26,6 +26,8 @@ How fast and how well the robot answers depends on your model and its hardware. 
 
    ![The robot screen with the 6 digit code, and the host terminal asking for it.](../images/pairing-code.svg)
 
+   If you also run MaiPai Home, the robot offers one optional screen after pairing: **Do you run MaiPai Home?** Enter its address, or skip it. You can add it later.
+
 4. **Point at your model.** Open `robot.toml` and set `llm_url` to your model address, for example `http://192.0.2.10:8080`.
 5. **Check.** Run `stackchan check`. It tests each address and says in plain words what is wrong. You'll know it worked when every line says ok.
 
