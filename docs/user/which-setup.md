@@ -28,7 +28,12 @@ Start with [Getting started](getting-started.md).
 Use it when:
 
 - You have the same needs as MaiPai for StackChan, a private voice robot that runs on your own LLM, and you want more.
-- You want extras for the robot: the camera, watching, a baby or pet monitor, find and remote control, games and a coding companion.
+- You want extras for the robot, such as:
+  - Seeing: face follow, "take my picture", "what is this" and a live view of the room.
+  - Security: motion and sound alerts, with a red and blue alarm and siren.
+  - A baby or pet monitor.
+  - Finding it, and controlling it remotely: beep, lights, talk, pan and tilt.
+  - Games and a coding companion.
 - You want extras across all of MaiPai Home: face and voice recognition, memory, content filtering, custom companions, custom and cloned voices, calendars and household rules.
 
 Start with [Use MaiPai Home as the brain](with-maipai-home.md).
