@@ -1,0 +1,8 @@
+.runs/
+data-scratch/
+node_modules/
+__pycache__/
+*.pyc
+build/
+sdkconfig.old
+.DS_Store
