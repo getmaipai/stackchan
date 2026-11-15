@@ -1,6 +1,6 @@
 # MaiPai StackChan
 
-Firmware (`firmware/`) and host program (`host/`) for the StackChan robot. Standalone with a local LLM, or paired with MaiPai Home.
+Firmware (`firmware/`) and host program (`host/`) for the StackChan robot. With your own LLM, or paired with MaiPai Home.
 Org standards (writing style, privacy, PII) apply; see `getmaipai/.github`.
 
 ## Hard rules
@@ -8,7 +8,7 @@ Org standards (writing style, privacy, PII) apply; see `getmaipai/.github`.
 - Nothing in code, docs, comments or commit text mentions, compares to or credits other projects. Required license notices go only in LICENSE, NOTICE, THIRD-PARTY.md and `# Upstream:` patch lines. `scripts/hygiene-check.sh` enforces this.
 - No em dashes, no filler vocabulary. Every error message says what went wrong and what to do.
 - An optional feature that is off costs no memory. Every firmware step runs the memory gate.
-- Every feature has a body half (unit and host, always here) and a brain half (standalone or Home adapter). A missing brain half hides the feature.
+- Every feature has a body half (unit and host, always here) and a brain half (own-LLM or Home adapter). A missing brain half hides the feature.
 
 ## Commands
 - `bash scripts/check.sh` runs the hygiene check on all tracked files.

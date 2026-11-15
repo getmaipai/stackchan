@@ -1,6 +1,6 @@
 # Architecture
 
-Status: design, decided 2026-11-15. Nothing here is built for the standalone path yet.
+Status: design, decided 2026-11-15. Nothing here is built for the own-LLM brain yet.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Every feature is split in two.
   Same in every setup. Example for a timer: the ring that empties, the chime, the stop touch.
 - Brain half: the part that needs knowledge or judgement. Example: understanding "set a pasta timer for ten minutes".
 
-A feature is standalone-complete when its body half works with the built-in brain half. A richer brain upgrades
+A feature is complete on its own when its body half works with the built-in brain half. A richer brain upgrades
 the brain half and leaves the body half alone. If a brain half is missing, the feature hides itself. It never shows a raw error.
 
 ## Capability negotiation
@@ -43,7 +43,7 @@ At connect the host publishes a capability list built from the active brain adap
 
 | Adapter | Provides |
 |---|---|
-| Standalone (default) | Chat-completions style HTTP for the language model, plus `stt_url` and `tts_url` for speech, each falling back to a built-in local engine when blank. Vision when a vision model URL is set. |
+| Own LLM (default, `brain = "llm"`) | Chat-completions style HTTP for the language model, plus `stt_url` and `tts_url` for speech, each falling back to a built-in local engine when blank. Vision when a vision model URL is set. |
 | MaiPai Home (optional) | Turns, identity, memory and household policy from a MaiPai Home hub, over its published API. Does nothing unless configured. |
 
 Both adapters use the same record shapes (turns, events, face-pack manifest, persona). A persona or pack made for one works in the other.
@@ -53,8 +53,8 @@ The seam is: `transcribe_stream`, `run_turn` (yields the turn event stream), `sp
 
 - Host code never imports a hub. The hub adapter talks over HTTP and lives here as an optional module.
 - A user never clones another MaiPai repo to run this one.
-- Architecture tests fail the build if standalone code imports hub code.
-- CI runs the whole body-half suite with the standalone adapter and no hub present.
+- Architecture tests fail the build if own-LLM brain code imports hub code.
+- CI runs the whole body-half suite with the own-LLM adapter and no hub present.
 - One conformance suite runs against both adapters, so they cannot drift apart.
 
 ## Vendored schema snapshot
@@ -67,7 +67,7 @@ The seam is: `transcribe_stream`, `run_turn` (yields the turn event stream), `sp
 
 ## robot.toml
 
-- One commented file. `brain = "standalone"` (default) or `brain = "home"` with the hub address.
+- One commented file. `brain = "llm"` (default; the value `standalone` is accepted as an alias) or `brain = "home"` with the hub address.
 - Switching is one line. The unit is not reflashed.
 - Keys: `llm_url`, `stt_url`, `tts_url`, `voice`, `language`, `face_style`, `face_color`, `captions`,
   `night_mode`, `thinking_cue`, `update_*`, privacy and presence keys, a `[body]` section for body-specific keys.

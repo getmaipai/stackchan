@@ -2,7 +2,7 @@
 
 Promise: private, local AI that is yours. Nothing leaves the home.
 
-## Standalone safety floor (decision 13)
+## Own-LLM safety floor (decision 13)
 
 - No content filter of our own. Content safety is the responsibility of the connected language model and the owner's persona prompt.
 - The docs, the first-run setup and the README say so in one plain sentence.

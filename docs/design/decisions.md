@@ -20,7 +20,7 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 11. Scope rule: the bot does as much as possible locally. A feature goes to a hub when it needs an outside service,
     household-wide records, other devices or rooms, or policy. The grey zone gets a simple local version here and a household version in the hub, on the same schema.
 12. The host calls no address the owner did not configure.
-13. Standalone adds no content filter of its own (2026-11-15, correction). Content safety is the connected model's job.
+13. The own-LLM brain adds no content filter of its own (2026-11-15, correction). Content safety is the connected model's job.
     Body safety stays: servo limits, volume cap, wear limits, camera-on cue, mute, pairing security.
     An optional family-friendly persona preset may ship, labelled as a prompt and not a guarantee.
 

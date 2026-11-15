@@ -50,6 +50,14 @@ Wave and mirror mode. "Take my picture" with a countdown, shutter cue and local 
 Local enrolment and a camera alert with a name from the local list. Frames stay on the host.
 The camera snapshot is low resolution, so the docs call them snapshots.
 
+
+Live view and capture cues (owner request, 2026-11-15). The unit must always show, in a way no setting can hide, when it is listening, taking a picture or streaming live:
+- Listening: green steady ring plus a mic icon on the face.
+- Picture: pink, two flashes then steady, a camera icon and a double click.
+- Live view: pink steady for the whole time, camera icon with a LIVE dot (new, needs design), and a double click on start.
+The cue is driven by the same code path that opens the camera or mic, so a capture without the cue is impossible (hardware-truth rule, as for hard mute).
+Live view in the web app: the avatar socket already carries JPEG frames up (type 0x02; 0x05 and 0x06 start and stop). First check why camera streaming never worked in AI-agent mode (`docs/dev/stackchan-vision-channel-2026-10-21.md`), then measure a low-resolution live view: frame rate, free internal RAM, Wi-Fi load, heat over 10 minutes, and the latency cost to voice. Ship only if the memory gate holds; send results to the docs session (camera page, tagged Planned).
+
 ## Touch and play
 
 Colour-memory game and an action game, as signed data packs on one built-in game engine. Reaction and whack-a-mole variants.
@@ -81,7 +89,7 @@ Sound direction. Bluetooth. Phone-pickup nudge. Native phone app. Anything that 
 1. Rebase onto the new base (firmware-base.md). Re-measure. Free internal RAM. Identity into saved settings and the clock fix.
 2. Schema and brain interface. Simulator and virtual unit protocol. Behaviour core.
 3. Host tab, discovery, pairing code.
-4. Standalone adapter and the first full local turn.
+4. Own-LLM adapter and the first full local turn.
 5. Flasher, settings panel, updater.
 6. Faces, colour, night mode, clock, big-eyes pack.
 7. Always-on behaviours.
