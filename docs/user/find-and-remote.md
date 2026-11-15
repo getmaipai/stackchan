@@ -9,9 +9,9 @@ Remote control is off until you turn it on, and the robot always shows when some
 
 Press **Find** in the web app. The robot answers in three ways:
 
-- **Last seen.** The app shows when the robot was last online, which Wi-Fi network it was on, and its battery.
+- **Last seen.** The app shows when the robot was last online, which Wi-Fi network it was on, and its battery. This comes from the regular check-in the robot already sends.
 - **Beep and flash.** Press **Make it beep** and the robot plays a loud, repeating tone and flashes its light bars, even in quiet hours and when it is muted. Tap the robot to stop it.
-- **Warmer or colder.** If Bluetooth is on, the app shows a signal meter you can follow as you walk toward the robot. <span class="planned-tag">Planned</span> Bluetooth is still under review.
+- **Warmer or colder.** If Bluetooth is on, the app shows a signal meter you can follow as you walk toward the robot. This depends on whether we keep Bluetooth, which is still under review, so it may not ship.
 
 The robot has no GPS, so it cannot show its position on a map. It also has no ultra-wideband chip, so there is no arrow like the one on a lost phone. The meter and the beep get you close.
 
@@ -28,15 +28,25 @@ Turn on `remote_control` in the settings. Then, from the web app, you can:
 | **Talk** | Speaks what you type, or what you say into a push-to-talk button. The talking goes one way, to the robot. |
 | **Move the head** | Turns and nods the head. |
 
-There is no remote listening. You can talk to the robot, but you cannot listen in through it.
+There is no remote listening. You can talk to the robot, but you cannot listen in through it. The robot has no way to send its microphone to a remote screen, so this is built in, not a setting.
+
+A remote head move follows the same limits as any other move. It is refused while the robot is being carried or is blocked, and it is rate limited, so it cannot be used to wear out or jam the motors.
 
 ![The web app Remote screen with Beep, Lights, Talk and Head controls.](../images/remote-control.svg)
 
 ## You always know
 
-The robot shows every remote action. A **Remote** icon appears on the screen while anyone is controlling it, and it plays a short tone before it speaks a remote message.
+The robot shows every remote action. A **Remote** icon appears on the screen while anyone is controlling it: a small screen with two signal arcs, in the same row as the microphone and camera icons. It stays steady and never blinks, because blinking is reserved for the camera cue. If live view and remote control are both on, you see both icons. The robot also plays a short tone before it speaks a remote message.
+
+Every remote action writes one line to the robot's activity log, which anyone in the household can read.
 Remote lights do not use the colours that carry a meaning, such as green for listening, so they never look like a warning.
 You cannot turn these cues off, and remote control needs your token, so only you can use it.
+
+## Where it works
+
+Remote control works only from your home network or your Tailscale network. It never goes through an outside relay.
+
+If you lose the token, set a new one from the robot's own settings. The web app cannot replace it, so a stranger with web access cannot take over.
 
 ## Turn it off
 
