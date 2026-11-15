@@ -67,3 +67,8 @@ Real names already in the design and used as written: `face_style`, `face_color`
 
 - Factory AI agent is powered by XiaoZhi and set up through the StackChan World app. Factory has: dance choreography in the phone app, avatar and monitoring-camera modes, ESP-NOW remote control, an app center, on-device microphone, RGB LED and servo tests, servo calibration, online firmware update, and a documented restore with M5Burner (Only Official). The restore steps in docs/user/switch-from-the-factory-firmware.md follow the official page but have not been run.
 - Idea from the official docs: on-robot hardware tests (microphone, light bars, servo). We have `stackchan check` on the host. Ask the build session whether the robot should get the same tests.
+
+## Sponsors (2026-11-15)
+
+- README has a Support the project section linking https://github.com/sponsors/JesseWebDotCom. The link is dead until the owner finishes and publishes the personal GitHub Sponsors listing (checked: no listing on the personal account or the org). Do not release until it resolves, or remove the section.
+- `.github/FUNDING.yml` (github: JesseWebDotCom) is staged locally. It goes into the public repo only with the release commit, because the public repo takes no pushes before the firmware release is approved.
