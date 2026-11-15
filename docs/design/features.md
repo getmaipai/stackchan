@@ -60,6 +60,12 @@ Mood that depends on care, saved across days. Music dance and mood faces. ESP-NO
 Agent status on face and ring. Spoken and captioned updates. Build light (green pass, red fail) from a `stackchan notify` hook.
 Dictation by push to talk. Approvals by touch only by default, never by voice alone. An MCP endpoint lets an agent drive the robot.
 
+## Reset the device (firmware, small; owner request 2026-11-15)
+
+Settings > Reset on the robot clears saved Wi-Fi networks, the private-network key, pairing and settings. The host keeps its own files.
+Two-step confirm on purpose: press Reset, then hold the button for 3 seconds. Cancel changes nothing. An interrupted reset still lands on the setup page (the clear is one atomic step that ends in setup, never half-cleared).
+Rules to build against: clearing runs only on the unit (no host command can trigger it), nothing is cleared until the hold completes, the confirm screen says what will be erased in plain words, and it logs one local line. Memory: a screen and a handler, no resident cost; run the memory gate. Order: with step 7 (always-on behaviours), after saved-settings identity (step 1).
+
 ## Integrations host
 
 REST and WebSocket API, event stream, MQTT, home-automation bridge, metrics, `stackchan check`. All host-side.
