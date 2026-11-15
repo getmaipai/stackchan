@@ -39,12 +39,12 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Control from your phone (app or web app) | ★★★ | ★★☆ | ★★☆ | The factory app does live video and remote avatar control. We have no phone app. Our web app, served by your host, opens in any phone browser and controls settings, faces, timers and snapshots. It has no live video or remote avatar control. If you rely on those, stay on factory. |
 | Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ | Removed on purpose. The on-device app system took about 548 KB of flash and 24 KB of the robot's scarce working memory, and we used that room for the voice agent and the features above. |
 | ESP-NOW remote controller | ★★★ | ☆☆☆ | ☆☆☆ | Not supported yet. Pose mirroring between two robots is planned. If you rely on the remote, stay on factory. |
-| Phone setup over Bluetooth | ★★☆ | ☆☆☆ | ☆☆☆ | On the factory robot the phone app uses Bluetooth for its setup page. We turned Bluetooth off on purpose: it is one less wireless way in, and nothing in our firmware needs it. You set up the robot with its own Wi-Fi setup page or over USB instead. |
+| Bluetooth (phone setup and more) | ★★☆ | ☆☆☆ | ☆☆☆ | On the factory robot the phone app uses Bluetooth for its setup page. Ours is off today, and we are reviewing whether to bring it back for phone setup from a browser, a push-to-talk clicker and finding your robot. Until then you set up the robot with its own Wi-Fi setup page or over USB. |
 | Chinese, Japanese and Korean text, and emoji | TBD | ★☆☆ | ★☆☆ | Removed from the default image to save space for more features. An optional font pack adds the text back. |
 
 ## Why some things are missing
 
-The robot has about 76 KB of free working memory, so every feature has to earn its place. We removed the on-device app system to make room for the voice agent, the camera, timers and games. We turned Bluetooth off for a different reason: security. It saved almost no memory.
+The robot has about 76 KB of free working memory, so every feature has to earn its place. We removed the on-device app system to make room for the voice agent, the camera, timers and games. Bluetooth is off for a different reason: it was not needed and it is one more way in. It saved almost no memory, so we are reviewing whether to bring it back.
 We chose a web app served by your host over a native phone app. We would rather say what is gone than hide it.
 
 ## What the stars mean for you
