@@ -6,3 +6,4 @@ __pycache__/
 build/
 sdkconfig.old
 .DS_Store
+site/
