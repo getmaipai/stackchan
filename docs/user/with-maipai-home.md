@@ -11,14 +11,14 @@ MaiPai for StackChan on its own is a simple, private voice robot. These run with
 - Find my robot, remote beep, lights, talk, pan and tilt, and live view. [Details](find-and-remote.md)
 - Games and a pet mood, the coding companion, and home tools such as the local API and MQTT. [Games](games-and-pet.md), [coding](coding-companion.md), [tools](home-tools.md)
 
-And the household features:
+And the features across all of MaiPai Home:
 
-
+- Face and voice recognition, so it knows each person.
 - Memory across days.
 - "What is this": hold something up to the camera and hear what it is.
-- Voices matched to each person.
+- Content filtering and household rules, including rules for children and teens.
+- Custom companions, and custom and cloned voices.
 - Calendars, briefings and household announcements.
-- Household rules, including rules for children and teens.
 - Song naming and other services that need more than one room.
 
 With your own LLM, the robot does none of these by itself.
