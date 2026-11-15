@@ -94,6 +94,8 @@ The memory gate and a language check (English and Spanish) run after every step.
 
 ## Open
 
+- Review and decide on Bluetooth (owner request, 2026-11-15). Measure the real cost first: flash and heap with the stack compiled in but off, heap while running, and the latency effect on voice streaming from the shared radio. Candidate uses, best first: phone Wi-Fi setup from a browser (no hotspot page), a clicker for push to talk and coding approvals, find my robot, a phone or watch as a remote, room sensors on the face. Presence by Bluetooth stays dropped unless reversed. Decide: keep compiled in and off by default, or cut.
+
 - Servo position readback when torque is released (decides record and replay of posed moves).
 - Whether a storage card slot is usable.
 - Which wake words the new base ships, and whether a trainable engine fits.

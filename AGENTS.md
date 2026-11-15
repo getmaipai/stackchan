@@ -22,6 +22,14 @@ Order, no exceptions: (1) Claude cloud; (2) Codex, launched in an owned tmux ses
 A Claude agent here (Sonnet, Haiku or Opus) is never the first choice for edits, test fixing, builds or flashing. Using one needs a reason, written before launch, why steps 1 to 3 could not do it. A parent never reports local Claude agents as "running" for work that belonged to steps 1 to 3.
 If this repo has no launcher for a step, fix the launcher first instead of falling back to a local agent.
 
+## Fastest path (owner rule, 2026-11-15)
+
+For every feature, pick the quickest route to a verified result and write a one-line verdict first (`PORT`, `REBUILD` or `SKIP`, with the reason) in the lane brief:
+- PORT when the old patch or module applies clean or with at most about 3 conflict hunks, and the surrounding file was not rewritten upstream. Check with `git apply --check` or the patch map in `docs/design/firmware-base.md`.
+- REBUILD (old code is the spec and the test, not the starting text) when the file was rewritten or moved upstream, the old code carries patches that exist only to dodge old limits, or the new base already offers the feature (see `docs/design/upstream-review.md`: HAVE and TAKE rows).
+- SKIP when the feature is on the cut or dropped lists.
+Never spend more than a few minutes choosing; when unsure, PORT the tests first and let them show what breaks. Run independent lanes in parallel, one owner per file set. Reuse old tests as the acceptance suite either way.
+
 ## Links Jesse can open (owner rule, 2026-11-15)
 
 The desktop app previews a clicked file only when it sits inside one of the session's folders. At the start of a session that works in this repo from another folder, call `request_directory` for this repo's path, then link files as markdown links relative to that folder. A file outside every session folder (for example `~/esp/...`, `~/stackchan-backups/...`, `.runs/` of another checkout) is never linked as if it opens: copy a short result into this repo's `docs/` or say the full path in text and open it with `show_pane`.
