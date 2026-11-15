@@ -10,7 +10,7 @@ Voice turn and speech (`speech/` except voices and voiceprint), `turn.py`, `repe
 - Household and identity: `speaker_evidence.py`, `speaker_fusion.py`, `speech/voiceprint.py`, `owner_levels.py`, `presence_watch.py`, `presence/{attention,arbitration,funnel,entries,observations,doa,auto_dance}.py` (who is home, who is speaking), `announce.py`, `initiative/offer.py`, `companion.py`, `routines.py`.
 - Music identification and library: `music_identify.py`, `song_title.py`, `speech/music.py`.
 - Voices catalogue: `speech/voices.py` and cloned-voice handling (Home owns voice records; the core keeps the plain built-in voice).
-- Dashboard: `dashboard/` (Home is the dashboard).
+- Old dashboard: `dashboard/` (Home is the dashboard). The core gets its OWN small local settings page, new code, built in the flasher and settings phase: robot status, the `robot.toml` settings, the pairing code, mute, update and the persona text. It is served by the core host, needs no Home, and never shows household data.
 - Moves package: keep in core only if recorded moves are needed for dance; else extras (decide when the dance lane reads it).
 
 ## Stay in the unit, always
