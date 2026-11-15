@@ -42,6 +42,7 @@ dependencies = [
 maipai_bot = "maipai_body.app:MaiPaiBody"
 
 [project.scripts]
+stackchan = "maipai_body.cli:main"
 stackchan-provision = "maipai_body.bodies.stackchan.xiaozhi.provision:main"
 maipai-bot-host = "maipai_body.hub_host:main"
 

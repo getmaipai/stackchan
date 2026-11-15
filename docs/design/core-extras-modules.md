@@ -13,6 +13,14 @@ Voice turn and speech (`speech/` except voices and voiceprint), `turn.py`, `repe
 - Old dashboard: `dashboard/` (Home is the dashboard). The core gets its OWN small local settings page, new code, built in the flasher and settings phase: robot status, the `robot.toml` settings, the pairing code, mute, update and the persona text. It is served by the core host, needs no Home, and never shows household data.
 - Moves package: keep in core only if recorded moves are needed for dance; else extras (decide when the dance lane reads it).
 
+## Where moved code ends up (answer to the owner's question, 2026-11-15)
+
+Home is Bun and TypeScript and already owns the household side (identity, voiceprint, face names, announcements, alerts, recipients, memory). Home runs this repo's Python host as its robot driver (the Home pin switches from the old bot repo to this repo). So the moved modules sort into three buckets, decided per module by a lane that reads the code:
+1. Robot driver code (talks to the unit: camera frames, microphone stream, lights, moves, cues, heartbeat). Stays here under `extras/`, installed with the Home adapter. Home calls it; Home never copies it.
+2. Household logic that Home already does in TypeScript. Not moved: deleted from this repo once the lane confirms Home covers it (no duplicate, per the scope rule).
+3. Robot-side compute Home does not do and a Home feature needs (for example face detection on frames). Stays here under `extras/` until Home takes it, then moves.
+`extras/` is the holding area; nothing moves into Home's repo from here, and nothing in this repo imports Home code.
+
 ## Stay in the unit, always
 The cue code path, camera and microphone switches, always-on indicators, the heartbeat, hard mute. Firmware body halves of moved features sit behind Kconfig switches (`home` preset only).
 

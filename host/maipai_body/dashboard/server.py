@@ -93,6 +93,14 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlsplit(self.path).path
+        if path == "/api/stackchan/pairings/code":
+            if not self._local_admin():
+                return self._error(
+                    HTTPStatus.FORBIDDEN,
+                    "Open this page on the host computer to start pairing.",
+                )
+            self._json(HTTPStatus.OK, {"code": self.server.pairing_store.create_pair_code()})
+            return
         if path in ASSETS:
             name, content_type = ASSETS[path]
             content = (STATIC_DIR / name).read_bytes()
@@ -154,6 +162,20 @@ class _Handler(BaseHTTPRequestHandler):
 
         path = urlsplit(self.path).path
         try:
+            if path == "/api/stackchan/pairings/redeem":
+                token = self.server.pairing_store.redeem_pair_code(
+                    str(body.get("device_id", "")),
+                    str(body.get("client_id", "")),
+                    str(body.get("code", "")),
+                    source=str(self.client_address[0]),
+                )
+                if token is None:
+                    return self._error(
+                        HTTPStatus.FORBIDDEN,
+                        "Pairing code is invalid, expired, used, or rate limited. "
+                        "Get a new code and retry.",
+                    )
+                return self._json(HTTPStatus.OK, {"token": token})
             if path in {
                 "/api/stackchan/pairings/approve",
                 "/api/stackchan/pairings/refuse",

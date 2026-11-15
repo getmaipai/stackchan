@@ -21,6 +21,9 @@ _UUID = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4
 PENDING_LIMIT = 8
 PENDING_TTL = 600
 ENROLLMENT_LIMIT = 32
+PAIR_CODE_TTL = 600
+PAIR_CODE_ATTEMPT_LIMIT = 5
+PAIR_CODE_WINDOW = 600
 
 
 @dataclass(frozen=True)
@@ -43,6 +46,8 @@ class PairingStore:
         self._devices: dict[str, dict[str, str | float]] = {}
         self._enrollments: dict[str, dict[str, object]] = {}
         self._pending: dict[tuple[str, str], PairingRequest] = {}
+        self._pair_codes: dict[str, dict[str, object]] = {}
+        self._code_attempts: dict[str, list[float]] = {}
         self._file_signature: tuple[int, int] | None = None
         with self._lock:
             with self._file_lock():
@@ -81,6 +86,66 @@ class PairingStore:
                 return False
             digest = hashlib.sha256(token.encode()).hexdigest()
             return secrets.compare_digest(str(record.get("token_sha256", "")), digest)
+
+    def create_pair_code(self, *, now: float | None = None) -> str:
+        """Create a displayed six digit code, valid for ten minutes and one device."""
+        now = time.time() if now is None else now
+        with self._lock:
+            code = f"{secrets.randbelow(1_000_000):06d}"
+            self._pair_codes[hashlib.sha256(code.encode()).hexdigest()] = {
+                "expires_at": now + PAIR_CODE_TTL,
+                "used": False,
+            }
+            return code
+
+    def redeem_pair_code(
+        self,
+        device_id: str,
+        client_id: str,
+        code: str,
+        *,
+        source: str = "local",
+        now: float | None = None,
+    ) -> str | None:
+        """Consume a displayed code and return the device's one-time token."""
+        now = time.time() if now is None else now
+        with self._lock:
+            attempts = [
+                stamp for stamp in self._code_attempts.get(source, [])
+                if now - stamp < PAIR_CODE_WINDOW
+            ]
+            self._code_attempts[source] = attempts
+            if len(attempts) >= PAIR_CODE_ATTEMPT_LIMIT:
+                return None
+            attempts.append(now)
+            digest = hashlib.sha256(code.encode()).hexdigest()
+            record = self._pair_codes.get(digest)
+            if (
+                not self._valid_id(device_id)
+                or not self._valid_client_id(client_id)
+                or record is None
+            ):
+                return None
+            if record["used"] or float(record["expires_at"]) <= now:
+                return None
+            record["used"] = True
+        with self._lock:
+            with self._file_lock():
+                self._refresh()
+                token = secrets.token_urlsafe(32)
+                self._devices[device_id] = {
+                    "client_id": client_id,
+                    "token_sha256": hashlib.sha256(token.encode()).hexdigest(),
+                    "approved_at": now,
+                    "last_seen": now,
+                }
+                self._save()
+                return token
+
+    def paired_devices(self) -> dict[str, dict[str, str | float]]:
+        with self._lock:
+            self._refresh()
+            return {device_id: dict(record) for device_id, record in self._devices.items()}
 
     def issue_enrollment(self, ttl: int = 86400) -> tuple[str, str]:
         if ttl <= 0:

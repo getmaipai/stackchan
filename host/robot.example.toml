@@ -1,0 +1,23 @@
+# Select "llm" to run without Home, or "home" to use the Home adapter.
+# "standalone" is accepted as an alias for "llm".
+brain = "llm"
+
+[llm]
+# OpenAI-compatible chat completions endpoint and model name.
+url = ""
+model = ""
+# Leave these unset to use the built-in local speech engines.
+# stt_url = "http://127.0.0.1:8001"
+# tts_url = "http://127.0.0.1:8002"
+
+[home]
+# Used only when brain = "home".
+url = ""
+language = "en"
+# Uses setting key names from settings_keys.py.
+# quiet_hours_from = "22:00"
+# quiet_hours_to = "07:00"
+
+[remote]
+# Remote access is disabled unless explicitly enabled.
+enabled = false
