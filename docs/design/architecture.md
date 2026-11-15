@@ -4,8 +4,7 @@ Status: design, decided 2026-11-15. Nothing here is built for the own-LLM brain 
 
 ## Goal
 
-One firmware, one host program, one feature set. A brain such as MaiPai Home makes features deeper.
-It is never required. This repo has no dependency on any other repo.
+One firmware and one host program make a complete private voice robot with its own-LLM brain. MaiPai Home adds Home features through the capability API. This repo has no dependency on any other repo.
 
 ## Three layers
 
@@ -31,22 +30,20 @@ the brain half and leaves the body half alone. If a brain half is missing, the f
 
 ## Capability negotiation
 
-At connect the host publishes a capability list built from the active brain adapter:
-`stt`, `llm`, `tts`, `vision.describe`, `face.recognize`, `speaker.id`, `memory`, `calendar`, `lists`,
-`announce`, `notify.phone`, `music.id`, `home.control`, `schedule`.
+The spec defines two capability lists: brain-to-host capabilities and body-to-Home capabilities. There is no third list.
 
 - The unit and the settings page show only what exists.
 - Features declare the capabilities they need. The host turns a feature on only when all are present.
-- The list stays short and every name is defined in the schema. No ad-hoc strings.
+- Both lists stay short and every name is defined in the spec. No ad-hoc strings.
 
 ## Brain adapters
 
 | Adapter | Provides |
 |---|---|
-| Own LLM (default, `brain = "llm"`) | Chat-completions style HTTP for the language model, plus `stt_url` and `tts_url` for speech, each falling back to a built-in local engine when blank. Vision when a vision model URL is set. |
-| MaiPai Home (optional) | Turns, identity, memory and household policy from a MaiPai Home hub, over its published API. Does nothing unless configured. |
+| Own LLM (default, `brain = "llm"`) | Chat-completions style HTTP for the language model, plus `stt_url` and `tts_url` for speech, each falling back to a built-in local engine when blank. |
+| MaiPai Home (optional) | Home features through its published API. Does nothing unless configured. |
 
-Both adapters use the same record shapes (turns, events, face-pack manifest, persona). A persona or pack made for one works in the other.
+Both adapters use record shapes defined in `commons/spec`.
 The seam is: `transcribe_stream`, `run_turn` (yields the turn event stream), `speak`, `cancel`.
 
 ## No cross-repo dependency
@@ -57,10 +54,10 @@ The seam is: `transcribe_stream`, `run_turn` (yields the turn event stream), `sp
 - CI runs the whole body-half suite with the own-LLM adapter and no hub present.
 - One conformance suite runs against both adapters, so they cannot drift apart.
 
-## Vendored schema snapshot
+## Unit protocol and shared spec
 
-- The unit protocol and brain interface live in `schema/` in this repo, versioned.
-- The shared org spec holds the master copy. This repo vendors a stamped snapshot (a data copy, not a runtime dependency).
+- `schema/` in this repo owns the versioned unit protocol only.
+- `commons/spec` owns the capability API, brain interface and record shapes. This repo vendors stamped definitions and fixtures, never host code.
 - A CI drift check compares the stamp to the tagged spec and fails on a difference.
 - Compatibility is additive only. Unknown fields are ignored. Host and unit refuse politely when `contract_version`
   does not match and say which side to update first.
@@ -86,8 +83,11 @@ The seam is: `transcribe_stream`, `run_turn` (yields the turn event stream), `sp
 
 ## Local API and bridges (host side, off by default)
 
-REST and WebSocket with a token on reads and writes, an event stream, an MCP endpoint, MQTT out, a home-automation bridge,
-a metrics endpoint. All host-side, so none costs unit RAM. Binds to the LAN, token required.
+The host exposes the capability API and the local settings page. Home provides the REST and WebSocket API, event stream, MCP endpoint, MQTT, home-automation bridge and metrics.
+
+## Plan table status
+
+The plan's "Who provides what" table is superseded (2026-11-15).
 
 ## Open
 

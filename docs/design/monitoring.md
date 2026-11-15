@@ -23,15 +23,14 @@ Decisions inside the table:
 - Watching: an all-night pink ring is unbearable and the camera icon with the word on the screen is the cue. While watching, each snapshot shows a one-second dot beside the camera icon. The pink ring is used only for a picture taken for an alert or by request, and for live view. The screen never turns fully off while armed (lowest brightness floor).
 - Night: the ring never shows green, pink or amber at night in monitor modes; the screen floor brightness carries the cue. The screen, not the ring, is the unhideable part.
 - Red and blue are reserved for alerts only. Remote lights use a separate palette. Flash rate stays at or below 2 Hz (photosensitive limit is 3 Hz).
-- Own-LLM and Home setups use the same cues; Home only adds descriptions, who, quiet hours and recipients.
+- The cue table is the unit spec. Home adds descriptions, who, quiet hours and recipients.
 
 ## Watch mode and alerts
 
 - Detectors: motion (host snapshot differencing with ignore areas and sensitivity), loud sound (level measured on the unit; nothing recorded or sent unless an alert fires), robot lifted or moved (the unit's motion sensor). Home adds person versus pet, who, a description.
 - Arm and disarm by voice, web app or a tap; 30 s arm delay with a countdown on screen.
 - Responses: quiet alert (snapshot plus notice), warning (spoken line, lights, screen), alarm (adds siren).
-- Alert channels, own-LLM: web app notice, local API, event stream, MQTT, phone push through the web app over the private network.
-- Rate limit between alerts (default 60 s, setting). The detectors ignore the robot's own voice, moves and siren (a short blanking window after each).
+- Home rate limits alerts (default 60 s, setting). The detectors ignore the robot's own voice, moves and siren (a short blanking window after each).
 - Memory: detectors on the host cost the unit nothing; the sound level meter on the unit is a few hundred bytes and runs only while armed with sound watching on.
 
 ## Baby and Pet monitor

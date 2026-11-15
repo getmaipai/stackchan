@@ -15,8 +15,7 @@ Test for any feature:
 
 - Local (built here): needs only the unit and the owner's own local servers, uses no outside service, needs no household-wide data or policy.
 - Hub (MaiPai Home or the owner's own tools): needs an outside service, household records, other rooms, or policy.
-- Grey zone: build the simple local version here (a local timer, a notes file, routines in the toml, local face enrolment, a camera alert with a name from that list).
-  A hub supplies the household version on the same schema, with no migration.
+- Grey zone: keep only a basic the robot must do alone, such as a local timer or alarm. Identity and routines belong in Home.
 
 Hub-only: song naming, calendar and briefings, email, weather, announcements, multi-room, per-person voice match,
 cross-day memory, child and teen gates. This repo exposes events and hooks for them.
@@ -51,9 +50,9 @@ Offline phrases in the owner's voice. Language packs (see languages.md).
 
 ## [Home] Camera (host, opt-in)
 
-Photo and "what is this" through the owner's vision model URL. Face follow with a bundled detector.
+Photo capture and cue only. The bundled detector runs in Home compute.
 Wave and mirror mode. "Take my picture" with a countdown, shutter cue and local folder.
-Local enrolment and a camera alert with a name from the local list. Frames stay on the host.
+Frames stay on the host or Home hub.
 The camera snapshot is low resolution, so the docs call them snapshots.
 
 
@@ -100,7 +99,7 @@ Watch mode and alerts, baby and pet monitor, remote pan and tilt, and the rule t
 
 ## [Home] Integrations host
 
-REST and WebSocket API, event stream, MQTT, home-automation bridge, metrics, `stackchan check`. All host-side.
+All in Home. This host exposes only the capability API and the settings page.
 The self-hoster status light, a busy light and a smart-home dimmer on the strip are small ideas on top of these.
 
 ## Dropped or rejected
@@ -117,9 +116,9 @@ Sound direction. Bluetooth. Phone-pickup nudge. Native phone app. Anything that 
 5. Flasher, settings panel, updater.
 6. Faces, colour, night mode, clock, big-eyes pack.
 7. Always-on behaviours.
-8. Integrations host.
-9. Host features: timers, tools, photo, camera alert, thinking cue.
-10. Games, pet, mirror, wave.
+8. Timers, tools hook and thinking cue.
+9. Home backlog: integrations host, photo and camera alert.
+10. Home backlog: games and pet.
 11. Optional: private-network enrolment, host wake words.
 
 The memory gate and a language check (English and Spanish) run after every step.

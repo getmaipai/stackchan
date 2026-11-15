@@ -4,8 +4,8 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 
 ## Repo and structure
 
-1. StackChan lives in its own repo, `getmaipai/stackchan`, for visibility and a clean split from other robots.
-2. The repo is standalone. A user never clones another MaiPai repo. A hub is one optional brain among others.
+1. StackChan lives in its own repo, `getmaipai/stackchan`, for visibility and its own release cadence. The `bot` repo stops being a shared framework and becomes the Reachy Mini repo when that work resumes, or is archived (2026-11-15).
+2. The repo is standalone. A user never clones another MaiPai repo. The `bot` repo is not a framework (2026-11-15).
 3. The host contract is a schema. This repo vendors a stamped snapshot with a CI drift check. No shared package (decision 10).
 4. No Docker in our own install path. A community Compose file may exist, never required.
 5. Install is explicit. No silent service. `stackchan install-service` is an opt-in autostart.
@@ -13,12 +13,11 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 7. The first working origin is a local bare repository on the build machine. The GitHub repo is created when the first cloud lane starts.
 8. Install from GitHub first (`pipx install git+https://github.com/getmaipai/stackchan`). A PyPI listing comes later.
 9. Windows service support is not in v1.
-10. Shared code is a vendored, stamped copy per robot repo with a drift check.
+10. The capability API and record shapes are owned by `commons/spec`. Robot repos and Home vendor stamped definitions and fixtures with a drift check; they never vendor host code. There is no shared robot code repo (2026-11-15).
 
 ## Scope
 
-11. Scope rule: the bot does as much as possible locally. A feature goes to a hub when it needs an outside service,
-    household-wide records, other devices or rooms, or policy. The grey zone gets a simple local version here and a household version in the hub, on the same schema.
+11. Scope rule: the robot does what needs its body or talk loop. A feature goes to Home when it is the same for every bot, needs household records, other devices or rooms, or policy. The grey zone is limited to basics the robot must do alone, such as a timer or alarm (2026-11-15).
 12. The host calls no address the owner did not configure.
 13. The own-LLM brain adds no content filter of its own (2026-11-15, correction). Content safety is the connected model's job.
     Body safety stays: servo limits, volume cap, wear limits, camera-on cue, mute, pairing security.

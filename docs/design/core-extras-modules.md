@@ -11,7 +11,7 @@ Voice turn and speech (`speech/` except voices and voiceprint), `turn.py`, `repe
 - Music identification and library: `music_identify.py`, `song_title.py`, `speech/music.py`.
 - Voices catalogue: `speech/voices.py` and cloned-voice handling (Home owns voice records; the core keeps the plain built-in voice).
 - Old dashboard: `dashboard/` (Home is the dashboard). The core gets its OWN small local settings page, new code, built in the flasher and settings phase: robot status, the `robot.toml` settings, the pairing code, mute, update and the persona text. It is served by the core host, needs no Home, and never shows household data.
-- Moves package: keep in core only if recorded moves are needed for dance; else extras (decide when the dance lane reads it).
+- `moves/` stays in core because dance needs it.
 
 ## Where moved code ends up (owner rule, 2026-11-15, with the reason)
 
@@ -21,7 +21,7 @@ Sorting the older modules, decided per module by a lane that reads the code:
 1. Capability driver code (talks to the unit): stays here, small, behind the capability API.
 2. Feature logic (detectors, alerts, monitor modes, identity, recognition, recipients, games, coding companion): not kept here. Home already has much of it in TypeScript; the rest is rewritten in Home against the capability API. The old Python is deleted from this repo once Home covers it, or kept in a private holding folder outside the public tree until then.
 3. Robot-side compute Home needs (for example face detection on frames): a Home package or Home sidecar, never this repo.
-Nothing in this repo imports Home code. Home's pin to this repo moves only when the capability API changes.
+Nothing in this repo imports Home code. Home's pin to this repo moves on firmware releases because its flash flow uses this repo's flasher and assets, and when the capability API changes.
 
 ## Stay in the unit, always
 The cue code path, camera and microphone switches, always-on indicators, the heartbeat, hard mute. Firmware body halves of moved features sit behind Kconfig switches (`home` preset only).

@@ -14,7 +14,7 @@ Promise: private, local AI that is yours. Nothing leaves the home.
   - No fast flashing in any light option (photosensitivity).
   - Pairing and token security. Voice commands never change safety settings, pairing or Wi-Fi.
   - Coding companion approvals: touch only by default, never by voice alone. Every approval is logged.
-- Camera features are opt-in. Frames stay on the host with a retention setting and delete-all.
+- Camera features are opt-in. Frames stay in the home, on the host or the Home hub, with a retention setting and delete-all.
 - Mute has two kinds. Quiet keeps the wake word, so a voice unmute works. Hard mute powers the mic down and only touch, the web app or a button can undo it. The unit never claims a voice unmute works in hard mute.
 
 ## Zero phone-home
