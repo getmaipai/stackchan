@@ -81,3 +81,9 @@ Real names already in the design and used as written: `face_style`, `face_color`
 ## Renamed term (2026-11-15)
 
 - Owner: "standalone" sounds like "stock" and is a new term. User docs now say "your own LLM", and the setting value is `brain = "llm"` in the docs. The design and code still say `standalone`. The build session should rename the value (or accept both) and the design notes.
+
+## Live view (2026-11-15)
+
+- Owner asked why there is no live video and wants listening, looking and picture-taking always very visible on the robot. The design already has JPEG camera frames streaming up (avatar socket, frame type 0x02, start and stop 0x05 and 0x06), so a low-resolution live view in the web app looks feasible. Not built or measured. The docs mark it Planned.
+- New cue invented in the docs: a LIVE dot on the screen for live view, with steady pink light bars. The build session must design it.
+- Per the vision channel note (2026-10-21), camera streaming had never worked on a unit in AI-agent mode. Check whether that is fixed before promising live view.

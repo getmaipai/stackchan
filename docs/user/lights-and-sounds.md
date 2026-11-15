@@ -8,7 +8,7 @@ The screen's face shows moods. The light bars never do.
 | Light | Colour and pattern | What it means | Sound with it |
 |---|---|---|---|
 | ![Green, steady](../images/light-green.svg) | **Green**, steady | Your voice is being sent to your host or hub | None |
-| ![Pink, two flashes then steady](../images/light-pink.svg) | **Pink**, two quick flashes, then steady | The camera is taking a picture | A short double click |
+| ![Pink, two flashes then steady](../images/light-pink.svg) | **Pink**, two quick flashes, then steady | The camera is taking a picture. For live view <span class="planned-tag">Planned</span>, it stays steady pink the whole time, with a LIVE dot on the screen | A short double click |
 | ![Cyan, slow pulse](../images/light-cyan.svg) | **Cyan**, a slow pulse every 2 seconds | The robot needs you: Wi-Fi setup, waiting to be paired, or a timer ringing | Two rising notes for setup. The notification tone for a timer |
 | ![Amber, one short pulse](../images/light-amber.svg) | **Amber**, one short pulse every 10 seconds | Look at the screen: offline, a fault, or low battery | Two falling notes when it goes offline. A chirp for low battery |
 | ![Blue, steady](../images/light-blue.svg) | **Blue**, steady | It is your turn to talk | A short rising pop |

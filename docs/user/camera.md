@@ -12,6 +12,26 @@ When it takes a picture, the light bars flash pink twice and stay pink <img src=
 
 ![The robot screen with the camera-on icon.](../images/camera-cue.svg)
 
+## You can always tell
+
+The robot always shows when it is listening, looking or taking a picture, and no setting can hide it.
+
+| The robot is | The light bars | The screen | A sound |
+|---|---|---|---|
+| Listening to you | Green, steady | A microphone icon | A short rising pop when it starts |
+| Taking a picture | Pink, two flashes then steady | A camera icon | A double click |
+| Showing live view <span class="planned-tag">Planned</span> | Pink, steady, the whole time | A camera icon with a LIVE dot | A double click when it starts |
+
+If the camera is off or the robot is muted, none of these show, and none of the things they describe are happening.
+
+## Live view
+
+<span class="planned-tag">Planned</span>
+
+Open the web app and watch what the robot sees, live, at low resolution. The camera is small, so the picture is a smooth low-resolution view, not high definition.
+Live view only runs while the web page is open. When it starts, the robot plays a double click and the pink lights and the LIVE dot appear, and they stay on until it stops.
+You cannot turn those cues off, and live view never starts by itself. Frames go to your host, not to an outside service.
+
 ## What is this
 
 <span class="home-tag">Needs MaiPai Home</span>
