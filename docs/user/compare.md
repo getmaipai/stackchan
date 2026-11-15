@@ -14,8 +14,8 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Privacy: your voice stays in your home | ★☆☆ | ★★☆ | ★★☆ | Built so your voice and habits never leave your home. We have not yet proved it with a network capture, so we give two stars until we publish one. The official docs say the factory AI agent is powered by XiaoZhi and set up through the StackChan World app with an account you bind. |
 | Security: who can control the robot | TBD | ★★☆ | ★★☆ | Nobody else can take over your robot. A code you type pairs it, and you can revoke access any time. |
 | Security: the link | TBD | ★★☆ | ★★☆ | Encrypted over Tailscale. On plain home Wi-Fi it is not yet, so we give two stars. |
-| Speed of replies | TBD | ★★☆ | ★★★ | Wake cue under 150 ms, stop under 300 ms, and the reply starts on the first sentence. Home is faster again. |
-| Model size and answer quality | TBD | ★★☆ | ★★★ | Bigger models give better answers. A hub runs them. |
+| Speed of replies (depends on your model and hardware) | TBD | ★★☆ | ★★★ | Wake cue under 150 ms, stop under 300 ms, and the reply starts on the first sentence. Home is faster again. |
+| Model size and answer quality (depends on your hardware) | TBD | ★★☆ | ★★★ | Bigger models give better answers. A hub runs them. |
 | Memory across days <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | It remembers what you told it yesterday. |
 | Knows each person <span class="home-tag">Needs MaiPai Home</span> | TBD | ★☆☆ | ★★★ | It knows who is talking, by voice and by name. |
 | Calendars, briefings, announcements <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Ask about your day and hear household announcements. |

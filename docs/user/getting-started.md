@@ -10,6 +10,9 @@ Before you flash, read [Switch from the factory firmware, or go back](switch-fro
 - A small always-on computer for the host program: a Mac, a Linux machine or a Raspberry Pi 5.
 - Wi-Fi that the robot and the host share.
 - A language model you run yourself, reached by a web address. Speech tools are optional, because the host has built-in ones.
+- A computer with enough memory for that model. Bigger models answer better and need more memory. MaiPai Home's install page lists what each memory size can run, and it is a good guide for your own model. See [Pick hardware and a model](hardware-and-models.md).
+
+How fast and how well the robot answers depends on your model and its hardware. The wake cue, "stop", timers and faces do not.
 
 ## Steps
 

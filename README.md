@@ -46,7 +46,7 @@ You need a StackChan robot ([store page](https://shop.m5stack.com/products/stack
 pipx install git+https://github.com/getmaipai/stackchan
 ```
 
-Flash the robot from the web flasher, run `stackchan pair`, point `llm_url` at your local LLM, and say the wake word. It takes about 20 minutes: [Getting started](docs/user/getting-started.md).
+Flash the robot from the web flasher, run `stackchan pair`, point `llm_url` at your local LLM, and say the wake word. How fast and how well it answers depends on your model and hardware: [Pick hardware and a model](docs/user/hardware-and-models.md). It takes about 20 minutes: [Getting started](docs/user/getting-started.md).
 
 ### With MaiPai Home
 

@@ -23,6 +23,10 @@ The robot is not reflashed. Set `brain = "standalone"` to go back. Your timers, 
 
 ![The web page with the brain choice set to MaiPai Home.](../images/brain-switch.svg)
 
+## What Home needs
+
+MaiPai Home runs on a Mac and lists its memory sizes and disk space on its own install page. Pick the plan that matches your Mac. A bigger Mac runs bigger models, so answers are faster and better. See [Pick hardware and a model](hardware-and-models.md).
+
 ## Away from home
 
 If your hub is on your Tailscale network, the robot reaches it from any Wi-Fi. Use the hub's Tailscale address as `home_url`.

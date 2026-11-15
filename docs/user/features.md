@@ -86,6 +86,11 @@ Page: [Lights and sounds](lights-and-sounds.md).
 Move to MaiPai for StackChan and return to the factory firmware.
 Page: [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md).
 
+## Pick hardware and a model
+
+What depends on your model, and what size of computer to start with.
+Page: [Pick hardware and a model](hardware-and-models.md).
+
 ## Compare
 
 See how MaiPai for StackChan compares with the factory firmware, and standalone with MaiPai Home.
