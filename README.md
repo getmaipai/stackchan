@@ -62,7 +62,7 @@ MaiPai for StackChan is pre-1.0, so expect rough edges. Tell us what you find on
 - Developers: build from source, host and brains, contributing, all under `docs/dev/`.
 - The robot itself: [official project](https://github.com/m5stack/StackChan), [official docs](https://docs.m5stack.com/en/StackChan), [store page](https://shop.m5stack.com/products/stackchan-kawaii-co-created-open-source-ai-desktop-robot).
 
-MaiPai for StackChan is a hobby project. I read everything (eventually), but I may be slow and can't promise to build it. Please don't take silence personally.
+MaiPai for StackChan is a hobby project. We read everything (eventually), but may be slow and can't promise to build it. Please don't take silence personally.
 
 ## Development
 
