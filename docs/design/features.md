@@ -74,6 +74,20 @@ Settings > Reset on the robot clears saved Wi-Fi networks, the private-network k
 Two-step confirm on purpose: press Reset, then hold the button for 3 seconds. Cancel changes nothing. An interrupted reset still lands on the setup page (the clear is one atomic step that ends in setup, never half-cleared).
 Rules to build against: clearing runs only on the unit (no host command can trigger it), nothing is cleared until the hold completes, the confirm screen says what will be erased in plain words, and it logs one local line. Memory: a screen and a handler, no resident cost; run the memory gate. Order: with step 7 (always-on behaviours), after saved-settings identity (step 1).
 
+## Find my robot and remote control (owner request, 2026-11-15; web app on the host)
+
+Hardware reality: Wi-Fi, BLE 5, IR and three Grove ports; no GPS and no UWB, so no map and no arrow. A Grove GPS module stays an idea.
+Find my robot: the web app shows last seen (time, Wi-Fi network name, battery), from a heartbeat the unit already sends the host. "Make it beep" plays a loud repeating tone with flashing light bars. It overrides quiet hours and mute (owner-initiated, authenticated), and one tap on the robot stops it. A warmer or colder meter only if Bluetooth stays after its review.
+Remote control: off by default (`remote_control` setting plus a token), reachable only from the home network or the private network, never through an outside relay. Actions: beep with a chosen tone, lights in a chosen colour, one-way talk (typed text or push to talk), head move.
+Rules (confirmed, with additions):
+- No remote listening, ever: there is no host-to-mic path, and the build has no such message type.
+- A Remote icon shows on the screen the whole time anyone is controlling. It cannot be hidden by a setting.
+- A short tone plays before any remote speech.
+- Remote lights never use the meaning colours (green listening, pink camera, and the warning colours); they use a separate palette.
+- Remote talk is blocked while muted or in full quiet. Find keeps working when muted.
+- Added: a remote head move obeys the same servo limits, wear counter and stall guard as local moves, is refused while the unit is carried or the arm is blocked, and is rate limited. Added: every remote action writes one line to the local activity log the household can read, and a lost token is replaced from the robot's own settings, not from the web app.
+Remote icon design: monochrome glyph in the face's icon strip (same size and row as the mic and camera icons), a small screen with two signal arcs, always steady (no blink; blinking is reserved for the camera cue), drawn in the theme's neutral icon colour so it never reads as a meaning colour. When live view and remote control are both active both icons show. Needs a screen mockup before build; it must pass the memory gate (a 1-bit glyph, a few hundred bytes).
+
 ## Integrations host
 
 REST and WebSocket API, event stream, MQTT, home-automation bridge, metrics, `stackchan check`. All host-side.
