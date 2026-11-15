@@ -94,8 +94,9 @@ Read `docs/dev/contributing.md` first. Run `bash scripts/check.sh` before you se
 
 ## Requests and bug reports
 
-Open an issue on this repo's Issues tab for a bug, a feature request or an idea. This is a hobby project. I read every request,
-but I may be slow, and I cannot promise to build any of them. A thumbs-up on an existing request helps me see what matters most.
+Open an issue on this repo's Issues tab for a bug, a feature request or an idea.
+
+MaiPai for StackChan is a hobby project. I read everything (eventually), but I may be slow and can't promise to build it. Please don't take silence personally.
 
 ## License
 
