@@ -28,6 +28,8 @@ If this repo has no launcher for a step, fix the launcher first instead of falli
 
 Our firmware and local app bring the basics working well, private and local. Extras are not force-fitted by growing the local app. We do not duplicate integrations, connectivity or features that MaiPai Home has; we connect to Home. Test for any new idea: (1) does it work with only the LLM and the robot? (2) does Home already do it, or is it an integration or a connection? Then connect to Home. (3) is it a basic the robot must do alone (an on-robot timer that rings with the host off; the robot's own Wi-Fi, pairing and private-network link)? Then build it small in the core. Module split: `docs/design/core-extras-modules.md`. The cue code path stays in the core.
 
+Enforced: `scripts/boundary-check.sh` runs in `scripts/check.sh` and fails on new Home-feature code under `host/maipai_body`, on the own-LLM brain importing Home code, and on a new firmware patch without a `# Placement:` line. The old modules still waiting to leave sit on `docs/design/boundary-debt.txt`, which may only shrink. Every lane brief starts with a Placement line (template: `docs/templates/lane-brief.md`).
+
 ## Fastest path (owner rule, 2026-11-15)
 
 For every feature, pick the quickest route to a verified result and write a one-line verdict first (`PORT`, `REBUILD` or `SKIP`, with the reason) in the lane brief:
