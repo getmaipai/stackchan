@@ -50,6 +50,15 @@ Add one from the robot's setup page or the web settings page. Remove any time. P
 
 The same setup reaches a MaiPai Home hub on your tailnet. See [With MaiPai Home](with-maipai-home.md).
 
+## Lights and sounds
+
+| What you see | What you hear | When |
+|---|---|---|
+| Amber ring, one short pulse every 10 seconds, and "Offline" on the screen | Two falling notes, once for each outage | The robot has lost its link to your host or hub |
+| No ring, the face comes back | A rising chime | The link is back after an outage of more than a minute |
+
+While it is offline, the robot answers its wake word with a short stored phrase, such as "I can't reach my host right now". See [Lights and sounds](lights-and-sounds.md).
+
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

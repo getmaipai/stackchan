@@ -49,6 +49,18 @@ The robot checks its own microphone chip after muting, and reports whether the c
 The host also watches for a leak: if the robot reports listening or camera activity while muted or camera off, it raises an error and the face shows it for 30 seconds.
 To be honest about the limit, mute is a hardware power-down plus a software lock. It is not a cut wire. If you need certainty, unplug the robot.
 
+## Lights and sounds
+
+| What you see | What you hear | When |
+|---|---|---|
+| A flat, closed mouth. No ring | Nothing | Mute is on |
+| Calm, half-closed eyes. No ring | Nothing | The camera is off |
+| The sleeping face with a small pause mark. No ring | Nothing | Full quiet is on |
+| The eyes blink once | Nothing | You tapped a switch. Switching makes no sound on purpose |
+| A red error face for 30 seconds | Nothing | The host saw activity it should not, such as listening while muted |
+
+See [Lights and sounds](lights-and-sounds.md) for every light and tone.
+
 ## Still need help?
 
 If a switch does not seem to work, run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

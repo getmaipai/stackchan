@@ -43,6 +43,15 @@ The flasher accepts the official image or a local file. `stackchan firmware veri
 
 See [Troubleshooting](troubleshooting.md).
 
+## Lights and sounds
+
+| What you see | What you hear | When |
+|---|---|---|
+| White ring, a fast pulse every second, and an animated updating icon | Nothing | An update is installing. Do not unplug the robot |
+| Neutral face, no ring | A rising chime | The update worked and the robot is back online |
+
+See [Lights and sounds](lights-and-sounds.md) for every light and tone.
+
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

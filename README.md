@@ -30,6 +30,7 @@ Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) f
 - **[Home tools](docs/user/home-tools.md):** A local API, an event stream, MQTT and metrics, all off by default.
 - **[On the go](docs/user/use-it-anywhere.md):** Join your phone's hotspot or any Wi-Fi, and reach your host or hub over Tailscale on an encrypted link.
 - **[Security](docs/user/security.md):** Pairing with a code, revocable tokens, signed updates, and an encrypted link over Tailscale.
+- **[Lights and sounds](docs/user/lights-and-sounds.md):** One ring colour per meaning, and soft tones that rise for good news and fall for bad.
 - **[Languages](docs/user/languages.md):** English and Spanish, switched at run time with no reflash.
 - **[Updates](docs/user/updates.md):** Signed images, a health check after install and automatic rollback. Nothing installs unless you say so.
 

@@ -65,6 +65,18 @@ Record them once from the web page.
 Set `llm_url`, `stt_url` and `tts_url` in `robot.toml`. Leave the speech addresses blank to use the built-in engines.
 Run `stackchan check` after any change.
 
+## Lights and sounds
+
+| What you see | What you hear | When |
+|---|---|---|
+| Blue ring, steady | A short rising pop | You said the wake word or tapped, and it is your turn to talk |
+| Green ring, steady | Nothing | Your voice is being sent to your host or hub. It stays on the whole time and never dims |
+| No ring, thinking dots on the face | A quiet tone. Change it with `thinking_cue` | The robot is working on the reply |
+| No ring, mood face and moving mouth | Its voice | The robot is speaking |
+| Amber ring, one short pulse every 10 seconds | Two falling notes, once | The robot cannot reach your host. The screen says "Offline" |
+
+See [Lights and sounds](lights-and-sounds.md) for every light and tone.
+
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

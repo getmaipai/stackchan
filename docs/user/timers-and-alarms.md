@@ -39,6 +39,18 @@ Alarms you set still ring.
 
 Timers and alarms run without the language model. They need the host only to be set. The clock needs the host once, to learn the time.
 
+## Lights and sounds
+
+| What you see | What you hear | When |
+|---|---|---|
+| Cyan ring, a short pulse every 2 seconds, a happy face and a card with the label | The notification tone now, then every 8 seconds | A timer or alarm is ringing. Touch the robot or say "stop" to end it. It stops by itself after 60 seconds |
+| No ring | A soft tone on the hour | The hourly chime, if you turned it on |
+| No ring | Nothing, then the spoken announcement | A household announcement from MaiPai Home <span class="home-tag">Needs MaiPai Home</span> |
+
+A ring set to silent still shows the cyan pulse. Quiet hours skip the chime but not an alarm you set.
+
+See [Lights and sounds](lights-and-sounds.md) for every light and tone.
+
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

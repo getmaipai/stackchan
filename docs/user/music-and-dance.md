@@ -31,6 +31,17 @@ Without MaiPai Home, this feature is hidden. See [Use MaiPai Home as the brain](
 
 The face changes to fit the music: calm, happy or lively. The mood faces are in [Change how the robot looks](face-and-look.md).
 
+## Lights and sounds
+
+| What you see | What you hear | When |
+|---|---|---|
+| A light show on the ring, in time with the dance | A rising chime when the dance starts | The robot is dancing |
+| No ring, a small "I like this" face | Nothing | The robot has noticed music |
+
+There is no light show at night. The robot dances with its head and face only.
+
+See [Lights and sounds](lights-and-sounds.md) for every light and tone.
+
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

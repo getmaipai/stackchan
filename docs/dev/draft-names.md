@@ -54,3 +54,10 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - Built per the dev notes but never run on a unit: the little dance, music detection and automatic dance, tap-on-the-face mute, spoken stop, orientation reactions, sounds, wireless update, timers and hub announcements.
 - Song naming comes from MaiPai Home. The robot sends a short clip, Home names it. The clip flow is a draft.
 - "What do you see" is design only (find-the-person-then-the-face note). Tagged Planned.
+
+## Lights and sounds (2026-11-15)
+
+- Source: `docs/dev/stackchan-lights-audit-and-plan-2026-11-13.md` section 5 (the ring standard), `stackchan-sounds-2026-11-13.md` and `stackchan-timers-and-announcements-2026-11-13.md`. Some rows there are marked proposed. The timer ring and tone are built per the timers note; the other rows follow the proposed standard.
+- Conflict to settle: the user docs say the robot shows thinking dots with a quiet tone, while the lights plan (D1) keeps thinking and speaking dark with no tone. The user docs follow the older design for the sound (dots plus a quiet tone, `thinking_cue`) and the lights plan for the ring (dark). The owner should confirm the tone.
+- The 'error' tone and 'listening' pop use the shipped tones (`exclamation`, `popup`). The 'back online' chime is the shipped `success`.
+- The light show colours for the dance are not specified in the notes, so the page does not name them.

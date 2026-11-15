@@ -50,6 +50,16 @@ In standalone mode the robot adds no content filter. The model you connect decid
 
 Take the tour in [Features](features.md), or change how the robot looks in [Settings](settings.md).
 
+## Lights and sounds
+
+| What you see | What you hear | When |
+|---|---|---|
+| Cyan ring, a slow pulse every 2 seconds, and the setup screen | Two rising notes, then again each minute | The robot needs Wi-Fi. Connect to its network and enter your Wi-Fi details. This one tone plays even at night |
+| Cyan ring, a slow pulse every 2 seconds, and "Waiting to be paired" | Two rising notes, once | The robot is waiting for you to type the pairing code |
+| No ring, the face appears | A rising chime | The robot is paired and connected |
+
+See [Lights and sounds](lights-and-sounds.md) for every light and tone.
+
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

@@ -76,6 +76,11 @@ Page: [With MaiPai Home](with-maipai-home.md).
 Pairing with a code, revocable tokens, signed updates, and an encrypted link over Tailscale.
 Page: [Keep the robot secure](security.md).
 
+## Lights and sounds
+
+What each ring colour, pattern and tone means.
+Page: [Lights and sounds](lights-and-sounds.md).
+
 ## Compare
 
 See how MaiPai for StackChan compares with the factory firmware, and standalone with MaiPai Home.
