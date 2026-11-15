@@ -12,6 +12,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
+from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
+os.environ["TMPDIR"] = "/private/tmp"
 FIRMWARE = ROOT / "host" / "maipai_body" / "bodies" / "stackchan" / "firmware"
 RELEASE = FIRMWARE / "release.sh"
 VERIFY = FIRMWARE / "verify.sh"
@@ -21,10 +23,11 @@ VENDOR_SCAN = ROOT / "scripts" / "stackchan-no-third-party.sh"
 def _write_signed_manifest(out: Path, image: Path) -> None:
     """A one-part manifest signed with a throwaway key, as release.sh writes it."""
     from maipai_body.bodies.stackchan.firmware import flash_manifest
+    os.environ["TMPDIR"] = "/private/tmp"
 
     key = out.parent / f"{out.name}-key.pem"
     subprocess.run(
-        ["openssl", "genpkey", "-algorithm", "Ed25519", "-out", str(key)],
+        [openssl_cli(), "genpkey", "-algorithm", "Ed25519", "-out", str(key)],
         check=True,
         capture_output=True,
     )
@@ -45,7 +48,7 @@ def _write_signed_manifest(out: Path, image: Path) -> None:
     signed = flash_manifest.sign_manifest(manifest, key)
     subprocess.run(
         [
-            "openssl",
+            openssl_cli(),
             "pkey",
             "-in",
             str(key),
@@ -68,6 +71,9 @@ class StackChanReleaseTests(unittest.TestCase):
         env: dict[str, str] | None = None,
         env_extra: dict[str, str] | None = None,
     ):
+        if env is None:
+            env = os.environ.copy()
+        env["TMPDIR"] = "/private/tmp"
         if env_extra:
             env = {**(env or os.environ), **env_extra}
         return subprocess.run(["bash", str(script), *args], capture_output=True, text=True, env=env)
@@ -111,13 +117,13 @@ class StackChanReleaseTests(unittest.TestCase):
             self.assertEqual(ok.returncode, 0, ok.stderr + ok.stdout)
             wrong = root / "wrong.pem"
             subprocess.run(
-                ["openssl", "genpkey", "-algorithm", "Ed25519", "-out", str(wrong)],
+                [openssl_cli(), "genpkey", "-algorithm", "Ed25519", "-out", str(wrong)],
                 check=True,
                 capture_output=True,
             )
             wrong_pub = root / "wrong-public.pem"
             subprocess.run(
-                ["openssl", "pkey", "-in", str(wrong), "-pubout", "-out", str(wrong_pub)],
+                [openssl_cli(), "pkey", "-in", str(wrong), "-pubout", "-out", str(wrong_pub)],
                 check=True,
                 capture_output=True,
             )

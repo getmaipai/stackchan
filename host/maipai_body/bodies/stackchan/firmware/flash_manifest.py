@@ -14,12 +14,17 @@ from pathlib import Path
 from typing import Any
 
 from maipai_body.spec_pin import SPEC_CHECKOUT
+from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
 
 
 def _spec_root() -> Path:
     configured = os.environ.get("MAIPAI_SPEC_DIR")
     if configured:
         return Path(configured)
+    # The body owns a vendored snapshot so manifest tooling works in a standalone checkout.
+    vendored = Path(__file__).resolve().parents[5] / "spec-vendor" / "spec"
+    if vendored.is_dir():
+        return vendored
     return Path(__file__).resolve().parents[5].parent / SPEC_CHECKOUT
 
 
@@ -87,7 +92,7 @@ def signing_payload(manifest: dict[str, Any]) -> bytes:
 
 def _openssl_public_key(key_path: str | Path) -> bytes:
     result = subprocess.run(
-        ["openssl", "pkey", "-in", str(key_path), "-pubout", "-outform", "DER"],
+        [openssl_cli(), "pkey", "-in", str(key_path), "-pubout", "-outform", "DER"],
         check=True,
         capture_output=True,
     )
@@ -102,12 +107,12 @@ def sign_manifest(manifest: dict[str, Any], key_path: str | Path) -> dict[str, A
     signed = json.loads(json.dumps(manifest))
     signed.pop("signature", None)
     raw_public = _openssl_public_key(key_path)
-    payload_path = Path(os.environ.get("TMPDIR", "/tmp")) / f"stackchan-signing-{os.getpid()}.json"
+    payload_path = Path(os.environ.get("TMPDIR", "/private/tmp")) / f"stackchan-signing-{os.getpid()}.json"
     try:
         payload_path.write_bytes(signing_payload(signed))
         signature = subprocess.run(
             [
-                "openssl",
+                openssl_cli(),
                 "pkeyutl",
                 "-sign",
                 "-rawin",
@@ -131,7 +136,7 @@ def sign_manifest(manifest: dict[str, Any], key_path: str | Path) -> dict[str, A
 def verify_manifest(manifest: dict[str, Any], public_key_path: str | Path) -> bool:
     try:
         raw_public = subprocess.run(
-            ["openssl", "pkey", "-pubin", "-in", str(public_key_path), "-outform", "DER"],
+            [openssl_cli(), "pkey", "-pubin", "-in", str(public_key_path), "-outform", "DER"],
             check=True,
             capture_output=True,
         ).stdout[-32:]
@@ -139,7 +144,7 @@ def verify_manifest(manifest: dict[str, Any], public_key_path: str | Path) -> bo
         if signature["keyid"] != hashlib.sha256(raw_public).hexdigest()[:16]:
             return False
         payload_path = (
-            Path(os.environ.get("TMPDIR", "/tmp")) / f"stackchan-verify-{os.getpid()}.json"
+            Path(os.environ.get("TMPDIR", "/private/tmp")) / f"stackchan-verify-{os.getpid()}.json"
         )
         sig_path = payload_path.with_suffix(".sig")
         try:
@@ -147,7 +152,7 @@ def verify_manifest(manifest: dict[str, Any], public_key_path: str | Path) -> bo
             sig_path.write_bytes(base64.b64decode(signature["sig"], validate=True))
             result = subprocess.run(
                 [
-                    "openssl",
+                    openssl_cli(),
                     "pkeyutl",
                     "-verify",
                     "-rawin",

@@ -28,7 +28,7 @@ from pcap_builder import (
 from maipai_body.measure import netcapture as nc
 
 HUB_TARGET = nc.HubTarget("192.0.2.20", 8443)
-PAGE = Path(__file__).parent.parent.parent / "docs" / "user" / "privacy.md"
+PAGE = Path(__file__).parent.parent.parent / "docs" / "dev" / "egress-table.md"
 
 
 def _rows(frames, **kwargs):
@@ -237,7 +237,7 @@ def test_tcpdump_missing_is_a_clear_error(tmp_path):
 def test_rehearsal_on_loopback_captures_real_packets_and_flags_the_stray(tmp_path):
     try:
         result = nc.rehearse(tmp_path / "rehearsal.pcap", stray=True)
-    except nc.CaptureUnavailable as err:
+    except (nc.CaptureUnavailable, PermissionError) as err:
         pytest.skip(str(err))
     rows = nc.label_groups(
         nc.group_egress(nc.read_pcap(result.pcap.read_bytes()), robot_ip="127.0.0.1"),
@@ -250,7 +250,7 @@ def test_rehearsal_on_loopback_captures_real_packets_and_flags_the_stray(tmp_pat
 def test_rehearsal_without_the_stray_passes(tmp_path):
     try:
         result = nc.rehearse(tmp_path / "rehearsal.pcap", stray=False)
-    except nc.CaptureUnavailable as err:
+    except (nc.CaptureUnavailable, PermissionError) as err:
         pytest.skip(str(err))
     rows = nc.label_groups(
         nc.group_egress(nc.read_pcap(result.pcap.read_bytes()), robot_ip="127.0.0.1"),

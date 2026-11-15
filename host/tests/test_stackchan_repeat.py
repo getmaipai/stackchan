@@ -442,6 +442,7 @@ def test_louder_with_nothing_to_repeat_stays_a_volume_command(harness):
 
 def test_muted_stays_silent_and_keeps_the_missed_list(harness):
     h = harness()
+    h.log._clock = lambda: at(18, 30)
     h.say("hello")
     h.log.note("timer", "your timer finished", at(18, 10))
     h.state["muted"] = True
@@ -454,6 +455,7 @@ def test_muted_stays_silent_and_keeps_the_missed_list(harness):
 
 def test_what_did_i_miss_speaks_the_summary_then_clears(harness):
     h = harness()
+    h.log._clock = lambda: at(18, 30)
     h.log.note("announcement", "Dinner is ready", at(18, 2))
     h.log.note("timer", "your timer finished", at(18, 10))
     h.say("what did I miss")

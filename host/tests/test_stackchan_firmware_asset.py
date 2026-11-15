@@ -12,7 +12,9 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
+os.environ["TMPDIR"] = "/private/tmp"
 SCRIPT = ROOT / "scripts" / "build-stackchan-firmware-asset.sh"
+from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
 
 
 def _write_signed_manifest(
@@ -22,7 +24,7 @@ def _write_signed_manifest(
 
     key = out.parent / f"{out.name}-key.pem"
     subprocess.run(
-        ["openssl", "genpkey", "-algorithm", "Ed25519", "-out", str(key)],
+        [openssl_cli(), "genpkey", "-algorithm", "Ed25519", "-out", str(key)],
         check=True,
         capture_output=True,
     )
@@ -54,9 +56,13 @@ class StackChanFirmwareAssetTests(unittest.TestCase):
     def run_builder(self, tag: str, release: Path, stage: Path):
         env = os.environ.copy()
         env["MAIPAI_BOT_BUNDLE_OUT_DIR"] = str(stage)
+        env["TMPDIR"] = "/private/tmp"
         return subprocess.run(
             ["bash", str(SCRIPT), tag, str(release)], capture_output=True, text=True, env=env
         )
+
+    def setUp(self) -> None:
+        os.environ["TMPDIR"] = "/private/tmp"
 
     def test_build_is_rooted_validated_and_reproducible(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

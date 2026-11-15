@@ -56,7 +56,7 @@ from maipai_body.measure.run_header import (
 
 ROOT = Path(__file__).parent.parent.parent
 MEASUREMENTS_MD = ROOT / "docs" / "dev" / "measurements.md"
-PAGE = ROOT / "docs" / "user" / "reachy-mini-privacy.md"
+PAGE = ROOT / "docs" / "dev" / "egress-table.md"
 CAPTURE_SOURCE = (
     "These rows come from a capture on the unit, recorded in `docs/dev/measurements.md` "
     "(RM-07), before and after MaiPai was installed."

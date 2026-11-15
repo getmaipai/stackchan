@@ -1,5 +1,11 @@
 # StackChan unit-arrival measurements
 
+## Motion carry threshold check
+
+| ID | Measurement | Unit | Status |
+|---|---|---|---|
+| MOVE-CARRY-01 | Lift, carry and put-down thresholds and durations | m/s², degrees, seconds | UNMEASURED |
+
 The first unit arrived on 2026-10-19. Our firmware is flashed and passed the
 basic bench below. The full measurement record (servo limits, camera timing,
 AEC, protocol fixtures, egress proof, idle-camera watch) is still to do; the

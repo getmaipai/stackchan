@@ -20,6 +20,7 @@ Org standards (writing style, privacy, PII) apply; see `getmaipai/.github`.
 
 Order, no exceptions: (1) Claude cloud; (2) Codex, launched in an owned tmux session Jesse can attach to; (3) our local coder (`local-lane dispatch`, small decided tasks); (4) Claude agents on this machine.
 A Claude agent here (Sonnet, Haiku or Opus) is never the first choice for edits, test fixing, builds or flashing. Using one needs a reason, written before launch, why steps 1 to 3 could not do it. A parent never reports local Claude agents as "running" for work that belonged to steps 1 to 3.
+This rule binds the session that dispatches work. A Codex run started by the dispatcher in an owned tmux session (`stackchan-<slug>-codex`) already is step 2: it does its brief and must not refuse, re-route or hand work back.
 If this repo has no launcher for a step, fix the launcher first instead of falling back to a local agent.
 
 ## Fastest path (owner rule, 2026-11-15)

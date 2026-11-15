@@ -19,7 +19,7 @@ else (cd "$DIR" && shasum -a 256 -c SHA256SUMS); fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(git -C "$HERE" rev-parse --show-toplevel)
 DIR=$(cd "$DIR" && pwd)
-cd "$ROOT/body"
+cd "$ROOT/host"
 MAIPAI_SPEC_DIR="$(bash "$ROOT/scripts/spec-dir.sh")" uv run python - "$DIR/flash-manifest.json" "$DIR" "$PUBLIC_KEY" <<'PY'
 import hashlib, json, sys
 from pathlib import Path

@@ -1,11 +1,15 @@
 import json
 import subprocess
 import sys
+import os
 from pathlib import Path
+
+os.environ["TMPDIR"] = "/private/tmp"
 
 import pytest
 
 from maipai_body.bodies.stackchan.firmware import flash_manifest
+from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = flash_manifest._spec_root()
@@ -43,16 +47,17 @@ def _build(tmp_path):
 
 
 def _key(tmp_path):
+    os.environ["TMPDIR"] = "/private/tmp"
     path = tmp_path / "ed25519.pem"
     subprocess.run(
-        ["openssl", "genpkey", "-algorithm", "Ed25519", "-out", str(path)],
+        [openssl_cli(), "genpkey", "-algorithm", "Ed25519", "-out", str(path)],
         check=True,
         capture_output=True,
     )
     public = tmp_path / "ed25519.pub"
     with public.open("wb") as stream:
         subprocess.run(
-            ["openssl", "pkey", "-in", str(path), "-pubout"],
+            [openssl_cli(), "pkey", "-in", str(path), "-pubout"],
             check=True,
             stdout=stream,
             stderr=subprocess.PIPE,
@@ -85,6 +90,7 @@ def test_parts_come_from_flasher_args_with_file_sizes_and_hashes(tmp_path):
 
 
 def test_manifest_validates_and_rejects_overlap_or_flash_overflow(tmp_path):
+    os.environ["TMPDIR"] = "/private/tmp"
     _, _, unsigned = _manifest(tmp_path)
     manifest = flash_manifest.sign_manifest(unsigned, _key(tmp_path)[0])
     flash_manifest.validate_manifest(manifest, SPEC)
@@ -99,6 +105,7 @@ def test_manifest_validates_and_rejects_overlap_or_flash_overflow(tmp_path):
 
 
 def test_sign_verify_and_part_tamper_detection(tmp_path):
+    os.environ["TMPDIR"] = "/private/tmp"
     _, _, manifest = _manifest(tmp_path)
     private, public = _key(tmp_path)
     signed = flash_manifest.sign_manifest(manifest, private)
@@ -109,6 +116,7 @@ def test_sign_verify_and_part_tamper_detection(tmp_path):
 
 
 def test_signature_payload_matches_pinned_spec_helper(tmp_path):
+    os.environ["TMPDIR"] = "/private/tmp"
     _, _, manifest = _manifest(tmp_path)
     sys.path.insert(0, str(SPEC))
     try:

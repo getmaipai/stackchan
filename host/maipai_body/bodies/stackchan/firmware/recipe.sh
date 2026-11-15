@@ -414,11 +414,11 @@ done
 cp "$HERE/assets/wake_selftest.pcm" "$FW/main/assets/assets_bin/wake_selftest.pcm"
 # The seven earcons are embedded in the app image (patch 116 lists them in EMBED_FILES): they must play before the
 # assets are applied (first setup). The sixteen offline phrases (patch 118) are packed into the assets image, which is
-# memory mapped; a unit without them says the old tone instead. Both come from body/scripts/render_unit_sounds.py and
+# memory mapped; a unit without them says the old tone instead. Both come from host/scripts/render_unit_sounds.py and
 # render_unit_phrases.py.
 for earcon in needs_you plug_in charged unplug offline goodbye shutter; do
   if [[ ! -f "$HERE/assets/sounds/snd_$earcon.ogg" ]]; then
-    echo "Earcon snd_$earcon.ogg is missing from firmware/assets/sounds. Run body/scripts/render_unit_sounds.py and retry." >&2
+    echo "Earcon snd_$earcon.ogg is missing from firmware/assets/sounds. Run host/scripts/render_unit_sounds.py and retry." >&2
     exit 1
   fi
   cp "$HERE/assets/sounds/snd_$earcon.ogg" "$FW/main/assets/sfx/snd_$earcon.ogg"
