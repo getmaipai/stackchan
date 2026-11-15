@@ -80,6 +80,10 @@ Patch 155 (remove or pin the four URL tools, add a signature check on updates) i
 
 Streamed `notify` for idle spoken alerts. The shared wake engine. Glyph push and fonts for non-Latin text. Nothing here blocks v1.
 
+## Toolchain status (2026-11-15)
+
+ESP-IDF v6.1.1 is installed at `~/esp/esp-idf-6.1.1` for the esp32s3 target (install ran 84 s, ok). The rebase builds on `release/v6.1`, not the tag; switch before the spike.
+
 ## Rollback
 
 Pin back to the previous release and the known-good tag above. Keep the last signed image and the unit's settings backup before the first reflash. Only one unit exists, so layers land one at a time.

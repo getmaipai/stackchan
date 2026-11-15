@@ -57,3 +57,7 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 - Trademark check on the product and game names.
 - Windows service support after v1.
 - Whether the owner wants a second and third unit later (costs money, owner's call).
+
+## Name check (2026-11-15)
+
+"StackChan" is the name of M5Stack's own commercial desktop robot, and a community project spells it "Stack-chan". A web search found no trademark records either way. Before a public release, search the USPTO, EUIPO and WIPO registers and decide whether the product needs its own name. Status: open, owner decision.
