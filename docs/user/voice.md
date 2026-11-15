@@ -20,7 +20,7 @@ These work in any sentence that starts with the wake word.
 | Say | What happens |
 |---|---|
 | "stop" | It stops talking and any alarm. |
-| "mute" | Powers the microphone down. The wake word is off too, so unmute by tapping the mouth or in the web app. See [Mute, camera off and full quiet](mute-and-camera-off.md). |
+| "mute" | Powers the microphone down. The wake word is off too, so unmute by tapping the mouth or in the settings page on your host. See [Mute, camera off and full quiet](mute-and-camera-off.md). |
 | "quiet" | Slow, gentle moves and a low voice. |
 | "don't move" | The servos hold still. |
 | "volume up", "volume 40" | Changes the volume. |
@@ -28,6 +28,26 @@ These work in any sentence that starts with the wake word.
 | "sleep" | The robot turns away and the screen goes dark. |
 | "what time is it" | It speaks the time. |
 | "night mode" | Turns night mode on or off. |
+
+## Say "stop" while it talks
+
+The robot hears "stop" even while it is speaking. Say "StackChan, stop", and it goes quiet at once, with no model involved.
+
+## Say "brighter" or "dimmer"
+
+Say "set brightness to 50 percent", "brighter", "dimmer", or "it's too bright". Swipe up on the screen for a control panel with volume, brightness and your saved Wi-Fi. Swipe left or right to change the volume. Swipe down to stop.
+
+![The swipe-up control panel with volume and brightness sliders.](../images/control-panel.svg)
+
+## Sounds
+
+The robot uses one family of soft bell sounds. A rising bell means good news, and a falling bell means bad news. At night they are quieter.
+Short replies such as "I cannot reach my model right now" are stored on the robot, so it still answers when the host is off.
+
+## Persona
+
+A persona is a short text that tells the model how to behave, such as its name and how it talks. Type it into the settings page on your host, or set `persona` in `robot.toml`.
+It is a prompt, not a guarantee. The model you connect decides what is said.
 
 ## Say "stop" while it talks
 

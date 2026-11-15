@@ -4,7 +4,7 @@ You can change every item here at any time. None of it needs a reflash.
 
 ## Face style
 
-Two styles ship: **big eyes** and **minimal**. Pick one in the web settings page or set `face_style` in `robot.toml`.
+Two styles ship: **big eyes** and **minimal**. Pick one in the settings page on your host or set `face_style` in `robot.toml`.
 The page shows a live preview that uses the same drawing code as the robot.
 
 ![The big-eyes face and the minimal face side by side.](../images/face-styles.svg)
@@ -18,8 +18,8 @@ Colour never carries meaning alone. Every state also has a shape or an icon, so 
 
 ## Captions
 
-Captions show the spoken words on the screen. They are off by default. Turn them on with `captions = true`, or in the web page.
-The screen is small, so long answers are spoken and shown in the web app, not on the robot.
+Captions show the spoken words on the screen. They are off by default. Turn them on with `captions = true`, or in the settings page on your host.
+The screen is small, so long answers are spoken, not shown in full on the robot.
 
 ## Clock face
 

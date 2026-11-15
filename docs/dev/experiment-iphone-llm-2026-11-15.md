@@ -48,3 +48,10 @@ Options:
 Questions for the native app: can it keep the robot link and the model alive when the screen locks (iOS suspends background apps; audio or network background modes may help but need a test); battery and heat with a hotspot on; App Store review; model size and tool use limits; whether it is a separate client rather than an extension of the core app. By the scope rule it is a separate thing, not a feature of the core.
 
 Next step: finish the laptop-host experiment first, then decide whether a native iPhone host is worth building.
+
+## Feasibility from the build session (docs/design/ios-host.md)
+
+- An iOS app can serve the robot link in the foreground: a Network.framework WebSocket listener, local-network permission, and Bonjour or the fixed hotspot address 172.20.10.1.
+- The Personal Hotspot case must be tested first.
+- Background serving is unproven and the main risk, because iOS suspends apps. Plan a foreground app on a dock with the screen on.
+- Speech with the on-device recogniser and the system synthesiser, and the model on the device. A separate client, not core. Experiment.

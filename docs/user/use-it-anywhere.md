@@ -13,7 +13,7 @@ The link is encrypted end to end by Tailscale, and nothing is opened on your rou
 
 1. Install Tailscale on the computer that runs the host, and sign in.
 2. In the Tailscale admin page, create a reusable auth key for the robot.
-3. Open the web settings page, choose **Network**, and paste the key. The robot joins your tailnet and shows its address.
+3. On the robot's own setup screen, choose **Network** and enter the key. The robot joins your tailnet and shows its address.
 
    ![The Network settings page with the Tailscale key field and a connected status.](../images/tailscale-settings.svg)
 
@@ -34,7 +34,7 @@ A hotspot uses your phone's data plan. A short chat uses little, but a long sess
 ## Saved Wi-Fi networks
 
 The robot remembers several networks, such as home, a friend's house and a hotspot. At a new place it picks the strongest saved network.
-Add one from the robot's setup page or the web settings page. Remove any time. Passwords stay on the robot.
+Add one from the robot's own setup page or screen. Remove any time. Passwords stay on the robot.
 
 ![The saved Wi-Fi list with three networks and one marked connected.](../images/saved-wifi.svg)
 

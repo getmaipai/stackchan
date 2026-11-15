@@ -11,14 +11,14 @@ Say "stop" any time and it stops where it is.
 
 ## It dances to your music
 
-Turn on **Dance to music** in the web settings page. It is off by default.
+Turn on **Dance to music** in the settings page on your host. It is off by default.
 When music plays near the robot, it first shows a small "I like this" face. If the music keeps going, it builds up into a dance that follows the beat.
 
 - It will not dance to speech, and it stops when the music stops.
 - It saves its battery. On low battery it only sways.
 - It listens through its own microphone and keeps nothing.
 
-![The web settings page with Dance to music switched on.](../images/dance-settings.svg)
+![The settings page on the host with Dance to music switched on.](../images/dance-settings.svg)
 
 While it dances, the light bars play a colour show <img src="../images/light-rainbow.svg" alt="colours walking along the light bars" height="22">, and a rising chime starts it. There is no light show at night.
 

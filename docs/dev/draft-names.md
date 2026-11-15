@@ -127,3 +127,5 @@ Real names already in the design and used as written: `face_style`, `face_color`
 
 - Audit after the core-extras list (2026-11-15): removed eyes following you (needs the camera), offline phrases recorded in your own voice (voice records are Home's), and the own-LLM name-list rating from the core pages. Open question for the build session: the core docs assume a web settings page and web app served by the core host. The core-extras list moves `dashboard/` to extras ("Home is the dashboard"). Which is it? If the core has no web page, settings are only `robot.toml` and the robot's screen.
 - Phone-only (owner idea): documented as Planned on the hardware page, FAQ and which-setup. See docs/dev/experiment-iphone-llm-2026-11-15.md.
+
+- Confirmed 2026-11-15: the core has a small settings page on the host (status, robot.toml settings, pairing code, mute, update, persona text). Wi-Fi and the Tailscale key are set on the robot's own setup screen. It never shows household data. The old dashboard module goes to extras. Docs say "the settings page on your host". `persona_lock` and a persona list were removed from the user docs.

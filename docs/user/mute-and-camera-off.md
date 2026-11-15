@@ -23,7 +23,7 @@ Tapping a switch makes no sound and changes no lights. The face shows the state,
 ## Mute
 
 Mute powers the microphone chip down, so the robot cannot hear you, not even the wake word. That also means you cannot unmute by voice.
-To unmute, tap the mouth, use the web app, or ask from MaiPai Home. The host asks you to confirm before it unmutes the robot from far away.
+To unmute, tap the mouth, use the settings page on your host, or ask from MaiPai Home. The host asks you to confirm before it unmutes the robot from far away.
 While muted, the robot says nothing, and spoken announcements wait.
 
 ## Camera off

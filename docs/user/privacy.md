@@ -40,7 +40,7 @@ The camera is opt-in. Frames stay on the host. You set how long to keep them and
 
 ## Microphone
 
-Mute powers the microphone chip down, so the robot cannot hear you or the wake word. Only a tap on the mouth, the web app or MaiPai Home undoes it. Camera off and full quiet are separate switches. See [Mute, camera off and full quiet](mute-and-camera-off.md).
+Mute powers the microphone chip down, so the robot cannot hear you or the wake word. Only a tap on the mouth, the settings page on your host or MaiPai Home undoes it. Camera off and full quiet are separate switches. See [Mute, camera off and full quiet](mute-and-camera-off.md).
 
 ## Time
 

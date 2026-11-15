@@ -4,7 +4,7 @@ English and Spanish are included. One firmware works for both, and you pick the 
 
 ## Change the language
 
-Set `language` in `robot.toml`, on the web settings page or on the robot. No reflash. No file edit is needed from the page.
+Set `language` in `robot.toml`, in the settings page on your host or on the robot. No reflash. No file edit is needed from the page.
 
 ## What changes
 

@@ -1,11 +1,11 @@
 # Change a setting
 
-You will find the same settings in three places: the `robot.toml` file, the web settings page and the robot itself.
+You will find the same settings in three places: the `robot.toml` file, the settings page on your host and the robot itself. Wi-Fi and the Tailscale key are set on the robot's own setup screen, not on the host's page.
 Changing a setting never needs a reflash.
 
 ## Face style (`face_style`)
 
-Picks the look of the face. Packs: big eyes and minimal. The web page shows a preview.
+Picks the look of the face. Packs: big eyes and minimal. The settings page on your host shows a preview.
 
 ## Face colour (`face_color`)
 
@@ -45,7 +45,7 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 | `home_url` | Your MaiPai Home hub address | blank |
 | `language` | English or Spanish | English |
 | `voice` | The voice the robot speaks with | built-in voice |
-| `persona`, `persona_lock` | The personality, and whether speech can change it | none, unlocked |
+| `persona` | A short text that tells the model how to behave | none |
 | `face_style` | Big eyes or minimal | big eyes |
 | `face_color` | None, a named colour or a custom colour | none |
 | `captions` | Show spoken words on screen | off |
@@ -67,13 +67,13 @@ Clears Wi-Fi networks, the Tailscale key, pairing and settings, after a confirma
 
 ## More keys
 
-- `persona` and `persona_lock`: the personality, and whether a spoken request can change it.
+- `persona`: a short text that tells the model how to behave.
 - `quick_sliders`: which sliders the head strip opens. The default is volume and brightness.
 - `hourly_chime`, `quiet_from` and `quiet_to`: a soft tone each hour, and a window when the robot dims and stays quiet.
 - `idle_motion`: turn the idle moves off.
 - `prefer_tailnet`: minutes the robot tries Tailscale first. The key itself is pasted on the Network page.
 
-![The web settings page with the face, voice and privacy groups open.](../images/web-settings.svg)
+![The settings page on the host with robot status, settings, the pairing code, mute and update.](../images/web-settings.svg)
 
 ## Still need help?
 
