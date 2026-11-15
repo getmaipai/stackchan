@@ -88,6 +88,10 @@ Rules (confirmed, with additions):
 - Added: a remote head move obeys the same servo limits, wear counter and stall guard as local moves, is refused while the unit is carried or the arm is blocked, and is rate limited. Added: every remote action writes one line to the local activity log the household can read, and a lost token is replaced from the robot's own settings, not from the web app.
 Remote icon design: monochrome glyph in the face's icon strip (same size and row as the mic and camera icons), a small screen with two signal arcs, always steady (no blink; blinking is reserved for the camera cue), drawn in the theme's neutral icon colour so it never reads as a meaning colour. When live view and remote control are both active both icons show. Needs a screen mockup before build; it must pass the memory gate (a 1-bit glyph, a few hundred bytes).
 
+## Monitoring modes (owner request, 2026-11-15)
+
+Watch mode and alerts, baby and pet monitor, remote pan and tilt, and the rule that no monitoring is stealth: every cue comes from the one code path that opens the mic or camera. Full design, the cue table and the decisions: `docs/design/monitoring.md`. Build after the memory gate holds on the new base.
+
 ## Integrations host
 
 REST and WebSocket API, event stream, MQTT, home-automation bridge, metrics, `stackchan check`. All host-side.
