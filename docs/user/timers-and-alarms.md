@@ -43,7 +43,7 @@ Timers and alarms run without the language model. They need the host only to be 
 
 | What you see | What you hear | When |
 |---|---|---|
-| Cyan ring, a short pulse every 2 seconds, a happy face and a card with the label | The notification tone now, then every 8 seconds | A timer or alarm is ringing. Touch the robot or say "stop" to end it. It stops by itself after 60 seconds |
+| ![Cyan ring pulsing slowly](../images/light-cyan.svg)<br>Cyan ring, a short pulse every 2 seconds, a happy face and a card with the label | ![Notification tone](../images/tone-needs-you.svg)<br>The notification tone now, then every 8 seconds | A timer or alarm is ringing. Touch the robot or say "stop" to end it. It stops by itself after 60 seconds |
 | No ring | A soft tone on the hour | The hourly chime, if you turned it on |
 | No ring | Nothing, then the spoken announcement | A household announcement from MaiPai Home <span class="home-tag">Needs MaiPai Home</span> |
 

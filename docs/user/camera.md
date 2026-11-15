@@ -50,7 +50,7 @@ Snapshots are deleted after `camera_retention`. Press Delete all in the web page
 
 | What you see | What you hear | When |
 |---|---|---|
-| Pink ring: two quick flashes, then steady | A short double click | The camera is taking a picture. This cue is never dimmed, and the click plays at night too |
+| ![Pink ring flashing twice, then steady](../images/light-pink.svg)<br>Pink ring: two quick flashes, then steady | ![Two short clicks](../images/tone-shutter.svg)<br>A short double click | The camera is taking a picture. This cue is never dimmed, and the click plays at night too |
 | Camera-on icon on the screen | Nothing | The camera is streaming. You cannot turn this cue off |
 | Calm, half-closed eyes | Nothing | The camera is off |
 

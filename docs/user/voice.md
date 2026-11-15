@@ -69,11 +69,11 @@ Run `stackchan check` after any change.
 
 | What you see | What you hear | When |
 |---|---|---|
-| Blue ring, steady | A short rising pop | You said the wake word or tapped, and it is your turn to talk |
-| Green ring, steady | Nothing | Your voice is being sent to your host or hub. It stays on the whole time and never dims |
+| ![Blue ring, steady](../images/light-blue.svg)<br>Blue ring, steady | ![One short rising pop](../images/tone-listening.svg)<br>A short rising pop | You said the wake word or tapped, and it is your turn to talk |
+| ![Green ring, steady](../images/light-green.svg)<br>Green ring, steady | Nothing | Your voice is being sent to your host or hub. It stays on the whole time and never dims |
 | No ring, thinking dots on the face | A quiet tone. Change it with `thinking_cue` | The robot is working on the reply |
 | No ring, mood face and moving mouth | Its voice | The robot is speaking |
-| Amber ring, one short pulse every 10 seconds | Two falling notes, once | The robot cannot reach your host. The screen says "Offline" |
+| ![Amber ring, one short pulse](../images/light-amber.svg)<br>Amber ring, one short pulse every 10 seconds | ![Two falling notes](../images/tone-offline.svg)<br>Two falling notes, once | The robot cannot reach your host. The screen says "Offline" |
 
 See [Lights and sounds](lights-and-sounds.md) for every light and tone.
 

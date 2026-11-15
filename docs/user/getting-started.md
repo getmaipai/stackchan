@@ -54,9 +54,9 @@ Take the tour in [Features](features.md), or change how the robot looks in [Sett
 
 | What you see | What you hear | When |
 |---|---|---|
-| Cyan ring, a slow pulse every 2 seconds, and the setup screen | Two rising notes, then again each minute | The robot needs Wi-Fi. Connect to its network and enter your Wi-Fi details. This one tone plays even at night |
-| Cyan ring, a slow pulse every 2 seconds, and "Waiting to be paired" | Two rising notes, once | The robot is waiting for you to type the pairing code |
-| No ring, the face appears | A rising chime | The robot is paired and connected |
+| ![Cyan ring pulsing slowly](../images/light-cyan.svg)<br>Cyan ring, a slow pulse every 2 seconds, and the setup screen | ![Two rising notes](../images/tone-needs-you.svg)<br>Two rising notes, then again each minute | The robot needs Wi-Fi. Connect to its network and enter your Wi-Fi details. This one tone plays even at night |
+| ![Cyan ring pulsing slowly](../images/light-cyan.svg)<br>Cyan ring, a slow pulse every 2 seconds, and "Waiting to be paired" | ![Two rising notes](../images/tone-needs-you.svg)<br>Two rising notes, once | The robot is waiting for you to type the pairing code |
+| No ring, the face appears | ![A rising chime](../images/tone-back-online.svg)<br>A rising chime | The robot is paired and connected |
 
 See [Lights and sounds](lights-and-sounds.md) for every light and tone.
 

@@ -35,7 +35,7 @@ The face changes to fit the music: calm, happy or lively. The mood faces are in 
 
 | What you see | What you hear | When |
 |---|---|---|
-| A light show on the ring, in time with the dance | A rising chime when the dance starts | The robot is dancing |
+| ![Colours walking around the ring](../images/light-rainbow.svg)<br>A light show on the ring, in time with the dance | ![A rising chime](../images/tone-back-online.svg)<br>A rising chime when the dance starts | The robot is dancing |
 | No ring, a small "I like this" face | Nothing | The robot has noticed music |
 
 There is no light show at night. The robot dances with its head and face only.
