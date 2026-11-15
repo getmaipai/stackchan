@@ -10,7 +10,7 @@
 7. No exclamation points. No rhetorical questions as transitions.
 8. Do not mention, compare to or credit other projects. Required notices live only in LICENSE, NOTICE and THIRD-PARTY.md.
    The two upstream firmware bases are named only in `docs/dev/build-from-source.md`.
-   One exception (owner rule, 2026-11-15): the README and the getting-started page link the official StackChan project, its docs and its store page, and credit M5Stack as the robot's maker. The one comparison lives in `docs/user/compare.md` (owner request, 2026-11-15): facts only, each taken from the official README or docs and dated, never a claim about what the official firmware lacks that we have not checked.
+   One exception (owner rule, 2026-11-15): the README and the getting-started page link the official StackChan project, its docs and its store page, and credit M5Stack as the robot's maker. `docs/user/hardware-and-models.md` may name local model server apps as examples of OpenAI-compatible servers (owner request, 2026-11-15). The one comparison lives in `docs/user/compare.md` (owner request, 2026-11-15): facts only, each taken from the official README or docs and dated, never a claim about what the official firmware lacks that we have not checked.
 9. Examples use 192.0.2.x addresses, example.com and persona names. Never real names, addresses or hostnames.
 10. Say "snapshots" for camera images, because the resolution is low.
 11. MaiPai Home appears only as an optional brain.

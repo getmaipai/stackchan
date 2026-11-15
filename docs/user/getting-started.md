@@ -9,8 +9,9 @@ Before you flash, read [Switch from the factory firmware, or go back](switch-fro
 - A StackChan robot and a USB cable. New to the robot? See the [official docs](https://docs.m5stack.com/en/StackChan), or [buy one from the store](https://shop.m5stack.com/products/stackchan-kawaii-co-created-open-source-ai-desktop-robot).
 - A small always-on computer for the host program: a Mac, a Linux machine or a Raspberry Pi 5.
 - Wi-Fi that the robot and the host share.
-- A language model you run yourself, reached by a web address. Speech tools are optional, because the host has built-in ones.
+- A language model served from an app on a computer you control. The app must offer an OpenAI-compatible chat address, which is the standard web address most local model apps already provide. It looks like `http://192.0.2.10:8080/v1`. See [Host a model](hardware-and-models.md#host-a-model).
 - A computer with enough memory for that model. Bigger models answer better and need more memory. See [Pick hardware and a model](hardware-and-models.md) for a rough size guide.
+- Speech tools are optional, because the host has built-in ones.
 
 How fast and how well the robot answers depends on your model and its hardware. The wake cue, "stop", timers and faces do not.
 

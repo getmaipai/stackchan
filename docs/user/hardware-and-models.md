@@ -24,6 +24,18 @@ As a rough rule for common compressed models, count the model's file size plus a
 
 These are the figures from our design notes. We will publish measured numbers for named computers and models before release.
 
+## Host a model
+
+The robot's host does not run a model itself. It asks a model server over the web, using the OpenAI-compatible chat address that most local model apps offer. You need one of those running somewhere you control.
+
+1. **Pick a model server app** that can load a model and serve an OpenAI-compatible chat address. Apps such as Ollama, LM Studio, llama.cpp's server and vLLM do this.
+2. **Download a model** that fits your computer's memory, and load it in the app.
+3. **Turn on the server** and note its address. It looks like `http://192.0.2.10:8080/v1`. Replace the numbers with your computer's address.
+4. **Let the host reach it.** If the model runs on a different computer from the host, make the server listen on your network, not only on that computer. Keep it on a network you trust.
+5. **Set `llm_url`** in `robot.toml` to that address, then run `stackchan check`. You'll know it worked when the check lists the model and every line says ok.
+
+If you use a model that cannot call actions, the voice commands still work. See [If answers are slow or wrong](#if-answers-are-slow-or-wrong).
+
 ## Choose where the model runs
 
 1. **On the host.** One small computer runs the host and a small model. It is the simplest and works well for short answers.
