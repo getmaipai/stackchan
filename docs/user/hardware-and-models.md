@@ -18,7 +18,9 @@ A small model on a modest computer answers fast and gets simple things right. A 
 
 - **A 4B-class model** answers in under 400 ms to the first token once it is warm. It is a good start on a small host.
 - **A 27B-class model** gives better answers, but on a weak computer the first word is slow. It needs a computer built for it.
-- **Memory is the limit.** The model must fit in the computer's memory with room left for everything else. Bigger models need more.
+- **Memory is the limit.** The model must fit in the computer's memory with room left for everything else.
+
+As a rough rule for common compressed models, count the model's file size plus a few more gigabytes for the conversation. A 4B model is about 3 GB, an 8B model about 5 to 6 GB, and a 27B model about 16 to 18 GB. These are estimates. Check the size of the file you download.
 
 These are the figures from our design notes. We will publish measured numbers for named computers and models before release.
 
@@ -26,7 +28,7 @@ These are the figures from our design notes. We will publish measured numbers fo
 
 1. **On the host.** One small computer runs the host and a small model. It is the simplest and works well for short answers.
 2. **On a bigger computer on your network.** Point `llm_url` at it. The host stays small and the model runs where there is more memory.
-3. **On MaiPai Home.** MaiPai Home keeps its models loaded on a machine set up for them. It lists what each memory size can run on its install page, and the same sizes are a good guide for your own model. See [Use MaiPai Home as the brain](with-maipai-home.md).
+3. **On MaiPai Home.** If you use MaiPai Home as the brain, it runs the models for you on its own machine. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
 ## If answers are slow or wrong
 
