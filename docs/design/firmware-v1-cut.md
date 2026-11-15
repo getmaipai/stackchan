@@ -239,3 +239,7 @@ Only group A is confirmed disjoint from the patch map file lists. All other CORE
 ## Minimum shippable firmware
 
 The minimum shippable image is the CORE-V1 subset that compiles into a small paired voice robot: provisioned Wi-Fi and host identity, a working paired voice turn, local wake and stop, hard mute and privacy cues, face and clock, timers that ring without the host, touch and basic reactions, controlled lights and sounds, reset/setup, signed updates, and the memory and security removals needed to pass the gate. Defer optional face packs, richer dances, and every Home preset module until their own memory checks pass. The first real-unit test verifies pairing and reconnect on the owner network, a full wake to spoken reply with barge-in/stop, hard mute at the microphone hardware, touch stop for an alarm with the host disconnected, setup/reset, the camera/mic privacy cues, no public network calls, and a 10-minute memory run meeting `internal_free >= 25 KB`, minimum `>= 15 KB`, and `int_big >= 16 KB` without resets, stalls, or watchdogs.
+
+## Check before skipping (parent, 2026-11-15)
+
+`011-avatar-auth-headers` and `063-avatar-device-id-and-barge-in` are tagged HOME-PRESET. If the face and expression link rides the avatar socket, the unit's `Device-Id` and `Client-Id` on that socket are core (several robots and pairing need them). Verify which socket carries the face before the lane skips them, and move them to CORE-V1 if it is this one.
