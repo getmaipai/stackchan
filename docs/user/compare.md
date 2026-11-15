@@ -13,7 +13,10 @@ MaiPai for StackChan changes the firmware and adds a host program. The robot is 
 |---|---|---|
 | AI agent | Yes, as the official docs describe | Yes, using a local LLM you run, or MaiPai Home |
 | Where the AI runs | See the official docs | On your own computer or your MaiPai Home hub |
+| Privacy: where your voice goes | See the official docs | Only to your own computer or your MaiPai Home hub |
 | Vendor account or cloud | See the official docs | None. The host calls only the addresses you list |
+| Security: who can control the robot | See the official docs | Pairing with a code you type, revocable tokens, a token on every API, no router ports. [Details](security.md) |
+| Security: the link | See the official docs | Encrypted end to end over Tailscale. Plain on a home network without it |
 | Speed | Not measured here. See the official docs | Wake cue in under 150 ms. "Stop" and touch commands in under 300 ms with no model. Replies start on the first finished sentence |
 | Animated face | Yes | Yes, with two styles, any colour or none, and captions |
 | Timers and alarms with a ring | Not listed in the official README | Yes |
@@ -23,7 +26,7 @@ MaiPai for StackChan changes the firmware and adds a host program. The robot is 
 | Local API, MQTT, metrics | Not listed in the official README | Yes, off by default |
 | On the go (phone hotspot, any Wi-Fi) | See the official docs | Yes, over your Tailscale network |
 | English and Spanish | See the official docs | Yes, switched at run time |
-| Updates | See the official docs | Checked, never installed unless you say so, signed, with rollback |
+| Signed updates | See the official docs | Checked, never installed unless you say so, signed, with rollback |
 | Mobile app for video and remote avatar control | Yes | No. We have no phone app |
 | Online app downloads | Yes | No |
 | ESP-NOW remote controller | Yes | Not supported yet |
