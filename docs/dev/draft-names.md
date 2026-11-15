@@ -37,6 +37,7 @@ Real names already in the design and used as written: `face_style`, `face_color`
   `stackchan token`, `stackchan camera delete`, `stackchan notify --status`.
 - `prefer_tailnet` comes from the unit protocol (`self.network.prefer_tailnet`, 0 to 120 minutes). The Network page and the tailnet status text are drafts. The robot joining the tailnet by itself is design ANYWHERE-01, not built.
 
+- Reset the robot (Settings > Reset, press then hold three seconds to confirm) is a new feature requested by the owner on 2026-11-15. It is not in the design or the code. The docs describe it as built.
 - `docs/user/security.md`: the reset-from-settings step, the Security page with a Forget button, and the private security contact are drafts. The contact must exist before release.
 
 ## Claims to measure before release

@@ -19,10 +19,22 @@ Privacy keeps your data in your home. Security keeps other people out. This page
 On your home network without Tailscale, the link between the robot and the host is plain, not encrypted. Anyone already on your Wi-Fi could read it.
 Use a network you trust, or turn on [Tailscale](use-it-anywhere.md), which encrypts it.
 
+## Reset the robot
+
+A reset clears the robot's saved Wi-Fi networks, its Tailscale key, its pairing and its settings. Your host keeps its own files.
+
+1. On the robot, open **Settings**, then **Reset**.
+2. Read what will be cleared and press **Reset**.
+3. Confirm by holding the button for three seconds. The robot asks twice on purpose, so a stray touch cannot wipe it.
+
+You'll know it worked when the robot restarts and shows the setup page.
+
+If you cancel, nothing changes. If the reset stops partway, the robot says so and starts the setup page anyway. Run the reset again.
+
 ## If you lose the robot or sell it
 
 1. Run `stackchan forget` on the host. The robot can no longer reach it.
-2. Reset the robot from its settings page to clear its saved Wi-Fi networks and Tailscale key.
+2. If you have the robot, [reset it](#reset-the-robot).
 3. In the Tailscale admin page, remove the robot and delete its auth key.
 
 You'll know it worked when `stackchan check` no longer lists the robot.

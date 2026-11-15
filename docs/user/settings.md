@@ -36,6 +36,10 @@ English or Spanish. See `languages.md`. The robot changes at once with no file e
 
 Run `stackchan check` after any change to your addresses. Environment variables override secrets in the file.
 
+## Reset the robot
+
+Clears Wi-Fi networks, the Tailscale key, pairing and settings, after a confirmation. See [Keep the robot secure](security.md).
+
 ## More keys
 
 - `persona` and `persona_lock`: the personality, and whether a spoken request can change it.
