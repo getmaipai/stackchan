@@ -87,3 +87,9 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - Owner asked why there is no live video and wants listening, looking and picture-taking always very visible on the robot. The design already has JPEG camera frames streaming up (avatar socket, frame type 0x02, start and stop 0x05 and 0x06), so a low-resolution live view in the web app looks feasible. Not built or measured. The docs mark it Planned.
 - New cue invented in the docs: a LIVE dot on the screen for live view, with steady pink light bars. The build session must design it.
 - Per the vision channel note (2026-10-21), camera streaming had never worked on a unit in AI-agent mode. Check whether that is fixed before promising live view.
+
+## Find me and remote control (2026-11-15, owner request)
+
+- New planned features: Find (last seen, beep and flash, optional Bluetooth signal meter), remote control (beep, lights, one-way talk, head), live view. Nothing is designed or built. Names `remote_control` and the Remote icon are drafts.
+- Hardware limits: the official specs list Wi-Fi, Bluetooth 5 LE and infrared, three Grove ports, no GPS and no UWB. A GPS module on a Grove port is an idea to evaluate, not a promise.
+- Rules the docs promise: no remote listening, every remote action shows a Remote icon and a tone before speech, Find works even when muted, remote talk is blocked when muted or in full quiet, remote lights avoid the meaning colours.

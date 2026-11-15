@@ -37,6 +37,8 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | On the go (phone hotspot, any Wi-Fi) | TBD | ★★★ | ★★★ | Join your phone's hotspot and take it to a friend's house. |
 | English and Spanish | TBD | ★★★ | ★★★ | Switch language at run time with no reflash. |
 | Signed updates with rollback | TBD | ★★★ | ★★★ | Nothing installs unless you say so, and a bad update rolls back by itself. |
+| Find my robot, beep and flash <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Press Find to see where it was last seen and make it beep and flash. No GPS, so no map. |
+| Remote beep, lights and talk <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Make it beep, light up or speak from the web app. The robot always shows when someone is using it. |
 | Live camera view <span class="planned-tag">Planned</span> | ★★★ | ☆☆☆ | ☆☆☆ | The factory app has a monitoring camera mode with a joystick. Ours is planned as a low-resolution live view in the web app, with the pink lights and a LIVE dot always on while it runs. |
 | Control from your phone (app or web app) | ★★★ | ★★☆ | ★★☆ | The factory app does live video and remote avatar control. We have no phone app. Our web app, served by your host, opens in any phone browser and controls settings, faces, timers and snapshots. Live view is planned. We have no remote avatar control. If you rely on those, stay on factory. |
 | Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ | Removed on purpose. The on-device app system took about 548 KB of flash and 24 KB of the robot's scarce working memory, and we used that room for the voice agent and the features above. |

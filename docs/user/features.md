@@ -26,6 +26,11 @@ Page: [Timers and alarms](timers-and-alarms.md).
 Three switches, each a tap on the face. Mute the microphone, stop the camera, or hold still and silent.
 Page: [Mute, camera off and full quiet](mute-and-camera-off.md).
 
+## Find it and control it remotely
+
+Find the robot, make it beep and flash, and control its lights and voice from the web app. <span class="planned-tag">Planned</span>
+Page: [Find the robot and control it remotely](find-and-remote.md).
+
 ## Let it react
 
 Pickup, shake, tilt and petting, breathing, quiet mode, privacy sleep and the low-battery steps.

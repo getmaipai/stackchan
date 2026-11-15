@@ -9,6 +9,7 @@ Privacy keeps your data in your home. Security keeps other people out. This page
 - **Tailscale encrypts the link.** Over your Tailscale network, traffic between the robot and your host is encrypted end to end. Only your own devices can join.
 - **Tokens on everything that is on.** The local API, event stream and metrics are off by default. When you turn one on, every read and write needs a token.
 - **Signed updates.** The robot installs only signed images. A bad signature is refused, and a failed update rolls back.
+- **Remote control is off by default.** When you turn it on, every remote action needs your token and shows a Remote icon on the robot. There is no remote listening. <span class="planned-tag">Planned</span>
 - **The camera cue cannot be switched off.** When the camera streams, the screen always shows it.
 - **No open ports on your router.** You never forward a port. Over Tailscale, only your own devices can reach the robot and host.
 
