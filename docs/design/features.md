@@ -63,6 +63,10 @@ Live view and capture cues (owner request, 2026-11-15). The unit must always sho
 The cue is driven by the same code path that opens the camera or mic, so a capture without the cue is impossible (hardware-truth rule, as for hard mute).
 Live view in the web app: the avatar socket already carries JPEG frames up (type 0x02; 0x05 and 0x06 start and stop). First check why camera streaming never worked in AI-agent mode (`docs/dev/stackchan-vision-channel-2026-10-21.md`), then measure a low-resolution live view: frame rate, free internal RAM, Wi-Fi load, heat over 10 minutes, and the latency cost to voice. Ship only if the memory gate holds; send results to the docs session (camera page, tagged Planned).
 
+## Ideas added after a market audit (core, small; owner request 2026-11-15)
+
+Time-of-day faces and clock variants. Several named timers with live countdowns on the face. A cooking helper prompt pack (spoken "next step", per-step timers) that uses the own LLM and the unit timers with no new code path. A speech speed and pitch setting. For Home to build against the capability API: sound-alarm recognition alerts, intercom, per-person context with a guest mode, phone handoff. Photo-frame face stays deferred until the memory gate has headroom.
+
 ## Touch and play
 
 Colour-memory game and an action game, as signed data packs on one built-in game engine. Reaction and whack-a-mole variants.
