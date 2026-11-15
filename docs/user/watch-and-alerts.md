@@ -10,7 +10,9 @@ Most of this works with your own LLM. MaiPai Home adds more, and it is marked wh
 Say "arm watch", or press **Watch** in the web app. The robot counts down for 30 seconds so you can leave the room, then it starts watching.
 To stop, say "disarm", press **Watch** again, or tap the robot's face.
 
-While the robot is watching, the screen always shows a camera icon and the word **Watching**, and a microphone icon if it is listening for sounds. You cannot turn those cues off.
+While the robot is watching, the screen always shows a camera icon and the word **Watching**, and a microphone icon if it is listening for sounds. A small dot beside the camera icon lights for one second each time it takes a snapshot to compare. The screen never goes fully dark while it is armed. You cannot turn those cues off.
+
+The light bars stay off at night. By day they can show a dim, steady amber while armed, and you can turn that off in the settings. Pink shows only when the robot takes a picture for an alert or because you asked, and during live view.
 Mute and camera off still work: if you turn the camera off, motion watching stops, and if you mute the robot, sound watching stops.
 
 ![The robot face with a camera icon, a microphone icon and the word Watching.](../images/watching.svg)
@@ -31,7 +33,7 @@ You set how sensitive each one is, and you can draw an area on the picture to ig
 You pick one of three responses for each watch:
 
 1. **Quiet alert.** The robot tells you and saves a snapshot. It makes no noise.
-2. **Warning.** It says "You are being recorded. Please leave", flashes its lights and shows an alert on its screen.
+2. **Warning.** It says "You are being recorded. Please leave", flashes its lights and shows an alert on its screen. The robot records nothing by default, so change the words if that is not true for you.
 3. **Alarm.** Everything in the warning, plus a loud siren.
 
 In a warning or an alarm, the light bars swap between red and blue, twice a second, the screen flashes the same red and blue and shows a big **ALERT**, and the siren, if you chose it, rises and falls.
@@ -59,16 +61,17 @@ The alert is a short message with a time, what it noticed and the snapshot. The 
 - Start with **Quiet alert** for a day to see what it notices.
 - Draw the areas to ignore, and set sensitivity lower in a room with a fan or a window.
 - The robot ignores its own voice, its own moves and its own siren.
-- A short pause between alerts keeps one visitor from sending you ten messages.
+- A pause of 60 seconds between alerts by default keeps one visitor from sending you ten messages. You can change it.
+- The count-down before it arms shows on the screen, so you can see when it starts watching.
 
 ## Use it fairly
 
-Watching a room records people. Tell the people who live there, and do not point the robot at a neighbour's home or anywhere people expect privacy. The rules about recording differ by place, and you are responsible for following them.
-The robot always shows when it is watching, and it is not a replacement for a real alarm system or a smoke alarm.
+Tell the people who live there and anyone who visits that the robot can watch and listen. Laws about recording and monitoring differ by place, and some need everyone's consent. Do not point the robot at a neighbour's home or anywhere people expect privacy.
+The robot records nothing by default. It is not a replacement for a real alarm or a smoke alarm. This is not legal advice, and you are responsible for following the rules where you live.
 
 ## Lights and sounds
 
-While armed, the screen shows the camera icon and **Watching**. In an alert, the light bars swap red and blue and a siren plays. See [Lights and sounds](lights-and-sounds.md).
+While armed, the screen shows the camera icon and **Watching**, and by day the light bars can show a dim, steady amber. In an alert, the light bars swap red and blue and a siren plays. See [Lights and sounds](lights-and-sounds.md).
 
 ## Still need help?
 

@@ -43,7 +43,7 @@ There is no remote listening in remote control. You can talk to the robot, but y
 Use the arrows or the joystick in the web app, or tap a saved spot, such as "the door". Panning turns all the way around. Tilting stays within a safe range of about 5 to 85 degrees up and down, which protects the motors.
 With live view <span class="planned-tag">Planned</span>, you can look around the room the same way.
 
-A remote head move follows the same limits as any other move. It is refused while the robot is being carried or is blocked, and it is rate limited, so it cannot be used to wear out or jam the motors.
+Every pan or tilt writes one line to the activity log. A remote head move follows the same limits as any other move. It is refused while the robot is being carried or is blocked, and it is rate limited, so it cannot be used to wear out or jam the motors.
 
 ![The web app Remote screen with Beep, Lights, Talk and Head controls.](../images/remote-control.svg)
 

@@ -10,12 +10,12 @@ When you start it, pick a profile. The robot changes what it listens for and how
 
 | | Baby | Pet |
 |---|---|---|
-| **Listens for** | Crying and loud sounds | Barking, howling, meowing and loud sounds |
+| **Listens for** | Loud sounds, such as crying | Loud sounds, such as barking or meowing |
 | **Comforts with** | A lullaby, a soft sound, or your voice | Your voice, calming music or a soft sound |
 | **Plays by itself** | Only if you turn that on | Only if you turn that on |
 | **Label on the screen** | **Baby monitor**, with a baby icon | **Pet monitor**, with a paw icon |
 
-Detecting a cry, a bark or a meow is planned and not designed yet. At first, alerts come from loudness. <span class="home-tag">Needs MaiPai Home</span> MaiPai Home can tell the difference.
+The robot alerts on how loud a sound is and how long it lasts. It does not know the kind of sound, so it says "loud sound", not "cry". Telling a cry or a bark apart may come later, once we have tested it on real recordings.
 
 ## Read this first
 
@@ -26,7 +26,7 @@ For a pet, it does not replace care. Keep its cable out of a pet's reach, and as
 ## Start it on the robot
 
 Baby monitor starts only on the robot itself. Say "baby monitor on" or "pet monitor on", or tap **Baby monitor** or **Pet monitor** on its screen. It cannot be started from the web app or from far away.
-That is on purpose: it is the one mode where the robot sends its microphone to your phone, so a person in the room must start it.
+That is on purpose. This is the one mode where the robot sends its microphone to your phone, and the robot will only do that while its own monitor mode is on. Your host cannot turn it on. It stops when the last phone disconnects, or when you touch the robot.
 
 While it runs, the screen shows a calm **Baby monitor** or **Pet monitor** label with a microphone icon and a camera icon, and a small **Listening in** mark while your phone is connected. These cues stay on and you cannot turn them off.
 You stop it the same way, by voice or on the screen, or from your phone.
@@ -35,13 +35,13 @@ You stop it the same way, by voice or on the screen, or from your phone.
 
 ## What it does
 
-- **Alerts when the room gets loud.** A cry, a bark or a loud sound sends an alert to your phone.
+- **Alerts when the room gets loud.** A loud sound that lasts sends an alert to your phone.
 - **Alerts on movement.** The camera notices motion and sends an alert with a snapshot. The robot's camera is small and low resolution, so you see shapes, not detail.
 - **Listen in.** Open the web app on your phone to hear the room live.
 - **Look in.** Live view shows a low-resolution picture. In a dark room the picture is dark, so use a night light.
-- **Soothe.** You can play a song or a soft sound, or talk to your baby or pet through the robot. A familiar voice often calms a pet. Your phone shows a clear **Playing** or **Talking** mark, and the robot shows the same on its screen.
+- **Soothe.** You can play a song or a soft sound, or talk to your baby or pet through the robot. A familiar voice often calms a pet. Your phone shows a clear **Playing** or **Talking** mark, and the robot shows the same on its screen. Talking plays no tone first, so it does not wake anyone.
 
-The robot dims its screen and keeps its voice low. It does not flash red and blue or sound a siren in baby monitor mode.
+The robot dims its screen and keeps its voice low. At night the light bars stay off, and the dim screen carries the label, the icons and **Listening in**. By day the light bars can show a dim, steady amber. It does not flash red and blue or sound a siren in baby or pet monitor mode.
 
 ## Songs and soft sounds
 
@@ -58,7 +58,11 @@ Songs play from your own host. The robot does not stream from an outside music s
 
 ## What it keeps
 
-Nothing is recorded by default. Sound and pictures stay on your host and go only to your own phone, over your home network or Tailscale. An alert carries a time, what it noticed and a snapshot.
+Nothing is recorded by default, and nobody can start listening from the web app. Sound and pictures stay on your host and go only to your own phone, over your home network or Tailscale. An alert carries a time, what it noticed and a snapshot.
+
+## Tell the people in your home
+
+Tell residents and visitors that the robot can watch and listen. Laws about recording and monitoring differ by place, and some need everyone's consent. The robot records nothing by default. It is not a replacement for a real alarm or a medical baby monitor. This is not legal advice.
 
 ## Set it up
 

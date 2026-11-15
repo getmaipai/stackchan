@@ -13,6 +13,7 @@ The screen's face shows moods. The light bars never do.
 | ![Amber, one short pulse](../images/light-amber.svg) | **Amber**, one short pulse every 10 seconds | Look at the screen: offline, a fault, or low battery | Two falling notes when it goes offline. A chirp for low battery |
 | ![Blue, steady](../images/light-blue.svg) | **Blue**, steady | It is your turn to talk | A short rising pop |
 | ![White, fast pulse](../images/light-white.svg) | **White**, a fast pulse every second | Updating. Do not unplug | None |
+| ![Dim amber, steady](../images/light-amber.svg) | **Dim amber**, steady, by day only | Watch or monitor mode is on. At night the light bars stay off and the screen carries the cue <span class="planned-tag">Planned</span> | None |
 | ![Red and blue swapping sides](../images/light-alert.svg) | **Red and blue**, swapping sides twice a second | Security alert <span class="planned-tag">Planned</span>. The screen flashes the same colours | The siren, if you chose the alarm |
 | ![All off](../images/light-dark.svg) | **Dark** | Everything else: idle, thinking, speaking, asleep | None |
 | ![One small red light at the back](../images/light-charging.svg) | **Red light at the back** | Charging. It is a separate light from the charger and the light bars do not repeat it | Two quick rising notes when you plug in |
