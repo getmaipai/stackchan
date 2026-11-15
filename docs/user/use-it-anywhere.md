@@ -7,7 +7,7 @@ The link is encrypted end to end by Tailscale, and nothing is opened on your rou
 
 - **Bring the robot anywhere.** Plug it in on any Wi-Fi with internet. It finds your host through your tailnet, so you carry no travel router and no phone app.
 - **An encrypted link.** On your home network the link between the robot and the host is plain. Over Tailscale it is encrypted.
-- **Still private.** Tailscale connects your own devices to each other. Your voice, snapshots and models stay on your machines.
+- **Still private.** Tailscale connects your own devices to each other. Your conversations, snapshots and models stay on your machines.
 
 ## Set it up
 

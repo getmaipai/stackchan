@@ -39,7 +39,7 @@ The robot is not reflashed. Set `brain = "llm"` to go back. Your timers, faces a
 
 ## What Home needs
 
-MaiPai Home runs on a Mac and lists its memory sizes and disk space on its own install page. Pick the plan that matches your Mac. A bigger Mac runs bigger models, so answers are faster and better. See [Pick hardware and a model](hardware-and-models.md).
+MaiPai Home runs on a Mac and lists its memory sizes and disk space on its own install page. Pick the plan that matches your Mac. MaiPai Home adds features, not speed: how fast the robot answers depends on your model and hardware either way. See [Pick hardware and a model](hardware-and-models.md).
 
 ## Away from home
 

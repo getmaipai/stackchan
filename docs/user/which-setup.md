@@ -16,7 +16,7 @@ See [Compare](compare.md).
 
 Use it when:
 
-- You want your voice to stay in your home, and better privacy than you have now.
+- You want your conversations to stay in your home, and better privacy than you have now.
 - You want it faster and more capable: timers, reactions, dance, mute and camera-off switches.
 - You have, or will set up, hardware to run a model and the host: a small always-on computer such as a Raspberry Pi 5, plus a computer or phone that serves a model.
 - You are happy with a simple, focused voice robot.
@@ -29,8 +29,7 @@ Use it when:
 
 - You already run MaiPai Home, or you want to.
 - You want the extras: the camera, watching, a baby or pet monitor, find and remote control, games and a coding companion.
-- You want memory across days, people, calendars and household rules.
-- You want faster answers from bigger models on a machine built for them.
+- You want the full feature set: memory across days, recognising people, naming songs, calendars and household rules.
 
 Start with [Use MaiPai Home as the brain](with-maipai-home.md).
 

@@ -11,11 +11,11 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | | Factory firmware | MaiPai for StackChan | With MaiPai Home | Why it matters |
 |---|:---:|:---:|:---:|---|
 | AI agent | ★★★ | ★★★ | ★★★ | Talk to it and it answers. Ours uses a model you choose. |
-| Privacy: your voice stays in your home | ★☆☆ | ★★☆ | ★★☆ | Built so your voice and habits never leave your home. We have not yet proved it with a network capture, so we give two stars until we publish one. The official docs say the factory AI agent is powered by XiaoZhi and set up through the StackChan World app with an account you bind. |
+| Privacy: your conversations stay in your home | ★☆☆ | ★★☆ | ★★☆ | Built so your conversations and habits never leave your home. We have not yet proved it with a network capture, so we give two stars until we publish one. The official docs say the factory AI agent is powered by XiaoZhi and set up through the StackChan World app with an account you bind. |
 | Security: who can control the robot | TBD | ★★☆ | ★★☆ | Nobody else can take over your robot. A code you type pairs it, and you can revoke access any time. |
 | Security: the link | TBD | ★★☆ | ★★☆ | Encrypted over Tailscale. On plain home Wi-Fi it is not yet, so we give two stars. |
-| Speed of replies (depends on your model and hardware) | TBD | ★★☆ | ★★★ | Wake cue under 150 ms, stop under 300 ms, and the reply starts on the first sentence. Home is faster again. |
-| Model size and answer quality (depends on your hardware) | TBD | ★★☆ | ★★★ | Bigger models give better answers. A hub runs them. |
+| Speed of replies (depends on your model and hardware) | TBD | ★★☆ | ★★☆ | Wake cue under 150 ms, stop under 300 ms, and the reply starts on the first sentence. The speed of the answer depends on your model and hardware, with or without MaiPai Home. |
+| Model size and answer quality (depends on your hardware) | TBD | ★★☆ | ★★☆ | Bigger models give better answers. You can run any size your hardware allows, with or without MaiPai Home. |
 | Memory across days <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | It remembers what you told it yesterday. |
 | Knows each person <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | It knows who is talking, by voice and by name. |
 | Calendars, briefings, announcements <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Ask about your day and hear household announcements. |
@@ -58,8 +58,9 @@ We chose a web app served by your host over a native phone app. We would rather 
 
 ## What the stars mean for you
 
-- **Privacy and security:** both MaiPai columns are built to keep your voice in your home, and we will publish a network capture that shows it before release. The link is encrypted over Tailscale and plain on a home network without it, so we rate it two stars until the encrypted home link ships. [Keep the robot secure](security.md).
-- **Speed and answer quality:** a MaiPai Home hub keeps its models loaded on one machine built for them, so the first word arrives sooner and it can run bigger models. A 4B class model answers in under 400 ms warm, and a 27B class model on a weak host does not. These are targets until the benchmark is run.
+- **Privacy and security:** both MaiPai columns are built to keep your conversations in your home, and we will publish a network capture that shows it before release. The link is encrypted over Tailscale and plain on a home network without it, so we rate it two stars until the encrypted home link ships. [Keep the robot secure](security.md).
+- **Speed and answer quality:** these depend on your model and hardware, the same with or without MaiPai Home. A 4B class model answers in under 400 ms warm, and a 27B class model on a weak host does not. These are targets until the benchmark is run.
+- **What MaiPai Home adds:** the full feature set, such as memory, recognising people, naming songs, the camera, watching and monitoring, and household rules.
 - **What you give up:** a phone app (our web app covers settings and snapshots, and live view is planned, but there is no remote avatar control), setting up the robot from the phone over Bluetooth, online app downloads, and the official ESP-NOW remote controller. If you rely on those, stay on the factory firmware for now. You can [switch back](switch-from-the-factory-firmware.md) any time.
 - **Memory, people, calendars and rules** come only with MaiPai Home.
 
