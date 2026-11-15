@@ -4,15 +4,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        StackChan is a hobby project. I read every request, but I may be slow to answer, and I can't promise to build any of them. Please don't take silence personally. Adding a 👍 to an existing request helps me see what matters most.
-
-        Two quick things before you write.
-
-        **Works on the bot alone:** things StackChan can do by itself with your own local model, like a tic tac toe game or a new face.
-
-        **Needs MaiPai Home:** things that need the rest of your house, like content filtering, Home Assistant control, notes saved to your family's memory, or a doorbell camera picture. These live in MaiPai Home, and we track them here so you only have to ask in one place.
-
-        Not sure which one? Pick "Not sure". We sort it out.
+        MaiPai for StackChan is a hobby project. I read everything (eventually), but I may be slow and can't promise to build it. Please don't take silence personally.
   - type: dropdown
     id: kind
     attributes:
@@ -27,8 +19,8 @@ body:
     attributes:
       label: Does it need MaiPai Home?
       options:
-        - Works on the bot alone
-        - Needs MaiPai Home
+        - Works on the bot alone (like a game)
+        - Needs MaiPai Home (like notes, a doorbell camera picture or Home Assistant)
         - Not sure
     validations:
       required: true
@@ -42,5 +34,5 @@ body:
   - type: input
     id: version
     attributes:
-      label: StackChan version (bugs only)
+      label: Version (bugs only)
       description: If you know it. Leave blank if not.
