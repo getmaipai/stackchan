@@ -71,6 +71,10 @@ MaiPai for StackChan is pre-1.0, so expect rough edges. Tell us what you find on
 
 MaiPai for StackChan is a hobby project. We read everything (eventually), but may be slow and can't promise to build it. Please don't take silence personally.
 
+## Help us test
+
+We can only test the robots, phones and computers we own. If you run MaiPai for StackChan, tell us your robot, your computer, your model and how fast the first word arrives, on the Issues tab. Real numbers from real setups fill the gaps in our [compare page](docs/user/compare.md) and [hardware guide](docs/user/hardware-and-models.md).
+
 ## Development
 
 Read `docs/dev/contributing.md`, then run `bash scripts/check.sh` before you send a change. Build from source and the host design are under `docs/dev/`.
