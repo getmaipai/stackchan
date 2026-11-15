@@ -64,3 +64,7 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 ## Scope: core and Home (2026-11-15)
 
 The core MaiPai for StackChan app is a private voice robot, simple and single purpose. Camera features, watch mode, baby and pet monitor, find my robot, remote control, live view, games, the coding companion and integrations move to MaiPai Home (tag [Home] in `features.md`). The unit keeps their body halves and the cue code path. Firmware ships as two presets from one source, `core` and `home`; feature logic for those is not kept in this public repo (it lives in Home against a capability API this repo exposes). Detail: `docs/design/features.md` ("Core and Home").
+
+## Migration order (owner, 2026-11-15)
+
+Finish StackChan first. Then plan the Reachy Mini migration the same way (history-preserving extraction, vendored spec copy, own repo or Home package decided at that time, memory and cue rules carried over), and retire the old `bot` repo as the last step: archive it, move anything still needed, retire `bot/AGENTS.md` and `BODY-STACKCHAN-01`, and point Home's pins at the new repos. The Reachy plan gets its own design note when StackChan ships.
