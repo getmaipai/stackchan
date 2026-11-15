@@ -20,7 +20,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Knows each person | TBD | ★☆☆ | ★★★ | It knows who is talking, by voice and by name. |
 | Calendars, briefings, announcements | TBD | ☆☆☆ | ★★★ | Ask about your day and hear household announcements. |
 | Rules for children and teens | TBD | ☆☆☆ | ★★★ | Kids get answers that fit the rules you set. |
-| Animated face | ★★★ | ★★★ | ★★★ | Two styles, any colour or none, and captions if you want them. |
+| Animated face | ★★☆ | ★★★ | ★★★ | The official README lists lively, expressive animations. Ours lets you choose between two styles, any colour or none, and captions, and it adds a clock face and night mode. |
 | Timers and alarms | TBD | ★★★ | ★★★ | A ring empties as time runs out, so you can read it across the room. |
 | Camera features | TBD | ★★★ | ★★★ | Ask "what is this" or have it follow you. Frames stay on your host. |
 | Games and a pet mood | TBD | ★★★ | ★★★ | Something to do together. The pet mood grows with care. |
