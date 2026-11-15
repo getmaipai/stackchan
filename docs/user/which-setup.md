@@ -1,25 +1,18 @@
 # Which setup is right for me?
 
-Pick the row that sounds like you. The robot is the same hardware in every case. The first three rows use MaiPai for StackChan, and the factory firmware is a choice too.
+There are three choices. The robot is the same hardware in all of them.
 
-| If you want | Use | Start here |
-|---|---|---|
-| A simple, private voice robot with a small model on one computer | **Your own LLM** | [Getting started](getting-started.md) |
-| The camera, watching, a baby or pet monitor, find and remote control, games, a coding companion, faster answers, memory and calendars | **With MaiPai Home** | [Use MaiPai Home as the brain](with-maipai-home.md) |
-| Only a phone and the robot, no computer <span class="planned-tag">Planned</span> | **Phone only** | [Pick hardware and a model](hardware-and-models.md#no-computer-only-a-phone) |
-| To take the robot to a friend's house or the office | **On the go**, with either of the above | [Take the robot on the go](use-it-anywhere.md) |
-| The phone app, live video, remote avatar control, the ESP-NOW remote or the app centre | **Stay on the factory firmware** | [Compare](compare.md) |
-| To try MaiPai for StackChan and keep the option to return | **Switch, and go back if you want** | [Switch from the factory firmware](switch-from-the-factory-firmware.md) |
+| | Factory firmware | MaiPai for StackChan | MaiPai for StackChan with MaiPai Home |
+|---|---|---|---|
+| **Pick it if you want** | The phone app, live video, remote avatar control, the ESP-NOW remote or the app centre | A simple, private voice robot that runs on your own LLM | The camera, watching, a baby or pet monitor, find and remote control, games, a coding companion, memory and calendars |
+| **What you need** | The robot | The robot, a small host computer and a local LLM | The same, plus a MaiPai Home hub |
+| **Where your voice goes** | See the official docs | Only to your own computer | Only to your own hub |
+| **First setup takes** | See the official docs | About 20 minutes, plus the time to download a model | About 5 minutes more, if MaiPai Home is already running |
+| **Start here** | [Compare](compare.md) | [Getting started](getting-started.md) | [Use MaiPai Home as the brain](with-maipai-home.md) |
 
-## How long each takes
+You can change your mind later. Moving between the last two is one line, `brain = "llm"` or `brain = "home"`, and the robot is not reflashed. To move to or from the factory firmware, see [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md).
 
-| Setup | Time the first time |
-|---|---|
-| Your own LLM | About 20 minutes, plus the time to download a model |
-| With MaiPai Home | About 5 minutes more, if MaiPai Home is already running |
-| On the go | About 10 minutes more, for Tailscale and your hotspot |
-
-You can change your mind later. Switching the brain is one line, `brain = "llm"` or `brain = "home"`, and the robot is not reflashed.
+Want to take the robot to a friend's house? Any of the MaiPai choices can [travel with your phone's hotspot](use-it-anywhere.md).
 
 ## Still need help?
 
