@@ -23,6 +23,7 @@ Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) f
 - **[Faces and clock](docs/user/face-and-look.md):** Two face styles, any colour or none, a clock face, night mode and optional captions.
 - **[Timers and alarms](docs/user/timers-and-alarms.md):** A ring that empties as time runs out, named timers, snooze and quiet hours.
 - **[Reactions](docs/user/moves-and-moods.md):** Pickup, shake, tilt and petting, a breathing idle, tap-the-face mute and privacy sleep, and low-battery steps.
+- **[Watch and alerts](docs/user/watch-and-alerts.md):** Notices motion and loud sounds, alerts you with a snapshot, and can flash red and blue with a siren. Planned.
 - **[Music and dance](docs/user/music-and-dance.md):** It hears music and dances to the beat, dances on request, and with MaiPai Home names the song.
 - **[Camera](docs/user/camera.md):** Off until you turn it on. Snapshots, face follow and a local name list, and "what is this" with MaiPai Home. Frames stay on your host.
 - **[Games and a pet mood](docs/user/games-and-pet.md):** Colour memory, an action game, and a mood that depends on how you care for the robot.

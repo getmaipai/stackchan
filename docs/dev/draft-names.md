@@ -96,3 +96,11 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - Live view and the three always-on cues (listening, picture, live) are now in docs/design/features.md under Camera. The cue is driven by the same code path that opens the mic or camera, so it cannot be hidden. Live view will be measured after the firmware rebase; numbers to come.
 
 - Confirmed by the build session 2026-11-15 (docs/design/features.md): remote rules, activity log line per remote action, token replaced only from the robot's own settings, home or private network only, no host-to-mic message type. The Remote icon (small screen with two signal arcs, steady, neutral colour) needs a mockup before build. Last seen comes from the unit's heartbeat. Warmer/colder depends on the open Bluetooth review.
+
+## Watch mode and alerts (2026-11-15, owner request)
+
+- Planned, nothing designed: arm and disarm (voice, web app, tap), 30 s arm delay, three responses (quiet, warning, alarm), motion from host snapshot differencing, sound level from the unit, lift detection from the motion sensor, ignore areas, rate limit, siren, red and blue swapping at 2 Hz (under 3 Hz for photosensitivity), 60 s default alarm length.
+- Cues to design: Watching label, camera icon and microphone icon while armed. This collides with the pink-light rule and could be pink all night. The build session must decide the watch cue.
+- Own LLM alerts: web app, local API, MQTT, event stream. Phone push depends on decision 21 (web app push over a private-network certificate). Home adds descriptions, who it saw, quiet hours and recipients.
+- Red and blue are now reserved for alerts. The older notes say the lights are never red. Update `lights-and-sounds` rules together with the build session.
+- Alarm and recording notes are not legal advice. Review the Use it fairly section before release.

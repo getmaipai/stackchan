@@ -31,6 +31,11 @@ Page: [Mute, camera off and full quiet](mute-and-camera-off.md).
 Find the robot, make it beep and flash, and control its lights and voice from the web app. <span class="planned-tag">Planned</span>
 Page: [Find the robot and control it remotely](find-and-remote.md).
 
+## Watch and alert
+
+Watch for motion and loud sounds, get an alert, and, if you want, flash red and blue and sound a siren. <span class="planned-tag">Planned</span>
+Page: [Watch your room and get alerts](watch-and-alerts.md).
+
 ## Let it react
 
 Pickup, shake, tilt and petting, breathing, quiet mode, privacy sleep and the low-battery steps.

@@ -83,3 +83,23 @@ tone('tone-back-online', 'A chime that rises over three notes.', [0.15, 0.5, 0.9
 tone('tone-listening', 'One short rising pop.', [0.6])
 tone('tone-low-battery', 'A short chirp, two quick notes.', [0.6, 0.6])
 tone('tone-error', 'One low, short tone.', [0.12])
+
+
+def alert(name, alt):
+    dots = ''
+    for i in range(12):
+        x = 44 if i < 6 else 116
+        y = 12 + 10.4 * (i if i < 6 else 11 - i)
+        a, b = ('#ef4444', '#3b82f6') if i < 6 else ('#3b82f6', '#ef4444')
+        dots += (f'<circle cx="{x}" cy="{y:.1f}" r="6.5" fill="{a}"><animate attributeName="fill" values="{a};{b};{a}" '
+                 f'keyTimes="0;.5;1" calcMode="discrete" dur="1s" repeatCount="indefinite"/></circle>')
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 76" width="160" height="76" role="img" aria-label="{alt}">'
+           '<defs><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter></defs>'
+           '<rect width="160" height="76" rx="14" fill="#10141b"/>'
+           '<rect x="30" y="4" width="28" height="68" rx="12" fill="#161b24" stroke="#232b38" stroke-width="2"/>'
+           '<rect x="102" y="4" width="28" height="68" rx="12" fill="#161b24" stroke="#232b38" stroke-width="2"/>'
+           f'<g filter="url(#b)" opacity=".9">{dots}</g>{dots}</svg>\n')
+    (out / f'{name}.svg').write_text(svg)
+
+alert('light-alert', 'Two light bars where the left glows red while the right glows blue, then they swap, twice a second.')
+tone('tone-siren', 'A loud siren that rises and falls, over four notes.', [0.15, 0.95, 0.15, 0.95])

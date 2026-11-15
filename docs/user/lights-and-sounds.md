@@ -13,12 +13,15 @@ The screen's face shows moods. The light bars never do.
 | ![Amber, one short pulse](../images/light-amber.svg) | **Amber**, one short pulse every 10 seconds | Look at the screen: offline, a fault, or low battery | Two falling notes when it goes offline. A chirp for low battery |
 | ![Blue, steady](../images/light-blue.svg) | **Blue**, steady | It is your turn to talk | A short rising pop |
 | ![White, fast pulse](../images/light-white.svg) | **White**, a fast pulse every second | Updating. Do not unplug | None |
+| ![Red and blue swapping sides](../images/light-alert.svg) | **Red and blue**, swapping sides twice a second | Security alert <span class="planned-tag">Planned</span>. The screen flashes the same colours | The siren, if you chose the alarm |
 | ![All off](../images/light-dark.svg) | **Dark** | Everything else: idle, thinking, speaking, asleep | None |
 | ![One small red light at the back](../images/light-charging.svg) | **Red light at the back** | Charging. It is a separate light from the charger and the light bars do not repeat it | Two quick rising notes when you plug in |
 | ![Colour walking along the light bars](../images/light-rainbow.svg) | **Rainbow**, one turn every 2 seconds | The dance light show | A rising chime when the dance starts |
 | ![Pulsing in time, colour stepping](../images/light-beat.svg) | **Pulsing**, the colour steps on each beat | The dance light show on a beat | None |
 
 Both bars show the same colour at the same time. The dance light show is the one exception, because the colour walks along one bar and up the other.
+
+Red and blue are used only for a security alert.
 
 Green and pink never dim, even at night or in the quietest setting, because they tell you about your privacy. The other colours get softer at night.
 While the robot charges, a small red light at the back is on. It is a separate light from the charger, and the light bars do not repeat it.
@@ -39,6 +42,7 @@ All tones are soft bells. A rising tone is good news and a falling tone is bad n
 | ![](../images/tone-back-online.svg) | Back online | A rising chime | The robot connected, or an update finished |
 | ![](../images/tone-listening.svg) | Listening | A short rising pop | The wake word or a tap opened your turn |
 | ![](../images/tone-low-battery.svg) | Low battery | A chirp | The battery reached 20 percent |
+| ![](../images/tone-siren.svg) | Siren <span class="planned-tag">Planned</span> | A loud siren that rises and falls | A security alert, if you chose the alarm |
 | ![](../images/tone-error.svg) | Error | A low, short tone | Something you asked for failed |
 
 The robot chimes only for something you need to notice or something you just did. It never chimes for something it chose to do by itself.

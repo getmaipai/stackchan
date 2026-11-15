@@ -37,6 +37,8 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | On the go (phone hotspot, any Wi-Fi) | TBD | ★★★ | ★★★ | Join your phone's hotspot and take it to a friend's house. |
 | English and Spanish | TBD | ★★★ | ★★★ | Switch language at run time with no reflash. |
 | Signed updates with rollback | TBD | ★★★ | ★★★ | Nothing installs unless you say so, and a bad update rolls back by itself. |
+| Watch mode: motion and sound alerts <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | The robot notices motion and loud sounds and sends an alert with a snapshot. Better with MaiPai Home, which can say what it saw and who. |
+| Security alarm: red and blue lights, siren <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | A warning or an alarm with swapping lights, a siren and an alert on the screen. |
 | Find my robot, beep and flash <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Press Find to see where it was last seen and make it beep and flash. No GPS, so no map. |
 | Remote beep, lights and talk <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Make it beep, light up or speak from the web app. The robot always shows when someone is using it. |
 | Live camera view <span class="planned-tag">Planned</span> | ★★★ | ☆☆☆ | ☆☆☆ | The factory app has a monitoring camera mode with a joystick. Ours is planned as a low-resolution live view in the web app, with the pink lights and a LIVE dot always on while it runs. |

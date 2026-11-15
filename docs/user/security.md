@@ -15,6 +15,10 @@ Privacy keeps your data in your home. Security keeps other people out. This page
 
 ![The web security page listing paired devices, with a Forget button next to each.](../images/security-settings.svg)
 
+## Watch mode
+
+The robot can watch a room for motion and loud sounds. It always shows when it is watching, and it never records or sends sound unless an alert fires. See [Watch your room and get alerts](watch-and-alerts.md). <span class="planned-tag">Planned</span>
+
 ## Known gaps
 
 We audited the design and found these. Each has a fix planned before release.
