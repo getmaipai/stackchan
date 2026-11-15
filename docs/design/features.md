@@ -94,6 +94,8 @@ The memory gate and a language check (English and Spanish) run after every step.
 
 ## Open
 
+- Experiment: an iPhone as hotspot and model server for the travelling robot (plan, risks and what to record: `docs/dev/experiment-iphone-llm-2026-11-15.md`). Needs the unit, an iPhone, a laptop host and a trip test with Jesse. Send the numbers to the docs session for a Planned page.
+- Measured speed and quality for named machines (small model warm, large model on a weak host) before release; the user docs only quote design figures until then.
 - Review and decide on Bluetooth (owner request, 2026-11-15). Measure the real cost first: flash and heap with the stack compiled in but off, heap while running, and the latency effect on voice streaming from the shared radio. Candidate uses, best first: phone Wi-Fi setup from a browser (no hotspot page), a clicker for push to talk and coding approvals, find my robot, a phone or watch as a remote, room sensors on the face. Presence by Bluetooth stays dropped unless reversed. Decide: keep compiled in and off by default, or cut.
 
 - Servo position readback when torque is released (decides record and replay of posed moves).
