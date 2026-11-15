@@ -4,31 +4,31 @@ You can run the robot's factory firmware, MaiPai for StackChan on its own, or Ma
 
 The robot stays the same. MaiPai for StackChan changes the firmware and adds a host program. The hardware is the same: the same controller, servos, screen, camera and battery.
 
-**How to read the ratings:** ★★★ best, ★★☆ better, ★☆☆ basic, ☆☆☆ not available, ? not rated yet.
+**How to read the ratings:** ★★★ best, ★★☆ better, ★☆☆ basic, ☆☆☆ not available, TBD not rated yet.
 The ratings are ours. We rate the factory firmware only where M5Stack's [official project README](https://github.com/m5stack/StackChan) says it has a feature (checked 2026-11-15).
-A ? means the README is silent or we have not tested it. See the [official docs](https://docs.m5stack.com/en/StackChan) for those. Our own stars come from the design and will change as we measure.
+TBD means the README is silent or we have not tested it. See the [official docs](https://docs.m5stack.com/en/StackChan) for those. Our own stars come from the design and will change as we measure.
 
 | | Factory firmware | MaiPai for StackChan | With MaiPai Home |
 |---|:---:|:---:|:---:|
 | AI agent | ★★★ | ★★★ | ★★★ |
-| Privacy: your voice stays in your home | ? | ★★★ | ★★★ |
-| Security: who can control the robot | ? | ★★☆ | ★★☆ |
-| Security: the link (encrypted over Tailscale) | ? | ★★☆ | ★★☆ |
-| Speed of replies | ? | ★★☆ | ★★★ |
-| Model size and answer quality | ? | ★★☆ | ★★★ |
-| Memory across days | ? | ☆☆☆ | ★★★ |
-| Knows each person | ? | ★☆☆ | ★★★ |
-| Calendars, briefings, announcements | ? | ☆☆☆ | ★★★ |
-| Rules for children and teens | ? | ☆☆☆ | ★★★ |
+| Privacy: your voice stays in your home | TBD | ★★★ | ★★★ |
+| Security: who can control the robot | TBD | ★★☆ | ★★☆ |
+| Security: the link (encrypted over Tailscale) | TBD | ★★☆ | ★★☆ |
+| Speed of replies | TBD | ★★☆ | ★★★ |
+| Model size and answer quality | TBD | ★★☆ | ★★★ |
+| Memory across days | TBD | ☆☆☆ | ★★★ |
+| Knows each person | TBD | ★☆☆ | ★★★ |
+| Calendars, briefings, announcements | TBD | ☆☆☆ | ★★★ |
+| Rules for children and teens | TBD | ☆☆☆ | ★★★ |
 | Animated face | ★★★ | ★★★ | ★★★ |
-| Timers and alarms | ? | ★★★ | ★★★ |
-| Camera features | ? | ★★★ | ★★★ |
-| Games and a pet mood | ? | ★★★ | ★★★ |
-| Coding companion | ? | ★★★ | ★★★ |
-| Local API, MQTT, metrics | ? | ★★★ | ★★★ |
-| On the go (phone hotspot, any Wi-Fi) | ? | ★★★ | ★★★ |
-| English and Spanish | ? | ★★★ | ★★★ |
-| Signed updates with rollback | ? | ★★★ | ★★★ |
+| Timers and alarms | TBD | ★★★ | ★★★ |
+| Camera features | TBD | ★★★ | ★★★ |
+| Games and a pet mood | TBD | ★★★ | ★★★ |
+| Coding companion | TBD | ★★★ | ★★★ |
+| Local API, MQTT, metrics | TBD | ★★★ | ★★★ |
+| On the go (phone hotspot, any Wi-Fi) | TBD | ★★★ | ★★★ |
+| English and Spanish | TBD | ★★★ | ★★★ |
+| Signed updates with rollback | TBD | ★★★ | ★★★ |
 | Mobile app for video and remote avatar control | ★★★ | ☆☆☆ | ☆☆☆ |
 | Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ |
 | ESP-NOW remote controller | ★★★ | ☆☆☆ | ☆☆☆ |
