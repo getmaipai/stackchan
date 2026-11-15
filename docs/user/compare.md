@@ -11,7 +11,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | | Factory firmware | MaiPai for StackChan | With MaiPai Home | Why it matters |
 |---|:---:|:---:|:---:|---|
 | AI agent | ★★★ | ★★★ | ★★★ | Talk to it and it answers. Ours uses a model you choose. |
-| Privacy: your voice stays in your home | ★☆☆ | ★★★ | ★★★ | Your voice and habits never leave your home. The official server README lists a backend service with a XiaoZhi integration. You can self-host it, but that is extra work. |
+| Privacy: your voice stays in your home | ★☆☆ | ★★☆ | ★★☆ | Built so your voice and habits never leave your home. We have not yet proved it with a network capture, so we give two stars until we publish one. The official server README lists a backend service with a XiaoZhi integration. You can self-host it, but that is extra work. |
 | Security: who can control the robot | TBD | ★★☆ | ★★☆ | Nobody else can take over your robot. A code you type pairs it, and you can revoke access any time. |
 | Security: the link | TBD | ★★☆ | ★★☆ | Encrypted over Tailscale. On plain home Wi-Fi it is not yet, so we give two stars. |
 | Speed of replies | TBD | ★★☆ | ★★★ | Wake cue under 150 ms, stop under 300 ms, and the reply starts on the first sentence. Home is faster again. |
@@ -42,7 +42,7 @@ We chose a web app served by your host over a native phone app. We would rather 
 
 ## What the stars mean for you
 
-- **Privacy and security:** both MaiPai columns keep your voice in your home. The link is encrypted over Tailscale and plain on a home network without it, so we rate it two stars until the encrypted home link ships. [Keep the robot secure](security.md).
+- **Privacy and security:** both MaiPai columns are built to keep your voice in your home, and we will publish a network capture that shows it before release. The link is encrypted over Tailscale and plain on a home network without it, so we rate it two stars until the encrypted home link ships. [Keep the robot secure](security.md).
 - **Speed and answer quality:** a MaiPai Home hub keeps its models loaded on one machine built for them, so the first word arrives sooner and it can run bigger models. A 4B class model answers in under 400 ms warm, and a 27B class model on a weak host does not. These are targets until the benchmark is run.
 - **What you give up:** a phone app, online app downloads, Bluetooth, and the official ESP-NOW remote controller. If you rely on those, stay on the factory firmware for now.
 - **Memory, people, calendars and rules** come only with MaiPai Home.

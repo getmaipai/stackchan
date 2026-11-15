@@ -42,6 +42,8 @@ Real names already in the design and used as written: `face_style`, `face_color`
 
 ## Claims to measure before release
 
+- Privacy: no network egress proof has been run (`scripts/stackchan-egress-proof.sh` exists; `docs/dev/stackchan-unit-measurements.md` lists it as to do). The docs say "built so" and rate privacy two stars until a capture of an idle and a busy unit shows only the host and the Wi-Fi router. The security audit (docs/design/safety-and-privacy.md, 2026-11-15) lists open fixes: plain ws:// with a static token, linked vendor OTA/MQTT/SNTP code, an open Wi-Fi portal, readable flash.
+
 - The README says MaiPai for StackChan is faster and smoother than the factory firmware. No head-to-head measurement exists yet. Measure wake cue, stop and first audio on the same unit and publish the numbers, or soften the claim.
 - The latency figures (150 ms, 300 ms) are design targets, not measured on a unit.
 - The plan to measure it is `docs/dev/benchmark-factory-vs-ours.md`. Owner heard consistent stuttering in the factory voice replies; keep that out of the docs until measured.

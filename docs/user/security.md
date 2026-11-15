@@ -14,10 +14,15 @@ Privacy keeps your data in your home. Security keeps other people out. This page
 
 ![The web security page listing paired devices, with a Forget button next to each.](../images/security-settings.svg)
 
-## The gap to know about
+## Known gaps
 
-On your home network without Tailscale, the link between the robot and the host is plain, not encrypted. Anyone already on your Wi-Fi could read it.
-Use a network you trust, or turn on [Tailscale](use-it-anywhere.md), which encrypts it.
+We audited the design and found these. Each has a fix planned before release.
+
+- **The link on your home network is plain.** Without Tailscale, anyone already on your Wi-Fi could read it, and the robot does not yet check that it is talking to your host. Use a network you trust, or turn on [Tailscale](use-it-anywhere.md), which encrypts it.
+- **The Wi-Fi setup page is open.** It appears if the robot cannot join Wi-Fi for 60 seconds. Use it only when you are present.
+- **Someone with the robot in hand can read its memory over USB.** Reset the robot before you give it away.
+
+We have not yet captured the robot's network traffic to prove nothing else leaves your home. We will publish that capture before release.
 
 ## Reset the robot
 
