@@ -2,6 +2,19 @@
 
 Owner direction, 2026-11-15: the core MaiPai for StackChan app should be simple and single purpose, not stretched to hold the kitchen sink. Anything bigger runs with MaiPai Home.
 
+## The rule
+
+Owner, 2026-11-15: the firmware and the local app bring the basics working well, private and local. Extras are not force-fitted by extending the local app.
+The test is a rule: **we do not duplicate integrations, connectivity or features that MaiPai Home already has.** We connect to Home instead.
+
+The carve-out: a basic the robot must do with no brain at all stays in the core, even if Home has its own version. Example: an on-robot timer that still rings when the host and Home are off. The robot's own link (Wi-Fi, pairing, Tailscale so it can reach its host from anywhere) is also core, because the robot needs it before any brain is reached.
+
+How to use the rule on a new idea:
+
+1. Does it work with only the LLM and the robot? If not, it is a Home feature.
+2. Does Home already do it, or is it an integration or a connection? If yes, connect to Home. Do not build it here.
+3. Is it a basic the robot must do alone? Then build it here, small, and keep it private and local.
+
 ## The core purpose
 
 A private voice robot. It listens, answers with your own LLM, shows a face, keeps time, reacts to touch and motion, dances, protects your privacy and travels with you. It needs no brain beyond the LLM.

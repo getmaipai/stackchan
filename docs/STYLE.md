@@ -25,6 +25,11 @@ One master page, `docs/user/lights-and-sounds.md`, holds the full table of light
 
 MaiPai for StackChan on its own is one thing: a simple, private voice robot. A new feature goes in the core only if the robot can do it with no brain beyond the LLM and it fits that purpose. Everything else, such as cameras, monitoring, remote control, games and integrations, runs with MaiPai Home and carries the `Needs MaiPai Home` tag. Do not grow the core to hold the kitchen sink.
 
+Two rules decide it:
+
+1. **Do the basics well.** The firmware and the local app make the basics work well, privately and locally.
+2. **Do not duplicate MaiPai Home.** If MaiPai Home already does an integration, a connection or a feature, we do not build a second copy. We connect to Home. The one carve-out is a basic the robot must do with no brain at all, such as a timer that still rings when the host is off.
+
 ## Words to avoid
 
 Do not call the no-hub setup "standalone" in user docs. Say "your own LLM". "Standalone" is design jargon and reads like "stock". The setting value in the docs is `brain = "llm"`.
