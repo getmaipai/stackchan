@@ -11,21 +11,21 @@ About 20 minutes the first time. You do this once.
 
 ## Steps
 
-1. **Install the host.** Run `pipx install git+https://github.com/getmaipai/stackchan`.
+1. **Install the host.** Run `pipx install git+https://github.com/getmaipai/stackchan`. You'll know it worked when `stackchan --help` lists its commands.
 2. **Flash the robot.** Open the web flasher, plug the robot in by USB and press Install. You can enter your Wi-Fi in the same dialog.
 
    ![The web flasher with the Install button and the Wi-Fi fields.](../images/flasher.svg)
 
-3. **Pair.** Run `stackchan pair` on the host. A two minute window opens. The robot shows a 6 digit code. Type it on the host.
+3. **Pair.** Run `stackchan pair` on the host. A two minute window opens. The robot shows a 6 digit code. Type it on the host. You'll know it worked when the host says the robot is paired and the robot shows its face.
 
    ![The robot screen with the 6 digit code, and the host terminal asking for it.](../images/pairing-code.svg)
 
 4. **Point at your model.** Open `robot.toml` and set `llm_url` to your model address, for example `http://192.0.2.10:8080`.
-5. **Check.** Run `stackchan check`. It tests each address and says in plain words what is wrong.
+5. **Check.** Run `stackchan check`. It tests each address and says in plain words what is wrong. You'll know it worked when every line says ok.
 
    ![The terminal after `stackchan check`, every line marked ok.](../images/check-output.svg)
 
-6. **Talk.** Say the wake word, then ask a question. The face shows dots while it thinks, then it answers.
+6. **Talk.** Say the wake word, then ask a question. The face shows dots while it thinks, then it answers. If nothing happens, see [Troubleshooting](troubleshooting.md).
 
    ![The robot face with thinking dots.](../images/first-turn.svg)
 

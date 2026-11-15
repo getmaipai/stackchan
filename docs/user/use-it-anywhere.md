@@ -17,7 +17,7 @@ The link is encrypted end to end by Tailscale, and nothing is opened on your rou
 
    ![The Network settings page with the Tailscale key field and a connected status.](../images/tailscale-settings.svg)
 
-4. Run `stackchan check`. It tests the route from the robot to the host over Tailscale and says what is wrong if it fails.
+4. Run `stackchan check`. It tests the route from the robot to the host over Tailscale and says what is wrong if it fails. You'll know it worked when the route line says ok.
 
 The robot tries your home Wi-Fi first. Set `prefer_tailnet` to a number of minutes if you want it to try Tailscale first for that long.
 

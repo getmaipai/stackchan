@@ -24,7 +24,7 @@ The same keys appear in `robot.toml`, in the web page and on the robot.
 1. The robot or the web page tells you a version is ready.
 2. Read the release notes, then press Install.
 3. The robot downloads the image and checks its signature. An image with a bad signature is refused.
-4. It restarts. If it does not pass its health check in 60 seconds, it rolls back to the old version by itself.
+4. It restarts. If it does not pass its health check in 60 seconds, it rolls back to the old version by itself. You'll know it worked when the robot shows the new version on its settings page.
 
 ![The update-ready card with Install and Release notes buttons.](../images/update-ready.svg)
 

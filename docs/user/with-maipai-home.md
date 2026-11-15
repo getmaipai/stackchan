@@ -16,7 +16,7 @@ The standalone robot does none of these by itself.
 
 1. Open `robot.toml`.
 2. Set `brain = "home"` and `home_url` to the hub address, for example `http://192.0.2.20:3000`.
-3. Run `stackchan check`.
+3. Run `stackchan check`. You'll know it worked when the check lists Home as the brain and every line says ok.
 
 The robot is not reflashed. Set `brain = "standalone"` to go back. Your timers, faces and settings stay.
 
