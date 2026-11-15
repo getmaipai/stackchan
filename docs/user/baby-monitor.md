@@ -25,9 +25,22 @@ You stop it the same way, by voice or on the screen, or from your phone.
 - **Alerts on movement.** The camera notices motion and sends an alert with a snapshot. The robot's camera is small and low resolution, so you see shapes, not detail.
 - **Listen in.** Open the web app on your phone to hear the room live.
 - **Look in.** Live view shows a low-resolution picture. In a dark room the picture is dark, so use a night light.
-- **Soothe.** You can play a soft sound, or talk to the baby through the robot. Your phone shows a clear **Talking** mark.
+- **Soothe.** You can play a song or a soft sound, or talk to the baby through the robot. Your phone shows a clear **Playing** or **Talking** mark, and the robot shows the same on its screen.
 
 The robot dims its screen and keeps its voice low. It does not flash red and blue or sound a siren in baby monitor mode.
+
+## Songs and soft sounds
+
+Pick something for the robot to play from the web app on your phone, or ask by voice: "play a lullaby".
+
+- **Soft sounds.** A few built-in sounds, such as a steady hush or gentle waves.
+- **Your own songs.** Put your own music files in the robot's music folder on your host and they appear in the list. Use music you own or have the right to play.
+- **Your MaiPai Home music** <span class="home-tag">Needs MaiPai Home</span>. Play songs from your household library.
+
+You can set the robot to start a song by itself when it hears crying. That is off by default. When it does, it plays softly, shows **Playing** on its screen, and sends you an alert, so you always know.
+A timer ends the song after 30 minutes unless you change it, and the volume stays low. The robot has a small speaker, so it sounds soft and thin, not like a music player.
+
+Songs play from your own host. The robot does not stream from an outside music service.
 
 ## What it keeps
 
