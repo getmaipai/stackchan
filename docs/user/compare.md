@@ -32,19 +32,19 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Control from your phone (app or web app) | ★★★ | ★★☆ | ★★☆ | The factory app does live video and remote avatar control. We have no phone app. Our web app, served by your host, opens in any phone browser and controls settings, faces, timers and snapshots. It has no live video or remote avatar control. If you rely on those, stay on factory. |
 | Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ | Removed on purpose. The on-device app system took about 548 KB of flash and 24 KB of the robot's scarce working memory, and we used that room for the voice agent and the features above. |
 | ESP-NOW remote controller | ★★★ | ☆☆☆ | ☆☆☆ | Not supported yet. Pose mirroring between two robots is planned. If you rely on the remote, stay on factory. |
-| Bluetooth | TBD | ☆☆☆ | ☆☆☆ | Turned off on purpose to free memory. Presence comes from your network and the camera instead. |
+| Phone setup over Bluetooth | ★★☆ | ☆☆☆ | ☆☆☆ | On the factory robot the phone app uses Bluetooth for its setup page. We turned Bluetooth off on purpose: it is one less wireless way in, and nothing in our firmware needs it. You set up the robot with its own Wi-Fi setup page or over USB instead. |
 | Chinese, Japanese and Korean text, and emoji | TBD | ★☆☆ | ★☆☆ | Removed from the default image to save space for more features. An optional font pack adds the text back. |
 
 ## Why some things are missing
 
-The robot has about 76 KB of free working memory, so every feature has to earn its place. We removed the on-device app system and Bluetooth to make room for the voice agent, the camera, timers and games.
+The robot has about 76 KB of free working memory, so every feature has to earn its place. We removed the on-device app system to make room for the voice agent, the camera, timers and games. We turned Bluetooth off for a different reason: security. It saved almost no memory.
 We chose a web app served by your host over a native phone app. We would rather say what is gone than hide it.
 
 ## What the stars mean for you
 
 - **Privacy and security:** both MaiPai columns are built to keep your voice in your home, and we will publish a network capture that shows it before release. The link is encrypted over Tailscale and plain on a home network without it, so we rate it two stars until the encrypted home link ships. [Keep the robot secure](security.md).
 - **Speed and answer quality:** a MaiPai Home hub keeps its models loaded on one machine built for them, so the first word arrives sooner and it can run bigger models. A 4B class model answers in under 400 ms warm, and a 27B class model on a weak host does not. These are targets until the benchmark is run.
-- **What you give up:** a phone app (our web app covers settings and snapshots, not live video or remote avatar control), online app downloads, Bluetooth, and the official ESP-NOW remote controller. If you rely on those, stay on the factory firmware for now.
+- **What you give up:** a phone app (our web app covers settings and snapshots, not live video or remote avatar control), setting up the robot from the phone over Bluetooth, online app downloads, and the official ESP-NOW remote controller. If you rely on those, stay on the factory firmware for now.
 - **Memory, people, calendars and rules** come only with MaiPai Home.
 
 Switch between the last two columns with one line, `brain = "standalone"` or `brain = "home"`. The robot is not reflashed. See [Use MaiPai Home as the brain](with-maipai-home.md).
