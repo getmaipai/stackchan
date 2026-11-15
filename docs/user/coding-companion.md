@@ -28,7 +28,7 @@ Use `--status fail` when the build fails. The light bars turn green on pass and 
 
 ## Dictation
 
-Hold the button and speak. The host turns your words into text and sends them to the agent. Release the button to finish.
+Hold the button and speak. MaiPai Home turns your words into text and sends them to the agent. Release the button to finish.
 
 ## Approvals
 
@@ -37,7 +37,7 @@ Voice alone never approves. This is on purpose, so a stray sentence cannot allow
 
 ## Let an agent drive the robot
 
-The host offers an MCP endpoint. An agent can use it to show a face, speak or play a cue. It is off by default. Turn it on with
+MaiPai Home offers an MCP endpoint. An agent can use it to show a face, speak or play a cue. It is off by default. Turn it on with
 `mcp = true` and give the agent the token from `stackchan token`.
 
 ## Still need help?

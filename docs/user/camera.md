@@ -5,12 +5,12 @@
 This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
 
-The camera is off until you turn it on. Frames stay on the host and never go to an outside service.
+The camera is off until you turn it on. Frames go to your MaiPai Home hub and never to an outside service.
 The robot's camera has a low resolution, so these pages call the pictures **snapshots**.
 
 ## Turn it on
 
-Set `camera = true` in `robot.toml`, or switch it on in the web page. Choose how long the host keeps snapshots with `camera_retention`.
+Switch the camera on in MaiPai Home, and choose how long Home keeps snapshots.
 A camera-on cue shows whenever the camera streams. You cannot turn that cue off.
 
 When it takes a picture, the light bars flash pink twice and stay pink <img src="../images/light-pink.svg" alt="pink light bars" height="22">, and you hear a double click <img src="../images/tone-shutter.svg" alt="double click" height="18">. The pink never dims, even at night. [All lights and sounds](lights-and-sounds.md).
@@ -35,7 +35,7 @@ If the camera is off or the robot is muted, none of these show, and none of the 
 
 Open the web app and watch what the robot sees, live, at low resolution. The camera is small, so the picture is a smooth low-resolution view, not high definition.
 Live view only runs while the web page is open. When it starts, the robot plays a double click and the pink lights and the LIVE dot appear, and they stay on until it stops.
-You cannot turn those cues off, and live view never starts by itself. Frames go to your host, not to an outside service.
+You cannot turn those cues off, and live view never starts by itself. Frames go to your MaiPai Home hub, not to an outside service.
 
 ## What is this
 
@@ -52,20 +52,20 @@ Ask "what do you see" and the robot lists the people and objects in view, such a
 
 ## Take my picture
 
-Say "take my picture". The robot counts down, plays a shutter tone and saves the snapshot to a folder on the host.
+Say "take my picture". The robot counts down, plays a shutter tone and saves the snapshot in MaiPai Home.
 
 ![The countdown screen showing 2.](../images/countdown.svg)
 
 ## Face follow, wave and mirror
 
-- **Face follow.** The head turns to keep you in view. It uses a small detector that runs on the host.
+- **Face follow.** The head turns to keep you in view. It uses a small detector that runs in MaiPai Home.
 - **Wave.** Wave at the robot and it waves back.
 - **Mirror.** Say "mirror me". The robot copies your head tilt.
 
 ## Names and alerts
 
-Add people to a local name list from the web page. The robot can then say who it sees, and the host can send an alert such as
-"Atlas is at the door". The list lives in a file on the host.
+Add people to a name list in MaiPai Home. The robot can then say who it sees, and Home can send an alert such as
+"Atlas is at the door". The list lives in MaiPai Home.
 
 ![The name list page with two entries.](../images/name-list.svg)
 

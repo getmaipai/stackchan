@@ -53,17 +53,16 @@ The robot dims its screen and keeps its voice low. At night the light bars stay 
 Pick something for the robot to play from the web app on your phone, or ask by voice: "play a lullaby".
 
 - **Soft sounds.** A few built-in sounds, such as a steady hush or gentle waves.
-- **Your own songs.** Put your own music files in the robot's music folder on your host and they appear in the list. Use music you own or have the right to play.
-- **Your MaiPai Home music** <span class="home-tag">Needs MaiPai Home</span>. Play songs from your household library.
+- **Your own songs.** Add music files you own, or have the right to play, to your MaiPai Home library, and they appear in the list.
 
 You can set the robot to start a song by itself when it hears crying. That is off by default. When it does, it plays softly, shows **Playing** on its screen, and sends you an alert, so you always know.
 A timer ends the song after 30 minutes unless you change it, and the volume stays low. The robot has a small speaker, so it sounds soft and thin, not like a music player.
 
-Songs play from your own host. The robot does not stream from an outside music service.
+Songs play from your own MaiPai Home hub. The robot does not stream from an outside music service.
 
 ## What it keeps
 
-Nothing is recorded by default, and nobody can start listening from the web app. Sound and pictures stay on your host and go only to your own phone, over your home network or Tailscale. An alert carries a time, what it noticed and a snapshot.
+Nothing is recorded by default, and nobody can start listening from the app. Sound and pictures stay on your MaiPai Home hub and go only to your own phone, over your home network or Tailscale. An alert carries a time, what it noticed and a snapshot.
 
 ## Tell the people in your home
 
@@ -80,7 +79,7 @@ Tell residents and visitors that the robot can watch and listen. Laws about reco
 
 | What you see | What went wrong | What to do |
 |---|---|---|
-| The screen says **Offline** | The robot lost Wi-Fi or your host | Check the room in person, then see [Troubleshooting](troubleshooting.md). Your phone also tells you the monitor went offline |
+| The screen says **Offline** | The robot lost Wi-Fi or your hub | Check the room in person, then see [Troubleshooting](troubleshooting.md). Your phone also tells you the monitor went offline |
 | No alerts, but it says Baby monitor | The sound or motion limit is too high | Lower it in the web app, and test with a sound |
 | Too many alerts | The limit is too low, or a fan is making noise | Raise it, or draw an area to ignore |
 

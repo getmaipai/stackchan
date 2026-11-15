@@ -5,7 +5,7 @@
 This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
 
-Everything here runs on the host. All of it is off by default, and every one needs a token. None of it calls an outside service.
+Everything here runs in MaiPai Home. All of it is off by default, and every one needs a token. None of it calls an outside service.
 
 | Tool | What it is for | Turn on |
 |---|---|---|
@@ -27,7 +27,7 @@ Run `stackchan token` to create a token. Run `stackchan check` to test each addr
 
 ## Safety
 
-Tokens can be revoked at any time. The link between the host and your other tools is as private as your network.
+Tokens can be revoked at any time. The link between MaiPai Home and your other tools is as private as your network.
 Use a network you trust until the encrypted link ships.
 
 ## Still need help?

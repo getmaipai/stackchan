@@ -38,14 +38,18 @@ Voice (wake word, follow-ups, interrupt, stop, ten commands), faces and clock, t
 
 ## What this means for the code
 
-- The core host keeps only the voice turn, the face, timers, reactions, dance, privacy switches, pairing and updates.
-- The monitoring, remote, camera-analysis, games, coding and integration modules ship with the Home adapter, or as Home packages, and are not part of the core install.
-- The unit keeps the body half of each (the cues, the camera and microphone switches, the always-on indicators), so the privacy rules hold whatever runs on top.
-- The cue rules stay in the core: any mode that opens the microphone or camera still draws its cue first, from one code path.
+Final rule (owner reason: feature logic in the public repo invites hacks and copies for other bots): this repo keeps only what is native to the robot.
+
+- The unit protocol, and a thin capability API: camera frame, microphone stream, lights, moves, display and cues, heartbeat and sensors.
+- Cue enforcement on the unit, from one code path that opens the microphone or camera and draws the cue first.
+- The core host keeps the voice turn, timers, reactions, dance, privacy switches, pairing and updates.
+- Feature logic for watch, monitor, identity, alerts, recognition, games, the coding companion and integrations is **not** kept here. It lives in MaiPai Home against that capability API, so it is robot-agnostic and any robot gets it.
+- The firmware has two presets with the same signing key. The Home preset adds the body halves Home features need, each behind its own Kconfig switch.
+- Nothing in the core pages may say this app can do those features.
 
 ## Confirmed by the build session (2026-11-15)
 
-- Moved host modules stay in this repo under `host/maipai_body/extras/` and install only with the Home adapter. An architecture test fails the build if the core imports extras, and extras never import Home code.
+- Superseded: an earlier plan kept moved host modules here under `extras/`. The final rule is that feature logic lives in MaiPai Home, not in this repo. See "What this means for the code".
 - Firmware: one source and two presets with the same signing key. **Core** is small: no camera streaming, no monitor audio, no remote path. **Home** adds the body halves Home features need, each behind its own Kconfig switch, compiled in only if the memory gate holds. The hub's flash flow picks the preset. A user never chooses.
 - First setup offers one optional, skippable screen: "Do you run MaiPai Home? Enter its address."
 - The cue code path (`monitor_cue_begin`) is in the core and in both presets.
