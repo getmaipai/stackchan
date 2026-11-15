@@ -53,9 +53,9 @@ To be honest about the limit, mute is a hardware power-down plus a software lock
 
 | What you see | What you hear | When |
 |---|---|---|
-| A flat, closed mouth. No ring | Nothing | Mute is on |
-| Calm, half-closed eyes. No ring | Nothing | The camera is off |
-| The sleeping face with a small pause mark. No ring | Nothing | Full quiet is on |
+| A flat, closed mouth. Lights off | Nothing | Mute is on |
+| Calm, half-closed eyes. Lights off | Nothing | The camera is off |
+| The sleeping face with a small pause mark. Lights off | Nothing | Full quiet is on |
 | The eyes blink once | Nothing | You tapped a switch. Switching makes no sound on purpose |
 | A red error face for 30 seconds | Nothing | The host saw activity it should not, such as listening while muted |
 

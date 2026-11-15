@@ -16,8 +16,8 @@ Run `stackchan token` to create a token. Run `stackchan check` to test each addr
 
 ## Ideas
 
-- A status light for your server: the ring turns red when a job fails.
-- A busy light: the ring shows red while you are on a call.
+- A status light for your server: the light bars turn red when a job fails.
+- A busy light: the light bars show red while you are on a call.
 - A dimmer: slide the head strip to dim a lamp through the bridge.
 
 ## Safety

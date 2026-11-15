@@ -1,9 +1,9 @@
 # Lights and sounds
 
-The robot has a light ring and a set of soft bell tones. The ring is off most of the time. It lights only when something needs you right now, and each colour has one meaning.
-The screen's face shows moods. The ring never does.
+The robot has two light bars, one on each side of the base, with six lights each, and a set of soft bell tones. The light bars are off most of the time. They light only when something needs you right now, and each colour has one meaning.
+The screen's face shows moods. The light bars never do.
 
-## The ring
+## The light bars
 
 | Light | Colour and pattern | What it means | Sound with it |
 |---|---|---|---|
@@ -14,14 +14,14 @@ The screen's face shows moods. The ring never does.
 | ![Blue, steady](../images/light-blue.svg) | **Blue**, steady | It is your turn to talk | A short rising pop |
 | ![White, fast pulse](../images/light-white.svg) | **White**, a fast pulse every second | Updating. Do not unplug | None |
 | ![All off](../images/light-dark.svg) | **Dark** | Everything else: idle, thinking, speaking, asleep | None |
-| ![One small red light at the back](../images/light-charging.svg) | **Red light at the back** | Charging. It comes from the charger and the ring does not repeat it | Two quick rising notes when you plug in |
-| ![Colour walking around the ring](../images/light-rainbow.svg) | **Rainbow**, one turn every 2 seconds | The dance light show | A rising chime when the dance starts |
+| ![One small red light at the back](../images/light-charging.svg) | **Red light at the back** | Charging. It is a separate light from the charger and the light bars do not repeat it | Two quick rising notes when you plug in |
+| ![Colour walking along the light bars](../images/light-rainbow.svg) | **Rainbow**, one turn every 2 seconds | The dance light show | A rising chime when the dance starts |
 | ![Pulsing in time, colour stepping](../images/light-beat.svg) | **Pulsing**, the colour steps on each beat | The dance light show on a beat | None |
 
-The ring is 12 lights around the base, and all of them show one colour at a time. The dance light show is the one exception, because the colour walks around the ring.
+Both bars show the same colour at the same time. The dance light show is the one exception, because the colour walks along one bar and up the other.
 
 Green and pink never dim, even at night or in the quietest setting, because they tell you about your privacy. The other colours get softer at night.
-While the robot charges, a small red light at the back is on. It comes from the charger, and the ring does not repeat it.
+While the robot charges, a small red light at the back is on. It is a separate light from the charger, and the light bars do not repeat it.
 
 ## The tones
 

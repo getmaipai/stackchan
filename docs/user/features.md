@@ -48,7 +48,7 @@ Page: [Games and pet](games-and-pet.md).
 
 ## Code with it
 
-Agent status on the face and ring, a build light, dictation and touch approvals.
+Agent status on the face and light bars, a build light, dictation and touch approvals.
 Page: [Coding companion](coding-companion.md).
 
 ## Connect it to your tools
@@ -78,7 +78,7 @@ Page: [Keep the robot secure](security.md).
 
 ## Lights and sounds
 
-What each ring colour, pattern and tone means.
+What each light colour, pattern and tone means.
 Page: [Lights and sounds](lights-and-sounds.md).
 
 ## Compare

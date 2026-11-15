@@ -13,33 +13,33 @@ The robot ships with the maker's own software, which sends voice and pictures to
 - **Nothing leaves your home.** Voice, pictures and replies stay on your network and go only to your Home computer. The robot has no vendor server addresses built in.
 - **It answers with your Home.** The same assistant, memory, voices and companions you use in the app speak through the robot.
 - **You control it.** Admins set its companion, voice, camera and night behavior in Home. Updates are signed and installed from Home in one step, and Home can save a backup first.
-- **It shows its senses.** The ring light tells you when sound or a picture is in use, and no setting can hide that.
+- **It shows its senses.** The light bars tell you when sound or a picture is in use, and no setting can hide that.
 - **You can read it.** The firmware changes are small, public patches on top of the maker's open source code.
 
 ## Wake it up
 
-Say **"Hi, StackChan"**, or tap its face. Its eyes open a little wider, its mouth closes and its head lifts, and the ring turns blue while it listens. Talk normally and pause when you are done.
+Say **"Hi, StackChan"**, or tap its face. Its eyes open a little wider, its mouth closes and its head lifts, and the light bars turn blue while it listens. Talk normally and pause when you are done.
 
 You can ask it anything you would ask Home: questions, timers, the weather, reminders, jokes. It answers aloud and keeps the answer short.
 
-<!-- picture: the face while listening, with the blue ring -->
+<!-- picture: the face while listening, with the blue light bars -->
 
 ## What the lights and faces mean
 
-The ring is dark most of the time. It lights only when it needs you or when it is listening or taking a picture.
+The light bars are dark most of the time. It lights only when it needs you or when it is listening or taking a picture.
 
 | You see | It means |
 |---|---|
-| Blue ring, steady | It is your turn: it is listening to you |
-| Green ring | Your voice is being sent to your Home to be understood |
+| Blue light bars, steady | It is your turn: it is listening to you |
+| Green light bars | Your voice is being sent to your Home to be understood |
 | Pink flashes, then steady pink | The camera is taking a picture |
-| Cyan ring, slow pulse | It needs you: setup or pairing is waiting for a person |
-| Amber ring, one short pulse every 10 seconds | Look at the screen: Home is not reachable, something is wrong, or the battery is low (not shown at night) |
-| No ring | Everything else: waiting, thinking, speaking, charging, sleeping, night |
+| Cyan light bars, slow pulse | It needs you: setup or pairing is waiting for a person |
+| Amber light bars, one short pulse every 10 seconds | Look at the screen: Home is not reachable, something is wrong, or the battery is low (not shown at night) |
+| Lights off | Everything else: waiting, thinking, speaking, charging, sleeping, night |
 
-Listening, thinking and speaking show on the face and in the voice, never on the ring (blue is only for your turn to talk). While it charges, the small red light on the back is on and the screen shows the battery.
+Listening, thinking and speaking show on the face and in the voice, never on the light bars (blue is only for your turn to talk). While it charges, the small red light on the back is on and the screen shows the battery.
 
-The ring is never red. A calm face is the normal look. A smile or a wink shows when it is happy. A surprised face shows when it is shaken or lifted. A small heart shows only when you pet its head, say something kind to it, or show it something sweet.
+The light bars are never red. A calm face is the normal look. A smile or a wink shows when it is happy. A surprised face shows when it is shaken or lifted. A small heart shows only when you pet its head, say something kind to it, or show it something sweet.
 
 <!-- picture: the faces side by side: calm, listening, thinking, happy, surprised, wink, sleepy, heart -->
 
@@ -49,7 +49,7 @@ The ring is never red. A calm face is the normal look. A smile or a wink shows w
 | Eyes looking up and to one side, a small mouth | It is thinking about your question |
 | Calm face, moving mouth | It is answering |
 | Grey-blue face with a small strip in the top corner | Home is not reachable. The strip says "Offline". It still reacts to touch, and it tries to reconnect on its own |
-| The same strip with a key and "Waiting for Home to approve me" | An admin needs to approve this robot in Home. The ring pulses cyan until they do |
+| The same strip with a key and "Waiting for Home to approve me" | An admin needs to approve this robot in Home. The light bars pulse cyan until they do |
 | Black screen with a Wi-Fi symbol and words | It is starting up: "Connecting to Wi-Fi...", "Wi-Fi setup needed" (with the name of its setup hotspot and the address to open), "Connecting to Home..." or the approval message above |
 
 When Home comes back the colours return and the strip goes away by itself.
@@ -81,7 +81,7 @@ An admin can turn the event sounds off, or allow them at night, in Settings, Hom
 - **Pet its head** and it reacts. The heart goes away after a few seconds.
 - **Shake it or lift it** and it makes a surprised face and says something short.
 - **Swipe up from the face** for quick settings: volume and brightness sliders.
-- **Hold the power button** and the ring goes dark and its eyes shut a moment before it switches off. Let go early and it wakes back up.
+- **Hold the power button** and the light bars go dark and its eyes shut a moment before it switches off. Let go early and it wakes back up.
 
 <!-- picture: the quick settings sliders on the screen -->
 
@@ -107,9 +107,9 @@ Left and right are the robot's own left and right.
 
 ## The little dance
 
-It lasts about 12 seconds: the head sways and turns, the face changes between happy, a wink and surprised, and the light ring shows gold, lime and mint colours. Ask by voice, or use the Dance button in Settings (the robot's page).
+It lasts about 12 seconds: the head sways and turns, the face changes between happy, a wink and surprised, and the light bars show gold, lime and mint colours. Ask by voice, or use the Dance button in Settings (the robot's page).
 
-- It ends at once if you touch it, speak to it, shake or tilt it, or take a picture with it. Then the face and the ring go back to normal.
+- It ends at once if you touch it, speak to it, shake or tilt it, or take a picture with it. Then the face and the light bars go back to normal.
 - It does not dance while its battery is at 20 percent or lower (it can while charging), while it is offline, or if you turned dancing off.
 - It rests for a minute between dances.
 - At night, if you ask, it dances with its head and face only: no lights, no sound.
@@ -117,7 +117,7 @@ It lasts about 12 seconds: the head sways and turns, the face changes between ha
 
 ## Dancing to music (off until you turn it on)
 
-With **Dance to music** on in the robot's settings, StackChan listens for clear music with a steady beat. After about five seconds it nods twice and smiles or winks. If the song goes on for about twenty more seconds it sways for about ten seconds, then dances for up to twenty with the light ring. It stops a few seconds after the music stops, or at once if you touch it, talk to it, shake it or take a picture.
+With **Dance to music** on in the robot's settings, StackChan listens for clear music with a steady beat. After about five seconds it nods twice and smiles or winks. If the song goes on for about twenty more seconds it sways for about ten seconds, then dances for up to twenty with the light bars. It stops a few seconds after the music stops, or at once if you touch it, talk to it, shake it or take a picture.
 
 - With the setting off, or while the robot is muted, it does not listen for music at all. When on, the sound is measured on the robot itself: it only sends a few numbers about it to the hub, never the sound, and only when the room is loud.
 - It does nothing at night, while asleep, while it listens or talks, or in quiet mode. It waits at least 10 minutes between dances, at most 3 an hour and 10 a day.
@@ -147,7 +147,7 @@ An admin picks a companion for the robot in Settings, Home, Devices. The compani
 
 ## If something is wrong
 
-- **It does not wake up.** Check that the ring is not amber. Say "Hi, StackChan" clearly from about a meter away, or tap the face.
+- **It does not wake up.** Check that the light bars are not amber. Say "Hi, StackChan" clearly from about a meter away, or tap the face.
 - **It will not connect.** The robot and the Home computer must be on the same Wi-Fi. Power the robot off and on.
 - **The face looks dark in the daytime.** Night mode may think the room is dark. Wait two minutes in a bright room. If it stays dark, tell an admin.
 - **It keeps moving its head.** Update Home. Idle motion is off by default.

@@ -19,7 +19,7 @@
 
 ## Lights and sounds
 
-Every feature page that lights the ring, changes the face or plays a tone has a "Lights and sounds" table: what you see (colour, pattern, face), what you hear, and when. Show each ring light as its drawn swatch (`docs/images/light-*.svg`) and each tone as its note shape (`tone-*.svg`), made by `scripts/make-lights.py`, so a reader sees the real colour and pattern. `docs/user/lights-and-sounds.md` is the one master list. A new light or tone is added to both places in the same commit.
+Every feature page that lights the light bars, changes the face or plays a tone has a "Lights and sounds" table: what you see (colour, pattern, face), what you hear, and when. Show each light as its drawn swatch (`docs/images/light-*.svg`) and each tone as its note shape (`tone-*.svg`), made by `scripts/make-lights.py`, so a reader sees the real colour and pattern. `docs/user/lights-and-sounds.md` is the one master list. A new light or tone is added to both places in the same commit.
 
 ## Tags
 

@@ -70,12 +70,12 @@ The camera-on cue is the one cue you cannot turn off.
 
 | What you see | What you hear | When |
 |---|---|---|
-| ![Amber ring, one short pulse](../images/light-amber.svg)<br>Amber ring, one short pulse every 10 seconds, and a tired face | ![A short chirp](../images/tone-low-battery.svg)<br>A chirp at 20 percent. A spoken request to plug in at 10 percent | The battery is low and the charger is out. The screen says "Battery low" |
-| ![Small red light at the back](../images/light-charging.svg)<br>No ring. A small red light at the back | ![Two quick rising notes](../images/tone-plug-in.svg)<br>Two quick rising notes | You plugged in the charger. The red light stays on while it charges and goes off when it is full |
-| No ring | ![Three rising notes](../images/tone-charged.svg)<br>Three rising notes | The battery is full and the cable is still in |
-| No ring | ![One falling note](../images/tone-unplug.svg)<br>One falling note | You pulled the cable out |
-| No ring, a surprised or dizzy face | A short spoken line, not at night | You picked it up, shook it or turned it over |
-| No ring, the sleeping face | ![Three falling notes](../images/tone-goodbye.svg)<br>Three slow falling notes | You pressed the power key to turn it off |
+| ![Amber light bars, one short pulse](../images/light-amber.svg)<br>Amber light bars, one short pulse every 10 seconds, and a tired face | ![A short chirp](../images/tone-low-battery.svg)<br>A chirp at 20 percent. A spoken request to plug in at 10 percent | The battery is low and the charger is out. The screen says "Battery low" |
+| ![Small red light at the back](../images/light-charging.svg)<br>Lights off. A small red light at the back | ![Two quick rising notes](../images/tone-plug-in.svg)<br>Two quick rising notes | You plugged in the charger. The red light stays on while it charges and goes off when it is full |
+| Lights off | ![Three rising notes](../images/tone-charged.svg)<br>Three rising notes | The battery is full and the cable is still in |
+| Lights off | ![One falling note](../images/tone-unplug.svg)<br>One falling note | You pulled the cable out |
+| Lights off, a surprised or dizzy face | A short spoken line, not at night | You picked it up, shook it or turned it over |
+| Lights off, the sleeping face | ![Three falling notes](../images/tone-goodbye.svg)<br>Three slow falling notes | You pressed the power key to turn it off |
 
 See [Lights and sounds](lights-and-sounds.md) for every light and tone.
 

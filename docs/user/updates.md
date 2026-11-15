@@ -47,8 +47,8 @@ See [Troubleshooting](troubleshooting.md).
 
 | What you see | What you hear | When |
 |---|---|---|
-| ![White ring pulsing fast](../images/light-white.svg)<br>White ring, a fast pulse every second, and an animated updating icon | Nothing | An update is installing. Do not unplug the robot |
-| Neutral face, no ring | ![A rising chime](../images/tone-back-online.svg)<br>A rising chime | The update worked and the robot is back online |
+| ![White light bars pulsing fast](../images/light-white.svg)<br>White light bars, a fast pulse every second, and an animated updating icon | Nothing | An update is installing. Do not unplug the robot |
+| Neutral face, lights off | ![A rising chime](../images/tone-back-online.svg)<br>A rising chime | The update worked and the robot is back online |
 
 See [Lights and sounds](lights-and-sounds.md) for every light and tone.
 
