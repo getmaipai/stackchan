@@ -1,0 +1,46 @@
+name: Bug or feature request
+description: Report a problem or ask for something new
+body:
+  - type: markdown
+    attributes:
+      value: |
+        StackChan is a hobby project. I read every request, but I may be slow to answer, and I can't promise to build any of them. Please don't take silence personally. Adding a 👍 to an existing request helps me see what matters most.
+
+        Two quick things before you write.
+
+        **Works on the bot alone:** things StackChan can do by itself with your own local model, like a tic tac toe game or a new face.
+
+        **Needs MaiPai Home:** things that need the rest of your house, like content filtering, Home Assistant control, notes saved to your family's memory, or a doorbell camera picture. These live in MaiPai Home, and we track them here so you only have to ask in one place.
+
+        Not sure which one? Pick "Not sure". We sort it out.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is this?
+      options:
+        - Something is broken (bug)
+        - I want something new (feature request)
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Does it need MaiPai Home?
+      options:
+        - Works on the bot alone
+        - Needs MaiPai Home
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, or what do you want?
+      description: For a bug, say what you did and what you expected. For a feature, say what you would like it to do.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: StackChan version (bugs only)
+      description: If you know it. Leave blank if not.
