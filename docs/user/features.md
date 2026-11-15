@@ -61,6 +61,11 @@ Page: [Updates](updates.md).
 MaiPai Home can add memory across days, per-person voices, calendars and household rules. The robot is complete without it.
 Page: [With MaiPai Home](with-maipai-home.md).
 
+## Compare
+
+See how MaiPai for StackChan compares with the factory firmware, and standalone with MaiPai Home.
+Page: [Compare MaiPai for StackChan](compare.md).
+
 ## Not included
 
 Sound direction, Bluetooth, a phone app and anything that calls an outside service by itself.
