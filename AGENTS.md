@@ -16,6 +16,12 @@ Org standards (writing style, privacy, PII) apply; see `getmaipai/.github`.
 - `bash scripts/repo-map.sh` regenerates `docs/design/INDEX.md`.
 - `bash scripts/install-hooks.sh` sets the repo-local hooks path (once per clone).
 
+## Who does the work (owner rule, 2026-11-15; binds every session here, parent and child)
+
+Order, no exceptions: (1) Claude cloud; (2) Codex, launched in an owned tmux session Jesse can attach to; (3) our local coder (`local-lane dispatch`, small decided tasks); (4) Claude agents on this machine.
+A Claude agent here (Sonnet, Haiku or Opus) is never the first choice for edits, test fixing, builds or flashing. Using one needs a reason, written before launch, why steps 1 to 3 could not do it. A parent never reports local Claude agents as "running" for work that belonged to steps 1 to 3.
+If this repo has no launcher for a step, fix the launcher first instead of falling back to a local agent.
+
 ## Working economically (every lane, every session)
 
 - Read `docs/design/INDEX.md` and the one spec file for your slice; do not grep or read the whole tree.
@@ -23,7 +29,7 @@ Org standards (writing style, privacy, PII) apply; see `getmaipai/.github`.
 - Write results to `.runs/<slice>.result.md` (15 lines) and reply with one line.
 - Stop after three failed attempts at the same step and report; do not widen scope.
 - Use scripts for anything deterministic (hygiene check, repo map, memory summary, link check, golden diff); use a model only for judgement.
-- Use the smallest model and effort that fits: Codex Luna low by default, Sonnet for bulk edits, Haiku for scans, the strongest model for one bounded design or review question.
+- Use the smallest model and effort that fits: Codex Luna low when Codex does it; local Claude only as the routing rule above allows (Haiku for scans, the strongest model for one bounded design or review question).
 - Prefer a follow-up message to the same agent over a new brief while its context is useful; start fresh when it is large or stale.
 - Never run two writers on the same files; own your directory.
 - Keep this file under 100 lines; move detail to `docs/design/`.
