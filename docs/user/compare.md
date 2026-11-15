@@ -29,15 +29,22 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | On the go (phone hotspot, any Wi-Fi) | TBD | ★★★ | ★★★ | Join your phone's hotspot and take it to a friend's house. |
 | English and Spanish | TBD | ★★★ | ★★★ | Switch language at run time with no reflash. |
 | Signed updates with rollback | TBD | ★★★ | ★★★ | Nothing installs unless you say so, and a bad update rolls back by itself. |
-| Mobile app for video and remote avatar control | ★★★ | ☆☆☆ | ☆☆☆ | We have no phone app. If you rely on it, stay on factory. |
-| Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ | Not in our firmware. If you rely on it, stay on factory. |
-| ESP-NOW remote controller | ★★★ | ☆☆☆ | ☆☆☆ | Not supported yet. If you rely on it, stay on factory. |
+| Mobile app for video and remote avatar control | ★★★ | ☆☆☆ | ☆☆☆ | We have no phone app. The web app on your host does the same jobs in any browser. If you rely on the phone app, stay on factory. |
+| Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ | Removed on purpose. The on-device app system took about 548 KB of flash and 24 KB of the robot's scarce working memory, and we used that room for the voice agent and the features above. |
+| ESP-NOW remote controller | ★★★ | ☆☆☆ | ☆☆☆ | Not supported yet. Pose mirroring between two robots is planned. If you rely on the remote, stay on factory. |
+| Bluetooth | TBD | ☆☆☆ | ☆☆☆ | Turned off on purpose to free memory. Presence comes from your network and the camera instead. |
+| Chinese, Japanese and Korean text, and emoji | TBD | ★☆☆ | ★☆☆ | Removed from the default image to save space for more features. An optional font pack adds the text back. |
+
+## Why some things are missing
+
+The robot has about 76 KB of free working memory, so every feature has to earn its place. We removed the on-device app system and Bluetooth to make room for the voice agent, the camera, timers and games.
+We chose a web app served by your host over a native phone app. We would rather say what is gone than hide it.
 
 ## What the stars mean for you
 
 - **Privacy and security:** both MaiPai columns keep your voice in your home. The link is encrypted over Tailscale and plain on a home network without it, so we rate it two stars until the encrypted home link ships. [Keep the robot secure](security.md).
 - **Speed and answer quality:** a MaiPai Home hub keeps its models loaded on one machine built for them, so the first word arrives sooner and it can run bigger models. A 4B class model answers in under 400 ms warm, and a 27B class model on a weak host does not. These are targets until the benchmark is run.
-- **What you give up:** MaiPai for StackChan has no phone app, no online app downloads and no support for the official ESP-NOW remote controller yet. If you rely on those, stay on the factory firmware for now.
+- **What you give up:** a phone app, online app downloads, Bluetooth, and the official ESP-NOW remote controller. If you rely on those, stay on the factory firmware for now.
 - **Memory, people, calendars and rules** come only with MaiPai Home.
 
 Switch between the last two columns with one line, `brain = "standalone"` or `brain = "home"`. The robot is not reflashed. See [Use MaiPai Home as the brain](with-maipai-home.md).
