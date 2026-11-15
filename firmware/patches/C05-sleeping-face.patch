@@ -1,0 +1,31 @@
+# Intent: Add the sleeping face state.
+# Upstream: m5stack/StackChan firmware/main/hal/board/stackchan_display.cc (MIT).
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index b43b893..915aaad 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -364,6 +364,24 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         auto& motion = GetStackChan().motion();
+         motion.pitchServo().moveWithSpeed(0, 80);
+ 
++    } else if (strcmp(emotion, "sleeping") == 0) {
++        // Eyes shut, mouth shut, no "Zzz" bubble and no head motion: the idle sleep look (the host
++        // sends it after five quiet minutes). "sleepy" keeps its U-shaped eyes and bubble.
++        avatar.setEmotion(Emotion::Sleepy);
++        avatar.leftEye().setWeight(0);
++        avatar.rightEye().setWeight(0);
++        avatar.mouth().setWeight(0);
++        avatar.setSpeech("");
++        is_sleeping_ = true;
++        if (idle_motion_modifier_id_ >= 0) {
++            stackchan.removeModifier(idle_motion_modifier_id_);
++            idle_motion_modifier_id_ = -1;
++        }
++        if (idle_expression_modifier_id_ >= 0) {
++            stackchan.removeModifier(idle_expression_modifier_id_);
++            idle_expression_modifier_id_ = -1;
++        }
++
+     } else if (strcmp(emotion, "doubtful") == 0) {
+         avatar.setEmotion(Emotion::Doubt);
+     } else {

@@ -1,0 +1,8 @@
+A01-per-pixel-led-tool.patch
+A02-grow-assets-partition.patch
+C01-battery-status.patch
+C02-connecting-screen-and-boot-ring.patch
+C03-swipe-gestures-and-quick-settings.patch
+C04-shake-threshold.patch
+C05-sleeping-face.patch
+C06-interface-repair.patch

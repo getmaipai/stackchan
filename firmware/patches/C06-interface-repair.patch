@@ -1,0 +1,158 @@
+# Intent: Adapt the ports to interfaces present in the current firmware base.
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index 07bd1ae..924224d 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -294,11 +294,6 @@ void StackChanAvatarDisplay::SetupUI()
+     auto config        = hal_bridge::get_xiaozhi_config();
+     idle_motion_level_ = config.idleRandomMovementLevel;
+ 
+-    ESP_LOGI(TAG, "Avatar created and started");
+-}
+-
+-void StackChanAvatarDisplay::LvglLock()
+-{
+     // Boot cover: hides the screen until the device is ready
+     boot_cover_ = lv_obj_create(lv_screen_active());
+     lv_obj_set_size(boot_cover_, lv_pct(100), lv_pct(100));
+@@ -319,9 +314,16 @@ void StackChanAvatarDisplay::LvglLock()
+     lv_label_set_text(boot_label_, "Connecting to Wi-Fi...");
+     ShowBootCover("Connecting to Wi-Fi...", 1);
+ 
++    ESP_LOGI(TAG, "Avatar created and started");
++}
++
++void StackChanAvatarDisplay::LvglLock()
++{
++
+     if (!Lock(30000)) {
+         ESP_LOGE("Display", "Failed to lock display");
+     }
++}
+ void StackChanAvatarDisplay::ShowBootCover(const char* text, int ring_kind)
+ {
+     if (boot_label_ != nullptr) {
+@@ -608,7 +610,6 @@ void StackChanAvatarDisplay::CloseQuickSettings()
+     _quick_settings_display_ = nullptr;
+ }
+ 
+-}
+ 
+ void StackChanAvatarDisplay::LvglUnlock()
+ {
+diff --git a/firmware/main/hal/hal_imu.cpp b/firmware/main/hal/hal_imu.cpp
+index e0c377f..bec4d40 100644
+--- a/firmware/main/hal/hal_imu.cpp
++++ b/firmware/main/hal/hal_imu.cpp
+@@ -9,8 +9,6 @@
+ #include "utils/motion_detector/motion_detector.h"
+ #include <mooncake_log.h>
+ #include <memory>
+-#include <cstdio>
+-#include "device_events.h"
+ 
+ static const std::string_view _tag = "HAL-IMU";
+ 
+@@ -23,8 +21,6 @@ static void _imu_task(void* param)
+     // m/s^2. The stock 16 needed a hard shake; a lift-and-shake by hand did not reach it.
+     constexpr float kShakeThreshold = 9.0f;
+     motion_detector->setShakeThreshold(kShakeThreshold);
+-    uint32_t stats_start_ms = 0;
+-    uint32_t shakes         = 0;
+ 
+     while (1) {
+         if (_bmi270 && _bmi270->update()) {
+@@ -34,27 +30,9 @@ static void _imu_task(void* param)
+             motion_detector->update(data.accel_x, data.accel_y, data.accel_z);
+ 
+             if (motion_detector->isShakeDetected()) {
+-                shakes++;
+-                char peak[64];
+-                snprintf(peak, sizeof(peak), "\"peak\":%d,\"threshold\":%d",
+-                         static_cast<int>(motion_detector->lastShakePeak()), static_cast<int>(kShakeThreshold));
+-                mclog::tagInfo(_tag, "Shake Detected! {}", peak);
+-                device_events_push_diag("shake_peak", peak);
++                mclog::tagInfo(_tag, "Shake Detected!");
+                 GetHAL().onImuMotionEvent.emit(ImuMotionEvent::Shake);
+             }
+-            // Once a minute: the strongest sample-to-sample change seen, so the threshold can be tuned
+-            // from the host log by shaking or lifting the unit by hand.
+-            const uint32_t now_ms = pdTICKS_TO_MS(xTaskGetTickCount());
+-            if (stats_start_ms == 0) {
+-                stats_start_ms = now_ms;
+-            } else if (now_ms - stats_start_ms >= 60000) {
+-                char stats[64];
+-                snprintf(stats, sizeof(stats), "\"max_diff\":%d,\"shakes\":%u",
+-                         static_cast<int>(motion_detector->takeMaxDiff()), static_cast<unsigned>(shakes));
+-                device_events_push_diag("imu_stats", stats);
+-                shakes         = 0;
+-                stats_start_ms = now_ms;
+-            }
+             // if (motion_detector->isPickUpDetected()) {
+             //     mclog::tagInfo(_tag, "Pick Up Detected!");
+             //     GetHAL().onImuMotionEvent.emit(ImuMotionEvent::PickUp);
+diff --git a/firmware/main/hal/utils/motion_detector/motion_detector.h b/firmware/main/hal/utils/motion_detector/motion_detector.h
+index 40d8f33..a19cf76 100644
+--- a/firmware/main/hal/utils/motion_detector/motion_detector.h
++++ b/firmware/main/hal/utils/motion_detector/motion_detector.h
+@@ -38,16 +38,9 @@ public:
+         _prev_acc_y = acc_y;
+         _prev_acc_z = acc_z;
+ 
+-        if (diff > _max_diff) {
+-            _max_diff = diff;
+-        }
+-
+         // --- Shake Detection ---
+         // printf("%.2f\n", diff);
+         if (diff > _shake_threshold) {
+-            if (diff > _sequence_peak) {
+-                _sequence_peak = diff;
+-            }
+             if (now - _last_shake_peak_time > 100) {       // Debounce 100ms
+                 if (now - _last_shake_peak_time < 1000) {  // Window 1s
+                     _shake_count++;
+@@ -57,10 +50,8 @@ public:
+                 _last_shake_peak_time = now;
+ 
+                 if (_shake_count >= 3) {
+-                    _shake_detected  = true;
+-                    _shake_count     = 0;
+-                    _last_shake_peak = _sequence_peak;
+-                    _sequence_peak   = 0;
++                    _shake_detected = true;
++                    _shake_count    = 0;
+                 }
+             }
+         }
+@@ -75,20 +66,6 @@ public:
+         return false;
+     }
+ 
+-    // Tuning aids: the largest change between two samples since the last call (a shake needs three
+-    // above the threshold within a second), and the strongest of the last shake's three peaks.
+-    float takeMaxDiff()
+-    {
+-        float value = _max_diff;
+-        _max_diff   = 0;
+-        return value;
+-    }
+-
+-    float lastShakePeak() const
+-    {
+-        return _last_shake_peak;
+-    }
+-
+     // bool isPickUpDetected()
+     // {
+     //     if (_pickup_detected) {
+@@ -103,9 +80,6 @@ private:
+     uint32_t _last_shake_peak_time = 0;
+     bool _shake_detected           = false;
+     float _shake_threshold         = 4.0f;
+-    float _max_diff                = 0;
+-    float _sequence_peak           = 0;
+-    float _last_shake_peak         = 0;
+ 
+     float _prev_acc_x = 0;
+     float _prev_acc_y = 0;

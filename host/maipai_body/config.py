@@ -18,6 +18,14 @@ class LlmConfig(StrictModel):
     model: str = ""
     stt_url: str | None = None
     tts_url: str | None = None
+    api_key_env: str | None = None
+    persona: str = "You are a helpful robot. Keep spoken replies concise."
+    timeout_seconds: float = 30.0
+    history_messages: int = 20
+    stt_model_dir: str | None = None
+    tts_model: str | None = None
+    tts_tokens: str | None = None
+    tts_data_dir: str | None = None
 
 
 class HomeConfig(StrictModel):
@@ -47,14 +55,14 @@ class RobotConfig(StrictModel):
 
 
 def build_brain(config: RobotConfig, **home_dependencies):
-    """Select the configured adapter; the own-LLM implementation is phase five."""
+    """Select the configured answering brain."""
     if config.brain == "home":
         from maipai_body.brain.home import HomeBrain
 
         return HomeBrain(**home_dependencies)
-    from maipai_body.brain.own_llm import NotYetBuilt
+    from maipai_body.brain.own_llm import OwnLLMBrain
 
-    return NotYetBuilt(config.llm)
+    return OwnLLMBrain(config.llm, **home_dependencies)
 
 
 def example_config_path() -> Path:

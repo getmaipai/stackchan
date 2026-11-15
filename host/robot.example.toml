@@ -6,6 +6,13 @@ brain = "llm"
 # OpenAI-compatible chat completions endpoint and model name.
 url = ""
 model = ""
+# Optional environment variable containing the model API key. Never put the key here.
+# api_key_env = "STACKCHAN_LLM_API_KEY"
+# System prompt used for every conversation. The connected model and this prompt own content safety.
+persona = "You are a helpful robot. Keep spoken replies concise."
+# Request timeout in seconds and the maximum number of prior messages kept per conversation.
+timeout_seconds = 30.0
+history_messages = 20
 # Leave these unset to use the built-in local speech engines.
 # stt_url = "http://127.0.0.1:8001"
 # tts_url = "http://127.0.0.1:8002"
