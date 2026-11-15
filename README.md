@@ -5,6 +5,8 @@
 Talk to your StackChan robot and it answers with AI that runs on your own computer, or on your MaiPai Home hub. Nothing goes to a cloud service.
 It reacts quickly, does far more, and works from any Wi-Fi because it can join your Tailscale network.
 
+StackChan is the open-source AI desktop robot from M5Stack: [official project](https://github.com/m5stack/StackChan), [official docs](https://docs.m5stack.com/en/StackChan) and [store page](https://shop.m5stack.com/products/stackchan-kawaii-co-created-open-source-ai-desktop-robot). This project replaces the robot's firmware and adds a host program. It does not change the hardware.
+
 > **Draft notice.** These docs are written as if v1.0.0 is finished, so the owner can review the full product. Remove this notice
 > when v1.0.0 ships. Until then, treat every feature as unconfirmed on a unit.
 
@@ -43,7 +45,7 @@ It reacts quickly, does far more, and works from any Wi-Fi because it can join y
 
 ## Quick start
 
-You need a StackChan robot, a USB cable, and a Mac, Linux machine or Raspberry Pi 5 to run the host.
+You need a StackChan robot ([buy one from the store](https://shop.m5stack.com/products/stackchan-kawaii-co-created-open-source-ai-desktop-robot)), a USB cable, and a Mac, Linux machine or Raspberry Pi 5 to run the host.
 
 ```
 pipx install git+https://github.com/getmaipai/stackchan
@@ -83,6 +85,7 @@ your persona prompt. The family-friendly persona is a prompt, not a guarantee.
 - Users: [Getting started](docs/user/getting-started.md), [Features](docs/user/features.md), [Settings](docs/user/settings.md),
   [Languages](docs/user/languages.md), [Privacy](docs/user/privacy.md), [Troubleshooting](docs/user/troubleshooting.md).
 - Developers: `docs/dev/` (build from source, host and brains, contributing).
+- The robot itself: [official project](https://github.com/m5stack/StackChan), [official docs](https://docs.m5stack.com/en/StackChan), [store page](https://shop.m5stack.com/products/stackchan-kawaii-co-created-open-source-ai-desktop-robot).
 - Writing rules: `docs/STYLE.md`. Names still to confirm: `docs/dev/draft-names.md`. Design record: `docs/design/`.
 
 ## Contributing
@@ -96,4 +99,4 @@ but I may be slow, and I cannot promise to build any of them. A thumbs-up on an 
 
 ## License
 
-AGPL-3.0. See `LICENSE`, `NOTICE` and `THIRD-PARTY.md`. This is an independent project, not made or endorsed by the robot's maker.
+AGPL-3.0. See `LICENSE`, `NOTICE` and `THIRD-PARTY.md`. This is an independent project, not made or endorsed by M5Stack. StackChan is M5Stack's robot; see the official links above.

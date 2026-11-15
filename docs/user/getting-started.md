@@ -4,7 +4,7 @@ About 20 minutes the first time. You do this once.
 
 ## What you need
 
-- A StackChan robot and a USB cable.
+- A StackChan robot and a USB cable. New to the robot? See the [official docs](https://docs.m5stack.com/en/StackChan), or [buy one from the store](https://shop.m5stack.com/products/stackchan-kawaii-co-created-open-source-ai-desktop-robot).
 - A small always-on computer for the host program: a Mac, a Linux machine or a Raspberry Pi 5.
 - Wi-Fi that the robot and the host share.
 - A language model you run yourself, reached by a web address. Speech tools are optional, because the host has built-in ones.
