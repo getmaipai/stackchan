@@ -58,7 +58,7 @@ your persona prompt. The family-friendly persona is a prompt, not a guarantee.
 - Users: [Getting started](docs/user/getting-started.md), [Features](docs/user/features.md), [Settings](docs/user/settings.md),
   [Languages](docs/user/languages.md), [Privacy](docs/user/privacy.md), [Troubleshooting](docs/user/troubleshooting.md).
 - Developers: `docs/dev/` (build from source, host and brains, contributing).
-- Writing rules: `docs/STYLE.md`. Design record: `docs/design/`.
+- Writing rules: `docs/STYLE.md`. Names still to confirm: `docs/dev/draft-names.md`. Design record: `docs/design/`.
 
 ## License
 

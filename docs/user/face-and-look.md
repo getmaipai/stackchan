@@ -29,7 +29,7 @@ The clock shows big digits or a ring. It dims at night. It keeps working if the 
 
 ## Night mode
 
-Night mode dims the screen and the lights and softens the clock. Set it by hand, say "night mode", or set quiet hours so it starts by itself.
+Night mode dims the screen and the lights and softens the clock. Set it by hand, say "night mode", or set `quiet_from` and `quiet_to` so it starts by itself.
 
 ## Thinking cue
 

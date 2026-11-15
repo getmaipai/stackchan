@@ -40,7 +40,7 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 
 - `persona` and `persona_lock`: the personality, and whether a spoken request can change it.
 - `quick_sliders`: which sliders the head strip opens. The default is volume and brightness.
-- `hourly_chime` and `quiet_hours`: a soft tone each hour, and a window when the robot dims and stays quiet.
+- `hourly_chime`, `quiet_from` and `quiet_to`: a soft tone each hour, and a window when the robot dims and stays quiet.
 - `idle_motion` and `pet_mood`: turn idle moves and the pet mood off.
 - `camera`, `camera_retention` and `vision_url`: the opt-in camera, how long snapshots stay, and your vision model.
 - `api`, `events`, `mqtt_url`, `ha_bridge`, `metrics` and `mcp`: the home tools. All are off by default.
