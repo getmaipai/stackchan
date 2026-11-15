@@ -20,6 +20,8 @@ When music plays near the robot, it first shows a small "I like this" face. If t
 
 ![The web settings page with Dance to music switched on.](../images/dance-settings.svg)
 
+While it dances, the light bars play a colour show <img src="../images/light-rainbow.svg" alt="colours walking along the light bars" height="22">, and a rising chime starts it. There is no light show at night.
+
 ## What song is this
 
 <span class="home-tag">Needs MaiPai Home</span>
@@ -30,20 +32,6 @@ Without MaiPai Home, this feature is hidden. See [Use MaiPai Home as the brain](
 ## Mood faces
 
 The face changes to fit the music: calm, happy or lively. The mood faces are in [Change how the robot looks](face-and-look.md).
-
-<details>
-<summary><strong>Lights and sounds</strong></summary>
-
-| What you see | What you hear | When |
-|---|---|---|
-| <img src="../images/light-rainbow.svg" alt="Colours walking along the light bars" width="64"><br>A light show on the light bars, in time with the dance | <img src="../images/tone-back-online.svg" alt="A rising chime" width="52"><br>A rising chime when the dance starts | The robot is dancing |
-| Lights off, a small "I like this" face | Nothing | The robot has noticed music |
-
-There is no light show at night. The robot dances with its head and face only.
-
-See [Lights and sounds](lights-and-sounds.md) for every light and tone.
-
-</details>
 
 ## Still need help?
 

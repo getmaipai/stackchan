@@ -64,23 +64,9 @@ The camera-on cue is the one cue you cannot turn off.
 | 10 percent | It asks you out loud to plug it in. |
 | 5 percent | It goes to sleep before the power runs out. |
 
+Below 15 percent, the light bars pulse amber once every 10 seconds <img src="../images/light-amber.svg" alt="amber light bars" height="22"> and the screen says "Battery low". A small red light at the back shows while it charges <img src="../images/light-charging.svg" alt="red charging light" height="22">. Two quick rising notes play when you plug in and one falling note when you unplug. [All lights and sounds](lights-and-sounds.md).
+
 ![The low-battery icon at 10 percent.](../images/low-battery.svg)
-
-<details>
-<summary><strong>Lights and sounds</strong></summary>
-
-| What you see | What you hear | When |
-|---|---|---|
-| <img src="../images/light-amber.svg" alt="Amber light bars, one short pulse" width="64"><br>Amber light bars, one short pulse every 10 seconds, and a tired face | <img src="../images/tone-low-battery.svg" alt="A short chirp" width="52"><br>A chirp at 20 percent. A spoken request to plug in at 10 percent | The battery is low and the charger is out. The screen says "Battery low" |
-| <img src="../images/light-charging.svg" alt="Small red light at the back" width="64"><br>Lights off. A small red light at the back | <img src="../images/tone-plug-in.svg" alt="Two quick rising notes" width="52"><br>Two quick rising notes | You plugged in the charger. The red light stays on while it charges and goes off when it is full |
-| Lights off | <img src="../images/tone-charged.svg" alt="Three rising notes" width="52"><br>Three rising notes | The battery is full and the cable is still in |
-| Lights off | <img src="../images/tone-unplug.svg" alt="One falling note" width="52"><br>One falling note | You pulled the cable out |
-| Lights off, a surprised or dizzy face | A short spoken line, not at night | You picked it up, shook it or turned it over |
-| Lights off, the sleeping face | <img src="../images/tone-goodbye.svg" alt="Three falling notes" width="52"><br>Three slow falling notes | You pressed the power key to turn it off |
-
-See [Lights and sounds](lights-and-sounds.md) for every light and tone.
-
-</details>
 
 ## Still need help?
 

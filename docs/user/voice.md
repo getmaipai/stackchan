@@ -9,6 +9,8 @@
 After an answer the robot keeps listening for a few seconds. You can ask a follow-up without the wake word.
 You can also interrupt: speak while it talks and it stops and listens.
 
+The light bars glow blue <img src="../images/light-blue.svg" alt="blue light bars" height="22"> when it is your turn to talk, with a short rising pop. They glow green <img src="../images/light-green.svg" alt="green light bars" height="22"> the whole time your voice is being sent to your host or hub. [All lights and sounds](lights-and-sounds.md).
+
 ![The robot face in the listening state.](../images/listening.svg)
 
 ## Voice commands
@@ -64,21 +66,6 @@ Record them once from the web page.
 
 Set `llm_url`, `stt_url` and `tts_url` in `robot.toml`. Leave the speech addresses blank to use the built-in engines.
 Run `stackchan check` after any change.
-
-<details>
-<summary><strong>Lights and sounds</strong></summary>
-
-| What you see | What you hear | When |
-|---|---|---|
-| <img src="../images/light-blue.svg" alt="Blue light bars, steady" width="64"><br>Blue light bars, steady | <img src="../images/tone-listening.svg" alt="One short rising pop" width="52"><br>A short rising pop | You said the wake word or tapped, and it is your turn to talk |
-| <img src="../images/light-green.svg" alt="Green light bars, steady" width="64"><br>Green light bars, steady | Nothing | Your voice is being sent to your host or hub. It stays on the whole time and never dims |
-| Lights off, thinking dots on the face | A quiet tone. Change it with `thinking_cue` | The robot is working on the reply |
-| Lights off, mood face and moving mouth | Its voice | The robot is speaking |
-| <img src="../images/light-amber.svg" alt="Amber light bars, one short pulse" width="64"><br>Amber light bars, one short pulse every 10 seconds | <img src="../images/tone-offline.svg" alt="Two falling notes" width="52"><br>Two falling notes, once | The robot cannot reach your host. The screen says "Offline" |
-
-See [Lights and sounds](lights-and-sounds.md) for every light and tone.
-
-</details>
 
 ## Still need help?
 

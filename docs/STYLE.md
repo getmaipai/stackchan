@@ -19,7 +19,7 @@
 
 ## Lights and sounds
 
-Every feature page that lights the light bars, changes the face or plays a tone has a collapsed "Lights and sounds" block (a `<details>` element, closed by default, with small swatches) and a table: what you see (colour, pattern, face), what you hear, and when. Show each light as its drawn swatch (`docs/images/light-*.svg`) and each tone as its note shape (`tone-*.svg`), made by `scripts/make-lights.py`, so a reader sees the real colour and pattern. `docs/user/lights-and-sounds.md` is the one master list. A new light or tone is added to both places in the same commit.
+One master page, `docs/user/lights-and-sounds.md`, holds the full table of lights and tones, with a swatch for each. A feature page does not get its own table. It says what the lights and tones do in one plain sentence in the section where the feature is explained, with a tiny inline swatch (`docs/images/light-*.svg`, made by `scripts/make-lights.py`), and links to the master page. A new light or tone is added to the master page in the same commit.
 
 ## Tags
 

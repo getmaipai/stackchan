@@ -29,6 +29,8 @@ About 20 minutes the first time. You do this once.
 
    ![The robot face with thinking dots.](../images/first-turn.svg)
 
+If the light bars pulse cyan slowly <img src="../images/light-cyan.svg" alt="cyan light bars" height="22"> and you hear two rising notes, the robot needs you: it is waiting for Wi-Fi details or for the pairing code.
+
 ## If the robot cannot join Wi-Fi
 
 It opens a setup page. Connect to its network, pick your Wi-Fi, enter the password and the host address.
@@ -49,19 +51,6 @@ In standalone mode the robot adds no content filter. The model you connect decid
 ## Next
 
 Take the tour in [Features](features.md), or change how the robot looks in [Settings](settings.md).
-
-<details>
-<summary><strong>Lights and sounds</strong></summary>
-
-| What you see | What you hear | When |
-|---|---|---|
-| <img src="../images/light-cyan.svg" alt="Cyan light bars pulsing slowly" width="64"><br>Cyan light bars, a slow pulse every 2 seconds, and the setup screen | <img src="../images/tone-needs-you.svg" alt="Two rising notes" width="52"><br>Two rising notes, then again each minute | The robot needs Wi-Fi. Connect to its network and enter your Wi-Fi details. This one tone plays even at night |
-| <img src="../images/light-cyan.svg" alt="Cyan light bars pulsing slowly" width="64"><br>Cyan light bars, a slow pulse every 2 seconds, and "Waiting to be paired" | <img src="../images/tone-needs-you.svg" alt="Two rising notes" width="52"><br>Two rising notes, once | The robot is waiting for you to type the pairing code |
-| Lights off, the face appears | <img src="../images/tone-back-online.svg" alt="A rising chime" width="52"><br>A rising chime | The robot is paired and connected |
-
-See [Lights and sounds](lights-and-sounds.md) for every light and tone.
-
-</details>
 
 ## Still need help?
 

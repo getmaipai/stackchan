@@ -5,6 +5,8 @@
 Say the wake word, then "set a timer for ten minutes". The screen shows a ring that empties as time runs out.
 When the time is up the robot plays a tone and shows a pulsing icon. Say "stop" or touch the robot to end it.
 
+When it rings, the light bars pulse cyan <img src="../images/light-cyan.svg" alt="cyan light bars" height="22"> and the robot plays its tone now and every 8 seconds, until you touch it or say "stop". [All lights and sounds](lights-and-sounds.md).
+
 ![The ring timer at 60 percent, with the time left in the middle.](../images/timer-ring.svg)
 
 ## Several timers
@@ -38,21 +40,6 @@ Alarms you set still ring.
 ## Offline
 
 Timers and alarms run without the language model. They need the host only to be set. The clock needs the host once, to learn the time.
-
-<details>
-<summary><strong>Lights and sounds</strong></summary>
-
-| What you see | What you hear | When |
-|---|---|---|
-| <img src="../images/light-cyan.svg" alt="Cyan light bars pulsing slowly" width="64"><br>Cyan light bars, a short pulse every 2 seconds, a happy face and a card with the label | <img src="../images/tone-needs-you.svg" alt="Notification tone" width="52"><br>The notification tone now, then every 8 seconds | A timer or alarm is ringing. Touch the robot or say "stop" to end it. It stops by itself after 60 seconds |
-| Lights off | A soft tone on the hour | The hourly chime, if you turned it on |
-| Lights off | Nothing, then the spoken announcement | A household announcement from MaiPai Home <span class="home-tag">Needs MaiPai Home</span> |
-
-A ring set to silent still shows the cyan pulse. Quiet hours skip the chime but not an alarm you set.
-
-See [Lights and sounds](lights-and-sounds.md) for every light and tone.
-
-</details>
 
 ## Still need help?
 

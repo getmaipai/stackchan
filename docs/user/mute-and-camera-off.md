@@ -18,6 +18,8 @@ Tap the same spot again to turn the switch off. Each tap makes no sound. The eye
 
 ![The robot face in full quiet, asleep with a small pause mark.](../images/face-full-quiet.svg)
 
+Tapping a switch makes no sound and changes no lights. The face shows the state, and the eyes blink once. [All lights and sounds](lights-and-sounds.md).
+
 ## Mute
 
 Mute powers the microphone chip down, so the robot cannot hear you, not even the wake word. That also means you cannot unmute by voice.
@@ -48,21 +50,6 @@ By default the robot's own face can mute and unmute itself. If you set `local_un
 The robot checks its own microphone chip after muting, and reports whether the check passed. If it cannot confirm, the host tells you the mute is unconfirmed and warns you after a minute.
 The host also watches for a leak: if the robot reports listening or camera activity while muted or camera off, it raises an error and the face shows it for 30 seconds.
 To be honest about the limit, mute is a hardware power-down plus a software lock. It is not a cut wire. If you need certainty, unplug the robot.
-
-<details>
-<summary><strong>Lights and sounds</strong></summary>
-
-| What you see | What you hear | When |
-|---|---|---|
-| A flat, closed mouth. Lights off | Nothing | Mute is on |
-| Calm, half-closed eyes. Lights off | Nothing | The camera is off |
-| The sleeping face with a small pause mark. Lights off | Nothing | Full quiet is on |
-| The eyes blink once | Nothing | You tapped a switch. Switching makes no sound on purpose |
-| A red error face for 30 seconds | Nothing | The host saw activity it should not, such as listening while muted |
-
-See [Lights and sounds](lights-and-sounds.md) for every light and tone.
-
-</details>
 
 ## Still need help?
 

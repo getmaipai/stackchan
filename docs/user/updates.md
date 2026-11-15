@@ -34,6 +34,8 @@ You don't need a cable. The robot downloads the update over Wi-Fi, checks its si
 
 ![The robot screen with an animated updating icon.](../images/updating.svg)
 
+While it installs, the light bars pulse white fast <img src="../images/light-white.svg" alt="white light bars" height="22"> and an animated icon shows on the screen. Do not unplug it. A rising chime plays when it is back online.
+
 ## Your own images
 
 Build your own image with `stackchan firmware build` and sign it with your key. Developers: see `docs/dev/build-from-source.md`.
@@ -42,18 +44,6 @@ The flasher accepts the official image or a local file. `stackchan firmware veri
 ## If an update fails
 
 See [Troubleshooting](troubleshooting.md).
-
-<details>
-<summary><strong>Lights and sounds</strong></summary>
-
-| What you see | What you hear | When |
-|---|---|---|
-| <img src="../images/light-white.svg" alt="White light bars pulsing fast" width="64"><br>White light bars, a fast pulse every second, and an animated updating icon | Nothing | An update is installing. Do not unplug the robot |
-| Neutral face, lights off | <img src="../images/tone-back-online.svg" alt="A rising chime" width="52"><br>A rising chime | The update worked and the robot is back online |
-
-See [Lights and sounds](lights-and-sounds.md) for every light and tone.
-
-</details>
 
 ## Still need help?
 

@@ -8,6 +8,8 @@ The robot's camera has a low resolution, so these pages call the pictures **snap
 Set `camera = true` in `robot.toml`, or switch it on in the web page. Choose how long the host keeps snapshots with `camera_retention`.
 A camera-on cue shows whenever the camera streams. You cannot turn that cue off.
 
+When it takes a picture, the light bars flash pink twice and stay pink <img src="../images/light-pink.svg" alt="pink light bars" height="22">, and you hear a double click <img src="../images/tone-shutter.svg" alt="double click" height="18">. The pink never dims, even at night. [All lights and sounds](lights-and-sounds.md).
+
 ![The robot screen with the camera-on icon.](../images/camera-cue.svg)
 
 ## What is this
@@ -45,19 +47,6 @@ Add people to a local name list from the web page. The robot can then say who it
 ## Keep and delete
 
 Snapshots are deleted after `camera_retention`. Press Delete all in the web page, or run `stackchan camera delete`, to clear them now.
-
-<details>
-<summary><strong>Lights and sounds</strong></summary>
-
-| What you see | What you hear | When |
-|---|---|---|
-| <img src="../images/light-pink.svg" alt="Pink light bars flashing twice, then steady" width="64"><br>Pink light bars: two quick flashes, then steady | <img src="../images/tone-shutter.svg" alt="Two short clicks" width="52"><br>A short double click | The camera is taking a picture. This cue is never dimmed, and the click plays at night too |
-| Camera-on icon on the screen | Nothing | The camera is streaming. You cannot turn this cue off |
-| Calm, half-closed eyes | Nothing | The camera is off |
-
-See [Lights and sounds](lights-and-sounds.md) for every light and tone.
-
-</details>
 
 ## Still need help?
 

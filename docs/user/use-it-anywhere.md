@@ -38,6 +38,8 @@ Add one from the robot's setup page or the web settings page. Remove any time. P
 
 ![The saved Wi-Fi list with three networks and one marked connected.](../images/saved-wifi.svg)
 
+If the robot loses its link to your host or hub, the light bars pulse amber once every 10 seconds <img src="../images/light-amber.svg" alt="amber light bars" height="22">, the screen says "Offline", and you hear two falling notes once. A rising chime plays when the link is back.
+
 ## When something fails
 
 | What you see | What went wrong | What to do |
@@ -49,18 +51,6 @@ Add one from the robot's setup page or the web settings page. Remove any time. P
 ## Using MaiPai Home
 
 The same setup reaches a MaiPai Home hub on your tailnet. See [With MaiPai Home](with-maipai-home.md).
-
-<details>
-<summary><strong>Lights and sounds</strong></summary>
-
-| What you see | What you hear | When |
-|---|---|---|
-| <img src="../images/light-amber.svg" alt="Amber light bars, one short pulse" width="64"><br>Amber light bars, one short pulse every 10 seconds, and "Offline" on the screen | <img src="../images/tone-offline.svg" alt="Two falling notes" width="52"><br>Two falling notes, once for each outage | The robot has lost its link to your host or hub |
-| Lights off, the face comes back | <img src="../images/tone-back-online.svg" alt="A rising chime" width="52"><br>A rising chime | The link is back after an outage of more than a minute |
-
-While it is offline, the robot answers its wake word with a short stored phrase, such as "I can't reach my host right now". See [Lights and sounds](lights-and-sounds.md).
-
-</details>
 
 ## Still need help?
 
