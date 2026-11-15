@@ -553,7 +553,7 @@ def test_the_sixteen_phrases_match_the_firmware_groups_and_the_files():
 def test_the_phrases_are_plain_words_a_child_can_follow():
     doc = json.loads((PHRASES / "phrases.json").read_text())
     for clip in doc["clips"]:
-        assert clip["text"].endswith(".") and "-" not in clip["text"]
+        assert clip["text"].endswith(".") and "\u2014" not in clip["text"]
         assert len(clip["text"]) <= 45
     texts = " ".join(c["text"] for c in doc["clips"]).lower()
     assert "wi-fi" in texts and "approved" in texts and "connecting" in texts

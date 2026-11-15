@@ -13,7 +13,7 @@ from pathlib import Path
 from websockets.asyncio.server import serve
 
 ROOT = Path(__file__).resolve().parents[2]
-RECORDER = ROOT / "body/scripts/record_stackchan_fixtures.py"
+RECORDER = ROOT / "host/scripts/record_stackchan_fixtures.py"
 EGRESS = ROOT / "scripts/stackchan-egress-proof.sh"
 
 

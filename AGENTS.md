@@ -22,6 +22,10 @@ Order, no exceptions: (1) Claude cloud; (2) Codex, launched in an owned tmux ses
 A Claude agent here (Sonnet, Haiku or Opus) is never the first choice for edits, test fixing, builds or flashing. Using one needs a reason, written before launch, why steps 1 to 3 could not do it. A parent never reports local Claude agents as "running" for work that belonged to steps 1 to 3.
 If this repo has no launcher for a step, fix the launcher first instead of falling back to a local agent.
 
+## Links Jesse can open (owner rule, 2026-11-15)
+
+The desktop app previews a clicked file only when it sits inside one of the session's folders. At the start of a session that works in this repo from another folder, call `request_directory` for this repo's path, then link files as markdown links relative to that folder. A file outside every session folder (for example `~/esp/...`, `~/stackchan-backups/...`, `.runs/` of another checkout) is never linked as if it opens: copy a short result into this repo's `docs/` or say the full path in text and open it with `show_pane`.
+
 ## Working economically (every lane, every session)
 
 - Read `docs/design/INDEX.md` and the one spec file for your slice; do not grep or read the whole tree.

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://getmaipai.github.io/shared/spec/schemas/status-component.schema.json",
+  "title": "StatusComponent",
+  "type": "string",
+  "anyOf": [
+    {
+      "type": "string",
+      "enum": [
+        "chat",
+        "embed",
+        "background",
+        "voice",
+        "library",
+        "hub",
+        "internet",
+        "engine_computer"
+      ]
+    },
+    {
+      "type": "string",
+      "pattern": "^service:[a-z0-9][a-z0-9_-]{0,63}$"
+    }
+  ]
+}

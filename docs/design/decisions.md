@@ -60,4 +60,4 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 
 ## Name check (2026-11-15)
 
-"StackChan" is the name of M5Stack's own commercial desktop robot, and a community project spells it "Stack-chan". A web search found no trademark records either way. Before a public release, search the USPTO, EUIPO and WIPO registers and decide whether the product needs its own name. Status: open, owner decision.
+"StackChan" is the name of M5Stack's own commercial desktop robot, and a community project spells it "Stack-chan". A web search found no trademark records either way. Before a public release, search the USPTO, EUIPO and WIPO registers and decide whether the product needs its own name. Status: decided by the owner on 2026-11-15: the user-facing project name is "MaiPai for StackChan". Still run the trademark register search before the public release.

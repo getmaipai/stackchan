@@ -15,7 +15,7 @@ VERSION="${TAG#v}"
 if [[ "$RELEASE_DIR" != /* ]]; then
   RELEASE_DIR="$ROOT/$RELEASE_DIR"
 fi
-DIST_STAGE="$ROOT/dist/bot-release/$TAG"
+DIST_STAGE="$ROOT/dist/stackchan-release/$TAG"
 STAGE="${MAIPAI_BOT_BUNDLE_OUT_DIR:-$DIST_STAGE}"
 if [[ "$STAGE" != /* ]]; then
   STAGE="$ROOT/$STAGE"

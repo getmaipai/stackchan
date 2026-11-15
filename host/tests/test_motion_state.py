@@ -177,5 +177,5 @@ def test_a_missing_reading_changes_nothing():
 
 def test_every_threshold_is_marked_unmeasured_and_the_runbook_has_a_unit_row():
     assert "UNMEASURED" in motion_state.THRESHOLD_STATUS
-    runbook = Path(__file__).resolve().parents[2] / "docs" / "dev" / "measure-runbook.md"
+    runbook = Path(__file__).resolve().parents[2] / "docs" / "design" / "firmware-memory.md"
     assert "MOVE-CARRY-01" in runbook.read_text()

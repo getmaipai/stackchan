@@ -206,12 +206,12 @@ def test_the_setting_is_declared_for_hello_with_label_and_lives_in():
     assert setting["default"] == "look"
     assert setting["scope"] == "device"
     assert setting["label"] and setting["lives_in"]
-    assert "-" not in setting["label"] + setting["lives_in"]
+    assert "\u2014" not in setting["label"] + setting["lives_in"]
 
 
 def test_the_line_variants_are_shipped_clips_written_for_the_youngest_listener():
     manifest = oc.load_manifest()
     for clip_id in CARRY_LINES:
         text = manifest.clip(clip_id).text
-        assert "-" not in text and len(text.split()) <= 6
+        assert "\u2014" not in text and len(text.split()) <= 6
     assert len(CARRY_LINES) == 3

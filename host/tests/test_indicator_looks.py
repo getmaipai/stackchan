@@ -20,7 +20,7 @@ ADULT = PresenceEntry("adult")
 CHILD = PresenceEntry("child")
 TEEN = PresenceEntry("teen")
 UNKNOWN = PresenceEntry("unknown")
-STANDARD = Path(__file__).resolve().parents[2] / "docs" / "dev" / "led-standard-2026-10-20.md"
+STANDARD = Path(__file__).resolve().parents[1] / "spec-vendor" / "indicator-standard.md"
 NIGHT_MINUTE = 23 * 60
 DAY_MINUTE = 12 * 60
 

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://getmaipai.github.io/shared/spec/schemas/robot-state.schema.json",
+  "title": "RobotState",
+  "description": "A hub-local projection of a paired robot's current state, keyed externally by device_id and never synced or given its own record identity (home docs/dev.md, ‘Robot device state’; bot docs/dev.md, ‘Robot device state’ pointer). It deliberately has no id, timestamps, or hlc. Battery, daemon and app version fields may be omitted by producers that do not report them yet; explicit null means the body cannot tell or has no version to report. Reachy Mini always sends null for on_battery per section 7 of the design record.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["activity", "muted", "tracking"],
+  "properties": {
+    "activity": {
+      "type": "string",
+      "enum": ["starting", "idle", "listening", "thinking", "speaking", "reconnecting", "sleeping"],
+      "description": "The robot's current interaction phase, so the hub can show an accurate Devices-page card, including the distinct startup state. reconnecting means the robot lost the hub link and is trying to restore it. sleeping means the robot is deliberately idle, not unreachable. A consumer that meets an activity value it does not know treats it as unknown, not as an error."
+    },
+    "muted": {
+      "type": "boolean",
+      "description": "Whether the robot's microphone is muted, so the card can show when it cannot hear the household."
+    },
+    "tracking": {
+      "type": "boolean",
+      "description": "Whether the robot's tracking behavior is active, so the card can expose that live device state."
+    },
+    "clock_synced": {
+      "type": "boolean",
+      "description": "Whether the robot's clock was last corrected against the hub's. Omission means the producer does not yet report this field."
+    },
+    "on_battery": {
+      "type": ["boolean", "null"],
+      "description": "Whether the robot is running on battery power. Null means its body cannot tell; Reachy Mini always sends null per section 7 of the design record. Omission means the producer does not yet report this field."
+    },
+    "battery_level": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "The available battery fraction from 0 to 1, allowing the Devices-page card to show charge when the robot reports it. Null means no level is currently known; omission means the producer does not yet report this field."
+    },
+    "daemon_version": {
+      "type": ["string", "null"],
+      "description": "The robot daemon version, when available, so the hub can display which software is running. Null means no version is currently known; omission means the producer does not yet report this field."
+    },
+    "motion": {
+      "type": ["string", "null"],
+      "enum": ["resting", "held", null],
+      "description": "Whether the body is resting on a surface or being held, so the hub can show when someone is carrying the robot. Null means the body cannot tell; omission means the producer does not yet report this field. A consumer that meets a value it does not know treats it as unknown, not as an error."
+    },
+    "put_down_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many times the robot has been put down since it started, a non-negative running count the hub can compare between frames. Omission means the producer does not yet report this field."
+    },
+    "app_version": {
+      "type": ["string", "null"],
+      "description": "The MaiPai app version the robot runs (the maipai-bot release), so the hub can compare the robot to a published Bot release; daemon_version is the vendor SDK's version, not this one. Null means no version is currently known; omission means the producer does not yet report this field."
+    },
+    "motors_latched": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "Names of the motors the robot's motor gate has latched off after a failed recovery, so the hub can show which parts are down. An empty list means none are latched. Omission means the producer does not yet report this field."
+    },
+    "motors_stuck": {
+      "type": "boolean",
+      "description": "Whether the robot's stuck-servo recovery ladder is currently running (any stage other than healthy), so the card can say the body is working on a motor problem. Omission means the producer does not yet report this field."
+    },
+    "motors_reboot_offer": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "Names of the latched motors for which the robot asks the hub to offer a reboot to an adult (a latched servo error that cycling the motor mode did not clear). Always a subset of motors_latched. An empty list means no offer is pending; omission means the producer does not yet report this field. The hub shows one card offer and, on an adult's yes, sends a motor_reboot command naming these motors; the robot never reboots a motor on its own while a person may be touching the head."
+    },
+    "thermal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "temp_c", "vision_hz", "fault"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["nominal", "vision_slowed", "gestures_suspended", "idle_still"],
+          "description": "The thermal governor's current step: nominal, vision slowed, gestures suspended, then idle and still. A consumer that meets a level it does not know treats it as unknown, not as an error."
+        },
+        "temp_c": {
+          "type": ["number", "null"],
+          "description": "The last measured body temperature in degrees Celsius. Null means no reading is available."
+        },
+        "vision_hz": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The camera processing rate the governor currently allows, in frames per second."
+        },
+        "fault": {
+          "type": "boolean",
+          "description": "Whether the temperature sensor could not be read, so the level is a best guess."
+        }
+      },
+      "description": "The robot's thermal governor state, so the hub can say why the robot has slowed down. Omission means the producer does not report thermal state (no monitor wired)."
+    },
+    "watch_level": {
+      "type": "string",
+      "enum": ["off", "presence", "identify"],
+      "description": "The effective local camera watch level the robot reports to the hub, using the strictest applicable person and device setting."
+    },
+    "media": {
+      "anyOf": [{ "$ref": "media-presence.schema.json" }, { "type": "null" }],
+      "description": "HANDOFF-01: what this device is playing now, or null. Optional: a robot that never sends it is unchanged."
+    },
+    "presence": {
+      "$ref": "presence-state.schema.json",
+      "description": "Optional shared activity state for the web character and robot body. It contains no person identity, turn outcome, or reason."
+    }
+  }
+}

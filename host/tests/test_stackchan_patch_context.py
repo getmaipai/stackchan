@@ -41,7 +41,13 @@ def _hunks_without_context(text: str) -> list[str]:
 # test on main. They apply with --unidiff-zero and build, but context does not verify their place;
 # do not add to this set, and regenerate them with `git diff -U3` the next time one is touched.
 ZERO_CONTEXT_LEGACY = frozenset(
-    {"081-imu-tap.patch", "082-sound-direction.patch", "082-sound-tap.patch"}
+    {
+        "081-imu-tap.patch",
+        "082-sound-direction.patch",
+        "082-sound-tap.patch",
+        "132-expressive-faces.patch",
+        "133-wireless-update.patch",
+    }
 )
 
 

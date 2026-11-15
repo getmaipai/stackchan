@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://getmaipai.github.io/shared/spec/schemas/model-capabilities.schema.json",
+  "title": "ModelCapabilities",
+  "description": "One catalog entry: a specific model file (or checkpoint set) for one of backend/src/lib/llm.ts's roles, plus what it takes to run it. Platform plan 4.11 names this record ('context, tools, JSON schema, grammar, vision, think-mode key, template source, sampling, engine flags, quality tier, safety notes, licence') for describing catalog model packages and BYO GGUFs; spec/llm/README.md deferred writing it until a real producer (hardware detection) and consumer (the model-selection wizard/settings page) existed. Only the fields those actually use are populated; the rest of the plan's field list stays a named future gap, not guessed at here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "role", "label", "license", "engine", "sizing", "implemented"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Catalog id, e.g. 'qwen3-8b-instruct-q4-k-m'. Stable once published: settings values reference it by this id."
+    },
+    "role": {
+      "type": "string",
+      "enum": ["chat", "router", "embed", "rerank", "vision", "image", "video", "music", "coding", "judge", "tts", "stt", "wakeword", "turn-signal"],
+      "description": "Matches backend/src/lib/llm.ts's LlmRole, with one addition ahead of that hub code: turn-signal (SPEC-01, dev.md section 12 part 2, the small classifier heads over the turn's existing embedding that ACT-02 fetches on demand, not wired to a real backend yet, same as image/video below). The Stack roles also include judge, rerank and music. A code review on this migration caught the original wording claiming an exact match already - ACT-02 is what adds turn-signal to LlmRole itself; this is spec-only, declared here first per the migration's own no-hub-code scope."
+    },
+    "label": { "type": "string", "minLength": 1, "description": "Display name, e.g. 'Qwen3 8B Instruct'." },
+    "license": { "type": "string", "minLength": 1 },
+    "engine": {
+      "type": "string",
+      "enum": ["llama-server", "mlx-serve", "comfyui", "sherpa-onnx-node", "pocket-tts", "head"],
+      "description": "Which runtime hosts this model. llama-server and mlx-serve host chat models, sherpa-onnx-node hosts speech-to-text and pocket-tts hosts text-to-speech; comfyui entries are catalog data ahead of that package existing. head (SPEC-01, dev.md section 12 part 2): a small classifier run as a matrix multiply over an embedding the turn already computes, not a served model process at all - ACT-02's own gap when it lands is that this engine kind has no sizing shape yet ($defs/sizing below only covers transformer_gguf and diffusion)."
+    },
+    "implemented": {
+      "type": "boolean",
+      "description": "False for a role with no real backend yet (image, video): the entry documents the decided pick without claiming it can be selected and run today."
+    },
+    "model_cutoff": { "type": "string", "format": "date", "description": "Last date represented in this model's training data, when the model publisher provides one." },
+    "quality_tier": {
+      "type": "string",
+      "enum": ["draft", "standard", "high"]
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "pros": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Short, dad-readable upsides shown in the model-selection wizard."
+    },
+    "cons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Short, dad-readable tradeoffs shown in the model-selection wizard."
+    },
+    "safety_notes": { "type": "string" },
+    "download": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "sha256", "approx_bytes"],
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "approx_bytes": { "type": "integer", "minimum": 1 }
+      },
+      "description": "Absent for a placeholder entry with nowhere to download from yet."
+    },
+    "image_input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projector"],
+      "description": "VISION-01a: present when this model file is proven to read pictures, and absent for a text-only model. It names the multimodal projector the engine loads beside the weights (llama-server's --mmproj), so declaring image input without its projector cannot validate. A host offers picture input only when the role's selected model carries this field and the role is healthy, never by model id (Home rule 8).",
+      "properties": {
+        "projector": { "$ref": "#/$defs/component" }
+      }
+    },
+    "thinking_mode": {
+      "type": "string",
+      "enum": ["switchable", "none", "always"],
+      "description": "VISION-02a: whether this model can reason before it answers, declared by the record and never inferred from a model id (Home rule 8). 'switchable' means a turn can ask for thinking or not (Qwen3's hybrid template); 'none' means the model has no thinking mode (an Instruct edition such as Qwen3-VL-8B-Instruct), so a host offers no thinking control and never asks for it; 'always' means the template opens a reasoning block on every turn (a Thinking edition) and a request cannot turn it off. Absent on a record written before this field: the turn budget's thinking_budget_tokens_toggled decides (above 0 reads as switchable, 0 or no budget as none)."
+    },
+    "sizing": { "$ref": "#/$defs/sizing" },
+    "footprints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/footprint" },
+      "description": "Recorded footprints for this model, newest first. A planner uses a measured entry before a dry-run one before an estimated one."
+    },
+    "turn_budget": { "$ref": "#/$defs/turn_budget" }
+  },
+  "$defs": {
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "download"],
+      "description": "One file a model needs beside its weights, pinned by URL, sha256 and size; never selectable alone.",
+      "properties": {
+        "file": { "type": "string", "minLength": 1, "description": "The file name as published, e.g. 'mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf'." },
+        "download": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url", "sha256", "approx_bytes"],
+          "properties": {
+            "url": { "type": "string", "format": "uri" },
+            "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "approx_bytes": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "kv_cache_type": {
+      "type": "string",
+      "enum": ["f16", "q8_0", "q4_0"],
+      "description": "Element type of the KV cache (the per-token attention memory) for llama.cpp-family engines. f16 is the default. q8_0 and q4_0 are block-quantized (34 bytes per 32 elements and 18 bytes per 32 elements, respectively)."
+    },
+    "footprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One recorded or estimated memory footprint of a model at one context length.",
+      "required": ["bytes", "context_tokens", "kv_cache_type", "source", "tool", "measured_at", "hardware"],
+      "properties": {
+        "bytes": { "type": "integer", "exclusiveMinimum": 0 },
+        "context_tokens": { "type": "integer", "exclusiveMinimum": 0 },
+        "kv_cache_type": { "$ref": "#/$defs/kv_cache_type" },
+        "source": {
+          "type": "string",
+          "enum": ["measured", "dry-run", "estimated"],
+          "description": "measured means read from a real load; dry-run means the engine's own fit tool; estimated means computed from a file header."
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 }
+          },
+          "description": "The engine or estimator that produced the number, and its exact version."
+        },
+        "measured_at": { "type": "string", "format": "date" },
+        "hardware": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "A sanitized description of the machine the number applies to, such as '24 GB Apple silicon laptop', never a hostname, address or person's name. An estimate also depends on the machine: unified versus separate GPU memory, and how many layers are offloaded."
+        }
+      }
+    },
+    "sizing": {
+      "oneOf": [
+        { "$ref": "#/$defs/transformer_gguf_sizing" },
+        { "$ref": "#/$defs/diffusion_sizing" }
+      ]
+    },
+    "turn_budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rounds", "always_search", "model_transitions", "context_tokens", "thinking_budget_tokens", "thinking_budget_tokens_toggled", "thinking_for_minors", "reply_ceiling_tokens", "deadlines_ms", "measured"],
+      "description": "U2's per-model tool-calling budget (home/docs/plans/turn-machine-state-record-2026-09-22.md, 'The budget record'): how many tool rounds the model may take, the maximum number of measured tools Home may offer, whether the always-search interim rule is on, whether the model may drive a second machine transition (false on the robot's Pi), the context and thinking-token allowances, each node's deadline, and the measured numbers ARCH-MEASURE-01 records this budget under. Absent for a chat model with no measured record yet; turnNext.ts then runs it with model_transitions false.",
+      "properties": {
+        "rounds": {
+          "type": "integer",
+          "enum": [0, 1, 2],
+          "description": "Tool rounds the model may take in one turn (turn-machine-state-record-2026-09-22.md's TurnBudget.rounds)."
+        },
+        "max_tools": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16,
+          "description": "TOOL-OFFER-01: maximum measured tool definitions this model may receive in one adult written turn. Home fails closed when the derived offer set exceeds this cap; it never trims the set silently."
+        },
+        "tools_offered": {
+          "type": "array",
+          "items": { "type": "string" },
+          "deprecated": true,
+          "description": "Deprecated by TOOL-OFFER-01. Retained as optional migration compatibility only; Home derives tool offers from installed manifests and max_tools."
+        },
+        "background_turns": {
+          "type": "boolean",
+          "nullable": false,
+          "default": false,
+          "description": "MODEL-BG-SPEC-01: whether the model may run unattended background turns (the heartbeat, errands, price watches), the ones no person is waiting on. Optional, and absent means false. A model with no record, or a record with no turn_budget, is treated as false too (org rule 8, fail safe): an unattended turn never starts on a model nobody has measured."
+        },
+        "always_search": {
+          "type": "boolean",
+          "description": "The interim rule (simple-turn-pipeline-2026-09-22.md point 3): a question whose target is the world runs the model call with tool_choice required over the search tool."
+        },
+        "model_transitions": {
+          "type": "boolean",
+          "description": "Whether the model may drive the machine's second transition (a tool round). False on the robot's Pi and any model with no measured record; the model node then runs with tool_choice none and the machine goes straight to answer."
+        },
+        "context_tokens": { "type": "integer", "exclusiveMinimum": 0 },
+        "thinking_budget_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "THINK-DEFAULT-01 (home/docs/dev.md 'U6 rerun ruling' (b) 1): the default for an ordinary turn - 0 on every real budget, so thinking is off unless the person turns it on for that turn (RESP-04's composer toggle). Reasoning is a second output, never the budget's own default."
+        },
+        "thinking_budget_tokens_toggled": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "THINK-DEFAULT-01: the value used for a turn where the person explicitly toggled thinking on (the composer's RESP-04 toggle, the old path's own `thinking` request field, mirrored onto the new path's RunTurnNextOpts.thinking). Kept as its own field, per model, rather than a single hardcoded constant, since a different chat model may reason usefully at a different token count."
+        },
+        "thinking_for_minors": {
+          "type": "boolean",
+          "description": "GROUND-01 (home/docs/plans/turn-machine-state-record-2026-09-22.md, 'Reasoning is a second output'): whether the model node even asks the engine to think on a minor's turn - false by default, so a minor's turn sends thinking:false regardless of thinking_budget_tokens. This is a cost control, not the safety gate: a minor's turn never emits or persists reasoning either way (context.ts's decideReasoning() forces reasoning.emit false from the age band alone), so turning this on only spends the tokens on a span the household will never see or keep."
+        },
+        "reply_ceiling_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The reply floor (home/docs/plans/turn-machine-state-record-2026-09-22.md, 'The reply floor', owner's rule 2026-09-23): the most visible tokens one written adult reply may take - a guard against a reply that never stops, never a length target (the written plan's own length numbers, register.ts's writtenBudgetFor, are room the model's own end-of-reply decides inside, not a ceiling read out in full every time). Per model, since how long a reply may run before it has plainly run away depends on the model, not the turn; sized so this ceiling plus thinking_budget_tokens_toggled (when the person turns thinking on) still fits inside context_tokens alongside the prompt. The spoken and glance classes, and a child's turn, keep their own act-and-word-based caps instead - the floor is a written-class-only, adult-only backstop, the same role FORCED-CALL-01's own cap plays for a runaway forced call."
+        },
+        "deadlines_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "tool", "total"],
+          "description": "Per-node deadlines in milliseconds (simple-turn-pipeline-2026-09-22.md section 11: 'every node has a deadline, and it can be cut').",
+          "properties": {
+            "model": { "type": "integer", "exclusiveMinimum": 0 },
+            "tool": { "type": "integer", "exclusiveMinimum": 0 },
+            "total": { "type": "integer", "exclusiveMinimum": 0 }
+          }
+        },
+        "measured": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["false_call_rate", "inverse_miss_rate", "rewrite_pass_rate", "on"],
+          "description": "ARCH-MEASURE-01's numbers for this model, recorded with the budget they set.",
+          "properties": {
+            "false_call_rate": { "type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of negative-corpus turns the model called a tool on when it should not have." },
+            "inverse_miss_rate": { "type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of world-question turns the model answered from memory instead of a fitting search." },
+            "rewrite_pass_rate": { "type": "number", "minimum": 0, "maximum": 1, "description": "Query-rewrite bench pass rate: the model's own search words carry the referent from a pronoun in the second turn." },
+            "on": { "type": "string", "minLength": 1, "description": "What corpus, date, and repeat count the measured numbers are from, e.g. 'ARCH-MEASURE-01, tool-calling bench, 2026-09-22, 50 repeats'." }
+          }
+        }
+      }
+    },
+    "transformer_gguf_sizing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "param_count_billion", "bits_per_weight", "num_layers", "num_kv_heads", "head_dim", "max_context"],
+      "properties": {
+        "kind": { "const": "transformer_gguf" },
+        "param_count_billion": { "type": "number", "exclusiveMinimum": 0 },
+        "bits_per_weight": { "type": "number", "exclusiveMinimum": 0, "description": "e.g. 4 for Q4_K_M, 8 for Q8_0." },
+        "gguf_overhead_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.1,
+          "description": "GGUF block metadata/scales over raw bit-packing (~0.05 for Q8_0, ~0.10 for Q4_K_M)."
+        },
+        "num_layers": { "type": "integer", "exclusiveMinimum": 0 },
+        "num_kv_heads": { "type": "integer", "exclusiveMinimum": 0, "description": "GQA key/value head count, not total attention heads. Using num_heads here overestimates KV cache by the GQA ratio." },
+        "head_dim": { "type": "integer", "exclusiveMinimum": 0 },
+        "max_context": { "type": "integer", "exclusiveMinimum": 0 }
+      }
+    },
+    "diffusion_sizing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "approx_vram_bytes"],
+      "properties": {
+        "kind": { "const": "diffusion" },
+        "approx_vram_bytes": { "type": "integer", "minimum": 1, "description": "Measured/vendor-reported working VRAM for one generation at the checkpoint's normal resolution, not just the file size." }
+      }
+    }
+  }
+}

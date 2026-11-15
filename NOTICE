@@ -1,3 +1,12 @@
 MaiPai StackChan
 Copyright (c) 2026 Jesse Torres. Licensed under the GNU Affero General Public License v3.0 (see LICENSE).
 Third-party code and its licenses are listed in THIRD-PARTY.md.
+
+Pollen Robotics recorded moves, Apache-2.0. The optional moves package
+plays motion files from datasets identified by the package pin. The files
+are downloaded at a pinned revision with a sha256 checksum and are never
+vendored. The move format and community moves tag are Pollen Robotics':
+reachy_mini_community_moves.
+
+Chatterbox Turbo, Apache-2.0. The model is not redistributed here; the
+voice manifest records its pinned catalog revision and license check.

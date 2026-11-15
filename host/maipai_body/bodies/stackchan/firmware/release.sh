@@ -56,7 +56,7 @@ mkdir -p "$OUT"
 if [[ "$USE_CONTAINER" == "1" ]]; then
   CONTAINER_DIGEST=$(python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1],"rb"))["toolchain"]["container_sha256"])' "$PINS")
   "$CONTAINER" run --rm -e MAIPAI_FIRMWARE_VERSION="$VERSION" -v "$ROOT:/work" -w /work "$CONTAINER_IMAGE@sha256:$CONTAINER_DIGEST" \
-    bash body/maipai_body/bodies/stackchan/firmware/recipe.sh
+    bash host/maipai_body/bodies/stackchan/firmware/recipe.sh
 else
   echo "Container engine unavailable; documented local-toolchain fallback: run recipe.sh with ESP-IDF 5.5.4 exported." >&2
   MAIPAI_FIRMWARE_VERSION="$VERSION" bash "$HERE/recipe.sh"

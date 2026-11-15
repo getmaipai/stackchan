@@ -28,7 +28,7 @@ from pcap_builder import (
 from maipai_body.measure import netcapture as nc
 
 HUB_TARGET = nc.HubTarget("192.0.2.20", 8443)
-PAGE = Path(__file__).parent.parent.parent / "docs" / "user" / "reachy-mini-privacy.md"
+PAGE = Path(__file__).parent.parent.parent / "docs" / "user" / "privacy.md"
 
 
 def _rows(frames, **kwargs):

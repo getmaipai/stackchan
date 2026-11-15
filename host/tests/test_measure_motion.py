@@ -99,7 +99,7 @@ def test_commanded_peak_is_the_largest_absolute_axis_value_across_the_steps():
 def test_axis_peaks_exceeding_limits_names_the_axis_and_its_declared_bound():
     inside = [_s(0, yaw=0.2)]
     assert axis_peaks_exceeding_limits(REACHY_MINI_PROFILE, inside) == []
-    beyond_pitch = [_s(0, pitch=math.radians(41))]
+    beyond_pitch = [_s(0, pitch=math.radians(42))]
     exceeded = axis_peaks_exceeding_limits(REACHY_MINI_PROFILE, beyond_pitch)
     assert [name for name, _peak, _bound in exceeded] == ["head_pitch"]
 

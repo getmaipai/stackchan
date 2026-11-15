@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
-FIRMWARE = ROOT / "body" / "maipai_body" / "bodies" / "stackchan" / "firmware"
+FIRMWARE = ROOT / "host" / "maipai_body" / "bodies" / "stackchan" / "firmware"
 RELEASE = FIRMWARE / "release.sh"
 VERIFY = FIRMWARE / "verify.sh"
 VENDOR_SCAN = ROOT / "scripts" / "stackchan-no-third-party.sh"
@@ -183,7 +183,7 @@ class StackChanReleaseTests(unittest.TestCase):
             self.assertIn("tenclass", result.stdout)
 
     def test_ota_reply_never_offers_a_firmware_url(self) -> None:
-        server = ROOT / "body" / "maipai_body" / "bodies" / "stackchan" / "xiaozhi" / "server.py"
+        server = ROOT / "host" / "maipai_body" / "bodies" / "stackchan" / "xiaozhi" / "server.py"
         source = server.read_text()
         self.assertNotIn('"firmware"', source)
         self.assertNotIn('"firmware.url"', source)

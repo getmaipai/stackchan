@@ -211,7 +211,7 @@ def test_every_pool_is_large_short_and_free_of_em_dashes():
         assert len(set(lines)) == len(lines), pose
         for line in lines:
             assert 10 <= len(line) <= 90, line
-            assert "-" not in line, line
+            assert "\u2014" not in line, line
 
 
 def test_no_line_repeats_within_the_last_ten_spoken():

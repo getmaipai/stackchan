@@ -99,7 +99,7 @@ def test_the_patch_series_is_wired_into_the_recipe_in_order():
     ]
     for name in order:
         assert (PATCHES / name).is_file()
-        assert "-" not in (PATCHES / name).read_text()  # no em dashes
+        assert "\u2014" not in (PATCHES / name).read_text()  # no em dashes
 
 
 def test_the_recipe_embeds_the_earcons_and_packs_the_phrases_and_cleans_up():

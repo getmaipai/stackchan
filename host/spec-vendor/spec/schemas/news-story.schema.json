@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://getmaipai.github.io/shared/spec/schemas/news-story.schema.json",
+  "title": "NewsStory",
+  "description": "A cluster of related news items from independent publishers.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "first_seen",
+    "last_seen",
+    "item_count",
+    "publisher_count",
+    "entities",
+    "centroid_ref",
+    "hlc"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^story-[a-z0-9]{6,}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "first_seen": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_seen": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "item_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "publisher_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "lead_item_id": {
+      "type": "string",
+      "pattern": "^news-[a-z0-9]{6,}$",
+      "description": "NEWS-00. The item the hero shows: the earliest from the publisher with the most items, with a picture when any item has one."
+    },
+    "topics": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+      "description": "NEWS-00. The union of its items' topics."
+    },
+    "image_ref": {
+      "type": ["string", "null"],
+      "description": "NEWS-00. The lead item's picture cache key; null until a screen asked for it."
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "NEWS-00. The Key points text, written on the hub from the article."
+    },
+    "summary_band": {
+      "type": "string",
+      "enum": ["child", "teen", "adult"],
+      "description": "NEWS-00. The band the summary was written for; a viewer of a younger band never sees an older band's summary."
+    },
+    "summary_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "pageviews_hint": {
+      "type": "number",
+      "minimum": 0
+    },
+    "centroid_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hlc": {
+      "type": "string",
+      "pattern": "^[0-9]+:[0-9]+:[a-z0-9]{6,}$"
+    }
+  }
+}

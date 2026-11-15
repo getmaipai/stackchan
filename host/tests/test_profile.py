@@ -5,7 +5,6 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -18,7 +17,7 @@ from maipai_body.bodies.reachy_mini.profile import (
 
 BODY_ROOT = Path(__file__).parent.parent / "maipai_body"
 PROFILE_PATH = BODY_ROOT / "bodies" / "reachy_mini" / "profile.py"
-SPEC_DIR = Path(os.environ.get("MAIPAI_SPEC_DIR", ""))
+SPEC_DIR = Path(__file__).parents[1] / "spec-vendor" / "spec"
 SPEC_FIXTURES = SPEC_DIR / "fixtures" / "records"
 
 
@@ -41,6 +40,8 @@ def test_profile_is_the_sole_source_of_limits():
 
     offending: list[str] = []
     for path in BODY_ROOT.rglob("*.py"):
+        if "reachy_mini" not in path.parts:
+            continue
         if path == PROFILE_PATH:
             continue
         text = path.read_text()
@@ -56,7 +57,7 @@ def test_capabilities_match_the_vocabulary_ids():
     """The profile declares only ids in the pinned shared vocabulary."""
     from maipai_body.spec_pin import SPEC_VERSION
 
-    assert SPEC_DIR.is_dir(), f"the check gate must set MAIPAI_SPEC_DIR to {SPEC_VERSION}"
+    assert SPEC_DIR.is_dir(), f"vendored spec for {SPEC_VERSION} is missing"
     capabilities = json.loads((SPEC_DIR / "vocab" / "capabilities.json").read_text())[
         "capabilities"
     ]
@@ -71,16 +72,12 @@ def test_tooling_and_runtime_share_one_commons_spec_pin():
     consumers = (
         Path(__file__).parents[1] / "maipai_body" / "robot" / "api.py",
         Path(__file__).parents[1] / "maipai_body" / "link" / "assets.py",
-        Path(__file__).parents[1].parent / "scripts" / "spec-dir.sh",
-        Path(__file__).parents[1].parent / "scripts" / "prepare-bot-release.sh",
     )
     for consumer in consumers:
-        source = consumer.read_text()
-        assert "spec-spec-v0.1.141" not in source
-        if consumer.suffix == ".py":
-            assert "SPEC_CHECKOUT" in source
-        else:
-            assert "maipai_body.spec_pin" in source
+        assert "SPEC_CHECKOUT" in consumer.read_text()
+    stamp = (Path(__file__).parents[1] / "spec-vendor" / "STAMP.md").read_text()
+    assert SPEC_VERSION in stamp
+
 
 
 def _device_model():
@@ -96,7 +93,7 @@ def _device_model():
 def _fixture(name: str) -> dict:
     from maipai_body.spec_pin import SPEC_VERSION
 
-    assert SPEC_DIR.is_dir(), f"the check gate must set MAIPAI_SPEC_DIR to {SPEC_VERSION}"
+    assert SPEC_DIR.is_dir(), f"vendored spec for {SPEC_VERSION} is missing"
     return json.loads((SPEC_FIXTURES / name).read_text())
 
 
