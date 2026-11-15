@@ -1,0 +1,1445 @@
+"""Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+
+from __future__ import annotations
+
+import asyncio
+import concurrent.futures
+import inspect
+import itertools
+import json
+import logging
+import re
+import ssl
+import threading
+import time
+import uuid
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Protocol
+
+from aiohttp import web
+from websockets.asyncio.server import ServerConnection, serve
+from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
+
+from maipai_body.bodies.stackchan.avatar_frames import (
+    AvatarCommand,
+    decode_frame,
+    unit_camera_frame,
+)
+from maipai_body.bodies.stackchan.self_heal import SelfHealState, WakeSelfTest
+from maipai_body.bodies.stackchan.ws_logging import listener_logger
+from maipai_body.hal.errors import BodyLost, EstopEngaged, NotSupported, OutOfEnvelope
+
+from .pairing import PairingStore
+from .watchdog import DeviceWatchdog
+
+LOG = logging.getLogger(__name__)
+# Patch 016 opens the firmware's audio gate on the tts start message itself, so only the
+# state-machine hop remains. No audio is sent before this passes.
+SPEAK_SETTLE_S = 0.03
+# Spacing between prebuffered frames. The robot has 9 Wi-Fi receive buffers and a 3-packet
+# block-ack window; 30 frames sent back to back overflowed them, and the lost packet stalled
+# the stream for a 1.5 s retransmit (gap heard mid-line on the 2026-10-20 bench).
+PREBUFFER_GAP_S = 0.015
+# Face names the StackChan display's SetEmotion accepts (stackchan_display.cc).
+FIRMWARE_EMOTIONS = {
+    "neutral": "neutral",
+    "happy": "happy",
+    "angry": "angry",
+    "sad": "sad",
+    "doubt": "doubtful",
+    "sleepy": "sleepy",
+    "sleeping": "sleeping",
+    "surprised": "surprised",
+    "wink": "winking",
+    "listening": "listening",
+    "thinking": "thinking",
+    # Firmware 0.2.93 (patch 132): the seven new mint faces.
+    "joy": "joy",
+    "content": "content",
+    "excited": "excited",
+    "shocked": "shocked",
+    "curious": "curious",
+    "love": "love",
+    "worried": "worried",
+}
+MAX_EARLY_DEVICE_REPLIES = 32
+
+
+if TYPE_CHECKING:
+    from maipai_body.bodies.stackchan.companion import StackChanCompanion
+
+
+# Tools that only read the unit; a failed call is retried once. get_head_angles is left out on
+# purpose: stop recovery and the safe stop use it as the "does the unit answer" check, and a
+# second 5 s wait behind a slow answer made one hold take 10 s.
+_READ_ONLY_TOOLS = frozenset(
+    {
+        "self.battery.get_status",
+        "self.screen.get_ambient_light",
+        "self.robot.get_reminders",
+        "self.privacy.get",
+    }
+)
+
+
+class XiaozhiDeviceClient:
+    """Synchronous Robot seam that sends MCP tool calls to the active device."""
+
+    def __init__(self, server: XiaozhiServer, *, timeout: float = 5.0) -> None:
+        self.server = server
+        self.timeout = timeout
+        self._failure_logged: dict[str, float] = {}
+
+    def get_head_angles(self) -> dict[str, int]:
+        result = self._call("self.robot.get_head_angles", {})
+        if (
+            not isinstance(result, dict)
+            or type(result.get("yaw")) is not int
+            or type(result.get("pitch")) is not int
+        ):
+            raise BodyLost(
+                "StackChan returned invalid head angles. Check firmware compatibility and "
+                "reconnect."
+            )
+        return result
+
+    def set_head_angles(self, yaw: int | None, pitch: int | None, speed: int) -> object:
+        return self._call(
+            "self.robot.set_head_angles",
+            {
+                "yaw": yaw if yaw is not None else -9999,
+                "pitch": pitch if pitch is not None else -9999,
+                "speed": speed,
+            },
+        )
+
+    def set_led_color(self, red: int, green: int, blue: int) -> object:
+        return self._call("self.robot.set_led_color", {"red": red, "green": green, "blue": blue})
+
+    def set_led_colors(self, colors: list[tuple[int, int, int]]) -> object:
+        """All 12 pixels in one call (firmware patch 012, ``self.robot.set_led_colors``)."""
+        if len(colors) != 12:
+            raise ValueError("StackChan LED tool needs exactly 12 colors")
+        arguments: dict[str, object] = {}
+        for index, (red, green, blue) in enumerate(colors):
+            arguments[f"led_{index}_red"] = red
+            arguments[f"led_{index}_green"] = green
+            arguments[f"led_{index}_blue"] = blue
+        return self._call("self.robot.set_led_colors", arguments)
+
+    def set_volume(self, volume: int) -> object:
+        return self._call("self.audio_speaker.set_volume", {"volume": volume})
+
+    def set_brightness(self, brightness: int) -> object:
+        # Upstream xiaozhi tool (mcp_server.cc), present because the board has a backlight.
+        return self._call("self.screen.set_brightness", {"brightness": brightness})
+
+    def set_face_background(self, palette: str, night: bool) -> object:
+        return self._call("self.screen.set_face_background", {"palette": palette, "night": night})
+
+    def set_idle_motion(self, enabled: bool) -> object:
+        return self._call("self.robot.set_idle_motion", {"enabled": enabled})
+
+    def get_ambient_light(self) -> float | None:
+        try:
+            result = self._call("self.screen.get_ambient_light", {})
+        except Exception:
+            return None
+        if isinstance(result, dict) and isinstance(result.get("lux"), (int, float)):
+            # The raw sensor counts (firmware patch 065), kept for the minute light log.
+            self.last_light_raw = (result.get("ch0"), result.get("ch1"))
+            self.last_lux = float(result["lux"])
+            return float(result["lux"])
+        return None
+
+    def get_device_status(self) -> dict[str, object]:
+        """The firmware's read-only device status: speaker, screen, battery and network class."""
+        result = self._call("self.get_device_status", {})
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except ValueError:
+                return {}
+        return result if isinstance(result, dict) else {}
+
+    def get_battery_status(self) -> dict[str, object]:
+        """Read battery status using the firmware's read-only MCP tool."""
+        result = self._call("self.battery.get_status", {})
+        if (
+            not isinstance(result, dict)
+            or type(result.get("percent")) is not int
+            or not 0 <= result["percent"] <= 100
+            or type(result.get("charging")) is not bool
+        ):
+            raise BodyLost(
+                "StackChan returned invalid battery status. Check firmware compatibility and "
+                "reconnect."
+            )
+        return result
+
+    def push_action(self, action: str, arguments: dict[str, object]) -> object:
+        names = {
+            "create_reminder": "self.robot.create_reminder",
+            "get_reminders": "self.robot.get_reminders",
+            "stop_reminder": "self.robot.stop_reminder",
+            "listen_window": "self.audio.listen",
+            "speak": "self.audio.notify",
+            "alert": "self.audio.alert",
+        }
+        name = names.get(action)
+        if name is None:
+            raise NotSupported(f"Unknown StackChan push action '{action}'")
+        return self._call(name, arguments)
+
+    def device_supports(self, feature: str) -> bool:
+        return self.server.device_supports(feature)
+
+    def create_notification_audio(self, message: object) -> str:
+        return self.server.create_notification_audio(message)
+
+    def notify(self, audio_url: str) -> object:
+        self.server.refuse_on_loop("notify", self.timeout)
+        try:
+            return asyncio.run_coroutine_threadsafe(
+                self.server.send_notify(audio_url), self.server._loop
+            ).result(timeout=self.timeout)
+        except Exception as exc:
+            if isinstance(exc, NotSupported):
+                raise
+            raise BodyLost("StackChan notify push failed; reconnect and retry.") from exc
+
+    def take_photo(self) -> bytes | None:
+        return self._call("self.camera.take_photo", {"question": "Describe what you see."})
+
+    def send_avatar_frame(self, frame: bytes) -> object:
+        self.server.refuse_on_loop("send_avatar_frame", self.timeout)
+        try:
+            return asyncio.run_coroutine_threadsafe(
+                self.server.send_expression_frame(frame), self.server._loop
+            ).result(timeout=self.timeout)
+        except Exception as exc:
+            raise BodyLost(
+                "StackChan camera stream command failed. Reconnect it and retry."
+            ) from exc
+
+    def cancel_pending(self) -> None:
+        self.server.cancel_device_calls("self.robot.set_head_angles")
+
+    def companion(self) -> StackChanCompanion:
+        """Dance, touch events and saved Wi-Fi: the firmware tools of patches 020, 021, 023."""
+        from maipai_body.bodies.stackchan.companion import StackChanCompanion
+
+        return StackChanCompanion(self._call)
+
+    def _call(self, name: str, arguments: dict[str, object]) -> object:
+        try:
+            try:
+                return self._call_raw(name, arguments)
+            except BodyLost:
+                if name not in _READ_ONLY_TOOLS:
+                    raise
+                # A read-only question is safe to ask twice; one slow reply is not a lost robot.
+                time.sleep(0.5)
+                return self._call_raw(name, arguments)
+        except Exception as exc:
+            self._log_call_failure(name, exc)
+            raise
+
+    def _log_call_failure(self, name: str, exc: Exception) -> None:
+        """Say why a device tool call failed, once a minute per tool (the raised text is vague)."""
+        now = time.monotonic()
+        last = self._failure_logged.get(name, float("-inf"))
+        if now - last < 60.0:
+            return
+        self._failure_logged[name] = now
+        cause = exc.__cause__ or exc
+        LOG.warning(
+            "StackChan tool %s failed: %s: %s", name, type(cause).__name__, str(cause)[:200]
+        )
+
+    def _call_raw(self, name: str, arguments: dict[str, object]) -> object:
+        try:
+            return self.server.call_device_tool(name, arguments, timeout=self.timeout)
+        except (BodyLost, EstopEngaged, NotSupported, OutOfEnvelope):
+            raise
+        except concurrent.futures.CancelledError as exc:
+            raise EstopEngaged(
+                "Robot command was cancelled by the software stop. Release it before retrying."
+            ) from exc
+        except RuntimeError as exc:
+            message = str(exc)
+            normalized = message.lower()
+            if any(
+                term in normalized for term in ("out of range", "outside the limit", "envelope")
+            ):
+                raise OutOfEnvelope(message) from exc
+            if any(term in normalized for term in ("not supported", "unsupported", "unknown tool")):
+                part, capability = self._tool_contract(name)
+                raise NotSupported(
+                    f"StackChan does not support {name}: {message}",
+                    part=part,
+                    capability=capability,
+                    fix="Use a command supported by this StackChan profile.",
+                ) from exc
+            raise BodyLost(
+                f"StackChan did not complete {name}. Check its connection and retry."
+            ) from exc
+        except (ConnectionError, TimeoutError, PermissionError, ValueError) as exc:
+            raise BodyLost(f"StackChan did not complete {name}. Reconnect it and retry.") from exc
+        except Exception as exc:
+            raise BodyLost(
+                f"StackChan did not complete {name}. Check its connection and retry."
+            ) from exc
+
+    @staticmethod
+    def _tool_contract(name: str) -> tuple[str, str]:
+        if name.startswith("self.robot.set_head_angles") or name.startswith(
+            "self.robot.get_head_angles"
+        ):
+            return "head", "head_pan_tilt"
+        if name.startswith("self.robot.set_led_color"):
+            return "leds", "light_ring"
+        if name.startswith("self.audio_speaker.set_volume"):
+            return "audio", "speaker"
+        return "", ""
+
+
+class RobotAdapter(Protocol):
+    """Minimal body seam. A later StackChan profile adapts the shared robot object."""
+
+    async def set_head_angles(
+        self, yaw: int | None, pitch: int | None, speed: int = 150
+    ) -> object: ...
+
+    async def get_head_angles(self) -> object: ...
+
+    async def set_led_color(self, red: int, green: int, blue: int) -> object: ...
+
+    async def set_volume(self, volume: int) -> object: ...
+
+
+AudioHandler = Callable[[str, bytes], Awaitable[None]]
+
+
+class XiaozhiServer:
+    def __init__(
+        self,
+        pairing: PairingStore,
+        robot: RobotAdapter | None,
+        audio_handler: AudioHandler | None = None,
+        *,
+        version: str = "1",
+        server_name: str = "MaiPai Bot",
+        idle_timeout: float = 30.0,
+        vision_host: str = "127.0.0.1",
+        vision_port: int = 8767,
+        max_photo_bytes: int = 2 * 1024 * 1024,
+        advertised_vision_url: str | None = None,
+        notification_audio_handler: Callable[[str], Awaitable[str]] | None = None,
+    ) -> None:
+        self.pairing = pairing
+        self.robot = robot
+        self.audio_handler = audio_handler
+        self.turn_handler: Callable[[str, str, str], Awaitable[None]] | None = None
+        self.version = version
+        self.server_name = server_name
+        self.idle_timeout = idle_timeout
+        self.vision_host = vision_host
+        self.vision_port = vision_port
+        self.max_photo_bytes = max_photo_bytes
+        # BOT-SELF-TEST-01: set by the app; both are None until a robot is attached.
+        self.session_listeners: list[Callable[[str], None]] = []
+        # Warns, and later restarts the unit, when it stays connected but stops answering tools.
+        self.watchdog = DeviceWatchdog(reboot=self._request_unit_restart)
+        # What the unit reports of its own restart guard and microphone, and the wake engine
+        # self-test schedule (design note stackchan-self-healing-2026-11-13).
+        self.heal = SelfHealState()
+        self._turns_running = 0
+        self.wake_tester = WakeSelfTest(
+            self.heal,
+            is_idle=lambda: not self._speaking and self._turns_running == 0,
+            is_connected=lambda: bool(self._sessions),
+        )
+        self._heal_task: asyncio.Task[None] | None = None
+        self.selftest_checks: Callable[[], list[dict[str, str]]] | None = None
+        self.selftest_runner: Callable[[list[str] | None], list[dict[str, object]]] | None = None
+        self.advertised_vision_url = advertised_vision_url
+        self.notification_audio_handler = notification_audio_handler
+        self._vision_runner: web.AppRunner | None = None
+        self._vision_site: web.TCPSite | None = None
+        self._photos: dict[str, bytes] = {}
+        self._photo_waiters: dict[str, asyncio.Future[bytes]] = {}
+        self._camera_streaming: set[str] = set()
+        self._avatar_frame_sender: Callable[[str, bytes], Awaitable[None]] | None = None
+        self._server: Any = None
+        self._sessions: dict[str, ServerConnection] = {}
+        self._session_ids: dict[str, str] = {}
+        self._session_features: dict[str, dict[str, Any]] = {}
+        self._session_credentials: dict[str, tuple[str, str]] = {}
+        self._session_info: dict[str, tuple[str | None, float]] = {}
+        self._pending_device_calls: dict[str, tuple[asyncio.Future[object], str, str]] = {}
+        self._early_device_replies: dict[str, dict[str, Any]] = {}
+        self._device_call_deadlines: dict[str, float] = {}
+        self._next_device_request_id = itertools.count(1)
+        self._speaking: set[str] = set()
+        self._source_requests: dict[str, list[float]] = {}
+        self._notification_audio: dict[tuple[str, str], bytes] = {}
+        self._firmware_files: dict[tuple[str, str], tuple[bytes, float]] = {}
+        self.firmware_update_status: tuple[bool | None, int | None] = (None, None)
+        self._session_ready = asyncio.Event()
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    async def start(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8765,
+        ssl: ssl.SSLContext | None = None,
+    ) -> None:
+        self._loop = asyncio.get_running_loop()
+        self._heal_task = asyncio.create_task(self._heal_loop())
+        self._server = await serve(
+            self.handle,
+            host,
+            port,
+            max_size=2**20,
+            ping_interval=20,
+            ping_timeout=20,
+            ssl=ssl,
+            logger=listener_logger(),
+        )
+        app = web.Application(client_max_size=self.max_photo_bytes)
+        app.router.add_post("/vision/{device_id}", self._receive_photo)
+        app.router.add_get("/notify/{device_id}/{audio_id}.ogg", self._serve_notify_audio)
+        app.router.add_get("/firmware/{device_id}/{token}", self._serve_firmware_file)
+        app.router.add_get("/selftest/checks", self._selftest_list)
+        app.router.add_post("/selftest/run", self._selftest_run)
+        app.router.add_post("/robot/updating", self._robot_updating)
+        app.router.add_post("/robot/updated", self._robot_updated)
+        self._vision_runner = web.AppRunner(app)
+        await self._vision_runner.setup()
+        self._vision_site = web.TCPSite(self._vision_runner, self.vision_host, self.vision_port)
+        await self._vision_site.start()
+        if self.vision_port == 0 and self._vision_site._server is not None:
+            sockets = self._vision_site._server.sockets
+            if sockets:
+                self.vision_port = int(sockets[0].getsockname()[1])
+
+    async def close(self) -> None:
+        if self._heal_task is not None:
+            self._heal_task.cancel()
+            self._heal_task = None
+        for device_id in tuple(self._camera_streaming):
+            await self._stop_camera(device_id)
+        if self._vision_runner is not None:
+            await self._vision_runner.cleanup()
+            self._vision_runner = None
+        if self._server is not None:
+            self._server.close()
+            await self._server.wait_closed()
+            self._server = None
+
+    async def handle(self, websocket: ServerConnection) -> None:
+        self._loop = asyncio.get_running_loop()
+        device_id = websocket.request.headers.get("Device-Id", "")
+        client_id = websocket.request.headers.get("Client-Id", "")
+        protocol_version = websocket.request.headers.get("Protocol-Version", "1")
+        if protocol_version != "1":
+            await websocket.close(
+                code=1002,
+                reason="Protocol-Version is unsupported. Set it to 1 in NVS and reconnect.",
+            )
+            return
+        auth = websocket.request.headers.get("Authorization", "")
+        token = auth[7:] if auth.startswith("Bearer ") else None
+        enrollment_token = None
+        authorized = self.pairing.authorize(device_id, client_id, token)
+        if not authorized:
+            enrollment_token = self.pairing.redeem_enrollment(device_id, client_id, token)
+        else:
+            self.pairing.spend_enrollment(device_id)
+        if not authorized and enrollment_token is None:
+            try:
+                source = websocket.remote_address[0] if websocket.remote_address else "unknown"
+                if not self.pairing.recognizes_device(device_id, client_id) and not (
+                    self._allow_pairing_request(source)
+                ):
+                    await websocket.close(
+                        code=1013,
+                        reason=(
+                            "Too many pairing requests from this address. Wait 10 minutes "
+                            "and retry."
+                        ),
+                    )
+                    return
+                self.pairing.request(device_id, client_id)
+                # The ids an admin needs to approve this unit; the token is never logged.
+                LOG.info(
+                    "StackChan pairing request: Device-Id %s Client-Id %s is not approved yet",
+                    device_id,
+                    client_id,
+                )
+            except ValueError:
+                await websocket.close(
+                    code=1008,
+                    reason="Missing valid Device-Id or Client-Id. Set both headers and reconnect.",
+                )
+                return
+            await websocket.close(
+                code=1008,
+                reason=(
+                    "Device is not approved. Ask a Bot admin to "
+                    "approve this Device-Id in the dashboard, then "
+                    "provision its token file."
+                ),
+            )
+            return
+
+        session_id = uuid.uuid4().hex
+        stale = self._sessions.get(device_id)
+        if stale is not None:
+            asyncio.create_task(self._close_stale_session(stale))
+        self._sessions[device_id] = websocket
+        self._session_ids[device_id] = session_id
+        self._session_credentials[device_id] = (client_id, enrollment_token or token or "")
+        remote = websocket.remote_address
+        self._session_info[device_id] = (remote[0] if remote else None, time.time())
+        bind_camera = getattr(self.robot, "bind_avatar_camera", None)
+        if callable(bind_camera) and self._avatar_frame_sender is not None:
+            avatar_server = getattr(self._avatar_frame_sender, "__self__", None)
+            if avatar_server is not None:
+                bind_camera(avatar_server, device_id)
+        self._session_ready.set()
+        hello_received = False
+        self._notify_session_listeners(device_id)
+        try:
+            while True:
+                try:
+                    if hello_received:
+                        message = await websocket.recv()
+                    else:
+                        message = await asyncio.wait_for(
+                            websocket.recv(), timeout=self.idle_timeout
+                        )
+                except TimeoutError:
+                    await websocket.close(
+                        code=1001,
+                        reason=(
+                            "No xiaozhi frame arrived before the idle timeout. Send a hello "
+                            "frame, then reconnect."
+                        ),
+                    )
+                    break
+                if not self._session_authorized(device_id):
+                    await websocket.close(
+                        code=1008,
+                        reason=(
+                            "This pairing was revoked. Ask an admin to approve it again, "
+                            "then provision a new token."
+                        ),
+                    )
+                    break
+                self.watchdog.note_message(audio=isinstance(message, bytes))
+                if isinstance(message, bytes):
+                    if device_id in self._camera_streaming:
+                        self._photos[device_id] = message
+                    elif self.audio_handler:
+                        await self.audio_handler(session_id, message)
+                    continue
+                try:
+                    data = json.loads(message)
+                except json.JSONDecodeError:
+                    await self._send_error(
+                        websocket,
+                        session_id,
+                        -32700,
+                        "Invalid JSON. Send a xiaozhi JSON text frame.",
+                    )
+                    continue
+                kind = data.get("type")
+                if kind == "hello":
+                    if hello_received:
+                        await self._send_error(
+                            websocket,
+                            session_id,
+                            -32600,
+                            "Repeated hello frame for this session. Continue using the active "
+                            "session, or reconnect the device to start a new one.",
+                        )
+                        continue
+                    hello_received = True
+                    features = data.get("features", {})
+                    self._session_features[device_id] = (
+                        dict(features) if isinstance(features, dict) else {}
+                    )
+                    hello_reply = {
+                        "type": "hello",
+                        "version": 1,
+                        "transport": "websocket",
+                        "session_id": session_id,
+                        "audio_params": {
+                            "format": "opus",
+                            "sample_rate": 24000,
+                            "channels": 1,
+                            "frame_duration": 60,
+                        },
+                    }
+                    if enrollment_token is not None:
+                        hello_reply["maipai_token"] = enrollment_token
+                    await websocket.send(json.dumps(hello_reply))
+                elif kind == "listen":
+                    state = data.get("state")
+                    if state in {"start", "detect", "stop"} and self.turn_handler is not None:
+                        await self._call_turn_handler(
+                            session_id, device_id, state, data.get("mode"), data.get("aec")
+                        )
+                    if state in {"start", "detect"}:
+                        if data.get("mode") == "realtime":
+                            await self._json(websocket, session_id, "tts", {"state": "start"})
+                    elif state == "stop":
+                        await self._json(websocket, session_id, "tts", {"state": "stop"})
+                elif kind == "abort":
+                    self._speaking.discard(device_id)
+                    if self.turn_handler is not None:
+                        await self.turn_handler(session_id, device_id, "abort")
+                    await self._json(websocket, session_id, "tts", {"state": "stop"})
+                elif kind == "mcp":
+                    await self._mcp(websocket, session_id, data.get("payload", {}))
+                else:
+                    await self._send_error(
+                        websocket,
+                        session_id,
+                        -32600,
+                        "Unsupported message type. Send hello, listen, abort, or mcp.",
+                    )
+        except ConnectionClosedError as exc:
+            if any(close is not None and close.code == 1009 for close in (exc.rcvd, exc.sent)):
+                LOG.warning(
+                    "StackChan sent a frame larger than 1 MiB. Send smaller frames and reconnect."
+                )
+            else:
+                LOG.info(
+                    "StackChan connection closed during a session. Reconnect the device and "
+                    "retry the turn."
+                )
+        except ConnectionClosedOK:
+            LOG.info("StackChan session closed. Reconnect the device to start another turn.")
+        except Exception as exc:
+            LOG.info("StackChan session ended: %s", type(exc).__name__)
+        finally:
+            if self.turn_handler is not None:
+                try:
+                    await self.turn_handler(session_id, device_id, "abort")
+                except Exception:
+                    LOG.warning("Could not cancel the StackChan voice turn on disconnect")
+            if device_id in self._camera_streaming:
+                await self._stop_camera(device_id)
+            camera_disconnected = getattr(self.robot, "camera_disconnected", None)
+            if callable(camera_disconnected):
+                try:
+                    await asyncio.to_thread(camera_disconnected)
+                except Exception:
+                    LOG.warning("Could not clear StackChan camera indicator on disconnect")
+            if self._sessions.get(device_id) is websocket:
+                self._sessions.pop(device_id, None)
+                self._session_credentials.pop(device_id, None)
+                self._session_info.pop(device_id, None)
+                self._session_features.pop(device_id, None)
+                self._session_ids.pop(device_id, None)
+                self._early_device_replies.clear()
+            if not self._sessions:
+                self._session_ready.clear()
+            self._speaking.discard(device_id)
+            for request_id, (future, _name, pending_device_id) in list(
+                self._pending_device_calls.items()
+            ):
+                if pending_device_id != device_id:
+                    continue
+                if not future.done():
+                    future.set_exception(
+                        ConnectionError(
+                            "StackChan disconnected during a command. Reconnect and retry."
+                        )
+                    )
+                self._pending_device_calls.pop(request_id, None)
+
+    async def _mcp(self, ws: ServerConnection, session_id: str, payload: dict[str, Any]) -> None:
+        request_id = payload.get("id")
+        if "result" in payload or "error" in payload:
+            if type(request_id) is not int:
+                LOG.warning("StackChan sent an MCP reply without a numeric id; ignoring it.")
+                return
+            request_key = str(request_id)
+            # The waiter in _await_device_reply removes the entry; popping it here
+            # loses a reply that lands before the waiter looks it up.
+            call = self._pending_device_calls.get(request_key)
+            pending = call[0] if call is not None else None
+            if pending is None:
+                self._prune_early_device_replies()
+                deadline = self._device_call_deadlines.get(request_key)
+                if deadline is None or deadline <= time.monotonic():
+                    return
+                self._early_device_replies[request_key] = payload
+                while len(self._early_device_replies) > MAX_EARLY_DEVICE_REPLIES:
+                    self._early_device_replies.pop(next(iter(self._early_device_replies)))
+                return
+            if pending is not None:
+                self._resolve_device_reply(pending, payload)
+            return
+        if payload.get("method") == "ping" and "id" in payload:
+            await self._json(
+                ws,
+                session_id,
+                "mcp",
+                {"payload": {"jsonrpc": "2.0", "id": request_id, "result": {}}},
+            )
+
+        elif payload.get("method") == "initialize" and "id" in payload:
+            device_id = next((key for key, active in self._sessions.items() if active is ws), None)
+            if device_id is None:
+                return
+            token = self._session_credentials[device_id][1]
+            url = self._vision_url(device_id)
+            await self._json(
+                ws,
+                session_id,
+                "mcp",
+                {
+                    "payload": {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {
+                            "protocolVersion": "2024-11-05",
+                            "capabilities": {
+                                "tools": {"listChanged": False},
+                                "vision": {"url": url, "token": token},
+                            },
+                            "serverInfo": {"name": self.server_name, "version": self.version},
+                        },
+                    }
+                },
+            )
+
+    def _vision_url(self, device_id: str) -> str:
+        if self.advertised_vision_url:
+            base = self.advertised_vision_url.rstrip("/")
+            return base if "/vision/" in base else f"{base}/vision/{device_id}"
+        host = self.vision_host
+        if host in {"0.0.0.0", "::"}:
+            host = "127.0.0.1"
+        return f"http://{host}:{self.vision_port}/vision/{device_id}"
+
+    @staticmethod
+    def _selftest_refusal(request: web.Request) -> web.Response | None:
+        """Self-test is a local administrator action, never a LAN API."""
+        if request.remote not in {"127.0.0.1", "::1"}:
+            return web.json_response(
+                {
+                    "error": "The self-test runs only from this computer. "
+                    "Run python -m maipai_body.selftest on the Bot host."
+                },
+                status=403,
+            )
+        return None
+
+    async def _heal_loop(self) -> None:
+        """Run the wake engine self-test schedule: its commands go to the unit as system frames."""
+        while True:
+            await asyncio.sleep(2.0)
+            try:
+                for command in self.wake_tester.tick():
+                    if command == "reboot" and self.heal.hold:
+                        continue  # the unit holds: three self-restarts this hour already
+                    await self.send_system(command)
+            except asyncio.CancelledError:
+                raise
+            except ConnectionError:
+                pass  # no unit now; the test stays due
+            except Exception:
+                LOG.debug("StackChan self-heal tick failed", exc_info=True)
+
+    def _request_unit_restart(self) -> None:
+        """Ask the connected unit to restart itself (called from a tool-call thread). The unit
+        refuses a fourth restart in an hour and says so (heal_hold); the host then stops asking."""
+        if self._loop is None:
+            return
+        if self.heal.hold:
+            LOG.info(
+                "StackChan self-heal: not asking for a restart, the unit holds (three "
+                "self-restarts this hour already)"
+            )
+            return
+        asyncio.run_coroutine_threadsafe(self.send_system("reboot"), self._loop).result(timeout=5)
+
+    async def send_system(self, command: str, **fields: object) -> None:
+        """Send ``{"type": "system", "command": ...}`` to the one connected device."""
+        if len(self._sessions) != 1:
+            raise ConnectionError(
+                "No StackChan is connected. Wait for the robot to join, then retry."
+            )
+        device_id, websocket = next(iter(self._sessions.items()))
+        payload = {"command": command, **{k: v for k, v in fields.items() if v is not None}}
+        await self._json(websocket, self._session_ids[device_id], "system", payload)
+
+    async def _robot_command_guard(self, request: web.Request) -> web.Response | None:
+        """Loopback only, JSON only, same origin: Home's backend is the only caller."""
+        refused = self._selftest_refusal(request)
+        if refused is not None:
+            return refused
+        origin = request.headers.get("Origin")
+        if origin is not None and origin.split("://", 1)[-1] != request.host:
+            return web.json_response({"error": "cross-origin request refused"}, status=403)
+        if request.content_type != "application/json":
+            return web.json_response({"error": "send application/json"}, status=415)
+        return None
+
+    async def _robot_updating(self, request: web.Request) -> web.Response:
+        refused = await self._robot_command_guard(request)
+        if refused is not None:
+            return refused
+        try:
+            body = await request.json() if request.can_read_body else {}
+        except ValueError:
+            return web.json_response({"error": "the body must be a JSON object"}, status=400)
+        if not isinstance(body, dict):
+            return web.json_response({"error": "the body must be a JSON object"}, status=400)
+        version = body.get("version")
+        progress = body.get("progress")
+        if version is not None and not (
+            isinstance(version, str) and re.fullmatch(r"[0-9A-Za-z.+\-]{1,32}", version)
+        ):
+            return web.json_response(
+                {"error": "version must be a short text such as 0.2.7, or null"}, status=400
+            )
+        if progress is not None and not (
+            isinstance(progress, int) and not isinstance(progress, bool) and 0 <= progress <= 100
+        ):
+            return web.json_response(
+                {"error": "progress must be a whole number from 0 to 100, or null"}, status=400
+            )
+        try:
+            await self.send_system("updating", version=version, progress=progress)
+        except ConnectionError as exc:
+            return web.json_response({"error": str(exc)}, status=503)
+        return web.json_response({"ok": True})
+
+    async def _robot_updated(self, request: web.Request) -> web.Response:
+        refused = await self._robot_command_guard(request)
+        if refused is not None:
+            return refused
+        try:
+            await self.send_system("updated")
+        except ConnectionError as exc:
+            return web.json_response({"error": str(exc)}, status=503)
+        return web.json_response({"ok": True})
+
+    async def _selftest_list(self, request: web.Request) -> web.Response:
+        refused = self._selftest_refusal(request)
+        if refused is not None:
+            return refused
+        if self.selftest_checks is None:
+            return web.json_response(
+                {"error": "No robot is attached yet. Wait for the StackChan to connect."},
+                status=503,
+            )
+        return web.json_response({"checks": self.selftest_checks()})
+
+    async def _selftest_run(self, request: web.Request) -> web.Response:
+        refused = self._selftest_refusal(request)
+        if refused is not None:
+            return refused
+        origin = request.headers.get("Origin")
+        if origin is not None and origin.split("://", 1)[-1] != request.host:
+            return web.json_response({"error": "cross-origin request refused"}, status=403)
+        if request.content_type != "application/json":
+            return web.json_response({"error": "send application/json"}, status=415)
+        if self.selftest_runner is None:
+            return web.json_response(
+                {"error": "No robot is attached yet. Wait for the StackChan to connect."},
+                status=503,
+            )
+        try:
+            body = await request.json() if request.can_read_body else {}
+        except ValueError:
+            return web.json_response({"error": "the body must be a JSON object"}, status=400)
+        only = body.get("only") if isinstance(body, dict) else None
+        if only is not None and not (
+            isinstance(only, list) and all(isinstance(item, str) for item in only)
+        ):
+            return web.json_response({"error": "only must be a list of check names"}, status=400)
+        try:
+            results = await asyncio.to_thread(self.selftest_runner, only)
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        return web.json_response({"results": results})
+
+    async def _receive_photo(self, request: web.Request) -> web.Response:
+        device_id = request.match_info["device_id"]
+        credentials = self._session_credentials.get(device_id)
+        auth = request.headers.get("Authorization", "")
+        token = auth[7:] if auth.startswith("Bearer ") else request.query.get("token")
+        if credentials is None or not self.pairing.authorize(device_id, *credentials):
+            raise web.HTTPUnauthorized()
+        if token is None or not self.pairing.authorize(device_id, credentials[0], token):
+            raise web.HTTPForbidden()
+        if request.content_length is not None and request.content_length > self.max_photo_bytes:
+            raise web.HTTPRequestEntityTooLarge(
+                max_size=self.max_photo_bytes, actual_size=request.content_length
+            )
+        if not request.content_type.startswith("multipart/"):
+            raise web.HTTPUnsupportedMediaType(text="Expected multipart JPEG upload")
+        reader = await request.multipart()
+        photo: bytes | None = None
+        total = 0
+        async for field in reader:
+            if field.name not in {"image", "file", "photo"}:
+                await field.release()
+                continue
+            chunks: list[bytes] = []
+            while chunk := await field.read_chunk(64 * 1024):
+                total += len(chunk)
+                if total > self.max_photo_bytes:
+                    raise web.HTTPRequestEntityTooLarge(
+                        max_size=self.max_photo_bytes, actual_size=total
+                    )
+                chunks.append(chunk)
+            photo = b"".join(chunks)
+        if photo is None or not photo.startswith(b"\xff\xd8"):
+            raise web.HTTPBadRequest(text="Multipart request must include a JPEG image field")
+        self._photos[device_id] = photo
+        waiter = self._photo_waiters.get(device_id)
+        if waiter is not None and not waiter.done():
+            waiter.set_result(photo)
+        return web.json_response({"accepted": True, "size": len(photo)})
+
+    async def take_photo(self, device_id: str | None = None) -> bytes | None:
+        if device_id is None:
+            if len(self._sessions) != 1:
+                raise ConnectionError("Select one authenticated StackChan before taking a photo")
+            device_id = next(iter(self._sessions))
+        self._photos.pop(device_id, None)
+        future = asyncio.get_running_loop().create_future()
+        self._photo_waiters[device_id] = future
+        try:
+            await asyncio.to_thread(
+                self.call_device_tool,
+                "self.camera.take_photo",
+                {"question": "Describe what you see."},
+            )
+            return await asyncio.wait_for(future, timeout=10)
+        finally:
+            self._photo_waiters.pop(device_id, None)
+            if not future.done():
+                future.cancel()
+
+    async def stream_camera(self, enabled: bool = True) -> object:
+        if len(self._sessions) != 1:
+            raise ConnectionError("Select one authenticated StackChan before streaming its camera")
+        device_id = next(iter(self._sessions))
+        if enabled:
+            if getattr(getattr(self.robot, "robot", None), "estop_engaged", False):
+                raise EstopEngaged("camera stream refused while the emergency stop is engaged")
+            self._camera_streaming.add(device_id)
+            return True
+        self._camera_streaming.discard(device_id)
+        return True
+
+    async def send_avatar_frame(self, frame: bytes) -> None:
+        decoded = decode_frame(frame)
+        if decoded.command != AvatarCommand.START_CAMERA_STREAM:
+            raise ValueError("unsupported avatar frame command")
+        enabled = decoded.payload != b"\x00"
+        await self.stream_camera(enabled)
+
+    def _notify_session_listeners(self, device_id: str) -> None:
+        """Tell the registered listeners that a device (re)connected; a listener never raises.
+
+        Listeners may call the device (a tool call waits for the loop), so they run on their own
+        thread: run inline on the loop, one call froze it for the whole 5 s timeout on every
+        connect (no hello reply, no audio)."""
+        listeners = tuple(self.session_listeners)
+        if not listeners:
+            return
+
+        def run() -> None:
+            for listener in listeners:
+                try:
+                    listener(device_id)
+                except Exception:
+                    LOG.warning("StackChan session listener failed", exc_info=True)
+
+        threading.Thread(target=run, name="stackchan-session-listeners", daemon=True).start()
+
+    async def _call_turn_handler(
+        self, session_id: str, device_id: str, state: str, mode: object, aec: object
+    ) -> None:
+        """Pass the device's listen mode and echo-cancel flag on when the handler takes them."""
+        handler = self.turn_handler
+        assert handler is not None
+        try:
+            parameters = inspect.signature(handler).parameters
+        except (TypeError, ValueError):
+            parameters = {}
+        self._turns_running += 1
+        try:
+            if "mode" in parameters and "aec" in parameters:
+                await handler(
+                    session_id,
+                    device_id,
+                    state,
+                    mode=mode if isinstance(mode, str) else "auto",
+                    aec=aec if isinstance(aec, bool) else None,
+                )
+            else:
+                await handler(session_id, device_id, state)
+        finally:
+            self._turns_running -= 1
+            self.wake_tester.note_turn_end()
+
+    async def send_expression_frame(self, frame: bytes) -> None:
+        expression = getattr(frame, "expression", None)
+        if expression is not None and expression in FIRMWARE_EMOTIONS:
+            # The face is always set over the voice socket: it works in AI-agent mode, where the
+            # unit has no handler for expression frames on the avatar socket. That socket carries
+            # the camera only.
+            await self.send_emotion(expression)
+            return
+        try:
+            await self._send_expression_over_avatar(frame)
+        except ConnectionError:
+            # The avatar channel is not connected (AI-agent mode never starts it): set the face
+            # over the voice socket instead, quietly, when the frame names an expression.
+            if expression is None or expression not in FIRMWARE_EMOTIONS:
+                raise
+            await self.send_emotion(expression)
+
+    async def _send_expression_over_avatar(self, frame: bytes) -> None:
+        if self._avatar_frame_sender is None:
+            raise ConnectionError(
+                "StackChan avatar channel is unavailable. Connect the avatar service and retry."
+            )
+        if len(self._sessions) != 1:
+            raise ConnectionError(
+                "Select one authenticated StackChan before sending an expression."
+            )
+        await self._avatar_frame_sender(next(iter(self._sessions)), unit_camera_frame(frame))
+
+    async def _stop_camera(self, device_id: str) -> None:
+        self._camera_streaming.discard(device_id)
+        camera_disconnected = getattr(self.robot, "camera_disconnected", None)
+        if callable(camera_disconnected):
+            try:
+                result = camera_disconnected()
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                LOG.warning("Could not clear StackChan camera indicator")
+
+    def _prune_early_device_replies(self) -> None:
+        now = time.monotonic()
+        for request_key in list(self._early_device_replies):
+            deadline = self._device_call_deadlines.get(request_key)
+            if deadline is None or deadline <= now:
+                self._early_device_replies.pop(request_key, None)
+
+    def _allow_pairing_request(self, source: str) -> bool:
+        now = time.monotonic()
+        recent = [stamp for stamp in self._source_requests.get(source, []) if now - stamp < 600]
+        self._source_requests[source] = recent
+        if len(recent) >= 8:
+            self._source_requests[source] = recent
+            return False
+        recent.append(now)
+        self._source_requests[source] = recent
+        return True
+
+    @staticmethod
+    async def _close_stale_session(stale: ServerConnection) -> None:
+        try:
+            await asyncio.wait_for(
+                stale.close(
+                    code=1012,
+                    reason="Superseded by a reconnect from this Device-Id.",
+                ),
+                timeout=0.1,
+            )
+        except TimeoutError:
+            transport = getattr(stale, "transport", None)
+            if transport is not None:
+                transport.abort()
+        except Exception as exc:
+            LOG.debug("Could not close superseded StackChan session: %s", type(exc).__name__)
+
+    async def _json(
+        self,
+        ws: ServerConnection,
+        session_id: str,
+        kind: str,
+        payload: dict[str, Any],
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        obj = {"session_id": session_id, "type": kind, **payload}
+        if extra:
+            obj.update(extra)
+        await ws.send(json.dumps(obj))
+
+    async def _send_error(
+        self, ws: ServerConnection, session_id: str, code: int, message: str
+    ) -> None:
+        await self._json(ws, session_id, "error", {"code": code, "message": message})
+
+    async def send_audio(
+        self,
+        device_id: str,
+        frames: list[bytes],
+        *,
+        sentence_start: bool = False,
+        start: bool = True,
+        stop: bool = True,
+        prebuffer: int = 3,
+    ) -> None:
+        """Send encoded 24 kHz Opus frames; the first `prebuffer` go fast, the rest paced."""
+        websocket = self._sessions.get(device_id)
+        if self._sessions.get(device_id) is not websocket or not self._session_authorized(
+            device_id
+        ):
+            raise PermissionError(
+                "No authenticated active session exists for this Device-Id. Pair it and "
+                "reconnect before sending audio."
+            )
+        if start:
+            self._speaking.add(device_id)
+            await self._json(websocket, self._session_ids[device_id], "tts", {"state": "start"})
+            # The firmware drops audio until it has switched from listening to speaking;
+            # frames sent right behind tts start were lost (stutter heard on 2026-10-19).
+            await asyncio.sleep(SPEAK_SETTLE_S)
+        if sentence_start:
+            await self._json(
+                websocket, self._session_ids[device_id], "tts", {"state": "sentence_start"}
+            )
+        interval = 0.06
+        deadline = time.monotonic()
+        try:
+            for index, frame in enumerate(frames):
+                if device_id not in self._speaking:
+                    break
+                if index >= prebuffer:
+                    deadline = (
+                        time.monotonic() + interval if index == prebuffer else deadline + interval
+                    )
+                    await asyncio.sleep(max(0.0, deadline - time.monotonic()))
+                    if device_id not in self._speaking:
+                        break
+                elif index > 0:
+                    await asyncio.sleep(PREBUFFER_GAP_S)
+                await websocket.send(frame)
+        finally:
+            if stop:
+                self._speaking.discard(device_id)
+                await self._neutral_face(websocket, device_id)
+                await self._json(websocket, self._session_ids[device_id], "tts", {"state": "stop"})
+
+    async def send_idle(self, device_id: str) -> None:
+        """Ask the device to leave Listening and go idle (firmware patch 034 understands it)."""
+        websocket = self._sessions.get(device_id)
+        if websocket is not None and self._session_authorized(device_id):
+            await self._json(websocket, self._session_ids[device_id], "system", {"command": "idle"})
+
+    async def stop_audio(self, device_id: str) -> None:
+        """Stop a current reply promptly; the sender observes this before its next frame."""
+        self._speaking.discard(device_id)
+        websocket = self._sessions.get(device_id)
+        if websocket is not None and self._session_authorized(device_id):
+            await self._neutral_face(websocket, device_id)
+            await self._json(websocket, self._session_ids[device_id], "tts", {"state": "stop"})
+
+    async def _neutral_face(self, websocket: ServerConnection, device_id: str) -> None:
+        """Reset the face in order with speech: a late happy frame must not outlive the reply."""
+        try:
+            await self._json(websocket, self._session_ids[device_id], "llm", {"emotion": "neutral"})
+        except Exception:
+            LOG.debug("StackChan neutral face before tts stop failed", exc_info=True)
+
+    def refuse_on_loop(self, name: str, timeout: float) -> None:
+        """A blocking device call made on the event loop can only time out (it waits for the loop
+        to answer itself), so it fails at once with a plain message instead of freezing the loop."""
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        if running is self._loop:
+            raise RuntimeError(
+                f"{name} was called on the StackChan event loop, which would freeze it for "
+                f"{timeout:g} seconds. Run the call with asyncio.to_thread."
+            )
+
+    def call_device_tool(
+        self, name: str, arguments: dict[str, object], *, timeout: float = 5.0
+    ) -> object:
+        self.refuse_on_loop(name, timeout)
+        if not self._sessions:
+            raise ConnectionError(
+                "No StackChan is connected. Connect and pair the robot, then retry."
+            )
+        if len(self._sessions) != 1:
+            raise ConnectionError(
+                "More than one StackChan is connected. Select a device before sending a command."
+            )
+        device_id, websocket = next(iter(self._sessions.items()))
+        if not self._session_authorized(device_id):
+            raise PermissionError("StackChan pairing is revoked. Approve and provision it again.")
+        # StackChan firmware parses MCP request ids as numeric JSON-RPC ids.
+        request_id = next(self._next_device_request_id)
+        request_key = str(request_id)
+        if self._loop is None:
+            raise ConnectionError(
+                "StackChan service is not running. Start the Bot body service and retry."
+            )
+        deadline = time.monotonic() + timeout
+        try:
+            asyncio.run_coroutine_threadsafe(
+                self._register_device_reply(request_key, device_id, name, deadline), self._loop
+            ).result(timeout=max(0, deadline - time.monotonic()))
+            asyncio.run_coroutine_threadsafe(
+                self._send_device_tool(device_id, websocket, request_id, name, arguments),
+                self._loop,
+            ).result(timeout=max(0, deadline - time.monotonic()))
+            reply = asyncio.run_coroutine_threadsafe(
+                self._await_device_reply(request_key, device_id, name, timeout), self._loop
+            ).result(timeout=max(0, deadline - time.monotonic()))
+            self.watchdog.note_tool(True)
+            return reply
+        except concurrent.futures.CancelledError as exc:
+            raise EstopEngaged(
+                "head move was cancelled by the software stop; release it before moving again"
+            ) from exc
+        except concurrent.futures.TimeoutError as exc:
+            self.watchdog.note_tool(False, socket_open=device_id in self._sessions)
+            raise TimeoutError(
+                f"StackChan did not answer {name} within {timeout:g} seconds. "
+                "Check its connection and retry."
+            ) from exc
+        finally:
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    self._discard_pending(request_key), self._loop
+                ).result(timeout=1)
+            except (concurrent.futures.TimeoutError, RuntimeError):
+                pass
+
+    def device_supports(self, feature: str) -> bool:
+        if len(self._sessions) != 1:
+            return False
+        device_id = next(iter(self._sessions))
+        return self._session_features.get(device_id, {}).get(feature) is True
+
+    def create_notification_audio(self, message: object) -> str:
+        if not isinstance(message, str) or not message.strip():
+            raise ValueError("notification message must be non-empty text")
+        if self.notification_audio_handler is None:
+            raise NotSupported(
+                "Host notification audio is not configured",
+                part="audio",
+                capability="speaker",
+                fix="Configure the host TTS audio provider, then retry.",
+            )
+        if len(self._sessions) != 1:
+            raise ConnectionError("A single paired StackChan session is required")
+        device_id = next(iter(self._sessions))
+        token = uuid.uuid4().hex
+        audio = asyncio.run_coroutine_threadsafe(
+            self.notification_audio_handler(message), self._loop
+        ).result(timeout=10)
+        if not isinstance(audio, bytes) or not audio:
+            raise BodyLost("Host notification audio provider returned no audio")
+        self._notification_audio[(device_id, token)] = audio
+        return self._notify_audio_url(device_id, token)
+
+    def _notify_audio_url(self, device_id: str, audio_id: str) -> str:
+        base = self.advertised_vision_url
+        if base:
+            root = base.split("/vision/", 1)[0].rstrip("/")
+        else:
+            host = self.vision_host if self.vision_host not in {"0.0.0.0", "::"} else "127.0.0.1"
+            root = f"http://{host}:{self.vision_port}"
+        return f"{root}/notify/{device_id}/{audio_id}.ogg"
+
+    def serve_firmware_once(self, path: Any) -> str:
+        """Publish a local image under an unguessable, one-read URL for ten minutes.
+
+        The image is a public release file, so the random one-time path is the only guard; the
+        pairing token is never put in the URL (a URL ends up in logs).
+        """
+        if len(self._sessions) != 1:
+            raise ConnectionError("A single paired StackChan session is required")
+        device_id = next(iter(self._sessions))
+        token = uuid.uuid4().hex
+        # Read now: the caller deletes its temp file as soon as the unit tool has been called.
+        self._firmware_files[(device_id, token)] = (path.read_bytes(), time.monotonic() + 600)
+        return (
+            self._notify_audio_url(device_id, token)
+            .replace("/notify/", "/firmware/")
+            .replace(f"/{token}.ogg", f"/{token}")
+        )
+
+    async def _serve_firmware_file(self, request: web.Request) -> web.StreamResponse:
+        device_id, token = request.match_info["device_id"], request.match_info["token"]
+        entry = self._firmware_files.pop((device_id, token), None)
+        if entry is None or time.monotonic() > entry[1]:
+            raise web.HTTPNotFound()
+        body = await asyncio.to_thread(entry[0].read_bytes)
+        return web.Response(
+            body=body,
+            headers={"Cache-Control": "no-store"},
+            content_type="application/octet-stream",
+        )
+
+    async def send_notify(self, audio_url: str) -> None:
+        if not self.device_supports("notify"):
+            raise NotSupported("StackChan did not advertise notify in hello features")
+        if len(self._sessions) != 1:
+            raise ConnectionError("A single paired StackChan session is required")
+        device_id, websocket = next(iter(self._sessions.items()))
+        session_id = self._session_ids[device_id]
+        # xiaozhi-esp32 v2.3.0 main/protocols/websocket_protocol.cc at
+        # 1b48ebd7863695bf80d384c6c09af6299a6d7d0e documents hello features;
+        # its source has no notify handler, so the notify frame is gated by hello.
+        await self._json(websocket, session_id, "notify", {"audio_url": audio_url})
+
+    async def send_emotion(self, expression: str) -> str:
+        """Set the face over the voice channel, which works in AI Agent mode.
+
+        xiaozhi-esp32 application.cc hands an `llm` frame's emotion to the
+        display; the StackChan display maps it onto the avatar.
+        """
+        emotion = FIRMWARE_EMOTIONS.get(expression)
+        if emotion is None:
+            raise ValueError(f"Pick one of: {', '.join(FIRMWARE_EMOTIONS)}.")
+        if len(self._sessions) != 1:
+            raise ConnectionError("A single paired StackChan session is required")
+        device_id, websocket = next(iter(self._sessions.items()))
+        await self._json(websocket, self._session_ids[device_id], "llm", {"emotion": emotion})
+        return emotion
+
+    async def _serve_notify_audio(self, request: web.Request) -> web.Response:
+        device_id = request.match_info["device_id"]
+        audio_id = request.match_info["audio_id"]
+        credentials = self._session_credentials.get(device_id)
+        auth = request.headers.get("Authorization", "")
+        if credentials is None or not self.pairing.authorize(device_id, *credentials):
+            raise web.HTTPUnauthorized()
+        token = auth[7:] if auth.startswith("Bearer ") else ""
+        if not self.pairing.authorize(device_id, credentials[0], token):
+            raise web.HTTPForbidden()
+        audio = self._notification_audio.pop((device_id, audio_id), None)
+        if audio is None:
+            raise web.HTTPNotFound()
+        return web.Response(
+            body=audio, content_type="audio/ogg", headers={"Cache-Control": "no-store"}
+        )
+
+    def cancel_device_calls(self, name: str) -> None:
+        if self._loop is not None:
+            self._loop.call_soon_threadsafe(self._cancel_device_calls, name)
+
+    async def _await_device_reply(
+        self, request_key: str, device_id: str, name: str, timeout: float
+    ) -> object:
+        future = self._pending_device_calls[request_key][0]
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        finally:
+            self._pending_device_calls.pop(request_key, None)
+            self._device_call_deadlines.pop(request_key, None)
+            self._early_device_replies.pop(request_key, None)
+
+    async def _discard_pending(self, request_key: str) -> None:
+        self._pending_device_calls.pop(request_key, None)
+        self._device_call_deadlines.pop(request_key, None)
+        self._early_device_replies.pop(request_key, None)
+
+    async def _register_device_reply(
+        self, request_key: str, device_id: str, name: str, deadline: float
+    ) -> None:
+        self._device_call_deadlines[request_key] = deadline
+        future = asyncio.get_running_loop().create_future()
+        self._pending_device_calls[request_key] = (future, name, device_id)
+        early = self._early_device_replies.pop(request_key, None)
+        deadline = self._device_call_deadlines.get(request_key)
+        if early is not None and deadline is not None and deadline > time.monotonic():
+            self._resolve_device_reply(future, early)
+
+    @staticmethod
+    def _resolve_device_reply(future: asyncio.Future[object], payload: dict[str, Any]) -> None:
+        if future.done():
+            return
+        if "error" in payload:
+            error = payload.get("error") or {}
+            future.set_exception(
+                RuntimeError(str(error.get("message", "device returned an error")))
+            )
+            return
+        try:
+            future.set_result(XiaozhiServer._device_result(payload.get("result")))
+        except RuntimeError as exc:
+            future.set_exception(exc)
+
+    @staticmethod
+    def _device_result(result: object) -> object:
+        if isinstance(result, dict) and result.get("isError"):
+            content = result.get("content", [])
+            details = [
+                item.get("text")
+                for item in content
+                if isinstance(item, dict) and isinstance(item.get("text"), str)
+            ]
+            message = "; ".join(details) or "StackChan reported a tool error."
+            raise RuntimeError(message)
+        content = result.get("content", []) if isinstance(result, dict) else []
+        if content and isinstance(content[0], dict):
+            try:
+                return json.loads(content[0].get("text", "true"))
+            except (TypeError, json.JSONDecodeError):
+                return content[0].get("text")
+        return True
+
+    def _cancel_device_calls(self, name: str) -> None:
+        for future, pending_name, _device_id in self._pending_device_calls.values():
+            if pending_name == name and not future.done():
+                future.cancel()
+
+    async def _send_device_tool(
+        self,
+        device_id: str,
+        websocket: ServerConnection,
+        request_id: int,
+        name: str,
+        arguments: dict[str, object],
+    ) -> None:
+        if websocket not in self._sessions.values():
+            raise ConnectionError(
+                "StackChan disconnected before the command was sent. Reconnect and retry."
+            )
+        if not self._session_authorized(device_id):
+            raise PermissionError(
+                "StackChan pairing is no longer approved. Reapprove and reconnect."
+            )
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "mcp",
+                    "payload": {
+                        "jsonrpc": "2.0",
+                        "method": "tools/call",
+                        "params": {"name": name, "arguments": arguments},
+                        "id": request_id,
+                    },
+                }
+            )
+        )
+
+    def _session_authorized(self, device_id: str) -> bool:
+        credentials = self._session_credentials.get(device_id)
+        if credentials is None:
+            return False
+        client_id, token = credentials
+        return self.pairing.authorize(device_id, client_id, token)

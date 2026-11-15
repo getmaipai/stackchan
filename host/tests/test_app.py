@@ -1,0 +1,608 @@
+"""The app's real boot path: hold neutral until paired, log state
+changes, stop within a second while waiting, then run the real
+conversation loop once G4's hub link reports paired."""
+
+from __future__ import annotations
+
+import importlib.metadata
+import json
+import os
+import signal
+import threading
+import time
+import types
+from dataclasses import dataclass
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from maipai_body.app import (
+    _app_version,
+    _hub_credentials_reader,
+    _sigint_handler,
+    _stackchan_selected,
+    run_paired_body,
+)
+from maipai_body.bodies.reachy_mini.fake import FakeReachyMiniClient
+from maipai_body.link.store import HubPairing
+
+
+def test_stackchan_service_selection_is_off_unless_body_is_stackchan():
+    assert not _stackchan_selected({})
+    assert not _stackchan_selected({"MAIPAI_BODY": "reachy_mini"})
+    assert _stackchan_selected({"MAIPAI_BODY": "StackChan"})
+
+
+def test_stackchan_service_binds_loopback_by_default_and_honors_host_override(monkeypatch):
+    import maipai_body.app as app_module
+
+    started = []
+
+    async def fake_serve(stop_event, host, port, avatar_host, avatar_port):
+        started.append((host, port, avatar_host, avatar_port))
+        stop_event.set()
+
+    monkeypatch.setattr(app_module, "_serve_stackchan_channels", fake_serve)
+    monkeypatch.delenv("MAIPAI_XIAOZHI_HOST", raising=False)
+    monkeypatch.delenv("MAIPAI_XIAOZHI_PORT", raising=False)
+    monkeypatch.delenv("MAIPAI_STACKCHAN_AVATAR_HOST", raising=False)
+    monkeypatch.delenv("MAIPAI_STACKCHAN_AVATAR_PORT", raising=False)
+    app_module._run_stackchan_service(threading.Event())
+    monkeypatch.setenv("MAIPAI_XIAOZHI_HOST", "192.0.2.12")
+    app_module._run_stackchan_service(threading.Event())
+
+    assert started == [
+        ("127.0.0.1", 8765, "127.0.0.1", 8766),
+        ("192.0.2.12", 8765, "192.0.2.12", 8766),
+    ]
+
+
+@dataclass
+class _FakeLinkState:
+    paired: bool
+
+
+class _FakePairingStore:
+    def __init__(self, pairing: HubPairing | None) -> None:
+        self._pairing = pairing
+
+    def load(self) -> HubPairing | None:
+        return self._pairing
+
+
+class _FakeHubClient:
+    def __init__(self, session_cookie: str | None) -> None:
+        self.session_cookie = session_cookie
+
+
+class _FakeLink:
+    """Duck-types `run_paired_body`'s own `link` surface
+    (`state`, `pairing_store`, `hub_client`) without a real
+    `LinkLifecycle`, `HubLinkClient` or on-disk pairing file - the same
+    scripted-stand-in style `test_run_loop.py` already uses for every
+    network-facing dependency."""
+
+    def __init__(
+        self,
+        *,
+        paired: bool = False,
+        pairing: HubPairing | None = None,
+        session_cookie: str | None = "cookie-value",
+    ) -> None:
+        self._paired = paired
+        self.pairing_store = _FakePairingStore(pairing)
+        self.hub_client = _FakeHubClient(session_cookie)
+
+    @property
+    def state(self) -> _FakeLinkState:
+        return _FakeLinkState(paired=self._paired)
+
+    def set_paired(self, paired: bool) -> None:
+        self._paired = paired
+
+
+def _fake_pairing() -> HubPairing:
+    return HubPairing(
+        base_url="https://hub.example.test",
+        device_token="dev-token",
+        hub_instance_id="hub-1",
+    )
+
+
+def test_hub_credentials_reader_retains_latest_successful_pairing_url():
+    class RotatingStore:
+        calls = 0
+
+        def load(self):
+            self.calls += 1
+            if self.calls == 1:
+                return HubPairing(
+                    base_url="https://new-hub.example.test",
+                    device_token="dev-token",
+                    hub_instance_id="hub-1",
+                )
+            raise OSError("transient read failure")
+
+    link = _FakeLink(pairing=_fake_pairing(), session_cookie="rotated-cookie")
+    link.pairing_store = RotatingStore()
+    read_credentials = _hub_credentials_reader(link, "https://original-hub.example.test")
+
+    assert read_credentials() == ("rotated-cookie", "https://new-hub.example.test")
+    assert read_credentials() == ("rotated-cookie", "https://new-hub.example.test")
+
+
+def test_orientation_wiring_reasserts_pose_after_reconnect_without_resetting_it():
+    import maipai_body.app as app_module
+
+    class Voice:
+        _sessions = {"unit": object()}
+        session_listeners = []
+        robot = type("Robot", (), {"client": object()})()
+
+    class Behavior:
+        _rest = type("Rest", (), {"stage": "awake"})()
+        orientation_tick = None
+
+        def pose_held(self):
+            return False
+
+        def reaction_blocked(self):
+            return False
+
+        def head_moved_ago(self):
+            return None
+
+        _tracker = types.SimpleNamespace(pose=(0.0, 0.0))  # the head pose the orientation reads
+
+        def show_face(self, expression, while_listening=True):
+            return None
+
+    class Bridge:
+        def speak_reaction(self, text):
+            return True
+
+    class Night:
+        night = False
+        sensors_blocked = None
+
+    class Power:
+        def set_orientation_hold(self, hold):
+            return None
+
+    behavior, bridge = Behavior(), Bridge()
+    app_module._wire_orientation(Voice, behavior, bridge, Night(), Power())
+    orientation = behavior.orientation
+    orientation.on_event({"axis": "-x"})
+    Voice.session_listeners[-1]("unit")
+    assert orientation.pose == "left_side"
+    assert behavior.pose_held()
+
+
+def _wired_behavior(call):
+    import maipai_body.app as app_module
+
+    class Client:
+        def _call(self, name, arguments):
+            return call(name, arguments)
+
+    class Voice:
+        _sessions = {"unit": object()}
+        session_listeners = []
+        robot = type("Robot", (), {"client": Client()})()
+
+    class Behavior:
+        _rest = type("Rest", (), {"stage": "awake"})()
+        orientation_tick = None
+        keep_awake_tick = None
+
+        def pose_held(self):
+            return False
+
+        def reaction_blocked(self):
+            return False
+
+        def head_moved_ago(self):
+            return None
+
+        _tracker = types.SimpleNamespace(pose=(0.0, 0.0))  # the head pose the orientation reads
+
+        def show_face(self, expression, while_listening=True):
+            return None
+
+    class Bridge:
+        def speak_reaction(self, text):
+            return True
+
+    class Night:
+        night = False
+        sensors_blocked = None
+
+    class Power:
+        def set_orientation_hold(self, hold):
+            return None
+
+    behavior = Behavior()
+    app_module._wire_orientation(Voice, behavior, Bridge(), Night(), Power())
+    return behavior, Voice
+
+
+def test_keep_awake_is_sent_once_a_minute_while_the_hub_link_is_up(monkeypatch):
+    import maipai_body.app as app_module
+
+    calls = []
+    behavior, voice = _wired_behavior(lambda name, args: calls.append(name))
+    clock = [1000.0]
+    monkeypatch.setattr(app_module.time, "monotonic", lambda: clock[0])
+    behavior.keep_awake_tick()
+    behavior.keep_awake_tick()
+    clock[0] += 61
+    behavior.keep_awake_tick()
+    assert calls == ["self.power.keep_awake", "self.power.keep_awake"]
+    voice._sessions = {}
+    clock[0] += 61
+    behavior.keep_awake_tick()
+    assert len(calls) == 2  # no link, nothing to say
+
+
+def test_keep_awake_stops_asking_a_firmware_that_does_not_have_the_tool(monkeypatch):
+    import maipai_body.app as app_module
+    from maipai_body.hal.errors import NotSupported
+
+    calls = []
+
+    def call(name, args):
+        calls.append(name)
+        raise NotSupported("no such tool", part="power", capability="keep_awake", fix="flash")
+
+    behavior, _voice = _wired_behavior(call)
+    clock = [1000.0]
+    monkeypatch.setattr(app_module.time, "monotonic", lambda: clock[0])
+    behavior.keep_awake_tick()
+    clock[0] += 61
+    behavior.keep_awake_tick()
+    assert len(calls) == 1
+
+
+def test_run_paired_body_holds_neutral_then_honors_stop_event_while_never_paired(caplog):
+    client = FakeReachyMiniClient()
+    link = _FakeLink(paired=False)
+    stop_event = threading.Event()
+
+    with caplog.at_level("INFO", logger="maipai_body.app"):
+        thread = threading.Thread(
+            target=run_paired_body,
+            args=(client, link, stop_event),
+            kwargs={"cache_dir": Path("/tmp/unused")},
+        )
+        thread.start()
+        time.sleep(0.3)  # let it reach the neutral hold and start waiting for pairing
+        stop_event.set()
+        thread.join(timeout=2.0)
+
+    assert not thread.is_alive(), "run_paired_body did not stop within its join timeout"
+
+    kinds = [command.kind for command in client.sent_commands]
+    assert kinds[:2] == ["goto", "hold"], "the run loop did not go neutral then hold"
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "state: starting" in messages
+    assert "state: holding_neutral" in messages
+    assert "state: waiting_for_pairing" in messages
+    assert "state: conversation_loop" not in messages
+    assert "state: stopped" in messages
+
+
+def test_run_paired_body_stops_within_one_second_of_the_stop_event_while_waiting():
+    client = FakeReachyMiniClient()
+    link = _FakeLink(paired=False)
+    stop_event = threading.Event()
+
+    thread = threading.Thread(
+        target=run_paired_body,
+        args=(client, link, stop_event),
+        kwargs={"cache_dir": Path("/tmp/unused")},
+    )
+    thread.start()
+    time.sleep(0.3)
+
+    started = time.monotonic()
+    stop_event.set()
+    thread.join(timeout=2.0)
+    elapsed = time.monotonic() - started
+
+    assert not thread.is_alive()
+    assert elapsed < 1.0, f"run_paired_body took {elapsed:.2f}s to stop after stop_event was set"
+
+
+def test_run_paired_body_survives_a_lost_connection(caplog):
+    client = FakeReachyMiniClient()
+    client.simulate_disconnect()
+    link = _FakeLink(paired=False)
+    stop_event = threading.Event()
+
+    with caplog.at_level("INFO", logger="maipai_body.app"):
+        run_paired_body(
+            client, link, stop_event, cache_dir=Path("/tmp/unused")
+        )  # a lost connection returns immediately, never blocks
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "state: body_lost" in messages
+    assert "state: stopped" in messages
+
+
+def test_run_paired_body_builds_and_runs_the_conversation_loop_once_paired(caplog):
+    client = FakeReachyMiniClient()
+    link = _FakeLink(paired=True, pairing=_fake_pairing(), session_cookie="real-cookie")
+    stop_event = threading.Event()
+
+    fake_loop = MagicMock()
+    fake_loop.snapshot.return_value = {"activity": "idle", "muted": False, "tracking": False}
+
+    def fake_run(event: threading.Event) -> None:
+        event.wait(5.0)  # blocks like the real ConversationLoop.run() until told to stop
+
+    fake_loop.run.side_effect = fake_run
+
+    with (
+        patch("maipai_body.app._build_conversation_loop", return_value=fake_loop) as build,
+        caplog.at_level("INFO", logger="maipai_body.app"),
+    ):
+        thread = threading.Thread(
+            target=run_paired_body,
+            args=(client, link, stop_event),
+            kwargs={"cache_dir": Path("/tmp/models")},
+        )
+        thread.start()
+        time.sleep(0.3)
+        stop_event.set()
+        thread.join(timeout=2.0)
+
+    assert not thread.is_alive()
+    build.assert_called_once_with(
+        client,
+        "real-cookie",
+        "https://hub.example.test",
+        Path("/tmp/models"),
+        link,
+        stop_event,
+    )
+    fake_loop.run.assert_called_once_with(stop_event)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "state: conversation_loop" in messages
+    assert "state: stopped" in messages
+
+
+def test_state_reporter_sends_starting_while_conversation_loop_builds():
+    client = FakeReachyMiniClient()
+    link = _FakeLink(paired=True, pairing=_fake_pairing(), session_cookie="real-cookie")
+    stop_event = threading.Event()
+    build_started = threading.Event()
+    release_build = threading.Event()
+    reporter_started = threading.Event()
+    snapshots = []
+
+    class _FakeReporter:
+        def __init__(self, _credentials, _stop, snapshot, _change):
+            self.snapshot = snapshot
+
+        def run(self):
+            snapshots.append(self.snapshot())
+            reporter_started.set()
+
+    def blocked_build(*_args):
+        build_started.set()
+        release_build.wait(2.0)
+        return MagicMock(
+            snapshot=MagicMock(return_value={"activity": "idle", "muted": False, "tracking": False})
+        )
+
+    with (
+        patch("maipai_body.app.StateReporter", _FakeReporter),
+        patch("maipai_body.app._build_conversation_loop", side_effect=blocked_build),
+    ):
+        thread = threading.Thread(
+            target=run_paired_body,
+            args=(client, link, stop_event),
+            kwargs={"cache_dir": Path("/tmp/models")},
+        )
+        thread.start()
+        assert reporter_started.wait(1.0)
+        assert build_started.wait(1.0)
+        stop_event.set()
+        thread.join(timeout=1.0)
+        release_build.set()
+
+    assert not thread.is_alive()
+    assert snapshots[0]["activity"] == "starting"
+    assert snapshots[0]["on_battery"] is None
+    assert snapshots[0]["battery_level"] is None
+    assert snapshots[0]["daemon_version"]
+    assert snapshots[0]["app_version"] == importlib.metadata.version("maipai-bot")
+
+
+def _run_with_snapshots_from_a_running_loop() -> list[dict]:
+    """Drives `run_paired_body` to the point the conversation loop runs and
+    returns the frames the reporter's snapshot callable produced while
+    the loop runs (one frame, taken from inside `loop.run`)."""
+    client = FakeReachyMiniClient()
+    link = _FakeLink(paired=True, pairing=_fake_pairing(), session_cookie="real-cookie")
+    stop_event = threading.Event()
+    reporters = []
+    snapshots = []
+
+    class _FakeReporter:
+        def __init__(self, _credentials, _stop, snapshot, _change):
+            self.snapshot = snapshot
+            reporters.append(self)
+
+        def run(self):
+            pass
+
+    fake_loop = MagicMock(
+        snapshot=MagicMock(return_value={"activity": "idle", "muted": False, "tracking": False})
+    )
+    fake_loop.run.side_effect = lambda _stop: snapshots.append(reporters[0].snapshot())
+
+    with (
+        patch("maipai_body.app.StateReporter", _FakeReporter),
+        patch("maipai_body.app._build_conversation_loop", return_value=fake_loop),
+    ):
+        run_paired_body(client, link, stop_event, cache_dir=Path("/tmp/models"))
+    return snapshots
+
+
+def test_state_reporter_sends_app_version_once_the_conversation_loop_is_running():
+    (frame,) = _run_with_snapshots_from_a_running_loop()
+
+    assert frame["activity"] == "idle"
+    assert frame["app_version"] == importlib.metadata.version("maipai-bot")
+    # daemon_version stays the vendor SDK's version, a separate field.
+    assert frame["daemon_version"]
+
+
+def test_app_version_is_none_when_the_package_is_not_installed():
+    with patch(
+        "maipai_body.app.importlib.metadata.version",
+        side_effect=importlib.metadata.PackageNotFoundError("maipai-bot"),
+    ):
+        assert _app_version() is None
+
+
+_SCHEMA_ENV = "MAIPAI_ROBOT_STATE_SCHEMA"
+
+
+@pytest.mark.skipif(
+    not os.environ.get(_SCHEMA_ENV),
+    reason=f"set {_SCHEMA_ENV} to commons' spec/schemas/robot-state.schema.json "
+    "(spec-v0.1.73 or later); Bot pins the source, not a Python distribution",
+)
+def test_state_frames_fit_the_published_robot_state_schema():
+    schema = json.loads(Path(os.environ[_SCHEMA_ENV]).read_text())
+
+    (frame,) = _run_with_snapshots_from_a_running_loop()
+
+    assert set(frame) <= set(schema["properties"])
+    assert set(schema["required"]) <= set(frame)
+    assert isinstance(frame["app_version"], str)
+
+
+@pytest.mark.skipif(
+    not os.environ.get(_SCHEMA_ENV),
+    reason=f"set {_SCHEMA_ENV} to commons' spec/schemas/robot-state.schema.json "
+    "(spec-v0.1.73 or later)",
+)
+def test_published_robot_state_schema_carries_the_ladder_activities():
+    schema = json.loads(Path(os.environ[_SCHEMA_ENV]).read_text())
+
+    activity = json.dumps(schema["properties"]["activity"])
+
+    assert '"reconnecting"' in activity
+    assert '"sleeping"' in activity
+
+
+def test_run_paired_body_stops_within_one_second_during_conversation_loop_build(caplog):
+    client = FakeReachyMiniClient()
+    link = _FakeLink(paired=True, pairing=_fake_pairing(), session_cookie="real-cookie")
+    stop_event = threading.Event()
+    build_started = threading.Event()
+    release_build = threading.Event()
+
+    def blocked_build(*args):
+        build_started.set()
+        release_build.wait(5.0)
+        return MagicMock()
+
+    with (
+        patch("maipai_body.app._build_conversation_loop", side_effect=blocked_build),
+        caplog.at_level("INFO", logger="maipai_body.app"),
+    ):
+        thread = threading.Thread(
+            target=run_paired_body,
+            args=(client, link, stop_event),
+            kwargs={"cache_dir": Path("/tmp/models")},
+        )
+        thread.start()
+        assert build_started.wait(1.0), "conversation loop build did not start"
+        started = time.monotonic()
+        stop_event.set()
+        thread.join(timeout=2.0)
+        elapsed = time.monotonic() - started
+        release_build.set()
+
+    assert not thread.is_alive()
+    assert elapsed < 1.0, f"run_paired_body took {elapsed:.2f}s to stop after stop_event was set"
+    messages = [record.getMessage() for record in caplog.records]
+    assert "stop requested during model download; abandoning conversation loop build" in messages
+    assert "state: conversation_loop" not in messages
+    assert "state: stopped" in messages
+
+
+def test_run_paired_body_stops_cleanly_if_the_pairing_record_is_unreadable(caplog):
+    client = FakeReachyMiniClient()
+    link = _FakeLink(paired=True, pairing=None)  # paired per in-memory state, but nothing on disk
+    stop_event = threading.Event()
+
+    with (
+        patch("maipai_body.app._build_conversation_loop") as build,
+        caplog.at_level("INFO", logger="maipai_body.app"),
+    ):
+        run_paired_body(client, link, stop_event, cache_dir=Path("/tmp/unused"))
+
+    build.assert_not_called()
+    messages = [record.getMessage() for record in caplog.records]
+    assert "state: conversation_loop" not in messages
+    assert "state: stopped" in messages
+
+
+def test_run_paired_body_stops_cleanly_if_paired_with_no_session_cookie(caplog):
+    """Code review, 2026-09-28: this used to silently fall back to an
+    empty-string cookie and build every hub client anyway, surfacing
+    only as an opaque 401 deep inside the first real turn."""
+    client = FakeReachyMiniClient()
+    link = _FakeLink(paired=True, pairing=_fake_pairing(), session_cookie=None)
+    stop_event = threading.Event()
+
+    with (
+        patch("maipai_body.app._build_conversation_loop") as build,
+        caplog.at_level("INFO", logger="maipai_body.app"),
+    ):
+        run_paired_body(client, link, stop_event, cache_dir=Path("/tmp/unused"))
+
+    build.assert_not_called()
+    messages = [record.getMessage() for record in caplog.records]
+    assert "state: conversation_loop" not in messages
+    assert "state: stopped" in messages
+
+
+def test_run_paired_body_survives_a_conversation_loop_construction_failure(caplog):
+    """Code review, 2026-09-28: a model-download failure
+    (AssetUnavailable/ChecksumMismatch, or a bare network error) is a
+    plain RuntimeError subclass, not BodyLost - it used to propagate
+    uncaught and crash the whole daemon process."""
+    client = FakeReachyMiniClient()
+    link = _FakeLink(paired=True, pairing=_fake_pairing(), session_cookie="real-cookie")
+    stop_event = threading.Event()
+
+    with (
+        patch(
+            "maipai_body.app._build_conversation_loop",
+            side_effect=RuntimeError("checksum mismatch"),
+        ),
+        caplog.at_level("INFO", logger="maipai_body.app"),
+    ):
+        run_paired_body(client, link, stop_event, cache_dir=Path("/tmp/unused"))  # must not raise
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "state: conversation_loop" not in messages
+    assert "state: stopped" in messages
+
+
+def test_sigint_handler_sets_the_stop_event():
+    stop_event = threading.Event()
+    handler = _sigint_handler(stop_event)
+
+    handler(signal.SIGINT, None)
+
+    assert stop_event.is_set()

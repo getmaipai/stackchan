@@ -1,0 +1,50 @@
+# Intent: give back internal RAM without moving any stack to PSRAM (the unit stalled in 0.2.24 and the PSRAM stack was the prime suspect; 055 tests that separately). Measured least stack left in the 0.2.25 host log: audio_input 3,808 of 6,144 (use 2,336), audio_output 2,680 of 4,096 (use 1,416), ws_reconnect 4,432 of 6,144 (use 1,712). They shrink to 4,096, 3,072 and 4,096, which keeps at least 1.7 KB of margin over the measured peak: 5 KB back. The LVGL draw buffer was 20 display lines (12,800 bytes of DMA RAM); it is now 10 lines (6,400 bytes): 6.4 KB back, at the cost of twice as many display transfers for a full-screen redraw (the face redraws small regions). About 11 KB in all. The opus stack (24,576, least left 4,540) and the stackchan task (least left 1,428) are not touched.
+# Upstream: 78/xiaozhi-esp32 main/audio/audio_service.cc, main/protocols/websocket_protocol.cc; m5stack/StackChan firmware/main/hal/board/stackchan_display.cc (MIT). Applies after 057 with --unidiff-zero.
+# Check after a flash: "unit memory: heap_stats" int_free about 11 KB higher than before, stack_stats: audio_input, audio_output and ws_reconnect still above 1,500 bytes left; no visible tearing or slowness in the face.
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index 3edf9e8..f6166b4 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -138,7 +138,7 @@ StackChanAvatarDisplay::StackChanAvatarDisplay(esp_lcd_panel_io_handle_t panel_i
+         .io_handle      = panel_io_,
+         .panel_handle   = panel_,
+         .control_handle = nullptr,
+-        .buffer_size    = static_cast<uint32_t>(width_ * 20),
++        .buffer_size    = static_cast<uint32_t>(width_ * 10),  // was 20 lines: 6,400 bytes of DMA RAM back
+         .double_buffer  = false,
+         .trans_size     = 0,
+         .hres           = static_cast<uint32_t>(width_),
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.cc b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+index fc57748..b165cf2 100644
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+@@ -135,14 +135,14 @@ void AudioService::Start() {
+         AudioService* audio_service = (AudioService*)arg;
+         audio_service->AudioInputTask();
+         vTaskDelete(NULL);
+-    }, "audio_input", 2048 * 3, this, 8, &audio_input_task_handle_, 0);
++    }, "audio_input", 2048 * 2, this, 8, &audio_input_task_handle_, 0);  // was 6144; peak use 2,336
+ 
+     /* Start the audio output task */
+     xTaskCreate([](void* arg) {
+         AudioService* audio_service = (AudioService*)arg;
+         audio_service->AudioOutputTask();
+         vTaskDelete(NULL);
+-    }, "audio_output", 2048 * 2, this, 4, &audio_output_task_handle_);
++    }, "audio_output", 1024 * 3, this, 4, &audio_output_task_handle_);  // was 4096; peak use 1,416
+ #else
+     /* Start the audio input task */
+     xTaskCreate([](void* arg) {
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+index a71f421..443f132 100644
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -39,7 +39,7 @@ bool WebsocketProtocol::Start() {
+         return true;
+     }
+     xEventGroupClearBits(event_group_handle_, WEBSOCKET_PROTOCOL_STOP_EVENT | WEBSOCKET_PROTOCOL_STOPPED_EVENT);
+-    if (xTaskCreate(ReconnectTask, "ws_reconnect", 6144, this, 3, &reconnect_task_handle_) != pdPASS) {
++    if (xTaskCreate(ReconnectTask, "ws_reconnect", 4096, this, 3, &reconnect_task_handle_) != pdPASS) {
+         reconnect_task_handle_ = nullptr;
+         ESP_LOGE(TAG, "Failed to start websocket reconnect task");
+         return false;

@@ -1,0 +1,249 @@
+# Intent: make the wake word and taps reliable and visible (owner report 2026-10-21: the robot does not listen, taps do not start or stop listening, and the wake word does not stop it talking). The host log cannot tell what state the unit believes it is in, so: (1) every tap reports its decision (tap: start, stop or ignored, with the DeviceState it saw and why); (2) every wake word detection reports the state it was heard in (wake); (3) once a minute the unit reports the wake-word task's heartbeat and its own state (wake_stats: armed, fetches, fetch_errors, detections, ms_since_fetch, state); (4) a state guard in the one-second clock tick puts a unit that has sat in Connecting for 8 s or in Listening for 45 s back to idle (reported as state_guard), because from those states it cannot hear the wake word and ignores taps; (5) the swipe-down gesture of patch 036 aborted speech whatever the state, which left a listening unit listening with its wake word off after the host had dropped the turn: it now aborts only speech, and ends a listening turn the way a tap does. The detection task stack stays at the stock 4,096 bytes (it is the stock value; 1,852 bytes were left of it in 0.2.25, so it is not overflowing).
+# Upstream: 78/xiaozhi-esp32 main/application.cc, main/application.h, main/audio/wake_words/afe_wake_word.cc; m5stack/StackChan firmware/main/hal/board/stackchan_display.cc, hal/hal_head_touch.cpp, hal/device_events.h (MIT). Applies after 058 with --unidiff-zero.
+# Check after a flash: tap the face at rest: "unit tap: decision=start state=3"; tap while it listens or speaks: "decision=stop"; say "Hi, StackChan" at rest: "unit wake: state=3" and a turn starts, while it speaks: "unit wake: state=6" and it stops; leave it alone for a minute: "unit wake: wake_stats armed=1 fetches=N" with N in the thousands and state=3. If it ever sits in Connecting or Listening, "unit wake: state_guard" appears and it returns to idle.
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index f6166b4..e80c9e3 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -458,8 +458,21 @@ void StackChanAvatarDisplay::OnGesture(lv_event_t* event)
+     } else if (dir == LV_DIR_RIGHT) {
+         self->ChangeVolume(+10);
+     } else if (dir == LV_DIR_BOTTOM) {
++        // A swipe down stops what is going on: speech is aborted, and a listening turn is ended
++        // the way a tap ends it (an abort alone left the unit listening with its wake word off while
++        // the host had dropped the turn).
+         Application::GetInstance().Schedule([]() {
+-            Application::GetInstance().AbortSpeaking(kAbortReasonNone);
++            auto& app = Application::GetInstance();
++            const auto state = app.GetDeviceState();
++            char extra[48];
++            snprintf(extra, sizeof(extra), "\"decision\":\"stop\",\"state\":%d,\"why\":\"swipe\"",
++                     static_cast<int>(state));
++            device_events_push_diag("tap", extra);
++            if (state == kDeviceStateSpeaking) {
++                app.AbortSpeaking(kAbortReasonNone);
++            } else if (state == kDeviceStateListening) {
++                app.ToggleChatState();
++            }
+         });
+     } else if (dir == LV_DIR_TOP) {
+         self->ToggleQuickSettings();
+diff --git a/firmware/main/hal/device_events.h b/firmware/main/hal/device_events.h
+index d6c0f45..4d979f6 100644
+--- a/firmware/main/hal/device_events.h
++++ b/firmware/main/hal/device_events.h
+@@ -2,9 +2,14 @@
+  * SPDX-License-Identifier: MIT
+  */
+ #pragma once
++#include <cstddef>
+ 
+ // A low-rate diagnostic event for the host (patch 046): kind must be a string literal, extra is
+ // JSON object members without braces, for example "\"x\":12,\"y\":34", or empty. At most 20 a
+ // minute are kept and none are queued when the queue is nearly full, so a diagnostic never pushes
+ // a real touch or shake event out.
+ void device_events_push_diag(const char* kind, const char* extra);
++
++// Fills out with the wake word detection task's counters since the last call, as JSON members
++// (armed, fetches, fetch_errors, detections, ms_since_fetch), and clears them. Patch 059.
++void device_events_wake_stats(char* out, size_t size);
+diff --git a/firmware/main/hal/hal_head_touch.cpp b/firmware/main/hal/hal_head_touch.cpp
+index 3bc2d2f..a05a74c 100644
+--- a/firmware/main/hal/hal_head_touch.cpp
++++ b/firmware/main/hal/hal_head_touch.cpp
+@@ -11,6 +11,8 @@
+ #include <esp_heap_caps.h>
+ #include <esp_system.h>
+ #include <settings.h>
++#include <application.h>
++#include <cstring>
+ #include <mooncake_log.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
+@@ -233,6 +235,18 @@ static void _head_touch_update_task(void* param)
+                 used += snprintf(stacks + used, sizeof(stacks) - used, "%s\"%s\":%d", used == 0 ? "" : ",", name, hwm);
+             }
+             device_events_push_diag("stack_stats", stacks);
++
++            // The wake word's heartbeat and the state the unit believes it is in (DeviceState:
++            // 0 unknown, 1 starting, 2 wifi configuring, 3 idle, 4 connecting, 5 listening,
++            // 6 speaking, 7 upgrading, ...), so a unit that cannot be woken can be told apart from
++            // one that is.
++            char wake[160];
++            int used_wake = 0;
++            device_events_wake_stats(wake, sizeof(wake) - 24);
++            used_wake = static_cast<int>(strlen(wake));
++            snprintf(wake + used_wake, sizeof(wake) - used_wake, ",\"state\":%d",
++                     static_cast<int>(Application::GetInstance().GetDeviceState()));
++            device_events_push_diag("wake_stats", wake);
+             stats_samples = stats_max = 0;
+             recognizer.presses = recognizer.samples_weak = recognizer.samples_strong = 0;
+             recognizer.runs_weak = recognizer.runs_strong = recognizer.run_max = recognizer.strong_run_max = 0;
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index 0a42c95..3287604 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -11,6 +11,8 @@
+ #include "settings.h"
+ 
+ #include <cstring>
++#include <cstdio>
++#include <hal/device_events.h>
+ #include <esp_log.h>
+ #include <cJSON.h>
+ #include <driver/gpio.h>
+@@ -273,6 +275,27 @@ void Application::Run() {
+             if (clock_ticks_ % 10 == 0) {
+                 SystemInfo::PrintHeapStats();
+             }
++
++            // State guard (patch 059): a unit that is stuck connecting, or listening with nobody
++            // answering, cannot hear the wake word or a tap. Put it back to idle after a while.
++            auto guard_state = GetDeviceState();
++            if (guard_state != guard_last_state_) {
++                guard_last_state_ = guard_state;
++                guard_since_tick_ = clock_ticks_;
++            } else {
++                const uint32_t held = static_cast<uint32_t>(clock_ticks_ - guard_since_tick_);
++                if ((guard_state == kDeviceStateConnecting && held >= 8) ||
++                    (guard_state == kDeviceStateListening && held >= 45)) {
++                    char extra[64];
++                    snprintf(extra, sizeof(extra), "\"state\":%d,\"held_s\":%u", (int)guard_state,
++                             static_cast<unsigned>(held));
++                    ESP_LOGW(TAG, "State guard: %s for %u s, going idle",
++                             DeviceStateMachine::GetStateName(guard_state), static_cast<unsigned>(held));
++                    device_events_push_diag("state_guard", extra);
++                    SetDeviceState(kDeviceStateIdle);
++                    guard_since_tick_ = clock_ticks_;
++                }
++            }
+         }
+     }
+ }
+@@ -742,10 +765,19 @@ void Application::StopListening() {
+     xEventGroupSetBits(event_group_, MAIN_EVENT_STOP_LISTENING);
+ }
+ 
++// A decision the unit made on a tap, for the host log ("unit tap: ..."): the state it saw, and what it did.
++static void report_tap(const char* decision, int state, const char* why = "") {
++    char extra[96];
++    snprintf(extra, sizeof(extra), "\"decision\":\"%s\",\"state\":%d,\"why\":\"%s\"", decision, state, why);
++    ESP_LOGI("Application", "tap: %s (state %d) %s", decision, state, why);
++    device_events_push_diag("tap", extra);
++}
++
+ void Application::HandleToggleChatEvent() {
+     auto state = GetDeviceState();
+     
+     if (state == kDeviceStateActivating) {
++        report_tap("ignored", (int)state, "activating");
+         SetDeviceState(kDeviceStateIdle);
+         return;
+     } else if (state == kDeviceStateWifiConfiguring) {
+@@ -760,11 +792,13 @@ void Application::HandleToggleChatEvent() {
+ 
+     if (!protocol_) {
+         ESP_LOGE(TAG, "Protocol not initialized");
++        report_tap("ignored", (int)state, "no_protocol");
+         return;
+     }
+ 
+     if (state == kDeviceStateIdle) {
+         ListeningMode mode = GetDefaultListeningMode();
++        report_tap("start", (int)state, protocol_->IsAudioChannelOpened() ? "channel_open" : "channel_closed");
+         if (!protocol_->IsAudioChannelOpened()) {
+             SetDeviceState(kDeviceStateConnecting);
+             // Schedule to let the state change be processed first (UI update)
+@@ -775,8 +809,10 @@ void Application::HandleToggleChatEvent() {
+         }
+         SetListeningMode(mode);
+     } else if (state == kDeviceStateSpeaking) {
++        report_tap("stop", (int)state, "speaking");
+         AbortSpeaking(kAbortReasonNone);
+     } else if (state == kDeviceStateListening) {
++        report_tap("stop", (int)state, "listening");
+ #if CONFIG_STACKCHAN_PERSISTENT_WEBSOCKET
+         // The persistent socket stays open, so closing the channel does nothing. Tell the host to
+         // drop the turn, then go idle here.
+@@ -859,6 +895,11 @@ void Application::HandleWakeWordDetectedEvent() {
+     auto state = GetDeviceState();
+     auto wake_word = audio_service_.GetLastWakeWord();
+     ESP_LOGI(TAG, "Wake word detected: %s (state: %d)", wake_word.c_str(), (int)state);
++    {
++        char extra[48];
++        snprintf(extra, sizeof(extra), "\"state\":%d", (int)state);
++        device_events_push_diag("wake", extra);
++    }
+ 
+     if (state == kDeviceStateIdle) {
+         audio_service_.EncodeWakeWord();
+diff --git a/firmware/xiaozhi-esp32/main/application.h b/firmware/xiaozhi-esp32/main/application.h
+index 2e08d78..bfd0645 100644
+--- a/firmware/xiaozhi-esp32/main/application.h
++++ b/firmware/xiaozhi-esp32/main/application.h
+@@ -145,6 +145,8 @@ private:
+     bool assets_version_checked_ = false;
+     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
+     int clock_ticks_ = 0;
++    DeviceState guard_last_state_ = kDeviceStateUnknown;  // the state guard (patch 059)
++    int guard_since_tick_ = 0;
+     TaskHandle_t activation_task_handle_ = nullptr;
+ 
+ 
+diff --git a/firmware/xiaozhi-esp32/main/audio/wake_words/afe_wake_word.cc b/firmware/xiaozhi-esp32/main/audio/wake_words/afe_wake_word.cc
+index babfe50..eaa0ca4 100644
+--- a/firmware/xiaozhi-esp32/main/audio/wake_words/afe_wake_word.cc
++++ b/firmware/xiaozhi-esp32/main/audio/wake_words/afe_wake_word.cc
+@@ -14,12 +14,32 @@
+ 
+ #define TAG "AfeWakeWord"
+ 
++// Counters for the once-a-minute wake report (device_events_wake_stats): how many audio chunks the
++// detection task fetched, how many wake words it heard, and whether detection is armed right now.
++static std::atomic<uint32_t> s_fetches{0};
++static std::atomic<uint32_t> s_fetch_errors{0};
++static std::atomic<uint32_t> s_detections{0};
++static std::atomic<uint32_t> s_last_fetch_ms{0};
++static EventGroupHandle_t s_wake_event_group = nullptr;
++
++void device_events_wake_stats(char* out, size_t size)
++{
++    const uint32_t now_ms = static_cast<uint32_t>(esp_timer_get_time() / 1000);
++    const uint32_t last   = s_last_fetch_ms.load();
++    const bool armed      = s_wake_event_group != nullptr && (xEventGroupGetBits(s_wake_event_group) & DETECTION_RUNNING_EVENT);
++    snprintf(out, size, "\"armed\":%d,\"fetches\":%u,\"fetch_errors\":%u,\"detections\":%u,\"ms_since_fetch\":%d",
++             armed ? 1 : 0, static_cast<unsigned>(s_fetches.exchange(0)),
++             static_cast<unsigned>(s_fetch_errors.exchange(0)), static_cast<unsigned>(s_detections.exchange(0)),
++             last == 0 ? -1 : static_cast<int>(now_ms - last));
++}
++
+ AfeWakeWord::AfeWakeWord()
+     : afe_data_(nullptr),
+       wake_word_pcm_(),
+       wake_word_opus_() {
+ 
+     event_group_ = xEventGroupCreate();
++    s_wake_event_group = event_group_;
+ }
+ 
+ AfeWakeWord::~AfeWakeWord() {
+@@ -312,8 +332,11 @@ void AfeWakeWord::AudioDetectionTask() {
+ 
+         auto res = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
+         if (res == nullptr || res->ret_value == ESP_FAIL) {
++            s_fetch_errors++;
+             continue;;
+         }
++        s_fetches++;
++        s_last_fetch_ms = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+ 
+         // Store the wake word data for voice recognition, like who is speaking
+         StoreWakeWordData(res->data, res->data_size / sizeof(int16_t));
+@@ -330,6 +353,7 @@ void AfeWakeWord::AudioDetectionTask() {
+         stop_was_armed_ = stop_armed;
+ 
+         if (res->wakeup_state == WAKENET_DETECTED) {
++            s_detections++;
+             Stop();
+             last_detected_wake_word_ = wake_words_[res->wakenet_model_index - 1];
+ 

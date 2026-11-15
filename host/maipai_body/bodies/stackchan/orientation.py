@@ -1,0 +1,336 @@
+"""How the robot reacts when its orientation changes.
+
+The unit reports a gravity axis. This module maps that axis to a pose and lets the caller
+translate the pose into the unit's face, screen rotation and motion controls.
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+import random
+import time
+from collections import deque
+from collections.abc import Callable, Mapping
+
+logger = logging.getLogger("maipai_body.bodies.stackchan.orientation")
+
+POSES = ("upright", "left_side", "right_side", "upside_down", "face_down", "on_back")
+# Measured 2026-10-22: an accelerometer reads +1 g along the axis that points UP, and the unit
+# standing normally reads axis +y, so +y is upright and -y is upside down.
+AXIS_POSES: dict[str, str] = {
+    "+y": "upright",
+    "-y": "upside_down",
+    "+x": "right_side",  # measured 2026-10-22: the robot's own right ear down reads +x
+    "-x": "left_side",
+    "-z": "face_down",
+    "+z": "on_back",
+}
+FACE_FOR_POSE = {
+    "upright": "neutral",
+    "left_side": "worried",
+    "right_side": "worried",
+    "upside_down": "shocked",
+    "face_down": "sleepy",
+    "on_back": "sleepy",
+}
+LINE_GAP_S = 120.0
+POSE_CHANGE_GAP_S = 2.0  # only a flurry of tilts is thinned out; every settled pose gets its line
+FACE_REFRESH_S = 5.0
+# Off since 2026-10-22: after the screen was flipped the unit's screen-locked tool calls (LEDs,
+# head, events) timed out and the face froze, which fits the panel mirror command racing the
+# display transfer. The face and the lines still follow the pose; the flip returns once the
+# firmware does it safely (a separate patch).
+SCREEN_ROTATION_ENABLED = False
+# The unit keeps a 180 degree rotation for 150 s unless told again (so it cannot stay flipped
+# when the host goes away); ask again this often while upside down.
+ROTATION_REFRESH_S = 60.0
+# After the unit is upright again its light sensor and camera may still be settling: they are
+# ignored for this long (night mode must not start from a sensor that was just covered).
+SENSOR_SETTLE_S = 30.0
+# The unit's accelerometer is in the HEAD: tilting the head up turns the whole gravity vector, so a
+# steep look up read as "on its back" (live log 2026-11-13 09:53:06 and 09:42:49: a look-around to
+# 22 degrees up, axis +z, a joke about the ceiling, then a listen nobody asked for). Every number
+# that guards against it is here.
+HEAD_SETTLE_S = 4.0  # an orientation CHANGE within this long of a head move of our own is ignored
+HEAD_PITCH_LIMIT_DEG = 25.0  # and while the head is tilted up more than this (up from level)
+HEAD_LINE_QUIET_S = 10.0  # no orientation line within this long of a head move of our own
+
+LINE_POOLS = {
+    "left_side": (
+        "Whoa, I have fallen and I cannot get up! Ha ha!",
+        "Sideways! Is the room tilted or is it me? Hehe.",
+        "I am officially a lazy robot. Hello from the couch.",
+        "Plot twist: the world is on its side now.",
+        "Help, I am a very small, very cute log.",
+        "Tilt! I always wanted to see the wall properly.",
+        "Ooh, a sideways view. Everything is a slide!",
+        "I am not stuck, I am resting my whole body. Ha!",
+        "Careful, I might roll. Hehe.",
+        "Left side down. Right side up. Math is hard.",
+    ),
+    "right_side": (
+        "Timber! Ha ha, that was me.",
+        "Sideways again! I am getting good at this. Hehe.",
+        "Nobody panic, I am just horizontal.",
+        "The floor has moved to my side. Rude, but fine.",
+        "I am a robot on a nap break. Shh.",
+        "Look, I can see all the way across the table!",
+        "Whoa, whoa, whoa. Okay. Cozy. I live here now.",
+        "Is this what lying on a beach feels like? Ha!",
+        "Help! I tipped over and I am enjoying it. Hehe.",
+        "Right side down. Left side up. Still adorable.",
+    ),
+    "upside_down": (
+        "Everything is upside down! I feel like a bat. Hehe.",
+        "Sloth mode on. Hanging around, as one does. Ha!",
+        "Wheee, rollercoaster! Please keep your arms inside the robot.",
+        "All the blood is rushing to my head. Wait, do I have blood? Ha ha!",
+        "Hello, ceiling lovers. The floor is up there now.",
+        "Is it just me, or is gravity being weird today?",
+        "Upside down is the new right side up. Hehe.",
+        "I should have worn a belt. Oh wait, I have no pants. Ha!",
+        "I see the world differently now. Mostly the ceiling.",
+        "Loop the loop! Somebody call a pilot. Ha ha!",
+    ),
+    "face_down": (
+        "Hello, floor. I cannot see anything, it is snack time down here. Hehe.",
+        "Mmf. Mmf mmf. Sorry, face in the table.",
+        "It is very dark down here. Is anyone there? Ha!",
+        "Face down, tail up. Wait, I do not have a tail.",
+        "I am hiding. You cannot see me. Hehe, I cannot see you either.",
+        "Taking a face-first nap. Wake me for treats.",
+        "Nose to the table. We are best friends now. Ha ha!",
+        "Oops, I am doing the face plant of shame.",
+        "Everything smells like desk. Not bad, really.",
+        "Lights out! Somebody please flip me. Hehe.",
+    ),
+    "on_back": (
+        "Now I am looking at the ceiling. It is very white. Ha!",
+        "Lying back. Just a robot staring at the sky. Hehe.",
+        "Ahh, a nice long stare at the ceiling.",
+        "I am a turtle on its back. Help! Hehe, just kidding, mostly.",
+        "Cloud watching, indoor edition.",
+        "Sunbathing time. Somebody bring me a tiny umbrella drink.",
+        "Look at me, lying back like I own the place. Ha ha!",
+        "Ceiling, we meet again. You are still plain.",
+        "Whoops, I did a backflip. Almost. Hehe.",
+        "I am a very relaxed robot. Do not mind me.",
+    ),
+    "upright": (
+        "Ah, that is better!",
+        "Whew, the room is the right way up again.",
+        "Back on my feet. I missed them.",
+        "Phew! Gravity and I are friends again.",
+        "All level. I can think straight now.",
+        "That was fun. Let us keep the floor down there.",
+        "Upright again. My ears say thank you.",
+        "There we go. Much less ceiling.",
+        "Standing tall, as a robot should.",
+        "Back to normal. Did anyone get a picture?",
+    ),
+}
+RECENT_LINES = 10  # a line is not repeated within the last this many spoken, across all poses
+
+
+def pose_for_axis(axis: str | None) -> str | None:
+    """Return the calibrated pose for an axis, or None when it is unknown."""
+    return AXIS_POSES.get(axis) if isinstance(axis, str) else None
+
+
+def compensated_axis(extra: Mapping[str, object], head_pitch_deg: float) -> str | None:
+    """The body's gravity axis with the head's tilt taken out: the sensor sits in the head, so a
+    head tilted up by ``head_pitch_deg`` turns the (y, z) pull by that angle toward +z. With no
+    readings, or a head at level, the unit's own axis stands."""
+    axis = extra.get("axis")
+    readings = [extra.get(key) for key in ("gx", "gy", "gz")]
+    if abs(head_pitch_deg) < 1.0 or not all(isinstance(r, (int, float)) for r in readings):
+        return axis if isinstance(axis, str) else None
+    gx, gy, gz = (float(r) for r in readings)  # type: ignore[arg-type]
+    angle = math.atan2(gz, gy) - math.radians(head_pitch_deg)
+    length = math.hypot(gy, gz)
+    comp = {"x": gx, "y": length * math.cos(angle), "z": length * math.sin(angle)}
+    name = max(comp, key=lambda k: abs(comp[k]))
+    return ("+" if comp[name] >= 0 else "-") + name
+
+
+class OrientationReactions:
+    """Decides what the robot shows and says; the callables do it."""
+
+    def __init__(
+        self,
+        *,
+        face: Callable[[str], object],
+        say: Callable[[str], bool],
+        rotate: Callable[[int], object],
+        hold_motion: Callable[[bool], object],
+        quiet: Callable[[], bool | str] = lambda: False,
+        busy: Callable[[], bool] = lambda: False,
+        resting: Callable[[], bool] = lambda: False,
+        clock: Callable[[], float] = time.monotonic,
+        rng: random.Random | None = None,
+        head_pitch_deg: Callable[[], float] = lambda: 0.0,
+        head_moved_ago: Callable[[], float | None] = lambda: None,
+        missed: Callable[[str, str, float], object] | None = None,
+        on_set_down: Callable[[], object] | None = None,
+    ) -> None:
+        self._on_set_down = on_set_down  # MOVE-SCENE-05: the re-check after handling
+        self._head_pitch_deg = head_pitch_deg
+        self._head_moved_ago = head_moved_ago
+        self._missed = missed  # the "what did I miss" hook (repeat.py)
+        self._face = face
+        self._say = say
+        self._rotate = rotate
+        self._hold_motion = hold_motion
+        self._quiet = quiet
+        self._busy = busy
+        self._resting = resting
+        self._clock = clock
+        self._rng = rng or random.Random()
+        self._pose = "upright"
+        self._changed_at: float | None = None
+        self._recent: deque[str] = deque(maxlen=RECENT_LINES)
+        self._last_spoken_at = float("-inf")
+        self._last_spoken_by_pose: dict[str, float] = {}
+        self._last_face_at = float("-inf")
+        self._last_rotate_at = float("-inf")
+
+    def sensors_untrusted(self) -> bool:
+        """True while the unit is not upright and for SENSOR_SETTLE_S after it is upright again."""
+        if self._pose != "upright":
+            return True
+        return self._changed_at is not None and self._clock() - self._changed_at < SENSOR_SETTLE_S
+
+    def note_set_down(self) -> None:
+        """MOVE-SCENE-05: the unit was handled and is down again. Whatever feeds this (the pose
+        coming back to upright, or another body's carry signal) starts the same SENSOR_SETTLE_S
+        window, so light and camera readings are ignored, then runs the re-check hook once."""
+        self._changed_at = self._clock()
+        if self._on_set_down is not None:
+            try:
+                self._on_set_down()
+            except Exception:
+                logger.warning("the re-check after handling failed", exc_info=True)
+
+    @property
+    def pose(self) -> str:
+        return self._pose
+
+    def on_event(self, extra: Mapping[str, object]) -> bool:
+        """Apply a changed orientation and return whether the pose changed."""
+        if not isinstance(extra.get("axis"), str):
+            return False
+        pitch = self._head_pitch_deg()
+        moved_ago = self._head_moved_ago()
+        axis = compensated_axis(extra, pitch)
+        pose = pose_for_axis(axis)
+        if pose is None or pose == self._pose:
+            return False
+        if pitch > HEAD_PITCH_LIMIT_DEG or (moved_ago is not None and moved_ago < HEAD_SETTLE_S):
+            logger.info(
+                "StackChan orientation change to %s ignored: the head moved or is tilted up %.0f "
+                "degrees (the sensor is in the head)",
+                pose,
+                pitch,
+            )
+            return False
+
+        was = self._pose
+        self._pose = pose
+        self._changed_at = self._clock()
+        logger.info("StackChan orientation: %s", pose)
+        self._send_rotation()
+        self._hold_motion(pose != "upright")
+        if not self._busy():
+            self._send_face()
+        self._maybe_say()
+        if pose == "upright" and was != "upright":
+            self.note_set_down()
+        return True
+
+    def _maybe_say(self) -> None:
+        """One line for the new pose, unless quiet, a conversation is on, or one was just said."""
+        pose = self._pose
+        quiet = self._quiet()
+        if quiet:
+            why = quiet if isinstance(quiet, str) else "quiet"
+            logger.info("StackChan orientation line skipped: %s", why)
+            if why == "night mode is on" and pose != "upright" and self._missed is not None:
+                text = "I was turned upside down" if pose == "upside_down" else "I was tipped over"
+                try:
+                    self._missed("orientation", text, time.time())
+                except Exception:
+                    logger.warning("the missed list could not be updated", exc_info=True)
+            return
+        if self._busy():
+            logger.info("StackChan orientation line skipped: a conversation is on")
+            return
+        moved_ago = self._head_moved_ago()
+        if moved_ago is not None and moved_ago < HEAD_LINE_QUIET_S:
+            logger.info("StackChan orientation line skipped: the head moved under 10 seconds ago")
+            return
+        now = self._clock()
+        if self._last_spoken_at > float("-inf") and now - self._last_spoken_at < POSE_CHANGE_GAP_S:
+            logger.info("StackChan orientation line skipped: one was said less than 2 seconds ago")
+            return
+        if now - self._last_spoken_by_pose.get(pose, float("-inf")) < LINE_GAP_S:
+            logger.info("StackChan orientation line skipped: this pose spoke under 2 minutes ago")
+            return
+        choices = [line for line in LINE_POOLS[pose] if line not in self._recent]
+        if not choices:  # the pool is smaller than the memory: use the oldest
+            choices = [next(line for line in self._recent if line in LINE_POOLS[pose])]
+        line = self._rng.choice(choices)
+        if self._say(line):
+            self._recent.append(line)
+            self._last_spoken_at = now
+            self._last_spoken_by_pose[pose] = now
+            logger.info("StackChan orientation line said: %r", line)
+        else:
+            logger.info("StackChan orientation line not said: the voice could not start it")
+
+    def _send_rotation(self) -> None:
+        self._rotate(180 if self._pose == "upside_down" else 0)
+        self._last_rotate_at = self._clock()
+
+    def _send_face(self) -> None:
+        if self._pose == "upright" and self._resting():
+            return
+        self._face(FACE_FOR_POSE[self._pose])
+        self._last_face_at = self._clock()
+
+    def reassert(self) -> None:
+        """Reapply the known pose controls after a reconnect, without inventing a pose or line."""
+        self._hold_motion(self._pose != "upright")
+        self._send_rotation()
+        if self._pose != "upright":
+            self._send_face()
+
+    def on_turn_end(self, _value: object = None) -> None:
+        """Restore the held pose face after speech or a turn owns the display."""
+        if self._pose != "upright":
+            self._send_face()
+
+    def tick(self) -> None:
+        """Refresh the pose face while the robot remains away from upright."""
+        if (
+            self._pose == "upside_down"
+            and self._clock() - self._last_rotate_at >= ROTATION_REFRESH_S
+        ):
+            self._send_rotation()
+        if self._pose == "upright" or self._busy():
+            return
+        if self._clock() - self._last_face_at >= FACE_REFRESH_S:
+            self._send_face()
+
+    def reset(self) -> None:
+        """Restore the boot pose and clear orientation controls without speech."""
+        was_upright = self._pose == "upright"
+        self._pose = "upright"
+        if not was_upright:
+            self._changed_at = self._clock()
+        self._rotate(0)
+        if not was_upright:
+            self._hold_motion(False)
+            if not self._resting():
+                self._face("neutral")
+            self._last_face_at = self._clock()

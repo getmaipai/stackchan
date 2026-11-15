@@ -1,0 +1,141 @@
+"""StackChan stays still while charging or not upright (owner requests 2026-10-20, 2026-10-21).
+Since 2026-11-12 (owner) this holds only idle wandering and the settle: the look for a face and
+the turn toward someone who spoke go through the head gate as responses and move anyway.
+
+``PowerIdle`` drives the firmware ``set_idle_motion`` tool from the three
+answers that all mean "no idle movement": the unit is on USB power, night
+is active, or the configured ``robot.idle.level`` is ``still``. The robot
+wants idle motion enabled (``set_idle_motion(True)``) exactly when none of
+those hold, so on battery the configured level applies again by itself.
+
+Unknown is still (fail safe): until the unit has positively reported that it
+is on battery, and again when its last good reading is older than
+``STATUS_TTL_S``, the robot does not move on its own. A failing write is logged
+at most once a minute and retried (after ``RETRY_S``) on the next ``tick()``,
+battery status or ``refresh()`` call, so a failed write is never lost.
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from collections.abc import Callable
+
+logger = logging.getLogger("maipai_body.bodies.stackchan.power_idle")
+
+# A failed set_idle_motion write is logged at most this often (the same
+# one-minute cap the light wiring uses for a failed battery read).
+FAILURE_WARN_S = 60.0
+# A battery reading older than this counts as unknown (the unit may have been plugged in).
+STATUS_TTL_S = 3 * 60.0
+# Wait this long before retrying a failed idle-motion write.
+RETRY_S = 5.0
+
+
+class PowerIdle:
+    """Keep the StackChan idle-motion tool matched to "may it move?".
+
+    ``set_idle_motion`` is the firmware tool call (the adapter's
+    ``set_idle_motion``); ``night_active`` and ``configured_level`` are
+    callables so the night rule and the owner's ``robot.idle.level`` stay
+    injected. The wanted idle-motion value is ``not self.still``; a write
+    goes out only when it differs from the last value actually applied.
+    """
+
+    def __init__(
+        self,
+        set_idle_motion: Callable[[bool], object],
+        *,
+        night_active: Callable[[], bool] = lambda: False,
+        configured_level: Callable[[], str] = lambda: "calm",
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._set_idle_motion = set_idle_motion
+        self._night_active = night_active
+        self._configured_level = configured_level
+        self._clock = clock
+        self._charging = False
+        self._last_ok: float | None = None  # when the unit last answered a battery read
+        self._next_try = float("-inf")
+        # The last value successfully written. None means the device is still
+        # at its default (calm, motion on) because it was never plugged in.
+        self._applied: bool | None = None
+        self._last_failure_warn = float("-inf")
+        self._orientation_hold = False
+
+    @property
+    def charging(self) -> bool:
+        """True once a charging reading has been told to us."""
+        return self._charging
+
+    @property
+    def still(self) -> bool:
+        """True while the robot must not wander: unknown power, charging, night, or level still."""
+        if self._charging or not self._power_known() or self._orientation_hold:
+            return True
+        if self._night_active():
+            return True
+        return self._configured_level() == "still"
+
+    @property
+    def still_reason(self) -> str:
+        """Why the robot must stay still right now, in the log's words ("" when it may move)."""
+        if self._charging:
+            return "charging"
+        if not self._power_known():
+            return "power unknown (no battery reading in 3 minutes)"
+        if self._orientation_hold:
+            return "not upright"
+        if self._night_active():
+            return "night"
+        if self._configured_level() == "still":
+            return "idle level still"
+        return ""
+
+    def _power_known(self) -> bool:
+        return self._last_ok is not None and self._clock() - self._last_ok < STATUS_TTL_S
+
+    def set_orientation_hold(self, held: bool) -> None:
+        """Hold still while the unit is not upright: the head must not fight gravity."""
+        self._orientation_hold = held
+        self._next_try = float("-inf")
+        self.refresh()
+
+    def on_battery_status(self, charging: bool) -> None:
+        """Record a battery reading (charging on or off) and re-evaluate the motion."""
+        self._charging = charging
+        self._last_ok = self._clock()
+        self._next_try = float("-inf")
+        self.refresh()
+
+    def on_reconnect(self) -> None:
+        """The unit (re)connected: its idle-motion flag may have reset, so write it again.
+
+        Only marks the flag unknown; the one-second tick writes it. A write here ran inside the
+        connect and the unit is not ready to answer tool calls yet."""
+        self._applied = None
+        self._next_try = float("-inf")
+
+    def tick(self) -> None:
+        """Call about every second: an unknown or stale power state turns idle motion off."""
+        if self._clock() >= self._next_try:
+            self.refresh()
+
+    def refresh(self) -> None:
+        """Re-evaluate the wanted idle-motion value and write it if it changed."""
+        wanted = not self.still
+        # Nothing written yet (or the unit just reconnected) means its flag is unknown: write it.
+        if self._applied is None or wanted != self._applied:
+            self._write(wanted)
+
+    def _write(self, value: bool) -> None:
+        now = self._clock()
+        try:
+            self._set_idle_motion(value)
+        except Exception:
+            if now - self._last_failure_warn >= FAILURE_WARN_S:
+                logger.warning("power idle motion write failed", exc_info=True)
+                self._last_failure_warn = now
+            self._next_try = now + RETRY_S
+            return
+        self._applied = value

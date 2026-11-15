@@ -1,0 +1,39 @@
+# Intent: add an atomic MCP operation for all twelve independently addressable RGB pixels.
+# Upstream: m5stack/StackChan firmware/main/hal/hal_mcp.cpp (MIT).
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 0d73851..eda3796 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -92,6 +92,32 @@ void Hal::xiaozhi_mcp_init()
+             return true;
+         });
+ 
++    mclog::tagInfo(_tag, "add robot.set_led_colors tool");
++    PropertyList led_color_properties;
++    for (int index = 0; index < 12; ++index) {
++        auto prefix = fmt::format("led_{}", index);
++        led_color_properties.AddProperty(Property(prefix + "_red", kPropertyTypeInteger, 0, 0, 168));
++        led_color_properties.AddProperty(Property(prefix + "_green", kPropertyTypeInteger, 0, 0, 168));
++        led_color_properties.AddProperty(Property(prefix + "_blue", kPropertyTypeInteger, 0, 0, 168));
++    }
++    mcp_server.AddTool(
++        "self.robot.set_led_colors",
++        "Set all 12 onboard RGB LEDs independently. Each channel is from 0 to 168.",
++        led_color_properties,
++        [this](const PropertyList& properties) -> ReturnValue {
++            LvglLockGuard lock;
++            auto& hal = GetHAL();
++            for (uint8_t index = 0; index < 12; ++index) {
++                auto prefix = fmt::format("led_{}", index);
++                hal.setRgbColor(index,
++                                properties[prefix + "_red"].value<int>(),
++                                properties[prefix + "_green"].value<int>(),
++                                properties[prefix + "_blue"].value<int>());
++            }
++            hal.refreshRgb();
++            return true;
++        });
++
+     mclog::tagInfo(_tag, "add robot.create_reminder tool");
+     mcp_server.AddTool("self.robot.create_reminder",
+                        "Create a reminder. Duration is in seconds. Message is what to say when time is up. Set repeat "

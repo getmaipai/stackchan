@@ -1,0 +1,8 @@
+▁ST O P @stop
+▁QU I E TER @quieter
+▁LO U DER @louder
+▁TIME R @timer
+▁WHAT ▁TIME ▁IS ▁IT @what_time_is_it
+▁ARE ▁YOU ▁CON NE C TED @are_you_connected
+▁LIST EN ▁A G A IN @listen_again
+▁ST O P ▁LIST EN ING @stop_listening

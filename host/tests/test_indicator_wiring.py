@@ -1,0 +1,216 @@
+"""EYES-02: the app hands the tap, never the bare client, to every consumer
+that opens the mic or reads a frame, and connects the director to the funnel."""
+
+from __future__ import annotations
+
+import threading
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import maipai_body.app as app_module
+from maipai_body.bodies.reachy_mini.fake import FakeEyes, FakeReachyMiniClient
+from maipai_body.bodies.reachy_mini.motors import MotorGate
+from maipai_body.hal.seam import NullIndicator, Palette
+from maipai_body.indicator.live import LiveCaptureTap
+from maipai_body.indicator.settings import IndicatorSettings
+from maipai_body.presence.funnel import FunnelState, FunnelView
+
+
+def _build(indicator, stop_event=None):
+    client = FakeReachyMiniClient()
+    seen: dict[str, object] = {}
+
+    class _Capture:
+        def __init__(self, c):
+            seen["capture_client"] = c
+
+    class _Loop:
+        def __init__(self, **kwargs):
+            seen["loop"] = kwargs
+            self.views = []
+            self.offer = MagicMock()
+
+        def live_view_refusal(self):
+            return None
+
+        def bind_offer_frames(self, send_frame):
+            seen["offer_frames"] = send_frame
+
+        def subscribe_view(self, callback):
+            self.views.append(callback)
+            seen["view_callback"] = callback
+
+        def set_safety_alarm(self, active):
+            pass
+
+        def set_alarm_word_handler(self, handler):
+            seen["alarm_word"] = handler
+
+        def speaker_snapshot(self):
+            return {"person": None, "basis": "unknown", "level": "unknown"}, []
+
+    heavy = [
+        "ensure_wakeword_models",
+        "OpenWakeWordEngine",
+        "WakeScorer",
+        "FiveLandmarkDetector",
+        "ensure_embedder",
+        "FaceGallery",
+        "PrintSync",
+        "SttStreamClient",
+        "TurnClient",
+        "TtsPlaybackClient",
+        "AudioPlayback",
+        "build_react_hook",
+        "ExpressionEngine",
+        "_hub_credentials_reader",
+        "DaemonMotorBus",
+    ]
+    patches = [patch.object(app_module, name, MagicMock()) for name in heavy]
+    patches.append(patch("maipai_body.link.assets.AssetSync.sync", return_value={}))
+    patches.append(patch("maipai_body.link.channel.CommandChannel.run"))
+    patches.append(patch.object(app_module, "AudioCapture", _Capture))
+    patches.append(patch.object(app_module, "ConversationLoop", _Loop))
+    patches.append(patch.object(app_module, "_start_eyes", return_value=indicator))
+    for p in patches:
+        p.start()
+    try:
+        loop = app_module._build_conversation_loop(
+            client,
+            "cookie",
+            "https://hub.example.test",
+            Path("/tmp/models"),
+            MagicMock(),
+            stop_event or threading.Event(),
+        )
+    finally:
+        for p in reversed(patches):
+            p.stop()
+    return client, loop, seen
+
+
+def test_the_loop_and_the_audio_capture_get_the_tap_not_the_bare_client():
+    client, _, seen = _build(FakeEyes())
+    assert isinstance(seen["capture_client"], LiveCaptureTap)
+    loop_kwargs = seen["loop"]
+    assert isinstance(loop_kwargs["client"], LiveCaptureTap)
+    assert seen["capture_client"] is loop_kwargs["client"]
+    gate = seen["capture_client"]._inner
+    assert isinstance(gate, MotorGate)
+    assert gate._inner is client
+    assert callable(loop_kwargs["capture_scope"])
+
+
+def test_the_funnel_view_reaches_the_director_and_the_eyes():
+    eyes = FakeEyes()
+    _, _, seen = _build(eyes)
+    seen["view_callback"](FunnelView(shown=FunnelState.LISTENING))
+    assert eyes.current_look is not None and eyes.current_look.colour is Palette.BLUE
+
+
+def test_director_app_wiring_explicitly_uses_settings_and_presence_stubs():
+    _, _, seen = _build(FakeEyes())
+    director = seen["view_callback"].__self__
+    assert director._settings is app_module._eyes_settings
+    assert director._presence is app_module._eyes_presence
+    assert app_module._eyes_settings() == IndicatorSettings()
+    assert app_module._eyes_presence() is None
+
+
+def test_the_stt_scope_drives_the_green_live_cue_through_the_tap():
+    eyes = FakeEyes()
+    _, _, seen = _build(eyes)
+    tap = seen["loop"]["client"]
+    tap.start_recording()
+    with seen["loop"]["capture_scope"]():
+        assert eyes.current_look.colour is Palette.GREEN
+    tap.stop_recording()
+
+
+def test_a_build_without_eyes_still_runs_with_a_null_indicator():
+    _, _, seen = _build(NullIndicator())
+    assert isinstance(seen["loop"]["client"], LiveCaptureTap)
+
+
+def test_the_eyes_are_closed_when_the_app_stops():
+    eyes = FakeEyes()
+    stop = threading.Event()
+    _build(eyes, stop)
+    seen_off = threading.Event()
+    stop.set()
+    for _ in range(100):
+        if eyes.commands and eyes.commands[-1].kind == "off":
+            seen_off.set()
+            break
+        threading.Event().wait(0.02)
+    assert seen_off.is_set()
+
+
+def test_offer_engine_is_off_unless_the_env_gate_is_set(tmp_path):
+    assert app_module._build_offer_engine(tmp_path, {}) is None
+    assert app_module._build_offer_engine(tmp_path, {"MAIPAI_BOT_OFFER_SPOTTER": "0"}) is None
+
+
+def test_attention_is_off_unless_the_env_gate_is_set():
+    from maipai_body.bodies.reachy_mini.profile import REACHY_MINI_PROFILE
+    from maipai_body.expression.engine import ExpressionEngine
+    from maipai_body.presence.attention import Attention
+
+    engine = ExpressionEngine(FakeReachyMiniClient(), REACHY_MINI_PROFILE)
+    assert app_module._build_attention(engine, {}) is None
+    assert isinstance(app_module._build_attention(engine, {"MAIPAI_BOT_ATTENTION": "1"}), Attention)
+
+
+def test_touch_is_off_unless_the_env_gate_is_set():
+    from maipai_body.presence.touch import AntennaTouchDetector
+
+    assert app_module._build_touch_detector({}) is None
+    assert isinstance(
+        app_module._build_touch_detector({"MAIPAI_BOT_TOUCH": "1"}), AntennaTouchDetector
+    )
+
+
+def test_sleep_auto_is_off_unless_gated_and_takes_its_settings_from_the_frame():
+    from maipai_body.bodies.reachy_mini.fake import FakeReachyMiniClient
+
+    assert app_module._build_sleep_auto(FakeReachyMiniClient(), MagicMock(), {}) is None
+    sleep = app_module._build_sleep_auto(
+        FakeReachyMiniClient(), MagicMock(device_level="presence"), {"MAIPAI_BOT_SLEEP_AUTO": "1"}
+    )
+    assert sleep.policy.auto_enabled is True, "the registry default of robot.sleep.auto is on"
+    sleep.apply_settings({"robot.sleep.auto": False})
+    assert sleep.policy.auto_enabled is False
+    sleep.apply_settings({"robot.sleep.auto": True})
+    assert sleep.policy.auto_enabled is True
+    sleep.apply_settings(
+        {"household.quiet_hours.from": "08:00", "household.quiet_hours.to": "08:00"}
+    )
+    assert sleep.quiet.active() is False
+
+
+def test_the_unmute_spotter_is_off_unless_asked_for(tmp_path):
+    assert app_module._build_unmute_listener(tmp_path, {}) is None
+    assert app_module._build_unmute_listener(tmp_path, {"MAIPAI_BOT_UNMUTE_SPOTTER": "0"}) is None
+
+
+def test_the_unmute_spotter_failing_to_load_leaves_the_hub_to_unmute(tmp_path, monkeypatch):
+    import maipai_body.speech.kws as kws
+
+    def boom(_cache):
+        raise RuntimeError("no model")
+
+    monkeypatch.setattr(kws, "ensure_kws_model", boom)
+    assert app_module._build_unmute_listener(tmp_path, {"MAIPAI_BOT_UNMUTE_SPOTTER": "1"}) is None
+
+
+def test_the_eyes_read_the_household_quiet_hours_from_the_settings_frame():
+    from maipai_body.app import _EYES_VALUES, _eyes_settings
+
+    try:
+        _EYES_VALUES.update(
+            {"household.quiet_hours.from": "20:00", "household.quiet_hours.to": "05:30"}
+        )
+        got = _eyes_settings()
+        assert (got.night_from, got.night_to) == (20 * 60, 5 * 60 + 30)
+    finally:
+        _EYES_VALUES.clear()

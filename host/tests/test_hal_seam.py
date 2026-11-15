@@ -1,0 +1,32 @@
+"""Both the real client and the fake satisfy the same HAL seam methods."""
+
+from __future__ import annotations
+
+from maipai_body.bodies.reachy_mini.client import ReachyMiniClient
+from maipai_body.bodies.reachy_mini.fake import FakeReachyMiniClient
+
+_SEAM_METHODS = {
+    "HeadActuator": ["goto", "set_target", "hold", "enable", "disable"],
+    "AudioIO": [
+        "start_recording",
+        "stop_recording",
+        "get_audio_sample",
+        "get_input_audio_samplerate",
+        "start_playing",
+        "push_audio_sample",
+        "stop_playing",
+        "get_output_audio_samplerate",
+        "get_doa",
+    ],
+    "Camera": ["get_frame", "get_frame_jpeg"],
+    "Imu": ["read"],
+    "FaceTracker": ["enable_tracking", "disable_tracking", "get_face_target"],
+    "StateFeed source": ["state_feed"],
+}
+
+
+def test_fake_and_client_both_implement_the_seam_methods():
+    for kind in (ReachyMiniClient, FakeReachyMiniClient):
+        for protocol_name, methods in _SEAM_METHODS.items():
+            for method in methods:
+                assert hasattr(kind, method), f"{kind.__name__} is missing {protocol_name}.{method}"

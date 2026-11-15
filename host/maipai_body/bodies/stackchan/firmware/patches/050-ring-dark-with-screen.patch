@@ -1,0 +1,93 @@
+# Intent: the LED ring goes dark with the screen and before a power off (owner report 2026-10-21: holding the power button turned the screen off but left the ring lit). The ring is fed from the base rail and keeps its last colours when the PMIC cuts the CoreS3, so on the idle-shutdown request and on entering the power-save sleep the firmware now blanks the ring first. Colours the host sets while blanked are remembered and shown again on wake. This does not cover the hardware force-off from holding the button: AXP2101 register 0x27 is written 0x00 (shortest hold-to-off time), the PMIC cuts power with no warning, and clearing the ring in time needs the AXP2101 power-key long-press interrupt, which is left for a check on the unit.
+# Upstream: m5stack/StackChan firmware/main/hal/board/stackchan.cc, hal_bridge.h, hal/hal_io_expander.cpp (MIT). Applies after 049 with --unidiff-zero.
+# Check after a flash: let the unit reach power-save sleep on battery: the screen and the ring go dark together; touch it: the screen and the host's last ring look return. The idle-shutdown path leaves a dark ring.
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+index bab456f..6c39e3e 100644
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -41,6 +41,9 @@ TouchPoint_t get_touch_point();
+ bool is_xiaozhi_mode();
+ void set_xiaozhi_mode(bool mode);
+ void toggle_xiaozhi_chat_state();
++// Blank the LED ring while the screen sleeps or before a power off. The colours set meanwhile are
++// remembered and shown again when blanking ends.
++void leds_blank(bool blank);
+ 
+ void disply_lvgl_lock();
+ void disply_lvgl_unlock();
+diff --git a/firmware/main/hal/board/stackchan.cc b/firmware/main/hal/board/stackchan.cc
+index 88963ff..2f8f927 100644
+--- a/firmware/main/hal/board/stackchan.cc
++++ b/firmware/main/hal/board/stackchan.cc
+@@ -372,14 +372,21 @@ private:
+ 
+         power_save_timer_ = new PowerSaveTimer(-1, seconds_to_sleep, seconds_to_shutdown);
+         power_save_timer_->OnEnterSleepMode([this]() {
++            hal_bridge::leds_blank(true);  // the ring goes dark with the screen
+             GetDisplay()->SetPowerSaveMode(true);
+             // GetBacklight()->SetBrightness(10);
+         });
+         power_save_timer_->OnExitSleepMode([this]() {
++            hal_bridge::leds_blank(false);  // and returns to the host's last look on wake
+             GetDisplay()->SetPowerSaveMode(false);
+             GetBacklight()->RestoreBrightness();
+         });
+-        power_save_timer_->OnShutdownRequest([this]() { pmic_->PowerOff(); });
++        power_save_timer_->OnShutdownRequest([this]() {
++            // The ring is fed from the base rail and keeps its last colours after the PMIC cuts
++            // the CoreS3, so it must be dark before the power goes.
++            hal_bridge::leds_blank(true);
++            pmic_->PowerOff();
++        });
+         UpdatePowerSaveEnabled(pmic_->IsExternalPowerConnected(), pmic_->IsDischarging());
+     }
+ 
+diff --git a/firmware/main/hal/hal_io_expander.cpp b/firmware/main/hal/hal_io_expander.cpp
+index 3e34221..ca574b7 100644
+--- a/firmware/main/hal/hal_io_expander.cpp
++++ b/firmware/main/hal/hal_io_expander.cpp
+@@ -13,6 +13,10 @@ static const std::string_view _tag = "HAL-IOE";
+ 
+ static std::unique_ptr<m5::PY32IOExpander_Class> _io_expander;
+ 
++// The colours the host asked for, kept so the ring can go dark with the screen and come back.
++static bool _rgb_blank = false;
++static uint8_t _rgb_shadow[12][3] = {};
++
+ void Hal::io_expander_init()
+ {
+     mclog::tagInfo(_tag, "init");
+@@ -71,9 +75,33 @@ void Hal::setRgbColor(uint8_t index, uint8_t r, uint8_t g, uint8_t b)
+     if (!_io_expander) {
+         return;
+     }
++    if (index < 12) {
++        _rgb_shadow[index][0] = r;
++        _rgb_shadow[index][1] = g;
++        _rgb_shadow[index][2] = b;
++    }
++    if (_rgb_blank) {
++        r = g = b = 0;
++    }
+     _io_expander->setLedColor(index, r, g, b);
+ }
+ 
++void hal_bridge::leds_blank(bool blank)
++{
++    if (!_io_expander || blank == _rgb_blank) {
++        return;
++    }
++    _rgb_blank = blank;
++    for (int i = 0; i < 12; i++) {
++        if (blank) {
++            _io_expander->setLedColor(i, 0, 0, 0);
++        } else {
++            _io_expander->setLedColor(i, _rgb_shadow[i][0], _rgb_shadow[i][1], _rgb_shadow[i][2]);
++        }
++    }
++    _io_expander->refreshLeds();
++}
++
+ void Hal::refreshRgb()
+ {
+     if (!_io_expander) {

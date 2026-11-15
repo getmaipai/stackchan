@@ -1,0 +1,439 @@
+{
+  "voice": {
+    "engine": "pocket-tts-english",
+    "name": "",
+    "licence": "CC-BY-4.0",
+    "credit": "Voice generated with pocket-tts-english, licensed under CC-BY-4.0.",
+    "licence_checked": true
+  },
+  "sample_rate": 24000,
+  "clips": [
+    {
+      "id": "code.prompt",
+      "text": "My pairing code is",
+      "file": "code_prompt.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.unreachable.1",
+      "text": "Sorry, I can't connect to the home hub right now.",
+      "file": "line_unreachable_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.unreachable.2",
+      "text": "I can't reach home right now.",
+      "file": "line_unreachable_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.unreachable.3",
+      "text": "I'm having trouble connecting to home.",
+      "file": "line_unreachable_3.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.unreachable.4",
+      "text": "I can't get through to home just now.",
+      "file": "line_unreachable_4.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.unreachable.5",
+      "text": "I'm not able to connect to home right now.",
+      "file": "line_unreachable_5.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.freefall.1",
+      "text": "Whoa, I tipped over.",
+      "file": "line_freefall_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.freefall.2",
+      "text": "I tipped over, but I'm okay.",
+      "file": "line_freefall_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.freefall.3",
+      "text": "I fell onto my side.",
+      "file": "line_freefall_3.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.freefall.4",
+      "text": "I landed on my side.",
+      "file": "line_freefall_4.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.freefall.5",
+      "text": "I tipped over and stopped moving.",
+      "file": "line_freefall_5.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.reconnect.1",
+      "text": "I'm back in touch with home.",
+      "file": "line_reconnect_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.reconnect.2",
+      "text": "I can reach home again.",
+      "file": "line_reconnect_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.reconnect.3",
+      "text": "I'm connected to home again.",
+      "file": "line_reconnect_3.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.reconnect.4",
+      "text": "Home and I are talking again.",
+      "file": "line_reconnect_4.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.reconnect.5",
+      "text": "I found my way back to home.",
+      "file": "line_reconnect_5.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.reconnect.6",
+      "text": "I'm back with the home hub.",
+      "file": "line_reconnect_6.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.reconnect",
+      "text": "I'm back in touch with home.",
+      "file": "line_reconnect.wav",
+      "sha256": "",
+      "duration_s": null
+    },
+    {
+      "id": "line.carry.1",
+      "text": "Oh, hello up there.",
+      "file": "line_carry_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.carry.2",
+      "text": "I like the view from here.",
+      "file": "line_carry_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.carry.3",
+      "text": "Carry me gently, please.",
+      "file": "line_carry_3.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.thermal.1",
+      "text": "I'm a little warm, so I'm going to take it easy for a bit.",
+      "file": "line_thermal_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.thermal.2",
+      "text": "I'm getting warm. I'll slow down until I cool off.",
+      "file": "line_thermal_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.warn.1",
+      "text": "My battery is getting low.",
+      "file": "line_power_warn_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.warn.2",
+      "text": "I'm running a little low on power.",
+      "file": "line_power_warn_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.warn_child.1",
+      "text": "I'm getting a little sleepy.",
+      "file": "line_power_warn_child_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.warn_child.2",
+      "text": "I'm starting to feel sleepy.",
+      "file": "line_power_warn_child_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.dock.1",
+      "text": "Could someone put me on my charger?",
+      "file": "line_power_dock_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.dock.2",
+      "text": "I need my charger soon. Could someone put me on it?",
+      "file": "line_power_dock_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.dock_child.1",
+      "text": "I'm sleepy, I need my charger.",
+      "file": "line_power_dock_child_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.dock_child.2",
+      "text": "Could you put me on my charger, please? I'm sleepy.",
+      "file": "line_power_dock_child_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.goodbye.1",
+      "text": "I'm out of power, so I'm going to sleep. Goodbye for now.",
+      "file": "line_power_goodbye_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.goodbye.2",
+      "text": "Goodbye for now. I'll be back once I'm charged.",
+      "file": "line_power_goodbye_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.goodbye_child.1",
+      "text": "I'm very sleepy. Goodnight, see you after my charger.",
+      "file": "line_power_goodbye_child_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.goodbye_child.2",
+      "text": "Goodnight. I'm going to sleep now.",
+      "file": "line_power_goodbye_child_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.heat.1",
+      "text": "I'm too hot to keep moving, so I'm stopping to cool down.",
+      "file": "line_power_heat_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.heat.2",
+      "text": "I need to stop and cool down for a bit.",
+      "file": "line_power_heat_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.heat_child.1",
+      "text": "I'm too warm, so I'm taking a rest to cool off.",
+      "file": "line_power_heat_child_1.wav",
+      "sha256": ""
+    },
+    {
+      "id": "line.power.heat_child.2",
+      "text": "I'm feeling hot, so I'm going to sit still for a bit.",
+      "file": "line_power_heat_child_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.A",
+      "text": "A",
+      "file": "char_A.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.B",
+      "text": "B",
+      "file": "char_B.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.C",
+      "text": "C",
+      "file": "char_C.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.D",
+      "text": "D",
+      "file": "char_D.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.E",
+      "text": "E",
+      "file": "char_E.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.F",
+      "text": "F",
+      "file": "char_F.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.G",
+      "text": "G",
+      "file": "char_G.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.H",
+      "text": "H",
+      "file": "char_H.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.J",
+      "text": "J",
+      "file": "char_J.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.K",
+      "text": "K",
+      "file": "char_K.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.L",
+      "text": "L",
+      "file": "char_L.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.M",
+      "text": "M",
+      "file": "char_M.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.N",
+      "text": "N",
+      "file": "char_N.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.P",
+      "text": "P",
+      "file": "char_P.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.Q",
+      "text": "Q",
+      "file": "char_Q.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.R",
+      "text": "R",
+      "file": "char_R.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.S",
+      "text": "S",
+      "file": "char_S.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.T",
+      "text": "T",
+      "file": "char_T.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.U",
+      "text": "U",
+      "file": "char_U.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.V",
+      "text": "V",
+      "file": "char_V.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.W",
+      "text": "W",
+      "file": "char_W.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.X",
+      "text": "X",
+      "file": "char_X.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.Y",
+      "text": "Y",
+      "file": "char_Y.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.Z",
+      "text": "Z",
+      "file": "char_Z.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.2",
+      "text": "two",
+      "file": "char_2.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.3",
+      "text": "three",
+      "file": "char_3.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.4",
+      "text": "four",
+      "file": "char_4.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.5",
+      "text": "five",
+      "file": "char_5.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.6",
+      "text": "six",
+      "file": "char_6.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.7",
+      "text": "seven",
+      "file": "char_7.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.8",
+      "text": "eight",
+      "file": "char_8.wav",
+      "sha256": ""
+    },
+    {
+      "id": "char.9",
+      "text": "nine",
+      "file": "char_9.wav",
+      "sha256": ""
+    }
+  ]
+}

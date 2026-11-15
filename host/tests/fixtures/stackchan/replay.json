@@ -1,0 +1,16 @@
+[
+  {
+    "send": {"type": "hello", "version": 1},
+    "expect": {"type": "hello", "transport": "websocket", "version": 1}
+  },
+  {
+    "device_reply": {
+      "type": "mcp",
+      "payload": {"jsonrpc": "2.0", "id": 1, "result": {"content": [{"type": "text", "text": "true"}]}}
+    }
+  },
+  {
+    "send": {"type": "listen", "state": "start", "mode": "realtime"},
+    "expect": {"type": "tts", "state": "start"}
+  }
+]

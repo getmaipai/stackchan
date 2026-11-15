@@ -1,0 +1,1995 @@
+"""G9: the run loop - one state machine driving audio, cues, tracking
+and the head. Constructed and run by ``app.py``'s own
+``run_paired_body`` once G4's hub link reports paired, replacing its
+neutral-hold idle wait for the rest of the process's life.
+
+The funnel (`docs/BACKLOG.md`'s own words): ``idle``, ``listening``,
+``thinking``, ``speaking``, derived from G6's own turn events and G8's
+mute, never invented separately. G11's own floor ("nothing beyond G9:
+wire presence and tracking into the run loop") is satisfied here too,
+not as a separate item - a presence tick enables the daemon's own face
+tracker when a face is present and nothing higher-priority is active,
+matching the arbitration priority the design record's section 6 and
+`presence/arbitration.py` already state.
+
+G8's own barge-in, folded in rather than built separately: wake
+scoring keeps running during `speaking` (the unit's echo cancellation,
+or the sim's software AEC, is what makes hearing a wake word over the
+robot's own playback possible at all) - a wake firing while already
+speaking is the "stop" signal, not a second detector or a new model.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import threading
+import time
+import uuid
+from collections.abc import Callable, Mapping, Sequence
+from contextlib import AbstractContextManager, nullcontext
+from dataclasses import dataclass, field, replace
+from typing import Any, Literal
+
+import numpy as np
+import requests
+
+from maipai_body.bodies.stackchan.orientation import SENSOR_SETTLE_S
+from maipai_body.expression.cue import Cue, Phase
+from maipai_body.expression.engine import ExpressionEngine
+from maipai_body.expression.suppression import SuppressionContext
+from maipai_body.hal.seam import AudioIO, Camera, FaceTracker, HeadActuator, Imu
+from maipai_body.initiative.offer import OfferController, OfferGates
+from maipai_body.link.commands import LocalCommand, Reply, route_phrase
+from maipai_body.link.offline import OfflineRungs
+from maipai_body.link.replay import ReplayItem
+from maipai_body.link.state_machine import LinkPhase
+from maipai_body.presence.arbitration import ArbitrationState, tracking_may_drive
+from maipai_body.presence.attention import Attention
+from maipai_body.presence.carry_reaction import (
+    CARRY_LINES,
+    DEFAULT_CARRY_REACTION,
+    CarryReaction,
+    PresenceEntry,
+    line_allowed,
+)
+from maipai_body.presence.funnel import FunnelState, FunnelView, SettleGate
+from maipai_body.presence.knock import KnockDetector
+from maipai_body.presence.motion_state import MotionState, MotionStateMachine
+from maipai_body.presence.observations import PresenceObservation, read_presence
+from maipai_body.presence.power import (
+    HeatLadder,
+    PowerLadder,
+    PowerLevel,
+    child_pool,
+    line_id,
+)
+from maipai_body.presence.sleep_auto import SleepAutoPolicy
+from maipai_body.presence.thermal import ThermalState
+from maipai_body.presence.touch import AntennaTouchDetector
+from maipai_body.speaker_evidence import (
+    AgeBand,
+    PresentEntry,
+    SpeakerEvidence,
+    claimed_evidence,
+    effective_band,
+    sensitive_allowed,
+    unknown_evidence,
+)
+from maipai_body.speaker_fusion import build_present, fuse
+from maipai_body.speech.barge import talk_over
+from maipai_body.speech.capture import AudioCapture
+from maipai_body.speech.engines import StopDetector
+from maipai_body.speech.follow_up import FollowUpPolicy
+from maipai_body.speech.kws import KeywordEngine, UnmuteListener
+from maipai_body.speech.offline_clips import FREEFALL as FREEFALL_CLIP
+from maipai_body.speech.offline_clips import RECONNECT as RECONNECT_CLIP
+from maipai_body.speech.offline_clips import THERMAL as THERMAL_CLIP
+from maipai_body.speech.playback import AudioPlayback
+from maipai_body.speech.stt_stream import SttStreamClient
+from maipai_body.speech.tts_playback import TtsLinkLost, TtsPlaybackClient
+from maipai_body.speech.turn_client import TurnClient, TurnLinkLost
+from maipai_body.speech.voiceprint import VoiceIdentifier
+from maipai_body.speech.wake import WakeScorer
+from maipai_body.vision.detect import FiveLandmarkDetector
+from maipai_body.vision.embed import SFaceEmbedder
+from maipai_body.vision.gallery import FaceGallery, FaceVerdict
+from maipai_body.vision.recognize import recognize_face
+from maipai_body.vision.watch import VisionWatch
+
+logger = logging.getLogger("maipai_body.run_loop")
+
+# BODY-05's legacy flash test: the state SHOWN to readers (the eyes, the
+# mouth, the ring, the screen, the link) never changes sooner than this
+# after the previous shown change, so a 45 ms flash is held open to a full
+# half second instead. The loop itself acts on the raw state at once
+# (barge-in, tracking and the line rules must not lag); `RunLoopState.trace`
+# records the raw transitions, `shown_trace` what readers were given.
+SETTLE_GATE_S = 0.5
+
+# The array's own AEC (or the sim's software fallback) is what makes
+# scoring wake blocks captured WHILE the robot is speaking meaningful
+# at all - the wake scorer's own docstring already documents that a
+# fresh wake fires cleanly once per phrase.
+_WAKE_POLL_SLEEP_S = 0.01
+# The body's acknowledgement of a wake the hub cannot take (the same primitive
+# rung 0 uses as its stir): the user always sees that the wake was heard.
+_WAKE_ACK_PRIMITIVE = "perk"
+# KNOCK-01: the IMU is polled this often while the robot sleeps (UNVERIFIED rate;
+# the unit row decides whether the IMU read is fast enough or the mic onset is needed).
+_KNOCK_INTERVAL_S = 0.02
+_POWER_INTERVAL_S = 5.0  # SELF-SCENE-02: how often the battery is read
+
+
+class _LatestRead:
+    """The last answer of a possibly slow read, refreshed on a worker at most once per interval.
+
+    `latest()` does no I/O: it returns the cached answer (None before the first one) and, when
+    one is due and none is running, starts a daemon thread for the next. A failed read keeps the
+    previous answer."""
+
+    def __init__(self, read: Callable[[], Mapping[str, object] | None], interval_s: float) -> None:
+        self._read = read
+        self._interval_s = interval_s
+        self._lock = threading.Lock()
+        self._value: Mapping[str, object] | None = None
+        self._seq = 0  # counts answers, so a caller can tell a new one from the cached one
+        self._next_at = float("-inf")
+        self._worker: threading.Thread | None = None
+
+    def latest(self, now: float) -> tuple[Mapping[str, object] | None, int]:
+        """The cached answer and its sequence number. `now` is the caller's clock."""
+        with self._lock:
+            if self._worker is None and now >= self._next_at:
+                self._next_at = now + self._interval_s
+                self._worker = threading.Thread(target=self._refresh, name="battery", daemon=True)
+                self._worker.start()
+            return self._value, self._seq
+
+    def _refresh(self) -> None:
+        try:
+            value = self._read()
+        except Exception:
+            logger.warning("battery read failed", exc_info=True)
+            value = None
+        with self._lock:
+            if value is not None:
+                self._value = value
+                self._seq += 1
+            self._worker = None
+
+    def wait_idle(self, timeout: float = 2.0) -> None:
+        """Block until no read is running (tests; the loop never calls it)."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            with self._lock:
+                if self._worker is None:
+                    return
+            time.sleep(0.002)
+
+
+_TOUCH_INTERVAL_S = 0.05  # TOUCH-01: 20 Hz reads of the worker's cached antenna probe
+_TOUCH_DRIVE_WINDOW_S = 0.06  # a write this recent counts as the worker driving the antennas
+
+# FACE-01's own capped rate: "once every few seconds while a face is
+# present, not per frame" (design-face-recognition-models-2026-09-28.md
+# section 6) - a face-embedding pass competing with wake-word detection
+# and the audio stream on the same CPU needs a floor, not a tick.
+_FACE_RECOGNITION_INTERVAL_S = 3.0
+# A verdict older than this is not reported on a fresh turn - identity
+# is per turn, never sticky (dev.md section 6), so a face seen minutes
+# ago (the person may have left) must not still answer "who is this"
+# for an utterance that just started.
+_FACE_VERDICT_STALE_AFTER_S = 10.0
+# The face-check thread does pure CPU work (a local capture plus a
+# local ONNX pipeline, no network call with an unbounded timeout to
+# wait out) - unlike _speak's own deliberately unbounded join, a
+# generous bound here is safe, not a correctness risk.
+_FACE_CHECK_JOIN_TIMEOUT_S = 5.0
+# The hub's own shared spec (commons/spec's conversation_turn_schema.py,
+# checked directly by a review 2026-09-28): `speaker_evidence.person`
+# must match this or be null, or the hub's schema validation refuses
+# the whole turn. No real print record exists yet to guarantee a
+# FaceGallery's own person_id already looks like this - checked here
+# defensively rather than assumed.
+_PERSON_ID_RE = re.compile(r"^person-[a-z0-9]{6,}$")
+
+# SPEAK-02: while a reply that was cleared for sensitive records is spoken, the
+# audience is looked at again this often; a new person stops the sentence.
+_AUDIENCE_CHECK_INTERVAL_S = 0.25
+
+# M-R5 / design record section 4: when a turn was lost to the link, the
+# robot says one line once the hub answers again, never one per failed
+# turn. Spoken as the head of the next reply that reaches the hub: until
+# G4b's pre-rendered offline clips exist the hub's own `tts` route is the
+# only voice this body has, so the first moment it can speak at all is the
+# first moment the hub answers. G4b's reconnect clip replaces this text
+# whenever the bundle can say it; this stays the fallback without one.
+# The wording is a first cut for the owner's call (the design record names
+# the unreachable line, "I can't reach home right now", not this one).
+LINK_RESTORED_LINE = "Sorry, I lost my connection to home for a moment."
+
+
+@dataclass
+class StateTransition:
+    state: FunnelState
+    at_monotonic: float
+
+
+_CLEAN_MOTORS: dict[str, object] = {
+    "motors_latched": [],
+    "motors_stuck": False,
+    "motors_reboot_offer": [],
+}
+
+
+@dataclass
+class RunLoopState:
+    """The funnel's own live state, read by G10's future device-state
+    frame and by tests - a snapshot, not the live mutable object (the
+    same torn-read lesson G4's own `LinkState` already learned)."""
+
+    funnel: FunnelState = FunnelState.IDLE
+    # What readers are shown: `funnel` after the settle gate (BODY-05).
+    shown: FunnelState = FunnelState.IDLE
+    muted: bool = False
+    held: bool = False
+    alarm: bool = False
+    offer: bool = False
+    fault: bool = False
+    tracking: bool = False
+    trace: list[StateTransition] = field(default_factory=list)
+    shown_trace: list[StateTransition] = field(default_factory=list)
+    face_verdict: FaceVerdict | None = None
+    face_verdict_at: float | None = None
+
+
+class ConversationLoop:
+    """Wake, listen, think, speak - one turn at a time, with presence
+    ticking and barge-in running throughout."""
+
+    def __init__(
+        self,
+        *,
+        client: HeadActuator | AudioIO | FaceTracker | Imu | Camera,
+        expression_engine: ExpressionEngine,
+        audio_capture: AudioCapture,
+        audio_playback: AudioPlayback,
+        wake_scorer: WakeScorer,
+        stt_client: SttStreamClient,
+        turn_client: TurnClient,
+        tts_client: TtsPlaybackClient,
+        hub_credentials: Callable[[], tuple[str, str]] | None = None,
+        on_change: Callable[[], None] | None = None,
+        presence_interval_s: float = 0.5,
+        face_detector: FiveLandmarkDetector | None = None,
+        face_embedder: SFaceEmbedder | None = None,
+        face_gallery: FaceGallery | None = None,
+        face_recognition_interval_s: float = _FACE_RECOGNITION_INTERVAL_S,
+        vision_watch: VisionWatch | None = None,
+        offline: OfflineRungs | None = None,
+        react_hook: Callable[..., bool] | None = None,
+        band_of: Callable[[str], AgeBand | None] | None = None,
+        motion_clock: Callable[[], float] = time.monotonic,
+        carry_gravity_compensation: bool = False,
+        teach_active: Callable[[], bool] | None = None,
+        carry_reaction: Callable[[], CarryReaction] | None = None,
+        presence_entries: Callable[[], Sequence[PresenceEntry] | None] | None = None,
+        settle_gate_s: float = SETTLE_GATE_S,
+        funnel_clock: Callable[[], float] = time.monotonic,
+        capture_scope: Callable[[], AbstractContextManager[object]] | None = None,
+        attention: Attention | None = None,
+        motor_health: Any = None,
+        thermal: Any = None,
+        stop_detector: StopDetector | None = None,
+        open_mic: bool = False,
+        is_asleep: Callable[[], bool] | None = None,
+        wake_from_sleep: Callable[[], None] | None = None,
+        knock_interval_s: float = _KNOCK_INTERVAL_S,
+        touch_detector: AntennaTouchDetector | None = None,
+        sleep_auto: SleepAutoPolicy | None = None,
+        luma_source: Callable[[], float | None] | None = None,
+        quiet_hours: Callable[[], bool] | None = None,
+        battery_status: Callable[[], Mapping[str, object] | None] | None = None,
+        power_warn_at: Callable[[], int] | None = None,
+        screen_dim: Callable[[bool], object] | None = None,
+        sleep_clock: Callable[[], float] = time.monotonic,
+        touch_interval_s: float = _TOUCH_INTERVAL_S,
+        touch_clock: Callable[[], float] = time.monotonic,
+        unmute_listener: UnmuteListener | None = None,
+        offer_engine: KeywordEngine | None = None,
+        guest_app_active: Callable[[], bool] | None = None,
+        voice_identifier: VoiceIdentifier | None = None,
+        follow_up: FollowUpPolicy | None = None,
+        identity_clock: Callable[[], float] = time.monotonic,
+        audience_check_interval_s: float = _AUDIENCE_CHECK_INTERVAL_S,
+        face_search: Callable[[], object] | None = None,
+    ) -> None:
+        # MOVE-SCENE-05: the one face search that runs when the body is set down.
+        self._face_search = face_search
+        self._face_search_thread: threading.Thread | None = None
+        self._sensors_settle_until = float("-inf")
+        # S-EXPR-04: when given, gaze and idle replace the daemon's own tracker.
+        self._attention = attention
+        self._client = client
+        # MOTOR-RECOVER-01 / THERMAL-01: optional, ticked from the presence tick,
+        # and neither may ever break it.
+        self._motor_health = motor_health
+        self._held_now = False
+        self._last_reboot_offer: list[str] = []
+        self._thermal = thermal
+        self._thermal_state = ThermalState()
+        self._expression = expression_engine
+        self._capture = audio_capture
+        self._playback = audio_playback
+        self._wake = wake_scorer
+        self._stt = stt_client
+        self._turn = turn_client
+        self._tts = tts_client
+        self._hub_credentials = hub_credentials
+        # BARGE-02: the local stop word runs over playback; the open-mic bleed
+        # gate is the `robot.barge_in.open_mic` setting, off until the arrival-day test.
+        self._stop_detector = stop_detector
+        self._open_mic = open_mic
+        self._on_change = on_change
+        self._current_hub_credentials: tuple[str, str] | None = None
+        self._presence_interval_s = presence_interval_s
+        # All three None (the default) disables face recognition
+        # entirely: nothing in this repo constructs real ones yet
+        # (the model needs downloading, and there is no real print
+        # record to match against - FACE-01's own backlog entry names
+        # both as still open), but the presence loop is ready the day
+        # something does. Given together or not at all - a review
+        # (2026-09-28) caught that a partial wiring (one or two of the
+        # three) would silently disable recognition with no signal why,
+        # indistinguishable from "nobody was ever detected."
+        face_components = (face_detector, face_embedder, face_gallery)
+        given = sum(c is not None for c in face_components)
+        if given not in (0, 3):
+            raise ValueError(
+                "face_detector, face_embedder and face_gallery must be given "
+                "together or not at all - a partial set would silently "
+                "disable recognition with no signal why"
+            )
+        self._face_detector = face_detector
+        self._face_embedder = face_embedder
+        self._face_gallery = face_gallery
+        self._face_recognition_interval_s = face_recognition_interval_s
+        # FACE-WATCH-01: when given, the always-on watch replaces the
+        # presence-triggered check above as the source of face verdicts.
+        self._vision_watch = vision_watch
+        # Presence-thread-private pacing: written and read only there,
+        # never under `self._lock` (a single thread's own bookkeeping,
+        # not reportable state - `RunLoopState.face_verdict_at` is the
+        # lock-protected timestamp another thread may actually read).
+        self._last_face_check_monotonic = 0.0
+        # The in-flight (or most recently finished) face-check worker,
+        # if any - `_presence_loop` joins it before returning, and
+        # `_maybe_check_face` never starts a second one over a running
+        # first (a review, 2026-09-28: recognition used to run
+        # synchronously on the presence thread itself, delaying
+        # tracking's own enable/disable decisions by however long a
+        # capture-plus-ONNX pass takes, every few seconds while a face
+        # is present - the one case responsive tracking matters most).
+        self._face_check_thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+        self._state = RunLoopState()
+        # BODY-05: a filter over the one funnel, never a second machine. The
+        # timer lands a held change; every use is under `self._lock`.
+        self._funnel_clock = funnel_clock
+        self._settle = SettleGate(settle_gate_s, initial=FunnelState.IDLE)
+        self._settle_timer: threading.Timer | None = None
+        self._view_subscribers: list[Callable[[FunnelView], None]] = []
+        # EYES-02: wraps the one stretch where the voice leaves for the hub (the
+        # STT stream), so the live cue is true to what is sent; local wake
+        # scoring and rung 1 stay outside it.
+        self._capture_scope = capture_scope or nullcontext
+        self._cue_seq = 0
+        # A turn was lost to the link and the line about it is still
+        # owed. A plain bool, not a count: several lost turns in one
+        # outage are announced once. Only the funnel thread reads or
+        # writes it (the speak worker reports through an Event).
+        self._lost_turn_unannounced = False
+        # The presence thread's edge detector for the freefall line.
+        self._freefall_active = False
+        # LINK-STATE-01: the offline ladder. None keeps the loop exactly as
+        # it was; with one, a lost link feeds the machine, an outage answers
+        # wakes with rung 1 only, and the machine's edges are state changes.
+        self._offline = offline
+        # MOVES-01 plan react hook; optional and inert until the wire names a move.
+        self._react_hook = react_hook
+        # The speaker's age band for the allow-list; without a roster everyone is the child band.
+        self._band_of = band_of or (lambda _person: None)
+        # MOVE-CARRY-01: lifted, carried and put down. `holding` is the motion
+        # floor: no tracking, cue, breathe or move is commanded while it is true.
+        self._motion = MotionStateMachine()
+        self._motion_state = MotionState.RESTING
+        self._motion_clock = motion_clock
+        # UNVERIFIED and off by default (the profile's carry_gravity_compensation);
+        # never toggled while a MOVES-02 teach session holds it.
+        self._carry_gravity_compensation = carry_gravity_compensation
+        self._teach_active = teach_active or (lambda: False)
+        self._gravity_on_by_us = False
+        # MOVE-CARRY-01c: `robot.motion.carry_reaction` (look unless set) governs only
+        # the look and the line. The age bands of everyone present come from
+        # `presence_entries`; None, or an answer of None, means no presence
+        # information and gives the silent look.
+        self._carry_reaction = carry_reaction or (lambda: DEFAULT_CARRY_REACTION)
+        self._presence_entries = presence_entries
+        self._carry_line_index = 0
+        # KNOCK-01: a double knock wakes a sleeping robot. Both hooks are given by
+        # whoever owns the sleep state (S-EXPR-04); without `is_asleep` nothing runs.
+        self._is_asleep = is_asleep
+        self._wake_from_sleep = wake_from_sleep or (lambda: None)
+        # SLEEP-AUTO-01: the policy decides dark-and-quiet and quiet-hours sleep from the
+        # presence tick. The robot is asleep when the ladder says so or the policy does.
+        self._sleep_auto = sleep_auto
+        self._luma_source = luma_source
+        self._quiet_hours = quiet_hours or (lambda: False)
+        self._sleep_clock = sleep_clock
+        # SELF-SCENE-02: the battery and heat ladder. The body keeps its own counters and
+        # lines; `battery_status` is `get_battery_status`'s shape (percent, charging), read
+        # at most every `_POWER_INTERVAL_S`. Without it no battery ladder runs, and the
+        # state frame reports the level as unknown.
+        # The read runs on a worker, at most one per `_POWER_INTERVAL_S`; the tick only looks at
+        # the last answer, so a slow or hung source never delays the conversation loop.
+        self._battery_status = (
+            _LatestRead(battery_status, _POWER_INTERVAL_S) if battery_status is not None else None
+        )
+        self._power_warn_at = power_warn_at
+        self._screen_dim = screen_dim
+        self._power = PowerLadder()
+        self._heat = HeatLadder()
+        self._battery_seen = 0
+        self._power_dimmed = False
+        self._power_asleep = False
+        if sleep_auto is not None:
+            ladder_asleep, ladder_wake = is_asleep, self._wake_from_sleep
+
+            def _asleep_now() -> bool:
+                return bool(ladder_asleep is not None and ladder_asleep()) or sleep_auto.asleep
+
+            def _wake_all() -> None:
+                ladder_wake()
+                self._leave_auto_sleep()
+
+            self._is_asleep = _asleep_now
+            self._wake_from_sleep = _wake_all
+        self._knock_interval_s = knock_interval_s
+        self._knock = KnockDetector()
+        # TOUCH-01: an antenna push is an acknowledge, or a wake while asleep; never an
+        # offer answer. Opt-in: nothing runs without a detector.
+        self._touch = touch_detector
+        self._touch_interval_s = touch_interval_s
+        self._touch_clock = touch_clock
+        # MUTE-LOCAL-01: while muted the wake scorer is off and this hears "listen again".
+        self._unmute_listener = unmute_listener
+        # OFFER-01: the hub's offers. Without an `offer_engine` (the local spotter)
+        # every offer is refused with `no_spotter`. The frame sender is bound once
+        # the command channel exists (`bind_offer_frames`).
+        self._offer_send: Callable[[dict], bool] = lambda _frame: False
+        self._guest_app_active = guest_app_active or (lambda: False)
+        self._run_stop: threading.Event | None = None
+        self.offer = OfferController(
+            engine=offer_engine,
+            poll_blocks=lambda: self._capture.poll_blocks(),
+            render=self._render_ambient,
+            send_frame=lambda frame: self._offer_send(frame),
+            on_window=self._set_offer_window,
+            speak=self._speak_offer_line,
+            open_turn=self._open_offer_turn,
+            gates=OfferGates(
+                busy=lambda: self._current_funnel() is not FunnelState.IDLE,
+                muted=self._is_muted,
+                held=lambda: self._motion.holding,
+                asleep=lambda: bool(self._is_asleep is not None and self._is_asleep()),
+                outage=self._in_outage,
+                guest_app=lambda: self._guest_app_active(),
+                attentive=self._offer_person_attentive,
+                child_present=self._child_present,
+            ),
+        )
+        # SPEAK-02/04: with an identifier (or the vision watch) wired, every turn
+        # carries typed `speaker_evidence` and `present`; with neither, the turn
+        # carries what the legacy face check had, or nothing.
+        self._voice = voice_identifier
+        self._identity_clock = identity_clock
+        self._audience_check_interval_s = audience_check_interval_s
+        self._claim: str | None = None
+        self.last_evidence: SpeakerEvidence | None = None
+        # FOLLOWUP-01: None (the default) keeps the loop exactly as it was.
+        self._follow_up = follow_up
+        # ALARM-PLAY-01: the hub's safety alarm, distinct from the tip/fall fact.
+        self._safety_alarm = False
+        self._motion_alarm = False
+        self._alarm_word: Callable[[str], bool] | None = None
+        if offline is not None:
+            offline.machine.subscribe(lambda _old, _new: self._notify_change())
+            if offline.rung0 is not None:
+                offline.rung0.attach(
+                    render=self._render_ambient,
+                    may_drive=self._body_is_free,
+                    on_reconnect_spoken=self._reconnect_spoken,
+                )
+
+    def live_view_refusal(self) -> str | None:
+        """LIVE-VIEW-01: why the camera may not stream right now, or None."""
+        if self._motion.holding:
+            return "held"
+        with self._lock:
+            if self._state.alarm:
+                return "alarm"
+        return None
+
+    def bind_offer_frames(self, send_frame: Callable[[dict], bool]) -> None:
+        self._offer_send = send_frame
+
+    def _speak_offer_line(self, text: str) -> None:
+        """The hub's non-personal offer line, through the hub voice (the robot
+        never synthesises). Off the offer thread so the spotter window starts at
+        once; a failure is logged and never touches the offer."""
+
+        def run() -> None:
+            try:
+                self._tts.speak(text)
+            except Exception:
+                logger.warning("offer line failed", exc_info=True)
+
+        threading.Thread(target=run, name="offer-line", daemon=True).start()
+
+    def _offer_person_attentive(self, person_id: str) -> bool:
+        """The offer's person is the one the face check currently names."""
+        verdict = self._current_face_verdict()
+        return verdict is not None and verdict.person_id == person_id
+
+    def _child_present(self) -> bool:
+        entries = self._presence_entries() if self._presence_entries is not None else None
+        return any(entry.kind in ("child", "teen") for entry in entries or ())
+
+    def _open_offer_turn(self, phrase: str, offer_id: str, _person_id: str) -> None:
+        """The accept: a normal turn whose text is the heard phrase."""
+        stop = self._run_stop or threading.Event()
+        self._run_turn(stop, heard_text=phrase, ask_answer={"offer_id": offer_id, "approved": True})
+
+    def _notify_change(self) -> None:
+        if self._on_change is not None:
+            self._on_change()
+
+    def _render_ambient(self, primitive: str) -> bool:
+        """Rung 0's way onto the body: a state-driven primitive through the
+        same engine, suppression table and lock the turn cues use."""
+        return self._expression.render_ambient(primitive, self._suppression_context()).rendered
+
+    def _suppression_context(self) -> SuppressionContext:
+        return SuppressionContext(
+            muted=self._is_muted(),
+            held=self._motion.holding,
+            thermal_pressure=self._thermal_state.idle_still,
+            thermal_gestures=self._thermal_state.gestures_suspended,
+            alarm=self._safety_alarm,
+            low_power=self._power.low_power,
+            heat_stop=self._heat.motion_stopped,
+        )
+
+    def _power_motion_off(self) -> bool:
+        """Degrade and beyond, or critical heat: no head moves from tracking or reacts."""
+        return self._power.low_power or self._heat.motion_stopped
+
+    @property
+    def thermal_state(self) -> ThermalState:
+        return self._thermal_state
+
+    def thermal_frame(self) -> dict[str, object] | None:
+        """The thermal block for the state frame, or None when no monitor is wired."""
+        return None if self._thermal is None else self._thermal_state.as_frame()
+
+    def motor_status(self) -> dict[str, object]:
+        if self._motor_health is None:
+            return dict(_CLEAN_MOTORS)
+        try:
+            return self._motor_health.status()
+        except Exception:
+            logger.warning("motor status failed", exc_info=True)
+            return dict(_CLEAN_MOTORS)
+
+    def confirm_motor_reboot(self, name: str, *, person_touching: bool = False) -> bool:
+        if self._motor_health is None:
+            return False
+        return bool(self._motor_health.confirm_reboot(name, person_touching=person_touching))
+
+    def reboot_motors(self, names: list[str]) -> dict[str, list[str]]:
+        """The hub's `motor_reboot` command: only the named, offered motors, only on this
+        command, and never while the body is held (a person may be touching the head).
+        The next state frame reports the outcome, so a change is pushed right away."""
+        if self._motor_health is None:
+            return {"rebooted": [], "failed": list(names)}
+        try:
+            result = self._motor_health.reboot_motors(names, person_touching=self._held_now)
+        except Exception:
+            logger.warning("motor reboot failed", exc_info=True)
+            result = {"rebooted": [], "failed": list(names)}
+        if self._on_change is not None:
+            self._on_change()
+        return result
+
+    @property
+    def motion_state(self) -> MotionState:
+        """The latest motion state; tip and freefall outrank the held states."""
+        return self._motion_state
+
+    def _body_is_free(self) -> bool:
+        """Rung 0 may move the head only when no turn and no tracker owns it."""
+        with self._lock:
+            return self._state.funnel == FunnelState.IDLE and not self._state.tracking
+
+    def _reconnect_spoken(self) -> None:
+        """The reconnect clip said the one line, so the hub's own wording of
+        it (``LINK_RESTORED_LINE``) is no longer owed."""
+        self._lost_turn_unannounced = False
+
+    def _in_outage(self) -> bool:
+        return self._offline is not None and self._offline.machine.phase is not LinkPhase.CONNECTED
+
+    def _tracking_allowed(self) -> bool:
+        offline = self._offline
+        if offline is None or offline.rung0 is None:
+            return True
+        return offline.rung0.tracking_allowed()
+
+    @property
+    def state(self) -> RunLoopState:
+        with self._lock:
+            # `replace()`, not a manual field-by-field copy: a review
+            # (2026-09-28) caught that the old form had to be updated
+            # by hand for every new `RunLoopState` field and would
+            # otherwise silently keep returning a field's stale default
+            # forever. `trace` still needs its own fresh list - the
+            # one field a shallow copy would otherwise alias with the
+            # live, still-mutating one.
+            return replace(
+                self._state,
+                trace=list(self._state.trace),
+                shown_trace=list(self._state.shown_trace),
+            )
+
+    def subscribe_view(self, callback: Callable[[FunnelView], None]) -> None:
+        """Tell ``callback`` the funnel's ``FunnelView`` whenever the SHOWN state,
+        the mute, the held state or the alarm changes, on whichever thread made
+        the change. This and ``view()`` are the readers' whole view of the
+        funnel (the eyes' director reads nothing else of the loop)."""
+        with self._lock:
+            self._view_subscribers.append(callback)
+
+    def view(self) -> FunnelView:
+        with self._lock:
+            return self._view_locked()
+
+    def _view_locked(self) -> FunnelView:
+        state = self._state
+        return FunnelView(
+            shown=state.shown,
+            muted=state.muted,
+            held=state.held,
+            alarm=state.alarm,
+            offer=state.offer,
+            fault=state.fault,
+        )
+
+    def _emit_view(self) -> None:
+        with self._lock:
+            view = self._view_locked()
+            subscribers = list(self._view_subscribers)
+        for callback in subscribers:
+            try:
+                callback(view)
+            except Exception:
+                logger.warning("funnel subscriber failed", exc_info=True)
+
+    def _enter(self, funnel: FunnelState) -> None:
+        now = self._funnel_clock()
+        with self._lock:
+            self._state.funnel = funnel
+            self._state.trace.append(StateTransition(state=funnel, at_monotonic=now))
+            shown_changed = self._settle.offer(funnel, now)
+            if shown_changed:
+                self._record_shown_locked(now)
+            self._arm_settle_timer_locked(now)
+        logger.info("funnel: %s", funnel)
+        if shown_changed:
+            self._emit_view()
+        if self._on_change is not None:
+            self._on_change()
+
+    def _record_shown_locked(self, now: float) -> None:
+        shown = self._settle.shown
+        self._state.shown = shown
+        self._state.shown_trace.append(StateTransition(state=shown, at_monotonic=now))
+
+    def _arm_settle_timer_locked(self, now: float) -> None:
+        if self._settle_timer is not None:
+            self._settle_timer.cancel()
+            self._settle_timer = None
+        due = self._settle.due_in(now)
+        if due is None:
+            return
+        timer = threading.Timer(due, self._land_held_state)
+        timer.daemon = True
+        self._settle_timer = timer
+        timer.start()
+
+    def _land_held_state(self) -> None:
+        now = self._funnel_clock()
+        with self._lock:
+            landed = self._settle.flush(now)
+            if landed:
+                self._record_shown_locked(now)
+            self._arm_settle_timer_locked(now)
+        if landed:
+            self._emit_view()
+            if self._on_change is not None:
+                self._on_change()
+
+    def _cancel_settle_timer(self) -> None:
+        with self._lock:
+            if self._settle_timer is not None:
+                self._settle_timer.cancel()
+                self._settle_timer = None
+
+    def snapshot(self) -> dict[str, object]:
+        """Return the reportable funnel state without exposing live state."""
+        with self._lock:
+            activity = self._state.shown.value
+            idle = self._state.shown == FunnelState.IDLE
+        if idle and self._offline is not None:
+            phase = self._offline.machine.phase
+            if phase is not LinkPhase.CONNECTED:
+                activity = phase.value  # `reconnecting` or `sleeping` (spec-v0.1.73)
+        with self._lock:
+            frame: dict[str, object] = {
+                "activity": activity,
+                "muted": self._state.muted,
+                "tracking": self._state.tracking,
+            }
+        if self._vision_watch is not None:
+            frame["watch_level"] = self._vision_watch.device_level
+        # spec-v0.1.147: reported only where the monitor is wired, because omission
+        # means "this producer does not report it" and a default would claim health.
+        if self._motor_health is not None:
+            frame.update(self.motor_status())
+        thermal = self.thermal_frame()
+        if thermal is not None:
+            frame["thermal"] = thermal
+        # SELF-SCENE-02: reported only where a battery source is wired (omission means "this
+        # producer does not report it"). `low_power` is true from the degrade rung on.
+        if self._battery_status is not None:
+            frame["battery_level"] = self._power.percent
+            frame["charging"] = self._power.charging
+            frame["low_power"] = self._power.low_power
+            if self._power.charging is not None:
+                frame["on_battery"] = not self._power.charging
+        return frame
+
+    def set_watch_level(self, level: Literal["off", "presence", "identify"]) -> None:
+        """The device's `robot.camera.watch_level`, from the hub's settings_changed."""
+        if self._vision_watch is None:
+            return
+        self._vision_watch.set_device_level(level)
+        if self._on_change is not None:
+            self._on_change()
+
+    def _current_funnel(self) -> FunnelState:
+        with self._lock:
+            return self._state.funnel
+
+    def _is_muted(self) -> bool:
+        with self._lock:
+            return self._state.muted
+
+    def _current_face_verdict(self) -> FaceVerdict | None:
+        """The most recent face verdict, or `None` if there isn't one
+        or it's gone stale (`_FACE_VERDICT_STALE_AFTER_S`) - never a
+        verdict from a face that may no longer be there answering for
+        an utterance that just started."""
+        if self._vision_watch is not None:
+            return self._vision_watch.current().verdict  # applies its own staleness
+        with self._lock:
+            verdict = self._state.face_verdict
+            verdict_at = self._state.face_verdict_at
+        if verdict is None or verdict_at is None:
+            return None
+        if time.monotonic() - verdict_at > _FACE_VERDICT_STALE_AFTER_S:
+            return None
+        return verdict
+
+    def _next_cue_seq(self) -> int:
+        # Called from both the main funnel thread and the speak worker
+        # thread's own on_first_chunk callback (a review, 2026-09-28,
+        # caught this: `+=` on a plain attribute is not atomic, so a
+        # GIL switch between the load and the store could duplicate or
+        # drop a sequence number when both threads race here during
+        # barge-in).
+        with self._lock:
+            self._cue_seq += 1
+            return self._cue_seq
+
+    def _render(self, cue: Cue) -> None:
+        self._expression.handle(cue, self._suppression_context())
+
+    def _link_lost(self, reason: str = "the hub stopped answering") -> None:
+        """Section 7: loss of the hub mid-turn is `cancel`, `link_lost`.
+        Renders it once (the stop primitive holds the pose, so the head
+        settles where it is) and owes the one line on reconnect. With the
+        offline ladder it also tells the machine, which starts the walk."""
+        self._render(Cue(phase=Phase.CANCEL, cue_seq=self._next_cue_seq()))
+        self._lost_turn_unannounced = True
+        if self._offline is not None:
+            self._offline.machine.link_lost(reason)
+
+    def set_muted(self, muted: bool) -> None:
+        """The software-mute toggle's own entry point (G8's own state,
+        distinct from barge-in's per-turn cancel): "capture continues
+        but zero blocks reach the wake scorer" once set. Nothing in
+        this repo calls this yet - the actual command to mute lives in
+        G10's own device-state frame, not built this pass - but the
+        mechanism itself is real and ready: it updates the funnel's own
+        state (gating `_poll_wake`) and renders the muted pose through
+        `ExpressionEngine.set_muted()`'s own edge-triggered contract."""
+        if muted == self._is_muted():
+            return
+        arbitration = ArbitrationState(expression_active=self._current_funnel() != FunnelState.IDLE)
+        self._expression.set_muted(muted, arbitration)
+        with self._lock:
+            self._state.muted = muted
+        self._emit_view()
+        if self._on_change is not None:
+            self._on_change()
+
+    def set_safety_alarm(self, active: bool) -> None:
+        """ALARM-PLAY-01: the hub's alarm is live (or cleared). Holds the alarm pose
+        through mute, sleep and quiet hours, ORs the amber pulse into the funnel's
+        alarm fact, and stops a reply in progress so the alarm is heard. Wake
+        handling is skipped while it is live (see `_poll_wake`)."""
+        with self._lock:
+            if self._safety_alarm == active:
+                return
+            self._safety_alarm = active
+            held, motion_alarm = self._state.held, self._motion_alarm
+        if active:
+            self._playback.stop()
+        setter = getattr(self._expression, "set_alarm", None)
+        if setter is not None:
+            setter(active)
+        self._publish_motion_facts(held, motion_alarm)
+
+    def set_alarm_word_handler(self, handler: Callable[[str], bool] | None) -> None:
+        """Where a spotted stop word goes while an alarm is live."""
+        self._alarm_word = handler
+
+    def run(self, stop_event: threading.Event) -> None:
+        """Blocks until `stop_event` is set. Runs the presence tick on
+        its own thread; the wake-then-turn loop on this one."""
+        presence_thread = threading.Thread(
+            target=self._presence_loop, args=(stop_event,), name="presence", daemon=True
+        )
+        presence_thread.start()
+        if self._vision_watch is not None:
+            threading.Thread(
+                target=self._vision_watch.run, args=(stop_event,), name="vision-watch", daemon=True
+            ).start()
+
+        knock_thread = None
+        if self._is_asleep is not None:
+            knock_thread = threading.Thread(
+                target=self._knock_loop, args=(stop_event,), name="knock", daemon=True
+            )
+            knock_thread.start()
+        touch_thread = None
+        if self._touch is not None:
+            touch_thread = threading.Thread(
+                target=self._touch_loop, args=(stop_event,), name="touch", daemon=True
+            )
+            touch_thread.start()
+        self._capture.start()
+        self._run_stop = stop_event
+        try:
+            while not stop_event.is_set():
+                event = self._poll_wake(stop_event)
+                if event is None:
+                    continue
+                if self._in_outage() and not self._retry_link():
+                    self._run_offline_command(stop_event)
+                else:
+                    self._run_turn(stop_event)
+        finally:
+            self._cancel_settle_timer()
+            self._capture.stop()
+            presence_thread.join(timeout=2.0)
+            if knock_thread is not None:
+                knock_thread.join(timeout=2.0)
+            if touch_thread is not None:
+                touch_thread.join(timeout=2.0)
+            close_expression = getattr(self._expression, "close", None)
+            if close_expression is not None:
+                close_expression()
+
+    def _poll_wake(self, stop_event: threading.Event):
+        """Blocks (politely) until the wake word fires or `stop_event`
+        is set. Skipped entirely while muted (G8's own contract:
+        "capture continues but zero blocks reach the wake scorer")."""
+        while not stop_event.is_set():
+            if self.offer.service():
+                # An offer window owns the audio: the local spotter hears it, the
+                # wake scorer does not, and nothing leaves the robot.
+                stop_event.wait(_WAKE_POLL_SLEEP_S)
+                continue
+            if self._safety_alarm:
+                # A live alarm owns the room: no wake, no turn. The stop word is
+                # still listened for (one acknowledgement; the hub ends the alarm).
+                self._listen_for_alarm_word(self._capture.poll_blocks())
+                stop_event.wait(_WAKE_POLL_SLEEP_S)
+                continue
+            if self._is_muted():
+                # Drained, never scored and never sent anywhere, while muted. The
+                # one exception is the local unmute phrase, heard on this robot only.
+                blocks = self._capture.poll_blocks()
+                if self._unmute_listener is not None and self._heard_unmute(blocks):
+                    self.set_muted(False)  # renders `settle` and tells the card
+                stop_event.wait(_WAKE_POLL_SLEEP_S)
+                continue
+            for block in self._capture.poll_blocks():
+                wake_event = self._wake.poll(block)
+                if wake_event is not None:
+                    return wake_event
+            stop_event.wait(_WAKE_POLL_SLEEP_S)
+        return None
+
+    def _listen_for_alarm_word(self, blocks) -> None:
+        detector, handler = self._stop_detector, self._alarm_word
+        if detector is None or handler is None:
+            return
+        try:
+            if any([detector.accept(block) for block in blocks]):
+                detector.reset()
+                handler("stop")
+        except Exception:
+            logger.warning("alarm stop word handling failed", exc_info=True)
+
+    def _heard_unmute(self, blocks) -> bool:
+        assert self._unmute_listener is not None
+        try:
+            return any([self._unmute_listener.feed(block) for block in blocks])
+        except Exception:
+            logger.warning("unmute listener failed", exc_info=True)
+            return False
+
+    def _retry_link(self) -> bool:
+        """A wake during an outage first walks the addresses once, at once,
+        so a hub that already came back is used with no dead time. True
+        means the link is up and the wake runs as a normal turn."""
+        offline = self._offline
+        if offline is not None and offline.retry_link is not None:
+            try:
+                offline.retry_link()
+            except Exception:
+                logger.warning("wake-time address walk failed", exc_info=True)
+        return not self._in_outage()
+
+    def _run_offline_command(self, stop_event: threading.Event) -> None:
+        """Rung 1: a wake during an outage listens for one of the closed
+        list of local commands and nothing else. No STT stream, no turn, no
+        queue: a phrase off the list is dropped (the gate only counts the
+        refusal) and the funnel never leaves `idle` for it. A command
+        shows `speaking` for its fixed reply and goes back to `idle`.
+        A wake is never silent: the acknowledgement animation always plays,
+        and with no keyword spotter wired the rung 2 status line is the reply."""
+        offline = self._offline
+        assert offline is not None
+        self._render_ambient(_WAKE_ACK_PRIMITIVE)
+        if offline.recognizer is None or offline.router is None:
+            # No keyword spotter wired (its CPU cost is UNVERIFIED).
+            self._speak_status_line(stop_event)
+            return
+        try:
+            heard = offline.recognizer.listen(self._capture, stop_event)
+        except Exception:
+            logger.warning("local command recognizer failed", exc_info=True)
+            return
+        command = route_phrase(heard) if heard else None
+        if command is None:
+            if heard:
+                offline.gate.offer(ReplayItem(item_id=uuid.uuid4().hex, text=heard))
+            return
+        reply = offline.router.handle(command)
+        offline.last_reply = reply
+        self._speak_reply(reply, command, stop_event)
+        if command is LocalCommand.STOP_LISTENING:
+            self.set_muted(True)  # MUTE-LOCAL-01: spoken first, then the muted pose
+            if self._unmute_listener is not None:
+                self._unmute_listener.reset()
+        elif command is LocalCommand.LISTEN_AGAIN:
+            self.set_muted(False)
+
+    def _speak_status_line(self, stop_event: threading.Event) -> None:
+        """Rung 2: the status line built from the machine's real values."""
+        offline = self._offline
+        assert offline is not None
+        status = offline.status()
+        speaker = offline.speaker
+        selected = (
+            speaker.selected_variant(status.clip_ids[0])
+            if speaker is not None and status.clip_ids and hasattr(speaker, "selected_variant")
+            else None
+        )
+        reply = Reply(
+            selected[1] if selected else status.text,
+            (selected[0],) if selected else status.clip_ids,
+        )
+        offline.last_reply = reply
+        self._speak_reply(reply, None, stop_event)
+
+    def _knock_loop(self, stop_event: threading.Event) -> None:
+        while not stop_event.wait(self._knock_interval_s):
+            self._knock_tick(stop_event)
+
+    def _knock_tick(self, stop_event: threading.Event) -> None:
+        """KNOCK-01: one IMU read into the detector. Only a sleeping robot listens;
+        never while held, tipped or falling, and never while a turn runs."""
+        if self._is_asleep is None or not self._is_asleep():
+            self._knock.reset()
+            return
+        try:
+            reading = self._client.read()
+        except Exception:
+            logger.warning("knock IMU read failed", exc_info=True)
+            return
+        suppressed = (
+            self._motion.holding
+            or self._motion_state in (MotionState.TIPPED, MotionState.FREEFALL)
+            or self._current_funnel() != FunnelState.IDLE
+        )
+        if not self._knock.update(reading, self._motion_clock(), suppressed=suppressed):
+            return
+        try:
+            self._wake_from_sleep()
+            self._render_ambient(_WAKE_ACK_PRIMITIVE)
+            if self._offline is not None:
+                self._speak_status_line(stop_event)
+        except Exception:
+            logger.warning("knock wake failed", exc_info=True)
+
+    def _touch_loop(self, stop_event: threading.Event) -> None:
+        while not stop_event.wait(self._touch_interval_s):
+            self._touch_tick(stop_event)
+
+    def _touch_tick(self, stop_event: threading.Event) -> None:
+        """TOUCH-01: one look at the worker's commanded and observed antennas.
+
+        Never while held, tipped or falling, and never over a turn. The meaning is
+        wake (asleep) or acknowledge (idle); a touch does not answer an offer."""
+        assert self._touch is not None
+        probe_fn = getattr(self._expression, "antenna_probe", None)
+        probe = probe_fn() if probe_fn is not None else None
+        if probe is None:
+            return
+        commanded, present, driven_at = probe
+        now = self._touch_clock()
+        driving = driven_at is not None and now - driven_at <= _TOUCH_DRIVE_WINDOW_S
+        event = self._touch.update(commanded, present, now_s=now, driving=driving)
+        if event is None:
+            return
+        if (
+            self._motion.holding
+            or self._motion_state in (MotionState.TIPPED, MotionState.FREEFALL)
+            or self._current_funnel() != FunnelState.IDLE
+        ):
+            return
+        try:
+            if self._is_asleep is not None and self._is_asleep():
+                self._wake_from_sleep()
+                self._render_ambient(_WAKE_ACK_PRIMITIVE)
+                if self._offline is not None:
+                    self._speak_status_line(stop_event)
+            else:
+                self._render_ambient(_WAKE_ACK_PRIMITIVE)
+        except Exception:
+            logger.warning("touch reaction failed", exc_info=True)
+
+    def _speak_reply(
+        self, reply: Reply, command: LocalCommand | None, stop_event: threading.Event
+    ) -> None:
+        offline = self._offline
+        assert offline is not None
+        self._enter(FunnelState.SPEAKING)
+        try:
+            if command is LocalCommand.STOP:
+                self._playback.stop()
+                self._render(Cue(phase=Phase.CANCEL, cue_seq=self._next_cue_seq()))
+            speaker = offline.speaker
+            if speaker is not None and reply.clip_ids and speaker.can_say(reply.clip_ids):
+                speaker.say(reply.clip_ids, stop_event=stop_event)
+        except Exception:
+            logger.warning("rung 1 reply failed", exc_info=True)
+        finally:
+            self._enter(FunnelState.IDLE)
+
+    def _run_turn(
+        self,
+        stop_event: threading.Event,
+        *,
+        heard_text: str | None = None,
+        ask_answer: dict[str, Any] | None = None,
+    ) -> None:
+        """One wake's worth of conversation: the turn the wake opened, then
+        (FOLLOWUP-01) another for each follow-up window the speaker's policy
+        allows, with no wake word between them."""
+        window = self._one_turn(stop_event, None, heard_text=heard_text, ask_answer=ask_answer)
+        while window and not stop_event.is_set():
+            window = self._one_turn(stop_event, window)
+
+    def _one_turn(
+        self,
+        stop_event: threading.Event,
+        follow_up_s: float | None,
+        *,
+        heard_text: str | None = None,
+        ask_answer: dict[str, Any] | None = None,
+    ) -> float | None:
+        """One listen, think and speak. Returns the seconds the stream should
+        reopen for (the follow-up window), or None when it should not."""
+        if self._hub_credentials is not None:
+            try:
+                session_cookie, base_url = self._hub_credentials()
+            except Exception:
+                logger.warning(
+                    "failed to refresh hub credentials; keeping current clients", exc_info=True
+                )
+            else:
+                credentials = (session_cookie, base_url)
+                if credentials != self._current_hub_credentials:
+                    logger.info("hub session cookie rotated, reconstructing hub clients")
+                    self._stt = SttStreamClient(base_url, session_cookie)
+                    self._turn = TurnClient(base_url, session_cookie)
+                    self._tts = TtsPlaybackClient(base_url, session_cookie, self._playback)
+                    self._current_hub_credentials = credentials
+        stt_result = None
+        if heard_text is None:
+            self._enter(FunnelState.LISTENING)
+            if follow_up_s is None:
+                self._render(Cue(phase=Phase.HEARD, cue_seq=self._next_cue_seq()))
+
+            try:
+                with self._capture_scope():
+                    if follow_up_s is None:
+                        stt_result = self._stt.run(self._capture)
+                    else:
+                        stt_result = self._stt.run(self._capture, patience_s=follow_up_s)
+            except Exception as exc:
+                logger.warning("stt stream failed; back to idle", exc_info=True)
+                # The listen cue already moved the head; a lost stream is a
+                # lost turn, so it settles and is announced like any other.
+                self._link_lost(f"speech stream lost: {exc}")
+                self._enter(FunnelState.IDLE)
+                return None
+
+            if stt_result.kind != "final" or not stt_result.text:
+                self._enter(FunnelState.IDLE)
+                return None
+            turn_text = stt_result.text
+        else:
+            # OFFER-01: the phrase was heard locally by the spotter, so there is
+            # no speech stream to run; the phrase is the turn's text.
+            turn_text = heard_text
+
+        self._enter(FunnelState.THINKING)
+        reply_text: str | None = None
+        turn_id: str | None = None
+        cancelled = False
+        react_move: str | None = None
+        react_allowed = False
+        generation: int | None = None
+        evidence, present = self._speaker_context(stt_result)
+        self.last_evidence = evidence
+        turn_kwargs: dict[str, Any] = {"speaker_evidence": evidence}
+        if present is not None:
+            turn_kwargs["present"] = present
+        if ask_answer is not None:
+            turn_kwargs["ask_answer"] = ask_answer
+        try:
+            for turn_event in self._turn.stream(turn_text, **turn_kwargs):
+                if turn_event.turn_id:
+                    turn_id = turn_event.turn_id
+                if turn_event.generation is not None:
+                    generation = turn_event.generation
+                if turn_event.react_move:
+                    react_move = turn_event.react_move
+                if turn_event.cue is not None:
+                    if turn_event.cue.phase is Phase.SIGNAL:
+                        react_allowed = turn_event.cue.react_allowed
+                    if turn_event.cue.phase is Phase.CANCEL:
+                        cancelled = True
+                        self._render(turn_event.cue)
+                    elif turn_event.cue.phase is not Phase.DONE:
+                        # The turn stream's own DONE means "the reply
+                        # text is fully known" - a different moment from
+                        # "done speaking it." Rendering it here would
+                        # fire the settle primitive before speech even
+                        # starts; _speak() below renders the real DONE
+                        # once playback actually finishes (or CANCEL on
+                        # a barge-in instead).
+                        self._render(turn_event.cue)
+                if turn_event.reply_text is not None:
+                    reply_text = turn_event.reply_text
+        except (TurnLinkLost, requests.RequestException) as exc:
+            logger.warning("turn stream link lost", exc_info=True)
+            self._link_lost(f"turn stream lost: {exc}")
+            self._enter(FunnelState.IDLE)
+            return None
+
+        if cancelled or not reply_text:
+            self._enter(FunnelState.IDLE)
+            return None
+
+        announce = self._lost_turn_unannounced
+        if announce and self._say_clip(RECONNECT_CLIP, "I'm back in touch with home."):
+            # The clip is the line; it queues ahead of the reply's own audio.
+            self._lost_turn_unannounced = False
+            announce = False
+        text = f"{LINK_RESTORED_LINE} {reply_text}" if announce else reply_text
+        # SPEAK-02: a reply that may carry `sensitive` records is spoken only to a
+        # confirmed speaker who is alone, and that is looked at again as it is spoken.
+        guard = (
+            (lambda: self._still_alone(evidence))
+            if evidence is not None and sensitive_allowed(evidence, present)
+            else None
+        )
+        self._speak_cut = False
+        link_dropped = self._speak(
+            text, turn_id, stop_event, generation=generation, audience_guard=guard
+        )
+        if not link_dropped and announce:
+            self._lost_turn_unannounced = False
+        self._enter(FunnelState.IDLE)
+        if react_move and self._react_hook is not None and not stop_event.is_set():
+            self._play_react(react_move, react_allowed)
+        return self._follow_up_window(evidence, stop_event, lost=link_dropped)
+
+    def _follow_up_window(
+        self, evidence: SpeakerEvidence | None, stop_event: threading.Event, *, lost: bool
+    ) -> float | None:
+        """FOLLOWUP-01: how long to reopen the stream, after the tail, for this
+        speaker. Never after a barge-in, a lost link, a mute, a hold or a stop."""
+        if self._follow_up is None or lost or self._speak_cut or stop_event.is_set():
+            return None
+        if self._is_muted() or self._motion.holding or self._in_outage():
+            return None
+        if self._is_asleep is not None and self._is_asleep():
+            return None
+        seconds = self._follow_up.window(evidence)
+        return seconds if seconds > 0 else None
+
+    # -- SPEAK-02 / SPEAK-04: who is speaking, who is present ---------------
+
+    def _face_view(self) -> tuple[FaceVerdict | None, int]:
+        """The nearest face's verdict and how many faces are in view now."""
+        if self._vision_watch is not None:
+            snapshot = self._vision_watch.current()
+            return snapshot.verdict, snapshot.present
+        verdict = self._current_face_verdict()
+        return verdict, 1 if verdict is not None else 0
+
+    def _read_doa(self) -> float | None:
+        try:
+            reading = self._client.get_doa()  # type: ignore[union-attr]
+        except Exception:
+            return None
+        return None if reading is None else float(reading.angle_rad)
+
+    def claim_speaker(self, person_id: str) -> None:
+        """The answer to the who-is-speaking ask, for the next turn only
+        (identity is per turn, never sticky). It is a claim, never access: it
+        is `tentative`, and an enrolled print that disagrees makes the turn
+        `unknown`."""
+        if not _PERSON_ID_RE.match(person_id):
+            raise ValueError(f"claimed person must look like person-xxxxxx, got {person_id!r}")
+        self._claim = person_id
+
+    def _box_view(self) -> dict[str, Any]:
+        """SCENE-01g: the watch's person boxes (the fast detector) and face boxes, as the
+        `build_present` keywords. Geometry only; empty where no watch or no fast detector."""
+        if self._vision_watch is None:
+            return {}
+        snapshot = self._vision_watch.current()
+        return {
+            "person_boxes": tuple(getattr(snapshot, "person_boxes", ()) or ()),
+            "face_boxes": tuple(getattr(snapshot, "face_boxes", ()) or ()),
+        }
+
+    def _speaker_context(
+        self, stt_result: Any
+    ) -> tuple[SpeakerEvidence | None, list[PresentEntry] | None]:
+        face, faces = self._face_view()
+        if self._voice is None and self._vision_watch is None and face is None:
+            return None, None  # no identity machinery wired: the turn says nothing
+        now = self._identity_clock()
+        voice_evidence: SpeakerEvidence | None = None
+        voice_present: list[PresentEntry] = []
+        if self._voice is not None:
+            audio = getattr(stt_result, "audio", None)
+            speech_s = getattr(stt_result, "speech_s", None)
+            if audio is not None and speech_s is not None:
+                voice_evidence = self._voice.evidence(
+                    audio, speech_s=speech_s, doa=self._read_doa(), now=now
+                )
+            else:
+                voice_evidence = unknown_evidence()
+            voice_present = list(self._voice.present(now=now))
+        evidence = fuse(voice_evidence, face, faces_in_view=faces)
+        evidence = self._apply_claim(evidence, voice_evidence, face, faces)
+        present = build_present(
+            voice_present,
+            face,
+            faces_in_view=faces,
+            speaker_voice_unknown=voice_evidence is not None
+            and voice_evidence["level"] == "unknown",
+            **self._box_view(),
+        )
+        return evidence, present
+
+    def _apply_claim(
+        self,
+        evidence: SpeakerEvidence,
+        voice_evidence: SpeakerEvidence | None,
+        face: FaceVerdict | None,
+        faces: int,
+    ) -> SpeakerEvidence:
+        claim, self._claim = self._claim, None
+        if claim is None:
+            return evidence
+        if evidence["person"] == claim and evidence["level"] != "unknown":
+            return evidence  # the body already knows it is them
+        heard = voice_evidence["person"] if voice_evidence is not None else None
+        seen = face.person_id if face is not None and faces == 1 else None
+        return claimed_evidence(claim, contradicted_by=(heard, seen))
+
+    def _still_alone(self, evidence: SpeakerEvidence | None) -> bool:
+        """The delivery-time recheck: the speaker is still the only one present."""
+        face, faces = self._face_view()
+        voice_present = list(self._voice.present(now=self._identity_clock())) if self._voice else []
+        return sensitive_allowed(
+            evidence,
+            build_present(voice_present, face, faces_in_view=faces, **self._box_view()),
+        )
+
+    def speaker_snapshot(self) -> tuple[SpeakerEvidence, list[PresentEntry]]:
+        """Evidence and `present` without an utterance (face and recent voices
+        only), for a spotted word that is too short to embed."""
+        face, faces = self._face_view()
+        now = self._identity_clock()
+        voice_present = list(self._voice.present(now=now)) if self._voice else []
+        return fuse(None, face, faces_in_view=faces), build_present(
+            voice_present, face, faces_in_view=faces, **self._box_view()
+        )
+
+    def _say_clip(self, clip_id: str, fallback_text: str | None = None) -> bool:
+        """Speaks one offline clip when the bundle can; False when it cannot
+        (no ladder, no speaker, unrendered clip, playback failure)."""
+        speaker = self._offline.speaker if self._offline is not None else None
+        if speaker is None:
+            return False
+        try:
+            if hasattr(speaker, "say_phrase"):
+                spoke = bool(speaker.say_phrase(clip_id, fallback_text=fallback_text))
+                return spoke
+            if not speaker.can_say([clip_id]):
+                return False
+            return bool(speaker.say([clip_id]))
+        except Exception:
+            logger.warning("offline clip %r failed", clip_id, exc_info=True)
+            return False
+
+    def _play_react(self, move: str, react_allowed: bool) -> None:
+        """After the reply; move failure is logged and never loses the turn."""
+        if self._motion.holding:
+            logger.info("react move %r skipped: the body is held", move)
+            return
+        if self._thermal_state.gestures_suspended:
+            logger.info("react move %r skipped: gestures are suspended while warm", move)
+            return
+        if self._power_motion_off():
+            logger.info("react move %r skipped: low power or too hot", move)
+            return
+        try:
+            self._react_hook(
+                move,
+                ArbitrationState(),
+                react_allowed=react_allowed,
+                muted=self._is_muted(),
+                band=effective_band(self.last_evidence, self._band_of)[0],
+            )
+        except Exception:
+            logger.warning("react move %r failed", move, exc_info=True)
+
+    def _speak(
+        self,
+        reply_text: str,
+        turn_id: str | None,
+        outer_stop_event: threading.Event,
+        *,
+        generation: int | None = None,
+        audience_guard: Callable[[], bool] | None = None,
+    ) -> bool:
+        """Speak the reply; returns True when the link dropped under it.
+
+        `audience_guard` (SPEAK-02) is the delivery-time recheck for a reply that
+        may carry sensitive records: when it turns False (someone walked in) the
+        reply stops mid-sentence, like a barge-in, and settles."""
+        self._enter(FunnelState.SPEAKING)
+        barge_in = threading.Event()
+        link_lost = threading.Event()
+        if self._stop_detector is not None:
+            self._stop_detector.reset()
+        speech_started = self._funnel_clock()
+
+        def _on_first_chunk() -> None:
+            self._render(Cue(phase=Phase.SPEAK, cue_seq=self._next_cue_seq()))
+
+        speak_thread = threading.Thread(
+            target=self._speak_worker,
+            args=(reply_text, barge_in, _on_first_chunk, link_lost, turn_id, generation),
+            daemon=True,
+        )
+        speak_thread.start()
+        next_audience_check = self._funnel_clock()
+
+        # Wake scoring keeps running while speaking (G8): a fresh wake
+        # is the barge-in trigger, not a second detector. Stops the
+        # instant barge_in is set (a review, 2026-09-28, caught the
+        # original `while speak_thread.is_alive():` still polling for
+        # another tick after the first hit - the worker takes a moment
+        # to actually exit, and a second wake block scored from the
+        # same barge-in utterance would call _cancel_turn and render
+        # CANCEL a second time).
+        while speak_thread.is_alive() and not barge_in.is_set():
+            if outer_stop_event.is_set():
+                barge_in.set()
+                break
+            if audience_guard is not None and self._funnel_clock() >= next_audience_check:
+                next_audience_check = self._funnel_clock() + self._audience_check_interval_s
+                if not audience_guard():
+                    barge_in.set()
+                    self._speak_cut = True
+                    if turn_id is not None:
+                        self._cancel_turn(turn_id)
+                    self._playback.flush()
+                    self._expression.render_primitive("settle", self._suppression_context())
+                    break
+            for block in self._capture.poll_blocks():
+                if self._barge_trigger(block, speech_started):
+                    barge_in.set()
+                    self._speak_cut = True
+                    # All four actions: cancel the turn, flush what is queued
+                    # (the stop is the playback's own), freeze via the CANCEL cue.
+                    if turn_id is not None:
+                        self._cancel_turn(turn_id)
+                    self._playback.flush()
+                    self._render(Cue(phase=Phase.CANCEL, cue_seq=self._next_cue_seq()))
+                    break
+            time.sleep(_WAKE_POLL_SLEEP_S)
+        # No timeout: a review (2026-09-28) found the prior 5s bound let
+        # _speak return while the worker was still blocked mid-network-
+        # read, so the next turn could spawn a second speak_thread that
+        # overlapped the first on the same (unlocked) AudioPlayback,
+        # corrupting playback. Correctness beats latency here - the
+        # wait is bounded anyway, by the TTS client's own (10, 120)s
+        # connect/read timeout, which barge-in's stop_event usually
+        # beats by checking between every streamed chunk.
+        speak_thread.join()
+        try:
+            if barge_in.is_set():
+                return False
+            if link_lost.is_set():
+                # Mid-sentence loss: the reply was not finished, so this is a
+                # cancel, never the settle a finished reply earns.
+                self._link_lost("speech playback lost the hub")
+                return True
+            self._render(Cue(phase=Phase.DONE, cue_seq=self._next_cue_seq()))
+            return False
+        finally:
+            self._hold_for_tail(outer_stop_event)
+
+    def _barge_trigger(self, block, speech_started: float) -> bool:
+        """Wake, the local stop word, or (only with the open-mic setting on) talk-over."""
+        if self._wake.poll(block) is not None:
+            return True
+        if self._stop_detector is not None and self._stop_detector.accept(block):
+            return True
+        if self._open_mic:
+            mic_rms = (
+                float(np.sqrt(np.mean(np.square(block, dtype="float64")))) if len(block) else 0.0
+            )
+            return talk_over(
+                mic_rms, self._playback.recent_rms(), self._funnel_clock() - speech_started
+            )
+        return False
+
+    def _hold_for_tail(self, stop_event: threading.Event) -> None:
+        """The capture is drained, never scored, until 450 ms after the last played
+        sample, so the robot's own last syllable cannot wake it (G7 amended)."""
+        until = self._playback.listen_again_at()
+        while not stop_event.is_set() and self._funnel_clock() < until:
+            self._capture.poll_blocks()
+            stop_event.wait(min(_WAKE_POLL_SLEEP_S, max(0.0, until - self._funnel_clock())))
+        self._wake.reset()
+
+    def _speak_worker(
+        self,
+        reply_text,
+        stop_event: threading.Event,
+        on_first_chunk,
+        link_lost: threading.Event,
+        turn_id: str | None = None,
+        generation: int | None = None,
+    ) -> None:
+        try:
+            self._tts.speak(
+                reply_text,
+                on_first_chunk=on_first_chunk,
+                stop_event=stop_event,
+                turn_id=turn_id,
+                generation=generation,
+            )
+        except (TtsLinkLost, requests.RequestException):
+            logger.warning("tts playback failed", exc_info=True)
+            link_lost.set()
+        finally:
+            self._playback.stop()
+
+    def _cancel_turn(self, turn_id: str) -> None:
+        try:
+            self._turn.cancel(turn_id)
+        except (TurnLinkLost, requests.RequestException):
+            logger.warning("turn cancel failed", exc_info=True)
+
+    def _presence_loop(self, stop_event: threading.Event) -> None:
+        """Enables the daemon's own tracker when a face is present and
+        nothing higher-priority is active - G11's own floor ("nothing
+        beyond G9: wire presence and tracking into the run loop"),
+        satisfied here rather than as a separate item. The gap-audit's
+        own G9 text names the rule directly: "tracking enabled when a
+        face is present and no turn is speaking, disabled under stop
+        and service" - a body-specific carve-out, not the general
+        arbitration priority table (`arbitration.py`'s own comment
+        elsewhere: tracking outranks expression, so a generic
+        `tracking_may_drive()`/`expression_may_drive()` check would
+        NOT block tracking during `speak` on priority alone). `speak`'s
+        own sway motion and the daemon's own tracker would otherwise
+        both drive the head at once - the literal conflict `dev.md`'s
+        own G9 section calls out to settle in code, not by default -
+        so `speaking` is checked explicitly here, beside (not instead
+        of) `tracking_may_drive()`'s own stop/service check."""
+        while not stop_event.wait(self._presence_interval_s):
+            self._presence_tick(stop_event)
+
+        if self._face_check_thread is not None:
+            self._face_check_thread.join(timeout=_FACE_CHECK_JOIN_TIMEOUT_S)
+
+    def _drive_attention(self, observation: PresenceObservation, held: bool) -> None:
+        """S-EXPR-04: feed gaze and idle, or release both when motion may not drive."""
+        assert self._attention is not None
+        if held or self._power_motion_off() or not self._tracking_allowed():
+            self._attention.release()
+            return
+        try:
+            self._attention.step(observation)
+        except Exception:
+            logger.warning("attention step failed", exc_info=True)
+
+    def _presence_tick(self, stop_event: threading.Event) -> None:
+        try:
+            observation = read_presence(self._client)
+        except Exception:
+            logger.warning("presence read failed", exc_info=True)
+            return
+        # Update the carry state first, so the tip/freefall override and the
+        # latched held state describe the same IMU sample before any reaction.
+        was_held = self._motion.holding
+        self._motion_state = self._motion.update(observation.imu, self._motion_clock())
+        held = self._motion.holding
+        self._publish_motion_facts(
+            held, self._motion_state in (MotionState.TIPPED, MotionState.FREEFALL)
+        )
+        self._on_freefall(observation.freefall_detected)
+        arbitration = ArbitrationState(tracking_active=observation.face_detected)
+        not_speaking = self._current_funnel() != FunnelState.SPEAKING
+        should_track = (
+            tracking_may_drive(arbitration)
+            and not_speaking
+            and self._tracking_allowed()
+            and not held
+        )
+        with self._lock:
+            already_tracking = self._state.tracking
+        if self._attention is not None:
+            self._drive_attention(observation, held)
+        elif should_track and not already_tracking:
+            self._client.enable_tracking()
+            with self._lock:
+                self._state.tracking = True
+            if self._on_change is not None:
+                self._on_change()
+        elif not should_track and already_tracking and self._attention is None:
+            self._client.disable_tracking()
+            with self._lock:
+                self._state.tracking = False
+            if self._on_change is not None:
+                self._on_change()
+
+        try:
+            if held and not was_held:
+                self._on_lifted()
+            elif was_held and not held:
+                self._on_put_down()
+        except Exception:
+            logger.warning("carry hold handling failed", exc_info=True)
+
+        if observation.face_detected and self._vision_watch is None:
+            self._maybe_check_face(stop_event)
+        self._safety_ticks(held)
+        self._power_tick(held)
+        self._sleep_tick(observation, held)
+
+    def _sleep_tick(self, observation: PresenceObservation, held: bool) -> None:
+        """SLEEP-AUTO-01: one presence tick into the policy, its edges into the engine.
+
+        A running turn counts as activity (the robot is talking), and a carried robot
+        is left alone. The wake word stays live: nothing here touches the capture."""
+        policy = self._sleep_auto
+        if policy is None or held:
+            return
+        busy = self._current_funnel() is not FunnelState.IDLE
+        try:
+            settling = self.sensors_settling()
+            luma = self._luma_source() if self._luma_source is not None and not settling else None
+            now = self._sleep_clock()
+            edge = policy.update(
+                now,
+                luma=luma,
+                speech=observation.speech_detected or busy,
+                face=observation.face_detected and not settling,
+                quiet_hours=self._quiet_hours(),
+            )
+            if edge == "sleep":
+                self._expression.set_sleep(True, ArbitrationState())
+            elif edge == "wake":
+                self._expression.set_sleep(False, ArbitrationState())
+            elif policy.asleep:
+                self._expression.sleep_breathe(now)
+        except Exception:
+            logger.warning("auto sleep tick failed", exc_info=True)
+
+    def _power_tick(self, held: bool) -> None:
+        """SELF-SCENE-02: one battery and heat step. A bug here is logged, never raised."""
+        try:
+            # There is no battery poll to make and no owed line to arbitrate on
+            # the common unconfigured path. Keep conversation ticks clear of the
+            # presence, quiet-hours, mute and funnel collaborators in that case.
+            if (
+                self._battery_status is None
+                and not self._power.has_line_due
+                and not self._heat.has_line_due
+            ):
+                if self._thermal is None:
+                    return
+                # Thermal state is sampled by _safety_ticks. Updating this small
+                # state machine is needed to notice a newly critical temperature.
+                self._heat_step()
+                if not self._heat.has_line_due:
+                    return
+            now = self._sleep_clock()
+            if self._thermal is not None:
+                self._heat_step()
+            if self._battery_status is not None:
+                self._battery_step(now)
+            if self._power.has_line_due or self._heat.has_line_due:
+                self._power_lines(held)
+            self._power_sleep(now, held)
+        except Exception:
+            logger.warning("power ladder tick failed", exc_info=True)
+
+    def _heat_step(self) -> None:
+        if self._thermal is None:
+            return
+        before = self._heat.level
+        self._heat.update(self._thermal_state.temp_c)
+        if self._heat.level != before and self._on_change is not None:
+            self._on_change()
+
+    def _battery_step(self, now: float) -> None:
+        status, seq = self._battery_status.latest(now) if self._battery_status else (None, 0)
+        if seq != self._battery_seen:
+            self._battery_seen = seq
+            if status is not None:
+                percent, charging = status.get("percent"), status.get("charging")
+                if self._power_warn_at is not None:
+                    self._power.set_warn_at(self._power_warn_at())
+                before = (self._power.level, self._power.percent, self._power.charging)
+                self._power.update(
+                    percent if isinstance(percent, int) and not isinstance(percent, bool) else None,
+                    charging if isinstance(charging, bool) else None,
+                    now,
+                )
+                if before != (self._power.level, self._power.percent, self._power.charging):
+                    if self._on_change is not None:
+                        self._on_change()
+        dim = self._power.low_power
+        if dim != self._power_dimmed:
+            self._power_dimmed = dim
+            if self._screen_dim is not None:
+                self._screen_dim(dim)
+        if self._power.level is PowerLevel.OK and self._power_asleep:
+            self._power_wake()
+
+    def _power_lines(self, held: bool) -> None:
+        """The ladder's lines, each once. Warn needs someone near; quiet hours hold every
+        line but the goodbye; a running turn, mute or a lift defer them."""
+        entries = self._presence_entries() if self._presence_entries is not None else None
+        kinds = [entry.kind for entry in entries] if entries else []
+        may_speak = self._current_funnel() is FunnelState.IDLE and not self._is_muted() and not held
+        quiet = self._quiet_hours()
+        rung = self._power.take_line(near=bool(kinds), quiet=quiet, may_speak=may_speak)
+        if rung is None:
+            rung = self._heat.take_line(quiet=quiet, may_speak=may_speak)
+        if rung is not None:
+            self._say_clip(line_id(rung, child=child_pool(kinds)))
+
+    def _power_sleep(self, now: float, held: bool) -> None:
+        """At the lowest rung: after the goodbye grace, the safe pose, then sleep, once per
+        discharge. A carried body waits until it is put down."""
+        if held or self._power_asleep or not self._power.sleep_due(now):
+            return
+        self._power.forgo_line()
+        self._power_asleep = True
+        self._expression.render_primitive("settle", self._suppression_context())
+        self._expression.set_sleep(True, ArbitrationState())
+        if self._sleep_auto is not None:
+            self._sleep_auto.asleep = True
+
+    def _power_wake(self) -> None:
+        """Charging cleared the ladder: leave the power sleep."""
+        self._power_asleep = False
+        if self._sleep_auto is not None:
+            self._leave_auto_sleep()
+        else:
+            self._expression.set_sleep(False, ArbitrationState())
+
+    def _leave_auto_sleep(self) -> None:
+        """A knock or touch woke the robot: the policy and the pose follow."""
+        policy = self._sleep_auto
+        if policy is None or not policy.asleep:
+            return
+        policy.asleep = False
+        try:
+            self._expression.set_sleep(False, ArbitrationState())
+        except Exception:
+            logger.warning("leaving auto sleep failed", exc_info=True)
+
+    def _safety_ticks(self, held: bool) -> None:
+        """Motor watchdog and thermal governor; a bug in either is logged, never raised."""
+        self._held_now = held
+        if self._motor_health is not None:
+            try:
+                self._motor_health.tick(held=held)
+            except Exception:
+                logger.warning("motor watchdog failed", exc_info=True)
+            self._publish_fault()
+        if self._thermal is None:
+            return
+        try:
+            level = self._thermal_state.level
+            self._thermal_state = self._thermal.poll()
+            if self._thermal_state.level != level and self._on_change is not None:
+                self._on_change()
+            if (
+                self._current_funnel() is FunnelState.IDLE
+                and not self._is_muted()
+                and not held
+                and self._thermal.take_line()
+            ):
+                self._say_clip(THERMAL_CLIP)
+        except Exception:
+            logger.warning("thermal handling failed", exc_info=True)
+
+    def _set_offer_window(self, open_: bool) -> None:
+        """The Eyes show the offer look while a window is open."""
+        with self._lock:
+            if self._state.offer == open_:
+                return
+            self._state.offer = open_
+        self._emit_view()
+
+    def _publish_fault(self) -> None:
+        """The Eyes error look: only a real fault, which today is a stuck or latched motor."""
+        try:
+            status = self._motor_health.status() if self._motor_health is not None else {}
+        except Exception:
+            logger.warning("motor status failed", exc_info=True)
+            return
+        fault = bool(status.get("motors_stuck")) or bool(status.get("motors_latched"))
+        offer = list(status.get("motors_reboot_offer") or [])
+        if offer != self._last_reboot_offer:
+            # A new or withdrawn offer is a state-frame change: push it now so the hub
+            # shows (or drops) the card without waiting for the next heartbeat.
+            self._last_reboot_offer = offer
+            if self._on_change is not None:
+                self._on_change()
+        with self._lock:
+            if self._state.fault == fault:
+                return
+            self._state.fault = fault
+        self._emit_view()
+
+    def _publish_motion_facts(self, held: bool, alarm: bool) -> None:
+        """Held and alarm are funnel facts for readers; told only when one flips."""
+        with self._lock:
+            self._motion_alarm = alarm
+            alarm = alarm or self._safety_alarm
+            if (self._state.held, self._state.alarm) == (held, alarm):
+                return
+            self._state.held, self._state.alarm = held, alarm
+        self._emit_view()
+
+    def _on_lifted(self) -> None:
+        """Attempt each lift action independently; one failure must not skip the look."""
+
+        def stop_head():
+            return self._expression.render_primitive("stop", self._suppression_context())
+
+        actions = [("head hold", stop_head)]
+        if self._carry_gravity_compensation and not self._teach_active():
+            actions.append(("gravity compensation", self._enable_carry_gravity_compensation))
+        actions.append(("held look and line", self._carry_look_and_line))
+        for name, action in actions:
+            try:
+                action()
+            except Exception:
+                logger.warning("carry %s failed", name, exc_info=True)
+
+    def _enable_carry_gravity_compensation(self) -> None:
+        self._client.enable_gravity_compensation()
+        self._gravity_on_by_us = True
+
+    def _carry_look_and_line(self) -> None:
+        """The optional reaction to a lift, once. The holds above never depend on it."""
+        reaction = self._carry_reaction()
+        if reaction is CarryReaction.OFF or self._is_muted():
+            return  # a muted body keeps its own antenna pose
+        self._expression.render_held_look()
+        if reaction is not CarryReaction.LOOK_AND_LINE:
+            return
+        if self._current_funnel() is not FunnelState.IDLE:
+            return  # never over a turn
+        entries = self._presence_entries() if self._presence_entries is not None else None
+        if not line_allowed(entries):
+            return  # a child, teen, unknown or nobody known: the silent look
+        if self._say_clip(CARRY_LINES[self._carry_line_index % len(CARRY_LINES)]):
+            self._carry_line_index += 1
+
+    def _on_put_down(self) -> None:
+        """After the stillness window (the machine's own): release what the lift
+        took, settle once, and let tracking resume on the next tick."""
+        if self._gravity_on_by_us:
+            self._gravity_on_by_us = False
+            self._client.disable_gravity_compensation()
+        self._expression.render_primitive("settle", self._suppression_context())
+        self.note_set_down()
+
+    def note_set_down(self) -> None:
+        """MOVE-SCENE-05: the body was handled and is down. What it knew about who is near and
+        its light and camera readings are stale: drop the old tracks (the present list is then
+        rebuilt from fresh ones), ignore light and camera for SENSOR_SETTLE_S, and run the face
+        search once. One narrow entry any carry or set_down signal can feed."""
+        self._sensors_settle_until = self._motion_clock() + SENSOR_SETTLE_S
+        for name, drop in (
+            ("face tracks", getattr(self._vision_watch, "drop_tracks", None)),
+            ("voice tracks", getattr(self._voice, "drop_heard", None)),
+        ):
+            if drop is not None:
+                try:
+                    drop()
+                except Exception:
+                    logger.warning("dropping the old %s failed", name, exc_info=True)
+        with self._lock:
+            self._state.face_verdict = None
+            self._state.face_verdict_at = None
+        self._start_face_search()
+
+    def _start_face_search(self) -> None:
+        """The one face search after a set down, on its own worker: the caller (the carry
+        handling on the presence thread, or a body's orientation hook) never waits for it.
+        A search still running absorbs a second set down."""
+        if self._face_search is None:
+            return
+        with self._lock:
+            running = self._face_search_thread
+            if running is not None and running.is_alive():
+                return
+            worker = threading.Thread(target=self._run_face_search, name="face-search", daemon=True)
+            self._face_search_thread = worker
+        worker.start()
+
+    def _run_face_search(self) -> None:
+        try:
+            self._face_search()  # type: ignore[misc]
+        except Exception:
+            logger.warning("the face search after set down failed", exc_info=True)
+
+    def sensors_settling(self) -> bool:
+        """True for SENSOR_SETTLE_S after a set down: light and camera readings are ignored."""
+        return self._motion_clock() < self._sensors_settle_until
+
+    def _on_freefall(self, falling: bool) -> None:
+        """One line per fall (design record section 7): said on the rising
+        edge, never repeated while the body stays in the air, again after it
+        has been steady. Motors-off and the state report are a separate item."""
+        was_falling, self._freefall_active = self._freefall_active, falling
+        if falling and not was_falling:
+            self._say_clip(FREEFALL_CLIP, "Whoa, I tipped over.")
+
+    def _maybe_check_face(self, stop_event: threading.Event) -> None:
+        """FACE-01's own capped-rate capture: at most once every
+        `_face_recognition_interval_s`, and only when a face is
+        already present (the caller's own job) - never a continuous
+        stream. A no-op unless all three of `face_detector`,
+        `face_embedder` and `face_gallery` were given to the
+        constructor (nothing does yet - FACE-01's own backlog entry
+        names why: no real print record to match against exists yet).
+        The actual work runs on its own thread (`_run_face_check`),
+        never inline here: this method returns immediately either way,
+        so a slow capture-plus-ONNX pass never delays this same tick's
+        tracking enable/disable decision, the presence loop's own
+        first job."""
+        if self._face_detector is None or self._face_embedder is None or self._face_gallery is None:
+            return
+        if time.monotonic() - self._last_face_check_monotonic < self._face_recognition_interval_s:
+            return
+        if self._face_check_thread is not None and self._face_check_thread.is_alive():
+            return  # the previous check hasn't finished - never overlap two
+        self._last_face_check_monotonic = time.monotonic()
+        self._face_check_thread = threading.Thread(
+            target=self._run_face_check, args=(stop_event,), name="face-check", daemon=True
+        )
+        self._face_check_thread.start()
+
+    def _run_face_check(self, stop_event: threading.Event) -> None:
+        """One capture-detect-align-embed-match pass, off the presence
+        thread. Any failure - the camera or the pipeline itself -
+        leaves whatever verdict is already published alone rather than
+        overwriting it with `None`: a transient glitch is not evidence
+        the person left, and a review (2026-09-28) caught the first
+        version of this treating the two identically, so a single bad
+        frame could silently erase a still-fresh, correct verdict. A
+        detector that finds no face in a good frame is different -
+        that genuinely is "checked, nobody there," and does clear it,
+        same as `recognize_face`'s own `None` for that case."""
+        try:
+            frame = self._client.get_frame()
+        except Exception:
+            logger.warning("camera capture failed for face recognition", exc_info=True)
+            return
+        if frame is None:
+            return  # nothing to check this tick - not evidence of anything
+        try:
+            verdict = recognize_face(
+                frame,
+                detector=self._face_detector,
+                embedder=self._face_embedder,
+                gallery=self._face_gallery,
+            )
+        except Exception:
+            logger.warning("face recognition failed", exc_info=True)
+            return
+        if stop_event.is_set():
+            return  # shutting down - don't publish a result nobody will read
+        with self._lock:
+            self._state.face_verdict = verdict
+            self._state.face_verdict_at = time.monotonic()
