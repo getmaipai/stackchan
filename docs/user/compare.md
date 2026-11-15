@@ -7,7 +7,7 @@ The robot stays the same. MaiPai for StackChan changes the firmware and adds a h
 
 | | Factory firmware | MaiPai for StackChan | With MaiPai Home |
 |---|---|---|---|
-| **What you need** | A robot and the official app | The host and a local LLM you run | The host and a MaiPai Home hub |
+| **What you need** | A robot. See the official docs for the rest | The host and a local LLM you run | The host and a MaiPai Home hub |
 | **AI agent** | Yes, as the official docs describe | Yes, using your local LLM | Yes, using Home's models |
 | **Where the AI runs** | See the official docs | Your own computer | Your MaiPai Home hub |
 | **Privacy: where your voice goes** | See the official docs | Only to your own computer | Only to your hub |
