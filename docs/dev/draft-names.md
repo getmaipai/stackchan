@@ -80,7 +80,7 @@ Real names already in the design and used as written: `face_style`, `face_color`
 
 ## Renamed term (2026-11-15)
 
-- Owner: "standalone" sounds like "stock" and is a new term. User docs now say "your own LLM", and the setting value is `brain = "llm"` in the docs. The design and code still say `standalone`. The build session should rename the value (or accept both) and the design notes.
+- Owner: "standalone" sounds like "stock" and is a new term. User docs now say "your own LLM", and the setting value is `brain = "llm"` in the docs. The design and code still say `standalone`. Resolved 2026-11-15: the build session renamed the design notes to "own LLM"; the setting is `brain = "llm"` (default) or `home`, and `standalone` stays an accepted alias in code.
 
 ## Live view (2026-11-15)
 
@@ -93,3 +93,4 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - New planned features: Find (last seen, beep and flash, optional Bluetooth signal meter), remote control (beep, lights, one-way talk, head), live view. Nothing is designed or built. Names `remote_control` and the Remote icon are drafts.
 - Hardware limits: the official specs list Wi-Fi, Bluetooth 5 LE and infrared, three Grove ports, no GPS and no UWB. A GPS module on a Grove port is an idea to evaluate, not a promise.
 - Rules the docs promise: no remote listening, every remote action shows a Remote icon and a tone before speech, Find works even when muted, remote talk is blocked when muted or in full quiet, remote lights avoid the meaning colours.
+- Live view and the three always-on cues (listening, picture, live) are now in docs/design/features.md under Camera. The cue is driven by the same code path that opens the mic or camera, so it cannot be hidden. Live view will be measured after the firmware rebase; numbers to come.
