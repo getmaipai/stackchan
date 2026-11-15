@@ -17,7 +17,7 @@ How fast and how well the robot answers depends on your model and its hardware. 
 
 ## Steps
 
-1. **Install the host.** Run `pipx install git+https://github.com/getmaipai/stackchan`. You'll know it worked when `stackchan --help` lists its commands.
+1. **Install the host.** Run `pipx install git+https://github.com/getmaipai/stackchan`. More on installing, updating and removing it: [Install, update and remove the host](install-the-host.md). You'll know it worked when `stackchan --help` lists its commands.
 2. **Flash the robot.** Open the web flasher, plug the robot in by USB and press Install. You can enter your Wi-Fi in the same dialog.
 
    ![The web flasher with the Install button and the Wi-Fi fields.](../images/flasher.svg)

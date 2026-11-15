@@ -72,3 +72,8 @@ Real names already in the design and used as written: `face_style`, `face_color`
 
 - README has a Support the project section linking https://github.com/sponsors/JesseWebDotCom. The link is dead until the owner finishes and publishes the personal GitHub Sponsors listing (checked: no listing on the personal account or the org). Do not release until it resolves, or remove the section.
 - `.github/FUNDING.yml` (github: JesseWebDotCom) is staged locally. It goes into the public repo only with the release commit, because the public repo takes no pushes before the firmware release is approved.
+
+## Install page (2026-11-15)
+
+- `stackchan install-service --remove`, `pipx upgrade stackchan` and the host printing its port are drafts. The design names `stackchan install-service` only.
+- Do not publish the firewall table until the real port and discovery behaviour are known.

@@ -96,6 +96,11 @@ Page: [Pick hardware and a model](hardware-and-models.md).
 Common questions, which setup to pick, a glossary and the release notes.
 Pages: [Questions people ask](faq.md), [Which setup is right for me?](which-setup.md), [Glossary](glossary.md), [Release notes](release-notes.md).
 
+## Install, update and remove
+
+Install the host, start it at boot, update it, remove it, and set up a firewall.
+Page: [Install, update and remove the host](install-the-host.md).
+
 ## Compare
 
 See how MaiPai for StackChan compares with the factory firmware, and standalone with MaiPai Home.
