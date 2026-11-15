@@ -84,6 +84,11 @@ your persona prompt. The family-friendly persona is a prompt, not a guarantee.
 
 Read `docs/dev/contributing.md` first. Run `bash scripts/check.sh` before you send a change.
 
+## Requests and bug reports
+
+Open an issue on this repo's Issues tab for a bug, a feature request or an idea. This is a hobby project. I read every request,
+but I may be slow, and I cannot promise to build any of them. A thumbs-up on an existing request helps me see what matters most.
+
 ## License
 
 AGPL-3.0. See `LICENSE`, `NOTICE` and `THIRD-PARTY.md`. This is an independent project, not made or endorsed by the robot's maker.
