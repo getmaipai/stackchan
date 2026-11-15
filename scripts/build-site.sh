@@ -4,7 +4,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 rm -rf site && mkdir -p site/images && cp docs/images/* site/images/ 2>/dev/null || true
-css='img{max-width:100%;height:auto;border-radius:8px}.home-tag{background:#dbeafe;color:#1e40af;border-radius:4px;padding:.05rem .4rem;font-size:.75rem;font-weight:600;white-space:nowrap}@media(prefers-color-scheme:dark){.home-tag{background:#1e3a8a;color:#dbeafe}}body{font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;color:#222;background:#fff}
+css='img{max-width:100%;height:auto;border-radius:8px}.planned-tag{background:#fef3c7;color:#92400e;border-radius:4px;padding:.05rem .4rem;font-size:.75rem;font-weight:600;white-space:nowrap}@media(prefers-color-scheme:dark){.planned-tag{background:#78350f;color:#fef3c7}}.home-tag{background:#dbeafe;color:#1e40af;border-radius:4px;padding:.05rem .4rem;font-size:.75rem;font-weight:600;white-space:nowrap}@media(prefers-color-scheme:dark){.home-tag{background:#1e3a8a;color:#dbeafe}}body{font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;color:#222;background:#fff}
 nav{font-size:.9rem;margin-bottom:2rem}nav a{margin-right:1rem}pre,code{background:#f4f4f4;border-radius:4px}pre{padding:.8rem;overflow:auto}code{padding:.1rem .3rem}
 table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.3rem .6rem}@media(prefers-color-scheme:dark){body{background:#161616;color:#ddd}pre,code{background:#262626}td,th{border-color:#444}a{color:#8ab4ff}}'
 files=$(ls README.md docs/user/*.md docs/dev/*.md docs/design/*.md docs/STYLE.md | grep -v INDEX.md)

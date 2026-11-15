@@ -19,6 +19,13 @@ Each kind of alarm has its own tone, so you know a kitchen timer from a wake-up 
 
 ![The alarm screen with a bell icon and the snooze hint.](../images/alarm-ringing.svg)
 
+## Announcements from MaiPai Home
+
+<span class="home-tag">Needs MaiPai Home</span>
+
+When MaiPai Home has something to tell the household, the robot says it out loud and shows it on screen. For example, "Dinner is ready."
+Without MaiPai Home, there are no announcements.
+
 ## Hourly chime
 
 Turn on `hourly_chime` for a soft tone on the hour.

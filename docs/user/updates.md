@@ -28,6 +28,12 @@ The same keys appear in `robot.toml`, in the web page and on the robot.
 
 ![The update-ready card with Install and Release notes buttons.](../images/update-ready.svg)
 
+## Updates over Wi-Fi
+
+You don't need a cable. The robot downloads the update over Wi-Fi, checks its signature, and shows an animated updating icon while it installs. It runs on battery, so keep it plugged in for a big update.
+
+![The robot screen with an animated updating icon.](../images/updating.svg)
+
 ## Your own images
 
 Build your own image with `stackchan firmware build` and sign it with your key. Developers: see `docs/dev/build-from-source.md`.

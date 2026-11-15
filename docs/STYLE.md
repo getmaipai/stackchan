@@ -21,6 +21,8 @@
 
 A feature that needs MaiPai Home carries the tag `<span class="home-tag">Needs MaiPai Home</span>` where it is first described (heading line or feature list) and in the compare table. The site draws it as a small label. On GitHub it shows as plain text.
 
+A feature that is designed but not built carries `<span class="planned-tag">Planned</span>` in the same places. Remove the tag when the feature runs on a unit.
+
 ## README and page shape
 
 A README opens the way successful firmware projects do:

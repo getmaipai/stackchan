@@ -28,6 +28,21 @@ These work in any sentence that starts with the wake word.
 | "what time is it" | It speaks the time. |
 | "night mode" | Turns night mode on or off. |
 
+## Say "stop" while it talks
+
+The robot hears "stop" even while it is speaking. Say "StackChan, stop", and it goes quiet at once, with no model involved.
+
+## Say "brighter" or "dimmer"
+
+Say "set brightness to 50 percent", "brighter", "dimmer", or "it's too bright". Swipe down on the screen for a control panel with volume, brightness and the Wi-Fi switch.
+
+![The swipe-down control panel with volume and brightness sliders.](../images/control-panel.svg)
+
+## Sounds
+
+The robot uses one family of soft bell sounds. A rising bell means good news, and a falling bell means bad news. At night they are quieter.
+Short replies such as "I cannot reach my model right now" are stored on the robot, so it still answers when the host is off.
+
 ## Personas
 
 A persona sets the name, the voice and the way the robot talks. Pick one in the web page or set `persona` in `robot.toml`.

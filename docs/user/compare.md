@@ -24,6 +24,12 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Timers and alarms | TBD | ★★★ | ★★★ | A ring empties as time runs out, so you can read it across the room. |
 | Camera: snapshots, face follow, name list | TBD | ★★★ | ★★★ | Have it follow you, take your picture, or say who it sees. Frames stay on your host. |
 | Camera: "what is this" <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Hold something up and hear what it is. Your hub does the looking. |
+| Dance to music | TBD | ★★★ | ★★★ | It hears music, shows it likes it, and dances to the beat. Off until you turn it on. |
+| Name the song <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Ask "what song is this" and hear the title and artist. |
+| Announcements <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Hear household news out loud, like "dinner is ready". |
+| Mute and camera off by tapping the face | TBD | ★★★ | ★★★ | Tap the mouth to mute, the eyes to stop the camera, between the eyes for full quiet. |
+| Spoken "stop" while it talks | TBD | ★★★ | ★★★ | It stops at once, with no model involved. |
+| Updates over Wi-Fi | TBD | ★★★ | ★★★ | No cable. An animated icon shows the progress. |
 | Games and a pet mood | TBD | ★★★ | ★★★ | Something to do together. The pet mood grows with care. |
 | Coding companion | TBD | ★★★ | ★★★ | A green or red light for your build, where you can see it. |
 | Local API, MQTT, metrics | TBD | ★★★ | ★★★ | Wire the robot into your own tools. |

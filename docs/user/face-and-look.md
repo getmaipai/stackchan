@@ -27,6 +27,11 @@ The clock shows big digits or a ring. It dims at night. It keeps working if the 
 
 ![The clock face with big digits, then dimmed in night mode.](../images/clock-face.svg)
 
+## Expressions
+
+The face shows what the robot is doing. It has a listening face and a thinking face, a happy, joyful, content and wink face, and a surprised face.
+It has an offline look for when it cannot reach your host, and a link screen while it pairs. Its eyes follow you when you are near.
+
 ## Night mode
 
 Night mode dims the screen and the lights and softens the clock. Set it by hand, say "night mode", or set `quiet_from` and `quiet_to` so it starts by itself.

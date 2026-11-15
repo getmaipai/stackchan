@@ -13,6 +13,30 @@ Petting uses the head strip. If you set `strip_mode = "control"`, the strip open
 
 ![Four faces: surprised, dizzy, tilted and happy.](../images/reactions.svg)
 
+## Tap the face
+
+You touch the screen, not the head strip. Each tap has its own screen so you always know what you did.
+
+| Tap | What happens |
+|---|---|
+| The mouth | Mutes or unmutes the robot. |
+| The eyes | Turns the camera off, or back on. |
+| Above and between the eyes | Full quiet: no moving, no talking and no listening. Tap again to wake it. |
+
+The screen shows a calm icon for each state, not an X on the eyes.
+
+![The three face tap zones marked on the robot's face.](../images/tap-zones.svg)
+
+## How you hold it
+
+The robot knows which way up it is. Upright is normal. On its side it looks curious. Face down or on its back it looks sleepy.
+Upside down, the screen turns 180 degrees so you can still read it. Motor power never changes, so it is safe to turn it over.
+
+## Head pats and shakes
+
+A slow stroke along the head makes it happy, with a small heart. The heart is rare, so it means something.
+A shake gets a spoken line and a dizzy face.
+
 ## Idle life
 
 When nothing is happening the robot breathes, blinks and looks around. When it speaks, its head wobbles a little with the words.

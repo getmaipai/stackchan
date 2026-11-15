@@ -17,6 +17,12 @@ A camera-on cue shows whenever the camera streams. You cannot turn that cue off.
 Hold something up and say "what is this". The robot sends one snapshot to your MaiPai Home hub, which describes it out loud.
 Without MaiPai Home, this feature is hidden. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
+## What do you see
+
+<span class="planned-tag">Planned</span>
+
+Ask "what do you see" and the robot lists the people and objects in view, such as "a table and a person", straight away, while a fuller look runs in the background.
+
 ## Take my picture
 
 Say "take my picture". The robot counts down, plays a shutter tone and saves the snapshot to a folder on the host.

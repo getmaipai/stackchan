@@ -26,9 +26,14 @@ Page: [Timers and alarms](timers-and-alarms.md).
 Pickup, shake, tilt and petting, breathing, quiet mode, privacy sleep and the low-battery steps.
 Page: [Moves and moods](moves-and-moods.md).
 
+## Dance
+
+Dance on request, dance to music by itself, and name the song <span class="home-tag">Needs MaiPai Home</span>.
+Page: [Music and dance](music-and-dance.md).
+
 ## Let it see (opt-in)
 
-Snapshots, face follow, wave and mirror mode, "take my picture" and a local name list. "What is this" <span class="home-tag">Needs MaiPai Home</span>.
+Snapshots, face follow, wave and mirror mode, "take my picture" and a local name list. "What do you see" <span class="planned-tag">Planned</span>. "What is this" <span class="home-tag">Needs MaiPai Home</span>.
 Page: [Camera](camera.md).
 
 ## Play
