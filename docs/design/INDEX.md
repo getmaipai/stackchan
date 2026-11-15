@@ -2,15 +2,21 @@
 
 One line per file: path, lines, purpose (first comment or heading).
 
+- `.claude/commands/gate.md` (5): no header
+- `.claude/commands/status.md` (5): no header
+- `.claude/skills/lane-brief/SKILL.md` (11): no header
+- `.claude/skills/sim-check/SKILL.md` (9): no header
+- `.claude/skills/train/SKILL.md` (14): no header
 - `.githooks/commit-msg` (2): no header
 - `.githooks/pre-commit` (2): no header
-- `.gitignore` (8): no header
+- `.gitignore` (9): no header
 - `AGENTS.md` (29): MaiPai StackChan
 - `CLAUDE.md` (1): no header
 - `LICENSE` (664): no header
 - `NOTICE` (3): no header
 - `README.md` (70): MaiPai StackChan
 - `THIRD-PARTY.md` (7): Third-party notices
+- `docs/STYLE.md` (16): Writing style
 - `docs/design/architecture.md` (95): Architecture
 - `docs/design/decisions.md` (59): Owner decisions and corrections
 - `docs/design/features.md` (94): Feature map and build order
@@ -20,9 +26,20 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/performance-and-latency.md` (68): Performance and latency
 - `docs/design/release-and-updates.md` (88): Release and updates
 - `docs/design/safety-and-privacy.md` (62): Safety and privacy
+- `docs/dev/build-from-source.md` (47): Build from source
+- `docs/dev/contributing.md` (24): Contributing
+- `docs/dev/host-and-brains.md` (44): Host and brains
+- `docs/templates/lane-brief.md` (12): Lane brief: <slice name>
+- `docs/user/features.md` (51): Features
+- `docs/user/getting-started.md` (30): Getting started
+- `docs/user/languages.md` (20): Languages
+- `docs/user/privacy.md` (41): Privacy
+- `docs/user/settings.md` (37): Settings
+- `docs/user/troubleshooting.md` (20): Troubleshooting
 - `firmware/.gitkeep` (0): no header
 - `host/.gitkeep` (0): no header
 - `schema/.gitkeep` (0): no header
+- `scripts/build-site.sh` (18): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/check.sh` (5): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/hygiene-check.sh` (35): block any mention of projects we studied (private word list), em dashes and filler words in
 - `scripts/install-hooks.sh` (6): point this clone at the tracked hooks (repo-local config only, never global).
