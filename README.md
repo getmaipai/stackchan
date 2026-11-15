@@ -1,6 +1,6 @@
 # MaiPai for StackChan
 
-### StackChan firmware, rewritten: private, faster, more abilities using your own local LLM or MaiPai Home, over Tailscale.
+### StackChan firmware, rewritten: private, secure, faster, more abilities. Your own LLM or MaiPai Home, on any network.
 
 [Documentation](docs/user/features.md) · [Getting started](docs/user/getting-started.md) · [Compare](docs/user/compare.md) · [Troubleshooting](docs/user/troubleshooting.md)
 
@@ -28,6 +28,7 @@ Connect it to [MaiPai Home](docs/user/with-maipai-home.md) for more: faster answ
 - **[Coding companion](docs/user/coding-companion.md):** A green or red build light and your agent's status on the face.
 - **[Home tools](docs/user/home-tools.md):** A local API, an event stream, MQTT and metrics, all off by default.
 - **[On the go](docs/user/use-it-anywhere.md):** Join your phone's hotspot or any Wi-Fi, and reach your host or hub over Tailscale on an encrypted link.
+- **[Security](docs/user/security.md):** Pairing with a code, revocable tokens, signed updates, and an encrypted link over Tailscale.
 - **[Languages](docs/user/languages.md):** English and Spanish, switched at run time with no reflash.
 - **[Updates](docs/user/updates.md):** Signed images, a health check after install and automatic rollback. Nothing installs unless you say so.
 

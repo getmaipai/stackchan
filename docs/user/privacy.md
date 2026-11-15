@@ -35,6 +35,10 @@ Pairing uses a code and a token you can revoke with `stackchan forget`.
 
 It is off until you paste a Tailscale key. When on, the robot contacts your Tailscale control server and its relay servers to find your devices. It sends no voice, snapshots or settings there.
 
+## Security
+
+Privacy is about your data staying home. For what keeps other people out, see [Keep the robot secure](security.md).
+
 ## Content
 
 The standalone robot adds no content filter. The model you connect is responsible for what it says.
