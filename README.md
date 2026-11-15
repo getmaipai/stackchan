@@ -2,7 +2,7 @@
 
 ### StackChan firmware, rewritten: private, secure, faster, more abilities. Your own LLM or MaiPai Home, on any network.
 
-[Documentation](docs/user/features.md) · [Getting started](docs/user/getting-started.md) · [Compare](docs/user/compare.md) · [Troubleshooting](docs/user/troubleshooting.md)
+[Documentation](docs/user/features.md) · [Getting started](docs/user/getting-started.md) · [Which setup?](docs/user/which-setup.md) · [Compare](docs/user/compare.md) · [Questions](docs/user/faq.md) · [Troubleshooting](docs/user/troubleshooting.md)
 
 > **Draft.** These docs are written as if v1.0.0 is finished, so the owner can review the full product. Remove this note when v1.0.0 ships.
 

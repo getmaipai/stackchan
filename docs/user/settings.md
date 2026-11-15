@@ -36,6 +36,32 @@ English or Spanish. See `languages.md`. The robot changes at once with no file e
 
 Run `stackchan check` after any change to your addresses. Environment variables override secrets in the file.
 
+## All settings at a glance
+
+| Setting | What it does | Default |
+|---|---|---|
+| `brain` | Who answers: `standalone` or `home` | `standalone` |
+| `llm_url` | Your model's OpenAI-compatible address | blank |
+| `stt_url`, `tts_url` | Your speech tools. Blank uses the built-in engines | blank |
+| `home_url` | Your MaiPai Home hub address | blank |
+| `language` | English or Spanish | English |
+| `voice` | The voice the robot speaks with | built-in voice |
+| `persona`, `persona_lock` | The personality, and whether speech can change it | none, unlocked |
+| `face_style` | Big eyes or minimal | big eyes |
+| `face_color` | None, a named colour or a custom colour | none |
+| `captions` | Show spoken words on screen | off |
+| `night_mode`, `quiet_from`, `quiet_to` | Dim and quiet at night | off |
+| `thinking_cue` | The tone while it thinks | quiet tone |
+| `strip_mode`, `quick_sliders` | Head strip behaviour and its sliders | petting |
+| `hourly_chime`, `idle_motion`, `pet_mood` | Small behaviours | off, on, on |
+| `camera`, `camera_retention` | The opt-in camera and how long snapshots stay | off |
+| `local_unmute` | Whether the robot's own face can unmute it | on |
+| `prefer_tailnet` | Minutes to try Tailscale first | 0 |
+| `update_channel`, `update_source`, `update_check`, `update_install` | Updates | stable, official, weekly, ask |
+| `api`, `events`, `mqtt_url`, `ha_bridge`, `metrics`, `mcp` | Home tools, all off | off |
+
+Run `stackchan check` after any change to your addresses.
+
 ## Reset the robot
 
 Clears Wi-Fi networks, the Tailscale key, pairing and settings, after a confirmation. See [Keep the robot secure](security.md).

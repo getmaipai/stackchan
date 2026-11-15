@@ -91,6 +91,11 @@ Page: [Switch from the factory firmware, or go back](switch-from-the-factory-fir
 What depends on your model, and what size of computer to start with.
 Page: [Pick hardware and a model](hardware-and-models.md).
 
+## Answers
+
+Common questions, which setup to pick, a glossary and the release notes.
+Pages: [Questions people ask](faq.md), [Which setup is right for me?](which-setup.md), [Glossary](glossary.md), [Release notes](release-notes.md).
+
 ## Compare
 
 See how MaiPai for StackChan compares with the factory firmware, and standalone with MaiPai Home.

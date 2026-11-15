@@ -1,10 +1,13 @@
-# Your StackChan
+# Today's owner guide (as built, before the finished docs)
+
+> This page describes how the robot works and is set up today, with manual steps. The finished-product guide is in `docs/user/`. Where they differ, this page is the truth until the finished flow ships.
+
 
 StackChan is a small desk robot with a screen for a face, a head that turns and nods, a camera, a microphone and a speaker. With MaiPai's firmware it works as your home assistant. It answers by voice, shows how it feels on its face, and keeps everything on your own network.
 
 <!-- picture: a photo of the StackChan on a desk, front view, screen on -->
 
-This guide is for the people who live with the robot. To install it, see [Set up a StackChan](stackchan-setup.md). Home's own screens for the robot are in Home's Robots guide.
+This guide is for the people who live with the robot. To install it, see [Set up a StackChan](stackchan-setup-today.md). Home's own screens for the robot are in Home's Robots guide.
 
 ## Why the MaiPai firmware
 
