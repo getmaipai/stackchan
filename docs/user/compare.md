@@ -14,6 +14,7 @@ MaiPai for StackChan changes the firmware and adds a host program. The robot is 
 | AI agent | Yes, as the official docs describe | Yes, using a local LLM you run, or MaiPai Home |
 | Where the AI runs | See the official docs | On your own computer or your MaiPai Home hub |
 | Vendor account or cloud | See the official docs | None. The host calls only the addresses you list |
+| Speed | Not measured here. See the official docs | Wake cue in under 150 ms. "Stop" and touch commands in under 300 ms with no model. Replies start on the first finished sentence |
 | Animated face | Yes | Yes, with two styles, any colour or none, and captions |
 | Timers and alarms with a ring | Not listed in the official README | Yes |
 | Camera features | Not listed in the official README | Opt-in snapshots, "what is this", face follow, a local name list |

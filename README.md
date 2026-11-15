@@ -7,7 +7,7 @@
 > **Draft.** These docs are written as if v1.0.0 is finished, so the owner can review the full product. Remove this note when v1.0.0 ships.
 
 MaiPai for StackChan is open-source firmware and a host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot. You talk to the robot,
-and it answers with AI that runs on your own computer or on your MaiPai Home hub. It reacts fast, does a lot, and works from any Wi-Fi over Tailscale.
+and it answers with AI that runs on your own computer or on your MaiPai Home hub. It is faster and smoother than the factory firmware and more capable: it adds timers, a camera that can name the people you enrol, games, a coding companion and a local API, and it works from any Wi-Fi over Tailscale.
 
 Your voice stays in your home. The robot talks only to your host or your hub, and the host calls only the addresses you list in one settings file.
 There is no vendor account, no telemetry and no cloud service.

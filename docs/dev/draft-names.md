@@ -36,3 +36,8 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - Not in the code at all (planned): `camera_retention`, `hourly_chime`, `persona_lock`, `pet_mood`, `ha_bridge`, `mcp`,
   `stackchan token`, `stackchan camera delete`, `stackchan notify --status`.
 - `prefer_tailnet` comes from the unit protocol (`self.network.prefer_tailnet`, 0 to 120 minutes). The Network page and the tailnet status text are drafts. The robot joining the tailnet by itself is design ANYWHERE-01, not built.
+
+## Claims to measure before release
+
+- The README says MaiPai for StackChan is faster and smoother than the factory firmware. No head-to-head measurement exists yet. Measure wake cue, stop and first audio on the same unit and publish the numbers, or soften the claim.
+- The latency figures (150 ms, 300 ms) are design targets, not measured on a unit.
