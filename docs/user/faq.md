@@ -31,7 +31,7 @@ English and Spanish, switched at run time. Your model and speech tools must hand
 
 ## Is it safe for children?
 
-In standalone mode we add no content filter. The model you connect decides what the robot says, so pick a model and persona that suit your home. With MaiPai Home, its household rules apply.
+With your own LLM we add no content filter. The model you connect decides what the robot says, so pick a model and persona that suit your home. With MaiPai Home, its household rules apply.
 
 ## How do I wipe it?
 

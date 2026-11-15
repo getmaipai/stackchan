@@ -52,7 +52,7 @@ It opens a setup page. Connect to its network, pick your Wi-Fi, enter the passwo
 
 ## Content safety
 
-In standalone mode the robot adds no content filter. The model you connect decides what is said. Pick a model and persona that suit your home.
+With your own LLM the robot adds no content filter. The model you connect decides what is said. Pick a model and persona that suit your home.
 
 ## Next
 

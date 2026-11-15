@@ -21,6 +21,10 @@
 
 One master page, `docs/user/lights-and-sounds.md`, holds the full table of lights and tones, with a swatch for each. A feature page does not get its own table. It says what the lights and tones do in one plain sentence in the section where the feature is explained, with a tiny inline swatch (`docs/images/light-*.svg`, made by `scripts/make-lights.py`), and links to the master page. A new light or tone is added to the master page in the same commit.
 
+## Words to avoid
+
+Do not call the no-hub setup "standalone" in user docs. Say "your own LLM". "Standalone" is design jargon and reads like "stock". The setting value in the docs is `brain = "llm"`.
+
 ## Tags
 
 A feature that needs MaiPai Home carries the tag `<span class="home-tag">Needs MaiPai Home</span>` where it is first described (heading line or feature list) and in the compare table. The site draws it as a small label. On GitHub it shows as plain text.

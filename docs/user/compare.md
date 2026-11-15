@@ -55,7 +55,7 @@ We chose a web app served by your host over a native phone app. We would rather 
 - **What you give up:** a phone app (our web app covers settings and snapshots, not live video or remote avatar control), setting up the robot from the phone over Bluetooth, online app downloads, and the official ESP-NOW remote controller. If you rely on those, stay on the factory firmware for now. You can [switch back](switch-from-the-factory-firmware.md) any time.
 - **Memory, people, calendars and rules** come only with MaiPai Home.
 
-Switch between the last two columns with one line, `brain = "standalone"` or `brain = "home"`. The robot is not reflashed. See [Use MaiPai Home as the brain](with-maipai-home.md).
+Switch between the last two columns with one line, `brain = "llm"` or `brain = "home"`. The robot is not reflashed. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
 ## Still need help?
 

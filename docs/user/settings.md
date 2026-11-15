@@ -26,7 +26,7 @@ English or Spanish. See `languages.md`. The robot changes at once with no file e
 
 ## Other keys
 
-- `brain`: `standalone` (default) or `home`.
+- `brain`: `llm` (your own LLM, the default) or `home`.
 - `llm_url`, `stt_url`, `tts_url`: your model and speech addresses. Blank speech addresses use the built-in engines.
 - `voice`: the voice to speak with.
 - `thinking_cue`: dots always, plus a quiet tone by default.
@@ -40,7 +40,7 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 
 | Setting | What it does | Default |
 |---|---|---|
-| `brain` | Who answers: `standalone` or `home` | `standalone` |
+| `brain` | Who answers: your own LLM (`llm`) or MaiPai Home (`home`) | `llm` |
 | `llm_url` | Your model's OpenAI-compatible address | blank |
 | `stt_url`, `tts_url` | Your speech tools. Blank uses the built-in engines | blank |
 | `home_url` | Your MaiPai Home hub address | blank |

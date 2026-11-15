@@ -77,3 +77,7 @@ Real names already in the design and used as written: `face_style`, `face_color`
 
 - `stackchan install-service --remove`, `pipx upgrade stackchan` and the host printing its port are drafts. The design names `stackchan install-service` only.
 - Do not publish the firewall table until the real port and discovery behaviour are known.
+
+## Renamed term (2026-11-15)
+
+- Owner: "standalone" sounds like "stock" and is a new term. User docs now say "your own LLM", and the setting value is `brain = "llm"` in the docs. The design and code still say `standalone`. The build session should rename the value (or accept both) and the design notes.

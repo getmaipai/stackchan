@@ -53,7 +53,7 @@ Privacy is about your data staying home. For what keeps other people out, see [K
 
 ## Content
 
-The standalone robot adds no content filter. The model you connect is responsible for what it says.
+With your own LLM, the robot adds no content filter. The model you connect is responsible for what it says.
 
 ## Still need help?
 

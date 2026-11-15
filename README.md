@@ -40,7 +40,7 @@ Wake cue in under 150 ms. "Stop" and touch commands in under 300 ms. Replies sta
 
 You need a StackChan robot ([store page](https://shop.m5stack.com/products/stackchan-kawaii-co-created-open-source-ai-desktop-robot)), a USB cable, and a Mac, Linux machine or Raspberry Pi 5 for the host.
 
-### Standalone
+### With your own LLM
 
 ```
 pipx install git+https://github.com/getmaipai/stackchan
@@ -57,7 +57,7 @@ Set `brain = "home"` and run `stackchan check`.
 
 Paste a Tailscale key on the Network page and add your phone's hotspot as a saved Wi-Fi. The robot reaches your host or hub from anywhere: [Use the robot anywhere](docs/user/use-it-anywhere.md).
 
-In standalone mode we add no content filter. The model you connect decides what the robot says.
+With your own LLM we add no content filter. The model you connect decides what the robot says.
 
 ## Status
 

@@ -103,7 +103,7 @@ Page: [Install, update and remove the host](install-the-host.md).
 
 ## Compare
 
-See how MaiPai for StackChan compares with the factory firmware, and standalone with MaiPai Home.
+See how MaiPai for StackChan compares with the factory firmware, with your own LLM, and with MaiPai Home.
 Page: [Compare MaiPai for StackChan](compare.md).
 
 ## Not included
