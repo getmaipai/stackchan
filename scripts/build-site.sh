@@ -8,9 +8,12 @@ css='img{max-width:100%;height:auto;border-radius:8px}body{font:16px/1.6 system-
 nav{font-size:.9rem;margin-bottom:2rem}nav a{margin-right:1rem}pre,code{background:#f4f4f4;border-radius:4px}pre{padding:.8rem;overflow:auto}code{padding:.1rem .3rem}
 table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.3rem .6rem}@media(prefers-color-scheme:dark){body{background:#161616;color:#ddd}pre,code{background:#262626}td,th{border-color:#444}a{color:#8ab4ff}}'
 files=$(ls README.md docs/user/*.md docs/dev/*.md docs/design/*.md docs/STYLE.md | grep -v INDEX.md)
-nav='<nav><a href="index.html">Home</a>'
+nav='<nav><a href="index.html"><b>Home</b></a>'
 out_of() { case "$1" in README.md) echo index.html;; *) echo "$(echo "${1%.md}" | tr / -).html";; esac; }
-for f in $files; do n=$(out_of "$f"); nav+="<a href=\"$n\">$(basename "${f%.md}")</a>"; done; nav+="</nav>"
+dev=""; design=""
+for f in $files; do n=$(out_of "$f"); l="<a href=\"$n\">$(basename "${f%.md}")</a>"
+  case "$f" in docs/user/*) nav+="$l";; docs/dev/*) dev+="$l";; *) design+="$l";; esac; done
+nav+="<details><summary>Developers</summary>$dev</details><details><summary>Design record and style</summary>$design</details></nav>"
 for f in $files; do
   n=$(out_of "$f"); body=$(bunx --bun marked@18.1.0 -i "$f"); body=${body//..\/images\//images/}; body=${body//docs\/images\//images/}
   printf '<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>%s</title><style>%s</style>%s<main>%s</main>' "$f" "$css" "$nav" "$body" > "site/$n"
