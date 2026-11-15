@@ -1,4 +1,4 @@
-# Getting started
+# Getting started with MaiPai for StackChan
 
 About 20 minutes the first time. You do this once.
 
