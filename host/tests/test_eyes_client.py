@@ -240,16 +240,16 @@ def test_no_vendor_package_constants_or_imports():
     source = CLIENT_SRC.read_text()
     for pattern in (r"\b0\.87\b", r"\b0\.42\b", r"\b0\.4\b", r"\b0\.1\b", r"reachy_eyes"):
         assert not re.search(pattern, source), pattern
-    for path in (REPO / "body" / "pyproject.toml", REPO / "body" / "uv.lock"):
+    for path in (REPO / "host" / "pyproject.toml", REPO / "host" / "uv.lock"):
         text = path.read_text().lower()
         assert "reachy_eyes" not in text and "reachy-eyes" not in text, path
-    for py in (REPO / "body" / "maipai_body").rglob("*.py"):
+    for py in (REPO / "host" / "maipai_body").rglob("*.py"):
         assert "import reachy_eyes" not in py.read_text(), py
         assert "from reachy_eyes" not in py.read_text(), py
 
 
 def _probe(*args: str) -> subprocess.CompletedProcess[str]:
-    probe = REPO / "scripts" / "probe_eyes.py"
+    probe = REPO / "host" / "scripts" / "probe_eyes.py"
     return subprocess.run(
         [sys.executable, str(probe), *args], capture_output=True, text=True, timeout=20
     )
