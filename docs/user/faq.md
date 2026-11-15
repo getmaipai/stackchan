@@ -5,6 +5,10 @@
 Yes, once it is set up and your model runs on your own network. Voice, timers, faces, games and the camera do not need the internet.
 Update checks, Tailscale and anything you point at an outside address do.
 
+## Do I need a computer?
+
+Today, yes: a small always-on one, such as a Raspberry Pi 5, runs the host. A phone-only setup is planned and being tested. See [Pick hardware and a model](hardware-and-models.md#no-computer-only-a-phone).
+
 ## Do I need MaiPai Home?
 
 No. The robot is complete without it. MaiPai Home adds memory across days, people, calendars, announcements, naming songs, and "what is this". See [Compare](compare.md).

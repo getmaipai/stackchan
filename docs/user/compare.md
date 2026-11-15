@@ -17,7 +17,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Speed of replies (depends on your model and hardware) | TBD | ★★☆ | ★★★ | Wake cue under 150 ms, stop under 300 ms, and the reply starts on the first sentence. Home is faster again. |
 | Model size and answer quality (depends on your hardware) | TBD | ★★☆ | ★★★ | Bigger models give better answers. A hub runs them. |
 | Memory across days <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | It remembers what you told it yesterday. |
-| Knows each person <span class="home-tag">Needs MaiPai Home</span> | TBD | ★☆☆ | ★★★ | It knows who is talking, by voice and by name. |
+| Knows each person <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | It knows who is talking, by voice and by name. |
 | Calendars, briefings, announcements <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Ask about your day and hear household announcements. |
 | Rules for children and teens <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Kids get answers that fit the rules you set. |
 | Animated face | ★★☆ | ★★★ | ★★★ | The official README lists lively, expressive animations. Ours lets you choose between two styles, any colour or none, and captions, and it adds a clock face and night mode. |

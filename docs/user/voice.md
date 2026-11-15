@@ -59,8 +59,7 @@ If the model cannot call actions, the voice commands above still work.
 
 ## Offline phrases
 
-Short replies such as "I cannot reach my model right now" can play in your own voice, so the robot still talks when the model is down.
-Record them once from the web page.
+Short replies such as "I cannot reach my model right now" are stored on the robot in its built-in voice, so it still answers when the model is down.
 
 ## Your own models
 

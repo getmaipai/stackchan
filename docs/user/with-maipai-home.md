@@ -48,7 +48,7 @@ See [Use it anywhere](use-it-anywhere.md).
 
 ## What stays on the robot
 
-Timers, faces, reactions, games and the camera name list work the same either way. A feature that needs a service the brain lacks hides itself.
+Timers, faces, reactions and dance work the same either way. A feature that needs a service the brain lacks hides itself.
 
 ## Still need help?
 

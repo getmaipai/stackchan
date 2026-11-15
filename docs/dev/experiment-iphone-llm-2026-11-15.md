@@ -29,3 +29,22 @@ Owner idea, 2026-11-15. The robot joins a phone hotspot when it travels. Could t
 - App Store apps change. Do not pin a name in the user docs until it is tested.
 
 Needs: an iPhone, the unit, a laptop, and the owner's time for a trip test.
+
+## Bigger idea: the phone as the whole host (owner, 2026-11-15)
+
+Owner: could the iPhone run a local model and the robot just point at it, so users need no computer?
+
+Why a model app alone is not enough: the robot does not call a model. The unit has about 76 KB of free internal memory and speaks one protocol to the host. The host does speech to text, the model call and text to speech. A model-serving app gives only the model call, so a host must still exist.
+
+Options:
+
+| Option | Computer needed | Notes |
+|---|---|---|
+| Host on a Raspberry Pi 5, model on the phone | A small box | Works with today's design. The smallest setup |
+| Host on a laptop, model on the phone | A laptop | The experiment above |
+| A native iPhone app as the host and brain | None | A new client: the robot link and pairing, speech to text and text to speech with Apple's on-device speech, the model from an on-device model or a local model app. Not built |
+| Host in the cloud | None | Breaks the privacy promise. Rejected |
+
+Questions for the native app: can it keep the robot link and the model alive when the screen locks (iOS suspends background apps; audio or network background modes may help but need a test); battery and heat with a hotspot on; App Store review; model size and tool use limits; whether it is a separate client rather than an extension of the core app. By the scope rule it is a separate thing, not a feature of the core.
+
+Next step: finish the laptop-host experiment first, then decide whether a native iPhone host is worth building.

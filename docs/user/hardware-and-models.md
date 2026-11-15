@@ -36,6 +36,15 @@ The robot's host does not run a model itself. It asks a model server over the we
 
 If you use a model that cannot call actions, the voice commands still work. See [If answers are slow or wrong](#if-answers-are-slow-or-wrong).
 
+## No computer? Only a phone
+
+A phone-only setup is the goal, and it is not ready yet. <span class="planned-tag">Planned</span>
+
+The robot talks to a host program, and the host turns your voice into text, asks the model, and speaks the answer. Today that host runs on a Mac, a Linux machine or a Raspberry Pi 5.
+Some iPhone apps can serve a model, but a model app alone is not enough: the robot also needs the host and the speech parts. We are testing whether an iPhone can do all of it, so a phone and the robot are all you carry.
+
+Until then, the smallest setup is a Raspberry Pi 5 running the host, with the model on a phone, a laptop or a bigger computer on your network.
+
 ## Choose where the model runs
 
 1. **On the host.** One small computer runs the host and a small model. It is the simplest and works well for short answers.
