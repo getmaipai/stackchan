@@ -41,3 +41,4 @@ Real names already in the design and used as written: `face_style`, `face_color`
 
 - The README says MaiPai for StackChan is faster and smoother than the factory firmware. No head-to-head measurement exists yet. Measure wake cue, stop and first audio on the same unit and publish the numbers, or soften the claim.
 - The latency figures (150 ms, 300 ms) are design targets, not measured on a unit.
+- The plan to measure it is `docs/dev/benchmark-factory-vs-ours.md`. Owner heard consistent stuttering in the factory voice replies; keep that out of the docs until measured.

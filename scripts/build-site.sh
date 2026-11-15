@@ -16,6 +16,11 @@ for f in $files; do n=$(out_of "$f"); l="<a href=\"$n\">$(basename "${f%.md}")</
 nav+="<details><summary>Developers</summary>$dev</details><details><summary>Design record and style</summary>$design</details></nav>"
 for f in $files; do
   n=$(out_of "$f"); body=$(bunx --bun marked@18.1.0 -i "$f"); body=${body//..\/images\//images/}; body=${body//docs\/images\//images/}
+  case "$f" in
+    README.md) body=$(printf '%s' "$body" | perl -pe 's#href="docs/(user|dev|design)/([A-Za-z0-9-]+)\.md#href="docs-$1-$2.html#g; s#href="docs/STYLE\.md#href="docs-STYLE.html#g');;
+    docs/user/*) body=$(printf '%s' "$body" | perl -pe 's#href="([A-Za-z0-9-]+)\.md#href="docs-user-$1.html#g');;
+    docs/dev/*) body=$(printf '%s' "$body" | perl -pe 's#href="([A-Za-z0-9-]+)\.md#href="docs-dev-$1.html#g');;
+  esac
   printf '<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>%s</title><style>%s</style>%s<main>%s</main>' "$f" "$css" "$nav" "$body" > "site/$n"
 done
 echo "site: $(ls site/*.html | wc -l) pages in site/"
