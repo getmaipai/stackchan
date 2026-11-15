@@ -3,6 +3,12 @@
 Costs are estimates. Every firmware item passes the memory gate (firmware-memory.md).
 Status: design. Nothing here is confirmed on a unit unless stated.
 
+## Core and Home (owner, 2026-11-15; `docs/dev/scope-core-vs-home.md`)
+
+The core is a private voice robot: voice, faces and clock, timers and alarms, reactions, dance, privacy switches and the always-on cues, lights and sounds, travel with the private network, pairing and security, signed updates, reset, English and Spanish. Sections tagged [Home] below ship with the Home adapter or as Home packages, not in the core install. The unit keeps the body half of each (cues, camera and mic switches, indicators) so the privacy rules hold whatever runs on top, and `monitor_cue_begin` stays in the core.
+Build rule: one source, two firmware presets with the same signing: `core` (small, no camera streaming, no monitor audio, no remote path) and `home` (adds the body halves Home features need, compiled in only if the memory gate holds). The hub's flash flow picks the preset. Moved host modules stay in this repo under `host/maipai_body/extras/`, installed only with the Home adapter (`maipai-stackchan[home]`); an architecture test fails the build if core imports extras, and extras never import Home code.
+First setup offers one optional screen: "Do you run MaiPai Home? Enter its address", skippable; pairing then uses `home_url`.
+
 ## Scope rule
 
 Test for any feature:
@@ -43,7 +49,7 @@ Voice commands: mute (quiet or hard), don't move, volume, brightness, sleep, sto
 Timers and alarms with snooze, escalation and per-category tones. Personas with a lock. Robot actions as model tools.
 Offline phrases in the owner's voice. Language packs (see languages.md).
 
-## Camera (host, opt-in)
+## [Home] Camera (host, opt-in)
 
 Photo and "what is this" through the owner's vision model URL. Face follow with a bundled detector.
 Wave and mirror mode. "Take my picture" with a countdown, shutter cue and local folder.
@@ -63,7 +69,7 @@ Live view in the web app: the avatar socket already carries JPEG frames up (type
 Colour-memory game and an action game, as signed data packs on one built-in game engine. Reaction and whack-a-mole variants.
 Mood that depends on care, saved across days. Music dance and mood faces. ESP-NOW pose mirroring between units.
 
-## Coding companion (host plus unit)
+## [Home] Coding companion (host plus unit)
 
 Agent status on face and ring. Spoken and captioned updates. Build light (green pass, red fail) from a `stackchan notify` hook.
 Dictation by push to talk. Approvals by touch only by default, never by voice alone. An MCP endpoint lets an agent drive the robot.
@@ -74,7 +80,7 @@ Settings > Reset on the robot clears saved Wi-Fi networks, the private-network k
 Two-step confirm on purpose: press Reset, then hold the button for 3 seconds. Cancel changes nothing. An interrupted reset still lands on the setup page (the clear is one atomic step that ends in setup, never half-cleared).
 Rules to build against: clearing runs only on the unit (no host command can trigger it), nothing is cleared until the hold completes, the confirm screen says what will be erased in plain words, and it logs one local line. Memory: a screen and a handler, no resident cost; run the memory gate. Order: with step 7 (always-on behaviours), after saved-settings identity (step 1).
 
-## Find my robot and remote control (owner request, 2026-11-15; web app on the host)
+## [Home] Find my robot and remote control (owner request, 2026-11-15; web app on the host)
 
 Hardware reality: Wi-Fi, BLE 5, IR and three Grove ports; no GPS and no UWB, so no map and no arrow. A Grove GPS module stays an idea.
 Find my robot: the web app shows last seen (time, Wi-Fi network name, battery), from a heartbeat the unit already sends the host. "Make it beep" plays a loud repeating tone with flashing light bars. It overrides quiet hours and mute (owner-initiated, authenticated), and one tap on the robot stops it. A warmer or colder meter only if Bluetooth stays after its review.
@@ -88,11 +94,11 @@ Rules (confirmed, with additions):
 - Added: a remote head move obeys the same servo limits, wear counter and stall guard as local moves, is refused while the unit is carried or the arm is blocked, and is rate limited. Added: every remote action writes one line to the local activity log the household can read, and a lost token is replaced from the robot's own settings, not from the web app.
 Remote icon design: monochrome glyph in the face's icon strip (same size and row as the mic and camera icons), a small screen with two signal arcs, always steady (no blink; blinking is reserved for the camera cue), drawn in the theme's neutral icon colour so it never reads as a meaning colour. When live view and remote control are both active both icons show. Needs a screen mockup before build; it must pass the memory gate (a 1-bit glyph, a few hundred bytes).
 
-## Monitoring modes (owner request, 2026-11-15)
+## [Home] Monitoring modes (owner request, 2026-11-15)
 
 Watch mode and alerts, baby and pet monitor, remote pan and tilt, and the rule that no monitoring is stealth: every cue comes from the one code path that opens the mic or camera. Full design, the cue table and the decisions: `docs/design/monitoring.md`. Build after the memory gate holds on the new base.
 
-## Integrations host
+## [Home] Integrations host
 
 REST and WebSocket API, event stream, MQTT, home-automation bridge, metrics, `stackchan check`. All host-side.
 The self-hoster status light, a busy light and a smart-home dimmer on the strip are small ideas on top of these.

@@ -251,3 +251,7 @@ Files: firmware/CMakeLists.txt, firmware/main/CMakeLists.txt, firmware/main/Kcon
 - `main/application.cc`: layers B, D
 - `main/audio/audio_service.cc`: layers A, D
 - `main/protocols/websocket_protocol.cc`: layers A, E
+
+## Scope note (2026-11-15)
+
+Patches for features tagged [Home] in `features.md` (camera capture and streaming, music detector, monitor and remote body halves) are ported or rebuilt as usual but each is gated by its own Kconfig switch, default off in the `core` preset, on in the `home` preset. The merge step adds the gating after layers A to C land.

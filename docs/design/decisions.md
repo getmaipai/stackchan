@@ -61,3 +61,7 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 ## Name check (2026-11-15)
 
 "StackChan" is the name of M5Stack's own commercial desktop robot, and a community project spells it "Stack-chan". A web search found no trademark records either way. Before a public release, search the USPTO, EUIPO and WIPO registers and decide whether the product needs its own name. Status: decided by the owner on 2026-11-15: the user-facing project name is "MaiPai for StackChan". Still run the trademark register search before the public release.
+
+## Scope: core and Home (2026-11-15)
+
+The core MaiPai for StackChan app is a private voice robot, simple and single purpose. Camera features, watch mode, baby and pet monitor, find my robot, remote control, live view, games, the coding companion and integrations move to MaiPai Home (tag [Home] in `features.md`). The unit keeps their body halves and the cue code path. Firmware ships as two presets from one source, `core` and `home`; moved host modules live under `extras/` and load only with the Home adapter. Detail: `docs/design/features.md` ("Core and Home").
