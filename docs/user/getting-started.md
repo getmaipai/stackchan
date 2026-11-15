@@ -2,6 +2,8 @@
 
 About 20 minutes the first time. You do this once.
 
+Before you flash, read [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md) if your robot has been used with the factory app. Do not force the head or arms by hand: the motors can be damaged.
+
 ## What you need
 
 - A StackChan robot and a USB cable. New to the robot? See the [official docs](https://docs.m5stack.com/en/StackChan), or [buy one from the store](https://shop.m5stack.com/products/stackchan-kawaii-co-created-open-source-ai-desktop-robot).

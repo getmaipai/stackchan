@@ -62,3 +62,8 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - The 'error' tone and 'listening' pop use the shipped tones (`exclamation`, `popup`). The 'back online' chime is the shipped `success`.
 - The light show colours for the dance are not specified in the notes, so the page does not name them.
 - The lights are two bars of six, one on each side of the base (official hardware page: two rows totaling 12 RGB LEDs), plus a power indicator light at the back. Older design notes call them a ring. The standard drives all 12 the same colour. The drawings put the left bar top to bottom and the right bar bottom to top. The real pixel order and which bar is which is unverified.
+
+## From the official docs (checked 2026-11-15)
+
+- Factory AI agent is powered by XiaoZhi and set up through the StackChan World app. Factory has: dance choreography in the phone app, avatar and monitoring-camera modes, ESP-NOW remote control, an app center, on-device microphone, RGB LED and servo tests, servo calibration, online firmware update, and a documented restore with M5Burner (Only Official). The restore steps in docs/user/switch-from-the-factory-firmware.md follow the official page but have not been run.
+- Idea from the official docs: on-robot hardware tests (microphone, light bars, servo). We have `stackchan check` on the host. Ask the build session whether the robot should get the same tests.

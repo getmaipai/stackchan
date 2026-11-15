@@ -81,6 +81,11 @@ Page: [Keep the robot secure](security.md).
 What each light colour, pattern and tone means.
 Page: [Lights and sounds](lights-and-sounds.md).
 
+## Switch or go back
+
+Move to MaiPai for StackChan and return to the factory firmware.
+Page: [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md).
+
 ## Compare
 
 See how MaiPai for StackChan compares with the factory firmware, and standalone with MaiPai Home.
