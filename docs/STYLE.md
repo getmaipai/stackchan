@@ -14,3 +14,14 @@
 11. MaiPai Home appears only as an optional brain.
 12. Docs change in the same commit as the behaviour they describe.
 13. Run `bash scripts/check.sh` before landing. It must print "hygiene: ok".
+
+## README and page shape
+
+A README opens the way successful firmware projects do:
+
+1. One sentence: what it is, for which device, and the benefit. No slogans and no claims about other products.
+2. A short "why use it" list. Each point is a fact with a number or a name.
+3. A table of what you get, one row per area, each row linking to its page.
+4. A screenshot near the top and one per major feature. Use an image, never a text note, even before the real capture exists.
+5. A quick start in a few lines, close to the top, then a link to the full steps.
+6. Docs, contributing, license and an independence note at the bottom.
