@@ -33,8 +33,6 @@ A ? means the README is silent or we have not tested it. See the [official docs]
 | Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ |
 | ESP-NOW remote controller | ★★★ | ☆☆☆ | ☆☆☆ |
 
-![The compare table with star ratings in three columns.](../images/compare-chart.svg)
-
 ## What the stars mean for you
 
 - **Privacy and security:** both MaiPai columns keep your voice in your home. The link is encrypted over Tailscale and plain on a home network without it, so we rate it two stars until the encrypted home link ships. [Keep the robot secure](security.md).
