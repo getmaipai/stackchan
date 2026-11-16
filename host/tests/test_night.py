@@ -588,3 +588,39 @@ def test_a_unit_without_the_face_background_tool_is_asked_once():
     assert client.set_face_background("mint", True) == {"supported": False}
     assert client.set_face_background("mint", False) == {"supported": False}
     assert calls == ["self.screen.set_face_background"]
+
+
+def test_a_unit_without_the_photo_tool_is_asked_once_and_then_left_alone():
+    from maipai_body.bodies.stackchan.xiaozhi.server import XiaozhiDeviceClient
+    from maipai_body.hal.errors import NotSupported
+
+    calls: list[str] = []
+
+    class _Client(XiaozhiDeviceClient):
+        def __init__(self) -> None:
+            self._no_take_photo = False
+
+        def _call(self, name, arguments):  # type: ignore[override]
+            calls.append(name)
+            raise NotSupported("Unknown tool")
+
+    client = _Client()
+    assert client.take_photo() is None
+    assert client.take_photo() is None
+    assert calls == ["self.camera.take_photo"]
+
+
+def test_a_unit_whose_camera_tool_has_no_vision_service_is_asked_once_and_then_left_alone():
+    from maipai_body.bodies.stackchan.xiaozhi.server import XiaozhiDeviceClient
+
+    calls: list[str] = []
+
+    class _Server:
+        def call_device_tool(self, name, arguments, timeout=None):
+            calls.append(name)
+            raise RuntimeError("Image explain URL or token is not set")
+
+    client = XiaozhiDeviceClient(_Server())  # type: ignore[arg-type]
+    assert client.take_photo() is None
+    assert client.take_photo() is None
+    assert calls == ["self.camera.take_photo"]

@@ -1,0 +1,99 @@
+# Intent: self.audio.notify {text, urgent}: the host's notice call (timers, replies, the self-test) now has an answer on the unit. The unit has no voice of its own, so it plays the popup tone (exclamation when urgent) through the same sound policy and hard mute as play_sound and answers {ok, spoken:false}. play_sound and notify share one function.
+# Placement: unit (the tone and the quiet-hours judgment must work with the host down)
+# Upstream: firmware/main/hal/maipai_sounds.cc (MIT), built on patch 116
+# Check after a flash: calling self.audio.notify plays one short tone and answers {"ok":true,"spoken":false}; muted or in quiet hours it answers {"ok":false,"error":...} and plays nothing.
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+index 8d9dc77..2d0033a 100644
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -110,6 +110,38 @@ void snapshot(ms_policy_t* policy, bool* night)
+     *night  = ms_is_night(&s_policy, minute_of_day(), hal_bridge::hub_link_up()) != 0;
+ }
+ 
++// Plays one named sound if the policy, the hard mute and the base image allow it; answers the tool's JSON.
++std::string play_named(const std::string& name, bool urgent, bool test)
++{
++    const int s     = ms_sound_from_name(name.c_str());
++    const char* why = "unknown_sound";
++    if (s >= 0) {
++        ms_policy_t policy;
++        bool night = false;
++        snapshot(&policy, &night);
++        if (maipai_muted()) {
++            policy.muted = 1;
++        }
++        ms_reason_t reason = ms_decide(&policy, s, urgent ? 1 : 0, night ? 1 : 0, test ? 1 : 0);
++        if (reason != MS_OK) {
++            std::lock_guard<std::mutex> lock(s_mutex);
++            s_plays_refused++;
++            why = ms_reason_word(reason);
++        } else {
++            std::string_view data = sound_data(s);
++            if (data.empty()) {
++                why = "missing";
++            } else {
++                Application::GetInstance().PlaySound(data);
++                std::lock_guard<std::mutex> lock(s_mutex);
++                s_plays_ok++;
++                return std::string("{\"ok\":true}");
++            }
++        }
++    }
++    return std::string("{\"ok\":false,\"error\":\"") + why + "\"}";
++}
++
+ }  // namespace
+ 
+ void maipai_sounds_register_tools()
+@@ -123,35 +155,23 @@ void maipai_sounds_register_tools()
+                               Property("urgent", kPropertyTypeBoolean, false),
+                               Property("test", kPropertyTypeBoolean, false)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+-                    auto name   = properties["name"].value<std::string>();
+-                    const int s = ms_sound_from_name(name.c_str());
+-                    const char* why = "unknown_sound";
+-                    if (s >= 0) {
+-                        ms_policy_t policy;
+-                        bool night = false;
+-                        snapshot(&policy, &night);
+-                        if (maipai_muted()) {
+-                            policy.muted = 1;
+-                        }
+-                        ms_reason_t reason = ms_decide(&policy, s, properties["urgent"].value<bool>() ? 1 : 0,
+-                                                       night ? 1 : 0, properties["test"].value<bool>() ? 1 : 0);
+-                        if (reason != MS_OK) {
+-                            std::lock_guard<std::mutex> lock(s_mutex);
+-                            s_plays_refused++;
+-                            why = ms_reason_word(reason);
+-                        } else {
+-                            std::string_view data = sound_data(s);
+-                            if (data.empty()) {
+-                                why = "missing";
+-                            } else {
+-                                Application::GetInstance().PlaySound(data);
+-                                std::lock_guard<std::mutex> lock(s_mutex);
+-                                s_plays_ok++;
+-                                return std::string("{\"ok\":true}");
+-                            }
+-                        }
++                    return play_named(properties["name"].value<std::string>(), properties["urgent"].value<bool>(),
++                                      properties["test"].value<bool>());
++                });
++    mcp.AddTool("self.audio.notify",
++                "A short notice tone for a message the host wants the person to notice (the unit has no voice of "
++                "its own: speech comes in the reply stream). text is accepted and ignored, urgent plays the "
++                "exclamation tone and pierces quiet hours. Goes through the sound policy and the hard mute. Answers "
++                "{ok,spoken:false} or {ok:false,error}.",
++                PropertyList({Property("text", kPropertyTypeString, std::string("")),
++                              Property("urgent", kPropertyTypeBoolean, false)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const bool urgent = properties["urgent"].value<bool>();
++                    std::string out   = play_named(urgent ? "exclamation" : "popup", urgent, false);
++                    if (out.size() > 1 && out.back() == '}') {
++                        out.insert(out.size() - 1, ",\"spoken\":false");
+                     }
+-                    return std::string("{\"ok\":false,\"error\":\"") + why + "\"}";
++                    return out;
+                 });
+     mcp.AddTool("self.audio.set_sound_policy",
+                 "Set when the unit's own sounds may play. enabled: sounds on. night_ok: sounds also at night. muted: "

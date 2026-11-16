@@ -51,4 +51,6 @@ S01-core-trim.patch
 037-idle-motion-tool.patch
 074-keep-awake-tool.patch
 116-sound-policy-tools.patch
+117-audio-notify-tool.patch
 143-offline-label-after-45-s.patch
+B01-xiaozhi-base-adapt.patch

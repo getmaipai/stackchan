@@ -90,6 +90,7 @@ class XiaozhiDeviceClient:
         self.timeout = timeout
         self._failure_logged: dict[str, float] = {}
         self._no_face_background = False
+        self._no_take_photo = False
 
     def get_head_angles(self) -> dict[str, int]:
         result = self._call("self.robot.get_head_angles", {})
@@ -222,7 +223,16 @@ class XiaozhiDeviceClient:
             raise BodyLost("StackChan notify push failed; reconnect and retry.") from exc
 
     def take_photo(self) -> bytes | None:
-        return self._call("self.camera.take_photo", {"question": "Describe what you see."})
+        # The camera is a Home-preset feature the v1 firmware does not carry. A unit that answers
+        # "unknown tool" is asked once; after that there is simply no photo (None), no error.
+        if self._no_take_photo:
+            return None
+        try:
+            return self._call("self.camera.take_photo", {"question": "Describe what you see."})
+        except NotSupported:
+            self._no_take_photo = True
+            LOG.info("StackChan firmware has no take_photo tool; no photos will be asked for")
+            return None
 
     def send_avatar_frame(self, frame: bytes) -> object:
         self.server.refuse_on_loop("send_avatar_frame", self.timeout)
@@ -286,7 +296,17 @@ class XiaozhiDeviceClient:
                 term in normalized for term in ("out of range", "outside the limit", "envelope")
             ):
                 raise OutOfEnvelope(message) from exc
-            if any(term in normalized for term in ("not supported", "unsupported", "unknown tool")):
+            # "explain url or token is not set": the unit has the camera tool but no vision service
+            # behind it (the v1 firmware carries none), so a photo can never come back from it.
+            if any(
+                term in normalized
+                for term in (
+                    "not supported",
+                    "unsupported",
+                    "unknown tool",
+                    "explain url or token is not set",
+                )
+            ):
                 part, capability = self._tool_contract(name)
                 raise NotSupported(
                     f"StackChan does not support {name}: {message}",
