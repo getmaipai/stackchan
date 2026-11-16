@@ -41,6 +41,10 @@ TRAIN4 = [
     "U05-version-screen.patch",
     "U06-face-style-packs-and-languages.patch",
 ]
+FACES_CORE = [
+    "X01-look-core-and-skin.patch",
+    "X02-face-styles-colours-and-battery.patch",
+]  # patches after Train 5 that change the pure headers (look core, face core, decor core, reaction rows)
 # The patches whose pure headers the face cores need, in order (U06 changes three of them).
 CORE_CHAIN = [
     "F01-face-config.patch",
@@ -49,6 +53,8 @@ CORE_CHAIN = [
     "F05-face-thinking-cue.patch",
     "F06-face-timer-countdowns.patch",
     *TRAIN4[1:],
+    "H02-face-fluid-motion.patch",  # the eased-motion core the look core includes
+    *FACES_CORE,
 ]
 
 
@@ -105,8 +111,8 @@ def _c_test(cores: Path, source: str, tmp_path: Path) -> None:
         "tz_core_test.c",
         "nettest_core_test.c",
         "version_core_test.c",
-        "pack_core_test.c",
         "face_cores_test.c",
+        "look_core_test.c",
     ],
 )
 def test_the_c_cores_pass_their_tests(cores: Path, source: str, tmp_path: Path) -> None:
@@ -182,7 +188,8 @@ def _c_strings(block: str) -> list[str]:
 def test_the_host_decorator_list_is_the_firmwares(cores: Path) -> None:
     core = (cores / "maipai_decor_core.h").read_text()
     names = _c_strings(core.split("MD_NAMES[MD_COUNT] = {", 1)[1].split("};", 1)[0])
-    assert names[0] == "none" and tuple(names[1:]) == faces.DECORATORS
+    # the ids of the sweat drop and the blush stay in the table; the face no longer offers them (patch X02)
+    assert names[0] == "none" and tuple(n for n in names[1:] if n not in ("sweat", "shy")) == faces.DECORATORS
 
 
 def test_the_host_reaction_table_is_the_firmwares(cores: Path) -> None:
@@ -209,7 +216,8 @@ def test_the_host_zone_list_is_the_firmwares(cores: Path) -> None:
 def test_the_host_style_language_and_caption_lists_are_the_firmwares(cores: Path) -> None:
     core = (cores / "maipai_face_core.h").read_text()
     styles = _c_strings(core.split("MF_STYLE_NAMES[MF_STYLE_COUNT] = {", 1)[1].split("};", 1)[0])
-    assert tuple(styles) == faces.STYLES
+    # the saved ids 3 to 8 are the dropped styles (no name); the host lists the five that remain, in its own order
+    assert sorted(styles) == sorted(faces.STYLES)
     langs = _c_strings(core.split("MF_LANG_CODES[MF_LANG_COUNT] = {", 1)[1].split("};", 1)[0])
     assert tuple(langs) == faces.LANGS
     caps = _c_strings(core.split("MF_CAPTION_NAMES[3] = {", 1)[1].split("};", 1)[0])
@@ -300,7 +308,7 @@ def test_reaction_rows_are_checked_with_the_firmwares_rules() -> None:
         ([{"say": "x" * 30, "face": "happy"}], "2 to 23"),
         ([{"say": "wow", "face": "grumpy"}], "happy, sad"),
         ([{"say": "wow", "face": "happy", "sound": "exclamation"}], "needs_you"),
-        ([{"say": "wow", "face": "happy", "decor": "confetti"}], "sweat, shy"),
+        ([{"say": "wow", "face": "happy", "decor": "confetti"}], "dizzy, heart"),
         ([{"say": "wow", "face": "happy", "dance": "moonwalk"}], "look_around"),
         ([{"say": "wow"}], "at least"),
         ([{"say": "wow", "face": "happy"}, {"say": "WOW!", "face": "sad"}], "already"),
@@ -569,14 +577,14 @@ def _face_service(
 
 def test_a_decorator_is_checked_and_sent(tmp_path: Path) -> None:
     service, firmware = _face_service(tmp_path)
-    assert service.decorate(UNIT, "sweat", 5) == {"ok": True}
-    assert firmware.calls[-1][:2] == ("self.face.decorate", {"name": "sweat", "seconds": 5})
+    assert service.decorate(UNIT, "tears", 5) == {"ok": True}
+    assert firmware.calls[-1][:2] == ("self.face.decorate", {"name": "tears", "seconds": 5})
     service.decorate(UNIT, "none")
     for name, seconds, words in (
         ("confetti", 5, "does not exist"),
-        ("sweat", 0, "1 to 60"),
-        ("sweat", 61, "1 to 60"),
-        ("sweat", True, "1 to 60"),
+        ("tears", 0, "1 to 60"),
+        ("tears", 61, "1 to 60"),
+        ("tears", True, "1 to 60"),
     ):
         with pytest.raises(faces.FaceError) as caught:
             service.decorate(UNIT, name, seconds)  # type: ignore[arg-type]
@@ -607,7 +615,7 @@ def test_every_decorator_has_a_tool_entry_and_a_face_helper(tmp_path: Path) -> N
     assert table["face_decorate"]({"unit": UNIT, "name": "nope"})["ok"] is False
     assert table["face_decorate"]({"name": "stars"})["ok"] is False
     firmware.link = False
-    assert "reach my body" in table["face_sweat"]({"unit": UNIT})["error"]
+    assert "reach my body" in table["face_tears"]({"unit": UNIT})["error"]
     firmware.link = True
     assert service.extra_for_face(UNIT, "sad") is True and firmware.calls[-1][1]["name"] == "tears"
     assert service.extra_for_face(UNIT, "neutral") is False
@@ -621,11 +629,12 @@ def test_new_styles_sizes_and_languages_are_checked_and_flagged_for_old_firmware
     config = faces.clean(
         faces.FaceConfig(), {"style": "heart_eyes", "caption_size": "large", "lang": "de"}
     )
-    assert (config.style, config.caption_size, config.lang) == ("heart_eyes", "large", "de")
+    # a dropped style is Big eyes (patch X02)
+    assert (config.style, config.caption_size, config.lang) == ("big_eyes", "large", "de")
     for values, words in (
         ({"caption_size": "tiny"}, "small, medium or large"),
         ({"lang": "ja"}, "en, es, fr, de, pt or it"),
-        ({"style": "pirate"}, "round, cat, robot"),
+        ({"style": "pirate"}, "big_eyes, eyes_only, stock, classic or minimal"),
     ):
         with pytest.raises(faces.FaceError) as caught:
             faces.clean(faces.FaceConfig(), values)
@@ -636,7 +645,7 @@ def test_new_styles_sizes_and_languages_are_checked_and_flagged_for_old_firmware
     service, _ = _face_service(tmp_path, features=("config",))
     service.sync(UNIT)
     lines = service.unsupported(
-        UNIT, {"style": "cat", "lang": "fr", "caption_size": "large", "colour": "mint"}
+        UNIT, {"style": "stock", "lang": "fr", "caption_size": "large", "colour": "mint"}
     )
     assert len(lines) == 3 and not service.unsupported(UNIT, {"style": "classic", "lang": "es"})
 
@@ -763,10 +772,10 @@ def test_the_face_route_takes_the_screen_language_apart_from_the_page_language(
     backend, _, firmware = _backend(tmp_path)
     status, payload = backend.route_post(
         f"/api/stackchan/faces/{UNIT}",
-        {"lang": "es", "screen_lang": "de", "style": "cat", "caption_size": "small"},
+        {"lang": "es", "screen_lang": "de", "style": "stock", "caption_size": "small"},
         True,
     )
-    assert status == 200 and firmware.state["lang"] == "de" and firmware.state["style"] == "cat"
+    assert status == 200 and firmware.state["lang"] == "de" and firmware.state["style"] == "stock"
     assert firmware.state["caption_size"] == "small"
 
 

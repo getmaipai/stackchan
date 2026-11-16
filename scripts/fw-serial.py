@@ -105,6 +105,19 @@ def call(
     raise TimeoutError(f"no reply to {name} in {wait} s")
 
 
+def unrle(hexdata: str) -> bytes:
+    """A row sent as runs ("@snapz": count, low byte, high byte of each run) back to raw RGB565 little endian.
+    A row mangled by a log line that landed in the middle of it is a RuntimeError, so the caller takes the picture again."""
+    try:
+        raw = bytes.fromhex(hexdata)
+    except ValueError as error:
+        raise RuntimeError("a snapshot row was damaged on the cable") from error
+    out = bytearray()
+    for i in range(0, len(raw) - 2, 3):
+        out += raw[i + 1 : i + 3] * raw[i]
+    return bytes(out)
+
+
 def snap(s, out: str) -> None:
     rows: dict[int, bytes] = {}
     size = [320, 240]
@@ -116,6 +129,9 @@ def snap(s, out: str) -> None:
         elif text.startswith("@snap "):
             _, y, hexdata = text.split(" ", 2)
             rows[int(y)] = bytes.fromhex(hexdata)
+        elif text.startswith("@snapz "):
+            _, y, hexdata = text.split(" ", 2)
+            rows[int(y)] = unrle(hexdata)
 
     call(s, "self.face.snapshot", wait=60.0, on_line=on_line)
     w, h = size
@@ -238,6 +254,9 @@ def snaps_to_png(snaps: list[str], out: str) -> None:
         elif text.startswith("@snap "):
             _, y, hexdata = text.split(" ", 2)
             rows[int(y)] = bytes.fromhex(hexdata)
+        elif text.startswith("@snapz "):
+            _, y, hexdata = text.split(" ", 2)
+            rows[int(y)] = unrle(hexdata)
     if not h or len(rows) != h:
         raise RuntimeError(f"snapshot incomplete: {len(rows)} of {h} rows")
     rgb = b"".join(rgb565le_to_rgb(rows[y]) for y in range(h))

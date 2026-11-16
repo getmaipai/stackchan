@@ -85,7 +85,7 @@ static void test_defaults_and_matching(void)
     e = hit(&t, "I love this song");
     CHECK(e != NULL && strcmp(e->phrase, "love") == 0 && e->dance == 1 && e->decor == MD_HEART);
     e = hit(&t, "sorry about that");
-    CHECK(e != NULL && e->face == 2 && e->decor == MD_SWEAT);
+    CHECK(e != NULL && e->face == 2 && e->decor == 0);
     e = hit(&t, "Good night!");
     CHECK(e != NULL && e->face == 5 && e->decor == MD_ZZZ);
     /* Spanish, French, German, Portuguese, Italian pairs */

@@ -127,7 +127,7 @@ CATALOG: dict[str, dict[str, str]] = {
         "settings.face.style.classic": "Classic",
         "settings.face.style.big_eyes": "Big eyes",
         "settings.face.style.minimal": "Minimal",
-        "settings.face.colour": "Face colour",
+        "settings.face.colour": "Eye colour",
         "settings.face.colour.none": "None (white)",
         "settings.face.colour.mint": "Mint",
         "settings.face.colour.sky": "Sky",
@@ -265,7 +265,7 @@ CATALOG: dict[str, dict[str, str]] = {
         "settings.face.style.classic": "Clasico",
         "settings.face.style.big_eyes": "Ojos grandes",
         "settings.face.style.minimal": "Minimo",
-        "settings.face.colour": "Color de la cara",
+        "settings.face.colour": "Color de los ojos",
         "settings.face.colour.none": "Ninguno (blanco)",
         "settings.face.colour.mint": "Menta",
         "settings.face.colour.sky": "Cielo",
@@ -302,6 +302,14 @@ def _merge_more() -> None:
     from maipai_body import i18n_design as design
 
     for code, words in design.CATALOGS.items():
+        CATALOG[code].update(words)
+    from maipai_body import i18n_polish as polish
+
+    for code, words in polish.CATALOGS.items():
+        CATALOG[code].update(words)
+    from maipai_body import i18n_remote as remote
+
+    for code, words in remote.CATALOGS.items():
         CATALOG[code].update(words)
 
 

@@ -23,18 +23,26 @@ static void test_default_is_neutral(void)
     mf_config_t c; mf_default(&c);
     uint8_t r, g, b;
     mf_foreground(&c, &r, &g, &b);
+#ifdef MF_STYLE_EYES_ONLY /* patch X02: Big eyes is the default */
+    CHECK(c.style == MF_STYLE_BIG_EYES && c.colour_mode == MF_COLOUR_NONE);
+#else
     CHECK(c.style == MF_STYLE_CLASSIC && c.colour_mode == MF_COLOUR_NONE);
+#endif
     CHECK(r == 255 && g == 255 && b == 255);
     CHECK(c.captions == 0 && c.tod == 0 && c.clock_idle_s == 0 && c.thinking_tone == 1);
     CHECK(mf_valid(&c));
+#ifndef MF_STYLE_EYES_ONLY
     CHECK(mf_style_eye_offset(c.style) == 0);
+#endif
 }
 
 static void test_style_and_colour(void)
 {
     mf_config_t c; mf_default(&c);
     CHECK(mf_set_style_name(&c, "big_eyes") == MF_OK && c.style == MF_STYLE_BIG_EYES);
+#ifndef MF_STYLE_EYES_ONLY
     CHECK(mf_style_eye_offset(MF_STYLE_BIG_EYES) > 0 && mf_style_eye_offset(MF_STYLE_MINIMAL) < 0);
+#endif
     CHECK(mf_set_style_name(&c, "huge") == MF_ERR_STYLE && c.style == MF_STYLE_BIG_EYES);
     CHECK(mf_set_style_name(&c, NULL) == MF_ERR_STYLE);
     CHECK(mf_set_colour(&c, "mint") == MF_OK && c.colour_mode == MF_COLOUR_PALETTE);
@@ -55,6 +63,78 @@ static void test_style_and_colour(void)
         CHECK(mf_luma(MF_PALETTE_RGB[i][0], MF_PALETTE_RGB[i][1], MF_PALETTE_RGB[i][2]) >= MF_MIN_LUMA);
     }
 }
+
+#ifdef MF_STYLE_EYES_ONLY
+/* ---- X02: five styles, the dropped ones, the screen colour, the emotion tint, blob version 3 ---- */
+static void test_x02_styles_and_colours(void)
+{
+    mf_config_t c; mf_default(&c);
+    CHECK(c.style == MF_STYLE_BIG_EYES && c.emotion_tint == 1 && c.bg_mode == MF_COLOUR_NONE);
+    CHECK(mf_set_style_name(&c, "eyes_only") == MF_OK && c.style == MF_STYLE_EYES_ONLY);
+    CHECK(mf_set_style_name(&c, "stock") == MF_OK && c.style == MF_STYLE_STOCK);
+    CHECK(mf_set_style_name(&c, "classic") == MF_OK && c.style == MF_STYLE_CLASSIC);
+    /* the dropped names are accepted and mean Big eyes, so an old setting never errors */
+    static const char* const gone[] = {"round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes"};
+    for (int i = 0; i < 6; i++) {
+        CHECK(mf_set_style_name(&c, gone[i]) == MF_OK && c.style == MF_STYLE_BIG_EYES);
+    }
+    CHECK(mf_set_style_name(&c, "huge") == MF_ERR_STYLE);
+    for (int s = 0; s < MF_STYLE_COUNT; s++) {
+        CHECK((mf_style_ok(s) != 0) == (s == 0 || s == 1 || s == 2 || s == 9 || s == 10));
+        if (mf_style_ok(s)) CHECK(mf_look_id(s) >= 0 && mf_look_id(s) <= 4);
+    }
+    CHECK(mf_look_id(MF_STYLE_STOCK) == 2 && mf_look_id(MF_STYLE_BIG_EYES) == 0 && mf_look_id(MF_STYLE_EYES_ONLY) == 1);
+    CHECK(mf_look_id(5) == 0 && mf_look_id(99) == 0); /* a dropped or unknown style draws as Big eyes */
+    /* the screen colour: black, a palette colour dimmed, or the person's own dark colour; never one that hides white eyes */
+    uint8_t r, g, b;
+    mf_background(&c, &r, &g, &b);
+    CHECK(r == 0 && g == 0 && b == 0);
+    CHECK(mf_set_background(&c, "mint") == MF_OK && c.bg_mode == MF_COLOUR_PALETTE);
+    mf_background(&c, &r, &g, &b);
+    CHECK(r == MF_PALETTE_RGB[0][0] * MF_BG_PCT / 100 && g > r && mf_luma(r, g, b) <= MF_MAX_BG_LUMA);
+    CHECK(mf_set_background(&c, "#102030") == MF_OK && c.bg_mode == MF_COLOUR_CUSTOM);
+    CHECK(mf_set_background(&c, "#f0f0f0") == MF_ERR_BRIGHT && c.bg_r == 0x10);
+    CHECK(mf_set_background(&c, "blue") == MF_ERR_COLOUR);
+    CHECK(mf_set_background(&c, "none") == MF_OK && c.bg_mode == MF_COLOUR_NONE);
+    for (int i = 0; i < MF_PALETTE_COUNT; i++) {
+        mf_config_t p; mf_default(&p);
+        p.bg_mode = MF_COLOUR_PALETTE; p.bg_palette = (uint8_t)i;
+        mf_background(&p, &r, &g, &b);
+        CHECK(mf_luma(r, g, b) <= MF_MAX_BG_LUMA && mf_luma(r, g, b) >= 20); /* dark, but a colour you can see */
+    }
+}
+
+static void test_x02_blob_versions_and_migration(void)
+{
+    mf_config_t c; mf_default(&c);
+    mf_set_style_name(&c, "stock"); mf_set_background(&c, "lilac"); c.emotion_tint = 0;
+    uint8_t buf[MF_BLOB_MAX];
+    size_t n = mf_save(&c, buf, sizeof(buf));
+    CHECK(n > 0 && n <= MF_BLOB_MAX && buf[0] == 3);
+    mf_config_t d;
+    CHECK(mf_load(&d, buf, n) == MF_OK && memcmp(&c, &d, sizeof(c)) == 0);
+    /* a version 2 blob (no tint, no screen colour) is still read: the defaults fill in */
+    uint8_t old[MF_BLOB_MAX];
+    memcpy(old, buf, 20);
+    old[0] = 2;
+    old[1] = MF_STYLE_MINIMAL;
+    const uint16_t crc = mf_crc16(old, 20);
+    old[20] = (uint8_t)(crc >> 8); old[21] = (uint8_t)(crc & 0xFF);
+    CHECK(mf_load(&d, old, 22) == MF_OK && d.style == MF_STYLE_MINIMAL && d.emotion_tint == 1 && d.bg_mode == MF_COLOUR_NONE);
+    /* a saved dropped style (ids 3 to 8) loads as Big eyes and the rest of the saved face survives */
+    for (int s = MF_STYLE_DROPPED_FIRST; s <= MF_STYLE_DROPPED_LAST; s++) {
+        old[1] = (uint8_t)s;
+        const uint16_t c2 = mf_crc16(old, 20);
+        old[20] = (uint8_t)(c2 >> 8); old[21] = (uint8_t)(c2 & 0xFF);
+        CHECK(mf_load(&d, old, 22) == MF_OK && d.style == MF_STYLE_BIG_EYES && d.captions == c.captions);
+    }
+    /* an id that never existed is refused */
+    old[1] = 77;
+    const uint16_t c3 = mf_crc16(old, 20);
+    old[20] = (uint8_t)(c3 >> 8); old[21] = (uint8_t)(c3 & 0xFF);
+    CHECK(mf_load(&d, old, 22) == MF_ERR_RANGE);
+}
+#endif
 
 static void test_hours_and_language(void)
 {
@@ -89,7 +169,7 @@ static void test_save_load(void)
     CHECK(mf_save(&c, buf, 4) == 0);
     /* a blob with a good check but a style that does not exist is refused */
     mf_save(&c, buf, sizeof(buf));
-    buf[1] = 9;
+    buf[1] = 99;
     const uint16_t crc = mf_crc16(buf, n - 2);
     buf[n - 2] = (uint8_t)(crc >> 8); buf[n - 1] = (uint8_t)(crc & 0xFF);
     CHECK(mf_load(&d, buf, n) == MF_ERR_RANGE);
@@ -294,6 +374,10 @@ int main(void)
 {
     test_default_is_neutral();
     test_style_and_colour();
+#ifdef MF_STYLE_EYES_ONLY
+    test_x02_styles_and_colours();
+    test_x02_blob_versions_and_migration();
+#endif
     test_hours_and_language();
     test_save_load();
     test_bands();

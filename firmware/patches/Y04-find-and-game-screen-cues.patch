@@ -1,0 +1,85 @@
+# Intent: two on-screen cues. (1) Find-my-robot: every find chirp (Y02) shows a happy face and the words "Here I am!" for 2.5 s, so the unit is easy to spot as well as to hear. (2) Games: the game screen shows "Best N" in the top corner (the saved best, nothing before the first score) and, after a record, "New best! N" in gold with the success tone. The packs are unchanged; the label is drawn by the player.
+# Placement: unit (the screen and the game player run on the robot)
+# Upstream: firmware/main/hal/maipai_sounds.cc, maipai_games.cc, MIT
+# Check after a flash: Remote Find shows "Here I am!"; a game shows "Best N" and, when the score beats it, "New best! N".
+
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+index c50c5ec..3872589 100644
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -161,6 +161,9 @@ std::string play_named(const std::string& name, bool urgent, bool test, int find
+             hal_bridge::board_set_speaker_volume(kFindVolume, false);
+         }
+         s_find_last_ms = now_ms;
++        // Patch Y04: a clear "finding" cue on the screen with every chirp: a big happy face and the words.
++        hal_bridge::react_face("happy", 2500);
++        hal_bridge::notice("Here I am!", 2500);
+     }
+     const int s     = ms_sound_from_name(name.c_str());
+     const char* why = "unknown_sound";
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+index 61642e7..752bff6 100644
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -82,6 +82,7 @@ struct Game {
+     mg_run_t run;
+     lv_obj_t* root;
+     lv_timer_t* timer;
++    lv_obj_t* best_lbl;  // patch Y04: "Best N" in the top corner, "New best! N" after a record
+     lv_obj_t* obj[MG_MAX_SHAPES];
+     uint8_t type[MG_MAX_SHAPES];
+     uint8_t text[MG_MAX_SHAPES];
+@@ -353,6 +354,30 @@ void end_locked(const char* how)
+     device_events_push("game_ended", extra);
+ }
+ 
++// Patch Y04: the saved best of this game (0 when none), as a corner label on the game screen.
++void show_best(Game* g, bool record)
++{
++    if (g->best_lbl == nullptr) {
++        return;
++    }
++    int best = 0;
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        best = s_entries[g->entry].best[0];
++    }
++    char text[32];
++    if (record) {
++        snprintf(text, sizeof(text), g->es ? "Nuevo record! %d" : "New best! %d", best);
++        lv_obj_set_style_text_color(g->best_lbl, lv_color_make(255, 214, 64), 0);
++    } else if (best > 0) {
++        snprintf(text, sizeof(text), g->es ? "Mejor %d" : "Best %d", best);
++        lv_obj_set_style_text_color(g->best_lbl, lv_color_make(170, 170, 170), 0);
++    } else {
++        text[0] = '\0';
++    }
++    lv_label_set_text(g->best_lbl, text);
++}
++
+ void commit_score(Game* g)
+ {
+     const int value = g->run.ctr[g->pack.score_ctr];
+@@ -367,6 +392,10 @@ void commit_score(Game* g)
+     if (rank < 0) {
+         return;
+     }
++    if (rank == 0) {
++        show_best(g, true);  // a new best: shown on the game screen, with its own tone
++        (void)maipai_sounds_play("success");
++    }
+     s_saves_total++;
+     // The flash write runs on the main task, never on the screen task (and only here, once, when a game ends).
+     char id[12];
+@@ -558,6 +587,11 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+         g->text[i] = s.text;
+         g->obj[i]  = build_shape(g->root, s);
+     }
++    g->best_lbl = lv_label_create(g->root);
++    lv_obj_remove_flag(g->best_lbl, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_style_text_font(g->best_lbl, &lv_font_montserrat_14, 0);
++    lv_obj_align(g->best_lbl, LV_ALIGN_TOP_RIGHT, -6, 3);
++    show_best(g, false);
+     g->last_awake_ms = now_ms();
+     mg_start(&g->run, &g->pack, now_ms(), esp_random());
+     s_game = g;

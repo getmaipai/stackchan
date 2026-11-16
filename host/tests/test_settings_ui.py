@@ -192,8 +192,8 @@ def test_the_page_names_tailscale_and_has_about_and_remote() -> None:
     assert "github.com/getmaipai/stackchan" in page and "BUILDERS.remote" in page
 
 
-def test_remote_buttons_act_on_the_unit(sim) -> None:
-    backend, units = sim
+def test_remote_buttons_act_on_the_unit(tmp_path: Path) -> None:
+    backend, units = build(tmp_path, next_unit=True)  # a unit with the remote cue: say and photo are allowed on it
     kitchen = units[KITCHEN]
     view = _get(backend, KITCHEN, "remote")[1]
     assert view["reachable"] and view["photo"] and "groove" in [d["name"] for d in view["dances"]]
@@ -202,7 +202,7 @@ def test_remote_buttons_act_on_the_unit(sim) -> None:
         ({"do": "beep"}, "self.audio.play_sound"),
         ({"do": "say", "text": "Hello there"}, "self.audio.speak"),
         ({"do": "head", "yaw": 30, "pitch": 40}, "self.robot.set_head_angles"),
-        ({"do": "nod"}, "self.robot.nod"),
+        ({"do": "nod"}, "self.robot.set_head_angles"),
         ({"do": "dance", "name": "groove"}, "self.robot.dance"),
         ({"do": "stop_dance"}, "self.robot.stop_dance"),
         ({"do": "game", "name": "memory"}, "self.game.start"),
@@ -211,13 +211,16 @@ def test_remote_buttons_act_on_the_unit(sim) -> None:
         assert status == 200 and payload["ok"] is True, body
         assert tool in [name for name, _ in kitchen.actions], tool
     assert ("self.audio.speak", {"text": "Hello there"}) in kitchen.actions
-    assert ("self.robot.set_head_angles", {"yaw": 30, "pitch": 40, "speed": 120}) in kitchen.actions
+    assert ("self.robot.set_head_angles", {"yaw": 30, "pitch": 40, "speed": 150, "source": "user"}) in kitchen.actions
+    assert all(a["speed"] >= 100 for n, a in kitchen.actions if n == "self.robot.set_head_angles")  # the unit's minimum
+    assert _post(backend, KITCHEN, "remote", {"do": "center"})[0] == 200
     before = len(kitchen.actions)
     assert _post(backend, KITCHEN, "remote", {"do": "flash"})[0] == 200
     assert _post(backend, KITCHEN, "remote", {"do": "look"})[0] == 200
     assert _post(backend, KITCHEN, "remote", {"do": "shake"})[0] == 200
     heads = [a for n, a in kitchen.actions[before:] if n == "self.robot.set_head_angles"]
-    assert heads[-1] == {"yaw": 0, "pitch": 5, "speed": 120}  # always ends centred
+    assert heads[-1]["yaw"] == 0 and heads[-1]["pitch"] == 5 and heads[-1]["source"] == "user"  # ends where it started
+    assert all(a["speed"] >= 100 for a in heads)
     assert kitchen.device["self.robot.set_led_color"] == {"red": 0, "green": 0, "blue": 0}  # lights end off
     photo = _post(backend, KITCHEN, "remote", {"do": "photo"})[1]
     assert photo["image"].startswith("data:image/png;base64,")
@@ -257,6 +260,7 @@ def test_without_a_camera_the_photo_button_says_so(tmp_path: Path) -> None:
     from maipai_body.unit_remote import UnitRemote
 
     backend, _ = build(tmp_path)
+    backend.activity.store.update({"allow_without_cue": True})  # the camera message, not the cue refusal, is under test
     backend._remote = UnitRemote(lambda *a, **k: {"ok": True})  # no photo source
     assert _get(backend, KITCHEN, "remote")[1]["photo"] is False
     status, payload = _post(backend, KITCHEN, "remote", {"do": "photo"})
@@ -272,9 +276,9 @@ def test_the_about_card_has_version_licence_and_links(sim) -> None:
 def test_every_other_section_reads_and_writes_through_the_stand_in(sim) -> None:
     backend, units = sim
     status, payload = backend.route_post(
-        f"/api/stackchan/faces/{KITCHEN}", {"style": "cat", "colour": "sky", "captions": True, "caption_size": "large"}, True
+        f"/api/stackchan/faces/{KITCHEN}", {"style": "stock", "colour": "sky", "captions": True, "caption_size": "large"}, True
     )
-    assert status == 200 and units[KITCHEN].face["style"] == "cat"
+    assert status == 200 and units[KITCHEN].face["style"] == "stock"
     assert _get(backend, KITCHEN, "reactions")[1]["builtin"] is True
     rows = [{"say": "good morning", "face": "happy", "sound": "none", "decor": "sparkles", "dance": "none"}]
     assert _post(backend, KITCHEN, "reactions", {"rows": rows})[0] == 200
@@ -307,3 +311,63 @@ def test_the_page_is_served_and_saves_over_http(sim) -> None:
         assert json.loads(conn.getresponse().read())["saved"]["volume"] == 44
     finally:
         server.stop()
+
+
+def test_remote_reads_the_effect_back_and_never_says_done_for_nothing(sim) -> None:
+    backend, units = sim
+    kitchen = units[KITCHEN]
+    kitchen.accept_head = False  # the unit answers ok but ignores the move
+    for body in ({"do": "head", "yaw": 40, "pitch": 30}, {"do": "look"}, {"do": "nod"}, {"do": "shake"}):
+        status, payload = _post(backend, KITCHEN, "remote", body)
+        assert status == 400 and "head did not move" in payload["error"], body
+    kitchen.accept_head = True
+    assert _post(backend, KITCHEN, "remote", {"do": "head", "yaw": 40, "pitch": 30})[0] == 200
+    assert kitchen.head == {"yaw": 40, "pitch": 30}
+
+
+def test_remote_mute_reports_the_unit_state_and_beep_needs_real_sound(sim) -> None:
+    backend, units = sim
+    kitchen = units[KITCHEN]
+    status, payload = _post(backend, KITCHEN, "remote", {"do": "mute", "on": True})
+    assert status == 200 and payload["muted"] is True and kitchen.privacy["muted"] is True
+    assert _get(backend, KITCHEN, "remote")[1]["muted"] is True
+    status, payload = _post(backend, KITCHEN, "remote", {"do": "beep"})
+    assert status == 400 and "muted" in payload["error"]
+    # find is a user-asked locate: it sounds even while muted, and it never touches the microphone
+    assert _post(backend, KITCHEN, "remote", {"do": "find", "on": True})[1]["finding"] is True
+    _post(backend, KITCHEN, "remote", {"do": "find", "on": False})
+    finds = [a for n, a in kitchen.actions if n == "self.audio.play_sound" and a.get("find") == 1]
+    assert finds and kitchen.privacy["muted"] is True
+    assert not any("mic" in n or "microphone" in n for n, _ in kitchen.calls)
+    assert _post(backend, KITCHEN, "remote", {"do": "mute", "on": False})[1]["muted"] is False
+    assert _post(backend, KITCHEN, "remote", {"do": "beep"})[0] == 200
+    assert _post(backend, KITCHEN, "remote", {"do": "mute", "on": "x"})[0] == 400
+
+
+def test_a_unit_that_rejects_a_tool_gives_a_plain_json_error_not_a_dropped_connection(tmp_path: Path) -> None:
+    import threading
+    import urllib.request
+
+    from maipai_body.settings_server import SettingsServer
+
+    backend, _ = build(tmp_path)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("Unknown tool: self.robot.nod")
+
+    backend._remote = None
+    backend.route_post = boom  # type: ignore[method-assign]
+    server = SettingsServer(backend, port=0)
+    server.start()
+    try:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{server.port}/api/stackchan/unit/x/remote", data=b"{}", headers={"Content-Type": "application/json"}
+        )
+        try:
+            urllib.request.urlopen(request, timeout=5)
+            raise AssertionError("expected an error status")
+        except urllib.error.HTTPError as error:
+            assert error.code == 500 and b"nothing was changed" in error.read()
+    finally:
+        server.stop()
+        threading.Event()

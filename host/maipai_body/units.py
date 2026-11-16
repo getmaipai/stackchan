@@ -154,6 +154,13 @@ class UnitRegistry:
     def brain_for(self, device_id: str) -> Any:
         """The unit's own brain. Rebuilt when its settings change; history stays inside it."""
         config = self.config_for(device_id)
+        if self.store.get(device_id).get("emotion_faces", True) is not False:
+            # The model starts each reply with a mood tag; the host strips it and shows the face.
+            from maipai_body.reply_tags import persona_with_tags
+
+            config = config.model_copy(
+                update={"llm": config.llm.model_copy(update={"persona": persona_with_tags(config.llm.persona)})}
+            )
         signature = json.dumps(config.model_dump(), sort_keys=True, default=str)
         with self._lock:
             cached = self._brains.get(device_id)

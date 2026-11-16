@@ -15,6 +15,8 @@ FIRMWARE = HERE.parent / "maipai_body/bodies/stackchan/firmware"
 PATCHES = FIRMWARE / "patches"
 TOUCH_PATCH = PATCHES / "105-face-touch-toggles.patch"
 C_TEST = HERE / "firmware" / "touch_core_test.c"
+# Patch L07 (the rebased patch set) adds the 70 ms press floor to the same header; the C test covers both.
+L07_PATCH = HERE.parent.parent / "firmware/patches/L07-privacy-source-and-touch-debounce.patch"
 SERIES = [
     "105-face-touch-toggles.patch",
     "106-privacy-core.patch",
@@ -38,9 +40,17 @@ def _added_file(patch: Path, path: str) -> str:
 
 @pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler on this machine")
 def test_touch_core_c_tests_pass(tmp_path):
-    (tmp_path / "maipai_touch_core.h").write_text(
-        _added_file(TOUCH_PATCH, "firmware/main/hal/maipai_touch_core.h")
+    header = tmp_path / "maipai_touch_core.h"
+    header.write_text(_added_file(TOUCH_PATCH, "firmware/main/hal/maipai_touch_core.h"))
+    l07 = L07_PATCH.read_text()
+    block = l07.split("diff --git a/firmware/main/hal/maipai_touch_core.h", 1)[1].split("\ndiff --git", 1)[0]
+    applied = subprocess.run(
+        ["patch", "-s", str(header)],
+        input="--- a/h\n+++ b/h\n" + block.split("+++ b/firmware/main/hal/maipai_touch_core.h\n", 1)[1],
+        capture_output=True,
+        text=True,
     )
+    assert applied.returncode == 0, applied.stdout + applied.stderr
     binary = tmp_path / "touch_test"
     build = subprocess.run(
         [

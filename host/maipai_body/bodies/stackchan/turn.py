@@ -14,17 +14,19 @@ import time
 import wave
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 
 import av
 import numpy as np
 import numpy.typing as npt
 
+from maipai_body import reply_tags
 from maipai_body.bodies.stackchan.error_line import ErrorLineBreaker
 from maipai_body.speaker_evidence import SpeakerEvidenceError, speaker_evidence
 from maipai_body.speech.capture import BLOCK_SAMPLES
 from maipai_body.speech.offline_clips import UNREACHABLE
 from maipai_body.speech.playback import AudioPlayback
-from maipai_body.speech.reply_stream import SentenceSplitter, TagStripper
+from maipai_body.speech.reply_stream import ReplyTagger
 from maipai_body.speech.stt_stream import WAKE_PATIENCE_S, SttStreamClient, SttStreamError
 from maipai_body.speech.tts_playback import TtsAuthFailed, TtsPlaybackClient
 from maipai_body.speech.turn_client import TurnAuthFailed, TurnClient, TurnLinkLost
@@ -707,6 +709,15 @@ class StackChanTurnBridge:
         # on_slow_reply (a filler-sound hook, None until one exists) is called, once per turn.
         self.filler_after_s = FILLER_AFTER_S
         self.on_slow_reply = None
+        # The unit's host-side preferences by Device-Id (unit_prefs.py): emotion faces, overlays, the
+        # "While it thinks" choice and its wait. None means every default.
+        self.prefs_for: Callable[[str], dict] | None = None
+        # Shows overlays asked for by reply tags (overlays.py); None leaves them out.
+        self.overlay_director = None
+        # Plays the "While it thinks" sound when no first audio arrives in time (fillers.py); None: no sound.
+        self.filler_player = None
+        # True while something outranks decoration (sleep, the low-battery tired look): no overlay starts.
+        self.decoration_blocked: Callable[[], bool] = lambda: False
 
     async def on_audio(self, session_id: str, data: bytes) -> None:
         stats = self._audio_stats.setdefault(session_id, [0, 0])
@@ -1323,7 +1334,7 @@ class StackChanTurnBridge:
                     return
             turn = self._turn_for(device_id, base, cookie)
             await self._stream_reply(
-                session_id, turn, result, playback, cancel_event, base, cookie
+                session_id, turn, result, playback, cancel_event, base, cookie, device_id=device_id
             )
         except asyncio.CancelledError:
             raise
@@ -1367,8 +1378,42 @@ class StackChanTurnBridge:
                 size,
             )
 
+    def _unit_prefs(self, device_id: str) -> dict:
+        try:
+            return dict(self.prefs_for(device_id)) if self.prefs_for is not None else {}
+        except Exception:
+            LOG.debug("StackChan voice: unit preferences unreadable; using defaults", exc_info=True)
+            return {}
+
+    def _overlay_cue(self, device_id: str, cue) -> None:
+        """Start or end an overlay named in the reply. Privacy and sleep outrank decoration; never raises."""
+        director = self.overlay_director
+        if director is None or not device_id:
+            return
+        if cue.kind == "overlay" and (self.muted_reason() is not None or self.decoration_blocked()):
+            return
+
+        def run() -> None:
+            try:
+                if cue.kind == "overlay":
+                    director.set(device_id, cue.name, cue.intensity, cue.seconds or reply_tags.DEFAULT_SECONDS)
+                else:
+                    director.clear(device_id)
+            except Exception:
+                LOG.debug("StackChan voice: overlay cue failed", exc_info=True)
+
+        self._side.submit(run)
+
     async def _stream_reply(
-        self, session_id: str, turn, result, playback, cancel_event, base: str, cookie: str
+        self,
+        session_id: str,
+        turn,
+        result,
+        playback,
+        cancel_event,
+        base: str,
+        cookie: str,
+        device_id: str = "",
     ) -> None:
         """Ask for the reply and speak it sentence by sentence while it is still being written.
 
@@ -1393,10 +1438,22 @@ class StackChanTurnBridge:
                 except Exception:
                     LOG.debug("StackChan voice: hub turn cancel failed", exc_info=True)
 
+        prefs = self._unit_prefs(device_id)
+        emotion_on = prefs.get("emotion_faces", True) is not False
+        overlays_on = prefs.get("overlays_enabled", True) is not False
+        filler_mode = prefs.get("filler_mode", "tone")
+        filler_wait = float(prefs.get("filler_wait_s", 0.4))
+
+        def put_items(items) -> None:
+            for item in items:
+                if item.cues:
+                    put(("cues", item.cues))
+                if item.text:
+                    put(("sentence", item.text))
+
         def _drain() -> None:
             events: list = []
-            stripper = TagStripper()
-            splitter = SentenceSplitter()
+            tagger = ReplyTagger(moods=emotion_on, overlays=overlays_on, fallback=emotion_on)
             error: BaseException | None = None
             try:
                 evidence = self._speaker_evidence(result)
@@ -1409,25 +1466,19 @@ class StackChanTurnBridge:
                         # A stop must end the hub's generation too, not only our playback.
                         cancel_hub_turn()
                         break
-                    if getattr(getattr(event, "cue", None), "expressed_emotion", None):
+                    if emotion_on and getattr(getattr(event, "cue", None), "expressed_emotion", None):
                         put(("mood", event))
                     delta = getattr(event, "delta_text", None)
                     if not delta:
                         continue
                     marks.setdefault("first_token", self._clock())
-                    text = stripper.feed(delta)
-                    if getattr(event, "delta_whole", False):
-                        text += "\n"
-                    for sentence in splitter.feed(text):
-                        put(("sentence", sentence))
+                    put_items(tagger.feed(delta, whole=bool(getattr(event, "delta_whole", False))))
                 if not cancel_event.is_set():
-                    tail = stripper.flush()
-                    for sentence in [*splitter.feed(tail), *splitter.flush()]:
-                        put(("sentence", sentence))
+                    put_items(tagger.flush())
             except BaseException as exc:  # reported to the speaking side, never lost
                 error = exc
             finally:
-                put(("end", events, error, stripper.tags))
+                put(("end", events, error, tagger.tags))
 
         reader = loop.run_in_executor(None, _drain)
         spoken: list[str] = []
@@ -1437,6 +1488,7 @@ class StackChanTurnBridge:
         mood_event = None
         mood_sent = None
         filler_sent = False
+        filler_played = False
         tts = None
         finished = False
 
@@ -1454,6 +1506,18 @@ class StackChanTurnBridge:
                 "reply_mood", mood="joy" if mood == "happiness" and excitement else mood
             )
             self._notify(self.on_reply_mood, mood)
+
+        def run_cues(cues) -> None:
+            nonlocal mood_event
+            for cue in cues:
+                if cue.kind == "mood":
+                    mood_event = SimpleNamespace(
+                        cue=SimpleNamespace(expressed_emotion=reply_tags.MOOD_CUE[cue.name])
+                    )
+                    if spoken:
+                        apply_mood()
+                else:
+                    self._overlay_cue(device_id, cue)
 
         async def speak(sentence: str) -> bool:
             nonlocal tts
@@ -1512,12 +1576,38 @@ class StackChanTurnBridge:
 
         try:
             while not finished:
+                want_filler = (
+                    self.filler_player is not None
+                    and filler_mode in ("tone", "phrase")
+                    and not filler_played
+                    and not spoken
+                )
                 try:
-                    item = await asyncio.wait_for(queue.get(), timeout=0.2)
+                    item = await asyncio.wait_for(
+                        queue.get(), timeout=0.05 if want_filler else 0.2
+                    )
                 except TimeoutError:
                     if cancel_event.is_set():
                         cancel_hub_turn()
                         return
+                    if (
+                        want_filler
+                        and "first_audio" not in marks
+                        and self._clock() - chat_started >= filler_wait
+                        and self.muted_reason() is None
+                    ):
+                        # No first audio yet: one short non-word sound or tone, once per turn.
+                        filler_played = True
+                        try:
+                            await asyncio.to_thread(
+                                self.filler_player.play,
+                                playback,
+                                device_id,
+                                filler_mode,
+                                self.language,
+                            )
+                        except Exception:  # a failed filler never fails the answer
+                            LOG.debug("StackChan voice: filler sound failed", exc_info=True)
                     if (
                         not filler_sent
                         and not spoken
@@ -1538,6 +1628,8 @@ class StackChanTurnBridge:
                     mood_event = item[1]
                     if spoken:
                         apply_mood()
+                elif kind == "cues":
+                    run_cues(item[1])
                 elif kind == "sentence":
                     if asyncio.current_task().cancelling() or cancel_event.is_set():
                         return
@@ -1567,8 +1659,8 @@ class StackChanTurnBridge:
         if not spoken and error is None:
             # Not streamed (or a built-in answer): the final reply is split and spoken here.
             if reply:
-                stripper = TagStripper()
-                clean = stripper.feed(reply) + stripper.flush()
+                tagger = ReplyTagger(moods=emotion_on, overlays=overlays_on, fallback=emotion_on)
+                parsed = [*tagger.feed(reply), *tagger.flush()]
                 mood_event = next(
                     (
                         e
@@ -1577,8 +1669,11 @@ class StackChanTurnBridge:
                     ),
                     mood_event,
                 )
-                for sentence in _sentences(clean):
-                    if asyncio.current_task().cancelling() or not await speak(sentence):
+                for part in parsed:
+                    run_cues(part.cues)
+                    if part.text and (
+                        asyncio.current_task().cancelling() or not await speak(part.text)
+                    ):
                         return
         if not spoken:
             await asyncio.to_thread(self._speak_plain_error, playback, base, cookie)

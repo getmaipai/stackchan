@@ -15,14 +15,16 @@ static int failures;
 static void test_names(void)
 {
     CHECK(md_from_name("none") == MD_NONE);
-    CHECK(md_from_name("sweat") == MD_SWEAT);
+    CHECK(md_from_name("sweat") == -1); /* dropped (patch X02): the sweat drop and the blush are unknown names now */
+    CHECK(md_from_name("shy") == -1);
+    CHECK(md_dropped(MD_SWEAT) && md_dropped(MD_SHY) && !md_dropped(MD_HEART));
     CHECK(md_from_name("zzz") == MD_ZZZ);
     CHECK(md_from_name("sparkles") == MD_SPARKLES);
     CHECK(md_from_name("Sweat") == -1); /* exact names only */
     CHECK(md_from_name("") == -1);
     CHECK(md_from_name(NULL) == -1);
     for (int i = 0; i < MD_COUNT; i++) {
-        CHECK(md_from_name(MD_NAMES[i]) == i);
+        CHECK(md_from_name(MD_NAMES[i]) == (md_dropped(i) ? -1 : i));
     }
     CHECK(md_seconds_ok(1) && md_seconds_ok(60) && !md_seconds_ok(0) && !md_seconds_ok(61) && !md_seconds_ok(-3));
 }

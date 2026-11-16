@@ -116,3 +116,10 @@ L06-bench-latency-trace.patch
 L07-privacy-source-and-touch-debounce.patch
 L08-no-connecting-flash.patch
 L09-stop-word-not-probed.patch
+X01-look-core-and-skin.patch
+X02-face-styles-colours-and-battery.patch
+Y01-user-head-moves-pass-the-idle-gate.patch
+Y02-find-my-robot-overrides-mute.patch
+Y03-opus-decode-above-the-screen-task.patch
+Y04-find-and-game-screen-cues.patch
+Z01-boot-event-names-the-crash.patch

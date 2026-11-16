@@ -1,0 +1,1103 @@
+# Intent: Faces core, part 2 (owner brief 2026-11-16). The saved face settings and what drives the face. Styles are now Big eyes (the default), Eyes only, Stock (the original skin as shipped), Classic (rounder eyes) and Minimal; round, cat, robot, sleepy, retro pixel and heart eyes are dropped as styles, and a saved or sent one loads as Big eyes (the blob is version 3, versions 1 and 2 are still read; the saved ids 3 to 8 are the dropped ones, the new ones are 9 and 10 so a saved dropped id can never turn into a new style). The colour rule: the eyes are white by default (colour still sets them), the screen colour behind the face is per person (a palette colour at 26 percent of its brightness, or a dark #rrggbb; a colour too bright for white eyes is refused), and the gentle emotion tint is a setting that is on by default. The sweat and shy decorators are dropped (their ids stay; the names are unknown) and the built-in reactions that used the sweat drop have none. The thinking cue is the skin's own dots (patch X01). The low-battery look is TIRED, not sad: half-lidded eyes, a slow blink and a yawn at 20 percent, more droop at 10 percent, the sleepy face at 5 percent, set from the battery ladder each poll and cleared by a cable; a well cared for unit rests content (round eyes, a small smile) instead of cutting its eyes with the happy lid. The display maps surprised, tired, love, content and closing, and sleeping now closes the lids over 1.5 s. Bench builds get self.face.bench_emotion.
+# Placement: unit (settings are kept in the unit's own flash; the host copy is what the settings page shows)
+# Upstream: firmware/main/hal/{maipai_face_core.h,maipai_face.cc,maipai_face.h,maipai_decor_core.h,maipai_decor.cc,maipai_react_core.h,maipai_daily.cc,maipai_facebench.cc} and board/stackchan_display.cc (ours, patches F01, U01, U02, U06, T01, M01, H01); maipai_pack_core.h of U06 is deleted: the styles are rows of maipai_look_core.h now
+# Check after a flash: self.face.get_config shows style big_eyes, background none, emotion_tint true on a unit with no saved face; a saved classic stays classic; a battery simulation at 20, 10 and 5 percent shows the tired looks and a cable clears them.
+
+diff --git a/firmware/main/hal/maipai_face_core.h b/firmware/main/hal/maipai_face_core.h
+index 82a86cc..474aabb 100644
+--- a/firmware/main/hal/maipai_face_core.h
++++ b/firmware/main/hal/maipai_face_core.h
+@@ -4,7 +4,7 @@
+  * MaiPai face configuration (patch F01): the pure logic, no ESP-IDF, no heap, no clock. Header-only
+  * plain C99 so a host compiler can test it. The device side is maipai_face.cc.
+  *
+- * The face is neutral by default: white on black, the classic look, no captions, no time-of-day
++ * The face is neutral by default: white eyes, the Big eyes look, no captions, no time-of-day
+  * change. Style and colour are saved settings, never a reflash. Colour is decoration only: no state
+  * is told by colour alone (the screen rule), and a colour too dark to see on the black screen is
+  * refused so the face cannot be made to vanish.
+@@ -15,18 +15,18 @@
+ #include <stdint.h>
+ #include <string.h>
+ 
+-#define MF_BLOB_VERSION 2 /* 1 had no caption size; it is still read */
++#define MF_BLOB_VERSION 3 /* 1 had no caption size, 2 no tint or background; both are still read */
+ 
+-#define MF_STYLE_CLASSIC 0
+-#define MF_STYLE_BIG_EYES 1
++#define MF_STYLE_CLASSIC 0 /* rounder eyes than stock */
++#define MF_STYLE_BIG_EYES 1 /* the default (patch X02) */
+ #define MF_STYLE_MINIMAL 2
+-#define MF_STYLE_ROUND 3 /* patch U06: more looks, as data (see maipai_pack_core.h) */
+-#define MF_STYLE_CAT 4
+-#define MF_STYLE_ROBOT 5
+-#define MF_STYLE_SLEEPY 6
+-#define MF_STYLE_PIXEL 7
+-#define MF_STYLE_HEARTS 8
+-#define MF_STYLE_COUNT 9
++/* 3 to 8 were round, cat, robot, sleepy, retro_pixel and heart_eyes (patch U06). They are dropped (patch X02): a saved one
++ * loads as Big eyes, and the names are still accepted and mean Big eyes, so an old setting never errors. */
++#define MF_STYLE_DROPPED_FIRST 3
++#define MF_STYLE_DROPPED_LAST 8
++#define MF_STYLE_EYES_ONLY 9 /* two eyes, no mouth */
++#define MF_STYLE_STOCK 10    /* the original skin as shipped */
++#define MF_STYLE_COUNT 11
+ 
+ #define MF_COLOUR_NONE 0    /* neutral white: the default */
+ #define MF_COLOUR_PALETTE 1 /* one of the named colours */
+@@ -34,6 +34,8 @@
+ 
+ #define MF_PALETTE_COUNT 7
+ #define MF_MIN_LUMA 60 /* of 255: darker than this cannot be seen on the black screen */
++#define MF_MAX_BG_LUMA 100 /* of 255: a background brighter than this hides the white eyes (patch X02) */
++#define MF_BG_PCT 26       /* a palette background is the palette colour at this percent of its brightness */
+ 
+ #define MF_LANG_EN 0
+ #define MF_LANG_ES 1
+@@ -50,6 +52,7 @@
+ #define MF_ERR_HOURS -4
+ #define MF_ERR_LANG -5
+ #define MF_ERR_RANGE -6
++#define MF_ERR_BRIGHT -7
+ 
+ typedef struct {
+     uint8_t style;        /* MF_STYLE_* */
+@@ -65,13 +68,19 @@ typedef struct {
+     uint8_t clock_style;  /* 0 big digits, 1 ring */
+     uint16_t clock_idle_s;/* 0: the clock face never shows by itself; otherwise after this many idle seconds */
+     uint8_t caption_size; /* 0 small, 1 medium (default), 2 large: the size of the words on the face (patch U06) */
++    uint8_t emotion_tint; /* 1 (default): the eyes lean a little toward a colour per emotion (patch X02) */
++    uint8_t bg_mode;      /* MF_COLOUR_*: the screen colour behind the face; none is black (patch X02) */
++    uint8_t bg_palette;   /* index into the named colours when bg_mode is MF_COLOUR_PALETTE */
++    uint8_t bg_r, bg_g, bg_b; /* the custom screen colour */
+ } mf_config_t;
+ 
+ static inline void mf_default(mf_config_t* c)
+ {
+     memset(c, 0, sizeof(*c));
+-    c->style = MF_STYLE_CLASSIC;
++    c->style = MF_STYLE_BIG_EYES;
+     c->colour_mode = MF_COLOUR_NONE;
++    c->emotion_tint = 1;
++    c->bg_mode = MF_COLOUR_NONE;
+     c->captions = 0;
+     c->tod = 0;
+     c->tod_from[0] = 6;
+@@ -86,8 +95,9 @@ static inline void mf_default(mf_config_t* c)
+     c->caption_size = 1;
+ }
+ 
+-static const char* const MF_STYLE_NAMES[MF_STYLE_COUNT] = {"classic", "big_eyes",    "minimal",   "round",      "cat",
+-                                                           "robot",   "sleepy",      "retro_pixel", "heart_eyes"};
++static const char* const MF_STYLE_NAMES[MF_STYLE_COUNT] = {"classic", "big_eyes", "minimal", NULL, NULL, NULL,
++                                                           NULL,      NULL,       NULL,      "eyes_only", "stock"};
++static const char* const MF_DROPPED_STYLE_NAMES[6] = {"round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes"};
+ static const char* const MF_LANG_CODES[MF_LANG_COUNT] = {"en", "es", "fr", "de", "pt", "it"};
+ static const char* const MF_CAPTION_NAMES[3] = {"small", "medium", "large"};
+ static const int MF_CAPTION_PX[3] = {14, 16, 20}; /* the three Latin text sizes the build already has */
+@@ -97,16 +107,21 @@ static const uint8_t MF_PALETTE_RGB[MF_PALETTE_COUNT][3] = {
+     {0xB8, 0x9C, 0xF0}, {0xB4, 0xE0, 0x5A}, {0xF2, 0x84, 0x6C},
+ };
+ 
+-/* Eye size offset for a style, added to the size the face already uses (the classic look is 0). */
+-static inline int mf_style_eye_offset(int style)
++/* A style a unit draws: the five that are kept. */
++static inline int mf_style_ok(int style)
++{
++    return style == MF_STYLE_CLASSIC || style == MF_STYLE_BIG_EYES || style == MF_STYLE_MINIMAL || style == MF_STYLE_EYES_ONLY ||
++           style == MF_STYLE_STOCK;
++}
++
++/* The look table row (maipai_look_core.h ML_STYLE_*) of a saved style. A dropped or unknown style is Big eyes. */
++static inline int mf_look_id(int style)
+ {
+     switch (style) {
+-        case MF_STYLE_BIG_EYES: return 60;
+-        case MF_STYLE_MINIMAL: return -40;
+-        case MF_STYLE_ROUND: return 25;
+-        case MF_STYLE_CAT: return -10;
+-        case MF_STYLE_SLEEPY: return -10;
+-        case MF_STYLE_HEARTS: return 10;
++        case MF_STYLE_CLASSIC: return 3;
++        case MF_STYLE_MINIMAL: return 4;
++        case MF_STYLE_EYES_ONLY: return 1;
++        case MF_STYLE_STOCK: return 2;
+         default: return 0;
+     }
+ }
+@@ -119,11 +134,17 @@ static inline int mf_set_style_name(mf_config_t* c, const char* name)
+         return MF_ERR_STYLE;
+     }
+     for (int i = 0; i < MF_STYLE_COUNT; i++) {
+-        if (strcmp(name, MF_STYLE_NAMES[i]) == 0) {
++        if (MF_STYLE_NAMES[i] != NULL && strcmp(name, MF_STYLE_NAMES[i]) == 0) {
+             c->style = (uint8_t)i;
+             return MF_OK;
+         }
+     }
++    for (int i = 0; i < 6; i++) { /* a dropped style: Big eyes, so an old setting never errors */
++        if (strcmp(name, MF_DROPPED_STYLE_NAMES[i]) == 0) {
++            c->style = MF_STYLE_BIG_EYES;
++            return MF_OK;
++        }
++    }
+     return MF_ERR_STYLE;
+ }
+ 
+@@ -188,6 +209,58 @@ static inline void mf_foreground(const mf_config_t* c, uint8_t* r, uint8_t* g, u
+     }
+ }
+ 
++/* "none" (or empty), a palette name, or "#rrggbb": the screen colour behind the face (patch X02). The person's own colour
++ * must be dark enough for the white eyes to show. */
++static inline int mf_set_background(mf_config_t* c, const char* text)
++{
++    if (text == NULL || text[0] == '\0' || strcmp(text, "none") == 0) {
++        c->bg_mode = MF_COLOUR_NONE;
++        return MF_OK;
++    }
++    for (int i = 0; i < MF_PALETTE_COUNT; i++) {
++        if (strcmp(text, MF_PALETTE_NAMES[i]) == 0) {
++            c->bg_mode = MF_COLOUR_PALETTE;
++            c->bg_palette = (uint8_t)i;
++            return MF_OK;
++        }
++    }
++    if (text[0] != '#' || strlen(text) != 7) {
++        return MF_ERR_COLOUR;
++    }
++    int v[6];
++    for (int i = 0; i < 6; i++) {
++        v[i] = mf_hex_digit(text[1 + i]);
++        if (v[i] < 0) {
++            return MF_ERR_COLOUR;
++        }
++    }
++    const int r = v[0] * 16 + v[1], g = v[2] * 16 + v[3], b = v[4] * 16 + v[5];
++    if (mf_luma(r, g, b) > MF_MAX_BG_LUMA) {
++        return MF_ERR_BRIGHT;
++    }
++    c->bg_mode = MF_COLOUR_CUSTOM;
++    c->bg_r = (uint8_t)r;
++    c->bg_g = (uint8_t)g;
++    c->bg_b = (uint8_t)b;
++    return MF_OK;
++}
++
++/* The screen colour: black by default, a person's palette colour at MF_BG_PCT percent, or their own dark colour. */
++static inline void mf_background(const mf_config_t* c, uint8_t* r, uint8_t* g, uint8_t* b)
++{
++    if (c->bg_mode == MF_COLOUR_PALETTE && c->bg_palette < MF_PALETTE_COUNT) {
++        *r = (uint8_t)(MF_PALETTE_RGB[c->bg_palette][0] * MF_BG_PCT / 100);
++        *g = (uint8_t)(MF_PALETTE_RGB[c->bg_palette][1] * MF_BG_PCT / 100);
++        *b = (uint8_t)(MF_PALETTE_RGB[c->bg_palette][2] * MF_BG_PCT / 100);
++    } else if (c->bg_mode == MF_COLOUR_CUSTOM) {
++        *r = c->bg_r;
++        *g = c->bg_g;
++        *b = c->bg_b;
++    } else {
++        *r = *g = *b = 0;
++    }
++}
++
+ /* Band starts must rise: morning < day < evening < night, each an hour 0 to 23. Night runs through midnight. */
+ static inline int mf_set_hours(mf_config_t* c, int morning, int day, int evening, int night)
+ {
+@@ -232,7 +305,13 @@ static inline int mf_set_caption_size(mf_config_t* c, const char* name)
+ /* A clean config: every field in range. Used after a load so a damaged blob falls back to defaults. */
+ static inline int mf_valid(const mf_config_t* c)
+ {
+-    if (c->style >= MF_STYLE_COUNT || c->colour_mode > MF_COLOUR_CUSTOM || c->palette >= MF_PALETTE_COUNT) {
++    if (!mf_style_ok(c->style) || c->colour_mode > MF_COLOUR_CUSTOM || c->palette >= MF_PALETTE_COUNT) {
++        return 0;
++    }
++    if (c->bg_mode > MF_COLOUR_CUSTOM || c->bg_palette >= MF_PALETTE_COUNT || c->emotion_tint > 1) {
++        return 0;
++    }
++    if (c->bg_mode == MF_COLOUR_CUSTOM && mf_luma(c->bg_r, c->bg_g, c->bg_b) > MF_MAX_BG_LUMA) {
+         return 0;
+     }
+     if (c->colour_mode == MF_COLOUR_CUSTOM && mf_luma(c->r, c->g, c->b) < MF_MIN_LUMA) {
+@@ -256,8 +335,9 @@ static inline const char* mf_err_word(int code)
+ {
+     switch (code) {
+         case MF_OK: return "ok";
+-        case MF_ERR_STYLE: return "unknown face style: use classic, big_eyes, minimal, round, cat, robot, sleepy, retro_pixel or heart_eyes";
++        case MF_ERR_STYLE: return "unknown face style: use big_eyes, eyes_only, stock, classic or minimal";
+         case MF_ERR_COLOUR: return "unknown colour: use none, a name (mint, sky, amber, rose, lilac, lime, coral) or #rrggbb";
++        case MF_ERR_BRIGHT: return "background too bright for white eyes: pick a darker colour";
+         case MF_ERR_DARK: return "colour too dark to see on the black screen: pick a lighter colour";
+         case MF_ERR_HOURS: return "day bands must be hours 0 to 23 that rise: morning, day, evening, night";
+         case MF_ERR_LANG: return "unknown language: use en, es, fr, de, pt or it";
+@@ -308,6 +388,12 @@ static inline size_t mf_save(const mf_config_t* c, uint8_t* buf, size_t size)
+     buf[n++] = (uint8_t)(c->clock_idle_s >> 8);
+     buf[n++] = (uint8_t)(c->clock_idle_s & 0xFF);
+     buf[n++] = c->caption_size;
++    buf[n++] = c->emotion_tint;
++    buf[n++] = c->bg_mode;
++    buf[n++] = c->bg_palette;
++    buf[n++] = c->bg_r;
++    buf[n++] = c->bg_g;
++    buf[n++] = c->bg_b;
+     const uint16_t crc = mf_crc16(buf, n);
+     buf[n++] = (uint8_t)(crc >> 8);
+     buf[n++] = (uint8_t)(crc & 0xFF);
+@@ -319,10 +405,10 @@ static inline size_t mf_save(const mf_config_t* c, uint8_t* buf, size_t size)
+ static inline int mf_load(mf_config_t* c, const uint8_t* buf, size_t len)
+ {
+     mf_default(c);
+-    if (buf == NULL || len < 3 || (buf[0] != 1 && buf[0] != MF_BLOB_VERSION)) {
++    if (buf == NULL || len < 3 || (buf[0] < 1 || buf[0] > MF_BLOB_VERSION)) {
+         return MF_ERR_RANGE;
+     }
+-    const size_t body = 9 + 4 + 4 + 2 + (buf[0] >= 2 ? 1 : 0);
++    const size_t body = 9 + 4 + 4 + 2 + (buf[0] >= 2 ? 1 : 0) + (buf[0] >= 3 ? 6 : 0);
+     if (len != body + 2) {
+         return MF_ERR_RANGE;
+     }
+@@ -352,6 +438,17 @@ static inline int mf_load(mf_config_t* c, const uint8_t* buf, size_t len)
+     if (buf[0] >= 2) {
+         t.caption_size = buf[n++];
+     }
++    if (buf[0] >= 3) {
++        t.emotion_tint = buf[n++];
++        t.bg_mode = buf[n++];
++        t.bg_palette = buf[n++];
++        t.bg_r = buf[n++];
++        t.bg_g = buf[n++];
++        t.bg_b = buf[n++];
++    }
++    if (t.style >= MF_STYLE_DROPPED_FIRST && t.style <= MF_STYLE_DROPPED_LAST) {
++        t.style = MF_STYLE_BIG_EYES; /* a style that was dropped (patch X02) */
++    }
+     if (!mf_valid(&t)) {
+         return MF_ERR_RANGE;
+     }
+diff --git a/firmware/main/hal/maipai_pack_core.h b/firmware/main/hal/maipai_pack_core.h
+deleted file mode 100644
+index 6e0d39d..0000000
+--- a/firmware/main/hal/maipai_pack_core.h
++++ /dev/null
+@@ -1,104 +0,0 @@
+-/*
+- * SPDX-License-Identifier: MIT
+- *
+- * Face style packs (patch U06): each face style is a row of data, not code. A row says how round the eyes are, how far
+- * apart, how far the lids may open and which drawn extras the style has (cat ears and whiskers, a robot's antenna and
+- * bolts, heart eyes). The pure logic: the table and the geometry of the extras. Header-only plain C99 so a host
+- * compiler can test it; the device side draws them in maipai_face.cc. The eye size offset of each style is in
+- * maipai_face_core.h (mf_style_eye_offset). Extras are plain rounded rectangles (the part shape of maipai_decor_core.h):
+- * no image, no font, no new flash.
+- */
+-#ifndef MAIPAI_PACK_CORE_H
+-#define MAIPAI_PACK_CORE_H
+-
+-#include "maipai_face_core.h"
+-#include "maipai_decor_core.h"
+-
+-#define MP_X_NONE 0
+-#define MP_X_CAT 1
+-#define MP_X_ROBOT 2
+-#define MP_X_HEARTS 3
+-#define MP_MAX_EXTRA_PARTS 12
+-
+-typedef struct {
+-    uint8_t radius_pct; /* 100 a circle, 0 a square */
+-    int8_t gap_off;     /* pixels added to each eye's distance from the middle (negative is closer) */
+-    uint8_t lid_cap;    /* how far the lids may open, in percent (100 is no limit) */
+-    uint8_t extras;     /* MP_X_* */
+-} mp_pack_t;
+-
+-/* Indexed by MF_STYLE_*. */
+-static const mp_pack_t MP_PACKS[MF_STYLE_COUNT] = {
+-    {100, 0, 100, MP_X_NONE},  /* classic */
+-    {100, 0, 100, MP_X_NONE},  /* big_eyes */
+-    {100, 0, 100, MP_X_NONE},  /* minimal */
+-    {100, -6, 100, MP_X_NONE}, /* round: big round eyes, close together */
+-    {100, 8, 100, MP_X_CAT},   /* cat */
+-    {22, 12, 100, MP_X_ROBOT}, /* robot: squared eyes */
+-    {100, 0, 55, MP_X_NONE},   /* sleepy: heavy lids */
+-    {0, 10, 100, MP_X_NONE},   /* retro_pixel: square eyes */
+-    {100, 0, 100, MP_X_HEARTS} /* heart_eyes */
+-};
+-
+-static inline const mp_pack_t* mp_pack(int style)
+-{
+-    return &MP_PACKS[(style >= 0 && style < MF_STYLE_COUNT) ? style : MF_STYLE_CLASSIC];
+-}
+-
+-/* The corner radius in pixels for an eye of `size` pixels. */
+-static inline int mp_eye_radius(int radius_pct, int size)
+-{
+-    if (radius_pct >= 100) {
+-        return 0x7FFF; /* LV_RADIUS_CIRCLE */
+-    }
+-    return size * radius_pct / 200;
+-}
+-
+-/* The lid limit the face uses: the smaller of the style's and the time-of-day band's. */
+-static inline int mp_lid_cap(int style, int band_cap)
+-{
+-    const int own = mp_pack(style)->lid_cap;
+-    return own < band_cap ? own : band_cap;
+-}
+-
+-/* The drawn extras of a style, in pixels from the screen centre. Returns how many parts were written. */
+-static inline int mp_extra_parts(int extras, md_part_t* out, int cap)
+-{
+-    int n = 0;
+-    if (cap < MP_MAX_EXTRA_PARTS) {
+-        return 0;
+-    }
+-    switch (extras) {
+-        case MP_X_CAT:
+-            for (int side = -1; side <= 1; side += 2) {
+-                /* an ear is two thin bars leaning together, like a roof */
+-                out[n++] = md_part(side * 98 - 9, -100, 4, 34, 300, 0, 255);
+-                out[n++] = md_part(side * 98 + 9, -100, 4, 34, -300, 0, 255);
+-                /* three whiskers a side */
+-                for (int k = 0; k < 3; k++) {
+-                    out[n++] = md_part(side * 116, 30 + k * 9, 44, 3, side * (k - 1) * 120, 0, 255);
+-                }
+-            }
+-            return n; /* 10 parts */
+-        case MP_X_ROBOT:
+-            out[n++] = md_part(0, -96, 4, 24, 0, 0, 255);   /* the antenna */
+-            out[n++] = md_part(0, -112, 12, 12, 0, 1, 255); /* its ball */
+-            out[n++] = md_part(-148, 0, 10, 10, 0, 0, 255); /* two bolts */
+-            out[n++] = md_part(148, 0, 10, 10, 0, 0, 255);
+-            return n;
+-        case MP_X_HEARTS:
+-            for (int side = -1; side <= 1; side += 2) {
+-                const int cx = side * 70, cy = -16;
+-                out[n++] = md_part(cx - 7, cy - 6, 22, 22, 0, 1, 255);
+-                out[n++] = md_part(cx + 7, cy - 6, 22, 22, 0, 1, 255);
+-                out[n++] = md_part(cx, cy + 4, 22, 22, 450, 0, 255);
+-            }
+-            return n; /* 6 parts */
+-        default: return 0;
+-    }
+-}
+-
+-/* Whether the extras of a style cover the eyes (they must then be hidden in a mute, vision-off or quiet look). */
+-static inline int mp_extras_cover_eyes(int extras) { return extras == MP_X_HEARTS; }
+-
+-#endif
+diff --git a/firmware/main/hal/maipai_face.h b/firmware/main/hal/maipai_face.h
+index c72fdf4..42388f9 100644
+--- a/firmware/main/hal/maipai_face.h
++++ b/firmware/main/hal/maipai_face.h
+@@ -53,3 +53,18 @@ void maipai_face_thinking(bool on);
+ #else
+ inline void maipai_face_thinking(bool) {}
+ #endif
++
++// The low-battery look (patch X01): 0 none, 1 at 20 percent a slow-blink tired look, 2 at 10 percent more droop, 3 at 5 percent
++// the sleepy face. Set from the battery ladder (maipai_daily.cc) every poll; it only changes the resting face (a reply's emotion
++// still shows) and clears when a cable is in. Safe from any task: the face refresh takes the LVGL lock itself.
++#if CONFIG_MAIPAI_FACE_CONFIG
++// Bench builds only (patch X02): draw a style by name WITHOUT saving it, so a look can be photographed and the unit's saved face
++// settings stay as they were. Returns false for an unknown name. The caller holds no lock.
++bool maipai_face_preview_style(const char* name);
++void maipai_face_set_tired(int level);
++int maipai_face_tired();
++#else
++inline bool maipai_face_preview_style(const char*) { return false; }
++inline void maipai_face_set_tired(int) {}
++inline int maipai_face_tired() { return 0; }
++#endif
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+index 6e46ffc..af733a5 100644
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -7,10 +7,8 @@
+ #if CONFIG_MAIPAI_FACE_CONFIG
+ #include "maipai_face.h"
+ #include "maipai_face_tod_core.h"
+-#if CONFIG_MAIPAI_FACE_PACKS
+-#include "maipai_pack_core.h"
++#include "maipai_look_core.h"
+ #include "maipai_privacy.h"
+-#endif
+ #if CONFIG_MAIPAI_FACE_TIMERS
+ #include "maipai_face_timers_core.h"
+ #include "maipai_timers_core.h"
+@@ -97,59 +95,6 @@ int local_minute()
+     return tm_local.tm_hour * 60 + tm_local.tm_min;
+ }
+ 
+-#if CONFIG_MAIPAI_FACE_PACKS
+-lv_obj_t* s_pack_root = nullptr;
+-int s_pack_extras     = MP_X_NONE;
+-
+-// Draws the extras of the style (cat ears and whiskers, robot antenna, heart eyes) as plain rounded bars in the face
+-// colour, children of the face. Rebuilt on each apply (a style, colour or band change): a handful of objects.
+-void pack_draw(DefaultAvatar* face, const mf_config_t& c, uint8_t r, uint8_t g, uint8_t b)
+-{
+-    if (s_pack_root != nullptr) {
+-        lv_obj_delete(s_pack_root);
+-        s_pack_root = nullptr;
+-    }
+-    s_pack_extras = mp_pack(c.style)->extras;
+-    if (s_pack_extras == MP_X_NONE || face->getPanel() == nullptr) {
+-        return;
+-    }
+-    md_part_t parts[MP_MAX_EXTRA_PARTS];
+-    const int n = mp_extra_parts(s_pack_extras, parts, MP_MAX_EXTRA_PARTS);
+-    s_pack_root = lv_obj_create(face->getPanel()->get());
+-    lv_obj_remove_style_all(s_pack_root);
+-    lv_obj_remove_flag(s_pack_root, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_remove_flag(s_pack_root, LV_OBJ_FLAG_CLICKABLE);  // a touch on an extra is a touch on the face
+-    lv_obj_set_size(s_pack_root, 320, 240);
+-    lv_obj_set_pos(s_pack_root, 0, 0);
+-    for (int i = 0; i < n; i++) {
+-        lv_obj_t* o = lv_obj_create(s_pack_root);
+-        lv_obj_remove_style_all(o);
+-        lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+-        lv_obj_set_size(o, parts[i].w, parts[i].h);
+-        lv_obj_set_pos(o, 160 + parts[i].x - parts[i].w / 2, 120 + parts[i].y - parts[i].h / 2);
+-        lv_obj_set_style_bg_color(o, lv_color_make(r, g, b), 0);
+-        lv_obj_set_style_bg_opa(o, parts[i].opa, 0);
+-        lv_obj_set_style_radius(o, parts[i].round ? LV_RADIUS_CIRCLE : 1, 0);
+-        lv_obj_set_style_transform_pivot_x(o, parts[i].w / 2, 0);
+-        lv_obj_set_style_transform_pivot_y(o, parts[i].h / 2, 0);
+-        lv_obj_set_style_transform_rotation(o, parts[i].rot_deg10, 0);
+-    }
+-}
+-
+-// Once a second: extras that sit over the eyes (heart eyes) never cover a mute, vision-off or quiet look.
+-void pack_tick()
+-{
+-    if (s_pack_root == nullptr || !mp_extras_cover_eyes(s_pack_extras)) {
+-        return;
+-    }
+-    if (maipai_privacy_bits() != 0) {
+-        lv_obj_add_flag(s_pack_root, LV_OBJ_FLAG_HIDDEN);
+-    } else {
+-        lv_obj_remove_flag(s_pack_root, LV_OBJ_FLAG_HIDDEN);
+-    }
+-}
+-#endif
+-
+ // Draws style, colour and the time-of-day look. The caller holds the LVGL lock.
+ void apply(DefaultAvatar* face, const mf_config_t& c)
+ {
+@@ -158,31 +103,23 @@ void apply(DefaultAvatar* face, const mf_config_t& c)
+     }
+     uint8_t r, g, b;
+     mf_foreground(&c, &r, &g, &b);
++    int cap = 100;
+ #if CONFIG_MAIPAI_FACE_TOD
+     const int band = mf_band_for_minute(&c, local_minute());
+     s_band         = band;
+     r              = mf_scale_channel(r, mf_band_dim_pct(band));
+     g              = mf_scale_channel(g, mf_band_dim_pct(band));
+     b              = mf_scale_channel(b, mf_band_dim_pct(band));
+-    face->setEyeLidCap(mf_band_lid_cap(band));
+-#endif
+-    face->setColors(lv_color_make(r, g, b), lv_color_black());
+-    face->setEyeStyleOffset(mf_style_eye_offset(c.style));
+-#if CONFIG_MAIPAI_FACE_PACKS
+-    {
+-        // The style pack (patch U06): eye shape and gap, the lid limit, the caption size and the drawn extras.
+-        const mp_pack_t* pack = mp_pack(c.style);
+-        face->setEyeShape(pack->radius_pct, pack->gap_off);
+-        int cap = 100;
+-#if CONFIG_MAIPAI_FACE_TOD
+-        cap = mf_band_lid_cap(s_band.load());
+-#endif
+-        face->setEyeLidCap(mp_lid_cap(c.style, cap));
+-        face->setCaptionFont(c.caption_size == 0 ? &lv_font_montserrat_14
+-                                                 : (c.caption_size == 2 ? &lv_font_montserrat_20 : &lv_font_montserrat_16));
+-        pack_draw(face, c, r, g, b);
+-    }
++    cap            = mf_band_lid_cap(band);
+ #endif
++    uint8_t br, bg, bb;
++    mf_background(&c, &br, &bg, &bb);
++    face->setColors(lv_color_make(r, g, b), lv_color_make(br, bg, bb));
++    face->setLook(mf_look_id(c.style));
++    face->setEmotionTint(c.emotion_tint != 0);
++    face->setEyeLidCap(cap);
++    face->setCaptionFont(c.caption_size == 0 ? &lv_font_montserrat_14
++                                             : (c.caption_size == 2 ? &lv_font_montserrat_20 : &lv_font_montserrat_16));
+ #if CONFIG_MAIPAI_FACE_CAPTIONS
+     if (!c.captions) {
+         face->clearSpeech();  // captions turned off: a caption on screen goes away
+@@ -231,6 +168,11 @@ int update_from_json(mf_config_t* c, const cJSON* root, const char** bad)
+         if (!cJSON_IsString(it)) return MF_ERR_COLOUR;
+         if (int e = mf_set_colour(c, it->valuestring)) return e;
+     }
++    if ((it = cJSON_GetObjectItemCaseSensitive(root, "background")) != nullptr) {
++        *bad = "background";
++        if (!cJSON_IsString(it)) return MF_ERR_COLOUR;
++        if (int e = mf_set_background(c, it->valuestring)) return e;
++    }
+     if ((it = cJSON_GetObjectItemCaseSensitive(root, "lang")) != nullptr) {
+         *bad = "lang";
+         if (!cJSON_IsString(it)) return MF_ERR_LANG;
+@@ -268,7 +210,7 @@ int update_from_json(mf_config_t* c, const cJSON* root, const char** bad)
+         const char* key;
+         uint8_t* field;
+     } flags[] = {{"captions", &c->captions}, {"tod", &c->tod}, {"thinking_tone", &c->thinking_tone},
+-                 {"clock24", &c->clock24}};
++                 {"clock24", &c->clock24}, {"emotion_tint", &c->emotion_tint}};
+     for (auto& f : flags) {
+         *bad = f.key;
+         if (!read_bool(root, f.key, f.field, &present)) return MF_ERR_RANGE;
+@@ -281,6 +223,14 @@ std::string config_json(const mf_config_t& c)
+ {
+     uint8_t r, g, b;
+     mf_foreground(&c, &r, &g, &b);
++    char background[24];
++    if (c.bg_mode == MF_COLOUR_PALETTE) {
++        snprintf(background, sizeof(background), "%s", MF_PALETTE_NAMES[c.bg_palette]);
++    } else if (c.bg_mode == MF_COLOUR_CUSTOM) {
++        snprintf(background, sizeof(background), "#%02x%02x%02x", c.bg_r, c.bg_g, c.bg_b);
++    } else {
++        snprintf(background, sizeof(background), "none");
++    }
+     char colour[24];
+     if (c.colour_mode == MF_COLOUR_PALETTE) {
+         snprintf(colour, sizeof(colour), "%s", MF_PALETTE_NAMES[c.palette]);
+@@ -289,11 +239,11 @@ std::string config_json(const mf_config_t& c)
+     } else {
+         snprintf(colour, sizeof(colour), "none");
+     }
+-    char out[460];
++    char out[560];
+     snprintf(out, sizeof(out),
+              "{\"ok\":true,\"style\":\"%s\",\"colour\":\"%s\",\"captions\":%s,\"tod\":%s,\"tod_hours\":[%d,%d,%d,%d],"
+              "\"thinking_tone\":%s,\"lang\":\"%s\",\"clock24\":%s,\"clock_style\":\"%s\",\"clock_idle_s\":%u,"
+-             "\"caption_size\":\"%s\","
++             "\"caption_size\":\"%s\",\"background\":\"%s\",\"emotion_tint\":%s,"
+              "\"features\":[\"config\""
+ #if CONFIG_MAIPAI_FACE_CAPTIONS
+              ",\"captions\""
+@@ -310,9 +260,7 @@ std::string config_json(const mf_config_t& c)
+ #if CONFIG_MAIPAI_FACE_TIMERS
+              ",\"timers\""
+ #endif
+-#if CONFIG_MAIPAI_FACE_PACKS
+-             ",\"packs\""
+-#endif
++             ",\"packs\",\"looks\",\"background\",\"tint\""
+ #if CONFIG_MAIPAI_FACE_DECOR
+              ",\"decor\""
+ #endif
+@@ -321,7 +269,8 @@ std::string config_json(const mf_config_t& c)
+              MF_STYLE_NAMES[c.style], colour, c.captions ? "true" : "false", c.tod ? "true" : "false", c.tod_from[0],
+              c.tod_from[1], c.tod_from[2], c.tod_from[3], c.thinking_tone ? "true" : "false",
+              MF_LANG_CODES[c.lang < MF_LANG_COUNT ? c.lang : 0], c.clock24 ? "true" : "false",
+-             c.clock_style ? "ring" : "digits", static_cast<unsigned>(c.clock_idle_s), MF_CAPTION_NAMES[c.caption_size < 3 ? c.caption_size : 1]);
++             c.clock_style ? "ring" : "digits", static_cast<unsigned>(c.clock_idle_s), MF_CAPTION_NAMES[c.caption_size < 3 ? c.caption_size : 1], background,
++             c.emotion_tint ? "true" : "false");
+     return out;
+ }
+ }  // namespace
+@@ -335,6 +284,36 @@ mf_config_t maipai_face_config()
+     return s_cfg;
+ }
+ 
++static std::atomic<int> s_tired{0};
++
++bool maipai_face_preview_style(const char* name)
++{
++    mf_config_t probe = maipai_face_config();
++    if (mf_set_style_name(&probe, name) != MF_OK) {
++        return false;
++    }
++    LvglLockGuard lock;
++    auto* face = current_face();
++    if (face == nullptr) {
++        return false;
++    }
++    face->setLook(mf_look_id(probe.style));  // not saved, not sent to the host: gone at the next apply or restart
++    return true;
++}
++
++void maipai_face_set_tired(int level)
++{
++    level = level < 0 ? 0 : (level > 3 ? 3 : level);
++    if (s_tired.exchange(level) != level) {
++        hal_bridge::mood_refresh();  // takes the LVGL lock itself
++    }
++}
++
++int maipai_face_tired()
++{
++    return s_tired.load();
++}
++
+ // The unit's language for the Wi-Fi setup page (patch P04): "es" or "en", from the saved face settings.
+ extern "C" const char* maipai_portal_language(void)
+ {
+@@ -353,66 +332,24 @@ bool maipai_face_captions_on()
+ #if CONFIG_MAIPAI_FACE_THINKING
+ namespace {
+ mf_think_t s_think;
+-lv_obj_t* s_dots[MF_THINK_DOTS] = {};
+-lv_obj_t* s_dots_root           = nullptr;
+-lv_timer_t* s_think_timer       = nullptr;
+ 
+ uint32_t think_now_ms()
+ {
+     return static_cast<uint32_t>(esp_timer_get_time() / 1000);
+ }
+-
+-lv_color_t think_colour(const mf_config_t& c)
+-{
+-    uint8_t r, g, b;
+-    mf_foreground(&c, &r, &g, &b);
+-    int pct = 100;
+-#if CONFIG_MAIPAI_FACE_TOD
+-    pct = mf_band_dim_pct(s_band.load());
+-#endif
+-    return lv_color_make(mf_scale_channel(r, pct), mf_scale_channel(g, pct), mf_scale_channel(b, pct));
+-}
+-
+-void think_stop_ui()
+-{
+-    if (s_think_timer != nullptr) {
+-        lv_timer_delete(s_think_timer);
+-        s_think_timer = nullptr;
+-    }
+-    if (s_dots_root != nullptr) {
+-        lv_obj_delete(s_dots_root);
+-        s_dots_root = nullptr;
+-        for (auto& d : s_dots) {
+-            d = nullptr;
+-        }
+-    }
+-}
+-
+-void think_animate(lv_timer_t*)
+-{
+-    const uint32_t now = think_now_ms();
+-    if (mf_think_expired(&s_think, now)) {
+-        mf_think_end(&s_think);
+-        think_stop_ui();
+-        return;
+-    }
+-    for (int i = 0; i < MF_THINK_DOTS; i++) {
+-        if (s_dots[i] != nullptr) {
+-            lv_obj_set_style_bg_opa(s_dots[i], static_cast<lv_opa_t>(mf_think_dot_level(now - s_think.start_ms, i)), 0);
+-        }
+-    }
+-}
+ }  // namespace
+ 
++// The thinking cue (patch F05, X01): three dots at the mouth position, drawn and animated by the face itself (so every
++// style has them and the mouth gives way to them), and a quiet tone. A cue the host never ended stops after 45 seconds.
+ void maipai_face_thinking(bool on)
+ {
++    auto* face = current_face();
+     if (!on) {
+-        if (mf_think_end(&s_think)) {
+-            think_stop_ui();
++        if (mf_think_end(&s_think) && face != nullptr) {
++            face->setThinking(false);
+         }
+         return;
+     }
+-    auto* face = current_face();
+     if (face == nullptr || face->getPanel() == nullptr) {
+         return;
+     }
+@@ -422,29 +359,23 @@ void maipai_face_thinking(bool on)
+         return;
+     }
+     const int tone = mf_think_begin(&s_think, now, c.thinking_tone);
+-    // Three dots above the eyes, children of the face so a touch on them is a touch on the face.
+-    const lv_color_t fg = think_colour(c);
+-    s_dots_root         = lv_obj_create(face->getPanel()->get());
+-    lv_obj_remove_style_all(s_dots_root);
+-    lv_obj_remove_flag(s_dots_root, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_remove_flag(s_dots_root, LV_OBJ_FLAG_CLICKABLE);
+-    lv_obj_set_size(s_dots_root, 72, 14);
+-    lv_obj_align(s_dots_root, LV_ALIGN_TOP_MID, 0, 32);
+-    for (int i = 0; i < MF_THINK_DOTS; i++) {
+-        s_dots[i] = lv_obj_create(s_dots_root);
+-        lv_obj_remove_style_all(s_dots[i]);
+-        lv_obj_remove_flag(s_dots[i], LV_OBJ_FLAG_CLICKABLE);
+-        lv_obj_set_size(s_dots[i], 14, 14);
+-        lv_obj_set_pos(s_dots[i], i * 29, 0);
+-        lv_obj_set_style_radius(s_dots[i], LV_RADIUS_CIRCLE, 0);
+-        lv_obj_set_style_bg_color(s_dots[i], fg, 0);
+-        lv_obj_set_style_bg_opa(s_dots[i], static_cast<lv_opa_t>(mf_think_dot_level(0, i)), 0);
+-    }
+-    s_think_timer = lv_timer_create(think_animate, 100, nullptr);
++    face->setThinking(true);
+     if (tone) {
+         maipai_sounds_play("vibration");  // quiet; the sound policy and the hard mute may still silence it
+     }
+ }
++
++// Once a second: the cue ends by itself when the host never ended it.
++static void think_tick()
++{
++    if (mf_think_expired(&s_think, think_now_ms())) {
++        mf_think_end(&s_think);
++        auto* face = current_face();
++        if (face != nullptr) {
++            face->setThinking(false);
++        }
++    }
++}
+ #endif
+ 
+ #if CONFIG_MAIPAI_FACE_CLOCK
+@@ -758,7 +689,7 @@ void chips_tick(const mf_config_t& c)
+ }  // namespace
+ #endif
+ 
+-#define MAIPAI_FACE_TICKS (CONFIG_MAIPAI_FACE_TOD || CONFIG_MAIPAI_FACE_CLOCK || CONFIG_MAIPAI_FACE_TIMERS || CONFIG_MAIPAI_FACE_PACKS)
++#define MAIPAI_FACE_TICKS (CONFIG_MAIPAI_FACE_TOD || CONFIG_MAIPAI_FACE_CLOCK || CONFIG_MAIPAI_FACE_TIMERS || CONFIG_MAIPAI_FACE_THINKING)
+ #if MAIPAI_FACE_TICKS
+ static void face_tick(lv_timer_t*)
+ {
+@@ -775,8 +706,8 @@ static void face_tick(lv_timer_t*)
+ #if CONFIG_MAIPAI_FACE_TIMERS
+     chips_tick(c);
+ #endif
+-#if CONFIG_MAIPAI_FACE_PACKS
+-    pack_tick();
++#if CONFIG_MAIPAI_FACE_THINKING
++    think_tick();
+ #endif
+ }
+ #endif
+@@ -788,7 +719,7 @@ void maipai_face_attach(DefaultAvatar* face)
+ #if MAIPAI_FACE_TICKS
+     lv_timer_create(face_tick, 1000, nullptr);
+ #endif
+-    ESP_LOGI(TAG, "face: style %s, colour mode %d", MF_STYLE_NAMES[c.style], c.colour_mode);
++    ESP_LOGI(TAG, "face: style %s, colour mode %d", MF_STYLE_NAMES[c.style] != nullptr ? MF_STYLE_NAMES[c.style] : "?", c.colour_mode);
+ }
+ 
+ void maipai_face_register_tools()
+@@ -796,8 +727,9 @@ void maipai_face_register_tools()
+     auto& mcp = McpServer::GetInstance();
+     mcp.AddTool("self.face.set_config",
+                 "Change the face settings the unit keeps in its own flash. config is a JSON object with any of: "
+-                "style (classic, big_eyes, minimal, round, cat, robot, sleepy, retro_pixel, heart_eyes), colour (none, mint, sky, amber, rose, lilac, lime, coral or "
+-                "#rrggbb), captions (true shows the words on the face), tod (time-of-day looks), tod_hours "
++                "style (big_eyes, eyes_only, stock, classic, minimal; the older names round, cat, robot, sleepy, retro_pixel and heart_eyes mean big_eyes), "
++                "colour (the eye colour: none is white, or mint, sky, amber, rose, lilac, lime, coral or #rrggbb), background (the screen colour: none, "
++                "a name or a dark #rrggbb), emotion_tint (true: the eyes lean a little toward a colour per emotion), captions (true shows the words on the face), tod (time-of-day looks), tod_hours "
+                 "([morning, day, evening, night] start hours), thinking_tone, lang (en, es, fr, de, pt or it), caption_size (small, medium or large), clock24, "
+                 "clock_style (digits or ring), clock_idle_s (0 to 3600, 0 never shows the clock by itself). "
+                 "Nothing changes unless every field is valid. Answers the new settings or {ok:false,error}.",
+diff --git a/firmware/main/hal/maipai_decor_core.h b/firmware/main/hal/maipai_decor_core.h
+index 70c6ba8..26bff30 100644
+--- a/firmware/main/hal/maipai_decor_core.h
++++ b/firmware/main/hal/maipai_decor_core.h
+@@ -42,6 +42,9 @@ typedef struct {
+     uint8_t opa;       /* 0 to 255; 0 hides the part */
+ } md_part_t;
+ 
++/* The kinds the face no longer offers (patch X02). Their ids stay so the painter and its tests keep them. */
++static inline int md_dropped(int kind) { return kind == MD_SWEAT || kind == MD_SHY; }
++
+ /* The kind for a name, or -1. "none" is a kind (it ends a decorator). */
+ static inline int md_from_name(const char* name)
+ {
+@@ -49,6 +52,9 @@ static inline int md_from_name(const char* name)
+         return -1;
+     }
+     for (int i = 0; i < MD_COUNT; i++) {
++        if (md_dropped(i)) {
++            continue; /* the sweat drop and the blush are dropped (patch X02): their names are unknown now */
++        }
+         if (strcmp(name, MD_NAMES[i]) == 0) {
+             return i;
+         }
+diff --git a/firmware/main/hal/maipai_decor.cc b/firmware/main/hal/maipai_decor.cc
+index bee8cd2..c3d3e2b 100644
+--- a/firmware/main/hal/maipai_decor.cc
++++ b/firmware/main/hal/maipai_decor.cc
+@@ -136,7 +136,7 @@ void maipai_decor_register_tools()
+ {
+     auto& mcp = McpServer::GetInstance();
+     mcp.AddTool("self.face.decorate",
+-                "Draw a small extra on the face for a few seconds: sweat, shy, dizzy, heart, anger, tears, sparkles, "
++                "Draw a small extra on the face for a few seconds: dizzy, heart, anger, tears, sparkles, "
+                 "stars or zzz. name none ends it. seconds is 1 to 60. It never covers a mute, vision-off or quiet look or "
+                 "a ringing timer. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("none")),
+@@ -144,8 +144,8 @@ void maipai_decor_register_tools()
+                 [](const PropertyList& properties) -> ReturnValue {
+                     const std::string name = properties["name"].value<std::string>();
+                     const int kind         = md_from_name(name.c_str());
+-                    if (kind < 0) {
+-                        return std::string("{\"ok\":false,\"error\":\"unknown decorator: use sweat, shy, dizzy, heart, "
++                    if (kind < 0 || md_dropped(kind)) {
++                        return std::string("{\"ok\":false,\"error\":\"unknown decorator: use dizzy, heart, "
+                                            "anger, tears, sparkles, stars, zzz or none\"}");
+                     }
+                     int rc;
+@@ -165,8 +165,13 @@ void maipai_decor_register_tools()
+     mcp.AddTool("self.face.decor_list", "The decorator names this build can draw.", std::vector<Property>{},
+                 [](const PropertyList&) -> ReturnValue {
+                     std::string out = "{\"ok\":true,\"decorators\":[";
++                    bool first = true;
+                     for (int i = 1; i < MD_COUNT; i++) {
+-                        out += i > 1 ? ",\"" : "\"";
++                        if (md_dropped(i)) {
++                            continue;
++                        }
++                        out += first ? "\"" : ",\"";
++                        first = false;
+                         out += MD_NAMES[i];
+                         out += "\"";
+                     }
+diff --git a/firmware/main/hal/maipai_react_core.h b/firmware/main/hal/maipai_react_core.h
+index 003355b..afe1b1e 100644
+--- a/firmware/main/hal/maipai_react_core.h
++++ b/firmware/main/hal/maipai_react_core.h
+@@ -144,7 +144,7 @@ static inline const char* mr_err_word(int err)
+         case MR_ERR_PHRASE: return "the words must be 2 to 23 letters or numbers";
+         case MR_ERR_FACE: return "the face must be none, happy, sad, angry, doubtful or sleepy";
+         case MR_ERR_SOUND: return "the sound must be none, success, popup, goodbye, charged, needs_you or vibration";
+-        case MR_ERR_DECOR: return "the decorator must be none, sweat, shy, dizzy, heart, anger, tears, sparkles, stars or zzz";
++        case MR_ERR_DECOR: return "the decorator must be none, dizzy, heart, anger, tears, sparkles, stars or zzz";
+         case MR_ERR_DANCE: return "the dance must be none, happy, robot, panic or look_around";
+         case MR_ERR_FULL: return "the table holds at most 40 reactions";
+         case MR_ERR_DUP: return "those words are already in the table";
+@@ -242,39 +242,39 @@ static const mr_default_t MR_DEFAULTS[] = {
+     {"thanks", "happy", "success", "sparkles", ""},
+     {"thank you", "happy", "success", "sparkles", ""},
+     {"love", "happy", "", "heart", "happy"},
+-    {"sorry", "sad", "", "sweat", ""},
++    {"sorry", "sad", "", "", ""},
+     {"good night", "sleepy", "goodbye", "zzz", ""},
+     /* Spanish */
+     {"hola", "happy", "", "sparkles", ""},
+     {"gracias", "happy", "success", "sparkles", ""},
+     {"te quiero", "happy", "", "heart", "happy"},
+-    {"lo siento", "sad", "", "sweat", ""},
++    {"lo siento", "sad", "", "", ""},
+     {"buenas noches", "sleepy", "goodbye", "zzz", ""},
+     /* French */
+     {"bonjour", "happy", "", "sparkles", ""},
+     {"merci", "happy", "success", "sparkles", ""},
+     {"je taime", "happy", "", "heart", "happy"},
+     {"je t aime", "happy", "", "heart", "happy"},
+-    {"desole", "sad", "", "sweat", ""},
++    {"desole", "sad", "", "", ""},
+     {"bonne nuit", "sleepy", "goodbye", "zzz", ""},
+     /* German */
+     {"hallo", "happy", "", "sparkles", ""},
+     {"danke", "happy", "success", "sparkles", ""},
+     {"ich liebe dich", "happy", "", "heart", "happy"},
+-    {"tut mir leid", "sad", "", "sweat", ""},
++    {"tut mir leid", "sad", "", "", ""},
+     {"gute nacht", "sleepy", "goodbye", "zzz", ""},
+     /* Portuguese */
+     {"ola", "happy", "", "sparkles", ""},
+     {"obrigado", "happy", "success", "sparkles", ""},
+     {"obrigada", "happy", "success", "sparkles", ""},
+     {"te amo", "happy", "", "heart", "happy"},
+-    {"desculpa", "sad", "", "sweat", ""},
++    {"desculpa", "sad", "", "", ""},
+     {"boa noite", "sleepy", "goodbye", "zzz", ""},
+     /* Italian */
+     {"ciao", "happy", "", "sparkles", ""},
+     {"grazie", "happy", "success", "sparkles", ""},
+     {"ti voglio bene", "happy", "", "heart", "happy"},
+-    {"scusa", "sad", "", "sweat", ""},
++    {"scusa", "sad", "", "", ""},
+     {"buonanotte", "sleepy", "goodbye", "zzz", ""},
+ };
+ #define MR_DEFAULT_COUNT ((int)(sizeof(MR_DEFAULTS) / sizeof(MR_DEFAULTS[0])))
+diff --git a/firmware/main/hal/maipai_daily.cc b/firmware/main/hal/maipai_daily.cc
+index 18c304f..2ff235a 100644
+--- a/firmware/main/hal/maipai_daily.cc
++++ b/firmware/main/hal/maipai_daily.cc
+@@ -71,6 +71,8 @@ void low_battery_poll()
+     if (!valid) {
+         return;  // no reading: nothing changes
+     }
++    // The low-battery look (patch X01): tired, not sad. It follows the level every poll and clears with a cable.
++    maipai_face_set_tired((on_cable || level < 1 || level > 100) ? 0 : mb_step_for(level));  // a failed read (0) changes nothing wrong
+     const mb_event_t ev = mb_update(&s_ladder, level, on_cable ? 1 : 0);
+     if (ev != MB_NONE) {
+         char extra[48];
+diff --git a/firmware/main/hal/maipai_facebench.cc b/firmware/main/hal/maipai_facebench.cc
+index f64cb96..70094d1 100644
+--- a/firmware/main/hal/maipai_facebench.cc
++++ b/firmware/main/hal/maipai_facebench.cc
+@@ -16,6 +16,7 @@
+ 
+ #if CONFIG_MAIPAI_FACE_BENCH
+ #include "maipai_facefx.h"
++#include "maipai_face.h"
+ #include "hal.h"
+ #include <mcp_server.h>
+ #include <esp_heap_caps.h>
+@@ -257,12 +258,25 @@ void dump_snapshot()
+     std::string line;
+     for (uint32_t y = 0; y < h; y++) {
+         const uint8_t* row = buf->data + y * stride;
+-        line.assign("@snap ");
++        // Run-length coded (patch X02): "@snapz <row> <runs>", each run a count 1 to 255 then the 16-bit pixel, in hex. A face is
++        // mostly one colour, so a screen takes a few seconds on the cable and not half a minute.
++        line.assign("@snapz ");
+         line += std::to_string(y);
+         line += ' ';
+-        for (uint32_t i = 0; i < w * 2; i++) {
+-            line += kHex[row[i] >> 4];
+-            line += kHex[row[i] & 15];
++        uint32_t x = 0;
++        while (x < w) {
++            const uint8_t lo = row[x * 2], hi = row[x * 2 + 1];
++            uint32_t run     = 1;
++            while (x + run < w && run < 255 && row[(x + run) * 2] == lo && row[(x + run) * 2 + 1] == hi) {
++                run++;
++            }
++            line += kHex[run >> 4];
++            line += kHex[run & 15];
++            line += kHex[lo >> 4];
++            line += kHex[lo & 15];
++            line += kHex[hi >> 4];
++            line += kHex[hi & 15];
++            x += run;
+         }
+         line += '\n';
+         fputs(line.c_str(), stdout);
+@@ -334,6 +348,26 @@ void maipai_facebench_register_tools()
+                     }
+                     return std::string("{\"ok\":true}");
+                 });
++    mcp.AddTool("self.face.bench_emotion",
++                "Bench only: show an emotion exactly as the host would ask for it, optionally on a style drawn for the moment only (not saved) (neutral, happy, sad, angry, doubtful, surprised, sleepy, "
++                "tired, closing, sleeping, love, content, thinking), so self.face.snapshot can capture it. tired_level (0 to 3) sets the "
++                "low-battery ladder step the resting face shows.",
++                PropertyList({Property("emotion", kPropertyTypeString, std::string("neutral")),
++                              Property("tired_level", kPropertyTypeInteger, -1, -1, 3),
++                              Property("style", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string name  = properties["emotion"].value<std::string>();
++                    const std::string style = properties["style"].value<std::string>();
++                    const int tired         = properties["tired_level"].value<int>();
++                    if (!style.empty() && !maipai_face_preview_style(style.c_str())) {
++                        return std::string("{\"ok\":false,\"error\":\"unknown style\"}");
++                    }
++                    if (tired >= 0) {
++                        maipai_face_set_tired(tired);
++                    }
++                    Board::GetInstance().GetDisplay()->SetEmotion(name.c_str());
++                    return std::string("{\"ok\":true}");
++                });
+     mcp.AddTool("self.face.snapshot",
+                 "Bench only: write the screen as LVGL draws it on the USB cable, one '@snap <row> <hex>' line per row.",
+                 std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index 49a830d..d634c7c 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -1229,24 +1229,32 @@ void StackChanAvatarDisplay::CreateIdleMotionModifier()
+     }
+ }
+ 
+-#if CONFIG_MAIPAI_MOOD
++// The resting face (patches M01, X01): the low-battery look first (tired, not sad), then the saved mood. A well cared for unit
++// rests content: round eyes and a small smile (the happy look cuts the eyes with a lid, which is for a reply, not for rest).
+ static Emotion MoodResting()
+ {
++    switch (maipai_face_tired()) {
++        case 1:
++        case 2:
++            return Emotion::Tired;
++        case 3:
++            return Emotion::Sleepy;
++        default:
++            break;
++    }
++#if CONFIG_MAIPAI_MOOD
+     switch (maipai_mood_face()) {
+         case 1:
+-            return Emotion::Happy;
++            return Emotion::Content;
+         case 2:
+             return Emotion::Sad;
+         default:
+             return Emotion::Neutral;
+     }
+-}
+ #else
+-static Emotion MoodResting()
+-{
+     return Emotion::Neutral;
+-}
+ #endif
++}
+ 
+ void StackChanAvatarDisplay::RefreshMood()
+ {
+@@ -1255,6 +1263,9 @@ void StackChanAvatarDisplay::RefreshMood()
+         return;
+     }
+     DisplayLockGuard lock(this);
++    if (auto* da = dynamic_cast<DefaultAvatar*>(&stackchan.avatar())) {
++        da->setTiredLevel(maipai_face_tired());  // patch X01: the droop of the low-battery look follows the ladder
++    }
+     if (!mood_baseline_ || quiet_face_ || is_sleeping_) {
+         return;
+     }
+@@ -1290,6 +1301,12 @@ void StackChanAvatarDisplay::ReactFace(const char* emotion, int hold_ms)
+         e = Emotion::Doubt;
+     } else if (strcmp(emotion, "sleepy") == 0) {
+         e = Emotion::Sleepy;
++    } else if (strcmp(emotion, "surprised") == 0) {
++        e = Emotion::Surprised;
++    } else if (strcmp(emotion, "tired") == 0) {
++        e = Emotion::Tired;
++    } else if (strcmp(emotion, "love") == 0) {
++        e = Emotion::Love;
+     } else {
+         return;
+     }
+@@ -1372,6 +1389,14 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         avatar.setEmotion(Emotion::Happy);
+     } else if (strcmp(emotion, "laughing") == 0) {
+         avatar.setEmotion(Emotion::Happy);
++    } else if (strcmp(emotion, "love") == 0) {
++        avatar.setEmotion(Emotion::Love);
++    } else if (strcmp(emotion, "content") == 0) {
++        avatar.setEmotion(Emotion::Content);
++    } else if (strcmp(emotion, "surprised") == 0 || strcmp(emotion, "shocked") == 0) {
++        avatar.setEmotion(Emotion::Surprised);
++    } else if (strcmp(emotion, "tired") == 0) {
++        avatar.setEmotion(Emotion::Tired);
+     } else if (strcmp(emotion, "angry") == 0) {
+         avatar.setEmotion(Emotion::Angry);
+     } else if (strcmp(emotion, "sad") == 0) {
+@@ -1397,12 +1422,24 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         auto& motion = GetStackChan().motion();
+         motion.pitchServo().moveWithSpeed(0, 80);
+ 
++    } else if (strcmp(emotion, "closing") == 0) {
++        // The lids lower in about 1.5 s and stay shut (patch X01); the sleep look follows. No "Zzz" bubble, no head motion.
++        avatar.setEmotion(Emotion::Closing);
++        avatar.mouth().setWeight(0);
++        avatar.setSpeech("");
++        is_sleeping_ = true;
++        if (idle_motion_modifier_id_ >= 0) {
++            stackchan.removeModifier(idle_motion_modifier_id_);
++            idle_motion_modifier_id_ = -1;
++        }
++        if (idle_expression_modifier_id_ >= 0) {
++            stackchan.removeModifier(idle_expression_modifier_id_);
++            idle_expression_modifier_id_ = -1;
++        }
+     } else if (strcmp(emotion, "sleeping") == 0) {
+         // Eyes shut, mouth shut, no "Zzz" bubble and no head motion: the idle sleep look (the host
+         // sends it after five quiet minutes). "sleepy" keeps its U-shaped eyes and bubble.
+-        avatar.setEmotion(Emotion::Sleepy);
+-        avatar.leftEye().setWeight(0);
+-        avatar.rightEye().setWeight(0);
++        avatar.setEmotion(Emotion::Sleeping);  // patch X01: the lids close over 1.5 s if they were open, then stay shut
+         avatar.mouth().setWeight(0);
+         avatar.setSpeech("");
+         is_sleeping_ = true;

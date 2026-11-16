@@ -182,6 +182,7 @@ def test_a_listen_start_turns_toward_a_face_seen_a_moment_ago_and_holds_it_throu
     vision = _FaceAt(0.9, 0.3)  # far right of the frame, high
     behavior, device = _behavior(vision)
     try:
+        behavior.look_toward_speaker = True  # off by default since 2026-11-16 (ae29812); this test is about turning
         behavior.watch_for_faces(time.monotonic())
         behavior._active.clear()
         behavior.render_turn_state("listening")

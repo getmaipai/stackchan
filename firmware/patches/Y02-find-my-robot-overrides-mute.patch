@@ -1,0 +1,97 @@
+# Intent: find-my-robot must make sound even when sounds or the mic are muted, in quiet hours or full quiet. self.audio.play_sound gets an integer property find: 1 plays this chirp through mute, quiet hours and "sounds off" and raises a speaker volume below 70 for it (not saved); 2 ends the find and puts the volume back (also put back five seconds after the last chirp if the host never says). Speaker only: the microphone and the privacy state are never touched.
+# Placement: unit (the speaker gate lives on the robot)
+# Upstream: firmware/main/hal/maipai_sounds.cc, maipai_sounds_core.h, MIT
+# Check after a flash: self.audio.play_sound {name:exclamation,find:1} sounds with the unit muted and volume 0 and the volume reads 0 again after find:2; mute stays on.
+
+diff --git a/firmware/main/hal/maipai_sounds_core.h b/firmware/main/hal/maipai_sounds_core.h
+index 1bd154d..690f96f 100644
+--- a/firmware/main/hal/maipai_sounds_core.h
++++ b/firmware/main/hal/maipai_sounds_core.h
+@@ -127,12 +127,17 @@ static inline int ms_safety(int snd, int urgent)
+     return snd == MS_SND_SHUTTER || (snd == MS_SND_NEEDS_YOU && urgent);
+ }
+ 
+-/* The one gate. `bypass` is the self-test: it skips "off" and the night rule, never the mute. */
++/* The one gate. `bypass` 1 is the self-test: it skips "off" and the night rule, never the mute. `bypass` 2 is
++ * find-my-robot (patch Y02): the person is locating the unit, so it sounds through mute, quiet hours and "off". */
++#define MS_BYPASS_FIND 2
+ static inline ms_reason_t ms_decide(const ms_policy_t* p, int snd, int urgent, int night_now, int bypass)
+ {
+     if (snd < 0 || snd >= MS_SND_COUNT) {
+         return MS_NO_SUCH_SOUND;
+     }
++    if (bypass == MS_BYPASS_FIND) {
++        return MS_OK;
++    }
+     if (p->muted) {
+         return MS_MUTED;
+     }
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+index 835e63f..c50c5ec 100644
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -128,8 +128,40 @@ void snapshot(ms_policy_t* policy, bool* night)
+ }
+ 
+ // Plays one named sound if the policy, the hard mute and the base image allow it; answers the tool's JSON.
+-std::string play_named(const std::string& name, bool urgent, bool test)
++// Patch Y02: find-my-robot raises a low speaker volume for its chirps and puts it back when the find ends
++// (or five seconds after the last chirp, should the host never say). Not saved: board_set_speaker_volume(v, false).
++constexpr int kFindVolume = 70;
++int s_find_saved           = -1;
++int64_t s_find_last_ms     = 0;
++
++void find_restore_volume()
++{
++    if (s_find_saved >= 0) {
++        hal_bridge::board_set_speaker_volume(static_cast<uint8_t>(s_find_saved), false);
++        s_find_saved = -1;
++    }
++}
++
++std::string play_named(const std::string& name, bool urgent, bool test, int find = 0)
+ {
++    const int64_t now_ms = esp_timer_get_time() / 1000;
++    if (find == 2) {
++        find_restore_volume();
++        return std::string("{\"ok\":true}");
++    }
++    if (find == 0 && s_find_saved >= 0 && now_ms - s_find_last_ms > 5000) {
++        find_restore_volume();
++    }
++    if (find == 1) {
++        const int cur = hal_bridge::board_get_speaker_volume();
++        if (s_find_saved < 0) {
++            s_find_saved = cur;
++        }
++        if (cur < kFindVolume) {
++            hal_bridge::board_set_speaker_volume(kFindVolume, false);
++        }
++        s_find_last_ms = now_ms;
++    }
+     const int s     = ms_sound_from_name(name.c_str());
+     const char* why = "unknown_sound";
+     if (s >= 0) {
+@@ -139,7 +171,7 @@ std::string play_named(const std::string& name, bool urgent, bool test)
+         if (maipai_muted()) {
+             policy.muted = 1;
+         }
+-        ms_reason_t reason = ms_decide(&policy, s, urgent ? 1 : 0, night ? 1 : 0, test ? 1 : 0);
++        ms_reason_t reason = ms_decide(&policy, s, urgent ? 1 : 0, night ? 1 : 0, find == 1 ? MS_BYPASS_FIND : (test ? 1 : 0));
+         if (reason != MS_OK) {
+             std::lock_guard<std::mutex> lock(s_mutex);
+             s_plays_refused++;
+@@ -339,10 +371,11 @@ void maipai_sounds_register_tools()
+                 "{ok} or {ok:false,error}; this build has success, popup, vibration, exclamation, low_battery and offline (the tap tone).",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("success")),
+                               Property("urgent", kPropertyTypeBoolean, false),
+-                              Property("test", kPropertyTypeBoolean, false)}),
++                              Property("test", kPropertyTypeBoolean, false),
++                              Property("find", kPropertyTypeInteger, 0, 0, 2)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     return play_named(properties["name"].value<std::string>(), properties["urgent"].value<bool>(),
+-                                      properties["test"].value<bool>());
++                                      properties["test"].value<bool>(), properties["find"].value<int>());
+                 });
+     mcp.AddTool("self.audio.notify",
+                 "A short notice tone for a message the host wants the person to notice (the unit has no voice of "

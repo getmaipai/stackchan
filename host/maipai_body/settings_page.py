@@ -7,24 +7,27 @@ The dashboard server routes /settings and /api/stackchan/settings* to it, local 
 
 from __future__ import annotations
 
-import logging
-
 import base64
 import html
 import json
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
 from maipai_body import faces as face_settings
+from maipai_body import overlays as overlays_mod
+from maipai_body import packs as packs_mod
 from maipai_body import picture_faces as picture_mod
+from maipai_body import remote_activity as activity_mod
 from maipai_body import unit_device as device_mod
 from maipai_body import unit_extras as extras_mod
 from maipai_body import unit_remote as remote_mod
 from maipai_body.bodies.stackchan import updater
 from maipai_body.i18n import catalog, normalize, t
 from maipai_body.picture_faces_page import pictures_js
+from maipai_body.unit_polish import Polish
 from maipai_body.unit_settings import SettingsError, UnitSettingsStore
 
 Live = Callable[[str], dict[str, Any]]
@@ -49,6 +52,8 @@ class SettingsBackend:
         pictures: picture_mod.PictureService | None = None,
         device: device_mod.UnitDevice | None = None,
         remote: remote_mod.UnitRemote | None = None,
+        polish: Polish | None = None,
+        activity: activity_mod.RemoteActivity | None = None,
     ) -> None:
         self.devices, self.store = devices, store or UnitSettingsStore()
         self.live = live or (lambda _device_id: {})
@@ -61,6 +66,8 @@ class SettingsBackend:
         self._pictures = pictures
         self._device = device
         self._remote = remote
+        self._polish = polish
+        self._activity = activity
 
     @property
     def pictures(self) -> picture_mod.PictureService:
@@ -83,6 +90,26 @@ class SettingsBackend:
         if self._remote is None:
             self._remote = remote_mod.UnitRemote(extras_mod.offline_call)
         return self._remote
+
+    @property
+    def polish(self) -> Polish:
+        """Emotion faces, overlays, listening cues, packs and fillers. Without a live link a unit counts as offline."""
+        if self._polish is None:
+            self._polish = Polish(extras_mod.offline_call, self.store.get, self.store.update)
+        return self._polish
+
+    @property
+    def activity(self) -> activity_mod.RemoteActivity:
+        """The remote cue, the remote settings and the remote activity log. Files sit next to the unit settings."""
+        if self._activity is None:
+            folder = Path(self.store.path).parent
+            self._activity = activity_mod.RemoteActivity(
+                self.remote.tool_call,
+                self.polish.probe,
+                activity_mod.RemoteStore(folder / "remote-access.json"),
+                activity_mod.RemoteLog(folder / "remote-activity.jsonl"),
+            )
+        return self._activity
 
     @property
     def extras(self) -> extras_mod.UnitExtras:
@@ -268,6 +295,7 @@ class SettingsBackend:
                 return {"ok": True, "idle_movement": value}
             elif key == "idle_motion":
                 result = self.device.set_idle_motion(device_id, value, lang)
+                self._notify_saved(device_id, {"idle_motion": value})
             elif key == "led":
                 result = self.device.set_led(device_id, value, lang)
             else:
@@ -279,7 +307,12 @@ class SettingsBackend:
             self.store.update(device_id, {keep: value})
         return result
 
-    def _remote_post(self, device_id: str, values: dict[str, Any], lang: str) -> dict[str, Any]:
+    def _remote_post(self, device_id: str, values: dict[str, Any], lang: str, controller: dict[str, Any] | None = None) -> dict[str, Any]:
+        """One Remote button, after the robot has shown who is acting (see remote_activity.py)."""
+        do = str(values.get("do"))
+        return self.activity.act(device_id, do, values, lambda: self._remote_dispatch(device_id, values, lang), lang, controller=controller)
+
+    def _remote_dispatch(self, device_id: str, values: dict[str, Any], lang: str) -> dict[str, Any]:
         """One Remote button: ``{"do": "beep" | "flash" | "find" | "say" | "head" | "center" | "look" | "nod" | "shake" | "dance" | "stop_dance" | "game" | "photo", ...}``."""
         remote = self.remote
         do = values.get("do")
@@ -301,6 +334,8 @@ class SettingsBackend:
             return remote.nod(device_id, lang)
         if do == "shake":
             return remote.shake(device_id, lang)
+        if do == "mute":
+            return remote.mute(device_id, values.get("on"), lang)
         if do == "dance":
             return remote.dance(device_id, values.get("name"), lang)
         if do == "stop_dance":
@@ -309,7 +344,49 @@ class SettingsBackend:
             return remote.game(device_id, values.get("name"), lang)
         if do == "photo":
             return remote.photo(device_id, lang)
+        if do == "overlay":
+            return self.polish.overlays.remote_set(device_id, values.get("name"), values.get("intensity"), values.get("seconds"), lang)
+        if do == "overlay_clear":
+            return self.polish.overlays.remote_clear(device_id, lang)
         raise extras_mod.ExtrasError(device_mod._words(lang, "bad_value", field=str(do)))
+
+    def _cue_view(self, device_id: str, lang: str) -> dict[str, Any]:
+        state = self.activity.state(lang, unit_id=device_id)
+        return {"cue": state["cue"], "cue_note": state["cue_note"], "speaking": state["speaking"]}
+
+    def _access_get(self, lang: str) -> tuple[int, str, bytes]:
+        return 200, JSON, json.dumps(self.activity.state(lang)).encode()
+
+    def _access_post(self, rest: str, body: dict[str, Any], local_admin: bool, lang: str) -> tuple[int, dict[str, Any]]:
+        """POST /api/stackchan/remote-access[/pair|allow|revoke|act]. Pairing and acting are the only routes a
+        paired controller (not this machine's page) may call; they refuse everything unless access is on."""
+        values = {k: v for k, v in body.items() if k not in {"lang", "confirm"}}
+        activity = self.activity
+        try:
+            if rest == "pair":
+                if not activity.store.settings()["enabled"]:
+                    raise extras_mod.ExtrasError(activity_mod._w(lang, "off"))
+                return 200, {"ok": True, **activity.store.pair(values.get("label"), lang)}
+            if rest == "act":
+                controller = activity.store.find(values.get("token"))
+                if controller is None:
+                    raise extras_mod.ExtrasError(activity_mod._w(lang, "no_controller"))
+                if controller.get("status") != "paired":
+                    raise extras_mod.ExtrasError(activity_mod._w(lang, "pending"))
+                unit = str(values.get("unit", ""))
+                self._unit_known(unit)
+                acting = {k: v for k, v in values.items() if k not in {"token", "unit"}}
+                return 200, self._remote_post(unit, acting, lang, controller)
+            if not local_admin:
+                return 403, {"error": t(lang, "settings.local_only")}
+            if rest == "":
+                return 200, {"ok": True, **activity.store.update(values, lang)}
+            if rest in {"allow", "revoke"}:
+                getattr(activity.store, rest)(values.get("id"), lang)
+                return 200, {"ok": True, "controllers": activity.store.controllers()}
+        except (extras_mod.ExtrasError, SettingsError) as error:
+            return 400, {"error": str(error)}
+        return 404, {"error": "not found"}
 
     def _people_view(self) -> dict[str, Any]:
         return {
@@ -338,11 +415,17 @@ class SettingsBackend:
             elif what == "pictures":
                 body = self.pictures.view(device_id, lang)
             elif what == "remote":
-                body = self.remote.view(device_id, lang)
+                body = {**self.remote.view(device_id, lang), **self._cue_view(device_id, lang)}
             elif what == "overview":
                 body = {**self.device.overview(device_id, lang), "saved": self._saved_device(device_id)}
             elif what == "travel":
                 body = self.extras.travel_view(device_id, lang)
+            elif what == "prefs":
+                body = self.polish.prefs.view(device_id, lang)
+            elif what == "packs":
+                body = self.polish.packs.view(device_id, lang)
+            elif what == "fillers":
+                body = self._fillers_view(device_id)
             else:
                 return 404, JSON, json.dumps({"error": "not found"}).encode()
             return 200, JSON, json.dumps(body).encode()
@@ -350,8 +433,45 @@ class SettingsBackend:
             extras_mod.ExtrasError,
             face_settings.FaceError,
             picture_mod.PictureError,
+            packs_mod.PackError,
+            overlays_mod.OverlayError,
+            SettingsError,
         ) as error:
             return 400, JSON, json.dumps({"error": str(error)}).encode()
+
+    def _fillers_view(self, device_id: str) -> dict[str, Any]:
+        polish = self.polish
+        return {
+            "packs": polish.library.list("filler"),
+            "active": polish.active.get(device_id).get("filler"),
+            "status": dict(polish.generator.status),
+            "can_make": polish.generator.synth is not None,
+        }
+
+    def _polish_post(self, device_id: str, action: str, values: dict[str, Any], lang: str) -> tuple[int, dict[str, Any]]:
+        """POST /api/stackchan/unit/<id>/<prefs|listen-test|packs/activate|fillers/generate>."""
+        polish = self.polish
+        if action == "prefs":
+            return 200, polish.prefs.save(device_id, values, lang)
+        if action == "listen-test":
+            return 200, polish.prefs.test_listen(device_id, lang)
+        if action == "packs/activate":
+            return 200, polish.packs.activate(device_id, values.get("type"), values.get("pack_id"), lang)
+        if action == "fillers/generate":
+            voice = str(values.get("voice") or "default")[:40]
+            return 200, polish.generator.start(voice, str(values.get("lang") or lang))
+        return 404, {"error": "not found"}
+
+    def _packs_post(self, action: str, values: dict[str, Any], lang: str) -> tuple[int, dict[str, Any]]:
+        """POST /api/stackchan/packs/<import|export|delete>."""
+        service = self.polish.packs
+        if action == "import":
+            return 200, service.import_pack(values.get("b64"), lang)
+        if action == "export":
+            return 200, service.export_pack(values.get("pack_id"), lang)
+        if action == "delete":
+            return 200, service.delete_pack(values.get("pack_id"), lang)
+        return 404, {"error": "not found"}
 
     def _pictures_post(
         self, device_id: str, action: str, values: dict[str, Any], lang: str
@@ -401,6 +521,11 @@ class SettingsBackend:
         try:
             if rest == "people" or rest.startswith("people/"):
                 return self._people_post(rest, values, lang)
+            for polish_action in ("prefs", "listen-test", "packs/activate", "fillers/generate"):
+                if rest.endswith("/" + polish_action):
+                    device_id = rest[: -len(polish_action) - 1]
+                    self._unit_known(device_id)
+                    return self._polish_post(device_id, polish_action, values, lang)
             if "/pictures/" in rest:
                 device_id, _, action = rest.partition("/pictures/")
                 return self._pictures_post(device_id, action, values, lang)
@@ -437,6 +562,9 @@ class SettingsBackend:
             extras_mod.ExtrasError,
             face_settings.FaceError,
             picture_mod.PictureError,
+            packs_mod.PackError,
+            overlays_mod.OverlayError,
+            SettingsError,
         ) as error:
             return 400, {"error": str(error)}
 
@@ -468,6 +596,14 @@ class SettingsBackend:
             if not local_admin:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
             return self._faces_get(unquote(path[len(FACES) :]), lang)
+        if path == PACKS:
+            if not local_admin:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            return 200, JSON, json.dumps(self.polish.packs.library_view()).encode()
+        if path == ACCESS:
+            if not local_admin:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            return self._access_get(lang)
         if path.startswith(UNIT) or path == PEOPLE:
             if not local_admin:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
@@ -492,13 +628,21 @@ class SettingsBackend:
         The update route checks the release and changes nothing unless the body says
         ``"confirm": true``."""
         prefix = "/api/stackchan/settings/"
-        if not path.startswith(prefix) and not path.startswith((FACES, UNIT, PEOPLE)):
+        if not path.startswith(prefix) and not path.startswith((FACES, UNIT, PEOPLE, PACKS, ACCESS)):
             return None
         lang = normalize(str(body.get("lang", "")) or self.language)
+        if path == ACCESS or path.startswith(ACCESS + "/"):
+            return self._access_post(path[len(ACCESS) + 1 :], body, local_admin, lang)
         if not local_admin:
             return 403, {"error": t(lang, "settings.local_only")}
         if path.startswith(FACES):
             return self._faces_post(unquote(path[len(FACES) :]), body, lang)
+        if path.startswith(PACKS + "/"):
+            values = {k: v for k, v in body.items() if k not in {"lang", "confirm"}}
+            try:
+                return self._packs_post(path[len(PACKS) + 1 :], values, lang)
+            except packs_mod.PackError as error:
+                return 400, {"error": str(error)}
         if path.startswith(UNIT):
             return self._unit_post(unquote(path[len(UNIT) :]), body, lang)
         if path == PEOPLE or path.startswith(PEOPLE + "/"):
@@ -531,6 +675,8 @@ JSON = "application/json"
 FACES = "/api/stackchan/faces/"
 UNIT = "/api/stackchan/unit/"
 PEOPLE = "/api/stackchan/people"
+PACKS = "/api/stackchan/packs"
+ACCESS = "/api/stackchan/remote-access"
 
 
 def render_page(lang: str | None) -> bytes:

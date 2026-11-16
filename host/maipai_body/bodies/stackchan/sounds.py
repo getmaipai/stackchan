@@ -329,7 +329,30 @@ class SoundService:
         with self._lock:
             self._pushed = None
             self._push_failed_at = float("-inf")
-        self._run_async(lambda: self.push_policy(force=True))
+        self._run_async(self._detect_then_push)
+
+    def _detect_then_push(self) -> None:
+        """Decide by the unit's tools, not a version string, whether it can judge its own sounds."""
+        if self._silenced():  # only the forced mute needs the answer
+            self.detect_firmware()
+        self.push_policy(force=True)
+
+    def detect_firmware(self) -> bool:
+        """True when the unit has the sound-policy tools (patches 115 to 117): it answers
+        ``self.audio.sound_info``. Such firmware judges its own sounds, so the forced mute (a rule
+        for old firmware that beeps on its own) is dropped. An unknown tool keeps the forced mute."""
+        try:
+            info = _parse(self._call("self.audio.sound_info", {}))
+        except Exception:
+            return self._firmware_ok
+        if info.get("ok") is False or not any(k in info for k in ("played", "policy", "enabled", "refused")):
+            return self._firmware_ok
+        with self._lock:
+            changed = not self._firmware_ok
+            self._firmware_ok = True
+        if changed:
+            log_activity("sound policy follows the firmware", "tools=sound_info forced_mute=off")
+        return True
 
     # ---- playing ----
 
@@ -452,6 +475,9 @@ class SoundService:
             info = _parse(self._call("self.audio.sound_info", {}))
         except Exception:
             return
+        if not self._firmware_ok and info.get("ok") is not False:
+            self.detect_firmware()
+            self._run_async(lambda: self.push_policy(force=True))
         keys = ("played", "refused", "clips_played", "clips_missing")
         now_counts = {k: int(info[k]) for k in keys if isinstance(info.get(k), int)}
         with self._lock:

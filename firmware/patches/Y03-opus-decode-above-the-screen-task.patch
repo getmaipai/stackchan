@@ -1,0 +1,18 @@
+# Intent: spoken replies stuttered on the unit: the bench trace (patch L06) showed gaps of 0.6 to 2.9 s between playback blocks while the decode queue held 14 to 20 packets, so decoding was starved. The Opus decode task ran at priority 2, below the screen task (3, which redraws the moving face) and the output task (4). It now runs at 5 (the microphone task stays at 8).
+# Placement: unit (audio task priorities)
+# Upstream: firmware/xiaozhi-esp32/main/audio/audio_service.cc, MIT
+# Check after a flash: bench build, a 9 second spoken reply logs no 'gap' lines (before: 3 gaps, 4.2 s of silence).
+
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.cc b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+index dd15aa1..cedf8d1 100644
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+@@ -171,7 +171,7 @@ void AudioService::Start() {
+             audio_service->OpusCodecTask();
+             vTaskDelete(NULL);
+         },
+-        "opus_codec", 2048 * 12, this, 2, &opus_codec_task_handle_);
++        "opus_codec", 2048 * 12, this, 5, &opus_codec_task_handle_);  // patch Y03: above the screen task (3) and the output task (4), so the face redraw cannot starve decoding
+ }
+ 
+ void AudioService::Stop() {

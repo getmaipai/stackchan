@@ -21,7 +21,8 @@ def _text(name: str) -> str:
 def test_listed_in_order_after_r04():
     order = (PATCHES / "ORDER").read_text().split()
     assert order.index("R04-restart-guard-back-off.patch") < order.index(NAMES[0])
-    assert order[-len(NAMES):] == NAMES
+    first = order.index(NAMES[0])
+    assert order[first : first + len(NAMES)] == NAMES  # in a row; later patches may follow
 
 
 def test_each_patch_is_documented():

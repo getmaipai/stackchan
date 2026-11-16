@@ -19,12 +19,14 @@ from typing import Any
 
 from maipai_body import faces as face_settings
 from maipai_body import picture_faces as picture_mod
+from maipai_body import remote_activity as activity_mod
 from maipai_body import unit_device as device_mod
 from maipai_body import unit_extras as extras_mod
 from maipai_body import unit_remote as remote_mod
 from maipai_body.hal.errors import BodyLost
 from maipai_body.settings_page import SettingsBackend
 from maipai_body.settings_server import SettingsServer
+from maipai_body.unit_polish import Polish
 from maipai_body.unit_settings import UnitSettingsStore
 
 KITCHEN = "aa:bb:cc:00:10:01"
@@ -35,8 +37,14 @@ FEATURES = ["config", "captions", "tod", "clock", "thinking", "timers", "packs",
 class SimUnit:
     """One stand-in unit: same tool names and reply shapes as the firmware, state kept in memory."""
 
-    def __init__(self, device_id: str, *, online: bool = True, version: str = "1.6.2-maipai.1") -> None:
+    def __init__(self, device_id: str, *, online: bool = True, version: str = "1.6.2-maipai.1", next_unit: bool = False) -> None:
         self.device_id, self.online, self.version = device_id, online, version
+        # True: this stand-in has the tools of the next unit update (overlays, packs, fillers, prefs).
+        self.next_unit = next_unit
+        self.overlay: dict[str, Any] = {}
+        self.pack_held: dict[str, dict[str, Any]] = {}
+        self.pack_buffer: dict[str, Any] = {}
+        self.prefs: dict[str, Any] = {}
         self.face = face_settings.FaceConfig().to_wire()
         self.table: list[dict[str, str]] | None = None
         self.zone, self.epoch = "utc", 0
@@ -44,6 +52,10 @@ class SimUnit:
         self.pictures: dict[str, Any] = {"held": False}
         self.privacy: dict[str, Any] = {"muted": False, "vision_off": False, "quiet": False}
         self.device: dict[str, Any] = {}
+        self.head = {"yaw": 0, "pitch": 5}
+        self.played = 0
+        self.remote_allow = True  # the person at the robot taps "allow" on a remote message
+        self.accept_head = True  # False: the firmware ignores host head moves (an idle look rule)
         self.actions: list[tuple[str, dict[str, Any]]] = []
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.lock = threading.Lock()
@@ -51,6 +63,10 @@ class SimUnit:
     def handle(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
             self.calls.append((name, args))
+            if name in NEXT_TOOLS:
+                if not self.next_unit:
+                    return {"ok": False, "error": f"Unknown tool: {name}"}
+                return self._next(name, args)
             if name == "self.face.set_config":
                 self.face.update(json.loads(args["config"]))
                 return {"ok": True, **self.face, "features": FEATURES}
@@ -123,7 +139,23 @@ class SimUnit:
                 return {"ok": False, "error": "Unknown tool: self.system.reset"}
             if name == "self.tailnet.status":
                 return {"ok": True, **self.travel}
-            if name in {"self.audio.play_sound", "self.audio.speak", "self.robot.set_head_angles", "self.robot.nod", "self.robot.dance", "self.robot.stop_dance", "self.game.start"}:
+            if name == "self.robot.get_head_angles":
+                return {"ok": True, **self.head}
+            if name == "self.audio.sound_info":
+                return {"ok": True, "played": self.played, "refused": 0, "clips_played": 0, "clips_missing": 0}
+            if name == "self.robot.set_head_angles":
+                self.actions.append((name, dict(args)))
+                if self.accept_head:
+                    self.head = {"yaw": args.get("yaw", self.head["yaw"]), "pitch": args.get("pitch", self.head["pitch"])}
+                return {"ok": True}
+            if name == "self.audio.play_sound":
+                self.actions.append((name, dict(args)))
+                if self.privacy["muted"] and not args.get("find"):
+                    return {"ok": False, "error": "muted"}
+                if args.get("find") != 2:
+                    self.played += 1
+                return {"ok": True}
+            if name in {"self.audio.speak", "self.robot.dance", "self.robot.stop_dance", "self.game.start"}:
                 self.actions.append((name, dict(args)))
                 return {"ok": True}
             if name == "self.robot.dance_list":
@@ -161,6 +193,70 @@ class SimUnit:
             return {"ok": True}
 
 
+NEXT_TOOLS = frozenset({
+    "self.overlay.status", "self.overlay.set", "self.overlay.clear",
+    "self.pack.status", "self.pack.begin", "self.pack.data", "self.pack.commit", "self.pack.remove",
+    "self.filler.status", "self.filler.play", "self.prefs.get", "self.prefs.set", "self.listen.test",
+    "self.remote.session", "self.remote.action",
+})  # fmt: skip
+
+
+def _next(self: SimUnit, name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """The tools the next unit update brings, as the settings page expects them."""
+    self.actions.append((name, dict(args)))
+    if name == "self.overlay.status":
+        return {"ok": True, "running": self.overlay.get("name"), "names": 16}
+    if name == "self.overlay.set":
+        self.overlay = dict(args)
+        return {"ok": True}
+    if name == "self.overlay.clear":
+        self.overlay = {}
+        return {"ok": True}
+    if name == "self.pack.status":
+        held = self.pack_held.get(str(args.get("type")), {})
+        return {"ok": True, "held": bool(held), "sha256": held.get("sha256", ""), "name": held.get("name", "")}
+    if name == "self.pack.begin":
+        self.pack_buffer = {"meta": dict(args), "bytes": 0}
+        return {"ok": True}
+    if name == "self.pack.data":
+        self.pack_buffer["bytes"] = int(self.pack_buffer.get("bytes", 0)) + len(str(args.get("b64", ""))) * 3 // 4
+        return {"ok": True}
+    if name == "self.pack.commit":
+        meta = self.pack_buffer.get("meta", {})
+        self.pack_held[str(meta.get("type"))] = {"sha256": meta.get("sha256", ""), "name": meta.get("name", "")}
+        return {"ok": True}
+    if name == "self.pack.remove":
+        self.pack_held.pop(str(args.get("type")), None)
+        return {"ok": True}
+    if name == "self.filler.status":
+        return {"ok": True, "clips": 0}
+    if name == "self.prefs.get":
+        return {"ok": True, **self.prefs}
+    if name == "self.remote.action":
+        return {"ok": True, "cue": args.get("cue"), "allowed": self.remote_allow}
+    if name == "self.remote.session":
+        return {"ok": True, "active": bool(args.get("active"))}
+    if name == "self.prefs.set":
+        self.prefs.update(json.loads(args.get("json", "{}")))
+        return {"ok": True}
+    return {"ok": True}
+
+
+SimUnit._next = _next  # type: ignore[attr-defined]
+
+
+def _sim_synth(text: str) -> tuple[Any, int]:
+    """A stand-in voice: a soft rising hum whose pitch depends on the text, with quiet before and after."""
+    import numpy as np
+
+    rate = 22050
+    freq = 180 + (sum(map(ord, text)) % 90)
+    t = np.arange(int(0.45 * rate)) / rate
+    body = 0.4 * np.sin(2 * np.pi * (freq + 60 * t) * t) * np.sin(np.pi * t / t[-1]) ** 2
+    pad = np.zeros(int(0.15 * rate))
+    return np.concatenate((pad, body, pad)).astype(np.float32), rate
+
+
 def _sim_photo(_unit: str) -> bytes:
     """A small gradient PNG, made with the standard library, standing in for the camera."""
     import struct
@@ -180,9 +276,9 @@ def _sim_photo(_unit: str) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
 
 
-def build(data_dir: Path, *, language: str = "en") -> tuple[SettingsBackend, dict[str, SimUnit]]:
+def build(data_dir: Path, *, language: str = "en", next_unit: bool = False) -> tuple[SettingsBackend, dict[str, SimUnit]]:
     """A backend wired to two stand-in units, with every store in ``data_dir``."""
-    units = {KITCHEN: SimUnit(KITCHEN), DEN: SimUnit(DEN, online=False, version="1.5.0-maipai.2")}
+    units = {KITCHEN: SimUnit(KITCHEN, next_unit=next_unit), DEN: SimUnit(DEN, online=False, version="1.5.0-maipai.2")}
 
     def call(name: str, arguments: dict[str, Any], *, device_id: str | None = None, timeout: float = 5.0) -> object:
         unit = units.get(device_id or "")
@@ -199,6 +295,7 @@ def build(data_dir: Path, *, language: str = "en") -> tuple[SettingsBackend, dic
         "wifi_configured": True,
         "muted": False,
     }
+    polish = Polish(call, store.get, store.update, data_dir=data_dir, synth=_sim_synth)
     backend = SettingsBackend(
         devices=lambda: {d: {} for d in units},
         store=store,
@@ -215,6 +312,14 @@ def build(data_dir: Path, *, language: str = "en") -> tuple[SettingsBackend, dic
         device=device_mod.UnitDevice(call),
         remote=remote_mod.UnitRemote(call, photo=_sim_photo, sleep=lambda _s: None),
         pictures=picture_mod.PictureService(call, picture_mod.PictureStore(data_dir / "pictures")),
+        polish=polish,
+        activity=activity_mod.RemoteActivity(
+            call,
+            polish.probe,
+            activity_mod.RemoteStore(data_dir / "remote-access.json"),
+            activity_mod.RemoteLog(data_dir / "remote-activity.jsonl"),
+            sleep=lambda _s: None,  # the notice and countdown are the unit's; the stand-in does not wait
+        ),
     )
     return backend, units
 
@@ -224,10 +329,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=9781)
     parser.add_argument("--data", type=Path, default=None, help="scratch folder (default: a new temporary one)")
     parser.add_argument("--lang", default="en")
+    parser.add_argument("--next-unit", action="store_true", help="the Kitchen stand-in has the tools of the next unit update")
     args = parser.parse_args(argv)
     data = args.data or Path(tempfile.mkdtemp(prefix="stackchan-settings-sim-"))
     data.mkdir(parents=True, exist_ok=True)
-    backend, _units = build(data, language=args.lang)
+    backend, _units = build(data, language=args.lang, next_unit=args.next_unit)
     server = SettingsServer(backend, "127.0.0.1", args.port)
     server.start()
     print(f"settings page (simulated units) on http://127.0.0.1:{server.port}/settings  data: {data}", flush=True)

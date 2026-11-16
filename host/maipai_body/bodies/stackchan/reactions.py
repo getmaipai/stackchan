@@ -25,6 +25,15 @@ SHAKE_COOLDOWN_S = 20.0
 # once when it ends (owner ruling 2026-10-21: no cooldown after the petted animation).
 FACE_HOLD_S = 3.0
 SYMBOL_RETRY_S = 600.0
+# The unit's own motion must never start a reaction (a feedback loop: motion shakes the sensor, the
+# reaction moves or talks, the sensor shakes again). After a commanded head move or a spoken line
+# every sensor event is ignored for REFRACTORY_S, at most MAX_REACTIONS_PER_MIN reactions run in
+# a minute, and a shake counts only when it is sustained: two shake events SUSTAIN_S or more apart
+# within SUSTAIN_WINDOW_S (one jolt is a bump, not a shake).
+REFRACTORY_S = 1.5
+MAX_REACTIONS_PER_MIN = 6
+SUSTAIN_S = 0.3
+SUSTAIN_WINDOW_S = 2.0
 
 # What it would love to hear. A short, closed list: a heart must be earned, not guessed.
 _LOVE_CUES = re.compile(
@@ -55,6 +64,7 @@ class Reactions:
         quiet: Callable[[], bool] = lambda: False,
         busy: Callable[[], bool] = lambda: False,
         symbol: Callable[[str], object] | None = None,
+        head_moved_ago: Callable[[], float | None] = lambda: None,
         clock: Callable[[], float] = time.monotonic,
         rng: random.Random | None = None,
     ) -> None:
@@ -63,6 +73,10 @@ class Reactions:
         self._quiet = quiet
         self._busy = busy
         self._symbol = symbol
+        self._head_moved_ago = head_moved_ago
+        self._spoke_at = float("-inf")
+        self._reacted: list[float] = []
+        self._shake_first: float | None = None
         self._clock = clock
         self._rng = rng or random.Random()
         self._last_shake = float("-inf")
@@ -81,7 +95,10 @@ class Reactions:
                 "StackChan touch reaction skipped: a conversation is on (%s)", ", ".join(kinds)
             )
             return
-        if "shake" in kinds:
+        if self._refractory():
+            logger.info("StackChan sensor reaction skipped: the unit's own motion or voice just ran (%s)", ", ".join(kinds))
+            return
+        if "shake" in kinds and self._sustained_shake() and self._allow_reaction():
             self._shaken()
         if any(kind in _PET_EVENTS for kind in kinds) or any(k in _SWIPE_EVENTS for k in kinds):
             # The unit shows its own open-mouthed happy face for a stroke; take it back soon.
@@ -89,6 +106,40 @@ class Reactions:
         if any(kind in _PET_EVENTS or kind in _SWIPE_EVENTS for kind in kinds):
             self._petted("tapped" if "head_tap" in kinds else "petted")
         # A stroke across the head already makes the unit show its own happy face and heart.
+
+    def note_spoke(self) -> None:
+        """A line was spoken by the unit: its own sound shakes the sensor, so events wait."""
+        self._spoke_at = self._clock()
+
+    def _refractory(self) -> bool:
+        now = self._clock()
+        if now - self._spoke_at < REFRACTORY_S:
+            return True
+        try:
+            moved = self._head_moved_ago()
+        except Exception:
+            moved = None
+        return moved is not None and moved < REFRACTORY_S
+
+    def _sustained_shake(self) -> bool:
+        now = self._clock()
+        first = self._shake_first
+        if first is None or now - first > SUSTAIN_WINDOW_S:
+            self._shake_first = now
+            return False
+        if now - first < SUSTAIN_S:
+            return False
+        self._shake_first = None
+        return True
+
+    def _allow_reaction(self) -> bool:
+        now = self._clock()
+        self._reacted = [t for t in self._reacted if now - t < 60.0]
+        if len(self._reacted) >= MAX_REACTIONS_PER_MIN:
+            logger.info("StackChan reaction skipped: %d reactions in the last minute", len(self._reacted))
+            return False
+        self._reacted.append(now)
+        return True
 
     def _shaken(self) -> None:
         now = self._clock()
@@ -103,6 +154,7 @@ class Reactions:
         line = self._pick_line()
         logger.info("StackChan was shaken; says %r", line)
         self._say(line)
+        self.note_spoke()
 
     def _pick_line(self) -> str:
         choices = [line for line in SHAKE_LINES if line != self._last_line] or list(SHAKE_LINES)

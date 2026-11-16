@@ -1,0 +1,59 @@
+# Intent: patch L04 makes the unit ignore every host head move while it is idle and idle movement is off. That also stopped the moves a person asks for from the settings page (head pad, look around, nod, shake, find-my-robot wiggle). Now only an unmarked host look is ignored: a call to self.robot.set_head_angles with source=user always goes through. The rule is plain C (maipai_headgate_core.h) with a host test.
+# Placement: unit (the head tool runs on the robot)
+# Upstream: firmware/main/hal/hal_mcp.cpp (patch L04) and the new core header, MIT
+# Check after a flash: Remote page "Shake no" moves the head with idle movement off; with no marker the log still shows "set_head_angles ignored: idle and idle movement is off".
+
+diff --git a/firmware/main/hal/maipai_headgate_core.h b/firmware/main/hal/maipai_headgate_core.h
+new file mode 100644
+index 0000000..f4f8fa5
+--- /dev/null
++++ b/firmware/main/hal/maipai_headgate_core.h
+@@ -0,0 +1,16 @@
++/* Y01: the one rule for a host head move. Pure logic, no hardware (host test: headgate_core_test.c). */
++#ifndef MAIPAI_HEADGATE_CORE_H
++#define MAIPAI_HEADGATE_CORE_H
++
++/* A host look is autonomous (nobody asked for it) unless the call carries source=user. An autonomous look is
++ * ignored while the unit is idle and the person has not turned idle movement on (patch L04). A move the person
++ * asked for (the Remote page, nod, shake, find, a dance or reaction they started) always goes through. */
++static inline int mh_head_ignored(int idle_and_motion_off, int user_asked)
++{
++    if (user_asked) {
++        return 0;
++    }
++    return idle_and_motion_off ? 1 : 0;
++}
++
++#endif
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 96c3d13..13ba56a 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -9,6 +9,7 @@
+ #include "board/hal_bridge.h"
+ #include "maipai_timers.h"
+ #include "maipai_sounds.h"
++#include "maipai_headgate_core.h"
+ #include "maipai_daily.h"
+ #include "maipai_mood.h"
+ #include "maipai_face.h"
+@@ -265,14 +266,17 @@ void Hal::xiaozhi_mcp_init()
+                        "Speed(100-1000, 150 is natural).",
+                        PropertyList({Property("yaw", kPropertyTypeInteger, -9999, -9999, 128),
+                                      Property("pitch", kPropertyTypeInteger, -9999, -9999, 90),
+-                                     Property("speed", kPropertyTypeInteger, 150, 100, 1000)}),
++                                     Property("speed", kPropertyTypeInteger, 150, 100, 1000),
++                                     Property("source", kPropertyTypeString, std::string(""))}),
+                        [this](const PropertyList& properties) -> ReturnValue {
+                            if (!head_move_allowed(static_cast<uint32_t>(esp_timer_get_time() / 1000))) {
+                                mclog::tagWarn(_tag, "set_head_angles refused: more than {} moves in a minute",
+                                               kMaxHeadMovesPerMinute);
+                                return false;
+                            }
+-                           if (hal_bridge::host_idle_look_ignored()) {
++                           // patch Y01: a move the person asked for carries source=user and is never an idle look
++                           if (mh_head_ignored(hal_bridge::host_idle_look_ignored() ? 1 : 0,
++                                               properties["source"].value<std::string>() == "user" ? 1 : 0)) {
+                                mclog::tagInfo(_tag, "set_head_angles ignored: idle and idle movement is off");
+                                return true;  // patch L04: still the default; answered ok so the host does not retry
+                            }

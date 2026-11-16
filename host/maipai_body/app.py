@@ -2177,10 +2177,7 @@ def _face_service(voice):
     from maipai_body.hal.errors import BodyLost
 
     def call(name, arguments, *, device_id=None, timeout=5.0):
-        try:
-            return voice.call_device_tool(name, arguments, device_id=device_id, timeout=timeout)
-        except (ConnectionError, TimeoutError) as error:
-            raise BodyLost(str(error)) from error
+        return _device_tool_reply(voice, name, arguments, device_id, timeout)
 
     return FaceService(call)
 
@@ -2193,12 +2190,44 @@ def _unit_extras(voice):
     from maipai_body.unit_extras import UnitExtras
 
     def call(name, arguments, *, device_id=None, timeout=6.0):
-        try:
-            return voice.call_device_tool(name, arguments, device_id=device_id, timeout=timeout)
-        except (ConnectionError, TimeoutError) as error:
-            raise BodyLost(str(error)) from error
+        return _device_tool_reply(voice, name, arguments, device_id, timeout)
 
     return UnitExtras(call)
+
+
+def _device_tool_reply(voice, name, arguments, device_id, timeout):
+    """One unit tool call for the settings page. A unit that is not connected or did not answer is
+    lost (BodyLost). A unit that answered with an error ("Unknown tool", a value below its minimum)
+    comes back as ``{"ok": False, "error": ...}`` so the page can say what to do instead of failing."""
+    import concurrent.futures
+
+    from maipai_body.hal.errors import BodyLost
+
+    try:
+        return voice.call_device_tool(name, arguments, device_id=device_id, timeout=timeout)
+    except (ConnectionError, TimeoutError, PermissionError, concurrent.futures.TimeoutError) as error:
+        raise BodyLost(str(error)) from error
+    except RuntimeError as error:
+        return {"ok": False, "error": str(error) or "the unit answered with an error"}
+
+
+def _unit_plays_thinking_tone(faces, device_id) -> bool:
+    """True when the unit's own thinking tone is on and its firmware has it (so the host adds none)."""
+    try:
+        known = faces.features(device_id)
+        return bool(faces.config(device_id).thinking_tone) and (known is None or "thinking" in known)
+    except Exception:
+        return False
+
+
+def _local_synth(config):
+    """The host's own local voice for rendering filler sounds, or None when no local speech server is set."""
+    llm = config.llm
+    if not llm.tts_url:
+        return None
+    from maipai_body.fillers import local_synth
+
+    return local_synth(llm.tts_url, timeout_s=float(llm.timeout_seconds))
 
 
 def _unit_call(voice):
@@ -2206,10 +2235,7 @@ def _unit_call(voice):
     from maipai_body.hal.errors import BodyLost
 
     def call(name, arguments, *, device_id=None, timeout=4.0):
-        try:
-            return voice.call_device_tool(name, arguments, device_id=device_id, timeout=timeout)
-        except (ConnectionError, TimeoutError) as error:
-            raise BodyLost(str(error)) from error
+        return _device_tool_reply(voice, name, arguments, device_id, timeout)
 
     return call
 
@@ -2252,10 +2278,7 @@ def _picture_service(voice):
     from maipai_body.picture_faces import PictureService
 
     def call(name, arguments, *, device_id=None, timeout=8.0):
-        try:
-            return voice.call_device_tool(name, arguments, device_id=device_id, timeout=timeout)
-        except (ConnectionError, TimeoutError) as error:
-            raise BodyLost(str(error)) from error
+        return _device_tool_reply(voice, name, arguments, device_id, timeout)
 
     return PictureService(call)
 
@@ -2493,6 +2516,7 @@ async def _serve_stackchan_channels(
         configured_level=lambda: behavior.idle_level,
     )
     behavior.on_idle_level = power.refresh
+    behavior.resync_idle = power.on_reconnect  # the page wrote the unit's flag: the host's own rule re-asserts it
     night.after_edge = power.refresh
     voice.session_listeners.append(lambda _device_id: power.on_reconnect())
 
@@ -2800,6 +2824,7 @@ async def _serve_stackchan_channels(
             say=bridge.speak_reaction,
             quiet=lambda: night.night,
             busy=behavior.reaction_blocked,
+            head_moved_ago=behavior.head_moved_ago,
             symbol=lambda name: voice.robot.client._call(
                 "self.screen.show_symbol", {"name": name, "ms": 2500}
             ),
@@ -2822,6 +2847,18 @@ async def _serve_stackchan_channels(
 
         behavior.head_busy = _head_busy
         bridge.on_reply_mood = reactions.on_reply_mood
+        from maipai_body.unit_polish import Polish
+
+        polish = Polish(
+            _unit_call(voice),
+            units.store.get,
+            units.store.update,
+            synth=_local_synth(units.base),
+            tone_on_unit=lambda device_id: _unit_plays_thinking_tone(faces, device_id),
+        )
+        polish.attach(bridge)
+        voice.polish = polish  # the settings page reads the same state
+        voice.session_listeners.append(polish.on_connect)
         from maipai_body.selftest.stackchan_wiring import build_context, build_service_hooks
         from maipai_body.speech.turn_client import TurnClient
 
@@ -2876,6 +2913,8 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
         if level in _IDLE_LEVELS:
             behavior.idle_level = _IDLE_LEVELS[level]
             behavior.on_idle_level()
+        if "idle_motion" in values and getattr(behavior, "resync_idle", None) is not None:
+            behavior.resync_idle()
         for key, attr in (("look_speaker", "look_toward_speaker"), ("look_faces", "look_for_faces")):
             if isinstance(values.get(key), bool):
                 setattr(behavior, attr, values[key])
@@ -2956,6 +2995,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None):
         pictures=pictures,
         device=UnitDevice(_unit_call(voice)),
         remote=_unit_remote(voice),
+        polish=getattr(voice, "polish", None),
     )
     _wire_idle_setting(backend, units, behavior, voice)
     from maipai_body.settings_server import SettingsServer

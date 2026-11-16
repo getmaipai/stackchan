@@ -19,6 +19,10 @@ from maipai_body.settings_page import SettingsBackend
 
 LOG = logging.getLogger(__name__)
 LOOPBACK = {"127.0.0.1", "::1"}
+FAILED = (
+    "The host hit an unexpected problem with that action and nothing was changed. "
+    "Press the button again; if it keeps failing, restart the host and check its log."
+)
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -46,7 +50,11 @@ class _Handler(BaseHTTPRequestHandler):
         lang = (parse_qs(parts.query).get("lang") or [""])[0] or self.headers.get(
             "Accept-Language", ""
         ).split(",")[0] or self.server.backend.language
-        routed = self.server.backend.route_get(parts.path, normalize(lang), self._local())
+        try:
+            routed = self.server.backend.route_get(parts.path, normalize(lang), self._local())
+        except Exception:
+            LOG.warning("settings page GET %s failed", parts.path, exc_info=True)
+            return self._error(HTTPStatus.INTERNAL_SERVER_ERROR, FAILED)
         if routed is None:
             return self._error(HTTPStatus.NOT_FOUND, "Open /settings on this host.")
         status, content_type, body = routed
@@ -69,7 +77,11 @@ class _Handler(BaseHTTPRequestHandler):
                 raise ValueError("The body must be a JSON object.")
         except ValueError as error:
             return self._error(HTTPStatus.BAD_REQUEST, str(error))
-        routed = self.server.backend.route_post(urlsplit(self.path).path, body, self._local())
+        try:
+            routed = self.server.backend.route_post(urlsplit(self.path).path, body, self._local())
+        except Exception:
+            LOG.warning("settings page POST %s failed", urlsplit(self.path).path, exc_info=True)
+            return self._error(HTTPStatus.INTERNAL_SERVER_ERROR, FAILED)
         if routed is None:
             return self._error(HTTPStatus.NOT_FOUND, "Open /settings on this host.")
         status, payload = routed

@@ -80,7 +80,7 @@ def test_redeeming_an_unknown_token_is_refused(hub):
 
 def test_the_default_turn_script_still_streams_signal_then_done(hub):
     events = list(TurnClient(hub.http_url, hub.session_cookie).stream("hi"))
-    assert [e.cue.phase for e in events] == [Phase.SIGNAL, Phase.DONE]
+    assert [e.cue.phase for e in events if e.cue is not None] == [Phase.SIGNAL, Phase.DONE]
 
 
 def test_a_scripted_plan_event_rides_the_stream_and_the_body_tolerates_it():

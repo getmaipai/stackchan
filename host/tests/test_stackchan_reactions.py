@@ -45,9 +45,16 @@ class _Rig:
         )
 
 
+def _shake(rig):
+    """A deliberate shake: sensor events 0.4 s apart (a single jolt is not a shake)."""
+    rig.reactions.on_events(["shake"])
+    rig.now[0] += 0.4
+    rig.reactions.on_events(["shake"])
+
+
 def test_a_shake_gives_a_surprised_face_and_one_of_the_lines():
     rig = _Rig()
-    rig.reactions.on_events(["shake"])
+    _shake(rig)
     assert rig.faces == ["dizzy"]
     assert len(rig.said) == 1 and rig.said[0] in SHAKE_LINES
 
@@ -56,8 +63,8 @@ def test_repeated_shaking_does_not_loop_and_the_lines_vary():
     rig = _Rig()
     lines = []
     for _ in range(6):
-        rig.reactions.on_events(["shake"])
-        rig.reactions.on_events(["shake"])  # still shaking: inside the cooldown
+        _shake(rig)
+        _shake(rig)  # still shaking: inside the cooldown
         lines.append(rig.said[-1])
         rig.now[0] += SHAKE_COOLDOWN_S
     assert len(rig.said) == 6
@@ -67,7 +74,7 @@ def test_repeated_shaking_does_not_loop_and_the_lines_vary():
 
 def test_in_quiet_hours_a_shake_is_only_a_face():
     rig = _Rig(quiet=True)
-    rig.reactions.on_events(["shake"])
+    _shake(rig)
     assert rig.faces == ["dizzy"] and rig.said == []
 
 
@@ -358,3 +365,46 @@ def test_the_bridge_says_nothing_and_starts_no_turn_while_muted_or_in_full_quiet
         assert tts.sentences == ["Whoa!"]
     finally:
         loop.close()
+
+
+def test_one_jolt_is_a_bump_not_a_shake():
+    rig = _Rig()
+    rig.reactions.on_events(["shake"])
+    assert rig.faces == [] and rig.said == []
+    rig.now[0] += 5.0  # a later single jolt is still alone
+    rig.reactions.on_events(["shake"])
+    assert rig.faces == []
+
+
+def test_the_units_own_motion_or_voice_never_starts_a_reaction():
+    moved = [None]
+    rig = _Rig()
+    rig.reactions = Reactions(
+        face=rig.faces.append, say=lambda text: rig.said.append(text) or True,
+        head_moved_ago=lambda: moved[0], clock=lambda: rig.now[0], rng=random.Random(4),
+    )
+    moved[0] = 0.5  # a commanded head move ended half a second ago
+    _shake(rig)
+    rig.reactions.on_events(["head_touch"])
+    assert rig.faces == [] and rig.said == []
+    moved[0] = None
+    rig.now[0] += 10
+    _shake(rig)
+    assert rig.faces == ["dizzy"] and len(rig.said) == 1
+    rig.reactions.note_spoke()  # its own line shakes the sensor
+    rig.now[0] += 0.5
+    rig.reactions.on_events(["head_touch"])
+    assert rig.symbols == []
+
+
+def test_at_most_six_reactions_run_in_a_minute():
+    import maipai_body.bodies.stackchan.reactions as r
+
+    rig = _Rig()
+    for _ in range(10):
+        rig.now[0] += r.SHAKE_COOLDOWN_S + 0.1
+        rig.reactions._last_shake = float("-inf")
+        rig.reactions._spoke_at = float("-inf")
+        _shake(rig)
+        rig.now[0] -= r.SHAKE_COOLDOWN_S - 3  # all inside one minute
+    assert len(rig.said) <= r.MAX_REACTIONS_PER_MIN

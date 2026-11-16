@@ -1,0 +1,121 @@
+# Intent: The boot event names the crash. It now carries reason_name (poweron, software, panic, int_wdt, task_wdt, wdt, brownout and so on) next to the numeric reason, and after a crash (panic, watchdog or brownout) last_task: the name of the task that was running on the other core 100 ms or less before the reset, the core, and the uptime in seconds at that sample ("name@c1+1234s"). The motion task writes that breadcrumb to RTC no-init memory every 100 ms (a 32 byte struct with a checksum; it survives a panic or watchdog reset, not a power loss, and an invalid one is ignored). The host logs the boot event with every field, so the host log names crashes.
+# Placement: unit (a field of the existing boot event of the robot firmware)
+# Upstream: firmware/main/hal/maipai_heal.cc (ours, patch R02 and 085 family), MIT
+# Check after a flash: after a software restart the boot line shows reason_name software and an empty last_task; after a forced panic or watchdog reset it shows the task.
+
+diff --git a/firmware/main/hal/maipai_heal.cc b/firmware/main/hal/maipai_heal.cc
+index 957fda0..ae8e898 100644
+--- a/firmware/main/hal/maipai_heal.cc
++++ b/firmware/main/hal/maipai_heal.cc
+@@ -11,6 +11,7 @@
+ #include "device_events.h"
+ #include "maipai_heal_core.h"
+ 
++#include <esp_attr.h>
+ #include <esp_log.h>
+ #include <esp_heap_caps.h>
+ #include <esp_system.h>
+@@ -38,6 +39,50 @@ bool s_loaded  = false;
+ int s_count    = 0;  // restarts in the current window
+ int s_window_s = 0;  // window clock at boot
+ std::atomic<uint32_t> s_alive{0};
++
++// Patch Z01: a breadcrumb in RTC memory (kept across a panic or a watchdog reset, not across a power loss). The motion
++// task writes it every 100 ms: the task that was running on the OTHER core (the motion task itself is on this one) and
++// the uptime. After a crash the boot event names it, so the host log says what the unit was doing.
++struct Crumb {
++    uint32_t magic;
++    uint32_t up_s;
++    char task[16];
++    uint32_t core;
++    uint32_t sum;
++};
++constexpr uint32_t kCrumbMagic = 0x5A01C0DE;
++RTC_NOINIT_ATTR Crumb s_crumb;
++
++uint32_t crumb_sum(const Crumb& c)
++{
++    uint32_t sum = c.magic ^ (c.up_s * 2654435761u) ^ c.core;
++    for (size_t i = 0; i < sizeof(c.task); ++i) {
++        sum = sum * 31 + static_cast<uint8_t>(c.task[i]);
++    }
++    return sum;
++}
++
++const char* reset_name(esp_reset_reason_t r)
++{
++    switch (r) {
++        case ESP_RST_POWERON:   return "poweron";
++        case ESP_RST_EXT:       return "external";
++        case ESP_RST_SW:        return "software";
++        case ESP_RST_PANIC:     return "panic";
++        case ESP_RST_INT_WDT:   return "int_wdt";
++        case ESP_RST_TASK_WDT:  return "task_wdt";
++        case ESP_RST_WDT:       return "wdt";
++        case ESP_RST_DEEPSLEEP: return "deepsleep";
++        case ESP_RST_BROWNOUT:  return "brownout";
++        case ESP_RST_SDIO:      return "sdio";
++        case ESP_RST_USB:       return "usb";
++        case ESP_RST_JTAG:      return "jtag";
++        case ESP_RST_EFUSE:     return "efuse";
++        case ESP_RST_PWR_GLITCH: return "power_glitch";
++        case ESP_RST_CPU_LOCKUP: return "cpu_lockup";
++        default:                return "other";
++    }
++}
+ std::atomic<bool> s_busy{false};          // a restart request is being decided or carried out
+ std::atomic<int64_t> s_last_refuse_ms{-1};  // the last refusal that was logged and reported
+ 
+@@ -215,6 +260,19 @@ void maipai_heal_main_alive()
+ 
+ void maipai_heal_watch()
+ {
++    {
++        // Z01: the other core's running task (and ours is this watcher, which says nothing).
++        const BaseType_t here = xPortGetCoreID();
++        TaskHandle_t other    = xTaskGetCurrentTaskHandleForCore(here == 0 ? 1 : 0);
++        const char* name      = other != nullptr ? pcTaskGetName(other) : "?";
++        Crumb c{};
++        c.magic = kCrumbMagic;
++        c.up_s  = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
++        strncpy(c.task, name != nullptr ? name : "?", sizeof(c.task) - 1);
++        c.core = here == 0 ? 1 : 0;
++        c.sum  = crumb_sum(c);
++        s_crumb = c;
++    }
+     static uint32_t last_alive = 0;
+     static int stuck_loops     = 0;
+     const uint32_t alive       = s_alive.load(std::memory_order_relaxed);
+@@ -251,9 +309,29 @@ void maipai_heal_boot_report()
+         }
+         nvs_close(h);
+     }
+-    char extra[120];
+-    snprintf(extra, sizeof(extra), "\"reason\":%d,\"heal_n\":%d,\"heal_hold\":%d,\"heal_why\":\"%s\"",
+-             static_cast<int>(esp_reset_reason()), count, hold ? 1 : 0, why);
++    // Z01: the reset reason by name, and after a crash the breadcrumb (last task seen on the other core, its core, and
++    // the uptime in seconds at the last sample).
++    const esp_reset_reason_t rr = esp_reset_reason();
++    const bool crash = rr == ESP_RST_PANIC || rr == ESP_RST_INT_WDT || rr == ESP_RST_TASK_WDT || rr == ESP_RST_WDT ||
++                       rr == ESP_RST_BROWNOUT || rr == ESP_RST_CPU_LOCKUP || rr == ESP_RST_PWR_GLITCH;
++    char last[40] = "";
++    if (crash && s_crumb.magic == kCrumbMagic && s_crumb.sum == crumb_sum(s_crumb)) {
++        char task[16];
++        memcpy(task, s_crumb.task, sizeof(task));
++        task[sizeof(task) - 1] = '\0';
++        for (char* q = task; *q != '\0'; ++q) {
++            if (*q == '"' || *q == '\\' || static_cast<unsigned char>(*q) < 32) {
++                *q = '_';
++            }
++        }
++        snprintf(last, sizeof(last), "%s@c%u+%us", task, static_cast<unsigned>(s_crumb.core),
++                 static_cast<unsigned>(s_crumb.up_s));
++    }
++    memset(&s_crumb, 0, sizeof(s_crumb));
++    char extra[200];
++    snprintf(extra, sizeof(extra),
++             "\"reason\":%d,\"reason_name\":\"%s\",\"last_task\":\"%s\",\"heal_n\":%d,\"heal_hold\":%d,\"heal_why\":\"%s\"",
++             static_cast<int>(rr), reset_name(rr), last, count, hold ? 1 : 0, why);
+     ESP_LOGI(kTag, "boot: %s", extra);
+     device_events_push("boot", extra);
+ }

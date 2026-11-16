@@ -645,7 +645,7 @@ def test_the_silenced_policy_is_repeated_every_thirty_seconds_and_first_on_conne
     monkeypatch.setattr(sounds_module, "SILENCE_UNIT_SOUNDS", True)
     service, unit, clock, _, _ = make()
     service.on_connect()
-    assert unit.calls[0][0] == "self.audio.set_sound_policy"
+    assert [c[0] for c in unit.calls if c[0] == "self.audio.set_sound_policy"]
     pushes = len([c for c in unit.calls if c[0] == "self.audio.set_sound_policy"])
     service.push_policy()
     assert len([c for c in unit.calls if c[0] == "self.audio.set_sound_policy"]) == pushes
@@ -693,3 +693,21 @@ def test_the_unit_counters_are_logged_with_their_change_once_a_minute(caplog):
     lines = [r.getMessage() for r in caplog.records if "robot activity" in r.getMessage()]
     assert any("unit sound counters played=3" in line for line in lines)
     assert any("since the last look played=+2" in line for line in lines)
+
+
+def test_firmware_with_the_sound_tools_is_detected_by_its_tools_and_never_forced_muted(monkeypatch):
+    monkeypatch.setattr(sounds_module, "SILENCE_UNIT_SOUNDS", True)
+    service, unit, clock, _, _ = make()
+    unit.answer = '{"ok":true,"played":0,"refused":0,"clips_played":0,"clips_missing":0}'
+    service.apply_settings({SOUNDS_ENABLED_KEY: True, MUTED_KEY: False, QUIET_KEY: False})
+    service.on_connect()  # no version string was ever reported
+    pushes = [c[1] for c in unit.calls if c[0] == "self.audio.set_sound_policy"]
+    assert pushes and pushes[-1]["muted"] is False and pushes[-1]["enabled"] is True
+
+
+def test_a_unit_without_the_sound_tools_keeps_the_forced_mute(monkeypatch):
+    monkeypatch.setattr(sounds_module, "SILENCE_UNIT_SOUNDS", True)
+    service, unit, clock, _, _ = make()
+    unit.error = RuntimeError("Unknown tool: self.audio.sound_info")
+    assert service.detect_firmware() is False
+    assert service.policy()["muted"] is True

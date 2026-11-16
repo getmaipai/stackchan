@@ -75,7 +75,7 @@ def service(tmp_path: Path, firmware: FakeFirmware) -> FaceService:
 def test_default_face_is_neutral_and_plain() -> None:
     config = FaceConfig()
     assert (config.style, config.colour, config.captions, config.tod) == (
-        "classic",
+        "big_eyes",
         "none",
         False,
         False,
@@ -93,11 +93,13 @@ def test_clean_applies_a_partial_change_and_keeps_the_rest() -> None:
 @pytest.mark.parametrize(
     ("values", "words"),
     [
-        ({"style": "huge"}, "classic, big_eyes, minimal"),
+        ({"style": "huge"}, "big_eyes, eyes_only, stock, classic or minimal"),
         ({"colour": "purple"}, "not one I know"),
         ({"colour": "#101010"}, "too dark"),
         ({"colour": "#12"}, "not one I know"),
         ({"captions": "yes"}, "on or off"),
+        ({"background": "#f0f0f0"}, "too bright for white eyes"),
+        ({"background": "pink"}, "is not one I know"),
         ({"tod_hours": [9, 6, 18, 21]}, "must be four hours"),
         ({"tod_hours": [6, 9, 18, 24]}, "must be four hours"),
         ({"tod_hours": [6, 9, 18]}, "must be four hours"),
@@ -330,3 +332,66 @@ def test_no_unit_is_a_plain_error(service) -> None:
     with pytest.raises(FaceError) as caught:
         service.config("")
     assert "Choose a unit" in str(caught.value)
+
+
+# ---- patch X02: the five styles, the dropped ones, the screen colour and the emotion tint ----
+
+
+def test_the_five_styles_and_big_eyes_is_the_default() -> None:
+    from maipai_body.faces import DEFAULT_STYLE, DROPPED_STYLES, STYLES
+
+    assert STYLES == ("big_eyes", "eyes_only", "stock", "classic", "minimal")
+    assert DEFAULT_STYLE == "big_eyes" == FaceConfig().style
+    assert not set(DROPPED_STYLES) & set(STYLES)
+    assert set(DROPPED_STYLES) == {"round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes"}
+
+
+@pytest.mark.parametrize("old", ["round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes"])
+def test_a_dropped_style_falls_back_to_big_eyes_when_sent_or_read_back(old: str) -> None:
+    from maipai_body.faces import from_stored
+
+    assert clean(FaceConfig(style="minimal"), {"style": old}).style == "big_eyes"
+    assert from_stored({"style": old, "colour": "sky"}).style == "big_eyes"
+    assert from_stored({"style": old, "colour": "sky"}).colour == "sky"  # the rest of the saved face survives
+
+
+def test_decorators_no_longer_include_sweat_or_shy() -> None:
+    from maipai_body.faces import DECORATOR_FOR_FACE, DECORATORS
+
+    assert "sweat" not in DECORATORS and "shy" not in DECORATORS
+    assert "sweat" not in DECORATOR_FOR_FACE.values() and "shy" not in DECORATOR_FOR_FACE.values()
+    assert {"dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz"} == set(DECORATORS)
+
+
+def test_background_and_emotion_tint_are_checked_like_the_firmware_does() -> None:
+    config = clean(FaceConfig(), {"background": "mint", "emotion_tint": False})
+    assert config.background == "mint" and config.emotion_tint is False
+    assert config.to_wire()["background"] == "mint" and config.to_wire()["emotion_tint"] is False
+    assert clean(FaceConfig(), {"background": "#102030"}).background == "#102030"
+    assert clean(FaceConfig(background="mint"), {"background": "none"}).background == "none"
+    assert FaceConfig().emotion_tint is True and FaceConfig().background == "none"  # tint on, black screen
+    with pytest.raises(FaceError):
+        clean(FaceConfig(), {"background": "#eeeeee"})  # white eyes would vanish on it
+    with pytest.raises(FaceError):
+        clean(FaceConfig(), {"emotion_tint": "yes"})
+
+
+def test_a_unit_with_older_firmware_still_counts_as_in_sync() -> None:
+    from maipai_body.faces import _wire_equal
+
+    reply = {k: v for k, v in FaceConfig().to_wire().items() if k not in ("background", "emotion_tint", "caption_size")}
+    assert _wire_equal(FaceConfig(), reply)  # it does not report them and the saved values are the plain ones
+    assert not _wire_equal(FaceConfig(background="mint"), reply)
+
+
+def test_the_new_styles_need_the_looks_feature(tmp_path) -> None:
+    from maipai_body.faces import FaceService
+
+    service = FaceService.__new__(FaceService)
+    service.config = lambda unit_id: FaceConfig()  # type: ignore[method-assign]
+    service.features = lambda unit_id: {"config", "packs"}  # type: ignore[method-assign]
+    lines = FaceService.unsupported(service, "u", {"style": "stock", "background": "sky", "emotion_tint": False}, "en")
+    assert any("eyes-only and stock" in line for line in lines)
+    assert any("screen colour" in line for line in lines)
+    assert any("emotion colours" in line for line in lines)
+    assert FaceService.unsupported(service, "u", {"style": "classic"}, "en") == []

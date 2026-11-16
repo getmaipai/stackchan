@@ -144,7 +144,10 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if led != "off" and not (isinstance(led, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", led)):
             raise SettingsError("The light ring colour must be off or a code like #40c0ff. Pick a colour and save again.")
         out["led"] = led.lower()
-    unknown = set(values) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "wait_after_talking", "led"}
+    from maipai_body import unit_prefs
+
+    out.update(unit_prefs.clean(values, SettingsError))
+    unknown = set(values) - set(unit_prefs.PREFS) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "wait_after_talking", "led"}
     if unknown:
         raise SettingsError(f"Unknown setting {sorted(unknown)[0]}. Remove it and save again.")
     return out

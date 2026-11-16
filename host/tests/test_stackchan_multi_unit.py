@@ -63,21 +63,19 @@ def registry(tmp_path):
 def test_each_unit_gets_its_own_model_persona_and_brain(registry):
     kitchen, den = registry.brain_for(KITCHEN), registry.brain_for(DEN)
     assert kitchen is not den
-    assert (kitchen.config.llm.model, kitchen.config.llm.persona) == (
-        "kitchen-model",
-        "You are a cheerful kitchen helper.",
-    )
-    assert (den.config.llm.model, den.config.llm.persona) == (
-        "den-model",
-        "You are a calm den companion.",
-    )
+    # Each persona keeps its own words; the mood tag instruction follows them (reply_tags.persona_with_tags).
+    assert kitchen.config.llm.model == "kitchen-model"
+    assert kitchen.config.llm.persona.startswith("You are a cheerful kitchen helper.")
+    assert den.config.llm.model == "den-model"
+    assert den.config.llm.persona.startswith("You are a calm den companion.")
+    assert "[happy]" in den.config.llm.persona and "[happy]" in kitchen.config.llm.persona
     assert registry.brain_for(KITCHEN) is kitchen
 
 
 def test_unknown_unit_gets_the_default_and_its_own_brain(registry):
     stranger = registry.brain_for(STRANGER)
     assert stranger.config.llm.model == RobotConfig().llm.model
-    assert stranger.config.llm.persona == RobotConfig().llm.persona
+    assert stranger.config.llm.persona.startswith(RobotConfig().llm.persona)
     assert stranger is not registry.brain_for(KITCHEN)
     assert not registry.has_own_llm(STRANGER) and registry.volume_cap_for(STRANGER) == 100
     assert registry.alarms_for(STRANGER) == []
@@ -98,7 +96,7 @@ def test_changing_a_setting_rebuilds_only_that_units_brain(registry):
     registry.store.update(DEN, {"persona": "You are a bedtime storyteller."})
     assert registry.brain_for(KITCHEN) is before_kitchen
     assert registry.brain_for(DEN) is not before_den
-    assert registry.brain_for(DEN).config.llm.persona == "You are a bedtime storyteller."
+    assert registry.brain_for(DEN).config.llm.persona.startswith("You are a bedtime storyteller.")
 
 
 def test_alarms_are_pushed_to_the_unit_that_owns_them_only(registry):

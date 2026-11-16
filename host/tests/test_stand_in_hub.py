@@ -37,7 +37,8 @@ def _turn_phases(hub: StandInHub) -> list[Phase]:
 def test_a_turn_streams_signal_then_done_with_the_reply(hub):
     client = TurnClient(hub.http_url, "cookie")
     events = list(client.stream("hi"))
-    assert [e.cue.phase for e in events] == [Phase.SIGNAL, Phase.DONE]
+    # The reply also streams as a delta event with no cue between the two cues.
+    assert [e.cue.phase for e in events if e.cue is not None] == [Phase.SIGNAL, Phase.DONE]
     assert events[-1].reply_text == "hello back"
 
 

@@ -60,7 +60,7 @@ def test_logical_vocabulary_falls_back_until_new_firmware_and_rejects_unknown():
         resolve_face,
     )
 
-    assert len(FACE_VOCABULARY) == 19  # the 18 logical faces and the sleeping face
+    assert len(FACE_VOCABULARY) == 21  # the 18 logical faces, the sleeping face, and tired and closing (patch X01)
     assert resolve_face("joy", "0.2.86") == "happy"
     assert resolve_face("curious", "0.2.86") == "doubt"
     assert resolve_face("neutral", "0.2.86") == "neutral"

@@ -30,6 +30,8 @@ FACE_VOCABULARY: dict[str, tuple[str | None, str]] = {
     "angry": ("angry", "angry"),
     "sleepy": ("sleepy", "sleepy"),
     "sleeping": ("sleeping", "sleeping"),
+    "tired": ("tired", "sleepy"),  # the low-battery look (firmware patch X01); an older unit draws sleepy
+    "closing": ("closing", "sleepy"),  # the lids lower and stay shut (patch X01)
     "dizzy": (None, "doubt"),
     "silly": (None, "wink"),
 }

@@ -49,13 +49,13 @@ def test_page_routes_show_and_save_a_unit_face(tmp_path: Path) -> None:
     assert status == 200 and payload["pushed"] is True
     assert firmware.state["style"] == "big_eyes" and firmware.state["tod"] is True
     status, payload = backend.route_post(f"/api/stackchan/faces/{UNIT}", {"style": "huge"}, True)
-    assert status == 400 and "classic, big_eyes, minimal" in payload["error"]
+    assert status == 400 and "big_eyes, eyes_only, stock, classic or minimal" in payload["error"]
     status, payload = backend.route_post(
         f"/api/stackchan/faces/{UNIT}", {"colour": "#101010", "lang": "es"}, True
     )
     assert status == 400 and "oscuro" in payload["error"]
     status, payload = backend.route_post(f"/api/stackchan/faces/{UNIT}/reset", {}, True)
-    assert status == 200 and firmware.state["style"] == "classic"
+    assert status == 200 and firmware.state["style"] == "big_eyes"
 
 
 def test_page_routes_refuse_non_local_and_unpaired(tmp_path: Path) -> None:
@@ -177,12 +177,12 @@ def test_cli_face_set_and_show_without_a_host(cli_env: Path, monkeypatch, capsys
     assert _run(monkeypatch, "reset", UNIT) == 0
     capsys.readouterr()
     _run(monkeypatch, "show", UNIT)
-    assert "style: classic" in capsys.readouterr().out
+    assert "style: big_eyes" in capsys.readouterr().out
 
 
 def test_cli_face_errors_say_what_to_do(cli_env: Path, monkeypatch, capsys) -> None:
     assert _run(monkeypatch, "set", UNIT, "--style", "huge") == 2
-    assert "classic, big_eyes, minimal" in capsys.readouterr().err
+    assert "big_eyes, eyes_only, stock, classic or minimal" in capsys.readouterr().err
     assert _run(monkeypatch, "set", UNIT, "--hours", "a,b") == 2
     assert "four whole numbers" in capsys.readouterr().err
     assert _run(monkeypatch, "set", UNIT) == 2

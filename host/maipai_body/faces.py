@@ -31,36 +31,33 @@ from maipai_body.i18n import normalize
 
 logger = logging.getLogger("maipai_body.faces")
 
+# The face styles (firmware patch X02). Big eyes is the default. Stock is the original M5 face as shipped.
 STYLES = (
-    "classic",
     "big_eyes",
+    "eyes_only",
+    "stock",
+    "classic",
     "minimal",
-    "round",
-    "cat",
-    "robot",
-    "sleepy",
-    "retro_pixel",
-    "heart_eyes",
 )
-BASIC_STYLES = ("classic", "big_eyes", "minimal")  # what firmware without the style packs draws
+DEFAULT_STYLE = "big_eyes"
+# Styles that were offered before patch X02. A saved or sent one is Big eyes now (never an error), so an old setting migrates.
+DROPPED_STYLES = ("round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes")
+NEW_LOOK_STYLES = ("eyes_only", "stock")  # firmware before patch X01 does not draw these two
 CAPTION_SIZES = ("small", "medium", "large")
 # Face decorators (firmware patch U01): small drawn extras shown for a few seconds. One list, here.
-DECORATORS = ("sweat", "shy", "dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz")
+DECORATORS = ("dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz")  # sweat and shy were dropped (patch X02)
 DECOR_MIN_S = 1
 DECOR_MAX_S = 60
 DECOR_DEFAULT_S = 6
 # The decorator that goes with a logical face, for a caller that wants the extra (never required).
 DECORATOR_FOR_FACE = {
     "sad": "tears",
-    "worried": "sweat",
     "dizzy": "dizzy",
     "love": "heart",
     "angry": "anger",
     "sleepy": "zzz",
     "excited": "sparkles",
     "joy": "sparkles",
-    "content": "shy",
-    "shocked": "sweat",
 }
 PALETTE = ("mint", "sky", "amber", "rose", "lilac", "lime", "coral")
 CLOCK_STYLES = ("digits", "ring")
@@ -72,6 +69,8 @@ MAX_SHOW_CLOCK_S = 3600
 MIN_LUMA = 60  # of 255: a colour darker than this cannot be seen on the black screen
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 _NEED = {  # firmware feature word a setting needs; a unit without it ignores the setting
+    "background": "background",
+    "emotion_tint": "tint",
     "captions": "captions",
     "tod": "tod",
     "tod_hours": "tod",
@@ -85,9 +84,10 @@ _NEED = {  # firmware feature word a setting needs; a unit without it ignores th
 # Plain words, English and Spanish: what went wrong, then what to do.
 _MESSAGES: dict[str, dict[str, str]] = {
     "en": {
-        "style": "The face style {value!r} does not exist. Choose classic, big_eyes, minimal, round, cat, robot, sleepy, retro_pixel or heart_eyes.",
+        "style": "The face style {value!r} does not exist. Choose big_eyes, eyes_only, stock, classic or minimal.",
+        "bright": "That screen colour is too bright for white eyes to show. Choose a darker colour.",
         "caption_size": "The caption size {value!r} does not exist. Choose small, medium or large.",
-        "decor": "The face extra {value!r} does not exist. Choose sweat, shy, dizzy, heart, anger, tears, sparkles, stars or zzz.",
+        "decor": "The face extra {value!r} does not exist. Choose dizzy, heart, anger, tears, sparkles, stars or zzz.",
         "decor_seconds": "A face extra can show for 1 to 60 seconds. Type a number in that range.",
         "colour": "The colour {value!r} is not one I know. Choose none, a name (mint, sky, amber, rose, lilac, lime, coral) or a code like #40c0ff.",
         "dark": "That colour is too dark to see on the black screen. Choose a lighter colour.",
@@ -105,9 +105,10 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "bad_file": "The face settings file {path} could not be read. Fix or remove it; the plain face is used meanwhile.",
     },
     "es": {
-        "style": "El estilo de cara {value!r} no existe. Elige classic, big_eyes, minimal, round, cat, robot, sleepy, retro_pixel o heart_eyes.",
+        "style": "El estilo de cara {value!r} no existe. Elige big_eyes, eyes_only, stock, classic o minimal.",
+        "bright": "Ese color de pantalla es demasiado claro para que se vean los ojos blancos. Elige un color mas oscuro.",
         "caption_size": "El tamano de subtitulos {value!r} no existe. Elige small, medium o large.",
-        "decor": "El adorno de cara {value!r} no existe. Elige sweat, shy, dizzy, heart, anger, tears, sparkles, stars o zzz.",
+        "decor": "El adorno de cara {value!r} no existe. Elige dizzy, heart, anger, tears, sparkles, stars o zzz.",
         "decor_seconds": "Un adorno de cara puede verse de 1 a 60 segundos. Escribe un numero en ese rango.",
         "colour": "No conozco el color {value!r}. Elige none, un nombre (mint, sky, amber, rose, lilac, lime, coral) o un codigo como #40c0ff.",
         "dark": "Ese color es demasiado oscuro para verse en la pantalla negra. Elige un color mas claro.",
@@ -135,6 +136,9 @@ _FEATURE_WORDS = {
         "timers": "timer countdowns",
         "config": "face settings",
         "packs": "the extra face styles and caption sizes",
+        "looks": "the eyes-only and stock face styles",
+        "background": "a screen colour",
+        "tint": "the emotion colours",
         "decor": "face extras",
         "langs6": "screen words in French, German, Portuguese and Italian",
     },
@@ -146,6 +150,9 @@ _FEATURE_WORDS = {
         "timers": "cuentas atras de temporizadores",
         "config": "ajustes de la cara",
         "packs": "los estilos de cara extra y los tamanos de subtitulos",
+        "looks": "los estilos de cara solo ojos y original",
+        "background": "un color de pantalla",
+        "tint": "los colores de las emociones",
         "decor": "adornos de cara",
         "langs6": "las palabras en pantalla en frances, aleman, portugues e italiano",
     },
@@ -182,12 +189,27 @@ def valid_colour(value: str) -> str | None:
     return "dark" if luma(red, green, blue) < MIN_LUMA else None
 
 
+MAX_BG_LUMA = 100  # of 255: a screen colour brighter than this hides the white eyes
+
+
+def valid_background(value: str) -> str | None:
+    """None when the screen colour is fine, otherwise "colour" (unknown) or "bright" (hides the white eyes)."""
+    if value == "none" or value in PALETTE:
+        return None
+    if not _HEX.match(value):
+        return "colour"
+    red, green, blue = (int(value[i : i + 2], 16) for i in (1, 3, 5))
+    return "bright" if luma(red, green, blue) > MAX_BG_LUMA else None
+
+
 @dataclass(frozen=True)
 class FaceConfig:
     """One unit's face settings. The defaults are the neutral, plain face."""
 
-    style: str = "classic"
-    colour: str = "none"  # none, a palette name, or #rrggbb
+    style: str = DEFAULT_STYLE
+    colour: str = "none"  # the eye colour: none is white, a palette name, or #rrggbb
+    background: str = "none"  # the screen colour: none is black, a palette name (dimmed), or a dark #rrggbb
+    emotion_tint: bool = True  # the eyes lean a little toward a colour per emotion
     captions: bool = False
     tod: bool = False
     tod_hours: tuple[int, int, int, int] = DEFAULT_HOURS
@@ -203,6 +225,8 @@ class FaceConfig:
         return {
             "style": self.style,
             "colour": self.colour.lower(),
+            "background": self.background.lower(),
+            "emotion_tint": self.emotion_tint,
             "captions": self.captions,
             "tod": self.tod,
             "tod_hours": list(self.tod_hours),
@@ -234,9 +258,18 @@ def clean(base: FaceConfig, values: Mapping[str, Any], lang: str | None = None) 
     out = base
     for field, value in values.items():
         if field == "style":
+            if value in DROPPED_STYLES:
+                value = DEFAULT_STYLE  # a style that was dropped: Big eyes
             if value not in STYLES:
                 raise FaceError(_say(say_lang, "style", value=value))
             out = replace(out, style=value)
+        elif field == "background":
+            if not isinstance(value, str):
+                raise FaceError(_say(say_lang, "colour", value=value))
+            problem = valid_background(value if value in PALETTE or value == "none" else value.lower())
+            if problem is not None:
+                raise FaceError(_say(say_lang, problem, value=value))
+            out = replace(out, background=value.lower())
         elif field == "colour":
             if not isinstance(value, str):
                 raise FaceError(_say(say_lang, "colour", value=value))
@@ -244,7 +277,7 @@ def clean(base: FaceConfig, values: Mapping[str, Any], lang: str | None = None) 
             if problem is not None:
                 raise FaceError(_say(say_lang, problem, value=value))
             out = replace(out, colour=value.lower())
-        elif field in ("captions", "tod", "thinking_tone", "clock24"):
+        elif field in ("captions", "tod", "thinking_tone", "clock24", "emotion_tint"):
             out = replace(out, **{field: _flag(field, value, say_lang)})
         elif field == "tod_hours":
             hours = _hours(value)
@@ -519,8 +552,8 @@ class FaceService:
         lines: list[str] = []
         for field, value in values.items():
             need = _NEED.get(field)
-            if field == "style" and value not in BASIC_STYLES:
-                need = "packs"  # the extra styles are firmware patch U06
+            if field == "style" and value in NEW_LOOK_STYLES:
+                need = "looks"  # the eyes-only and stock styles are firmware patch X01
             elif field == "lang" and value not in ("en", "es"):
                 need = "langs6"
             if need is not None and need not in known:
@@ -566,7 +599,7 @@ class FaceService:
         seconds: int = DECOR_DEFAULT_S,
         lang: str | None = None,
     ) -> dict[str, Any]:
-        """Draw a face extra (sweat, shy, dizzy, heart, anger, tears, sparkles, stars, zzz) for a few seconds.
+        """Draw a face extra (dizzy, heart, anger, tears, sparkles, stars, zzz) for a few seconds.
 
         ``name`` ``none`` ends the current one. The unit refuses it while a mute, vision-off or quiet
         look or a ringing timer shows, and says why; the refusal comes back as a ``FaceError``.
@@ -634,7 +667,11 @@ class FaceService:
             raise FaceError(_say(lang, "no_feature", what=_feature_word(lang, feature)))
 
 
-_OPTIONAL_WIRE = {"caption_size": "medium"}  # keys firmware before patch U06 does not report
+_OPTIONAL_WIRE = {  # keys older firmware does not report; the saved value being the plain one counts as equal
+    "caption_size": "medium",
+    "background": "none",
+    "emotion_tint": True,
+}
 
 
 def _wire_equal(config: FaceConfig, reply: Mapping[str, Any]) -> bool:
@@ -668,6 +705,7 @@ def settings_view(service: FaceService, unit_id: str, lang: str | None = None) -
         "choices": {
             "style": list(STYLES),
             "colour": ["none", *PALETTE],
+            "background": ["none", *PALETTE],
             "clock_style": list(CLOCK_STYLES),
             "caption_size": list(CAPTION_SIZES),
             "decorators": list(DECORATORS),
@@ -684,7 +722,7 @@ def settings_view(service: FaceService, unit_id: str, lang: str | None = None) -
         if known is None
         else [
             _feature_word(say_lang, name)
-            for name in ("captions", "tod", "clock", "thinking", "timers", "packs", "decor")
+            for name in ("captions", "tod", "clock", "thinking", "timers", "packs", "decor", "looks", "background", "tint")
             if name not in known
         ],
         "pending": service.pending(unit_id),
