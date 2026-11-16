@@ -24,6 +24,7 @@ from maipai_body.speaker_evidence import SpeakerEvidenceError, speaker_evidence
 from maipai_body.speech.capture import BLOCK_SAMPLES
 from maipai_body.speech.offline_clips import UNREACHABLE
 from maipai_body.speech.playback import AudioPlayback
+from maipai_body.speech.reply_stream import SentenceSplitter, TagStripper
 from maipai_body.speech.stt_stream import WAKE_PATIENCE_S, SttStreamClient, SttStreamError
 from maipai_body.speech.tts_playback import TtsAuthFailed, TtsPlaybackClient
 from maipai_body.speech.turn_client import TurnAuthFailed, TurnClient, TurnLinkLost
@@ -81,6 +82,7 @@ DEBUG_WAV_ENV = "MAIPAI_STACKCHAN_DEBUG_WAV_DIR"
 DEBUG_WAV_MAX = 16000 * 30
 # Voiced audio the hub must have called speech before a failure is worth an apology.
 MIN_SPEECH_S = 0.5
+FILLER_AFTER_S = 1.2  # no first sentence by now: show the thinking cue again, once
 # Fresh speech-to-text streams opened after a dropped socket before the turn gives up.
 STT_RECONNECTS = 2
 FRAME_S = 0.06
@@ -695,6 +697,10 @@ class StackChanTurnBridge:
         self._quiet_streak = 0
         # Called just before the plain apology is spoken (the error earcon, sounds.py); may be None.
         self.on_error_line = None
+        # Streaming: seconds without a first sentence before the thinking cue is shown again and
+        # on_slow_reply (a filler-sound hook, None until one exists) is called, once per turn.
+        self.filler_after_s = FILLER_AFTER_S
+        self.on_slow_reply = None
 
     async def on_audio(self, session_id: str, data: bytes) -> None:
         stats = self._audio_stats.setdefault(session_id, [0, 0])
@@ -1066,6 +1072,44 @@ class StackChanTurnBridge:
 
         return SttStreamResult(kind="no_speech")
 
+    def _log_utterance(self, result, outcome: str, device_id: str) -> None:
+        """One line per utterance: engine, confidence, route and why. The words themselves are
+        logged only when MAIPAI_STACKCHAN_LOG_UTTERANCES=1 (they are never kept otherwise)."""
+        if result.kind != "final":
+            return
+        text = result.text or ""
+        route, why = self._route_of(text, outcome)
+        shown = repr(text) if os.environ.get("MAIPAI_STACKCHAN_LOG_UTTERANCES") == "1" else (
+            f"({len(text.split())} words)"
+        )
+        LOG.info(
+            "StackChan utterance: %s engine=%s confidence=%s route=%s (%s)",
+            shown,
+            getattr(result, "engine", "unknown"),
+            getattr(result, "confidence", None),
+            route,
+            why,
+        )
+
+    def _route_of(self, text: str, outcome: str) -> tuple[str, str]:
+        """Where this utterance goes: a local command (and which), or the chat model."""
+        if outcome != "speech":
+            return "none", f"classified {outcome}"
+        from maipai_body.bodies.stackchan import brightness as bright
+        from maipai_body.bodies.stackchan.head_commands import parse_head_command
+        from maipai_body.bodies.stackchan.stop_phrases import is_stop_phrase
+        from maipai_body.bodies.stackchan.volume import parse_volume_command
+
+        if is_stop_phrase(text):
+            return "local command", "stop phrase on the fixed list"
+        if self.volume_control is not None and parse_volume_command(text) is not None:
+            return "local command", "volume wording found"
+        if self.brightness_control is not None and bright.parse_brightness_command(text):
+            return "local command", "brightness wording found"
+        if self.head_control is not None and parse_head_command(text) is not None:
+            return "local command", "head movement wording found"
+        return "chat", "no local command wording; the model answers"
+
     def _turn_for(self, device_id: str, base, cookie):
         """This unit's turn client: its own model when it chose one, else the Home turn client."""
         if self.units is not None and self.units.has_own_llm(device_id):
@@ -1138,6 +1182,7 @@ class StackChanTurnBridge:
                 after,
             )
             outcome = self._classify(result)
+            self._log_utterance(result, outcome, device_id)
             if outcome == "speech":
                 from maipai_body.bodies.stackchan.stop_phrases import is_stop_phrase, normalize
 
@@ -1268,104 +1313,9 @@ class StackChanTurnBridge:
                     self._breaker.note_speech()
                     return
             turn = self._turn_for(device_id, base, cookie)
-            chat_started = self._clock()
-
-            def _drain() -> list:
-                collected: list = []
-                evidence = self._speaker_evidence(result)
-                for event in turn.stream(result.text, speaker_evidence=evidence):
-                    collected.append(event)
-                    if cancel_event.is_set():
-                        # A stop must end the hub's generation too, not only our playback.
-                        tid = getattr(event, "turn_id", None)
-                        if tid:
-                            try:
-                                turn.cancel(tid)
-                            except Exception:
-                                LOG.debug("StackChan voice: hub turn cancel failed", exc_info=True)
-                        break
-                return collected
-
-            events = await asyncio.to_thread(_drain)
-            reply = next((e.reply_text for e in reversed(events) if e.reply_text), None)
-            LOG.info(
-                "StackChan voice: chat ended in %.1f s (%d events, reply %d characters)",
-                self._clock() - chat_started,
-                len(events),
-                len(reply or ""),
+            await self._stream_reply(
+                session_id, turn, result, playback, cancel_event, base, cookie
             )
-            if reply:
-                tts = self.tts_factory(base, cookie, playback)
-                moods = [
-                    getattr(getattr(event, "cue", None), "expressed_emotion", None)
-                    for event in events
-                ]
-                mood = next((value for value in reversed(moods) if value), None)
-                if mood:
-                    cue = next(
-                        (
-                            getattr(event, "cue", None)
-                            for event in reversed(events)
-                            if getattr(getattr(event, "cue", None), "expressed_emotion", None)
-                        ),
-                        None,
-                    )
-                    excitement = bool(
-                        getattr(cue, "excitement", False)
-                        or getattr(cue, "expressed_excitement", False)
-                    )
-                    self._emit_expression(
-                        "reply_mood", mood="joy" if mood == "happiness" and excitement else mood
-                    )
-                    self._notify(self.on_reply_mood, mood)
-                for index, sentence in enumerate(_sentences(reply)):
-                    if asyncio.current_task().cancelling():
-                        return
-                    if index == 0:
-                        # The face talks as the first frames reach the unit, not at synthesis.
-                        playback.on_first_audio = lambda: self._emit_expression("speaking")
-                    self._states[session_id] = "speaking"
-                    self._speaking_since[session_id] = self._clock()
-                    spoke_at = self._clock()
-                    LOG.info(
-                        "StackChan voice: text-to-speech sentence %d started (%d characters)",
-                        index + 1,
-                        len(sentence),
-                    )
-                    await asyncio.to_thread(tts.speak, sentence, stop_event=cancel_event)
-                    synthesized_at = self._clock()
-                    if cancel_event.is_set():
-                        return
-                    # The reply is one paced stream: this sentence's tail is flushed and the sender
-                    # carries on while the next sentence is synthesized (no stop() per sentence).
-                    end_sentence = getattr(playback, "end_sentence", None)
-                    if end_sentence is not None:
-                        await asyncio.to_thread(end_sentence)
-                    else:
-                        await asyncio.to_thread(playback.stop)
-                    LOG.info(
-                        "StackChan voice: sentence %d synthesized in %.1f s",
-                        index + 1,
-                        synthesized_at - spoke_at,
-                    )
-                if getattr(playback, "end_sentence", None) is not None:
-                    # stop() sends what is left and waits on this event loop's own coroutine, so it
-                    # must run off the loop: inline it deadlocked until its 30 s timeout.
-                    finish_started = self._clock()
-                    await asyncio.to_thread(playback.stop)
-                    LOG.info(
-                        "StackChan voice: reply sent to the device %.1f s after the last "
-                        "sentence was synthesized",
-                        self._clock() - finish_started,
-                    )
-                self._keep_for_repeat(session_id, reply, playback, result)
-                await asyncio.to_thread(playback.end)
-                self._states[session_id] = "listening"
-                self._speech_ended[session_id] = self._clock()
-                self._breaker.note_speech()
-                LOG.info("StackChan voice: reply finished playing")
-            else:
-                await asyncio.to_thread(self._speak_plain_error, playback, base, cookie)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -1407,6 +1357,250 @@ class StackChanTurnBridge:
                 frames,
                 size,
             )
+
+    async def _stream_reply(
+        self, session_id: str, turn, result, playback, cancel_event, base: str, cookie: str
+    ) -> None:
+        """Ask for the reply and speak it sentence by sentence while it is still being written.
+
+        A reader thread turns the brain's events into whole, tag-free sentences on a queue; this
+        coroutine speaks them in order. A brain that sends no pieces (one final reply) is spoken
+        from that reply the same way, just later.
+        """
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        chat_started = self._clock()
+        marks: dict[str, float] = {}
+        info: dict = {"turn_id": None}
+
+        def put(item) -> None:
+            loop.call_soon_threadsafe(queue.put_nowait, item)
+
+        def cancel_hub_turn() -> None:
+            tid = info["turn_id"]
+            if tid:
+                try:
+                    turn.cancel(tid)
+                except Exception:
+                    LOG.debug("StackChan voice: hub turn cancel failed", exc_info=True)
+
+        def _drain() -> None:
+            events: list = []
+            stripper = TagStripper()
+            splitter = SentenceSplitter()
+            error: BaseException | None = None
+            try:
+                evidence = self._speaker_evidence(result)
+                for event in turn.stream(result.text, speaker_evidence=evidence):
+                    events.append(event)
+                    tid = getattr(event, "turn_id", None)
+                    if tid:
+                        info["turn_id"] = tid
+                    if cancel_event.is_set():
+                        # A stop must end the hub's generation too, not only our playback.
+                        cancel_hub_turn()
+                        break
+                    if getattr(getattr(event, "cue", None), "expressed_emotion", None):
+                        put(("mood", event))
+                    delta = getattr(event, "delta_text", None)
+                    if not delta:
+                        continue
+                    marks.setdefault("first_token", self._clock())
+                    text = stripper.feed(delta)
+                    if getattr(event, "delta_whole", False):
+                        text += "\n"
+                    for sentence in splitter.feed(text):
+                        put(("sentence", sentence))
+                if not cancel_event.is_set():
+                    tail = stripper.flush()
+                    for sentence in [*splitter.feed(tail), *splitter.flush()]:
+                        put(("sentence", sentence))
+            except BaseException as exc:  # reported to the speaking side, never lost
+                error = exc
+            finally:
+                put(("end", events, error, stripper.tags))
+
+        reader = loop.run_in_executor(None, _drain)
+        spoken: list[str] = []
+        events: list = []
+        error: BaseException | None = None
+        tags: list[str] = []
+        mood_event = None
+        mood_sent = None
+        filler_sent = False
+        tts = None
+        finished = False
+
+        def apply_mood() -> None:
+            nonlocal mood_sent
+            cue = getattr(mood_event, "cue", None)
+            mood = getattr(cue, "expressed_emotion", None)
+            if not mood or mood == mood_sent:
+                return
+            mood_sent = mood
+            excitement = bool(
+                getattr(cue, "excitement", False) or getattr(cue, "expressed_excitement", False)
+            )
+            self._emit_expression(
+                "reply_mood", mood="joy" if mood == "happiness" and excitement else mood
+            )
+            self._notify(self.on_reply_mood, mood)
+
+        async def speak(sentence: str) -> bool:
+            nonlocal tts
+            index = len(spoken)
+            if tts is None:
+                tts = self.tts_factory(base, cookie, playback)
+            if index == 0:
+                now = self._clock()
+                marks["first_sentence"] = now
+                LOG.info(
+                    "StackChan voice: first sentence ready %.2f s after the request "
+                    "(first token %s)",
+                    now - chat_started,
+                    f"{marks['first_token'] - chat_started:.2f} s"
+                    if "first_token" in marks
+                    else "not streamed",
+                )
+                apply_mood()
+
+                def first_audio() -> None:
+                    marks["first_audio"] = self._clock()
+                    LOG.info(
+                        "StackChan voice: first audio %.2f s after the request",
+                        marks["first_audio"] - chat_started,
+                    )
+                    self._emit_expression("speaking")
+
+                # The face talks as the first frames reach the unit, not at synthesis.
+                playback.on_first_audio = first_audio
+            self._states[session_id] = "speaking"
+            self._speaking_since[session_id] = self._clock()
+            spoke_at = self._clock()
+            LOG.info(
+                "StackChan voice: text-to-speech sentence %d started (%d characters)",
+                index + 1,
+                len(sentence),
+            )
+            await asyncio.to_thread(tts.speak, sentence, stop_event=cancel_event)
+            synthesized_at = self._clock()
+            if cancel_event.is_set():
+                return False
+            spoken.append(sentence)
+            # The reply is one paced stream: this sentence's tail is flushed and the sender
+            # carries on while the next sentence is synthesized (no stop() per sentence).
+            end_sentence = getattr(playback, "end_sentence", None)
+            if end_sentence is not None:
+                await asyncio.to_thread(end_sentence)
+            else:
+                await asyncio.to_thread(playback.stop)
+            LOG.info(
+                "StackChan voice: sentence %d synthesized in %.1f s",
+                index + 1,
+                synthesized_at - spoke_at,
+            )
+            return True
+
+        try:
+            while not finished:
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=0.2)
+                except TimeoutError:
+                    if cancel_event.is_set():
+                        cancel_hub_turn()
+                        return
+                    if (
+                        not filler_sent
+                        and not spoken
+                        and self._clock() - chat_started >= self.filler_after_s
+                    ):
+                        # No first sentence yet: show the thinking cue once more, and call the
+                        # filler-sound hook if one is wired (none ships yet).
+                        filler_sent = True
+                        LOG.info(
+                            "StackChan voice: no sentence after %.1f s; thinking cue",
+                            self.filler_after_s,
+                        )
+                        self._emit_expression("thinking")
+                        self._notify(self.on_slow_reply, None)
+                    continue
+                kind = item[0]
+                if kind == "mood":
+                    mood_event = item[1]
+                    if spoken:
+                        apply_mood()
+                elif kind == "sentence":
+                    if asyncio.current_task().cancelling() or cancel_event.is_set():
+                        return
+                    if not await speak(item[1]):
+                        return
+                else:
+                    _, events, error, tags = item
+                    finished = True
+            await reader
+        finally:
+            if not finished:
+                cancel_event.set()  # this turn was cancelled: let the reader thread stop too
+        if cancel_event.is_set():
+            return
+        reply = next((e.reply_text for e in reversed(events) if e.reply_text), None)
+        LOG.info(
+            "StackChan voice: chat ended in %.1f s (%d events, %d sentences spoken, "
+            "%d tags dropped%s)",
+            self._clock() - chat_started,
+            len(events),
+            len(spoken),
+            len(tags),
+            "" if error is None else f", ended with {type(error).__name__}",
+        )
+        if error is not None and not spoken:
+            raise error
+        if not spoken and error is None:
+            # Not streamed (or a built-in answer): the final reply is split and spoken here.
+            if reply:
+                stripper = TagStripper()
+                clean = stripper.feed(reply) + stripper.flush()
+                mood_event = next(
+                    (
+                        e
+                        for e in reversed(events)
+                        if getattr(getattr(e, "cue", None), "expressed_emotion", None)
+                    ),
+                    mood_event,
+                )
+                for sentence in _sentences(clean):
+                    if asyncio.current_task().cancelling() or not await speak(sentence):
+                        return
+        if not spoken:
+            await asyncio.to_thread(self._speak_plain_error, playback, base, cookie)
+            return
+        apply_mood()
+        if error is not None:
+            LOG.warning(
+                "StackChan voice: the reply stopped early (%s); spoke %d sentences, then the "
+                "plain failure line",
+                type(error).__name__,
+                len(spoken),
+            )
+            await asyncio.to_thread(self._speak_plain_error, playback, base, cookie)
+            self._states[session_id] = "listening"
+            return
+        if getattr(playback, "end_sentence", None) is not None:
+            # stop() sends what is left and waits on this event loop's own coroutine, so it
+            # must run off the loop: inline it deadlocked until its 30 s timeout.
+            finish_started = self._clock()
+            await asyncio.to_thread(playback.stop)
+            LOG.info(
+                "StackChan voice: reply sent to the device %.1f s after the last "
+                "sentence was synthesized",
+                self._clock() - finish_started,
+            )
+        self._keep_for_repeat(session_id, " ".join(spoken), playback, result)
+        await asyncio.to_thread(playback.end)
+        self._states[session_id] = "listening"
+        self._speech_ended[session_id] = self._clock()
+        self._breaker.note_speech()
+        LOG.info("StackChan voice: reply finished playing")
 
     def _speaker_person(self, result) -> str | None:
         evidence = self._speaker_evidence(result)

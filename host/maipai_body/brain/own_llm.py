@@ -36,6 +36,16 @@ def _sentences(text: str) -> tuple[list[str], str]:
     return complete, parts[-1]
 
 
+def _whole_completion(lines: list[str]) -> str:
+    """The text of a non-streamed chat completion body (read line by line), else empty."""
+    try:
+        body = json.loads("\n".join(lines))
+        content = body["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return ""
+    return content.strip() if isinstance(content, str) else ""
+
+
 def _host(url: str) -> str:
     try:
         return urlsplit(url).hostname or "the configured model"
@@ -142,6 +152,17 @@ class OwnLLMBrain:
         url = _endpoint(self.config.url, _CHAT_PATH)
         reply = ""
         pending = ""
+        raw: list[str] = []
+        saw_delta = False
+        spoken_any = False
+
+        def piece(sentence: str) -> TurnEvent:
+            if self._on_sentence is not None:
+                self._on_sentence(sentence)
+            return TurnEvent(
+                reply_text=sentence, turn_id=turn_id, delta_text=sentence, delta_whole=True
+            )
+
         try:
             with self._session.post(
                 url,
@@ -151,13 +172,15 @@ class OwnLLMBrain:
                 timeout=self.config.timeout_seconds,
             ) as response:
                 response.raise_for_status()
-                for line in response.iter_lines(decode_unicode=True):
+                for line in response.iter_lines(chunk_size=1, decode_unicode=True):
                     if stop.is_set():
                         return
                     if not line:
                         continue
                     if isinstance(line, bytes):
                         line = line.decode("utf-8", errors="replace")
+                    if not saw_delta:
+                        raw.append(line)
                     if line.startswith("data:"):
                         line = line[5:].strip()
                     if line == "[DONE]":
@@ -169,20 +192,29 @@ class OwnLLMBrain:
                         continue
                     if not isinstance(delta, str) or not delta:
                         continue
+                    saw_delta = True
+                    raw.clear()
                     reply += delta
                     pending += delta
                     complete, pending = _sentences(pending)
                     for sentence in complete:
-                        if self._on_sentence is not None:
-                            self._on_sentence(sentence)
-                        yield TurnEvent(reply_text=sentence, turn_id=turn_id)
+                        spoken_any = True
+                        yield piece(sentence)
             if stop.is_set():
                 return
+            if not saw_delta:
+                # The endpoint did not stream: the body is one ordinary completion.
+                whole = _whole_completion(raw)
+                if whole:
+                    reply = whole
+                    complete, pending = _sentences(whole + " ")
+                    for sentence in complete:
+                        spoken_any = True
+                        yield piece(sentence)
+                    pending = ""
             if pending.strip():
-                sentence = pending.strip()
-                if self._on_sentence is not None:
-                    self._on_sentence(sentence)
-                yield TurnEvent(reply_text=sentence, turn_id=turn_id)
+                spoken_any = True
+                yield piece(pending.strip())
             if reply.strip():
                 history.extend(
                     (
@@ -194,7 +226,14 @@ class OwnLLMBrain:
         except Exception as exc:  # the voice link always receives a spoken failure result
             del exc
             message = f"I could not reach the model at {_host(self.config.url)}; check robot.toml."
-            yield TurnEvent(reply_text=message, turn_id=turn_id, conversation_id=conversation)
+            # After some sentences were already spoken, the failure is one more spoken sentence.
+            yield TurnEvent(
+                reply_text=message,
+                turn_id=turn_id,
+                conversation_id=conversation,
+                delta_text=message if spoken_any else None,
+                delta_whole=spoken_any,
+            )
         finally:
             with self._lock:
                 self._cancel.pop(turn_id, None)

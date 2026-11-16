@@ -50,6 +50,10 @@ class TurnEvent:
     # The hub's response generation for this turn (STT-TURN-02), read from the
     # stamped events; the speech request echoes it so a cut reply is refused.
     generation: int | None = None
+    # One piece of the reply as it is written (a wire `delta`). `delta_whole` marks a piece that is
+    # already a complete sentence. The final event still carries the whole reply in `reply_text`.
+    delta_text: str | None = None
+    delta_whole: bool = False
 
 
 @dataclass
@@ -207,6 +211,11 @@ class TurnClient:
             text = message.get("text")
             if text:
                 state.reply_parts.append(text)
+                return TurnEvent(
+                    delta_text=text,
+                    conversation_id=state.conversation_id,
+                    turn_id=state.turn_id,
+                )
             return None
         if kind == "signal":
             signal = message.get("signal") or {}
