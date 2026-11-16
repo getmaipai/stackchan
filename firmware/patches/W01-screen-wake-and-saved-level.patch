@@ -1,0 +1,567 @@
+# Intent: the screen can no longer stay dim with no way back (owner 2026-11-16, standing next to the unit: the screen went dim and stayed dim, tapping the face did not undim it, and the quick settings swipe seemed to do nothing because its panel opened at the same dim level). Root cause, in four links: (1) the host dims the screen by calling the stock tool self.screen.set_brightness (rest stage asleep: 5, night rule: 15); (2) that stock tool SAVED the value, so the dim level became the level the unit boots into and RestoreBrightness returns to; (3) the host sets a level again only when its rest stage or night edge changes, and its night sync stops at a face tool this firmware does not have, so a unit that restarted while dimmed (the restart guard, a reset, a power loss) came back dim and stayed dim; (4) nothing on the unit itself woke the screen: no touch, touch bar, shake, tilt or wake word touched the backlight. Fix: (a) the host's brightness is live only (mcp_server.cc), and the saved level is the person's (the quick settings slider; the Backlight keeps its own copy, saved_brightness, so a wake never reads flash from a task with a stack in external RAM); (b) maipai_screen_wake(): a touch on the glass, a strong touch or swipe on the touch bar, a shake, a tilt or roll, or the wake word puts a dimmed screen back to the saved level at once and tells the host with a head_touch event (strong, tap, screen=1) so a host that put the unit to sleep wakes; (c) a press that only woke the screen starts no listen and toggles no mute, vision or quiet (the same claim the clock face uses); (d) with the hub link down for 60 s a dimmed screen returns by itself (no host is left to do it); (e) Backlight::SetBrightness no longer drops a request for the level a move in progress had just left (it compared only the live level, so the screen finished the move at the dim target), and the saved level is written even when the screen already shows it; (f) the AXP2101 supply register 0x90 is read with TryReadRegs before the screen is switched on or off: ReadReg returns 0 after three failed tries (patch R02) and a read-modify-write from that 0 would switch every other supply in the register off. New tool self.screen.get_level (saved and live); in a bench build self.screen.bench_touch presses the glass through the same function the touch chip reader calls. The pure rule is maipai_screen_core.h (host/tests/firmware/screen_core_test.c).
+# Placement: unit (the screen, the touch and the backlight are the unit's; a unit must come back from a dim with the host off)
+# Upstream: xiaozhi-esp32 main/boards/common/backlight.{h,cc}, main/mcp_server.cc, main/application.cc; m5stack/StackChan firmware/main/hal/board/{stackchan.cc,hal_bridge.cc,stackchan_display.cc}, hal/hal_imu.cpp, hal/hal_mcp.cpp (MIT); new hal/maipai_screen.{h,cc} and maipai_screen_core.h (MIT)
+# Check after a flash: self.screen.get_level answers saved and live; self.screen.set_brightness 5 then a touch on the glass (a finger, or self.screen.bench_touch in a bench build) restores live to saved within a second and the log says "screen was dim (5, saved N): restored on touch"; the host's brightness commands never change saved (read it before and after); a restart while dimmed boots at saved; a touch that wakes a dimmed screen does not toggle mute, vision or quiet.
+diff --git a/firmware/main/hal/board/stackchan.cc b/firmware/main/hal/board/stackchan.cc
+--- a/firmware/main/hal/board/stackchan.cc
++++ b/firmware/main/hal/board/stackchan.cc
+@@ -23,6 +23,7 @@
+ #include "stackchan_camera.h"
+ #include "hal_bridge.h"
+ #include <hal/hal.h>
++#include <hal/maipai_screen.h>
+ 
+ #define TAG "M5Stack-StackChan-Board"
+ 
+@@ -123,9 +124,13 @@
+     void SetBrightness(uint8_t brightness)
+     {
+         if (brightness == 0) {
+-            // DLDO1 off
+-            uint8_t val = ReadReg(0x90);
+-            WriteReg(0x90, val & 0x7F);
++            // DLDO1 off. Patch W01: the register is read with TryReadRegs. ReadReg gives up with a 0 after three failed
++            // tries (patch R02), and a read-modify-write from that 0 would switch every other supply in this register
++            // off (the codec, the camera, the touch chip) along with the screen.
++            uint8_t val = 0;
++            if (TryReadRegs(0x90, &val, 1) == ESP_OK) {
++                WriteReg(0x90, val & 0x7F);
++            }
+         } else {
+             // 映射计算：将 1~100 映射到 寄存器值 20~28
+             // 公式：MinReg + (input * (MaxReg - MinReg) / MaxInput)
+@@ -136,9 +141,9 @@
+             uint8_t reg_val = 20 + ((uint16_t)brightness * 8 / 100);
+             WriteReg(0x99, reg_val);
+ 
+-            // Make sure DLDO1 on
+-            uint8_t val = ReadReg(0x90);
+-            if (!(val & 0x80)) {
++            // Make sure DLDO1 on (patch W01: only from a register that was really read, as above)
++            uint8_t val = 0;
++            if (TryReadRegs(0x90, &val, 1) == ESP_OK && !(val & 0x80)) {
+                 WriteReg(0x90, val | 0x80);
+             }
+         }
+@@ -554,6 +559,7 @@
+                     M5StackCoreS3Board* board = (M5StackCoreS3Board*)arg;
+                     board->PollTouchpad();
+                     board->PollPowerSaveState();
++                    maipai_screen_tick();  // patch W01: with the host gone a dimmed screen comes back
+                 },
+             .arg                   = this,
+             .dispatch_method       = ESP_TIMER_TASK,
+@@ -892,11 +898,7 @@
+     auto& board    = Board::GetInstance();
+     auto backlight = board.GetBacklight();
+     if (backlight) {
+-        backlight->SetBrightness(brightness, false);
+-        if (permanent) {
+-            Settings settings("display", true);
+-            settings.SetInt("brightness", brightness);
+-        }
++        backlight->SetBrightness(brightness, permanent);  // patch W01: the backlight keeps its own copy of what is saved
+     }
+ }
+ 
+diff --git a/firmware/main/hal/board/hal_bridge.cc b/firmware/main/hal/board/hal_bridge.cc
+--- a/firmware/main/hal/board/hal_bridge.cc
++++ b/firmware/main/hal/board/hal_bridge.cc
+@@ -5,6 +5,7 @@
+  */
+ #include "hal_bridge.h"
+ #include "stackchan_display.h"
++#include "../maipai_screen.h"
+ #include <esp_log.h>
+ #include <esp_err.h>
+ #include <nvs.h>
+@@ -52,6 +53,9 @@
+ 
+ void set_touch_point(int num, int x, int y)
+ {
++    // Patch W01: a finger on the glass wakes a dimmed screen. It runs before the point is stored, so the wake is
++    // known before the face sees the press (the press then only wakes: no listen, no toggle).
++    maipai_screen_touch(num);
+     std::lock_guard<std::mutex> lock(_mutex);
+     _data.touchPoint.num = num;
+     _data.touchPoint.x   = x;
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -23,6 +23,7 @@
+ #include "maipai_games.h"
+ #include "maipai_facebench.h"
+ #include "maipai_picface.h"
++#include "maipai_screen.h"
+ #if CONFIG_MAIPAI_DANCE_EXTRAS
+ #include "maipai_dances_core.h"
+ #endif
+@@ -197,6 +198,12 @@
+         events_connected = true;
+         GetHAL().onHeadPetGesture.connect([](HeadPetGesture gesture) {
+             const char* strength = g_head_touch_strong.load() ? "\"strong\":1" : "\"strong\":0";
++            // Patch W01: a strong touch on the bar or its swipes wakes a dimmed screen. A weak one does not: the strip
++            // fires a lone phantom about every ten seconds with nobody there (see the host's phantom filter), and that
++            // must not undo the host's sleep.
++            if (g_head_touch_strong.load()) {
++                maipai_screen_wake("touch bar");
++            }
+             if (gesture == HeadPetGesture::Press) {
+                 PushDeviceEvent("head_touch", strength);
+                 maipai_mood_pet();  // a pet is care (patch M01)
+@@ -209,6 +216,7 @@
+         });
+         GetHAL().onImuMotionEvent.connect([](ImuMotionEvent event) {
+             if (event == ImuMotionEvent::Shake) {
++                maipai_screen_wake("shake");  // patch W01
+                 PushDeviceEvent("shake");
+             }
+         });
+@@ -616,6 +624,9 @@
+     // self.face.decorate and self.face.decor_list (patch U01).
+     maipai_decor_register_tools();
+ 
++    // self.screen.get_level, and the bench touch (patch W01).
++    maipai_screen_register_tools();
++
+     // self.reaction.get_table, set_table, reset and test (patch U02).
+     maipai_react_register_tools();
+ 
+diff --git a/firmware/main/hal/hal_imu.cpp b/firmware/main/hal/hal_imu.cpp
+--- a/firmware/main/hal/hal_imu.cpp
++++ b/firmware/main/hal/hal_imu.cpp
+@@ -6,6 +6,7 @@
+ #include "hal.h"
+ #include "board/hal_bridge.h"
+ #include "maipai_heal.h"
++#include "maipai_screen.h"
+ #include "maipai_orient_core.h"
+ #include "device_events.h"
+ #include <cstdio>
+@@ -44,6 +45,9 @@
+                          static_cast<int>(orientation.filt[1] * 101.97f), static_cast<int>(orientation.filt[2] * 101.97f));
+                 mclog::tagInfo(_tag, "orientation {} ({})", extra, pose == MO_CHANGED ? "changed" : "still");
+                 device_events_push("orientation", extra);
++                if (pose == MO_CHANGED) {
++                    maipai_screen_wake("tilt");  // patch W01: a tilt, a roll or a lift wakes a dimmed screen
++                }
+             }
+ 
+             if (motion_detector->isShakeDetected()) {
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -40,6 +40,7 @@
+ // True while the Wi-Fi setup portal is open (firmware/portal/maipai_wifi_configuration_ap.cc, patch P03).
+ extern "C" bool maipai_portal_active(void);
+ #include <hal/maipai_privacy.h>
++#include <hal/maipai_screen.h>
+ #include <hal/maipai_touch_core.h>
+ #include <hal/maipai_cue_core.h>
+ #if CONFIG_MAIPAI_RESET_ON_DEVICE
+@@ -340,7 +341,10 @@
+         s_trace_live  = true;
+         s_last_region = s_trace.region0;
+         maipai_timers_request_dismiss("touch");  // a ringing timer ends on a touch (patch 093)
+-        s_press_woke_clock = maipai_face_touched();
++        // A press that only woke a dimmed screen (patch W01) is treated like the one that woke the clock face: no
++        // listen, no mute, vision or quiet toggle. maipai_screen_take_wake_touch() must run every press (it clears).
++        const bool woke_screen = maipai_screen_take_wake_touch();
++        s_press_woke_clock     = maipai_face_touched() || woke_screen;
+         // A running game takes a touch that began outside the screen edges (patch G01). The edges stay the unit's:
+         // the swipes that open quick settings, change the volume and stop start there.
+         if (maipai_games_active() && s_trace.region0 != MTC_REGION_EDGE) {
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -16,6 +16,7 @@
+ #include <driver/gpio.h>
+ #include <hal/board/hal_bridge.h>
+ #include <hal/maipai_heal.h>
++#include <hal/maipai_screen.h>
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_sounds.h>
+ #include <hal/maipai_timers.h>
+@@ -995,6 +996,7 @@
+     if (!protocol_ || maipai_mic_blocked()) {
+         return;  // a wake word that arrives after the mute is dropped (patch 107)
+     }
++    maipai_screen_wake("wake word");  // patch W01: the wake word wakes a dimmed screen
+ 
+     auto state = GetDeviceState();
+     auto wake_word = audio_service_.GetLastWakeWord();
+diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/main/mcp_server.cc
+--- a/firmware/xiaozhi-esp32/main/mcp_server.cc
++++ b/firmware/xiaozhi-esp32/main/mcp_server.cc
+@@ -67,7 +67,10 @@
+                 [backlight](const PropertyList& properties) -> ReturnValue {
+                     uint8_t brightness =
+                         static_cast<uint8_t>(properties["brightness"].value<int>());
+-                    backlight->SetBrightness(brightness, true);
++                    // Patch W01: the host's brightness is live only. It used to be saved, so the host's sleep level (5) and
++                    // night level became the level the unit booted into and returned to, and a unit that restarted while
++                    // dimmed stayed dim. The saved level is the person's (the quick settings slider).
++                    backlight->SetBrightness(brightness, false);
+                     return true;
+                 });
+     }
+diff --git a/firmware/xiaozhi-esp32/main/boards/common/backlight.cc b/firmware/xiaozhi-esp32/main/boards/common/backlight.cc
+--- a/firmware/xiaozhi-esp32/main/boards/common/backlight.cc
++++ b/firmware/xiaozhi-esp32/main/boards/common/backlight.cc
+@@ -40,23 +40,39 @@
+         saved_brightness = 10;  // 设置一个较低的默认值
+     }
+     
++    saved_brightness_ = saved_brightness;
+     SetBrightness(saved_brightness);
+ }
+ 
++// Patch W01: the same return to the saved level, from the copy this object keeps. A wake from a task whose stack is
++// in external RAM (the motion and head touch tasks) must not read flash, and RestoreBrightness does.
++void Backlight::RestoreSavedLevel() {
++    int level = saved_brightness_;
++    if (level < 10) {
++        level = 10;
++    }
++    SetBrightness(static_cast<uint8_t>(level));
++}
++
+ void Backlight::SetBrightness(uint8_t brightness, bool permanent) {
+     if (brightness > 100) {
+         brightness = 100;
+     }
+ 
+-    if (brightness_ == brightness) {
+-        return;
+-    }
+-
+-    if (permanent) {
++    // Patch W01: the saved level is written (and remembered) whether or not the screen already shows it, and an
++    // unchanged level is not written again. A move already under way to another level is not "already there": the
++    // stock check compared only the live level, so a request for the level the ramp had just left was dropped and
++    // the screen finished the ramp at the dim target.
++    if (permanent && saved_brightness_ != brightness) {
+         Settings settings("display", true);
+         settings.SetInt("brightness", brightness);
++        saved_brightness_ = brightness;
+     }
+ 
++    if (brightness_ == brightness && target_brightness_ == brightness) {
++        return;
++    }
++
+     target_brightness_ = brightness;
+     step_ = (target_brightness_ > brightness_) ? 1 : -1;
+ 
+diff --git a/firmware/xiaozhi-esp32/main/boards/common/backlight.h b/firmware/xiaozhi-esp32/main/boards/common/backlight.h
+--- a/firmware/xiaozhi-esp32/main/boards/common/backlight.h
++++ b/firmware/xiaozhi-esp32/main/boards/common/backlight.h
+@@ -13,8 +13,12 @@
+     ~Backlight();
+ 
+     void RestoreBrightness();
++    // Patch W01: back to the level the person saved, from the copy kept here (no flash read, so any task may call it).
++    void RestoreSavedLevel();
+     void SetBrightness(uint8_t brightness, bool permanent = false);
+     inline uint8_t brightness() const { return brightness_; }
++    // The level the person saved (the quick settings slider), or -1 until it was read or set once.
++    inline int saved_brightness() const { return saved_brightness_; }
+ 
+ protected:
+     void OnTransitionTimer();
+@@ -24,6 +28,7 @@
+     uint8_t brightness_ = 0;
+     uint8_t target_brightness_ = 0;
+     uint8_t step_ = 1;
++    int saved_brightness_ = -1;
+ };
+ 
+ 
+diff --git a/firmware/main/hal/maipai_screen_core.h b/firmware/main/hal/maipai_screen_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_screen_core.h
+@@ -0,0 +1,76 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The screen's wake rule (patch W01): the pure decisions, no ESP-IDF, so a host compiler can test them
++ * (host/tests/firmware/screen_core_test.c).
++ *
++ * The screen may be dimmed from outside (the host's rest stage sets 5, its night rule sets 15). Whatever
++ * dimmed it, an input from a person puts the saved level back, and the unit never boots into a level a
++ * transient command chose. Three small rules live here:
++ *
++ *   saved level   what the person chose (quick settings slider): at least 10, at most 100, 75 when nothing
++ *                 was ever saved. A raw 0 or below is a damaged value and reads as the floor.
++ *   dim           the live level is below the saved one: an input should restore it.
++ *   hub gone      no host to restore it either: the screen returns to the saved level after a grace period.
++ */
++#ifndef MAIPAI_SCREEN_CORE_H
++#define MAIPAI_SCREEN_CORE_H
++
++#include <stdint.h>
++
++#define MSC_DEFAULT_LEVEL 75
++#define MSC_FLOOR_LEVEL 10
++#define MSC_MIN_GAP_MS 250      /* two wakes closer than this are one input (a finger held on the glass) */
++#define MSC_EVENT_GAP_MS 1500   /* the host is told at most this often */
++#define MSC_TOUCH_CLAIM_MS 800  /* a face press this soon after a wake only woke the screen */
++#define MSC_HUB_GONE_MS 60000   /* with no host this long, a dimmed screen comes back by itself */
++
++/* The level the person chose, from the raw saved value (`present` 0 when nothing was saved). */
++static inline int msc_saved_level(int present, int raw)
++{
++    if (!present) {
++        return MSC_DEFAULT_LEVEL;
++    }
++    if (raw <= 0) {
++        return MSC_FLOOR_LEVEL;
++    }
++    if (raw > 100) {
++        return 100;
++    }
++    return raw;
++}
++
++/* True when the live level is below the saved one (dimmed from outside, or the screen is off). */
++static inline int msc_is_dim(int live, int saved)
++{
++    return live < saved;
++}
++
++/* Wake now? `last_ms` is when the last wake ran (or a negative number for never). */
++static inline int msc_wake_due(int live, int saved, int64_t now_ms, int64_t last_ms)
++{
++    if (!msc_is_dim(live, saved)) {
++        return 0;
++    }
++    return last_ms < 0 || now_ms - last_ms >= MSC_MIN_GAP_MS;
++}
++
++/* Tell the host about a wake? Only when one restored something, and not more often than the gap. */
++static inline int msc_event_due(int restored, int64_t now_ms, int64_t last_event_ms)
++{
++    return restored && (last_event_ms < 0 || now_ms - last_event_ms >= MSC_EVENT_GAP_MS);
++}
++
++/* A press that began right after a wake that restored the screen is only a wake: no listen, no toggle. */
++static inline int msc_touch_only_woke(int64_t now_ms, int64_t woke_ms)
++{
++    return woke_ms >= 0 && now_ms - woke_ms >= 0 && now_ms - woke_ms < MSC_TOUCH_CLAIM_MS;
++}
++
++/* The hub link has been down since `down_since_ms` (negative while it is up): time to come back by itself? */
++static inline int msc_hub_gone_due(int live, int saved, int64_t now_ms, int64_t down_since_ms)
++{
++    return msc_is_dim(live, saved) && down_since_ms >= 0 && now_ms - down_since_ms >= MSC_HUB_GONE_MS;
++}
++
++#endif /* MAIPAI_SCREEN_CORE_H */
+diff --git a/firmware/main/hal/maipai_screen.h b/firmware/main/hal/maipai_screen.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_screen.h
+@@ -0,0 +1,30 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The screen's wake rule, device side (patch W01). The decisions are maipai_screen_core.h.
++ */
++#pragma once
++
++// An input from a person (a touch on the glass, the touch bar, a shake, a tilt, the wake word) happened.
++// If the screen is below the level the person saved, put it back and tell the host (a "head_touch" event with
++// screen=1, so a host that put the unit to sleep wakes it). `why` is a short word for the log. Safe from any
++// task, including the timer task: no LVGL lock, no wait. True when it restored the screen.
++bool maipai_screen_wake(const char* why);
++
++// Called for every touch on the glass, before the point is stored (so the wake is known before the face sees
++// the press).
++void maipai_screen_touch(int num);
++
++// True once after a touch on the glass that restored the screen: that press is only a wake and must start no
++// listen and toggle nothing (the same rule as the clock face).
++bool maipai_screen_take_wake_touch();
++
++// About once a second from the board timer: with the hub gone for a minute a dimmed screen comes back.
++void maipai_screen_tick();
++
++// The level the person saved (what the screen returns to), live level, and the level being moved to.
++void maipai_screen_levels(int* saved, int* live);
++
++// Registers self.screen.get_level (read-only: saved, live) and, in a bench build (MAIPAI_SERIAL_TOOLS), the
++// self.screen.bench_touch tool that presses the glass through the same funnel a real finger uses.
++void maipai_screen_register_tools();
+diff --git a/firmware/main/hal/maipai_screen.cc b/firmware/main/hal/maipai_screen.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_screen.cc
+@@ -0,0 +1,167 @@
++/*
++ * SPDX-License-Identifier: MIT
++ */
++// The screen's wake rule, device side (patch W01). See maipai_screen_core.h for the rule and why it exists.
++#include "maipai_screen.h"
++#include "maipai_screen_core.h"
++#include "board/hal_bridge.h"
++#include "device_events.h"
++
++#include <backlight.h>
++#include <board.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++
++#include <sdkconfig.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
++#include <mcp_server.h>
++
++#include <atomic>
++#include <cstdio>
++#include <string>
++
++static const char* TAG = "MAIPAI-SCREEN";
++
++namespace {
++std::atomic<int64_t> s_last_wake_ms{-1};
++std::atomic<int64_t> s_last_event_ms{-1};
++std::atomic<int64_t> s_touch_woke_ms{-1};
++std::atomic<int64_t> s_hub_down_since_ms{-1};
++std::atomic<int64_t> s_last_tick_ms{0};
++
++int64_t now_ms()
++{
++    return esp_timer_get_time() / 1000;
++}
++
++// The level the person saved, from the backlight's own copy: this runs on tasks whose stacks are in external RAM
++// (the motion and head touch tasks), and a flash read from one of those aborts the unit (see patch V03).
++int saved_level(Backlight* backlight)
++{
++    const int raw = backlight->saved_brightness();
++    return msc_saved_level(raw >= 0, raw);
++}
++
++// Restores the saved level when the screen is below it. True when it restored something.
++bool restore_if_dim(const char* why, bool hub_gone_rule)
++{
++    auto* backlight = Board::GetInstance().GetBacklight();
++    if (backlight == nullptr) {
++        return false;
++    }
++    const int saved = saved_level(backlight);
++    const int live  = backlight->brightness();
++    if (!msc_is_dim(live, saved)) {
++        return false;
++    }
++    backlight->RestoreSavedLevel();
++    ESP_LOGW(TAG, "screen was dim (%d, saved %d): restored on %s%s", live, saved, why, hub_gone_rule ? " (no host)" : "");
++    return true;
++}
++}  // namespace
++
++bool maipai_screen_wake(const char* why)
++{
++    const int64_t now = now_ms();
++    auto* backlight   = Board::GetInstance().GetBacklight();
++    if (backlight == nullptr) {
++        return false;
++    }
++    const int saved = saved_level(backlight);
++    if (!msc_wake_due(backlight->brightness(), saved, now, s_last_wake_ms.load())) {
++        return false;
++    }
++    s_last_wake_ms.store(now);
++    if (!restore_if_dim(why != nullptr ? why : "input", false)) {
++        return false;
++    }
++    if (msc_event_due(1, now, s_last_event_ms.load())) {
++        s_last_event_ms.store(now);
++        // The host that put the unit to sleep wakes on a head touch it can trust (strong and tap); screen=1 says it
++        // was the glass or another input, not the strip.
++        device_events_push("head_touch", "\"strong\":1,\"tap\":1,\"screen\":1");
++    }
++    return true;
++}
++
++void maipai_screen_touch(int num)
++{
++    static std::atomic<bool> down{false};
++    if (num <= 0) {
++        down.store(false);
++        return;
++    }
++    if (down.exchange(true)) {
++        return;  // a finger already on the glass: the wake ran at the touch down
++    }
++    if (maipai_screen_wake("touch")) {
++        s_touch_woke_ms.store(now_ms());  // this press only woke the screen
++    }
++}
++
++bool maipai_screen_take_wake_touch()
++{
++    const int64_t woke = s_touch_woke_ms.exchange(-1);
++    return msc_touch_only_woke(now_ms(), woke);
++}
++
++void maipai_screen_tick()
++{
++    const int64_t now = now_ms();
++    if (now - s_last_tick_ms.load() < 1000) {
++        return;
++    }
++    s_last_tick_ms.store(now);
++    if (hal_bridge::hub_link_up()) {
++        s_hub_down_since_ms.store(-1);
++        return;
++    }
++    if (s_hub_down_since_ms.load() < 0) {
++        s_hub_down_since_ms.store(now);
++        return;
++    }
++    auto* backlight = Board::GetInstance().GetBacklight();
++    if (backlight == nullptr) {
++        return;
++    }
++    if (msc_hub_gone_due(backlight->brightness(), saved_level(backlight), now, s_hub_down_since_ms.load())) {
++        restore_if_dim("hub gone", true);
++    }
++}
++
++void maipai_screen_levels(int* saved, int* live)
++{
++    auto* backlight = Board::GetInstance().GetBacklight();
++    if (saved != nullptr) {
++        *saved = backlight != nullptr ? saved_level(backlight) : 0;
++    }
++    if (live != nullptr) {
++        *live = backlight != nullptr ? backlight->brightness() : 0;
++    }
++}
++
++void maipai_screen_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.screen.get_level",
++                "Returns the screen levels: saved (the level a person chose, where a touch or the wake word puts a dimmed "
++                "screen back) and live (what the screen shows now), each 0 to 100.",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    int saved = 0, live = 0;
++                    maipai_screen_levels(&saved, &live);
++                    char buffer[64];
++                    snprintf(buffer, sizeof(buffer), "{\"saved\":%d,\"live\":%d}", saved, live);
++                    return std::string(buffer);
++                });
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++    mcp.AddTool("self.screen.bench_touch",
++                "Bench only: a finger on the glass for 200 ms, through the same function the touch chip's reader calls.",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    hal_bridge::set_touch_point(1, 160, 4);  // the top edge strip: a tap there toggles nothing and starts no listen
++                    vTaskDelay(pdMS_TO_TICKS(200));
++                    hal_bridge::set_touch_point(0, 0, 0);
++                    return true;
++                });
++#endif
++}

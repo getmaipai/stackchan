@@ -779,11 +779,12 @@ def test_the_dashboard_forwards_the_new_routes() -> None:
 def test_the_page_has_every_section_in_every_language(lang: str) -> None:
     page = settings_page.render_page(lang).decode()
     for function in (
-        "extrasSection",
-        "reactSection",
-        "clockSection",
-        "peopleSection",
-        "toolSection",
+        "BUILDERS.behaviour",
+        "reactCard",
+        "timeCard",
+        "peopleCard",
+        "'network-test'",
+        "'travel'",
     ):
         assert function in page
     for key in (

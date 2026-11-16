@@ -1,0 +1,214 @@
+# Intent: the restart guard never leaves the unit frozen (owner 2026-11-16: a unit whose self-restarts were used up, "3 of 3", sat frozen). Patch R02 refused every restart after the third in an hour and asked for a stall restart only once per freeze, so a fourth freeze stayed a freeze until the hour ended or someone reset the unit by hand. Now the first three restarts in a window go at once; after that a restart is allowed once the unit has run 5, then 10, then 20, then at most 30 minutes since its last restart (maipai_heal_core.h, mhc_allow), and the stall watch asks again every minute for as long as the freeze lasts, so a held-back request is only a wait. A fault that returns at once is still held back, never into a reboot loop (at most one restart per 5 minutes at the fastest), and a freeze that returns after a long run is always cleared. The refusal log line and the heal event (action=refused) now carry wait_s and are sent at most every 5 minutes; one request is decided at a time. The boot event's heal_hold follows the same rule. New: on the first stall ask the motion task logs every task (name, state, priority, free stack) and sends one heal event (action=stall, t=main/lvgl/esp_timer/audio/ws states), so the next freeze names its cause instead of only being cleared (patch 069 of the older line did this and was dropped from the rebuild).
+# Placement: unit (a basic the robot must do alone; it runs with the host off)
+# Upstream: main/hal/maipai_heal.cc from patch R02 (MIT); new hal/maipai_heal_core.h (MIT)
+# Check after a flash: three host reboot requests in a row restart the unit three times; the fourth within five minutes of the last logs "restart held back ... allowed in N s" once; a main loop held for 30 s while three restarts are already counted logs "main loop stalled" again every minute and restarts at the first minute the back-off allows.
+diff --git a/firmware/main/hal/maipai_heal.cc b/firmware/main/hal/maipai_heal.cc
+--- a/firmware/main/hal/maipai_heal.cc
++++ b/firmware/main/hal/maipai_heal.cc
+@@ -9,8 +9,10 @@
+ #include "maipai_heal.h"
+ 
+ #include "device_events.h"
++#include "maipai_heal_core.h"
+ 
+ #include <esp_log.h>
++#include <esp_heap_caps.h>
+ #include <esp_system.h>
+ #include <esp_timer.h>
+ #include <freertos/FreeRTOS.h>
+@@ -26,7 +28,7 @@
+ namespace {
+ constexpr const char* kTag    = "HealGuard";
+ constexpr const char* kNs     = "mp_heal";  // our own: never the websocket namespace (pairing token, Wi-Fi)
+-constexpr int kMaxPerHour     = 3;
++constexpr int kMaxPerHour     = MHC_FREE_PER_WINDOW;
+ constexpr int kWindowS        = 3600;
+ constexpr int kBootGapS       = 10;  // what a restart itself costs, added to the window clock at boot
+ constexpr int kStallLoops     = 300; // 30 s at the motion task's 100 ms rhythm
+@@ -36,6 +38,8 @@
+ int s_count    = 0;  // restarts in the current window
+ int s_window_s = 0;  // window clock at boot
+ std::atomic<uint32_t> s_alive{0};
++std::atomic<bool> s_busy{false};          // a restart request is being decided or carried out
++std::atomic<int64_t> s_last_refuse_ms{-1};  // the last refusal that was logged and reported
+ 
+ struct Request {
+     char why[16];
+@@ -96,6 +100,40 @@
+     return err == ESP_OK;
+ }
+ 
++// What every task was doing when the main loop stopped (patch R04), so the next freeze names its cause instead of
++// only being cleared: one log line per task (name, state R/B/S/D/X, priority, lowest free stack in bytes, core), and a
++// compact line for the "heal" event with the tasks that matter most. Runs on the motion task; no flash access.
++void report_tasks()
++{
++    const UBaseType_t capacity = uxTaskGetNumberOfTasks();
++    auto* status = static_cast<TaskStatus_t*>(heap_caps_malloc(capacity * sizeof(TaskStatus_t), MALLOC_CAP_INTERNAL));
++    if (status == nullptr) {
++        ESP_LOGW(kTag, "stall: no memory to list the tasks");
++        return;
++    }
++    const UBaseType_t count = uxTaskGetSystemState(status, capacity, nullptr);
++    char line[76]           = "";
++    size_t used             = 0;
++    static const char kStates[] = "RRBSDX";  // eRunning, eReady, eBlocked, eSuspended, eDeleted, eInvalid
++    for (UBaseType_t i = 0; i < count; i++) {
++        const char state = status[i].eCurrentState < 6 ? kStates[status[i].eCurrentState] : '?';
++        ESP_LOGW(kTag, "stall: task %-16s state=%c prio=%u stack_free=%u core=%d", status[i].pcTaskName, state,
++                 static_cast<unsigned>(status[i].uxCurrentPriority),
++                 static_cast<unsigned>(status[i].usStackHighWaterMark), static_cast<int>(status[i].xCoreID));
++        const char* name = status[i].pcTaskName;
++        const bool key = strcmp(name, "main") == 0 || strcmp(name, "lvgl") == 0 || strncmp(name, "esp_timer", 9) == 0 ||
++                         strncmp(name, "audio", 5) == 0 || strncmp(name, "ws", 2) == 0;
++        if (key && used + 24 < sizeof(line)) {
++            used += snprintf(line + used, sizeof(line) - used, "%s%.9s:%c:%u", used ? "," : "", name, state,
++                             static_cast<unsigned>(status[i].usStackHighWaterMark));
++        }
++    }
++    heap_caps_free(status);
++    char extra[sizeof(line) + 32];
++    snprintf(extra, sizeof(extra), "\"action\":\"stall\",\"t\":\"%s\"", line);
++    device_events_push("heal", extra);
++}
++
+ void restart_task(void* arg)
+ {
+     std::unique_ptr<Request> request(static_cast<Request*>(arg));
+@@ -106,15 +144,25 @@
+         std::lock_guard<std::mutex> lock(s_mutex);
+         load_locked();
+         expire_locked();
+-        allowed = s_count < kMaxPerHour;
++        // Patch R04: after the free restarts a restart waits for a growing run time (maipai_heal_core.h) instead of
++        // being refused for the rest of the window.
++        allowed = mhc_allow(s_count, static_cast<int>(esp_timer_get_time() / 1000000));
+         count   = s_count;
+     }
+     char extra[80];
+     if (!allowed) {
+-        ESP_LOGW(kTag, "restart refused (%s): %d self-restarts this hour already. The unit keeps running; restart it by hand if it is stuck.",
+-                 request->why, count);
+-        snprintf(extra, sizeof(extra), "\"action\":\"refused\",\"why\":\"%s\",\"n\":%d", request->why, count);
+-        device_events_push("heal", extra);
++        // Logged and reported at most every five minutes: the stall watch asks again every minute while the freeze lasts.
++        const int64_t now_ms = esp_timer_get_time() / 1000;
++        if (s_last_refuse_ms.load() < 0 || now_ms - s_last_refuse_ms.load() >= 300000) {
++            s_last_refuse_ms.store(now_ms);
++            const int wait = mhc_wait_s(count, static_cast<int>(now_ms / 1000));
++            ESP_LOGW(kTag, "restart held back (%s): %d self-restarts this hour already; the next one is allowed in %d s.",
++                     request->why, count, wait);
++            snprintf(extra, sizeof(extra), "\"action\":\"refused\",\"why\":\"%s\",\"n\":%d,\"wait_s\":%d", request->why,
++                     count, wait);
++            device_events_push("heal", extra);
++        }
++        s_busy.store(false);
+         vTaskDelete(nullptr);
+         return;
+     }
+@@ -134,12 +182,16 @@
+ 
+ void maipai_heal_restart(const char* why, uint32_t delay_ms)
+ {
++    if (s_busy.exchange(true)) {
++        return;  // a request is already being decided or carried out
++    }
+     auto* request = new Request{};
+     snprintf(request->why, sizeof(request->why), "%s", why != nullptr ? why : "?");
+     request->delay_ms = delay_ms;
+     if (xTaskCreate(restart_task, "heal_restart", 4096, request, 5, nullptr) != pdPASS) {
+         ESP_LOGW(kTag, "could not start the restart task (%s): no memory. Nothing was restarted.", request->why);
+         delete request;
++        s_busy.store(false);
+     }
+ }
+ 
+@@ -152,7 +204,7 @@
+         *count = s_count;
+     }
+     if (hold != nullptr) {
+-        *hold = s_count >= kMaxPerHour;
++        *hold = !mhc_allow(s_count, static_cast<int>(esp_timer_get_time() / 1000000));
+     }
+ }
+ 
+@@ -165,17 +217,19 @@
+ {
+     static uint32_t last_alive = 0;
+     static int stuck_loops     = 0;
+-    static bool asked          = false;
+     const uint32_t alive       = s_alive.load(std::memory_order_relaxed);
+     if (alive != last_alive) {
+         last_alive  = alive;
+         stuck_loops = 0;
+-        asked       = false;
+         return;
+     }
+-    if (alive > 0 && !asked && ++stuck_loops >= kStallLoops) {
+-        asked = true;
+-        ESP_LOGW(kTag, "main loop stalled for 30 s: asking for a self-restart");
++    // Patch R04: asks at 30 s and again every minute for as long as the freeze lasts (R02 asked once per freeze, so a
++    // refusal left the unit frozen). The guard decides each time; a refusal is only a wait.
++    if (alive > 0 && ++stuck_loops >= kStallLoops && (stuck_loops - kStallLoops) % 600 == 0) {
++        ESP_LOGW(kTag, "main loop stalled for %d s: asking for a self-restart", stuck_loops / 10);
++        if (stuck_loops == kStallLoops) {
++            report_tasks();  // the first time only: what every task was doing
++        }
+         maipai_heal_restart("stall", 0);
+     }
+ }
+diff --git a/firmware/main/hal/maipai_heal_core.h b/firmware/main/hal/maipai_heal_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_heal_core.h
+@@ -0,0 +1,50 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The self-restart guard's allowance (patch R04): the pure rule, no ESP-IDF, so a host compiler can test it
++ * (host/tests/firmware/heal_core_test.c).
++ *
++ * Patch R02 refused every self-chosen restart after the third in an hour and asked once per freeze, so a unit
++ * whose main loop froze a fourth time stayed frozen until the window ended or someone reset it by hand. A frozen
++ * unit is worse than a restarting one, so the refusal became a back-off: the first three restarts in a window go
++ * at once; after that a restart is allowed only once the unit has been running for a growing time since its last
++ * restart (5, 10, 20 minutes, then 30 minutes at most). A fault that comes back at once is therefore held back,
++ * never into a reboot loop, and a freeze that comes back after a long run is always cleared.
++ */
++#ifndef MAIPAI_HEAL_CORE_H
++#define MAIPAI_HEAL_CORE_H
++
++#define MHC_FREE_PER_WINDOW 3   /* restarts that go at once in a window */
++#define MHC_WINDOW_S 3600       /* a window ends after this many seconds of running */
++#define MHC_BACKOFF_BASE_S 300  /* the wait after the free ones are used */
++#define MHC_BACKOFF_MAX_S 1800
++
++/* Seconds the unit must have run since its last restart before another is allowed, for `count` restarts counted
++ * in this window. Zero while the free restarts last. */
++static inline int mhc_backoff_s(int count)
++{
++    if (count < MHC_FREE_PER_WINDOW) {
++        return 0;
++    }
++    int over = count - MHC_FREE_PER_WINDOW;
++    if (over > 3) {
++        over = 3;
++    }
++    int wait = MHC_BACKOFF_BASE_S << over;
++    return wait > MHC_BACKOFF_MAX_S ? MHC_BACKOFF_MAX_S : wait;
++}
++
++/* May a self-chosen restart go now? `uptime_s` is how long the unit has run since it last started. */
++static inline int mhc_allow(int count, int uptime_s)
++{
++    return uptime_s >= mhc_backoff_s(count);
++}
++
++/* Seconds until the next restart would be allowed (0 when it is allowed now). */
++static inline int mhc_wait_s(int count, int uptime_s)
++{
++    const int wait = mhc_backoff_s(count) - uptime_s;
++    return wait > 0 ? wait : 0;
++}
++
++#endif /* MAIPAI_HEAL_CORE_H */

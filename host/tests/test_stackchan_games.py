@@ -568,7 +568,7 @@ def test_the_settings_page_shows_the_games_section_in_every_language() -> None:
     for code in ("en", "es", "fr", "de", "pt", "it"):
         assert CATALOG[code]["settings.games"] and CATALOG[code]["settings.games.show"]
     page = render_page("en").decode()
-    assert "'games','GET'" in page and "d.lines" in page
+    assert "unitPath(id,'games')" in page and "BUILDERS.play" in page
 
 
 # ---- the spoken path (answered on the host, before the hub is asked) ----

@@ -106,3 +106,5 @@ H02-face-fluid-motion.patch
 H03-picture-face-core.patch
 H04-picture-face-unit.patch
 I01-orientation-event.patch
+W01-screen-wake-and-saved-level.patch
+R04-restart-guard-back-off.patch

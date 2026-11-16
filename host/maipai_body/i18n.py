@@ -299,6 +299,10 @@ def _merge_more() -> None:
 
     for code, words in pictures.CATALOGS.items():
         CATALOG[code].update(words)
+    from maipai_body import i18n_design as design
+
+    for code, words in design.CATALOGS.items():
+        CATALOG[code].update(words)
 
 
 _merge_more()

@@ -108,7 +108,26 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(alarms, list) or len(alarms) > MAX_ALARMS:
             raise SettingsError(f"Keep the alarm list to {MAX_ALARMS} alarms or fewer.")
         out["alarms"] = [_clean_alarm(a) for a in alarms]
-    unknown = set(values) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch"}
+    if "volume" in values:
+        volume = values["volume"]
+        if isinstance(volume, bool) or not isinstance(volume, int) or not 0 <= volume <= 100:
+            raise SettingsError("The volume must be a whole number from 0 to 100. Pick a number in that range.")
+        out["volume"] = volume
+    if "brightness" in values:
+        brightness = values["brightness"]
+        if isinstance(brightness, bool) or not isinstance(brightness, int) or not 10 <= brightness <= 100:
+            raise SettingsError("The brightness must be a whole number from 10 to 100. Pick a number in that range.")
+        out["brightness"] = brightness
+    if "idle_motion" in values:
+        if not isinstance(values["idle_motion"], bool):
+            raise SettingsError("Idle motion must be on or off.")
+        out["idle_motion"] = values["idle_motion"]
+    if "led" in values:
+        led = values["led"]
+        if led != "off" and not (isinstance(led, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", led)):
+            raise SettingsError("The light ring colour must be off or a code like #40c0ff. Pick a colour and save again.")
+        out["led"] = led.lower()
+    unknown = set(values) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "led"}
     if unknown:
         raise SettingsError(f"Unknown setting {sorted(unknown)[0]}. Remove it and save again.")
     return out

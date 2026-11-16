@@ -191,7 +191,7 @@ def test_status_page_state_names_the_default_unit(tmp_path):
         devices=lambda: {KITCHEN: {}}, store=UnitSettingsStore(tmp_path / "u.json")
     )
     assert alone.state()["default_unit"] == KITCHEN
-    assert b"unitpick" in backend.route_get("/settings", "en", True)[2]
+    assert b"role:'tab'" in backend.route_get("/settings", "en", True)[2]
 
 
 def test_live_version_comes_from_the_fw_event_not_a_guessed_status_key():

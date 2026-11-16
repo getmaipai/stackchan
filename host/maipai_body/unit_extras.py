@@ -69,6 +69,10 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "person_unknown": "That person is not in the list. Add them first.",
         "person_applied": "{name}'s face colour and caption size were sent to the unit.",
         "bad_file": "The file {path} could not be read. Fix or remove it; the built-in choices are used meanwhile.",
+        "travel_key": "A travel key is 16 to 200 letters, numbers or dashes with no spaces. Paste the whole key from your private network and try again.",
+        "travel_saved": "The travel key is on the unit. The unit uses it the next time it cannot reach this host, and then erases it.",
+        "travel_forgot": "The unit forgot its travel key and its place on the private network.",
+        "travel_nothing": "Paste a travel key, or choose Forget to erase the one on the unit.",
     },
     "es": {
         "no_unit": "No hay ninguna unidad elegida. Elige una unidad y vuelve a intentarlo.",
@@ -94,6 +98,10 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "person_unknown": "Esa persona no esta en la lista. Anadela primero.",
         "person_applied": "El color de cara y el tamano de subtitulos de {name} se enviaron a la unidad.",
         "bad_file": "No se pudo leer el archivo {path}. Corrigelo o quitalo; mientras tanto se usan las opciones incluidas.",
+        "travel_key": "Una llave de viaje tiene de 16 a 200 letras, numeros o guiones, sin espacios. Pega la llave entera de tu red privada y vuelve a intentarlo.",
+        "travel_saved": "La llave de viaje esta en la unidad. La usa la proxima vez que no llegue a este equipo y despues la borra.",
+        "travel_forgot": "La unidad olvido su llave de viaje y su lugar en la red privada.",
+        "travel_nothing": "Pega una llave de viaje, o elige Olvidar para borrar la que tiene la unidad.",
     },
 }
 
@@ -240,6 +248,7 @@ class _Tools:
 # U02: word reactions
 # ---------------------------------------------------------------------------------------------
 
+_TRAVEL_KEY = re.compile(r"^[A-Za-z0-9\-]{16,200}$")
 REACT_MAX = 40
 REACT_FACES = ("none", "happy", "sad", "angry", "doubtful", "sleepy")
 REACT_SOUNDS = ("none", "success", "popup", "goodbye", "charged", "needs_you", "vibration")
@@ -657,6 +666,57 @@ class UnitExtras:
         if reply.get("ok") is not True:
             return {"ok": False, "error": say(lang, "old_firmware", what="the details page")}
         return reply
+
+    # ---- travel key (firmware TN01 to TN06): the unit joins the private network from another Wi-Fi ----
+
+    def travel_view(self, unit_id: str, lang: str | None = None) -> dict[str, Any]:
+        """What the unit says about its private network client. The key is never part of the answer."""
+        if not unit_id:
+            raise ExtrasError(say(lang, "no_unit"))
+        try:
+            reply = self._tool(unit_id, "self.tailnet.status", {})
+        except BodyLost:
+            return {"ok": False, "available": None, "error": say(lang, "unreachable")}
+        if reply.get("ok") is not True:
+            return {
+                "ok": False,
+                "available": False,
+                "error": say(lang, "old_firmware", what="the travel key"),
+            }
+        shown = {k: v for k, v in reply.items() if k not in {"key", "authkey", "auth_key"}}
+        return {"ok": True, "available": True, **shown}
+
+    def travel_set(
+        self, unit_id: str, values: Mapping[str, Any], lang: str | None = None
+    ) -> dict[str, Any]:
+        """Send a pairing key to the unit (``key``) or erase it (``forget``). The host never stores the key."""
+        if not unit_id:
+            raise ExtrasError(say(lang, "no_unit"))
+        forget = values.get("forget") is True
+        key = values.get("key")
+        arguments: dict[str, object] = {}
+        if forget:
+            arguments["forget"] = True
+        elif isinstance(key, str) and key.strip():
+            if not _TRAVEL_KEY.match(key.strip()):
+                raise ExtrasError(say(lang, "travel_key"))
+            arguments = {"enabled": True, "key": key.strip()}
+        elif isinstance(values.get("enabled"), bool):
+            arguments = {"enabled": values["enabled"]}
+        else:
+            raise ExtrasError(say(lang, "travel_nothing"))
+        try:
+            reply = self._tool(unit_id, "self.tailnet.set", arguments)
+        except BodyLost:
+            raise ExtrasError(say(lang, "unreachable")) from None
+        if reply.get("ok") is False:
+            why = str(reply.get("error", "no reason given"))
+            if "nknown tool" in why:
+                raise ExtrasError(say(lang, "old_firmware", what="the travel key"))
+            raise ExtrasError(say(lang, "refused", why=why.replace(str(key or "\0"), "the key")))
+        if not forget and "key" not in arguments:
+            return {"ok": True, "message": ""}
+        return {"ok": True, "message": say(lang, "travel_forgot" if forget else "travel_saved")}
 
     # ---- games (firmware patch G01) ----
 

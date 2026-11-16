@@ -33,7 +33,7 @@ def test_face_strings_exist_in_both_languages() -> None:
     assert t("es", "settings.face.save") != t("en", "settings.face.save")
     for lang in ("en", "es"):
         page = render_page(lang).decode()
-        assert t(lang, "settings.face.captions") in page and "faceSection" in page
+        assert t(lang, "settings.face.captions") in page and "BUILDERS.look" in page
 
 
 def test_page_routes_show_and_save_a_unit_face(tmp_path: Path) -> None:
