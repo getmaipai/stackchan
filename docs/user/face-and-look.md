@@ -63,6 +63,10 @@ If you prefer petting on the strip, leave `strip_mode` at `petting`. Set it to `
 
 ![The slider overlay for volume on the robot screen.](../images/quick-sliders.svg)
 
+## Planned faces
+
+Two things are planned and not finished: <span class="planned-tag">Planned</span> **fully animated faces**, and <span class="planned-tag">Planned</span> **still-image faces**, which show a picture as the face. They wait until the robot has enough free memory for them, and we do not have a date.
+
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.
