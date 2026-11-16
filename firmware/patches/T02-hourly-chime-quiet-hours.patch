@@ -1,0 +1,269 @@
+# Intent: Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped "ready" sound) at the top of each hour, off until a person turns it on with self.audio.hourly_chime (saved in the unit's own namespace mp_daily). Rules, all in a plain-C core: never without a set clock, never twice in one hour, never in quiet hours (the person's window from set_sound_policy, or 22:00 to 07:00 when none is set) or while the host says it is dark, never while the unit speaks, listens or rings a timer (it tries again while the minute lasts), and always through the sound policy and the hard mute. It ignores "sounds at night are fine": a chime is not something a person must notice. A `chime` event tells the host it sounded. The tool's test flag decides now as if it were the top of an hour. Rides the T01 one-second tick: no task, no timer. The quiet-hours rule is new code beside the 115 policy core (it reads that policy; it does not change it).
+# Placement: unit (the chime must sound with the host off; the host only reads the event)
+# Upstream: firmware/main/hal/maipai_sounds.cc of the StackChan main component (MIT)
+# Check after a flash: self.audio.hourly_chime enabled=1 test=true answers result=chime and one success tone, or result=quiet in quiet hours; with sounds off or the unit muted the tone is refused by the policy and no tone sounds. Left on, a chime sounds at the next top of the hour outside quiet hours.
+# Kconfig: MAIPAI_HOURLY_CHIME (default y); off removes the chime and the tool.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -159,6 +159,15 @@ config MAIPAI_LOW_BATTERY
+         going to sleep and powers itself off before the power is lost. Each step fires once per discharge and a
+         cable in re-arms them all. No task or buffer: it rides the existing one-second tick. Off here: no ladder.
+ 
++config MAIPAI_HOURLY_CHIME
++    bool "Hourly chime"
++    default y
++    help
++        A soft chime at the top of each hour, off until a person turns it on (self.audio.hourly_chime). It stays
++        quiet in quiet hours (22:00 to 07:00 when none are set), while the host says it is dark, while the unit is
++        busy and when sounds are off or the unit is muted. No task or timer: it rides the one-second tick. Off
++        here: no chime and no tool.
++
+ endmenu
+ 
+ menu "Xiaozhi Assistant"
+diff --git a/firmware/main/hal/maipai_daily.cc b/firmware/main/hal/maipai_daily.cc
+--- a/firmware/main/hal/maipai_daily.cc
++++ b/firmware/main/hal/maipai_daily.cc
+@@ -7,11 +7,17 @@
+  */
+ #include "maipai_daily.h"
+ #include "maipai_battery_core.h"
++#include "maipai_hourly_core.h"
++#include "maipai_timers.h"
+ #include "maipai_sounds.h"
+ #include "maipai_face.h"
+ #include "device_events.h"
+ #include "board/hal_bridge.h"
++#include <application.h>
+ #include <esp_log.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++#include <ctime>
+ #include <esp_timer.h>
+ #include <mcp_server.h>
+ #include <cstdio>
+@@ -93,6 +99,69 @@ void low_battery_poll()
+ }
+ #endif
+ 
++#if CONFIG_MAIPAI_HOURLY_CHIME
++// ---- the hourly chime (patch T02) ----
++const char* kDailyNamespace = "mp_daily";  // our own namespace, never the websocket one
++std::atomic<int> s_hourly{-1};              // -1 not read yet, then 0 or 1
++int32_t s_hourly_last_key = -1;
++
++bool hourly_enabled()
++{
++    int v = s_hourly.load();
++    if (v < 0) {
++        v = 0;  // off until a person turns it on
++        nvs_handle_t h;
++        if (nvs_open(kDailyNamespace, NVS_READONLY, &h) == ESP_OK) {
++            uint8_t b = 0;
++            if (nvs_get_u8(h, "hourly", &b) == ESP_OK) {
++                v = b != 0;
++            }
++            nvs_close(h);
++        }
++        s_hourly.store(v);
++    }
++    return v != 0;
++}
++
++void hourly_save(bool on)
++{
++    nvs_handle_t h;
++    if (nvs_open(kDailyNamespace, NVS_READWRITE, &h) != ESP_OK) {
++        ESP_LOGW(TAG, "could not save the hourly chime setting");
++        return;
++    }
++    if (nvs_set_u8(h, "hourly", on ? 1 : 0) != ESP_OK || nvs_commit(h) != ESP_OK) {
++        ESP_LOGW(TAG, "could not write the hourly chime setting");
++    }
++    nvs_close(h);
++}
++
++// One decision about the chime. `force_top` is the test tool. Returns what was decided.
++mh_result_t hourly_run(bool force_top)
++{
++    time_t t = time(nullptr);
++    int minute     = -1;
++    int32_t key    = 0;
++    if (t >= 1700000000) {
++        struct tm tm_local = {};
++        localtime_r(&t, &tm_local);
++        minute = tm_local.tm_hour * 60 + tm_local.tm_min;
++        key    = tm_local.tm_year * 8784 + tm_local.tm_yday * 24 + tm_local.tm_hour;
++    }
++    const bool busy = Application::GetInstance().GetDeviceState() != kDeviceStateIdle || maipai_timers_ringing();
++    const mh_result_t r = mh_decide(&s_hourly_last_key, hourly_enabled() ? 1 : 0, minute, key,
++                                    maipai_sounds_chime_quiet(minute) ? 1 : 0, busy ? 1 : 0, force_top ? 1 : 0);
++    if (r == MH_CHIME) {
++        // The soft "ready" tone, through the sound policy and the hard mute like every other sound.
++        const bool played = maipai_sounds_play("success");
++        char extra[40];
++        snprintf(extra, sizeof(extra), "\"hour\":%d,\"played\":%d", minute / 60, played ? 1 : 0);
++        device_events_push("chime", extra);
++    }
++    return r;
++}
++#endif
++
+ }  // namespace
+ 
+ void maipai_daily_tick()
+@@ -106,10 +175,40 @@ void maipai_daily_tick()
+ #if CONFIG_MAIPAI_LOW_BATTERY
+     low_battery_poll();
+ #endif
++#if CONFIG_MAIPAI_HOURLY_CHIME
++    // The check is cheap and off most of the time: only the top-of-hour minute reaches the policy.
++    if (hourly_enabled()) {
++        (void)hourly_run(false);
++    }
++#endif
+ }
+ 
+ void maipai_daily_register_tools()
+ {
++#if CONFIG_MAIPAI_HOURLY_CHIME
++    McpServer::GetInstance().AddTool(
++        "self.audio.hourly_chime",
++        "The hourly chime: a soft tone at the top of each hour, off by default. enabled: 1 on, 0 off, -1 only read. "
++        "It stays quiet in quiet hours (22:00 to 07:00 when none are set), while the host says it is dark, while the "
++        "unit is busy and when sounds are off or the unit is muted. test: 1 decides now as if it were the top of an "
++        "hour, ignoring the minute. Answers {ok,enabled,result}.",
++        PropertyList({Property("enabled", kPropertyTypeInteger, -1, -1, 1),
++                      Property("test", kPropertyTypeBoolean, false)}),
++        [](const PropertyList& properties) -> ReturnValue {
++            const int enabled = properties["enabled"].value<int>();
++            if (enabled >= 0 && (enabled != 0) != hourly_enabled()) {
++                s_hourly.store(enabled != 0 ? 1 : 0);
++                hourly_save(enabled != 0);
++            }
++            const bool test = properties["test"].value<bool>();
++            const char* result = "none";
++            if (test) {
++                result = mh_word(hourly_run(true));
++            }
++            return std::string("{\"ok\":true,\"enabled\":") + (hourly_enabled() ? "true" : "false") +
++                   ",\"result\":\"" + result + "\"}";
++        });
++#endif
+ #if CONFIG_MAIPAI_LOW_BATTERY
+     McpServer::GetInstance().AddTool(
+         "self.battery.simulate",
+diff --git a/firmware/main/hal/maipai_hourly_core.h b/firmware/main/hal/maipai_hourly_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_hourly_core.h
+@@ -0,0 +1,69 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The pure logic of the hourly chime and its quiet-hours rule (patch T02). One soft chime at the top of the hour,
++ * off until a person turns it on. It never sounds in quiet hours (the person's own window, or 22:00 to 07:00
++ * when none is set), never while the host says it is dark, never while the unit is busy, and never twice in one
++ * hour. Unlike the other cues it ignores "sounds at night are fine": a chime is not something a person must
++ * notice. Plain C99, no hardware: compiled by a host test.
++ */
++#pragma once
++#include <stdint.h>
++#include "maipai_sounds_core.h"
++
++#define MH_DEFAULT_QUIET_FROM 1320 /* 22:00 */
++#define MH_DEFAULT_QUIET_TO 420    /* 07:00 */
++
++typedef enum {
++    MH_NO_CLOCK = 0, /* the unit's clock was never set */
++    MH_OFF,          /* the chime is off */
++    MH_NOT_TOP,      /* not the top of an hour */
++    MH_DONE,         /* this hour already had its turn */
++    MH_QUIET,        /* quiet hours or dark: skipped for this hour */
++    MH_BUSY,         /* speaking, listening or a timer ringing: tried again while the minute lasts */
++    MH_CHIME         /* play it now */
++} mh_result_t;
++
++/* Is it quiet for the chime? `minute` is the local minute of the day, -1 while the clock is not set. */
++static inline int mh_quiet_now(const ms_policy_t* p, int minute, int host_up)
++{
++    int from = p->quiet_from;
++    int to = p->quiet_to;
++    if (from < 0 || to < 0 || from == to) {
++        from = MH_DEFAULT_QUIET_FROM;
++        to = MH_DEFAULT_QUIET_TO;
++    }
++    return ms_in_window(from, to, minute) || (p->dark && host_up);
++}
++
++/* One decision. `key` names the local hour (any number that changes each hour); `last_key` is the hour that
++ * already had its turn (start it at -1). `force_top` is the test: treat this minute as the top of the hour. */
++static inline mh_result_t mh_decide(int32_t* last_key, int enabled, int minute, int32_t key, int quiet, int busy,
++                                    int force_top)
++{
++    if (minute < 0) return MH_NO_CLOCK;
++    if (!enabled) return MH_OFF;
++    if (!force_top && (minute % 60) != 0) return MH_NOT_TOP;
++    if (!force_top && key == *last_key) return MH_DONE;
++    if (quiet) {
++        if (!force_top) *last_key = key;
++        return MH_QUIET;
++    }
++    if (busy) return MH_BUSY;
++    if (!force_top) *last_key = key;
++    return MH_CHIME;
++}
++
++static inline const char* mh_word(mh_result_t r)
++{
++    switch (r) {
++    case MH_NO_CLOCK: return "no_clock";
++    case MH_OFF: return "off";
++    case MH_NOT_TOP: return "not_top";
++    case MH_DONE: return "done";
++    case MH_QUIET: return "quiet";
++    case MH_BUSY: return "busy";
++    case MH_CHIME: return "chime";
++    }
++    return "unknown";
++}
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -7,6 +7,7 @@
+  */
+ #include "maipai_sounds.h"
+ #include "maipai_sounds_core.h"
++#include "maipai_hourly_core.h"
+ #include "maipai_privacy.h"
+ #include "board/hal_bridge.h"
+ #include <application.h>
+@@ -150,6 +151,16 @@ bool maipai_sounds_play(const char* name)
+     return out.find("\"ok\":true") != std::string::npos;
+ }
+ 
++bool maipai_sounds_chime_quiet(int minute)
++{
++    std::lock_guard<std::mutex> lock(s_mutex);
++    if (!s_loaded) {
++        load_policy_locked();
++        s_loaded = true;
++    }
++    return mh_quiet_now(&s_policy, minute, hal_bridge::hub_link_up()) != 0;
++}
++
+ void maipai_sounds_register_tools()
+ {
+     auto& mcp = McpServer::GetInstance();
+diff --git a/firmware/main/hal/maipai_sounds.h b/firmware/main/hal/maipai_sounds.h
+--- a/firmware/main/hal/maipai_sounds.h
++++ b/firmware/main/hal/maipai_sounds.h
+@@ -10,3 +10,7 @@ void maipai_sounds_register_tools();
+ 
+ // Plays one named sound through the sound policy and the hard mute (patch F05). Returns true if it was queued.
+ bool maipai_sounds_play(const char* name);
++
++// Whether the hourly chime must stay quiet at this local minute of the day (patch T02): the person's quiet hours
++// (22:00 to 07:00 when none are set) or the host's "it is dark" while the host is connected.
++bool maipai_sounds_chime_quiet(int minute);

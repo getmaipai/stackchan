@@ -1,23 +1,7 @@
-# Intent: Security finding 8. The vendor update-check address no longer has a built-in default (the build option is empty), so no vendor server is ever named in the image or contacted. The unused modem-over-serial dependency (uart-eth-modem) is dropped from the main component manifest; the 4G boards, MQTT protocol, activation and registry code are already out of the source list (patches 005, 097, 099) or never linked, and the lock file regenerates on the next build. The shared network component's MQTT client and the lwIP time client stay: the first cannot be removed without editing that component, the second serves the configured time server value.
+# Intent: Security finding 8. The vendor update-check address no longer has a built-in default (the build option is empty: patch 155 empties the StackChan main option, this patch the nested one), so no vendor server is ever named in the image or contacted. The unused modem-over-serial dependency (uart-eth-modem) is dropped from the main component manifest; the 4G boards, MQTT protocol, activation and registry code are already out of the source list (patches 005, 097, 099) or never linked, and the lock file regenerates on the next build. The shared network component's MQTT client and the lwIP time client stay: the first cannot be removed without editing that component, the second serves the configured time server value.
 # Placement: unit (build configuration of the robot firmware)
-# Upstream: main/Kconfig.projbuild and main/idf_component.yml of the xiaozhi-esp32 tree and the StackChan main component (MIT)
+# Upstream: main/idf_component.yml of the StackChan main component and main/Kconfig.projbuild of the xiaozhi-esp32 tree (MIT)
 # Check after a build: grep the image for the vendor address finds nothing; sdkconfig shows CONFIG_OTA_URL="".
-diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
---- a/firmware/main/Kconfig.projbuild
-+++ b/firmware/main/Kconfig.projbuild
-@@ -125,9 +125,10 @@ menu "Xiaozhi Assistant"
- 
- config OTA_URL
-     string "Default OTA URL"
--    default "https://api.tenclass.net/xiaozhi/ota/"
-+    default ""
-     help
--        The application will access this URL to check for new firmwares and server address.
-+        The vendor update check. Empty here: no address is built in, so the unit never contacts a vendor
-+        server. Updates come only from the signed update path (STACKCHAN_UPDATE_PUBKEY).
- 
- choice
-     prompt "Flash Assets"
 diff --git a/firmware/main/idf_component.yml b/firmware/main/idf_component.yml
 --- a/firmware/main/idf_component.yml
 +++ b/firmware/main/idf_component.yml

@@ -1,0 +1,245 @@
+# Intent: Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 that a unit which cannot hear the wake word should find out). Cue: the tone that answers a wake word (the shipped "popup") now goes through the sound policy and the hard mute (`maipai_wake_cue`) instead of playing past them; a unit with sounds off or muted answers with the face only. Self-test: the host's `system wake_selftest` command (the host already sends it and logged "Unknown system command") counts the audio frames fed to the wake engine and the results it fetched over 1.5 s and pushes a `wake_selftest` event: result alive, no_audio (the microphone feed did not move), no_fetch (audio went in, the engine returned nothing) or skipped (why=not_armed when muted or stopped, busy while speaking, listening or ringing). A failed result is repaired once by switching the wake word off and on again (repaired=1 in the event). It proves the feed and the engine loop run; it does not prove the model hears a word, because nothing is injected (the old injected-clip test needs a 55 KB recorded clip and the engine file it patched is gone). Two atomic counters and one idle one-shot timer; no task.
+# Placement: unit (the wake engine and its cue run on the robot; the host only asks and reads the event)
+# Upstream: firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc and main/application.cc of the xiaozhi-esp32 tree (MIT)
+# Check after a flash: idle and unmuted, `system wake_selftest` answers one wake_selftest event result=alive with fed above 10 and fetched above 5; muted it answers result=skipped why=not_armed. Saying the wake word gives one popup tone when sounds are on and none when sounds are off or the unit is muted.
+diff --git a/firmware/main/hal/maipai_wake.cc b/firmware/main/hal/maipai_wake.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_wake.cc
+@@ -0,0 +1,77 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The wake word's feedback cue and self-test, device side (patch T03). The judging is maipai_wake_core.h.
++ */
++#include "maipai_wake.h"
++#include "maipai_wake_core.h"
++#include "maipai_sounds.h"
++#include "maipai_privacy.h"
++#include "maipai_timers.h"
++#include "device_events.h"
++#include <application.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <cstdio>
++
++static const char* TAG = "MAIPAI-WAKE";
++
++void maipai_wake_cue()
++{
++    // "popup" is allowed at night (a person is there) but not when sounds are off or the unit is muted.
++    (void)maipai_sounds_play("popup");
++}
++
++namespace {
++
++esp_timer_handle_t s_timer = nullptr;
++unsigned s_fed0            = 0;
++unsigned s_fetched0        = 0;
++bool s_running             = false;
++
++void finish(void*)
++{
++    auto& app = Application::GetInstance();
++    unsigned fed = 0, fetched = 0;
++    maipai_wake_counters(&fed, &fetched);
++    const bool armed = app.GetAudioService().IsWakeWordRunning() && !maipai_mic_blocked();
++    const bool busy  = app.GetDeviceState() != kDeviceStateIdle || maipai_timers_ringing();
++    const mw_result_t r = mw_judge(armed ? 1 : 0, busy ? 1 : 0, fed - s_fed0, fetched - s_fetched0);
++    bool repaired = false;
++    if (mw_needs_repair(r)) {
++        repaired = true;
++        // The cheap cure: switch the wake word off and on again, on the main task that owns that state.
++        app.Schedule([]() {
++            auto& a = Application::GetInstance();
++            a.GetAudioService().EnableWakeWordDetection(false);
++            a.GetAudioService().EnableWakeWordDetection(true);
++        });
++    }
++    char extra[96];
++    snprintf(extra, sizeof(extra), "\"result\":\"%s\",\"why\":\"%s\",\"fed\":%u,\"fetched\":%u,\"repaired\":%d",
++             mw_word(r), mw_why(r), fed - s_fed0, fetched - s_fetched0, repaired ? 1 : 0);
++    device_events_push("wake_selftest", extra);
++    ESP_LOGI(TAG, "wake self-test: %s", extra);
++    s_running = false;
++}
++
++}  // namespace
++
++void maipai_wake_selftest_start()
++{
++    if (s_running) {
++        return;  // one test at a time
++    }
++    if (s_timer == nullptr) {
++        esp_timer_create_args_t args = {};
++        args.callback                = finish;
++        args.name                    = "wake_selftest";
++        if (esp_timer_create(&args, &s_timer) != ESP_OK) {
++            ESP_LOGW(TAG, "wake self-test could not start (no timer); try again after a restart");
++            return;
++        }
++    }
++    s_running = true;
++    maipai_wake_counters(&s_fed0, &s_fetched0);
++    esp_timer_start_once(s_timer, MW_WINDOW_MS * 1000LL);
++}
+diff --git a/firmware/main/hal/maipai_wake.h b/firmware/main/hal/maipai_wake.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_wake.h
+@@ -0,0 +1,19 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The wake word's feedback cue and self-test (patch T03).
++ */
++#pragma once
++#include <sdkconfig.h>
++
++// The cue that answers a wake word: the short "listening" tone, through the sound policy and the hard mute.
++// A unit with sounds off or muted stays silent; the face still changes to listening.
++void maipai_wake_cue();
++
++// The wake engine's counters (defined in the audio engine): frames fed and results fetched since boot.
++void maipai_wake_counters(unsigned* fed, unsigned* fetched);
++
++// The host's "system wake_selftest": counts for MW_WINDOW_MS, then pushes a `wake_selftest` event
++// (result alive, no_audio, no_fetch or skipped; repaired=1 when the wake word was switched off and on again).
++// Returns at once. Safe from the main task.
++void maipai_wake_selftest_start();
+diff --git a/firmware/main/hal/maipai_wake_core.h b/firmware/main/hal/maipai_wake_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_wake_core.h
+@@ -0,0 +1,55 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The pure logic of the wake self-test (patch T03). The test counts the audio frames fed to the wake engine and
++ * the results the engine fetched over a short window, and says whether the path is alive. It proves the
++ * microphone feed and the engine loop run. It does not prove that the wake word model hears a word: nothing
++ * is injected, so nothing can cause a false wake. Plain C99, no hardware: compiled by a host test.
++ */
++#pragma once
++#include <stdint.h>
++
++#define MW_WINDOW_MS 1500
++#define MW_MIN_FED 10     /* frames fed in the window: the feed runs about 33 times a second */
++#define MW_MIN_FETCHED 5  /* engine results in the window: about 30 a second while the engine runs */
++
++typedef enum {
++    MW_ALIVE = 0,
++    MW_SKIPPED_NOT_ARMED, /* the wake word is not armed (muted, quiet, stopped): nothing to test */
++    MW_SKIPPED_BUSY,      /* the unit is speaking, listening or ringing: the engine serves that instead */
++    MW_NO_AUDIO,          /* the microphone feed did not move */
++    MW_NO_FETCH           /* audio went in and the engine returned nothing: the engine loop is stuck */
++} mw_result_t;
++
++static inline mw_result_t mw_judge(int armed, int busy, uint32_t fed_delta, uint32_t fetched_delta)
++{
++    if (!armed) return MW_SKIPPED_NOT_ARMED;
++    if (busy) return MW_SKIPPED_BUSY;
++    if (fed_delta < MW_MIN_FED) return MW_NO_AUDIO;
++    if (fetched_delta < MW_MIN_FETCHED) return MW_NO_FETCH;
++    return MW_ALIVE;
++}
++
++/* A failed result is worth one repair (the wake word switched off and on again); a skip or a pass is not. */
++static inline int mw_needs_repair(mw_result_t r) { return r == MW_NO_FETCH || r == MW_NO_AUDIO; }
++
++static inline const char* mw_word(mw_result_t r)
++{
++    switch (r) {
++    case MW_ALIVE: return "alive";
++    case MW_SKIPPED_NOT_ARMED: return "skipped";
++    case MW_SKIPPED_BUSY: return "skipped";
++    case MW_NO_AUDIO: return "no_audio";
++    case MW_NO_FETCH: return "no_fetch";
++    }
++    return "unknown";
++}
++
++static inline const char* mw_why(mw_result_t r)
++{
++    switch (r) {
++    case MW_SKIPPED_NOT_ARMED: return "not_armed";
++    case MW_SKIPPED_BUSY: return "busy";
++    default: return "";
++    }
++}
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -18,6 +18,7 @@
+ #include <hal/maipai_heal.h>
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_timers.h>
++#include <hal/maipai_wake.h>
+ #include <esp_timer.h>
+ #include <esp_log.h>
+ #include <arpa/inet.h>
+@@ -751,6 +752,8 @@ void Application::InitializeProtocol() {
+                     // main loop is what is stuck, a scheduled restart never runs. It goes through the
+                     // self-restart guard (three an hour) after 300 ms, so this log line and the host's ack leave first.
+                     maipai_heal_restart("host", 300);
++                } else if (strcmp(command->valuestring, "wake_selftest") == 0) {
++                    maipai_wake_selftest_start();  // patch T03: answers with a wake_selftest event
+                 } else if (strcmp(command->valuestring, "idle") == 0) {
+                     Schedule([this]() {
+                         auto state = GetDeviceState();
+@@ -1003,7 +1006,7 @@ void Application::HandleWakeWordDetectedEvent() {
+         if (state == kDeviceStateListening) {
+             protocol_->SendStartListening(GetDefaultListeningMode());
+             audio_service_.ResetDecoder();
+-            audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
++            maipai_wake_cue();  // patch T03: the cue goes through the sound policy and the hard mute
+             // Re-enable wake word detection as it was stopped by the detection itself
+             audio_service_.EnableWakeWordDetection(true);
+         } else {
+@@ -1177,7 +1180,7 @@ void Application::StartListeningAudio() {
+     // Play popup sound after ResetDecoder (in EnableVoiceProcessing) has been called
+     if (play_popup_on_listening_) {
+         play_popup_on_listening_ = false;
+-        audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
++        maipai_wake_cue();  // patch T03
+     }
+ }
+ 
+diff --git a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+--- a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
++++ b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+@@ -13,6 +13,7 @@
+ #include <esp_mn_speech_commands.h>
+ #include <cstdio>
+ #include <hal/device_events.h>
++#include <atomic>
+ 
+ #include "audio_service.h"
+ #include "wake_words/custom_wake_word.h"
+@@ -267,7 +268,17 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
+     return true;
+ }
+ 
++// The counters the wake self-test reads (patch T03): audio frames fed in, engine results fetched.
++static std::atomic<unsigned> s_mp_fed{0};
++static std::atomic<unsigned> s_mp_fetched{0};
++
++void maipai_wake_counters(unsigned* fed, unsigned* fetched) {
++    *fed = s_mp_fed.load();
++    *fetched = s_mp_fetched.load();
++}
++
+ void AfeAudioEngine::Feed(std::vector<int16_t>&& data) {
++    s_mp_fed++;
+     EventBits_t bits = xEventGroupGetBits(event_group_);
+     if ((bits & kVoiceProcessingEnabled) && !kUseAfeForVoiceProcessing) {
+         OutputRawAudio(data);
+@@ -449,6 +460,7 @@ void AfeAudioEngine::ProcessingTask() {
+             continue;
+         }
+ 
++        s_mp_fetched++;
+         EventBits_t bits = xEventGroupGetBits(event_group_);
+         if (bits & kWakeWordEnabled) {
+             HandleWakeWordResult(result);

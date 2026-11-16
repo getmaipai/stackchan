@@ -1,0 +1,229 @@
+# Intent: Train 2 item 9, quiet reconnect and the offline tone after 3 minutes (rebuild of the old 119, 120 and the quiet half of 141). Every failed reconnect to Home raised an error event that played the exclamation tone and drew the error face, so a Home restart (30 to 60 s, several a day while Home installs) chimed every few seconds. Now the error is only logged. The unit plays one offline tone when the link has been down for 3 minutes (a real outage), through the sound policy so it is silent at night and when muted, and a "back" chime only after a tone that sounded; a restart that ends sooner makes no sound at all. No tone while Home has not approved the unit (a setup state with its own look). The offline tone is the shipped tap tone (the asset set has no separate offline sound). The pure rule is maipai_link_quiet_core.h; the websocket reconnect task calls down, poll and up. Skipped, with the reason: the old 151 "charged once per session" cue, because this image has no plug-in or charged tone (the policy answers "missing" for them) and nothing reads the charger events, so there is no cue to limit.
+# Placement: unit (the reconnect loop and the tones run on the robot)
+# Upstream: firmware/xiaozhi-esp32/main/application.cc and main/protocols/websocket_protocol.cc of the xiaozhi-esp32 tree (MIT)
+# Check after a flash: stop Home for 30 s and start it: the link look shows, no tone at any point and nothing on return. Stop Home for 4 minutes: one offline tone at about 3 minutes (at the next retry), and one "success" chime when Home is back.
+diff --git a/firmware/main/hal/maipai_daily.cc b/firmware/main/hal/maipai_daily.cc
+--- a/firmware/main/hal/maipai_daily.cc
++++ b/firmware/main/hal/maipai_daily.cc
+@@ -8,6 +8,7 @@
+ #include "maipai_daily.h"
+ #include "maipai_battery_core.h"
+ #include "maipai_hourly_core.h"
++#include "maipai_link_quiet_core.h"
+ #include "maipai_timers.h"
+ #include "maipai_sounds.h"
+ #include "maipai_face.h"
+@@ -22,6 +23,7 @@
+ #include <mcp_server.h>
+ #include <cstdio>
+ #include <atomic>
++#include <mutex>
+ #include <string>
+ 
+ static const char* TAG = "MAIPAI-DAILY";
+@@ -162,8 +164,55 @@ mh_result_t hourly_run(bool force_top)
+ }
+ #endif
+ 
++// ---- the quiet reconnect (patch T04) ----
++std::mutex s_link_mutex;
++mq_link_t s_link;
++bool s_link_ready = false;
++
++void link_ensure_locked()
++{
++    if (!s_link_ready) {
++        mq_init(&s_link);
++        s_link_ready = true;
++    }
++}
++
+ }  // namespace
+ 
++void maipai_link_down()
++{
++    std::lock_guard<std::mutex> lock(s_link_mutex);
++    link_ensure_locked();
++    mq_down(&s_link, static_cast<uint32_t>(now_ms()));
++}
++
++void maipai_link_poll(bool refused)
++{
++    bool sound = false;
++    {
++        std::lock_guard<std::mutex> lock(s_link_mutex);
++        link_ensure_locked();
++        sound = mq_poll(&s_link, static_cast<uint32_t>(now_ms()), refused ? 1 : 0) != 0;
++    }
++    if (sound) {
++        ESP_LOGW(TAG, "Home has been unreachable for 3 minutes: the offline tone");
++        (void)maipai_sounds_play("offline");  // through the sound policy: silent at night and when muted
++    }
++}
++
++void maipai_link_up()
++{
++    bool back = false;
++    {
++        std::lock_guard<std::mutex> lock(s_link_mutex);
++        link_ensure_locked();
++        back = mq_up(&s_link) != 0;
++    }
++    if (back) {
++        (void)maipai_sounds_play("success");  // back after a real outage
++    }
++}
++
+ void maipai_daily_tick()
+ {
+     static int64_t last_ms = 0;
+diff --git a/firmware/main/hal/maipai_daily.h b/firmware/main/hal/maipai_daily.h
+--- a/firmware/main/hal/maipai_daily.h
++++ b/firmware/main/hal/maipai_daily.h
+@@ -12,3 +12,11 @@
+ void maipai_daily_tick();
+ // Registers the test tools of the daily rules (self.battery.simulate).
+ void maipai_daily_register_tools();
++
++// The link to Home, for the quiet reconnect (patch T04). Called from the websocket reconnect task. `down` when the
++// link goes down or the unit starts without it, `poll` once per retry (plays the offline tone once an outage has
++// lasted 3 minutes, never while Home has not approved the unit), `up` when it is back (plays the "back" chime
++// only if the offline tone sounded). A restart of Home that is over in a minute makes no sound.
++void maipai_link_down();
++void maipai_link_poll(bool refused);
++void maipai_link_up();
+diff --git a/firmware/main/hal/maipai_link_quiet_core.h b/firmware/main/hal/maipai_link_quiet_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_link_quiet_core.h
+@@ -0,0 +1,52 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The pure logic of the quiet reconnect (patch T04). Home restarts often (an install takes 30 to 60 s) and the
++ * unit reconnects by itself, so a restart must make no sound at all. The offline tone is for a real outage:
++ * the link has been down for 3 minutes. The "back" chime follows only a tone that sounded, so a blip never
++ * chimes. While the unit waits for Home to approve it (a refused link) there is no tone: that is a setup state,
++ * shown on the face, not an outage. Times are milliseconds on any steady clock; the arithmetic is wrap safe.
++ * Plain C99, no hardware: compiled by a host test.
++ */
++#pragma once
++#include <stdint.h>
++#include <string.h>
++
++#define MQ_OFFLINE_SOUND_AFTER_MS 180000u /* 3 minutes */
++
++typedef struct {
++    uint8_t down;
++    uint8_t sounded;
++    uint32_t since_ms;
++} mq_link_t;
++
++static inline void mq_init(mq_link_t* l) { memset(l, 0, sizeof(*l)); }
++
++/* The link went down (or the unit started without it). Calling it again while down changes nothing. */
++static inline void mq_down(mq_link_t* l, uint32_t now_ms)
++{
++    if (!l->down) {
++        l->down = 1;
++        l->sounded = 0;
++        l->since_ms = now_ms;
++    }
++}
++
++/* Poll while down. Returns 1 once per outage, when the offline tone is due. */
++static inline int mq_poll(mq_link_t* l, uint32_t now_ms, int refused)
++{
++    if (l->down && !l->sounded && !refused && (uint32_t)(now_ms - l->since_ms) >= MQ_OFFLINE_SOUND_AFTER_MS) {
++        l->sounded = 1;
++        return 1;
++    }
++    return 0;
++}
++
++/* The link is back. Returns 1 when the "back" chime is due (the offline tone sounded for this outage). */
++static inline int mq_up(mq_link_t* l)
++{
++    const int back = l->down && l->sounded;
++    l->down = 0;
++    l->sounded = 0;
++    return back;
++}
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -93,6 +93,7 @@ std::string_view sound_data(int snd)
+         case MS_SND_SUCCESS: return Lang::Sounds::OGG_SUCCESS;
+         case MS_SND_POPUP: return Lang::Sounds::OGG_POPUP;
+         case MS_SND_VIBRATION: return Lang::Sounds::OGG_VIBRATION;
++        case MS_SND_OFFLINE: return Lang::Sounds::OGG_VIBRATION;  // patch T04: the offline tone is the shipped tap tone
+         case MS_SND_EXCLAMATION: return Lang::Sounds::OGG_EXCLAMATION;
+         case MS_SND_LOW_BATTERY: return Lang::Sounds::OGG_LOW_BATTERY;
+         default: return std::string_view();
+@@ -167,7 +168,7 @@ void maipai_sounds_register_tools()
+     mcp.AddTool("self.audio.play_sound",
+                 "Play one of the unit's fixed sounds through the sound policy. Names: needs_you, plug_in, charged, "
+                 "unplug, offline, goodbye, shutter, success, popup, vibration, exclamation, low_battery. Answers "
+-                "{ok} or {ok:false,error}; this build has success, popup, vibration, exclamation and low_battery.",
++                "{ok} or {ok:false,error}; this build has success, popup, vibration, exclamation, low_battery and offline (the tap tone).",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("success")),
+                               Property("urgent", kPropertyTypeBoolean, false),
+                               Property("test", kPropertyTypeBoolean, false)}),
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -215,8 +215,9 @@ void Application::Run() {
+                 StopNotification();
+             }
+             SetDeviceState(kDeviceStateIdle);
+-            Alert(Lang::Strings::ERROR, last_error_message_.c_str(), "cancel",
+-                  Lang::Sounds::OGG_EXCLAMATION);
++            // Patch T04: a failed reconnect while Home restarts used to chime and flash an error on every retry.
++            // The standing link look and the offline tone after 3 minutes cover an outage; the error is only logged.
++            ESP_LOGW(TAG, "Network error (no chime, no error face): %s", last_error_message_.c_str());
+         }
+ 
+         if (bits & MAIN_EVENT_NETWORK_CONNECTED) {
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -15,6 +15,7 @@
+ 
+ #include <hal/device_events.h>
+ #include <hal/board/hal_bridge.h>
++#include <hal/maipai_daily.h>
+ #include <esp_timer.h>
+ #include <esp_wifi.h>
+ #include <cstdio>
+@@ -322,6 +323,7 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+     unsigned attempt = 0;
+     constexpr int64_t kConnectingIndicatorAfterUs = 3LL * 1000 * 1000;  // the bars start cycling in the corner (patch R03)
+     int64_t down_since_us = esp_timer_get_time();
++    maipai_link_down();  // patch T04: booting counts as down until the first socket opens
+     bool offline_shown = false;
+     bool connecting_shown = false;
+     bool refused_shown = false;
+@@ -338,6 +340,7 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+             const unsigned took_ms = static_cast<unsigned>((esp_timer_get_time() - started_us) / 1000);
+             attempt = 0;
+             hal_bridge::set_hub_link(true);
++            maipai_link_up();  // patch T04: the "back" chime only after the offline tone sounded
+             if (offline_shown || connecting_shown || refused_shown) {
+                 offline_shown = connecting_shown = refused_shown = false;
+                 hal_bridge::link_look(0);  // the first hello clears every look
+@@ -370,6 +373,7 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+             xEventGroupClearBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_CONNECTED_EVENT);
+             hal_bridge::set_hub_link(false);
+             down_since_us = esp_timer_get_time();
++            maipai_link_down();
+             refused_streak = 0;
+             push_link_event("ws_down", 0, 0, 0, 0);
+             if ((xTaskGetTickCount() - connected_at) >= pdMS_TO_TICKS(kStableConnectionMs)) {
+@@ -397,6 +401,7 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+         if (xEventGroupGetBits(self->event_group_handle_) & WEBSOCKET_PROTOCOL_STOP_EVENT) {
+             break;
+         }
++        maipai_link_poll(refused_shown);  // patch T04: the offline tone after 3 minutes down
+         if (!refused_shown) {
+             const int64_t down_us = esp_timer_get_time() - down_since_us;
+             if (!connecting_shown && !offline_shown && down_us >= kConnectingIndicatorAfterUs) {

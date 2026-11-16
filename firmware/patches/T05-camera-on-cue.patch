@@ -1,0 +1,209 @@
+# Intent: Train 2 item 10, privacy looks and the camera-on cue path `monitor_cue_begin` (the cue the cut keeps in the core and the clock face needed). Found already built, so not repeated: the muted mouth (a flat closed line) and the closed eyes when vision is off are in 105 on the default skin (DefaultMouth::setSealed, DefaultEyes::setLowered, applied by ApplyPrivacyFace at boot and on every change). New here: a small camera glyph (a rounded outline with a filled lens, drawn shapes only, in the face colour, top right, on the top layer so it shows over the face and the clock alike) appears whenever a picture is taken or video frames are read, and stays 3 s after a photo and 2.5 s after the last frame. No setting, tool or host command turns it off; only time hides it, and vision off never reaches it because no picture is taken then. One persistent LVGL timer, created at the first cue and paused while hidden; no cost before then. The shutter tone of a photo is unchanged. One test tool, self.camera.cue_test, shows the cue for 3 s without taking a picture. Pure rule: maipai_cue_core.h. No text, so nothing to translate.
+# Placement: unit (the camera and the face are on the robot; this cue must work with the host off)
+# Upstream: firmware/main/hal/board/stackchan_camera.cc and stackchan_display.cc of the StackChan main component (MIT)
+# Check after a flash: self.camera.cue_test draws the glyph top right for about 3 s and it disappears; a photo or live frames draw it and keep it until the hold ends; with vision off, no picture is taken and no glyph shows.
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -64,6 +64,9 @@ bool board_battery_state(int* level, bool* charging, bool* on_cable);
+ void battery_power_off();
+ // A few plain words on the face for `ms` milliseconds, whatever the captions setting says (patch T01). Safe from any task.
+ void notice(const char* text, int ms);
++// The camera-on cue (patch T05): a small camera glyph over the face while a picture or video frame is being read,
++// kept `hold_ms` after the last one. Nothing turns it off but time. Safe from any task.
++void monitor_cue_begin(int hold_ms);
+ void board_set_backlight_brightness(uint8_t brightness, bool permanent = false);
+ uint8_t board_get_backlight_brightness();
+ void board_set_speaker_volume(uint8_t volume, bool permanent = false);
+diff --git a/firmware/main/hal/board/stackchan_camera.cc b/firmware/main/hal/board/stackchan_camera.cc
+--- a/firmware/main/hal/board/stackchan_camera.cc
++++ b/firmware/main/hal/board/stackchan_camera.cc
+@@ -2,12 +2,14 @@
+ #include "assets/assets.h"
+ #include "hal_bridge.h"
+ #include "../maipai_privacy.h"
++#include "../maipai_cue_core.h"
+ 
+ bool StackChanCamera::Capture()
+ {
+     if (maipai_vision_off()) {
+         return false;  // vision off (patch 106): no picture for a photo question either
+     }
++    hal_bridge::monitor_cue_begin(MC_HOLD_PHOTO_MS);  // patch T05: the camera-on cue, with the shutter tone below
+     hal_bridge::app_play_sound(OGG_CAMERA_SHUTTER);
+     return EspVideo::Capture();
+ }
+@@ -17,5 +19,6 @@ bool StackChanCamera::StreamCaptures()
+     if (maipai_vision_off()) {
+         return false;  // vision off (patch 106): the sensor is not read
+     }
++    hal_bridge::monitor_cue_begin(MC_HOLD_STREAM_MS);  // patch T05: the cue stays while frames are read
+     return CaptureFrame(false, 0);
+ }
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -9,6 +9,8 @@
+ #include <esp_lvgl_port.h>
+ #include <esp_psram.h>
+ #include <vector>
++#include <mutex>
++#include <esp_timer.h>
+ #include <cstring>
+ #include <new>
+ #include <string>
+@@ -32,6 +34,7 @@
+ extern "C" bool maipai_portal_active(void);
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_touch_core.h>
++#include <hal/maipai_cue_core.h>
+ #if CONFIG_MAIPAI_RESET_ON_DEVICE
+ #include <hal/maipai_reset.h>
+ #include <hal/maipai_reset_core.h>
+@@ -1442,6 +1445,78 @@ void hal_bridge::notice(const char* text, int ms)
+     display->LvglUnlock();
+ }
+ 
++// ---- the camera-on cue (patch T05) ----
++// A rounded outline with a filled lens, top right, on the top layer so it shows over the face and the clock alike.
++static std::mutex s_cue_mutex;
++static mc_cue_t s_cue;
++static lv_obj_t* s_cue_glyph = nullptr;
++static lv_timer_t* s_cue_timer = nullptr;
++
++static void cue_build()
++{
++    lv_color_t colour = lv_color_white();
++    if (auto* face = dynamic_cast<DefaultAvatar*>(&GetStackChan().avatar())) {
++        colour = face->primaryColor;
++    }
++    s_cue_glyph = lv_obj_create(lv_layer_top());
++    lv_obj_remove_style_all(s_cue_glyph);
++    lv_obj_remove_flag(s_cue_glyph, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_remove_flag(s_cue_glyph, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_size(s_cue_glyph, 26, 20);
++    lv_obj_align(s_cue_glyph, LV_ALIGN_TOP_RIGHT, -8, 8);
++    lv_obj_set_style_radius(s_cue_glyph, 5, 0);
++    lv_obj_set_style_border_width(s_cue_glyph, 2, 0);
++    lv_obj_set_style_border_color(s_cue_glyph, colour, 0);
++    lv_obj_set_style_bg_opa(s_cue_glyph, LV_OPA_TRANSP, 0);
++    lv_obj_t* lens = lv_obj_create(s_cue_glyph);
++    lv_obj_remove_style_all(lens);
++    lv_obj_remove_flag(lens, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_size(lens, 8, 8);
++    lv_obj_center(lens);
++    lv_obj_set_style_radius(lens, LV_RADIUS_CIRCLE, 0);
++    lv_obj_set_style_bg_opa(lens, LV_OPA_COVER, 0);
++    lv_obj_set_style_bg_color(lens, colour, 0);
++}
++
++void hal_bridge::monitor_cue_begin(int hold_ms)
++{
++    auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
++    if (display == nullptr || !GetStackChan().hasAvatar()) {
++        return;
++    }
++    bool draw = false;
++    {
++        std::lock_guard<std::mutex> lock(s_cue_mutex);
++        draw = mc_begin(&s_cue, static_cast<uint32_t>(esp_timer_get_time() / 1000), hold_ms > 0 ? hold_ms : MC_HOLD_PHOTO_MS) != 0;
++    }
++    if (!draw) {
++        return;  // already showing: the hold was extended, no drawing
++    }
++    display->LvglLock();
++    if (s_cue_glyph == nullptr) {
++        cue_build();
++    }
++    lv_obj_remove_flag(s_cue_glyph, LV_OBJ_FLAG_HIDDEN);
++    if (s_cue_timer == nullptr) {
++        s_cue_timer = lv_timer_create(
++            [](lv_timer_t* timer) {
++                bool hide = false;
++                {
++                    std::lock_guard<std::mutex> lock(s_cue_mutex);
++                    hide = mc_poll(&s_cue, static_cast<uint32_t>(esp_timer_get_time() / 1000)) != 0;
++                }
++                if (hide) {
++                    lv_obj_add_flag(s_cue_glyph, LV_OBJ_FLAG_HIDDEN);
++                    lv_timer_pause(timer);
++                }
++            },
++            250, nullptr);
++    } else {
++        lv_timer_resume(s_cue_timer);
++    }
++    display->LvglUnlock();
++}
++
+ static std::string ascii_punctuation(const char* text)
+ {
+     std::string out;
+diff --git a/firmware/main/hal/maipai_cue_core.h b/firmware/main/hal/maipai_cue_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_cue_core.h
+@@ -0,0 +1,45 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The pure logic of the camera-on cue (patch T05). Whenever a picture is taken or video frames are read, a small
++ * camera glyph shows on the face and stays for a while after the last frame, so a quick photo is still seen.
++ * No setting, tool or host command turns the cue off: the only thing that hides it is time. Vision off never
++ * reaches it because no picture is taken then. Times are milliseconds on any steady clock; the arithmetic is wrap
++ * safe. Plain C99, no hardware: compiled by a host test.
++ */
++#pragma once
++#include <stdint.h>
++#include <string.h>
++
++#define MC_HOLD_PHOTO_MS 3000u
++#define MC_HOLD_STREAM_MS 2500u
++
++typedef struct {
++    uint32_t until_ms;
++    uint8_t shown;
++} mc_cue_t;
++
++static inline void mc_init(mc_cue_t* c) { memset(c, 0, sizeof(*c)); }
++
++/* A picture or a frame is being read. Returns 1 when the glyph must be drawn now (it was hidden). The hold only
++ * ever grows: a later short hold never cuts an earlier long one. */
++static inline int mc_begin(mc_cue_t* c, uint32_t now_ms, uint32_t hold_ms)
++{
++    const uint32_t until = now_ms + hold_ms;
++    if (!c->shown || (int32_t)(until - c->until_ms) > 0) {
++        c->until_ms = until;
++    }
++    const int draw = !c->shown;
++    c->shown = 1;
++    return draw;
++}
++
++/* Poll while shown. Returns 1 when the hold has run out and the glyph must be hidden now. */
++static inline int mc_poll(mc_cue_t* c, uint32_t now_ms)
++{
++    if (c->shown && (int32_t)(now_ms - c->until_ms) >= 0) {
++        c->shown = 0;
++        return 1;
++    }
++    return 0;
++}
+diff --git a/firmware/main/hal/maipai_daily.cc b/firmware/main/hal/maipai_daily.cc
+--- a/firmware/main/hal/maipai_daily.cc
++++ b/firmware/main/hal/maipai_daily.cc
+@@ -234,6 +234,14 @@ void maipai_daily_tick()
+ 
+ void maipai_daily_register_tools()
+ {
++    McpServer::GetInstance().AddTool(
++        "self.camera.cue_test",
++        "Shows the camera-on cue for about 3 seconds without taking a picture, to check it is visible. The cue itself "
++        "cannot be turned off by any setting: a picture or video frame always shows it. Answers {ok}.",
++        PropertyList(), [](const PropertyList&) -> ReturnValue {
++            hal_bridge::monitor_cue_begin(3000);
++            return std::string("{\"ok\":true}");
++        });
+ #if CONFIG_MAIPAI_HOURLY_CHIME
+     McpServer::GetInstance().AddTool(
+         "self.audio.hourly_chime",

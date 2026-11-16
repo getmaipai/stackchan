@@ -3,7 +3,6 @@
 # Upstream: firmware/main/hal/board/stackchan.cc and firmware/main/hal/hal_network.cpp of the StackChan tree (MIT)
 # Check after a flash: with no saved Wi-Fi, boot: the screen shows Wi-Fi setup, MaiPai-StackChan-XXXX, http://192.168.4.1 and a 6 digit code; join that hotspot on a phone, the page opens by itself; a wrong code is refused, the right code plus a real network joins and the unit continues to the hub; after 8 minutes with no one the hotspot restarts with a new code.
 diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
-index 21a753d..8f139d3 100644
 --- a/firmware/CMakeLists.txt
 +++ b/firmware/CMakeLists.txt
 @@ -22,6 +22,9 @@ include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
@@ -17,10 +16,9 @@ index 21a753d..8f139d3 100644
  # self-hosted / custom deployments pin CONFIG_STACKCHAN_SERVER_URL,
  # CONFIG_OTA_URL, etc. without touching committed defaults.
 diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
-index d76bcc6..c7f9587 100644
 --- a/firmware/main/Kconfig.projbuild
 +++ b/firmware/main/Kconfig.projbuild
-@@ -49,6 +49,19 @@ config STACKCHAN_SERVER_URL
+@@ -72,6 +72,19 @@ config STACKCHAN_UPDATE_ALLOW_UNSIGNED
  
  endmenu
  
@@ -41,7 +39,6 @@ index d76bcc6..c7f9587 100644
  
  config MAIPAI_FACE_CONFIG
 diff --git a/firmware/main/hal/board/stackchan.cc b/firmware/main/hal/board/stackchan.cc
-index 02a96bb..e5d9f6b 100644
 --- a/firmware/main/hal/board/stackchan.cc
 +++ b/firmware/main/hal/board/stackchan.cc
 @@ -12,6 +12,7 @@
@@ -75,7 +72,6 @@ index 02a96bb..e5d9f6b 100644
  
      virtual AudioCodec* GetAudioCodec() override
 diff --git a/firmware/main/hal/hal_network.cpp b/firmware/main/hal/hal_network.cpp
-index 43b7850..086b835 100644
 --- a/firmware/main/hal/hal_network.cpp
 +++ b/firmware/main/hal/hal_network.cpp
 @@ -8,6 +8,7 @@
@@ -102,7 +98,6 @@ index 43b7850..086b835 100644
              if (onLog) {
                  onLog("WiFi unavailable. Open StackChan World to set up WiFi.");
 diff --git a/firmware/portal/portal.cmake b/firmware/portal/portal.cmake
-index 92dc764..9c080b1 100644
 --- a/firmware/portal/portal.cmake
 +++ b/firmware/portal/portal.cmake
 @@ -5,6 +5,9 @@

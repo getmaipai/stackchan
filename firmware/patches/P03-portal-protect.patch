@@ -3,7 +3,6 @@
 # Upstream: firmware/main/hal/board/stackchan_display.cc of the StackChan tree (MIT); firmware/portal/maipai_wifi_configuration_ap.cc from P02
 # Check after a flash: none until P05 turns it on
 diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
-index 4ba9463..5b04bcc 100644
 --- a/firmware/CMakeLists.txt
 +++ b/firmware/CMakeLists.txt
 @@ -16,6 +16,9 @@ add_compile_options(-Wno-missing-field-initializers)
@@ -17,10 +16,9 @@ index 4ba9463..5b04bcc 100644
  # self-hosted / custom deployments pin CONFIG_STACKCHAN_SERVER_URL,
  # CONFIG_OTA_URL, etc. without touching committed defaults.
 diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
-index b47a9a9..58e8570 100644
 --- a/firmware/main/hal/board/stackchan_display.cc
 +++ b/firmware/main/hal/board/stackchan_display.cc
-@@ -25,6 +25,9 @@
+@@ -27,6 +27,9 @@
  #include <hal/hal.h>
  #include <hal/maipai_timers.h>
  #include <hal/maipai_face.h>
@@ -29,10 +27,10 @@ index b47a9a9..58e8570 100644
 +extern "C" bool maipai_portal_active(void);
  #include <hal/maipai_privacy.h>
  #include <hal/maipai_touch_core.h>
- #include <hal/device_events.h>
-@@ -994,8 +997,9 @@ void StackChanAvatarDisplay::SetChatMessage(const char* role, const char* conten
- 
-     // ESP_LOGE(TAG, "SetChatMessage: role=%s, content=%s", role ? role : "null", content ? content : "null");
+ #if CONFIG_MAIPAI_RESET_ON_DEVICE
+@@ -1469,8 +1472,9 @@ void StackChanAvatarDisplay::SetChatMessage(const char* role, const char* conten
+         return;
+     }
  
 -    // Captions are an opt-in: off by default, the words are spoken, not drawn (patch F02).
 -    if (!maipai_face_captions_on()) {
@@ -43,7 +41,6 @@ index b47a9a9..58e8570 100644
      }
  
 diff --git a/firmware/portal/maipai_wifi_configuration_ap.cc b/firmware/portal/maipai_wifi_configuration_ap.cc
-index 0ad4b1f..85c9f23 100644
 --- a/firmware/portal/maipai_wifi_configuration_ap.cc
 +++ b/firmware/portal/maipai_wifi_configuration_ap.cc
 @@ -1,7 +1,7 @@

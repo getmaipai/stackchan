@@ -1,0 +1,423 @@
+# Intent: Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 percent: a chirp, a short request on the face ("Battery low. Please charge me.", English or Spanish by the face language) and a `battery` event with step=ask that the host says aloud. 5 percent: a `battery` event with step=sleep, the words on the face, and the unit powers itself off 8 s later if it is still on the battery at 5 percent or less. Each step fires once per discharge, only after three one-second readings agree, never on a failed read (level 0), and a cable in re-arms every step and blocks them all. A unit that boots at 8 percent fires the request only. One test tool, self.battery.simulate, drives the ladder without draining the battery; its simulated 5 percent step never powers the unit off. Rides one 1 s tick on the existing stackchan task: no task, no timer, no heap.
+# Placement: unit (battery is read on the robot; the host half is only the spoken line for the ask event)
+# Upstream: firmware/main/hal/board/stackchan.cc of the StackChan main component (MIT); firmware/main/hal/hal.cpp (MIT)
+# Check after a flash: self.battery.simulate level=19 gives one chirp and a battery event step=chirp; level=9 gives the ask with the words on the face; level=4 gives step=sleep and a log line saying the unit would power off; level=-1 returns to the gauge. On a cable no step fires.
+# Kconfig: MAIPAI_LOW_BATTERY (default y); off removes the ladder and the tool.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -150,6 +150,15 @@ config MAIPAI_RESET_ON_DEVICE
+         cleared in one step that always ends in setup mode, even after a power loss. Nothing on the network
+         can start it. No task or timer exists until the screen is open. Off here: no button, no screen.
+ 
++config MAIPAI_LOW_BATTERY
++    bool "Low-battery ladder (20 percent chirp, 10 percent request, 5 percent sleep)"
++    default y
++    help
++        At 20 percent on the battery the unit chirps once. At 10 percent it chirps, shows a short request to be
++        put on its charger and tells the host, which says it aloud. At 5 percent it tells the host, shows that it is
++        going to sleep and powers itself off before the power is lost. Each step fires once per discharge and a
++        cable in re-arms them all. No task or buffer: it rides the existing one-second tick. Off here: no ladder.
++
+ endmenu
+ 
+ menu "Xiaozhi Assistant"
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -58,6 +58,12 @@ i2c_master_bus_handle_t board_get_i2c_bus();
+ StackChanCamera* board_get_camera();
+ int board_get_battery_level();
+ bool board_is_battery_charging();
++// The battery gauge (patch T01): false while the unit has no reading. `on_cable` is true while any outside power is in.
++bool board_battery_state(int* level, bool* charging, bool* on_cable);
++// Powers the unit off from the low-battery ladder (patch T01). Never called while a cable is in.
++void battery_power_off();
++// A few plain words on the face for `ms` milliseconds, whatever the captions setting says (patch T01). Safe from any task.
++void notice(const char* text, int ms);
+ void board_set_backlight_brightness(uint8_t brightness, bool permanent = false);
+ uint8_t board_get_backlight_brightness();
+ void board_set_speaker_volume(uint8_t volume, bool permanent = false);
+diff --git a/firmware/main/hal/board/stackchan.cc b/firmware/main/hal/board/stackchan.cc
+--- a/firmware/main/hal/board/stackchan.cc
++++ b/firmware/main/hal/board/stackchan.cc
+@@ -777,6 +777,12 @@ public:
+         power_save_timer_->WakeUp();
+     }
+ 
++    // The low-battery ladder's last step (patch T01): the same power-off the idle shutdown uses.
++    void PowerOffLowBattery()
++    {
++        pmic_->PowerOff();
++    }
++
+     virtual Backlight* GetBacklight() override
+     {
+         static CustomBacklight backlight(pmic_);
+@@ -848,6 +854,26 @@ int hal_bridge::board_get_battery_level()
+     }
+ }
+ 
++bool hal_bridge::board_battery_state(int* level, bool* charging, bool* on_cable)
++{
++    auto& board      = Board::GetInstance();
++    int lv           = 0;
++    bool is_charging = false;
++    bool discharging = false;
++    if (!board.GetBatteryLevel(lv, is_charging, discharging)) {
++        return false;
++    }
++    *level    = lv;
++    *charging = is_charging;
++    *on_cable = is_charging || !discharging;
++    return true;
++}
++
++void hal_bridge::battery_power_off()
++{
++    ((M5StackCoreS3Board&)Board::GetInstance()).PowerOffLowBattery();
++}
++
+ bool hal_bridge::board_is_battery_charging()
+ {
+     auto& board      = Board::GetInstance();
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -1416,6 +1416,32 @@ void hal_bridge::privacy_face_apply(int bits, bool animate)
+     display->LvglUnlock();
+ }
+ 
++// A few words on the face for a while (patch T01). One timer, restarted by each notice; the words go when it ends.
++static lv_timer_t* s_notice_timer = nullptr;
++
++void hal_bridge::notice(const char* text, int ms)
++{
++    auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
++    if (display == nullptr || text == nullptr || !GetStackChan().hasAvatar()) {
++        return;
++    }
++    display->LvglLock();
++    GetStackChan().avatar().setSpeech(text);
++    if (s_notice_timer != nullptr) {
++        lv_timer_delete(s_notice_timer);
++    }
++    s_notice_timer = lv_timer_create(
++        [](lv_timer_t*) {
++            s_notice_timer = nullptr;
++            if (GetStackChan().hasAvatar()) {
++                GetStackChan().avatar().setSpeech("");
++            }
++        },
++        ms > 0 ? ms : 3000, nullptr);
++    lv_timer_set_repeat_count(s_notice_timer, 1);
++    display->LvglUnlock();
++}
++
+ static std::string ascii_punctuation(const char* text)
+ {
+     std::string out;
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -124,6 +124,7 @@ void Hal::updateHeapStatusLog()
+ #include <assets/assets.h>
+ #include "maipai_privacy.h"
+ #include "maipai_timers.h"
++#include "maipai_daily.h"
+ 
+ void Hal::xiaozhi_board_init()
+ {
+@@ -141,6 +142,7 @@ static void _stackchan_update_task(void* param)
+ 
+         tools::update_reminders();
+         maipai_timers_tick();  // on-unit timers and alarms (patch 091)
++        maipai_daily_tick();   // the daily rules: low battery and the rest (patches T01 to T05)
+ 
+         LvglLockGuard lock;
+ 
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -9,6 +9,7 @@
+ #include "board/hal_bridge.h"
+ #include "maipai_timers.h"
+ #include "maipai_sounds.h"
++#include "maipai_daily.h"
+ #include "maipai_face.h"
+ #include "maipai_update.h"
+ #include "maipai_timers_core.h"
+@@ -507,6 +508,9 @@ void Hal::xiaozhi_mcp_init()
+     // self.audio.play_sound, set_sound_policy and sound_info (patch 116).
+     maipai_sounds_register_tools();
+ 
++    // self.battery.simulate (patch T01).
++    maipai_daily_register_tools();
++
+     // self.face.set_config and get_config (patch F01).
+     maipai_face_register_tools();
+ 
+diff --git a/firmware/main/hal/maipai_battery_core.h b/firmware/main/hal/maipai_battery_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_battery_core.h
+@@ -0,0 +1,108 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The pure logic of the low-battery ladder (patch T01): 20 percent a chirp, 10 percent a spoken request
++ * (the host speaks it; the unit shows the words), 5 percent the unit goes to sleep before the power is lost.
++ * Each step fires once per discharge. A cable in (charging or any outside power) re-arms every step and
++ * never lets a step fire. A step fires only after MB_CONFIRM polls (1 s apart) agree, so one noisy gauge
++ * reading never chirps or powers the unit off. A level of 0 is a failed read, not an empty battery, and is
++ * ignored. Plain C99, no hardware: compiled by a host test.
++ */
++#pragma once
++#include <stdint.h>
++#include <string.h>
++
++#define MB_LEVEL_CHIRP 20
++#define MB_LEVEL_ASK 10
++#define MB_LEVEL_SLEEP 5
++#define MB_REARM_GAP 5 /* a step is armed again once the level is this many points above its threshold */
++#define MB_CONFIRM 3
++#define MB_SLEEP_GRACE_MS 8000u /* the words stay on screen this long before the power goes */
++
++typedef enum { MB_NONE = 0, MB_CHIRP, MB_ASK, MB_SLEEP } mb_event_t;
++
++typedef struct {
++    uint8_t fired;     /* highest step already fired this discharge: 0 none, 1 chirp, 2 ask, 3 sleep */
++    uint8_t cand;      /* the step the last polls agreed on */
++    uint8_t cand_n;
++} mb_ladder_t;
++
++static inline void mb_init(mb_ladder_t* l) { memset(l, 0, sizeof(*l)); }
++
++/* The step a level belongs to: 0 above 20, 1 at 20 or below, 2 at 10 or below, 3 at 5 or below. */
++static inline int mb_step_for(int level)
++{
++    if (level <= MB_LEVEL_SLEEP) return 3;
++    if (level <= MB_LEVEL_ASK) return 2;
++    if (level <= MB_LEVEL_CHIRP) return 1;
++    return 0;
++}
++
++/* One poll. `level` is the gauge percent, `on_power` is charging or any outside power. Returns the step that
++ * fires now, if any. A unit that boots at 8 percent fires the request only (the chirp is skipped, not queued). */
++static inline mb_event_t mb_update(mb_ladder_t* l, int level, int on_power)
++{
++    if (on_power) {
++        l->fired = 0;
++        l->cand = 0;
++        l->cand_n = 0;
++        return MB_NONE;
++    }
++    if (level <= 0 || level > 100) {
++        return MB_NONE; /* a failed read changes nothing */
++    }
++    const int step = mb_step_for(level);
++    const int armed_for = mb_step_for(level - MB_REARM_GAP); /* the step this level is safely clear of */
++    if (armed_for < l->fired) {
++        l->fired = (uint8_t)armed_for;
++    }
++    if (step <= l->fired) {
++        l->cand = 0;
++        l->cand_n = 0;
++        return MB_NONE;
++    }
++    if (l->cand == step) {
++        if (l->cand_n < 255) l->cand_n++;
++    } else {
++        l->cand = (uint8_t)step;
++        l->cand_n = 1;
++    }
++    if (l->cand_n < MB_CONFIRM) {
++        return MB_NONE;
++    }
++    l->fired = (uint8_t)step;
++    l->cand = 0;
++    l->cand_n = 0;
++    return (mb_event_t)step;
++}
++
++/* The power may be cut only while the unit is still on its battery and still at 5 percent or less. */
++static inline int mb_sleep_still_needed(int level, int on_power)
++{
++    return !on_power && level > 0 && level <= MB_LEVEL_SLEEP;
++}
++
++/* ---- the words on the screen: plain ASCII (the screen font has no accents), English and Spanish ---- */
++
++typedef enum { MB_LANG_EN = 0, MB_LANG_ES } mb_lang_t;
++
++static inline const char* mb_text(mb_lang_t lang, mb_event_t ev)
++{
++    if (ev == MB_ASK) {
++        return lang == MB_LANG_ES ? "Bateria baja. Ponme a cargar." : "Battery low. Please charge me.";
++    }
++    if (ev == MB_SLEEP) {
++        return lang == MB_LANG_ES ? "Bateria muy baja. Me duermo." : "Battery very low. Going to sleep.";
++    }
++    return "";
++}
++
++static inline const char* mb_event_word(mb_event_t ev)
++{
++    switch (ev) {
++    case MB_CHIRP: return "chirp";
++    case MB_ASK: return "ask";
++    case MB_SLEEP: return "sleep";
++    default: return "none";
++    }
++}
+diff --git a/firmware/main/hal/maipai_daily.cc b/firmware/main/hal/maipai_daily.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_daily.cc
+@@ -0,0 +1,127 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The unit's daily rules, device side (patches T01 to T05). The decisions are the plain-C cores; this file
++ * reads the facts (battery, clock, state), calls the core, and acts: a sound through the sound policy, an
++ * event for the host, a few words on the face. Nothing here allocates after start.
++ */
++#include "maipai_daily.h"
++#include "maipai_battery_core.h"
++#include "maipai_sounds.h"
++#include "maipai_face.h"
++#include "device_events.h"
++#include "board/hal_bridge.h"
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <mcp_server.h>
++#include <cstdio>
++#include <atomic>
++#include <string>
++
++static const char* TAG = "MAIPAI-DAILY";
++
++namespace {
++
++int64_t now_ms()
++{
++    return esp_timer_get_time() / 1000;
++}
++
++bool language_is_spanish()
++{
++#if CONFIG_MAIPAI_FACE_CONFIG
++    return maipai_face_config().lang == MF_LANG_ES;
++#else
++    return false;
++#endif
++}
++
++#if CONFIG_MAIPAI_LOW_BATTERY
++mb_ladder_t s_ladder;
++bool s_ladder_ready          = false;
++int64_t s_sleep_due_ms       = 0;  // when the power goes, 0 for not planned
++std::atomic<int> s_sim_level{-1};  // the test tool's battery level, -1 for the real gauge
++
++void low_battery_poll()
++{
++    if (!s_ladder_ready) {
++        mb_init(&s_ladder);
++        s_ladder_ready = true;
++    }
++    int level      = 100;
++    bool charging  = false;
++    bool on_cable  = false;
++    bool valid     = hal_bridge::board_battery_state(&level, &charging, &on_cable);
++    const int sim  = s_sim_level.load();
++    if (sim >= 0) {
++        level    = sim;
++        on_cable = false;
++        valid    = true;
++    }
++    if (!valid) {
++        return;  // no reading: nothing changes
++    }
++    const mb_event_t ev = mb_update(&s_ladder, level, on_cable ? 1 : 0);
++    if (ev != MB_NONE) {
++        char extra[48];
++        snprintf(extra, sizeof(extra), "\"level\":%d,\"step\":\"%s\"%s", level, mb_event_word(ev),
++                 sim >= 0 ? ",\"sim\":1" : "");
++        device_events_push("battery", extra);
++        ESP_LOGW(TAG, "battery %d percent: %s", level, mb_event_word(ev));
++        // A chirp at every step; the spoken request is the host's. The unit shows the words so a person who
++        // is not listening still sees them.
++        maipai_sounds_play("low_battery");
++        const char* text = mb_text(language_is_spanish() ? MB_LANG_ES : MB_LANG_EN, ev);
++        if (text[0] != '\0') {
++            hal_bridge::notice(text, 6000);
++        }
++        if (ev == MB_SLEEP) {
++            s_sleep_due_ms = now_ms() + MB_SLEEP_GRACE_MS;
++        }
++    }
++    if (s_sleep_due_ms != 0 && now_ms() >= s_sleep_due_ms) {
++        s_sleep_due_ms = 0;
++        if (mb_sleep_still_needed(level, on_cable ? 1 : 0)) {
++            if (sim >= 0) {
++                ESP_LOGW(TAG, "simulated 5 percent: the unit would power off here");
++            } else {
++                ESP_LOGW(TAG, "battery %d percent, on battery: powering off before the power is lost", level);
++                hal_bridge::battery_power_off();
++            }
++        }
++    }
++}
++#endif
++
++}  // namespace
++
++void maipai_daily_tick()
++{
++    static int64_t last_ms = 0;
++    const int64_t now      = now_ms();
++    if (last_ms != 0 && now - last_ms < 1000) {
++        return;
++    }
++    last_ms = now;
++#if CONFIG_MAIPAI_LOW_BATTERY
++    low_battery_poll();
++#endif
++}
++
++void maipai_daily_register_tools()
++{
++#if CONFIG_MAIPAI_LOW_BATTERY
++    McpServer::GetInstance().AddTool(
++        "self.battery.simulate",
++        "Test the low-battery ladder without draining the battery: level 0 to 100 acts as the gauge reading, -1 "
++        "goes back to the real gauge. The simulated 5 percent step never powers the unit off. Answers {ok}.",
++        PropertyList({Property("level", kPropertyTypeInteger, -1, -1, 100)}),
++        [](const PropertyList& properties) -> ReturnValue {
++            const int level = properties["level"].value<int>();
++            s_ladder_ready  = false;  // a new run starts from a clean ladder
++            s_sleep_due_ms  = 0;
++            s_sim_level.store(level);
++            return std::string("{\"ok\":true,\"level\":") + std::to_string(level) + "}";
++        });
++#endif
++}
+diff --git a/firmware/main/hal/maipai_daily.h b/firmware/main/hal/maipai_daily.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_daily.h
+@@ -0,0 +1,14 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The unit's daily rules (patches T01 to T05): the low-battery ladder, the hourly chime, the wake cue, the
++ * quiet reconnect and the camera-on cue. One small tick, once a second, on the existing stackchan task.
++ * Logic lives in the plain-C cores (maipai_battery_core.h and the others), tested on a PC.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++// Call often (the 20 ms stackchan task); it does its work at most once a second.
++void maipai_daily_tick();
++// Registers the test tools of the daily rules (self.battery.simulate).
++void maipai_daily_register_tools();

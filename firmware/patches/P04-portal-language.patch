@@ -3,7 +3,6 @@
 # Upstream: firmware/main/hal/maipai_face.cc from F01
 # Check after a flash: none until P05 turns it on
 diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
-index 5b04bcc..21a753d 100644
 --- a/firmware/CMakeLists.txt
 +++ b/firmware/CMakeLists.txt
 @@ -19,6 +19,9 @@ include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
@@ -17,7 +16,6 @@ index 5b04bcc..21a753d 100644
  # self-hosted / custom deployments pin CONFIG_STACKCHAN_SERVER_URL,
  # CONFIG_OTA_URL, etc. without touching committed defaults.
 diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
-index 8bc78be..1920146 100644
 --- a/firmware/main/hal/maipai_face.cc
 +++ b/firmware/main/hal/maipai_face.cc
 @@ -250,6 +250,12 @@ mf_config_t maipai_face_config()
@@ -34,7 +32,6 @@ index 8bc78be..1920146 100644
  bool maipai_face_captions_on()
  {
 diff --git a/firmware/portal/maipai_wifi_configuration_ap.cc b/firmware/portal/maipai_wifi_configuration_ap.cc
-index 85c9f23..f9b6805 100644
 --- a/firmware/portal/maipai_wifi_configuration_ap.cc
 +++ b/firmware/portal/maipai_wifi_configuration_ap.cc
 @@ -40,6 +40,10 @@

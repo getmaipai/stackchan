@@ -1,0 +1,28 @@
+# Intent: The build defaults the core image needs that earlier patches (F01 to F06, 157, 159) set only as edits in the lane tree: the six face switches on, the empty public CA bundle, and the wireless update switch on. Recorded here so ORDER reproduces the tree.
+# Placement: unit (build configuration of the robot firmware)
+# Upstream: firmware/sdkconfig.core.defaults of the StackChan main tree (MIT)
+# Check after a build: sdkconfig shows CONFIG_MAIPAI_FACE_CONFIG=y, CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE=y and CONFIG_STACKCHAN_WIRELESS_UPDATE=y.
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -4,3 +4,20 @@ CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+ CONFIG_LWIP_IPV6=n
+ # Measured with S01 core trim: app binary -239,552 B, DIRAM -25,192 B.
+ CONFIG_BT_ENABLED=n
++# Faces and always-on behaviours (patches F01 to F06). All on in the core build; each costs nothing when off
++# (off build is 480 bytes smaller than the baseline). The five after CONFIG require MAIPAI_FACE_CONFIG.
++CONFIG_MAIPAI_FACE_CONFIG=y
++CONFIG_MAIPAI_FACE_CAPTIONS=y
++CONFIG_MAIPAI_FACE_TOD=y
++CONFIG_MAIPAI_FACE_CLOCK=y
++CONFIG_MAIPAI_FACE_THINKING=y
++CONFIG_MAIPAI_FACE_TIMERS=y
++# Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
++# and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
++# destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).
++CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
++CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_NONE=y
++CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE=y
++CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE_PATH="ca/no-public-roots.pem"
++# Wireless update from the paired host (patch 159).
++CONFIG_STACKCHAN_WIRELESS_UPDATE=y

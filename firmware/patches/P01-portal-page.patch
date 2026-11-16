@@ -4,7 +4,6 @@
 # Check after a flash: none by itself; the page is exercised with a local mock in the browser and by test_portal_core.py
 diff --git a/firmware/portal/maipai_portal_core.h b/firmware/portal/maipai_portal_core.h
 new file mode 100644
-index 0000000..6eb2d28
 --- /dev/null
 +++ b/firmware/portal/maipai_portal_core.h
 @@ -0,0 +1,399 @@
@@ -409,7 +408,6 @@ index 0000000..6eb2d28
 +#endif /* MAIPAI_PORTAL_CORE_H */
 diff --git a/firmware/portal/maipai_portal_page.h b/firmware/portal/maipai_portal_page.h
 new file mode 100644
-index 0000000..fdace77
 --- /dev/null
 +++ b/firmware/portal/maipai_portal_page.h
 @@ -0,0 +1,53 @@
