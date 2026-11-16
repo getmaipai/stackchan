@@ -44,3 +44,8 @@ C06-interface-repair.patch
 075-offline-mode.patch
 106-privacy-core.patch
 107-mic-guards.patch
+S01-core-trim.patch
+049-stop-word.patch
+094-timer-stop-word.patch
+105-face-touch-toggles.patch
+143-offline-label-after-45-s.patch

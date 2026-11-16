@@ -1,0 +1,370 @@
+# Intent: A stop word that works while the robot is speaking (owner request 2026-10-21: he said "stop" mid-sentence and it kept talking). A small MultiNet command list (mn5q8_en: stop, stackchan stop, be quiet, quiet, that's enough, never mind, cancel) runs on the AFE's echo-cancelled audio beside the WakeNet wake word, armed only while the device is in the Speaking state; a hit above 0.85 aborts the reply, which sends the host an abort so it ends the turn silently. Every hit and near-miss is reported to the host as a stop_word device event with the fixed command name and score (never audio or words). Safety: the model is created at start-up and dropped for good if it costs more than 6 KB of internal RAM, and arming is refused below 16 KB free internal RAM; both are logged and reported. The AFE processing task stack stays in PSRAM and grows to 12 KB so the deeper detect() call costs no internal RAM. The asset build packs the multinet model beside the wakenet model, and the engine treats a multinet model as the stop word (not a custom wake word) unless CONFIG_USE_CUSTOM_WAKE_WORD is set.
+# Placement: unit (the audio path runs on the robot)
+# Upstream: main/audio/engines/afe_audio_engine.{h,cc}, main/audio/audio_service.{h,cc}, main/application.cc and scripts/build_default_assets.py of the xiaozhi-esp32 tree (MIT)
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index e3f7ad4..34ebfae 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -95,6 +95,14 @@ void Application::Initialize() {
+         notify_player_.OnPlaybackProgress(playback_id, media_position_ms);
+     };
+     audio_service_.SetCallbacks(callbacks);
++    // The on-unit stop word (patch 049): a hit while speaking aborts the reply; the abort message
++    // tells the host to end the turn, and nothing is said.
++    audio_service_.SetStopWordCallback([this]() {
++        Schedule([this]() {
++            ESP_LOGI(TAG, "Stop word heard while speaking: aborting");
++            AbortSpeaking(kAbortReasonNone);
++        });
++    });
+ 
+     // Add state change listeners
+     state_machine_.AddStateChangeListener([this](DeviceState old_state, DeviceState new_state) {
+@@ -1090,6 +1098,9 @@ void Application::HandleStateChangedEvent() {
+     auto led = board.GetLed();
+     led->OnStateChanged();
+ 
++    if (new_state != kDeviceStateSpeaking) {
++        audio_service_.SetStopWordArmed(false);
++    }
+     switch (new_state) {
+         case kDeviceStateUnknown:
+         case kDeviceStateIdle:
+@@ -1131,6 +1142,7 @@ void Application::HandleStateChangedEvent() {
+             }
+             break;
+         case kDeviceStateSpeaking:
++            audio_service_.SetStopWordArmed(true);
+             display->SetStatus(Lang::Strings::SPEAKING);
+             Board::GetInstance().SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
+ 
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_engine.h b/firmware/xiaozhi-esp32/main/audio/audio_engine.h
+index 7c2e191..2293423 100644
+--- a/firmware/xiaozhi-esp32/main/audio/audio_engine.h
++++ b/firmware/xiaozhi-esp32/main/audio/audio_engine.h
+@@ -35,6 +35,10 @@ public:
+     virtual void EncodeWakeWordData() = 0;
+     virtual bool GetWakeWordOpus(std::vector<uint8_t>& opus) = 0;
+     virtual const std::string& GetLastDetectedWakeWord() const = 0;
++
++    // The stop word (patch 049): a short command list heard only while armed (the robot is speaking).
++    virtual void OnStopWord(std::function<void()> callback) { (void)callback; }
++    virtual void SetStopWordArmed(bool armed) { (void)armed; }
+ };
+ 
+ #endif
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.cc b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+index 7a33f2f..0012c19 100644
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+@@ -877,6 +877,18 @@ void AudioService::SetModelsList(srmodel_list_t* models_list) {
+     models_list_ = models_list;
+ }
+ 
++void AudioService::SetStopWordCallback(std::function<void()> callback) {
++    if (audio_engine_) {
++        audio_engine_->OnStopWord(std::move(callback));
++    }
++}
++
++void AudioService::SetStopWordArmed(bool armed) {
++    if (audio_engine_) {
++        audio_engine_->SetStopWordArmed(armed);
++    }
++}
++
+ bool AudioService::IsAfeWakeWord() {
+     return audio_engine_initialized_ && audio_engine_->IsAfeWakeWord();
+ }
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.h b/firmware/xiaozhi-esp32/main/audio/audio_service.h
+index aae3d24..50785ca 100644
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.h
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.h
+@@ -149,6 +149,9 @@ public:
+     void SetSpeechOpen(bool open) { speech_open_ = open; }
+     bool speech_open() const { return speech_open_; }
+     void SetModelsList(srmodel_list_t* models_list);
++    // The stop word (patch 049): a short command-word list heard only while the robot speaks.
++    void SetStopWordCallback(std::function<void()> callback);
++    void SetStopWordArmed(bool armed);
+ 
+ private:
+     AudioCodec* codec_ = nullptr;
+diff --git a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+index 3823d10..6e2313a 100644
+--- a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
++++ b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+@@ -9,6 +9,10 @@
+ #include <esp_log.h>
+ #include <esp_timer.h>
+ #include <esp_vadn_models.h>
++#include <esp_mn_models.h>
++#include <esp_mn_speech_commands.h>
++#include <cstdio>
++#include <hal/device_events.h>
+ 
+ #include "audio_service.h"
+ #include "wake_words/custom_wake_word.h"
+@@ -24,6 +28,10 @@ static constexpr bool kUseAfeForVoiceProcessing = false;
+ AfeAudioEngine::AfeAudioEngine() { event_group_ = xEventGroupCreate(); }
+ 
+ AfeAudioEngine::~AfeAudioEngine() {
++    if (mn_data_ != nullptr && mn_ != nullptr) {
++        mn_->destroy(mn_data_);
++        mn_data_ = nullptr;
++    }
+     custom_wake_word_.reset();
+     if (afe_data_ != nullptr) {
+         afe_iface_->destroy(afe_data_);
+@@ -80,6 +88,11 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
+         }
+     }
+ 
++#if !CONFIG_USE_CUSTOM_WAKE_WORD
++    // A command-word model beside the WakeNet wake word is the stop word (patch 049), not a wake word.
++    const char* stop_model_name = multinet_model_name;
++    multinet_model_name = nullptr;
++#endif
+     if (multinet_model_name != nullptr) {
+         wake_detector_ = WakeDetector::kMultiNet;
+         custom_wake_word_ = std::make_unique<CustomWakeWord>();
+@@ -123,6 +136,11 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
+ #endif
+     }
+ 
++#if !CONFIG_USE_CUSTOM_WAKE_WORD
++    if (wake_detector_ == WakeDetector::kWakeNet && stop_model_name != nullptr) {
++        InitStopWord(stop_model_name);
++    }
++#endif
+     const bool needs_afe = kUseAfeForVoiceProcessing || wake_detector_ != WakeDetector::kNone;
+     if (!needs_afe) {
+         ESP_LOGI(TAG, "Initialized as raw engine because AFE features are disabled");
+@@ -447,6 +465,17 @@ void AfeAudioEngine::HandleWakeWordResult(const afe_fetch_result_t* result) {
+         return;
+     }
+ 
++    // The stop word listens to the same cleaned audio, but only while the robot speaks (patch 049).
++    const bool stop_armed = stop_armed_.load();
++    if (stop_armed && mn_data_ != nullptr) {
++        if (!stop_was_armed_) {
++            mn_->clean(mn_data_);
++            stop_buffer_.clear();
++        }
++        StopWordStep(result->data, result->data_size / sizeof(int16_t));
++    }
++    stop_was_armed_ = stop_armed;
++
+ #if CONFIG_SEND_WAKE_WORD_DATA
+     wake_word_audio_cache_.Store(result->data, result->data_size / sizeof(int16_t));
+ #endif
+@@ -628,3 +657,132 @@ bool AfeAudioEngine::GetWakeWordOpus(std::vector<uint8_t>& opus) {
+     wake_word_opus_.pop_front();
+     return !opus.empty();
+ }
++
++// ---- the stop word (patch 049) -------------------------------------------------------------
++//
++// A small MultiNet command list ("stop", "be quiet", ...) runs on the same echo-cancelled audio as
++// the wake word, but only while the robot is speaking. A hit aborts the reply. The model's own
++// threshold is kept low so near-misses can be logged; a hit counts only above kAcceptProb. All
++// commands mean "stop", so a close second candidate is the same intent and is no reason to refuse.
++// Only fixed command names are logged, never audio or text.
++namespace {
++constexpr float kModelThreshold = 0.5f;
++constexpr float kAcceptProb = 0.85f;
++constexpr int64_t kHitCooldownUs = 1500 * 1000;
++// Internal RAM is the limit. The model may cost at most this much of it, and arming is refused
++// below kArmMinFreeInternal free.
++constexpr size_t kMaxModelInternalCost = 6 * 1024;
++constexpr size_t kArmMinFreeInternal = 16 * 1024;
++
++struct StopCommand {
++    const char* name;
++    const char* phonemes;  // from multinet_g2p.py (esp-sr tool), English
++};
++constexpr StopCommand kStopCommands[] = {
++    {"stop", "STnP"},
++    {"stackchan stop", "STaK paN STnP"},
++    {"be quiet", "Bm KWicT"},
++    {"quiet", "KWicT"},
++    {"that's enough", "jaTS gNcF"},
++    {"never mind", "NfVk MiND"},
++    {"cancel", "KaNScL"},
++};
++}  // namespace
++
++void AfeAudioEngine::InitStopWord(const char* model_name) {
++    size_t before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
++    mn_ = esp_mn_handle_from_name(const_cast<char*>(model_name));
++    mn_data_ = mn_ != nullptr ? mn_->create(model_name, 2000) : nullptr;
++    if (mn_data_ == nullptr) {
++        ESP_LOGW(TAG, "Stop word off: the command-word model did not start");
++        stop_disabled_ = true;
++        return;
++    }
++    size_t after = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
++    size_t cost = before > after ? before - after : 0;
++    ESP_LOGW(TAG, "Stop word model %s: internal RAM %u -> %u bytes (cost %u)", model_name,
++             static_cast<unsigned>(before), static_cast<unsigned>(after), static_cast<unsigned>(cost));
++    if (cost > kMaxModelInternalCost) {
++        ESP_LOGW(TAG, "Stop word off: it would use %u bytes of internal RAM (limit %u)",
++                 static_cast<unsigned>(cost), static_cast<unsigned>(kMaxModelInternalCost));
++        mn_->destroy(mn_data_);
++        mn_data_ = nullptr;
++        stop_disabled_ = true;
++        char extra[64];
++        snprintf(extra, sizeof(extra), "\"state\":\"off\",\"cost\":%u", static_cast<unsigned>(cost));
++        device_events_push("stop_word", extra);
++        return;
++    }
++    mn_->set_det_threshold(mn_data_, kModelThreshold);
++    esp_mn_commands_clear();
++    int id = 1;
++    for (const auto& command : kStopCommands) {
++        esp_mn_commands_phoneme_add(id++, command.name, command.phonemes);
++    }
++    esp_mn_error_t* errors = esp_mn_commands_update();
++    if (errors != nullptr && errors->num > 0) {
++        ESP_LOGW(TAG, "Stop word: %d command(s) could not be added", errors->num);
++    }
++    ESP_LOGW(TAG, "Stop word ready: %d commands, accept at %.2f", id - 1, kAcceptProb);
++    char extra[64];
++    snprintf(extra, sizeof(extra), "\"state\":\"ready\",\"cost\":%u", static_cast<unsigned>(cost));
++    device_events_push("stop_word", extra);
++}
++
++void AfeAudioEngine::SetStopWordArmed(bool armed) {
++    if (armed) {
++        if (mn_data_ == nullptr || stop_disabled_) {
++            return;
++        }
++        size_t free_internal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
++        if (free_internal < kArmMinFreeInternal) {
++            ESP_LOGW(TAG, "Stop word not armed: only %u bytes of internal RAM free",
++                     static_cast<unsigned>(free_internal));
++            return;
++        }
++    }
++    stop_armed_ = armed;
++}
++
++void AfeAudioEngine::StopWordStep(const int16_t* data, size_t samples) {
++    int chunk = mn_->get_samp_chunksize(mn_data_);
++    stop_buffer_.insert(stop_buffer_.end(), data, data + samples);
++    while (chunk > 0 && stop_buffer_.size() >= static_cast<size_t>(chunk)) {
++        esp_mn_state_t state = mn_->detect(mn_data_, stop_buffer_.data());
++        stop_buffer_.erase(stop_buffer_.begin(), stop_buffer_.begin() + chunk);
++        if (state == ESP_MN_STATE_TIMEOUT) {
++            mn_->clean(mn_data_);
++        } else if (state == ESP_MN_STATE_DETECTED) {
++            esp_mn_results_t* results = mn_->get_results(mn_data_);
++            if (results != nullptr && results->num > 0) {
++                int id = results->command_id[0];
++                float prob = results->prob[0];
++                float second = results->num > 1 ? results->prob[1] : 0.0f;
++                bool accepted = prob >= kAcceptProb;
++                int64_t now = esp_timer_get_time();
++                if (accepted && now - stop_last_hit_us_ < kHitCooldownUs) {
++                    accepted = false;
++                }
++                const char* name = (id >= 1 && id <= static_cast<int>(sizeof(kStopCommands) / sizeof(kStopCommands[0])))
++                                       ? kStopCommands[id - 1].name
++                                       : "?";
++                ESP_LOGI(TAG, "Stop word: heard '%s' score %.2f second %.2f -> %s", name, prob, second,
++                         accepted ? "accepted" : "rejected");
++                char extra[96];
++                snprintf(extra, sizeof(extra), "\"cmd\":\"%s\",\"score\":%d,\"second\":%d,\"accepted\":%s", name,
++                         static_cast<int>(prob * 100), static_cast<int>(second * 100), accepted ? "true" : "false");
++                device_events_push("stop_word", extra);
++                if (accepted) {
++                    stop_last_hit_us_ = now;
++                    stop_armed_ = false;
++                    if (stop_word_callback_) {
++                        stop_word_callback_();
++                    }
++                }
++            }
++            mn_->clean(mn_data_);
++            stop_buffer_.clear();
++            return;
++        }
++    }
++}
+diff --git a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.h b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.h
+index 789a7e6..074f82b 100644
+--- a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.h
++++ b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.h
+@@ -11,6 +11,7 @@
+ #include <vector>
+ 
+ #include <esp_afe_sr_models.h>
++#include <esp_mn_iface.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/event_groups.h>
+ #include <freertos/task.h>
+@@ -46,6 +47,9 @@ public:
+     bool GetWakeWordOpus(std::vector<uint8_t>& opus) override;
+     const std::string& GetLastDetectedWakeWord() const override { return last_detected_wake_word_; }
+ 
++    void OnStopWord(std::function<void()> callback) override { stop_word_callback_ = std::move(callback); }
++    void SetStopWordArmed(bool armed) override;
++
+ private:
+     enum class WakeDetector {
+         kNone,
+@@ -56,7 +60,7 @@ private:
+     static constexpr EventBits_t kWakeWordEnabled = 1 << 0;
+     static constexpr EventBits_t kVoiceProcessingEnabled = 1 << 1;
+     static constexpr EventBits_t kAfeActive = 1 << 2;
+-    static constexpr size_t kProcessingTaskStackSize = 4096;
++    static constexpr size_t kProcessingTaskStackSize = 12288;  // PSRAM; the stop word detect() is deeper than the wake word (patch 049)
+ 
+     AudioCodec* codec_ = nullptr;
+     srmodel_list_t* models_ = nullptr;
+@@ -100,6 +104,17 @@ private:
+     std::mutex wake_word_mutex_;
+     std::condition_variable wake_word_cv_;
+ 
++    void InitStopWord(const char* model_name);
++    void StopWordStep(const int16_t* data, size_t samples);
++    const esp_mn_iface_t* mn_ = nullptr;
++    model_iface_data_t* mn_data_ = nullptr;
++    std::atomic<bool> stop_armed_{false};
++    bool stop_was_armed_ = false;
++    bool stop_disabled_ = false;
++    std::vector<int16_t> stop_buffer_;
++    std::function<void()> stop_word_callback_;
++    int64_t stop_last_hit_us_ = 0;
++
+     void ProcessingTask();
+     void UpdateActiveState();
+     void UpdateAecState();
+diff --git a/firmware/xiaozhi-esp32/scripts/build_default_assets.py b/firmware/xiaozhi-esp32/scripts/build_default_assets.py
+index f6a37d2..d13262f 100755
+--- a/firmware/xiaozhi-esp32/scripts/build_default_assets.py
++++ b/firmware/xiaozhi-esp32/scripts/build_default_assets.py
+@@ -941,8 +941,9 @@ def main():
+         print("Please select appropriate CONFIG_SR_MN_* options in menuconfig, or disable USE_CUSTOM_WAKE_WORD")
+         sys.exit(1)
+     
+-    # 3. Only package multinet models if USE_CUSTOM_WAKE_WORD=y
+-    if wake_word_config['use_custom_wake_word']:
++    # 3. Package multinet models for the custom wake word, and for the StackChan stop word that
++    #    runs beside the AFE wake word (it is the only reason a multinet model is selected then).
++    if wake_word_config['use_custom_wake_word'] or wake_word_config['use_afe_wake_word']:
+         multinet_model_paths = get_multinet_model_paths(multinet_model_names, args.esp_sr_model_path)
+     elif multinet_model_names:
+         print(f"  Note: Found multinet models {multinet_model_names} but USE_CUSTOM_WAKE_WORD is disabled, skipping")
+diff --git a/firmware/sdkconfig.defaults b/firmware/sdkconfig.defaults
+index 15b67dd..2fe2d03 100644
+--- a/firmware/sdkconfig.defaults
++++ b/firmware/sdkconfig.defaults
+@@ -86,3 +86,7 @@ CONFIG_LV_BUILD_DEMOS=n
+ 
+ # ESP-NOW security responder still uses protocomm security version 1.
+ CONFIG_ESP_PROTOCOMM_SUPPORT_SECURITY_VERSION_1=y
++
++# The stop word (patch 049): a small English command-word model beside the wake word.
++CONFIG_SR_MN_EN_NONE=n
++CONFIG_SR_MN_EN_MULTINET5_SINGLE_RECOGNITION_QUANT8=y

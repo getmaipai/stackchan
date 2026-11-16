@@ -1,0 +1,106 @@
+# Intent: The stop word ends a ringing timer or alarm (patches 091 to 093, 049). The stop-word callback first asks maipai_timers_request_dismiss and, when a ring was going, ends it and does nothing else; otherwise it aborts speech as before. The timer code arms the stop word when a ring starts and disarms it when the ring ends (hal_bridge::stop_word_arm, best effort: it needs the model and some free internal RAM; a disarm never disarms it while the unit is speaking). UNVERIFIED on the unit: patch 049 armed it only while speaking, so whether the model hears "stop" in the standby state is the first thing to test.
+# Placement: unit (the ring and the audio path run on the robot)
+# Upstream: main/application.cc of the xiaozhi-esp32 tree (MIT)
+# Check after a flash: ring a timer and say "stop" from a metre away: the ring ends and the log says "Stop word heard while a timer rings"; if it does not, check the log for "Stop word not armed" (low internal RAM); the touch always works.
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index 34ebfae..b9e776d 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -13,10 +13,11 @@
+ #include "websocket_protocol.h"
+ 
+ #include <driver/gpio.h>
+-#include <esp_log.h>
+ #include <hal/board/hal_bridge.h>
+ #include <hal/maipai_privacy.h>
++#include <hal/maipai_timers.h>
+ #include <esp_timer.h>
++#include <esp_log.h>
+ #include <arpa/inet.h>
+ #include <cJSON.h>
+ #include <cstring>
+@@ -99,6 +100,11 @@ void Application::Initialize() {
+     // tells the host to end the turn, and nothing is said.
+     audio_service_.SetStopWordCallback([this]() {
+         Schedule([this]() {
++            // A ringing timer or alarm takes the word first (patch 093): it ends the ring, nothing else.
++            if (maipai_timers_request_dismiss("stop")) {
++                ESP_LOGI(TAG, "Stop word heard while a timer rings: ending the ring");
++                return;
++            }
+             ESP_LOGI(TAG, "Stop word heard while speaking: aborting");
+             AbortSpeaking(kAbortReasonNone);
+         });
+@@ -1098,7 +1104,7 @@ void Application::HandleStateChangedEvent() {
+     auto led = board.GetLed();
+     led->OnStateChanged();
+ 
+-    if (new_state != kDeviceStateSpeaking) {
++    if (new_state != kDeviceStateSpeaking && !maipai_timers_ringing()) {
+         audio_service_.SetStopWordArmed(false);
+     }
+     switch (new_state) {
+diff --git a/firmware/main/hal/board/hal_bridge.cc b/firmware/main/hal/board/hal_bridge.cc
+index 93eb639..4e9a258 100644
+--- a/firmware/main/hal/board/hal_bridge.cc
++++ b/firmware/main/hal/board/hal_bridge.cc
+@@ -151,4 +151,13 @@ void app_play_sound(const std::string_view& sound)
+     app.PlaySound(sound);
+ }
+ 
++void stop_word_arm(bool arm)
++{
++    auto& app = Application::GetInstance();
++    if (!arm && app.GetDeviceState() == kDeviceStateSpeaking) {
++        return;
++    }
++    app.GetAudioService().SetStopWordArmed(arm);
++}
++
+ }  // namespace hal_bridge
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+index 2d88091..effc05e 100644
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -64,6 +64,11 @@ uint8_t board_get_speaker_volume();
+ 
+ void app_play_sound(const std::string_view& sound);
+ 
++// The stop word for a ringing timer or alarm (patch 094): arm it when a ring starts and disarm it when the
++// ring ends. Best effort: it needs the stop-word model and some free internal RAM. A disarm leaves the word
++// armed while the unit is speaking, which arms it on its own.
++void stop_word_arm(bool arm);
++
+ // Resets the idle sleep and shutdown timer (patch 091: a ringing timer keeps the screen on).
+ void power_keep_awake();
+ // Whether the websocket to the hub is up (patch 075). While it is down the board holds Wi-Fi power save at
+diff --git a/firmware/main/hal/maipai_timers.cc b/firmware/main/hal/maipai_timers.cc
+index 4c57d4a..f75d87c 100644
+--- a/firmware/main/hal/maipai_timers.cc
++++ b/firmware/main/hal/maipai_timers.cc
+@@ -99,6 +99,7 @@ void end_ring_locked(const char* how)
+         return;
+     }
+     s_ringing = false;
++    hal_bridge::stop_word_arm(false);
+     ESP_LOGI(TAG, "ring ended by %s", how);
+     {
+         LvglLockGuard lock;
+@@ -132,7 +133,8 @@ void start_ring_locked(const mt_fired_t& f)
+         avatar.setEmotion(stackchan::avatar::Emotion::Happy);
+         s_card_id = avatar.addDecorator(std::make_unique<view::ReminderView>(lv_screen_active(), text));
+     }
+-    // A touch ends the ring (patch 093). The stop word is not part of this base, so nothing arms it.
++    // A touch ends the ring (patch 093), and so does the stop word (patch 094; best effort).
++    hal_bridge::stop_word_arm(true);
+     s_last_pulse_ms = 0;
+ }
+ }  // namespace
+@@ -247,6 +249,7 @@ int maipai_timers_snooze(int seconds)
+         GetStackChan().avatar().setEmotion(stackchan::avatar::Emotion::Neutral);
+         set_ring_colour(0);
+             s_ringing = false;
++        hal_bridge::stop_word_arm(false);
+         push_ended(id, "snooze");
+     }
+     if (s_state.changed) {

@@ -1,0 +1,17 @@
+# Intent: The word "Offline" in the upper left shows after 45 s without the hub, not 10 s (owner 2026-11-14: the hub installs and restarts every few minutes and each restart flashed the word). The dim amber ring rides the same timer. Patch 112's connecting strip and offline palette, and patch 133's wireless update, are not part of this base; this is only the delay.
+# Placement: unit (the link state runs on the robot)
+# Upstream: main/protocols/websocket_protocol.cc of the xiaozhi-esp32 tree (MIT)
+# Check after a flash: restart the hub and watch the screen: no "Offline" for a restart under 45 s; a longer outage still shows it.
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+index c0c7da0..cbc6da1 100644
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -312,7 +312,7 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+     auto* self = static_cast<WebsocketProtocol*>(arg);
+     constexpr uint32_t kInitialDelayMs = 1000;
+     constexpr uint32_t kMaximumDelayMs = 30000;
+-    constexpr int64_t kOfflineIndicatorAfterUs = 10LL * 1000 * 1000;  // a blip is not an outage
++    constexpr int64_t kOfflineIndicatorAfterUs = 45LL * 1000 * 1000;  // a hub restart is not an outage (the hub installs often); owner 2026-11-14
+     constexpr uint32_t kStableConnectionMs = 30000;
+     uint32_t delay_ms = kInitialDelayMs;
+     unsigned attempt = 0;
