@@ -1,0 +1,247 @@
+# Intent: Time-of-day face variants (features.md, Faces and look; off by default). maipai_face_tod_core.h is plain C: four bands (morning, day, evening, night) that start at the hours in the face settings, night running through midnight; a unit whose clock was never set, or with the setting off, stays in the day look. A band changes only two things: how far the eyelids may open (full, full, 90 percent, 70 percent; DefaultEyes::setLidCap, kept on top of blink and emotion) and how bright the drawing colour is (100, 100, 85, 55 percent). maipai_face.cc starts one LVGL timer at one second, the shared face tick, that redraws only when the band changes; turning the setting on or off through self.face.set_config redraws at once. Behind CONFIG_MAIPAI_FACE_TOD (default y); off, no band code is compiled.
+# Placement: unit (the face and the clock run on the robot)
+# Upstream: firmware/main/stackchan/avatar/skins/default/eyes.cpp of the StackChan tree (MIT); new file hal/maipai_face_tod_core.h
+# Check after a flash: self.face.set_config {"tod":true,"tod_hours":[6,9,18,21]}: at 22:00 the lids sit lower and the face is softer; at noon it is the plain face; {"tod":false} returns the plain face at once.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index f9ceee2..084957f 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -67,6 +67,15 @@ config MAIPAI_FACE_CAPTIONS
+         Lets a person turn on the words the unit says as text on the face (off by default, decision 22).
+         Off: the words are never drawn on the face, and the setting is not offered.
+ 
++config MAIPAI_FACE_TOD
++    bool "Time-of-day face variants"
++    default y
++    depends on MAIPAI_FACE_CONFIG
++    help
++        Four bands (morning, day, evening, night) with a sleepier lid and a softer colour late in the day.
++        Off by default at run time; a person turns it on in the face settings. Off here: no tick timer
++        and no band code are compiled.
++
+ endmenu
+ 
+ menu "Xiaozhi Assistant"
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+index a18a575..713f0da 100644
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -6,6 +6,7 @@
+ #include <sdkconfig.h>
+ #if CONFIG_MAIPAI_FACE_CONFIG
+ #include "maipai_face.h"
++#include "maipai_face_tod_core.h"
+ #include "hal.h"
+ #include <mcp_server.h>
+ #include <cJSON.h>
+@@ -14,6 +15,8 @@
+ #include <nvs_flash.h>
+ #include <stackchan/stackchan.h>
+ #include <stackchan/avatar/skins/default/default.h>
++#include <atomic>
++#include <ctime>
+ #include <mutex>
+ #include <string>
+ 
+@@ -58,7 +61,21 @@ void save(const mf_config_t& c)
+     nvs_close(h);
+ }
+ 
+-// Draws style and colour. The caller holds the LVGL lock.
++std::atomic<int> s_band{MF_BAND_DAY};  // the time-of-day band now drawn (patch F03)
++
++// The unit's local minute of the day, or -1 while its clock was never set.
++int local_minute()
++{
++    const time_t t = time(nullptr);
++    if (t < 1704067200) {  // 2024-01-01: an earlier clock was never set
++        return -1;
++    }
++    struct tm tm_local = {};
++    localtime_r(&t, &tm_local);
++    return tm_local.tm_hour * 60 + tm_local.tm_min;
++}
++
++// Draws style, colour and the time-of-day look. The caller holds the LVGL lock.
+ void apply(DefaultAvatar* face, const mf_config_t& c)
+ {
+     if (face == nullptr) {
+@@ -66,6 +83,14 @@ void apply(DefaultAvatar* face, const mf_config_t& c)
+     }
+     uint8_t r, g, b;
+     mf_foreground(&c, &r, &g, &b);
++#if CONFIG_MAIPAI_FACE_TOD
++    const int band = mf_band_for_minute(&c, local_minute());
++    s_band         = band;
++    r              = mf_scale_channel(r, mf_band_dim_pct(band));
++    g              = mf_scale_channel(g, mf_band_dim_pct(band));
++    b              = mf_scale_channel(b, mf_band_dim_pct(band));
++    face->setEyeLidCap(mf_band_lid_cap(band));
++#endif
+     face->setColors(lv_color_make(r, g, b), lv_color_black());
+     face->setEyeStyleOffset(mf_style_eye_offset(c.style));
+ #if CONFIG_MAIPAI_FACE_CAPTIONS
+@@ -214,10 +239,28 @@ bool maipai_face_captions_on()
+ }
+ #endif
+ 
++// Once a second, in the LVGL task (the lock is held): the work that follows the clock.
++#define MAIPAI_FACE_TICKS (CONFIG_MAIPAI_FACE_TOD || CONFIG_MAIPAI_FACE_CLOCK || CONFIG_MAIPAI_FACE_TIMERS)
++#if MAIPAI_FACE_TICKS
++static void face_tick(lv_timer_t*)
++{
++    const mf_config_t c = maipai_face_config();
++    (void)c;
++#if CONFIG_MAIPAI_FACE_TOD
++    if (mf_band_for_minute(&c, local_minute()) != s_band.load()) {
++        apply(current_face(), c);
++    }
++#endif
++}
++#endif
++
+ void maipai_face_attach(DefaultAvatar* face)
+ {
+     const mf_config_t c = maipai_face_config();
+     apply(face, c);
++#if MAIPAI_FACE_TICKS
++    lv_timer_create(face_tick, 1000, nullptr);
++#endif
+     ESP_LOGI(TAG, "face: style %s, colour mode %d", MF_STYLE_NAMES[c.style], c.colour_mode);
+ }
+ 
+diff --git a/firmware/main/hal/maipai_face_tod_core.h b/firmware/main/hal/maipai_face_tod_core.h
+new file mode 100644
+index 0000000..87e1608
+--- /dev/null
++++ b/firmware/main/hal/maipai_face_tod_core.h
+@@ -0,0 +1,63 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Time-of-day face variants (patch F03): the pure logic, no ESP-IDF, no clock of its own. The caller
++ * passes the local minute of the day in. Header-only plain C99 so a host compiler can test it.
++ *
++ * Four bands (morning, day, evening, night) start at the hours in the face settings; night runs
++ * through midnight. A band changes two things only: how far the eyelids may open (a sleepier look
++ * late in the day) and how bright the drawing colour is (softer at night). Nothing else about the
++ * face changes, and a unit whose clock was never set stays in the day look.
++ */
++#ifndef MAIPAI_FACE_TOD_CORE_H
++#define MAIPAI_FACE_TOD_CORE_H
++
++#include "maipai_face_core.h"
++
++#define MF_BAND_MORNING 0
++#define MF_BAND_DAY 1
++#define MF_BAND_EVENING 2
++#define MF_BAND_NIGHT 3
++
++/* `minute` is the unit's local minute of the day (0 to 1439), or -1 while its clock is not set. */
++static inline int mf_band_for_minute(const mf_config_t* c, int minute)
++{
++    if (!c->tod || minute < 0 || minute > 1439) {
++        return MF_BAND_DAY;
++    }
++    const int hour = minute / 60;
++    if (hour >= c->tod_from[3] || hour < c->tod_from[0]) {
++        return MF_BAND_NIGHT;
++    }
++    if (hour >= c->tod_from[2]) {
++        return MF_BAND_EVENING;
++    }
++    if (hour >= c->tod_from[1]) {
++        return MF_BAND_DAY;
++    }
++    return MF_BAND_MORNING;
++}
++
++/* How far the eyelids may open, in percent of fully open. */
++static inline int mf_band_lid_cap(int band)
++{
++    switch (band) {
++        case MF_BAND_EVENING: return 90;
++        case MF_BAND_NIGHT: return 70;
++        default: return 100;
++    }
++}
++
++/* How bright the drawing colour is, in percent. */
++static inline int mf_band_dim_pct(int band)
++{
++    switch (band) {
++        case MF_BAND_EVENING: return 85;
++        case MF_BAND_NIGHT: return 55;
++        default: return 100;
++    }
++}
++
++static inline uint8_t mf_scale_channel(uint8_t v, int pct) { return (uint8_t)((v * pct + 50) / 100); }
++
++#endif /* MAIPAI_FACE_TOD_CORE_H */
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.cpp b/firmware/main/stackchan/avatar/skins/default/default.cpp
+index 1a6b20a..cba870f 100644
+--- a/firmware/main/stackchan/avatar/skins/default/default.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/default.cpp
+@@ -63,3 +63,13 @@ void DefaultAvatar::setEyeStyleOffset(int offset)
+         eye->setStyleOffset(offset);
+     }
+ }
++
++void DefaultAvatar::setEyeLidCap(int percent)
++{
++    if (auto* eye = dynamic_cast<DefaultEyes*>(_key_elements.leftEye.get())) {
++        eye->setLidCap(percent);
++    }
++    if (auto* eye = dynamic_cast<DefaultEyes*>(_key_elements.rightEye.get())) {
++        eye->setLidCap(percent);
++    }
++}
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+index e115035..71b1d40 100644
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -27,6 +27,8 @@ public:
+     void setColors(lv_color_t primary, lv_color_t secondary);
+     // The eye size style (patch F01): added to whatever size the face asks for, so the idle look keeps it.
+     void setEyeStyleOffset(int offset);
++    // How far the eyelids may open, in percent (patch F03: a sleepier look in the evening and at night).
++    void setEyeLidCap(int percent);
+ 
+ private:
+     std::unique_ptr<uitk::lvgl_cpp::Container> _pannel;
+@@ -51,8 +53,10 @@ public:
+     void setLowered(bool lowered);
+     void setColors(lv_color_t primaryColor, lv_color_t secondaryColor);
+     void setStyleOffset(int offset);
++    void setLidCap(int percent);
+ 
+ private:
++    int _lid_cap         = 100;
+     int _style_offset    = 0;
+     bool _lowered        = false;
+     bool _is_left_eye    = false;
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+index 79f1a20..92be6fb 100644
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -72,7 +72,8 @@ void DefaultEyes::setWeight(int weight)
+ {
+     Feature::setWeight(weight);
+ 
+-    _eyelid_offset_y = -map_range(_lowered ? 0 : _weight, 0, 100, 0, (int)_eyelid->getHeight());
++    _eyelid_offset_y =
++        -map_range(_lowered ? 0 : (_weight < _lid_cap ? _weight : _lid_cap), 0, 100, 0, (int)_eyelid->getHeight());
+ 
+     _eyelid->setY(_eyelid_offset_y);
+ }
+@@ -160,3 +161,9 @@ void DefaultEyes::setStyleOffset(int offset)
+     _style_offset = offset;
+     setSize(getSize());
+ }
++
++void DefaultEyes::setLidCap(int percent)
++{
++    _lid_cap = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
++    setWeight(getWeight());
++}

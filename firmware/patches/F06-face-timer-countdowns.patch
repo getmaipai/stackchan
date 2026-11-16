@@ -1,0 +1,370 @@
+# Intent: Named timers on the face with live countdowns for several at once (features.md, core rows). maipai_face_timers_core.h is plain C: the countdown text (4:32, 1:02:03, 0:00 when due), the chip text (the label or the kind word, cut to nine characters, then the countdown; the kind words are English and Spanish), picking what shows (soonest first, ties by id, at most four chips; with more than four, three show by name and the fourth says +N), and the place of each chip (a bottom-anchored grid of up to two rows of two, a lone chip on a row centred). maipai_timers.cc publishes a small read-only copy of the active timers every 200 ms under its own leaf lock (maipai_timers_view); the face reads that copy and never takes the timer lock, because the timer task takes the timer lock and then the display lock and the reverse order would deadlock. The chips are plain text objects on the face, redrawn once a second from the face tick, hidden while a timer rings (its own card shows), kept above the clock face, never clickable, and work with the host off. They are removed with the last timer. Behind CONFIG_MAIPAI_FACE_TIMERS (default y); off, no chips and no timer view are compiled.
+# Placement: unit (the timers and the screen are on the robot; they work with the host off)
+# Upstream: firmware/main/hal/maipai_timers.{h,cc} of this tree (patch 091); new file hal/maipai_face_timers_core.h
+# Check after a flash: start three timers by voice (tea 3 minutes, pasta 10 minutes, laundry 1 hour): three chips along the bottom, soonest first, counting down once a second, each with its name; add a fifth and sixth: three named chips and a +N chip; cancel them all: the chips go; let one ring: the chips hide and the ring card shows; unplug the host and the chips keep counting.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index f88a6d6..d76bcc6 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -96,6 +96,15 @@ config MAIPAI_FACE_THINKING
+         show; the tone follows the thinking_tone setting, the sound policy and the hard mute. Off here:
+         no dots and no tone are compiled, and the thinking emotion draws the doubtful face.
+ 
++config MAIPAI_FACE_TIMERS
++    bool "Named timers with live countdowns on the face"
++    default y
++    depends on MAIPAI_FACE_CONFIG
++    help
++        Shows the unit's timers and alarms as small chips along the bottom of the face, soonest first, up to
++        four at once, each with its name and a live countdown. Works with the host off. Off here: no chips
++        and no timer view are compiled.
++
+ endmenu
+ 
+ menu "Xiaozhi Assistant"
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+index 406c933..8bc78be 100644
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -7,6 +7,12 @@
+ #if CONFIG_MAIPAI_FACE_CONFIG
+ #include "maipai_face.h"
+ #include "maipai_face_tod_core.h"
++#if CONFIG_MAIPAI_FACE_TIMERS
++#include "maipai_face_timers_core.h"
++#include "maipai_timers_core.h"
++#include "maipai_timers.h"
++#include <esp_timer.h>
++#endif
+ #if CONFIG_MAIPAI_FACE_THINKING
+ #include "maipai_face_think_core.h"
+ #include "maipai_sounds.h"
+@@ -562,6 +568,100 @@ bool maipai_face_touched()
+ }
+ #endif
+ 
++#if CONFIG_MAIPAI_FACE_TIMERS
++namespace {
++struct Chips {
++    lv_obj_t* root            = nullptr;
++    lv_obj_t* label[MF_CHIP_MAX] = {};
++    int slots                 = 0;
++    int band                  = -1;
++} s_chips;
++
++void chips_hide()
++{
++    if (s_chips.root != nullptr) {
++        lv_obj_delete(s_chips.root);
++        s_chips = Chips();
++    }
++}
++
++lv_color_t chip_colour(const mf_config_t& c)
++{
++    uint8_t r, g, b;
++    mf_foreground(&c, &r, &g, &b);
++    int pct = 100;
++#if CONFIG_MAIPAI_FACE_TOD
++    pct = mf_band_dim_pct(s_band.load());
++#endif
++    return lv_color_make(mf_scale_channel(r, pct), mf_scale_channel(g, pct), mf_scale_channel(b, pct));
++}
++
++// The once-a-second chip work (the LVGL lock is held): one chip per timer, soonest first, live countdowns.
++void chips_tick(const mf_config_t& c)
++{
++    auto* face = current_face();
++    maipai_timer_view_t view[MT_MAX_ACTIVE];
++    int n = face != nullptr && face->getPanel() != nullptr ? maipai_timers_view(view, MT_MAX_ACTIVE) : 0;
++    // A ringing timer has its own card; the chips would only crowd it.
++    if (n == 0 || maipai_timers_ringing()) {
++        chips_hide();
++        return;
++    }
++    const int64_t now_ms = esp_timer_get_time() / 1000;
++    mf_tchip_t all[MT_MAX_ACTIVE];
++    for (int i = 0; i < n; i++) {
++        all[i].id     = view[i].id;
++        all[i].kind   = view[i].kind;
++        const int64_t left = (view[i].due_ms - now_ms + 999) / 1000;
++        all[i].left_s = left < 0 ? 0 : static_cast<int32_t>(left);
++        snprintf(all[i].label, sizeof(all[i].label), "%s", view[i].label);
++    }
++    mf_tchip_t shown[MF_CHIP_MAX];
++    int more        = 0;
++    const int named = mf_tchips_pick(all, n, shown, &more);
++    const int slots = named + (more > 0 ? 1 : 0);
++    if (s_chips.root != nullptr && s_chips.slots != slots) {
++        chips_hide();  // the layout changed: build it again
++    }
++    const lv_color_t fg = chip_colour(c);
++    if (s_chips.root == nullptr) {
++        s_chips.root = lv_obj_create(face->getPanel()->get());
++        lv_obj_remove_style_all(s_chips.root);
++        lv_obj_remove_flag(s_chips.root, LV_OBJ_FLAG_SCROLLABLE);
++        lv_obj_remove_flag(s_chips.root, LV_OBJ_FLAG_CLICKABLE);  // a touch on a chip is a touch on the face
++        lv_obj_set_size(s_chips.root, 320, 240);
++        lv_obj_set_pos(s_chips.root, 0, 0);
++        s_chips.slots = slots;
++        for (int k = 0; k < slots; k++) {
++            int x, y;
++            mf_chip_place(slots, k, &x, &y);
++            s_chips.label[k] = lv_label_create(s_chips.root);
++            lv_obj_remove_flag(s_chips.label[k], LV_OBJ_FLAG_CLICKABLE);
++            lv_obj_set_pos(s_chips.label[k], x, y);
++            lv_obj_set_size(s_chips.label[k], MF_CHIP_W, MF_CHIP_H);
++            lv_label_set_long_mode(s_chips.label[k], LV_LABEL_LONG_CLIP);
++            lv_obj_set_style_text_font(s_chips.label[k], &lv_font_montserrat_14, 0);
++            lv_obj_set_style_text_align(s_chips.label[k], LV_TEXT_ALIGN_CENTER, 0);
++        }
++    }
++    // Above the clock face and the other overlays, below nothing that matters.
++    lv_obj_move_foreground(s_chips.root);
++    for (int k = 0; k < slots; k++) {
++        char text[40];
++        if (k < named) {
++            mf_chip_text(text, sizeof(text), c.lang, &shown[k]);
++        } else {
++            snprintf(text, sizeof(text), "+%d", more);
++        }
++        lv_obj_set_style_text_color(s_chips.label[k], fg, 0);
++        if (strcmp(lv_label_get_text(s_chips.label[k]), text) != 0) {
++            lv_label_set_text(s_chips.label[k], text);
++        }
++    }
++}
++}  // namespace
++#endif
++
+ #define MAIPAI_FACE_TICKS (CONFIG_MAIPAI_FACE_TOD || CONFIG_MAIPAI_FACE_CLOCK || CONFIG_MAIPAI_FACE_TIMERS)
+ #if MAIPAI_FACE_TICKS
+ static void face_tick(lv_timer_t*)
+@@ -576,6 +676,9 @@ static void face_tick(lv_timer_t*)
+ #if CONFIG_MAIPAI_FACE_CLOCK
+     clock_tick(c);
+ #endif
++#if CONFIG_MAIPAI_FACE_TIMERS
++    chips_tick(c);
++#endif
+ }
+ #endif
+ 
+diff --git a/firmware/main/hal/maipai_face_timers_core.h b/firmware/main/hal/maipai_face_timers_core.h
+new file mode 100644
+index 0000000..b7d9464
+--- /dev/null
++++ b/firmware/main/hal/maipai_face_timers_core.h
+@@ -0,0 +1,116 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Named timers on the face with live countdowns (patch F06): the pure logic, no ESP-IDF, no clock of
++ * its own. Header-only plain C99 so a host compiler can test it.
++ *
++ * Several timers show at once as small chips along the bottom of the face, soonest first, up to
++ * four. When more than four run, three show and the fourth says how many more there are. Every chip
++ * is text, so no state is told by colour alone.
++ */
++#ifndef MAIPAI_FACE_TIMERS_CORE_H
++#define MAIPAI_FACE_TIMERS_CORE_H
++
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++#include "maipai_face_core.h"
++
++#define MF_CHIP_MAX 4
++#define MF_CHIP_LABEL_MAX 9 /* characters of a label that fit a chip */
++#define MF_CHIP_W 148
++#define MF_CHIP_H 20
++
++typedef struct {
++    uint32_t id;
++    uint8_t kind;    /* 1 timer, 2 alarm (the unit's own timer kinds) */
++    int32_t left_s;  /* seconds left; may be 0 or below for a moment */
++    char label[25];
++} mf_tchip_t;
++
++/* "4:32" under an hour, "1:02:03" from an hour, "0:00" when it is due. */
++static inline void mf_fmt_left(char* out, size_t n, int32_t left_s)
++{
++    if (left_s < 0) {
++        left_s = 0;
++    }
++    if (left_s > 359999) {
++        left_s = 359999; /* 99:59:59: a timer is at most 24 hours, this only bounds the text */
++    }
++    const int32_t h = left_s / 3600;
++    const int32_t m = (left_s % 3600) / 60;
++    const int32_t s = left_s % 60;
++    if (h > 0) {
++        snprintf(out, n, "%d:%02d:%02d", (int)h, (int)m, (int)s);
++    } else {
++        snprintf(out, n, "%d:%02d", (int)m, (int)s);
++    }
++}
++
++/* The name when a timer has no label. */
++static inline const char* mf_kind_word(int lang, int kind)
++{
++    if (kind == 2) {
++        return lang == MF_LANG_ES ? "Alarma" : "Alarm";
++    }
++    return lang == MF_LANG_ES ? "Tiempo" : "Timer";
++}
++
++/* "tea 4:32": the label (or the kind word) cut to what fits, then the countdown. */
++static inline void mf_chip_text(char* out, size_t n, int lang, const mf_tchip_t* c)
++{
++    char left[12];
++    mf_fmt_left(left, sizeof(left), c->left_s);
++    const char* name = c->label[0] ? c->label : mf_kind_word(lang, c->kind);
++    char cut[MF_CHIP_LABEL_MAX + 1];
++    strncpy(cut, name, MF_CHIP_LABEL_MAX);
++    cut[MF_CHIP_LABEL_MAX] = '\0';
++    snprintf(out, n, "%s %s", cut, left);
++}
++
++/* Picks what shows: soonest first (ties by id), at most MF_CHIP_MAX. Returns how many chips are in `out`. With more than
++ * MF_CHIP_MAX timers the last chip is a count: `*more` is the number not shown by name (0 otherwise), and the chip slot
++ * after the named ones is left to the caller to write as "+N". */
++static inline int mf_tchips_pick(const mf_tchip_t* in, int n, mf_tchip_t* out, int* more)
++{
++    mf_tchip_t sorted[16];
++    if (n > 16) {
++        n = 16;
++    }
++    for (int i = 0; i < n; i++) {
++        sorted[i] = in[i];
++    }
++    for (int i = 1; i < n; i++) {  /* insertion sort: n is tiny */
++        mf_tchip_t key = sorted[i];
++        int j          = i - 1;
++        while (j >= 0 && (sorted[j].left_s > key.left_s || (sorted[j].left_s == key.left_s && sorted[j].id > key.id))) {
++            sorted[j + 1] = sorted[j];
++            j--;
++        }
++        sorted[j + 1] = key;
++    }
++    *more = 0;
++    int shown = n;
++    if (n > MF_CHIP_MAX) {
++        shown = MF_CHIP_MAX - 1;
++        *more = n - shown;
++    }
++    for (int i = 0; i < shown; i++) {
++        out[i] = sorted[i];
++    }
++    return shown;
++}
++
++/* Where chip `k` of `slots` goes (slots 1 to 4, filled in reading order, anchored to the bottom edge). A lone chip on a
++ * row is centred. */
++static inline void mf_chip_place(int slots, int k, int* x, int* y)
++{
++    const int rows = (slots + 1) / 2;
++    const int row  = k / 2;
++    const int col  = k % 2;
++    const int in_row = (row == rows - 1 && (slots % 2) == 1) ? 1 : 2;
++    *x = in_row == 1 ? (320 - MF_CHIP_W) / 2 : 6 + col * (MF_CHIP_W + 12);
++    *y = 240 - 2 - (rows - row) * (MF_CHIP_H + 2);
++}
++
++#endif /* MAIPAI_FACE_TIMERS_CORE_H */
+diff --git a/firmware/main/hal/maipai_timers.cc b/firmware/main/hal/maipai_timers.cc
+index f75d87c..a892582 100644
+--- a/firmware/main/hal/maipai_timers.cc
++++ b/firmware/main/hal/maipai_timers.cc
+@@ -4,6 +4,7 @@
+  * On-unit timers and alarms, the device side (patch 091). See maipai_timers.h.
+  */
+ #include "maipai_timers.h"
++#include <sdkconfig.h>
+ #include "maipai_timers_core.h"
+ #include "hal.h"
+ #include "device_events.h"
+@@ -50,6 +51,12 @@ uint32_t wall_s()
+     time_t t = time(nullptr);
+     return t > 0 ? static_cast<uint32_t>(t) : 0;
+ }
++#if CONFIG_MAIPAI_FACE_TIMERS
++std::mutex s_view_mutex;  // a leaf lock: nothing else is taken while it is held
++maipai_timer_view_t s_view[MT_MAX_ACTIVE];
++int s_view_n = 0;
++#endif
++
+ uint32_t seconds_of_day()
+ {
+     time_t t = time(nullptr);
+@@ -187,6 +194,31 @@ void maipai_timers_tick()
+     if (s_state.changed) {
+         save_locked();
+     }
++#if CONFIG_MAIPAI_FACE_TIMERS
++    {
++        // The face reads this copy (patch F06); the timer lock is held here and never by the display task.
++        const uint32_t now   = wall_s();
++        const uint32_t mono  = mono_s();
++        const int64_t now_ms = esp_timer_get_time() / 1000;
++        std::lock_guard<std::mutex> view_lock(s_view_mutex);
++        s_view_n = 0;
++        for (int i = 0; i < MT_MAX_ACTIVE; i++) {
++            const mt_entry_t& e = s_state.e[i];
++            if (e.id == 0) {
++                continue;
++            }
++            const int64_t left = mt_remaining(&e, now, mono);
++            if (left < 0) {
++                continue;  // a clock timer with no clock: nothing honest to count down
++            }
++            maipai_timer_view_t& v = s_view[s_view_n++];
++            v.id                   = e.id;
++            v.kind                 = e.kind;
++            v.due_ms               = now_ms + left * 1000;
++            mt_copy_label(v.label, e.label);
++        }
++    }
++#endif
+     if (!s_ring.active) {
+         return;
+     }
+@@ -319,3 +351,15 @@ bool maipai_timers_dismiss(const char* how)
+     end_ring_locked(how);
+     return true;
+ }
++
++#if CONFIG_MAIPAI_FACE_TIMERS
++int maipai_timers_view(maipai_timer_view_t* out, int max)
++{
++    std::lock_guard<std::mutex> lock(s_view_mutex);
++    const int n = s_view_n < max ? s_view_n : max;
++    for (int i = 0; i < n; i++) {
++        out[i] = s_view[i];
++    }
++    return n;
++}
++#endif
+diff --git a/firmware/main/hal/maipai_timers.h b/firmware/main/hal/maipai_timers.h
+index fa99175..3f5c288 100644
+--- a/firmware/main/hal/maipai_timers.h
++++ b/firmware/main/hal/maipai_timers.h
+@@ -25,3 +25,18 @@ bool maipai_timers_dismiss(const char* how);
+ // Ends a ring from a touch, the stop word or any other task, without taking a lock: `how` must be a
+ // string literal. Returns true if a ring was going; the tick ends it within 200 ms.
+ bool maipai_timers_request_dismiss(const char* how);
++
++// A read-only view of what is counting down, for the face (patch F06). Never takes the timer lock, so the display
++// task can call it: it reads a copy the tick publishes every 200 ms under its own small lock.
++#include <sdkconfig.h>
++#if CONFIG_MAIPAI_FACE_TIMERS
++#include <stdint.h>
++typedef struct {
++    uint32_t id;
++    uint8_t kind;      // MT_KIND_TIMER (1) or MT_KIND_ALARM (2)
++    int64_t due_ms;    // when it fires, on the esp_timer millisecond scale
++    char label[25];
++} maipai_timer_view_t;
++// Copies up to `max` active timers and alarms into `out`; returns how many.
++int maipai_timers_view(maipai_timer_view_t* out, int max);
++#endif

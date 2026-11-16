@@ -54,3 +54,9 @@ S01-core-trim.patch
 117-audio-notify-tool.patch
 143-offline-label-after-45-s.patch
 B01-xiaozhi-base-adapt.patch
+F01-face-config.patch
+F02-face-captions.patch
+F03-face-time-of-day.patch
+F04-face-clock.patch
+F05-face-thinking-cue.patch
+F06-face-timer-countdowns.patch

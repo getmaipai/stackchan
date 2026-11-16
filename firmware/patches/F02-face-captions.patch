@@ -1,0 +1,84 @@
+# Intent: Captions are optional on every face and off by default (decision 22, which corrects an earlier "on everywhere"). The words the unit says are no longer drawn in the speech bubble unless the saved setting captions is true (self.face.set_config, patch F01); turning captions off removes a caption already on screen. System status words and the boot and link screens are not captions and still show. Behind CONFIG_MAIPAI_FACE_CAPTIONS (default y); off, captions can never be drawn.
+# Placement: unit (the face is drawn on the robot)
+# Upstream: firmware/main/hal/board/stackchan_display.cc (SetChatMessage) of the StackChan tree (MIT)
+# Check after a flash: say something with captions at their default: no text appears on the face; self.face.set_config {"captions":true} and say it again: the words show in the bubble; set captions false: the bubble clears.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index b4cddee..f9ceee2 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -59,6 +59,14 @@ config MAIPAI_FACE_CONFIG
+         face settings below) in the unit's own flash and applies them with no reflash. Off: the plain
+         classic face only, and no face tools. Cost when off: none.
+ 
++config MAIPAI_FACE_CAPTIONS
++    bool "Optional captions on the face"
++    default y
++    depends on MAIPAI_FACE_CONFIG
++    help
++        Lets a person turn on the words the unit says as text on the face (off by default, decision 22).
++        Off: the words are never drawn on the face, and the setting is not offered.
++
+ endmenu
+ 
+ menu "Xiaozhi Assistant"
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index 2d9db12..3c9a4be 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -974,6 +974,11 @@ void StackChanAvatarDisplay::SetChatMessage(const char* role, const char* conten
+ 
+     // ESP_LOGE(TAG, "SetChatMessage: role=%s, content=%s", role ? role : "null", content ? content : "null");
+ 
++    // Captions are an opt-in: off by default, the words are spoken, not drawn (patch F02).
++    if (!maipai_face_captions_on()) {
++        return;
++    }
++
+     DisplayLockGuard lock(this);
+ 
+     if (strcmp(role, "system") == 0) {
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+index d4f1e7a..a18a575 100644
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -68,6 +68,11 @@ void apply(DefaultAvatar* face, const mf_config_t& c)
+     mf_foreground(&c, &r, &g, &b);
+     face->setColors(lv_color_make(r, g, b), lv_color_black());
+     face->setEyeStyleOffset(mf_style_eye_offset(c.style));
++#if CONFIG_MAIPAI_FACE_CAPTIONS
++    if (!c.captions) {
++        face->clearSpeech();  // captions turned off: a caption on screen goes away
++    }
++#endif
+ }
+ 
+ DefaultAvatar* current_face()
+@@ -202,6 +207,13 @@ mf_config_t maipai_face_config()
+     return s_cfg;
+ }
+ 
++#if CONFIG_MAIPAI_FACE_CAPTIONS
++bool maipai_face_captions_on()
++{
++    return maipai_face_config().captions != 0;
++}
++#endif
++
+ void maipai_face_attach(DefaultAvatar* face)
+ {
+     const mf_config_t c = maipai_face_config();
+diff --git a/firmware/main/hal/maipai_face.h b/firmware/main/hal/maipai_face.h
+index 046a718..e16783e 100644
+--- a/firmware/main/hal/maipai_face.h
++++ b/firmware/main/hal/maipai_face.h
+@@ -24,3 +24,10 @@ mf_config_t maipai_face_config();
+ #else
+ inline void maipai_face_register_tools() {}
+ #endif
++
++// Whether the words the unit says may be drawn on the face (patch F02): off unless a person turned captions on.
++#if CONFIG_MAIPAI_FACE_CAPTIONS
++bool maipai_face_captions_on();
++#else
++inline bool maipai_face_captions_on() { return false; }
++#endif

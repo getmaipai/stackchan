@@ -1,0 +1,826 @@
+# Intent: The face is neutral by default (white on black, the classic look) and its style and colour are saved settings, not a reflash (features.md, Faces and look; decision 22). maipai_face_core.h is plain C: three styles (classic, big_eyes, minimal), a colour of none, one of seven named colours or a custom #rrggbb that is refused when too dark to see on the black screen (the face can never be made to vanish), the hours of the time-of-day bands, the language for the clock face (en or es), a versioned and checked save blob that falls back to the plain face when damaged, and plain error words that say what to do. maipai_face.cc keeps the settings in the unit's own flash (NVS namespace mp_face), draws them on the default skin (DefaultAvatar::setColors and setEyeStyleOffset, added with matching setColors on the eyes, mouth and speech bubble), and adds MCP tools self.face.set_config (one JSON object, partial update, nothing changes unless every field is valid) and self.face.get_config (settings plus the face features this build has). Behind CONFIG_MAIPAI_FACE_CONFIG (default y); off, none of it is compiled. The later face patches (F02 to F06) read the same settings.
+# Placement: unit (the face is drawn and its settings are kept on the robot; the host half is host/maipai_body/faces.py)
+# Upstream: firmware/main/stackchan/avatar/skins/default/ and firmware/main/hal/board/stackchan_display.cc of the StackChan tree (MIT); new files hal/maipai_face.{h,cc} and hal/maipai_face_core.h
+# Check after a flash: call self.face.set_config with {"colour":"mint","style":"big_eyes"}: the face turns mint with larger eyes at once and stays so after a reboot; {"colour":"#101010"} answers ok:false with the too-dark words and changes nothing; {"colour":"none","style":"classic"} gives the plain white face back.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index 1fb1170..b4cddee 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -49,6 +49,18 @@ config STACKCHAN_SERVER_URL
+ 
+ endmenu
+ 
++menu "MaiPai face and always-on look"
++
++config MAIPAI_FACE_CONFIG
++    bool "Face style and colour as saved settings"
++    default y
++    help
++        The face is neutral white on black by default. This keeps the face style and colour (and the other
++        face settings below) in the unit's own flash and applies them with no reflash. Off: the plain
++        classic face only, and no face tools. Cost when off: none.
++
++endmenu
++
+ menu "Xiaozhi Assistant"
+ 
+ config OTA_URL
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index a0572c0..2d9db12 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -24,6 +24,7 @@
+ #include <assets/lang_config.h>
+ #include <hal/hal.h>
+ #include <hal/maipai_timers.h>
++#include <hal/maipai_face.h>
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_touch_core.h>
+ #include <hal/device_events.h>
+@@ -278,6 +279,9 @@ void StackChanAvatarDisplay::SetupUI()
+ 
+     auto avatar = std::make_unique<DefaultAvatar>();
+     avatar->init(lv_screen_active());
++#if CONFIG_MAIPAI_FACE_CONFIG
++    maipai_face_attach(avatar.get());  // the saved face style and colour (patch F01)
++#endif
+     avatar->getPanel()->onClick().connect([]() {
+         static uint32_t last_toggle_tick = 0;
+         const uint32_t now               = GetHAL().millis();
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 71b7a30..831fd0a 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -9,6 +9,7 @@
+ #include "board/hal_bridge.h"
+ #include "maipai_timers.h"
+ #include "maipai_sounds.h"
++#include "maipai_face.h"
+ #include "maipai_timers_core.h"
+ #include <mooncake_log.h>
+ #include <mcp_server.h>
+@@ -480,6 +481,9 @@ void Hal::xiaozhi_mcp_init()
+     // self.audio.play_sound, set_sound_policy and sound_info (patch 116).
+     maipai_sounds_register_tools();
+ 
++    // self.face.set_config and get_config (patch F01).
++    maipai_face_register_tools();
++
+     mclog::tagInfo(_tag, "add robot.dance tool");
+     mcp_server.AddTool("self.robot.dance",
+                        "Play one of the robot's built-in dances once, then return to normal. Names: happy, robot, panic, look_around.",
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+new file mode 100644
+index 0000000..d4f1e7a
+--- /dev/null
++++ b/firmware/main/hal/maipai_face.cc
+@@ -0,0 +1,254 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The face as saved settings, the device side (patch F01). See maipai_face.h.
++ */
++#include <sdkconfig.h>
++#if CONFIG_MAIPAI_FACE_CONFIG
++#include "maipai_face.h"
++#include "hal.h"
++#include <mcp_server.h>
++#include <cJSON.h>
++#include <esp_log.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++#include <stackchan/stackchan.h>
++#include <stackchan/avatar/skins/default/default.h>
++#include <mutex>
++#include <string>
++
++using stackchan::avatar::DefaultAvatar;
++
++static const char* TAG        = "MAIPAI-FACE";
++static const char* kNamespace = "mp_face";  // our own: never the websocket namespace (pairing token, Wi-Fi)
++static const char* kKey       = "v1";
++
++namespace {
++std::mutex s_mutex;  // a leaf lock: nothing else is taken while it is held
++mf_config_t s_cfg;
++bool s_loaded = false;
++
++void load_locked()
++{
++    mf_default(&s_cfg);
++    s_loaded = true;
++    nvs_handle_t h;
++    if (nvs_open(kNamespace, NVS_READONLY, &h) != ESP_OK) {
++        return;
++    }
++    uint8_t buf[MF_BLOB_MAX];
++    size_t n = sizeof(buf);
++    if (nvs_get_blob(h, kKey, buf, &n) == ESP_OK && mf_load(&s_cfg, buf, n) != MF_OK) {
++        ESP_LOGW(TAG, "saved face settings unreadable (%u bytes): using the plain face", static_cast<unsigned>(n));
++    }
++    nvs_close(h);
++}
++
++void save(const mf_config_t& c)
++{
++    uint8_t buf[MF_BLOB_MAX];
++    const size_t n = mf_save(&c, buf, sizeof(buf));
++    nvs_handle_t h;
++    if (n == 0 || nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) {
++        ESP_LOGW(TAG, "face settings not saved: flash is not writable");
++        return;
++    }
++    nvs_set_blob(h, kKey, buf, n);
++    nvs_commit(h);
++    nvs_close(h);
++}
++
++// Draws style and colour. The caller holds the LVGL lock.
++void apply(DefaultAvatar* face, const mf_config_t& c)
++{
++    if (face == nullptr) {
++        return;
++    }
++    uint8_t r, g, b;
++    mf_foreground(&c, &r, &g, &b);
++    face->setColors(lv_color_make(r, g, b), lv_color_black());
++    face->setEyeStyleOffset(mf_style_eye_offset(c.style));
++}
++
++DefaultAvatar* current_face()
++{
++    auto& chan = GetStackChan();
++    return chan.hasAvatar() ? dynamic_cast<DefaultAvatar*>(&chan.avatar()) : nullptr;
++}
++
++std::string reply_error(const char* word)
++{
++    return std::string("{\"ok\":false,\"error\":\"") + word + "\"}";
++}
++
++// Reads one boolean field; false when the field is present but not a boolean.
++bool read_bool(const cJSON* obj, const char* key, uint8_t* out, bool* present)
++{
++    const cJSON* it = cJSON_GetObjectItemCaseSensitive(obj, key);
++    *present        = it != nullptr;
++    if (it == nullptr) {
++        return true;
++    }
++    if (!cJSON_IsBool(it)) {
++        return false;
++    }
++    *out = cJSON_IsTrue(it) ? 1 : 0;
++    return true;
++}
++
++// Applies a partial JSON update to `c`; returns MF_OK or the first error and sets `bad` to the field name.
++int update_from_json(mf_config_t* c, const cJSON* root, const char** bad)
++{
++    bool present = false;
++    const cJSON* it;
++    if ((it = cJSON_GetObjectItemCaseSensitive(root, "style")) != nullptr) {
++        *bad = "style";
++        if (!cJSON_IsString(it)) return MF_ERR_STYLE;
++        if (int e = mf_set_style_name(c, it->valuestring)) return e;
++    }
++    if ((it = cJSON_GetObjectItemCaseSensitive(root, "colour")) != nullptr) {
++        *bad = "colour";
++        if (!cJSON_IsString(it)) return MF_ERR_COLOUR;
++        if (int e = mf_set_colour(c, it->valuestring)) return e;
++    }
++    if ((it = cJSON_GetObjectItemCaseSensitive(root, "lang")) != nullptr) {
++        *bad = "lang";
++        if (!cJSON_IsString(it)) return MF_ERR_LANG;
++        if (int e = mf_set_lang(c, it->valuestring)) return e;
++    }
++    if ((it = cJSON_GetObjectItemCaseSensitive(root, "tod_hours")) != nullptr) {
++        *bad = "tod_hours";
++        if (!cJSON_IsArray(it) || cJSON_GetArraySize(it) != 4) return MF_ERR_HOURS;
++        int h[4];
++        for (int i = 0; i < 4; i++) {
++            const cJSON* v = cJSON_GetArrayItem(it, i);
++            if (!cJSON_IsNumber(v)) return MF_ERR_HOURS;
++            h[i] = v->valueint;
++        }
++        if (int e = mf_set_hours(c, h[0], h[1], h[2], h[3])) return e;
++    }
++    if ((it = cJSON_GetObjectItemCaseSensitive(root, "clock_style")) != nullptr) {
++        *bad = "clock_style";
++        if (!cJSON_IsString(it)) return MF_ERR_RANGE;
++        if (strcmp(it->valuestring, "digits") == 0) c->clock_style = 0;
++        else if (strcmp(it->valuestring, "ring") == 0) c->clock_style = 1;
++        else return MF_ERR_RANGE;
++    }
++    if ((it = cJSON_GetObjectItemCaseSensitive(root, "clock_idle_s")) != nullptr) {
++        *bad = "clock_idle_s";
++        if (!cJSON_IsNumber(it) || it->valueint < 0 || it->valueint > 3600) return MF_ERR_RANGE;
++        c->clock_idle_s = static_cast<uint16_t>(it->valueint);
++    }
++    struct {
++        const char* key;
++        uint8_t* field;
++    } flags[] = {{"captions", &c->captions}, {"tod", &c->tod}, {"thinking_tone", &c->thinking_tone},
++                 {"clock24", &c->clock24}};
++    for (auto& f : flags) {
++        *bad = f.key;
++        if (!read_bool(root, f.key, f.field, &present)) return MF_ERR_RANGE;
++    }
++    *bad = "";
++    return MF_OK;
++}
++
++std::string config_json(const mf_config_t& c)
++{
++    uint8_t r, g, b;
++    mf_foreground(&c, &r, &g, &b);
++    char colour[24];
++    if (c.colour_mode == MF_COLOUR_PALETTE) {
++        snprintf(colour, sizeof(colour), "%s", MF_PALETTE_NAMES[c.palette]);
++    } else if (c.colour_mode == MF_COLOUR_CUSTOM) {
++        snprintf(colour, sizeof(colour), "#%02x%02x%02x", r, g, b);
++    } else {
++        snprintf(colour, sizeof(colour), "none");
++    }
++    char out[360];
++    snprintf(out, sizeof(out),
++             "{\"ok\":true,\"style\":\"%s\",\"colour\":\"%s\",\"captions\":%s,\"tod\":%s,\"tod_hours\":[%d,%d,%d,%d],"
++             "\"thinking_tone\":%s,\"lang\":\"%s\",\"clock24\":%s,\"clock_style\":\"%s\",\"clock_idle_s\":%u,"
++             "\"features\":[\"config\""
++#if CONFIG_MAIPAI_FACE_CAPTIONS
++             ",\"captions\""
++#endif
++#if CONFIG_MAIPAI_FACE_TOD
++             ",\"tod\""
++#endif
++#if CONFIG_MAIPAI_FACE_CLOCK
++             ",\"clock\""
++#endif
++#if CONFIG_MAIPAI_FACE_THINKING
++             ",\"thinking\""
++#endif
++#if CONFIG_MAIPAI_FACE_TIMERS
++             ",\"timers\""
++#endif
++             "]}",
++             MF_STYLE_NAMES[c.style], colour, c.captions ? "true" : "false", c.tod ? "true" : "false", c.tod_from[0],
++             c.tod_from[1], c.tod_from[2], c.tod_from[3], c.thinking_tone ? "true" : "false",
++             c.lang == MF_LANG_ES ? "es" : "en", c.clock24 ? "true" : "false", c.clock_style ? "ring" : "digits",
++             static_cast<unsigned>(c.clock_idle_s));
++    return out;
++}
++}  // namespace
++
++mf_config_t maipai_face_config()
++{
++    std::lock_guard<std::mutex> lock(s_mutex);
++    if (!s_loaded) {
++        load_locked();
++    }
++    return s_cfg;
++}
++
++void maipai_face_attach(DefaultAvatar* face)
++{
++    const mf_config_t c = maipai_face_config();
++    apply(face, c);
++    ESP_LOGI(TAG, "face: style %s, colour mode %d", MF_STYLE_NAMES[c.style], c.colour_mode);
++}
++
++void maipai_face_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.face.set_config",
++                "Change the face settings the unit keeps in its own flash. config is a JSON object with any of: "
++                "style (classic, big_eyes, minimal), colour (none, mint, sky, amber, rose, lilac, lime, coral or "
++                "#rrggbb), captions (true shows the words on the face), tod (time-of-day looks), tod_hours "
++                "([morning, day, evening, night] start hours), thinking_tone, lang (en or es), clock24, "
++                "clock_style (digits or ring), clock_idle_s (0 to 3600, 0 never shows the clock by itself). "
++                "Nothing changes unless every field is valid. Answers the new settings or {ok:false,error}.",
++                PropertyList({Property("config", kPropertyTypeString, std::string("{}"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string text = properties["config"].value<std::string>();
++                    cJSON* root            = cJSON_Parse(text.c_str());
++                    if (root == nullptr || !cJSON_IsObject(root)) {
++                        cJSON_Delete(root);
++                        return reply_error("config is not a JSON object: send something like {\\\"style\\\":\\\"minimal\\\"}");
++                    }
++                    mf_config_t next = maipai_face_config();
++                    const char* bad  = "";
++                    const int err    = update_from_json(&next, root, &bad);
++                    cJSON_Delete(root);
++                    if (err != MF_OK) {
++                        std::string word = std::string(bad) + ": " + mf_err_word(err);
++                        return reply_error(word.c_str());
++                    }
++                    {
++                        std::lock_guard<std::mutex> lock(s_mutex);
++                        s_cfg = next;
++                    }
++                    save(next);
++                    {
++                        LvglLockGuard lock;
++                        apply(current_face(), next);
++                    }
++                    return config_json(next);
++                });
++    mcp.AddTool("self.face.get_config", "Read the face settings in force and the face features this build has.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    return config_json(maipai_face_config());
++                });
++}
++#endif
+diff --git a/firmware/main/hal/maipai_face.h b/firmware/main/hal/maipai_face.h
+new file mode 100644
+index 0000000..046a718
+--- /dev/null
++++ b/firmware/main/hal/maipai_face.h
+@@ -0,0 +1,26 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The face as saved settings (patch F01): style, colour and the switches the later face patches read.
++ * Logic: maipai_face_core.h. With CONFIG_MAIPAI_FACE_CONFIG off nothing here is compiled.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_FACE_CONFIG
++#include <lvgl.h>
++#include "maipai_face_core.h"
++
++namespace stackchan::avatar {
++class DefaultAvatar;
++}
++
++// Loads the saved settings and draws them on the face. Call once from SetupUI, with the LVGL lock held.
++void maipai_face_attach(stackchan::avatar::DefaultAvatar* face);
++// Registers self.face.set_config and self.face.get_config.
++void maipai_face_register_tools();
++// A copy of the settings now in force.
++mf_config_t maipai_face_config();
++#else
++inline void maipai_face_register_tools() {}
++#endif
+diff --git a/firmware/main/hal/maipai_face_core.h b/firmware/main/hal/maipai_face_core.h
+new file mode 100644
+index 0000000..26b746c
+--- /dev/null
++++ b/firmware/main/hal/maipai_face_core.h
+@@ -0,0 +1,318 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * MaiPai face configuration (patch F01): the pure logic, no ESP-IDF, no heap, no clock. Header-only
++ * plain C99 so a host compiler can test it. The device side is maipai_face.cc.
++ *
++ * The face is neutral by default: white on black, the classic look, no captions, no time-of-day
++ * change. Style and colour are saved settings, never a reflash. Colour is decoration only: no state
++ * is told by colour alone (the screen rule), and a colour too dark to see on the black screen is
++ * refused so the face cannot be made to vanish.
++ */
++#ifndef MAIPAI_FACE_CORE_H
++#define MAIPAI_FACE_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define MF_BLOB_VERSION 1
++
++#define MF_STYLE_CLASSIC 0
++#define MF_STYLE_BIG_EYES 1
++#define MF_STYLE_MINIMAL 2
++#define MF_STYLE_COUNT 3
++
++#define MF_COLOUR_NONE 0    /* neutral white: the default */
++#define MF_COLOUR_PALETTE 1 /* one of the named colours */
++#define MF_COLOUR_CUSTOM 2  /* the person's own #rrggbb */
++
++#define MF_PALETTE_COUNT 7
++#define MF_MIN_LUMA 60 /* of 255: darker than this cannot be seen on the black screen */
++
++#define MF_LANG_EN 0
++#define MF_LANG_ES 1
++
++#define MF_OK 0
++#define MF_ERR_STYLE -1
++#define MF_ERR_COLOUR -2
++#define MF_ERR_DARK -3
++#define MF_ERR_HOURS -4
++#define MF_ERR_LANG -5
++#define MF_ERR_RANGE -6
++
++typedef struct {
++    uint8_t style;        /* MF_STYLE_* */
++    uint8_t colour_mode;  /* MF_COLOUR_* */
++    uint8_t palette;      /* index into the named colours when colour_mode is MF_COLOUR_PALETTE */
++    uint8_t r, g, b;      /* the custom colour */
++    uint8_t captions;     /* 1: the words the unit would say show on the face (off by default) */
++    uint8_t tod;          /* 1: time-of-day face variants (patch F03) */
++    uint8_t tod_from[4];  /* the hour each band starts: morning, day, evening, night */
++    uint8_t thinking_tone;/* 1: a quiet tone with the thinking dots (default on, decision 23) */
++    uint8_t lang;         /* MF_LANG_*: weekday names on the clock face */
++    uint8_t clock24;      /* 1: 24 hour clock, 0: 12 hour */
++    uint8_t clock_style;  /* 0 big digits, 1 ring */
++    uint16_t clock_idle_s;/* 0: the clock face never shows by itself; otherwise after this many idle seconds */
++} mf_config_t;
++
++static inline void mf_default(mf_config_t* c)
++{
++    memset(c, 0, sizeof(*c));
++    c->style = MF_STYLE_CLASSIC;
++    c->colour_mode = MF_COLOUR_NONE;
++    c->captions = 0;
++    c->tod = 0;
++    c->tod_from[0] = 6;
++    c->tod_from[1] = 9;
++    c->tod_from[2] = 18;
++    c->tod_from[3] = 21;
++    c->thinking_tone = 1;
++    c->lang = MF_LANG_EN;
++    c->clock24 = 0;
++    c->clock_style = 0;
++    c->clock_idle_s = 0;
++}
++
++static const char* const MF_STYLE_NAMES[MF_STYLE_COUNT] = {"classic", "big_eyes", "minimal"};
++static const char* const MF_PALETTE_NAMES[MF_PALETTE_COUNT] = {"mint", "sky", "amber", "rose", "lilac", "lime", "coral"};
++static const uint8_t MF_PALETTE_RGB[MF_PALETTE_COUNT][3] = {
++    {0x7F, 0xE0, 0xB8}, {0x7F, 0xC4, 0xF0}, {0xF2, 0xB2, 0x4A}, {0xF0, 0x8F, 0xB0},
++    {0xB8, 0x9C, 0xF0}, {0xB4, 0xE0, 0x5A}, {0xF2, 0x84, 0x6C},
++};
++
++/* Eye size offset for a style, added to the size the face already uses (the classic look is 0). */
++static inline int mf_style_eye_offset(int style)
++{
++    switch (style) {
++        case MF_STYLE_BIG_EYES: return 60;
++        case MF_STYLE_MINIMAL: return -40;
++        default: return 0;
++    }
++}
++
++static inline int mf_luma(int r, int g, int b) { return (r * 30 + g * 59 + b * 11) / 100; }
++
++static inline int mf_set_style_name(mf_config_t* c, const char* name)
++{
++    if (name == NULL) {
++        return MF_ERR_STYLE;
++    }
++    for (int i = 0; i < MF_STYLE_COUNT; i++) {
++        if (strcmp(name, MF_STYLE_NAMES[i]) == 0) {
++            c->style = (uint8_t)i;
++            return MF_OK;
++        }
++    }
++    return MF_ERR_STYLE;
++}
++
++static inline int mf_hex_digit(char ch)
++{
++    if (ch >= '0' && ch <= '9') return ch - '0';
++    if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
++    if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
++    return -1;
++}
++
++/* "none" (or an empty text), a palette name, or "#rrggbb". */
++static inline int mf_set_colour(mf_config_t* c, const char* text)
++{
++    if (text == NULL || text[0] == '\0' || strcmp(text, "none") == 0) {
++        c->colour_mode = MF_COLOUR_NONE;
++        return MF_OK;
++    }
++    for (int i = 0; i < MF_PALETTE_COUNT; i++) {
++        if (strcmp(text, MF_PALETTE_NAMES[i]) == 0) {
++            c->colour_mode = MF_COLOUR_PALETTE;
++            c->palette = (uint8_t)i;
++            return MF_OK;
++        }
++    }
++    if (text[0] != '#' || strlen(text) != 7) {
++        return MF_ERR_COLOUR;
++    }
++    int v[6];
++    for (int i = 0; i < 6; i++) {
++        v[i] = mf_hex_digit(text[1 + i]);
++        if (v[i] < 0) {
++            return MF_ERR_COLOUR;
++        }
++    }
++    const int r = v[0] * 16 + v[1];
++    const int g = v[2] * 16 + v[3];
++    const int b = v[4] * 16 + v[5];
++    if (mf_luma(r, g, b) < MF_MIN_LUMA) {
++        return MF_ERR_DARK;
++    }
++    c->colour_mode = MF_COLOUR_CUSTOM;
++    c->r = (uint8_t)r;
++    c->g = (uint8_t)g;
++    c->b = (uint8_t)b;
++    return MF_OK;
++}
++
++/* The colour the face draws in. */
++static inline void mf_foreground(const mf_config_t* c, uint8_t* r, uint8_t* g, uint8_t* b)
++{
++    if (c->colour_mode == MF_COLOUR_PALETTE && c->palette < MF_PALETTE_COUNT) {
++        *r = MF_PALETTE_RGB[c->palette][0];
++        *g = MF_PALETTE_RGB[c->palette][1];
++        *b = MF_PALETTE_RGB[c->palette][2];
++    } else if (c->colour_mode == MF_COLOUR_CUSTOM) {
++        *r = c->r;
++        *g = c->g;
++        *b = c->b;
++    } else {
++        *r = *g = *b = 255;
++    }
++}
++
++/* Band starts must rise: morning < day < evening < night, each an hour 0 to 23. Night runs through midnight. */
++static inline int mf_set_hours(mf_config_t* c, int morning, int day, int evening, int night)
++{
++    if (morning < 0 || night > 23 || !(morning < day && day < evening && evening < night)) {
++        return MF_ERR_HOURS;
++    }
++    c->tod_from[0] = (uint8_t)morning;
++    c->tod_from[1] = (uint8_t)day;
++    c->tod_from[2] = (uint8_t)evening;
++    c->tod_from[3] = (uint8_t)night;
++    return MF_OK;
++}
++
++static inline int mf_set_lang(mf_config_t* c, const char* code)
++{
++    if (code != NULL && strcmp(code, "en") == 0) {
++        c->lang = MF_LANG_EN;
++        return MF_OK;
++    }
++    if (code != NULL && strcmp(code, "es") == 0) {
++        c->lang = MF_LANG_ES;
++        return MF_OK;
++    }
++    return MF_ERR_LANG;
++}
++
++/* A clean config: every field in range. Used after a load so a damaged blob falls back to defaults. */
++static inline int mf_valid(const mf_config_t* c)
++{
++    if (c->style >= MF_STYLE_COUNT || c->colour_mode > MF_COLOUR_CUSTOM || c->palette >= MF_PALETTE_COUNT) {
++        return 0;
++    }
++    if (c->colour_mode == MF_COLOUR_CUSTOM && mf_luma(c->r, c->g, c->b) < MF_MIN_LUMA) {
++        return 0;
++    }
++    if (c->captions > 1 || c->tod > 1 || c->thinking_tone > 1 || c->clock24 > 1 || c->clock_style > 1) {
++        return 0;
++    }
++    if (c->lang > MF_LANG_ES) {
++        return 0;
++    }
++    if (!(c->tod_from[0] < c->tod_from[1] && c->tod_from[1] < c->tod_from[2] && c->tod_from[2] < c->tod_from[3] &&
++          c->tod_from[3] <= 23)) {
++        return 0;
++    }
++    return 1;
++}
++
++/* The plain words for an error code: what went wrong and what to do. */
++static inline const char* mf_err_word(int code)
++{
++    switch (code) {
++        case MF_OK: return "ok";
++        case MF_ERR_STYLE: return "unknown face style: use classic, big_eyes or minimal";
++        case MF_ERR_COLOUR: return "unknown colour: use none, a name (mint, sky, amber, rose, lilac, lime, coral) or #rrggbb";
++        case MF_ERR_DARK: return "colour too dark to see on the black screen: pick a lighter colour";
++        case MF_ERR_HOURS: return "day bands must be hours 0 to 23 that rise: morning, day, evening, night";
++        case MF_ERR_LANG: return "unknown language: use en or es";
++        case MF_ERR_RANGE: return "a value is out of range: check the number and send it again";
++        default: return "unknown error";
++    }
++}
++
++/* ---- save and load: one small blob with a version and a check, so a damaged one is never trusted ---- */
++
++#define MF_BLOB_MAX 32
++
++static inline uint16_t mf_crc16(const uint8_t* p, size_t n)
++{
++    uint16_t crc = 0xFFFF;
++    for (size_t i = 0; i < n; i++) {
++        crc ^= (uint16_t)p[i] << 8;
++        for (int k = 0; k < 8; k++) {
++            crc = (crc & 0x8000) ? (uint16_t)((crc << 1) ^ 0x1021) : (uint16_t)(crc << 1);
++        }
++    }
++    return crc;
++}
++
++static inline size_t mf_save(const mf_config_t* c, uint8_t* buf, size_t size)
++{
++    if (size < MF_BLOB_MAX) {
++        return 0;
++    }
++    memset(buf, 0, MF_BLOB_MAX);
++    size_t n = 0;
++    buf[n++] = MF_BLOB_VERSION;
++    buf[n++] = c->style;
++    buf[n++] = c->colour_mode;
++    buf[n++] = c->palette;
++    buf[n++] = c->r;
++    buf[n++] = c->g;
++    buf[n++] = c->b;
++    buf[n++] = c->captions;
++    buf[n++] = c->tod;
++    for (int i = 0; i < 4; i++) {
++        buf[n++] = c->tod_from[i];
++    }
++    buf[n++] = c->thinking_tone;
++    buf[n++] = c->lang;
++    buf[n++] = c->clock24;
++    buf[n++] = c->clock_style;
++    buf[n++] = (uint8_t)(c->clock_idle_s >> 8);
++    buf[n++] = (uint8_t)(c->clock_idle_s & 0xFF);
++    const uint16_t crc = mf_crc16(buf, n);
++    buf[n++] = (uint8_t)(crc >> 8);
++    buf[n++] = (uint8_t)(crc & 0xFF);
++    return n;
++}
++
++/* Returns MF_OK, or MF_ERR_RANGE for a blob that is the wrong size, version or check, or holds a bad value
++ * (the config is then left as the defaults). */
++static inline int mf_load(mf_config_t* c, const uint8_t* buf, size_t len)
++{
++    mf_default(c);
++    const size_t body = 9 + 4 + 4 + 2;
++    if (buf == NULL || len != body + 2 || buf[0] != MF_BLOB_VERSION) {
++        return MF_ERR_RANGE;
++    }
++    if (mf_crc16(buf, body) != (uint16_t)((buf[body] << 8) | buf[body + 1])) {
++        return MF_ERR_RANGE;
++    }
++    mf_config_t t;
++    mf_default(&t);
++    size_t n = 1;
++    t.style = buf[n++];
++    t.colour_mode = buf[n++];
++    t.palette = buf[n++];
++    t.r = buf[n++];
++    t.g = buf[n++];
++    t.b = buf[n++];
++    t.captions = buf[n++];
++    t.tod = buf[n++];
++    for (int i = 0; i < 4; i++) {
++        t.tod_from[i] = buf[n++];
++    }
++    t.thinking_tone = buf[n++];
++    t.lang = buf[n++];
++    t.clock24 = buf[n++];
++    t.clock_style = buf[n++];
++    t.clock_idle_s = (uint16_t)((buf[n] << 8) | buf[n + 1]);
++    if (!mf_valid(&t)) {
++        return MF_ERR_RANGE;
++    }
++    *c = t;
++    return MF_OK;
++}
++
++#endif /* MAIPAI_FACE_CORE_H */
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.cpp b/firmware/main/stackchan/avatar/skins/default/default.cpp
+index bf83dd3..1a6b20a 100644
+--- a/firmware/main/stackchan/avatar/skins/default/default.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/default.cpp
+@@ -32,3 +32,34 @@ Container* DefaultAvatar::getPanel() const
+     }
+     return NULL;
+ }
++
++void DefaultAvatar::setColors(lv_color_t primary, lv_color_t secondary)
++{
++    primaryColor   = primary;
++    secondaryColor = secondary;
++    if (_pannel) {
++        _pannel->setBgColor(secondary);
++    }
++    if (auto* eye = dynamic_cast<DefaultEyes*>(_key_elements.leftEye.get())) {
++        eye->setColors(primary, secondary);
++    }
++    if (auto* eye = dynamic_cast<DefaultEyes*>(_key_elements.rightEye.get())) {
++        eye->setColors(primary, secondary);
++    }
++    if (auto* mouth = dynamic_cast<DefaultMouth*>(_key_elements.mouth.get())) {
++        mouth->setColors(primary);
++    }
++    if (auto* bubble = dynamic_cast<DefaultSpeechBubble*>(_key_elements.speechBubble.get())) {
++        bubble->setColors(primary, secondary);
++    }
++}
++
++void DefaultAvatar::setEyeStyleOffset(int offset)
++{
++    if (auto* eye = dynamic_cast<DefaultEyes*>(_key_elements.leftEye.get())) {
++        eye->setStyleOffset(offset);
++    }
++    if (auto* eye = dynamic_cast<DefaultEyes*>(_key_elements.rightEye.get())) {
++        eye->setStyleOffset(offset);
++    }
++}
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+index 9ac7ba9..e115035 100644
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -23,6 +23,10 @@ public:
+ 
+     void init(lv_obj_t* parent, const lv_font_t* font = &lv_font_montserrat_16);
+     uitk::lvgl_cpp::Container* getPanel() const;
++    // The face colours as saved settings (patch F01): the drawing colour and the screen colour.
++    void setColors(lv_color_t primary, lv_color_t secondary);
++    // The eye size style (patch F01): added to whatever size the face asks for, so the idle look keeps it.
++    void setEyeStyleOffset(int offset);
+ 
+ private:
+     std::unique_ptr<uitk::lvgl_cpp::Container> _pannel;
+@@ -45,8 +49,11 @@ public:
+     void setSize(int size) override;
+     // Vision off (patch 105): the eye stays shut whatever the emotion or the blink says; the stored weight stays real.
+     void setLowered(bool lowered);
++    void setColors(lv_color_t primaryColor, lv_color_t secondaryColor);
++    void setStyleOffset(int offset);
+ 
+ private:
++    int _style_offset    = 0;
+     bool _lowered        = false;
+     bool _is_left_eye    = false;
+     int _eyelid_offset_y = 0;
+@@ -71,6 +78,7 @@ public:
+     void setVisible(bool visible) override;
+     // Mute (patch 105): the mouth stays a flat closed line whatever the lip sync says; the stored weight stays real.
+     void setSealed(bool sealed);
++    void setColors(lv_color_t primaryColor);
+ 
+ private:
+     bool _sealed = false;
+@@ -90,6 +98,7 @@ public:
+     void clearSpeech() override;
+     void setVisible(bool visible) override;
+     void setTextFont(void* font) override;
++    void setColors(lv_color_t primaryColor, lv_color_t secondaryColor);
+ 
+ private:
+     std::unique_ptr<uitk::lvgl_cpp::Container> _container;
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+index 6a57251..79f1a20 100644
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -134,7 +134,7 @@ void DefaultEyes::setSize(int size)
+ {
+     Feature::setSize(size);
+ 
+-    int eye_size = map_range(_size, -100, 100, _eye_size_limit.x, _eye_size_limit.y);
++    int eye_size = map_range(clamp(_size + _style_offset, -100, 100), -100, 100, _eye_size_limit.x, _eye_size_limit.y);
+ 
+     _eye->setSize(eye_size, eye_size);
+     _eyelid->setSize(eye_size, eye_size);
+@@ -148,3 +148,15 @@ void DefaultEyes::setLowered(bool lowered)
+     _lowered = lowered;
+     setWeight(getWeight());
+ }
++
++void DefaultEyes::setColors(lv_color_t primaryColor, lv_color_t secondaryColor)
++{
++    _eye->setBgColor(primaryColor);
++    _eyelid->setBgColor(secondaryColor);
++}
++
++void DefaultEyes::setStyleOffset(int offset)
++{
++    _style_offset = offset;
++    setSize(getSize());
++}
+diff --git a/firmware/main/stackchan/avatar/skins/default/mouth.cpp b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+index 9d91d72..e39a00d 100644
+--- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+@@ -78,3 +78,8 @@ void DefaultMouth::setSealed(bool sealed)
+     _sealed = sealed;
+     setWeight(getWeight());
+ }
++
++void DefaultMouth::setColors(lv_color_t primaryColor)
++{
++    _mouth->setBgColor(primaryColor);
++}
+diff --git a/firmware/main/stackchan/avatar/skins/default/speech_bubble.cpp b/firmware/main/stackchan/avatar/skins/default/speech_bubble.cpp
+index b7ae42b..567f17b 100644
+--- a/firmware/main/stackchan/avatar/skins/default/speech_bubble.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/speech_bubble.cpp
+@@ -113,3 +113,10 @@ void DefaultSpeechBubble::setTextFont(void* font)
+         _text->setTextFont((lv_font_t*)font);
+     }
+ }
++
++void DefaultSpeechBubble::setColors(lv_color_t primaryColor, lv_color_t secondaryColor)
++{
++    _arrow->setImageRecolor(primaryColor);
++    _bubble->setBgColor(primaryColor);
++    _text->setTextColor(secondaryColor);
++}

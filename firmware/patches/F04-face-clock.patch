@@ -1,0 +1,502 @@
+# Intent: A clock face (features.md, Faces and look: big digits or ring, dimmed at night, works with no host once the time is set). maipai_face_clock_core.h is plain C: the four digits of a 12 or 24 hour clock (12 at midnight and noon, no leading zero), seven-bar digit shapes and their rectangles (no large font is added; the digits are drawn from bars and scale cleanly), the two layouts (big digits, or smaller digits inside a seconds ring), the date line in English (Sun Nov 15) and Spanish (dom 15 nov; plain ASCII, the screen font has no accents yet), and the rule for when the clock shows: only when the time is set, the unit is idle and nothing blocks it, because the host asked (self.face.show_clock, 1 to 3600 s, 0 goes back) or because the unit was idle for clock_idle_s (0 by default: never by itself). The clock never covers a mute, vision-off or quiet look or a ringing timer, dims to 55 percent at night, and a touch ends it: that touch is only a wake (it starts no listen and toggles no privacy state). The bars and labels exist only while the clock shows. Behind CONFIG_MAIPAI_FACE_CLOCK (default y); off, none of it is compiled.
+# Placement: unit (the clock runs on the robot with the host off)
+# Upstream: firmware/main/hal/board/stackchan_display.cc of the StackChan tree (MIT); new file hal/maipai_face_clock_core.h
+# Check after a flash: self.face.show_clock {"seconds":20}: the clock fills the screen with the right time, the colon blinks, the date line is in the chosen language; a touch returns the face and does not start a listen; with clock_idle_s 60 the clock comes up after a quiet minute on its own; while muted it does not show and the tool says why.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index 084957f..9f76dd8 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -76,6 +76,16 @@ config MAIPAI_FACE_TOD
+         Off by default at run time; a person turns it on in the face settings. Off here: no tick timer
+         and no band code are compiled.
+ 
++config MAIPAI_FACE_CLOCK
++    bool "Clock face (big digits or a ring)"
++    default y
++    depends on MAIPAI_FACE_CONFIG
++    help
++        A clock face drawn from bars, so no large font is added. It shows when the person or the host asks
++        for it (self.face.show_clock) and, if clock_idle_s is set, after that many idle seconds. It works
++        with no host once the time is set, never covers a mute, vision-off or quiet look or a ringing
++        timer, and any touch ends it. Off here: none of it is compiled.
++
+ endmenu
+ 
+ menu "Xiaozhi Assistant"
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index 3c9a4be..a8d7258 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -36,6 +36,7 @@ using namespace stackchan::avatar;
+ 
+ namespace {
+ int s_face_press_y = -1;
++bool s_press_woke_clock = false;  // the press ended the clock face (patch F04)
+ // The touch being followed (patch 105): which toggle it can start is decided by maipai_touch_core.h.
+ mtc_trace_t s_trace;
+ bool s_trace_live = false;
+@@ -287,6 +288,10 @@ void StackChanAvatarDisplay::SetupUI()
+         const uint32_t now               = GetHAL().millis();
+         // Patch 105: the toggle places (mouth, eyes, forehead) and the edge margins never start a listen;
+         // only the rest of the face does, as before. No listen starts while muted or in full quiet.
++        if (s_press_woke_clock) {  // the touch that ended the clock face is only a wake (patch F04)
++            s_press_woke_clock = false;
++            return;
++        }
+         if (!mtc_region_listens(s_last_region) || maipai_mic_blocked()) {
+             return;
+         }
+@@ -312,6 +317,7 @@ void StackChanAvatarDisplay::SetupUI()
+         s_trace_live  = true;
+         s_last_region = s_trace.region0;
+         maipai_timers_request_dismiss("touch");  // a ringing timer ends on a touch (patch 093)
++        s_press_woke_clock = maipai_face_touched();
+     }, LV_EVENT_PRESSED, nullptr);
+     // A touch that ends still, in the place it began, toggles mute, vision or full quiet (patch 105).
+     lv_obj_add_event_cb(avatar_panel, &StackChanAvatarDisplay::OnFaceRelease, LV_EVENT_RELEASED, this);
+@@ -792,6 +798,10 @@ void StackChanAvatarDisplay::OnFaceRelease(lv_event_t* event)
+     if (!s_trace_live) {
+         return;
+     }
++    if (s_press_woke_clock) {  // a touch that only woke the clock face toggles nothing (patch F04)
++        s_trace_live = false;
++        return;
++    }
+     s_trace_live = false;
+     auto* self   = static_cast<StackChanAvatarDisplay*>(lv_event_get_user_data(event));
+     if (self == nullptr || !self->boot_done_ || self->quick_panel_ != nullptr) {
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+index 713f0da..85a88d3 100644
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -7,6 +7,13 @@
+ #if CONFIG_MAIPAI_FACE_CONFIG
+ #include "maipai_face.h"
+ #include "maipai_face_tod_core.h"
++#if CONFIG_MAIPAI_FACE_CLOCK
++#include "maipai_face_clock_core.h"
++#include "maipai_privacy.h"
++#include "maipai_timers.h"
++#include "board/hal_bridge.h"
++#include <esp_timer.h>
++#endif
+ #include "hal.h"
+ #include <mcp_server.h>
+ #include <cJSON.h>
+@@ -240,6 +247,219 @@ bool maipai_face_captions_on()
+ #endif
+ 
+ // Once a second, in the LVGL task (the lock is held): the work that follows the clock.
++
++#if CONFIG_MAIPAI_FACE_CLOCK
++namespace {
++std::atomic<uint32_t> s_last_active{0};
++std::atomic<uint32_t> s_forced_until{0};  // 0: nobody asked for the clock
++
++uint32_t mono_s()
++{
++    return static_cast<uint32_t>(esp_timer_get_time() / 1000000);
++}
++
++struct ClockUi {
++    lv_obj_t* root     = nullptr;
++    lv_obj_t* seg[4][7] = {};
++    lv_obj_t* colon[2] = {};
++    lv_obj_t* ampm     = nullptr;
++    lv_obj_t* date     = nullptr;
++    lv_obj_t* arc      = nullptr;
++    int shown_digit[4] = {-1, -1, -1, -1};
++    int band           = -1;
++    int ring           = 0;
++} s_ui;
++
++lv_obj_t* make_bar(lv_obj_t* parent, int x, int y, int w, int h, lv_color_t colour, int radius)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_style_all(o);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);  // a touch on the clock is a touch on the face
++    lv_obj_set_pos(o, x, y);
++    lv_obj_set_size(o, w, h);
++    lv_obj_set_style_radius(o, radius, 0);
++    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++    lv_obj_set_style_bg_color(o, colour, 0);
++    return o;
++}
++
++void clock_hide()
++{
++    if (s_ui.root != nullptr) {
++        lv_obj_delete(s_ui.root);
++        s_ui = ClockUi();
++    }
++}
++
++// The clock is dimmed at night whatever the time-of-day setting says (features.md, Clock face).
++lv_color_t clock_colour(const mf_config_t& c, int band, int pct_extra)
++{
++    uint8_t r, g, b;
++    mf_foreground(&c, &r, &g, &b);
++    const int pct = mf_band_dim_pct(band) * pct_extra / 100;
++    return lv_color_make(mf_scale_channel(r, pct), mf_scale_channel(g, pct), mf_scale_channel(b, pct));
++}
++
++void clock_build(lv_obj_t* panel, const mf_config_t& c, int band)
++{
++    const mf_clock_layout_t l = mf_clock_layout(c.clock_style);
++    const lv_color_t fg       = clock_colour(c, band, 100);
++    s_ui                      = ClockUi();
++    s_ui.ring                 = l.ring;
++    s_ui.band                 = band;
++    s_ui.root                 = make_bar(panel, 0, 0, 320, 240, lv_color_black(), 0);
++    const int width           = mf_clock_width(&l);
++    const int x0              = (320 - width) / 2;
++    const int y0              = (240 - l.digit_h) / 2 - (l.ring ? 6 : 14);
++    if (l.ring) {
++        s_ui.arc = lv_arc_create(s_ui.root);
++        lv_obj_remove_flag(s_ui.arc, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_remove_style(s_ui.arc, nullptr, LV_PART_KNOB);
++        lv_obj_set_size(s_ui.arc, 224, 224);
++        lv_obj_center(s_ui.arc);
++        lv_arc_set_rotation(s_ui.arc, 270);
++        lv_arc_set_bg_angles(s_ui.arc, 0, 360);
++        lv_arc_set_range(s_ui.arc, 0, 60);
++        lv_obj_set_style_arc_width(s_ui.arc, 6, LV_PART_MAIN);
++        lv_obj_set_style_arc_width(s_ui.arc, 6, LV_PART_INDICATOR);
++        lv_obj_set_style_arc_color(s_ui.arc, clock_colour(c, band, 25), LV_PART_MAIN);
++        lv_obj_set_style_arc_color(s_ui.arc, fg, LV_PART_INDICATOR);
++    }
++    const int xs[4] = {x0, x0 + l.digit_w + l.gap, x0 + 2 * l.digit_w + l.gap + l.colon_w,
++                       x0 + 3 * l.digit_w + 2 * l.gap + l.colon_w};
++    for (int d = 0; d < 4; d++) {
++        for (int sgm = 0; sgm < 7; sgm++) {
++            int rx, ry, rw, rh;
++            mf_seg_rect(sgm, xs[d], y0, l.digit_w, l.digit_h, l.bar, &rx, &ry, &rw, &rh);
++            s_ui.seg[d][sgm] = make_bar(s_ui.root, rx, ry, rw, rh, fg, l.bar / 3);
++            lv_obj_add_flag(s_ui.seg[d][sgm], LV_OBJ_FLAG_HIDDEN);
++        }
++    }
++    const int cx = x0 + 2 * l.digit_w + l.gap + (l.colon_w - l.bar) / 2;
++    s_ui.colon[0] = make_bar(s_ui.root, cx, y0 + l.digit_h / 3 - l.bar / 2, l.bar, l.bar, fg, l.bar / 3);
++    s_ui.colon[1] = make_bar(s_ui.root, cx, y0 + 2 * l.digit_h / 3 - l.bar / 2, l.bar, l.bar, fg, l.bar / 3);
++    s_ui.date = lv_label_create(s_ui.root);
++    lv_obj_set_style_text_font(s_ui.date, &lv_font_montserrat_20, 0);
++    lv_obj_set_style_text_color(s_ui.date, clock_colour(c, band, 70), 0);
++    lv_obj_align(s_ui.date, LV_ALIGN_TOP_MID, 0, y0 + l.digit_h + 14);
++    if (!c.clock24) {
++        s_ui.ampm = lv_label_create(s_ui.root);
++        lv_obj_set_style_text_font(s_ui.ampm, &lv_font_montserrat_20, 0);
++        lv_obj_set_style_text_color(s_ui.ampm, clock_colour(c, band, 70), 0);
++        lv_obj_align(s_ui.ampm, LV_ALIGN_TOP_LEFT, x0 + width - 30, y0 - 26);
++    }
++}
++
++void clock_recolour(const mf_config_t& c, int band)
++{
++    const lv_color_t fg = clock_colour(c, band, 100);
++    for (auto& row : s_ui.seg) {
++        for (lv_obj_t* o : row) {
++            lv_obj_set_style_bg_color(o, fg, 0);
++        }
++    }
++    for (lv_obj_t* o : s_ui.colon) {
++        lv_obj_set_style_bg_color(o, fg, 0);
++    }
++    lv_obj_set_style_text_color(s_ui.date, clock_colour(c, band, 70), 0);
++    if (s_ui.ampm != nullptr) {
++        lv_obj_set_style_text_color(s_ui.ampm, clock_colour(c, band, 70), 0);
++    }
++    if (s_ui.arc != nullptr) {
++        lv_obj_set_style_arc_color(s_ui.arc, clock_colour(c, band, 25), LV_PART_MAIN);
++        lv_obj_set_style_arc_color(s_ui.arc, fg, LV_PART_INDICATOR);
++    }
++    s_ui.band = band;
++}
++
++void clock_paint(const mf_config_t& c, int band)
++{
++    if (band != s_ui.band) {
++        clock_recolour(c, band);
++    }
++    const time_t t     = time(nullptr);
++    struct tm tm_local = {};
++    localtime_r(&t, &tm_local);
++    int digits[4];
++    const int ampm = mf_clock_digits(tm_local.tm_hour, tm_local.tm_min, c.clock24, digits);
++    for (int d = 0; d < 4; d++) {
++        if (digits[d] == s_ui.shown_digit[d]) {
++            continue;
++        }
++        s_ui.shown_digit[d]  = digits[d];
++        const uint8_t mask   = mf_digit_segments(digits[d]);
++        for (int sgm = 0; sgm < 7; sgm++) {
++            if (mask & (1 << sgm)) {
++                lv_obj_remove_flag(s_ui.seg[d][sgm], LV_OBJ_FLAG_HIDDEN);
++            } else {
++                lv_obj_add_flag(s_ui.seg[d][sgm], LV_OBJ_FLAG_HIDDEN);
++            }
++        }
++    }
++    const bool dots = (tm_local.tm_sec % 2) == 0;
++    for (lv_obj_t* o : s_ui.colon) {
++        if (dots) {
++            lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++        } else {
++            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++        }
++    }
++    char line[24];
++    mf_date_line(line, sizeof(line), c.lang, tm_local.tm_wday, tm_local.tm_mday, tm_local.tm_mon);
++    if (strcmp(lv_label_get_text(s_ui.date), line) != 0) {
++        lv_label_set_text(s_ui.date, line);
++    }
++    if (s_ui.ampm != nullptr) {
++        lv_label_set_text(s_ui.ampm, ampm == MF_AMPM_PM ? "PM" : "AM");
++    }
++    if (s_ui.arc != nullptr) {
++        lv_arc_set_value(s_ui.arc, tm_local.tm_sec);
++    }
++}
++
++// The once-a-second clock work (the LVGL lock is held).
++void clock_tick(const mf_config_t& c)
++{
++    const uint32_t now = mono_s();
++    const bool standby = hal_bridge::is_xiaozhi_idle();
++    // A mute, vision-off or quiet look and a ringing timer are never covered by the clock.
++    const bool blocked = maipai_privacy_bits() != 0 || maipai_timers_ringing();
++    if (!standby || blocked) {
++        s_last_active = now;  // busy: the idle count starts again
++    }
++    mf_clock_state_t st;
++    st.last_active_s  = s_last_active.load();
++    st.forced_until_s = s_forced_until.load();
++    const int minute  = local_minute();
++    const bool want   = mf_clock_wanted(&st, now, c.clock_idle_s, standby, blocked, minute >= 0);
++    auto* face        = current_face();
++    if (!want || face == nullptr || face->getPanel() == nullptr) {
++        clock_hide();
++        return;
++    }
++    mf_config_t forced = c;
++    forced.tod         = 1;  // the clock dims at night whatever the face setting says
++    const int band     = mf_band_for_minute(&forced, minute);
++    if (s_ui.root == nullptr) {
++        clock_build(face->getPanel()->get(), c, band);
++    }
++    clock_paint(c, band);
++}
++}  // namespace
++
++bool maipai_face_touched()
++{
++    s_last_active  = mono_s();
++    s_forced_until = 0;
++    if (s_ui.root == nullptr) {
++        return false;
++    }
++    clock_hide();
++    return true;
++}
++#endif
++
+ #define MAIPAI_FACE_TICKS (CONFIG_MAIPAI_FACE_TOD || CONFIG_MAIPAI_FACE_CLOCK || CONFIG_MAIPAI_FACE_TIMERS)
+ #if MAIPAI_FACE_TICKS
+ static void face_tick(lv_timer_t*)
+@@ -251,6 +471,9 @@ static void face_tick(lv_timer_t*)
+         apply(current_face(), c);
+     }
+ #endif
++#if CONFIG_MAIPAI_FACE_CLOCK
++    clock_tick(c);
++#endif
+ }
+ #endif
+ 
+@@ -301,6 +524,29 @@ void maipai_face_register_tools()
+                     }
+                     return config_json(next);
+                 });
++#if CONFIG_MAIPAI_FACE_CLOCK
++    mcp.AddTool("self.face.show_clock",
++                "Show the clock face for a number of seconds (1 to 3600), or 0 to go back to the face now. The "
++                "clock never covers a mute, vision-off or quiet look or a ringing timer, and a touch ends it. "
++                "Answers {ok} or {ok:false,error}.",
++                PropertyList({Property("seconds", kPropertyTypeInteger, 30, 0, 3600)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const int seconds = properties["seconds"].value<int>();
++                    if (seconds <= 0) {
++                        s_last_active  = mono_s();
++                        s_forced_until = 0;
++                        return std::string("{\"ok\":true}");
++                    }
++                    if (local_minute() < 0) {
++                        return reply_error("the clock is not set yet: wait for the unit to get the time, then ask again");
++                    }
++                    if (maipai_privacy_bits() != 0 || maipai_timers_ringing()) {
++                        return reply_error("the clock does not cover a mute, vision-off or quiet look or a ringing timer: end that first");
++                    }
++                    s_forced_until = mono_s() + static_cast<uint32_t>(seconds);
++                    return std::string("{\"ok\":true}");
++                });
++#endif
+     mcp.AddTool("self.face.get_config", "Read the face settings in force and the face features this build has.",
+                 std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
+                     return config_json(maipai_face_config());
+diff --git a/firmware/main/hal/maipai_face.h b/firmware/main/hal/maipai_face.h
+index e16783e..d248a51 100644
+--- a/firmware/main/hal/maipai_face.h
++++ b/firmware/main/hal/maipai_face.h
+@@ -31,3 +31,11 @@ bool maipai_face_captions_on();
+ #else
+ inline bool maipai_face_captions_on() { return false; }
+ #endif
++
++// A touch on the face (patch F04). Returns true if it just ended the clock face; that touch is then only a wake,
++// not a tap that starts listening. The caller holds the LVGL lock.
++#if CONFIG_MAIPAI_FACE_CLOCK
++bool maipai_face_touched();
++#else
++inline bool maipai_face_touched() { return false; }
++#endif
+diff --git a/firmware/main/hal/maipai_face_clock_core.h b/firmware/main/hal/maipai_face_clock_core.h
+new file mode 100644
+index 0000000..97ce148
+--- /dev/null
++++ b/firmware/main/hal/maipai_face_clock_core.h
+@@ -0,0 +1,135 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The clock face (patch F04): the pure logic, no ESP-IDF, no clock of its own. The caller passes the
++ * time in. Header-only plain C99 so a host compiler can test it.
++ *
++ * Big digits are drawn from seven bars each, so no large font is needed and they scale cleanly. The
++ * clock face works with no host once the time is set. English and Spanish day and month names are
++ * plain ASCII (the screen font has no accents; the language pack adds them later).
++ */
++#ifndef MAIPAI_FACE_CLOCK_CORE_H
++#define MAIPAI_FACE_CLOCK_CORE_H
++
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++#include "maipai_face_core.h"
++
++/* Segment bits: a top, b top right, c bottom right, d bottom, e bottom left, f top left, g middle. */
++static const uint8_t MF_DIGIT_MASK[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
++
++#define MF_AMPM_NONE 0
++#define MF_AMPM_AM 1
++#define MF_AMPM_PM 2
++#define MF_DIGIT_BLANK 10 /* no digit: the leading zero of a 12 hour clock */
++
++/* Splits a time into the four digits. A 12 hour clock shows 12 at midnight and noon and no leading zero. */
++static inline int mf_clock_digits(int hour, int minute, int clock24, int digits[4])
++{
++    int ampm = MF_AMPM_NONE;
++    int h    = hour;
++    if (!clock24) {
++        ampm = hour >= 12 ? MF_AMPM_PM : MF_AMPM_AM;
++        h    = hour % 12;
++        if (h == 0) {
++            h = 12;
++        }
++    }
++    digits[0] = h / 10;
++    digits[1] = h % 10;
++    digits[2] = minute / 10;
++    digits[3] = minute % 10;
++    if (!clock24 && digits[0] == 0) {
++        digits[0] = MF_DIGIT_BLANK;
++    }
++    return ampm;
++}
++
++static inline uint8_t mf_digit_segments(int digit)
++{
++    return (digit >= 0 && digit <= 9) ? MF_DIGIT_MASK[digit] : 0;
++}
++
++/* The rectangle of bar `seg` (0 a to 6 g) of a digit whose box is x, y, w, h with bars t thick. h must be 3t + 2L. */
++static inline void mf_seg_rect(int seg, int x, int y, int w, int h, int t, int* rx, int* ry, int* rw, int* rh)
++{
++    const int len = (h - 3 * t) / 2;
++    switch (seg) {
++        case 0: *rx = x + t;     *ry = y;               *rw = w - 2 * t; *rh = t;   break; /* a */
++        case 1: *rx = x + w - t; *ry = y + t;           *rw = t;         *rh = len; break; /* b */
++        case 2: *rx = x + w - t; *ry = y + 2 * t + len; *rw = t;         *rh = len; break; /* c */
++        case 3: *rx = x + t;     *ry = y + 2 * t + 2 * len; *rw = w - 2 * t; *rh = t; break; /* d */
++        case 4: *rx = x;         *ry = y + 2 * t + len; *rw = t;         *rh = len; break; /* e */
++        case 5: *rx = x;         *ry = y + t;           *rw = t;         *rh = len; break; /* f */
++        default: *rx = x + t;    *ry = y + t + len;     *rw = w - 2 * t; *rh = t;   break; /* g */
++    }
++}
++
++typedef struct {
++    int digit_w, digit_h, bar, gap, colon_w; /* pixels */
++    int ring;                                /* 1: a ring around the digits */
++} mf_clock_layout_t;
++
++/* Big digits fill the screen; the ring style is smaller so the digits sit inside the ring. h = 3 bar + 2 L. */
++static inline mf_clock_layout_t mf_clock_layout(int ring_style)
++{
++    mf_clock_layout_t l;
++    if (ring_style) {
++        l.digit_w = 36; l.digit_h = 69; l.bar = 7; l.gap = 8; l.colon_w = 18; l.ring = 1;
++    } else {
++        l.digit_w = 44; l.digit_h = 87; l.bar = 9; l.gap = 10; l.colon_w = 22; l.ring = 0;
++    }
++    return l;
++}
++
++static inline int mf_clock_width(const mf_clock_layout_t* l)
++{
++    return 4 * l->digit_w + 2 * l->gap + l->colon_w;
++}
++
++static const char* const MF_WEEKDAY[2][7] = {
++    {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"},
++    {"dom", "lun", "mar", "mie", "jue", "vie", "sab"},
++};
++static const char* const MF_MONTH[2][12] = {
++    {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
++    {"ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"},
++};
++
++/* The date line: "Sun Nov 15" in English, "dom 15 nov" in Spanish (day before month). wday 0 is Sunday, mon 0 is January. */
++static inline void mf_date_line(char* out, size_t n, int lang, int wday, int mday, int mon)
++{
++    const int lg = lang == MF_LANG_ES ? 1 : 0;
++    if (wday < 0 || wday > 6 || mon < 0 || mon > 11 || mday < 1 || mday > 31) {
++        if (n > 0) {
++            out[0] = '\0';
++        }
++        return;
++    }
++    if (lg) {
++        snprintf(out, n, "%s %d %s", MF_WEEKDAY[1][wday], mday, MF_MONTH[1][mon]);
++    } else {
++        snprintf(out, n, "%s %s %d", MF_WEEKDAY[0][wday], MF_MONTH[0][mon], mday);
++    }
++}
++
++/* When the clock face shows. The clock never covers a privacy state or a ring, and any touch or activity ends it. */
++typedef struct {
++    uint32_t last_active_s; /* when the unit was last busy or touched */
++    uint32_t forced_until_s;/* a host or person asked for the clock until this time (0: not asked) */
++} mf_clock_state_t;
++
++static inline int mf_clock_wanted(const mf_clock_state_t* s, uint32_t now_s, int idle_cfg_s, int standby, int blocked,
++                                  int clock_known)
++{
++    if (!clock_known || blocked || !standby) {
++        return 0;
++    }
++    if (s->forced_until_s != 0 && now_s < s->forced_until_s) {
++        return 1;
++    }
++    return idle_cfg_s > 0 && now_s - s->last_active_s >= (uint32_t)idle_cfg_s;
++}
++
++#endif /* MAIPAI_FACE_CLOCK_CORE_H */
