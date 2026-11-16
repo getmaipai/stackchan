@@ -14,6 +14,7 @@ Private, local AI that is yours. Nothing leaves your home.
 | From | To | When | What it sends |
 |---|---|---|---|
 | Robot | Your host | Always, over your Wi-Fi | Audio while you talk, button and sensor events, and snapshots when the camera is on |
+| Robot | A public coordination service, over an encrypted connection | Only when it joins your private network away from home | What it needs to find your devices. No voice, snapshots or settings |
 | Host | The addresses you set in `llm_url`, `stt_url` and `tts_url` | Each turn | Your words, to the model and speech tools you chose |
 | Host | Your update source | Each update check, off if you choose | The firmware version only |
 | Host | MaiPai Home | Only if `brain = "home"` | Your turns and records, to your own hub |

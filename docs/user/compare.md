@@ -13,7 +13,8 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | AI agent | ★★★ | ★★★ | ★★★ | Talk to it and it answers. Ours uses a model you choose. |
 | Privacy: your conversations stay in your home | ★☆☆ | ★★☆ | ★★☆ | Built so your conversations and habits never leave your home. We have not yet proved it with a network capture, so we give two stars until we publish one. The official docs say the factory AI agent is powered by XiaoZhi and set up through the StackChan World app with an account you bind. |
 | Security: who can control the robot | TBD | ★★☆ | ★★☆ | Nobody else can take over your robot. A code you type pairs it, and you can revoke access any time. |
-| Security: the link | TBD | ★★☆ | ★★☆ | On plain home Wi-Fi the link is not encrypted yet, so we give two stars. |
+| Away from home: reach your host from any Wi-Fi | TBD | ★★☆ | ★★☆ | The robot joins your private network by itself when it cannot reach your host, using a one-time key. Not yet checked with a real join. |
+| Security: the link | TBD | ★★☆ | ★★☆ | On plain home Wi-Fi the link is not encrypted yet, so we give two stars. Away from home it travels over your private network. |
 | Speed of replies (depends on your model and hardware) | TBD | ★★☆ | ★★☆ | Wake cue under 150 ms, stop under 300 ms, and the reply starts on the first sentence. The speed of the answer depends on your model and hardware, with or without MaiPai Home. |
 | Model size and answer quality (depends on your hardware) | TBD | ★★☆ | ★★☆ | Bigger models give better answers. You can run any size your hardware allows, with or without MaiPai Home. |
 | Memory across days <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | It remembers what you told it yesterday. |

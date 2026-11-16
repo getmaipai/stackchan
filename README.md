@@ -9,7 +9,7 @@
 MaiPai for StackChan is open-source firmware and a host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot.
 What you say to it stays in your home. AI on your own computer answers, with no cloud service, no vendor account and no telemetry, and the host calls only the addresses you list in one settings file.
 
-It is faster and smoother than the factory firmware, and it adds timers, a camera that can name the people you enrol, a coding companion and a local API.
+It is faster and smoother than the factory firmware, and it works away from home, over your private network. It adds timers, a camera that can name the people you enrol, a coding companion and a local API.
 
 Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) for the full feature set: memory across days, recognising people, naming songs, the camera, watching and monitoring, find and remote control, and more.
 
@@ -28,6 +28,7 @@ MaiPai for StackChan is one thing: a private voice robot. It does a small set of
 - **[Timers and alarms](docs/user/timers-and-alarms.md):** A ring that empties as time runs out, named timers, snooze and quiet hours.
 - **[Reactions](docs/user/moves-and-moods.md):** Pickup, shake, tilt and petting, a breathing idle, tap-the-face mute, a mood that grows with care, an hourly chime and low-battery steps.
 - **[Privacy controls](docs/user/mute-and-camera-off.md):** Mute, camera off and full quiet, one tap each. [Nothing is ever monitored in secret](docs/user/no-stealth.md).
+- **[Away from home](docs/user/use-it-anywhere.md):** Reach your host from any Wi-Fi: the robot joins your private network by itself when it cannot reach your host.
 - **[Security](docs/user/security.md), [updates](docs/user/updates.md), [lights and sounds](docs/user/lights-and-sounds.md) and [languages](docs/user/languages.md):** Pairing with a code, a Wi-Fi setup page with an on-screen code, a reset on the robot, signed updates with rollback, soft tones and one light colour per meaning, English and Spanish.
 
 **More, with [MaiPai Home](docs/user/with-maipai-home.md)** (free, open source)
@@ -64,7 +65,7 @@ With your own LLM we add no content filter. The model you connect decides what t
 
 MaiPai for StackChan is pre-1.0, so expect rough edges. Tell us what you find on the Issues tab.
 
-Sound, screen looks, head petting, the setup page, the reset screen and a signed update with a real key are built but not yet checked on a robot.
+Sound, screen looks, head petting, the setup page, the reset screen and a signed update with a real key and travel over your private network are built but not yet checked on a robot.
 
 ## Get help
 

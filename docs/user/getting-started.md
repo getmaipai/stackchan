@@ -43,6 +43,8 @@ If the light bars pulse cyan slowly <img src="../images/light-cyan.svg" alt="cya
 
 It opens a setup page. Connect your phone to the network named `MaiPai-StackChan-` and four letters. The robot's screen shows a six-digit setup code. Open the page, pick your Wi-Fi, enter the password, the host address and the code. The code changes every few minutes, and five wrong tries lock that window.
 
+If you will take the robot away from home, also type a one-time key for your private network: see [Use the robot away from home](use-it-anywhere.md).
+
 ![The setup page with a list of networks.](../images/wifi-setup.svg)
 
 ## Optional

@@ -58,6 +58,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Pairing, revocable token** | Pair with a six-digit code. Revoke any time. | Robot | [Security](security.md) |
 | **Reset on the robot** | Hold a button for 3 seconds to erase Wi-Fi, pairing and settings. | Robot | [Troubleshooting](troubleshooting.md) |
 | **Signed updates with rollback** | You choose when to install. A failed start rolls back. | Robot | [Updates](updates.md) |
+| **Away from home**         | The robot joins your private network by itself when it cannot reach your host. | Robot | [Away from home](use-it-anywhere.md) |
 | **Several robots, one host** | One host serves each robot by its own ID. | Robot | [Install the host](install-the-host.md) |
 
 ## With MaiPai Home
