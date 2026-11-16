@@ -14,10 +14,11 @@ MaiPai for StackChan on its own is a simple, private voice robot. These run with
 And the features across all of MaiPai Home:
 
 - Face and voice recognition, so it knows each person.
-- Memory across days.
+- Memories: what matters is remembered from one day to the next.
 - "What is this": hold something up to the camera and hear what it is.
 - Content filtering and household rules, including rules for children and teens.
-- Custom companions, and custom and cloned voices.
+- Companions and personalities, each with their own character.
+- Custom and cloned voices: a celebrity voice, a family member's voice or a custom one.
 - Calendars, briefings and household announcements.
 - Song naming and other services that need more than one room.
 

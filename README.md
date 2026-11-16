@@ -11,7 +11,7 @@ What you say to it stays in your home. AI on your own computer answers, with no 
 
 It is faster and smoother than the factory firmware, and it works away from home, over your private network. It adds timers, a camera that can name the people you enrol, a coding companion and a local API.
 
-Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) for the full feature set: memory across days, recognising people, naming songs, the camera, watching and monitoring, find and remote control, and more.
+Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) for the full feature set: memories, companions and personalities, cloned voices, recognising people, naming songs, the camera, watching and monitoring, find and remote control, and more.
 
 [See how it compares](docs/user/compare.md) with the factory firmware, and with MaiPai Home, side by side.
 
@@ -57,7 +57,7 @@ Flash the robot from the web flasher (the build is trimmed: Bluetooth is off and
 
 ### With MaiPai Home
 
-[MaiPai Home](docs/user/with-maipai-home.md) adds the full feature set: memory across days, recognising people, naming songs, the camera, watching and monitoring, and household rules.
+[MaiPai Home](docs/user/with-maipai-home.md) adds the full feature set: memories, companions and personalities, cloned voices, recognising people, naming songs, the camera, watching and monitoring, and household rules.
 Set `brain = "home"` and run `stackchan check`.
 
 

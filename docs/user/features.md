@@ -95,10 +95,10 @@ All of these need a MaiPai Home hub. Set `brain = "home"` to use them: [Use MaiP
 | **Local API, event stream, MQTT** | Wire the robot to your own tools and home automation, all off by default. | <span class="home-tag">Needs MaiPai Home</span> | [Home tools](home-tools.md) |
 | **Home-automation bridge and metrics** | Trigger scenes and chart the robot. | <span class="home-tag">Needs MaiPai Home</span> | [Home tools](home-tools.md) |
 | **Face and voice recognition** | It knows each person by face and by voice. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
-| **Memory across days** | It remembers what matters from one day to the next. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
+| **Memories** | What matters is remembered from one day to the next: people, preferences, events and things you told it. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
 | **Content filtering and household rules** | Rules for the whole home, including children and teens. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
-| **Custom companions** | Different characters for different people. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
-| **Custom and cloned voices** | Pick or make the voice it speaks with. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
+| **Companions and personalities** | Different characters with their own personality, for different people or moods. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
+| **Custom and cloned voices** | Speak in a voice you choose or make: a celebrity voice, a family member's voice or a custom one. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
 | **Calendars, briefings and announcements** | Daily briefings and household announcements. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
 | **Song naming** | "What song is this" names the song and the artist. | <span class="home-tag">Needs MaiPai Home</span> | [Music and dance](music-and-dance.md) |
 

@@ -34,7 +34,7 @@ Use it when:
   - A baby or pet monitor.
   - Finding it, and controlling it remotely: beep, lights, talk, pan and tilt.
   - A coding companion.
-- You want extras across all of MaiPai Home: face and voice recognition, memory, content filtering, custom companions, custom and cloned voices, calendars and household rules.
+- You want extras across all of MaiPai Home: face and voice recognition, memories, content filtering, companions and personalities, custom and cloned voices, calendars and household rules.
 
 Start with [Use MaiPai Home as the brain](with-maipai-home.md).
 
