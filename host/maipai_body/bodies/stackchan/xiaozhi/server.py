@@ -89,6 +89,7 @@ class XiaozhiDeviceClient:
         self.server = server
         self.timeout = timeout
         self._failure_logged: dict[str, float] = {}
+        self._no_face_background = False
 
     def get_head_angles(self) -> dict[str, int]:
         result = self._call("self.robot.get_head_angles", {})
@@ -135,7 +136,19 @@ class XiaozhiDeviceClient:
         return self._call("self.screen.set_brightness", {"brightness": brightness})
 
     def set_face_background(self, palette: str, night: bool) -> object:
-        return self._call("self.screen.set_face_background", {"palette": palette, "night": night})
+        # The face palette tool is a Home-preset extra the v1 firmware does not carry. A unit that
+        # answers "unknown tool" is asked once; after that the call is skipped and counted as done,
+        # so the night edge (brightness, lights) still applies.
+        if self._no_face_background:
+            return {"supported": False}
+        try:
+            return self._call(
+                "self.screen.set_face_background", {"palette": palette, "night": night}
+            )
+        except NotSupported:
+            self._no_face_background = True
+            LOG.info("StackChan firmware has no set_face_background tool; the face colour stays as flashed")
+            return {"supported": False}
 
     def set_idle_motion(self, enabled: bool) -> object:
         return self._call("self.robot.set_idle_motion", {"enabled": enabled})

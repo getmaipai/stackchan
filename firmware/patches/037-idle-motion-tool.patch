@@ -1,0 +1,158 @@
+# Intent: stillness is the default (owner request 2026-10-20): the idle head movement starts OFF at boot, and the host sets it with self.robot.set_idle_motion {enabled}; the choice is saved in NVS (only on a change) and read at boot. The idle face expression no longer depends on the head motion modifier.
+# Placement: unit (the head and the face run on the robot)
+# Upstream: firmware/main/hal/board/stackchan_display.{h,cc}, hal/board/hal_bridge.{h,cc}, hal/hal_mcp.cpp (MIT)
+diff --git a/firmware/main/hal/board/hal_bridge.cc b/firmware/main/hal/board/hal_bridge.cc
+index 4e9a258..263b12e 100644
+--- a/firmware/main/hal/board/hal_bridge.cc
++++ b/firmware/main/hal/board/hal_bridge.cc
+@@ -93,6 +93,12 @@ void disply_lvgl_lock()
+     display->LvglLock();
+ }
+ 
++void display_set_idle_motion_enabled(bool enabled)
++{
++    auto display = static_cast<DISPLAY_TYPE*>(Board::GetInstance().GetDisplay());
++    display->SetIdleMotionEnabled(enabled);
++}
++
+ void disply_lvgl_unlock()
+ {
+     auto display = static_cast<DISPLAY_TYPE*>(Board::GetInstance().GetDisplay());
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+index 9f28e13..494c974 100644
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -45,6 +45,7 @@ void toggle_xiaozhi_chat_state();
+ void disply_lvgl_lock();
+ void disply_lvgl_unlock();
+ lv_disp_t* display_get_lvgl_display();
++void display_set_idle_motion_enabled(bool enabled);
+ 
+ void xiaozhi_board_init();
+ void start_xiaozhi_app();
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index 64fadf5..a0572c0 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -328,6 +328,12 @@ void StackChanAvatarDisplay::SetupUI()
+ 
+     auto config        = hal_bridge::get_xiaozhi_config();
+     idle_motion_level_ = config.idleRandomMovementLevel;
++    {
++        // Stillness is the default: a reboot, a reconnect or a lost host message never starts the
++        // head wandering. The host's set_idle_motion choice is saved and read here.
++        Settings motion_settings("xiaozhi", false);
++        idle_motion_enabled_ = motion_settings.GetInt("idle_motion", 0) != 0;
++    }
+ 
+     // Boot cover: hides the screen until the device is ready
+     boot_cover_ = lv_obj_create(lv_screen_active());
+@@ -651,6 +657,28 @@ void StackChanAvatarDisplay::LvglUnlock()
+     Unlock();
+ }
+ 
++void StackChanAvatarDisplay::SetIdleMotionEnabled(bool enabled)
++{
++    // The host's choice is saved (only when it changes, to spare the flash) and read again at boot.
++    if (idle_motion_enabled_ != enabled) {
++        Settings motion_settings("xiaozhi", true);
++        motion_settings.SetInt("idle_motion", enabled ? 1 : 0);
++    }
++    idle_motion_enabled_ = enabled;
++    auto& stackchan      = GetStackChan();
++    if (!enabled) {
++        if (idle_motion_modifier_id_ >= 0) {
++            stackchan.removeModifier(idle_motion_modifier_id_);
++            idle_motion_modifier_id_ = -1;
++        }
++        return;
++    }
++    if (idle_motion_modifier_id_ < 0 && idle_motion_level_ > 0 && !is_sleeping_ && !quiet_face_ &&
++        hal_bridge::is_xiaozhi_idle()) {
++        CreateIdleMotionModifier();
++    }
++}
++
+ void StackChanAvatarDisplay::CreateIdleMotionModifier()
+ {
+     auto& stackchan = GetStackChan();
+@@ -1104,12 +1132,12 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
+     }
+ 
+     if (is_idle) {
+-        // Start idle motion
++        // Start idle motion (only when the host or the saved choice allows it; stillness is the default)
+         ESP_LOGW(TAG, "Start idle motion");
+-        if (idle_motion_modifier_id_ < 0) {
+-            if (idle_motion_level_ > 0) {
+-                CreateIdleMotionModifier();
+-            }
++        if (idle_motion_modifier_id_ < 0 && idle_motion_enabled_ && idle_motion_level_ > 0) {
++            CreateIdleMotionModifier();
++        }
++        if (idle_expression_modifier_id_ < 0) {
+             idle_expression_modifier_id_ = stackchan.addModifier(std::make_unique<IdleExpressionModifier>());
+         }
+ 
+@@ -1120,16 +1148,12 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
+         if (idle_motion_modifier_id_ >= 0) {
+             stackchan.removeModifier(idle_motion_modifier_id_);
+             idle_motion_modifier_id_ = -1;
++        }
++        if (idle_expression_modifier_id_ >= 0) {
+             stackchan.removeModifier(idle_expression_modifier_id_);
+             idle_expression_modifier_id_ = -1;
+         }
+ 
+-        // if (!is_listening) {
+-        //     // Return to default pose
+-        //     motion.pitchServo().moveWithSpeed(200, 350);
+-        //     motion.yawServo().moveWithSpeed(0, 350);
+-        // }
+-
+         _is_xiaozhi_idle = false;
+     }
+ 
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+index 701669d..b3ce988 100644
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -25,6 +25,7 @@ private:
+     lv_obj_t* quiet_marker_             = nullptr;
+     lv_timer_t* cue_timer_              = nullptr;
+     uint8_t idle_motion_level_          = 2;
++    bool idle_motion_enabled_           = false;  // still by default; the saved choice is read at boot
+ 
+     lv_obj_t* preview_image_                         = nullptr;
+     esp_timer_handle_t preview_timer_                = nullptr;
+@@ -77,6 +78,7 @@ public:
+     virtual void SetStatus(const char* status) override;
+     virtual void ShowNotification(const char* notification, int duration_ms = 3000) override;
+ 
++    void SetIdleMotionEnabled(bool enabled);
+     void LvglLock();
+     void LvglUnlock();
+     // The face looks of mute, vision off and full quiet (patch 105). The caller holds the LVGL lock.
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 23887ae..cd1bd62 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -454,6 +454,18 @@ void Hal::xiaozhi_mcp_init()
+                            return true;
+                        });
+ 
++    mclog::tagInfo(_tag, "add robot.set_idle_motion tool");
++    mcp_server.AddTool("self.robot.set_idle_motion",
++                       "Turn the idle random head movement on or off. The choice is saved; off stops it at once and is the default.",
++                       PropertyList({Property("enabled", kPropertyTypeBoolean, true)}),
++                       [this](const PropertyList& properties) -> ReturnValue {
++                           bool enabled = properties["enabled"].value<bool>();
++                           mclog::tagInfo(_tag, "set_idle_motion: {}", enabled);
++                           LvglLockGuard lock;
++                           hal_bridge::display_set_idle_motion_enabled(enabled);
++                           return true;
++                       });
++
+     mclog::tagInfo(_tag, "add robot.dance tool");
+     mcp_server.AddTool("self.robot.dance",
+                        "Play one of the robot's built-in dances once, then return to normal. Names: happy, robot, panic, look_around.",

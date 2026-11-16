@@ -1,0 +1,24 @@
+# Intent: the host keeps the unit awake: self.power.keep_awake restarts the idle timers (screen sleep and shutdown); the host calls it about once a minute while the hub link is up. The bridge call already exists in the base.
+# Placement: unit (the idle timers run on the robot)
+# Upstream: firmware/main/hal/hal_mcp.cpp (MIT)
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index cd1bd62..2b0441f 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -466,6 +466,16 @@ void Hal::xiaozhi_mcp_init()
+                            return true;
+                        });
+ 
++    mclog::tagInfo(_tag, "add power.keep_awake tool");
++    mcp_server.AddTool("self.power.keep_awake",
++                       "Restart the idle timers: the host is reachable, so the unit must not sleep or power itself off "
++                       "for being idle. Send it about once a minute.",
++                       PropertyList(),
++                       [](const PropertyList&) -> ReturnValue {
++                           hal_bridge::power_keep_awake();
++                           return true;
++                       });
++
+     mclog::tagInfo(_tag, "add robot.dance tool");
+     mcp_server.AddTool("self.robot.dance",
+                        "Play one of the robot's built-in dances once, then return to normal. Names: happy, robot, panic, look_around.",

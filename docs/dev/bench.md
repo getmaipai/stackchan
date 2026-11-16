@@ -1,0 +1,5 @@
+# StackChan bench
+
+Start a local testing console with `stackchan bench`. It binds to `127.0.0.1:9790` and does not need a password. Use `stackchan bench --sim` to exercise the page without a connected unit. Use `--host` and `--port` to select another address; a non-loopback address requires `--token SECRET`, which the page sends as a bearer token for API writes.
+
+The page shows unit status and the raw reported MCP tool list. Lights offers pixel, side and full-ring controls, brightness, off and animation controls. Meaning colors are reference only and are not applied remotely. Face offers the built-in face names, caption, look direction and night and clock controls. Head and body offers bounded pan and tilt, home, dance, nod and touch simulation. Sound offers earcons, volume and typed speech. Privacy controls change mute, camera and quiet cues; the page never opens the camera or microphone. The generic tool caller exposes the unit's reported schema and raw reply, with dangerous tools hidden until enabled and requiring the word `CONFIRM`. The log keeps the latest 200 calls and can be copied, saved as JSON, or replayed.

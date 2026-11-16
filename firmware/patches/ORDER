@@ -48,4 +48,7 @@ S01-core-trim.patch
 049-stop-word.patch
 094-timer-stop-word.patch
 105-face-touch-toggles.patch
+037-idle-motion-tool.patch
+074-keep-awake-tool.patch
+116-sound-policy-tools.patch
 143-offline-label-after-45-s.patch

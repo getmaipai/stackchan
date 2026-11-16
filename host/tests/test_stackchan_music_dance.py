@@ -1213,3 +1213,21 @@ def test_a_turn_stops_a_running_dance_at_once():
     world.second(MUSIC)
     assert not world.dancing
     assert {a for _, n, a in world.calls if n == "stop_dance"} == {"a turn"}
+
+
+def test_a_unit_without_the_music_tool_is_asked_once_and_then_left_alone():
+    from maipai_body.hal.errors import NotSupported
+
+    calls: list[str] = []
+
+    def call(tool: str, arguments: dict) -> object:
+        calls.append(tool)
+        raise NotSupported("Unknown tool: self.music.set")
+
+    from maipai_body.bodies.stackchan.music_dance_wiring import MusicFeatureSwitch
+
+    switch = MusicFeatureSwitch(call, auto=lambda: True, silenced=lambda: False)
+    switch.sync()
+    switch.sync(force=True)
+    switch.on_session()
+    assert calls == ["self.music.set"]

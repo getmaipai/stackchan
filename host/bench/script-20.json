@@ -1,0 +1,107 @@
+[
+  {
+    "id": "short-01",
+    "kind": "short",
+    "prompt": "What time is it?"
+  },
+  {
+    "id": "short-02",
+    "kind": "short",
+    "prompt": "Set a timer for one minute."
+  },
+  {
+    "id": "short-03",
+    "kind": "short",
+    "prompt": "What is today’s date?"
+  },
+  {
+    "id": "short-04",
+    "kind": "short",
+    "prompt": "Say hello."
+  },
+  {
+    "id": "short-05",
+    "kind": "short",
+    "prompt": "How is the weather usually measured?"
+  },
+  {
+    "id": "short-06",
+    "kind": "short",
+    "prompt": "Count to five."
+  },
+  {
+    "id": "short-07",
+    "kind": "short",
+    "prompt": "Turn the lights blue."
+  },
+  {
+    "id": "short-08",
+    "kind": "short",
+    "prompt": "What is two plus two?"
+  },
+  {
+    "id": "short-09",
+    "kind": "short",
+    "prompt": "Tell me a short joke."
+  },
+  {
+    "id": "short-10",
+    "kind": "short",
+    "prompt": "Set a timer for thirty seconds."
+  },
+  {
+    "id": "medium-01",
+    "kind": "medium",
+    "prompt": "Explain how a bicycle stays balanced in two sentences."
+  },
+  {
+    "id": "medium-02",
+    "kind": "medium",
+    "prompt": "Give me three ideas for a quiet afternoon."
+  },
+  {
+    "id": "medium-03",
+    "kind": "medium",
+    "prompt": "Describe the steps for making a cup of tea."
+  },
+  {
+    "id": "medium-04",
+    "kind": "medium",
+    "prompt": "Why do leaves change color in autumn?"
+  },
+  {
+    "id": "medium-05",
+    "kind": "medium",
+    "prompt": "Compare a timer and an alarm in two sentences."
+  },
+  {
+    "id": "interrupt-01",
+    "kind": "interrupt",
+    "prompt": "Tell me a story about a curious robot.",
+    "interrupt_after_s": 2.0
+  },
+  {
+    "id": "interrupt-02",
+    "kind": "interrupt",
+    "prompt": "Explain how rain forms in a few sentences.",
+    "interrupt_after_s": 2.0
+  },
+  {
+    "id": "interrupt-03",
+    "kind": "interrupt",
+    "prompt": "Describe a trip through a forest.",
+    "interrupt_after_s": 2.0
+  },
+  {
+    "id": "interrupt-04",
+    "kind": "interrupt",
+    "prompt": "Give me a long list of ways to relax.",
+    "interrupt_after_s": 2.0
+  },
+  {
+    "id": "interrupt-05",
+    "kind": "interrupt",
+    "prompt": "Tell me about the planets one by one.",
+    "interrupt_after_s": 2.0
+  }
+]

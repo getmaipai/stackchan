@@ -32,6 +32,7 @@ from maipai_body.bodies.stackchan.music_dance import (
 )
 from maipai_body.bodies.stackchan.music_identify import MusicIdentify, MusicIdentifyHooks
 from maipai_body.bodies.stackchan.song_title import TitleKeeper, TitleSituation
+from maipai_body.hal.errors import NotSupported
 
 logger = logging.getLogger("maipai_body.bodies.stackchan.music_dance_wiring")
 
@@ -67,6 +68,7 @@ class MusicFeatureSwitch:
         self._silenced = silenced
         self._clock = clock
         self._sent: bool | None = None
+        self._unsupported = False
         self._failed_at = float("-inf")
         self._lock = threading.Lock()
 
@@ -86,8 +88,15 @@ class MusicFeatureSwitch:
                 return
             if self._sent is None and now - self._failed_at < SWITCH_RETRY_S and not force:
                 return
+            if self._unsupported:
+                return
             try:
                 self._call(SWITCH_TOOL, {"enabled": want})
+            except NotSupported:
+                # The v1 firmware has no music analysis (a Home-preset extra): stop asking.
+                self._unsupported = True
+                logger.info("StackChan firmware has no music feature switch; music dance stays off")
+                return
             except Exception:
                 self._failed_at = now
                 self._sent = None

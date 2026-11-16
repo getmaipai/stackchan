@@ -1,0 +1,253 @@
+# Intent: the unit judges its own sounds by a saved policy: self.audio.set_sound_policy {enabled, night_ok, muted, dark, quiet_from, quiet_to} (NVS namespace mp_sounds, written only on a change), self.audio.sound_info (policy, night, play counts) and self.audio.play_sound through the policy gate for the five sounds in the base image. The seven extra earcons and the offline clips are not in this build and answer missing.
+# Placement: unit (quiet hours must work with the host down, on the unit's own clock)
+# Upstream: new files hal/maipai_sounds.{h,cc}, firmware/main/hal/hal_mcp.cpp (MIT); policy logic is maipai_sounds_core.h (patch 115)
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 2b0441f..71b7a30 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -8,6 +8,7 @@
+ #include "maipai_privacy.h"
+ #include "board/hal_bridge.h"
+ #include "maipai_timers.h"
++#include "maipai_sounds.h"
+ #include "maipai_timers_core.h"
+ #include <mooncake_log.h>
+ #include <mcp_server.h>
+@@ -476,6 +477,9 @@ void Hal::xiaozhi_mcp_init()
+                            return true;
+                        });
+ 
++    // self.audio.play_sound, set_sound_policy and sound_info (patch 116).
++    maipai_sounds_register_tools();
++
+     mclog::tagInfo(_tag, "add robot.dance tool");
+     mcp_server.AddTool("self.robot.dance",
+                        "Play one of the robot's built-in dances once, then return to normal. Names: happy, robot, panic, look_around.",
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+new file mode 100644
+index 0000000..8d9dc77
+--- /dev/null
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -0,0 +1,207 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The unit's sound policy, the device side (patch 116). The decisions are the pure core in
++ * maipai_sounds_core.h. This build plays the five sounds that ship in the xiaozhi image; the seven
++ * extra earcons and the offline clips are not in this build, so they answer "missing".
++ */
++#include "maipai_sounds.h"
++#include "maipai_sounds_core.h"
++#include "maipai_privacy.h"
++#include "board/hal_bridge.h"
++#include <application.h>
++#include <assets/lang_config.h>
++#include <mcp_server.h>
++#include <esp_log.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++#include <cstdio>
++#include <ctime>
++#include <mutex>
++#include <string>
++#include <string_view>
++
++static const char* TAG        = "MAIPAI-SOUNDS";
++static const char* kNamespace = "mp_sounds";  // our own: never the websocket namespace (pairing token, Wi-Fi)
++static const char* kKey       = "v1";
++
++namespace {
++
++std::mutex s_mutex;
++ms_policy_t s_policy;
++bool s_loaded            = false;
++uint32_t s_plays_ok      = 0;
++uint32_t s_plays_refused = 0;
++
++// The unit's local minute of the day, or -1 while its clock has never been set.
++int minute_of_day()
++{
++    time_t t = time(nullptr);
++    if (t < 1700000000) {
++        return -1;
++    }
++    struct tm tm_local = {};
++    localtime_r(&t, &tm_local);
++    return tm_local.tm_hour * 60 + tm_local.tm_min;
++}
++
++void save_policy_locked()
++{
++    uint8_t buf[8];
++    buf[0] = 1;  // version
++    buf[1] = s_policy.enabled;
++    buf[2] = s_policy.night_ok;
++    buf[3] = s_policy.muted;
++    buf[4] = static_cast<uint8_t>(s_policy.quiet_from & 0xFF);
++    buf[5] = static_cast<uint8_t>((s_policy.quiet_from >> 8) & 0xFF);
++    buf[6] = static_cast<uint8_t>(s_policy.quiet_to & 0xFF);
++    buf[7] = static_cast<uint8_t>((s_policy.quiet_to >> 8) & 0xFF);
++    nvs_handle_t h;
++    if (nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) {
++        ESP_LOGW(TAG, "could not save the sound policy");
++        return;
++    }
++    if (nvs_set_blob(h, kKey, buf, sizeof(buf)) != ESP_OK || nvs_commit(h) != ESP_OK) {
++        ESP_LOGW(TAG, "could not write the sound policy");
++    }
++    nvs_close(h);
++}
++
++void load_policy_locked()
++{
++    ms_policy_default(&s_policy);
++    nvs_handle_t h;
++    if (nvs_open(kNamespace, NVS_READONLY, &h) != ESP_OK) {
++        return;
++    }
++    uint8_t buf[8];
++    size_t n = sizeof(buf);
++    if (nvs_get_blob(h, kKey, buf, &n) == ESP_OK && n == sizeof(buf) && buf[0] == 1) {
++        s_policy.enabled    = buf[1] != 0;
++        s_policy.night_ok   = buf[2] != 0;
++        s_policy.muted      = buf[3] != 0;
++        s_policy.quiet_from = static_cast<int16_t>(buf[4] | (buf[5] << 8));
++        s_policy.quiet_to   = static_cast<int16_t>(buf[6] | (buf[7] << 8));
++    }
++    nvs_close(h);
++}
++
++std::string_view sound_data(int snd)
++{
++    switch (snd) {
++        case MS_SND_SUCCESS: return Lang::Sounds::OGG_SUCCESS;
++        case MS_SND_POPUP: return Lang::Sounds::OGG_POPUP;
++        case MS_SND_VIBRATION: return Lang::Sounds::OGG_VIBRATION;
++        case MS_SND_EXCLAMATION: return Lang::Sounds::OGG_EXCLAMATION;
++        case MS_SND_LOW_BATTERY: return Lang::Sounds::OGG_LOW_BATTERY;
++        default: return std::string_view();
++    }
++}
++
++// The policy as a copy, with whether it is night now (the facts are read once, under the lock).
++void snapshot(ms_policy_t* policy, bool* night)
++{
++    std::lock_guard<std::mutex> lock(s_mutex);
++    if (!s_loaded) {
++        load_policy_locked();
++        s_loaded = true;
++    }
++    *policy = s_policy;
++    *night  = ms_is_night(&s_policy, minute_of_day(), hal_bridge::hub_link_up()) != 0;
++}
++
++}  // namespace
++
++void maipai_sounds_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.audio.play_sound",
++                "Play one of the unit's fixed sounds through the sound policy. Names: needs_you, plug_in, charged, "
++                "unplug, offline, goodbye, shutter, success, popup, vibration, exclamation, low_battery. Answers "
++                "{ok} or {ok:false,error}; this build has success, popup, vibration, exclamation and low_battery.",
++                PropertyList({Property("name", kPropertyTypeString, std::string("success")),
++                              Property("urgent", kPropertyTypeBoolean, false),
++                              Property("test", kPropertyTypeBoolean, false)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    auto name   = properties["name"].value<std::string>();
++                    const int s = ms_sound_from_name(name.c_str());
++                    const char* why = "unknown_sound";
++                    if (s >= 0) {
++                        ms_policy_t policy;
++                        bool night = false;
++                        snapshot(&policy, &night);
++                        if (maipai_muted()) {
++                            policy.muted = 1;
++                        }
++                        ms_reason_t reason = ms_decide(&policy, s, properties["urgent"].value<bool>() ? 1 : 0,
++                                                       night ? 1 : 0, properties["test"].value<bool>() ? 1 : 0);
++                        if (reason != MS_OK) {
++                            std::lock_guard<std::mutex> lock(s_mutex);
++                            s_plays_refused++;
++                            why = ms_reason_word(reason);
++                        } else {
++                            std::string_view data = sound_data(s);
++                            if (data.empty()) {
++                                why = "missing";
++                            } else {
++                                Application::GetInstance().PlaySound(data);
++                                std::lock_guard<std::mutex> lock(s_mutex);
++                                s_plays_ok++;
++                                return std::string("{\"ok\":true}");
++                            }
++                        }
++                    }
++                    return std::string("{\"ok\":false,\"error\":\"") + why + "\"}";
++                });
++    mcp.AddTool("self.audio.set_sound_policy",
++                "Set when the unit's own sounds may play. enabled: sounds on. night_ok: sounds also at night. muted: "
++                "the hard mute. dark: the host says it is night now (the light sensor); the unit trusts it only while "
++                "Home is connected. quiet_from and quiet_to: quiet hours as minutes of the unit's local day (0 to "
++                "1439, -1 for none; a window may wrap midnight). Saved in flash except dark.",
++                PropertyList({Property("enabled", kPropertyTypeBoolean, true),
++                              Property("night_ok", kPropertyTypeBoolean, false),
++                              Property("muted", kPropertyTypeBoolean, false),
++                              Property("dark", kPropertyTypeBoolean, false),
++                              Property("quiet_from", kPropertyTypeInteger, -1, -1, 1439),
++                              Property("quiet_to", kPropertyTypeInteger, -1, -1, 1439)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    std::lock_guard<std::mutex> lock(s_mutex);
++                    if (!s_loaded) {
++                        load_policy_locked();
++                        s_loaded = true;
++                    }
++                    ms_policy_t next = s_policy;
++                    next.enabled     = properties["enabled"].value<bool>() ? 1 : 0;
++                    next.night_ok    = properties["night_ok"].value<bool>() ? 1 : 0;
++                    next.muted       = properties["muted"].value<bool>() ? 1 : 0;
++                    next.dark        = properties["dark"].value<bool>() ? 1 : 0;
++                    next.quiet_from  = static_cast<int16_t>(properties["quiet_from"].value<int>());
++                    next.quiet_to    = static_cast<int16_t>(properties["quiet_to"].value<int>());
++                    const bool changed = next.enabled != s_policy.enabled || next.night_ok != s_policy.night_ok ||
++                                         next.muted != s_policy.muted || next.quiet_from != s_policy.quiet_from ||
++                                         next.quiet_to != s_policy.quiet_to;
++                    s_policy = next;
++                    if (changed) {
++                        save_policy_locked();  // only a real change touches the flash
++                    }
++                    return std::string("{\"ok\":true,\"changed\":") + (changed ? "true" : "false") + "}";
++                });
++    mcp.AddTool("self.audio.sound_info",
++                "The sound policy now, whether it is night for sounds, and the play counts since boot. This build "
++                "carries no offline clips, so clips_present is 0.",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    ms_policy_t policy;
++                    bool night = false;
++                    snapshot(&policy, &night);
++                    std::lock_guard<std::mutex> lock(s_mutex);
++                    char out[288];
++                    snprintf(out, sizeof(out),
++                             "{\"enabled\":%d,\"night_ok\":%d,\"muted\":%d,\"mute_hook\":%d,\"quiet_from\":%d,"
++                             "\"quiet_to\":%d,\"night\":%s,\"clips_present\":0,\"clips_total\":16,"
++                             "\"played\":%u,\"refused\":%u,\"clips_played\":0,\"clips_missing\":0}",
++                             policy.enabled, policy.night_ok, policy.muted, maipai_muted() ? 1 : 0, policy.quiet_from,
++                             policy.quiet_to, night ? "true" : "false", static_cast<unsigned>(s_plays_ok),
++                             static_cast<unsigned>(s_plays_refused));
++                    return std::string(out);
++                });
++}
+diff --git a/firmware/main/hal/maipai_sounds.h b/firmware/main/hal/maipai_sounds.h
+new file mode 100644
+index 0000000..5a45627
+--- /dev/null
++++ b/firmware/main/hal/maipai_sounds.h
+@@ -0,0 +1,9 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The unit's sound policy and the built-in sounds it may play (patch 116, device side).
++ */
++#pragma once
++
++// Registers self.audio.play_sound, self.audio.set_sound_policy and self.audio.sound_info.
++void maipai_sounds_register_tools();

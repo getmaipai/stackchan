@@ -567,3 +567,24 @@ def test_a_tilted_unit_does_not_read_its_sensors_for_night():
         clock.value = t
         controller.tick()
     assert device.reads == 0 and controller.night is False
+
+
+def test_a_unit_without_the_face_background_tool_is_asked_once():
+    """The v1 firmware has no face palette tool; the xiaozhi client counts it as done after one try."""
+    from maipai_body.bodies.stackchan.xiaozhi.server import XiaozhiDeviceClient
+    from maipai_body.hal.errors import NotSupported
+
+    calls: list[str] = []
+
+    class _Client(XiaozhiDeviceClient):
+        def __init__(self) -> None:
+            self._no_face_background = False
+
+        def _call(self, name, arguments):  # type: ignore[override]
+            calls.append(name)
+            raise NotSupported("Unknown tool")
+
+    client = _Client()
+    assert client.set_face_background("mint", True) == {"supported": False}
+    assert client.set_face_background("mint", False) == {"supported": False}
+    assert calls == ["self.screen.set_face_background"]
