@@ -56,29 +56,65 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **No stealth** | Every monitoring mode shows on the robot. | Robot | [No stealth](no-stealth.md) |
 | **Conversations stay in your home** | Only your host or hub is called. | Robot | [Privacy](privacy.md) |
 
-## Set up and keep safe
+## Connect
 
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
 | **Wi-Fi setup page** | A setup code on the robot screen, a short window and a lock after wrong tries. | Robot | [Getting started](getting-started.md) |
-| **Pairing, revocable token** | Pair with a six-digit code. Revoke any time. | Robot | [Security](security.md) |
-| **Network test and version screen** | Swipe up, More: a plain check of Wi-Fi, your host and the private network, and the version. | Robot | [Troubleshooting](troubleshooting.md) |
-| **Reset on the robot** | Hold a button for 3 seconds to erase Wi-Fi, pairing and settings. | Robot | [Troubleshooting](troubleshooting.md) |
-| **Signed updates with rollback** | You choose when to install. A failed start rolls back. | Robot | [Updates](updates.md) |
-| **Away from home**         | The robot joins your private network by itself when it cannot reach your host. | Robot | [Away from home](use-it-anywhere.md) |
+| **Away from home (Tailscale)** | The robot joins your private network by itself when it cannot reach your host, using a one-time key. Works from any Wi-Fi: a friend's house, a hotel, the office. | Robot | [Away from home](use-it-anywhere.md) |
 | **Several robots, one host** | One host serves each robot by its own ID. | Robot | [Install the host](install-the-host.md) |
+| **Network test and version screen** | Swipe up, More: a plain check of Wi-Fi, your host and the private network, and the version. | Robot | [Troubleshooting](troubleshooting.md) |
+| **Your own LLM or MaiPai Home** | Point the robot at any OpenAI-compatible chat address, or at a MaiPai Home hub. | Robot | [Which setup?](which-setup.md) |
 
-## With MaiPai Home
+## Set up and keep safe
 
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
-| **Seeing** | Snapshots, face follow, "take my picture", a name list, "what is this". | <span class="home-tag">Needs MaiPai Home</span> | [Camera](camera.md) |
-| **Watch and alerts** | Motion and sound alerts, a red and blue alarm and a siren. | <span class="home-tag">Needs MaiPai Home</span> | [Watch and alerts](watch-and-alerts.md) |
+| **Pairing, revocable token** | Pair with a six-digit code. Revoke any time. | Robot | [Security](security.md) |
+| **Reset on the robot** | Hold a button for 3 seconds to erase Wi-Fi, pairing and settings. | Robot | [Troubleshooting](troubleshooting.md) |
+| **Signed updates with rollback** | You choose when to install. A failed start rolls back. | Robot | [Updates](updates.md) |
+
+## With MaiPai Home
+
+All of these need a MaiPai Home hub. Set `brain = "home"` to use them: [Use MaiPai Home as the brain](with-maipai-home.md).
+
+| Feature | What it does | Runs on | Page |
+|---|---|---|---|
+| **Take my picture, snapshots** | Ask for a picture and see it on your phone. | <span class="home-tag">Needs MaiPai Home</span> | [Camera](camera.md) |
+| **Face follow, wave, mirror** | The head follows your face, waves back and mirrors you. | <span class="home-tag">Needs MaiPai Home</span> | [Camera](camera.md) |
+| **What is this** | Hold something up and hear what it is. | <span class="home-tag">Needs MaiPai Home</span> | [Camera](camera.md) |
+| **Name list** | A local list of names it can match to faces you enrol. | <span class="home-tag">Needs MaiPai Home</span> | [Camera](camera.md) |
+| **Live view** | A low-resolution live view of the room, with the pink lights on the whole time. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
+| **Watch and alerts** | Motion and sound alerts with a snapshot. | <span class="home-tag">Needs MaiPai Home</span> | [Watch and alerts](watch-and-alerts.md) |
+| **Alarm and siren** | Red and blue lights and a siren for a security alert. | <span class="home-tag">Needs MaiPai Home</span> | [Watch and alerts](watch-and-alerts.md) |
 | **Baby and pet monitor** | Listen and look from your phone. Started on the robot and always shown. | <span class="home-tag">Needs MaiPai Home</span> | [Baby and pet monitor](baby-and-pet-monitor.md) |
-| **Find it, remote control** | Beep, lights, talk, pan and tilt, live view. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
+| **Find my robot** | See where it was last seen and make it beep and flash. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
+| **Remote beep, lights, talk** | Control the robot from the web app. It always shows when someone is using it. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
+| **Remote pan and tilt** | Move the head from your phone, within a safe range. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
 | **Coding companion** | Agent status on the face, a build light, dictation and touch approvals. | <span class="home-tag">Needs MaiPai Home</span> | [Coding companion](coding-companion.md) |
-| **Home tools** | A local API, an event stream, MQTT, a home-automation bridge and metrics. | <span class="home-tag">Needs MaiPai Home</span> | [Home tools](home-tools.md) |
-| **The household** | Memory across days, recognising people, calendars, content filtering and household rules. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
+| **Local API, event stream, MQTT** | Wire the robot to your own tools and home automation, all off by default. | <span class="home-tag">Needs MaiPai Home</span> | [Home tools](home-tools.md) |
+| **Home-automation bridge and metrics** | Trigger scenes and chart the robot. | <span class="home-tag">Needs MaiPai Home</span> | [Home tools](home-tools.md) |
+| **Face and voice recognition** | It knows each person by face and by voice. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
+| **Memory across days** | It remembers what matters from one day to the next. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
+| **Content filtering and household rules** | Rules for the whole home, including children and teens. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
+| **Custom companions** | Different characters for different people. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
+| **Custom and cloned voices** | Pick or make the voice it speaks with. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
+| **Calendars, briefings and announcements** | Daily briefings and household announcements. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
+| **Song naming** | "What song is this" names the song and the artist. | <span class="home-tag">Needs MaiPai Home</span> | [Music and dance](music-and-dance.md) |
+
+## Planned
+
+Likely to come, not finished. Do not count on these yet.
+
+| Feature | What it will do | Page |
+|---|---|---|
+| **Picture faces** <span class="planned-tag">Planned</span> | Faces drawn from pictures, such as a photo-frame face. | none yet |
+| **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |
+| **Encrypted link at home** <span class="planned-tag">Planned</span> | Encrypt the robot's link to your host on your home Wi-Fi, and check it is talking to your host. | [Security](security.md) |
+| **Outside games** <span class="planned-tag">Planned</span> | Load games you or others make. Signed packs only. | [Games](games-and-pet.md) |
+| **Infrared and NFC** <span class="planned-tag">Planned</span> | Learn and send infrared, and read tags. Needs the body's pin list. | none yet |
+| **Phone as the host** <span class="planned-tag">Planned</span> | Run the host from a phone, with no computer. | [Hardware](hardware-and-models.md) |
+| **Reviewed translations** <span class="planned-tag">Planned</span> | Native-speaker review of French, German, Portuguese and Italian. | [Languages](languages.md) |
 
 ## Not included
 
