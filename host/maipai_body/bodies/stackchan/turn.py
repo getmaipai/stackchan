@@ -592,6 +592,7 @@ class StackChanTurnBridge:
         gaze_control=None,
         sight_control=None,
         repeat_control=None,
+        units=None,
         on_user_words=None,
         on_reply_mood=None,
         clock=time.monotonic,
@@ -603,6 +604,8 @@ class StackChanTurnBridge:
         self.uplink_stats = uplink_stats
         # "Louder", "volume to 60": answered here, without asking the hub.
         self.volume_control = volume_control
+        # Several robots: picks each unit's brain and volume cap by its Device-Id (units.py).
+        self.units = units
         # "Brightness 50", "dimmer": answered here too, on the same terms as the volume.
         self.brightness_control = brightness_control
         # "Look left", "nod": answered here too, since the hub's model can only say "I can't".
@@ -1000,6 +1003,15 @@ class StackChanTurnBridge:
             LOG.warning("StackChan attribution dropped: malformed person id %r", person_id)
             return None
 
+    def _turn_for(self, device_id: str, base, cookie):
+        """This unit's turn client: its own model when it chose one, else the Home turn client."""
+        if self.units is not None and self.units.has_own_llm(device_id):
+            return self.units.turn_for(device_id)
+        return self.turn_factory(base, cookie)
+
+    def _volume_cap(self, device_id: str) -> int | None:
+        return self.units.volume_cap_for(device_id) if self.units is not None else None
+
     async def _run(self, session_id: str, device_id: str, capture: StackChanAudioCapture) -> None:
         try:
             playback = StackChanAudioPlayback(
@@ -1108,7 +1120,11 @@ class StackChanTurnBridge:
 
                 command = parse_volume_command(result.text or "")
                 if command is not None:
-                    before, after = await asyncio.to_thread(self.volume_control.apply, command)
+                    cap = self._volume_cap(device_id)
+                    capped = (cap,) if cap is not None else ()
+                    before, after = await asyncio.to_thread(
+                        self.volume_control.apply, command, *capped
+                    )
                     LOG.info(
                         "StackChan voice: volume command %s (%d -> %d)", command.kind, before, after
                     )
@@ -1176,7 +1192,7 @@ class StackChanTurnBridge:
                     await asyncio.to_thread(self._say, playback, base, cookie, sight_line)
                     self._breaker.note_speech()
                     return
-            turn = self.turn_factory(base, cookie)
+            turn = self._turn_for(device_id, base, cookie)
             chat_started = self._clock()
 
             def _drain() -> list:

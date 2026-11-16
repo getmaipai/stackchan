@@ -46,7 +46,10 @@ Each refusal says what went wrong and what to do, in English or Spanish (`--lang
 
 The host serves `/settings` (local administrator only, like pairing): unit name, Wi-Fi setup status,
 host address, persona, model URL, model name and key variable name, alarms, volume cap, mute,
-firmware version, and an Update button that runs the same checks, then pushes over the air. Every
+firmware version, online state, and two buttons. "Update" runs every check and changes nothing (a
+dry run, the default). "Install update" asks for a confirm, then pushes over the air; the request
+must carry `"confirm": true`, and without a connected unit that can take the push the page refuses
+with a plain message and the USB `stackchan flash --port` fallback. Every
 unit is keyed by its Device-Id. Settings are stored in `~/.config/maipai/stackchan-units.json`; keys
 are never stored, only the name of the environment variable. `UnitSettingsStore.effective()` overlays
 a unit's values on the top-level config. English and Spanish: `?lang=es`, or the browser language.
@@ -60,12 +63,27 @@ altered or missing part, wrong preset, the 20 percent boundary, smallest-slot ch
 runner failure, over-the-air push only when newer, the CLI, the page in both languages, the HTTP
 routes and cross-origin refusal.
 
+## Live wiring (2026-11-16)
+
+The running host serves the page itself (`settings_server.py`, loopback only, port 8051, change it
+with `MAIPAI_STACKCHAN_SETTINGS_PORT`, `0` turns it off). `live_units.py` reads the live voice
+connection for each unit by its Device-Id: online state, firmware version (from the unit's
+`self.get_device_status`, or the host's one known version when a single unit is connected), and
+whether it has saved Wi-Fi networks (`self.wifi.list_saved`). The OTA push serves the image to that one
+unit and calls its `self.firmware.update` tool. Persona, model, volume cap and recurring alarms are
+read and written through `unit_settings.py` and used per unit (see "Several robots" in
+`docs/design/config.md`). The dashboard process (`python -m maipai_body.dashboard`) has no live
+connection: there the online state reads "unknown" and Install update is refused.
+
+Fixed on the way: the one-read firmware URL served `bytes.read_bytes()` and would have failed on
+the first unit download; it now serves the bytes it stored. `serve_firmware_once` and
+`call_device_tool` take an optional Device-Id so two connected units are told apart.
+
 ## Not verified or not built
 
 - No unit was flashed and no USB port was opened. esptool itself was not run.
-- The live app (`maipai_body/app.py`) does not yet hand the settings page its live unit version, Wi-Fi
-  state or OTA push, and does not yet read the per-unit persona, model, volume cap or alarms. The
-  page works against the files and pairing store; wiring those live values is the next step.
-- Over-the-air push needs a `push` callable from the running host; `FirmwareUpdater` in
-  `firmware_update.py` already serves an image once and calls the unit tool.
+- The live paths (device status, Wi-Fi list, OTA tool call) are tested with a fake voice link, not a
+  real unit. The key names in a real unit's status (`firmware_version`, `fw_version`, `app_version`,
+  `version`) are a guess until read from one.
+- The `stackchan update` CLI still pushes through the single-unit host path.
 - No release is published, so no real signature has been checked; the trusted key is not shipped.

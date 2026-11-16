@@ -12,6 +12,7 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 from maipai_body.bodies.stackchan import updater
 from maipai_body.i18n import SUPPORTED, catalog, normalize, t
@@ -57,6 +58,7 @@ class SettingsBackend:
                     "volume_cap": own.get("volume_cap", 100),
                     "muted": own.get("muted", bool(live.get("muted", False))),
                     "firmware_version": live.get("firmware_version"),
+                    "online": live.get("online"),
                 }
             )
         return {
@@ -71,8 +73,10 @@ class SettingsBackend:
             raise SettingsError("That unit is not paired. Pair it first, then open its settings.")
         return self.store.update(device_id, values)
 
-    def update(self, device_id: str, lang: str | None = None, *, dry_run: bool = False) -> str:
-        """The Update button: check the signed release, then push it over the air."""
+    def update(self, device_id: str, lang: str | None = None, *, dry_run: bool = True) -> str:
+        """The Update button: check the signed release. It only checks (dry run) unless the caller
+        passes dry_run=False after the person confirmed; then it pushes over the air, which needs
+        the host's push (a unit that is online). Without one, the refusal says what to do."""
         lang = normalize(lang or self.language)
         folder = updater.read_source(self.update_source)
         if folder is None:
@@ -94,6 +98,51 @@ class SettingsBackend:
             if unit_version and not updater.is_newer(release.version, unit_version):
                 raise updater.UpdateRefused(t(lang, "settings.update.current")) from error
             raise
+
+
+    # -- routes shared by every server that hosts the page ------------------------------------
+
+    def route_get(self, path: str, lang: str, local_admin: bool) -> tuple[int, str, bytes] | None:
+        """(status, content type, body) for a settings GET, or None when it is not a settings path."""
+        if path != "/settings" and not path.startswith("/api/stackchan/settings"):
+            return None
+        if not local_admin:
+            return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+        if path == "/settings":
+            return 200, "text/html; charset=utf-8", render_page(lang)
+        if path == "/api/stackchan/settings":
+            return 200, JSON, json.dumps(self.state(lang)).encode()
+        return 404, JSON, json.dumps({"error": "not found"}).encode()
+
+    def route_post(
+        self, path: str, body: dict[str, Any], local_admin: bool
+    ) -> tuple[int, dict[str, Any]] | None:
+        """(status, JSON payload) for a settings POST, or None when it is not a settings path.
+
+        The update route checks the release and changes nothing unless the body says
+        ``"confirm": true``."""
+        prefix = "/api/stackchan/settings/"
+        if not path.startswith(prefix):
+            return None
+        lang = normalize(str(body.get("lang", "")) or self.language)
+        if not local_admin:
+            return 403, {"error": t(lang, "settings.local_only")}
+        rest = path[len(prefix) :]
+        try:
+            if rest.endswith("/update"):
+                device_id = unquote(rest[: -len("/update")])
+                try:
+                    message = self.update(device_id, lang, dry_run=body.get("confirm") is not True)
+                except updater.UpdateRefused as error:
+                    return 422, {"error": str(error)}
+                return 200, {"message": message}
+            body = {k: v for k, v in body.items() if k not in {"lang", "confirm"}}
+            return 200, self.save(unquote(rest), body)
+        except SettingsError as error:
+            return 400, {"error": str(error)}
+
+
+JSON = "application/json"
 
 
 def render_page(lang: str | None) -> bytes:
@@ -126,6 +175,8 @@ parent.append(l,el);return el}}
 function unitCard(u){{const s=document.createElement('section');
 const h=document.createElement('h2');h.textContent=u.name;s.append(h);
 const id=document.createElement('p');id.textContent=S['settings.device_id']+': '+u.device_id;s.append(id);
+const on=document.createElement('p');
+on.textContent=S['settings.online']+': '+(u.online===null?S['settings.online.unknown']:S[u.online?'settings.online.yes':'settings.online.no']);s.append(on);
 const w=document.createElement('p');w.textContent=S['settings.wifi']+': '+S['settings.wifi.'+u.wifi];s.append(w);
 const fw=document.createElement('p');
 fw.textContent=S['settings.firmware']+': '+(u.firmware_version||S['settings.firmware.unknown']);s.append(fw);
@@ -147,8 +198,11 @@ volume_cap:parseInt(cap.value,10),muted:mute.checked,
 alarms:alarms.value.split('\\n').filter(x=>x.trim()).map(x=>{{const [time,...rest]=x.trim().split(/\\s+/);
 return {{time,label:rest.join(' ')}}}})}});
 const upd=document.createElement('button');upd.textContent=S['settings.update'];
-upd.onclick=()=>call('/api/stackchan/settings/'+encodeURIComponent(u.device_id)+'/update',{{lang:'{code}'}});
-s.append(save,' ',upd);return s}}
+const upath='/api/stackchan/settings/'+encodeURIComponent(u.device_id)+'/update';
+upd.onclick=()=>call(upath,{{lang:'{code}'}});
+const go=document.createElement('button');go.textContent=S['settings.update_confirm'];
+go.onclick=()=>{{if(confirm(S['settings.update_confirm_ask']))call(upath,{{lang:'{code}',confirm:true}})}};
+s.append(save,' ',upd,' ',go);return s}}
 async function load(){{const r=await fetch('/api/stackchan/settings?lang={code}');
 const d=await r.json();if(!r.ok){{status(d.error);return}}
 document.querySelector('#host').textContent=d.host_address;

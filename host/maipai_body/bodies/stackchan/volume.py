@@ -195,13 +195,18 @@ class VolumeControl:
             self._known = level
         return self._known if self._known is not None else DEFAULT_LEVEL
 
-    def apply(self, command: VolumeCommand) -> tuple[int, int]:
-        """Set the new level; returns (before, after). "ask" and "hint" change nothing."""
+    def apply(self, command: VolumeCommand, cap: int | None = None) -> tuple[int, int]:
+        """Set the new level; returns (before, after). "ask" and "hint" change nothing.
+
+        ``cap`` is the unit's own volume cap (0 to 100); a request above it lands on the cap.
+        """
         if command.kind in {"ask", "hint"}:
             level = self._known if self._known is not None else DEFAULT_LEVEL
             return level, level
         before = self.current()
         after = next_level(before, command)
+        if cap is not None:
+            after = min(after, cap)
         self._set_volume(after)
         self._known = after
         if command.kind != "mute" and self._on_set is not None:

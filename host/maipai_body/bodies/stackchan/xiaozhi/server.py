@@ -1206,18 +1206,31 @@ class XiaozhiServer:
             )
 
     def call_device_tool(
-        self, name: str, arguments: dict[str, object], *, timeout: float = 5.0
+        self,
+        name: str,
+        arguments: dict[str, object],
+        *,
+        timeout: float = 5.0,
+        device_id: str | None = None,
     ) -> object:
         self.refuse_on_loop(name, timeout)
         if not self._sessions:
             raise ConnectionError(
                 "No StackChan is connected. Connect and pair the robot, then retry."
             )
-        if len(self._sessions) != 1:
+        if device_id is not None:
+            websocket = self._sessions.get(device_id)
+            if websocket is None:
+                raise ConnectionError(
+                    f"StackChan {device_id[-5:]} is not connected. Check that unit's power and "
+                    "Wi-Fi, then retry."
+                )
+        elif len(self._sessions) != 1:
             raise ConnectionError(
                 "More than one StackChan is connected. Select a device before sending a command."
             )
-        device_id, websocket = next(iter(self._sessions.items()))
+        else:
+            device_id, websocket = next(iter(self._sessions.items()))
         if not self._session_authorized(device_id):
             raise PermissionError("StackChan pairing is revoked. Approve and provision it again.")
         # StackChan firmware parses MCP request ids as numeric JSON-RPC ids.
@@ -1275,9 +1288,16 @@ class XiaozhiServer:
                 capability="speaker",
                 fix="Configure the host TTS audio provider, then retry.",
             )
-        if len(self._sessions) != 1:
+        if device_id is not None:
+            if device_id not in self._sessions:
+                raise ConnectionError(
+                    f"StackChan {device_id[-5:]} is not connected. Check that unit's power and "
+                    "Wi-Fi, then retry."
+                )
+        elif len(self._sessions) != 1:
             raise ConnectionError("A single paired StackChan session is required")
-        device_id = next(iter(self._sessions))
+        else:
+            device_id = next(iter(self._sessions))
         token = uuid.uuid4().hex
         audio = asyncio.run_coroutine_threadsafe(
             self.notification_audio_handler(message), self._loop
@@ -1296,15 +1316,28 @@ class XiaozhiServer:
             root = f"http://{host}:{self.vision_port}"
         return f"{root}/notify/{device_id}/{audio_id}.ogg"
 
-    def serve_firmware_once(self, path: Any) -> str:
+    def connected_devices(self) -> list[str]:
+        """Device-Ids with an open voice session right now."""
+        return list(self._sessions)
+
+    def serve_firmware_once(self, path: Any, device_id: str | None = None) -> str:
         """Publish a local image under an unguessable, one-read URL for ten minutes.
 
         The image is a public release file, so the random one-time path is the only guard; the
         pairing token is never put in the URL (a URL ends up in logs).
         """
-        if len(self._sessions) != 1:
-            raise ConnectionError("A single paired StackChan session is required")
-        device_id = next(iter(self._sessions))
+        if device_id is not None:
+            if device_id not in self._sessions:
+                raise ConnectionError(
+                    f"StackChan {device_id[-5:]} is not connected. Check that unit's power and "
+                    "Wi-Fi, then retry."
+                )
+        elif len(self._sessions) != 1:
+            raise ConnectionError(
+                "More than one StackChan is connected, or none. Name the unit by its Device-Id."
+            )
+        else:
+            device_id = next(iter(self._sessions))
         token = uuid.uuid4().hex
         # Read now: the caller deletes its temp file as soon as the unit tool has been called.
         self._firmware_files[(device_id, token)] = (path.read_bytes(), time.monotonic() + 600)
@@ -1319,7 +1352,7 @@ class XiaozhiServer:
         entry = self._firmware_files.pop((device_id, token), None)
         if entry is None or time.monotonic() > entry[1]:
             raise web.HTTPNotFound()
-        body = await asyncio.to_thread(entry[0].read_bytes)
+        body = entry[0]  # the image bytes, read when it was published
         return web.Response(
             body=body,
             headers={"Cache-Control": "no-store"},

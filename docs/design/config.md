@@ -8,7 +8,7 @@ The host reads `~/.config/maipai/robot.toml`. On first run it copies the comment
 
 Unknown fields stop startup and name the key to correct or remove. `stackchan pair` prints a six-digit code for the unit setup page. The code expires after ten minutes, works once, and allows five attempts per source in ten minutes. On success the host creates the normal per-device token record. `stackchan status` shows the selected brain and paired device identifiers with last-seen time when available.
 
-## Several robots (design, owner question 2026-11-15; not built)
+## Several robots (design, owner question 2026-11-15; built 2026-11-16 for the host, see Status below)
 
 Today pairing already issues one token per unit, but the config has one `[llm]`, one persona and one set of settings for every unit. Several robots need per-unit settings:
 - Identity: the unit already sends its own unique id, `Device-Id` (its MAC address), plus a `Client-Id` UUID, on both links; pairing keys on them. Per-unit settings are keyed by `Device-Id`; the name is a label for people. The rebuilt firmware must keep sending both on every link (patch 007, and 011 and 063 for the face link).
@@ -20,3 +20,5 @@ Today pairing already issues one token per unit, but the config has one `[llm]`,
 - With Home, the same per-unit settings live in Home's robot settings and the host reads them; the brain choice can differ per unit (one on Home, one on its own LLM).
 - Limits: one host serves a handful of units at once (memory and model speed decide); announcements and intercom between units are Home features.
 Build: a small phase after phase 5 (config model, per-unit brain selection, per-unit history, alarm push, settings page unit picker, tests with two fake units).
+
+Status (2026-11-16). Built: `host/maipai_body/units.py` (`UnitRegistry`) picks each unit's settings by its Device-Id, with the top-level config as the default for a unit with no settings and for an unknown unit. The voice link (`StackChanTurnBridge`) uses a unit's own model and persona when that unit saved a model URL (otherwise the Home turn client, as before), applies the unit's volume cap, and keeps each unit's history in its own brain. The avatar socket reads its unit's snapshot on connect (`AvatarServer.unit_config`). Recurring alarms are pushed to the owning unit when it connects (today's still-ahead alarms, once a day, through `self.timer.alarm`). Per-unit settings are stored in `~/.config/maipai/stackchan-units.json` through the settings page. Tests: `host/tests/test_stackchan_multi_unit.py` (two fake units). Not built: the `[units.<name>]` tables in `robot.toml` (the settings page file is the one place units are set), the `stackchan name` command, the status command and bench page unit picker, and per-unit targeting of the older single-unit controls (head, light, camera, brightness), which still talk to the one connected unit and refuse when two are connected.

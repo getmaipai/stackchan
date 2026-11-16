@@ -148,6 +148,10 @@ class AvatarServer:
         self.estop_engaged = False
         self._server: Any = None
         self._sessions: dict[str, ServerConnection] = {}
+        # Several robots: set by the app to a units.UnitRegistry. Each socket reads only its own
+        # unit's settings, picked by the Device-Id the unit sent; an unknown unit gets the default.
+        self.units: Any = None
+        self.unit_config: dict[str, dict[str, Any]] = {}
         self.on_camera_frame: Any = None
         # Asked on every connect: True when the camera should already be streaming (local watching
         # is on). The body's one start at boot comes before the unit's socket exists.
@@ -249,6 +253,8 @@ class AvatarServer:
                 return
             await websocket.send(json.dumps({"type": "hello", "session_id": uuid.uuid4().hex}))
             LOG.info("StackChan avatar: connected (device %s)", device_id[-5:])
+            if self.units is not None:
+                self.unit_config[device_id] = self.units.snapshot(device_id)
             start_task = asyncio.create_task(
                 self._start_camera_until_streaming(websocket, device_id)
             )
@@ -311,6 +317,7 @@ class AvatarServer:
             self._stream_since.pop(device_id, None)
             if self._sessions.get(device_id) is websocket:
                 self._sessions.pop(device_id, None)
+                self.unit_config.pop(device_id, None)
                 self.clear_camera_frame(device_id)
                 self._camera_disconnects.setdefault(device_id, asyncio.Event()).set()
                 event = self._camera_events.get(device_id)

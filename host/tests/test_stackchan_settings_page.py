@@ -99,9 +99,13 @@ def test_update_button_checks_signed_release_then_pushes(tmp_path):
     backend = _backend(
         tmp_path, update_source=folder, public_key=public, push=lambda *a: pushed.append(a)
     )
-    assert "Update started" in backend.update(KITCHEN)
+    # The default is a dry run: everything is checked, nothing is pushed.
+    assert "Dry run" in backend.update(KITCHEN)
+    assert not pushed
+    # Only an explicit confirm pushes.
+    assert "Update started" in backend.update(KITCHEN, dry_run=False)
     assert pushed and pushed[0][0] == KITCHEN
-    assert "Actualizacion iniciada" in backend.update(KITCHEN, "es")
+    assert "Actualizacion iniciada" in backend.update(KITCHEN, "es", dry_run=False)
 
 
 def test_update_button_refusals(tmp_path):
@@ -162,6 +166,13 @@ def test_http_routes(tmp_path):
         assert status == 400 and "0 to 100" in json.loads(data)["error"]
         status, data = _call(
             server, "POST", f"/api/stackchan/settings/{KITCHEN}/update", {"lang": "en"}
+        )
+        assert status == 200 and not pushed and "Dry run" in json.loads(data)["message"]
+        status, data = _call(
+            server,
+            "POST",
+            f"/api/stackchan/settings/{KITCHEN}/update",
+            {"lang": "en", "confirm": True},
         )
         assert status == 200 and pushed
         status, data = _call(

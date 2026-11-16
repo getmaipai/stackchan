@@ -2201,6 +2201,12 @@ async def _serve_stackchan_channels(
         advertised_vision_url=os.environ.get("MAIPAI_VISION_URL"),
     )
     avatar = AvatarServer(pairing)
+    # Several robots: every unit's brain, persona, volume cap and alarms are picked by its
+    # Device-Id (units.py); an unknown unit gets the top-level settings.
+    from maipai_body.units import registry_from_disk
+
+    units = registry_from_disk()
+    avatar.units = units
     cert_path = os.environ.get("MAIPAI_XIAOZHI_TLS_CERT")
     key_path = os.environ.get("MAIPAI_XIAOZHI_TLS_KEY")
     tls_context = server_ssl_context(cert_path, key_path)
@@ -2616,6 +2622,7 @@ async def _serve_stackchan_channels(
             link,
             offline,
             repeat_control=repeat_control,
+            units=units,
             cache_dir=_default_models_cache_dir(),
             # The current /api/stt/stream contract has no speaker field.
             # This adapter consumes that field when the hub adds it; absent
@@ -2684,6 +2691,7 @@ async def _serve_stackchan_channels(
             light,
         )
     await voice.start(host, xiaozhi_port, ssl=tls_context)
+    settings_server = _start_settings_page(voice, pairing, units, behavior)
     try:
         await avatar.start(avatar_host, avatar_port, ssl=tls_context)
         scheme = "wss" if cert_path else "ws"
@@ -2703,9 +2711,69 @@ async def _serve_stackchan_channels(
             await asyncio.to_thread(behavior.start_presence, stop_event)
         await asyncio.to_thread(stop_event.wait)
     finally:
+        if settings_server is not None:
+            settings_server.stop()
         behavior.close()
         await avatar.close()
         await voice.close()
+
+
+def _start_settings_page(voice, pairing, units, behavior):
+    """Serve the core settings page from the live host (loopback, port 8051; 0 turns it off).
+
+    Also pushes each unit's own alarms to it, by Device-Id, whenever that unit connects."""
+    from maipai_body.live_units import LiveUnits
+    from maipai_body.settings_page import SettingsBackend
+
+    def push_alarms(device_id: str) -> None:
+        try:
+            units.push_alarms(
+                device_id,
+                lambda d, name, args: voice.call_device_tool(name, args, device_id=d),
+            )
+        except Exception:
+            logger.warning(
+                "could not push alarms to unit %s; they are pushed again when it reconnects",
+                device_id[-5:],
+                exc_info=True,
+            )
+
+    voice.session_listeners.append(push_alarms)
+    try:
+        port = int(os.environ.get("MAIPAI_STACKCHAN_SETTINGS_PORT", "8051"))
+    except ValueError:
+        logger.warning("MAIPAI_STACKCHAN_SETTINGS_PORT is not a port number; settings page is off")
+        return None
+    if port == 0:
+        return None
+    live = LiveUnits(
+        voice, sole_unit_version=lambda: behavior.unit_facts.snapshot().get("fw_version")
+    )
+    config = units.base
+    backend = SettingsBackend(
+        devices=pairing.paired_devices,
+        store=units.store,
+        live=live.live,
+        host_address=f"127.0.0.1:{port}",
+        update_source=config.update.source,
+        public_key=config.update.trusted_key,
+        push=live.push,
+        preset=config.update.preset,
+        language=config.home.language,
+    )
+    from maipai_body.settings_server import SettingsServer
+
+    try:
+        server = SettingsServer(backend, "127.0.0.1", port)
+    except OSError:
+        logger.warning(
+            "settings page port %d is in use; set MAIPAI_STACKCHAN_SETTINGS_PORT to a free port",
+            port,
+        )
+        return None
+    server.start()
+    logger.info("StackChan settings page on http://127.0.0.1:%d/settings", server.port)
+    return server
 
 
 def _run_stackchan_service(

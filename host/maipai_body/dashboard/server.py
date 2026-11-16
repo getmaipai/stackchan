@@ -9,7 +9,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from maipai_body import expression as _expression  # noqa: F401  (registers every body's renderer)
 from maipai_body.bodies.stackchan.xiaozhi.pairing import PairingStore
@@ -19,10 +19,9 @@ from maipai_body.expression.primitives import PRIMITIVE_NAMES
 from maipai_body.expression.suppression import SuppressionContext
 from maipai_body.hal.errors import BodyLost, NotSupported, OutOfEnvelope
 from maipai_body.hal.seam import BodyProfile
-from maipai_body.i18n import normalize, t
+from maipai_body.i18n import normalize
 from maipai_body.presence.arbitration import ArbitrationState
-from maipai_body.settings_page import SettingsBackend, render_page
-from maipai_body.unit_settings import SettingsError
+from maipai_body.settings_page import SettingsBackend
 
 from .telemetry import TelemetryPump
 
@@ -163,42 +162,18 @@ class _Handler(BaseHTTPRequestHandler):
         return normalize(accept.split(",")[0]) if accept else self.server.settings.language
 
     def _get_settings(self, path: str) -> None:
-        lang = self._lang()
-        if not self._local_admin():
-            return self._error(HTTPStatus.FORBIDDEN, t(lang, "settings.local_only"))
-        if path == "/settings":
-            return self._send(HTTPStatus.OK, render_page(lang), "text/html; charset=utf-8")
-        if path == "/api/stackchan/settings":
-            return self._json(HTTPStatus.OK, self.server.settings.state(lang))
-        self._error(HTTPStatus.NOT_FOUND, "not found")
+        routed = self.server.settings.route_get(path, self._lang(), self._local_admin())
+        if routed is None:
+            return self._error(HTTPStatus.NOT_FOUND, "not found")
+        status, content_type, body = routed
+        self._send(status, body, content_type)
 
     def _post_settings(self, path: str, body: dict[str, Any]) -> bool:
         """Handle a settings POST; returns False when the path is not a settings path."""
-        prefix = "/api/stackchan/settings/"
-        if not path.startswith(prefix):
+        routed = self.server.settings.route_post(path, body, self._local_admin())
+        if routed is None:
             return False
-        lang = normalize(str(body.get("lang", "")) or self.server.settings.language)
-        if not self._local_admin():
-            self._error(HTTPStatus.FORBIDDEN, t(lang, "settings.local_only"))
-            return True
-        rest = path[len(prefix) :]
-        try:
-            if rest.endswith("/update"):
-                from maipai_body.bodies.stackchan.updater import UpdateRefused
-
-                device_id = unquote(rest[: -len("/update")])
-                try:
-                    message = self.server.settings.update(device_id, lang)
-                except UpdateRefused as error:
-                    self._error(HTTPStatus.UNPROCESSABLE_ENTITY, str(error))
-                    return True
-                self._json(HTTPStatus.OK, {"message": message})
-            else:
-                body.pop("lang", None)
-                saved = self.server.settings.save(unquote(rest), body)
-                self._json(HTTPStatus.OK, saved)
-        except SettingsError as error:
-            self._error(HTTPStatus.BAD_REQUEST, str(error))
+        self._json(*routed)
         return True
 
     def do_POST(self) -> None:  # noqa: N802

@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -76,6 +77,12 @@ class StackChanReleaseTests(unittest.TestCase):
         env["TMPDIR"] = "/private/tmp"
         if env_extra:
             env = {**(env or os.environ), **env_extra}
+        # The scripts call a bare python3; give them the interpreter that runs this test (it has
+        # tomllib) instead of whatever the shell finds first.
+        shim = Path(tempfile.mkdtemp(prefix="py-shim-", dir="/private/tmp"))
+        self.addCleanup(shutil.rmtree, shim, ignore_errors=True)
+        (shim / "python3").symlink_to(sys.executable)
+        env = {**env, "PATH": f"{shim}{os.pathsep}{env.get('PATH', os.defpath)}"}
         return subprocess.run(["bash", str(script), *args], capture_output=True, text=True, env=env)
 
     def test_verify_rejects_a_tampered_image(self) -> None:
