@@ -67,7 +67,7 @@ With your own LLM we add no content filter. The model you connect decides what t
 
 MaiPai for StackChan is pre-1.0, so expect rough edges. Tell us what you find on the Issues tab.
 
-Sound, screen looks, head petting, the setup page, the reset screen and a signed update with a real key and travel over your private network are built but not yet checked on a robot. The new face extras, word reactions, time zone, network test and version screens have not been seen on a robot screen, no one has played the games by touch, no one has heard the offline phrases or seen the dances, the six languages are not native-reviewed, and a per-person wake phrase is stored but not matched yet.
+Sound, screen looks, the smoother eyes and your own picture faces, head petting, the setup page, the reset screen and a signed update with a real key and travel over your private network are built but not yet checked on a robot. The new face extras, word reactions, time zone, network test and version screens have not been seen on a robot screen, no one has played the games by touch, no one has heard the offline phrases or seen the dances, the six languages are not native-reviewed, and a per-person wake phrase is stored but not matched yet.
 
 ## Get help
 

@@ -21,6 +21,8 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
+| **Smoother eyes and mouth** | Eased eye moves, a smooth blink, a drifting gaze and a mouth that follows your voice. Measured 22 to 45 frames a second while the eyes move. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
+| **Your own picture faces** | Upload your own pictures on the settings page, one per look, as picture only, picture with animated eyes and mouth, or a short run of frames. Nothing leaves your home. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Faces and colour** | Eight face styles, any colour or none, optional captions. | Robot | [Face and look](face-and-look.md) |
 | **Clock and time-of-day faces** | A clock face, a face that changes with the hour, and night mode. | Robot | [Face and look](face-and-look.md) |
 | **Face extras and word reactions** | Sweat, hearts, stars and more on the face, and reactions to words like "thanks" in six languages. | Robot | [Face and look](face-and-look.md) |
@@ -108,8 +110,6 @@ Likely to come, not finished. Do not count on these yet.
 
 | Feature | What it will do | Page |
 |---|---|---|
-| **Fluid faces** <span class="planned-tag">Planned</span> | Smoother eyes and mouth: eased eye motion, a smooth blink, a drifting gaze and a mouth that follows how loud you speak. Aim: 30 frames a second, to be measured. | [Face and look](face-and-look.md) |
-| **Your own picture faces** <span class="planned-tag">Planned</span> | Upload your own pictures on the settings page, one per expression, and the robot shows them as its face. Nothing leaves your home. | [Face and look](face-and-look.md) |
 | **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |
 | **Encrypted link at home** <span class="planned-tag">Planned</span> | Encrypt the robot's link to your host on your home Wi-Fi, and check it is talking to your host. | [Security](security.md) |
 | **Outside games** <span class="planned-tag">Planned</span> | Load games you or others make. Signed packs only. | [Games](games-and-pet.md) |

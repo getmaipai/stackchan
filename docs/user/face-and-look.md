@@ -9,6 +9,10 @@ The page shows a live preview that uses the same drawing code as the robot.
 
 ![The big-eyes face and the minimal face side by side.](../images/face-styles.svg)
 
+## Smoother eyes and mouth
+
+The eyes ease from place to place, blink smoothly and drift while the robot is idle, and the mouth follows how loud the robot speaks. Measured on a robot: 22 to 45 frames a second while the eyes move (best 49), and 4 to 11 while it speaks (best 21). It reaches 30 frames a second only while something keeps moving, and a fade between looks runs at about 20. Not yet seen on a robot screen.
+
 ## Extras on the face
 
 The robot can add a small drawn extra for a few seconds: sweat, shy, dizzy, heart, anger, tears, sparkles, stars or zzz. One shows at a time. None shows while it is muted, has the camera off, is in quiet mode or a timer is ringing. Not yet seen on a robot screen.
@@ -20,6 +24,18 @@ When you say a word such as "hello", "thanks", "love", "sorry" or "good night", 
 ## Per person
 
 On the settings page, keep a name, face colour and caption size for up to 12 people, and press **Use on this unit** to apply one. A saved wake phrase per person is stored but not matched yet.
+
+## Your own pictures as the face
+
+On the settings page, pick a style and one of your own pictures for each look: neutral, happy, sad, angry, doubtful, sleepy and speaking. Press **Send to the unit**.
+
+- **Picture only** shows the picture.
+- **Picture with eyes and mouth drawn on top** adds eyes that blink and drift and a mouth that follows the robot's voice. You set where the eyes and mouth go. Use a picture without eyes and a mouth for this style.
+- **A short run of frames** plays up to 6 pictures in a loop for each look, at 1 to 12 frames a second.
+
+The robot keeps up to 14 pictures, 1,000,000 bytes after they are made smaller. If your pictures do not fit, the page says so in plain words before it sends anything: use fewer or simpler pictures. A look with no picture shows the neutral one. While the robot speaks it shows the speaking picture.
+
+Your pictures stay on your computer and go only to your robot, over your own network. Nothing is shipped with the product and nothing is uploaded anywhere else. The mute look, the camera-off look, quiet mode, the clock and a ringing timer always show instead of a picture. The robot keeps at most 3 pictures ready at a time. It keeps them in memory, so your host sends them again after a restart. Not yet seen on a robot screen.
 
 ## Face colour
 
@@ -62,20 +78,6 @@ Slide your finger along the head strip to open a small overlay. It shows volume 
 If you prefer petting on the strip, leave `strip_mode` at `petting`. Set it to `control` to use the sliders.
 
 ![The slider overlay for volume on the robot screen.](../images/quick-sliders.svg)
-
-## Planned faces
-
-Two things are in progress and not finished. We have no date.
-
-**Fluid faces** <span class="planned-tag">Planned</span> make the eyes and mouth move more smoothly: eased eye motion, a smooth blink, a drifting gaze and a mouth that follows how loud you speak. The aim is 30 frames a second. We will measure it and report the real number.
-
-**Your own picture faces** <span class="planned-tag">Planned</span> let you upload your own pictures on the settings page, one for each expression: neutral, happy, sad, angry, doubt, sleepy and speaking. Your host resizes them and sends them to the robot. Nothing ships with the project and nothing leaves your home. Each set can show:
-
-- the picture only,
-- the picture with animated eyes and mouth drawn over it, or
-- a short sequence of frames.
-
-The robot keeps at most three pictures ready at a time, because each one takes a lot of memory.
 
 ## Still need help?
 
