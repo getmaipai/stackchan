@@ -48,7 +48,6 @@ It opens a setup page. Connect your phone to the network named `MaiPai-StackChan
 ## Optional
 
 - `stackchan install-service` starts the host when the computer starts. It is off until you run it.
-- Take the robot anywhere: join your Tailscale network. See [Use it anywhere](use-it-anywhere.md).
 - `stackchan forget` removes the pairing. Use it before you give the robot away.
 - To use MaiPai Home as the brain, see [With MaiPai Home](with-maipai-home.md). You do not need it.
 

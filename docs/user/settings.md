@@ -1,6 +1,6 @@
 # Change a setting
 
-You will find the same settings in three places: the `robot.toml` file, the settings page on your host and the robot itself. Wi-Fi and the Tailscale key are set on the robot's own setup screen, not on the host's page.
+You will find the same settings in three places: the `robot.toml` file, the settings page on your host and the robot itself. Wi-Fi is set on the robot's own setup screen, not on the host's page.
 Changing a setting never needs a reflash.
 
 ## Face style (`face_style`)
@@ -57,7 +57,6 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 | `strip_mode`, `quick_sliders` | Head strip behaviour and its sliders | petting |
 | `hourly_chime`, `idle_motion` | Small behaviours | off, on |
 | `local_unmute` | Whether the robot's own face can unmute it | on |
-| `prefer_tailnet` | Minutes to try Tailscale first | 0 |
 | `update_channel`, `update_source`, `update_check`, `update_install` | Updates | stable, official, weekly, ask |
 
 Settings for the camera, watching, remote control, games and home tools live in MaiPai Home, because those features run with it.
@@ -66,7 +65,7 @@ Run `stackchan check` after any change to your addresses.
 
 ## Reset the robot
 
-Clears Wi-Fi networks, the Tailscale key, pairing and settings, after a confirmation. See [Keep the robot secure](security.md).
+Clears Wi-Fi networks, pairing and settings, after a confirmation. See [Keep the robot secure](security.md).
 
 ## More keys
 
@@ -74,7 +73,6 @@ Clears Wi-Fi networks, the Tailscale key, pairing and settings, after a confirma
 - `quick_sliders`: which sliders the head strip opens. The default is volume and brightness.
 - `hourly_chime`, `quiet_from` and `quiet_to`: a soft tone each hour, and a window when the robot dims and stays quiet.
 - `idle_motion`: turn the idle moves off.
-- `prefer_tailnet`: minutes the robot tries Tailscale first. The key itself is pasted on the Network page.
 
 ![The settings page on the host with robot status, settings, the pairing code, mute and update.](../images/web-settings.svg)
 

@@ -41,14 +41,10 @@ The robot is not reflashed. Set `brain = "llm"` to go back. Your timers, faces a
 
 MaiPai Home runs on a Mac and lists its memory sizes and disk space on its own install page. Pick the plan that matches your Mac. MaiPai Home adds features, not speed: how fast the robot answers depends on your model and hardware either way. See [Pick hardware and a model](hardware-and-models.md).
 
-## Away from home
-
-If your hub is on your Tailscale network, the robot reaches it from any Wi-Fi. Use the hub's Tailscale address as `home_url`.
-See [Use it anywhere](use-it-anywhere.md).
 
 ## What stays on the robot
 
-Timers, faces, reactions and dance work the same either way. A feature that needs a service the brain lacks hides itself.
+Timers, faces and reactions work the same either way. A feature that needs a service the brain lacks hides itself.
 
 ## Still need help?
 

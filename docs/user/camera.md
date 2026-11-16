@@ -25,13 +25,13 @@ The robot always shows when it is listening, looking or taking a picture, and no
 |---|---|---|---|
 | Listening to you | Green, steady | A microphone icon | A short rising pop when it starts |
 | Taking a picture | Pink, two flashes then steady | A camera icon | A double click |
-| Showing live view <span class="planned-tag">Planned</span> | Pink, steady, the whole time | A camera icon with a LIVE dot | A double click when it starts |
+| Showing live view | Pink, steady, the whole time | A camera icon with a LIVE dot | A double click when it starts |
 
 If the camera is off or the robot is muted, none of these show, and none of the things they describe are happening.
 
 ## Live view
 
-<span class="planned-tag">Planned</span>
+
 
 Open the web app and watch what the robot sees, live, at low resolution. The camera is small, so the picture is a smooth low-resolution view, not high definition.
 Live view only runs while the web page is open. When it starts, the robot plays a double click and the pink lights and the LIVE dot appear, and they stay on until it stops.
@@ -46,7 +46,7 @@ Without MaiPai Home, this feature is hidden. See [Use MaiPai Home as the brain](
 
 ## What do you see
 
-<span class="planned-tag">Planned</span>
+
 
 Ask "what do you see" and the robot lists the people and objects in view, such as "a table and a person", straight away, while a fuller look runs in the background.
 

@@ -53,11 +53,6 @@ It is a prompt, not a guarantee. The model you connect decides what is said.
 The robot can do things when you ask in plain words: set a timer, change the volume, show a face. The model chooses the action.
 If the model cannot call actions, the voice commands above still work.
 
-## Offline phrases
-
-<span class="planned-tag">Planned</span>
-
-Short spoken replies stored on the robot, so it still answers when the model is down, are not in the first release. Today, when the host or model is off, the screen says so and the robot stays quiet.
 
 ## Speech speed and pitch
 

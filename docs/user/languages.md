@@ -17,7 +17,7 @@ Set `language` in `robot.toml`, in the settings page on your host or on the robo
 
 - The wake word is an English phrase today. A Spanish phrase needs a trained model. Until then the English phrase works as the robot's name.
 - Spanish voice commands on the robot may not be ready. If not, say the wake word first, then the command. The host handles it.
-- Chinese, Japanese and Korean text is an optional font pack. Right-to-left screens are not planned.
+- Chinese, Japanese and Korean text is an optional font pack. Right-to-left screens are not supported.
 
 ## Still need help?
 

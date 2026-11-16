@@ -9,7 +9,7 @@
 MaiPai for StackChan is open-source firmware and a host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot.
 What you say to it stays in your home. AI on your own computer answers, with no cloud service, no vendor account and no telemetry, and the host calls only the addresses you list in one settings file.
 
-It is faster and smoother than the factory firmware, and it adds timers, a camera that can name the people you enrol, games, a coding companion and a local API. Take it on the go: it joins any Wi-Fi from its setup page, and reaching your host over Tailscale is planned.
+It is faster and smoother than the factory firmware, and it adds timers, a camera that can name the people you enrol, a coding companion and a local API.
 
 Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) for the full feature set: memory across days, recognising people, naming songs, the camera, watching and monitoring, find and remote control, and more.
 
@@ -27,9 +27,7 @@ MaiPai for StackChan is one thing: a private voice robot. It does a small set of
 - **[Faces and clock](docs/user/face-and-look.md):** Two face styles, any colour or none, time-of-day and clock faces, night mode and optional captions.
 - **[Timers and alarms](docs/user/timers-and-alarms.md):** A ring that empties as time runs out, named timers, snooze and quiet hours.
 - **[Reactions](docs/user/moves-and-moods.md):** Pickup, shake, tilt and petting, a breathing idle, tap-the-face mute, a mood that grows with care, an hourly chime and low-battery steps.
-- **[Music and dance](docs/user/music-and-dance.md):** It hears music and dances to the beat, and dances on request. <span class="planned-tag">Planned</span>
 - **[Privacy controls](docs/user/mute-and-camera-off.md):** Mute, camera off and full quiet, one tap each. [Nothing is ever monitored in secret](docs/user/no-stealth.md).
-- **[On the go](docs/user/use-it-anywhere.md):** Join any Wi-Fi from the setup page. Reaching your host over Tailscale on an encrypted link is <span class="planned-tag">Planned</span>.
 - **[Security](docs/user/security.md), [updates](docs/user/updates.md), [lights and sounds](docs/user/lights-and-sounds.md) and [languages](docs/user/languages.md):** Pairing with a code, a Wi-Fi setup page with an on-screen code, a reset on the robot, signed updates with rollback, soft tones and one light colour per meaning, English and Spanish.
 
 **More, with [MaiPai Home](docs/user/with-maipai-home.md)** (free, open source)
@@ -59,9 +57,6 @@ Flash the robot from the web flasher (the build is trimmed: Bluetooth is off and
 [MaiPai Home](docs/user/with-maipai-home.md) adds the full feature set: memory across days, recognising people, naming songs, the camera, watching and monitoring, and household rules.
 Set `brain = "home"` and run `stackchan check`.
 
-### On the go with Tailscale <span class="planned-tag">Planned</span>
-
-The plan: paste a Tailscale key on the Network page, and the robot reaches your host or hub from any Wi-Fi: [Use the robot anywhere](docs/user/use-it-anywhere.md).
 
 With your own LLM we add no content filter. The model you connect decides what the robot says.
 
@@ -69,7 +64,7 @@ With your own LLM we add no content filter. The model you connect decides what t
 
 MaiPai for StackChan is pre-1.0, so expect rough edges. Tell us what you find on the Issues tab.
 
-What is built and what is not: the robot firmware is trimmed and flashed on a test robot, and the host program works with several robots. Sound, screen looks, head petting, the setup page, the reset screen and a signed update with a real key are built but not yet checked on a robot. Dance, offline phrases, the game, the photo-frame face and Tailscale travel are planned. Features marked "Needs MaiPai Home" live in MaiPai Home.
+Sound, screen looks, head petting, the setup page, the reset screen and a signed update with a real key are built but not yet checked on a robot.
 
 ## Get help
 

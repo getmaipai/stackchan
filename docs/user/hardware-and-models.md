@@ -9,7 +9,7 @@ How well the robot answers depends on the computer and the model behind it. The 
 | How soon the first word comes after you stop talking | The wake cue and the listening light |
 | How good, correct and natural the answers are | "Stop", mute, volume and brightness |
 | Whether it follows a request like "set a timer" the right way | Timers and alarms once set, and the clock |
-| How steady it is over a long talk | Faces, reactions and the dance |
+| How steady it is over a long talk | Faces and reactions |
 | Speech in Spanish, and how it handles other languages | The camera switch and the mute switch |
 
 A small model on a modest computer answers fast and gets simple things right. A big model answers better but needs more memory and more time. The robot reacts at once either way, because those parts run on the robot.
@@ -35,15 +35,6 @@ The robot's host does not run a model itself. It asks a model server over the we
 5. **Set `llm_url`** in `robot.toml` to that address, then run `stackchan check`. You'll know it worked when the check lists the model and every line says ok.
 
 If you use a model that cannot call actions, the voice commands still work. See [If answers are slow or wrong](#if-answers-are-slow-or-wrong).
-
-## No computer? Only a phone
-
-A phone-only setup is the goal, and it is not ready yet. <span class="planned-tag">Planned</span>
-
-The robot talks to a host program, and the host turns your voice into text, asks the model, and speaks the answer. Today that host runs on a Mac, a Linux machine or a Raspberry Pi 5.
-Some iPhone apps can serve a model, but a model app alone is not enough: the robot also needs the host and the speech parts. An iPhone app could do all of it, with the phone's own speech recogniser and voice, and a model that runs on the phone. We have not found a ready-made phone app that does this, so it would be a separate app we build, not part of this one. It can serve the robot while the app is open on the screen. It cannot be counted on once the phone locks, because iOS pauses background apps. So the plan is a phone on a stand with the screen on, and the phone's hotspot case has to be tested first.
-
-Until then, the smallest setup is a Raspberry Pi 5 running the host, with the model on a phone, a laptop or a bigger computer on your network.
 
 ## Choose where the model runs
 

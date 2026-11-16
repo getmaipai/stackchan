@@ -2,12 +2,12 @@
 
 ## Does it work without the internet?
 
-Yes, once it is set up and your model runs on your own network. Voice, timers, faces, games and the camera do not need the internet.
-Update checks, Tailscale and anything you point at an outside address do.
+Yes, once it is set up and your model runs on your own network. Voice, timers, faces and the camera do not need the internet.
+Update checks and anything you point at an outside address do.
 
 ## Do I need a computer?
 
-Today, yes: a small always-on one, such as a Raspberry Pi 5, runs the host. A phone-only setup is planned and being tested. See [Pick hardware and a model](hardware-and-models.md#no-computer-only-a-phone).
+Today, yes: a small always-on one, such as a Raspberry Pi 5, runs the host. See [Pick hardware and a model](hardware-and-models.md).
 
 ## Do I need MaiPai Home?
 

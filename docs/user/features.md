@@ -2,7 +2,7 @@
 
 A tour of everything the robot does, grouped by what you want to do. Each group has its own page.
 
-**MaiPai for StackChan on its own is a simple, private voice robot.** It talks, shows a face, keeps time, reacts, dances, and keeps your things private. Anything bigger runs with MaiPai Home and carries the <span class="home-tag">Needs MaiPai Home</span> tag.
+**MaiPai for StackChan on its own is a simple, private voice robot.** It talks, shows a face, keeps time, reacts, and keeps your things private. Anything bigger runs with MaiPai Home and carries the <span class="home-tag">Needs MaiPai Home</span> tag.
 
 A feature that needs something you have not set up hides itself. You never see a raw error for it. The web settings page names what is missing.
 
@@ -15,7 +15,7 @@ Page: [Face and look](face-and-look.md).
 
 ## Talk to it
 
-Wake word, follow-up questions, interrupting, voice commands, personas and speech speed and pitch. Offline phrases <span class="planned-tag">Planned</span>.
+Wake word, follow-up questions, interrupting, voice commands, personas and speech speed and pitch.
 Page: [Voice](voice.md).
 
 ## Keep time
@@ -30,17 +30,17 @@ Page: [Mute, camera off and full quiet](mute-and-camera-off.md).
 
 ## Find it and control it remotely <span class="home-tag">Needs MaiPai Home</span>
 
-Find the robot, make it beep and flash, and control its lights and voice from the web app. <span class="planned-tag">Planned</span>
+Find the robot, make it beep and flash, and control its lights and voice from the web app.
 Page: [Find the robot and control it remotely](find-and-remote.md).
 
 ## Watch and alert <span class="home-tag">Needs MaiPai Home</span>
 
-Watch for motion and loud sounds, get an alert, and, if you want, flash red and blue and sound a siren. <span class="planned-tag">Planned</span>
+Watch for motion and loud sounds, get an alert, and, if you want, flash red and blue and sound a siren.
 Page: [Watch your room and get alerts](watch-and-alerts.md).
 
 ## Baby and pet monitor <span class="home-tag">Needs MaiPai Home</span>
 
-Watch and listen in a nursery or a pet's room, get alerts, and play lullabies or calming sounds, with a clear sign on the robot's screen. <span class="planned-tag">Planned</span>
+Watch and listen in a nursery or a pet's room, get alerts, and play lullabies or calming sounds, with a clear sign on the robot's screen.
 Page: [Use the robot as a baby or pet monitor](baby-and-pet-monitor.md).
 
 ## Let it react
@@ -48,19 +48,14 @@ Page: [Use the robot as a baby or pet monitor](baby-and-pet-monitor.md).
 Pickup, shake, tilt and petting, breathing, quiet mode, privacy sleep and the low-battery steps.
 Page: [Moves and moods](moves-and-moods.md).
 
-## Dance
-
-Dance on request <span class="planned-tag">Planned</span>, dance to music by itself <span class="planned-tag">Planned</span>, and name the song <span class="home-tag">Needs MaiPai Home</span>.
-Page: [Music and dance](music-and-dance.md).
-
 ## Let it see (opt-in) <span class="home-tag">Needs MaiPai Home</span>
 
-Snapshots, face follow, wave and mirror mode, "take my picture" and a local name list. "What do you see" <span class="planned-tag">Planned</span>. "What is this" <span class="home-tag">Needs MaiPai Home</span>.
+Snapshots, face follow, wave and mirror mode, "take my picture" and a local name list. "What do you see". "What is this" <span class="home-tag">Needs MaiPai Home</span>.
 Page: [Camera](camera.md).
 
 ## Play <span class="home-tag">Needs MaiPai Home</span>
 
-A pet mood that depends on care. A colour-memory game <span class="planned-tag">Planned</span>, an action game <span class="planned-tag">Planned</span> and music dance <span class="planned-tag">Planned</span>.
+A pet mood that depends on care.
 Page: [Games and pet](games-and-pet.md).
 
 ## Code with it <span class="home-tag">Needs MaiPai Home</span>
@@ -72,11 +67,6 @@ Page: [Coding companion](coding-companion.md).
 
 A local API, an event stream, MQTT, a home-automation bridge and metrics. All off by default.
 Page: [Home tools](home-tools.md).
-
-## Take it on the go
-
-Join your phone's hotspot or any Wi-Fi, reach your host or hub over Tailscale on an encrypted link, and remember several Wi-Fi networks.
-Page: [Use it anywhere](use-it-anywhere.md).
 
 ## Keep it current
 
@@ -90,7 +80,7 @@ Page: [With MaiPai Home](with-maipai-home.md).
 
 ## Keep it secure
 
-Pairing with a code, revocable tokens, signed updates, and an encrypted link over Tailscale.
+Pairing with a code, revocable tokens, signed updates.
 Page: [Keep the robot secure](security.md).
 
 ## Lights and sounds

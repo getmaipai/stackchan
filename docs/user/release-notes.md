@@ -2,7 +2,7 @@
 
 ## 1.0.0
 
-The first release of MaiPai for StackChan. Everything on the [Features](features.md) page is in this release unless it is marked Planned or Needs MaiPai Home.
+The first release of MaiPai for StackChan. Everything on the [Features](features.md) page is in this release unless it is marked Needs MaiPai Home.
 
 - Private by design: the robot talks only to your host or your MaiPai Home hub.
 - Voice with a wake word, follow-up questions, interrupting and a persona text.
@@ -15,13 +15,6 @@ The first release of MaiPai for StackChan. Everything on the [Features](features
 - Several robots on one host, speech speed and pitch, and a cooking persona.
 - Signed updates over Wi-Fi with rollback.
 
-### Planned, not in this release
-
-- Dance and dance to music <span class="planned-tag">Planned</span>.
-- Offline phrases on the robot <span class="planned-tag">Planned</span>.
-- Tailscale travel <span class="planned-tag">Planned</span>.
-- The first game and the photo-frame face <span class="planned-tag">Planned</span>.
-
 ### Built, not yet checked on a robot
 
 Sound, screen looks, head petting, the setup page, the reset screen and a signed update with a real key.
@@ -29,7 +22,7 @@ Sound, screen looks, head petting, the setup page, the reset screen and a signed
 ### Known gaps
 
 - No phone app, no online app downloads, no support for the factory ESP-NOW remote.
-- The link on a home network is plain until the encrypted link ships. Use Tailscale to encrypt it.
+- The link on a home network is plain until the encrypted link ships. Use a network you trust.
 - Measured speed numbers for named computers and models are still to come.
 
 ### Hardware

@@ -11,7 +11,6 @@ Short meanings for the words these docs use.
 | **Local LLM** | A language model you run on your own computer, so your words stay at home. |
 | **Wake word** | The phrase that starts a turn, such as "Hi, StackChan". |
 | **Light bars** | The two bars of six lights, one on each side of the base. |
-| **Tailscale** | A private network between your own devices. It lets the robot reach your host from any Wi-Fi. |
 | **Pairing** | Linking the robot to your host with a 6 digit code you type. |
 | **Snapshot** | A single low-resolution picture from the robot's camera. |
 | **`robot.toml`** | The one settings file the host reads. |

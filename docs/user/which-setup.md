@@ -17,7 +17,7 @@ See [Compare](compare.md).
 Use it when:
 
 - You want your conversations to stay in your home, and better privacy than you have now.
-- You want it faster and more capable: timers, reactions, dance, mute and camera-off switches.
+- You want it faster and more capable: timers, reactions, mute and camera-off switches.
 - You have, or will set up, hardware to run a model and the host: a small always-on computer such as a Raspberry Pi 5, plus a computer or phone that serves a model.
 - You are happy with a simple, focused voice robot.
 

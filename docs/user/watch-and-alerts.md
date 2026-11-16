@@ -5,7 +5,7 @@
 This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
 
-<span class="planned-tag">Planned</span>
+
 
 Turn the robot into a watch post. It notices motion and loud sounds, tells you right away, and, if you want, flashes red and blue and sounds a siren.
 It runs with MaiPai Home, which handles the alerts, the recipients and what the robot saw.

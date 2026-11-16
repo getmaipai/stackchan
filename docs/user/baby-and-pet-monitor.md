@@ -5,7 +5,7 @@
 This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
 
-<span class="planned-tag">Planned</span>
+
 
 The robot can watch and listen in a nursery or a pet's room and tell you when something needs you. It always shows on its own screen that it is doing this.
 
@@ -62,7 +62,7 @@ Songs play from your own MaiPai Home hub. The robot does not stream from an outs
 
 ## What it keeps
 
-Nothing is recorded by default, and nobody can start listening from the app. Sound and pictures stay on your MaiPai Home hub and go only to your own phone, over your home network or Tailscale. An alert carries a time, what it noticed and a snapshot.
+Nothing is recorded by default, and nobody can start listening from the app. Sound and pictures stay on your MaiPai Home hub and go only to your own phone, over your home network or your private network. An alert carries a time, what it noticed and a snapshot.
 
 ## Tell the people in your home
 

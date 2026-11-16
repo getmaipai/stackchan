@@ -5,9 +5,9 @@
 This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
 
-<span class="planned-tag">Planned</span>
 
-Open the web app to find your robot, make it beep, turn its lights on, or talk through it. This works from your phone or computer, at home or over Tailscale.
+
+Open the web app to find your robot, make it beep, turn its lights on, or talk through it. This works from your phone or computer, at home.
 Remote control is off until you turn it on, and the robot always shows when someone is using it.
 
 ## Find my robot
@@ -46,7 +46,7 @@ There is no remote listening in remote control. You can talk to the robot, but y
 ## Pan and tilt
 
 Use the arrows or the joystick in the web app, or tap a saved spot, such as "the door". Panning turns all the way around. Tilting stays within a safe range of about 5 to 85 degrees up and down, which protects the motors.
-With live view <span class="planned-tag">Planned</span>, you can look around the room the same way.
+With live view, you can look around the room the same way.
 
 Every pan or tilt writes one line to the activity log. A remote head move follows the same limits as any other move. It is refused while the robot is being carried or is blocked, and it is rate limited, so it cannot be used to wear out or jam the motors.
 
@@ -62,7 +62,7 @@ You cannot turn these cues off, and remote control needs your token, so only you
 
 ## Where it works
 
-Remote control works only from your home network or your Tailscale network. It never goes through an outside relay.
+Remote control works only from your home network or your private network. It never goes through an outside relay.
 
 If you lose the token, set a new one from the robot's own settings. The web app cannot replace it, so a stranger with web access cannot take over.
 

@@ -41,7 +41,6 @@ If you run a firewall, allow only what the host needs:
 | In | The robot | The host, on the port it prints | Voice, events and snapshots |
 | Out | The host | Your model and speech addresses | Answers and speech |
 | Out | The host | Your update source, if checking is on | The weekly version check |
-| Out | The host and robot | Tailscale, if you turn it on | Finding your devices |
 
 Nothing else needs to reach the internet. See [What stays private](privacy.md) for the full list.
 
