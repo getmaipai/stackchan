@@ -1,0 +1,160 @@
+# Intent: The unit tells the host which way is down, so the host can show the tilted, upside-down and face-down looks again (owner 2026-11-16: tilt, roll to the side and pick-up reactions worked on the build before the rebuild and are gone). Ports the orientation tracker of legacy patches 067, 071 and 072 as one change: the accelerometer is low-passed (0.5), the dominant axis counts only with a pull of at least 6.5 m/s^2 and a total between 0.8 and 1.2 g (carrying or shaking is ignored), and a new axis replaces the old pose only when it beats the signed pull in the old pose's direction by 2 and holds for five samples (a pose shows in about half a second, and turning from one ear to the other no longer locks the tracker). Each change, and once a minute while it stays, pushes an "orientation" event {axis, gx, gy, gz in milli-g}; the host maps the axis to a pose (host/maipai_body/bodies/stackchan/orientation.py). The pure logic is maipai_orient_core.h, tested by host/tests/firmware/orient_core_test.c. The screen-rotation tool of legacy 067 is left out on purpose: the host keeps SCREEN_ROTATION_ENABLED off because the panel mirror command froze the face.
+# Placement: unit (the sensor is on the unit; the host only maps the axis to a face)
+# Upstream: m5stack/StackChan firmware/main/hal/hal_imu.cpp (MIT); new hal/maipai_orient_core.h (MIT)
+# Check after a flash: leave the unit upright, read self.robot.get_events: an "orientation" event with the axis of its resting pose arrives within a second of boot; tip it onto one ear, then the other, then upright: each is an event within about a second and the host log shows the pose face; carrying it across the room makes no flurry.
+diff --git a/firmware/main/hal/hal_imu.cpp b/firmware/main/hal/hal_imu.cpp
+index a198814..ab29ed0 100644
+--- a/firmware/main/hal/hal_imu.cpp
++++ b/firmware/main/hal/hal_imu.cpp
+@@ -6,6 +6,9 @@
+ #include "hal.h"
+ #include "board/hal_bridge.h"
+ #include "maipai_heal.h"
++#include "maipai_orient_core.h"
++#include "device_events.h"
++#include <cstdio>
+ #include "drivers/bmi270/bmi270.h"
+ #include "utils/motion_detector/motion_detector.h"
+ #include <mooncake_log.h>
+@@ -22,6 +25,8 @@ static void _imu_task(void* param)
+     // m/s^2. The stock 16 needed a hard shake; a lift-and-shake by hand did not reach it.
+     constexpr float kShakeThreshold = 9.0f;
+     motion_detector->setShakeThreshold(kShakeThreshold);
++    mo_orient_t orientation;  // patch I01: which way is down, reported to the host as an "orientation" event
++    mo_init(&orientation);
+ 
+     while (1) {
+         if (_bmi270 && _bmi270->update()) {
+@@ -30,6 +35,17 @@ static void _imu_task(void* param)
+ 
+             motion_detector->update(data.accel_x, data.accel_y, data.accel_z);
+ 
++            const int pose = mo_update(&orientation, data.accel_x, data.accel_y, data.accel_z,
++                                       static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount())));
++            if (pose != MO_NONE) {
++                char extra[96];
++                snprintf(extra, sizeof(extra), "\"axis\":\"%s\",\"gx\":%d,\"gy\":%d,\"gz\":%d",
++                         mo_name(orientation.current), static_cast<int>(orientation.filt[0] * 101.97f),
++                         static_cast<int>(orientation.filt[1] * 101.97f), static_cast<int>(orientation.filt[2] * 101.97f));
++                mclog::tagInfo(_tag, "orientation {} ({})", extra, pose == MO_CHANGED ? "changed" : "still");
++                device_events_push("orientation", extra);
++            }
++
+             if (motion_detector->isShakeDetected()) {
+                 mclog::tagInfo(_tag, "Shake Detected!");
+                 GetHAL().onImuMotionEvent.emit(ImuMotionEvent::Shake);
+diff --git a/firmware/main/hal/maipai_orient_core.h b/firmware/main/hal/maipai_orient_core.h
+new file mode 100644
+index 0000000..47456c7
+--- /dev/null
++++ b/firmware/main/hal/maipai_orient_core.h
+@@ -0,0 +1,109 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Which way is down (patch I01): the pure logic, no ESP-IDF, no clock of its own. The caller passes each
++ * accelerometer sample (m/s^2, one every 100 ms) and the time in milliseconds. The pull is low-passed, the
++ * dominant axis counts only when the pull along it is at least 6.5 and the total is between 0.8 and 1.2 g
++ * (carrying or shaking is ignored), and a new axis replaces the old pose only when it beats the SIGNED pull
++ * in the old pose's direction by 2 and holds for five samples. The host maps the axis to a pose, so a wrong
++ * guess about how the sensor sits in the body is fixed there without a flash.
++ * Plain C99, header-only, compiled by a host test.
++ */
++#ifndef MAIPAI_ORIENT_CORE_H
++#define MAIPAI_ORIENT_CORE_H
++
++#include <math.h>
++#include <stdint.h>
++#include <string.h>
++
++#define MO_ALPHA 0.5f
++#define MO_MIN_PULL 6.5f
++#define MO_MARGIN 2.0f
++#define MO_MIN_MAG 7.8f
++#define MO_MAX_MAG 11.8f
++#define MO_HOLD_SAMPLES 5
++#define MO_REPEAT_MS 60000u
++
++#define MO_NONE 0
++#define MO_CHANGED 1
++#define MO_STILL 2
++
++typedef struct {
++    float filt[3];
++    int primed;
++    int current;   /* 0..5 = +x -x +y -y +z -z, -1 before the first pose */
++    int candidate; /* the axis being waited on, -1 none */
++    int hold;
++    uint32_t reported_ms;
++} mo_orient_t;
++
++static inline void mo_init(mo_orient_t* o)
++{
++    memset(o, 0, sizeof(*o));
++    o->current   = -1;
++    o->candidate = -1;
++}
++
++static inline const char* mo_name(int idx)
++{
++    static const char* const names[] = {"+x", "-x", "+y", "-y", "+z", "-z"};
++    return (idx >= 0 && idx < 6) ? names[idx] : "?";
++}
++
++/* Returns MO_CHANGED when a new pose has settled, MO_STILL once a minute while it stays, else MO_NONE. */
++static inline int mo_update(mo_orient_t* o, float x, float y, float z, uint32_t now_ms)
++{
++    const float in[3] = {x, y, z};
++    for (int i = 0; i < 3; i++) {
++        o->filt[i] = o->primed ? o->filt[i] + MO_ALPHA * (in[i] - o->filt[i]) : in[i];
++    }
++    o->primed = 1;
++    const float mag = sqrtf(o->filt[0] * o->filt[0] + o->filt[1] * o->filt[1] + o->filt[2] * o->filt[2]);
++    if (mag < MO_MIN_MAG || mag > MO_MAX_MAG) {
++        o->hold = 0;
++        return MO_NONE;
++    }
++    int axis = 0;
++    for (int i = 1; i < 3; i++) {
++        if (fabsf(o->filt[i]) > fabsf(o->filt[axis])) {
++            axis = i;
++        }
++    }
++    const float pull = fabsf(o->filt[axis]);
++    const int idx    = axis * 2 + (o->filt[axis] < 0 ? 1 : 0);
++    if (pull < MO_MIN_PULL) {
++        o->hold = 0;
++        return MO_NONE;
++    }
++    if (idx == o->current) {
++        o->hold = 0;
++        if ((uint32_t)(now_ms - o->reported_ms) >= MO_REPEAT_MS) {
++            o->reported_ms = now_ms;
++            return MO_STILL;
++        }
++        return MO_NONE;
++    }
++    if (o->current >= 0) {
++        /* Positive while the unit stays in its pose, negative once it has turned to the opposite side. */
++        const int cur_axis    = o->current / 2;
++        const float cur_sign  = (o->current % 2 == 0) ? 1.0f : -1.0f;
++        const float cur_value = o->filt[cur_axis] * cur_sign;
++        if (pull < cur_value + MO_MARGIN) {
++            o->hold = 0;
++            return MO_NONE;
++        }
++    }
++    if (idx != o->candidate) {
++        o->candidate = idx;
++        o->hold      = 0;
++    }
++    if (++o->hold >= MO_HOLD_SAMPLES) {
++        o->current     = idx;
++        o->hold        = 0;
++        o->reported_ms = now_ms;
++        return MO_CHANGED;
++    }
++    return MO_NONE;
++}
++
++#endif

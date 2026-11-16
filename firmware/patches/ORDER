@@ -105,3 +105,4 @@ H01-face-bench-tools.patch
 H02-face-fluid-motion.patch
 H03-picture-face-core.patch
 H04-picture-face-unit.patch
+I01-orientation-event.patch
