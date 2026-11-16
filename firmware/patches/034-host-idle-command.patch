@@ -1,0 +1,21 @@
+# Intent: Let the host end a silent follow-up by returning listening or speaking to idle.
+# Placement: unit (voice state control)
+# Upstream: 78/xiaozhi-esp32 firmware source (MIT).
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index b5fd51f..eb839ea 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -702,6 +702,13 @@ void Application::InitializeProtocol() {
+                 if (strcmp(command->valuestring, "reboot") == 0) {
+                     // Do a reboot if user requests a OTA update
+                     Schedule([this]() { Reboot(); });
++                } else if (strcmp(command->valuestring, "idle") == 0) {
++                    Schedule([this]() {
++                        auto state = GetDeviceState();
++                        if (state == kDeviceStateListening || state == kDeviceStateSpeaking) {
++                            SetDeviceState(kDeviceStateIdle);
++                        }
++                    });
+                 } else {
+                     ESP_LOGW(TAG, "Unknown system command: %s", command->valuestring);
+                 }

@@ -1,0 +1,77 @@
+# Intent: Remove BLE transport code and preserve callable settings state without Bluetooth.
+# Placement: unit (Bluetooth transport disabled)
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+index d118f7e..0c0b44b 100644
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -23,6 +23,7 @@ file(GLOB_RECURSE STACK_CHAN_SOURCES
+     "stackchan/*.cc"
+     "stackchan/*.cpp"
+ )
++list(FILTER STACK_CHAN_SOURCES EXCLUDE REGEX "/hal/(hal_ble\.cpp$|utils/bleprph/)")
+ set(STACK_CHAN_INCLUDE_DIRS 
+     "."
+ )
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+index 0c0b44b..ada669d 100644
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -23,6 +23,7 @@ file(GLOB_RECURSE STACK_CHAN_SOURCES
+     "stackchan/*.cc"
+     "stackchan/*.cpp"
+ )
++# Omit BLE transport code from this firmware build.
+ list(FILTER STACK_CHAN_SOURCES EXCLUDE REGEX "/hal/(hal_ble\.cpp$|utils/bleprph/)")
+ set(STACK_CHAN_INCLUDE_DIRS 
+     "."
+diff --git a/firmware/main/hal/maipai_bt_disabled.cpp b/firmware/main/hal/maipai_bt_disabled.cpp
+new file mode 100644
+index 0000000..d4f4704
+--- /dev/null
++++ b/firmware/main/hal/maipai_bt_disabled.cpp
+@@ -0,0 +1,32 @@
++#include "hal.h"
++
++#include <esp_log.h>
++
++#include "settings.h"
++
++void Hal::startBleServer()
++{
++    ESP_LOGW("Bluetooth", "Bluetooth is disabled. Configure the robot over Wi-Fi.");
++}
++
++bool Hal::isBleConnected()
++{
++    return false;
++}
++
++void Hal::startAppConfigServer()
++{
++    ESP_LOGW("Bluetooth", "Bluetooth setup is disabled. Configure Wi-Fi on the robot.");
++}
++
++bool Hal::isAppConfiged()
++{
++    Settings settings("app_config", false);
++    return settings.GetBool("is_configed", false);
++}
++
++void Hal::resetAppConfiged()
++{
++    Settings settings("app_config", true);
++    settings.SetBool("is_configed", false);
++}
+diff --git a/firmware/sdkconfig.defaults b/firmware/sdkconfig.defaults
+index e0b4d51..15b67dd 100644
+--- a/firmware/sdkconfig.defaults
++++ b/firmware/sdkconfig.defaults
+@@ -17,7 +17,7 @@ CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+ CONFIG_COMPILER_CXX_EXCEPTIONS=y
+ CONFIG_COMPILER_CXX_EXCEPTIONS_EMG_POOL_SIZE=1024
+ CONFIG_COMPILER_CXX_RTTI=y
+-CONFIG_BT_ENABLED=y
++CONFIG_BT_ENABLED=n
+ CONFIG_BT_NIMBLE_ENABLED=y
+ CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
+ CONFIG_BT_NIMBLE_ENABLE_CONN_REATTEMPT=n

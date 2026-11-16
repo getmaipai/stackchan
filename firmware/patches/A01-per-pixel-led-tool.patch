@@ -1,4 +1,5 @@
 # Intent: add an atomic MCP operation that sets RGB values for all twelve individually addressable LEDs.
+# Placement: unit (privacy controls and hard mute)
 # Cross-layer shared file: firmware/main/hal/hal_mcp.cpp (layers B, C, D, F); isolated tool registration hunk.
 diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
 index 0d73851..eda3796 100644

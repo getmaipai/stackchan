@@ -1,0 +1,35 @@
+# Intent: A ringing timer or alarm ends on a touch: a press on the face or on the head strip calls maipai_timers_request_dismiss, which takes no lock; the timer tick ends the ring within 200 ms (how=touch or head). The press still reaches the rest of the touch code.
+# Placement: unit (the ring and touch run on the robot)
+# Upstream: firmware/main/hal/board/stackchan_display.cc, firmware/main/hal/hal_mcp.cpp (MIT)
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index bc79bce..1b74998 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -23,6 +23,7 @@
+ #include <stackchan/stackchan.h>
+ #include <assets/lang_config.h>
+ #include <hal/hal.h>
++#include <hal/maipai_timers.h>
+ 
+ using namespace stackchan;
+ using namespace stackchan::avatar;
+@@ -291,6 +292,7 @@ void StackChanAvatarDisplay::SetupUI()
+         lv_point_t point;
+         lv_indev_get_point(lv_indev_active(), &point);
+         s_face_press_y = point.y;
++        maipai_timers_request_dismiss("touch");  // a ringing timer ends on a touch (patch 093)
+     }, LV_EVENT_PRESSED, nullptr);
+     lv_obj_add_event_cb(avatar_panel, &StackChanAvatarDisplay::OnGesture, LV_EVENT_GESTURE, this);
+     stackchan.attachAvatar(std::move(avatar));
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index b433a4b..88bdc24 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -93,6 +93,7 @@ void Hal::xiaozhi_mcp_init()
+             const char* strength = g_head_touch_strong.load() ? "\"strong\":1" : "\"strong\":0";
+             if (gesture == HeadPetGesture::Press) {
+                 PushDeviceEvent("head_touch", strength);
++                maipai_timers_request_dismiss("head");  // a ringing timer ends on a head touch (patch 093)
+             } else if (gesture == HeadPetGesture::SwipeForward) {
+                 PushDeviceEvent("head_swipe_forward", strength);
+             } else if (gesture == HeadPetGesture::SwipeBackward) {

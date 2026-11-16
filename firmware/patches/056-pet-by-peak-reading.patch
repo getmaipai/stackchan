@@ -1,0 +1,202 @@
+# Intent: pets that register, from the host log of the petting minutes (2026-10-21). With nobody there the strip reads 1 on 60 to 90 samples a minute, in runs up to 23 samples long, so reading 1 is noise however long it lasts; real pats and rubs reach 2 or 3. 052's "dense contact at reading 1" would have turned that noise into pets, and its blip lockout locked out real pets (blips=10 with presses=0). A pet is now a run of touched samples whose peak reading is at least 2 and that lasts at least 2 samples (a pat of 3 samples at peak 3 counts; a single sample or any run that never passes 1 does not). Every such run is one press, so a stroke is several of them; a run ends after 2 untouched samples in a row, so one dropout inside a rub does not split it. There is no lockout: weak runs never count. head_touch_stats reports weak and strong samples and runs apart (weak, strong, runs_weak, runs_strong, run_max, strong_run_max), so the noise floor and a pat can be read off the host log. Press and swipe events carry strong=1 so the host trusts each. The strip's sensitivity is two constants at the top of the file (kSensitivityType, kSensitivityLevel), unchanged. The boot report now carries crash_resets, a count of panic and watchdog restarts kept in NVS, so a stack or memory change that makes the unit reset shows as a rising number.
+# Placement: unit (head touch sensing)
+diff --git a/firmware/main/hal/hal_head_touch.cpp b/firmware/main/hal/hal_head_touch.cpp
+index f50aff8..9477fcb 100644
+--- a/firmware/main/hal/hal_head_touch.cpp
++++ b/firmware/main/hal/hal_head_touch.cpp
+@@ -13,12 +13,12 @@
+ static const std::string_view _tag = "HAL-HeadTouch";
+ 
+ // 触摸状态
+-enum class TouchState { IDLE, CANDIDATE, TOUCHED, SWIPING };
+-constexpr int kPressIntensity = 2;
+-constexpr int kHoldSamples = 8;
+-constexpr int kBlipCountToLock = 3;
+-constexpr uint32_t kBlipWindowMs = 10000;
+-constexpr uint32_t kLockoutMs = 10000;
++enum class TouchState { IDLE, TOUCHED, SWIPING };
++constexpr si12t_type_t kSensitivityType = SI12T_TYPE_LOW;
++constexpr si12t_sensitivity_level_t kSensitivityLevel = SI12T_SENSITIVITY_LEVEL_3;
++constexpr int kPetPeak = 2;
++constexpr int kPetSamples = 2;
++constexpr int kRunGap = 2;
+ 
+ // 配置参数
+ struct TouchConfig {
+@@ -62,81 +62,49 @@ public:
+     {
+     }
+ 
+-    // 更新状态机，返回识别到的手势
++    // A pet is a touched run whose peak is strong enough and lasts at least two samples.
+     HeadPetGesture update(const TouchData& data)
+-    {
+-        return update(data, data.timestamp * portTICK_PERIOD_MS);
+-    }
+-
+-    HeadPetGesture update(const TouchData& data, uint32_t now_ms)
+     {
+         HeadPetGesture gesture = HeadPetGesture::None;
+-
+-        if (now_ms < locked_until_ms) {
+-            current_state = TouchState::IDLE;
+-            return gesture;
+-        }
+-
+-        switch (current_state) {
+-            case TouchState::IDLE:
+-                if (data.get_max_intensity() >= kPressIntensity) {
+-                    current_state    = TouchState::CANDIDATE;
+-                    initial_position = data.get_position();
+-                    held_samples     = 1;
+-                    gap_samples      = 0;
++        const uint8_t reading = data.get_max_intensity();
++        const bool touched = reading >= 1;
++        if (touched) {
++            (reading >= kPetPeak ? samples_strong : samples_weak)++;
++            last_position = data.get_position();
++            gap = 0;
++            run_len++;
++            if (reading > run_peak) run_peak = reading;
++            if (run_len > run_max) run_max = run_len;
++            if (current_state == TouchState::IDLE && run_peak >= kPetPeak && run_len >= kPetSamples) {
++                current_state = TouchState::TOUCHED;
++                initial_position = last_position;
++                gesture = HeadPetGesture::Press;
++                presses++;
++            } else if (current_state == TouchState::TOUCHED) {
++                const int16_t delta = data.get_position() - initial_position;
++                if (delta > config.swipe_threshold) {
++                    current_state = TouchState::SWIPING;
++                    gesture = HeadPetGesture::SwipeForward;
++                } else if (delta < -config.swipe_threshold) {
++                    current_state = TouchState::SWIPING;
++                    gesture = HeadPetGesture::SwipeBackward;
+                 }
+-                break;
+-
+-            case TouchState::CANDIDATE:
+-                if (data.is_touched()) {
+-                    gap_samples = 0;
+-                    if (++held_samples >= kHoldSamples) {
+-                        current_state    = TouchState::TOUCHED;
+-                        initial_position = data.get_position();
+-                        gesture          = HeadPetGesture::Press;
+-                        presses++;
+-                    }
+-                } else if (++gap_samples > 1) {
+-                    current_state = TouchState::IDLE;
+-                    blips++;
+-                    blip_times_ms[blip_next] = now_ms;
+-                    blip_next = (blip_next + 1) % kBlipCountToLock;
+-                    const uint32_t oldest = blip_times_ms[blip_next];
+-                    if (oldest != 0 && now_ms - oldest < kBlipWindowMs) {
+-                        locked_until_ms = now_ms + kLockoutMs;
+-                    }
+-                }
+-                break;
+-
+-            case TouchState::TOUCHED:
+-                if (!data.is_touched()) {
+-                    current_state = TouchState::IDLE;
+-                    gesture       = HeadPetGesture::Release;
+-                } else {
+-                    // Check for swipe
+-                    int16_t current_pos = data.get_position();
+-                    int16_t delta       = current_pos - initial_position;
+-
+-                    if (delta > config.swipe_threshold) {
+-                        current_state = TouchState::SWIPING;
+-                        gesture       = HeadPetGesture::SwipeForward;
+-                        // mclog::tagInfo(_tag, "Swipe forward detected, delta: {}", delta);
+-                    } else if (delta < -config.swipe_threshold) {
+-                        current_state = TouchState::SWIPING;
+-                        gesture       = HeadPetGesture::SwipeBackward;
+-                        // mclog::tagInfo(_tag, "Swipe backward detected, delta: {}", delta);
+-                    }
+-                }
+-                break;
+-
+-            case TouchState::SWIPING:
+-                if (!data.is_touched()) {
+-                    current_state = TouchState::IDLE;
+-                    gesture       = HeadPetGesture::Release;
+-                }
+-                break;
++            }
++        } else if (run_len > 0 && ++gap >= kRunGap) {
++            if (run_peak >= kPetPeak) {
++                runs_strong++;
++                if (run_len > strong_run_max) strong_run_max = run_len;
++            } else {
++                runs_weak++;
++            }
++            run_len = 0;
++            run_peak = 0;
++            gap = 0;
++            if (current_state != TouchState::IDLE) {
++                current_state = TouchState::IDLE;
++                gesture = HeadPetGesture::Release;
++            }
+         }
+-
+         return gesture;
+     }
+ 
+@@ -145,18 +113,22 @@ public:
+         config = cfg;
+     }
+ 
+-    uint32_t blips = 0;
+     uint32_t presses = 0;
++    uint32_t samples_weak = 0;
++    uint32_t samples_strong = 0;
++    uint32_t runs_weak = 0;
++    uint32_t runs_strong = 0;
++    uint32_t run_max = 0;
++    uint32_t strong_run_max = 0;
+ 
+ private:
+     TouchConfig config;
+     TouchState current_state;
+     int16_t initial_position;
+-    int held_samples = 0;
+-    int gap_samples = 0;
+-    uint32_t locked_until_ms = 0;
+-    uint32_t blip_times_ms[kBlipCountToLock] = {};
+-    int blip_next = 0;
++    int16_t last_position = 0;
++    uint32_t run_len = 0;
++    uint8_t run_peak = 0;
++    int gap = 0;
+ };
+ 
+ static void _head_touch_update_task(void* param)
+@@ -200,7 +172,7 @@ void Hal::head_touch_init()
+     };
+     static si12t_handle_t si12t;
+     si12t_init(&si12t_cfg, &si12t);
+-    si12t_setup(si12t, SI12T_TYPE_LOW, SI12T_SENSITIVITY_LEVEL_3);
++    si12t_setup(si12t, kSensitivityType, kSensitivityLevel);
+ 
+     // xTaskCreateWithCaps(_head_touch_update_task, "headtouch", 1024 * 6, si12t, 2, NULL, MALLOC_CAP_SPIRAM);
+     xTaskCreatePinnedToCoreWithCaps(_head_touch_update_task, "headtouch", 1024 * 6, si12t, 2, NULL, 1,
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index e6b5461..db055f3 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -60,11 +60,11 @@ void Hal::xiaozhi_mcp_init()
+         events_connected = true;
+         GetHAL().onHeadPetGesture.connect([](HeadPetGesture gesture) {
+             if (gesture == HeadPetGesture::Press) {
+-                PushDeviceEvent("head_touch", "\"held_ms\":400");
++                PushDeviceEvent("head_touch", "\"strong\":1");
+             } else if (gesture == HeadPetGesture::SwipeForward) {
+-                PushDeviceEvent("head_swipe_forward", "\"held_ms\":400");
++                PushDeviceEvent("head_swipe_forward", "\"strong\":1");
+             } else if (gesture == HeadPetGesture::SwipeBackward) {
+-                PushDeviceEvent("head_swipe_back", "\"held_ms\":400");
++                PushDeviceEvent("head_swipe_back", "\"strong\":1");
+             }
+         });
+         GetHAL().onImuMotionEvent.connect([](ImuMotionEvent event) {

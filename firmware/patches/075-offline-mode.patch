@@ -1,0 +1,372 @@
+# Intent: The unit stays usable when the hub is not. (1) Wi-Fi power save is NONE while the websocket is down, and an idle unit with the hub up uses MIN_MODEM instead of MAX_MODEM; PERFORMANCE while speaking is unchanged. (2) A tap or the wake word no longer blocks the main task: OpenAudioChannel waits 400 ms instead of 10 s and the caller shows a calm Can't reach Home bubble, a doubtful face and a short tone for three seconds, then goes idle. (3) The reconnect task caps its backoff at 30 s, logs every attempt and pushes a wifi event (state, wifi, rssi, attempt, error, next_ms, took_ms). (4) After 10 s without the hub the ring shows a dim steady amber in place of dark and the bubble says Offline; both clear when the socket is back. A colour asked for on the unit (a ringing timer) still shows.
+# Placement: unit (the unit must keep responding with the hub or Wi-Fi down)
+# Upstream: main/application.cc, main/application.h, main/protocols/websocket_protocol.{cc,h} of the xiaozhi-esp32 tree (MIT); firmware/main/hal/board/stackchan.cc, hal_bridge.h, hal/hal_io_expander.cpp (MIT)
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+index 776116b..2d88091 100644
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -66,5 +66,15 @@ void app_play_sound(const std::string_view& sound);
+ 
+ // Resets the idle sleep and shutdown timer (patch 091: a ringing timer keeps the screen on).
+ void power_keep_awake();
++// Whether the websocket to the hub is up (patch 075). While it is down the board holds Wi-Fi power save at
++// NONE (the mesh AP did not deliver frames to a modem-sleeping unit); once up, idle uses MIN_MODEM instead of
++// MAX_MODEM.
++void set_hub_link(bool up);
++bool hub_link_up();
++// The hub has been unreachable for a while: a dim amber ring and "Offline" in the speech bubble, both
++// cleared when the link returns. offline_indicator_refresh() puts the words back after a message covered them.
++void offline_indicator(bool on);
++void offline_indicator_refresh();
++void leds_offline(bool on);
+ 
+ }  // namespace hal_bridge
+diff --git a/firmware/main/hal/board/stackchan.cc b/firmware/main/hal/board/stackchan.cc
+index bed8637..02a96bb 100644
+--- a/firmware/main/hal/board/stackchan.cc
++++ b/firmware/main/hal/board/stackchan.cc
+@@ -17,6 +17,7 @@
+ #include <esp_lcd_ili9341.h>
+ #include <esp_timer.h>
+ #include <algorithm>
++#include <atomic>
+ #include <mutex>
+ #include "stackchan_camera.h"
+ #include "hal_bridge.h"
+@@ -360,6 +361,7 @@ private:
+     StackChanCamera* camera_;
+     esp_timer_handle_t touchpad_timer_;
+     PowerSaveTimer* power_save_timer_;
++    PowerSaveLevel requested_wifi_level_ = PowerSaveLevel::LOW_POWER;
+     hal_bridge::XiaozhiConfig_t xiaozhi_config_;
+     std::mutex power_state_mutex_;
+     PowerState power_state_;
+@@ -735,7 +737,25 @@ public:
+         if (level != PowerSaveLevel::LOW_POWER) {
+             power_save_timer_->WakeUp();
+         }
+-        WifiBoard::SetPowerSaveLevel(level);
++        requested_wifi_level_ = level;
++        ApplyWifiLevel();
++    }
++
++    // Wi-Fi power save (patch 075): NONE while the hub is not reached (a modem-sleeping unit was not
++    // reachable through the mesh AP: no ping, the SYN-ACK never arrived), MIN_MODEM instead of MAX_MODEM when
++    // idle with the hub up (a listen interval of 10 beacons delayed frames by up to a second), and whatever
++    // the application asked for otherwise (PERFORMANCE while speaking).
++    void ApplyWifiLevel()
++    {
++        PowerSaveLevel effective = requested_wifi_level_;
++#if CONFIG_STACKCHAN_PERSISTENT_WEBSOCKET
++        if (!hal_bridge::hub_link_up()) {
++            effective = PowerSaveLevel::PERFORMANCE;
++        } else if (effective == PowerSaveLevel::LOW_POWER) {
++            effective = PowerSaveLevel::BALANCED;
++        }
++#endif
++        WifiBoard::SetPowerSaveLevel(effective);
+     }
+ 
+     void KeepAwake()
+@@ -763,6 +783,41 @@ i2c_master_bus_handle_t hal_bridge::board_get_i2c_bus()
+     return board.GetI2cBus();
+ }
+ 
++static std::atomic<bool> g_hub_link_up{false};
++static std::atomic<bool> g_offline_shown{false};
++
++void hal_bridge::set_hub_link(bool up)
++{
++    if (g_hub_link_up.exchange(up) == up) {
++        return;
++    }
++    // Re-apply the Wi-Fi power save level for the new link state.
++    static_cast<M5StackCoreS3Board&>(Board::GetInstance()).ApplyWifiLevel();
++}
++
++bool hal_bridge::hub_link_up()
++{
++    return g_hub_link_up.load();
++}
++
++void hal_bridge::offline_indicator(bool on)
++{
++    g_offline_shown = on;
++    hal_bridge::leds_offline(on);
++    auto display = Board::GetInstance().GetDisplay();
++    if (display != nullptr) {
++        display->SetChatMessage("system", on ? "Offline" : "");
++    }
++}
++
++void hal_bridge::offline_indicator_refresh()
++{
++    auto display = Board::GetInstance().GetDisplay();
++    if (display != nullptr) {
++        display->SetChatMessage("system", g_offline_shown.load() ? "Offline" : "");
++    }
++}
++
+ void hal_bridge::power_keep_awake()
+ {
+     ((M5StackCoreS3Board&)Board::GetInstance()).KeepAwake();
+diff --git a/firmware/main/hal/hal_io_expander.cpp b/firmware/main/hal/hal_io_expander.cpp
+index 3e34221..394f7c8 100644
+--- a/firmware/main/hal/hal_io_expander.cpp
++++ b/firmware/main/hal/hal_io_expander.cpp
+@@ -13,6 +13,12 @@ static const std::string_view _tag = "HAL-IOE";
+ 
+ static std::unique_ptr<m5::PY32IOExpander_Class> _io_expander;
+ 
++// The hub has been unreachable for a while (patch 075): the ring shows a dim steady amber instead of the
++// host's colours. The colours the host asked for are kept so the ring can go back to them.
++static bool _rgb_offline = false;
++static constexpr uint8_t kOfflineAmber[3] = {40, 18, 0};
++static uint8_t _rgb_shadow[12][3] = {};
++
+ void Hal::io_expander_init()
+ {
+     mclog::tagInfo(_tag, "init");
+@@ -71,9 +77,36 @@ void Hal::setRgbColor(uint8_t index, uint8_t r, uint8_t g, uint8_t b)
+     if (!_io_expander) {
+         return;
+     }
++    if (index < 12) {
++        _rgb_shadow[index][0] = r;
++        _rgb_shadow[index][1] = g;
++        _rgb_shadow[index][2] = b;
++    }
++    // Amber stands in for "dark" only: a colour that something on the unit asks for (a ringing timer) shows.
++    if (_rgb_offline && r == 0 && g == 0 && b == 0) {
++        r = kOfflineAmber[0];
++        g = kOfflineAmber[1];
++        b = kOfflineAmber[2];
++    }
+     _io_expander->setLedColor(index, r, g, b);
+ }
+ 
++void hal_bridge::leds_offline(bool on)
++{
++    if (!_io_expander || on == _rgb_offline) {
++        return;
++    }
++    _rgb_offline = on;
++    for (int i = 0; i < 12; i++) {
++        if (on) {
++            _io_expander->setLedColor(i, kOfflineAmber[0], kOfflineAmber[1], kOfflineAmber[2]);
++        } else {
++            _io_expander->setLedColor(i, _rgb_shadow[i][0], _rgb_shadow[i][1], _rgb_shadow[i][2]);
++        }
++    }
++    _io_expander->refreshLeds();
++}
++
+ void Hal::refreshRgb()
+ {
+     if (!_io_expander) {
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index d30243a..1d474e8 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -14,6 +14,8 @@
+ 
+ #include <driver/gpio.h>
+ #include <esp_log.h>
++#include <hal/board/hal_bridge.h>
++#include <esp_timer.h>
+ #include <arpa/inet.h>
+ #include <cJSON.h>
+ #include <cstring>
+@@ -874,6 +876,36 @@ void Application::HandleToggleChatEvent() {
+ 
+ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
+     // Check state again in case it was changed during scheduling
++}
++
++void Application::ShowCantReachHome() {
++    ESP_LOGW(TAG, "Can't reach Home: a tap or the wake word found no hub link");
++    // Idle first (it resets the face and brings wake word detection back), then the calm face, the words
++    // and a short tone.
++    SetDeviceState(kDeviceStateIdle);
++    auto display = Board::GetInstance().GetDisplay();
++    display->SetEmotion("doubtful");
++    display->SetChatMessage("system", "Can't reach Home");
++    audio_service_.PlaySound(Lang::Sounds::OGG_VIBRATION);
++    // After three seconds the face goes back to neutral and the "Offline" words return if the outage goes on.
++    static esp_timer_handle_t restore_timer = nullptr;
++    if (restore_timer == nullptr) {
++        esp_timer_create_args_t args = {};
++        args.callback = [](void*) {
++            Application::GetInstance().Schedule([]() {
++                auto& app = Application::GetInstance();
++                if (app.GetDeviceState() != kDeviceStateIdle) {
++                    return;
++                }
++                Board::GetInstance().GetDisplay()->SetEmotion("neutral");
++                hal_bridge::offline_indicator_refresh();
++            });
++        };
++        args.name = "cant_reach_home";
++        esp_timer_create(&args, &restore_timer);
++    }
++    esp_timer_stop(restore_timer);
++    esp_timer_start_once(restore_timer, 3 * 1000 * 1000);
+     if (GetDeviceState() != kDeviceStateConnecting) {
+         return;
+     }
+@@ -886,7 +918,7 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
+         if (!protocol_->OpenAudioChannel()) {
+             // Return to idle so the device is not stuck in the connecting
+             // state (not every failure path reports a network error)
+-            SetDeviceState(kDeviceStateIdle);
++            ShowCantReachHome();
+             return;
+         }
+     }
+@@ -1023,7 +1055,7 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
+             // Return to idle so the device is not stuck in the connecting
+             // state (not every failure path reports a network error), and
+             // wake word detection is re-enabled by the idle state handler.
+-            SetDeviceState(kDeviceStateIdle);
++            ShowCantReachHome();
+             return;
+         }
+     }
+diff --git a/firmware/xiaozhi-esp32/main/application.h b/firmware/xiaozhi-esp32/main/application.h
+index f2b9a00..f84e8ee 100644
+--- a/firmware/xiaozhi-esp32/main/application.h
++++ b/firmware/xiaozhi-esp32/main/application.h
+@@ -167,6 +167,8 @@ private:
+     void ContinueOpenAudioChannel(ListeningMode mode);
+     void BeginWakeWordInvoke(const std::string& wake_word);
+     void ContinueWakeWordInvoke(const std::string& wake_word);
++    // A tap or the wake word while the hub cannot be reached: a calm face and a short tone, then back to idle.
++    void ShowCantReachHome();
+     void StartListeningAudio();
+     void ConfigureWakeWordForListening();
+     void StartNotification(std::string audio_url, std::vector<NotifySubtitle> subtitles);
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+index 9aeb9b9..c0c7da0 100644
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -13,6 +13,12 @@
+ #include <arpa/inet.h>
+ #include "assets/lang_config.h"
+ 
++#include <hal/device_events.h>
++#include <hal/board/hal_bridge.h>
++#include <esp_timer.h>
++#include <esp_wifi.h>
++#include <cstdio>
++
+ #define TAG "WS"
+ 
+ WebsocketProtocol::WebsocketProtocol() {
+@@ -139,7 +145,10 @@ bool WebsocketProtocol::OpenAudioChannel() {
+     if (reconnect_task_handle_ == nullptr) {
+         return false;
+     }
+-    EventBits_t bits = xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_CONNECTED_EVENT, pdFALSE, pdTRUE, pdMS_TO_TICKS(10000));
++    // This runs on the main task (a tap or the wake word). It used to wait up to 10 s for the socket,
++    // which froze the screen and the touch whenever the hub could not be reached. The reconnect task keeps
++    // trying in the background; the caller shows "Can't reach Home" at once if the socket is not up (patch 075).
++    EventBits_t bits = xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_CONNECTED_EVENT, pdFALSE, pdTRUE, pdMS_TO_TICKS(400));
+     bool opened = (bits & WEBSOCKET_PROTOCOL_CONNECTED_EVENT) != 0 && IsAudioChannelOpened();
+     if (opened && on_audio_channel_opened_ != nullptr) {
+         on_audio_channel_opened_();
+@@ -254,6 +263,7 @@ bool WebsocketProtocol::ConnectAudioChannel() {
+ 
+     ESP_LOGI(TAG, "Connecting to websocket server: %s with version: %d", url.c_str(), version_.load());
+     if (auto connected = websocket->Connect(url.c_str()); !connected) {
++        last_connect_error_ = static_cast<int>(connected.error().code);
+         ESP_LOGE(TAG, "Failed to connect to websocket server: %s",
+                  connected.error().ToString().c_str());
+         SetError(Lang::Strings::SERVER_NOT_CONNECTED, url);
+@@ -285,16 +295,46 @@ bool WebsocketProtocol::ConnectAudioChannel() {
+     return true;
+ }
+ 
++// One "wifi" event for the host log: what the link to the hub is doing and why. Pushed to the unit's
++// event queue, so the host reads it once it is connected again (patch 075).
++static void push_link_event(const char* state, unsigned attempt, int error, unsigned next_ms, unsigned took_ms) {
++    wifi_ap_record_t ap = {};
++    const bool wifi_up = esp_wifi_sta_get_ap_info(&ap) == ESP_OK;
++    char extra[160];
++    snprintf(extra, sizeof(extra),
++             "\"state\":\"%s\",\"wifi\":%d,\"rssi\":%d,\"attempt\":%u,\"error\":%d,\"next_ms\":%u,\"took_ms\":%u",
++             state, wifi_up ? 1 : 0, wifi_up ? ap.rssi : 0, attempt, error, next_ms, took_ms);
++    ESP_LOGI(TAG, "unit wifi: %s", extra);
++    device_events_push("wifi", extra);
++}
++
+ void WebsocketProtocol::ReconnectTask(void* arg) {
+     auto* self = static_cast<WebsocketProtocol*>(arg);
+     constexpr uint32_t kInitialDelayMs = 1000;
+-    constexpr uint32_t kMaximumDelayMs = 60000;
++    constexpr uint32_t kMaximumDelayMs = 30000;
++    constexpr int64_t kOfflineIndicatorAfterUs = 10LL * 1000 * 1000;  // a blip is not an outage
+     constexpr uint32_t kStableConnectionMs = 30000;
+     uint32_t delay_ms = kInitialDelayMs;
++    unsigned attempt = 0;
++    int64_t down_since_us = esp_timer_get_time();
++    bool offline_shown = false;
+ 
+     while (!(xEventGroupGetBits(self->event_group_handle_) & WEBSOCKET_PROTOCOL_STOP_EVENT)) {
+         xEventGroupClearBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_DISCONNECTED_EVENT | WEBSOCKET_PROTOCOL_CONNECTED_EVENT);
++        attempt++;
++        const int64_t started_us = esp_timer_get_time();
++        // The radio stays awake while the hub is not reached (the board holds Wi-Fi power save at NONE):
++        // in modem sleep the mesh AP did not deliver the SYN-ACK.
++        hal_bridge::set_hub_link(false);
+         if (self->ConnectAudioChannel()) {
++            const unsigned took_ms = static_cast<unsigned>((esp_timer_get_time() - started_us) / 1000);
++            attempt = 0;
++            hal_bridge::set_hub_link(true);
++            if (offline_shown) {
++                offline_shown = false;
++                hal_bridge::offline_indicator(false);
++            }
++            push_link_event("ws_up", 0, 0, 0, took_ms);
+             TickType_t connected_at = xTaskGetTickCount();
+             self->last_incoming_time_ = std::chrono::steady_clock::now();
+             EventBits_t bits = 0;
+@@ -319,14 +359,27 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+                 break;
+             }
+             xEventGroupClearBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_CONNECTED_EVENT);
++            hal_bridge::set_hub_link(false);
++            down_since_us = esp_timer_get_time();
++            push_link_event("ws_down", 0, 0, 0, 0);
+             if ((xTaskGetTickCount() - connected_at) >= pdMS_TO_TICKS(kStableConnectionMs)) {
+                 delay_ms = kInitialDelayMs;
+             }
++        } else {
++            const unsigned took_ms = static_cast<unsigned>((esp_timer_get_time() - started_us) / 1000);
++            const uint32_t next_ms = std::min(kMaximumDelayMs, delay_ms);
++            ESP_LOGW(TAG, "Hub connect failed (attempt %u, %u ms), retry in about %u ms", attempt, took_ms,
++                     static_cast<unsigned>(next_ms));
++            push_link_event("ws_retry", attempt, self->last_connect_error_, next_ms, took_ms);
+         }
+ 
+         if (xEventGroupGetBits(self->event_group_handle_) & WEBSOCKET_PROTOCOL_STOP_EVENT) {
+             break;
+         }
++        if (!offline_shown && (esp_timer_get_time() - down_since_us) >= kOfflineIndicatorAfterUs) {
++            offline_shown = true;
++            hal_bridge::offline_indicator(true);
++        }
+         uint32_t jitter_ms = esp_random() % (delay_ms / 4 + 1);
+         uint32_t wait_ms = std::min(kMaximumDelayMs, delay_ms + jitter_ms);
+         EventBits_t bits = xEventGroupWaitBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_STOP_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(wait_ms));
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
+index cfe8eaa..897cf04 100644
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
+@@ -34,6 +34,7 @@ private:
+     mutable std::mutex websocket_mutex_;
+     TaskHandle_t reconnect_task_handle_ = nullptr;
+     std::atomic<uint32_t> websocket_generation_{0};
++    int last_connect_error_ = 0;  // the last failed connect, for the "wifi" event (patch 075)
+     std::atomic<int> version_{1};
+ 
+     void ParseServerHello(const cJSON* root);

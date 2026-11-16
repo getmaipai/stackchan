@@ -1,0 +1,56 @@
+# Intent: Make the NTP server configurable and disable SNTP by default.
+# Placement: unit (local time configuration)
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index 4fd4737..1fb1170 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -32,6 +32,12 @@ config STACKCHAN_PAIRING_TOKEN
+     string "MaiPai pairing token"
+     default ""
+ 
++config STACKCHAN_NTP_SERVER
++    string "Optional NTP server"
++    default ""
++    help
++        Leave empty to avoid contacting a public time server. The home hub or router supplies time.
++
+ config STACKCHAN_SERVER_URL
+     string "StackChan server base URL"
+     default ""
+diff --git a/firmware/main/hal/hal_network.cpp b/firmware/main/hal/hal_network.cpp
+index 63e591f..43b7850 100644
+--- a/firmware/main/hal/hal_network.cpp
++++ b/firmware/main/hal/hal_network.cpp
+@@ -30,17 +30,23 @@ void Hal::startSntp()
+     mclog::tagInfo(_tag, "SNTP init");
+ 
+     if (esp_sntp_enabled()) {
+-    } else {
+-        esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+-
+-        esp_sntp_setservername(0, "pool.ntp.org");
+-        esp_sntp_setservername(1, "time.google.com");
+-        esp_sntp_setservername(2, "cn.pool.ntp.org");
+-
+-        sntp_set_time_sync_notification_cb(time_sync_notification_cb);
++        return;
++    }
+ 
+-        esp_sntp_init();
++#ifdef CONFIG_STACKCHAN_NTP_SERVER
++    const char* ntp_server = CONFIG_STACKCHAN_NTP_SERVER;
++#else
++    const char* ntp_server = "";
++#endif
++    if (ntp_server[0] == '\0') {
++        mclog::tagInfo(_tag, "SNTP disabled; configure STACKCHAN_NTP_SERVER to enable it");
++        return;
+     }
++
++    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
++    esp_sntp_setservername(0, const_cast<char*>(ntp_server));
++    sntp_set_time_sync_notification_cb(time_sync_notification_cb);
++    esp_sntp_init();
+ }
+ 
+ void Hal::startNetwork(std::function<void(std::string_view)> onLog)

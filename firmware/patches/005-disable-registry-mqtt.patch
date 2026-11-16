@@ -1,0 +1,33 @@
+# Intent: Stop the registry and MQTT service and remove its URL from the device page.
+# Placement: unit (registry service disabled)
+# Upstream: firmware/main/apps/app_ezdata/view/view.h and firmware/main/hal/hal_ezdata.cpp.
+diff --git a/firmware/main/apps/app_ezdata/view/view.h b/firmware/main/apps/app_ezdata/view/view.h
+index d5980b7..dea7956 100644
+--- a/firmware/main/apps/app_ezdata/view/view.h
++++ b/firmware/main/apps/app_ezdata/view/view.h
+@@ -53,7 +53,7 @@ public:
+         _title_url->align(LV_ALIGN_TOP_LEFT, 27, 16);
+ 
+         _msg_url = std::make_unique<uitk::lvgl_cpp::Label>(*_panel_url);
+-        _msg_url->setText("https://my.m5stack.com/ezdata2");
++        _msg_url->setText("Service is disabled in this firmware.");
+         _msg_url->setTextFont(&lv_font_montserrat_16);
+         _msg_url->setTextColor(lv_color_hex(0x0E2648));
+         _msg_url->align(LV_ALIGN_CENTER, 0, 0);
+diff --git a/firmware/main/hal/hal_ezdata.cpp b/firmware/main/hal/hal_ezdata.cpp
+index f2d35c7..4c72ddc 100644
+--- a/firmware/main/hal/hal_ezdata.cpp
++++ b/firmware/main/hal/hal_ezdata.cpp
+@@ -457,10 +457,6 @@ private:
+ 
+ void Hal::startEzDataService(std::function<void(std::string_view)> onStartLog)
+ {
+-    mclog::tagInfo(_tag, "start ezdata service");
+-
+-    startNetwork(onStartLog);
+-
+-    onStartLog("Connecting to\nserver...");
+-    mooncake::GetMooncake().extensionManager()->createAbility(std::make_unique<EzdataWorker>());
++    (void)onStartLog;
++    mclog::tagInfo(_tag, "Registry service is disabled in this firmware");
+ }

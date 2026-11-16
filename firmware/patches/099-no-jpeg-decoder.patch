@@ -1,0 +1,81 @@
+# Intent: Remove incoming avatar JPEG decoding because the unit does not consume those frames.
+# Placement: unit (firmware behavior runs on the robot)
+
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+index 03bdca8..3fa019c 100644
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -63,7 +63,6 @@ set(SOURCES "audio/audio_codec.cc"
+             "display/lvgl_display/gif/lvgl_gif.cc"
+             "display/lvgl_display/gif/gifdec.c"
+             "display/lvgl_display/jpg/image_to_jpeg.cpp"
+-            "display/lvgl_display/jpg/jpeg_to_image.c"
+             "protocols/protocol.cc"
+             "protocols/text_glyph_payload.cc"
+             "protocols/mqtt_protocol.cc"
+@@ -80,6 +79,8 @@ set(SOURCES "audio/audio_codec.cc"
+ 
+ # Transform relative paths to absolute paths from xiaozhi-esp32/main
+ list(TRANSFORM SOURCES PREPEND "${XIAOZHI_MAIN_DIR}/")
++# MaiPai strip (patch 099-no-jpeg-decoder): the incoming JPEG decoder is not part of this firmware.
++list(FILTER SOURCES EXCLUDE REGEX "/display/lvgl_display/jpg/jpeg_to_image\\.c$")
+ 
+ set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "audio/demuxer" "protocols")
+ # Transform include dirs to absolute paths from xiaozhi-esp32/main
+@@ -284,7 +285,6 @@ if(CONFIG_IDF_TARGET_ESP32)
+                              "audio/codecs/es8389_audio_codec.cc"
+                              "led/gpio_led.cc"
+                              "display/lvgl_display/jpg/image_to_jpeg.cpp"
+-                             "display/lvgl_display/jpg/jpeg_to_image.c"
+                              "boards/common/nt26_board.cc"
+                              "boards/common/ml307_board.cc"
+                              "boards/common/dual_network_board.cc"
+diff --git a/firmware/main/hal/hal_ws_avatar.cpp b/firmware/main/hal/hal_ws_avatar.cpp
+index f860f43..7f80a2f 100644
+--- a/firmware/main/hal/hal_ws_avatar.cpp
++++ b/firmware/main/hal/hal_ws_avatar.cpp
+@@ -24,7 +24,6 @@
+ #include <freertos/task.h>
+ #include <freertos/semphr.h>
+ #include <atomic>
+-#include "utils/jpeg_to_image/jpeg_decoder.h"
+ #include "utils/secret_logic/secret_logic.h"
+ #include "utils/local_network/local_avatar_client.h"
+ #include "utils/local_network/local_network_protocol.h"
+@@ -332,35 +331,7 @@ public:
+                     break;
+                 }
+                 case DataType::Jpeg: {
+-                    // Protocol: [Type(1)] [Length(4)] [Payload]
+-                    if (msg.data.size() >= 5) {
+-                        ESP_LOGI(_tag.c_str(), "Jpeg Frame Received, size: %d", (int)(msg.data.size() - 5));
+-
+-                        static int64_t _time_count = 0;
+-                        static int64_t _interval   = 0;
+-                        _time_count                = esp_timer_get_time();
+-
+-                        size_t jpeg_len    = msg.data.size() - 5;
+-                        uint8_t* jpeg_data = (uint8_t*)heap_caps_malloc(jpeg_len, MALLOC_CAP_8BIT);
+-                        if (jpeg_data) {
+-                            memcpy(jpeg_data, msg.data.data() + 5, jpeg_len);
+-
+-                            auto image = jpeg_dec::decode_to_lvgl(jpeg_data, jpeg_len);
+-                            if (image) {
+-                                // ESP_LOGI(_tag.c_str(), "Done");
+-
+-                                _interval = esp_timer_get_time() - _time_count;
+-                                mclog::info("jpeg decode time: {} ms", _interval / 1000);
+-
+-                                GetHAL().onWsVideoFrame.emit(image);
+-                            } else {
+-                                ESP_LOGE(_tag.c_str(), "Failed to decode JPEG");
+-                            }
+-                            heap_caps_free(jpeg_data);
+-                        } else {
+-                            ESP_LOGE(_tag.c_str(), "Failed to allocate memory for JPEG");
+-                        }
+-                    }
++                    // Incoming avatar video is not consumed by this firmware.
+                     break;
+                 }
+                 case DataType::DanceSequence: {

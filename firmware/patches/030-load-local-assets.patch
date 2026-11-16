@@ -1,0 +1,20 @@
+# Intent: Load the already provisioned assets so local wake detection has its model when OTA checks are off.
+# Placement: unit (local wake)
+# Upstream: 78/xiaozhi-esp32 firmware source (MIT).
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index 602f7a7..c73765b 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -369,6 +369,12 @@ void Application::ActivationTask() {
+ #if CONFIG_STACKCHAN_OTA_CHECK
+     CheckAssetsVersion();
+     CheckNewVersion();
++#else
++    // Use the assets already provisioned on flash; local wake detection still needs its model.
++    auto& assets = Assets::GetInstance();
++    if (assets.partition_valid()) {
++        assets.Apply();
++    }
+ #endif
+ 
+     // Initialize the protocol

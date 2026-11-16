@@ -1,4 +1,5 @@
 # Intent: grow the assets partition for firmware assets within the established flash layout.
+# Placement: unit (firmware asset partition)
 diff --git a/firmware/partitions.csv b/firmware/partitions.csv
 index 0656b16..ac6077b 100644
 --- a/firmware/partitions.csv

@@ -1,0 +1,60 @@
+# Intent: Save a validated long-lived token from server hello and reconnect with it.
+# Placement: unit (voice transport credentials)
+# Upstream: 78/xiaozhi-esp32 firmware source (MIT).
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+index 91d8dba..64e192c 100644
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -253,9 +253,10 @@ bool WebsocketProtocol::ConnectAudioChannel() {
+     });
+ 
+     ESP_LOGI(TAG, "Connecting to websocket server: %s with version: %d", url.c_str(), version_.load());
+-    if (!websocket->Connect(url.c_str())) {
+-        ESP_LOGE(TAG, "Failed to connect to websocket server");
+-        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
++    if (auto connected = websocket->Connect(url.c_str()); !connected) {
++        ESP_LOGE(TAG, "Failed to connect to websocket server: %s",
++                 connected.error().ToString().c_str());
++        SetError(Lang::Strings::SERVER_NOT_CONNECTED, url);
+         return false;
+     }
+     error_occurred_ = false;
+@@ -348,11 +349,36 @@ std::string WebsocketProtocol::GetHelloMessage() {
+ 
+ void WebsocketProtocol::ParseServerHello(const cJSON* root) {
+     auto transport = cJSON_GetObjectItem(root, "transport");
+-    if (transport == nullptr || strcmp(transport->valuestring, "websocket") != 0) {
+-        ESP_LOGE(TAG, "Unsupported transport: %s", transport->valuestring);
++    if (!cJSON_IsString(transport) || strcmp(transport->valuestring, "websocket") != 0) {
++        ESP_LOGE(TAG, "Server hello has a missing or unsupported transport");
+         return;
+     }
+ 
++    auto maipai_token = cJSON_GetObjectItem(root, "maipai_token");
++    if (cJSON_IsString(maipai_token) && maipai_token->valuestring != nullptr) {
++        std::string value = maipai_token->valuestring;
++        if (!value.empty() && value.size() <= 256) {
++            Settings settings("websocket", false);
++            if (settings.GetString("token") != value) {
++                Settings writable_settings("websocket", true);
++                writable_settings.SetString("token", value);
++                ESP_LOGI(TAG, "token updated (length=%u)", static_cast<unsigned>(value.size()));
++                Application::GetInstance().Schedule([this]() {
++#if CONFIG_STACKCHAN_PERSISTENT_WEBSOCKET
++                    auto websocket = GetWebSocket();
++                    if (websocket != nullptr) {
++                        websocket->Close();
++                    }
++                    xEventGroupSetBits(event_group_handle_, WEBSOCKET_PROTOCOL_DISCONNECTED_EVENT);
++#else
++                    CloseAudioChannel(false);
++                    OpenAudioChannel();
++#endif
++                });
++            }
++        }
++    }
++
+     auto session_id = cJSON_GetObjectItem(root, "session_id");
+     if (cJSON_IsString(session_id)) {
+         session_id_ = session_id->valuestring;

@@ -1,0 +1,15 @@
+# Intent: Leave the backend URL unset until a local installer configures it.
+# Placement: unit (private local configuration)
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index 991a72e..4fd4737 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -34,7 +34,7 @@ config STACKCHAN_PAIRING_TOKEN
+ 
+ config STACKCHAN_SERVER_URL
+     string "StackChan server base URL"
+-    default "http://47.113.125.164:12800"
++    default ""
+     help
+         Base URL (scheme + host + port, no trailing slash) of the StackChan backend.
+         The HAL composes endpoint paths like /stackChan/device/user,

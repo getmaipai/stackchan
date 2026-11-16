@@ -1,0 +1,60 @@
+# Intent: taps on the face (owner report 2026-10-21). (1) A swipe that starts on the top bezel reports a touch at y 0 to 16 and loses the point at the edge, which LVGL reads as a tap and started listening: a tap whose press began within 24 px of the top is now ignored (logged, and queued for the host as click_ignored). (2) The debounce between taps drops from 2 s to 0.8 s so a tap can stop what a tap started. (3) A tap while listening now ends the turn: the persistent websocket makes CloseAudioChannel a no-op, so the stock tap did nothing; the firmware now sends the host an abort (the host cancels the turn and goes idle) and returns to idle. A tap while speaking already aborted through the stock path.
+# Placement: unit (face touch and voice control)
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index cd2baf2..a094f7e 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -29,6 +29,12 @@ using namespace stackchan::avatar;
+ 
+ #define TAG "StackChanAvatarDisplay"
+ 
++namespace {
++int s_face_press_y = -1;
++constexpr int kTapEdgeDeadZonePx = 24;
++constexpr uint32_t kTapDebounceMs = 800;
++}  // namespace
++
+ LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+ LV_FONT_DECLARE(BUILTIN_ICON_FONT);
+ LV_FONT_DECLARE(font_material_symbols_30_4);
+@@ -267,7 +273,10 @@ void StackChanAvatarDisplay::SetupUI()
+     avatar->getPanel()->onClick().connect([]() {
+         static uint32_t last_toggle_tick = 0;
+         const uint32_t now               = GetHAL().millis();
+-        if (last_toggle_tick != 0 && now - last_toggle_tick < 2000) {
++        if (last_toggle_tick != 0 && now - last_toggle_tick < kTapDebounceMs) {
++            return;
++        }
++        if (s_face_press_y >= 0 && s_face_press_y <= kTapEdgeDeadZonePx) {
+             return;
+         }
+ 
+@@ -278,6 +287,11 @@ void StackChanAvatarDisplay::SetupUI()
+     });
+ 
+     auto* avatar_panel = avatar->getPanel()->get();
++    lv_obj_add_event_cb(avatar_panel, [](lv_event_t* event) {
++        lv_point_t point;
++        lv_indev_get_point(lv_indev_active(), &point);
++        s_face_press_y = point.y;
++    }, LV_EVENT_PRESSED, nullptr);
+     lv_obj_add_event_cb(avatar_panel, &StackChanAvatarDisplay::OnGesture, LV_EVENT_GESTURE, this);
+     stackchan.attachAvatar(std::move(avatar));
+     stackchan.addModifier(std::make_unique<BreathModifier>());
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index 685c892..d30243a 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -863,7 +863,12 @@ void Application::HandleToggleChatEvent() {
+         audio_service_.ResetDecoder();
+         SetDeviceState(kDeviceStateIdle);
+     } else if (state == kDeviceStateListening) {
++#if CONFIG_STACKCHAN_PERSISTENT_WEBSOCKET
++        protocol_->SendAbortSpeaking(kAbortReasonNone);
++        SetDeviceState(kDeviceStateIdle);
++#else
+         protocol_->CloseAudioChannel();
++#endif
+     }
+ }
+ 

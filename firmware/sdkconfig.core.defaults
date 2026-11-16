@@ -1,0 +1,6 @@
+# Measured from pristine base: app binary -47,056 B, DIRAM -132 B.
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+# Measured from WARN build: app binary -25,104 B, DIRAM -1,616 B.
+CONFIG_LWIP_IPV6=n
+# Measured with S01 core trim: app binary -239,552 B, DIRAM -25,192 B.
+CONFIG_BT_ENABLED=n

@@ -1,4 +1,5 @@
 # Intent: Lower the shake threshold for hand lifts and shakes.
+# Placement: unit (motion events)
 # Upstream: m5stack/StackChan firmware/main/hal/hal_imu.cpp and motion_detector.h (MIT).
 diff --git a/firmware/main/hal/hal_imu.cpp b/firmware/main/hal/hal_imu.cpp
 index 24fdf60..e0c377f 100644

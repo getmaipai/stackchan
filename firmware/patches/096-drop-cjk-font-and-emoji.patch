@@ -1,0 +1,85 @@
+# Intent: Keep generated assets limited to the compiled-in text font and map unsupported punctuation to ASCII.
+# Placement: unit (firmware behavior runs on the robot)
+
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+index a4ba1c4..2482374 100644
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -130,7 +130,6 @@ if(CONFIG_BOARD_TYPE_M5STACK_STACK_CHAN)
+     set(BOARD_TYPE "m5stack-stack-chan")
+     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+-    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+ endif()
+ 
+ if(MANUFACTURER)
+@@ -440,10 +439,7 @@ function(build_default_assets_bin)
+         list(APPEND BUILD_ARGS "--builtin_text_font" "${BUILTIN_TEXT_FONT}")
+     endif()
+     
+-    # Add default emoji collection if defined
+-    if(DEFAULT_EMOJI_COLLECTION)
+-        list(APPEND BUILD_ARGS "--emoji_collection" "${DEFAULT_EMOJI_COLLECTION}")
+-    endif()
++    # MaiPai strip (patch 096): the avatar draws its faces and uses the compiled-in text font.
+     
+     # Add default assets extra files if defined
+     if(DEFAULT_ASSETS_EXTRA_FILES)
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index a094f7e..bc79bce 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -681,7 +681,7 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         avatar.setEmotion(Emotion::Sad);
+     } else if (strcmp(emotion, "sleepy") == 0) {
+         avatar.setEmotion(Emotion::Sleepy);
+-        avatar.setSpeech("Zzz…");
++        avatar.setSpeech("Zzz...");
+         is_sleeping_ = true;
+         // avatar.mouth().setWeight(10);
+ 
+@@ -730,6 +730,32 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+     }
+ }
+ 
++static std::string ascii_punctuation(const char* text)
++{
++    std::string out;
++    if (text == nullptr) return out;
++    for (const unsigned char* p = reinterpret_cast<const unsigned char*>(text); *p != 0;) {
++        if (p[0] == 0xE2 && p[1] == 0x80) {
++            const char* mapped = nullptr;
++            switch (p[2]) {
++                case 0x98: case 0x99: case 0x9A: mapped = "'"; break;
++                case 0x9C: case 0x9D: case 0x9E: mapped = "\""; break;
++                case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: mapped = "-"; break;
++                case 0xA2: mapped = "*"; break;
++                case 0xA6: mapped = "..."; break;
++                default: break;
++            }
++            if (mapped != nullptr) { out += mapped; p += 3; continue; }
++        } else if (p[0] == 0xC2 && p[1] == 0xA0) {
++            out += ' ';
++            p += 2;
++            continue;
++        }
++        out += static_cast<char>(*p++);
++    }
++    return out;
++}
++
+ void StackChanAvatarDisplay::SetChatMessage(const char* role, const char* content)
+ {
+     if (!setup_ui_called_) {
+@@ -746,9 +772,9 @@ void StackChanAvatarDisplay::SetChatMessage(const char* role, const char* conten
+     DisplayLockGuard lock(this);
+ 
+     if (strcmp(role, "system") == 0) {
+-        stackchan.avatar().setSpeech(content);
++        stackchan.avatar().setSpeech(ascii_punctuation(content));
+     } else if (strcmp(role, "assistant") == 0) {
+-        stackchan.avatar().setSpeech(content);
++        stackchan.avatar().setSpeech(ascii_punctuation(content));
+     }
+ }
+ 

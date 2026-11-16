@@ -1,0 +1,18 @@
+# Intent: Add the persistent websocket build setting.
+# Placement: unit (voice transport configuration)
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -1,5 +1,12 @@
+ menu "StackChan Server"
+ 
++config STACKCHAN_PERSISTENT_WEBSOCKET
++    bool "Keep the websocket connected while idle"
++    default y
++    help
++        Open the websocket at startup and reconnect after disconnects.
++        When disabled, the audio channel opens only for listening sessions.
++
+ config STACKCHAN_OTA_CHECK
+     bool "Check remote OTA and activation service"
+     default n

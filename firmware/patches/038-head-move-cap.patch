@@ -1,0 +1,44 @@
+# Intent: Limit host-requested head moves to 40 calls in any 60 seconds to protect the servos.
+# Placement: unit (firmware behavior runs on the robot)
+
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 77fd8ac..ec90c96 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -48,6 +48,19 @@ std::string EscapeJsonString(const std::string& value)
+     }
+     return escaped;
+ }
++
++constexpr int kMaxHeadMovesPerMinute = 40;
++uint32_t s_head_move_times_ms[kMaxHeadMovesPerMinute] = {};
++int s_head_move_next = 0;
++
++bool head_move_allowed(uint32_t now_ms)
++{
++    uint32_t oldest = s_head_move_times_ms[s_head_move_next];
++    if (oldest != 0 && now_ms - oldest < 60000) return false;
++    s_head_move_times_ms[s_head_move_next] = now_ms == 0 ? 1 : now_ms;
++    s_head_move_next = (s_head_move_next + 1) % kMaxHeadMovesPerMinute;
++    return true;
++}
+ }  // namespace
+ 
+ using namespace stackchan;
+@@ -123,6 +136,11 @@ void Hal::xiaozhi_mcp_init()
+                                      Property("pitch", kPropertyTypeInteger, -9999, -9999, 90),
+                                      Property("speed", kPropertyTypeInteger, 150, 100, 1000)}),
+                        [this](const PropertyList& properties) -> ReturnValue {
++                           if (!head_move_allowed(static_cast<uint32_t>(esp_timer_get_time() / 1000))) {
++                               mclog::tagWarn(_tag, "set_head_angles refused: more than {} moves in a minute",
++                                              kMaxHeadMovesPerMinute);
++                               return false;
++                           }
+                            int speed = properties["speed"].value<int>();
+                            int yaw   = properties["yaw"].value<int>();
+                            int pitch = properties["pitch"].value<int>();
+@@ -326,3 +344,4 @@ void Hal::xiaozhi_mcp_init()
+                            return result;
+                        });
+ }
++

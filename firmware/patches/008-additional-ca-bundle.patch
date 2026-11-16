@@ -1,0 +1,31 @@
+# Intent: Add optional certificate and pairing configuration fields.
+# Placement: unit (build-time connection settings)
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -6,6 +6,25 @@
+     help
+         Enable remote activation and firmware checks. Leave disabled when the websocket endpoint is provisioned in NVS.
+ 
++config STACKCHAN_CA_PEM
++    string "Additional CA certificate PEM file"
++    default ""
++    help
++        Optional build-time path to a PEM CA certificate appended to the
++        built-in ESP-TLS certificate bundle. Leave empty to use built-in roots.
++
++config STACKCHAN_DEVICE_ID
++    string "MaiPai Device-Id"
++    default ""
++
++config STACKCHAN_CLIENT_ID
++    string "MaiPai Client-Id"
++    default ""
++
++config STACKCHAN_PAIRING_TOKEN
++    string "MaiPai pairing token"
++    default ""
++
+ config STACKCHAN_SERVER_URL
+     string "StackChan server base URL"
+     default "http://47.113.125.164:12800"

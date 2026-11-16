@@ -1,0 +1,88 @@
+# Intent: The xiaozhi side of the hard mute (patch 106): while muted or in full quiet AudioService::ReadAudioData reads nothing, so nothing is fed to the wake word; EnableWakeWordDetection(true) and EnableVoiceProcessing(true) refuse; Application::SetListeningMode, the one way into listening (tap, wake word, host start, reconnect), refuses and puts the unit back to idle; a wake word that arrives after the mute is dropped. Unmuting needs nothing here: the audio task opens the microphone on its next read.
+# Placement: unit (the audio path runs on the robot)
+# Upstream: main/audio/audio_service.cc and main/application.cc of the xiaozhi-esp32 tree (MIT)
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index 1d474e8..e3f7ad4 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -15,6 +15,7 @@
+ #include <driver/gpio.h>
+ #include <esp_log.h>
+ #include <hal/board/hal_bridge.h>
++#include <hal/maipai_privacy.h>
+ #include <esp_timer.h>
+ #include <arpa/inet.h>
+ #include <cJSON.h>
+@@ -980,8 +981,8 @@ void Application::HandleStopListeningEvent() {
+ }
+ 
+ void Application::HandleWakeWordDetectedEvent() {
+-    if (!protocol_) {
+-        return;
++    if (!protocol_ || maipai_mic_blocked()) {
++        return;  // a wake word that arrives after the mute is dropped (patch 107)
+     }
+ 
+     auto state = GetDeviceState();
+@@ -1252,6 +1253,15 @@ void Application::HandleNotificationFinished(uint32_t playback_id, bool success)
+ }
+ 
+ void Application::Schedule(std::function<void()>&& callback) {
++    if (maipai_mic_blocked()) {
++        // Muted or in full quiet (patch 107): every way into listening ends here. The unit goes back to idle
++        // (it may have been set to connecting on the way).
++        ESP_LOGW(TAG, "listening refused: muted or in full quiet");
++        if (GetDeviceState() != kDeviceStateIdle) {
++            SetDeviceState(kDeviceStateIdle);
++        }
++        return;
++    }
+     {
+         std::lock_guard<std::mutex> lock(mutex_);
+         main_tasks_.push_back(std::move(callback));
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.cc b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+index aa454d3..7a33f2f 100644
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+@@ -1,6 +1,7 @@
+ #include "audio_service.h"
+ #include <esp_log.h>
+ #include <cstring>
++#include <hal/maipai_privacy.h>
+ 
+ #define RATE_CVT_CFG(_src_rate, _dest_rate, _channel)                                        \
+     (esp_ae_rate_cvt_cfg_t) {                                                                \
+@@ -193,6 +194,10 @@ void AudioService::Stop() {
+ }
+ 
+ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples) {
++    if (maipai_mic_blocked()) {
++        // Muted or in full quiet (patch 107): nothing reads the microphone and nothing is fed to the wake word.
++        return false;
++    }
+     if (!codec_->input_enabled()) {
+         esp_timer_stop(audio_power_timer_);
+         esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
+@@ -660,6 +665,11 @@ std::unique_ptr<AudioStreamPacket> AudioService::PopWakeWordPacket() {
+ 
+ void AudioService::EnableWakeWordDetection(bool enable) {
+     ESP_LOGD(TAG, "%s wake word detection", enable ? "Enabling" : "Disabling");
++    if (enable && maipai_mic_blocked()) {
++        ESP_LOGW(TAG, "wake word stays off: muted or in full quiet");
++        xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
++        return;
++    }
+     if (enable) {
+         if (!InitializeAudioEngine()) {
+             xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
+@@ -708,6 +718,10 @@ void AudioService::ReleaseWakeWordResources() {
+ 
+ void AudioService::EnableVoiceProcessing(bool enable) {
+     ESP_LOGD(TAG, "%s voice processing", enable ? "Enabling" : "Disabling");
++    if (enable && maipai_mic_blocked()) {
++        ESP_LOGW(TAG, "voice processing stays off: muted or in full quiet");
++        return;
++    }
+ 
+     if (enable) {
+         if (!InitializeAudioEngine()) {

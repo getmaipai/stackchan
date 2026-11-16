@@ -1,0 +1,16 @@
+# Intent: Initialize animation feature sizes so neutral facial features stay the same size after a dance.
+# Placement: unit (firmware behavior runs on the robot)
+
+diff --git a/firmware/main/stackchan/animation/animation.h b/firmware/main/stackchan/animation/animation.h
+index 7b45d42..a53c366 100644
+--- a/firmware/main/stackchan/animation/animation.h
++++ b/firmware/main/stackchan/animation/animation.h
+@@ -23,7 +23,7 @@ struct FeatureKeyframe {
+     int size;
+ 
+     FeatureKeyframe(int x = 0, int y = 0, int rotation = 0, int weight = 0)
+-        : position(x, y), rotation(rotation), weight(weight)
++        : position(x, y), rotation(rotation), weight(weight), size(0)
+     {
+     }
+ };

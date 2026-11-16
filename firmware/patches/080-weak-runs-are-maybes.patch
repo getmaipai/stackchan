@@ -1,0 +1,70 @@
+# Intent: stop the phantom pets (owner report 2026-11-12, "it keeps smiling"). With nobody touching the unit the strip read 1 on 277 of 979 samples a minute in 85 runs of up to 17 samples (head_touch_stats), and since 076 every weak run of 4 samples became a press, 28 a minute, each a smile; 078 kept that rule. A weak run now needs 32 samples (two seconds of rubbing at the strip's 16 Hz, longer than any idle run seen, 23 at most), and every press and swipe event says whether its run reached reading 2 ("strong":1) or stayed at 1 ("strong":0); 056 had made every event say strong=1, so the host trusted the phantoms. The host filter (head_touch_filter.py) already drops a lone strong=0 event unless it repeats within 4.5 s.
+# Placement: unit (head touch sensing)
+diff --git a/firmware/main/hal/hal_head_touch.cpp b/firmware/main/hal/hal_head_touch.cpp
+index 9477fcb..69fda72 100644
+--- a/firmware/main/hal/hal_head_touch.cpp
++++ b/firmware/main/hal/hal_head_touch.cpp
+@@ -9,6 +9,7 @@
+ #include <mooncake_log.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
++#include <atomic>
+ 
+ static const std::string_view _tag = "HAL-HeadTouch";
+ 
+@@ -18,7 +19,9 @@ constexpr si12t_type_t kSensitivityType = SI12T_TYPE_LOW;
+ constexpr si12t_sensitivity_level_t kSensitivityLevel = SI12T_SENSITIVITY_LEVEL_3;
+ constexpr int kPetPeak = 2;
+ constexpr int kPetSamples = 2;
++constexpr int kWeakPetSamples = 32;
+ constexpr int kRunGap = 2;
++std::atomic<uint32_t> g_head_touch_strong{0};
+ 
+ // 配置参数
+ struct TouchConfig {
+@@ -75,10 +78,13 @@ public:
+             run_len++;
+             if (reading > run_peak) run_peak = reading;
+             if (run_len > run_max) run_max = run_len;
+-            if (current_state == TouchState::IDLE && run_peak >= kPetPeak && run_len >= kPetSamples) {
++            if (current_state == TouchState::IDLE &&
++                ((run_peak >= kPetPeak && run_len >= kPetSamples) ||
++                 (run_peak < kPetPeak && run_len >= kWeakPetSamples))) {
+                 current_state = TouchState::TOUCHED;
+                 initial_position = last_position;
+                 gesture = HeadPetGesture::Press;
++                g_head_touch_strong.store(run_peak >= kPetPeak ? 1 : 0);
+                 presses++;
+             } else if (current_state == TouchState::TOUCHED) {
+                 const int16_t delta = data.get_position() - initial_position;
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index db055f3..77fd8ac 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -13,6 +13,9 @@
+ #include <esp_timer.h>
+ #include <deque>
+ #include <mutex>
++#include <atomic>
++
++extern std::atomic<uint32_t> g_head_touch_strong;
+ 
+ namespace {
+ struct DeviceEvent {
+@@ -59,12 +62,13 @@ void Hal::xiaozhi_mcp_init()
+     if (!events_connected) {
+         events_connected = true;
+         GetHAL().onHeadPetGesture.connect([](HeadPetGesture gesture) {
++            const char* strength = g_head_touch_strong.load() ? "\"strong\":1" : "\"strong\":0";
+             if (gesture == HeadPetGesture::Press) {
+-                PushDeviceEvent("head_touch", "\"strong\":1");
++                PushDeviceEvent("head_touch", strength);
+             } else if (gesture == HeadPetGesture::SwipeForward) {
+-                PushDeviceEvent("head_swipe_forward", "\"strong\":1");
++                PushDeviceEvent("head_swipe_forward", strength);
+             } else if (gesture == HeadPetGesture::SwipeBackward) {
+-                PushDeviceEvent("head_swipe_back", "\"strong\":1");
++                PushDeviceEvent("head_swipe_back", strength);
+             }
+         });
+         GetHAL().onImuMotionEvent.connect([](ImuMotionEvent event) {

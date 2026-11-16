@@ -1,0 +1,86 @@
+# Intent: queue head touch, head swipe and shake events on the robot and let the host read and clear them with one MCP tool (the host polls; the robot cannot push).
+# Placement: unit (local touch and motion events)
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 3e3fbae..b6c6627 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -10,8 +10,28 @@
+ #include <apps/common/common.h>
+ #include <ssid_manager.h>
+ #include <esp_wifi.h>
++#include <esp_timer.h>
++#include <deque>
++#include <mutex>
+ 
+ namespace {
++struct DeviceEvent {
++    const char* kind;
++    uint32_t at_ms;
++};
++
++std::deque<DeviceEvent> s_device_events;
++std::mutex s_device_events_mutex;
++
++void PushDeviceEvent(const char* kind)
++{
++    std::lock_guard<std::mutex> lock(s_device_events_mutex);
++    if (s_device_events.size() >= 16) {
++        s_device_events.pop_front();
++    }
++    s_device_events.push_back({kind, static_cast<uint32_t>(esp_timer_get_time() / 1000)});
++}
++
+ std::string EscapeJsonString(const std::string& value)
+ {
+     std::string escaped;
+@@ -34,6 +54,25 @@ void Hal::xiaozhi_mcp_init()
+ {
+     mclog::tagInfo(_tag, "init");
+ 
++    static bool events_connected = false;
++    if (!events_connected) {
++        events_connected = true;
++        GetHAL().onHeadPetGesture.connect([](HeadPetGesture gesture) {
++            if (gesture == HeadPetGesture::Press) {
++                PushDeviceEvent("head_touch");
++            } else if (gesture == HeadPetGesture::SwipeForward) {
++                PushDeviceEvent("head_swipe_forward");
++            } else if (gesture == HeadPetGesture::SwipeBackward) {
++                PushDeviceEvent("head_swipe_back");
++            }
++        });
++        GetHAL().onImuMotionEvent.connect([](ImuMotionEvent event) {
++            if (event == ImuMotionEvent::Shake) {
++                PushDeviceEvent("shake");
++            }
++        });
++    }
++
+     // https://github.com/78/xiaozhi-esp32/blob/main/docs/mcp-usage.md
+     auto& mcp_server = McpServer::GetInstance();
+ 
+@@ -259,4 +298,24 @@ void Hal::xiaozhi_mcp_init()
+                            esp_wifi_disconnect();
+                            return true;
+                        });
++
++    mclog::tagInfo(_tag, "add robot.get_events tool");
++    mcp_server.AddTool("self.robot.get_events",
++                       "Return and clear recent head touch, head swipe, and shake events as a JSON array.",
++                       std::vector<Property>{}, [this](const PropertyList&) -> ReturnValue {
++                           std::string result = "[";
++                           {
++                               std::lock_guard<std::mutex> lock(s_device_events_mutex);
++                               for (size_t i = 0; i < s_device_events.size(); ++i) {
++                                   if (i > 0) {
++                                       result += ", ";
++                                   }
++                                   result += fmt::format(R"({{"kind":"{}", "at_ms":{}}})",
++                                                        s_device_events[i].kind, s_device_events[i].at_ms);
++                               }
++                               s_device_events.clear();
++                           }
++                           result += "]";
++                           return result;
++                       });
+ }

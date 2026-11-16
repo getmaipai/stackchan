@@ -1,9 +1,24 @@
 # Intent: Adapt the ports to interfaces present in the current firmware base.
+# Placement: unit (display and motion interface repair)
 diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
-index 07bd1ae..924224d 100644
+index 07bd1ae..cd2baf2 100644
 --- a/firmware/main/hal/board/stackchan_display.cc
 +++ b/firmware/main/hal/board/stackchan_display.cc
-@@ -294,11 +294,6 @@ void StackChanAvatarDisplay::SetupUI()
+@@ -277,11 +277,12 @@ void StackChanAvatarDisplay::SetupUI()
+         }
+     });
+ 
++    auto* avatar_panel = avatar->getPanel()->get();
++    lv_obj_add_event_cb(avatar_panel, &StackChanAvatarDisplay::OnGesture, LV_EVENT_GESTURE, this);
+     stackchan.attachAvatar(std::move(avatar));
+     stackchan.addModifier(std::make_unique<BreathModifier>());
+     blink_modifier_id_ = stackchan.addModifier(std::make_unique<BlinkModifier>());
+     stackchan.addModifier(std::make_unique<HeadPetModifier>());
+-    lv_obj_add_event_cb(avatar->getPanel()->get(), &StackChanAvatarDisplay::OnGesture, LV_EVENT_GESTURE, this);
+     stackchan.addModifier(std::make_unique<ImuEventModifier>());
+ 
+     preview_image_ = lv_image_create(lv_screen_active());
+@@ -294,11 +295,6 @@ void StackChanAvatarDisplay::SetupUI()
      auto config        = hal_bridge::get_xiaozhi_config();
      idle_motion_level_ = config.idleRandomMovementLevel;
  
@@ -15,7 +30,7 @@ index 07bd1ae..924224d 100644
      // Boot cover: hides the screen until the device is ready
      boot_cover_ = lv_obj_create(lv_screen_active());
      lv_obj_set_size(boot_cover_, lv_pct(100), lv_pct(100));
-@@ -319,9 +314,16 @@ void StackChanAvatarDisplay::LvglLock()
+@@ -319,9 +315,16 @@ void StackChanAvatarDisplay::LvglLock()
      lv_label_set_text(boot_label_, "Connecting to Wi-Fi...");
      ShowBootCover("Connecting to Wi-Fi...", 1);
  
@@ -32,7 +47,7 @@ index 07bd1ae..924224d 100644
  void StackChanAvatarDisplay::ShowBootCover(const char* text, int ring_kind)
  {
      if (boot_label_ != nullptr) {
-@@ -608,7 +610,6 @@ void StackChanAvatarDisplay::CloseQuickSettings()
+@@ -608,7 +611,6 @@ void StackChanAvatarDisplay::CloseQuickSettings()
      _quick_settings_display_ = nullptr;
  }
  

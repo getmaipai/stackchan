@@ -1,4 +1,5 @@
 # Intent: Add the sleeping face state.
+# Placement: unit (face state)
 # Upstream: m5stack/StackChan firmware/main/hal/board/stackchan_display.cc (MIT).
 diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
 index b43b893..915aaad 100644

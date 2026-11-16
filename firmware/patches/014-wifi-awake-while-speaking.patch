@@ -1,0 +1,23 @@
+# Intent: Keep Wi-Fi in performance mode while speaking and restore low power at idle.
+# Placement: unit (audio transport power policy)
+# Upstream: 78/xiaozhi-esp32 firmware source (MIT).
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index c73765b..8a4dc4d 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -1027,6 +1027,7 @@ void Application::HandleStateChangedEvent() {
+             }
+             audio_service_.EnableVoiceProcessing(false);
+             audio_service_.EnableWakeWordDetection(true);
++            Board::GetInstance().SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
+             break;
+         case kDeviceStateConnecting:
+             display->SetStatus(Lang::Strings::CONNECTING);
+@@ -1054,6 +1055,7 @@ void Application::HandleStateChangedEvent() {
+             break;
+         case kDeviceStateSpeaking:
+             display->SetStatus(Lang::Strings::SPEAKING);
++            Board::GetInstance().SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
+ 
+             if (listening_mode_ != kListeningModeRealtime) {
+                 audio_service_.EnableVoiceProcessing(false);

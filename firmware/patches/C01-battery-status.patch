@@ -1,4 +1,5 @@
 # Intent: Expose the unit battery percentage and charging state through MCP.
+# Placement: unit (power status reporting)
 # Verdict: PORT. The original battery tool patch applies to the new base without source changes.
 diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
 index 0d73851..6572c39 100644

@@ -1,4 +1,5 @@
 # Intent: Add face swipe gestures and the quick settings panel.
+# Placement: unit (touch controls)
 # Upstream: m5stack/StackChan firmware/main/hal/board/stackchan_display.cc, stackchan_display.h (MIT).
 diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
 index d114ea8..07bd1ae 100644

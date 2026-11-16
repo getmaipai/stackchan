@@ -1,0 +1,16 @@
+# Intent: Stop queued speech immediately when a face tap ends a reply.
+# Placement: unit (local interruption)
+# Upstream: 78/xiaozhi-esp32 firmware source (MIT).
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index 35d4f79..685c892 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -860,6 +860,8 @@ void Application::HandleToggleChatEvent() {
+         SetListeningMode(mode);
+     } else if (state == kDeviceStateSpeaking) {
+         AbortSpeaking(kAbortReasonNone);
++        audio_service_.ResetDecoder();
++        SetDeviceState(kDeviceStateIdle);
+     } else if (state == kDeviceStateListening) {
+         protocol_->CloseAudioChannel();
+     }

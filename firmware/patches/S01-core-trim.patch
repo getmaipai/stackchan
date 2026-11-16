@@ -1,0 +1,103 @@
+# Intent: Remove Home-only apps, unused network clients, and Bluetooth transport from the core image.
+# Placement: unit (the core keeps setup, local dance behavior, and the Wi-Fi voice path)
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+index d118f7e..a57945f 100644
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -23,6 +23,9 @@ file(GLOB_RECURSE STACK_CHAN_SOURCES
+     "stackchan/*.cc"
+     "stackchan/*.cpp"
+ )
++list(FILTER STACK_CHAN_SOURCES EXCLUDE REGEX "apps/(app_avatar|app_app_center|app_ezdata|app_espnow_ctrl)/")
++list(FILTER STACK_CHAN_SOURCES EXCLUDE REGEX "hal/(hal_ble\.cpp$|utils/bleprph/)")
++list(FILTER STACK_CHAN_SOURCES EXCLUDE REGEX "hal/(hal_app_center|hal_ezdata)\.cpp$")
+ set(STACK_CHAN_INCLUDE_DIRS 
+     "."
+ )
+@@ -61,7 +64,6 @@ set(SOURCES "audio/audio_codec.cc"
+             "display/lvgl_display/jpg/jpeg_to_image.c"
+             "protocols/protocol.cc"
+             "protocols/text_glyph_payload.cc"
+-            "protocols/mqtt_protocol.cc"
+             "protocols/websocket_protocol.cc"
+             "mcp_server.cc"
+             "system_info.cc"
+@@ -84,9 +86,7 @@ list(TRANSFORM INCLUDE_DIRS PREPEND "${XIAOZHI_MAIN_DIR}/")
+ list(APPEND SOURCES
+     "${XIAOZHI_MAIN_DIR}/boards/common/board.cc"
+     "${XIAOZHI_MAIN_DIR}/boards/common/wifi_board.cc"
+-    "${XIAOZHI_MAIN_DIR}/boards/common/ml307_board.cc"
+     "${XIAOZHI_MAIN_DIR}/boards/common/nt26_board.cc"
+-    "${XIAOZHI_MAIN_DIR}/boards/common/dual_network_board.cc"
+     "${XIAOZHI_MAIN_DIR}/boards/common/adc_battery_monitor.cc"
+     "${XIAOZHI_MAIN_DIR}/boards/common/axp2101.cc"
+     "${XIAOZHI_MAIN_DIR}/boards/common/backlight.cc"
+diff --git a/firmware/main/apps/apps.h b/firmware/main/apps/apps.h
+index 77cc9b7..ea61ea7 100644
+--- a/firmware/main/apps/apps.h
++++ b/firmware/main/apps/apps.h
+@@ -6,9 +6,5 @@
+ #pragma once
+ #include "app_launcher/app_launcher.h"
+ #include "app_ai_agent/app_ai_agent.h"
+-#include "app_avatar/app_avatar.h"
+ #include "app_setup/app_setup.h"
+-#include "app_espnow_ctrl/app_espnow_ctrl.h"
+-#include "app_app_center/app_app_center.h"
+-#include "app_ezdata/app_ezdata.h"
+ #include "app_dance/app_dance.h"
+diff --git a/firmware/main/main.cpp b/firmware/main/main.cpp
+index 4c1f20f..30fe969 100644
+--- a/firmware/main/main.cpp
++++ b/firmware/main/main.cpp
+@@ -34,12 +34,6 @@ extern "C" void app_main(void)
+         GetMooncake().installApp(std::make_unique<AppLauncher>());
+         hal_toggles::register_app_id(hal_toggles::App::AiAgent,
+                                      GetMooncake().installApp(std::make_unique<AppAiAgent>()));
+-        hal_toggles::register_app_id(hal_toggles::App::Avatar, GetMooncake().installApp(std::make_unique<AppAvatar>()));
+-        hal_toggles::register_app_id(hal_toggles::App::EspnowRemote,
+-                                     GetMooncake().installApp(std::make_unique<AppEspnowControl>()));
+-        hal_toggles::register_app_id(hal_toggles::App::AppCenter,
+-                                     GetMooncake().installApp(std::make_unique<AppAppCenter>()));
+-        hal_toggles::register_app_id(hal_toggles::App::Ezdata, GetMooncake().installApp(std::make_unique<AppEzdata>()));
+         hal_toggles::register_app_id(hal_toggles::App::Dance, GetMooncake().installApp(std::make_unique<AppDance>()));
+         GetMooncake().installApp(std::make_unique<AppSetup>());
+ 
+diff --git a/firmware/main/hal/maipai_bt_disabled.cpp b/firmware/main/hal/maipai_bt_disabled.cpp
+new file mode 100644
+index 0000000..d4f4704
+--- /dev/null
++++ b/firmware/main/hal/maipai_bt_disabled.cpp
+@@ -0,0 +1,32 @@
++#include "hal.h"
++
++#include <esp_log.h>
++
++#include "settings.h"
++
++void Hal::startBleServer()
++{
++    ESP_LOGW("Bluetooth", "Bluetooth is disabled. Configure the robot over Wi-Fi.");
++}
++
++bool Hal::isBleConnected()
++{
++    return false;
++}
++
++void Hal::startAppConfigServer()
++{
++    ESP_LOGW("Bluetooth", "Bluetooth setup is disabled. Configure Wi-Fi on the robot.");
++}
++
++bool Hal::isAppConfiged()
++{
++    Settings settings("app_config", false);
++    return settings.GetBool("is_configed", false);
++}
++
++void Hal::resetAppConfiged()
++{
++    Settings settings("app_config", true);
++    settings.SetBool("is_configed", false);
++}

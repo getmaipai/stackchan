@@ -1,0 +1,58 @@
+# Intent: Guard against stuck connecting or listening states and restart the host listen turn after TTS stop.
+# Placement: unit (voice state recovery)
+# Upstream: 78/xiaozhi-esp32 firmware source (MIT).
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index eb839ea..35d4f79 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -184,6 +184,9 @@ void Application::Run() {
+         MAIN_EVENT_START_LISTENING | MAIN_EVENT_STOP_LISTENING | MAIN_EVENT_ACTIVATION_DONE |
+         MAIN_EVENT_STATE_CHANGED | MAIN_EVENT_PLAYBACK_DRAINED;
+ 
++    static uint32_t guard_clock = 0;
++    static auto guard_last_state = GetDeviceState();
++    static uint32_t guard_since_tick = 0;
+     while (true) {
+         auto bits = xEventGroupWaitBits(event_group_, ALL_EVENTS, pdTRUE, pdFALSE, portMAX_DELAY);
+ 
+@@ -273,6 +276,7 @@ void Application::Run() {
+ 
+         if (bits & MAIN_EVENT_CLOCK_TICK) {
+             clock_ticks_++;
++            guard_clock++;
+             auto display = Board::GetInstance().GetDisplay();
+             display->UpdateStatusBar();
+ 
+@@ -282,6 +286,22 @@ void Application::Run() {
+                 // SystemInfo::PrintTaskList();
+                 // SystemInfo::PrintTaskCpuUsage(pdMS_TO_TICKS(1000));
+             }
++
++            auto guard_state = GetDeviceState();
++            if (guard_state != guard_last_state) {
++                guard_last_state = guard_state;
++                guard_since_tick = guard_clock;
++            } else {
++                const uint32_t held = guard_clock - guard_since_tick;
++                if ((guard_state == kDeviceStateConnecting && held >= 8) ||
++                    (guard_state == kDeviceStateListening && held >= 20)) {
++                    ESP_LOGW(TAG, "State guard returning %s to idle after %u seconds",
++                             DeviceStateMachine::GetStateName(guard_state),
++                             static_cast<unsigned>(held));
++                    SetDeviceState(kDeviceStateIdle);
++                    guard_since_tick = guard_clock;
++                }
++            }
+         }
+     }
+ }
+@@ -650,6 +670,9 @@ void Application::InitializeProtocol() {
+                         } else {
+                             SetDeviceState(kDeviceStateListening);
+                         }
++                    } else if (GetDeviceState() == kDeviceStateListening &&
++                               listening_mode_ != kListeningModeManualStop) {
++                        protocol_->SendStartListening(listening_mode_);
+                     }
+                 });
+             } else if (strcmp(state->valuestring, "sentence_start") == 0) {
