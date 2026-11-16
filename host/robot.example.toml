@@ -28,3 +28,20 @@ language = "en"
 [remote]
 # Remote access is disabled unless explicitly enabled.
 enabled = false
+
+# Several robots: one table per unit, found by its Device-Id (run `stackchan units` to list them).
+# Anything left out uses the top-level value. Settings saved on the settings page win over these,
+# and `stackchan name <device-id> <name>` sets the name people see. Delete the "#" to use one.
+# [units.kitchen]
+# device_id = "aa:bb:cc:dd:ee:01"      # required: the unit's Device-Id
+# persona = "You are a cheerful kitchen helper."
+# volume_cap = 60                      # 0 to 100
+# muted = false
+# [units.kitchen.llm]                  # its own model; leave out to use [llm] or Home
+# url = "http://192.0.2.10:8080/v1"
+# model = "kitchen-model"
+# api_key_env = "KITCHEN_LLM_KEY"      # the NAME of the variable, never the key
+# [[units.kitchen.alarm]]
+# time = "07:30"                       # 24 hour HH:MM
+# days = ["mon", "tue", "wed", "thu", "fri"]
+# label = "School"

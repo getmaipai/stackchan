@@ -1,7 +1,7 @@
 # ruff: noqa: E501
 """What the running host knows about each connected unit, for the settings page.
 
-Reads the live voice connection: which units are online, each unit's own firmware version and saved
+Reads the live voice connection: which units are online, each unit's firmware version (from its "fw" event) and saved
 Wi-Fi networks (asked of that unit by its Device-Id), and the over-the-air push for one unit.
 """
 
@@ -13,16 +13,6 @@ from pathlib import Path
 from typing import Any
 
 LOG = logging.getLogger(__name__)
-_VERSION_KEYS = ("firmware_version", "fw_version", "app_version", "version")
-
-
-def _as_dict(result: object) -> dict[str, Any]:
-    if isinstance(result, str):
-        try:
-            result = json.loads(result)
-        except ValueError:
-            return {}
-    return result if isinstance(result, dict) else {}
 
 
 class LiveUnits:
@@ -30,24 +20,33 @@ class LiveUnits:
         self.voice = voice
         self._sole_unit_version = sole_unit_version
         self._timeout = timeout
+        self._versions: dict[str, str] = {}
+
+    def note_event(self, device_id: str, kind: str, extra: Any) -> None:
+        """Keep the version a unit reports in its once-a-minute "fw" event (firmware patch 062).
+
+        That event ({"version": "0.2.31", "rssi": -61}) is the only place the firmware reports its
+        version; the status tool does not carry one.
+        """
+        if kind == "fw" and isinstance(extra, dict) and isinstance(extra.get("version"), str):
+            self._versions[device_id] = extra["version"]
+
+    def version_of(self, device_id: str) -> str | None:
+        """This unit's reported version. With one unit connected, the host's single fact is used."""
+        version = self._versions.get(device_id)
+        if version is None and self._sole_unit_version is not None:
+            if self.voice.connected_devices() == [device_id]:
+                version = self._sole_unit_version()
+        return version if isinstance(version, str) and version != "unknown" else None
 
     def live(self, device_id: str) -> dict[str, Any]:
         """Online state, firmware version and Wi-Fi state of one unit; offline gives only online=False."""
         if device_id not in self.voice.connected_devices():
             return {"online": False}
         out: dict[str, Any] = {"online": True}
-        try:
-            status = _as_dict(self._call(device_id, "self.get_device_status"))
-        except Exception:
-            LOG.info("settings page: unit %s did not answer its status", device_id[-5:])
-            status = {}
-        for key in _VERSION_KEYS:
-            if isinstance(status.get(key), str):
-                out["firmware_version"] = status[key]
-                break
-        else:
-            if len(self.voice.connected_devices()) == 1 and self._sole_unit_version is not None:
-                out["firmware_version"] = self._sole_unit_version()
+        version = self.version_of(device_id)
+        if version is not None:
+            out["firmware_version"] = version
         try:
             saved = self._call(device_id, "self.wifi.list_saved")
             networks = json.loads(saved) if isinstance(saved, str) else saved

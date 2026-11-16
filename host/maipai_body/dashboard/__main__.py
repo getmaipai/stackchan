@@ -38,6 +38,8 @@ def main(argv: list[str] | None = None) -> int:
 
     from maipai_body.config import load_config
     from maipai_body.settings_page import SettingsBackend
+    from maipai_body.unit_settings import UnitSettingsStore
+    from maipai_body.units import LayeredStore
 
     config = load_config()
     pairing_store = PairingStore(default_pairing_path())
@@ -49,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
         pairing_store=pairing_store,
         settings=SettingsBackend(
             devices=pairing_store.paired_devices,
+            store=LayeredStore(UnitSettingsStore(), config.units),
             host_address=f"{args.host}:{args.port}",
             update_source=config.update.source,
             public_key=config.update.trusted_key,

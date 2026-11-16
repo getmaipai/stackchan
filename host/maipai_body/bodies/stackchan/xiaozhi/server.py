@@ -208,8 +208,8 @@ class XiaozhiDeviceClient:
     def device_supports(self, feature: str) -> bool:
         return self.server.device_supports(feature)
 
-    def create_notification_audio(self, message: object) -> str:
-        return self.server.create_notification_audio(message)
+    def create_notification_audio(self, message: object, device_id: str | None = None) -> str:
+        return self.server.create_notification_audio(message, device_id)
 
     def notify(self, audio_url: str) -> object:
         self.server.refuse_on_loop("notify", self.timeout)
@@ -1278,7 +1278,7 @@ class XiaozhiServer:
         device_id = next(iter(self._sessions))
         return self._session_features.get(device_id, {}).get(feature) is True
 
-    def create_notification_audio(self, message: object) -> str:
+    def create_notification_audio(self, message: object, device_id: str | None = None) -> str:
         if not isinstance(message, str) or not message.strip():
             raise ValueError("notification message must be non-empty text")
         if self.notification_audio_handler is None:

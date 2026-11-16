@@ -116,6 +116,11 @@ class UnitSettingsStore:
             ) from error
         return data if isinstance(data, dict) else {}
 
+    def all_ids(self) -> list[str]:
+        """Every Device-Id that has saved settings."""
+        with self._lock:
+            return list(self._load())
+
     def get(self, device_id: str) -> dict[str, Any]:
         with self._lock:
             return dict(self._load().get(device_id, {}))

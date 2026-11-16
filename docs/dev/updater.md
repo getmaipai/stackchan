@@ -67,8 +67,9 @@ routes and cross-origin refusal.
 
 The running host serves the page itself (`settings_server.py`, loopback only, port 8051, change it
 with `MAIPAI_STACKCHAN_SETTINGS_PORT`, `0` turns it off). `live_units.py` reads the live voice
-connection for each unit by its Device-Id: online state, firmware version (from the unit's
-`self.get_device_status`, or the host's one known version when a single unit is connected), and
+connection for each unit by its Device-Id: online state, firmware version (from the unit's once-a-minute
+`fw` event, firmware patch 062, `{"version", "rssi"}`; `LiveUnits.note_event` keeps it per unit, and
+with one unit connected the host's single `fw_version` fact is used), and
 whether it has saved Wi-Fi networks (`self.wifi.list_saved`). The OTA push serves the image to that one
 unit and calls its `self.firmware.update` tool. Persona, model, volume cap and recurring alarms are
 read and written through `unit_settings.py` and used per unit (see "Several robots" in
@@ -82,8 +83,10 @@ the first unit download; it now serves the bytes it stored. `serve_firmware_once
 ## Not verified or not built
 
 - No unit was flashed and no USB port was opened. esptool itself was not run.
-- The live paths (device status, Wi-Fi list, OTA tool call) are tested with a fake voice link, not a
-  real unit. The key names in a real unit's status (`firmware_version`, `fw_version`, `app_version`,
-  `version`) are a guess until read from one.
+- The live paths (Wi-Fi list, OTA tool call) are tested with a fake voice link, not a real unit.
+  The version key is no longer a guess: the firmware reports it only in the `fw` event (key
+  `version`), not in `self.get_device_status`. The host polls events with one unit-less call
+  (`self.robot.get_events`), so with two units connected the version shows "unknown" until the event
+  poll is made per unit; `LiveUnits.note_event(device_id, kind, extra)` is the hook for that.
 - The `stackchan update` CLI still pushes through the single-unit host path.
 - No release is published, so no real signature has been checked; the trusted key is not shipped.

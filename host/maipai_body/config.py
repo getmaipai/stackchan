@@ -8,6 +8,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from maipai_body.unit_settings import _DEVICE as DEVICE_ID
+from maipai_body.unit_settings import DAYS, SettingsError
+from maipai_body.unit_settings import _clean as clean_settings
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -47,12 +51,83 @@ class UpdateConfig(StrictModel):
     preset: Literal["core", "home"] = "core"
 
 
+class UnitLlm(StrictModel):
+    url: str = ""
+    model: str = ""
+    api_key_env: str | None = None
+
+
+class UnitAlarm(StrictModel):
+    time: str
+    days: list[str] = Field(default_factory=lambda: list(DAYS))
+    label: str = ""
+
+
+class UnitConfig(StrictModel):
+    """One robot's own settings: `[units.kitchen]`, found by its `device_id` (its Device-Id).
+
+    Anything left out inherits the top-level value. The values are checked by the same rules the
+    settings page uses (`unit_settings`), so a bad value is refused with the same plain message.
+    """
+
+    device_id: str
+    name: str | None = None
+    persona: str | None = None
+    volume_cap: int | None = None
+    muted: bool | None = None
+    llm: UnitLlm | None = None
+    alarm: list[UnitAlarm] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def check_values(self):
+        if not DEVICE_ID.match(self.device_id):
+            raise ValueError(
+                f"device_id {self.device_id!r} is not a unit address. Copy the Device-Id from "
+                "`stackchan units` (like aa:bb:cc:dd:ee:ff)."
+            )
+        try:
+            clean_settings(self.settings())
+        except SettingsError as error:
+            raise ValueError(str(error)) from error
+        return self
+
+    def settings(self) -> dict[str, object]:
+        """The unit's overrides in the shape `unit_settings` stores (only what was set)."""
+        out: dict[str, object] = {}
+        for key in ("name", "persona", "volume_cap", "muted"):
+            if getattr(self, key) is not None:
+                out[key] = getattr(self, key)
+        if self.llm is not None:
+            out["llm"] = {
+                "url": self.llm.url,
+                "model": self.llm.model,
+                "api_key_env": self.llm.api_key_env or "",
+            }
+        if self.alarm:
+            out["alarms"] = [a.model_dump() for a in self.alarm]
+        return out
+
+
 class RobotConfig(StrictModel):
     brain: Literal["llm", "home", "standalone"] = "llm"
+    units: dict[str, UnitConfig] = Field(default_factory=dict)
     llm: LlmConfig = Field(default_factory=LlmConfig)
     home: HomeConfig = Field(default_factory=HomeConfig)
     remote: RemoteConfig = Field(default_factory=RemoteConfig)
     update: UpdateConfig = Field(default_factory=UpdateConfig)
+
+    @model_validator(mode="after")
+    def check_unit_ids_differ(self):
+        seen: dict[str, str] = {}
+        for name, unit in self.units.items():
+            key = unit.device_id.lower().replace("-", ":")
+            if key in seen:
+                raise ValueError(
+                    f"[units.{seen[key]}] and [units.{name}] use the same device_id. "
+                    "Give each unit its own Device-Id."
+                )
+            seen[key] = name
+        return self
 
     @model_validator(mode="before")
     @classmethod
@@ -91,6 +166,12 @@ def load_config(path: str | Path | None = None) -> RobotConfig:
     except Exception as exc:
         if hasattr(exc, "errors"):
             first = exc.errors()[0]
+            loc = first.get("loc", ())
+            if loc and loc[0] == "units":
+                raise ValueError(_unit_error(first, loc, config_path)) from exc
+            if not loc and "device_id" in str(first.get("msg", "")):
+                message = str(first["msg"]).removeprefix("Value error, ")
+                raise ValueError(f"{message} Fix it in {config_path}.") from exc
             key = ".".join(str(part) for part in first.get("loc", ())) or "configuration"
             raise ValueError(
                 f"Unknown or invalid key {key}. Correct or remove this key in {config_path}."
@@ -98,3 +179,18 @@ def load_config(path: str | Path | None = None) -> RobotConfig:
         raise ValueError(
             f"Could not read {config_path}. Fix its TOML syntax and try again."
         ) from exc
+
+
+def _unit_error(error: dict, loc: tuple, config_path: Path) -> str:
+    name = loc[1] if len(loc) > 1 else "?"
+    message = str(error.get("msg", "")).removeprefix("Value error, ")
+    if error.get("type") == "extra_forbidden":
+        message = f"{loc[-1]} is not a unit setting"
+    elif error.get("type") == "missing":
+        message = f"{loc[-1]} is missing"
+    if not message.rstrip().endswith("."):
+        message += "."
+    return (
+        f"[units.{name}] in {config_path} is not valid: {message} "
+        "Correct or remove it, then run the command again."
+    )

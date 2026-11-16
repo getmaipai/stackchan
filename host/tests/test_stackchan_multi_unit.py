@@ -178,8 +178,6 @@ class _Voice:
     def call_device_tool(self, name, arguments, *, timeout=5.0, device_id=None):
         self.calls.append((device_id, name, arguments))
         unit = self.sessions[device_id]
-        if name == "self.get_device_status":
-            return {"version": unit["version"]}
         if name == "self.wifi.list_saved":
             return unit["wifi"]
         return {}
@@ -192,6 +190,7 @@ class _Voice:
 def test_live_state_is_per_unit_and_offline_is_plain(tmp_path):
     voice = _Voice()
     live = LiveUnits(voice)
+    live.note_event(KITCHEN, "fw", {"version": "1.1.0", "rssi": -60})  # the firmware's own report
     assert live.live(KITCHEN) == {"online": True, "firmware_version": "1.1.0", "wifi_configured": True}
     assert live.live(DEN) == {"online": False}
     backend = SettingsBackend(

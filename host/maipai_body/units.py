@@ -35,7 +35,15 @@ class BrainTurn:
     def __init__(self, brain: Any, conversation_id: str) -> None:
         self._brain, self._conversation_id = brain, conversation_id
 
-    def stream(self, text: str, *, speaker_evidence=None, present=None, conversation_id=None, ask_answer=None) -> Iterator[Any]:
+    def stream(
+        self,
+        text: str,
+        *,
+        speaker_evidence=None,
+        present=None,
+        conversation_id=None,
+        ask_answer=None,
+    ) -> Iterator[Any]:
         return self._brain.stream_turn(
             TurnRequest(
                 text=text,
@@ -50,6 +58,63 @@ class BrainTurn:
         return bool(self._brain.cancel_turn(turn_id))
 
 
+def _norm(device_id: str) -> str:
+    return device_id.lower().replace("-", ":")
+
+
+class LayeredStore:
+    """robot.toml `[units.<name>]` tables under the settings page file.
+
+    The tables are the owner's defaults for a unit; anything saved on the settings page (or with
+    `stackchan name`) is newer and wins. Writes go only to the page file; robot.toml is never rewritten.
+    """
+
+    def __init__(self, inner: UnitSettingsStore, tables: dict[str, Any] | None = None) -> None:
+        self.inner = inner
+        self._by_id = {_norm(t.device_id): (n, t) for n, t in (tables or {}).items()}
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
+
+    def table_name(self, device_id: str) -> str | None:
+        hit = self._by_id.get(_norm(device_id))
+        return hit[0] if hit else None
+
+    def known_ids(self) -> list[str]:
+        """Device-Ids named in robot.toml, as written there."""
+        return [t.device_id for _, t in self._by_id.values()]
+
+    def get(self, device_id: str) -> dict[str, Any]:
+        own = self.inner.get(device_id)
+        hit = self._by_id.get(_norm(device_id))
+        if hit is None:
+            return own
+        name, table = hit
+        base = {"name": name, **table.settings()}
+        merged = {**base, **own}
+        if "llm" in base or "llm" in own:
+            merged["llm"] = {
+                **base.get("llm", {}),
+                **{k: v for k, v in own.get("llm", {}).items() if v},
+            }
+        return merged
+
+    def update(self, device_id: str, values: dict[str, Any]) -> dict[str, Any]:
+        self.inner.update(device_id, values)
+        return self.get(device_id)
+
+    def effective(self, device_id: str, base: dict[str, Any]) -> dict[str, Any]:
+        own = self.get(device_id)
+        merged = {**base, "llm": dict(base.get("llm", {}))}
+        for key in ("persona", "volume_cap", "muted", "alarms", "name"):
+            if key in own:
+                merged[key] = own[key]
+        for key, value in own.get("llm", {}).items():
+            if value:
+                merged["llm"][key] = value
+        return merged
+
+
 class UnitRegistry:
     def __init__(
         self,
@@ -60,7 +125,7 @@ class UnitRegistry:
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.base = base
-        self.store = store or UnitSettingsStore()
+        self.store = LayeredStore(store or UnitSettingsStore(), base.units)
         self._factory = brain_factory or _default_factory
         self._clock = clock
         self._lock = threading.Lock()
@@ -147,6 +212,40 @@ class UnitRegistry:
             )
             sent += 1
         return sent
+
+
+def known_units(
+    paired: dict[str, Any], store: LayeredStore, online: set[str] | None = None
+) -> list[dict[str, Any]]:
+    """Every unit the host knows (paired, saved on the page, or named in robot.toml), sorted by name.
+
+    ``online`` is None when the running host could not be asked; each row then says online=None.
+    """
+    ids: dict[str, str] = {}
+    for device_id in [*paired, *store.known_ids(), *store.inner.all_ids()]:
+        ids.setdefault(_norm(device_id), device_id)
+    rows = []
+    for key, device_id in ids.items():
+        own = store.get(device_id)
+        rows.append(
+            {
+                "device_id": device_id,
+                "name": own.get("name", f"StackChan {device_id[-5:]}"),
+                "paired": any(_norm(p) == key for p in paired),
+                "online": None if online is None else any(_norm(o) == key for o in online),
+            }
+        )
+    return sorted(rows, key=lambda r: (r["name"].lower(), r["device_id"]))
+
+
+def default_unit(rows: list[dict[str, Any]]) -> str | None:
+    """The unit a control uses when none is named: the only unit, else the first online one."""
+    if len(rows) == 1:
+        return rows[0]["device_id"]
+    for row in rows:
+        if row["online"]:
+            return row["device_id"]
+    return None
 
 
 def registry_from_disk(store: UnitSettingsStore | None = None) -> UnitRegistry:

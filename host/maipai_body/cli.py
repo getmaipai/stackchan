@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Host setup and status commands."""
 
 from __future__ import annotations
@@ -17,6 +18,15 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("pair", help="show a one-use pairing code")
     commands.add_parser("status", help="show the brain and paired units")
+    units = commands.add_parser("units", help="list known units with their name and online state")
+    units.add_argument(
+        "--host-url", default="http://127.0.0.1:8051", help="the running host's settings page"
+    )
+    name = commands.add_parser(
+        "name", help="give a unit a name (it is shown instead of its Device-Id)"
+    )
+    name.add_argument("unit", help="Device-Id of the unit, or its current name")
+    name.add_argument("new_name", metavar="name", help="the new name, 1 to 40 characters")
     bench = commands.add_parser("bench", help="start the local unit testing console")
     bench.add_argument("--host", default="127.0.0.1")
     bench.add_argument("--port", type=int, default=9790)
@@ -143,6 +153,8 @@ def main() -> int:
         return 0 if passed else 1
     config = load_config()
     store = PairingStore(default_pairing_path())
+    if args.command in {"units", "name"}:
+        return _units_or_name(args, config, store)
     if args.command == "pair":
         print(f"Pairing code: {store.create_pair_code()}")
         print("Enter this code on the unit setup page within 10 minutes.")
@@ -154,6 +166,80 @@ def main() -> int:
         seen = record.get("last_seen")
         when = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(float(seen))) if seen else "never"
         print(f"{device_id}: last seen {when}")
+    return 0
+
+
+def _online_from_host(host_url: str) -> set[str] | None:
+    """Device-Ids the running host says are connected, or None when it cannot be asked."""
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(  # noqa: S310
+            f"{host_url.rstrip('/')}/api/stackchan/settings", timeout=3
+        ) as response:
+            data = json.loads(response.read())
+        return {u["device_id"] for u in data["units"] if u.get("online")}
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _units_or_name(args: argparse.Namespace, config, pairing: PairingStore) -> int:
+    from maipai_body.unit_settings import SettingsError, UnitSettingsStore
+    from maipai_body.units import LayeredStore, known_units
+
+    store = LayeredStore(UnitSettingsStore(), config.units)
+    paired = pairing.paired_devices()
+    if args.command == "units":
+        online = _online_from_host(args.host_url)
+        rows = known_units(paired, store, online)
+        if not rows:
+            print("No units yet. Run `stackchan pair`, then enter the code on the unit.")
+            return 0
+        for row in rows:
+            state = {None: "unknown", True: "online", False: "offline"}[row["online"]]
+            print(
+                f"{row['name']}: {row['device_id']}, {state}"
+                + ("" if row["paired"] else ", not paired")
+            )
+        if online is None:
+            print(
+                f"The host did not answer at {args.host_url}, so online state is unknown. "
+                "Start the StackChan host to see it."
+            )
+        return 0
+    rows = known_units(paired, store, None)
+    wanted = args.unit.lower().replace("-", ":")
+    matches = [r for r in rows if r["device_id"].lower().replace("-", ":") == wanted]
+    matches = matches or [r for r in rows if r["name"].lower() == args.unit.lower()]
+    if not matches:
+        print(
+            f"No unit {args.unit!r}. Run `stackchan units` and copy a Device-Id from the list.",
+            file=sys.stderr,
+        )
+        return 2
+    if len(matches) > 1:
+        print(
+            f"More than one unit is called {args.unit!r}. Use its Device-Id (see `stackchan units`).",
+            file=sys.stderr,
+        )
+        return 2
+    others = [
+        r
+        for r in rows
+        if r["name"].lower() == args.new_name.strip().lower() and r is not matches[0]
+    ]
+    if others:
+        print(
+            f"Another unit is already called {args.new_name!r}. Pick a different name.",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        store.update(matches[0]["device_id"], {"name": args.new_name})
+    except SettingsError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    print(f"{matches[0]['device_id']} is now called {args.new_name.strip()}.")
     return 0
 
 

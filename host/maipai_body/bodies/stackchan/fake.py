@@ -168,8 +168,8 @@ class FakeStackChanDeviceClient:
     def device_supports(self, feature: str) -> bool:
         return feature == "notify" and self.notify_feature
 
-    def create_notification_audio(self, message: object) -> str:
-        del message
+    def create_notification_audio(self, message: object, device_id: str | None = None) -> str:
+        del message, device_id
         return self.notification_audio_url
 
     def notify(self, audio_url: str) -> object:

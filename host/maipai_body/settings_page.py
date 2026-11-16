@@ -61,7 +61,10 @@ class SettingsBackend:
                     "online": live.get("online"),
                 }
             )
+        online = [u["device_id"] for u in units if u["online"]]
+        default = units[0]["device_id"] if len(units) == 1 else (online[0] if online else None)
         return {
+            "default_unit": default or (units[0]["device_id"] if units else None),
             "host_address": self.host_address,
             "language": normalize(lang or self.language),
             "update_source_set": bool(self.update_source),
@@ -98,7 +101,6 @@ class SettingsBackend:
             if unit_version and not updater.is_newer(release.version, unit_version):
                 raise updater.UpdateRefused(t(lang, "settings.update.current")) from error
             raise
-
 
     # -- routes shared by every server that hosts the page ------------------------------------
 
@@ -208,7 +210,15 @@ const d=await r.json();if(!r.ok){{status(d.error);return}}
 document.querySelector('#host').textContent=d.host_address;
 const box=document.querySelector('#units');box.replaceChildren();
 if(!d.units.length)status(S['settings.no_units']);
-for(const u of d.units)box.append(unitCard(u))}}
+if(d.units.length<2){{for(const u of d.units)box.append(unitCard(u));return}}
+const pick=document.createElement('select');pick.id='unitpick';
+for(const u of d.units)pick.append(Object.assign(document.createElement('option'),{{value:u.device_id,textContent:u.name}}));
+let keep=null;try{{keep=sessionStorage.getItem('unit')}}catch(e){{}}
+pick.value=d.units.some(u=>u.device_id===keep)?keep:d.default_unit;
+const show=()=>{{try{{sessionStorage.setItem('unit',pick.value)}}catch(e){{}}box.querySelectorAll('section').forEach(x=>x.remove());
+box.append(unitCard(d.units.find(u=>u.device_id===pick.value)))}};
+pick.onchange=show;const lab=document.createElement('label');lab.textContent=S['settings.unit_pick'];lab.append(pick);
+box.prepend(lab);show()}}
 load();
 </script></html>"""
     return page.encode("utf-8")
