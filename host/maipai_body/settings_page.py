@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
+from maipai_body import faces as face_settings
 from maipai_body.bodies.stackchan import updater
 from maipai_body.i18n import SUPPORTED, catalog, normalize, t
 from maipai_body.unit_settings import SettingsError, UnitSettingsStore
@@ -34,12 +35,22 @@ class SettingsBackend:
         push: updater.OtaPush | None = None,
         preset: str = "core",
         language: str = "en",
+        faces: face_settings.FaceService | None = None,
     ) -> None:
         self.devices, self.store = devices, store or UnitSettingsStore()
         self.live = live or (lambda _device_id: {})
         self.host_address = host_address
         self.update_source, self.public_key = update_source, public_key
         self.push, self.preset, self.language = push, preset, normalize(language)
+        self._faces = faces
+
+    @property
+    def faces(self) -> face_settings.FaceService:
+        """The face settings of every unit. Without a live link a unit counts as offline: a change
+        is saved and goes to the unit when the host next sees it connect."""
+        if self._faces is None:
+            self._faces = face_settings.FaceService(face_settings.offline_call)
+        return self._faces
 
     def state(self, lang: str | None = None) -> dict[str, Any]:
         units = []
@@ -102,10 +113,43 @@ class SettingsBackend:
                 raise updater.UpdateRefused(t(lang, "settings.update.current")) from error
             raise
 
+    # -- face settings (faces.py): one section per unit on the page ----------------------------
+
+    def _face_unit(self, device_id: str) -> None:
+        if device_id not in self.devices():
+            raise face_settings.FaceError(
+                "That unit is not paired. Pair it first, then open its face settings."
+            )
+
+    def _faces_get(self, device_id: str, lang: str) -> tuple[int, str, bytes]:
+        try:
+            self._face_unit(device_id)
+            view = face_settings.settings_view(self.faces, device_id, lang)
+            return 200, JSON, json.dumps(view).encode()
+        except face_settings.FaceError as error:
+            return 400, JSON, json.dumps({"error": str(error)}).encode()
+
+    def _faces_post(self, rest: str, body: dict[str, Any], lang: str) -> tuple[int, dict[str, Any]]:
+        """Save and send one unit's face settings. ``.../reset`` goes back to the plain face."""
+        values = {k: v for k, v in body.items() if k not in {"lang", "confirm"}}
+        try:
+            if rest.endswith("/reset"):
+                device_id = rest[: -len("/reset")]
+                self._face_unit(device_id)
+                return 200, self.faces.reset(device_id, lang)
+            self._face_unit(rest)
+            return 200, face_settings.apply_settings(self.faces, rest, values, lang)
+        except face_settings.FaceError as error:
+            return 400, {"error": str(error)}
+
     # -- routes shared by every server that hosts the page ------------------------------------
 
     def route_get(self, path: str, lang: str, local_admin: bool) -> tuple[int, str, bytes] | None:
         """(status, content type, body) for a settings GET, or None when it is not a settings path."""
+        if path.startswith(FACES):
+            if not local_admin:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            return self._faces_get(unquote(path[len(FACES) :]), lang)
         if path != "/settings" and not path.startswith("/api/stackchan/settings"):
             return None
         if not local_admin:
@@ -124,11 +168,13 @@ class SettingsBackend:
         The update route checks the release and changes nothing unless the body says
         ``"confirm": true``."""
         prefix = "/api/stackchan/settings/"
-        if not path.startswith(prefix):
+        if not path.startswith(prefix) and not path.startswith(FACES):
             return None
         lang = normalize(str(body.get("lang", "")) or self.language)
         if not local_admin:
             return 403, {"error": t(lang, "settings.local_only")}
+        if path.startswith(FACES):
+            return self._faces_post(unquote(path[len(FACES) :]), body, lang)
         rest = path[len(prefix) :]
         try:
             if rest.endswith("/update"):
@@ -145,6 +191,7 @@ class SettingsBackend:
 
 
 JSON = "application/json"
+FACES = "/api/stackchan/faces/"
 
 
 def render_page(lang: str | None) -> bytes:
@@ -174,6 +221,30 @@ headers:{{'Content-Type':'application/json'}},body:JSON.stringify(body)}});
 const d=await r.json();status(r.ok?(d.message||S['settings.saved']):d.error);return r.ok}}
 function field(parent,label,el){{const l=document.createElement('label');l.textContent=label;
 parent.append(l,el);return el}}
+function choice(parent,label,values,current,words){{const el=document.createElement('select');
+for(const v of values)el.append(Object.assign(document.createElement('option'),{{value:v,selected:v===current,
+textContent:S[words+v]||v}}));return field(parent,label,el)}}
+function tick(parent,label,on){{const el=Object.assign(document.createElement('input'),{{type:'checkbox',checked:on}});
+el.style.width='auto';return field(parent,label,el)}}
+function faceSection(id){{const f=document.createElement('fieldset');
+const lg=document.createElement('legend');lg.textContent=S['settings.face'];f.append(lg);
+const path='/api/stackchan/faces/'+encodeURIComponent(id);
+fetch(path+'?lang={code}').then(r=>r.json().then(d=>({{ok:r.ok,d}}))).then(({{ok,d}})=>{{
+if(!ok){{const p=document.createElement('p');p.textContent=d.error;f.append(p);return}}
+const v=d.values,c=d.choices;
+const style=choice(f,S['settings.face.style'],c.style,v.style,'settings.face.style.');
+const colour=choice(f,S['settings.face.colour'],c.colour,v.colour,'settings.face.colour.');
+const caps=tick(f,S['settings.face.captions'],v.captions);
+const tod=tick(f,S['settings.face.tod'],v.tod);
+const hrs=field(f,S['settings.face.hours'],Object.assign(document.createElement('input'),{{value:v.tod_hours.join(', ')}}));
+if(d.unavailable.length){{const p=document.createElement('p');p.textContent=S['settings.face.unavailable']+' '+d.unavailable.join(', ');f.append(p)}}
+if(d.pending){{const p=document.createElement('p');p.textContent=S['settings.face.pending'];f.append(p)}}
+const go=document.createElement('button');go.textContent=S['settings.face.save'];
+go.onclick=()=>call(path,{{lang:'{code}',style:style.value,colour:colour.value,captions:caps.checked,tod:tod.checked,
+tod_hours:hrs.value.split(/[ ,]+/).filter(x=>x).map(Number)}});
+const rs=document.createElement('button');rs.textContent=S['settings.face.reset'];
+rs.onclick=()=>call(path+'/reset',{{lang:'{code}'}});
+f.append(go,' ',rs)}}).catch(()=>{{}});return f}}
 function unitCard(u){{const s=document.createElement('section');
 const h=document.createElement('h2');h.textContent=u.name;s.append(h);
 const id=document.createElement('p');id.textContent=S['settings.device_id']+': '+u.device_id;s.append(id);
@@ -199,6 +270,7 @@ persona:persona.value,llm:{{url:url.value,model:model.value,api_key_env:key.valu
 volume_cap:parseInt(cap.value,10),muted:mute.checked,
 alarms:alarms.value.split('\\n').filter(x=>x.trim()).map(x=>{{const [time,...rest]=x.trim().split(/\\s+/);
 return {{time,label:rest.join(' ')}}}})}});
+s.append(faceSection(u.device_id));
 const upd=document.createElement('button');upd.textContent=S['settings.update'];
 const upath='/api/stackchan/settings/'+encodeURIComponent(u.device_id)+'/update';
 upd.onclick=()=>call(upath,{{lang:'{code}'}});

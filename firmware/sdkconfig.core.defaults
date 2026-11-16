@@ -4,3 +4,11 @@ CONFIG_LOG_DEFAULT_LEVEL_WARN=y
 CONFIG_LWIP_IPV6=n
 # Measured with S01 core trim: app binary -239,552 B, DIRAM -25,192 B.
 CONFIG_BT_ENABLED=n
+# Faces and always-on behaviours (patches F01 to F06). All on in the core build; each costs nothing when off
+# (off build is 480 bytes smaller than the baseline). The five after CONFIG require MAIPAI_FACE_CONFIG.
+CONFIG_MAIPAI_FACE_CONFIG=y
+CONFIG_MAIPAI_FACE_CAPTIONS=y
+CONFIG_MAIPAI_FACE_TOD=y
+CONFIG_MAIPAI_FACE_CLOCK=y
+CONFIG_MAIPAI_FACE_THINKING=y
+CONFIG_MAIPAI_FACE_TIMERS=y

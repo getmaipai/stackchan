@@ -2143,14 +2143,35 @@ def _wire_sounds(voice, behavior: StackChanBehavior, stop_event: threading.Event
     return sounds
 
 
-def _turn_sink(behavior, light):
+def _face_service(voice):
+    """One FaceService for this host: the unit's face tools through the live voice link.
+
+    A unit that is not connected counts as lost (the setting is saved and sent on reconnect)."""
+    from maipai_body.faces import FaceService
+    from maipai_body.hal.errors import BodyLost
+
+    def call(name, arguments, *, device_id=None, timeout=5.0):
+        try:
+            return voice.call_device_tool(name, arguments, device_id=device_id, timeout=timeout)
+        except (ConnectionError, TimeoutError) as error:
+            raise BodyLost(str(error)) from error
+
+    return FaceService(call)
+
+
+def _turn_sink(behavior, light, faces=None, devices=None):
     """One turn event: move the face and set the ring's funnel state (the light standard).
 
     Wake word or tap opens a turn as ``listening`` (blue steady, eyes widen); the live cue (green)
     takes over while audio streams to the hub; thinking breathes magenta; speaking is white.
     """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from maipai_body.faces import turn_cue
     from maipai_body.presence.funnel import FunnelState
 
+    # One worker keeps the thinking cue's on and off in turn order and off the turn's own thread.
+    cue_worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="face-cue") if faces else None
     funnel = {
         "listening": FunnelState.LISTENING,
         "thinking": FunnelState.THINKING,
@@ -2166,6 +2187,8 @@ def _turn_sink(behavior, light):
             except Exception:  # a light never fails the turn
                 logger.warning("StackChan funnel light failed", exc_info=True)
         behavior.render_turn_state(state, mood=mood)
+        if cue_worker is not None:
+            cue_worker.submit(turn_cue, faces, devices or (lambda: []), state)
 
     return sink
 
@@ -2212,6 +2235,10 @@ async def _serve_stackchan_channels(
     tls_context = server_ssl_context(cert_path, key_path)
     UNIT_LINK_ENCRYPTED = tls_context is not None
     voice.robot = StackChanRobotAdapter(XiaozhiDeviceClient(voice))
+    from maipai_body.faces import sync_on_connect
+
+    faces = _face_service(voice)
+    voice.session_listeners.append(lambda device_id: sync_on_connect(faces, device_id))
     voice._avatar_frame_sender = avatar.send_frame
     camera_driver = voice.robot.robot._driver("camera")
     avatar.start_camera_on_connect = lambda: (
@@ -2628,7 +2655,7 @@ async def _serve_stackchan_channels(
             # This adapter consumes that field when the hub adds it; absent
             # results remain anonymous on this turn.
             person_attribution=lambda result: getattr(result, "speaker_evidence", None),
-            expression_sink=_turn_sink(behavior, light),
+            expression_sink=_turn_sink(behavior, light, faces, voice.connected_devices),
             live_sink=light.cue_live,
             uplink_stats=uplink,
             volume_control=VolumeControl(
@@ -2691,7 +2718,7 @@ async def _serve_stackchan_channels(
             light,
         )
     await voice.start(host, xiaozhi_port, ssl=tls_context)
-    settings_server = _start_settings_page(voice, pairing, units, behavior)
+    settings_server = _start_settings_page(voice, pairing, units, behavior, faces)
     try:
         await avatar.start(avatar_host, avatar_port, ssl=tls_context)
         scheme = "wss" if cert_path else "ws"
@@ -2718,7 +2745,7 @@ async def _serve_stackchan_channels(
         await voice.close()
 
 
-def _start_settings_page(voice, pairing, units, behavior):
+def _start_settings_page(voice, pairing, units, behavior, faces=None):
     """Serve the core settings page from the live host (loopback, port 8051; 0 turns it off).
 
     Also pushes each unit's own alarms to it, by Device-Id, whenever that unit connects."""
@@ -2760,6 +2787,7 @@ def _start_settings_page(voice, pairing, units, behavior):
         push=live.push,
         preset=config.update.preset,
         language=config.home.language,
+        faces=faces,
     )
     from maipai_body.settings_server import SettingsServer
 

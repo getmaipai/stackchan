@@ -557,3 +557,43 @@ def apply_settings(
 ) -> dict[str, Any]:
     """The page's save button: validate, save, push. Raises ``FaceError`` with a plain message."""
     return service.update(unit_id, values, lang)
+
+
+# ---- for the turn loop and the connect event ----
+
+
+def offline_call(*_args: object, **_kwargs: object) -> object:
+    """A ``call`` for a process with no unit link (the dashboard, the CLI): the unit counts as offline."""
+    raise BodyLost("No unit is connected to this process.")
+
+
+def turn_cue(service: FaceService, devices: Callable[[], list[str]], state: str) -> None:
+    """Start or end the thinking cue on every connected unit as a turn moves.
+
+    ``state`` is a turn state from the turn sink: ``thinking`` starts the cue; ``speaking`` and
+    ``settle`` end it (the unit also ends it on any other emotion or after 45 s). A cue never fails
+    the turn: a unit that is gone or has old firmware is skipped and logged once at debug level.
+    """
+    if state == "thinking":
+        on = True
+    elif state in {"speaking", "settle"}:
+        on = False
+    else:
+        return
+    for unit_id in devices():
+        try:
+            service.thinking(unit_id, on)
+        except (BodyLost, FaceError, OSError, TimeoutError):
+            logger.debug("thinking cue skipped for unit %s", unit_id[-5:], exc_info=True)
+
+
+def sync_on_connect(service: FaceService, unit_id: str) -> None:
+    """Session listener: push the saved face settings when a unit connects, never raising."""
+    try:
+        service.sync(unit_id)
+    except Exception:
+        logger.warning(
+            "could not send the face settings to unit %s; they go out when it reconnects",
+            unit_id[-5:],
+            exc_info=True,
+        )

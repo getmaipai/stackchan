@@ -27,6 +27,20 @@ def main() -> int:
     )
     name.add_argument("unit", help="Device-Id of the unit, or its current name")
     name.add_argument("new_name", metavar="name", help="the new name, 1 to 40 characters")
+    face = commands.add_parser(
+        "face", help="show or change a unit's face: style, colour, captions, time-of-day"
+    )
+    face.add_argument("action", choices=["show", "set", "sync", "reset"])
+    face.add_argument("unit", help="Device-Id of the unit, or its name")
+    face.add_argument("--style", help="classic, big_eyes or minimal")
+    face.add_argument("--colour", "--color", dest="colour", help="none, a name, or #rrggbb")
+    face.add_argument("--captions", choices=["on", "off"])
+    face.add_argument("--schedule", choices=["on", "off"], help="change the face by time of day")
+    face.add_argument("--hours", help="four hours that rise, for example 6,9,18,21")
+    face.add_argument("--lang", help="en or es")
+    face.add_argument(
+        "--host-url", default="http://127.0.0.1:8051", help="the running host's settings page"
+    )
     bench = commands.add_parser("bench", help="start the local unit testing console")
     bench.add_argument("--host", default="127.0.0.1")
     bench.add_argument("--port", type=int, default=9790)
@@ -73,6 +87,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.command in {"flash", "update"}:
         return _flash_or_update(args)
+    if args.command == "face":
+        return _face(args)
     if args.command == "bench":
         from maipai_body.bench import BenchServer, SimUnit
         from maipai_body.brain.fake import FakeBrain
@@ -166,6 +182,136 @@ def main() -> int:
         seen = record.get("last_seen")
         when = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(float(seen))) if seen else "never"
         print(f"{device_id}: last seen {when}")
+    return 0
+
+
+def _face_values(args: argparse.Namespace) -> dict[str, object]:
+    values: dict[str, object] = {}
+    if args.style is not None:
+        values["style"] = args.style
+    if args.colour is not None:
+        values["colour"] = args.colour
+    if args.captions is not None:
+        values["captions"] = args.captions == "on"
+    if args.schedule is not None:
+        values["tod"] = args.schedule == "on"
+    if args.hours is not None:
+        try:
+            values["tod_hours"] = [int(x) for x in args.hours.replace(" ", "").split(",")]
+        except ValueError:
+            raise ValueError(
+                "The hours must be four whole numbers from 0 to 23 with commas, for example 6,9,18,21."
+            ) from None
+    return values
+
+
+def _face(args: argparse.Namespace) -> int:
+    """`stackchan face show|set|sync|reset UNIT`: the running host owns the saved settings, so a
+    change goes through its settings page and reaches the unit at once; with no host running it is
+    saved to the same file and reaches the unit when the host next sees it connect."""
+    import urllib.error
+    import urllib.request
+    from urllib.parse import quote
+
+    from maipai_body import faces as face_settings
+    from maipai_body.i18n import normalize
+    from maipai_body.unit_settings import UnitSettingsStore
+    from maipai_body.units import LayeredStore, known_units
+
+    config = load_config()
+    lang = normalize(args.lang or config.home.language)
+    pairing = PairingStore(default_pairing_path())
+    rows = known_units(
+        pairing.paired_devices(), LayeredStore(UnitSettingsStore(), config.units), None
+    )
+    wanted = args.unit.lower().replace("-", ":")
+    matches = [r for r in rows if r["device_id"].lower().replace("-", ":") == wanted]
+    matches = matches or [r for r in rows if r["name"].lower() == args.unit.lower()]
+    if len(matches) != 1:
+        print(
+            f"No single unit matches {args.unit!r}. Run `stackchan units` and copy a Device-Id from the list.",
+            file=sys.stderr,
+        )
+        return 2
+    unit_id = matches[0]["device_id"]
+    try:
+        values = _face_values(args)
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    if args.action in {"set"} and not values:
+        print(
+            "Nothing to set. Add --style, --colour, --captions, --schedule or --hours.",
+            file=sys.stderr,
+        )
+        return 2
+    if args.action != "show" and values and args.action != "set":
+        print(
+            "Only `face set` takes settings. Use `stackchan face set UNIT --style ...`.",
+            file=sys.stderr,
+        )
+        return 2
+    base = f"{args.host_url.rstrip('/')}/api/stackchan/faces/{quote(unit_id, safe='')}"
+    if args.action == "show":
+        store = face_settings.FaceStore()
+        service = face_settings.FaceService(face_settings.offline_call, store)
+        view = face_settings.settings_view(service, unit_id, lang)
+        try:
+            with urllib.request.urlopen(f"{base}?lang={lang}", timeout=3) as response:  # noqa: S310
+                view = json.loads(response.read())
+        except (OSError, ValueError):
+            pass  # the host is not running: the saved file is the answer
+        print(f"{matches[0]['name']} ({unit_id})")
+        for key, value in view["values"].items():
+            print(f"  {key}: {value}")
+        if view.get("pending"):
+            print("  Not yet sent to the unit. It gets these settings when it connects.")
+        for line in view.get("unavailable") or []:
+            print(f"  The unit's firmware does not have: {line}")
+        return 0
+    if args.action == "sync":
+        # `sync` re-sends what is saved: a set with no change pushes it.
+        path, body = base, {"lang": lang}
+    elif args.action == "reset":
+        path, body = base + "/reset", {"lang": lang}
+    else:
+        path, body = base, {**values, "lang": lang}
+    request = urllib.request.Request(
+        path, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310
+            result = json.loads(response.read())
+    except urllib.error.HTTPError as error:
+        try:
+            message = json.loads(error.read()).get("error", "")
+        except ValueError:
+            message = ""
+        print(
+            message or "The host refused the change. Check the values and try again.",
+            file=sys.stderr,
+        )
+        return 2
+    except OSError:
+        # No host is running: save to the shared file; the host sends it on the unit's next connect.
+        store = face_settings.FaceStore()
+        service = face_settings.FaceService(face_settings.offline_call, store)
+        try:
+            if args.action == "reset":
+                service.reset(unit_id, lang)
+            elif args.action == "set":
+                service.update(unit_id, values, lang)
+        except face_settings.FaceError as error:
+            print(str(error), file=sys.stderr)
+            return 2
+        print(
+            "The host is not running, so the setting is saved only. It goes to the unit when the host "
+            "next sees it connect (start the StackChan host)."
+        )
+        return 0
+    print(result.get("message") or ("Sent to the unit." if result.get("pushed") else "Saved."))
+    for line in result.get("unsupported") or []:
+        print(line)
     return 0
 
 
