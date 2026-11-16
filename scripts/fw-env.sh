@@ -11,3 +11,11 @@ export MAIPAI_KEY_CHECK
 if [ -z "${MAIPAI_MICROLINK_DIR:-}" ] && [ -d "${MAIPAI_DEPS:-$HOME/esp/maipai-deps}/microlink/components" ]; then
     export MAIPAI_MICROLINK_DIR="${MAIPAI_DEPS:-$HOME/esp/maipai-deps}/microlink"
 fi
+# Offline phrases (patch V02): the sixteen spoken clips the build embeds in the app image.
+if [ -z "${MAIPAI_PHRASES_DIR:-}" ]; then
+    _maipai_repo="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
+    if [ -f "$_maipai_repo/host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_wifi_1.ogg" ]; then
+        export MAIPAI_PHRASES_DIR="$_maipai_repo/host/maipai_body/bodies/stackchan/firmware/assets/phrases"
+    fi
+    unset _maipai_repo
+fi

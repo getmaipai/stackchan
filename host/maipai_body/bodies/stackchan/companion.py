@@ -13,7 +13,11 @@ from dataclasses import dataclass
 
 from maipai_body.hal.errors import BodyLost
 
-DANCES = frozenset({"happy", "robot", "panic", "look_around"})
+BUILTIN_DANCES = frozenset({"happy", "robot", "panic", "look_around"})
+# Named dances that are firmware data (patch V04, maipai_dances_core.h); a test keeps this equal
+# to the firmware table. A unit without patch V04 answers false for them and ``dance`` says so.
+EXTRA_DANCES = frozenset({"sway", "nod_yes", "shake_no", "wiggle", "bow", "groove"})
+DANCES = BUILTIN_DANCES | EXTRA_DANCES
 # Screen-touch diagnostics from firmware patch 046: logged by the host, never a reason to react.
 DIAGNOSTIC_KINDS = frozenset(
     {
@@ -223,4 +227,12 @@ class StackChanCompanion:
         return None
 
 
-__all__ = ["DANCES", "EVENT_KINDS", "DeviceEvent", "SavedNetwork", "StackChanCompanion"]
+__all__ = [
+    "BUILTIN_DANCES",
+    "DANCES",
+    "EVENT_KINDS",
+    "EXTRA_DANCES",
+    "DeviceEvent",
+    "SavedNetwork",
+    "StackChanCompanion",
+]

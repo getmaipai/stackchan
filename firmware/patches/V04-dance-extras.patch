@@ -1,0 +1,204 @@
+# Intent: Train 6 item 3, dance extras beyond the four built-ins, as data. Six named dances (sway, nod_yes, shake_no, wiggle, bow, groove), each a short row of steps in maipai_dances_core.h: head yaw and pitch (tenths of a degree) with a servo speed, eye and mouth weight, an eye shift and a time per step. The firmware turns a row into the same keyframes the built-ins use (stackchan::animation::Keyframe) only while it plays (about 1 KB of heap, freed when the modifier ends); the table is flash data and no task or timer is added. Every row is checked against the limits the built-in dances stay inside (turn at most 60 degrees, tilt between -30 and +25, speed 50 to 1000, step 100 ms to 2 s, eight seconds in all, centred at both ends) and a row that fails is not played. self.robot.dance accepts the new names (it still plays one dance at a time, replacing a running one, and self.robot.stop_dance stops it) and self.robot.dance_list names every dance with its length. The word reactions keep their own four-dance list (their saved table format does not change).
+# Placement: unit (the dances are played by the robot; the host asks for one by name)
+# Upstream: firmware/main/hal/hal_mcp.cpp and stackchan/modifiers/dance.h of the StackChan main component (MIT); the new dances are MaiPai data in the same keyframe shape
+# Check after a flash: self.robot.dance_list answers the four built-in names and six extras with their lengths; self.robot.dance with each extra name answers true and the head moves for about its length and ends centred; an unknown name answers false; self.robot.stop_dance ends one early.
+# Kconfig: MAIPAI_DANCE_EXTRAS (default y); off leaves only the four built-in dances and no dance_list tool.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -219,6 +219,15 @@
+         Train 6 patches together (docs/design/train6-2026-11-16.md). While off at run time the audio path pays one
+         atomic read per chunk. Off here: no code, no tap, no tools.
+ 
++config MAIPAI_DANCE_EXTRAS
++    bool "More named dances (sway, nod yes, shake no, wiggle, bow, groove) as data"
++    default y
++    help
++        Six short dances as rows of data (head yaw and pitch with a speed, eyes and mouth, a time per step), played by
++        self.robot.dance next to the four built in; self.robot.dance_list names them all. Each row is checked against
++        the same limits as the built-ins (turn, tilt, speed, step time, eight seconds in all, centred at both ends).
++        The table is flash data; a dance builds about 1 KB of heap while it plays. Off here: the four built-in dances.
++
+ config MAIPAI_RESET_ON_DEVICE
+     bool "Reset on the device (quick settings, hold 3 seconds)"
+     default y
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -20,6 +20,9 @@
+ #include "maipai_update.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_music.h"
++#if CONFIG_MAIPAI_DANCE_EXTRAS
++#include "maipai_dances_core.h"
++#endif
+ #include "maipai_timers_core.h"
+ #include <mooncake_log.h>
+ #include <mcp_server.h>
+@@ -115,7 +118,26 @@
+         sequence = &DanceModifier::Panic;
+     } else if (strcmp(name, "look_around") == 0) {
+         sequence = &DanceModifier::LookAround;
++    }
++#if CONFIG_MAIPAI_DANCE_EXTRAS
++    // The named dances that are data (patch V04): the row becomes the same keyframes the built-ins use, for the time the
++    // dance plays only (about 1 KB of heap, freed when the modifier ends).
++    animation::KeyframeSequence extra;
++    if (!sequence) {
++        const mdn_dance_t* row = mdn_find(name);
++        if (row != nullptr && mdn_check(row) == nullptr) {
++            for (int i = 0; i < row->count; i++) {
++                const mdn_step_t& st = row->step[i];
++                extra.emplace_back(animation::FeatureKeyframe(st.eye_x, 0, 0, st.eye_w),
++                                   animation::FeatureKeyframe(st.eye_x, 0, 0, st.eye_w),
++                                   animation::FeatureKeyframe(0, 0, 0, st.mouth_w),
++                                   animation::ServoKeyframe(st.yaw, st.speed),
++                                   animation::ServoKeyframe(st.pitch, st.speed), st.ms);
++            }
++            sequence = &extra;
++        }
+     }
++#endif
+     if (!sequence) {
+         return false;
+     }
+@@ -611,13 +633,34 @@
+ 
+     mclog::tagInfo(_tag, "add robot.dance tool");
+     mcp_server.AddTool("self.robot.dance",
+-                       "Play one of the robot's built-in dances once, then return to normal. Names: happy, robot, panic, look_around.",
++                       "Play one of the robot's dances once, then return to normal. Built in: happy, robot, panic, look_around. More "
++                       "(self.robot.dance_list): sway, nod_yes, shake_no, wiggle, bow, groove.",
+                        PropertyList({Property("name", kPropertyTypeString, std::string("happy"))}),
+                        [this](const PropertyList& properties) -> ReturnValue {
+                            const auto name = properties["name"].value<std::string>();
+                            return maipai_dance_play(name.c_str());
+                        });
+ 
++#if CONFIG_MAIPAI_DANCE_EXTRAS
++    mcp_server.AddTool("self.robot.dance_list",
++                       "The names of every dance self.robot.dance can play (the four built in and the named extras) with "
++                       "each one's length in milliseconds.",
++                       std::vector<Property>{}, [this](const PropertyList&) -> ReturnValue {
++                           std::string out = "{\"builtin\":[\"happy\",\"robot\",\"panic\",\"look_around\"],\"extra\":[";
++                           for (int i = 0; i < MDN_COUNT; i++) {
++                               uint32_t total = 0;
++                               for (int k = 0; k < MDN_DANCES[i].count; k++) {
++                                   total += MDN_DANCES[i].step[k].ms;
++                               }
++                               char row[64];
++                               snprintf(row, sizeof(row), "%s{\"name\":\"%s\",\"ms\":%u}", i > 0 ? "," : "",
++                                        MDN_DANCES[i].name, static_cast<unsigned>(total));
++                               out += row;
++                           }
++                           return out + "]}";
++                       });
++#endif
++
+     mclog::tagInfo(_tag, "add robot.stop_dance tool");
+     mcp_server.AddTool("self.robot.stop_dance", "Stop the current built-in dance if one is running.", std::vector<Property>{},
+                        [this](const PropertyList&) -> ReturnValue {
+diff --git a/firmware/main/hal/maipai_dances_core.h b/firmware/main/hal/maipai_dances_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_dances_core.h
+@@ -0,0 +1,99 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * More named dances, as data (patch V04). Plain C99, no firmware headers: host/tests/firmware/dances_core_test.c
++ * compiles it and checks every row against the limits below. A dance is a short list of steps; each step moves the
++ * head (yaw and pitch in tenths of a degree, with a speed) and sets the eyes and mouth for a time. The firmware
++ * turns a row into the same keyframes the four built-in dances use (stackchan::animation::Keyframe) while it plays,
++ * so a dance costs no RAM while none plays. Every dance starts and ends at centre so the head never drifts.
++ * Eye and mouth weight: 100 open, 50 the happy squint, 0 closed or flat (as the built-in Happy dance uses them).
++ */
++#pragma once
++#include <stdint.h>
++#include <string.h>
++
++#define MDN_MAX_STEPS 8
++#define MDN_YAW_MAX 600      /* the widest turn any built-in dance makes (look around) */
++#define MDN_PITCH_MIN (-300) /* look up */
++#define MDN_PITCH_MAX 250    /* look down */
++#define MDN_SPEED_MIN 50
++#define MDN_SPEED_MAX 1000
++#define MDN_STEP_MIN_MS 100
++#define MDN_STEP_MAX_MS 2000
++#define MDN_TOTAL_MAX_MS 8000 /* a dance never runs longer than this */
++
++typedef struct {
++    int16_t yaw;
++    int16_t pitch;
++    uint16_t speed; /* the servo speed for both axes */
++    uint8_t eye_w;
++    uint8_t mouth_w;
++    int8_t eye_x;   /* eyes shifted with the sway */
++    uint16_t ms;
++} mdn_step_t;
++
++typedef struct {
++    const char* name;
++    uint8_t count;
++    mdn_step_t step[MDN_MAX_STEPS];
++} mdn_dance_t;
++
++#define MDN_COUNT 6
++
++/* yaw, pitch, speed, eye_w, mouth_w, eye_x, ms */
++static const mdn_dance_t MDN_DANCES[MDN_COUNT] = {
++    {"sway", 6,
++     {{0, 0, 200, 100, 0, 0, 500}, {-400, -50, 150, 50, 30, -10, 1400}, {400, -50, 150, 50, 30, 10, 1400},
++      {-400, -50, 150, 50, 30, -10, 1400}, {400, -50, 150, 50, 30, 10, 1400}, {0, 0, 200, 100, 0, 0, 600}}},
++    {"nod_yes", 6,
++     {{0, 0, 300, 100, 0, 0, 300}, {0, -180, 500, 100, 0, 0, 350}, {0, 120, 500, 100, 0, 0, 350},
++      {0, -180, 500, 100, 0, 0, 350}, {0, 120, 500, 100, 0, 0, 350}, {0, 0, 300, 100, 0, 0, 400}}},
++    {"shake_no", 6,
++     {{0, 0, 300, 100, 0, 0, 300}, {-350, 0, 600, 100, 0, 0, 300}, {350, 0, 600, 100, 0, 0, 300},
++      {-350, 0, 600, 100, 0, 0, 300}, {350, 0, 600, 100, 0, 0, 300}, {0, 0, 300, 100, 0, 0, 400}}},
++    {"wiggle", 8,
++     {{0, 0, 400, 100, 0, 0, 200}, {-150, 60, 800, 60, 20, -6, 160}, {150, -60, 800, 60, 20, 6, 160},
++      {-150, 60, 800, 60, 20, -6, 160}, {150, -60, 800, 60, 20, 6, 160}, {-150, 60, 800, 60, 20, -6, 160},
++      {150, -60, 800, 60, 20, 6, 160}, {0, 0, 400, 100, 0, 0, 300}}},
++    {"bow", 4,
++     {{0, 0, 250, 100, 0, 0, 400}, {0, 250, 250, 100, 0, 0, 900}, {0, 250, 250, 100, 0, 0, 700},
++      {0, -40, 300, 100, 0, 0, 800}}},
++    {"groove", 8,
++     {{0, 0, 300, 100, 0, 0, 300}, {-250, -150, 400, 50, 20, -8, 450}, {250, 50, 400, 50, 20, 8, 450},
++      {-250, -150, 400, 50, 20, -8, 450}, {250, 50, 400, 50, 20, 8, 450}, {-250, -150, 400, 50, 20, -8, 450},
++      {250, 50, 400, 50, 20, 8, 450}, {0, 0, 300, 100, 0, 0, 500}}},
++};
++
++/* The row for a name, or NULL. */
++static inline const mdn_dance_t* mdn_find(const char* name)
++{
++    if (name == NULL) {
++        return NULL;
++    }
++    for (int i = 0; i < MDN_COUNT; i++) {
++        if (strcmp(MDN_DANCES[i].name, name) == 0) {
++            return &MDN_DANCES[i];
++        }
++    }
++    return NULL;
++}
++
++/* Why a row is refused: 0 fine, else a short word. */
++static inline const char* mdn_check(const mdn_dance_t* d)
++{
++    uint32_t total = 0;
++    if (d == NULL || d->name == NULL || d->name[0] == '\0') return "name";
++    if (d->count < 2 || d->count > MDN_MAX_STEPS) return "steps";
++    for (int i = 0; i < d->count; i++) {
++        const mdn_step_t* s = &d->step[i];
++        if (s->yaw > MDN_YAW_MAX || s->yaw < -MDN_YAW_MAX) return "yaw";
++        if (s->pitch > MDN_PITCH_MAX || s->pitch < MDN_PITCH_MIN) return "pitch";
++        if (s->speed < MDN_SPEED_MIN || s->speed > MDN_SPEED_MAX) return "speed";
++        if (s->ms < MDN_STEP_MIN_MS || s->ms > MDN_STEP_MAX_MS) return "time";
++        if (s->eye_w > 100 || s->mouth_w > 100) return "weight";
++        total += s->ms;
++    }
++    if (total > MDN_TOTAL_MAX_MS) return "length";
++    if (d->step[0].yaw != 0 || d->step[0].pitch != -0 || d->step[d->count - 1].yaw != 0) return "centre";
++    return NULL;
++}

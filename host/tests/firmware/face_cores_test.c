@@ -65,7 +65,7 @@ static void test_hours_and_language(void)
     CHECK(mf_set_hours(&c, -1, 8, 17, 22) == MF_ERR_HOURS);
     CHECK(c.tod_from[0] == 5);
     CHECK(mf_set_lang(&c, "es") == MF_OK && c.lang == MF_LANG_ES);
-    CHECK(mf_set_lang(&c, "fr") == MF_ERR_LANG && c.lang == MF_LANG_ES);
+    CHECK(mf_set_lang(&c, "xx") == MF_ERR_LANG && c.lang == MF_LANG_ES); /* "fr" is a language since patch U06 */
     CHECK(strlen(mf_err_word(MF_ERR_DARK)) > 20);
 }
 

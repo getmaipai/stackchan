@@ -11,8 +11,10 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from maipai_body.bodies.stackchan.companion import (
+    BUILTIN_DANCES,
     DANCES,
     EVENT_KINDS,
+    EXTRA_DANCES,
     DeviceEvent,
     SavedNetwork,
     StackChanCompanion,
@@ -40,7 +42,8 @@ def _names(calls: list[tuple[str, dict[str, object]]]) -> list[str]:
 
 
 def test_dances_and_event_kinds_export_the_supported_sets():
-    assert DANCES == frozenset({"happy", "robot", "panic", "look_around"})
+    assert BUILTIN_DANCES == frozenset({"happy", "robot", "panic", "look_around"})
+    assert DANCES == BUILTIN_DANCES | EXTRA_DANCES
     assert EVENT_KINDS == frozenset(
         {
             "head_touch",

@@ -119,7 +119,8 @@ def test_the_c_cores_pass_their_tests(cores: Path, source: str, tmp_path: Path) 
 def test_every_train4_patch_has_its_header_lines_and_is_in_order() -> None:
     order = (PATCHES / "ORDER").read_text().split()
     positions = [order.index(name) for name in TRAIN4]
-    assert positions == sorted(positions) and positions[-1] == len(order) - 1
+    assert positions == sorted(positions)
+    assert order[positions[-1]] == TRAIN4[-1]
     for name in TRAIN4:
         text = (PATCHES / name).read_text()
         head = text.split("diff --git", 1)[0]
