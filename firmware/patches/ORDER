@@ -82,3 +82,9 @@ T04-quiet-reconnect-offline-tone.patch
 T05-camera-on-cue.patch
 M01-mood-from-care.patch
 V01-serial-tool-path.patch
+TN01-travel-private-network.patch
+TN02-travel-hub-route.patch
+TN03-travel-portal-fields.patch
+TN04-travel-memory-freeing.patch
+TN05-memory-gate-line.patch
+TN06-travel-trust-root.patch

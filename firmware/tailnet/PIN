@@ -1,0 +1,4 @@
+# The private-network client for travel (patch TN01). Downloaded by scripts/fw-tailnet.sh at this commit into a
+# folder outside this tree, never vendored. MIT (the maintained fork; its WireGuard layer is BSD-3-Clause, its x25519 public domain).
+repository=https://github.com/Csontikka/microlink.git
+commit=a85e8c42ee2ed3223f8c3bd3766fc37af1985384

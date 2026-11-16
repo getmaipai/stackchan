@@ -1,0 +1,50 @@
+# Intent: The memory gate's line as a permanent switch (the gate notes asked for one): internal_free, internal_min, int_big, psram_free and psram_min on one line at WARN every 10 seconds, so a release-level log shows them. Off by default; a bench or soak build turns it on.
+# Placement: unit (a log line of the robot firmware)
+# Upstream: firmware/main/Kconfig.projbuild of the StackChan main component and firmware/xiaozhi-esp32/main/system_info.cc of the Xiaozhi component (MIT)
+# Check after a flash: with MAIPAI_MEMORY_LINE on, the log shows 'mem internal_free=... internal_min=... int_big=... psram_free=... psram_min=...' every 10 seconds; with it off the line is the old INFO line.
+# Kconfig: MAIPAI_MEMORY_LINE (default n).
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index 070e00c..81cb22c 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -190,6 +190,13 @@ config MAIPAI_TAILNET_MAX_PEERS
+     range 2 16
+     depends on MAIPAI_TAILNET
+ 
++config MAIPAI_MEMORY_LINE
++    bool "Memory gate line (free internal RAM, lowest, largest block, PSRAM) at WARN every 10 seconds"
++    default n
++    help
++        Prints the five numbers the memory gate reads (docs/design/firmware-memory.md) as one log line at WARN, so a
++        release-level log shows them. Off here: the old INFO line only. A bench and soak build turns it on.
++
+ config MAIPAI_LOW_BATTERY
+     bool "Low-battery ladder (20 percent chirp, 10 percent request, 5 percent sleep)"
+     default y
+diff --git a/firmware/xiaozhi-esp32/main/system_info.cc b/firmware/xiaozhi-esp32/main/system_info.cc
+index c4a6077..441c79e 100644
+--- a/firmware/xiaozhi-esp32/main/system_info.cc
++++ b/firmware/xiaozhi-esp32/main/system_info.cc
+@@ -9,6 +9,7 @@
+ #include <esp_app_desc.h>
+ #include <esp_ota_ops.h>
+ #include <esp_pm.h>
++#include <esp_heap_caps.h>
+ #if CONFIG_IDF_TARGET_ESP32P4 && !CONFIG_XIAOZHI_NETWORK_ETHERNET
+ #include "esp_wifi_remote.h"
+ #endif
+@@ -150,7 +151,14 @@ void SystemInfo::PrintTaskList() {
+ void SystemInfo::PrintHeapStats() {
+     int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+     int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
++#if CONFIG_MAIPAI_MEMORY_LINE
++    // The memory gate's line (patch TN05), printed at WARN so a release build shows it: the five numbers the gate reads.
++    ESP_LOGW(TAG, "mem internal_free=%u internal_min=%u int_big=%u psram_free=%u psram_min=%u", free_sram, min_free_sram,
++             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
++             (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM));
++#else
+     ESP_LOGI(TAG, "free sram: %u minimal sram: %u", free_sram, min_free_sram);
++#endif
+ }
+ 
+ void SystemInfo::PrintPmLocks() {

@@ -1,0 +1,310 @@
+# Intent: the library patch for the pinned private-network client (applied by scripts/fw-tailnet.sh to the downloaded copy outside this tree, never to the StackChan tree). (1) The net_io, derp_tx, derp_rx and coord task stacks live in PSRAM; wg_mgr keeps an internal stack because it writes flash and a PSRAM stack faults while the flash cache is off. (2) The fallback STUN host is the network operator's own relay host (port 3478), never a third party. (3) Port to ESP-IDF 6.1: component names (cjson, uart, gpio drivers), mbedtls 4 (no entropy or ctr_drbg objects, the WireGuard layer's own ChaCha20-Poly1305 for the Noise handshake with the byte order of the counter kept), lwIP without IPv6 (this unit builds lwIP with IPv6 off), and the stricter compiler.
+# Placement: unit (library patch for the travel client; applied outside the unit tree)
+# Upstream: components/microlink and its wireguard_lwip layer of the pinned client (MIT), see firmware/tailnet/PIN
+# Check after a flash: the serial log shows the client's tasks start; self.tailnet.status reports internal_free at or above 25 KB while the client runs. The Noise handshake byte order is checked on a PC by host/tests/firmware/noise_aead_test.c against a standard ChaCha20-Poly1305 implementation.
+diff --git a/components/microlink/CMakeLists.txt b/components/microlink/CMakeLists.txt
+index d6c0531..453f386 100644
+--- a/components/microlink/CMakeLists.txt
++++ b/components/microlink/CMakeLists.txt
+@@ -30,4 +30,6 @@ set(REQUIRES
+     mbedtls
+-    json
++    espressif__cjson
+     driver
++    esp_driver_uart
++    esp_driver_gpio
+     esp_driver_tsens
+@@ -54 +56,4 @@ target_include_directories(__idf_microlink PRIVATE
+ )
++
++# MAIPAI: the newer compiler (ESP-IDF 6.1) rejects the protocol labels written as exact-length byte strings.
++target_compile_options(__idf_microlink PRIVATE -Wno-unterminated-string-initialization)
+diff --git a/components/microlink/components/wireguard_lwip/CMakeLists.txt b/components/microlink/components/wireguard_lwip/CMakeLists.txt
+index ce41198..13f96f0 100644
+--- a/components/microlink/components/wireguard_lwip/CMakeLists.txt
++++ b/components/microlink/components/wireguard_lwip/CMakeLists.txt
+@@ -28 +28,4 @@ set_source_files_properties(
+ )
++
++# MAIPAI: the newer compiler (ESP-IDF 6.1) rejects the protocol labels written as exact-length byte strings.
++target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-unterminated-string-initialization)
+diff --git a/components/microlink/include/microlink_internal.h b/components/microlink/include/microlink_internal.h
+index d6fb520..d3941ef 100644
+--- a/components/microlink/include/microlink_internal.h
++++ b/components/microlink/include/microlink_internal.h
+@@ -26,5 +26,21 @@
+ #include "mbedtls/ssl.h"
+-#include "mbedtls/entropy.h"
+-#include "mbedtls/ctr_drbg.h"
+ #include "esp_heap_caps.h"
++#include "lwip/opt.h"
++#include "lwip/sockets.h"
++#if !LWIP_IPV6
++/* MAIPAI: the unit's lwIP is built without IPv6 (it saves RAM). The IPv6 branches of the client stay compiled but never
++ * run (their sockets fail to open); this gives them the one structure they name. */
++struct maipai_in6_addr { uint8_t b[16]; };
++#define sockaddr_in6 maipai_sockaddr_in6
++struct maipai_sockaddr_in6 {
++    uint8_t sin6_len;
++    uint8_t sin6_family;
++    uint16_t sin6_port;
++    uint32_t sin6_flowinfo;
++    struct maipai_in6_addr sin6_addr;
++    uint32_t sin6_scope_id;
++};
++#undef IN6ADDR_ANY_INIT
++#define IN6ADDR_ANY_INIT {{0}}
++#endif
+ /* Forward-declare esp_tls_t so we can hold a pointer without pulling in
+@@ -139,4 +155,4 @@ extern "C" {
+ #define ML_STUN_PRIMARY_PORT    3478
+-#define ML_STUN_FALLBACK_HOST   "stun.l.google.com"
+-#define ML_STUN_FALLBACK_PORT   19302
++#define ML_STUN_FALLBACK_HOST   "derp1.tailscale.com"  /* MAIPAI: Tailscale's own STUN (3478), never a third party */
++#define ML_STUN_FALLBACK_PORT   3478
+ #define ML_STUN_MAX_RETRIES     3
+@@ -450,5 +466,3 @@ typedef struct {
+     mbedtls_ssl_context ssl;        /* TLS context (owned exclusively by DERP I/O task) */
+-    mbedtls_ssl_config ssl_conf;
+-    mbedtls_entropy_context entropy;
+-    mbedtls_ctr_drbg_context ctr_drbg;
++    mbedtls_ssl_config ssl_conf;
+     bool connected;
+@@ -572,3 +586,3 @@ struct microlink_s {
+     uint32_t stun_primary_ip;       /* derp9.tailscale.com resolved IPv4 */
+-    uint32_t stun_fallback_ip;      /* stun.l.google.com resolved IPv4 */
++    uint32_t stun_fallback_ip;      /* fallback STUN host resolved IPv4 */
+     uint8_t stun_retry_count;       /* Retries on current server */
+diff --git a/components/microlink/src/microlink.c b/components/microlink/src/microlink.c
+index 79a5e15..79ef1e3 100644
+--- a/components/microlink/src/microlink.c
++++ b/components/microlink/src/microlink.c
+@@ -29,2 +29,17 @@
+ 
++#if defined(CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM) && defined(CONFIG_SPIRAM)
++#include "esp_heap_caps.h"
++/* MAIPAI: a task whose stack lives in PSRAM (the unit has about 76 KB of free internal RAM; MicroLink's stacks are 46 KB).
++ * Only tasks that never touch flash (NVS) may do this: with the cache disabled during a flash write a PSRAM stack faults.
++ * wg_mgr writes the peer cache to NVS, so it keeps an internal stack. */
++static BaseType_t ml_task_create_psram(TaskFunction_t fn, const char *name, uint32_t stack, void *arg,
++                                       UBaseType_t prio, TaskHandle_t *out, BaseType_t core)
++{
++    return xTaskCreatePinnedToCoreWithCaps(fn, name, stack, arg, prio, out, core, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
++}
++#else
++#define ml_task_create_psram(fn, name, stack, arg, prio, out, core) \
++    xTaskCreatePinnedToCore(fn, name, stack, arg, prio, out, core)
++#endif
++
+ static const char *TAG = "microlink";
+@@ -445,3 +460,3 @@ skip_bsd_socket:
+ 
+-    ret = xTaskCreatePinnedToCore(ml_net_io_task, "ml_net_io", ML_TASK_NET_IO_STACK,
++    ret = ml_task_create_psram(ml_net_io_task, "ml_net_io", ML_TASK_NET_IO_STACK,
+                                    ml, ML_TASK_NET_IO_PRIO, &ml->net_io_task, ML_TASK_NET_IO_CORE);
+@@ -453,3 +468,3 @@ skip_bsd_socket:
+ 
+-    ret = xTaskCreatePinnedToCore(ml_derp_tx_task, "ml_derp_tx", ML_TASK_DERP_TX_STACK,
++    ret = ml_task_create_psram(ml_derp_tx_task, "ml_derp_tx", ML_TASK_DERP_TX_STACK,
+                                    ml, ML_TASK_DERP_TX_PRIO, &ml->derp_tx_task, ML_TASK_DERP_TX_CORE);
+@@ -465,3 +480,3 @@ skip_bsd_socket:
+      * stack/prio/core as the writer so the two time-slice predictably on core 0. */
+-    ret = xTaskCreatePinnedToCore(ml_derp_rx_task, "ml_derp_rx", ML_TASK_DERP_TX_STACK,
++    ret = ml_task_create_psram(ml_derp_rx_task, "ml_derp_rx", ML_TASK_DERP_TX_STACK,
+                                    ml, ML_TASK_DERP_TX_PRIO, &ml->derp_rx_task, ML_TASK_DERP_TX_CORE);
+@@ -473,3 +488,3 @@ skip_bsd_socket:
+ 
+-    ret = xTaskCreatePinnedToCore(ml_coord_task, "ml_coord", ML_TASK_COORD_STACK,
++    ret = ml_task_create_psram(ml_coord_task, "ml_coord", ML_TASK_COORD_STACK,
+                                    ml, ML_TASK_COORD_PRIO, &ml->coord_task, ML_TASK_COORD_CORE);
+diff --git a/components/microlink/src/ml_derp.c b/components/microlink/src/ml_derp.c
+index de80cf5..e30898e 100644
+--- a/components/microlink/src/ml_derp.c
++++ b/components/microlink/src/ml_derp.c
+@@ -890,7 +890,3 @@ esp_err_t ml_derp_connect(microlink_t *ml) {
+     mbedtls_ssl_config_init(&ml->derp.ssl_conf);
+-    mbedtls_entropy_init(&ml->derp.entropy);
+-    mbedtls_ctr_drbg_init(&ml->derp.ctr_drbg);
+ 
+-    mbedtls_ctr_drbg_seed(&ml->derp.ctr_drbg, mbedtls_entropy_func,
+-                           &ml->derp.entropy, NULL, 0);
+ 
+@@ -922,3 +918,2 @@ esp_err_t ml_derp_connect(microlink_t *ml) {
+     }
+-    mbedtls_ssl_conf_rng(&ml->derp.ssl_conf, mbedtls_ctr_drbg_random, &ml->derp.ctr_drbg);
+     mbedtls_ssl_conf_read_timeout(&ml->derp.ssl_conf, DERP_CONNECT_TIMEOUT_MS);
+@@ -1228,4 +1223,2 @@ fail_tls:
+     mbedtls_ssl_config_free(&ml->derp.ssl_conf);
+-    mbedtls_ctr_drbg_free(&ml->derp.ctr_drbg);
+-    mbedtls_entropy_free(&ml->derp.entropy);
+     ml_close_sock(sock);
+@@ -1243,4 +1236,2 @@ void ml_derp_disconnect(microlink_t *ml) {
+         mbedtls_ssl_config_free(&ml->derp.ssl_conf);
+-        mbedtls_ctr_drbg_free(&ml->derp.ctr_drbg);
+-        mbedtls_entropy_free(&ml->derp.entropy);
+         ml_close_sock(ml->derp.sockfd);
+diff --git a/components/microlink/src/ml_noise.c b/components/microlink/src/ml_noise.c
+index 15aad38..5117b27 100644
+--- a/components/microlink/src/ml_noise.c
++++ b/components/microlink/src/ml_noise.c
+@@ -19,4 +19,3 @@
+ #include "esp_random.h"
+-#include "mbedtls/chacha20.h"
+-#include "mbedtls/chachapoly.h"
++#include "chacha20poly1305.h"  /* MAIPAI: the WireGuard layer's own AEAD; mbedtls 4 (ESP-IDF 6.1) has no chachapoly API */
+ #include <string.h>
+@@ -151,3 +150,5 @@ static void noise_mix_key(uint8_t ck[32], uint8_t k[32], const uint8_t *dh_outpu
+ 
+-static int chacha20poly1305_encrypt(const uint8_t *key, uint64_t nonce,
++/* MAIPAI: the Noise nonce is 4 zero bytes then a BIG-endian counter; the WireGuard AEAD builds 4 zero bytes then a
++ * LITTLE-endian counter, so the counter is byte-swapped on the way in. Ciphertext layout: data then a 16-byte tag. */
++static int chacha20poly1305_encrypt_noise(const uint8_t *key, uint64_t nonce,
+                                       const uint8_t *ad, size_t ad_len,
+@@ -155,30 +156,7 @@ static int chacha20poly1305_encrypt(const uint8_t *key, uint64_t nonce,
+                                       uint8_t *ciphertext) {
+-    /* Tailscale nonce: 4 bytes zeros + 8 bytes BIG-endian counter
+-     * Matches Go: binary.BigEndian.PutUint64(n[4:], counter)
+-     * V1 uses __builtin_bswap64 for the same effect */
+-    uint8_t nonce_bytes[12];
+-    memset(nonce_bytes, 0, 4);
+-    nonce_bytes[4]  = (nonce >> 56) & 0xFF;
+-    nonce_bytes[5]  = (nonce >> 48) & 0xFF;
+-    nonce_bytes[6]  = (nonce >> 40) & 0xFF;
+-    nonce_bytes[7]  = (nonce >> 32) & 0xFF;
+-    nonce_bytes[8]  = (nonce >> 24) & 0xFF;
+-    nonce_bytes[9]  = (nonce >> 16) & 0xFF;
+-    nonce_bytes[10] = (nonce >> 8) & 0xFF;
+-    nonce_bytes[11] = nonce & 0xFF;
+-
+-    mbedtls_chachapoly_context ctx;
+-    mbedtls_chachapoly_init(&ctx);
+-    mbedtls_chachapoly_setkey(&ctx, key);
+-
+-    /* ciphertext layout: encrypted_data(pt_len) + tag(16) */
+-    int ret = mbedtls_chachapoly_encrypt_and_tag(&ctx,
+-                pt_len, nonce_bytes, ad, ad_len,
+-                plaintext, ciphertext, ciphertext + pt_len);
+-
+-    mbedtls_chachapoly_free(&ctx);
+-    return ret;
++    chacha20poly1305_encrypt(ciphertext, plaintext, pt_len, ad, ad_len, __builtin_bswap64(nonce), key);
++    return 0;
+ }
+ 
+-static int chacha20poly1305_decrypt(const uint8_t *key, uint64_t nonce,
++static int chacha20poly1305_decrypt_noise(const uint8_t *key, uint64_t nonce,
+                                       const uint8_t *ad, size_t ad_len,
+@@ -187,28 +165,3 @@ static int chacha20poly1305_decrypt(const uint8_t *key, uint64_t nonce,
+     if (ct_len < 16) return -1;
+-
+-    /* Tailscale nonce: 4 bytes zeros + 8 bytes BIG-endian counter */
+-    uint8_t nonce_bytes[12];
+-    memset(nonce_bytes, 0, 4);
+-    nonce_bytes[4]  = (nonce >> 56) & 0xFF;
+-    nonce_bytes[5]  = (nonce >> 48) & 0xFF;
+-    nonce_bytes[6]  = (nonce >> 40) & 0xFF;
+-    nonce_bytes[7]  = (nonce >> 32) & 0xFF;
+-    nonce_bytes[8]  = (nonce >> 24) & 0xFF;
+-    nonce_bytes[9]  = (nonce >> 16) & 0xFF;
+-    nonce_bytes[10] = (nonce >> 8) & 0xFF;
+-    nonce_bytes[11] = nonce & 0xFF;
+-
+-    size_t payload_len = ct_len - 16;
+-    const uint8_t *tag = ciphertext + payload_len;
+-
+-    mbedtls_chachapoly_context ctx;
+-    mbedtls_chachapoly_init(&ctx);
+-    mbedtls_chachapoly_setkey(&ctx, key);
+-
+-    int ret = mbedtls_chachapoly_auth_decrypt(&ctx,
+-                payload_len, nonce_bytes, ad, ad_len,
+-                tag, ciphertext, plaintext);
+-
+-    mbedtls_chachapoly_free(&ctx);
+-    return ret;
++    return chacha20poly1305_decrypt(plaintext, ciphertext, ct_len, ad, ad_len, __builtin_bswap64(nonce), key) ? 0 : -1;
+ }
+@@ -294,3 +247,3 @@ esp_err_t ml_noise_write_msg1(ml_noise_state_t *state, uint8_t *out, size_t *out
+     /* s: Encrypt and send static public key (32 + 16 MAC = 48 bytes) */
+-    chacha20poly1305_encrypt(k, 0, state->h, 32,
++    chacha20poly1305_encrypt_noise(k, 0, state->h, 32,
+                               state->local_static_public, 32,
+@@ -306,3 +259,3 @@ esp_err_t ml_noise_write_msg1(ml_noise_state_t *state, uint8_t *out, size_t *out
+     /* Empty payload encrypted (just the 16-byte auth tag) */
+-    chacha20poly1305_encrypt(k, 0, state->h, 32,
++    chacha20poly1305_encrypt_noise(k, 0, state->h, 32,
+                               NULL, 0, out + pos);
+@@ -353,3 +306,3 @@ esp_err_t ml_noise_read_msg2(ml_noise_state_t *state, const uint8_t *msg, size_t
+     size_t ciphertext_len = len - offset;
+-    if (chacha20poly1305_decrypt(k, 0, state->h, 32,
++    if (chacha20poly1305_decrypt_noise(k, 0, state->h, 32,
+                                   msg + offset, ciphertext_len,
+@@ -381,3 +334,3 @@ esp_err_t ml_noise_encrypt(const uint8_t *key, uint64_t nonce,
+                             uint8_t *ciphertext) {
+-    if (chacha20poly1305_encrypt(key, nonce, ad, ad_len,
++    if (chacha20poly1305_encrypt_noise(key, nonce, ad, ad_len,
+                                   plaintext, pt_len, ciphertext) != 0) {
+@@ -393,3 +346,3 @@ esp_err_t ml_noise_decrypt(const uint8_t *key, uint64_t nonce,
+                             uint8_t *plaintext) {
+-    if (chacha20poly1305_decrypt(key, nonce, ad, ad_len,
++    if (chacha20poly1305_decrypt_noise(key, nonce, ad, ad_len,
+                                   ciphertext, ct_len, plaintext) != 0) {
+diff --git a/components/microlink/src/ml_stun.c b/components/microlink/src/ml_stun.c
+index 49e4336..a4c7d0d 100644
+--- a/components/microlink/src/ml_stun.c
++++ b/components/microlink/src/ml_stun.c
+@@ -214,3 +214,3 @@ esp_err_t ml_stun_resolve_servers(microlink_t *ml) {
+         struct addrinfo hints_any = { .ai_family = AF_UNSPEC, .ai_socktype = SOCK_DGRAM };
+-        if (ml_getaddrinfo(ML_STUN_FALLBACK_HOST, "19302", &hints_any, &res) == 0 && res) {
++        if (ml_getaddrinfo(ML_STUN_FALLBACK_HOST, "3478", &hints_any, &res) == 0 && res) {
+             if (res->ai_family == AF_INET) {
+diff --git a/components/microlink/src/ml_udp.c b/components/microlink/src/ml_udp.c
+index 3919101..1332a0c 100644
+--- a/components/microlink/src/ml_udp.c
++++ b/components/microlink/src/ml_udp.c
+@@ -65,3 +65,3 @@ struct microlink_udp_socket {
+ static void ip_to_lwip(uint32_t ml_ip, ip_addr_t *out) {
+-    IP4_ADDR(&out->u_addr.ip4,
++    IP4_ADDR(ip_2_ip4(out),
+              (ml_ip >> 24) & 0xFF,
+@@ -70,3 +70,3 @@ static void ip_to_lwip(uint32_t ml_ip, ip_addr_t *out) {
+              ml_ip & 0xFF);
+-    out->type = IPADDR_TYPE_V4;
++    IP_SET_TYPE(out, IPADDR_TYPE_V4);
+ }
+@@ -74,4 +74,4 @@ static void ip_to_lwip(uint32_t ml_ip, ip_addr_t *out) {
+ static uint32_t lwip_to_ip(const ip_addr_t *addr) {
+-    if (addr->type != IPADDR_TYPE_V4) return 0;
+-    uint32_t ip = ip4_addr_get_u32(&addr->u_addr.ip4);
++    if (IP_GET_TYPE(addr) != IPADDR_TYPE_V4) return 0;
++    uint32_t ip = ip4_addr_get_u32(ip_2_ip4(addr));
+     return ((ip & 0xFF) << 24) |
+diff --git a/components/microlink/src/ml_wg_mgr.c b/components/microlink/src/ml_wg_mgr.c
+index 3f8b629..44e275f 100644
+--- a/components/microlink/src/ml_wg_mgr.c
++++ b/components/microlink/src/ml_wg_mgr.c
+@@ -486,8 +486,8 @@ static esp_err_t wg_init_interface(microlink_t *ml) {
+         uint8_t d = ml->vpn_ip & 0xFF;
+-        IP4_ADDR(&netif->ip_addr.u_addr.ip4, a, b, c, d);
++        IP4_ADDR(ip_2_ip4(&netif->ip_addr), a, b, c, d);
+     } else {
+-        IP4_ADDR(&netif->ip_addr.u_addr.ip4, 100, 64, 0, 1);  /* temp */
++        IP4_ADDR(ip_2_ip4(&netif->ip_addr), 100, 64, 0, 1);  /* temp */
+     }
+-    IP4_ADDR(&netif->netmask.u_addr.ip4, 255, 192, 0, 0);     /* /10 */
+-    IP4_ADDR(&netif->gw.u_addr.ip4, 0, 0, 0, 0);
++    IP4_ADDR(ip_2_ip4(&netif->netmask), 255, 192, 0, 0);     /* /10 */
++    IP4_ADDR(ip_2_ip4(&netif->gw), 0, 0, 0, 0);
+ 
+@@ -565,3 +565,3 @@ static void wg_update_vpn_ip(microlink_t *ml) {
+         uint8_t d = ml->vpn_ip & 0xFF;
+-        IP4_ADDR(&netif->ip_addr.u_addr.ip4, a, b, c, d);
++        IP4_ADDR(ip_2_ip4(&netif->ip_addr), a, b, c, d);
+     }
+@@ -765,4 +765,4 @@ static int add_peer(microlink_t *ml, const ml_peer_update_t *update) {
+         uint8_t ip_d = p->vpn_ip & 0xFF;
+-        IP4_ADDR(&wg_peer.allowed_ip.u_addr.ip4, ip_a, ip_b, ip_c, ip_d);
+-        IP4_ADDR(&wg_peer.allowed_mask.u_addr.ip4, 255, 255, 255, 255);
++        IP4_ADDR(ip_2_ip4(&wg_peer.allowed_ip), ip_a, ip_b, ip_c, ip_d);
++        IP4_ADDR(ip_2_ip4(&wg_peer.allowed_mask), 255, 255, 255, 255);
+ 

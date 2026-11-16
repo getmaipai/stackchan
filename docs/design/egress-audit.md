@@ -33,3 +33,7 @@ Scope: pinned firmware source after the recipe patch sequence, inspected 2026-11
 ## Audit boundary
 
 The pinned tree's `firmware/main/hal/hal_mcp.cpp` contains robot motion, reminder, Wi-Fi and local device tools, but no four URL-taking tools or capabilities URL setter. The repository also contains no release public-key PEM or raw Ed25519 public key asset. Therefore this audit does not assert those symbols or a shipped release key exist in this source revision.
+
+## Travel with the private network (added 2026-11-16, patch TN01)
+
+When the unit cannot reach the hub three times in a row, and a one-time key was entered on the setup page, the client contacts the private-network coordination service over TLS to join. At home it never starts. This is the one outbound connection to a public service the firmware can make, it is off unless a person enters a key, and the egress proof (`scripts/stackchan-egress-proof.sh`) must list it. Wording stays "built so, until a capture proves it".

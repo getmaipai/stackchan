@@ -1,0 +1,42 @@
+# Intent: The hub link uses the private route (patch TN01). While the client is connected and the route that last worked is the private one, the saved hub address is swapped for the hub's private address, same port and path; two failures in a row on one route send the next connect the other way, and every connect result is reported so three failures in a row may start the client. At home nothing changes: the saved address works, the failure count stays at zero and the client never starts. Several units keyed by Device-Id are unaffected: the headers and the token are not touched.
+# Placement: unit (the hub link is the unit's own; works with the host off)
+# Upstream: firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc of the Xiaozhi component (MIT)
+# Check after a flash: away from home with the client connected the log says 'connecting to the hub over the private network' and the voice link opens; at home the line never appears.
+# Kconfig: MAIPAI_TAILNET (off removes both calls).
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+index be2c253..d874208 100644
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -16,6 +16,7 @@
+ #include <hal/device_events.h>
+ #include <hal/board/hal_bridge.h>
+ #include <hal/maipai_daily.h>
++#include <hal/maipai_tailnet.h>
+ #include <esp_timer.h>
+ #include <esp_wifi.h>
+ #include <cstdio>
+@@ -163,6 +164,11 @@ bool WebsocketProtocol::OpenAudioChannel() {
+ bool WebsocketProtocol::ConnectAudioChannel() {
+     Settings settings("websocket", false);
+     std::string url = settings.GetString("url");
++#if CONFIG_MAIPAI_TAILNET
++    // Travel (patch TN02): while the private-network client is connected and the route that last worked is the private
++    // one, the saved address is swapped for the hub's private address (same port and path). Otherwise unchanged.
++    url = maipai_tailnet_route_url(url);
++#endif
+     std::string token = settings.GetString("token");
+     int version = settings.GetInt("version");
+     if (version != 0) {
+@@ -336,7 +342,11 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+         // The radio stays awake while the hub is not reached (the board holds Wi-Fi power save at NONE):
+         // in modem sleep the mesh AP did not deliver the SYN-ACK.
+         hal_bridge::set_hub_link(false);
+-        if (self->ConnectAudioChannel()) {
++        const bool connected_now = self->ConnectAudioChannel();
++#if CONFIG_MAIPAI_TAILNET
++        maipai_tailnet_note_connect(connected_now);  // patch TN02: three failures in a row may start the client
++#endif
++        if (connected_now) {
+             const unsigned took_ms = static_cast<unsigned>((esp_timer_get_time() - started_us) / 1000);
+             attempt = 0;
+             hal_bridge::set_hub_link(true);

@@ -1,0 +1,16 @@
+# Intent: The freeing pass before the private-network client (firmware-memory.md, 'Freeing internal RAM first', item 6): allocations of 256 to 511 bytes may now come from PSRAM (the limit was 512). Measured on the unit: docs/design/travel-2026-11-16.md. The client itself is item 1 of that list: it is not started unless the hub link failed, so the cost is only paid while travelling.
+# Placement: unit (build configuration of the robot firmware)
+# Upstream: firmware/sdkconfig.core.defaults of the StackChan main tree (MIT)
+# Check after a build: sdkconfig shows CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=256; the memory line shows internal_free higher than before at the same point of the boot.
+# Kconfig: none (an ESP-IDF option).
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+index b1eae66..79f088c 100644
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -21,3 +21,6 @@ CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE=y
+ CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE_PATH="ca/no-public-roots.pem"
+ # Wireless update from the paired host (patch 159).
+ CONFIG_STACKCHAN_WIRELESS_UPDATE=y
++# Memory freeing pass for travel (patch TN04): allocations of 256 to 511 bytes may now come from PSRAM (the limit was 512),
++# which frees internal RAM for the private-network client. Measured on the unit: docs/design/travel-2026-11-16.md.
++CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=256

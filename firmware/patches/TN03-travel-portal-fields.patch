@@ -1,0 +1,125 @@
+# Intent: The pairing key and the hub's private address are entered on the Wi-Fi setup page (patches P01 to P05), never in an image. Two optional fields, three strings (English and Spanish). The page checks the shape of both before it joins Wi-Fi, saves them only after Wi-Fi joined, and zeroes its copy of the key. A unit built without the client refuses the two fields when they are filled in.
+# Placement: unit (the setup page is the unit's own and works with the host off)
+# Upstream: firmware/portal/ of this tree, which replaces the access point source of the 78__esp-wifi-connect component (MIT)
+# Check after a flash: the setup page shows 'Travel key (optional)' and 'Home hub's private address (optional)'; a key that does not start with tskey- is refused with a plain sentence and nothing is saved; a good key and address are saved after the Wi-Fi joins (self.tailnet.status says key_saved and peer_saved).
+# Kconfig: MAIPAI_WIFI_PORTAL (the page); the fields work with MAIPAI_TAILNET.
+diff --git a/firmware/portal/maipai_portal_core.h b/firmware/portal/maipai_portal_core.h
+index 6eb2d28..10d2ca1 100644
+--- a/firmware/portal/maipai_portal_core.h
++++ b/firmware/portal/maipai_portal_core.h
+@@ -40,6 +40,9 @@ enum {
+     MP_S_BADCODE,
+     MP_S_LOCKED,
+     MP_S_FAIL,
++    MP_S_TKEY,   /* travel with the private network (patch TN03) */
++    MP_S_TPEER,
++    MP_S_BADTKEY,
+     MP_S_COUNT
+ };
+ 
+@@ -60,6 +63,9 @@ static const char* const mp_strings[2][MP_S_COUNT] = {
+         "Wrong setup code. Read it again on the unit's screen.",
+         "Too many wrong codes. Setup is locked until the unit starts a new window in a few minutes.",
+         "Could not join that network. Check the name and password, then try again.",
++        "Travel key (optional)",
++        "Home hub's private address (optional)",
++        "The travel key or the private address looks wrong. A key starts with tskey- and the address looks like 100.64.0.7.",
+     },
+     {
+         "Configurar StackChan",
+@@ -77,6 +83,9 @@ static const char* const mp_strings[2][MP_S_COUNT] = {
+         "Código incorrecto. Vuelva a leerlo en la pantalla del robot.",
+         "Demasiados códigos incorrectos. El ajuste queda bloqueado hasta que el robot abra otra ventana en unos minutos.",
+         "No se pudo unir a esa red. Revise el nombre y la contraseña e intente de nuevo.",
++        "Clave de viaje (opcional)",
++        "Dirección privada del hub de casa (opcional)",
++        "La clave de viaje o la dirección privada no parece correcta. La clave empieza con tskey- y la dirección es como 100.64.0.7.",
+     },
+ };
+ 
+diff --git a/firmware/portal/maipai_portal_page.h b/firmware/portal/maipai_portal_page.h
+index fdace77..24ae255 100644
+--- a/firmware/portal/maipai_portal_page.h
++++ b/firmware/portal/maipai_portal_page.h
+@@ -33,6 +33,8 @@ input:focus,button:focus{outline:2px solid var(--ac)}
+ <label for=n data-t=6></label><input id=n maxlength=32 required autocapitalize=off autocorrect=off>
+ <label for=p data-t=7></label><input id=p type=password maxlength=64>
+ <label for=h data-t=8></label><input id=h maxlength=70 placeholder=192.0.2.10 autocapitalize=off autocorrect=off>
++<label for=k data-t=15></label><input id=k type=password maxlength=120 autocapitalize=off autocorrect=off>
++<label for=q data-t=16></label><input id=q maxlength=15 placeholder=100.64.0.7 inputmode=decimal autocapitalize=off>
+ <button id=b data-t=9></button><p id=m role=status></p></form></main>
+ <script>
+ var T=@T@,$=function(i){return document.getElementById(i)},busy=0;
+@@ -44,7 +46,7 @@ a.forEach(function(x){var b=document.createElement("button"),s=document.createEl
+ b.textContent=x[0];s.textContent=(x[2]?"\u{1F512} ":"")+"▇".repeat(x[1]>-60?4:x[1]>-70?3:x[1]>-80?2:1);
+ b.appendChild(s);b.onclick=function(){$("n").value=x[0];$("p").focus()};l.appendChild(b)})}).catch(function(){})}
+ $("f").onsubmit=function(e){e.preventDefault();var b=$("b");b.disabled=busy=1;say(10,1);
+-fetch("/submit",{method:"POST",body:JSON.stringify({code:$("c").value,ssid:$("n").value,password:$("p").value,host:$("h").value})})
++fetch("/submit",{method:"POST",body:JSON.stringify({code:$("c").value,ssid:$("n").value,password:$("p").value,host:$("h").value,tkey:$("k").value,tpeer:$("q").value})})
+ .then(function(r){return r.json()}).then(function(r){say(r.ok?11:r.e,r.ok);busy=0;b.disabled=r.ok?1:0})
+ .catch(function(){say(5);busy=0;b.disabled=0})};
+ scan();setInterval(scan,6000)
+diff --git a/firmware/portal/maipai_wifi_configuration_ap.cc b/firmware/portal/maipai_wifi_configuration_ap.cc
+index f9b6805..491bd34 100644
+--- a/firmware/portal/maipai_wifi_configuration_ap.cc
++++ b/firmware/portal/maipai_wifi_configuration_ap.cc
+@@ -11,6 +11,7 @@
+  * there" probes) redirects to the page. Nothing here lists saved networks.
+  */
+ #include "wifi_configuration_ap.h"
++#include <algorithm>
+ #include <atomic>
+ #include <cstdio>
+ #include <cstdlib>
+@@ -44,6 +45,11 @@
+ // language of the board is used.
+ extern "C" const char* maipai_portal_language(void) __attribute__((weak));
+ 
++// Travel with the private network (patch TN03): the firmware checks and saves the travel key and the hub's private
++// address. Absent (the firmware was built without the client): the two fields are refused when filled in.
++extern "C" int maipai_portal_tailnet_check(const char* key, const char* peer) __attribute__((weak));
++extern "C" int maipai_portal_tailnet_save(const char* key, const char* peer) __attribute__((weak));
++
+ namespace {
+ std::atomic<bool> s_active{false};
+ char s_code[MP_PORTAL_CODE_LEN + 1];
+@@ -52,7 +58,7 @@ int s_lang = MP_LANG_EN;
+ esp_timer_handle_t s_window_timer = nullptr;
+ 
+ constexpr const char* kPortalUrl = "http://192.168.4.1/";
+-constexpr size_t kMaxBody = 640;
++constexpr size_t kMaxBody = 768;
+ constexpr int kMaxScan = 24;
+ 
+ void set_common_headers(httpd_req_t* req)
+@@ -378,11 +384,19 @@ void WifiConfigurationAp::StartWebServer()
+             std::string password = text("password");
+             char host_url[80];
+             int host = mp_host_url(text("host"), host_url, sizeof(host_url));
++            std::string travel_key = text("tkey");
++            std::string travel_peer = text("tpeer");
+             cJSON_Delete(json);
+             if (host < 0) {
+                 send_json_status(req, false, MP_S_BADHOST);
+                 return ESP_OK;
+             }
++            const bool travel = !travel_key.empty() || !travel_peer.empty();
++            if (travel && (maipai_portal_tailnet_check == nullptr ||
++                           maipai_portal_tailnet_check(travel_key.c_str(), travel_peer.c_str()) != 0)) {
++                send_json_status(req, false, MP_S_BADTKEY);  // the key is never logged
++                return ESP_OK;
++            }
+             if (!mp_ssid_ok(ssid.c_str()) || password.size() > 64) {
+                 send_json_status(req, false, MP_S_FAIL);
+                 return ESP_OK;
+@@ -401,6 +415,10 @@ void WifiConfigurationAp::StartWebServer()
+                     nvs_close(h);
+                 }
+             }
++            if (travel && maipai_portal_tailnet_save != nullptr) {
++                maipai_portal_tailnet_save(travel_key.c_str(), travel_peer.c_str());
++            }
++            std::fill(travel_key.begin(), travel_key.end(), '\0');  // the key does not stay in memory
+             send_json_status(req, true, 0);
+             // Close the portal a little later so the answer reaches the phone first.
+             request_exit_later(

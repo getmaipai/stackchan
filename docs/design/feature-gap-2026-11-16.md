@@ -69,7 +69,7 @@ The security build (CA bundle cut, patches 155 to 158) was not re-measured for h
 | Better Wi-Fi setup portal (protected, no saved-network list, timeout) | safety-and-privacy.md finding 4; audit ask | HOST-ONLY | `host/tests/firmware/portal_core_test.c`, `test_portal_core.py`; no portal patch in ORDER; the interim fix is not applied | M | FW | 1 |
 | Core settings page on the host | core-extras-modules.md | BUILT-NOT-VERIFIED | `settings_page.py`, face section, language; checked through routes, never in a browser; hub host is an older release | S | HOST | 1 |
 | English and Spanish | decision 25; languages.md | BUILT-NOT-VERIFIED | host `i18n.py` catalog test; portal table both languages; screen text is ASCII only, no accents | S | HOST | 2 |
-| Travel with the private network | features.md core list; Open | NOT-BUILT | patches 147, 148, 153 are not ported; contacts listed in the security note | L | FW | 3 |
+| Travel with the private network | features.md core list; Open | BUILT-NOT-VERIFIED | TN01 to TN06 (rebuilt from 147, 148, 153); behind MAIPAI_TAILNET; measured on the unit with a placeholder key, never joined a real network; see `travel-2026-11-16.md` | L | FW | 3 |
 | Games on one engine (colour memory, action, whack-a-mole) | features.md Touch and play | NOT-BUILT | no engine in the firmware or the host | L | FW | 3 |
 | Mood that depends on care, saved across days | features.md Touch and play | NOT-BUILT | nothing found | M | FW | 3 |
 | ESP-NOW pose mirroring | features.md Touch and play | NOT-BUILT | ESP-NOW was removed on purpose (097, S01) | M | FW | 3 |
@@ -115,7 +115,7 @@ Memory plan: 13 and 14 need about 4 KB steady internal each at most; 15 stays in
 
 ## Not on the list, and why
 
-- Travel with the private network (L): costs about 20 KB internal RAM and the client is not ported; needs a freeing pass first (firmware-memory.md, "Freeing internal RAM first").
+- Travel with the private network (L): built 2026-11-16 (`travel-2026-11-16.md`); a real join needs a pairing key from the owner.
 - ESP-NOW mirroring: removed to save memory and the attack surface; needs a second unit to test, which is the owner's call.
 - Music dance on the unit (121 to 131): high value but heavy on the audio path; schedule after Train 3 and the heap line.
 - Photo-frame face: the design says wait for headroom.
