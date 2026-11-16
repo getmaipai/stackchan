@@ -53,7 +53,10 @@ STREAM_POLL_S = 0.01
 POPUP_HOLD_S = 0.3
 # A listen the device re-opens by itself right after a reply is a follow-up: the person has this
 # long to speak before the turn ends quietly (default 5; a quiet room must not keep it listening).
-FOLLOW_UP_S = 5.0
+FOLLOW_UP_S = 3.5  # a follow-up with no wake word ends fast when nothing voiced arrives
+# After the unit stops speaking its own speaker echo is still in the room: without echo cancelling
+# the microphone is ignored this long, so it never answers itself.
+ECHO_COOLDOWN_S = 0.9
 FOLLOW_UP_AFTER_S = 2.0
 # The unit re-opens listening by itself when any playback ends. After a line the robot said on its
 # own (an orientation joke, a reaction) nobody was asked anything, so a listen that starts this
@@ -648,6 +651,15 @@ class StackChanTurnBridge:
             turn_factory,
             tts_factory,
         )
+        self._local_speech = self._local_speech_from(units)
+        if self._local_speech is not None:
+            from maipai_body.speech.local_speech import LocalSttClient, LocalTtsClient
+
+            stt_url, tts_url, timeout = self._local_speech
+            self.stt_factory = lambda _base, _cookie: LocalSttClient(stt_url, timeout_s=timeout)
+            self.tts_factory = lambda _base, _cookie, playback: LocalTtsClient(
+                tts_url, playback, timeout_s=timeout
+            )
         self.person_attribution = person_attribution or (lambda: None)
         self.expression_sink = expression_sink
         self._captures: dict[str, StackChanAudioCapture] = {}
@@ -675,6 +687,8 @@ class StackChanTurnBridge:
         self._stray: dict[str, tuple[int, float]] = {}
         self._quiet_idle: set[str] = set()  # sessions the host sent idle after a silent turn
         self.follow_up_s = FOLLOW_UP_S
+        self.language = "en"
+        self.dropped_utterances = 0
         # The selected voice record's pitch_semitones (-12 to 12); 0 changes nothing.
         self.pitch_semitones = lambda: 0.0
         self._breaker = ErrorLineBreaker(clock=clock)
@@ -703,7 +717,9 @@ class StackChanTurnBridge:
                 self._uplink_dropped += 1
                 return
             self._uplink_live += 1
-        elif now - self._speech_ended.get(session_id, float("-inf")) < 0.18:
+        elif now - self._speech_ended.get(session_id, float("-inf")) < (
+            0.18 if self._aec.get(session_id, False) else ECHO_COOLDOWN_S
+        ):
             self._uplink_dropped += 1
             return
         # A follow-up listen opens with no tone (the firmware plays it only for a wake word or a
@@ -1006,6 +1022,50 @@ class StackChanTurnBridge:
             LOG.warning("StackChan attribution dropped: malformed person id %r", person_id)
             return None
 
+    @staticmethod
+    def _local_speech_from(units):
+        """(stt_url, tts_url, timeout) when robot.toml sets a model and both speech servers: the
+        host then runs with no Home (speech through those two addresses, the model through [llm])."""
+        base = getattr(units, "base", None)
+        llm = getattr(base, "llm", None)
+        if llm is None or getattr(base, "brain", "llm") == "home":
+            return None
+        if llm.url and llm.stt_url and llm.tts_url:
+            return llm.stt_url, llm.tts_url, float(llm.timeout_seconds)
+        return None
+
+    def _noise_level(self, device_id: str) -> str:
+        from maipai_body.speech.noise_gate import level_from
+
+        store = getattr(self.units, "store", None)
+        return level_from(store.get(device_id).get("ignore_noise") if store is not None else None)
+
+    def _gate_result(self, result, device_id: str):
+        """Drop what is not a person talking to the robot; every drop is logged with its reason."""
+        from maipai_body.speech.noise_gate import check_audio, check_text
+
+        if result.kind != "final":
+            return result
+        level = self._noise_level(device_id)
+        verdict = None
+        audio = getattr(result, "audio", None)
+        if audio is not None and len(audio):
+            verdict = check_audio(audio, level)
+        if verdict is None or verdict.keep:
+            verdict = check_text(result.text or "", self.language)
+        if verdict.keep:
+            return result
+        self.dropped_utterances += 1
+        LOG.info(
+            "StackChan voice: dropped an utterance (%s); noise level %s, %d characters",
+            verdict.reason,
+            level,
+            len(result.text or ""),
+        )
+        from maipai_body.speech.stt_stream import SttStreamResult
+
+        return SttStreamResult(kind="no_speech")
+
     def _turn_for(self, device_id: str, base, cookie):
         """This unit's turn client: its own model when it chose one, else the Home turn client."""
         if self.units is not None and self.units.has_own_llm(device_id):
@@ -1048,6 +1108,8 @@ class StackChanTurnBridge:
             base = getattr(self.link.hub_client, "active_base_url", None) or (
                 pairing.base_url if pairing else None
             )
+            if self._local_speech is not None:
+                base, cookie = "local", "local"
             if not cookie or not base:
                 LOG.warning(
                     "StackChan voice: no hub session (cookie %s, address %s); answering with the "
@@ -1060,6 +1122,7 @@ class StackChanTurnBridge:
                 return
             self._current_session = session_id
             result = await self._recognise(base, cookie, capture, started_at)
+            result = self._gate_result(result, device_id)
             self._log_uplink_level(session_id, capture)
             capture.close()  # recognition is over: stop buffering the microphone
             last_loud = getattr(capture, "last_loud_at", None)
@@ -1440,6 +1503,8 @@ class StackChanTurnBridge:
             base = getattr(self.link.hub_client, "active_base_url", None) or (
                 pairing.base_url if pairing else None
             )
+            if self._local_speech is not None:
+                base, cookie = "local", "local"
             if not cookie or not base:
                 return False
             try:

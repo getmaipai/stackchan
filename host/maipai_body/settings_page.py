@@ -7,6 +7,8 @@ The dashboard server routes /settings and /api/stackchan/settings* to it, local 
 
 from __future__ import annotations
 
+import logging
+
 import base64
 import html
 import json
@@ -125,6 +127,8 @@ class SettingsBackend:
                     "speech_speed": own.get("speech_speed", 1.0),
                     "speech_pitch": own.get("speech_pitch", 0),
                     "muted": own.get("muted", bool(live.get("muted", False))),
+                    "idle_movement": own.get("idle_movement", "off"),
+                    "ignore_noise": own.get("ignore_noise", "medium"),
                     "firmware_version": live.get("firmware_version"),
                     "online": live.get("online"),
                     "colour": colour,
@@ -144,7 +148,18 @@ class SettingsBackend:
     def save(self, device_id: str, values: dict[str, Any]) -> dict[str, Any]:
         if device_id not in self.devices():
             raise SettingsError("That unit is not paired. Pair it first, then open its settings.")
-        return self.store.update(device_id, values)
+        saved = self.store.update(device_id, values)
+        self._notify_saved(device_id, values)
+        return saved
+
+    def _notify_saved(self, device_id: str, values: dict[str, Any]) -> None:
+        """Tell the running host a setting changed (idle movement, noise level) so it acts at once."""
+        hook = getattr(self, "on_saved", None)
+        if hook is not None:
+            try:
+                hook(device_id, values)
+            except Exception:  # a hook must never fail a save
+                logging.getLogger(__name__).warning("settings hook failed", exc_info=True)
 
     def update(self, device_id: str, lang: str | None = None, *, dry_run: bool = True) -> str:
         """The Update button: check the signed release. It only checks (dry run) unless the caller
@@ -213,7 +228,7 @@ class SettingsBackend:
                 "That unit is not paired. Pair it first, then open its settings."
             )
 
-    _DEVICE_KEYS = ("volume", "brightness", "idle_motion", "led", "mute", "vision_off", "quiet")
+    _DEVICE_KEYS = ("volume", "brightness", "idle_motion", "idle_movement", "led", "mute", "vision_off", "quiet")
 
     def _saved_device(self, device_id: str) -> dict[str, Any]:
         own = self.store.get(device_id)
@@ -221,6 +236,7 @@ class SettingsBackend:
             "volume": own.get("volume", 70),
             "brightness": own.get("brightness", 100),
             "idle_motion": own.get("idle_motion", True),
+            "idle_movement": own.get("idle_movement", "off"),
             "led": own.get("led", "off"),
         }
 
@@ -235,6 +251,12 @@ class SettingsBackend:
                 result = self.device.set_volume(device_id, value, lang)
             elif key == "brightness":
                 result = self.device.set_brightness(device_id, value, lang)
+            elif key == "idle_movement":
+                # The host decides every idle head move from this level (power_idle and the looks
+                # in app.py); the unit's own flag follows it, so nothing here talks to the unit.
+                self.store.update(device_id, {"idle_movement": value})
+                self._notify_saved(device_id, {"idle_movement": value})
+                return {"ok": True, "idle_movement": value}
             elif key == "idle_motion":
                 result = self.device.set_idle_motion(device_id, value, lang)
             elif key == "led":

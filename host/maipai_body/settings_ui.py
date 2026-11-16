@@ -439,7 +439,8 @@ BUILDERS.look=async(p,u)=>{
  const hrs=h('div',{class:'hrs'});const hv=v.tod_hours.slice();
  ['morning','day','evening','night'].forEach((b,i)=>{const inp=h('input',{type:'number',min:0,max:23,value:hv[i],'aria-label':T('face.band.'+b),onchange:async()=>{const n=hv.slice();n[i]=parseInt(inp.value,10);const ok=await put({tod_hours:n});if(ok)hv[i]=n[i];else inp.value=hv[i]}});hrs.append(field(T('face.band.'+b),inp))});
  const tod=card(S['settings.face.tod'],T('face.tod_help'),toggle(S['settings.face.tod'],null,v.tod,on=>put({tod:on}),!has('tod')),h('p',{class:'hint'},T('face.hours_help')),hrs);
- const think=toggle(T('face.thinking_tone'),null,v.thinking_tone,on=>put({thinking_tone:on}),!has('thinking'));
+ const think=
+  toggle(T('face.thinking_tone'),null,v.thinking_tone,on=>put({thinking_tone:on}),!has('thinking'));
  const fx=card(h('span',{},T('face.effects'),' ',soonBadge()),T('face.effects_help'),h('div',{class:'pills'},['Scanlines','Glow','Tint'].map(x=>h('button',{class:'pill',disabled:true,type:'button'},x))),h('h3',{},T('face.overlays'),' ',soonBadge()),h('p',{class:'hint'},T('face.overlays_help')));
  const reset=h('button',{class:'btn',type:'button',onclick:async()=>{const r=await save(facePath(id)+'/reset',{});if(r.ok){BUILT.look=false;p.querySelectorAll(':scope>:not(h1)').forEach(n=>n.remove());go('look',true)}}},S['settings.face.reset']);
  const banners=[];if(fv.pending)banners.push(h('div',{class:'banner'},S['settings.face.pending']));if(fv.unavailable&&fv.unavailable.length)banners.push(h('div',{class:'banner'},S['settings.face.unavailable']+' '+fv.unavailable.join(', ')));
@@ -462,6 +463,7 @@ BUILDERS.voice=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'overv
   toggle(T('voice.mic_mute'),T('voice.mute_help'),pr?pr.mute:u.muted,async on=>(await save(unitPath(id,'device'),{mute:on})).ok),toggle(T('voice.speaker_mute'),null,false,()=>false,true));
  const speech=card(S['settings.ui.nav.voice'],null,slider(T('voice.speed'),.75,1.5,.05,u.speech_speed,x=>x.toFixed(2)+'x',null,x=>unitSet(id,{speech_speed:x}),[T('voice.slow'),T('voice.fast')]),
   slider(T('voice.pitch'),-12,12,1,u.speech_pitch,x=>(x>0?'+':'')+x,null,x=>unitSet(id,{speech_pitch:x}),['-12',(+12)+'']),
+  seg(T('Ignore background noise'),[{v:'low',t:T('Low')},{v:'medium',t:T('Medium')},{v:'high',t:T('High')}],u.ignore_noise||'medium',async m=>(await unitSet(id,{ignore_noise:m})).ok),h('p',{class:'help'},T('Higher ignores more fans and hiss, but may miss quiet speech.')),
   toggle(T('face.thinking_tone'),null,v.thinking_tone,async on=>(await save(facePath(id),{thinking_tone:on})).ok,!has('thinking')));
  const wake=card(T('voice.wake'),T('voice.wake_help'),toggle(T('voice.wake'),null,true,()=>false,true),slider(T('voice.wake_sens'),0,100,5,50,x=>x+'%',null,null,null,true),toggle(T('voice.stop_word'),null,true,()=>false,true));
  const lang=card(S['settings.face.lang'],null,(()=>{const sel=h('select',{'aria-label':S['settings.face.lang'],onchange:e=>save(facePath(id),{screen_lang:e.target.value})});for(const l of (fv.choices?fv.choices.lang:LANGS_ALL))sel.append(h('option',{value:l,selected:l===v.lang},S['settings.lang.'+l]||l));return sel})());
@@ -505,7 +507,7 @@ async function tsCard(p,u){const id=u.device_id,tv=await api(unitPath(id,'travel
 
 /* ---- BEHAVIOUR ---- */
 BUILDERS.behaviour=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'overview')),sv=ov.ok?ov.d.saved:{idle_motion:true},pr=ov.ok?ov.d.privacy:null;
- const body=card(T('beh.head'),null,toggle(T('beh.head'),T('beh.head_help'),sv.idle_motion,async on=>(await save(unitPath(id,'device'),{idle_motion:on})).ok),
+ const body=card(T('beh.head'),null,seg(T('Idle movement'),[{v:'off',t:T('Off')},{v:'calm',t:T('Calm')},{v:'lively',t:T('Lively')}],sv.idle_movement||'off',async m=>(await save(unitPath(id,'device'),{idle_movement:m})).ok),h('p',{class:'help'},T('Off keeps the head still until it is spoken to. Calm and lively let it look around when nobody is talking.')),
   toggle(T('beh.sleep'),T('beh.sleep_help'),false,()=>false,true));
  const priv=card(S['settings.ui.nav.privacy'],T('privacy.lead'),toggle(T('beh.vision'),T('beh.vision_help'),pr?pr.vision_off:false,async on=>(await save(unitPath(id,'device'),{vision_off:on})).ok,!pr),
   toggle(T('beh.quiet_mode'),T('beh.quiet_mode_help'),pr?pr.quiet:false,async on=>(await save(unitPath(id,'device'),{quiet:on})).ok,!pr),

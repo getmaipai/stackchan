@@ -146,7 +146,10 @@ class UnitRegistry:
 
     def has_own_llm(self, device_id: str) -> bool:
         """True when this unit chose its own model URL; only then does it leave the Home brain."""
-        return bool(self.store.get(device_id).get("llm", {}).get("url"))
+        if self.store.get(device_id).get("llm", {}).get("url"):
+            return True
+        # No Home: a top-level model URL in robot.toml is every unit's model.
+        return self.base.brain != "home" and bool(self.base.llm.url)
 
     def brain_for(self, device_id: str) -> Any:
         """The unit's own brain. Rebuilt when its settings change; history stays inside it."""

@@ -122,12 +122,20 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(values["idle_motion"], bool):
             raise SettingsError("Idle motion must be on or off.")
         out["idle_motion"] = values["idle_motion"]
+    if "idle_movement" in values:
+        if values["idle_movement"] not in ("off", "calm", "lively"):
+            raise SettingsError("Idle movement must be off, calm or lively. Pick one and save again.")
+        out["idle_movement"] = values["idle_movement"]
+    if "ignore_noise" in values:
+        if values["ignore_noise"] not in ("low", "medium", "high"):
+            raise SettingsError("Ignore background noise must be low, medium or high. Pick one and save again.")
+        out["ignore_noise"] = values["ignore_noise"]
     if "led" in values:
         led = values["led"]
         if led != "off" and not (isinstance(led, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", led)):
             raise SettingsError("The light ring colour must be off or a code like #40c0ff. Pick a colour and save again.")
         out["led"] = led.lower()
-    unknown = set(values) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "led"}
+    unknown = set(values) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "led"}
     if unknown:
         raise SettingsError(f"Unknown setting {sorted(unknown)[0]}. Remove it and save again.")
     return out

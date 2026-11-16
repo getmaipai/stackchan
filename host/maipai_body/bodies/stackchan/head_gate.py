@@ -32,6 +32,7 @@ class HeadMotionGate:
         *,
         must_be_still: Callable[[], bool],
         resting: Callable[[], bool] = lambda: False,
+        busy: Callable[[], str] = lambda: "",
         still_reason: Callable[[], str] = lambda: "",
         clock: Callable[[], float] = time.monotonic,
         log_every_s: float = 30.0,
@@ -40,6 +41,8 @@ class HeadMotionGate:
         self._must_be_still = must_be_still
         self._still_reason = still_reason
         self._resting = resting
+        # Why the unit is occupied (listening, speaking, quiet mode) or "": no idle look then.
+        self._busy = busy
         self._clock = clock
         self._log_every_s = log_every_s
         self._last_logged: dict[tuple[str, bool], float] = {}
@@ -62,6 +65,8 @@ class HeadMotionGate:
         elif self._must_be_still():
             why = self._still_reason() or "power unknown or charging, night, or level"
             verdict, reason = False, f"must be still ({why})"
+        elif self._busy():
+            verdict, reason = False, f"not while {self._busy()}"
         elif self._resting():
             verdict, reason = False, "resting"
         else:

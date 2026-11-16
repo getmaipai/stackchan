@@ -102,7 +102,7 @@ def test_volume_brightness_led_idle_motion_save_send_and_read_back(sim) -> None:
     assert units[KITCHEN].device["self.audio_speaker.set_volume"] == {"volume": 35}
     assert units[KITCHEN].device["self.robot.set_led_color"] == {"red": 42, "green": 126, "blue": 168}
     saved = _get(backend, KITCHEN, "overview")[1]["saved"]
-    assert saved == {"volume": 35, "brightness": 60, "idle_motion": False, "led": "#40c0ff"}
+    assert saved == {"volume": 35, "brightness": 60, "idle_motion": False, "idle_movement": "off", "led": "#40c0ff"}
 
 
 def test_bad_values_are_refused_in_plain_words_and_change_nothing(sim) -> None:

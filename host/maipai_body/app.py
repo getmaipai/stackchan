@@ -237,6 +237,9 @@ class StackChanBehavior:
         # robot.idle.level from the settings frame (still, calm, lively). Still until the hub says
         # otherwise: a fresh or lost-settings unit never wanders (owner request 2026-10-20).
         self.idle_level = "still"
+        # Why the unit is occupied (a turn is running, or full quiet is on), "" when free: set once
+        # the voice bridge exists. No idle look starts while it is not empty.
+        self.head_busy: Callable[[], str] = lambda: ""
         # True once any move left the head off centre; the post-turn settle only runs then.
         self._head_off_centre = False
         self._hold_until = float("-inf")
@@ -405,6 +408,7 @@ class StackChanBehavior:
         self.head_gate = HeadMotionGate(
             must_be_still=lambda: self.idle_still(),
             resting=lambda: self._rest.stage != "awake",
+            busy=lambda: self.head_busy(),
             still_reason=lambda: self.idle_still_reason(),
         )
         from maipai_body.bodies.stackchan.sleep_z import SleepZ
@@ -2776,6 +2780,18 @@ async def _serve_stackchan_channels(
         behavior.reaction_tick = reactions.tick
         _wire_orientation(voice, behavior, bridge, night, power)
         bridge.on_user_words = reactions.on_user_words
+        bridge.language = units.base.home.language
+
+        def _head_busy() -> str:
+            if getattr(getattr(behavior, "privacy", None), "quiet", False):
+                return "full quiet is on"
+            if bridge._tasks:
+                return "a turn is listening or speaking"
+            if behavior.night_active():
+                return "quiet hours"
+            return ""
+
+        behavior.head_busy = _head_busy
         bridge.on_reply_mood = reactions.on_reply_mood
         from maipai_body.selftest.stackchan_wiring import build_context, build_service_hooks
         from maipai_body.speech.turn_client import TurnClient
@@ -2817,6 +2833,27 @@ async def _serve_stackchan_channels(
         behavior.close()
         await avatar.close()
         await voice.close()
+
+
+_IDLE_LEVELS = {"off": "still", "calm": "calm", "lively": "lively"}
+
+
+def _wire_idle_setting(backend, units, behavior, voice) -> None:
+    """The page's "Idle movement" (off, calm, lively; default off) sets the one idle level every
+    ambient head move is gated on. It is applied at start, when a unit connects, and on each save."""
+
+    def apply(device_id: str, values: dict) -> None:
+        level = values.get("idle_movement")
+        if level in _IDLE_LEVELS:
+            behavior.idle_level = _IDLE_LEVELS[level]
+            behavior.on_idle_level()
+
+    backend.on_saved = apply
+
+    def on_connect(device_id: str) -> None:
+        apply(device_id, {"idle_movement": units.store.get(device_id).get("idle_movement", "off")})
+
+    voice.session_listeners.append(on_connect)
 
 
 def _start_settings_page(voice, pairing, units, behavior, faces=None):
@@ -2880,6 +2917,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None):
         device=UnitDevice(_unit_call(voice)),
         remote=_unit_remote(voice),
     )
+    _wire_idle_setting(backend, units, behavior, voice)
     from maipai_body.settings_server import SettingsServer
 
     try:
