@@ -50,6 +50,9 @@ _CUES: dict[str, dict[str, Any]] = {
 _DIRECT = ("breathe", "track", "thinking", "offer", "shake")
 
 
+MAX_POST_BYTES = 72 * 1024 * 1024  # the biggest picture upload (base64 of 12 megapixels RGBA) plus room
+
+
 class _Handler(BaseHTTPRequestHandler):
     server: _Server
     protocol_version = "HTTP/1.1"
@@ -190,6 +193,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "send application/json")
         try:
             length = int(self.headers.get("Content-Length") or 0)
+            if length < 0 or length > MAX_POST_BYTES:
+                return self._error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "that upload is too large; use a smaller picture")
             body = json.loads(self.rfile.read(length) or b"{}")
             if not isinstance(body, dict):
                 raise ValueError("body must be a JSON object")

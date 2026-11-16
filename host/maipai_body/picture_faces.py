@@ -48,7 +48,7 @@ MAX_FRAMES = 14
 MAX_FRAMES_PER_SLOT = 6
 MIN_FPS, MAX_FPS, DEFAULT_FPS = 1, 12, 6
 CHUNK_BYTES = 2048  # raw bytes per self.facepic.data call (about 2.7 KB as base64)
-MAX_SOURCE_PIXELS = 25_000_000  # a page upload larger than this is refused before it fills memory
+MAX_SOURCE_PIXELS = 12_000_000  # a page upload larger than this is refused before it fills memory
 THUMB = (80, 60)
 
 OVERLAY_KEYS = ("lx", "ly", "rx", "ry", "eye_w", "eye_h", "mx", "my", "mouth_w", "mouth_h")
