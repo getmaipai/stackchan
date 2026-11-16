@@ -108,8 +108,8 @@ Likely to come, not finished. Do not count on these yet.
 
 | Feature | What it will do | Page |
 |---|---|---|
-| **Fully animated faces** <span class="planned-tag">Planned</span> | Richer faces that move more, beyond the drawn eyes and extras today. | [Face and look](face-and-look.md) |
-| **Still-image faces** <span class="planned-tag">Planned</span> | Show a picture as the face, such as a photo-frame face. | [Face and look](face-and-look.md) |
+| **Fluid faces** <span class="planned-tag">Planned</span> | Smoother eyes and mouth: eased eye motion, a smooth blink, a drifting gaze and a mouth that follows how loud you speak. Aim: 30 frames a second, to be measured. | [Face and look](face-and-look.md) |
+| **Your own picture faces** <span class="planned-tag">Planned</span> | Upload your own pictures on the settings page, one per expression, and the robot shows them as its face. Nothing leaves your home. | [Face and look](face-and-look.md) |
 | **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |
 | **Encrypted link at home** <span class="planned-tag">Planned</span> | Encrypt the robot's link to your host on your home Wi-Fi, and check it is talking to your host. | [Security](security.md) |
 | **Outside games** <span class="planned-tag">Planned</span> | Load games you or others make. Signed packs only. | [Games](games-and-pet.md) |

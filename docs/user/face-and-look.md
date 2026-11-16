@@ -65,7 +65,17 @@ If you prefer petting on the strip, leave `strip_mode` at `petting`. Set it to `
 
 ## Planned faces
 
-Two things are planned and not finished: <span class="planned-tag">Planned</span> **fully animated faces**, and <span class="planned-tag">Planned</span> **still-image faces**, which show a picture as the face. They wait until the robot has enough free memory for them, and we do not have a date.
+Two things are in progress and not finished. We have no date.
+
+**Fluid faces** <span class="planned-tag">Planned</span> make the eyes and mouth move more smoothly: eased eye motion, a smooth blink, a drifting gaze and a mouth that follows how loud you speak. The aim is 30 frames a second. We will measure it and report the real number.
+
+**Your own picture faces** <span class="planned-tag">Planned</span> let you upload your own pictures on the settings page, one for each expression: neutral, happy, sad, angry, doubt, sleepy and speaking. Your host resizes them and sends them to the robot. Nothing ships with the project and nothing leaves your home. Each set can show:
+
+- the picture only,
+- the picture with animated eyes and mouth drawn over it, or
+- a short sequence of frames.
+
+The robot keeps at most three pictures ready at a time, because each one takes a lot of memory.
 
 ## Still need help?
 
