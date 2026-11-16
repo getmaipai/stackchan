@@ -1,0 +1,615 @@
+# Intent: the link looks on the default face, drawn from shapes (rebuild of the old 111, 112 and 113 on the current base; owner 2026-11-13; docs/design/feature-gap-2026-11-16.md Train 1 item 5). No font, image or mint skin part is added: the glyphs are rectangles and one line. (1) LINK SCREEN (111): the boot cover gets a glyph slot above its text: the Wi-Fi bars at 1.5 times the old size, cycling while it says "Connecting to Wi-Fi..." or "Connecting to Home..."; the slashed bars for "Wi-Fi setup needed", which now shows the hotspot name and the address on two lines (they went to the speech bubble, which is hidden while captions are off, so nobody could read them), also when setup is asked for after the boot; and the slash with a key for "Waiting for Home to approve me". The glyphs exist only while a look shows, so a linked unit holds none. (2) OFFLINE LOOK (112): after the first face, a small strip in the top-left corner replaces the speech-bubble "Offline" (invisible with captions off): after 3 s without the hub the bars cycle with no words; after 45 s (patch 143's delay, unchanged) the slashed bars and "Offline" appear with the existing dim amber ring; the first hello removes the strip and the ring. (3) WAITING FOR APPROVAL (113): Home accepts the websocket and closes it before its hello when it has not approved the unit; the hello wait now ends at once on that close, and two such connects in a row show the key look (full screen before the first face, the corner strip "Waiting for approval" and a cyan ring blink after it, the steady amber steps aside) and send one "ws_refused" event; the first hello clears it. hal_bridge gets link_look(0 up, 1 connecting, 2 offline, 3 refused); offline_indicator(bool) now calls it and offline_indicator_refresh() does nothing. NOT taken from 111 to 113 (and why): the muted "offline" face palette and the eyes 5 px lower (the face colour belongs to the saved face config, F01, and a firmware-only transient palette risks being saved; the strip, the words and the ring already say offline); "Can't reach Home" riding on the strip (the existing speech-bubble message stays); the mint skin parts (not in this base). The link text is English only, like the boot text it replaces.
+# Placement: unit (the link state runs on the robot, with or without a host)
+# Upstream: main/hal/board/stackchan_display.cc, stackchan.cc, hal_bridge.h of the M5Stack StackChan firmware and main/protocols/websocket_protocol.cc, websocket_protocol.h of the xiaozhi-esp32 tree (MIT)
+# Check after a flash: power on with Wi-Fi off: the screen shows cycling bars and "Connecting to Wi-Fi..."; with no saved network it shows slashed bars, "Wi-Fi setup needed", the hotspot name and the address, and the ring blinks cyan. Stop the hub after the face is up: after 3 s the bars cycle in the top-left corner, after 45 s the strip says "Offline" and the ring turns dim amber; start the hub: both go. Use a hub that has not approved the unit: after two quick closes the key look shows and a ws_refused event reaches the host log; approve it and the look clears on the first hello.
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -10,6 +10,8 @@
+ #include <esp_psram.h>
+ #include <vector>
+ #include <cstring>
++#include <new>
++#include <string>
+ #include <cstdio>
+ #include <algorithm>
+ #include <src/misc/cache/lv_cache.h>
+@@ -358,6 +360,10 @@
+     lv_obj_set_style_radius(boot_cover_, 0, 0);
+     lv_obj_set_style_pad_all(boot_cover_, 0, 0);
+     lv_obj_remove_flag(boot_cover_, LV_OBJ_FLAG_SCROLLABLE);
++    // The glyph slot (R03) sits above the text; flex keeps both centred whether or not the glyph is there.
++    lv_obj_set_flex_flow(boot_cover_, LV_FLEX_FLOW_COLUMN);
++    lv_obj_set_flex_align(boot_cover_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
++    lv_obj_set_style_pad_row(boot_cover_, 14, 0);
+ 
+     boot_label_ = lv_label_create(boot_cover_);
+     lv_obj_set_style_text_font(boot_label_, &BUILTIN_TEXT_FONT, 0);
+@@ -379,14 +385,296 @@
+         ESP_LOGE("Display", "Failed to lock display");
+     }
+ }
+-void StackChanAvatarDisplay::ShowBootCover(const char* text, int ring_kind)
++// ---------------------------------------------------------------------------------------------------------------
++// Link looks (patch R03): drawn from rectangles and one line, so no font and no image is added. A glyph is built
++// on a unit u: Wi-Fi bars 11u wide and 8u high (four bars, a slash across them when the link is down), and a key
++// 11u wide and 5u high (a ring, a shaft and two teeth).
++// ---------------------------------------------------------------------------------------------------------------
++struct LinkGlyph {
++    lv_obj_t* row     = nullptr;
++    lv_obj_t* wifi    = nullptr;
++    lv_obj_t* bars[4] = {};
++    lv_obj_t* slash   = nullptr;
++    lv_obj_t* key     = nullptr;
++    lv_obj_t* key_parts[4] = {};
++    lv_point_precise_t slash_points[2] = {};
++    int unit = 1;
++};
++
++static lv_obj_t* link_rect(lv_obj_t* parent, int x, int y, int w, int h, int radius)
++{
++    lv_obj_t* object = lv_obj_create(parent);
++    lv_obj_remove_style_all(object);
++    lv_obj_remove_flag(object, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(object, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(object, w, h);
++    lv_obj_set_pos(object, x, y);
++    lv_obj_set_style_radius(object, radius, 0);
++    lv_obj_set_style_bg_opa(object, LV_OPA_COVER, 0);
++    return object;
++}
++
++static lv_color_t link_on(bool cover)
++{
++    return cover ? lv_color_white() : lv_color_make(120, 140, 160);  // the strip is muted grey-blue
++}
++
++static lv_color_t link_off(bool cover)
+ {
++    return cover ? lv_color_make(60, 60, 60) : lv_color_make(50, 58, 66);
++}
++
++static LinkGlyph* link_glyph_new(lv_obj_t* parent, int unit, bool want_wifi, bool want_key, bool cover)
++{
++    auto* glyph = new (std::nothrow) LinkGlyph();
++    if (glyph == nullptr) {
++        return nullptr;
++    }
++    glyph->unit = unit;
++    glyph->row  = lv_obj_create(parent);
++    lv_obj_remove_style_all(glyph->row);
++    lv_obj_remove_flag(glyph->row, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(glyph->row, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(glyph->row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
++    lv_obj_set_flex_flow(glyph->row, LV_FLEX_FLOW_ROW);
++    lv_obj_set_flex_align(glyph->row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
++    lv_obj_set_style_pad_column(glyph->row, 3 * unit, 0);
++    if (want_wifi) {
++        glyph->wifi = lv_obj_create(glyph->row);
++        lv_obj_remove_style_all(glyph->wifi);
++        lv_obj_remove_flag(glyph->wifi, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_remove_flag(glyph->wifi, LV_OBJ_FLAG_SCROLLABLE);
++        lv_obj_set_size(glyph->wifi, 11 * unit, 8 * unit);
++        for (int i = 0; i < 4; i++) {
++            const int h = 2 * unit * (i + 1);
++            glyph->bars[i] = link_rect(glyph->wifi, i * 3 * unit, 8 * unit - h, 2 * unit, h, unit > 3 ? 2 : 1);
++            lv_obj_set_style_bg_color(glyph->bars[i], link_off(cover), 0);
++        }
++        glyph->slash_points[0] = {0, static_cast<lv_value_precise_t>(8 * unit)};
++        glyph->slash_points[1] = {static_cast<lv_value_precise_t>(11 * unit), 0};
++        glyph->slash = lv_line_create(glyph->wifi);
++        lv_line_set_points(glyph->slash, glyph->slash_points, 2);
++        lv_obj_set_style_line_width(glyph->slash, unit > 3 ? unit / 2 + 1 : 2, 0);
++        lv_obj_set_style_line_color(glyph->slash, link_on(cover), 0);
++        lv_obj_set_style_line_rounded(glyph->slash, true, 0);
++        lv_obj_add_flag(glyph->slash, LV_OBJ_FLAG_HIDDEN);
++    }
++    if (want_key) {
++        glyph->key = lv_obj_create(glyph->row);
++        lv_obj_remove_style_all(glyph->key);
++        lv_obj_remove_flag(glyph->key, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_remove_flag(glyph->key, LV_OBJ_FLAG_SCROLLABLE);
++        lv_obj_set_size(glyph->key, 11 * unit, 5 * unit);
++        // The ring: an empty circle with a border; the shaft and the two teeth are filled.
++        glyph->key_parts[0] = link_rect(glyph->key, 0, 0, 5 * unit, 5 * unit, LV_RADIUS_CIRCLE);
++        lv_obj_set_style_bg_opa(glyph->key_parts[0], LV_OPA_TRANSP, 0);
++        lv_obj_set_style_border_width(glyph->key_parts[0], unit > 3 ? unit : 2, 0);
++        lv_obj_set_style_border_color(glyph->key_parts[0], link_on(cover), 0);
++        glyph->key_parts[1] = link_rect(glyph->key, 5 * unit, 2 * unit, 6 * unit, unit, 0);
++        glyph->key_parts[2] = link_rect(glyph->key, 8 * unit, 3 * unit, unit, 2 * unit, 0);
++        glyph->key_parts[3] = link_rect(glyph->key, 10 * unit, 3 * unit, unit, 2 * unit, 0);
++        for (int i = 1; i < 4; i++) {
++            lv_obj_set_style_bg_color(glyph->key_parts[i], link_on(cover), 0);
++        }
++    }
++    return glyph;
++}
++
++// How many bars are lit (0 to 4) and whether the slash is drawn.
++static void link_glyph_bars(LinkGlyph* glyph, int lit, bool slash, bool cover)
++{
++    if (glyph == nullptr || glyph->wifi == nullptr) {
++        return;
++    }
++    for (int i = 0; i < 4; i++) {
++        lv_obj_set_style_bg_color(glyph->bars[i], i < lit ? link_on(cover) : link_off(cover), 0);
++    }
++    if (slash) {
++        lv_obj_remove_flag(glyph->slash, LV_OBJ_FLAG_HIDDEN);
++    } else {
++        lv_obj_add_flag(glyph->slash, LV_OBJ_FLAG_HIDDEN);
++    }
++}
++
++static void link_glyph_free(LinkGlyph*& glyph)
++{
++    if (glyph != nullptr) {
++        if (glyph->row != nullptr) {
++            lv_obj_delete(glyph->row);
++        }
++        delete glyph;
++        glyph = nullptr;
++    }
++}
++
++// What the cover's glyph slot shows: 0 the bars cycling (connecting), 1 bars with the slash (Wi-Fi setup
++// needed), 2 the slash and a key (waiting for Home to approve), -1 nothing.
++void StackChanAvatarDisplay::SetCoverGlyph(int kind)
++{
++    cover_glyph_kind_ = kind;
++    if (boot_cover_ == nullptr || kind < 0) {
++        link_glyph_free(cover_glyph_);
++        UpdateLinkTimer();
++        return;
++    }
++    link_glyph_free(cover_glyph_);
++    // The shipped look at 1.5 times: 6 px units make the bars 66 by 48.
++    cover_glyph_ = link_glyph_new(boot_cover_, 6, true, kind == 2, true);
++    if (cover_glyph_ != nullptr) {
++        lv_obj_move_to_index(cover_glyph_->row, 0);
++        link_glyph_bars(cover_glyph_, kind == 0 ? 1 : 0, kind != 0, true);
++    }
++    UpdateLinkTimer();
++}
++
++void StackChanAvatarDisplay::UpdateLinkTimer()
++{
++    const bool cover_cycles = cover_glyph_ != nullptr && cover_glyph_kind_ == 0;
++    const bool strip_cycles = strip_glyph_ != nullptr && link_look_ == 1;
++    if ((cover_cycles || strip_cycles) && link_timer_ == nullptr) {
++        link_timer_ = lv_timer_create(LinkTick, 350, this);
++    } else if (!cover_cycles && !strip_cycles && link_timer_ != nullptr) {
++        lv_timer_delete(link_timer_);
++        link_timer_ = nullptr;
++    }
++}
++
++void StackChanAvatarDisplay::LinkTick(lv_timer_t* timer)
++{
++    auto* self = static_cast<StackChanAvatarDisplay*>(lv_timer_get_user_data(timer));
++    if (self == nullptr) {
++        return;
++    }
++    self->link_step_ = (self->link_step_ + 1) % 5;  // 0 to 4 bars lit, then around again
++    if (self->cover_glyph_ != nullptr && self->cover_glyph_kind_ == 0) {
++        link_glyph_bars(self->cover_glyph_, self->link_step_, false, true);
++    }
++    if (self->strip_glyph_ != nullptr && self->link_look_ == 1) {
++        link_glyph_bars(self->strip_glyph_, self->link_step_, false, false);
++    }
++}
++
++// The corner strip shown on the face once it is up: the bars cycling with no words (connecting), the slashed
++// bars and "Offline", or a key and "Waiting for approval".
++void StackChanAvatarDisplay::ShowStrip(int look)
++{
++    if (strip_ == nullptr) {
++        strip_ = lv_obj_create(lv_layer_top());
++        lv_obj_remove_style_all(strip_);
++        lv_obj_remove_flag(strip_, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_remove_flag(strip_, LV_OBJ_FLAG_SCROLLABLE);
++        lv_obj_set_size(strip_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
++        lv_obj_set_pos(strip_, 6, 5);
++        lv_obj_set_flex_flow(strip_, LV_FLEX_FLOW_ROW);
++        lv_obj_set_flex_align(strip_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
++        lv_obj_set_style_pad_column(strip_, 5, 0);
++    }
++    link_glyph_free(strip_glyph_);
++    if (strip_label_ != nullptr) {
++        lv_obj_delete(strip_label_);
++        strip_label_ = nullptr;
++    }
++    strip_glyph_ = link_glyph_new(strip_, 2, look != 3, look == 3, false);
++    if (look != 3) {
++        link_glyph_bars(strip_glyph_, look == 1 ? link_step_ : 0, look == 2, false);
++    }
++    if (look != 1) {
++        strip_label_ = lv_label_create(strip_);
++        lv_obj_set_style_text_font(strip_label_, &BUILTIN_TEXT_FONT, 0);
++        lv_obj_set_style_text_color(strip_label_, link_on(false), 0);
++        lv_label_set_text(strip_label_, look == 2 ? "Offline" : "Waiting for approval");
++    }
++    UpdateLinkTimer();
++}
++
++void StackChanAvatarDisplay::HideStrip()
++{
++    link_glyph_free(strip_glyph_);
++    if (strip_ != nullptr) {
++        lv_obj_delete(strip_);
++        strip_       = nullptr;
++        strip_label_ = nullptr;
++    }
++    UpdateLinkTimer();
++}
++
++// The one place that picks the look from the hub link. The caller holds the LVGL lock.
++//   Before the first face: the cover shows "Waiting for Home to approve me" with the slash and a key while
++//   Home refuses; every other link state leaves the cover to the boot status (Wi-Fi, Home).
++//   After it: nothing when linked; the strip when not; the dim amber ring while offline; the cyan blink
++//   while waiting for approval (the steady amber steps aside).
++void StackChanAvatarDisplay::ApplyLink()
++{
++    if (boot_cover_ == nullptr) {
++        return;
++    }
++    hal_bridge::leds_offline(link_look_ == 2);
++    if (!boot_done_) {
++        if (link_look_ == 3) {
++            ShowBootCover("Waiting for Home to approve me", 2, 2);
++        } else if (cover_glyph_kind_ == 2) {
++            ShowBootCover("Connecting to Home...", 1, 0);
++        }
++        return;
++    }
++    if (link_look_ == 0) {
++        HideStrip();
++    } else {
++        ShowStrip(link_look_);
++    }
++    if (link_look_ == 3 && !approval_ring_) {
++        approval_ring_      = true;
++        boot_ring_kind_     = 2;
++        boot_ring_start_ms_ = GetHAL().millis();
++        boot_ring_last_on_  = false;
++        if (boot_ring_timer_ == nullptr) {
++            boot_ring_timer_ = lv_timer_create(BootRingTick, 100, this);
++        }
++    } else if (link_look_ != 3 && approval_ring_) {
++        approval_ring_ = false;
++        if (boot_ring_timer_ != nullptr) {
++            lv_timer_delete(boot_ring_timer_);
++            boot_ring_timer_ = nullptr;
++        }
++        boot_ring_last_on_ = false;
++        for (int i = 0; i < 12; i++) {
++            GetHAL().setRgbColor(i, 35, 35, 31);  // the ring as the first face leaves it (HideBootCover)
++        }
++        GetHAL().refreshRgb();
++    }
++}
++
++void StackChanAvatarDisplay::SetLinkLook(int look)
++{
++    LvglLock();
++    if (link_look_ != look) {
++        ESP_LOGI(TAG, "link look: %d -> %d (0 up, 1 connecting, 2 offline, 3 waiting for approval)", link_look_, look);
++        link_look_ = look;
++        ApplyLink();
++        UpdateLinkTimer();
++    }
++    LvglUnlock();
++}
++
++void hal_bridge::link_look(int look)
++{
++    auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
++    if (display != nullptr) {
++        display->SetLinkLook(look);
++    }
++}
++
++void StackChanAvatarDisplay::ShowBootCover(const char* text, int ring_kind, int glyph_kind)
++{
+     if (boot_label_ != nullptr) {
+         lv_label_set_text(boot_label_, text);
+     }
+     if (boot_cover_ != nullptr) {
+         lv_obj_remove_flag(boot_cover_, LV_OBJ_FLAG_HIDDEN);
+         lv_obj_move_foreground(boot_cover_);
++        if (cover_glyph_ == nullptr || cover_glyph_kind_ != glyph_kind) {
++            SetCoverGlyph(glyph_kind);
++        }
+     }
+     boot_ring_kind_     = ring_kind;
+     boot_ring_start_ms_ = GetHAL().millis();
+@@ -399,6 +687,7 @@
+ {
+     if (boot_cover_ != nullptr) {
+         lv_obj_add_flag(boot_cover_, LV_OBJ_FLAG_HIDDEN);
++        SetCoverGlyph(-1);
+     }
+     if (boot_ring_timer_ != nullptr) {
+         lv_timer_delete(boot_ring_timer_);
+@@ -410,6 +699,7 @@
+         GetHAL().setRgbColor(i, 35, 35, 31);
+     }
+     GetHAL().refreshRgb();
++    ApplyLink();  // a unit that is still not linked at its first face shows the strip and its ring
+ }
+ 
+ void StackChanAvatarDisplay::BootRingTick(lv_timer_t* timer)
+@@ -1161,6 +1451,23 @@
+     }
+ 
+     // ESP_LOGE(TAG, "SetChatMessage: role=%s, content=%s", role ? role : "null", content ? content : "null");
++
++    // The Wi-Fi setup text (hotspot name, then the address) goes on the link screen, whatever the captions
++    // setting says: the screen is the only place a person can read it (R03).
++    if (cover_glyph_kind_ == 1 && boot_label_ != nullptr && role != nullptr && strcmp(role, "system") == 0 &&
++        content != nullptr && content[0] != '\0') {
++        std::string text = "Wi-Fi setup needed\n";
++        std::string hint = content;
++        const std::string marker = Lang::Strings::ACCESS_VIA_BROWSER;
++        const size_t at = hint.find(marker);
++        if (at != std::string::npos) {
++            hint.replace(at, marker.size(), "\n");  // one line for the hotspot, one for the address
++        }
++        text += hint;
++        DisplayLockGuard lock(this);
++        lv_label_set_text(boot_label_, text.c_str());
++        return;
++    }
+ 
+     // Captions are an opt-in: off by default, the words are spoken, not drawn (patch F02).
+     if (!maipai_face_captions_on()) {
+@@ -1304,19 +1611,27 @@
+             HideBootCover();
+         } else if (strcmp(status, Lang::Strings::WIFI_CONFIG_MODE) == 0 || strcmp(status, Lang::Strings::CONNECT_TO_HOTSPOT) == 0 ||
+                    strcmp(status, Lang::Strings::ENTERING_WIFI_CONFIG_MODE) == 0) {
+-            if (boot_cover_ != nullptr) {
+-                lv_obj_add_flag(boot_cover_, LV_OBJ_FLAG_HIDDEN);
+-            }
+-            boot_ring_kind_ = 2;
+-            if (boot_ring_timer_ == nullptr) {
+-                boot_ring_timer_ = lv_timer_create(BootRingTick, 100, this);
+-            }
++            // Wi-Fi setup needed (R03): the one link screen, with the hotspot name and address once the setup
++            // flow sends them (SetChatMessage); the ring blinks cyan while a person is needed.
++            ShowBootCover("Wi-Fi setup needed", 2, 1);
+         } else if (strcmp(status, Lang::Strings::LOADING_PROTOCOL) == 0 || strcmp(status, Lang::Strings::CONNECTING) == 0 ||
+                    strcmp(status, Lang::Strings::ACTIVATION) == 0) {
+             ShowBootCover("Connecting to Home...", 1);
+         } else {
+             ShowBootCover("Connecting to Wi-Fi...", 1);
+         }
++    } else {
++        // Wi-Fi setup always shows the screen, also when it is asked for after the boot (R03).
++        const bool config_mode = strcmp(status, Lang::Strings::WIFI_CONFIG_MODE) == 0 ||
++                                 strcmp(status, Lang::Strings::CONNECT_TO_HOTSPOT) == 0 ||
++                                 strcmp(status, Lang::Strings::ENTERING_WIFI_CONFIG_MODE) == 0;
++        if (config_mode) {
++            setup_after_boot_ = true;
++            ShowBootCover("Wi-Fi setup needed", 2, 1);
++        } else if (setup_after_boot_) {
++            setup_after_boot_ = false;
++            HideBootCover();
++        }
+     }
+ 
+ 
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -11,6 +11,8 @@
+ #include <memory>
+ #include <algorithm>
+ 
++struct LinkGlyph;  // the drawn Wi-Fi bars, slash and key of the link looks (patch R03)
++
+ class StackChanAvatarDisplay : public LvglDisplay {
+ private:
+     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
+@@ -45,7 +47,26 @@
+     lv_timer_t* toast_timer_   = nullptr;
+ 
+ 
+-    void ShowBootCover(const char* text, int ring_kind);
++    // Link looks (patch R03). Everything below is created when a look shows and deleted when it ends, so
++    // a unit that is linked holds none of it.
++    int         link_look_        = 0;  // hal_bridge::link_look: 0 up, 1 connecting, 2 offline, 3 refused
++    int         cover_glyph_kind_ = 0;  // what the cover's glyph slot shows: see ShowBootCover
++    bool        setup_after_boot_ = false;
++    int         link_step_        = 0;
++    lv_timer_t* link_timer_       = nullptr;
++    LinkGlyph*  cover_glyph_      = nullptr;
++    LinkGlyph*  strip_glyph_      = nullptr;
++    lv_obj_t*   strip_            = nullptr;
++    lv_obj_t*   strip_label_      = nullptr;
++    bool        approval_ring_    = false;
++    void ApplyLink();
++    void ShowStrip(int look);
++    void HideStrip();
++    void SetCoverGlyph(int kind);
++    void UpdateLinkTimer();
++    static void LinkTick(lv_timer_t* timer);
++
++    void ShowBootCover(const char* text, int ring_kind, int glyph_kind = 0);
+     void HideBootCover();
+     static void BootRingTick(lv_timer_t* timer);
+     static void OnGesture(lv_event_t* event);
+@@ -92,6 +113,9 @@
+     virtual void SetStatus(const char* status) override;
+     virtual void ShowNotification(const char* notification, int duration_ms = 3000) override;
+ 
++    // The link look from the hub connection (hal_bridge::link_look); takes the LVGL lock.
++    void SetLinkLook(int look);
++
+     void SetIdleMotionEnabled(bool enabled);
+     void LvglLock();
+     void LvglUnlock();
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -81,8 +81,14 @@
+ // MAX_MODEM.
+ void set_hub_link(bool up);
+ bool hub_link_up();
+-// The hub has been unreachable for a while: a dim amber ring and "Offline" in the speech bubble, both
+-// cleared when the link returns. offline_indicator_refresh() puts the words back after a message covered them.
++// The look of the hub link (patch R03): 0 up (nothing shown), 1 connecting (bars cycling in the top-left
++// corner, no words), 2 offline (slashed bars and "Offline", with a dim amber ring), 3 refused: Home has not
++// approved this unit (a key and "Waiting for approval", cyan ring blink instead of the amber). Before the
++// first face the same states use the full link screen. Safe from any task.
++void link_look(int look);
++// The hub has been unreachable for a while: look 2 (offline) and its dim amber ring, cleared (look 0) when
++// the link returns. offline_indicator_refresh() is kept for callers and does nothing: the strip is not a
++// speech bubble, so a message cannot cover it.
+ void offline_indicator(bool on);
+ void offline_indicator_refresh();
+ void leds_offline(bool on);
+diff --git a/firmware/main/hal/board/stackchan.cc b/firmware/main/hal/board/stackchan.cc
+--- a/firmware/main/hal/board/stackchan.cc
++++ b/firmware/main/hal/board/stackchan.cc
+@@ -784,7 +784,6 @@
+ }
+ 
+ static std::atomic<bool> g_hub_link_up{false};
+-static std::atomic<bool> g_offline_shown{false};
+ 
+ void hal_bridge::set_hub_link(bool up)
+ {
+@@ -802,20 +801,12 @@
+ 
+ void hal_bridge::offline_indicator(bool on)
+ {
+-    g_offline_shown = on;
+-    hal_bridge::leds_offline(on);
+-    auto display = Board::GetInstance().GetDisplay();
+-    if (display != nullptr) {
+-        display->SetChatMessage("system", on ? "Offline" : "");
+-    }
++    // Patch R03: the strip, and the dim amber ring that rides with it, come from the one link look.
++    hal_bridge::link_look(on ? 2 : 0);
+ }
+ 
+ void hal_bridge::offline_indicator_refresh()
+ {
+-    auto display = Board::GetInstance().GetDisplay();
+-    if (display != nullptr) {
+-        display->SetChatMessage("system", g_offline_shown.load() ? "Offline" : "");
+-    }
+ }
+ 
+ void hal_bridge::power_keep_awake()
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -168,6 +168,7 @@
+         version_ = version;
+     }
+ 
++    closed_before_hello_ = false;
+     uint32_t generation = websocket_generation_.fetch_add(1) + 1;
+     auto network = Board::GetInstance().GetNetwork();
+     auto socket = network->CreateWebSocket(1);
+@@ -277,10 +278,13 @@
+         return false;
+     }
+ 
+-    // Wait for server hello
+-    EventBits_t bits = xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
++    // Wait for server hello. A hub that has not approved this unit accepts the socket and closes it before the
++    // hello (close code 1008): that ends the wait at once and is remembered (patch R03).
++    closed_before_hello_ = false;
++    EventBits_t bits = xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT | WEBSOCKET_PROTOCOL_DISCONNECTED_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+     if (!(bits & WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT)) {
+-        ESP_LOGE(TAG, "Failed to receive server hello");
++        closed_before_hello_ = (bits & WEBSOCKET_PROTOCOL_DISCONNECTED_EVENT) != 0;
++        ESP_LOGE(TAG, "Failed to receive server hello%s", closed_before_hello_ ? " (the hub closed the connection first)" : "");
+         SetError(Lang::Strings::SERVER_TIMEOUT);
+         return false;
+     }
+@@ -316,8 +320,12 @@
+     constexpr uint32_t kStableConnectionMs = 30000;
+     uint32_t delay_ms = kInitialDelayMs;
+     unsigned attempt = 0;
++    constexpr int64_t kConnectingIndicatorAfterUs = 3LL * 1000 * 1000;  // the bars start cycling in the corner (patch R03)
+     int64_t down_since_us = esp_timer_get_time();
+     bool offline_shown = false;
++    bool connecting_shown = false;
++    bool refused_shown = false;
++    int refused_streak = 0;  // connects in a row that Home accepted and closed before its hello
+ 
+     while (!(xEventGroupGetBits(self->event_group_handle_) & WEBSOCKET_PROTOCOL_STOP_EVENT)) {
+         xEventGroupClearBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_DISCONNECTED_EVENT | WEBSOCKET_PROTOCOL_CONNECTED_EVENT);
+@@ -330,10 +338,11 @@
+             const unsigned took_ms = static_cast<unsigned>((esp_timer_get_time() - started_us) / 1000);
+             attempt = 0;
+             hal_bridge::set_hub_link(true);
+-            if (offline_shown) {
+-                offline_shown = false;
+-                hal_bridge::offline_indicator(false);
++            if (offline_shown || connecting_shown || refused_shown) {
++                offline_shown = connecting_shown = refused_shown = false;
++                hal_bridge::link_look(0);  // the first hello clears every look
+             }
++            refused_streak = 0;
+             push_link_event("ws_up", 0, 0, 0, took_ms);
+             TickType_t connected_at = xTaskGetTickCount();
+             self->last_incoming_time_ = std::chrono::steady_clock::now();
+@@ -361,6 +370,7 @@
+             xEventGroupClearBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_CONNECTED_EVENT);
+             hal_bridge::set_hub_link(false);
+             down_since_us = esp_timer_get_time();
++            refused_streak = 0;
+             push_link_event("ws_down", 0, 0, 0, 0);
+             if ((xTaskGetTickCount() - connected_at) >= pdMS_TO_TICKS(kStableConnectionMs)) {
+                 delay_ms = kInitialDelayMs;
+@@ -371,14 +381,32 @@
+             ESP_LOGW(TAG, "Hub connect failed (attempt %u, %u ms), retry in about %u ms", attempt, took_ms,
+                      static_cast<unsigned>(next_ms));
+             push_link_event("ws_retry", attempt, self->last_connect_error_, next_ms, took_ms);
++            if (self->closed_before_hello_) {
++                // Two in a row: Home has not approved this unit, so say that instead of "Offline".
++                if (++refused_streak >= 2 && !refused_shown) {
++                    refused_shown = true;
++                    ESP_LOGW(TAG, "Home closed the connection before its hello twice: this unit is waiting for approval");
++                    device_events_push("ws_refused", "\"streak\":2");
++                    hal_bridge::link_look(3);
++                }
++            } else {
++                refused_streak = 0;
++            }
+         }
+ 
+         if (xEventGroupGetBits(self->event_group_handle_) & WEBSOCKET_PROTOCOL_STOP_EVENT) {
+             break;
+         }
+-        if (!offline_shown && (esp_timer_get_time() - down_since_us) >= kOfflineIndicatorAfterUs) {
+-            offline_shown = true;
+-            hal_bridge::offline_indicator(true);
++        if (!refused_shown) {
++            const int64_t down_us = esp_timer_get_time() - down_since_us;
++            if (!connecting_shown && !offline_shown && down_us >= kConnectingIndicatorAfterUs) {
++                connecting_shown = true;
++                hal_bridge::link_look(1);
++            }
++            if (!offline_shown && down_us >= kOfflineIndicatorAfterUs) {
++                offline_shown = true;
++                hal_bridge::offline_indicator(true);
++            }
+         }
+         uint32_t jitter_ms = esp_random() % (delay_ms / 4 + 1);
+         uint32_t wait_ms = std::min(kMaximumDelayMs, delay_ms + jitter_ms);
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
+@@ -34,6 +34,7 @@
+     mutable std::mutex websocket_mutex_;
+     TaskHandle_t reconnect_task_handle_ = nullptr;
+     std::atomic<uint32_t> websocket_generation_{0};
++    bool closed_before_hello_ = false;  // the last connect was accepted and then closed before the hello (patch R03)
+     int last_connect_error_ = 0;  // the last failed connect, for the "wifi" event (patch 075)
+     std::atomic<int> version_{1};
+ 

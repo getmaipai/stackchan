@@ -71,3 +71,6 @@ P04-portal-language.patch
 P05-portal-wire.patch
 159-wireless-update-from-paired-host.patch
 160-first-boot-rollback.patch
+R01-reset-on-device.patch
+R02-restart-guard-and-crash-fixes.patch
+R03-link-looks.patch

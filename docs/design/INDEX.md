@@ -9,39 +9,1522 @@ One line per file: path, lines, purpose (first comment or heading).
 - `.claude/skills/train/SKILL.md` (14): no header
 - `.githooks/commit-msg` (2): no header
 - `.githooks/pre-commit` (2): no header
+- `.github/FUNDING.yml` (1): no header
 - `.gitignore` (9): no header
-- `AGENTS.md` (29): MaiPai StackChan
+- `.gitleaks.toml` (11): Source-level secret rules for this repo. The image-level check is scripts/check-no-keys.py (patch 156).
+- `AGENTS.md` (55): MaiPai StackChan
 - `CLAUDE.md` (1): no header
 - `LICENSE` (664): no header
-- `NOTICE` (3): no header
-- `README.md` (70): MaiPai StackChan
-- `THIRD-PARTY.md` (7): Third-party notices
-- `docs/STYLE.md` (16): Writing style
+- `NOTICE` (12): no header
+- `README.md` (94): MaiPai for StackChan
+- `THIRD-PARTY.md` (9): Third-party notices
+- `docs/STYLE.md` (52): Writing style
 - `docs/design/architecture.md` (95): Architecture
-- `docs/design/decisions.md` (59): Owner decisions and corrections
-- `docs/design/features.md` (94): Feature map and build order
-- `docs/design/firmware-base.md` (91): Firmware base and rebase plan
+- `docs/design/boundary-debt.txt` (40): no header
+- `docs/design/brain-seam.md` (16): Brain seam call map
+- `docs/design/config.md` (24): Host configuration
+- `docs/design/core-extras-modules.md` (31): Host modules: core or extras
+- `docs/design/decisions.md` (74): Owner decisions and corrections
+- `docs/design/egress-audit.md` (35): Firmware egress audit
+- `docs/design/egress-proof-2026-11-15.md` (30): Egress proof attempt, 2026-11-15
+- `docs/design/faces-gate-2026-11-16.md` (61): Faces wired in and busy gate, 2026-11-16
+- `docs/design/faces-status-2026-11-16.md` (42): Faces and always-on behaviours, status 2026-11-16
+- `docs/design/feature-gap-2026-11-16.md` (128): Feature gap: promised against built and flashed, 2026-11-16
+- `docs/design/features.md` (143): Feature map and build order
+- `docs/design/firmware-base.md` (95): Firmware base and rebase plan
+- `docs/design/firmware-busy-gate-2026-11-15.md` (38): Firmware tools and busy gate, 2026-11-15
+- `docs/design/firmware-first-flash-2026-11-15.md` (42): First flash of the rebased firmware, 2026-11-15
+- `docs/design/firmware-gate-gaps-2026-11-15.md` (58): Firmware gate gaps, 2026-11-15
 - `docs/design/firmware-memory.md` (89): Firmware memory
+- `docs/design/firmware-spike-2026-11-15.md` (16): Firmware spike on unit, 2026-11-15
+- `docs/design/firmware-v1-cut.md` (245): Firmware v1 cut
+- `docs/design/ios-host.md` (18): An iPhone app as the robot's host
 - `docs/design/languages.md` (48): Languages
+- `docs/design/monitoring.md` (56): Monitoring modes and cues
+- `docs/design/ota-update-2026-11-16.md` (39): Wireless update, 2026-11-16
+- `docs/design/own-llm-brain.md` (21): Own-LLM brain
+- `docs/design/patch-map.md` (257): Firmware patch map
 - `docs/design/performance-and-latency.md` (68): Performance and latency
+- `docs/design/portal-status-2026-11-16.md` (46): Wi-Fi portal, status 2026-11-16
+- `docs/design/reachy-migration-plan.md` (238): Reachy Mini migration and retiring `bot`
 - `docs/design/release-and-updates.md` (88): Release and updates
+- `docs/design/repo-boundaries.md` (111): Repo boundaries: what lives where
 - `docs/design/safety-and-privacy.md` (62): Safety and privacy
+- `docs/design/security-fixes-2026-11-16.md` (67): Security fixes, 2026-11-16
+- `docs/design/strip-results.md` (90): Strip results
+- `docs/design/unit-protocol.md` (393): Unit protocol (as built)
+- `docs/design/upstream-review.md` (71): Upstream firmware review
+- `docs/dev/bench-benchmark.md` (21): Running a voice benchmark
+- `docs/dev/bench.md` (7): StackChan bench
+- `docs/dev/benchmark-factory-vs-ours.md` (44): Benchmark: factory firmware against MaiPai for StackChan
 - `docs/dev/build-from-source.md` (47): Build from source
 - `docs/dev/contributing.md` (24): Contributing
+- `docs/dev/draft-names.md` (131): Draft names to confirm
+- `docs/dev/egress-table.md` (14): Generated egress table
+- `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/host-and-brains.md` (44): Host and brains
-- `docs/templates/lane-brief.md` (12): Lane brief: <slice name>
-- `docs/user/features.md` (51): Features
-- `docs/user/getting-started.md` (30): Getting started
-- `docs/user/languages.md` (20): Languages
-- `docs/user/privacy.md` (41): Privacy
-- `docs/user/settings.md` (37): Settings
-- `docs/user/troubleshooting.md` (20): Troubleshooting
+- `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
+- `docs/dev/scope-core-vs-home.md` (63): Scope: the core robot and MaiPai Home
+- `docs/dev/stackchan-anywhere-network-2026-11-14.md` (207): StackChan anywhere network: the robot joins the tailnet itself, and keeps a list of Wi-Fi networks
+- `docs/dev/stackchan-away-trip-and-permanent-2026-11-14.md` (148): StackChan away from home: the trip stopgap and the permanent design (2026-11-14)
+- `docs/dev/stackchan-combined-image-proposal-2026-11-14.md` (87): StackChan firmware images: proposal (2026-11-14, revised after the independent security review)
+- `docs/dev/stackchan-control-panel-2026-10-21.md` (191): StackChan brightness, default levels and the swipe-down control panel (2026-10-21)
+- `docs/dev/stackchan-face-gaze-spec-2026-10-21.md` (41): StackChan face and gaze by state (spec, 2026-10-21)
+- `docs/dev/stackchan-face-watching-2026-10-21.md` (53): StackChan idle face watching (2026-10-21)
+- `docs/dev/stackchan-faces-2026-11-14.md` (42): StackChan face vocabulary, 2026-11-14
+- `docs/dev/stackchan-faces-and-link-2026-11-13.md` (85): StackChan: listening and thinking faces, the shared link screen, the offline look, the power key (2026-11-13)
+- `docs/dev/stackchan-faces-preview-2026-11-13/gen.py` (118): Draw the StackChan mint face stills from the same parameters as mint.cpp (320x240 panel, 1.35 scale).
+- `docs/dev/stackchan-firmware-strip-2026-11-13.md` (173): StackChan firmware strip (2026-11-13)
+- `docs/dev/stackchan-gaze-and-idle-face-2026-10-21.md` (29): StackChan idle face and the gaze answer (2026-10-21)
+- `docs/dev/stackchan-guide-today.md` (159): Today's owner guide (as built, before the finished docs)
+- `docs/dev/stackchan-head-motion-audit-2026-10-20.md` (40): StackChan head motion audit (2026-10-20)
+- `docs/dev/stackchan-image1-flash-plan-2026-11-14.md` (141): StackChan firmware image 1: what is in it and how it is flashed (2026-11-14)
+- `docs/dev/stackchan-lights-audit-and-plan-2026-11-13.md` (623): StackChan lights: audit and plan (2026-11-13)
+- `docs/dev/stackchan-little-dance-2026-11-13.md` (65): StackChan little dance (2026-11-13)
+- `docs/dev/stackchan-music-dance-2026-11-13.md` (186): StackChan music detection and the automatic dance (2026-11-13)
+- `docs/dev/stackchan-mute-2026-11-13.md` (176): StackChan mute, vision off and full quiet (2026-11-13)
+- `docs/dev/stackchan-orientation-2026-10-21.md` (16): Orientation reactions (0.2.36)
+- `docs/dev/stackchan-permanent-away-and-management-plan-2026-11-14.md` (114): StackChan: the permanent away-from-home experience and bot management, stage plan (2026-11-14)
+- `docs/dev/stackchan-person-then-face-2026-11-12.md` (165): StackChan: find the person, then find the face (2026-11-12)
+- `docs/dev/stackchan-sensor-map.md` (32): StackChan sensor map
+- `docs/dev/stackchan-service.md` (155): StackChan service
+- `docs/dev/stackchan-setup-today.md` (67): Today's manual setup (as built, before the finished docs)
+- `docs/dev/stackchan-sound-direction-2026-11-12.md` (149): StackChan sound direction (2026-11-12)
+- `docs/dev/stackchan-sounds-2026-11-13.md` (136): StackChan sounds: the earcon family and the local offline phrases (2026-11-13)
+- `docs/dev/stackchan-spoken-stop-2026-10-21.md` (164): StackChan: "StackChan, stop" while it is talking (design, 2026-10-21)
+- `docs/dev/stackchan-timers-and-announcements-2026-11-13.md` (77): StackChan timers, alarms and hub announcements (2026-11-13)
+- `docs/dev/stackchan-touch-and-hearts-2026-10-21.md` (64): StackChan touch, shake and the heart (2026-10-21)
+- `docs/dev/stackchan-trip-card-2026-11-14.md` (76): StackChan trip card: using the robot away from home (2026-11-14)
+- `docs/dev/stackchan-unit-measurements.md` (322): StackChan unit-arrival measurements
+- `docs/dev/stackchan-vision-channel-2026-10-21.md` (70): Why the StackChan could not see (2026-10-21)
+- `docs/dev/stackchan-vision-post-2026-10-22.md` (63): Robot vision, bot side (0.2.44)
+- `docs/dev/stackchan-voice-measurements-2026-10-20.md` (69): StackChan voice path: what to measure (2026-10-20)
+- `docs/dev/stackchan-wireless-update-2026-11-14.md` (61): StackChan wireless firmware update (design, 2026-11-14)
+- `docs/dev/updater.md` (96): Flasher and updater
+- `docs/images/agent-status.svg` (1): no header
+- `docs/images/alarm-ringing.svg` (1): no header
+- `docs/images/alert-screen.svg` (1): no header
+- `docs/images/api-settings.svg` (1): no header
+- `docs/images/architecture.svg` (28): no header
+- `docs/images/baby-monitor.svg` (1): no header
+- `docs/images/brain-switch.svg` (1): no header
+- `docs/images/build-light.svg` (1): no header
+- `docs/images/camera-cue.svg` (1): no header
+- `docs/images/check-output.svg` (1): no header
+- `docs/images/clock-face.svg` (1): no header
+- `docs/images/control-panel.svg` (1): no header
+- `docs/images/countdown.svg` (1): no header
+- `docs/images/dance-settings.svg` (1): no header
+- `docs/images/dance.svg` (1): no header
+- `docs/images/face-camera-off.svg` (1): no header
+- `docs/images/face-colors.svg` (1): no header
+- `docs/images/face-full-quiet.svg` (1): no header
+- `docs/images/face-mute.svg` (1): no header
+- `docs/images/face-styles.svg` (1): no header
+- `docs/images/find-me.svg` (1): no header
+- `docs/images/first-turn.svg` (1): no header
+- `docs/images/flasher.svg` (1): no header
+- `docs/images/game-memory.svg` (1): no header
+- `docs/images/game-whack.svg` (1): no header
+- `docs/images/hero.svg` (1): no header
+- `docs/images/light-alert.svg` (1): no header
+- `docs/images/light-amber.svg` (1): no header
+- `docs/images/light-beat.svg` (1): no header
+- `docs/images/light-blue.svg` (1): no header
+- `docs/images/light-charging.svg` (1): no header
+- `docs/images/light-cyan.svg` (1): no header
+- `docs/images/light-dark.svg` (1): no header
+- `docs/images/light-green.svg` (1): no header
+- `docs/images/light-pink.svg` (1): no header
+- `docs/images/light-rainbow.svg` (1): no header
+- `docs/images/light-white.svg` (1): no header
+- `docs/images/listening.svg` (1): no header
+- `docs/images/low-battery.svg` (1): no header
+- `docs/images/mood-faces.svg` (1): no header
+- `docs/images/name-list.svg` (1): no header
+- `docs/images/pairing-code.svg` (1): no header
+- `docs/images/personas.svg` (1): no header
+- `docs/images/quick-sliders.svg` (1): no header
+- `docs/images/reactions.svg` (1): no header
+- `docs/images/remote-control.svg` (1): no header
+- `docs/images/ring-colours.svg` (1): no header
+- `docs/images/saved-wifi.svg` (1): no header
+- `docs/images/security-settings.svg` (1): no header
+- `docs/images/tailscale-settings.svg` (1): no header
+- `docs/images/tap-zones.svg` (1): no header
+- `docs/images/timer-ring.svg` (1): no header
+- `docs/images/tone-back-online.svg` (1): no header
+- `docs/images/tone-charged.svg` (1): no header
+- `docs/images/tone-error.svg` (1): no header
+- `docs/images/tone-goodbye.svg` (1): no header
+- `docs/images/tone-listening.svg` (1): no header
+- `docs/images/tone-low-battery.svg` (1): no header
+- `docs/images/tone-needs-you.svg` (1): no header
+- `docs/images/tone-offline.svg` (1): no header
+- `docs/images/tone-plug-in.svg` (1): no header
+- `docs/images/tone-shutter.svg` (1): no header
+- `docs/images/tone-siren.svg` (1): no header
+- `docs/images/tone-unplug.svg` (1): no header
+- `docs/images/update-ready.svg` (1): no header
+- `docs/images/update-settings.svg` (1): no header
+- `docs/images/updating.svg` (1): no header
+- `docs/images/watching.svg` (1): no header
+- `docs/images/web-features.svg` (1): no header
+- `docs/images/web-settings.svg` (1): no header
+- `docs/images/wifi-setup.svg` (1): no header
+- `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
+- `docs/user/baby-and-pet-monitor.md` (88): Use the robot as a baby or pet monitor
+- `docs/user/camera.md` (78): Use the camera
+- `docs/user/coding-companion.md` (45): Use the robot as a coding companion
+- `docs/user/compare.md` (71): Compare MaiPai for StackChan
+- `docs/user/face-and-look.md` (52): Change how the robot looks
+- `docs/user/faq.md` (50): Questions people ask
+- `docs/user/features.md` (137): What the robot can do
+- `docs/user/find-and-remote.md` (75): Find the robot and control it remotely
+- `docs/user/games-and-pet.md` (38): Play games and care for your pet
+- `docs/user/getting-started.md` (65): Getting started with MaiPai for StackChan
+- `docs/user/glossary.md` (22): Glossary
+- `docs/user/hardware-and-models.md` (67): Pick hardware and a model
+- `docs/user/home-tools.md` (35): Connect the robot to your own tools
+- `docs/user/install-the-host.md` (50): Install, update and remove the host
+- `docs/user/languages.md` (24): Switch the language
+- `docs/user/lights-and-sounds.md` (64): Lights and sounds
+- `docs/user/moves-and-moods.md` (73): How the robot reacts
+- `docs/user/music-and-dance.md` (38): Music and dance
+- `docs/user/mute-and-camera-off.md` (56): Mute, turn off the camera, or go fully quiet
+- `docs/user/no-stealth.md` (19): The robot never monitors in secret
+- `docs/user/privacy.md` (68): What stays private
+- `docs/user/release-notes.md` (32): Release notes
+- `docs/user/security.md` (62): Keep the robot secure
+- `docs/user/settings.md` (80): Change a setting
+- `docs/user/switch-from-the-factory-firmware.md` (40): Switch from the factory firmware, or go back
+- `docs/user/timers-and-alarms.md` (46): Set a timer or alarm
+- `docs/user/troubleshooting.md` (27): Troubleshooting
+- `docs/user/updates.md` (50): Update the robot
+- `docs/user/use-it-anywhere.md` (57): Take the robot on the go with Tailscale
+- `docs/user/voice.md` (91): Talk to the robot
+- `docs/user/watch-and-alerts.md` (75): Watch your room and get alerts
+- `docs/user/which-setup.md` (47): Which setup is right for me?
+- `docs/user/with-maipai-home.md` (55): Use MaiPai Home as the brain
 - `firmware/.gitkeep` (0): no header
+- `firmware/patches/001-server-url-empty.patch` (15): Leave the backend URL unset until a local installer configures it.
+- `firmware/patches/002-nvs-websocket-no-ota.patch` (54): Skip remote activation and OTA checks and open the provisioned websocket.
+- `firmware/patches/003-persistent-websocket.patch` (474): Keep the configured websocket connected and reconnect after transport loss.
+- `firmware/patches/003-stackchan-kconfig.patch` (18): Add the persistent websocket build setting.
+- `firmware/patches/004-configurable-sntp-empty.patch` (56): Make the NTP server configurable and disable SNTP by default.
+- `firmware/patches/005-disable-registry-mqtt.patch` (33): Stop the registry and MQTT service and remove its URL from the device page.
+- `firmware/patches/007-unique-firmware-identity.patch` (21): Give the firmware a distinct project and version identity.
+- `firmware/patches/008-additional-ca-bundle.patch` (31): Add optional certificate and pairing configuration fields.
+- `firmware/patches/014-wifi-awake-while-speaking.patch` (23): Keep Wi-Fi in performance mode while speaking and restore low power at idle.
+- `firmware/patches/016-speech-open-at-tts-start.patch` (85): Accept audio from TTS start and preserve its decode queue while the line is open.
+- `firmware/patches/018-hello-token-handoff.patch` (60): Save a validated long-lived token from server hello and reconnect with it.
+- `firmware/patches/020-dance-mcp-tools.patch` (68): Expose the built-in Happy, Robot, Panic, and Look Around dances through MCP.
+- `firmware/patches/021-device-events-tool.patch` (86): queue head touch, head swipe and shake events on the robot and let the host read and clear them with one MCP t
+- `firmware/patches/023-wifi-saved-networks-tools.patch` (93): list, add, forget and switch saved Wi-Fi networks through MCP tools backed by the robot SsidManager (NVS); pas
+- `firmware/patches/030-load-local-assets.patch` (20): Load the already provisioned assets so local wake detection has its model when OTA checks are off.
+- `firmware/patches/034-host-idle-command.patch` (21): Let the host end a silent follow-up by returning listening or speaking to idle.
+- `firmware/patches/037-idle-motion-tool.patch` (158): stillness is the default (owner request 2026-10-20): the idle head movement starts OFF at boot, and the host s
+- `firmware/patches/038-head-move-cap.patch` (44): Limit host-requested head moves to 40 calls in any 60 seconds to protect the servos.
+- `firmware/patches/047-tap-handling.patch` (60): taps on the face (owner report 2026-10-21). (1) A swipe that starts on the top bezel reports a touch at y 0 to
+- `firmware/patches/048-head-touch-filter.patch` (169): stop the head touch strip's phantom pets (owner report 2026-10-21: the unit showed its petted heart and open-m
+- `firmware/patches/049-stop-word.patch` (370): A stop word that works while the robot is speaking (owner request 2026-10-21: he said "stop" mid-sentence and 
+- `firmware/patches/056-pet-by-peak-reading.patch` (202): pets that register, from the host log of the petting minutes (2026-10-21). With nobody there the strip reads 1
+- `firmware/patches/061-stop-while-speaking.patch` (16): Stop queued speech immediately when a face tap ends a reply.
+- `firmware/patches/068-state-guard-and-listen-restart.patch` (58): Guard against stuck connecting or listening states and restart the host listen turn after TTS stop.
+- `firmware/patches/074-keep-awake-tool.patch` (24): the host keeps the unit awake: self.power.keep_awake restarts the idle timers (screen sleep and shutdown); the
+- `firmware/patches/075-offline-mode.patch` (372): The unit stays usable when the hub is not. (1) Wi-Fi power save is NONE while the websocket is down, and an id
+- `firmware/patches/077-silent-link-closes.patch` (33): a hub link that goes silent no longer freezes the unit for minutes. The reconnect task waited forever for a di
+- `firmware/patches/080-weak-runs-are-maybes.patch` (70): stop the phantom pets (owner report 2026-11-12, "it keeps smiling"). With nobody touching the unit the strip r
+- `firmware/patches/090-timers-core.patch` (396): On-unit timers and alarms need bounded, persistent core logic with no hardware dependencies.
+- `firmware/patches/091-timers-device.patch` (499): On-unit timers and alarms, device side: a saved schedule (NVS namespace mp_timers) ticked by the stackchan tas
+- `firmware/patches/092-timer-tools.patch` (84): MCP tools the host uses to drive the on-unit timers: self.timer.set, alarm, list, cancel, stop, snooze. Each a
+- `firmware/patches/093-timer-touch-stop.patch` (35): A ringing timer or alarm ends on a touch: a press on the face or on the head strip calls maipai_timers_request
+- `firmware/patches/094-timer-stop-word.patch` (106): The stop word ends a ringing timer or alarm (patches 091 to 093, 049). The stop-word callback first asks maipa
+- `firmware/patches/096-drop-cjk-font-and-emoji.patch` (85): Keep generated assets limited to the compiled-in text font and map unsupported punctuation to ASCII.
+- `firmware/patches/097-remove-mooncake-apps.patch` (92): Boot directly into the voice agent and omit unused vendor app modules from the unit build.
+- `firmware/patches/098-bluetooth-off.patch` (77): Remove BLE transport code and preserve callable settings state without Bluetooth.
+- `firmware/patches/099-no-jpeg-decoder.patch` (81): Remove incoming avatar JPEG decoding because the unit does not consume those frames.
+- `firmware/patches/099-wifi-only-and-fewer-sounds.patch` (20): Build only Wi-Fi board support and omit activation-code sounds from the firmware image.
+- `firmware/patches/105-face-touch-toggles.patch` (577): Touches on the face toggle mute, vision off and full quiet (owner design 2026-11-13, changed to tap the same d
+- `firmware/patches/106-privacy-core.patch` (611): The unit's mute, vision off and full quiet, as three independent bits saved in a new NVS namespace (maipai_pri
+- `firmware/patches/107-mic-guards.patch` (88): The xiaozhi side of the hard mute (patch 106): while muted or in full quiet AudioService::ReadAudioData reads 
+- `firmware/patches/115-sounds-core.patch` (417): The unit needs deterministic sound gating and cue selection logic independent of hardware.
+- `firmware/patches/116-sound-policy-tools.patch` (253): the unit judges its own sounds by a saved policy: self.audio.set_sound_policy {enabled, night_ok, muted, dark,
+- `firmware/patches/117-audio-notify-tool.patch` (99): self.audio.notify {text, urgent}: the host's notice call (timers, replies, the self-test) now has an answer on
+- `firmware/patches/125-keyframe-size-zero.patch` (16): Initialize animation feature sizes so neutral facial features stay the same size after a dance.
+- `firmware/patches/143-offline-label-after-45-s.patch` (17): The word "Offline" in the upper left shows after 45 s without the hub, not 10 s (owner 2026-11-14: the hub ins
+- `firmware/patches/155-host-url-tools-removed-and-signed-updates.patch` (680): Security finding 1. The tools that installed firmware from, or sent a screen snapshot to, any address a caller
+- `firmware/patches/156-refuse-keys-in-images.patch` (26): Security finding 3. The firmware build runs the key checker over the bootloader, partition table, ota data, as
+- `firmware/patches/157-ca-bundle-no-public-roots.patch` (20): Security finding 5. The public CA bundle (66,137 B of flash, about 140 roots) is replaced by a custom bundle t
+- `firmware/patches/158-vendor-update-url-empty-and-dead-modem-dependency.patch` (50): Security finding 8. The vendor update-check address no longer has a built-in default (the build option is empt
+- `firmware/patches/159-wireless-update-from-paired-host.patch` (415): Wireless firmware update from the paired host only (CORE-V1 row 133, rebuilt on patch 155). The host calls the
+- `firmware/patches/160-first-boot-rollback.patch` (140): Rollback on first-boot failure for a wirelessly installed image (release-and-updates.md: after install the uni
+- `firmware/patches/A01-per-pixel-led-tool.patch` (40): add an atomic MCP operation that sets RGB values for all twelve individually addressable LEDs.
+- `firmware/patches/A02-grow-assets-partition.patch` (14): grow the assets partition for firmware assets within the established flash layout.
+- `firmware/patches/B01-xiaozhi-base-adapt.patch` (756): The nested xiaozhi tree carries 11 edits that the outer firmware depends on (app-binding query in ota and appl
+- `firmware/patches/C01-battery-status.patch` (26): Expose the unit battery percentage and charging state through MCP.
+- `firmware/patches/C02-connecting-screen-and-boot-ring.patch` (183): Add the firmware owned connecting screen and boot ring.
+- `firmware/patches/C03-swipe-gestures-and-quick-settings.patch` (295): Add face swipe gestures and the quick settings panel.
+- `firmware/patches/C04-shake-threshold.patch` (124): Lower the shake threshold for hand lifts and shakes.
+- `firmware/patches/C05-sleeping-face.patch` (32): Add the sleeping face state.
+- `firmware/patches/C06-interface-repair.patch` (173): Adapt the ports to interfaces present in the current firmware base.
+- `firmware/patches/F01-face-config.patch` (826): The face is neutral by default (white on black, the classic look) and its style and colour are saved settings,
+- `firmware/patches/F02-face-captions.patch` (84): Captions are optional on every face and off by default (decision 22, which corrects an earlier "on everywhere"
+- `firmware/patches/F03-face-time-of-day.patch` (247): Time-of-day face variants (features.md, Faces and look; off by default). maipai_face_tod_core.h is plain C: fo
+- `firmware/patches/F04-face-clock.patch` (502): A clock face (features.md, Faces and look: big digits or ring, dimmed at night, works with no host once the ti
+- `firmware/patches/F05-face-thinking-cue.patch` (320): The thinking cue (decision 23, overriding "tone off"): three animated dots on every face plus a quiet tone, on
+- `firmware/patches/F06-face-timer-countdowns.patch` (370): Named timers on the face with live countdowns for several at once (features.md, core rows). maipai_face_timers
+- `firmware/patches/ORDER` (76): no header
+- `firmware/patches/P01-portal-page.patch` (468): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
+- `firmware/patches/P02-portal-routes.patch` (578): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
+- `firmware/patches/P03-portal-protect.patch` (200): A protected setup window (safety-and-privacy.md finding 4). A new six-digit setup code is made each time setup
+- `firmware/patches/P04-portal-language.patch` (60): The setup page speaks the unit's own language (decision 25). The face settings already hold it (lang en or es)
+- `firmware/patches/P05-portal-wire.patch` (117): Turn the portal on. The base build set the hotspot setup off and its board code sent every no-Wi-Fi case to th
+- `firmware/patches/S01-core-trim.patch` (61): Core trim on the rebuilt base: drop the unused MQTT protocol client and the unused vendor app headers, and app
+- `firmware/sdkconfig.core.defaults` (21): Measured from pristine base: app binary -47,056 B, DIRAM -132 B.
 - `host/.gitkeep` (0): no header
+- `host/bench/script-20.json` (107): no header
+- `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
+- `host/maipai_body/app.py` (4029): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/bench.py` (610): Owner-only local console for exercising a connected StackChan body."""
+- `host/maipai_body/bodies/__init__.py` (1): One profile per supported body, each behind the HAL seam in ``maipai_body.hal``."""
+- `host/maipai_body/bodies/fake/__init__.py` (5): Configurable replay body for robot-object tests."""
+- `host/maipai_body/bodies/fake/fake.py` (146): Configurable fake body that records commands and replays state frames."""
+- `host/maipai_body/bodies/fake/fixtures/robot-state.jsonl` (3): no header
+- `host/maipai_body/bodies/fake/profile.py` (40): The replay body's synthetic limits and default capability subset."""
+- `host/maipai_body/bodies/reachy_mini/__init__.py` (1): The Reachy Mini body: the daemon client behind the HAL seam, and a fake for tests."""
+- `host/maipai_body/bodies/reachy_mini/audio_config.py` (147): Reachy Mini XVF3800 defaults and nonblocking startup audio setup.
+- `host/maipai_body/bodies/reachy_mini/client.py` (464): The Reachy Mini SDK behind the HAL seam.
+- `host/maipai_body/bodies/reachy_mini/envelope.py` (55): Shared envelope clamping for the Reachy Mini profile's real client and fake.
+- `host/maipai_body/bodies/reachy_mini/eyes_client.py` (272): Reachy Eyes USB serial client (EYES-03), written clean-room.
+- `host/maipai_body/bodies/reachy_mini/fake.py` (632): Replays recorded Reachy Mini fixtures through the same seam as the live client.
+- `host/maipai_body/bodies/reachy_mini/fixtures/README.md` (15): Reachy Mini fixtures
+- `host/maipai_body/bodies/reachy_mini/fixtures/daemon_status.json` (27): no header
+- `host/maipai_body/bodies/reachy_mini/fixtures/faces/README.md` (23): Synthetic camera frames
+- `host/maipai_body/bodies/reachy_mini/fixtures/faces/face_center.npy` (1): no header
+- `host/maipai_body/bodies/reachy_mini/fixtures/faces/face_left.npy` (1): no header
+- `host/maipai_body/bodies/reachy_mini/fixtures/faces/face_right.npy` (1): no header
+- `host/maipai_body/bodies/reachy_mini/fixtures/faces/generate.py` (51): Draws the synthetic frames in this directory. Deterministic: same output every run.
+- `host/maipai_body/bodies/reachy_mini/fixtures/faces/no_face.npy` (1): no header
+- `host/maipai_body/bodies/reachy_mini/fixtures/openapi.json` (4187): no header
+- `host/maipai_body/bodies/reachy_mini/fixtures/state_frames.jsonl` (45): no header
+- `host/maipai_body/bodies/reachy_mini/motors.py` (418): MOTOR-RECOVER-01: the awake gate and the motor bus behind the Reachy Mini client.
+- `host/maipai_body/bodies/reachy_mini/profile.py` (128): The Reachy Mini body's one declaration: what it has, never how it is driven.
+- `host/maipai_body/bodies/stackchan/__init__.py` (6): StackChan body profile and xiaozhi adapters."""
+- `host/maipai_body/bodies/stackchan/activity.py` (21): One place that names what the robot was asked to do that could make it sound or move.
+- `host/maipai_body/bodies/stackchan/adapter.py` (633): Translate the shared robot object to the StackChan xiaozhi tool interface."""
+- `host/maipai_body/bodies/stackchan/ambient_vision.py` (124): BOT-SC-VISION-01 (host half): silent ambient vision keeps a text note, never the picture.
+- `host/maipai_body/bodies/stackchan/announce.py` (164): Hub announcements: Home pushes "say this" and the robot says it ("Dinner is ready").
+- `host/maipai_body/bodies/stackchan/avatar/__init__.py` (5): M5 StackChan avatar-channel protocol server."""
+- `host/maipai_body/bodies/stackchan/avatar/codec.py` (34): Binary frame codec from M5Stack StackChan's hal_ws_avatar.cpp (MIT)."""
+- `host/maipai_body/bodies/stackchan/avatar/server.py` (472): Authenticated M5 StackChan avatar WebSocket channel."""
+- `host/maipai_body/bodies/stackchan/avatar_frames.py` (74): StackChan avatar-channel binary frame codec, independent of any server."""
+- `host/maipai_body/bodies/stackchan/brightness.py` (132): Spoken screen brightness for the StackChan, answered on the robot without asking the hub.
+- `host/maipai_body/bodies/stackchan/companion.py` (226): Host companion for the new StackChan firmware tools.
+- `host/maipai_body/bodies/stackchan/dance.py` (526): The StackChan little dance: an on-request routine of about 11 seconds (host side only).
+- `host/maipai_body/bodies/stackchan/dance_phrases.py` (145): Dance rounds that alternate head nods and side-to-side sways in time with the beat (host side).
+- `host/maipai_body/bodies/stackchan/dance_wiring.py` (132): Wire the little dance (dance.py) to a running StackChan service.
+- `host/maipai_body/bodies/stackchan/error_line.py` (93): A hard breaker for the robot's canned error lines ("I couldn't understand that...").
+- `host/maipai_body/bodies/stackchan/estop_recovery.py` (100): Releases a lost-body stop latch once the wireless StackChan answers again.
+- `host/maipai_body/bodies/stackchan/expression_map.py` (161): Closed StackChan cue and primitive mappings, local to its body profile."""
+- `host/maipai_body/bodies/stackchan/face_set.json` (16): no header
+- `host/maipai_body/bodies/stackchan/face_vocabulary.py` (69): Logical StackChan faces, with firmware-version fallbacks."""
+- `host/maipai_body/bodies/stackchan/fake.py` (202): Offline fake xiaozhi device client for StackChan adapter tests."""
+- `host/maipai_body/bodies/stackchan/firmware/README.md` (98): StackChan firmware
+- `host/maipai_body/bodies/stackchan/firmware/assets/maipai_beat.h` (96): ifndef MAIPAI_BEAT_H
+- `host/maipai_body/bodies/stackchan/firmware/assets/maipai_music_judge.h` (157): ifndef MAIPAI_MUSIC_JUDGE_H
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_back_1.ogg` (8): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_back_2.ogg` (15): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_connecting_1.ogg` (20): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_connecting_2.ogg` (17): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_connecting_3.ogg` (23): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_1.ogg` (26): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_2.ogg` (23): Binary file host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_2.ogg matches
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_3.ogg` (17): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_4.ogg` (24): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_wifi_1.ogg` (15): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_wifi_2.ogg` (25): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_wifi_3.ogg` (14): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_wifi_4.ogg` (13): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_refused_1.ogg` (15): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_refused_2.ogg` (16): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_refused_3.ogg` (22): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/phrases.json` (160): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/sounds/snd_charged.ogg` (7): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/sounds/snd_goodbye.ogg` (13): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/sounds/snd_needs_you.ogg` (12): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/sounds/snd_offline.ogg` (6): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/sounds/snd_plug_in.ogg` (2): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/sounds/snd_shutter.ogg` (4): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/sounds/snd_unplug.ogg` (2): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/sounds/sounds.json` (55): no header
+- `host/maipai_body/bodies/stackchan/firmware/assets/wake_selftest.pcm` (314): no header
+- `host/maipai_body/bodies/stackchan/firmware/bump.sh` (54): no header
+- `host/maipai_body/bodies/stackchan/firmware/flash_manifest.py` (261): Build and verify signed StackChan flash manifests."""
+- `host/maipai_body/bodies/stackchan/firmware/host-search.sh` (45): Text-only reference strings accepted by the baseline inventory. They are not connection targets.
+- `host/maipai_body/bodies/stackchan/firmware/openssl_cli.py` (38): Locate an OpenSSL CLI with Ed25519 support."""
+- `host/maipai_body/bodies/stackchan/firmware/patches/001-server-url-empty.patch` (9): leave the M5 avatar server unset unless a local installer configures it.
+- `host/maipai_body/bodies/stackchan/firmware/patches/002-nvs-websocket-no-ota.patch` (39): skip xiaozhi OTA and activation, use the already provisioned NVS websocket settings.
+- `host/maipai_body/bodies/stackchan/firmware/patches/003-persistent-websocket.patch` (397): include <string>
+- `host/maipai_body/bodies/stackchan/firmware/patches/003-stackchan-kconfig.patch` (13): no header
+- `host/maipai_body/bodies/stackchan/firmware/patches/004-configurable-sntp-empty.patch` (25): make SNTP host configurable and disabled by default to prevent public time calls.
+- `host/maipai_body/bodies/stackchan/firmware/patches/005-disable-m5-registry-mqtt.patch` (22): stop starting M5 EzData registry and MQTT, and remove its service URL from the device UI.
+- `host/maipai_body/bodies/stackchan/firmware/patches/007-unique-firmware-identity.patch` (12): give local firmware a distinct project and version identity.
+- `host/maipai_body/bodies/stackchan/firmware/patches/008-additional-ca-bundle.patch` (27): no header
+- `host/maipai_body/bodies/stackchan/firmware/patches/009-axp2101-charging-timeout.patch` (18): no header
+- `host/maipai_body/bodies/stackchan/firmware/patches/010-battery-status.patch` (23): System Prompt：
+- `host/maipai_body/bodies/stackchan/firmware/patches/011-avatar-auth-headers.patch` (35): use the provisioned identity and bearer token on M5's avatar channel.
+- `host/maipai_body/bodies/stackchan/firmware/patches/012-per-pixel-led-tool.patch` (39): add an atomic MCP operation for all twelve independently addressable RGB pixels.
+- `host/maipai_body/bodies/stackchan/firmware/patches/013-mint-face-skin.patch` (683): draw a softer face (mint skin) with surprised and wink faces; the default avatar stays for other apps.
+- `host/maipai_body/bodies/stackchan/firmware/patches/014-wifi-awake-while-speaking.patch` (24): keep Wi-Fi out of modem sleep while the robot speaks; MAX_MODEM delayed audio packets by seconds and the voice
+- `host/maipai_body/bodies/stackchan/firmware/patches/015-speech-edges.patch` (170): count and log audio frames lost at the start and end of a spoken line (dropped before speaking, cleared on a s
+- `host/maipai_body/bodies/stackchan/firmware/patches/016-speech-open-at-tts-start.patch` (92): accept a spoken line's audio from tts start and keep the decode queue on a reset while the line is open, so th
+- `host/maipai_body/bodies/stackchan/firmware/patches/017-face-palette-idle-light.patch` (382): add MCP tools to recolor the mint face (palettes and a night face, palette saved in NVS), gate idle head movem
+- `host/maipai_body/bodies/stackchan/firmware/patches/018-hello-token-handoff.patch` (29): save a long-lived token from the server hello and reconnect with it.
+- `host/maipai_body/bodies/stackchan/firmware/patches/019-avatar-nvs-config.patch` (36): have the avatar channel use the saved websocket token and avatar URL.
+- `host/maipai_body/bodies/stackchan/firmware/patches/020-dance-mcp-tools.patch` (72): expose the firmware built-in dances (Happy, Robot, Panic, LookAround) as MCP tools so the host can start and s
+- `host/maipai_body/bodies/stackchan/firmware/patches/021-device-events-tool.patch` (95): queue head touch, head swipe and shake events on the robot and let the host read and clear them with one MCP t
+- `host/maipai_body/bodies/stackchan/firmware/patches/023-wifi-saved-networks-tools.patch` (103): list, add, forget and switch saved Wi-Fi networks through MCP tools backed by the robot SsidManager (NVS); pas
+- `host/maipai_body/bodies/stackchan/firmware/patches/030-load-local-assets.patch` (18): load the wake word model. Patch 002 skips CheckAssetsVersion(), the only caller of Assets::Apply(), so the srm
+- `host/maipai_body/bodies/stackchan/firmware/patches/032-wake-word-with-persistent-socket.patch` (19): act on the wake word with the persistent websocket. The channel is always open, so HandleWakeWordDetectedEvent
+- `host/maipai_body/bodies/stackchan/firmware/patches/033-connecting-screen-and-boot-ring.patch` (146): a plain connecting screen and the ring the firmware owns before the host connects. The face stays hidden under
+- `host/maipai_body/bodies/stackchan/firmware/patches/034-host-idle-command.patch` (17): let the host end a silent follow-up. In auto mode the firmware goes straight back to Listening after every rep
+- `host/maipai_body/bodies/stackchan/firmware/patches/036-swipe-gestures-and-quick-settings.patch` (262): swipe gestures on the face and a quick-settings screen (owner request 2026-10-20). Swipe left lowers the volum
+- `host/maipai_body/bodies/stackchan/firmware/patches/037-idle-motion-off-by-default.patch` (29): stillness is the default (owner request 2026-10-20: "it is constantly moving"). The idle head movement now sta
+- `host/maipai_body/bodies/stackchan/firmware/patches/038-head-move-cap.patch` (32): a last-resort limit on the host's head moves (owner request 2026-10-20: servo wear from constant movement). se
+- `host/maipai_body/bodies/stackchan/firmware/patches/039-mcp-timing-log.patch` (57): log-only timing diagnostic for the slow MCP replies (>5 s) seen while audio streams. Logs one warning line, at
+- `host/maipai_body/bodies/stackchan/firmware/patches/044-strongest-wifi-ap.patch` (24): join the strongest access point of the saved network (Jesse's unit, 2026-10-20: it joined a -80 dBm channel-1 
+- `host/maipai_body/bodies/stackchan/firmware/patches/045-control-panel.patch` (244): a control panel that drops from the top of the screen (owner request 2026-10-21). A swipe down that begins in 
+- `host/maipai_body/bodies/stackchan/firmware/patches/046-touch-diagnostics.patch` (215): diagnostics for the face screen's touch path (2026-10-21; swipes and taps did nothing on the unit). Each finge
+- `host/maipai_body/bodies/stackchan/firmware/patches/047-tap-handling.patch` (71): taps on the face (owner report 2026-10-21). (1) A swipe that starts on the top bezel reports a touch at y 0 to
+- `host/maipai_body/bodies/stackchan/firmware/patches/048-head-touch-filter.patch` (209): stop the head touch strip's phantom pets (owner report 2026-10-21: the unit showed its petted heart and open-m
+- `host/maipai_body/bodies/stackchan/firmware/patches/049-stop-word.patch` (374): a stop word that works while the robot is speaking (owner request 2026-10-21: he said "stop" mid-sentence and 
+- `host/maipai_body/bodies/stackchan/firmware/patches/050-ring-dark-with-screen.patch` (93): the LED ring goes dark with the screen and before a power off (owner report 2026-10-21: holding the power butt
+- `host/maipai_body/bodies/stackchan/firmware/patches/051-internal-ram-budget.patch` (130): free internal RAM so the stop word can run (host log 2026-10-21: the model costs 10,752 bytes of internal RAM 
+- `host/maipai_body/bodies/stackchan/firmware/patches/052-rub-detection.patch` (220): make a real rub register without bringing the phantom pets back (owner report 2026-10-21: after 048 "I don't s
+- `host/maipai_body/bodies/stackchan/firmware/patches/053-stable-stacks.patch` (94): a stable build after 0.2.24 (owner report 2026-10-21: the unit stopped answering MCP calls for 30 to 45 s and 
+- `host/maipai_body/bodies/stackchan/firmware/patches/054-avatar-channel-in-agent-mode.patch` (106): open the camera and avatar socket in AI-agent mode (owner report 2026-10-21: the unit cannot say what it sees;
+- `host/maipai_body/bodies/stackchan/firmware/patches/055-opus-stack-in-psram-experiment.patch` (29): EXPERIMENT, in the 0.2.28 recipe to settle whether the stalls of 0.2.24 came from this stack or from the stop 
+- `host/maipai_body/bodies/stackchan/firmware/patches/056-pet-by-peak-reading.patch` (353): pets that register, from the host log of the petting minutes (2026-10-21). With nobody there the strip reads 1
+- `host/maipai_body/bodies/stackchan/firmware/patches/057-shake-threshold.patch` (124): tune the shake (host log 2026-10-21: a lift-and-shake by hand produced no event). The shake detector sums the 
+- `host/maipai_body/bodies/stackchan/firmware/patches/058-internal-ram-trims.patch` (50): give back internal RAM without moving any stack to PSRAM (the unit stalled in 0.2.24 and the PSRAM stack was t
+- `host/maipai_body/bodies/stackchan/firmware/patches/059-wake-and-tap-visibility.patch` (249): make the wake word and taps reliable and visible (owner report 2026-10-21: the robot does not listen, taps do 
+- `host/maipai_body/bodies/stackchan/firmware/patches/060-avatar-socket-credentials.patch` (39): let the hub accept the unit's avatar socket (host log 2026-10-21: the avatar worker of patch 054 connects ever
+- `host/maipai_body/bodies/stackchan/firmware/patches/061-stop-while-speaking.patch` (162): stopping a reply that is already playing (owner report 2026-10-21: tapping or saying "Hi, StackChan" while the
+- `host/maipai_body/bodies/stackchan/firmware/patches/062-firmware-version-report.patch` (35): tell the hub which firmware the unit runs and how strong its Wi-Fi is. The unit reported M5's own 1.5.1 (or no
+- `host/maipai_body/bodies/stackchan/firmware/patches/063-avatar-device-id-and-barge-in.patch` (52): (1) let the hub accept the unit's avatar socket: 0.2.30 still logged "token present, device missing" because K
+- `host/maipai_body/bodies/stackchan/firmware/patches/064-camera-stream-stats.patch` (92): show why the camera sends no frames (host log 2026-10-21: "0 frames and 0 KB from the unit in 1.0 min" on a co
+- `host/maipai_body/bodies/stackchan/firmware/patches/065-barge-stats-and-light-channels.patch` (171): (1) measure whether barge-in can work (owner test 2026-10-21: "Hi, StackChan" over a reply never woke the unit
+- `host/maipai_body/bodies/stackchan/firmware/patches/066-camera-failure-stages.patch` (78): tell apart the ways the camera can fail to send (host log 2026-10-21: the avatar socket connects and the host 
+- `host/maipai_body/bodies/stackchan/firmware/patches/067-orientation-event-and-screen-rotation.patch` (227): the robot knows when it is on its side or upside down (owner request 2026-10-21). (1) hal_imu.cpp now also tra
+- `host/maipai_body/bodies/stackchan/firmware/patches/068-state-guard-and-listen-restart.patch` (51): stop the unit leaving a turn half done (owner report 2026-10-22: "it answered one question and stopped respond
+- `host/maipai_body/bodies/stackchan/firmware/patches/069-stall-watch-and-camera-pause.patch` (204): find and avoid the freeze (owner report 2026-10-22, host log on 0.2.41: a turn starts, then every tool call ti
+- `host/maipai_body/bodies/stackchan/firmware/patches/070-playback-report.patch` (25): show whether the unit stutters and why (owner report 2026-10-22: speech stuttery and slow for a minute or two;
+- `host/maipai_body/bodies/stackchan/firmware/patches/071-orientation-signed-pull.patch` (26): the orientation tracker of patch 067 stopped reporting after its first change (host log 2026-10-22, pose test:
+- `host/maipai_body/bodies/stackchan/firmware/patches/072-faster-tilt.patch` (22): a tilt shows up faster (owner report 2026-10-22: "tipping over is slow and unreliable"). The orientation track
+- `host/maipai_body/bodies/stackchan/firmware/patches/073-sleeping-face.patch` (31): a real sleeping face for the idle sleep (owner request 2026-10-23: "I see the face dimmed, but no sleepy or sl
+- `host/maipai_body/bodies/stackchan/firmware/patches/074-unit-crash-fixes.patch` (122): stop the unit rebooting itself on every stall, boot into the AI agent by default, and let the host keep the un
+- `host/maipai_body/bodies/stackchan/firmware/patches/075-offline-mode.patch` (369): the unit stays usable and reachable when the hub is not (owner decision 2026-10-23: "even with no hub or Wi-Fi
+- `host/maipai_body/bodies/stackchan/firmware/patches/076-weak-pet.patch` (30): rubbing the head reacts even when the strip only reads 1 (owner report 2026-10-23: "rubbing did not work at al
+- `host/maipai_body/bodies/stackchan/firmware/patches/077-silent-link-closes.patch` (37): a hub link that goes silent no longer freezes the unit for minutes. The reconnect task waited forever for a di
+- `host/maipai_body/bodies/stackchan/firmware/patches/078-quick-tap-counts.patch` (26): a quick firm tap on the head counts as a pet (owner report 2026-11-12: tap did nothing). A tap lasts one to th
+- `host/maipai_body/bodies/stackchan/firmware/patches/079-dev-server-override.patch` (65): let a development build point the unit at a Bot app on another port without touching the pairing saved in NVS 
+- `host/maipai_body/bodies/stackchan/firmware/patches/079-dev-voice-url.patch` (25): the voice websocket half of 079-dev-server-override.patch: when CONFIG_STACKCHAN_DEV_VOICE_URL or CONFIG_STACK
+- `host/maipai_body/bodies/stackchan/firmware/patches/080-weak-runs-are-maybes.patch` (64): stop the phantom pets (owner report 2026-11-12, "it keeps smiling"). With nobody touching the unit the strip r
+- `host/maipai_body/bodies/stackchan/firmware/patches/081-imu-tap.patch` (344): a light tap on the head counts, and the strip's idle noise never makes a touch by itself (owner mission 2026-1
+- `host/maipai_body/bodies/stackchan/firmware/patches/082-sound-direction.patch` (321): tell which side a sound comes from (owner mission 2026-11-12, "can the StackChan hear direction"). The CoreS3 
+- `host/maipai_body/bodies/stackchan/firmware/patches/082-sound-tap.patch` (17): hand every chunk the audio input task reads from the codec (24 kHz, two channels, before the 16 kHz resampler)
+- `host/maipai_body/bodies/stackchan/firmware/patches/083-wake-no-echo-reference.patch` (20): the wake word stopped hearing the owner after hours of room sound (owner report 2026-11-13, "stackchan is not 
+- `host/maipai_body/bodies/stackchan/firmware/patches/084-core-dump-report.patch` (57): know why the unit panics (host log 2026-11-13: boot reason 4, a panic, four times in 15 hours, with no message
+- `host/maipai_body/bodies/stackchan/firmware/patches/085-self-restart-guard.patch` (272): the unit gets itself out of a freeze, and can never reboot-loop (owner approval 2026-11-13, "implement everyth
+- `host/maipai_body/bodies/stackchan/firmware/patches/086-wake-selftest-and-rebuild.patch` (298): a unit that cannot hear the wake word finds out and repairs itself (owner report 2026-11-13, "stackchan is not
+- `host/maipai_body/bodies/stackchan/firmware/patches/090-timers-core.patch` (396): the pure logic of on-unit timers and alarms (owner decision 2026-11-13: on-device timers, no Bluetooth): up to
+- `host/maipai_body/bodies/stackchan/firmware/patches/091-timers-device.patch` (426): the device side of on-unit timers and alarms (owner decision 2026-11-13: on-device timers, no Bluetooth, hub d
+- `host/maipai_body/bodies/stackchan/firmware/patches/092-timer-tools.patch` (84): the MCP tools the host uses to drive the on-unit timers (patch 091): self.timer.set(seconds 1..86400, label, s
+- `host/maipai_body/bodies/stackchan/firmware/patches/093-timer-touch-stop.patch` (33): a ringing timer or alarm (patches 091, 092) ends on a touch: a press on the face (the screen) or a press on th
+- `host/maipai_body/bodies/stackchan/firmware/patches/094-timer-stop-word.patch` (26): the stop word ends a ringing timer or alarm (patches 091 to 093). The stop-word callback in the xiaozhi applic
+- `host/maipai_body/bodies/stackchan/firmware/patches/095-grow-assets-partition.patch` (12): no header
+- `host/maipai_body/bodies/stackchan/firmware/patches/096-drop-cjk-font-and-emoji.patch` (98): Add default assets extra files if defined
+- `host/maipai_body/bodies/stackchan/firmware/patches/097-remove-mooncake-apps.patch` (88): Setup when xiaozhi ready
+- `host/maipai_body/bodies/stackchan/firmware/patches/098-bluetooth-off.patch` (13): Kept: apps/common (status bar, toast, reminder), which the voice agent shows.
+- `host/maipai_body/bodies/stackchan/firmware/patches/099-no-jpeg-decoder.patch` (72): Define source files
+- `host/maipai_body/bodies/stackchan/firmware/patches/099-wifi-only-and-fewer-sounds.patch` (17): no header
+- `host/maipai_body/bodies/stackchan/firmware/patches/100-music-features.patch` (685): the unit measures a few numbers about the room's sound so the host can tell clear music from speech and noise 
+- `host/maipai_body/bodies/stackchan/firmware/patches/101-music-tap.patch` (32): hand every chunk the audio input task reads from the codec (24 kHz, two channels, before the 16 kHz resampler)
+- `host/maipai_body/bodies/stackchan/firmware/patches/105-face-touch-toggles.patch` (471): touches on the face of the screen toggle mute, vision off and full quiet (owner design 2026-11-13): HOLD the m
+- `host/maipai_body/bodies/stackchan/firmware/patches/106-privacy-core.patch` (681): the unit's mute, vision off and full quiet (owner design 2026-11-13, hard mute note). State is three independe
+- `host/maipai_body/bodies/stackchan/firmware/patches/107-mic-guards.patch` (99): the xiaozhi side of the hard mute (maipai_privacy.h, patch 106): while muted or in full quiet AudioService::Re
+- `host/maipai_body/bodies/stackchan/firmware/patches/108-mint-muted-and-lidded.patch` (161): the mint face's two privacy looks (owner: a muted mouth looks different, no-vision eyes look different, never 
+- `host/maipai_body/bodies/stackchan/firmware/patches/110-listening-thinking-faces.patch` (81): two new faces in the mint skin, `listening` (the eyes a little wider and rounder, the mouth a short closed lin
+- `host/maipai_body/bodies/stackchan/firmware/patches/111-shared-link-screen.patch` (437): one link screen for every state where the unit is not yet linked (owner, 2026-11-13). A black cover with a gly
+- `host/maipai_body/bodies/stackchan/firmware/patches/112-offline-look.patch` (499): the standing offline look (owner, 2026-11-13), driven by the firmware's own link state. While Home is out of r
+- `host/maipai_body/bodies/stackchan/firmware/patches/113-waiting-for-approval.patch` (103): the "refused" state, so a unit Home has not approved says so instead of looking offline (owner, 2026-11-13). H
+- `host/maipai_body/bodies/stackchan/firmware/patches/114-power-key-ring-dark.patch` (140): the ring is dark and the eyes are shut when the power key switches the unit off (owner, 2026-11-13). The PMIC 
+- `host/maipai_body/bodies/stackchan/firmware/patches/115-sounds-core.patch` (417): the pure logic of the unit's own sounds (owner approved the sound plan on 2026-11-13, docs/dev/stackchan-light
+- `host/maipai_body/bodies/stackchan/firmware/patches/116-sounds-device.patch` (608): the device side of the unit's own sounds (owner approved 2026-11-13). (1) The seven new earcons (Ogg Opus mono
+- `host/maipai_body/bodies/stackchan/firmware/patches/117-sound-events.patch` (94): the firmware plays the right earcon itself for the events only it sees (owner approved 2026-11-13; plan rows 2
+- `host/maipai_body/bodies/stackchan/firmware/patches/118-offline-phrases.patch` (31): tier 2 of the local offline voice (owner approved 2026-11-13; plan section 17): when the wake word or a tap fi
+- `host/maipai_body/bodies/stackchan/firmware/patches/119-quiet-reconnect-errors.patch` (17): stop the error chime and the error face on every failed reconnect (owner 2026-11-13: "it keeps playing this me
+- `host/maipai_body/bodies/stackchan/firmware/patches/120-offline-earcon-after-3-minutes.patch` (43): the offline earcon and the "I'm back" chime are for a real outage, not for every Home restart (owner 2026-11-1
+- `host/maipai_body/bodies/stackchan/firmware/patches/121-offline-music-dance.patch` (303): with no link to Home, the unit nods and dances to music by itself (owner 2026-11-13: "when its offline, it cou
+- `host/maipai_body/bodies/stackchan/firmware/patches/122-vision-off-closes-the-eyes.patch` (15): tapping an eye closes the eyes fully (owner 2026-11-13: "tapping eyes should close them, not half close"). Vis
+- `host/maipai_body/bodies/stackchan/firmware/patches/123-music-notes-and-song-title.patch` (375): music notes and the song name on the face (owner 2026-11-13, preview approved: "maybe the face should have a m
+- `host/maipai_body/bodies/stackchan/firmware/patches/124-offline-music-cycles.patch` (275): the unit's own music session runs in cycles for hours, like the host's (owner 2026-11-13: "i could be listenin
+- `host/maipai_body/bodies/stackchan/firmware/patches/125-keyframe-size-zero.patch` (15): the eyes are the same size after a dance (owner 2026-11-13, three times: "one eye is bigger than the other", "
+- `host/maipai_body/bodies/stackchan/firmware/patches/126-slow-mood-and-pause.patch` (90): the break between dance blocks is a slow mood, not a stop (owner 2026-11-13: "a 90 second break is crazy ... y
+- `host/maipai_body/bodies/stackchan/firmware/patches/127-pause-faster-resume-mood.patch` (81): no music for 4.5 s pauses the unit's own dance (was 9 s) and clear music takes it right back to the mood it wa
+- `host/maipai_body/bodies/stackchan/firmware/patches/128-beat-sway.patch` (320): the head sways on the beat of the song (owner 2026-11-13: "any way to have StackChan dance to the beat of the 
+- `host/maipai_body/bodies/stackchan/firmware/patches/129-music-clip-capture.patch` (365): the unit captures a short clip of the room's audio for song naming (owner 2026-11-13: when the robot hears mus
+- `host/maipai_body/bodies/stackchan/firmware/patches/130-steady-beat-and-quick-start.patch` (118): start head bobbing on the beat sooner, stop sooner, and hold the beat (owner 2026-11-13: "i feel like it takes
+- `host/maipai_body/bodies/stackchan/firmware/patches/131-bob-first.patch` (135): a music session starts with the head nodding up and down on the beat, for a while, before the full dance (owne
+- `host/maipai_body/bodies/stackchan/firmware/patches/132-expressive-faces.patch` (114): seven new faces for the owner-approved expressive set (2026-11-14, preview judged): joy, content, excited, sho
+- `host/maipai_body/bodies/stackchan/firmware/patches/133-wireless-update.patch` (455): wireless firmware update (owner 2026-11-14: the unit is on battery and off USB, "hopefully you can update wire
+- `host/maipai_body/bodies/stackchan/firmware/patches/140-song-title-bar.patch` (77): the song title on the face is a white, bolder, slightly larger text on a solid black bar, close to the bottom 
+- `host/maipai_body/bodies/stackchan/firmware/patches/141-power-reading-and-sound-gate.patch` (322): stop the robot's repeating plug-in/unplug beeps and make every cue attributable (owner 2026-11-14: "it never d
+- `host/maipai_body/bodies/stackchan/firmware/patches/142-stock-tones-gated.patch` (85): the stock xiaozhi tones that bypassed the unit's sound gate are gone or gated (owner 2026-11-14: a chime is fo
+- `host/maipai_body/bodies/stackchan/firmware/patches/143-offline-label-after-45-s.patch` (15): the word "Offline" in the upper left shows after 45 s without the hub, not 10 s (owner 2026-11-14: the hub ins
+- `host/maipai_body/bodies/stackchan/firmware/patches/144-fallback-hub-endpoint.patch` (406): a fallback hub endpoint for both channels so the robot works away from home without any public address (owner 
+- `host/maipai_body/bodies/stackchan/firmware/patches/145-app-version-from-release.patch` (18): the app description version is the release version (a fix for patch 133). The image's esp_app_desc version was
+- `host/maipai_body/bodies/stackchan/firmware/patches/146-fallback-gateway-and-ssid-gate.patch` (320): the away-from-home fallback must work whatever Wi-Fi the friend has and must never hand the pairing token to a
+- `host/maipai_body/bodies/stackchan/firmware/patches/147-tailnet-client.patch` (574): the robot's own tailnet client (owner 2026-11-14: "register it to a tailscale network and then just give it an
+- `host/maipai_body/bodies/stackchan/firmware/patches/148-tailnet-endpoint.patch` (78): the connection order with the tailnet (patch 147): while the tailnet is up, the hub's tailnet address is the f
+- `host/maipai_body/bodies/stackchan/firmware/patches/149-microlink-psram-stacks.patch` (86): the library patch for the pinned MicroLink (applied by recipe.sh to the downloaded copy in the build root, not
+- `host/maipai_body/bodies/stackchan/firmware/patches/151-charged-once-per-session.patch` (76): the "charged" cue plays once per charge and never repeats (owner 2026-11-14: a beep came every few minutes whi
+- `host/maipai_body/bodies/stackchan/firmware/patches/152-gateway-fallback-kconfig-flag.patch` (36): the laptop/Wi-Fi-gateway fallback (patches 144 and 146) sits behind a Kconfig flag, CONFIG_STACKCHAN_FALLBACK_
+- `host/maipai_body/bodies/stackchan/firmware/patches/153-prefer-tailnet-hook.patch` (183): a test hook so the tailnet path can be proven at home (owner 2026-11-14): the device command self.network.pref
+- `host/maipai_body/bodies/stackchan/firmware/patches/154-wifi-use-now.patch` (207): "Use this network now" for a real away test without carrying the unit out of range of the home Wi-Fi (owner 20
+- `host/maipai_body/bodies/stackchan/firmware/pins.toml` (47): The tailnet client (patch 147): downloaded at this commit into the build root when recipe.sh gets --tailnet, n
+- `host/maipai_body/bodies/stackchan/firmware/recipe.sh` (584): no-persistent-websocket)
+- `host/maipai_body/bodies/stackchan/firmware/release.sh` (93): date) BUILD_DATE="$2"; shift 2 ;;
+- `host/maipai_body/bodies/stackchan/firmware/verify.sh` (48): public-key) (($# >= 2)) || { echo "Pass --public-key PATH (the release's Ed25519 public key PEM) so verify.sh 
+- `host/maipai_body/bodies/stackchan/firmware_update.py` (246): Conservative host-side StackChan firmware update controller."""
+- `host/maipai_body/bodies/stackchan/frame_check.py` (94): Why does the face detector find nobody? A once-a-minute log line, nothing stored.
+- `host/maipai_body/bodies/stackchan/gaze.py` (135): Why the head is pointed where it is, and honest answers to "what are you looking at?".
+- `host/maipai_body/bodies/stackchan/head_commands.py` (483): Spoken head movement, answered on the robot without asking the hub.
+- `host/maipai_body/bodies/stackchan/head_gate.py` (91): One gate for every head movement the robot starts on its own (owner request 2026-10-20).
+- `host/maipai_body/bodies/stackchan/head_search.py` (266): A short, quiet look around: a few head poses in turn, for one reason, with a cap and a back-off.
+- `host/maipai_body/bodies/stackchan/head_touch_filter.py` (73): Ignore the head sensor's phantom touches (owner report 2026-10-21).
+- `host/maipai_body/bodies/stackchan/idle_faces.py` (65): Occasional, gentle expression changes while a StackChan is otherwise idle."""
+- `host/maipai_body/bodies/stackchan/light_service.py` (238): The StackChan light service: facts in, one ring look out.
+- `host/maipai_body/bodies/stackchan/light_wiring.py` (233): The StackChan light wiring: poll the link, the device and the battery.
+- `host/maipai_body/bodies/stackchan/measure/__init__.py` (5): StackChan unit-arrival measurement kit."""
+- `host/maipai_body/bodies/stackchan/measure/run.py` (59): Collect a structured StackChan unit-arrival measurement record."""
+- `host/maipai_body/bodies/stackchan/measure/vision_run.py` (76): Offline fixture scoring and unit-ready StackChan vision measurement plan."""
+- `host/maipai_body/bodies/stackchan/meeting_faces.py` (37): Small host-side face choices for explicit person meeting events."""
+- `host/maipai_body/bodies/stackchan/music_dance.py` (1024): The StackChan music dance: hear clear music, show a small "I like this", dance if it goes on.
+- `host/maipai_body/bodies/stackchan/music_dance_wiring.py` (351): Wire the music dance (music_dance.py) to a running StackChan service.
+- `host/maipai_body/bodies/stackchan/music_identify.py` (460): Capture and name one short song clip during a StackChan music session."""
+- `host/maipai_body/bodies/stackchan/orientation.py` (336): How the robot reacts when its orientation changes.
+- `host/maipai_body/bodies/stackchan/owner_levels.py` (109): Persist the household owner's preferred StackChan speaker and screen levels."""
+- `host/maipai_body/bodies/stackchan/person_tracker.py` (694): Find the person, then the face, then follow (owner design, approved 2026-11-12).
+- `host/maipai_body/bodies/stackchan/power_idle.py` (141): StackChan stays still while charging or not upright (owner requests 2026-10-20, 2026-10-21).
+- `host/maipai_body/bodies/stackchan/presence_watch.py` (302): The small, pure parts of idle face watching: the per-minute camera line and the greeting edge.
+- `host/maipai_body/bodies/stackchan/privacy.py` (469): StackChan mute, vision off and full quiet, the host side (firmware patches 105 to 108,
+- `host/maipai_body/bodies/stackchan/profile.py` (125): StackChan capabilities and soft limits from the firmware research note."""
+- `host/maipai_body/bodies/stackchan/reactions.py` (157): How the robot reacts to being touched, shaken and praised (owner requests 2026-10-21).
+- `host/maipai_body/bodies/stackchan/renderer.py` (118): StackChan expression renderer: avatar frames, bounded head poses and ring states."""
+- `host/maipai_body/bodies/stackchan/repeat.py` (301): Repeat what was said and tell what was missed, answered on the robot without asking the hub.
+- `host/maipai_body/bodies/stackchan/ring.py` (90): The StackChan ring renderer (docs/dev/led-standard-2026-10-20.md).
+- `host/maipai_body/bodies/stackchan/ring_indicator.py` (120): The StackChan ring indicator: the Indicator the 12-pixel ring answers.
+- `host/maipai_body/bodies/stackchan/routines.py` (216): StackChan rest routines: render a RestPolicy output as a face and the resting head pose."""
+- `host/maipai_body/bodies/stackchan/self_heal.py` (222): StackChan self-healing on the host (design note docs/dev/stackchan-self-healing-2026-11-13.md).
+- `host/maipai_body/bodies/stackchan/sight.py` (195): Honest answers to "can you see me?" and the picture questions when Home gave no description.
+- `host/maipai_body/bodies/stackchan/sleep_z.py` (33): Version-gated host wrapper for the future StackChan sleep Z tool."""
+- `host/maipai_body/bodies/stackchan/song_title.py` (127): Keeps the song title on the robot's face while the song plays (host side).
+- `host/maipai_body/bodies/stackchan/sounds.py` (536): The StackChan's own sounds, the host side (firmware patches 115 to 118).
+- `host/maipai_body/bodies/stackchan/speaker_gaze.py` (119): Speaker gaze for StackChan (BOT-SC-GAZE-01): while someone is talking,
+- `host/maipai_body/bodies/stackchan/stop_phrases.py` (40): A spoken "stop" heard while listening ends the turn on the robot, without asking the hub.
+- `host/maipai_body/bodies/stackchan/timers.py` (332): On-unit timers and alarms, the host side (firmware patches 090 to 094).
+- `host/maipai_body/bodies/stackchan/turn.py` (1538): StackChan audio turn bridge to the existing hub speech clients."""
+- `host/maipai_body/bodies/stackchan/updater.py` (297): Flasher and updater: check a signed release, then flash it or push it over the air.
+- `host/maipai_body/bodies/stackchan/uplink_stats.py` (108): Uplink statistics the self-test can read: hearing (frames, bytes, peak)
+- `host/maipai_body/bodies/stackchan/vision_bridge.py` (409): Host-side StackChan camera tracking and consent-gated face recognition."""
+- `host/maipai_body/bodies/stackchan/vision_post.py` (258): Post a short-lived camera frame to Home for a scene description."""
+- `host/maipai_body/bodies/stackchan/volume.py` (233): Spoken volume control for the StackChan, answered on the robot without asking the hub.
+- `host/maipai_body/bodies/stackchan/wifi_list.py` (258): The names in StackChan's saved Wi-Fi list (firmware patch 023)."""
+- `host/maipai_body/bodies/stackchan/ws_logging.py` (37): Quiet logging for the StackChan websocket listeners.
+- `host/maipai_body/bodies/stackchan/xiaozhi/__init__.py` (6): LAN xiaozhi protocol server and provisioning helpers for StackChan."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (454): Local administrator approval and per-device bearer tokens."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1517): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
+- `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
+- `host/maipai_body/brain/fake.py` (44): Deterministic brain for tests and the virtual unit."""
+- `host/maipai_body/brain/home.py` (89): Home brain adapter. Existing clients retain transport behavior and timing."""
+- `host/maipai_body/brain/interface.py` (60): Typed interface between the body host and its answering brain."""
+- `host/maipai_body/brain/own_llm.py` (317): Own-LLM brain using owner-configured HTTP services and optional local speech models."""
+- `host/maipai_body/cli.py` (459): ruff: noqa: E501
+- `host/maipai_body/config.py` (196): Configuration for the StackChan host."""
+- `host/maipai_body/dashboard/__init__.py` (12): EXPR-05: a body-agnostic web dashboard.
+- `host/maipai_body/dashboard/__main__.py` (73): no header
+- `host/maipai_body/dashboard/server.py` (478): The dashboard's stdlib HTTP server: a page, a JSON API, and a server-sent-event feed."""
+- `host/maipai_body/dashboard/telemetry.py` (128): The dashboard's view of a body: the latest state frame plus presence, as one JSON snapshot."""
+- `host/maipai_body/expression/__init__.py` (21): The expression package: the primitive vocabulary, rendered on a body's HAL seam.
+- `host/maipai_body/expression/cue.py` (99): The typed cue and the phase-to-primitive mapping (``dev.md`` section 5).
+- `host/maipai_body/expression/engine.py` (389): The expression engine: one cue in, one primitive rendered or withheld.
+- `host/maipai_body/expression/envelope.py` (91): The calibrated envelope: fractions of the profile's declared axis limits.
+- `host/maipai_body/expression/gaze.py` (237): Gaze: the face-following controller (S-EXPR-04, design v2 section 4.1/4.4).
+- `host/maipai_body/expression/idle.py` (150): Idle: breathing, antenna sway and micro-poses (S-EXPR-04, design v2 section 4.3).
+- `host/maipai_body/expression/motion_worker.py` (632): S-EXPR-01R's one 50 Hz writer and bounded per-axis motion mixer.
+- `host/maipai_body/expression/primitives.py` (46): The primitive vocabulary, declared once (``dev.md`` section 5).
+- `host/maipai_body/expression/reachy_mini_renderer.py` (337): RM-02: the primitive table's Reachy Mini column (``dev.md`` section 5).
+- `host/maipai_body/expression/renderers.py` (51): The renderer registry: one primitive vocabulary, one column per body.
+- `host/maipai_body/expression/rest.py` (96): Rest: drowsy, asleep and waking routines so an idle StackChan never sits
+- `host/maipai_body/expression/scripted_source.py` (41): A scripted cue source: a fixed sequence of cues for bench testing.
+- `host/maipai_body/expression/suppression.py` (125): The suppression table (``dev.md`` section 5's "Suppressed or reinterpreted when" column).
+- `host/maipai_body/faces.py` (599): ruff: noqa: E501
+- `host/maipai_body/hal/__init__.py` (1): The HAL seam: ``seam`` for the typed protocols, ``errors`` for what crosses it."""
+- `host/maipai_body/hal/errors.py` (68): Errors the HAL seam raises.
+- `host/maipai_body/hal/seam.py` (427): The HAL seam every body profile implements.
+- `host/maipai_body/hub_host.py` (131): Host launcher for a self-contained MaiPai Bot hub sidecar.
+- `host/maipai_body/i18n.py` (300): ruff: noqa: E501
+- `host/maipai_body/indicator/__init__.py` (9): EYES-02: what the eyes show, decided in one place.
+- `host/maipai_body/indicator/director.py` (176): EYES-02: the director.
+- `host/maipai_body/indicator/live.py` (161): EYES-02: ``LiveCaptureTap``, the live-capture cue's source of truth.
+- `host/maipai_body/indicator/looks.py` (206): EYES-02: the one look table, and the only site of a colour or a level.
+- `host/maipai_body/indicator/settings.py` (120): EYES-02: the three robot-only settings keys the lights honour.
+- `host/maipai_body/initiative/__init__.py` (1): Things the robot starts on the hub's say-so: offers and the safety alarm."""
+- `host/maipai_body/initiative/alarm.py` (264): ALARM-PLAY-01: the safety alarm on the robot (deterministic, no model).
+- `host/maipai_body/initiative/offer.py` (248): OFFER-01: the robot's half of a hub initiative offer.
+- `host/maipai_body/link/__init__.py` (17): G4: the robot's own hub link - discovery, pairing, and the persisted
+- `host/maipai_body/link/address_walk.py` (220): LINK-STATE-01: walk the hub's addresses, the LAN first and the tailnet next.
+- `host/maipai_body/link/assets.py` (334): Authenticated asset synchronization from the paired Home hub."""
+- `host/maipai_body/link/channel.py` (209): The authenticated Home-to-robot command WebSocket."""
+- `host/maipai_body/link/checkin.py` (304): Tell the hub which robot is connected and what it runs: firmware, address, memory, last seen.
+- `host/maipai_body/link/client.py` (472): G4: the robot's own hub pairing and session client.
+- `host/maipai_body/link/commands.py` (175): LINK-STATE-01 rung 1: a closed list of fixed local commands.
+- `host/maipai_body/link/discovery.py` (129): G4: find the household's hub on the LAN via `_maipai._tcp`.
+- `host/maipai_body/link/hello.py` (33): The robot's own settings keys, declared for the ``hello`` (docs/dev.md,
+- `host/maipai_body/link/lifecycle.py` (389): G4: the link's own small state machine - unpaired, pairing, paired.
+- `host/maipai_body/link/offline.py` (69): LINK-STATE-01: the offline ladder's parts, handed to the funnel as one value.
+- `host/maipai_body/link/prints.py` (107): Pull the hub's live biometric face-print snapshot into the gallery."""
+- `host/maipai_body/link/replay.py` (76): LINK-STATE-01: the queue rule and the replay rule.
+- `host/maipai_body/link/roster.py` (120): FOLLOWUP-01 (bot half): fill the `PeopleDirectory` from the hub.
+- `host/maipai_body/link/rung0.py` (166): LINK-STATE-01 rung 0: body-only cues, no speech, no new axis.
+- `host/maipai_body/link/state.py` (60): Push the body's current robot.state frame to the paired hub."""
+- `host/maipai_body/link/state_machine.py` (184): LINK-STATE-01: the connected, reconnecting, sleeping machine.
+- `host/maipai_body/link/status.py` (70): LINK-STATE-01 rung 2: the offline status, a template over real values.
+- `host/maipai_body/link/store.py` (76): G4: the persisted hub pairing, one file, sealed at the OS level.
+- `host/maipai_body/link/supervisor.py` (89): LINK-STATE-01: the thread that keeps the ladder moving.
+- `host/maipai_body/link/timesync.py` (90): ROBOT-TIME-01: the robot's clock comes from the hub.
+- `host/maipai_body/live_units.py` (86): ruff: noqa: E501
+- `host/maipai_body/logging_setup.py` (27): Logging for the hosted Bot (MAIPAI_HUB_HOST=1).
+- `host/maipai_body/measure/__init__.py` (8): Bench measurement tooling for the design's section 12 rows (M-R1 to M-R5).
+- `host/maipai_body/measure/battery.py` (332): M-R4: battery. Runtime by the clock, and what the unit can say about its own charge.
+- `host/maipai_body/measure/bench.py` (188): Voice benchmark helpers for repeatable scripts and recordings."""
+- `host/maipai_body/measure/budget.py` (308): M-R1: the Compute Module's budget, sampled while a turn runs on a clock.
+- `host/maipai_body/measure/cue_motion.py` (384): M-R2: cue to motion, measured through the seam on the simulator or the unit.
+- `host/maipai_body/measure/kws.py` (170): Rung 1 keyword spotter measurement: accuracy over wavs, and a CPU probe.
+- `host/maipai_body/measure/link_loss.py` (257): M-R5: Wi-Fi loss mid-turn and mid-sentence, driven through a real ``ConversationLoop``.
+- `host/maipai_body/measure/loop_bench.py` (87): Pieces for driving a real ``ConversationLoop`` against a stand-in hub on a bench.
+- `host/maipai_body/measure/motion.py` (229): M-R2's analysis of a state-feed trace: onset, amplitude, peak velocity, settling.
+- `host/maipai_body/measure/netcapture.py` (744): RM-07: what leaves the robot, from a packet capture.
+- `host/maipai_body/measure/report.py` (296): Markdown sections for ``docs/dev/measurements.md``, one per recorded run."""
+- `host/maipai_body/measure/run_header.py` (102): The header every recorded run carries, and where a run is written.
+- `host/maipai_body/measure/stamps.py` (267): Motion onset stamps on one monotonic clock (``dev.md`` section 5, Timing).
+- `host/maipai_body/measure/stand_in_hub.py` (624): A bench stand-in for the hub's robot-facing routes, with a switch for the link.
+- `host/maipai_body/measure/stats.py` (35): Percentiles for measurement rows."""
+- `host/maipai_body/measure/turn_driver.py` (141): A scripted turn on a clock: a recorded utterance as the microphone, the real hub clients.
+- `host/maipai_body/measure/wake_doa.py` (223): M-R3: wake and direction of arrival on this array.
+- `host/maipai_body/measure/wifi_cycle.py` (68): M-R5 on the unit: cycle the real radio and time the way back.
+- `host/maipai_body/model_assets.py` (67): Verified local cache for assets synchronized from the paired hub."""
+- `host/maipai_body/moves/__init__.py` (13): MOVES-01: the recorded moves package (design record section 11).
+- `host/maipai_body/moves/allowlist.py` (30): The age allow-list: which moves a child, a teen or an unknown speaker may be shown.
+- `host/maipai_body/moves/library.py` (108): The pinned move libraries: optional packages installed by Home.
+- `host/maipai_body/moves/pinning.py` (83): Pure helpers behind ``scripts/pin_moves_library.py`` (no network here).
+- `host/maipai_body/moves/pins.json` (235): no header
+- `host/maipai_body/moves/player.py` (76): Plays a recorded move through the HAL seam.
+- `host/maipai_body/moves/react.py` (83): The plan's ``react`` slot entry point, behind a flag that is off by default.
+- `host/maipai_body/moves/recorded_move.py` (149): Pollen's recorded move shape, read against the seam's own types.
+- `host/maipai_body/moves/recorder.py` (66): Turns hand-moved state frames into a move in the vendor's JSON shape.
+- `host/maipai_body/moves/service.py` (102): The two ways a move starts: a person's ask, or the plan's ``react`` slot.
+- `host/maipai_body/moves/store.py` (63): Where taught moves live: one JSON file per name, on this device only.
+- `host/maipai_body/moves/teach.py` (89): Teach a move: gravity compensation on, a person moves the head, we record.
+- `host/maipai_body/presence/__init__.py` (13): RM-06: presence and tracking, and the arbitration priority tracking sits inside.
+- `host/maipai_body/presence/arbitration.py` (63): The arbitration priority (``dev.md`` section 5, confirmed for this body by
+- `host/maipai_body/presence/attention.py` (149): Attention: glue from presence observations to the gaze and idle layers (S-EXPR-04).
+- `host/maipai_body/presence/auto_dance.py` (134): BOT-SC-DANCE-01 (host half): the pure dance start/stop policy.
+- `host/maipai_body/presence/carry_reaction.py` (50): MOVE-CARRY-01c: what the body shows and says when it is lifted.
+- `host/maipai_body/presence/doa.py` (147): Direction-of-arrival front/back disambiguation (S-EXPR-04, design v2 section 4.5).
+- `host/maipai_body/presence/entries.py` (31): Presence entries (age band only) from the vision watch and the hub's roster.
+- `host/maipai_body/presence/funnel.py` (97): BODY-05: the settle gate over the presence funnel.
+- `host/maipai_body/presence/knock.py` (100): KNOCK-01: a double knock on the body, read from the IMU.
+- `host/maipai_body/presence/motion_state.py` (168): MOVE-CARRY-01a: lifted, carried and put down, read from the IMU.
+- `host/maipai_body/presence/motor_health.py` (292): MOTOR-RECOVER-01: the position-change watchdog and the recovery ladder.
+- `host/maipai_body/presence/night.py` (457): FACE-NIGHT-01: quiet hours and measured-light hysteresis for StackChan."""
+- `host/maipai_body/presence/observations.py` (55): This body's own inputs to the presence funnel (design record section 6):
+- `host/maipai_body/presence/power.py` (257): SELF-SCENE-02: the battery and heat ladder, kept by the body with no hub.
+- `host/maipai_body/presence/safety.py` (44): Tip and freefall from the IMU (design record section 7: "From the IMU: motors
+- `host/maipai_body/presence/sleep_auto.py` (177): SLEEP-AUTO-01: dark and quiet means sleep, arrival wakes.
+- `host/maipai_body/presence/thermal.py` (189): THERMAL-01: the Compute Module's temperature and throttle flags drive the body's load.
+- `host/maipai_body/presence/touch.py` (89): Antenna touch detection from commanded and observed positions.
+- `host/maipai_body/robot/__init__.py` (15): Vendor-neutral robot object and the shared API vocabulary reader."""
+- `host/maipai_body/robot/api.py` (111): Reader for the robot API vocabulary owned by the shared spec."""
+- `host/maipai_body/robot/core.py` (474): One capability-checked robot object over body-specific command adapters."""
+- `host/maipai_body/robot/display.py` (100): Body-neutral routing of content to surfaces (BOT-SC-SCREEN-01).
+- `host/maipai_body/robot/models.py` (15): Small value types shared by the robot object and its body adapters."""
+- `host/maipai_body/run_loop.py` (1995): G9: the run loop - one state machine driving audio, cues, tracking
+- `host/maipai_body/selftest/__init__.py` (23): BOT-SELF-TEST-01: simple per-part checks anyone can run, one pass or fail
+- `host/maipai_body/selftest/__main__.py` (69): BOT-SELF-TEST-02: run the robot's checks from a terminal.
+- `host/maipai_body/selftest/client.py` (148): BOT-SELF-TEST-02: the thin client for the service's two selftest routes.
+- `host/maipai_body/selftest/core.py` (113): BOT-SELF-TEST-01: the small check runner every per-part self-test shares.
+- `host/maipai_body/selftest/stackchan.py` (181): BOT-SELF-TEST-01: the StackChan's seven part checks, one per part.
+- `host/maipai_body/selftest/stackchan_wiring.py` (127): BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts.
+- `host/maipai_body/settings_keys.py` (62): Settings keys shared by body settings consumers."""
+- `host/maipai_body/settings_page.py` (296): ruff: noqa: E501
+- `host/maipai_body/settings_server.py` (97): ruff: noqa: E501
+- `host/maipai_body/speaker_evidence.py` (119): The one shape of `speaker_evidence` the body puts on a turn.
+- `host/maipai_body/speaker_fusion.py` (139): SPEAK-04: face and voice fusion into one `speaker_evidence` and one `present`.
+- `host/maipai_body/spec_pin.py` (5): Shared commons spec source pin consumed by runtime and repository tooling."""
+- `host/maipai_body/speech/__init__.py` (16): G1: audio capture and playback through the HAL seam's ``AudioIO``.
+- `host/maipai_body/speech/barge.py` (78): VOICE-02: a stop word heard over the robot's own playback.
+- `host/maipai_body/speech/capture.py` (156): G1: pulls raw audio from an ``AudioIO`` client and re-chunks it.
+- `host/maipai_body/speech/clip_render.py` (70): G4b: render-side logic for the offline clip bundle (release time, on
+- `host/maipai_body/speech/engines.py` (77): VOICE-01: the engine seams of the body's one speech process.
+- `host/maipai_body/speech/follow_up.py` (104): FOLLOWUP-01: the follow-up window without the wake word.
+- `host/maipai_body/speech/kws.py` (317): LINK-STATE-01 rung 1: the sherpa-onnx keyword spotter behind ``CommandRecognizer``.
+- `host/maipai_body/speech/kws_keywords.txt` (8): no header
+- `host/maipai_body/speech/kws_offer_keywords.txt` (5): no header
+- `host/maipai_body/speech/kws_unmute_keywords.txt` (1): no header
+- `host/maipai_body/speech/models.py` (40): Wake-word pins read from the shared spec and fetched from Home."""
+- `host/maipai_body/speech/music.py` (131): BOT-SC-DANCE-01 (host half): a pure-numpy music detector.
+- `host/maipai_body/speech/normalize.py` (60): VOICE-03: the robot's speech normalizer is the spec's, loaded from the pin.
+- `host/maipai_body/speech/offline_clips.json` (439): no header
+- `host/maipai_body/speech/offline_clips.py` (521): G4b: pre-rendered offline speech clips - the lines the robot can say
+- `host/maipai_body/speech/pitch.py` (108): A plain per-voice pitch offset (owner decision 2026-10-20): ``shift_pitch``.
+- `host/maipai_body/speech/playback.py` (147): G1: a playback writer - opens the output stream once, keeps a ledger.
+- `host/maipai_body/speech/process.py` (390): VOICE-01 / VOICE-02: the robot's one speech process.
+- `host/maipai_body/speech/sherpa_engines.py` (136): VOICE-01: the real engines behind ``engines.py``, over sherpa-onnx.
+- `host/maipai_body/speech/stt_stream.py` (232): G3+G6 (send side): stream captured audio to the hub's own STT
+- `host/maipai_body/speech/tts_playback.py` (228): G7: the reply, spoken - streamed from the hub, resampled, pushed.
+- `host/maipai_body/speech/turn_client.py` (248): G6 (receive side): the turn round trip's reply, read as it streams.
+- `host/maipai_body/speech/voice_server.py` (297): VOICE-01: the robot's speech process, served over the shared voice contract.
+- `host/maipai_body/speech/voiceprint.py` (290): SPEAK-01: voice evidence in the body.
+- `host/maipai_body/speech/voices.py` (59): VOICE-03: resolve a companion's voice binding to a voice installed here.
+- `host/maipai_body/speech/wake.py` (129): G2: wake-word detection over G1's capture blocks.
+- `host/maipai_body/static/dashboard.css` (44): bg: #f6f7f9; --panel: #fff; --ink: #1c2330; --muted: #5d6675; --line: #d5dae2;
+- `host/maipai_body/static/dashboard.html` (46): no header
+- `host/maipai_body/static/dashboard.js` (151): Angles are radians from the seam. Screen rotation is clockwise degrees.
+- `host/maipai_body/static/index.html` (94): The offline ladder: the text is built on the robot from real
+- `host/maipai_body/unit_settings.py` (152): ruff: noqa: E501
+- `host/maipai_body/units.py` (256): ruff: noqa: E501
+- `host/maipai_body/vision/__init__.py` (6): The still-image call's bot-side half (design-vision-still-image-
+- `host/maipai_body/vision/align.py` (142): SFace's own 112x112 five-point alignment.
+- `host/maipai_body/vision/capture.py` (37): One consented frame, wrapped for the wire.
+- `host/maipai_body/vision/detect.py` (95): Five-point face landmarks for alignment.
+- `host/maipai_body/vision/embed.py` (82): SFace's own embedding: one aligned 112x112 crop in, one 128-d
+- `host/maipai_body/vision/gallery.py` (183): The local face gallery and its own three-way verdict.
+- `host/maipai_body/vision/jpeg.py` (23): JPEG decoding for the camera frames the unit streams, with the bundled PyAV (no OpenCV)."""
+- `host/maipai_body/vision/landmarks.py` (34): The five alignment points of one detected face.
+- `host/maipai_body/vision/live_view.py` (127): LIVE-VIEW-01 (bot half): the JPEG stream to the hub.
+- `host/maipai_body/vision/look_fast.py` (341): The robot's own fast pass of Look: YOLOX-nano names the household things in one picture.
+- `host/maipai_body/vision/models.py` (10): Vision model pins from the shared spec; bytes arrive through the paired hub."""
+- `host/maipai_body/vision/recognize.py` (42): One frame in, one verdict out - `detect` -> `align` -> `embed` ->
+- `host/maipai_body/vision/watch.py` (335): FACE-WATCH-01: always-on recognition under watch levels.
+- `host/maipai_body/vision/yunet.py` (242): Face detection with the pinned YuNet model on ONNX Runtime, without the Reachy SDK or OpenCV.
+- `host/pyproject.toml` (141): Named to match the entry point (`maipai_bot`, registered below), not
+- `host/robot.example.toml` (47): Select "llm" to run without Home, or "home" to use the Home adapter.
+- `host/scripts/link_ladder_unit_check.py` (108): LINK-STATE-01: run the offline ladder's body cues on the real unit.
+- `host/scripts/make_kws_fixtures.py` (107): Rung 1 fixtures: SYNTHESIZED speech for the keyword spotter's tests. Not recordings.
+- `host/scripts/measure_expr01.py` (146): M-R2's simulator rows: cue to first state-feed delta, amplitude, peak velocity,
+- `host/scripts/measure_kws.py` (201): Rung 1 keyword spotter: accuracy over wavs, and a CPU probe. Run on the unit.
+- `host/scripts/measure_mr1_budget.py` (235): M-R1: the Compute Module budget. Hardware-only: run it on the unit.
+- `host/scripts/measure_mr2_cue_motion.py` (127): M-R2: cue to motion, p50 and p95 per primitive, plus the stall probe.
+- `host/scripts/measure_mr3_wake_doa.py` (286): M-R3: wake and direction of arrival on this array. Hardware-only: run it on the unit.
+- `host/scripts/measure_mr4_battery.py` (252): M-R4: battery. Hardware-only: run it on the unit.
+- `host/scripts/measure_mr5_link.py` (185): M-R5: the link. Wi-Fi loss mid-turn, mid-sentence and while listening.
+- `host/scripts/measure_offline_clips.py` (60): G4b: play every offline clip through the real playback path on the unit.
+- `host/scripts/measure_rm07_egress.py` (255): RM-07: what leaves the robot. Capture or read a pcap, label it, check the page.
+- `host/scripts/pin_moves_library.py` (74): Pin Pollen's emotions and dances libraries: write ``moves/pins.json`` from the live datasets.
+- `host/scripts/probe_eyes.py` (67): Arrival-day probe for the Reachy Eyes board (device check 8).
+- `host/scripts/record_fixtures.py` (116): Record the Reachy Mini fixtures the fake replays, against a running daemon.
+- `host/scripts/record_stackchan_fixtures.py` (148): Record a paired StackChan's hello, MCP tools and OTA exchanges.
+- `host/scripts/render_offline_clips.py` (108): G4b: render the offline speech clips from the hub's Pocket TTS.
+- `host/scripts/render_unit_phrases.py` (245): Render the sixteen local offline phrases the StackChan says by itself (tier 2).
+- `host/scripts/render_unit_sounds.py` (281): Render the StackChan earcon family (firmware assets) deterministically.
+- `host/scripts/stackchan_control.py` (298): Bench control page for one paired StackChan: LED, head, face, speech and volume.
+- `host/scripts/stackchan_face_set.py` (84): Extract face names from a local M5 StackChan avatar source checkout."""
+- `host/scripts/stackchan_flash.py` (265): Back up, build, provision, and flash a pinned StackChan setup."""
+- `host/scripts/stackchan_flash_nonvs.py` (117): Flash a built StackChan image over USB WITHOUT touching NVS (the saved pairing and Wi-Fi stay).
+- `host/scripts/teach_move_live.py` (63): MOVES-02 on a physical unit: teach a move by hand, name it, replay it.
+- `host/scripts/trip_relay.py` (956): Trip relay v2 for the StackChan: runs on the owner's laptop, exposes nothing to the internet.
+- `host/spec-vendor/STAMP.md` (2): no header
+- `host/spec-vendor/indicator-standard.md` (19): Ring indicator standard
+- `host/spec-vendor/spec/assets/robot-assets.json` (65): no header
+- `host/spec-vendor/spec/fixtures/records/api-key.example.json` (23): no header
+- `host/spec-vendor/spec/fixtures/records/api-key.invalid-no-expiry.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/api-key.settings.example.json` (20): no header
+- `host/spec-vendor/spec/fixtures/records/api-key.turn.example.json` (20): no header
+- `host/spec-vendor/spec/fixtures/records/artifact.v1.example.json` (14): no header
+- `host/spec-vendor/spec/fixtures/records/artifact.v2.example.json` (14): no header
+- `host/spec-vendor/spec/fixtures/records/biometric-print.child.example.json` (16): no header
+- `host/spec-vendor/spec/fixtures/records/biometric-print.face.example.json` (16): no header
+- `host/spec-vendor/spec/fixtures/records/biometric-print.voice.example.json` (16): no header
+- `host/spec-vendor/spec/fixtures/records/chat-folder.example.json` (12): no header
+- `host/spec-vendor/spec/fixtures/records/chat-folder.parent-made.example.json` (10): no header
+- `host/spec-vendor/spec/fixtures/records/chat-folder.project.example.json` (30): no header
+- `host/spec-vendor/spec/fixtures/records/coding-mode-readiness.example.json` (17): no header
+- `host/spec-vendor/spec/fixtures/records/content-ceiling.adult.example.json` (15): no header
+- `host/spec-vendor/spec/fixtures/records/content-ceiling.child.example.json` (86): no header
+- `host/spec-vendor/spec/fixtures/records/content-ceiling.teen.example.json` (76): no header
+- `host/spec-vendor/spec/fixtures/records/conversation-turn.blocks.example.json` (165): no header
+- `host/spec-vendor/spec/fixtures/records/conversation-turn.branch.example.json` (47): no header
+- `host/spec-vendor/spec/fixtures/records/conversation-turn.example.json` (47): no header
+- `host/spec-vendor/spec/fixtures/records/conversation.device-id-device.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/conversation.device-id-invalid.invalid.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/conversation.device-id-null.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/conversation.example.json` (21): no header
+- `host/spec-vendor/spec/fixtures/records/conversation.in-folder.example.json` (20): no header
+- `host/spec-vendor/spec/fixtures/records/conversation.temporary.example.json` (15): no header
+- `host/spec-vendor/spec/fixtures/records/device-command.kinds.example.json` (177): no header
+- `host/spec-vendor/spec/fixtures/records/device-command.notify-waiting-with-text.invalid.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/device.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/device.offline-phone.example.json` (16): no header
+- `host/spec-vendor/spec/fixtures/records/device.robot-maipai-build.example.json` (28): no header
+- `host/spec-vendor/spec/fixtures/records/device.robot-reachy-mini-eyes.example.json` (27): no header
+- `host/spec-vendor/spec/fixtures/records/device.robot-reachy-mini.example.json` (26): no header
+- `host/spec-vendor/spec/fixtures/records/device.robot-stackchan.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/entity.person.example.json` (23): no header
+- `host/spec-vendor/spec/fixtures/records/entity.pet.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/entity.place-area.example.json` (29): no header
+- `host/spec-vendor/spec/fixtures/records/entity.place-exact.example.json` (29): no header
+- `host/spec-vendor/spec/fixtures/records/entity.place-named-only.example.json` (23): no header
+- `host/spec-vendor/spec/fixtures/records/entity.place.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/feed.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/feed.news-app.example.json` (23): no header
+- `host/spec-vendor/spec/fixtures/records/feed.podcast.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/file.adult-only.example.json` (20): no header
+- `host/spec-vendor/spec/fixtures/records/file.example.json` (21): no header
+- `host/spec-vendor/spec/fixtures/records/file.fetched.example.json` (23): no header
+- `host/spec-vendor/spec/fixtures/records/file.invalid-audience.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/file.library-envelope.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/file.made-audio.example.json` (45): no header
+- `host/spec-vendor/spec/fixtures/records/file.made-image.example.json` (21): no header
+- `host/spec-vendor/spec/fixtures/records/generation-provenance.example.json` (23): no header
+- `host/spec-vendor/spec/fixtures/records/generation-provenance.invalid-no-commercial-use.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/generation-provenance.invalid-task.example.json` (23): no header
+- `host/spec-vendor/spec/fixtures/records/grant.example.json` (15): no header
+- `host/spec-vendor/spec/fixtures/records/invalid/entity.geo-area-two-decimals.json` (29): no header
+- `host/spec-vendor/spec/fixtures/records/invalid/entity.geo-latitude-out-of-range.json` (29): no header
+- `host/spec-vendor/spec/fixtures/records/invalid/entity.geo-on-area-place.json` (29): no header
+- `host/spec-vendor/spec/fixtures/records/invalid/entity.geo-on-person.json` (30): no header
+- `host/spec-vendor/spec/fixtures/records/issue.example.json` (17): no header
+- `host/spec-vendor/spec/fixtures/records/likeness-adapter.household-adult.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/likeness-adapter.nobody.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/likeness-consent.adult-content-off.example.json` (11): no header
+- `host/spec-vendor/spec/fixtures/records/likeness-consent.adults-on.example.json` (11): no header
+- `host/spec-vendor/spec/fixtures/records/likeness-use.video-from-photo.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/list.custom.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/list.shopping.example.json` (16): no header
+- `host/spec-vendor/spec/fixtures/records/list.todo.example.json` (15): no header
+- `host/spec-vendor/spec/fixtures/records/look-result.example.json` (9): no header
+- `host/spec-vendor/spec/fixtures/records/look-result.invalid-no-light.example.json` (5): no header
+- `host/spec-vendor/spec/fixtures/records/manifest.companion-style-adapter.example.json` (81): no header
+- `host/spec-vendor/spec/fixtures/records/manifest.example.json` (55): no header
+- `host/spec-vendor/spec/fixtures/records/manifest.project.example.json` (36): no header
+- `host/spec-vendor/spec/fixtures/records/manifest.reference.example.json` (39): no header
+- `host/spec-vendor/spec/fixtures/records/manifest.returns-blocks.example.json` (86): no header
+- `host/spec-vendor/spec/fixtures/records/media-collection.queue.example.json` (28): no header
+- `host/spec-vendor/spec/fixtures/records/media-collection.watchlist.example.json` (22): no header
+- `host/spec-vendor/spec/fixtures/records/media-item.audiobook-chapter.example.json` (54): no header
+- `host/spec-vendor/spec/fixtures/records/media-item.audiobook.example.json` (65): no header
+- `host/spec-vendor/spec/fixtures/records/media-item.book.example.json` (56): no header
+- `host/spec-vendor/spec/fixtures/records/media-item.episode.example.json` (72): no header
+- `host/spec-vendor/spec/fixtures/records/media-item.podcast-stream.example.json` (71): no header
+- `host/spec-vendor/spec/fixtures/records/media-item.track-explicit.example.json` (56): no header
+- `host/spec-vendor/spec/fixtures/records/media-item.video.example.json` (82): no header
+- `host/spec-vendor/spec/fixtures/records/media-progress.book.example.json` (25): no header
+- `host/spec-vendor/spec/fixtures/records/media-progress.seconds.example.json` (23): no header
+- `host/spec-vendor/spec/fixtures/records/media-source.channel.example.json` (42): no header
+- `host/spec-vendor/spec/fixtures/records/media-source.feed.example.json` (38): no header
+- `host/spec-vendor/spec/fixtures/records/media-source.root.example.json` (44): no header
+- `host/spec-vendor/spec/fixtures/records/memory-record.device-id-device.example.json` (44): no header
+- `host/spec-vendor/spec/fixtures/records/memory-record.device-id-invalid.invalid.example.json` (44): no header
+- `host/spec-vendor/spec/fixtures/records/memory-record.device-id-null.example.json` (44): no header
+- `host/spec-vendor/spec/fixtures/records/memory-record.entity.example.json` (33): no header
+- `host/spec-vendor/spec/fixtures/records/memory-record.episode.example.json` (33): no header
+- `host/spec-vendor/spec/fixtures/records/memory-record.in-project.example.json` (44): no header
+- `host/spec-vendor/spec/fixtures/records/memory-record.memory-legacy.example.json` (35): no header
+- `host/spec-vendor/spec/fixtures/records/memory-record.memory.example.json` (35): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.background-turns.example.json` (60): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.chat-footprints.example.json` (97): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.chat.example.json` (40): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.image.example.json` (16): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.invalid-footprint-kv-cache-type.json` (97): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.invalid-footprint-no-hardware.json` (94): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.judge-role.example.json` (59): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.mlx-serve.example.json` (30): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.music-role.example.json` (23): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.pocket-tts.example.json` (30): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.rerank-role.example.json` (59): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.sherpa-onnx-node.example.json` (30): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.vision-chat.example.json` (35): no header
+- `host/spec-vendor/spec/fixtures/records/model-capabilities.vision-role.example.json` (34): no header
+- `host/spec-vendor/spec/fixtures/records/news-interest.child-follow.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/news-interest.followed.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/news-interest.inferred.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/news-item.example.json` (15): no header
+- `host/spec-vendor/spec/fixtures/records/news-item.news-app.example.json` (25): no header
+- `host/spec-vendor/spec/fixtures/records/news-read.example.json` (12): no header
+- `host/spec-vendor/spec/fixtures/records/news-save.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/news-search-recent.example.json` (9): no header
+- `host/spec-vendor/spec/fixtures/records/news-story.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/news-story.news-app.example.json` (21): no header
+- `host/spec-vendor/spec/fixtures/records/offline-manifest.album.example.json` (29): no header
+- `host/spec-vendor/spec/fixtures/records/open-question.example.json` (14): no header
+- `host/spec-vendor/spec/fixtures/records/person.example.json` (16): no header
+- `host/spec-vendor/spec/fixtures/records/plugin-result.blocks.example.json` (34): no header
+- `host/spec-vendor/spec/fixtures/records/project-plan.example.json` (21): no header
+- `host/spec-vendor/spec/fixtures/records/project.example.json` (29): no header
+- `host/spec-vendor/spec/fixtures/records/project.failed.example.json` (27): no header
+- `host/spec-vendor/spec/fixtures/records/relationship.called.example.json` (25): no header
+- `host/spec-vendor/spec/fixtures/records/relationship.estranged.example.json` (24): no header
+- `host/spec-vendor/spec/fixtures/records/relationship.inferred.example.json` (26): no header
+- `host/spec-vendor/spec/fixtures/records/relationship.stated.example.json` (24): no header
+- `host/spec-vendor/spec/fixtures/records/reply-constraint.example.json` (10): no header
+- `host/spec-vendor/spec/fixtures/records/reply-feedback.example.json` (10): no header
+- `host/spec-vendor/spec/fixtures/records/reply-feedback.reasons.example.json` (12): no header
+- `host/spec-vendor/spec/fixtures/records/reply-plan.capture.example.json` (21): no header
+- `host/spec-vendor/spec/fixtures/records/reply-plan.example.json` (20): no header
+- `host/spec-vendor/spec/fixtures/records/robot-channel-frame.gesture-answer.invalid.example.json` (8): no header
+- `host/spec-vendor/spec/fixtures/records/robot-channel-frame.kinds.example.json` (32): no header
+- `host/spec-vendor/spec/fixtures/records/robot-offer.example.json` (9): no header
+- `host/spec-vendor/spec/fixtures/records/robot-self-test-result.example.json` (7): no header
+- `host/spec-vendor/spec/fixtures/records/robot-self-test-result.invalid-detail.example.json` (7): no header
+- `host/spec-vendor/spec/fixtures/records/robot-self-test-result.missing-ok.invalid.example.json` (6): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.clock-synced-invalid.example.json` (6): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.clock-synced.example.json` (6): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.clock-unsynced.example.json` (6): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.degraded.example.json` (13): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.held.example.json` (7): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.idle.example.json` (10): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.listening.example.json` (8): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.minimal.example.json` (5): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.motor-reboot-offer.example.json` (8): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.presence.example.json` (11): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.reconnecting.example.json` (9): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.resting.example.json` (7): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.sleeping.example.json` (9): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.speaking.example.json` (8): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.starting.example.json` (8): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.thinking.example.json` (8): no header
+- `host/spec-vendor/spec/fixtures/records/robot-state.unknown-battery.example.json` (9): no header
+- `host/spec-vendor/spec/fixtures/records/safety-result.example.json` (8): no header
+- `host/spec-vendor/spec/fixtures/records/search-assist-weights.example.json` (11): no header
+- `host/spec-vendor/spec/fixtures/records/setting-value.example.json` (7): no header
+- `host/spec-vendor/spec/fixtures/records/settings-key.coding-engine.example.json` (28): no header
+- `host/spec-vendor/spec/fixtures/records/settings-key.coding-engine.invalid.json` (18): no header
+- `host/spec-vendor/spec/fixtures/records/settings-key.coding-home-mode.example.json` (20): no header
+- `host/spec-vendor/spec/fixtures/records/settings-key.example.json` (15): no header
+- `host/spec-vendor/spec/fixtures/records/settings-key.robot-hello.example.json` (14): no header
+- `host/spec-vendor/spec/fixtures/records/share.example.json` (9): no header
+- `host/spec-vendor/spec/fixtures/records/source.archive.example.json` (11): no header
+- `host/spec-vendor/spec/fixtures/records/source.example.json` (11): no header
+- `host/spec-vendor/spec/fixtures/records/source.reference.example.json` (14): no header
+- `host/spec-vendor/spec/fixtures/records/stack-fit-plan.file-bytes.example.json` (51): no header
+- `host/spec-vendor/spec/fixtures/records/stack-fit-plan.multi-role.example.json` (75): no header
+- `host/spec-vendor/spec/fixtures/records/stack-fit-plan.no.example.json` (62): no header
+- `host/spec-vendor/spec/fixtures/records/stack-fit-plan.slow.example.json` (56): no header
+- `host/spec-vendor/spec/fixtures/records/stack-fit-plan.unknown.example.json` (50): no header
+- `host/spec-vendor/spec/fixtures/records/stack-fit-plan.yes.example.json` (45): no header
+- `host/spec-vendor/spec/fixtures/records/subject-ref.household.example.json` (5): no header
+- `host/spec-vendor/spec/fixtures/records/subject-ref.unresolved.example.json` (8): no header
+- `host/spec-vendor/spec/fixtures/records/subject-ref.world.example.json` (10): no header
+- `host/spec-vendor/spec/fixtures/records/turn-artifact.card.example.json` (31): no header
+- `host/spec-vendor/spec/fixtures/records/turn-artifact.comparison.example.json` (46): no header
+- `host/spec-vendor/spec/fixtures/records/turn-artifact.document.example.json` (51): no header
+- `host/spec-vendor/spec/fixtures/records/turn-artifact.lookup.example.json` (33): no header
+- `host/spec-vendor/spec/fixtures/records/turn-artifact.procedure.example.json` (47): no header
+- `host/spec-vendor/spec/fixtures/records/turn-label.example.json` (21): no header
+- `host/spec-vendor/spec/fixtures/records/turn-signal.computed.example.json` (31): no header
+- `host/spec-vendor/spec/fixtures/records/turn-signal.example.json` (26): no header
+- `host/spec-vendor/spec/gen/py/__init__.py` (2): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/_validators.py` (26): Runtime validators referenced by the Pydantic generation configuration."""
+- `host/spec-vendor/spec/gen/py/acknowledgment_schema.py` (42): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/answer_block_schema.py` (1063): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/api_key_schema.py` (64): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/artifact_schema.py` (56): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/biometric_print_schema.py` (67): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/blocklists_schema.py` (41): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/chat_folder_schema.py` (100): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/coding_mode_readiness_schema.py` (67): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/content_ceiling_schema.py` (120): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/conversation_schema.py` (98): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/conversation_turn_schema.py` (168): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/data_class_schema.py` (116): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/data_folder_schema.py` (69): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/data_location_schema.py` (167): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/device_command_schema.py` (442): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/device_schema.py` (57): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/entity_schema.py` (111): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/feed_list_package_schema.py` (37): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/feed_lists_schema.py` (45): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/feed_schema.py` (64): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/file_schema.py` (125): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/firmware_flash_manifest_schema.py` (56): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/generation_provenance_schema.py` (106): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/grant_schema.py` (73): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/hero_slide_schema.py` (39): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/household_voice_schema.py` (52): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/issue_schema.py` (79): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/likeness_adapter_schema.py` (44): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/likeness_consent_schema.py` (38): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/likeness_use_schema.py` (43): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/link_state_schema.py` (43): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/list_schema.py` (66): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/log_events_schema.py` (155): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/look_result_schema.py` (71): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/maintenance_window_schema.py` (45): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/manifest_schema.py` (952): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/media_collection_schema.py` (58): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/media_item_schema.py` (266): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/media_presence_schema.py` (20): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/media_progress_schema.py` (95): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/media_source_schema.py` (120): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/memory_record_schema.py` (164): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/model_capabilities_schema.py` (320): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/news_interest_schema.py` (36): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/news_item_schema.py` (57): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/news_read_schema.py` (30): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/news_save_schema.py` (29): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/news_search_recent_schema.py` (27): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/news_story_schema.py` (56): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/news_topics_schema.py` (37): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/offline_manifest_schema.py` (86): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/open_question_schema.py` (54): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/person_schema.py` (72): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/privacy_row_schema.py` (49): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/problem_report_schema.py` (83): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/project_schema.py` (182): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/recipe_schema.py` (527): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/reference_presets_schema.py` (51): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/relationship_schema.py` (101): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/reply_constraint_schema.py` (44): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/reply_feedback_schema.py` (59): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/reply_plan_schema.py` (88): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/result_schema.py` (95): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/robot_asset_manifest_schema.py` (21): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/robot_channel_frame_schema.py` (79): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/robot_offer_schema.py` (19): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/robot_self_test_result_schema.py` (23): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/robot_state_schema.py` (160): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/safety_result_schema.py` (50): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/search_assist_weights_schema.py` (52): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/searxng_engines_schema.py` (64): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/session_sign_in_source_schema.py` (16): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/setting_value_schema.py` (43): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/settings_area_schema.py` (290): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/settings_areas_schema.py` (49): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/settings_delta_schema.py` (31): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/settings_key_schema.py` (176): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/setup_state_schema.py` (117): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/share_schema.py` (40): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/source_schema.py` (73): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/stack_fit_plan_schema.py` (115): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/status_event_schema.py` (43): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/status_note_schema.py` (28): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/stt_wire_event.py` (120): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/subject_ref_schema.py` (80): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/topic_copy_schema.py` (77): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/tour_progress_schema.py` (34): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/turn_artifact_schema.py` (210): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/turn_label_schema.py` (69): generated by datamodel-codegen:
+- `host/spec-vendor/spec/gen/py/turn_signal_schema.py` (226): generated by datamodel-codegen:
+- `host/spec-vendor/spec/records/py/__init__.py` (0): no header
+- `host/spec-vendor/spec/records/py/validate.py` (524): The cross-field rules spec/records/ts/validate.ts already proves for
+- `host/spec-vendor/spec/schemas/acknowledgment.schema.json` (145): no header
+- `host/spec-vendor/spec/schemas/answer-block.schema.json` (1358): no header
+- `host/spec-vendor/spec/schemas/api-key.schema.json` (141): no header
+- `host/spec-vendor/spec/schemas/artifact.schema.json` (78): no header
+- `host/spec-vendor/spec/schemas/biometric-print.schema.json` (88): no header
+- `host/spec-vendor/spec/schemas/blocklists.schema.json` (28): no header
+- `host/spec-vendor/spec/schemas/chat-folder.schema.json` (172): no header
+- `host/spec-vendor/spec/schemas/coding-mode-readiness.schema.json` (35): no header
+- `host/spec-vendor/spec/schemas/content-ceiling.schema.json` (201): no header
+- `host/spec-vendor/spec/schemas/conversation-turn.schema.json` (142): no header
+- `host/spec-vendor/spec/schemas/conversation.schema.json` (105): no header
+- `host/spec-vendor/spec/schemas/device-command.schema.json` (892): no header
+- `host/spec-vendor/spec/schemas/device.schema.json` (83): no header
+- `host/spec-vendor/spec/schemas/entity.schema.json` (184): no header
+- `host/spec-vendor/spec/schemas/feed-list-package.schema.json` (33): no header
+- `host/spec-vendor/spec/schemas/feed-lists.schema.json` (29): no header
+- `host/spec-vendor/spec/schemas/feed.schema.json` (124): no header
+- `host/spec-vendor/spec/schemas/file.schema.json` (153): no header
+- `host/spec-vendor/spec/schemas/firmware-flash-manifest.schema.json` (125): no header
+- `host/spec-vendor/spec/schemas/generation-provenance.schema.json` (106): no header
+- `host/spec-vendor/spec/schemas/grant.schema.json` (114): no header
+- `host/spec-vendor/spec/schemas/health-item.schema.json` (26): no header
+- `host/spec-vendor/spec/schemas/hero-slide.schema.json` (127): no header
+- `host/spec-vendor/spec/schemas/household-voice.schema.json` (24): no header
+- `host/spec-vendor/spec/schemas/issue.schema.json` (96): no header
+- `host/spec-vendor/spec/schemas/likeness-adapter.schema.json` (28): no header
+- `host/spec-vendor/spec/schemas/likeness-consent.schema.json` (24): no header
+- `host/spec-vendor/spec/schemas/likeness-use.schema.json` (22): no header
+- `host/spec-vendor/spec/schemas/link-state.schema.json` (59): no header
+- `host/spec-vendor/spec/schemas/list.schema.json` (91): no header
+- `host/spec-vendor/spec/schemas/log-events.schema.json` (137): no header
+- `host/spec-vendor/spec/schemas/look-result.schema.json` (51): no header
+- `host/spec-vendor/spec/schemas/maintenance-window.schema.json` (23): no header
+- `host/spec-vendor/spec/schemas/manifest.schema.json` (1175): no header
+- `host/spec-vendor/spec/schemas/media-collection.schema.json` (149): no header
+- `host/spec-vendor/spec/schemas/media-item.schema.json` (564): no header
+- `host/spec-vendor/spec/schemas/media-presence.schema.json` (31): no header
+- `host/spec-vendor/spec/schemas/media-progress.schema.json` (186): no header
+- `host/spec-vendor/spec/schemas/media-source.schema.json` (322): no header
+- `host/spec-vendor/spec/schemas/memory-record.schema.json` (197): no header
+- `host/spec-vendor/spec/schemas/model-capabilities.schema.json` (259): no header
+- `host/spec-vendor/spec/schemas/news-interest.schema.json` (75): no header
+- `host/spec-vendor/spec/schemas/news-item.schema.json` (123): no header
+- `host/spec-vendor/spec/schemas/news-read.schema.json` (68): no header
+- `host/spec-vendor/spec/schemas/news-save.schema.json` (67): no header
+- `host/spec-vendor/spec/schemas/news-search-recent.schema.json` (51): no header
+- `host/spec-vendor/spec/schemas/news-story.schema.json` (93): no header
+- `host/spec-vendor/spec/schemas/news-topics.schema.json` (76): no header
+- `host/spec-vendor/spec/schemas/offline-manifest.schema.json` (205): no header
+- `host/spec-vendor/spec/schemas/open-question.schema.json` (54): no header
+- `host/spec-vendor/spec/schemas/person.schema.json` (90): no header
+- `host/spec-vendor/spec/schemas/precious-state.schema.json` (27): no header
+- `host/spec-vendor/spec/schemas/presence-state.schema.json` (20): no header
+- `host/spec-vendor/spec/schemas/problem-report.schema.json` (130): no header
+- `host/spec-vendor/spec/schemas/project.schema.json` (90): no header
+- `host/spec-vendor/spec/schemas/recipe.schema.json` (333): no header
+- `host/spec-vendor/spec/schemas/reference-presets.schema.json` (48): no header
+- `host/spec-vendor/spec/schemas/relationship.schema.json` (186): no header
+- `host/spec-vendor/spec/schemas/reply-constraint.schema.json` (41): no header
+- `host/spec-vendor/spec/schemas/reply-feedback.schema.json` (74): no header
+- `host/spec-vendor/spec/schemas/reply-plan.schema.json` (74): no header
+- `host/spec-vendor/spec/schemas/result.schema.json` (62): no header
+- `host/spec-vendor/spec/schemas/robot-asset-manifest.schema.json` (48): no header
+- `host/spec-vendor/spec/schemas/robot-channel-frame.schema.json` (115): no header
+- `host/spec-vendor/spec/schemas/robot-offer.schema.json` (50): no header
+- `host/spec-vendor/spec/schemas/robot-self-test-result.schema.json` (43): no header
+- `host/spec-vendor/spec/schemas/robot-state.schema.json` (111): no header
+- `host/spec-vendor/spec/schemas/role-reply-headers.schema.json` (14): no header
+- `host/spec-vendor/spec/schemas/role-request.schema.json` (22): no header
+- `host/spec-vendor/spec/schemas/safety-result.schema.json` (50): no header
+- `host/spec-vendor/spec/schemas/search-assist-weights.schema.json` (43): no header
+- `host/spec-vendor/spec/schemas/searxng-engines.schema.json` (51): no header
+- `host/spec-vendor/spec/schemas/session-sign-in-source.schema.json` (9): no header
+- `host/spec-vendor/spec/schemas/setting-value.schema.json` (40): no header
+- `host/spec-vendor/spec/schemas/settings-area.schema.json` (449): no header
+- `host/spec-vendor/spec/schemas/settings-areas.schema.json` (88): no header
+- `host/spec-vendor/spec/schemas/settings-delta.schema.json` (28): no header
+- `host/spec-vendor/spec/schemas/settings-key.schema.json` (157): no header
+- `host/spec-vendor/spec/schemas/setup-state.schema.json` (250): no header
+- `host/spec-vendor/spec/schemas/share.schema.json` (45): no header
+- `host/spec-vendor/spec/schemas/source.schema.json` (55): no header
+- `host/spec-vendor/spec/schemas/stack-event.schema.json` (30): no header
+- `host/spec-vendor/spec/schemas/stack-fit-plan.schema.json` (208): no header
+- `host/spec-vendor/spec/schemas/stack-job.schema.json` (41): no header
+- `host/spec-vendor/spec/schemas/stack-setting.schema.json` (31): no header
+- `host/spec-vendor/spec/schemas/status-component.schema.json` (25): no header
+- `host/spec-vendor/spec/schemas/status-event.schema.json` (18): no header
+- `host/spec-vendor/spec/schemas/status-note.schema.json` (19): no header
+- `host/spec-vendor/spec/schemas/stt-transcribe-response.schema.json` (10): no header
+- `host/spec-vendor/spec/schemas/stt-wire-event.schema.json` (14): no header
+- `host/spec-vendor/spec/schemas/subject-ref.schema.json` (91): no header
+- `host/spec-vendor/spec/schemas/token-count-request.schema.json` (23): no header
+- `host/spec-vendor/spec/schemas/token-count-response.schema.json` (12): no header
+- `host/spec-vendor/spec/schemas/topic-copy.schema.json` (67): no header
+- `host/spec-vendor/spec/schemas/tour-progress.schema.json` (22): no header
+- `host/spec-vendor/spec/schemas/turn-artifact.schema.json` (277): no header
+- `host/spec-vendor/spec/schemas/turn-label.schema.json` (149): no header
+- `host/spec-vendor/spec/schemas/turn-signal.schema.json` (139): no header
+- `host/spec-vendor/spec/schemas/turn-stream-event.schema.json` (73): no header
+- `host/spec-vendor/spec/vocab/capabilities.json` (96): no header
+- `host/spec-vendor/spec/vocab/look-vocabulary.json` (406): no header
+- `host/spec-vendor/spec/vocab/robot-api.json` (55): no header
+- `host/spec-vendor/spec/voice/fixtures/normalize-for-speech.json` (52): no header
+- `host/tests/conftest.py` (50): Shared fixtures: the deterministic suite runs against the fake always, and
+- `host/tests/eyes_fakes.py` (58): A pty standing in for the Reachy Eyes USB serial port.
+- `host/tests/firmware/beat_test.c` (64): include <stdio.h>
+- `host/tests/firmware/face_cores_test.c` (311): Host test for the face cores (patches F01 to F06): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>.
+- `host/tests/firmware/fallback_core_test.c` (60): Host test for the away-from-home fallback choices (patch 146): cc -std=c99 -Wall -Werror -I<dir with the heade
+- `host/tests/firmware/music_core_test.c` (168): Host test for the on-unit music features (patch 100): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
+- `host/tests/firmware/music_judge_test.c` (68): include <stdio.h>
+- `host/tests/firmware/portal_core_test.c` (178): Host test for the Wi-Fi portal core (patches P01 to P04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the he
+- `host/tests/firmware/sounds_core_test.c` (414): Host test for the unit's sound logic (patch 115): cc -std=c99 -Wall -Werror -I<dir with the header>. */
+- `host/tests/firmware/tailnet_core_test.c` (95): Host test for the tailnet client's pure choices (patch 147): cc -std=c99 -Wall -Werror -I<dir with the header>
+- `host/tests/firmware/timers_core_test.c` (200): Host test for the on-unit timer core (patch 090): cc -std=c99 -Wall -Werror -I<dir with the header>. */
+- `host/tests/firmware/touch_core_test.c` (160): Host test for the face touch classifier (patch 105): cc -std=c99 -Wall -Werror -I<dir with the header>. */
+- `host/tests/fixtures/kws/README.md` (11): Rung 1 keyword spotter fixtures
+- `host/tests/fixtures/kws/amy-low__a_little_louder.wav` (214): no header
+- `host/tests/fixtures/kws/amy-low__are_you_connected.wav` (199): no header
+- `host/tests/fixtures/kws/amy-low__are_you_corrected.wav` (215): no header
+- `host/tests/fixtures/kws/amy-low__are_you_happy.wav` (206): no header
+- `host/tests/fixtures/kws/amy-low__are_you_there.wav` (182): no header
+- `host/tests/fixtures/kws/amy-low__be_louder.wav` (134): no header
+- `host/tests/fixtures/kws/amy-low__be_quieter.wav` (163): no header
+- `host/tests/fixtures/kws/amy-low__bolder.wav` (150): no header
+- `host/tests/fixtures/kws/amy-low__chop.wav` (104): no header
+- `host/tests/fixtures/kws/amy-low__dimmer.wav` (166): no header
+- `host/tests/fixtures/kws/amy-low__good_morning.wav` (241): no header
+- `host/tests/fixtures/kws/amy-low__hey_my_bike.wav` (278): no header
+- `host/tests/fixtures/kws/amy-low__hold_the_door.wav` (158): no header
+- `host/tests/fixtures/kws/amy-low__lauder.wav` (149): no header
+- `host/tests/fixtures/kws/amy-low__louder.wav` (127): no header
+- `host/tests/fixtures/kws/amy-low__play_some_music.wav` (241): no header
+- `host/tests/fixtures/kws/amy-low__quiet.wav` (99): no header
+- `host/tests/fixtures/kws/amy-low__quieter.wav` (100): no header
+- `host/tests/fixtures/kws/amy-low__set_a_timer.wav` (226): Binary file host/tests/fixtures/kws/amy-low__set_a_timer.wav matches
+- `host/tests/fixtures/kws/amy-low__shop.wav` (138): no header
+- `host/tests/fixtures/kws/amy-low__step.wav` (113): no header
+- `host/tests/fixtures/kws/amy-low__stop.wav` (154): no header
+- `host/tests/fixtures/kws/amy-low__stop_it.wav` (162): no header
+- `host/tests/fixtures/kws/amy-low__tell_me_a_story.wav` (286): Binary file host/tests/fixtures/kws/amy-low__tell_me_a_story.wav matches
+- `host/tests/fixtures/kws/amy-low__thank_you.wav` (165): no header
+- `host/tests/fixtures/kws/amy-low__timber.wav` (145): no header
+- `host/tests/fixtures/kws/amy-low__time_it.wav` (117): no header
+- `host/tests/fixtures/kws/amy-low__timer.wav` (154): no header
+- `host/tests/fixtures/kws/amy-low__tire.wav` (96): no header
+- `host/tests/fixtures/kws/amy-low__turn_on_the_light.wav` (294): no header
+- `host/tests/fixtures/kws/amy-low__what_is_it.wav` (142): no header
+- `host/tests/fixtures/kws/amy-low__what_is_the_weather.wav` (269): Binary file host/tests/fixtures/kws/amy-low__what_is_the_weather.wav matches
+- `host/tests/fixtures/kws/amy-low__what_is_your_name.wav` (264): no header
+- `host/tests/fixtures/kws/amy-low__what_time_is_it.wav` (263): no header
+- `host/tests/fixtures/kws/amy-low__who_are_you.wav` (192): no header
+- `host/tests/fixtures/kws/manifest.json` (496): no header
+- `host/tests/fixtures/kws/ryan-medium__a_little_louder.wav` (224): no header
+- `host/tests/fixtures/kws/ryan-medium__are_you_connected.wav` (332): no header
+- `host/tests/fixtures/kws/ryan-medium__are_you_corrected.wav` (236): Binary file host/tests/fixtures/kws/ryan-medium__are_you_corrected.wav matches
+- `host/tests/fixtures/kws/ryan-medium__are_you_happy.wav` (218): no header
+- `host/tests/fixtures/kws/ryan-medium__are_you_there.wav` (207): no header
+- `host/tests/fixtures/kws/ryan-medium__be_louder.wav` (158): no header
+- `host/tests/fixtures/kws/ryan-medium__be_quieter.wav` (163): no header
+- `host/tests/fixtures/kws/ryan-medium__bolder.wav` (57): no header
+- `host/tests/fixtures/kws/ryan-medium__chop.wav` (46): no header
+- `host/tests/fixtures/kws/ryan-medium__dimmer.wav` (39): no header
+- `host/tests/fixtures/kws/ryan-medium__good_morning.wav` (224): Binary file host/tests/fixtures/kws/ryan-medium__good_morning.wav matches
+- `host/tests/fixtures/kws/ryan-medium__hey_my_bike.wav` (215): no header
+- `host/tests/fixtures/kws/ryan-medium__hold_the_door.wav` (173): no header
+- `host/tests/fixtures/kws/ryan-medium__lauder.wav` (108): no header
+- `host/tests/fixtures/kws/ryan-medium__louder.wav` (101): no header
+- `host/tests/fixtures/kws/ryan-medium__play_some_music.wav` (230): no header
+- `host/tests/fixtures/kws/ryan-medium__quiet.wav` (107): no header
+- `host/tests/fixtures/kws/ryan-medium__quieter.wav` (106): no header
+- `host/tests/fixtures/kws/ryan-medium__set_a_timer.wav` (178): no header
+- `host/tests/fixtures/kws/ryan-medium__shop.wav` (28): no header
+- `host/tests/fixtures/kws/ryan-medium__step.wav` (54): no header
+- `host/tests/fixtures/kws/ryan-medium__stop.wav` (78): no header
+- `host/tests/fixtures/kws/ryan-medium__stop_it.wav` (102): no header
+- `host/tests/fixtures/kws/ryan-medium__tell_me_a_story.wav` (278): no header
+- `host/tests/fixtures/kws/ryan-medium__thank_you.wav` (115): no header
+- `host/tests/fixtures/kws/ryan-medium__timber.wav` (100): no header
+- `host/tests/fixtures/kws/ryan-medium__time_it.wav` (149): no header
+- `host/tests/fixtures/kws/ryan-medium__timer.wav` (106): no header
+- `host/tests/fixtures/kws/ryan-medium__tire.wav` (76): no header
+- `host/tests/fixtures/kws/ryan-medium__turn_on_the_light.wav` (259): no header
+- `host/tests/fixtures/kws/ryan-medium__what_is_it.wav` (126): no header
+- `host/tests/fixtures/kws/ryan-medium__what_is_the_weather.wav` (216): no header
+- `host/tests/fixtures/kws/ryan-medium__what_is_your_name.wav` (240): Binary file host/tests/fixtures/kws/ryan-medium__what_is_your_name.wav matches
+- `host/tests/fixtures/kws/ryan-medium__what_time_is_it.wav` (192): no header
+- `host/tests/fixtures/kws/ryan-medium__who_are_you.wav` (137): no header
+- `host/tests/fixtures/stackchan/destinations-allowed.txt` (8): Sanitized sample from a local-only StackChan capture.
+- `host/tests/fixtures/stackchan/head_strip_idle_2026-11-12.txt` (543): StackChan unit, 2026-11-12 17:39:50 to 17:52:00, nobody touching it, strip noisy (patch 081 capture build).
+- `host/tests/fixtures/stackchan/replay.json` (16): no header
+- `host/tests/fixtures/stackchan/vision-labels.json` (50): no header
+- `host/tests/fixtures/stackchan/vision-persona-free.json` (1): no header
+- `host/tests/fixtures/stackchan/vision-persona-free.npy` (1): no header
+- `host/tests/kinematic_double.py` (106): A command-driven test double for the state feed.
+- `host/tests/ladder_fakes.py` (38): Shared fakes for the offline-ladder suites: an injected clock and a
+- `host/tests/motor_fakes.py` (88): A scripted motor bus for the MOTOR-RECOVER-01 suite: the daemon's motor mode,
+- `host/tests/pcap_builder.py` (150): Hand-built packet captures for the egress tests.
+- `host/tests/stackchan_sim/__init__.py` (17): Firmware-faithful StackChan helpers and local peers for protocol tests."""
+- `host/tests/stackchan_sim/avatar_peer.py` (46): Minimal fake peer for the pinned M5Stack avatar WebSocket protocol."""
+- `host/tests/stackchan_sim/camera_sender.py` (6): Documentation-only JPEG payload generator for avatar camera stream tests."""
+- `host/tests/stackchan_sim/firmware.py` (454): Small asynchronous StackChan firmware simulator for end-to-end tests."""
+- `host/tests/test_alarm.py` (267): ALARM-PLAY-01: the safety alarm controller (no model, no turn, no TTS)."""
+- `host/tests/test_alarm_wiring.py` (185): ALARM-PLAY-01: the loop, expression, channel and clip hooks the alarm uses."""
+- `host/tests/test_ambient_vision.py` (242): BOT-SC-VISION-01: silent ambient capture, opt-in policy, text note only."""
+- `host/tests/test_app.py` (608): The app's real boot path: hold neutral until paired, log state
+- `host/tests/test_app_link_ladder.py` (107): LINK-STATE-01 in the app: the page's state frame, the setting and the wiring."""
+- `host/tests/test_assets.py` (282): no header
+- `host/tests/test_attention.py` (170): S-EXPR-04: attention glue, driven from presence observations."""
+- `host/tests/test_audio_config.py` (167): The sim and `--no-media` daemon answers 503 on the audio routes: not a lost body."""
+- `host/tests/test_bargein_playback.py` (97): BARGE-02: the playback side. Flush, generation tags, the reply tail, the stop spotter."""
+- `host/tests/test_bargein_run_loop.py` (108): BARGE-02 in the funnel: the stop word cuts, the tail holds, the open mic is off by default."""
+- `host/tests/test_bargein_tts.py` (104): BARGE-02: the speech request carries the turn and generation; a cut reply is refused."""
+- `host/tests/test_bench_chat.py` (63): no header
+- `host/tests/test_bench_measure.py` (84): no header
+- `host/tests/test_brain_fake.py` (8): no header
+- `host/tests/test_brain_home.py` (43): no header
+- `host/tests/test_brain_interface.py` (45): no header
+- `host/tests/test_camera_frame.py` (71): The fixture-backed `Camera.get_frame()` path added alongside
+- `host/tests/test_channel_client.py` (221): Reconnect replays the same event id; the handler remains exactly once.
+- `host/tests/test_clip_render.py` (118): G4b: the render-side logic (stamping, packing), with a fake synthesizer.
+- `host/tests/test_connection_loss.py` (33): Losing the connection raises BodyLost once; nothing is retried silently."""
+- `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behaviour against the fake, no browser."""
+- `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
+- `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
+- `host/tests/test_entry_point.py` (28): The reachy_mini_apps entry point resolves to a real ReachyMiniApp.
+- `host/tests/test_envelope.py` (82): The envelope: what a goto or set_target is allowed to reach the daemon with."""
+- `host/tests/test_estop_recovery.py` (195): The lost-link stop latch clears by itself; the pressed one waits for a person."""
+- `host/tests/test_expression_cue_mapping.py` (97): The cue-to-primitive mapping (dev.md section 5's trigger column)."""
+- `host/tests/test_expression_engine.py` (274): EXPR-01's own acceptance: every primitive renders from its cue against a scripted source."""
+- `host/tests/test_expression_renderer.py` (103): RM-02: every primitive renders on the Reachy Mini profile, within its envelope."""
+- `host/tests/test_expression_renderers.py` (33): The renderer registry: one column per body, looked up by profile id."""
+- `host/tests/test_expression_suppression.py` (83): The suppression table (dev.md section 5's "Suppressed or reinterpreted when" column)."""
+- `host/tests/test_eyes_client.py` (267): The Reachy Eyes serial client, clean-room (docs/dev/eyes-wire-protocol.md).
+- `host/tests/test_faces.py` (332): Face settings per unit: validation, saving and the push to the unit (patches F01 to F06)."""
+- `host/tests/test_faces_wiring.py` (191): Face settings wired in: the CLI command, the settings page and routes, the turn cue and sync."""
+- `host/tests/test_fakes_sensors.py` (232): The fake's scripted sensors: DoA, IMU, camera frames, the loopback recorder, the face tracker.
+- `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
+- `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
+- `host/tests/test_gaze.py` (156): S-EXPR-04: deterministic gaze trajectories, one test per rule (UNMEASURED defaults)."""
+- `host/tests/test_hal_seam.py` (32): Both the real client and the fake satisfy the same HAL seam methods."""
+- `host/tests/test_hub_host.py` (183): Parser accepts the string; main reports the actionable validation error.
+- `host/tests/test_idle.py` (119): S-EXPR-04: idle policy rules on a manual clock."""
+- `host/tests/test_indicator_director.py` (219): EYES-02: the director turns the funnel's shown state plus the capture
+- `host/tests/test_indicator_live.py` (254): EYES-02: LiveCaptureTap wraps the real AudioIO and Camera seam objects, so
+- `host/tests/test_indicator_looks.py` (326): EYES-02: the one look table, the standard it must equal, and its rules."""
+- `host/tests/test_indicator_profile.py` (30): EYES-02: the Reachy profile declares ``eyes`` only while the Eyes are
+- `host/tests/test_indicator_replay.py` (106): EYES-02: the funnel's published facts reach the eyes, and a fast turn
+- `host/tests/test_indicator_seam.py` (158): The indicator seam: what the eyes may show, and what they may never do.
+- `host/tests/test_indicator_settings.py` (117): EYES-02: the three robot-only settings keys the lights honour."""
+- `host/tests/test_indicator_wiring.py` (216): EYES-02: the app hands the tap, never the bare client, to every consumer
+- `host/tests/test_knock.py` (184): KNOCK-01: a double knock wakes the robot from sleep. Scripted IMU at 50 Hz."""
+- `host/tests/test_kws.py` (162): LINK-STATE-01 rung 1: the keyword-spotter recognizer, on a scripted engine.
+- `host/tests/test_kws_funnel.py` (177): Rung 1 through the funnel: the keyword-spotter recognizer behind `ConversationLoop`.
+- `host/tests/test_kws_real_model.py` (116): Rung 1's real-model acceptance: the sherpa-onnx spotter against fixtures.
+- `host/tests/test_link_address_walk.py` (158): LINK-STATE-01: the address walk tries the LAN before the tailnet entry."""
+- `host/tests/test_link_changed_address_identity.py` (345): LINK-STATE-01 review fix: who may receive the device token at a changed
+- `host/tests/test_link_checkin.py` (179): no header
+- `host/tests/test_link_client.py` (450): G4's own acceptance: pair, redeem, refresh, refuse - against a real
+- `host/tests/test_link_client_https.py` (147): G4's own acceptance, the https half: a real self-signed certificate,
+- `host/tests/test_link_client_refresh_address.py` (61): LINK-STATE-01: a redeem at a chosen address, the one the walk found."""
+- `host/tests/test_link_commands.py` (179): LINK-STATE-01 rung 1: a closed list of fixed local commands with fixed replies."""
+- `host/tests/test_link_discovery.py` (66): G4's own acceptance: parsing a discovered service, without any real
+- `host/tests/test_link_ladder_run_loop.py` (413): LINK-STATE-01: the funnel and run loop with the ladder, on a fake body and an injected clock."""
+- `host/tests/test_link_ladder_status.py` (109): LINK-STATE-01 rung 2: the offline status is a template over real values, no model."""
+- `host/tests/test_link_lifecycle.py` (280): G4's own acceptance: the link state machine, driven by fakes - no
+- `host/tests/test_link_lifecycle_ladder.py` (304): LINK-STATE-01: LinkLifecycle reports every redeem to the ladder and can
+- `host/tests/test_link_loss_harness.py` (160): M-R5 on the bench: the trial harness against a stand-in hub whose link it cuts.
+- `host/tests/test_link_loss_run_loop.py` (220): M-R5's sim-first rows, deterministic half: Wi-Fi loss mid-turn and mid-sentence.
+- `host/tests/test_link_replay_gate.py` (42): LINK-STATE-01: the queue rule and the replay rule."""
+- `host/tests/test_link_review_fixes.py` (312): LINK-STATE-01 review fixes: wakes in an outage, boot with the hub away,
+- `host/tests/test_link_rung0.py` (141): LINK-STATE-01 rung 0: body-only cues from the existing expression primitives."""
+- `host/tests/test_link_state_machine.py` (143): LINK-STATE-01: the connected, reconnecting, sleeping machine, on an injected clock."""
+- `host/tests/test_link_store.py` (87): G4's own acceptance: the sealed pairing file, fail-soft and atomic."""
+- `host/tests/test_link_supervisor.py` (142): LINK-STATE-01: the supervisor drives the walk and the cues on an injected clock."""
+- `host/tests/test_live_view.py` (178): LIVE-VIEW-01 (bot half): the stream, its cyan cue and every way it stops."""
+- `host/tests/test_measure_battery.py` (311): M-R4: battery. Runtime by the clock from full to the LED's red, whether any
+- `host/tests/test_measure_budget.py` (280): M-R1 on the Compute Module: what the sampler reads, how it summarizes, and the
+- `host/tests/test_measure_cue_motion.py` (246): M-R2, sim-first: cue to first state-feed delta per primitive, repeated for
+- `host/tests/test_measure_kws.py` (155): Rung 1 keyword spotter measurement helpers: scoring and the CPU probe."""
+- `host/tests/test_measure_motion.py` (199): M-R2's analysis: onset, amplitude, peak velocity and settling from a state-feed
+- `host/tests/test_measure_netcapture.py` (403): RM-07's egress tooling: read a capture, group what the robot opened, label it
+- `host/tests/test_measure_report.py` (353): The markdown a recorded run adds to docs/dev/measurements.md."""
+- `host/tests/test_measure_run_header.py` (121): Every recorded run carries the header dev.md section 11 asks for and never
+- `host/tests/test_measure_scripts.py` (107): The measurement scripts import, document themselves, and refuse unsafe or
+- `host/tests/test_measure_stamps.py` (344): S-EXPR-02: the motion onset stamps and their negative rows (dev.md section 5, Timing).
+- `host/tests/test_measure_stats.py` (44): The percentile every measurement row reports: nearest-rank, so a reported
+- `host/tests/test_measure_turn_driver.py` (185): The scripted turn M-R1 and M-R4 run on a clock: a recorded utterance fed in real
+- `host/tests/test_measure_wake_doa.py` (275): M-R3: wake and direction of arrival on this array. The scoring, the bearing maths
+- `host/tests/test_measure_wifi_cycle.py` (101): M-R5 on the unit: the real radio is cycled and the time until the hub answers is read.
+- `host/tests/test_motion_state.py` (181): MOVE-CARRY-01a: the deterministic motion state from scripted IMU readings.
+- `host/tests/test_motion_state_carry.py` (217): MOVE-CARRY-01c: the held look, the one short line, and the setting.
+- `host/tests/test_motion_state_hold.py` (249): MOVE-CARRY-01b: while held the body commands no motion; after put down it
+- `host/tests/test_motion_worker.py` (158): S-EXPR-01R: layered targets go through one bounded 50 Hz writer."""
+- `host/tests/test_motor_gate.py` (178): MOTOR-RECOVER-01, the awake gate: no target during a wake or a sleep, for 2.2 s after a
+- `host/tests/test_motor_health.py` (239): MOTOR-RECOVER-01, the watchdog and the recovery ladder: cycle the mode, read the
+- `host/tests/test_motor_run_loop.py` (317): MOTOR-RECOVER-01 and THERMAL-01 on the run loop: the presence tick drives the
+- `host/tests/test_move_scene_05.py` (118): MOVE-SCENE-05: after the body is handled, who is near and the light and camera are re-checked."""
+- `host/tests/test_moves.py` (387): MOVES-01: the recorded moves package.
+- `host/tests/test_moves_catalog.py` (240): MOVES-01 (amended): both datasets, the clip index, the age allow-list, the envelope report."""
+- `host/tests/test_moves_live.py` (37): MOVES-01 acceptance on the fake body and the simulator (not a physical unit).
+- `host/tests/test_moves_react.py` (222): MOVES-01: the plan's ``react`` slot entry point, behind a flag (off by default).
+- `host/tests/test_moves_teach.py` (339): MOVES-02: teach it a move by hand, record it, name it, replay it.
+- `host/tests/test_moves_teach_unit.py` (48): MOVES-02 on a physical unit. Skipped unless ``MAIPAI_BODY_UNIT=1``.
+- `host/tests/test_music_dance.py` (237): BOT-SC-DANCE-01 (host half): music detection and the dance policy.
+- `host/tests/test_mute_local.py` (112): MUTE-LOCAL-01: an on-robot unmute, so a hub mute can never strand the robot."""
+- `host/tests/test_night.py` (626): The camera may watch but neither the sensor nor the camera gives a reading.
+- `host/tests/test_offer.py` (257): OFFER-01: the robot's side of a hub offer, with a scripted spotter."""
+- `host/tests/test_offer_run_loop.py` (129): OFFER-01 through the real run loop: the accepted offer skips STT and opens
+- `host/tests/test_offline_clips.py` (261): G4b: the offline clip manifest, bundle, composition and playback.
+- `host/tests/test_offline_clips_unit.py` (58): G4b: the offline clips against real rendered audio and the real unit.
+- `host/tests/test_offline_clips_wiring.py` (269): G4b: the clips wired in - the spoken pairing code, the reconnect clip in
+- `host/tests/test_own_llm.py` (124): no header
+- `host/tests/test_phase4_config.py` (50): no header
+- `host/tests/test_phase4_pairing_cli.py` (47): no header
+- `host/tests/test_portal_core.py` (263): The Wi-Fi setup portal (firmware patches P01 to P04): its page, string table, routes and plain-C core.
+- `host/tests/test_power_ladder.py` (415): SELF-SCENE-02: the battery and heat ladder on scripted discharge and heat curves."""
+- `host/tests/test_presence_arbitration.py` (59): The arbitration priority: tracking outranks expression, yields to stop and service.
+- `host/tests/test_presence_entries.py` (46): OFFER-01 / MOVE-CARRY-01c: presence entries by age band from the vision watch."""
+- `host/tests/test_presence_funnel.py` (102): BODY-05: the settle gate over the one funnel.
+- `host/tests/test_presence_observations.py` (66): RM-06: this body's own inputs to the presence funnel, combined into one read."""
+- `host/tests/test_presence_safety.py` (47): Tip and freefall from the IMU (design record section 7)."""
+- `host/tests/test_prints.py` (172): FACE-03's snapshot sync into the local face gallery."""
+- `host/tests/test_prints_watch.py` (42): FACE-WATCH-01 end to end: `vision_watch` on a sync entry reaches the gallery."""
+- `host/tests/test_profile.py` (131): Tests named for the promises RM-01 makes about the Reachy Mini profile."""
+- `host/tests/test_rest_policy.py` (9): no header
+- `host/tests/test_rest_routine.py` (129): BOT-SC-ANIM-01: rest routines (drowsy, asleep, waking) on a manual clock."""
+- `host/tests/test_robot_object.py` (244): Robot API promises exercised through the configurable recorded fake body."""
+- `host/tests/test_robot_safe_stop_backoff.py` (92): A lost body runs the safe stop once, then at most every 30 s, not on every failing write."""
+- `host/tests/test_roster.py` (246): FOLLOWUP-01 (bot half): the roster poller fills the PeopleDirectory from the
+- `host/tests/test_run_loop.py` (1059): G9's own acceptance: the funnel state machine driving audio, cues,
+- `host/tests/test_run_loop_live.py` (144): G9's own still-open gap, attempted for the first time: "live
+- `host/tests/test_run_loop_settle.py` (93): BODY-05 on the existing G9 funnel: the 0.5 s settle gate is enforced and
+- `host/tests/test_scene_wire.py` (194): SCENE-WIRE-BOT: the landed scene pieces run inside the real loop.
+- `host/tests/test_selftest.py` (390): BOT-SELF-TEST-01: the per-part self-test runner and the StackChan checks."""
+- `host/tests/test_selftest_cli.py` (440): BOT-SELF-TEST-02: the command line that runs the robot's checks from a
+- `host/tests/test_selftest_wiring.py` (165): BOT-SELF-TEST-01: the live-service wiring of the StackChan self-test."""
+- `host/tests/test_sherpa_engines.py` (15): VOICE-01: the sherpa engines, as far as they can be checked without the unit."""
+- `host/tests/test_sim_downlink.py` (136): Tests for firmware tool-reply latency, dropped replies, and receive timestamps."""
+- `host/tests/test_sim_uplink.py` (104): Tests for StackChanFirmware listen frames and real Opus uplink streaming."""
+- `host/tests/test_sleep_auto.py` (149): SLEEP-AUTO-01: when the body sleeps and when arrival wakes it (UNMEASURED thresholds)."""
+- `host/tests/test_sleep_state.py` (140): S-EXPR-04: the sleep state differs from muted, and the new cues end at neutral."""
+- `host/tests/test_sleep_wiring.py` (86): SLEEP-AUTO-01 feed: the presence tick drives the policy and the engine's sleep state."""
+- `host/tests/test_speaker_evidence_turn.py` (252): SPEAK-02 / SPEAK-04: the turn carries `speaker_evidence` and `present`, fused
+- `host/tests/test_speaker_fusion.py` (119): SPEAK-04: fuse() and build_present() on the dev.md section 6 rules."""
+- `host/tests/test_speaker_gaze.py` (125): Tests for the StackChan speaker-gaze controller (BOT-SC-GAZE-01)."""
+- `host/tests/test_speech_barge.py` (122): VOICE-02: a stop word over playback cuts locally, cancels, keeps the prefix."""
+- `host/tests/test_speech_capture.py` (171): G1's own acceptance: a fake mic feeds fixed-size blocks with a real pre-roll."""
+- `host/tests/test_speech_pitch.py` (111): The shared per-voice pitch offset (owner decision 2026-10-20)."""
+- `host/tests/test_speech_playback.py` (87): G1's own acceptance: pushed audio reaches the client and is ledgered."""
+- `host/tests/test_speech_process.py` (236): VOICE-01: the speech process over scripted blocks and the fake body."""
+- `host/tests/test_speech_voices.py` (66): VOICE-03: the shared normalizer and the voice binding row."""
+- `host/tests/test_stackchan_ambient_rarity.py` (233): Ambient looking around stays rare (owner, 2026-11-13: "it looks around too much").
+- `host/tests/test_stackchan_announce.py` (100): Hub announcements: the gates and the delivery, with a fake clock and a fake unit."""
+- `host/tests/test_stackchan_avatar.py` (190): Avatar channel behavior against the local fake StackChan peer."""
+- `host/tests/test_stackchan_beat_c.py` (37): Compile and run the standalone C beat phase helper."""
+- `host/tests/test_stackchan_brightness.py` (217): Spoken brightness and the hub's default volume and brightness (owner request 2026-10-21)."""
+- `host/tests/test_stackchan_bringup_kit.py` (133): no header
+- `host/tests/test_stackchan_camera_stream.py` (126): StackChan streamed frames reach the host vision bridge in memory."""
+- `host/tests/test_stackchan_companion.py` (488): Host-side StackChan companion tests for the dance, events and Wi-Fi tools.
+- `host/tests/test_stackchan_control.py` (116): Regressions from the 2026-10-19 unit bench: faces, speech start, encoder, control page."""
+- `host/tests/test_stackchan_dance.py` (725): The StackChan little dance (docs/dev/stackchan-little-dance-2026-11-13.md).
+- `host/tests/test_stackchan_dashboard_pairing.py` (177): Local dashboard pairing lifecycle for a fake StackChan client."""
+- `host/tests/test_stackchan_device_watchdog.py` (110): The watch on a unit that stays connected but stops answering (a sliding window, rung (b))."""
+- `host/tests/test_stackchan_duplex.py` (311): Duplex, barge-in and wake-mode behavior for the StackChan turn bridge."""
+- `host/tests/test_stackchan_error_line.py` (176): The apology line can never loop (owner request 2026-10-20)."""
+- `host/tests/test_stackchan_expression.py` (154): StackChan expression and camera privacy guarantees, using offline fakes."""
+- `host/tests/test_stackchan_face_cores.py` (95): The face cores (firmware patches F01 to F06) are plain C: build and run their test here."""
+- `host/tests/test_stackchan_face_set.py` (129): dizzy and silly are not drawn by any firmware yet: they keep their fallbacks.
+- `host/tests/test_stackchan_face_watch.py` (334): Idle face watching: the camera line, the greeting edge, and what a face does to the robot."""
+- `host/tests/test_stackchan_failure_shapes.py` (110): Named failure-shape checks for StackChan fake peers and turn dependencies."""
+- `host/tests/test_stackchan_failures.py` (254): Keep xiaozhi error paths actionable and prove later sessions still work."""
+- `host/tests/test_stackchan_fallback_core.py` (72): The away-from-home fallback choices (firmware patch 146): plain C, run on the host."""
+- `host/tests/test_stackchan_firmware_asset.py` (134): Tests for staging the independent StackChan firmware release asset."""
+- `host/tests/test_stackchan_firmware_e2e.py` (325): Promise tests for a firmware-shaped StackChan client talking to the real service."""
+- `host/tests/test_stackchan_firmware_update.py` (166): Within 15 minutes the unit is still restarting: no new attempt.
+- `host/tests/test_stackchan_flash_manifest.py` (137): no header
+- `host/tests/test_stackchan_flash_nonvs.py` (62): The no-NVS flash script never writes the NVS partition and skips an unchanged bootloader."""
+- `host/tests/test_stackchan_frame_check.py` (61): Finds a 'face' only when the frame's first pixel row is bright, and says how close."""
+- `host/tests/test_stackchan_gaze.py` (190): Honest answers to "what are you looking at?", from why the head last moved."""
+- `host/tests/test_stackchan_head_commands.py` (579): Spoken head movement: "look left", "nod", "look straight" (owner request 2026-10-21)."""
+- `host/tests/test_stackchan_head_search.py` (764): Looking around: for a face when the picture suggests a person, after someone spoke, and
+- `host/tests/test_stackchan_head_stillness.py` (278): The head never moves on its own (owner request 2026-10-20: servo wear from constant movement)."""
+- `host/tests/test_stackchan_head_tap_replay.py` (281): The head tap rule of firmware patch 081, replayed on real recordings and on shaped cases.
+- `host/tests/test_stackchan_head_touch_filter.py` (152): Phantom head touches are dropped; a real stroke is kept (owner report 2026-10-21)."""
+- `host/tests/test_stackchan_idle_faces.py` (80): no header
+- `host/tests/test_stackchan_idle_sleep.py` (205): StackChan's host-only idle sleep behavior."""
+- `host/tests/test_stackchan_leds.py` (65): Per-pixel LED tool and camera indicator protection tests."""
+- `host/tests/test_stackchan_light_service.py` (289): The StackChan light service: facts in, one ring look out.
+- `host/tests/test_stackchan_light_wiring.py` (510): The StackChan light wiring: the poller that feeds the light service.
+- `host/tests/test_stackchan_listening_thinking_faces.py` (156): The `listening` and `thinking` faces (owner, 2026-11-13: the face carries both, not the ring)."""
+- `host/tests/test_stackchan_live_fixes.py` (266): Fixes found on the live hub (2026-10-20): clock, night camera, ring write."""
+- `host/tests/test_stackchan_meeting_sleep_z.py` (34): no header
+- `host/tests/test_stackchan_multi_unit.py` (286): ruff: noqa: E501
+- `host/tests/test_stackchan_music_core.py` (165): The on-unit music features (firmware patch 100) are plain C: compile the header from the patch,
+- `host/tests/test_stackchan_music_dance.py` (1233): The StackChan music dance, host half (docs/dev/stackchan-music-dance-2026-11-13.md).
+- `host/tests/test_stackchan_music_identify.py` (543): Exercise command validation through the public behavior handler.
+- `host/tests/test_stackchan_music_judge_c.py` (78): The plain C music judge equals the production Python judge on fixtures and a seeded sweep."""
+- `host/tests/test_stackchan_mute.py` (487): StackChan mute, vision off and full quiet on the host (firmware patches 105 to 108). Fake unit,
+- `host/tests/test_stackchan_no_third_party.py` (81): Exercise the no-third-party capture check with a sanitized destination list."""
+- `host/tests/test_stackchan_notify.py` (74): no header
+- `host/tests/test_stackchan_orientation.py` (360): The unit's IMU is in the head: live log 2026-11-13 09:53:06, a look-around to 22 degrees up read
+- `host/tests/test_stackchan_ota_unit.py` (217): ruff: noqa: E501
+- `host/tests/test_stackchan_owner_levels.py` (54): no header
+- `host/tests/test_stackchan_patch_context.py` (62): Firmware patches 046 and later carry context lines, so they land where they were written.
+- `host/tests/test_stackchan_person_then_face.py` (339): The behavior wires the person tracker to the real head: an arm-only view turns the head toward
+- `host/tests/test_stackchan_person_tracker.py` (468): Find the person, then the face, then follow: stages, aiming math, following, caps, back-offs."""
+- `host/tests/test_stackchan_phrases_robot_voice.py` (85): no header
+- `host/tests/test_stackchan_pose.py` (75): The head's resting pose is level, and nothing "drops" it upward (owner report 2026-10-21)."""
+- `host/tests/test_stackchan_power_idle.py` (388): StackChan stays still while charging (owner request 2026-10-20).
+- `host/tests/test_stackchan_privacy.py` (95): Privacy properties exercised against authenticated fake avatar peers."""
+- `host/tests/test_stackchan_push.py` (125): no header
+- `host/tests/test_stackchan_reactions.py` (360): Shake, pet and heart: the spoken line after a shake, and a heart that has to be earned."""
+- `host/tests/test_stackchan_release.py` (202): Release artifact and OTA policy checks for StackChan firmware."""
+- `host/tests/test_stackchan_repeat.py` (520): Say that again, what did I miss: phrases, caps, the missed log, and the bridge with fakes."""
+- `host/tests/test_stackchan_replay.py` (71): Replay recorded xiaozhi frames through the service and shared robot object."""
+- `host/tests/test_stackchan_ring.py` (114): The StackChan ring renderer: translate a Look into a 12-pixel RGB triple.
+- `host/tests/test_stackchan_ring_indicator.py` (195): The StackChan ring indicator: the Indicator the 12-pixel ring answers.
+- `host/tests/test_stackchan_robot.py` (294): StackChan profile and xiaozhi adapter promises exercised without hardware."""
+- `host/tests/test_stackchan_runtime.py` (64): Runtime wiring for StackChan behavior, using only local device fakes."""
+- `host/tests/test_stackchan_self_heal.py` (254): StackChan self-healing on the host: the restart guard's state, the wake engine self-test
+- `host/tests/test_stackchan_sensors.py` (96): StackChan sensor reads against the fake xiaozhi MCP peer."""
+- `host/tests/test_stackchan_settings_page.py` (187): The default is a dry run: everything is checked, nothing is pushed.
+- `host/tests/test_stackchan_setup_flow.py` (275): An empty build root keeps the dry run off whatever build the machine left in ~/esp.
+- `host/tests/test_stackchan_sight.py` (197): Honest answers to "can you see me?" and the picture questions."""
+- `host/tests/test_stackchan_soak.py` (102): Bounded fake-peer soak checks for StackChan camera and reconnect paths."""
+- `host/tests/test_stackchan_song_title_and_phrases.py` (191): The song title keeper (re-sends the title while the song plays) and the beat phrases that
+- `host/tests/test_stackchan_sounds.py` (695): The StackChan's sounds on the host: the play_sound mapping, night and mute gating, quiet hours,
+- `host/tests/test_stackchan_sounds_core.py` (115): The unit's sound logic (firmware patch 115) is plain C: compile and run its test on the host."""
+- `host/tests/test_stackchan_stop_phrases.py` (159): A spoken "stop" while listening ends the turn on the robot (owner request 2026-10-21)."""
+- `host/tests/test_stackchan_tailnet_core.py` (88): The robot's tailnet client: its pure choices (firmware patch 147), plain C, run on the host."""
+- `host/tests/test_stackchan_timers.py` (242): On-unit timers, host side: a fake unit that behaves like firmware patches 090 to 094."""
+- `host/tests/test_stackchan_timers_core.py` (63): The on-unit timer logic (firmware patch 090) is plain C: compile and run its test on the host."""
+- `host/tests/test_stackchan_touch_core.py` (149): The face touch classifier (firmware patch 105) is plain C: compile and run its test on the host.
+- `host/tests/test_stackchan_turn.py` (989): StackChan voice-turn regressions, with the independent simulator peer."""
+- `host/tests/test_stackchan_units_config.py` (279): ruff: noqa: E501
+- `host/tests/test_stackchan_updater.py` (273): no header
+- `host/tests/test_stackchan_updating_route.py` (103): Loopback routes Home calls around a firmware flash (owner request 2026-10-20)."""
+- `host/tests/test_stackchan_uplink_level.py` (85): The per-turn microphone level line, the opt-in debug recording and the bounded capture queue."""
+- `host/tests/test_stackchan_uplink_stats.py` (131): The self-test's read-only view of the uplink: hearing (frames, bytes,
+- `host/tests/test_stackchan_v025.py` (137): Batch from the independent voice-path review (2026-10-20): A to E."""
+- `host/tests/test_stackchan_vision.py` (106): no header
+- `host/tests/test_stackchan_vision_post.py` (339): A frame with detail: alternating sample columns of two gray levels."""
+- `host/tests/test_stackchan_voice_e2e.py` (302): Headless end-to-end voice path: firmware simulator -> real service -> real bridge -> the hub's
+- `host/tests/test_stackchan_voice_identity.py` (157): Voice evidence is per-turn, optional, and never derived from raw audio locally."""
+- `host/tests/test_stackchan_volume.py` (259): Spoken volume control and the in-order face reset (owner request 2026-10-20)."""
+- `host/tests/test_stackchan_wifi_list.py` (353): The laptop relay: a tailnet peer that is not the unit's own address (plain Wi-Fi last leg).
+- `host/tests/test_stackchan_xiaozhi.py` (830): Offline fake-device protocol replay for StackChan xiaozhi."""
+- `host/tests/test_stand_in_hub.py` (135): The bench stand-in for the hub's robot-facing routes, and the link faults it injects.
+- `host/tests/test_stand_in_hub_knobs.py` (94): The stand-in hub's voice-path knobs for the headless tests (recognition latency, scripted
+- `host/tests/test_state_feed.py` (23): State frames: typed, ordered, and stamped on one monotonic clock."""
+- `host/tests/test_state_reporter.py` (109): no header
+- `host/tests/test_stt_stream.py` (329): G3+G6 (send side)'s own acceptance: a real local WebSocket server
+- `host/tests/test_thermal.py` (152): THERMAL-01: the warm Compute Module slows, says so, never crashes."""
+- `host/tests/test_timesync.py` (118): ROBOT-TIME-01: the robot's clock comes from the hub."""
+- `host/tests/test_touch_detector.py` (52): A clip ends at 1.0 s; the full post-drive suppression is 260 ms.
+- `host/tests/test_touch_wiring.py` (62): TOUCH-01 glue: the loop reads the worker's antenna probe and reacts."""
+- `host/tests/test_trip_relay.py` (441): The laptop trip relay (body/scripts/trip_relay.py).
+- `host/tests/test_tts_playback.py` (273): G7's own acceptance (the gap-audit's exact words): "A stand-in
+- `host/tests/test_turn_client.py` (368): G6 (receive side)'s own acceptance: a real local HTTP server
+- `host/tests/test_unit_hardware.py` (160): The measurement rows' unit-ready checks: what has to hold on the physical Reachy Mini
+- `host/tests/test_vision_align.py` (113): FACE-01's own alignment math, checked against known transforms -
+- `host/tests/test_vision_capture.py` (47): The still-image call's bot-side capture path
+- `host/tests/test_vision_detect.py` (91): wanted for a decode-only test, so the instance is built without
+- `host/tests/test_vision_embed.py` (70): blobFromImage's own swapRB=true: channel 0 (blue, in a BGR
+- `host/tests/test_vision_gallery.py` (128): FaceGallery's own three-way verdict, per dev.md section 6: a clear
+- `host/tests/test_vision_look_fast.py` (190): The robot's own fast Look pass: YOLOX-nano decode, the lazy loader, the spoken line."""
+- `host/tests/test_vision_recognize.py` (120): The embedder must have received a real (112, 112, 3) aligned crop,
+- `host/tests/test_vision_yunet.py` (184): JPEG decoding and the YuNet runner, without OpenCV or the Reachy SDK."""
+- `host/tests/test_voice_server.py` (226): VOICE-01: the speech process served over the shared voice contract."""
+- `host/tests/test_voiceprint.py` (191): SPEAK-01: voice evidence in the body. Fake embedders only; no real model."""
+- `host/tests/test_wake.py` (104): G2's own acceptance: the wake state machine, driven by a fake engine."""
+- `host/tests/test_wake_engine_real_model.py` (128): G2's real-model acceptance: `OpenWakeWordEngine` against the actual
+- `host/tests/test_wake_models.py` (91): Wake-word asset pins resolve through the paired hub cache."""
+- `host/tests/test_watch_levels.py` (349): FACE-WATCH-01: the always-on vision watch under watch levels, against
+- `host/tests/test_watch_run_loop.py` (75): FACE-WATCH-01: the run loop's hook for the vision watch."""
+- `host/tests/voice_fakes.py` (123): Scripted engines and a scripted capture for the speech-process tests."""
 - `schema/.gitkeep` (0): no header
-- `scripts/build-site.sh` (18): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
-- `scripts/check.sh` (5): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/boundary-check.sh` (28): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
+- `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
+- `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (security finding 3).
+- `scripts/check-no-keys.py` (65): refuse any firmware image, release folder or source tree that contains a key (security finding 3).
+- `scripts/check.sh` (7): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/fw-env.sh` (9): one place that sets up ESP-IDF 6.1 for firmware builds. Usage: `source scripts/fw-env.sh`, then `idf.py ...`.
+- `scripts/fw-lane.sh` (12): run the firmware batch brief repeatedly (one Codex run per batch) until a run writes ALL DONE or MAX runs pass
 - `scripts/hygiene-check.sh` (35): block any mention of projects we studied (private word list), em dashes and filler words in
 - `scripts/install-hooks.sh` (6): point this clone at the tracked hooks (repo-local config only, never global).
+- `scripts/make-lights.py` (105): draw the robot's ring colours and tone shapes as small animated SVGs for the docs.
+- `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.
+- `scripts/measure-turn.py` (134): Measure first model token and first speech audio from a local compatible service."""
+- `scripts/patch-replay.sh` (53): Identify genuinely added files separately from missing existing paths.
 - `scripts/repo-map.sh` (19): generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line),
 - `scripts/run-bg.sh` (18): run a long command (firmware build, flash, soak, gate) with its full output in a log file and
+- `scripts/spec-dir.sh` (4): no header
+- `scripts/stackchan-egress-proof.sh` (66): no header
+- `scripts/stackchan-no-third-party.sh` (119): Hostnames only: the image legitimately carries board and class names such as M5StackCoreS3Board.

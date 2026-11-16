@@ -1,0 +1,563 @@
+# Intent: Reset on the device (owner request 2026-11-15, docs/design/features.md "Reset the device"). Quick settings gets a Reset button that opens a screen saying in plain words what will be erased (saved Wi-Fi networks, pairing, settings) and erases nothing until its button is held for 3 seconds; Cancel or letting go early changes nothing. The clear is one repeatable step that ends in setup mode and is never half-done: a pending mark is committed first, every flash namespace except the head calibration, the radio calibration and the mark is erased, the mark is removed last, and a power loss anywhere in it is finished on the next start before any setting is read. Only the on-screen hold starts it: no tool, host command or setting calls it. It logs one local line. No resident cost: no task, timer or buffer exists until the screen is open or a reset runs; the code is flash only. English and Spanish text (the built-in font has no accents, so the Spanish is written without them). Kconfig switch MAIPAI_RESET_ON_DEVICE, default y, so the core build has it on.
+# Placement: unit (a basic the robot must do alone; it runs on the screen with the host off)
+# Upstream: main/hal/board/stackchan_display.cc and main/hal/hal.cpp of the M5Stack StackChan firmware (MIT); the other files are new
+# Check after a flash: quick settings, Reset, Cancel: nothing changes. Reset, hold 2 s and let go: nothing changes. Hold 3 s: one log line "reset done", the unit restarts into Wi-Fi setup with no saved network and no pairing. Cut power during the clear: the next start logs "a reset was interrupted: finishing it now" and ends in setup.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -128,6 +128,15 @@
+         four at once, each with its name and a live countdown. Works with the host off. Off here: no chips
+         and no timer view are compiled.
+ 
++config MAIPAI_RESET_ON_DEVICE
++    bool "Reset on the device (quick settings, hold 3 seconds)"
++    default y
++    help
++        Adds a Reset button to quick settings. It opens a screen that says what will be erased and erases
++        nothing until its button is held for 3 seconds. Then saved Wi-Fi networks, pairing and settings are
++        cleared in one step that always ends in setup mode, even after a power loss. Nothing on the network
++        can start it. No task or timer exists until the screen is open. Off here: no button, no screen.
++
+ endmenu
+ 
+ menu "Xiaozhi Assistant"
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -5,6 +5,9 @@
+  */
+ #include "hal.h"
+ #include "maipai_update.h"
++#if CONFIG_MAIPAI_RESET_ON_DEVICE
++#include "maipai_reset.h"
++#endif
+ #include <memory>
+ #include <mooncake_log.h>
+ #include <nvs_flash.h>
+@@ -33,6 +36,9 @@
+     }
+     ESP_ERROR_CHECK(ret);
+ 
++#if CONFIG_MAIPAI_RESET_ON_DEVICE
++    maipai_reset_resume();  // patch R01: finish a reset that was interrupted, before anything reads a setting
++#endif
+     maipai_update_arm();  // patch 160: a new wireless image that never reaches the host rolls back
+     xiaozhi_board_init();
+     xiaozhi_mcp_init();
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -27,6 +27,10 @@
+ #include <hal/maipai_face.h>
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_touch_core.h>
++#if CONFIG_MAIPAI_RESET_ON_DEVICE
++#include <hal/maipai_reset.h>
++#include <hal/maipai_reset_core.h>
++#endif
+ #include <hal/device_events.h>
+ 
+ using namespace stackchan;
+@@ -620,10 +624,33 @@
+                             },
+                             LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+     }
++
++#if CONFIG_MAIPAI_RESET_ON_DEVICE
++    // Reset (patch R01) shares the last row with Done: a press opens the confirm screen, which erases nothing
++    // until its button is held for 3 seconds.
++    lv_obj_t* reset_button = lv_button_create(quick_panel_);
++    lv_obj_set_width(reset_button, LV_PCT(48));
++    lv_obj_add_flag(reset_button, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
++    lv_obj_t* reset_label =
++        make_label(reset_button, mrc_text(mrc_lang_from_code(Lang::CODE), MRC_STR_BUTTON));
++    lv_obj_center(reset_label);
++    lv_obj_add_event_cb(reset_button,
++                        [](lv_event_t* event) {
++                            (void)event;
++                            if (_quick_settings_display_ != nullptr) {
++                                _quick_settings_display_->OpenResetConfirm();
++                            }
++                        },
++                        LV_EVENT_CLICKED, nullptr);
++#endif
+ 
+     lv_obj_t* done_button = lv_button_create(quick_panel_);
++#if CONFIG_MAIPAI_RESET_ON_DEVICE
++    lv_obj_set_width(done_button, LV_PCT(48));
++#else
+     lv_obj_set_width(done_button, LV_PCT(100));
+     lv_obj_add_flag(done_button, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
++#endif
+     lv_obj_t* done_label = make_label(done_button, "Done");
+     lv_obj_center(done_label);
+     lv_obj_add_event_cb(done_button,
+@@ -649,10 +676,151 @@
+                         LV_EVENT_GESTURE, this);
+ 
+     _quick_settings_display_ = this;
++}
++
++#if CONFIG_MAIPAI_RESET_ON_DEVICE
++// Reset on the device (patch R01). A full-screen panel over quick settings. Nothing is erased by opening
++// it, by Cancel, or by a hold that ends early; only a finger held 3 seconds on the hold button starts the
++// reset (maipai_reset_start), and only this screen calls it.
++void StackChanAvatarDisplay::OpenResetConfirm()
++{
++    if (reset_panel_ != nullptr) {
++        return;
++    }
++    const mrc_lang_t lang = mrc_lang_from_code(Lang::CODE);
++
++    reset_panel_ = lv_obj_create(lv_layer_top());
++    lv_obj_set_size(reset_panel_, lv_pct(100), lv_pct(100));
++    lv_obj_set_style_bg_color(reset_panel_, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(reset_panel_, LV_OPA_COVER, 0);
++    lv_obj_set_style_border_width(reset_panel_, 0, 0);
++    lv_obj_set_style_radius(reset_panel_, 0, 0);
++    lv_obj_set_style_pad_all(reset_panel_, 8, 0);
++    lv_obj_remove_flag(reset_panel_, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_flex_flow(reset_panel_, LV_FLEX_FLOW_COLUMN);
++    lv_obj_set_flex_align(reset_panel_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
++    lv_obj_set_style_pad_row(reset_panel_, 8, 0);
++
++    auto make_label = [](lv_obj_t* parent, const char* text) {
++        lv_obj_t* label = lv_label_create(parent);
++        lv_obj_set_style_text_font(label, &BUILTIN_TEXT_FONT, 0);
++        lv_obj_set_style_text_color(label, lv_color_white(), 0);
++        lv_label_set_text(label, text);
++        return label;
++    };
++
++    lv_obj_t* title = make_label(reset_panel_, mrc_text(lang, MRC_STR_TITLE));
++    lv_obj_set_width(title, LV_PCT(100));
++    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
++
++    reset_note_ = make_label(reset_panel_, mrc_text(lang, MRC_STR_BODY));
++    lv_obj_set_width(reset_note_, LV_PCT(100));
++    lv_label_set_long_mode(reset_note_, LV_LABEL_LONG_MODE_WRAP);
++
++    reset_bar_ = lv_bar_create(reset_panel_);
++    lv_obj_set_size(reset_bar_, LV_PCT(100), 10);
++    lv_bar_set_range(reset_bar_, 0, 100);
++    lv_bar_set_value(reset_bar_, 0, LV_ANIM_OFF);
++
++    reset_hold_ = lv_button_create(reset_panel_);
++    lv_obj_set_width(reset_hold_, LV_PCT(100));
++    lv_obj_t* hold_label = make_label(reset_hold_, mrc_text(lang, MRC_STR_HOLD));
++    lv_obj_center(hold_label);
++    lv_obj_add_event_cb(reset_hold_,
++                        [](lv_event_t* event) {
++                            auto* display = static_cast<StackChanAvatarDisplay*>(lv_event_get_user_data(event));
++                            if (display == nullptr || display->reset_fired_) {
++                                return;
++                            }
++                            switch (lv_event_get_code(event)) {
++                                case LV_EVENT_PRESSED:
++                                    display->reset_down_    = true;
++                                    display->reset_down_ms_ = lv_tick_get();
++                                    break;
++                                case LV_EVENT_RELEASED:
++                                case LV_EVENT_PRESS_LOST:
++                                    // Let go early: nothing was erased, the bar starts over.
++                                    display->reset_down_ = false;
++                                    lv_bar_set_value(display->reset_bar_, 0, LV_ANIM_OFF);
++                                    break;
++                                default:
++                                    break;
++                            }
++                        },
++                        LV_EVENT_ALL, this);
++
++    lv_obj_t* cancel_button = lv_button_create(reset_panel_);
++    lv_obj_set_width(cancel_button, LV_PCT(100));
++    lv_obj_t* cancel_label = make_label(cancel_button, mrc_text(lang, MRC_STR_CANCEL));
++    lv_obj_center(cancel_label);
++    lv_obj_add_event_cb(cancel_button,
++                        [](lv_event_t* event) {
++                            auto* display = static_cast<StackChanAvatarDisplay*>(lv_event_get_user_data(event));
++                            if (display != nullptr) {
++                                display->CloseResetConfirm();
++                            }
++                        },
++                        LV_EVENT_CLICKED, this);
++
++    reset_down_  = false;
++    reset_fired_ = false;
++    reset_timer_ = lv_timer_create(ResetTick, 50, this);
+ }
+ 
++void StackChanAvatarDisplay::ResetTick(lv_timer_t* timer)
++{
++    auto* self = static_cast<StackChanAvatarDisplay*>(lv_timer_get_user_data(timer));
++    if (self == nullptr || self->reset_panel_ == nullptr) {
++        return;
++    }
++    const mrc_lang_t lang = mrc_lang_from_code(Lang::CODE);
++    if (self->reset_fired_) {
++        // The reset runs on its own task and restarts the unit. Only a failure comes back here.
++        if (maipai_reset_failed()) {
++            self->reset_fired_ = false;
++            lv_label_set_text(self->reset_note_, mrc_text(lang, MRC_STR_FAILED));
++            lv_bar_set_value(self->reset_bar_, 0, LV_ANIM_OFF);
++        }
++        return;
++    }
++    if (!self->reset_down_) {
++        return;
++    }
++    const uint32_t now = lv_tick_get();
++    lv_bar_set_value(self->reset_bar_, mrc_hold_percent(self->reset_down_ms_, now), LV_ANIM_OFF);
++    if (mrc_hold_complete(self->reset_down_ms_, now)) {
++        self->reset_fired_ = true;
++        self->reset_down_  = false;
++        lv_label_set_text(lv_obj_get_child(self->reset_hold_, 0), mrc_text(lang, MRC_STR_HOLDING));
++        if (!maipai_reset_start()) {
++            self->reset_fired_ = false;
++        }
++    }
++}
++
++void StackChanAvatarDisplay::CloseResetConfirm()
++{
++    if (reset_timer_ != nullptr) {
++        lv_timer_delete(reset_timer_);
++        reset_timer_ = nullptr;
++    }
++    if (reset_panel_ != nullptr) {
++        lv_obj_delete_async(reset_panel_);  // runs from the panel's own button callback
++        reset_panel_ = nullptr;
++    }
++    reset_bar_   = nullptr;
++    reset_hold_  = nullptr;
++    reset_note_  = nullptr;
++    reset_down_  = false;
++    reset_fired_ = false;
++}
++#endif
++
+ void StackChanAvatarDisplay::CloseQuickSettings()
+ {
++#if CONFIG_MAIPAI_RESET_ON_DEVICE
++    CloseResetConfirm();
++#endif
+     if (quick_panel_ != nullptr) {
+         // Async: this runs from the panel's own button and gesture callbacks.
+         lv_obj_delete_async(quick_panel_);
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -56,6 +56,20 @@
+     void ToggleQuickSettings();
+     void OpenQuickSettings();
+     void CloseQuickSettings();
++#if CONFIG_MAIPAI_RESET_ON_DEVICE
++    // Reset on the device (patch R01): the screen exists only while it is open.
++    lv_obj_t*   reset_panel_  = nullptr;
++    lv_obj_t*   reset_bar_    = nullptr;
++    lv_obj_t*   reset_hold_   = nullptr;
++    lv_obj_t*   reset_note_   = nullptr;
++    lv_timer_t* reset_timer_  = nullptr;
++    uint32_t    reset_down_ms_ = 0;
++    bool        reset_down_   = false;
++    bool        reset_fired_  = false;
++    void OpenResetConfirm();
++    void CloseResetConfirm();
++    static void ResetTick(lv_timer_t* timer);
++#endif
+ protected:
+     virtual bool Lock(int timeout_ms = 0) override;
+     virtual void Unlock() override;
+diff --git a/firmware/main/hal/maipai_reset_core.h b/firmware/main/hal/maipai_reset_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_reset_core.h
+@@ -0,0 +1,90 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Reset on the device (patch R01): the words, the hold timing and the keep list. Plain C99 with no firmware
++ * headers, so a host test compiles and runs it (host/tests/firmware/reset_core_test.c).
++ *
++ * The screen text is English or Spanish. The built-in screen font has no accented letters, so the Spanish
++ * lines are written without them.
++ */
++#ifndef MAIPAI_RESET_CORE_H
++#define MAIPAI_RESET_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define MRC_HOLD_MS 3000 /* how long the button must stay down before anything is erased */
++
++typedef enum { MRC_LANG_EN = 0, MRC_LANG_ES } mrc_lang_t;
++
++typedef enum {
++    MRC_STR_BUTTON = 0, /* the entry in quick settings */
++    MRC_STR_TITLE,
++    MRC_STR_BODY,    /* what will be erased, in plain words */
++    MRC_STR_HOLD,    /* the hold button, idle */
++    MRC_STR_HOLDING, /* the hold button, while held */
++    MRC_STR_CANCEL,
++    MRC_STR_FAILED, /* the clear did not finish */
++    MRC_STR_COUNT
++} mrc_str_t;
++
++static inline mrc_lang_t mrc_lang_from_code(const char* code)
++{
++    return (code != NULL && code[0] == 'e' && code[1] == 's') ? MRC_LANG_ES : MRC_LANG_EN;
++}
++
++static inline const char* mrc_text(mrc_lang_t lang, mrc_str_t which)
++{
++    static const char* const en[MRC_STR_COUNT] = {
++        "Reset",
++        "Reset the robot",
++        ("This erases saved Wi-Fi networks, pairing and settings. Then the robot asks for Wi-Fi setup again. "
++         "Nothing is erased until you hold the button for 3 seconds."),
++        "Hold 3 s to erase",
++        "Keep holding...",
++        "Cancel",
++        "The reset could not finish. Hold the button again, or restart the robot: it finishes on the next start.",
++    };
++    static const char* const es[MRC_STR_COUNT] = {
++        "Restablecer",
++        "Restablecer el robot",
++        ("Esto borra las redes Wi-Fi, el emparejamiento y los ajustes guardados. Luego el robot pide Wi-Fi de "
++         "nuevo. No se borra nada hasta que mantengas el boton 3 segundos."),
++        "Mantener 3 s para borrar",
++        "Sigue manteniendo...",
++        "Cancelar",
++        "No se pudo terminar. Manten el boton otra vez o reinicia el robot: termina en el proximo inicio.",
++    };
++    if ((int)which < 0 || which >= MRC_STR_COUNT) {
++        return "";
++    }
++    return lang == MRC_LANG_ES ? es[which] : en[which];
++}
++
++/* Hold progress 0..100 for a finger down since down_ms, at now_ms. */
++static inline int mrc_hold_percent(uint32_t down_ms, uint32_t now_ms)
++{
++    const uint32_t held = now_ms - down_ms;
++    if (held >= MRC_HOLD_MS) {
++        return 100;
++    }
++    return (int)((held * 100u) / MRC_HOLD_MS);
++}
++
++static inline int mrc_hold_complete(uint32_t down_ms, uint32_t now_ms)
++{
++    return (now_ms - down_ms) >= MRC_HOLD_MS;
++}
++
++/* Namespaces of the unit's flash settings a reset leaves alone:
++ *   mp_reset  the reset's own marker (it is removed last, when the clear is done)
++ *   servo     the head's zero-position calibration: a measurement of this unit, not a setting
++ *   phy       the radio calibration: a measurement of this unit, rebuilt slowly if lost
++ * Everything else is erased: saved Wi-Fi networks (wifi, nvs.net80211), pairing (websocket), the privacy
++ * state, sounds, face, timers and every other setting. */
++static inline int mrc_keep_namespace(const char* ns)
++{
++    return ns != NULL && (strcmp(ns, "mp_reset") == 0 || strcmp(ns, "servo") == 0 || strcmp(ns, "phy") == 0);
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_reset.h b/firmware/main/hal/maipai_reset.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_reset.h
+@@ -0,0 +1,20 @@
++/*
++ * SPDX-License-Identifier: MIT
++ */
++#pragma once
++
++// Reset on the device (patch R01). Only the on-screen reset screen starts it: there is no host command,
++// tool or setting that calls these functions.
++
++// Boot, right after flash storage is ready and before anything reads a setting: if a reset was started and
++// did not finish (power loss, a failed erase), finish it now. Does nothing when no reset is pending.
++void maipai_reset_resume();
++
++// Start the reset on its own task (internal stack, safe to call from the screen's task). Returns false
++// only when a reset is already running. The task marks the reset pending, erases Wi-Fi networks, pairing
++// and settings, removes the mark, logs one line and restarts into setup mode.
++bool maipai_reset_start();
++
++// True after a reset started and could not finish (the screen then shows the failure line). Cleared by the
++// next maipai_reset_start.
++bool maipai_reset_failed();
+diff --git a/firmware/main/hal/maipai_reset.cc b/firmware/main/hal/maipai_reset.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_reset.cc
+@@ -0,0 +1,168 @@
++/*
++ * SPDX-License-Identifier: MIT
++ */
++// Reset on the device (patch R01). The clear is never half-done. The order is:
++//   1. write the "pending" mark (namespace mp_reset) and commit it: if that fails, nothing is erased;
++//   2. erase every namespace except the keep list (maipai_reset_core.h): this is repeatable, so a power
++//      loss anywhere in it only means the next boot runs it again (maipai_reset_resume);
++//   3. erase the mark, then restart. The restart finds no Wi-Fi network and starts setup mode.
++// There is nothing resident: no task, timer or buffer exists until a person finishes the hold.
++#include "maipai_reset.h"
++
++#include "maipai_reset_core.h"
++
++#include <esp_log.h>
++#include <esp_system.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++
++#include <atomic>
++#include <string>
++#include <vector>
++
++namespace {
++constexpr const char* kTag    = "MaiPaiReset";
++constexpr const char* kMarkNs = "mp_reset";
++constexpr const char* kMarkKey = "pending";
++
++std::atomic<bool> s_running{false};
++std::atomic<bool> s_failed{false};
++
++bool pending()
++{
++    nvs_handle_t h;
++    if (nvs_open(kMarkNs, NVS_READONLY, &h) != ESP_OK) {
++        return false;
++    }
++    uint8_t value = 0;
++    const bool yes = nvs_get_u8(h, kMarkKey, &value) == ESP_OK && value == 1;
++    nvs_close(h);
++    return yes;
++}
++
++esp_err_t set_mark(bool on)
++{
++    nvs_handle_t h;
++    esp_err_t err = nvs_open(kMarkNs, NVS_READWRITE, &h);
++    if (err != ESP_OK) {
++        return err;
++    }
++    err = on ? nvs_set_u8(h, kMarkKey, 1) : nvs_erase_all(h);
++    if (err == ESP_OK) {
++        err = nvs_commit(h);
++    }
++    nvs_close(h);
++    return err;
++}
++
++// Every namespace that holds something, listed once. Collected first, then erased, so the erase never
++// walks storage it is changing.
++std::vector<std::string> namespaces()
++{
++    std::vector<std::string> names;
++    nvs_iterator_t it = nullptr;
++    esp_err_t err     = nvs_entry_find(NVS_DEFAULT_PART_NAME, nullptr, NVS_TYPE_ANY, &it);
++    while (err == ESP_OK && it != nullptr) {
++        nvs_entry_info_t info;
++        nvs_entry_info(it, &info);
++        bool seen = false;
++        for (const auto& name : names) {
++            if (name == info.namespace_name) {
++                seen = true;
++                break;
++            }
++        }
++        if (!seen) {
++            names.emplace_back(info.namespace_name);
++        }
++        err = nvs_entry_next(&it);
++    }
++    nvs_release_iterator(it);
++    return names;
++}
++
++// Returns true when every namespace outside the keep list is empty afterwards.
++bool erase_settings()
++{
++    bool ok = true;
++    for (const auto& name : namespaces()) {
++        if (mrc_keep_namespace(name.c_str())) {
++            continue;
++        }
++        nvs_handle_t h;
++        esp_err_t err = nvs_open(name.c_str(), NVS_READWRITE, &h);
++        if (err == ESP_OK) {
++            err = nvs_erase_all(h);
++            if (err == ESP_OK) {
++                err = nvs_commit(h);
++            }
++            nvs_close(h);
++        }
++        if (err != ESP_OK) {
++            ESP_LOGW(kTag, "could not erase the saved settings in \"%s\" (%s)", name.c_str(), esp_err_to_name(err));
++            ok = false;
++        }
++    }
++    return ok;
++}
++
++void reset_task(void*)
++{
++    if (set_mark(true) != ESP_OK) {
++        ESP_LOGW(kTag, "reset not started: the flash would not take the pending mark. Nothing was erased. Hold the button again.");
++        s_failed  = true;
++        s_running = false;
++        vTaskDelete(nullptr);
++        return;
++    }
++    if (!erase_settings()) {
++        ESP_LOGW(kTag, "reset did not finish. It stays pending and finishes on the next start.");
++        s_failed  = true;  // the screen shows the failure line; the next boot completes the clear
++        s_running = false;
++        vTaskDelete(nullptr);
++        return;
++    }
++    set_mark(false);
++    ESP_LOGW(kTag, "reset done: saved Wi-Fi, pairing and settings erased on the unit's own screen; restarting into setup mode");
++    vTaskDelay(pdMS_TO_TICKS(200));  // the log line leaves first
++    esp_restart();
++}
++}  // namespace
++
++void maipai_reset_resume()
++{
++    if (!pending()) {
++        return;
++    }
++    ESP_LOGW(kTag, "a reset was interrupted: finishing it now");
++    if (erase_settings()) {
++        set_mark(false);
++        ESP_LOGW(kTag, "reset finished on this start; the unit asks for Wi-Fi setup");
++    } else {
++        ESP_LOGW(kTag, "reset still not finished. It stays pending and runs again on the next start.");
++    }
++}
++
++bool maipai_reset_start()
++{
++    bool expected = false;
++    if (!s_running.compare_exchange_strong(expected, true)) {
++        return false;
++    }
++    s_failed = false;
++    // Internal 4 KB stack: a flash write from a task whose stack is in PSRAM aborts the unit.
++    if (xTaskCreate(reset_task, "mp_reset", 4096, nullptr, 5, nullptr) != pdPASS) {
++        ESP_LOGW(kTag, "reset not started: no memory for its task. Nothing was erased. Hold the button again.");
++        s_failed  = true;
++        s_running = false;
++        return false;
++    }
++    return true;
++}
++
++bool maipai_reset_failed()
++{
++    return s_failed.load();
++}

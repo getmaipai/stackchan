@@ -1,0 +1,359 @@
+# Intent: the unit gets itself out of a freeze, can never reboot-loop, and a slow I2C part no longer aborts the boot (rebuild of the old 085 self-restart guard and the crash-fix line of 074 on the current base; owner approval 2026-11-13 and docs/design/feature-gap-2026-11-16.md Train 1 item 4). (1) The host's "reboot" system command used to run through Schedule() on the main loop, so a stuck main loop could never run it: it now runs off the receiving task, through the guard, after 300 ms so the log line and the host's ack leave first. (2) The application main loop ticks a counter every second; the motion sensor task (the one task that never waits on the main loop) asks for a restart after 30 s without a tick, once per freeze, never before the first tick (so setup mode and the boot are not counted). (3) THE GUARD (main/hal/maipai_heal.cc): every self-chosen restart goes through maipai_heal_restart, at most 3 an hour counted in flash (heal_n the count, heal_s the window clock in the unit's running seconds, since no clock survives a restart); the fourth is refused, logged and reported as a "heal" event (action=refused) and as heal_hold=1 in the "boot" event until the hour ends. The restart runs on its own task with an internal 4 KB stack: a flash write from a task whose stack is in PSRAM (the motion and head touch tasks) aborts the unit, which is the crash line of 074. Panics, wireless updates and the owner's Reset are not counted and never held back. (4) I2cDevice::ReadReg retried: it used to abort on any failed read (ESP_ERROR_CHECK, esp_err_t 0x108 once in five boots on the faces flash, docs/design/faces-gate-2026-11-16.md); it now tries three times, resetting the bus between tries, then logs and returns 0. Not taken from 074: the 3600 s idle-shutdown default and boot-into-agent default (product values; boot already starts the agent in this base) and the keep_awake tool (already present). The 8 s stall record of 069 is dropped (diagnostic only).
+# Placement: unit (a basic the robot must do alone; it runs with the host off)
+# Upstream: m5stack/StackChan firmware/main/hal/hal_imu.cpp and xiaozhi-esp32/main/application.cc and main/boards/common/i2c_device.cc (MIT); main/hal/maipai_heal.cc and maipai_heal.h are new (the CMake glob picks them up)
+# Check after a flash: the host's reboot request logs "HealGuard restarting (host): self-restart 1 of 3 this hour" and the next boot event carries heal_why=host heal_n=1; the fourth request inside an hour logs "restart refused" and a heal event with action=refused, and the boot event says heal_hold=1; a main loop held for 30 s logs "main loop stalled for 30 s" and restarts; the reset line "I2C register read ... failed (try 1 of 3)" appears instead of an abort if a part is slow to answer.
+diff --git a/firmware/main/hal/hal_imu.cpp b/firmware/main/hal/hal_imu.cpp
+--- a/firmware/main/hal/hal_imu.cpp
++++ b/firmware/main/hal/hal_imu.cpp
+@@ -5,6 +5,7 @@
+  */
+ #include "hal.h"
+ #include "board/hal_bridge.h"
++#include "maipai_heal.h"
+ #include "drivers/bmi270/bmi270.h"
+ #include "utils/motion_detector/motion_detector.h"
+ #include <mooncake_log.h>
+@@ -38,6 +39,7 @@
+             //     GetHAL().onImuMotionEvent.emit(ImuMotionEvent::PickUp);
+             // }
+         }
++        maipai_heal_watch();  // patch 085: a main loop that has not ticked for 30 s is a freeze
+         vTaskDelay(pdMS_TO_TICKS(100));
+     }
+ }
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -5,6 +5,7 @@
+  */
+ #include "hal.h"
+ #include "maipai_update.h"
++#include "maipai_heal.h"
+ #if CONFIG_MAIPAI_RESET_ON_DEVICE
+ #include "maipai_reset.h"
+ #endif
+@@ -42,6 +43,7 @@
+     maipai_update_arm();  // patch 160: a new wireless image that never reaches the host rolls back
+     xiaozhi_board_init();
+     xiaozhi_mcp_init();
++    maipai_heal_boot_report();  // patch 085
+     head_touch_init();
+     io_expander_init();
+     rtc_init();
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -15,6 +15,7 @@
+ 
+ #include <driver/gpio.h>
+ #include <hal/board/hal_bridge.h>
++#include <hal/maipai_heal.h>
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_timers.h>
+ #include <esp_timer.h>
+@@ -295,6 +296,7 @@
+         if (bits & MAIN_EVENT_CLOCK_TICK) {
+             clock_ticks_++;
+             guard_clock++;
++            maipai_heal_main_alive();  // patch 085: the motion task restarts the unit if this stops for 30 s
+             auto display = Board::GetInstance().GetDisplay();
+             display->UpdateStatusBar();
+ 
+@@ -745,8 +747,10 @@
+             if (cJSON_IsString(command)) {
+                 ESP_LOGI(TAG, "System command: %s", command->valuestring);
+                 if (strcmp(command->valuestring, "reboot") == 0) {
+-                    // Do a reboot if user requests a OTA update
+-                    Schedule([this]() { Reboot(); });
++                    // The host's restart request (patch 085) runs off this task, not through Schedule(): when the
++                    // main loop is what is stuck, a scheduled restart never runs. It goes through the
++                    // self-restart guard (three an hour) after 300 ms, so this log line and the host's ack leave first.
++                    maipai_heal_restart("host", 300);
+                 } else if (strcmp(command->valuestring, "idle") == 0) {
+                     Schedule([this]() {
+                         auto state = GetDeviceState();
+diff --git a/firmware/xiaozhi-esp32/main/boards/common/i2c_device.cc b/firmware/xiaozhi-esp32/main/boards/common/i2c_device.cc
+--- a/firmware/xiaozhi-esp32/main/boards/common/i2c_device.cc
++++ b/firmware/xiaozhi-esp32/main/boards/common/i2c_device.cc
+@@ -1,6 +1,8 @@
+ #include "i2c_device.h"
+ 
+ #include <esp_log.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
+ #include <stdlib.h>
+ #include <string.h>
+ 
+@@ -39,9 +41,25 @@
+ }
+ 
+ uint8_t I2cDevice::ReadReg(uint8_t reg) {
+-    uint8_t buffer[1];
+-    ESP_ERROR_CHECK(i2c_master_transmit_receive(i2c_device_, &reg, 1, buffer, 1, 100));
+-    return buffer[0];
++    // A read the part does not answer (it was not ready after a reset, or the bus hung for a moment) used to
++    // abort the unit (ESP_ERROR_CHECK, esp_err_t 0x108 on the first boot after a flash). Try three times,
++    // clearing the bus between tries, and after that log it and return 0 so the unit still boots.
++    uint8_t buffer[1] = {0};
++    esp_err_t error   = ESP_FAIL;
++    for (int attempt = 1; attempt <= 3; attempt++) {
++        error = i2c_master_transmit_receive(i2c_device_, &reg, 1, buffer, 1, 100);
++        if (error == ESP_OK) {
++            return buffer[0];
++        }
++        ESP_LOGW(TAG, "I2C register read 0x%02x failed (try %d of 3): %s", reg, attempt, esp_err_to_name(error));
++        if (attempt < 3) {
++            i2c_master_bus_reset(i2c_bus_);
++            vTaskDelay(pdMS_TO_TICKS(5));
++        }
++    }
++    ESP_LOGE(TAG, "I2C register read 0x%02x failed three times: %s. Returning 0; check the part's cable if this repeats.",
++             reg, esp_err_to_name(error));
++    return 0;
+ }
+ 
+ void I2cDevice::ReadRegs(uint8_t reg, uint8_t* buffer, size_t length) {
+diff --git a/firmware/main/hal/maipai_heal.h b/firmware/main/hal/maipai_heal.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_heal.h
+@@ -0,0 +1,29 @@
++/*
++ * SPDX-License-Identifier: MIT
++ */
++#pragma once
++#include <cstddef>
++#include <cstdint>
++
++// The self-restart guard (patch 085). A restart the unit chooses for itself (the host asked, or the main loop
++// froze for 30 s) asks here with a short reason ("host", "stall"). After delay_ms it is counted in flash and
++// carried out, unless three have already happened this hour: then it is refused, logged and reported as a
++// "heal" event (action=refused), so a fault that survives a restart can never become a reboot loop. Safe to
++// call from any task, including one whose stack is in PSRAM: the flash write and the restart run on their
++// own task with an internal stack (a flash write from a PSRAM-stack task aborts the unit). A panic is not
++// chosen, is never counted here and is never held back.
++void maipai_heal_restart(const char* why, uint32_t delay_ms);
++
++// Restarts counted in this hour's window, and whether the next request would be refused.
++void maipai_heal_status(int* count, bool* hold);
++
++// The application main loop calls this once a second. The motion sensor task watches it (maipai_heal_watch).
++void maipai_heal_main_alive();
++
++// Called by the motion sensor task every 100 ms: after 30 s without a main loop tick it asks for a restart
++// ("stall"), once per freeze. Never fires before the first tick, so setup mode and the boot are not counted.
++void maipai_heal_watch();
++
++// Boot: one "boot" event with the reset reason, this hour's count, whether a restart is held, and why the
++// last restart was chosen (empty after a power-on or a panic).
++void maipai_heal_boot_report();
+diff --git a/firmware/main/hal/maipai_heal.cc b/firmware/main/hal/maipai_heal.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_heal.cc
+@@ -0,0 +1,205 @@
++/*
++ * SPDX-License-Identifier: MIT
++ */
++// The self-restart guard (patch 085). At most kMaxPerHour self-chosen restarts an hour. The hour is counted in
++// the unit's own running time, because the unit has no clock that survives a restart: flash holds how many
++// restarts the window has seen (heal_n) and how many seconds the window had run as of the last of them
++// (heal_s); at boot kBootGapS is added for the restart itself. A power loss does not reset the count, so the
++// window only ends after an hour of running.
++#include "maipai_heal.h"
++
++#include "device_events.h"
++
++#include <esp_log.h>
++#include <esp_system.h>
++#include <esp_timer.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
++#include <nvs.h>
++
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <memory>
++#include <mutex>
++
++namespace {
++constexpr const char* kTag    = "HealGuard";
++constexpr const char* kNs     = "mp_heal";  // our own: never the websocket namespace (pairing token, Wi-Fi)
++constexpr int kMaxPerHour     = 3;
++constexpr int kWindowS        = 3600;
++constexpr int kBootGapS       = 10;  // what a restart itself costs, added to the window clock at boot
++constexpr int kStallLoops     = 300; // 30 s at the motion task's 100 ms rhythm
++
++std::mutex s_mutex;
++bool s_loaded  = false;
++int s_count    = 0;  // restarts in the current window
++int s_window_s = 0;  // window clock at boot
++std::atomic<uint32_t> s_alive{0};
++
++struct Request {
++    char why[16];
++    uint32_t delay_ms;
++};
++
++int get_int(nvs_handle_t h, const char* key)
++{
++    int32_t value = 0;
++    return nvs_get_i32(h, key, &value) == ESP_OK ? value : 0;
++}
++
++void load_locked()
++{
++    if (s_loaded) {
++        return;
++    }
++    s_loaded = true;
++    nvs_handle_t h;
++    if (nvs_open(kNs, NVS_READONLY, &h) == ESP_OK) {
++        s_count    = get_int(h, "heal_n");
++        s_window_s = get_int(h, "heal_s") + kBootGapS;
++        nvs_close(h);
++    }
++}
++
++int elapsed_locked()
++{
++    return s_window_s + static_cast<int>(esp_timer_get_time() / 1000000);
++}
++
++// A window that has run an hour starts over.
++void expire_locked()
++{
++    if (s_count > 0 && elapsed_locked() >= kWindowS) {
++        s_count    = 0;
++        s_window_s = -static_cast<int>(esp_timer_get_time() / 1000000);
++    }
++}
++
++bool save_locked(const char* why)
++{
++    nvs_handle_t h;
++    if (nvs_open(kNs, NVS_READWRITE, &h) != ESP_OK) {
++        return false;
++    }
++    esp_err_t err = nvs_set_i32(h, "heal_n", s_count + 1);
++    if (err == ESP_OK) {
++        err = nvs_set_i32(h, "heal_s", elapsed_locked());
++    }
++    if (err == ESP_OK) {
++        err = nvs_set_str(h, "heal_why", why);
++    }
++    if (err == ESP_OK) {
++        err = nvs_commit(h);
++    }
++    nvs_close(h);
++    return err == ESP_OK;
++}
++
++void restart_task(void* arg)
++{
++    std::unique_ptr<Request> request(static_cast<Request*>(arg));
++    vTaskDelay(pdMS_TO_TICKS(request->delay_ms));
++    int count = 0;
++    bool allowed;
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        load_locked();
++        expire_locked();
++        allowed = s_count < kMaxPerHour;
++        count   = s_count;
++    }
++    char extra[80];
++    if (!allowed) {
++        ESP_LOGW(kTag, "restart refused (%s): %d self-restarts this hour already. The unit keeps running; restart it by hand if it is stuck.",
++                 request->why, count);
++        snprintf(extra, sizeof(extra), "\"action\":\"refused\",\"why\":\"%s\",\"n\":%d", request->why, count);
++        device_events_push("heal", extra);
++        vTaskDelete(nullptr);
++        return;
++    }
++    ESP_LOGW(kTag, "restarting (%s): self-restart %d of %d this hour", request->why, count + 1, kMaxPerHour);
++    snprintf(extra, sizeof(extra), "\"action\":\"restart\",\"why\":\"%s\",\"n\":%d", request->why, count + 1);
++    device_events_push("heal", extra);
++    vTaskDelay(pdMS_TO_TICKS(300));  // the log line and the event leave first
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        if (!save_locked(request->why)) {
++            ESP_LOGW(kTag, "could not count this restart in flash; restarting anyway");
++        }
++    }
++    esp_restart();
++}
++}  // namespace
++
++void maipai_heal_restart(const char* why, uint32_t delay_ms)
++{
++    auto* request = new Request{};
++    snprintf(request->why, sizeof(request->why), "%s", why != nullptr ? why : "?");
++    request->delay_ms = delay_ms;
++    if (xTaskCreate(restart_task, "heal_restart", 4096, request, 5, nullptr) != pdPASS) {
++        ESP_LOGW(kTag, "could not start the restart task (%s): no memory. Nothing was restarted.", request->why);
++        delete request;
++    }
++}
++
++void maipai_heal_status(int* count, bool* hold)
++{
++    std::lock_guard<std::mutex> lock(s_mutex);
++    load_locked();
++    expire_locked();
++    if (count != nullptr) {
++        *count = s_count;
++    }
++    if (hold != nullptr) {
++        *hold = s_count >= kMaxPerHour;
++    }
++}
++
++void maipai_heal_main_alive()
++{
++    s_alive.fetch_add(1, std::memory_order_relaxed);
++}
++
++void maipai_heal_watch()
++{
++    static uint32_t last_alive = 0;
++    static int stuck_loops     = 0;
++    static bool asked          = false;
++    const uint32_t alive       = s_alive.load(std::memory_order_relaxed);
++    if (alive != last_alive) {
++        last_alive  = alive;
++        stuck_loops = 0;
++        asked       = false;
++        return;
++    }
++    if (alive > 0 && !asked && ++stuck_loops >= kStallLoops) {
++        asked = true;
++        ESP_LOGW(kTag, "main loop stalled for 30 s: asking for a self-restart");
++        maipai_heal_restart("stall", 0);
++    }
++}
++
++void maipai_heal_boot_report()
++{
++    int count = 0;
++    bool hold = false;
++    maipai_heal_status(&count, &hold);
++    char why[16] = "";
++    nvs_handle_t h;
++    if (nvs_open(kNs, NVS_READWRITE, &h) == ESP_OK) {
++        size_t size = sizeof(why);
++        if (nvs_get_str(h, "heal_why", why, &size) == ESP_OK) {
++            nvs_erase_key(h, "heal_why");  // read once: empty after a power-on or a panic
++            nvs_commit(h);
++        } else {
++            why[0] = '\0';
++        }
++        nvs_close(h);
++    }
++    char extra[120];
++    snprintf(extra, sizeof(extra), "\"reason\":%d,\"heal_n\":%d,\"heal_hold\":%d,\"heal_why\":\"%s\"",
++             static_cast<int>(esp_reset_reason()), count, hold ? 1 : 0, why);
++    ESP_LOGI(kTag, "boot: %s", extra);
++    device_events_push("boot", extra);
++}
