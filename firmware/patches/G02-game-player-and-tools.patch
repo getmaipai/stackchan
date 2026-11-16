@@ -1,0 +1,975 @@
+# Intent: Games item 2, the device player and its tools (builds on G01). maipai_games.cc draws a running game with LVGL objects on the top layer (never clickable, so a touch still reaches the face's own handlers, which pass it on in patch G03), runs the player from one LVGL timer every 30 ms that exists only while a game runs, plays the tones the player queues through the sound policy (maipai_sounds_play: the policy, night rule and hard mute decide, a refusal is silence), keeps the unit awake while a game runs, saves a finished game's score once into its own NVS namespace mp_games (five u16 per game, written on the main task, never on the screen task, and only for a game that reached its end), and ends the game on a stop request, on full quiet, or when an update starts. A start is refused with a plain sentence in full quiet, during an update, while another game plays, for an unknown name. Tools: self.game.list (games, titles in the saved language, best five scores, whether one is playing), self.game.start (name: memory, reaction or whack, or a title), self.game.stop, self.game.scores. Memory: while no game runs nothing exists (no task, no timer, no objects, no PSRAM; the packs are read in place from flash); a running game holds one Game record of about 0.5 KB in PSRAM (492 bytes measured) and its LVGL objects (about 2.4 KB of internal RAM for memory, 4.1 KB for whack-a-mole, freed when it ends). A bench build adds self.game.bench_tap (a finger at x, y; the reserved edges do nothing, as for a finger), self.game.bench_request_stop (the stop word path), self.game.status and self.game.bench_install (one outside pack, in pieces, through the same checks: size, checksum, tables, signing rule, a name no built-in uses).
+# Placement: unit (the screen, the touches, the tones and the scores belong to the robot)
+# Upstream: firmware/main/hal/maipai_decor.cc (the shape of a registered feature with an LVGL timer) and update_verify.cc of patch 155 (the Ed25519 check, reused for outside packs); the rest is new MaiPai code
+# Check after a flash (bench build): self.game.list names three games; self.game.start memory answers ok and self.game.status shows active true, then a bot taps the shown colours with self.game.bench_tap and the score counter rises; a wrong colour ends the game on its end screen and self.game.scores shows the score; self.game.stop ends a game and saves nothing; self.game.bench_request_stop ends one the way the stop word does; self.privacy.set quiet 1 ends a running game and a start is refused with the full quiet sentence; scores are still there after a restart; self.game.bench_install refuses a damaged pack and a built-in name in plain words and accepts an unsigned pack with a new name.
+# Kconfig: MAIPAI_GAMES (G01); off removes the player and the tools. MAIPAI_GAMES_BENCH adds the bench tools.
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -20,6 +20,7 @@
+ #include "maipai_update.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_music.h"
++#include "maipai_games.h"
+ #if CONFIG_MAIPAI_DANCE_EXTRAS
+ #include "maipai_dances_core.h"
+ #endif
+@@ -631,6 +632,9 @@ void Hal::xiaozhi_mcp_init()
+     // The music dance task and self.music.set and self.music.get_status (patch V03).
+     maipai_music_init();
+ 
++    // self.game.list, start, stop and scores (patch G01). Nothing runs until a game starts.
++    maipai_games_register_tools();
++
+     mclog::tagInfo(_tag, "add robot.dance tool");
+     mcp_server.AddTool("self.robot.dance",
+                        "Play one of the robot's dances once, then return to normal. Built in: happy, robot, panic, look_around. More "
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_games.cc
+@@ -0,0 +1,899 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The game player, device side (patch G01). See maipai_games.h. One game at a time. While a game runs it owns one
++ * LVGL object tree on the top layer (never clickable, so a touch still reaches the face's own handlers, which pass it
++ * here), one LVGL timer (30 ms) and about 0.5 KB of PSRAM (measured: 492 bytes); the three built-in packs are flash data read in place.
++ * Scores are saved once, when a game ends, into the NVS namespace "mp_games" (five u16 per game).
++ */
++#include <sdkconfig.h>
++#if CONFIG_MAIPAI_GAMES
++#include "maipai_games.h"
++#include "maipai_games_core.h"
++#include "maipai_face.h"
++#include "maipai_privacy.h"
++#include "maipai_sounds.h"
++#include "maipai_timers.h"
++#include "maipai_update.h"
++#include "device_events.h"
++#include "board/hal_bridge.h"
++#include "hal.h"
++#include <application.h>
++#include <mcp_server.h>
++#include <update_verify.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_random.h>
++#include <esp_timer.h>
++#include <lvgl.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++#include <psa/crypto.h>
++#include <strings.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <mutex>
++#include <string>
++#include <vector>
++
++static const char* TAG        = "MAIPAI-GAMES";
++static const char* kNamespace = "mp_games";
++
++extern "C" {
++extern const uint8_t _binary_memory_mpk_start[];
++extern const uint8_t _binary_memory_mpk_end[];
++extern const uint8_t _binary_reaction_mpk_start[];
++extern const uint8_t _binary_reaction_mpk_end[];
++extern const uint8_t _binary_whack_mpk_start[];
++extern const uint8_t _binary_whack_mpk_end[];
++}
++
++namespace {
++
++constexpr int kBuiltIns   = 3;
++constexpr int kMaxGames   = kBuiltIns + 1;  // the three, plus one pack loaded from outside (bench builds)
++constexpr uint32_t kTickMs = 30;
++
++struct Source {
++    const uint8_t* start;
++    const uint8_t* end;
++};
++const Source kBuilt[kBuiltIns] = {
++    {_binary_memory_mpk_start, _binary_memory_mpk_end},
++    {_binary_reaction_mpk_start, _binary_reaction_mpk_end},
++    {_binary_whack_mpk_start, _binary_whack_mpk_end},
++};
++
++// A pack loaded from outside the image (only the bench tool does this today): one slot, in PSRAM.
++uint8_t* s_ext     = nullptr;
++size_t s_ext_len   = 0;
++
++struct Entry {
++    char id[12];
++    uint16_t best[MG_SCORES];
++};
++std::mutex s_mutex;  // a leaf lock: the score cache
++Entry s_entries[kMaxGames];
++bool s_loaded = false;
++
++struct Game {
++    mg_pack_t pack;
++    mg_run_t run;
++    lv_obj_t* root;
++    lv_timer_t* timer;
++    lv_obj_t* obj[MG_MAX_SHAPES];
++    uint8_t type[MG_MAX_SHAPES];
++    uint8_t text[MG_MAX_SHAPES];
++    int16_t last_ctr[MG_COUNTERS];
++    uint8_t last_state;
++    bool es;
++    bool lower;
++    int entry;
++    int rank;
++    uint32_t last_awake_ms;
++    uint32_t tones;
++    char id[12];
++    char source[8];
++};
++
++Game* s_game = nullptr;  // owned by the LVGL task: touched only with the LVGL lock held
++std::atomic<bool> s_active{false};
++std::atomic<const char*> s_stop_req{nullptr};
++uint32_t s_tones_total = 0;
++uint32_t s_saves_total = 0;
++
++uint32_t now_ms()
++{
++    return static_cast<uint32_t>(esp_timer_get_time() / 1000);
++}
++
++bool want_spanish()
++{
++#if CONFIG_MAIPAI_FACE_CONFIG
++    return maipai_face_config().lang == MF_LANG_ES;
++#else
++    return false;
++#endif
++}
++
++bool bench_build()
++{
++#if CONFIG_MAIPAI_GAMES_BENCH
++    return true;
++#else
++    return false;
++#endif
++}
++
++// ---- the packs ----
++
++// Pack bytes for slot `i` (0 to 2 the built-ins, 3 the outside pack), or false.
++bool slot_bytes(int i, const uint8_t** data, size_t* len)
++{
++    if (i >= 0 && i < kBuiltIns) {
++        *data = kBuilt[i].start;
++        *len  = static_cast<size_t>(kBuilt[i].end - kBuilt[i].start);
++        return true;
++    }
++    if (i == kBuiltIns && s_ext != nullptr) {
++        *data = s_ext;
++        *len  = s_ext_len;
++        return true;
++    }
++    return false;
++}
++
++bool slot_pack(int i, mg_pack_t* p)
++{
++    const uint8_t* data;
++    size_t len;
++    return slot_bytes(i, &data, &len) && mg_parse(data, len, p) == MG_OK;
++}
++
++int slot_by_name(const char* name)
++{
++    if (name == nullptr || name[0] == '\0') {
++        return -1;
++    }
++    for (int i = 0; i < kMaxGames; i++) {
++        mg_pack_t p;
++        if (!slot_pack(i, &p)) {
++            continue;
++        }
++        if (strcasecmp(name, p.id) == 0 || strcasecmp(name, mg_text_raw(&p, p.title_text, 0)) == 0 ||
++            strcasecmp(name, mg_text_raw(&p, p.title_text, 1)) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++// ---- scores ----
++
++void load_scores_locked()
++{
++    if (s_loaded) {
++        return;
++    }
++    s_loaded = true;
++    nvs_handle_t h;
++    const bool have = nvs_open(kNamespace, NVS_READONLY, &h) == ESP_OK;
++    for (int i = 0; i < kBuiltIns; i++) {
++        mg_pack_t p;
++        if (!slot_pack(i, &p)) {
++            continue;
++        }
++        snprintf(s_entries[i].id, sizeof(s_entries[i].id), "%s", p.id);
++        if (!have) {
++            continue;
++        }
++        char key[16];
++        snprintf(key, sizeof(key), "s_%s", p.id);
++        uint8_t buf[2 * MG_SCORES];
++        size_t n = sizeof(buf);
++        if (nvs_get_blob(h, key, buf, &n) == ESP_OK && n == sizeof(buf)) {
++            for (int k = 0; k < MG_SCORES; k++) {
++                s_entries[i].best[k] = mg_u16(buf + 2 * k);
++            }
++        }
++    }
++    if (have) {
++        nvs_close(h);
++    }
++}
++
++void write_scores(const char* id, const uint16_t scores[MG_SCORES])
++{
++    nvs_handle_t h;
++    if (nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) {
++        ESP_LOGW(TAG, "could not save the scores of %s", id);
++        return;
++    }
++    char key[16];
++    snprintf(key, sizeof(key), "s_%s", id);
++    uint8_t buf[2 * MG_SCORES];
++    for (int k = 0; k < MG_SCORES; k++) {
++        buf[2 * k]     = static_cast<uint8_t>(scores[k] & 0xFF);
++        buf[2 * k + 1] = static_cast<uint8_t>(scores[k] >> 8);
++    }
++    if (nvs_set_blob(h, key, buf, sizeof(buf)) != ESP_OK || nvs_commit(h) != ESP_OK) {
++        ESP_LOGW(TAG, "could not write the scores of %s", id);
++    }
++    nvs_close(h);
++}
++
++// ---- drawing ----
++
++lv_color_t colour(uint16_t c)
++{
++    return lv_color_make(static_cast<uint8_t>(((c >> 11) & 31) << 3), static_cast<uint8_t>(((c >> 5) & 63) << 2),
++                         static_cast<uint8_t>((c & 31) << 3));
++}
++
++const lv_font_t* font_for(int size)
++{
++    return size == 0 ? &lv_font_montserrat_14 : (size == 1 ? &lv_font_montserrat_16 : &lv_font_montserrat_20);
++}
++
++lv_obj_t* plain(lv_obj_t* parent)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_style_all(o);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++    return o;
++}
++
++lv_obj_t* build_shape(lv_obj_t* parent, const mg_shape_t& s)
++{
++    switch (s.type) {
++        case MG_SH_FILL: {
++            lv_obj_t* o = plain(parent);
++            lv_obj_set_size(o, 320, 240);
++            lv_obj_set_pos(o, 0, 0);
++            lv_obj_set_style_bg_color(o, colour(s.colour), 0);
++            lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++            return o;
++        }
++        case MG_SH_CIRCLE:
++        case MG_SH_RING: {
++            lv_obj_t* o = plain(parent);
++            lv_obj_set_size(o, s.w * 2, s.w * 2);
++            lv_obj_set_pos(o, s.x - s.w, s.y - s.w);
++            lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
++            if (s.type == MG_SH_CIRCLE) {
++                lv_obj_set_style_bg_color(o, colour(s.colour), 0);
++                lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++            } else {
++                lv_obj_set_style_border_color(o, colour(s.colour), 0);
++                lv_obj_set_style_border_width(o, s.aux > 0 ? s.aux : 2, 0);
++            }
++            return o;
++        }
++        case MG_SH_BOX: {
++            lv_obj_t* o = plain(parent);
++            lv_obj_set_size(o, s.w, s.h);
++            lv_obj_set_pos(o, s.x, s.y);
++            lv_obj_set_style_radius(o, s.aux, 0);
++            lv_obj_set_style_bg_color(o, colour(s.colour), 0);
++            lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++            return o;
++        }
++        default: {  // MG_SH_TEXT
++            lv_obj_t* o = lv_label_create(parent);
++            lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            const lv_font_t* font = font_for(s.aux);
++            const int width       = s.w > 0 ? s.w : 280;
++            lv_obj_set_style_text_font(o, font, 0);
++            lv_obj_set_style_text_color(o, colour(s.colour), 0);
++            lv_obj_set_style_text_align(o, LV_TEXT_ALIGN_CENTER, 0);
++            lv_label_set_long_mode(o, LV_LABEL_LONG_WRAP);
++            lv_obj_set_width(o, width);
++            lv_obj_set_pos(o, s.x - width / 2, s.y - lv_font_get_line_height(font) / 2);
++            return o;
++        }
++    }
++}
++
++void redraw(Game* g, bool force)
++{
++    mg_run_t& r = g->run;
++    if (!force && r.state == g->last_state && memcmp(r.ctr, g->last_ctr, sizeof(g->last_ctr)) == 0) {
++        return;
++    }
++    g->last_state = r.state;
++    memcpy(g->last_ctr, r.ctr, sizeof(g->last_ctr));
++    for (int i = 0; i < g->pack.n_shapes; i++) {
++        lv_obj_t* o = g->obj[i];
++        if (o == nullptr) {
++            continue;
++        }
++        if (mg_shape_visible(&r, i)) {
++            if (g->type[i] == MG_SH_TEXT) {
++                char buf[MG_TEXT_LEN + 16];
++                mg_text(&r, g->text[i], g->es ? 1 : 0, buf, sizeof(buf));
++                lv_label_set_text(o, buf);
++            }
++            lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++        } else {
++            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++        }
++    }
++}
++
++// ---- the running game ----
++
++void end_locked(const char* how)
++{
++    Game* g = s_game;
++    if (g == nullptr) {
++        return;
++    }
++    s_game = nullptr;
++    if (g->timer != nullptr) {
++        lv_timer_delete(g->timer);
++    }
++    if (g->root != nullptr) {
++        lv_obj_delete(g->root);  // every shape is its child
++    }
++    char extra[120];
++    snprintf(extra, sizeof(extra), "\"game\":\"%s\",\"how\":\"%s\",\"score\":%d,\"rank\":%d", g->id, how,
++             g->run.ctr[g->pack.score_ctr], g->rank);
++    ESP_LOGI(TAG, "game %s ended (%s), score %d, rank %d, %u tones", g->id, how, g->run.ctr[g->pack.score_ctr], g->rank,
++             static_cast<unsigned>(g->tones));
++    heap_caps_free(g);
++    s_stop_req.store(nullptr);
++    s_active.store(false);
++    if (!maipai_timers_ringing()) {
++        hal_bridge::stop_word_arm(false);  // a ring keeps its own arming
++    }
++    device_events_push("game_ended", extra);
++}
++
++void commit_score(Game* g)
++{
++    const int value = g->run.ctr[g->pack.score_ctr];
++    uint16_t copy[MG_SCORES];
++    int rank;
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        rank = mg_scores_add(s_entries[g->entry].best, g->lower ? 1 : 0, value);
++        memcpy(copy, s_entries[g->entry].best, sizeof(copy));
++    }
++    g->rank = rank;
++    if (rank < 0) {
++        return;
++    }
++    s_saves_total++;
++    // The flash write runs on the main task, never on the screen task (and only here, once, when a game ends).
++    char id[12];
++    snprintf(id, sizeof(id), "%s", g->id);
++    Application::GetInstance().Schedule([id, copy]() { write_scores(id, copy); });
++}
++
++// Plays the tones the player queued, saves a committed score, redraws; ends the game when the player finished.
++void after_event(Game* g)
++{
++    mg_run_t& r = g->run;
++    for (int i = 0; i < r.tone_n; i++) {
++        (void)maipai_sounds_play(MG_TONES[r.tone_q[i]]);  // the sound policy and the mute decide; a refusal is silence
++        g->tones++;
++        s_tones_total++;
++    }
++    r.tone_n = 0;
++    if (r.save_pending) {
++        r.save_pending = 0;
++        commit_score(g);
++    }
++    redraw(g, false);
++    if (r.finished) {
++        end_locked(r.budget_hit ? "budget" : "finished");
++    }
++}
++
++void tick_cb(lv_timer_t*)
++{
++    Game* g = s_game;
++    if (g == nullptr) {
++        return;
++    }
++    if (const char* how = s_stop_req.exchange(nullptr)) {
++        end_locked(how);
++        return;
++    }
++    if (maipai_quiet()) {  // full quiet wins over everything
++        end_locked("quiet");
++        return;
++    }
++    if (maipai_update_active()) {
++        end_locked("update");
++        return;
++    }
++    const uint32_t now = now_ms();
++    if (now - g->last_awake_ms >= 1000) {
++        g->last_awake_ms = now;
++        hal_bridge::power_keep_awake();  // a game keeps the screen on
++    }
++    mg_tick(&g->run, now);
++    after_event(g);
++}
++
++const char* say(bool es, const char* en, const char* sp)
++{
++    return es ? sp : en;
++}
++
++}  // namespace
++
++bool maipai_games_active()
++{
++    return s_active.load();
++}
++
++int maipai_games_count()
++{
++    int n = 0;
++    for (int i = 0; i < kMaxGames; i++) {
++        mg_pack_t p;
++        n += slot_pack(i, &p) ? 1 : 0;
++    }
++    return n;
++}
++
++const char* maipai_games_id(int index)
++{
++    static char ids[kMaxGames][12];
++    mg_pack_t p;
++    int seen = 0;
++    for (int i = 0; i < kMaxGames; i++) {
++        if (slot_pack(i, &p) && seen++ == index) {
++            snprintf(ids[i], sizeof(ids[i]), "%s", p.id);
++            return ids[i];
++        }
++    }
++    return "";
++}
++
++const char* maipai_games_title(int index, bool es)
++{
++    mg_pack_t p;
++    int seen = 0;
++    for (int i = 0; i < kMaxGames; i++) {
++        if (slot_pack(i, &p) && seen++ == index) {
++            return mg_text_raw(&p, p.title_text, es ? 1 : 0);  // the text is in flash or in the pack's own PSRAM copy
++        }
++    }
++    return "";
++}
++
++int maipai_games_best(int index)
++{
++    mg_pack_t p;
++    int seen = 0;
++    for (int i = 0; i < kMaxGames; i++) {
++        if (slot_pack(i, &p) && seen++ == index) {
++            std::lock_guard<std::mutex> lock(s_mutex);
++            return s_entries[i].best[0];
++        }
++    }
++    return 0;
++}
++
++bool maipai_games_lower_is_better(int index)
++{
++    mg_pack_t p;
++    int seen = 0;
++    for (int i = 0; i < kMaxGames; i++) {
++        if (slot_pack(i, &p) && seen++ == index) {
++            return (p.flags & MG_FLAG_LOWER_BETTER) != 0;
++        }
++    }
++    return false;
++}
++
++const char* maipai_games_start_locked(const char* name, const char* source)
++{
++    const bool es = want_spanish();
++    if (s_game != nullptr) {
++        return say(es, "A game is already running. Stop it first (swipe down from the bottom edge, or say stop), then start another.",
++                   "Ya hay un juego en marcha. Detenlo primero (desliza hacia abajo desde el borde inferior, o di para), y luego empieza otro.");
++    }
++    const int slot = slot_by_name(name);
++    if (slot < 0) {
++        return say(es, "That game is not on this unit. Ask for memory, reaction or whack.",
++                   "Ese juego no esta en esta unidad. Pide memory, reaction o whack.");
++    }
++    if (maipai_quiet()) {
++        return say(es, "The unit is in full quiet, so no game starts. Turn full quiet off, then ask again.",
++                   "La unidad esta en silencio total, asi que no empieza ningun juego. Quita el silencio total y pidelo otra vez.");
++    }
++    if (maipai_update_active()) {
++        return say(es, "The unit is installing an update. Ask again when it has restarted.",
++                   "La unidad esta instalando una actualizacion. Pidelo otra vez cuando se reinicie.");
++    }
++    const uint8_t* data;
++    size_t len;
++    if (!slot_bytes(slot, &data, &len)) {
++        return say(es, "That game is not on this unit. Ask for memory, reaction or whack.",
++                   "Ese juego no esta en esta unidad. Pide memory, reaction o whack.");
++    }
++    Game* g = static_cast<Game*>(heap_caps_calloc(1, sizeof(Game), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (g == nullptr) {
++        return say(es, "The unit is low on memory. Restart it and try again.",
++                   "La unidad tiene poca memoria. Reiniciala e intentalo otra vez.");
++    }
++    const mg_err_t err = mg_parse(data, len, &g->pack);
++    if (err != MG_OK) {
++        heap_caps_free(g);
++        return mg_err_text(err, es);
++    }
++    g->es    = es;
++    g->lower = (g->pack.flags & MG_FLAG_LOWER_BETTER) != 0;
++    g->entry = slot;
++    g->rank  = -1;
++    snprintf(g->id, sizeof(g->id), "%s", g->pack.id);
++    snprintf(g->source, sizeof(g->source), "%s", source != nullptr ? source : "tool");
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        load_scores_locked();
++        if (s_entries[slot].id[0] == '\0') {
++            snprintf(s_entries[slot].id, sizeof(s_entries[slot].id), "%s", g->id);
++        }
++    }
++    g->root = lv_obj_create(lv_layer_top());
++    lv_obj_remove_style_all(g->root);
++    lv_obj_remove_flag(g->root, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(g->root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(g->root, 320, 240);
++    lv_obj_set_pos(g->root, 0, 0);
++    lv_obj_set_style_bg_color(g->root, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(g->root, LV_OPA_COVER, 0);
++    for (int i = 0; i < g->pack.n_shapes; i++) {
++        mg_shape_t s;
++        mg_shape_get(&g->pack, i, &s);
++        g->type[i] = s.type;
++        g->text[i] = s.text;
++        g->obj[i]  = build_shape(g->root, s);
++    }
++    g->last_awake_ms = now_ms();
++    mg_start(&g->run, &g->pack, now_ms(), esp_random());
++    s_game = g;
++    s_active.store(true);
++    s_stop_req.store(nullptr);
++    g->timer = lv_timer_create(tick_cb, kTickMs, nullptr);
++    if (!maipai_mic_blocked()) {
++        hal_bridge::stop_word_arm(true);  // best effort: the stop word ends a game
++    }
++    hal_bridge::power_keep_awake();
++    redraw(g, true);
++    char extra[48];
++    snprintf(extra, sizeof(extra), "\"game\":\"%s\",\"source\":\"%s\"", g->id, g->source);
++    device_events_push("game_started", extra);
++    ESP_LOGI(TAG, "game %s started (%s), pack %u bytes", g->id, g->source, static_cast<unsigned>(len));
++    after_event(g);  // the first state may already have a tone
++    return "";
++}
++
++bool maipai_games_stop_locked(const char* how)
++{
++    if (s_game == nullptr) {
++        return false;
++    }
++    end_locked(how != nullptr ? how : "stopped");
++    return true;
++}
++
++bool maipai_games_request_stop(const char* how)
++{
++    if (!s_active.load()) {
++        return false;
++    }
++    s_stop_req.store(how);
++    return true;
++}
++
++void maipai_games_touch(int x, int y)
++{
++    Game* g = s_game;
++    if (g == nullptr) {
++        return;
++    }
++    mg_tap(&g->run, x, y, now_ms());
++    after_event(g);
++}
++
++// ---- the tools ----
++
++namespace {
++
++std::string json_text(const char* s)
++{
++    std::string out;
++    for (; *s != '\0'; s++) {
++        if (*s == '"' || *s == '\\') {
++            out += '\\';
++        }
++        out += *s;
++    }
++    return out;
++}
++
++std::string error_json(const char* why)
++{
++    return std::string("{\"ok\":false,\"error\":\"") + json_text(why) + "\"}";
++}
++
++std::string scores_json(int slot)
++{
++    mg_pack_t p;
++    if (!slot_pack(slot, &p)) {
++        return "[]";
++    }
++    std::lock_guard<std::mutex> lock(s_mutex);
++    std::string out = "[";
++    bool first      = true;
++    for (int k = 0; k < MG_SCORES; k++) {
++        if (s_entries[slot].best[k] == 0) {
++            continue;
++        }
++        out += first ? "" : ",";
++        out += std::to_string(s_entries[slot].best[k]);
++        first = false;
++    }
++    return out + "]";
++}
++
++#if CONFIG_MAIPAI_GAMES_BENCH
++int b64_value(char c)
++{
++    if (c >= 'A' && c <= 'Z') return c - 'A';
++    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
++    if (c >= '0' && c <= '9') return c - '0' + 52;
++    if (c == '+') return 62;
++    if (c == '/') return 63;
++    return -1;
++}
++
++bool b64_decode(const std::string& in, std::vector<uint8_t>* out)
++{
++    uint32_t acc = 0;
++    int bits     = 0;
++    for (char c : in) {
++        if (c == '=' || c == '\n' || c == '\r' || c == ' ') {
++            continue;
++        }
++        const int v = b64_value(c);
++        if (v < 0) {
++            return false;
++        }
++        acc = (acc << 6) | static_cast<uint32_t>(v);
++        bits += 6;
++        if (bits >= 8) {
++            bits -= 8;
++            out->push_back(static_cast<uint8_t>((acc >> bits) & 0xFF));
++        }
++    }
++    return true;
++}
++#endif
++
++// The signature of a pack from outside the image: plain Ed25519 over the pack and its checksum, made with the update
++// key (patch 155), checked with the same code that checks firmware updates.
++bool signature_ok(const mg_pack_t& p, const uint8_t* pk)
++{
++    size_t signed_len        = 0;
++    const uint8_t* sig       = mg_signature(&p, &signed_len);
++    if (sig == nullptr || psa_crypto_init() != PSA_SUCCESS) {
++        return false;
++    }
++    psa_hash_operation_t op = psa_hash_operation_init();
++    uint8_t h[64];
++    size_t n = 0;
++    if (psa_hash_setup(&op, PSA_ALG_SHA_512) != PSA_SUCCESS) {
++        return false;
++    }
++    psa_hash_update(&op, sig, 32);  // R
++    psa_hash_update(&op, pk, 32);   // the public key
++    psa_hash_update(&op, p.b, signed_len);
++    if (psa_hash_finish(&op, h, sizeof(h), &n) != PSA_SUCCESS || n != 64) {
++        psa_hash_abort(&op);
++        return false;
++    }
++    return Ed25519VerifyDigest(sig, pk, h);
++}
++
++}  // namespace
++
++// Loads one pack from outside the image into the single outside slot. The checks: the file (size, checksum, tables), the
++// signing rule (mg_admit), then the copy. Returns MG_OK or the reason. Not used by a shipped path yet: the host push is the
++// next step; the bench tool below calls it so the whole path can be exercised.
++namespace {
++[[maybe_unused]] mg_err_t maipai_games_load_external(const uint8_t* data, size_t len, char* id_out, size_t id_cap)
++{
++    mg_pack_t p;
++    mg_err_t err = mg_parse(data, len, &p);
++    if (err != MG_OK) {
++        return err;
++    }
++    uint8_t pk[32];
++    const bool key = UpdateTrustedKey(pk);
++    const bool sig = p.has_sig && key && signature_ok(p, pk);
++    err            = mg_admit(MG_SRC_EXTERNAL, p.has_sig, sig, key, bench_build());
++    if (err != MG_OK) {
++        return err;
++    }
++    for (int i = 0; i < kBuiltIns; i++) {
++        mg_pack_t b;
++        if (slot_pack(i, &b) && strcmp(b.id, p.id) == 0) {
++            return MG_E_TAKEN;  // the name is a built-in game's
++        }
++    }
++    if (s_game != nullptr) {
++        return MG_E_BUSY;  // never replace a pack while a game may be using the old one
++    }
++    uint8_t* copy = static_cast<uint8_t*>(heap_caps_malloc(len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (copy == nullptr) {
++        return MG_E_MEMORY;
++    }
++    memcpy(copy, data, len);
++    heap_caps_free(s_ext);
++    s_ext     = copy;
++    s_ext_len = len;
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        memset(&s_entries[kBuiltIns], 0, sizeof(s_entries[kBuiltIns]));
++        snprintf(s_entries[kBuiltIns].id, sizeof(s_entries[kBuiltIns].id), "%s", p.id);
++    }
++    snprintf(id_out, id_cap, "%s", p.id);
++    return MG_OK;
++}
++}  // namespace
++
++void maipai_games_register_tools()
++{
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        load_scores_locked();  // reads the saved scores once, here, on the task that sets the tools up
++    }
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.game.list",
++                "List the games on this unit with their best scores (best first, up to five), and which one is playing now. "
++                "Answers {ok, playing, games:[{id, title, lower_is_better, scores}]}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    const bool es = want_spanish();
++                    std::string out = std::string("{\"ok\":true,\"playing\":") + (s_active.load() ? "true" : "false") + ",\"games\":[";
++                    bool first      = true;
++                    for (int i = 0; i < kMaxGames; i++) {
++                        mg_pack_t p;
++                        if (!slot_pack(i, &p)) {
++                            continue;
++                        }
++                        out += first ? "" : ",";
++                        first = false;
++                        out += std::string("{\"id\":\"") + p.id + "\",\"title\":\"" +
++                               json_text(mg_text_raw(&p, p.title_text, es ? 1 : 0)) + "\",\"lower_is_better\":" +
++                               ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(i) + "}";
++                    }
++                    return out + "]}";
++                });
++    mcp.AddTool("self.game.start",
++                "Start a game on the unit's screen: memory (colour memory), reaction (reaction time) or whack (whack-a-mole). "
++                "It never starts in full quiet or during an update. A person stops it with a swipe down from the bottom edge "
++                "or by saying stop. Answers {ok} or {ok:false,error}.",
++                PropertyList({Property("name", kPropertyTypeString, std::string("memory"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string name = properties["name"].value<std::string>();
++                    const char* why;
++                    {
++                        LvglLockGuard lock;
++                        why = maipai_games_start_locked(name.c_str(), "tool");
++                    }
++                    if (why[0] != '\0') {
++                        return error_json(why);
++                    }
++                    return std::string("{\"ok\":true}");
++                });
++    mcp.AddTool("self.game.stop", "Stop the game that is playing. Nothing is saved for a game that was stopped before its end. "
++                "Answers {ok, was}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    bool was;
++                    {
++                        LvglLockGuard lock;
++                        was = maipai_games_stop_locked("tool");
++                    }
++                    return std::string("{\"ok\":true,\"was\":") + (was ? "true" : "false") + "}";
++                });
++    mcp.AddTool("self.game.scores", "The saved best scores of one game (best first, up to five). Answers {ok, game, lower_is_better, scores}.",
++                PropertyList({Property("name", kPropertyTypeString, std::string("memory"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string name = properties["name"].value<std::string>();
++                    const int slot         = slot_by_name(name.c_str());
++                    mg_pack_t p;
++                    if (slot < 0 || !slot_pack(slot, &p)) {
++                        return error_json("That game is not on this unit. Ask for memory, reaction or whack.");
++                    }
++                    return std::string("{\"ok\":true,\"game\":\"") + p.id + "\",\"lower_is_better\":" +
++                           ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(slot) + "}";
++                });
++#if CONFIG_MAIPAI_GAMES_BENCH
++    mcp.AddTool("self.game.bench_tap", "Bench only: tap the running game's screen at x, y (screen pixels) as a finger would. "
++                "Taps in the reserved screen edges do nothing, as for a finger.",
++                PropertyList({Property("x", kPropertyTypeInteger, 160, 0, 319), Property("y", kPropertyTypeInteger, 120, 0, 239)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const int x = properties["x"].value<int>();
++                    const int y = properties["y"].value<int>();
++                    if (x < MG_EDGE_L || x >= MG_EDGE_R || y < MG_EDGE_T || y >= MG_EDGE_B) {
++                        return std::string("{\"ok\":true,\"edge\":true}");
++                    }
++                    LvglLockGuard lock;
++                    if (s_game == nullptr) {
++                        return error_json("No game is running.");
++                    }
++                    maipai_games_touch(x, y);
++                    return std::string("{\"ok\":true,\"edge\":false}");
++                });
++    mcp.AddTool("self.game.bench_request_stop", "Bench only: ask the running game to end the way the stop word does (no lock, "
++                "ends within 30 ms). Answers {ok, asked}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    const bool asked = maipai_games_request_stop("stop");
++                    return std::string("{\"ok\":true,\"asked\":") + (asked ? "true" : "false") + "}";
++                });
++    mcp.AddTool("self.game.status", "Bench only: the player's state, counters and totals.", std::vector<Property>{},
++                [](const PropertyList&) -> ReturnValue {
++                    LvglLockGuard lock;
++                    char out[640];
++                    uint32_t internal_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
++                    if (s_game == nullptr) {
++                        snprintf(out, sizeof(out),
++                                 "{\"ok\":true,\"active\":false,\"tones\":%u,\"saves\":%u,\"internal_free\":%u,\"psram_free\":%u}",
++                                 static_cast<unsigned>(s_tones_total), static_cast<unsigned>(s_saves_total),
++                                 static_cast<unsigned>(internal_free), static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
++                        return std::string(out);
++                    }
++                    const mg_run_t& r = s_game->run;
++                    char seq[2 * MG_SEQ_MAX + 4] = "";
++                    for (int i = 0; i < r.seq_len; i++) {
++                        snprintf(seq + strlen(seq), sizeof(seq) - strlen(seq), "%s%d", i > 0 ? "," : "", r.seq[i]);
++                    }
++                    snprintf(out, sizeof(out),
++                             "{\"ok\":true,\"active\":true,\"game\":\"%s\",\"state\":%d,\"ctr\":[%d,%d,%d,%d,%d,%d,%d,%d],"
++                             "\"seq\":[%s],\"seq_pos\":%d,\"steps\":%d,\"finished\":%s,\"tones\":%u,\"saves\":%u,"
++                             "\"internal_free\":%u,\"psram_free\":%u}",
++                             s_game->id, r.state, r.ctr[0], r.ctr[1], r.ctr[2], r.ctr[3], r.ctr[4], r.ctr[5], r.ctr[6], r.ctr[7],
++                             seq, r.seq_pos, r.steps, r.finished ? "true" : "false", static_cast<unsigned>(s_tones_total),
++                             static_cast<unsigned>(s_saves_total), static_cast<unsigned>(internal_free),
++                             static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
++                    return std::string(out);
++                });
++    mcp.AddTool("self.game.bench_install", "Bench only: load one game pack from outside the image through the same checks an "
++                "outside pack must pass. The cable takes short lines, so send the pack as base64 in pieces of at most 300 "
++                "letters (done false), the last piece with done true. Answers {ok, id} or {ok:false, error}.",
++                PropertyList({Property("pack", kPropertyTypeString, std::string("")),
++                              Property("done", kPropertyTypeBoolean, true)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    static std::string pending;
++                    pending += properties["pack"].value<std::string>();
++                    if (!properties["done"].value<bool>()) {
++                        return std::string("{\"ok\":true,\"text\":") + std::to_string(pending.size()) + "}";
++                    }
++                    std::vector<uint8_t> bytes;
++                    const bool decoded = b64_decode(pending, &bytes);
++                    pending.clear();
++                    if (!decoded || bytes.empty()) {
++                        return error_json("The pack text is not base64. Send the pack file as base64.");
++                    }
++                    char id[12] = "";
++                    LvglLockGuard lock;
++                    const mg_err_t err = maipai_games_load_external(bytes.data(), bytes.size(), id, sizeof(id));
++                    if (err != MG_OK) {
++                        return error_json(mg_err_text(err, false));
++                    }
++                    return std::string("{\"ok\":true,\"id\":\"") + id + "\"}";
++                });
++#endif
++    ESP_LOGI(TAG, "games ready: %d on this unit", maipai_games_count());
++}
++#endif
+diff --git a/firmware/main/hal/maipai_games.h b/firmware/main/hal/maipai_games.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_games.h
+@@ -0,0 +1,40 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The game player, device side (patch G01). The player and the pack format are the pure core in maipai_games_core.h; this
++ * file draws a game with LVGL shapes, plays its tones through the sound policy, keeps the top five scores in the
++ * unit's own NVS namespace and registers the tools. Nothing exists while no game runs: no task, no timer, no objects and
++ * no PSRAM (the three games are flash data in the app image). With CONFIG_MAIPAI_GAMES off nothing here is compiled.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_GAMES
++#include <stdbool.h>
++
++// Registers self.game.list, start, stop and scores (and the bench tools in a bench build).
++void maipai_games_register_tools();
++// True from the moment a game starts until it ends. Cheap and safe from any task.
++bool maipai_games_active();
++// Starts a game by id ("memory", "reaction", "whack"). Returns "" or a plain sentence saying what is wrong and what to do.
++// The caller holds the LVGL lock. `source` is "touch", "voice" or "host" (reported in the game_started event).
++const char* maipai_games_start_locked(const char* id, const char* source);
++// Ends the running game from the LVGL task (the stop swipe); the caller holds the LVGL lock. True if one was running.
++bool maipai_games_stop_locked(const char* how);
++// Asks for the running game to end from any task without a lock (the stop word); it ends within 30 ms. True if one runs.
++bool maipai_games_request_stop(const char* how);
++// A touch that began outside the screen edges, in screen pixels (LVGL task, lock held).
++void maipai_games_touch(int x, int y);
++// The saved best of each game, for the games page: 0 when none. `lower` tells which way is better.
++int maipai_games_count();
++const char* maipai_games_id(int index);
++const char* maipai_games_title(int index, bool es);
++int maipai_games_best(int index);
++bool maipai_games_lower_is_better(int index);
++#else
++inline void maipai_games_register_tools() {}
++inline bool maipai_games_active() { return false; }
++inline bool maipai_games_request_stop(const char*) { return false; }
++inline bool maipai_games_stop_locked(const char*) { return false; }
++inline void maipai_games_touch(int, int) {}
++#endif

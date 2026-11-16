@@ -19,3 +19,11 @@ if [ -z "${MAIPAI_PHRASES_DIR:-}" ]; then
     fi
     unset _maipai_repo
 fi
+# Games (patch G01): the three game packs the build embeds in the app image (made by scripts/game-pack.py from firmware/games/*.json).
+if [ -z "${MAIPAI_GAMES_DIR:-}" ]; then
+    _maipai_repo="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
+    if [ -f "$_maipai_repo/firmware/games/memory.mpk" ]; then
+        export MAIPAI_GAMES_DIR="$_maipai_repo/firmware/games"
+    fi
+    unset _maipai_repo
+fi

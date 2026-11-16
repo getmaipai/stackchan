@@ -100,6 +100,8 @@ def test_dances_and_event_kinds_export_the_supported_sets():
             "tailnet_state",
             "wifi_use_ok",
             "wifi_use_revert",
+            "game_started",
+            "game_ended",
         }
     )
 

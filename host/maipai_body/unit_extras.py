@@ -658,6 +658,27 @@ class UnitExtras:
             return {"ok": False, "error": say(lang, "old_firmware", what="the details page")}
         return reply
 
+    # ---- games (firmware patch G01) ----
+
+    def games(self, unit_id: str, lang: str | None = None) -> dict[str, Any]:
+        """Every game on the unit and its best scores, as data and as lines of plain words for the page."""
+        from maipai_body.bodies.stackchan.games import GameService
+
+        if not unit_id:
+            raise ExtrasError(say(lang, "no_unit"))
+        service = GameService(
+            lambda name, args: self._tool(unit_id, name, args), language=normalize(lang)
+        )
+        view = service.list(lang)
+        if view.get("ok") is not True:
+            return {"ok": False, "error": view.get("error", ""), "lines": [view.get("error", "")]}
+        none = "ninguna todavia" if normalize(lang) == "es" else "none yet"
+        lines = []
+        for game in view["games"]:
+            best = ", ".join(str(n) for n in game["scores"]) or none
+            lines.append(f"{game['title']}: {best} {game['unit'] if game['scores'] else ''}".rstrip())
+        return {**view, "lines": lines}
+
     # ---- the connect event ----
 
     def sync(self, unit_id: str) -> None:

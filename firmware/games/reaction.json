@@ -1,0 +1,406 @@
+{
+ "id": "reaction",
+ "counters": [
+  "score",
+  "round",
+  "total",
+  "last"
+ ],
+ "score": "score",
+ "lower_is_better": true,
+ "seed": 0,
+ "title": "title",
+ "description": "hint",
+ "start": "intro",
+ "states": {
+  "intro": {
+   "timer": [
+    2200,
+    2200
+   ]
+  },
+  "wait": {
+   "timer": [
+    1500,
+    4000
+   ]
+  },
+  "go": {
+   "timer": [
+    2000,
+    2000
+   ]
+  },
+  "result": {
+   "timer": [
+    1500,
+    1500
+   ]
+  },
+  "early": {
+   "timer": [
+    1600,
+    1600
+   ]
+  },
+  "over": {
+   "timer": [
+    3500,
+    3500
+   ]
+  }
+ },
+ "regions": [],
+ "shapes": [
+  {
+   "type": "fill",
+   "colour": "#000000",
+   "states": [
+    "intro",
+    "over"
+   ]
+  },
+  {
+   "type": "fill",
+   "colour": "#b02020",
+   "states": [
+    "wait"
+   ]
+  },
+  {
+   "type": "fill",
+   "colour": "#20a040",
+   "states": [
+    "go"
+   ]
+  },
+  {
+   "type": "fill",
+   "colour": "#2050b0",
+   "states": [
+    "result"
+   ]
+  },
+  {
+   "type": "fill",
+   "colour": "#c07010",
+   "states": [
+    "early"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "title",
+   "x": 160,
+   "y": 80,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffffff",
+   "states": [
+    "intro"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "hint",
+   "x": 160,
+   "y": 140,
+   "w": 260,
+   "size": "medium",
+   "colour": "#c8c8c8",
+   "states": [
+    "intro"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "wait",
+   "x": 160,
+   "y": 120,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffffff",
+   "states": [
+    "wait"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "go",
+   "x": 160,
+   "y": 120,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffffff",
+   "states": [
+    "go"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "ms",
+   "x": 160,
+   "y": 110,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffffff",
+   "states": [
+    "result"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "round",
+   "x": 160,
+   "y": 165,
+   "w": 280,
+   "size": "medium",
+   "colour": "#dfe8ff",
+   "states": [
+    "result"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "early",
+   "x": 160,
+   "y": 105,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffffff",
+   "states": [
+    "early"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "early_hint",
+   "x": 160,
+   "y": 160,
+   "w": 280,
+   "size": "medium",
+   "colour": "#ffe9c8",
+   "states": [
+    "early"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "avg",
+   "x": 160,
+   "y": 105,
+   "w": 280,
+   "size": "large",
+   "colour": "#45ff5a",
+   "states": [
+    "over"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "lower",
+   "x": 160,
+   "y": 160,
+   "w": 280,
+   "size": "medium",
+   "colour": "#c8c8c8",
+   "states": [
+    "over"
+   ]
+  }
+ ],
+ "texts": {
+  "title": {
+   "en": "Reaction Time",
+   "es": "Tiempo de reaccion"
+  },
+  "hint": {
+   "en": "Wait for green, then tap fast",
+   "es": "Espera al verde y toca rapido"
+  },
+  "wait": {
+   "en": "Wait...",
+   "es": "Espera..."
+  },
+  "go": {
+   "en": "TAP!",
+   "es": "TOCA!"
+  },
+  "ms": {
+   "en": "%3 ms",
+   "es": "%3 ms"
+  },
+  "round": {
+   "en": "Round %1 of 3",
+   "es": "Ronda %1 de 3"
+  },
+  "early": {
+   "en": "Too soon!",
+   "es": "Muy pronto!"
+  },
+  "early_hint": {
+   "en": "Wait for green",
+   "es": "Espera al verde"
+  },
+  "avg": {
+   "en": "Average %0 ms",
+   "es": "Promedio %0 ms"
+  },
+  "lower": {
+   "en": "Lower is better",
+   "es": "Menos es mejor"
+  }
+ },
+ "rules": [
+  {
+   "state": "intro",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "round",
+     0
+    ],
+    [
+     "set",
+     "total",
+     0
+    ],
+    [
+     "set",
+     "score",
+     0
+    ]
+   ]
+  },
+  {
+   "state": "intro",
+   "on": "timer",
+   "go": "wait"
+  },
+  {
+   "state": "intro",
+   "on": "tap",
+   "go": "wait"
+  },
+  {
+   "state": "wait",
+   "on": "timer",
+   "go": "go"
+  },
+  {
+   "state": "wait",
+   "on": "tap",
+   "go": "early"
+  },
+  {
+   "state": "go",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "popup"
+    ]
+   ]
+  },
+  {
+   "state": "go",
+   "on": "tap",
+   "go": "result",
+   "do": [
+    [
+     "elapsed",
+     "last"
+    ],
+    [
+     "add_ctr",
+     "total",
+     "last"
+    ],
+    [
+     "add",
+     "round",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "go",
+   "on": "timer",
+   "go": "result",
+   "do": [
+    [
+     "set",
+     "last",
+     2000
+    ],
+    [
+     "add_ctr",
+     "total",
+     "last"
+    ],
+    [
+     "add",
+     "round",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "result",
+   "on": "timer",
+   "if": [
+    "ctr_ge",
+    "round",
+    3
+   ],
+   "go": "over"
+  },
+  {
+   "state": "result",
+   "on": "timer",
+   "go": "wait"
+  },
+  {
+   "state": "early",
+   "on": "timer",
+   "go": "wait"
+  },
+  {
+   "state": "over",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "copy",
+     "score",
+     "total"
+    ],
+    [
+     "div",
+     "score",
+     3
+    ],
+    [
+     "save"
+    ],
+    [
+     "tone",
+     "success"
+    ]
+   ]
+  },
+  {
+   "state": "over",
+   "on": "timer",
+   "go": "end"
+  },
+  {
+   "state": "over",
+   "on": "tap",
+   "go": "end"
+  }
+ ]
+}

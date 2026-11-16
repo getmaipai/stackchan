@@ -1,0 +1,529 @@
+{
+ "id": "memory",
+ "counters": [
+  "score",
+  "lit"
+ ],
+ "score": "score",
+ "seq_range": 4,
+ "seed": 0,
+ "title": "title",
+ "description": "hint",
+ "start": "intro",
+ "states": {
+  "intro": {
+   "timer": [
+    1800,
+    1800
+   ]
+  },
+  "show": {
+   "timer": [
+    650,
+    650
+   ]
+  },
+  "gap": {
+   "timer": [
+    250,
+    250
+   ]
+  },
+  "input": {
+   "timer": [
+    8000,
+    8000
+   ]
+  },
+  "echo": {
+   "timer": [
+    220,
+    220
+   ]
+  },
+  "correct": {
+   "timer": [
+    600,
+    600
+   ]
+  },
+  "over": {
+   "timer": [
+    3500,
+    3500
+   ]
+  }
+ },
+ "regions": [
+  {
+   "name": "tl",
+   "x": 20,
+   "y": 28,
+   "w": 138,
+   "h": 94
+  },
+  {
+   "name": "tr",
+   "x": 162,
+   "y": 28,
+   "w": 138,
+   "h": 94
+  },
+  {
+   "name": "bl",
+   "x": 20,
+   "y": 126,
+   "w": 138,
+   "h": 94
+  },
+  {
+   "name": "br",
+   "x": 162,
+   "y": 126,
+   "w": 138,
+   "h": 94
+  }
+ ],
+ "shapes": [
+  {
+   "type": "fill",
+   "colour": "#000000"
+  },
+  {
+   "type": "box",
+   "x": 20,
+   "y": 28,
+   "w": 138,
+   "h": 94,
+   "radius": 12,
+   "colour": "#7a1f1f",
+   "states": [
+    "show",
+    "gap",
+    "input",
+    "echo",
+    "correct"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 162,
+   "y": 28,
+   "w": 138,
+   "h": 94,
+   "radius": 12,
+   "colour": "#1f6a2a",
+   "states": [
+    "show",
+    "gap",
+    "input",
+    "echo",
+    "correct"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 20,
+   "y": 126,
+   "w": 138,
+   "h": 94,
+   "radius": 12,
+   "colour": "#1f3a7a",
+   "states": [
+    "show",
+    "gap",
+    "input",
+    "echo",
+    "correct"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 162,
+   "y": 126,
+   "w": 138,
+   "h": 94,
+   "radius": 12,
+   "colour": "#7a6a1f",
+   "states": [
+    "show",
+    "gap",
+    "input",
+    "echo",
+    "correct"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 20,
+   "y": 28,
+   "w": 138,
+   "h": 94,
+   "radius": 12,
+   "colour": "#ff4545",
+   "states": [
+    "show",
+    "gap",
+    "input",
+    "echo",
+    "correct"
+   ],
+   "when": [
+    "lit",
+    0
+   ]
+  },
+  {
+   "type": "box",
+   "x": 162,
+   "y": 28,
+   "w": 138,
+   "h": 94,
+   "radius": 12,
+   "colour": "#45ff5a",
+   "states": [
+    "show",
+    "gap",
+    "input",
+    "echo",
+    "correct"
+   ],
+   "when": [
+    "lit",
+    1
+   ]
+  },
+  {
+   "type": "box",
+   "x": 20,
+   "y": 126,
+   "w": 138,
+   "h": 94,
+   "radius": 12,
+   "colour": "#4585ff",
+   "states": [
+    "show",
+    "gap",
+    "input",
+    "echo",
+    "correct"
+   ],
+   "when": [
+    "lit",
+    2
+   ]
+  },
+  {
+   "type": "box",
+   "x": 162,
+   "y": 126,
+   "w": 138,
+   "h": 94,
+   "radius": 12,
+   "colour": "#ffe045",
+   "states": [
+    "show",
+    "gap",
+    "input",
+    "echo",
+    "correct"
+   ],
+   "when": [
+    "lit",
+    3
+   ]
+  },
+  {
+   "type": "text",
+   "text": "title",
+   "x": 160,
+   "y": 80,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffffff",
+   "states": [
+    "intro"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "hint",
+   "x": 160,
+   "y": 140,
+   "w": 260,
+   "size": "medium",
+   "colour": "#c8c8c8",
+   "states": [
+    "intro"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "over",
+   "x": 160,
+   "y": 90,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffffff",
+   "states": [
+    "over"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "score",
+   "x": 160,
+   "y": 140,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffe045",
+   "states": [
+    "over"
+   ]
+  }
+ ],
+ "texts": {
+  "title": {
+   "en": "Colour Memory",
+   "es": "Memoria de colores"
+  },
+  "hint": {
+   "en": "Watch, then tap the colours in order",
+   "es": "Mira y toca los colores en orden"
+  },
+  "over": {
+   "en": "Game over",
+   "es": "Fin del juego"
+  },
+  "score": {
+   "en": "Score %0",
+   "es": "Puntos %0"
+  }
+ },
+ "rules": [
+  {
+   "state": "intro",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "seq_reset"
+    ],
+    [
+     "set",
+     "score",
+     0
+    ],
+    [
+     "set",
+     "lit",
+     -1
+    ],
+    [
+     "seq_add"
+    ]
+   ]
+  },
+  {
+   "state": "intro",
+   "on": "timer",
+   "go": "show",
+   "do": [
+    [
+     "seq_rewind"
+    ]
+   ]
+  },
+  {
+   "state": "intro",
+   "on": "tap",
+   "go": "show",
+   "do": [
+    [
+     "seq_rewind"
+    ]
+   ]
+  },
+  {
+   "state": "show",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "seq_to_ctr",
+     "lit"
+    ],
+    [
+     "tone_ctr",
+     "lit"
+    ]
+   ]
+  },
+  {
+   "state": "show",
+   "on": "timer",
+   "go": "gap",
+   "do": [
+    [
+     "set",
+     "lit",
+     -1
+    ]
+   ]
+  },
+  {
+   "state": "gap",
+   "on": "timer",
+   "if": [
+    "seq_more"
+   ],
+   "go": "show",
+   "do": [
+    [
+     "seq_next"
+    ]
+   ]
+  },
+  {
+   "state": "gap",
+   "on": "timer",
+   "go": "input",
+   "do": [
+    [
+     "seq_rewind"
+    ]
+   ]
+  },
+  {
+   "state": "input",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "lit",
+     -1
+    ]
+   ]
+  },
+  {
+   "state": [
+    "input",
+    "echo"
+   ],
+   "on": "tap",
+   "region": "any_region",
+   "if": [
+    "seq_miss"
+   ],
+   "go": "over",
+   "do": [
+    [
+     "set_reg",
+     "lit"
+    ]
+   ]
+  },
+  {
+   "state": [
+    "input",
+    "echo"
+   ],
+   "on": "tap",
+   "region": "any_region",
+   "if": [
+    "seq_more"
+   ],
+   "go": "echo",
+   "do": [
+    [
+     "set_reg",
+     "lit"
+    ],
+    [
+     "tone_ctr",
+     "lit"
+    ],
+    [
+     "seq_next"
+    ]
+   ]
+  },
+  {
+   "state": [
+    "input",
+    "echo"
+   ],
+   "on": "tap",
+   "region": "any_region",
+   "go": "correct",
+   "do": [
+    [
+     "set_reg",
+     "lit"
+    ],
+    [
+     "tone_ctr",
+     "lit"
+    ],
+    [
+     "add",
+     "score",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "echo",
+   "on": "timer",
+   "go": "input"
+  },
+  {
+   "state": "input",
+   "on": "timer",
+   "go": "over"
+  },
+  {
+   "state": "correct",
+   "on": "timer",
+   "go": "show",
+   "do": [
+    [
+     "set",
+     "lit",
+     -1
+    ],
+    [
+     "seq_add"
+    ],
+    [
+     "seq_rewind"
+    ]
+   ]
+  },
+  {
+   "state": "over",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "exclamation"
+    ],
+    [
+     "save"
+    ]
+   ]
+  },
+  {
+   "state": "over",
+   "on": "timer",
+   "go": "end"
+  },
+  {
+   "state": "over",
+   "on": "tap",
+   "go": "end"
+  }
+ ]
+}

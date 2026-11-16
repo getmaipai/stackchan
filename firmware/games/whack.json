@@ -1,0 +1,541 @@
+{
+ "id": "whack",
+ "counters": [
+  "score",
+  "moles",
+  "cell"
+ ],
+ "score": "score",
+ "seed": 0,
+ "title": "title",
+ "description": "hint",
+ "start": "intro",
+ "states": {
+  "intro": {
+   "timer": [
+    2000,
+    2000
+   ]
+  },
+  "down": {
+   "timer": [
+    300,
+    650
+   ]
+  },
+  "up": {
+   "timer": [
+    700,
+    1000
+   ]
+  },
+  "over": {
+   "timer": [
+    3500,
+    3500
+   ]
+  }
+ },
+ "regions": [
+  {
+   "name": "c0",
+   "x": 20,
+   "y": 28,
+   "w": 93,
+   "h": 64
+  },
+  {
+   "name": "c1",
+   "x": 113,
+   "y": 28,
+   "w": 93,
+   "h": 64
+  },
+  {
+   "name": "c2",
+   "x": 206,
+   "y": 28,
+   "w": 93,
+   "h": 64
+  },
+  {
+   "name": "c3",
+   "x": 20,
+   "y": 92,
+   "w": 93,
+   "h": 64
+  },
+  {
+   "name": "c4",
+   "x": 113,
+   "y": 92,
+   "w": 93,
+   "h": 64
+  },
+  {
+   "name": "c5",
+   "x": 206,
+   "y": 92,
+   "w": 93,
+   "h": 64
+  },
+  {
+   "name": "c6",
+   "x": 20,
+   "y": 156,
+   "w": 93,
+   "h": 64
+  },
+  {
+   "name": "c7",
+   "x": 113,
+   "y": 156,
+   "w": 93,
+   "h": 64
+  },
+  {
+   "name": "c8",
+   "x": 206,
+   "y": 156,
+   "w": 93,
+   "h": 64
+  }
+ ],
+ "shapes": [
+  {
+   "type": "fill",
+   "colour": "#0b2a12"
+  },
+  {
+   "type": "circle",
+   "x": 66,
+   "y": 60,
+   "r": 26,
+   "colour": "#3b2a1a",
+   "states": [
+    "down",
+    "up"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 159,
+   "y": 60,
+   "r": 26,
+   "colour": "#3b2a1a",
+   "states": [
+    "down",
+    "up"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 252,
+   "y": 60,
+   "r": 26,
+   "colour": "#3b2a1a",
+   "states": [
+    "down",
+    "up"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 66,
+   "y": 124,
+   "r": 26,
+   "colour": "#3b2a1a",
+   "states": [
+    "down",
+    "up"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 159,
+   "y": 124,
+   "r": 26,
+   "colour": "#3b2a1a",
+   "states": [
+    "down",
+    "up"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 252,
+   "y": 124,
+   "r": 26,
+   "colour": "#3b2a1a",
+   "states": [
+    "down",
+    "up"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 66,
+   "y": 188,
+   "r": 26,
+   "colour": "#3b2a1a",
+   "states": [
+    "down",
+    "up"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 159,
+   "y": 188,
+   "r": 26,
+   "colour": "#3b2a1a",
+   "states": [
+    "down",
+    "up"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 252,
+   "y": 188,
+   "r": 26,
+   "colour": "#3b2a1a",
+   "states": [
+    "down",
+    "up"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 66,
+   "y": 60,
+   "r": 22,
+   "colour": "#d9a05b",
+   "states": [
+    "up"
+   ],
+   "when": [
+    "cell",
+    0
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 159,
+   "y": 60,
+   "r": 22,
+   "colour": "#d9a05b",
+   "states": [
+    "up"
+   ],
+   "when": [
+    "cell",
+    1
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 252,
+   "y": 60,
+   "r": 22,
+   "colour": "#d9a05b",
+   "states": [
+    "up"
+   ],
+   "when": [
+    "cell",
+    2
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 66,
+   "y": 124,
+   "r": 22,
+   "colour": "#d9a05b",
+   "states": [
+    "up"
+   ],
+   "when": [
+    "cell",
+    3
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 159,
+   "y": 124,
+   "r": 22,
+   "colour": "#d9a05b",
+   "states": [
+    "up"
+   ],
+   "when": [
+    "cell",
+    4
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 252,
+   "y": 124,
+   "r": 22,
+   "colour": "#d9a05b",
+   "states": [
+    "up"
+   ],
+   "when": [
+    "cell",
+    5
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 66,
+   "y": 188,
+   "r": 22,
+   "colour": "#d9a05b",
+   "states": [
+    "up"
+   ],
+   "when": [
+    "cell",
+    6
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 159,
+   "y": 188,
+   "r": 22,
+   "colour": "#d9a05b",
+   "states": [
+    "up"
+   ],
+   "when": [
+    "cell",
+    7
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 252,
+   "y": 188,
+   "r": 22,
+   "colour": "#d9a05b",
+   "states": [
+    "up"
+   ],
+   "when": [
+    "cell",
+    8
+   ]
+  },
+  {
+   "type": "text",
+   "text": "title",
+   "x": 160,
+   "y": 80,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffffff",
+   "states": [
+    "intro"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "hint",
+   "x": 160,
+   "y": 140,
+   "w": 260,
+   "size": "medium",
+   "colour": "#c8c8c8",
+   "states": [
+    "intro"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "score",
+   "x": 160,
+   "y": 14,
+   "w": 200,
+   "size": "small",
+   "colour": "#ffffff",
+   "states": [
+    "down",
+    "up"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "over",
+   "x": 160,
+   "y": 90,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffffff",
+   "states": [
+    "over"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "score_big",
+   "x": 160,
+   "y": 140,
+   "w": 280,
+   "size": "large",
+   "colour": "#ffe045",
+   "states": [
+    "over"
+   ]
+  }
+ ],
+ "texts": {
+  "title": {
+   "en": "Whack-a-Mole",
+   "es": "Atrapa topos"
+  },
+  "hint": {
+   "en": "Tap each mole before it hides",
+   "es": "Toca cada topo antes de que se esconda"
+  },
+  "score": {
+   "en": "Score %0",
+   "es": "Puntos %0"
+  },
+  "over": {
+   "en": "Time's up",
+   "es": "Se acabo el tiempo"
+  },
+  "score_big": {
+   "en": "Score %0 of 15",
+   "es": "Puntos %0 de 15"
+  }
+ },
+ "rules": [
+  {
+   "state": "intro",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "score",
+     0
+    ],
+    [
+     "set",
+     "moles",
+     0
+    ],
+    [
+     "set",
+     "cell",
+     -1
+    ]
+   ]
+  },
+  {
+   "state": "intro",
+   "on": "timer",
+   "go": "down"
+  },
+  {
+   "state": "intro",
+   "on": "tap",
+   "go": "down"
+  },
+  {
+   "state": "down",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "cell",
+     -1
+    ]
+   ]
+  },
+  {
+   "state": "down",
+   "on": "timer",
+   "if": [
+    "ctr_ge",
+    "moles",
+    15
+   ],
+   "go": "over"
+  },
+  {
+   "state": "down",
+   "on": "timer",
+   "go": "up",
+   "do": [
+    [
+     "rand",
+     "cell",
+     9
+    ],
+    [
+     "add",
+     "moles",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "up",
+   "on": "tap",
+   "region": "any_region",
+   "if": [
+    "reg_eq_ctr",
+    "cell"
+   ],
+   "go": "down",
+   "do": [
+    [
+     "add",
+     "score",
+     1
+    ],
+    [
+     "tone",
+     "popup"
+    ]
+   ]
+  },
+  {
+   "state": "up",
+   "on": "timer",
+   "go": "down"
+  },
+  {
+   "state": "over",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "success"
+    ],
+    [
+     "save"
+    ]
+   ]
+  },
+  {
+   "state": "over",
+   "on": "timer",
+   "go": "end"
+  },
+  {
+   "state": "over",
+   "on": "tap",
+   "go": "end"
+  }
+ ]
+}

@@ -186,7 +186,7 @@ class SettingsBackend:
         }
 
     def _unit_get(self, rest: str, lang: str) -> tuple[int, str, bytes]:
-        """GET /api/stackchan/unit/<id>/(reactions|clock|details)."""
+        """GET /api/stackchan/unit/<id>/(reactions|clock|details|games)."""
         device_id, _, what = rest.rpartition("/")
         try:
             self._unit_known(device_id)
@@ -196,6 +196,8 @@ class SettingsBackend:
                 body = self.extras.clock_view(device_id)
             elif what == "details":
                 body = self.extras.details(device_id, lang)
+            elif what == "games":
+                body = self.extras.games(device_id, lang)
             else:
                 return 404, JSON, json.dumps({"error": "not found"}).encode()
             return 200, JSON, json.dumps(body).encode()
@@ -412,6 +414,7 @@ go.onclick=async()=>{{const r=await fetch(path+(method==='GET'?'?lang={code}':''
 headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{lang:'{code}'}})}});const d=await r.json();
 if(d.steps){{out.textContent=d.steps.map(s=>s.line).join('\\n')+'\\n'+(d.summary||'')+(d.fix?'\\n'+d.fix:'')}}
 else if(d.version){{out.textContent=['version','tag','image','slot'].map(k=>k+': '+d[k]).join('\\n')+'\\nmemory free: '+Math.round(d.internal_free/1024)+' KB (lowest '+Math.round(d.internal_min/1024)+' KB)'}}
+else if(d.lines){{out.textContent=d.lines.join('\\n')}}
 else out.textContent=d.error||d.summary||''}};
 f.append(go,out);return f}}
 function peopleSection(id){{const f=document.createElement('fieldset');
@@ -469,6 +472,7 @@ s.append(faceSection(u.device_id));
 s.append(extrasSection(u.device_id),reactSection(u.device_id),clockSection(u.device_id),
 toolSection(u.device_id,S['settings.net'],S['settings.net.run'],'network-test','POST'),
 toolSection(u.device_id,S['settings.details'],S['settings.details.show'],'details','GET'),
+toolSection(u.device_id,S['settings.games'],S['settings.games.show'],'games','GET'),
 peopleSection(u.device_id));
 const upd=document.createElement('button');upd.textContent=S['settings.update'];
 const upath='/api/stackchan/settings/'+encodeURIComponent(u.device_id)+'/update';

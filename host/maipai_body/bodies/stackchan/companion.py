@@ -72,6 +72,8 @@ DIAGNOSTIC_KINDS = frozenset(
         "firmware_update_done",
         "firmware_update_failed",
         "firmware_update_validated",
+        "game_started",  # firmware patch G01: which game, what started it (touch, tool)
+        "game_ended",  # firmware patch G01: which game, how it ended, score, place
     }
 )
 EVENT_KINDS = (

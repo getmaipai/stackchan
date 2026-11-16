@@ -1,0 +1,851 @@
+# Intent: Games item 1, the engine core. A game is a data pack, not code (docs/design/game-engine-note.md): a table of states (each with an optional random timer), touch regions, drawn shapes (fill, circle, rounded box, ring, text in the shipped font), English and Spanish texts, transitions (state, event enter or timer or tap, a guard, the next state) and actions (set, add, copy, random, elapsed time, divide, sequence add and step, play a shipped tone, commit the score). maipai_games_core.h is plain C99 with no allocation: the pack format (version byte, CRC-32, optional 64 byte Ed25519 signature), the checker every pack passes before it runs (counts, references, ASCII text, touch regions kept inside the screen edges the unit reserves for swipes, a plain-words refusal in English and Spanish for each failure), the signing rule (a pack in the app image is covered by the image signature; one from outside needs a valid signature made with the update key of patch 155, and only a bench build may run an unsigned one), the player (one seeded random generator, a hard step budget of 64 transitions per event so a bad pack cannot spin, a short tone queue, a save request that fires once) and the top-five score table (lower or higher is better, ties keep the older score). The three games (colour memory, reaction time, whack-a-mole) are tables in firmware/games/*.json compiled by scripts/game-pack.py to .mpk files that the build embeds in the app image as flash data (about 3.8 KB in all, read in place, no RAM). Nothing is allocated by this patch at run time.
+# Placement: unit (the player, the packs and the scores run on the robot, so a game works with Home down; Home only names, starts and lists them)
+# Upstream: none; new MaiPai files. Touches firmware/main/Kconfig.projbuild, firmware/main/CMakeLists.txt and firmware/sdkconfig.core.defaults of this tree.
+# Check after a flash: the host test host/tests/test_stackchan_games.py compiles the core with a C compiler and runs it on the three shipped packs with a fixed seed (parse and every refusal, the signing rule, a scripted bot playing each game to its end, the budget, the top-five table, and 4,500 randomly damaged packs that must either be refused or run without leaving their tables). On a unit see patches G02 and G03.
+# Kconfig: MAIPAI_GAMES (default y: on in the core preset when the memory gate passes, see docs/design/games-2026-11-16.md) and MAIPAI_GAMES_BENCH (default n, bench only: tap and status tools and unsigned outside packs). The build stops with a plain message when MAIPAI_GAMES is on and the pack files are not found (source scripts/fw-env.sh sets MAIPAI_GAMES_DIR).
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -593,3 +593,17 @@ if(CONFIG_MAIPAI_OFFLINE_PHRASES)
+ else()
+     message(STATUS "Offline phrases: off (the wake tone only)")
+ endif()
++
++# Games (patch G01): the three game packs ride in the app image as flash data (read in place, no RAM). The packs are data
++# files of the MaiPai repo, made by scripts/game-pack.py; `source scripts/fw-env.sh` points MAIPAI_GAMES_DIR at them.
++if(CONFIG_MAIPAI_GAMES)
++    foreach(f memory.mpk reaction.mpk whack.mpk)
++        if(NOT DEFINED ENV{MAIPAI_GAMES_DIR} OR NOT EXISTS "$ENV{MAIPAI_GAMES_DIR}/${f}")
++            message(FATAL_ERROR "CONFIG_MAIPAI_GAMES is on but the game pack ${f} was not found. Run `source scripts/fw-env.sh` from the repo (it sets MAIPAI_GAMES_DIR), or set CONFIG_MAIPAI_GAMES=n.")
++        endif()
++        target_add_binary_data(${COMPONENT_LIB} "$ENV{MAIPAI_GAMES_DIR}/${f}" BINARY)
++    endforeach()
++    message(STATUS "Games: 3 packs from $ENV{MAIPAI_GAMES_DIR}")
++else()
++    message(STATUS "Games: off")
++endif()
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -228,6 +228,25 @@ config MAIPAI_DANCE_EXTRAS
+         the same limits as the built-ins (turn, tilt, speed, step time, eight seconds in all, centred at both ends).
+         The table is flash data; a dance builds about 1 KB of heap while it plays. Off here: the four built-in dances.
+ 
++config MAIPAI_GAMES
++    bool "Games: a small data-pack player with colour memory, reaction time and whack-a-mole"
++    default y
++    help
++        One player runs games that are data (a table of states, touch areas, drawn shapes, texts and rules), never code.
++        Three games are in the app image as flash data (about 4 KB). Nothing exists while no game runs: no task, no timer,
++        no objects. A game starts from the touch screen (quick settings, More, Games) or by the tools self.game.start,
++        list, stop and scores; a swipe down from the bottom edge or the stop word ends it. Full quiet stops it and
++        refuses a start; a mute plays it with no sound. Scores (top five per game) are saved once, when a game ends.
++        A pack from outside the image must carry an Ed25519 signature made with the update key. Off here: no games.
++
++config MAIPAI_GAMES_BENCH
++    bool "Bench only: tap and status tools for games, and loading unsigned outside packs"
++    default n
++    depends on MAIPAI_GAMES
++    help
++        Adds self.game.bench_tap, self.game.status and self.game.bench_install, and lets a pack from outside the image
++        load without a signature. Off in every shipped image.
++
+ config MAIPAI_RESET_ON_DEVICE
+     bool "Reset on the device (quick settings, hold 3 seconds)"
+     default y
+diff --git a/firmware/main/hal/maipai_games_core.h b/firmware/main/hal/maipai_games_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_games_core.h
+@@ -0,0 +1,779 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The game engine's pure core (patch G01). A game is a data pack, not code: a table of states, touch regions, drawn
++ * shapes, texts, transitions and actions. This header holds the pack format, the checks every pack passes before it
++ * runs, the player (one step budget per event, one seeded random generator) and the top-five score table. Plain C99,
++ * no firmware headers, no allocation: a host test compiles and runs it with a fixed seed.
++ *
++ * Pack bytes (all numbers little endian):
++ *   header 40 bytes   magic "MPGK", version, flags, counts, score counter, seed, step budget, start state, title
++ *   states   n * 4    timer_min ms (u16), timer_max ms (u16): a state's timer is random in that range, 0 and 0 is none
++ *   regions  n * 8    x, y (s16), w, h (u16): touch regions, always inside the touch edges the unit reserves
++ *   shapes   n * 18   type, cond counter, cond value, aux, x, y, w, h (s16), colour (RGB565), state mask (u16), text, pad
++ *   texts    n * 96   English 48 bytes then Spanish 48 bytes, ASCII, NUL padded; "%0" to "%7" prints a counter
++ *   trans    n * 12   state, event, arg, next, guard kind, guard counter, guard value (s16), first action (u16), count, pad
++ *   actions  n * 4    op, counter, value (s16)
++ *   crc32 (4 bytes, over the header and body), then an optional 64 byte Ed25519 signature over everything before it.
++ */
++#ifndef MAIPAI_GAMES_CORE_H
++#define MAIPAI_GAMES_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++#define MG_MAGIC "MPGK"
++#define MG_VERSION 1
++#define MG_HEADER 40
++#define MG_MAX_PACK 16384 /* the ceiling for one pack, signature included */
++#define MG_CRC_LEN 4
++#define MG_SIG_LEN 64
++#define MG_MAX_STATES 16
++#define MG_MAX_REGIONS 12
++#define MG_MAX_SHAPES 48
++#define MG_MAX_TEXTS 24
++#define MG_MAX_TRANS 96
++#define MG_MAX_ACTIONS 255
++#define MG_COUNTERS 8
++#define MG_SEQ_MAX 32
++#define MG_TEXT_LEN 48
++#define MG_STEP_BUDGET 64
++#define MG_TONE_COUNT 5
++#define MG_TONE_Q 4
++#define MG_SCORES 5
++
++#define MG_STATE_SIZE 4
++#define MG_REGION_SIZE 8
++#define MG_SHAPE_SIZE 18
++#define MG_TEXT_SIZE (2 * MG_TEXT_LEN)
++#define MG_TRANS_SIZE 12
++#define MG_ACTION_SIZE 4
++
++/* The unit reserves the edges for its swipes (maipai_touch_core.h): a region may not touch them. */
++#define MG_EDGE_L 20
++#define MG_EDGE_R 300
++#define MG_EDGE_T 28
++#define MG_EDGE_B 220
++
++#define MG_FLAG_LOWER_BETTER 1
++
++#define MG_STAY 0xFE /* a transition's next state: stay, run the actions only */
++#define MG_END 0xFF  /* a transition's next state: the game ends */
++#define MG_ARG_ANY_REGION 0xFE
++#define MG_ARG_ANY 0xFF
++#define MG_NO_REGION 0xFF
++
++typedef enum { MG_EV_ENTER = 0, MG_EV_TIMER = 1, MG_EV_TAP = 2, MG_EV_COUNT } mg_event_t;
++
++typedef enum {
++    MG_G_NONE = 0,
++    MG_G_CTR_EQ,   /* counter a equals value */
++    MG_G_CTR_NE,
++    MG_G_CTR_LT,
++    MG_G_CTR_GE,
++    MG_G_SEQ_HIT,  /* the tapped region is the sequence step the player is on */
++    MG_G_SEQ_MISS,
++    MG_G_SEQ_MORE, /* the player is not on the last step of the sequence */
++    MG_G_SEQ_LAST,
++    MG_G_REG_EQ_CTR, /* the tapped region equals counter a */
++    MG_G_MAX = MG_G_REG_EQ_CTR
++} mg_guard_t;
++
++typedef enum {
++    MG_OP_SET = 0,
++    MG_OP_ADD,
++    MG_OP_ADD_CTR,
++    MG_OP_COPY,
++    MG_OP_RAND,
++    MG_OP_ELAPSED,
++    MG_OP_DIV,
++    MG_OP_SEQ_RESET,
++    MG_OP_SEQ_ADD,
++    MG_OP_SEQ_REWIND,
++    MG_OP_SEQ_NEXT,
++    MG_OP_SEQ_TO_CTR,
++    MG_OP_TONE,
++    MG_OP_TONE_CTR,
++    MG_OP_SAVE,
++    MG_OP_SET_REG,
++    MG_OP_MAX = MG_OP_SET_REG
++} mg_op_t;
++
++typedef enum { MG_SH_FILL = 0, MG_SH_CIRCLE, MG_SH_BOX, MG_SH_RING, MG_SH_TEXT, MG_SH_MAX = MG_SH_TEXT } mg_shape_type_t;
++
++/* The tones are the unit's shipped sounds, played through the sound policy; the last is the error sound. */
++static const char* const MG_TONES[MG_TONE_COUNT] = {"popup", "vibration", "success", "low_battery", "exclamation"};
++
++typedef enum {
++    MG_OK = 0,
++    MG_E_SHORT,
++    MG_E_MAGIC,
++    MG_E_VERSION,
++    MG_E_SIZE,
++    MG_E_CRC,
++    MG_E_LIMITS,
++    MG_E_REF,
++    MG_E_ASCII,
++    MG_E_EDGE,
++    MG_E_ID,
++    MG_E_UNSIGNED,
++    MG_E_NOKEY,
++    MG_E_SIG,
++    MG_E_TAKEN,
++    MG_E_BUSY,
++    MG_E_MEMORY,
++    MG_E_COUNT
++} mg_err_t;
++
++/* Every refusal says what went wrong and what to do, in plain words. */
++static inline const char* mg_err_text(mg_err_t e, int es)
++{
++    static const char* const en[MG_E_COUNT] = {
++        "ok",
++        "The game file is too short to be a game. Get the game again from the host.",
++        "This is not a game file. Use a pack made with scripts/game-pack.py.",
++        "This game was made for a newer unit. Update the unit's firmware or get an older pack.",
++        "The game file has the wrong size or is over 16 KB. Build the pack again.",
++        "The game file is damaged (its check number does not match). Get the game again.",
++        "The game has more states, shapes or rules than the unit allows. Make the game smaller.",
++        "The game points at something that does not exist. Fix the table and build the pack again.",
++        "The game text has a letter the unit's screen cannot draw. Use plain ASCII letters.",
++        "A touch area reaches into the screen edges, which the unit keeps for swipes. Move it inward.",
++        "The game's name must be 1 to 11 letters, numbers or underscores. Rename it and build again.",
++        "This game is not signed and this unit only runs signed games. Sign the pack with the release key.",
++        "This unit has no update key built in, so it cannot check a signed game. Use a unit with the release key.",
++        "The game's signature does not match the unit's key. Nothing was loaded; sign it with the release key.",
++        "A built-in game already has that name. Rename the pack and build it again.",
++        "A game is playing, so a pack cannot be replaced now. Stop the game, then load the pack.",
++        "The unit is low on memory and could not hold the pack. Restart the unit and try again.",
++    };
++    static const char* const sp[MG_E_COUNT] = {
++        "listo",
++        "El archivo del juego es demasiado corto. Vuelve a pedir el juego al anfitrion.",
++        "Esto no es un archivo de juego. Usa un paquete hecho con scripts/game-pack.py.",
++        "Este juego es para una unidad mas nueva. Actualiza el firmware o usa un paquete mas viejo.",
++        "El archivo del juego tiene un tamano incorrecto o pasa de 16 KB. Vuelve a crear el paquete.",
++        "El archivo del juego esta danado (no coincide su numero de control). Vuelve a pedirlo.",
++        "El juego tiene mas estados, formas o reglas de las que permite la unidad. Hazlo mas pequeno.",
++        "El juego apunta a algo que no existe. Corrige la tabla y crea el paquete otra vez.",
++        "El texto del juego tiene una letra que la pantalla no puede dibujar. Usa letras ASCII simples.",
++        "Una zona tactil llega a los bordes de la pantalla, que la unidad reserva para deslizar. Muevela adentro.",
++        "El nombre del juego debe tener de 1 a 11 letras, numeros o guiones bajos. Cambialo y crea otra vez.",
++        "Este juego no esta firmado y esta unidad solo corre juegos firmados. Firma el paquete con la clave de version.",
++        "Esta unidad no tiene clave de actualizacion, asi que no puede revisar un juego firmado. Usa una unidad con la clave.",
++        "La firma del juego no coincide con la clave de la unidad. No se cargo nada; firmalo con la clave de version.",
++        "Un juego incluido ya tiene ese nombre. Cambia el nombre del paquete y crealo otra vez.",
++        "Hay un juego en marcha, asi que no se puede reemplazar el paquete ahora. Deten el juego y carga el paquete.",
++        "La unidad tiene poca memoria y no pudo guardar el paquete. Reiniciala e intentalo otra vez.",
++    };
++    if ((int)e < 0 || (int)e >= MG_E_COUNT) {
++        e = MG_E_SIZE;
++    }
++    return es ? sp[e] : en[e];
++}
++
++/* ---- little endian reads ---- */
++static inline uint16_t mg_u16(const uint8_t* p) { return (uint16_t)(p[0] | (p[1] << 8)); }
++static inline int16_t mg_s16(const uint8_t* p) { return (int16_t)mg_u16(p); }
++static inline uint32_t mg_u32(const uint8_t* p)
++{
++    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
++}
++
++/* CRC-32 (the usual one: the host's zlib.crc32 gives the same number). */
++static inline uint32_t mg_crc32(const uint8_t* data, size_t len)
++{
++    uint32_t crc = 0xFFFFFFFFu;
++    for (size_t i = 0; i < len; i++) {
++        crc ^= data[i];
++        for (int k = 0; k < 8; k++) {
++            crc = (crc >> 1) ^ (0xEDB88320u & (uint32_t)(-(int32_t)(crc & 1u)));
++        }
++    }
++    return ~crc;
++}
++
++typedef struct {
++    const uint8_t* b; /* the blob, which must outlive the pack */
++    uint16_t payload; /* header and body length */
++    uint8_t flags, n_states, n_regions, n_shapes, n_texts, score_ctr, seq_range, step_budget, start_state, title_text,
++        desc_text;
++    uint16_t n_trans, n_actions;
++    uint32_t seed;
++    uint16_t o_states, o_regions, o_shapes, o_texts, o_trans, o_actions;
++    int has_sig;
++    char id[12];
++} mg_pack_t;
++
++typedef struct {
++    uint8_t type, cond_ctr, aux, text;
++    int8_t cond_val;
++    int16_t x, y, w, h;
++    uint16_t colour, mask;
++} mg_shape_t;
++
++typedef struct {
++    int16_t x, y;
++    uint16_t w, h;
++} mg_region_t;
++
++static inline void mg_shape_get(const mg_pack_t* p, int i, mg_shape_t* s)
++{
++    const uint8_t* q = p->b + p->o_shapes + (size_t)i * MG_SHAPE_SIZE;
++    s->type     = q[0];
++    s->cond_ctr = q[1];
++    s->cond_val = (int8_t)q[2];
++    s->aux      = q[3];
++    s->x        = mg_s16(q + 4);
++    s->y        = mg_s16(q + 6);
++    s->w        = mg_s16(q + 8);
++    s->h        = mg_s16(q + 10);
++    s->colour   = mg_u16(q + 12);
++    s->mask     = mg_u16(q + 14);
++    s->text     = q[16];
++}
++
++static inline void mg_region_get(const mg_pack_t* p, int i, mg_region_t* r)
++{
++    const uint8_t* q = p->b + p->o_regions + (size_t)i * MG_REGION_SIZE;
++    r->x             = mg_s16(q);
++    r->y             = mg_s16(q + 2);
++    r->w             = mg_u16(q + 4);
++    r->h             = mg_u16(q + 6);
++}
++
++/* A text of the pack in one language (es nonzero: Spanish, falling back to English when it has none). */
++static inline const char* mg_text_raw(const mg_pack_t* p, int idx, int es)
++{
++    const uint8_t* q = p->b + p->o_texts + (size_t)idx * MG_TEXT_SIZE;
++    if (es && q[MG_TEXT_LEN] != 0) {
++        return (const char*)(q + MG_TEXT_LEN);
++    }
++    return (const char*)q;
++}
++
++static inline int mg_text_ok(const uint8_t* s)
++{
++    int ended = 0;
++    for (int i = 0; i < MG_TEXT_LEN; i++) {
++        if (ended) {
++            if (s[i] != 0) {
++                return 0;
++            }
++        } else if (s[i] == 0) {
++            ended = 1;
++        } else if (s[i] < 0x20 || s[i] > 0x7E) {
++            return 0;
++        } else if (s[i] == '%') {
++            const uint8_t n = (i + 1 < MG_TEXT_LEN) ? s[i + 1] : 0;
++            if (!((n >= '0' && n < '0' + MG_COUNTERS) || n == '%')) {
++                return 0;
++            }
++            i++; /* the digit or the second percent sign is part of the escape */
++        }
++    }
++    return ended;
++}
++
++/*
++ * Reads and checks a pack. `len` is the whole blob; it is the payload plus the checksum, plus 64 bytes when signed.
++ * Nothing is trusted until every check passes: a table that points outside itself never reaches the player.
++ */
++static inline mg_err_t mg_parse(const uint8_t* b, size_t len, mg_pack_t* p)
++{
++    memset(p, 0, sizeof(*p));
++    if (b == NULL || len < MG_HEADER + MG_CRC_LEN) {
++        return MG_E_SHORT;
++    }
++    if (memcmp(b, MG_MAGIC, 4) != 0) {
++        return MG_E_MAGIC;
++    }
++    if (b[4] != MG_VERSION) {
++        return MG_E_VERSION;
++    }
++    if (len > MG_MAX_PACK) {
++        return MG_E_SIZE;
++    }
++    p->b        = b;
++    p->flags    = b[5];
++    p->n_states = b[6];
++    p->n_regions = b[7];
++    p->n_shapes = b[8];
++    p->n_texts  = b[9];
++    p->n_trans  = mg_u16(b + 10);
++    p->n_actions = mg_u16(b + 12);
++    p->score_ctr = b[14];
++    p->seq_range = b[15];
++    p->seed      = mg_u32(b + 16);
++    p->step_budget = b[20] != 0 ? b[20] : MG_STEP_BUDGET;
++    p->start_state = b[21];
++    p->title_text  = b[22];
++    p->desc_text   = b[23];
++    p->payload     = mg_u16(b + 24);
++    if (p->n_states == 0 || p->n_states > MG_MAX_STATES || p->n_regions > MG_MAX_REGIONS ||
++        p->n_shapes > MG_MAX_SHAPES || p->n_texts == 0 || p->n_texts > MG_MAX_TEXTS || p->n_trans == 0 ||
++        p->n_trans > MG_MAX_TRANS || p->n_actions > MG_MAX_ACTIONS) {
++        return MG_E_LIMITS;
++    }
++    const size_t body = (size_t)p->n_states * MG_STATE_SIZE + (size_t)p->n_regions * MG_REGION_SIZE +
++                        (size_t)p->n_shapes * MG_SHAPE_SIZE + (size_t)p->n_texts * MG_TEXT_SIZE +
++                        (size_t)p->n_trans * MG_TRANS_SIZE + (size_t)p->n_actions * MG_ACTION_SIZE;
++    if ((size_t)p->payload != MG_HEADER + body) {
++        return MG_E_SIZE;
++    }
++    if (len == (size_t)p->payload + MG_CRC_LEN + MG_SIG_LEN) {
++        p->has_sig = 1;
++    } else if (len != (size_t)p->payload + MG_CRC_LEN) {
++        return MG_E_SIZE;
++    }
++    if (mg_crc32(b, p->payload) != mg_u32(b + p->payload)) {
++        return MG_E_CRC;
++    }
++    size_t o = MG_HEADER;
++    p->o_states  = (uint16_t)o; o += (size_t)p->n_states * MG_STATE_SIZE;
++    p->o_regions = (uint16_t)o; o += (size_t)p->n_regions * MG_REGION_SIZE;
++    p->o_shapes  = (uint16_t)o; o += (size_t)p->n_shapes * MG_SHAPE_SIZE;
++    p->o_texts   = (uint16_t)o; o += (size_t)p->n_texts * MG_TEXT_SIZE;
++    p->o_trans   = (uint16_t)o; o += (size_t)p->n_trans * MG_TRANS_SIZE;
++    p->o_actions = (uint16_t)o;
++
++    /* the name */
++    int idlen = 0;
++    for (int i = 0; i < 12; i++) {
++        const uint8_t c = b[28 + i];
++        if (c == 0) {
++            for (int k = i; k < 12; k++) {
++                if (b[28 + k] != 0) {
++                    return MG_E_ID;
++                }
++            }
++            break;
++        }
++        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) {
++            return MG_E_ID;
++        }
++        idlen++;
++        p->id[i] = (char)c;
++    }
++    if (idlen < 1 || idlen > 11) {
++        return MG_E_ID;
++    }
++    if (p->score_ctr >= MG_COUNTERS || p->seq_range < 1 || p->seq_range > 16 || p->start_state >= p->n_states ||
++        p->title_text >= p->n_texts || (p->desc_text != 0xFF && p->desc_text >= p->n_texts)) {
++        return MG_E_REF;
++    }
++    for (int i = 0; i < p->n_regions; i++) {
++        mg_region_t r;
++        mg_region_get(p, i, &r);
++        if (r.w == 0 || r.h == 0) {
++            return MG_E_REF;
++        }
++        if (r.x < MG_EDGE_L || r.y < MG_EDGE_T || (int)r.x + r.w > MG_EDGE_R || (int)r.y + r.h > MG_EDGE_B) {
++            return MG_E_EDGE;
++        }
++    }
++    const uint16_t all_states = (uint16_t)((1u << p->n_states) - 1u);
++    for (int i = 0; i < p->n_shapes; i++) {
++        mg_shape_t s;
++        mg_shape_get(p, i, &s);
++        if (s.type > MG_SH_MAX || (s.cond_ctr != 0xFF && s.cond_ctr >= MG_COUNTERS) || s.mask == 0 ||
++            (s.mask & (uint16_t)~all_states) != 0) {
++            return MG_E_REF;
++        }
++        if (s.type == MG_SH_TEXT && (s.text >= p->n_texts || s.aux > 2)) {
++            return MG_E_REF;
++        }
++        if (s.x < -64 || s.x > 384 || s.y < -64 || s.y > 304 || s.w < 0 || s.w > 400 || s.h < 0 || s.h > 400) {
++            return MG_E_REF;
++        }
++    }
++    for (int i = 0; i < p->n_texts; i++) {
++        const uint8_t* q = b + p->o_texts + (size_t)i * MG_TEXT_SIZE;
++        if (!mg_text_ok(q) || !mg_text_ok(q + MG_TEXT_LEN)) {
++            return MG_E_ASCII;
++        }
++    }
++    for (int i = 0; i < p->n_trans; i++) {
++        const uint8_t* t = b + p->o_trans + (size_t)i * MG_TRANS_SIZE;
++        if (t[0] >= p->n_states || t[1] >= MG_EV_COUNT) {
++            return MG_E_REF;
++        }
++        if (t[1] == MG_EV_TAP && t[2] != MG_ARG_ANY && t[2] != MG_ARG_ANY_REGION && t[2] >= p->n_regions) {
++            return MG_E_REF;
++        }
++        if (t[3] >= p->n_states && t[3] != MG_STAY && t[3] != MG_END) {
++            return MG_E_REF;
++        }
++        if (t[4] > MG_G_MAX) {
++            return MG_E_REF;
++        }
++        const int ctr_guard = t[4] == MG_G_CTR_EQ || t[4] == MG_G_CTR_NE || t[4] == MG_G_CTR_LT ||
++                              t[4] == MG_G_CTR_GE || t[4] == MG_G_REG_EQ_CTR;
++        if (ctr_guard && t[5] >= MG_COUNTERS) {
++            return MG_E_REF;
++        }
++        if ((size_t)mg_u16(t + 8) + t[10] > p->n_actions) {
++            return MG_E_REF;
++        }
++    }
++    for (int i = 0; i < p->n_actions; i++) {
++        const uint8_t* a = b + p->o_actions + (size_t)i * MG_ACTION_SIZE;
++        const int16_t v  = mg_s16(a + 2);
++        if (a[0] > MG_OP_MAX) {
++            return MG_E_REF;
++        }
++        switch (a[0]) {
++            case MG_OP_SET: case MG_OP_ADD: case MG_OP_ELAPSED: case MG_OP_SEQ_TO_CTR: case MG_OP_TONE_CTR:
++            case MG_OP_SET_REG:
++                if (a[1] >= MG_COUNTERS) return MG_E_REF;
++                break;
++            case MG_OP_ADD_CTR: case MG_OP_COPY:
++                if (a[1] >= MG_COUNTERS || v < 0 || v >= MG_COUNTERS) return MG_E_REF;
++                break;
++            case MG_OP_RAND:
++                if (a[1] >= MG_COUNTERS || v < 1) return MG_E_REF;
++                break;
++            case MG_OP_DIV:
++                if (a[1] >= MG_COUNTERS || v == 0) return MG_E_REF;
++                break;
++            case MG_OP_TONE:
++                if (a[1] >= MG_TONE_COUNT) return MG_E_REF;
++                break;
++            default: break;
++        }
++    }
++    return MG_OK;
++}
++
++/* Where a signature goes: the bytes it covers (everything before it) and the 64 bytes. NULL when the pack is unsigned. */
++static inline const uint8_t* mg_signature(const mg_pack_t* p, size_t* signed_len)
++{
++    if (!p->has_sig) {
++        return NULL;
++    }
++    *signed_len = (size_t)p->payload + MG_CRC_LEN;
++    return p->b + *signed_len;
++}
++
++typedef enum { MG_SRC_BUILTIN = 0, MG_SRC_EXTERNAL = 1 } mg_source_t;
++
++/*
++ * The signing rule. A pack inside the app image is covered by the image's own signature, so it needs none of its own.
++ * A pack from anywhere else must carry a valid Ed25519 signature made with the update key (patch 155); only a bench
++ * build may run an unsigned one (or a signed one on a unit with no key built in).
++ */
++static inline mg_err_t mg_admit(int source, int has_sig, int sig_ok, int key_built_in, int bench)
++{
++    if (source == MG_SRC_BUILTIN) {
++        return MG_OK;
++    }
++    if (!has_sig) {
++        return bench ? MG_OK : MG_E_UNSIGNED;
++    }
++    if (!key_built_in) {
++        return bench ? MG_OK : MG_E_NOKEY;
++    }
++    return sig_ok ? MG_OK : MG_E_SIG;
++}
++
++/* ---- the player ---- */
++
++typedef struct {
++    const mg_pack_t* p;
++    int16_t ctr[MG_COUNTERS];
++    uint8_t seq[MG_SEQ_MAX];
++    uint8_t seq_len, seq_pos;
++    uint8_t state;
++    uint8_t finished;     /* the game ended (a transition to END, or the budget) */
++    uint8_t budget_hit;   /* it ended because one event ran more steps than the budget */
++    uint8_t save_pending; /* SAVE ran: the caller stores ctr[score_ctr] once and clears this */
++    uint8_t saved;        /* SAVE already ran once this game: a second one is ignored */
++    uint8_t timer_on;
++    uint8_t tap_region;
++    uint8_t tone_n;
++    uint8_t tone_q[MG_TONE_Q];
++    uint16_t steps;       /* transitions run by the last event */
++    uint32_t entered_ms, timer_due_ms, rng;
++} mg_run_t;
++
++static inline uint32_t mg_rand(mg_run_t* r)
++{
++    uint32_t x = r->rng;
++    x ^= x << 13;
++    x ^= x >> 17;
++    x ^= x << 5;
++    r->rng = x != 0 ? x : 0x9E3779B9u;
++    return r->rng;
++}
++
++static inline int16_t mg_sat(int32_t v)
++{
++    return (int16_t)(v > 32767 ? 32767 : (v < -32768 ? -32768 : v));
++}
++
++static inline int mg_guard_ok(const mg_run_t* r, uint8_t kind, uint8_t a, int16_t b)
++{
++    switch (kind) {
++        case MG_G_NONE: return 1;
++        case MG_G_CTR_EQ: return r->ctr[a] == b;
++        case MG_G_CTR_NE: return r->ctr[a] != b;
++        case MG_G_CTR_LT: return r->ctr[a] < b;
++        case MG_G_CTR_GE: return r->ctr[a] >= b;
++        case MG_G_SEQ_HIT: return r->seq_pos < r->seq_len && r->tap_region == r->seq[r->seq_pos];
++        case MG_G_SEQ_MISS: return !(r->seq_pos < r->seq_len && r->tap_region == r->seq[r->seq_pos]);
++        case MG_G_SEQ_MORE: return (int)r->seq_pos + 1 < (int)r->seq_len;
++        case MG_G_SEQ_LAST: return (int)r->seq_pos + 1 >= (int)r->seq_len;
++        case MG_G_REG_EQ_CTR: return r->tap_region != MG_NO_REGION && (int)r->tap_region == (int)r->ctr[a];
++        default: return 0;
++    }
++}
++
++static inline void mg_tone(mg_run_t* r, int id)
++{
++    if (id >= 0 && id < MG_TONE_COUNT && r->tone_n < MG_TONE_Q) {
++        r->tone_q[r->tone_n++] = (uint8_t)id;
++    }
++}
++
++static inline void mg_act(mg_run_t* r, const uint8_t* a, uint32_t now)
++{
++    const int16_t v = mg_s16(a + 2);
++    const uint8_t c = a[1];
++    switch (a[0]) {
++        case MG_OP_SET: r->ctr[c] = v; break;
++        case MG_OP_ADD: r->ctr[c] = mg_sat((int32_t)r->ctr[c] + v); break;
++        case MG_OP_ADD_CTR: r->ctr[c] = mg_sat((int32_t)r->ctr[c] + r->ctr[v]); break;
++        case MG_OP_COPY: r->ctr[c] = r->ctr[v]; break;
++        case MG_OP_RAND: r->ctr[c] = (int16_t)(mg_rand(r) % (uint32_t)v); break;
++        case MG_OP_ELAPSED: {
++            const uint32_t d = now - r->entered_ms;
++            r->ctr[c]        = (int16_t)(d > 32767u ? 32767 : d);
++            break;
++        }
++        case MG_OP_DIV: r->ctr[c] = (int16_t)(r->ctr[c] / v); break;
++        case MG_OP_SEQ_RESET: r->seq_len = 0; r->seq_pos = 0; break;
++        case MG_OP_SEQ_ADD:
++            if (r->seq_len < MG_SEQ_MAX) {
++                r->seq[r->seq_len++] = (uint8_t)(mg_rand(r) % r->p->seq_range);
++            }
++            break;
++        case MG_OP_SEQ_REWIND: r->seq_pos = 0; break;
++        case MG_OP_SEQ_NEXT:
++            if (r->seq_pos < r->seq_len) {
++                r->seq_pos++;
++            }
++            break;
++        case MG_OP_SEQ_TO_CTR: r->ctr[c] = r->seq_pos < r->seq_len ? (int16_t)r->seq[r->seq_pos] : (int16_t)-1; break;
++        case MG_OP_TONE: mg_tone(r, c); break;
++        case MG_OP_TONE_CTR: mg_tone(r, r->ctr[c]); break;
++        case MG_OP_SAVE:
++            if (!r->saved) {
++                r->saved        = 1;
++                r->save_pending = 1;
++            }
++            break;
++        case MG_OP_SET_REG: r->ctr[c] = r->tap_region == MG_NO_REGION ? (int16_t)-1 : (int16_t)r->tap_region; break;
++        default: break;
++    }
++}
++
++/* Entering a state: stamp the time and draw the state's timer. */
++static inline void mg_enter(mg_run_t* r, uint32_t now)
++{
++    const uint8_t* s = r->p->b + r->p->o_states + (size_t)r->state * MG_STATE_SIZE;
++    const uint16_t lo = mg_u16(s), hi = mg_u16(s + 2);
++    r->entered_ms = now;
++    if (lo == 0 && hi == 0) {
++        r->timer_on = 0;
++        return;
++    }
++    uint32_t d = lo;
++    if (hi > lo) {
++        d += mg_rand(r) % ((uint32_t)hi - lo + 1u);
++    }
++    r->timer_due_ms = now + d;
++    r->timer_on     = 1;
++}
++
++/* Runs one event and every enter chain it causes, at most step_budget transitions in all. */
++static inline void mg_fire(mg_run_t* r, int event, int tap_region, uint32_t now)
++{
++    const mg_pack_t* p = r->p;
++    r->steps           = 0;
++    r->tap_region      = (uint8_t)tap_region;
++    for (;;) {
++        const uint8_t* hit = NULL;
++        for (int i = 0; i < p->n_trans && hit == NULL; i++) {
++            const uint8_t* t = p->b + p->o_trans + (size_t)i * MG_TRANS_SIZE;
++            if (t[0] != r->state || t[1] != event) {
++                continue;
++            }
++            if (event == MG_EV_TAP) {
++                const int any_region = t[2] == MG_ARG_ANY_REGION && tap_region != MG_NO_REGION;
++                if (!(t[2] == MG_ARG_ANY || any_region || t[2] == tap_region)) {
++                    continue;
++                }
++            }
++            if (mg_guard_ok(r, t[4], t[5], mg_s16(t + 6))) {
++                hit = t;
++            }
++        }
++        if (hit == NULL) {
++            return;
++        }
++        if (++r->steps > p->step_budget) {
++            r->budget_hit = 1;
++            r->finished   = 1;
++            r->timer_on   = 0;
++            return;
++        }
++        const uint16_t first = mg_u16(hit + 8);
++        for (int k = 0; k < hit[10]; k++) {
++            mg_act(r, p->b + p->o_actions + ((size_t)first + k) * MG_ACTION_SIZE, now);
++        }
++        const uint8_t next = hit[3];
++        if (next == MG_STAY) {
++            return;
++        }
++        if (next == MG_END) {
++            r->finished = 1;
++            r->timer_on = 0;
++            return;
++        }
++        r->state = next;
++        mg_enter(r, now);
++        event      = MG_EV_ENTER;
++        tap_region = MG_NO_REGION;
++        r->tap_region = MG_NO_REGION;
++    }
++}
++
++/* Starts a game: counters zero, the pack's seed (or `fallback_seed` when the pack has none), then the first state. */
++static inline void mg_start(mg_run_t* r, const mg_pack_t* p, uint32_t now, uint32_t fallback_seed)
++{
++    memset(r, 0, sizeof(*r));
++    r->p     = p;
++    r->state = p->start_state;
++    r->rng   = p->seed != 0 ? p->seed : (fallback_seed != 0 ? fallback_seed : 0x2545F491u);
++    r->tap_region = MG_NO_REGION;
++    mg_enter(r, now);
++    mg_fire(r, MG_EV_ENTER, MG_NO_REGION, now);
++}
++
++/* The state's timer ran out? Call often (the 30 ms screen tick). */
++static inline void mg_tick(mg_run_t* r, uint32_t now)
++{
++    if (r->finished || !r->timer_on || (int32_t)(now - r->timer_due_ms) < 0) {
++        return;
++    }
++    r->timer_on = 0;
++    mg_fire(r, MG_EV_TIMER, MG_NO_REGION, now);
++}
++
++/* Which region holds a point (the first in table order), or MG_NO_REGION. */
++static inline int mg_region_at(const mg_pack_t* p, int x, int y)
++{
++    for (int i = 0; i < p->n_regions; i++) {
++        mg_region_t g;
++        mg_region_get(p, i, &g);
++        if (x >= g.x && y >= g.y && x < g.x + g.w && y < g.y + g.h) {
++            return i;
++        }
++    }
++    return MG_NO_REGION;
++}
++
++/* A tap at a point. The caller never passes a touch that began in the screen edges. */
++static inline void mg_tap(mg_run_t* r, int x, int y, uint32_t now)
++{
++    if (r->finished) {
++        return;
++    }
++    mg_fire(r, MG_EV_TAP, mg_region_at(r->p, x, y), now);
++}
++
++/* Is shape i drawn in the current state? */
++static inline int mg_shape_visible(const mg_run_t* r, int i)
++{
++    mg_shape_t s;
++    mg_shape_get(r->p, i, &s);
++    if (!((s.mask >> r->state) & 1u)) {
++        return 0;
++    }
++    return s.cond_ctr == 0xFF || r->ctr[s.cond_ctr] == s.cond_val;
++}
++
++/* A text with its counters filled in ("%0" is counter 0, "%%" a percent sign). Returns the length. */
++static inline int mg_text(const mg_run_t* r, int idx, int es, char* out, size_t cap)
++{
++    const char* src = mg_text_raw(r->p, idx, es);
++    size_t n        = 0;
++    if (cap == 0) {
++        return 0;
++    }
++    for (; *src != 0 && n + 1 < cap; src++) {
++        if (*src != '%') {
++            out[n++] = *src;
++            continue;
++        }
++        src++;
++        if (*src == '%') {
++            out[n++] = '%';
++            continue;
++        }
++        char num[8];
++        int v = r->ctr[*src - '0'];
++        int k = 0;
++        if (v < 0) {
++            if (n + 1 < cap) {
++                out[n++] = '-';
++            }
++            v = -v;
++        }
++        do {
++            num[k++] = (char)('0' + v % 10);
++            v /= 10;
++        } while (v > 0 && k < 7);
++        while (k > 0 && n + 1 < cap) {
++            out[n++] = num[--k];
++        }
++    }
++    out[n] = 0;
++    return (int)n;
++}
++
++/* ---- the top five ---- */
++
++/*
++ * One game's saved scores: five u16 values, best first, 0 for an empty place. Higher is better unless the pack says
++ * lower is (a reaction time). Returns the place the new score took (0 is first), or -1 when it did not make the list
++ * (or was not a score: zero or less). Ties keep the older score first.
++ */
++static inline int mg_scores_add(uint16_t s[MG_SCORES], int lower_better, int value)
++{
++    if (value < 1) {
++        return -1;
++    }
++    if (value > 65535) {
++        value = 65535;
++    }
++    int at = MG_SCORES;
++    for (int i = 0; i < MG_SCORES; i++) {
++        const int beats = s[i] == 0 || (lower_better ? value < s[i] : value > s[i]);
++        if (beats) {
++            at = i;
++            break;
++        }
++    }
++    if (at >= MG_SCORES) {
++        return -1;
++    }
++    for (int i = MG_SCORES - 1; i > at; i--) {
++        s[i] = s[i - 1];
++    }
++    s[at] = (uint16_t)value;
++    return at;
++}
++
++#endif
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -18,6 +18,8 @@ CONFIG_MAIPAI_FACE_PACKS=y
+ CONFIG_MAIPAI_TZ=y
+ CONFIG_MAIPAI_NETTEST=y
+ CONFIG_MAIPAI_VERSION=y
++# Games (patch G01): the data-pack player and three games; off at run time it holds no memory.
++CONFIG_MAIPAI_GAMES=y
+ # Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
+ # and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
+ # destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).

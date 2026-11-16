@@ -98,3 +98,6 @@ U06-face-style-packs-and-languages.patch
 V02-offline-phrases.patch
 V03-music-dance.patch
 V04-dance-extras.patch
+G01-game-engine-core.patch
+G02-game-player-and-tools.patch
+G03-game-touch-voice-and-menu.patch

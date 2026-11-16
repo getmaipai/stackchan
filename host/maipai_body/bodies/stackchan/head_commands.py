@@ -45,6 +45,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from maipai_body.bodies.stackchan.dance import is_dance_request
+from maipai_body.bodies.stackchan.games import parse_ask
 from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG
 
 logger = logging.getLogger("maipai_body.bodies.stackchan.head_commands")
@@ -137,7 +138,8 @@ _UNSUPPORTED = re.compile(
 class HeadCommand:
     # "look", "centre", "around", "nod", "shake", "stay", "cannot", "face" (point at the person),
     # "away" (look away from the person), "turnaround" (as far to the side as it goes), "dance"
-    # (the little dance, dance.py) or "sequence" (several of the others, in order)
+    # (the little dance, dance.py), "game" (start, stop or list the unit's games, games.py) or
+    # "sequence" (several of the others, in order)
     kind: str
     direction: str | None = None  # left, right, up or down (for "look")
     amount: str = "normal"  # little, normal or far
@@ -145,6 +147,9 @@ class HeadCommand:
     hold: bool = False  # keep the heading (a "turn"), do not return after RETURN_AFTER_S
     level_only: bool = False  # "I'm down here": look level and to the sides only
     steps: tuple[HeadCommand, ...] = ()  # the commands of a "sequence", in order
+    # a "game" command: (start, stop, list or scores, and the game id)
+    game_ask: tuple[str, str | None] | None = None
+    heard: str = ""  # a "game" command: what was said (the answer is in the same language)
 
 
 def _normalise(text: str) -> str:
@@ -200,6 +205,9 @@ def parse_head_command(text: str) -> HeadCommand | None:
     one sentence are a "sequence" (up to ``MAX_SEQUENCE_WORDS`` words)."""
     spoken = _normalise(text)
     words = spoken.split()
+    game_ask = parse_ask(text) if words and len(words) <= 12 else None
+    if game_ask is not None:
+        return HeadCommand("game", game_ask=game_ask, heard=text)  # "play memory" is not a question
     if words and len(words) <= 6 and is_dance_request(spoken):
         return HeadCommand("dance")  # "do a dance" and "show me a dance" are not questions
     if not words or len(words) > MAX_SEQUENCE_WORDS or _QUESTION.match(spoken):
@@ -334,11 +342,15 @@ class HeadCommander:
         find_face: Callable[[bool], str] | None = None,
         face_yaw: Callable[[], float | None] = lambda: None,
         dance: Callable[[], str] | None = None,
+        game: Callable[[tuple[str, str | None], str], str] | None = None,
     ) -> None:
         self._move = move
         # dance() asks the dance runner for the little dance and answers the line to say; the
         # runner has its own gates, so the head-command ones below do not apply to it.
         self.dance = dance
+        # game(ask, heard) does a spoken ask about the unit's games and answers the line to say
+        # (games.py).
+        self.game = game
         self._blocked = blocked
         self._hold_pose = hold_pose
         self._clock = clock
@@ -363,6 +375,14 @@ class HeadCommander:
             return CAN_DO
         if command.kind == "dance":
             return self.dance() if self.dance is not None else CAN_DO
+        if command.kind == "game":
+            if self.game is None or command.game_ask is None:
+                return CAN_DO
+            try:
+                return self.game(command.game_ask, command.heard)
+            except Exception as exc:  # the unit is away or answered oddly
+                logger.warning("StackChan game command failed: %s", exc)
+                return CANT_NOW
         if command.kind == "stay":
             self._cancel_return()
             return ""

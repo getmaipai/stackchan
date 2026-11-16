@@ -1,0 +1,243 @@
+# Intent: Games item 3, the touch, voice and screen hooks (builds on G02). A game starts from the touch screen: quick settings, More, Games (a page with one button per game and its best score, in English or Spanish by the saved language); a refusal (full quiet, an update) is written on that page in plain words and the page stays. While a game runs the face's press handler passes it every touch that began outside the screen edges (the edges stay the unit's: the top swipe still opens quick settings, the side swipes still change the volume, the bottom swipe stops), no touch starts a listen, and no touch toggles mute, vision or full quiet. The bottom swipe ends a running game first and only otherwise aborts speech as before. The stop word ends a running game unless the unit is speaking (then it ends the speech, as before), after a ringing timer takes it first; the stop word is armed while a game runs (best effort, never while muted) and is not disarmed by a state change while a game runs. A game never moves the head: nothing here calls the motion code.
+# Placement: unit (the screen and the stop word are on the robot)
+# Upstream: firmware/main/hal/board/stackchan_display.cc, firmware/main/hal/maipai_more.cc and firmware/xiaozhi-esp32/main/application.cc of this tree (MIT)
+# Check after a flash: quick settings, More shows a Games button (Juegos in Spanish) and its page shows the three games; a game opens over the face, taps in its areas count, a tap in a screen edge does nothing to it, a swipe down from the bottom edge ends it, saying stop ends it while the unit is not speaking, and the face works as before afterwards (a tap on the mouth toggles mute, a tap elsewhere starts a listen). UNVERIFIED without a finger or a microphone: see docs/design/games-2026-11-16.md for what the bench drove instead.
+# Kconfig: MAIPAI_GAMES (G01); off leaves no Games button and no hook.
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -33,6 +33,7 @@
+ #include <hal/maipai_react.h>
+ #include <hal/maipai_more.h>
+ #include <hal/maipai_mood.h>
++#include <hal/maipai_games.h>
+ 
+ // True while the Wi-Fi setup portal is open (firmware/portal/maipai_wifi_configuration_ap.cc, patch P03).
+ extern "C" bool maipai_portal_active(void);
+@@ -308,6 +309,9 @@ void StackChanAvatarDisplay::SetupUI()
+             s_press_woke_clock = false;
+             return;
+         }
++        if (maipai_games_active()) {  // a game takes the taps (patch G01): none of them starts a listen
++            return;
++        }
+         if (!mtc_region_listens(s_last_region) || maipai_mic_blocked()) {
+             return;
+         }
+@@ -334,6 +338,11 @@ void StackChanAvatarDisplay::SetupUI()
+         s_last_region = s_trace.region0;
+         maipai_timers_request_dismiss("touch");  // a ringing timer ends on a touch (patch 093)
+         s_press_woke_clock = maipai_face_touched();
++        // A running game takes a touch that began outside the screen edges (patch G01). The edges stay the unit's:
++        // the swipes that open quick settings, change the volume and stop start there.
++        if (maipai_games_active() && s_trace.region0 != MTC_REGION_EDGE) {
++            maipai_games_touch(point.x, point.y);
++        }
+     }, LV_EVENT_PRESSED, nullptr);
+     // A touch that ends still, in the place it began, toggles mute, vision or full quiet (patch 105).
+     lv_obj_add_event_cb(avatar_panel, &StackChanAvatarDisplay::OnFaceRelease, LV_EVENT_RELEASED, this);
+@@ -755,6 +764,9 @@ void StackChanAvatarDisplay::OnGesture(lv_event_t* event)
+     } else if (dir == LV_DIR_RIGHT) {
+         self->ChangeVolume(+10);
+     } else if (dir == LV_DIR_BOTTOM) {
++        if (maipai_games_stop_locked("swipe")) {  // the stop swipe ends a running game first (patch G01)
++            return;
++        }
+         Application::GetInstance().Schedule([]() {
+             Application::GetInstance().AbortSpeaking(kAbortReasonNone);
+         });
+@@ -812,6 +824,14 @@ void StackChanAvatarDisplay::ShowToast(const char* text)
+ 
+ static StackChanAvatarDisplay* _quick_settings_display_ = nullptr;
+ 
++// Closes quick settings from another screen of ours (the games page, patch G01). The caller holds the LVGL lock.
++extern "C" void maipai_quick_settings_close(void)
++{
++    if (_quick_settings_display_ != nullptr) {
++        _quick_settings_display_->CloseQuickSettings();
++    }
++}
++
+ void StackChanAvatarDisplay::ToggleQuickSettings()
+ {
+     if (quick_panel_ != nullptr) {
+@@ -1412,6 +1432,9 @@ void StackChanAvatarDisplay::OnFaceRelease(lv_event_t* event)
+         return;
+     }
+     s_trace_live = false;
++    if (maipai_games_active()) {  // while a game runs, no touch toggles mute, vision or quiet (patch G01)
++        return;
++    }
+     auto* self   = static_cast<StackChanAvatarDisplay*>(lv_event_get_user_data(event));
+     if (self == nullptr || !self->boot_done_ || self->quick_panel_ != nullptr) {
+         return;
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -12,8 +12,11 @@
+ #include <algorithm>
+ 
+ struct LinkGlyph;  // the drawn Wi-Fi bars, slash and key of the link looks (patch R03)
++extern "C" void maipai_quick_settings_close(void);  // patch G01: the games page closes quick settings
+ 
+ class StackChanAvatarDisplay : public LvglDisplay {
++    friend void ::maipai_quick_settings_close(void);
++
+ private:
+     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
+     esp_lcd_panel_handle_t panel_       = nullptr;
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -26,11 +26,18 @@
+ #if CONFIG_MAIPAI_VERSION
+ #include "maipai_version.h"
+ #endif
++#if CONFIG_MAIPAI_GAMES
++#include "maipai_games.h"
++extern "C" void maipai_quick_settings_close(void);
++#endif
+ 
+ namespace {
+-enum Page { PAGE_MENU = 0, PAGE_TZ, PAGE_NET, PAGE_VERSION };
++enum Page { PAGE_MENU = 0, PAGE_TZ, PAGE_NET, PAGE_VERSION, PAGE_GAMES };
+ 
+ lv_obj_t* s_root     = nullptr;
++#if CONFIG_MAIPAI_GAMES
++lv_obj_t* s_game_note = nullptr;
++#endif
+ lv_timer_t* s_timer  = nullptr;
+ int s_page           = PAGE_MENU;
+ bool s_es            = false;
+@@ -105,6 +112,9 @@ void clear_page()
+         s_timer = nullptr;
+     }
+     lv_obj_clean(s_root);
++#if CONFIG_MAIPAI_GAMES
++    s_game_note = nullptr;
++#endif
+ #if CONFIG_MAIPAI_TZ
+     s_zone_lbl = s_time_lbl = s_note_lbl = nullptr;
+ #endif
+@@ -288,6 +298,49 @@ void build_version()
+ }
+ #endif
+ 
++#if CONFIG_MAIPAI_GAMES
++// Starting a game draws it over the face; this page and quick settings close once it has started. A refusal (full quiet,
++// an update running) is written on this page in plain words.
++void on_game(lv_event_t* e)
++{
++    const int index = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
++    const std::string id = maipai_games_id(index);
++    const char* why = maipai_games_start_locked(id.c_str(), "touch");
++    if (why[0] != '\0') {
++        if (s_game_note != nullptr) {
++            lv_label_set_text(s_game_note, why);
++        }
++        return;
++    }
++    close_all();
++    maipai_quick_settings_close();
++}
++
++void build_games()
++{
++    lv_obj_t* title = label(s_root, tx("Games", "Juegos"), &lv_font_montserrat_20);
++    lv_obj_set_width(title, LV_PCT(100));
++    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
++    for (int i = 0; i < maipai_games_count(); i++) {
++        char line[64];
++        const int best = maipai_games_best(i);
++        if (best > 0) {
++            snprintf(line, sizeof(line), "%s  %s %d%s", maipai_games_title(i, s_es), tx("best", "mejor"), best,
++                     maipai_games_lower_is_better(i) ? " ms" : "");
++        } else {
++            snprintf(line, sizeof(line), "%s", maipai_games_title(i, s_es));
++        }
++        lv_obj_t* b = button(s_root, line, 100, on_game, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
++        new_row(b);
++    }
++    s_game_note = label(s_root, "", &lv_font_montserrat_14);
++    lv_obj_set_width(s_game_note, LV_PCT(100));
++    lv_label_set_long_mode(s_game_note, LV_LABEL_LONG_WRAP);
++    new_row(s_game_note);
++    new_row(button(s_root, tx("Back", "Atras"), 100, on_back_menu));
++}
++#endif
++
+ void build_menu()
+ {
+     lv_obj_t* title = label(s_root, tx("More", "Mas"), &lv_font_montserrat_20);
+@@ -304,6 +357,10 @@ void build_menu()
+ #if CONFIG_MAIPAI_VERSION
+     new_row(button(s_root, tx("Version", "Version"), 100, on_open_page,
+                    reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_VERSION))));
++#endif
++#if CONFIG_MAIPAI_GAMES
++    new_row(button(s_root, tx("Games", "Juegos"), 100, on_open_page,
++                   reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_GAMES))));
+ #endif
+     new_row(button(s_root, tx("Done", "Listo"), 100, on_close));
+ }
+@@ -324,6 +381,9 @@ void show(int page)
+ #endif
+ #if CONFIG_MAIPAI_VERSION
+         case PAGE_VERSION: build_version(); return;
++#endif
++#if CONFIG_MAIPAI_GAMES
++        case PAGE_GAMES: build_games(); return;
+ #endif
+         default: break;
+     }
+diff --git a/firmware/main/hal/maipai_more.h b/firmware/main/hal/maipai_more.h
+--- a/firmware/main/hal/maipai_more.h
++++ b/firmware/main/hal/maipai_more.h
+@@ -2,13 +2,13 @@
+  * SPDX-License-Identifier: MIT
+  *
+  * The "More" screen (patches U03 to U05): a full-screen page over quick settings with the time zone picker, the network
+- * test and the version page. Nothing exists until it is opened (no task, no timer, no objects); closing it frees all of
++ * test, the version page and the games page (patch G01). Nothing exists until it is opened (no task, no timer, no objects); closing it frees all of
+  * it. With none of the three switches on, nothing here is compiled.
+  */
+ #pragma once
+ #include <sdkconfig.h>
+ 
+-#if CONFIG_MAIPAI_TZ || CONFIG_MAIPAI_NETTEST || CONFIG_MAIPAI_VERSION
++#if CONFIG_MAIPAI_TZ || CONFIG_MAIPAI_NETTEST || CONFIG_MAIPAI_VERSION || CONFIG_MAIPAI_GAMES
+ #define MAIPAI_MORE_SCREEN 1
+ // Opens the page. The caller holds the LVGL lock.
+ void maipai_more_open();
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -19,6 +19,7 @@
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_sounds.h>
+ #include <hal/maipai_timers.h>
++#include <hal/maipai_games.h>
+ #include <hal/maipai_wake.h>
+ #include <esp_timer.h>
+ #include <esp_log.h>
+@@ -109,6 +110,11 @@ void Application::Initialize() {
+                 ESP_LOGI(TAG, "Stop word heard while a timer rings: ending the ring");
+                 return;
+             }
++            // A running game ends on the stop word unless the unit is speaking (then the word ends the speech) (patch G01).
++            if (GetDeviceState() != kDeviceStateSpeaking && maipai_games_request_stop("stop")) {
++                ESP_LOGI(TAG, "Stop word heard while a game runs: ending the game");
++                return;
++            }
+             ESP_LOGI(TAG, "Stop word heard while speaking: aborting");
+             AbortSpeaking(kAbortReasonNone);
+         });
+@@ -1096,7 +1102,7 @@ void Application::HandleStateChangedEvent() {
+     auto led = board.GetLed();
+     led->OnStateChanged();
+ 
+-    if (new_state != kDeviceStateSpeaking && !maipai_timers_ringing()) {
++    if (new_state != kDeviceStateSpeaking && !maipai_timers_ringing() && !maipai_games_active()) {
+         audio_service_.SetStopWordArmed(false);
+     }
+     switch (new_state) {

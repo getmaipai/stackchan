@@ -2,6 +2,10 @@
 
 Placement: design note for the firmware lane. Nothing is built. Item 15 of `feature-gap-2026-11-16.md` is skipped in Train 3 on purpose: it is the one L-sized item, it needs a pack format that two lanes must agree on first, and `repo-boundaries.md` puts games in Home's package list with only the engine primitives in the `home` preset firmware. This note fixes the shape so the build can start cleanly.
 
+## Update, 2026-11-16 (built)
+
+Built as patches `G01` to `G03` and described in `games-2026-11-16.md`. The owner overrode the verdict below: the engine is in the core firmware behind `MAIPAI_GAMES` (default `y`), not only in the `home` preset, because the memory gate passed. Answers to the open questions: the pack is a compiled binary with a host compiler (question 1); the unit keeps the scores itself and the Home pack catalogue and the way a signed pack reaches the unit are still open (question 2); none of the three games needs a per-frame draw loop (question 3).
+
 ## Verdict and scope
 
 Verdict: REBUILD small, in the `home` preset (not the core image). The core image keeps its memory room for the face, timers and mood. Test against `AGENTS.md` scope: a game does not work with only the LLM and the robot, and Home already owns packs, scores and saved state, so Home supplies content and the unit supplies a player.

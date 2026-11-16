@@ -2015,6 +2015,7 @@ def _wire_timers_and_announcements(
     and rings the timers itself (firmware patches 090 to 094); this only sets, lists and cancels
     them, says the line, and counts what is active for the check-in."""
     from maipai_body.bodies.stackchan.announce import Announcer
+    from maipai_body.bodies.stackchan.games import GameService
     from maipai_body.bodies.stackchan.timers import TimerService
 
     def say(text: str) -> bool:
@@ -2097,6 +2098,7 @@ def _wire_timers_and_announcements(
         mute_handlers = privacy.handlers()
     return {
         **timers.handlers(),
+        **GameService(voice.robot.client._call).handlers(),
         "announce": announcer.handle,
         **mute_handlers,
     }
@@ -2526,6 +2528,11 @@ async def _serve_stackchan_channels(
             device_connected=device_connected,
             full_quiet_reason=behavior.privacy.muted_reason,
         )
+        from maipai_body.bodies.stackchan.games import GameService as _GameService
+
+        # "Play memory", "stop the game", "what games do you have" (and the Spanish asks) are
+        # answered here, before the hub is asked: the games are the unit's own (firmware patch G01).
+        head_commander.game = _GameService(voice.robot.client._call).spoken
         from maipai_body.bodies.stackchan.music_dance_wiring import (
             MusicFeatureSwitch,
             wire_music_dance,

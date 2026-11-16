@@ -112,9 +112,10 @@ def test_the_music_headers_are_the_ones_the_older_host_tests_compile(headers: Pa
 # ---- the patch files ----
 
 
-def test_every_train6_patch_has_its_header_lines_and_ends_the_order() -> None:
+def test_every_train6_patch_has_its_header_lines_and_is_on_the_order_in_a_row() -> None:
     order = (PATCHES / "ORDER").read_text().split()
-    assert order[-3:] == TRAIN6
+    first = order.index(TRAIN6[0])
+    assert order[first : first + 3] == TRAIN6  # the games patches (G01 to G03) follow them
     for name in TRAIN6:
         text = (PATCHES / name).read_text()
         head = text.split("diff --git", 1)[0]

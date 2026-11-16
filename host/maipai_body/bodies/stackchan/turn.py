@@ -1155,7 +1155,7 @@ class StackChanTurnBridge:
                     if line:
                         await asyncio.to_thread(self._say, playback, base, cookie, line)
                         self._breaker.note_speech()
-                    if head_command.kind in ("face", "dance"):
+                    if head_command.kind in ("face", "dance", "game"):
                         # "Dance" ends the turn the same way: the dance starts once the turn is
                         # over (never during one). "Turn to me": end the follow-up listening now.
                         # The camera sends no frames
