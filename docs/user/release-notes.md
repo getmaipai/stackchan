@@ -13,6 +13,7 @@ The first release of MaiPai for StackChan. Everything on the [Features](features
 - A trimmed robot build: Bluetooth off, no host-controlled installs, no keys in images, and a Wi-Fi setup page with an on-screen code in English and Spanish.
 - Eight face styles, nine face extras, word reactions, a time zone picker, a network test and a version screen.
 - Six languages: English, Spanish, French, German, Portuguese and Italian.
+- Offline phrases, dance on request, six named dances and a sway to music.
 - Travel: the robot joins your private network by itself when it cannot reach your host.
 - Reset on the robot, and a restart guard.
 - Several robots on one host, speech speed and pitch, and a cooking persona.

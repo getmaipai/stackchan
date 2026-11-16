@@ -13,6 +13,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Wake word and voice** | Say the wake word and ask. The reply starts on the first finished sentence. | Robot | [Voice](voice.md) |
 | **Follow-ups and interrupting** | Ask again with no wake word. Speak while it talks and it stops and listens. | Robot | [Voice](voice.md) |
 | **Voice commands** | Stop, mute, quiet, volume, brightness, sleep, time and night mode, with no model involved. | Robot | [Voice](voice.md) |
+| **Offline phrases** | Sixteen spoken lines when the host is out of reach. | Robot | [Voice](voice.md) |
 | **Persona, speech speed and pitch** | A short text sets how it talks. Set how fast it speaks and how high. | Robot | [Voice](voice.md) |
 | **Six languages** | Screens and setup in English, Spanish, French, German, Portuguese and Italian. | Robot | [Languages](languages.md) |
 
@@ -41,6 +42,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 |---|---|---|---|
 | **Pickup, shake, tilt, petting** | It looks surprised, dizzy, tilted or happy. | Robot | [Reactions](moves-and-moods.md) |
 | **Mood from care** | Its resting face follows how much you pet it. | Robot | [Reactions](moves-and-moods.md) |
+| **Dance and music** | Dance on request, six named dances, and a sway to the music with mood faces. Off until you turn it on. | Robot | [Music and dance](music-and-dance.md) |
 | **Breathing idle and quiet mode** | Calm moves when nothing happens, softer when you ask. | Robot | [Reactions](moves-and-moods.md) |
 | **Low-battery steps** | A chirp at 20 percent, a spoken ask at 10, sleep at 5. | Robot | [Reactions](moves-and-moods.md) |
 
