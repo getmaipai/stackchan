@@ -2177,6 +2177,42 @@ def _unit_extras(voice):
     return UnitExtras(call)
 
 
+def _unit_call(voice):
+    """The unit tool call every settings-page service shares: a unit that is not connected counts as lost."""
+    from maipai_body.hal.errors import BodyLost
+
+    def call(name, arguments, *, device_id=None, timeout=4.0):
+        try:
+            return voice.call_device_tool(name, arguments, device_id=device_id, timeout=timeout)
+        except (ConnectionError, TimeoutError) as error:
+            raise BodyLost(str(error)) from error
+
+    return call
+
+
+def _unit_remote(voice):
+    """The Remote page's actions. The camera button works only when the unit has the camera build: a unit that
+    cannot take a picture answers nothing, and the page then says it needs the camera build."""
+    import asyncio
+
+    from maipai_body.hal.errors import BodyLost
+    from maipai_body.unit_remote import UnitRemote
+
+    loop = getattr(voice, "_loop", None)
+
+    def photo(device_id):
+        if loop is None:
+            return None
+        try:
+            return asyncio.run_coroutine_threadsafe(voice.take_photo(device_id), loop).result(timeout=15)
+        except (ConnectionError, TimeoutError) as error:
+            raise BodyLost(str(error)) from error
+        except Exception:
+            return None
+
+    return UnitRemote(_unit_call(voice), photo=photo if loop is not None else None)
+
+
 def _picture_service(voice):
     """One PictureService for this host: the owner's picture faces, sent through the live voice link.
     A unit that is not connected counts as lost (the pictures are saved and sent on connect)."""
@@ -2789,6 +2825,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None):
     Also pushes each unit's own alarms to it, by Device-Id, whenever that unit connects."""
     from maipai_body.live_units import LiveUnits
     from maipai_body.settings_page import SettingsBackend
+    from maipai_body.unit_device import UnitDevice
 
     def push_alarms(device_id: str) -> None:
         try:
@@ -2840,6 +2877,8 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None):
         faces=faces,
         extras=extras,
         pictures=pictures,
+        device=UnitDevice(_unit_call(voice)),
+        remote=_unit_remote(voice),
     )
     from maipai_body.settings_server import SettingsServer
 

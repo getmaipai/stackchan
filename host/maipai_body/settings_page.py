@@ -19,6 +19,7 @@ from maipai_body import faces as face_settings
 from maipai_body import picture_faces as picture_mod
 from maipai_body import unit_device as device_mod
 from maipai_body import unit_extras as extras_mod
+from maipai_body import unit_remote as remote_mod
 from maipai_body.bodies.stackchan import updater
 from maipai_body.i18n import catalog, normalize, t
 from maipai_body.picture_faces_page import pictures_js
@@ -45,6 +46,7 @@ class SettingsBackend:
         people: extras_mod.PeopleStore | None = None,
         pictures: picture_mod.PictureService | None = None,
         device: device_mod.UnitDevice | None = None,
+        remote: remote_mod.UnitRemote | None = None,
     ) -> None:
         self.devices, self.store = devices, store or UnitSettingsStore()
         self.live = live or (lambda _device_id: {})
@@ -56,6 +58,7 @@ class SettingsBackend:
         self._people = people
         self._pictures = pictures
         self._device = device
+        self._remote = remote
 
     @property
     def pictures(self) -> picture_mod.PictureService:
@@ -71,6 +74,13 @@ class SettingsBackend:
         if self._device is None:
             self._device = device_mod.UnitDevice(extras_mod.offline_call)
         return self._device
+
+    @property
+    def remote(self) -> remote_mod.UnitRemote:
+        """The Remote page's actions. Without a live link a unit counts as offline."""
+        if self._remote is None:
+            self._remote = remote_mod.UnitRemote(extras_mod.offline_call)
+        return self._remote
 
     @property
     def extras(self) -> extras_mod.UnitExtras:
@@ -127,6 +137,7 @@ class SettingsBackend:
             "host_address": self.host_address,
             "language": normalize(lang or self.language),
             "update_source_set": bool(self.update_source),
+            "host_version": _host_version(),
             "units": units,
         }
 
@@ -237,6 +248,38 @@ class SettingsBackend:
             self.store.update(device_id, {keep: value})
         return result
 
+    def _remote_post(self, device_id: str, values: dict[str, Any], lang: str) -> dict[str, Any]:
+        """One Remote button: ``{"do": "beep" | "flash" | "find" | "say" | "head" | "center" | "look" | "nod" | "shake" | "dance" | "stop_dance" | "game" | "photo", ...}``."""
+        remote = self.remote
+        do = values.get("do")
+        if do == "beep":
+            return remote.beep(device_id, values.get("sound", "success"), lang)
+        if do == "flash":
+            return remote.flash(device_id, values.get("colour"), lang)
+        if do == "find":
+            return remote.find(device_id, values.get("on"), lang)
+        if do == "say":
+            return remote.say(device_id, values.get("text"), lang)
+        if do == "head":
+            return remote.head(device_id, values.get("yaw"), values.get("pitch"), lang)
+        if do == "center":
+            return remote.centre(device_id, lang)
+        if do == "look":
+            return remote.look_around(device_id, lang)
+        if do == "nod":
+            return remote.nod(device_id, lang)
+        if do == "shake":
+            return remote.shake(device_id, lang)
+        if do == "dance":
+            return remote.dance(device_id, values.get("name"), lang)
+        if do == "stop_dance":
+            return remote.stop_dance(device_id, lang)
+        if do == "game":
+            return remote.game(device_id, values.get("name"), lang)
+        if do == "photo":
+            return remote.photo(device_id, lang)
+        raise extras_mod.ExtrasError(device_mod._words(lang, "bad_value", field=str(do)))
+
     def _people_view(self) -> dict[str, Any]:
         return {
             "people": [p.to_json() for p in self.people.all()],
@@ -263,6 +306,8 @@ class SettingsBackend:
                 body = self.extras.games(device_id, lang)
             elif what == "pictures":
                 body = self.pictures.view(device_id, lang)
+            elif what == "remote":
+                body = self.remote.view(device_id, lang)
             elif what == "overview":
                 body = {**self.device.overview(device_id, lang), "saved": self._saved_device(device_id)}
             elif what == "travel":
@@ -343,6 +388,8 @@ class SettingsBackend:
             if action == "network-test":
                 result = self.extras.network_test(device_id, lang)
                 return 200, {**result, "message": result.get("summary", "")}
+            if action == "remote":
+                return 200, self._remote_post(device_id, values, lang)
             if action == "device":
                 return 200, self._device_post(device_id, values, lang)
             if action == "reset":
@@ -438,6 +485,15 @@ class SettingsBackend:
             return 200, self.save(unquote(rest), body)
         except SettingsError as error:
             return 400, {"error": str(error)}
+
+
+def _host_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("maipai-bot")
+    except Exception:
+        return ""
 
 
 JSON = "application/json"

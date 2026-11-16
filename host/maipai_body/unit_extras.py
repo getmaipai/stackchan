@@ -69,10 +69,14 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "person_unknown": "That person is not in the list. Add them first.",
         "person_applied": "{name}'s face colour and caption size were sent to the unit.",
         "bad_file": "The file {path} could not be read. Fix or remove it; the built-in choices are used meanwhile.",
-        "travel_key": "A travel key is 16 to 200 letters, numbers or dashes with no spaces. Paste the whole key from your private network and try again.",
-        "travel_saved": "The travel key is on the unit. The unit uses it the next time it cannot reach this host, and then erases it.",
-        "travel_forgot": "The unit forgot its travel key and its place on the private network.",
-        "travel_nothing": "Paste a travel key, or choose Forget to erase the one on the unit.",
+        "travel_key": "A Tailscale auth key is 16 to 200 letters, numbers or dashes with no spaces (it starts with tskey-). Paste the whole key and try again.",
+        "travel_saved": "Saved on the unit. It joins Tailscale the next time it cannot reach your hub, then erases the key.",
+        "travel_forgot": "The unit forgot its Tailscale key, the hub address and its place on your Tailscale network.",
+        "travel_nothing": "Paste a Tailscale auth key or the hub's Tailscale address, or choose Forget the key.",
+        "travel_peer": "The hub's Tailscale address looks like 100.x.x.x (four numbers with dots). Copy it from your Tailscale admin console and try again.",
+        "travel_bad_key": "The unit did not accept that key. Make a new one-time key in your Tailscale admin console and paste it again.",
+        "travel_not_built": "This unit's firmware was built without Tailscale. Update the firmware, then try again.",
+        "travel_running": "The unit is joining Tailscale right now. Restart it first, then forget the key.",
     },
     "es": {
         "no_unit": "No hay ninguna unidad elegida. Elige una unidad y vuelve a intentarlo.",
@@ -98,10 +102,14 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "person_unknown": "Esa persona no esta en la lista. Anadela primero.",
         "person_applied": "El color de cara y el tamano de subtitulos de {name} se enviaron a la unidad.",
         "bad_file": "No se pudo leer el archivo {path}. Corrigelo o quitalo; mientras tanto se usan las opciones incluidas.",
-        "travel_key": "Una llave de viaje tiene de 16 a 200 letras, numeros o guiones, sin espacios. Pega la llave entera de tu red privada y vuelve a intentarlo.",
-        "travel_saved": "La llave de viaje esta en la unidad. La usa la proxima vez que no llegue a este equipo y despues la borra.",
-        "travel_forgot": "La unidad olvido su llave de viaje y su lugar en la red privada.",
-        "travel_nothing": "Pega una llave de viaje, o elige Olvidar para borrar la que tiene la unidad.",
+        "travel_key": "Una clave de Tailscale tiene de 16 a 200 letras, numeros o guiones, sin espacios (empieza por tskey-). Pega la clave entera y vuelve a intentarlo.",
+        "travel_saved": "Guardada en la unidad. Se une a Tailscale la proxima vez que no llegue a tu hub y despues borra la clave.",
+        "travel_forgot": "La unidad olvido su clave de Tailscale, la direccion del hub y su lugar en tu red de Tailscale.",
+        "travel_nothing": "Pega una clave de Tailscale o la direccion de Tailscale del hub, o elige Olvidar la clave.",
+        "travel_peer": "La direccion de Tailscale del hub es como 100.x.x.x (cuatro numeros con puntos). Copiala de tu consola de Tailscale y vuelve a intentarlo.",
+        "travel_bad_key": "La unidad no acepto esa clave. Crea una clave nueva de un solo uso en tu consola de Tailscale y pegala otra vez.",
+        "travel_not_built": "El firmware de esta unidad se creo sin Tailscale. Actualiza el firmware y vuelve a intentarlo.",
+        "travel_running": "La unidad se esta uniendo a Tailscale ahora. Reiniciala primero y luego olvida la clave.",
     },
 }
 
@@ -249,6 +257,7 @@ class _Tools:
 # ---------------------------------------------------------------------------------------------
 
 _TRAVEL_KEY = re.compile(r"^[A-Za-z0-9\-]{16,200}$")
+_TAILNET_ADDR = re.compile(r"^100\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 REACT_MAX = 40
 REACT_FACES = ("none", "happy", "sad", "angry", "doubtful", "sleepy")
 REACT_SOUNDS = ("none", "success", "popup", "goodbye", "charged", "needs_you", "vibration")
@@ -670,53 +679,79 @@ class UnitExtras:
     # ---- travel key (firmware TN01 to TN06): the unit joins the private network from another Wi-Fi ----
 
     def travel_view(self, unit_id: str, lang: str | None = None) -> dict[str, Any]:
-        """What the unit says about its private network client. The key is never part of the answer."""
+        """What the unit says about Tailscale, in plain fields. The key is never part of the answer."""
         if not unit_id:
             raise ExtrasError(say(lang, "no_unit"))
         try:
             reply = self._tool(unit_id, "self.tailnet.status", {})
         except BodyLost:
             return {"ok": False, "available": None, "error": say(lang, "unreachable")}
-        if reply.get("ok") is not True:
-            return {
-                "ok": False,
-                "available": False,
-                "error": say(lang, "old_firmware", what="the travel key"),
-            }
-        shown = {k: v for k, v in reply.items() if k not in {"key", "authkey", "auth_key"}}
-        return {"ok": True, "available": True, **shown}
+        if reply.get("ok") is False or ("state" not in reply and "enabled" not in reply):
+            return {"ok": False, "available": False, "error": say(lang, "old_firmware", what="Tailscale")}
+        shown = {k: v for k, v in reply.items() if k not in {"key", "authkey", "auth_key", "ok"}}
+        state = str(shown.get("state", "off"))
+        phase = {"connected": "connected", "connecting": "connecting", "registering": "connecting", "reconnecting": "connecting", "error": "error", "waiting_wifi": "waiting", "idle": "waiting"}.get(state, "off")
+        if not shown.get("enabled") and phase == "waiting":
+            phase = "off"
+        if shown.get("compiled") is False:
+            phase = "off"
+        last = "refusal" if shown.get("refusal") else ("key" if phase == "error" and not shown.get("joined") else ("error" if phase == "error" else ""))
+        return {
+            "ok": True,
+            "available": shown.get("compiled") is not False,
+            **shown,
+            "phase": phase,
+            "route": shown.get("route", "home"),
+            "last_error": last,
+            "ready_to_use": bool(shown.get("key_saved") or shown.get("joined")) and bool(shown.get("peer_saved")),
+        }
 
     def travel_set(
         self, unit_id: str, values: Mapping[str, Any], lang: str | None = None
     ) -> dict[str, Any]:
-        """Send a pairing key to the unit (``key``) or erase it (``forget``). The host never stores the key."""
+        """Send the Tailscale key (``key``), the hub's address (``peer``), on or off (``enabled``) or ``forget``.
+
+        The host never stores the key and never echoes it."""
         if not unit_id:
             raise ExtrasError(say(lang, "no_unit"))
-        forget = values.get("forget") is True
         key = values.get("key")
+        peer = values.get("peer")
         arguments: dict[str, object] = {}
+        forget = values.get("forget") is True
         if forget:
             arguments["forget"] = True
-        elif isinstance(key, str) and key.strip():
-            if not _TRAVEL_KEY.match(key.strip()):
-                raise ExtrasError(say(lang, "travel_key"))
-            arguments = {"enabled": True, "key": key.strip()}
-        elif isinstance(values.get("enabled"), bool):
-            arguments = {"enabled": values["enabled"]}
         else:
-            raise ExtrasError(say(lang, "travel_nothing"))
+            if isinstance(key, str) and key.strip():
+                if not _TRAVEL_KEY.match(key.strip()):
+                    raise ExtrasError(say(lang, "travel_key"))
+                arguments["key"] = key.strip()
+                arguments["enabled"] = True
+            if isinstance(peer, str) and peer.strip():
+                if not _TAILNET_ADDR.match(peer.strip()):
+                    raise ExtrasError(say(lang, "travel_peer"))
+                arguments["peer"] = peer.strip()
+                arguments.setdefault("enabled", True)
+            if isinstance(values.get("enabled"), bool):
+                arguments["enabled"] = values["enabled"]
+            if not arguments:
+                raise ExtrasError(say(lang, "travel_nothing"))
         try:
             reply = self._tool(unit_id, "self.tailnet.set", arguments)
         except BodyLost:
             raise ExtrasError(say(lang, "unreachable")) from None
         if reply.get("ok") is False:
             why = str(reply.get("error", "no reason given"))
+            table = {"bad_key": "travel_bad_key", "bad_address": "travel_peer", "not_compiled": "travel_not_built", "running_restart_first": "travel_running"}
+            if why in table:
+                raise ExtrasError(say(lang, table[why]))
             if "nknown tool" in why:
-                raise ExtrasError(say(lang, "old_firmware", what="the travel key"))
+                raise ExtrasError(say(lang, "old_firmware", what="Tailscale"))
             raise ExtrasError(say(lang, "refused", why=why.replace(str(key or "\0"), "the key")))
-        if not forget and "key" not in arguments:
-            return {"ok": True, "message": ""}
-        return {"ok": True, "message": say(lang, "travel_forgot" if forget else "travel_saved")}
+        if forget:
+            return {"ok": True, "message": say(lang, "travel_forgot")}
+        if "key" in arguments or "peer" in arguments:
+            return {"ok": True, "message": say(lang, "travel_saved")}
+        return {"ok": True, "message": ""}
 
     # ---- games (firmware patch G01) ----
 

@@ -21,6 +21,7 @@ from maipai_body import faces as face_settings
 from maipai_body import picture_faces as picture_mod
 from maipai_body import unit_device as device_mod
 from maipai_body import unit_extras as extras_mod
+from maipai_body import unit_remote as remote_mod
 from maipai_body.hal.errors import BodyLost
 from maipai_body.settings_page import SettingsBackend
 from maipai_body.settings_server import SettingsServer
@@ -39,10 +40,11 @@ class SimUnit:
         self.face = face_settings.FaceConfig().to_wire()
         self.table: list[dict[str, str]] | None = None
         self.zone, self.epoch = "utc", 0
-        self.travel: dict[str, Any] = {"enabled": False, "has_key": False, "state": "off"}
+        self.travel: dict[str, Any] = {"compiled": True, "enabled": False, "key_saved": False, "peer_saved": False, "joined": False, "state": "off", "ip": "", "ready": False, "route": "home", "fails": 0, "refusal": 0}
         self.pictures: dict[str, Any] = {"held": False}
         self.privacy: dict[str, Any] = {"muted": False, "vision_off": False, "quiet": False}
         self.device: dict[str, Any] = {}
+        self.actions: list[tuple[str, dict[str, Any]]] = []
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.lock = threading.Lock()
 
@@ -121,13 +123,26 @@ class SimUnit:
                 return {"ok": False, "error": "Unknown tool: self.system.reset"}
             if name == "self.tailnet.status":
                 return {"ok": True, **self.travel}
+            if name in {"self.audio.play_sound", "self.audio.speak", "self.robot.set_head_angles", "self.robot.nod", "self.robot.dance", "self.robot.stop_dance", "self.game.start"}:
+                self.actions.append((name, dict(args)))
+                return {"ok": True}
+            if name == "self.robot.dance_list":
+                return {"ok": True, "dances": [{"name": n, "seconds": 4} for n in ("happy", "robot", "panic", "look_around", "sway", "nod_yes", "shake_no", "wiggle", "bow", "groove")]}
             if name == "self.tailnet.set":
                 if args.get("forget"):
-                    self.travel = {"enabled": False, "has_key": False, "state": "off"}
-                elif args.get("key"):
-                    self.travel = {"enabled": True, "has_key": True, "state": "waiting"}
-                elif "enabled" in args:
-                    self.travel = {**self.travel, "enabled": bool(args["enabled"]), "state": "waiting" if args["enabled"] else "off"}
+                    self.travel.update({"enabled": False, "key_saved": False, "peer_saved": False, "joined": False, "state": "off", "ip": "", "route": "home"})
+                else:
+                    if args.get("key"):
+                        self.travel["key_saved"] = True
+                    if args.get("peer"):
+                        self.travel["peer_saved"] = True
+                        self.travel["peer"] = args["peer"]
+                    if "enabled" in args:
+                        self.travel["enabled"] = bool(args["enabled"])
+                    self.travel["state"] = "idle" if self.travel.get("enabled") else "off"
+                    if self.travel.get("enabled") and self.travel.get("peer_saved") and args.get("key"):
+                        # the stand-in joins at once so the page can show the connected state
+                        self.travel.update({"state": "connected", "joined": True, "key_saved": False, "ip": "100.101.12.8", "ready": True, "route": "private"})
                 return {"ok": True, **self.travel}
             if name == "self.facepic.begin":
                 self.pictures = {"held": False, "mode": args.get("mode"), "frames": 0, "bytes": 0}
@@ -144,6 +159,25 @@ class SimUnit:
             if name == "self.facepic.status":
                 return {"ok": True, **self.pictures, "showing": "neutral" if self.pictures["held"] else None}
             return {"ok": True}
+
+
+def _sim_photo(_unit: str) -> bytes:
+    """A small gradient PNG, made with the standard library, standing in for the camera."""
+    import struct
+    import zlib
+
+    width, height = 160, 120
+    rows = b"".join(
+        b"\x00" + bytes(v for x in range(width) for v in (40 + x // 2, 80 + y, 160 - y))
+        for y in range(height)
+    )
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
 
 
 def build(data_dir: Path, *, language: str = "en") -> tuple[SettingsBackend, dict[str, SimUnit]]:
@@ -179,6 +213,7 @@ def build(data_dir: Path, *, language: str = "en") -> tuple[SettingsBackend, dic
         ),
         people=extras_mod.PeopleStore(data_dir / "people.json"),
         device=device_mod.UnitDevice(call),
+        remote=remote_mod.UnitRemote(call, photo=_sim_photo, sleep=lambda _s: None),
         pictures=picture_mod.PictureService(call, picture_mod.PictureStore(data_dir / "pictures")),
     )
     return backend, units

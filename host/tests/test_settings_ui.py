@@ -72,9 +72,9 @@ def test_the_script_parses_in_every_language() -> None:
         assert result.returncode == 0, result.stderr
 
 
-def test_the_page_has_the_seven_groups_and_no_outside_address() -> None:
+def test_the_page_has_the_eight_groups_and_no_outside_address() -> None:
     page = render_page("en").decode()
-    for group in ("home", "look", "voice", "network", "behaviour", "play", "system"):
+    for group in ("home", "remote", "look", "voice", "network", "behaviour", "play", "system"):
         assert f"BUILDERS.{group}" in page
     assert "prefers-color-scheme" in page and "var(--accent)" in page
     assert not re.search(r"(src|href)=['\"]https?://", page)
@@ -147,9 +147,9 @@ def test_travel_key_reaches_the_unit_and_is_never_stored_or_shown(sim, tmp_path:
     key = "tskey-auth-abcdefghijklmnop12345"
     status, payload = _post(backend, KITCHEN, "travel", {"key": key})
     assert status == 200 and key not in json.dumps(payload)
-    assert units[KITCHEN].travel["has_key"] is True
+    assert units[KITCHEN].travel["key_saved"] is True
     status, view = _get(backend, KITCHEN, "travel")
-    assert view["available"] is True and view["has_key"] is True and key not in json.dumps(view)
+    assert view["available"] is True and view["phase"] == "waiting" and key not in json.dumps(view)
     for path in tmp_path.rglob("*"):
         if path.is_file():
             assert key not in path.read_text(errors="ignore"), path
@@ -158,8 +158,115 @@ def test_travel_key_reaches_the_unit_and_is_never_stored_or_shown(sim, tmp_path:
     assert _post(backend, KITCHEN, "travel", {"enabled": False})[0] == 200
     assert units[KITCHEN].travel["enabled"] is False
     assert _post(backend, KITCHEN, "travel", {"forget": True})[0] == 200
-    assert units[KITCHEN].travel["has_key"] is False
+    assert units[KITCHEN].travel["key_saved"] is False
     assert _get(backend, DEN, "travel")[1]["available"] is None  # offline: not asked successfully
+
+
+def test_tailscale_steps_status_and_plain_errors(sim) -> None:
+    backend, units = sim
+    assert _get(backend, KITCHEN, "travel")[1]["phase"] == "off"
+    status, payload = _post(backend, KITCHEN, "travel", {"peer": "192.0.2.5"})
+    assert status == 400 and "100.x.x.x" in payload["error"]
+    assert _post(backend, KITCHEN, "travel", {"peer": "100.64.0.7"})[0] == 200
+    key = "tskey-auth-zzzzzzzzzzzzzzzz1234"
+    status, payload = _post(backend, KITCHEN, "travel", {"key": key})
+    assert status == 200 and "Tailscale" in payload["message"] and key not in json.dumps(payload)
+    view = _get(backend, KITCHEN, "travel")[1]
+    assert view["phase"] == "connected" and view["route"] == "private" and view["ip"].startswith("100.")
+    assert view["ready_to_use"] is True and "key" not in view
+    units[KITCHEN].handle = lambda name, args: {"ok": False, "error": "bad_key"}  # the unit refuses the key
+    status, payload = _post(backend, KITCHEN, "travel", {"key": key})
+    assert status == 400 and "one-time key" in payload["error"] and key not in payload["error"]
+
+
+def test_the_page_names_tailscale_and_has_about_and_remote() -> None:
+    for code in i18n.SUPPORTED:
+        words = i18n.CATALOG[code]
+        assert "Tailscale" in words["settings.ui.units.travel"]
+        assert "tskey-" in words["settings.ui.units.travel_key"]
+        assert "100.x.x.x" in words["settings.ui.net.hub_addr"]
+        for text in words.values():
+            assert not re.search(r"\b(PSRAM|NVS|MCP|RAM)\b", text), text
+    page = render_page("en").decode()
+    assert "login.tailscale.com/admin/settings/keys" in page and "docs/user/use-it-anywhere.md" in page
+    assert "github.com/getmaipai/stackchan" in page and "BUILDERS.remote" in page
+
+
+def test_remote_buttons_act_on_the_unit(sim) -> None:
+    backend, units = sim
+    kitchen = units[KITCHEN]
+    view = _get(backend, KITCHEN, "remote")[1]
+    assert view["reachable"] and view["photo"] and "groove" in [d["name"] for d in view["dances"]]
+    assert view["limits"] == {"yaw": 128, "pitch": [5, 85]}
+    for body, tool in (
+        ({"do": "beep"}, "self.audio.play_sound"),
+        ({"do": "say", "text": "Hello there"}, "self.audio.speak"),
+        ({"do": "head", "yaw": 30, "pitch": 40}, "self.robot.set_head_angles"),
+        ({"do": "nod"}, "self.robot.nod"),
+        ({"do": "dance", "name": "groove"}, "self.robot.dance"),
+        ({"do": "stop_dance"}, "self.robot.stop_dance"),
+        ({"do": "game", "name": "memory"}, "self.game.start"),
+    ):
+        status, payload = _post(backend, KITCHEN, "remote", body)
+        assert status == 200 and payload["ok"] is True, body
+        assert tool in [name for name, _ in kitchen.actions], tool
+    assert ("self.audio.speak", {"text": "Hello there"}) in kitchen.actions
+    assert ("self.robot.set_head_angles", {"yaw": 30, "pitch": 40, "speed": 120}) in kitchen.actions
+    before = len(kitchen.actions)
+    assert _post(backend, KITCHEN, "remote", {"do": "flash"})[0] == 200
+    assert _post(backend, KITCHEN, "remote", {"do": "look"})[0] == 200
+    assert _post(backend, KITCHEN, "remote", {"do": "shake"})[0] == 200
+    heads = [a for n, a in kitchen.actions[before:] if n == "self.robot.set_head_angles"]
+    assert heads[-1] == {"yaw": 0, "pitch": 5, "speed": 120}  # always ends centred
+    assert kitchen.device["self.robot.set_led_color"] == {"red": 0, "green": 0, "blue": 0}  # lights end off
+    photo = _post(backend, KITCHEN, "remote", {"do": "photo"})[1]
+    assert photo["image"].startswith("data:image/png;base64,")
+
+
+def test_remote_refuses_bad_input_and_offline_units_in_plain_words(sim) -> None:
+    backend, units = sim
+    for body in ({"do": "head", "yaw": 200, "pitch": 40}, {"do": "head", "yaw": 0, "pitch": 3}, {"do": "head", "yaw": "a", "pitch": 9}, {"do": "say", "text": "   "}, {"do": "say", "text": "x" * 201}, {"do": "dance", "name": "moonwalk"}, {"do": "beep", "sound": "boom"}, {"do": "fly"}):
+        status, payload = _post(backend, KITCHEN, "remote", body)
+        assert status == 400 and payload["error"], body
+    assert units[KITCHEN].actions == []
+    for body in ({"do": "beep"}, {"do": "say", "text": "hi"}, {"do": "head", "yaw": 0, "pitch": 9}, {"do": "dance", "name": "happy"}):
+        status, payload = _post(backend, DEN, "remote", body)
+        assert status == 400 and "not connected" in payload["error"], body
+    assert _get(backend, DEN, "remote")[1]["reachable"] is False
+
+
+def test_find_my_robot_runs_until_stopped_and_leaves_the_unit_centred(sim) -> None:
+    import time
+
+    backend, units = sim
+    kitchen = units[KITCHEN]
+    assert _post(backend, KITCHEN, "remote", {"do": "find", "on": True})[1]["finding"] is True
+    assert _get(backend, KITCHEN, "remote")[1]["finding"] is True
+    time.sleep(0.1)
+    assert _post(backend, KITCHEN, "remote", {"do": "find", "on": False})[1]["finding"] is False
+    deadline = time.time() + 3
+    while time.time() < deadline and _get(backend, KITCHEN, "remote")[1]["finding"]:
+        time.sleep(0.05)
+    assert _get(backend, KITCHEN, "remote")[1]["finding"] is False
+    assert kitchen.device["self.robot.set_led_color"] == {"red": 0, "green": 0, "blue": 0}
+    heads = [a for n, a in kitchen.actions if n == "self.robot.set_head_angles"]
+    assert heads and heads[-1]["yaw"] == 0
+
+
+def test_without_a_camera_the_photo_button_says_so(tmp_path: Path) -> None:
+    from maipai_body.unit_remote import UnitRemote
+
+    backend, _ = build(tmp_path)
+    backend._remote = UnitRemote(lambda *a, **k: {"ok": True})  # no photo source
+    assert _get(backend, KITCHEN, "remote")[1]["photo"] is False
+    status, payload = _post(backend, KITCHEN, "remote", {"do": "photo"})
+    assert status == 400 and "camera build" in payload["error"]
+
+
+def test_the_about_card_has_version_licence_and_links(sim) -> None:
+    backend, _ = sim
+    assert "host_version" in backend.state()
+    assert "GNU AGPL-3.0" in settings_ui.JS and "github.com/getmaipai/stackchan" in settings_ui.JS
 
 
 def test_every_other_section_reads_and_writes_through_the_stand_in(sim) -> None:
