@@ -1,126 +1,85 @@
 # What the robot can do
 
-A tour of everything the robot does, grouped by what you want to do. Each group has its own page.
+Every feature on one page. Scan the table, then open the page for the ones you care about.
 
-**MaiPai for StackChan on its own is a simple, private voice robot.** It talks, shows a face, keeps time, reacts, and keeps your things private. Anything bigger runs with MaiPai Home and carries the <span class="home-tag">Needs MaiPai Home</span> tag.
+**MaiPai for StackChan on its own is a simple, private voice robot.** Rows marked <span class="home-tag">Needs MaiPai Home</span> run with MaiPai Home. A feature that needs something you have not set up hides itself, and the settings page says what is missing.
 
-A feature that needs something you have not set up hides itself. You never see a raw error for it. The web settings page names what is missing.
+![The settings page with each feature switched on or off.](../images/web-features.svg)
 
-![The web app's feature list with each feature switched on or off.](../images/web-features.svg)
+## Talk
 
-## Make it look the way you like
+| Feature | What it does | Runs on | Page |
+|---|---|---|---|
+| **Wake word and voice** | Say the wake word and ask. The reply starts on the first finished sentence. | Robot | [Voice](voice.md) |
+| **Follow-ups and interrupting** | Ask again with no wake word. Speak while it talks and it stops and listens. | Robot | [Voice](voice.md) |
+| **Voice commands** | Stop, mute, quiet, volume, brightness, sleep, time and night mode, with no model involved. | Robot | [Voice](voice.md) |
+| **Persona, speech speed and pitch** | A short text sets how it talks. Set how fast it speaks and how high. | Robot | [Voice](voice.md) |
+| **English and Spanish** | Screens and setup in both languages. | Robot | [Languages](languages.md) |
 
-Two face styles, any colour or none, a clock face, night mode and optional captions. Slide the head strip for quick sliders.
-Page: [Face and look](face-and-look.md).
+## Look
 
-## Talk to it
-
-Wake word, follow-up questions, interrupting, voice commands, personas and speech speed and pitch.
-Page: [Voice](voice.md).
+| Feature | What it does | Runs on | Page |
+|---|---|---|---|
+| **Faces and colour** | Two face styles, any colour or none, optional captions. | Robot | [Face and look](face-and-look.md) |
+| **Clock and time-of-day faces** | A clock face, a face that changes with the hour, and night mode. | Robot | [Face and look](face-and-look.md) |
+| **Quick sliders** | Swipe up for volume, brightness and saved Wi-Fi. | Robot | [Voice](voice.md) |
 
 ## Keep time
 
-Timers with a ring that empties, alarms with snooze, an hourly chime and quiet hours.
-Page: [Timers and alarms](timers-and-alarms.md).
+| Feature | What it does | Runs on | Page |
+|---|---|---|---|
+| **Timers and named timers** | A ring that empties as time runs out. Run several at once. | Robot | [Timers and alarms](timers-and-alarms.md) |
+| **Alarms and snooze** | Stop by voice or touch. | Robot | [Timers and alarms](timers-and-alarms.md) |
+| **Hourly chime and quiet hours** | A soft tone on the hour, silent at night. | Robot | [Reactions](moves-and-moods.md) |
 
-## Mute, camera off, full quiet
+## React
 
-Three switches, each a tap on the face. Mute the microphone, stop the camera, or hold still and silent.
-Page: [Mute, camera off and full quiet](mute-and-camera-off.md).
+| Feature | What it does | Runs on | Page |
+|---|---|---|---|
+| **Pickup, shake, tilt, petting** | It looks surprised, dizzy, tilted or happy. | Robot | [Reactions](moves-and-moods.md) |
+| **Mood from care** | Its resting face follows how much you pet it. | Robot | [Reactions](moves-and-moods.md) |
+| **Breathing idle and quiet mode** | Calm moves when nothing happens, softer when you ask. | Robot | [Reactions](moves-and-moods.md) |
+| **Low-battery steps** | A chirp at 20 percent, a spoken ask at 10, sleep at 5. | Robot | [Reactions](moves-and-moods.md) |
 
-## Find it and control it remotely <span class="home-tag">Needs MaiPai Home</span>
+## Privacy
 
-Find the robot, make it beep and flash, and control its lights and voice from the web app.
-Page: [Find the robot and control it remotely](find-and-remote.md).
+| Feature | What it does | Runs on | Page |
+|---|---|---|---|
+| **Mute, camera off, full quiet** | Three taps on the face. The screen shows each state. | Robot | [Mute and camera off](mute-and-camera-off.md) |
+| **Lights and sounds** | One light colour and one tone per meaning. | Robot | [Lights and sounds](lights-and-sounds.md) |
+| **No stealth** | Every monitoring mode shows on the robot. | Robot | [No stealth](no-stealth.md) |
+| **Conversations stay in your home** | Only your host or hub is called. | Robot | [Privacy](privacy.md) |
 
-## Watch and alert <span class="home-tag">Needs MaiPai Home</span>
+## Set up and keep safe
 
-Watch for motion and loud sounds, get an alert, and, if you want, flash red and blue and sound a siren.
-Page: [Watch your room and get alerts](watch-and-alerts.md).
+| Feature | What it does | Runs on | Page |
+|---|---|---|---|
+| **Wi-Fi setup page** | A setup code on the robot screen, a short window and a lock after wrong tries. | Robot | [Getting started](getting-started.md) |
+| **Pairing, revocable token** | Pair with a six-digit code. Revoke any time. | Robot | [Security](security.md) |
+| **Reset on the robot** | Hold a button for 3 seconds to erase Wi-Fi, pairing and settings. | Robot | [Troubleshooting](troubleshooting.md) |
+| **Signed updates with rollback** | You choose when to install. A failed start rolls back. | Robot | [Updates](updates.md) |
+| **Several robots, one host** | One host serves each robot by its own ID. | Robot | [Install the host](install-the-host.md) |
 
-## Baby and pet monitor <span class="home-tag">Needs MaiPai Home</span>
+## With MaiPai Home
 
-Watch and listen in a nursery or a pet's room, get alerts, and play lullabies or calming sounds, with a clear sign on the robot's screen.
-Page: [Use the robot as a baby or pet monitor](baby-and-pet-monitor.md).
-
-## Let it react
-
-Pickup, shake, tilt and petting, breathing, quiet mode, privacy sleep and the low-battery steps.
-Page: [Moves and moods](moves-and-moods.md).
-
-## Let it see (opt-in) <span class="home-tag">Needs MaiPai Home</span>
-
-Snapshots, face follow, wave and mirror mode, "take my picture" and a local name list. "What do you see". "What is this" <span class="home-tag">Needs MaiPai Home</span>.
-Page: [Camera](camera.md).
-
-## Play <span class="home-tag">Needs MaiPai Home</span>
-
-A pet mood that depends on care.
-Page: [Games and pet](games-and-pet.md).
-
-## Code with it <span class="home-tag">Needs MaiPai Home</span>
-
-Agent status on the face and light bars, a build light, dictation and touch approvals.
-Page: [Coding companion](coding-companion.md).
-
-## Connect it to your tools <span class="home-tag">Needs MaiPai Home</span>
-
-A local API, an event stream, MQTT, a home-automation bridge and metrics. All off by default.
-Page: [Home tools](home-tools.md).
-
-## Keep it current
-
-Checking for updates is on. Installing is off until you turn it on.
-Page: [Updates](updates.md).
-
-## Add a household brain
-
-MaiPai Home can add memory across days, per-person voices, calendars and household rules. The robot is complete without it.
-Page: [With MaiPai Home](with-maipai-home.md).
-
-## Keep it secure
-
-Pairing with a code, revocable tokens, signed updates.
-Page: [Keep the robot secure](security.md).
-
-## Lights and sounds
-
-What each light colour, pattern and tone means.
-Page: [Lights and sounds](lights-and-sounds.md).
-
-## Switch or go back
-
-Move to MaiPai for StackChan and return to the factory firmware.
-Page: [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md).
-
-## Pick hardware and a model
-
-What depends on your model, and what size of computer to start with.
-Page: [Pick hardware and a model](hardware-and-models.md).
-
-## Answers
-
-Common questions, which setup to pick, a glossary and the release notes.
-Pages: [Questions people ask](faq.md), [Which setup is right for me?](which-setup.md), [Glossary](glossary.md), [Release notes](release-notes.md).
-
-## Install, update and remove
-
-Install the host, start it at boot, update it, remove it, and set up a firewall.
-Page: [Install, update and remove the host](install-the-host.md).
-
-## No stealth
-
-Every monitoring mode shows on the robot's screen.
-Page: [The robot never monitors in secret](no-stealth.md).
-
-## Compare
-
-See how MaiPai for StackChan compares with the factory firmware, with your own LLM, and with MaiPai Home.
-Page: [Compare MaiPai for StackChan](compare.md).
+| Feature | What it does | Runs on | Page |
+|---|---|---|---|
+| **Seeing** | Snapshots, face follow, "take my picture", a name list, "what is this". | <span class="home-tag">Needs MaiPai Home</span> | [Camera](camera.md) |
+| **Watch and alerts** | Motion and sound alerts, a red and blue alarm and a siren. | <span class="home-tag">Needs MaiPai Home</span> | [Watch and alerts](watch-and-alerts.md) |
+| **Baby and pet monitor** | Listen and look from your phone. Started on the robot and always shown. | <span class="home-tag">Needs MaiPai Home</span> | [Baby and pet monitor](baby-and-pet-monitor.md) |
+| **Find it, remote control** | Beep, lights, talk, pan and tilt, live view. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
+| **Pet mood and games** | A pet mood that depends on care. | <span class="home-tag">Needs MaiPai Home</span> | [Games and pet](games-and-pet.md) |
+| **Coding companion** | Agent status on the face, a build light, dictation and touch approvals. | <span class="home-tag">Needs MaiPai Home</span> | [Coding companion](coding-companion.md) |
+| **Home tools** | A local API, an event stream, MQTT, a home-automation bridge and metrics. | <span class="home-tag">Needs MaiPai Home</span> | [Home tools](home-tools.md) |
+| **The household** | Memory across days, recognising people, calendars, content filtering and household rules. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |
 
 ## Not included
 
-Sound direction, Bluetooth, a phone app and anything that calls an outside service by itself.
+Sound direction, Bluetooth, a phone app, and anything that calls an outside service by itself.
+
+## Also useful
+
+[Which setup is right for me?](which-setup.md) · [Compare](compare.md) · [Settings](settings.md) · [Pick hardware and a model](hardware-and-models.md) · [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md) · [Questions](faq.md) · [Glossary](glossary.md) · [Release notes](release-notes.md)
 
 ## Still need help?
 
