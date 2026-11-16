@@ -36,12 +36,25 @@ def main(argv: list[str] | None = None) -> int:
 
         client = ReachyMiniClient(profile, host=args.daemon_host, port=args.daemon_port)
 
+    from maipai_body.config import load_config
+    from maipai_body.settings_page import SettingsBackend
+
+    config = load_config()
+    pairing_store = PairingStore(default_pairing_path())
     server = DashboardServer(
         client,
         profile,
         host=args.host,
         port=args.port,
-        pairing_store=PairingStore(default_pairing_path()),
+        pairing_store=pairing_store,
+        settings=SettingsBackend(
+            devices=pairing_store.paired_devices,
+            host_address=f"{args.host}:{args.port}",
+            update_source=config.update.source,
+            public_key=config.update.trusted_key,
+            preset=config.update.preset,
+            language=config.home.language,
+        ),
     )
     server.start()
     print(f"dashboard for {profile.id} on http://{server.host}:{server.port}/", flush=True)

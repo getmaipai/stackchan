@@ -39,11 +39,20 @@ class RemoteConfig(StrictModel):
     enabled: bool = False
 
 
+class UpdateConfig(StrictModel):
+    """Where signed releases come from. Nothing is fetched; a folder is read."""
+
+    source: str | None = None
+    trusted_key: str | None = None
+    preset: Literal["core", "home"] = "core"
+
+
 class RobotConfig(StrictModel):
     brain: Literal["llm", "home", "standalone"] = "llm"
     llm: LlmConfig = Field(default_factory=LlmConfig)
     home: HomeConfig = Field(default_factory=HomeConfig)
     remote: RemoteConfig = Field(default_factory=RemoteConfig)
+    update: UpdateConfig = Field(default_factory=UpdateConfig)
 
     @model_validator(mode="before")
     @classmethod

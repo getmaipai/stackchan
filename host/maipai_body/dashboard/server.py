@@ -9,7 +9,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from maipai_body import expression as _expression  # noqa: F401  (registers every body's renderer)
 from maipai_body.bodies.stackchan.xiaozhi.pairing import PairingStore
@@ -19,7 +19,10 @@ from maipai_body.expression.primitives import PRIMITIVE_NAMES
 from maipai_body.expression.suppression import SuppressionContext
 from maipai_body.hal.errors import BodyLost, NotSupported, OutOfEnvelope
 from maipai_body.hal.seam import BodyProfile
+from maipai_body.i18n import normalize, t
 from maipai_body.presence.arbitration import ArbitrationState
+from maipai_body.settings_page import SettingsBackend, render_page
+from maipai_body.unit_settings import SettingsError
 
 from .telemetry import TelemetryPump
 
@@ -101,13 +104,18 @@ class _Handler(BaseHTTPRequestHandler):
                 )
             self._json(HTTPStatus.OK, {"code": self.server.pairing_store.create_pair_code()})
             return
+        if path == "/settings" or path.startswith("/api/stackchan/settings"):
+            return self._get_settings(path)
         if path in ASSETS:
             name, content_type = ASSETS[path]
             content = (STATIC_DIR / name).read_bytes()
             if path == "/":
                 content = content.replace(
                     b"<main>",
-                    b'<nav><a href="/pairing">StackChan pairing</a></nav><main>',
+                    (
+                        b'<nav><a href="/pairing">StackChan pairing</a> '
+                        b'<a href="/settings">Settings</a></nav><main>'
+                    ),
                     1,
                 )
             self._send(HTTPStatus.OK, content, content_type)
@@ -147,6 +155,52 @@ class _Handler(BaseHTTPRequestHandler):
         else:
             self._error(HTTPStatus.NOT_FOUND, "not found")
 
+    def _lang(self) -> str:
+        query = parse_qs(urlsplit(self.path).query)
+        if "lang" in query:
+            return normalize(query["lang"][0])
+        accept = self.headers.get("Accept-Language", "")
+        return normalize(accept.split(",")[0]) if accept else self.server.settings.language
+
+    def _get_settings(self, path: str) -> None:
+        lang = self._lang()
+        if not self._local_admin():
+            return self._error(HTTPStatus.FORBIDDEN, t(lang, "settings.local_only"))
+        if path == "/settings":
+            return self._send(HTTPStatus.OK, render_page(lang), "text/html; charset=utf-8")
+        if path == "/api/stackchan/settings":
+            return self._json(HTTPStatus.OK, self.server.settings.state(lang))
+        self._error(HTTPStatus.NOT_FOUND, "not found")
+
+    def _post_settings(self, path: str, body: dict[str, Any]) -> bool:
+        """Handle a settings POST; returns False when the path is not a settings path."""
+        prefix = "/api/stackchan/settings/"
+        if not path.startswith(prefix):
+            return False
+        lang = normalize(str(body.get("lang", "")) or self.server.settings.language)
+        if not self._local_admin():
+            self._error(HTTPStatus.FORBIDDEN, t(lang, "settings.local_only"))
+            return True
+        rest = path[len(prefix) :]
+        try:
+            if rest.endswith("/update"):
+                from maipai_body.bodies.stackchan.updater import UpdateRefused
+
+                device_id = unquote(rest[: -len("/update")])
+                try:
+                    message = self.server.settings.update(device_id, lang)
+                except UpdateRefused as error:
+                    self._error(HTTPStatus.UNPROCESSABLE_ENTITY, str(error))
+                    return True
+                self._json(HTTPStatus.OK, {"message": message})
+            else:
+                body.pop("lang", None)
+                saved = self.server.settings.save(unquote(rest), body)
+                self._json(HTTPStatus.OK, saved)
+        except SettingsError as error:
+            self._error(HTTPStatus.BAD_REQUEST, str(error))
+        return True
+
     def do_POST(self) -> None:  # noqa: N802
         if not self._same_origin():
             return self._error(HTTPStatus.FORBIDDEN, "cross-origin request refused")
@@ -161,6 +215,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._error(HTTPStatus.BAD_REQUEST, str(error))
 
         path = urlsplit(self.path).path
+        if self._post_settings(path, body):
+            return
         try:
             if path == "/api/stackchan/pairings/redeem":
                 token = self.server.pairing_store.redeem_pair_code(
@@ -356,10 +412,12 @@ class DashboardServer:
         port: int = 8050,
         state_hz: float = 10.0,
         pairing_store: PairingStore | None = None,
+        settings: SettingsBackend | None = None,
     ) -> None:
         self.client = client
         self.profile = profile
         self.pairing_store = pairing_store or PairingStore()
+        self.settings = settings or SettingsBackend(devices=self.pairing_store.paired_devices)
         self.engine = ExpressionEngine(client, profile)
         # The dashboard is the expression driver here: tracking and service
         # are not its to claim, so only the expression flag is ever set.
