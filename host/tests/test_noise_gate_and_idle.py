@@ -122,6 +122,7 @@ def _bridge(level="medium"):
         units=SimpleNamespace(store=store),
         language="en",
         dropped_utterances=0,
+        audio_noise_gate=True,
         _noise_level=lambda d: StackChanTurnBridge._noise_level(
             SimpleNamespace(units=SimpleNamespace(store=store)), d
         ),
@@ -198,3 +199,33 @@ def test_lively_moves_when_free_but_never_while_busy():
 def test_a_turn_still_gets_its_answering_moves():
     gate_ = HeadMotionGate(must_be_still=lambda: True, busy=lambda: "a turn")
     assert gate_.allow("turn:listening", response=True)
+
+
+TIRED = ["I'm tired", "I am so tired", "I need rest", "I'm retired", "are you tired"]
+
+
+@pytest.mark.parametrize("sentence", TIRED)
+def test_tired_sentences_fire_no_local_command(sentence):
+    from maipai_body.bodies.stackchan import brightness, head_commands, stop_phrases, volume
+    from maipai_body.link.commands import route_phrase
+
+    assert route_phrase(sentence) is None
+    assert volume.parse_volume_command(sentence) is None
+    assert brightness.parse_brightness_command(sentence) is None
+    assert head_commands.parse_head_command(sentence) is None
+    assert not stop_phrases.is_stop_phrase(sentence)
+
+
+def test_a_command_phrase_needs_high_confidence():
+    from maipai_body.link.commands import LocalCommand, route_phrase
+
+    assert route_phrase("What time is it?", 0.95) is LocalCommand.TIME
+    assert route_phrase("what time is it", 0.4) is None
+    assert route_phrase("what time is it going to be") is None
+    assert route_phrase("I'm tired, what time is it") is None
+
+
+def test_the_route_of_a_tired_sentence_is_chat():
+    bridge = SimpleNamespace(volume_control=object(), brightness_control=object(), head_control=object())
+    route, _why = StackChanTurnBridge._route_of(bridge, "I am so tired", "speech")
+    assert route == "chat"

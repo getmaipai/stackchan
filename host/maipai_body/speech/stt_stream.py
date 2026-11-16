@@ -67,6 +67,9 @@ class SttStreamResult:
     # cadence (M-07).
     audio: Any = field(default=None, repr=False)
     speech_s: float | None = None
+    # Which engine produced the words and how sure it was (None when the engine does not say).
+    engine: str = "Home speech-to-text"
+    confidence: float | None = None
 
 
 def _ws_url(base_url: str) -> str:

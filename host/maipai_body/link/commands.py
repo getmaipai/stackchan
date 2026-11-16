@@ -62,9 +62,16 @@ COMMAND_PHRASES: dict[LocalCommand, tuple[str, ...]] = {
 _PHRASE_TO_COMMAND = {p: c for c, phrases in COMMAND_PHRASES.items() for p in phrases}
 
 
-def route_phrase(heard: str) -> LocalCommand | None:
+MIN_COMMAND_CONFIDENCE = 0.8
+
+
+def route_phrase(heard: str, confidence: float | None = None) -> LocalCommand | None:
     """The command a heard phrase names, or ``None``. Case and punctuation
-    are ignored; the phrase must be on the list in full."""
+    are ignored; the phrase must be on the list in full. When the recogniser reports a
+    confidence it must be at least ``MIN_COMMAND_CONFIDENCE``: a sound-alike sentence
+    ("I'm tired" next to "what time is it") never fires a command."""
+    if confidence is not None and confidence < MIN_COMMAND_CONFIDENCE:
+        return None
     normalized = " ".join(re.sub(r"[^a-z' ]", " ", heard.lower()).split())
     return _PHRASE_TO_COMMAND.get(normalized)
 

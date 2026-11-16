@@ -52,6 +52,7 @@ class VoiceEndToEnd(unittest.IsolatedAsyncioTestCase):
             turn_factory=TurnClient,
             tts_factory=TtsPlaybackClient,
         )
+        self.bridge.audio_noise_gate = False  # the simulated unit sends a flat tone as speech
         self.service.audio_handler = self.bridge.on_audio
         self.service.turn_handler = self.bridge.listen
         self.server = await serve(self.service.handle, "127.0.0.1", 0)

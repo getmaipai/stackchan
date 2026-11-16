@@ -691,6 +691,9 @@ class StackChanTurnBridge:
         self.follow_up_s = FOLLOW_UP_S
         self.language = "en"
         self.dropped_utterances = 0
+        # The audio half of the noise gate (steady noise, too little voiced sound). Plumbing tests
+        # that feed a synthetic tone as "speech" turn it off; the words check stays on.
+        self.audio_noise_gate = True
         # The selected voice record's pitch_semitones (-12 to 12); 0 changes nothing.
         self.pitch_semitones = lambda: 0.0
         self._breaker = ErrorLineBreaker(clock=clock)
@@ -1055,7 +1058,7 @@ class StackChanTurnBridge:
         level = self._noise_level(device_id)
         verdict = None
         audio = getattr(result, "audio", None)
-        if audio is not None and len(audio):
+        if self.audio_noise_gate and audio is not None and len(audio):
             verdict = check_audio(audio, level)
         if verdict is None or verdict.keep:
             verdict = check_text(result.text or "", self.language)

@@ -142,7 +142,10 @@ class LocalSttClient:
         )
         if not text:
             return SttStreamResult(kind="no_speech")
-        return SttStreamResult(kind="final", text=text, audio=samples, speech_s=total)
+        return SttStreamResult(
+            kind="final", text=text, audio=samples, speech_s=total,
+            engine=f"local speech server {self._url.split('/v1')[0]}",
+        )
 
 
 class LocalTtsClient:
