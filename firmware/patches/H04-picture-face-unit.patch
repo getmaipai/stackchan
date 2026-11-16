@@ -1,0 +1,984 @@
+# Intent: Train 5 item B, picture faces on the unit (builds on H02 and H03). The owner's own pictures replace the drawn face. Tools: self.facepic.begin (mode, fps, overlay places), .frame (slot, index, bytes, CRC-32, raw or zlib), .data (a piece at an offset, base64; the offset must equal what the unit has; the last piece checks the CRC), .commit (every frame must be there and a neutral picture; every frame is opened once in the decode task before the pack is promised), .clear and .status. The pack is kept as sent in PSRAM, one frame at a time is decoded by the ROM zlib reader in a low-priority task with a 20 KB PSRAM stack into at most three 153,600 byte PSRAM buffers, and the LVGL task cross-fades between two image layers. Overlay mode hides the face's own eyes and mouth and draws two eyes and a mouth over the picture from the values the fluid face already eases (lid, gaze, drift, mouth weight), so a blink and lip sync come free. Sequence mode plays up to 6 frames of an expression at the pack's rate. A pack that does not fit is refused with a plain sentence in English and Spanish (error and error_es). A mute, vision-off or quiet look, the clock face and a ringing timer always show instead of a picture. Nothing is allocated until a pack is sent; the pack is not kept across a restart, so the host sends it again on connect. A bench build adds self.facepic.bench_force (show one expression, optionally despite a mute) so the pictures can be photographed with self.face.snapshot.
+# Placement: unit (decoding, fading and drawing run on the robot; Home down changes nothing once the pack is on the unit)
+# Upstream: firmware/main/hal/maipai_decor.cc of this tree for the shape of a face layer; tinfl_decompress_mem_to_mem of the ESP32-S3 ROM miniz (MIT/public domain); lv_image of LVGL 9.5 (MIT)
+# Check after a flash: self.facepic.status answers held false and the PSRAM free; push a pack with scripts/fw-pictures.py (bench) or the settings page: the picture shows (not while muted: the mute look shows instead), changes with a short cross-fade when the expression changes, and self.facepic.clear gives the drawn face and the memory back; a pack of too many bytes or frames is refused with the plain sentence; the memory gate holds with a pack held.
+# Kconfig: MAIPAI_PICTURE_FACES (default y: nothing is allocated until a pack is sent; measured in docs/design/picture-faces-2026-11-16.md); off compiles out the tools and the code.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -311,6 +311,16 @@
+         30 ms and opens in about 90 ms), the eyes drift a few pixels now and then, and while the unit speaks the mouth
+         follows the loudness of its voice. The update loop no longer holds the screen lock for 100 ms in every pass
+         while the unit is busy. Costs no heap: a few floats per eye. Off: the face moves in steps as the base does.
++
++config MAIPAI_PICTURE_FACES
++    bool "Picture faces: the owner's own pictures as the face (picture, overlay or short sequence)"
++    default y
++    help
++        Tools self.facepic.begin, frame, data, commit, clear and status. The host sends up to 14 pictures of 320 by 240,
++        compressed (1,000,000 bytes at most); the unit keeps them in PSRAM, decodes one at a time into at most three
++        150 KB buffers and cross-fades between expressions. Nothing is allocated until a pack is sent. A mute,
++        vision-off or quiet look, the clock and a ringing timer always show instead of a picture. Needs MAIPAI_FACE_FLUID
++        for the animated overlay. Off: no tools, no code.
+ 
+ config MAIPAI_FACE_BENCH
+     bool "Bench only: face draw-rate counters, a workload runner and a screen dump over the USB cable"
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -22,6 +22,7 @@
+ #include "maipai_music.h"
+ #include "maipai_games.h"
+ #include "maipai_facebench.h"
++#include "maipai_picface.h"
+ #if CONFIG_MAIPAI_DANCE_EXTRAS
+ #include "maipai_dances_core.h"
+ #endif
+@@ -639,6 +640,9 @@
+     // self.face.bench_fps, bench_run and snapshot (patch H01, bench builds only).
+     maipai_facebench_register_tools();
+ 
++    // self.facepic.begin, frame, data, commit, clear and status (patch H04). Nothing is held until a pack is sent.
++    maipai_picface_register_tools();
++
+     mclog::tagInfo(_tag, "add robot.dance tool");
+     mcp_server.AddTool("self.robot.dance",
+                        "Play one of the robot's dances once, then return to normal. Built in: happy, robot, panic, look_around. More "
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -646,6 +646,11 @@
+     clock_paint(c, band);
+ }
+ }  // namespace
++
++bool maipai_face_clock_visible()
++{
++    return s_ui.root != nullptr;  // the LVGL task and callers holding its lock only
++}
+ 
+ bool maipai_face_touched()
+ {
+diff --git a/firmware/main/hal/maipai_face.h b/firmware/main/hal/maipai_face.h
+--- a/firmware/main/hal/maipai_face.h
++++ b/firmware/main/hal/maipai_face.h
+@@ -40,6 +40,13 @@
+ inline bool maipai_face_touched() { return false; }
+ #endif
+ 
++// Whether the clock face is on screen now (patch H04: a picture face steps aside for it). The caller holds the LVGL lock.
++#if CONFIG_MAIPAI_FACE_CLOCK
++bool maipai_face_clock_visible();
++#else
++inline bool maipai_face_clock_visible() { return false; }
++#endif
++
+ // The thinking cue (patch F05): three animated dots and a quiet tone. The caller holds the LVGL lock.
+ #if CONFIG_MAIPAI_FACE_THINKING
+ void maipai_face_thinking(bool on);
+diff --git a/firmware/main/hal/maipai_picface.cc b/firmware/main/hal/maipai_picface.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_picface.cc
+@@ -0,0 +1,855 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Picture faces, device side (patch H04). The owner's own pictures, one per expression, replace the drawn face; the host
++ * resizes them to 320 by 240 and sends them over the paired link as compressed pieces. This file keeps the pack, decodes
++ * one frame at a time, cross-fades and draws the overlay. Logic and limits: maipai_picface_core.h.
++ *
++ * Memory (all PSRAM, none while no pack is held): the pack as sent (zlib, at most 1,000,000 bytes in all), at most three
++ * decoded 153,600 byte frames, one 20 KB decode stack. Internal RAM: about a dozen LVGL objects and two small records,
++ * measured in docs/design/picture-faces-2026-11-16.md. The pack is not kept across a restart: the host sends it again
++ * when the unit reconnects.
++ *
++ * Threads: the tools run on the MCP task, the screen work on the LVGL task (under the LVGL lock), the decode on its own
++ * low-priority task. A mutex guards the pack and the frames; the screen task never waits on it (a busy mutex skips a
++ * tick). Lock order: LVGL lock first, then the mutex.
++ */
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_PICTURE_FACES
++#include "maipai_picface.h"
++#include "maipai_picface_core.h"
++#include "maipai_face.h"
++#include "maipai_facefx.h"
++#include "maipai_privacy.h"
++#include "maipai_timers.h"
++#include "hal.h"
++#include <mcp_server.h>
++#include <cJSON.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/idf_additions.h>
++#include <freertos/semphr.h>
++#include <freertos/task.h>
++#include <lvgl.h>
++#include <src/misc/cache/instance/lv_image_cache.h>
++#include <mbedtls/base64.h>
++#include <new>
++#include <miniz.h>
++#include <stackchan/stackchan.h>
++#include <stackchan/avatar/skins/default/default.h>
++#include <atomic>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <string>
++
++using stackchan::avatar::DefaultAvatar;
++using stackchan::avatar::DefaultEyes;
++using stackchan::avatar::DefaultMouth;
++
++static const char* TAG = "MAIPAI-PICFACE";
++
++namespace {
++
++struct Frame {
++    uint8_t* data    = nullptr;  // PSRAM: the frame as sent
++    uint32_t comp    = 0;
++    uint32_t got     = 0;
++    uint32_t crc_want = 0;
++    uint32_t crc_run = 0;
++    uint8_t flags    = PF_FLAG_ZLIB;
++    bool done        = false;
++};
++
++struct Pack {
++    pf_plan_t plan;
++    pf_overlay_t ov;
++    Frame fr[PF_SLOTS][PF_MAX_FRAMES_PER_SLOT];
++};
++
++Pack* s_pack          = nullptr;  // PSRAM; null while no pack is held
++SemaphoreHandle_t s_mu = nullptr;
++
++struct Ui {
++    lv_obj_t* root    = nullptr;
++    lv_obj_t* img[2]  = {};     // [0] shown, [1] fading in on top
++    lv_obj_t* eye[2]  = {};     // overlay mode
++    lv_obj_t* mouth   = nullptr;
++    lv_timer_t* timer = nullptr;
++    bool hidden       = false;  // a privacy look, the clock or a ringing timer is showing: the drawn face is back
++    int shown_key     = -1;
++    int shown_pos     = -1;
++    int fade_key      = -1;
++    int fade_pos      = -1;
++    uint32_t fade_t0  = 0;
++    uint32_t seq_t0   = 0;
++    int pending_pos   = -1;     // a decode in flight
++    int pending_key   = -1;
++    int force_key_slot = -1;    // bench: show this slot for a while
++    uint32_t force_until = 0;
++} s_ui;
++
++uint8_t* s_buf[PF_CACHE_SLOTS]       = {};
++lv_image_dsc_t s_dsc[PF_CACHE_SLOTS] = {};
++pf_cache_t s_cache;
++
++TaskHandle_t s_worker = nullptr;
++std::atomic<int> s_req_key{-1};
++std::atomic<int> s_req_pos{-1};
++std::atomic<uint32_t> s_req_gen{0};  // the pack generation a decode request was made for
++std::atomic<uint32_t> s_gen{0};      // bumped whenever the screen side is torn down: older requests are dropped
++std::atomic<int> s_done_key{-1};
++std::atomic<int> s_done_pos{-1};
++std::atomic<bool> s_done_ok{false};
++std::atomic<uint32_t> s_last_decode_ms{0};
++std::atomic<uint32_t> s_max_decode_ms{0};
++std::atomic<bool> s_showing{false};
++std::atomic<bool> s_bench_ignore_privacy{false};  // bench builds only: look at the pictures on a muted unit
++SemaphoreHandle_t s_probe_sem = nullptr;
++std::atomic<bool> s_probe_ok{false};
++uint8_t* s_probe_buf = nullptr;
++
++uint32_t now_ms()
++{
++    return static_cast<uint32_t>(esp_timer_get_time() / 1000);
++}
++
++std::string error_json(pf_err_t e)
++{
++    return std::string("{\"ok\":false,\"code\":\"") + PF_ERR_CODES[e] + "\",\"error\":\"" + pf_say(e, false) +
++           "\",\"error_es\":\"" + pf_say(e, true) + "\"}";
++}
++
++DefaultAvatar* face_now()
++{
++    auto& chan = GetStackChan();
++    return chan.hasAvatar() ? dynamic_cast<DefaultAvatar*>(&chan.avatar()) : nullptr;
++}
++
++void free_frame(Frame& f)
++{
++    if (f.data != nullptr) {
++        heap_caps_free(f.data);
++    }
++    f = Frame();
++}
++
++void free_pack_locked()
++{
++    if (s_pack != nullptr) {
++        for (int s = 0; s < PF_SLOTS; s++) {
++            for (int i = 0; i < PF_MAX_FRAMES_PER_SLOT; i++) {
++                free_frame(s_pack->fr[s][i]);
++            }
++        }
++        heap_caps_free(s_pack);
++        s_pack = nullptr;
++    }
++}
++
++// The avatar's own eyes and mouth are hidden while the picture shows and back when it does not.
++void set_avatar_parts(bool visible)
++{
++    auto* face = face_now();
++    if (face == nullptr) {
++        return;
++    }
++    face->leftEye().setVisible(visible);
++    face->rightEye().setVisible(visible);
++    face->mouth().setVisible(visible);
++}
++
++void teardown_ui()  // LVGL lock held
++{
++    if (s_ui.timer != nullptr) {
++        lv_timer_delete(s_ui.timer);
++    }
++    if (s_ui.root != nullptr) {
++        lv_obj_delete(s_ui.root);
++    }
++    for (int i = 0; i < PF_CACHE_SLOTS; i++) {
++        if (s_buf[i] != nullptr) {
++            lv_image_cache_drop(&s_dsc[i]);
++            heap_caps_free(s_buf[i]);
++            s_buf[i] = nullptr;
++        }
++    }
++    const bool had = s_ui.root != nullptr;
++    s_gen.fetch_add(1);
++    s_ui           = Ui();
++    s_showing.store(false);
++    s_req_key.store(-1);
++    s_done_key.store(-1);
++    if (had) {
++        set_avatar_parts(true);
++    }
++}
++
++bool decode_frame(const Frame& f, uint8_t* out)
++{
++    if (f.flags == PF_FLAG_RAW) {
++        if (f.comp != PF_FRAME_BYTES) {
++            return false;
++        }
++        memcpy(out, f.data, PF_FRAME_BYTES);
++        return true;
++    }
++    const size_t n = tinfl_decompress_mem_to_mem(out, PF_FRAME_BYTES, f.data, f.comp, TINFL_FLAG_PARSE_ZLIB_HEADER);
++    return n == PF_FRAME_BYTES;
++}
++
++void worker_task(void*)
++{
++    for (;;) {
++        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
++        const int key = s_req_key.load();
++        const int pos      = s_req_pos.load();
++        const uint32_t gen = s_req_gen.load();
++        if (key == -2) {
++            // Commit proves every frame opens before it is promised (the decoder needs more stack than the tool task has).
++            bool all = s_probe_buf != nullptr;
++            xSemaphoreTake(s_mu, portMAX_DELAY);
++            for (int s = 0; s < PF_SLOTS && all && s_pack != nullptr; s++) {
++                for (int i = 0; i < s_pack->plan.frames[s] && all; i++) {
++                    all = decode_frame(s_pack->fr[s][i], s_probe_buf);
++                }
++            }
++            xSemaphoreGive(s_mu);
++            s_probe_ok.store(all);
++            xSemaphoreGive(s_probe_sem);
++            continue;
++        }
++        if (key < 0 || pos < 0 || pos >= PF_CACHE_SLOTS) {
++            continue;
++        }
++        bool ok = false;
++        xSemaphoreTake(s_mu, portMAX_DELAY);
++        const uint32_t t0 = now_ms();  // the decode itself, not the wait for an upload that holds the mutex
++        if (gen == s_gen.load() && s_pack != nullptr && s_buf[pos] != nullptr) {
++            const int slot = key / 16, idx = key % 16;
++            const Frame& f = s_pack->fr[slot][idx];
++            if (f.done && f.data != nullptr) {
++                ok = decode_frame(f, s_buf[pos]);
++            }
++        }
++        const uint32_t took = now_ms() - t0;
++        xSemaphoreGive(s_mu);
++        s_last_decode_ms.store(took);
++        if (took > s_max_decode_ms.load()) {
++            s_max_decode_ms.store(took);
++        }
++        s_done_ok.store(ok);
++        s_done_pos.store(pos);
++        s_done_key.store(key);  // last: the screen task reads key first
++    }
++}
++
++void set_image(int layer, int pos)  // LVGL lock held
++{
++    lv_image_cache_drop(&s_dsc[pos]);
++    lv_image_set_src(s_ui.img[layer], &s_dsc[pos]);
++}
++
++int pinned_mask()
++{
++    unsigned m = 0;
++    if (s_ui.shown_pos >= 0) {
++        m |= 1u << s_ui.shown_pos;
++    }
++    if (s_ui.fade_pos >= 0) {
++        m |= 1u << s_ui.fade_pos;
++    }
++    if (s_ui.pending_pos >= 0) {
++        m |= 1u << s_ui.pending_pos;
++    }
++    return static_cast<int>(m);
++}
++
++lv_obj_t* make_shape(lv_obj_t* parent, lv_color_t colour)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_style_all(o);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_style_bg_color(o, colour, 0);
++    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++    lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
++    return o;
++}
++
++void place_centred(lv_obj_t* o, int cx, int cy, int w, int h)
++{
++    lv_obj_set_size(o, w, h);
++    lv_obj_set_pos(o, cx - w / 2, cy - h / 2);
++}
++
++unsigned have_mask_locked()
++{
++    unsigned m = 0;
++    if (s_pack != nullptr) {
++        for (int s = 0; s < PF_SLOTS; s++) {
++            if (s_pack->plan.frames[s] > 0) {
++                m |= 1u << s;
++            }
++        }
++    }
++    return m;
++}
++
++void tick(lv_timer_t*)  // LVGL task, lock held
++{
++    if (s_ui.root == nullptr) {
++        return;
++    }
++    auto* face = face_now();
++    if (face == nullptr) {
++        return;
++    }
++    // A mute, vision-off or quiet look, the clock and a ringing timer are never covered by a picture.
++    bool priv = maipai_privacy_bits() != 0;
++#if CONFIG_MAIPAI_FACE_BENCH
++    priv = priv && !s_bench_ignore_privacy.load();
++#endif
++    const bool hide = priv || maipai_timers_ringing() || maipai_face_clock_visible();
++    if (hide != s_ui.hidden) {
++        s_ui.hidden = hide;
++        if (hide) {
++            lv_obj_add_flag(s_ui.root, LV_OBJ_FLAG_HIDDEN);
++            set_avatar_parts(true);
++        } else {
++            lv_obj_remove_flag(s_ui.root, LV_OBJ_FLAG_HIDDEN);
++            set_avatar_parts(false);
++        }
++        s_showing.store(!hide && s_ui.shown_key >= 0);
++    }
++    if (hide) {
++        return;
++    }
++    if (xSemaphoreTake(s_mu, 0) != pdTRUE) {
++        return;  // the unit is receiving or decoding a frame: draw next tick
++    }
++    if (s_pack == nullptr) {
++        xSemaphoreGive(s_mu);
++        return;
++    }
++    const uint32_t now = now_ms();
++    const pf_plan_t& plan = s_pack->plan;
++    const pf_overlay_t ov = s_pack->ov;
++    const int mode        = plan.mode;
++
++    // A finished decode.
++    if (s_ui.pending_key >= 0 && s_done_key.load() == s_ui.pending_key) {
++        const int pos = s_done_pos.load();
++        if (s_done_ok.load()) {
++            pf_cache_put(&s_cache, pos, s_ui.pending_key);
++        } else {
++            ESP_LOGW(TAG, "a picture frame did not decode (key %d)", s_ui.pending_key);
++        }
++        s_ui.pending_key = -1;
++        s_ui.pending_pos = -1;
++        s_done_key.store(-1);
++    }
++
++    // Which frame is wanted.
++    int emotion       = (int)face->getEmotion();
++    int level         = 0;
++    const bool speaking = maipai_speech_level(&level);
++    const unsigned have = have_mask_locked();
++    int slot            = pf_pick_slot(emotion, speaking, have);
++    if (s_ui.force_key_slot >= 0 && now < s_ui.force_until && (have & (1u << s_ui.force_key_slot))) {
++        slot = s_ui.force_key_slot;
++    }
++    const int idx      = mode == PF_MODE_SEQUENCE ? pf_seq_index(now - s_ui.seq_t0, plan.fps, plan.frames[slot]) : 0;
++    const int want_key = pf_key(slot, idx);
++
++    // A fade in progress.
++    if (s_ui.fade_pos >= 0) {
++        const uint32_t el = now - s_ui.fade_t0;
++        const int opa     = pf_fade_opa(el);
++        lv_obj_set_style_image_opa(s_ui.img[1], static_cast<lv_opa_t>(opa), 0);
++        if (el >= PF_FADE_MS) {
++            s_ui.shown_pos = s_ui.fade_pos;
++            s_ui.shown_key = s_ui.fade_key;
++            set_image(0, s_ui.shown_pos);
++            lv_obj_add_flag(s_ui.img[1], LV_OBJ_FLAG_HIDDEN);
++            s_ui.fade_pos = -1;
++            s_ui.fade_key = -1;
++        }
++    }
++
++    // Start a change.
++    if (s_ui.fade_pos < 0 && want_key != s_ui.shown_key) {
++        int pos = pf_cache_find(&s_cache, want_key);
++        if (pos >= 0) {
++            const bool same_slot_frame = s_ui.shown_key >= 0 && s_ui.shown_key / 16 == slot;
++            if (s_ui.shown_key < 0 || same_slot_frame) {
++                // First picture, or the next frame of the same expression: no fade.
++                s_ui.shown_pos = pos;
++                s_ui.shown_key = want_key;
++                set_image(0, pos);
++                lv_obj_remove_flag(s_ui.img[0], LV_OBJ_FLAG_HIDDEN);
++                s_showing.store(true);
++            } else {
++                s_ui.fade_pos = pos;
++                s_ui.fade_key = want_key;
++                s_ui.fade_t0  = now;
++                set_image(1, pos);
++                lv_obj_set_style_image_opa(s_ui.img[1], LV_OPA_TRANSP, 0);
++                lv_obj_remove_flag(s_ui.img[1], LV_OBJ_FLAG_HIDDEN);
++            }
++        } else if (s_ui.pending_key < 0) {
++            const int victim = pf_cache_victim(&s_cache, static_cast<unsigned>(pinned_mask()));
++            if (victim >= 0) {
++                if (s_buf[victim] == nullptr) {
++                    s_buf[victim] = static_cast<uint8_t*>(heap_caps_malloc(PF_FRAME_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++                    if (s_buf[victim] != nullptr) {
++                        memset(&s_dsc[victim], 0, sizeof(s_dsc[victim]));
++                        s_dsc[victim].header.magic  = LV_IMAGE_HEADER_MAGIC;
++                        s_dsc[victim].header.cf     = LV_COLOR_FORMAT_RGB565;
++                        s_dsc[victim].header.w      = PF_W;
++                        s_dsc[victim].header.h      = PF_H;
++                        s_dsc[victim].header.stride = PF_W * 2;
++                        s_dsc[victim].data_size     = PF_FRAME_BYTES;
++                        s_dsc[victim].data          = s_buf[victim];
++                    }
++                }
++                if (s_buf[victim] != nullptr) {
++                    s_cache.key[victim] = -1;
++                    s_ui.pending_key    = want_key;
++                    s_ui.pending_pos    = victim;
++                    s_done_key.store(-1);
++                    s_req_pos.store(victim);
++                    s_req_gen.store(s_gen.load());
++                    s_req_key.store(want_key);
++                    xTaskNotifyGive(s_worker);
++                } else {
++                    ESP_LOGW(TAG, "no PSRAM for a decoded frame");
++                }
++            }
++        }
++    }
++
++    // The overlay: the eyes and mouth the face is already animating, drawn over the picture.
++    if (mode == PF_MODE_OVERLAY && s_ui.eye[0] != nullptr && s_ui.shown_key >= 0) {
++        auto* le = dynamic_cast<DefaultEyes*>(&face->leftEye());
++        auto* re = dynamic_cast<DefaultEyes*>(&face->rightEye());
++        auto* mo = dynamic_cast<DefaultMouth*>(&face->mouth());
++        if (le != nullptr && re != nullptr && mo != nullptr) {
++            const int lid  = static_cast<int>(le->shownLid() + 0.5f);
++            const int gx   = le->shownPos().x * 8 / 100 + le->shownDriftX();
++            const int gy   = le->shownPos().y * 8 / 100 + le->shownDriftY();
++            const int eh   = pf_eye_height(ov.eye_h, lid);
++            place_centred(s_ui.eye[0], ov.lx + gx, ov.ly + gy, ov.eye_w, eh);
++            place_centred(s_ui.eye[1], ov.rx + gx, ov.ry + gy, ov.eye_w, eh);
++            const int mw = static_cast<int>(mo->shownWeight() + 0.5f);
++            place_centred(s_ui.mouth, ov.mx, ov.my, pf_mouth_width(ov.mouth_w, mw), pf_mouth_height(ov.mouth_h, mw));
++        }
++    }
++    xSemaphoreGive(s_mu);
++}
++
++// The decode task: created the first time a pack is committed, then kept (a task made with a PSRAM stack cannot end
++// itself); idle it waits for a notification and holds only its stack and control block.
++pf_err_t ensure_worker()
++{
++    if (s_worker == nullptr) {
++        if (xTaskCreatePinnedToCoreWithCaps(worker_task, "picdec", 20 * 1024, nullptr, 2, &s_worker, 0, MALLOC_CAP_SPIRAM) !=
++            pdPASS) {
++            s_worker = nullptr;
++            return PF_ERR_MEMORY;
++        }
++    }
++    return PF_OK;
++}
++
++pf_err_t start_ui_locked()  // LVGL lock and the mutex held
++{
++    auto* face = face_now();
++    if (face == nullptr || face->getPanel() == nullptr) {
++        return PF_ERR_MEMORY;
++    }
++    if (ensure_worker() != PF_OK) {
++        return PF_ERR_MEMORY;
++    }
++    pf_cache_init(&s_cache);
++    s_ui.root = lv_obj_create(face->getPanel()->get());
++    lv_obj_remove_style_all(s_ui.root);
++    lv_obj_remove_flag(s_ui.root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_remove_flag(s_ui.root, LV_OBJ_FLAG_CLICKABLE);  // a touch on the picture is a touch on the face
++    lv_obj_set_size(s_ui.root, PF_W, PF_H);
++    lv_obj_align(s_ui.root, LV_ALIGN_CENTER, 0, 0);  // the face panel has padding: centre, so the picture fills the screen
++    lv_obj_move_to_index(s_ui.root, 0);  // under the face's own parts, the captions, the chips and the clock
++    for (int i = 0; i < 2; i++) {
++        s_ui.img[i] = lv_image_create(s_ui.root);
++        lv_obj_remove_flag(s_ui.img[i], LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_set_pos(s_ui.img[i], 0, 0);
++        lv_obj_add_flag(s_ui.img[i], LV_OBJ_FLAG_HIDDEN);
++    }
++    if (s_pack->plan.mode == PF_MODE_OVERLAY) {
++        const lv_color_t c = lv_color_make(s_pack->ov.r, s_pack->ov.g, s_pack->ov.b);
++        s_ui.eye[0] = make_shape(s_ui.root, c);
++        s_ui.eye[1] = make_shape(s_ui.root, c);
++        s_ui.mouth  = make_shape(s_ui.root, c);
++    }
++    s_ui.seq_t0 = now_ms();
++    s_ui.hidden = false;
++    set_avatar_parts(false);
++    s_ui.timer = lv_timer_create(tick, PF_TICK_MS, nullptr);
++    return PF_OK;
++}
++
++bool b64_decode(const std::string& text, uint8_t* out, size_t cap, size_t* n)
++{
++    size_t len = 0;
++    const int rc = mbedtls_base64_decode(out, cap, &len, reinterpret_cast<const uint8_t*>(text.data()), text.size());
++    *n = len;
++    return rc == 0;
++}
++
++bool parse_overlay(const std::string& text, pf_overlay_t* o)
++{
++    *o = pf_overlay_default();
++    if (text.empty()) {
++        return true;
++    }
++    cJSON* root = cJSON_Parse(text.c_str());
++    if (root == nullptr) {
++        return false;
++    }
++    struct Field { const char* key; int16_t* where; };
++    const Field fields[] = {{"lx", &o->lx}, {"ly", &o->ly}, {"rx", &o->rx}, {"ry", &o->ry}, {"eye_w", &o->eye_w},
++                            {"eye_h", &o->eye_h}, {"mx", &o->mx}, {"my", &o->my}, {"mouth_w", &o->mouth_w},
++                            {"mouth_h", &o->mouth_h}};
++    for (const Field& f : fields) {
++        const cJSON* it = cJSON_GetObjectItemCaseSensitive(root, f.key);
++        if (it != nullptr) {
++            if (!cJSON_IsNumber(it) || it->valueint < -1000 || it->valueint > 1000) {
++                cJSON_Delete(root);
++                return false;
++            }
++            *f.where = static_cast<int16_t>(it->valueint);
++        }
++    }
++    const cJSON* col = cJSON_GetObjectItemCaseSensitive(root, "color");
++    if (col != nullptr) {
++        unsigned v = 0;
++        if (!cJSON_IsString(col) || strlen(col->valuestring) != 7 || col->valuestring[0] != '#' ||
++            sscanf(col->valuestring + 1, "%6x", &v) != 1) {
++            cJSON_Delete(root);
++            return false;
++        }
++        o->r = (v >> 16) & 255;
++        o->g = (v >> 8) & 255;
++        o->b = v & 255;
++    }
++    cJSON_Delete(root);
++    return true;
++}
++
++int total_frames(const pf_plan_t& p)
++{
++    int n = 0;
++    for (int s = 0; s < PF_SLOTS; s++) {
++        n += p.frames[s];
++    }
++    return n;
++}
++
++std::string status_json()
++{
++    char out[640];
++    int off = snprintf(out, sizeof(out), "{\"ok\":true,\"held\":%s", s_pack != nullptr ? "true" : "false");
++    if (s_pack != nullptr) {
++        const pf_plan_t& p = s_pack->plan;
++        off += snprintf(out + off, sizeof(out) - off, ",\"mode\":\"%s\",\"fps\":%d,\"bytes\":%u,\"frames\":%d,\"slots\":{",
++                        PF_MODE_NAMES[p.mode], p.fps, static_cast<unsigned>(p.bytes), total_frames(p));
++        bool first = true;
++        for (int s = 0; s < PF_SLOTS; s++) {
++            if (p.frames[s] > 0) {
++                off += snprintf(out + off, sizeof(out) - off, "%s\"%s\":%d", first ? "" : ",", PF_SLOT_NAMES[s], p.frames[s]);
++                first = false;
++            }
++        }
++        off += snprintf(out + off, sizeof(out) - off, "}");
++    }
++    snprintf(out + off, sizeof(out) - off,
++             ",\"showing\":%s,\"shown\":%d,\"cache\":[%d,%d,%d],\"decode_ms\":%u,\"decode_ms_max\":%u,"
++             "\"psram_free\":%u,\"internal_free\":%u}",
++             s_showing.load() ? "true" : "false", s_ui.shown_key, s_cache.key[0], s_cache.key[1], s_cache.key[2],
++             static_cast<unsigned>(s_last_decode_ms.load()), static_cast<unsigned>(s_max_decode_ms.load()),
++             static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)),
++             static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)));
++    return out;
++}
++}  // namespace
++
++bool maipai_picface_showing()
++{
++    return s_showing.load();
++}
++
++void maipai_picface_register_tools()
++{
++    s_mu        = xSemaphoreCreateMutex();
++    s_probe_sem = xSemaphoreCreateBinary();
++    pf_cache_init(&s_cache);
++    auto& mcp = McpServer::GetInstance();
++
++    mcp.AddTool("self.facepic.begin",
++                "Start a picture face pack from the owner's own pictures, replacing any pack the unit holds. mode is picture "
++                "(one picture per expression), overlay (a picture with an animated blink and a mouth that follows the voice "
++                "drawn over it; overlay is a JSON object with the eye and mouth places and a colour) or sequence (up to 6 "
++                "frames per expression, played at fps 1 to 12). Then send each frame with self.facepic.frame and "
++                ".data, and finish with .commit. Answers {ok} or {ok:false,code,error,error_es}.",
++                PropertyList({Property("mode", kPropertyTypeString, std::string("picture")),
++                              Property("fps", kPropertyTypeInteger, PF_DEFAULT_FPS, 0, 100),
++                              Property("overlay", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const int mode = pf_mode_by_name(properties["mode"].value<std::string>().c_str());
++                    const int fps  = properties["fps"].value<int>();
++                    pf_err_t e     = pf_start_ok(mode, fps);
++                    if (e != PF_OK) {
++                        return error_json(e);
++                    }
++                    pf_overlay_t ov;
++                    if (!parse_overlay(properties["overlay"].value<std::string>(), &ov) || !pf_overlay_ok(&ov)) {
++                        return error_json(PF_ERR_OVERLAY);
++                    }
++                    LvglLockGuard lock;
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    teardown_ui();
++                    free_pack_locked();
++                    s_pack = static_cast<Pack*>(heap_caps_calloc(1, sizeof(Pack), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++                    if (s_pack == nullptr) {
++                        xSemaphoreGive(s_mu);
++                        return error_json(PF_ERR_MEMORY);
++                    }
++                    new (s_pack) Pack();
++                    pf_plan_init(&s_pack->plan, mode, fps);
++                    s_pack->ov = ov;
++                    xSemaphoreGive(s_mu);
++                    return std::string("{\"ok\":true,\"max_bytes\":") + std::to_string(PF_MAX_STORE_BYTES) +
++                           ",\"max_frames\":" + std::to_string(PF_MAX_FRAMES) + ",\"frame_bytes\":" +
++                           std::to_string(PF_FRAME_BYTES) + "}";
++                });
++
++    mcp.AddTool("self.facepic.frame",
++                "Declare one frame of the pack being sent: slot (neutral, happy, sad, angry, doubt, sleepy or speaking), "
++                "index (0; sequence mode up to 5), bytes (the size as it will be sent), crc (8 hex digits, CRC-32 of those "
++                "bytes) and raw (true when the bytes are the 153600 raw RGB565 bytes, false for zlib). Answers {ok}.",
++                PropertyList({Property("slot", kPropertyTypeString, std::string("neutral")),
++                              Property("index", kPropertyTypeInteger, 0, 0, 40),
++                              Property("bytes", kPropertyTypeInteger, 0, 0, 1000000),
++                              Property("crc", kPropertyTypeString, std::string("00000000")),
++                              Property("raw", kPropertyTypeBoolean, false)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    struct Release { ~Release() { xSemaphoreGive(s_mu); } } release;
++                    if (s_pack == nullptr) {
++                        return error_json(PF_ERR_NOT_STARTED);
++                    }
++                    const int slot  = pf_slot_by_name(properties["slot"].value<std::string>().c_str());
++                    const int index = properties["index"].value<int>();
++                    const uint32_t bytes = static_cast<uint32_t>(properties["bytes"].value<int>());
++                    pf_plan_t& plan = s_pack->plan;
++                    const uint32_t replaces = (slot >= 0 && index >= 0 && index < PF_MAX_FRAMES_PER_SLOT) ? s_pack->fr[slot][index].comp : 0;
++                    pf_err_t e = pf_admit(&plan, slot, index, bytes, replaces);
++                    if (e != PF_OK) {
++                        return error_json(e);
++                    }
++                    Frame& f = s_pack->fr[slot][index];
++                    free_frame(f);
++                    f.data = static_cast<uint8_t*>(heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++                    if (f.data == nullptr) {
++                        return error_json(PF_ERR_MEMORY);
++                    }
++                    f.comp     = bytes;
++                    f.flags    = properties["raw"].value<bool>() ? PF_FLAG_RAW : PF_FLAG_ZLIB;
++                    f.crc_want = static_cast<uint32_t>(strtoul(properties["crc"].value<std::string>().c_str(), nullptr, 16));
++                    plan.bytes = plan.bytes - replaces + bytes;
++                    if (index >= plan.frames[slot]) {
++                        plan.frames[slot] = static_cast<uint8_t>(index + 1);
++                    }
++                    plan.received[slot][index] = 0;
++                    plan.total_frames          = total_frames(plan);
++                    return std::string("{\"ok\":true}");
++                });
++
++    mcp.AddTool("self.facepic.data",
++                "Send the next piece of a declared frame: slot, index, at (the byte offset, which must equal what the unit "
++                "already has) and b64 (the bytes as base64). The last piece completes the frame and checks its CRC. "
++                "Answers {ok, got, done}.",
++                PropertyList({Property("slot", kPropertyTypeString, std::string("neutral")),
++                              Property("index", kPropertyTypeInteger, 0, 0, 40),
++                              Property("at", kPropertyTypeInteger, 0, 0, 1000000),
++                              Property("b64", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string text = properties["b64"].value<std::string>();
++                    std::string raw(text.size() * 3 / 4 + 4, '\0');
++                    size_t n = 0;
++                    if (!b64_decode(text, reinterpret_cast<uint8_t*>(raw.data()), raw.size(), &n)) {
++                        return error_json(PF_ERR_ORDER);
++                    }
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    struct Release { ~Release() { xSemaphoreGive(s_mu); } } release;
++                    if (s_pack == nullptr) {
++                        return error_json(PF_ERR_NOT_STARTED);
++                    }
++                    const int slot  = pf_slot_by_name(properties["slot"].value<std::string>().c_str());
++                    const int index = properties["index"].value<int>();
++                    if (slot < 0) {
++                        return error_json(PF_ERR_SLOT);
++                    }
++                    if (index < 0 || index >= PF_MAX_FRAMES_PER_SLOT || s_pack->fr[slot][index].data == nullptr) {
++                        return error_json(PF_ERR_INDEX);
++                    }
++                    Frame& f = s_pack->fr[slot][index];
++                    if (static_cast<uint32_t>(properties["at"].value<int>()) != f.got || f.got + n > f.comp) {
++                        return error_json(PF_ERR_ORDER);
++                    }
++                    memcpy(f.data + f.got, raw.data(), n);
++                    f.crc_run = pf_crc32(f.crc_run, f.data + f.got, n);
++                    f.got += static_cast<uint32_t>(n);
++                    if (f.got == f.comp) {
++                        if (f.crc_run != f.crc_want) {
++                            f.got = 0;
++                            f.crc_run = 0;
++                            return error_json(PF_ERR_CRC);
++                        }
++                        f.done                                = true;
++                        s_pack->plan.received[slot][index]    = 1;
++                    }
++                    return std::string("{\"ok\":true,\"got\":") + std::to_string(f.got) + ",\"done\":" +
++                           (f.done ? "true" : "false") + "}";
++                });
++
++    mcp.AddTool("self.facepic.commit",
++                "Finish the pack: every frame must have arrived and there must be a neutral picture. The face then shows "
++                "the pictures. Answers {ok, frames, bytes} or {ok:false,code,error,error_es}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    pf_err_t e;
++                    {
++                        xSemaphoreTake(s_mu, portMAX_DELAY);
++                        e = s_pack == nullptr ? PF_ERR_NOT_STARTED : pf_complete(&s_pack->plan);
++                        xSemaphoreGive(s_mu);
++                    }
++                    if (e != PF_OK) {
++                        return error_json(e);
++                    }
++                    if (s_worker == nullptr) {
++                        LvglLockGuard lock;
++                        e = ensure_worker();
++                        if (e != PF_OK) {
++                            return error_json(e);
++                        }
++                    }
++                    // Prove every frame opens before it is promised: a pack that cannot be decoded is refused now.
++                    s_probe_buf = static_cast<uint8_t*>(heap_caps_malloc(PF_FRAME_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++                    if (s_probe_buf == nullptr) {
++                        return error_json(PF_ERR_MEMORY);
++                    }
++                    s_req_key.store(-2);
++                    xTaskNotifyGive(s_worker);
++                    const bool arrived = xSemaphoreTake(s_probe_sem, pdMS_TO_TICKS(8000)) == pdTRUE;
++                    heap_caps_free(s_probe_buf);
++                    s_probe_buf = nullptr;
++                    s_req_key.store(-1);
++                    if (!arrived || !s_probe_ok.load()) {
++                        return error_json(PF_ERR_DECODE);
++                    }
++                    LvglLockGuard lock;
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    struct Release { ~Release() { xSemaphoreGive(s_mu); } } release;
++                    if (s_pack == nullptr) {
++                        return error_json(PF_ERR_NOT_STARTED);
++                    }
++                    e = pf_complete(&s_pack->plan);
++                    if (e != PF_OK) {
++                        return error_json(e);
++                    }
++                    teardown_ui();
++                    e = start_ui_locked();
++                    if (e != PF_OK) {
++                        return error_json(e);
++                    }
++                    ESP_LOGI(TAG, "picture face pack on: mode %s, %d frames, %u bytes", PF_MODE_NAMES[s_pack->plan.mode],
++                             total_frames(s_pack->plan), static_cast<unsigned>(s_pack->plan.bytes));
++                    return std::string("{\"ok\":true,\"frames\":") + std::to_string(total_frames(s_pack->plan)) +
++                           ",\"bytes\":" + std::to_string(s_pack->plan.bytes) + "}";
++                });
++
++    mcp.AddTool("self.facepic.clear",
++                "Remove the picture pack: the face is drawn again and the memory is given back. Answers {ok}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    LvglLockGuard lock;
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    teardown_ui();
++                    free_pack_locked();
++                    xSemaphoreGive(s_mu);
++                    return std::string("{\"ok\":true}");
++                });
++
++    mcp.AddTool("self.facepic.status",
++                "What picture pack the unit holds: mode, frames per expression, bytes, what is on screen and the memory left. "
++                "Answers {ok, held, ...}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    LvglLockGuard lock;
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    const std::string out = status_json();
++                    xSemaphoreGive(s_mu);
++                    return out;
++                });
++
++#if CONFIG_MAIPAI_FACE_BENCH
++    mcp.AddTool("self.facepic.bench_force",
++                "Bench only: show this expression's picture for seconds (0 ends it), whatever the face feels.",
++                PropertyList({Property("slot", kPropertyTypeString, std::string("neutral")),
++                              Property("seconds", kPropertyTypeInteger, 30, 0, 600),
++                              Property("ignore_privacy", kPropertyTypeBoolean, false)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const int slot = pf_slot_by_name(properties["slot"].value<std::string>().c_str());
++                    const int secs = properties["seconds"].value<int>();
++                    if (slot < 0) {
++                        return error_json(PF_ERR_SLOT);
++                    }
++                    const bool ignore = properties["ignore_privacy"].value<bool>();
++                    s_bench_ignore_privacy.store(ignore);
++                    LvglLockGuard lock;
++                    if (ignore) {
++                        // Look at the overlay on a muted unit: the drawn mute look (shut eyes, flat mouth) would otherwise
++                        // be copied into the overlay. Display state only; the saved mute and the microphone are untouched.
++                        auto* face = face_now();
++                        if (face != nullptr) {
++                            if (auto* mo = dynamic_cast<DefaultMouth*>(&face->mouth())) {
++                                mo->setSealed(false);
++                            }
++                            if (auto* le = dynamic_cast<DefaultEyes*>(&face->leftEye())) {
++                                le->setLowered(false);
++                            }
++                            if (auto* re = dynamic_cast<DefaultEyes*>(&face->rightEye())) {
++                                re->setLowered(false);
++                            }
++                        }
++                    }
++                    if (secs > 0) {
++                        // The face feels what the picture shows, so the overlay's eyes match it, and no "Zzz" bubble.
++                        auto* face = face_now();
++                        if (face != nullptr) {
++                            using stackchan::avatar::Emotion;
++                            static const Emotion kFor[PF_SLOTS] = {Emotion::Neutral, Emotion::Happy, Emotion::Sad, Emotion::Angry,
++                                                                   Emotion::Doubt,   Emotion::Sleepy, Emotion::Neutral};
++                            face->setEmotion(kFor[slot]);
++                            face->clearSpeech();
++                        }
++                    }
++                    s_ui.force_key_slot = secs > 0 ? slot : -1;
++                    s_ui.force_until    = now_ms() + static_cast<uint32_t>(secs) * 1000u;
++                    return std::string("{\"ok\":true}");
++                });
++#endif
++    ESP_LOGI(TAG, "picture faces ready: nothing is held until a pack is sent");
++}
++#endif
+diff --git a/firmware/main/hal/maipai_picface.h b/firmware/main/hal/maipai_picface.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_picface.h
+@@ -0,0 +1,18 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Picture faces, device side (patch H04). Logic: maipai_picface_core.h. With CONFIG_MAIPAI_PICTURE_FACES off nothing here
++ * is compiled.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_PICTURE_FACES
++// Registers self.facepic.begin, frame, data, commit, clear and status (and the bench tools in a bench build).
++void maipai_picface_register_tools();
++// True while a picture pack is on the screen (not hidden by a privacy look, the clock or a ringing timer).
++bool maipai_picface_showing();
++#else
++inline void maipai_picface_register_tools() {}
++inline bool maipai_picface_showing() { return false; }
++#endif
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -67,6 +67,8 @@
+     // units as setWeight and setPosition. The picture faces (patch H04) draw their eyes from these.
+     float shownLid() const { return _sw_eff; }
+     uitk::Vector2i shownPos() const { return {(int)_sx, (int)_sy}; }
++    int shownDriftX() const { return _drawn_dx; }
++    int shownDriftY() const { return _drawn_dy; }
+ 
+ private:
+     void layout();
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -34,5 +34,7 @@
+ CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=256
+ # Fluid face (patch H02): eased eyes, lids, tilt and mouth, gaze drift, a mouth that follows the voice, a draw loop that no longer holds the screen lock.
+ CONFIG_MAIPAI_FACE_FLUID=y
++# Picture faces (patch H04): the owner's own pictures as the face; nothing is allocated until a pack is sent.
++CONFIG_MAIPAI_PICTURE_FACES=y
+ # Fluid face (patch H02): the screen may redraw every 20 ms (the base waited 33 ms, which held it near 25 refreshes a second).
+ CONFIG_LV_DEF_REFR_PERIOD=20

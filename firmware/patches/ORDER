@@ -101,3 +101,7 @@ V04-dance-extras.patch
 G01-game-engine-core.patch
 G02-game-player-and-tools.patch
 G03-game-touch-voice-and-menu.patch
+H01-face-bench-tools.patch
+H02-face-fluid-motion.patch
+H03-picture-face-core.patch
+H04-picture-face-unit.patch

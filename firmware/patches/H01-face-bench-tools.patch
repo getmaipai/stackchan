@@ -1,0 +1,495 @@
+# Intent: Train 5 measurement. A bench build counts screen refreshes and flushed pixels (one WARN line "FACEFPS ..." every 10 seconds) and adds four tools: self.face.bench_fps (the draw rate since the last call: refreshes a second, full-frame equivalents, average refresh time, passes of the update loop, the peak second and the mean over the seconds that drew at least 5 times), self.face.bench_run (a repeatable workload of at most 25 seconds, because a tool that runs 30 s on the main loop makes the unit restart itself: idle, talk with a synthetic speech level, move, emotions), self.face.bench_speak (hold the speaking look and a steady speech level in the background) and self.face.snapshot (the screen as LVGL draws it, written on the USB cable as '@snap <row> <hex>' lines, which scripts/fw-serial.py turns into a PNG so a screen nobody can see can still be looked at). It also lets the USB cable reader take lines of up to 4096 characters (it took 512), so a picture piece fits on one line. Off in every shipped image: no counter, no tool, no code.
+# Placement: unit (a bench path in the robot firmware, off in every shipped image)
+# Upstream: firmware/main/hal/maipai_serial_tools.cc of this tree (patch V01); the LVGL display events REFR_START, REFR_READY and FLUSH_START of LVGL 9.5 (MIT); lv_snapshot_take of LVGL (MIT)
+# Check after a flash: with MAIPAI_FACE_BENCH and MAIPAI_SERIAL_TOOLS on, '@tool self.face.bench_fps' answers numbers, '@tool self.face.bench_run {"what":"talk","seconds":10}' answers the rates measured over the run, '@tool self.face.bench_speak {"level":60}' answers at once, '@tool self.face.snapshot' writes 240 '@snap' lines; with the option off the build has no maipai_facebench object.
+# Kconfig: MAIPAI_FACE_BENCH (default n).
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -302,6 +302,14 @@
+     help
+         Prints the five numbers the memory gate reads (docs/design/firmware-memory.md) as one log line at WARN, so a
+         release-level log shows them. Off here: the old INFO line only. A bench and soak build turns it on.
++
++config MAIPAI_FACE_BENCH
++    bool "Bench only: face draw-rate counters, a workload runner and a screen dump over the USB cable"
++    default n
++    help
++        Counts screen refreshes and flushed pixels (one WARN line every 10 seconds), and adds the tools
++        self.face.bench_fps, self.face.bench_run and self.face.snapshot. The tools are reached through the USB cable reader
++        (MAIPAI_SERIAL_TOOLS) or the link. Off in every shipped image: no counter, no tool, no code.
+ 
+ config MAIPAI_LOW_BATTERY
+     bool "Low-battery ladder (20 percent chirp, 10 percent request, 5 percent sleep)"
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -34,6 +34,7 @@
+ #include <hal/maipai_more.h>
+ #include <hal/maipai_mood.h>
+ #include <hal/maipai_games.h>
++#include <hal/maipai_facebench.h>
+ 
+ // True while the Wi-Fi setup portal is open (firmware/portal/maipai_wifi_configuration_ap.cc, patch P03).
+ extern "C" bool maipai_portal_active(void);
+@@ -199,6 +200,7 @@
+         ESP_LOGE(TAG, "Failed to add display");
+         return;
+     }
++    maipai_facebench_attach(display_);  // patch H01: bench builds count refreshes; nothing otherwise
+ 
+     if (offset_x != 0 || offset_y != 0) {
+         lv_display_set_offset(display_, offset_x, offset_y);
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -126,6 +126,7 @@
+ #include "maipai_timers.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_daily.h"
++#include "maipai_facebench.h"
+ 
+ void Hal::xiaozhi_board_init()
+ {
+@@ -152,6 +153,7 @@
+         }
+ 
+         GetStackChan().update();
++        maipai_facebench_loop_tick();  // patch H01: bench builds count passes of this loop
+ 
+         if (!hal_bridge::is_xiaozhi_ready()) {
+             continue;
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -21,6 +21,7 @@
+ #include "maipai_tailnet.h"
+ #include "maipai_music.h"
+ #include "maipai_games.h"
++#include "maipai_facebench.h"
+ #if CONFIG_MAIPAI_DANCE_EXTRAS
+ #include "maipai_dances_core.h"
+ #endif
+@@ -635,6 +636,9 @@
+     // self.game.list, start, stop and scores (patch G01). Nothing runs until a game starts.
+     maipai_games_register_tools();
+ 
++    // self.face.bench_fps, bench_run and snapshot (patch H01, bench builds only).
++    maipai_facebench_register_tools();
++
+     mclog::tagInfo(_tag, "add robot.dance tool");
+     mcp_server.AddTool("self.robot.dance",
+                        "Play one of the robot's dances once, then return to normal. Built in: happy, robot, panic, look_around. More "
+diff --git a/firmware/main/hal/maipai_facebench.cc b/firmware/main/hal/maipai_facebench.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_facebench.cc
+@@ -0,0 +1,345 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face bench tools (patch H01), bench builds only. Three things:
++ *
++ *  - counters: LVGL screen refreshes, flushed pixels, how long a refresh takes, and passes of the avatar update loop;
++ *    one WARN line every 10 seconds ("FACEFPS ...") and the tool self.face.bench_fps for a window of any length;
++ *  - self.face.bench_run: a repeatable workload (idle, talk, move, emotions) with the counters read at its end;
++ *  - self.face.snapshot: the screen as LVGL draws it, written on the USB cable as "@snap <row> <hex>" lines (320 by
++ *    240, RGB565, little endian), so the Mac can turn it into a picture (scripts/fw-snap.py).
++ *
++ * "Frames per second" here is the number of screen refreshes that drew something. A refresh that redrew only the eyes is
++ * one refresh; the full-frame figure divides the flushed pixels by 76,800 and says how much of the screen moved.
++ */
++#include "maipai_facebench.h"
++
++#if CONFIG_MAIPAI_FACE_BENCH
++#include "maipai_facefx.h"
++#include "hal.h"
++#include <mcp_server.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
++#include <board.h>
++#include <display.h>
++#include <assets/lang_config.h>
++#include <lvgl.h>
++#include <esp_lvgl_port.h>
++#include <src/draw/snapshot/lv_snapshot.h>
++#include <stackchan/stackchan.h>
++#include <atomic>
++#include <cstdio>
++#include <cstdlib>
++#include <string>
++
++static const char* TAG = "MAIPAI-FACEBENCH";
++
++namespace {
++std::atomic<uint32_t> s_refresh{0};
++std::atomic<uint32_t> s_flush{0};
++std::atomic<uint64_t> s_flush_px{0};
++std::atomic<uint64_t> s_refr_us{0};
++std::atomic<uint32_t> s_loop{0};
++uint64_t s_refr_start = 0;
++
++// Refreshes per whole second of uptime, for the peak and the "while it moves" figures.
++constexpr int kBins = 256;
++struct Bin {
++    std::atomic<uint32_t> sec{0xFFFFFFFFu};
++    std::atomic<uint32_t> n{0};
++} s_bins[kBins];
++
++void count_bin()
++{
++    const uint32_t sec = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
++    Bin& b             = s_bins[sec % kBins];
++    if (b.sec.load() != sec) {
++        b.sec.store(sec);
++        b.n.store(0);
++    }
++    b.n++;
++}
++
++struct Snap {
++    uint32_t refresh, flush, loop;
++    uint64_t px, refr_us, at_us;
++};
++
++Snap now_snap()
++{
++    return Snap{s_refresh.load(), s_flush.load(), s_loop.load(), s_flush_px.load(), s_refr_us.load(),
++                static_cast<uint64_t>(esp_timer_get_time())};
++}
++
++Snap s_last_log;
++Snap s_last_tool;
++
++std::string rates(const Snap& a, const Snap& b)
++{
++    const double sec = (b.at_us - a.at_us) / 1e6;
++    if (sec <= 0.0) {
++        return "{}";
++    }
++    const uint32_t refreshes = b.refresh - a.refresh;
++    // Whole seconds strictly inside the window: the peak, and the mean over the seconds that drew at least 5 times.
++    uint32_t peak = 0, active_n = 0, active_s = 0;
++    for (uint32_t sec = static_cast<uint32_t>(a.at_us / 1000000) + 1; sec < static_cast<uint32_t>(b.at_us / 1000000); sec++) {
++        const Bin& bin   = s_bins[sec % kBins];
++        const uint32_t n = bin.sec.load() == sec ? bin.n.load() : 0;
++        peak             = n > peak ? n : peak;
++        if (n >= 5) {
++            active_n += n;
++            active_s++;
++        }
++    }
++    char out[420];
++    snprintf(out, sizeof(out),
++             "\"seconds\":%.1f,\"refresh_per_s\":%.1f,\"flush_per_s\":%.1f,\"full_frames_per_s\":%.1f,"
++             "\"avg_refresh_ms\":%.1f,\"loop_per_s\":%.1f,\"peak_refresh_per_s\":%u,\"active_seconds\":%u,"
++             "\"active_refresh_per_s\":%.1f",
++             sec, refreshes / sec, (b.flush - a.flush) / sec, (b.px - a.px) / 76800.0 / sec,
++             refreshes ? (b.refr_us - a.refr_us) / 1000.0 / refreshes : 0.0, (b.loop - a.loop) / sec,
++             static_cast<unsigned>(peak), static_cast<unsigned>(active_s), active_s ? static_cast<double>(active_n) / active_s : 0.0);
++    return out;
++}
++
++void on_event(lv_event_t* e)
++{
++    switch (lv_event_get_code(e)) {
++        case LV_EVENT_REFR_START:
++            s_refr_start = static_cast<uint64_t>(esp_timer_get_time());
++            break;
++        case LV_EVENT_REFR_READY:
++            s_refresh++;
++            count_bin();
++            s_refr_us += static_cast<uint64_t>(esp_timer_get_time()) - s_refr_start;
++            break;
++        case LV_EVENT_FLUSH_START: {
++            const lv_area_t* a = static_cast<const lv_area_t*>(lv_event_get_param(e));
++            if (a != nullptr) {
++                s_flush++;
++                s_flush_px += static_cast<uint64_t>(lv_area_get_width(a)) * static_cast<uint64_t>(lv_area_get_height(a));
++            }
++            break;
++        }
++        default:
++            break;
++    }
++}
++
++void log_tick(lv_timer_t*)
++{
++    const Snap n = now_snap();
++    ESP_LOGW(TAG, "FACEFPS %s", rates(s_last_log, n).c_str());
++    s_last_log = n;
++}
++
++void set_status(const char* status)
++{
++    Board::GetInstance().GetDisplay()->SetStatus(status);  // takes the display lock itself
++}
++
++// Pseudo speech: syllable-sized bursts (about 0.2 to 0.35 s) with short gaps, as a level 0 to 100.
++int speech_pattern(uint32_t t_ms)
++{
++    const uint32_t cell = t_ms / 90;
++    uint32_t x          = cell * 2654435761u;
++    x ^= x >> 13;
++    const int burst = static_cast<int>(x % 7u);  // 0..6
++    const int phase = static_cast<int>((t_ms / 90) % 3);
++    if (burst == 0) {
++        return 0;  // a gap between syllables
++    }
++    return 25 + burst * 11 + (phase == 1 ? 8 : 0);
++}
++
++std::string run_workload(const std::string& what, int seconds, int level)
++{
++    const int64_t end_us = esp_timer_get_time() + static_cast<int64_t>(seconds) * 1000000;
++    const Snap start     = now_snap();
++    if (what == "talk") {
++        set_status(Lang::Strings::SPEAKING);
++        const int64_t t0 = esp_timer_get_time();
++        while (esp_timer_get_time() < end_us) {
++            const uint32_t t_ms = static_cast<uint32_t>((esp_timer_get_time() - t0) / 1000);
++            maipai_speech_feed_bench(level > 0 ? level : speech_pattern(t_ms));
++            vTaskDelay(pdMS_TO_TICKS(30));
++        }
++        set_status(Lang::Strings::STANDBY);
++    } else if (what == "move") {
++        // The ceiling: both eyes jump to a new place every 50 ms, which keeps the screen redrawing.
++        const int64_t t0 = esp_timer_get_time();
++        while (esp_timer_get_time() < end_us) {
++            const int k = static_cast<int>(((esp_timer_get_time() - t0) / 50000) % 8);
++            {
++                LvglLockGuard lock;
++                auto& chan = GetStackChan();
++                if (chan.hasAvatar()) {
++                    const int x = (k % 2 == 0 ? -1 : 1) * (10 + k * 7);
++                    const int y = ((k / 2) % 2 == 0 ? -1 : 1) * (8 + k * 5);
++                    chan.avatar().leftEye().setPosition({x, y});
++                    chan.avatar().rightEye().setPosition({x, y});
++                }
++            }
++            vTaskDelay(pdMS_TO_TICKS(50));
++        }
++        LvglLockGuard lock;
++        auto& chan = GetStackChan();
++        if (chan.hasAvatar()) {
++            chan.avatar().leftEye().setPosition({0, 0});
++            chan.avatar().rightEye().setPosition({0, 0});
++        }
++    } else if (what == "emotions") {
++        static const stackchan::avatar::Emotion kList[] = {
++            stackchan::avatar::Emotion::Happy, stackchan::avatar::Emotion::Sad,   stackchan::avatar::Emotion::Angry,
++            stackchan::avatar::Emotion::Doubt, stackchan::avatar::Emotion::Sleepy, stackchan::avatar::Emotion::Neutral};
++        int i = 0;
++        while (esp_timer_get_time() < end_us) {
++            {
++                LvglLockGuard lock;
++                auto& chan = GetStackChan();
++                if (chan.hasAvatar()) {
++                    chan.avatar().setEmotion(kList[i % 6]);
++                }
++            }
++            i++;
++            vTaskDelay(pdMS_TO_TICKS(1500));
++        }
++        LvglLockGuard lock;
++        if (GetStackChan().hasAvatar()) {
++            GetStackChan().avatar().setEmotion(stackchan::avatar::Emotion::Neutral);
++        }
++    } else {
++        vTaskDelay(pdMS_TO_TICKS(seconds * 1000));  // idle: the face as shipped, nothing asked of it
++    }
++    return std::string("{\"ok\":true,\"what\":\"") + what + "\"," + rates(start, now_snap()) + "}";
++}
++
++// A short task that holds the speaking look and a steady speech level, so the screen can be dumped while the unit "speaks"
++// (a tool that runs 30 s on the main loop makes the unit restart itself).
++struct SpeakArgs {
++    int level;
++    int seconds;
++};
++
++void speak_task(void* arg)
++{
++    SpeakArgs a = *static_cast<SpeakArgs*>(arg);
++    heap_caps_free(arg);
++    set_status(Lang::Strings::SPEAKING);
++    const int64_t end_us = esp_timer_get_time() + static_cast<int64_t>(a.seconds) * 1000000;
++    while (esp_timer_get_time() < end_us) {
++        maipai_speech_feed_bench(a.level);
++        vTaskDelay(pdMS_TO_TICKS(30));
++    }
++    set_status(Lang::Strings::STANDBY);
++    vTaskDelete(nullptr);
++}
++
++void dump_snapshot()
++{
++    lv_draw_buf_t* buf;
++    {
++        LvglLockGuard lock;
++        buf = lv_snapshot_take(lv_screen_active(), LV_COLOR_FORMAT_RGB565);
++    }
++    if (buf == nullptr) {
++        return;
++    }
++    const uint32_t w      = buf->header.w;
++    const uint32_t h      = buf->header.h;
++    const uint32_t stride = buf->header.stride;
++    printf("@snapinfo %u %u\n", static_cast<unsigned>(w), static_cast<unsigned>(h));
++    static const char* kHex = "0123456789abcdef";
++    std::string line;
++    for (uint32_t y = 0; y < h; y++) {
++        const uint8_t* row = buf->data + y * stride;
++        line.assign("@snap ");
++        line += std::to_string(y);
++        line += ' ';
++        for (uint32_t i = 0; i < w * 2; i++) {
++            line += kHex[row[i] >> 4];
++            line += kHex[row[i] & 15];
++        }
++        line += '\n';
++        fputs(line.c_str(), stdout);
++        if ((y % 8) == 7) {
++            fflush(stdout);
++            vTaskDelay(1);
++        }
++    }
++    fflush(stdout);
++    lv_draw_buf_destroy(buf);
++}
++}  // namespace
++
++void maipai_facebench_attach(lv_display_t* display)
++{
++    lvgl_port_lock(0);
++    lv_display_add_event_cb(display, on_event, LV_EVENT_REFR_START, nullptr);
++    lv_display_add_event_cb(display, on_event, LV_EVENT_REFR_READY, nullptr);
++    lv_display_add_event_cb(display, on_event, LV_EVENT_FLUSH_START, nullptr);
++    s_last_log  = now_snap();
++    s_last_tool = s_last_log;
++    lv_timer_create(log_tick, 10000, nullptr);
++    lvgl_port_unlock();
++}
++
++void maipai_facebench_loop_tick()
++{
++    s_loop++;
++}
++
++void maipai_facebench_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.face.bench_fps",
++                "Bench only: the face draw rate since the last call: screen refreshes per second, full-frame equivalents per "
++                "second, average refresh time and passes of the update loop per second.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    const Snap n = now_snap();
++                    const std::string out = "{\"ok\":true," + rates(s_last_tool, n) + "}";
++                    s_last_tool = n;
++                    return out;
++                });
++    mcp.AddTool("self.face.bench_run",
++                "Bench only: run a workload for seconds (1 to 25; a tool that runs 30 s stalls the main loop and the unit restarts itself) and answer the draw rates measured over it. what is idle "
++                "(nothing asked), talk (the speaking look with a synthetic speech level; level 1 to 100 holds one level), move (the eyes jump every 50 ms, the ceiling) or emotions (the six "
++                "emotions, 1.5 s each).",
++                PropertyList({Property("what", kPropertyTypeString, std::string("idle")),
++                              Property("seconds", kPropertyTypeInteger, 10, 1, 25),
++                              Property("level", kPropertyTypeInteger, 0, 0, 100)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string what = properties["what"].value<std::string>();
++                    return run_workload(what, properties["seconds"].value<int>(), properties["level"].value<int>());
++                });
++    mcp.AddTool("self.face.bench_speak",
++                "Bench only: hold the speaking look with a steady speech level (1 to 100) for seconds (1 to 20) in the background "
++                "and answer at once, so self.face.snapshot can be called while the mouth follows it.",
++                PropertyList({Property("level", kPropertyTypeInteger, 60, 1, 100),
++                              Property("seconds", kPropertyTypeInteger, 8, 1, 20)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    auto* args = static_cast<SpeakArgs*>(heap_caps_malloc(sizeof(SpeakArgs), MALLOC_CAP_INTERNAL));
++                    if (args == nullptr) {
++                        return std::string("{\"ok\":false,\"error\":\"no memory\"}");
++                    }
++                    args->level   = properties["level"].value<int>();
++                    args->seconds = properties["seconds"].value<int>();
++                    if (xTaskCreate(speak_task, "benchspeak", 3072, args, 2, nullptr) != pdPASS) {
++                        heap_caps_free(args);
++                        return std::string("{\"ok\":false,\"error\":\"no task\"}");
++                    }
++                    return std::string("{\"ok\":true}");
++                });
++    mcp.AddTool("self.face.snapshot",
++                "Bench only: write the screen as LVGL draws it on the USB cable, one '@snap <row> <hex>' line per row.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    dump_snapshot();
++                    return std::string("{\"ok\":true}");
++                });
++    ESP_LOGW(TAG, "face bench tools are on (bench build)");
++}
++#endif
+diff --git a/firmware/main/hal/maipai_facebench.h b/firmware/main/hal/maipai_facebench.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_facebench.h
+@@ -0,0 +1,22 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face bench tools (patch H01): how fast the face draws, and a dump of what it draws. Bench builds only
++ * (CONFIG_MAIPAI_FACE_BENCH, off in every shipped image: no counter, no tool, no code).
++ */
++#pragma once
++#include <sdkconfig.h>
++#include <lvgl.h>
++
++#if CONFIG_MAIPAI_FACE_BENCH
++// Counts screen refreshes and flushed pixels. Call once after the display exists (LVGL lock held).
++void maipai_facebench_attach(lv_display_t* display);
++// Once per pass of the avatar update loop.
++void maipai_facebench_loop_tick();
++// Registers self.face.bench_fps, bench_run, bench_speak and snapshot.
++void maipai_facebench_register_tools();
++#else
++inline void maipai_facebench_attach(lv_display_t*) {}
++inline void maipai_facebench_loop_tick() {}
++inline void maipai_facebench_register_tools() {}
++#endif
+diff --git a/firmware/main/hal/maipai_facefx.h b/firmware/main/hal/maipai_facefx.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_facefx.h
+@@ -0,0 +1,10 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The face's motion layer (patches H01 and H02). In H01 only the bench hook exists.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++// Bench only: a synthetic speech level (0 to 100) for the talk workload. H02 makes it drive the mouth.
++inline void maipai_speech_feed_bench(int) {}
+diff --git a/firmware/main/hal/maipai_serial_tools.cc b/firmware/main/hal/maipai_serial_tools.cc
+--- a/firmware/main/hal/maipai_serial_tools.cc
++++ b/firmware/main/hal/maipai_serial_tools.cc
+@@ -93,7 +93,7 @@
+                 handle_line(line, id++);
+                 line.clear();
+             }
+-        } else if (line.size() < 512) {
++        } else if (line.size() < 4096) {
+             line += static_cast<char>(byte);
+         }
+     }
+@@ -104,7 +104,7 @@
+ void maipai_serial_tools_start()
+ {
+     usb_serial_jtag_driver_config_t cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+-    cfg.rx_buffer_size                  = 512;
++    cfg.rx_buffer_size                  = 4096;
+     cfg.tx_buffer_size                  = 256;
+     if (usb_serial_jtag_driver_install(&cfg) != ESP_OK) {
+         ESP_LOGW(TAG, "serial tools: the USB driver did not start; nothing will answer on the cable");

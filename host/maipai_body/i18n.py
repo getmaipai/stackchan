@@ -295,6 +295,10 @@ def _merge_more() -> None:
     CATALOG["de"] = more.DE
     CATALOG["pt"] = more.PT
     CATALOG["it"] = more.IT
+    from maipai_body import i18n_pictures as pictures
+
+    for code, words in pictures.CATALOGS.items():
+        CATALOG[code].update(words)
 
 
 _merge_more()

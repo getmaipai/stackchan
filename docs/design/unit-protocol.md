@@ -203,6 +203,7 @@ and the module named per row].
 | Face | `self.screen.set_face_background` | `palette` string, `night` bool | server.py |
 | Face | `self.screen.set_brightness` | `brightness` percent | server.py |
 | Face | `self.face.song_title`, `music_notes`, `sleep_z` | `text` (max 60), notes flag, `stage` 1 or 2 | song_title.py, sleep_z.py |
+| Face | `self.facepic.begin`, `frame`, `data`, `commit`, `clear`, `status` | `mode` picture, overlay or sequence, `fps` 1 to 12, `overlay` places JSON; `slot`, `index`, `bytes`, `crc`, `raw`; `at`, `b64` (pieces of 2,048 bytes); the owner's own pictures as the face, kept in the unit's memory (docs/design/picture-faces-2026-11-16.md) | picture_faces.py |
 | Camera | `self.camera.take_photo` | `question` string; unit uploads JPEG to the vision URL | server.py |
 | Privacy | `self.privacy.get`, `set`, `set_policy` | `mute`, `vision_off`, `quiet` as 0 or 1; `local_unmute` bool | privacy.py |
 | Timers | `self.timer.set`, `alarm`, `snooze`, `cancel`, `stop`, `list` | `seconds`, `hour`, `minute`, `label`, `silent` | timers.py |

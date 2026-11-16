@@ -7,6 +7,7 @@ The dashboard server routes /settings and /api/stackchan/settings* to it, local 
 
 from __future__ import annotations
 
+import base64
 import html
 import json
 from collections.abc import Callable
@@ -15,9 +16,11 @@ from typing import Any
 from urllib.parse import unquote
 
 from maipai_body import faces as face_settings
+from maipai_body import picture_faces as picture_mod
 from maipai_body import unit_extras as extras_mod
 from maipai_body.bodies.stackchan import updater
 from maipai_body.i18n import SUPPORTED, catalog, normalize, t
+from maipai_body.picture_faces_page import pictures_js
 from maipai_body.unit_settings import SettingsError, UnitSettingsStore
 
 Live = Callable[[str], dict[str, Any]]
@@ -39,6 +42,7 @@ class SettingsBackend:
         faces: face_settings.FaceService | None = None,
         extras: extras_mod.UnitExtras | None = None,
         people: extras_mod.PeopleStore | None = None,
+        pictures: picture_mod.PictureService | None = None,
     ) -> None:
         self.devices, self.store = devices, store or UnitSettingsStore()
         self.live = live or (lambda _device_id: {})
@@ -48,6 +52,15 @@ class SettingsBackend:
         self._faces = faces
         self._extras = extras
         self._people = people
+        self._pictures = pictures
+
+    @property
+    def pictures(self) -> picture_mod.PictureService:
+        """The owner's picture faces. Without a live link a unit counts as offline: the pictures are saved and go to
+        the unit when the host next sees it connect."""
+        if self._pictures is None:
+            self._pictures = picture_mod.PictureService(face_settings.offline_call)
+        return self._pictures
 
     @property
     def extras(self) -> extras_mod.UnitExtras:
@@ -198,11 +211,59 @@ class SettingsBackend:
                 body = self.extras.details(device_id, lang)
             elif what == "games":
                 body = self.extras.games(device_id, lang)
+            elif what == "pictures":
+                body = self.pictures.view(device_id, lang)
             else:
                 return 404, JSON, json.dumps({"error": "not found"}).encode()
             return 200, JSON, json.dumps(body).encode()
-        except (extras_mod.ExtrasError, face_settings.FaceError) as error:
+        except (
+            extras_mod.ExtrasError,
+            face_settings.FaceError,
+            picture_mod.PictureError,
+        ) as error:
             return 400, JSON, json.dumps({"error": str(error)}).encode()
+
+    def _pictures_post(
+        self, device_id: str, action: str, values: dict[str, Any], lang: str
+    ) -> tuple[int, dict[str, Any]]:
+        """POST /api/stackchan/unit/<id>/pictures/<add|remove|options|send|clear>."""
+        self._unit_known(device_id)
+        service = self.pictures
+        if action == "add":
+            try:
+                raw = base64.b64decode(str(values.get("rgba_b64", "")), validate=True)
+                width, height = int(values.get("width", 0)), int(values.get("height", 0))
+                index = int(values.get("index", 0))
+            except (ValueError, TypeError):
+                raise picture_mod.PictureError(
+                    picture_mod.say(lang, "bad_picture"), "bad_picture"
+                ) from None
+            return 200, service.add_picture(
+                device_id, str(values.get("slot", "")), index, width, height, raw, lang
+            )
+        if action == "remove":
+            index = values.get("index")
+            return 200, service.remove_picture(
+                device_id,
+                str(values.get("slot", "")),
+                index if isinstance(index, int) else None,
+                lang,
+            )
+        if action == "options":
+            overlay = values.get("overlay")
+            fps = values.get("fps")
+            return 200, service.set_options(
+                device_id,
+                mode=values.get("mode"),
+                fps=fps if isinstance(fps, int) and not isinstance(fps, bool) else None,
+                overlay=overlay if isinstance(overlay, dict) else None,
+                lang=lang,
+            )
+        if action == "send":
+            return 200, service.send(device_id, lang)
+        if action == "clear":
+            return 200, service.clear_all(device_id, lang)
+        return 404, {"error": "not found"}
 
     def _unit_post(self, rest: str, body: dict[str, Any], lang: str) -> tuple[int, dict[str, Any]]:
         """POST /api/stackchan/unit/<id>/<action>, and the people routes."""
@@ -210,6 +271,9 @@ class SettingsBackend:
         try:
             if rest == "people" or rest.startswith("people/"):
                 return self._people_post(rest, values, lang)
+            if "/pictures/" in rest:
+                device_id, _, action = rest.partition("/pictures/")
+                return self._pictures_post(device_id, action, values, lang)
             device_id, _, action = rest.rpartition("/")
             if action == "reset" and device_id.endswith("/reactions"):
                 device_id = device_id[: -len("/reactions")]
@@ -231,7 +295,11 @@ class SettingsBackend:
                     device_id, str(values.get("name", "none")), seconds, lang
                 )
             return 404, {"error": "not found"}
-        except (extras_mod.ExtrasError, face_settings.FaceError) as error:
+        except (
+            extras_mod.ExtrasError,
+            face_settings.FaceError,
+            picture_mod.PictureError,
+        ) as error:
             return 400, {"error": str(error)}
 
     def _people_post(
@@ -441,6 +509,7 @@ go.onclick=async()=>{{const r=await fetch('/api/stackchan/people',{{method:'POST
 body:JSON.stringify({{lang:'{code}',name:name.value,colour:col.value,caption_size:cap.value,wake_phrase:wake.value}})}});
 const b=await r.json();if(r.ok){{draw(b);status(S['settings.saved'])}}else status(b.error)}};
 f.append(go)}}).catch(()=>{{}});return f}}
+{pictures_js(code)}
 function unitCard(u){{const s=document.createElement('section');
 const h=document.createElement('h2');h.textContent=u.name;s.append(h);
 const id=document.createElement('p');id.textContent=S['settings.device_id']+': '+u.device_id;s.append(id);
@@ -468,7 +537,7 @@ persona:persona.value,llm:{{url:url.value,model:model.value,api_key_env:key.valu
 volume_cap:parseInt(cap.value,10),speech_speed:parseFloat(speed.value),speech_pitch:parseFloat(pitch.value),muted:mute.checked,
 alarms:alarms.value.split('\\n').filter(x=>x.trim()).map(x=>{{const [time,...rest]=x.trim().split(/\\s+/);
 return {{time,label:rest.join(' ')}}}})}});
-s.append(faceSection(u.device_id));
+s.append(faceSection(u.device_id),picSection(u.device_id));
 s.append(extrasSection(u.device_id),reactSection(u.device_id),clockSection(u.device_id),
 toolSection(u.device_id,S['settings.net'],S['settings.net.run'],'network-test','POST'),
 toolSection(u.device_id,S['settings.details'],S['settings.details.show'],'details','GET'),

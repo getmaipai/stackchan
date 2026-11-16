@@ -1,0 +1,423 @@
+# Intent: Train 5 item B, picture faces, the pure logic. maipai_picface_core.h is header-only plain C99 that a host compiler tests: the seven expressions (neutral, happy, sad, angry, doubt, sleepy, speaking), the three modes (picture, overlay, sequence), the budgets (at most 14 frames, 6 for each expression, 1,000,000 stored bytes, three cached decoded frames of 153,600 bytes, 1 to 12 frames a second), what a pack may hold and when it is complete, which expression's picture shows (speaking wins while the unit speaks), the cross-fade opacity (240 ms, eased), the sequence frame, a least-recently-used cache of three that never evicts what is on screen or being faded to, the overlay's eye and mouth sizes from the face's lid and mouth weights, a CRC-32, and a plain refusal sentence for every error in English and in Spanish that says what to do.
+# Placement: unit (the pictures live on the robot; the host only resizes and sends them)
+# Upstream: none; a new MaiPai file. No ESP-IDF in it.
+# Check after a flash: host/tests/test_picture_faces.py compiles it with -Wall -Wextra -Werror under address and undefined-behaviour sanitizers and runs host/tests/firmware/picface_core_test.c.
+# Kconfig: none (the switch is in H04).
+diff --git a/firmware/main/hal/maipai_picface_core.h b/firmware/main/hal/maipai_picface_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_picface_core.h
+@@ -0,0 +1,413 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Picture faces (patch H03): the pure logic. No ESP-IDF, no clock of its own. Header-only plain C99 so a host compiler
++ * can test it; the device side is maipai_picface.cc.
++ *
++ * A picture face pack is the owner's own pictures, one per expression (neutral, happy, sad, angry, doubt, sleepy,
++ * speaking), each 320 by 240, resized by the host. Three modes:
++ *   picture   the picture alone;
++ *   overlay   the picture with an animated blink and a mouth that follows the voice drawn over it;
++ *   sequence  a short run of frames per expression, played in a loop.
++ * The unit keeps the pack compressed in PSRAM (zlib, or raw when that is not smaller), decodes one frame at a time into
++ * a cache of at most three 150 KB buffers, and cross-fades when the expression changes. A pack that does not fit is
++ * refused with a plain sentence in English and in Spanish.
++ */
++#ifndef MAIPAI_PICFACE_CORE_H
++#define MAIPAI_PICFACE_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++#define PF_W 320
++#define PF_H 240
++#define PF_FRAME_BYTES (PF_W * PF_H * 2) /* RGB565, 153,600 bytes */
++
++#define PF_SLOTS 7
++#define PF_SLOT_NEUTRAL 0
++#define PF_SLOT_HAPPY 1
++#define PF_SLOT_SAD 2
++#define PF_SLOT_ANGRY 3
++#define PF_SLOT_DOUBT 4
++#define PF_SLOT_SLEEPY 5
++#define PF_SLOT_SPEAKING 6
++static const char* const PF_SLOT_NAMES[PF_SLOTS] = {"neutral", "happy", "sad", "angry", "doubt", "sleepy", "speaking"};
++
++#define PF_MODE_PICTURE 0
++#define PF_MODE_OVERLAY 1
++#define PF_MODE_SEQUENCE 2
++#define PF_MODES 3
++static const char* const PF_MODE_NAMES[PF_MODES] = {"picture", "overlay", "sequence"};
++
++/* Budgets. The compressed pack lives in PSRAM next to at most three decoded frames: 1,000,000 + 460,800 bytes, which keeps
++ * the PSRAM low-water mark above the 6 MB gate on a unit that starts at about 8.1 MB. */
++#define PF_MAX_STORE_BYTES 1000000u
++#define PF_CACHE_SLOTS 3
++#define PF_MAX_FRAMES_PER_SLOT 6
++#define PF_MAX_FRAMES 14
++#define PF_MIN_FPS 1
++#define PF_MAX_FPS 12
++#define PF_DEFAULT_FPS 6
++#define PF_FADE_MS 240u
++#define PF_TICK_MS 33u
++
++#define PF_FLAG_RAW 0 /* the frame is stored as 153,600 raw bytes */
++#define PF_FLAG_ZLIB 1
++
++typedef enum {
++    PF_OK = 0,
++    PF_ERR_MODE,
++    PF_ERR_SLOT,
++    PF_ERR_INDEX,
++    PF_ERR_FPS,
++    PF_ERR_OVERLAY,
++    PF_ERR_TOO_MANY_FRAMES,
++    PF_ERR_TOO_BIG,
++    PF_ERR_FRAME_SIZE,
++    PF_ERR_ORDER,
++    PF_ERR_CRC,
++    PF_ERR_NO_NEUTRAL,
++    PF_ERR_MISSING,
++    PF_ERR_DECODE,
++    PF_ERR_MEMORY,
++    PF_ERR_NOT_STARTED,
++    PF_ERR_COUNT
++} pf_err_t;
++
++static const char* const PF_ERR_CODES[PF_ERR_COUNT] = {
++    "ok",       "mode",   "slot",     "index",  "fps",     "overlay",   "too_many_frames", "too_big",
++    "frame_size", "order", "crc",     "no_neutral", "missing", "decode", "memory",          "not_started"};
++
++/* The plain sentence for an error: what went wrong, then what to do. */
++static inline const char* pf_say(pf_err_t e, int spanish)
++{
++    static const char* const en[PF_ERR_COUNT] = {
++        "Done.",
++        "That picture mode is not known. Choose picture, overlay or sequence.",
++        "That expression is not known. Use neutral, happy, sad, angry, doubt, sleepy or speaking.",
++        "That frame number is not allowed for this mode. Send one picture per expression, or switch to sequence for up to 6.",
++        "The frame rate must be from 1 to 12 frames a second. Choose a number in that range.",
++        "The eye and mouth places are not valid. Keep them on the picture and make each at least 4 pixels wide.",
++        "That is too many frames. A pack holds at most 14 frames and 6 for each expression. Remove some and send again.",
++        "The pictures are too big for the robot to keep. Use fewer or simpler pictures, or fewer frames, and send again.",
++        "That picture is too large. Resize it to 320 by 240 and send again.",
++        "The picture pieces arrived out of order. Send the pack again from the start.",
++        "A picture was damaged on the way. Send the pack again.",
++        "The pack needs a neutral picture first. Add one and send again.",
++        "An expression of the pack has no picture yet. Send every picture, then finish.",
++        "The robot could not open one of the pictures. Send the pack again, or use a simpler picture.",
++        "The robot has no room for the pictures right now. Remove the pack or restart the robot, then send again.",
++        "No picture pack is being sent. Start a new pack first."};
++    static const char* const es[PF_ERR_COUNT] = {
++        "Listo.",
++        "No conozco ese modo de imagen. Elige imagen, superposicion o secuencia.",
++        "No conozco esa expresion. Usa neutral, happy, sad, angry, doubt, sleepy o speaking.",
++        "Ese numero de cuadro no esta permitido en este modo. Envia una imagen por expresion, o cambia a secuencia para hasta 6.",
++        "La velocidad debe ser de 1 a 12 cuadros por segundo. Elige un numero en ese rango.",
++        "Los lugares de ojos y boca no son validos. Mantenlos dentro de la imagen y de al menos 4 pixeles de ancho.",
++        "Son demasiados cuadros. Un paquete lleva como maximo 14 cuadros y 6 por expresion. Quita algunos y envia de nuevo.",
++        "Las imagenes son demasiado grandes para que el robot las guarde. Usa menos imagenes, mas simples, o menos cuadros, y envia de nuevo.",
++        "Esa imagen es demasiado grande. Ajustala a 320 por 240 y envia de nuevo.",
++        "Las partes de la imagen llegaron desordenadas. Envia el paquete de nuevo desde el principio.",
++        "Una imagen se dano en el camino. Envia el paquete de nuevo.",
++        "El paquete necesita primero una imagen neutral. Agrega una y envia de nuevo.",
++        "A una expresion del paquete le falta la imagen. Envia todas las imagenes y luego termina.",
++        "El robot no pudo abrir una de las imagenes. Envia el paquete de nuevo, o usa una imagen mas simple.",
++        "El robot no tiene espacio para las imagenes ahora. Quita el paquete o reinicia el robot y envia de nuevo.",
++        "No se esta enviando ningun paquete de imagenes. Empieza un paquete nuevo."};
++    if ((int)e < 0 || (int)e >= PF_ERR_COUNT) {
++        e = PF_ERR_DECODE;
++    }
++    return spanish ? es[e] : en[e];
++}
++
++static inline int pf_slot_by_name(const char* name)
++{
++    if (name == NULL) {
++        return -1;
++    }
++    for (int i = 0; i < PF_SLOTS; i++) {
++        if (strcmp(name, PF_SLOT_NAMES[i]) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++static inline int pf_mode_by_name(const char* name)
++{
++    if (name == NULL) {
++        return -1;
++    }
++    for (int i = 0; i < PF_MODES; i++) {
++        if (strcmp(name, PF_MODE_NAMES[i]) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++/* CRC-32 (the one zlib and the host use) over a chunk; start with crc 0, feed the pieces in order. */
++static inline uint32_t pf_crc32(uint32_t crc, const uint8_t* data, size_t len)
++{
++    crc = ~crc;
++    for (size_t i = 0; i < len; i++) {
++        crc ^= data[i];
++        for (int k = 0; k < 8; k++) {
++            crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
++        }
++    }
++    return ~crc;
++}
++
++/* Where the eyes and the mouth go in overlay mode, in picture pixels (centres), and their drawn colour. */
++typedef struct {
++    int16_t lx, ly, rx, ry; /* eye centres */
++    int16_t eye_w, eye_h;   /* an open eye */
++    int16_t mx, my;         /* mouth centre */
++    int16_t mouth_w, mouth_h; /* mouth at its widest and at its tallest */
++    uint8_t r, g, b;        /* the colour both are drawn in */
++} pf_overlay_t;
++
++static inline int pf_overlay_ok(const pf_overlay_t* o)
++{
++    if (o->eye_w < 4 || o->eye_h < 4 || o->mouth_w < 4 || o->mouth_h < 4 || o->eye_w > 160 || o->eye_h > 160 ||
++        o->mouth_w > 200 || o->mouth_h > 120) {
++        return 0;
++    }
++    if (o->lx < 0 || o->lx >= PF_W || o->rx < 0 || o->rx >= PF_W || o->mx < 0 || o->mx >= PF_W) {
++        return 0;
++    }
++    if (o->ly < 0 || o->ly >= PF_H || o->ry < 0 || o->ry >= PF_H || o->my < 0 || o->my >= PF_H) {
++        return 0;
++    }
++    return 1;
++}
++
++static inline pf_overlay_t pf_overlay_default(void)
++{
++    pf_overlay_t o;
++    o.lx = 112; o.ly = 100; o.rx = 208; o.ry = 100; o.eye_w = 28; o.eye_h = 36;
++    o.mx = 160; o.my = 170; o.mouth_w = 70; o.mouth_h = 40;
++    o.r = o.g = o.b = 20;
++    return o;
++}
++
++/* An eye of the overlay: the lid weight of the face (100 open, about 25 in a blink) as a height in pixels. A closed eye
++ * is a thin line, never nothing, so the overlay still reads as an eye. */
++static inline int pf_eye_height(int open_h, int lid_weight)
++{
++    int open = lid_weight - 20; /* below 20 the lid is shut */
++    if (open < 0) {
++        open = 0;
++    }
++    if (open > 80) {
++        open = 80;
++    }
++    int h = open_h * open / 80;
++    return h < 3 ? 3 : h;
++}
++
++/* A mouth of the overlay: the face's mouth weight 0 to 100 as a height; shut is a line. */
++static inline int pf_mouth_height(int max_h, int mouth_weight)
++{
++    if (mouth_weight < 0) {
++        mouth_weight = 0;
++    }
++    if (mouth_weight > 100) {
++        mouth_weight = 100;
++    }
++    return 3 + (max_h - 3) * mouth_weight / 100;
++}
++
++/* The mouth gets a little narrower as it opens, as a real mouth does. */
++static inline int pf_mouth_width(int w, int mouth_weight)
++{
++    if (mouth_weight < 0) {
++        mouth_weight = 0;
++    }
++    if (mouth_weight > 100) {
++        mouth_weight = 100;
++    }
++    return w - w * mouth_weight / 400;
++}
++
++/* ---- what a pack may hold ---------------------------------------------------------------------------------- */
++
++typedef struct {
++    int mode;
++    int fps;
++    uint8_t frames[PF_SLOTS];  /* frames declared per slot (all of them complete once committed) */
++    uint8_t received[PF_SLOTS][PF_MAX_FRAMES_PER_SLOT]; /* 1 when frame i is complete */
++    uint32_t bytes;            /* stored bytes so far */
++    int total_frames;
++} pf_plan_t;
++
++static inline void pf_plan_init(pf_plan_t* p, int mode, int fps)
++{
++    memset(p, 0, sizeof(*p));
++    p->mode = mode;
++    p->fps  = fps;
++}
++
++/* Whether a pack may start with this mode and frame rate. */
++static inline pf_err_t pf_start_ok(int mode, int fps)
++{
++    if (mode < 0 || mode >= PF_MODES) {
++        return PF_ERR_MODE;
++    }
++    if (fps < PF_MIN_FPS || fps > PF_MAX_FPS) {
++        return PF_ERR_FPS;
++    }
++    return PF_OK;
++}
++
++/* Whether a frame of `comp_bytes` for (slot, index) may be added. A frame replaced by a later send counts once. */
++static inline pf_err_t pf_admit(const pf_plan_t* p, int slot, int index, uint32_t comp_bytes, uint32_t replaces_bytes)
++{
++    if (slot < 0 || slot >= PF_SLOTS) {
++        return PF_ERR_SLOT;
++    }
++    const int max_index = p->mode == PF_MODE_SEQUENCE ? PF_MAX_FRAMES_PER_SLOT : 1;
++    if (index < 0 || index >= max_index) {
++        return PF_ERR_INDEX;
++    }
++    if (comp_bytes == 0 || comp_bytes > PF_FRAME_BYTES) {
++        return PF_ERR_FRAME_SIZE;
++    }
++    const int adds = index >= p->frames[slot] ? (index + 1 - p->frames[slot]) : 0;
++    if (p->total_frames + adds > PF_MAX_FRAMES) {
++        return PF_ERR_TOO_MANY_FRAMES;
++    }
++    if (p->bytes - replaces_bytes + comp_bytes > PF_MAX_STORE_BYTES) {
++        return PF_ERR_TOO_BIG;
++    }
++    return PF_OK;
++}
++
++/* Whether a pack is complete: a neutral picture, and every declared frame of every slot received. */
++static inline pf_err_t pf_complete(const pf_plan_t* p)
++{
++    if (p->frames[PF_SLOT_NEUTRAL] == 0) {
++        return PF_ERR_NO_NEUTRAL;
++    }
++    for (int s = 0; s < PF_SLOTS; s++) {
++        for (int i = 0; i < p->frames[s]; i++) {
++            if (!p->received[s][i]) {
++                return PF_ERR_MISSING;
++            }
++        }
++    }
++    return PF_OK;
++}
++
++/* ---- which picture ----------------------------------------------------------------------------------------- */
++
++/* The face's Emotion enum (Neutral 0, Happy 1, Angry 2, Sad 3, Doubt 4, Sleepy 5) as a slot. */
++static inline int pf_slot_for_emotion(int emotion)
++{
++    switch (emotion) {
++        case 1: return PF_SLOT_HAPPY;
++        case 2: return PF_SLOT_ANGRY;
++        case 3: return PF_SLOT_SAD;
++        case 4: return PF_SLOT_DOUBT;
++        case 5: return PF_SLOT_SLEEPY;
++        default: return PF_SLOT_NEUTRAL;
++    }
++}
++
++/* The slot to show: speaking wins while the unit speaks and has that picture; else the emotion's; else neutral.
++ * have_mask has bit s set when slot s holds a picture. */
++static inline int pf_pick_slot(int emotion, int speaking, unsigned have_mask)
++{
++    if (speaking && (have_mask & (1u << PF_SLOT_SPEAKING))) {
++        return PF_SLOT_SPEAKING;
++    }
++    const int s = pf_slot_for_emotion(emotion);
++    if (have_mask & (1u << s)) {
++        return s;
++    }
++    return PF_SLOT_NEUTRAL;
++}
++
++/* The frame of a sequence at elapsed_ms: frames of equal length, looping. */
++static inline int pf_seq_index(uint32_t elapsed_ms, int fps, int count)
++{
++    if (count <= 1 || fps < PF_MIN_FPS) {
++        return 0;
++    }
++    return (int)((elapsed_ms * (uint32_t)fps / 1000u) % (uint32_t)count);
++}
++
++/* The cross-fade opacity (0 to 255) of the incoming picture, eased (smoothstep). */
++static inline int pf_fade_opa(uint32_t elapsed_ms)
++{
++    if (elapsed_ms >= PF_FADE_MS) {
++        return 255;
++    }
++    const uint32_t t = elapsed_ms * 1024u / PF_FADE_MS; /* 0..1024 */
++    const uint32_t s = (t * t * (3u * 1024u - 2u * t)) / (1024u * 1024u); /* 0..1024 */
++    return (int)(s * 255u / 1024u);
++}
++
++/* ---- the decoded-frame cache: at most three, least recently used goes first -------------------------------- */
++
++typedef struct {
++    int16_t key[PF_CACHE_SLOTS];     /* slot * 16 + index, or -1 when empty */
++    uint32_t used[PF_CACHE_SLOTS];   /* a counter: the larger, the more recent */
++    uint32_t clock;
++} pf_cache_t;
++
++static inline int pf_key(int slot, int index)
++{
++    return slot * 16 + index;
++}
++
++static inline void pf_cache_init(pf_cache_t* c)
++{
++    for (int i = 0; i < PF_CACHE_SLOTS; i++) {
++        c->key[i]  = -1;
++        c->used[i] = 0;
++    }
++    c->clock = 0;
++}
++
++/* The cache position holding `key`, or -1. A hit marks it recently used. */
++static inline int pf_cache_find(pf_cache_t* c, int key)
++{
++    for (int i = 0; i < PF_CACHE_SLOTS; i++) {
++        if (c->key[i] == key) {
++            c->used[i] = ++c->clock;
++            return i;
++        }
++    }
++    return -1;
++}
++
++/* The position to decode into: an empty one, else the least recently used that is not pinned (pinned bit i set:
++ * on screen or being faded to). -1 when all three are pinned (cannot happen with two layers). */
++static inline int pf_cache_victim(const pf_cache_t* c, unsigned pinned_mask)
++{
++    int best = -1;
++    for (int i = 0; i < PF_CACHE_SLOTS; i++) {
++        if (pinned_mask & (1u << i)) {
++            continue;
++        }
++        if (c->key[i] < 0) {
++            return i;
++        }
++        if (best < 0 || c->used[i] < c->used[best]) {
++            best = i;
++        }
++    }
++    return best;
++}
++
++static inline void pf_cache_put(pf_cache_t* c, int pos, int key)
++{
++    c->key[pos]  = (int16_t)key;
++    c->used[pos] = ++c->clock;
++}
++
++#endif

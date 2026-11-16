@@ -2177,6 +2177,21 @@ def _unit_extras(voice):
     return UnitExtras(call)
 
 
+def _picture_service(voice):
+    """One PictureService for this host: the owner's picture faces, sent through the live voice link.
+    A unit that is not connected counts as lost (the pictures are saved and sent on connect)."""
+    from maipai_body.hal.errors import BodyLost
+    from maipai_body.picture_faces import PictureService
+
+    def call(name, arguments, *, device_id=None, timeout=8.0):
+        try:
+            return voice.call_device_tool(name, arguments, device_id=device_id, timeout=timeout)
+        except (ConnectionError, TimeoutError) as error:
+            raise BodyLost(str(error)) from error
+
+    return PictureService(call)
+
+
 def _turn_sink(behavior, light, faces=None, devices=None):
     """One turn event: move the face and set the ring's funnel state (the light standard).
 
@@ -2795,6 +2810,12 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None):
     # When a unit connects: set its clock and zone (the host is its only time source) and send the
     # owner's word reactions if there are any.
     voice.session_listeners.append(lambda device_id: extras_sync(extras, device_id))
+    # The owner's own picture faces (firmware patch H04): the unit keeps them in memory, so they go out again
+    # when it connects.
+    from maipai_body.picture_faces import sync_on_connect as pictures_sync
+
+    pictures = _picture_service(voice)
+    voice.session_listeners.append(lambda device_id: pictures_sync(pictures, device_id))
     try:
         port = int(os.environ.get("MAIPAI_STACKCHAN_SETTINGS_PORT", "8051"))
     except ValueError:
@@ -2818,6 +2839,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None):
         language=config.home.language,
         faces=faces,
         extras=extras,
+        pictures=pictures,
     )
     from maipai_body.settings_server import SettingsServer
 
