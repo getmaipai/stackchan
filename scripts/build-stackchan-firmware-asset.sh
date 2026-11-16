@@ -20,6 +20,8 @@ STAGE="${MAIPAI_BOT_BUNDLE_OUT_DIR:-$DIST_STAGE}"
 if [[ "$STAGE" != /* ]]; then
   STAGE="$ROOT/$STAGE"
 fi
+# A release folder holding a key is refused before anything is packed (security finding 3).
+python3 "$ROOT/scripts/check-no-keys.py" "$RELEASE_DIR" || exit 1
 mkdir -p "$STAGE"
 ARCHIVE="$STAGE/stackchan-firmware-$VERSION.tar.gz"
 

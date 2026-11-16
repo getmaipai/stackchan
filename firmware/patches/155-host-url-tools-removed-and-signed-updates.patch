@@ -1,0 +1,680 @@
+# Intent: Security finding 1. The tools that installed firmware from, or sent a screen snapshot to, any address a caller named are gone, and so are the screen-preview-from-URL and assets-download-address tools. The camera address the host sends must be the host the unit is paired with, or it is ignored. Wireless updates install only with a valid Ed25519 signature (detached 64-byte file at the image address plus ".sig", checked while the image streams in; the public key is the STACKCHAN_UPDATE_PUBKEY build option, empty means no update is accepted; STACKCHAN_UPDATE_ALLOW_UNSIGNED is a developer override, off).
+# Placement: unit (the install and send paths run on the robot)
+# Upstream: main/mcp_server.cc and main/ota.cc of the xiaozhi-esp32 tree (MIT); update_verify.cc carries the public-domain TweetNaCl Ed25519 field and group arithmetic
+# Check after a flash: ask the model to list tools: no self.upgrade_firmware, self.screen.snapshot, self.screen.preview_image or self.assets.set_download_url. An update with a missing or wrong .sig logs "Update refused" and installs nothing.
+diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/main/mcp_server.cc
+--- a/firmware/xiaozhi-esp32/main/mcp_server.cc
++++ b/firmware/xiaozhi-esp32/main/mcp_server.cc
+@@ -143,23 +143,4 @@ void McpServer::AddUserOnlyTools() {
+ 
+-    // Firmware upgrade
+-    AddUserOnlyTool(
+-        "self.upgrade_firmware",
+-        "Upgrade firmware from a specific URL. This will download and install the firmware, then "
+-        "reboot the device.",
+-        PropertyList({Property("url", kPropertyTypeString,
+-                               "The URL of the firmware binary file to download and install")}),
+-        [this](const PropertyList& properties) -> ReturnValue {
+-            auto url = properties["url"].value<std::string>();
+-            ESP_LOGI(TAG, "User requested firmware upgrade from URL: %s", url.c_str());
+-
+-            auto& app = Application::GetInstance();
+-            app.Schedule([url, &app]() {
+-                bool success = app.UpgradeFirmware(url);
+-                if (!success) {
+-                    ESP_LOGE(TAG, "Firmware upgrade failed");
+-                }
+-            });
+-
+-            return true;
+-        });
++    // No tool installs firmware or sends data to a caller-chosen address (security finding 1).
++    // Updates come only from the update path, which checks a signature.
+ 
+@@ -179,136 +160,2 @@ void McpServer::AddUserOnlyTools() {
+ 
+-#if CONFIG_LV_USE_SNAPSHOT
+-        AddUserOnlyTool(
+-            "self.screen.snapshot", "Snapshot the screen and upload it to a specific URL",
+-            PropertyList({Property("url", kPropertyTypeString),
+-                          Property("quality", kPropertyTypeInteger, 80, 1, 100)}),
+-            [display](const PropertyList& properties) -> ToolResult {
+-                auto url = properties["url"].value<std::string>();
+-                auto quality = properties["quality"].value<int>();
+-
+-                std::string jpeg_data;
+-                if (!display->SnapshotToJpeg(jpeg_data, quality)) {
+-                    return std::unexpected("Failed to snapshot screen");
+-                }
+-
+-                ESP_LOGI(TAG, "Upload snapshot %u bytes to %s", jpeg_data.size(), url.c_str());
+-
+-                // 构造multipart/form-data请求体
+-                std::string boundary = "----ESP32_SCREEN_SNAPSHOT_BOUNDARY";
+-
+-                auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
+-                http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+-                if (auto opened = http->Open("POST", url); !opened) {
+-                    return std::unexpected("Failed to open URL: " + url + " (" +
+-                                           opened.error().ToString() + ")");
+-                }
+-                auto write_or_fail = [&http](const char* data,
+-                                             size_t size) -> std::optional<std::string> {
+-                    if (auto written = http->Write(data, size); !written) {
+-                        return written.error().ToString();
+-                    }
+-                    return std::nullopt;
+-                };
+-                {
+-                    // 文件字段头部
+-                    std::string file_header;
+-                    file_header += "--" + boundary + "\r\n";
+-                    file_header +=
+-                        "Content-Disposition: form-data; name=\"file\"; "
+-                        "filename=\"screenshot.jpg\"\r\n";
+-                    file_header += "Content-Type: image/jpeg\r\n";
+-                    file_header += "\r\n";
+-                    if (auto error = write_or_fail(file_header.c_str(), file_header.size());
+-                        error) {
+-                        http->Close();
+-                        return std::unexpected("Failed to upload screenshot: " + *error);
+-                    }
+-                }
+-
+-                // JPEG数据
+-                if (auto error = write_or_fail((const char*)jpeg_data.data(), jpeg_data.size());
+-                    error) {
+-                    http->Close();
+-                    return std::unexpected("Failed to upload screenshot: " + *error);
+-                }
+-
+-                {
+-                    // multipart尾部
+-                    std::string multipart_footer;
+-                    multipart_footer += "\r\n--" + boundary + "--\r\n";
+-                    if (auto error =
+-                            write_or_fail(multipart_footer.c_str(), multipart_footer.size());
+-                        error) {
+-                        http->Close();
+-                        return std::unexpected("Failed to upload screenshot: " + *error);
+-                    }
+-                }
+-                if (auto error = write_or_fail("", 0); error) {
+-                    http->Close();
+-                    return std::unexpected("Failed to upload screenshot: " + *error);
+-                }
+-
+-                auto upload_status = http->GetStatusCode();
+-                if (!upload_status) {
+-                    return std::unexpected(upload_status.error().ToString());
+-                }
+-                if (*upload_status != 200) {
+-                    return std::unexpected("Unexpected status code: " +
+-                                           std::to_string(*upload_status));
+-                }
+-                std::string result = http->ReadAll();
+-                http->Close();
+-                ESP_LOGI(TAG, "Snapshot screen result: %s", result.c_str());
+-                return true;
+-            });
+-
+-        AddUserOnlyTool(
+-            "self.screen.preview_image", "Preview an image on the screen",
+-            PropertyList({Property("url", kPropertyTypeString)}),
+-            [display](const PropertyList& properties) -> ToolResult {
+-                auto url = properties["url"].value<std::string>();
+-                auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
+-
+-                if (auto opened = http->Open("GET", url); !opened) {
+-                    return std::unexpected("Failed to open URL: " + url + " (" +
+-                                           opened.error().ToString() + ")");
+-                }
+-                auto status_code = http->GetStatusCode();
+-                if (!status_code) {
+-                    return std::unexpected(status_code.error().ToString());
+-                }
+-                if (*status_code != 200) {
+-                    return std::unexpected("Unexpected status code: " +
+-                                           std::to_string(*status_code));
+-                }
+-
+-                size_t content_length = http->GetBodyLength();
+-                using BufferPtr = std::unique_ptr<char, decltype(&heap_caps_free)>;
+-                BufferPtr data(
+-                    static_cast<char*>(heap_caps_malloc(content_length, MALLOC_CAP_8BIT)),
+-                    heap_caps_free);
+-                if (data == nullptr) {
+-                    return std::unexpected("Failed to allocate memory for image: " + url);
+-                }
+-                size_t total_read = 0;
+-                while (total_read < content_length) {
+-                    auto ret = http->Read(data.get() + total_read, content_length - total_read);
+-                    if (!ret) {
+-                        return std::unexpected("Failed to download image: " + url);
+-                    }
+-                    if (*ret == 0) {
+-                        break;
+-                    }
+-                    total_read += *ret;
+-                }
+-                http->Close();
+-
+-                auto image = std::make_unique<LvglAllocatedImage>(data.release(), total_read);
+-                if (!image->IsValid()) {
+-                    return std::unexpected("Downloaded image is invalid: " + url);
+-                }
+-                display->SetPreviewImage(std::move(image));
+-                return true;
+-            });
+-#endif  // CONFIG_LV_USE_SNAPSHOT
+     }
+@@ -318,10 +165,3 @@ void McpServer::AddUserOnlyTools() {
+     // layout)
+-    AddUserOnlyTool("self.assets.set_download_url", "Set the download url for the assets",
+-                    PropertyList({Property("url", kPropertyTypeString)}),
+-                    [](const PropertyList& properties) -> ReturnValue {
+-                        auto url = properties["url"].value<std::string>();
+-                        Settings settings("assets", true);
+-                        settings.SetString("download_url", url);
+-                        return true;
+-                    });
++    // The tool that set it is gone (security finding 1): no caller can name an address to download from.
+ }
+@@ -362,2 +202,17 @@ void McpServer::ParseMessage(const std::string& message, ResponseSender response
+ 
++// Host part of "scheme://host[:port]/path" (empty when it has no scheme or host).
++static std::string UrlHost(const std::string& url) {
++    auto start = url.find("://");
++    if (start == std::string::npos) return "";
++    start += 3;
++    auto end = url.find_first_of("/?#", start);
++    std::string authority = url.substr(start, end == std::string::npos ? std::string::npos : end - start);
++    if (authority.find('@') != std::string::npos) return "";  // user info is never accepted
++    if (!authority.empty() && authority[0] == '[') {
++        auto close = authority.find(']');
++        return close == std::string::npos ? "" : authority.substr(0, close + 1);
++    }
++    return authority.substr(0, authority.find(':'));
++}
++
+ void McpServer::ParseCapabilities(const cJSON* capabilities) {
+@@ -369,4 +224,12 @@ void McpServer::ParseCapabilities(const cJSON* capabilities) {
+             auto camera = Board::GetInstance().GetCamera();
++            std::string url_str = std::string(url->valuestring);
++            // The photo goes only to the paired host (security finding 1): the address must be the
++            // host the unit already uses for its own link.
++            Settings paired("websocket", false);
++            std::string paired_host = UrlHost(paired.GetString("url"));
++            if (paired_host.empty() || UrlHost(url_str) != paired_host) {
++                ESP_LOGW(TAG, "Ignored a camera address that is not the paired host; the host must send its own address");
++                camera = nullptr;
++            }
+             if (camera) {
+-                std::string url_str = std::string(url->valuestring);
+                 std::string token_str;
+diff --git a/firmware/xiaozhi-esp32/main/ota.cc b/firmware/xiaozhi-esp32/main/ota.cc
+--- a/firmware/xiaozhi-esp32/main/ota.cc
++++ b/firmware/xiaozhi-esp32/main/ota.cc
+@@ -3,2 +3,3 @@
+ #include "settings.h"
++#include "update_verify.h"
+ #include "assets/lang_config.h"
+@@ -286,2 +287,35 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+     auto network = Board::GetInstance().GetNetwork();
++
++    // The image must carry a valid signature (patch 155). The detached signature is read first.
++    UpdateVerifier verifier;
++#ifndef CONFIG_STACKCHAN_UPDATE_ALLOW_UNSIGNED
++    {
++        std::string signature;
++        auto sig_http = network->CreateHttp(0);
++        if (auto opened = sig_http->Open("GET", firmware_url + ".sig"); !opened) {
++            ESP_LOGE(TAG, "Update refused: the signature file could not be fetched (%s). Publish it next to the image.", opened.error().ToString().c_str());
++            return false;
++        }
++        auto sig_status = sig_http->GetStatusCode();
++        if (!sig_status || *sig_status != 200 || sig_http->GetBodyLength() != 64) {
++            ESP_LOGE(TAG, "Update refused: no valid signature file at the image address plus .sig. Nothing was installed.");
++            return false;
++        }
++        char sig_buf[64];
++        size_t got = 0;
++        while (got < sizeof(sig_buf)) {
++            auto r = sig_http->Read(sig_buf + got, sizeof(sig_buf) - got);
++            if (!r || *r == 0) break;
++            got += *r;
++        }
++        sig_http->Close();
++        signature.assign(sig_buf, got);
++        if (!verifier.Begin(signature)) {
++            return false;
++        }
++    }
++#else
++    ESP_LOGW(TAG, "Developer override: this image installs unsigned updates. Do not use it in a release.");
++#endif
++
+     auto http = network->CreateHttp(0);
+@@ -326,2 +360,3 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+         int n = *ret;
++        verifier.Update(buffer + buffer_offset, n);
+ 
+@@ -390,2 +425,8 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+ 
++#ifndef CONFIG_STACKCHAN_UPDATE_ALLOW_UNSIGNED
++    if (!verifier.Finish()) {
++        return false;  // the log line already says why; the new image is never booted
++    }
++#endif
++
+     err = esp_ota_set_boot_partition(update_partition);
+diff --git a/firmware/xiaozhi-esp32/main/update_verify.cc b/firmware/xiaozhi-esp32/main/update_verify.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/xiaozhi-esp32/main/update_verify.cc
+@@ -0,0 +1,330 @@
++#include "update_verify.h"
++
++#include <cstring>
++
++#ifdef ESP_PLATFORM
++#include "sdkconfig.h"
++#endif
++
++// Ed25519 verification: field and group arithmetic from the public-domain compact reference implementation.
++// Verification only: no secret value is ever handled here, so timing is not a concern.
++namespace {
++typedef int64_t gf[16];
++
++const gf gf0 = {0}, gf1 = {1};
++const gf D = {0x78a3, 0x1359, 0x4dca, 0x75eb, 0xd8ab, 0x4141, 0x0a4d, 0x0070, 0xe898, 0x7779, 0x4079, 0x8cc7, 0xfe73, 0x2b6f, 0x6cee, 0x5203};
++const gf D2 = {0xf159, 0x26b2, 0x9b94, 0xebd6, 0xb156, 0x8283, 0x149a, 0x00e0, 0xd130, 0xeef3, 0x80f2, 0x198e, 0xfce7, 0x56df, 0xd9dc, 0x2406};
++const gf X = {0xd51a, 0x8f25, 0x2d60, 0xc956, 0xa7b2, 0x9525, 0xc760, 0x692c, 0xdc5c, 0xfdd6, 0xe231, 0xc0a4, 0x53fe, 0xcd6e, 0x36d3, 0x2169};
++const gf Y = {0x6658, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666, 0x6666};
++const gf I = {0xa0b0, 0x4a0e, 0x1b27, 0xc4ee, 0xe478, 0xad2f, 0x1806, 0x2f43, 0xd7a7, 0x3dfb, 0x0099, 0x2b4d, 0xdf0b, 0x4fc1, 0x2480, 0x2b83};
++const uint8_t kL[32] = {0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58, 0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde, 0x14,
++                        0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0x10};
++
++void set25519(gf r, const gf a) { for (int i = 0; i < 16; i++) r[i] = a[i]; }
++
++void car25519(gf o) {
++    for (int i = 0; i < 16; i++) {
++        o[i] += (1LL << 16);
++        int64_t c = o[i] >> 16;
++        o[(i + 1) * (i < 15)] += c - 1 + 37 * (c - 1) * (i == 15);
++        o[i] -= c << 16;
++    }
++}
++
++void sel25519(gf p, gf q, int b) {
++    int64_t c = ~(int64_t)(b - 1);
++    for (int i = 0; i < 16; i++) {
++        int64_t t = c & (p[i] ^ q[i]);
++        p[i] ^= t;
++        q[i] ^= t;
++    }
++}
++
++void pack25519(uint8_t* o, const gf n) {
++    gf m, t;
++    for (int i = 0; i < 16; i++) t[i] = n[i];
++    car25519(t); car25519(t); car25519(t);
++    for (int j = 0; j < 2; j++) {
++        m[0] = t[0] - 0xffed;
++        for (int i = 1; i < 15; i++) {
++            m[i] = t[i] - 0xffff - ((m[i - 1] >> 16) & 1);
++            m[i - 1] &= 0xffff;
++        }
++        m[15] = t[15] - 0x7fff - ((m[14] >> 16) & 1);
++        int b = (m[15] >> 16) & 1;
++        m[14] &= 0xffff;
++        sel25519(t, m, 1 - b);
++    }
++    for (int i = 0; i < 16; i++) {
++        o[2 * i] = t[i] & 0xff;
++        o[2 * i + 1] = t[i] >> 8;
++    }
++}
++
++int neq25519(const gf a, const gf b) {
++    uint8_t c[32], d[32];
++    pack25519(c, a);
++    pack25519(d, b);
++    return memcmp(c, d, 32) != 0;
++}
++
++uint8_t par25519(const gf a) {
++    uint8_t d[32];
++    pack25519(d, a);
++    return d[0] & 1;
++}
++
++void unpack25519(gf o, const uint8_t* n) {
++    for (int i = 0; i < 16; i++) o[i] = n[2 * i] + ((int64_t)n[2 * i + 1] << 8);
++    o[15] &= 0x7fff;
++}
++
++void A(gf o, const gf a, const gf b) { for (int i = 0; i < 16; i++) o[i] = a[i] + b[i]; }
++void Z(gf o, const gf a, const gf b) { for (int i = 0; i < 16; i++) o[i] = a[i] - b[i]; }
++
++void M(gf o, const gf a, const gf b) {
++    int64_t t[31];
++    for (int i = 0; i < 31; i++) t[i] = 0;
++    for (int i = 0; i < 16; i++)
++        for (int j = 0; j < 16; j++) t[i + j] += a[i] * b[j];
++    for (int i = 0; i < 15; i++) t[i] += 38 * t[i + 16];
++    for (int i = 0; i < 16; i++) o[i] = t[i];
++    car25519(o);
++    car25519(o);
++}
++
++void S(gf o, const gf a) { M(o, a, a); }
++
++void pow2523(gf o, const gf i) {
++    gf c;
++    for (int a = 0; a < 16; a++) c[a] = i[a];
++    for (int a = 250; a >= 0; a--) {
++        S(c, c);
++        if (a != 1) M(c, c, i);
++    }
++    for (int a = 0; a < 16; a++) o[a] = c[a];
++}
++
++void inv25519(gf o, const gf i) {
++    gf c;
++    for (int a = 0; a < 16; a++) c[a] = i[a];
++    for (int a = 253; a >= 0; a--) {
++        S(c, c);
++        if (a != 2 && a != 4) M(c, c, i);
++    }
++    for (int a = 0; a < 16; a++) o[a] = c[a];
++}
++
++void add(gf p[4], gf q[4]) {
++    gf a, b, c, d, t, e, f, g, h;
++    Z(a, p[1], p[0]);
++    Z(t, q[1], q[0]);
++    M(a, a, t);
++    A(b, p[0], p[1]);
++    A(t, q[0], q[1]);
++    M(b, b, t);
++    M(c, p[3], q[3]);
++    M(c, c, D2);
++    M(d, p[2], q[2]);
++    A(d, d, d);
++    Z(e, b, a);
++    Z(f, d, c);
++    A(g, d, c);
++    A(h, b, a);
++    M(p[0], e, f);
++    M(p[1], h, g);
++    M(p[2], g, f);
++    M(p[3], e, h);
++}
++
++void cswap(gf p[4], gf q[4], uint8_t b) { for (int i = 0; i < 4; i++) sel25519(p[i], q[i], b); }
++
++void pack(uint8_t* r, gf p[4]) {
++    gf tx, ty, zi;
++    inv25519(zi, p[2]);
++    M(tx, p[0], zi);
++    M(ty, p[1], zi);
++    pack25519(r, ty);
++    r[31] ^= par25519(tx) << 7;
++}
++
++void scalarmult(gf p[4], gf q[4], const uint8_t* s) {
++    set25519(p[0], gf0);
++    set25519(p[1], gf1);
++    set25519(p[2], gf1);
++    set25519(p[3], gf0);
++    for (int i = 255; i >= 0; --i) {
++        uint8_t b = (s[i / 8] >> (i & 7)) & 1;
++        cswap(p, q, b);
++        add(q, p);
++        add(p, p);
++        cswap(p, q, b);
++    }
++}
++
++void scalarbase(gf p[4], const uint8_t* s) {
++    gf q[4];
++    set25519(q[0], X);
++    set25519(q[1], Y);
++    set25519(q[2], gf1);
++    M(q[3], X, Y);
++    scalarmult(p, q, s);
++}
++
++void modL(uint8_t* r, int64_t x[64]) {
++    int64_t carry, i, j;
++    for (i = 63; i >= 32; --i) {
++        carry = 0;
++        for (j = i - 32; j < i - 12; ++j) {
++            x[j] += carry - 16 * x[i] * kL[j - (i - 32)];
++            carry = (x[j] + 128) >> 8;
++            x[j] -= carry << 8;
++        }
++        x[j] += carry;
++        x[i] = 0;
++    }
++    carry = 0;
++    for (j = 0; j < 32; j++) {
++        x[j] += carry - (x[31] >> 4) * kL[j];
++        carry = x[j] >> 8;
++        x[j] &= 255;
++    }
++    for (j = 0; j < 32; j++) x[j] -= carry * kL[j];
++    for (i = 0; i < 32; i++) {
++        x[i + 1] += x[i] >> 8;
++        r[i] = x[i] & 255;
++    }
++}
++
++void reduce(uint8_t* r) {
++    int64_t x[64];
++    for (int i = 0; i < 64; i++) x[i] = (uint64_t)r[i];
++    for (int i = 0; i < 64; i++) r[i] = 0;
++    modL(r, x);
++}
++
++int unpackneg(gf r[4], const uint8_t p[32]) {
++    gf t, chk, num, den, den2, den4, den6;
++    set25519(r[2], gf1);
++    unpack25519(r[1], p);
++    S(num, r[1]);
++    M(den, num, D);
++    Z(num, num, r[2]);
++    A(den, r[2], den);
++    S(den2, den);
++    S(den4, den2);
++    M(den6, den4, den2);
++    M(t, den6, num);
++    M(t, t, den);
++    pow2523(t, t);
++    M(t, t, num);
++    M(t, t, den);
++    M(t, t, den);
++    M(r[0], t, den);
++    S(chk, r[0]);
++    M(chk, chk, den);
++    if (neq25519(chk, num)) M(r[0], r[0], I);
++    S(chk, r[0]);
++    M(chk, chk, den);
++    if (neq25519(chk, num)) return -1;
++    if (par25519(r[0]) == (p[31] >> 7)) Z(r[0], gf0, r[0]);
++    M(r[3], r[0], r[1]);
++    return 0;
++}
++
++bool ScalarBelowL(const uint8_t* s) {
++    for (int i = 31; i >= 0; i--) {
++        if (s[i] < kL[i]) return true;
++        if (s[i] > kL[i]) return false;
++    }
++    return false;
++}
++}  // namespace
++
++bool Ed25519VerifyDigest(const uint8_t sig[64], const uint8_t pk[32], const uint8_t h[64]) {
++    if (!ScalarBelowL(sig + 32)) return false;  // a second encoding of a valid signature is refused
++    gf p[4], q[4];
++    if (unpackneg(q, pk)) return false;
++    uint8_t k[64];
++    memcpy(k, h, 64);
++    reduce(k);
++    scalarmult(p, q, k);
++    scalarbase(q, sig + 32);
++    add(p, q);
++    uint8_t t[32];
++    pack(t, p);
++    return memcmp(sig, t, 32) == 0;
++}
++
++bool UpdateTrustedKey(uint8_t pk[32]) {
++#ifdef CONFIG_STACKCHAN_UPDATE_PUBKEY
++    const char* hex = CONFIG_STACKCHAN_UPDATE_PUBKEY;
++#else
++    const char* hex = "";
++#endif
++    if (strlen(hex) != 64) return false;
++    for (int i = 0; i < 32; i++) {
++        int v = 0;
++        for (int k = 0; k < 2; k++) {
++            char c = hex[2 * i + k];
++            int d = (c >= '0' && c <= '9') ? c - '0' : (c >= 'a' && c <= 'f') ? c - 'a' + 10 : (c >= 'A' && c <= 'F') ? c - 'A' + 10 : -1;
++            if (d < 0) return false;
++            v = v * 16 + d;
++        }
++        pk[i] = (uint8_t)v;
++    }
++    return true;
++}
++
++#ifdef ESP_PLATFORM
++#include <esp_log.h>
++#include <psa/crypto.h>
++
++static const char* TAG = "UpdateVerify";
++static_assert(sizeof(psa_hash_operation_t) <= 32 * sizeof(uint32_t), "grow UpdateVerifier::op_");
++
++UpdateVerifier::~UpdateVerifier() {
++    if (active_) psa_hash_abort(reinterpret_cast<psa_hash_operation_t*>(op_));
++}
++
++bool UpdateVerifier::Begin(const std::string& signature) {
++    if (!UpdateTrustedKey(pk_)) {
++        ESP_LOGE(TAG, "Update refused: this image has no update key built in. Build with the release key to allow wireless updates.");
++        return false;
++    }
++    if (signature.size() != 64) {
++        ESP_LOGE(TAG, "Update refused: the signature file is %u bytes, not 64. Publish a detached signature next to the image.", (unsigned)signature.size());
++        return false;
++    }
++    memcpy(sig_, signature.data(), 64);
++    if (psa_crypto_init() != PSA_SUCCESS) {
++        ESP_LOGE(TAG, "Update refused: the crypto library did not start. Restart the unit and try again.");
++        return false;
++    }
++    auto* op = reinterpret_cast<psa_hash_operation_t*>(op_);
++    *op = psa_hash_operation_init();
++    if (psa_hash_setup(op, PSA_ALG_SHA_512) != PSA_SUCCESS) return false;
++    active_ = true;
++    psa_hash_update(op, sig_, 32);  // R
++    psa_hash_update(op, pk_, 32);   // public key
++    return true;
++}
++
++void UpdateVerifier::Update(const void* data, size_t len) {
++    if (active_) psa_hash_update(reinterpret_cast<psa_hash_operation_t*>(op_), static_cast<const uint8_t*>(data), len);
++}
++
++bool UpdateVerifier::Finish() {
++    if (!active_) return false;
++    uint8_t h[64];
++    size_t n = 0;
++    psa_status_t st = psa_hash_finish(reinterpret_cast<psa_hash_operation_t*>(op_), h, sizeof(h), &n);
++    active_ = false;
++    if (st != PSA_SUCCESS || n != 64) return false;
++    if (!Ed25519VerifyDigest(sig_, pk_, h)) {
++        ESP_LOGE(TAG, "Update refused: the signature does not match this image or the update key. Nothing was installed.");
++        return false;
++    }
++    return true;
++}
++#endif
+diff --git a/firmware/xiaozhi-esp32/main/update_verify.h b/firmware/xiaozhi-esp32/main/update_verify.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/xiaozhi-esp32/main/update_verify.h
+@@ -0,0 +1,34 @@
++#ifndef UPDATE_VERIFY_H_
++#define UPDATE_VERIFY_H_
++
++#include <cstddef>
++#include <cstdint>
++#include <string>
++
++// Ed25519 check for firmware images (patch 155, security finding 1).
++// The signature is over the whole image, as plain Ed25519 (RFC 8032), so any standard tool can sign it.
++
++// h is SHA-512(R || public key || image), R being the first 32 bytes of sig. True only for a valid signature.
++bool Ed25519VerifyDigest(const uint8_t sig[64], const uint8_t pk[32], const uint8_t h[64]);
++
++// Public key built into the image (hex, 64 characters); false when none is built in or it is malformed.
++bool UpdateTrustedKey(uint8_t pk[32]);
++
++#ifdef ESP_PLATFORM
++// Streaming check: begin() with the signature, update() with every image byte, finish() for the verdict.
++class UpdateVerifier {
++public:
++    ~UpdateVerifier();
++    // Fails (with a plain log line) when no key is built in or the signature is not 64 bytes.
++    bool Begin(const std::string& signature);
++    void Update(const void* data, size_t len);
++    bool Finish();
++private:
++    uint8_t sig_[64] = {};
++    uint8_t pk_[32] = {};
++    uint32_t op_[32] = {};  // psa_hash_operation_t storage, sized in the .cc
++    bool active_ = false;
++};
++#endif
++
++#endif
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -72,2 +72,3 @@ set(SOURCES "audio/audio_codec.cc"
+             "ota.cc"
++            "update_verify.cc"
+             "settings.cc"
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -49,2 +49,16 @@ config STACKCHAN_SERVER_URL
+ 
++config STACKCHAN_UPDATE_PUBKEY
++    string "Update signing public key (Ed25519, 64 hex characters)"
++    default ""
++    help
++        Wireless updates install only when the image carries a valid Ed25519 signature from this key.
++        The signature is a detached 64-byte file next to the image, at the image address plus ".sig".
++        Empty means no wireless update is accepted.
++
++config STACKCHAN_UPDATE_ALLOW_UNSIGNED
++    bool "Developer override: install unsigned updates"
++    default n
++    help
++        Skips the signature check. Never enable in a release image.
++
+ endmenu
+@@ -113,5 +127,6 @@ config OTA_URL
+     string "Default OTA URL"
+-    default "https://api.tenclass.net/xiaozhi/ota/"
++    default ""
+     help
+-        The application will access this URL to check for new firmwares and server address.
++        The vendor update check. Empty here: no address is built in, so the unit never contacts a vendor
++        server. Updates come only from the signed update path (STACKCHAN_UPDATE_PUBKEY).
+ 

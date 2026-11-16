@@ -56,14 +56,31 @@ class LiveUnits:
         return out
 
     def push(self, device_id: str, path: Path, sha256: str, size: int, version: str) -> None:
-        """Send the app image to this one unit over the air (its own self.firmware.update tool)."""
-        url = self.voice.serve_firmware_once(path, device_id)
-        self.voice.call_device_tool(
+        """Send the app image to this one unit over the air (its own self.firmware.update tool).
+
+        The host serves the image and its detached Ed25519 signature once each; the unit fetches them from
+        this host only, checks the signature and answers started or a plain reason, which is raised here.
+        """
+        from maipai_body.bodies.stackchan import updater
+
+        sig_path = updater.image_signature_path(path)
+        signature = sig_path.read_bytes() if sig_path.is_file() else None
+        url = self.voice.serve_firmware_once(path, device_id, signature=signature)
+        reply = self.voice.call_device_tool(
             "self.firmware.update",
             {"url": url, "sha256": sha256, "size": size, "version": version},
             device_id=device_id,
             timeout=10.0,
         )
+        if isinstance(reply, str):
+            try:
+                reply = json.loads(reply)
+            except ValueError:
+                reply = {}
+        if isinstance(reply, dict) and reply.get("started") is False:
+            raise updater.UpdateRefused(
+                updater.t(None, "update.unit_refused", why=str(reply.get("reason", ""))[:300])
+            )
 
     def _call(self, device_id: str, name: str) -> object:
         return self.voice.call_device_tool(name, {}, device_id=device_id, timeout=self._timeout)

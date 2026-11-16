@@ -90,3 +90,7 @@ the first unit download; it now serves the bytes it stored. `serve_firmware_once
   poll is made per unit; `LiveUnits.note_event(device_id, kind, extra)` is the hook for that.
 - The `stackchan update` CLI still pushes through the single-unit host path.
 - No release is published, so no real signature has been checked; the trusted key is not shipped.
+
+## Over the air (2026-11-16)
+
+The over-the-air case needs `stack-chan-maipai.bin.sig` (64 bytes, Ed25519 over the whole app image) beside the app image. The host serves it with the image; the unit checks it against its built-in key before it switches the boot slot, and rolls back if the new image does not reach the host within 60 seconds. A refusal from the unit comes back as the unit's own plain sentence. Details: `docs/design/ota-update-2026-11-16.md`.

@@ -1,0 +1,60 @@
+# Intent: The setup page speaks the unit's own language (decision 25). The face settings already hold it (lang en or es); maipai_portal_language() returns it and the portal uses it before the board's language. English and Spanish both complete.
+# Placement: unit (the language setting is kept on the robot; the host pushes it with self.face.set_config)
+# Upstream: firmware/main/hal/maipai_face.cc from F01
+# Check after a flash: none until P05 turns it on
+diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
+index 5b04bcc..21a753d 100644
+--- a/firmware/CMakeLists.txt
++++ b/firmware/CMakeLists.txt
+@@ -19,6 +19,9 @@ include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
+ # MaiPai Wi-Fi portal (patch P02): see portal/portal.cmake.
+ include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
+ 
++# MaiPai Wi-Fi portal (patch P02): see portal/portal.cmake.
++include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
++
+ # Auto-load a local sdkconfig overlay (git-ignored) when present. Lets
+ # self-hosted / custom deployments pin CONFIG_STACKCHAN_SERVER_URL,
+ # CONFIG_OTA_URL, etc. without touching committed defaults.
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+index 8bc78be..1920146 100644
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -250,6 +250,12 @@ mf_config_t maipai_face_config()
+     return s_cfg;
+ }
+ 
++// The unit's language for the Wi-Fi setup page (patch P04): "es" or "en", from the saved face settings.
++extern "C" const char* maipai_portal_language(void)
++{
++    return maipai_face_config().lang == MF_LANG_ES ? "es" : "en";
++}
++
+ #if CONFIG_MAIPAI_FACE_CAPTIONS
+ bool maipai_face_captions_on()
+ {
+diff --git a/firmware/portal/maipai_wifi_configuration_ap.cc b/firmware/portal/maipai_wifi_configuration_ap.cc
+index 85c9f23..f9b6805 100644
+--- a/firmware/portal/maipai_wifi_configuration_ap.cc
++++ b/firmware/portal/maipai_wifi_configuration_ap.cc
+@@ -40,6 +40,10 @@
+ #define WIFI_CONNECTED_BIT BIT0
+ #define WIFI_FAIL_BIT      BIT1
+ 
++// The face settings hold the unit's language ("en" or "es"); patch P04 provides this. Absent: the setup
++// language of the board is used.
++extern "C" const char* maipai_portal_language(void) __attribute__((weak));
++
+ namespace {
+ std::atomic<bool> s_active{false};
+ char s_code[MP_PORTAL_CODE_LEN + 1];
+@@ -150,7 +154,8 @@ void WifiConfigurationAp::Start()
+ {
+     // A new window: a new language check, no wrong tries, and (below) a new code and a timer that ends it.
+     mp_guard_reset(&s_guard);
+-    s_lang = mp_lang_from_code(language_.c_str());
++    const char* unit_lang = maipai_portal_language ? maipai_portal_language() : nullptr;
++    s_lang = mp_lang_from_code(unit_lang ? unit_lang : language_.c_str());
+ 
+     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                                         &WifiConfigurationAp::WifiEventHandler, this,

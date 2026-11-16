@@ -182,7 +182,7 @@ class _Voice:
             return unit["wifi"]
         return {}
 
-    def serve_firmware_once(self, path, device_id=None):
+    def serve_firmware_once(self, path, device_id=None, signature=None):
         self.served.append(device_id)
         return f"http://192.0.2.1/firmware/{device_id}/x"
 

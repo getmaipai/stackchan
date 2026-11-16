@@ -1320,7 +1320,9 @@ class XiaozhiServer:
         """Device-Ids with an open voice session right now."""
         return list(self._sessions)
 
-    def serve_firmware_once(self, path: Any, device_id: str | None = None) -> str:
+    def serve_firmware_once(
+        self, path: Any, device_id: str | None = None, signature: bytes | None = None
+    ) -> str:
         """Publish a local image under an unguessable, one-read URL for ten minutes.
 
         The image is a public release file, so the random one-time path is the only guard; the
@@ -1340,7 +1342,11 @@ class XiaozhiServer:
             device_id = next(iter(self._sessions))
         token = uuid.uuid4().hex
         # Read now: the caller deletes its temp file as soon as the unit tool has been called.
-        self._firmware_files[(device_id, token)] = (path.read_bytes(), time.monotonic() + 600)
+        expires = time.monotonic() + 600
+        self._firmware_files[(device_id, token)] = (path.read_bytes(), expires)
+        if signature is not None:
+            # The unit fetches the detached signature at the image address plus ".sig".
+            self._firmware_files[(device_id, token + ".sig")] = (bytes(signature), expires)
         return (
             self._notify_audio_url(device_id, token)
             .replace("/notify/", "/firmware/")

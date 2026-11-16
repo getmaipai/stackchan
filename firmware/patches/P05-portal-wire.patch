@@ -1,0 +1,117 @@
+# Intent: Turn the portal on. The base build set the hotspot setup off and its board code sent every no-Wi-Fi case to the phone app setup, which needs Bluetooth and apps the core build removes, so a unit with no Wi-Fi could only be fixed over USB. CONFIG_MAIPAI_WIFI_PORTAL (default y) makes StartWifiConfigMode open the config hotspot and show its name, address and setup code on the screen, makes startNetwork wait in setup instead of restarting into the app setup, and gates the P02 source swap in portal.cmake. Off: the old behaviour and no portal code.
+# Placement: unit (the robot's own Wi-Fi setup path)
+# Upstream: firmware/main/hal/board/stackchan.cc and firmware/main/hal/hal_network.cpp of the StackChan tree (MIT)
+# Check after a flash: with no saved Wi-Fi, boot: the screen shows Wi-Fi setup, MaiPai-StackChan-XXXX, http://192.168.4.1 and a 6 digit code; join that hotspot on a phone, the page opens by itself; a wrong code is refused, the right code plus a real network joins and the unit continues to the hub; after 8 minutes with no one the hotspot restarts with a new code.
+diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
+index 21a753d..8f139d3 100644
+--- a/firmware/CMakeLists.txt
++++ b/firmware/CMakeLists.txt
+@@ -22,6 +22,9 @@ include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
+ # MaiPai Wi-Fi portal (patch P02): see portal/portal.cmake.
+ include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
+ 
++# MaiPai Wi-Fi portal (patch P02): see portal/portal.cmake.
++include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
++
+ # Auto-load a local sdkconfig overlay (git-ignored) when present. Lets
+ # self-hosted / custom deployments pin CONFIG_STACKCHAN_SERVER_URL,
+ # CONFIG_OTA_URL, etc. without touching committed defaults.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index d76bcc6..c7f9587 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -49,6 +49,19 @@ config STACKCHAN_SERVER_URL
+ 
+ endmenu
+ 
++menu "MaiPai Wi-Fi setup portal"
++
++config MAIPAI_WIFI_PORTAL
++    bool "Wi-Fi setup hotspot with a code on the screen"
++    default y
++    help
++        When the unit has no Wi-Fi it opens a short, protected setup hotspot (MaiPai-StackChan-xxxx) and one small
++        page. The page asks for the code shown on the unit's screen before it accepts Wi-Fi details. The web server
++        and DNS responder stop and free their memory when setup ends. Off: the unit restarts into the phone app
++        setup as before, and the portal code is not built.
++
++endmenu
++
+ menu "MaiPai face and always-on look"
+ 
+ config MAIPAI_FACE_CONFIG
+diff --git a/firmware/main/hal/board/stackchan.cc b/firmware/main/hal/board/stackchan.cc
+index 02a96bb..e5d9f6b 100644
+--- a/firmware/main/hal/board/stackchan.cc
++++ b/firmware/main/hal/board/stackchan.cc
+@@ -12,6 +12,7 @@
+ #include <esp_log.h>
+ #include <driver/i2c_master.h>
+ #include <wifi_station.h>
++#include <wifi_manager.h>
+ #include <esp_lcd_panel_io.h>
+ #include <esp_lcd_panel_ops.h>
+ #include <esp_lcd_ili9341.h>
+@@ -696,8 +697,21 @@ public:
+     // the same BLE App setup flow. Never start the upstream configuration AP.
+     void StartWifiConfigMode() override
+     {
++#if CONFIG_MAIPAI_WIFI_PORTAL
++        // The MaiPai setup portal (patches P02 to P05): a short protected hotspot and one page. The hotspot name
++        // and the setup code go on the screen; the page asks for the code before it takes Wi-Fi details.
++        ESP_LOGW(TAG, "WiFi setup required; opening the setup hotspot");
++        auto& wifi = WifiManager::GetInstance();
++        wifi.StartConfigAp();
++        std::string hint = "Wi-Fi setup: ";
++        hint += wifi.GetApSsid();
++        hint += "  ";
++        hint += wifi.GetApWebUrl();
++        GetDisplay()->SetChatMessage("system", hint.c_str());
++#else
+         ESP_LOGW(TAG, "WiFi setup required; opening StackChan App setup");
+         GetHAL().requestAppSetup();
++#endif
+     }
+ 
+     virtual AudioCodec* GetAudioCodec() override
+diff --git a/firmware/main/hal/hal_network.cpp b/firmware/main/hal/hal_network.cpp
+index 43b7850..086b835 100644
+--- a/firmware/main/hal/hal_network.cpp
++++ b/firmware/main/hal/hal_network.cpp
+@@ -8,6 +8,7 @@
+ #include <mooncake.h>
+ #include <mooncake_log.h>
+ #include <wifi_manager.h>
++#include <sdkconfig.h>
+ #include <board.h>
+ #include <mutex>
+ #include <queue>
+@@ -116,7 +117,13 @@ void Hal::startNetwork(std::function<void(std::string_view)> onLog)
+     while (!network_connected && !WifiManager::GetInstance().IsConnected()) {
+         // WifiBoard normally handles a 60s timeout. Keep this caller bounded
+         // even if station startup or the board timer fails to emit an event.
+-        if (setup_required || uint32_t(millis() - started_at) >= 65000) {
++        bool give_up = setup_required || uint32_t(millis() - started_at) >= 65000;
++#if CONFIG_MAIPAI_WIFI_PORTAL
++        // The setup portal runs inside StartNetwork and ends in a connection or a fresh window: keep waiting
++        // here instead of restarting into the phone app setup (patch P05).
++        give_up = false;
++#endif
++        if (give_up) {
+             board.SetNetworkEventCallback(nullptr);
+             if (onLog) {
+                 onLog("WiFi unavailable. Open StackChan World to set up WiFi.");
+diff --git a/firmware/portal/portal.cmake b/firmware/portal/portal.cmake
+index 92dc764..9c080b1 100644
+--- a/firmware/portal/portal.cmake
++++ b/firmware/portal/portal.cmake
+@@ -5,6 +5,9 @@
+ set(maipai_portal_dir "${CMAKE_CURRENT_LIST_DIR}")
+ 
+ function(maipai_portal_swap)
++    if(NOT CONFIG_MAIPAI_WIFI_PORTAL)
++        return()
++    endif()
+     idf_component_get_property(wifi_lib 78__esp-wifi-connect COMPONENT_LIB)
+     if(NOT wifi_lib)
+         return()

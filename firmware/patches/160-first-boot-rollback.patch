@@ -1,0 +1,140 @@
+# Intent: Rollback on first-boot failure for a wirelessly installed image (release-and-updates.md: after install the unit must reach the host within 60 seconds or roll back, a hang included). The old rule confirmed any pending image after 20 seconds whatever the link did. Now the image is confirmed only after 20 seconds of uptime with the host link up; a timer armed at boot (outside the main loop, so a hang cannot stop it) marks the image invalid and reboots into the previous slot at 60 seconds. A confirmed image sends the firmware_update_validated event. Images flashed over USB are never pending, so they are unchanged.
+# Placement: unit (the robot decides about its own boot slot)
+# Upstream: main/hal/hal.cpp of the StackChan tree (MIT)
+# Check after a flash: after a wireless update the log says "pending" at boot, then "reached the host; keeping it" within about 25 seconds; with the host stopped before the restart it says "Going back to the previous firmware" at 60 seconds and the unit boots the old version.
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -4,6 +4,7 @@
+  * SPDX-License-Identifier: MIT
+  */
+ #include "hal.h"
++#include "maipai_update.h"
+ #include <memory>
+ #include <mooncake_log.h>
+ #include <nvs_flash.h>
+@@ -32,6 +33,7 @@ void Hal::init()
+     }
+     ESP_ERROR_CHECK(ret);
+ 
++    maipai_update_arm();  // patch 160: a new wireless image that never reaches the host rolls back
+     xiaozhi_board_init();
+     xiaozhi_mcp_init();
+     head_touch_init();
+@@ -89,30 +91,8 @@ void Hal::reboot()
+ 
+ static void _confirm_ota_image_if_stable()
+ {
+-    constexpr uint32_t ota_confirm_delay_ms = 20000;
+-    static bool ota_confirm_checked         = false;
+-    if (ota_confirm_checked || GetHAL().millis() < ota_confirm_delay_ms) {
+-        return;
+-    }
+-    ota_confirm_checked = true;
+-
+-    const esp_partition_t* running = esp_ota_get_running_partition();
+-    if (running == nullptr) {
+-        mclog::tagError(_tag, "failed to get running partition for ota confirmation");
+-        return;
+-    }
+-
+-    esp_ota_img_states_t ota_state;
+-    if (esp_ota_get_state_partition(running, &ota_state) != ESP_OK) {
+-        mclog::tagError(_tag, "failed to get ota state for partition: {}", running->label);
+-        return;
+-    }
+-
+-    mclog::tagInfo(_tag, "ota confirm check: partition={}, state={}", running->label, static_cast<int>(ota_state));
+-    if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+-        mclog::tagInfo(_tag, "ota image is stable, marking current app valid");
+-        esp_ota_mark_app_valid_cancel_rollback();
+-    }
++    // Patch 160: a wirelessly installed image is confirmed only after the unit has reached the host.
++    maipai_update_confirm_poll();
+ }
+ 
+ void Hal::updateHeapStatusLog()
+diff --git a/firmware/main/hal/maipai_update.h b/firmware/main/hal/maipai_update.h
+--- a/firmware/main/hal/maipai_update.h
++++ b/firmware/main/hal/maipai_update.h
+@@ -11,3 +11,10 @@ std::string maipai_update_start(const char* url, size_t size, const char* versio
+ 
+ // True while an update is downloading or being checked.
+ bool maipai_update_active();
++
++// Patch 160: first-boot check of a wirelessly installed image. The image is confirmed (rollback cancelled)
++// only when the unit has run 20 seconds and reached the host; a timer started at boot rolls the unit back
++// to the old slot when that has not happened within 60 seconds, a hang included. Images flashed over USB
++// are never pending and are not affected.
++void maipai_update_arm();
++void maipai_update_confirm_poll();
+diff --git a/firmware/main/hal/maipai_update.cc b/firmware/main/hal/maipai_update.cc
+--- a/firmware/main/hal/maipai_update.cc
++++ b/firmware/main/hal/maipai_update.cc
+@@ -4,6 +4,7 @@
+ #include "maipai_update.h"
+ #include "hal.h"
+ #include "device_events.h"
++#include "board/hal_bridge.h"
+ #include <application.h>
+ #include <ota.h>
+ #include <settings.h>
+@@ -12,6 +13,7 @@
+ #include <esp_log.h>
+ #include <esp_ota_ops.h>
+ #include <esp_system.h>
++#include <esp_timer.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
+ #include <atomic>
+@@ -140,3 +142,50 @@ std::string maipai_update_start(const char* url, size_t size, const char* versio
+     }
+     return "";
+ }
++
++namespace {
++
++constexpr int64_t kConfirmAfterUs = 20LL * 1000000;
++constexpr int64_t kRollbackAfterUs = 60LL * 1000000;
++esp_timer_handle_t s_rollback_timer = nullptr;
++
++bool image_pending()
++{
++    const esp_partition_t* running = esp_ota_get_running_partition();
++    esp_ota_img_states_t state;
++    return running != nullptr && esp_ota_get_state_partition(running, &state) == ESP_OK &&
++           state == ESP_OTA_IMG_PENDING_VERIFY;
++}
++
++void rollback_now(void*)
++{
++    if (!image_pending()) return;
++    ESP_LOGE(kTag,
++             "The new firmware did not reach the host within 60 seconds. Going back to the previous firmware. "
++             "Check the host and the Wi-Fi, then start the update again.");
++    esp_ota_mark_app_invalid_rollback_and_reboot();
++}
++
++}  // namespace
++
++void maipai_update_arm()
++{
++    if (!image_pending()) return;
++    ESP_LOGI(kTag, "this image was installed wirelessly and is pending: it is kept once it reaches the host, else rolled back in 60 s");
++    const esp_timer_create_args_t args = {.callback = rollback_now, .name = "fwrollback"};
++    if (esp_timer_create(&args, &s_rollback_timer) == ESP_OK) {
++        esp_timer_start_once(s_rollback_timer, kRollbackAfterUs);
++    }
++}
++
++void maipai_update_confirm_poll()
++{
++    if (s_rollback_timer == nullptr || esp_timer_get_time() < kConfirmAfterUs) return;
++    if (!hal_bridge::hub_link_up() || !image_pending()) return;
++    esp_timer_stop(s_rollback_timer);
++    esp_timer_delete(s_rollback_timer);
++    s_rollback_timer = nullptr;
++    ESP_LOGI(kTag, "the new image reached the host; keeping it");
++    esp_ota_mark_app_valid_cancel_rollback();
++    device_events_push("firmware_update_validated", "");
++}

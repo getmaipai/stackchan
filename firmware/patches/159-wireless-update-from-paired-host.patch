@@ -1,0 +1,415 @@
+# Intent: Wireless firmware update from the paired host only (CORE-V1 row 133, rebuilt on patch 155). The host calls the new tool self.firmware.update with the address of one image on its own address; the unit refuses any address that is not the host it is paired with, refuses an image that would leave less than 20 percent of its slot free, streams the image into the inactive slot while it checks the Ed25519 signature, and sets that slot to boot only after the check passes. Every refusal is a plain sentence returned to the host (started:false, reason) and a log line. Progress, done and failed go to the host as events. Behind STACKCHAN_WIRELESS_UPDATE (on in the core preset). The shared helpers (host of an address, paired-host test, slot rule) live in update_verify.h and the camera-address check in mcp_server.cc now uses them, so there is one copy.
+# Placement: unit (the robot downloads, checks and writes its own image)
+# Upstream: main/ota.cc and main/mcp_server.cc of the xiaozhi-esp32 tree (MIT); the tool and task are new code
+# Check after a flash: tools list shows self.firmware.update; calling it with an address on another host answers started:false with "not the paired host"; a signed image on the paired host installs and the unit restarts into it.
+diff --git a/firmware/xiaozhi-esp32/main/update_verify.h b/firmware/xiaozhi-esp32/main/update_verify.h
+--- a/firmware/xiaozhi-esp32/main/update_verify.h
++++ b/firmware/xiaozhi-esp32/main/update_verify.h
+@@ -14,6 +14,38 @@ bool Ed25519VerifyDigest(const uint8_t sig[64], const uint8_t pk[32], const uint
+ // Public key built into the image (hex, 64 characters); false when none is built in or it is malformed.
+ bool UpdateTrustedKey(uint8_t pk[32]);
+ 
++// Patch 159: wireless updates come from the paired host only and must leave 20 percent of the slot free.
++// Host part of "scheme://host[:port]/path" (empty when it has no scheme or host, or carries user info).
++inline std::string UpdateUrlHost(const std::string& url) {
++    auto start = url.find("://");
++    if (start == std::string::npos) return "";
++    start += 3;
++    auto end = url.find_first_of("/?#", start);
++    std::string authority = url.substr(start, end == std::string::npos ? std::string::npos : end - start);
++    if (authority.find('@') != std::string::npos) return "";  // user info is never accepted
++    if (!authority.empty() && authority[0] == '[') {
++        auto close = authority.find(']');
++        return close == std::string::npos ? "" : authority.substr(0, close + 1);
++    }
++    return authority.substr(0, authority.find(':'));
++}
++
++// True when url is plain http(s) and its host is the host of paired_url (the unit's saved link).
++inline bool UpdateUrlIsPairedHost(const std::string& url, const std::string& paired_url) {
++    if (url.rfind("http://", 0) != 0 && url.rfind("https://", 0) != 0) return false;
++    std::string paired_host = UpdateUrlHost(paired_url);
++    return !paired_host.empty() && UpdateUrlHost(url) == paired_host;
++}
++
++// The 20 percent rule (docs/design/firmware-memory.md): the image may use at most 80 percent of its slot.
++inline bool UpdateFitsSlot(size_t image_bytes, size_t slot_bytes) {
++    return image_bytes > 0 && slot_bytes > 0 && image_bytes <= slot_bytes - slot_bytes / 5;
++}
++
++// The plain reason of the last refused update ("" when none); the unit sends it back to the host.
++void UpdateSetRefusal(const char* why);
++const char* UpdateRefusal();
++
+ #ifdef ESP_PLATFORM
+ // Streaming check: begin() with the signature, update() with every image byte, finish() for the verdict.
+ class UpdateVerifier {
+diff --git a/firmware/xiaozhi-esp32/main/update_verify.cc b/firmware/xiaozhi-esp32/main/update_verify.cc
+--- a/firmware/xiaozhi-esp32/main/update_verify.cc
++++ b/firmware/xiaozhi-esp32/main/update_verify.cc
+@@ -1,5 +1,6 @@
+ #include "update_verify.h"
+ 
++#include <cstdio>
+ #include <cstring>
+ 
+ #ifdef ESP_PLATFORM
+@@ -256,6 +257,12 @@ bool Ed25519VerifyDigest(const uint8_t sig[64], const uint8_t pk[32], const uint
+     return memcmp(sig, t, 32) == 0;
+ }
+ 
++static char s_refusal[200] = "";
++void UpdateSetRefusal(const char* why) {
++    snprintf(s_refusal, sizeof(s_refusal), "%s", why != nullptr ? why : "");
++}
++const char* UpdateRefusal() { return s_refusal; }
++
+ bool UpdateTrustedKey(uint8_t pk[32]) {
+ #ifdef CONFIG_STACKCHAN_UPDATE_PUBKEY
+     const char* hex = CONFIG_STACKCHAN_UPDATE_PUBKEY;
+@@ -290,15 +297,18 @@ UpdateVerifier::~UpdateVerifier() {
+ bool UpdateVerifier::Begin(const std::string& signature) {
+     if (!UpdateTrustedKey(pk_)) {
+         ESP_LOGE(TAG, "Update refused: this image has no update key built in. Build with the release key to allow wireless updates.");
++        UpdateSetRefusal("Update refused: this image has no update key built in. Build with the release key to allow wireless updates.");
+         return false;
+     }
+     if (signature.size() != 64) {
+         ESP_LOGE(TAG, "Update refused: the signature file is %u bytes, not 64. Publish a detached signature next to the image.", (unsigned)signature.size());
++        UpdateSetRefusal("Update refused: the signature file is not 64 bytes. Publish a detached Ed25519 signature next to the image.");
+         return false;
+     }
+     memcpy(sig_, signature.data(), 64);
+     if (psa_crypto_init() != PSA_SUCCESS) {
+         ESP_LOGE(TAG, "Update refused: the crypto library did not start. Restart the unit and try again.");
++        UpdateSetRefusal("Update refused: the crypto library did not start. Restart the unit and try again.");
+         return false;
+     }
+     auto* op = reinterpret_cast<psa_hash_operation_t*>(op_);
+@@ -323,6 +333,7 @@ bool UpdateVerifier::Finish() {
+     if (st != PSA_SUCCESS || n != 64) return false;
+     if (!Ed25519VerifyDigest(sig_, pk_, h)) {
+         ESP_LOGE(TAG, "Update refused: the signature does not match this image or the update key. Nothing was installed.");
++        UpdateSetRefusal("Update refused: the signature does not match this image or the update key. Nothing was installed.");
+         return false;
+     }
+     return true;
+diff --git a/firmware/xiaozhi-esp32/main/ota.cc b/firmware/xiaozhi-esp32/main/ota.cc
+--- a/firmware/xiaozhi-esp32/main/ota.cc
++++ b/firmware/xiaozhi-esp32/main/ota.cc
+@@ -273,6 +273,16 @@ void Ota::MarkCurrentVersionValid() {
+ 
+ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progress, size_t speed)> callback) {
+     ESP_LOGI(TAG, "Upgrading firmware from %s", firmware_url.c_str());
++    UpdateSetRefusal("");
++    {
++        // Patch 159: an image comes only from the host this unit is paired with, never any other address.
++        Settings paired("websocket", false);
++        if (!UpdateUrlIsPairedHost(firmware_url, paired.GetString("url"))) {
++            ESP_LOGE(TAG, "Update refused: the image address is not the paired host. Start the update from the host the unit is paired with.");
++            UpdateSetRefusal("Update refused: the image address is not the paired host. Start the update from the host the unit is paired with.");
++            return false;
++        }
++    }
+     esp_ota_handle_t update_handle = 0;
+     auto update_partition = esp_ota_get_next_update_partition(NULL);
+     if (update_partition == NULL) {
+@@ -294,11 +304,13 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+         auto sig_http = network->CreateHttp(0);
+         if (auto opened = sig_http->Open("GET", firmware_url + ".sig"); !opened) {
+             ESP_LOGE(TAG, "Update refused: the signature file could not be fetched (%s). Publish it next to the image.", opened.error().ToString().c_str());
++            UpdateSetRefusal("Update refused: the signature file could not be fetched. Publish it next to the image and try again.");
+             return false;
+         }
+         auto sig_status = sig_http->GetStatusCode();
+         if (!sig_status || *sig_status != 200 || sig_http->GetBodyLength() != 64) {
+             ESP_LOGE(TAG, "Update refused: no valid signature file at the image address plus .sig. Nothing was installed.");
++            UpdateSetRefusal("Update refused: no valid signature file at the image address plus .sig. Nothing was installed.");
+             return false;
+         }
+         char sig_buf[64];
+@@ -340,6 +352,13 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+         return false;
+     }
+ 
++    if (!UpdateFitsSlot(content_length, update_partition->size)) {
++        ESP_LOGE(TAG, "Update refused: the image (%u bytes) would leave less than 20 percent of its slot (%u bytes) free. Build a smaller image.",
++                 (unsigned)content_length, (unsigned)update_partition->size);
++        UpdateSetRefusal("Update refused: the image would leave less than 20 percent of its slot free. Build a smaller image.");
++        return false;
++    }
++
+     constexpr size_t PAGE_SIZE = 4096;
+     char* buffer = (char*)heap_caps_malloc(PAGE_SIZE, MALLOC_CAP_INTERNAL);
+     if (buffer == nullptr) {
+diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/main/mcp_server.cc
+--- a/firmware/xiaozhi-esp32/main/mcp_server.cc
++++ b/firmware/xiaozhi-esp32/main/mcp_server.cc
+@@ -18,6 +18,7 @@
+ #include "lvgl_image.h"
+ #include "lvgl_theme.h"
+ #include "settings.h"
++#include "update_verify.h"
+ 
+ #define TAG "MCP"
+ 
+@@ -200,21 +201,6 @@ void McpServer::ParseMessage(const std::string& message, ResponseSender response
+     ParseMessage(json.get(), std::move(response_sender));
+ }
+ 
+-// Host part of "scheme://host[:port]/path" (empty when it has no scheme or host).
+-static std::string UrlHost(const std::string& url) {
+-    auto start = url.find("://");
+-    if (start == std::string::npos) return "";
+-    start += 3;
+-    auto end = url.find_first_of("/?#", start);
+-    std::string authority = url.substr(start, end == std::string::npos ? std::string::npos : end - start);
+-    if (authority.find('@') != std::string::npos) return "";  // user info is never accepted
+-    if (!authority.empty() && authority[0] == '[') {
+-        auto close = authority.find(']');
+-        return close == std::string::npos ? "" : authority.substr(0, close + 1);
+-    }
+-    return authority.substr(0, authority.find(':'));
+-}
+-
+ void McpServer::ParseCapabilities(const cJSON* capabilities) {
+     auto vision = cJSON_GetObjectItem(capabilities, "vision");
+     if (cJSON_IsObject(vision)) {
+@@ -226,8 +212,8 @@ void McpServer::ParseCapabilities(const cJSON* capabilities) {
+             // The photo goes only to the paired host (security finding 1): the address must be the
+             // host the unit already uses for its own link.
+             Settings paired("websocket", false);
+-            std::string paired_host = UrlHost(paired.GetString("url"));
+-            if (paired_host.empty() || UrlHost(url_str) != paired_host) {
++            std::string paired_host = UpdateUrlHost(paired.GetString("url"));
++            if (paired_host.empty() || UpdateUrlHost(url_str) != paired_host) {
+                 ESP_LOGW(TAG, "Ignored a camera address that is not the paired host; the host must send its own address");
+                 camera = nullptr;
+             }
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -10,6 +10,7 @@
+ #include "maipai_timers.h"
+ #include "maipai_sounds.h"
+ #include "maipai_face.h"
++#include "maipai_update.h"
+ #include "maipai_timers_core.h"
+ #include <mooncake_log.h>
+ #include <mcp_server.h>
+@@ -456,6 +457,31 @@ void Hal::xiaozhi_mcp_init()
+                            return true;
+                        });
+ 
++#ifdef CONFIG_STACKCHAN_WIRELESS_UPDATE
++    // Patch 159: wireless update. The host offers one image on its own address; the unit checks that the
++    // address is the paired host, the 20 percent slot rule and the Ed25519 signature before it boots the new slot.
++    mclog::tagInfo(_tag, "add firmware.update tool");
++    mcp_server.AddTool("self.firmware.update",
++                       "Pull one signed firmware image from the paired host, check its signature, write the inactive "
++                       "slot and restart into it. Answers started, or the plain reason it refused. The sha256 is "
++                       "accepted for the host's own records; the signature decides.",
++                       PropertyList({Property("url", kPropertyTypeString),
++                                     Property("sha256", kPropertyTypeString, std::string("")),
++                                     Property("size", kPropertyTypeInteger, 0, 0, 16777216),
++                                     Property("version", kPropertyTypeString)}),
++                       [](const PropertyList& properties) -> ReturnValue {
++                           const std::string url = properties["url"].value<std::string>();
++                           const std::string version = properties["version"].value<std::string>();
++                           const std::string why = maipai_update_start(
++                               url.c_str(), static_cast<size_t>(properties["size"].value<int>()), version.c_str());
++                           mclog::tagInfo(_tag, "firmware update request: {}", why.empty() ? "started" : why);
++                           if (why.empty()) {
++                               return std::string(R"({"started":true})");
++                           }
++                           return std::string(R"({"started":false,"reason":")") + EscapeJsonString(why) + "\"}";
++                       });
++#endif
++
+     mclog::tagInfo(_tag, "add robot.set_idle_motion tool");
+     mcp_server.AddTool("self.robot.set_idle_motion",
+                        "Turn the idle random head movement on or off. The choice is saved; off stops it at once and is the default.",
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -55,6 +55,15 @@ config STACKCHAN_UPDATE_PUBKEY
+         The signature is a detached 64-byte file next to the image, at the image address plus ".sig".
+         Empty means no wireless update is accepted.
+ 
++config STACKCHAN_WIRELESS_UPDATE
++    bool "Wireless update from the paired host"
++    default y
++    help
++        Adds the self.firmware.update tool: the host offers one image on its own address, and the unit
++        checks the address, the 20 percent slot rule and the Ed25519 signature before it boots the new
++        slot. A new image that does not reach the host within 60 seconds is rolled back. Needs
++        STACKCHAN_UPDATE_PUBKEY, or no update is accepted.
++
+ config STACKCHAN_UPDATE_ALLOW_UNSIGNED
+     bool "Developer override: install unsigned updates"
+     default n
+diff --git a/firmware/main/hal/maipai_update.h b/firmware/main/hal/maipai_update.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_update.h
+@@ -0,0 +1,13 @@
++/*
++ * SPDX-License-Identifier: MIT
++ */
++#pragma once
++#include <cstddef>
++#include <string>
++
++// Patch 159: wireless firmware update from the paired host. Starts one update in its own task.
++// Returns "" when the update started, otherwise a plain sentence saying what is wrong and what to do.
++std::string maipai_update_start(const char* url, size_t size, const char* version);
++
++// True while an update is downloading or being checked.
++bool maipai_update_active();
+diff --git a/firmware/main/hal/maipai_update.cc b/firmware/main/hal/maipai_update.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_update.cc
+@@ -0,0 +1,142 @@
++/*
++ * SPDX-License-Identifier: MIT
++ */
++#include "maipai_update.h"
++#include "hal.h"
++#include "device_events.h"
++#include <application.h>
++#include <ota.h>
++#include <settings.h>
++#include <update_verify.h>
++#include <esp_app_desc.h>
++#include <esp_log.h>
++#include <esp_ota_ops.h>
++#include <esp_system.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <new>
++
++namespace {
++
++const char* const kTag = "MaipaiUpdate";
++constexpr int kMinBatteryPercent = 40;
++constexpr uint32_t kTaskStackBytes = 10240;
++
++std::atomic<bool> s_active{false};
++
++struct Job {
++    char url[256];
++    char version[32];
++};
++
++void note_failure(const char* reason)
++{
++    char extra[240];
++    std::snprintf(extra, sizeof(extra), "\"reason\":\"%s\"", reason);
++    device_events_push("firmware_update_failed", extra);
++    ESP_LOGE(kTag, "%s", reason);
++}
++
++void update_task(void* arg)
++{
++    Job* job = static_cast<Job*>(arg);
++    device_events_push("firmware_update_started", "\"percent\":0");
++    int last_percent = -10;
++    // Ota::Upgrade checks the Ed25519 signature while the image streams in and sets the new slot to boot
++    // only after the check passes (patch 155); the address and the 20 percent rule are checked again inside.
++    const bool ok = Ota::Upgrade(job->url, [&last_percent](int progress, size_t) {
++        if (progress >= last_percent + 10 && progress < 100) {
++            last_percent = progress;
++            char extra[32];
++            std::snprintf(extra, sizeof(extra), "\"percent\":%d", progress);
++            device_events_push("firmware_update_progress", extra);
++        }
++    });
++    if (!ok) {
++        const char* why = UpdateRefusal();
++        note_failure(why[0] != '\0' ? why
++                                    : "The update did not finish: the unit could not download or write the image. "
++                                      "Check that the host is reachable and try again.");
++        delete job;
++        s_active = false;
++        vTaskDelete(nullptr);
++        return;
++    }
++    char extra[64];
++    std::snprintf(extra, sizeof(extra), "\"version\":\"%s\"", job->version);
++    device_events_push("firmware_update_done", extra);
++    ESP_LOGI(kTag, "update written and signature checked; restarting into the new image");
++    vTaskDelay(pdMS_TO_TICKS(2500));  // lets the host read the done event
++    esp_restart();
++    delete job;
++    vTaskDelete(nullptr);
++}
++
++bool safe_version(const char* text)
++{
++    if (text == nullptr || text[0] == '\0' || std::strlen(text) > 31) return false;
++    for (const char* c = text; *c != '\0'; ++c) {
++        const bool ok = (*c >= '0' && *c <= '9') || (*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') ||
++                        *c == '.' || *c == '-' || *c == '_' || *c == '+';
++        if (!ok) return false;
++    }
++    return true;
++}
++
++}  // namespace
++
++bool maipai_update_active()
++{
++    return s_active.load();
++}
++
++std::string maipai_update_start(const char* url, size_t size, const char* version)
++{
++    if (url == nullptr || std::strlen(url) < 8 || std::strlen(url) > 250) {
++        return "Update refused: the image address is missing or too long. Send a short http address on the paired host.";
++    }
++    Settings paired("websocket", false);
++    if (!UpdateUrlIsPairedHost(url, paired.GetString("url"))) {
++        return "Update refused: the image address is not the paired host. Start the update from the host the unit is paired with.";
++    }
++    if (!safe_version(version)) {
++        return "Update refused: the version text is missing or has odd characters. Send a version such as 1.2.0.";
++    }
++    const esp_app_desc_t* running = esp_app_get_description();
++    if (running != nullptr && std::strcmp(running->version, version) == 0) {
++        return "Update refused: the unit already runs this version. Nothing to do.";
++    }
++    const esp_partition_t* next = esp_ota_get_next_update_partition(nullptr);
++    if (next == nullptr) {
++        return "Update refused: the unit has no second update slot. Flash it once over USB with the full image.";
++    }
++    if (size != 0 && !UpdateFitsSlot(size, next->size)) {
++        return "Update refused: the image would leave less than 20 percent of its slot free. Build a smaller image.";
++    }
++    bool expected = false;
++    if (!s_active.compare_exchange_strong(expected, true)) {
++        return "An update is already running. Wait for it to finish.";
++    }
++    auto fail = [](const char* why) {
++        s_active = false;
++        return std::string(why);
++    };
++    if (Application::GetInstance().GetDeviceState() != kDeviceStateIdle) {
++        return fail("The unit is busy talking. Try again when it is idle.");
++    }
++    if (!GetHAL().isBatteryCharging() && GetHAL().getBatteryLevel() < kMinBatteryPercent) {
++        return fail("The battery is below 40 percent. Put the unit on its charger and try again.");
++    }
++    Job* job = new (std::nothrow) Job();
++    if (job == nullptr) return fail("The unit is low on memory. Restart it and try again.");
++    std::snprintf(job->url, sizeof(job->url), "%s", url);
++    std::snprintf(job->version, sizeof(job->version), "%s", version);
++    if (xTaskCreate(update_task, "fwupdate", kTaskStackBytes, job, 5, nullptr) != pdPASS) {
++        delete job;
++        return fail("The unit is low on memory. Restart it and try again.");
++    }
++    return "";
++}

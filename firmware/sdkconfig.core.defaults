@@ -12,3 +12,10 @@ CONFIG_MAIPAI_FACE_TOD=y
 CONFIG_MAIPAI_FACE_CLOCK=y
 CONFIG_MAIPAI_FACE_THINKING=y
 CONFIG_MAIPAI_FACE_TIMERS=y
+# Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
+# and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
+# destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_NONE=y
+CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE_PATH="ca/no-public-roots.pem"

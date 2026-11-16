@@ -84,5 +84,5 @@ Replacement, one page (estimates, untested):
 ## Open
 
 - Release signing key custody and what a fork signs with.
-- Whether the portal component override works with the lock check (untested).
-- Update windows depend on the clock fix.
+- Portal component override and the lock check: answered 2026-11-16, it works with no fork (portal-status-2026-11-16.md). Open: the portal on a real unit.
+- Update windows depend on the clock fix: answered 2026-11-16, they use the host clock, so no unit clock fix is needed (ota-update-2026-11-16.md).

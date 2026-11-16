@@ -1,0 +1,200 @@
+# Intent: A protected setup window (safety-and-privacy.md finding 4). A new six-digit setup code is made each time setup opens and shown on the unit's screen after the hotspot name; /submit refuses anything without it, in constant time, and five wrong codes lock the window. The window ends after 8 minutes (the unit then starts a new one with a new code). The hotspot name is generic: MaiPai-StackChan-<last four hex of the Wi-Fi address>. The screen hint is let through when captions are off, because captions off silenced it (F02) and nobody could read the code. The code is wiped when setup stops.
+# Placement: unit (the code lives in RAM and on the unit's screen only; a neighbour cannot see it)
+# Upstream: firmware/main/hal/board/stackchan_display.cc of the StackChan tree (MIT); firmware/portal/maipai_wifi_configuration_ap.cc from P02
+# Check after a flash: none until P05 turns it on
+diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
+index 4ba9463..5b04bcc 100644
+--- a/firmware/CMakeLists.txt
++++ b/firmware/CMakeLists.txt
+@@ -16,6 +16,9 @@ add_compile_options(-Wno-missing-field-initializers)
+ # MaiPai Wi-Fi portal (patch P02): see portal/portal.cmake.
+ include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
+ 
++# MaiPai Wi-Fi portal (patch P02): see portal/portal.cmake.
++include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
++
+ # Auto-load a local sdkconfig overlay (git-ignored) when present. Lets
+ # self-hosted / custom deployments pin CONFIG_STACKCHAN_SERVER_URL,
+ # CONFIG_OTA_URL, etc. without touching committed defaults.
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index b47a9a9..58e8570 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -25,6 +25,9 @@
+ #include <hal/hal.h>
+ #include <hal/maipai_timers.h>
+ #include <hal/maipai_face.h>
++
++// True while the Wi-Fi setup portal is open (firmware/portal/maipai_wifi_configuration_ap.cc, patch P03).
++extern "C" bool maipai_portal_active(void);
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_touch_core.h>
+ #include <hal/device_events.h>
+@@ -994,8 +997,9 @@ void StackChanAvatarDisplay::SetChatMessage(const char* role, const char* conten
+ 
+     // ESP_LOGE(TAG, "SetChatMessage: role=%s, content=%s", role ? role : "null", content ? content : "null");
+ 
+-    // Captions are an opt-in: off by default, the words are spoken, not drawn (patch F02).
+-    if (!maipai_face_captions_on()) {
++    // Captions are an opt-in: off by default, the words are spoken, not drawn (patch F02). The Wi-Fi setup hint
++    // (hotspot name and setup code) is not a caption: it must show or nobody can finish setup (patch P03).
++    if (!maipai_face_captions_on() && !maipai_portal_active()) {
+         return;
+     }
+ 
+diff --git a/firmware/portal/maipai_wifi_configuration_ap.cc b/firmware/portal/maipai_wifi_configuration_ap.cc
+index 0ad4b1f..85c9f23 100644
+--- a/firmware/portal/maipai_wifi_configuration_ap.cc
++++ b/firmware/portal/maipai_wifi_configuration_ap.cc
+@@ -1,7 +1,7 @@
+ /*
+  * SPDX-License-Identifier: MIT
+  *
+- * The StackChan Wi-Fi setup portal (patches P02 to P04). It replaces the setup component's access point source
++ * The StackChan Wi-Fi setup portal (patches P01 to P04). It replaces the setup component's access point source
+  * file at build time (portal/portal.cmake, patch P02); the component itself stays untouched in
+  * managed_components, so its checksums and the lock file still match. Logic that needs no ESP-IDF is in
+  * maipai_portal_core.h; the page is in maipai_portal_page.h.
+@@ -41,7 +41,11 @@
+ #define WIFI_FAIL_BIT      BIT1
+ 
+ namespace {
++std::atomic<bool> s_active{false};
++char s_code[MP_PORTAL_CODE_LEN + 1];
++mp_guard_t s_guard;
+ int s_lang = MP_LANG_EN;
++esp_timer_handle_t s_window_timer = nullptr;
+ 
+ constexpr const char* kPortalUrl = "http://192.168.4.1/";
+ constexpr size_t kMaxBody = 640;
+@@ -91,6 +95,11 @@ void request_exit_later(WifiConfigurationAp* self, void (*call)(WifiConfiguratio
+ }
+ }  // namespace
+ 
++extern "C" bool maipai_portal_active(void)
++{
++    return s_active.load();
++}
++
+ WifiConfigurationAp::WifiConfigurationAp()
+ {
+     event_group_ = xEventGroupCreate();
+@@ -139,6 +148,8 @@ void WifiConfigurationAp::SetSsidPrefix(const std::string& ssid_prefix)
+ 
+ void WifiConfigurationAp::Start()
+ {
++    // A new window: a new language check, no wrong tries, and (below) a new code and a timer that ends it.
++    mp_guard_reset(&s_guard);
+     s_lang = mp_lang_from_code(language_.c_str());
+ 
+     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
+@@ -149,7 +160,10 @@ void WifiConfigurationAp::Start()
+                                                         &instance_got_ip_));
+ 
+     StartAccessPoint();
++    // The radio is on now, so the random word has real noise in it.
++    mp_code_make(esp_random(), s_code);
+     StartWebServer();
++    s_active = true;
+ 
+     esp_wifi_scan_start(nullptr, false);
+     esp_timer_create_args_t scan_args = {
+@@ -165,6 +179,23 @@ void WifiConfigurationAp::Start()
+         .skip_unhandled_events = false,
+     };
+     ESP_ERROR_CHECK(esp_timer_create(&scan_args, &scan_timer_));
++
++    esp_timer_create_args_t window_args = {
++        .callback = [](void* arg) {
++            auto* self = static_cast<WifiConfigurationAp*>(arg);
++            ESP_LOGW(TAG, "Setup window over: closing the portal");
++            request_exit_later(
++                self, [](WifiConfigurationAp* s) {
++                    if (s->on_exit_requested_) s->on_exit_requested_();
++                }, 0);
++        },
++        .arg = this,
++        .dispatch_method = ESP_TIMER_TASK,
++        .name = "portal_window",
++        .skip_unhandled_events = false,
++    };
++    ESP_ERROR_CHECK(esp_timer_create(&window_args, &s_window_timer));
++    ESP_ERROR_CHECK(esp_timer_start_once(s_window_timer, (uint64_t)MP_PORTAL_WINDOW_S * 1000000ULL));
+ }
+ 
+ std::string WifiConfigurationAp::GetSsid()
+@@ -172,13 +203,17 @@ std::string WifiConfigurationAp::GetSsid()
+     uint8_t mac[6];
+     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP));
+     char ssid[33];
+-    snprintf(ssid, sizeof(ssid), "%s-%02X%02X", ssid_prefix_.c_str(), mac[4], mac[5]);
++    mp_ssid(ssid, sizeof(ssid), mac[4], mac[5]);
+     return std::string(ssid);
+ }
+ 
++// The board shows this text on the unit's screen after "Config URL:". It carries the setup code, so the code is
++// readable only by someone who can see the unit.
+ std::string WifiConfigurationAp::GetWebServerUrl()
+ {
+-    return "http://192.168.4.1";
++    char buf[48];
++    snprintf(buf, sizeof(buf), "http://192.168.4.1  %s %s", s_lang == MP_LANG_ES ? "Codigo:" : "Code:", s_code);
++    return std::string(buf);
+ }
+ 
+ void WifiConfigurationAp::StartAccessPoint()
+@@ -213,7 +248,7 @@ void WifiConfigurationAp::StartAccessPoint()
+ #else
+     ESP_ERROR_CHECK(esp_wifi_set_band_mode(WIFI_BAND_MODE_2G_ONLY));
+ #endif
+-    ESP_LOGI(TAG, "Setup hotspot %s started", ssid.c_str());
++    ESP_LOGI(TAG, "Setup hotspot %s is open for %d seconds", ssid.c_str(), MP_PORTAL_WINDOW_S);
+ }
+ 
+ void WifiConfigurationAp::StartWebServer()
+@@ -325,7 +360,15 @@ void WifiConfigurationAp::StartWebServer()
+                 return (cJSON_IsString(it) && it->valuestring) ? it->valuestring : "";
+             };
+ 
+-            // The fields.
++            // 1. The setup code from the unit's screen. Five wrong tries lock the window.
++            int bad = mp_guard_check(&s_guard, s_code, text("code"));
++            if (bad >= 0) {
++                ESP_LOGW(TAG, "Setup code refused (%d wrong so far)", s_guard.bad);
++                cJSON_Delete(json);
++                send_json_status(req, false, bad);
++                return ESP_OK;
++            }
++            // 2. The fields.
+             std::string ssid = text("ssid");
+             std::string password = text("password");
+             char host_url[80];
+@@ -339,7 +382,7 @@ void WifiConfigurationAp::StartWebServer()
+                 send_json_status(req, false, MP_S_FAIL);
+                 return ESP_OK;
+             }
+-            // Join first; save only what worked.
++            // 3. Join first; save only what worked.
+             if (!self->ConnectToWifi(ssid, password)) {
+                 send_json_status(req, false, MP_S_FAIL);
+                 return ESP_OK;
+@@ -495,6 +538,12 @@ void WifiConfigurationAp::IpEventHandler(void* arg, esp_event_base_t event_base,
+ // Ends setup and gives the memory back: timers, web server, DNS responder, scan list and the code.
+ void WifiConfigurationAp::Stop()
+ {
++    s_active = false;
++    if (s_window_timer) {
++        esp_timer_stop(s_window_timer);
++        esp_timer_delete(s_window_timer);
++        s_window_timer = nullptr;
++    }
+     if (scan_timer_) {
+         esp_timer_stop(scan_timer_);
+         esp_timer_delete(scan_timer_);
+@@ -525,5 +574,6 @@ void WifiConfigurationAp::Stop()
+         std::lock_guard<std::mutex> lock(mutex_);
+         std::vector<wifi_ap_record_t>().swap(ap_records_);
+     }
++    memset(s_code, 0, sizeof(s_code));
+     ESP_LOGI(TAG, "Setup portal closed");
+ }

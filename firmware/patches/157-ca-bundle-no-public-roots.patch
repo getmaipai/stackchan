@@ -1,0 +1,20 @@
+# Intent: Security finding 5. The public CA bundle (66,137 B of flash, about 140 roots) is replaced by a custom bundle that holds one placeholder root whose key was destroyed, so nothing can chain to it. The core needs no public root: the unit talks to the host over the private network only, and the TLS link to the host (a later item) pins a private CA that is added to firmware/ca/ then. The Kconfig switches ride in firmware/sdkconfig.core.defaults.
+# Placement: unit (the unit's trust store)
+# Upstream: none (new file)
+# Check after a flash: nothing visible; any https connection to a public site now fails with a certificate error, which is intended.
+diff --git a/firmware/ca/no-public-roots.pem b/firmware/ca/no-public-roots.pem
+new file mode 100644
+--- /dev/null
++++ b/firmware/ca/no-public-roots.pem
+@@ -0,0 +1,11 @@
++-----BEGIN CERTIFICATE-----
++MIIBkTCCATigAwIBAgIUChiZsb1rQtkEYeHiFHqZE1qGegMwCgYIKoZIzj0EAwIw
++JjEkMCIGA1UEAwwbTm8gcHVibGljIHJvb3RzIHBsYWNlaG9sZGVyMCAXDTI2MTEx
++NjA3MDkwOFoYDzIxMjYxMDIzMDcwOTA4WjAmMSQwIgYDVQQDDBtObyBwdWJsaWMg
++cm9vdHMgcGxhY2Vob2xkZXIwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAShCLC6
++3krl9PmsvLp9ZsGMB0/vgcCAD+Dhp36gnede1tvPnVfSIDWUrlzYtpmlMQQFQOTQ
++Ar4s0rHcPrYfRAb8o0IwQDAdBgNVHQ4EFgQUD8yu20AHxufotvR6p/VRE0DE2WYw
++DwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAgQwCgYIKoZIzj0EAwIDRwAw
++RAIgMwjrhlD0ucpMwq6c6C89/bP60c/iwWFNlV28KgGa7/YCIDOgB6920lvgYBcl
++QEXpVW1qxzfvdMRaFczHI9C3HLeY
++-----END CERTIFICATE-----

@@ -50,6 +50,11 @@ CATALOG: dict[str, dict[str, str]] = {
         "settings.update.started": "Update started. The unit restarts when it finishes.",
         "settings.update.none": "No update source is set. Add update_source to robot.toml and try again.",
         "settings.update.current": "The unit already runs the newest firmware.",
+        "update.ota_no_signature": (
+            "The image signature file {name} is missing or not 64 bytes in {folder}, so nothing was sent. "
+            "Sign the app image with the release key, or flash this release over USB instead."
+        ),
+        "update.unit_refused": "The unit refused the update. {why}",
         "update.unsigned": (
             "The release manifest is not signed, so it was not used. Download the release "
             "again from the official source, or build it with release.sh --signing-key."
@@ -181,6 +186,11 @@ CATALOG: dict[str, dict[str, str]] = {
             "No hay fuente de actualizacion. Agrega update_source en robot.toml e intenta de nuevo."
         ),
         "settings.update.current": "La unidad ya tiene el firmware mas reciente.",
+        "update.ota_no_signature": (
+            "Falta el archivo de firma {name} de la imagen, o no mide 64 bytes, en {folder}, asi que no se envio nada. "
+            "Firma la imagen con la clave de la version, o instala esta version por USB."
+        ),
+        "update.unit_refused": "La unidad rechazo la actualizacion. {why}",
         "update.unsigned": (
             "El manifiesto de la version no esta firmado, asi que no se uso. Descarga la "
             "version de nuevo desde la fuente oficial, o compilala con release.sh --signing-key."

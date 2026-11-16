@@ -1,0 +1,11 @@
+# Source-level secret rules for this repo. The image-level check is scripts/check-no-keys.py (patch 156).
+title = "stackchan secret rules"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "private-network-auth-key"
+description = "Private-network auth key"
+regex = '''tskey-[A-Za-z0-9]+-[A-Za-z0-9]{8,}'''
+keywords = ["tskey-"]

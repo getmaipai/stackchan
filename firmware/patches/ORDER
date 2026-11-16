@@ -60,3 +60,14 @@ F03-face-time-of-day.patch
 F04-face-clock.patch
 F05-face-thinking-cue.patch
 F06-face-timer-countdowns.patch
+155-host-url-tools-removed-and-signed-updates.patch
+156-refuse-keys-in-images.patch
+157-ca-bundle-no-public-roots.patch
+158-vendor-update-url-empty-and-dead-modem-dependency.patch
+P01-portal-page.patch
+P02-portal-routes.patch
+P03-portal-protect.patch
+P04-portal-language.patch
+P05-portal-wire.patch
+159-wireless-update-from-paired-host.patch
+160-first-boot-rollback.patch

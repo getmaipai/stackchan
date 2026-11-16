@@ -83,6 +83,7 @@ def make_release(
     if sign:
         manifest = flash_manifest.sign_manifest(manifest, private)
     (folder / "flash-manifest.json").write_text(json.dumps(manifest))
+    (folder / "stack-chan-maipai.bin.sig").write_bytes(b"S" * 64)  # a stand-in; ota tests sign for real
     return folder, public, (private, public)
 
 

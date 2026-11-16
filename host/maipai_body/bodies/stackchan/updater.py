@@ -248,6 +248,24 @@ def flash(
 
 
 OtaPush = Callable[[str, Path, str, int, str], object]
+SIGNATURE_SUFFIX = ".sig"
+SIGNATURE_BYTES = 64
+
+
+def image_signature_path(image: Path) -> Path:
+    """The detached Ed25519 signature the unit fetches next to the image (firmware patch 159)."""
+    return image.with_name(image.name + SIGNATURE_SUFFIX)
+
+
+def check_image_signature_file(release: VerifiedRelease, lang: str | None) -> None:
+    """An over-the-air update needs the 64-byte signature file beside the app image.
+
+    The unit refuses without it, so the host says so first and sends nothing."""
+    sig = image_signature_path(release.folder / release.app_part()["path"])
+    if not sig.is_file() or sig.stat().st_size != SIGNATURE_BYTES:
+        raise UpdateRefused(
+            t(lang, "update.ota_no_signature", name=sig.name, folder=release.folder)
+        )
 
 
 def update_over_air(
@@ -263,6 +281,7 @@ def update_over_air(
     if not is_newer(release.version, unit_version):
         raise UpdateRefused(t(lang, "update.not_newer", unit=unit_version, release=release.version))
     app = release.app_part()
+    check_image_signature_file(release, lang)
     if dry_run:
         return t(lang, "update.dry")
     if push is None:

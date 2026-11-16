@@ -1,0 +1,468 @@
+# Intent: The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h is one page of about 3.4 KB: system fonts, inline CSS and JS, light and dark by browser setting, 48 px touch targets, nearby networks sorted by signal with tap to fill, setup code, password, optional host address, save. maipai_portal_core.h is plain C: the 15-string table in English and Spanish (one table is sent, in the unit's language), the setup code and its constant-time check, the wrong-code lock (5 tries), the hotspot name MaiPai-StackChan-<last four hex>, the 8 minute window length, the nearby-network tidy (strongest first, hidden names dropped, repeats merged, 16 at most) and JSON, and the host address form. Tested on a host compiler (host/tests/firmware/portal_core_test.c, host/tests/test_portal_core.py).
+# Placement: unit (the page is served by the robot's own setup hotspot; the pairing code that follows setup is host/maipai_body PairingStore)
+# Upstream: firmware/managed_components/78__esp-wifi-connect/assets/wifi_configuration.html (MIT) is the page this replaces; no text is carried over
+# Check after a flash: none by itself; the page is exercised with a local mock in the browser and by test_portal_core.py
+diff --git a/firmware/portal/maipai_portal_core.h b/firmware/portal/maipai_portal_core.h
+new file mode 100644
+index 0000000..6eb2d28
+--- /dev/null
++++ b/firmware/portal/maipai_portal_core.h
+@@ -0,0 +1,399 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The Wi-Fi setup portal's logic as plain C (patches P01 to P04): the 15-string table in English and Spanish,
++ * the setup code and its check, the hotspot name, the window length, the nearby-network list and the host
++ * address. No ESP-IDF headers, so a host compiler runs the tests (host/tests/firmware/portal_core_test.c).
++ */
++#ifndef MAIPAI_PORTAL_CORE_H
++#define MAIPAI_PORTAL_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++
++/* The protected window: setup stops answering after this many seconds and the unit starts a new one. */
++#define MP_PORTAL_WINDOW_S 480
++/* Wrong codes allowed in one window before the portal refuses every further try. */
++#define MP_PORTAL_MAX_BAD_CODES 5
++#define MP_PORTAL_CODE_LEN 6
++#define MP_PORTAL_MAX_NETS 16
++
++#define MP_LANG_EN 0
++#define MP_LANG_ES 1
++
++/* String slots. The page and the server share these numbers: /submit answers with one in "e". */
++enum {
++    MP_S_TITLE = 0,
++    MP_S_CODE,
++    MP_S_NETS,
++    MP_S_SCAN,
++    MP_S_BADHOST,
++    MP_S_LOST,
++    MP_S_SSID,
++    MP_S_PASS,
++    MP_S_HOST,
++    MP_S_SAVE,
++    MP_S_WAIT,
++    MP_S_OK,
++    MP_S_BADCODE,
++    MP_S_LOCKED,
++    MP_S_FAIL,
++    MP_S_COUNT
++};
++
++static const char* const mp_strings[2][MP_S_COUNT] = {
++    {
++        "Set up StackChan",
++        "Setup code (on the unit's screen)",
++        "Nearby networks",
++        "Looking for networks...",
++        "The home address looks wrong. Type a name or numbers like 192.0.2.10, with an optional :port.",
++        "Lost the link to StackChan. Join its Wi-Fi again and retry.",
++        "Network name",
++        "Password",
++        "Home address (optional)",
++        "Save",
++        "Joining the network. This can take 30 seconds.",
++        "Saved. StackChan is joining your network. You can close this page.",
++        "Wrong setup code. Read it again on the unit's screen.",
++        "Too many wrong codes. Setup is locked until the unit starts a new window in a few minutes.",
++        "Could not join that network. Check the name and password, then try again.",
++    },
++    {
++        "Configurar StackChan",
++        "Código de ajuste (en la pantalla del robot)",
++        "Redes cercanas",
++        "Buscando redes...",
++        "La dirección de casa no parece correcta. Escriba un nombre o números como 192.0.2.10, con :puerto opcional.",
++        "Se perdió el enlace con StackChan. Vuelva a unirse a su Wi-Fi y reintente.",
++        "Nombre de la red",
++        "Contraseña",
++        "Dirección de casa (opcional)",
++        "Guardar",
++        "Uniendo a la red. Puede tardar 30 segundos.",
++        "Guardado. StackChan se está uniendo a su red. Puede cerrar esta página.",
++        "Código incorrecto. Vuelva a leerlo en la pantalla del robot.",
++        "Demasiados códigos incorrectos. El ajuste queda bloqueado hasta que el robot abra otra ventana en unos minutos.",
++        "No se pudo unir a esa red. Revise el nombre y la contraseña e intente de nuevo.",
++    },
++};
++
++/* "es", "es-ES", "ES_mx" give Spanish; anything else, English. */
++static inline int mp_lang_from_code(const char* code)
++{
++    if (code && (code[0] == 'e' || code[0] == 'E') && (code[1] == 's' || code[1] == 'S') &&
++        (code[2] == 0 || code[2] == '-' || code[2] == '_')) {
++        return MP_LANG_ES;
++    }
++    return MP_LANG_EN;
++}
++
++static inline const char* mp_str(int lang, int slot)
++{
++    if (lang < 0 || lang > 1 || slot < 0 || slot >= MP_S_COUNT) {
++        return "";
++    }
++    return mp_strings[lang][slot];
++}
++
++/* Writes the table as a JSON array of strings. Returns the length, or 0 if buf is too small. */
++static inline size_t mp_table_json(int lang, char* buf, size_t cap)
++{
++    size_t n = 0;
++    if (cap < 3) {
++        return 0;
++    }
++    buf[n++] = '[';
++    for (int i = 0; i < MP_S_COUNT; i++) {
++        const char* s = mp_str(lang, i);
++        if (i) {
++            buf[n++] = ',';
++        }
++        if (n + 2 >= cap) {
++            return 0;
++        }
++        buf[n++] = '"';
++        for (; *s; s++) {
++            if (n + 3 >= cap) {
++                return 0;
++            }
++            if (*s == '"' || *s == '\\') {
++                buf[n++] = '\\';
++            }
++            buf[n++] = *s;
++        }
++        buf[n++] = '"';
++    }
++    if (n + 2 > cap) {
++        return 0;
++    }
++    buf[n++] = ']';
++    buf[n] = 0;
++    return n;
++}
++
++/* The hotspot name: generic, with the last two bytes of the Wi-Fi address in hex so two units never clash. */
++static inline void mp_ssid(char* out, size_t cap, uint8_t mac4, uint8_t mac5)
++{
++    snprintf(out, cap, "MaiPai-StackChan-%02X%02X", mac4, mac5);
++}
++
++/* A setup code from one random word: six digits, never fewer. */
++static inline void mp_code_make(uint32_t rnd, char out[MP_PORTAL_CODE_LEN + 1])
++{
++    uint32_t v = rnd % 1000000u;
++    for (int i = MP_PORTAL_CODE_LEN - 1; i >= 0; i--) {
++        out[i] = (char)('0' + v % 10u);
++        v /= 10u;
++    }
++    out[MP_PORTAL_CODE_LEN] = 0;
++}
++
++/* Reads the digits of what a person typed (spaces and dashes allowed) into out. Returns the digit count. */
++static inline int mp_code_digits(const char* typed, char* out, size_t cap)
++{
++    size_t n = 0;
++    if (!typed || cap < 2) {
++        return 0;
++    }
++    for (; *typed; typed++) {
++        if (*typed >= '0' && *typed <= '9') {
++            if (n + 1 >= cap) {
++                return 0;
++            }
++            out[n++] = *typed;
++        } else if (*typed != ' ' && *typed != '-') {
++            return 0;
++        }
++    }
++    out[n] = 0;
++    return (int)n;
++}
++
++/* Compares in the same time whatever the digits are. */
++static inline int mp_code_match(const char* expected, const char* typed)
++{
++    char d[16];
++    if (mp_code_digits(typed, d, sizeof(d)) != MP_PORTAL_CODE_LEN) {
++        return 0;
++    }
++    unsigned diff = 0;
++    for (int i = 0; i < MP_PORTAL_CODE_LEN; i++) {
++        diff |= (unsigned)(expected[i] ^ d[i]);
++    }
++    return diff == 0;
++}
++
++/* Wrong-code counter for one window. */
++typedef struct {
++    int bad;
++    int locked;
++} mp_guard_t;
++
++static inline void mp_guard_reset(mp_guard_t* g)
++{
++    g->bad = 0;
++    g->locked = 0;
++}
++
++/* Returns MP_S_BADCODE, MP_S_LOCKED, or -1 when the code is right and the portal is not locked. */
++static inline int mp_guard_check(mp_guard_t* g, const char* expected, const char* typed)
++{
++    if (g->locked) {
++        return MP_S_LOCKED;
++    }
++    if (mp_code_match(expected, typed)) {
++        g->bad = 0;
++        return -1;
++    }
++    g->bad++;
++    if (g->bad >= MP_PORTAL_MAX_BAD_CODES) {
++        g->locked = 1;
++        return MP_S_LOCKED;
++    }
++    return MP_S_BADCODE;
++}
++
++/* One nearby network as the scan reports it. */
++typedef struct {
++    char ssid[33];
++    int8_t rssi;
++    uint8_t secure; /* 0 open, 1 needs a password */
++} mp_net_t;
++
++static inline void mp_json_str(char* buf, size_t cap, size_t* n, const char* s)
++{
++    if (*n + 1 < cap) {
++        buf[(*n)++] = '"';
++    }
++    for (; *s; s++) {
++        unsigned char c = (unsigned char)*s;
++        if (c == '"' || c == '\\') {
++            if (*n + 2 < cap) {
++                buf[(*n)++] = '\\';
++                buf[(*n)++] = (char)c;
++            }
++        } else if (c < 0x20) {
++            if (*n + 6 < cap) {
++                *n += (size_t)snprintf(buf + *n, cap - *n, "\\u%04x", c);
++            }
++        } else if (*n + 1 < cap) {
++            buf[(*n)++] = (char)c;
++        }
++    }
++    if (*n + 1 < cap) {
++        buf[(*n)++] = '"';
++    }
++}
++
++/*
++ * Sorts by signal (strongest first), drops hidden names, keeps the strongest of equal names and at most
++ * MP_PORTAL_MAX_NETS. Works in place and returns the count.
++ */
++static inline int mp_nets_tidy(mp_net_t* nets, int count)
++{
++    int n = 0;
++    for (int i = 0; i < count; i++) {
++        if (nets[i].ssid[0] == 0) {
++            continue;
++        }
++        int dup = -1;
++        for (int j = 0; j < n; j++) {
++            if (strcmp(nets[j].ssid, nets[i].ssid) == 0) {
++                dup = j;
++                break;
++            }
++        }
++        if (dup >= 0) {
++            if (nets[i].rssi > nets[dup].rssi) {
++                nets[dup] = nets[i];
++            }
++            continue;
++        }
++        if (n != i) {
++            nets[n] = nets[i];
++        }
++        n++;
++    }
++    for (int i = 1; i < n; i++) { /* insertion sort: n is small */
++        mp_net_t t = nets[i];
++        int j = i - 1;
++        while (j >= 0 && nets[j].rssi < t.rssi) {
++            nets[j + 1] = nets[j];
++            j--;
++        }
++        nets[j + 1] = t;
++    }
++    return n > MP_PORTAL_MAX_NETS ? MP_PORTAL_MAX_NETS : n;
++}
++
++/* [["name",signal,1],...] for the page. Returns the length. */
++static inline size_t mp_nets_json(const mp_net_t* nets, int count, char* buf, size_t cap)
++{
++    size_t n = 0;
++    if (cap < 3) {
++        return 0;
++    }
++    buf[n++] = '[';
++    for (int i = 0; i < count; i++) {
++        if (i && n + 1 < cap) {
++            buf[n++] = ',';
++        }
++        if (n + 1 < cap) {
++            buf[n++] = '[';
++        }
++        mp_json_str(buf, cap, &n, nets[i].ssid);
++        if (n + 12 < cap) {
++            n += (size_t)snprintf(buf + n, cap - n, ",%d,%d]", (int)nets[i].rssi, nets[i].secure ? 1 : 0);
++        }
++    }
++    if (n + 2 > cap) {
++        n = cap - 2;
++    }
++    buf[n++] = ']';
++    buf[n] = 0;
++    return n;
++}
++
++/* What the page must not be able to do: a name the radio cannot hold or with control characters. */
++static inline int mp_ssid_ok(const char* ssid)
++{
++    size_t n = ssid ? strlen(ssid) : 0;
++    if (n == 0 || n > 32) {
++        return 0;
++    }
++    for (size_t i = 0; i < n; i++) {
++        if ((unsigned char)ssid[i] < 0x20) {
++            return 0;
++        }
++    }
++    return 1;
++}
++
++/*
++ * The host address field. Accepts host, host:port or ws://host:port and writes the saved form ws://host:port
++ * (port 8765 when missing). Returns 1 and writes out, 0 for an empty field (change nothing), -1 when it is not
++ * an address.
++ */
++static inline int mp_host_url(const char* typed, char* out, size_t cap)
++{
++    char tmp[80];
++    size_t n = typed ? strlen(typed) : 0;
++    if (n == 0) {
++        return 0;
++    }
++    if (n >= sizeof(tmp)) {
++        return -1;
++    }
++    memcpy(tmp, typed, n + 1);
++    const char* scheme = "ws";
++    const char* p = tmp;
++    if (strncmp(p, "ws://", 5) == 0) {
++        p += 5;
++    } else if (strncmp(p, "wss://", 6) == 0) {
++        scheme = "wss";
++        p += 6;
++    } else if (strstr(p, "://")) {
++        return -1;
++    }
++    size_t hl = strlen(p);
++    if (hl == 0) {
++        return -1;
++    }
++    int colons = 0, has_port = 0;
++    for (size_t i = 0; i < hl; i++) {
++        char c = p[i];
++        int ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '.' || c == '-' ||
++                 c == ':' || c == '_';
++        if (!ok) {
++            return -1;
++        }
++        if (c == ':') {
++            colons++;
++            has_port = 1;
++        }
++    }
++    if (colons > 1) {
++        return -1;
++    }
++    if (has_port) {
++        const char* c = strchr(p, ':');
++        if (c == p || c[1] == 0) {
++            return -1;
++        }
++        for (const char* q = c + 1; *q; q++) {
++            if (*q < '0' || *q > '9') {
++                return -1;
++            }
++        }
++        if (strlen(c + 1) > 5) {
++            return -1;
++        }
++    }
++    int w = snprintf(out, cap, has_port ? "%s://%s" : "%s://%s:8765", scheme, p);
++    return (w > 0 && (size_t)w < cap) ? 1 : -1;
++}
++
++#endif /* MAIPAI_PORTAL_CORE_H */
+diff --git a/firmware/portal/maipai_portal_page.h b/firmware/portal/maipai_portal_page.h
+new file mode 100644
+index 0000000..fdace77
+--- /dev/null
++++ b/firmware/portal/maipai_portal_page.h
+@@ -0,0 +1,53 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The one setup page (patch P01). System fonts, inline CSS and JS, no images. The server swaps the single
++ * marker @T@ for the 15-string table in the chosen language (maipai_portal_core.h) before sending.
++ */
++#ifndef MAIPAI_PORTAL_PAGE_H
++#define MAIPAI_PORTAL_PAGE_H
++
++#define MP_PAGE_MARKER "@T@"
++
++static const char mp_page[] = R"MPHTML(<!doctype html><html><head><meta charset=utf-8>
++<meta name=viewport content="width=device-width,initial-scale=1"><title>StackChan</title>
++<style>
++:root{--bg:#f6f7f9;--pn:#fff;--ink:#1c2330;--mu:#5d6675;--ln:#d5dae2;--ac:#1f6feb;--er:#b3261e;--ok:#1a7f4b;--bt:#fff}
++@media(prefers-color-scheme:dark){:root{--bg:#12161d;--pn:#1b212b;--ink:#e7ebf2;--mu:#9aa5b5;--ln:#2f3846;--ac:#5b9cff;--er:#ff7b72;--ok:#4cc38a;--bt:#0b1220}}
++*{box-sizing:border-box}
++body{margin:0;padding:16px;font:17px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
++main{max-width:30em;margin:auto;background:var(--pn);border:1px solid var(--ln);border-radius:12px;padding:16px}
++h1{font-size:22px;margin:0 0 12px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin:16px 0 6px}
++label{display:block;margin:12px 0 4px;color:var(--mu);font-size:15px}
++input{width:100%;min-height:48px;padding:8px 12px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ln);border-radius:8px}
++input:focus,button:focus{outline:2px solid var(--ac)}
++#l button{display:flex;justify-content:space-between;width:100%;min-height:48px;margin:0 0 6px;padding:8px 12px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ln);border-radius:8px;text-align:left}
++#l small{color:var(--mu);align-self:center;white-space:nowrap}
++#b{width:100%;min-height:52px;margin-top:16px;font:600 17px system-ui,sans-serif;color:var(--bt);background:var(--ac);border:0;border-radius:8px}
++#b:disabled{opacity:.5}
++#m{min-height:1.4em;margin:12px 0 0;color:var(--er)}#m.g{color:var(--ok)}
++</style></head><body><main><h1 data-t=0></h1>
++<form id=f autocomplete=off>
++<label for=c data-t=1></label><input id=c inputmode=numeric maxlength=8 required>
++<h2 data-t=2></h2><div id=l><p data-t=3></p></div>
++<label for=n data-t=6></label><input id=n maxlength=32 required autocapitalize=off autocorrect=off>
++<label for=p data-t=7></label><input id=p type=password maxlength=64>
++<label for=h data-t=8></label><input id=h maxlength=70 placeholder=192.0.2.10 autocapitalize=off autocorrect=off>
++<button id=b data-t=9></button><p id=m role=status></p></form></main>
++<script>
++var T=@T@,$=function(i){return document.getElementById(i)},busy=0;
++document.querySelectorAll("[data-t]").forEach(function(e){e.textContent=T[e.dataset.t]});
++function say(i,g){var m=$("m");m.textContent=T[i];m.className=g?"g":""}
++function scan(){if(busy)return;fetch("/scan").then(function(r){return r.json()}).then(function(a){
++if(!a.length)return;var l=$("l");l.textContent="";
++a.forEach(function(x){var b=document.createElement("button"),s=document.createElement("small");b.type="button";
++b.textContent=x[0];s.textContent=(x[2]?"\u{1F512} ":"")+"▇".repeat(x[1]>-60?4:x[1]>-70?3:x[1]>-80?2:1);
++b.appendChild(s);b.onclick=function(){$("n").value=x[0];$("p").focus()};l.appendChild(b)})}).catch(function(){})}
++$("f").onsubmit=function(e){e.preventDefault();var b=$("b");b.disabled=busy=1;say(10,1);
++fetch("/submit",{method:"POST",body:JSON.stringify({code:$("c").value,ssid:$("n").value,password:$("p").value,host:$("h").value})})
++.then(function(r){return r.json()}).then(function(r){say(r.ok?11:r.e,r.ok);busy=0;b.disabled=r.ok?1:0})
++.catch(function(){say(5);busy=0;b.disabled=0})};
++scan();setInterval(scan,6000)
++</script></body></html>)MPHTML";
++
++#endif /* MAIPAI_PORTAL_PAGE_H */
