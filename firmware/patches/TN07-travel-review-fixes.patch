@@ -1,0 +1,82 @@
+# Intent: Travel review fixes (Train 4). (1) The setup page now saves the travel key and the hub address before it writes the Wi-Fi network, and a failed save stops the whole submit with a plain sentence on the page (a new string, English and Spanish) instead of an answer of success: the unit never holds half of what the person typed. (2) The build stops with a plain message when the private-network client is asked for (MAIPAI_TAILNET=y or the home preset) and its folder is missing, and prints one line saying whether travel is part of the image, so an image can no longer lack travel because a folder outside this tree was not there.
+# Placement: unit (the setup page and the build are the unit's own)
+# Upstream: firmware/portal/ and firmware/CMakeLists.txt of this tree (patches P01 to P05 and TN01 to TN03)
+# Check after a flash: the setup page, with a travel key typed and the flash made unwritable (not tested), answers with the new sentence and does not write Wi-Fi; a build with MAIPAI_TAILNET=y and no client folder stops with the message; every build log has a line 'MaiPai travel: ...'.
+# Kconfig: none (the page budget test still holds)
+diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
+--- a/firmware/CMakeLists.txt
++++ b/firmware/CMakeLists.txt
+@@ -63,6 +63,18 @@ endif()
+ if("$ENV{MAIPAI_TAILNET}" STREQUAL "n")
+     set(MAIPAI_WANT_TAILNET OFF)
+ endif()
++# Patch TN07: asking for the client (MAIPAI_TAILNET=y or the home preset) while its folder is missing stops the build here,
++# so an image never silently lacks travel because a folder outside this tree was not there.
++if(MAIPAI_WANT_TAILNET AND ("$ENV{MAIPAI_TAILNET}" STREQUAL "y" OR "$ENV{MAIPAI_PRESET}" STREQUAL "home"))
++    if(NOT DEFINED ENV{MAIPAI_MICROLINK_DIR} OR NOT EXISTS "$ENV{MAIPAI_MICROLINK_DIR}/components")
++        message(FATAL_ERROR "Travel is requested (MAIPAI_TAILNET=y or MAIPAI_PRESET=home) but the private-network client folder is missing. Run `bash scripts/fw-tailnet.sh` from the repo, then `source scripts/fw-env.sh`, then build again, or set MAIPAI_TAILNET=n to build without travel.")
++    endif()
++endif()
++if(MAIPAI_WANT_TAILNET)
++    message(STATUS "MaiPai travel: the private-network client is part of this image")
++else()
++    message(STATUS "MaiPai travel: NOT part of this image (no client folder, or MAIPAI_TAILNET=n)")
++endif()
+ if(MAIPAI_WANT_TAILNET AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/sdkconfig.tailnet.defaults")
+     list(APPEND SDKCONFIG_DEFAULTS "${CMAKE_CURRENT_SOURCE_DIR}/sdkconfig.tailnet.defaults")
+ endif()
+diff --git a/firmware/portal/maipai_portal_core.h b/firmware/portal/maipai_portal_core.h
+--- a/firmware/portal/maipai_portal_core.h
++++ b/firmware/portal/maipai_portal_core.h
+@@ -43,6 +43,7 @@ enum {
+     MP_S_TKEY,   /* travel with the private network (patch TN03) */
+     MP_S_TPEER,
+     MP_S_BADTKEY,
++    MP_S_TSAVE,  /* the travel settings could not be saved (patch TN07) */
+     MP_S_COUNT
+ };
+ 
+@@ -66,6 +67,7 @@ static const char* const mp_strings[2][MP_S_COUNT] = {
+         "Travel key (optional)",
+         "Home hub's private address (optional)",
+         "The travel key or the private address looks wrong. A key starts with tskey- and the address looks like 100.64.0.7.",
++        "The travel settings could not be saved, so nothing was changed. Try again; if it keeps failing, restart StackChan and retry.",
+     },
+     {
+         "Configurar StackChan",
+@@ -86,6 +88,7 @@ static const char* const mp_strings[2][MP_S_COUNT] = {
+         "Clave de viaje (opcional)",
+         "Dirección privada del hub de casa (opcional)",
+         "La clave de viaje o la dirección privada no parece correcta. La clave empieza con tskey- y la dirección es como 100.64.0.7.",
++        "No se pudieron guardar los ajustes de viaje, así que no se cambió nada. Intente de nuevo; si sigue fallando, reinicie StackChan y reintente.",
+     },
+ };
+ 
+diff --git a/firmware/portal/maipai_wifi_configuration_ap.cc b/firmware/portal/maipai_wifi_configuration_ap.cc
+--- a/firmware/portal/maipai_wifi_configuration_ap.cc
++++ b/firmware/portal/maipai_wifi_configuration_ap.cc
+@@ -406,6 +406,14 @@ void WifiConfigurationAp::StartWebServer()
+                 send_json_status(req, false, MP_S_FAIL);
+                 return ESP_OK;
+             }
++            // The travel fields go to flash before the Wi-Fi write (patch TN07): if they cannot be saved, nothing
++            // else is written, so the unit never holds half of what the person typed.
++            if (travel && (maipai_portal_tailnet_save == nullptr ||
++                           maipai_portal_tailnet_save(travel_key.c_str(), travel_peer.c_str()) != 0)) {
++                std::fill(travel_key.begin(), travel_key.end(), '\0');
++                send_json_status(req, false, MP_S_TSAVE);
++                return ESP_OK;
++            }
+             self->Save(ssid, password);
+             if (host > 0) {
+                 nvs_handle_t h;
+@@ -415,9 +423,6 @@ void WifiConfigurationAp::StartWebServer()
+                     nvs_close(h);
+                 }
+             }
+-            if (travel && maipai_portal_tailnet_save != nullptr) {
+-                maipai_portal_tailnet_save(travel_key.c_str(), travel_peer.c_str());
+-            }
+             std::fill(travel_key.begin(), travel_key.end(), '\0');  // the key does not stay in memory
+             send_json_status(req, true, 0);
+             // Close the portal a little later so the answer reaches the phone first.

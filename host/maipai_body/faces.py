@@ -31,10 +31,40 @@ from maipai_body.i18n import normalize
 
 logger = logging.getLogger("maipai_body.faces")
 
-STYLES = ("classic", "big_eyes", "minimal")
+STYLES = (
+    "classic",
+    "big_eyes",
+    "minimal",
+    "round",
+    "cat",
+    "robot",
+    "sleepy",
+    "retro_pixel",
+    "heart_eyes",
+)
+BASIC_STYLES = ("classic", "big_eyes", "minimal")  # what firmware without the style packs draws
+CAPTION_SIZES = ("small", "medium", "large")
+# Face decorators (firmware patch U01): small drawn extras shown for a few seconds. One list, here.
+DECORATORS = ("sweat", "shy", "dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz")
+DECOR_MIN_S = 1
+DECOR_MAX_S = 60
+DECOR_DEFAULT_S = 6
+# The decorator that goes with a logical face, for a caller that wants the extra (never required).
+DECORATOR_FOR_FACE = {
+    "sad": "tears",
+    "worried": "sweat",
+    "dizzy": "dizzy",
+    "love": "heart",
+    "angry": "anger",
+    "sleepy": "zzz",
+    "excited": "sparkles",
+    "joy": "sparkles",
+    "content": "shy",
+    "shocked": "sweat",
+}
 PALETTE = ("mint", "sky", "amber", "rose", "lilac", "lime", "coral")
 CLOCK_STYLES = ("digits", "ring")
-LANGS = ("en", "es")
+LANGS = ("en", "es", "fr", "de", "pt", "it")  # screen words; the host page has the same six
 BANDS = ("morning", "day", "evening", "night")
 DEFAULT_HOURS = (6, 9, 18, 21)
 MAX_CLOCK_IDLE_S = 3600
@@ -49,16 +79,20 @@ _NEED = {  # firmware feature word a setting needs; a unit without it ignores th
     "clock_idle_s": "clock",
     "clock24": "clock",
     "thinking_tone": "thinking",
+    "caption_size": "packs",
 }
 
 # Plain words, English and Spanish: what went wrong, then what to do.
 _MESSAGES: dict[str, dict[str, str]] = {
     "en": {
-        "style": "The face style {value!r} does not exist. Choose classic, big_eyes or minimal.",
+        "style": "The face style {value!r} does not exist. Choose classic, big_eyes, minimal, round, cat, robot, sleepy, retro_pixel or heart_eyes.",
+        "caption_size": "The caption size {value!r} does not exist. Choose small, medium or large.",
+        "decor": "The face extra {value!r} does not exist. Choose sweat, shy, dizzy, heart, anger, tears, sparkles, stars or zzz.",
+        "decor_seconds": "A face extra can show for 1 to 60 seconds. Type a number in that range.",
         "colour": "The colour {value!r} is not one I know. Choose none, a name (mint, sky, amber, rose, lilac, lime, coral) or a code like #40c0ff.",
         "dark": "That colour is too dark to see on the black screen. Choose a lighter colour.",
         "hours": "The day bands must be four hours from 0 to 23 that rise: morning, day, evening, night. Fix the hours and save again.",
-        "lang": "The language {value!r} is not supported. Choose en or es.",
+        "lang": "The language {value!r} is not supported. Choose en, es, fr, de, pt or it.",
         "clock_style": "The clock style {value!r} does not exist. Choose digits or ring.",
         "clock_idle": "The idle time for the clock must be 0 (never) to 3600 seconds. Type a number in that range.",
         "flag": "{field} must be on or off. Turn it on or off and save again.",
@@ -71,11 +105,14 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "bad_file": "The face settings file {path} could not be read. Fix or remove it; the plain face is used meanwhile.",
     },
     "es": {
-        "style": "El estilo de cara {value!r} no existe. Elige classic, big_eyes o minimal.",
+        "style": "El estilo de cara {value!r} no existe. Elige classic, big_eyes, minimal, round, cat, robot, sleepy, retro_pixel o heart_eyes.",
+        "caption_size": "El tamano de subtitulos {value!r} no existe. Elige small, medium o large.",
+        "decor": "El adorno de cara {value!r} no existe. Elige sweat, shy, dizzy, heart, anger, tears, sparkles, stars o zzz.",
+        "decor_seconds": "Un adorno de cara puede verse de 1 a 60 segundos. Escribe un numero en ese rango.",
         "colour": "No conozco el color {value!r}. Elige none, un nombre (mint, sky, amber, rose, lilac, lime, coral) o un codigo como #40c0ff.",
         "dark": "Ese color es demasiado oscuro para verse en la pantalla negra. Elige un color mas claro.",
         "hours": "Las franjas del dia son cuatro horas de 0 a 23 que suben: manana, dia, tarde, noche. Corrige las horas y guarda otra vez.",
-        "lang": "El idioma {value!r} no esta disponible. Elige en o es.",
+        "lang": "El idioma {value!r} no esta disponible. Elige en, es, fr, de, pt o it.",
         "clock_style": "El estilo de reloj {value!r} no existe. Elige digits o ring.",
         "clock_idle": "El tiempo de reposo del reloj va de 0 (nunca) a 3600 segundos. Escribe un numero en ese rango.",
         "flag": "{field} debe estar activado o desactivado. Cambialo y guarda otra vez.",
@@ -97,6 +134,9 @@ _FEATURE_WORDS = {
         "thinking": "the thinking cue",
         "timers": "timer countdowns",
         "config": "face settings",
+        "packs": "the extra face styles and caption sizes",
+        "decor": "face extras",
+        "langs6": "screen words in French, German, Portuguese and Italian",
     },
     "es": {
         "captions": "subtitulos",
@@ -105,6 +145,9 @@ _FEATURE_WORDS = {
         "thinking": "la senal de pensar",
         "timers": "cuentas atras de temporizadores",
         "config": "ajustes de la cara",
+        "packs": "los estilos de cara extra y los tamanos de subtitulos",
+        "decor": "adornos de cara",
+        "langs6": "las palabras en pantalla en frances, aleman, portugues e italiano",
     },
 }
 
@@ -114,8 +157,15 @@ class FaceError(ValueError):
 
 
 def _say(lang: str | None, key: str, **values: object) -> str:
-    table = _MESSAGES[normalize(lang)]
-    return table[key].format(**values)
+    """A message in the page language; a language with no table of its own (fr, de, pt, it) reads English."""
+    code = normalize(lang)
+    table = _MESSAGES.get(code) or _MESSAGES["en"]
+    return (table.get(key) or _MESSAGES["en"][key]).format(**values)
+
+
+def _feature_word(lang: str | None, name: str) -> str:
+    words = _FEATURE_WORDS.get(normalize(lang)) or _FEATURE_WORDS["en"]
+    return words.get(name) or _FEATURE_WORDS["en"][name]
 
 
 def luma(red: int, green: int, blue: int) -> int:
@@ -146,6 +196,7 @@ class FaceConfig:
     clock24: bool = False
     clock_style: str = "digits"
     clock_idle_s: int = 0
+    caption_size: str = "medium"
 
     def to_wire(self) -> dict[str, Any]:
         """The JSON object ``self.face.set_config`` takes."""
@@ -160,6 +211,7 @@ class FaceConfig:
             "clock24": self.clock24,
             "clock_style": self.clock_style,
             "clock_idle_s": self.clock_idle_s,
+            "caption_size": self.caption_size,
         }
 
     def to_json(self) -> dict[str, Any]:
@@ -207,6 +259,10 @@ def clean(base: FaceConfig, values: Mapping[str, Any], lang: str | None = None) 
             if value not in CLOCK_STYLES:
                 raise FaceError(_say(say_lang, "clock_style", value=value))
             out = replace(out, clock_style=value)
+        elif field == "caption_size":
+            if value not in CAPTION_SIZES:
+                raise FaceError(_say(say_lang, "caption_size", value=value))
+            out = replace(out, caption_size=value)
         elif field == "clock_idle_s":
             if (
                 isinstance(value, bool)
@@ -461,10 +517,14 @@ class FaceService:
             return []
         say_lang = normalize(lang or self.config(unit_id).lang)
         lines: list[str] = []
-        for field in values:
+        for field, value in values.items():
             need = _NEED.get(field)
+            if field == "style" and value not in BASIC_STYLES:
+                need = "packs"  # the extra styles are firmware patch U06
+            elif field == "lang" and value not in ("en", "es"):
+                need = "langs6"
             if need is not None and need not in known:
-                lines.append(_say(say_lang, "no_feature", what=_FEATURE_WORDS[say_lang][need]))
+                lines.append(_say(say_lang, "no_feature", what=_feature_word(say_lang, need)))
         return lines
 
     # ---- the cues the host can start ----
@@ -499,10 +559,82 @@ class FaceService:
             )
         return {"ok": True}
 
+    def decorate(
+        self,
+        unit_id: str,
+        name: str,
+        seconds: int = DECOR_DEFAULT_S,
+        lang: str | None = None,
+    ) -> dict[str, Any]:
+        """Draw a face extra (sweat, shy, dizzy, heart, anger, tears, sparkles, stars, zzz) for a few seconds.
+
+        ``name`` ``none`` ends the current one. The unit refuses it while a mute, vision-off or quiet
+        look or a ringing timer shows, and says why; the refusal comes back as a ``FaceError``.
+        """
+        say_lang = lang or self.config(unit_id).lang
+        if name != "none" and name not in DECORATORS:
+            raise FaceError(_say(say_lang, "decor", value=name))
+        if (
+            isinstance(seconds, bool)
+            or not isinstance(seconds, int)
+            or not DECOR_MIN_S <= seconds <= DECOR_MAX_S
+        ):
+            raise FaceError(_say(say_lang, "decor_seconds"))
+        self._require(unit_id, "decor", say_lang)
+        reply = self._tool(unit_id, "self.face.decorate", {"name": name, "seconds": seconds})
+        if reply.get("ok") is False:
+            raise FaceError(
+                _say(say_lang, "refused", why=str(reply.get("error", "no reason given")))
+            )
+        return {"ok": True}
+
+    def extra_for_face(self, unit_id: str, logical_face: str) -> bool:
+        """Best effort: draw the extra that goes with a logical face, if it has one. Never raises."""
+        name = DECORATOR_FOR_FACE.get(logical_face)
+        if name is None:
+            return False
+        try:
+            self.decorate(unit_id, name)
+        except (BodyLost, FaceError, OSError, TimeoutError):
+            logger.debug("face extra skipped for unit %s", unit_id[-5:], exc_info=True)
+            return False
+        return True
+
+    def handlers(self) -> dict[str, Callable[[dict], dict]]:
+        """Hub device commands for the face extras: ``face_decorate`` and one entry per extra."""
+
+        def run(unit_id: object, name: object, seconds: object) -> dict:
+            try:
+                if not isinstance(unit_id, str) or not unit_id:
+                    raise FaceError(_say("en", "no_unit"))
+                return self.decorate(
+                    unit_id, str(name), DECOR_DEFAULT_S if seconds is None else seconds
+                )  # type: ignore[arg-type]
+            except FaceError as error:
+                return {"ok": False, "error": str(error)}
+            except BodyLost:
+                return {
+                    "ok": False,
+                    "error": "I could not reach my body to do that. Check that it is on, then ask again.",
+                }
+
+        table: dict[str, Callable[[dict], dict]] = {
+            "face_decorate": lambda p: run(p.get("unit"), p.get("name", "none"), p.get("seconds")),
+            "face_decorators": lambda _p: {"ok": True, "decorators": list(DECORATORS)},
+        }
+        for decor in DECORATORS:
+            table[f"face_{decor}"] = lambda p, decor=decor: run(
+                p.get("unit"), decor, p.get("seconds")
+            )
+        return table
+
     def _require(self, unit_id: str, feature: str, lang: str) -> None:
         known = self.features(unit_id)
         if known is not None and feature not in known:
-            raise FaceError(_say(lang, "no_feature", what=_FEATURE_WORDS[normalize(lang)][feature]))
+            raise FaceError(_say(lang, "no_feature", what=_feature_word(lang, feature)))
+
+
+_OPTIONAL_WIRE = {"caption_size": "medium"}  # keys firmware before patch U06 does not report
 
 
 def _wire_equal(config: FaceConfig, reply: Mapping[str, Any]) -> bool:
@@ -510,6 +642,8 @@ def _wire_equal(config: FaceConfig, reply: Mapping[str, Any]) -> bool:
     wire = config.to_wire()
     for key, value in wire.items():
         if key not in reply:
+            if key in _OPTIONAL_WIRE and value == _OPTIONAL_WIRE[key]:
+                continue  # an older unit does not report it, and the saved value is the plain one
             return False
         got = reply[key]
         if key == "tod_hours":
@@ -535,16 +669,22 @@ def settings_view(service: FaceService, unit_id: str, lang: str | None = None) -
             "style": list(STYLES),
             "colour": ["none", *PALETTE],
             "clock_style": list(CLOCK_STYLES),
+            "caption_size": list(CAPTION_SIZES),
+            "decorators": list(DECORATORS),
             "lang": list(LANGS),
             "bands": list(BANDS),
         },
-        "limits": {"clock_idle_s": [0, MAX_CLOCK_IDLE_S], "show_clock_s": [0, MAX_SHOW_CLOCK_S]},
+        "limits": {
+            "clock_idle_s": [0, MAX_CLOCK_IDLE_S],
+            "show_clock_s": [0, MAX_SHOW_CLOCK_S],
+            "decor_s": [DECOR_MIN_S, DECOR_MAX_S],
+        },
         "features": None if known is None else sorted(known),
         "unavailable": []
         if known is None
         else [
-            _FEATURE_WORDS[say_lang][name]
-            for name in ("captions", "tod", "clock", "thinking", "timers")
+            _feature_word(say_lang, name)
+            for name in ("captions", "tod", "clock", "thinking", "timers", "packs", "decor")
             if name not in known
         ],
         "pending": service.pending(unit_id),

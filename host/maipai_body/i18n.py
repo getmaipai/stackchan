@@ -7,7 +7,7 @@ English so a page never shows a bare key. Languages are "en" and "es" (docs/desi
 
 from __future__ import annotations
 
-SUPPORTED = ("en", "es")
+SUPPORTED = ("en", "es", "fr", "de", "pt", "it")
 DEFAULT = "en"
 
 CATALOG: dict[str, dict[str, str]] = {
@@ -283,6 +283,21 @@ CATALOG: dict[str, dict[str, str]] = {
         "settings.face.reset": "Volver a la cara sencilla",
     },
 }
+
+
+def _merge_more() -> None:
+    """Add the unit-extras words and the French, German, Portuguese and Italian catalogs (i18n_more.py)."""
+    from maipai_body import i18n_more as more
+
+    CATALOG["en"].update(more.EN)
+    CATALOG["es"].update(more.ES)
+    CATALOG["fr"] = more.FR
+    CATALOG["de"] = more.DE
+    CATALOG["pt"] = more.PT
+    CATALOG["it"] = more.IT
+
+
+_merge_more()
 
 
 def normalize(lang: str | None) -> str:

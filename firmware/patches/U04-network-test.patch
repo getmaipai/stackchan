@@ -1,0 +1,434 @@
+# Intent: Train 4 item 4, network test (stock: a screen that probed the vendor's servers; ours reads only what the unit already holds). Says in plain words whether Wi-Fi (joined, address, signal strength in words), the link to the home host and, when built in, the private network are working, with a line prefix OK, FIX or -- so a state is never told by colour alone, and the one thing to do about the first problem ('Move the robot closer to the router', 'Check that the home computer is on'). English and Spanish. It sends nothing: an open link to the host is the proof the path works. Adds the page to More and the tool self.network.test.
+# Placement: unit (the check is the robot's own and works with the host off; it then says the host is not answering)
+# Upstream: firmware/main/hal/utils/network_diagnostics/ of the StackChan main component (MIT; not used: that code probes vendor services)
+# Check after a flash: More, Network test shows three lines and 'All good.' on a working home network; with the host stopped it shows 'Home host: not answering' and the fix; self.network.test answers the same as JSON.
+# Kconfig: MAIPAI_NETTEST (default y); off removes the page and the tool.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -170,6 +170,14 @@ config MAIPAI_TZ
+         server. Saved by the stock time zone setting. Nothing runs until the page is open. Off here: no picker and no
+         clock tools.
+ 
++config MAIPAI_NETTEST
++    bool "Network test (More screen and self.network.test)"
++    default y
++    help
++        Says in plain words whether Wi-Fi, the link to the home host and, when built in, the private network work, and
++        the one thing to do about the first problem. It reads state the unit already holds and sends nothing. Off
++        here: no screen and no tool.
++
+ config MAIPAI_RESET_ON_DEVICE
+     bool "Reset on the device (quick settings, hold 3 seconds)"
+     default y
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -15,6 +15,7 @@
+ #include "maipai_decor.h"
+ #include "maipai_react.h"
+ #include "maipai_tz.h"
++#include "maipai_nettest.h"
+ #include "maipai_update.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_timers_core.h"
+@@ -557,6 +558,9 @@ void Hal::xiaozhi_mcp_init()
+     // self.clock.get, set_zone, zones and set (patch U03).
+     maipai_tz_register_tools();
+ 
++    // self.network.test (patch U04).
++    maipai_nettest_register_tools();
++
+     // self.tailnet.status and self.tailnet.set (patch TN01).
+     maipai_tailnet_register_tools();
+ 
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -20,6 +20,9 @@
+ #include "maipai_tz.h"
+ #include "maipai_tz_core.h"
+ #endif
++#if CONFIG_MAIPAI_NETTEST
++#include "maipai_nettest.h"
++#endif
+ 
+ namespace {
+ enum Page { PAGE_MENU = 0, PAGE_TZ, PAGE_NET, PAGE_VERSION };
+@@ -167,6 +170,48 @@ void build_tz()
+ }
+ #endif
+ 
++#if CONFIG_MAIPAI_NETTEST
++void net_fill();
++void on_net_again(lv_event_t*) { show(PAGE_NET); }
++
++void build_net()
++{
++    lv_obj_t* title = label(s_root, tx("Network test", "Prueba de red"), &lv_font_montserrat_20);
++    lv_obj_set_width(title, LV_PCT(100));
++    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
++    net_fill();
++    lv_obj_t* again = button(s_root, tx("Test again", "Probar otra vez"), 48, on_net_again);
++    new_row(again);
++    button(s_root, tx("Back", "Atras"), 48, on_back_menu);
++}
++
++void net_fill()
++{
++    mn_result_t r;
++    int lang = MN_EN;
++    maipai_nettest_run(&r, &lang);
++    static const char* const marks[3] = {"OK  ", "FIX ", "--  "};
++    for (int i = 0; i < MN_STEPS; i++) {
++        char line[MN_LINE + 8];
++        snprintf(line, sizeof(line), "%s%s", marks[r.state[i]], r.line[i]);
++        lv_obj_t* l = label(s_root, line, &lv_font_montserrat_14);
++        lv_obj_set_width(l, LV_PCT(100));
++        lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
++        new_row(l);
++    }
++    char sum[64];
++    mn_summary(&r, lang, sum, sizeof(sum));
++    lv_obj_t* s = label(s_root, sum, &lv_font_montserrat_16);
++    lv_obj_set_width(s, LV_PCT(100));
++    new_row(s);
++    if (r.fix[0] != '\0') {
++        lv_obj_t* f = label(s_root, r.fix, &lv_font_montserrat_14);
++        lv_obj_set_width(f, LV_PCT(100));
++        lv_label_set_long_mode(f, LV_LABEL_LONG_WRAP);
++        new_row(f);
++    }
++}
++#endif
+ 
+ 
+ void build_menu()
+@@ -177,6 +222,10 @@ void build_menu()
+ #if CONFIG_MAIPAI_TZ
+     new_row(button(s_root, tx("Time zone", "Zona horaria"), 100, on_open_page,
+                    reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_TZ))));
++#endif
++#if CONFIG_MAIPAI_NETTEST
++    new_row(button(s_root, tx("Network test", "Prueba de red"), 100, on_open_page,
++                   reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_NET))));
+ #endif
+     new_row(button(s_root, tx("Done", "Listo"), 100, on_close));
+ }
+@@ -191,6 +240,9 @@ void show(int page)
+     switch (page) {
+ #if CONFIG_MAIPAI_TZ
+         case PAGE_TZ: build_tz(); return;
++#endif
++#if CONFIG_MAIPAI_NETTEST
++        case PAGE_NET: build_net(); return;
+ #endif
+         default: break;
+     }
+diff --git a/firmware/main/hal/maipai_nettest.cc b/firmware/main/hal/maipai_nettest.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_nettest.cc
+@@ -0,0 +1,84 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Network test, device side (patch U04). Everything here is a read of state the unit already holds: the Wi-Fi driver,
++ * the saved host address, the open link to the host and the private network client. The link to the host being open is
++ * the proof that the path works, so nothing is sent anywhere to test it.
++ */
++#include <sdkconfig.h>
++#if CONFIG_MAIPAI_NETTEST
++#include "maipai_nettest.h"
++#include "maipai_face.h"
++#include "maipai_tailnet.h"
++#include "board/hal_bridge.h"
++#include <mcp_server.h>
++#include <cJSON.h>
++#include <esp_netif.h>
++#include <esp_wifi.h>
++#include <settings.h>
++#include <ssid_manager.h>
++#include <string>
++
++void maipai_nettest_run(mn_result_t* out, int* lang_out)
++{
++    mn_input_t in = {};
++    wifi_ap_record_t ap = {};
++    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
++        in.wifi_joined = 1;
++        in.rssi        = ap.rssi;
++    }
++    esp_netif_t* sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
++    esp_netif_ip_info_t ip = {};
++    in.has_ip = sta != nullptr && esp_netif_get_ip_info(sta, &ip) == ESP_OK && ip.ip.addr != 0;
++    in.saved_networks = static_cast<uint8_t>(SsidManager::GetInstance().GetSsidList().size());
++    {
++        Settings settings("websocket", false);
++        in.host_set = !settings.GetString("url").empty();
++    }
++    in.host_link_up = hal_bridge::hub_link_up();
++    in.tailnet_built = maipai_tailnet_compiled();
++    in.tailnet_key   = maipai_tailnet_key_saved();
++    in.tailnet_ready = maipai_tailnet_ready();
++    const int lang = maipai_face_config().lang == MF_LANG_ES ? MN_ES : MN_EN;
++    mn_judge(&in, lang, out);
++    if (lang_out != nullptr) {
++        *lang_out = lang;
++    }
++}
++
++void maipai_nettest_register_tools()
++{
++    McpServer::GetInstance().AddTool(
++        "self.network.test",
++        "Check the unit's own network in plain words: Wi-Fi, the link to the home host and, when built in, the private "
++        "network. It reads what the unit already knows and sends nothing. Answers {ok,problems,summary,fix,steps:[{step,"
++        "state,line}]} where state is ok, bad or skipped; fix says what to do about the first problem.",
++        std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++            mn_result_t r;
++            int lang = MN_EN;
++            maipai_nettest_run(&r, &lang);
++            static const char* const names[MN_STEPS] = {"wifi", "host", "private"};
++            static const char* const states[3]       = {"ok", "bad", "skipped"};
++            char summary[64];
++            mn_summary(&r, lang, summary, sizeof(summary));
++            cJSON* root = cJSON_CreateObject();
++            cJSON_AddBoolToObject(root, "ok", true);
++            cJSON_AddNumberToObject(root, "problems", r.problems);
++            cJSON_AddStringToObject(root, "summary", summary);
++            cJSON_AddStringToObject(root, "fix", r.fix);
++            cJSON* steps = cJSON_AddArrayToObject(root, "steps");
++            for (int i = 0; i < MN_STEPS; i++) {
++                cJSON* s = cJSON_CreateObject();
++                cJSON_AddStringToObject(s, "step", names[i]);
++                cJSON_AddStringToObject(s, "state", states[r.state[i]]);
++                cJSON_AddStringToObject(s, "line", r.line[i]);
++                cJSON_AddItemToArray(steps, s);
++            }
++            char* text      = cJSON_PrintUnformatted(root);
++            std::string out = text != nullptr ? text : "{\"ok\":false,\"error\":\"out of memory: try again\"}";
++            cJSON_free(text);
++            cJSON_Delete(root);
++            return out;
++        });
++}
++#endif
+diff --git a/firmware/main/hal/maipai_nettest.h b/firmware/main/hal/maipai_nettest.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_nettest.h
+@@ -0,0 +1,18 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Network test, device side (patch U04). Logic: maipai_nettest_core.h. Reads what the unit already knows; makes no
++ * network call. With CONFIG_MAIPAI_NETTEST off nothing here is compiled.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_NETTEST
++#include "maipai_nettest_core.h"
++// Reads the Wi-Fi, host link and private network state and judges it in the saved language.
++void maipai_nettest_run(mn_result_t* out, int* lang);
++// Registers self.network.test.
++void maipai_nettest_register_tools();
++#else
++inline void maipai_nettest_register_tools() {}
++#endif
+diff --git a/firmware/main/hal/maipai_nettest_core.h b/firmware/main/hal/maipai_nettest_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_nettest_core.h
+@@ -0,0 +1,151 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Network test (patch U04): the pure logic that turns what the unit already knows (Wi-Fi, its address, the link to the
++ * host, the private network when it is built in) into plain words and the one thing to do next. It makes no network
++ * call of its own: a working link to the host is the proof that the path works, and nothing new leaves the home.
++ * Header-only plain C99 so a host compiler can test it; the device side is in maipai_more.cc (screen) and
++ * maipai_tz.cc (the tool). English and Spanish; other languages use English.
++ */
++#ifndef MAIPAI_NETTEST_CORE_H
++#define MAIPAI_NETTEST_CORE_H
++
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++
++#define MN_EN 0
++#define MN_ES 1
++
++/* What the unit knows. tailnet_* are ignored unless tailnet_built is 1. */
++typedef struct {
++    uint8_t wifi_joined;     /* the unit is joined to a Wi-Fi network */
++    int8_t rssi;             /* signal strength in dBm, 0 when unknown */
++    uint8_t has_ip;          /* the unit has an address on that network */
++    uint8_t saved_networks;  /* how many networks are saved on the unit */
++    uint8_t host_set;        /* the address of the home host is saved */
++    uint8_t host_link_up;    /* the link to the home host is open now */
++    uint8_t tailnet_built;   /* this firmware has the private network client */
++    uint8_t tailnet_key;     /* a pairing key (or an earlier join) is saved */
++    uint8_t tailnet_ready;   /* the private network is connected now */
++} mn_input_t;
++
++#define MN_STEPS 3
++#define MN_LINE 72
++
++typedef enum { MN_OK = 0, MN_BAD = 1, MN_SKIP = 2 } mn_state_t;
++
++typedef struct {
++    mn_state_t state[MN_STEPS]; /* 0 Wi-Fi, 1 home host, 2 private network */
++    char line[MN_STEPS][MN_LINE];
++    char fix[MN_LINE * 2];      /* what to do about the first problem; empty when nothing is wrong */
++    int problems;
++} mn_result_t;
++
++/* Signal strength in words, so a person sees "weak" and not "-82". */
++static inline const char* mn_signal_word(int rssi, int lang)
++{
++    if (rssi == 0) {
++        return lang == MN_ES ? "senal desconocida" : "signal unknown";
++    }
++    if (rssi >= -60) {
++        return lang == MN_ES ? "senal fuerte" : "strong signal";
++    }
++    if (rssi >= -75) {
++        return lang == MN_ES ? "senal buena" : "good signal";
++    }
++    return lang == MN_ES ? "senal debil" : "weak signal";
++}
++
++static inline void mn_judge(const mn_input_t* in, int lang, mn_result_t* out)
++{
++    const int es = lang == MN_ES;
++    memset(out, 0, sizeof(*out));
++    /* 1. Wi-Fi */
++    if (!in->wifi_joined || !in->has_ip) {
++        out->state[0] = MN_BAD;
++        snprintf(out->line[0], MN_LINE, "%s", es ? "Wi-Fi: sin conexion" : "Wi-Fi: not connected");
++        if (in->saved_networks == 0) {
++            snprintf(out->fix, sizeof(out->fix), "%s",
++                     es ? "No hay red guardada. Abre el ajuste de Wi-Fi del robot y elige tu red."
++                        : "No network is saved. Open the robot's Wi-Fi setup and pick your network.");
++        } else {
++            snprintf(out->fix, sizeof(out->fix), "%s",
++                     es ? "Acerca el robot al router y comprueba que la red este encendida; si cambio la clave, repite el ajuste de Wi-Fi."
++                        : "Move the robot closer to the router and check the network is on; if the password changed, repeat the Wi-Fi setup.");
++        }
++        out->problems++;
++    } else {
++        out->state[0] = MN_OK;
++        snprintf(out->line[0], MN_LINE, es ? "Wi-Fi: conectado, %s" : "Wi-Fi: connected, %s", mn_signal_word(in->rssi, lang));
++        if (in->rssi != 0 && in->rssi < -75) {
++            snprintf(out->fix, sizeof(out->fix), "%s",
++                     es ? "La senal es debil. Acerca el robot al router para que la voz no se corte."
++                        : "The signal is weak. Move the robot closer to the router so the voice does not cut out.");
++        }
++    }
++    /* 2. The home host */
++    if (out->state[0] == MN_BAD) {
++        out->state[1] = MN_SKIP;
++        snprintf(out->line[1], MN_LINE, "%s", es ? "Casa: sin probar" : "Home host: not tested");
++    } else if (!in->host_set) {
++        out->state[1] = MN_BAD;
++        snprintf(out->line[1], MN_LINE, "%s", es ? "Casa: sin direccion" : "Home host: no address saved");
++        if (out->fix[0] == '\0') {
++            snprintf(out->fix, sizeof(out->fix), "%s",
++                     es ? "Falta la direccion de casa. Abre la pagina de ajuste del robot y escribela."
++                        : "The home address is missing. Open the robot's setup page and type it in.");
++        }
++        out->problems++;
++    } else if (!in->host_link_up) {
++        out->state[1] = MN_BAD;
++        snprintf(out->line[1], MN_LINE, "%s", es ? "Casa: no responde" : "Home host: not answering");
++        if (out->fix[0] == '\0') {
++            snprintf(out->fix, sizeof(out->fix), "%s",
++                     es ? "Comprueba que el ordenador de casa este encendido y ejecutando el anfitrion, en la misma red."
++                        : "Check that the home computer is on and running the host, on the same network.");
++        }
++        out->problems++;
++    } else {
++        out->state[1] = MN_OK;
++        snprintf(out->line[1], MN_LINE, "%s", es ? "Casa: conectado" : "Home host: connected");
++    }
++    /* 3. The private network (travel), only when this firmware has it */
++    if (!in->tailnet_built) {
++        out->state[2] = MN_SKIP;
++        snprintf(out->line[2], MN_LINE, "%s", es ? "Red privada: no incluida" : "Private network: not in this build");
++    } else if (in->tailnet_ready) {
++        out->state[2] = MN_OK;
++        snprintf(out->line[2], MN_LINE, "%s", es ? "Red privada: conectada" : "Private network: connected");
++    } else if (!in->tailnet_key) {
++        out->state[2] = MN_SKIP;
++        snprintf(out->line[2], MN_LINE, "%s", es ? "Red privada: sin clave (solo para viajar)" : "Private network: no key (only for travel)");
++    } else {
++        out->state[2] = in->host_link_up ? MN_SKIP : MN_BAD;
++        snprintf(out->line[2], MN_LINE, "%s",
++                 in->host_link_up ? (es ? "Red privada: en espera (casa responde)" : "Private network: standby (home answers)")
++                                  : (es ? "Red privada: aun sin conectar" : "Private network: not connected yet"));
++        if (out->state[2] == MN_BAD && out->fix[0] == '\0') {
++            snprintf(out->fix, sizeof(out->fix), "%s",
++                     es ? "Espera un minuto; si sigue igual, pide una clave de viaje nueva y escribela en la pagina de ajuste."
++                        : "Wait a minute; if it stays this way, get a new travel key and type it into the setup page.");
++        }
++        if (out->state[2] == MN_BAD) {
++            out->problems++;
++        }
++    }
++    if (out->problems == 0 && out->fix[0] == '\0') {
++        snprintf(out->fix, sizeof(out->fix), "%s", "");
++    }
++}
++
++/* One plain summary line: "All good." or how many things need a look. */
++static inline int mn_summary(const mn_result_t* r, int lang, char* out, size_t cap)
++{
++    if (r->problems == 0) {
++        return snprintf(out, cap, "%s", lang == MN_ES ? "Todo bien." : "All good.");
++    }
++    return snprintf(out, cap, lang == MN_ES ? "%d cosa(s) por revisar." : "%d thing(s) to check.", r->problems);
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_tailnet.cc b/firmware/main/hal/maipai_tailnet.cc
+--- a/firmware/main/hal/maipai_tailnet.cc
++++ b/firmware/main/hal/maipai_tailnet.cc
+@@ -116,6 +116,11 @@ static void load_saved()
+     nvs_close(h);
+ }
+ 
++bool maipai_tailnet_key_saved()
++{
++    return s_key_saved || s_joined;
++}
++
+ extern "C" int maipai_portal_tailnet_check(const char* key, const char* peer)
+ {
+     if (!maipai_tailnet_compiled()) {
+diff --git a/firmware/main/hal/maipai_tailnet.h b/firmware/main/hal/maipai_tailnet.h
+--- a/firmware/main/hal/maipai_tailnet.h
++++ b/firmware/main/hal/maipai_tailnet.h
+@@ -21,6 +21,9 @@ void maipai_tailnet_register_tools();
+ // True when the client is compiled into this firmware.
+ bool maipai_tailnet_compiled();
+ 
++// True when a pairing key (or an earlier join) is saved on the unit (patch U04). False in a build without the client.
++bool maipai_tailnet_key_saved();
++
+ // True once the client is connected to the control plane and has an address on the private network.
+ bool maipai_tailnet_ready();
+ 
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -15,6 +15,7 @@ CONFIG_MAIPAI_FACE_TIMERS=y
+ CONFIG_MAIPAI_FACE_DECOR=y
+ CONFIG_MAIPAI_REACT=y
+ CONFIG_MAIPAI_TZ=y
++CONFIG_MAIPAI_NETTEST=y
+ # Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
+ # and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
+ # destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).

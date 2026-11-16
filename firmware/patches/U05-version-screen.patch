@@ -1,0 +1,443 @@
+# Intent: Train 4 item 5, version screen (stock: a firmware version line in settings). More, Version shows the firmware version; ten taps on it, each within two seconds of the last, open the details for a minute: version, release tag (only when the version looks like one), the image state in plain words (installed by a signed update and confirmed, waiting to be confirmed, flashed by cable, confirmed with no update key built in), the slot it runs from, and the free internal and large memory with their lowest values. Reads only. Tool self.version.get answers the same numbers for the host.
+# Placement: unit
+# Upstream: firmware/main/hal/ (esp_app_get_description, esp_ota_get_state_partition) of the StackChan main component (MIT)
+# Check after a flash: More, Version shows the version; ten quick taps show six detail lines; they hide again after a minute; self.version.get answers version, tag, image, slot and the memory numbers.
+# Kconfig: MAIPAI_VERSION (default y); off removes the page and the tool.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -178,6 +178,13 @@ config MAIPAI_NETTEST
+         the one thing to do about the first problem. It reads state the unit already holds and sends nothing. Off
+         here: no screen and no tool.
+ 
++config MAIPAI_VERSION
++    bool "Version screen (More screen and self.version.get)"
++    default y
++    help
++        Shows the firmware version; ten quick taps on it open the release tag, the image trust state, the slot and the
++        free memory. Reads only. Off here: no page and no tool.
++
+ config MAIPAI_RESET_ON_DEVICE
+     bool "Reset on the device (quick settings, hold 3 seconds)"
+     default y
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -16,6 +16,7 @@
+ #include "maipai_react.h"
+ #include "maipai_tz.h"
+ #include "maipai_nettest.h"
++#include "maipai_version.h"
+ #include "maipai_update.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_timers_core.h"
+@@ -561,6 +562,9 @@ void Hal::xiaozhi_mcp_init()
+     // self.network.test (patch U04).
+     maipai_nettest_register_tools();
+ 
++    // self.version.get (patch U05).
++    maipai_version_register_tools();
++
+     // self.tailnet.status and self.tailnet.set (patch TN01).
+     maipai_tailnet_register_tools();
+ 
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -23,6 +23,9 @@
+ #if CONFIG_MAIPAI_NETTEST
+ #include "maipai_nettest.h"
+ #endif
++#if CONFIG_MAIPAI_VERSION
++#include "maipai_version.h"
++#endif
+ 
+ namespace {
+ enum Page { PAGE_MENU = 0, PAGE_TZ, PAGE_NET, PAGE_VERSION };
+@@ -37,6 +40,11 @@ lv_obj_t* s_zone_lbl = nullptr;
+ lv_obj_t* s_time_lbl = nullptr;
+ lv_obj_t* s_note_lbl = nullptr;
+ #endif
++#if CONFIG_MAIPAI_VERSION
++mv_state_t s_ver;
++lv_obj_t* s_ver_lbl  = nullptr;
++lv_obj_t* s_ver_rows[MV_LINES] = {};
++#endif
+ 
+ const char* tx(const char* en, const char* es)
+ {
+@@ -100,6 +108,12 @@ void clear_page()
+ #if CONFIG_MAIPAI_TZ
+     s_zone_lbl = s_time_lbl = s_note_lbl = nullptr;
+ #endif
++#if CONFIG_MAIPAI_VERSION
++    s_ver_lbl = nullptr;
++    for (auto& r : s_ver_rows) {
++        r = nullptr;
++    }
++#endif
+ }
+ 
+ void on_back_menu(lv_event_t*) { show(PAGE_MENU); }
+@@ -213,6 +227,66 @@ void net_fill()
+ }
+ #endif
+ 
++#if CONFIG_MAIPAI_VERSION
++void ver_refresh()
++{
++    if (s_ver_lbl == nullptr) {
++        return;
++    }
++    mv_info_t info;
++    maipai_version_read(&info);
++    const bool open = mv_is_open(&s_ver, now_ms()) != 0;
++    char first[64];
++    snprintf(first, sizeof(first), "%s", info.version[0] != '\0' ? info.version : "unknown");
++    lv_label_set_text(s_ver_lbl, first);
++    char rows[MV_LINES][MV_LINE];
++    mv_detail_lines(&info, rows);
++    for (int i = 0; i < MV_LINES; i++) {
++        if (s_ver_rows[i] == nullptr) {
++            continue;
++        }
++        if (open) {
++            lv_label_set_text(s_ver_rows[i], rows[i]);
++            lv_obj_remove_flag(s_ver_rows[i], LV_OBJ_FLAG_HIDDEN);
++        } else {
++            lv_obj_add_flag(s_ver_rows[i], LV_OBJ_FLAG_HIDDEN);
++        }
++    }
++}
++
++void ver_tick(lv_timer_t*) { ver_refresh(); }
++void on_ver_tap(lv_event_t*)
++{
++    if (mv_tap(&s_ver, now_ms())) {
++        ver_refresh();
++    }
++}
++
++void build_version()
++{
++    mv_init(&s_ver);
++    lv_obj_t* title = label(s_root, tx("Version", "Version"), &lv_font_montserrat_20);
++    lv_obj_set_width(title, LV_PCT(100));
++    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
++    s_ver_lbl = label(s_root, "", &lv_font_montserrat_20);
++    lv_obj_set_width(s_ver_lbl, LV_PCT(100));
++    lv_obj_set_style_text_align(s_ver_lbl, LV_TEXT_ALIGN_CENTER, 0);
++    lv_obj_add_flag(s_ver_lbl, LV_OBJ_FLAG_CLICKABLE);  // ten quick taps open the details
++    lv_obj_add_event_cb(s_ver_lbl, on_ver_tap, LV_EVENT_CLICKED, nullptr);
++    new_row(s_ver_lbl);
++    for (int i = 0; i < MV_LINES; i++) {
++        s_ver_rows[i] = label(s_root, "", &lv_font_montserrat_14);
++        lv_obj_set_width(s_ver_rows[i], LV_PCT(100));
++        lv_label_set_long_mode(s_ver_rows[i], LV_LABEL_LONG_WRAP);
++        lv_obj_add_flag(s_ver_rows[i], LV_OBJ_FLAG_HIDDEN);
++        new_row(s_ver_rows[i]);
++    }
++    lv_obj_t* back = button(s_root, tx("Back", "Atras"), 100, on_back_menu);
++    new_row(back);
++    ver_refresh();
++    s_timer = lv_timer_create(ver_tick, 1000, nullptr);
++}
++#endif
+ 
+ void build_menu()
+ {
+@@ -226,6 +300,10 @@ void build_menu()
+ #if CONFIG_MAIPAI_NETTEST
+     new_row(button(s_root, tx("Network test", "Prueba de red"), 100, on_open_page,
+                    reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_NET))));
++#endif
++#if CONFIG_MAIPAI_VERSION
++    new_row(button(s_root, tx("Version", "Version"), 100, on_open_page,
++                   reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_VERSION))));
+ #endif
+     new_row(button(s_root, tx("Done", "Listo"), 100, on_close));
+ }
+@@ -243,6 +321,9 @@ void show(int page)
+ #endif
+ #if CONFIG_MAIPAI_NETTEST
+         case PAGE_NET: build_net(); return;
++#endif
++#if CONFIG_MAIPAI_VERSION
++        case PAGE_VERSION: build_version(); return;
+ #endif
+         default: break;
+     }
+diff --git a/firmware/main/hal/maipai_version.cc b/firmware/main/hal/maipai_version.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_version.cc
+@@ -0,0 +1,83 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Version screen data, device side (patch U05). Reads only; nothing is stored.
++ */
++#include <sdkconfig.h>
++#if CONFIG_MAIPAI_VERSION
++#include "maipai_version.h"
++#include <mcp_server.h>
++#include <cJSON.h>
++#include <esp_app_desc.h>
++#include <esp_heap_caps.h>
++#include <esp_ota_ops.h>
++#include <esp_timer.h>
++#include <cstring>
++#include <string>
++
++void maipai_version_read(mv_info_t* out)
++{
++    memset(out, 0, sizeof(*out));
++    const esp_app_desc_t* desc = esp_app_get_description();
++    if (desc != nullptr) {
++        strlcpy(out->version, desc->version, sizeof(out->version));
++        strlcpy(out->project, desc->project_name, sizeof(out->project));
++        snprintf(out->built, sizeof(out->built), "%s %s", desc->date, desc->time);
++    }
++    const esp_partition_t* run = esp_ota_get_running_partition();
++    if (run != nullptr) {
++        strlcpy(out->slot, run->label, sizeof(out->slot));
++        out->slot_known = 1;
++        esp_ota_img_states_t state;
++        out->image_state = MV_IMG_UNKNOWN;
++        if (esp_ota_get_state_partition(run, &state) == ESP_OK) {
++            if (state == ESP_OTA_IMG_VALID) {
++                out->image_state = MV_IMG_VALID;
++            } else if (state == ESP_OTA_IMG_NEW || state == ESP_OTA_IMG_PENDING_VERIFY) {
++                out->image_state = MV_IMG_PENDING;
++            } else if (state == ESP_OTA_IMG_UNDEFINED) {
++                out->image_state = MV_IMG_USB;
++            }
++        }
++    }
++    out->update_key    = CONFIG_STACKCHAN_UPDATE_PUBKEY[0] != '\0';
++    out->internal_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
++    out->internal_min  = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
++    out->internal_big  = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
++    out->psram_free    = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
++    out->psram_min     = heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM);
++    out->uptime_s      = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
++}
++
++void maipai_version_register_tools()
++{
++    McpServer::GetInstance().AddTool(
++        "self.version.get",
++        "The firmware version, its release tag, whether the image can be trusted (installed by a signed update, or "
++        "flashed by cable), the slot it runs from and the free memory. Answers {ok,version,tag,image,slot,"
++        "internal_free,internal_min,internal_big,psram_free,psram_min,uptime_s}.",
++        std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++            mv_info_t i;
++            maipai_version_read(&i);
++            char tag[40];
++            mv_tag(i.version, tag, sizeof(tag));
++            cJSON* root = cJSON_CreateObject();
++            cJSON_AddBoolToObject(root, "ok", true);
++            cJSON_AddStringToObject(root, "version", i.version);
++            cJSON_AddStringToObject(root, "tag", tag);
++            cJSON_AddStringToObject(root, "image", mv_signature_word(&i));
++            cJSON_AddStringToObject(root, "slot", i.slot_known ? i.slot : "unknown");
++            cJSON_AddNumberToObject(root, "internal_free", i.internal_free);
++            cJSON_AddNumberToObject(root, "internal_min", i.internal_min);
++            cJSON_AddNumberToObject(root, "internal_big", i.internal_big);
++            cJSON_AddNumberToObject(root, "psram_free", i.psram_free);
++            cJSON_AddNumberToObject(root, "psram_min", i.psram_min);
++            cJSON_AddNumberToObject(root, "uptime_s", i.uptime_s);
++            char* text      = cJSON_PrintUnformatted(root);
++            std::string out = text != nullptr ? text : "{\"ok\":false,\"error\":\"out of memory: try again\"}";
++            cJSON_free(text);
++            cJSON_Delete(root);
++            return out;
++        });
++}
++#endif
+diff --git a/firmware/main/hal/maipai_version.h b/firmware/main/hal/maipai_version.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_version.h
+@@ -0,0 +1,18 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Version screen data, device side (patch U05). Logic: maipai_version_core.h. With CONFIG_MAIPAI_VERSION off nothing
++ * here is compiled.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_VERSION
++#include "maipai_version_core.h"
++// Reads the version, the image state, the slot and the free memory now.
++void maipai_version_read(mv_info_t* out);
++// Registers self.version.get.
++void maipai_version_register_tools();
++#else
++inline void maipai_version_register_tools() {}
++#endif
+diff --git a/firmware/main/hal/maipai_version_core.h b/firmware/main/hal/maipai_version_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_version_core.h
+@@ -0,0 +1,147 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Version screen (patch U05): the pure logic. The screen shows the firmware version; tapping it ten times, each tap
++ * within two seconds of the last, opens the details a helper needs: the release tag, whether the image can be trusted,
++ * the slot it runs from and the free memory. Header-only plain C99 so a host compiler can test it; the device side is
++ * in maipai_more.cc.
++ */
++#ifndef MAIPAI_VERSION_CORE_H
++#define MAIPAI_VERSION_CORE_H
++
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++
++#define MV_TAPS 10
++#define MV_TAP_GAP_MS 2000
++#define MV_OPEN_MS 60000 /* the details close again by themselves */
++
++typedef struct {
++    uint8_t taps;
++    uint32_t last_ms;
++    uint32_t opened_ms; /* 0: closed */
++    uint8_t open;
++} mv_state_t;
++
++static inline void mv_init(mv_state_t* s) { memset(s, 0, sizeof(*s)); }
++
++/* A tap on the version line. Returns 1 on the tap that opens the details. */
++static inline int mv_tap(mv_state_t* s, uint32_t now_ms)
++{
++    if (s->open) {
++        return 0;
++    }
++    if (s->taps > 0 && now_ms - s->last_ms > MV_TAP_GAP_MS) {
++        s->taps = 0; /* too slow: start counting again */
++    }
++    s->taps++;
++    s->last_ms = now_ms;
++    if (s->taps >= MV_TAPS) {
++        s->open = 1;
++        s->opened_ms = now_ms == 0 ? 1 : now_ms;
++        s->taps = 0;
++        return 1;
++    }
++    return 0;
++}
++
++/* Whether the details are showing; they close after MV_OPEN_MS. */
++static inline int mv_is_open(mv_state_t* s, uint32_t now_ms)
++{
++    if (s->open && now_ms - s->opened_ms > MV_OPEN_MS) {
++        mv_init(s);
++    }
++    return s->open;
++}
++
++typedef struct {
++    char version[40];       /* the firmware version text */
++    char project[24];       /* the project name */
++    char built[40];         /* the build date and time */
++    char slot[12];          /* the partition label the image runs from */
++    uint8_t slot_known;
++    uint8_t update_key;     /* an update signature key is built in */
++    uint8_t image_state;    /* MV_IMG_* */
++    uint32_t internal_free;
++    uint32_t internal_min;
++    uint32_t internal_big;
++    uint32_t psram_free;
++    uint32_t psram_min;
++    uint32_t uptime_s;
++} mv_info_t;
++
++#define MV_IMG_UNKNOWN 0
++#define MV_IMG_VALID 1    /* the system confirmed it after a start */
++#define MV_IMG_PENDING 2  /* installed wirelessly, not yet confirmed */
++#define MV_IMG_USB 3      /* flashed over the cable: no signature check ran */
++
++static inline const char* mv_signature_word(const mv_info_t* i)
++{
++    if (i->image_state == MV_IMG_PENDING) {
++        return i->update_key ? "installed by a signed update, waiting to be confirmed" : "waiting to be confirmed";
++    }
++    if (i->image_state == MV_IMG_VALID) {
++        return i->update_key ? "installed by a signed update and confirmed" : "confirmed; no update key is built in";
++    }
++    if (i->image_state == MV_IMG_USB) {
++        return i->update_key ? "flashed by cable; later updates must be signed" : "flashed by cable; wireless updates are off";
++    }
++    return "not known";
++}
++
++/* The release tag is the version text when it looks like one: it starts with a digit (after an optional v), holds only
++ * letters, digits, dots, plus and minus, has at least one dot and does not say "dirty". Anything else is a development build. */
++static inline int mv_tag(const char* version, char* out, size_t cap)
++{
++    const char* p = version;
++    if (*p == 'v') {
++        p++;
++    }
++    int dots = 0;
++    int ok = *p >= '0' && *p <= '9';
++    for (const char* q = p; ok && *q != '\0'; q++) {
++        if (*q == '.') {
++            dots++;
++        } else if (!((*q >= '0' && *q <= '9') || (*q >= 'a' && *q <= 'z') || (*q >= 'A' && *q <= 'Z') || *q == '+' || *q == '-')) {
++            ok = 0;
++        }
++    }
++    if (!ok || dots < 1 || strstr(version, "dirty") != NULL) {
++        return snprintf(out, cap, "%s", "not a release build");
++    }
++    return snprintf(out, cap, "v%.38s", p);
++}
++
++/* Kilobytes with one decimal would be noise: whole kilobytes, or megabytes with one decimal. */
++static inline int mv_bytes_word(uint32_t bytes, char* out, size_t cap)
++{
++    if (bytes >= 1024u * 1024u) {
++        const uint32_t tenths = (uint32_t)(((uint64_t)bytes * 10u + 524288u) / (1024u * 1024u));
++        return snprintf(out, cap, "%u.%u MB", (unsigned)(tenths / 10), (unsigned)(tenths % 10));
++    }
++    return snprintf(out, cap, "%u KB", (unsigned)((bytes + 512u) / 1024u));
++}
++
++#define MV_LINES 6
++#define MV_LINE 80
++
++/* The detail lines, in order. Returns how many were written. */
++static inline int mv_detail_lines(const mv_info_t* i, char out[MV_LINES][MV_LINE])
++{
++    char tag[40], a[16], b[16], c[16], d[16];
++    mv_tag(i->version, tag, sizeof(tag));
++    snprintf(out[0], MV_LINE, "Version: %.60s", i->version[0] != '\0' ? i->version : "unknown");
++    snprintf(out[1], MV_LINE, "Tag: %s", tag);
++    snprintf(out[2], MV_LINE, "Image: %s", mv_signature_word(i));
++    snprintf(out[3], MV_LINE, "Slot: %s", i->slot_known ? i->slot : "unknown");
++    mv_bytes_word(i->internal_free, a, sizeof(a));
++    mv_bytes_word(i->internal_min, b, sizeof(b));
++    snprintf(out[4], MV_LINE, "Memory free: %s (lowest %s)", a, b);
++    mv_bytes_word(i->psram_free, c, sizeof(c));
++    mv_bytes_word(i->psram_min, d, sizeof(d));
++    snprintf(out[5], MV_LINE, "Large memory free: %s (lowest %s)", c, d);
++    return MV_LINES;
++}
++
++#endif
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -16,6 +16,7 @@ CONFIG_MAIPAI_FACE_DECOR=y
+ CONFIG_MAIPAI_REACT=y
+ CONFIG_MAIPAI_TZ=y
+ CONFIG_MAIPAI_NETTEST=y
++CONFIG_MAIPAI_VERSION=y
+ # Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
+ # and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
+ # destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).

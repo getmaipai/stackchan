@@ -1,0 +1,668 @@
+# Intent: Train 4 item 3, time zone picker (stock: a zone roller in the setup app, which this build strips). About thirty zones west to east with summer-time rules (checked in the C test against what each rule gives in January and July), picked on the unit (quick settings, More, Time zone, with arrows, Save and the local time) or by the host (self.clock.set_zone). The zone is stored by the stock time zone setting, so there is one copy; the stock default GMT0 reads as UTC. There is no public time call: the host sets the clock (self.clock.set, seconds since 1970, between 2024 and 2099) and the clock chip keeps it. Adds the More screen: a full-screen page over quick settings, one button added to the last row there; nothing exists until it is opened. Tools self.clock.get, zones, set_zone and set.
+# Placement: unit (the screen and the zone are the robot's own; the time comes from the paired host)
+# Upstream: firmware/main/hal/board/stackchan_display.cc, apps/app_setup/workers/system.cpp (zone list) of the StackChan main component (MIT)
+# Check after a flash: quick settings shows More; More, Time zone steps through the list and Save keeps it (self.clock.get says the zone); self.clock.set_zone america_new_york then self.clock.get gives the New York local time; an unknown id gets a plain error.
+# Kconfig: MAIPAI_TZ (default y); off removes the screen button, the picker and the clock tools.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -161,6 +161,15 @@ config MAIPAI_REACT
+         it is one small record in its own storage namespace, about 1.1 KB of RAM, no task and no timer. Does nothing in
+         a mute, vision-off or quiet look. Off here: no table, no tools, no hook.
+ 
++config MAIPAI_TZ
++    bool "Time zone picker (More screen and self.clock tools)"
++    default y
++    help
++        A list of about thirty zones with summer-time rules, picked on the unit (quick settings, More) or by the host
++        (self.clock.set_zone). The host also sets the time itself (self.clock.set): the unit never asks a public time
++        server. Saved by the stock time zone setting. Nothing runs until the page is open. Off here: no picker and no
++        clock tools.
++
+ config MAIPAI_RESET_ON_DEVICE
+     bool "Reset on the device (quick settings, hold 3 seconds)"
+     default y
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -31,6 +31,7 @@
+ #include <hal/maipai_timers.h>
+ #include <hal/maipai_face.h>
+ #include <hal/maipai_react.h>
++#include <hal/maipai_more.h>
+ #include <hal/maipai_mood.h>
+ 
+ // True while the Wi-Fi setup portal is open (firmware/portal/maipai_wifi_configuration_ap.cc, patch P03).
+@@ -924,12 +925,22 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+                             LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+     }
+ 
++    // The last row: Reset (patch R01), More (patches U03 to U05) and Done share it. Reset opens the confirm screen,
++    // which erases nothing until its button is held for 3 seconds; More opens the time zone, network test and
++    // version pages.
++#if CONFIG_MAIPAI_RESET_ON_DEVICE
++    constexpr int kResetButton = 1;
++#else
++    constexpr int kResetButton = 0;
++#endif
++    constexpr int kRowButtons = 1 + kResetButton + MAIPAI_MORE_SCREEN;
++    constexpr int kRowPct     = kRowButtons == 3 ? 31 : (kRowButtons == 2 ? 48 : 100);
++    bool row_started          = false;
+ #if CONFIG_MAIPAI_RESET_ON_DEVICE
+-    // Reset (patch R01) shares the last row with Done: a press opens the confirm screen, which erases nothing
+-    // until its button is held for 3 seconds.
+     lv_obj_t* reset_button = lv_button_create(quick_panel_);
+-    lv_obj_set_width(reset_button, LV_PCT(48));
++    lv_obj_set_width(reset_button, LV_PCT(kRowPct));
+     lv_obj_add_flag(reset_button, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
++    row_started = true;
+     lv_obj_t* reset_label =
+         make_label(reset_button, mrc_text(mrc_lang_from_code(Lang::CODE), MRC_STR_BUTTON));
+     lv_obj_center(reset_label);
+@@ -942,14 +953,28 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+                         },
+                         LV_EVENT_CLICKED, nullptr);
+ #endif
++#if MAIPAI_MORE_SCREEN
++    lv_obj_t* more_button = lv_button_create(quick_panel_);
++    lv_obj_set_width(more_button, LV_PCT(kRowPct));
++    if (!row_started) {
++        lv_obj_add_flag(more_button, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
++        row_started = true;
++    }
++    lv_obj_t* more_label = make_label(more_button, strncmp(Lang::CODE, "es", 2) == 0 ? "Mas" : "More");
++    lv_obj_center(more_label);
++    lv_obj_add_event_cb(more_button,
++                        [](lv_event_t* event) {
++                            (void)event;
++                            maipai_more_open();
++                        },
++                        LV_EVENT_CLICKED, nullptr);
++#endif
+ 
+     lv_obj_t* done_button = lv_button_create(quick_panel_);
+-#if CONFIG_MAIPAI_RESET_ON_DEVICE
+-    lv_obj_set_width(done_button, LV_PCT(48));
+-#else
+-    lv_obj_set_width(done_button, LV_PCT(100));
+-    lv_obj_add_flag(done_button, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
+-#endif
++    lv_obj_set_width(done_button, LV_PCT(kRowPct));
++    if (!row_started) {
++        lv_obj_add_flag(done_button, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
++    }
+     lv_obj_t* done_label = make_label(done_button, "Done");
+     lv_obj_center(done_label);
+     lv_obj_add_event_cb(done_button,
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -14,6 +14,7 @@
+ #include "maipai_face.h"
+ #include "maipai_decor.h"
+ #include "maipai_react.h"
++#include "maipai_tz.h"
+ #include "maipai_update.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_timers_core.h"
+@@ -553,6 +554,9 @@ void Hal::xiaozhi_mcp_init()
+     // self.reaction.get_table, set_table, reset and test (patch U02).
+     maipai_react_register_tools();
+ 
++    // self.clock.get, set_zone, zones and set (patch U03).
++    maipai_tz_register_tools();
++
+     // self.tailnet.status and self.tailnet.set (patch TN01).
+     maipai_tailnet_register_tools();
+ 
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_more.cc
+@@ -0,0 +1,222 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The "More" screen (patches U03 to U05). One full-screen panel on the top layer, rebuilt for each page (menu, time
++ * zone, network test, version). Text is plain ASCII (the screen font has no accents); English or Spanish by the saved
++ * language. A state is never told by colour alone: the network test prefixes every line with OK, FIX or --.
++ */
++#include <sdkconfig.h>
++#include "maipai_more.h"
++#if MAIPAI_MORE_SCREEN
++#include "maipai_face.h"
++#include "hal.h"
++#include <lvgl.h>
++#include <esp_timer.h>
++#include <cstdio>
++#include <cstring>
++#include <string>
++#include <ctime>
++#if CONFIG_MAIPAI_TZ
++#include "maipai_tz.h"
++#include "maipai_tz_core.h"
++#endif
++
++namespace {
++enum Page { PAGE_MENU = 0, PAGE_TZ, PAGE_NET, PAGE_VERSION };
++
++lv_obj_t* s_root     = nullptr;
++lv_timer_t* s_timer  = nullptr;
++int s_page           = PAGE_MENU;
++bool s_es            = false;
++#if CONFIG_MAIPAI_TZ
++int s_zone           = 0;
++lv_obj_t* s_zone_lbl = nullptr;
++lv_obj_t* s_time_lbl = nullptr;
++lv_obj_t* s_note_lbl = nullptr;
++#endif
++
++const char* tx(const char* en, const char* es)
++{
++    return s_es ? es : en;
++}
++
++uint32_t now_ms()
++{
++    return static_cast<uint32_t>(esp_timer_get_time() / 1000);
++}
++
++void show(int page);
++
++void close_all()
++{
++    if (s_timer != nullptr) {
++        lv_timer_delete(s_timer);
++        s_timer = nullptr;
++    }
++    if (s_root != nullptr) {
++        lv_obj_delete_async(s_root);
++        s_root = nullptr;
++    }
++}
++
++lv_obj_t* label(lv_obj_t* parent, const char* text, const lv_font_t* font)
++{
++    lv_obj_t* l = lv_label_create(parent);
++    lv_obj_set_style_text_font(l, font, 0);
++    lv_obj_set_style_text_color(l, lv_color_white(), 0);
++    lv_label_set_text(l, text);
++    return l;
++}
++
++using Click = void (*)(lv_event_t*);
++
++lv_obj_t* button(lv_obj_t* parent, const char* text, int width_pct, Click on_click, void* user = nullptr)
++{
++    lv_obj_t* b = lv_button_create(parent);
++    lv_obj_set_width(b, LV_PCT(width_pct));
++    lv_obj_set_height(b, 38);
++    lv_obj_t* l = label(b, text, &lv_font_montserrat_16);
++    lv_obj_center(l);
++    lv_obj_add_event_cb(b, on_click, LV_EVENT_CLICKED, user);
++    return b;
++}
++
++// A row that wraps: new buttons start a new line only when asked.
++void new_row(lv_obj_t* o)
++{
++    lv_obj_add_flag(o, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
++}
++
++void clear_page()
++{
++    if (s_timer != nullptr) {
++        lv_timer_delete(s_timer);
++        s_timer = nullptr;
++    }
++    lv_obj_clean(s_root);
++#if CONFIG_MAIPAI_TZ
++    s_zone_lbl = s_time_lbl = s_note_lbl = nullptr;
++#endif
++}
++
++void on_back_menu(lv_event_t*) { show(PAGE_MENU); }
++void on_close(lv_event_t*) { close_all(); }
++void on_open_page(lv_event_t* e) { show(static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)))); }
++
++#if CONFIG_MAIPAI_TZ
++void tz_refresh()
++{
++    if (s_zone_lbl == nullptr) {
++        return;
++    }
++    char line[40];
++    mz_line(line, sizeof(line), s_zone);
++    lv_label_set_text(s_zone_lbl, line);
++    // The time now in the zone that is saved (it changes when Save is pressed, not while picking).
++    char hhmm[8];
++    maipai_tz_local_hhmm(hhmm, sizeof(hhmm));
++    char t[80];
++    if (hhmm[0] != '\0') {
++        snprintf(t, sizeof(t), "%s %s", tx("Saved zone time now:", "Hora ahora en la zona guardada:"), hhmm);
++    } else {
++        snprintf(t, sizeof(t), "%s", tx("The clock is not set yet. Home sets it when it connects.",
++                                       "El reloj aun no esta puesto. La casa lo pone al conectarse."));
++    }
++    lv_label_set_text(s_time_lbl, t);
++}
++
++void tz_tick(lv_timer_t*) { tz_refresh(); }
++void on_tz_prev(lv_event_t*) { s_zone = mz_step(s_zone, -1); tz_refresh(); }
++void on_tz_next(lv_event_t*) { s_zone = mz_step(s_zone, +1); tz_refresh(); }
++void on_tz_save(lv_event_t*)
++{
++    if (maipai_tz_set(s_zone) && s_note_lbl != nullptr) {
++        lv_label_set_text(s_note_lbl, tx("Saved.", "Guardado."));
++    }
++}
++
++void build_tz()
++{
++    s_zone = maipai_tz_current();
++    if (s_zone < 0) {
++        s_zone = mz_default_index();
++    }
++    lv_obj_t* title = label(s_root, tx("Time zone", "Zona horaria"), &lv_font_montserrat_20);
++    lv_obj_set_width(title, LV_PCT(100));
++    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
++    lv_obj_t* prev = button(s_root, "<", 22, on_tz_prev);
++    new_row(prev);
++    s_zone_lbl = label(s_root, "", &lv_font_montserrat_20);
++    lv_obj_set_width(s_zone_lbl, LV_PCT(48));
++    lv_obj_set_style_text_align(s_zone_lbl, LV_TEXT_ALIGN_CENTER, 0);
++    button(s_root, ">", 22, on_tz_next);
++    s_time_lbl = label(s_root, "", &lv_font_montserrat_16);
++    lv_obj_set_width(s_time_lbl, LV_PCT(100));
++    lv_label_set_long_mode(s_time_lbl, LV_LABEL_LONG_WRAP);
++    lv_obj_set_style_text_align(s_time_lbl, LV_TEXT_ALIGN_CENTER, 0);
++    new_row(s_time_lbl);
++    s_note_lbl = label(s_root, "", &lv_font_montserrat_16);
++    lv_obj_set_width(s_note_lbl, LV_PCT(100));
++    lv_obj_set_style_text_align(s_note_lbl, LV_TEXT_ALIGN_CENTER, 0);
++    new_row(s_note_lbl);
++    lv_obj_t* save = button(s_root, tx("Save", "Guardar"), 48, on_tz_save);
++    new_row(save);
++    button(s_root, tx("Back", "Atras"), 48, on_back_menu);
++    tz_refresh();
++    s_timer = lv_timer_create(tz_tick, 1000, nullptr);
++}
++#endif
++
++
++
++void build_menu()
++{
++    lv_obj_t* title = label(s_root, tx("More", "Mas"), &lv_font_montserrat_20);
++    lv_obj_set_width(title, LV_PCT(100));
++    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
++#if CONFIG_MAIPAI_TZ
++    new_row(button(s_root, tx("Time zone", "Zona horaria"), 100, on_open_page,
++                   reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_TZ))));
++#endif
++    new_row(button(s_root, tx("Done", "Listo"), 100, on_close));
++}
++
++void show(int page)
++{
++    if (s_root == nullptr) {
++        return;
++    }
++    clear_page();
++    s_page = page;
++    switch (page) {
++#if CONFIG_MAIPAI_TZ
++        case PAGE_TZ: build_tz(); return;
++#endif
++        default: break;
++    }
++    s_page = PAGE_MENU;
++    build_menu();
++}
++}  // namespace
++
++void maipai_more_open()
++{
++    if (s_root != nullptr) {
++        return;
++    }
++    s_es = maipai_face_config().lang == MF_LANG_ES;
++    s_root = lv_obj_create(lv_layer_top());
++    lv_obj_set_size(s_root, lv_pct(100), lv_pct(100));
++    lv_obj_set_style_bg_color(s_root, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(s_root, LV_OPA_COVER, 0);
++    lv_obj_set_style_border_width(s_root, 0, 0);
++    lv_obj_set_style_radius(s_root, 0, 0);
++    lv_obj_set_style_pad_all(s_root, 8, 0);
++    lv_obj_set_style_pad_row(s_root, 6, 0);
++    lv_obj_set_style_pad_column(s_root, 6, 0);
++    lv_obj_remove_flag(s_root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_flex_flow(s_root, LV_FLEX_FLOW_ROW_WRAP);
++    lv_obj_set_flex_align(s_root, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
++    show(PAGE_MENU);
++}
++#endif
+diff --git a/firmware/main/hal/maipai_more.h b/firmware/main/hal/maipai_more.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_more.h
+@@ -0,0 +1,18 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The "More" screen (patches U03 to U05): a full-screen page over quick settings with the time zone picker, the network
++ * test and the version page. Nothing exists until it is opened (no task, no timer, no objects); closing it frees all of
++ * it. With none of the three switches on, nothing here is compiled.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_TZ || CONFIG_MAIPAI_NETTEST || CONFIG_MAIPAI_VERSION
++#define MAIPAI_MORE_SCREEN 1
++// Opens the page. The caller holds the LVGL lock.
++void maipai_more_open();
++#else
++#define MAIPAI_MORE_SCREEN 0
++inline void maipai_more_open() {}
++#endif
+diff --git a/firmware/main/hal/maipai_tz.cc b/firmware/main/hal/maipai_tz.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_tz.cc
+@@ -0,0 +1,124 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Time zone picker and host-set clock, device side (patch U03). The time of day never comes from the public internet:
++ * the paired host sets it (self.clock.set, seconds since 1970) and the unit's clock chip keeps it. The zone is only how
++ * that time is read for the person; it is one of a short list with summer-time rules.
++ */
++#include <sdkconfig.h>
++#if CONFIG_MAIPAI_TZ
++#include "maipai_tz.h"
++#include "maipai_tz_core.h"
++#include "hal.h"
++#include <mcp_server.h>
++#include <esp_log.h>
++#include <sys/time.h>
++#include <cstdio>
++#include <cstdlib>
++#include <ctime>
++#include <string>
++
++static const char* TAG = "MAIPAI-TZ";
++
++void maipai_tz_apply_saved()
++{
++    const std::string tz = GetHAL().getTimezone();
++    if (!tz.empty()) {
++        setenv("TZ", tz.c_str(), 1);
++        tzset();
++    }
++}
++
++int maipai_tz_current()
++{
++    return mz_find_posix(GetHAL().getTimezone().c_str());
++}
++
++bool maipai_tz_set(int index)
++{
++    if (index < 0 || index >= MZ_COUNT) {
++        return false;
++    }
++    GetHAL().setTimezone(std::string_view(MZ_ZONES[index].posix));  // saves and applies (the stock setting)
++    ESP_LOGI(TAG, "time zone set: %s", MZ_ZONES[index].label);
++    return true;
++}
++
++void maipai_tz_local_hhmm(char* out, int cap)
++{
++    out[0]       = '\0';
++    const time_t t = time(nullptr);
++    if (!mz_epoch_ok(static_cast<long long>(t))) {
++        return;
++    }
++    struct tm lt = {};
++    localtime_r(&t, &lt);
++    snprintf(out, cap, "%02d:%02d", lt.tm_hour, lt.tm_min);
++}
++
++namespace {
++std::string zone_reply()
++{
++    const int i = maipai_tz_current();
++    char hhmm[8];
++    maipai_tz_local_hhmm(hhmm, sizeof(hhmm));
++    const std::string posix = GetHAL().getTimezone();
++    char buf[260];
++    snprintf(buf, sizeof(buf),
++             "{\"ok\":true,\"zone\":\"%s\",\"label\":\"%s\",\"custom\":%s,\"posix\":\"%s\",\"clock_set\":%s,\"local\":\"%s\"}",
++             i >= 0 ? MZ_ZONES[i].id : "custom", i >= 0 ? MZ_ZONES[i].label : "custom", i >= 0 ? "false" : "true",
++             posix.c_str(), hhmm[0] != '\0' ? "true" : "false", hhmm);
++    return buf;
++}
++}  // namespace
++
++void maipai_tz_register_tools()
++{
++    maipai_tz_apply_saved();
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.clock.get",
++                "The time zone in force, and the local time if the clock was set. Answers "
++                "{ok,zone,label,custom,posix,clock_set,local}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue { return zone_reply(); });
++    mcp.AddTool("self.clock.zones", "The time zone ids the unit offers, west to east.", std::vector<Property>{},
++                [](const PropertyList&) -> ReturnValue {
++                    std::string out = "{\"ok\":true,\"zones\":[";
++                    for (int i = 0; i < MZ_COUNT; i++) {
++                        out += i > 0 ? ",{\"id\":\"" : "{\"id\":\"";
++                        out += MZ_ZONES[i].id;
++                        out += "\",\"label\":\"";
++                        out += MZ_ZONES[i].label;
++                        out += "\"}";
++                    }
++                    return out + "]}";
++                });
++    mcp.AddTool("self.clock.set_zone",
++                "Choose the time zone by id (self.clock.zones lists them). Saved on the unit. Answers the zone or "
++                "{ok:false,error}.",
++                PropertyList({Property("zone", kPropertyTypeString, std::string("utc"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string id = properties["zone"].value<std::string>();
++                    const int i          = mz_find(id.c_str());
++                    if (i < 0) {
++                        return std::string("{\"ok\":false,\"error\":\"") + mz_err_word(MZ_ERR_ZONE) + "\"}";
++                    }
++                    maipai_tz_set(i);
++                    return zone_reply();
++                });
++    mcp.AddTool("self.clock.set",
++                "Set the clock: seconds since 1 January 1970 (UTC), the way the paired host reads its own clock. The "
++                "zone decides how it is shown. Answers the zone and local time or {ok:false,error}.",
++                PropertyList({Property("epoch", kPropertyTypeInteger, 1893456000, 1704067200, 2147483647)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const long long epoch = properties["epoch"].value<int>();
++                    if (!mz_epoch_ok(epoch)) {
++                        return std::string("{\"ok\":false,\"error\":\"") + mz_err_word(MZ_ERR_TIME) + "\"}";
++                    }
++                    struct timeval tv = {};
++                    tv.tv_sec         = static_cast<time_t>(epoch);
++                    settimeofday(&tv, nullptr);
++                    GetHAL().syncSystemTimeToRtc();  // the clock chip keeps it through a restart
++                    return zone_reply();
++                });
++}
++#endif
+diff --git a/firmware/main/hal/maipai_tz.h b/firmware/main/hal/maipai_tz.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_tz.h
+@@ -0,0 +1,23 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Time zone picker and host-set clock, device side (patch U03). Logic: maipai_tz_core.h. The zone is stored by the
++ * stock time zone setting (Hal::setTimezone), so one copy exists. With CONFIG_MAIPAI_TZ off nothing here is compiled.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_TZ
++// Applies the saved zone to the C library. Call once at start (done by maipai_tz_register_tools).
++void maipai_tz_apply_saved();
++// The list index of the zone now in force, or -1 when the saved rule is not one of the list.
++int maipai_tz_current();
++// Saves and applies a zone by list index. False for a bad index.
++bool maipai_tz_set(int index);
++// "HH:MM" for the local time now, or "" while the clock was never set.
++void maipai_tz_local_hhmm(char* out, int cap);
++// Registers self.clock.get, self.clock.set_zone, self.clock.zones and self.clock.set.
++void maipai_tz_register_tools();
++#else
++inline void maipai_tz_register_tools() {}
++#endif
+diff --git a/firmware/main/hal/maipai_tz_core.h b/firmware/main/hal/maipai_tz_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_tz_core.h
+@@ -0,0 +1,128 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Time zone picker (patch U03): the pure logic. A short list of zones the person picks from by name, each with the
++ * POSIX rule the C library needs (including summer time), and the checks for a clock the host sets. There is no
++ * public time call: the time comes from the paired host (self.clock.set) or from the unit's own clock chip; this
++ * only says how to read it for the person. Header-only plain C99 so a host compiler can test it; the device side is
++ * maipai_tz.cc. Labels are plain ASCII because the screen font has no accents.
++ */
++#ifndef MAIPAI_TZ_CORE_H
++#define MAIPAI_TZ_CORE_H
++
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++
++#define MZ_OK 0
++#define MZ_ERR_ZONE -1
++#define MZ_ERR_TIME -2
++
++typedef struct {
++    const char* id;    /* what the host and the tool use */
++    const char* label; /* what the screen shows */
++    const char* posix; /* the TZ rule */
++} mz_zone_t;
++
++/* West to east. The id is the part of the usual region name a person would recognise. */
++static const mz_zone_t MZ_ZONES[] = {
++    {"pacific_honolulu", "Honolulu", "HST10"},
++    {"america_anchorage", "Anchorage", "AKST9AKDT,M3.2.0,M11.1.0"},
++    {"america_los_angeles", "Los Angeles", "PST8PDT,M3.2.0,M11.1.0"},
++    {"america_denver", "Denver", "MST7MDT,M3.2.0,M11.1.0"},
++    {"america_phoenix", "Phoenix", "MST7"},
++    {"america_chicago", "Chicago", "CST6CDT,M3.2.0,M11.1.0"},
++    {"america_mexico_city", "Mexico City", "CST6"},
++    {"america_new_york", "New York", "EST5EDT,M3.2.0,M11.1.0"},
++    {"america_bogota", "Bogota", "<-05>5"},
++    {"america_halifax", "Halifax", "AST4ADT,M3.2.0,M11.1.0"},
++    {"america_sao_paulo", "Sao Paulo", "<-03>3"},
++    {"atlantic_azores", "Azores", "<-01>1<+00>,M3.5.0/0,M10.5.0/1"},
++    {"utc", "UTC", "UTC0"},
++    {"europe_london", "London", "GMT0BST,M3.5.0/1,M10.5.0"},
++    {"europe_lisbon", "Lisbon", "WET0WEST,M3.5.0/1,M10.5.0"},
++    {"europe_paris", "Paris", "CET-1CEST,M3.5.0,M10.5.0/3"},
++    {"europe_berlin", "Berlin", "CET-1CEST,M3.5.0,M10.5.0/3"},
++    {"europe_madrid", "Madrid", "CET-1CEST,M3.5.0,M10.5.0/3"},
++    {"europe_rome", "Rome", "CET-1CEST,M3.5.0,M10.5.0/3"},
++    {"europe_athens", "Athens", "EET-2EEST,M3.5.0/3,M10.5.0/4"},
++    {"africa_cairo", "Cairo", "EET-2"},
++    {"europe_moscow", "Moscow", "MSK-3"},
++    {"asia_dubai", "Dubai", "<+04>-4"},
++    {"asia_karachi", "Karachi", "PKT-5"},
++    {"asia_kolkata", "Delhi", "IST-5:30"},
++    {"asia_dhaka", "Dhaka", "<+06>-6"},
++    {"asia_bangkok", "Bangkok", "<+07>-7"},
++    {"asia_shanghai", "Beijing", "CST-8"},
++    {"asia_tokyo", "Tokyo", "JST-9"},
++    {"australia_sydney", "Sydney", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
++    {"pacific_auckland", "Auckland", "NZST-12NZDT,M9.5.0,M4.1.0/3"},
++};
++#define MZ_COUNT ((int)(sizeof(MZ_ZONES) / sizeof(MZ_ZONES[0])))
++#define MZ_DEFAULT_ID "utc"
++
++static inline int mz_find(const char* id)
++{
++    if (id == NULL) {
++        return -1;
++    }
++    for (int i = 0; i < MZ_COUNT; i++) {
++        if (strcmp(MZ_ZONES[i].id, id) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++/* The zone whose TZ rule equals `posix` (the first one when several share it), or -1. The rule the stock setting starts
++ * with, GMT0, is UTC. */
++static inline int mz_find_posix(const char* posix)
++{
++    if (posix == NULL) {
++        return -1;
++    }
++    if (strcmp(posix, "GMT0") == 0) {
++        posix = "UTC0";
++    }
++    for (int i = 0; i < MZ_COUNT; i++) {
++        if (strcmp(MZ_ZONES[i].posix, posix) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++static inline int mz_default_index(void) { return mz_find(MZ_DEFAULT_ID); }
++
++/* The step up or down the list, wrapping at both ends; the screen's two arrow buttons use it. */
++static inline int mz_step(int index, int delta)
++{
++    const int n = MZ_COUNT;
++    int i = (index + delta) % n;
++    return i < 0 ? i + n : i;
++}
++
++/* A clock set from the host must be a real time: after 1 January 2024 and before 1 January 2100. */
++#define MZ_MIN_EPOCH 1704067200LL
++#define MZ_MAX_EPOCH 4102444800LL
++static inline int mz_epoch_ok(long long epoch) { return epoch >= MZ_MIN_EPOCH && epoch < MZ_MAX_EPOCH; }
++
++/* "UTC-05:00"-style offset words are not needed: the zone label says it. The screen line for the picker. */
++static inline int mz_line(char* out, size_t cap, int index)
++{
++    if (index < 0 || index >= MZ_COUNT) {
++        return snprintf(out, cap, "%s", "Time zone not set");
++    }
++    return snprintf(out, cap, "%s", MZ_ZONES[index].label);
++}
++
++static inline const char* mz_err_word(int err)
++{
++    switch (err) {
++        case MZ_ERR_ZONE: return "that time zone is not in the list: ask for the list and pick a name from it";
++        case MZ_ERR_TIME: return "that time is not a real clock time: send seconds since 1970 between 2024 and 2099";
++        default: return "ok";
++    }
++}
++
++#endif
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -14,6 +14,7 @@ CONFIG_MAIPAI_FACE_THINKING=y
+ CONFIG_MAIPAI_FACE_TIMERS=y
+ CONFIG_MAIPAI_FACE_DECOR=y
+ CONFIG_MAIPAI_REACT=y
++CONFIG_MAIPAI_TZ=y
+ # Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
+ # and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
+ # destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).

@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import unquote
 
 from maipai_body import faces as face_settings
+from maipai_body import unit_extras as extras_mod
 from maipai_body.bodies.stackchan import updater
 from maipai_body.i18n import SUPPORTED, catalog, normalize, t
 from maipai_body.unit_settings import SettingsError, UnitSettingsStore
@@ -36,6 +37,8 @@ class SettingsBackend:
         preset: str = "core",
         language: str = "en",
         faces: face_settings.FaceService | None = None,
+        extras: extras_mod.UnitExtras | None = None,
+        people: extras_mod.PeopleStore | None = None,
     ) -> None:
         self.devices, self.store = devices, store or UnitSettingsStore()
         self.live = live or (lambda _device_id: {})
@@ -43,6 +46,21 @@ class SettingsBackend:
         self.update_source, self.public_key = update_source, public_key
         self.push, self.preset, self.language = push, preset, normalize(language)
         self._faces = faces
+        self._extras = extras
+        self._people = people
+
+    @property
+    def extras(self) -> extras_mod.UnitExtras:
+        """Reactions, clock, network test and details. Without a live link a unit counts as offline."""
+        if self._extras is None:
+            self._extras = extras_mod.UnitExtras(extras_mod.offline_call)
+        return self._extras
+
+    @property
+    def people(self) -> extras_mod.PeopleStore:
+        if self._people is None:
+            self._people = extras_mod.PeopleStore()
+        return self._people
 
     @property
     def faces(self) -> face_settings.FaceService:
@@ -133,7 +151,11 @@ class SettingsBackend:
 
     def _faces_post(self, rest: str, body: dict[str, Any], lang: str) -> tuple[int, dict[str, Any]]:
         """Save and send one unit's face settings. ``.../reset`` goes back to the plain face."""
-        values = {k: v for k, v in body.items() if k not in {"lang", "confirm"}}
+        values = {k: v for k, v in body.items() if k not in {"lang", "confirm", "screen_lang"}}
+        if "screen_lang" in body:
+            values["lang"] = body[
+                "screen_lang"
+            ]  # the words on the unit's screen, not the page language
         try:
             if rest.endswith("/reset"):
                 device_id = rest[: -len("/reset")]
@@ -144,6 +166,92 @@ class SettingsBackend:
         except face_settings.FaceError as error:
             return 400, {"error": str(error)}
 
+    # -- unit extras (unit_extras.py): reactions, clock, network test, details, face extras, people ----
+
+    def _unit_known(self, device_id: str) -> None:
+        if device_id not in self.devices():
+            raise extras_mod.ExtrasError(
+                "That unit is not paired. Pair it first, then open its settings."
+            )
+
+    def _people_view(self) -> dict[str, Any]:
+        return {
+            "people": [p.to_json() for p in self.people.all()],
+            "choices": {
+                "colour": ["none", *face_settings.PALETTE],
+                "caption_size": list(face_settings.CAPTION_SIZES),
+            },
+            "limits": {"people": extras_mod.PEOPLE_MAX},
+            "problem": self.people.problem,
+        }
+
+    def _unit_get(self, rest: str, lang: str) -> tuple[int, str, bytes]:
+        """GET /api/stackchan/unit/<id>/(reactions|clock|details)."""
+        device_id, _, what = rest.rpartition("/")
+        try:
+            self._unit_known(device_id)
+            if what == "reactions":
+                body = self.extras.reactions_view(device_id)
+            elif what == "clock":
+                body = self.extras.clock_view(device_id)
+            elif what == "details":
+                body = self.extras.details(device_id, lang)
+            else:
+                return 404, JSON, json.dumps({"error": "not found"}).encode()
+            return 200, JSON, json.dumps(body).encode()
+        except (extras_mod.ExtrasError, face_settings.FaceError) as error:
+            return 400, JSON, json.dumps({"error": str(error)}).encode()
+
+    def _unit_post(self, rest: str, body: dict[str, Any], lang: str) -> tuple[int, dict[str, Any]]:
+        """POST /api/stackchan/unit/<id>/<action>, and the people routes."""
+        values = {k: v for k, v in body.items() if k not in {"lang", "confirm"}}
+        try:
+            if rest == "people" or rest.startswith("people/"):
+                return self._people_post(rest, values, lang)
+            device_id, _, action = rest.rpartition("/")
+            if action == "reset" and device_id.endswith("/reactions"):
+                device_id = device_id[: -len("/reactions")]
+                self._unit_known(device_id)
+                return 200, self.extras.reset_reactions(device_id, lang)
+            self._unit_known(device_id)
+            if action == "reactions":
+                return 200, self.extras.save_reactions(device_id, values, lang)
+            if action == "clock":
+                if values.get("sync") is True:
+                    return 200, self.extras.set_clock_now(device_id, lang)
+                return 200, self.extras.save_zone(device_id, values.get("zone"), lang)
+            if action == "network-test":
+                result = self.extras.network_test(device_id, lang)
+                return 200, {**result, "message": result.get("summary", "")}
+            if action == "decorate":
+                seconds = values.get("seconds", face_settings.DECOR_DEFAULT_S)
+                return 200, self.faces.decorate(
+                    device_id, str(values.get("name", "none")), seconds, lang
+                )
+            return 404, {"error": "not found"}
+        except (extras_mod.ExtrasError, face_settings.FaceError) as error:
+            return 400, {"error": str(error)}
+
+    def _people_post(
+        self, rest: str, values: dict[str, Any], lang: str
+    ) -> tuple[int, dict[str, Any]]:
+        if rest == "people":
+            person = extras_mod.clean_person(values, lang)
+            self.people.save(person, lang)
+            return 200, self._people_view()
+        parts = rest.split("/")  # people/<id>/remove  or  people/<id>/use/<unit>
+        pid = parts[1] if len(parts) > 1 else ""
+        if len(parts) == 3 and parts[2] == "remove":
+            self.people.remove(pid)
+            return 200, self._people_view()
+        if len(parts) == 4 and parts[2] == "use":
+            person = next((p for p in self.people.all() if p.id == pid), None)
+            if person is None:
+                raise extras_mod.ExtrasError(extras_mod.say(lang, "person_unknown"))
+            self._unit_known(unquote(parts[3]))
+            return 200, extras_mod.apply_person(self.faces, unquote(parts[3]), person, lang)
+        return 404, {"error": "not found"}
+
     # -- routes shared by every server that hosts the page ------------------------------------
 
     def route_get(self, path: str, lang: str, local_admin: bool) -> tuple[int, str, bytes] | None:
@@ -152,6 +260,12 @@ class SettingsBackend:
             if not local_admin:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
             return self._faces_get(unquote(path[len(FACES) :]), lang)
+        if path.startswith(UNIT) or path == PEOPLE:
+            if not local_admin:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            if path == PEOPLE:
+                return 200, JSON, json.dumps(self._people_view()).encode()
+            return self._unit_get(unquote(path[len(UNIT) :]), lang)
         if path != "/settings" and not path.startswith("/api/stackchan/settings"):
             return None
         if not local_admin:
@@ -170,13 +284,17 @@ class SettingsBackend:
         The update route checks the release and changes nothing unless the body says
         ``"confirm": true``."""
         prefix = "/api/stackchan/settings/"
-        if not path.startswith(prefix) and not path.startswith(FACES):
+        if not path.startswith(prefix) and not path.startswith((FACES, UNIT, PEOPLE)):
             return None
         lang = normalize(str(body.get("lang", "")) or self.language)
         if not local_admin:
             return 403, {"error": t(lang, "settings.local_only")}
         if path.startswith(FACES):
             return self._faces_post(unquote(path[len(FACES) :]), body, lang)
+        if path.startswith(UNIT):
+            return self._unit_post(unquote(path[len(UNIT) :]), body, lang)
+        if path == PEOPLE or path.startswith(PEOPLE + "/"):
+            return self._unit_post(unquote(path[len("/api/stackchan/") :]), body, lang)
         rest = path[len(prefix) :]
         try:
             if rest.endswith("/update"):
@@ -194,6 +312,8 @@ class SettingsBackend:
 
 JSON = "application/json"
 FACES = "/api/stackchan/faces/"
+UNIT = "/api/stackchan/unit/"
+PEOPLE = "/api/stackchan/people"
 
 
 def render_page(lang: str | None) -> bytes:
@@ -237,16 +357,87 @@ const v=d.values,c=d.choices;
 const style=choice(f,S['settings.face.style'],c.style,v.style,'settings.face.style.');
 const colour=choice(f,S['settings.face.colour'],c.colour,v.colour,'settings.face.colour.');
 const caps=tick(f,S['settings.face.captions'],v.captions);
+const capsize=choice(f,S['settings.face.caption_size'],c.caption_size,v.caption_size,'settings.face.caption_size.');
+const flang=choice(f,S['settings.face.lang'],c.lang,v.lang,'settings.lang.');
 const tod=tick(f,S['settings.face.tod'],v.tod);
 const hrs=field(f,S['settings.face.hours'],Object.assign(document.createElement('input'),{{value:v.tod_hours.join(', ')}}));
 if(d.unavailable.length){{const p=document.createElement('p');p.textContent=S['settings.face.unavailable']+' '+d.unavailable.join(', ');f.append(p)}}
 if(d.pending){{const p=document.createElement('p');p.textContent=S['settings.face.pending'];f.append(p)}}
 const go=document.createElement('button');go.textContent=S['settings.face.save'];
-go.onclick=()=>call(path,{{lang:'{code}',style:style.value,colour:colour.value,captions:caps.checked,tod:tod.checked,
+go.onclick=()=>call(path,{{lang:'{code}',style:style.value,colour:colour.value,captions:caps.checked,caption_size:capsize.value,screen_lang:flang.value,tod:tod.checked,
 tod_hours:hrs.value.split(/[ ,]+/).filter(x=>x).map(Number)}});
 const rs=document.createElement('button');rs.textContent=S['settings.face.reset'];
 rs.onclick=()=>call(path+'/reset',{{lang:'{code}'}});
 f.append(go,' ',rs)}}).catch(()=>{{}});return f}}
+function extrasSection(id){{const f=document.createElement('fieldset');
+const lg=document.createElement('legend');lg.textContent=S['settings.extra'];f.append(lg);
+const dp='/api/stackchan/faces/'+encodeURIComponent(id);
+fetch(dp+'?lang={code}').then(r=>r.json()).then(d=>{{if(!d.choices)return;
+const pick=choice(f,S['settings.extra.pick'],d.choices.decorators,d.choices.decorators[0],'settings.decor.');
+const show=document.createElement('button');show.textContent=S['settings.extra.show'];
+show.onclick=()=>call('/api/stackchan/unit/'+encodeURIComponent(id)+'/decorate',{{lang:'{code}',name:pick.value,seconds:6}});
+const stop=document.createElement('button');stop.textContent=S['settings.extra.stop'];
+stop.onclick=()=>call('/api/stackchan/unit/'+encodeURIComponent(id)+'/decorate',{{lang:'{code}',name:'none'}});
+f.append(show,' ',stop)}}).catch(()=>{{}});return f}}
+function reactSection(id){{const f=document.createElement('fieldset');
+const lg=document.createElement('legend');lg.textContent=S['settings.react'];f.append(lg);
+const path='/api/stackchan/unit/'+encodeURIComponent(id)+'/reactions';
+fetch(path+'?lang={code}').then(r=>r.json()).then(d=>{{if(d.error){{const p=document.createElement('p');p.textContent=d.error;f.append(p);return}}
+const help=document.createElement('p');help.textContent=S['settings.react.help'];f.append(help);
+if(d.builtin){{const b=document.createElement('p');b.textContent=S['settings.react.builtin'];f.append(b)}}
+const box=Object.assign(document.createElement('textarea'),{{id:'reactions',rows:10,value:d.text}});f.append(box);
+const go=document.createElement('button');go.textContent=S['settings.react.save'];
+go.onclick=()=>call(path,{{lang:'{code}',text:box.value}});
+const rs=document.createElement('button');rs.textContent=S['settings.react.reset'];
+rs.onclick=()=>call(path+'/reset',{{lang:'{code}'}}).then(ok=>{{if(ok)load()}});
+f.append(go,' ',rs)}}).catch(()=>{{}});return f}}
+function clockSection(id){{const f=document.createElement('fieldset');
+const lg=document.createElement('legend');lg.textContent=S['settings.clock'];f.append(lg);
+const path='/api/stackchan/unit/'+encodeURIComponent(id)+'/clock';
+fetch(path+'?lang={code}').then(r=>r.json()).then(d=>{{if(!d.zones)return;
+const el=document.createElement('select');el.id='zone';
+for(const z of d.zones)el.append(Object.assign(document.createElement('option'),{{value:z.id,selected:z.id===d.zone,textContent:z.label}}));
+field(f,S['settings.clock.zone'],el);
+const go=document.createElement('button');go.textContent=S['settings.clock.save'];
+go.onclick=()=>call(path,{{lang:'{code}',zone:el.value}});
+const sy=document.createElement('button');sy.textContent=S['settings.clock.sync'];
+sy.onclick=()=>call(path,{{lang:'{code}',sync:true}});
+f.append(go,' ',sy)}}).catch(()=>{{}});return f}}
+function toolSection(id,title,label,action,method){{const f=document.createElement('fieldset');
+const lg=document.createElement('legend');lg.textContent=title;f.append(lg);
+const out=document.createElement('pre');out.style.whiteSpace='pre-wrap';
+const go=document.createElement('button');go.textContent=label;
+const path='/api/stackchan/unit/'+encodeURIComponent(id)+'/'+action;
+go.onclick=async()=>{{const r=await fetch(path+(method==='GET'?'?lang={code}':''),method==='GET'?{{}}:{{method:'POST',
+headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{lang:'{code}'}})}});const d=await r.json();
+if(d.steps){{out.textContent=d.steps.map(s=>s.line).join('\\n')+'\\n'+(d.summary||'')+(d.fix?'\\n'+d.fix:'')}}
+else if(d.version){{out.textContent=['version','tag','image','slot'].map(k=>k+': '+d[k]).join('\\n')+'\\nmemory free: '+Math.round(d.internal_free/1024)+' KB (lowest '+Math.round(d.internal_min/1024)+' KB)'}}
+else out.textContent=d.error||d.summary||''}};
+f.append(go,out);return f}}
+function peopleSection(id){{const f=document.createElement('fieldset');
+const lg=document.createElement('legend');lg.textContent=S['settings.people'];f.append(lg);
+const help=document.createElement('p');help.textContent=S['settings.people.help'];f.append(help);
+const list=document.createElement('div');f.append(list);
+const draw=d=>{{list.replaceChildren();
+if(!d.people.length){{const p=document.createElement('p');p.textContent=S['settings.people.none'];list.append(p)}}
+for(const p of d.people){{const row=document.createElement('p');
+row.textContent=p.name+' ('+p.colour+', '+p.caption_size+(p.wake_phrase?', '+p.wake_phrase:'')+') ';
+const use=document.createElement('button');use.textContent=S['settings.people.use'];
+use.onclick=()=>call('/api/stackchan/people/'+encodeURIComponent(p.id)+'/use/'+encodeURIComponent(id),{{lang:'{code}'}});
+const rm=document.createElement('button');rm.textContent=S['settings.people.remove'];
+rm.onclick=async()=>{{const r=await fetch('/api/stackchan/people/'+encodeURIComponent(p.id)+'/remove',{{method:'POST',
+headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{lang:'{code}'}})}});if(r.ok)draw(await r.json())}};
+row.append(use,' ',rm);list.append(row)}}}};
+fetch('/api/stackchan/people?lang={code}').then(r=>r.json()).then(d=>{{if(!d.people)return;draw(d);
+const name=field(f,S['settings.people.name'],document.createElement('input'));name.id='person_name';
+const col=choice(f,S['settings.people.colour'],d.choices.colour,'none','settings.face.colour.');
+const cap=choice(f,S['settings.people.caption'],d.choices.caption_size,'medium','settings.face.caption_size.');
+const wake=field(f,S['settings.people.wake'],document.createElement('input'));
+const go=document.createElement('button');go.textContent=S['settings.people.save'];
+go.onclick=async()=>{{const r=await fetch('/api/stackchan/people',{{method:'POST',headers:{{'Content-Type':'application/json'}},
+body:JSON.stringify({{lang:'{code}',name:name.value,colour:col.value,caption_size:cap.value,wake_phrase:wake.value}})}});
+const b=await r.json();if(r.ok){{draw(b);status(S['settings.saved'])}}else status(b.error)}};
+f.append(go)}}).catch(()=>{{}});return f}}
 function unitCard(u){{const s=document.createElement('section');
 const h=document.createElement('h2');h.textContent=u.name;s.append(h);
 const id=document.createElement('p');id.textContent=S['settings.device_id']+': '+u.device_id;s.append(id);
@@ -275,6 +466,10 @@ volume_cap:parseInt(cap.value,10),speech_speed:parseFloat(speed.value),speech_pi
 alarms:alarms.value.split('\\n').filter(x=>x.trim()).map(x=>{{const [time,...rest]=x.trim().split(/\\s+/);
 return {{time,label:rest.join(' ')}}}})}});
 s.append(faceSection(u.device_id));
+s.append(extrasSection(u.device_id),reactSection(u.device_id),clockSection(u.device_id),
+toolSection(u.device_id,S['settings.net'],S['settings.net.run'],'network-test','POST'),
+toolSection(u.device_id,S['settings.details'],S['settings.details.show'],'details','GET'),
+peopleSection(u.device_id));
 const upd=document.createElement('button');upd.textContent=S['settings.update'];
 const upath='/api/stackchan/settings/'+encodeURIComponent(u.device_id)+'/update';
 upd.onclick=()=>call(upath,{{lang:'{code}'}});

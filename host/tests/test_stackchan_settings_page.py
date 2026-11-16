@@ -30,7 +30,8 @@ def _backend(tmp_path, **extra):
 
 def test_spanish_catalog_covers_every_english_key():
     assert set(CATALOG["en"]) == set(CATALOG["es"])
-    assert t("es", "settings.update") == "Actualizar" and t("fr", "settings.update") == "Update"
+    assert t("es", "settings.update") == "Actualizar"
+    assert t("fr", "settings.update") == "Mettre à jour" and t("zz", "settings.update") == "Update"
 
 
 def test_settings_are_per_unit_and_persist(tmp_path):

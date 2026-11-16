@@ -88,3 +88,10 @@ TN03-travel-portal-fields.patch
 TN04-travel-memory-freeing.patch
 TN05-memory-gate-line.patch
 TN06-travel-trust-root.patch
+TN07-travel-review-fixes.patch
+U01-face-decorators.patch
+U02-word-reactions.patch
+U03-time-zone-picker.patch
+U04-network-test.patch
+U05-version-screen.patch
+U06-face-style-packs-and-languages.patch

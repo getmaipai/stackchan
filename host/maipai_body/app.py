@@ -2159,6 +2159,22 @@ def _face_service(voice):
     return FaceService(call)
 
 
+def _unit_extras(voice):
+    """One UnitExtras for this host: word reactions, clock and zone, network test and unit
+    details, through the live voice link. A unit that is not connected counts as lost (the
+    choice is saved and sent on reconnect)."""
+    from maipai_body.hal.errors import BodyLost
+    from maipai_body.unit_extras import UnitExtras
+
+    def call(name, arguments, *, device_id=None, timeout=6.0):
+        try:
+            return voice.call_device_tool(name, arguments, device_id=device_id, timeout=timeout)
+        except (ConnectionError, TimeoutError) as error:
+            raise BodyLost(str(error)) from error
+
+    return UnitExtras(call)
+
+
 def _turn_sink(behavior, light, faces=None, devices=None):
     """One turn event: move the face and set the ring's funnel state (the light standard).
 
@@ -2766,6 +2782,12 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None):
             )
 
     voice.session_listeners.append(push_alarms)
+    from maipai_body.unit_extras import sync_on_connect as extras_sync
+
+    extras = _unit_extras(voice)
+    # When a unit connects: set its clock and zone (the host is its only time source) and send the
+    # owner's word reactions if there are any.
+    voice.session_listeners.append(lambda device_id: extras_sync(extras, device_id))
     try:
         port = int(os.environ.get("MAIPAI_STACKCHAN_SETTINGS_PORT", "8051"))
     except ValueError:
@@ -2788,6 +2810,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None):
         preset=config.update.preset,
         language=config.home.language,
         faces=faces,
+        extras=extras,
     )
     from maipai_body.settings_server import SettingsServer
 

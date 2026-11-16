@@ -1,0 +1,630 @@
+# Intent: Train 4 item 6, more face styles as data, five more screen languages, caption size. Six new styles (round, cat, robot, sleepy, retro_pixel, heart_eyes) are rows of data: eye roundness, gap, lid limit and drawn extras (cat ears and whiskers, a robot antenna and bolts, heart eyes), all plain rounded rectangles; heart eyes hide in a mute, vision-off or quiet look. The saved face record is version 2 (a caption size byte; version 1 records still load). Screen words (clock date line, timer chip words) in French, German, Portuguese and Italian, plain ASCII because the screen font has no accents ('aou', 'fev'); the language is part of the face config (en, es, fr, de, pt, it) and the Wi-Fi setup page still reads Spanish or English. Caption size small, medium or large uses the three Latin sizes the build already has. The face config reports the feature words packs and langs6.
+# Placement: unit
+# Upstream: firmware/main/stackchan/avatar/skins/default/ and firmware/main/hal/maipai_face*.h of this tree (patches F01 to F06)
+# Check after a flash: self.face.set_config style cat draws ears and whiskers, robot an antenna, heart_eyes hearts over the eyes (hidden while muted); caption_size large makes the words bigger; lang de shows 'Mi 24 Dez' on the clock face; an unknown style, size or language gets a plain error and changes nothing; after the flash the old settings still load.
+# Kconfig: MAIPAI_FACE_PACKS (default y); off keeps classic, big_eyes and minimal and one caption size.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -185,6 +185,16 @@ config MAIPAI_VERSION
+         Shows the firmware version; ten quick taps on it open the release tag, the image trust state, the slot and the
+         free memory. Reads only. Off here: no page and no tool.
+ 
++config MAIPAI_FACE_PACKS
++    bool "Face style packs (round, cat, robot, sleepy, retro pixel, heart eyes) and caption size"
++    default y
++    depends on MAIPAI_FACE_CONFIG
++    help
++        Six more face styles as rows of data (eye roundness and gap, lid limit, drawn extras such as cat ears and
++        whiskers, a robot antenna or heart eyes) and a small, medium or large caption size. Extras are plain rounded
++        rectangles: no image, no font. A few objects exist only while a style with extras is chosen; heart eyes hide
++        in a mute, vision-off or quiet look. Off here: only classic, big_eyes and minimal, and one caption size.
++
+ config MAIPAI_RESET_ON_DEVICE
+     bool "Reset on the device (quick settings, hold 3 seconds)"
+     default y
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -7,6 +7,10 @@
+ #if CONFIG_MAIPAI_FACE_CONFIG
+ #include "maipai_face.h"
+ #include "maipai_face_tod_core.h"
++#if CONFIG_MAIPAI_FACE_PACKS
++#include "maipai_pack_core.h"
++#include "maipai_privacy.h"
++#endif
+ #if CONFIG_MAIPAI_FACE_TIMERS
+ #include "maipai_face_timers_core.h"
+ #include "maipai_timers_core.h"
+@@ -93,6 +97,59 @@ int local_minute()
+     return tm_local.tm_hour * 60 + tm_local.tm_min;
+ }
+ 
++#if CONFIG_MAIPAI_FACE_PACKS
++lv_obj_t* s_pack_root = nullptr;
++int s_pack_extras     = MP_X_NONE;
++
++// Draws the extras of the style (cat ears and whiskers, robot antenna, heart eyes) as plain rounded bars in the face
++// colour, children of the face. Rebuilt on each apply (a style, colour or band change): a handful of objects.
++void pack_draw(DefaultAvatar* face, const mf_config_t& c, uint8_t r, uint8_t g, uint8_t b)
++{
++    if (s_pack_root != nullptr) {
++        lv_obj_delete(s_pack_root);
++        s_pack_root = nullptr;
++    }
++    s_pack_extras = mp_pack(c.style)->extras;
++    if (s_pack_extras == MP_X_NONE || face->getPanel() == nullptr) {
++        return;
++    }
++    md_part_t parts[MP_MAX_EXTRA_PARTS];
++    const int n = mp_extra_parts(s_pack_extras, parts, MP_MAX_EXTRA_PARTS);
++    s_pack_root = lv_obj_create(face->getPanel()->get());
++    lv_obj_remove_style_all(s_pack_root);
++    lv_obj_remove_flag(s_pack_root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_remove_flag(s_pack_root, LV_OBJ_FLAG_CLICKABLE);  // a touch on an extra is a touch on the face
++    lv_obj_set_size(s_pack_root, 320, 240);
++    lv_obj_set_pos(s_pack_root, 0, 0);
++    for (int i = 0; i < n; i++) {
++        lv_obj_t* o = lv_obj_create(s_pack_root);
++        lv_obj_remove_style_all(o);
++        lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_set_size(o, parts[i].w, parts[i].h);
++        lv_obj_set_pos(o, 160 + parts[i].x - parts[i].w / 2, 120 + parts[i].y - parts[i].h / 2);
++        lv_obj_set_style_bg_color(o, lv_color_make(r, g, b), 0);
++        lv_obj_set_style_bg_opa(o, parts[i].opa, 0);
++        lv_obj_set_style_radius(o, parts[i].round ? LV_RADIUS_CIRCLE : 1, 0);
++        lv_obj_set_style_transform_pivot_x(o, parts[i].w / 2, 0);
++        lv_obj_set_style_transform_pivot_y(o, parts[i].h / 2, 0);
++        lv_obj_set_style_transform_rotation(o, parts[i].rot_deg10, 0);
++    }
++}
++
++// Once a second: extras that sit over the eyes (heart eyes) never cover a mute, vision-off or quiet look.
++void pack_tick()
++{
++    if (s_pack_root == nullptr || !mp_extras_cover_eyes(s_pack_extras)) {
++        return;
++    }
++    if (maipai_privacy_bits() != 0) {
++        lv_obj_add_flag(s_pack_root, LV_OBJ_FLAG_HIDDEN);
++    } else {
++        lv_obj_remove_flag(s_pack_root, LV_OBJ_FLAG_HIDDEN);
++    }
++}
++#endif
++
+ // Draws style, colour and the time-of-day look. The caller holds the LVGL lock.
+ void apply(DefaultAvatar* face, const mf_config_t& c)
+ {
+@@ -111,6 +168,21 @@ void apply(DefaultAvatar* face, const mf_config_t& c)
+ #endif
+     face->setColors(lv_color_make(r, g, b), lv_color_black());
+     face->setEyeStyleOffset(mf_style_eye_offset(c.style));
++#if CONFIG_MAIPAI_FACE_PACKS
++    {
++        // The style pack (patch U06): eye shape and gap, the lid limit, the caption size and the drawn extras.
++        const mp_pack_t* pack = mp_pack(c.style);
++        face->setEyeShape(pack->radius_pct, pack->gap_off);
++        int cap = 100;
++#if CONFIG_MAIPAI_FACE_TOD
++        cap = mf_band_lid_cap(s_band.load());
++#endif
++        face->setEyeLidCap(mp_lid_cap(c.style, cap));
++        face->setCaptionFont(c.caption_size == 0 ? &lv_font_montserrat_14
++                                                 : (c.caption_size == 2 ? &lv_font_montserrat_20 : &lv_font_montserrat_16));
++        pack_draw(face, c, r, g, b);
++    }
++#endif
+ #if CONFIG_MAIPAI_FACE_CAPTIONS
+     if (!c.captions) {
+         face->clearSpeech();  // captions turned off: a caption on screen goes away
+@@ -182,6 +254,11 @@ int update_from_json(mf_config_t* c, const cJSON* root, const char** bad)
+         else if (strcmp(it->valuestring, "ring") == 0) c->clock_style = 1;
+         else return MF_ERR_RANGE;
+     }
++    if ((it = cJSON_GetObjectItemCaseSensitive(root, "caption_size")) != nullptr) {
++        *bad = "caption_size";
++        if (!cJSON_IsString(it)) return MF_ERR_RANGE;
++        if (int e = mf_set_caption_size(c, it->valuestring)) return e;
++    }
+     if ((it = cJSON_GetObjectItemCaseSensitive(root, "clock_idle_s")) != nullptr) {
+         *bad = "clock_idle_s";
+         if (!cJSON_IsNumber(it) || it->valueint < 0 || it->valueint > 3600) return MF_ERR_RANGE;
+@@ -212,10 +289,11 @@ std::string config_json(const mf_config_t& c)
+     } else {
+         snprintf(colour, sizeof(colour), "none");
+     }
+-    char out[360];
++    char out[460];
+     snprintf(out, sizeof(out),
+              "{\"ok\":true,\"style\":\"%s\",\"colour\":\"%s\",\"captions\":%s,\"tod\":%s,\"tod_hours\":[%d,%d,%d,%d],"
+              "\"thinking_tone\":%s,\"lang\":\"%s\",\"clock24\":%s,\"clock_style\":\"%s\",\"clock_idle_s\":%u,"
++             "\"caption_size\":\"%s\","
+              "\"features\":[\"config\""
+ #if CONFIG_MAIPAI_FACE_CAPTIONS
+              ",\"captions\""
+@@ -232,11 +310,18 @@ std::string config_json(const mf_config_t& c)
+ #if CONFIG_MAIPAI_FACE_TIMERS
+              ",\"timers\""
+ #endif
++#if CONFIG_MAIPAI_FACE_PACKS
++             ",\"packs\""
++#endif
++#if CONFIG_MAIPAI_FACE_DECOR
++             ",\"decor\""
++#endif
++             ",\"langs6\""
+              "]}",
+              MF_STYLE_NAMES[c.style], colour, c.captions ? "true" : "false", c.tod ? "true" : "false", c.tod_from[0],
+              c.tod_from[1], c.tod_from[2], c.tod_from[3], c.thinking_tone ? "true" : "false",
+-             c.lang == MF_LANG_ES ? "es" : "en", c.clock24 ? "true" : "false", c.clock_style ? "ring" : "digits",
+-             static_cast<unsigned>(c.clock_idle_s));
++             MF_LANG_CODES[c.lang < MF_LANG_COUNT ? c.lang : 0], c.clock24 ? "true" : "false",
++             c.clock_style ? "ring" : "digits", static_cast<unsigned>(c.clock_idle_s), MF_CAPTION_NAMES[c.caption_size < 3 ? c.caption_size : 1]);
+     return out;
+ }
+ }  // namespace
+@@ -668,7 +753,7 @@ void chips_tick(const mf_config_t& c)
+ }  // namespace
+ #endif
+ 
+-#define MAIPAI_FACE_TICKS (CONFIG_MAIPAI_FACE_TOD || CONFIG_MAIPAI_FACE_CLOCK || CONFIG_MAIPAI_FACE_TIMERS)
++#define MAIPAI_FACE_TICKS (CONFIG_MAIPAI_FACE_TOD || CONFIG_MAIPAI_FACE_CLOCK || CONFIG_MAIPAI_FACE_TIMERS || CONFIG_MAIPAI_FACE_PACKS)
+ #if MAIPAI_FACE_TICKS
+ static void face_tick(lv_timer_t*)
+ {
+@@ -685,6 +770,9 @@ static void face_tick(lv_timer_t*)
+ #if CONFIG_MAIPAI_FACE_TIMERS
+     chips_tick(c);
+ #endif
++#if CONFIG_MAIPAI_FACE_PACKS
++    pack_tick();
++#endif
+ }
+ #endif
+ 
+@@ -703,9 +791,9 @@ void maipai_face_register_tools()
+     auto& mcp = McpServer::GetInstance();
+     mcp.AddTool("self.face.set_config",
+                 "Change the face settings the unit keeps in its own flash. config is a JSON object with any of: "
+-                "style (classic, big_eyes, minimal), colour (none, mint, sky, amber, rose, lilac, lime, coral or "
++                "style (classic, big_eyes, minimal, round, cat, robot, sleepy, retro_pixel, heart_eyes), colour (none, mint, sky, amber, rose, lilac, lime, coral or "
+                 "#rrggbb), captions (true shows the words on the face), tod (time-of-day looks), tod_hours "
+-                "([morning, day, evening, night] start hours), thinking_tone, lang (en or es), clock24, "
++                "([morning, day, evening, night] start hours), thinking_tone, lang (en, es, fr, de, pt or it), caption_size (small, medium or large), clock24, "
+                 "clock_style (digits or ring), clock_idle_s (0 to 3600, 0 never shows the clock by itself). "
+                 "Nothing changes unless every field is valid. Answers the new settings or {ok:false,error}.",
+                 PropertyList({Property("config", kPropertyTypeString, std::string("{}"))}),
+diff --git a/firmware/main/hal/maipai_face_clock_core.h b/firmware/main/hal/maipai_face_clock_core.h
+--- a/firmware/main/hal/maipai_face_clock_core.h
++++ b/firmware/main/hal/maipai_face_clock_core.h
+@@ -88,19 +88,28 @@ static inline int mf_clock_width(const mf_clock_layout_t* l)
+     return 4 * l->digit_w + 2 * l->gap + l->colon_w;
+ }
+ 
+-static const char* const MF_WEEKDAY[2][7] = {
++static const char* const MF_WEEKDAY[MF_LANG_COUNT][7] = {
+     {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"},
+     {"dom", "lun", "mar", "mie", "jue", "vie", "sab"},
++    {"dim", "lun", "mar", "mer", "jeu", "ven", "sam"},
++    {"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"},
++    {"dom", "seg", "ter", "qua", "qui", "sex", "sab"},
++    {"dom", "lun", "mar", "mer", "gio", "ven", "sab"},
+ };
+-static const char* const MF_MONTH[2][12] = {
++static const char* const MF_MONTH[MF_LANG_COUNT][12] = {
+     {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
+     {"ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"},
++    {"jan", "fev", "mar", "avr", "mai", "jun", "jul", "aou", "sep", "oct", "nov", "dec"},
++    {"Jan", "Feb", "Mar", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"},
++    {"jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"},
++    {"gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"},
+ };
+ 
+-/* The date line: "Sun Nov 15" in English, "dom 15 nov" in Spanish (day before month). wday 0 is Sunday, mon 0 is January. */
++/* The date line: "Sun Nov 15" in English, "dom 15 nov" in the other languages (day before month). Plain ASCII: the screen
++ * font has no accents, so "aout" and "fev" are written without them. wday 0 is Sunday, mon 0 is January. */
+ static inline void mf_date_line(char* out, size_t n, int lang, int wday, int mday, int mon)
+ {
+-    const int lg = lang == MF_LANG_ES ? 1 : 0;
++    const int lg = (lang > 0 && lang < MF_LANG_COUNT) ? lang : 0;
+     if (wday < 0 || wday > 6 || mon < 0 || mon > 11 || mday < 1 || mday > 31) {
+         if (n > 0) {
+             out[0] = '\0';
+@@ -108,7 +117,7 @@ static inline void mf_date_line(char* out, size_t n, int lang, int wday, int mda
+         return;
+     }
+     if (lg) {
+-        snprintf(out, n, "%s %d %s", MF_WEEKDAY[1][wday], mday, MF_MONTH[1][mon]);
++        snprintf(out, n, "%s %d %s", MF_WEEKDAY[lg][wday], mday, MF_MONTH[lg][mon]);
+     } else {
+         snprintf(out, n, "%s %s %d", MF_WEEKDAY[0][wday], MF_MONTH[0][mon], mday);
+     }
+diff --git a/firmware/main/hal/maipai_face_core.h b/firmware/main/hal/maipai_face_core.h
+--- a/firmware/main/hal/maipai_face_core.h
++++ b/firmware/main/hal/maipai_face_core.h
+@@ -15,12 +15,18 @@
+ #include <stdint.h>
+ #include <string.h>
+ 
+-#define MF_BLOB_VERSION 1
++#define MF_BLOB_VERSION 2 /* 1 had no caption size; it is still read */
+ 
+ #define MF_STYLE_CLASSIC 0
+ #define MF_STYLE_BIG_EYES 1
+ #define MF_STYLE_MINIMAL 2
+-#define MF_STYLE_COUNT 3
++#define MF_STYLE_ROUND 3 /* patch U06: more looks, as data (see maipai_pack_core.h) */
++#define MF_STYLE_CAT 4
++#define MF_STYLE_ROBOT 5
++#define MF_STYLE_SLEEPY 6
++#define MF_STYLE_PIXEL 7
++#define MF_STYLE_HEARTS 8
++#define MF_STYLE_COUNT 9
+ 
+ #define MF_COLOUR_NONE 0    /* neutral white: the default */
+ #define MF_COLOUR_PALETTE 1 /* one of the named colours */
+@@ -31,6 +37,11 @@
+ 
+ #define MF_LANG_EN 0
+ #define MF_LANG_ES 1
++#define MF_LANG_FR 2 /* patch U06: screen words in five more languages, plain ASCII */
++#define MF_LANG_DE 3
++#define MF_LANG_PT 4
++#define MF_LANG_IT 5
++#define MF_LANG_COUNT 6
+ 
+ #define MF_OK 0
+ #define MF_ERR_STYLE -1
+@@ -53,6 +64,7 @@ typedef struct {
+     uint8_t clock24;      /* 1: 24 hour clock, 0: 12 hour */
+     uint8_t clock_style;  /* 0 big digits, 1 ring */
+     uint16_t clock_idle_s;/* 0: the clock face never shows by itself; otherwise after this many idle seconds */
++    uint8_t caption_size; /* 0 small, 1 medium (default), 2 large: the size of the words on the face (patch U06) */
+ } mf_config_t;
+ 
+ static inline void mf_default(mf_config_t* c)
+@@ -71,9 +83,14 @@ static inline void mf_default(mf_config_t* c)
+     c->clock24 = 0;
+     c->clock_style = 0;
+     c->clock_idle_s = 0;
++    c->caption_size = 1;
+ }
+ 
+-static const char* const MF_STYLE_NAMES[MF_STYLE_COUNT] = {"classic", "big_eyes", "minimal"};
++static const char* const MF_STYLE_NAMES[MF_STYLE_COUNT] = {"classic", "big_eyes",    "minimal",   "round",      "cat",
++                                                           "robot",   "sleepy",      "retro_pixel", "heart_eyes"};
++static const char* const MF_LANG_CODES[MF_LANG_COUNT] = {"en", "es", "fr", "de", "pt", "it"};
++static const char* const MF_CAPTION_NAMES[3] = {"small", "medium", "large"};
++static const int MF_CAPTION_PX[3] = {14, 16, 20}; /* the three Latin text sizes the build already has */
+ static const char* const MF_PALETTE_NAMES[MF_PALETTE_COUNT] = {"mint", "sky", "amber", "rose", "lilac", "lime", "coral"};
+ static const uint8_t MF_PALETTE_RGB[MF_PALETTE_COUNT][3] = {
+     {0x7F, 0xE0, 0xB8}, {0x7F, 0xC4, 0xF0}, {0xF2, 0xB2, 0x4A}, {0xF0, 0x8F, 0xB0},
+@@ -86,6 +103,10 @@ static inline int mf_style_eye_offset(int style)
+     switch (style) {
+         case MF_STYLE_BIG_EYES: return 60;
+         case MF_STYLE_MINIMAL: return -40;
++        case MF_STYLE_ROUND: return 25;
++        case MF_STYLE_CAT: return -10;
++        case MF_STYLE_SLEEPY: return -10;
++        case MF_STYLE_HEARTS: return 10;
+         default: return 0;
+     }
+ }
+@@ -182,17 +203,32 @@ static inline int mf_set_hours(mf_config_t* c, int morning, int day, int evening
+ 
+ static inline int mf_set_lang(mf_config_t* c, const char* code)
+ {
+-    if (code != NULL && strcmp(code, "en") == 0) {
+-        c->lang = MF_LANG_EN;
+-        return MF_OK;
++    if (code == NULL) {
++        return MF_ERR_LANG;
+     }
+-    if (code != NULL && strcmp(code, "es") == 0) {
+-        c->lang = MF_LANG_ES;
+-        return MF_OK;
++    for (int i = 0; i < MF_LANG_COUNT; i++) {
++        if (strcmp(code, MF_LANG_CODES[i]) == 0) {
++            c->lang = (uint8_t)i;
++            return MF_OK;
++        }
+     }
+     return MF_ERR_LANG;
+ }
+ 
++static inline int mf_set_caption_size(mf_config_t* c, const char* name)
++{
++    if (name == NULL) {
++        return MF_ERR_RANGE;
++    }
++    for (int i = 0; i < 3; i++) {
++        if (strcmp(name, MF_CAPTION_NAMES[i]) == 0) {
++            c->caption_size = (uint8_t)i;
++            return MF_OK;
++        }
++    }
++    return MF_ERR_RANGE;
++}
++
+ /* A clean config: every field in range. Used after a load so a damaged blob falls back to defaults. */
+ static inline int mf_valid(const mf_config_t* c)
+ {
+@@ -205,7 +241,7 @@ static inline int mf_valid(const mf_config_t* c)
+     if (c->captions > 1 || c->tod > 1 || c->thinking_tone > 1 || c->clock24 > 1 || c->clock_style > 1) {
+         return 0;
+     }
+-    if (c->lang > MF_LANG_ES) {
++    if (c->lang >= MF_LANG_COUNT || c->caption_size > 2) {
+         return 0;
+     }
+     if (!(c->tod_from[0] < c->tod_from[1] && c->tod_from[1] < c->tod_from[2] && c->tod_from[2] < c->tod_from[3] &&
+@@ -220,11 +256,11 @@ static inline const char* mf_err_word(int code)
+ {
+     switch (code) {
+         case MF_OK: return "ok";
+-        case MF_ERR_STYLE: return "unknown face style: use classic, big_eyes or minimal";
++        case MF_ERR_STYLE: return "unknown face style: use classic, big_eyes, minimal, round, cat, robot, sleepy, retro_pixel or heart_eyes";
+         case MF_ERR_COLOUR: return "unknown colour: use none, a name (mint, sky, amber, rose, lilac, lime, coral) or #rrggbb";
+         case MF_ERR_DARK: return "colour too dark to see on the black screen: pick a lighter colour";
+         case MF_ERR_HOURS: return "day bands must be hours 0 to 23 that rise: morning, day, evening, night";
+-        case MF_ERR_LANG: return "unknown language: use en or es";
++        case MF_ERR_LANG: return "unknown language: use en, es, fr, de, pt or it";
+         case MF_ERR_RANGE: return "a value is out of range: check the number and send it again";
+         default: return "unknown error";
+     }
+@@ -271,6 +307,7 @@ static inline size_t mf_save(const mf_config_t* c, uint8_t* buf, size_t size)
+     buf[n++] = c->clock_style;
+     buf[n++] = (uint8_t)(c->clock_idle_s >> 8);
+     buf[n++] = (uint8_t)(c->clock_idle_s & 0xFF);
++    buf[n++] = c->caption_size;
+     const uint16_t crc = mf_crc16(buf, n);
+     buf[n++] = (uint8_t)(crc >> 8);
+     buf[n++] = (uint8_t)(crc & 0xFF);
+@@ -282,8 +319,11 @@ static inline size_t mf_save(const mf_config_t* c, uint8_t* buf, size_t size)
+ static inline int mf_load(mf_config_t* c, const uint8_t* buf, size_t len)
+ {
+     mf_default(c);
+-    const size_t body = 9 + 4 + 4 + 2;
+-    if (buf == NULL || len != body + 2 || buf[0] != MF_BLOB_VERSION) {
++    if (buf == NULL || len < 3 || (buf[0] != 1 && buf[0] != MF_BLOB_VERSION)) {
++        return MF_ERR_RANGE;
++    }
++    const size_t body = 9 + 4 + 4 + 2 + (buf[0] >= 2 ? 1 : 0);
++    if (len != body + 2) {
+         return MF_ERR_RANGE;
+     }
+     if (mf_crc16(buf, body) != (uint16_t)((buf[body] << 8) | buf[body + 1])) {
+@@ -308,6 +348,10 @@ static inline int mf_load(mf_config_t* c, const uint8_t* buf, size_t len)
+     t.clock24 = buf[n++];
+     t.clock_style = buf[n++];
+     t.clock_idle_s = (uint16_t)((buf[n] << 8) | buf[n + 1]);
++    n += 2;
++    if (buf[0] >= 2) {
++        t.caption_size = buf[n++];
++    }
+     if (!mf_valid(&t)) {
+         return MF_ERR_RANGE;
+     }
+diff --git a/firmware/main/hal/maipai_face_timers_core.h b/firmware/main/hal/maipai_face_timers_core.h
+--- a/firmware/main/hal/maipai_face_timers_core.h
++++ b/firmware/main/hal/maipai_face_timers_core.h
+@@ -50,10 +50,10 @@ static inline void mf_fmt_left(char* out, size_t n, int32_t left_s)
+ /* The name when a timer has no label. */
+ static inline const char* mf_kind_word(int lang, int kind)
+ {
+-    if (kind == 2) {
+-        return lang == MF_LANG_ES ? "Alarma" : "Alarm";
+-    }
+-    return lang == MF_LANG_ES ? "Tiempo" : "Timer";
++    static const char* const alarm[MF_LANG_COUNT] = {"Alarm", "Alarma", "Alarme", "Wecker", "Alarme", "Sveglia"};
++    static const char* const timer[MF_LANG_COUNT] = {"Timer", "Tiempo", "Minut.", "Timer", "Tempo", "Timer"};
++    const int lg = (lang >= 0 && lang < MF_LANG_COUNT) ? lang : 0;
++    return kind == 2 ? alarm[lg] : timer[lg];
+ }
+ 
+ /* "tea 4:32": the label (or the kind word) cut to what fits, then the countdown. */
+diff --git a/firmware/main/hal/maipai_pack_core.h b/firmware/main/hal/maipai_pack_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_pack_core.h
+@@ -0,0 +1,104 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face style packs (patch U06): each face style is a row of data, not code. A row says how round the eyes are, how far
++ * apart, how far the lids may open and which drawn extras the style has (cat ears and whiskers, a robot's antenna and
++ * bolts, heart eyes). The pure logic: the table and the geometry of the extras. Header-only plain C99 so a host
++ * compiler can test it; the device side draws them in maipai_face.cc. The eye size offset of each style is in
++ * maipai_face_core.h (mf_style_eye_offset). Extras are plain rounded rectangles (the part shape of maipai_decor_core.h):
++ * no image, no font, no new flash.
++ */
++#ifndef MAIPAI_PACK_CORE_H
++#define MAIPAI_PACK_CORE_H
++
++#include "maipai_face_core.h"
++#include "maipai_decor_core.h"
++
++#define MP_X_NONE 0
++#define MP_X_CAT 1
++#define MP_X_ROBOT 2
++#define MP_X_HEARTS 3
++#define MP_MAX_EXTRA_PARTS 12
++
++typedef struct {
++    uint8_t radius_pct; /* 100 a circle, 0 a square */
++    int8_t gap_off;     /* pixels added to each eye's distance from the middle (negative is closer) */
++    uint8_t lid_cap;    /* how far the lids may open, in percent (100 is no limit) */
++    uint8_t extras;     /* MP_X_* */
++} mp_pack_t;
++
++/* Indexed by MF_STYLE_*. */
++static const mp_pack_t MP_PACKS[MF_STYLE_COUNT] = {
++    {100, 0, 100, MP_X_NONE},  /* classic */
++    {100, 0, 100, MP_X_NONE},  /* big_eyes */
++    {100, 0, 100, MP_X_NONE},  /* minimal */
++    {100, -6, 100, MP_X_NONE}, /* round: big round eyes, close together */
++    {100, 8, 100, MP_X_CAT},   /* cat */
++    {22, 12, 100, MP_X_ROBOT}, /* robot: squared eyes */
++    {100, 0, 55, MP_X_NONE},   /* sleepy: heavy lids */
++    {0, 10, 100, MP_X_NONE},   /* retro_pixel: square eyes */
++    {100, 0, 100, MP_X_HEARTS} /* heart_eyes */
++};
++
++static inline const mp_pack_t* mp_pack(int style)
++{
++    return &MP_PACKS[(style >= 0 && style < MF_STYLE_COUNT) ? style : MF_STYLE_CLASSIC];
++}
++
++/* The corner radius in pixels for an eye of `size` pixels. */
++static inline int mp_eye_radius(int radius_pct, int size)
++{
++    if (radius_pct >= 100) {
++        return 0x7FFF; /* LV_RADIUS_CIRCLE */
++    }
++    return size * radius_pct / 200;
++}
++
++/* The lid limit the face uses: the smaller of the style's and the time-of-day band's. */
++static inline int mp_lid_cap(int style, int band_cap)
++{
++    const int own = mp_pack(style)->lid_cap;
++    return own < band_cap ? own : band_cap;
++}
++
++/* The drawn extras of a style, in pixels from the screen centre. Returns how many parts were written. */
++static inline int mp_extra_parts(int extras, md_part_t* out, int cap)
++{
++    int n = 0;
++    if (cap < MP_MAX_EXTRA_PARTS) {
++        return 0;
++    }
++    switch (extras) {
++        case MP_X_CAT:
++            for (int side = -1; side <= 1; side += 2) {
++                /* an ear is two thin bars leaning together, like a roof */
++                out[n++] = md_part(side * 98 - 9, -100, 4, 34, 300, 0, 255);
++                out[n++] = md_part(side * 98 + 9, -100, 4, 34, -300, 0, 255);
++                /* three whiskers a side */
++                for (int k = 0; k < 3; k++) {
++                    out[n++] = md_part(side * 116, 30 + k * 9, 44, 3, side * (k - 1) * 120, 0, 255);
++                }
++            }
++            return n; /* 10 parts */
++        case MP_X_ROBOT:
++            out[n++] = md_part(0, -96, 4, 24, 0, 0, 255);   /* the antenna */
++            out[n++] = md_part(0, -112, 12, 12, 0, 1, 255); /* its ball */
++            out[n++] = md_part(-148, 0, 10, 10, 0, 0, 255); /* two bolts */
++            out[n++] = md_part(148, 0, 10, 10, 0, 0, 255);
++            return n;
++        case MP_X_HEARTS:
++            for (int side = -1; side <= 1; side += 2) {
++                const int cx = side * 70, cy = -16;
++                out[n++] = md_part(cx - 7, cy - 6, 22, 22, 0, 1, 255);
++                out[n++] = md_part(cx + 7, cy - 6, 22, 22, 0, 1, 255);
++                out[n++] = md_part(cx, cy + 4, 22, 22, 450, 0, 255);
++            }
++            return n; /* 6 parts */
++        default: return 0;
++    }
++}
++
++/* Whether the extras of a style cover the eyes (they must then be hidden in a mute, vision-off or quiet look). */
++static inline int mp_extras_cover_eyes(int extras) { return extras == MP_X_HEARTS; }
++
++#endif
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.cpp b/firmware/main/stackchan/avatar/skins/default/default.cpp
+--- a/firmware/main/stackchan/avatar/skins/default/default.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/default.cpp
+@@ -73,3 +73,20 @@ void DefaultAvatar::setEyeLidCap(int percent)
+         eye->setLidCap(percent);
+     }
+ }
++
++void DefaultAvatar::setEyeShape(int radius_pct, int gap_offset)
++{
++    if (auto* eye = dynamic_cast<DefaultEyes*>(_key_elements.leftEye.get())) {
++        eye->setShape(radius_pct, gap_offset);
++    }
++    if (auto* eye = dynamic_cast<DefaultEyes*>(_key_elements.rightEye.get())) {
++        eye->setShape(radius_pct, gap_offset);
++    }
++}
++
++void DefaultAvatar::setCaptionFont(const lv_font_t* font)
++{
++    if (auto* bubble = dynamic_cast<DefaultSpeechBubble*>(_key_elements.speechBubble.get())) {
++        bubble->setTextFont(const_cast<lv_font_t*>(font));
++    }
++}
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -29,6 +29,11 @@ public:
+     void setEyeStyleOffset(int offset);
+     // How far the eyelids may open, in percent (patch F03: a sleepier look in the evening and at night).
+     void setEyeLidCap(int percent);
++    // The eye shape of a face style (patch U06): how rounded the eyes are (100 a circle, 0 a square) and how many pixels
++    // farther from the middle each eye sits.
++    void setEyeShape(int radius_pct, int gap_offset);
++    // The size of the words on the face (patch U06).
++    void setCaptionFont(const lv_font_t* font);
+ 
+ private:
+     std::unique_ptr<uitk::lvgl_cpp::Container> _pannel;
+@@ -54,8 +59,11 @@ public:
+     void setColors(lv_color_t primaryColor, lv_color_t secondaryColor);
+     void setStyleOffset(int offset);
+     void setLidCap(int percent);
++    void setShape(int radius_pct, int gap_offset);
+ 
+ private:
++    int _radius_pct      = 100;
++    int _gap_offset      = 0;
+     int _lid_cap         = 100;
+     int _style_offset    = 0;
+     bool _lowered        = false;
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -60,7 +60,7 @@ void DefaultEyes::setPosition(const Vector2i& position)
+ {
+     Element::setPosition(position);
+ 
+-    auto pos_x = _is_left_eye ? _eye_pos.x : -_eye_pos.x;
++    auto pos_x = _is_left_eye ? _eye_pos.x - _gap_offset : -_eye_pos.x + _gap_offset;
+     pos_x += map_range(_position.x, -100, 100, _eye_min_offset.x, _eye_max_offset.x);
+     auto pos_y = _eye_pos.y + map_range(_position.y, -100, 100, _eye_min_offset.y, _eye_max_offset.y);
+ 
+@@ -138,6 +138,7 @@ void DefaultEyes::setSize(int size)
+     int eye_size = map_range(clamp(_size + _style_offset, -100, 100), -100, 100, _eye_size_limit.x, _eye_size_limit.y);
+ 
+     _eye->setSize(eye_size, eye_size);
++    _eye->setRadius(_radius_pct >= 100 ? LV_RADIUS_CIRCLE : eye_size * _radius_pct / 200);
+     _eyelid->setSize(eye_size, eye_size);
+ 
+     // Force eyelid update
+@@ -167,3 +168,11 @@ void DefaultEyes::setLidCap(int percent)
+     _lid_cap = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+     setWeight(getWeight());
+ }
++
++void DefaultEyes::setShape(int radius_pct, int gap_offset)
++{
++    _radius_pct = radius_pct < 0 ? 0 : (radius_pct > 100 ? 100 : radius_pct);
++    _gap_offset = gap_offset;
++    setSize(getSize());
++    setPosition(_position);
++}
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -14,6 +14,7 @@ CONFIG_MAIPAI_FACE_THINKING=y
+ CONFIG_MAIPAI_FACE_TIMERS=y
+ CONFIG_MAIPAI_FACE_DECOR=y
+ CONFIG_MAIPAI_REACT=y
++CONFIG_MAIPAI_FACE_PACKS=y
+ CONFIG_MAIPAI_TZ=y
+ CONFIG_MAIPAI_NETTEST=y
+ CONFIG_MAIPAI_VERSION=y

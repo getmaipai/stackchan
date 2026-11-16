@@ -93,7 +93,7 @@ def test_clean_applies_a_partial_change_and_keeps_the_rest() -> None:
 @pytest.mark.parametrize(
     ("values", "words"),
     [
-        ({"style": "huge"}, "classic, big_eyes or minimal"),
+        ({"style": "huge"}, "classic, big_eyes, minimal"),
         ({"colour": "purple"}, "not one I know"),
         ({"colour": "#101010"}, "too dark"),
         ({"colour": "#12"}, "not one I know"),
@@ -101,7 +101,7 @@ def test_clean_applies_a_partial_change_and_keeps_the_rest() -> None:
         ({"tod_hours": [9, 6, 18, 21]}, "must be four hours"),
         ({"tod_hours": [6, 9, 18, 24]}, "must be four hours"),
         ({"tod_hours": [6, 9, 18]}, "must be four hours"),
-        ({"lang": "fr"}, "en or es"),
+        ({"lang": "ja"}, "en, es, fr, de, pt or it"),
         ({"clock_style": "sundial"}, "digits or ring"),
         ({"clock_idle_s": 4000}, "0 (never) to 3600"),
         ({"clock_idle_s": -1}, "0 (never) to 3600"),

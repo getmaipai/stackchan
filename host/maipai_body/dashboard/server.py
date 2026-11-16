@@ -104,7 +104,12 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, {"code": self.server.pairing_store.create_pair_code()})
             return
         if path == "/settings" or path.startswith(
-            ("/api/stackchan/settings", "/api/stackchan/faces/")
+            (
+                "/api/stackchan/settings",
+                "/api/stackchan/faces/",
+                "/api/stackchan/unit/",
+                "/api/stackchan/people",
+            )
         ):
             return self._get_settings(path)
         if path in ASSETS:

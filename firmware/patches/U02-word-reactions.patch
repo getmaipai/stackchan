@@ -1,0 +1,923 @@
+# Intent: Train 4 item 2, word reactions (stock: saying hello shows happy, love dances). A data table of up to 40 rows, each a few words mapped to a face, a quiet sound, a face extra and optionally a built-in dance. Built in: hello, thanks, thank you, love, sorry, good night and their pairs in Spanish, French, German, Portuguese and Italian. Matching folds the text to lower-case ASCII with accents removed (the sharp s is ss), looks for whole words and takes the longest phrase, so 'sorry' does not match 'sorrow' and 'thank you' beats 'you'. A line the person said or the unit is saying is checked at the caption hook, whatever the captions setting says; a reaction plays at most every 4 seconds and the same phrase at most every 20. The table is one small record in its own storage namespace (checksummed; a damaged one falls back to the built-in table), about 1.1 KB of RAM. Reactions only use the quiet sounds (not the alarm-like ones), follow the sound policy and the hard mute, and do nothing in a mute, vision-off or quiet look. The face is drawn straight on the avatar (no sleeping state) and goes back to the resting face unless another emotion came in. self.robot.dance now calls one shared function. Tools self.reaction.get_table, set_table, reset and test.
+# Placement: unit (the table and the matching live on the robot and work with the host off; the settings page edits the table)
+# Upstream: firmware/main/hal/board/stackchan_display.cc, firmware/main/hal/hal_mcp.cpp of the StackChan main component (MIT)
+# Check after a flash: self.reaction.test with 'hello' answers the sparkles row; 'good morning' matches nothing until set_table adds it; a bad row answers 'row N: ...' and changes nothing; reset brings back the built-in table; with the unit unmuted, 'thanks' shows the happy face with sparkles for a few seconds.
+# Kconfig: MAIPAI_REACT (default y); off removes the table, the tools and the hook.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -151,6 +151,16 @@ config MAIPAI_FACE_DECOR
+         objects); while one shows, one 66 ms LVGL timer and at most nine small objects. Never covers a mute,
+         vision-off or quiet look or a ringing timer. Off here: no decorator code is compiled.
+ 
++config MAIPAI_REACT
++    bool "Word reactions (hello, thanks, love, sorry, good night and their pairs in five more languages)"
++    default y
++    help
++        A small table of words that, when the unit hears or says them, show a face for a few seconds, play a quiet
++        sound through the sound policy, draw a decorator and optionally dance. Built in: English, Spanish, French,
++        German, Portuguese and Italian pairs. The owner edits the table on the settings page (self.reaction.set_table);
++        it is one small record in its own storage namespace, about 1.1 KB of RAM, no task and no timer. Does nothing in
++        a mute, vision-off or quiet look. Off here: no table, no tools, no hook.
++
+ config MAIPAI_RESET_ON_DEVICE
+     bool "Reset on the device (quick settings, hold 3 seconds)"
+     default y
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -64,6 +64,9 @@ bool board_battery_state(int* level, bool* charging, bool* on_cable);
+ void battery_power_off();
+ // A few plain words on the face for `ms` milliseconds, whatever the captions setting says (patch T01). Safe from any task.
+ void notice(const char* text, int ms);
++// Shows an emotion ("happy", "sad", "angry", "doubtful", "sleepy") for `hold_ms`, then goes back to the resting face
++// unless another emotion came in meanwhile (patch U02). Safe from any task; takes the LVGL lock.
++void react_face(const char* emotion, int hold_ms);
+ // Redraws the resting face for the saved mood (patch M01). Only changes a face that is resting (not mid-emotion, not
+ // asleep, not in full quiet). Safe from any task; takes the LVGL lock.
+ void mood_refresh();
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -4,6 +4,7 @@
+  * SPDX-License-Identifier: MIT
+  */
+ #include "stackchan_display.h"
++#include <atomic>
+ #include <esp_log.h>
+ #include <esp_err.h>
+ #include <esp_lvgl_port.h>
+@@ -29,6 +30,7 @@
+ #include <hal/hal.h>
+ #include <hal/maipai_timers.h>
+ #include <hal/maipai_face.h>
++#include <hal/maipai_react.h>
+ #include <hal/maipai_mood.h>
+ 
+ // True while the Wi-Fi setup portal is open (firmware/portal/maipai_wifi_configuration_ap.cc, patch P03).
+@@ -1211,6 +1213,65 @@ void StackChanAvatarDisplay::RefreshMood()
+     }
+ }
+ 
++// Counts every emotion change, so a word reaction (patch U02) only puts the face back if nothing else changed it.
++static std::atomic<uint32_t> s_emotion_seq{0};
++static lv_timer_t* s_react_timer = nullptr;
++
++// A word reaction's face (patch U02): drawn straight on the avatar, so it has none of the side effects of the host's
++// emotions (the sleepy emotion's "Zzz" bubble and its sleeping state). The face goes back to the resting one after
++// `hold_ms` unless another emotion was set meanwhile.
++void StackChanAvatarDisplay::ReactFace(const char* emotion, int hold_ms)
++{
++    auto& stackchan = GetStackChan();
++    if (!stackchan.hasAvatar() || emotion == nullptr || quiet_face_ || is_sleeping_) {
++        return;
++    }
++    DisplayLockGuard lock(this);
++    Emotion e = Emotion::Neutral;
++    if (strcmp(emotion, "happy") == 0) {
++        e = Emotion::Happy;
++    } else if (strcmp(emotion, "sad") == 0) {
++        e = Emotion::Sad;
++    } else if (strcmp(emotion, "angry") == 0) {
++        e = Emotion::Angry;
++    } else if (strcmp(emotion, "doubtful") == 0) {
++        e = Emotion::Doubt;
++    } else if (strcmp(emotion, "sleepy") == 0) {
++        e = Emotion::Sleepy;
++    } else {
++        return;
++    }
++    stackchan.avatar().setEmotion(e);
++    mood_baseline_ = false;
++    auto blink_modifier = static_cast<BlinkModifier*>(stackchan.getModifier(blink_modifier_id_));
++    if (blink_modifier) {
++        blink_modifier->resyncEyeWeights();
++    }
++    const uint32_t mine = ++s_emotion_seq;
++    if (s_react_timer != nullptr) {
++        lv_timer_delete(s_react_timer);
++    }
++    s_react_timer = lv_timer_create(
++        [](lv_timer_t* timer) {
++            const uint32_t seq = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lv_timer_get_user_data(timer)));
++            s_react_timer      = nullptr;
++            auto d             = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
++            if (d != nullptr && s_emotion_seq.load() == seq) {
++                d->SetEmotion("neutral");
++            }
++        },
++        hold_ms > 0 ? hold_ms : 3500, reinterpret_cast<void*>(static_cast<uintptr_t>(mine)));
++    lv_timer_set_repeat_count(s_react_timer, 1);
++}
++
++void hal_bridge::react_face(const char* emotion, int hold_ms)
++{
++    auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
++    if (display != nullptr) {
++        display->ReactFace(emotion, hold_ms);
++    }
++}
++
+ void hal_bridge::mood_refresh()
+ {
+     auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
+@@ -1221,6 +1282,7 @@ void hal_bridge::mood_refresh()
+ 
+ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+ {
++    s_emotion_seq++;
+     auto& stackchan = GetStackChan();
+ 
+     if (!stackchan.hasAvatar() || !emotion) {
+@@ -1604,6 +1666,10 @@ void StackChanAvatarDisplay::SetChatMessage(const char* role, const char* conten
+ 
+     // ESP_LOGE(TAG, "SetChatMessage: role=%s, content=%s", role ? role : "null", content ? content : "null");
+ 
++    // Word reactions (patch U02): a few words said or heard can show a face, a sound, a decorator and a dance,
++    // whatever the captions setting says.
++    maipai_react_text(role, content);
++
+     // The Wi-Fi setup text (hotspot name, then the address) goes on the link screen, whatever the captions
+     // setting says: the screen is the only place a person can read it (R03).
+     if (cover_glyph_kind_ == 1 && boot_label_ != nullptr && role != nullptr && strcmp(role, "system") == 0 &&
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -117,6 +117,9 @@ public:
+     // The link look from the hub connection (hal_bridge::link_look); takes the LVGL lock.
+     void SetLinkLook(int look);
+ 
++    // A word reaction's face for a few seconds (hal_bridge::react_face, patch U02).
++    void ReactFace(const char* emotion, int hold_ms);
++
+     // Redraws the resting face for the saved mood (hal_bridge::mood_refresh).
+     void RefreshMood();
+ 
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -13,6 +13,7 @@
+ #include "maipai_mood.h"
+ #include "maipai_face.h"
+ #include "maipai_decor.h"
++#include "maipai_react.h"
+ #include "maipai_update.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_timers_core.h"
+@@ -25,6 +26,7 @@
+ #include <esp_wifi.h>
+ #include <esp_timer.h>
+ #include <cstdio>
++#include <cstring>
+ #include <deque>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
+@@ -91,6 +93,33 @@ void device_events_push(const char* kind, const char* extra)
+ 
+ using namespace stackchan;
+ 
++// Plays one of the built-in dances once (the self.robot.dance tool and the word reactions, patch U02, call this). Takes
++// the LVGL lock itself. False for a name that is not a dance.
++bool maipai_dance_play(const char* name)
++{
++    const animation::KeyframeSequence* sequence = nullptr;
++    if (name == nullptr) {
++        return false;
++    } else if (strcmp(name, "happy") == 0) {
++        sequence = &DanceModifier::Happy;
++    } else if (strcmp(name, "robot") == 0) {
++        sequence = &DanceModifier::Robot;
++    } else if (strcmp(name, "panic") == 0) {
++        sequence = &DanceModifier::Panic;
++    } else if (strcmp(name, "look_around") == 0) {
++        sequence = &DanceModifier::LookAround;
++    }
++    if (!sequence) {
++        return false;
++    }
++    LvglLockGuard lock;
++    if (s_dance_modifier_id >= 0) {
++        GetStackChan().removeModifier(s_dance_modifier_id);
++    }
++    s_dance_modifier_id = GetStackChan().addModifier(std::make_unique<DanceModifier>(*sequence));
++    return true;
++}
++
+ static const std::string_view _tag = "HAL-MCP";
+ 
+ void Hal::xiaozhi_mcp_init()
+@@ -521,6 +550,9 @@ void Hal::xiaozhi_mcp_init()
+     // self.face.decorate and self.face.decor_list (patch U01).
+     maipai_decor_register_tools();
+ 
++    // self.reaction.get_table, set_table, reset and test (patch U02).
++    maipai_react_register_tools();
++
+     // self.tailnet.status and self.tailnet.set (patch TN01).
+     maipai_tailnet_register_tools();
+ 
+@@ -530,26 +562,7 @@ void Hal::xiaozhi_mcp_init()
+                        PropertyList({Property("name", kPropertyTypeString, std::string("happy"))}),
+                        [this](const PropertyList& properties) -> ReturnValue {
+                            const auto name = properties["name"].value<std::string>();
+-                           const animation::KeyframeSequence* sequence = nullptr;
+-                           if (name == "happy") {
+-                               sequence = &DanceModifier::Happy;
+-                           } else if (name == "robot") {
+-                               sequence = &DanceModifier::Robot;
+-                           } else if (name == "panic") {
+-                               sequence = &DanceModifier::Panic;
+-                           } else if (name == "look_around") {
+-                               sequence = &DanceModifier::LookAround;
+-                           }
+-                           if (!sequence) {
+-                               return false;
+-                           }
+-
+-                           LvglLockGuard lock;
+-                           if (s_dance_modifier_id >= 0) {
+-                               GetStackChan().removeModifier(s_dance_modifier_id);
+-                           }
+-                           s_dance_modifier_id = GetStackChan().addModifier(std::make_unique<DanceModifier>(*sequence));
+-                           return true;
++                           return maipai_dance_play(name.c_str());
+                        });
+ 
+     mclog::tagInfo(_tag, "add robot.stop_dance tool");
+diff --git a/firmware/main/hal/maipai_react.cc b/firmware/main/hal/maipai_react.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_react.cc
+@@ -0,0 +1,274 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Word reactions, device side (patch U02). The table lives in RAM (about 1.1 KB) and in one small record in its own
++ * NVS namespace; with no record the built-in table is used. A matching line plays at most one reaction every 4 seconds
++ * and the same phrase at most every 20 seconds. No task and no timer of its own.
++ */
++#include <sdkconfig.h>
++#if CONFIG_MAIPAI_REACT
++#include "maipai_react.h"
++#include "maipai_react_core.h"
++#include "maipai_decor.h"
++#include "maipai_privacy.h"
++#include "maipai_sounds.h"
++#include "board/hal_bridge.h"
++#include "hal.h"
++#include <mcp_server.h>
++#include <cJSON.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++#include <cstdio>
++#include <mutex>
++#include <string>
++
++static const char* TAG        = "MAIPAI-REACT";
++static const char* kNamespace = "mp_react";  // our own
++static const char* kKey       = "t1";
++
++// Defined in hal_mcp.cpp: plays one of the built-in dances (the same code the self.robot.dance tool runs).
++bool maipai_dance_play(const char* name);
++
++namespace {
++std::mutex s_mutex;  // a leaf lock: nothing else is taken while it is held
++mr_table_t s_table;
++bool s_loaded        = false;
++bool s_saved_table   = false;  // false: the built-in table is in use
++int64_t s_last_at[MR_MAX] = {};
++int64_t s_last_any   = -MR_GAP_MS;
++
++int64_t now_ms()
++{
++    return esp_timer_get_time() / 1000;
++}
++
++void load_locked()
++{
++    if (s_loaded) {
++        return;
++    }
++    s_loaded = true;
++    mr_defaults(&s_table);
++    nvs_handle_t h;
++    if (nvs_open(kNamespace, NVS_READONLY, &h) != ESP_OK) {
++        return;
++    }
++    uint8_t buf[MR_BLOB_MAX];
++    size_t n = sizeof(buf);
++    if (nvs_get_blob(h, kKey, buf, &n) == ESP_OK) {
++        mr_table_t loaded;
++        if (mr_load(&loaded, buf, n) == MR_OK) {
++            s_table       = loaded;
++            s_saved_table = true;
++        } else {
++            ESP_LOGW(TAG, "saved reactions unreadable (%u bytes): using the built-in table", static_cast<unsigned>(n));
++        }
++    }
++    nvs_close(h);
++}
++
++bool save_locked(const mr_table_t& t)
++{
++    uint8_t buf[MR_BLOB_MAX];
++    const size_t n = mr_save(&t, buf, sizeof(buf));
++    nvs_handle_t h;
++    if (n == 0 || nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) {
++        return false;
++    }
++    const bool ok = nvs_set_blob(h, kKey, buf, n) == ESP_OK && nvs_commit(h) == ESP_OK;
++    nvs_close(h);
++    return ok;
++}
++
++bool erase_saved()
++{
++    nvs_handle_t h;
++    if (nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) {
++        return false;
++    }
++    nvs_erase_key(h, kKey);  // a missing key is fine: the built-in table is already in use
++    const bool ok = nvs_commit(h) == ESP_OK;
++    nvs_close(h);
++    return ok;
++}
++
++std::string table_json(const mr_table_t& t, bool builtin)
++{
++    cJSON* root = cJSON_CreateObject();
++    cJSON_AddBoolToObject(root, "ok", true);
++    cJSON_AddBoolToObject(root, "builtin", builtin);
++    cJSON* rows = cJSON_AddArrayToObject(root, "table");
++    for (int i = 0; i < t.n; i++) {
++        cJSON* r = cJSON_CreateObject();
++        cJSON_AddStringToObject(r, "say", t.e[i].phrase);
++        cJSON_AddStringToObject(r, "face", MR_FACES[t.e[i].face]);
++        cJSON_AddStringToObject(r, "sound", MR_SOUNDS[t.e[i].sound]);
++        cJSON_AddStringToObject(r, "decor", MD_NAMES[t.e[i].decor]);
++        cJSON_AddStringToObject(r, "dance", MR_DANCES[t.e[i].dance]);
++        cJSON_AddItemToArray(rows, r);
++    }
++    char* text = cJSON_PrintUnformatted(root);
++    std::string out = text != nullptr ? text : "{\"ok\":false,\"error\":\"out of memory: try again\"}";
++    cJSON_free(text);
++    cJSON_Delete(root);
++    return out;
++}
++
++std::string error_json(int err, int row)
++{
++    char buf[200];
++    snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"row %d: %s\"}", row + 1, mr_err_word(err));
++    return buf;
++}
++
++const char* str_of(const cJSON* obj, const char* key)
++{
++    const cJSON* it = cJSON_GetObjectItemCaseSensitive(obj, key);
++    return cJSON_IsString(it) && it->valuestring != nullptr ? it->valuestring : "";
++}
++
++void play(const mr_entry_t& e)
++{
++    if (e.face != 0) {
++        hal_bridge::react_face(MR_FACES[e.face], MR_HOLD_MS);
++    }
++#if CONFIG_MAIPAI_FACE_DECOR
++    if (e.decor != 0) {
++        LvglLockGuard lock;
++        maipai_decor_show(e.decor, 4);
++    }
++#endif
++    if (e.sound != 0) {
++        maipai_sounds_play(MR_SOUNDS[e.sound]);
++    }
++    if (e.dance != 0) {
++        maipai_dance_play(MR_DANCES[e.dance]);
++    }
++}
++}  // namespace
++
++void maipai_react_text(const char* role, const char* text)
++{
++    if (role == nullptr || text == nullptr || (strcmp(role, "user") != 0 && strcmp(role, "assistant") != 0)) {
++        return;
++    }
++    if (maipai_privacy_bits() != 0) {
++        return;  // a mute, vision-off or quiet look is not decorated or danced over
++    }
++    mr_entry_t hit;
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        load_locked();
++        const int i = mr_match(&s_table, text);
++        if (i < 0) {
++            return;
++        }
++        const int64_t now = now_ms();
++        if (now - s_last_any < MR_GAP_MS || now - s_last_at[i] < MR_COOLDOWN_MS) {
++            return;
++        }
++        s_last_any   = now;
++        s_last_at[i] = now;
++        hit          = s_table.e[i];
++    }
++    ESP_LOGI(TAG, "reaction: %s", hit.phrase);
++    play(hit);
++}
++
++void maipai_react_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.reaction.get_table",
++                "The word reactions in force: each row has say (the words), face (none, happy, sad, angry, doubtful, "
++                "sleepy), sound (none, success, popup, goodbye, charged, needs_you, vibration), decor (a face "
++                "decorator or none) and dance (none, happy, robot, panic, look_around). builtin is true while no table "
++                "of your own is saved. Answers {ok,builtin,table}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    std::lock_guard<std::mutex> lock(s_mutex);
++                    load_locked();
++                    return table_json(s_table, !s_saved_table);
++                });
++    mcp.AddTool("self.reaction.set_table",
++                "Replace the word reactions. table is a JSON list of rows like "
++                "[{\\\"say\\\":\\\"hello\\\",\\\"face\\\":\\\"happy\\\",\\\"sound\\\":\\\"\\\",\\\"decor\\\":\\\"sparkles\\\","
++                "\\\"dance\\\":\\\"\\\"}]. At most 40 rows; the words are 2 to 23 letters or numbers. Nothing changes unless "
++                "every row is valid. An empty list turns every reaction off. Answers the new table or {ok:false,error}.",
++                PropertyList({Property("table", kPropertyTypeString, std::string("[]"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string text = properties["table"].value<std::string>();
++                    cJSON* root            = cJSON_Parse(text.c_str());
++                    if (root == nullptr || !cJSON_IsArray(root)) {
++                        cJSON_Delete(root);
++                        return std::string("{\"ok\":false,\"error\":\"table is not a JSON list: send rows like "
++                                           "{\\\"say\\\":\\\"hello\\\",\\\"face\\\":\\\"happy\\\"}\"}");
++                    }
++                    mr_table_t next;
++                    mr_clear(&next);
++                    const int rows = cJSON_GetArraySize(root);
++                    for (int i = 0; i < rows; i++) {
++                        const cJSON* row = cJSON_GetArrayItem(root, i);
++                        if (!cJSON_IsObject(row)) {
++                            cJSON_Delete(root);
++                            return error_json(MR_ERR_PHRASE, i);
++                        }
++                        const int err = mr_add(&next, str_of(row, "say"), str_of(row, "face"), str_of(row, "sound"),
++                                               str_of(row, "decor"), str_of(row, "dance"));
++                        if (err != MR_OK) {
++                            cJSON_Delete(root);
++                            return error_json(err, i);
++                        }
++                    }
++                    cJSON_Delete(root);
++                    std::lock_guard<std::mutex> lock(s_mutex);
++                    load_locked();
++                    if (!save_locked(next)) {
++                        return std::string("{\"ok\":false,\"error\":\"the table could not be saved: flash is not "
++                                           "writable, try again\"}");
++                    }
++                    s_table       = next;
++                    s_saved_table = true;
++                    return table_json(s_table, false);
++                });
++    mcp.AddTool("self.reaction.reset", "Go back to the built-in word reactions. Answers the table.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    std::lock_guard<std::mutex> lock(s_mutex);
++                    load_locked();
++                    if (!erase_saved()) {
++                        return std::string("{\"ok\":false,\"error\":\"the saved table could not be removed: try again\"}");
++                    }
++                    mr_defaults(&s_table);
++                    s_saved_table = false;
++                    return table_json(s_table, true);
++                });
++    mcp.AddTool("self.reaction.test",
++                "Say what the table would do for some words, without doing it: answers {ok,match,face,sound,decor,dance} "
++                "or {ok,match:false}. Set play true to run the reaction now (it still follows the mute and the sound "
++                "policy).",
++                PropertyList({Property("text", kPropertyTypeString, std::string("")),
++                              Property("play", kPropertyTypeBoolean, false)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string text = properties["text"].value<std::string>();
++                    mr_entry_t hit;
++                    {
++                        std::lock_guard<std::mutex> lock(s_mutex);
++                        load_locked();
++                        const int i = mr_match(&s_table, text.c_str());
++                        if (i < 0) {
++                            return std::string("{\"ok\":true,\"match\":false}");
++                        }
++                        hit = s_table.e[i];
++                    }
++                    if (properties["play"].value<bool>() && maipai_privacy_bits() == 0) {
++                        play(hit);
++                    }
++                    char buf[220];
++                    snprintf(buf, sizeof(buf),
++                             "{\"ok\":true,\"match\":true,\"say\":\"%s\",\"face\":\"%s\",\"sound\":\"%s\",\"decor\":\"%s\","
++                             "\"dance\":\"%s\"}",
++                             hit.phrase, MR_FACES[hit.face], MR_SOUNDS[hit.sound], MD_NAMES[hit.decor], MR_DANCES[hit.dance]);
++                    return std::string(buf);
++                });
++}
++#endif
+diff --git a/firmware/main/hal/maipai_react.h b/firmware/main/hal/maipai_react.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_react.h
+@@ -0,0 +1,21 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Word reactions, device side (patch U02). Logic: maipai_react_core.h. With CONFIG_MAIPAI_REACT off nothing here is
++ * compiled and the words the unit hears or says change nothing.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_REACT
++// The words of a line the person said or the unit is saying (role "user" or "assistant"). If they match a reaction
++// that is not cooling down, the reaction plays: a face for a few seconds, a quiet sound through the sound policy,
++// a decorator and optionally a dance. Safe from any task; takes the LVGL lock itself. Does nothing in a mute, a
++// vision-off or quiet look.
++void maipai_react_text(const char* role, const char* text);
++// Registers self.reaction.get_table, set_table, reset and test.
++void maipai_react_register_tools();
++#else
++inline void maipai_react_text(const char*, const char*) {}
++inline void maipai_react_register_tools() {}
++#endif
+diff --git a/firmware/main/hal/maipai_react_core.h b/firmware/main/hal/maipai_react_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_react_core.h
+@@ -0,0 +1,356 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Word reactions (patch U02): a data table that maps a few words or phrases, in several languages, to a face, a quiet
++ * sound, a decorator and optionally a dance. The pure logic: folding text for matching, the table, the checks and the
++ * saved record. Header-only plain C99 so a host compiler can test it; the device side is maipai_react.cc.
++ * Needs maipai_decor_core.h (the decorator names are defined there, once).
++ *
++ * Matching folds the text to lower-case ASCII with accents removed and punctuation turned into spaces, then looks for
++ * the phrase as whole words ("sorry" does not match "sorrow"). The longest matching phrase wins, so "thank you" beats
++ * "you". The table is saved as one small record; with none saved the built-in table (English, Spanish, French, German,
++ * Portuguese and Italian pairs) is used.
++ */
++#ifndef MAIPAI_REACT_CORE_H
++#define MAIPAI_REACT_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++#include "maipai_decor_core.h"
++
++#define MR_MAX 40
++#define MR_PHRASE 24 /* folded phrase, with its end byte */
++#define MR_MIN_PHRASE 2
++#define MR_BLOB_VERSION 1
++
++#define MR_OK 0
++#define MR_ERR_PHRASE -1
++#define MR_ERR_FACE -2
++#define MR_ERR_SOUND -3
++#define MR_ERR_DECOR -4
++#define MR_ERR_DANCE -5
++#define MR_ERR_FULL -6
++#define MR_ERR_DUP -7
++#define MR_ERR_EMPTY -8
++#define MR_ERR_BLOB -9
++
++#define MR_FACE_COUNT 6
++static const char* const MR_FACES[MR_FACE_COUNT] = {"none", "happy", "sad", "angry", "doubtful", "sleepy"};
++
++/* The quiet sounds a reaction may use (not the alarm-like ones: exclamation, low_battery, offline). */
++#define MR_SOUND_COUNT 7
++static const char* const MR_SOUNDS[MR_SOUND_COUNT] = {"none",    "success",  "popup",     "goodbye",
++                                                      "charged", "needs_you", "vibration"};
++
++#define MR_DANCE_COUNT 5
++static const char* const MR_DANCES[MR_DANCE_COUNT] = {"none", "happy", "robot", "panic", "look_around"};
++
++#define MR_HOLD_MS 3500      /* how long a reaction face stays before the face goes back */
++#define MR_COOLDOWN_MS 20000 /* the same phrase does not react again inside this time */
++#define MR_GAP_MS 4000       /* nor does any reaction follow another this soon */
++
++typedef struct {
++    char phrase[MR_PHRASE]; /* folded: lower-case ASCII words separated by single spaces */
++    uint8_t face;           /* index into MR_FACES */
++    uint8_t sound;          /* index into MR_SOUNDS */
++    uint8_t decor;          /* an MD_* kind (0 none) */
++    uint8_t dance;          /* index into MR_DANCES */
++} mr_entry_t;
++
++typedef struct {
++    uint8_t n;
++    mr_entry_t e[MR_MAX];
++} mr_table_t;
++
++/* Lower-case ASCII, accents removed, anything else a single space, no leading or trailing space. Returns the length. */
++static inline int mr_fold(const char* in, char* out, int cap)
++{
++    int n = 0;
++    int pending_space = 0;
++    if (in == NULL || cap < 1) {
++        if (cap > 0) {
++            out[0] = '\0';
++        }
++        return 0;
++    }
++    for (const unsigned char* p = (const unsigned char*)in; *p != '\0'; p++) {
++        char c = 0;
++        const char* two = NULL;
++        if (*p < 0x80) {
++            if (*p >= 'A' && *p <= 'Z') {
++                c = (char)(*p - 'A' + 'a');
++            } else if ((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9')) {
++                c = (char)*p;
++            } else if (*p == '\'') {
++                continue; /* "t'aime" reads as "taime"; the phrase is folded the same way */
++            }
++        } else if (*p == 0xC3 && p[1] != '\0') {
++            /* Latin-1 letters: the second byte 0x80 to 0xBF is the code point minus 0x40 */
++            static const char* const map =
++                "aaaaaaaceeeeiiiidnooooo/ouuuuytsaaaaaaaceeeeiiiidnooooo/ouuuuyty"; /* 0xC0 to 0xFF */
++            const int idx = p[1] - 0x80;
++            p++;
++            if (idx >= 0 && idx < 64) {
++                c = map[idx];
++                if (c == '/') {
++                    c = 0;
++                } else if (idx == 0x1F) { /* the sharp s */
++                    two = "ss";
++                } else if (idx == 0x06 || idx == 0x26) { /* the ae ligature */
++                    two = "ae";
++                }
++            }
++        } else if (*p >= 0xC0) { /* another multi-byte letter: a gap */
++            while (p[1] != '\0' && (p[1] & 0xC0) == 0x80) {
++                p++;
++            }
++        }
++        if (c == 0 && two == NULL) {
++            if (n > 0) {
++                pending_space = 1;
++            }
++            continue;
++        }
++        const char* src = two != NULL ? two : &c;
++        const int len = two != NULL ? 2 : 1;
++        if (pending_space && n < cap - 1) {
++            out[n++] = ' ';
++        }
++        pending_space = 0;
++        for (int k = 0; k < len && n < cap - 1; k++) {
++            out[n++] = src[k];
++        }
++    }
++    out[n] = '\0';
++    return n;
++}
++
++static inline int mr_index_of(const char* const* list, int count, const char* name)
++{
++    if (name == NULL || name[0] == '\0') {
++        return 0; /* an empty name means none */
++    }
++    for (int i = 0; i < count; i++) {
++        if (strcmp(list[i], name) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++static inline const char* mr_err_word(int err)
++{
++    switch (err) {
++        case MR_ERR_PHRASE: return "the words must be 2 to 23 letters or numbers";
++        case MR_ERR_FACE: return "the face must be none, happy, sad, angry, doubtful or sleepy";
++        case MR_ERR_SOUND: return "the sound must be none, success, popup, goodbye, charged, needs_you or vibration";
++        case MR_ERR_DECOR: return "the decorator must be none, sweat, shy, dizzy, heart, anger, tears, sparkles, stars or zzz";
++        case MR_ERR_DANCE: return "the dance must be none, happy, robot, panic or look_around";
++        case MR_ERR_FULL: return "the table holds at most 40 reactions";
++        case MR_ERR_DUP: return "those words are already in the table";
++        case MR_ERR_EMPTY: return "a reaction needs at least a face, a sound, a decorator or a dance";
++        case MR_ERR_BLOB: return "the saved table was damaged";
++        default: return "ok";
++    }
++}
++
++static inline void mr_clear(mr_table_t* t) { memset(t, 0, sizeof(*t)); }
++
++/* Adds one reaction. The phrase is folded here. Nothing is added on an error. */
++static inline int mr_add(mr_table_t* t, const char* phrase, const char* face, const char* sound, const char* decor,
++                         const char* dance)
++{
++    mr_entry_t e;
++    memset(&e, 0, sizeof(e));
++    char folded[MR_PHRASE + 8];
++    /* a phrase longer than the limit folds to more than the limit: refuse it rather than cut it */
++    const int len = mr_fold(phrase, folded, (int)sizeof(folded));
++    if (len < MR_MIN_PHRASE || len >= MR_PHRASE) {
++        return MR_ERR_PHRASE;
++    }
++    const int f = mr_index_of(MR_FACES, MR_FACE_COUNT, face);
++    if (f < 0) return MR_ERR_FACE;
++    const int s = mr_index_of(MR_SOUNDS, MR_SOUND_COUNT, sound);
++    if (s < 0) return MR_ERR_SOUND;
++    const int d = (decor == NULL || decor[0] == '\0') ? 0 : md_from_name(decor);
++    if (d < 0) return MR_ERR_DECOR;
++    const int a = mr_index_of(MR_DANCES, MR_DANCE_COUNT, dance);
++    if (a < 0) return MR_ERR_DANCE;
++    if (f == 0 && s == 0 && d == 0 && a == 0) {
++        return MR_ERR_EMPTY;
++    }
++    if (t->n >= MR_MAX) {
++        return MR_ERR_FULL;
++    }
++    for (int i = 0; i < t->n; i++) {
++        if (strcmp(t->e[i].phrase, folded) == 0) {
++            return MR_ERR_DUP;
++        }
++    }
++    memcpy(e.phrase, folded, (size_t)len + 1);
++    e.face = (uint8_t)f;
++    e.sound = (uint8_t)s;
++    e.decor = (uint8_t)d;
++    e.dance = (uint8_t)a;
++    t->e[t->n++] = e;
++    return MR_OK;
++}
++
++/* The index of the reaction for `text`, or -1. The longest phrase wins; on a tie the earlier row wins. */
++static inline int mr_match(const mr_table_t* t, const char* text)
++{
++    char folded[162];
++    const int len = mr_fold(text, folded, (int)sizeof(folded) - 2);
++    if (len == 0) {
++        return -1;
++    }
++    /* pad with a space on each side so every phrase is looked for as whole words */
++    char hay[170];
++    hay[0] = ' ';
++    memcpy(hay + 1, folded, (size_t)len);
++    hay[len + 1] = ' ';
++    hay[len + 2] = '\0';
++    int best = -1;
++    int best_len = 0;
++    for (int i = 0; i < t->n; i++) {
++        char needle[MR_PHRASE + 2];
++        const int pl = (int)strlen(t->e[i].phrase);
++        needle[0] = ' ';
++        memcpy(needle + 1, t->e[i].phrase, (size_t)pl);
++        needle[pl + 1] = ' ';
++        needle[pl + 2] = '\0';
++        if (strstr(hay, needle) != NULL && pl > best_len) {
++            best = i;
++            best_len = pl;
++        }
++    }
++    return best;
++}
++
++/* Built-in pairs. Rows: phrase, face, sound, decorator, dance. */
++typedef struct {
++    const char* phrase;
++    const char* face;
++    const char* sound;
++    const char* decor;
++    const char* dance;
++} mr_default_t;
++
++static const mr_default_t MR_DEFAULTS[] = {
++    /* English */
++    {"hello", "happy", "", "sparkles", ""},
++    {"thanks", "happy", "success", "sparkles", ""},
++    {"thank you", "happy", "success", "sparkles", ""},
++    {"love", "happy", "", "heart", "happy"},
++    {"sorry", "sad", "", "sweat", ""},
++    {"good night", "sleepy", "goodbye", "zzz", ""},
++    /* Spanish */
++    {"hola", "happy", "", "sparkles", ""},
++    {"gracias", "happy", "success", "sparkles", ""},
++    {"te quiero", "happy", "", "heart", "happy"},
++    {"lo siento", "sad", "", "sweat", ""},
++    {"buenas noches", "sleepy", "goodbye", "zzz", ""},
++    /* French */
++    {"bonjour", "happy", "", "sparkles", ""},
++    {"merci", "happy", "success", "sparkles", ""},
++    {"je taime", "happy", "", "heart", "happy"},
++    {"je t aime", "happy", "", "heart", "happy"},
++    {"desole", "sad", "", "sweat", ""},
++    {"bonne nuit", "sleepy", "goodbye", "zzz", ""},
++    /* German */
++    {"hallo", "happy", "", "sparkles", ""},
++    {"danke", "happy", "success", "sparkles", ""},
++    {"ich liebe dich", "happy", "", "heart", "happy"},
++    {"tut mir leid", "sad", "", "sweat", ""},
++    {"gute nacht", "sleepy", "goodbye", "zzz", ""},
++    /* Portuguese */
++    {"ola", "happy", "", "sparkles", ""},
++    {"obrigado", "happy", "success", "sparkles", ""},
++    {"obrigada", "happy", "success", "sparkles", ""},
++    {"te amo", "happy", "", "heart", "happy"},
++    {"desculpa", "sad", "", "sweat", ""},
++    {"boa noite", "sleepy", "goodbye", "zzz", ""},
++    /* Italian */
++    {"ciao", "happy", "", "sparkles", ""},
++    {"grazie", "happy", "success", "sparkles", ""},
++    {"ti voglio bene", "happy", "", "heart", "happy"},
++    {"scusa", "sad", "", "sweat", ""},
++    {"buonanotte", "sleepy", "goodbye", "zzz", ""},
++};
++#define MR_DEFAULT_COUNT ((int)(sizeof(MR_DEFAULTS) / sizeof(MR_DEFAULTS[0])))
++
++static inline void mr_defaults(mr_table_t* t)
++{
++    mr_clear(t);
++    for (int i = 0; i < MR_DEFAULT_COUNT && i < MR_MAX; i++) {
++        (void)mr_add(t, MR_DEFAULTS[i].phrase, MR_DEFAULTS[i].face, MR_DEFAULTS[i].sound, MR_DEFAULTS[i].decor,
++                     MR_DEFAULTS[i].dance);
++    }
++}
++
++/* ---- the saved record: version, count, rows, one checksum byte ---- */
++
++#define MR_ROW_BYTES (MR_PHRASE + 4)
++#define MR_BLOB_MAX (2 + MR_MAX * MR_ROW_BYTES + 1)
++
++static inline uint8_t mr_sum(const uint8_t* p, size_t n)
++{
++    uint8_t s = 0x5A;
++    for (size_t i = 0; i < n; i++) {
++        s = (uint8_t)((s << 1 | s >> 7) ^ p[i]);
++    }
++    return s;
++}
++
++static inline size_t mr_save(const mr_table_t* t, uint8_t* out, size_t cap)
++{
++    const size_t need = 2 + (size_t)t->n * MR_ROW_BYTES + 1;
++    if (cap < need) {
++        return 0;
++    }
++    out[0] = MR_BLOB_VERSION;
++    out[1] = t->n;
++    size_t o = 2;
++    for (int i = 0; i < t->n; i++) {
++        memcpy(out + o, t->e[i].phrase, MR_PHRASE);
++        out[o + MR_PHRASE] = t->e[i].face;
++        out[o + MR_PHRASE + 1] = t->e[i].sound;
++        out[o + MR_PHRASE + 2] = t->e[i].decor;
++        out[o + MR_PHRASE + 3] = t->e[i].dance;
++        o += MR_ROW_BYTES;
++    }
++    out[o] = mr_sum(out, o);
++    return o + 1;
++}
++
++/* Reads a record into `t`. On any damage `t` is left empty and MR_ERR_BLOB comes back. */
++static inline int mr_load(mr_table_t* t, const uint8_t* in, size_t len)
++{
++    mr_clear(t);
++    if (in == NULL || len < 3 || in[0] != MR_BLOB_VERSION || in[1] > MR_MAX) {
++        return MR_ERR_BLOB;
++    }
++    const size_t need = 2 + (size_t)in[1] * MR_ROW_BYTES + 1;
++    if (len != need || in[need - 1] != mr_sum(in, need - 1)) {
++        return MR_ERR_BLOB;
++    }
++    size_t o = 2;
++    for (int i = 0; i < in[1]; i++) {
++        mr_entry_t* e = &t->e[i];
++        memcpy(e->phrase, in + o, MR_PHRASE);
++        e->face = in[o + MR_PHRASE];
++        e->sound = in[o + MR_PHRASE + 1];
++        e->decor = in[o + MR_PHRASE + 2];
++        e->dance = in[o + MR_PHRASE + 3];
++        o += MR_ROW_BYTES;
++        if (e->phrase[MR_PHRASE - 1] != '\0' || e->face >= MR_FACE_COUNT || e->sound >= MR_SOUND_COUNT ||
++            e->decor >= MD_COUNT || e->dance >= MR_DANCE_COUNT) {
++            mr_clear(t);
++            return MR_ERR_BLOB;
++        }
++    }
++    t->n = in[1];
++    return MR_OK;
++}
++
++#endif
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -13,6 +13,7 @@ CONFIG_MAIPAI_FACE_CLOCK=y
+ CONFIG_MAIPAI_FACE_THINKING=y
+ CONFIG_MAIPAI_FACE_TIMERS=y
+ CONFIG_MAIPAI_FACE_DECOR=y
++CONFIG_MAIPAI_REACT=y
+ # Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
+ # and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
+ # destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).

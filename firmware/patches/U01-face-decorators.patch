@@ -1,0 +1,507 @@
+# Intent: Train 4 item 1, face decorators (stock decorators we lacked: sweat, shy, dizzy; and heart, anger, tears, sparkles, stars, zzz). Nine small extras drawn on the face for 1 to 60 seconds, each made only of rounded rectangles in the face colour (no image, no font, no flash). The pure core holds the names, the limits and where every part is at any moment (a falling drop that fades, blush that pulses, dots orbiting each eye in opposite ways, a rising heart, a throbbing anger mark, tears, twinkling sparkles, stars on an orbit, three rising Zs). One decorator at a time; nothing exists while none shows (no task, no timer, no objects); while one shows, one 66 ms LVGL timer and at most nine small objects. Never covers a mute, vision-off or quiet look or a ringing timer (it refuses, or ends, with a plain sentence). Tools self.face.decorate (name, seconds) and self.face.decor_list; the face config reports the feature word decor.
+# Placement: unit (the extras are drawn on the robot and work with the host off)
+# Upstream: firmware/main/hal/ and the stackchan avatar of the StackChan main component (MIT); the stock decorators used image assets, these are drawn
+# Check after a flash: self.face.decorate sweat, shy, dizzy, heart, anger, tears, sparkles, stars, zzz each shows for its seconds and ends; none ends it at once; an unknown name gets a plain error; with the unit muted the call answers that a mute is showing.
+# Kconfig: MAIPAI_FACE_DECOR (default y); off compiles out the extras, both tools and the feature word.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -141,6 +141,16 @@ config MAIPAI_FACE_TIMERS
+         four at once, each with its name and a live countdown. Works with the host off. Off here: no chips
+         and no timer view are compiled.
+ 
++config MAIPAI_FACE_DECOR
++    bool "Face decorators (sweat, shy, dizzy, heart, anger, tears, sparkles, stars, zzz)"
++    default y
++    depends on MAIPAI_FACE_CONFIG
++    help
++        Small extras drawn on the face for a few seconds by self.face.decorate (and by the word reactions): all
++        plain rounded rectangles, no image and no font. Nothing exists while none shows (no task, no timer, no
++        objects); while one shows, one 66 ms LVGL timer and at most nine small objects. Never covers a mute,
++        vision-off or quiet look or a ringing timer. Off here: no decorator code is compiled.
++
+ config MAIPAI_RESET_ON_DEVICE
+     bool "Reset on the device (quick settings, hold 3 seconds)"
+     default y
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -12,6 +12,7 @@
+ #include "maipai_daily.h"
+ #include "maipai_mood.h"
+ #include "maipai_face.h"
++#include "maipai_decor.h"
+ #include "maipai_update.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_timers_core.h"
+@@ -517,6 +518,9 @@ void Hal::xiaozhi_mcp_init()
+     // self.face.set_config and get_config (patch F01).
+     maipai_face_register_tools();
+ 
++    // self.face.decorate and self.face.decor_list (patch U01).
++    maipai_decor_register_tools();
++
+     // self.tailnet.status and self.tailnet.set (patch TN01).
+     maipai_tailnet_register_tools();
+ 
+diff --git a/firmware/main/hal/maipai_decor.cc b/firmware/main/hal/maipai_decor.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_decor.cc
+@@ -0,0 +1,177 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face decorators, device side (patch U01). One decorator at a time: up to nine rounded rectangles that are children
++ * of the face, moved by one LVGL timer (every 66 ms) only while a decorator shows. Nothing exists when none shows: no
++ * task, no timer, no objects. The colour is the face colour (so it follows the saved face setting and the evening dim).
++ */
++#include <sdkconfig.h>
++#if CONFIG_MAIPAI_FACE_DECOR
++#include "maipai_decor.h"
++#include "maipai_decor_core.h"
++#include "maipai_face.h"
++#include "maipai_privacy.h"
++#include "maipai_timers.h"
++#include "hal.h"
++#include <mcp_server.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <lvgl.h>
++#include <stackchan/stackchan.h>
++#include <stackchan/avatar/skins/default/default.h>
++#include <cstdio>
++#include <string>
++
++using stackchan::avatar::DefaultAvatar;
++
++static const char* TAG = "MAIPAI-DECOR";
++
++namespace {
++struct Live {
++    lv_obj_t* root                 = nullptr;
++    lv_obj_t* part[MD_MAX_PARTS]   = {};
++    lv_timer_t* timer              = nullptr;
++    int kind                       = MD_NONE;
++    int count                      = 0;
++    uint32_t begin_ms              = 0;
++    uint32_t end_ms                = 0;
++} s_live;
++
++uint32_t now_ms()
++{
++    return static_cast<uint32_t>(esp_timer_get_time() / 1000);
++}
++
++void end_live()
++{
++    if (s_live.timer != nullptr) {
++        lv_timer_delete(s_live.timer);
++    }
++    if (s_live.root != nullptr) {
++        lv_obj_delete(s_live.root);
++    }
++    s_live = Live();
++}
++
++void paint(lv_timer_t*)
++{
++    const uint32_t now = now_ms();
++    // A mute, vision-off or quiet look, or a ringing timer, appearing while a decorator shows ends it.
++    if (now >= s_live.end_ms || maipai_privacy_bits() != 0 || maipai_timers_ringing()) {
++        end_live();
++        return;
++    }
++    md_part_t parts[MD_MAX_PARTS];
++    const int n = md_parts(s_live.kind, now - s_live.begin_ms, parts, MD_MAX_PARTS);
++    for (int i = 0; i < n && i < s_live.count; i++) {
++        lv_obj_t* o = s_live.part[i];
++        const md_part_t& p = parts[i];
++        if (p.opa == 0) {
++            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            continue;
++        }
++        lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++        lv_obj_set_size(o, p.w, p.h);
++        lv_obj_set_pos(o, 160 + p.x - p.w / 2, 120 + p.y - p.h / 2);
++        lv_obj_set_style_bg_opa(o, p.opa, 0);
++        lv_obj_set_style_radius(o, p.round ? LV_RADIUS_CIRCLE : 1, 0);
++        lv_obj_set_style_transform_pivot_x(o, p.w / 2, 0);
++        lv_obj_set_style_transform_pivot_y(o, p.h / 2, 0);
++        lv_obj_set_style_transform_rotation(o, p.rot_deg10, 0);
++    }
++}
++
++DefaultAvatar* face_now()
++{
++    auto& chan = GetStackChan();
++    return chan.hasAvatar() ? dynamic_cast<DefaultAvatar*>(&chan.avatar()) : nullptr;
++}
++}  // namespace
++
++int maipai_decor_show(int kind, int seconds)
++{
++    if (kind == MD_NONE) {
++        end_live();
++        return 0;
++    }
++    if (kind < 0 || kind >= MD_COUNT || !md_seconds_ok(seconds)) {
++        return -1;
++    }
++    if (maipai_privacy_bits() != 0 || maipai_timers_ringing()) {
++        return -2;
++    }
++    auto* face = face_now();
++    if (face == nullptr || face->getPanel() == nullptr) {
++        return -3;
++    }
++    end_live();
++    const mf_config_t c = maipai_face_config();
++    uint8_t r, g, b;
++    mf_foreground(&c, &r, &g, &b);
++    s_live.root = lv_obj_create(face->getPanel()->get());
++    lv_obj_remove_style_all(s_live.root);
++    lv_obj_remove_flag(s_live.root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_remove_flag(s_live.root, LV_OBJ_FLAG_CLICKABLE);  // a touch on a decorator is a touch on the face
++    lv_obj_set_size(s_live.root, 320, 240);
++    lv_obj_set_pos(s_live.root, 0, 0);
++    s_live.kind  = kind;
++    s_live.count = md_part_count(kind);
++    for (int i = 0; i < s_live.count; i++) {
++        lv_obj_t* o = lv_obj_create(s_live.root);
++        lv_obj_remove_style_all(o);
++        lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++        lv_obj_set_style_bg_color(o, lv_color_make(r, g, b), 0);
++        lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++        s_live.part[i] = o;
++    }
++    s_live.begin_ms = now_ms();
++    s_live.end_ms   = s_live.begin_ms + static_cast<uint32_t>(seconds) * 1000u;
++    s_live.timer    = lv_timer_create(paint, MD_TICK_MS, nullptr);
++    paint(nullptr);
++    return 0;
++}
++
++void maipai_decor_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.face.decorate",
++                "Draw a small extra on the face for a few seconds: sweat, shy, dizzy, heart, anger, tears, sparkles, "
++                "stars or zzz. name none ends it. seconds is 1 to 60. It never covers a mute, vision-off or quiet look or "
++                "a ringing timer. Answers {ok} or {ok:false,error}.",
++                PropertyList({Property("name", kPropertyTypeString, std::string("none")),
++                              Property("seconds", kPropertyTypeInteger, MD_DEFAULT_S, MD_MIN_S, MD_MAX_S)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string name = properties["name"].value<std::string>();
++                    const int kind         = md_from_name(name.c_str());
++                    if (kind < 0) {
++                        return std::string("{\"ok\":false,\"error\":\"unknown decorator: use sweat, shy, dizzy, heart, "
++                                           "anger, tears, sparkles, stars, zzz or none\"}");
++                    }
++                    int rc;
++                    {
++                        LvglLockGuard lock;
++                        rc = maipai_decor_show(kind, properties["seconds"].value<int>());
++                    }
++                    if (rc == -2) {
++                        return std::string("{\"ok\":false,\"error\":\"a mute, vision-off or quiet look or a ringing timer "
++                                           "is showing: end that first\"}");
++                    }
++                    if (rc != 0) {
++                        return std::string("{\"ok\":false,\"error\":\"the face is not ready: try again in a moment\"}");
++                    }
++                    return std::string("{\"ok\":true}");
++                });
++    mcp.AddTool("self.face.decor_list", "The decorator names this build can draw.", std::vector<Property>{},
++                [](const PropertyList&) -> ReturnValue {
++                    std::string out = "{\"ok\":true,\"decorators\":[";
++                    for (int i = 1; i < MD_COUNT; i++) {
++                        out += i > 1 ? ",\"" : "\"";
++                        out += MD_NAMES[i];
++                        out += "\"";
++                    }
++                    return out + "]}";
++                });
++    ESP_LOGI(TAG, "decorators ready");
++}
++#endif
+diff --git a/firmware/main/hal/maipai_decor.h b/firmware/main/hal/maipai_decor.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_decor.h
+@@ -0,0 +1,20 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face decorators, device side (patch U01). Logic: maipai_decor_core.h. With CONFIG_MAIPAI_FACE_DECOR off nothing here
++ * is compiled.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_FACE_DECOR
++// Shows one decorator (a MD_* kind) for `seconds`, replacing any other. MD_NONE ends it. Returns 0 shown, -1 unknown
++// kind or seconds out of range, -2 a mute, vision-off or quiet look or a ringing timer is showing (not covered), -3 no
++// face yet. The caller holds the LVGL lock.
++int maipai_decor_show(int kind, int seconds);
++// Registers self.face.decorate and self.face.decor_list.
++void maipai_decor_register_tools();
++#else
++inline int maipai_decor_show(int, int) { return -3; }
++inline void maipai_decor_register_tools() {}
++#endif
+diff --git a/firmware/main/hal/maipai_decor_core.h b/firmware/main/hal/maipai_decor_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_decor_core.h
+@@ -0,0 +1,238 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face decorators (patch U01): small drawn extras on the face (a sweat drop, blush, dizzy stars, hearts, an anger
++ * mark, tears, sparkles, stars, sleeping Zs). The pure logic: the names, the length limits and, for each decorator, where
++ * its parts are at any moment. Header-only plain C99 so a host compiler can test it; the device side is
++ * maipai_decor.cc. Every part is a plain rounded rectangle (a circle is a square with full rounding, a diagonal is a
++ * rotated bar): no image, no font, no new flash. Positions are in pixels from the centre of the 320 by 240 screen.
++ */
++#ifndef MAIPAI_DECOR_CORE_H
++#define MAIPAI_DECOR_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define MD_NONE 0
++#define MD_SWEAT 1
++#define MD_SHY 2
++#define MD_DIZZY 3
++#define MD_HEART 4
++#define MD_ANGER 5
++#define MD_TEARS 6
++#define MD_SPARKLES 7
++#define MD_STARS 8
++#define MD_ZZZ 9
++#define MD_COUNT 10
++
++#define MD_MIN_S 1
++#define MD_MAX_S 60
++#define MD_DEFAULT_S 6
++#define MD_MAX_PARTS 9
++#define MD_TICK_MS 66
++
++static const char* const MD_NAMES[MD_COUNT] = {"none",  "sweat", "shy",      "dizzy", "heart",
++                                               "anger", "tears", "sparkles", "stars", "zzz"};
++
++typedef struct {
++    int16_t x, y;      /* centre of the part, pixels from the screen centre */
++    int16_t w, h;      /* size in pixels */
++    int16_t rot_deg10; /* rotation in tenths of a degree */
++    uint8_t round;     /* 1: fully rounded (a dot or a drop) */
++    uint8_t opa;       /* 0 to 255; 0 hides the part */
++} md_part_t;
++
++/* The kind for a name, or -1. "none" is a kind (it ends a decorator). */
++static inline int md_from_name(const char* name)
++{
++    if (name == NULL) {
++        return -1;
++    }
++    for (int i = 0; i < MD_COUNT; i++) {
++        if (strcmp(name, MD_NAMES[i]) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++static inline int md_seconds_ok(int s) { return s >= MD_MIN_S && s <= MD_MAX_S; }
++
++/* Sine of an angle in degrees, scaled by 256 (so -256 to 256). A 10 degree table with a straight line between. */
++static inline int md_sin256(int deg)
++{
++    static const int16_t t[19] = {0,   44,  87,  128, 165, 197, 222, 241, 253, 256,
++                                  253, 241, 222, 197, 165, 128, 87,  44,  0};
++    deg %= 360;
++    if (deg < 0) {
++        deg += 360;
++    }
++    int sign = 1;
++    if (deg >= 180) {
++        deg -= 180;
++        sign = -1;
++    }
++    const int i = deg / 10;
++    const int f = deg % 10;
++    return sign * (t[i] + (t[i + 1] - t[i]) * f / 10);
++}
++
++static inline int md_cos256(int deg) { return md_sin256(deg + 90); }
++
++/* A triangle wave 0 to 255 over `period_ms`. */
++static inline int md_tri(uint32_t t_ms, uint32_t period_ms)
++{
++    const uint32_t p = t_ms % period_ms;
++    const uint32_t h = period_ms / 2;
++    const uint32_t v = p < h ? p : period_ms - p;
++    return (int)(v * 255u / h);
++}
++
++/* A star on the near side of its orbit is bright, on the far side dim (255 down to 90). */
++static inline int sin_front(int deg) { return 172 + md_sin256(deg) * 83 / 256; }
++
++/* How many parts a kind draws. */
++static inline int md_part_count(int kind)
++{
++    switch (kind) {
++        case MD_SWEAT: return 2;
++        case MD_SHY: return 2;
++        case MD_DIZZY: return 6;
++        case MD_HEART: return 3;
++        case MD_ANGER: return 4;
++        case MD_TEARS: return 4;
++        case MD_SPARKLES: return 6;
++        case MD_STARS: return 5;
++        case MD_ZZZ: return 9;
++        default: return 0;
++    }
++}
++
++static inline md_part_t md_part(int x, int y, int w, int h, int rot_deg10, int round, int opa)
++{
++    md_part_t p;
++    p.x = (int16_t)x;
++    p.y = (int16_t)y;
++    p.w = (int16_t)w;
++    p.h = (int16_t)h;
++    p.rot_deg10 = (int16_t)rot_deg10;
++    p.round = (uint8_t)round;
++    p.opa = (uint8_t)(opa < 0 ? 0 : (opa > 255 ? 255 : opa));
++    return p;
++}
++
++/* A drop that falls from (x, y0) down to y1 over `period_ms` and fades near the end; `phase_ms` shifts it. */
++static inline md_part_t md_falling_drop(uint32_t t_ms, uint32_t period_ms, uint32_t phase_ms, int x, int y0, int y1,
++                                        int w, int h)
++{
++    const uint32_t p = (t_ms + phase_ms) % period_ms;
++    const int y = y0 + (int)((int64_t)(y1 - y0) * p / period_ms);
++    int opa = 255;
++    if (p * 4 > period_ms * 3) { /* the last quarter fades out */
++        opa = (int)(255 - (int64_t)255 * (p * 4 - period_ms * 3) / period_ms);
++    }
++    return md_part(x, y, w, h, 0, 1, opa);
++}
++
++/*
++ * The parts of a decorator `t_ms` after it began. Returns how many were written (at most `cap`); the rest of `out` is
++ * left alone. A kind with no parts (none, or an unknown one) writes nothing.
++ */
++static inline int md_parts(int kind, uint32_t t_ms, md_part_t* out, int cap)
++{
++    const int n = md_part_count(kind);
++    if (n == 0 || cap < n) {
++        return 0;
++    }
++    switch (kind) {
++        case MD_SWEAT:
++            out[0] = md_falling_drop(t_ms, 1600, 0, 104, -66, -8, 12, 18);
++            out[1] = md_falling_drop(t_ms, 1600, 800, 124, -56, 4, 8, 12);
++            break;
++        case MD_SHY: {
++            const int opa = 110 + md_tri(t_ms, 1800) * 70 / 255; /* a slow pulse, 110 to 180 */
++            out[0] = md_part(-70, 22, 52, 20, 0, 1, opa);
++            out[1] = md_part(70, 22, 52, 20, 0, 1, opa);
++            break;
++        }
++        case MD_DIZZY: {
++            const int base = (int)(t_ms * 360u / 1400u); /* a full turn in 1.4 seconds */
++            for (int e = 0; e < 2; e++) {
++                for (int k = 0; k < 3; k++) {
++                    const int a = base * (e ? -1 : 1) + k * 120;
++                    out[e * 3 + k] = md_part((e ? 70 : -70) + md_cos256(a) * 26 / 256, -16 + md_sin256(a) * 26 / 256, 8,
++                                             8, 0, 1, 255);
++                }
++            }
++            break;
++        }
++        case MD_HEART: {
++            const uint32_t p = t_ms % 2000u;
++            const int cy = -52 - (int)(p * 44u / 2000u);
++            int opa = 255;
++            if (p > 1400u) {
++                opa = (int)(255 - (p - 1400u) * 255u / 600u);
++            }
++            const int cx = 104;
++            out[0] = md_part(cx - 6, cy - 4, 14, 14, 0, 1, opa);
++            out[1] = md_part(cx + 6, cy - 4, 14, 14, 0, 1, opa);
++            out[2] = md_part(cx, cy + 3, 14, 14, 450, 0, opa);
++            break;
++        }
++        case MD_ANGER: {
++            const int g = 18 + md_tri(t_ms, 700) * 4 / 255; /* the mark throbs by 4 pixels */
++            out[0] = md_part(94, -86, 4, g, 0, 0, 255);
++            out[1] = md_part(104, -86, 4, g, 0, 0, 255);
++            out[2] = md_part(99, -91, g, 4, 0, 0, 255);
++            out[3] = md_part(99, -81, g, 4, 0, 0, 255);
++            break;
++        }
++        case MD_TEARS:
++            out[0] = md_falling_drop(t_ms, 1500, 0, -74, 6, 70, 8, 14);
++            out[1] = md_falling_drop(t_ms, 1500, 750, -70, 6, 70, 6, 10);
++            out[2] = md_falling_drop(t_ms, 1500, 250, 74, 6, 70, 8, 14);
++            out[3] = md_falling_drop(t_ms, 1500, 1000, 70, 6, 70, 6, 10);
++            break;
++        case MD_SPARKLES: {
++            static const int16_t sx[3] = {-104, 100, 24};
++            static const int16_t sy[3] = {-74, -62, -100};
++            for (int s = 0; s < 3; s++) {
++                const int v = md_tri(t_ms + (uint32_t)s * 500u, 1500); /* 0 to 255, a twinkle */
++                const int len = 6 + v * 12 / 255;
++                const int opa = 60 + v * 195 / 255;
++                out[s * 2] = md_part(sx[s], sy[s], 3, len, 0, 0, opa);
++                out[s * 2 + 1] = md_part(sx[s], sy[s], len, 3, 0, 0, opa);
++            }
++            break;
++        }
++        case MD_STARS: {
++            const int base = (int)(t_ms * 360u / 3600u);
++            for (int k = 0; k < 5; k++) {
++                const int a = base + k * 72;
++                out[k] = md_part(md_cos256(a) * 88 / 256, -78 + md_sin256(a) * 14 / 256, 10, 10, 450, 0,
++                                 sin_front(a));
++            }
++            break;
++        }
++        case MD_ZZZ: {
++            for (int z = 0; z < 3; z++) {
++                const uint32_t p = (t_ms + (uint32_t)z * 800u) % 2400u;
++                const int s = 8 + z * 4;               /* the three letters grow */
++                const int x = 92 + (int)(p * 24u / 2400u);
++                const int y = -40 - z * 14 - (int)(p * 34u / 2400u);
++                int opa = 255;
++                if (p > 1800u) {
++                    opa = (int)(255 - (p - 1800u) * 255u / 600u);
++                }
++                out[z * 3] = md_part(x, y - s, s * 2, 3, 0, 0, opa);       /* top bar */
++                out[z * 3 + 1] = md_part(x, y, s * 2 + 4, 3, -480, 0, opa); /* the slash */
++                out[z * 3 + 2] = md_part(x, y + s, s * 2, 3, 0, 0, opa);    /* bottom bar */
++            }
++            break;
++        }
++        default: return 0;
++    }
++    return n;
++}
++
++#endif
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -12,6 +12,7 @@ CONFIG_MAIPAI_FACE_TOD=y
+ CONFIG_MAIPAI_FACE_CLOCK=y
+ CONFIG_MAIPAI_FACE_THINKING=y
+ CONFIG_MAIPAI_FACE_TIMERS=y
++CONFIG_MAIPAI_FACE_DECOR=y
+ # Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
+ # and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
+ # destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).
