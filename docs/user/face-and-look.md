@@ -4,10 +4,22 @@ You can change every item here at any time. None of it needs a reflash.
 
 ## Face style
 
-Two styles ship: **big eyes** and **minimal**. Pick one in the settings page on your host or set `face_style` in `robot.toml`.
+Eight styles ship: **big eyes**, **minimal**, **round**, **cat**, **robot**, **sleepy**, **retro pixel** and **heart eyes**. Pick one in the settings page on your host or set `face_style` in `robot.toml`.
 The page shows a live preview that uses the same drawing code as the robot.
 
 ![The big-eyes face and the minimal face side by side.](../images/face-styles.svg)
+
+## Extras on the face
+
+The robot can add a small drawn extra for a few seconds: sweat, shy, dizzy, heart, anger, tears, sparkles, stars or zzz. One shows at a time. None shows while it is muted, has the camera off, is in quiet mode or a timer is ringing. Not yet seen on a robot screen.
+
+## Word reactions
+
+When you say a word such as "hello", "thanks", "love", "sorry" or "good night", the robot answers with a face, a quiet sound and an extra. 33 reactions come built in, in English, Spanish, French, German, Portuguese and Italian. Edit the list on the settings page, up to 40 rows. It reacts to a phrase at most once every 20 seconds. Not yet seen on a robot screen.
+
+## Per person
+
+On the settings page, keep a name, face colour and caption size for up to 12 people, and press **Use on this unit** to apply one. A saved wake phrase per person is stored but not matched yet.
 
 ## Face colour
 
@@ -31,6 +43,10 @@ The clock shows big digits or a ring. It dims at night. It keeps working if the 
 
 The face shows what the robot is doing. It has a listening face and a thinking face, a happy, joyful, content and wink face, and a surprised face.
 It has an offline look for when it cannot reach your host, and a link screen while it pairs.
+
+## Time zone
+
+Pick your time zone from 31 zones, with summer time, on the robot (swipe up, More, Time zone) or on the settings page. The host sets the clock when the robot connects, and the clock face keeps it.
 
 ## Night mode
 

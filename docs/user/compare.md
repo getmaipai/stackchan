@@ -33,7 +33,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Games and a pet mood <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Something to do together. The pet mood grows with care. Runs with MaiPai Home. |
 | Coding companion <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | A green or red light for your build, where you can see it. Runs with MaiPai Home. |
 | Local API, MQTT, metrics <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Wire the robot into your own tools. Runs with MaiPai Home. |
-| English and Spanish | TBD | ★★★ | ★★★ | Switch language at run time with no reflash. |
+| Six languages | TBD | ★★★ | ★★★ | English, Spanish, French, German, Portuguese and Italian, switched at run time with no reflash. Not yet reviewed by native speakers. |
 | Signed updates with rollback | TBD | ★★★ | ★★★ | Nothing installs unless you say so, and a bad update rolls back by itself. |
 | Baby and pet monitor <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ☆☆☆ | Hear and see a nursery or a pet's room from your phone and get alerts. You start it on the robot, and the screen always says so. Not a certified baby monitor. Runs with MaiPai Home. |
 | No stealth: monitoring always shown on screen | TBD | ★★★ | ★★★ | Every listening, looking and watching mode shows on the robot's screen, and the cue cannot be turned off. |

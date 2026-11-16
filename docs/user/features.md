@@ -14,14 +14,17 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Follow-ups and interrupting** | Ask again with no wake word. Speak while it talks and it stops and listens. | Robot | [Voice](voice.md) |
 | **Voice commands** | Stop, mute, quiet, volume, brightness, sleep, time and night mode, with no model involved. | Robot | [Voice](voice.md) |
 | **Persona, speech speed and pitch** | A short text sets how it talks. Set how fast it speaks and how high. | Robot | [Voice](voice.md) |
-| **English and Spanish** | Screens and setup in both languages. | Robot | [Languages](languages.md) |
+| **Six languages** | Screens and setup in English, Spanish, French, German, Portuguese and Italian. | Robot | [Languages](languages.md) |
 
 ## Look
 
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
-| **Faces and colour** | Two face styles, any colour or none, optional captions. | Robot | [Face and look](face-and-look.md) |
+| **Faces and colour** | Eight face styles, any colour or none, optional captions. | Robot | [Face and look](face-and-look.md) |
 | **Clock and time-of-day faces** | A clock face, a face that changes with the hour, and night mode. | Robot | [Face and look](face-and-look.md) |
+| **Face extras and word reactions** | Sweat, hearts, stars and more on the face, and reactions to words like "thanks" in six languages. | Robot | [Face and look](face-and-look.md) |
+| **Per-person settings** | A face colour and caption size for each person. | Robot | [Face and look](face-and-look.md) |
+| **Time zone** | Pick one of 31 zones on the robot or the settings page. | Robot | [Face and look](face-and-look.md) |
 | **Quick sliders** | Swipe up for volume, brightness and saved Wi-Fi. | Robot | [Voice](voice.md) |
 
 ## Keep time
@@ -56,6 +59,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 |---|---|---|---|
 | **Wi-Fi setup page** | A setup code on the robot screen, a short window and a lock after wrong tries. | Robot | [Getting started](getting-started.md) |
 | **Pairing, revocable token** | Pair with a six-digit code. Revoke any time. | Robot | [Security](security.md) |
+| **Network test and version screen** | Swipe up, More: a plain check of Wi-Fi, your host and the private network, and the version. | Robot | [Troubleshooting](troubleshooting.md) |
 | **Reset on the robot** | Hold a button for 3 seconds to erase Wi-Fi, pairing and settings. | Robot | [Troubleshooting](troubleshooting.md) |
 | **Signed updates with rollback** | You choose when to install. A failed start rolls back. | Robot | [Updates](updates.md) |
 | **Away from home**         | The robot joins your private network by itself when it cannot reach your host. | Robot | [Away from home](use-it-anywhere.md) |

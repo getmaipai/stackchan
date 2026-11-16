@@ -23,3 +23,15 @@ Start with `stackchan check`. It tests each address you set and says what is wro
 | The first word takes a long time | The model is too big for the computer, or it was not loaded yet. | See [Pick hardware and a model](hardware-and-models.md). |
 | "What is this" does nothing | That feature needs MaiPai Home. | Set `brain = "home"`. See [Compare](compare.md). |
 | The camera will not turn on | The camera is off in settings, or you tapped the eyes. | Set `camera = true`, then tap an eye to turn it back on. |
+
+## Test the connection
+
+On the robot, swipe up, tap **More**, then **Network test**. It checks Wi-Fi, the link to your host and, away from home, the private network. Each line starts with OK or FIX, and the last line says what to fix first. **More**, then **Version**, shows the version. Tap it ten times for details.
+
+## Reset the robot
+
+Use this when the robot is stuck or you are giving it away. Swipe up on the screen, tap **Reset**, read what it will erase (saved Wi-Fi, pairing and settings), then hold the button for 3 seconds. Letting go early changes nothing. The robot restarts into Wi-Fi setup. Its head calibration stays.
+
+## Still need help?
+
+Run `stackchan check`, then open an issue on the Issues tab and tell us what you saw.

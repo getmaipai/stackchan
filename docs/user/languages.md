@@ -1,6 +1,6 @@
 # Switch the language
 
-English and Spanish are included. One firmware works for both, and you pick the language at run time.
+English, Spanish, French, German, Portuguese and Italian are included. One firmware works for all of them, and you pick the language at run time. The settings page comes in all six. The translations have not been reviewed by native speakers, so tell us what reads wrong.
 
 ## Change the language
 

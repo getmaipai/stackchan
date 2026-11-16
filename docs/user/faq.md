@@ -31,7 +31,7 @@ No. MaiPai for StackChan replaces the factory firmware, so the factory app does 
 
 ## What languages does it speak?
 
-English and Spanish, switched at run time. Your model and speech tools must handle the language. See [Switch the language](languages.md).
+English, Spanish, French, German, Portuguese and Italian, switched at run time. Your model and speech tools must handle the language. See [Switch the language](languages.md).
 
 ## Is it safe for children?
 

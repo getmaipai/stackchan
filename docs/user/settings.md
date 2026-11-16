@@ -22,7 +22,7 @@ Dims the screen and the lights, and the clock face gets softer. Quiet hours are 
 
 ## Language (`language`)
 
-English or Spanish. See `languages.md`. The robot changes at once with no file edit.
+One of six languages. See `languages.md`. The robot changes at once with no file edit.
 
 ## Other keys
 
@@ -43,7 +43,7 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 | `llm_url` | Your model's OpenAI-compatible address | blank |
 | `stt_url`, `tts_url` | Your speech tools. Blank uses the built-in engines | blank |
 | `home_url` | Your MaiPai Home hub address | blank |
-| `language` | English or Spanish | English |
+| `language` | English, Spanish, French, German, Portuguese or Italian | English |
 | `voice` | The voice the robot speaks with | built-in voice |
 | `speech_speed` | How fast it talks, 0.75 to 1.5 | 1 |
 | `speech_pitch` | Pitch, -12 to 12 semitones | 0 |
