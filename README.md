@@ -28,6 +28,7 @@ MaiPai for StackChan is one thing: a private voice robot. It does a small set of
 - **[Timers and alarms](docs/user/timers-and-alarms.md):** A ring that empties as time runs out, named timers, snooze and quiet hours.
 - **[Reactions](docs/user/moves-and-moods.md):** Pickup, shake, tilt and petting, a breathing idle, tap-the-face mute, a mood that grows with care, an hourly chime and low-battery steps.
 - **[Privacy controls](docs/user/mute-and-camera-off.md):** Mute, camera off and full quiet, one tap each. [Nothing is ever monitored in secret](docs/user/no-stealth.md).
+- **[Games](docs/user/games-and-pet.md):** Colour memory, reaction time and whack-a-mole, with your best scores kept on the robot.
 - **[Music and dance](docs/user/music-and-dance.md):** Dance on request, six named dances, and a sway to your music. Off until you turn it on.
 - **[Away from home](docs/user/use-it-anywhere.md):** Reach your host from any Wi-Fi: the robot joins your private network by itself when it cannot reach your host.
 - **[Security](docs/user/security.md), [updates](docs/user/updates.md), [lights and sounds](docs/user/lights-and-sounds.md) and [languages](docs/user/languages.md):** Pairing with a code, a Wi-Fi setup page with an on-screen code, a reset on the robot, signed updates with rollback, soft tones and one light colour per meaning, six languages.
@@ -37,7 +38,7 @@ MaiPai for StackChan is one thing: a private voice robot. It does a small set of
 - **Seeing:** [snapshots, face follow, a name list and "what is this"](docs/user/camera.md).
 - **Security:** [motion and sound alerts and an alarm](docs/user/watch-and-alerts.md), and a [baby and pet monitor](docs/user/baby-and-pet-monitor.md).
 - **Find and control:** [find my robot, remote beep, lights, talk, pan and tilt, and live view](docs/user/find-and-remote.md).
-- **Play and build:** [games and a pet mood](docs/user/games-and-pet.md), a [coding companion](docs/user/coding-companion.md), and [home tools](docs/user/home-tools.md) such as a local API and MQTT.
+- **Play and build:** a [coding companion](docs/user/coding-companion.md), and [home tools](docs/user/home-tools.md) such as a local API and MQTT.
 - **The household:** memory across days, people, calendars, announcements, naming songs, and rules for children and teens.
 
 Wake cue in under 150 ms. "Stop" and touch commands in under 300 ms. Replies start on the first finished sentence.
@@ -66,7 +67,7 @@ With your own LLM we add no content filter. The model you connect decides what t
 
 MaiPai for StackChan is pre-1.0, so expect rough edges. Tell us what you find on the Issues tab.
 
-Sound, screen looks, head petting, the setup page, the reset screen and a signed update with a real key and travel over your private network are built but not yet checked on a robot. The new face extras, word reactions, time zone, network test and version screens have not been seen on a robot screen, no one has heard the offline phrases or seen the dances, the six languages are not native-reviewed, and a per-person wake phrase is stored but not matched yet.
+Sound, screen looks, head petting, the setup page, the reset screen and a signed update with a real key and travel over your private network are built but not yet checked on a robot. The new face extras, word reactions, time zone, network test and version screens have not been seen on a robot screen, no one has played the games by touch, no one has heard the offline phrases or seen the dances, the six languages are not native-reviewed, and a per-person wake phrase is stored but not matched yet.
 
 ## Get help
 

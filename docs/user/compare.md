@@ -30,7 +30,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Mute, camera off, full quiet | TBD | ★★★ | ★★★ | Three switches on the face: tap the mouth to mute, the eyes to stop the camera, between the eyes for full quiet. They survive a restart, and the host warns you if the robot leaks. [Details](mute-and-camera-off.md) |
 | Spoken "stop" while it talks | TBD | ★★★ | ★★★ | It stops at once, with no model involved. |
 | Updates over Wi-Fi | TBD | ★★★ | ★★★ | No cable. An animated icon shows the progress. |
-| Games and a pet mood <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Something to do together. The pet mood grows with care. Runs with MaiPai Home. |
+| Games and a pet mood | TBD | ★★☆ | ★★☆ | Three games on the robot (colour memory, reaction time, whack-a-mole) with best scores, and a pet mood that grows with care. Not yet tried by touch on a robot. |
 | Coding companion <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | A green or red light for your build, where you can see it. Runs with MaiPai Home. |
 | Local API, MQTT, metrics <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Wire the robot into your own tools. Runs with MaiPai Home. |
 | Dances to your music by itself | TBD | ★★★ | ★★★ | It finds the tempo, sways to it and shows a mood face. Off until you turn it on. Not yet heard on a robot. |

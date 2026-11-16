@@ -43,6 +43,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Pickup, shake, tilt, petting** | It looks surprised, dizzy, tilted or happy. | Robot | [Reactions](moves-and-moods.md) |
 | **Mood from care** | Its resting face follows how much you pet it. | Robot | [Reactions](moves-and-moods.md) |
 | **Dance and music** | Dance on request, six named dances, and a sway to the music with mood faces. Off until you turn it on. | Robot | [Music and dance](music-and-dance.md) |
+| **Pet mood and games** | Three games on the robot (colour memory, reaction time, whack-a-mole) with saved best scores, and a pet mood that depends on care. | Robot | [Games and pet](games-and-pet.md) |
 | **Breathing idle and quiet mode** | Calm moves when nothing happens, softer when you ask. | Robot | [Reactions](moves-and-moods.md) |
 | **Low-battery steps** | A chirp at 20 percent, a spoken ask at 10, sleep at 5. | Robot | [Reactions](moves-and-moods.md) |
 
@@ -75,7 +76,6 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Watch and alerts** | Motion and sound alerts, a red and blue alarm and a siren. | <span class="home-tag">Needs MaiPai Home</span> | [Watch and alerts](watch-and-alerts.md) |
 | **Baby and pet monitor** | Listen and look from your phone. Started on the robot and always shown. | <span class="home-tag">Needs MaiPai Home</span> | [Baby and pet monitor](baby-and-pet-monitor.md) |
 | **Find it, remote control** | Beep, lights, talk, pan and tilt, live view. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
-| **Pet mood and games** | A pet mood that depends on care. | <span class="home-tag">Needs MaiPai Home</span> | [Games and pet](games-and-pet.md) |
 | **Coding companion** | Agent status on the face, a build light, dictation and touch approvals. | <span class="home-tag">Needs MaiPai Home</span> | [Coding companion](coding-companion.md) |
 | **Home tools** | A local API, an event stream, MQTT, a home-automation bridge and metrics. | <span class="home-tag">Needs MaiPai Home</span> | [Home tools](home-tools.md) |
 | **The household** | Memory across days, recognising people, calendars, content filtering and household rules. | <span class="home-tag">Needs MaiPai Home</span> | [With MaiPai Home](with-maipai-home.md) |

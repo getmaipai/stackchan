@@ -9,7 +9,7 @@ MaiPai for StackChan on its own is a simple, private voice robot. These run with
 - The camera: snapshots, face follow, the name list and "what is this". [Details](camera.md)
 - Watch mode and security alerts, and the baby and pet monitor. [Watch](watch-and-alerts.md), [monitor](baby-and-pet-monitor.md)
 - Find my robot, remote beep, lights, talk, pan and tilt, and live view. [Details](find-and-remote.md)
-- Games and a pet mood, the coding companion, and home tools such as the local API and MQTT. [Games](games-and-pet.md), [coding](coding-companion.md), [tools](home-tools.md)
+- The coding companion, and home tools such as the local API and MQTT. [Coding](coding-companion.md), [tools](home-tools.md)
 
 And the features across all of MaiPai Home:
 
