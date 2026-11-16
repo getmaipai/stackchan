@@ -11,7 +11,7 @@ The first release of MaiPai for StackChan. Everything on the [Features](features
 - Camera features, off until you turn them on.
 - Mute, camera off and full quiet by tapping the face.
 - A trimmed robot build: Bluetooth off, no host-controlled installs, no keys in images, and a Wi-Fi setup page with an on-screen code in English and Spanish.
-- Eight face styles, nine face extras, word reactions, a time zone picker, a network test and a version screen.
+- Five face styles, seven face extras, word reactions, a time zone picker, a network test and a version screen.
 - Six languages: English, Spanish, French, German, Portuguese and Italian.
 - Offline phrases, dance on request, six named dances and a sway to music.
 - Three games: colour memory, reaction time and whack-a-mole, with best scores.

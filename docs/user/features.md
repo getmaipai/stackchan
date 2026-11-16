@@ -23,7 +23,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 |---|---|---|---|
 | **Smoother eyes and mouth** | Eased eye moves, a smooth blink, a drifting gaze and a mouth that follows your voice. Measured 22 to 45 frames a second while the eyes move. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Your own picture faces** | Upload your own pictures on the settings page, one per look, as picture only, picture with animated eyes and mouth, or a short run of frames. Nothing leaves your home. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
-| **Faces and colour** | Eight face styles, any colour or none, optional captions. | Robot | [Face and look](face-and-look.md) |
+| **Faces and colour** | Five face styles (big eyes, eyes only, stock, classic, minimal), any eye colour, optional captions, a tired look when the battery is low and three dots while it thinks. | Robot | [Face and look](face-and-look.md) |
 | **Clock and time-of-day faces** | A clock face, a face that changes with the hour, and night mode. | Robot | [Face and look](face-and-look.md) |
 | **Face extras and word reactions** | Sweat, hearts, stars and more on the face, and reactions to words like "thanks" in six languages. | Robot | [Face and look](face-and-look.md) |
 | **Per-person settings** | A face colour and caption size for each person. | Robot | [Face and look](face-and-look.md) |
@@ -65,6 +65,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Wi-Fi setup page** | A setup code on the robot screen, a short window and a lock after wrong tries. | Robot | [Getting started](getting-started.md) |
 | **Away from home (Tailscale)** | The robot joins your private network by itself when it cannot reach your host, using a one-time key. Works from any Wi-Fi: a friend's house, a hotel, the office. | Robot | [Away from home](use-it-anywhere.md) |
 | **Several robots, one host** | One host serves each robot by its own ID. | Robot | [Install the host](install-the-host.md) |
+| **Remote controls on the settings page** | Beep, flash, find my robot (works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. | Robot | [Settings](settings.md) |
 | **Network test and version screen** | Swipe up, More: a plain check of Wi-Fi, your host and the private network, and the version. | Robot | [Troubleshooting](troubleshooting.md) |
 | **Your own LLM or MaiPai Home** | Point the robot at any OpenAI-compatible chat address, or at a MaiPai Home hub. | Robot | [Which setup?](which-setup.md) |
 
@@ -110,6 +111,9 @@ Likely to come, not finished. Do not count on these yet.
 
 | Feature | What it will do | Page |
 |---|---|---|
+| **Mood and weather overlays, filler sounds, pack library, effects** <span class="planned-tag">Planned</span> | The host side is built (mood tags, weather and other overlay tags, filler sounds of none, tone or phrase, a pack library, CRT and colour effects, a remote activity log and remote-speaking rules). It reaches the robot with the next robot update. | [Face and look](face-and-look.md) |
+| **Speech bubble, floating zzz, three listening cues, pickup detection** <span class="planned-tag">Planned</span> | Still being built on the robot. | [Face and look](face-and-look.md) |
+| **Remote cue on the robot** <span class="planned-tag">Planned</span> | Every remote action will show a cue on the robot that cannot be turned off, and remote speaking will ask first on the robot. Still being built. | [Security](security.md) |
 | **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |
 | **Encrypted link at home** <span class="planned-tag">Planned</span> | Encrypt the robot's link to your host on your home Wi-Fi, and check it is talking to your host. | [Security](security.md) |
 | **Outside games** <span class="planned-tag">Planned</span> | Load games you or others make. Signed packs only. | [Games](games-and-pet.md) |

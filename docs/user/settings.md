@@ -59,7 +59,7 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 | `local_unmute` | Whether the robot's own face can unmute it | on |
 | `update_channel`, `update_source`, `update_check`, `update_install` | Updates | stable, official, weekly, ask |
 
-Settings for the camera, watching, remote control, games and home tools live in MaiPai Home, because those features run with it.
+The settings page on your host has a Remote controls section: beep, flash, find my robot (it works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. Settings for the camera, watching, live remote view, games and home tools live in MaiPai Home, because those features run with it.
 
 Run `stackchan check` after any change to your addresses.
 

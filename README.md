@@ -24,7 +24,7 @@ MaiPai for StackChan is one thing: a private voice robot. It does a small set of
 **The robot, with your own LLM**
 
 - **[Voice](docs/user/voice.md):** Say the wake word and talk. Follow-up questions need no wake word, you can interrupt, ten voice commands work with no model involved, spoken lines play when the host is out of reach, and you can set the speech speed and pitch.
-- **[Faces and clock](docs/user/face-and-look.md):** Eight face styles, face extras and word reactions, any colour or none, time-of-day and clock faces, night mode and optional captions.
+- **[Faces and clock](docs/user/face-and-look.md):** Five face styles, face extras and word reactions, any colour or none, time-of-day and clock faces, night mode and optional captions.
 - **[Timers and alarms](docs/user/timers-and-alarms.md):** A ring that empties as time runs out, named timers, snooze and quiet hours.
 - **[Reactions](docs/user/moves-and-moods.md):** Pickup, shake, tilt and petting, a breathing idle, tap-the-face mute, a mood that grows with care, an hourly chime and low-battery steps.
 - **[Privacy controls](docs/user/mute-and-camera-off.md):** Mute, camera off and full quiet, one tap each. [Nothing is ever monitored in secret](docs/user/no-stealth.md).
