@@ -89,12 +89,26 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(values["muted"], bool):
             raise SettingsError("Mute must be on or off.")
         out["muted"] = values["muted"]
+    if "speech_speed" in values:
+        speed = values["speech_speed"]
+        if isinstance(speed, bool) or not isinstance(speed, (int, float)) or not 0.75 <= speed <= 1.5:
+            raise SettingsError(
+                "The speech speed must be a number from 0.75 to 1.5. Pick a speed in that range."
+            )
+        out["speech_speed"] = speed
+    if "speech_pitch" in values:
+        pitch = values["speech_pitch"]
+        if isinstance(pitch, bool) or not isinstance(pitch, (int, float)) or not -12 <= pitch <= 12:
+            raise SettingsError(
+                "The speech pitch must be a number from -12 to 12 semitones. Pick a pitch in that range."
+            )
+        out["speech_pitch"] = pitch
     if "alarms" in values:
         alarms = values["alarms"]
         if not isinstance(alarms, list) or len(alarms) > MAX_ALARMS:
             raise SettingsError(f"Keep the alarm list to {MAX_ALARMS} alarms or fewer.")
         out["alarms"] = [_clean_alarm(a) for a in alarms]
-    unknown = set(values) - {"name", "persona", "llm", "volume_cap", "muted", "alarms"}
+    unknown = set(values) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch"}
     if unknown:
         raise SettingsError(f"Unknown setting {sorted(unknown)[0]}. Remove it and save again.")
     return out
@@ -143,7 +157,7 @@ class UnitSettingsStore:
         """Top-level values with this unit's overrides on top; no table means no change."""
         own = self.get(device_id)
         merged = {**base, "llm": dict(base.get("llm", {}))}
-        for key in ("persona", "volume_cap", "muted", "alarms", "name"):
+        for key in ("persona", "volume_cap", "muted", "alarms", "name", "speech_speed", "speech_pitch"):
             if key in own:
                 merged[key] = own[key]
         for key, value in own.get("llm", {}).items():

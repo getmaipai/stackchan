@@ -1,0 +1,602 @@
+# Intent: Train 3 item 14, mood that depends on care, saved across days (features.md Touch and play). A head pet adds care (4 points, at most 12 counted a day and one every 20 seconds); each whole day with no pet takes 12 away (at most 14 days counted); a new unit starts at 50. The resting face shows it: care 70 or more is happy, under 30 is sad, otherwise the plain face (3 point hysteresis so it never flickers). The record is 8 bytes (magic, version, care, pets today, day, checksum) in its own NVS namespace, written at most every 15 minutes and at a day change, so it lasts across days and reboots; a bad record is thrown away for the start state. A mood change pushes a `mood` event. Two tools: self.mood.get and self.mood.test (care 0 to 100 for now and not saved, -1 puts the saved value back). Rides the one-second daily tick and the existing head-touch event: no task, no timer, no heap.
+# Placement: unit (the care record and the face live on the robot; the mood works with the host off)
+# Upstream: firmware/main/hal/hal_mcp.cpp, firmware/main/hal/board/stackchan_display.cc of the StackChan main component (MIT)
+# Check after a flash: self.mood.get answers care, level, pets_today and day; self.mood.test care=10 shows a sad resting face and a `mood` event, care=90 a happy one, care=-1 restores the saved value; a head touch raises care by 4 (not twice within 20 seconds); after a reset self.mood.get still shows the saved care.
+# Kconfig: MAIPAI_MOOD (default y); off removes the record, the tools and the face shift.
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -150,6 +150,15 @@ config MAIPAI_RESET_ON_DEVICE
+         cleared in one step that always ends in setup mode, even after a power loss. Nothing on the network
+         can start it. No task or timer exists until the screen is open. Off here: no button, no screen.
+ 
++config MAIPAI_MOOD
++    bool "Mood that depends on care, saved across days"
++    default y
++    help
++        A head pet adds to a small care number and each day without one takes some away; the number is saved
++        (8 bytes in its own storage namespace, written at most every 15 minutes) so it lasts across days and reboots.
++        A well cared for unit rests with a happy face and a neglected one with a sad face. Rides the existing
++        one-second tick: no task, no timer, no heap. Off here: the resting face is always the plain one.
++
+ config MAIPAI_LOW_BATTERY
+     bool "Low-battery ladder (20 percent chirp, 10 percent request, 5 percent sleep)"
+     default y
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -64,6 +64,9 @@ bool board_battery_state(int* level, bool* charging, bool* on_cable);
+ void battery_power_off();
+ // A few plain words on the face for `ms` milliseconds, whatever the captions setting says (patch T01). Safe from any task.
+ void notice(const char* text, int ms);
++// Redraws the resting face for the saved mood (patch M01). Only changes a face that is resting (not mid-emotion, not
++// asleep, not in full quiet). Safe from any task; takes the LVGL lock.
++void mood_refresh();
+ // The camera-on cue (patch T05): a small camera glyph over the face while a picture or video frame is being read,
+ // kept `hold_ms` after the last one. Nothing turns it off but time. Safe from any task.
+ void monitor_cue_begin(int hold_ms);
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -29,6 +29,7 @@
+ #include <hal/hal.h>
+ #include <hal/maipai_timers.h>
+ #include <hal/maipai_face.h>
++#include <hal/maipai_mood.h>
+ 
+ // True while the Wi-Fi setup portal is open (firmware/portal/maipai_wifi_configuration_ap.cc, patch P03).
+ extern "C" bool maipai_portal_active(void);
+@@ -1174,6 +1175,50 @@ void StackChanAvatarDisplay::CreateIdleMotionModifier()
+     }
+ }
+ 
++#if CONFIG_MAIPAI_MOOD
++static Emotion MoodResting()
++{
++    switch (maipai_mood_face()) {
++        case 1:
++            return Emotion::Happy;
++        case 2:
++            return Emotion::Sad;
++        default:
++            return Emotion::Neutral;
++    }
++}
++#else
++static Emotion MoodResting()
++{
++    return Emotion::Neutral;
++}
++#endif
++
++void StackChanAvatarDisplay::RefreshMood()
++{
++    auto& stackchan = GetStackChan();
++    if (!stackchan.hasAvatar()) {
++        return;
++    }
++    DisplayLockGuard lock(this);
++    if (!mood_baseline_ || quiet_face_ || is_sleeping_) {
++        return;
++    }
++    stackchan.avatar().setEmotion(MoodResting());
++    auto blink_modifier = static_cast<BlinkModifier*>(stackchan.getModifier(blink_modifier_id_));
++    if (blink_modifier) {
++        blink_modifier->resyncEyeWeights();
++    }
++}
++
++void hal_bridge::mood_refresh()
++{
++    auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
++    if (display != nullptr) {
++        display->RefreshMood();
++    }
++}
++
+ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+ {
+     auto& stackchan = GetStackChan();
+@@ -1203,9 +1248,12 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+ 
+     auto& avatar = stackchan.avatar();
+ 
++    // The resting face takes the saved mood (patch M01); any other emotion is shown as asked.
++    mood_baseline_ = strcmp(emotion, "neutral") == 0;
++
+     // Map emotion string to stackchan::Emotion
+     if (strcmp(emotion, "neutral") == 0) {
+-        avatar.setEmotion(Emotion::Neutral);
++        avatar.setEmotion(MoodResting());
+     } else if (strcmp(emotion, "happy") == 0) {
+         avatar.setEmotion(Emotion::Happy);
+     } else if (strcmp(emotion, "laughing") == 0) {
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -23,6 +23,7 @@ private:
+     int blink_modifier_id_              = -1;
+     bool is_sleeping_                   = false;
+     int privacy_bits_                   = 0;      // the looks now drawn (patch 105)
++    bool mood_baseline_                 = true;   // the face is the resting one, so the saved mood may shift it (patch M01)
+     bool quiet_face_                    = false;  // full quiet: the sleeping face holds against every emotion
+     lv_obj_t* quiet_marker_             = nullptr;
+     lv_timer_t* cue_timer_              = nullptr;
+@@ -116,6 +117,9 @@ public:
+     // The link look from the hub connection (hal_bridge::link_look); takes the LVGL lock.
+     void SetLinkLook(int look);
+ 
++    // Redraws the resting face for the saved mood (hal_bridge::mood_refresh).
++    void RefreshMood();
++
+     void SetIdleMotionEnabled(bool enabled);
+     void LvglLock();
+     void LvglUnlock();
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -10,6 +10,7 @@
+ #include "maipai_timers.h"
+ #include "maipai_sounds.h"
+ #include "maipai_daily.h"
++#include "maipai_mood.h"
+ #include "maipai_face.h"
+ #include "maipai_update.h"
+ #include "maipai_timers_core.h"
+@@ -101,6 +102,7 @@ void Hal::xiaozhi_mcp_init()
+             const char* strength = g_head_touch_strong.load() ? "\"strong\":1" : "\"strong\":0";
+             if (gesture == HeadPetGesture::Press) {
+                 PushDeviceEvent("head_touch", strength);
++                maipai_mood_pet();  // a pet is care (patch M01)
+                 maipai_timers_request_dismiss("head");  // a ringing timer ends on a head touch (patch 093)
+             } else if (gesture == HeadPetGesture::SwipeForward) {
+                 PushDeviceEvent("head_swipe_forward", strength);
+diff --git a/firmware/main/hal/maipai_daily.cc b/firmware/main/hal/maipai_daily.cc
+--- a/firmware/main/hal/maipai_daily.cc
++++ b/firmware/main/hal/maipai_daily.cc
+@@ -12,6 +12,7 @@
+ #include "maipai_timers.h"
+ #include "maipai_sounds.h"
+ #include "maipai_face.h"
++#include "maipai_mood.h"
+ #include "device_events.h"
+ #include "board/hal_bridge.h"
+ #include <application.h>
+@@ -221,6 +222,7 @@ void maipai_daily_tick()
+         return;
+     }
+     last_ms = now;
++    maipai_mood_tick();  // the care record and the resting face (patch M01)
+ #if CONFIG_MAIPAI_LOW_BATTERY
+     low_battery_poll();
+ #endif
+@@ -234,6 +236,7 @@ void maipai_daily_tick()
+ 
+ void maipai_daily_register_tools()
+ {
++    maipai_mood_register_tools();  // self.mood.get and self.mood.test (patch M01)
+     McpServer::GetInstance().AddTool(
+         "self.camera.cue_test",
+         "Shows the camera-on cue for about 3 seconds without taking a picture, to check it is visible. The cue itself "
+diff --git a/firmware/main/hal/maipai_mood.cc b/firmware/main/hal/maipai_mood.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_mood.cc
+@@ -0,0 +1,196 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Mood that depends on care, device side (patch M01). The rules are the plain-C core; this file reads the clock,
++ * keeps the 8-byte record in its own NVS namespace, and asks the face to redraw when the look changes. It writes at
++ * most once every 15 minutes (and at a day change), so flash wear stays far below the limit. No task, no timer.
++ */
++#include "maipai_mood.h"
++
++#if CONFIG_MAIPAI_MOOD
++#include "maipai_mood_core.h"
++#include "device_events.h"
++#include "board/hal_bridge.h"
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <mcp_server.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++#include <ctime>
++#include <cstdio>
++#include <mutex>
++#include <string>
++
++static const char* TAG = "MAIPAI-MOOD";
++
++namespace {
++
++const char* kNamespace      = "mp_mood";  // our own namespace
++const int64_t kSaveEveryMs  = 15 * 60 * 1000;
++std::mutex s_mutex;
++mm_t s_mood;
++bool s_ready        = false;
++bool s_test_hold    = false;  // the test tool moved care; nothing is saved until it is cleared
++int64_t s_last_save = 0;
++bool s_face_dirty   = true;   // draw the look once after boot
++
++int64_t now_ms()
++{
++    return esp_timer_get_time() / 1000;
++}
++
++void load_locked()
++{
++    if (s_ready) {
++        return;
++    }
++    s_ready = true;
++    uint8_t rec[MM_REC_BYTES] = {};
++    size_t len                = sizeof(rec);
++    nvs_handle_t h;
++    bool good = false;
++    if (nvs_open(kNamespace, NVS_READONLY, &h) == ESP_OK) {
++        good = nvs_get_blob(h, "rec", rec, &len) == ESP_OK && len == sizeof(rec) && mm_load(&s_mood, rec) == 1;
++        nvs_close(h);
++    }
++    if (!good) {
++        mm_init(&s_mood);
++    }
++    ESP_LOGW(TAG, "mood %s: care %d, day %u", good ? "loaded" : "starts fresh", s_mood.care, (unsigned)s_mood.day);
++}
++
++void save_locked(bool force)
++{
++    if (s_test_hold || !s_mood.dirty) {
++        return;
++    }
++    const int64_t now = now_ms();
++    if (!force && s_last_save != 0 && now - s_last_save < kSaveEveryMs) {
++        return;
++    }
++    uint8_t rec[MM_REC_BYTES];
++    mm_store(&s_mood, rec);
++    nvs_handle_t h;
++    if (nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) {
++        ESP_LOGW(TAG, "could not save the mood");
++        return;
++    }
++    const bool ok = nvs_set_blob(h, "rec", rec, sizeof(rec)) == ESP_OK && nvs_commit(h) == ESP_OK;
++    nvs_close(h);
++    if (ok) {
++        s_mood.dirty = 0;
++        s_last_save  = now;
++    } else {
++        ESP_LOGW(TAG, "could not write the mood");
++    }
++}
++
++uint32_t today()
++{
++    const time_t t = time(nullptr);
++    if (t < 1700000000) {
++        return 0;  // the clock is not set yet
++    }
++    struct tm tm_local = {};
++    localtime_r(&t, &tm_local);
++    return mm_day_from_civil(tm_local.tm_year + 1900, tm_local.tm_mon + 1, tm_local.tm_mday);
++}
++
++void announce_level(const mm_t& m)
++{
++    char extra[48];
++    snprintf(extra, sizeof(extra), "\"level\":\"%s\",\"care\":%d", mm_word(m.level), m.care);
++    device_events_push("mood", extra);
++    ESP_LOGW(TAG, "mood is now %s (care %d)", mm_word(m.level), m.care);
++    s_face_dirty = true;
++}
++
++}  // namespace
++
++int maipai_mood_face()
++{
++    std::lock_guard<std::mutex> lock(s_mutex);
++    load_locked();
++    return mm_face(s_mood.level);
++}
++
++void maipai_mood_pet()
++{
++    std::lock_guard<std::mutex> lock(s_mutex);
++    load_locked();
++    const mm_level_t before = s_mood.level;
++    if (mm_pet(&s_mood, static_cast<uint32_t>(now_ms())) != 0 && s_mood.level != before) {
++        announce_level(s_mood);
++    }
++}
++
++void maipai_mood_tick()
++{
++    bool refresh = false;
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        load_locked();
++        const mm_level_t before = s_mood.level;
++        if (!s_test_hold && mm_new_day(&s_mood, today()) != 0) {
++            save_locked(true);  // a day change is always written
++            if (s_mood.level != before) {
++                announce_level(s_mood);
++            }
++        }
++        save_locked(false);
++        refresh      = s_face_dirty;
++        s_face_dirty = false;
++    }
++    if (refresh) {
++        hal_bridge::mood_refresh();  // takes the LVGL lock, so never called under our own mutex
++    }
++}
++
++void maipai_mood_register_tools()
++{
++    McpServer::GetInstance().AddTool(
++        "self.mood.get",
++        "How well cared for the robot feels: care 0 to 100 (head pets raise it, days without one lower it), its level "
++        "(low shows a sad resting face, high a happy one), the pets counted today and the saved day. Answers "
++        "{ok,care,level,pets_today,day,test}.",
++        PropertyList(), [](const PropertyList&) -> ReturnValue {
++            std::lock_guard<std::mutex> lock(s_mutex);
++            load_locked();
++            char buf[128];
++            snprintf(buf, sizeof(buf), "{\"ok\":true,\"care\":%d,\"level\":\"%s\",\"pets_today\":%d,\"day\":%u,\"test\":%s}",
++                     s_mood.care, mm_word(s_mood.level), s_mood.pets_today, (unsigned)s_mood.day,
++                     s_test_hold ? "true" : "false");
++            return std::string(buf);
++        });
++    McpServer::GetInstance().AddTool(
++        "self.mood.test",
++        "Test the mood face without a week of care: care 0 to 100 acts as the care value for now and is not saved; "
++        "-1 puts the saved value back. Answers {ok,care,level}.",
++        PropertyList({Property("care", kPropertyTypeInteger, -1, -1, 100)}),
++        [](const PropertyList& properties) -> ReturnValue {
++            const int care = properties["care"].value<int>();
++            {
++                std::lock_guard<std::mutex> lock(s_mutex);
++                load_locked();
++                const mm_level_t before = s_mood.level;
++                if (care < 0) {
++                    s_test_hold = false;
++                    s_ready     = false;  // read the saved record again
++                    load_locked();
++                } else {
++                    s_test_hold = true;
++                    s_mood.care = static_cast<uint8_t>(care);
++                    s_mood.level = mm_level_for(MM_OK, care);
++                }
++                if (s_mood.level != before) {
++                    announce_level(s_mood);
++                }
++                s_face_dirty = true;
++            }
++            std::lock_guard<std::mutex> lock(s_mutex);
++            char buf[80];
++            snprintf(buf, sizeof(buf), "{\"ok\":true,\"care\":%d,\"level\":\"%s\"}", s_mood.care, mm_word(s_mood.level));
++            return std::string(buf);
++        });
++}
++#endif
+diff --git a/firmware/main/hal/maipai_mood.h b/firmware/main/hal/maipai_mood.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_mood.h
+@@ -0,0 +1,24 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Mood that depends on care, saved across days (patch M01). Logic: maipai_mood_core.h. With CONFIG_MAIPAI_MOOD off
++ * nothing here is compiled and the face is always the plain one.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_MOOD
++// A head touch: counts as care (rate-limited inside). Safe from any task.
++void maipai_mood_pet();
++// Once a second from the daily tick: rolls the day over, saves the record when it changed, refreshes the face.
++void maipai_mood_tick();
++// Registers self.mood.get and self.mood.test.
++void maipai_mood_register_tools();
++// The look the resting face takes: 0 plain, 1 happy, 2 sad.
++int maipai_mood_face();
++#else
++inline void maipai_mood_pet() {}
++inline void maipai_mood_tick() {}
++inline void maipai_mood_register_tools() {}
++inline int maipai_mood_face() { return 0; }
++#endif
+diff --git a/firmware/main/hal/maipai_mood_core.h b/firmware/main/hal/maipai_mood_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_mood_core.h
+@@ -0,0 +1,187 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Mood that depends on care (patch M01). Plain C99, no firmware headers, so a host test compiles and runs it
++ * (host/tests/firmware/mood_core_test.c).
++ *
++ * One number, `care` (0 to 100). A head pet adds 4 (at most 12 counted a day, and at most one every 20 seconds, so
++ * holding a hand on the head cannot farm it). Every whole day with no pet takes 12 away, for at most 14 days. A new
++ * unit starts at 50. The face shows three looks with a little hysteresis so it never flickers at an edge:
++ * HIGH (70 or more, up to 67 on the way down) is happy, OK is the plain face, LOW (under 30, back at 33) is sad.
++ * The record is 8 bytes and survives a reboot: magic, version, care, pets today, the day (days since 2020-01-01,
++ * 0 for "no clock yet"), a spare byte and a checksum. A record that fails any check is thrown away for the start.
++ */
++#ifndef MAIPAI_MOOD_CORE_H
++#define MAIPAI_MOOD_CORE_H
++
++#include <stdint.h>
++
++#define MM_CARE_START 50
++#define MM_PET_POINTS 4
++#define MM_PETS_PER_DAY 12
++#define MM_PET_GAP_MS 20000
++#define MM_MISS_LOSS 12
++#define MM_MAX_MISSED_DAYS 14
++#define MM_HIGH_ON 70
++#define MM_HIGH_OFF 67
++#define MM_LOW_ON 30
++#define MM_LOW_OFF 33
++#define MM_REC_BYTES 8
++#define MM_MAGIC 0x4D
++#define MM_VERSION 1
++
++typedef enum { MM_LOW = 0, MM_OK, MM_HIGH } mm_level_t;
++
++typedef struct {
++    uint8_t care;         /* 0 to 100 */
++    uint8_t pets_today;   /* pets counted on `day` */
++    uint32_t day;         /* days since 2020-01-01, 0 until the clock is set */
++    uint32_t last_pet_ms; /* when the last pet was seen (counted or not) */
++    uint8_t has_pet;      /* last_pet_ms is valid */
++    uint8_t dirty;        /* the record changed and is not saved yet */
++    mm_level_t level;
++} mm_t;
++
++/* Days since 2020-01-01 for a calendar date (month 1 to 12, day 1 to 31). Returns 0 for a date before 2020. */
++static inline uint32_t mm_day_from_civil(int year, int month, int day)
++{
++    int y = month <= 2 ? year - 1 : year;
++    int era = y / 400;
++    int yoe = y - era * 400;
++    int mp = (month + 9) % 12;
++    int doy = (153 * mp + 2) / 5 + day - 1;
++    int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
++    long days = (long)era * 146097 + doe - 719468; /* days since 1970-01-01 */
++    long since2020 = days - 18262;                 /* 2020-01-01 is day 18262 */
++    return since2020 < 1 ? 0u : (uint32_t)since2020;
++}
++
++static inline mm_level_t mm_level_for(mm_level_t prev, int care)
++{
++    if (prev == MM_HIGH) {
++        if (care >= MM_HIGH_OFF) return MM_HIGH;
++    } else if (care >= MM_HIGH_ON) {
++        return MM_HIGH;
++    }
++    if (prev == MM_LOW) {
++        if (care < MM_LOW_OFF) return MM_LOW;
++    } else if (care < MM_LOW_ON) {
++        return MM_LOW;
++    }
++    return MM_OK;
++}
++
++/* Returns 1 when the level changed. */
++static inline int mm_refresh_level(mm_t* m)
++{
++    const mm_level_t now = mm_level_for(m->level, m->care);
++    const int changed = now != m->level;
++    m->level = now;
++    return changed;
++}
++
++static inline void mm_init(mm_t* m)
++{
++    m->care = MM_CARE_START;
++    m->pets_today = 0;
++    m->day = 0;
++    m->last_pet_ms = 0;
++    m->has_pet = 0;
++    m->dirty = 0;
++    m->level = MM_OK;
++}
++
++static inline uint8_t mm_checksum(const uint8_t* r)
++{
++    unsigned sum = 0;
++    for (int i = 0; i < MM_REC_BYTES - 1; i++) sum += r[i];
++    return (uint8_t)((sum & 0xFF) ^ 0xA5);
++}
++
++static inline void mm_store(const mm_t* m, uint8_t* r)
++{
++    r[0] = MM_MAGIC;
++    r[1] = MM_VERSION;
++    r[2] = m->care;
++    r[3] = m->pets_today;
++    r[4] = (uint8_t)(m->day & 0xFF);
++    r[5] = (uint8_t)((m->day >> 8) & 0xFF);
++    r[6] = 0;
++    r[7] = mm_checksum(r);
++}
++
++/* Returns 1 when the record was good and is now in `m`; otherwise `m` is the start state and 0 comes back. */
++static inline int mm_load(mm_t* m, const uint8_t* r)
++{
++    mm_init(m);
++    if (r == 0 || r[0] != MM_MAGIC || r[1] != MM_VERSION || r[7] != mm_checksum(r) || r[2] > 100 ||
++        r[3] > MM_PETS_PER_DAY) {
++        return 0;
++    }
++    m->care = r[2];
++    m->pets_today = r[3];
++    m->day = (uint32_t)r[4] | ((uint32_t)r[5] << 8);
++    m->level = mm_level_for(MM_OK, m->care);
++    return 1;
++}
++
++/* A pet at `now_ms`. Returns 1 when it counted. */
++static inline int mm_pet(mm_t* m, uint32_t now_ms)
++{
++    const int spaced = !m->has_pet || (uint32_t)(now_ms - m->last_pet_ms) >= MM_PET_GAP_MS;
++    if (!spaced) {
++        return 0;
++    }
++    m->last_pet_ms = now_ms;
++    m->has_pet = 1;
++    if (m->pets_today >= MM_PETS_PER_DAY) {
++        return 0;
++    }
++    m->pets_today++;
++    const int care = m->care + MM_PET_POINTS;
++    m->care = (uint8_t)(care > 100 ? 100 : care);
++    m->dirty = 1;
++    mm_refresh_level(m);
++    return 1;
++}
++
++/* The calendar day is now `day` (0 means the clock is not set: nothing happens). Returns 1 when the record changed. */
++static inline int mm_new_day(mm_t* m, uint32_t day)
++{
++    if (day == 0 || day == m->day) {
++        return 0;
++    }
++    if (m->day == 0 || day < m->day) { /* first clock reading, or the clock moved back: just take the day */
++        m->day = day;
++        m->pets_today = 0;
++        m->dirty = 1;
++        return 1;
++    }
++    uint32_t missed = day - m->day - 1; /* whole days in between with no care */
++    if (m->pets_today == 0) {
++        missed += 1; /* the day that just ended had none either */
++    }
++    if (missed > MM_MAX_MISSED_DAYS) {
++        missed = MM_MAX_MISSED_DAYS;
++    }
++    const uint32_t loss = missed * MM_MISS_LOSS;
++    m->care = (uint8_t)(m->care > loss ? m->care - loss : 0);
++    m->day = day;
++    m->pets_today = 0;
++    m->dirty = 1;
++    mm_refresh_level(m);
++    return 1;
++}
++
++static inline const char* mm_word(mm_level_t level)
++{
++    return level == MM_HIGH ? "high" : (level == MM_LOW ? "low" : "ok");
++}
++
++/* The face look for the level: 0 the plain face, 1 happy, 2 sad. */
++static inline int mm_face(mm_level_t level)
++{
++    return level == MM_HIGH ? 1 : (level == MM_LOW ? 2 : 0);
++}
++
++#endif

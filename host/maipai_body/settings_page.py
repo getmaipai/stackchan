@@ -67,6 +67,8 @@ class SettingsBackend:
                     "llm": own.get("llm", {"url": "", "model": "", "api_key_env": ""}),
                     "alarms": own.get("alarms", []),
                     "volume_cap": own.get("volume_cap", 100),
+                    "speech_speed": own.get("speech_speed", 1.0),
+                    "speech_pitch": own.get("speech_pitch", 0),
                     "muted": own.get("muted", bool(live.get("muted", False))),
                     "firmware_version": live.get("firmware_version"),
                     "online": live.get("online"),
@@ -259,6 +261,8 @@ const url=field(s,S['settings.llm_url'],Object.assign(document.createElement('in
 const model=field(s,S['settings.llm_model'],Object.assign(document.createElement('input'),{{value:u.llm.model||''}}));
 const key=field(s,S['settings.llm_key_env'],Object.assign(document.createElement('input'),{{value:u.llm.api_key_env||''}}));
 const cap=field(s,S['settings.volume_cap'],Object.assign(document.createElement('input'),{{type:'number',min:0,max:100,value:u.volume_cap}}));
+const speed=field(s,S['settings.speech_speed'],Object.assign(document.createElement('input'),{{id:'speech_speed',type:'number',min:0.75,max:1.5,step:0.05,value:u.speech_speed}}));
+const pitch=field(s,S['settings.speech_pitch'],Object.assign(document.createElement('input'),{{id:'speech_pitch',type:'number',min:-12,max:12,step:1,value:u.speech_pitch}}));
 const mute=Object.assign(document.createElement('input'),{{type:'checkbox',checked:u.muted}});
 mute.style.width='auto';field(s,S['settings.mute'],mute);
 const alarms=field(s,S['settings.alarms']+' ('+S['settings.alarm_time']+', '+S['settings.alarm_label']+')',
@@ -267,7 +271,7 @@ value:u.alarms.map(a=>a.time+' '+a.label).join('\\n')}}));
 const save=document.createElement('button');save.textContent=S['settings.save'];
 save.onclick=()=>call('/api/stackchan/settings/'+encodeURIComponent(u.device_id),{{name:name.value,
 persona:persona.value,llm:{{url:url.value,model:model.value,api_key_env:key.value}},
-volume_cap:parseInt(cap.value,10),muted:mute.checked,
+volume_cap:parseInt(cap.value,10),speech_speed:parseFloat(speed.value),speech_pitch:parseFloat(pitch.value),muted:mute.checked,
 alarms:alarms.value.split('\\n').filter(x=>x.trim()).map(x=>{{const [time,...rest]=x.trim().split(/\\s+/);
 return {{time,label:rest.join(' ')}}}})}});
 s.append(faceSection(u.device_id));

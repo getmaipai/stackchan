@@ -34,8 +34,10 @@ enabled = false
 # and `stackchan name <device-id> <name>` sets the name people see. Delete the "#" to use one.
 # [units.kitchen]
 # device_id = "aa:bb:cc:dd:ee:01"      # required: the unit's Device-Id
-# persona = "You are a cheerful kitchen helper."
+# persona = "You are a cheerful kitchen helper."   # or paste a pack from host/personas (cooking.en.txt, cooking.es.txt)
 # volume_cap = 60                      # 0 to 100
+# speech_speed = 1.0                   # 0.75 slow to 1.5 fast
+# speech_pitch = 0                     # -12 to 12 semitones
 # muted = false
 # [units.kitchen.llm]                  # its own model; leave out to use [llm] or Home
 # url = "http://192.0.2.10:8080/v1"

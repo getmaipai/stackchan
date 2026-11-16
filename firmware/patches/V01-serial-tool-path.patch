@@ -1,0 +1,192 @@
+# Intent: Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit's own tools over the USB cable: a line "@tool self.mood.get" or "@tool self.timer.set {"seconds":30}" runs that tool through the same table the host uses, and the answer comes back on the cable as one "@reply" line; "@list" lists the tools. It changes no saved address and stops no link. It needs the cable and nothing on the network can reach it. Off by default: a shipped image has no reader and no USB driver.
+# Placement: unit (a bench path in the robot firmware, off in every shipped image)
+# Upstream: firmware/main/hal/hal_mcp.cpp of the StackChan main component (MIT); the McpServer ParseMessage response sender of the xiaozhi base (MIT)
+# Check after a flash: with the option on, "@list" answers the tool list and "@tool self.battery.get_status" answers percent and charging; with the option off the build has no maipai_serial_tools object.
+# Kconfig: MAIPAI_SERIAL_TOOLS (default n).
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -325,6 +325,7 @@ idf_component_register(SRCS ${SOURCES}
+                         esp_driver_tsens
+                         esp_driver_gpio
+                         esp_driver_uart
++                        esp_driver_usb_serial_jtag
+                         esp_driver_spi
+                         esp_driver_i2c
+                         esp_driver_i2s
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -150,6 +150,14 @@ config MAIPAI_RESET_ON_DEVICE
+         cleared in one step that always ends in setup mode, even after a power loss. Nothing on the network
+         can start it. No task or timer exists until the screen is open. Off here: no button, no screen.
+ 
++config MAIPAI_SERIAL_TOOLS
++    bool "Bench only: call the unit's tools over the USB cable"
++    default n
++    help
++        Starts a reader on the USB cable. A line "@tool self.mood.get" calls that tool and the answer comes back on
++        the cable. It reaches the same tool table the host uses. It needs the cable and nothing on the network can
++        reach it, but it is for bench checks: off in every shipped image, where no reader or driver is built.
++
+ config MAIPAI_MOOD
+     bool "Mood that depends on care, saved across days"
+     default y
+diff --git a/firmware/main/hal/maipai_daily.cc b/firmware/main/hal/maipai_daily.cc
+--- a/firmware/main/hal/maipai_daily.cc
++++ b/firmware/main/hal/maipai_daily.cc
+@@ -13,6 +13,7 @@
+ #include "maipai_sounds.h"
+ #include "maipai_face.h"
+ #include "maipai_mood.h"
++#include "maipai_serial_tools.h"
+ #include "device_events.h"
+ #include "board/hal_bridge.h"
+ #include <application.h>
+@@ -283,4 +284,5 @@ void maipai_daily_register_tools()
+             return std::string("{\"ok\":true,\"level\":") + std::to_string(level) + "}";
+         });
+ #endif
++    maipai_serial_tools_start();  // bench builds only (patch V01)
+ }
+diff --git a/firmware/main/hal/maipai_serial_tools.cc b/firmware/main/hal/maipai_serial_tools.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_serial_tools.cc
+@@ -0,0 +1,116 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Serial tool calls for bench checks (patch V01). A line typed on the USB cable:
++ *
++ *   @tool <name> [<json arguments>]      calls one tool, for example:  @tool self.mood.get
++ *   @list [<cursor>]                     lists the registered tools one page at a time (the reply's nextCursor)
++ *
++ * The answer comes back on the same cable as one line:  @reply <json-rpc result or error>.
++ * It reaches the same tool table the host uses, so a tool answers exactly as it would over the link. It needs the
++ * cable, changes no saved address, and the build option is off by default: a shipped image has no reader and no
++ * driver. Nothing the network sends can reach it.
++ */
++#include "maipai_serial_tools.h"
++
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++#include <driver/usb_serial_jtag.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/idf_additions.h>
++#include <freertos/task.h>
++#include <mcp_server.h>
++#include <cstdio>
++#include <cstring>
++#include <string>
++
++static const char* TAG = "MAIPAI-SERIAL";
++
++namespace {
++
++void answer(const std::string& payload)
++{
++    printf("@reply %s\n", payload.c_str());
++    fflush(stdout);
++}
++
++std::string escape(const std::string& s)
++{
++    std::string out;
++    for (char c : s) {
++        if (c == '"' || c == '\\') {
++            out += '\\';
++        }
++        out += c;
++    }
++    return out;
++}
++
++void handle_line(const std::string& line, int id)
++{
++    auto& server = McpServer::GetInstance();
++    if (line.rfind("@list", 0) == 0) {
++        // The answer is one page; its "nextCursor" goes after @list to get the next page.
++        const std::string cursor = line.size() > 6 ? escape(line.substr(6)) : "";
++        server.ParseMessage(std::string("{\"jsonrpc\":\"2.0\",\"id\":") + std::to_string(id) +
++                                ",\"method\":\"tools/list\",\"params\":{\"cursor\":\"" + cursor + "\"}}",
++                            answer);
++        return;
++    }
++    if (line.rfind("@tool ", 0) != 0) {
++        return;  // anything else typed on the cable is ignored
++    }
++    std::string rest = line.substr(6);
++    std::string name = rest;
++    std::string args = "{}";
++    const size_t space = rest.find(' ');
++    if (space != std::string::npos) {
++        name = rest.substr(0, space);
++        args = rest.substr(space + 1);
++        if (args.empty()) {
++            args = "{}";
++        }
++    }
++    server.ParseMessage(std::string("{\"jsonrpc\":\"2.0\",\"id\":") + std::to_string(id) +
++                            ",\"method\":\"tools/call\",\"params\":{\"name\":\"" + escape(name) +
++                            "\",\"arguments\":" + args + "}}",
++                        answer);
++}
++
++void reader_task(void*)
++{
++    std::string line;
++    int id = 1;
++    uint8_t byte;
++    for (;;) {
++        const int n = usb_serial_jtag_read_bytes(&byte, 1, pdMS_TO_TICKS(1000));
++        if (n <= 0) {
++            continue;
++        }
++        if (byte == '\r' || byte == '\n') {
++            if (!line.empty()) {
++                handle_line(line, id++);
++                line.clear();
++            }
++        } else if (line.size() < 512) {
++            line += static_cast<char>(byte);
++        }
++    }
++}
++
++}  // namespace
++
++void maipai_serial_tools_start()
++{
++    usb_serial_jtag_driver_config_t cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
++    cfg.rx_buffer_size                  = 512;
++    cfg.tx_buffer_size                  = 256;
++    if (usb_serial_jtag_driver_install(&cfg) != ESP_OK) {
++        ESP_LOGW(TAG, "serial tools: the USB driver did not start; nothing will answer on the cable");
++        return;
++    }
++    xTaskCreatePinnedToCoreWithCaps(reader_task, "sertools", 8 * 1024, nullptr, 2, nullptr, 1, MALLOC_CAP_SPIRAM);
++    ESP_LOGW(TAG, "serial tools are on (bench build): type @list or @tool <name> <json> on the cable");
++}
++#endif
+diff --git a/firmware/main/hal/maipai_serial_tools.h b/firmware/main/hal/maipai_serial_tools.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_serial_tools.h
+@@ -0,0 +1,15 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * A serial path to the unit's own tools, for bench checks with a cable (patch V01). Off in every shipped build.
++ * With CONFIG_MAIPAI_SERIAL_TOOLS off nothing here is compiled.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++// Starts the reader task (stack in external RAM). Call once, after the tools are registered.
++void maipai_serial_tools_start();
++#else
++inline void maipai_serial_tools_start() {}
++#endif

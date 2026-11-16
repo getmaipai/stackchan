@@ -74,6 +74,8 @@ class UnitConfig(StrictModel):
     name: str | None = None
     persona: str | None = None
     volume_cap: int | None = None
+    speech_speed: float | None = None
+    speech_pitch: float | None = None
     muted: bool | None = None
     llm: UnitLlm | None = None
     alarm: list[UnitAlarm] = Field(default_factory=list)
@@ -94,7 +96,7 @@ class UnitConfig(StrictModel):
     def settings(self) -> dict[str, object]:
         """The unit's overrides in the shape `unit_settings` stores (only what was set)."""
         out: dict[str, object] = {}
-        for key in ("name", "persona", "volume_cap", "muted"):
+        for key in ("name", "persona", "volume_cap", "muted", "speech_speed", "speech_pitch"):
             if getattr(self, key) is not None:
                 out[key] = getattr(self, key)
         if self.llm is not None:

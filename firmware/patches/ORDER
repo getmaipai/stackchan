@@ -80,3 +80,5 @@ T02-hourly-chime-quiet-hours.patch
 T03-wake-cue-and-selftest.patch
 T04-quiet-reconnect-offline-tone.patch
 T05-camera-on-cue.patch
+M01-mood-from-care.patch
+V01-serial-tool-path.patch

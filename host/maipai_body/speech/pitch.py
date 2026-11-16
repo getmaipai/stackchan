@@ -19,6 +19,8 @@ import numpy as np
 import numpy.typing as npt
 
 MAX_SEMITONES = 12.0
+MIN_SPEED = 0.75
+MAX_SPEED = 1.5
 WINDOW_S = 0.040
 HOP_S = 0.020
 SEARCH_S = 0.005
@@ -26,6 +28,31 @@ SEARCH_S = 0.005
 
 def clamp_semitones(semitones: float) -> float:
     return max(-MAX_SEMITONES, min(MAX_SEMITONES, float(semitones)))
+
+
+def clamp_speed(speed: float) -> float:
+    return max(MIN_SPEED, min(MAX_SPEED, float(speed)))
+
+
+def shape_voice(
+    samples: npt.NDArray[np.float32], sample_rate: int, semitones: float, speed: float
+) -> npt.NDArray[np.float32]:
+    """Apply the per-unit pitch offset and speaking speed in one pass.
+
+    Speed is a time-stretch that keeps the pitch (1.5 is faster, 0.75 slower). With a speed of 1 this
+    is exactly ``shift_pitch``; with neither setting the input array itself is returned."""
+    semitones, speed = clamp_semitones(semitones), clamp_speed(speed)
+    if speed == 1.0:
+        return shift_pitch(samples, sample_rate, semitones)
+    if len(samples) == 0:
+        return samples
+    ratio = 2.0 ** (semitones / 12.0)
+    window = int(WINDOW_S * sample_rate)
+    x = np.asarray(samples, dtype=np.float32)
+    if len(x) >= 2 * window:
+        x = _wsola_stretch(x, sample_rate, ratio / speed)
+    shifted = _resample(x, 1.0 / ratio) if ratio != 1.0 else x
+    return np.clip(shifted, -1.0, 1.0).astype(np.float32)
 
 
 def shift_pitch(

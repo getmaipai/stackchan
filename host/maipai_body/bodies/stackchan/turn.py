@@ -223,11 +223,14 @@ class StackChanAudioPlayback(AudioPlayback):
         sleeper=time.sleep,
         async_sleep=asyncio.sleep,
         pitch_semitones=lambda: 0.0,
+        speech_speed=lambda: 1.0,
     ) -> None:
         self._server = server
         self._device_id = device_id
         # The selected voice's pitch offset in semitones (0 leaves the audio untouched).
         self._pitch_semitones = pitch_semitones
+        # The unit's speaking speed (1 leaves the audio untouched).
+        self._speech_speed = speech_speed
         self._pitch_buffer: list[npt.NDArray[np.float32]] = []
         # Streaming sender state (one sentence at a time).
         self._sender_future: concurrent.futures.Future | None = None
@@ -295,8 +298,8 @@ class StackChanAudioPlayback(AudioPlayback):
 
     def push_audio_sample(self, data: npt.NDArray[np.float32]) -> None:
         with self._lock:
-            if self._pitch_semitones() != 0.0:
-                # A pitch offset needs the whole sentence (nothing is sent before stop() anyway).
+            if self._pitch_semitones() != 0.0 or self._speech_speed() != 1.0:
+                # A pitch or speed change needs the whole sentence (nothing is sent before stop() anyway).
                 self._pitch_buffer.append(data.astype(np.float32))
                 return
             self._frame_locked(data)
@@ -483,11 +486,11 @@ class StackChanAudioPlayback(AudioPlayback):
 
     def _flush_sentence_locked(self) -> None:
         if self._pitch_buffer:
-            from maipai_body.speech.pitch import shift_pitch
+            from maipai_body.speech.pitch import shape_voice
 
             whole = np.concatenate(self._pitch_buffer)
             self._pitch_buffer = []
-            self._frame_locked(shift_pitch(whole, 24000, self._pitch_semitones()))
+            self._frame_locked(shape_voice(whole, 24000, self._pitch_semitones(), self._speech_speed()))
         if len(self._samples):
             padded = np.pad(self._samples, (0, 1440 - len(self._samples)))
             frame = av.AudioFrame.from_ndarray(
@@ -1009,6 +1012,14 @@ class StackChanTurnBridge:
             return self.units.turn_for(device_id)
         return self.turn_factory(base, cookie)
 
+    def _unit_pitch(self, device_id: str) -> float:
+        """The voice record's offset plus this unit's own pitch setting."""
+        own = self.units.speech_pitch_for(device_id) if self.units is not None else 0.0
+        return float(self.pitch_semitones()) + own
+
+    def _unit_speed(self, device_id: str) -> float:
+        return self.units.speech_speed_for(device_id) if self.units is not None else 1.0
+
     def _volume_cap(self, device_id: str) -> int | None:
         return self.units.volume_cap_for(device_id) if self.units is not None else None
 
@@ -1018,7 +1029,8 @@ class StackChanTurnBridge:
                 self.server,
                 device_id,
                 clock=self._clock,
-                pitch_semitones=lambda: self.pitch_semitones(),
+                pitch_semitones=lambda d=device_id: self._unit_pitch(d),
+                speech_speed=lambda d=device_id: self._unit_speed(d),
             )
         except TypeError:
             playback = StackChanAudioPlayback(self.server, device_id)
@@ -1435,7 +1447,8 @@ class StackChanTurnBridge:
                     self.server,
                     device_id,
                     clock=self._clock,
-                    pitch_semitones=lambda: self.pitch_semitones(),
+                    pitch_semitones=lambda d=device_id: self._unit_pitch(d),
+                speech_speed=lambda d=device_id: self._unit_speed(d),
                 )
             except TypeError:
                 playback = StackChanAudioPlayback(self.server, device_id)

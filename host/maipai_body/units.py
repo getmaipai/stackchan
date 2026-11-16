@@ -106,7 +106,7 @@ class LayeredStore:
     def effective(self, device_id: str, base: dict[str, Any]) -> dict[str, Any]:
         own = self.get(device_id)
         merged = {**base, "llm": dict(base.get("llm", {}))}
-        for key in ("persona", "volume_cap", "muted", "alarms", "name"):
+        for key in ("persona", "volume_cap", "muted", "alarms", "name", "speech_speed", "speech_pitch"):
             if key in own:
                 merged[key] = own[key]
         for key, value in own.get("llm", {}).items():
@@ -165,6 +165,12 @@ class UnitRegistry:
 
     def volume_cap_for(self, device_id: str) -> int:
         return int(self.store.get(device_id).get("volume_cap", 100))
+
+    def speech_speed_for(self, device_id: str) -> float:
+        return float(self.store.get(device_id).get("speech_speed", 1.0))
+
+    def speech_pitch_for(self, device_id: str) -> float:
+        return float(self.store.get(device_id).get("speech_pitch", 0.0))
 
     def alarms_for(self, device_id: str) -> list[dict[str, Any]]:
         return list(self.store.get(device_id).get("alarms", []))
