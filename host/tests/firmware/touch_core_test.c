@@ -71,6 +71,16 @@ static void test_reserved_edges(void)
     CHECK(touch(160, 10, 160, 10, 160, 10, 700) == MTC_ACTION_NONE);
 }
 
+static void test_a_glitch_is_not_a_tap(void)
+{
+    /* patch L07: a press under MTC_TAP_MIN_MS is panel noise and toggles nothing, in every region */
+    CHECK(still(160, 40, 0) == MTC_ACTION_NONE);
+    CHECK(still(160, 40, MTC_TAP_MIN_MS - 1) == MTC_ACTION_NONE);
+    CHECK(still(82, 97, 20) == MTC_ACTION_NONE);
+    CHECK(still(160, 159, 50) == MTC_ACTION_NONE);
+    CHECK(still(160, 40, MTC_TAP_MIN_MS) == MTC_ACTION_QUIET);
+}
+
 static void test_eyes_toggle_vision_on_a_tap(void)
 {
     CHECK(still(82, 97, 80) == MTC_ACTION_VISION);
@@ -146,6 +156,7 @@ int main(void)
 {
     test_regions_tile_the_screen();
     test_reserved_edges();
+    test_a_glitch_is_not_a_tap();
     test_eyes_toggle_vision_on_a_tap();
     test_mouth_and_forehead_take_a_tap_only();
     test_a_stray_finger_is_a_drag();

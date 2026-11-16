@@ -1,0 +1,51 @@
+# Intent: Wake front end with no echo canceller (legacy patch 083). AUDIO_INPUT_REFERENCE is true but the second input channel is MIC2, a second microphone 2 cm from the first, not a speaker loopback. An echo canceller fed a microphone learns the room and cancels the person's voice, so the wake word goes deaf after hours and room noise and voice residue trigger the detector. The AFE input format is now MN (second channel unused), aec_init is false and the canceller is never enabled. Measured on the owned unit 2026-11-16: 600 s idle with no phrase played, 3 false wake callbacks and 6 replies before, 0 and 0 after (with L03 and L05; one run each).
+# Placement: unit (the wake engine runs on the robot)
+# Upstream: firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc of the xiaozhi-esp32 tree (MIT); legacy 083-wake-no-echo-reference
+# Check after a flash: the unit still wakes on 'Hi, Stack Chan' (injected phrase 5 of 5 at 35 to 100 percent level); 10 idle minutes with a person in the room and no phrase give no wake callback from room sound.
+
+diff --git a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+index 10ff116..202b6a8 100644
+--- a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
++++ b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+@@ -153,8 +153,11 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
+     for (int i = 0; i < codec_->input_channels() - ref_num; ++i) {
+         input_format.push_back('M');
+     }
++    // Patch L01 (legacy 083): on this board the second channel is MIC2, a second microphone 2 cm from the first,
++    // not a speaker loopback. An echo canceller fed a microphone learns the room and then cancels the person's
++    // voice, so the wake word goes deaf and the voice detector fires on the residue. Declare the channel unused.
+     for (int i = 0; i < ref_num; ++i) {
+-        input_format.push_back('R');
++        input_format.push_back('N');
+     }
+ 
+     char* vad_model_name =
+@@ -166,7 +169,7 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
+         return false;
+     }
+ 
+-    afe_config->aec_init = codec_->input_reference();
++    afe_config->aec_init = false;  // patch L01: no real echo reference on this board
+     afe_config->aec_mode = AEC_MODE_FD_LOW_COST;
+     afe_config->aec_nlp_level = AEC_NLP_LEVEL_VERYAGGR;
+     afe_config->ns_init = false;
+@@ -217,9 +220,7 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
+     if (wake_detector_ == WakeDetector::kWakeNet) {
+         afe_iface_->disable_wakenet(afe_data_);
+     }
+-    if (codec_->input_reference()) {
+-        afe_iface_->disable_aec(afe_data_);
+-    }
++    // patch L01: no AEC stage exists (aec_init is false), so nothing to disable
+     afe_iface_->print_pipeline(afe_data_);
+ 
+     if (processing_task_stack_ == nullptr) {
+@@ -410,7 +411,7 @@ void AfeAudioEngine::ApplyAfeControls() {
+             afe_iface_->disable_wakenet(afe_data_);
+         }
+     }
+-    if (codec_->input_reference()) {
++    if (false && codec_->input_reference()) {  // patch L01: never enable an echo canceller on a microphone reference
+         const bool enable_aec = (bits & kWakeWordEnabled) ||
+                                 (device_aec_enabled_.load() && (bits & kVoiceProcessingEnabled));
+         if (enable_aec) {

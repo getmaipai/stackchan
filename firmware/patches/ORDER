@@ -108,3 +108,11 @@ H04-picture-face-unit.patch
 I01-orientation-event.patch
 W01-screen-wake-and-saved-level.patch
 R04-restart-guard-back-off.patch
+L01-wake-no-echo-reference.patch
+L03-followup-window-8s.patch
+L04-ignore-idle-host-looks.patch
+L05-wake-det-mode-95.patch
+L06-bench-latency-trace.patch
+L07-privacy-source-and-touch-debounce.patch
+L08-no-connecting-flash.patch
+L09-stop-word-not-probed.patch

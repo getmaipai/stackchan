@@ -1,0 +1,17 @@
+# Intent: Stricter wake trigger: wakenet_mode DET_MODE_95 (was the default DET_MODE_90) for the Hi, Stack Chan model, so steady noise and speech-like sounds trigger less. The injected wake phrase was still detected 5 of 5 at 100, 60 and 35 percent level on the unit (clean TTS voice; a quiet real voice at a distance was not tried).
+# Placement: unit (the wake engine runs on the robot)
+# Upstream: firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc of the xiaozhi-esp32 tree (MIT)
+# Check after a flash: boot log 'wakenet9l ... mode:1'; the phrase still wakes the unit at 1 m.
+
+diff --git a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+index 202b6a8..b99b9ef 100644
+--- a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
++++ b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+@@ -179,6 +179,7 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
+     if (vad_model_name != nullptr) {
+         afe_config->vad_model_name = vad_model_name;
+     }
++    afe_config->wakenet_mode = DET_MODE_95;  // patch L05: stricter trigger (was DET_MODE_90): fewer false wakes on steady noise
+     afe_config->wakenet_init = wake_detector_ == WakeDetector::kWakeNet;
+     afe_config->wakenet_model_name = nullptr;
+     afe_config->wakenet_model_name_2 = nullptr;

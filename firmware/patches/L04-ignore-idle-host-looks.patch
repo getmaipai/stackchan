@@ -1,0 +1,66 @@
+# Intent: A look-around by itself is not a command. self.robot.set_head_angles is answered ok and ignored while the device is idle (no turn, not listening, not speaking) and the person has not turned idle movement on (the saved choice, off by default). Measured on the unit 2026-11-16: the hub host moved the head 53 times in 600 s with nobody speaking; 4 times after the fixes.
+# Placement: unit (the head tool runs on the robot)
+# Upstream: firmware/main/hal/hal_mcp.cpp, firmware/main/hal/board/hal_bridge.cc of this tree (patches 037, 038)
+# Check after a flash: idle for 10 minutes the log shows no 'motion set_angles' lines; during a turn a spoken 'look left' still moves the head.
+
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 6a4035a..524a308 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -272,6 +272,10 @@ void Hal::xiaozhi_mcp_init()
+                                               kMaxHeadMovesPerMinute);
+                                return false;
+                            }
++                           if (hal_bridge::host_idle_look_ignored()) {
++                               mclog::tagInfo(_tag, "set_head_angles ignored: idle and idle movement is off");
++                               return true;  // patch L04: still the default; answered ok so the host does not retry
++                           }
+                            int speed = properties["speed"].value<int>();
+                            int yaw   = properties["yaw"].value<int>();
+                            int pitch = properties["pitch"].value<int>();
+diff --git a/firmware/main/hal/board/hal_bridge.cc b/firmware/main/hal/board/hal_bridge.cc
+index 23bcd0a..de7f904 100644
+--- a/firmware/main/hal/board/hal_bridge.cc
++++ b/firmware/main/hal/board/hal_bridge.cc
+@@ -103,6 +103,15 @@ void display_set_idle_motion_enabled(bool enabled)
+     display->SetIdleMotionEnabled(enabled);
+ }
+ 
++bool host_idle_look_ignored()
++{
++    auto display = static_cast<DISPLAY_TYPE*>(Board::GetInstance().GetDisplay());
++    if (display == nullptr || display->IsIdleMotionEnabled()) {
++        return false;
++    }
++    return Application::GetInstance().GetDeviceState() == kDeviceStateIdle;
++}
++
+ void disply_lvgl_unlock()
+ {
+     auto display = static_cast<DISPLAY_TYPE*>(Board::GetInstance().GetDisplay());
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+index 85002ee..1c772e1 100644
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -46,6 +46,9 @@ void disply_lvgl_lock();
+ void disply_lvgl_unlock();
+ lv_disp_t* display_get_lvgl_display();
+ void display_set_idle_motion_enabled(bool enabled);
++// Patch L04: true when a host head move should be ignored: the unit is idle (no turn, not listening or speaking) and
++// the person has not turned idle movement on. A look-around by itself is not a command.
++bool host_idle_look_ignored();
+ 
+ void xiaozhi_board_init();
+ void start_xiaozhi_app();
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+index 80a98a4..721d5df 100644
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -127,6 +127,7 @@ public:
+     void RefreshMood();
+ 
+     void SetIdleMotionEnabled(bool enabled);
++    bool IsIdleMotionEnabled() const { return idle_motion_enabled_; }
+     void LvglLock();
+     void LvglUnlock();
+     // The face looks of mute, vision off and full quiet (patch 105). The caller holds the LVGL lock.

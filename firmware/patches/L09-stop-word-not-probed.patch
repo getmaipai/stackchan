@@ -1,0 +1,33 @@
+# Intent: Do not load the stop word model (legacy 053, stop word off). The model costs 11 to 14 KB of internal RAM on every build here, always over the 6 KB limit, so it was created only to be destroyed; the probe held about 2.3 MB of PSRAM for seconds at boot (psram_min 5.76 MB against the 6 MB gate) and delayed the wake engine start. The decision was static, so the probe is off (kStopWordProbe).
+# Placement: unit (the audio engine runs on the robot)
+# Upstream: firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc of the xiaozhi-esp32 tree (MIT); patches 049, TN04; legacy 053
+# Check after a flash: no 'Stop word model' line at boot; psram_min stays above 8 MB through the first minutes.
+
+diff --git a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+index b99b9ef..c66aa28 100644
+--- a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
++++ b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+@@ -26,6 +26,8 @@ static constexpr bool kUseAfeForVoiceProcessing = true;
+ static constexpr bool kUseAfeForVoiceProcessing = false;
+ #endif
+ 
++static constexpr bool kStopWordProbe = false;  // patch L09
++
+ AfeAudioEngine::AfeAudioEngine() { event_group_ = xEventGroupCreate(); }
+ 
+ AfeAudioEngine::~AfeAudioEngine() {
+@@ -138,8 +140,13 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
+     }
+ 
+ #if !CONFIG_USE_CUSTOM_WAKE_WORD
+-    if (wake_detector_ == WakeDetector::kWakeNet && stop_model_name != nullptr) {
++    // Patch L09 (legacy 053, stop word off): the model costs 11 to 14 KB of internal RAM on every build here, always
++    // over the 6 KB limit, so it was loaded only to be thrown away. That probe held about 2.3 MB of PSRAM for a few
++    // seconds at boot (psram_min 5.76 MB against the 6 MB gate) and delayed the wake engine. Not loaded at all now.
++    if (kStopWordProbe && wake_detector_ == WakeDetector::kWakeNet && stop_model_name != nullptr) {
+         InitStopWord(stop_model_name);
++    } else {
++        stop_disabled_ = true;
+     }
+ #endif
+     const bool needs_afe = kUseAfeForVoiceProcessing || wake_detector_ != WakeDetector::kNone;

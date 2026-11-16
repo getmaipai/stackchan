@@ -1,0 +1,29 @@
+# Intent: Follow-up listening window 8 s instead of 20 s. After a reply the unit keeps listening with no wake word; with no echo canceller it hears its own reply tail, servo noise and the room, the host answers it and replies chain (2 to 4 replies per question seen on the unit). The state guard that returns Listening to Idle now uses kFollowUpListenSeconds (8).
+# Placement: unit (the listening state machine runs on the robot)
+# Upstream: firmware/xiaozhi-esp32/main/application.cc of the xiaozhi-esp32 tree (MIT); patch 068 carries the guard
+# Check after a flash: after a reply with no speech the log shows 'State guard returning listening to idle after 8 seconds'.
+
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index 6021e2f..4f61e69 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -31,6 +31,10 @@
+ 
+ #define TAG "Application"
+ 
++// Patch L03: how long the unit keeps listening for a follow-up, with no wake word, before it goes back to idle.
++// It was 20 s: with no echo canceller the unit heard its own reply and the room (a fan) and the host answered it.
++static constexpr uint32_t kFollowUpListenSeconds = 8;
++
+ Application::Application() : notify_player_(audio_service_) {
+     event_group_ = xEventGroupCreate();
+ 
+@@ -324,7 +328,7 @@ void Application::Run() {
+             } else {
+                 const uint32_t held = guard_clock - guard_since_tick;
+                 if ((guard_state == kDeviceStateConnecting && held >= 8) ||
+-                    (guard_state == kDeviceStateListening && held >= 20)) {
++                    (guard_state == kDeviceStateListening && held >= kFollowUpListenSeconds)) {
+                     ESP_LOGW(TAG, "State guard returning %s to idle after %u seconds",
+                              DeviceStateMachine::GetStateName(guard_state),
+                              static_cast<unsigned>(held));

@@ -1,0 +1,27 @@
+# Intent: No 'connecting' flash at the wake word. With the persistent socket open the wake word passes through the Connecting state in about 4 ms (traced), and the stock status text 'connecting' flashed on the screen every time. The text, the neutral face and the cleared bubble are now set only when the audio channel really has to be opened. Wake to first uplink frame is unchanged (135 ms, the stock 120 ms input warm-up plus one frame).
+# Placement: unit (the state display runs on the robot)
+# Upstream: firmware/xiaozhi-esp32/main/application.cc of the xiaozhi-esp32 tree (MIT); patch 003 (persistent socket)
+# Check after a flash: say the wake word with the hub up: the screen goes straight to listening with no 'connecting' text.
+
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index ab0e1ab..a084340 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -1144,9 +1144,14 @@ void Application::HandleStateChangedEvent() {
+             Board::GetInstance().SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
+             break;
+         case kDeviceStateConnecting:
+-            display->SetStatus(Lang::Strings::CONNECTING);
+-            display->SetEmotion("neutral");
+-            display->SetChatMessage("system", "");
++            // Patch L08: with the persistent socket already open the wake word passes through this state in a few
++            // milliseconds (traced: 4 ms); "connecting" flashed on the screen every time. Say it only when the
++            // channel really has to be opened.
++            if (!protocol_ || !protocol_->IsAudioChannelOpened()) {
++                display->SetStatus(Lang::Strings::CONNECTING);
++                display->SetEmotion("neutral");
++                display->SetChatMessage("system", "");
++            }
+             break;
+         case kDeviceStateListening:
+             display->SetStatus(Lang::Strings::LISTENING);

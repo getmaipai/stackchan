@@ -1,0 +1,53 @@
+# Intent: Find and stop the unit switching itself to quiet or mute with nobody touching it (seen twice in 40 minutes on 2026-11-16, mute_source face, which stops the wake word). Every change of mute, vision or quiet now logs its source at WARN (face, home or boot), every face toggle logs its action, point and press time, and a press shorter than 70 ms (MTC_TAP_MIN_MS) is panel noise and toggles nothing. Taps on a dimmed screen already only wake it (patch W01); the host's own privacy.set is logged as source home.
+# Placement: unit (the touch handler runs on the robot)
+# Upstream: firmware/main/hal/maipai_touch_core.h, maipai_privacy.cpp, board/stackchan_display.cc of this tree (patches 105, W01); test host/tests/firmware/touch_core_test.c
+# Check after a flash: a real tap on the forehead still toggles quiet and logs 'face touch toggle'; after a toggle the log has 'state: ... (source face)'; a 30 ms brush toggles nothing.
+
+diff --git a/firmware/main/hal/maipai_touch_core.h b/firmware/main/hal/maipai_touch_core.h
+index ec337c4..5f4419e 100644
+--- a/firmware/main/hal/maipai_touch_core.h
++++ b/firmware/main/hal/maipai_touch_core.h
+@@ -32,6 +32,7 @@
+ #define MTC_EDGE_BOTTOM 20
+ 
+ #define MTC_STILL_PX 10    /* farthest a tap or hold may stray from where it went down */
++#define MTC_TAP_MIN_MS 70   /* a press shorter than this is panel noise (a glitch or a brushed edge), not a finger */
+ #define MTC_TAP_MAX_MS 400
+ #define MTC_HOLD_MS 500
+ 
+@@ -126,6 +127,9 @@ static inline mtc_kind_t mtc_classify(const mtc_trace_t* trace)
+         return MTC_KIND_DRAG;
+     }
+     const uint32_t held = trace->t - trace->t0;
++    if (held < MTC_TAP_MIN_MS) {
++        return MTC_KIND_NONE; /* patch L07: too short to be a person */
++    }
+     if (held <= MTC_TAP_MAX_MS) {
+         return MTC_KIND_TAP;
+     }
+diff --git a/firmware/main/hal/maipai_privacy.cpp b/firmware/main/hal/maipai_privacy.cpp
+index 33f47d1..8996834 100644
+--- a/firmware/main/hal/maipai_privacy.cpp
++++ b/firmware/main/hal/maipai_privacy.cpp
+@@ -71,7 +71,7 @@ void announce(const char* source)
+     char with_source[300];
+     snprintf(with_source, sizeof(with_source), "%s,\"source\":\"%s\"", extra, source);
+     device_events_push("privacy", with_source);
+-    ESP_LOGI(TAG, "state: %s (source %s)", extra, source);
++    ESP_LOGW(TAG, "state: %s (source %s)", extra, source);  // patch L07: every change names its source, at WARN so the release log has it
+ }
+ 
+ // Runs on the main task: the saving, then the microphone, then the report.
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index bc5fac5..49a830d 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -1451,6 +1451,8 @@ void StackChanAvatarDisplay::OnFaceRelease(lv_event_t* event)
+     mtc_move(&s_trace, point.x, point.y, GetHAL().millis());
+     const mtc_action_t action = mtc_action_on_release(&s_trace);
+     if (action != MTC_ACTION_NONE) {
++        ESP_LOGW(TAG, "face touch toggle: action %d at (%d,%d) held %u ms", static_cast<int>(action), s_trace.x0, s_trace.y0,
++                 static_cast<unsigned>(s_trace.t - s_trace.t0));  // patch L07
+         self->OnFaceToggle(static_cast<int>(action));
+     }
+ }
