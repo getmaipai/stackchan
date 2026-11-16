@@ -463,6 +463,7 @@ BUILDERS.voice=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'overv
   toggle(T('voice.mic_mute'),T('voice.mute_help'),pr?pr.mute:u.muted,async on=>(await save(unitPath(id,'device'),{mute:on})).ok),toggle(T('voice.speaker_mute'),null,false,()=>false,true));
  const speech=card(S['settings.ui.nav.voice'],null,slider(T('voice.speed'),.75,1.5,.05,u.speech_speed,x=>x.toFixed(2)+'x',null,x=>unitSet(id,{speech_speed:x}),[T('voice.slow'),T('voice.fast')]),
   slider(T('voice.pitch'),-12,12,1,u.speech_pitch,x=>(x>0?'+':'')+x,null,x=>unitSet(id,{speech_pitch:x}),['-12',(+12)+'']),
+  seg(T('Wait after you stop talking'),[{v:'quick',t:T('Quick')},{v:'normal',t:T('Normal')},{v:'patient',t:T('Patient')}],u.wait_after_talking||'quick',async m=>(await unitSet(id,{wait_after_talking:m})).ok),h('p',{class:'help'},T('How long it waits in silence before it answers. Patient suits slow talkers.')),
   seg(T('Ignore background noise'),[{v:'low',t:T('Low')},{v:'medium',t:T('Medium')},{v:'high',t:T('High')}],u.ignore_noise||'medium',async m=>(await unitSet(id,{ignore_noise:m})).ok),h('p',{class:'help'},T('Higher ignores more fans and hiss, but may miss quiet speech.')),
   toggle(T('face.thinking_tone'),null,v.thinking_tone,async on=>(await save(facePath(id),{thinking_tone:on})).ok,!has('thinking')));
  const wake=card(T('voice.wake'),T('voice.wake_help'),toggle(T('voice.wake'),null,true,()=>false,true),slider(T('voice.wake_sens'),0,100,5,50,x=>x+'%',null,null,null,true),toggle(T('voice.stop_word'),null,true,()=>false,true));
@@ -508,6 +509,8 @@ async function tsCard(p,u){const id=u.device_id,tv=await api(unitPath(id,'travel
 /* ---- BEHAVIOUR ---- */
 BUILDERS.behaviour=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'overview')),sv=ov.ok?ov.d.saved:{idle_motion:true},pr=ov.ok?ov.d.privacy:null;
  const body=card(T('beh.head'),null,seg(T('Idle movement'),[{v:'off',t:T('Off')},{v:'calm',t:T('Calm')},{v:'lively',t:T('Lively')}],sv.idle_movement||'off',async m=>(await save(unitPath(id,'device'),{idle_movement:m})).ok),h('p',{class:'help'},T('Off keeps the head still until it is spoken to. Calm and lively let it look around when nobody is talking.')),
+  toggle(T('Look toward the speaker'),T('Turns or glances toward you when you start talking.'),!!sv.look_speaker,async on=>(await save(unitPath(id,'device'),{look_speaker:on})).ok),
+  toggle(T('Look for faces'),T('Searches the room with the camera when something moves. Needs the camera on.'),!!sv.look_faces,async on=>(await save(unitPath(id,'device'),{look_faces:on})).ok),
   toggle(T('beh.sleep'),T('beh.sleep_help'),false,()=>false,true));
  const priv=card(S['settings.ui.nav.privacy'],T('privacy.lead'),toggle(T('beh.vision'),T('beh.vision_help'),pr?pr.vision_off:false,async on=>(await save(unitPath(id,'device'),{vision_off:on})).ok,!pr),
   toggle(T('beh.quiet_mode'),T('beh.quiet_mode_help'),pr?pr.quiet:false,async on=>(await save(unitPath(id,'device'),{quiet:on})).ok,!pr),

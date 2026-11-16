@@ -27,7 +27,70 @@ LOG = logging.getLogger("maipai_body.speech.local_speech")
 # after this much quiet. A hard cap keeps one turn from recording forever.
 _START_RMS = 0.012
 _FLOOR_MULTIPLE = 3.0
-_END_QUIET_S = 0.9
+_END_QUIET_S = 0.9  # the "normal" wait; quick and patient are in WAIT_S
+# Wait after you stop talking (setting): seconds of quiet that end the utterance, plus one more
+# hold when the words so far stop mid-clause.
+WAIT_S = {"quick": 0.65, "normal": 0.9, "patient": 1.3}
+EXTRA_HOLD_S = 0.4
+_JOINERS = {
+    "and",
+    "but",
+    "so",
+    "because",
+    "or",
+    "then",
+    "if",
+    "to",
+    "with",
+    "that",
+    "when",
+    "while",
+}
+_OPEN_ENDINGS = {
+    "and",
+    "but",
+    "so",
+    "because",
+    "to",
+    "or",
+    "then",
+    "if",
+    "with",
+    "that",
+    "the",
+    "a",
+    "an",
+    "of",
+    "for",
+    "in",
+    "on",
+    "at",
+    "my",
+    "your",
+    "is",
+    "are",
+    "um",
+    "uh",
+    "like",
+    "when",
+    "while",
+}
+
+
+def unfinished(text: str) -> bool:
+    """True when the words so far stop mid-clause (a comma, a dash, or a joining word last)."""
+    cleaned = text.strip().lower()
+    if not cleaned:
+        return False
+    if cleaned.endswith((",", "-", "\u2026", "...", ";", ":")):
+        return True
+    ended = cleaned.endswith((".", "?", "!"))
+    last = (cleaned.rstrip(".?! ").split()[-1:] or [""])[0].strip(",")
+    if ended:  # a full stop closes a phrase unless a joining word is the last word
+        return last in _JOINERS
+    return last in _OPEN_ENDINGS
+
+
 _MAX_UTTERANCE_S = 20.0
 _PRE_ROLL_BLOCKS = 10
 _BLOCK_S = 0.032
@@ -61,11 +124,26 @@ class LocalSttClient:
         session: requests.Session | None = None,
         timeout_s: float = 30.0,
         wake_patience_s: float = WAKE_PATIENCE_S,
+        wait=lambda: "quick",
     ) -> None:
+        self._wait = wait
         self._url = _url(stt_url, "/v1/audio/transcriptions")
         self._model, self._timeout = model, timeout_s
         self._session = session or requests.Session()
         self._patience = wake_patience_s
+
+    def _transcribe(self, samples: np.ndarray) -> str:
+        try:
+            response = self._session.post(
+                self._url,
+                files={"file": ("speech.wav", _wav_bytes(samples), "audio/wav")},
+                data={"model": self._model} if self._model else None,
+                timeout=self._timeout,
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise SttStreamError(f"local speech-to-text failed: {exc}") from exc
+        return str(response.json().get("text", "")).strip()
 
     def run(self, capture, *, patience_s: float | None = None) -> SttStreamResult:
         began = time.monotonic()
@@ -78,6 +156,9 @@ class LocalSttClient:
         loud_run = 0
         quiet = 0.0
         total = 0.0
+        wait_s = WAIT_S.get(self._wait(), WAIT_S["quick"])
+        extended = False
+        text: str | None = None
         while True:
             now = time.monotonic()
             if not speaking and now >= deadline:
@@ -113,25 +194,25 @@ class LocalSttClient:
                 total += _BLOCK_S
                 if rms > max(_START_RMS * 0.6, 1.5 * (floor or 0.0)):
                     quiet = 0.0
+                    extended = False
                 else:
                     quiet += _BLOCK_S
-            if speaking and quiet >= _END_QUIET_S:
+            if speaking and quiet >= wait_s + (EXTRA_HOLD_S if extended else 0.0):
+                # Words so far, to see whether the person stopped mid-clause ("and ...").
+                text = self._transcribe(np.concatenate(kept))
+                if not extended and unfinished(text):
+                    extended = True
+                    LOG.info(
+                        "local speech: the words stop mid-clause; holding %.1f s more", EXTRA_HOLD_S
+                    )
+                    continue
                 break
         samples = np.concatenate(kept) if kept else np.zeros(0, dtype=np.float32)
         if samples.size < 16000 * 0.25:
             return SttStreamResult(kind="no_speech")
         ended = time.monotonic()
-        try:
-            response = self._session.post(
-                self._url,
-                files={"file": ("speech.wav", _wav_bytes(samples), "audio/wav")},
-                data={"model": self._model} if self._model else None,
-                timeout=self._timeout,
-            )
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            raise SttStreamError(f"local speech-to-text failed: {exc}") from exc
-        text = str(response.json().get("text", "")).strip()
+        if text is None:
+            text = self._transcribe(samples)
         LOG.info(
             "local speech: speech began %.2f s after listening opened, ended %.2f s later "
             "(%.2f s of audio), transcribed in %.2f s",
@@ -143,7 +224,10 @@ class LocalSttClient:
         if not text:
             return SttStreamResult(kind="no_speech")
         return SttStreamResult(
-            kind="final", text=text, audio=samples, speech_s=total,
+            kind="final",
+            text=text,
+            audio=samples,
+            speech_s=total,
             engine=f"local speech server {self._url.split('/v1')[0]}",
         )
 

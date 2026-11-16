@@ -658,7 +658,9 @@ class StackChanTurnBridge:
             from maipai_body.speech.local_speech import LocalSttClient, LocalTtsClient
 
             stt_url, tts_url, timeout = self._local_speech
-            self.stt_factory = lambda _base, _cookie: LocalSttClient(stt_url, timeout_s=timeout)
+            self.stt_factory = lambda _base, _cookie: LocalSttClient(
+                stt_url, timeout_s=timeout, wait=lambda: self._wait_level
+            )
             self.tts_factory = lambda _base, _cookie, playback: LocalTtsClient(
                 tts_url, playback, timeout_s=timeout
             )
@@ -694,6 +696,7 @@ class StackChanTurnBridge:
         # The audio half of the noise gate (steady noise, too little voiced sound). Plumbing tests
         # that feed a synthetic tone as "speech" turn it off; the words check stays on.
         self.audio_noise_gate = True
+        self._wait_level = "quick"  # "Wait after you stop talking", read per turn
         # The selected voice record's pitch_semitones (-12 to 12); 0 changes nothing.
         self.pitch_semitones = lambda: 0.0
         self._breaker = ErrorLineBreaker(clock=clock)
@@ -1157,6 +1160,9 @@ class StackChanTurnBridge:
             )
             if self._local_speech is not None:
                 base, cookie = "local", "local"
+                store = getattr(self.units, "store", None)
+                level = store.get(device_id).get("wait_after_talking") if store else None
+                self._wait_level = level if level in ("quick", "normal", "patient") else "quick"
             if not cookie or not base:
                 LOG.warning(
                     "StackChan voice: no hub session (cookie %s, address %s); answering with the "

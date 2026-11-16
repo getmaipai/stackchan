@@ -122,6 +122,7 @@ class _Vision:
 def _behavior(vision):
     device = FakeStackChanDeviceClient()
     behavior = StackChanBehavior(StackChanRobotAdapter(device).robot, vision_bridge=vision)
+    behavior.look_toward_speaker = behavior.look_for_faces = True  # off by default
     behavior.idle_level = "normal"
     behavior.idle_still = lambda: False
     behavior.watch_level = lambda: "presence"

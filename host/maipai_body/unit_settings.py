@@ -126,6 +126,15 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if values["idle_movement"] not in ("off", "calm", "lively"):
             raise SettingsError("Idle movement must be off, calm or lively. Pick one and save again.")
         out["idle_movement"] = values["idle_movement"]
+    for flag in ("look_speaker", "look_faces"):
+        if flag in values:
+            if not isinstance(values[flag], bool):
+                raise SettingsError("That setting must be on or off.")
+            out[flag] = values[flag]
+    if "wait_after_talking" in values:
+        if values["wait_after_talking"] not in ("quick", "normal", "patient"):
+            raise SettingsError("Wait after you stop talking must be quick, normal or patient.")
+        out["wait_after_talking"] = values["wait_after_talking"]
     if "ignore_noise" in values:
         if values["ignore_noise"] not in ("low", "medium", "high"):
             raise SettingsError("Ignore background noise must be low, medium or high. Pick one and save again.")
@@ -135,7 +144,7 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if led != "off" and not (isinstance(led, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", led)):
             raise SettingsError("The light ring colour must be off or a code like #40c0ff. Pick a colour and save again.")
         out["led"] = led.lower()
-    unknown = set(values) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "led"}
+    unknown = set(values) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "wait_after_talking", "led"}
     if unknown:
         raise SettingsError(f"Unknown setting {sorted(unknown)[0]}. Remove it and save again.")
     return out

@@ -59,7 +59,7 @@ from maipai_body.bodies.stackchan.person_tracker import (
 )
 from maipai_body.expression.engine import ExpressionEngine
 from maipai_body.expression.suppression import SuppressionContext
-from maipai_body.hal.errors import BodyLost
+from maipai_body.hal.errors import BodyLost, NotPermitted
 from maipai_body.hal.seam import AntennaPositions, HeadActuator, HeadPose, Indicator, NullIndicator
 from maipai_body.indicator.director import EyesDirector
 from maipai_body.indicator.live import LiveCaptureTap
@@ -237,6 +237,12 @@ class StackChanBehavior:
         # robot.idle.level from the settings frame (still, calm, lively). Still until the hub says
         # otherwise: a fresh or lost-settings unit never wanders (owner request 2026-10-20).
         self.idle_level = "still"
+        # Owner settings "Look toward the speaker" and "Look for faces" (both off until chosen):
+        # the head turns toward a face or body at listen start, glances up after someone speaks,
+        # and searches for faces on its own only when these are on (a person's spoken "find me"
+        # request always works).
+        self.look_toward_speaker = False
+        self.look_for_faces = False
         # Why the unit is occupied (a turn is running, or full quiet is on), "" when free: set once
         # the voice bridge exists. No idle look starts while it is not empty.
         self.head_busy: Callable[[], str] = lambda: ""
@@ -532,9 +538,10 @@ class StackChanBehavior:
             )
             glanced = False
             if state == "listening":
-                self._turn_face_held = may_move and self._turn_toward_face()
+                aim = may_move and self.look_toward_speaker
+                self._turn_face_held = aim and self._turn_toward_face()
                 # The glance up replaces the listening perk; both are the one listening move.
-                glanced = not self._turn_face_held and may_move and self._glance_up_for_speaker()
+                glanced = not self._turn_face_held and aim and self._glance_up_for_speaker()
             if primitive is not None and may_move and not self._turn_face_held and not glanced:
                 self._head_off_centre = True
                 self._expression.render_ambient(primitive, SuppressionContext())
@@ -814,6 +821,11 @@ class StackChanBehavior:
         no_face = face_age is None or face_age > self.SEARCH_FACE_GONE_S
         moved = motion_age is not None and motion_age <= self.SEARCH_MOTION_FRESH_S
         thumb = look[3] if look is not None and len(look) > 3 else None
+        if not self.look_toward_speaker:
+            self._search_after_turn = False
+        if not self.look_for_faces and not self._search_after_turn:
+            self._ambient_since = None
+            return
         if no_face and self._search_after_turn:
             self._search_after_turn = False
             box = (
@@ -1237,6 +1249,12 @@ class StackChanBehavior:
         if self._active.is_set():
             try:
                 move()
+            except NotPermitted:
+                # The turn's own lease was already released: take one for this move, or skip it.
+                try:
+                    self._with_lease(move)
+                except Exception:
+                    self._warn_limited("search", "StackChan head move skipped: no lease")
             except Exception:
                 self._warn_limited("search", "StackChan head move failed")
         else:
@@ -1912,7 +1930,9 @@ def _start_stackchan_night(
             except Exception:
                 logger.warning("a settings listener failed", exc_info=True)
 
-    if link is not None:
+    if link is not None and _no_hub_configured():
+        logger.info("no hub URL is set: the hub command channel is off")
+    elif link is not None:
         channel = CommandChannel(
             "",
             "",
@@ -2214,7 +2234,15 @@ def _unit_remote(voice):
         except Exception:
             return None
 
-    return UnitRemote(_unit_call(voice), photo=photo if loop is not None else None)
+    def speak(text):
+        say_text = getattr(voice, "say_text", None)
+        return bool(say_text(text)) if say_text is not None else False
+
+    return UnitRemote(
+        _unit_call(voice),
+        photo=photo if loop is not None else None,
+        speak=speak if getattr(voice, "say_text", None) is not None else None,
+    )
 
 
 def _picture_service(voice):
@@ -2781,6 +2809,7 @@ async def _serve_stackchan_channels(
         _wire_orientation(voice, behavior, bridge, night, power)
         bridge.on_user_words = reactions.on_user_words
         bridge.language = units.base.home.language
+        voice.say_text = bridge.speak_reaction  # the Remote page's "Say something"
 
         def _head_busy() -> str:
             if getattr(getattr(behavior, "privacy", None), "quiet", False):
@@ -2847,11 +2876,22 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
         if level in _IDLE_LEVELS:
             behavior.idle_level = _IDLE_LEVELS[level]
             behavior.on_idle_level()
+        for key, attr in (("look_speaker", "look_toward_speaker"), ("look_faces", "look_for_faces")):
+            if isinstance(values.get(key), bool):
+                setattr(behavior, attr, values[key])
 
     backend.on_saved = apply
 
     def on_connect(device_id: str) -> None:
-        apply(device_id, {"idle_movement": units.store.get(device_id).get("idle_movement", "off")})
+        own = units.store.get(device_id)
+        apply(
+            device_id,
+            {
+                "idle_movement": own.get("idle_movement", "off"),
+                "look_speaker": own.get("look_speaker", False),
+                "look_faces": own.get("look_faces", False),
+            },
+        )
 
     voice.session_listeners.append(on_connect)
 
@@ -3711,6 +3751,11 @@ def _wire_orientation(voice: Any, behavior: Any, bridge: Any, night: Any, power:
     bridge.on_turn_end = orientation.on_turn_end
 
 
+def _no_hub_configured() -> bool:
+    """A hosted StackChan with no Home URL (robot.toml brain "llm"): nothing to report to."""
+    return os.environ.get("MAIPAI_HUB_HOST") == "1" and not os.environ.get("MAIPAI_HUB_URL", "").strip()
+
+
 def _start_robot_checkin(voice: Any, behavior: Any, link: LinkLifecycle, stop_event: Any) -> None:
     """Report the connected StackChan to the hub: address, firmware, memory, boot reason."""
     from maipai_body.link.checkin import (
@@ -3794,6 +3839,9 @@ def _start_robot_checkin(voice: Any, behavior: Any, link: LinkLifecycle, stop_ev
         return payload
 
     link_logged: list[str | None] = [None]
+    if _no_hub_configured():
+        logger.info("no hub URL is set: the hub check-in is off (the unit's facts stay local)")
+        return
     reporter = RobotCheckin(
         _hub_credentials_reader(link, ""), stop_event, collect, facts, connected
     )
@@ -4107,21 +4155,28 @@ class MaiPaiBody(ReachyMiniApp):
         previous_handler = signal.getsignal(signal.SIGINT)
         signal.signal(signal.SIGINT, _sigint_handler(stop_event))
         if _stackchan_selected():
-            link_thread = threading.Thread(
-                target=self.link.run, args=(stop_event,), name="hub-link", daemon=True
-            )
-            link_thread.start()
-            supervisor_thread = threading.Thread(
-                target=self._stack.supervisor.run,
-                args=(stop_event,),
-                name="link-supervisor",
-                daemon=True,
-            )
-            supervisor_thread.start()
+            link_thread = None
+            if _no_hub_configured():
+                logger.info(
+                    "no hub URL is set: the hub link, command channel and check-in are off"
+                )
+            else:
+                link_thread = threading.Thread(
+                    target=self.link.run, args=(stop_event,), name="hub-link", daemon=True
+                )
+                link_thread.start()
+                supervisor_thread = threading.Thread(
+                    target=self._stack.supervisor.run,
+                    args=(stop_event,),
+                    name="link-supervisor",
+                    daemon=True,
+                )
+                supervisor_thread.start()
             try:
                 _run_stackchan_service(stop_event, self.link, self._stack.offline)
             finally:
-                link_thread.join(timeout=5.0)
+                if link_thread is not None:
+                    link_thread.join(timeout=5.0)
                 signal.signal(signal.SIGINT, previous_handler)
             return
         link_thread = threading.Thread(

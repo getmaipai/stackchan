@@ -63,10 +63,13 @@ class UnitRemote:
         call: Callable[..., object],
         *,
         photo: Callable[[str], bytes | None] | None = None,
+        speak: Callable[[str], bool] | None = None,
         sleep: Callable[[float], None] = time.sleep,
         timeout: float = 4.0,
     ) -> None:
         self._call, self._photo, self._sleep, self._timeout = call, photo, sleep, timeout
+        # The host's own text-to-speech through the voice link (the unit has no speak tool).
+        self._speak = speak
         self._finders: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
 
@@ -157,6 +160,13 @@ class UnitRemote:
     def say(self, unit_id: str, text: object, lang: str | None = None) -> dict[str, Any]:
         if not isinstance(text, str) or not text.strip() or len(text.strip()) > MAX_SAY:
             raise ExtrasError(_w(lang, "bad_text", max=MAX_SAY))
+        if self._speak is not None:
+            if not self._speak(text.strip()):
+                raise ExtrasError(
+                    "It cannot speak right now: it is muted, in full quiet, or already talking. "
+                    "Wait a moment, check the mute setting, then press Say again."
+                )
+            return {"ok": True}
         self._do(unit_id, "self.audio.speak", {"text": text.strip()}, lang, "speaking")
         return {"ok": True}
 

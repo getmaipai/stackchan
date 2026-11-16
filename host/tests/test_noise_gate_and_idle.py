@@ -226,6 +226,62 @@ def test_a_command_phrase_needs_high_confidence():
 
 
 def test_the_route_of_a_tired_sentence_is_chat():
-    bridge = SimpleNamespace(volume_control=object(), brightness_control=object(), head_control=object())
+    bridge = SimpleNamespace(
+        volume_control=object(), brightness_control=object(), head_control=object()
+    )
     route, _why = StackChanTurnBridge._route_of(bridge, "I am so tired", "speech")
     assert route == "chat"
+
+
+@pytest.mark.parametrize(
+    ("text", "open_"),
+    [
+        ("turn the light on and", True),
+        ("I want it because", True),
+        ("so,", True),
+        ("play some music but", True),
+        ("what time is it?", False),
+        ("turn the light on.", False),
+        ("", False),
+    ],
+)
+def test_unfinished_clause_guard(text, open_):
+    from maipai_body.speech.local_speech import unfinished
+
+    assert unfinished(text) is open_
+
+
+def test_the_wait_after_talking_is_quick_by_default_and_holds_once_mid_clause():
+    from maipai_body.speech.local_speech import EXTRA_HOLD_S, WAIT_S
+
+    assert WAIT_S["quick"] < WAIT_S["normal"] < WAIT_S["patient"] and WAIT_S["quick"] <= 0.7
+    replies = iter(["turn the light on and", "turn the light on and make it blue"])
+    posts = []
+
+    def post(url, **kwargs):
+        posts.append(url)
+        text = next(replies)
+        return SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"text": text})
+
+    quiet = np.zeros(RATE // 2, dtype=np.float32)
+    client = LocalSttClient("http://127.0.0.1:1", session=SimpleNamespace(post=post))
+    # speech, a 0.8 s pause (longer than quick + hold is not needed: 0.65 + 0.4 = 1.05 holds it open)
+    pause = np.zeros(int(RATE * 0.9), dtype=np.float32)
+    more = voice()
+    result = client.run(
+        _Capture(np.concatenate([quiet, voice(), pause, more, quiet, quiet, quiet])), patience_s=30
+    )
+    assert result.kind == "final" and result.text.endswith("make it blue")
+    assert len(posts) == 2 and EXTRA_HOLD_S == 0.4
+
+
+def test_look_settings_default_off_and_are_validated(tmp_path):
+    store = UnitSettingsStore(tmp_path / "u.json")
+    unit = "aa:bb:cc:dd:ee:01"
+    assert "look_speaker" not in store.get(unit)  # absent means off
+    store.update(unit, {"look_speaker": True, "look_faces": False, "wait_after_talking": "patient"})
+    assert store.get(unit)["look_speaker"] is True
+    with pytest.raises(SettingsError):
+        store.update(unit, {"look_faces": "yes"})
+    with pytest.raises(SettingsError):
+        store.update(unit, {"wait_after_talking": "instant"})
