@@ -42,6 +42,14 @@ A shake gets a spoken line and a dizzy face.
 When nothing is happening the robot breathes, blinks and looks around. When it speaks, its head wobbles a little with the words.
 Turn the idle moves off with `idle_motion = false`.
 
+## Mood from care
+
+The robot's resting face reflects how much you pet it. A head pet adds a little care, up to 12 a day. A whole day with no pet takes some away. It starts in the middle and never goes below a calm face. It is saved across restarts.
+
+## Hourly chime
+
+A soft tone at the top of each hour. It is off until you turn it on in the settings page. It stays silent in quiet hours, when the room is dark and while the robot is busy.
+
 ## Quiet mode
 
 Say "quiet". The robot moves slowly and gently, speaks softly and keeps its lights low. Say "normal" to end it.

@@ -28,7 +28,7 @@ Turn it off with `pet_mood = false`.
 
 ![Three mood faces: happy, bored and lonely.](../images/mood-faces.svg)
 
-## Music dance
+## Music dance <span class="planned-tag">Planned</span>
 
 Play music near the robot and say "dance". It sways to the beat and shows a mood face that fits the music.
 It listens through its own microphone and keeps nothing.

@@ -42,35 +42,11 @@ Say "set brightness to 50 percent", "brighter", "dimmer", or "it's too bright". 
 ## Sounds
 
 The robot uses one family of soft bell sounds. A rising bell means good news, and a falling bell means bad news. At night they are quieter.
-Short replies such as "I cannot reach my model right now" are stored on the robot, so it still answers when the host is off.
 
 ## Persona
 
 A persona is a short text that tells the model how to behave, such as its name and how it talks. Type it into the settings page on your host, or set `persona` in `robot.toml`.
 It is a prompt, not a guarantee. The model you connect decides what is said.
-
-## Say "stop" while it talks
-
-The robot hears "stop" even while it is speaking. Say "StackChan, stop", and it goes quiet at once, with no model involved.
-
-## Say "brighter" or "dimmer"
-
-Say "set brightness to 50 percent", "brighter", "dimmer", or "it's too bright". Swipe up on the screen for a control panel with volume, brightness and your saved Wi-Fi. Swipe left or right to change the volume. Swipe down to stop.
-
-![The swipe-up control panel with volume and brightness sliders.](../images/control-panel.svg)
-
-## Sounds
-
-The robot uses one family of soft bell sounds. A rising bell means good news, and a falling bell means bad news. At night they are quieter.
-Short replies such as "I cannot reach my model right now" are stored on the robot, so it still answers when the host is off.
-
-## Personas
-
-A persona sets the name, the voice and the way the robot talks. Pick one in the web page or set `persona` in `robot.toml`.
-Lock a persona with `persona_lock = true` so a spoken request cannot change it. A family-friendly persona is included.
-It is a prompt, not a guarantee. The model you connect decides what is said.
-
-![The persona list in the web page with one locked.](../images/personas.svg)
 
 ## Actions through the model
 
@@ -79,7 +55,20 @@ If the model cannot call actions, the voice commands above still work.
 
 ## Offline phrases
 
-Short replies such as "I cannot reach my model right now" are stored on the robot in its built-in voice, so it still answers when the model is down.
+<span class="planned-tag">Planned</span>
+
+Short spoken replies stored on the robot, so it still answers when the model is down, are not in the first release. Today, when the host or model is off, the screen says so and the robot stays quiet.
+
+## Speech speed and pitch
+
+Slow the voice down or speed it up, and raise or lower its pitch, in the settings page on your host.
+
+| Key | Range | Default |
+|---|---|---|
+| `speech_speed` | 0.75 to 1.5 | 1 |
+| `speech_pitch` | -12 to 12 semitones | 0 |
+
+Speed changes how fast it talks without changing the pitch. Each robot keeps its own values.
 
 ## Your own models
 

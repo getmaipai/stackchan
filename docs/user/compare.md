@@ -24,7 +24,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Timers and alarms | TBD | ★★★ | ★★★ | A ring empties as time runs out, so you can read it across the room. |
 | Camera: snapshots, face follow, name list <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Have it follow you, take your picture, or say who it sees. Frames stay on your host. Runs with MaiPai Home. |
 | Camera: "what is this" <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Hold something up and hear what it is. Your hub does the looking. |
-| Dances to your music by itself | TBD | ★★★ | ★★★ | It hears music, shows it likes it, and dances to the beat. Off until you turn it on. |
+| Dances to your music by itself <span class="planned-tag">Planned</span> | TBD | ★★★ | ★★★ | It hears music, shows it likes it, and dances to the beat. Off until you turn it on. |
 | Choreograph your own dance | ★★★ | ☆☆☆ | ☆☆☆ | The factory phone app lets you set music, movements and light colours for a dance. We do not have a dance editor. |
 | Name the song <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Ask "what song is this" and hear the title and artist. |
 | Announcements <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Hear household news out loud, like "dinner is ready". |

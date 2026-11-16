@@ -2,6 +2,8 @@
 
 ## The default
 
+The update path is built: the robot checks a signature and rolls back by itself if the new version does not start. It has not yet run with a real release key, because no release key exists yet. Until the first release is signed, treat updates as untested.
+
 The host checks for a new version. It does not install anything. You decide when to install.
 
 The check is one small request to your chosen update source. It sends only the firmware version.

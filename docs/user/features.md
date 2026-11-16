@@ -15,7 +15,7 @@ Page: [Face and look](face-and-look.md).
 
 ## Talk to it
 
-Wake word, follow-up questions, interrupting, voice commands, personas and offline phrases.
+Wake word, follow-up questions, interrupting, voice commands, personas and speech speed and pitch. Offline phrases <span class="planned-tag">Planned</span>.
 Page: [Voice](voice.md).
 
 ## Keep time
@@ -50,7 +50,7 @@ Page: [Moves and moods](moves-and-moods.md).
 
 ## Dance
 
-Dance on request, dance to music by itself, and name the song <span class="home-tag">Needs MaiPai Home</span>.
+Dance on request <span class="planned-tag">Planned</span>, dance to music by itself <span class="planned-tag">Planned</span>, and name the song <span class="home-tag">Needs MaiPai Home</span>.
 Page: [Music and dance](music-and-dance.md).
 
 ## Let it see (opt-in) <span class="home-tag">Needs MaiPai Home</span>
@@ -60,7 +60,7 @@ Page: [Camera](camera.md).
 
 ## Play <span class="home-tag">Needs MaiPai Home</span>
 
-A colour-memory game, an action game, a pet mood that depends on care, and music dance.
+A pet mood that depends on care. A colour-memory game <span class="planned-tag">Planned</span>, an action game <span class="planned-tag">Planned</span> and music dance <span class="planned-tag">Planned</span>.
 Page: [Games and pet](games-and-pet.md).
 
 ## Code with it <span class="home-tag">Needs MaiPai Home</span>

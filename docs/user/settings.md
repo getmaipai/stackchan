@@ -45,6 +45,9 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 | `home_url` | Your MaiPai Home hub address | blank |
 | `language` | English or Spanish | English |
 | `voice` | The voice the robot speaks with | built-in voice |
+| `speech_speed` | How fast it talks, 0.75 to 1.5 | 1 |
+| `speech_pitch` | Pitch, -12 to 12 semitones | 0 |
+| `hourly_chime` | A soft tone at the top of each hour | off |
 | `persona` | A short text that tells the model how to behave | none |
 | `face_style` | Big eyes or minimal | big eyes |
 | `face_color` | None, a named colour or a custom colour | none |

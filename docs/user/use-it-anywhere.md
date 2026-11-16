@@ -1,5 +1,9 @@
 # Take the robot on the go with Tailscale
 
+<span class="planned-tag">Planned</span>
+
+Tailscale on the robot is not in the first release. It needs about 20 KB of memory the robot has to free first. Until then the robot works on any Wi-Fi where it can reach your host, such as your home network. This page describes the plan.
+
 The robot can join your Tailscale network. Then it reaches your host, or your MaiPai Home hub, from any Wi-Fi: your living room, a friend's house, a hotel.
 The link is encrypted end to end by Tailscale, and nothing is opened on your router.
 

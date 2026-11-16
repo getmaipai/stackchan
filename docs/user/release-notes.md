@@ -2,16 +2,29 @@
 
 ## 1.0.0
 
-The first release of MaiPai for StackChan. Everything on the [Features](features.md) page is in this release.
+The first release of MaiPai for StackChan. Everything on the [Features](features.md) page is in this release unless it is marked Planned or Needs MaiPai Home.
 
 - Private by design: the robot talks only to your host or your MaiPai Home hub.
 - Voice with a wake word, follow-up questions, interrupting and a persona text.
 - Faces, a clock face, night mode and captions.
-- Timers, alarms, reactions, dance and music, games and a pet mood.
+- Timers and alarms, named timers, reactions, a mood that grows with care, an hourly chime and a low-battery ladder.
 - Camera features, off until you turn them on.
 - Mute, camera off and full quiet by tapping the face.
-- Take it on the go with Tailscale and your phone's hotspot.
+- A trimmed robot build: Bluetooth off, no host-controlled installs, no keys in images, and a Wi-Fi setup page with an on-screen code in English and Spanish.
+- Reset on the robot, and a restart guard.
+- Several robots on one host, speech speed and pitch, and a cooking persona.
 - Signed updates over Wi-Fi with rollback.
+
+### Planned, not in this release
+
+- Dance and dance to music <span class="planned-tag">Planned</span>.
+- Offline phrases on the robot <span class="planned-tag">Planned</span>.
+- Tailscale travel <span class="planned-tag">Planned</span>.
+- The first game and the photo-frame face <span class="planned-tag">Planned</span>.
+
+### Built, not yet checked on a robot
+
+Sound, screen looks, head petting, the setup page, the reset screen and a signed update with a real key.
 
 ### Known gaps
 

@@ -1,5 +1,9 @@
 # Music and dance
 
+<span class="planned-tag">Planned</span>
+
+Dancing is not in the first release. The robot can move, but the dance routine and the beat-following need more memory work on the robot first. This page describes where it is going.
+
 The robot hears music, likes it, and dances. It dances on request too. Everything here runs on the robot and your host, and the robot keeps no recordings.
 
 ## Ask it to dance
