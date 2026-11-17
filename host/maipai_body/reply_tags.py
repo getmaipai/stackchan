@@ -180,27 +180,6 @@ def span_seconds(text: str) -> float:
     return float(max(2, min(MAX_SECONDS, round(words / WORDS_PER_SECOND + 1))))
 
 
-# ---- the fallback: no tag, so guess from the words -------------------------------------------------
-
-_FALLBACK: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("love", re.compile(r"\b(i love you|love you|te quiero|te amo|mucho cariño|mucho cari[nñ]o)\b", re.I)),
-    ("sleepy", re.compile(r"\b(good ?night|sleepy|yawn|sweet dreams|buenas noches|tengo sue[nñ]o|dulces sue[nñ]os|a dormir)\b", re.I)),
-    ("sad", re.compile(r"\b(sorry|unfortunately|sadly|i can'?t help|oh no|apologi[sz]e|lo siento|desafortunadamente|lamentablemente|por desgracia|qu[eé] pena|disculpa|perd[oó]n)\b", re.I)),
-    ("angry", re.compile(r"\b(angry|furious|that'?s not (ok|okay|nice)|me enoja|estoy enojad[oa]|qu[eé] rabia|no es justo)\b", re.I)),
-    ("surprised", re.compile(r"(\b(wow|whoa|no way|incredible|amazing|guau|qu[eé] sorpresa|incre[ií]ble|no puede ser)\b|[!?]{2,}|\?!|!\?)", re.I)),
-    ("happy", re.compile(r"\b(haha+|hehe+|lol|yay|great news|congratulations|glad|jaja+|jeje+|qu[eé] bien|felicidades|me alegra|genial|estupendo)\b", re.I)),
-    ("doubt", re.compile(r"\b(hmm+|not sure|i'?m not certain|maybe|perhaps|no estoy segur[oa]|quiz[aá]s?|tal vez|no s[eé] si)\b", re.I)),
-)  # fmt: skip
-
-
-def guess_mood(text: str) -> str | None:
-    """A mood for a sentence with no tag, from keywords and punctuation, or None to keep the face as it is."""
-    for mood, pattern in _FALLBACK:
-        if pattern.search(text):
-            return mood
-    return None
-
-
 # ---- the persona instruction ----------------------------------------------------------------------
 
 PERSONA_SUFFIX = (

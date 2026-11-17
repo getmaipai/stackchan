@@ -1,5 +1,5 @@
 # ruff: noqa: E501
-"""Mood tags, overlay tags, the keyword fallback, and what the voice path does with them."""
+"""Mood tags, overlay tags, and what the voice path does with them."""
 
 from __future__ import annotations
 
@@ -67,23 +67,6 @@ def test_every_overlay_has_a_spanish_alias_or_its_own_name_and_intensity_words_w
     assert reply_tags.parse_tag("fuegos artificiales fuerte").intensity == "heavy"
 
 
-@pytest.mark.parametrize(
-    ("text", "mood"),
-    [
-        ("I am sorry, I cannot find it.", "sad"), ("Unfortunately it is closed today.", "sad"),
-        ("Lo siento, no lo encuentro.", "sad"), ("Desafortunadamente ya cerró.", "sad"),
-        ("Wow!? That is huge", "surprised"), ("¡Increíble! Ganaste.", "surprised"),
-        ("Haha, that was funny.", "happy"), ("Jaja, qué gracioso.", "happy"),
-        ("I love you too.", "love"), ("Te quiero mucho.", "love"),
-        ("Good night, sleep well.", "sleepy"), ("Buenas noches.", "sleepy"),
-        ("Hmm, I am not sure.", "doubt"), ("Quizás mañana.", "doubt"),
-        ("It is three o'clock.", None), ("Son las tres.", None),
-    ],
-)  # fmt: skip
-def test_the_fallback_guesses_a_mood_from_words_and_punctuation(text, mood):
-    assert reply_tags.guess_mood(text) == mood
-
-
 # ---- the stream splitter -----------------------------------------------------------------------------
 
 
@@ -128,11 +111,10 @@ def test_a_tag_split_across_chunks_and_a_closing_tag_alone_at_the_end():
     assert next(c for i in items for c in i.cues).intensity == "heavy"
 
 
-def test_the_fallback_supplies_a_mood_only_when_the_first_sentence_has_no_tag():
-    assert cues(run(["Sorry about that. Bye."])) == [("mood", "sad")]
+def test_a_reply_with_no_mood_tag_changes_no_face_the_robot_is_told_not_guessed():
+    assert cues(run(["Sorry about that. Bye."])) == []
+    assert cues(run(["Lo siento mucho. Wow!?"])) == []
     assert cues(run(["[happy] Sorry about that."])) == [("mood", "happy")]
-    assert cues(run(["It is fine. Sorry later."])) == []  # only the first sentence is guessed
-    assert cues(run(["Lo siento mucho."])) == [("mood", "sad")]
 
 
 def test_switches_remove_the_tags_but_make_no_cues():

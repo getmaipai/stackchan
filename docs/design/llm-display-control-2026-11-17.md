@@ -13,7 +13,7 @@ Marks: [from code] read in this repo today, [measured] measured on the unit, [fr
    module, a command bus, with one catalog of commands. The model's tags and function calls are an adapter that makes catalog
    commands; they get no special powers.
 2. For the model, use a hybrid: inline tags for the cheap, frequent things (mood, effect, sound, light, a one-line text card), a
-   function call for cards that carry data (strong models only), and a host keyword fallback when the model sends nothing.
+   function call for cards that carry data (strong models only), and no guessing: when the model sends nothing, nothing changes (owner decision 2026-11-17).
 3. Data cards (weather, now playing, lists) never come from the model's words when a real source exists. In Home mode the hub's
    tool result becomes a card command, and the host only passes it through. In local mode there is no weather card, because there
    is no weather data.
@@ -29,8 +29,7 @@ Marks: [from code] read in this repo today, [measured] measured on the unit, [fr
    [from code: `speech/reply_stream.py`]. A tag longer than 60 characters is not a tag: it is spoken as plain text.
 3. `ReplyTagger` turns tags into cues placed before or after the sentence they belong to; a mood tag changes the face; an overlay
    span ends with the sentence it opened in when streaming [from code].
-4. Fallback: with no mood tag in the first sentence, `guess_mood` picks a mood from keywords and punctuation (English and Spanish)
-   [from code].
+4. No fallback: the keyword guess (`guess_mood`) was removed on 2026-11-17. The robot is told what to show; a reply with no tag leaves the face as it is.
 5. `OverlayDirector` calls `self.overlay.set {name, intensity, seconds}` and `self.overlay.clear`; it skips quietly on a unit
    without the tool (probe cache, rechecked every 90 s) [from code: `overlays.py`, `unit_tools.py`].
 6. Persona suffix teaches only the mood tag: "Start every reply with exactly one mood tag" [from code: `PERSONA_SUFFIX`]. Effects are
@@ -323,7 +322,7 @@ stricter for the ring: no fast flashing [from docs].
 
 | Case | Rule |
 |---|---|
-| No mood tag in the first sentence | `guess_mood` (exists); extend to every sentence after the first only when it changes the answer from neutral to a strong mood (a rate of at most one change per two sentences) |
+| No mood tag in the first sentence | Nothing changes. No guessing from the words (owner decision 2026-11-17); the cure is a better instruction, a tool call for strong models, or Home's separate events |
 | No mood from words | keep the current face (exists) |
 | Emoji in the reply | map to a mood; strip from speech |
 | Effect | no fallback except a few safe phrases: "happy birthday" to party, "good night" to sleeping. A keyword like "rain" never starts rain by itself ("it is not raining" would be wrong) |
@@ -434,8 +433,7 @@ and the picture page do. A card must pass the same `fx_cost` style model before 
      tool call valid rate with and without `tools`, added time to first sentence, tokens added by the snippet.
    - Gate to ship a snippet on a model: mood present at least 90 percent, tag spoken 0, fabricated data 0. Below that the model gets
      mood only and the host fallback.
-8. Fallback bench: the 200 labeled sentences through `guess_mood` for accuracy, to decide whether a small classifier (option D) is
-   worth its RAM.
+8. Tag-rate bench: measure how often each model sends a correct tag, to decide whether the prompt, a tool call or a stricter instruction is needed. No words-based guessing.
 
 ## 13. Phases, with sizes
 
@@ -463,8 +461,10 @@ a flash.
 
 ## Decisions taken (2026-11-17, by the build session; the owner can reverse any of them)
 
-1. Local mode drops a model-written weather card: yes (no data, so no card; the model may still say it in words).
+1. A data card (weather and the like) shows only when its numbers came from a tool result, from Home or from a tool the owner gave their own model. A card the model invents from memory is dropped; the model still says it in words, and mood and effect tags (rain, snow) work in every mode. (Revised 2026-11-17 after the owner asked how an internet-connected local model should behave.)
 2. Card tags are allowed for short cards: yes.
 3. Display calls from the model run fire and forget: yes (a failed card never fails the answer).
 4. The model may move the robot: no (body moves stay with the owner, remote controllers and local voice commands).
 5. Card hold time: 8 seconds by default, a touch dismisses it.
+
+6. No guessing, anywhere (owner, 2026-11-17): the robot only does what a source tells it, through the message or command stream. The design question is when and how each source (model tag, tool call, Home event, owner control) sends each command, not how the host can infer one. The keyword mood guess is deleted.

@@ -1525,7 +1525,7 @@ class StackChanTurnBridge:
 
         def _drain() -> None:
             events: list = []
-            tagger = ReplyTagger(moods=emotion_on, overlays=overlays_on, fallback=emotion_on)
+            tagger = ReplyTagger(moods=emotion_on, overlays=overlays_on)
             error: BaseException | None = None
             try:
                 evidence = self._speaker_evidence(result)
@@ -1732,7 +1732,7 @@ class StackChanTurnBridge:
         if not spoken and error is None:
             # Not streamed (or a built-in answer): the final reply is split and spoken here.
             if reply:
-                tagger = ReplyTagger(moods=emotion_on, overlays=overlays_on, fallback=emotion_on)
+                tagger = ReplyTagger(moods=emotion_on, overlays=overlays_on)
                 parsed = [*tagger.feed(reply), *tagger.flush()]
                 mood_event = next(
                     (

@@ -144,15 +144,15 @@ class ReplyTagger:
 
     A mood tag becomes a ``mood`` cue ahead of its sentence. An overlay tag becomes an ``overlay`` cue ahead of
     the sentence where it opens and an ``overlay_end`` cue after the sentence where it closes; one left open
-    ends with the sentence it started in. With no mood tag in the first sentence, a keyword and punctuation
-    guess (:func:`reply_tags.guess_mood`) supplies the mood. ``moods`` and ``overlays`` switch each kind off:
+    ends with the sentence it started in. The robot is told what to show: a reply with no mood tag changes no
+    face (there is no guessing from the words, owner decision 2026-11-17). ``moods`` and ``overlays`` switch each kind off:
     their tags are still removed, never spoken.
     """
 
-    def __init__(self, *, moods: bool = True, overlays: bool = True, fallback: bool = True) -> None:
+    def __init__(self, *, moods: bool = True, overlays: bool = True) -> None:
         self._strip = TagStripper(marks=True)
         self._split = SentenceSplitter()
-        self._moods, self._overlays, self._fallback = moods, overlays, fallback
+        self._moods, self._overlays = moods, overlays
         self._tagged = 0  # tags already matched to a mark
         self._open: dict[str, Cue] = {}  # overlays opened in an earlier sentence, still running
         self._sentences = 0
@@ -221,10 +221,6 @@ class ReplyTagger:
                 after.append(Cue("overlay_end", tag.name))
         if text:
             self._sentences += 1
-            if self._fallback and self._moods and self._sentences == 1 and not self._mood_seen:
-                guessed = reply_tags.guess_mood(text)
-                if guessed:
-                    before.insert(0, Cue("mood", guessed))
         items: list[Item] = []
         if before:
             items.append(Item(cues=tuple(before)))
