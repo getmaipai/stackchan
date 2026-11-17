@@ -9,7 +9,9 @@ Set `language` in `robot.toml`, in the settings page on your host or on the robo
 ## What changes
 
 - Replies and speech: the host does this. Your speech models and your language model must handle Spanish. Test them before you rely on it.
-- Screen text and captions: a language pack covers accents and the inverted marks.
+- Screen words (the date on the clock face, the names on timer chips): English is built into the robot. The other five are small language packs, a few hundred bytes each, that your computer sends to the robot when you pick the language. The robot keeps the pack, so it still shows the words after a restart with your computer off, and it shows English if the pack is ever missing or damaged. The Packs page of the settings shows which pack the robot holds.
+- The robot's screen font draws plain letters only, so accents are dropped on the screen (août reads "aou"). Speech keeps every accent.
+- Offline phrases (what the robot says when it cannot reach your computer): the Packs page can make them with your own voice, in English and Spanish, and send them to the robot. Without them it says the sentences built into its software.
 - Numbers, dates and times are spoken in words, such as "las tres y media". Dates use day, month, year and a 24 hour clock.
 - Error messages say what went wrong and what to do, in both languages. The Spanish docs come after the English ones.
 

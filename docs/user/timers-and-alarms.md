@@ -14,6 +14,10 @@ When it rings, the light bars pulse cyan <img src="../images/light-cyan.svg" alt
 Ask for another timer and give it a name: "set a pasta timer for nine minutes". Ask "how long is left" to hear them all.
 Timers are saved on the host, so they survive a robot restart.
 
+## By voice, with no model
+
+Timers and alarms work by rule, so they work even when your model is off: "set an alarm for 10:30", "set a timer for 10 minutes", "what alarms do I have", "cancel my alarm". Cancel removes the only alarm, or the one you just set within 5 minutes, and asks which one if there are several. Not yet tried by a person.
+
 ## Alarms and snooze
 
 Say "wake me at seven". When it rings, say "snooze" for a short delay. If you ignore it, it gets louder in steps.

@@ -1,11 +1,11 @@
 # Lights and sounds
 
-The robot has two light bars, one on each side of the base, with six lights each, and a set of soft bell tones. The light bars are off most of the time. They light only when something needs you right now, and each colour has one meaning.
+The robot has two light bars, one on each side of the base, with six lights each, and a set of soft bell tones. The light bars are off most of the time. They light only when something needs you right now, and each color has one meaning.
 The screen's face shows moods. The light bars never do.
 
 ## The light bars
 
-| Light | Colour and pattern | What it means | Sound with it |
+| Light | Color and pattern | What it means | Sound with it |
 |---|---|---|---|
 | ![Green, steady](../images/light-green.svg) | **Green**, steady | Your voice is being sent to your host or hub | None |
 | ![Pink, two flashes then steady](../images/light-pink.svg) | **Pink**, two quick flashes, then steady | The camera is taking a picture. For live view, it stays steady pink the whole time, with a LIVE dot on the screen | A short double click |
@@ -14,15 +14,15 @@ The screen's face shows moods. The light bars never do.
 | ![Blue, steady](../images/light-blue.svg) | **Blue**, steady | It is your turn to talk | A short rising pop |
 | ![White, fast pulse](../images/light-white.svg) | **White**, a fast pulse every second | Updating. Do not unplug | None |
 | ![Dim amber, steady](../images/light-amber.svg) | **Dim amber**, steady, by day only | Watch or monitor mode is on. At night the light bars stay off and the screen carries the cue | None |
-| ![Red and blue swapping sides](../images/light-alert.svg) | **Red and blue**, swapping sides twice a second | Security alert. The screen flashes the same colours | The siren, if you chose the alarm |
+| ![Red and blue swapping sides](../images/light-alert.svg) | **Red and blue**, swapping sides twice a second | Security alert. The screen flashes the same colors | The siren, if you chose the alarm |
 | ![All off](../images/light-dark.svg) | **Dark** | Everything else: idle, thinking, speaking, asleep | None |
 | ![One small red light at the back](../images/light-charging.svg) | **Red light at the back** | Charging. It is a separate light from the charger and the light bars do not repeat it | Two quick rising notes when you plug in |
 
-Both bars show the same colour at the same time.
+Both bars show the same color at the same time.
 
 Red and blue are used only for a security alert.
 
-Green and pink never dim, even at night or in the quietest setting, because they tell you about your privacy. The other colours get softer at night.
+Green and pink never dim, even at night or in the quietest setting, because they tell you about your privacy. The other colors get softer at night.
 While the robot charges, a small red light at the back is on. It is a separate light from the charger, and the light bars do not repeat it.
 
 ## The tones
@@ -59,4 +59,4 @@ Timers and alarms you set still ring. Every tone follows the volume setting, and
 
 ## Still need help?
 
-If a light or tone does not match this page, run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us the colour, the pattern and what you were doing.
+If a light or tone does not match this page, run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us the color, the pattern and what you were doing.

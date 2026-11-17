@@ -37,9 +37,9 @@ Turn on `remote_control` in the settings. Then, from the web app, you can:
 | You can | What the robot does |
 |---|---|
 | **Beep** | Plays a tone you pick. |
-| **Turn the lights on** | Lights the light bars in a colour you pick. They stay on until you turn them off or touch the robot. |
+| **Turn the lights on** | Lights the light bars in a color you pick. They stay on until you turn them off or touch the robot. |
 | **Talk** | Speaks what you type, or what you say into a push-to-talk button. The talking goes one way, to the robot. |
-| **Pan and tilt** | Turns the head left and right, and nods it up and down, with arrow buttons or a joystick. A **Home** button brings it back to centre. |
+| **Pan and tilt** | Turns the head left and right, and nods it up and down, with arrow buttons or a joystick. A **Home** button brings it back to center. |
 
 There is no remote listening in remote control. You can talk to the robot, but you cannot listen in through it. The one exception is [Baby and pet monitor](baby-and-pet-monitor.md), which a person must start on the robot itself, and which always shows it on the screen.
 
@@ -54,10 +54,10 @@ Every pan or tilt writes one line to the activity log. A remote head move follow
 
 ## You always know
 
-The robot shows every remote action. A **Remote** icon appears on the screen while anyone is controlling it: a small screen with two signal arcs, in the same row as the microphone and camera icons. It stays steady and never blinks, because blinking is reserved for the camera cue. If live view and remote control are both on, you see both icons. The robot also plays a short tone before it speaks a remote message.
+The robot shows every remote action. One solid violet row at the top of the screen shows while anything is controlling it, and says where it came from: "Remote: Settings", "Remote: Phone", "Remote: Home hub" or "Remote". It is always on and never blinks, because blinking is reserved for the camera cue. The robot also plays a short tone before it speaks a remote message.
 
 Every remote action writes one line to the robot's activity log, which anyone in the household can read.
-Remote lights do not use the colours that carry a meaning, such as green for listening, so they never look like a warning.
+Remote lights do not use the colors that carry a meaning, such as green for listening, so they never look like a warning.
 You cannot turn these cues off, and remote control needs your token, so only you can use it.
 
 ## Where it works

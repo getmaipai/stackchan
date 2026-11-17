@@ -69,6 +69,16 @@ MaiPai for StackChan is pre-1.0, so expect rough edges. Tell us what you find on
 
 Sound, screen looks, the smoother eyes and your own picture faces, head petting, the setup page, the reset screen and a signed update with a real key and travel over your private network are built but not yet checked on a robot. The new face extras, word reactions, time zone, network test and version screens have not been seen on a robot screen, no one has played the games by touch, no one has heard the offline phrases or seen the dances, the six languages are not native-reviewed, and a per-person wake phrase is stored but not matched yet.
 
+### Known gaps
+
+- After the wake word, one owner reported hearing no reply. The robot's audio reaches the host loud, but the speech engine returned no words. This is open and we are looking at it.
+- A real wake by voice and how finger swipes feel have not been tested by a person.
+- The eye animation runs at 28 to 33 frames a second with some gaps over 50 ms.
+- The robot's screen shows no accented letters.
+- A face style changed on the robot shows on the host only after the settings page reloads.
+- Quick settings shows 3 saved Wi-Fi networks.
+- Planned, not built: brighter dim level, new games, scenes and data cards, Wi-Fi roaming.
+
 ## Get help
 
 - Start with [Troubleshooting](docs/user/troubleshooting.md), and run `stackchan check`.

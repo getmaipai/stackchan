@@ -6,7 +6,7 @@ Not yet heard or seen on a robot: real music, the mood faces and the dances. The
 
 ## Ask it to dance
 
-Say the wake word, then "dance". Name one to pick it: **sway**, **nod yes**, **shake no**, **wiggle**, **bow** or **groove**. Each is a short routine of 8 seconds or less that ends with the head centred. Say "stop" any time and it stops where it is.
+Say the wake word, then "dance". Name one to pick it: **sway**, **nod yes**, **shake no**, **wiggle**, **bow** or **groove**. Each is a short routine of 8 seconds or less that ends with the head centered. Say "stop" any time and it stops where it is.
 
 ![The robot mid-dance with a happy face and its head tilted.](../images/dance.svg)
 

@@ -22,7 +22,7 @@ Add this to the end of a build script:
 stackchan notify --status pass
 ```
 
-Use `--status fail` when the build fails. The light bars turn green on pass and red on fail, with a check or a cross, so it reads without colour.
+Use `--status fail` when the build fails. The light bars turn green on pass and red on fail, with a check or a cross, so it reads without color.
 
 ![The light bars green with a check, then red with a cross.](../images/build-light.svg)
 

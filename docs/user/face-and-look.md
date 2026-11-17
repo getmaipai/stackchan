@@ -4,7 +4,7 @@ You can change every item here at any time. None of it needs a reflash.
 
 ## Face style
 
-Eight styles ship: **big eyes**, **minimal**, **round**, **cat**, **robot**, **sleepy**, **retro pixel** and **heart eyes**. Pick one in the settings page on your host or set `face_style` in `robot.toml`.
+Five styles ship. **Big eyes** is the default. **Eyes only** has no mouth. **Stock** is the original StackChan face, as it came. **Classic** has rounder eyes and **minimal** is a quiet face for the night. Pick one in the settings page on your host or set `face_style` in `robot.toml`. The older styles (round, cat, robot, sleepy, retro pixel and heart eyes) are gone: a robot that had one now shows big eyes.
 The page shows a live preview that uses the same drawing code as the robot.
 
 ![The big-eyes face and the minimal face side by side.](../images/face-styles.svg)
@@ -15,7 +15,7 @@ The eyes ease from place to place, blink smoothly and drift while the robot is i
 
 ## Extras on the face
 
-The robot can add a small drawn extra for a few seconds: sweat, shy, dizzy, heart, anger, tears, sparkles, stars or zzz. One shows at a time. None shows while it is muted, has the camera off, is in quiet mode or a timer is ringing. Not yet seen on a robot screen.
+The robot can add a small drawn extra for a few seconds: dizzy, heart, anger, tears, sparkles, stars or zzz. One shows at a time. None shows while it is muted, has the camera off, is in quiet mode or a timer is ringing. Not yet seen on a robot screen.
 
 ## Word reactions
 
@@ -23,7 +23,7 @@ When you say a word such as "hello", "thanks", "love", "sorry" or "good night", 
 
 ## Per person
 
-On the settings page, keep a name, face colour and caption size for up to 12 people, and press **Use on this unit** to apply one. A saved wake phrase per person is stored but not matched yet.
+On the settings page, keep a name, face color and caption size for up to 12 people, and press **Use on this unit** to apply one. A saved wake phrase per person is stored but not matched yet.
 
 ## Your own pictures as the face
 
@@ -37,17 +37,32 @@ The robot keeps up to 14 pictures, 1,000,000 bytes after they are made smaller. 
 
 Your pictures stay on your computer and go only to your robot, over your own network. Nothing is shipped with the product and nothing is uploaded anywhere else. The mute look, the camera-off look, quiet mode, the clock and a ringing timer always show instead of a picture. The robot keeps at most 3 pictures ready at a time. It keeps them in memory, so your host sends them again after a restart. Not yet seen on a robot screen. The upload has no size limit yet, so a very large photo can use a lot of your host's memory: shrink big photos first.
 
-## Face colour
+## Face color
 
-Set `face_color` to none, a named colour or a custom colour. The default is neutral, with no colour until you pick one.
-Colour never carries meaning alone. Every state also has a shape or an icon, so the robot reads well if you cannot tell colours apart.
+The eyes are white until you pick a color. Set `face_color` to none, a named color or a custom color for the eyes. The screen color behind the face is separate: pick one of the seven names (shown dark, so white eyes still read) or your own dark color, for each person. A color too bright for white eyes is refused, with a note on what to pick instead.
+The eyes also lean a little toward a color for some feelings: warm red when angry, cool blue when sad, pink for love, and dim when sleepy or tired. This is on by default and is one switch on the settings page. The shapes change too, so the face reads the same without color.
+Color never carries meaning alone. Every state also has a shape or an icon, so the robot reads well if you cannot tell colors apart.
 
-![The same face in three colours.](../images/face-colors.svg)
+![The same face in three colors.](../images/face-colors.svg)
 
 ## Captions
 
 Captions show the spoken words on the screen. They are off by default. Turn them on with `captions = true`, or in the settings page on your host.
 The screen is small, so long answers are spoken, not shown in full on the robot.
+
+
+Where the words appear: as subtitles at the bottom of the screen (the default when captions are on), in the banner row at the top,
+or nowhere. Choose it under **Look**, **Captions**.
+
+## The top row
+
+One row at the top of the screen carries messages: remote cues, "Here I am!", game scores, a lost connection and the captions.
+The face does not move for it: the screen has a fixed top row, a face area and a subtitle area. One solid violet row shows for as long as something is controlling the robot, and says where it came from: "Remote: Settings", "Remote: Phone", "Remote: Home hub" or "Remote". It is always on and you cannot turn it off.
+The control sheet has a **Status icons** switch, off by default. Off, the robot tells you it woke or is listening with a sound and the ring light instead of icons. On, small icons show the microphone, the camera and battery and Wi-Fi problems.
+
+## Sleepy and sleeping
+
+Sleepy is a robot nodding off: heavy eyes, slow blinks, no Z. Sleeping is eyes shut, a snoring mouth, a little drool and a Z. Not yet seen by a person.
 
 ## Clock face
 
@@ -62,7 +77,7 @@ It has an offline look for when it cannot reach your host, and a link screen whi
 
 ## Time zone
 
-Pick your time zone from 31 zones, with summer time, on the robot (swipe up, More, Time zone) or on the settings page. The host sets the clock when the robot connects, and the clock face keeps it.
+Pick your time zone from 31 zones, with summer time, on the robot (swipe up from the bottom, More, More, Time zone) or on the settings page. The host sets the clock when the robot connects, and the clock face keeps it.
 
 ## Night mode
 
@@ -70,7 +85,9 @@ Night mode dims the screen and the lights and softens the clock. Set it by hand,
 
 ## Thinking cue
 
-While the robot thinks, animated dots show on every face, with a quiet tone. Set `thinking_cue` to change the tone.
+While the robot thinks, three animated dots show where the mouth is, on every style, with a quiet tone. Set `thinking_cue` to change the tone.
+
+When the battery is low the robot looks tired, not sad: half-closed eyes and a slow blink at 20 percent, more droop at 10 percent and the sleepy face at 5 percent. A cable clears it. When it goes to sleep its eyes close slowly, stay shut with a thin curved line, and open again with a stretch when it wakes.
 
 ## Quick sliders
 

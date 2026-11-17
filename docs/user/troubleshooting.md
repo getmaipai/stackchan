@@ -26,11 +26,15 @@ Start with `stackchan check`. It tests each address you set and says what is wro
 
 ## Test the connection
 
-On the robot, swipe up, tap **More**, then **Network test**. It checks Wi-Fi, the link to your host and, away from home, the private network. Each line starts with OK or FIX, and the last line says what to fix first. **More**, then **Version**, shows the version. Tap it ten times for details.
+On the robot, swipe up from the bottom, tap **More** (quick settings), tap **More** again, then **Network test**. It checks Wi-Fi, the link to your host and, away from home, the private network. Each line starts with OK or FIX, and the last line says what to fix first. **More**, then **Version**, shows the version. Tap it ten times for details.
 
 ## Reset the robot
 
-Use this when the robot is stuck or you are giving it away. Swipe up on the screen, tap **Reset**, read what it will erase (saved Wi-Fi, pairing and settings), then hold the button for 3 seconds. Letting go early changes nothing. The robot restarts into Wi-Fi setup. Its head calibration stays.
+Use this when the robot is stuck or you are giving it away. Swipe up from the bottom of the screen, tap **More**, tap **Reset**, read what it will erase (saved Wi-Fi, pairing and settings), then hold the button for 3 seconds. Letting go early changes nothing. The robot restarts into Wi-Fi setup. Its head calibration stays.
+
+## The robot wakes but does not answer
+
+One owner saw this: the wake cue plays, you speak, and nothing comes back. The host hears loud audio but the speech engine returns no words. This is a known open problem. Run `stackchan check`, make sure the speech engine line says ok, and tell us on the Issues tab what you saw.
 
 ## Still need help?
 

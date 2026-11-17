@@ -35,7 +35,7 @@ The robot hears "stop" even while it is speaking. Say "StackChan, stop", and it 
 
 ## Say "brighter" or "dimmer"
 
-Say "set brightness to 50 percent", "brighter", "dimmer", or "it's too bright". Swipe up on the screen for a control panel with volume, brightness and your saved Wi-Fi. Swipe left or right to change the volume. Swipe down to stop.
+Say "set brightness to 50 percent", "brighter", "dimmer", or "it's too bright". Swipe up from the bottom edge of the screen for the control sheet with volume, brightness, mute, quiet and more. A swipe that starts at the very side edge of the screen changes the volume. Swipe down to stop. Swipe left or right on the face to move through your [swipe pages](swipe-pages.md).
 
 ![The swipe-up control panel with volume and brightness sliders.](../images/control-panel.svg)
 

@@ -63,7 +63,7 @@ The robot also sends the alert to the local API and the event stream, so your ow
 
 ## Use it fairly
 
-Tell the people who live there and anyone who visits that the robot can watch and listen. Laws about recording and monitoring differ by place, and some need everyone's consent. Do not point the robot at a neighbour's home or anywhere people expect privacy.
+Tell the people who live there and anyone who visits that the robot can watch and listen. Laws about recording and monitoring differ by place, and some need everyone's consent. Do not point the robot at a neighbor's home or anywhere people expect privacy.
 The robot records nothing by default. It is not a replacement for a real alarm or a smoke alarm. This is not legal advice, and you are responsible for following the rules where you live.
 
 ## Lights and sounds

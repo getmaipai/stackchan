@@ -21,7 +21,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Knows each person <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | It knows who is talking, by voice and by name. |
 | Calendars, briefings, announcements <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Ask about your day and hear household announcements. |
 | Rules for children and teens <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Kids get answers that fit the rules you set. |
-| Animated face | ★★☆ | ★★★ | ★★★ | The official README lists lively, expressive animations. Ours lets you choose between two styles, any colour or none, and captions, and it adds a clock face and night mode. |
+| Animated face | ★★☆ | ★★★ | ★★★ | The official README lists lively, expressive animations. Ours lets you choose between two styles, any color or none, and captions, and it adds a clock face and night mode. |
 | Timers and alarms | TBD | ★★★ | ★★★ | A ring empties as time runs out, so you can read it across the room. |
 | Camera: snapshots, face follow, name list <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Have it follow you, take your picture, or say who it sees. Frames stay on your host. Runs with MaiPai Home. |
 | Camera: "what is this" <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Hold something up and hear what it is. Your hub does the looking. |
@@ -30,11 +30,11 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Mute, camera off, full quiet | TBD | ★★★ | ★★★ | Three switches on the face: tap the mouth to mute, the eyes to stop the camera, between the eyes for full quiet. They survive a restart, and the host warns you if the robot leaks. [Details](mute-and-camera-off.md) |
 | Spoken "stop" while it talks | TBD | ★★★ | ★★★ | It stops at once, with no model involved. |
 | Updates over Wi-Fi | TBD | ★★★ | ★★★ | No cable. An animated icon shows the progress. |
-| Games and a pet mood | TBD | ★★☆ | ★★☆ | Three games on the robot (colour memory, reaction time, whack-a-mole) with best scores, and a pet mood that grows with care. Not yet tried by touch on a robot. |
+| Games and a pet mood | TBD | ★★☆ | ★★☆ | Three games on the robot (color memory, reaction time, whack-a-mole) with best scores, and a pet mood that grows with care. Not yet tried by touch on a robot. |
 | Coding companion <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | A green or red light for your build, where you can see it. Runs with MaiPai Home. |
 | Local API, MQTT, metrics <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Wire the robot into your own tools. Runs with MaiPai Home. |
 | Dances to your music by itself | TBD | ★★★ | ★★★ | It finds the tempo, sways to it and shows a mood face. Off until you turn it on. Not yet heard on a robot. |
-| Choreograph your own dance | ★★★ | ☆☆☆ | ☆☆☆ | The factory phone app lets you set music, movements and light colours for a dance. We have six named dances and no dance editor. |
+| Choreograph your own dance | ★★★ | ☆☆☆ | ☆☆☆ | The factory phone app lets you set music, movements and light colors for a dance. We have six named dances and no dance editor. |
 | Six languages | TBD | ★★★ | ★★★ | English, Spanish, French, German, Portuguese and Italian, switched at run time with no reflash. Not yet reviewed by native speakers. |
 | Signed updates with rollback | TBD | ★★★ | ★★★ | Nothing installs unless you say so, and a bad update rolls back by itself. |
 | Baby and pet monitor <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ☆☆☆ | Hear and see a nursery or a pet's room from your phone and get alerts. You start it on the robot, and the screen always says so. Not a certified baby monitor. Runs with MaiPai Home. |
@@ -60,7 +60,7 @@ We chose a web app served by your host over a native phone app. We would rather 
 
 - **Privacy and security:** both MaiPai columns are built to keep your conversations in your home, and we will publish a network capture that shows it before release. The link on a home network is plain, so we rate it two stars until the encrypted home link ships. [Keep the robot secure](security.md).
 - **Speed and answer quality:** these depend on your model and hardware, the same with or without MaiPai Home. A 4B class model answers in under 400 ms warm, and a 27B class model on a weak host does not. These are targets until the benchmark is run.
-- **What MaiPai Home adds:** the full feature set, such as memory, recognising people, naming songs, the camera, watching and monitoring, and household rules.
+- **What MaiPai Home adds:** the full feature set, such as memory, recognizing people, naming songs, the camera, watching and monitoring, and household rules.
 - **What you give up:** a phone app (our web app covers settings and snapshots, and live view with MaiPai Home, but there is no remote avatar control), setting up the robot from the phone over Bluetooth, online app downloads, and the official ESP-NOW remote controller. If you rely on those, stay on the factory firmware for now. You can [switch back](switch-from-the-factory-firmware.md) any time.
 - **Memory, people, calendars and rules** come only with MaiPai Home.
 

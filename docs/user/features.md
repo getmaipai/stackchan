@@ -121,6 +121,10 @@ Likely to come, not finished. Do not count on these yet.
 | Feature | What it will do | Page |
 |---|---|---|
 | **Pickup detection** <span class="planned-tag">Planned</span> | Still being built. | [Moves and moods](moves-and-moods.md) |
+| **Brighter dim level, funnier whack-a-mole** <span class="planned-tag">Planned</span> | A brighter dim level, real moles and funny sounds. Still being built. | [Games](games-and-pet.md) |
+| **More games** <span class="planned-tag">Planned</span> | Tic-Tac-Toe, a Bop-It style game, Simon Says and Rock-Paper-Scissors. Still being built. | [Games](games-and-pet.md) |
+| **Scenes and data cards** <span class="planned-tag">Planned</span> | One tag that sets several looks at once (stormy, party and more), and cards such as weather shown by MaiPai Home. In progress. | [Local vs Home](local-vs-home.md) |
+| **Wi-Fi roaming** <span class="planned-tag">Planned</span> | Move between your saved Wi-Fi networks, and a ported private-network join. In progress. | [Away from home](use-it-anywhere.md) |
 | **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |
 | **Encrypted link at home** <span class="planned-tag">Planned</span> | Encrypt the robot's link to your host on your home Wi-Fi, and check it is talking to your host. | [Security](security.md) |
 | **Outside games** <span class="planned-tag">Planned</span> | Load games you or others make. Signed packs only. | [Games](games-and-pet.md) |
@@ -130,7 +134,7 @@ Likely to come, not finished. Do not count on these yet.
 
 ## Not included
 
-Sound direction, Bluetooth, a phone app, and anything that calls an outside service by itself.
+Sound direction, Bluetooth, a phone app, a voice that shows emotion (the face carries emotion), guessing a mood from your words (the robot shows only what it is told), and anything that calls an outside service by itself.
 
 ## Also useful
 

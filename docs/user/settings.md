@@ -7,10 +7,10 @@ Changing a setting never needs a reflash.
 
 Picks the look of the face. Packs: big eyes and minimal. The settings page on your host shows a preview.
 
-## Face colour (`face_color`)
+## Face color (`face_color`)
 
-Choose none, a named colour or a custom colour. The default is neutral and has no colour until you pick one.
-Colour never carries meaning alone. Every state also has a shape or an icon.
+Choose none, a named color or a custom color. The default is neutral and has no color until you pick one.
+Color never carries meaning alone. Every state also has a shape or an icon.
 
 ## Captions (`captions`)
 
@@ -50,12 +50,12 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 | `hourly_chime` | A soft tone at the top of each hour | off |
 | `persona` | A short text that tells the model how to behave | none |
 | `face_style` | Big eyes or minimal | big eyes |
-| `face_color` | None, a named colour or a custom colour | none |
+| `face_color` | None, a named color or a custom color | none |
 | `captions` | Show spoken words on screen | off |
 | `night_mode`, `quiet_from`, `quiet_to` | Dim and quiet at night | off |
 | `thinking_cue` | The tone while it thinks | quiet tone |
-| `strip_mode`, `quick_sliders` | Head strip behaviour and its sliders | petting |
-| `hourly_chime`, `idle_motion` | Small behaviours | off, on |
+| `strip_mode`, `quick_sliders` | Head strip behavior and its sliders | petting |
+| `hourly_chime`, `idle_motion` | Small behaviors | off, on |
 | `local_unmute` | Whether the robot's own face can unmute it | on |
 | `update_channel`, `update_source`, `update_check`, `update_install` | Updates | stable, official, weekly, ask |
 
