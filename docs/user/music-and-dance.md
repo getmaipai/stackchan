@@ -12,7 +12,8 @@ Say the wake word, then "dance". Name one to pick it: **sway**, **nod yes**, **s
 
 ## It sways to your music
 
-Turn on **Dance to music** in the settings page on your host. It is off by default.
+Turn on **Dance to music** <span class="planned-tag">Built, not flashed</span> (not tested with a real track) on the Behavior page of the settings page on your host. It is off by default. The page shows a status line: off, waiting for the unit, listening, dancing, paused (muted or quiet) or the unit needs an update.
+The unit measures sound levels and tempo only. No audio is kept or sent.
 When music plays near the robot, it finds the tempo and sways to it, and shows a mood face that fits the music.
 
 - It will not dance to speech, and it pauses when the music pauses.

@@ -122,7 +122,7 @@ Likely to come, not finished. Do not count on these yet.
 |---|---|---|
 | **Pickup detection** <span class="planned-tag">Planned</span> | Still being built. | [Moves and moods](moves-and-moods.md) |
 | **Brighter dim level, funnier whack-a-mole** <span class="planned-tag">Planned</span> | A brighter dim level, real moles and funny sounds. Still being built. | [Games](games-and-pet.md) |
-| **More games** <span class="planned-tag">Planned</span> | Tic-Tac-Toe, Do It (button tiles), Rock Paper Scissors, Magic 8-Ball, Dice and Coin. Talk games: 20 Questions, riddles, trivia, word chain, would-you-rather and bedtime stories. A Dance to music toggle. Still being built, not flashed. | [Games](games-and-pet.md) |
+| **More games** <span class="planned-tag">Built, not flashed</span> | Tic-Tac-Toe, Do It (button tiles), Rock Paper Scissors, funnier moles, six talk games (20 Questions, riddles, trivia, word chain, would-you-rather, bedtime stories) and a Dance to music toggle. Not tested with a real track or a live model. Magic 8-Ball, Dice and Coin are still planned. | [Games](games-and-pet.md) |
 | **Scenes and data cards** <span class="planned-tag">Planned</span> | One tag that sets several looks at once (stormy, party and more), and cards such as weather shown by MaiPai Home. In progress. | [Local vs Home](local-vs-home.md) |
 | **Wi-Fi roaming** <span class="planned-tag">Planned</span> | Move between your saved Wi-Fi networks, and a ported private-network join. In progress. | [Away from home](use-it-anywhere.md) |
 | **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |
