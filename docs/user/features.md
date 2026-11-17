@@ -71,6 +71,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 |---|---|---|---|
 | **Wi-Fi setup page** | A setup code on the robot screen, a short window and a lock after wrong tries. | Robot | [Getting started](getting-started.md) |
 | **Away from home (Tailscale)** | The robot joins your private network by itself when it cannot reach your host, using a one-time key. Works from any Wi-Fi: a friend's house, a hotel, the office. | Robot | [Away from home](use-it-anywhere.md) |
+| **Local or Home, side by side** | What you get with your own model and what Home adds, and what replaces each internet feature of the factory firmware. | Robot and host | [Local vs Home](local-vs-home.md) |
 | **Several robots, one host** | One host serves each robot by its own ID. | Robot | [Install the host](install-the-host.md) |
 | **Remote cue on the robot** | Every remote action shows a purple cue on the robot that cannot be turned off. Remote access is off by default. | Robot | [Security](security.md) |
 | **Remote controls on the settings page** | Beep, flash, find my robot (works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. | Robot | [Settings](settings.md) |

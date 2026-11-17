@@ -7,7 +7,7 @@ The robot is the same hardware in all three. Pick the one that fits.
 Use it when:
 
 - You find the default features, privacy and performance acceptable.
-- You rely on the phone app, live video, remote avatar control, the ESP-NOW remote or the app centre.
+- You rely on the phone app, live video, remote avatar control, the ESP-NOW remote or the app center.
 - You have no hardware to host a model, and you do not want to set any up.
 
 See [Compare](compare.md).
@@ -45,3 +45,5 @@ Moving between the last two is one setting, `brain = "llm"` or `brain = "home"`,
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.
+
+For a full side-by-side, see [What you get with your own model and with MaiPai Home](local-vs-home.md).
