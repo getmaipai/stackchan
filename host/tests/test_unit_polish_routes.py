@@ -78,6 +78,34 @@ def test_a_ready_unit_gets_only_its_own_keys_in_one_call_and_again_on_connect(ne
     assert units[KITCHEN].prefs["listen_sound"] == "mm"
 
 
+
+def test_a_save_sends_only_the_keys_a_person_changed_never_a_default(new):
+    """The speech bubble follows the unit's Stock style until a person chooses: a save of another key must not send it."""
+    backend, units = new
+    units[KITCHEN].prefs.clear()
+    status, out = post(backend, KITCHEN, "prefs", {"fx_crt": True})
+    assert status == 200 and out["pushed"] is True
+    assert units[KITCHEN].prefs == {"fx_crt": True}
+    sets = [c for c in units[KITCHEN].calls if c[0] == "self.prefs.set"]
+    assert json.loads(sets[-1][1]["json"]) == {"fx_crt": True}
+    status, out = post(backend, KITCHEN, "prefs", {"speech_bubble": False})  # now a person did choose it
+    assert json.loads([c for c in units[KITCHEN].calls if c[0] == "self.prefs.set"][-1][1]["json"]) == {"speech_bubble": False}
+
+
+def test_connecting_sends_only_what_was_chosen_and_nothing_when_nothing_was(new):
+    backend, units = new
+    post(backend, KITCHEN, "prefs", {"emotion_faces": False})  # a host-only key: nothing goes to the unit
+    units[KITCHEN].calls.clear()
+    units[KITCHEN].prefs.clear()
+    backend.polish.on_connect(KITCHEN)
+    assert not [c for c in units[KITCHEN].calls if c[0] == "self.prefs.set"]
+    post(backend, KITCHEN, "prefs", {"listen_light": "dim"})
+    units[KITCHEN].calls.clear()
+    units[KITCHEN].prefs.clear()
+    backend.polish.on_connect(KITCHEN)
+    sets = [c for c in units[KITCHEN].calls if c[0] == "self.prefs.set"]
+    assert len(sets) == 1 and json.loads(sets[0][1]["json"]) == {"listen_light": "dim"}
+
 @pytest.mark.parametrize(
     ("body", "word"),
     [

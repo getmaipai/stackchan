@@ -1,0 +1,25 @@
+# Intent: The Remote page's beep, flash, mute and overlay buttons ask for the cue kinds sound, light, setting and look, which the unit did not know, so it refused the cue (bad_kind) and the host reported "The unit did not accept the remote cue" with nothing done (found on the unit, 2026-11-16). The remote cue core now knows those four kinds, each with its own banner (Remote: sound, Remote: lights, Remote: setting, Remote: look), so every button on the page is shown on the robot before it acts. The new kinds need the cue and the token like the others when a call is marked source remote; no tool is gated by them yet.
+# Placement: unit (the remote cue)
+# Upstream: firmware/main/hal/maipai_remote_core.h (ours, TB05)
+# Check after a flash: self.remote.action {"kind":"sound"} answers a token and shows "Remote: sound"; the Remote page beep, flash, mute and overlay buttons work with the cue on.
+
+diff --git a/firmware/main/hal/maipai_remote_core.h b/firmware/main/hal/maipai_remote_core.h
+index 2bf6e7c..1e6a5ba 100644
+--- a/firmware/main/hal/maipai_remote_core.h
++++ b/firmware/main/hal/maipai_remote_core.h
+@@ -30,10 +30,12 @@
+ typedef enum { MR_SPEAK_OFF = 0, MR_SPEAK_ASK, MR_SPEAK_ON } mr_speak_t;
+ 
+ /* kinds: what the banner says is the device's; the order is the history's number */
+-typedef enum { MR_MOVE = 0, MR_FIND, MR_PHOTO, MR_DANCE, MR_GAME, MR_SAY, MR_LISTEN, MR_KIND_COUNT } mr_kind_t;
+-static const char* const MR_KIND_NAMES[MR_KIND_COUNT] = {"move", "find", "photo", "dance", "game", "say", "listen"};
++typedef enum { MR_MOVE = 0, MR_FIND, MR_PHOTO, MR_DANCE, MR_GAME, MR_SAY, MR_LISTEN, MR_SOUND, MR_LIGHT, MR_SETTING, MR_LOOK, MR_KIND_COUNT } mr_kind_t;
++/* sound, light, setting and look (patch TC04) are the Remote page's beep, flash, mute and overlay buttons: they get the banner too */
++static const char* const MR_KIND_NAMES[MR_KIND_COUNT] = {"move", "find", "photo", "dance", "game", "say", "listen", "sound", "light", "setting", "look"};
+ static const char* const MR_BANNERS[MR_KIND_COUNT]    = {"Remote: moving", "Remote: finding me", "Remote: photo", "Remote: dance",
+-                                                         "Remote: game",   "Remote message",     "Remote: listening"};
++                                                         "Remote: game",   "Remote message",     "Remote: listening", "Remote: sound",
++                                                         "Remote: lights", "Remote: setting",    "Remote: look"};
+ 
+ static inline int mr_kind_by_name(const char* s)
+ {

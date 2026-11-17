@@ -121,8 +121,8 @@ static void test_a_stray_finger_is_a_drag(void)
     /* released in another region is no toggle even when the stray is small: eye border */
     {
         mtc_trace_t t;
-        mtc_begin(&t, 108, 97, 0);  /* eye region (x < 112) */
-        mtc_move(&t, 114, 97, 40);  /* now in the forehead gap */
+        mtc_begin(&t, 124, 97, 0);  /* eye region (x < 128: Big eyes reach x 123) */
+        mtc_move(&t, 130, 97, 40);  /* now in the forehead gap */
         CHECK(mtc_classify(&t) == MTC_KIND_DRAG);
         CHECK(mtc_action_on_release(&t) == MTC_ACTION_NONE);
     }

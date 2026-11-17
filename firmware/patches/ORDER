@@ -132,3 +132,10 @@ TA01-prefs-store-and-tools.patch
 TA02-screen-effects-and-governor.patch
 TA03-overlay-engine.patch
 TA04-speech-bubble.patch
+V10-face-design-shapes.patch
+V11-eye-touch-regions.patch
+V12-chunky-mouth-on-anime-eyes.patch
+TC01-remote-token-gate.patch
+TC02-flash-reads-off-psram-stacks.patch
+TC03-boot-internal-ram.patch
+TC04-remote-cue-sound-light-setting-look.patch

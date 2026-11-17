@@ -133,18 +133,25 @@ class PrefsService:
 
     def save(self, device_id: str, values: dict[str, Any], lang: str | None = None) -> dict[str, Any]:
         merged = self._put(device_id, values)
-        mine = {k: v for k, v in values.items() if k in UNIT_KEYS}
+        mine = [k for k in UNIT_KEYS if k in values]
         if not mine:
             return {"ok": True, "pushed": None, "message": ""}
-        return self._send(device_id, merged, lang)
+        return self._send(device_id, merged, lang, mine)
 
-    def _send(self, device_id: str, saved: dict[str, Any], lang: str | None) -> dict[str, Any]:
+    def _send(self, device_id: str, saved: dict[str, Any], lang: str | None, keys: list[str] | None = None) -> dict[str, Any]:
+        """Send the unit's keys a person has chosen (``keys``, or every unit key saved so far), never a default.
+
+        A key the person never touched is left off the call: the unit keeps its own default for it (the speech bubble
+        follows the Stock style until a person chooses), so sending the host's default would overwrite that choice."""
+        chosen = [k for k in (keys if keys is not None else UNIT_KEYS) if k in saved]
+        if not chosen:
+            return {"ok": True, "pushed": None, "message": ""}
         have = self.probe.has(device_id, "prefs")
         if have is None:
             return {"ok": True, "pushed": False, "pending": False, "message": say(lang, "kept")}
         if have is False:
             return {"ok": True, "pushed": False, "pending": True, "message": say(lang, "soon")}
-        payload = {k: prefs_of(saved)[k] for k in UNIT_KEYS}
+        payload = {k: saved[k] for k in chosen}
         try:
             reply = unwrap(self.probe.call(device_id, "self.prefs.set", {"json": dumps(payload)}))
         except (BodyLost, OSError, TimeoutError):

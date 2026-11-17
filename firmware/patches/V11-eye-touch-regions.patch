@@ -1,0 +1,35 @@
+# Intent: The eye touch regions follow the bigger eyes (patch V10). Big eyes are drawn from x 27 to 123 and 197 to 293 and Eyes only to y 164, so a tap on the inner part of an eye would have landed in the forehead gap or the rest zone and toggled quiet instead of vision. The left eye region is now x 20 to 127 and the right x 192 to 299, y 56 to 165; the forehead gap between them is x 128 to 191 (y 56 to 119); the mouth box and the edge margins are unchanged.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_touch_core.h (ours, patch 105)
+# Check after a flash: a tap on the inner edge of each eye (x 120 and x 200, y 100) toggles vision; a tap at x 160, y 100 still toggles quiet; a tap on the mouth still toggles mute.
+
+diff --git a/firmware/main/hal/maipai_touch_core.h b/firmware/main/hal/maipai_touch_core.h
+index 5f4419e..af675a2 100644
+--- a/firmware/main/hal/maipai_touch_core.h
++++ b/firmware/main/hal/maipai_touch_core.h
+@@ -60,8 +60,8 @@ typedef struct {
+ /* The regions tile the screen with no overlap (the first match wins, top to bottom):
+  *   edge margins                         x < 20, x >= 300, y < 28, y >= 220
+  *   forehead strip above the eyes        y 28..55, any x inside the margins
+- *   left eye 20..111   right eye 208..299   y 56..149   (the eyes are drawn at x 56..108 and 212..264)
+- *   forehead gap between the eyes        x 112..207, y 56..119
++ *   left eye 20..127   right eye 192..299   y 56..165   (Big eyes are drawn at x 27..123 and 197..293, Eyes only to y 164; patch V10)
++ *   forehead gap between the eyes        x 128..191, y 56..119
+  *   mouth box                            x 112..207, y 120..219  (the mouth is drawn at y 130..190)
+  */
+ static inline mtc_region_t mtc_region_at(int x, int y)
+@@ -72,11 +72,11 @@ static inline mtc_region_t mtc_region_at(int x, int y)
+     if (y < 56) {
+         return MTC_REGION_FOREHEAD;
+     }
+-    if (y < 150) {
+-        if (x < 112) {
++    if (y < 166) {
++        if (x < 128) {
+             return MTC_REGION_EYE_LEFT;
+         }
+-        if (x >= 208) {
++        if (x >= 192) {
+             return MTC_REGION_EYE_RIGHT;
+         }
+         return y < 120 ? MTC_REGION_FOREHEAD : MTC_REGION_MOUTH;

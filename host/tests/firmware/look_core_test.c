@@ -20,12 +20,13 @@ static void test_styles(void)
     for (int i = 0; i < ML_STYLE_COUNT; i++) {
         const ml_style_t* s = ml_style(i);
         CHECK(s->name != NULL);
-        CHECK(ml_eye_box(s->eye_d) <= 64); /* a rotated eye is drawn in a layer; 64 square keeps it in one buffer */
-        /* the eye lies inside its touch region: x 20..111 (left), y 56..149, centred on 160 -/+ eye_x */
-        const int left = 160 - s->eye_x - s->eye_d / 2, right = 160 - s->eye_x + s->eye_d / 2;
-        CHECK(left >= 20 && right <= 112);
-        const int top = 120 + s->eye_y - s->eye_d / 2, bot = 120 + s->eye_y + s->eye_d / 2;
-        CHECK(top >= 56 && bot <= 150);
+        /* the eyes lie on the screen, apart from each other, and the touch regions (maipai_touch_core.h) hold them */
+        const int left = 160 - s->eye_x - s->ew / 2, right = 160 - s->eye_x + s->ew / 2;
+        CHECK(left >= 20 && right <= 127);
+        const int top = 120 + s->eye_y - s->eh / 2, bot = 120 + s->eye_y + s->eh / 2;
+        CHECK(top >= 28 && bot <= 165);
+        CHECK(s->eye_x - s->ew / 2 > 0); /* the eyes do not touch */
+        CHECK(s->r_pct >= 55 && s->r_pct <= 100);
         if (s->mouth != ML_MOUTH_NONE) {
             CHECK(120 + s->mouth_y >= 120 && 120 + s->mouth_y <= 219); /* in the mouth touch box */
         }
@@ -36,6 +37,7 @@ static void test_styles(void)
     CHECK(ml_style(-1) == ml_style(ML_STYLE_BIG_EYES));
     CHECK(ml_style(99) == ml_style(ML_STYLE_BIG_EYES));
     CHECK(ml_style(ML_STYLE_STOCK)->eye_d == 20); /* the stock eye as shipped */
+    CHECK(ml_style(ML_STYLE_BIG_EYES)->pupil == 1 && ml_style(ML_STYLE_BIG_EYES)->ew == 96 && ml_style(ML_STYLE_BIG_EYES)->eh == 104);
     CHECK(ml_style(ML_STYLE_STOCK)->mouth == ML_MOUTH_BAR);
     CHECK(ml_style(ML_STYLE_EYES_ONLY)->mouth == ML_MOUTH_NONE);
 }
@@ -271,9 +273,15 @@ static void test_dots_at_mouth(void)
         for (uint32_t t = 0; t < 2400; t += 50) {
             for (int i = 0; i < ML_DOT_COUNT; i++) {
                 const ml_dot_t d = ml_dot(s, i, t);
-                CHECK(d.y <= s->mouth_y && d.y >= s->mouth_y - 5); /* at the mouth position, also with no mouth */
-                CHECK(d.opa >= 90);
-                CHECK(abs(d.x) <= ML_DOT_SPACING);
+                if (s->stock_look) { /* the stock dots sit at the stock mouth, as shipped */
+                    CHECK(d.y <= s->mouth_y && d.y >= s->mouth_y - 5);
+                    CHECK(d.opa >= 90);
+                    CHECK(abs(d.x) <= ML_DOT_SPACING);
+                } else { /* the approved design: 13 px dots, 26 apart, low on the face, y 84 to 92 from the middle */
+                    CHECK(d.y <= 92 && d.y >= 84 && d.d == 13);
+                    CHECK(d.opa >= 89);
+                    CHECK(abs(d.x) <= 26);
+                }
             }
         }
     }
@@ -308,6 +316,217 @@ static void test_tint(void)
     CHECK(r + g + b < 3 * 255);
 }
 
+/* ---- the approved design (patch V10): poses, the spring and the shapes ---- */
+
+static int in_quad(const float q[8], float x, float y)
+{ /* the quad is convex: the point is on the same side of every edge */
+    int pos = 0, neg = 0;
+    for (int i = 0; i < 4; i++) {
+        const float x0 = q[i * 2], y0 = q[i * 2 + 1], x1 = q[((i + 1) % 4) * 2], y1 = q[((i + 1) % 4) * 2 + 1];
+        const float c = (x1 - x0) * (y - y0) - (y1 - y0) * (x - x0);
+        if (c > 0.01f) pos++;
+        if (c < -0.01f) neg++;
+    }
+    return pos == 0 || neg == 0;
+}
+
+static void test_poses(void)
+{
+    float t[MP_N];
+    for (int si = 0; si < ML_STYLE_COUNT; si++) {
+        const ml_style_t* st = ml_style(si);
+        for (int e = 0; e < ML_COUNT; e++) {
+            for (int th = 0; th < 2; th++) {
+                ml_pose_target(st, e, th, t);
+                for (int i = 0; i < MP_N; i++) CHECK(isfinite(t[i]));
+                CHECK(t[MP_EW] > 0 && t[MP_EH] > 0 && t[MP_LID] >= 0 && t[MP_LID] < 0.7f);
+                CHECK(!(st->mouth == ML_MOUTH_NONE) || t[MP_MON] == 0);
+                CHECK(st->brows || t[MP_BROW] == 0);
+            }
+        }
+    }
+    ml_pose_target(ml_style(ML_STYLE_BIG_EYES), ML_ANGRY, 0, t);
+    CHECK(t[MP_SLANT] > 0.8f && t[MP_BROW] == 1.0f && t[MP_BTILT] == 1.0f);
+    ml_pose_target(ml_style(ML_STYLE_MINIMAL), ML_ANGRY, 0, t);
+    CHECK(t[MP_BROW] == 0.0f); /* Minimal has no brows */
+    ml_pose_target(ml_style(ML_STYLE_BIG_EYES), ML_NEUTRAL, 1, t);
+    CHECK(t[MP_GX] == 12.0f && t[MP_GY] == -10.0f && t[MP_MON] == 0.0f); /* thinking: up and away, no mouth */
+}
+
+static void test_spring(void)
+{
+    float t[MP_N], z[MP_N];
+    const ml_style_t* st = ml_style(ML_STYLE_BIG_EYES);
+    ml_pose_target(st, ML_NEUTRAL, 0, z);
+    ml_pose_target(st, ML_SURPRISED, 0, t);
+    ml_spring_t sp;
+    ml_spring_snap(&sp, z);
+    float peak = z[MP_EH];
+    int settled_at = -1;
+    for (int i = 0; i < 90; i++) { /* 33 ms steps */
+        ml_spring_step(&sp, t, 0.033f);
+        if (sp.x[MP_EH] > peak) peak = sp.x[MP_EH];
+        if (settled_at < 0 && ml_spring_settled(&sp, t)) settled_at = i;
+    }
+    const float over = (peak - t[MP_EH]) / (t[MP_EH] - z[MP_EH]);
+    CHECK(over > 0.04f && over < 0.14f); /* about 8 percent overshoot */
+    CHECK(settled_at > 0 && settled_at * 33 < 700); /* settled in well under a second */
+    CHECK(fabsf(sp.x[MP_EH] - t[MP_EH]) < 0.1f);
+    sp.x[MP_LID] = 5.0f;
+    ml_spring_step(&sp, t, 0.01f);
+    CHECK(sp.x[MP_LID] <= 1.0f); /* the unit values stay in range */
+}
+
+/* The eye shapes stay clean at every lid, slant, blink and gaze step: finite, inside the art box, the right shapes in the
+ * right order, the lid covers every point of the eye above its edge, the pupil is masked when it leaves the eye. */
+static void test_eye_shapes_clean(void)
+{
+    ml_shape_t out[ML_MAX_SHAPES];
+    for (int si = 0; si < ML_STYLE_COUNT; si++) {
+        const ml_style_t* st = ml_style(si);
+        if (st->stock_look) continue;
+        const float boxw = st->ew * 1.3f + 100.0f, boxh = st->eh * 1.45f + 100.0f; /* the art object (eyes.cpp place_art) */
+        for (int side = -1; side <= 1; side += 2) {
+            for (float lid = 0.0f; lid <= 0.88f; lid += 0.11f) {
+                for (float slant = -1.0f; slant <= 1.0f; slant += 0.25f) {
+                    for (float bl = 0.0f; bl <= 1.0f; bl += 0.5f) {
+                        for (int g = 0; g < 9; g++) {
+                            ml_eye_in_t in;
+                            memset(&in, 0, sizeof(in));
+                            in.st = st; in.side = side; in.ew = (float)st->ew; in.eh = (float)st->eh;
+                            in.lid = lid; in.slant = slant; in.blink = bl; in.beat = 1.0f;
+                            in.gx = (float)((g % 3) - 1) * 16.0f; in.gy = (float)((g / 3) - 1) * 10.0f;
+                            const int n = ml_eye_shapes(&in, out, ML_MAX_SHAPES);
+                            CHECK(n >= 1 && n <= 12);
+                            CHECK(out[0].kind == ML_SH_RRECT && out[0].col == ML_COL_FG); /* the eye is drawn first */
+                            const float ww = out[0].v[2], hh = out[0].v[3], rad = out[0].v[4];
+                            CHECK(rad >= 0.0f && rad <= (ww < hh ? ww : hh) * 0.5f + 0.01f); /* a radius that never exceeds the box */
+                            int pupil = 0, ring = 0, lids = 0;
+                            for (int i = 0; i < n; i++) {
+                                for (int k = 0; k < 8; k++) CHECK(isfinite(out[i].v[k]));
+                                if (out[i].kind == ML_SH_CIRCLE) { pupil++; CHECK(fabsf(out[i].v[0]) < boxw / 2 && fabsf(out[i].v[1]) < boxh / 2); }
+                                if (out[i].kind == ML_SH_RING) { ring++; CHECK(out[i].col == ML_COL_BG && out[i].v[5] == 18.0f); }
+                                if (out[i].kind == ML_SH_QUAD) {
+                                    lids++;
+                                    CHECK(out[i].col == ML_COL_BG);
+                                    for (int k = 0; k < 4; k++) CHECK(fabsf(out[i].v[k * 2]) < ww / 2 + 4.0f && out[i].v[k * 2 + 1] >= -hh / 2 - 6.01f);
+                                }
+                            }
+                            CHECK(st->pupil ? pupil == 3 : pupil == 0);
+                            if (st->pupil && ring) { /* the mask is there only when the pupil leaves the eye */
+                                CHECK(sqrtf(out[1].v[0] * out[1].v[0] + out[1].v[1] * out[1].v[1]) + out[1].v[2] > (ww < hh ? ww : hh) * 0.5f - 0.6f);
+                            }
+                            if (st->pupil && !ring) {
+                                CHECK(sqrtf(out[1].v[0] * out[1].v[0] + out[1].v[1] * out[1].v[1]) + out[1].v[2] <= (ww < hh ? ww : hh) * 0.5f);
+                            }
+                            if (lid > 0.005f || fabsf(slant) > 0.005f) {
+                                CHECK(lids <= 1);
+                                /* the lid covers every point of the eye's outline that lies above its edge */
+                                const ml_shape_t* q = NULL;
+                                for (int i = 0; i < n; i++) if (out[i].kind == ML_SH_QUAD) q = &out[i];
+                                static const ml_shape_t none = {0};
+                                if (q == NULL) q = &none; /* the edge is above the eye's top at both ends: nothing to cover */
+                                const float k = slant * hh * 0.45f * (float)(-side) / (ww * 0.5f), y0 = -hh * 0.5f + lid * hh;
+                                for (int a = 0; a < 360; a += 5) {
+                                    const float ca = cosf((float)a * 0.0174533f), sa = sinf((float)a * 0.0174533f);
+                                    const float x = ca * (ww * 0.5f - 0.5f), y = sa * (hh * 0.5f - 0.5f);
+                                    if (y < y0 + k * x - 1.0f) CHECK(lids == 1 && in_quad(q->v, x, y));
+                                }
+                            } else {
+                                CHECK(lids == 0); /* an open eye is whole: nothing cuts it */
+                            }
+                        }
+                    }
+                }
+            }
+            /* the two eyes at rest are the same shape, mirrored: the same shapes, and the lid slant flips */
+        }
+        ml_eye_in_t l, r;
+        memset(&l, 0, sizeof(l));
+        l.st = st; l.side = -1; l.ew = (float)st->ew; l.eh = (float)st->eh; l.beat = 1.0f;
+        r = l; r.side = 1;
+        ml_shape_t a[ML_MAX_SHAPES], b[ML_MAX_SHAPES];
+        const int na = ml_eye_shapes(&l, a, ML_MAX_SHAPES), nb = ml_eye_shapes(&r, b, ML_MAX_SHAPES);
+        CHECK(na == nb && memcmp(a, b, sizeof(ml_shape_t) * (size_t)na) == 0); /* at rest the eyes are identical about their centres */
+    }
+}
+
+static void test_brow_and_mouth_shapes(void)
+{
+    ml_shape_t out[ML_MAX_SHAPES];
+    const ml_style_t* big = ml_style(ML_STYLE_BIG_EYES);
+    CHECK(ml_brow_shapes(big, -1, 96, 104, 1, 0, 0, 0, 0.0f, 0, 0, out, 2) == 0); /* no brow when none is asked for */
+    CHECK(ml_brow_shapes(ml_style(ML_STYLE_MINIMAL), -1, 28, 40, 1, 0, 0, 0, 1.0f, 0, 0, out, 2) == 0);
+    CHECK(ml_brow_shapes(big, -1, 96, 104, 1, 0, 0, 0, 1.0f, 0, 1.0f, out, 2) == 1);
+    CHECK(out[0].kind == ML_SH_LINE && out[0].v[4] == 8.0f);
+    const float ly = out[0].v[1], ry = out[0].v[3]; /* the left brow of angry: the inner (right) end is lower */
+    CHECK(ry > ly);
+    /* the mouth (patch V12): the chunky stroke, as pieces */
+    ml_mouth_t sm = ML_LOOKS[ML_NEUTRAL].mouth;
+    int n = ml_mouth_shapes(&sm, 0.0f, 1.0f, out, ML_MAX_SHAPES);
+    CHECK(n >= 8 && n <= 16); /* a shut mouth: round-ended pieces along 17 points */
+    for (int i = 0; i < n; i++) { CHECK(out[i].kind == ML_SH_LINE && out[i].v[4] == 8.0f); }
+    ml_mouth_t o = ml_mouth_speaking(sm, 1.0f, 1.0f);
+    n = ml_mouth_shapes(&o, 0.0f, 1.0f, out, ML_MAX_SHAPES);
+    CHECK(n >= 1 && n <= 16); /* an open one: a short thick stroke */
+    for (int i = 0; i < n; i++) for (int k = 0; k < 8; k++) CHECK(isfinite(out[i].v[k]));
+    ml_mouth_t dot = ML_LOOKS[ML_SURPRISED].mouth;
+    n = ml_mouth_shapes(&dot, 0.0f, 1.0f, out, ML_MAX_SHAPES);
+    CHECK(n == 1 && out[0].kind == ML_SH_CIRCLE && out[0].v[2] == 11.0f); /* surprised: a round O of one disc, 22 thick */
+    CHECK(ml_mouth_shapes(&sm, 0.0f, 0.0f, out, ML_MAX_SHAPES) == 0); /* thinking shows dots, not a mouth */
+    CHECK(ml_blink_factor(0) == 0.0f && fabsf(ml_blink_factor(55) - 1.0f) < 0.001f && ml_blink_factor(140) == 0.0f);
+    CHECK(ml_blink_factor(30) > 0.5f && ml_blink_factor(100) < 0.5f); /* shut in 55 ms, open in 85 */
+}
+
+/* Patch V12: the speech level to the shape of the mouth, and the eased motion between shapes. */
+static void test_chunky_mouth_speech(void)
+{
+    const ml_style_t* big = ml_style(ML_STYLE_BIG_EYES);
+    CHECK(big->mouth_w == 46 && big->mouth_t == 8); /* the chunky size, not the thin one */
+    CHECK(ml_style(ML_STYLE_CLASSIC)->mouth_t >= 6 && ml_style(ML_STYLE_MINIMAL)->mouth_w == 22);
+    /* level to open amount: shut under 8, never down as the level rises, and at least six distinct shapes across the range */
+    float prev = -1.0f;
+    int distinct = 0;
+    float last_shape_t = -100.0f;
+    for (int lv = 0; lv <= 100; lv++) {
+        const float open = mx_mouth_for_level(lv) / 100.0f;
+        CHECK(open >= prev - 1e-6f);
+        prev = open;
+        const ml_mouth_t m = ml_mouth_speaking(ML_LOOKS[ML_NEUTRAL].mouth, open, 1.0f);
+        if (m.t > last_shape_t + 4.0f) { distinct++; last_shape_t = m.t; } /* a step is 4 px of thickness: visible on the glass */
+    }
+    CHECK(mx_mouth_for_level(7) == 0.0f && mx_mouth_for_level(100) > 85.0f);
+    CHECK(distinct >= 6);
+    /* the target follows the rules in one place: calm when muted, a smile that opens flatter, a yawn when tired and not speaking */
+    const ml_mouth_t calm = ml_mouth_target(big, ML_HAPPY, 1, 1, 0.9f, 0);
+    CHECK(calm.split == 0.0f && calm.bend == 0.0f && calm.t < 8.0f);
+    const ml_mouth_t talk = ml_mouth_target(big, ML_HAPPY, 0, 1, 0.9f, 0);
+    CHECK(talk.split == 0.0f && talk.t > 25.0f);
+    const ml_mouth_t rest = ml_mouth_target(big, ML_TIRED, 0, 0, 0.0f, 0), yawn = ml_mouth_target(big, ML_TIRED, 0, 0, 0.0f, 1800);
+    CHECK(yawn.t > rest.t + 4.0f);
+    /* eased motion: opening is quick (40 ms) and never overshoots, closing is slower (105 ms), and each step moves toward its target only */
+    ml_mouth_t shut = ml_mouth_target(big, ML_NEUTRAL, 0, 1, 0.0f, 0), wide = ml_mouth_target(big, ML_NEUTRAL, 0, 1, 0.9f, 0);
+    ml_mouth_t cur = shut;
+    float last = cur.t;
+    int open_ms = 0;
+    for (int ms = 33; ms <= 1000; ms += 33) {
+        cur = ml_mouth_follow(cur, wide, 33.0f, ml_mouth_tau(&cur, &wide, 1, 0.9f));
+        CHECK(cur.t >= last - 1e-4f && cur.t <= wide.t + 1e-3f); /* monotonic, no overshoot */
+        last = cur.t;
+        if (open_ms == 0 && cur.t >= shut.t + 0.9f * (wide.t - shut.t)) open_ms = ms;
+    }
+    ml_mouth_t back = wide;
+    int close_ms = 0;
+    for (int ms = 33; ms <= 1000; ms += 33) {
+        const float before = back.t;
+        back = ml_mouth_follow(back, shut, 33.0f, ml_mouth_tau(&back, &shut, 1, 0.0f));
+        CHECK(back.t <= before + 1e-4f && back.t >= shut.t - 1e-3f);
+        if (close_ms == 0 && back.t <= wide.t - 0.9f * (wide.t - shut.t)) close_ms = ms;
+    }
+    CHECK(open_ms > 0 && close_ms > open_ms); /* a quick attack, a slower release */
+    CHECK(ml_mouth_tau(&shut, &wide, 1, 0.9f) == 40.0f && ml_mouth_tau(&wide, &shut, 1, 0.0f) == 105.0f);
+}
+
 int main(void)
 {
     test_styles();
@@ -320,6 +539,11 @@ int main(void)
     test_blink();
     test_dots_at_mouth();
     test_tint();
+    test_poses();
+    test_spring();
+    test_eye_shapes_clean();
+    test_brow_and_mouth_shapes();
+    test_chunky_mouth_speech();
     if (fails) {
         printf("%d failed\n", fails);
         return 1;

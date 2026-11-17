@@ -51,6 +51,14 @@ def test_touch_core_c_tests_pass(tmp_path):
         text=True,
     )
     assert applied.returncode == 0, applied.stdout + applied.stderr
+    v11 = (L07_PATCH.parent / "V11-eye-touch-regions.patch").read_text()  # the eye regions that follow the bigger eyes (patch V10)
+    again = subprocess.run(
+        ["patch", "-s", str(header)],
+        input="--- a/h\n+++ b/h\n" + v11.split("+++ b/firmware/main/hal/maipai_touch_core.h\n", 1)[1],
+        capture_output=True,
+        text=True,
+    )
+    assert again.returncode == 0, again.stdout + again.stderr
     binary = tmp_path / "touch_test"
     build = subprocess.run(
         [

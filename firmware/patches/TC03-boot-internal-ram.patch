@@ -1,0 +1,272 @@
+# Intent: Give back the internal RAM the merged image used (memory gate, 2026-11-16: the largest free internal block was 8,704 bytes against a gate of 16,000; the consolidated image had 25,600). Two transient tasks took internal stack while the wake word model loads, and the model then settled around them: the "mm" render task (3 KB) now runs once at the start of the listening ring task, whose stack is in PSRAM, and the pack boot task (6 KB, reads the flash cache) starts from a timer 15 s after boot instead of at registration. The long descriptions of seven new tools (prefs.set, overlay.set, listen.test, pack.status, remote.session, remote.action, remote.say) are shortened: tool descriptions live in internal heap for the life of the unit, 1.9 KB in all. Statics that sat in internal RAM move to PSRAM: the overlay engine state (1.35 KB), the pack directory, receive state and held-pack names (1.2 KB) and the filler u-law table (0.5 KB). Bench builds also log two trace lines (listen_wake_in, listen_cue_queued) so wake to first sound can be timed. No behaviour changes; a stored look pack applies 15 s after boot instead of at once.
+# Placement: unit (boot memory)
+# Upstream: firmware/main/hal/{maipai_listen.cc,maipai_packs.cc,maipai_fx.cc,maipai_remote.cc,maipai_filler.cc} (ours, TB01, TB02, TA01, TA03, TB05)
+# Check after a flash: the memory line after 20 s shows int_big at least 16,000 and internal_min at least 15,000; self.pack.status says booted true after 20 s; a wake plays the mm cue (listen_sound mm).
+
+diff --git a/firmware/main/hal/maipai_filler.cc b/firmware/main/hal/maipai_filler.cc
+index 1ff41bc..8954ca8 100644
+--- a/firmware/main/hal/maipai_filler.cc
++++ b/firmware/main/hal/maipai_filler.cc
+@@ -32,7 +32,7 @@ std::mutex s_mu;
+ tf_rule_t s_rule;
+ int16_t* s_tone = nullptr;  // PSRAM
+ size_t s_tone_n = 0;
+-int16_t s_ulaw[256];
++int16_t* s_ulaw = nullptr;  // PSRAM (patch TC03): 512 bytes that were a static in internal RAM
+ bool s_ulaw_ready = false;
+ 
+ // the held pack: tf_index_t is 48 clips of 50 bytes, so it lives in PSRAM with the sound bytes
+@@ -73,7 +73,7 @@ void play_tone()
+ // call with s_mu held; decodes one clip and queues it
+ bool play_clip_locked(int idx)
+ {
+-    if (s_held == nullptr || idx < 0 || idx >= s_held->index.n) return false;
++    if (s_held == nullptr || s_ulaw == nullptr || idx < 0 || idx >= s_held->index.n) return false;
+     const uint32_t n = s_held->len[idx];
+     int16_t* pcm = static_cast<int16_t*>(heap_caps_malloc(n * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+     if (pcm == nullptr) return false;
+@@ -236,8 +236,11 @@ void maipai_filler_thinking(bool on)
+ void maipai_filler_register_tools()
+ {
+     tf_rule_init(&s_rule);
+-    tf_ulaw_table(s_ulaw);
+-    s_ulaw_ready = true;
++    s_ulaw = static_cast<int16_t*>(heap_caps_malloc(256 * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (s_ulaw != nullptr) {
++        tf_ulaw_table(s_ulaw);
++        s_ulaw_ready = true;
++    }
+     s_tone = static_cast<int16_t*>(heap_caps_malloc(TF_TONE_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+     if (s_tone != nullptr) s_tone_n = tf_render_tone(s_tone, TF_TONE_SAMPLES);
+     auto& mcp = McpServer::GetInstance();
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+index 04f8b86..e1c6855 100644
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -157,7 +157,20 @@ uint32_t s_post_worst_us    = 0;
+ lv_timer_t* s_gov_timer              = nullptr;
+ 
+ // ------------------------------------------------------------------------------------------ overlays (TA03)
+-mo_layer_t s_ov[2];                  // weather layer, event layer: the whole engine's state (under 1.5 KB)
++// Weather layer, event layer: the whole engine's state (1.35 KB). It lives in PSRAM (patch TC03): as a static it took 1.35 KB
++// of the largest free internal block.
++mo_layer_t (*s_ov_p)[2] = nullptr;
++mo_layer_t (&ov_arr())[2]
++{
++    if (s_ov_p == nullptr) {
++        s_ov_p = static_cast<mo_layer_t (*)[2]>(heap_caps_calloc(1, sizeof(mo_layer_t[2]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (s_ov_p == nullptr) {
++            s_ov_p = static_cast<mo_layer_t (*)[2]>(heap_caps_calloc(1, sizeof(mo_layer_t[2]), MALLOC_CAP_8BIT));
++        }
++    }
++    return *s_ov_p;
++}
++#define s_ov ov_arr()
+ lv_timer_t* s_ov_timer               = nullptr;  // the one shared 30 fps timer; paused when nothing runs
+ int64_t s_ov_last_us                 = 0;
+ bool s_ov_hidden                     = false;    // a privacy look, the clock or the flat fallback hides the overlays
+@@ -513,12 +526,7 @@ void maipai_fx_register_tools()
+                     return std::string(buf);
+                 });
+     mcp.AddTool("self.prefs.set",
+-                "Change preferences. json is a JSON object with any of: fx_crt, fx_night_dim, fx_glow, speech_bubble, "
+-                "thinking_dots, listen_face (true or false), fx_colour_mode (normal, mono, warm, cool, duotone, amber or green), "
+-                "listen_sound (off, chime or mm), listen_light (off, dim or normal), listen_light_colour (#rrggbb), filler_mode "
+-                "(none, tone or phrase), filler_wait_s (0.2 to 1.5), emotion_faces and overlays_enabled (true or false). Each is "
+-                "kept in flash and applied at once. Nothing changes unless every field is valid. Answers {ok, changed} or "
+-                "{ok:false, error}.",
++                "Change preferences: json is an object with any of fx_crt, fx_night_dim, fx_glow, speech_bubble, thinking_dots, listen_face, emotion_faces, overlays_enabled (true or false), fx_colour_mode, listen_sound, listen_light, listen_light_colour, filler_mode, filler_wait_s. Kept in flash and applied at once; nothing changes unless all are valid.",
+                 PropertyList({Property("json", kPropertyTypeString, std::string("{}"))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     ensure_loaded();
+@@ -585,12 +593,7 @@ void maipai_fx_register_tools()
+                     return std::string(buf, n < sizeof buf ? n : sizeof buf - 1);
+                 });
+     mcp.AddTool("self.overlay.set",
+-                "Draw an overlay on top of the face. name is one of rain, snow, sun, clouds, wind, thunder, fog, stars, disco, "
+-                "confetti, fireworks, hearts, steam, balloons, leaves or zzz. intensity is light, normal or heavy. seconds is how long "
+-                "it runs (1 to 3600; 0 runs until self.overlay.clear). A new overlay replaces the running one in its own layer "
+-                "(weather: rain, snow, sun, clouds, wind, thunder, fog, stars, leaves, disco; event: confetti, fireworks, hearts, "
+-                "steam, balloons, zzz). A mute, vision-off or quiet look and the clock face hide overlays. Answers {ok} or "
+-                "{ok:false,error}.",
++                "Draw an overlay: name (rain, snow, sun, clouds, wind, thunder, fog, stars, leaves, disco, confetti, fireworks, hearts, steam, balloons, zzz), intensity (light, normal, heavy), seconds (1 to 3600; 0 until cleared). One runs per layer (weather, event). Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("rain")),
+                               Property("intensity", kPropertyTypeString, std::string("normal")),
+                               Property("seconds", kPropertyTypeInteger, 8, 0, 3600)}),
+diff --git a/firmware/main/hal/maipai_listen.cc b/firmware/main/hal/maipai_listen.cc
+index cbfd991..878f648 100644
+--- a/firmware/main/hal/maipai_listen.cc
++++ b/firmware/main/hal/maipai_listen.cc
+@@ -17,6 +17,7 @@
+ #include "maipai_sounds.h"
+ #include "maipai_timers.h"
+ #include "maipai_remote.h"
++#include "maipai_lat.h"
+ #include "board/hal_bridge.h"
+ #include <application.h>
+ #include <board.h>
+@@ -74,18 +75,15 @@ void play_sound(uint8_t which)
+     }
+ }
+ 
+-void render_task(void*)
+-{
+-    int16_t* buf = static_cast<int16_t*>(heap_caps_malloc(TL_MM_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+-    if (buf != nullptr) {
+-        s_mm_n = tl_render_mm(buf, TL_MM_SAMPLES);
+-        s_mm   = buf;
+-    }
+-    vTaskDelete(nullptr);
+-}
+-
+ void ring_task(void*)
+ {
++    {   // the "mm" is rendered once, here: this task's stack is in PSRAM, so the render costs no internal RAM (patch TC03)
++        int16_t* buf = static_cast<int16_t*>(heap_caps_malloc(TL_MM_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (buf != nullptr) {
++            s_mm_n = tl_render_mm(buf, TL_MM_SAMPLES);
++            s_mm   = buf;
++        }
++    }
+     tl_state_t last_state = TL_ST_OFF;
+     int64_t state_since   = 0;
+     bool lit              = false;
+@@ -164,10 +162,12 @@ void maipai_listen_wake(int within_ms)
+         return;
+     }
+     s_wake_us.store(now);
++    MAIPAI_LAT("listen_wake_in");
+     const MaipaiTbPrefs prefs = maipai_tb_prefs();
+     const tl_effective_t eff  = effective_now(prefs.listen);
+     if (eff.sound != TL_SOUND_OFF) {
+         play_sound(eff.sound);  // first: nothing before this waits for the network
++        MAIPAI_LAT("listen_cue_queued");  // bench builds only: the wake to first sound time with effects on or off
+     }
+     if (eff.face) {
+         hal_bridge::react_face("surprised", 500);
+@@ -197,13 +197,10 @@ void maipai_listen_register_tools()
+     (void)maipai_tb_prefs();
+     bool night_unused = false;
+     (void)maipai_sounds_gate("popup", &night_unused);
+-    xTaskCreate(render_task, "mm_render", 3072, nullptr, 1, nullptr);  // transient: renders the "mm" then ends
+     ensure_task();
+     auto& mcp = McpServer::GetInstance();
+     mcp.AddTool("self.listen.test",
+-                "Plays every enabled listening cue once: the sound (chime or mm), the ring light (listening, heard, thinking, "
+-                "speaking) and the face. Follows mute, sounds off, quiet hours and full quiet like a real listen. Answers "
+-                "{ok, sound, light, face, ring_frames, ring_slow}.",
++                "Plays every enabled listening cue once (sound, ring light, face), following mute, quiet hours and full quiet. Answers {ok, sound, light, face}.",
+                 PropertyList({Property("source", kPropertyTypeString, std::string("")),
+                               Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+diff --git a/firmware/main/hal/maipai_packs.cc b/firmware/main/hal/maipai_packs.cc
+index 49a4a1a..e5a9fad 100644
+--- a/firmware/main/hal/maipai_packs.cc
++++ b/firmware/main/hal/maipai_packs.cc
+@@ -16,6 +16,7 @@
+ #include "maipai_picface.h"
+ #include "board/hal_bridge.h"
+ #include <esp_heap_caps.h>
++#include <esp_timer.h>
+ #include <esp_log.h>
+ #include <esp_partition.h>
+ #include <freertos/FreeRTOS.h>
+@@ -36,15 +37,24 @@ namespace {
+ 
+ const esp_partition_t* s_part = nullptr;  // the assets partition; the cache is its tail
+ std::mutex s_mu;
+-tpc_dir_t s_dir;                 // ~0.6 KB
+ tpc_report_t s_rep;
+-tpk_rx_t s_rx;                   // ~0.2 KB
++// The directory (0.6 KB), the receive state (0.2 KB) and the held packs' names and hashes (0.4 KB) live in PSRAM (patch TC03):
++// as statics they took 1.2 KB of the largest free internal block.
++struct PackMem {
++    tpc_dir_t dir;
++    tpk_rx_t rx;
++    uint8_t user_sha[TPK_TYPES][32];
++    char user_name[TPK_TYPES][TPK_NAME_MAX + 1];
++};
++PackMem* s_pm = nullptr;
++#define s_dir (s_pm->dir)
++#define s_rx (s_pm->rx)
++#define s_user_sha (s_pm->user_sha)
++#define s_user_name (s_pm->user_name)
+ uint8_t* s_buf = nullptr;        // PSRAM: the pack in flight
+ uint8_t* s_user_buf[TPK_TYPES] = {};  // PSRAM: the pack a user holds
+ uint32_t s_user_len[TPK_TYPES] = {};
+ uint8_t s_have_user[TPK_TYPES] = {};  // the type's pack is applied (sha in s_user_sha)
+-uint8_t s_user_sha[TPK_TYPES][32];
+-char s_user_name[TPK_TYPES][TPK_NAME_MAX + 1];
+ std::atomic<bool> s_writing{false};
+ std::atomic<bool> s_cache_ok{false};
+ std::atomic<uint8_t> s_cached[TPK_TYPES];       // 1 once this type's held pack is in the flash cache
+@@ -194,16 +204,24 @@ const uint8_t* maipai_pack_bytes(int type, size_t* len)
+ 
+ void maipai_packs_register_tools()
+ {
++    s_pm = static_cast<PackMem*>(heap_caps_calloc(1, sizeof(PackMem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (s_pm == nullptr) {
++        ESP_LOGW(TAG, "no memory for the pack state: packs stay off");
++        return;
++    }
+     tpk_rx_init(&s_rx);
+     memset(&s_dir, 0, sizeof(s_dir));
+     s_dir.slot = 2;
+-    xTaskCreate(boot_task, "pack_boot", 6144, nullptr, 1, nullptr);  // transient: ends when the cache is applied
++    // Transient: ends when the cache is applied. Started 15 s after boot, not now: its 6 KB internal stack, taken while the wake
++    // word model loads (about 7 s in), left the largest free internal block at 8.7 KB instead of 25.6 KB (patch TC03).
++    static esp_timer_handle_t boot_timer = nullptr;
++    const esp_timer_create_args_t boot_args = {.callback = [](void*) { xTaskCreate(boot_task, "pack_boot", 6144, nullptr, 1, nullptr); },
++                                               .arg = nullptr, .dispatch_method = ESP_TIMER_TASK, .name = "pack_boot", .skip_unhandled_events = true};
++    if (esp_timer_create(&boot_args, &boot_timer) == ESP_OK) esp_timer_start_once(boot_timer, 15000000);
+     auto& mcp = McpServer::GetInstance();
+ 
+     mcp.AddTool("self.pack.status",
+-                "What pack of a type the unit holds: held, name, version, size, sha256, whether it is in the flash cache, and the cache's "
+-                "state at boot (empty, ok, damaged: a damaged one means the built-in set). Types: look, language, filler, sound, "
+-                "dance, game. Answers {ok, held, ...}.",
++                "What pack of a type (look, language, filler, sound, dance, game) the unit holds: held, name, size, sha256, cache state. Answers {ok, held, ...}.",
+                 PropertyList({Property("type", kPropertyTypeString, std::string("look"))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     const int t = tpk_type_by_name(properties["type"].value<std::string>().c_str());
+diff --git a/firmware/main/hal/maipai_remote.cc b/firmware/main/hal/maipai_remote.cc
+index e33e066..8677906 100644
+--- a/firmware/main/hal/maipai_remote.cc
++++ b/firmware/main/hal/maipai_remote.cc
+@@ -273,10 +273,7 @@ void maipai_remote_register_tools()
+     auto& mcp = McpServer::GetInstance();
+ 
+     mcp.AddTool("self.remote.session",
+-                "A controller (the settings page, the app, a Tailscale link) is connected (active true) or gone (false). The host calls it on "
+-                "connect and disconnect and repeats it about every 3 seconds while connected: 10 seconds without a call clears it, so a "
+-                "crashed host cannot leave it on. While on the robot shows a steady violet glyph and a dim violet ring. label is who: "
+-                "a few words. Answers {ok}.",
++                "A controller is connected (active true) or gone. Repeat about every 3 s while connected: 10 s without a call clears it. Shows a violet glyph and ring. label says who. Answers {ok}.",
+                 PropertyList({Property("active", kPropertyTypeBoolean, true), Property("label", kPropertyTypeString, std::string("remote"))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     ensure_ui();
+@@ -293,11 +290,7 @@ void maipai_remote_register_tools()
+                 });
+ 
+     mcp.AddTool("self.remote.action",
+-                "The cue call before any remote action: kind (move, find, photo, dance, game, say, listen), text (a few words, shown "
+-                "and logged), seconds (how long the banner shows, 1 to 30). The robot shows the banner and plays a short tone (the sound "
+-                "policy may silence the tone, never the banner) and answers a one-use token the action must carry; an action without one "
+-                "is ignored and logged. photo and listen also need the camera or listening cue (monitor_cue_begin) and a 3 second "
+-                "countdown, which the host shows through this banner by calling with seconds 3 first. Answers {ok, token} or {ok:false, reason}.",
++                "The cue call before a remote action: kind (move, find, photo, dance, game, say, listen), text, seconds (banner time, 1 to 30). Shows the banner and plays a tone; answers a one-use token the action must carry, or {ok:false, reason}.",
+                 PropertyList({Property("kind", kPropertyTypeString, std::string("move")), Property("text", kPropertyTypeString, std::string("")),
+                               Property("seconds", kPropertyTypeInteger, 4, 1, 30)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+@@ -326,10 +319,7 @@ void maipai_remote_register_tools()
+                 });
+ 
+     mcp.AddTool("self.remote.say",
+-                "A message for the robot to say, with the token from self.remote.action(kind say). The robot shows the exact text in a bubble "
+-                "labelled Remote message for 0.8 s first; a tap or the stop word in that time cancels it; with Remote speaking set to ask "
+-                "first it then waits for a tap to allow. At most 200 characters and 3 a minute. The unit has no voice: speak only when "
+-                "self.remote.say_status or the remote_say event says result speak. Answers {ok, id} or {ok:false, reason}.",
++                "A message to say, with the token from self.remote.action(say). Shows the exact text for 0.8 s first; a tap or the stop word cancels it. At most 200 characters, 3 a minute. Speak only when say_status or the remote_say event says result speak. Answers {ok, id}.",
+                 PropertyList({Property("text", kPropertyTypeString, std::string("")), Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     ensure_ui();

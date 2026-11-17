@@ -4,6 +4,7 @@
 #include <lvgl.h>
 #include <zlib.h>
 #include <unistd.h>
+#include <time.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -20,7 +21,12 @@ using namespace stackchan::avatar;
 
 static uint8_t s_buf[320 * 240 * 2];
 
-static void flush_cb(lv_display_t* d, const lv_area_t*, uint8_t*) { lv_display_flush_ready(d); }
+static double g_flush_px = 0;
+static void flush_cb(lv_display_t* d, const lv_area_t* a, uint8_t*)
+{
+    g_flush_px += (double)(a->x2 - a->x1 + 1) * (a->y2 - a->y1 + 1);
+    lv_display_flush_ready(d);
+}
 static uint32_t tick_cb() { return (uint32_t)(g_fake_us / 1000); }
 
 static std::vector<uint8_t> to_rgb(const uint8_t* rgb565)
@@ -87,12 +93,29 @@ static void write_sheet(const char* path, int cols, int div)
 static DefaultAvatar* g_av;
 static lv_obj_t* g_scr;
 
+// Draw cost model (patch V10), PERF=1 only: LVGL draws and flushes only the dirty areas, as on the unit, so the flushed pixels
+// per frame are what its draw time follows; the host time of a frame is a relative check against the old face.
+static double g_inv_px = 0, g_frame_ms = 0;
+static int g_frames = 0;
+static void inv_cb(lv_event_t* e)
+{
+    const lv_area_t* a = (const lv_area_t*)lv_event_get_param(e);
+    if (a == nullptr) return;
+    int x1 = a->x1 < 0 ? 0 : a->x1, y1 = a->y1 < 0 ? 0 : a->y1, x2 = a->x2 > 319 ? 319 : a->x2, y2 = a->y2 > 239 ? 239 : a->y2;
+    if (x2 >= x1 && y2 >= y1) g_inv_px += (double)(x2 - x1 + 1) * (y2 - y1 + 1);
+}
+
 static void frame()
 {
     g_fake_us += 33333;
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     g_av->update();
     render_hook_frame(g_av);
     lv_timer_handler();
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    g_frame_ms += (t1.tv_sec - t0.tv_sec) * 1000.0 + (t1.tv_nsec - t0.tv_nsec) / 1e6;
+    g_frames++;
 }
 
 static Emotion emo(const std::string& n)
@@ -110,9 +133,10 @@ int main()
     lv_init();
     lv_tick_set_cb(tick_cb);
     lv_display_t* d = lv_display_create(320, 240);
-    lv_display_set_buffers(d, s_buf, nullptr, sizeof(s_buf), LV_DISPLAY_RENDER_MODE_FULL);
+    lv_display_set_buffers(d, s_buf, nullptr, sizeof(s_buf), getenv("PERF") ? LV_DISPLAY_RENDER_MODE_PARTIAL : LV_DISPLAY_RENDER_MODE_FULL);  // PERF=1: only the dirty areas are drawn and flushed, as on the unit
     lv_display_set_flush_cb(d, flush_cb);
     lv_display_set_color_format(d, LV_COLOR_FORMAT_RGB565);
+    lv_display_add_event_cb(d, inv_cb, LV_EVENT_INVALIDATE_AREA, nullptr);
     g_scr = lv_screen_active();
     lv_obj_set_style_bg_color(g_scr, lv_color_black(), 0);
     static DefaultAvatar av;
@@ -162,12 +186,32 @@ int main()
             frame();
             auto rgb = to_rgb(s_buf);
             int n[2] = {0, 0};
-            for (int y = 30; y < 142; y++) for (int x = 12; x < 308; x++) {
+            for (int y = 30; y < 166; y++) for (int x = 12; x < 308; x++) {
                 if (x >= 140 && x < 180) continue;
                 const int i = (y * 320 + x) * 3;
                 if (rgb[i] + rgb[i + 1] + rgb[i + 2] > 3 * 128) n[x < 160 ? 0 : 1]++;
             }
             printf("eyes %d %d\n", n[0], n[1]);
+        } else if (c == "perfbegin") {
+            g_inv_px = 0; g_flush_px = 0; g_frame_ms = 0; g_frames = 0;
+        } else if (c == "perfend") {
+            std::string label; in >> label;
+            printf("perf %s frames %d flushed_px_per_frame %.0f host_ms_per_frame %.3f\n", label.c_str(), g_frames, g_frames ? g_flush_px / g_frames : 0.0, g_frames ? g_frame_ms / g_frames : 0.0);
+        } else if (c == "eyebox") {
+            // eyebox YLIM: one frame, then the lit pixels (count and box) of the left half and of the right half above row YLIM, read from
+            // the same frame (two `count` commands are two frames apart, and the gaze drifts between them)
+            int ylim; in >> ylim;
+            if (speaking) maipai_speech_feed_bench(level);
+            frame();
+            auto rgb = to_rgb(s_buf);
+            for (int half = 0; half < 2; half++) {
+                int n = 0, minx = 9999, maxx = -1, miny = 9999, maxy = -1;
+                for (int y = 20; y < ylim; y++) for (int x = half * 160; x < half * 160 + 160; x++) {
+                    const int i = (y * 320 + x) * 3;
+                    if (rgb[i] + rgb[i + 1] + rgb[i + 2] > 3 * 128) { n++; minx = x < minx ? x : minx; maxx = x > maxx ? x : maxx; miny = y < miny ? y : miny; maxy = y > maxy ? y : maxy; }
+                }
+                printf("eyebox %d %d %d %d %d\n", n, minx, miny, maxx, maxy);
+            }
         } else if (c == "tile") {
             if (speaking) maipai_speech_feed_bench(level);
             frame(); frame();

@@ -88,6 +88,11 @@ class UnitRemote:
         self._speak = speak
         self._finders: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
+        # The cue of the controller action running on this thread (patch TC01): marks its tool calls source remote.
+        self._ctx = threading.local()
+
+    def set_marker(self, marker: Callable[[str, dict[str, object]], dict[str, object]] | None) -> None:
+        self._ctx.marker = marker
 
     @property
     def tool_call(self) -> Callable[..., object]:
@@ -97,6 +102,9 @@ class UnitRemote:
     # ---- plumbing ----
 
     def _tool(self, unit_id: str, name: str, arguments: dict[str, object]) -> dict[str, Any]:
+        marker = getattr(self._ctx, "marker", None)
+        if marker is not None:
+            arguments = {**arguments, **marker(name, arguments)}
         return _reply(self._call(name, arguments, device_id=unit_id, timeout=self._timeout))
 
     def _do(self, unit_id: str, name: str, arguments: dict[str, object], lang: str | None, what: str) -> dict[str, Any]:
@@ -388,10 +396,12 @@ class UnitRemote:
         stop = threading.Event()
         with self._lock:
             self._finders[unit_id] = stop
-        threading.Thread(target=self._find_loop, args=(unit_id, stop, lang), daemon=True, name="find-my-robot").start()
+        marker = getattr(self._ctx, "marker", None)  # the loop belongs to this action: it carries the same cue
+        threading.Thread(target=self._find_loop, args=(unit_id, stop, lang, marker), daemon=True, name="find-my-robot").start()
         return {"ok": True, "finding": True}
 
-    def _find_loop(self, unit_id: str, stop: threading.Event, lang: str | None) -> None:
+    def _find_loop(self, unit_id: str, stop: threading.Event, lang: str | None, marker: Any = None) -> None:
+        self._ctx.marker = marker
         deadline = time.monotonic() + FIND_SECONDS
         swing = 25
         try:

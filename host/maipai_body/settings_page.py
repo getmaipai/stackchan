@@ -109,6 +109,8 @@ class SettingsBackend:
                 activity_mod.RemoteStore(folder / "remote-access.json"),
                 activity_mod.RemoteLog(folder / "remote-activity.jsonl"),
             )
+        if self._activity.bind_marker is None:
+            self._activity.bind_marker = self.remote.set_marker  # patch TC01: a controller's tool calls carry its cue
         return self._activity
 
     @property

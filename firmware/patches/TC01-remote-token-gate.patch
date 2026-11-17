@@ -1,0 +1,289 @@
+# Intent: The remote token gate on the other remote-facing tools (owner brief 2026-11-16). Until now only self.remote.say checked the one-use cue token from self.remote.action; a controller could still move the head, chirp a find, take a photo, start a dance or a game, or run the listening test with no cue. Now each of those tools takes two more arguments, source and token (head moves already had source). A call whose source is "remote" must carry the token the unit answered for that kind (move, find, photo, dance, game, listen), or it is ignored, logged in the remote history with its reason, and answers {ok:false, reason}. A call with any other source (none, "user", the unit's own) is local and unchanged, so Y01's source user stays as it is. A token is one use; the kind then stays open for the cue's banner seconds (set_window: the "seconds" of self.remote.action, 1 to 30) so a nod, a find loop or a game start that makes several calls needs one cue, and the window closes at once when the session ends or the dead-man timeout runs out. Head moves inside a find carry cue_kind find. Only a find chirp (find=1) is gated; ending a find (find=2) never is.
+# Placement: unit (the gate runs on the robot with no host; the host marks the calls it makes for a paired controller)
+# Upstream: firmware/main/hal/{maipai_remote_core.h,maipai_remote.h,maipai_remote.cc,hal_mcp.cpp,maipai_games.cc,maipai_sounds.cc,maipai_listen.cc} (ours, TB05, 020, 116, G01, TB01) and xiaozhi-esp32 main/mcp_server.cc (MIT, the camera tool)
+# Check after a flash: self.robot.dance {"source":"remote"} answers {ok:false,reason:no_token} and the dance does not play; self.remote.session then self.remote.action {"kind":"dance"} then self.robot.dance {"source":"remote","token":<that token>} plays it; the same call with "source":"user" or no source plays with no token; self.remote.history lists the refusal.
+
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 817c491..41eb4ad 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -272,8 +272,17 @@ void Hal::xiaozhi_mcp_init()
+                        PropertyList({Property("yaw", kPropertyTypeInteger, -9999, -9999, 128),
+                                      Property("pitch", kPropertyTypeInteger, -9999, -9999, 90),
+                                      Property("speed", kPropertyTypeInteger, 150, 100, 1000),
+-                                     Property("source", kPropertyTypeString, std::string(""))}),
++                                     Property("source", kPropertyTypeString, std::string("")),
++                                     Property("token", kPropertyTypeInteger, 0, 0, 2147483647),
++                                     Property("cue_kind", kPropertyTypeString, std::string("move"))}),
+                        [this](const PropertyList& properties) -> ReturnValue {
++                           // patch TC01: a move marked source=remote must carry the cue token (kind move, or find while a find runs)
++                           if (properties["source"].value<std::string>() == "remote") {
++                               const std::string cue_kind = properties["cue_kind"].value<std::string>() == "find" ? "find" : "move";
++                               if (!maipai_remote_gate(cue_kind.c_str(), "remote", properties["token"].value<int>())) {
++                                   return std::string(maipai_remote_refusal());
++                               }
++                           }
+                            if (!head_move_allowed(static_cast<uint32_t>(esp_timer_get_time() / 1000))) {
+                                mclog::tagWarn(_tag, "set_head_angles refused: more than {} moves in a minute",
+                                               kMaxHeadMovesPerMinute);
+@@ -687,8 +696,14 @@ void Hal::xiaozhi_mcp_init()
+     mcp_server.AddTool("self.robot.dance",
+                        "Play one of the robot's dances once, then return to normal. Built in: happy, robot, panic, look_around. More "
+                        "(self.robot.dance_list): sway, nod_yes, shake_no, wiggle, bow, groove.",
+-                       PropertyList({Property("name", kPropertyTypeString, std::string("happy"))}),
++                       PropertyList({Property("name", kPropertyTypeString, std::string("happy")),
++                                     Property("source", kPropertyTypeString, std::string("")),
++                                     Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                        [this](const PropertyList& properties) -> ReturnValue {
++                           // patch TC01: a dance marked source=remote must carry the cue token
++                           if (!maipai_remote_gate("dance", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                               return std::string(maipai_remote_refusal());
++                           }
+                            const auto name = properties["name"].value<std::string>();
+                            return maipai_dance_play(name.c_str());
+                        });
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+index 752bff6..36c288b 100644
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -12,6 +12,7 @@
+ #include "maipai_games_core.h"
+ #include "maipai_face.h"
+ #include "maipai_privacy.h"
++#include "maipai_remote.h"
+ #include "maipai_sounds.h"
+ #include "maipai_timers.h"
+ #include "maipai_update.h"
+@@ -817,8 +818,14 @@ void maipai_games_register_tools()
+                 "Start a game on the unit's screen: memory (colour memory), reaction (reaction time) or whack (whack-a-mole). "
+                 "It never starts in full quiet or during an update. A person stops it with a swipe down from the bottom edge "
+                 "or by saying stop. Answers {ok} or {ok:false,error}.",
+-                PropertyList({Property("name", kPropertyTypeString, std::string("memory"))}),
++                PropertyList({Property("name", kPropertyTypeString, std::string("memory")),
++                              Property("source", kPropertyTypeString, std::string("")),
++                              Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
++                    // patch TC01: a start marked source=remote must carry the cue token
++                    if (!maipai_remote_gate("game", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                        return std::string(maipai_remote_refusal());
++                    }
+                     const std::string name = properties["name"].value<std::string>();
+                     const char* why;
+                     {
+diff --git a/firmware/main/hal/maipai_listen.cc b/firmware/main/hal/maipai_listen.cc
+index 1bde7fe..bfc7714 100644
+--- a/firmware/main/hal/maipai_listen.cc
++++ b/firmware/main/hal/maipai_listen.cc
+@@ -199,7 +199,13 @@ void maipai_listen_register_tools()
+                 "Plays every enabled listening cue once: the sound (chime or mm), the ring light (listening, heard, thinking, "
+                 "speaking) and the face. Follows mute, sounds off, quiet hours and full quiet like a real listen. Answers "
+                 "{ok, sound, light, face, ring_frames, ring_slow}.",
+-                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                PropertyList({Property("source", kPropertyTypeString, std::string("")),
++                              Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    // patch TC01: a test marked source=remote must carry the cue token (kind listen)
++                    if (!maipai_remote_gate("listen", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                        return std::string(maipai_remote_refusal());
++                    }
+                     const MaipaiTbPrefs prefs = maipai_tb_prefs();
+                     const tl_effective_t eff  = effective_now(prefs.listen);
+                     static const char* const snd[3] = {"off", "chime", "mm"};
+diff --git a/firmware/main/hal/maipai_remote.cc b/firmware/main/hal/maipai_remote.cc
+index 03089e7..e33e066 100644
+--- a/firmware/main/hal/maipai_remote.cc
++++ b/firmware/main/hal/maipai_remote.cc
+@@ -208,6 +208,29 @@ bool maipai_remote_active()
+     return mr_session_on(s_r, ms_now()) != 0;
+ }
+ 
++static mr_reason_t s_last_refusal = MR_OK;
++
++bool maipai_remote_gate(const char* kind, const char* source, int token)
++{
++    if (source == nullptr || strcmp(source, "remote") != 0) return true;  // local and person-asked calls are unchanged
++    mr_reason_t r = MR_NO_SESSION;
++    if (s_r != nullptr) {
++        std::lock_guard<std::mutex> lock(s_mu);
++        r = mr_gate_call(s_r, source, kind, static_cast<uint32_t>(token), ms_now());
++    }
++    if (r == MR_OK) return true;
++    s_last_refusal = r;
++    ESP_LOGW(TAG, "remote %s ignored: %s", kind, MR_REASONS[r]);
++    return false;
++}
++
++const char* maipai_remote_refusal()
++{
++    static char out[64];
++    snprintf(out, sizeof(out), "{\"ok\":false,\"reason\":\"%s\"}", MR_REASONS[s_last_refusal]);
++    return out;
++}
++
+ void maipai_remote_ring_refresh() { s_tint_refresh.store(true); s_tint_on = false; }
+ 
+ bool maipai_remote_tap()
+@@ -286,6 +309,7 @@ void maipai_remote_register_tools()
+                     {
+                         std::lock_guard<std::mutex> lock(s_mu);
+                         r = mr_action(s_r, kind.c_str(), ms_now(), &token);
++                        if (r == MR_OK) mr_set_window(s_r, properties["seconds"].value<int>());  // patch TC01
+                     }
+                     if (r != MR_OK) return reply_reason(r);
+                     const int k = mr_kind_by_name(kind.c_str());
+diff --git a/firmware/main/hal/maipai_remote.h b/firmware/main/hal/maipai_remote.h
+index 040a4e5..7f912c0 100644
+--- a/firmware/main/hal/maipai_remote.h
++++ b/firmware/main/hal/maipai_remote.h
+@@ -16,3 +16,9 @@ bool maipai_remote_stop();
+ void maipai_remote_ring_refresh();
+ // True while a remote session is on (the dead-man timeout counted): for other modules that want to show it.
+ bool maipai_remote_active();
++// The gate for a remote-facing tool (patch TC01). source is the call's own "source" argument: anything but "remote" is a local or
++// person-asked call and always passes. A "remote" call must carry the one-use token self.remote.action answered for this kind
++// (move, find, photo, dance, game, listen); with none, or a wrong one, it is ignored and logged. True when the call may go on.
++bool maipai_remote_gate(const char* kind, const char* source, int token);
++// The answer a refused tool call gives: {"ok":false,"reason":"..."} (reason is the last refusal: no_token, bad_token, ...).
++const char* maipai_remote_refusal();
+diff --git a/firmware/main/hal/maipai_remote_core.h b/firmware/main/hal/maipai_remote_core.h
+index e71a9d9..2bf6e7c 100644
+--- a/firmware/main/hal/maipai_remote_core.h
++++ b/firmware/main/hal/maipai_remote_core.h
+@@ -78,12 +78,18 @@ typedef struct {
+     uint8_t hist_n;
+     uint8_t hist_head;
+     mr_speak_t speaking; /* Remote speaking */
++    /* grant windows (patch TC01): a token that passed the gate opens its kind for the banner time, so a many-call action
++     * (a find, a nod) needs one cue, not one per call */
++    uint32_t window_ms;                    /* the banner time of the last cue */
++    uint32_t grant_until[MR_KIND_COUNT];
++    uint8_t grant_on[MR_KIND_COUNT];
+ } mr_t;
+ 
+ static inline void mr_init(mr_t* r)
+ {
+     memset(r, 0, sizeof(*r));
+     r->speaking = MR_SPEAK_ASK;
++    r->window_ms = 4000u;
+     r->counter  = 0x9E3779B1u;
+ }
+ 
+@@ -126,6 +132,7 @@ static inline void mr_session(mr_t* r, int active, const char* label, uint32_t n
+         r->active = 0;
+         r->token = 0;
+         r->say_state = 0;
++        memset(r->grant_on, 0, sizeof(r->grant_on));
+     }
+ }
+ 
+@@ -136,6 +143,7 @@ static inline int mr_session_on(mr_t* r, uint32_t now)
+         r->active = 0;
+         r->token = 0;
+         r->say_state = 0;
++        memset(r->grant_on, 0, sizeof(r->grant_on));
+     }
+     return r->active;
+ }
+@@ -154,6 +162,14 @@ static inline mr_reason_t mr_action(mr_t* r, const char* kind, uint32_t now, uin
+     return MR_OK;
+ }
+ 
++/* The banner time (seconds, 1 to 30) of the cue just answered: how long its kind stays open after the token is used. */
++static inline void mr_set_window(mr_t* r, int seconds)
++{
++    if (seconds < 1) seconds = 1;
++    if (seconds > 30) seconds = 30;
++    r->window_ms = (uint32_t)seconds * 1000u;
++}
++
+ /* The gate every remote-origin action calls first. Token 0 is "none". On MR_OK the token is used up. A refusal is logged. */
+ static inline mr_reason_t mr_gate(mr_t* r, const char* kind, uint32_t token, uint32_t now)
+ {
+@@ -166,9 +182,30 @@ static inline mr_reason_t mr_gate(mr_t* r, const char* kind, uint32_t token, uin
+     else if (!mr_session_on(r, now)) why = MR_NO_SESSION;
+     if (why != MR_OK) { mr_log(r, now, k, why, NULL, 0); return why; }
+     r->token = 0;
++    r->grant_on[k] = 1;
++    r->grant_until[k] = now + r->window_ms;
+     return MR_OK;
+ }
+ 
++/* 1 while the kind is open: a token passed the gate for it and the banner time has not run out (and the session is on). */
++static inline int mr_grant_open(mr_t* r, int k, uint32_t now)
++{
++    if (k < 0 || k >= MR_KIND_COUNT || !r->grant_on[k]) return 0;
++    if ((int32_t)(now - r->grant_until[k]) >= 0) { r->grant_on[k] = 0; return 0; }
++    return mr_session_on(r, now);
++}
++
++/* The gate for one tool call (patch TC01). A call whose source is not "remote" (no source, "user", the unit's own) is
++ * local and always passes, nothing logged. A call marked "remote" must carry the one-use token from self.remote.action for
++ * that kind; a call with no token passes only inside the window a token of the same kind opened. Anything else is
++ * refused, logged, and the caller does nothing. */
++static inline mr_reason_t mr_gate_call(mr_t* r, const char* source, const char* kind, uint32_t token, uint32_t now)
++{
++    if (source == NULL || strcmp(source, "remote") != 0) return MR_OK;
++    if (token == 0 && mr_grant_open(r, mr_kind_by_name(kind), now)) return MR_OK;
++    return mr_gate(r, kind, token, now);
++}
++
+ /* A remote SAY with its token. On MR_OK the notice starts: the device shows the bubble now; mr_say_poll says when to speak. */
+ static inline mr_reason_t mr_say(mr_t* r, const char* text, uint32_t token, uint32_t now)
+ {
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+index d27fa75..c0a88f9 100644
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -9,6 +9,7 @@
+ #include "maipai_sounds_core.h"
+ #include "maipai_hourly_core.h"
+ #include "maipai_privacy.h"
++#include "maipai_remote.h"
+ #include "board/hal_bridge.h"
+ #include <application.h>
+ #include <assets/lang_config.h>
+@@ -390,8 +391,15 @@ void maipai_sounds_register_tools()
+                 PropertyList({Property("name", kPropertyTypeString, std::string("success")),
+                               Property("urgent", kPropertyTypeBoolean, false),
+                               Property("test", kPropertyTypeBoolean, false),
+-                              Property("find", kPropertyTypeInteger, 0, 0, 2)}),
++                              Property("find", kPropertyTypeInteger, 0, 0, 2),
++                              Property("source", kPropertyTypeString, std::string("")),
++                              Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
++                    // patch TC01: a find chirp (find=1) marked source=remote must carry the cue token; ending a find (2) never needs one
++                    if (properties["find"].value<int>() == 1 &&
++                        !maipai_remote_gate("find", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                        return std::string(maipai_remote_refusal());
++                    }
+                     return play_named(properties["name"].value<std::string>(), properties["urgent"].value<bool>(),
+                                       properties["test"].value<bool>(), properties["find"].value<int>());
+                 });
+diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/main/mcp_server.cc
+index 51dc2fb..c297dc3 100644
+--- a/firmware/xiaozhi-esp32/main/mcp_server.cc
++++ b/firmware/xiaozhi-esp32/main/mcp_server.cc
+@@ -19,6 +19,7 @@
+ #include "lvgl_theme.h"
+ #include "settings.h"
+ #include "update_verify.h"
++#include <hal/maipai_remote.h>
+ 
+ #define TAG "MCP"
+ 
+@@ -102,8 +103,14 @@ void McpServer::AddCommonTools() {
+                 "  `question`: The question that you want to ask about the photo.\n"
+                 "Return:\n"
+                 "  A JSON object that provides the photo information.",
+-                PropertyList({Property("question", kPropertyTypeString)}),
++                PropertyList({Property("question", kPropertyTypeString),
++                              Property("source", kPropertyTypeString, std::string("")),
++                              Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [camera](const PropertyList& properties) -> ToolResult {
++                    // patch TC01: a photo marked source=remote must carry the cue token (kind photo)
++                    if (!maipai_remote_gate("photo", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                        return std::unexpected(std::string(maipai_remote_refusal()));
++                    }
+                     // Lower the priority to do the camera capture
+                     TaskPriorityReset priority_reset(1);
+ 

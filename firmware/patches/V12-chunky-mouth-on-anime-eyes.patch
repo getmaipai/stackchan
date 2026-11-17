@@ -1,0 +1,180 @@
+# Intent: The mouth of the Faces core comes back on the anime eyes (owner brief 2026-11-16: the thin mouth set of the approved mockup, a small dash at rest and a thin check-mark smile, looked less animated than the chunky voice-following mouth of the faces core, which the owner chose from the mouth options). Patch V10 keeps its eyes, brows, dots and shape lists; its mouth is replaced by the X01 mouth exactly: one stroke along a curve (width, bend, thickness, wobble, split) so a neutral smile, a cat mouth for happy and love, a frown, a doubting wobble and a round O ease into each other, the voice opens it into a thick soft pill (the curve flattens first), 40 ms toward open and 105 ms toward shut, a tired mouth yawns, a muted mouth is shut and calm, and the mood tint comes from the face colour as before. The stroke is now built as a shape list by the core (ml_mouth_shapes) so the unit and the settings page preview draw the same pieces; ml_mouth_target holds the scaling, mute, yawn and speaking rules in one place for both. The three styles with a mouth return to the X02 sizes (Big eyes 46 by 8, Classic 36 by 6, Minimal 22 by 3). A chunkier bowl mouth with a tongue and six named steps was drawn and compared side by side with this one on the same anime eyes (a labelled sheet and a speech strip) and looked stiffer and less alive, so it is not shipped. The pose fields of the V10 mouth (MP_MCURVE, MP_MOPEN, MP_MW, MP_MTILT, MP_MX) stay in the pose table unused by the mouth; MP_MON still hides the mouth while the thinking dots show.
+# Placement: unit (the face runs on the robot, so it is complete with no host); the settings page preview draws the same shapes
+# Upstream: firmware/main/hal/maipai_look_core.h (ours, patches X01, X02, V10) and firmware/main/stackchan/avatar/skins/default/mouth.cpp of the StackChan main component (MIT) as changed by X01 and V10
+# Check after a flash: Big eyes neutral shows a short thick smile; happy and love show the cat mouth in their tints; speaking opens a soft pill that follows the voice and shuts smoothly between words; surprised is a round dot; the thinking dots replace the mouth; host/tests/test_face_preview_parity.py and look_core_test.c pass.
+
+diff --git a/firmware/main/hal/maipai_look_core.h b/firmware/main/hal/maipai_look_core.h
+index 764d0c5..83f0e2b 100644
+--- a/firmware/main/hal/maipai_look_core.h
++++ b/firmware/main/hal/maipai_look_core.h
+@@ -60,11 +60,11 @@ typedef struct {
+ 
+ static const ml_style_t ML_STYLES[ML_STYLE_COUNT] = {
+     /* name       eye_d eye_x eye_y mouth_y mouth        mw  mt stock  ew   eh  r%  pupil brows drift blw */
+-    {"big_eyes", 104, 85, -22, 80, ML_MOUTH_CUTE, 30, 5, 0, 96, 104, 100, 1, 1, 6, 8},
++    {"big_eyes", 104, 85, -22, 80, ML_MOUTH_CUTE, 46, 8, 0, 96, 104, 100, 1, 1, 6, 8},
+     {"eyes_only", 88, 75, 0, 92, ML_MOUTH_NONE, 0, 0, 0, 84, 88, 55, 0, 0, 8, 0},
+     {"stock", 20, 70, -16, 26, ML_MOUTH_BAR, 90, 6, 1, 20, 20, 100, 0, 0, 3, 0},
+-    {"classic", 72, 70, -26, 52, ML_MOUTH_CUTE, 74, 6, 0, 56, 72, 90, 0, 1, 5, 7},
+-    {"minimal", 40, 62, -16, 40, ML_MOUTH_CUTE, 46, 4, 0, 28, 40, 100, 0, 0, 6, 4},
++    {"classic", 72, 70, -26, 52, ML_MOUTH_CUTE, 36, 6, 0, 56, 72, 90, 0, 1, 5, 7},
++    {"minimal", 40, 62, -16, 40, ML_MOUTH_CUTE, 22, 3, 0, 28, 40, 100, 0, 0, 6, 4},
+ };
+ 
+ static inline const ml_style_t* ml_style(int id) { return &ML_STYLES[(id >= 0 && id < ML_STYLE_COUNT) ? id : ML_STYLE_BIG_EYES]; }
+@@ -796,54 +796,65 @@ static inline int ml_brow_shapes(const ml_style_t* st, int side, float ew, float
+     return n;
+ }
+ 
+-typedef struct {
+-    float w, curve, open, tilt, x, on;
+-} ml_mouth_in_t;
+-
+-/* The mouth, around (160, 120 + mouth_y). */
+-static inline int ml_mouth_lens(const ml_style_t* st, const ml_mouth_in_t* m, ml_shape_t* out, int max)
++/* ---- patch V12: the chunky mouth (the Faces core X01/X02 mouth, chosen by the owner from the mouth options) on the anime eyes.
++ * The family is one stroke along a curve (ml_mouth_t); this builds what the mouth class draws and the settings page paints:
++ * round-ended pieces along the 17 points, or one disc when the stroke is shorter than it is thick (an O). `on` is the opacity
++ * (0 hides it: the thinking dots take its place). */
++static inline int ml_mouth_shapes(const ml_mouth_t* m, float phase, float on, ml_shape_t* out, int max)
+ {
+     int n = 0;
+-    if (m->on <= 0.02f || m->w <= 1.0f || st->mouth != ML_MOUTH_CUTE) return 0;
+-    const float x0 = m->x - m->w * 0.5f, x1 = m->x + m->w * 0.5f, yl = m->tilt * 0.5f, yr = -m->tilt * 0.5f;
+-    const float cu = m->curve * 14.0f, op = m->open * 30.0f * (st->mouth_w > 40 ? 1.0f : 0.8f);
+-    const float ct = cu * 2.0f - (m->open > 0.05f ? 3.0f : 0.0f), cb = cu * 2.0f + op * 2.0f;
+-    const float lw = (float)st->mouth_t;
+-    const int N = 8;
+-    float tx[9], ty[9], bx[9], by[9];
+-    for (int i = 0; i <= N; i++) {
+-        const float t = (float)i / (float)N, u = 1.0f - t;
+-        tx[i] = u * u * x0 + 2 * u * t * m->x + t * t * x1;
+-        ty[i] = u * u * yl + 2 * u * t * ct + t * t * yr;
+-        bx[i] = tx[i];
+-        by[i] = u * u * yl + 2 * u * t * cb + t * t * yr;
++    if (on <= 0.02f) return 0;
++    ml_pt_t p[ML_MOUTH_PTS];
++    ml_mouth_points(m, phase, p);
++    const int t = (int)lroundf(m->t) < 2 ? 2 : (int)lroundf(m->t);
++    int minx = p[0].x, maxx = p[0].x, miny = p[0].y, maxy = p[0].y;
++    for (int i = 1; i < ML_MOUTH_PTS; i++) {
++        minx = p[i].x < minx ? p[i].x : minx;
++        maxx = p[i].x > maxx ? p[i].x : maxx;
++        miny = p[i].y < miny ? p[i].y : miny;
++        maxy = p[i].y > maxy ? p[i].y : maxy;
+     }
+-    if (m->open > 0.08f) {
+-        /* the open mouth: the lens widened by half the line on every side, as strips, with a disc at each corner (the
+-         * outline of the design, without a stroked edge that would wobble on whole pixels) */
+-        for (int i = 0; i < N; i++) {
+-            ml_shape_t* q = ml_sh(out, &n, max, ML_SH_QUAD, ML_COL_FG, m->on);
+-            if (q) { q->v[0] = tx[i]; q->v[1] = ty[i] - lw * 0.5f; q->v[2] = tx[i + 1] + 0.5f; q->v[3] = ty[i + 1] - lw * 0.5f; q->v[4] = bx[i + 1] + 0.5f; q->v[5] = by[i + 1] + lw * 0.5f; q->v[6] = bx[i]; q->v[7] = by[i] + lw * 0.5f; }
+-        }
+-        ml_shape_t* c0 = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_FG, m->on);
+-        if (c0) { c0->v[0] = x0; c0->v[1] = yl; c0->v[2] = lw * 0.5f; }
+-        ml_shape_t* c1 = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_FG, m->on);
+-        if (c1) { c1->v[0] = x1; c1->v[1] = yr; c1->v[2] = lw * 0.5f; }
++    if ((maxx - minx) < t / 3 && (maxy - miny) < t / 3) {
++        ml_shape_t* c = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_FG, on);
++        if (c) { c->v[0] = (float)((minx + maxx) / 2); c->v[1] = (float)((miny + maxy) / 2); c->v[2] = (float)t * 0.5f; }
+         return n;
+     }
+-    const int S = 6; /* a gentle curve: six straight pieces follow it within half a pixel, and fewer joints wobble less */
+-    float lx = x0, ly = yl;
+-    for (int i = 1; i <= S; i++) {
+-        const float t = (float)i / (float)S, u = 1.0f - t;
+-        const float x = u * u * x0 + 2 * u * t * m->x + t * t * x1;
+-        const float y = u * u * yl + 2 * u * t * ct + t * t * yr;
+-        ml_shape_t* l = ml_sh(out, &n, max, ML_SH_LINE, ML_COL_FG, m->on);
+-        if (l) { l->v[0] = lx; l->v[1] = ly; l->v[2] = x; l->v[3] = y; l->v[4] = lw; }
+-        lx = x; ly = y;
++    for (int i = 0; i + 1 < ML_MOUTH_PTS; i++) {
++        if (p[i].x == p[i + 1].x && p[i].y == p[i + 1].y) continue;
++        ml_shape_t* l = ml_sh(out, &n, max, ML_SH_LINE, ML_COL_FG, on);
++        if (l) { l->v[0] = (float)p[i].x; l->v[1] = (float)p[i].y; l->v[2] = (float)p[i + 1].x; l->v[3] = (float)p[i + 1].y; l->v[4] = (float)t; }
+     }
+     return n;
+ }
+ 
++/* The shape the mouth eases toward: the emotion's resting shape scaled to the style (width over 36, thickness over 8), shut and calm
++ * when sealed (mute), yawning when tired, and opened by the voice or the weight it was given (open01 0 to 1). */
++static inline ml_mouth_t ml_mouth_target(const ml_style_t* st, int emotion, int sealed, int speaking, float open01, uint32_t ms)
++{
++    const float kw = (float)st->mouth_w / 36.0f;
++    const float kt = 0.5f + 0.5f * ((float)st->mouth_t / 8.0f);
++    ml_mouth_t base = ML_LOOKS[emotion >= 0 && emotion < ML_COUNT ? emotion : 0].mouth;
++    base.w *= kw;
++    base.t *= kt;
++    if (sealed) {
++        base.bend = 0.0f;
++        base.wob = 0.0f;
++        base.split = 0.0f;
++        base.w = 30.0f * kw;
++        base.t = 5.0f * kt;
++    }
++    ml_mouth_t target = base;
++    if (!sealed && emotion == ML_TIRED && !speaking) target = ml_mouth_yawn(base, ms);
++    if (open01 > 0.0f && !sealed) target = ml_mouth_speaking(target, open01, (float)st->mouth_w / 46.0f);
++    return target;
++}
++
++/* The time constant: 40 ms while the voice opens it, 105 while it closes after speech, 90 for a change of mood. */
++static inline float ml_mouth_tau(const ml_mouth_t* cur, const ml_mouth_t* target, int speaking, float open01)
++{
++    return (target->t > cur->t && (speaking || open01 > 0.0f)) ? 40.0f : (speaking ? 105.0f : ML_MOUTH_TAU_MS);
++}
++
+ /* Blink: the height factor 0..1 at ms since it began (55 ms shut, 85 ms open, the opening eased). */
+ static inline float ml_blink_factor(uint32_t since_ms)
+ {
+diff --git a/firmware/main/stackchan/avatar/skins/default/mouth.cpp b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+index 801da00..6097088 100644
+--- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+@@ -245,38 +245,19 @@ void DefaultMouth::_update()
+         _mo        = mx_follow(_mo, want, dt, want > _mo ? 38.0f : 105.0f);
+         g_ml_voice = _mo;
+     } else if (st->mouth == ML_MOUTH_CUTE && _draw != nullptr) {
+-        // The pose the face has eased to, then the voice (or the weight it was given) opens it; mute holds it shut.
++        // Patch V12: the chunky mouth of the faces core (X01) in the shape list of the approved design (V10). The resting shape of the
++        // emotion, scaled to the style, opened by the voice (or the weight it was given) and eased: quick toward open, slower toward shut.
+         const float* P = ml_shown_pose();
+-        float open01   = _weight > 0 ? static_cast<float>(_weight) / 100.0f : 0.0f;
++        float open01 = _weight > 0 ? static_cast<float>(_weight) / 100.0f : 0.0f;
+         if (speaking) {
+             open01 = mx_mouth_for_level(level) / 100.0f;
+         }
+-        const bool driven = speaking || open01 > 0.0f;
+-        float want        = driven ? open01 : P[MP_MOPEN];
+-        float curve = P[MP_MCURVE], w = P[MP_MW];
+-        if (_emotion == ML_TIRED && !speaking && !_sealed) {  // a tired mouth yawns, once every six seconds
+-            const float k = (float)(now_ms() % 6000u) / 6000.0f, x = (k - 0.1f) / 0.5f;
+-            if (x > 0.0f && x < 1.0f) {
+-                const float y = sinf(3.14159265f * x);
+-                want = y * y * 0.6f;
+-            }
+-        }
+-        if (_sealed) {
+-            want  = 0.0f;
+-            curve = 0.0f;
+-            w     = (float)st->mouth_w * 0.6f;
+-        }
+-        _mo = mx_follow(_mo, want, dt, want > _mo ? 38.0f : 105.0f);
+-        g_ml_voice = (speaking || open01 > 0.0f) ? _mo : 0.0f;
+-        ml_mouth_in_t mi;
+-        mi.w     = w;
+-        mi.curve = curve;
+-        mi.open  = _mo;
+-        mi.tilt  = P[MP_MTILT];
+-        mi.x     = P[MP_MX];
+-        mi.on    = P[MP_MON];
++        const ml_mouth_t target = ml_mouth_target(st, _emotion, _sealed ? 1 : 0, speaking ? 1 : 0, open01, now_ms());
++        _cur                    = ml_mouth_follow(_cur, target, dt, ml_mouth_tau(&_cur, &target, speaking ? 1 : 0, open01));
++        g_ml_voice              = 0.0f;
+         ml_shape_t tmp[ML_MAX_SHAPES];
+-        const int n = ml_mouth_lens(st, &mi, tmp, ML_MAX_SHAPES);
++        const float phase = static_cast<float>(now_ms() % 2400u) / 2400.0f;
++        const int n       = ml_mouth_shapes(&_cur, phase, P[MP_MON], tmp, ML_MAX_SHAPES);
+         for (int i = 0; i < n; i++) {
+             for (int k = 0; k < 8; k++) {
+                 tmp[i].v[k] = roundf(tmp[i].v[k]);

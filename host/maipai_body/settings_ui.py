@@ -8,6 +8,7 @@ Colours are tokens (CSS variables) that follow the browser's light or dark setti
 
 from __future__ import annotations
 
+from maipai_body.face_shapes import face_js
 from maipai_body.settings_ui_polish import JS_POLISH
 
 CSS = r"""
@@ -219,10 +220,10 @@ function loading(el){el.append(h('div',{class:'empty'},'...'))}
 /* ---- the face drawing: same shapes as the unit's styles (320 by 240 screen) ---- */
 const PAL={none:'#f4f4f4',mint:'#5fe0b5',sky:'#6cc3ff',amber:'#ffbf47',rose:'#ff8fa3',lilac:'#b48cff',lime:'#b9e65c',coral:'#ff7a5c'};
 const colourOf=c=>PAL[c]||(/^#[0-9a-f]{6}$/i.test(c)?c:PAL.none);
-const GEO={big_eyes:{d:48,x:72,y:-28,my:54,mo:1,mw:46,mt:8},eyes_only:{d:50,x:74,y:-6,my:64,mo:0,mw:0,mt:0},stock:{d:20,x:70,y:-16,my:26,mo:2,mw:90,mt:6,stock:1},classic:{d:34,x:70,y:-22,my:42,mo:1,mw:30,mt:5},minimal:{d:16,x:60,y:-10,my:30,mo:1,mw:22,mt:3}};
-/* the looks of the unit (hal/maipai_look_core.h): l lid percent open, b lid from below, r tilt of the left eye in degrees (the right mirrors it), s eye scale, m mouth [width, bend, thickness, wobble, split, tilt], t tint */
-const LK={neutral:{l:100,b:0,r:0,s:1,m:[24,8,8,0,0,0],t:''},happy:{l:62,b:1,r:-10,s:1,m:[30,11,8,0,1,0],t:''},angry:{l:70,b:0,r:20,s:1,m:[24,-7,8,0,0,0],t:'red'},sad:{l:72,b:0,r:-18,s:.94,m:[22,-7,7,0,0,0],t:'blue'},doubt:{l:80,b:0,r:6,s:1,m:[24,0,7,1.6,0,9],t:''},sleepy:{l:50,b:0,r:-6,s:1,m:[6,0,12,0,0,0],t:'dim'},surprised:{l:100,b:0,r:0,s:1.12,m:[3,0,22,0,0,0],t:''},tired:{l:56,b:0,r:-10,s:1,m:[14,0,10,0,0,0],t:'dim'},sleeping:{l:6,b:0,r:-4,s:1,m:[14,0,6,0,0,0],t:'dim'},love:{l:62,b:1,r:-10,s:1,m:[30,13,8,0,1,0],t:'pink'},content:{l:100,b:0,r:0,s:1,m:[24,8,8,0,0,0],t:''}};
-const SLK={happy:{l:72,b:1,r:-25},angry:{l:70,r:45},sad:{l:70,r:-40},doubt:{l:75},sleepy:{l:35,r:-5},tired:{l:50,r:-8},sleeping:{l:6}};
+/*__FACE_SHAPES__*/
+/* the stock skin as shipped: its own look rows from the table of the core (the other styles are the shape model above) */
+const GEO={stock:{d:20,x:70,y:-16,my:26,mo:2,mw:90,mt:6,stock:1}};
+const LK={};FT.emotions.forEach((e,i)=>{const k=FT.looks[i],m=k.stock.mouth;LK[e]={l:k.stock.lid,b:k.stock.from_bottom,r:k.stock.tilt,s:k.stock.scale,m:m,t:k.tint}});
 const STL={neutral:'neutral',happy:'happy',sad:'sad',angry:'angry',thinking:'doubt',sleepy:'sleepy',speaking:'neutral',love:'love',surprised:'surprised',tired:'tired',sleeping:'sleeping'};
 const KEYS=['l','r','s','w','bend','mt','wob','split','mtilt','cr','cg','cb'];
 const FWPAL={mint:[127,224,184],sky:[127,196,240],amber:[242,178,74],rose:[240,143,176],lilac:[184,156,240],lime:[180,224,90],coral:[242,132,108]};
@@ -245,24 +246,68 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
  this.st=document.createElement('canvas');this.st.width=640;this.st.height=480;this.sc=this.st.getContext('2d');
  this._state=this.o.state;this.st0=0;this.t=rnd(0,5);this.P={};this.snap();this.gx=0;this.gy=0;this.gtx=0;this.gty=0;this.gn=1;this.bl=0;this.bs=-1;this.bn=rnd(1,3);this.v=0;this.vt=0;this.vtg=0;this.vis=true;
  if(this.o.live){views.add(this);if('IntersectionObserver' in window)new IntersectionObserver(e=>{this.vis=e[0].isIntersecting}).observe(cv)}this.draw()}
- set(o){if(o.state&&o.state!==this._state){this._state=o.state;this.st0=this.t}Object.assign(this.o,o);if(!this.o.live)this.drawOnce()}
+ set(o){const ch=o.style&&o.style!==this.o.style;if(o.state&&o.state!==this._state){this._state=o.state;this.st0=this.t;this.lid0=this.lidv}Object.assign(this.o,o);if(ch)this.snap();if(!this.o.live)this.drawOnce()}
  shutPct(d){return Math.max(6,Math.max(3,d*.125)/d*100)}
- lookOf(){const o=this.o,g=GEO[o.style]||GEO.big_eyes,k=LK[STL[o.state]||'neutral'];let l=Object.assign({},k);if(g.stock&&SLK[STL[o.state]])Object.assign(l,SLK[STL[o.state]]);return l}
- target(){const o=this.o,g=GEO[o.style]||GEO.big_eyes,l=this.lookOf(),T={},sh=this.shutPct(g.d);let lid=l.l;
+ lookOf(){return Object.assign({},LK[STL[this.o.state]||'neutral'])}
+ target(){const o=this.o,g=GEO.stock,l=this.lookOf(),T={},sh=this.shutPct(g.d);let lid=l.l;
   if(o.state==='sleeping'){const e=clamp((this.t-this.st0)/1.5,0,1);lid=50+(sh-50)*(e*e*(3-2*e))}
   if(o.dim>0)lid=Math.min(lid,100-o.dim*28);
   T.l=lid;T.r=(l.r||0)+(l.b?180:0);T.s=l.s;const m=l.m;T.w=m[0]*g.mw/36;T.bend=m[1];T.mt=m[2]*(.5+.5*g.mt/8);T.wob=m[3];T.split=m[4];T.mtilt=m[5];
   const rgb=rgbOf(colourOf(o.colour)),c=tinted(rgb,(o.tint!==false&&!g.stock)?l.t:'',.6);T.cr=c[0];T.cg=c[1];T.cb=c[2];return T}
- snap(){this.T=this.target();for(const k of KEYS)this.P[k]=this.T[k]}
- step(dt){this.t+=dt;this.T=this.target();const a=1-Math.exp(-dt*14),am=1-Math.exp(-dt/.09);for(const k of KEYS)this.P[k]+=(this.T[k]-this.P[k])*(k==='l'||k==='r'||k==='s'||k[0]==='c'?a:am);
+
+ isArt(){return !(FST[this.o.style]||FST.big_eyes).stock}
+ emoOf(){const s=this.o.state;return s==='thinking'||s==='speaking'?'neutral':(FEMO[s]!==undefined?s:'neutral')}
+ tgtArt(){const st=FST[this.o.style]||FST.big_eyes;return FT.pose[st.name][this.emoOf()+(this.o.state==='thinking'?'+thinking':'')]}
+ colTarget(){const o=this.o,e=this.emoOf();return tinted(rgbOf(colourOf(o.colour)),o.tint!==false?FT.looks[FEMO[e]].tint:'',.6)}
+ snapArt(){const T=this.tgtArt(),st=FST[this.o.style]||FST.big_eyes;this.sp=newSpring(T);this.mo=T[MP.MOPEN];this.mc=mouthTarget(st,FEMO[this.emoOf()],false,false,0,0);this.lidv=(1-T[MP.LID])*100;this.lid0=this.lidv;this.col=this.colTarget();this.bf=0;this.bk=0;this.sp.x[MP.GX]=T[MP.GX];this.sp.x[MP.GY]=T[MP.GY]}
+ stepArt(dt){const st=FST[this.o.style]||FST.big_eyes,e=this.emoOf(),T=this.tgtArt(),state=this.o.state;this.t+=dt;
+  springStep(this.sp,T,dt);const ct=this.colTarget(),ca=1-Math.exp(-dt/.22);this.col=this.col.map((x,i)=>x+(ct[i]-x)*ca);
+  const shut=Math.max(6,Math.max(3,st.eye_d*.125)/st.eye_d*100);
+  let openT=(1-T[MP.LID])*100;if(this.o.dim>0)openT=Math.min(openT,100-this.o.dim*28);if(state==='thinking')openT=Math.min(openT,82);
+  if(state==='sleeping'){const k=clamp((this.t-this.st0)/1.5,0,1);openT=this.lid0+(shut-this.lid0)*(k*k*(3-2*k))}
+  if(REDUCED){this.gx=0;this.gy=0;this.bf=0}
+  else{
+   let dip=false;
+   if(state==='sleeping'){this.bf=0;this.bs=-1}
+   else{const sleepy=state==='sleepy';
+    if(this.bs<0){this.bn-=dt;if(this.bn<=0){this.bs=this.t}}
+    if(this.bs>=0){const el=(this.t-this.bs)*1000,len=sleepy?Math.min(1400,360+this.bk*140):140;
+     if(el<len){if(sleepy){dip=true;this.bf=0}else this.bf=blinkFactor(el)}
+     else{this.bs=-1;this.bf=0;this.bk=sleepy?this.bk+1:0;this.bn=sleepy?3.2:rnd(2.6,5.2)}}}
+   if(dip)openT=shut+6;
+   const amp=Math.round(st.drift*FT.drift_scale[FEMO[e]]);
+   this.gn-=dt;if(this.gn<=0){this.gn=rnd(.7,2.2);this.gtx=Math.round(rnd(-amp-.5,amp+.5));this.gty=Math.round(rnd(-amp-.5,amp+.5))*.7}
+   if(!(amp>0&&this.lidv>40)){this.gtx=0;this.gty=0}
+   const ga=1-Math.exp(-dt/.26);this.gx+=(this.gtx-this.gx)*ga;this.gy+=(this.gty-this.gy)*ga}
+  this.lidv+=(openT-this.lidv)*(1-Math.exp(-dt/(openT<this.lidv?.028:.085)));if(Math.abs(openT-this.lidv)<.4)this.lidv=openT;
+  let want=T[MP.MOPEN];
+  if(state==='speaking'){this.vt-=dt;if(this.vt<=0){if(Math.random()<.22){this.vtg=0;this.vt=rnd(.15,.45)}else{this.vtg=rnd(.35,1);this.vt=rnd(.08,.18)}}want=this.vtg}
+  if(state==='tired'){const k=((this.t*1000)%6000)/6000,x=(k-.1)/.5;if(x>0&&x<1){const y=Math.sin(Math.PI*x);want=y*y*.6}}
+  this.mo+=(want-this.mo)*(1-Math.exp(-dt/(want>this.mo?.038:.105)));
+  const sp=state==='speaking',open=sp&&this.vtg>0?.08+.82*this.vtg:0,tg=mouthTarget(st,FEMO[e],false,sp,open,this.t*1000);if(!this.mc)this.mc=tg;this.mc=mouthFollow(this.mc,tg,dt*1000,mouthTauFor(this.mc,tg,sp,open))}
+ paintArt(c){const o=this.o,st=FST[o.style]||FST.big_eyes,P=this.sp.x,t=this.t,br=REDUCED?0:Math.sin(t*1.57)*1.2;
+  const fg='rgb('+this.col.map(x=>Math.round(clamp(x,0,255))).join(',')+')',bg=bgOf(o.background);
+  c.save();c.lineCap='round';c.lineJoin='round';
+  const speaking=o.state==='speaking',beat=1+.14*Math.pow(Math.max(0,Math.sin(t*6.2832*1.2)),3);
+  for(const side of[-1,1]){
+   const es=side>0?P[MP.RSCALE]:1,ew=P[MP.EW]*es,eh=P[MP.EH]*es,gx=this.gx+P[MP.GX],gy=this.gy+P[MP.GY];
+   const ox=Math.round(gx),oy=Math.round(P[MP.DY]+gy+(side>0?P[MP.RLIFT]:0)+br);
+   const eye=eyeShapes(st,{side:side,ew:ew,eh:eh,lid:1-this.lidv/100,slant:P[MP.SLANT],cheek:P[MP.CHEEK],blink:this.bf,heart:P[MP.HEART],beat:beat,closed:f01((26-this.lidv)/12),gx:gx,gy:gy,voice:speaking?this.mo:0});
+   paintShapes(c,eye,160+side*st.eye_x+ox,120+st.eye_y+oy,fg,bg);
+   paintShapes(c,browShapes(st,side,P[MP.EW]*es,P[MP.EH]*es,es,gx,side>0?P[MP.RLIFT]:0,P[MP.BR],P[MP.BROW],P[MP.BLIFT],P[MP.BTILT]),160+side*st.eye_x,120+st.eye_y+br,fg,bg)}
+  if(st.mouth===1&&this.mc)paintShapes(c,mouthShapes(this.mc,(t%2.4)/2.4,P[MP.MON]),160,120+st.mouth_y+br*.5,fg,bg);
+  if(o.state==='thinking'&&o.dots!==false){c.fillStyle=fg;for(let i=0;i<3;i++){const d=dotOf(st,i,(t-this.st0)*1000);c.globalAlpha=d[3]/255;c.beginPath();c.arc(160+d[0],120+d[1],d[2]/2,0,6.2832);c.fill()}c.globalAlpha=1}
+  this.decor(c,fg,120+st.eye_y,160-st.eye_x,160+st.eye_x,st.ew,st.eh);c.restore()}
+ snap(){if(this.isArt()){this.snapArt();return}this.T=this.target();for(const k of KEYS)this.P[k]=this.T[k]}
+ step(dt){if(this.isArt()){this.stepArt(dt);return}this.t+=dt;this.T=this.target();const a=1-Math.exp(-dt*14),am=1-Math.exp(-dt/.09);for(const k of KEYS)this.P[k]+=(this.T[k]-this.P[k])*(k==='l'||k==='r'||k==='s'||k[0]==='c'?a:am);
   if(REDUCED){this.gx=0;this.gy=0;this.bl=0;return}
   if(this.o.state==='speaking'){this.vt-=dt;if(this.vt<=0){if(Math.random()<.22){this.vtg=0;this.vt=rnd(.15,.45)}else{this.vtg=rnd(.35,1);this.vt=rnd(.08,.18)}}this.v+=(this.vtg-this.v)*Math.min(1,dt/.06)}else this.v+=(0-this.v)*Math.min(1,dt/.1);
-  this.gn-=dt;const D=(GEO[this.o.style]||GEO.big_eyes).d/6;if(this.gn<=0){this.gn=rnd(.8,2.2);this.gtx=rnd(-D,D);this.gty=rnd(-D*.6,D*.6)}
+  this.gn-=dt;const D=(GEO.stock).d/6;if(this.gn<=0){this.gn=rnd(.8,2.2);this.gtx=rnd(-D,D);this.gty=rnd(-D*.6,D*.6)}
   const ga=Math.min(1,dt/.1);this.gx+=(this.gtx-this.gx)*ga;this.gy+=(this.gty-this.gy)*ga;
   const sl=this.o.state==='sleepy';
   if(this.bs<0){this.bn-=dt;if(this.bn<=0&&this.o.state!=='sleeping'){this.bs=this.t}}
   if(this.bs>=0){const e=this.t-this.bs,len=sl?.55:.14;if(e<len){const x=e/len;this.bl=x<.4?x/.4:(1-x)/.6}else{this.bl=0;this.bs=-1;this.bn=sl?rnd(2.6,3.6):rnd(2.5,6)}}}
- paint(c){const o=this.o,P=this.P,g=GEO[o.style]||GEO.big_eyes,t=this.t,br=REDUCED?0:Math.sin(t*1.57)*1.2;
+ paint(c){if(this.isArt()){this.paintArt(c);return}const o=this.o,P=this.P,g=GEO.stock,t=this.t,br=REDUCED?0:Math.sin(t*1.57)*1.2;
   const col='rgb('+[P.cr,P.cg,P.cb].map(x=>Math.round(clamp(x,0,255))).join(',')+')';
   c.save();c.lineCap='round';c.lineJoin='round';c.fillStyle=col;c.strokeStyle=col;
   const sh=this.shutPct(g.d);
@@ -301,7 +346,7 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
   if(fx.night){d.fillStyle='rgba(40,16,0,.36)';d.fillRect(0,0,this.w,this.hh)}
   if(o.bubble&&o.mode==='face'&&o.state==='speaking'){const bw=this.w*.7,bh=this.hh*.17,bx=(this.w-bw)/2,by=this.hh*.03;d.fillStyle='rgba(255,255,255,.92)';rr(d,bx,by,bw,bh,bh/2);d.fill();d.fillStyle='#222';d.font='600 '+Math.round(bh*.5)+'px system-ui,sans-serif';d.textAlign='center';d.textBaseline='middle';d.fillText(HELLO[o.lang]||HELLO.en,this.w/2,by+bh/2)}
   if(o.dim>0){d.fillStyle='rgba(0,0,0,'+(o.dim*.45)+')';d.fillRect(0,0,this.w,this.hh)}}
- drawOnce(){this.snap();this.bl=0;this.gx=0;this.gy=0;this.draw()}}
+ drawOnce(){this.snap();this.bl=0;this.gx=0;this.gy=0;if(this.isArt())this.bf=0;this.draw()}}
 let last=performance.now(),acc=0;
 function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;acc+=dt;
  if(acc>=1/30&&!document.hidden){const s=acc;acc=0;for(const v of views){if(!v.cv.isConnected){views.delete(v);continue}if(!v.vis)continue;v.step(s);v.draw()}}
@@ -650,7 +695,7 @@ BUILDERS.system=async(p,u)=>{const id=u.device_id;
  p.append(h('div',{class:'grid'},unit,det,upd,about,rst,reset))};
 """
 
-JS = JS + JS_POLISH
+JS = JS.replace("/*__FACE_SHAPES__*/", face_js()) + JS_POLISH
 
 PAGE = r"""<!doctype html><html lang='__CODE__'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>

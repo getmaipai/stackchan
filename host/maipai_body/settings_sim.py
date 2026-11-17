@@ -233,7 +233,7 @@ def _next(self: SimUnit, name: str, args: dict[str, Any]) -> dict[str, Any]:
     if name == "self.prefs.get":
         return {"ok": True, **self.prefs}
     if name == "self.remote.action":
-        return {"ok": True, "cue": args.get("cue"), "allowed": self.remote_allow}
+        return {"ok": True, "cue": args.get("cue"), "allowed": self.remote_allow, "token": 4242}
     if name == "self.remote.session":
         return {"ok": True, "active": bool(args.get("active"))}
     if name == "self.prefs.set":

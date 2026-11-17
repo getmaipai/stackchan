@@ -1,0 +1,1153 @@
+# Intent: The approved face design on the unit (owner brief 2026-11-16: Big eyes had become plain white circles; the approved design board shows the anime look). Every style but Stock now draws the design board's face: a rounded eye box per style (Big eyes 96 by 104, Eyes only 84 by 88 at radius 55 percent, Classic 56 by 72 at 90, Minimal 28 by 40); Big eyes adds a large pupil (37 percent of the short side) that follows the gaze 1.3 times as far as the eye does, with two highlights, masked by the eye (a ring in the screen colour, 18 px, only while the pupil leaves the eye) so a big look cuts it to a crescent; the lid is a straight edge over the eye (the fraction of the height it covers, tilted by the emotion's slant) and the happy cheek is an ellipse rising from below (strips, so it is a true ellipse); the lid strip is clipped at the eye's top so an angry corner never folds over; a blink lowers the height to 3 percent and widens by 6 percent (55 ms shut, 85 ms open); brows (angry, sad, doubt, surprised, thinking) in Big eyes and Classic; hearts for love; closed arcs for sleeping; the thinking look (up and away, lid low, right eye smaller, no mouth) while the dots show; the mouth is one curve (width, curve, tilt, offset) that fills into a lens when open, speaking opens it at 38 ms and closes it at 105 ms, Eyes only pulses its eyes 14 percent with the voice; dots are 13 px, 26 apart, low on the face; gaze drift is the style's amplitude (6, 8, 5, 6 px), the pupil follows; one damped spring (k 420, ratio 0.62, about 8 percent overshoot, settled in 350 ms) eases every pose value, one shared lid and one shared blink for both eyes. One definition: hal/maipai_look_core.h holds the table (ml_spec, ml_pose_target), the spring and the shape builders (ml_eye_shapes, ml_brow_shapes, ml_mouth_lens); the unit, the host renderer and the settings page preview draw those shapes. Stock is drawn exactly as before (pixel for pixel, checked on the host renderer). Left and right eyes are identical about their centres at rest (measured 0.0 px apart over ten rest frames in every style). Cost: two eye objects and two brow objects replace the circle and lid boxes; the shapes (at most 48 of 40 bytes) are built per frame on the stack and compared, only what changed is invalidated (rest, Big eyes: about 9 thousand pixels a frame on average against 1 thousand before; a gaze move redraws about 20 thousand; an emotion change about 45 thousand for 0.4 s; measured by flushed pixels on the host renderer, PERF=1; the unit's frame time is not measured).
+# Placement: unit (the face runs on the robot, so it is complete with no host)
+# Upstream: firmware/main/stackchan/avatar/skins/default/{default.h,default.cpp,eyes.cpp,mouth.cpp} of the StackChan main component (MIT) as rebuilt by patch X01; hal/maipai_look_core.h of X01
+# Check after a flash: self.face.bench_emotion for every style and emotion, snapped (scripts/fw-serial.py snap), compared with the host renderer pictures in host/tests; the frame rate of a Big eyes face while speaking and while the gaze drifts; both eyes level at rest; a tap on the inner part of a Big eye toggles vision (patch V11).
+
+diff --git a/firmware/main/hal/maipai_look_core.h b/firmware/main/hal/maipai_look_core.h
+index 9022879..764d0c5 100644
+--- a/firmware/main/hal/maipai_look_core.h
++++ b/firmware/main/hal/maipai_look_core.h
+@@ -48,14 +48,23 @@ typedef struct {
+     int16_t mouth_w;    /* resting mouth width */
+     int16_t mouth_t;    /* resting mouth line thickness */
+     uint8_t stock_look; /* 1: the emotions are the stock skin's own (lid weight and tilt as shipped) */
++    /* patch V10, the approved face design: the eye is a rounded box ew by eh (radius r_pct percent of half its short side),
++     * optionally with a pupil and two highlights and with brows; drift is the gaze drift in pixels, blw the brow thickness. */
++    int16_t ew, eh;
++    uint8_t r_pct;
++    uint8_t pupil;
++    uint8_t brows;
++    uint8_t drift;
++    uint8_t blw;
+ } ml_style_t;
+ 
+ static const ml_style_t ML_STYLES[ML_STYLE_COUNT] = {
+-    {"big_eyes", 48, 72, -28, 54, ML_MOUTH_CUTE, 46, 8, 0},
+-    {"eyes_only", 50, 74, -6, 64, ML_MOUTH_NONE, 0, 0, 0},
+-    {"stock", 20, 70, -16, 26, ML_MOUTH_BAR, 90, 6, 1},
+-    {"classic", 34, 70, -22, 42, ML_MOUTH_CUTE, 36, 6, 0},
+-    {"minimal", 16, 60, -10, 30, ML_MOUTH_CUTE, 22, 3, 0},
++    /* name       eye_d eye_x eye_y mouth_y mouth        mw  mt stock  ew   eh  r%  pupil brows drift blw */
++    {"big_eyes", 104, 85, -22, 80, ML_MOUTH_CUTE, 30, 5, 0, 96, 104, 100, 1, 1, 6, 8},
++    {"eyes_only", 88, 75, 0, 92, ML_MOUTH_NONE, 0, 0, 0, 84, 88, 55, 0, 0, 8, 0},
++    {"stock", 20, 70, -16, 26, ML_MOUTH_BAR, 90, 6, 1, 20, 20, 100, 0, 0, 3, 0},
++    {"classic", 72, 70, -26, 52, ML_MOUTH_CUTE, 74, 6, 0, 56, 72, 90, 0, 1, 5, 7},
++    {"minimal", 40, 62, -16, 40, ML_MOUTH_CUTE, 46, 4, 0, 28, 40, 100, 0, 0, 6, 4},
+ };
+ 
+ static inline const ml_style_t* ml_style(int id) { return &ML_STYLES[(id >= 0 && id < ML_STYLE_COUNT) ? id : ML_STYLE_BIG_EYES]; }
+@@ -488,10 +497,18 @@ static inline ml_dot_t ml_dot(const ml_style_t* st, int i, uint32_t elapsed_ms)
+     const uint32_t up = phase < half ? phase : period - phase;
+     const float k = (float)up / (float)half; /* 0 to 1 and back */
+     ml_dot_t d;
+-    d.x = (int16_t)((i - 1) * ML_DOT_SPACING);
+-    d.y = (int16_t)(st->mouth_y - (int)lroundf(k * 5.0f));
+-    d.d = (int16_t)(ML_DOT_D - 2 + (int)lroundf(k * 4.0f));
+-    d.opa = (uint8_t)(90 + (int)lroundf(k * 165.0f));
++    if (st->stock_look) {
++        d.x = (int16_t)((i - 1) * ML_DOT_SPACING);
++        d.y = (int16_t)(st->mouth_y - (int)lroundf(k * 5.0f));
++        d.d = (int16_t)(ML_DOT_D - 2 + (int)lroundf(k * 4.0f));
++        d.opa = (uint8_t)(90 + (int)lroundf(k * 165.0f));
++        return d;
++    }
++    /* the approved design (V10): 13 px dots, 26 apart, low on the face (y 212 of 240), rising 8 px and brightening */
++    d.x = (int16_t)((i - 1) * 26);
++    d.y = (int16_t)(92 - (int)lroundf(k * 8.0f));
++    d.d = 13;
++    d.opa = (uint8_t)(89 + (int)lroundf(k * 166.0f));
+     return d;
+ }
+ 
+@@ -532,4 +549,307 @@ static inline void ml_tinted(uint8_t fr, uint8_t fg, uint8_t fb, int tint, float
+     *b = (uint8_t)(fb + ((tb * lum) - fb) * amount);
+ }
+ 
++
++/* ================================================================ the approved face design (patch V10)
++ *
++ * One definition of the new face, drawn on the unit (skins/default/eyes.cpp, mouth.cpp), on the host renderer
++ * (scripts/fw-face-render) and, ported line for line, by the settings page preview (host/maipai_body/face_shapes.py
++ * holds the table generated from this file; host/tests/test_face_preview_parity.py checks the two give the same shapes).
++ * The numbers are those of the approved design board, step for step:
++ *  - a pose is a set of targets (MP_*) per emotion; the face follows them with a damped spring (about 8 percent overshoot,
++ *    settled in about 350 ms);
++ *  - the eye is a rounded box; Big eyes adds a pupil (37 percent of the short side) that follows the gaze 1.3 times as far as
++ *    the eye does, with two highlights; the pupil is masked by the eye so a big look cuts it to a crescent;
++ *  - the lid is the half plane above a straight edge (lid = the fraction of the eye height it covers, slant tilts the edge)
++ *    and the cheek is an ellipse that rises from below (a happy eye is an arch); both are drawn in the screen colour;
++ *  - a blink lowers the height to 3 percent and widens by 6 percent (the volume stays);
++ *  - the brows are round-ended lines, shown for angry, sad, doubt, surprised and thinking in the two styles that have them;
++ *  - the mouth is a quadratic curve (width, curve, tilt, offset) that fills into a lens when open.
++ * Every shape is a primitive the unit draws without a mask or a layer: rounded boxes, circles, a border ring, triangles
++ * (quads are two) and round-ended lines. */
++
++#define ML_SH_RRECT 0  /* v: cx, cy, w, h, radius */
++#define ML_SH_CIRCLE 1 /* v: cx, cy, r */
++#define ML_SH_RING 2   /* v: cx, cy, w, h, inner radius, band: the screen colour all round the box, hides what leaves it */
++#define ML_SH_QUAD 3   /* v: x0, y0, x1, y1, x2, y2, x3, y3 */
++#define ML_SH_LINE 4   /* v: x1, y1, x2, y2, width (round ends) */
++#define ML_SH_HEART 5  /* v: cx, cy, size */
++#define ML_COL_FG 0    /* the face colour (after the tint) */
++#define ML_COL_BG 1    /* the screen colour */
++#define ML_COL_HL 2    /* a highlight: the face colour, never tinted away */
++#define ML_MAX_SHAPES 48
++
++typedef struct {
++    uint8_t kind, col, opa;
++    float v[8];
++} ml_shape_t;
++
++enum {
++    MP_EW, MP_EH, MP_DY, MP_LID, MP_SLANT, MP_CHEEK, MP_RSCALE, MP_RLIFT, MP_MCURVE, MP_MOPEN, MP_MW, MP_MON, MP_MTILT, MP_MX,
++    MP_BROW, MP_BLIFT, MP_BTILT, MP_BR, MP_HEART, MP_DIM, MP_GX, MP_GY, MP_N
++};
++
++/* What an emotion asks of the face, in the design's own terms (every field has a neutral default). */
++typedef struct {
++    float sw, sh, dy, lid, slant, cheek, rscale, rlift, mcurve, mopen, smw, mon, mtilt, mx, brow, blift, btilt, br, heart, dim, gx, gy, dr;
++} ml_spec_t;
++
++static inline ml_spec_t ml_spec(int emotion, int thinking)
++{
++    ml_spec_t s = {1, 1, 0, 0, 0, 0, 1, 0, 0.15f, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1};
++    switch (emotion) {
++        case ML_HAPPY: s.cheek = 1; s.mcurve = 1; s.mopen = .35f; s.dy = -2; break;
++        case ML_ANGRY: s.slant = .85f; s.lid = .3f; s.mcurve = -.6f; s.smw = .7f; s.brow = 1; s.btilt = 1; s.blift = -2; break;
++        case ML_SAD: s.slant = -.55f; s.lid = .16f; s.sh = .95f; s.mcurve = -1; s.gy = 5; s.brow = 1; s.btilt = -1; s.blift = -4; break;
++        case ML_DOUBT:
++            s.rscale = .62f; s.rlift = -12; s.lid = .2f; s.slant = .15f; s.mcurve = 0; s.mtilt = -9; s.mx = 10; s.smw = .8f;
++            s.gx = 6; s.gy = -3; s.brow = 1; s.br = 12;
++            break;
++        case ML_SLEEPY: s.lid = .55f; s.slant = -.15f; s.mcurve = 0; s.gy = 3; s.dr = .5f; break;
++        case ML_SURPRISED: s.sw = 1.1f; s.sh = 1.28f; s.mopen = .9f; s.mcurve = 0; s.smw = .5f; s.brow = 1; s.blift = 12; break;
++        case ML_TIRED: s.lid = .45f; s.slant = -.2f; s.sh = .95f; s.mcurve = -.3f; s.gy = 6; s.dr = .4f; s.dim = .85f; break;
++        case ML_CLOSING:
++        case ML_SLEEPING: s.mcurve = .2f; s.mopen = .12f; s.dim = .6f; s.dr = 0; break;
++        case ML_LOVE: s.heart = 1; s.mcurve = 1; s.mopen = .3f; s.dr = 0; break;
++        default: break;
++    }
++    if (thinking) { /* a look up and away, the lid low, the right eye smaller, no mouth (the dots take its place) */
++        s.gx = 12; s.gy = -10; s.lid = .18f; s.slant = .2f; s.rscale = .88f; s.mon = 0;
++    }
++    return s;
++}
++
++/* The targets of a pose for a style. */
++static inline void ml_pose_target(const ml_style_t* st, int emotion, int thinking, float t[MP_N])
++{
++    const ml_spec_t s = ml_spec(emotion, thinking);
++    t[MP_EW] = (float)st->ew * s.sw; t[MP_EH] = (float)st->eh * s.sh; t[MP_DY] = s.dy; t[MP_LID] = s.lid; t[MP_SLANT] = s.slant;
++    t[MP_CHEEK] = s.cheek; t[MP_RSCALE] = s.rscale; t[MP_RLIFT] = s.rlift; t[MP_MCURVE] = s.mcurve; t[MP_MOPEN] = s.mopen;
++    t[MP_MW] = (float)st->mouth_w * s.smw; t[MP_MON] = st->mouth == ML_MOUTH_NONE ? 0.0f : s.mon; t[MP_MTILT] = s.mtilt; t[MP_MX] = s.mx;
++    t[MP_BROW] = st->brows ? s.brow : 0.0f; t[MP_BLIFT] = s.blift; t[MP_BTILT] = s.btilt; t[MP_BR] = s.br; t[MP_HEART] = s.heart;
++    t[MP_DIM] = s.dim; t[MP_GX] = s.gx; t[MP_GY] = s.gy;
++}
++
++/* The gaze drift scale of a pose (a resting eye drifts, a loving or sleeping one does not). */
++static inline float ml_pose_drift_scale(int emotion) { return ml_spec(emotion, 0).dr; }
++
++/* ---- the spring: k 420, damping ratio 0.62, two sub steps; the step is capped at 50 ms */
++typedef struct {
++    float x[MP_N], v[MP_N];
++} ml_spring_t;
++
++static inline void ml_spring_snap(ml_spring_t* sp, const float t[MP_N])
++{
++    for (int i = 0; i < MP_N; i++) { sp->x[i] = t[i]; sp->v[i] = 0.0f; }
++}
++
++static inline float ml_clamp01f(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
++
++static inline void ml_spring_step(ml_spring_t* sp, const float t[MP_N], float dt_s)
++{
++    if (dt_s > 0.05f) dt_s = 0.05f;
++    const float k = 420.0f, cz = 2.0f * sqrtf(420.0f) * 0.62f;
++    for (int n = 0; n < 2; n++) {
++        const float h = dt_s * 0.5f;
++        for (int i = 0; i < MP_N; i++) {
++            sp->v[i] += (k * (t[i] - sp->x[i]) - cz * sp->v[i]) * h;
++            sp->x[i] += sp->v[i] * h;
++            if (i == MP_LID || i == MP_CHEEK || i == MP_MON || i == MP_BROW || i == MP_HEART) sp->x[i] = ml_clamp01f(sp->x[i]);
++        }
++    }
++}
++
++/* True when every value is within eps of its target and still: no more redraw is needed. */
++static inline int ml_spring_settled(const ml_spring_t* sp, const float t[MP_N])
++{
++    for (int i = 0; i < MP_N; i++) {
++        if (fabsf(t[i] - sp->x[i]) > 0.05f || fabsf(sp->v[i]) > 0.3f) return 0;
++    }
++    return 1;
++}
++
++/* ---- shape builders. Coordinates are pixels. */
++static inline ml_shape_t* ml_sh(ml_shape_t* out, int* n, int max, int kind, int col, float opa01)
++{
++    if (*n >= max) return NULL;
++    ml_shape_t* s = &out[(*n)++];
++    memset(s, 0, sizeof(*s));
++    s->kind = (uint8_t)kind; s->col = (uint8_t)col;
++    float o = opa01 < 0.0f ? 0.0f : (opa01 > 1.0f ? 1.0f : opa01);
++    s->opa = (uint8_t)lroundf(o * 255.0f);
++    return s;
++}
++
++typedef struct {
++    const ml_style_t* st;
++    int side;            /* -1 the left eye, +1 the right */
++    float ew, eh;        /* the size after the emotion's scale (and the right eye's scale) */
++    float lid, slant, cheek, blink, heart, beat;
++    float closed;        /* 0 to 1: the eye is a closed arc */
++    float gx, gy;        /* the gaze, pixels: what moves the eye; the pupil moves 1.3 times as far */
++    float voice;         /* 0 to 1, only the eyes-only style pulses with it */
++} ml_eye_in_t;
++
++/* An eye, around its own centre. The gaze is not added to the position: the caller puts the centre where the eye looks. */
++static inline int ml_eye_shapes(const ml_eye_in_t* in, ml_shape_t* out, int max)
++{
++    int n = 0;
++    const ml_style_t* st = in->st;
++    float ew = in->ew, eh = in->eh;
++    if (st->mouth == ML_MOUTH_NONE && in->voice > 0.0f) { eh *= 1.0f + 0.14f * in->voice; ew *= 1.0f - 0.04f * in->voice; }
++    const float bl = in->blink;
++    if (in->heart > 0.02f) {
++        const float sz = (ew < eh ? ew : eh) * (st->ew <= 28 ? 1.5f : 1.05f) * in->beat;
++        ml_shape_t* h = ml_sh(out, &n, max, ML_SH_HEART, ML_COL_FG, ml_clamp01f(in->heart));
++        if (h) { h->v[0] = 0; h->v[1] = 2; h->v[2] = sz; }
++    }
++    const float eyeA = 1.0f - (in->heart > in->closed ? in->heart : in->closed);
++    if (eyeA > 0.02f) {
++        const float ww = ew * (1.0f + 0.06f * bl), hh = (eh * (1.0f - bl * 0.97f)) < 2.0f ? 2.0f : eh * (1.0f - bl * 0.97f);
++        const float sm = ww < hh ? ww : hh;
++        const float rad = sm * 0.5f * (float)st->r_pct / 100.0f;
++        ml_shape_t* e = ml_sh(out, &n, max, ML_SH_RRECT, ML_COL_FG, eyeA);
++        if (e) { e->v[0] = 0; e->v[1] = 0; e->v[2] = ww; e->v[3] = hh; e->v[4] = rad; }
++        if (st->pupil) {
++            const float pr = sm * 0.37f * (1.0f - bl * 0.2f);
++            float px = in->gx * 1.3f, py = in->gy * 1.2f + hh * 0.02f;
++            const float lim = sm * 0.5f - pr + 16.0f, dist = sqrtf(px * px + py * py); /* a pupil leaves the eye by 16 px at most */
++            if (dist > lim) { px *= lim / dist; py *= lim / dist; }
++            ml_shape_t* p = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_BG, eyeA);
++            if (p) { p->v[0] = px; p->v[1] = py; p->v[2] = pr; }
++            p = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_HL, eyeA);
++            if (p) { p->v[0] = px - pr * 0.34f; p->v[1] = py - pr * 0.38f; p->v[2] = pr * 0.26f; }
++            p = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_HL, eyeA);
++            if (p) { p->v[0] = px + pr * 0.38f; p->v[1] = py + pr * 0.34f; p->v[2] = pr * 0.12f; }
++            if (sqrtf(px * px + py * py) + pr > sm * 0.5f - 0.5f) { /* the pupil leaves the eye: mask it */
++                ml_shape_t* r = ml_sh(out, &n, max, ML_SH_RING, ML_COL_BG, 1.0f);
++                if (r) { r->v[0] = 0; r->v[1] = 0; r->v[2] = ww; r->v[3] = hh; r->v[4] = rad; r->v[5] = 18; }
++            }
++        }
++        const float top = -hh * 0.5f;
++        if (in->lid > 0.005f || fabsf(in->slant) > 0.005f) {
++            const float x0 = -ww * 0.5f - 3.0f, x1 = ww * 0.5f + 3.0f;
++            const float k = in->slant * hh * 0.45f * (float)(-in->side) / (ww * 0.5f);
++            const float y0 = top + in->lid * hh + k * x0, y1 = top + in->lid * hh + k * x1, T = top - 6.0f;
++            /* the part of the strip above the edge that is not above the eye's top: the strip where the edge is below T, a
++             * triangle where the edge crosses T (the design fills a strip that folds over itself; two triangles would not) */
++            if (y0 > T || y1 > T) {
++                float a0 = x0, b0 = T, a1 = x1, b1 = T, a2 = x1, b2 = y1, a3 = x0, b3 = y0;
++                if (y0 <= T) { /* the edge crosses T going down to the right */
++                    const float xc = x0 + (T - y0) / (y1 - y0) * (x1 - x0);
++                    a0 = xc; a3 = xc; b3 = T;
++                } else if (y1 <= T) {
++                    const float xc = x0 + (T - y0) / (y1 - y0) * (x1 - x0);
++                    a1 = xc; a2 = xc; b2 = T;
++                }
++                ml_shape_t* q = ml_sh(out, &n, max, ML_SH_QUAD, ML_COL_BG, 1.0f);
++                if (q) { q->v[0] = a0; q->v[1] = b0; q->v[2] = a1; q->v[3] = b1; q->v[4] = a2; q->v[5] = b2; q->v[6] = a3; q->v[7] = b3; }
++            }
++        }
++        if (in->cheek > 0.01f) { /* the cheek ellipse, as strips, only inside the eye's own box */
++            const float cyy = hh * (1.05f - 0.45f * in->cheek), rx = ww * 0.85f, ry = hh * 0.55f;
++            const float xa = -ww * 0.5f - 3.0f, xb = ww * 0.5f + 3.0f, bot = hh * 0.5f + 3.0f;
++            const int N = 10;
++            float px0 = xa, py0 = 0;
++            for (int i = 0; i <= N; i++) {
++                const float x = xa + (xb - xa) * (float)i / (float)N;
++                const float u = x / rx;
++                const float yt = cyy - ry * sqrtf(1.0f - (u * u > 1.0f ? 1.0f : u * u));
++                if (i > 0) {
++                    ml_shape_t* q = ml_sh(out, &n, max, ML_SH_QUAD, ML_COL_BG, 1.0f);
++                    if (q) {
++                        q->v[0] = px0; q->v[1] = py0; q->v[2] = x + 0.5f; q->v[3] = yt; q->v[4] = x + 0.5f; q->v[5] = bot; q->v[6] = px0; q->v[7] = bot;
++                    }
++                }
++                px0 = x; py0 = yt;
++            }
++        }
++    }
++    if (in->closed > 0.02f) { /* the closed eye: an arc */
++        const float w = in->ew * 0.8f;
++        float lw = in->ew * 0.12f; lw = lw < 5.0f ? 5.0f : (lw > 9.0f ? 9.0f : lw);
++        float lx = -w * 0.5f, ly = -2.0f;
++        for (int i = 1; i <= 6; i++) {
++            const float t = (float)i / 6.0f, u = 1.0f - t;
++            const float x = u * u * (-w * 0.5f) + 2 * u * t * 0.0f + t * t * (w * 0.5f);
++            const float y = u * u * -2.0f + 2 * u * t * 16.0f + t * t * -2.0f;
++            ml_shape_t* l = ml_sh(out, &n, max, ML_SH_LINE, ML_COL_FG, ml_clamp01f(in->closed));
++            if (l) { l->v[0] = lx; l->v[1] = ly; l->v[2] = x; l->v[3] = y; l->v[4] = lw; }
++            lx = x; ly = y;
++        }
++    }
++    return n;
++}
++
++/* A brow, around the eye's resting centre (the caller adds the eye's place). es is the right eye's scale. */
++static inline int ml_brow_shapes(const ml_style_t* st, int side, float ew, float eh, float es, float gx, float rlift, float br, float on,
++                                 float blift, float btilt, ml_shape_t* out, int max)
++{
++    int n = 0;
++    if (on <= 0.02f || !st->brows) return 0;
++    const float cx = gx * 0.6f;
++    const float y = (side > 0 ? rlift : 0.0f) - (eh * es) * 0.5f - (float)st->blw * 2.4f - blift - (side > 0 ? br : 0.0f);
++    const float len = ew * es * 0.78f, ang = btilt * 0.38f * (float)(-side);
++    const float ca = cosf(ang), sa = sinf(ang);
++    ml_shape_t* l = ml_sh(out, &n, max, ML_SH_LINE, ML_COL_FG, ml_clamp01f(on));
++    if (l) { l->v[0] = cx - len * 0.5f * ca; l->v[1] = y - len * 0.5f * sa; l->v[2] = cx + len * 0.5f * ca; l->v[3] = y + len * 0.5f * sa; l->v[4] = (float)st->blw; }
++    return n;
++}
++
++typedef struct {
++    float w, curve, open, tilt, x, on;
++} ml_mouth_in_t;
++
++/* The mouth, around (160, 120 + mouth_y). */
++static inline int ml_mouth_lens(const ml_style_t* st, const ml_mouth_in_t* m, ml_shape_t* out, int max)
++{
++    int n = 0;
++    if (m->on <= 0.02f || m->w <= 1.0f || st->mouth != ML_MOUTH_CUTE) return 0;
++    const float x0 = m->x - m->w * 0.5f, x1 = m->x + m->w * 0.5f, yl = m->tilt * 0.5f, yr = -m->tilt * 0.5f;
++    const float cu = m->curve * 14.0f, op = m->open * 30.0f * (st->mouth_w > 40 ? 1.0f : 0.8f);
++    const float ct = cu * 2.0f - (m->open > 0.05f ? 3.0f : 0.0f), cb = cu * 2.0f + op * 2.0f;
++    const float lw = (float)st->mouth_t;
++    const int N = 8;
++    float tx[9], ty[9], bx[9], by[9];
++    for (int i = 0; i <= N; i++) {
++        const float t = (float)i / (float)N, u = 1.0f - t;
++        tx[i] = u * u * x0 + 2 * u * t * m->x + t * t * x1;
++        ty[i] = u * u * yl + 2 * u * t * ct + t * t * yr;
++        bx[i] = tx[i];
++        by[i] = u * u * yl + 2 * u * t * cb + t * t * yr;
++    }
++    if (m->open > 0.08f) {
++        /* the open mouth: the lens widened by half the line on every side, as strips, with a disc at each corner (the
++         * outline of the design, without a stroked edge that would wobble on whole pixels) */
++        for (int i = 0; i < N; i++) {
++            ml_shape_t* q = ml_sh(out, &n, max, ML_SH_QUAD, ML_COL_FG, m->on);
++            if (q) { q->v[0] = tx[i]; q->v[1] = ty[i] - lw * 0.5f; q->v[2] = tx[i + 1] + 0.5f; q->v[3] = ty[i + 1] - lw * 0.5f; q->v[4] = bx[i + 1] + 0.5f; q->v[5] = by[i + 1] + lw * 0.5f; q->v[6] = bx[i]; q->v[7] = by[i] + lw * 0.5f; }
++        }
++        ml_shape_t* c0 = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_FG, m->on);
++        if (c0) { c0->v[0] = x0; c0->v[1] = yl; c0->v[2] = lw * 0.5f; }
++        ml_shape_t* c1 = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_FG, m->on);
++        if (c1) { c1->v[0] = x1; c1->v[1] = yr; c1->v[2] = lw * 0.5f; }
++        return n;
++    }
++    const int S = 6; /* a gentle curve: six straight pieces follow it within half a pixel, and fewer joints wobble less */
++    float lx = x0, ly = yl;
++    for (int i = 1; i <= S; i++) {
++        const float t = (float)i / (float)S, u = 1.0f - t;
++        const float x = u * u * x0 + 2 * u * t * m->x + t * t * x1;
++        const float y = u * u * yl + 2 * u * t * ct + t * t * yr;
++        ml_shape_t* l = ml_sh(out, &n, max, ML_SH_LINE, ML_COL_FG, m->on);
++        if (l) { l->v[0] = lx; l->v[1] = ly; l->v[2] = x; l->v[3] = y; l->v[4] = lw; }
++        lx = x; ly = y;
++    }
++    return n;
++}
++
++/* Blink: the height factor 0..1 at ms since it began (55 ms shut, 85 ms open, the opening eased). */
++static inline float ml_blink_factor(uint32_t since_ms)
++{
++    if (since_ms < 55u) return (float)since_ms / 55.0f;
++    if (since_ms < 140u) { const float u = 1.0f - (float)(since_ms - 55u) / 85.0f; return u * u; }
++    return 0.0f;
++}
++
+ #endif /* MAIPAI_LOOK_CORE_H */
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+index 1a20c7f..5d5f274 100644
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -81,6 +81,8 @@ public:
+     void setLidCap(int percent);
+     // The style (patch X01): eye diameter and where the eye sits.
+     void setStyle(int style);
++    // The thinking look (patch V10): the eyes look up and away with a low lid while the dots show. Shared by both eyes.
++    static void setThinking(bool on);
+     void setTiredLevel(int level);
+     // Fluid motion (patch H02): one eased step per pass of the update loop.
+     void _update() override;
+@@ -101,6 +103,22 @@ private:
+     void apply_lid();
+     void apply_shape();
+     int effective_weight() const;
++    // Patch V10, the approved design: every style but the stock skin is drawn as a list of shapes (hal/maipai_look_core.h).
++    void update_art(uint32_t ms);
++    void place_art();
++    void drawArt(lv_event_t* e);
++    void drawBrow(lv_event_t* e);
++    bool _art_mode     = false;
++    lv_obj_t* _art     = nullptr;
++    lv_obj_t* _brow    = nullptr;
++    lv_color_t _fg     = lv_color_white();
++    lv_color_t _bg     = lv_color_black();
++    ml_shape_t _sh[ML_MAX_SHAPES];
++    int _nsh = 0, _ox = 0, _oy = 0;
++    int _bb[4] = {0, 0, 0, 0};  // the bounds drawn now, relative to the art's middle: x1 y1 x2 y2
++    ml_shape_t _bsh[2];
++    int _nbsh = 0, _bbx = 0, _bby = 0;
++    int _bbb[4] = {0, 0, 0, 0};
+     int _style        = ML_STYLE_BIG_EYES;
+     int _emotion      = ML_NEUTRAL;
+     int _tired_level  = 0;
+@@ -122,6 +140,15 @@ private:
+     std::unique_ptr<uitk::lvgl_cpp::Container> _eyelid;
+ };
+ 
++// The voice level (0 to 1) the mouth follows, shared so the eyes-only style can pulse with it (patch V10).
++extern float g_ml_voice;
++// Draw a shape list around (cx, cy) and measure it (patch V10); the eyes, the brows and the mouth use them.
++void ml_draw_shape_list(lv_layer_t* layer, const ml_shape_t* sh, int n, int cx, int cy, lv_color_t fg, lv_color_t bg);
++void ml_shape_list_bounds(const ml_shape_t* sh, int n, int b[4]);
++// The eased pose of the face (the approved design): read by the mouth.
++const float* ml_shown_pose();
++extern int g_ml_emotion;
++
+ /**
+  * @brief The mouth. In the stock style a rounded bar that grows into a box; in every other style a stroke along a curve
+  * (hal/maipai_look_core.h) that eases between a smile, a cat mouth, a wobble line and an open O.
+@@ -166,6 +193,11 @@ private:
+     int _emotion     = ML_NEUTRAL;
+     ml_mouth_t _cur;
+     int _drawn_key[7] = {};
++    // Patch V10: the mouth of the approved design is a list of shapes (a curve, or a filled lens when open).
++    ml_shape_t _msh[ML_MAX_SHAPES];
++    int _nmsh    = 0;
++    int _mbb[4]  = {0, 0, 0, 0};
++    float _mo    = 0.0f;
+     uint32_t _t0_ms   = 0;
+     lv_color_t _color;
+     std::unique_ptr<uitk::lvgl_cpp::Container> _mouth;  // the stock bar
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.cpp b/firmware/main/stackchan/avatar/skins/default/default.cpp
+index 84381f4..9747692 100644
+--- a/firmware/main/stackchan/avatar/skins/default/default.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/default.cpp
+@@ -142,6 +142,7 @@ void DefaultAvatar::setThinking(bool on)
+         return;
+     }
+     _thinking = on;
++    DefaultEyes::setThinking(on);
+     if (auto* mouth = dynamic_cast<DefaultMouth*>(_key_elements.mouth.get())) {
+         mouth->setSuppressed(on);
+     }
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+index 9665903..da0fef4 100644
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -28,6 +28,190 @@ static bool s_lids_init = false;
+ static int64_t s_lid_us = 0;
+ static float s_lid_sw   = 100.0f;
+ 
++// The approved design (patch V10): one eased pose for the whole face, stepped once per frame by the first eye that runs.
++static ml_spring_t s_spring;
++static float s_target[MP_N];
++static bool s_spring_init = false;
++static int64_t s_spring_us = 0;
++static bool s_thinking     = false;
++static float s_blink       = 0.0f;
++float stackchan::avatar::g_ml_voice = 0.0f;
++int stackchan::avatar::g_ml_emotion = ML_NEUTRAL;
++
++const float* stackchan::avatar::ml_shown_pose()
++{
++    return s_spring.x;
++}
++
++void DefaultEyes::setThinking(bool on)
++{
++    s_thinking = on;
++}
++
++// Draw a shape list around (cx, cy). Rounded boxes, circles, a border ring, triangles (a quad is four, so no seam shows
++// between them) and round-ended lines: no mask and no layer.
++static void draw_shapes(lv_layer_t* layer, const ml_shape_t* sh, int n, int cx, int cy, lv_color_t fg, lv_color_t bg)
++{
++    for (int i = 0; i < n; i++) {
++        const ml_shape_t& s = sh[i];
++        const lv_color_t col = s.col == ML_COL_BG ? bg : fg;
++        switch (s.kind) {
++            case ML_SH_RRECT:
++            case ML_SH_CIRCLE:
++            case ML_SH_RING: {
++                lv_draw_rect_dsc_t rd;
++                lv_draw_rect_dsc_init(&rd);
++                lv_area_t a;
++                float w, h, r;
++                if (s.kind == ML_SH_CIRCLE) {
++                    w = h = s.v[2] * 2.0f;
++                    r     = s.v[2];
++                } else {
++                    w = s.v[2];
++                    h = s.v[3];
++                    r = s.v[4];
++                }
++                int band = 0;
++                if (s.kind == ML_SH_RING) {
++                    band = (int)lroundf(s.v[5]);
++                    w += 2.0f * band;
++                    h += 2.0f * band;
++                    r += band;
++                    rd.bg_opa       = LV_OPA_TRANSP;
++                    rd.border_color = col;
++                    rd.border_opa   = s.opa;
++                    rd.border_width = band;
++                    rd.border_side  = LV_BORDER_SIDE_FULL;
++                } else {
++                    rd.bg_color = col;
++                    rd.bg_opa   = s.opa;
++                }
++                a.x1 = cx + (int)lroundf(s.v[0] - w * 0.5f);
++                a.y1 = cy + (int)lroundf(s.v[1] - h * 0.5f);
++                a.x2 = a.x1 + (int)lroundf(w) - 1;
++                a.y2 = a.y1 + (int)lroundf(h) - 1;
++                rd.radius = (int)lroundf(r);
++                lv_draw_rect(layer, &rd, &a);
++                break;
++            }
++            case ML_SH_QUAD: {
++                lv_draw_triangle_dsc_t td;
++                lv_draw_triangle_dsc_init(&td);
++                td.color = col;
++                td.opa   = s.opa;
++                lv_point_precise_t p[4];
++                for (int k = 0; k < 4; k++) {
++                    p[k].x = cx + (int)lroundf(s.v[k * 2]);
++                    p[k].y = cy + (int)lroundf(s.v[k * 2 + 1]);
++                }
++                static const int tri[4][3] = {{0, 1, 2}, {0, 2, 3}, {0, 1, 3}, {1, 2, 3}};
++                for (int t = 0; t < 4; t++) {
++                    for (int k = 0; k < 3; k++) {
++                        td.p[k] = p[tri[t][k]];
++                    }
++                    lv_draw_triangle(layer, &td);
++                }
++                break;
++            }
++            case ML_SH_LINE: {
++                lv_draw_line_dsc_t ld;
++                lv_draw_line_dsc_init(&ld);
++                ld.color       = col;
++                ld.opa         = s.opa;
++                ld.width       = (int)lroundf(s.v[4]) < 1 ? 1 : (int)lroundf(s.v[4]);
++                ld.round_start = 1;
++                ld.round_end   = 1;
++                ld.p1.x        = cx + (int)lroundf(s.v[0]);
++                ld.p1.y        = cy + (int)lroundf(s.v[1]);
++                ld.p2.x        = cx + (int)lroundf(s.v[2]);
++                ld.p2.y        = cy + (int)lroundf(s.v[3]);
++                lv_draw_line(layer, &ld);
++                break;
++            }
++            case ML_SH_HEART: {  // the design's heart (two cubic curves), filled as a fan of triangles around a point inside it
++                lv_draw_triangle_dsc_t td;
++                lv_draw_triangle_dsc_init(&td);
++                td.color = col;
++                td.opa   = s.opa;
++                const float x = s.v[0], y = s.v[1], z = s.v[2];
++                static const float C[2][4][2] = {{{0, .48f}, {-.95f, -.05f}, {-.52f, -.72f}, {0, -.22f}},
++                                                 {{0, -.22f}, {.52f, -.72f}, {.95f, -.05f}, {0, .48f}}};
++                const int H = 14;
++                lv_point_precise_t pts[2 * H + 1];
++                int m = 0;
++                for (int c = 0; c < 2; c++) {
++                    for (int k = (c == 0 ? 0 : 1); k <= H; k++) {
++                        const float t = (float)k / (float)H, u = 1.0f - t;
++                        const float bx = u * u * u * C[c][0][0] + 3 * u * u * t * C[c][1][0] + 3 * u * t * t * C[c][2][0] + t * t * t * C[c][3][0];
++                        const float by = u * u * u * C[c][0][1] + 3 * u * u * t * C[c][1][1] + 3 * u * t * t * C[c][2][1] + t * t * t * C[c][3][1];
++                        pts[m].x = cx + (int)lroundf(x + bx * z);
++                        pts[m].y = cy + (int)lroundf(y + by * z);
++                        m++;
++                    }
++                }
++                // two fans around two different points inside the heart: the seams of one lie inside the triangles of the other
++                for (int f = 0; f < 2; f++) {
++                    lv_point_precise_t mid;
++                    mid.x = cx + (int)lroundf(x);
++                    mid.y = cy + (int)lroundf(y + z * (f ? -0.1f : 0.1f));
++                    for (int k = 0; k + 1 < m; k++) {
++                        td.p[0] = mid;
++                        td.p[1] = pts[k];
++                        td.p[2] = pts[k + 1];
++                        lv_draw_triangle(layer, &td);
++                    }
++                }
++                break;
++            }
++            default: break;
++        }
++    }
++}
++
++// The pixel bounds of a shape list, relative to the list's origin.
++static void shapes_bounds(const ml_shape_t* sh, int n, int b[4])
++{
++    int x1 = 0x7fffffff, y1 = 0x7fffffff, x2 = -0x7fffffff, y2 = -0x7fffffff;
++    auto add = [&](float x, float y, float m) {
++        const int ix1 = (int)floorf(x - m) - 2, ix2 = (int)ceilf(x + m) + 2, iy1 = (int)floorf(y - m) - 2, iy2 = (int)ceilf(y + m) + 2;
++        x1 = ix1 < x1 ? ix1 : x1;
++        y1 = iy1 < y1 ? iy1 : y1;
++        x2 = ix2 > x2 ? ix2 : x2;
++        y2 = iy2 > y2 ? iy2 : y2;
++    };
++    for (int i = 0; i < n; i++) {
++        const ml_shape_t& s = sh[i];
++        switch (s.kind) {
++            case ML_SH_RRECT: add(s.v[0], s.v[1], (s.v[2] > s.v[3] ? s.v[2] : s.v[3]) * 0.5f); break;
++            case ML_SH_CIRCLE: add(s.v[0], s.v[1], s.v[2]); break;
++            case ML_SH_RING: add(s.v[0], s.v[1], (s.v[2] > s.v[3] ? s.v[2] : s.v[3]) * 0.5f + s.v[5]); break;
++            case ML_SH_QUAD:
++                for (int k = 0; k < 4; k++) add(s.v[k * 2], s.v[k * 2 + 1], 0);
++                break;
++            case ML_SH_LINE:
++                add(s.v[0], s.v[1], s.v[4] * 0.5f + 1);
++                add(s.v[2], s.v[3], s.v[4] * 0.5f + 1);
++                break;
++            case ML_SH_HEART: add(s.v[0], s.v[1], s.v[2] * 1.1f); break;
++            default: break;
++        }
++    }
++    if (n == 0) {
++        x1 = y1 = x2 = y2 = 0;
++    }
++    b[0] = x1; b[1] = y1; b[2] = x2; b[3] = y2;
++}
++
++void stackchan::avatar::ml_draw_shape_list(lv_layer_t* layer, const ml_shape_t* sh, int n, int cx, int cy, lv_color_t fg, lv_color_t bg)
++{
++    draw_shapes(layer, sh, n, cx, cy, fg, bg);
++}
++
++void stackchan::avatar::ml_shape_list_bounds(const ml_shape_t* sh, int n, int b[4])
++{
++    shapes_bounds(sh, n, b);
++}
++
+ static uint32_t now_ms()
+ {
+     return static_cast<uint32_t>(esp_timer_get_time() / 1000);
+@@ -68,6 +252,23 @@ DefaultEyes::DefaultEyes(lv_obj_t* parent, lv_color_t primaryColor, lv_color_t s
+     _eyelid->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
+     _eyelid->removeFlag(LV_OBJ_FLAG_CLICKABLE);
+ 
++    // The approved design (patch V10): the eye is drawn from a shape list in one object, its brow in another. The brow is made
++    // after the eye so it sits above the mask ring.
++    _fg  = primaryColor;
++    _bg  = secondaryColor;
++    _art = lv_obj_create(parent);
++    lv_obj_remove_style_all(_art);
++    lv_obj_remove_flag(_art, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_remove_flag(_art, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_add_event_cb(
++        _art, [](lv_event_t* e) { static_cast<DefaultEyes*>(lv_event_get_user_data(e))->drawArt(e); }, LV_EVENT_DRAW_MAIN, this);
++    _brow = lv_obj_create(parent);
++    lv_obj_remove_style_all(_brow);
++    lv_obj_remove_flag(_brow, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_remove_flag(_brow, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_add_event_cb(
++        _brow, [](lv_event_t* e) { static_cast<DefaultEyes*>(lv_event_get_user_data(e))->drawBrow(e); }, LV_EVENT_DRAW_MAIN, this);
++
+     setStyle(_style);
+     _sw_eff = 100;
+     setWeight(100);
+@@ -76,6 +277,14 @@ DefaultEyes::DefaultEyes(lv_obj_t* parent, lv_color_t primaryColor, lv_color_t s
+ 
+ DefaultEyes::~DefaultEyes()
+ {
++    if (_art != nullptr) {
++        lv_obj_delete(_art);
++        _art = nullptr;
++    }
++    if (_brow != nullptr) {
++        lv_obj_delete(_brow);
++        _brow = nullptr;
++    }
+     _eyelid.reset();
+     _eye.reset();
+     _container.reset();
+@@ -83,7 +292,11 @@ DefaultEyes::~DefaultEyes()
+ 
+ int DefaultEyes::effective_weight() const
+ {
+-    return _lowered ? 0 : (_weight < _lid_cap ? _weight : _lid_cap);
++    int w = _weight < _lid_cap ? _weight : _lid_cap;
++    if (_art_mode && s_thinking && w > 82) {
++        w = 82;  // thinking: the lid sits low
++    }
++    return _lowered ? 0 : w;
+ }
+ 
+ // The size of the eye and its box for the style and the emotion's scale.
+@@ -134,12 +347,44 @@ void DefaultEyes::layout()
+     _container->setPos(pos_x, pos_y);
+ }
+ 
++void DefaultEyes::place_art()
++{
++    const ml_style_t* st = ml_style(_style);
++    if (_art == nullptr) {
++        return;
++    }
++    const int x = _is_left_eye ? -st->eye_x : st->eye_x;
++    lv_obj_set_size(_art, (int)(st->ew * 1.3f) + 100, (int)(st->eh * 1.45f) + 100);
++    lv_obj_align(_art, LV_ALIGN_CENTER, x, st->eye_y);
++    lv_obj_set_size(_brow, (int)(st->ew * 1.4f) + 60, 170);
++    lv_obj_align(_brow, LV_ALIGN_CENTER, x, st->eye_y - 60);
++    _nsh = _nbsh = 0;
++    _ox = _oy = 0;
++    lv_obj_invalidate(_art);
++    lv_obj_invalidate(_brow);
++}
++
+ void DefaultEyes::setStyle(int style)
+ {
+-    _style = (style >= 0 && style < ML_STYLE_COUNT) ? style : ML_STYLE_BIG_EYES;
++    _style    = (style >= 0 && style < ML_STYLE_COUNT) ? style : ML_STYLE_BIG_EYES;
++    _art_mode = !ml_style(_style)->stock_look;
++    s_spring_init = false;  // a new style starts from its own resting pose, no spring from the old size
++    _container->setHidden(_art_mode);
++    if (_art != nullptr) {
++        if (_art_mode) {
++            lv_obj_remove_flag(_art, LV_OBJ_FLAG_HIDDEN);
++            lv_obj_remove_flag(_brow, LV_OBJ_FLAG_HIDDEN);
++            place_art();
++        } else {
++            lv_obj_add_flag(_art, LV_OBJ_FLAG_HIDDEN);
++            lv_obj_add_flag(_brow, LV_OBJ_FLAG_HIDDEN);
++        }
++    }
+     _box   = ml_eye_box((int)(ml_style(_style)->eye_d * 1.15f));
+-    _container->setSize(_box, _box);
+-    _container->setTransformPivot(_box / 2, _box / 2);
++    if (!_art_mode) {
++        _container->setSize(_box, _box);
++        _container->setTransformPivot(_box / 2, _box / 2);
++    }
+     _drawn_d    = -1;
+     _drawn_edge = 1 << 20;
+     _px = _py   = 0x7fffffff;
+@@ -184,7 +429,17 @@ void DefaultEyes::setEmotion(const Emotion& emotion)
+     if (getIgnoreEmotion()) {
+         return;
+     }
+-    _emotion               = static_cast<int>(emotion);
++    _emotion       = static_cast<int>(emotion);
++    g_ml_emotion   = _emotion;
++    if (_art_mode) {  // the approved design: the lid the emotion asks for, in percent open
++        float open = (1.0f - ml_spec(_emotion, 0).lid) * 100.0f;
++        if (_emotion == ML_TIRED && _tired_level >= 2) {
++            open -= 12.0f;
++        }
++        ml_lids_emotion(&s_lids, _emotion, now_ms(), s_lid_sw);
++        setWeight((int)lroundf(open));
++        return;
++    }
+     ml_look_t look = ml_look(_style, _emotion);
+     if (_emotion == ML_TIRED && _tired_level >= 2) {
+         look.lid -= 12.0f;  // at 10 percent battery: more droop
+@@ -210,7 +465,11 @@ void DefaultEyes::setTiredLevel(int level)
+ void DefaultEyes::setVisible(bool visible)
+ {
+     Element::setVisible(visible);
+-    _container->setHidden(!visible);
++    _container->setHidden(!visible || _art_mode);
++    if (_art != nullptr && _art_mode) {
++        lv_obj_invalidate(_art);
++        lv_obj_invalidate(_brow);
++    }
+ }
+ 
+ // The legacy size (-100 to 100) of the base skin is not used: a style gives the size.
+@@ -230,6 +489,12 @@ void DefaultEyes::setLowered(bool lowered)
+ 
+ void DefaultEyes::setColors(lv_color_t primaryColor, lv_color_t secondaryColor)
+ {
++    _fg = primaryColor;
++    _bg = secondaryColor;
++    if (_art != nullptr) {
++        lv_obj_invalidate(_art);
++        lv_obj_invalidate(_brow);
++    }
+     _eye->setBgColor(primaryColor);
+     _eyelid->setBgColor(secondaryColor);
+ }
+@@ -269,7 +534,10 @@ void DefaultEyes::_update()
+         float lid_target = base;
+         if (!_lowered) {
+             lid_target = ml_lids_target(&s_lids, base, shut, ms);
+-            if (ml_blink_step(&s_lids, ms) && lid_target > shut + 4.0f) {
++            const int blinking = ml_blink_step(&s_lids, ms);
++            if (_art_mode) {  // the design's blink lowers the eye's height; the lid keeps the emotion's value
++                s_blink = blinking ? ml_blink_factor(ms - s_lids.blink_start_ms) : 0.0f;
++            } else if (blinking && lid_target > shut + 4.0f) {
+                 lid_target = shut + 4.0f;
+             }
+         } else {
+@@ -282,6 +550,11 @@ void DefaultEyes::_update()
+     }
+     _sw_eff = s_lid_sw;
+ 
++    if (_art_mode) {
++        update_art(ms);
++        return;
++    }
++
+     const float scale_target = _scale_target;
+     _scale = mx_follow(_scale, scale_target, dt, 110.0f);
+     if (mx_settled(_scale, scale_target, 0.004f)) {
+@@ -315,3 +588,145 @@ void DefaultEyes::_update()
+     _drawn_dy = static_cast<int>(lroundf(s_drift.y));
+     layout();
+ }
++
++// The approved design, one eased step (patch V10): the spring of the pose, the gaze, then the shapes of this eye; what changed is
++// invalidated, nothing else.
++void DefaultEyes::update_art(uint32_t ms)
++{
++    const int64_t now    = esp_timer_get_time();
++    const ml_style_t* st = ml_style(_style);
++    if (!s_spring_init) {
++        ml_pose_target(st, _emotion, s_thinking, s_target);
++        ml_spring_snap(&s_spring, s_target);
++        s_spring_init = true;
++        s_spring_us   = now;
++    }
++    if (now - s_spring_us >= 5000) {
++        const float dts = static_cast<float>(now - s_spring_us) / 1000000.0f;
++        s_spring_us     = now;
++        ml_pose_target(st, _emotion, s_thinking, s_target);
++        ml_spring_step(&s_spring, s_target, dts);
++    }
++    if (!s_drift_init) {
++        mx_drift_init(&s_drift, 0x9E3779B9u);
++        s_drift_init = true;
++    }
++    if (now - s_drift_us >= 5000) {
++        const float dts = static_cast<float>(now - s_drift_us) / 1000.0f;
++        s_drift_us      = now;
++        const int amp   = (int)lroundf((float)st->drift * ml_pose_drift_scale(_emotion));
++        mx_drift_step(&s_drift, static_cast<uint32_t>(now / 1000), dts > 200.0f ? 200.0f : dts, (_visible && _sw_eff > 40.0f) ? amp : 0);
++    }
++    const float* P  = s_spring.x;
++    const int side  = _is_left_eye ? -1 : 1;
++    const float fx  = _eye_min_offset.x + (_sx + 100.0f) * (_eye_max_offset.x - _eye_min_offset.x) / 200.0f;
++    const float fy  = _eye_min_offset.y + (_sy + 100.0f) * (_eye_max_offset.y - _eye_min_offset.y) / 200.0f;
++    const float gx  = fx + s_drift.x + P[MP_GX];
++    const float gy  = fy + s_drift.y + P[MP_GY];
++    const float es  = side > 0 ? P[MP_RSCALE] : 1.0f;
++    ml_eye_in_t in;
++    memset(&in, 0, sizeof(in));
++    in.st    = st;
++    in.side  = side;
++    in.ew    = P[MP_EW] * es;
++    in.eh    = P[MP_EH] * es;
++    in.lid   = 1.0f - (_sw_eff < 0.0f ? 0.0f : (_sw_eff > 100.0f ? 100.0f : _sw_eff)) / 100.0f;
++    in.slant = P[MP_SLANT];
++    in.cheek = P[MP_CHEEK];
++    in.blink = s_blink;
++    in.heart = P[MP_HEART];
++    in.beat  = 1.0f + 0.14f * powf(fmaxf(0.0f, sinf(6.2831853f * 1.2f * (float)(ms % 100000u) / 1000.0f)), 3.0f);
++    in.closed = ml_clamp01f((26.0f - _sw_eff) / 12.0f);
++    in.gx     = gx;
++    in.gy     = gy;
++    in.voice  = g_ml_voice;
++    _d_now    = in.eh;
++    const int ox = (int)lroundf(gx), oy = (int)lroundf(P[MP_DY] + gy + (side > 0 ? P[MP_RLIFT] : 0.0f));
++    // shapes are made around the eye's own centre; the gaze moves the centre, the pupil moves 1.3 times as far
++    ml_shape_t tmp[ML_MAX_SHAPES];
++    const int n = ml_eye_shapes(&in, tmp, ML_MAX_SHAPES);
++    for (int i = 0; i < n; i++) {  // whole pixels: what the unit can draw, and a stable key
++        for (int k = 0; k < 8; k++) {
++            tmp[i].v[k] = roundf(tmp[i].v[k]);
++        }
++    }
++    const bool vis = _visible;
++    if (n != _nsh || ox != _ox || oy != _oy || memcmp(tmp, _sh, sizeof(ml_shape_t) * (size_t)n) != 0) {
++        int nb[4];
++        ml_shape_list_bounds(tmp, n, nb);
++        lv_area_t a;
++        lv_obj_get_coords(_art, &a);
++        const int cx = (a.x1 + a.x2) / 2, cy = (a.y1 + a.y2) / 2;
++        if (vis) {
++            if (_nsh > 0) {
++                lv_area_t o = {cx + _ox + _bb[0], cy + _oy + _bb[1], cx + _ox + _bb[2], cy + _oy + _bb[3]};
++                lv_obj_invalidate_area(_art, &o);
++            }
++            if (n > 0) {
++                lv_area_t o = {cx + ox + nb[0], cy + oy + nb[1], cx + ox + nb[2], cy + oy + nb[3]};
++                lv_obj_invalidate_area(_art, &o);
++            }
++        }
++        memcpy(_sh, tmp, sizeof(ml_shape_t) * (size_t)n);
++        _nsh = n;
++        _ox  = ox;
++        _oy  = oy;
++        for (int k = 0; k < 4; k++) {
++            _bb[k] = nb[k];
++        }
++    }
++    // the brow
++    ml_shape_t bs[2];
++    const int bn = ml_brow_shapes(st, side, P[MP_EW] * es, P[MP_EH] * es, es, gx, side > 0 ? P[MP_RLIFT] : 0.0f, P[MP_BR], P[MP_BROW],
++                                  P[MP_BLIFT], P[MP_BTILT], bs, 2);
++    for (int i = 0; i < bn; i++) {
++        for (int k = 0; k < 8; k++) {
++            bs[i].v[k] = roundf(bs[i].v[k]);
++        }
++    }
++    const int bx = 0, by = 0;
++    if (bn != _nbsh || bx != _bbx || by != _bby || memcmp(bs, _bsh, sizeof(ml_shape_t) * (size_t)bn) != 0) {
++        int nb[4];
++        ml_shape_list_bounds(bs, bn, nb);
++        lv_area_t a;
++        lv_obj_get_coords(_brow, &a);
++        const int cx = (a.x1 + a.x2) / 2, cy = (a.y1 + a.y2) / 2 + 60;
++        if (vis) {
++            if (_nbsh > 0) {
++                lv_area_t o = {cx + _bbb[0], cy + _bbb[1], cx + _bbb[2], cy + _bbb[3]};
++                lv_obj_invalidate_area(_brow, &o);
++            }
++            if (bn > 0) {
++                lv_area_t o = {cx + nb[0], cy + nb[1], cx + nb[2], cy + nb[3]};
++                lv_obj_invalidate_area(_brow, &o);
++            }
++        }
++        memcpy(_bsh, bs, sizeof(ml_shape_t) * (size_t)bn);
++        _nbsh = bn;
++        for (int k = 0; k < 4; k++) {
++            _bbb[k] = nb[k];
++        }
++    }
++}
++
++void DefaultEyes::drawArt(lv_event_t* e)
++{
++    lv_layer_t* layer = lv_event_get_layer(e);
++    if (layer == nullptr || _art == nullptr || !_art_mode || !_visible) {
++        return;
++    }
++    lv_area_t a;
++    lv_obj_get_coords(_art, &a);
++    ml_draw_shape_list(layer, _sh, _nsh, (a.x1 + a.x2) / 2 + _ox, (a.y1 + a.y2) / 2 + _oy, _fg, _bg);
++}
++
++void DefaultEyes::drawBrow(lv_event_t* e)
++{
++    lv_layer_t* layer = lv_event_get_layer(e);
++    if (layer == nullptr || _brow == nullptr || !_art_mode || !_visible) {
++        return;
++    }
++    lv_area_t a;
++    lv_obj_get_coords(_brow, &a);
++    ml_draw_shape_list(layer, _bsh, _nbsh, (a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2 + 60, _fg, _bg);
++}
+diff --git a/firmware/main/stackchan/avatar/skins/default/mouth.cpp b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+index 67b30a3..801da00 100644
+--- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+@@ -24,7 +24,7 @@ static const int _mouth_max_radius      = 16;
+ 
+ // The room the stroke is drawn in: wide enough for the cat mouth, tall enough for the open mouth and a wobble.
+ static const int kDrawW = 132;
+-static const int kDrawH = 76;
++static const int kDrawH = 120;
+ 
+ static uint32_t now_ms()
+ {
+@@ -35,6 +35,7 @@ DefaultMouth::DefaultMouth(lv_obj_t* parent, lv_color_t primaryColor, lv_color_t
+ {
+     _color = primaryColor;
+     _cur   = ML_LOOKS[ML_NEUTRAL].mouth;
++    (void)secondaryColor;
+     _t0_ms = now_ms();
+ 
+     _mouth = std::make_unique<Container>(parent);
+@@ -89,6 +90,10 @@ void DefaultMouth::setStyle(int style)
+     _style = (style >= 0 && style < ML_STYLE_COUNT) ? style : ML_STYLE_BIG_EYES;
+     _px = _py = 0x7fffffff;
+     _drawn_w  = -1;
++    _nmsh     = 0;
++    if (_draw != nullptr) {
++        lv_obj_invalidate(_draw);
++    }
+     for (auto& k : _drawn_key) {
+         k = -9999;
+     }
+@@ -193,7 +198,7 @@ void DefaultMouth::setColors(lv_color_t primaryColor)
+     }
+ }
+ 
+-// The stroke: segments with round ends, or one disc when the stroke is shorter than it is thick (an O).
++// The mouth of the approved design (patch V10): a curve, or a filled lens when open, from the shape list built in _update().
+ void DefaultMouth::drawCute(lv_event_t* e)
+ {
+     lv_layer_t* layer = lv_event_get_layer(e);
+@@ -202,50 +207,7 @@ void DefaultMouth::drawCute(lv_event_t* e)
+     }
+     lv_area_t a;
+     lv_obj_get_coords(_draw, &a);
+-    const int cx = (a.x1 + a.x2) / 2;
+-    const int cy = (a.y1 + a.y2) / 2;
+-    ml_pt_t p[ML_MOUTH_PTS];
+-    ml_mouth_points(&_cur, static_cast<float>(_t0_ms % 2400u) / 2400.0f, p);
+-    const int t = (int)lroundf(_cur.t) < 2 ? 2 : (int)lroundf(_cur.t);
+-    int minx = p[0].x, maxx = p[0].x, miny = p[0].y, maxy = p[0].y;
+-    for (int i = 1; i < ML_MOUTH_PTS; i++) {
+-        minx = p[i].x < minx ? p[i].x : minx;
+-        maxx = p[i].x > maxx ? p[i].x : maxx;
+-        miny = p[i].y < miny ? p[i].y : miny;
+-        maxy = p[i].y > maxy ? p[i].y : maxy;
+-    }
+-    if ((maxx - minx) < t / 3 && (maxy - miny) < t / 3) {
+-        lv_draw_rect_dsc_t rd;
+-        lv_draw_rect_dsc_init(&rd);
+-        rd.bg_color = _color;
+-        rd.bg_opa   = LV_OPA_COVER;
+-        rd.radius   = LV_RADIUS_CIRCLE;
+-        lv_area_t ar;
+-        const int mx = cx + (minx + maxx) / 2, my = cy + (miny + maxy) / 2;
+-        ar.x1 = mx - t / 2;
+-        ar.x2 = mx - t / 2 + t - 1;
+-        ar.y1 = my - t / 2;
+-        ar.y2 = my - t / 2 + t - 1;
+-        lv_draw_rect(layer, &rd, &ar);
+-        return;
+-    }
+-    lv_draw_line_dsc_t ld;
+-    lv_draw_line_dsc_init(&ld);
+-    ld.color       = _color;
+-    ld.opa         = LV_OPA_COVER;
+-    ld.width       = t;
+-    ld.round_start = 1;
+-    ld.round_end   = 1;
+-    for (int i = 0; i + 1 < ML_MOUTH_PTS; i++) {
+-        if (p[i].x == p[i + 1].x && p[i].y == p[i + 1].y) {
+-            continue;
+-        }
+-        ld.p1.x = cx + p[i].x;
+-        ld.p1.y = cy + p[i].y;
+-        ld.p2.x = cx + p[i + 1].x;
+-        ld.p2.y = cy + p[i + 1].y;
+-        lv_draw_line(layer, &ld);
+-    }
++    ml_draw_shape_list(layer, _msh, _nmsh, (a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2, _color, lv_color_black());
+ }
+ 
+ // One eased step (patch H02, X01). While the unit speaks the mouth follows the loudness of its voice; otherwise the weight
+@@ -278,48 +240,69 @@ void DefaultMouth::_update()
+             _sw = target;
+         }
+         apply_weight(static_cast<int>(lroundf(_sw)));
++    } else if (st->mouth == ML_MOUTH_NONE) {  // no mouth: the eyes pulse with the voice instead
++        float want = speaking ? mx_mouth_for_level(level) / 100.0f : 0.0f;
++        _mo        = mx_follow(_mo, want, dt, want > _mo ? 38.0f : 105.0f);
++        g_ml_voice = _mo;
+     } else if (st->mouth == ML_MOUTH_CUTE && _draw != nullptr) {
+-        // The resting shape of the emotion, scaled to the style.
+-        const float kw = (float)st->mouth_w / 36.0f;
+-        const float kt = 0.5f + 0.5f * ((float)st->mouth_t / 8.0f);
+-        ml_mouth_t base = ML_LOOKS[_emotion >= 0 && _emotion < ML_COUNT ? _emotion : 0].mouth;
+-        base.w *= kw;
+-        base.t *= kt;
+-        if (_sealed) {
+-            base.bend = 0;
+-            base.wob  = 0;
+-            base.split = 0;
+-            base.w     = 30.0f * kw;
+-            base.t     = 5.0f * kt;
+-        }
+-        ml_mouth_t target = base;
+-        if (!_sealed && _emotion == ML_TIRED && !speaking) {
+-            target = ml_mouth_yawn(base, now_ms());
+-        }
+-        float open01 = _weight > 0 ? static_cast<float>(_weight) / 100.0f : 0.0f;
++        // The pose the face has eased to, then the voice (or the weight it was given) opens it; mute holds it shut.
++        const float* P = ml_shown_pose();
++        float open01   = _weight > 0 ? static_cast<float>(_weight) / 100.0f : 0.0f;
+         if (speaking) {
+             open01 = mx_mouth_for_level(level) / 100.0f;
+         }
+-        if (open01 > 0.0f && !_sealed) {
+-            target = ml_mouth_speaking(target, open01, (float)st->mouth_w / 46.0f);
++        const bool driven = speaking || open01 > 0.0f;
++        float want        = driven ? open01 : P[MP_MOPEN];
++        float curve = P[MP_MCURVE], w = P[MP_MW];
++        if (_emotion == ML_TIRED && !speaking && !_sealed) {  // a tired mouth yawns, once every six seconds
++            const float k = (float)(now_ms() % 6000u) / 6000.0f, x = (k - 0.1f) / 0.5f;
++            if (x > 0.0f && x < 1.0f) {
++                const float y = sinf(3.14159265f * x);
++                want = y * y * 0.6f;
++            }
+         }
+-        const float tau = (target.t > _cur.t && (speaking || open01 > 0.0f)) ? 40.0f : (speaking ? 105.0f : ML_MOUTH_TAU_MS);
+-        _cur = ml_mouth_follow(_cur, target, dt, tau);
+-
+-        _t0_ms = now_ms();
+-        const int phase = (int)((_t0_ms % 2400u) / 150u);
+-        const int key[7] = {(int)lroundf(_cur.w), (int)lroundf(_cur.bend * 2.0f), (int)lroundf(_cur.t),
+-                            _cur.wob > 0.05f ? (int)lroundf(_cur.wob * 4.0f) * 100 + phase : 0,
+-                            (int)lroundf(_cur.split * 8.0f), (int)lroundf(_cur.tilt), 0};
+-        bool changed = false;
+-        for (int i = 0; i < 7; i++) {
+-            if (key[i] != _drawn_key[i]) {
+-                _drawn_key[i] = key[i];
+-                changed       = true;
++        if (_sealed) {
++            want  = 0.0f;
++            curve = 0.0f;
++            w     = (float)st->mouth_w * 0.6f;
++        }
++        _mo = mx_follow(_mo, want, dt, want > _mo ? 38.0f : 105.0f);
++        g_ml_voice = (speaking || open01 > 0.0f) ? _mo : 0.0f;
++        ml_mouth_in_t mi;
++        mi.w     = w;
++        mi.curve = curve;
++        mi.open  = _mo;
++        mi.tilt  = P[MP_MTILT];
++        mi.x     = P[MP_MX];
++        mi.on    = P[MP_MON];
++        ml_shape_t tmp[ML_MAX_SHAPES];
++        const int n = ml_mouth_lens(st, &mi, tmp, ML_MAX_SHAPES);
++        for (int i = 0; i < n; i++) {
++            for (int k = 0; k < 8; k++) {
++                tmp[i].v[k] = roundf(tmp[i].v[k]);
+             }
+         }
+-        if (changed && _visible && !_suppressed) {
+-            lv_obj_invalidate(_draw);
++        if (n != _nmsh || memcmp(tmp, _msh, sizeof(ml_shape_t) * (size_t)n) != 0) {
++            int nb[4];
++            ml_shape_list_bounds(tmp, n, nb);
++            if (_visible && !_suppressed) {
++                lv_area_t a;
++                lv_obj_get_coords(_draw, &a);
++                const int cx = (a.x1 + a.x2) / 2, cy = (a.y1 + a.y2) / 2;
++                if (_nmsh > 0) {
++                    lv_area_t o = {cx + _mbb[0], cy + _mbb[1], cx + _mbb[2], cy + _mbb[3]};
++                    lv_obj_invalidate_area(_draw, &o);
++                }
++                if (n > 0) {
++                    lv_area_t o = {cx + nb[0], cy + nb[1], cx + nb[2], cy + nb[3]};
++                    lv_obj_invalidate_area(_draw, &o);
++                }
++            }
++            memcpy(_msh, tmp, sizeof(ml_shape_t) * (size_t)n);
++            _nmsh = n;
++            for (int k = 0; k < 4; k++) {
++                _mbb[k] = nb[k];
++            }
+         }
+     }
+ 

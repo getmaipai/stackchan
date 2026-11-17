@@ -58,6 +58,10 @@ KINDS: dict[str, tuple[str, str]] = {
     "overlay": ("look", "look"),
 }  # fmt: skip
 ALWAYS_REFUSED_WITHOUT_CUE = frozenset({"say", "photo"})
+# How long the unit keeps a cue's kind open after its token passed the gate (the banner seconds): a find, a nod or a game
+# start makes several tool calls, and each one that is marked source remote needs the cue to be open (patch TC01).
+CUE_SECONDS = {"move": 6, "find": 30, "dance": 15, "game": 6, "photo": 4, "listen": 4, "say": 4}
+FIND_RENEW_S = 20.0  # a find runs 90 s: the loop asks the unit for a fresh cue before the 30 s window closes
 
 _WORDS = {
     "en": {
@@ -253,6 +257,57 @@ class RemoteLog:
 # ---------------------------------------------------------------------------------------------
 
 
+def _gated_kind(name: str, arguments: Mapping[str, Any]) -> str | None:
+    """The cue kind a unit tool call belongs to when it is a remote-facing action, else None (patch TC01)."""
+    if name == "self.robot.set_head_angles":
+        return "move"
+    if name == "self.robot.dance":
+        return "dance"
+    if name == "self.game.start":
+        return "game"
+    if name == "self.audio.play_sound" and arguments.get("find") == 1:
+        return "find"
+    if name == "self.listen.test":
+        return "listen"
+    if name == "self.camera.take_photo":
+        return "photo"
+    return None
+
+
+class RemoteCue:
+    """The cue of one controller action, as the unit answered it: marks the action's unit tool calls ``source: remote`` and
+    carries the one-use token on the first of them (the unit then keeps the kind open for the banner time).
+
+    A unit that answered no token has no gate: its calls go unmarked, as before."""
+
+    def __init__(self, kind: str, token: object, renew: Callable[[], object] | None = None, clock: Callable[[], float] = time.monotonic) -> None:
+        self.kind = kind
+        self.token = token if isinstance(token, int) and not isinstance(token, bool) and token > 0 else 0
+        self.gated = self.token > 0  # a unit whose cue answer has no token has no gate
+        self._renew, self._clock = renew, clock
+        self._at = clock()
+
+    def marker(self, name: str, arguments: Mapping[str, Any]) -> dict[str, object]:
+        if not self.gated:
+            return {}
+        kind = _gated_kind(name, arguments)
+        if kind is None or (kind != self.kind and not (kind == "move" and self.kind == "find")):
+            return {}
+        token = self.token
+        self.token = 0
+        if self.kind == "find" and self._renew is not None and self._clock() - self._at > FIND_RENEW_S:
+            try:
+                fresh = self._renew()
+            except Exception:
+                fresh = 0
+            if isinstance(fresh, int) and not isinstance(fresh, bool) and fresh > 0:
+                token, self._at = fresh, self._clock()
+        out: dict[str, object] = {"source": "remote", "token": token}
+        if kind == "move" and self.kind == "find":
+            out["cue_kind"] = "find"
+        return out
+
+
 class RemoteActivity:
     def __init__(
         self,
@@ -276,6 +331,8 @@ class RemoteActivity:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._heartbeat = heartbeat
+        # Set by the page: gives the unit tool caller the cue of the action now running (a per-thread marker, or None).
+        self.bind_marker: Callable[[Callable[[str, Mapping[str, Any]], dict[str, object]] | None], None] | None = None
 
     # ---- what the page shows ----
 
@@ -328,6 +385,9 @@ class RemoteActivity:
             raise
         try:
             reply = self._cue(unit_id, do, kind, shown, label, lang)
+            if controller is not None and reply is not None and self.bind_marker is not None:
+                cue = RemoteCue(kind, reply.get("token"), lambda: self._renew(unit_id, kind, label), self._clock)
+                self.bind_marker(cue.marker)
             if do == "say":
                 self._wait_for_say(reply, lang)
             lead = {"say": SAY_NOTICE_S, "photo": PHOTO_COUNTDOWN_S}.get(do, 0.0)
@@ -340,6 +400,9 @@ class RemoteActivity:
         except Exception as error:
             self.log.add(controller=label, unit=unit_id, action=kind, text=text, result="failed", note=str(error))
             raise
+        finally:
+            if self.bind_marker is not None:
+                self.bind_marker(None)
         self.log.add(controller=label, unit=unit_id, action=kind, text=text, result="done")
         return result
 
@@ -383,7 +446,7 @@ class RemoteActivity:
             return None
         self.begin_session(unit_id, label)
         token = secrets.token_hex(8)
-        arguments: dict[str, object] = {"kind": kind, "text": shown, "label": label, "cue": token}
+        arguments: dict[str, object] = {"kind": kind, "text": shown, "label": label, "cue": token, "seconds": CUE_SECONDS.get(kind, 4)}
         if do == "say":
             arguments["confirm"] = self.store.settings()["speaking"]
         if do == "photo":
@@ -396,6 +459,11 @@ class RemoteActivity:
         if reply.get("ok") is False:
             raise ExtrasError(_w(lang, "cue_failed"))
         return reply
+
+    def _renew(self, unit_id: str, kind: str, label: str) -> object:
+        """A fresh cue for a long action (the find loop): the unit's new token, or 0 when it would not give one."""
+        reply = _reply(self._call(ACTION_TOOL, {"kind": kind, "text": "", "label": label, "seconds": CUE_SECONDS.get(kind, 4)}, device_id=unit_id, timeout=4.0))
+        return reply.get("token") if reply.get("ok") is not False else 0
 
     def _wait_for_say(self, reply: dict[str, Any] | None, lang: str | None) -> None:
         if reply is None or self.store.settings()["speaking"] != "ask":

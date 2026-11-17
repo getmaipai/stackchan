@@ -44,6 +44,8 @@ TRAIN4 = [
 FACES_CORE = [
     "X01-look-core-and-skin.patch",
     "X02-face-styles-colours-and-battery.patch",
+    "V10-face-design-shapes.patch",  # the approved face design: the look core's table, spring and shape builders
+    "V12-chunky-mouth-on-anime-eyes.patch",  # the chunky mouth of the faces core on those eyes (V11 touches no header)
 ]  # patches after Train 5 that change the pure headers (look core, face core, decor core, reaction rows)
 # The patches whose pure headers the face cores need, in order (U06 changes three of them).
 CORE_CHAIN = [

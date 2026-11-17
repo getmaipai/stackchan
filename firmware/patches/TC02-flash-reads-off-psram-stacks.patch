@@ -1,0 +1,85 @@
+# Intent: Two flash reads that ran on a task whose stack is in PSRAM, which asserts (esp_task_stack_is_sane_cache_disabled) and put the first merged image into a boot loop (2026-11-16). The listening ring task (TB01) keeps its stack in PSRAM to save internal RAM, yet on its first pass it read the saved choices (maipai_tb_prefs, NVS) and the sound policy (maipai_sounds_gate, NVS); the IMU task, also on a PSRAM stack, reaches the same reader through the pickup reaction (TB04). Now maipai_listen_register_tools reads both once on the main task, and maipai_tb_prefs, when its caller's stack is not in internal RAM, returns the cache and asks the esp_timer task (internal stack) for the refresh instead of reading flash itself. A later saved choice therefore reaches a PSRAM-stack caller within about a second, a caller on an internal stack still reads at once.
+# Placement: unit (boot and the listening light)
+# Upstream: firmware/main/hal/{maipai_tbprefs.cc,maipai_listen.cc} (ours, TB01)
+# Check after a flash: the unit boots with no assert and no reboot in 15 minutes; self.prefs.set {"json":"{\"listen_light\":\"dim\"}"} then self.listen.test shows the dim ring within a second or two; a pickup reacts the same way as before.
+
+diff --git a/firmware/main/hal/maipai_listen.cc b/firmware/main/hal/maipai_listen.cc
+index bfc7714..cbfd991 100644
+--- a/firmware/main/hal/maipai_listen.cc
++++ b/firmware/main/hal/maipai_listen.cc
+@@ -192,6 +192,11 @@ void maipai_listen_thinking(bool on)
+ 
+ void maipai_listen_register_tools()
+ {
++    // The ring task has its stack in PSRAM and a flash read from there asserts: read the saved choices and the sound policy
++    // once here, on a task with an internal stack, so the ring task only ever takes cached values.
++    (void)maipai_tb_prefs();
++    bool night_unused = false;
++    (void)maipai_sounds_gate("popup", &night_unused);
+     xTaskCreate(render_task, "mm_render", 3072, nullptr, 1, nullptr);  // transient: renders the "mm" then ends
+     ensure_task();
+     auto& mcp = McpServer::GetInstance();
+diff --git a/firmware/main/hal/maipai_tbprefs.cc b/firmware/main/hal/maipai_tbprefs.cc
+index 0d25166..1aac8a1 100644
+--- a/firmware/main/hal/maipai_tbprefs.cc
++++ b/firmware/main/hal/maipai_tbprefs.cc
+@@ -4,6 +4,7 @@
+  * Reads the listening, filler and pickup choices from NVS (patch TB01). See maipai_tbprefs.h.
+  */
+ #include "maipai_tbprefs.h"
++#include <esp_memory_utils.h>
+ #include <esp_timer.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/semphr.h>
+@@ -97,13 +98,50 @@ const char* maipai_tb_nvs_key(const char* name, char out[16])
+     return out;
+ }
+ 
++namespace {
++
++esp_timer_handle_t s_refresh = nullptr;
++
++// The refresh for a caller that must not read flash itself: the esp_timer task has an internal stack.
++void refresh_cb(void*)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    s_dirty.store(false);
++    load(&s_cache);
++    s_loaded_us = esp_timer_get_time();
++}
++
++// A flash read (NVS) asserts when the calling task's stack is in PSRAM (the listening ring, the IMU task): such a caller
++// takes the cache and asks the timer task for a fresh read.
++bool stack_may_read_flash()
++{
++    int probe = 0;
++    return esp_ptr_internal(&probe);
++}
++
++}  // namespace
++
+ MaipaiTbPrefs maipai_tb_prefs()
+ {
+     std::lock_guard<std::mutex> lock(s_mu);
+     const int64_t now = esp_timer_get_time();
+-    if (s_dirty.exchange(false) || s_loaded_us < 0 || now - s_loaded_us > 5000000) {
++    const bool due = s_dirty.load() || s_loaded_us < 0 || now - s_loaded_us > 5000000;
++    if (due && stack_may_read_flash()) {
++        s_dirty.store(false);
+         load(&s_cache);
+         s_loaded_us = now;
++    } else if (due) {
++        if (s_loaded_us < 0) {  // never read yet (the register call reads once at boot): the defaults until the timer task has
++            tl_prefs_default(&s_cache.listen);
++            tf_prefs_default(&s_cache.filler);
++            s_cache.pickup = 1;
++            s_loaded_us    = now - 4000000;  // ask again in a second, not on every call
++        }
++        if (s_refresh == nullptr) {
++            const esp_timer_create_args_t args = {.callback = refresh_cb, .arg = nullptr, .dispatch_method = ESP_TIMER_TASK, .name = "tbprefs", .skip_unhandled_events = true};
++            if (esp_timer_create(&args, &s_refresh) != ESP_OK) s_refresh = nullptr;
++        }
++        if (s_refresh != nullptr && !esp_timer_is_active(s_refresh)) esp_timer_start_once(s_refresh, 1000);
+     }
+     return s_cache;
+ }

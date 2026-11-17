@@ -235,3 +235,65 @@ def test_the_page_script_and_words(cued) -> None:
     assert i18n.CATALOG["en"]["settings.ui.ra.enabled"] == "Remote access enabled"
     assert i18n.CATALOG["en"]["settings.ui.ra.nocue"] == "Allow remote actions on units without a remote cue"
     assert chr(0x2014) not in json.dumps(i18n.CATALOG["en"], ensure_ascii=False) and DEN
+
+
+def _paired(backend):
+    _access(backend, "", {"enabled": True})
+    pair = _access(backend, "pair", {"label": "Phone"}, local=False)[1]
+    _access(backend, "allow", {"id": pair["id"]})
+    return pair["token"]
+
+
+def test_a_controllers_tool_calls_carry_source_remote_and_the_cue_token(cued) -> None:
+    """Patch TC01: the unit ignores a remote-marked call without the token from self.remote.action."""
+    backend, units = cued
+    token = _paired(backend)
+    kitchen = units[KITCHEN]
+    for body, tool in (({"do": "head", "yaw": 5, "pitch": 20}, "self.robot.set_head_angles"), ({"do": "dance", "name": "groove"}, "self.robot.dance"), ({"do": "game", "name": "memory"}, "self.game.start")):
+        kitchen.calls.clear()
+        assert _access(backend, "act", {"token": token, "unit": KITCHEN, **body}, local=False)[0] == 200
+        names = _names(kitchen)
+        assert names.index("self.remote.action") < names.index(tool)
+        call = next(a for n, a in kitchen.calls if n == tool)
+        assert call["source"] == "remote" and call["token"] == 4242
+    seconds = next(a for n, a in kitchen.calls if n == "self.remote.action")["seconds"]
+    assert seconds == ra.CUE_SECONDS["game"]
+
+
+def test_a_nod_uses_one_token_then_the_open_window(cued) -> None:
+    backend, units = cued
+    token = _paired(backend)
+    kitchen = units[KITCHEN]
+    assert _access(backend, "act", {"token": token, "unit": KITCHEN, "do": "nod"}, local=False)[0] == 200
+    moves = [a for n, a in kitchen.calls if n == "self.robot.set_head_angles"]
+    assert len(moves) > 1
+    assert moves[0]["token"] == 4242 and all(m["source"] == "remote" for m in moves)
+    assert all(m["token"] == 0 for m in moves[1:])  # a token is one use; later moves ride the window the unit opened
+
+
+def test_the_local_page_and_a_unit_without_a_token_are_not_marked(cued) -> None:
+    backend, units = cued
+    kitchen = units[KITCHEN]
+    assert _act(backend, {"do": "head", "yaw": 5, "pitch": 20})[0] == 200  # this machine's own page: local control
+    call = next(a for n, a in kitchen.calls if n == "self.robot.set_head_angles")
+    assert call["source"] == "user" and "token" not in call
+    cue = ra.RemoteCue("move", None)  # an old unit answers no token
+    assert cue.marker("self.robot.set_head_angles", {}) == {}
+    assert ra.RemoteCue("move", 7).marker("self.robot.get_head_angles", {}) == {}  # reading is not an action
+    assert ra.RemoteCue("move", 7).marker("self.audio.play_sound", {"find": 2}) == {}  # ending a find needs no cue
+
+
+def test_a_find_loop_asks_for_a_fresh_cue_before_the_window_closes() -> None:
+    now = [0.0]
+    renewed: list[int] = []
+
+    def renew() -> int:
+        renewed.append(1)
+        return 99
+
+    cue = ra.RemoteCue("find", 7, renew, lambda: now[0])
+    first = cue.marker("self.audio.play_sound", {"find": 1})
+    assert first == {"source": "remote", "token": 7}
+    assert cue.marker("self.robot.set_head_angles", {}) == {"source": "remote", "token": 0, "cue_kind": "find"}
+    now[0] = ra.FIND_RENEW_S + 1
+    assert cue.marker("self.audio.play_sound", {"find": 1})["token"] == 99 and renewed == [1]
