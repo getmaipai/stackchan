@@ -7,12 +7,13 @@ diff --git a/firmware/main/hal/maipai_prefs_core.h b/firmware/main/hal/maipai_pr
 index 247ee37..0000000 100644
 --- a/firmware/main/hal/maipai_prefs_core.h
 +++ b/firmware/main/hal/maipai_prefs_core.h
-@@ -87,7 +87,7 @@
+@@ -87,8 +87,8 @@
      {"fx_glow", "fx_glow", MP_BOOL, 0, 1, 0, 1, NULL},
      {"speech_bubble", "speech_bubble", MP_BOOL, 0, 1, 0, 1, NULL},
      {"thinking_dots", "thinking_dots", MP_BOOL, 0, 1, 1, 1, NULL},
 -    {"captions_mode", "captions_mode", MP_ENUM, 0, 2, 1, 1, MP_NAMES_CAPTIONS},
 +    {"captions_mode", "captions_mode", MP_ENUM, 0, 2, 0, 1, MP_NAMES_CAPTIONS},
      {"top_bar", "top_bar", MP_ENUM, 0, 1, 0, 1, MP_NAMES_TOPBAR},
+     {"turn_to_faces", "turn_to_faces", MP_ENUM, 0, 2, 1, 1, MP_NAMES_TURN},
      {"pickup_reaction", "pickup_reaction", MP_ENUM, 0, 2, 1, 0, MP_NAMES_PICKUP},
  };

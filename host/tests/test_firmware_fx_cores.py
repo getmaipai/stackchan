@@ -28,6 +28,8 @@ CHAIN = [
     "N02-banner-row-messages.patch",
     "S11-turn-to-faces-setting.patch",  # the turn_to_faces row, between top_bar and pickup_reaction
     "O01-overlay-engine-bigger-shapes-and-combinations.patch",  # the overlay core as it is now (bigger shapes, three layers, combinations)
+    "O02-overlays-leave-text-zones-and-eyes.patch",  # ml_eye_center_y and the text-zone keep-out
+    "FI05-captions-default-off.patch",  # the captions row defaults to off
 ]
 
 
@@ -37,7 +39,7 @@ def cores(tmp_path_factory: pytest.TempPathFactory) -> Path:
     if shutil.which("git") is None:
         pytest.skip("git is not installed")
     work = tmp_path_factory.mktemp("fxcores")
-    for name in CHAIN:
+    for name in [l.strip() for l in (PATCHES / "ORDER").read_text().splitlines() if l.strip() and not l.startswith("#")]:  # the whole of ORDER, as the parity test does
         text = (PATCHES / name).read_text()
         diff = work / "p.diff"
         diff.write_text(text[text.index("diff --git") :])

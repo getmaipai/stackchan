@@ -34,7 +34,7 @@ def headers(tmp_path_factory: pytest.TempPathFactory) -> Path:
     if shutil.which("git") is None:
         pytest.skip("git is not installed")
     work = tmp_path_factory.mktemp("sprites")
-    for name in [*CORE_CHAIN, FAST[0], FAST[1], FAST[2], FAST[3]]:
+    for name in [l.strip() for l in (PATCHES / "ORDER").read_text().splitlines() if l.strip() and not l.startswith("#")]:  # the whole of ORDER, as the parity test does
         text = (PATCHES / name).read_text()
         diff = work / "p.diff"
         diff.write_text(text[text.index("diff --git") :])

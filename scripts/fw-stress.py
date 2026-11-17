@@ -32,7 +32,8 @@ FLOORS = {"internal_free_steady": 40000, "internal_min": 24000, "int_big_steady"
           "frag_ratio": 0.5, "stack_margin": 1024}
 
 OVERLAYS = ["rain", "snow", "sun", "clouds", "wind", "thunder", "fog", "stars", "disco", "confetti", "fireworks", "hearts",
-            "steam", "balloons", "leaves", "zzz"]
+            "steam", "balloons", "leaves", "zzz", "stormy", "rainy", "snowy", "sunny", "windy", "night", "party", "celebrate", "love",
+            "sleeping"]
 
 
 def call(device: str, path: str, body: dict | None = None, timeout: float = 20.0):
@@ -66,7 +67,7 @@ def drive(device: str, stop: threading.Event, log) -> None:
         for color in ("red", "green", "blue"):
             act(f"flash {color}", "remote", {"do": "flash", "color": color})
         for name in OVERLAYS:
-            act(f"overlay {name}", "remote", {"do": "overlay", "name": name, "intensity": 70, "seconds": 8})
+            act(f"overlay {name}", "remote", {"do": "overlay", "name": name, "intensity": "heavy" if name in ("stormy", "party", "celebrate") else "normal", "seconds": 8})
         act("overlay clear", "remote", {"do": "overlay_clear"})
         act("prefs crt on", "prefs", {"fx_crt": True})
         act("prefs crt off", "prefs", {"fx_crt": False})
