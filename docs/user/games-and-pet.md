@@ -7,7 +7,7 @@ The games and the pet mood run on the robot itself, so they work with your own L
 
 Every game is full height. Swipe down on the bar at the top to leave. Game sounds are at chime level and follow the system volume. Reaction Time is gone.
 
-![The Games page on the robot: Color Memory, Whack-a-Mole, Tic-Tac-Toe, Do It, Rock Paper Scissors and More games.](../images/unit-games-page.png)
+![The Games page on the robot: Color Memory, Whack-a-Mole, Tic-Tac-Toe, Do It, Rock Paper Scissors and More games. Before the theme pass: the next robot image has bigger tiles with a picture for each game.](../images/unit-games-page.png)
 
 The robot has seven games, all on the flashed robot. The talk games are built but not flashed yet, and not tested with a live model. No finger has been tested on the glass by a person. They run on the robot itself, so they work even when MaiPai Home is off.
 
