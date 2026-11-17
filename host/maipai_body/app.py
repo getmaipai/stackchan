@@ -2800,6 +2800,7 @@ async def _serve_stackchan_channels(
                 night.effective_brightness, night.set_brightness_from_voice
             ),
             head_control=head_commander,
+            alarm_control=_alarm_control(behavior),
             gaze_control=behavior.gaze,
             sight_control=SightAnswers(
                 face_age=behavior.face_age,
@@ -4195,6 +4196,14 @@ def run_paired_body(
         _log_state(_STATE_BODY_LOST)
     finally:
         _log_state(_STATE_STOPPED)
+
+
+def _alarm_control(behavior):
+    """Voice alarms and timers, run through the unit's own timers (None when the timer service is off)."""
+    from maipai_body.bodies.stackchan.alarm_commands import AlarmControl
+
+    timers = getattr(behavior, "timers", None)
+    return AlarmControl(timers) if timers is not None else None
 
 
 def _clock_setter(hosted: bool):

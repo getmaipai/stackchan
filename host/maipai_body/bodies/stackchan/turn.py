@@ -659,6 +659,7 @@ class StackChanTurnBridge:
         volume_control=None,
         brightness_control=None,
         head_control=None,
+        alarm_control=None,
         gaze_control=None,
         sight_control=None,
         repeat_control=None,
@@ -680,6 +681,7 @@ class StackChanTurnBridge:
         self.brightness_control = brightness_control
         # "Look left", "nod": answered here too, since the hub's model can only say "I can't".
         self.head_control = head_control
+        self.alarm_control = alarm_control
         # "What are you looking at?": answered from the head's own reason, never by the hub.
         self.gaze_control = gaze_control
         # "Can you see me?": answered from what the host knows, never "I can't see".
@@ -1185,6 +1187,8 @@ class StackChanTurnBridge:
             return "local command", "brightness wording found"
         if self.head_control is not None and parse_head_command(text) is not None:
             return "local command", "head movement wording found"
+        if self.alarm_control is not None and self.alarm_control.parse(text) is not None:
+            return "local command", "alarm or timer wording found"
         return "chat", "no local command wording; the model answers"
 
     def _turn_for(self, device_id: str, base, cookie):
@@ -1297,6 +1301,14 @@ class StackChanTurnBridge:
                 result, session_id, playback, base, cookie
             ):
                 return
+            if self.alarm_control is not None:
+                alarm_command = self.alarm_control.parse(result.text or "")
+                if alarm_command is not None:
+                    line = await asyncio.to_thread(self.alarm_control.run, alarm_command)
+                    LOG.info("StackChan voice: alarm command %s (%r)", alarm_command.kind, line)
+                    await asyncio.to_thread(self._say, playback, base, cookie, line)
+                    self._breaker.note_speech()
+                    return
             if self.brightness_control is not None:
                 from maipai_body.bodies.stackchan import brightness as bright
 

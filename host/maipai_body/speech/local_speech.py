@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import threading
 import time
 import wave
+from pathlib import Path
 
 import numpy as np
 import requests
@@ -112,6 +114,22 @@ def _url(base: str, path: str) -> str:
     base = base.rstrip("/")
     return base + path[3:] if base.endswith("/v1") else base + path
 
+
+
+def _dump_uplink(samples: np.ndarray) -> None:
+    """Debug aid, off unless MAIPAI_DUMP_UPLINK names a folder: keeps the audio of a turn that heard sound but no words,
+    so the owner can listen to what the microphone really sent. Household audio never leaves that folder; at most 20 files stay."""
+    folder = os.environ.get("MAIPAI_DUMP_UPLINK", "").strip()
+    if not folder:
+        return
+    try:
+        path = Path(folder).expanduser()
+        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        (path / f"empty-{int(time.time())}.wav").write_bytes(_wav_bytes(samples))
+        for old in sorted(path.glob("empty-*.wav"))[:-20]:
+            old.unlink()
+    except OSError:
+        LOG.warning("local speech: could not save the uplink clip; check the folder in MAIPAI_DUMP_UPLINK")
 
 class LocalSttClient:
     """One `run` is one wake's worth of listening: find the speech, end on quiet, transcribe."""
@@ -222,6 +240,7 @@ class LocalSttClient:
             time.monotonic() - ended,
         )
         if not text:
+            _dump_uplink(samples)
             return SttStreamResult(kind="no_speech")
         return SttStreamResult(
             kind="final",
