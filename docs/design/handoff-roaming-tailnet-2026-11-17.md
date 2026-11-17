@@ -8,6 +8,7 @@ Placement: backlog note. Source: a message from the session that worked on the o
 2. **Private network (Tailscale).** The owner reports the old custom firmware had Tailscale fully working, the last open item being a suspected regional fix. Port that working client and its last fix from the old firmware (history only, never feature scope), do not redesign it. Handshakes started by the robot fail across different relay regions (robot far from the host's relay). They worked only when the host pinged first. A proper fix is not built. Our join is also untested with a real key.
 3. **Wireless update (patch 133).** Unproven. The hub serves only releases installed on it; release builds must not carry the private-network client or any key. Never put an auth key in a release or a commit.
 4. **Setup hotspot.** Keep the hotspot name `stackchan-XXXX` and the setup page staying open for several networks (both exist in the old base; check ours matches).
+5. **Easier setup with a QR code (owner ask 2026-11-17, not built).** On the unit's Wi-Fi page and during setup, show a QR code that joins the setup hotspot (standard Wi-Fi QR text) and a second QR for the setup page address. Add a private-network field (auth key paste) to the setup page so the unit can join Tailscale without the host's settings page. The six-digit setup code stays on the unit screen. LVGL's built-in QR widget is the likely route (small; measure its RAM). No key ever appears in a QR or on the screen after entry.
 
 ## Rules
 
