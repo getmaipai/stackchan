@@ -1,0 +1,767 @@
+# Intent: Swipe pages, part 2: the pure data and layout. hal/maipai_pages_core.h holds the six page types (clock, timers, games, actions, frame, tiles; each at most once, three on each side of the face, the clock on the left and the games on the right until the owner chooses), the quick actions (find, beep, dance, game, hello; four to six), the control sheet items (two sliders, up to seven buttons and four status lines out of volume, brightness, mute, quiet, light, find, timers, games, wifi, battery, tailnet, address), the closing times, the saved text line under the one flash key pages_cfg (9 characters; a damaged value reads as the defaults), every setter all or nothing with a plain sentence, the host fed tiles (up to six: icon, label up to 12 and value up to 10 plain characters; the flash write is rate limited to once in ten minutes), ten drawn icons as shapes in a 24 by 24 box (no icon font), and the layout of the sheet (it covers about the lower 60 percent of the screen, never the banner row; tiles 72 by 38, sliders two to a row) and of the page contents inside the face zone (y 28 to 184). Plain C99, no heap, no clock. Nothing is wired yet.
+# Placement: unit (pure data; the settings page preview and the host table are checked equal to it)
+# Upstream: new file firmware/main/hal/maipai_pages_core.h only. Host test: host/tests/firmware/pages_core_test.c; host/maipai_body/pages_table.json is what its --table prints.
+# Check after a flash: nothing to check yet (not wired).
+
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -0,0 +1,757 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Swipe pages and the control sheet (patch P11): the pure data and layout. Plain C99, no ESP call, no heap, no clock of its own.
++ * Host test: host/tests/firmware/pages_core_test.c. The gesture machine is maipai_gesture_core.h; the drawing is maipai_pages.cc.
++ *
++ * Six page types, each at most once, up to three on each side of the face (six in all):
++ *   clock    big digits or a ring, dimmed at night; works with no host once the time is set
++ *   timers   the named countdowns of the timer tool, with a cancel and three quick starts
++ *   games    the games on the unit with their best scores and a play button
++ *   actions  four to six big buttons chosen by the owner: find, beep, dance, game, say hi
++ *   frame    the owner's pictures (the picture face pack), one at a time
++ *   tiles    up to six tiles pushed by the host: an icon, a label and a value; the core has no data source
++ * The default is the clock on the left of the face and the games on the right, and nothing else until the owner chooses.
++ *
++ * The configuration is one short text line saved under one flash key (pages_cfg, 9 characters) and sent by the host as the
++ * same fields in JSON; this file validates and saves the text, the unit maps the JSON to the same setters:
++ *     L=clock,timers;R=games;S=6;I=20;A=find,beep,dance,game;C=volume,brightness,mute,quiet,light,find,timers,games,wifi,battery
++ * Every setter is all or nothing and returns a plain sentence saying what to send instead.
++ *
++ * The zone: pages live in the face zone (screen y 28 to 184); the banner above and the subtitles below are never covered by a page.
++ * The sheet covers the lower part of the screen from its own top to y 240 (about the lower half to two thirds), never the banner.
++ */
++#ifndef MAIPAI_PAGES_CORE_H
++#define MAIPAI_PAGES_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#define MPG_ZONE_X 0
++#define MPG_ZONE_Y 28
++#define MPG_ZONE_W 320
++#define MPG_ZONE_H 156
++#define MPG_W_FULL 320
++
++/* ---- page types ---- */
++enum { MPG_P_CLOCK = 0, MPG_P_TIMERS, MPG_P_GAMES, MPG_P_ACTIONS, MPG_P_FRAME, MPG_P_TILES, MPG_P_COUNT };
++#define MPG_P_NONE 0xFF
++#define MPG_SIDE_MAX 3
++static const char* const MPG_PAGE_NAMES[MPG_P_COUNT] = {"clock", "timers", "games", "actions", "frame", "tiles"};
++static const char* const MPG_PAGE_TITLE[2][MPG_P_COUNT] = {
++    {"Clock", "Timers", "Games", "Quick actions", "Pictures", "Dashboard"},
++    {"Reloj", "Temporizadores", "Juegos", "Acciones", "Fotos", "Panel"},
++};
++
++/* ---- quick actions ---- */
++enum { MPG_A_FIND = 0, MPG_A_BEEP, MPG_A_DANCE, MPG_A_GAME, MPG_A_HELLO, MPG_A_COUNT };
++#define MPG_ACTIONS_MIN 4
++#define MPG_ACTIONS_MAX 6
++static const char* const MPG_ACTION_NAMES[MPG_A_COUNT] = {"find", "beep", "dance", "game", "hello"};
++static const char* const MPG_ACTION_TITLE[2][MPG_A_COUNT] = {
++    {"Find me", "Beep", "Dance", "Games", "Say hi"},
++    {"Buscame", "Pitido", "Baile", "Juegos", "Saludar"},
++};
++
++/* ---- control sheet items ---- */
++enum {
++    MPG_S_VOLUME = 0, MPG_S_BRIGHTNESS,                                            /* sliders */
++    MPG_S_MUTE, MPG_S_QUIET, MPG_S_LIGHT, MPG_S_FIND, MPG_S_TIMERS, MPG_S_GAMES,   /* tiles */
++    MPG_S_WIFI, MPG_S_BATTERY, MPG_S_TAILNET, MPG_S_ADDRESS,                       /* status text */
++    MPG_S_COUNT
++};
++static const char* const MPG_SHEET_NAMES[MPG_S_COUNT] = {"volume", "brightness", "mute", "quiet", "light", "find", "timers", "games",
++                                                          "wifi", "battery", "tailnet", "address"};
++static const char* const MPG_SHEET_TITLE[2][MPG_S_COUNT] = {
++    {"Volume", "Bright", "Mute", "Quiet", "Light", "Find me", "Timers", "Games", "Wi-Fi", "Battery", "Private net", "Settings"},
++    {"Volumen", "Brillo", "Silencio", "Calma", "Luz", "Buscame", "Tiempos", "Juegos", "Wi-Fi", "Bateria", "Red privada", "Ajustes"},
++};
++#define MPG_SHEET_MAX_ITEMS 12
++#define MPG_SHEET_MAX_SLIDERS 2
++#define MPG_SHEET_MAX_TILES 7   /* the eighth tile is always "More" (the settings panel: Wi-Fi networks, reset, version) */
++#define MPG_SHEET_MAX_STATUS 4
++static inline int mpg_sheet_kind(int item) { return item <= MPG_S_BRIGHTNESS ? 0 : (item <= MPG_S_GAMES ? 1 : 2); } /* 0 slider, 1 tile, 2 status */
++
++/* ---- configuration ---- */
++typedef struct {
++    uint8_t left[MPG_SIDE_MAX], right[MPG_SIDE_MAX]; /* nearest the face first; MPG_P_NONE ends the list */
++    uint8_t n_left, n_right;
++    uint8_t sheet_s;      /* 5 to 15 */
++    uint16_t idle_s;      /* 5 to 300 */
++    uint8_t actions[MPG_ACTIONS_MAX];
++    uint8_t n_actions;
++    uint8_t items[MPG_SHEET_MAX_ITEMS];
++    uint8_t n_items;
++} mpg_cfg_t;
++
++#define MPG_SHEET_S_MIN 5
++#define MPG_SHEET_S_MAX 15
++#define MPG_IDLE_S_MIN 5
++#define MPG_IDLE_S_MAX 300
++
++static inline int mpg_page_by_name(const char* name)
++{
++    for (int i = 0; name != NULL && i < MPG_P_COUNT; i++) {
++        if (strcmp(name, MPG_PAGE_NAMES[i]) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++static inline int mpg_action_by_name(const char* name)
++{
++    for (int i = 0; name != NULL && i < MPG_A_COUNT; i++) {
++        if (strcmp(name, MPG_ACTION_NAMES[i]) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++static inline int mpg_sheet_by_name(const char* name)
++{
++    for (int i = 0; name != NULL && i < MPG_S_COUNT; i++) {
++        if (strcmp(name, MPG_SHEET_NAMES[i]) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++static inline void mpg_defaults(mpg_cfg_t* c)
++{
++    memset(c, 0, sizeof(*c));
++    for (int i = 0; i < MPG_SIDE_MAX; i++) {
++        c->left[i] = c->right[i] = MPG_P_NONE;
++    }
++    c->left[0] = MPG_P_CLOCK;
++    c->n_left = 1;
++    c->right[0] = MPG_P_GAMES;
++    c->n_right = 1;
++    c->sheet_s = 6;
++    c->idle_s = 20;
++    c->actions[0] = MPG_A_FIND;
++    c->actions[1] = MPG_A_BEEP;
++    c->actions[2] = MPG_A_DANCE;
++    c->actions[3] = MPG_A_GAME;
++    c->n_actions = 4;
++    for (int i = 4; i < MPG_ACTIONS_MAX; i++) {
++        c->actions[i] = MPG_A_COUNT;
++    }
++    for (int i = 0; i < MPG_SHEET_MAX_ITEMS; i++) {
++        c->items[i] = MPG_S_COUNT;
++    }
++    const uint8_t items[] = {MPG_S_VOLUME, MPG_S_BRIGHTNESS, MPG_S_MUTE, MPG_S_QUIET, MPG_S_LIGHT, MPG_S_FIND,
++                             MPG_S_TIMERS, MPG_S_GAMES, MPG_S_WIFI, MPG_S_BATTERY};
++    c->n_items = (uint8_t)sizeof(items);
++    memcpy(c->items, items, sizeof(items));
++}
++
++/* Error sentences: what went wrong and what to send. */
++#define MPG_ERR_PAGE "A page name must be one of clock, timers, games, actions, frame or tiles. Send one of those names."
++#define MPG_ERR_DUP "Each page can be in the strip once. Remove the repeated page and send the list again."
++#define MPG_ERR_LONG "Each side of the face holds up to three pages. Send three or fewer on each side."
++#define MPG_ERR_SHEET_S "The control sheet closes after 5 to 15 seconds. Send a number from 5 to 15."
++#define MPG_ERR_IDLE_S "A page returns to the face after 5 to 300 seconds. Send a number from 5 to 300."
++#define MPG_ERR_ACTION "Quick actions are find, beep, dance, game and hello. Send 4 to 6 of those names, each once."
++#define MPG_ERR_ITEM "A sheet item is volume, brightness, mute, quiet, light, find, timers, games, wifi, battery, tailnet or address, each once."
++#define MPG_ERR_ITEM_FULL "The sheet holds up to 2 sliders, 7 buttons and 4 status lines. Remove one and send the list again."
++
++/* The page types on both sides, together, with no repeats: names are validated by the caller with mpg_page_by_name. */
++static inline const char* mpg_set_pages(mpg_cfg_t* c, const int* left, int nl, const int* right, int nr)
++{
++    if (nl < 0 || nr < 0 || nl > MPG_SIDE_MAX || nr > MPG_SIDE_MAX) {
++        return MPG_ERR_LONG;
++    }
++    unsigned seen = 0;
++    for (int i = 0; i < nl + nr; i++) {
++        const int p = i < nl ? left[i] : right[i - nl];
++        if (p < 0 || p >= MPG_P_COUNT) {
++            return MPG_ERR_PAGE;
++        }
++        if (seen & (1u << p)) {
++            return MPG_ERR_DUP;
++        }
++        seen |= 1u << p;
++    }
++    for (int i = 0; i < MPG_SIDE_MAX; i++) {
++        c->left[i] = i < nl ? (uint8_t)left[i] : MPG_P_NONE;
++        c->right[i] = i < nr ? (uint8_t)right[i] : MPG_P_NONE;
++    }
++    c->n_left = (uint8_t)nl;
++    c->n_right = (uint8_t)nr;
++    return NULL;
++}
++
++static inline const char* mpg_set_timeouts(mpg_cfg_t* c, int sheet_s, int idle_s)
++{
++    if (sheet_s != 0 && (sheet_s < MPG_SHEET_S_MIN || sheet_s > MPG_SHEET_S_MAX)) {
++        return MPG_ERR_SHEET_S;
++    }
++    if (idle_s != 0 && (idle_s < MPG_IDLE_S_MIN || idle_s > MPG_IDLE_S_MAX)) {
++        return MPG_ERR_IDLE_S;
++    }
++    if (sheet_s != 0) {
++        c->sheet_s = (uint8_t)sheet_s;
++    }
++    if (idle_s != 0) {
++        c->idle_s = (uint16_t)idle_s;
++    }
++    return NULL;
++}
++
++static inline const char* mpg_set_actions(mpg_cfg_t* c, const int* a, int n)
++{
++    if (n < MPG_ACTIONS_MIN || n > MPG_ACTIONS_MAX) {
++        return MPG_ERR_ACTION;
++    }
++    unsigned seen = 0;
++    for (int i = 0; i < n; i++) {
++        if (a[i] < 0 || a[i] >= MPG_A_COUNT || (seen & (1u << a[i]))) {
++            return MPG_ERR_ACTION;
++        }
++        seen |= 1u << a[i];
++    }
++    /* five actions exist, so six is only reachable with a repeat, which is refused above */
++    for (int i = 0; i < MPG_ACTIONS_MAX; i++) {
++        c->actions[i] = (uint8_t)(i < n ? a[i] : (int)MPG_A_COUNT);
++    }
++    c->n_actions = (uint8_t)n;
++    return NULL;
++}
++
++static inline const char* mpg_set_items(mpg_cfg_t* c, const int* it, int n)
++{
++    if (n < 0 || n > MPG_SHEET_MAX_ITEMS) {
++        return MPG_ERR_ITEM_FULL;
++    }
++    unsigned seen = 0;
++    int kinds[3] = {0, 0, 0};
++    for (int i = 0; i < n; i++) {
++        if (it[i] < 0 || it[i] >= MPG_S_COUNT || (seen & (1u << it[i]))) {
++            return MPG_ERR_ITEM;
++        }
++        seen |= 1u << it[i];
++        kinds[mpg_sheet_kind(it[i])]++;
++    }
++    if (kinds[0] > MPG_SHEET_MAX_SLIDERS || kinds[1] > MPG_SHEET_MAX_TILES || kinds[2] > MPG_SHEET_MAX_STATUS) {
++        return MPG_ERR_ITEM_FULL;
++    }
++    for (int i = 0; i < MPG_SHEET_MAX_ITEMS; i++) {
++        c->items[i] = (uint8_t)(i < n ? it[i] : (int)MPG_S_COUNT);
++    }
++    c->n_items = (uint8_t)n;
++    return NULL;
++}
++
++/* The page at a strip position: negative is left of the face (nearest is -1), positive is right; 0 and out of range give none. */
++static inline int mpg_page_at(const mpg_cfg_t* c, int pos)
++{
++    if (pos < 0 && -pos <= c->n_left) {
++        return c->left[-pos - 1];
++    }
++    if (pos > 0 && pos <= c->n_right) {
++        return c->right[pos - 1];
++    }
++    return -1;
++}
++
++/* The strip position of a page type, or 0 when it is not in the strip. */
++static inline int mpg_pos_of(const mpg_cfg_t* c, int page)
++{
++    for (int i = 0; i < c->n_left; i++) {
++        if (c->left[i] == page) {
++            return -(i + 1);
++        }
++    }
++    for (int i = 0; i < c->n_right; i++) {
++        if (c->right[i] == page) {
++            return i + 1;
++        }
++    }
++    return 0;
++}
++
++/* ---- the text store ---- */
++#define MPG_TEXT_MAX 200
++
++static inline int mpg_cfg_to_text(const mpg_cfg_t* c, char* out, size_t n)
++{
++    size_t k = 0;
++    int r;
++#define MPG_PUT(...)                                              \
++    do {                                                          \
++        r = snprintf(out + k, n > k ? n - k : 0, __VA_ARGS__);    \
++        if (r < 0 || (size_t)r >= (n > k ? n - k : 0)) {          \
++            return -1;                                            \
++        }                                                         \
++        k += (size_t)r;                                           \
++    } while (0)
++    MPG_PUT("L=");
++    for (int i = 0; i < c->n_left; i++) {
++        MPG_PUT("%s%s", i ? "," : "", MPG_PAGE_NAMES[c->left[i]]);
++    }
++    MPG_PUT(";R=");
++    for (int i = 0; i < c->n_right; i++) {
++        MPG_PUT("%s%s", i ? "," : "", MPG_PAGE_NAMES[c->right[i]]);
++    }
++    MPG_PUT(";S=%u;I=%u;A=", (unsigned)c->sheet_s, (unsigned)c->idle_s);
++    for (int i = 0; i < c->n_actions; i++) {
++        MPG_PUT("%s%s", i ? "," : "", MPG_ACTION_NAMES[c->actions[i]]);
++    }
++    MPG_PUT(";C=");
++    for (int i = 0; i < c->n_items; i++) {
++        MPG_PUT("%s%s", i ? "," : "", MPG_SHEET_NAMES[c->items[i]]);
++    }
++#undef MPG_PUT
++    return (int)k;
++}
++
++/* Splits "a,b,c" into ids with `by`; returns the count, or -1 on an unknown name or too many. */
++static inline int mpg_split(const char* s, size_t len, int (*by)(const char*), int* out, int max)
++{
++    int n = 0;
++    size_t i = 0;
++    while (i < len) {
++        char word[16];
++        size_t w = 0;
++        while (i < len && s[i] != ',') {
++            if (w + 1 >= sizeof(word)) {
++                return -1;
++            }
++            word[w++] = s[i++];
++        }
++        word[w] = '\0';
++        if (i < len) {
++            i++;
++        }
++        if (w == 0) {
++            continue;
++        }
++        if (n >= max) {
++            return -1;
++        }
++        const int v = by(word);
++        if (v < 0) {
++            return -1;
++        }
++        out[n++] = v;
++    }
++    return n;
++}
++
++/* Reads the saved text. A damaged or unknown text leaves the defaults (returns 0), so a bad flash value never breaks the screen. */
++static inline int mpg_cfg_from_text(mpg_cfg_t* c, const char* text)
++{
++    mpg_cfg_t d;
++    mpg_defaults(&d);
++    if (text == NULL) {
++        *c = d;
++        return 0;
++    }
++    int left[MPG_SIDE_MAX + 1], right[MPG_SIDE_MAX + 1], act[MPG_ACTIONS_MAX + 1], it[MPG_SHEET_MAX_ITEMS + 1];
++    int nl = -2, nr = -2, na = -2, ni = -2, sheet_s = 0, idle_s = 0;
++    const char* p = text;
++    while (*p != '\0') {
++        const char* end = strchr(p, ';');
++        const size_t len = end != NULL ? (size_t)(end - p) : strlen(p);
++        if (len >= 2 && p[1] == '=') {
++            const char* v = p + 2;
++            const size_t vl = len - 2;
++            switch (p[0]) {
++                case 'L': nl = mpg_split(v, vl, mpg_page_by_name, left, MPG_SIDE_MAX); break;
++                case 'R': nr = mpg_split(v, vl, mpg_page_by_name, right, MPG_SIDE_MAX); break;
++                case 'A': na = mpg_split(v, vl, mpg_action_by_name, act, MPG_ACTIONS_MAX); break;
++                case 'C': ni = mpg_split(v, vl, mpg_sheet_by_name, it, MPG_SHEET_MAX_ITEMS); break;
++                case 'S': sheet_s = (int)strtol(v, NULL, 10); break;
++                case 'I': idle_s = (int)strtol(v, NULL, 10); break;
++                default: break;
++            }
++        }
++        if (end == NULL) {
++            break;
++        }
++        p = end + 1;
++    }
++    if (nl == -2 || nr == -2 || na == -2 || ni == -2 || nl < 0 || nr < 0 || na < 0 || ni < 0) {
++        *c = d;
++        return 0;
++    }
++    mpg_cfg_t t = d;
++    if (mpg_set_pages(&t, left, nl, right, nr) != NULL || mpg_set_timeouts(&t, sheet_s, idle_s) != NULL ||
++        mpg_set_actions(&t, act, na) != NULL || mpg_set_items(&t, it, ni) != NULL) {
++        *c = d;
++        return 0;
++    }
++    *c = t;
++    return 1;
++}
++
++/* ---- tiles (host fed) ---- */
++#define MPG_TILES_MAX 6
++#define MPG_TILE_LABEL 12
++#define MPG_TILE_VALUE 10
++enum { MPG_I_NONE = 0, MPG_I_SUN, MPG_I_CLOUD, MPG_I_RAIN, MPG_I_HOME, MPG_I_BELL, MPG_I_HEART, MPG_I_LAMP, MPG_I_TEMP, MPG_I_CHECK, MPG_I_COUNT };
++static const char* const MPG_ICON_NAMES[MPG_I_COUNT] = {"none", "sun", "cloud", "rain", "home", "bell", "heart", "lamp", "temp", "check"};
++
++typedef struct {
++    uint8_t icon;
++    char label[MPG_TILE_LABEL + 1];
++    char value[MPG_TILE_VALUE + 1];
++} mpg_tile_t;
++
++typedef struct {
++    mpg_tile_t t[MPG_TILES_MAX];
++    uint8_t n;
++    uint32_t set_s;  /* when the host last sent them, in seconds on the unit's clock; 0 never */
++} mpg_tiles_t;
++
++static inline int mpg_icon_by_name(const char* name)
++{
++    for (int i = 0; name != NULL && i < MPG_I_COUNT; i++) {
++        if (strcmp(name, MPG_ICON_NAMES[i]) == 0) {
++            return i;
++        }
++    }
++    return MPG_I_NONE;
++}
++
++/* Copies host text into a tile field: printable ASCII only (the screen font), cut at max characters, no leading or trailing blanks. */
++static inline void mpg_clean_text(char* dst, size_t max, const char* src)
++{
++    size_t n = 0;
++    if (src != NULL) {
++        for (; *src != '\0' && n < max; src++) {
++            const unsigned char ch = (unsigned char)*src;
++            if (ch >= 0x20 && ch < 0x7F) {
++                if (ch == ' ' && n == 0) {
++                    continue;
++                }
++                dst[n++] = (char)ch;
++            }
++        }
++    }
++    while (n > 0 && dst[n - 1] == ' ') {
++        n--;
++    }
++    dst[n] = '\0';
++}
++
++static inline void mpg_tiles_clear(mpg_tiles_t* t) { memset(t, 0, sizeof(*t)); }
++
++/* Adds one tile; returns 0 or -1 when the list is full. An empty label and value together is refused (-2). */
++static inline int mpg_tiles_add(mpg_tiles_t* t, const char* icon, const char* label, const char* value)
++{
++    if (t->n >= MPG_TILES_MAX) {
++        return -1;
++    }
++    mpg_tile_t* x = &t->t[t->n];
++    memset(x, 0, sizeof(*x));
++    x->icon = (uint8_t)mpg_icon_by_name(icon);
++    mpg_clean_text(x->label, MPG_TILE_LABEL, label);
++    mpg_clean_text(x->value, MPG_TILE_VALUE, value);
++    if (x->label[0] == '\0' && x->value[0] == '\0') {
++        return -2;
++    }
++    t->n++;
++    return 0;
++}
++
++/* How old the tiles are, as words: "just now", "5 min ago", "3 h ago", "over a day ago". */
++static inline void mpg_age_text(char* out, size_t n, uint32_t age_s, int es)
++{
++    if (age_s < 90) {
++        snprintf(out, n, "%s", es ? "ahora" : "just now");
++    } else if (age_s < 3600) {
++        snprintf(out, n, es ? "hace %u min" : "%u min ago", (unsigned)((age_s + 30) / 60));
++    } else if (age_s < 86400) {
++        snprintf(out, n, es ? "hace %u h" : "%u h ago", (unsigned)(age_s / 3600));
++    } else {
++        snprintf(out, n, "%s", es ? "hace mas de un dia" : "over a day ago");
++    }
++}
++#define MPG_TILES_STALE_S 3600u /* older than an hour: the values are drawn dim and the age is shown */
++
++/* Where the flash write of tiles is rate limited: at most one in ten minutes, so a host that pushes every minute does not wear it. */
++#define MPG_TILES_SAVE_GAP_S 600u
++static inline int mpg_tiles_save_due(uint32_t now_s, uint32_t last_save_s) { return last_save_s == 0 || now_s - last_save_s >= MPG_TILES_SAVE_GAP_S; }
++
++/* ---- icons: drawn shapes in a 24 by 24 box, so no icon font is needed ---- */
++enum { MPG_SH_CIRCLE = 0, MPG_SH_RING, MPG_SH_RECT, MPG_SH_ROUND, MPG_SH_CUT };
++typedef struct {
++    uint8_t kind;      /* MPG_SH_*; CUT is a rectangle in the background color (a hole) */
++    int8_t x, y, w, h; /* for a circle or ring, x y is the top left of its box and w = h the diameter */
++} mpg_shape_t;
++#define MPG_ICON_SHAPES_MAX 8
++
++static inline int mpg_icon_shapes(int icon, mpg_shape_t* s)
++{
++    int n = 0;
++#define SH(k, X, Y, W, H) do { s[n].kind = (k); s[n].x = (X); s[n].y = (Y); s[n].w = (W); s[n].h = (H); n++; } while (0)
++    switch (icon) {
++        case MPG_I_SUN:
++            SH(MPG_SH_CIRCLE, 6, 6, 12, 12);
++            SH(MPG_SH_ROUND, 11, 0, 2, 4);
++            SH(MPG_SH_ROUND, 11, 20, 2, 4);
++            SH(MPG_SH_ROUND, 0, 11, 4, 2);
++            SH(MPG_SH_ROUND, 20, 11, 4, 2);
++            break;
++        case MPG_I_CLOUD:
++            SH(MPG_SH_CIRCLE, 3, 9, 10, 10);
++            SH(MPG_SH_CIRCLE, 8, 4, 12, 12);
++            SH(MPG_SH_CIRCLE, 14, 10, 8, 8);
++            SH(MPG_SH_ROUND, 6, 12, 14, 7);
++            break;
++        case MPG_I_RAIN:
++            SH(MPG_SH_CIRCLE, 3, 3, 9, 9);
++            SH(MPG_SH_CIRCLE, 8, 0, 11, 11);
++            SH(MPG_SH_CIRCLE, 14, 3, 8, 8);
++            SH(MPG_SH_ROUND, 5, 6, 15, 6);
++            SH(MPG_SH_ROUND, 6, 15, 2, 6);
++            SH(MPG_SH_ROUND, 11, 15, 2, 6);
++            SH(MPG_SH_ROUND, 16, 15, 2, 6);
++            break;
++        case MPG_I_HOME:
++            SH(MPG_SH_ROUND, 3, 10, 18, 12);
++            SH(MPG_SH_ROUND, 5, 6, 14, 5);
++            SH(MPG_SH_ROUND, 8, 2, 8, 5);
++            SH(MPG_SH_CUT, 10, 15, 4, 7);
++            break;
++        case MPG_I_BELL:
++            SH(MPG_SH_CIRCLE, 5, 3, 14, 14);
++            SH(MPG_SH_ROUND, 3, 11, 18, 7);
++            SH(MPG_SH_CIRCLE, 9, 17, 6, 6);
++            SH(MPG_SH_ROUND, 11, 0, 2, 4);
++            break;
++        case MPG_I_HEART:
++            SH(MPG_SH_CIRCLE, 2, 3, 11, 11);
++            SH(MPG_SH_CIRCLE, 11, 3, 11, 11);
++            SH(MPG_SH_ROUND, 3, 9, 18, 5);
++            SH(MPG_SH_ROUND, 5, 13, 14, 4);
++            SH(MPG_SH_ROUND, 8, 16, 8, 4);
++            SH(MPG_SH_ROUND, 10, 19, 4, 3);
++            break;
++        case MPG_I_LAMP:
++            SH(MPG_SH_CIRCLE, 4, 0, 16, 16);
++            SH(MPG_SH_ROUND, 8, 15, 8, 4);
++            SH(MPG_SH_ROUND, 9, 19, 6, 4);
++            break;
++        case MPG_I_TEMP:
++            SH(MPG_SH_ROUND, 9, 0, 6, 16);
++            SH(MPG_SH_CIRCLE, 6, 12, 12, 12);
++            SH(MPG_SH_CUT, 11, 5, 2, 12);
++            break;
++        case MPG_I_CHECK:
++            SH(MPG_SH_RING, 1, 1, 22, 22);
++            SH(MPG_SH_ROUND, 6, 12, 4, 7);
++            SH(MPG_SH_ROUND, 9, 15, 9, 4);
++            SH(MPG_SH_ROUND, 14, 7, 4, 10);
++            break;
++        default:
++            break;
++    }
++#undef SH
++    return n;
++}
++
++/* ---- the control sheet's layout ---- */
++#define MPG_SHEET_PAD 8
++typedef struct {
++    int16_t x, y, w, h;
++    uint8_t item;
++} mpg_rect_t;
++typedef struct {
++    int16_t top_y;               /* the sheet covers y top_y to 240 */
++    int16_t status_y, status_h;  /* the status text block, or 0 height */
++    mpg_rect_t r[MPG_SHEET_MAX_ITEMS + 1];  /* sliders and tiles; the "More" tile is last, item MPG_S_COUNT */
++    uint8_t n;
++    uint8_t status_items[MPG_SHEET_MAX_STATUS];
++    uint8_t n_status;
++} mpg_sheet_t;
++
++#define MPG_TILE_W 72
++#define MPG_TILE_H 38
++#define MPG_TILE_GAP 4   /* between rows */
++#define MPG_TILE_GAPX 6  /* between columns */
++#define MPG_SLIDER_ROW_H 28
++#define MPG_STATUS_LINE_H 16
++
++/* Lays the sheet out from the bottom edge up. Sliders go two to a row, tiles four to a row (always ending with "More"). */
++static inline void mpg_sheet_layout(const mpg_cfg_t* c, mpg_sheet_t* L)
++{
++    memset(L, 0, sizeof(*L));
++    int sliders[MPG_SHEET_MAX_SLIDERS], ns = 0, tiles[MPG_SHEET_MAX_TILES + 1], nt = 0;
++    for (int i = 0; i < c->n_items; i++) {
++        const int it = c->items[i], k = mpg_sheet_kind(it);
++        if (k == 0 && ns < MPG_SHEET_MAX_SLIDERS) {
++            sliders[ns++] = it;
++        } else if (k == 1 && nt < MPG_SHEET_MAX_TILES) {
++            tiles[nt++] = it;
++        } else if (k == 2 && L->n_status < MPG_SHEET_MAX_STATUS) {
++            L->status_items[L->n_status++] = (uint8_t)it;
++        }
++    }
++    tiles[nt++] = MPG_S_COUNT;  /* More */
++    const int tile_rows = (nt + 3) / 4;
++    const int slider_rows = (ns + 1) / 2;
++    int h = 8 /* handle */ + 6;
++    int status_lines = 0;
++    if (L->n_status > 0) {
++        status_lines = L->n_status > 3 ? 2 : 1;
++        h += status_lines * MPG_STATUS_LINE_H + 4;
++    }
++    h += slider_rows * (MPG_SLIDER_ROW_H + 4);
++    h += tile_rows * MPG_TILE_H + (tile_rows - 1) * MPG_TILE_GAP;
++    h += 6;
++    L->top_y = (int16_t)(240 - h);
++    int y = L->top_y + 8;
++    if (status_lines) {
++        L->status_y = (int16_t)y;
++        L->status_h = (int16_t)(status_lines * MPG_STATUS_LINE_H);
++        y += status_lines * MPG_STATUS_LINE_H + 4;
++    }
++    for (int i = 0; i < ns; i++) {
++        mpg_rect_t* r = &L->r[L->n++];
++        r->item = (uint8_t)sliders[i];
++        r->w = 144;
++        r->h = MPG_SLIDER_ROW_H;
++        r->x = (int16_t)(MPG_SHEET_PAD + (i % 2) * (144 + 16));
++        r->y = (int16_t)(y + (i / 2) * (MPG_SLIDER_ROW_H + 4));
++    }
++    y += slider_rows * (MPG_SLIDER_ROW_H + 4);
++    for (int i = 0; i < nt; i++) {
++        mpg_rect_t* r = &L->r[L->n++];
++        const int in_row = (i / 4 == tile_rows - 1) ? nt - (tile_rows - 1) * 4 : 4;
++        const int col = i % 4;
++        const int row_w = in_row * MPG_TILE_W + (in_row - 1) * MPG_TILE_GAPX;
++        const int row_w_full = 4 * MPG_TILE_W + 3 * MPG_TILE_GAPX;
++        r->item = (uint8_t)tiles[i];
++        r->w = MPG_TILE_W;
++        r->h = MPG_TILE_H;
++        r->x = (int16_t)((MPG_W_FULL - row_w_full) / 2 + (col * (MPG_TILE_W + MPG_TILE_GAPX)) + (row_w_full - row_w) / 2);
++        r->y = (int16_t)(y + (i / 4) * (MPG_TILE_H + MPG_TILE_GAP));
++    }
++}
++
++/* ---- page contents ---- */
++/* A countdown as words: "4:32", or "1:02:10" from one hour up. */
++static inline void mpg_fmt_left(char* out, size_t n, int64_t secs)
++{
++    if (secs < 0) {
++        secs = 0;
++    }
++    if (secs >= 3600) {
++        snprintf(out, n, "%d:%02d:%02d", (int)(secs / 3600), (int)((secs / 60) % 60), (int)(secs % 60));
++    } else {
++        snprintf(out, n, "%d:%02d", (int)(secs / 60), (int)(secs % 60));
++    }
++}
++
++/* The best score of a game as text ("Best 312"), or a dash while none was saved. */
++static inline void mpg_best_text(char* out, size_t n, int best, int es)
++{
++    if (best <= 0) {
++        snprintf(out, n, "%s -", es ? "Mejor" : "Best");
++    } else {
++        snprintf(out, n, "%s %d", es ? "Mejor" : "Best", best);
++    }
++}
++
++/* Night dims the clock page and holds the slideshow still. 100 is full color. */
++#define MPG_NIGHT_DIM_PCT 35
++static inline int mpg_dim_pct(int night) { return night ? MPG_NIGHT_DIM_PCT : 100; }
++static inline uint8_t mpg_scale(uint8_t c, int pct) { return (uint8_t)((c * pct + 50) / 100); }
++
++/* The clock page in zone coordinates (0, 0 is the top left of the zone). Digits and colon as bars (see maipai_face_clock_core.h). */
++typedef struct {
++    int digit_w, digit_h, bar, gap, colon_w;
++    int x0, y0;      /* the first digit's box */
++    int date_y;      /* the date line's top */
++    int ring;        /* a ring around the digits: its diameter, or 0 */
++    int ring_cx, ring_cy;
++    int ampm_x, ampm_y;
++} mpg_clock_layout_t;
++
++static inline mpg_clock_layout_t mpg_clock_layout(int ring_style)
++{
++    mpg_clock_layout_t l;
++    memset(&l, 0, sizeof(l));
++    if (ring_style) {
++        l.digit_w = 22; l.digit_h = 45; l.bar = 5; l.gap = 4; l.colon_w = 10;  /* h = 3 bar + 2 L: 15 + 30 */
++        l.ring = 140;
++        l.ring_cx = MPG_ZONE_W / 2;
++        l.ring_cy = 72;
++        const int w = 4 * l.digit_w + 2 * l.gap + l.colon_w;
++        l.x0 = (MPG_ZONE_W - w) / 2;
++        l.y0 = 72 - l.digit_h / 2 - 6;
++        l.date_y = l.y0 + l.digit_h + 8;
++        l.ampm_x = l.x0 + w - 36;
++        l.ampm_y = l.y0 - 20;
++    } else {
++        l.digit_w = 44; l.digit_h = 87; l.bar = 9; l.gap = 10; l.colon_w = 22;
++        const int w = 4 * l.digit_w + 2 * l.gap + l.colon_w;
++        l.x0 = (MPG_ZONE_W - w) / 2;
++        l.y0 = 10;
++        l.date_y = l.y0 + l.digit_h + 8;
++        l.ampm_x = l.x0 + w - 30;
++        l.ampm_y = l.y0 - 4;
++    }
++    return l;
++}
++
++/* A grid for n cells in a w by h area with a gap: 4 cells are 2 by 2, 5 and 6 are 3 by 2, 1 to 3 are one row. */
++static inline void mpg_grid(int n, int* cols, int* rows)
++{
++    if (n <= 3) {
++        *cols = n < 1 ? 1 : n;
++        *rows = 1;
++    } else if (n == 4) {
++        *cols = 2;
++        *rows = 2;
++    } else {
++        *cols = 3;
++        *rows = 2;
++    }
++}
++
++static inline void mpg_cell(int i, int n, int area_x, int area_y, int area_w, int area_h, int gap, int* x, int* y, int* w, int* h)
++{
++    int cols, rows;
++    mpg_grid(n, &cols, &rows);
++    const int cw = (area_w - (cols - 1) * gap) / cols;
++    const int ch = (area_h - (rows - 1) * gap) / rows;
++    *w = cw;
++    *h = ch;
++    *x = area_x + (i % cols) * (cw + gap);
++    *y = area_y + (i / cols) * (ch + gap);
++}
++
++/* The pager dots: where each of n dots sits for the strip (left pages, the face, right pages), in zone coordinates. */
++static inline int mpg_pager_x(int n, int index) { return MPG_ZONE_W / 2 + (index * 2 - (n - 1)) * 7; }
++#define MPG_PAGER_Y 148
++#define MPG_CONTENT_Y 24  /* below the page title */
++#define MPG_CONTENT_BOTTOM 140
++
++/* A row of the timers page: up to four rows of 26 px, and three quick starts when there is room. */
++#define MPG_TIMER_ROWS 4
++static const uint16_t MPG_QUICK_TIMER_MIN[3] = {1, 5, 10};
++
++/* A page that makes sound or moves the head is dimmed in full quiet and under a mute for the sound ones. */
++static inline int mpg_action_blocked(int action, int quiet, int muted)
++{
++    if (quiet) {
++        return action != MPG_A_GAME;
++    }
++    if (muted) {
++        return action == MPG_A_BEEP || action == MPG_A_FIND;
++    }
++    return 0;
++}
++
++/* The slideshow: picture index for a count and a step, and how long each picture stays (seconds). */
++#define MPG_FRAME_HOLD_S 8
++static inline int mpg_frame_next(int count, int cur) { return count <= 0 ? 0 : (cur + 1) % count; }
++
++#endif /* MAIPAI_PAGES_CORE_H */

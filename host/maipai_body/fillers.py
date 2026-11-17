@@ -207,7 +207,7 @@ class FillerGenerator:
         pack = packs_mod.make_pack("filler", f"Fillers {lang}", payload, voice=voice or "default", lang=lang)
         return self.library.add(pack, lang)
 
-    def start(self, voice: str, lang: str = "en") -> dict[str, Any]:
+    def start(self, voice: str, lang: str = "en", on_done: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
         if self.synth is None:
             raise packs_mod.PackError(say(lang, "no_engine"), "no_engine")
         with self._lock:
@@ -219,6 +219,8 @@ class FillerGenerator:
             try:
                 info = self.generate(voice, lang)
                 self.status["last"] = info["id"]
+                if on_done is not None:
+                    on_done(info)
             except Exception as error:
                 logger.warning("filler sounds not made: %s", error)
                 self.status["error"] = str(error) if isinstance(error, packs_mod.PackError) else say(lang, "failed")

@@ -172,3 +172,15 @@ O02-overlays-leave-text-zones-and-eyes.patch
 FI05-captions-default-off.patch
 O03-governor-hysteresis-grace-floor-staged-unhide.patch
 FI06-snapshot-includes-overlays-and-effects.patch
+K10-pack-types-phrase-and-cache-format-2.patch
+K11-language-pack-screen-words.patch
+K12-offline-phrases-pack.patch
+K13-pack-loader-consumers.patch
+P10-gesture-state-machine-core.patch
+P11-pages-data-and-layout-core.patch
+P12-pages-and-control-sheet-drawing.patch
+P13-pages-wiring-tools-and-switch.patch
+S12-seek-core-measured-geometry.patch
+S13-seek-wire-core-and-camera-grab.patch
+S14-seek-task-tools-and-setting.patch
+FI07-picface-uses-psram-inflate.patch

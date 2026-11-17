@@ -1,0 +1,482 @@
+# Intent: Turning toward a person, on the unit (owner brief 2026-11-17). A task of priority 1 on core 0 (below the face loop and the servo task at 3 on core 1, and the audio tasks) with a 6 KB stack in PSRAM (the 4 KB first tried left a margin of 964 bytes on the unit, under the 1,024 floor; the log line's float formatting is the deep part) and its state (about 8 KB) in PSRAM: internal RAM costs only the task control block, under 1 KB, so the steady use is far below the 3 KB budget. It runs the wire core (S13) every 50 ms while a look is going on and every 250 ms at rest, wakes at once on the wake word (maipai_listen_wake calls maipai_seek_addressed, a touch that starts a listen counts too), reads the saved setting turn_to_faces (off, talk, default talk, always) through the cached reader maipai_tb_prefs (a PSRAM stack never reads flash: patches FM05 and TC02; the lint scripts/psram-stack-lint.py walks this task), reads the gates (awake and not the sleeping face, mute, vision off, full quiet, screen off as privacy sleep, quiet hours as the slower speed), runs the camera burst of the core (camera-on cue first, one 40 by 30 gray picture, dropped), and moves the head through the same gate a person's head move has (the remote-session gate of patch FM03, source user so the idle-look rule never drops it, speed 150 times the core's percent, minimum 100, pan only). The head's settled state is read from the animation value (the servo's moving flag reads the bus and is not polled). Tools: self.look.claim (owner, ttl_s 5 to 60, 0 is 15), self.look.release, self.look.status (owner unit, host or none, enabled, setting, state, last face and last mover ago, counters, fov_deg, x_sign, calibration state) and self.look.calibrate (the owner's later run: pans through known angles and watches the scene shift, prints and returns the numbers, applies them to the running seeker unless apply is false; it asks nothing of a person except a still room with something in view). The face detector is not part of the image: Kconfig MAIPAI_FACE_DETECT (default n) is reserved and stops the build with the reason when set, because the model has no flash room without giving up pack cache (docs/design/face-seek-2026-11-17.md section 11).
+# Placement: unit (the seeker runs on the robot and is complete with no host; a host only holds the lease)
+# Upstream: firmware/main/hal/maipai_listen.cc, maipai_tbprefs.{h,cc}, hal_mcp.cpp, Kconfig.projbuild (ours, patches TB01, TB04, S11); new files hal/maipai_seek.{h,cc}
+# Check after a flash: self.look.status answers owner unit and setting talk; self.look.claim from the host gives owner host and the unit seeks no more; a wake word with a person moving in view turns the head toward them and the camera cue shows for every burst; mute, vision off, full quiet and the screen off stop every camera read and head move; internal free and the largest internal block do not fall (the memory line before and after a spoken turn); the log shows one MAIPAI-SEEK line per decision; self.look.calibrate in a still lit room ends with result ok, sign and fov_deg.
+
+diff --git a/firmware/main/hal/maipai_seek.h b/firmware/main/hal/maipai_seek.h
+new file mode 100644
+index 0000000..d42f458
+--- /dev/null
++++ b/firmware/main/hal/maipai_seek.h
+@@ -0,0 +1,14 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Turning toward a person, device side (patch S12). The logic and its tests are maipai_seek_wire_core.h and maipai_seek_core.h.
++ */
++#pragma once
++
++// The wake word (or a touch that starts a listen) just fired. Safe from any task: one flag and a task notification. Does nothing
++// when the setting turn_to_faces is off, or while a host holds the lease.
++void maipai_seek_addressed();
++
++// Registers self.look.claim, release, status and calibrate and starts the seek task (a low priority task whose stack is in PSRAM: it
++// never reads flash itself, the setting arrives through the cached reader maipai_tb_prefs). Call once from the main task.
++void maipai_seek_register_tools();
+diff --git a/firmware/main/hal/maipai_seek.cc b/firmware/main/hal/maipai_seek.cc
+new file mode 100644
+index 0000000..7e348a2
+--- /dev/null
++++ b/firmware/main/hal/maipai_seek.cc
+@@ -0,0 +1,345 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Turning toward a person, device side (patch S12). The task that drives the seek core: wake word or motion, a short camera burst
++ * (the camera-on cue first), the 40 by 30 gray picture, the head through the same path a person's head move takes (source user,
++ * the remote-session gate), and the four self.look tools. All the judging is in maipai_seek_wire_core.h, which a host compiler
++ * tests; this file only reads the unit's state and calls the hardware.
++ *
++ * Task rules (scripts/psram-stack-lint.py, patch FM05): the stack is in PSRAM so the task costs no internal RAM beyond its control
++ * block, and it therefore never calls flash or NVS. The saved setting arrives through maipai_tb_prefs (the cached reader that hands
++ * back the cache from a PSRAM stack and asks the timer task to refresh it); the sound policy's night flag likewise. The camera
++ * read and the head move touch no flash. Priority 1 on core 0: below the face loop (3, core 1), the servo task (3, core 1) and the
++ * audio tasks.
++ */
++#include "maipai_seek.h"
++#include "maipai_seek_wire_core.h"
++#include "maipai_privacy.h"
++#include "maipai_tbprefs.h"
++#include "maipai_sounds.h"
++#include "maipai_screen.h"
++#include "maipai_remote.h"
++#include "board/hal_bridge.h"
++#include "board/stackchan_camera.h"
++#include "hal.h"
++#include <application.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/idf_additions.h>
++#include <freertos/semphr.h>
++#include <freertos/task.h>
++#include <mcp_server.h>
++#include <stackchan/stackchan.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++
++#if defined(CONFIG_MAIPAI_FACE_DETECT) && CONFIG_MAIPAI_FACE_DETECT
++#error "MAIPAI_FACE_DETECT is reserved: the detector is not built (no flash room for the model without giving up pack cache). See docs/design/face-seek-2026-11-17.md section 11."
++#endif
++
++static const char* TAG = "MAIPAI-SEEK";
++
++namespace {
++
++mw_t* s_w                   = nullptr;  // PSRAM
++SemaphoreHandle_t s_mu      = nullptr;  // the lease and the calibration result are shared with the tool task
++TaskHandle_t s_task         = nullptr;
++std::atomic<bool> s_addr{false};
++std::atomic<uint8_t> s_mode{1};          // the last setting the task saw (the tools read it)
++float s_goal                = 0.0f;      // the last pan the seeker sent
++uint32_t s_goal_at          = 0;
++float s_pan_prev            = 0.0f;
++uint32_t s_pan_prev_at      = 0;
++size_t s_mem_free           = 0, s_mem_big = 0;
++uint32_t s_mem_at           = 0;
++bool s_mem_have             = false;
++
++uint32_t ms_now() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++// The task starts when the tools register, before the servos exist: until they do there is no head to read or move.
++bool head_ready() { return GetStackChan().hasMotion(); }
++
++// The real servo position: on the unit getCurrentAngle() reads the servo over its serial bus, and motion updates run under the LVGL
++// lock, so the read takes that lock too (as self.robot.get_head_angles does): two transactions on the bus at once garble both.
++float read_pan()
++{
++    if (!head_ready()) return 0.0f;
++    LvglLockGuard lock;
++    return static_cast<float>(GetStackChan().motion().yawServo().getCurrentAngle()) / 10.0f;
++}
++float s_pan_cache = 0.0f;
++
++uint32_t op_now(void*) { return ms_now(); }
++
++void op_env(void*, mw_env_t* e)
++{
++    const uint32_t now = ms_now();
++    e->now_ms          = now;
++    // At rest in "talk" nothing needs the head's angle: the bus is not read (and the face loop not made to wait) until a wake word,
++    // a run, a calibration or the "always" watch needs it.
++    const bool need_pan = s_w->seek.state != MS_IDLE || s_w->addr_latched || s_w->pending > 0 || s_w->cal.state == MW_CAL_RUN ||
++                          s_mode.load() == MS_MODE_ALWAYS || s_addr.load();
++    static bool s_had_pan = false;
++    if (need_pan) {
++        s_pan_cache = read_pan();
++        if (!s_had_pan) {  // first reading after a rest: the head has been still all along
++            s_pan_prev    = s_pan_cache;
++            s_pan_prev_at = now - 400;
++        }
++    }
++    s_had_pan  = need_pan;
++    e->pan_deg = s_pan_cache;
++    // The head's angle is the servo's real position; the servo's "moving" flag is not polled (it reads the bus again).
++    if (fabsf(e->pan_deg - s_pan_prev) > 0.8f) {  // the servo reading steps by 0.31 degrees and jitters by a step or two when it is at rest
++        s_pan_prev    = e->pan_deg;
++        s_pan_prev_at = now;
++    }
++    // Settled: the head has not moved for 300 ms, a move had 250 ms to start, and it is within 6 degrees of its goal. It does not
++    // have to arrive: this servo stops 1 to 5 degrees short of a move (measured), and a hand or a limit may stop it further off, so
++    // after 1.8 s of a move that has stopped it counts as settled anyway. (A move that is slow to start is not settled: it is far
++    // from its goal and the 1.8 s have not passed.)
++    const bool near_goal = s_goal_at == 0 || fabsf(e->pan_deg - s_goal) <= 6.0f || ms_dt(now, s_goal_at) > 1800;
++    e->head_settled    = ms_dt(now, s_pan_prev_at) > 300 && (s_goal_at == 0 || ms_dt(now, s_goal_at) > 250) && near_goal;
++    e->addressed       = s_addr.exchange(false) ? 1 : 0;
++    auto& app          = Application::GetInstance();
++    const DeviceState dev = app.GetDeviceState();
++    e->conversation    = (dev == kDeviceStateListening || dev == kDeviceStateSpeaking || dev == kDeviceStateConnecting) ? 1 : 0;
++    const bool settled_state = dev == kDeviceStateIdle || e->conversation;  // not starting up, upgrading or in setup
++    if (!settled_state || !head_ready()) {
++        // Still booting (the task starts with the tools, before the board, the display and the servos are all up): touch nothing
++        // else. awake stays 0, so the core runs nothing.
++        e->awake = 0;
++        e->mode  = s_mode.load();
++        return;
++    }
++    e->awake           = !hal_bridge::display_is_asleep() ? 1 : 0;
++    e->muted           = maipai_muted() ? 1 : 0;
++    e->vision_off      = maipai_vision_off() ? 1 : 0;
++    e->full_quiet      = maipai_quiet() ? 1 : 0;
++    int saved = 100, live = 100;
++    maipai_screen_levels(&saved, &live);
++    e->privacy_sleep   = live <= 0 ? 1 : 0;  // the screen is off: the unit is put to sleep, nobody is looking
++    bool night         = false;
++    (void)maipai_sounds_gate("popup", &night);
++    e->quiet_or_night  = night ? 1 : 0;
++    const MaipaiTbPrefs prefs = maipai_tb_prefs();
++    e->mode            = prefs.turn_to_faces > 2 ? 1 : prefs.turn_to_faces;
++    s_mode.store(e->mode);
++    // Memory is read at most twice a second (the largest-block call walks the heap).
++    if (!s_mem_have || ms_dt(now, s_mem_at) > 500) {
++        s_mem_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
++        s_mem_big  = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
++        s_mem_at   = now;
++        s_mem_have = true;
++    }
++    e->free_internal    = s_mem_free;
++    e->largest_internal = s_mem_big;
++    e->late             = 0;
++}
++
++int op_grab(void*, uint8_t* gray)
++{
++    StackChanCamera* cam = hal_bridge::board_get_camera();
++    if (cam == nullptr) {
++        return 2;
++    }
++    return cam->SeekGrab(gray);
++}
++
++void op_head(void*, float pan_deg, uint8_t speed_pct, uint8_t reason)
++{
++    // The same gates a person's head move has (patch FM03 and TC01): while a remote session is on, an autonomous move needs the
++    // session; source is "user" so the idle-look rule (Y01) never drops it. Pitch is left alone: the seeker only pans.
++    const int yaw  = static_cast<int>(pan_deg >= 0 ? pan_deg + 0.5f : pan_deg - 0.5f);
++    const bool far = yaw > 45 || yaw < -45;
++    if (!maipai_remote_gate(far ? "move" : "move_near", "user", 0)) {
++        ESP_LOGI(TAG, "head move to %d refused by the remote gate", yaw);
++        return;
++    }
++    if (!head_ready()) return;
++    int speed = 150 * static_cast<int>(speed_pct) / 100;
++    if (speed < 100) speed = 100;
++    s_goal    = static_cast<float>(yaw);
++    s_goal_at = ms_now();
++    (void)reason;
++    LvglLockGuard lock;
++    GetStackChan().motion().yawServo().moveWithSpeed(yaw * 10, speed);
++}
++
++float op_pan(void*) { return s_w != nullptr ? read_pan() : 0.0f; }
++void op_cue(void*, uint32_t ms) { hal_bridge::monitor_cue_begin(static_cast<int>(ms)); }
++void op_lock(void*) { xSemaphoreTake(s_mu, portMAX_DELAY); }
++void op_unlock(void*) { xSemaphoreGive(s_mu); }
++// One line per decision at info level. A bench build raises it to warning so the cable log (which keeps warnings) shows the decisions.
++void op_log(void*, const char* line)
++{
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++    ESP_LOGW(TAG, "%s", line);
++#else
++    ESP_LOGI(TAG, "%s", line);
++#endif
++}
++
++void seek_task(void*)
++{
++    mw_ops_t ops;
++    memset(&ops, 0, sizeof(ops));
++    ops.now    = op_now;
++    ops.env    = op_env;
++    ops.grab   = op_grab;
++    ops.head   = op_head;
++    ops.cue    = op_cue;
++    ops.pan    = op_pan;
++    ops.lock   = op_lock;
++    ops.unlock = op_unlock;
++    ops.log    = op_log;
++    for (;;) {
++        const uint32_t wait = mw_period_ms(s_w);
++        s_w->wait_ms        = wait;
++        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(wait));
++        mw_step(s_w, &ops);
++    }
++}
++
++bool ensure_started()
++{
++    if (s_task != nullptr) return true;
++    s_w = static_cast<mw_t*>(heap_caps_calloc(1, sizeof(mw_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (s_w == nullptr) {
++        ESP_LOGE(TAG, "no PSRAM for the seeker (%u bytes): turning toward people is off", static_cast<unsigned>(sizeof(mw_t)));
++        return false;
++    }
++    mw_init(s_w, 0);
++    s_mu = xSemaphoreCreateMutex();
++    if (s_mu == nullptr) return false;
++    if (xTaskCreatePinnedToCoreWithCaps(seek_task, "seek", 6144, nullptr, 1, &s_task, 0, MALLOC_CAP_SPIRAM) != pdPASS) {
++        s_task = nullptr;
++        ESP_LOGE(TAG, "the seek task did not start");
++        return false;
++    }
++    return true;
++}
++
++std::string err_json(const char* what)
++{
++    char buf[200];
++    snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"%s\"}", what);
++    return buf;
++}
++
++}  // namespace
++
++void maipai_seek_addressed()
++{
++    if (s_task == nullptr) return;
++    s_addr.store(true);
++    xTaskNotifyGive(s_task);
++}
++
++void maipai_seek_register_tools()
++{
++    // Read the saved choices and the sound policy once here, on a task with an internal stack (the seek task has its stack in PSRAM
++    // and takes only cached values).
++    (void)maipai_tb_prefs();
++    bool night_unused = false;
++    (void)maipai_sounds_gate("popup", &night_unused);
++    if (!ensure_started()) return;
++    auto& mcp = McpServer::GetInstance();
++
++    mcp.AddTool("self.look.claim",
++                "A host takes over turning the head toward faces (the unit stops doing it while the lease holds). owner: lowercase letters, "
++                "digits, dash, dot, underscore (up to 23). ttl_s 5 to 60, 0 means 15; claim again before it ends to renew. "
++                "Answers {ok, owner, ttl_s, renewed} or {ok:false, error}.",
++                PropertyList({Property("owner", kPropertyTypeString, std::string("")), Property("ttl_s", kPropertyTypeInteger, 0, 0, 60)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string owner = properties["owner"].value<std::string>();
++                    const int ttl           = properties["ttl_s"].value<int>();
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    const int r = ms_lease_claim(&s_w->seek.lease, owner.c_str(), ttl, ms_now());
++                    const long left = ms_dt(s_w->seek.lease.until_ms, ms_now());
++                    xSemaphoreGive(s_mu);
++                    if (r == MS_LEASE_BAD) return err_json("owner must be 1 to 23 of a-z 0-9 dash dot underscore");
++                    if (r == MS_LEASE_BUSY) return err_json("another host holds the lease");
++                    char buf[160];
++                    snprintf(buf, sizeof(buf), "{\"ok\":true,\"owner\":\"%s\",\"ttl_s\":%ld,\"renewed\":%s}", owner.c_str(), (left + 500) / 1000,
++                             r == MS_LEASE_RENEWED ? "true" : "false");
++                    ESP_LOGI(TAG, "lease %s by %s", r == MS_LEASE_RENEWED ? "renewed" : "claimed", owner.c_str());
++                    return std::string(buf);
++                });
++
++    mcp.AddTool("self.look.release", "Gives the lease back. Only the holder can. Answers {ok}.",
++                PropertyList({Property("owner", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string owner = properties["owner"].value<std::string>();
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    const int r = ms_lease_release(&s_w->seek.lease, owner.c_str(), ms_now());
++                    xSemaphoreGive(s_mu);
++                    if (r == MS_LEASE_BAD) return err_json("owner must be 1 to 23 of a-z 0-9 dash dot underscore");
++                    if (r == MS_LEASE_BUSY) return err_json("another host holds the lease");
++                    ESP_LOGI(TAG, "lease released by %s", owner.c_str());
++                    return std::string("{\"ok\":true}");
++                });
++
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++    // Bench only: the wake word's edge without a voice (the same call maipai_listen_wake makes).
++    mcp.AddTool("self.look.bench_address", "Bench only: acts as if the wake word had just been heard, for the seeker only.", std::vector<Property>{},
++                [](const PropertyList&) -> ReturnValue {
++                    maipai_seek_addressed();
++                    return std::string("{\"ok\":true}");
++                });
++#endif
++
++    mcp.AddTool("self.look.status",
++                "Who turns the head toward faces now (owner unit, host or none), the setting (off, talk, always), whether it is enabled, "
++                "when a face or a mover was last seen, the state, counters, the measured picture geometry and the last calibration.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    static char buf[900];  // the one reply buffer, under the lock
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    mw_status_json(s_w, s_mode.load(), ms_now(), buf, sizeof(buf));
++                    std::string out(buf);
++                    xSemaphoreGive(s_mu);
++                    return out;
++                });
++
++    mcp.AddTool("self.look.calibrate",
++                "Measures the picture axis and the field of view of the camera: the head turns to the front (center true, the default; false "
++                "starts where it stands) and pans through known angles (plus and minus 14 and 22 degrees), the scene's shift in the picture is "
++                "measured, then the head returns to its start pose (the front, or where it stood). "
++                "Needs a still room with something to see (a bright object or a patterned wall); nobody should move. apply true (default) puts "
++                "the numbers into the running seeker until the next restart; the answer and the log line carry them: sign (1 when the right "
++                "of the picture is the robot's right) and fov_deg, to be set as MS_IMAGE_X_SIGN and MS_FOV_DEG. Answers {ok, started}; "
++                "read the result with self.look.status.",
++                PropertyList({Property("apply", kPropertyTypeBoolean, true), Property("center", kPropertyTypeBoolean, true),
++                              Property("source", kPropertyTypeString, std::string("")),
++                              Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    if (!maipai_remote_gate("move_near", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                        return std::string(maipai_remote_refusal());
++                    }
++                    auto& app = Application::GetInstance();
++                    if (app.GetDeviceState() != kDeviceStateIdle) return err_json("the unit is busy (a turn is going on): try when it is idle");
++                    if (maipai_muted()) return err_json("the unit is muted: no camera and no head move");
++                    if (maipai_quiet()) return err_json("the unit is in full quiet: no camera and no head move");
++                    if (maipai_vision_off()) return err_json("vision is off: no camera");
++                    const float p0 = properties["center"].value<bool>() ? 0.0f : read_pan();  // before the lock: the bus read takes the LVGL lock
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    int started = 1;
++                    if (ms_lease_active(&s_w->seek.lease, ms_now())) {
++                        started = -1;
++                    } else if (s_w->seek.state != MS_IDLE) {
++                        started = -2;
++                    } else {
++                        started = mw_cal_start(s_w, p0, properties["apply"].value<bool>() ? 1 : 0, ms_now());
++                    }
++                    xSemaphoreGive(s_mu);
++                    if (started == -1) return err_json("a host holds the lease");
++                    if (started == -2) return err_json("the seeker is busy: try in a minute");
++                    if (started == 1) return err_json("a calibration is already running");
++                    xTaskNotifyGive(s_task);
++                    ESP_LOGI(TAG, "calibration started");
++                    return std::string("{\"ok\":true,\"started\":true}");
++                });
++}
+diff --git a/firmware/main/hal/maipai_tbprefs.h b/firmware/main/hal/maipai_tbprefs.h
+index 55804de..f18a876 100644
+--- a/firmware/main/hal/maipai_tbprefs.h
++++ b/firmware/main/hal/maipai_tbprefs.h
+@@ -23,6 +23,7 @@ struct MaipaiTbPrefs {
+     tl_prefs_t listen;
+     tf_prefs_t filler;
+     uint8_t pickup;
++    uint8_t turn_to_faces;  // patch S12: 0 off, 1 talk (default), 2 always (key turn_to_faces)
+ };
+ 
+ // The saved values (defaults for any key not saved). Cached; re-read from flash when older than 5 s or after an invalidate.
+diff --git a/firmware/main/hal/maipai_tbprefs.cc b/firmware/main/hal/maipai_tbprefs.cc
+index 1aac8a1..1e2ef7e 100644
+--- a/firmware/main/hal/maipai_tbprefs.cc
++++ b/firmware/main/hal/maipai_tbprefs.cc
+@@ -62,6 +62,7 @@ void load(MaipaiTbPrefs* out)
+     tl_prefs_default(&out->listen);
+     tf_prefs_default(&out->filler);
+     out->pickup = 1;
++    out->turn_to_faces = 1;
+     Settings st(MAIPAI_PREFS_NAMESPACE, false);
+     std::string s = read_text(st, "listen_sound");
+     uint8_t v;
+@@ -87,6 +88,10 @@ void load(MaipaiTbPrefs* out)
+     if (s == "off") out->pickup = 0;
+     else if (s == "face") out->pickup = 1;
+     else if (s == "face_sound") out->pickup = 2;
++    s = read_text(st, "turn_to_faces");  // patch S12
++    if (s == "off") out->turn_to_faces = 0;
++    else if (s == "talk") out->turn_to_faces = 1;
++    else if (s == "always") out->turn_to_faces = 2;
+ }
+ 
+ }  // namespace
+@@ -135,6 +140,7 @@ MaipaiTbPrefs maipai_tb_prefs()
+             tl_prefs_default(&s_cache.listen);
+             tf_prefs_default(&s_cache.filler);
+             s_cache.pickup = 1;
++            s_cache.turn_to_faces = 1;
+             s_loaded_us    = now - 4000000;  // ask again in a second, not on every call
+         }
+         if (s_refresh == nullptr) {
+diff --git a/firmware/main/hal/maipai_listen.cc b/firmware/main/hal/maipai_listen.cc
+index 371d5b7..1a24899 100644
+--- a/firmware/main/hal/maipai_listen.cc
++++ b/firmware/main/hal/maipai_listen.cc
+@@ -19,6 +19,7 @@
+ #include "maipai_remote.h"
+ #include "maipai_pages.h"
+ #include "maipai_lat.h"
++#include "maipai_seek.h"
+ #include "board/hal_bridge.h"
+ #include <application.h>
+ #include <board.h>
+@@ -162,6 +163,7 @@ void maipai_listen_wake(int within_ms)
+     if (prev != 0 && now - prev < static_cast<int64_t>(within_ms) * 1000) {
+         return;
+     }
++    maipai_seek_addressed();  // patch S12: the face seeker looks for the person who spoke (or touched)
+     s_wake_us.store(now);
+     maipai_pages_event(MGS_EV_WAKE);  // patch P13: the face comes back from a page or the sheet at the wake word
+     MAIPAI_LAT("listen_wake_in");
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index d1172b2..6532177 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -31,6 +31,7 @@
+ #include "maipai_filler.h"
+ #include "maipai_packs.h"
+ #include "maipai_remote.h"
++#include "maipai_seek.h"
+ #if CONFIG_MAIPAI_DANCE_EXTRAS
+ #include "maipai_dances_core.h"
+ #endif
+@@ -669,6 +670,9 @@ void Hal::xiaozhi_mcp_init()
+ 
+     // self.screen.get_level, and the bench touch (patch W01).
+     maipai_screen_register_tools();
++
++    // self.look.claim, release, status and calibrate, and the seek task (patch S12).
++    maipai_seek_register_tools();
+ #if CONFIG_MAIPAI_SERIAL_TOOLS
+     {   // bench only: speech clips into the microphone path (latency runs)
+         extern void maipai_bench_register_tools();
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index cbd32fe..954e538 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -395,6 +395,16 @@ config MAIPAI_FACE_BENCH
+         self.face.bench_fps, self.face.bench_run and self.face.snapshot. The tools are reached through the USB cable reader
+         (MAIPAI_SERIAL_TOOLS) or the link. Off in every shipped image: no counter, no tool, no code.
+ 
++config MAIPAI_FACE_DETECT
++    bool "Experiment build only: a face detector confirms the person the seeker found (not built yet)"
++    default n
++    help
++        Reserved for the experiment build of the face seeker (patch S12, docs/design/face-seek-2026-11-17.md section 11): the esp-dl
++        ESPDet-Pico 224 face model decides "who" at a pan stop after the motion blob said "where". It needs about 480 KB of flash
++        for the model and 343 KB of PSRAM for a run, run only with 40 KB of internal RAM free and a 24 KB largest block. The flash
++        has no room for the model without giving up part of the pack cache, so nothing is built behind this switch yet: turning it
++        on stops the build with that message. Off in every image.
++
+ config MAIPAI_LOW_BATTERY
+     bool "Low-battery ladder (20 percent chirp, 10 percent request, 5 percent sleep)"
+     default y

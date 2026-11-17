@@ -1,0 +1,85 @@
+# Intent: The seek core (patch S10) takes its picture geometry from the seeker instead of two compile-time constants, so the calibration of the unit (self.look.calibrate, patch S14) can replace them for the running unit. ms_t gets fov_deg and x_sign (set by ms_init to MS_FOV_DEG and MS_IMAGE_X_SIGN, so every S10 behavior and test is unchanged), the blob and face aiming use them (ms_offset_deg_s), and the last blob (kind, area, center) is kept for the log line and the status. 12 bytes more in ms_t (now 5,012 bytes, PSRAM).
+# Placement: unit (pure logic of the robot firmware)
+# Upstream: firmware/main/hal/maipai_seek_core.h (ours, patch S10)
+# Check after a flash: nothing changes by itself; host/tests/firmware/seek_core_test.c and seek_wire_test.c pass; self.look.status (S14) shows fov_deg 65.0 and x_sign 1 on a unit that was not calibrated.
+
+diff --git a/firmware/main/hal/maipai_seek_core.h b/firmware/main/hal/maipai_seek_core.h
+index 7e42039..a71f454 100644
+--- a/firmware/main/hal/maipai_seek_core.h
++++ b/firmware/main/hal/maipai_seek_core.h
+@@ -38,7 +38,7 @@
+ #define MS_PIX (MS_W * MS_H)
+ 
+ /* The numbers, in one place. */
+-#define MS_FOV_DEG 65.0f           /* horizontal field of view of the camera */
++#define MS_FOV_DEG 52.0f           /* horizontal field of view of the camera: measured on the first unit (self.look.calibrate, 52 and 47 in two runs; 65 was a guess) */
+ #define MS_IMAGE_X_SIGN 1.0f       /* +1: the right of the picture is the unit's right (check on the unit; flip here only) */
+ #define MS_PAN_MAX_DEG 80.0f
+ #define MS_STOP_COUNT 5
+@@ -284,6 +284,12 @@ static inline float ms_offset_deg(float cx_px)
+     return (cx_px - (MS_W - 1) * 0.5f) * (MS_FOV_DEG / (float)MS_W) * MS_IMAGE_X_SIGN;
+ }
+ 
++/* The same with the measured geometry of one seeker (patch S12). */
++static inline float ms_offset_deg_s(const float fov_deg, const float x_sign, float cx_px)
++{
++    return (cx_px - (MS_W - 1) * 0.5f) * (fov_deg / (float)MS_W) * x_sign;
++}
++
+ static inline float ms_clamp_pan(float p)
+ {
+     return p > MS_PAN_MAX_DEG ? MS_PAN_MAX_DEG : (p < -MS_PAN_MAX_DEG ? -MS_PAN_MAX_DEG : p);
+@@ -366,12 +372,20 @@ typedef struct {
+     uint32_t last_face_at;
+     uint8_t last_face_any;
+     uint32_t bursts, turns_total, searches_total, camera_ms;
++    /* patch S12: the measured picture geometry (defaults are the macros; self.look.calibrate replaces them) and the last blob */
++    float fov_deg;
++    float x_sign;
++    uint8_t last_blob_kind;
++    uint8_t last_blob_area;
++    float last_blob_cx;
+ } ms_t;
+ 
+ static inline void ms_init(ms_t* s, uint8_t detector)
+ {
+     memset(s, 0, sizeof(*s));
+     s->detector = detector;
++    s->fov_deg = MS_FOV_DEG;
++    s->x_sign = MS_IMAGE_X_SIGN;
+ }
+ 
+ static inline int ms_turn_slots_free(ms_t* s, uint32_t now)
+@@ -488,7 +502,7 @@ static inline void ms_begin_return(ms_t* s, ms_out_t* out, const ms_in_t* in)
+ static inline int ms_eval(ms_t* s, const ms_in_t* in, float* pan_out)
+ {
+     if (in->face_valid && s->detector) {
+-        *pan_out = ms_clamp_pan(in->pan_deg + (in->face_cx - 0.5f) * MS_FOV_DEG * MS_IMAGE_X_SIGN);
++        *pan_out = ms_clamp_pan(in->pan_deg + (in->face_cx - 0.5f) * s->fov_deg * s->x_sign);
+         return 2;
+     }
+     if (!s->prev_valid || ms_dt(in->now_ms, s->prev_at) > (int32_t)MS_PREV_MAX_AGE_MS || fabsf(in->pan_deg - s->prev_pan) > 1.0f) {
+@@ -496,10 +510,13 @@ static inline int ms_eval(ms_t* s, const ms_in_t* in, float* pan_out)
+     }
+     ms_blob_t b;
+     ms_blob(s->prev, in->frame, &s->scratch, &b);
++    s->last_blob_kind = (uint8_t)b.kind;
++    s->last_blob_area = (uint8_t)(b.area > 255 ? 255 : b.area);
++    s->last_blob_cx = b.cx;
+     if (b.kind != MS_BLOB_FOUND) {
+         return 0;
+     }
+-    *pan_out = ms_clamp_pan(in->pan_deg + ms_offset_deg(b.cx));
++    *pan_out = ms_clamp_pan(in->pan_deg + ms_offset_deg_s(s->fov_deg, s->x_sign, b.cx));
+     return 1;
+ }
+ 
+@@ -529,7 +546,7 @@ static inline void ms_aim(ms_t* s, ms_out_t* out, const ms_in_t* in)
+         s->turn_counted = 1;
+         s->turns_total++;
+     }
+-    ms_move(s, out, in, s->target_pan, s->reason == MS_REASON_NONE ? MS_REASON_ADDRESS : s->reason);
++    ms_move(s, out, in, s->target_pan, s->reason == MS_REASON_NONE ? (uint8_t)MS_REASON_ADDRESS : s->reason);
+     s->turn_issued = 1;
+     s->state = MS_TURN;
+     s->state_at = now;

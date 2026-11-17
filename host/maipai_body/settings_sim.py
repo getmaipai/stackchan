@@ -45,6 +45,9 @@ class SimUnit:
         self.pack_held: dict[str, dict[str, Any]] = {}
         self.pack_buffer: dict[str, Any] = {}
         self.prefs: dict[str, Any] = {}
+        self.pages: dict[str, Any] = {}  # swipe pages (firmware patches P10 to P13)
+        self.shown = ""
+        self.tiles: list[dict[str, Any]] = []
         self.face = face_settings.FaceConfig().to_wire()
         self.table: list[dict[str, str]] | None = None
         self.zone, self.epoch = "utc", 0
@@ -199,6 +202,7 @@ NEXT_TOOLS = frozenset({
     "self.filler.status", "self.filler.play", "self.prefs.get", "self.prefs.set", "self.listen.test",
     "self.remote.session", "self.remote.action",
     "self.look.status", "self.look.claim", "self.look.release",
+    "self.pages.status", "self.pages.get", "self.pages.set", "self.page.show", "self.page.tiles",
 })  # fmt: skip
 
 
@@ -240,6 +244,17 @@ def _next(self: SimUnit, name: str, args: dict[str, Any]) -> dict[str, Any]:
     if name == "self.prefs.set":
         self.prefs.update(json.loads(args.get("json", "{}")))
         return {"ok": True}
+    if name in {"self.pages.status", "self.pages.get"}:
+        return {"ok": True, "version": 1, **self.pages}
+    if name == "self.pages.set":
+        self.pages.update(json.loads(args.get("json", "{}")))
+        return {"ok": True}
+    if name == "self.page.show":
+        self.shown = str(args.get("name"))
+        return {"ok": True}
+    if name == "self.page.tiles":
+        self.tiles = json.loads(args.get("json", "[]"))
+        return {"ok": True, "tiles": len(self.tiles)}
     if name == "self.look.status":
         holder = getattr(self, "look_holder", None)
         return {"ok": True, "owner": "host" if holder else "unit", "lease_owner": holder or ""}
@@ -309,7 +324,7 @@ def build(data_dir: Path, *, language: str = "en", next_unit: bool = False) -> t
         "wifi_configured": True,
         "muted": False,
     }
-    polish = Polish(call, store.get, store.update, data_dir=data_dir, synth=_sim_synth)
+    polish = Polish(call, store.get, store.update, data_dir=data_dir, synth=_sim_synth, background=False)
     backend = SettingsBackend(
         devices=lambda: {d: {} for d in units},
         store=store,

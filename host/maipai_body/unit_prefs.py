@@ -139,6 +139,7 @@ def prefs_of(saved: dict[str, Any]) -> dict[str, Any]:
 class PrefsService:
     def __init__(self, probe: ToolProbe, get: Callable[[str], dict[str, Any]], put: Callable[[str, dict[str, Any]], dict[str, Any]]) -> None:
         self.probe, self._get, self._put = probe, get, put
+        self.after_save: Callable[[str, dict[str, Any]], None] | None = None  # set by Polish: a setting that decides a pack changed
 
     def view(self, device_id: str, lang: str | None = None) -> dict[str, Any]:
         values = prefs_of(self._get(device_id))
@@ -158,11 +159,17 @@ class PrefsService:
                 "look": self.probe.has(device_id, "look") is True,
             },
             "face_owner": own_owner(self._get(device_id)),
+            "look": self.look_status(device_id) if callable(getattr(self, "look_status", None)) else {},  # set by _wire_look_owner
             "notice": say(lang, "all_off") if all_off else "",
         }
 
     def save(self, device_id: str, values: dict[str, Any], lang: str | None = None) -> dict[str, Any]:
         merged = self._put(device_id, values)
+        if self.after_save is not None:
+            try:
+                self.after_save(device_id, dict(upgrade_keys(values)))
+            except Exception:
+                logger.debug("pack follow-up after a settings save failed", exc_info=True)
         mine = [k for k in UNIT_KEYS if k in upgrade_keys(values)]
         if not mine:
             return {"ok": True, "pushed": None, "message": ""}

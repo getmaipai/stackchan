@@ -446,6 +446,16 @@ class FaceService:
         self._features: dict[str, set[str]] = {}
         self._pending: set[str] = set()
         self._lock = threading.Lock()
+        # Called after a change is saved, with the unit and the names of the settings that changed ("lang" decides which language
+        # pack the unit holds); a failing listener never fails the save.
+        self.listeners: list[Callable[[str, set[str]], None]] = []
+
+    def _notify(self, unit_id: str, keys: set[str]) -> None:
+        for listener in list(self.listeners):
+            try:
+                listener(unit_id, keys)
+            except Exception:
+                logger.debug("a face listener failed", exc_info=True)
 
     # ---- reading ----
 
@@ -532,6 +542,7 @@ class FaceService:
         after = clean(before, values, lang)
         self.store.set(unit_id, after)
         result = self.push(unit_id, lang)
+        self._notify(unit_id, set(values))
         result["config"] = after.to_json()
         result["unsupported"] = self.unsupported(unit_id, values, lang)
         return result
@@ -541,6 +552,7 @@ class FaceService:
         self.config(unit_id)
         self.store.reset(unit_id)
         result = self.push(unit_id, lang)
+        self._notify(unit_id, {"lang"})
         result["config"] = FaceConfig().to_json()
         return result
 

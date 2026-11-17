@@ -2859,6 +2859,7 @@ async def _serve_stackchan_channels(
             synth=_local_synth(units.base),
             tone_on_unit=lambda device_id: _unit_plays_thinking_tone(faces, device_id),
         )
+        polish.bind_faces(faces)  # the unit's screen language decides which language pack it holds
         polish.attach(bridge)
         voice.polish = polish  # the settings page reads the same state
         voice.session_listeners.append(polish.on_connect)
@@ -2928,6 +2929,7 @@ def _wire_look_owner(voice, units, behavior, polish, stop_event) -> None:
 
     owner = LookOwner(polish.probe, units.store.get, hub_configured=hub_configured, tracking=tracking)
     voice.look_owner = owner
+    polish.prefs.look_status = owner.cached_status  # the page shows who turns toward faces and when someone was last seen
     voice.session_listeners.append(owner.forget)
     runner = LookLeaseRunner(
         owner,

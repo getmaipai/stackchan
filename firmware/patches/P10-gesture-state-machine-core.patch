@@ -1,0 +1,401 @@
+# Intent: Swipe gestures, part 1: the pure state machine (owner idea 2026-11-16: the face is home, a swipe up from the bottom opens a control sheet, a swipe left or right moves through the pages the owner chose). hal/maipai_gesture_core.h decides from the finger alone: where it began, where it ended, how long it took. A swipe is at least 36 px, mostly along one axis, done within 900 ms and not slower than 60 px a second, so a slow drag (a slider, a resting finger) is never one. Swipe up that begins in the bottom band (y 160 and below) opens the sheet; swipe down is the stop swipe (it stays) and closes the sheet or leaves a page; swipe left or right that begins inside the side edges moves through the pages (the finger moving right reaches the page on the left of the face); a swipe that begins in a side edge is never a page change and keeps its old meaning, volume minus or plus 10. A tap above the open sheet closes it. A touch that ended a ringing timer, only woke the screen, or began during a game (a game keeps its touches; only the stop swipe and the edge swipes work) changes no page. The wake word, speech, a head tap and a ringing timer bring the face back at once (never while a finger is on the screen, so a head touch cannot pull a page from under a finger); a page returns to the face after the idle time (20 s, 5 to 300), the sheet closes after 6 s (5 to 15); neither timer runs while a finger is down. Nothing is wired yet: one header and its host test, so it costs nothing on a unit.
+# Placement: unit (touch behavior is local and works with no host)
+# Upstream: new file firmware/main/hal/maipai_gesture_core.h only; patches P12 and P13 draw the pages and wire it. Host test: host/tests/firmware/gesture_core_test.c (cc -std=c99 -Wall -Wextra -Werror gesture_core_test.c).
+# Check after a flash: nothing to check yet (not wired).
+
+diff --git a/firmware/main/hal/maipai_gesture_core.h b/firmware/main/hal/maipai_gesture_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_gesture_core.h
+@@ -0,0 +1,391 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Swipe gestures, the control sheet and the swipe pages (patch P10): the pure state machine. Plain C99, no ESP call, no clock of
++ * its own: the caller passes the time and the finger, and reads back what to do. Host test: host/tests/firmware/gesture_core_test.c.
++ *
++ * The model is a smart display: the face is home. Three layers, one at a time:
++ *   FACE   the face (position 0)
++ *   PAGE   one swipe page (position -3..-1 to the left of the face, 1..3 to the right)
++ *   SHEET  the control sheet over the face or over a page (it closes back to what was under it)
++ *
++ * What a finished touch means (decided when the finger lifts, from where it began, where it ended and how fast):
++ *   swipe up, begun in the bottom band (y >= 160)    open the control sheet
++ *   swipe down, begun anywhere                       the stop swipe (stop speaking, end a game); closes the sheet; leaves a page
++ *   swipe left or right, begun inside the side edges the pages: the finger moves right to reach the page on the left of the face
++ *   swipe left or right, begun in a side edge        never a page change: the unit's old edge meaning, volume minus or plus 10
++ *   a tap above the open sheet                       closes the sheet
++ * A swipe is at least 36 px, mostly along one axis (1.5 to 1), done in at most 900 ms and not slower than 60 px a second, so a
++ * slow drag (a slider, a finger resting on the glass) is never a swipe. A touch that only woke a dimmed screen, ended a ringing
++ * timer or played a game (a game keeps the touches that begin outside the edges) is consumed: it changes no page.
++ *
++ * Other inputs: the wake word, speech and a head tap end any page or sheet at once and show the face (never while a finger is on
++ * the screen); a page returns to the face after the idle time (20 s by default), the sheet closes after its own (6 s by default,
++ * 5 to 15). Neither timer runs while a finger is down.
++ */
++#ifndef MAIPAI_GESTURE_CORE_H
++#define MAIPAI_GESTURE_CORE_H
++
++#include <stdint.h>
++
++#define MGS_W 320
++#define MGS_H 240
++#define MGS_EDGE_SIDE 20          /* a touch that begins closer to a side than this is an edge touch (patch 105) */
++#define MGS_SHEET_START_Y 160     /* a swipe up that begins at or below this opens the sheet */
++#define MGS_SWIPE_MIN_PX 36
++#define MGS_SWIPE_MAX_MS 900
++#define MGS_SWIPE_MIN_SPEED 60    /* px a second */
++#define MGS_TAP_MAX_PX 12
++#define MGS_TAP_MAX_MS 500
++#define MGS_SHEET_S_MIN 5
++#define MGS_SHEET_S_MAX 15
++#define MGS_SHEET_S_DEFAULT 6
++#define MGS_IDLE_S_MIN 5
++#define MGS_IDLE_S_MAX 300
++#define MGS_IDLE_S_DEFAULT 20
++#define MGS_SIDE_MAX 3            /* pages on one side of the face */
++#define MGS_VOLUME_STEP 10
++
++typedef enum { MGS_FACE = 0, MGS_PAGE, MGS_SHEET } mgs_mode_t;
++
++typedef enum {
++    MGS_ACT_NONE = 0,
++    MGS_ACT_SHOW_FACE,   /* close the sheet and the page, show the face */
++    MGS_ACT_SHOW_PAGE,   /* show the page at out.arg (position) */
++    MGS_ACT_OPEN_SHEET,
++    MGS_ACT_VOLUME,      /* out.arg is plus or minus MGS_VOLUME_STEP */
++    MGS_ACT_STOP,        /* the stop swipe from the face */
++    MGS_ACT_BUMP         /* a swipe toward a side with no page: nothing moves (the caller may nudge the face) */
++} mgs_act_t;
++
++typedef enum {
++    MGS_EV_WAKE = 1,
++    MGS_EV_SPEECH,
++    MGS_EV_HEAD_TAP,
++    MGS_EV_PICK,         /* something on the sheet was used: the sheet closes */
++    MGS_EV_TIMER_RING    /* a timer rings: the face comes back to show it */
++} mgs_ev_t;
++
++#define MGS_F_GAME 1     /* a game is running: only the stop swipe and the edge swipes work */
++#define MGS_F_RINGING 2  /* the touch ended a ringing timer */
++#define MGS_F_WOKE 4     /* the touch only woke a dimmed screen or the clock face */
++
++typedef struct {
++    uint8_t act;
++    int8_t arg;
++    uint8_t stop;     /* also stop speaking and any game (set with ACT_STOP, and with SHOW_FACE from a swipe down) */
++    uint8_t consume;  /* the touch was a gesture: no tap, hold or toggle may follow from it */
++} mgs_out_t;
++
++typedef struct {
++    uint8_t mode;
++    int8_t pos;            /* the page position while mode is PAGE, or under the sheet */
++    int8_t under_pos;      /* what the sheet covers: 0 the face, else the page position */
++    int8_t n_left, n_right;
++    uint8_t sheet_s;
++    uint16_t idle_s;
++    uint8_t down, consumed, flags;
++    int x0, y0, x, y;
++    uint32_t t0, last_touch_ms, since_ms;
++} mgs_t;
++
++static inline int mgs_clamp(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
++
++static inline void mgs_init(mgs_t* g)
++{
++    g->mode = MGS_FACE;
++    g->pos = g->under_pos = 0;
++    g->n_left = 1;
++    g->n_right = 1;
++    g->sheet_s = MGS_SHEET_S_DEFAULT;
++    g->idle_s = MGS_IDLE_S_DEFAULT;
++    g->down = g->consumed = g->flags = 0;
++    g->x0 = g->y0 = g->x = g->y = 0;
++    g->t0 = g->last_touch_ms = g->since_ms = 0;
++}
++
++static inline void mgs_config(mgs_t* g, int n_left, int n_right, int sheet_s, int idle_s)
++{
++    g->n_left = (int8_t)mgs_clamp(n_left, 0, MGS_SIDE_MAX);
++    g->n_right = (int8_t)mgs_clamp(n_right, 0, MGS_SIDE_MAX);
++    g->sheet_s = (uint8_t)mgs_clamp(sheet_s, MGS_SHEET_S_MIN, MGS_SHEET_S_MAX);
++    g->idle_s = (uint16_t)mgs_clamp(idle_s, MGS_IDLE_S_MIN, MGS_IDLE_S_MAX);
++    /* a shorter strip may leave the position outside it: step back to the face */
++    if (g->pos < -g->n_left || g->pos > g->n_right) {
++        g->pos = 0;
++        if (g->mode == MGS_PAGE) {
++            g->mode = MGS_FACE;
++        }
++    }
++    if (g->under_pos < -g->n_left || g->under_pos > g->n_right) {
++        g->under_pos = 0;
++    }
++}
++
++static inline int mgs_is_edge_x(int x) { return x < MGS_EDGE_SIDE || x >= MGS_W - MGS_EDGE_SIDE; }
++
++/* A finger goes down. Returns 1 when this touch is consumed from the start (a ring, a wake): it will do nothing. */
++static inline int mgs_down(mgs_t* g, int x, int y, uint32_t now_ms, unsigned flags)
++{
++    g->down = 1;
++    g->x0 = g->x = x;
++    g->y0 = g->y = y;
++    g->t0 = g->last_touch_ms = now_ms;
++    g->flags = (uint8_t)flags;
++    g->consumed = (flags & (MGS_F_RINGING | MGS_F_WOKE)) ? 1 : 0;
++    return g->consumed;
++}
++
++/* More about the touch that is down, learned after it began (the face's own press handler knows a ring ended or the screen woke). */
++static inline void mgs_flag(mgs_t* g, unsigned flags)
++{
++    g->flags = (uint8_t)(g->flags | flags);
++    if (g->down && (flags & (MGS_F_RINGING | MGS_F_WOKE))) {
++        g->consumed = 1;
++    }
++}
++
++static inline void mgs_move(mgs_t* g, int x, int y, uint32_t now_ms)
++{
++    g->x = x;
++    g->y = y;
++    g->last_touch_ms = now_ms;
++}
++
++static inline int mgs_abs(int v) { return v < 0 ? -v : v; }
++
++typedef enum { MGS_SW_NONE = 0, MGS_SW_UP, MGS_SW_DOWN, MGS_SW_LEFT, MGS_SW_RIGHT } mgs_swipe_t;
++
++/* The swipe a finished touch made, if any (direction is where the finger went). Pure: no state. */
++static inline mgs_swipe_t mgs_swipe_of(int x0, int y0, int x1, int y1, uint32_t held_ms)
++{
++    const int dx = x1 - x0, dy = y1 - y0;
++    const int ax = mgs_abs(dx), ay = mgs_abs(dy);
++    const int dom = ax > ay ? ax : ay;
++    const int off = ax > ay ? ay : ax;
++    if (dom < MGS_SWIPE_MIN_PX || held_ms > MGS_SWIPE_MAX_MS || dom * 2 < off * 3) {
++        return MGS_SW_NONE;
++    }
++    if (held_ms == 0 || (uint32_t)dom * 1000u < (uint32_t)MGS_SWIPE_MIN_SPEED * held_ms) {
++        return MGS_SW_NONE; /* too slow: a drag */
++    }
++    if (ax > ay) {
++        return dx > 0 ? MGS_SW_RIGHT : MGS_SW_LEFT;
++    }
++    return dy > 0 ? MGS_SW_DOWN : MGS_SW_UP;
++}
++
++static inline mgs_out_t mgs_none(void)
++{
++    mgs_out_t o = {MGS_ACT_NONE, 0, 0, 0};
++    return o;
++}
++
++static inline void mgs_set_mode(mgs_t* g, int mode, uint32_t now_ms)
++{
++    g->mode = (uint8_t)mode;
++    g->since_ms = now_ms;
++}
++
++static inline mgs_out_t mgs_close_sheet(mgs_t* g, uint32_t now_ms);
++
++/* The finger lifts at (x, y). */
++static inline mgs_out_t mgs_up(mgs_t* g, int x, int y, uint32_t now_ms)
++{
++    mgs_out_t o = mgs_none();
++    if (!g->down) {
++        return o;
++    }
++    g->down = 0;
++    g->x = x;
++    g->y = y;
++    g->last_touch_ms = now_ms;
++    if (g->consumed) {
++        o.consume = 1;
++        return o;
++    }
++    const uint32_t held = now_ms - g->t0;
++    const mgs_swipe_t sw = mgs_swipe_of(g->x0, g->y0, x, y, held);
++    const int game = (g->flags & MGS_F_GAME) != 0;
++
++    if (sw == MGS_SW_NONE) {
++        /* a tap above the open sheet closes it; every other tap belongs to the face or the page */
++        const int dx = x - g->x0, dy = y - g->y0;
++        if (g->mode == MGS_SHEET && g->y0 < MGS_H / 2 && held <= MGS_TAP_MAX_MS && mgs_abs(dx) <= MGS_TAP_MAX_PX &&
++            mgs_abs(dy) <= MGS_TAP_MAX_PX) {
++            o = mgs_close_sheet(g, now_ms);
++            o.consume = 1;
++        }
++        return o;
++    }
++    o.consume = 1;
++
++    if (g->mode == MGS_SHEET) {
++        /* inside the sheet a horizontal move is a slider; only a swipe down closes it */
++        if (sw == MGS_SW_DOWN) {
++            o = mgs_close_sheet(g, now_ms);
++            o.consume = 1;
++        } else {
++            o.consume = sw == MGS_SW_UP ? 1 : 0; /* a slider drag still belongs to the slider */
++        }
++        return o;
++    }
++    if (sw == MGS_SW_DOWN) {
++        if (g->mode == MGS_PAGE) {
++            g->pos = g->under_pos = 0;
++            mgs_set_mode(g, MGS_FACE, now_ms);
++            o.act = MGS_ACT_SHOW_FACE;
++            o.stop = 1;
++        } else {
++            o.act = MGS_ACT_STOP;
++            o.stop = 1;
++        }
++        return o;
++    }
++    if (sw == MGS_SW_LEFT || sw == MGS_SW_RIGHT) {
++        if (mgs_is_edge_x(g->x0)) {
++            o.act = MGS_ACT_VOLUME;
++            o.arg = (int8_t)(sw == MGS_SW_RIGHT ? MGS_VOLUME_STEP : -MGS_VOLUME_STEP);
++            return o;
++        }
++        if (game) {
++            return o; /* the game keeps its touches; the swipe does nothing */
++        }
++        const int next = g->pos + (sw == MGS_SW_RIGHT ? -1 : 1);
++        if (next < -g->n_left || next > g->n_right) {
++            o.act = MGS_ACT_BUMP;
++            return o;
++        }
++        g->pos = (int8_t)next;
++        if (next == 0) {
++            mgs_set_mode(g, MGS_FACE, now_ms);
++            o.act = MGS_ACT_SHOW_FACE;
++        } else {
++            mgs_set_mode(g, MGS_PAGE, now_ms);
++            o.act = MGS_ACT_SHOW_PAGE;
++            o.arg = (int8_t)next;
++        }
++        return o;
++    }
++    /* swipe up */
++    if (g->y0 >= MGS_SHEET_START_Y && !game) {
++        g->under_pos = g->mode == MGS_PAGE ? g->pos : 0;
++        mgs_set_mode(g, MGS_SHEET, now_ms);
++        o.act = MGS_ACT_OPEN_SHEET;
++    }
++    return o;
++}
++
++/* Closes the sheet: back to what was under it, as SHOW_FACE or SHOW_PAGE (never a separate close action). */
++static inline mgs_out_t mgs_close_sheet(mgs_t* g, uint32_t now_ms)
++{
++    mgs_out_t o = mgs_none();
++    if (g->mode != MGS_SHEET) {
++        return o;
++    }
++    g->pos = g->under_pos;
++    if (g->pos == 0) {
++        mgs_set_mode(g, MGS_FACE, now_ms);
++        o.act = MGS_ACT_SHOW_FACE;
++    } else {
++        mgs_set_mode(g, MGS_PAGE, now_ms);
++        o.act = MGS_ACT_SHOW_PAGE;
++        o.arg = g->pos;
++    }
++    return o;
++}
++
++/* Something outside the screen happened. A finger on the glass is never interrupted (the event is dropped). */
++static inline mgs_out_t mgs_event(mgs_t* g, int ev, uint32_t now_ms)
++{
++    mgs_out_t o = mgs_none();
++    if (g->mode == MGS_FACE) {
++        return o;
++    }
++    if (g->down && ev != MGS_EV_TIMER_RING) {
++        return o;
++    }
++    if (ev == MGS_EV_PICK) {
++        if (g->mode == MGS_SHEET) {
++            g->last_touch_ms = now_ms;
++            return mgs_close_sheet(g, now_ms);
++        }
++        return o;
++    }
++    /* wake word, speech, a head tap, a ring: back to the face */
++    g->pos = g->under_pos = 0;
++    mgs_set_mode(g, MGS_FACE, now_ms);
++    g->down = 0;
++    o.act = MGS_ACT_SHOW_FACE;
++    return o;
++}
++
++/* The host (self.page.show) or a pick moves to a position directly. 0 is the face. Returns the action. */
++static inline mgs_out_t mgs_goto(mgs_t* g, int pos, uint32_t now_ms)
++{
++    mgs_out_t o = mgs_none();
++    if (pos < -g->n_left || pos > g->n_right || g->mode == MGS_SHEET) {
++        return o;
++    }
++    g->pos = (int8_t)pos;
++    g->last_touch_ms = now_ms;
++    if (pos == 0) {
++        mgs_set_mode(g, MGS_FACE, now_ms);
++        o.act = MGS_ACT_SHOW_FACE;
++    } else {
++        mgs_set_mode(g, MGS_PAGE, now_ms);
++        o.act = MGS_ACT_SHOW_PAGE;
++        o.arg = (int8_t)pos;
++    }
++    return o;
++}
++
++/* A pick on the sheet that goes to a page of the strip (the sheet is already gone). */
++static inline mgs_out_t mgs_pick_goto(mgs_t* g, int pos, uint32_t now_ms)
++{
++    if (g->mode == MGS_SHEET) {
++        g->mode = MGS_FACE;
++    }
++    return mgs_goto(g, pos, now_ms);
++}
++
++/* A page that is not in the strip (the sheet's Timers or Games button when the owner did not put that page in the strip): it sits
++ * at the face's own position, and a swipe from it moves into the strip as if it were the face. */
++static inline mgs_out_t mgs_show_extra(mgs_t* g, uint32_t now_ms)
++{
++    mgs_out_t o = mgs_none();
++    g->pos = g->under_pos = 0;
++    g->last_touch_ms = now_ms;
++    mgs_set_mode(g, MGS_PAGE, now_ms);
++    o.act = MGS_ACT_SHOW_PAGE;
++    o.arg = 0;
++    return o;
++}
++
++/* Every few hundred milliseconds while a page or the sheet is open (and never otherwise: nothing runs at rest). */
++static inline mgs_out_t mgs_tick(mgs_t* g, uint32_t now_ms)
++{
++    mgs_out_t o = mgs_none();
++    if (g->mode == MGS_FACE || g->down) {
++        return o;
++    }
++    const uint32_t idle = now_ms - g->last_touch_ms;
++    if (g->mode == MGS_SHEET) {
++        if (idle >= (uint32_t)g->sheet_s * 1000u) {
++            return mgs_close_sheet(g, now_ms);
++        }
++        return o;
++    }
++    if (idle >= (uint32_t)g->idle_s * 1000u) {
++        g->pos = g->under_pos = 0;
++        mgs_set_mode(g, MGS_FACE, now_ms);
++        o.act = MGS_ACT_SHOW_FACE;
++    }
++    return o;
++}
++
++/* Does a face toggle (mute, vision, quiet) or a listen tap still apply? Not while a page or the sheet covers the face, and
++ * not for a touch the machine took as a gesture. */
++static inline int mgs_face_takes_taps(const mgs_t* g) { return g->mode == MGS_FACE; }
++
++#endif /* MAIPAI_GESTURE_CORE_H */

@@ -1,0 +1,110 @@
+# Intent: The filler pack reader inflates with the K10 helper (its deflated index.json used the ROM call that keeps 11 KB of state on the caller's stack; no filler pack had been pushed to a real unit before this work). The loader gives language packs and phrase packs to their users (K11, K12): has_user covers look, filler, language and phrase; apply and remove call maipai_lang_load_pack and maipai_phrasepack_load; the boot task applies a cached language or phrase pack once the face is up, like the look and the filler pack, and falls back to English and to the image's clips when the cache is empty or damaged. self.pack.status adds lang (the code in use) for the language type and clips (how many of the sixteen came from the pack) for the phrase type, and the boot line names all four types. The sound and dance types stay in the loader and the cache with no consumer (see docs/design/packs-fillers-languages-2026-11-17.md).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_packs.cc and maipai_filler.cc (ours, TB02, TB03, TC03, FM04)
+# Check after a flash: self.pack.status for language, phrase, look and filler; send a language pack and read lang; send a phrase pack and read clips 16; flip a bit in the cache (bench) and the status says damaged and the words are English and the clips are the image's; remove each type and the status says fallback true.
+
+diff --git a/firmware/main/hal/maipai_packs.cc b/firmware/main/hal/maipai_packs.cc
+--- a/firmware/main/hal/maipai_packs.cc
++++ b/firmware/main/hal/maipai_packs.cc
+@@ -14,6 +14,8 @@
+ #include "maipai_pack_core.h"
+ #include "maipai_packcache_core.h"
+ #include "maipai_filler.h"
++#include "maipai_lang.h"
++#include "maipai_phrasepack.h"
+ #include "maipai_picface.h"
+ #include "board/hal_bridge.h"
+ #include <esp_heap_caps.h>
+@@ -62,7 +64,9 @@ std::atomic<uint8_t> s_cached[TPK_TYPES];       // 1 once this type's held pack
+ std::atomic<int> s_last_write_err{0};
+ std::atomic<bool> s_booted{false};
+ 
+-bool has_user(int type) { return type == TPK_LOOK || type == TPK_FILLER; }
++// Which types have a consumer on this unit: the look, the filler sounds, the screen words (K11) and the offline phrases (K12).
++// The sound and dance types are in the loader and the cache but have no consumer yet (docs/design/packs-fillers-languages-2026-11-17.md).
++bool has_user(int type) { return type == TPK_LOOK || type == TPK_FILLER || type == TPK_LANGUAGE || type == TPK_PHRASE; }
+ 
+ std::string err_json(tpk_err_t e)
+ {
+@@ -94,6 +98,10 @@ std::string apply(int type, const uint8_t* data, size_t len)
+ #endif
+     } else if (type == TPK_FILLER) {
+         if (!maipai_filler_load_pack(data, len, &why)) return why;
++    } else if (type == TPK_LANGUAGE) {
++        if (!maipai_lang_load_pack(data, len, &why)) return why;
++    } else if (type == TPK_PHRASE) {
++        if (!maipai_phrasepack_load(data, len, &why)) return why;
+     }
+     return "";
+ }
+@@ -107,6 +115,10 @@ void unapply(int type)
+ #endif
+     } else if (type == TPK_FILLER) {
+         maipai_filler_load_pack(nullptr, 0, &why);
++    } else if (type == TPK_LANGUAGE) {
++        maipai_lang_load_pack(nullptr, 0, &why);
++    } else if (type == TPK_PHRASE) {
++        maipai_phrasepack_load(nullptr, 0, &why);
+     }
+ }
+ 
+@@ -156,7 +168,8 @@ void boot_task(void*)
+             tpc_scan(&OPS, nullptr, sector, &s_dir, &s_rep);
+         }
+         s_cache_ok.store(true);
+-        ESP_LOGI(TAG, "pack cache: look %s, filler %s", TPC_ST_NAMES[s_rep.status[TPK_LOOK]], TPC_ST_NAMES[s_rep.status[TPK_FILLER]]);
++        ESP_LOGI(TAG, "pack cache: look %s, filler %s, language %s, phrase %s", TPC_ST_NAMES[s_rep.status[TPK_LOOK]], TPC_ST_NAMES[s_rep.status[TPK_FILLER]],
++                 TPC_ST_NAMES[s_rep.status[TPK_LANGUAGE]], TPC_ST_NAMES[s_rep.status[TPK_PHRASE]]);
+     } else {
+         ESP_LOGW(TAG, "pack cache off: the assets partition is %s", s_part == nullptr ? "missing" : "too small");
+         tpc_dir_t blank;
+@@ -232,7 +245,7 @@ void maipai_packs_register_tools()
+     auto& mcp = McpServer::GetInstance();
+ 
+     mcp.AddTool("self.pack.status",
+-                "What pack of a type (look, language, filler, sound, dance, game) the unit holds: held, name, size, sha256, cache state. Answers {ok, held, ...}.",
++                "What pack of a type (look, language, filler, sound, dance, game, phrase) the unit holds: held, name, size, sha256, cache state. Answers {ok, held, ...}.",
+                 PropertyList({Property("type", kPropertyTypeString, std::string("look"))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     const int t = tpk_type_by_name(properties["type"].value<std::string>().c_str());
+@@ -243,14 +256,18 @@ void maipai_packs_register_tools()
+                     const uint8_t* sha = s_have_user[t] ? s_user_sha[t] : (s_dir.have[t] ? s_dir.e[t].sha : nullptr);
+                     if (held && sha != nullptr) tpk_sha_hex(sha, hex);
+                     const char* name = s_have_user[t] ? s_user_name[t] : (s_dir.have[t] ? s_dir.e[t].name : "");
+-                    char out[560];
++                    char out[620];
++                    // K11 and K12: what the pack actually did (the language code in use, how many phrase clips came from the pack)
++                    char extra[48] = "";
++                    if (t == TPK_LANGUAGE) snprintf(extra, sizeof(extra), ",\"lang\":\"%s\"", maipai_lang_loaded_code());
++                    else if (t == TPK_PHRASE) snprintf(extra, sizeof(extra), ",\"clips\":%d", maipai_phrasepack_count());
+                     snprintf(out, sizeof(out),
+                              "{\"ok\":true,\"type\":\"%s\",\"held\":%s,\"name\":\"%s\",\"sha256\":\"%s\",\"size\":%u,\"cached\":%s,"
+-                             "\"cache\":\"%s\",\"cache_on\":%s,\"writing\":%s,\"fallback\":%s,\"booted\":%s}",
++                             "\"cache\":\"%s\",\"cache_on\":%s,\"writing\":%s,\"fallback\":%s,\"booted\":%s%s}",
+                              TPK_TYPE_NAMES[t], held ? "true" : "false", name, hex,
+                              static_cast<unsigned>(s_have_user[t] ? s_user_len[t] : (s_dir.have[t] ? s_dir.e[t].size : 0)),
+                              s_cached[t].load() ? "true" : "false", TPC_ST_NAMES[s_rep.status[t]], s_cache_ok.load() ? "true" : "false",
+-                             s_writing.load() ? "true" : "false", held ? "false" : "true", s_booted.load() ? "true" : "false");
++                             s_writing.load() ? "true" : "false", held ? "false" : "true", s_booted.load() ? "true" : "false", extra);
+                     return std::string(out);
+                 });
+ 
+diff --git a/firmware/main/hal/maipai_filler.cc b/firmware/main/hal/maipai_filler.cc
+--- a/firmware/main/hal/maipai_filler.cc
++++ b/firmware/main/hal/maipai_filler.cc
+@@ -150,13 +150,9 @@ long inflate_raw(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap);
+ }  // namespace
+ 
+ // ---- the shared pack loader's consumer ----
+-#include <miniz.h>
++#include "maipai_inflate.h"
+ namespace {
+-long inflate_raw(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap)
+-{
+-    const size_t n = tinfl_decompress_mem_to_mem(out, cap, in, inlen, 0);  // raw deflate
+-    return n == TINFL_DECOMPRESS_MEM_TO_MEM_FAILED ? -1 : static_cast<long>(n);
+-}
++long inflate_raw(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap) { return maipai_inflate_raw(in, inlen, out, cap); }  // state in PSRAM, not on this stack (patch K13)
+ }  // namespace
+ 
+ bool maipai_filler_load_pack(const uint8_t* payload, size_t len, const char** why)

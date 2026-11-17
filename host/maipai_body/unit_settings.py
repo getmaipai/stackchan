@@ -150,10 +150,16 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if led != "off" and not (isinstance(led, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", led)):
             raise SettingsError("The light ring color must be off or a code like #40c0ff. Pick a color and save again.")
         out["led"] = led.lower()
+    if "swipe_pages" in values:  # the swipe pages choice (firmware patches P10 to P13): the whole choice, every rule of the unit applied
+        from maipai_body import swipe_pages
+
+        if not isinstance(values["swipe_pages"], dict):
+            raise SettingsError("The swipe pages choice must be an object. Open the Swipe pages section and save again.")
+        out["swipe_pages"] = swipe_pages.clean(values["swipe_pages"], None, SettingsError)
     from maipai_body import unit_prefs
 
     out.update(unit_prefs.clean(values, SettingsError))
-    unknown = set(upgrade_keys(values)) - set(unit_prefs.PREFS) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "face_owner", "wait_after_talking", "led"}
+    unknown = set(upgrade_keys(values)) - set(unit_prefs.PREFS) - {"swipe_pages", "name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "face_owner", "wait_after_talking", "led"}
     if unknown:
         raise SettingsError(f"Unknown setting {sorted(unknown)[0]}. Remove it and save again.")
     return out

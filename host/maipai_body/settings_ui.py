@@ -11,6 +11,7 @@ from __future__ import annotations
 from maipai_body.banner_shapes import banner_js
 from maipai_body.face_shapes import face_js
 from maipai_body.overlay_shapes import overlay_js
+from maipai_body.settings_ui_pages import JS_PAGES_FULL
 from maipai_body.settings_ui_polish import JS_POLISH
 
 CSS = r"""
@@ -622,10 +623,11 @@ BUILDERS.behavior=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'ov
   toggle(T('Look for faces'),T('Searches the room with the camera when something moves. Needs the camera on.'),!!sv.look_faces,async on=>(await save(unitPath(id,'device'),{look_faces:on})).ok),
   toggle(T('beh.sleep'),T('beh.sleep_help'),false,()=>false,true));
  const seek=await lookSeekCard(id,sv);
+ const swipe=await swipePagesCard(id);
  const priv=card(S['settings.ui.nav.privacy'],T('privacy.lead'),toggle(T('beh.vision'),T('beh.vision_help'),pr?pr.vision_off:false,async on=>(await save(unitPath(id,'device'),{vision_off:on})).ok,!pr),
   toggle(T('beh.quiet_mode'),T('beh.quiet_mode_help'),pr?pr.quiet:false,async on=>(await save(unitPath(id,'device'),{quiet:on})).ok,!pr),
   toggle(T('voice.mic_mute'),T('voice.mute_help'),pr?pr.mute:u.muted,async on=>(await save(unitPath(id,'device'),{mute:on})).ok,!pr));
- p.append(h('div',{class:'grid'},body,seek,priv),h('div',{class:'stack',style:'margin-top:18px'},await timeCard(u),await alarmCard(u),await reactCard(u),await peopleCard(u)))};
+ p.append(h('div',{class:'grid'},body,seek,priv),h('div',{class:'stack',style:'margin-top:18px'},...(swipe?[swipe]:[]),await timeCard(u),await alarmCard(u),await reactCard(u),await peopleCard(u)))};
 async function timeCard(u){const id=u.device_id,cv=await api(unitPath(id,'clock')),fv=await faceView(id),v=fv.values||{},has=f=>fv.features==null||(fv.features||[]).includes(f);
  const c=card(S['settings.clock'],T('time.zone_help'));
  if(cv.ok&&cv.d.zones){const sel=h('select',{'aria-label':S['settings.clock.zone'],onchange:e=>save(unitPath(id,'clock'),{zone:e.target.value})});for(const z of cv.d.zones)sel.append(h('option',{value:z.id,selected:z.id===cv.d.zone},z.label));
@@ -707,7 +709,7 @@ BUILDERS.system=async(p,u)=>{const id=u.device_id;
  p.append(h('div',{class:'grid'},unit,det,upd,about,rst,reset))};
 """
 
-JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH
+JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH + JS_PAGES_FULL
 
 PAGE = r"""<!doctype html><html lang='__CODE__'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>

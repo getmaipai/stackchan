@@ -164,7 +164,7 @@ def test_the_library_routes_import_list_export_delete_and_gate_by_size(new):
     status, out = backend.route_post("/api/stackchan/packs/import", {"b64": pack_b64("look", "Rubber Hose")}, True)
     assert status == 200 and out["pack"]["id"] == "look/rubber-hose"
     status, _, body = backend.route_get("/api/stackchan/packs", "en", True)
-    assert [p["name"] for p in json.loads(body)["packs"]] == ["Rubber Hose"]
+    assert [p["name"] for p in json.loads(body)["packs"] if p["type"] == "look"] == ["Rubber Hose"]
     status, out = backend.route_post("/api/stackchan/packs/export", {"pack_id": "look/rubber-hose"}, True)
     assert status == 200 and packs.decode(base64.b64decode(out["b64"])).name == "Rubber Hose"
     big = pack_b64("dance", "Huge", packs.MAX_BYTES["dance"] + 10)
@@ -173,7 +173,8 @@ def test_the_library_routes_import_list_export_delete_and_gate_by_size(new):
     status, out = backend.route_post("/api/stackchan/packs/import", {"b64": "###"}, True)
     assert status == 400 and "not a pack" in out["error"]
     assert backend.route_post("/api/stackchan/packs/delete", {"pack_id": "look/rubber-hose"}, True)[0] == 200
-    assert json.loads(backend.route_get("/api/stackchan/packs", "en", True)[2])["packs"] == []
+    left = json.loads(backend.route_get("/api/stackchan/packs", "en", True)[2])["packs"]
+    assert [p for p in left if p["type"] != "language"] == []  # the five shipped screen-language packs stay
 
 
 def test_a_look_pack_is_chosen_per_unit_and_only_it_reaches_that_unit(new):
@@ -247,7 +248,7 @@ def test_the_script_asks_only_for_words_that_exist():
     js = settings_ui.JS
     asked = set(re.findall(r"T\('(pol\.[a-z0-9_.]+)'\)", js))
     asked |= {f"pol.ov.{n}" for n in ("rain", "snow", "sun", "clouds", "wind", "thunder", "fog", "stars", "disco", "confetti", "fireworks", "hearts", "steam", "balloons", "leaves", "zzz")}
-    asked |= {f"pol.type.{t}{s}" for t in ("look", "sound", "dance", "game") for s in ("", "_help")}
+    asked |= {f"pol.type.{t}{s}" for t in ("look", "language", "filler", "phrase", "sound", "dance", "game") for s in ("", "_help")}
     asked |= {f"pol.{k}.{o}" for k, opts in {"filler_mode": ("none", "tone", "phrase"), "listen_sound": ("off", "chime", "mm"), "listen_light": ("off", "dim", "normal"), "fx_color_mode": ("normal", "mono", "warm", "cool")}.items() for o in opts}
     page = render_page("es").decode()
     assert asked and "settings.ui.pol.listen.title" in page

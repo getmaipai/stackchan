@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from firmware_order_cores import cores_dir
+
 HERE = Path(__file__).resolve().parent
 PATCHES = HERE.parents[1] / "firmware" / "patches"
 NAMES = [
@@ -40,15 +42,18 @@ def added_file(patch: str, path: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _extract_all(tmp_path: Path) -> None:
+def _extract_all(tmp_path: Path, ordered: Path) -> None:
     for header, (patch, _t, _l) in CORES.items():
-        (tmp_path / header).write_text(added_file(patch, f"firmware/main/hal/{header}"))
+        if header in ("maipai_pack_core.h", "maipai_packcache_core.h"):  # patches K10 to K13 change these two: test what ORDER leaves
+            (tmp_path / header).write_text((ordered / header).read_text())
+        else:
+            (tmp_path / header).write_text(added_file(patch, f"firmware/main/hal/{header}"))
 
 
 @pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler on this machine")
 @pytest.mark.parametrize("header", list(CORES))
-def test_core_c_tests_pass(tmp_path, header):
-    _extract_all(tmp_path)
+def test_core_c_tests_pass(tmp_path, header, tmp_path_factory):
+    _extract_all(tmp_path, cores_dir(tmp_path_factory))
     patch, test, libs = CORES[header]
     binary = tmp_path / "t"
     build = subprocess.run(

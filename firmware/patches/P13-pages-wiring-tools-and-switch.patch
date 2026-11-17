@@ -1,0 +1,1290 @@
+# Intent: Swipe pages, part 4: the wiring. CONFIG_MAIPAI_PAGES (default y) turns the pages on: an indev hook sees every finger (the face, a page or the sheet) and feeds the gesture state machine; the old swipes (left and right volume, up quick settings, down stop) are replaced by it, the edge swipes keep the volume and the stop swipe stays; the avatar's tap-to-listen and the eye, mouth and forehead toggles ignore a touch that was a swipe and every touch while a page or the sheet is up. The wake word (listen wake and the listening status), speech (the speaking status) and a touch on the head (hal_head_touch, press and swipes) bring the face back; a ringing timer does too, and so does a game started by voice or the host (it plays on the top layer and needs the touches). A press that only woke a dimmed screen is read without taking the flag (maipai_screen_peek_wake_touch) so the face still knows it. Overlays pause under a page like under the clock face. The sheet's buttons use the existing code: mute and quiet through the face toggles (the privacy state), the listening light through a new maipai_pref_set, find through a find chirp helper (maipai_sounds_find_chirp, run on the main task), games and timers through their own APIs, More opens the old quick settings panel (Wi-Fi networks, reset, version). Quick actions: find, beep, dance and hello run on the main task. The Pictures page decodes the picture face pack's frames on a task of its own (maipai_picface_frame_*), into a 150 KB PSRAM buffer that exists only while that page shows. Tools: self.pages.status (also the probe), self.pages.get, self.pages.set (saved in flash under pages_cfg in the preferences namespace), self.page.show (a page name, sheet or face) and self.page.tiles (up to six tiles, saved at most every ten minutes under page_tiles). Bench builds also get self.page.bench_swipe and self.page.bench_tap, a finger made of numbers that goes through the same touch point the real panel fills (screen wake rule, LVGL input, gesture machine, pages), so the gestures can be checked with no hand. The panel's own driver writes "no finger" over a hand-made point every few milliseconds, so hal_bridge gets bench-only touch_inject, which makes set_touch_point ignore the driver while a bench finger is down (found in the first bench window: without it most synthetic swipes were lifted at once). Resident internal RAM measured on the bench build: about 510 bytes of state, no timer, no objects.
+# Placement: unit (touch behavior and the pages work with no host; the tools are for the settings page and Home)
+# Upstream: firmware/main/hal/board/stackchan_display.cc and .h (m5stack/StackChan, MIT; patch C03 gave the old swipes), and ours: maipai_picface, maipai_face, maipai_fx, maipai_sounds, maipai_screen, hal_bridge, maipai_listen, hal_head_touch, hal_mcp.cpp, Kconfig.projbuild, sdkconfig.core.defaults.
+# Check after a flash (bench image first): self.pages.status answers version 1; swipe left from the face shows the games page and right shows the clock; swipe up from the bottom band opens the sheet and it closes after 6 s; a swipe that starts at the very side edge changes the volume; the wake word returns to the face; a touch on the head returns to the face; self.page.show name=tiles after self.page.tiles shows the dashboard; drag a volume slider on the sheet and the volume changes; the stop swipe still ends a game. List of on-unit checks: docs/design/pages-2026-11-17.md.
+
+diff --git a/firmware/main/hal/maipai_pages_unit.h b/firmware/main/hal/maipai_pages_unit.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_pages_unit.h
+@@ -0,0 +1,23 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Swipe pages and the control sheet, device side (patch P13): what the pages read and do on the unit, the saved choice, the touch
++ * hook and the tools self.pages.status, get and set, self.page.show and self.page.tiles. Drawing is maipai_pages.cc; the rules are
++ * maipai_gesture_core.h and maipai_pages_core.h. With CONFIG_MAIPAI_PAGES off nothing here is compiled and a swipe keeps its old meaning.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_PAGES
++#include <lvgl.h>
++// Loads the saved choice (or the defaults), hooks the touch input and gives the pages the face color. Call once from the display
++// set-up, with the LVGL lock held, after the face exists. Creates no screen objects.
++void maipai_pages_unit_attach(lv_color_t (*fg)());
++// Registers self.pages.status, self.pages.get, self.pages.set, self.page.show and self.page.tiles.
++void maipai_pages_unit_register_tools();
++// True from the lift of a finger that made a swipe until the next finger goes down: the face must not take it as a tap.
++bool maipai_pages_last_touch_was_gesture();
++#else
++inline void maipai_pages_unit_register_tools() {}
++inline bool maipai_pages_last_touch_was_gesture() { return false; }
++#endif
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -0,0 +1,660 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Swipe pages and the control sheet, device side (patch P13). See maipai_pages_unit.h.
++ */
++#include <sdkconfig.h>
++#include "maipai_pages_unit.h"
++#if CONFIG_MAIPAI_PAGES
++#include "maipai_pages.h"
++#include "maipai_face.h"
++#include "maipai_fx.h"
++#include "maipai_games.h"
++#include "maipai_packs.h"
++#include "maipai_picface.h"
++#include "maipai_privacy.h"
++#include "maipai_screen.h"
++#include "maipai_sounds.h"
++#include "maipai_tailnet.h"
++#include "maipai_timers.h"
++#include "board/hal_bridge.h"
++#include "hal.h"
++#include <application.h>
++#include <board.h>
++#include <backlight.h>
++#include <settings.h>
++#include <mcp_server.h>
++#include <cJSON.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <esp_wifi.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <ctime>
++#include <mutex>
++#include <string>
++
++static const char* TAG = "MAIPAI-PAGES";
++
++// Defined in board/stackchan_display.cc: the old edge swipes and the settings panel, kept as they were.
++extern "C" {
++bool maipai_display_ready(void);
++bool maipai_display_overlay_open(void);
++void maipai_display_volume_step(int delta);
++void maipai_display_open_quick(void);
++void maipai_display_stop_swipe(void);
++void maipai_display_face_toggle(int action);  // MTC_ACTION_MUTE (1) or MTC_ACTION_QUIET (3)
++}
++extern bool maipai_dance_play(const char* name);
++
++namespace {
++
++constexpr const char* kKeyCfg   = "pages_cfg";    // the one saved text line (maipai_pages_core.h), in the preferences namespace
++constexpr const char* kKeyTiles = "page_tiles";   // the host fed tiles, saved at most every ten minutes
++
++std::mutex s_mu;             // a leaf lock: the tiles, which the tool task writes and the LVGL task reads
++mpg_tiles_t s_tiles;
++uint32_t s_tiles_mono_s = 0; // when they last came from the host, seconds since boot (0: loaded from flash)
++uint32_t s_tiles_unix   = 0; // the wall clock when they were saved or last received (0: unknown)
++uint32_t s_tiles_saved_s = 0;
++bool s_tiles_dirty      = false;
++mpg_tiles_t s_view;          // a copy for the page to read without the lock
++std::atomic<bool> s_last_gesture{false};
++std::atomic<bool> s_hooked{false};
++lv_indev_t* s_indev = nullptr;
++
++uint32_t mono_s() { return static_cast<uint32_t>(esp_timer_get_time() / 1000000); }
++uint32_t unix_now()
++{
++    const time_t t = time(nullptr);
++    return t >= 1704067200 ? static_cast<uint32_t>(t) : 0;
++}
++
++// ---- saved choice ----
++bool load_cfg(mpg_cfg_t* cfg)
++{
++    nvs_handle_t h;
++    char text[MPG_TEXT_MAX + 1] = "";
++    if (nvs_open(MP_NAMESPACE, NVS_READONLY, &h) == ESP_OK) {
++        size_t n = sizeof(text);
++        if (nvs_get_str(h, kKeyCfg, text, &n) != ESP_OK) {
++            text[0] = '\0';
++        }
++        nvs_close(h);
++    }
++    return mpg_cfg_from_text(cfg, text[0] != '\0' ? text : nullptr) == 1;
++}
++
++bool save_cfg(const mpg_cfg_t& cfg)
++{
++    char text[MPG_TEXT_MAX + 1];
++    if (mpg_cfg_to_text(&cfg, text, sizeof(text)) < 0) {
++        return false;
++    }
++    nvs_handle_t h;
++    if (nvs_open(MP_NAMESPACE, NVS_READWRITE, &h) != ESP_OK) {
++        return false;
++    }
++    char old[MPG_TEXT_MAX + 1] = "";
++    size_t n = sizeof(old);
++    const bool same = nvs_get_str(h, kKeyCfg, old, &n) == ESP_OK && strcmp(old, text) == 0;  // flash is touched only for a change
++    esp_err_t err = ESP_OK;
++    if (!same) {
++        err = nvs_set_str(h, kKeyCfg, text);
++        if (err == ESP_OK) {
++            err = nvs_commit(h);
++        }
++    }
++    nvs_close(h);
++    return err == ESP_OK;
++}
++
++#pragma pack(push, 1)
++struct TilesBlob {
++    uint8_t version;
++    uint8_t n;
++    uint32_t unix_s;
++    mpg_tile_t t[MPG_TILES_MAX];
++};
++#pragma pack(pop)
++
++void load_tiles()
++{
++    nvs_handle_t h;
++    if (nvs_open(MP_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
++        return;
++    }
++    TilesBlob b;
++    size_t n = sizeof(b);
++    if (nvs_get_blob(h, kKeyTiles, &b, &n) == ESP_OK && n == sizeof(b) && b.version == 1 && b.n <= MPG_TILES_MAX) {
++        std::lock_guard<std::mutex> lock(s_mu);
++        mpg_tiles_clear(&s_tiles);
++        for (int i = 0; i < b.n; i++) {
++            if (b.t[i].icon < MPG_I_COUNT) {
++                mpg_tiles_add(&s_tiles, MPG_ICON_NAMES[b.t[i].icon], b.t[i].label, b.t[i].value);  // cleaned again on the way in
++            }
++        }
++        s_tiles_unix = b.unix_s;
++    }
++    nvs_close(h);
++}
++
++void save_tiles_locked()
++{
++    TilesBlob b;
++    memset(&b, 0, sizeof(b));
++    b.version = 1;
++    b.n       = s_tiles.n;
++    b.unix_s  = s_tiles_unix;
++    memcpy(b.t, s_tiles.t, sizeof(b.t));
++    nvs_handle_t h;
++    if (nvs_open(MP_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
++        nvs_set_blob(h, kKeyTiles, &b, sizeof(b));
++        nvs_commit(h);
++        nvs_close(h);
++    }
++    s_tiles_dirty   = false;
++    s_tiles_saved_s = mono_s();
++}
++
++// ---- what the pages read and do ----
++class UnitHost : public MaipaiPagesHost {
++public:
++    uint32_t now_ms() override { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++    bool local_time(struct tm* t) override
++    {
++        const time_t now = time(nullptr);
++        if (now < 1704067200) {
++            return false;
++        }
++        localtime_r(&now, t);
++        return true;
++    }
++    bool night() override { return maipai_face_is_night(); }
++    bool clock24() override { return maipai_face_config().clock24 != 0; }
++    bool clock_ring() override { return maipai_face_config().clock_style != 0; }
++    bool spanish() override { return maipai_face_config().lang == MF_LANG_ES; }
++    bool quiet() override { return (maipai_privacy_bits() & kPrivQuiet) != 0; }
++    bool muted() override { return (maipai_privacy_bits() & kPrivMute) != 0; }
++    bool ringing() override { return maipai_timers_ringing(); }
++    bool game_running() override { return maipai_games_active(); }
++
++    int timers(MaipaiPageTimer* out, int max) override
++    {
++#if CONFIG_MAIPAI_FACE_TIMERS
++        maipai_timer_view_t v[MPG_TIMER_ROWS];
++        const int n = maipai_timers_view(v, max < MPG_TIMER_ROWS ? max : MPG_TIMER_ROWS);
++        const int64_t now = esp_timer_get_time() / 1000;
++        for (int i = 0; i < n; i++) {
++            out[i].id     = v[i].id;
++            out[i].left_s = static_cast<int32_t>((v[i].due_ms - now + 500) / 1000);
++            snprintf(out[i].label, sizeof(out[i].label), "%s", v[i].label);
++        }
++        return n;
++#else
++        (void)out; (void)max;
++        return 0;
++#endif
++    }
++    // The timer store has its own lock and the tick task its own pace: the change goes to the main task, never inside a touch.
++    void timer_cancel(uint32_t id) override
++    {
++        Application::GetInstance().Schedule([id]() { maipai_timers_cancel(static_cast<int>(id)); });
++    }
++    void timer_add(int seconds, const char*) override
++    {
++        Application::GetInstance().Schedule([seconds]() { maipai_timers_add_timer(seconds, "", (maipai_privacy_bits() & kPrivMute) != 0); });
++    }
++
++    int game_count() override { return maipai_games_count(); }
++    const char* game_title(int i) override { return maipai_games_title(i, spanish()); }
++    int game_best(int i) override { return maipai_games_best(i); }
++    const char* game_start(int i) override
++    {
++        const char* why = maipai_games_start_locked(maipai_games_id(i), "touch");
++        if (why == nullptr || why[0] == '\0') {
++            maipai_pages_show(-1);  // the game draws on the same layer: the page steps aside
++            return "";
++        }
++        return why;
++    }
++
++    void action(int a) override
++    {
++        switch (a) {
++            case MPG_A_FIND: Application::GetInstance().Schedule([]() { maipai_sounds_find_chirp(); }); break;
++            case MPG_A_BEEP: Application::GetInstance().Schedule([]() { maipai_sounds_play("popup"); }); break;
++            case MPG_A_DANCE: Application::GetInstance().Schedule([]() { maipai_dance_play("happy"); }); break;
++            case MPG_A_GAME:
++                if (maipai_games_count() > 0) {
++                    game_start(0);
++                }
++                break;
++            default:  // hello: a happy face, the words and a cheerful sound; no host needed
++                Application::GetInstance().Schedule([]() {
++                    hal_bridge::react_face("happy", 1800);
++                    hal_bridge::notice("Hi!", 1800);
++                    maipai_sounds_play("success");
++                });
++                break;
++        }
++    }
++
++    const mpg_tiles_t* tiles(uint32_t* age) override
++    {
++        {
++            std::lock_guard<std::mutex> lock(s_mu);
++            s_view = s_tiles;
++            if (s_tiles_mono_s != 0) {
++                *age = mono_s() - s_tiles_mono_s;
++            } else if (s_tiles_unix != 0 && unix_now() != 0) {
++                *age = unix_now() - s_tiles_unix;  // loaded from flash: the saved time against the clock now
++            } else {
++                *age = 86400;  // unknown: shown as old
++            }
++        }
++        return s_view.n > 0 ? &s_view : nullptr;
++    }
++
++    int frame_count() override { return maipai_picface_frame_total(); }
++    uint8_t* frame_alloc() override
++    {
++        return static_cast<uint8_t*>(heap_caps_malloc(320 * 240 * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    }
++    void frame_free(uint8_t* p) override
++    {
++        maipai_picface_frame_cancel();
++        heap_caps_free(p);
++    }
++    bool frame_request(int i, uint8_t* dst) override { return maipai_picface_frame_request(i, dst); }
++    int frame_poll() override { return maipai_picface_frame_poll(); }
++
++    int volume() override
++    {
++        auto* codec = Board::GetInstance().GetAudioCodec();
++        return codec != nullptr ? codec->output_volume() : 70;
++    }
++    void set_volume(int v) override
++    {
++        auto* codec = Board::GetInstance().GetAudioCodec();
++        if (codec != nullptr) {
++            codec->SetOutputVolume(v);
++        }
++    }
++    int brightness() override
++    {
++        auto* b = Board::GetInstance().GetBacklight();
++        return b != nullptr ? b->brightness() : 80;
++    }
++    void set_brightness(int v) override
++    {
++        auto* b = Board::GetInstance().GetBacklight();
++        if (b != nullptr) {
++            b->SetBrightness(v, true);
++        }
++    }
++    bool light_on() override { return maipai_pref(MP_LISTEN_LIGHT) != 0; }
++    void toggle_light() override { maipai_pref_set(MP_LISTEN_LIGHT, light_on() ? 0 : 2); }
++    void toggle_mute() override { maipai_display_face_toggle(1); }
++    void toggle_quiet() override { maipai_display_face_toggle(3); }
++
++    int wifi_bars() override
++    {
++        wifi_ap_record_t ap;
++        if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) {
++            return -1;
++        }
++        return ap.rssi > -55 ? 4 : (ap.rssi > -65 ? 3 : (ap.rssi > -75 ? 2 : 1));
++    }
++    int battery_pct(bool* charging) override
++    {
++        int level = 0;
++        bool ch = false, cable = false;
++        *charging = false;
++        if (!hal_bridge::board_battery_state(&level, &ch, &cable)) {
++            return -1;
++        }
++        *charging = ch;
++        return level;
++    }
++    int tailnet() override
++    {
++        if (!maipai_tailnet_compiled()) {
++            return -1;
++        }
++        return maipai_tailnet_ready() ? 2 : (maipai_tailnet_key_saved() ? 1 : 0);
++    }
++    const char* address() override
++    {
++        // Read from flash at most once a minute: the sheet asks every 250 ms while it is open.
++        static char line[64];
++        static uint32_t read_ms = 0;
++        const uint32_t now = now_ms();
++        if (read_ms != 0 && now - read_ms < 60000) {
++            return line;
++        }
++        read_ms = now == 0 ? 1 : now;
++        line[0] = '\0';
++        Settings settings("websocket", false);
++        const std::string url = settings.GetString("url");
++        size_t a = url.find("://");
++        a        = a == std::string::npos ? 0 : a + 3;
++        size_t b = url.find('/', a);
++        const std::string host = url.substr(a, b == std::string::npos ? std::string::npos : b - a);
++        if (!host.empty()) {
++            snprintf(line, sizeof(line), "%s %s", spanish() ? "Ajustes:" : "Settings:", host.c_str());
++        }
++        return line;
++    }
++    void open_more() override { maipai_display_open_quick(); }
++    void stop_all() override { maipai_display_stop_swipe(); }
++    void volume_step(int d) override { maipai_display_volume_step(d); }
++};
++
++UnitHost s_host;
++
++// ---- the touch hook: every finger, whichever object it landed on ----
++void on_indev(lv_event_t* e)
++{
++    if (!maipai_display_ready()) {
++        return;
++    }
++    lv_indev_t* in = static_cast<lv_indev_t*>(lv_event_get_target(e));
++    lv_point_t p   = {0, 0};
++    lv_indev_get_point(in, &p);
++    if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
++        s_last_gesture.store(false);
++        // quick settings and the screens opened from it own their touches: this finger changes no page
++        maipai_pages_touch_down(p.x, p.y, (maipai_games_active() ? MGS_F_GAME : 0) | (maipai_display_overlay_open() ? MGS_F_WOKE : 0) |
++                                              (maipai_screen_peek_wake_touch() ? MGS_F_WOKE : 0));
++    } else if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
++        s_last_gesture.store(maipai_pages_touch_up(p.x, p.y));
++    }
++}
++
++std::string names_json(const uint8_t* ids, int n, const char* const* names)
++{
++    std::string out = "[";
++    for (int i = 0; i < n; i++) {
++        out += std::string(i ? ",\"" : "\"") + names[ids[i]] + "\"";
++    }
++    return out + "]";
++}
++
++std::string cfg_json(const mpg_cfg_t& c)
++{
++    char head[96];
++    std::string out = "{\"ok\":true,\"left\":" + names_json(c.left, c.n_left, MPG_PAGE_NAMES) + ",\"right\":" + names_json(c.right, c.n_right, MPG_PAGE_NAMES);
++    snprintf(head, sizeof(head), ",\"sheet_s\":%u,\"idle_s\":%u,\"actions\":", static_cast<unsigned>(c.sheet_s), static_cast<unsigned>(c.idle_s));
++    out += head + names_json(c.actions, c.n_actions, MPG_ACTION_NAMES) + ",\"sheet_items\":" + names_json(c.items, c.n_items, MPG_SHEET_NAMES) + "}";
++    return out;
++}
++
++std::string error_json(const std::string& why)
++{
++    std::string out = "{\"ok\":false,\"error\":\"";
++    for (char ch : why) {
++        if (ch == '"' || ch == '\\') out += '\\';
++        out += ch;
++    }
++    return out + "\"}";
++}
++
++// Reads a JSON array of names into ids with `by`; false (and the field name in *bad) for a wrong type or an unknown name.
++bool read_names(const cJSON* arr, int (*by)(const char*), int* out, int max, int* n)
++{
++    if (!cJSON_IsArray(arr)) {
++        return false;
++    }
++    *n = 0;
++    const cJSON* it = nullptr;
++    cJSON_ArrayForEach(it, arr)
++    {
++        if (!cJSON_IsString(it) || *n >= max) {
++            return false;
++        }
++        const int v = by(it->valuestring);
++        if (v < 0) {
++            return false;
++        }
++        out[(*n)++] = v;
++    }
++    return true;
++}
++
++}  // namespace
++
++bool maipai_pages_last_touch_was_gesture() { return s_last_gesture.load(); }
++
++void maipai_pages_unit_attach(lv_color_t (*fg)())
++{
++    maipai_pages_attach(&s_host, fg);
++    mpg_cfg_t cfg;
++    load_cfg(&cfg);
++    maipai_pages_set_config(cfg);
++    load_tiles();
++    if (!s_hooked.exchange(true)) {
++        for (lv_indev_t* in = lv_indev_get_next(nullptr); in != nullptr; in = lv_indev_get_next(in)) {
++            if (lv_indev_get_type(in) == LV_INDEV_TYPE_POINTER) {
++                lv_indev_add_event_cb(in, on_indev, LV_EVENT_PRESSED, nullptr);
++                lv_indev_add_event_cb(in, on_indev, LV_EVENT_RELEASED, nullptr);
++                s_indev = in;
++            }
++        }
++        ESP_LOGI(TAG, "pages ready: %d left, %d right, touch %s", cfg.n_left, cfg.n_right, s_indev != nullptr ? "hooked" : "NOT found");
++    }
++}
++
++void maipai_pages_unit_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.pages.status",
++                "Read the swipe pages: whether the touch gestures are on, what is on screen now (a page name, the sheet or the face) and the tile "
++                "count and age. Answers {ok, version, open, page, position, sheet, tiles, tiles_age_s, pages, actions, sheet_items}. Also the probe for the feature.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    const mpg_cfg_t cfg = maipai_pages_config();
++                    const int pos       = maipai_pages_position();
++                    const int type      = maipai_pages_open() && !maipai_pages_sheet_open() ? (pos == 0 ? -1 : mpg_page_at(&cfg, pos)) : -1;
++                    uint32_t age        = 0;
++                    int n               = 0;
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        n = s_tiles.n;
++                        age = s_tiles_mono_s != 0 ? mono_s() - s_tiles_mono_s : 0;
++                    }
++                    char buf[512];
++                    snprintf(buf, sizeof(buf),
++                             "{\"ok\":true,\"version\":1,\"open\":%s,\"page\":\"%s\",\"position\":%d,\"sheet\":%s,\"tiles\":%d,\"tiles_age_s\":%u,"
++                             "\"pages\":[\"clock\",\"timers\",\"games\",\"actions\",\"frame\",\"tiles\"],\"actions\":[\"find\",\"beep\",\"dance\",\"game\",\"hello\"],"
++                             "\"sheet_items\":[\"volume\",\"brightness\",\"mute\",\"quiet\",\"light\",\"find\",\"timers\",\"games\",\"wifi\",\"battery\",\"tailnet\",\"address\"]}",
++                             maipai_pages_open() ? "true" : "false", type >= 0 ? MPG_PAGE_NAMES[type] : (maipai_pages_open() && !maipai_pages_sheet_open() ? "extra" : "face"),
++                             pos, maipai_pages_sheet_open() ? "true" : "false", n, static_cast<unsigned>(age));
++                    return std::string(buf);
++                });
++    mcp.AddTool("self.pages.get",
++                "Read the swipe page choice. Answers {ok, left, right, sheet_s, idle_s, actions, sheet_items}: the pages left and right of the face "
++                "(nearest first), the control sheet's closing time (5 to 15 s), the page idle time (5 to 300 s), the quick actions and the sheet items.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue { return cfg_json(maipai_pages_config()); });
++    mcp.AddTool("self.pages.set",
++                "Change the swipe pages: json is an object with any of left and right (arrays of up to three of clock, timers, games, actions, frame, tiles; "
++                "a page at most once in all), sheet_s (5 to 15), idle_s (5 to 300), actions (4 to 6 of find, beep, dance, game, hello) and sheet_items "
++                "(volume, brightness, mute, quiet, light, find, timers, games, wifi, battery, tailnet, address). Saved in flash and applied at once; "
++                "nothing changes unless every field is valid. Answers {ok} or {ok:false,error}.",
++                PropertyList({Property("json", kPropertyTypeString, std::string("{}"))}), [](const PropertyList& properties) -> ReturnValue {
++                    const std::string text = properties["json"].value<std::string>();
++                    cJSON* root            = cJSON_Parse(text.c_str());
++                    if (root == nullptr || !cJSON_IsObject(root)) {
++                        cJSON_Delete(root);
++                        return error_json("The page choice must be a JSON object. Send something like {\"left\":[\"clock\"],\"right\":[\"games\"]}.");
++                    }
++                    mpg_cfg_t cfg = maipai_pages_config();
++                    const char* why = nullptr;
++                    int l[MPG_SIDE_MAX + 1], r[MPG_SIDE_MAX + 1], a[MPG_ACTIONS_MAX + 1], it[MPG_SHEET_MAX_ITEMS + 1];
++                    int nl = cfg.n_left, nr = cfg.n_right;
++                    for (int i = 0; i < nl; i++) l[i] = cfg.left[i];
++                    for (int i = 0; i < nr; i++) r[i] = cfg.right[i];
++                    const cJSON* jl = cJSON_GetObjectItemCaseSensitive(root, "left");
++                    const cJSON* jr = cJSON_GetObjectItemCaseSensitive(root, "right");
++                    if ((jl != nullptr && !read_names(jl, mpg_page_by_name, l, MPG_SIDE_MAX, &nl)) ||
++                        (jr != nullptr && !read_names(jr, mpg_page_by_name, r, MPG_SIDE_MAX, &nr))) {
++                        why = MPG_ERR_PAGE;
++                    }
++                    if (why == nullptr && (jl != nullptr || jr != nullptr)) {
++                        why = mpg_set_pages(&cfg, l, nl, r, nr);
++                    }
++                    const cJSON* js = cJSON_GetObjectItemCaseSensitive(root, "sheet_s");
++                    const cJSON* ji = cJSON_GetObjectItemCaseSensitive(root, "idle_s");
++                    if (why == nullptr && ((js != nullptr && !cJSON_IsNumber(js)) || (ji != nullptr && !cJSON_IsNumber(ji)))) {
++                        why = MPG_ERR_SHEET_S;
++                    }
++                    if (why == nullptr && (js != nullptr || ji != nullptr)) {
++                        why = mpg_set_timeouts(&cfg, js != nullptr ? js->valueint : 0, ji != nullptr ? ji->valueint : 0);
++                    }
++                    const cJSON* ja = cJSON_GetObjectItemCaseSensitive(root, "actions");
++                    if (why == nullptr && ja != nullptr) {
++                        int na = 0;
++                        why = read_names(ja, mpg_action_by_name, a, MPG_ACTIONS_MAX, &na) ? mpg_set_actions(&cfg, a, na) : MPG_ERR_ACTION;
++                    }
++                    const cJSON* jc = cJSON_GetObjectItemCaseSensitive(root, "sheet_items");
++                    if (why == nullptr && jc != nullptr) {
++                        int ni = 0;
++                        why = read_names(jc, mpg_sheet_by_name, it, MPG_SHEET_MAX_ITEMS, &ni) ? mpg_set_items(&cfg, it, ni) : MPG_ERR_ITEM;
++                    }
++                    cJSON_Delete(root);
++                    if (why != nullptr) {
++                        return error_json(why);
++                    }
++                    if (!save_cfg(cfg)) {
++                        return error_json("The unit could not save the choice. Try again in a moment.");
++                    }
++                    {
++                        LvglLockGuard lock;
++                        maipai_pages_set_config(cfg);
++                    }
++                    ESP_LOGI(TAG, "pages set");
++                    return std::string("{\"ok\":true}");
++                });
++    mcp.AddTool("self.page.show",
++                "Show a page on the screen now: name is clock, timers, games, actions, frame or tiles; face goes back to the face; sheet opens the control "
++                "sheet. It returns to the face by itself after the page idle time. Answers {ok} or {ok:false,error}.",
++                PropertyList({Property("name", kPropertyTypeString, std::string("face"))}), [](const PropertyList& properties) -> ReturnValue {
++                    const std::string name = properties["name"].value<std::string>();
++                    const int type         = name == "face" ? -1 : (name == "sheet" ? -2 : mpg_page_by_name(name.c_str()));
++                    if (type == MPG_P_NONE || (type < 0 && name != "face" && name != "sheet")) {
++                        return error_json("The page name must be one of clock, timers, games, actions, frame, tiles, sheet or face. Send one of those names.");
++                    }
++                    if (!maipai_display_ready()) {
++                        return error_json("The unit is still starting up. Try again in a few seconds.");
++                    }
++                    LvglLockGuard lock;
++                    return maipai_pages_show(type) ? std::string("{\"ok\":true}") : error_json("That page cannot show right now. Try again in a moment.");
++                });
++    mcp.AddTool("self.page.tiles",
++                "Send the tiles for the Dashboard page: json is an array of up to six objects {icon, label, value}; icon is one of sun, cloud, rain, home, "
++                "bell, heart, lamp, temp, check or none; label up to 12 and value up to 10 plain characters. An empty array clears them. The unit has no "
++                "data source of its own: the host or Home sends them. Answers {ok, tiles} or {ok:false,error}.",
++                PropertyList({Property("json", kPropertyTypeString, std::string("[]"))}), [](const PropertyList& properties) -> ReturnValue {
++                    const std::string text = properties["json"].value<std::string>();
++                    cJSON* root            = cJSON_Parse(text.c_str());
++                    if (root == nullptr || !cJSON_IsArray(root)) {
++                        cJSON_Delete(root);
++                        return error_json("The tiles must be a JSON array. Send something like [{\"icon\":\"sun\",\"label\":\"Today\",\"value\":\"72 F\"}].");
++                    }
++                    mpg_tiles_t next;
++                    mpg_tiles_clear(&next);
++                    const cJSON* it = nullptr;
++                    cJSON_ArrayForEach(it, root)
++                    {
++                        const cJSON* ic = cJSON_GetObjectItemCaseSensitive(it, "icon");
++                        const cJSON* lb = cJSON_GetObjectItemCaseSensitive(it, "label");
++                        const cJSON* vl = cJSON_GetObjectItemCaseSensitive(it, "value");
++                        std::string value = cJSON_IsString(vl) ? vl->valuestring : "";
++                        if (cJSON_IsNumber(vl)) {
++                            char nb[24];
++                            snprintf(nb, sizeof(nb), "%g", vl->valuedouble);
++                            value = nb;
++                        }
++                        const int rc = mpg_tiles_add(&next, cJSON_IsString(ic) ? ic->valuestring : nullptr, cJSON_IsString(lb) ? lb->valuestring : nullptr, value.c_str());
++                        if (rc == -1) {
++                            cJSON_Delete(root);
++                            return error_json("There is room for six tiles. Send six or fewer.");
++                        }
++                        if (rc == -2) {
++                            cJSON_Delete(root);
++                            return error_json("Each tile needs a label or a value. Add one to the empty tile.");
++                        }
++                    }
++                    cJSON_Delete(root);
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        const bool changed = memcmp(&next, &s_tiles, sizeof(next)) != 0;
++                        s_tiles            = next;
++                        s_tiles_mono_s     = mono_s() == 0 ? 1 : mono_s();
++                        s_tiles_unix       = unix_now();
++                        if (changed) {
++                            s_tiles_dirty = true;
++                        }
++                        if (s_tiles_dirty && mpg_tiles_save_due(mono_s(), s_tiles_saved_s)) {
++                            save_tiles_locked();  // at most one write in ten minutes, however often the host pushes
++                        }
++                    }
++                    char buf[48];
++                    snprintf(buf, sizeof(buf), "{\"ok\":true,\"tiles\":%d}", static_cast<int>(next.n));
++                    return std::string(buf);
++                });
++#if CONFIG_MAIPAI_FACE_BENCH
++    // Bench builds only (patch P13): a finger made of numbers. It goes through the same touch point the real panel fills, so the
++    // swipe passes the screen wake rule, LVGL's input device, the gesture state machine and the pages exactly as a hand would.
++    mcp.AddTool("self.page.bench_swipe",
++                "Bench only: one finger goes down at x0,y0, moves in a straight line to x1,y1 over ms milliseconds and lifts. Answers the state "
++                "after it: {ok, open, position, sheet}.",
++                PropertyList({Property("x0", kPropertyTypeInteger, 160, 0, 319), Property("y0", kPropertyTypeInteger, 120, 0, 239),
++                              Property("x1", kPropertyTypeInteger, 160, 0, 319), Property("y1", kPropertyTypeInteger, 120, 0, 239),
++                              Property("ms", kPropertyTypeInteger, 200, 20, 3000)}),
++                [](const PropertyList& p) -> ReturnValue {
++                    const int x0 = p["x0"].value<int>(), y0 = p["y0"].value<int>(), x1 = p["x1"].value<int>(), y1 = p["y1"].value<int>();
++                    const int ms = p["ms"].value<int>();
++                    const int steps = ms / 20 < 2 ? 2 : ms / 20;
++                    hal_bridge::touch_inject(true);
++                    hal_bridge::touch_inject_point(1, x0, y0);
++                    vTaskDelay(pdMS_TO_TICKS(60));
++                    for (int i = 1; i <= steps; i++) {
++                        hal_bridge::touch_inject_point(1, x0 + (x1 - x0) * i / steps, y0 + (y1 - y0) * i / steps);
++                        vTaskDelay(pdMS_TO_TICKS(ms / steps));
++                    }
++                    hal_bridge::touch_inject_point(0, x1, y1);
++                    vTaskDelay(pdMS_TO_TICKS(120));
++                    hal_bridge::touch_inject(false);
++                    vTaskDelay(pdMS_TO_TICKS(130));
++                    char buf[96];
++                    snprintf(buf, sizeof(buf), "{\"ok\":true,\"open\":%s,\"position\":%d,\"sheet\":%s}", maipai_pages_open() ? "true" : "false",
++                             maipai_pages_position(), maipai_pages_sheet_open() ? "true" : "false");
++                    return std::string(buf);
++                });
++    mcp.AddTool("self.page.bench_tap",
++                "Bench only: a finger down at x,y for hold_ms milliseconds, then up. Answers {ok, open, position, sheet}.",
++                PropertyList({Property("x", kPropertyTypeInteger, 160, 0, 319), Property("y", kPropertyTypeInteger, 120, 0, 239),
++                              Property("hold_ms", kPropertyTypeInteger, 120, 20, 3000)}),
++                [](const PropertyList& p) -> ReturnValue {
++                    const int x = p["x"].value<int>(), y = p["y"].value<int>();
++                    hal_bridge::touch_inject(true);
++                    hal_bridge::touch_inject_point(1, x, y);
++                    vTaskDelay(pdMS_TO_TICKS(p["hold_ms"].value<int>()));
++                    hal_bridge::touch_inject_point(0, x, y);
++                    vTaskDelay(pdMS_TO_TICKS(120));
++                    hal_bridge::touch_inject(false);
++                    vTaskDelay(pdMS_TO_TICKS(130));
++                    char buf[96];
++                    snprintf(buf, sizeof(buf), "{\"ok\":true,\"open\":%s,\"position\":%d,\"sheet\":%s}", maipai_pages_open() ? "true" : "false",
++                             maipai_pages_position(), maipai_pages_sheet_open() ? "true" : "false");
++                    return std::string(buf);
++                });
++#endif
++}
++#endif
+diff --git a/firmware/main/hal/maipai_picface.cc b/firmware/main/hal/maipai_picface.cc
+--- a/firmware/main/hal/maipai_picface.cc
++++ b/firmware/main/hal/maipai_picface.cc
+@@ -769,6 +769,87 @@ bool maipai_picface_showing()
+     return s_showing.load();
+ }
+ 
++// Patch P13: the picture frame page walks the pack's frames one at a time, on a decode task of its own (the face's task is busy with
++// the expression changes). The task is made the first time a frame is asked for and kept: its 20 KB stack is in PSRAM, idle it
++// holds a control block of about 400 bytes of internal RAM.
++namespace {
++TaskHandle_t s_fr_task = nullptr;
++std::atomic<uint8_t*> s_fr_dst{nullptr};
++std::atomic<int> s_fr_idx{-1};
++std::atomic<int> s_fr_state{-1};  // 0 working, 1 ready, -1 failed or none
++std::atomic<uint32_t> s_fr_gen{0};
++
++void frame_task(void*)
++{
++    for (;;) {
++        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
++        uint8_t* dst   = s_fr_dst.load();
++        const int idx  = s_fr_idx.load();
++        const uint32_t gen = s_fr_gen.load();
++        bool ok = false;
++        if (dst != nullptr && s_mu != nullptr) {
++            xSemaphoreTake(s_mu, portMAX_DELAY);
++            if (s_pack != nullptr && gen == s_fr_gen.load()) {
++                int k = idx;
++                for (int s = 0; s < PF_SLOTS && !ok; s++) {
++                    if (k < s_pack->plan.frames[s]) {
++                        const Frame& f = s_pack->fr[s][k];
++                        ok             = f.done && f.data != nullptr && decode_frame(f, dst);
++                        break;
++                    }
++                    k -= s_pack->plan.frames[s];
++                }
++            }
++            xSemaphoreGive(s_mu);
++        }
++        if (gen == s_fr_gen.load()) {
++            s_fr_state.store(ok ? 1 : -1);
++        }
++    }
++}
++}  // namespace
++
++int maipai_picface_frame_total()
++{
++    if (s_mu == nullptr || xSemaphoreTake(s_mu, pdMS_TO_TICKS(100)) != pdTRUE) {
++        return 0;
++    }
++    const int n = s_pack != nullptr ? total_frames(s_pack->plan) : 0;
++    xSemaphoreGive(s_mu);
++    return n;
++}
++
++bool maipai_picface_frame_request(int index, uint8_t* dst)
++{
++    if (dst == nullptr || index < 0 || index >= maipai_picface_frame_total() || s_fr_state.load() == 0) {
++        return false;
++    }
++    if (s_fr_task == nullptr &&
++        xTaskCreatePinnedToCoreWithCaps(frame_task, "picframe", 20 * 1024, nullptr, 2, &s_fr_task, 0, MALLOC_CAP_SPIRAM) != pdPASS) {
++        s_fr_task = nullptr;
++        return false;
++    }
++    s_fr_idx.store(index);
++    s_fr_dst.store(dst);
++    s_fr_state.store(0);
++    xTaskNotifyGive(s_fr_task);
++    return true;
++}
++
++int maipai_picface_frame_poll() { return s_fr_state.load(); }
++
++// The page closes: a decode that is still running must not write into the buffer after it is freed. This waits for the task (it is
++// at most one decode, about 40 ms) and bumps the generation so a late answer is dropped.
++void maipai_picface_frame_cancel()
++{
++    s_fr_gen.fetch_add(1);
++    s_fr_dst.store(nullptr);
++    for (int i = 0; i < 50 && s_fr_state.load() == 0; i++) {
++        vTaskDelay(pdMS_TO_TICKS(10));
++    }
++    s_fr_state.store(-1);
++}
++
+ void maipai_picface_register_tools()
+ {
+     s_mu        = xSemaphoreCreateMutex();
+diff --git a/firmware/main/hal/maipai_picface.h b/firmware/main/hal/maipai_picface.h
+--- a/firmware/main/hal/maipai_picface.h
++++ b/firmware/main/hal/maipai_picface.h
+@@ -17,7 +17,18 @@ bool maipai_picface_showing();
+ // The shared pack loader's look (patch TB02): a zip payload with look.json and frame files, or null/0 to go back to the drawn
+ // face. False, with a plain reason in *why, when the pack cannot be used; the face then stays as it was.
+ bool maipai_picface_apply_look(const uint8_t* payload, size_t len, const char** why);
++// Patch P13: the frames of the held pack for the picture frame page. total: how many (0 with no pack); request: starts decoding frame
++// `index` into `dst` (a 320 by 240 RGB565 buffer, 153,600 bytes) on a task of its own; poll: 1 ready, 0 working, -1 failed or none;
++// cancel: before the buffer is freed.
++int maipai_picface_frame_total();
++bool maipai_picface_frame_request(int index, uint8_t* dst);
++int maipai_picface_frame_poll();
++void maipai_picface_frame_cancel();
+ #else
++inline int maipai_picface_frame_total() { return 0; }
++inline bool maipai_picface_frame_request(int, uint8_t*) { return false; }
++inline int maipai_picface_frame_poll() { return -1; }
++inline void maipai_picface_frame_cancel() {}
+ inline void maipai_picface_register_tools() {}
+ inline bool maipai_picface_showing() { return false; }
+ inline bool maipai_picface_apply_look(const uint8_t*, size_t, const char** why) { *why = "This build has no picture faces."; return false; }
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -599,6 +599,15 @@ bool maipai_face_clock_visible()
+     return s_ui.root != nullptr;  // the LVGL task and callers holding its lock only
+ }
+ 
++bool maipai_face_is_night()
++{
++#if CONFIG_MAIPAI_FACE_TOD
++    return s_band.load() == MF_BAND_NIGHT;  // patch P13: the swipe pages dim at night by the same band as the clock face
++#else
++    return false;
++#endif
++}
++
+ bool maipai_face_touched()
+ {
+     s_last_active  = mono_s();
+diff --git a/firmware/main/hal/maipai_face.h b/firmware/main/hal/maipai_face.h
+--- a/firmware/main/hal/maipai_face.h
++++ b/firmware/main/hal/maipai_face.h
+@@ -47,6 +47,13 @@ bool maipai_face_clock_visible();
+ inline bool maipai_face_clock_visible() { return false; }
+ #endif
+ 
++// Whether the time-of-day band is night now (patch P13). Safe from any task.
++#if CONFIG_MAIPAI_FACE_CONFIG
++bool maipai_face_is_night();
++#else
++inline bool maipai_face_is_night() { return false; }
++#endif
++
+ // The thinking cue (patch F05): three animated dots and a quiet tone. The caller holds the LVGL lock.
+ #if CONFIG_MAIPAI_FACE_THINKING
+ void maipai_face_thinking(bool on);
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -16,6 +16,7 @@
+ #include "maipai_look_core.h"
+ #include "maipai_face.h"
+ #include "maipai_privacy.h"
++#include "maipai_pages.h"
+ #include "hal.h"
+ #include <mcp_server.h>
+ #include <esp_log.h>
+@@ -326,7 +327,7 @@ void ov_invalidate(mo_layer_t* L)
+ // Whether overlays may show now: not under a mute, vision-off or quiet look, the clock face or the flat fallback.
+ bool ov_should_hide()
+ {
+-    return mg_flat(&s_gov) || maipai_privacy_bits() != 0 || maipai_face_clock_visible();
++    return mg_flat(&s_gov) || maipai_privacy_bits() != 0 || maipai_face_clock_visible() || maipai_pages_open();  // P13: a swipe page covers the face
+ }
+ 
+ void ov_set_hidden(bool hide)
+@@ -545,6 +546,24 @@ int32_t maipai_pref(int idx)
+     return (idx >= 0 && idx < MP_COUNT) ? s_prefs.v[idx] : 0;
+ }
+ 
++bool maipai_pref_set(int idx, int32_t value)
++{
++    if (idx < 0 || idx >= MP_COUNT || value < MP_DEFS[idx].lo || value > MP_DEFS[idx].hi) {
++        return false;
++    }
++    ensure_loaded();
++    mp_prefs_t snapshot;
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        s_prefs.v[idx] = value;
++        s_prefs.set |= 1u << idx;
++        snapshot       = s_prefs;
++    }
++    save(snapshot, 1u << idx);
++    tell(1u << idx);
++    return true;
++}
++
+ bool maipai_prefs_watch(maipai_prefs_cb cb)
+ {
+     std::lock_guard<std::mutex> lock(s_mutex);
+diff --git a/firmware/main/hal/maipai_fx.h b/firmware/main/hal/maipai_fx.h
+--- a/firmware/main/hal/maipai_fx.h
++++ b/firmware/main/hal/maipai_fx.h
+@@ -22,6 +22,9 @@ int32_t maipai_pref(int idx);
+ // Called after a change with a bit per row that changed (a mask of 1 << MP_x). Runs on the task that made the change.
+ typedef void (*maipai_prefs_cb)(uint32_t changed);
+ bool maipai_prefs_watch(maipai_prefs_cb cb);  // up to 6 watchers; false when full
++// Sets one setting from code (the control sheet's listening light button), saved and announced like self.prefs.set (patch P13). False
++// for an index or value out of range. Safe from any task.
++bool maipai_pref_set(int idx, int32_t value);
+ // Whether the speech bubble is on now: the person's choice, else on for the Stock style (TA04).
+ bool maipai_fx_bubble_on();
+ // The captions mode now (patch N01): 0 off, 1 banner, 2 bubble, from the Captions setting, else the older settings and the style.
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -357,6 +357,12 @@ bool maipai_sounds_play(const char* name)
+     return out.find("\"ok\":true") != std::string::npos;
+ }
+ 
++bool maipai_sounds_find_chirp()
++{
++    const std::string out = play_named("exclamation", true, false, 1);  // patch P13: the same chirp find-my-robot plays, from the quick actions page
++    return out.find("\"ok\":true") != std::string::npos;
++}
++
+ bool maipai_sounds_chime_quiet(int minute)
+ {
+     std::lock_guard<std::mutex> lock(s_mutex);
+diff --git a/firmware/main/hal/maipai_sounds.h b/firmware/main/hal/maipai_sounds.h
+--- a/firmware/main/hal/maipai_sounds.h
++++ b/firmware/main/hal/maipai_sounds.h
+@@ -10,6 +10,8 @@ void maipai_sounds_register_tools();
+ 
+ // Plays one named sound through the sound policy and the hard mute (patch F05). Returns true if it was queued.
+ bool maipai_sounds_play(const char* name);
++// One find-my-robot chirp with its screen cue (patch P13, the quick actions page). Call it from the main task, not the LVGL task.
++bool maipai_sounds_find_chirp();
+ 
+ // Whether the sound policy would let the named sound play now (patch TB01), without playing it: the same gate as
+ // maipai_sounds_play (mute, sounds off, quiet hours). For the unit's own PCM cues and fillers, which play through
+diff --git a/firmware/main/hal/maipai_screen.cc b/firmware/main/hal/maipai_screen.cc
+--- a/firmware/main/hal/maipai_screen.cc
++++ b/firmware/main/hal/maipai_screen.cc
+@@ -102,6 +102,11 @@ void maipai_screen_touch(int num)
+     }
+ }
+ 
++bool maipai_screen_peek_wake_touch()
++{
++    return msc_touch_only_woke(now_ms(), s_touch_woke_ms.load());  // patch P13: the same answer without clearing it
++}
++
+ bool maipai_screen_take_wake_touch()
+ {
+     const int64_t woke = s_touch_woke_ms.exchange(-1);
+diff --git a/firmware/main/hal/maipai_screen.h b/firmware/main/hal/maipai_screen.h
+--- a/firmware/main/hal/maipai_screen.h
++++ b/firmware/main/hal/maipai_screen.h
+@@ -18,6 +18,8 @@ void maipai_screen_touch(int num);
+ // True once after a touch on the glass that restored the screen: that press is only a wake and must start no
+ // listen and toggle nothing (the same rule as the clock face).
+ bool maipai_screen_take_wake_touch();
++// The same answer without taking it (patch P13: the swipe pages must know the press only woke the screen and leave the flag for the face).
++bool maipai_screen_peek_wake_touch();
+ 
+ // About once a second from the board timer: with the hub gone for a minute a dimmed screen comes back.
+ void maipai_screen_tick();
+diff --git a/firmware/main/hal/board/hal_bridge.cc b/firmware/main/hal/board/hal_bridge.cc
+--- a/firmware/main/hal/board/hal_bridge.cc
++++ b/firmware/main/hal/board/hal_bridge.cc
+@@ -16,6 +16,8 @@
+ #include <board.h>
+ #include <display.h>
+ #include <mutex>
++#include <atomic>
++#include <sdkconfig.h>
+ #include <assets.h>
+ #include <settings.h>
+ 
+@@ -51,8 +53,35 @@ Data_t& get_data()
+     return _data;
+ }
+ 
++#if CONFIG_MAIPAI_FACE_BENCH
++static std::atomic<bool> s_touch_injected{false};
++
++void touch_inject(bool on)
++{
++    s_touch_injected.store(on);
++    if (!on) {
++        std::lock_guard<std::mutex> lock(_mutex);
++        _data.touchPoint.num = 0;
++    }
++}
++
++void touch_inject_point(int num, int x, int y)
++{
++    maipai_screen_touch(num);
++    std::lock_guard<std::mutex> lock(_mutex);
++    _data.touchPoint.num = num;
++    _data.touchPoint.x   = x;
++    _data.touchPoint.y   = y;
++}
++#endif
++
+ void set_touch_point(int num, int x, int y)
+ {
++#if CONFIG_MAIPAI_FACE_BENCH
++    if (s_touch_injected.load()) {
++        return;  // a bench finger is down: the panel's own "nothing here" must not lift it
++    }
++#endif
+     // Patch W01: a finger on the glass wakes a dimmed screen. It runs before the point is stored, so the wake is
+     // known before the face sees the press (the press then only wakes: no listen, no toggle).
+     maipai_screen_touch(num);
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -5,6 +5,7 @@
+  */
+ #pragma once
+ #include "stackchan_camera.h"
++#include <sdkconfig.h>
+ #include <cstdint>
+ #include <lvgl.h>
+ #include <driver/i2c_master.h>
+@@ -36,6 +37,13 @@ void unlock();
+ Data_t& get_data();
+ 
+ void set_touch_point(int num, int x, int y);
++// Bench builds only (patch P13): the real touch driver writes "no finger" over any point put in by hand every few milliseconds, so a
++// finger made of numbers must switch the driver off first. inject(true) makes set_touch_point ignore the driver; inject_point sets
++// the point (the screen wake rule runs as for a real finger); inject(false) lifts the finger and gives the driver back.
++#if CONFIG_MAIPAI_FACE_BENCH
++void touch_inject(bool on);
++void touch_inject_point(int num, int x, int y);
++#endif
+ TouchPoint_t get_touch_point();
+ 
+ bool is_xiaozhi_mode();
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -36,6 +36,8 @@
+ #include <hal/maipai_games.h>
+ #include <hal/maipai_facebench.h>
+ #include <hal/maipai_fx.h>
++#include <hal/maipai_pages.h>
++#include <hal/maipai_pages_unit.h>
+ #if CONFIG_MAIPAI_BANNER_ROW
+ #include <hal/maipai_banner.h>
+ #endif
+@@ -67,6 +69,7 @@ bool s_trace_live = false;
+ mtc_region_t s_last_region = MTC_REGION_REST;
+ constexpr int kTapEdgeDeadZonePx = 24;
+ constexpr uint32_t kTapDebounceMs = 800;
++StackChanAvatarDisplay* s_self = nullptr;  // patch P13: the one display, for the swipe pages
+ }  // namespace
+ 
+ LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+@@ -352,6 +355,9 @@ void StackChanAvatarDisplay::SetupUI()
+         if (maipai_games_active()) {  // a game takes the taps (patch G01): none of them starts a listen
+             return;
+         }
++        if (maipai_pages_open() || maipai_pages_last_touch_was_gesture()) {  // patch P13: a page or the sheet is up, or the touch was a swipe
++            return;
++        }
+         if (!mtc_region_listens(s_last_region) || maipai_mic_blocked()) {
+             return;
+         }
+@@ -376,11 +382,17 @@ void StackChanAvatarDisplay::SetupUI()
+         mtc_begin(&s_trace, point.x, point.y, GetHAL().millis());
+         s_trace_live  = true;
+         s_last_region = s_trace.region0;
+-        maipai_timers_request_dismiss("touch");  // a ringing timer ends on a touch (patch 093)
++        const bool ended_ring = maipai_timers_request_dismiss("touch");  // a ringing timer ends on a touch (patch 093)
+         // A press that only woke a dimmed screen (patch W01) is treated like the one that woke the clock face: no
+         // listen, no mute, vision or quiet toggle. maipai_screen_take_wake_touch() must run every press (it clears).
+         const bool woke_screen = maipai_screen_take_wake_touch();
+         s_press_woke_clock     = maipai_face_touched() || woke_screen;
++        if (ended_ring) {
++            maipai_pages_touch_flags(MGS_F_RINGING);  // patch P13: this touch only ended the ring: it changes no page
++        }
++        if (s_press_woke_clock) {
++            maipai_pages_touch_flags(MGS_F_WOKE);
++        }
+         // A running game takes a touch that began outside the screen edges (patch G01). The edges stay the unit's:
+         // the swipes that open quick settings, change the volume and stop start there.
+         if (maipai_games_active() && s_trace.region0 != MTC_REGION_EDGE) {
+@@ -402,6 +414,15 @@ void StackChanAvatarDisplay::SetupUI()
+         },
+         &StackChanAvatarDisplay::BannerPoll);
+     maipai_fx_style_changed();  // patch N01: the Captions setting picks the subtitles or the banner
++#endif
++#if CONFIG_MAIPAI_PAGES
++    s_self = this;
++    maipai_pages_unit_attach([]() -> lv_color_t {  // patch P13: the swipe pages, in the face's color
++        if (auto* face = dynamic_cast<DefaultAvatar*>(&GetStackChan().avatar())) {
++            return face->shownColor();
++        }
++        return lv_color_white();
++    });
+ #endif
+     stackchan.addModifier(std::make_unique<BreathModifier>());
+     blink_modifier_id_ = stackchan.addModifier(std::make_unique<BlinkModifier>());
+@@ -793,6 +814,9 @@ void StackChanAvatarDisplay::OnGesture(lv_event_t* event)
+     if (!self->boot_done_ || self->quick_panel_ != nullptr) {
+         return;
+     }
++#if CONFIG_MAIPAI_PAGES
++    return;  // patch P13: every swipe is decided by the gesture state machine (maipai_gesture_core.h), from the touch itself
++#endif
+ 
+     lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_active());
+     if (dir == LV_DIR_LEFT) {
+@@ -873,6 +897,35 @@ extern "C" void maipai_quick_settings_close(void)
+     }
+ }
+ 
++// Patch P13: what the swipe pages ask of the display. The caller holds the LVGL lock where the display is touched.
++extern "C" bool maipai_display_ready(void) { return s_self != nullptr && s_self->boot_done_; }
++extern "C" bool maipai_display_overlay_open(void) { return s_self != nullptr && s_self->quick_panel_ != nullptr; }
++extern "C" void maipai_display_volume_step(int delta)
++{
++    if (s_self != nullptr) {
++        s_self->ChangeVolume(delta);
++    }
++}
++extern "C" void maipai_display_open_quick(void)
++{
++    if (s_self != nullptr) {
++        s_self->OpenQuickSettings();
++    }
++}
++extern "C" void maipai_display_stop_swipe(void)
++{
++    if (maipai_games_stop_locked("swipe")) {  // the stop swipe ends a running game first (patch G01)
++        return;
++    }
++    Application::GetInstance().Schedule([]() { Application::GetInstance().AbortSpeaking(kAbortReasonNone); });
++}
++extern "C" void maipai_display_face_toggle(int action)
++{
++    if (s_self != nullptr) {
++        s_self->OnFaceToggle(action);
++    }
++}
++
+ void StackChanAvatarDisplay::ToggleQuickSettings()
+ {
+     if (quick_panel_ != nullptr) {
+@@ -1517,6 +1570,9 @@ void StackChanAvatarDisplay::OnFaceRelease(lv_event_t* event)
+     if (maipai_games_active()) {  // while a game runs, no touch toggles mute, vision or quiet (patch G01)
+         return;
+     }
++    if (maipai_pages_open() || maipai_pages_last_touch_was_gesture()) {  // patch P13: a swipe, or a page or the sheet on screen, toggles nothing
++        return;
++    }
+     auto* self   = static_cast<StackChanAvatarDisplay*>(lv_event_get_user_data(event));
+     if (self == nullptr || !self->boot_done_ || self->quick_panel_ != nullptr) {
+         return;
+@@ -1954,6 +2010,7 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
+     bool is_listening = false;
+ 
+     if (strcmp(status, Lang::Strings::LISTENING) == 0) {
++        maipai_pages_event(MGS_EV_WAKE);  // patch P13: a listen brings the face back from a page or the sheet
+         if (speaking_modifier_id_ >= 0) {
+             // Start speaking
+             stackchan.removeModifier(speaking_modifier_id_);
+@@ -2013,6 +2070,7 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
+         is_idle = true;
+ 
+     } else if (strcmp(status, Lang::Strings::SPEAKING) == 0) {
++        maipai_pages_event(MGS_EV_SPEECH);  // patch P13: speech brings the face back from a page or the sheet
+         if (speaking_modifier_id_ < 0) {
+             speaking_modifier_id_ = stackchan.addModifier(std::make_unique<SpeakingModifier>(0, 180, false));
+             maipai_speech_set_active(true);  // patch H02: the mouth follows the voice
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -13,9 +13,21 @@
+ 
+ struct LinkGlyph;  // the drawn Wi-Fi bars, slash and key of the link looks (patch R03)
+ extern "C" void maipai_quick_settings_close(void);  // patch G01: the games page closes quick settings
++extern "C" {  // patch P13: what the swipe pages ask of the display (maipai_pages_unit.cc)
++bool maipai_display_ready(void);
++bool maipai_display_overlay_open(void);  // quick settings (and the screens opened from it) are on screen
++void maipai_display_volume_step(int delta);
++void maipai_display_open_quick(void);
++void maipai_display_stop_swipe(void);
++void maipai_display_face_toggle(int action);
++}
+ 
+ class StackChanAvatarDisplay : public LvglDisplay {
+     friend void ::maipai_quick_settings_close(void);
++    friend bool ::maipai_display_ready(void);
++    friend bool ::maipai_display_overlay_open(void);
++    friend void ::maipai_display_volume_step(int);
++    friend void ::maipai_display_open_quick(void);
+ 
+ private:
+     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
+diff --git a/firmware/main/hal/hal_head_touch.cpp b/firmware/main/hal/hal_head_touch.cpp
+--- a/firmware/main/hal/hal_head_touch.cpp
++++ b/firmware/main/hal/hal_head_touch.cpp
+@@ -6,6 +6,7 @@
+ #include "hal.h"
+ #include "drivers/Si12T/Si12T.h"
+ #include "board/hal_bridge.h"
++#include "maipai_pages.h"
+ #include <mooncake_log.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
+@@ -160,6 +161,9 @@ static void _head_touch_update_task(void* param)
+         gesture = recognizer.update(data);
+         if (gesture != HeadPetGesture::None) {
+             GetHAL().onHeadPetGesture.emit(gesture);
++            if (gesture != HeadPetGesture::Release) {
++                maipai_pages_event(MGS_EV_HEAD_TAP);  // patch P13: a touch on the head brings the face back from a page
++            }
+         }
+ 
+         vTaskDelay(pdMS_TO_TICKS(50));
+diff --git a/firmware/main/hal/maipai_listen.cc b/firmware/main/hal/maipai_listen.cc
+--- a/firmware/main/hal/maipai_listen.cc
++++ b/firmware/main/hal/maipai_listen.cc
+@@ -17,6 +17,7 @@
+ #include "maipai_sounds.h"
+ #include "maipai_timers.h"
+ #include "maipai_remote.h"
++#include "maipai_pages.h"
+ #include "maipai_lat.h"
+ #include "board/hal_bridge.h"
+ #include <application.h>
+@@ -162,6 +163,7 @@ void maipai_listen_wake(int within_ms)
+         return;
+     }
+     s_wake_us.store(now);
++    maipai_pages_event(MGS_EV_WAKE);  // patch P13: the face comes back from a page or the sheet at the wake word
+     MAIPAI_LAT("listen_wake_in");
+     const MaipaiTbPrefs prefs = maipai_tb_prefs();
+     const tl_effective_t eff  = effective_now(prefs.listen);
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -23,6 +23,7 @@
+ #include "maipai_tailnet.h"
+ #include "maipai_music.h"
+ #include "maipai_games.h"
++#include "maipai_pages_unit.h"
+ #include "maipai_facebench.h"
+ #include "maipai_picface.h"
+ #include "maipai_screen.h"
+@@ -696,6 +697,9 @@ void Hal::xiaozhi_mcp_init()
+     // self.game.list, start, stop and scores (patch G01). Nothing runs until a game starts.
+     maipai_games_register_tools();
+ 
++    // self.pages.status, get, set, self.page.show and self.page.tiles (patch P13).
++    maipai_pages_unit_register_tools();
++
+     // self.face.bench_fps, bench_run and snapshot (patch H01, bench builds only).
+     maipai_facebench_register_tools();
+ 
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -277,6 +277,18 @@ config MAIPAI_GAMES
+         refuses a start; a mute plays it with no sound. Scores (top five per game) are saved once, when a game ends.
+         A pack from outside the image must carry an Ed25519 signature made with the update key. Off here: no games.
+ 
++config MAIPAI_PAGES
++    bool "Swipe pages and the control sheet (clock, timers, games, quick actions, pictures, dashboard tiles)"
++    default y
++    help
++        A swipe up from the bottom of the screen opens a control sheet (volume, brightness, mute, quiet, listening light, find,
++        timers, games, Wi-Fi, battery and more); a swipe left or right from inside the side edges moves through the pages the
++        owner chose (the clock on the left and the games on the right until changed). A swipe from the very edge keeps its old
++        meaning (volume), the stop swipe stays, and a page or the sheet goes away by itself (page 20 s, sheet 6 s, both set on
++        the settings page), at the wake word, at speech and on a touch of the head. Only the page on screen exists: no timer,
++        no objects and no pictures are held at rest (about 150 bytes of state). Tools self.pages.status, get and set,
++        self.page.show and self.page.tiles. Off here: the old swipes (left and right volume, up quick settings, down stop).
++
+ config MAIPAI_GAMES_BENCH
+     bool "Bench only: tap and status tools for games, and loading unsigned outside packs"
+     default n
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -22,6 +22,8 @@ CONFIG_MAIPAI_NETTEST=y
+ CONFIG_MAIPAI_VERSION=y
+ # Games (patch G01): the data-pack player and three games; off at run time it holds no memory.
+ CONFIG_MAIPAI_GAMES=y
++# Swipe pages and the control sheet (patches P10 to P13): nothing exists while the face shows.
++CONFIG_MAIPAI_PAGES=y
+ # Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
+ # and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
+ # destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).

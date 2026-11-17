@@ -29,6 +29,7 @@ PROBES: dict[str, tuple[str, dict[str, Any]]] = {
     "filler": ("self.filler.status", {}),
     "prefs": ("self.prefs.get", {}),
     "look": ("self.look.status", {}),  # who turns the head toward faces: this unit's seeker and its owner lease
+    "pages": ("self.pages.status", {}),  # the swipe pages and the control sheet (firmware patches P10 to P13)
     "remote": ("self.remote.session", {"active": False, "label": ""}),  # the remote cue: glyph, banner, message bubble
 }
 

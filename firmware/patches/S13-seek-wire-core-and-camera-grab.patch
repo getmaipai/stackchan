@@ -1,0 +1,865 @@
+# Intent: The wiring of the seek core to the unit, the pure part (hal/maipai_seek_wire_core.h), and the two hardware readers it needs. The wire core holds: the shrink of a camera frame (YUYV, UYVY, RGB565 or gray, any size from 40 by 30) to the 40 by 30 gray picture by box sampling; one pass of the seek task (mw_step: read the gates, feed the due frame of a burst, tick the core, run its head move and its camera burst, ask for the camera-on cue before every burst and every grab, hold new bursts while the unit runs late (the task woke 120 ms late, or a grab took over 450 ms, or the unit file says loaded), act as a refused camera when late for 6 s, refuse the camera when internal RAM is short (28,000 free and a 16,000 largest block; the detector build would ask 40,000 and 24,000), drop a burst the moment a gate closes, log each decision in one line); the calibration (pan through 0, plus and minus 20, plus and minus 10 degrees, find the scene shift by the best match of the two 40 by 30 pictures, fit a line, report the picture axis sign and the field of view, with plain refusals when the scene is flat, unclear, out of range, inconsistent, the gates close, the camera fails or it takes too long); the status text of self.look.status. No ESP call, no allocation, no clock of its own: a host compiler drives it with a simulated camera and head (host/tests/firmware/seek_wire_test.c). Hardware: StackChanCamera::SeekGrab reads one frame under the frame lock (busy when the LAN video stream or a photo holds it; two reads because the driver keeps one buffer), shrinks it and frees the 150 KB PSRAM copy at once; hal_bridge::display_is_asleep reads the look that shows now (sleepy, closing or sleeping, or the full quiet face: a new flag sleep_look_ set where the emotion is chosen, because the old is_sleeping_ stays true for good once a sleepy look has shown). Nothing calls them until patch S14.
+# Placement: unit (the camera and the head are on the robot; the logic is plain C99)
+# Upstream: firmware/main/hal/board/stackchan_camera.{h,cc} (ours, patch T05), board/hal_bridge.{h,cc}, board/stackchan_display.h and stackchan/stackchan.h of the StackChan main component (MIT, patched by L04); StackChan::hasMotion is new (the seek task starts with the tools, before the servos exist, and waits for it); new file hal/maipai_seek_wire_core.h
+# Check after a flash: nothing changes by itself (no caller until S14); host/tests/firmware/seek_wire_test.c passes; the unit still boots and the LAN video stream and the photo tool still work.
+
+diff --git a/firmware/main/hal/maipai_seek_wire_core.h b/firmware/main/hal/maipai_seek_wire_core.h
+new file mode 100644
+index 0000000..9baa5a8
+--- /dev/null
++++ b/firmware/main/hal/maipai_seek_wire_core.h
+@@ -0,0 +1,711 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Wiring of the seek core to the unit (patch S12), the pure part. Plain C99, no ESP call, no clock of its own, no allocation: the
++ * unit file (maipai_seek.cc) hands in the world through a table of functions (clock, gates, camera, head, cue, log), and a host
++ * compiler drives the same code with a simulated camera and head (host/tests/firmware/seek_wire_test.c).
++ *
++ * What lives here, so the host test exercises the real thing:
++ *   - mw_downsample: a camera frame (YUYV, UYVY, RGB565 or gray, any size from 40 by 30 up) to the 40 by 30 gray picture, by box
++ *     averaging a few samples per box; no buffer beyond the output.
++ *   - mw_step: one pass of the seek task (about every 50 ms): read the gates, feed a due frame, tick the core, run what it asks
++ *     (head move, camera burst with its camera-on cue), skip a burst start while the unit runs late, refuse the camera when memory
++ *     is short, log each decision in one compact line.
++ *   - the calibration: pan through known angles, find how the scene shifts in the picture, give the sign of the picture axis and
++ *     the field of view (mw_cal_*).
++ *   - the status text of self.look.status.
++ * The face detector is not here (it is an experiment build, MAIPAI_FACE_DETECT); `want_face` of the core is answered with "no
++ * face" by this wiring and the hook for a detector is the ops->detect entry (NULL here).
++ *
++ * Memory: sizeof(mw_t) is about 8 KB. Allocate it in PSRAM. Internal RAM: nothing here.
++ */
++#ifndef MAIPAI_SEEK_WIRE_CORE_H
++#define MAIPAI_SEEK_WIRE_CORE_H
++
++#include "maipai_seek_core.h"
++
++#define MW_TICK_MS 50u
++#define MW_LATE_LOOP_MS 250u       /* the task woke this much later than it asked: the unit is starved, hold new bursts */
++#define MW_LATE_HOLD_MS 1500u      /* a late reading keeps bursts from starting for this long */
++#define MW_LATE_GIVEUP_MS 6000u    /* late for this long in a row: treat the camera as refused (the core stays away 10 s) */
++#define MW_GRAB_SLOW_MS 450u       /* one grab took this long: the unit is busy, hold new bursts */
++#define MW_ADDR_LATCH_MS 2500u     /* a wake word waits this long for a closed gate (the sleeping face wakes with the turn) */
++#define MW_BUSY_RETRY_MS 40u       /* the camera lock was taken by the video stream: ask again soon */
++#define MW_CUE_FRAME_MS 700u       /* the camera-on cue is asked again before every single grab */
++
++/* Memory admission for the camera. The frame copy is in PSRAM; these protect the internal pools (the gate floors are 40,000 and
++ * 24,000). The detector build asks for more (MW_ADMIT_DETECT_*). */
++#define MW_ADMIT_FREE_INTERNAL 28000u
++#define MW_ADMIT_LARGEST_INTERNAL 16000u
++#define MW_ADMIT_DETECT_FREE_INTERNAL 40000u
++#define MW_ADMIT_DETECT_LARGEST_INTERNAL 24000u
++
++enum { MW_FMT_NONE = 0, MW_FMT_YUYV, MW_FMT_UYVY, MW_FMT_RGB565, MW_FMT_GREY };
++
++static inline int mw_admit(size_t free_internal, size_t largest_internal, int detector)
++{
++    if (detector) {
++        return free_internal >= MW_ADMIT_DETECT_FREE_INTERNAL && largest_internal >= MW_ADMIT_DETECT_LARGEST_INTERNAL;
++    }
++    return free_internal >= MW_ADMIT_FREE_INTERNAL && largest_internal >= MW_ADMIT_LARGEST_INTERNAL;
++}
++
++/* ---- the picture: any frame to 40 by 30 gray ---------------------------------------------------------------------------------- */
++
++static inline int mw_bpp(int fmt)
++{
++    return fmt == MW_FMT_GREY ? 1 : (fmt == MW_FMT_YUYV || fmt == MW_FMT_UYVY || fmt == MW_FMT_RGB565) ? 2 : 0;
++}
++
++static inline int mw_luma(const uint8_t* src, int w, int fmt, int x, int y)
++{
++    const uint8_t* p = src + ((size_t)y * (size_t)w + (size_t)x) * (size_t)mw_bpp(fmt);
++    switch (fmt) {
++    case MW_FMT_YUYV:
++        return p[0];
++    case MW_FMT_UYVY:
++        return p[1];
++    case MW_FMT_GREY:
++        return p[0];
++    default: { /* RGB565, little endian */
++        int v = p[0] | (p[1] << 8);
++        int r = ((v >> 11) & 31) << 3, g = ((v >> 5) & 63) << 2, b = (v & 31) << 3;
++        return (r * 77 + g * 150 + b * 29) >> 8;
++    }
++    }
++}
++
++/* Returns 0 on success, -1 when the frame cannot be used (unknown format, too small, buffer too short). */
++static inline int mw_downsample(const uint8_t* src, size_t len, int w, int h, int fmt, uint8_t* out)
++{
++    int bpp = mw_bpp(fmt);
++    if (src == NULL || out == NULL || bpp == 0 || w < MS_W || h < MS_H || len < (size_t)w * (size_t)h * (size_t)bpp) {
++        return -1;
++    }
++    int bx = w / MS_W, by = h / MS_H;
++    int sx = bx >= 4 ? bx / 4 : 1, sy = by >= 4 ? by / 4 : 1; /* about four samples a side in a box */
++    for (int j = 0; j < MS_H; j++) {
++        for (int i = 0; i < MS_W; i++) {
++            int sum = 0, n = 0;
++            for (int yy = 0; yy < by; yy += sy) {
++                for (int xx = 0; xx < bx; xx += sx) {
++                    sum += mw_luma(src, w, fmt, i * bx + xx, j * by + yy);
++                    n++;
++                }
++            }
++            out[j * MS_W + i] = (uint8_t)(sum / n);
++        }
++    }
++    return 0;
++}
++
++/* ---- the world, as the unit file hands it in ------------------------------------------------------------------------------- */
++
++typedef struct {
++    uint32_t now_ms;
++    float pan_deg;
++    uint8_t head_settled;
++    uint8_t addressed;        /* edge: the wake word fired since the last pass (the unit file consumes its flag) */
++    uint8_t conversation;
++    uint8_t awake, muted, privacy_sleep, vision_off, full_quiet;
++    uint8_t quiet_or_night;
++    uint8_t mode;             /* MS_MODE_* from the saved setting */
++    uint8_t late;             /* the unit file's own measure of load (0 or 1) */
++    size_t free_internal, largest_internal;
++} mw_env_t;
++
++typedef struct {
++    void* ctx;
++    uint32_t (*now)(void* ctx);
++    void (*env)(void* ctx, mw_env_t* e);
++    /* One QVGA grab shrunk to 40 by 30 gray. 0 ok, 1 the camera is busy with the video stream (ask again), 2 nothing came. The
++     * unit file reads the sensor here; the camera-on cue was asked just before. */
++    int (*grab)(void* ctx, uint8_t* gray);
++    void (*head)(void* ctx, float pan_deg, uint8_t speed_pct, uint8_t reason);
++    void (*cue)(void* ctx, uint32_t ms);
++    float (*pan)(void* ctx);  /* optional: the head's angle read now (the calibration averages it with the reading before the grab) */
++    void (*lock)(void* ctx);
++    void (*unlock)(void* ctx);
++    void (*log)(void* ctx, const char* line);
++} mw_ops_t;
++
++/* ---- calibration ------------------------------------------------------------------------------------------------------------ */
++
++#define MW_CAL_STEPS 5
++#define MW_CAL_SHIFT_MAX 18
++#define MW_CAL_SETTLE_MS 700u
++#define MW_CAL_STEP_TIMEOUT_MS 6000u
++#define MW_CAL_TOTAL_TIMEOUT_MS 60000u
++#define MW_CAL_TEXTURE_MIN 25.0f     /* picture variance below this is a blank wall: nothing to measure */
++#define MW_CAL_QUAL_MAX 0.7f         /* best match over the average match: lower is a clearer match */
++#define MW_CAL_RESID_MAX 1.8f        /* pixels of scatter around the fitted line */
++#define MW_CAL_PPD_MIN 0.2f          /* pixels per degree: a field of view of 200 degrees */
++#define MW_CAL_PPD_MAX 2.0f          /* ... and 20 degrees */
++
++enum { MW_CAL_IDLE = 0, MW_CAL_RUN, MW_CAL_DONE };
++enum { MW_CR_NONE = 0, MW_CR_OK, MW_CR_FLAT, MW_CR_UNCLEAR, MW_CR_RANGE, MW_CR_SCATTER, MW_CR_GATE, MW_CR_CAMERA, MW_CR_TIMEOUT };
++static const char* const MW_CR_NAMES[] = {"none", "ok", "flat_scene", "unclear_match", "out_of_range", "inconsistent", "gate_closed", "camera", "timeout"};
++enum { MW_CP_MOVE = 0, MW_CP_WAIT, MW_CP_SHOOT, MW_CP_BACK, MW_CP_BACKWAIT };
++
++typedef struct {
++    uint8_t state;      /* MW_CAL_* */
++    uint8_t result;     /* MW_CR_* once done */
++    uint8_t idx, phase;
++    uint8_t apply;      /* put the result into the running seeker */
++    uint8_t busy_tries, fail_tries;
++    float p0;
++    uint32_t started, phase_at;
++    uint8_t ref[MS_PIX];
++    float shift[MW_CAL_STEPS], qual[MW_CAL_STEPS];
++    float x_sign, fov_deg, ppd, resid, m_est;
++    float pan_ref, dpan[MW_CAL_STEPS];  /* the pan the reference picture and each step's picture were really taken at */
++    uint8_t applied, kept, have_m;
++} mw_cal_t;
++
++/* Where the content of picture b sits compared with picture a, in pixels (b(x) = a(x - d)); both gray 40 by 30. Returns 0, or -1 when
++ * the picture is too flat to say. `qual` is the best match over the average match (0 perfect, 1 nothing found). */
++static inline int mw_shift_near(const uint8_t* a, const uint8_t* b, float center, float half, float* shift, float* qual)
++{
++    long sa = 0, sb = 0;
++    for (int i = 0; i < MS_PIX; i++) {
++        sa += a[i];
++        sb += b[i];
++    }
++    float ma = (float)sa / MS_PIX, mb = (float)sb / MS_PIX;
++    float var = 0;
++    for (int i = 0; i < MS_PIX; i++) {
++        float d = (float)a[i] - ma;
++        var += d * d;
++    }
++    var /= MS_PIX;
++    if (var < MW_CAL_TEXTURE_MIN) {
++        return -1;
++    }
++    float ssd[2 * MW_CAL_SHIFT_MAX + 1];
++    int best = 0;
++    float mean = 0;
++    if (center > (float)(MW_CAL_SHIFT_MAX - 1)) {
++        center = (float)(MW_CAL_SHIFT_MAX - 1);
++    } else if (center < -(float)(MW_CAL_SHIFT_MAX - 1)) {
++        center = -(float)(MW_CAL_SHIFT_MAX - 1);
++    }
++    float lo = center - half, hi = center + half;
++    best = -1;
++    for (int k = 0; k <= 2 * MW_CAL_SHIFT_MAX; k++) {
++        int d = k - MW_CAL_SHIFT_MAX;
++        int x0 = d > 0 ? d : 0, x1 = d < 0 ? MS_W + d : MS_W;
++        float acc = 0;
++        int n = 0;
++        for (int y = 0; y < MS_H; y++) {
++            for (int x = x0; x < x1; x++) {
++                float v = ((float)b[y * MS_W + x] - mb) - ((float)a[y * MS_W + x - d] - ma);
++                acc += v * v;
++                n++;
++            }
++        }
++        ssd[k] = acc / (float)n;
++        mean += ssd[k];
++        if ((float)d >= lo && (float)d <= hi && (best < 0 || ssd[k] < ssd[best])) {
++            best = k; /* only a shift inside the window may win; the average still counts every shift (a clear match stays clear) */
++        }
++    }
++    if (best < 0) {
++        return -2; /* no shift inside the window (it lies outside what is searched) */
++    }
++    mean /= (float)(2 * MW_CAL_SHIFT_MAX + 1);
++    float d = (float)(best - MW_CAL_SHIFT_MAX);
++    if (best > 0 && best < 2 * MW_CAL_SHIFT_MAX) {
++        float l = ssd[best - 1], c = ssd[best], r = ssd[best + 1];
++        float den = l - 2.0f * c + r;
++        if (den > 1e-6f) {
++            d += 0.5f * (l - r) / den;
++        }
++    }
++    *shift = d;
++    *qual = mean > 1e-6f ? ssd[best] / mean : 1.0f;
++    return 0;
++}
++
++static inline int mw_shift_px(const uint8_t* a, const uint8_t* b, float* shift, float* qual)
++{
++    return mw_shift_near(a, b, 0.0f, (float)MW_CAL_SHIFT_MAX, shift, qual);
++}
++
++static const float MW_CAL_DELTAS[MW_CAL_STEPS] = {0.0f, 14.0f, -14.0f, 22.0f, -22.0f}; /* small steps first: they cannot be mistaken for another repeat of a patterned wall */
++
++/* The fit once every step has a shift: m = pixels of content shift per degree of pan, with the pan each picture was really taken at
++ * (the servo's own reading: the head stops a few degrees short of a command, and by different amounts each way). Content moves
++ * left when the head turns right (m < 0) in a picture whose right is the unit's right: that is MS_IMAGE_X_SIGN +1. A step whose
++ * match is unclear, or that did not move the head 4 degrees, or whose shift is far from the median slope (a patterned wall matched
++ * one repeat off, a person walking through), is dropped; three good steps are needed. */
++#define MW_CAL_MIN_MOVE_DEG 4.0f
++static inline int mw_cal_fit(mw_cal_t* c)
++{
++    float sl[MW_CAL_STEPS];
++    int ok[MW_CAL_STEPS] = {0};
++    int n = 0;
++    for (int i = 1; i < MW_CAL_STEPS; i++) {
++        if (c->qual[i] <= MW_CAL_QUAL_MAX && fabsf(c->dpan[i]) >= MW_CAL_MIN_MOVE_DEG) {
++            sl[n++] = c->shift[i] / c->dpan[i];
++            ok[i] = 1;
++        }
++    }
++    if (n < 3) {
++        return MW_CR_UNCLEAR;
++    }
++    for (int i = 0; i < n; i++) { /* sort the few slopes */
++        for (int j = i + 1; j < n; j++) {
++            if (sl[j] < sl[i]) {
++                float t = sl[i];
++                sl[i] = sl[j];
++                sl[j] = t;
++            }
++        }
++    }
++    float med = (n % 2) ? sl[n / 2] : 0.5f * (sl[n / 2 - 1] + sl[n / 2]);
++    float num = 0, den = 0;
++    int kept = 0;
++    for (int i = 1; i < MW_CAL_STEPS; i++) {
++        float expect = med * c->dpan[i];
++        float tol_px = 2.0f + 0.10f * fabsf(expect); /* the match is good to a pixel or two and the servo's reading to a degree or two (measured: slopes scatter about 10 percent) */
++        if (ok[i] && fabsf(c->shift[i] - expect) <= tol_px) {
++            num += c->shift[i] * c->dpan[i];
++            den += c->dpan[i] * c->dpan[i];
++            kept++;
++        } else {
++            ok[i] = 0;
++        }
++    }
++    c->kept = (uint8_t)kept;
++    if (kept < 3) {
++        return MW_CR_SCATTER;
++    }
++    float m = num / den;
++    float ppd = fabsf(m);
++    c->ppd = ppd;
++    if (ppd < MW_CAL_PPD_MIN || ppd > MW_CAL_PPD_MAX) {
++        return MW_CR_RANGE;
++    }
++    float ss = 0;
++    for (int i = 1; i < MW_CAL_STEPS; i++) {
++        if (ok[i]) {
++            float r = c->shift[i] - m * c->dpan[i];
++            ss += r * r;
++        }
++    }
++    c->resid = sqrtf(ss / (float)kept);
++    c->x_sign = m < 0 ? 1.0f : -1.0f;
++    c->fov_deg = (float)MS_W / ppd;
++    return c->resid > MW_CAL_RESID_MAX ? MW_CR_SCATTER : MW_CR_OK;
++}
++
++/* ---- the wiring state ----------------------------------------------------------------------------------------------------- */
++
++typedef struct {
++    ms_t seek;
++    mw_cal_t cal;
++    uint8_t gray[MS_PIX];
++    uint8_t addr_latched;
++    uint32_t addr_at;           /* when the wake word was latched */
++    uint8_t pending;            /* frames of the burst in flight still to take */
++    uint16_t gap_ms;
++    uint32_t frame_at;          /* the next frame is due at this time */
++    uint8_t denied_pending;     /* tell the core once that the camera was refused */
++    uint8_t have_step;
++    uint32_t last_step_ms;
++    uint32_t wait_ms;           /* how long the task asked to sleep before this pass (the lateness yardstick) */
++    uint32_t late_until, late_since;
++    uint8_t late_active;
++    uint8_t last_state;
++    /* counters for status and the tests */
++    uint32_t frames, bursts_run, late_skips, denied, grab_fail, grab_busy, moves, gate_drops;
++    uint32_t grab_ms_last, grab_ms_max;
++    uint32_t late_loops, loop_gap_max;
++    uint32_t watch_frames, summary_at;  /* the quiet idle watch is summed up in one line a minute, not logged frame by frame */
++    float last_pan, last_goal;
++    char line[256];
++} mw_t;
++
++static inline void mw_init(mw_t* w, uint8_t detector)
++{
++    memset(w, 0, sizeof(*w));
++    ms_init(&w->seek, detector);
++    w->wait_ms = MW_TICK_MS;
++}
++
++/* How long the task sleeps before the next pass: fast while a run, a burst, a wake word or a calibration is going on, slow at rest
++ * (the idle watch of "always" takes a frame a second, so a quarter second is plenty). The task is woken at once by the wake word. */
++#define MW_IDLE_PERIOD_MS 250u
++static inline uint32_t mw_period_ms(const mw_t* w)
++{
++    int active = w->seek.state != MS_IDLE || w->pending > 0 || w->cal.state == MW_CAL_RUN || w->addr_latched || w->seek.burst_kind != 0;
++    return active ? MW_TICK_MS : MW_IDLE_PERIOD_MS;
++}
++
++static inline int mw_gates_ok(const mw_env_t* e)
++{
++    return e->awake && !e->muted && !e->privacy_sleep && !e->vision_off && !e->full_quiet;
++}
++
++static inline void mw_note(const mw_t* w, const mw_ops_t* ops, const char* line)
++{
++    (void)w;
++    if (ops->log != NULL) {
++        ops->log(ops->ctx, line);
++    }
++}
++
++/* Calibration is started from the tool (the unit file has checked the gates and the lease). 0 started, 1 already running. */
++static inline int mw_cal_start(mw_t* w, float pan_now, int apply, uint32_t now)
++{
++    if (w->cal.state == MW_CAL_RUN) {
++        return 1;
++    }
++    memset(&w->cal, 0, sizeof(w->cal));
++    w->cal.state = MW_CAL_RUN;
++    w->cal.apply = (uint8_t)apply;
++    w->cal.p0 = pan_now;
++    w->cal.started = now;
++    w->cal.phase = MW_CP_MOVE;
++    w->pending = 0;
++    return 0;
++}
++
++static inline void mw_cal_finish(mw_t* w, const mw_ops_t* ops, int result, uint32_t now, float pan_now)
++{
++    mw_cal_t* c = &w->cal;
++    if (result != MW_CR_GATE && fabsf(pan_now - c->p0) > 0.5f) {
++        ops->head(ops->ctx, c->p0, 100, MS_REASON_RETURN); /* a failure in the middle still brings the head home */
++    }
++    c->state = MW_CAL_DONE;
++    c->result = (uint8_t)result;
++    if (result == MW_CR_OK && c->apply) {
++        ops->lock(ops->ctx);
++        w->seek.x_sign = c->x_sign;
++        w->seek.fov_deg = c->fov_deg;
++        ops->unlock(ops->ctx);
++        c->applied = 1;
++    }
++    w->seek.prev_valid = 0;
++    snprintf(w->line, sizeof(w->line), "seek cal t=%lu result=%s sign=%.0f fov=%.1f ppd=%.3f resid=%.2f kept=%u applied=%d shifts=%.1f,%.1f,%.1f,%.1f dp=%.1f,%.1f,%.1f,%.1f q=%.2f,%.2f,%.2f,%.2f",
++             (unsigned long)now, MW_CR_NAMES[result], (double)c->x_sign, (double)c->fov_deg, (double)c->ppd, (double)c->resid, (unsigned)c->kept, c->applied,
++             (double)c->shift[1], (double)c->shift[2], (double)c->shift[3], (double)c->shift[4], (double)c->dpan[1], (double)c->dpan[2],
++             (double)c->dpan[3], (double)c->dpan[4], (double)c->qual[1], (double)c->qual[2], (double)c->qual[3],
++             (double)c->qual[4]);
++    mw_note(w, ops, w->line);
++}
++
++static inline void mw_cal_step(mw_t* w, const mw_ops_t* ops, const mw_env_t* e)
++{
++    mw_cal_t* c = &w->cal;
++    uint32_t now = e->now_ms;
++    /* the person asked for this run: a resting face does not stop it (mute, vision off, full quiet, a screen that is off and a turn do) */
++    int gates = !e->muted && !e->privacy_sleep && !e->vision_off && !e->full_quiet && !e->conversation;
++    if (!gates) {
++        mw_cal_finish(w, ops, MW_CR_GATE, now, e->pan_deg);
++        return;
++    }
++    if (ms_dt(now, c->started) > (int32_t)MW_CAL_TOTAL_TIMEOUT_MS) {
++        mw_cal_finish(w, ops, MW_CR_TIMEOUT, now, e->pan_deg);
++        return;
++    }
++    switch (c->phase) {
++    case MW_CP_MOVE: {
++        float goal = ms_clamp_pan(c->p0 + MW_CAL_DELTAS[c->idx]);
++        if (fabsf(goal - e->pan_deg) > 0.5f) {
++            ops->head(ops->ctx, goal, 100, MS_REASON_NONE);
++        }
++        c->phase = MW_CP_WAIT;
++        c->phase_at = now;
++        break;
++    }
++    case MW_CP_WAIT:
++        if (ms_dt(now, c->phase_at) > (int32_t)MW_CAL_STEP_TIMEOUT_MS) {
++            mw_cal_finish(w, ops, MW_CR_TIMEOUT, now, e->pan_deg);
++        } else if (e->head_settled && ms_dt(now, c->phase_at) >= (int32_t)MW_CAL_SETTLE_MS) {
++            c->phase = MW_CP_SHOOT;
++            c->busy_tries = 0;
++        }
++        break;
++    case MW_CP_SHOOT: {
++        ops->cue(ops->ctx, MW_CUE_FRAME_MS);
++        int r = ops->grab(ops->ctx, w->gray);
++        if (r == 1) {
++            if (++c->busy_tries > 40) {
++                mw_cal_finish(w, ops, MW_CR_CAMERA, now, e->pan_deg);
++            }
++            break;
++        }
++        if (r != 0) {
++            if (++c->fail_tries > 3) {
++                mw_cal_finish(w, ops, MW_CR_CAMERA, now, e->pan_deg);
++            }
++            break;
++        }
++        w->frames++;
++        float pan_at = e->pan_deg;
++        if (ops->pan != NULL) {
++            pan_at = 0.5f * (e->pan_deg + ops->pan(ops->ctx)); /* the head may drift while the frame is read: the middle of the two readings */
++        }
++        if (c->idx == 0) {
++            memcpy(c->ref, w->gray, MS_PIX);
++            c->shift[0] = 0;
++            c->pan_ref = pan_at;
++        } else {
++            c->dpan[c->idx] = pan_at - c->pan_ref;
++            float sh = 0, q = 1, center = 0.0f, half = c->idx >= 3 ? (float)MW_CAL_SHIFT_MAX : 12.0f; /* +-10 degrees is at most about 10 pixels */
++            if (c->idx >= 3 && c->have_m) { /* the large steps are searched near what the small ones predict */
++                center = c->m_est * c->dpan[c->idx];
++                half = fmaxf(3.0f, fabsf(center) * 0.25f);
++            }
++            int sr = mw_shift_near(c->ref, w->gray, center, half, &sh, &q);
++            if (sr == -1) {
++                mw_cal_finish(w, ops, MW_CR_FLAT, now, e->pan_deg);
++                break;
++            }
++            if (sr != 0) { /* nothing to match in the window: this step counts as unclear and the others go on */
++                sh = 0;
++                q = 1.0f;
++            }
++            c->shift[c->idx] = sh;
++            c->qual[c->idx] = q;
++            if (c->idx == 2) { /* what the small steps say, from the ones that moved the head and matched */
++                float sum = 0;
++                int n = 0;
++                for (int i = 1; i <= 2; i++) {
++                    if (c->qual[i] <= MW_CAL_QUAL_MAX && fabsf(c->dpan[i]) >= MW_CAL_MIN_MOVE_DEG) {
++                        sum += c->shift[i] / c->dpan[i];
++                        n++;
++                    }
++                }
++                if (n > 0) {
++                    c->m_est = sum / (float)n;
++                    c->have_m = fabsf(c->m_est) >= MW_CAL_PPD_MIN && fabsf(c->m_est) <= MW_CAL_PPD_MAX;
++                }
++            }
++        }
++        c->idx++;
++        if (c->idx >= MW_CAL_STEPS) {
++            c->phase = MW_CP_BACK;
++        } else {
++            c->phase = MW_CP_MOVE;
++        }
++        break;
++    }
++    case MW_CP_BACK:
++        if (fabsf(c->p0 - e->pan_deg) > 0.5f) {
++            ops->head(ops->ctx, c->p0, 100, MS_REASON_RETURN);
++        }
++        c->phase = MW_CP_BACKWAIT;
++        c->phase_at = now;
++        break;
++    default: /* MW_CP_BACKWAIT */
++        if (e->head_settled || ms_dt(now, c->phase_at) > (int32_t)MW_CAL_STEP_TIMEOUT_MS) {
++            mw_cal_finish(w, ops, mw_cal_fit(c), now, e->pan_deg);
++        }
++        break;
++    }
++}
++
++/* ---- one pass of the task ------------------------------------------------------------------------------------------------- */
++
++static inline void mw_log_decision(mw_t* w, const mw_ops_t* ops, const mw_env_t* e, const ms_out_t* out, int result_seen)
++{
++    const ms_t* s = &w->seek;
++    int changed = s->state != w->last_state;
++    if (!changed && !out->move && !out->camera && !result_seen) {
++        return;
++    }
++    if (!changed && !out->move && s->state == MS_IDLE && s->last_blob_kind == MS_BLOB_NONE) { /* the idle watch saw nothing */
++        if (result_seen) {
++            w->watch_frames++;
++        }
++        if (ms_dt(e->now_ms, w->summary_at) < 60000) {
++            return;
++        }
++        w->summary_at = e->now_ms;
++        snprintf(w->line, sizeof(w->line), "seek t=%lu watch frames=%lu grabs=%lu/%lu ms mem=%u/%u", (unsigned long)e->now_ms, (unsigned long)w->watch_frames,
++                 (unsigned long)w->grab_ms_last, (unsigned long)w->grab_ms_max, (unsigned)e->free_internal, (unsigned)e->largest_internal);
++        mw_note(w, ops, w->line);
++        return;
++    }
++    int n = snprintf(w->line, sizeof(w->line), "seek t=%lu st=%s>%s pan=%.0f", (unsigned long)e->now_ms, MS_STATE_NAMES[w->last_state < MS_STATE_COUNT ? w->last_state : 0],
++                     MS_STATE_NAMES[s->state < MS_STATE_COUNT ? s->state : 0], (double)e->pan_deg);
++    if (out->move && n > 0 && (size_t)n < sizeof(w->line)) {
++        n += snprintf(w->line + n, sizeof(w->line) - (size_t)n, " mv=%.0f/%u why=%u", (double)out->pan_deg, (unsigned)out->speed_pct, (unsigned)out->reason);
++    }
++    if (out->camera && n > 0 && (size_t)n < sizeof(w->line)) {
++        n += snprintf(w->line + n, sizeof(w->line) - (size_t)n, " cam=%ux%u mem=%u/%u", (unsigned)out->frames, (unsigned)out->gap_ms, (unsigned)e->free_internal,
++                      (unsigned)e->largest_internal);
++    }
++    if (result_seen && n > 0 && (size_t)n < sizeof(w->line)) {
++        n += snprintf(w->line + n, sizeof(w->line) - (size_t)n, " blob=%u:%u@%.1f gr=%lu/%lu", (unsigned)s->last_blob_kind, (unsigned)s->last_blob_area, (double)s->last_blob_cx,
++                      (unsigned long)w->grab_ms_last, (unsigned long)w->grab_ms_max);
++    }
++    w->last_state = s->state;
++    mw_note(w, ops, w->line);
++}
++
++static inline void mw_step(mw_t* w, const mw_ops_t* ops)
++{
++    mw_env_t e;
++    memset(&e, 0, sizeof(e));
++    ops->env(ops->ctx, &e);
++    uint32_t now = e.now_ms;
++    if (e.addressed) {
++        w->addr_latched = 1;
++        w->addr_at = now;
++    }
++    /* lateness: the task woke far later than it asked, or the unit file says the unit is loaded */
++    if (w->have_step) {
++        uint32_t gap = (uint32_t)ms_dt(now, w->last_step_ms);
++        if (gap > w->loop_gap_max && gap < 60000u) {
++            w->loop_gap_max = gap;
++        }
++        if (gap > w->wait_ms + MW_LATE_LOOP_MS) {
++            w->late_until = now + MW_LATE_HOLD_MS;
++            w->late_loops++;
++        }
++    }
++    w->last_pan = e.pan_deg;
++    if (e.late) {
++        w->late_until = now + MW_LATE_HOLD_MS;
++    }
++    w->have_step = 1;
++    w->last_step_ms = now;
++    int late = ms_dt(w->late_until, now) > 0;
++    if (late && !w->late_active) {
++        w->late_active = 1;
++        w->late_since = now;
++    } else if (!late) {
++        w->late_active = 0;
++    }
++
++    if (w->cal.state == MW_CAL_RUN) {
++        mw_cal_step(w, ops, &e);
++        return;
++    }
++
++    int gates = mw_gates_ok(&e);
++    /* a frame due now (the burst in flight): only while every gate is open and no host holds the lease */
++    const uint8_t* frame = NULL;
++    if (w->pending > 0) {
++        ops->lock(ops->ctx);
++        int leased = ms_lease_active(&w->seek.lease, now);
++        ops->unlock(ops->ctx);
++        if (!gates || e.mode == MS_MODE_OFF || leased) {
++            w->pending = 0; /* a gate closed in the middle of a burst: no more frames; the core ends the run on this tick */
++            w->gate_drops++;
++        } else if (ms_dt(now, w->frame_at) >= 0) {
++            ops->cue(ops->ctx, MW_CUE_FRAME_MS);
++            int r = ops->grab(ops->ctx, w->gray);
++            uint32_t after = ops->now != NULL ? ops->now(ops->ctx) : now;
++            if (r == 0) {
++                frame = w->gray;
++                w->pending--;
++                w->frames++;
++                w->grab_ms_last = (uint32_t)ms_dt(after, now);
++                if (w->grab_ms_last > w->grab_ms_max) {
++                    w->grab_ms_max = w->grab_ms_last;
++                }
++                if (w->grab_ms_last > MW_GRAB_SLOW_MS) {
++                    w->late_until = after + MW_LATE_HOLD_MS;
++                }
++                w->frame_at = after + w->gap_ms;
++                now = after;
++                e.now_ms = after;
++            } else if (r == 1) {
++                w->grab_busy++;
++                w->frame_at = now + MW_BUSY_RETRY_MS;
++            } else {
++                w->pending = 0; /* nothing came: the core's own deadline turns this into a miss */
++                w->grab_fail++;
++            }
++        }
++    }
++
++    ms_in_t in;
++    memset(&in, 0, sizeof(in));
++    in.now_ms = now;
++    in.pan_deg = e.pan_deg;
++    in.head_settled = e.head_settled;
++    in.addressed = w->addr_latched;
++    in.conversation = e.conversation;
++    in.awake = e.awake;
++    in.muted = e.muted;
++    in.privacy_sleep = e.privacy_sleep;
++    in.vision_off = e.vision_off;
++    in.full_quiet = e.full_quiet;
++    in.quiet_or_night = e.quiet_or_night;
++    in.mode = e.mode;
++    in.frame = frame;
++    in.camera_denied = w->denied_pending;
++    if (w->late_active && ms_dt(now, w->late_since) > (int32_t)MW_LATE_GIVEUP_MS) {
++        in.camera_denied = 1; /* late for too long: stay away like a refused camera */
++    }
++
++    /* A late unit starts nothing new: no tick while no burst is in flight (the wake word stays latched for the next pass). */
++    if (late && w->seek.burst_kind == 0 && w->pending == 0 && frame == NULL && !in.camera_denied) {
++        w->late_skips++;
++        return;
++    }
++
++    int gates_now = mw_gates_ok(&e) && e.mode != MS_MODE_OFF;
++    ms_out_t out;
++    ops->lock(ops->ctx);
++    ms_tick(&w->seek, &in, &out);
++    int result_seen = frame != NULL && w->pending == 0; /* the last frame of a burst gives the core its result */
++    ops->unlock(ops->ctx);
++    if (gates_now || ms_dt(now, w->addr_at) > (int32_t)MW_ADDR_LATCH_MS) {
++        w->addr_latched = 0; /* heard by the core, or a gate stayed closed too long: forgotten */
++    }
++    w->denied_pending = 0;
++
++    if (out.move) {
++        w->moves++;
++        w->last_goal = out.pan_deg;
++        ops->head(ops->ctx, out.pan_deg, out.speed_pct, out.reason);
++    }
++    if (out.camera) {
++        if (!mw_admit(e.free_internal, e.largest_internal, w->seek.detector)) {
++            w->denied++;
++            w->denied_pending = 1; /* the core hears it on the next pass and stays away */
++            w->pending = 0;
++        } else {
++            ops->cue(ops->ctx, out.cue_ms);
++            w->pending = out.frames;
++            w->gap_ms = out.gap_ms;
++            w->frame_at = now;
++            w->bursts_run++;
++        }
++    }
++    mw_log_decision(w, ops, &e, &out, result_seen);
++}
++
++/* ---- self.look.* ------------------------------------------------------------------------------------------------------------ */
++
++/* The status text. Keys of the core's status stay; the wiring adds what the page and a person need. */
++static inline int mw_status_json(mw_t* w, uint8_t mode, uint32_t now, char* buf, size_t n)
++{
++    ms_t* s = &w->seek;
++    int who = ms_owner(s, mode, now);
++    const char* owner = who == 2 ? "host" : (who == 1 ? "unit" : "none");
++    long ttl = who == 2 ? (long)ms_dt(s->lease.until_ms, now) : 0;
++    long face_ago = s->last_face_any ? (long)ms_dt(now, s->last_face_at) : -1;
++    long seen_ago = s->seen_any ? (long)ms_dt(now, s->last_seen) : -1;
++    const mw_cal_t* c = &w->cal;
++    return snprintf(buf, n,
++                    "{\"ok\":true,\"owner\":\"%s\",\"enabled\":%s,\"lease_owner\":\"%s\",\"lease_ttl_ms\":%ld,\"setting\":\"%s\",\"state\":\"%s\","
++                    "\"last_face_ago_ms\":%ld,\"last_seen_ago_ms\":%ld,\"detector\":%s,\"turns\":%u,\"searches\":%u,\"bursts\":%u,\"frames\":%u,"
++                    "\"late_skips\":%u,\"late_loops\":%u,\"loop_gap_max_ms\":%u,\"denied\":%u,\"moves\":%u,\"grab_ms\":%u,\"grab_ms_max\":%u,\"grab_busy\":%u,"
++                    "\"grab_fail\":%u,\"pan_deg\":%.1f,\"goal_deg\":%.1f,\"fov_deg\":%.1f,\"x_sign\":%.0f,"
++                    "\"calibration\":{\"state\":\"%s\",\"result\":\"%s\",\"applied\":%s}}",
++                    owner, who == 1 ? "true" : "false", who == 2 ? s->lease.owner : "", ttl, MS_MODE_NAMES[mode < MS_MODE_COUNT ? mode : 0],
++                    MS_STATE_NAMES[s->state < MS_STATE_COUNT ? s->state : 0], face_ago, seen_ago, s->detector ? "true" : "false",
++                    (unsigned)s->turns_total, (unsigned)s->searches_total, (unsigned)s->bursts, (unsigned)w->frames, (unsigned)w->late_skips,
++                    (unsigned)w->late_loops, (unsigned)w->loop_gap_max, (unsigned)w->denied, (unsigned)w->moves, (unsigned)w->grab_ms_last,
++                    (unsigned)w->grab_ms_max, (unsigned)w->grab_busy, (unsigned)w->grab_fail, (double)w->last_pan, (double)w->last_goal, (double)s->fov_deg, (double)s->x_sign, c->state == MW_CAL_RUN ? "running" : (c->state == MW_CAL_DONE ? "done" : "idle"),
++                    MW_CR_NAMES[c->result], c->applied ? "true" : "false");
++}
++
++#endif /* MAIPAI_SEEK_WIRE_CORE_H */
+diff --git a/firmware/main/hal/board/stackchan_camera.h b/firmware/main/hal/board/stackchan_camera.h
+index 8dba5d3..66a7a1c 100644
+--- a/firmware/main/hal/board/stackchan_camera.h
++++ b/firmware/main/hal/board/stackchan_camera.h
+@@ -10,6 +10,10 @@ public:
+     bool Capture() override;
+     bool StreamCaptures();
+ 
++    // Patch S12: one frame for the face seeker, shrunk to a 40 by 30 gray picture (maipai_seek_wire_core.h) and dropped at once.
++    // 0 ok; 1 busy (the video stream or a photo holds the camera: ask again); 2 no picture (vision off, no frame, format unknown).
++    int SeekGrab(uint8_t* gray);
++
+     auto TryLockFrame()
+     {
+         return std::unique_lock<std::recursive_mutex>(capture_mutex_, std::try_to_lock);
+diff --git a/firmware/main/hal/board/stackchan_camera.cc b/firmware/main/hal/board/stackchan_camera.cc
+index 091a92f..d1526d2 100644
+--- a/firmware/main/hal/board/stackchan_camera.cc
++++ b/firmware/main/hal/board/stackchan_camera.cc
+@@ -3,6 +3,8 @@
+ #include "hal_bridge.h"
+ #include "../maipai_privacy.h"
+ #include "../maipai_cue_core.h"
++#include "../maipai_seek_wire_core.h"
++#include <esp_heap_caps.h>
+ 
+ bool StackChanCamera::Capture()
+ {
+@@ -22,3 +24,32 @@ bool StackChanCamera::StreamCaptures()
+     hal_bridge::monitor_cue_begin(MC_HOLD_STREAM_MS);  // patch T05: the cue stays while frames are read
+     return CaptureFrame(false, 0);
+ }
++
++int StackChanCamera::SeekGrab(uint8_t* gray)
++{
++    if (maipai_vision_off()) {
++        return 2;  // vision off: the sensor is not read, whoever asks
++    }
++    auto lock = TryLockFrame();
++    if (!lock.owns_lock()) {
++        return 1;  // the LAN video stream or a photo has the frame: not blocked on here
++    }
++    // The driver keeps one buffer, so the first read after a pause is the frame it filled long ago: read twice, keep the second.
++    if (!CaptureFrame(false, 1) || frame_.data == nullptr) {
++        return 2;
++    }
++    int fmt = MW_FMT_NONE;
++    switch (frame_.format) {
++        case V4L2_PIX_FMT_YUYV: fmt = MW_FMT_YUYV; break;
++        case V4L2_PIX_FMT_UYVY: fmt = MW_FMT_UYVY; break;
++        case V4L2_PIX_FMT_RGB565: fmt = MW_FMT_RGB565; break;
++        case V4L2_PIX_FMT_GREY: fmt = MW_FMT_GREY; break;
++        default: break;
++    }
++    const int rc = mw_downsample(frame_.data, frame_.len, frame_.width, frame_.height, fmt, gray);
++    heap_caps_free(frame_.data);  // the copy is 150 KB of PSRAM: not kept between bursts
++    frame_.data   = nullptr;
++    frame_.len    = 0;
++    frame_.format = 0;
++    return rc == 0 ? 0 : 2;
++}
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+index 38a2579..2bce647 100644
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -25,6 +25,7 @@ private:
+     int idle_expression_modifier_id_    = -1;
+     int blink_modifier_id_              = -1;
+     bool is_sleeping_                   = false;
++    bool sleep_look_                    = false;  // patch S13: the emotion showing now is a sleeping one (sleepy, closing, sleeping)
+     int privacy_bits_                   = 0;      // the looks now drawn (patch 105)
+     bool mood_baseline_                 = true;   // the face is the resting one, so the saved mood may shift it (patch M01)
+     bool quiet_face_                    = false;  // full quiet: the sleeping face holds against every emotion
+@@ -129,6 +130,10 @@ public:
+ 
+     void SetIdleMotionEnabled(bool enabled);
+     bool IsIdleMotionEnabled() const { return idle_motion_enabled_; }
++    // Patch S12: the sleeping face (rest, or full quiet) is showing: the seeker neither looks nor moves.
++    // The flag is_sleeping_ is sticky (set by the sleepy looks, cleared only when full quiet ends), so the seeker reads the look
++    // that shows now instead: sleepy, closing or sleeping, or the full quiet face.
++    bool IsAsleep() const { return sleep_look_ || quiet_face_; }
+     void LvglLock();
+     void LvglUnlock();
+     // The face looks of mute, vision off and full quiet (patch 105). The caller holds the LVGL lock.
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index 7226f29..30cc8de 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -1417,6 +1417,7 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+ 
+     // The resting face takes the saved mood (patch M01); any other emotion is shown as asked.
+     mood_baseline_ = strcmp(emotion, "neutral") == 0;
++    sleep_look_    = strcmp(emotion, "sleepy") == 0 || strcmp(emotion, "closing") == 0 || strcmp(emotion, "sleeping") == 0;  // patch S13
+ 
+     // Map emotion string to stackchan::Emotion
+     if (strcmp(emotion, "neutral") == 0) {
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+index c4dea30..5f7b78d 100644
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -49,6 +49,8 @@ void display_set_idle_motion_enabled(bool enabled);
+ // Patch L04: true when a host head move should be ignored: the unit is idle (no turn, not listening or speaking) and
+ // the person has not turned idle movement on. A look-around by itself is not a command.
+ bool host_idle_look_ignored();
++// Patch S12: true while the sleeping face shows (the unit is resting or in full quiet). Safe from any task: one flag read.
++bool display_is_asleep();
+ 
+ void xiaozhi_board_init();
+ void start_xiaozhi_app();
+diff --git a/firmware/main/hal/board/hal_bridge.cc b/firmware/main/hal/board/hal_bridge.cc
+index de7f904..20f4fcb 100644
+--- a/firmware/main/hal/board/hal_bridge.cc
++++ b/firmware/main/hal/board/hal_bridge.cc
+@@ -103,6 +103,12 @@ void display_set_idle_motion_enabled(bool enabled)
+     display->SetIdleMotionEnabled(enabled);
+ }
+ 
++bool display_is_asleep()
++{
++    auto display = static_cast<DISPLAY_TYPE*>(Board::GetInstance().GetDisplay());
++    return display != nullptr && display->IsAsleep();
++}
++
+ bool host_idle_look_ignored()
+ {
+     auto display = static_cast<DISPLAY_TYPE*>(Board::GetInstance().GetDisplay());
+diff --git a/firmware/main/stackchan/stackchan.h b/firmware/main/stackchan/stackchan.h
+index f1045dc..b3c080e 100644
+--- a/firmware/main/stackchan/stackchan.h
++++ b/firmware/main/stackchan/stackchan.h
+@@ -17,6 +17,12 @@ namespace stackchan {
+  */
+ class StackChan : public Modifiable {
+ public:
++    // Patch S13: true once the servos are attached (the seeker task starts before they are and waits for this).
++    bool hasMotion() const
++    {
++        return _motion != nullptr;
++    }
++
+     /**
+      * @brief Attach motion instance
+      *

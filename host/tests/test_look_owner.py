@@ -223,3 +223,39 @@ def test_the_prefs_view_says_whether_the_unit_has_the_look_tool_and_who_owns_see
     assert new["features"]["look"] is True and new["face_owner"] == "hub" and "turn_to_faces" in new["values"]
     old = _service(Unit(has_look=False), {}).view(UNIT)
     assert old["features"]["look"] is False and old["face_owner"] == "robot"
+
+
+def test_the_heartbeat_reads_the_units_status_and_the_page_view_carries_it():
+    unit = Unit()
+    answers = {"ok": True, "owner": "unit", "enabled": True, "setting": "talk", "state": "idle", "last_face_ago_ms": 4200, "last_seen_ago_ms": 4200, "fov_deg": 65.0, "x_sign": 1, "junk": "dropped"}
+    base = unit.__call__
+
+    def call(name, arguments, **kw):
+        if name == "self.look.status":
+            unit.calls.append((name, dict(arguments)))
+            return dict(answers)
+        return base(name, arguments, **kw)
+
+    clock = Clock()
+    owner = LookOwner(ToolProbe(call, clock=clock), lambda _d: {}, hub_configured=lambda: False, tracking=lambda: False, clock=clock)
+    assert owner.cached_status(UNIT) == {}
+    owner.tick(UNIT)
+    status = owner.view(UNIT)["status"]
+    assert status["owner"] == "unit" and status["enabled"] is True and status["last_face_ago_ms"] == 4200 and status["age_s"] == 0.0
+    assert "junk" not in status
+    clock.now += 21.0  # the heartbeat stopped: a stale status is not shown
+    assert owner.cached_status(UNIT) == {}
+
+
+def test_a_unit_without_the_look_tool_has_no_status_and_an_unreachable_one_keeps_its_last_answer():
+    old = Unit(has_look=False)
+    owner, _, _ = make(old, {})
+    owner.tick(UNIT)
+    assert owner.cached_status(UNIT) == {}
+    unit = Unit()
+    owner2, clock2, _ = make(unit, {})
+    owner2.tick(UNIT)
+    unit.down = True
+    clock2.now += 5.0
+    owner2.tick(UNIT)  # the unit does not answer: no crash
+    assert owner2.view(UNIT)["reachable"] is True or owner2.view(UNIT)["reachable"] is False

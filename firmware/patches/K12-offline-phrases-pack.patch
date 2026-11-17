@@ -1,0 +1,372 @@
+# Intent: The offline phrases as a pack (V02 embedded the sixteen clips in the app image, one voice, one language). A phrase pack is a zip of the same sixteen files, ph_<group>_<n>.ogg, made by the host with the active voice and the household's language; maipai_phrasepack_core.h turns it into one PSRAM block and a table (every clip must start with the Ogg capture pattern and pass its checksum, a bad one is left out whole), maipai_phrasepack.cc swaps it in under a mutex. The wake path says the pack's clip when the pack has it, else the clip built into the image, else the tone, per clip. MAIPAI_OFFLINE_PHRASES_EMBED (default y) keeps the sixteen clips in the image as the fallback; n drops about 76 KB of flash and a unit with no pack plays the tone. self.audio.sound_info reports pack_clips.
+# Placement: unit (the phrases are said by the robot with the host off; the host builds the pack from the active voice)
+# Upstream: firmware/main/hal/maipai_sounds.cc (ours, V02); new hal/maipai_phrasepack_core.h, maipai_phrasepack.{h,cc}
+# Check after a flash: self.audio.sound_info reports pack_clips 0 with no pack and 16 with the household's pack; self.audio.offline_phrase with dry true answers kind clip and the byte count of the pack's clip (different from the image's); the same call after self.pack.remove type phrase answers the image's clip again; with the hub stopped the wake word says the pack's no_host clip.
+# Kconfig: MAIPAI_OFFLINE_PHRASES_EMBED (default y, needs MAIPAI_OFFLINE_PHRASES); off leaves the clips out of the image.
+
+diff --git a/firmware/main/hal/maipai_phrasepack_core.h b/firmware/main/hal/maipai_phrasepack_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_phrasepack_core.h
+@@ -0,0 +1,70 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The offline phrases as a pack (patch K12): the pure logic. The unit's sixteen offline clips (five groups, MS_GROUP_SIZE in
++ * maipai_sounds_core.h) used to exist only as data in the app image, in one voice and one language. A phrase pack carries the
++ * same sixteen files, ph_<group>_<n>.ogg (Ogg Opus, as the image ones), made by the host with the household's own voice and
++ * language. The shared pack loader checks and keeps it; this file turns the zip into one block of clip bytes and a table of
++ * where each clip sits. A clip the pack lacks (or one that is not an Ogg stream) stays unset, and the caller then uses the
++ * clip built into the image, when the image has one, and the tone otherwise. Plain C99, no allocation, no hardware.
++ * Host test: host/tests/firmware/phrasepack_core_test.c.
++ */
++#ifndef MAIPAI_PHRASEPACK_CORE_H
++#define MAIPAI_PHRASEPACK_CORE_H
++
++#include "maipai_pack_core.h"
++#include "maipai_sounds_core.h"
++
++#define MPH_CLIP_MAX 60000u      /* bytes of one clip (the image's are 2 to 6 KB) */
++#define MPH_CLIP_MIN 64u         /* smaller than this is not an Ogg stream */
++#define MPH_BLOCK_MAX 150000u    /* bytes of all clips together: the pack's size gate (TPK_MAX_BYTES[TPK_PHRASE]) */
++
++typedef struct {
++    uint32_t off[MS_GRP_COUNT][4]; /* offset of the clip inside the block */
++    uint32_t len[MS_GRP_COUNT][4]; /* 0: this clip is not in the pack */
++    uint32_t total;                /* bytes used in the block */
++    uint8_t count;                 /* clips found (0 to 16) */
++} mph_table_t;
++
++/* How many bytes the block must have for this zip: the sum of its usable clips. 0 when the zip holds none. */
++static inline uint32_t mph_need(const tpz_t* z)
++{
++    uint32_t need = 0;
++    char name[32];
++    for (int g = 0; g < MS_GRP_COUNT; g++) {
++        for (int v = 0; v < MS_GROUP_SIZE[g]; v++) {
++            if (!ms_phrase_file(name, sizeof(name), g, v)) continue;
++            const tpz_entry_t* e = tpz_find(z, name);
++            if (e == NULL || e->usize < MPH_CLIP_MIN || e->usize > MPH_CLIP_MAX) continue;
++            if (need + e->usize > MPH_BLOCK_MAX) continue;
++            need += e->usize;
++        }
++    }
++    return need;
++}
++
++/* Extracts the usable clips into `block` (cap bytes, at least mph_need) and fills the table. Every clip must start with the
++ * Ogg capture pattern "OggS" and pass its checksum; one that does not is left out, not half kept. TPK_OK when at least one
++ * clip is usable, else TPK_ERR_ZIP. */
++static inline tpk_err_t mph_build(const tpz_t* z, tpz_inflate_fn inflate, uint8_t* block, size_t cap, mph_table_t* t)
++{
++    memset(t, 0, sizeof(*t));
++    char name[32];
++    for (int g = 0; g < MS_GRP_COUNT; g++) {
++        for (int v = 0; v < MS_GROUP_SIZE[g]; v++) {
++            if (!ms_phrase_file(name, sizeof(name), g, v)) continue;
++            const tpz_entry_t* e = tpz_find(z, name);
++            if (e == NULL || e->usize < MPH_CLIP_MIN || e->usize > MPH_CLIP_MAX) continue;
++            if (t->total + e->usize > MPH_BLOCK_MAX || t->total + e->usize > cap) continue;
++            if (tpz_extract(z, e, block + t->total, cap - t->total, inflate) != TPK_OK) continue;
++            if (memcmp(block + t->total, "OggS", 4) != 0) continue;
++            t->off[g][v] = t->total;
++            t->len[g][v] = e->usize;
++            t->total += e->usize;
++            t->count++;
++        }
++    }
++    return t->count > 0 ? TPK_OK : TPK_ERR_ZIP;
++}
++
++#endif /* MAIPAI_PHRASEPACK_CORE_H */
+diff --git a/firmware/main/hal/maipai_phrasepack.h b/firmware/main/hal/maipai_phrasepack.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_phrasepack.h
+@@ -0,0 +1,22 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The offline phrases as a pack, device side (patch K12). Logic: maipai_phrasepack_core.h.
++ */
++#pragma once
++#include <cstddef>
++#include <cstdint>
++#include <mutex>
++#include <string_view>
++
++// The shared pack loader calls this with a phrase pack's zip, or with null/0 to go back to the clips built into the image.
++// Returns false (and a plain reason in *why) when the pack cannot be used; the clips in use do not change then.
++bool maipai_phrasepack_load(const uint8_t* payload, size_t len, const char** why);
++
++// How many of the sixteen clips the held pack carries (0 when none is held).
++int maipai_phrasepack_count();
++
++// The pack's clip for a group and variant, or an empty view when the pack has none. The view points into the pack's own
++// block: hold maipai_phrasepack_mutex() while you read it (PlaySound copies what it needs before it returns).
++std::string_view maipai_phrasepack_clip(int group, int variant);
++std::mutex& maipai_phrasepack_mutex();
+diff --git a/firmware/main/hal/maipai_phrasepack.cc b/firmware/main/hal/maipai_phrasepack.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_phrasepack.cc
+@@ -0,0 +1,87 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The offline phrases as a pack, device side (patch K12). One PSRAM block holds the clips (about 60 KB for sixteen); a new
++ * pack is extracted into a new block, then swapped in under the mutex, and the old block is freed. A reader holds the same
++ * mutex while it hands a clip to PlaySound, so a swap never frees a clip that is being read.
++ */
++#include "maipai_phrasepack.h"
++#include "maipai_phrasepack_core.h"
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include "maipai_inflate.h"
++#include <cstring>
++
++static const char* TAG = "MAIPAI-PHRASEPACK";
++
++namespace {
++
++std::mutex s_mu;
++uint8_t* s_block = nullptr;
++mph_table_t* s_table = nullptr;  // 0.2 KB, PSRAM
++
++long inflate_raw(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap) { return maipai_inflate_raw(in, inlen, out, cap); }  // state in PSRAM, not on this stack
++
++}  // namespace
++
++std::mutex& maipai_phrasepack_mutex() { return s_mu; }
++
++int maipai_phrasepack_count()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    return s_table != nullptr && s_block != nullptr ? s_table->count : 0;
++}
++
++std::string_view maipai_phrasepack_clip(int group, int variant)
++{
++    if (s_table == nullptr || s_block == nullptr || group < 0 || group >= MS_GRP_COUNT || variant < 0 || variant >= MS_GROUP_SIZE[group]) {
++        return std::string_view();
++    }
++    if (s_table->len[group][variant] == 0) return std::string_view();
++    return std::string_view(reinterpret_cast<const char*>(s_block + s_table->off[group][variant]), s_table->len[group][variant]);
++}
++
++bool maipai_phrasepack_load(const uint8_t* payload, size_t len, const char** why)
++{
++    *why = "";
++    if (payload == nullptr || len == 0) {
++        std::lock_guard<std::mutex> lock(s_mu);
++        if (s_block != nullptr) heap_caps_free(s_block);
++        s_block = nullptr;
++        if (s_table != nullptr) memset(s_table, 0, sizeof(*s_table));
++        return true;
++    }
++    tpz_t* z = static_cast<tpz_t*>(heap_caps_malloc(sizeof(tpz_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (z == nullptr) { *why = tpk_say(TPK_ERR_MEMORY, 0); return false; }
++    struct Free { void* p; ~Free() { heap_caps_free(p); } } free_z{z};
++    if (tpz_open(z, payload, len) != TPK_OK) { *why = tpk_say(TPK_ERR_ZIP, 0); return false; }
++    const uint32_t need = mph_need(z);
++    if (need == 0) { *why = tpk_say(TPK_ERR_ZIP, 0); return false; }
++    uint8_t* block = static_cast<uint8_t*>(heap_caps_malloc(need, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    mph_table_t* table = static_cast<mph_table_t*>(heap_caps_calloc(1, sizeof(mph_table_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (block == nullptr || table == nullptr) {
++        if (block != nullptr) heap_caps_free(block);
++        if (table != nullptr) heap_caps_free(table);
++        *why = tpk_say(TPK_ERR_MEMORY, 0);
++        return false;
++    }
++    if (mph_build(z, inflate_raw, block, need, table) != TPK_OK) {
++        heap_caps_free(block);
++        heap_caps_free(table);
++        *why = tpk_say(TPK_ERR_ZIP, 0);
++        return false;
++    }
++    uint8_t* old_block;
++    mph_table_t* old_table;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        old_block = s_block;
++        old_table = s_table;
++        s_block   = block;
++        s_table   = table;
++    }
++    if (old_block != nullptr) heap_caps_free(old_block);
++    if (old_table != nullptr) heap_caps_free(old_table);
++    ESP_LOGI(TAG, "phrase pack: %d of 16 clips, %u bytes", table->count, static_cast<unsigned>(table->total));
++    return true;
++}
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -7,6 +7,7 @@
+  */
+ #include "maipai_sounds.h"
+ #include "maipai_sounds_core.h"
++#include "maipai_phrasepack.h"
+ #include "maipai_hourly_core.h"
+ #include "maipai_privacy.h"
+ #include "maipai_remote.h"
+@@ -31,7 +32,7 @@ static const char* TAG        = "MAIPAI-SOUNDS";
+ static const char* kNamespace = "mp_sounds";  // our own: never the websocket namespace (pairing token, Wi-Fi)
+ static const char* kKey       = "v1";
+ 
+-#if CONFIG_MAIPAI_OFFLINE_PHRASES
++#if CONFIG_MAIPAI_OFFLINE_PHRASES && CONFIG_MAIPAI_OFFLINE_PHRASES_EMBED
+ // The sixteen clips (patch V02), embedded in the app image from the files of the repo (CMakeLists.txt).
+ extern "C" {
+ #define PH_DECL(n) extern const uint8_t _binary_##n##_ogg_start[]; extern const uint8_t _binary_##n##_ogg_end[];
+@@ -215,6 +216,7 @@ struct PhClip {
+     const uint8_t* start;
+     const uint8_t* end;
+ };
++#if CONFIG_MAIPAI_OFFLINE_PHRASES_EMBED
+ #define PH_CLIP(n) {_binary_##n##_ogg_start, _binary_##n##_ogg_end}
+ // Group order and sizes are the core's: no_wifi 4, no_host 4, refused 3, connecting 3, back 2 (MS_GROUP_SIZE).
+ const PhClip kClips[MS_GRP_COUNT][4] = {
+@@ -224,6 +226,11 @@ const PhClip kClips[MS_GRP_COUNT][4] = {
+     {PH_CLIP(ph_connecting_1), PH_CLIP(ph_connecting_2), PH_CLIP(ph_connecting_3), {nullptr, nullptr}},
+     {PH_CLIP(ph_back_1), PH_CLIP(ph_back_2), {nullptr, nullptr}, {nullptr, nullptr}},
+ };
++#else
++// Patch K12: an image built with MAIPAI_OFFLINE_PHRASES_EMBED=n carries no clips (60 KB less flash); the phrase pack the host
++// sends is then the only source, and with no pack the wake path plays the tone.
++const PhClip kClips[MS_GRP_COUNT][4] = {};
++#endif
+ 
+ std::mutex s_ph_mutex;
+ ms_link_t s_ph_link;
+@@ -249,14 +256,27 @@ bool wifi_joined()
+     return esp_wifi_sta_get_ap_info(&ap) == ESP_OK;
+ }
+ 
+-// A clip is real when it exists and starts with the Ogg capture pattern.
+-bool clip_real(int group, int variant)
++// The clip to say: the held phrase pack's (patch K12), else the one built into the image, else none. The caller holds
++// maipai_phrasepack_mutex() for as long as it reads the view.
++std::string_view ph_view(int group, int variant)
+ {
+     if (group < 0 || group >= MS_GRP_COUNT || variant < 0 || variant >= MS_GROUP_SIZE[group]) {
+-        return false;
++        return std::string_view();
+     }
++    const std::string_view packed = maipai_phrasepack_clip(group, variant);
++    if (!packed.empty()) return packed;
+     const PhClip& c = kClips[group][variant];
+-    return c.start != nullptr && c.end > c.start + 4 && memcmp(c.start, "OggS", 4) == 0;
++    if (c.start != nullptr && c.end > c.start + 4 && memcmp(c.start, "OggS", 4) == 0) {
++        return std::string_view(reinterpret_cast<const char*>(c.start), static_cast<size_t>(c.end - c.start));
++    }
++    return std::string_view();
++}
++
++// A clip is real when the pack or the image has it, and it starts with the Ogg capture pattern.
++bool clip_real(int group, int variant)
++{
++    std::lock_guard<std::mutex> lock(maipai_phrasepack_mutex());
++    return !ph_view(group, variant).empty();
+ }
+ 
+ int clips_present()
+@@ -292,14 +312,18 @@ std::string phrase_run(int group_override, bool dry, bool tone_if_not_clip)
+     }
+     const char* kind = "none";
+     bool clip_ok     = false;
++    int clip_bytes   = 0;
+     if (pick.kind == MS_PH_CLIP) {
+-        clip_ok = clip_real(pick.group, pick.variant);
++        {
++            std::lock_guard<std::mutex> lock(maipai_phrasepack_mutex());
++            const std::string_view clip = ph_view(pick.group, pick.variant);
++            clip_ok                     = !clip.empty();
++            clip_bytes                  = static_cast<int>(clip.size());
++            if (clip_ok && !dry) Application::GetInstance().PlaySound(clip);  // PlaySound copies the packets before it returns
++        }
+         if (clip_ok) {
+             kind = "clip";
+             if (!dry) {
+-                const PhClip& c = kClips[pick.group][pick.variant];
+-                Application::GetInstance().PlaySound(
+-                    std::string_view(reinterpret_cast<const char*>(c.start), static_cast<size_t>(c.end - c.start)));
+                 std::lock_guard<std::mutex> lock(s_mutex);
+                 s_clips_played++;
+             }
+@@ -319,7 +343,7 @@ std::string phrase_run(int group_override, bool dry, bool tone_if_not_clip)
+     char out[160];
+     snprintf(out, sizeof(out), "{\"ok\":true,\"kind\":\"%s\",\"group\":\"%s\",\"variant\":%d,\"bytes\":%d,\"dry\":%s}",
+              kind, pick.group >= 0 ? MS_GROUP_NAMES[pick.group] : "", pick.variant + 1,
+-             clip_ok ? static_cast<int>(kClips[pick.group][pick.variant].end - kClips[pick.group][pick.variant].start) : 0,
++             clip_ok ? clip_bytes : 0,
+              dry ? "true" : "false");
+     return std::string(out);
+ }
+@@ -494,21 +518,23 @@ void maipai_sounds_register_tools()
+                     bool night = false;
+                     snapshot(&policy, &night);
+                     std::lock_guard<std::mutex> lock(s_mutex);
+-                    char out[320];
++                    char out[352];
+ #if CONFIG_MAIPAI_OFFLINE_PHRASES
+                     const int present = clips_present();
+                     const unsigned clips_played = s_clips_played, clips_missing = s_clips_missing;
++                    const int pack_clips = maipai_phrasepack_count();
+ #else
+                     const int present = 0;
+                     const unsigned clips_played = 0, clips_missing = 0;
++                    const int pack_clips = 0;
+ #endif
+                     snprintf(out, sizeof(out),
+                              "{\"enabled\":%d,\"night_ok\":%d,\"muted\":%d,\"mute_hook\":%d,\"quiet_from\":%d,"
+                              "\"quiet_to\":%d,\"night\":%s,\"clips_present\":%d,\"clips_total\":16,"
+-                             "\"played\":%u,\"refused\":%u,\"clips_played\":%u,\"clips_missing\":%u}",
++                             "\"played\":%u,\"refused\":%u,\"clips_played\":%u,\"clips_missing\":%u,\"pack_clips\":%d}",
+                              policy.enabled, policy.night_ok, policy.muted, maipai_muted() ? 1 : 0, policy.quiet_from,
+                              policy.quiet_to, night ? "true" : "false", present, static_cast<unsigned>(s_plays_ok),
+-                             static_cast<unsigned>(s_plays_refused), clips_played, clips_missing);
++                             static_cast<unsigned>(s_plays_refused), clips_played, clips_missing, pack_clips);
+                     return std::string(out);
+                 });
+ }
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -233,6 +233,16 @@ config MAIPAI_OFFLINE_PHRASES
+         at night or with sounds off the tone only; muted, nothing. The clips are 16 small files embedded in the app
+         image (flash, about 60 KB, no RAM, no task, no timer). Off here: the old tone only.
+ 
++config MAIPAI_OFFLINE_PHRASES_EMBED
++    bool "Keep the sixteen offline clips inside the app image (the fallback when no phrase pack is held)"
++    depends on MAIPAI_OFFLINE_PHRASES
++    default y
++    help
++        Patch K12: the household's own phrase pack (made on the host with the active voice and language) is the main
++        source of the offline clips; the sixteen clips in the image are the fallback for a unit that never got a pack
++        (a fresh unit, a unit whose host is the thing that is down). Off here: the image is about 76 KB smaller and a
++        unit with no pack plays the wake tone only.
++
+ config MAIPAI_MUSIC_DANCE
+     bool "Music dance on the unit (sound-reactive nod, dance on the beat and mood faces)"
+     default y
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -581,7 +581,7 @@ endif()
+ 
+ # Offline phrases (patch V02): the sixteen spoken clips ride in the app image (flash, memory mapped, no RAM). The
+ # clips are data files of the MaiPai repo; `source scripts/fw-env.sh` points MAIPAI_PHRASES_DIR at them.
+-if(CONFIG_MAIPAI_OFFLINE_PHRASES)
++if(CONFIG_MAIPAI_OFFLINE_PHRASES AND CONFIG_MAIPAI_OFFLINE_PHRASES_EMBED)
+     set(MAIPAI_PHRASE_FILES
+         ph_no_wifi_1.ogg ph_no_wifi_2.ogg ph_no_wifi_3.ogg ph_no_wifi_4.ogg
+         ph_no_host_1.ogg ph_no_host_2.ogg ph_no_host_3.ogg ph_no_host_4.ogg
+@@ -595,6 +595,8 @@ if(CONFIG_MAIPAI_OFFLINE_PHRASES)
+         target_add_binary_data(${COMPONENT_LIB} "$ENV{MAIPAI_PHRASES_DIR}/${f}" BINARY)
+     endforeach()
+     message(STATUS "Offline phrases: 16 clips from $ENV{MAIPAI_PHRASES_DIR}")
++elseif(CONFIG_MAIPAI_OFFLINE_PHRASES)
++    message(STATUS "Offline phrases: pack only (no clips in the image)")
+ else()
+     message(STATUS "Offline phrases: off (the wake tone only)")
+ endif()

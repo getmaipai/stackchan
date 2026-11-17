@@ -3,7 +3,10 @@
  * It runs the firmware's own cores (maipai_pack_core.h for self.pack.*, maipai_picface_core.h for self.facepic.*) behind the same
  * tool names and the same rules as hal/maipai_packs.cc and hal/maipai_picface.cc, so the host's real push code can be run against it
  * with fragmented data, a dropped link and a reboot. One request per line on stdin: `tool key=value ...` with values percent-encoded;
- * one JSON answer per line on stdout. `reboot` forgets everything held in RAM, as a restart does.
+ * one JSON answer per line on stdout. `reboot` forgets everything held (a unit with its flash cache off); `power_cycle` forgets the RAM
+ * and applies the flash cache again, as the real unit's boot does (patches TB02, K13). Every pack type has its own slot, name and cache
+ * state, and the language and phrase types run the firmware's own consumers (maipai_lang_core.h, maipai_phrasepack_core.h): a pack the
+ * host builds is read by the code the unit runs, so a words file or a clip the unit would refuse is refused here too.
  * Build: cc -std=c99 -Wall -Wextra -Werror -I<dir with both headers> pack_wire_driver.c -o driver -lz
  */
 #include <ctype.h>
@@ -11,8 +14,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <zlib.h>
+
 #include "maipai_pack_core.h"
 #include "maipai_picface_core.h"
+#include "maipai_lang_core.h"
+#include "maipai_phrasepack_core.h"
 
 /* ---- request parsing ---- */
 #define MAXKV 16
@@ -71,14 +78,75 @@ static long b64_decode(const char* s, uint8_t* out, size_t cap)
 /* ---- self.pack.* ---- */
 static tpk_rx_t rx;
 static uint8_t* rx_buf;
-static int held;
-static char held_sha[65];
-static uint32_t held_size;
+static int held[TPK_TYPES], cached[TPK_TYPES], damaged[TPK_TYPES];
+static char held_sha[TPK_TYPES][65];
+static uint32_t held_size[TPK_TYPES];
+static char held_name[TPK_TYPES][TPK_NAME_MAX + 1];
+static uint8_t* held_data[TPK_TYPES]; /* the pack bytes the cache holds (what a power cycle reapplies) */
+static mlw_t words;                   /* the language pack in use, or none */
+static int words_ok;
+static mph_table_t ptable;            /* the phrase pack in use */
+static uint8_t* pblock;
+static int pclips;
+
+static long zinflate(const uint8_t* in, size_t inlen, uint8_t* out, size_t outcap)
+{
+    z_stream z;
+    memset(&z, 0, sizeof(z));
+    if (inflateInit2(&z, -15) != Z_OK) return -1;
+    z.next_in = (Bytef*)in; z.avail_in = (uInt)inlen; z.next_out = out; z.avail_out = (uInt)outcap;
+    const int r = inflate(&z, Z_FINISH);
+    const long n = (long)z.total_out;
+    inflateEnd(&z);
+    return r == Z_STREAM_END ? n : -1;
+}
+
+/* The consumers, as maipai_lang.cc and maipai_phrasepack.cc run them. 1 when the pack is usable. */
+static int apply_pack(int type, const uint8_t* data, uint32_t len)
+{
+    if (type == TPK_LANGUAGE) {
+        tpz_t z;
+        if (tpz_open(&z, data, len) != TPK_OK) return 0;
+        const tpz_entry_t* e = tpz_find(&z, "words.txt");
+        if (e == NULL || e->usize == 0 || e->usize > MLW_FILE_MAX) return 0;
+        char* text = (char*)malloc(e->usize + 1);
+        int ok = tpz_extract(&z, e, (uint8_t*)text, e->usize, zinflate) == TPK_OK && mlw_parse(text, e->usize, &words) == MLW_OK;
+        free(text);
+        words_ok = ok ? 1 : words_ok;
+        return ok;
+    }
+    if (type == TPK_PHRASE) {
+        tpz_t z;
+        if (tpz_open(&z, data, len) != TPK_OK) return 0;
+        const uint32_t need = mph_need(&z);
+        if (need == 0) return 0;
+        uint8_t* blk = (uint8_t*)malloc(need);
+        mph_table_t t;
+        if (mph_build(&z, zinflate, blk, need, &t) != TPK_OK) { free(blk); return 0; }
+        free(pblock);
+        pblock = blk; ptable = t; pclips = t.count;
+        return 1;
+    }
+    return 1; /* look, filler and the rest: their consumers are tested by the picture and filler tests */
+}
+
+static void unapply(int type)
+{
+    if (type == TPK_LANGUAGE) { words_ok = 0; memset(&words, 0, sizeof(words)); }
+    if (type == TPK_PHRASE) { free(pblock); pblock = NULL; pclips = 0; memset(&ptable, 0, sizeof(ptable)); }
+}
 
 static void say_pack(tpk_err_t e)
 {
     if (e == TPK_OK) { printf("{\"ok\":true}\n"); return; }
     printf("{\"ok\":false,\"code\":\"%s\",\"error\":\"%s\"}\n", TPK_ERR_CODES[e], tpk_say(e, 0));
+}
+
+static int type_arg(void) { return tpk_type_by_name(arg("type", "look")); }
+
+static void forget_ram(void)
+{
+    for (int t = 0; t < TPK_TYPES; t++) { held[t] = 0; unapply(t); }
 }
 
 /* ---- self.facepic.* ---- */
@@ -100,7 +168,22 @@ static void say_pf(pf_err_t e)
 static void handle(const char* tool)
 {
     if (strcmp(tool, "reboot") == 0) {
-        tpk_rx_init(&rx); free(rx_buf); rx_buf = NULL; held = 0; free_frames(); pack_open = pack_held = 0;
+        tpk_rx_init(&rx); free(rx_buf); rx_buf = NULL; free_frames(); pack_open = pack_held = 0;
+        forget_ram();
+        for (int t = 0; t < TPK_TYPES; t++) { cached[t] = 0; free(held_data[t]); held_data[t] = NULL; }
+        printf("{\"ok\":true}\n");
+    } else if (strcmp(tool, "power_cycle") == 0) { /* RAM gone, the flash cache applied again; a damaged cache means the built-in set */
+        tpk_rx_init(&rx); free(rx_buf); rx_buf = NULL; free_frames(); pack_open = pack_held = 0;
+        forget_ram();
+        for (int t = 0; t < TPK_TYPES; t++) {
+            if (!cached[t]) continue;
+            if (damaged[t] || !apply_pack(t, held_data[t], held_size[t])) { cached[t] = 0; free(held_data[t]); held_data[t] = NULL; damaged[t] = 0; continue; }
+            held[t] = 1;
+        }
+        printf("{\"ok\":true}\n");
+    } else if (strcmp(tool, "damage_cache") == 0) { /* a flipped bit in the cache: found at the next boot */
+        const int t = type_arg();
+        if (t >= 0) damaged[t] = 1;
         printf("{\"ok\":true}\n");
     } else if (strcmp(tool, "self.pack.begin") == 0) {
         free(rx_buf); rx_buf = NULL;
@@ -116,17 +199,34 @@ static void handle(const char* tool)
         if (e == TPK_OK) memcpy(rx_buf + at, piece, (size_t)n);
         say_pack(e);
     } else if (strcmp(tool, "self.pack.commit") == 0) {
+        const int type = rx.type;
         tpk_err_t e = tpk_rx_commit(&rx);
         if (e == TPK_OK) {
+            if (!apply_pack(type, rx_buf, rx.size)) { free(rx_buf); rx_buf = NULL; say_pack(TPK_ERR_ZIP); return; } /* nothing changes */
             tpk_sha_t s; uint8_t d[32];
-            tpk_sha_init(&s); tpk_sha_update(&s, rx_buf, rx.size); tpk_sha_final(&s, d); tpk_sha_hex(d, held_sha);
-            held = 1; held_size = rx.size;
+            tpk_sha_init(&s); tpk_sha_update(&s, rx_buf, rx.size); tpk_sha_final(&s, d); tpk_sha_hex(d, held_sha[type]);
+            held[type] = 1; cached[type] = 1; damaged[type] = 0; held_size[type] = rx.size;
+            strncpy(held_name[type], rx.name, TPK_NAME_MAX); held_name[type][TPK_NAME_MAX] = 0;
+            free(held_data[type]); held_data[type] = rx_buf; rx_buf = NULL;
         }
         say_pack(e);
     } else if (strcmp(tool, "self.pack.status") == 0) {
-        printf("{\"ok\":true,\"held\":%s,\"sha256\":\"%s\",\"size\":%u}\n", held ? "true" : "false", held ? held_sha : "", held ? held_size : 0u);
+        const int t = type_arg();
+        if (t < 0) { say_pack(TPK_ERR_TYPE); return; }
+        char extra[64] = "";
+        if (t == TPK_LANGUAGE) snprintf(extra, sizeof(extra), ",\"lang\":\"%s\"", words_ok ? words.code : "");
+        if (t == TPK_PHRASE) snprintf(extra, sizeof(extra), ",\"clips\":%d", pclips);
+        printf("{\"ok\":true,\"type\":\"%s\",\"held\":%s,\"name\":\"%s\",\"sha256\":\"%s\",\"size\":%u,\"cached\":%s,\"cache\":\"%s\",\"fallback\":%s%s}\n",
+               TPK_TYPE_NAMES[t], held[t] ? "true" : "false", held[t] ? held_name[t] : "", held[t] ? held_sha[t] : "", held[t] ? held_size[t] : 0u,
+               cached[t] ? "true" : "false", cached[t] ? (damaged[t] ? "damaged" : "ok") : "empty", held[t] ? "false" : "true", extra);
+    } else if (strcmp(tool, "self.lang.words") == 0) { /* test helper: the words in use for a face language code */
+        const mlw_t* w = mlw_for(words_ok ? &words : NULL, arg("code", "en"));
+        printf("{\"ok\":true,\"code\":\"%s\",\"dmy\":%d,\"wd0\":\"%s\",\"mon10\":\"%s\",\"alarm\":\"%s\",\"timer\":\"%s\"}\n", w->code, w->dmy, w->wd[0], w->mon[10], w->alarm, w->timer);
     } else if (strcmp(tool, "self.pack.remove") == 0) {
-        held = 0; printf("{\"ok\":true}\n");
+        const int t = type_arg();
+        if (t < 0) { say_pack(TPK_ERR_TYPE); return; }
+        held[t] = 0; cached[t] = 0; damaged[t] = 0; unapply(t); free(held_data[t]); held_data[t] = NULL;
+        printf("{\"ok\":true}\n");
     } else if (strcmp(tool, "self.facepic.begin") == 0) {
         int mode = pf_mode_by_name(arg("mode", "picture"));
         pf_err_t e = pf_start_ok(mode, atoi(arg("fps", "6")));

@@ -1,0 +1,120 @@
+# Intent: The shared pack loader learns a seventh pack type, phrase (the offline phrases, patch K12), and the flash cache directory moves to format 2 so it can name it. Types are look, language, filler, sound, dance, game, phrase; the size gate of a phrase pack is 150,000 bytes (the sixteen clips are about 60 KB). A format 1 directory (six types, written by the units flashed with TB02) is still read: its checksum covers six entries and the seventh type is empty, so a held look or filler pack survives the update with no data debt; the next directory write is format 2. New hal/maipai_inflate.h: raw deflate to memory with the decompressor's 11 KB state in PSRAM. The ROM's tinfl_decompress_mem_to_mem keeps that state on the caller's stack, and a deflated words.txt inflated on the serial tool task (or any task with a 4 to 8 KB stack) overflowed it, corrupted the heap beside the stack and crashed the unit at the next log line (found on the unit, first window of the packs work); K11, K12 and K13 use the helper. Nothing else in the loader changes: the receiver, the checksum, the zip walker, the ping-pong directory and the power-cut order are the ones the TB02 tests cover.
+# Placement: unit (the cache is the robot's own flash)
+# Upstream: firmware/main/hal/maipai_pack_core.h and maipai_packcache_core.h (ours, TB02); new hal/maipai_inflate.h (ROM miniz, tinfl_decompress)
+# Check after a flash: self.pack.status for type phrase answers held false and fallback true; the packs held before the flash (a look, a filler pack) are still held after it, with cache ok; sending a phrase pack and a language pack (K11, K12, K13), the language pack with a deflated words.txt, answers ok and a reboot with the host off leaves both held.
+
+diff --git a/firmware/main/hal/maipai_pack_core.h b/firmware/main/hal/maipai_pack_core.h
+--- a/firmware/main/hal/maipai_pack_core.h
++++ b/firmware/main/hal/maipai_pack_core.h
+@@ -27,10 +27,12 @@
+ #define TPK_SOUND 3
+ #define TPK_DANCE 4
+ #define TPK_GAME 5
+-#define TPK_TYPES 6
++#define TPK_PHRASE 6 /* the offline phrases (patch K12): sixteen short clips in the household's voice and language */
++#define TPK_TYPES 7
++#define TPK_LEGACY_TYPES 6 /* the types a format 1 cache directory knows (patch K10 reads it, then writes format 2) */
+ 
+-static const char* const TPK_TYPE_NAMES[TPK_TYPES] = {"look", "language", "filler", "sound", "dance", "game"};
+-static const uint32_t TPK_MAX_BYTES[TPK_TYPES]     = {1000000u, 200000u, 400000u, 400000u, 100000u, 200000u};
++static const char* const TPK_TYPE_NAMES[TPK_TYPES] = {"look", "language", "filler", "sound", "dance", "game", "phrase"};
++static const uint32_t TPK_MAX_BYTES[TPK_TYPES]     = {1000000u, 200000u, 400000u, 400000u, 100000u, 200000u, 150000u};
+ #define TPK_NAME_MAX 40 /* characters, with the end mark 41 bytes */
+ 
+ static inline int tpk_type_by_name(const char* name)
+@@ -216,7 +218,7 @@ static inline const char* tpk_say(tpk_err_t e, int spanish)
+ {
+     static const char* const en[TPK_ERR_COUNT] = {
+         "Done.",
+-        "That pack type is not known. Packs can be look, language, filler, sound, dance or game.",
++        "That pack type is not known. Packs can be look, language, filler, sound, dance, game or phrase.",
+         "The pack name must be 1 to 40 letters, numbers, spaces, dots, dashes or underscores. Rename the pack and send it again.",
+         "That pack is empty or too big for the robot to keep. Use a smaller or simpler pack.",
+         "The pack checksum is not valid. Export the pack again from where it came from.",
+@@ -232,7 +234,7 @@ static inline const char* tpk_say(tpk_err_t e, int spanish)
+         "The robot is still saving the last pack. Wait a few seconds, then send this one again."};
+     static const char* const es[TPK_ERR_COUNT] = {
+         "Listo.",
+-        "No conozco ese tipo de paquete. Pueden ser look, language, filler, sound, dance o game.",
++        "No conozco ese tipo de paquete. Pueden ser look, language, filler, sound, dance, game o phrase.",
+         "El nombre del paquete debe tener de 1 a 40 letras, numeros, espacios, puntos, guiones o guiones bajos. Cambia el nombre y envialo de nuevo.",
+         "Ese paquete esta vacio o es demasiado grande para que el robot lo guarde. Usa un paquete mas pequeno o mas simple.",
+         "La suma de verificacion del paquete no es valida. Exportalo de nuevo desde donde vino.",
+diff --git a/firmware/main/hal/maipai_packcache_core.h b/firmware/main/hal/maipai_packcache_core.h
+--- a/firmware/main/hal/maipai_packcache_core.h
++++ b/firmware/main/hal/maipai_packcache_core.h
+@@ -29,7 +29,8 @@
+ #define TPC_DIR_SECTORS 2u
+ #define TPC_DATA_SECTORS (TPC_REGION_BYTES / TPC_SECTOR - TPC_DIR_SECTORS) /* 382 */
+ #define TPC_MAGIC 0x4B50414Du /* "MAPK" */
+-#define TPC_FORMAT 1u
++#define TPC_FORMAT 2u        /* 7 types (patch K10); format 1 had 6 and is still read */
++#define TPC_FORMAT_LEGACY 1u
+ 
+ /* One directory entry, 96 bytes on flash. */
+ typedef struct {
+@@ -80,6 +81,7 @@ static inline uint32_t tpc_dir_crc(const uint8_t* sector_bytes, size_t covered)
+ 
+ #define TPC_HDR_BYTES 16u /* magic, format, count, seq, crc */
+ #define TPC_DIR_COVERED (TPC_HDR_BYTES + TPK_TYPES * TPC_ENTRY_BYTES)
++#define TPC_DIR_COVERED_LEGACY (TPC_HDR_BYTES + TPK_LEGACY_TYPES * TPC_ENTRY_BYTES)
+ 
+ static inline void tpc_put32(uint8_t* p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24); }
+ static inline void tpc_put16(uint8_t* p, uint16_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
+@@ -120,15 +122,20 @@ static inline void tpc_encode(const tpc_dir_t* d, uint8_t out[TPC_SECTOR])
+ /* 1 when the sector holds a valid directory; fills `d` (and its seq). */
+ static inline int tpc_decode(const uint8_t* in, tpc_dir_t* d)
+ {
+-    if (tpz_u32(in) != TPC_MAGIC || tpz_u16(in + 4) != TPC_FORMAT) return 0;
++    if (tpz_u32(in) != TPC_MAGIC) return 0;
++    const uint16_t format = tpz_u16(in + 4);
++    if (format != TPC_FORMAT && format != TPC_FORMAT_LEGACY) return 0;
++    /* a format 1 directory (six types) is still good: its checksum covers six entries, and the seventh type is empty */
++    const int types       = format == TPC_FORMAT ? TPK_TYPES : TPK_LEGACY_TYPES;
++    const size_t covered  = TPC_HDR_BYTES + (size_t)types * TPC_ENTRY_BYTES;
+     uint8_t tmp[TPC_DIR_COVERED];
+-    memcpy(tmp, in, sizeof(tmp));
++    memcpy(tmp, in, covered);
+     const uint32_t want = tpz_u32(tmp + 12);
+     tpc_put32(tmp + 12, 0);
+-    if (tpc_dir_crc(tmp, sizeof(tmp)) != want) return 0;
++    if (tpc_dir_crc(tmp, covered) != want) return 0;
+     memset(d, 0, sizeof(*d));
+     d->seq = tpz_u32(in + 8);
+-    for (int t = 0; t < TPK_TYPES; t++) {
++    for (int t = 0; t < types; t++) {
+         const uint8_t* p = in + TPC_HDR_BYTES + (size_t)t * TPC_ENTRY_BYTES;
+         if (p[0] == 0xFF) continue;
+         if (p[0] != (uint8_t)t || p[1] == 0 || p[1] > TPK_NAME_MAX) return 0;
+diff --git a/firmware/main/hal/maipai_inflate.h b/firmware/main/hal/maipai_inflate.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_inflate.h
+@@ -0,0 +1,27 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Raw deflate to memory for the shared pack loader's users (patch K10). The ROM's tinfl_decompress_mem_to_mem keeps its whole
++ * decompressor, about 11 KB, on the CALLER's stack: a task with a stack of 4 to 8 KB overflows it and corrupts the heap beside
++ * it (the first language pack sent over the serial tool path crashed the unit that way, with the log lock the first thing to
++ * notice). This runs the same decompressor with its state in PSRAM, so the caller's stack cost is a few dozen bytes.
++ */
++#pragma once
++#include <esp_heap_caps.h>
++#include <miniz.h>
++#include <cstddef>
++#include <cstdint>
++
++// Inflates a raw deflate stream (as a zip entry holds it) into out (cap bytes, the entry's inflated size).
++// Returns the number of bytes written, or -1 on a damaged stream or no memory.
++static inline long maipai_inflate_raw(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap)
++{
++    tinfl_decompressor* d = static_cast<tinfl_decompressor*>(heap_caps_malloc(sizeof(tinfl_decompressor), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (d == nullptr) return -1;
++    tinfl_init(d);
++    size_t in_len  = inlen;
++    size_t out_len = cap;
++    const tinfl_status st = tinfl_decompress(d, in, &in_len, out, out, &out_len, TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
++    heap_caps_free(d);
++    return st == TINFL_STATUS_DONE ? static_cast<long>(out_len) : -1;
++}

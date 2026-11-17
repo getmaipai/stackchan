@@ -21,6 +21,7 @@ from urllib.parse import quote
 import numpy as np
 import pytest
 
+from firmware_order_cores import cores_dir
 from maipai_body import packs
 from maipai_body import picture_faces as pf
 from maipai_body.hal.errors import BodyLost
@@ -48,15 +49,14 @@ def _added(patch: str, path: str) -> str:
 @pytest.fixture(scope="session")
 def driver(tmp_path_factory) -> Path:
     root = tmp_path_factory.mktemp("wire")
-    (root / "maipai_pack_core.h").write_text(
-        _added("TB02-pack-loader-and-flash-cache.patch", "firmware/main/hal/maipai_pack_core.h")
-    )
+    for name in ("maipai_pack_core.h", "maipai_lang_core.h", "maipai_phrasepack_core.h", "maipai_sounds_core.h"):  # as ORDER leaves them (K10 to K12)
+        (root / name).write_text((cores_dir(tmp_path_factory) / name).read_text())
     (root / "maipai_picface_core.h").write_text(
         _added("H03-picture-face-core.patch", "firmware/main/hal/maipai_picface_core.h")
     )
     binary = root / "driver"
     built = subprocess.run(
-        ["cc", "-std=c99", "-Wall", "-Wextra", "-Werror", f"-I{root}", str(HERE / "firmware" / "pack_wire_driver.c"), "-o", str(binary)],
+        ["cc", "-std=c99", "-Wall", "-Wextra", "-Werror", f"-I{root}", str(HERE / "firmware" / "pack_wire_driver.c"), "-o", str(binary), "-lz"],
         capture_output=True, text=True,
     )  # fmt: skip
     assert built.returncode == 0, built.stderr

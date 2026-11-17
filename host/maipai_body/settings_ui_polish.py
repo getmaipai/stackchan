@@ -8,7 +8,7 @@ from __future__ import annotations
 JS_POLISH = r"""
 /* ---- newer features: overlays, listening cues, thinking sounds, look effects, packs, languages ---- */
 const FXM={mono:'grayscale(1)',warm:'sepia(.6) saturate(1.3)',cool:'hue-rotate(170deg) saturate(.8)'};
-const PACKT=['look','sound','dance','game'];
+const PACKT=['look','sound','dance','game'];  /* the kinds a person picks one by one; language, filler and phrase follow the robot's settings */
 async function prefsView(id){const r=await api(unitPath(id,'prefs'));return r.ok?r.d:{values:{},unit_ready:false,features:{},notice:''}}
 function comingBadge(){return h('span',{class:'badge'},T('pol.coming'))}
 function comingNote(pv,key){return pv.unit_ready||(key&&pv.unit_keys&&!pv.unit_keys.includes(key))?null:h('p',{class:'hint'},comingBadge())}
@@ -18,12 +18,15 @@ function pseg(pv,put,key,label,opts,after){return seg(label,opts.map(o=>({v:o,t:
 
 
 /* Turning toward people: the unit's own seeker setting and who owns it (this robot, the Home hub, nobody) */
+function lookAgo(ms){if(ms==null||ms<0)return T('pol.look.st.never');const s=Math.round(ms/1000);return s<60?T('pol.look.st.ago_s').replace('{n}',s):T('pol.look.st.ago_m').replace('{n}',Math.round(s/60))}
+function lookStatus(lk){const who=lk.owner==='host'?T('pol.look.st.host'):lk.owner==='unit'?T('pol.look.st.unit'):T('pol.look.st.none');const ms=lk.last_face_ago_ms>=0?lk.last_face_ago_ms:lk.last_seen_ago_ms;return who+' '+T('pol.look.st.last').replace('{when}',lookAgo(ms))}
 async function lookSeekCard(id,sv){const pv=await prefsView(id),put=prefSaver(id,pv),owner=pv.face_owner||sv.face_owner||'robot',ready=pv.features&&pv.features.look;
  const c=card(T('pol.look.title'),T('pol.look.help'),
   pseg(pv,put,'turn_to_faces',T('pol.look.mode'),['off','talk','always']),
   seg(T('pol.look.owner'),['robot','hub','off'].map(o=>({v:o,t:T('pol.face_owner.'+o)})),owner,async v=>(await save(unitPath(id,'device'),{face_owner:v})).ok),
   h('p',{class:'help'},T('pol.look.owner_help')));
  if(!ready)c.append(h('p',{class:'hint'},comingBadge()));
+ else if(pv.look&&pv.look.owner)c.append(h('p',{class:'hint',role:'status'},lookStatus(pv.look)));
  return c}
 
 /* overlays: pick one, how strong, how long, Test and Clear; the preview shows it at once */
@@ -107,17 +110,43 @@ BUILDERS.packs=async(p,u)=>{const id=u.device_id,lr=await api('/api/stackchan/pa
  const file=h('input',{type:'file',accept:'.maipack',hidden:true,onchange:async e=>{const f=e.target.files[0];if(!f)return;const r=await save('/api/stackchan/packs/import',{b64:b64FromBuffer(await f.arrayBuffer())},true);e.target.value='';if(r.ok){toast(T('pol.packs.imported'));reload()}else toast(r.d.error,'bad')}});
  const imp=h('button',{type:'button',class:'btn pri',onclick:()=>file.click()},T('pol.packs.import'));
  const libc=card(T('pol.packs.library'),T('pol.packs.library_help'),body,meter,used,h('div',{class:'btns'},imp,file));
- /* the active pack of each type for this unit */
- const act=h('div',{class:'list'});
- for(const ty of PACKT){const opts=lib.packs.filter(x=>x.type===ty),cur=(ud.active||{})[ty]||'',sel=h('select',{'aria-label':T('pol.type.'+ty),onchange:async e=>{const r=await save(unitPath(id,'packs/activate'),{type:ty,pack_id:e.target.value});if(!r.ok)e.target.value=cur}});
-  sel.append(h('option',{value:''},T('pol.packs.builtin')));for(const x of opts)sel.append(h('option',{value:x.id,selected:x.id===cur},x.name+' ('+sizeWord(x.size)+')'));
-  act.append(h('div',{class:'row'},h('div',{class:'lbl'},h('b',{},T('pol.type.'+ty)),h('span',{},T('pol.type.'+ty+'_help'))),sel))}
- const actc=card(T('pol.packs.active'),T('pol.packs.active_help'),ud.unit_ready?null:h('div',{class:'banner'},T('pol.packs.coming')),act);
- /* languages */
- const lv=fv.values||{lang:'en'},c=fv.choices||{lang:LANGS_ALL},langs=lib.packs.filter(x=>x.type==='language'),lcur=(ud.active||{}).language||'';
- const ls=h('select',{'aria-label':S['settings.face.lang'],onchange:e=>save(facePath(id),{screen_lang:e.target.value})});for(const l of c.lang)ls.append(h('option',{value:l,selected:l===lv.lang},S['settings.lang.'+l]||l));
- const lp=h('select',{'aria-label':T('pol.lang.pack'),onchange:async e=>{const r=await save(unitPath(id,'packs/activate'),{type:'language',pack_id:e.target.value});if(!r.ok)e.target.value=lcur}});
- lp.append(h('option',{value:''},T('pol.lang.none')));for(const x of langs)lp.append(h('option',{value:x.id,selected:x.id===lcur},x.name+(x.lang?' ('+x.lang+')':'')));
- const langc=card(T('pol.lang.title'),T('pol.lang.help'),field(S['settings.face.lang'],ls),field(T('pol.lang.pack'),lp),langs.length?null:h('p',{class:'hint'},T('pol.lang.none_help')),ud.unit_ready?null:h('p',{class:'hint'},comingBadge()));
- p.append(h('div',{class:'grid'},libc,actc,langc))};
+ /* what this robot holds, per kind, as the robot itself reports it */
+ const rowsOf=ud.rows||{},unitOf=ud.unit||{};
+ const stateWord=(ty)=>{const r=rowsOf[ty];if(!ud.unit_ready)return T('pol.st.noreach');if(!r)return '';
+  if(r.cache==='damaged')return T('pol.st.damaged');
+  if(r.in_sync)return r.wanted?T('pol.st.synced'):T('pol.st.builtin');
+  if(r.wanted&&!r.held)return T('pol.st.pending');if(r.wanted&&r.held)return T('pol.st.stale');if(!r.wanted&&r.held)return T('pol.st.drop');return T('pol.st.builtin')};
+ const MANAGED=['language','filler','phrase'],act=h('div',{class:'list'});
+ for(const ty of ['look','language','filler','phrase','sound','dance','game']){const r=rowsOf[ty]||{},opts=lib.packs.filter(x=>x.type===ty),cur=(ud.active||{})[ty]||'',auto=MANAGED.includes(ty),
+  sel=h('select',{'aria-label':T('pol.type.'+ty),onchange:async e=>{const r2=await save(unitPath(id,'packs/activate'),{type:ty,pack_id:e.target.value});if(!r2.ok)e.target.value=cur;else reload()}});
+  sel.append(h('option',{value:''},auto?T('pol.packs.auto'):T('pol.packs.builtin')));for(const x of opts)sel.append(h('option',{value:x.id,selected:x.id===cur},x.name+(x.voice?' · '+x.voice:'')+' ('+sizeWord(x.size)+')'));
+  const what=r.wanted_name?r.wanted_name+' · '+sizeWord(r.wanted_size):T('pol.packs.builtin_help');
+  const keep=r.held?(r.cached?T('pol.st.kept'):T('pol.st.not_kept')):'';
+  act.append(h('div',{class:'row'},h('div',{class:'lbl'},h('b',{},T('pol.type.'+ty)),h('span',{},what),h('span',{role:'status','data-state':ty},stateWord(ty)+(keep?' · '+keep:''))),sel))}
+ const sendNow=h('button',{type:'button',class:'btn','aria-pressed':'false',disabled:!ud.unit_ready},T('pol.packs.send_now'));
+ sendNow.addEventListener('click',()=>press(sendNow,async()=>{const r=await save(unitPath(id,'packs/sync'),{});if(r.ok){toast(T('pol.packs.sent_now'));reload()}else toast(r.d.error,'bad')}));
+ const actc=card(T('pol.packs.active'),T('pol.packs.active_help'),ud.unit_ready?null:h('div',{class:'banner'},T('pol.packs.coming')),act,h('div',{class:'btns'},sendNow));
+ /* the screen language: install, switch, and what each one weighs */
+ const lv=fv.values||{lang:'en'},c=fv.choices||{lang:LANGS_ALL},langRow=h('div',{class:'list',role:'radiogroup','aria-label':T('pol.lang.title')}),lrow=rowsOf.language||{};
+ const unitLang=(unitOf.language||{}).lang||'';
+ for(const l of c.lang){const pk=lib.packs.find(x=>x.type==='language'&&x.lang===l),on=l===lv.lang;
+  const size=l==='en'?T('pol.lang.builtin'):(pk?sizeWord(pk.size):T('pol.lang.nopack'));
+  const st=!on?'':(l==='en'?(ud.unit_ready&&unitLang?T('pol.lang.en_after'):T('pol.lang.on_robot')):(ud.unit_ready?(unitLang===l?T('pol.lang.on_robot'):T('pol.lang.sending')):T('pol.st.noreach')));
+  const b=h('button',{type:'button',role:'radio',class:'pill','aria-checked':String(on),style:'justify-content:space-between;display:flex;align-items:center;width:100%;margin-bottom:6px',
+   onclick:async()=>{const r=await save(facePath(id),{screen_lang:l});if(r.ok){toast(T('pol.lang.switched'));setTimeout(reload,1500)}}},
+   h('span',{},(S['settings.lang.'+l]||l)),h('span',{class:'hint'},size+(st?' · '+st:'')));
+  langRow.append(b)}
+ const langc=card(T('pol.lang.title'),T('pol.lang.help'),langRow,h('p',{class:'hint'},T('pol.lang.ascii')),lrow.cache==='damaged'?h('p',{class:'hint',role:'alert'},T('pol.lang.damaged')):null,ud.unit_ready?null:h('p',{class:'hint'},comingBadge()));
+ /* the offline phrases: made with this household's voice and language, sent to the robot */
+ const phr=await api(unitPath(id,'phrases')),pd=phr.ok?phr.d:{packs:[],wanted:null,unit:{},languages:['en'],status:{running:false},can_make:false};
+ const pstate=h('p',{class:'hint',role:'status'}),pbar=h('div',{class:'meter','aria-hidden':'true',hidden:true},h('i',{style:'width:0%'}));
+ const plang=pd.languages.includes(lv.lang)?lv.lang:'en';
+ const pmk=h('button',{type:'button',class:'btn pri','aria-pressed':'false',disabled:!pd.can_make,title:pd.can_make?null:T('pol.think.noengine')},T('pol.phr.make'));
+ const showP=s=>{pbar.hidden=!s.running;pbar.firstChild.style.width=(s.total?Math.round(100*s.done/s.total):0)+'%';
+  const have=pd.packs.map(x=>x.name+(x.voice?' · '+x.voice:'')+' ('+sizeWord(x.size)+')').join(', '),u=pd.unit||{};
+  pstate.textContent=s.running?T('pol.phr.making')+' '+s.done+'/'+s.total:s.error||((have||T('pol.phr.none_made'))+(u.held?' · '+T('pol.phr.on_robot').replace('{n}',u.clips==null?'?':u.clips):' · '+T('pol.phr.builtin')))};showP(pd.status);
+ const pollP=async()=>{const r=await api(unitPath(id,'phrases'));if(!r.ok)return;Object.assign(pd,r.d);showP(r.d.status);if(r.d.status.running)setTimeout(pollP,900);else{pmk.classList.remove('busy');if(!r.d.status.error)toast(T('pol.phr.made'))}};
+ pmk.addEventListener('click',async()=>{if(pmk.classList.contains('busy'))return;pmk.classList.add('busy');const r=await save(unitPath(id,'phrases/generate'),{voice:'default',for_lang:plang},true);if(!r.ok){pmk.classList.remove('busy');toast(r.d.error,'bad');return}pollP()});
+ const phrc=card(T('pol.phr.title'),T('pol.phr.help'),pstate,pbar,pd.languages.includes(lv.lang)?null:h('p',{class:'hint'},T('pol.phr.en_only')),h('div',{class:'btns'},pmk));
+ p.append(h('div',{class:'grid'},libc,actc,langc,phrc))};
 """

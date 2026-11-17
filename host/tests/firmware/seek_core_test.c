@@ -221,7 +221,7 @@ static void test_blob(void)
     }
     ms_blob(a, b, &sc, &r);
     CHECK(r.kind == MS_BLOB_FOUND && r.area == 72 && fabsf(r.cx - 30.5f) < 0.1f);
-    CHECK(ms_offset_deg(30.5f) > 17.0f && ms_offset_deg(30.5f) < 19.0f);
+    CHECK(fabsf(ms_offset_deg(30.5f) - 11.0f * MS_FOV_DEG / (float)MS_W) < 0.1f); /* 11 columns right of the middle; the field of view is the measured one */
     CHECK(fabsf(ms_offset_deg(19.5f)) < 0.01f);
     /* two blobs: the larger one wins */
     for (int y = 4; y < 8; y++) {

@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from firmware_order_cores import cores_dir
 
 HERE = Path(__file__).resolve().parent
 PATCHES = HERE.parent.parent / "firmware" / "patches"
@@ -44,9 +45,9 @@ def _header_from_patch(patch: str, name: str) -> str:
 
 
 @pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler on this machine")
-def test_face_core_c_tests_pass(tmp_path):
-    for patch, name in CORES.items():
-        (tmp_path / name).write_text(_header_from_patch(patch, name))
+def test_face_core_c_tests_pass(tmp_path, tmp_path_factory):
+    # The headers as the whole of ORDER leaves them: patch K11 moved the non-English screen words out of the clock and timer cores.
+    tmp_path = cores_dir(tmp_path_factory)
     binary = tmp_path / "face_cores_test"
     build = subprocess.run(
         [

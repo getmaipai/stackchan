@@ -16,6 +16,7 @@ so a pack that would not fit is refused before anything is sent. The transport i
 in a later release (a unit without them is flagged and the choice waits on the host):
 
     self.pack.status  {"type": "look"}                      -> {"ok": true, "held": bool, "sha256": "...", "name": "..."}
+                      (language adds "lang", phrase adds "clips": how many of the sixteen came from the pack)
     self.pack.begin   {"type", "name", "version", "size", "sha256"}
     self.pack.data    {"at": 0, "b64": "..."}               (CHUNK_BYTES raw bytes per call)
     self.pack.commit  {}
@@ -50,7 +51,11 @@ logger = logging.getLogger("maipai_body.packs")
 
 MAGIC = b"MAIPACK1\n"
 FORMAT = 1
-TYPES = ("look", "language", "filler", "sound", "dance", "game")
+TYPES = ("look", "language", "filler", "sound", "dance", "game", "phrase")
+# The types the host keeps in step with the unit's settings (its language, "While it thinks", its voice) and not only with a
+# person's explicit choice: the host works out the pack each one should hold (``pack_auto.AutoPacks``) and sends it on connect
+# and whenever a setting that decides it changes. The other types are sent only when a person activates a pack.
+MANAGED = ("language", "filler", "phrase")
 # The most one pack of each type may hold, in bytes (look: about 1 MB; fillers: under 400 KB).
 MAX_BYTES: dict[str, int] = {
     "look": 1_000_000,
@@ -59,6 +64,7 @@ MAX_BYTES: dict[str, int] = {
     "sound": 400_000,
     "dance": 100_000,
     "game": 200_000,
+    "phrase": 150_000,
 }
 MAX_LIBRARY_BYTES = 40_000_000  # everything held on the host; the unit only ever holds the active ones
 _NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.\-]{0,39}$")
@@ -151,12 +157,12 @@ class Pack:
         return len(self.payload)
 
 
-def zip_payload(files: dict[str, bytes]) -> bytes:
-    """A payload from named byte strings (a zip, deflated)."""
+def zip_payload(files: dict[str, bytes], *, stored: bool = False) -> bytes:
+    """A payload from named byte strings (a zip, deflated; ``stored`` keeps the bytes as they are, for audio that is already compressed)."""
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED if stored else zipfile.ZIP_DEFLATED) as archive:
         for name, data in sorted(files.items()):
-            archive.writestr(name, data)
+            archive.writestr(zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0)), data, compress_type=zipfile.ZIP_STORED if stored else zipfile.ZIP_DEFLATED)
     return buf.getvalue()
 
 
@@ -388,13 +394,27 @@ class ActiveStore:
 
 
 class PackService:
-    """The page's pack actions: list, import, export, delete, choose the active pack per unit, push only that."""
+    """The page's pack actions: list, import, export, delete, choose the active pack per unit, push only that.
 
-    def __init__(self, probe: ToolProbe, library: PackLibrary | None = None, active: ActiveStore | None = None, *, chunk: int = CHUNK_BYTES) -> None:
+    A person's explicit choice (``active``) always wins. For the managed types (language, filler, phrase) with no explicit
+    choice, ``auto`` says which pack the unit's own settings call for (``pack_auto.AutoPacks``), or none; the unit holds only
+    what is wanted and is told to drop what is not (its flash cache and PSRAM are small)."""
+
+    def __init__(
+        self,
+        probe: ToolProbe,
+        library: PackLibrary | None = None,
+        active: ActiveStore | None = None,
+        *,
+        chunk: int = CHUNK_BYTES,
+        auto: Callable[[str], dict[str, str | None]] | None = None,
+    ) -> None:
         self.probe = probe
         self.library = library or PackLibrary()
         self.active = active or ActiveStore()
         self._chunk = chunk
+        self.auto = auto
+        self._push_lock = threading.Lock()  # one unit conversation at a time: pieces of two packs must never interleave
 
     # -- the library (host wide) --
 
@@ -424,13 +444,69 @@ class PackService:
         self.active.forget_pack(pid)
         return self.library_view()
 
+    # -- which pack each type should hold --
+
+    def wanted(self, device_id: str) -> dict[str, str | None]:
+        """Type -> pack id the unit should hold (None: the built-in set). Explicit choices first, then the managed types' own."""
+        out: dict[str, str | None] = dict(self.active.get(device_id))
+        if self.auto is not None:
+            try:
+                chosen = self.auto(device_id)
+            except Exception:
+                logger.debug("pack choice for unit %s failed", device_id[-5:], exc_info=True)
+                chosen = {}
+            for kind in MANAGED:
+                if kind not in out and kind in chosen:
+                    out[kind] = chosen[kind]
+        return out
+
+    def unit_state(self, device_id: str) -> dict[str, dict[str, Any]]:
+        """What the unit says it holds, per type (one status call each); a type the unit cannot answer for is left out."""
+        out: dict[str, dict[str, Any]] = {}
+        for kind in TYPES:
+            try:
+                reply = unwrap(self.probe.call(device_id, "self.pack.status", {"type": kind}, 4.0))
+            except (BodyLost, OSError, TimeoutError):
+                break
+            if reply.get("ok") is True:
+                out[kind] = {k: reply.get(k) for k in ("held", "name", "size", "sha256", "cached", "cache", "cache_on", "writing", "fallback", "booted", "lang", "clips")}
+        return out
+
     # -- one unit --
 
     def view(self, device_id: str, lang: str | None = None) -> dict[str, Any]:
         ready = self.probe.has(device_id, "pack")
+        want = self.wanted(device_id)
+        unit: dict[str, dict[str, Any]] = self.unit_state(device_id) if ready is True else {}
+        rows: dict[str, dict[str, Any]] = {}
+        for kind in TYPES:
+            pid = want.get(kind)
+            pack = None
+            if pid:
+                try:
+                    pack = self.library.get(pid)
+                except PackError:
+                    pack = None
+            held = unit.get(kind, {})
+            rows[kind] = {
+                "wanted": pid,
+                "wanted_name": pack.name if pack else "",
+                "wanted_size": pack.size if pack else 0,
+                "explicit": kind in self.active.get(device_id),
+                "held": bool(held.get("held")),
+                "held_name": held.get("name") or "",
+                "held_size": held.get("size") or 0,
+                "cache": held.get("cache") or "",
+                "cached": bool(held.get("cached")),
+                "fallback": held.get("fallback", True) if held else True,
+                "in_sync": bool(held) and ((pack is None and not held.get("held")) or (pack is not None and held.get("sha256") == pack.sha256)),
+            }
         return {
             **self.library_view(),
             "active": self.active.get(device_id),
+            "wanted": want,
+            "unit": unit,
+            "rows": rows,
             "unit_ready": ready is True,
             "reachable": ready is not None,
         }
@@ -461,38 +537,69 @@ class PackService:
         return self.probe.call(device_id, name, arguments, timeout)
 
     def _push_type(self, device_id: str, kind: str, lang: str | None) -> None:
-        pid = self.active.get(device_id).get(kind)
+        pid = self.wanted(device_id).get(kind)
+        with self._push_lock:
+            if pid is None:
+                self._tool(device_id, "self.pack.remove", {"type": kind})
+                return
+            pack = self.library.get(pid, lang)
+            begin = self._tool(device_id, "self.pack.begin", {"type": kind, "name": pack.name, "version": pack.version, "size": pack.size, "sha256": pack.sha256})
+            if begin.get("ok") is not True:
+                raise PackError(str(begin.get("error") or say(lang, "send_failed")), "send_failed")
+            for at in range(0, pack.size, self._chunk):
+                piece = pack.payload[at : at + self._chunk]
+                reply = self._tool(device_id, "self.pack.data", {"at": at, "b64": base64.b64encode(piece).decode("ascii")})
+                if reply.get("ok") is not True:
+                    raise PackError(str(reply.get("error") or say(lang, "send_failed")), "send_failed")
+            done = self._tool(device_id, "self.pack.commit", {}, timeout=15.0)
+            if done.get("ok") is not True:
+                raise PackError(str(done.get("error") or say(lang, "send_failed")), "send_failed")
+
+    def _ensure(self, device_id: str, kind: str, pid: str | None) -> str:
+        """Make the unit hold ``pid`` for ``kind`` (None: nothing, the built-in set). Returns what was done: kept, sent, removed, none."""
+        held = unwrap(self.probe.call(device_id, "self.pack.status", {"type": kind}))
+        if held.get("ok") is not True:
+            return "none"
         if pid is None:
-            self._tool(device_id, "self.pack.remove", {"type": kind})
-            return
-        pack = self.library.get(pid, lang)
-        begin = self._tool(device_id, "self.pack.begin", {"type": kind, "name": pack.name, "version": pack.version, "size": pack.size, "sha256": pack.sha256})
-        if begin.get("ok") is not True:
-            raise PackError(str(begin.get("error") or say(lang, "send_failed")), "send_failed")
-        for at in range(0, pack.size, self._chunk):
-            piece = pack.payload[at : at + self._chunk]
-            reply = self._tool(device_id, "self.pack.data", {"at": at, "b64": base64.b64encode(piece).decode("ascii")})
-            if reply.get("ok") is not True:
-                raise PackError(str(reply.get("error") or say(lang, "send_failed")), "send_failed")
-        done = self._tool(device_id, "self.pack.commit", {}, timeout=15.0)
-        if done.get("ok") is not True:
-            raise PackError(str(done.get("error") or say(lang, "send_failed")), "send_failed")
+            if held.get("held") is not True:
+                return "none"
+            self._push_type(device_id, kind, None)
+            return "removed"
+        pack = self.library.get(pid)
+        if held.get("held") is True and held.get("sha256") == pack.sha256:
+            return "kept"
+        self._push_type(device_id, kind, None)
+        return "sent"
+
+    def sync_types(self, device_id: str, kinds: tuple[str, ...] | list[str]) -> dict[str, str]:
+        """Bring the unit's pack of each given type in step with what is wanted (a setting changed). Never raises."""
+        done: dict[str, str] = {}
+        if self.probe.has(device_id, "pack") is not True:
+            return done
+        want = self.wanted(device_id)
+        for kind in kinds:
+            if kind not in TYPES:
+                continue
+            try:
+                done[kind] = self._ensure(device_id, kind, want.get(kind))
+            except (BodyLost, PackError, OSError, TimeoutError):
+                logger.debug("pack %s not brought in step on unit %s", kind, device_id[-5:], exc_info=True)
+                done[kind] = "failed"
+        return done
 
     def sync(self, device_id: str) -> None:
-        """When a unit connects: send each active pack the unit does not already hold. Nothing else is sent."""
+        """When a unit connects: send each wanted pack the unit does not already hold, and drop a managed pack that is not wanted
+        (a pack the person chose is sent; so is the one the unit's language, thinking sound and voice call for). Nothing else is sent."""
         self.probe.forget(device_id)
-        mine = self.active.get(device_id)
-        if not mine or self.probe.has(device_id, "pack") is not True:
+        if self.probe.has(device_id, "pack") is not True:
             return
-        for kind, pid in mine.items():
+        want = self.wanted(device_id)
+        kinds = [k for k in TYPES if k in want or k in MANAGED]
+        for kind in kinds:
             try:
-                pack = self.library.get(pid)
-                held = unwrap(self.probe.call(device_id, "self.pack.status", {"type": kind}))
-                if held.get("ok") is True and held.get("held") is True and held.get("sha256") == pack.sha256:
-                    continue
-                self._push_type(device_id, kind, None)
+                self._ensure(device_id, kind, want.get(kind))
             except (BodyLost, PackError, OSError, TimeoutError):
-                logger.debug("pack %s not sent to unit %s", pid, device_id[-5:], exc_info=True)
+                logger.debug("pack %s not sent to unit %s", kind, device_id[-5:], exc_info=True)
 
 
 __all__ = [

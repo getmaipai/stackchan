@@ -311,6 +311,10 @@ def _merge_more() -> None:
 
     for code, words in remote.CATALOGS.items():
         CATALOG[code].update(words)
+    from maipai_body import i18n_pages as swipe_pages_words
+
+    for code, words in swipe_pages_words.CATALOGS.items():
+        CATALOG[code].update(words)
 
 
 _merge_more()

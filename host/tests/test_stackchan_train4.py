@@ -52,6 +52,8 @@ FACES_CORE = [
 # drifted whenever a patch was added (V20 to V26 and N01 to N04 broke it); S10 and later patches are tested by their own lanes.
 _ORDER_ALL = [n for n in (PATCHES / "ORDER").read_text().split() if n]
 CORE_CHAIN = _ORDER_ALL[: _ORDER_ALL.index("FI04-lvgl-task-stack-8k.patch") + 1]
+# K10 and K11 change two of these headers (the screen words became a language pack): face_cores_test.c reads them through the pack's words.
+CORE_CHAIN += ["K10-pack-types-phrase-and-cache-format-2.patch", "K11-language-pack-screen-words.patch"]
 
 
 @pytest.fixture(scope="module")

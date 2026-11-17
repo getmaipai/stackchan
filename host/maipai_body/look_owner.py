@@ -7,7 +7,10 @@ unit's owner lease so the unit never double-drives:
 
     self.look.claim   {"owner": "home-hub", "ttl_s": 15}  -> {"ok": true, ...}   renewed every 5 s while the hub's tracking runs
     self.look.release {"owner": "home-hub"}               -> {"ok": true}
-    self.look.status  {}                                  -> {"ok": true, "owner": "unit" | "host" | "none", "lease_owner", ...}
+    self.look.status  {}                                  -> {"ok": true, "owner": "unit" | "host" | "none", "enabled", "last_face_ago_ms", ...}
+
+The heartbeat also reads ``self.look.status`` every tick and keeps the answer (``cached_status``): the settings page shows who turns
+toward faces, whether it is enabled and when someone was last seen.
 
 The rules, all in this file:
 
@@ -38,6 +41,8 @@ LEASE_OWNER = "home-hub"  # the name the unit sees; lowercase letters, digits, d
 LEASE_TTL_S = 15
 HEARTBEAT_S = 5.0
 OWNERS = ("robot", "hub", "off")
+STATUS_KEYS = ("owner", "enabled", "setting", "state", "last_face_ago_ms", "last_seen_ago_ms", "lease_owner", "detector", "fov_deg", "x_sign", "turns", "bursts")
+STATUS_FRESH_S = 20.0  # a status older than this is not shown (the unit went away or the heartbeat stopped)
 
 
 class LookOwner:
@@ -54,6 +59,7 @@ class LookOwner:
         self._held: dict[str, float] = {}  # device id -> when we last sent a claim the unit accepted
         self._lock = threading.Lock()
         self.last_state: dict[str, str] = {}
+        self._status: dict[str, tuple[dict[str, Any], float]] = {}
 
     # -- the setting -------------------------------------------------------------------------------------------------
     def setting(self, device_id: str) -> str:
@@ -79,6 +85,7 @@ class LookOwner:
     def tick(self, device_id: str) -> str:
         """Claim, renew or release as the rules say. Returns what happened (for logs and tests):
         "claimed", "renewed", "released", "idle", "waiting" (not due yet), "unsupported", "busy", "unreachable"."""
+        self.refresh_status(device_id)
         want = self.wants_lease(device_id)
         with self._lock:
             held_at = self._held.get(device_id)
@@ -110,6 +117,32 @@ class LookOwner:
             return self._note(device_id, "unsupported")
         logger.info("the unit's face seeking is held by another host (%s); this host tries again at the next heartbeat", reply.get("error", ""))
         return self._note(device_id, "busy")
+
+    def refresh_status(self, device_id: str) -> None:
+        """Ask the unit what its seeker is doing (self.look.status) so the page can show who turns toward faces, when a face was last
+        seen and whether it is enabled. Every heartbeat; a unit without the tool or out of reach keeps its last answer until it is stale."""
+        if self.unit_has_tool(device_id) is not True:
+            with self._lock:
+                self._status.pop(device_id, None)
+            return
+        try:
+            reply = self.probe.call(device_id, "self.look.status", {})
+        except (BodyLost, OSError, TimeoutError):
+            return
+        if isinstance(reply, dict) and reply.get("ok") is True:
+            with self._lock:
+                self._status[device_id] = ({k: reply[k] for k in STATUS_KEYS if k in reply}, self._clock())
+
+    def cached_status(self, device_id: str) -> dict[str, Any]:
+        """What the unit last said about its seeker, with ``age_s``; empty when nothing fresh is known."""
+        with self._lock:
+            known = self._status.get(device_id)
+        if known is None:
+            return {}
+        age = self._clock() - known[1]
+        if age > STATUS_FRESH_S:
+            return {}
+        return {**known[0], "age_s": round(age, 1)}
 
     def release(self, device_id: str) -> str:
         """Give the lease back (a setting changed, tracking stopped, or the host is closing)."""
@@ -148,6 +181,7 @@ class LookOwner:
             "lease_held": held,
             "state": self.last_state.get(device_id, "idle"),
             "host_search": self.host_may_search(device_id),
+            "status": self.cached_status(device_id),
         }
 
 

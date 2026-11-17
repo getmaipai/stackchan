@@ -244,20 +244,30 @@ static void test_segments(void)
     CHECK(half_w * half_w + half_h * half_h < 106 * 106);
 }
 
+/* Patch K11: only English is built in; every other language is a language pack. These are the Spanish words a pack carries. */
+static const char ES_WORDS[] =
+    "lang=es\norder=dmy\nweekdays=dom,lun,mar,mie,jue,vie,sab\n"
+    "months=ene,feb,mar,abr,may,jun,jul,ago,sep,oct,nov,dic\nalarm=Alarma\ntimer=Tiempo\n";
+
 static void test_date_line(void)
 {
     char out[24];
-    mf_date_line(out, sizeof(out), MF_LANG_EN, 0, 15, 10);
+    mlw_t es;
+    CHECK(mlw_parse(ES_WORDS, sizeof(ES_WORDS) - 1, &es) == MLW_OK);
+    mf_date_line(out, sizeof(out), &MLW_EN, 0, 15, 10);
     CHECK(strcmp(out, "Sun Nov 15") == 0);
-    mf_date_line(out, sizeof(out), MF_LANG_ES, 0, 15, 10);
+    mf_date_line(out, sizeof(out), NULL, 0, 15, 10); /* no words: English */
+    CHECK(strcmp(out, "Sun Nov 15") == 0);
+    mf_date_line(out, sizeof(out), &es, 0, 15, 10);
     CHECK(strcmp(out, "dom 15 nov") == 0);
-    mf_date_line(out, sizeof(out), MF_LANG_ES, 3, 2, 2);
+    mf_date_line(out, sizeof(out), &es, 3, 2, 2);
     CHECK(strcmp(out, "mie 2 mar") == 0);
-    mf_date_line(out, sizeof(out), MF_LANG_EN, 9, 15, 10);
+    mf_date_line(out, sizeof(out), &MLW_EN, 9, 15, 10);
     CHECK(out[0] == '\0');
-    for (const char* p = MF_WEEKDAY[1][0]; p < MF_WEEKDAY[1][0] + 1; p++) { CHECK((unsigned char)*p < 128); }
-    for (int d = 0; d < 7; d++) { for (const unsigned char* p = (const unsigned char*)MF_WEEKDAY[1][d]; *p; p++) CHECK(*p < 128); }
-    for (int m = 0; m < 12; m++) { for (const unsigned char* p = (const unsigned char*)MF_MONTH[1][m]; *p; p++) CHECK(*p < 128); }
+    /* the built-in words are plain ASCII, and the date line of a face whose language has no pack is the English one */
+    for (int d = 0; d < 7; d++) { for (const unsigned char* p = (const unsigned char*)MLW_EN.wd[d]; *p; p++) CHECK(*p < 128); }
+    for (int m = 0; m < 12; m++) { for (const unsigned char* p = (const unsigned char*)MLW_EN.mon[m]; *p; p++) CHECK(*p < 128); }
+    CHECK(mlw_for(&es, "es") == &es && mlw_for(&es, "fr") == &MLW_EN && mlw_for(NULL, "es") == &MLW_EN && mlw_for(&es, "en") == &MLW_EN);
 }
 
 static void test_clock_wanted(void)
@@ -329,15 +339,18 @@ static void test_countdown_text(void)
 static void test_chip_text_and_words(void)
 {
     char out[40];
+    mlw_t es;
+    CHECK(mlw_parse(ES_WORDS, sizeof(ES_WORDS) - 1, &es) == MLW_OK);
     mf_tchip_t a = chip(1, 1, 272, "tea");
-    mf_chip_text(out, sizeof(out), MF_LANG_EN, &a); CHECK(strcmp(out, "tea 4:32") == 0);
+    mf_chip_text(out, sizeof(out), &MLW_EN, &a); CHECK(strcmp(out, "tea 4:32") == 0);
     mf_tchip_t b = chip(2, 1, 60, "");
-    mf_chip_text(out, sizeof(out), MF_LANG_EN, &b); CHECK(strcmp(out, "Timer 1:00") == 0);
-    mf_chip_text(out, sizeof(out), MF_LANG_ES, &b); CHECK(strcmp(out, "Tiempo 1:00") == 0);
+    mf_chip_text(out, sizeof(out), &MLW_EN, &b); CHECK(strcmp(out, "Timer 1:00") == 0);
+    mf_chip_text(out, sizeof(out), NULL, &b); CHECK(strcmp(out, "Timer 1:00") == 0);
+    mf_chip_text(out, sizeof(out), &es, &b); CHECK(strcmp(out, "Tiempo 1:00") == 0);
     mf_tchip_t c = chip(3, 2, 30, "");
-    mf_chip_text(out, sizeof(out), MF_LANG_ES, &c); CHECK(strcmp(out, "Alarma 0:30") == 0);
+    mf_chip_text(out, sizeof(out), &es, &c); CHECK(strcmp(out, "Alarma 0:30") == 0);
     mf_tchip_t d = chip(4, 1, 5025, "a very long label indeed");
-    mf_chip_text(out, sizeof(out), MF_LANG_EN, &d); CHECK(strcmp(out, "a very lo 1:23:45") == 0);
+    mf_chip_text(out, sizeof(out), &MLW_EN, &d); CHECK(strcmp(out, "a very lo 1:23:45") == 0);
 }
 
 static void test_pick_and_place(void)

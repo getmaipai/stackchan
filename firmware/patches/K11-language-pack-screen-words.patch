@@ -1,0 +1,412 @@
+# Intent: Screen words as a language pack (Train 4 put the weekday, month, alarm and timer words of six languages in the image). Only English stays built in (maipai_lang_core.h, MLW_EN); the words of French, German, Portuguese, Italian, Spanish and any other language arrive as a language pack (a zip with words.txt: lang, order, weekdays, months, alarm, timer), are checked by the loader, kept in the flash cache and handed to maipai_lang.cc, which keeps them in PSRAM (two 181 byte slots, one atomic switch). The clock face date line and the timer chip words read maipai_lang_words(face language): the pack when its code is the face's language, else English. A missing, damaged or refused pack means English, never a blank. A pack is refused whole when a word is not plain ASCII (the build's Montserrat fonts draw 0x20 to 0x7E and the degree sign only, so an accent would show as a box; the host folds accents before it builds a pack), when a count is wrong, or when a key is missing. mf_date_line and mf_chip_text take the words instead of a language number.
+# Placement: unit (the screen words are drawn by the robot with the host off; the host library only holds and sends the packs)
+# Upstream: firmware/main/hal/maipai_face_clock_core.h, maipai_face_timers_core.h and maipai_face.cc (ours, F05, F06, U06); new hal/maipai_lang_core.h, maipai_lang.{h,cc}
+# Check after a flash: with the face language fr and a French pack held, the clock face date line reads like "mer 17 nov"; with the pack removed it reads "Wed Nov 17"; a timer with no label shows "Minut." in French and "Timer" without the pack; self.pack.status type language reports lang fr while the pack is applied.
+
+diff --git a/firmware/main/hal/maipai_lang_core.h b/firmware/main/hal/maipai_lang_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_lang_core.h
+@@ -0,0 +1,167 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Screen words as a language pack (patch K11): the pure logic. The unit keeps only the English words in its image. The
++ * words of every other language (French, German, Portuguese, Italian, Spanish and any a pack author adds) come in a
++ * language pack from the host, which the shared pack loader (maipai_pack_core.h) checks, keeps in the flash cache and
++ * hands to maipai_lang.cc. A missing or damaged pack means English, never a blank or half a table.
++ *
++ * What a language pack holds: a zip with one file, words.txt, of "key=value" lines:
++ *
++ *     lang=fr                              the code the face setting uses (two letters, lower case)
++ *     order=dmy                            dmy (dom 15 nov) or mdy (Sun Nov 15)
++ *     weekdays=dim,lun,mar,mer,jeu,ven,sam   Sunday first, seven words
++ *     months=jan,fev,mar,avr,mai,jun,jul,aou,sep,oct,nov,dec   twelve words
++ *     alarm=Alarme                         the name of an alarm chip with no label
++ *     timer=Minut.                         the name of a timer chip with no label
++ *
++ * Words are plain ASCII (0x21 to 0x7E, at most 7 letters; the two chip words may hold spaces, at most 11): the screen font of
++ * this build (Montserrat 14, 16 and 20) draws ASCII and the degree sign only, so an accented letter would show as a box.
++ * The host folds accents before it builds a pack ("aout", "fev"); a pack that carries a byte outside ASCII is refused here.
++ * Unknown keys are ignored (a later format may add words); a missing key, a wrong count or a bad word refuses the whole
++ * file and changes nothing. Plain C99, no allocation, no hardware.
++ * Host test: host/tests/firmware/lang_core_test.c.
++ */
++#ifndef MAIPAI_LANG_CORE_H
++#define MAIPAI_LANG_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++#define MLW_WORD 8       /* a weekday or month word: 7 letters and the end mark */
++#define MLW_KIND 12      /* a chip word: 11 characters and the end mark */
++#define MLW_FILE_MAX 1024u /* words.txt is at most this many bytes */
++
++typedef struct {
++    char code[4];           /* "fr" */
++    uint8_t dmy;            /* 1: day before month ("dom 15 nov"); 0: "Sun Nov 15" */
++    char wd[7][MLW_WORD];   /* Sunday first */
++    char mon[12][MLW_WORD]; /* January first */
++    char alarm[MLW_KIND];
++    char timer[MLW_KIND];
++} mlw_t;                    /* 4 + 1 + 56 + 96 + 24 = 181 bytes, kept in PSRAM by the device code */
++
++typedef enum {
++    MLW_OK = 0,
++    MLW_ERR_SIZE,    /* empty or longer than MLW_FILE_MAX */
++    MLW_ERR_ASCII,   /* a byte outside plain ASCII (the font cannot draw it) */
++    MLW_ERR_LINE,    /* a line with no "=" or one that is too long */
++    MLW_ERR_CODE,    /* lang is not two lower case letters */
++    MLW_ERR_MISSING, /* a required key is absent */
++    MLW_ERR_COUNT,   /* weekdays is not 7 words or months is not 12 */
++    MLW_ERR_WORD,    /* an empty or too long word, or one with a character the screen cannot show */
++    MLW_ERR_ORDER,   /* order is neither dmy nor mdy */
++    MLW_ERR_COUNT_ALL
++} mlw_err_t;
++
++static const char* const MLW_ERR_WORDS[MLW_ERR_COUNT_ALL] = {"ok", "size", "ascii", "line", "code", "missing", "count", "word", "order"};
++
++/* The words built into the image: English only. Month and weekday names are the three-letter ones the clock face always had. */
++static const mlw_t MLW_EN = {
++    "en", 0,
++    {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"},
++    {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
++    "Alarm", "Timer"};
++
++static inline int mlw_word_char_ok(unsigned char c, int allow_space) { return (c >= 0x21 && c <= 0x7E && c != ',' && c != '=') || (allow_space && c == ' '); }
++
++/* Copies one word [s, s+n) into dst (size cap), checking it. */
++static inline int mlw_take_word(char* dst, size_t cap, const char* s, size_t n, int allow_space)
++{
++    if (allow_space) { /* trim the spaces at both ends of a chip word */
++        while (n > 0 && s[0] == ' ') { s++; n--; }
++        while (n > 0 && s[n - 1] == ' ') n--;
++    }
++    if (n == 0 || n >= cap) return 0;
++    for (size_t i = 0; i < n; i++) {
++        if (!mlw_word_char_ok((unsigned char)s[i], allow_space)) return 0;
++    }
++    memcpy(dst, s, n);
++    dst[n] = '\0';
++    return 1;
++}
++
++/* A comma list of exactly `count` words into dst[count][MLW_WORD]. */
++static inline mlw_err_t mlw_take_list(char (*dst)[MLW_WORD], int count, const char* s, size_t n)
++{
++    int k = 0;
++    size_t from = 0;
++    for (size_t i = 0; i <= n; i++) {
++        if (i == n || s[i] == ',') {
++            if (k >= count) return MLW_ERR_COUNT;
++            if (!mlw_take_word(dst[k], MLW_WORD, s + from, i - from, 0)) return MLW_ERR_WORD;
++            k++;
++            from = i + 1;
++        }
++    }
++    return k == count ? MLW_OK : MLW_ERR_COUNT;
++}
++
++/* Reads a words.txt. On anything but MLW_OK, *out is not touched. */
++static inline mlw_err_t mlw_parse(const char* text, size_t len, mlw_t* out)
++{
++    if (text == NULL || len == 0 || len > MLW_FILE_MAX) return MLW_ERR_SIZE;
++    for (size_t i = 0; i < len; i++) {
++        const unsigned char c = (unsigned char)text[i];
++        if (c > 0x7E || (c < 0x20 && c != '\n' && c != '\r' && c != '\t')) return MLW_ERR_ASCII;
++    }
++    mlw_t w;
++    memset(&w, 0, sizeof(w));
++    unsigned seen = 0; /* bit per required key */
++    size_t at = 0;
++    while (at < len) {
++        size_t end = at;
++        while (end < len && text[end] != '\n') end++;
++        size_t line_end = end;
++        if (line_end > at && text[line_end - 1] == '\r') line_end--;
++        const char* line = text + at;
++        const size_t n   = line_end - at;
++        at               = end + 1;
++        if (n == 0 || line[0] == '#') continue;
++        if (n > 200) return MLW_ERR_LINE;
++        size_t eq = 0;
++        while (eq < n && line[eq] != '=') eq++;
++        if (eq == n || eq == 0) return MLW_ERR_LINE;
++        const char* val = line + eq + 1;
++        const size_t vn = n - eq - 1;
++        if (eq == 4 && memcmp(line, "lang", 4) == 0) {
++            if (vn != 2 || val[0] < 'a' || val[0] > 'z' || val[1] < 'a' || val[1] > 'z') return MLW_ERR_CODE;
++            w.code[0] = val[0];
++            w.code[1] = val[1];
++            w.code[2] = '\0';
++            seen |= 1u;
++        } else if (eq == 5 && memcmp(line, "order", 5) == 0) {
++            if (vn == 3 && memcmp(val, "dmy", 3) == 0) w.dmy = 1;
++            else if (vn == 3 && memcmp(val, "mdy", 3) == 0) w.dmy = 0;
++            else return MLW_ERR_ORDER;
++            seen |= 2u;
++        } else if (eq == 8 && memcmp(line, "weekdays", 8) == 0) {
++            const mlw_err_t e = mlw_take_list(w.wd, 7, val, vn);
++            if (e != MLW_OK) return e;
++            seen |= 4u;
++        } else if (eq == 6 && memcmp(line, "months", 6) == 0) {
++            const mlw_err_t e = mlw_take_list(w.mon, 12, val, vn);
++            if (e != MLW_OK) return e;
++            seen |= 8u;
++        } else if (eq == 5 && memcmp(line, "alarm", 5) == 0) {
++            if (!mlw_take_word(w.alarm, MLW_KIND, val, vn, 1)) return MLW_ERR_WORD;
++            seen |= 16u;
++        } else if (eq == 5 && memcmp(line, "timer", 5) == 0) {
++            if (!mlw_take_word(w.timer, MLW_KIND, val, vn, 1)) return MLW_ERR_WORD;
++            seen |= 32u;
++        } /* any other key is ignored */
++    }
++    if (seen != 63u) return MLW_ERR_MISSING;
++    *out = w;
++    return MLW_OK;
++}
++
++/* The words to show for the face's language code: the loaded pack when its code is the same, else English. */
++static inline const mlw_t* mlw_for(const mlw_t* loaded, const char* code)
++{
++    if (loaded != NULL && code != NULL && loaded->code[0] != '\0' && strcmp(loaded->code, code) == 0) return loaded;
++    return &MLW_EN;
++}
++
++#endif /* MAIPAI_LANG_CORE_H */
+diff --git a/firmware/main/hal/maipai_lang.h b/firmware/main/hal/maipai_lang.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_lang.h
+@@ -0,0 +1,20 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Screen words as a language pack, device side (patch K11). Logic and the pack format: maipai_lang_core.h.
++ */
++#pragma once
++#include <cstddef>
++#include <cstdint>
++#include "maipai_lang_core.h"
++
++// The words to draw for the face's language (MF_LANG_* index): the loaded language pack when its code is that language's,
++// otherwise the English words built into the image. Never null. Safe to call from the LVGL task.
++const mlw_t* maipai_lang_words(int lang_index);
++
++// The shared pack loader calls this with a language pack's zip, or with null/0 to go back to English only.
++// Returns false (and a plain reason in *why) when the pack cannot be used; the words in use do not change then.
++bool maipai_lang_load_pack(const uint8_t* payload, size_t len, const char** why);
++
++// The code of the loaded pack ("fr"), or "" when only English is in use.
++const char* maipai_lang_loaded_code();
+diff --git a/firmware/main/hal/maipai_lang.cc b/firmware/main/hal/maipai_lang.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_lang.cc
+@@ -0,0 +1,75 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Screen words as a language pack, device side (patch K11). Two 181-byte slots in PSRAM: a new pack is parsed into the one not
++ * in use and then made current with one atomic store, so the LVGL task never reads a half-written table. A slot is reused
++ * only by the pack after next; a draw takes microseconds, and the words are plain ASCII that always end in a zero byte.
++ */
++#include "maipai_lang.h"
++#include "maipai_face_core.h"
++#include "maipai_pack_core.h"
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include "maipai_inflate.h"
++#include <atomic>
++#include <cstring>
++
++static const char* TAG = "MAIPAI-LANG";
++
++namespace {
++
++mlw_t* s_slot[2]        = {nullptr, nullptr};
++std::atomic<int> s_cur{-1};  // -1: English only
++char s_code[4]          = "";
++
++long inflate_raw(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap) { return maipai_inflate_raw(in, inlen, out, cap); }  // state in PSRAM, not on this stack
++
++}  // namespace
++
++const mlw_t* maipai_lang_words(int lang_index)
++{
++    const int cur = s_cur.load(std::memory_order_acquire);
++    if (cur < 0 || lang_index < 0 || lang_index >= MF_LANG_COUNT) return &MLW_EN;
++    return mlw_for(s_slot[cur], MF_LANG_CODES[lang_index]);
++}
++
++const char* maipai_lang_loaded_code() { return s_cur.load() < 0 ? "" : s_code; }
++
++bool maipai_lang_load_pack(const uint8_t* payload, size_t len, const char** why)
++{
++    *why = "";
++    if (payload == nullptr || len == 0) {
++        s_cur.store(-1, std::memory_order_release);
++        s_code[0] = 0;
++        return true;
++    }
++    tpz_t* z = static_cast<tpz_t*>(heap_caps_malloc(sizeof(tpz_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (z == nullptr) { *why = tpk_say(TPK_ERR_MEMORY, 0); return false; }
++    struct Free { void* p; ~Free() { heap_caps_free(p); } } free_z{z};
++    if (tpz_open(z, payload, len) != TPK_OK) { *why = tpk_say(TPK_ERR_ZIP, 0); return false; }
++    const tpz_entry_t* e = tpz_find(z, "words.txt");
++    if (e == nullptr || e->usize == 0 || e->usize > MLW_FILE_MAX) { *why = tpk_say(TPK_ERR_ZIP, 0); return false; }
++    char* text = static_cast<char*>(heap_caps_malloc(e->usize + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (text == nullptr) { *why = tpk_say(TPK_ERR_MEMORY, 0); return false; }
++    struct Free2 { void* p; ~Free2() { heap_caps_free(p); } } free_t{text};
++    if (tpz_extract(z, e, reinterpret_cast<uint8_t*>(text), e->usize, inflate_raw) != TPK_OK) { *why = tpk_say(TPK_ERR_ZIP, 0); return false; }
++    const int cur  = s_cur.load();
++    const int next = cur == 0 ? 1 : 0;
++    if (s_slot[next] == nullptr) {
++        s_slot[next] = static_cast<mlw_t*>(heap_caps_calloc(1, sizeof(mlw_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (s_slot[next] == nullptr) { *why = tpk_say(TPK_ERR_MEMORY, 0); return false; }
++    }
++    mlw_t parsed;
++    const mlw_err_t pe = mlw_parse(text, e->usize, &parsed);
++    if (pe != MLW_OK) {
++        ESP_LOGW(TAG, "language pack refused: %s", MLW_ERR_WORDS[pe]);
++        *why = tpk_say(TPK_ERR_ZIP, 0);
++        return false;
++    }
++    memcpy(s_slot[next], &parsed, sizeof(parsed));
++    strncpy(s_code, parsed.code, 3);
++    s_code[3] = 0;
++    s_cur.store(next, std::memory_order_release);
++    ESP_LOGI(TAG, "language pack: %s", parsed.code);
++    return true;
++}
+diff --git a/firmware/main/hal/maipai_face_clock_core.h b/firmware/main/hal/maipai_face_clock_core.h
+--- a/firmware/main/hal/maipai_face_clock_core.h
++++ b/firmware/main/hal/maipai_face_clock_core.h
+@@ -15,6 +15,7 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include "maipai_face_core.h"
++#include "maipai_lang_core.h"
+ 
+ /* Segment bits: a top, b top right, c bottom right, d bottom, e bottom left, f top left, g middle. */
+ static const uint8_t MF_DIGIT_MASK[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
+@@ -88,38 +89,24 @@ static inline int mf_clock_width(const mf_clock_layout_t* l)
+     return 4 * l->digit_w + 2 * l->gap + l->colon_w;
+ }
+ 
+-static const char* const MF_WEEKDAY[MF_LANG_COUNT][7] = {
+-    {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"},
+-    {"dom", "lun", "mar", "mie", "jue", "vie", "sab"},
+-    {"dim", "lun", "mar", "mer", "jeu", "ven", "sam"},
+-    {"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"},
+-    {"dom", "seg", "ter", "qua", "qui", "sex", "sab"},
+-    {"dom", "lun", "mar", "mer", "gio", "ven", "sab"},
+-};
+-static const char* const MF_MONTH[MF_LANG_COUNT][12] = {
+-    {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
+-    {"ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"},
+-    {"jan", "fev", "mar", "avr", "mai", "jun", "jul", "aou", "sep", "oct", "nov", "dec"},
+-    {"Jan", "Feb", "Mar", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"},
+-    {"jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"},
+-    {"gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"},
+-};
+-
+-/* The date line: "Sun Nov 15" in English, "dom 15 nov" in the other languages (day before month). Plain ASCII: the screen
+- * font has no accents, so "aout" and "fev" are written without them. wday 0 is Sunday, mon 0 is January. */
+-static inline void mf_date_line(char* out, size_t n, int lang, int wday, int mday, int mon)
++/* The date line: "Sun Nov 15" in English, "dom 15 nov" where the language pack says day first (patch K11). The words come from
++ * `w` (maipai_lang_core.h: English, or the language pack of the face's language); a null `w` is English. Plain ASCII: the
++ * screen font has no accents, so a pack writes "aout" and "fev". wday 0 is Sunday, mon 0 is January. */
++static inline void mf_date_line(char* out, size_t n, const mlw_t* w, int wday, int mday, int mon)
+ {
+-    const int lg = (lang > 0 && lang < MF_LANG_COUNT) ? lang : 0;
++    if (w == NULL) {
++        w = &MLW_EN;
++    }
+     if (wday < 0 || wday > 6 || mon < 0 || mon > 11 || mday < 1 || mday > 31) {
+         if (n > 0) {
+             out[0] = '\0';
+         }
+         return;
+     }
+-    if (lg) {
+-        snprintf(out, n, "%s %d %s", MF_WEEKDAY[lg][wday], mday, MF_MONTH[lg][mon]);
++    if (w->dmy) {
++        snprintf(out, n, "%s %d %s", w->wd[wday], mday, w->mon[mon]);
+     } else {
+-        snprintf(out, n, "%s %s %d", MF_WEEKDAY[0][wday], MF_MONTH[0][mon], mday);
++        snprintf(out, n, "%s %s %d", w->wd[wday], w->mon[mon], mday);
+     }
+ }
+ 
+diff --git a/firmware/main/hal/maipai_face_timers_core.h b/firmware/main/hal/maipai_face_timers_core.h
+--- a/firmware/main/hal/maipai_face_timers_core.h
++++ b/firmware/main/hal/maipai_face_timers_core.h
+@@ -15,6 +15,7 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include "maipai_face_core.h"
++#include "maipai_lang_core.h"
+ 
+ #define MF_CHIP_MAX 4
+ #define MF_CHIP_LABEL_MAX 9 /* characters of a label that fit a chip */
+@@ -47,21 +48,21 @@ static inline void mf_fmt_left(char* out, size_t n, int32_t left_s)
+     }
+ }
+ 
+-/* The name when a timer has no label. */
+-static inline const char* mf_kind_word(int lang, int kind)
++/* The name when a timer has no label: the words of the language pack, or English (patch K11). */
++static inline const char* mf_kind_word(const mlw_t* w, int kind)
+ {
+-    static const char* const alarm[MF_LANG_COUNT] = {"Alarm", "Alarma", "Alarme", "Wecker", "Alarme", "Sveglia"};
+-    static const char* const timer[MF_LANG_COUNT] = {"Timer", "Tiempo", "Minut.", "Timer", "Tempo", "Timer"};
+-    const int lg = (lang >= 0 && lang < MF_LANG_COUNT) ? lang : 0;
+-    return kind == 2 ? alarm[lg] : timer[lg];
++    if (w == NULL) {
++        w = &MLW_EN;
++    }
++    return kind == 2 ? w->alarm : w->timer;
+ }
+ 
+ /* "tea 4:32": the label (or the kind word) cut to what fits, then the countdown. */
+-static inline void mf_chip_text(char* out, size_t n, int lang, const mf_tchip_t* c)
++static inline void mf_chip_text(char* out, size_t n, const mlw_t* w, const mf_tchip_t* c)
+ {
+     char left[12];
+     mf_fmt_left(left, sizeof(left), c->left_s);
+-    const char* name = c->label[0] ? c->label : mf_kind_word(lang, c->kind);
++    const char* name = c->label[0] ? c->label : mf_kind_word(w, c->kind);
+     char cut[MF_CHIP_LABEL_MAX + 1];
+     strncpy(cut, name, MF_CHIP_LABEL_MAX);
+     cut[MF_CHIP_LABEL_MAX] = '\0';
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -6,6 +6,7 @@
+ #include <sdkconfig.h>
+ #if CONFIG_MAIPAI_FACE_CONFIG
+ #include "maipai_face.h"
++#include "maipai_lang.h"
+ #include "maipai_fx.h"
+ #include "maipai_face_tod_core.h"
+ #include "maipai_look_core.h"
+@@ -551,7 +552,7 @@ void clock_paint(const mf_config_t& c, int band)
+         }
+     }
+     char line[24];
+-    mf_date_line(line, sizeof(line), c.lang, tm_local.tm_wday, tm_local.tm_mday, tm_local.tm_mon);
++    mf_date_line(line, sizeof(line), maipai_lang_words(c.lang), tm_local.tm_wday, tm_local.tm_mday, tm_local.tm_mon);
+     if (strcmp(lv_label_get_text(s_ui.date), line) != 0) {
+         lv_label_set_text(s_ui.date, line);
+     }
+@@ -691,7 +692,7 @@ void chips_tick(const mf_config_t& c)
+     for (int k = 0; k < slots; k++) {
+         char text[40];
+         if (k < named) {
+-            mf_chip_text(text, sizeof(text), c.lang, &shown[k]);
++            mf_chip_text(text, sizeof(text), maipai_lang_words(c.lang), &shown[k]);
+         } else {
+             snprintf(text, sizeof(text), "+%d", more);
+         }

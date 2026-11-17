@@ -1,0 +1,67 @@
+# Intent: the picture look loader (maipai_picface.cc) still called the ROM inflate, tinfl_decompress_mem_to_mem, which keeps about 11 KB of decompressor state on the caller's stack. look_inflate runs on the tool task (a stack of a few KB) when a look pack is applied, so a look pack with deflated entries could overflow it and corrupt the heap beside it, the same fault that crashed the unit on the first language pack. Both inflate calls in the file (the look loader and the frame decoder) now use the PSRAM-state inflate of patch K10; maipai_inflate.h gains a flags variant and a zlib entry point for the frame streams.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_inflate.h (ours, K10) and maipai_picface.cc (ours, TB02)
+# Check after a flash: push a look pack of the picture kind whose files are deflated; the unit answers ok and the stack margin of the tool task stays above 1,024 bytes; scripts/psram-stack-lint.py passes.
+
+diff --git a/firmware/main/hal/maipai_inflate.h b/firmware/main/hal/maipai_inflate.h
+--- a/firmware/main/hal/maipai_inflate.h
++++ b/firmware/main/hal/maipai_inflate.h
+@@ -14,14 +14,25 @@
+ 
+ // Inflates a raw deflate stream (as a zip entry holds it) into out (cap bytes, the entry's inflated size).
+ // Returns the number of bytes written, or -1 on a damaged stream or no memory.
+-static inline long maipai_inflate_raw(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap)
++static inline long maipai_inflate_flags(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap, int flags)
+ {
+     tinfl_decompressor* d = static_cast<tinfl_decompressor*>(heap_caps_malloc(sizeof(tinfl_decompressor), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+     if (d == nullptr) return -1;
+     tinfl_init(d);
+     size_t in_len  = inlen;
+     size_t out_len = cap;
+-    const tinfl_status st = tinfl_decompress(d, in, &in_len, out, out, &out_len, TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
++    const tinfl_status st = tinfl_decompress(d, in, &in_len, out, out, &out_len, TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF | flags);
+     heap_caps_free(d);
+     return st == TINFL_STATUS_DONE ? static_cast<long>(out_len) : -1;
+ }
++
++static inline long maipai_inflate_raw(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap)
++{
++    return maipai_inflate_flags(in, inlen, out, cap, 0);
++}
++
++// Same for a zlib stream (a two byte header, then deflate, then a checksum), as the picture look frames are.
++static inline long maipai_inflate_zlib(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap)
++{
++    return maipai_inflate_flags(in, inlen, out, cap, TINFL_FLAG_PARSE_ZLIB_HEADER);
++}
+diff --git a/firmware/main/hal/maipai_picface.cc b/firmware/main/hal/maipai_picface.cc
+--- a/firmware/main/hal/maipai_picface.cc
++++ b/firmware/main/hal/maipai_picface.cc
+@@ -39,6 +39,7 @@
+ #include <new>
+ #include <miniz.h>
+ #include "maipai_pack_core.h"
++#include "maipai_inflate.h"
+ #include <stackchan/stackchan.h>
+ #include <stackchan/avatar/skins/default/default.h>
+ #include <atomic>
+@@ -198,8 +199,7 @@ bool decode_frame(const Frame& f, uint8_t* out)
+         memcpy(out, f.data, PF_FRAME_BYTES);
+         return true;
+     }
+-    const size_t n = tinfl_decompress_mem_to_mem(out, PF_FRAME_BYTES, f.data, f.comp, TINFL_FLAG_PARSE_ZLIB_HEADER);
+-    return n == PF_FRAME_BYTES;
++    return maipai_inflate_zlib(f.data, f.comp, out, PF_FRAME_BYTES) == static_cast<long>(PF_FRAME_BYTES);  // state in PSRAM (patch FI07)
+ }
+ 
+ void worker_task(void*)
+@@ -652,8 +652,7 @@ static std::string commit_pack()
+ // unit copies each into its own PSRAM block (as the older facepic tools did), so the pack buffer can be given back at once.
+ static long look_inflate(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap)
+ {
+-    const size_t n = tinfl_decompress_mem_to_mem(out, cap, in, inlen, 0);
+-    return n == TINFL_DECOMPRESS_MEM_TO_MEM_FAILED ? -1 : static_cast<long>(n);
++    return maipai_inflate_raw(in, inlen, out, cap);  // the ROM routine keeps 11 KB of state on the caller's stack; this keeps it in PSRAM (patch FI07)
+ }
+ 
+ bool maipai_picface_apply_look(const uint8_t* payload, size_t len, const char** why)

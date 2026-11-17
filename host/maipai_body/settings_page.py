@@ -19,6 +19,7 @@ from urllib.parse import unquote
 from maipai_body import faces as face_settings
 from maipai_body import overlays as overlays_mod
 from maipai_body import packs as packs_mod
+from maipai_body import phrase_packs as phrase_packs_mod
 from maipai_body import picture_faces as picture_mod
 from maipai_body import remote_activity as activity_mod
 from maipai_body import unit_device as device_mod
@@ -68,6 +69,8 @@ class SettingsBackend:
         self._remote = remote
         self._polish = polish
         self._activity = activity
+        if polish is not None and faces is not None:
+            polish.bind_faces(faces)  # the unit's screen language decides its language pack
 
     @property
     def pictures(self) -> picture_mod.PictureService:
@@ -95,7 +98,10 @@ class SettingsBackend:
     def polish(self) -> Polish:
         """Emotion faces, overlays, listening cues, packs and fillers. Without a live link a unit counts as offline."""
         if self._polish is None:
-            self._polish = Polish(extras_mod.offline_call, self.store.get, self.store.update)
+            self._polish = Polish(
+                extras_mod.offline_call, self.store.get, self.store.update, data_dir=Path(self.store.path).parent, background=False
+            )
+            self._polish.bind_faces(self.faces)
         return self._polish
 
     @property
@@ -433,10 +439,14 @@ class SettingsBackend:
                 body = self.extras.travel_view(device_id, lang)
             elif what == "prefs":
                 body = self.polish.prefs.view(device_id, lang)
+            elif what == "pages":
+                body = self.polish.pages.view(device_id, lang)
             elif what == "packs":
                 body = self.polish.packs.view(device_id, lang)
             elif what == "fillers":
                 body = self._fillers_view(device_id)
+            elif what == "phrases":
+                body = self._phrases_view(device_id)
             else:
                 return 404, JSON, json.dumps({"error": "not found"}).encode()
             return 200, JSON, json.dumps(body).encode()
@@ -459,18 +469,45 @@ class SettingsBackend:
             "can_make": polish.generator.synth is not None,
         }
 
+    def _phrases_view(self, device_id: str) -> dict[str, Any]:
+        """The offline phrases of this unit: the packs in the library, the one it should hold, what the unit says it holds."""
+        polish = self.polish
+        wanted = polish.packs.wanted(device_id).get("phrase")
+        unit = polish.packs.unit_state(device_id).get("phrase", {}) if polish.probe.has(device_id, "pack") is True else {}
+        return {
+            "packs": polish.library.list("phrase"),
+            "wanted": wanted,
+            "unit": unit,
+            "languages": phrase_packs_mod.languages(),
+            "status": dict(polish.phrases.status),
+            "can_make": polish.phrases.synth is not None,
+        }
+
     def _polish_post(self, device_id: str, action: str, values: dict[str, Any], lang: str) -> tuple[int, dict[str, Any]]:
-        """POST /api/stackchan/unit/<id>/<prefs|listen-test|packs/activate|fillers/generate>."""
+        """POST /api/stackchan/unit/<id>/<prefs|listen-test|packs/activate|packs/sync|fillers/generate|phrases/generate>."""
         polish = self.polish
         if action == "prefs":
             return 200, polish.prefs.save(device_id, values, lang)
+        if action in {"pages", "pages/show", "pages/tiles"}:
+            if action == "pages":
+                reply = polish.pages.save(device_id, values, lang)
+            elif action == "pages/show":
+                reply = polish.pages.show(device_id, str(values.get("name") or ""), lang)
+            else:
+                reply = polish.pages.push_tiles(device_id, values.get("tiles"), lang)
+            return (400 if reply.get("ok") is False and "error" in reply else 200), reply
         if action == "listen-test":
             return 200, polish.prefs.test_listen(device_id, lang)
         if action == "packs/activate":
             return 200, polish.packs.activate(device_id, values.get("type"), values.get("pack_id"), lang)
         if action == "fillers/generate":
             voice = str(values.get("voice") or "default")[:40]
-            return 200, polish.generator.start(voice, str(values.get("lang") or lang))
+            return 200, polish.make_fillers(device_id, voice, str(values.get("lang") or lang))
+        if action == "phrases/generate":
+            voice = str(values.get("voice") or "default")[:40]
+            return 200, polish.make_phrases(device_id, voice, str(values.get("for_lang") or lang))  # "lang" is the page's language, not the pack's
+        if action == "packs/sync":
+            return 200, {"ok": True, "done": polish.packs.sync_types(device_id, packs_mod.MANAGED)}
         return 404, {"error": "not found"}
 
     def _packs_post(self, action: str, values: dict[str, Any], lang: str) -> tuple[int, dict[str, Any]]:
@@ -532,7 +569,7 @@ class SettingsBackend:
         try:
             if rest == "people" or rest.startswith("people/"):
                 return self._people_post(rest, values, lang)
-            for polish_action in ("prefs", "listen-test", "packs/activate", "fillers/generate"):
+            for polish_action in ("prefs", "pages", "pages/show", "pages/tiles", "listen-test", "packs/activate", "packs/sync", "fillers/generate", "phrases/generate"):
                 if rest.endswith("/" + polish_action):
                     device_id = rest[: -len(polish_action) - 1]
                     self._unit_known(device_id)
