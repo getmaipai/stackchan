@@ -29,6 +29,9 @@ Checks before the repo goes public: no model or library binary is committed (the
 ## The better wake word basis: microWakeWord models
 The model collection's own notice says its Apache-2.0 license covers the trained weights and the manifests, and separately disclaims trademark rights. That is a clear basis for redistribution, including commercial use, subject to the license conditions (attribution, notice). The models are about 52 to 60 KB each. Open items: whether the keyword engine runs beside our audio front end on the unit, accuracy and false accepts, and the trademark check of each phrase (some phrases are other companies' product names). A made-up phrase trained locally avoids a known brand but still needs a name search and a look at the terms of any synthetic voices used for training.
 
+## Decision (owner, 2026-11-17)
+No outreach and no lawyers. The plan is to fork, code and publish on a public GitHub repository, the way M5Stack publishes its own StackChan repo: source, patches and a build recipe. The repo holds no model or library binaries (a test enforces it) and the notices are in THIRD-PARTY.md and NOTICE. Prebuilt images on GitHub Releases are optional and later, the way the base project does it. The repo's license stays AGPL-3.0 as set; a permissive license for the firmware part stays an available option and is not changed. The lawyer questions below are kept as a record and are not acted on.
+
 ## Recommendation
 1. Publish the source and the recipe; add the no-model-binaries test.
 2. Do not publish prebuilt images until a lawyer answers the questions below (or Espressif confirms in writing).
