@@ -85,6 +85,21 @@ def test_a_controllers_own_unit_calls_are_never_stamped() -> None:
     assert seen == [False]
 
 
+def test_a_controller_scope_follows_an_async_task_and_ends_with_it() -> None:
+    import asyncio
+
+    async def inside() -> bool:
+        await asyncio.sleep(0)  # a task switch must not drop the marker
+        return rt.in_controller_scope()
+
+    async def run() -> tuple[bool, bool]:
+        with rt.controller_scope():
+            scoped = await inside()
+        return scoped, await inside()
+
+    assert asyncio.run(run()) == (True, False)
+
+
 def test_reserved_keys() -> None:
     assert rt.reserved_in({"do": "head", "yaw": 3}) == []
     assert rt.reserved_in(

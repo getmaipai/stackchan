@@ -17,8 +17,8 @@ The paired host is trusted by design. This closes the case of a host bug, not a 
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import secrets
-import threading
 from collections.abc import Iterator, Mapping
 from typing import Any
 
@@ -27,7 +27,7 @@ SESSION_TOOL = "self.remote.session"
 # Keys only the host may put on a unit tool call. A controller's request never carries them.
 CONTROLLER_RESERVED = frozenset({"source", "token", "host", "host_id", "cue", "cue_kind"})
 
-_local = threading.local()
+_controller: contextvars.ContextVar[bool] = contextvars.ContextVar("maipai_controller_scope", default=False)
 
 
 def new_host_id() -> int:
@@ -59,17 +59,16 @@ def reserved_in(values: Mapping[str, Any]) -> list[str]:
 
 @contextlib.contextmanager
 def controller_scope() -> Iterator[None]:
-    """Marks the current thread as running a controller's action: its unit calls are never stamped with the host id."""
-    previous = getattr(_local, "controller", False)
-    _local.controller = True
+    """Marks the current context (task or thread) as running a controller's action: its unit calls are never stamped with the host id."""
+    token = _controller.set(True)
     try:
         yield
     finally:
-        _local.controller = previous
+        _controller.reset(token)
 
 
 def in_controller_scope() -> bool:
-    return bool(getattr(_local, "controller", False))
+    return _controller.get()
 
 
 def stamp_call(name: str, arguments: Mapping[str, Any], host_id: int) -> dict[str, Any]:
