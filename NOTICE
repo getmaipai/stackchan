@@ -10,3 +10,14 @@ reachy_mini_community_moves.
 
 Chatterbox Turbo, Apache-2.0. The model is not redistributed here; the
 voice manifest records its pinned catalog revision and license check.
+
+StackChan firmware base, MIT. The firmware patches in this repository apply to M5Stack's StackChan firmware and the xiaozhi-esp32
+project beneath it; their copyright notices and MIT license text stay with those sources. StackChan is M5Stack's robot. This
+project is not made, endorsed or sponsored by M5Stack.
+
+Espressif ESP-SR and ESP-IDF. The wake word and command recognizer, the audio front end and the build framework come from
+Espressif; the build downloads them under their own licenses (see THIRD-PARTY.md) and this repository holds none of their files.
+This project is not affiliated with, endorsed by, or sponsored by Espressif.
+
+Product and company names (M5Stack, StackChan, Espressif, and any others named in these files) are used only to say what this
+software works with. They belong to their respective owners.
