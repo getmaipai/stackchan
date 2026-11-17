@@ -11,3 +11,17 @@ Placement: unit firmware. A basic the robot must do with no host and no brain (t
 **Echo cancellation (the audio front end):** the unit already has it available; patch L01 removed the playback reference on purpose because learning the room caused stutter and latency. Revisit only with a bench A/B (barge-in success rate while the robot speaks, stutter, internal RAM). Not planned now.
 
 **Order:** after the current batch: (1) the phrase list and the action table with host tests and a bench false-accept run; (2) the on-screen disambiguation for cancel; (3) Spanish if the model exists.
+
+## Languages (owner question, 2026-11-17)
+
+Yes, the unit's command recognizer is language specific. The model on the unit is the English one (`mn5q8_en`, patch 049), and its commands are written as English phonemes with the speech library's phoneme tool. Chinese is the other language Espressif ships; whether any other language model exists is [unverified].
+
+**What we do about it**
+1. **One model, one phrase list per language.** The unit loads the one English model and swaps only the phrase list when the unit's language changes (a small table in the assets, a few hundred bytes per language). No second model in flash or RAM.
+2. **English first, fully.** Stop, pause, resume, cancel, next, previous, louder, quieter, mute, lock.
+3. **Other languages: a short critical list only**, written as the closest English phonemes (for example the Spanish words for stop, enough and quiet). This works for short, distinct words and fails for long phrases. It is measured, not assumed: clips made with the host's local voices in each language plus a native-speaker check, with false-accept and false-reject numbers. A language whose numbers miss the bar gets no unit-side commands.
+4. **Everything else stays on the host.** The host's local command router already has phrase lists in six languages and runs with no model, but only while the host is awake.
+5. **Touch is the offline fallback in every language.** Stop a ringing alarm with one tap; cancel from the Timers and Alarms apps; the control sheet. No language needed.
+6. **Later options:** a custom keyword model trained for a specific word in a specific language (Espressif offers custom wake word training), or a newer multilingual model if one ships.
+
+**Gate:** per language, at least 90 percent accepts on clean clips, under 1 false accept per hour of background speech and music, and no change in the memory gate.
