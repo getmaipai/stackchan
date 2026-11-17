@@ -21,7 +21,7 @@ Both use the same record shapes, so a persona or face pack made for one works in
 
 ## Every feature has two halves
 
-- **Body half:** the trigger, the face and servo behaviour, the sound, the light and the screen cue. It always lives here and is the same in every setup.
+- **Body half:** the trigger, the face and servo behavior, the sound, the light and the screen cue. It always lives here and is the same in every setup.
 - **Brain half:** the part that needs knowledge or judgement, such as understanding "set a pasta timer for ten minutes".
 
 A feature is complete on its own when its body half works with the built-in brain half. A richer brain upgrades the brain half and leaves the body half alone.

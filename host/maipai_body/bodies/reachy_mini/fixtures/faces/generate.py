@@ -17,7 +17,7 @@ BACKGROUND_BGR = (96, 84, 72)
 SKIN_BGR = (150, 190, 225)
 DARK_BGR = (40, 40, 60)
 
-# name -> face centre x in pixels; None draws no face.
+# name -> face center x in pixels; None draws no face.
 FRAMES: dict[str, int | None] = {
     "face_center": WIDTH // 2,
     "face_left": WIDTH // 4,

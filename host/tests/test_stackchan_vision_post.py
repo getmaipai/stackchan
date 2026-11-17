@@ -194,7 +194,7 @@ def test_scene_luma_is_the_lit_part_of_a_strided_bgr_sample():
 
 
 def test_a_picture_without_detail_has_no_light_level_and_the_sensor_decides():
-    """A covered lens is a flat grey fog under auto exposure (mean 120, measured 2026-11-12); an
+    """A covered lens is a flat gray fog under auto exposure (mean 120, measured 2026-11-12); an
     arm against the lens is a flat dark one. Neither says anything about the room."""
     assert scene_luma(np.full((40, 80, 3), 120, dtype=np.uint8)) is None
     assert scene_luma(np.full((40, 80, 3), 40, dtype=np.uint8)) is None
@@ -313,7 +313,7 @@ def test_a_question_about_what_it_sees_uses_a_picture_up_to_90_s_old():
 
 
 def test_a_flat_picture_with_the_sensor_at_its_floor_is_a_dark_room():
-    """Lights off in the office (2026-11-12): grey fog from auto exposure, sensor 6.4 (its floor
+    """Lights off in the office (2026-11-12): gray fog from auto exposure, sensor 6.4 (its floor
     under the screen's glow); the lit office read 9.3 to 16.4 with a detailed picture."""
     assert light_bucket(None, 6.4, flat=True) == "dark"
     assert light_bucket(None, None, flat=True) == "dark"

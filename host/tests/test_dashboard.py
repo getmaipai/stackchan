@@ -1,4 +1,4 @@
-"""EXPR-05: the dashboard's HTTP and event-stream behaviour against the fake, no browser."""
+"""EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 
 from __future__ import annotations
 

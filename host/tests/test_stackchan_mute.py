@@ -356,7 +356,7 @@ def test_the_minute_report_keeps_the_state_too():
     assert snap["muted"] == 1 and snap["vision_off"] == 1 and snap["mic_off_verified"] == 0
 
 
-# ---- the host honours the state ---------------------------------------------------------------
+# ---- the host honors the state ---------------------------------------------------------------
 
 
 class _Client:
@@ -472,7 +472,7 @@ def test_the_avatar_server_drops_and_reports_a_frame_while_vision_is_off():
             await server.wait_closed()
 
     seen, reported, dropped_total = asyncio.run(run())
-    assert dropped_total == 0  # nothing was kept or analysed while it was off
+    assert dropped_total == 0  # nothing was kept or analyzed while it was off
     assert reported == 1
     assert len(seen) == 1  # the frame after vision came back is normal
 

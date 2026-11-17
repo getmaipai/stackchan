@@ -61,7 +61,7 @@ class FacePrint:
     model_sha256: str
     embedding: npt.NDArray[np.float32]
     # The person's own `person.vision.watch`, as the hub states it with
-    # the sync. Missing or unrecognised means `presence`: identity is
+    # the sync. Missing or unrecognized means `presence`: identity is
     # opt-in, so the safe reading of silence is "do not name them"
     # (FACE-WATCH-01, OWNER-ANSWERS 4).
     watch: Literal["off", "presence", "identify"] = "presence"

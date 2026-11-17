@@ -167,7 +167,7 @@ def test_vad_speaking_cancels_the_wake_patience_timer(stt_server):
 
     assert result.kind == "final"
     assert result.text == "took a while"
-    # The timeout's own {t:"end"} must NOT have been sent - vad cancelled it.
+    # The timeout's own {t:"end"} must NOT have been sent - vad canceled it.
     assert {"t": "end"} not in handler.received_text
 
 

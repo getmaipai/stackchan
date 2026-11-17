@@ -217,7 +217,7 @@ def fake_synth(text):
     return np.concatenate((quiet, tone, quiet)).astype(np.float32), rate
 
 
-def test_clips_are_trimmed_and_normalised_and_mulaw_round_trips():
+def test_clips_are_trimmed_and_normalized_and_mulaw_round_trips():
     samples, rate = fake_synth("Hmm.")
     clip = fillers.render_clip(samples, rate)
     assert clip is not None and 0.45 < len(clip) / fillers.RATE < 0.6  # the 0.6 s of silence is gone

@@ -18,7 +18,7 @@ from maipai_body.faces import (
     clean,
     from_stored,
     settings_view,
-    valid_colour,
+    valid_color,
 )
 from maipai_body.hal.errors import BodyLost
 
@@ -74,7 +74,7 @@ def service(tmp_path: Path, firmware: FakeFirmware) -> FaceService:
 
 def test_default_face_is_neutral_and_plain() -> None:
     config = FaceConfig()
-    assert (config.style, config.colour, config.captions, config.tod) == (
+    assert (config.style, config.color, config.captions, config.tod) == (
         "big_eyes",
         "none",
         False,
@@ -86,17 +86,17 @@ def test_default_face_is_neutral_and_plain() -> None:
 
 
 def test_clean_applies_a_partial_change_and_keeps_the_rest() -> None:
-    config = clean(FaceConfig(), {"style": "big_eyes", "colour": "MINT".lower()})
-    assert config.style == "big_eyes" and config.colour == "mint" and config.captions is False
+    config = clean(FaceConfig(), {"style": "big_eyes", "color": "MINT".lower()})
+    assert config.style == "big_eyes" and config.color == "mint" and config.captions is False
 
 
 @pytest.mark.parametrize(
     ("values", "words"),
     [
         ({"style": "huge"}, "big_eyes, eyes_only, stock, classic or minimal"),
-        ({"colour": "purple"}, "not one I know"),
-        ({"colour": "#101010"}, "too dark"),
-        ({"colour": "#12"}, "not one I know"),
+        ({"color": "purple"}, "not one I know"),
+        ({"color": "#101010"}, "too dark"),
+        ({"color": "#12"}, "not one I know"),
         ({"captions": "yes"}, "on or off"),
         ({"background": "#f0f0f0"}, "too bright for white eyes"),
         ({"background": "pink"}, "is not one I know"),
@@ -120,25 +120,25 @@ def test_bad_values_say_what_went_wrong_and_what_to_do(values: dict, words: str)
 def test_nothing_changes_unless_every_field_is_valid() -> None:
     base = FaceConfig()
     with pytest.raises(FaceError):
-        clean(base, {"style": "minimal", "colour": "#000000"})
+        clean(base, {"style": "minimal", "color": "#000000"})
     assert base == FaceConfig()
 
 
 def test_error_messages_follow_the_page_language() -> None:
     with pytest.raises(FaceError) as caught:
-        clean(FaceConfig(), {"colour": "#101010"}, lang="es")
+        clean(FaceConfig(), {"color": "#101010"}, lang="es")
     assert "demasiado oscuro" in str(caught.value)
     assert chr(8212) not in str(caught.value)
 
 
-def test_dark_colour_rule_matches_the_firmware() -> None:
-    assert valid_colour("#ff8800") is None
-    assert valid_colour("#FF8800") is None
-    assert valid_colour("#101010") == "dark"
-    assert valid_colour("ff8800") == "colour"
+def test_dark_color_rule_matches_the_firmware() -> None:
+    assert valid_color("#ff8800") is None
+    assert valid_color("#FF8800") is None
+    assert valid_color("#101010") == "dark"
+    assert valid_color("ff8800") == "color"
     # the same threshold the unit uses: luma 60 of 255 is the lowest allowed
-    assert valid_colour("#3c3c3c") is None
-    assert valid_colour("#3b3b3b") == "dark"
+    assert valid_color("#3c3c3c") is None
+    assert valid_color("#3b3b3b") == "dark"
 
 
 def test_time_of_day_bands_match_the_firmware() -> None:
@@ -158,11 +158,11 @@ def test_time_of_day_bands_match_the_firmware() -> None:
 def test_settings_are_kept_per_unit_and_survive_a_restart(tmp_path: Path) -> None:
     path = tmp_path / "faces.json"
     store = FaceStore(path)
-    store.set(UNIT, clean(FaceConfig(), {"colour": "amber", "captions": True}))
+    store.set(UNIT, clean(FaceConfig(), {"color": "amber", "captions": True}))
     store.set(OTHER, clean(FaceConfig(), {"style": "minimal"}))
     again = FaceStore(path)
-    assert again.get(UNIT).colour == "amber" and again.get(UNIT).captions is True
-    assert again.get(OTHER).style == "minimal" and again.get(OTHER).colour == "none"
+    assert again.get(UNIT).color == "amber" and again.get(UNIT).captions is True
+    assert again.get(OTHER).style == "minimal" and again.get(OTHER).color == "none"
     assert again.get("never-seen") == FaceConfig()
     assert again.known() == [UNIT, OTHER]
 
@@ -180,30 +180,30 @@ def test_a_damaged_file_gives_the_plain_face_and_a_plain_line(tmp_path: Path) ->
 
 
 def test_stored_values_that_are_no_longer_valid_fall_back_to_plain() -> None:
-    assert from_stored({"style": "gone", "colour": "mint"}) == FaceConfig()
+    assert from_stored({"style": "gone", "color": "mint"}) == FaceConfig()
     assert from_stored("nonsense") == FaceConfig()
-    assert from_stored({"colour": "mint", "unknown_future_key": 1}).colour == "mint"
+    assert from_stored({"color": "mint", "unknown_future_key": 1}).color == "mint"
 
 
 # ---- sending to the unit ----
 
 
 def test_update_saves_then_sends_one_json_object_through_the_tool(service, firmware) -> None:
-    result = service.update(UNIT, {"colour": "sky", "style": "big_eyes"})
-    assert result["pushed"] is True and result["config"]["colour"] == "sky"
+    result = service.update(UNIT, {"color": "sky", "style": "big_eyes"})
+    assert result["pushed"] is True and result["config"]["color"] == "sky"
     name, arguments, device = firmware.calls[0]
     assert (name, device) == ("self.face.set_config", UNIT)
     sent = json.loads(arguments["config"])
     assert sent["colour"] == "sky" and sent["style"] == "big_eyes" and sent["captions"] is False
     assert sent["tod_hours"] == [6, 9, 18, 21]
-    assert service.config(UNIT).colour == "sky"
+    assert service.config(UNIT).color == "sky"
 
 
 def test_a_bad_value_is_refused_before_anything_is_sent_or_saved(service, firmware) -> None:
     with pytest.raises(FaceError):
-        service.update(UNIT, {"colour": "#050505"})
+        service.update(UNIT, {"color": "#050505"})
     assert firmware.calls == []
-    assert service.config(UNIT).colour == "none"
+    assert service.config(UNIT).color == "none"
 
 
 def test_a_unit_that_is_not_connected_keeps_the_setting_and_gets_it_later(
@@ -221,7 +221,7 @@ def test_a_unit_that_is_not_connected_keeps_the_setting_and_gets_it_later(
 
 
 def test_sync_leaves_a_unit_alone_when_it_already_matches(service, firmware) -> None:
-    service.update(UNIT, {"colour": "rose"})
+    service.update(UNIT, {"color": "rose"})
     firmware.calls.clear()
     out = service.sync(UNIT)
     assert out["pushed"] is False
@@ -229,17 +229,17 @@ def test_sync_leaves_a_unit_alone_when_it_already_matches(service, firmware) -> 
 
 
 def test_sync_restores_a_unit_that_was_reset(service, firmware) -> None:
-    service.update(UNIT, {"colour": "rose", "tod": True})
+    service.update(UNIT, {"color": "rose", "tod": True})
     firmware.state = FaceConfig().to_wire()  # reset on the unit
     service.sync(UNIT)
     assert firmware.state["colour"] == "rose" and firmware.state["tod"] is True
 
 
 def test_the_unit_refusing_a_setting_is_told_in_plain_words(service, firmware) -> None:
-    firmware.refuse = "colour: colour too dark to see on the black screen: pick a lighter colour"
+    firmware.refuse = "color: color too dark to see on the black screen: pick a lighter color"
     with pytest.raises(FaceError) as caught:
-        service.update(UNIT, {"colour": "mint"})
-    assert "refused" in str(caught.value) and "pick a lighter colour" in str(caught.value)
+        service.update(UNIT, {"color": "mint"})
+    assert "refused" in str(caught.value) and "pick a lighter color" in str(caught.value)
 
 
 def test_old_firmware_without_face_tools_is_named_and_not_an_error(service, firmware) -> None:
@@ -256,7 +256,7 @@ def test_old_firmware_without_face_tools_is_named_and_not_an_error(service, firm
 def test_features_the_firmware_lacks_are_listed_for_the_page(tmp_path: Path) -> None:
     firmware = FakeFirmware(features=("config", "timers"))
     service = FaceService(firmware, FaceStore(tmp_path / "faces.json"))
-    result = service.update(UNIT, {"captions": True, "tod": True, "colour": "mint"})
+    result = service.update(UNIT, {"captions": True, "tod": True, "color": "mint"})
     assert len(result["unsupported"]) == 2
     assert any("captions" in line for line in result["unsupported"])
     view = settings_view(service, UNIT)
@@ -267,16 +267,16 @@ def test_features_the_firmware_lacks_are_listed_for_the_page(tmp_path: Path) -> 
 
 
 def test_reset_returns_the_plain_face(service, firmware) -> None:
-    service.update(UNIT, {"colour": "lime", "captions": True})
+    service.update(UNIT, {"color": "lime", "captions": True})
     result = service.reset(UNIT)
     assert result["config"] == FaceConfig().to_json()
     assert firmware.state["colour"] == "none" and firmware.state["captions"] is False
 
 
 def test_units_do_not_share_settings(service, firmware) -> None:
-    service.update(UNIT, {"colour": "lime"})
-    service.update(OTHER, {"colour": "coral"})
-    assert service.config(UNIT).colour == "lime" and service.config(OTHER).colour == "coral"
+    service.update(UNIT, {"color": "lime"})
+    service.update(OTHER, {"color": "coral"})
+    assert service.config(UNIT).color == "lime" and service.config(OTHER).color == "coral"
     assert {c[2] for c in firmware.calls} == {UNIT, OTHER}
 
 
@@ -302,7 +302,7 @@ def test_show_clock_refuses_a_bad_number_with_the_range(service, seconds) -> Non
 
 
 def test_the_unit_saying_no_to_the_clock_is_passed_on_in_plain_words(service, firmware) -> None:
-    service.update(UNIT, {"colour": "mint"})
+    service.update(UNIT, {"color": "mint"})
     firmware.refuse = "the clock does not cover a mute or a ringing timer: end that first"
     with pytest.raises(FaceError) as caught:
         service.show_clock(UNIT, 20)
@@ -310,7 +310,7 @@ def test_the_unit_saying_no_to_the_clock_is_passed_on_in_plain_words(service, fi
 
 
 def test_a_lost_link_on_a_cue_is_not_swallowed(service, firmware) -> None:
-    service.update(UNIT, {"colour": "mint"})
+    service.update(UNIT, {"color": "mint"})
     firmware.link = False
     with pytest.raises(BodyLost):
         service.thinking(UNIT, True)
@@ -323,7 +323,7 @@ def test_the_page_can_apply_and_draw_a_unit(service, firmware) -> None:
     out = apply_settings(service, UNIT, {"clock_style": "ring", "clock24": True, "lang": "es"})
     assert out["config"]["clock_style"] == "ring" and out["config"]["lang"] == "es"
     view = settings_view(service, UNIT)
-    assert view["values"]["lang"] == "es" and view["choices"]["colour"][0] == "none"
+    assert view["values"]["lang"] == "es" and view["choices"]["color"][0] == "none"
     assert view["limits"]["clock_idle_s"] == [0, 3600]
     assert view["pending"] is False and view["problem"] is None
 
@@ -334,7 +334,7 @@ def test_no_unit_is_a_plain_error(service) -> None:
     assert "Choose a unit" in str(caught.value)
 
 
-# ---- patch X02: the five styles, the dropped ones, the screen colour and the emotion tint ----
+# ---- patch X02: the five styles, the dropped ones, the screen color and the emotion tint ----
 
 
 def test_the_five_styles_and_big_eyes_is_the_default() -> None:
@@ -351,8 +351,8 @@ def test_a_dropped_style_falls_back_to_big_eyes_when_sent_or_read_back(old: str)
     from maipai_body.faces import from_stored
 
     assert clean(FaceConfig(style="minimal"), {"style": old}).style == "big_eyes"
-    assert from_stored({"style": old, "colour": "sky"}).style == "big_eyes"
-    assert from_stored({"style": old, "colour": "sky"}).colour == "sky"  # the rest of the saved face survives
+    assert from_stored({"style": old, "color": "sky"}).style == "big_eyes"
+    assert from_stored({"style": old, "color": "sky"}).color == "sky"  # the rest of the saved face survives
 
 
 def test_decorators_no_longer_include_sweat_or_shy() -> None:
@@ -392,6 +392,6 @@ def test_the_new_styles_need_the_looks_feature(tmp_path) -> None:
     service.features = lambda unit_id: {"config", "packs"}  # type: ignore[method-assign]
     lines = FaceService.unsupported(service, "u", {"style": "stock", "background": "sky", "emotion_tint": False}, "en")
     assert any("eyes-only and stock" in line for line in lines)
-    assert any("screen colour" in line for line in lines)
-    assert any("emotion colours" in line for line in lines)
+    assert any("screen color" in line for line in lines)
+    assert any("emotion colors" in line for line in lines)
     assert FaceService.unsupported(service, "u", {"style": "classic"}, "en") == []

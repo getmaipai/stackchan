@@ -94,7 +94,7 @@ class SpokenRecord:
     segments: list[SegmentRecord] = field(default_factory=list)
     heard_s: float = 0.0
     completed: bool = False
-    cancelled: bool = False
+    canceled: bool = False
     cancel_reason: str | None = None
     spoken_prefix: str = ""
     turn_id: str | None = None
@@ -354,7 +354,7 @@ class SpeechProcess:
             heard = min(pushed_s, max(self._clock() - t0, 0.0))
             if stopped is not None:
                 record.heard_s = heard
-                record.cancelled = True
+                record.canceled = True
                 record.cancel_reason = stopped
                 self.playback.stop()
             else:
@@ -363,7 +363,7 @@ class SpeechProcess:
                 self.playback.stop()
             record.spoken_prefix = spoken_prefix(record.segments, record.heard_s)
             self._speaking = False
-        if record.cancelled and on_barge is not None:
+        if record.canceled and on_barge is not None:
             try:
                 on_barge()
             except Exception:  # noqa: BLE001 - the local cut already happened

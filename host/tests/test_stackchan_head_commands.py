@@ -24,7 +24,7 @@ from maipai_body.bodies.stackchan.head_commands import (
     parse_head_command,
     target_for,
 )
-from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG as C
+from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG as C
 
 
 @pytest.mark.parametrize(
@@ -44,11 +44,11 @@ from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG as C
         ("look to the left a bit", "look", "left", "little"),
         ("look all the way left", "look", "left", "far"),
         ("A garbled word look down please", "look", "down", "normal"),
-        ("look straight", "centre", None, "normal"),
-        ("look straight ahead", "centre", None, "normal"),
-        ("look forward", "centre", None, "normal"),
-        ("center", "centre", None, "normal"),
-        ("face forward", "centre", None, "normal"),
+        ("look straight", "center", None, "normal"),
+        ("look straight ahead", "center", None, "normal"),
+        ("look forward", "center", None, "normal"),
+        ("center", "center", None, "normal"),
+        ("face forward", "center", None, "normal"),
         ("look around", "around", None, "normal"),
         ("nod", "nod", None, "normal"),
         ("say yes", "nod", None, "normal"),
@@ -78,7 +78,7 @@ from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG as C
         ("look the other way", "away", None, "normal"),
     ],
 )
-def test_phrases_are_recognised(text, kind, direction, amount):
+def test_phrases_are_recognized(text, kind, direction, amount):
     command = parse_head_command(text)
     assert command is not None, text
     assert (command.kind, command.direction, command.amount) == (kind, direction, amount), text
@@ -128,11 +128,11 @@ class _Recorder:
         self.moves.append((yaw, pitch, speed))
 
     def timer(self, seconds, callback):
-        record = {"seconds": seconds, "callback": callback, "cancelled": False}
+        record = {"seconds": seconds, "callback": callback, "canceled": False}
 
         class Handle:
             def cancel(self_inner):
-                record["cancelled"] = True
+                record["canceled"] = True
 
         self.timers.append(record)
         return Handle()
@@ -148,7 +148,7 @@ class _Recorder:
         )
 
 
-def test_look_left_moves_says_one_line_holds_the_pose_and_returns_to_centre_after_five_seconds():
+def test_look_left_moves_says_one_line_holds_the_pose_and_returns_to_center_after_five_seconds():
     rec = _Recorder()
     line = rec.commander().run(HeadCommand("look", "left"))
     assert line == "Looking left."
@@ -164,13 +164,13 @@ def test_stay_cancels_the_return_and_a_new_command_replaces_it():
     commander = rec.commander()
     commander.run(HeadCommand("look", "up"))
     assert commander.run(HeadCommand("stay")) == ""
-    assert rec.timers[0]["cancelled"] is True
+    assert rec.timers[0]["canceled"] is True
     commander.run(HeadCommand("look", "down"))
     commander.run(HeadCommand("look", "right"))
-    assert rec.timers[1]["cancelled"] is True and rec.timers[2]["cancelled"] is False
+    assert rec.timers[1]["canceled"] is True and rec.timers[2]["canceled"] is False
 
 
-def test_nod_shake_and_look_around_are_sequences_that_end_at_centre():
+def test_nod_shake_and_look_around_are_sequences_that_end_at_center():
     rec = _Recorder()
     commander = rec.commander()
     commander.run(HeadCommand("nod"))
@@ -372,17 +372,17 @@ def test_the_face_requests_know_when_the_person_is_below_level():
     assert parse_head_command("up here").level_only is False  # type: ignore[union-attr]
 
 
-def test_a_turn_is_held_for_five_minutes_and_ends_on_centre_a_new_command_or_a_face():
+def test_a_turn_is_held_for_five_minutes_and_ends_on_center_a_new_command_or_a_face():
     rec = _Recorder()
     commander = rec.commander()
     assert commander.run(HeadCommand("look", "left", hold=True)) == "Turning left."
     assert rec.moves == [(-45, C, 120)]
     assert rec.timers[0]["seconds"] == HOLD_TURN_S and rec.held == [HOLD_TURN_S + 1.0]
     commander.face_found()  # a face was found: the held turn ends, the face following takes over
-    assert rec.timers[0]["cancelled"] is True
+    assert rec.timers[0]["canceled"] is True
     commander.run(HeadCommand("look", "right", hold=True))
-    commander.run(HeadCommand("centre"))  # "look straight"
-    assert rec.timers[1]["cancelled"] is True
+    commander.run(HeadCommand("center"))  # "look straight"
+    assert rec.timers[1]["canceled"] is True
     assert rec.moves[-1] == (0, C, 120)
 
 
@@ -391,7 +391,7 @@ def test_a_found_face_does_not_end_a_plain_look_and_a_look_still_returns_after_f
     commander = rec.commander()
     commander.run(HeadCommand("look", "left"))
     commander.face_found()
-    assert rec.timers[0]["cancelled"] is False and rec.timers[0]["seconds"] == 5.0
+    assert rec.timers[0]["canceled"] is False and rec.timers[0]["seconds"] == 5.0
 
 
 def test_look_down_says_it_can_only_look_level_and_goes_to_level():
@@ -497,7 +497,7 @@ def test_a_sentence_with_several_steps_is_a_sequence():
     assert _kinds("look left, then right, then straight") == [
         ("look", "left"),
         ("look", "right"),
-        ("centre", None),
+        ("center", None),
     ]
     assert _kinds("turn left and then look up") == [("look", "left"), ("look", "up")]
     assert _kinds("look left after that look right") == [("look", "left"), ("look", "right")]
@@ -531,7 +531,7 @@ def test_a_single_command_stays_a_single_command():
     assert parse_head_command("go ahead and look left").kind == "look"  # type: ignore[union-attr]
 
 
-def test_a_sequence_runs_in_order_with_a_pause_and_one_line_then_returns_to_centre():
+def test_a_sequence_runs_in_order_with_a_pause_and_one_line_then_returns_to_center():
     rec = _Recorder()
     pauses = []
     commander = HeadCommander(

@@ -109,10 +109,10 @@ def test_cancel_ends_an_in_flight_turn_with_an_error_the_body_reads_as_cancel():
         assert client.cancel(first.turn_id) is True
         rest = list(stream)
     assert [e.cue.phase for e in rest] == [Phase.CANCEL]
-    assert hub.cancelled_turns == ["turn-bench"]
+    assert hub.canceled_turns == ["turn-bench"]
 
 
-def test_cancelling_a_turn_that_is_not_in_flight_answers_false(hub):
+def test_canceling_a_turn_that_is_not_in_flight_answers_false(hub):
     assert TurnClient(hub.http_url, hub.session_cookie).cancel("turn-gone") is False
 
 

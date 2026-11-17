@@ -70,7 +70,7 @@ def test_a_stale_reply_409_is_a_cancel_and_plays_nothing() -> None:
     stale = Response(409, b"{}", {"code": "turn_cancelled"})
     client = TtsPlaybackClient("http://hub.example.com", "c", playback, session=Session(stale))
     result = client.speak("hello", turn_id="turn-1", generation=1)
-    assert result.kind == "cancelled" and fake.pushed_audio == []
+    assert result.kind == "canceled" and fake.pushed_audio == []
 
 
 def test_a_chunk_from_before_a_flush_never_reaches_the_device() -> None:
@@ -88,7 +88,7 @@ def test_a_chunk_from_before_a_flush_never_reaches_the_device() -> None:
     )
     # the generation is read before the request, so the cut makes every chunk stale
     result = client.speak("hello")
-    assert result.kind == "cancelled"
+    assert result.kind == "canceled"
     assert fake.pushed_audio == []
 
 

@@ -1,7 +1,7 @@
 """The StackChan ring renderer (docs/dev/led-standard-2026-10-20.md).
 
 Translates one look from the look table into a 12-pixel RGB triple for the
-ring. This module is the one place StackChan names a colour as numbers; the
+ring. This module is the one place StackChan names a color as numbers; the
 periods it is driven at are UNMEASURED design defaults.
 """
 
@@ -28,8 +28,8 @@ RING_RGB: dict[Palette, tuple[float, float, float]] = {
 
 
 def _check_no_pure_red() -> None:
-    for colour, (red, green, blue) in RING_RGB.items():
-        assert not (red > 0.0 and green == 0.0 and blue == 0.0), f"{colour} is pure red"
+    for color, (red, green, blue) in RING_RGB.items():
+        assert not (red > 0.0 and green == 0.0 and blue == 0.0), f"{color} is pure red"
 
 
 _check_no_pure_red()
@@ -76,9 +76,9 @@ def ring_rgb(look: Look | None, period_s: float, t_s: float) -> tuple[int, int, 
     fraction times the look's brightness times the style factor, scaled to
     ``LED_CHANNEL_MAX`` and clamped.
     """
-    if look is None or look.colour is Palette.OFF:
+    if look is None or look.color is Palette.OFF:
         return (0, 0, 0)
-    red, green, blue = RING_RGB[look.colour]
+    red, green, blue = RING_RGB[look.color]
     factor = style_factor(look.style, period_s, t_s)
     return tuple(
         _clamp(LED_CHANNEL_MAX * channel * look.brightness * factor)

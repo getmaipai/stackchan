@@ -466,7 +466,7 @@ class StackChanXiaozhiTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.app._allow_pairing_request("192.0.2.8"))
         self.assertTrue(self.app._allow_pairing_request("192.0.2.9"))
 
-    async def test_cancelled_device_call_surfaces_estop_engaged(self) -> None:
+    async def test_canceled_device_call_surfaces_estop_engaged(self) -> None:
         from maipai_body.hal.errors import EstopEngaged
 
         class CallServer:

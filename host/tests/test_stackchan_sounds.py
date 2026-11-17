@@ -559,7 +559,7 @@ def test_the_phrases_are_plain_words_a_child_can_follow():
     assert "wi-fi" in texts and "approved" in texts and "connecting" in texts
 
 
-def test_the_phrase_voice_record_names_the_licence_check():
+def test_the_phrase_voice_record_names_the_license_check():
     voice = json.loads((PHRASES / "phrases.json").read_text())["voice"]
     assert voice["licence_checked"] is True
     assert voice["licence"] == "Apache-2.0"

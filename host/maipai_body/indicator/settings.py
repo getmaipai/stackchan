@@ -1,4 +1,4 @@
-"""EYES-02: the three robot-only settings keys the lights honour.
+"""EYES-02: the three robot-only settings keys the lights honor.
 
 Robot-only: declared on the ``hello``, no spec record, no ``keys.json``
 entry. Every key carries the schema-required ``label`` and ``lives_in``
@@ -13,7 +13,7 @@ clone cannot reach (``tests/test_indicator_settings.py`` validates against
 it when ``MAIPAI_SPEC_SETTINGS_KEY_SCHEMA`` points at the file).
 
 Night is the household's quiet hours: ``household.quiet_hours.from`` and ``.to``
-from the registry (honoured by ``bot`` since spec-v0.1.151), delivered in the
+from the registry (honored by ``bot`` since spec-v0.1.151), delivered in the
 settings frame. The temporary robot-only ``night_from`` and ``night_to`` keys are
 retired. Three keys are declared here: on or off, the day level and the night level.
 The owner's 2026-11-13 light standard removed ``robot.indicator.sleep_eyes`` (no sleep glow),

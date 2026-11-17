@@ -67,9 +67,9 @@ def test_pairing_alphabet_is_the_32_characters_the_hub_issues():
 def test_shipped_manifest_has_checksum_placeholders_not_invented_hashes():
     manifest = oc.load_manifest()
     assert all(c.sha256 == "" for c in manifest.clips)
-    # The licence was checked on 2026-11-13 (CC-BY-4.0, credit in NOTICE and the user guide).
-    assert manifest.voice.licence_checked
-    assert manifest.voice.licence == "CC-BY-4.0" and "CC-BY-4.0" in manifest.voice.credit
+    # The license was checked on 2026-11-13 (CC-BY-4.0, credit in NOTICE and the user guide).
+    assert manifest.voice.license_checked
+    assert manifest.voice.license == "CC-BY-4.0" and "CC-BY-4.0" in manifest.voice.credit
 
 
 def test_manifest_rejects_a_duplicate_clip_id(tmp_path):
@@ -77,7 +77,7 @@ def test_manifest_rejects_a_duplicate_clip_id(tmp_path):
     path.write_text(
         json.dumps(
             {
-                "voice": {"engine": "pocket-tts", "name": "x", "licence_checked": False},
+                "voice": {"engine": "pocket-tts", "name": "x", "license_checked": False},
                 "sample_rate": 24000,
                 "clips": [
                     {"id": "a", "text": "a", "file": "a.wav", "sha256": ""},
@@ -95,7 +95,7 @@ def test_manifest_rejects_a_path_traversing_file_name(tmp_path):
     path.write_text(
         json.dumps(
             {
-                "voice": {"engine": "pocket-tts", "name": "x", "licence_checked": False},
+                "voice": {"engine": "pocket-tts", "name": "x", "license_checked": False},
                 "sample_rate": 24000,
                 "clips": [{"id": "a", "text": "a", "file": "../a.wav", "sha256": ""}],
             }

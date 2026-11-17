@@ -125,7 +125,7 @@ in `lvgl_read_cb`, and the `HAL-HeadTouch` lines are the head sensor, not the sc
 **Ranked guesses.** (1) The controller answers but reports no points (num stays 0): wrong work
 mode, a reset line the board does not release, or a lost interrupt; nothing above it would then
 see a touch. (2) Touches arrive but land on a different object than the face panel. (3) Presses
-arrive but LVGL does not recognise the gesture or click. The three give different log lines, so
+arrive but LVGL does not recognize the gesture or click. The three give different log lines, so
 one flash tells them apart.
 
 **Diagnostic: `046-touch-diagnostics.patch`** (in the recipe; compiled, applies after 044). Every

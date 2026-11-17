@@ -38,7 +38,7 @@ A second, smaller bug waited behind it: the enroll image stores the avatar addre
 
 ## Touch and shake, same session
 
-- Pets: the firmware recognised the rub (`presses=1 run_max=19 long_runs=1`), but the host log has
+- Pets: the firmware recognized the rub (`presses=1 run_max=19 long_runs=1`), but the host log has
   neither "was petted" nor any head event line. The host now logs one line per head or shake event
   it reads (`unit touch: head_touch held_ms=400`) and one line when a conversation suppresses the
   reaction. The robot is in back-to-back listening turns when it is talked to (a new turn starts

@@ -60,7 +60,7 @@ def test_tracking_correction_times_out_and_holds_head(tmp_path):
     client, vision = bridge(tmp_path, [FACE])
     vision.track_once(deadline_s=0.03)
     time.sleep(0.08)
-    assert client.cancelled_motion_batches >= 1
+    assert client.canceled_motion_batches >= 1
 
 
 def test_unknown_face_does_not_return_identity(tmp_path):
@@ -103,4 +103,4 @@ def test_tracking_accepts_consecutive_frames_under_its_lease(tmp_path):
     vision.track_once(deadline_s=0.1)
     vision.track_once(deadline_s=0.03)
     time.sleep(0.07)
-    assert client.cancelled_motion_batches >= 1
+    assert client.canceled_motion_batches >= 1

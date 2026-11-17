@@ -59,7 +59,7 @@ All three are independent and combinable, are saved in the unit's own NVS namesp
 | State | Listening | Speaker | Head | Camera |
 |---|---|---|---|---|
 | Muted | off: wake word, stop word, voice processing, microphone chip | host says nothing (no turns, no reactions, announcements and timers logged as missed) | normal | normal |
-| Vision off | normal | normal | normal | not read: no frame captured, none sent, none analysed, no picture question |
+| Vision off | normal | normal | normal | not read: no frame captured, none sent, none analyzed, no picture question |
 | Full quiet | off, exactly as for mute | silent: the codec drops all output | holds: no move from anyone, a move under way stops | unchanged (chosen: vision is its own switch) |
 
 Full quiet leaves vision as it is on purpose: the owner called it "disable movement, talking and listening" and gave vision its own
@@ -92,7 +92,7 @@ boot, before the first tap.
 
 Honest limit (unchanged from the design note): this is a register and clock power-down plus a firmware lock, not a cut wire.
 
-## 5. Host behaviour (`bodies/stackchan/privacy.py`, wired in `app.py` `_wire_privacy`)
+## 5. Host behavior (`bodies/stackchan/privacy.py`, wired in `app.py` `_wire_privacy`)
 
 - `PrivacyState` reads the unit's `privacy` event and its minute `wake_stats` (`muted`, `vision_off`, `quiet`, `mic_off_verified`,
   `mute_source`). Nothing is assumed: until the unit reports, every fact is null. `muted_reason()` is the named hook the announcement,
@@ -101,7 +101,7 @@ Honest limit (unchanged from the design note): this is a register and clock powe
 - No turn: `StackChanTurnBridge.listen` goes idle on a start or detect, and `speak_reaction` returns False, while muted or in full quiet.
 - No head move: `_HeadAdapter` returns `{"blocked": "full quiet"}` for any `set` or `goto`; the spoken head command says it holds its head still.
 - Vision off: `watch_allowed` is false (no stream ask, no stall ladder), `camera.frame`, `stream_frame` and `stream(enabled=True)` are
-  refused, the camera stream is told to stop, a frame that still arrives is dropped before it is kept or analysed and reported as a leak,
+  refused, the camera stream is told to stop, a frame that still arrives is dropped before it is kept or analyzed and reported as a leak,
   and "can you see me" answers from the same flag. The admin's saved `robot.vision` and `robot.camera.watch_level` are not touched.
 - Self-heal: `wake_stats` `muted=1` already skips the wake self-test; a camera that is off is not a stalled camera (the watch level
   gate reads the same flag); a refused rebuild is not a failure.

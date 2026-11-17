@@ -18,7 +18,7 @@ All 125 patches of `firmware/patches/ORDER`, in that order, on the pristine Stac
 | P, T, M, V, TN | 22 | Wi-Fi portal, low battery ladder, hourly chime, wake cue, mood from care, serial tool path, travel private network, memory gate line |
 | U, G, H, I, W | 15 | Face decorators, word reactions, time zone picker, network test, version screen, face packs, offline phrases, music dance, games, face bench tools, fluid motion, picture faces, orientation, screen wake |
 | L01, L03 to L09 | 8 | Latency and calm: echo canceller off for wake, 8 s follow-up window, ignore idle host looks, wake detection 95, bench latency trace, privacy source log, no connecting flash, stop word not probed |
-| X01, X02 | 2 | Faces core: one look core (circle eye with a lid, one family of mouths, sleep sequence, thinking dots), five styles with Big eyes the default, white eyes, per-person screen colour, tint, tired low-battery look |
+| X01, X02 | 2 | Faces core: one look core (circle eye with a lid, one family of mouths, sleep sequence, thinking dots), five styles with Big eyes the default, white eyes, per-person screen color, tint, tired low-battery look |
 | Y01 | 1 | A user head move (source=user) passes the idle gate |
 | Y02 | 1 | Find my robot sounds through mute and quiet |
 | Y03 | 1 | Opus decode task above the screen task (spoken replies stopped stuttering) |
@@ -41,7 +41,7 @@ Not done: a flash core dump. The partition table has a 64 KB `coredump` partitio
 
 ## Memory gate (plain image, memory line on, 831 s from boot)
 
-Gate build: sdkconfig `MAIPAI_MEMORY_LINE=y`, same patches. The owner was not talking, so the run was idle plus 19 successful tool calls (nod, shake, look, head, centre, beeps, flashes, three spoken lines, two photos, find on and off; one head call was refused by the host as out of range), three style changes (big_eyes, minimal, stock, then back to classic), and the Colour Memory game started and left running for about 2 minutes.
+Gate build: sdkconfig `MAIPAI_MEMORY_LINE=y`, same patches. The owner was not talking, so the run was idle plus 19 successful tool calls (nod, shake, look, head, center, beeps, flashes, three spoken lines, two photos, find on and off; one head call was refused by the host as out of range), three style changes (big_eyes, minimal, stock, then back to classic), and the Color Memory game started and left running for about 2 minutes.
 
 | Number | Measured | Gate |
 |---|---|---|
@@ -76,4 +76,4 @@ Full run of `host/tests` at nice 15: 4090 passed, 77 skipped, 3 failed. Causes a
 
 ## Left alone
 
-- The host asks for `self.screen.set_face_background` and `self.screen.get_ambient_light`, which this firmware does not have; the host logs a warning and carries on ("the face colour stays as flashed"). Old, not part of this work.
+- The host asks for `self.screen.set_face_background` and `self.screen.get_ambient_light`, which this firmware does not have; the host logs a warning and carries on ("the face color stays as flashed"). Old, not part of this work.

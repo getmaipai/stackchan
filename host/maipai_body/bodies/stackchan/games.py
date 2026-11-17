@@ -1,7 +1,7 @@
 # ruff: noqa: E501
 """The unit's games, the host side (firmware patch G01).
 
-The unit plays the games itself (colour memory, reaction time, whack-a-mole): the screen, the
+The unit plays the games itself (color memory, reaction time, whack-a-mole): the screen, the
 touches, the tones, the rules and the best scores are the firmware's, so a game works with Home
 down. This module is what only the host adds:
 
@@ -46,10 +46,10 @@ class Game:
 GAMES: tuple[Game, ...] = (
     Game(
         "memory",
-        {"en": "Colour Memory", "es": "Memoria de colores"},
+        {"en": "Color Memory", "es": "Memoria de colores"},
         (
             "memory",
-            "colour memory",
+            "color memory",
             "color memory",
             "simon",
             "memoria",

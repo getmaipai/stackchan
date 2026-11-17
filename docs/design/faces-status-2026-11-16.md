@@ -1,7 +1,7 @@
-# Faces and always-on behaviours, status 2026-11-16
+# Faces and always-on behaviors, status 2026-11-16
 
 Placement: unit firmware plus a host module (`host/maipai_body/faces.py`). Nothing is flashed; no USB was touched.
-"Faces and always-on behaviours" in the design is `features.md` (Faces and look, Always-on behaviour), build-order steps 6 and 8, and decisions 22 to 24.
+"Faces and always-on behaviors" in the design is `features.md` (Faces and look, Always-on behavior), build-order steps 6 and 8, and decisions 22 to 24.
 
 ## Built (six firmware patches, one build after each, all on `firmware/patches/ORDER`)
 
@@ -9,9 +9,9 @@ The patches are numbered F01 to F06 because 151 to 154 are taken by legacy patch
 
 | Patch | What | Kconfig switch (default y) |
 |---|---|---|
-| F01 face-config | Neutral white-on-black default. Style (classic, big_eyes, minimal) and colour (none, seven names, or `#rrggbb`) saved in the unit's flash; a colour too dark to see is refused. Tools `self.face.set_config` (one JSON object, all-or-nothing) and `self.face.get_config` (settings plus the features this build has). | `MAIPAI_FACE_CONFIG` |
+| F01 face-config | Neutral white-on-black default. Style (classic, big_eyes, minimal) and color (none, seven names, or `#rrggbb`) saved in the unit's flash; a color too dark to see is refused. Tools `self.face.set_config` (one JSON object, all-or-nothing) and `self.face.get_config` (settings plus the features this build has). | `MAIPAI_FACE_CONFIG` |
 | F02 face-captions | Captions off by default; a person turns them on. Turning them off clears one on screen. Status words and link screens are not captions. | `MAIPAI_FACE_CAPTIONS` |
-| F03 face-time-of-day | Four bands (morning, day, evening, night) from saved hours; the lid opens less (90, 70 percent) and the colour softens (85, 55 percent) late in the day. One shared one-second LVGL timer. Clock never set: day look. | `MAIPAI_FACE_TOD` |
+| F03 face-time-of-day | Four bands (morning, day, evening, night) from saved hours; the lid opens less (90, 70 percent) and the color softens (85, 55 percent) late in the day. One shared one-second LVGL timer. Clock never set: day look. | `MAIPAI_FACE_TOD` |
 | F04 face-clock | Clock face from drawn bars (no big font): big digits or digits inside a seconds ring, 12 or 24 hour, date line in English or Spanish, dimmed at night. Shows on `self.face.show_clock` or after `clock_idle_s` idle seconds (0 by default). Never covers a mute, vision-off or quiet look or a ringing timer. A touch ends it and is only a wake. | `MAIPAI_FACE_CLOCK` |
 | F05 face-thinking-cue | Three animated dots plus the quiet shipped tone (decision 23), on the thinking emotion or `self.face.thinking`. The dots always show; the tone follows the setting, the sound policy and the hard mute. Ends on any other emotion, any status change, or after 45 s. | `MAIPAI_FACE_THINKING` |
 | F06 face-timer-countdowns | Up to four chips along the bottom (soonest first, name and live countdown), three plus "+N" when more. Reads a copy the timer task publishes under its own leaf lock, because the timer task takes the timer lock and then the display lock. Works with the host off. | `MAIPAI_FACE_TIMERS` |

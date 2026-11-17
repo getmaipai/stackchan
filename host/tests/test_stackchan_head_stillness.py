@@ -131,7 +131,7 @@ def test_every_head_move_call_site_is_audited():
     }
 
 
-def test_a_return_to_centre_passes_after_the_cap_is_used_up_and_is_not_counted():
+def test_a_return_to_center_passes_after_the_cap_is_used_up_and_is_not_counted():
     now = [0.0]
     gate = HeadMotionGate(must_be_still=lambda: False, clock=lambda: now[0], max_moves_per_min=3)
     assert [gate.allow("decorative", response=True) for _ in range(5)] == [True] * 3 + [False] * 2
@@ -147,7 +147,7 @@ def test_essential_moves_pass_even_when_the_robot_must_be_still():
     assert gate.allow("turn:settle", essential=True) is True
 
 
-def test_a_settle_still_centres_the_head_after_a_burst_of_decorative_moves(behavior):
+def test_a_settle_still_centers_the_head_after_a_burst_of_decorative_moves(behavior):
     behavior.head_gate = HeadMotionGate(must_be_still=lambda: False, max_moves_per_min=2)
     for _ in range(5):
         behavior.render_turn_state("listening")

@@ -30,7 +30,7 @@ class VadEngine(Protocol):
 class SttEngine(Protocol):
     """Moonshine speech to text over one endpointed utterance.
 
-    Returns ``""`` for nothing recognised; Moonshine tiny does that erratically
+    Returns ``""`` for nothing recognized; Moonshine tiny does that erratically
     behind a long silent head, which is what the process's retry from the onset
     block is for."""
 

@@ -160,7 +160,7 @@ def test_stopping_mid_stream_keeps_the_pushed_prefix(tts_server):
 
     result = client.speak("a longer reply than the stop allows", stop_event=stop_event)
 
-    assert result.kind == "cancelled"
+    assert result.kind == "canceled"
     assert result.first_chunk_pushed
     pushed = playback.pushed_duration_s()
     assert 0 < pushed < 3.0  # a real, non-empty prefix, not the whole reply

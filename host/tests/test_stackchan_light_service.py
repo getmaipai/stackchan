@@ -84,32 +84,32 @@ def test_live_shows_green_and_outranks_everything():
     service.update(fault=True, offline=True, pairing=True, battery_low=True)
     service.cue_live(True)
     assert ring.current is not None
-    assert ring.current.colour is Palette.GREEN
+    assert ring.current.color is Palette.GREEN
     assert ring.current.brightness >= looks.LIVE_FLOOR
 
 
 def test_the_live_cue_is_held_for_the_floor_after_lowering():
     service, ring, clock, _ = _service()
     service.cue_live(True)
-    assert ring.current is not None and ring.current.colour is Palette.GREEN
+    assert ring.current is not None and ring.current.color is Palette.GREEN
     clock.now += 0.1
     service.cue_live(False)
-    assert ring.current is not None and ring.current.colour is Palette.GREEN
+    assert ring.current is not None and ring.current.color is Palette.GREEN
     clock.now += looks.CUE_HOLD_S
     service.tick()
-    assert ring.current is None or ring.current.colour is not Palette.GREEN
+    assert ring.current is None or ring.current.color is not Palette.GREEN
 
 
 def test_the_camera_cue_is_held_for_the_floor_after_lowering():
     service, ring, clock, _ = _service()
     service.cue_camera(True)
-    assert ring.current is not None and ring.current.colour is Palette.PINK
+    assert ring.current is not None and ring.current.color is Palette.PINK
     clock.now += 0.1
     service.cue_camera(False)
-    assert ring.current is not None and ring.current.colour is Palette.PINK
+    assert ring.current is not None and ring.current.color is Palette.PINK
     clock.now += looks.CUE_HOLD_S
     service.refresh()
-    assert ring.current is None or ring.current.colour is not Palette.PINK
+    assert ring.current is None or ring.current.color is not Palette.PINK
 
 
 def test_camera_shows_a_pink_flash_above_the_floor_at_night_with_a_child():
@@ -120,7 +120,7 @@ def test_camera_shows_a_pink_flash_above_the_floor_at_night_with_a_child():
     service.update(camera=True)
     look = ring.current
     assert look is not None
-    assert look.colour is Palette.PINK
+    assert look.color is Palette.PINK
     assert look.style is LookStyle.FLASH
     assert look.brightness >= looks.CAMERA_FLOOR
 
@@ -145,7 +145,7 @@ def test_the_one_amber_serves_battery_low_offline_and_a_fault():
         service.update(**{fact: True})
         look = ring.current
         assert look is not None
-        assert look.colour is Palette.AMBER
+        assert look.color is Palette.AMBER
         assert look.style is LookStyle.PULSE
         assert look.period_s == looks.period_s(looks.LookKey.ATTENTION) == 10.0
         assert look.brightness == pytest.approx(0.3)
@@ -175,7 +175,7 @@ def test_pairing_shows_a_cyan_pulse():
     service.update(pairing=True)
     look = ring.current
     assert look is not None
-    assert look.colour is Palette.CYAN
+    assert look.color is Palette.CYAN
     assert look.style is LookStyle.PULSE
     assert look.period_s == 2.0
 
@@ -204,9 +204,9 @@ def test_asleep_still_shows_the_capture_cues():
     service, ring, _, _ = _service()
     service.set_sleeping(True)
     service.cue_camera(True)
-    assert ring.current is not None and ring.current.colour is Palette.PINK
+    assert ring.current is not None and ring.current.color is Palette.PINK
     service.cue_live(True)
-    assert ring.current.colour is Palette.GREEN
+    assert ring.current.color is Palette.GREEN
 
 
 def test_a_dark_room_is_dark_like_night_and_ends_dark():
@@ -236,7 +236,7 @@ def test_disabled_settings_darken_everything_but_the_cues():
     assert ring.current is None
     service.cue_live(True)
     assert ring.current is not None
-    assert ring.current.colour is Palette.GREEN
+    assert ring.current.color is Palette.GREEN
 
 
 def test_a_failing_indicator_never_propagates():

@@ -22,9 +22,9 @@ studies). The numbers below are starting points, UNMEASURED on the unit.
 | State | Eyes | Head | Symbol |
 |---|---|---|---|
 | Idle | slow random saccade every 3 to 8 s (the firmware already does 2 to 6 s), blink every 2 to 6 s | level, still | none |
-| Listening | centred, eyes slightly larger (the "surprised" size is too much: use a +10 percent scale if the skin allows) | perk +8 degrees up, then still | none |
-| Thinking | shift to the upper left or upper right, small (about 8 px x, 8 px y), alternating sides each time, 1.5 to 3 s per side; blink at each switch | yaw 12 degrees to the same side and +10 degrees up, return to centre when the reply starts | optional three dots beside the face, like the heart decorator |
-| Speaking | centred, mouth animation by the firmware | level, small speak offset | none |
+| Listening | centered, eyes slightly larger (the "surprised" size is too much: use a +10 percent scale if the skin allows) | perk +8 degrees up, then still | none |
+| Thinking | shift to the upper left or upper right, small (about 8 px x, 8 px y), alternating sides each time, 1.5 to 3 s per side; blink at each switch | yaw 12 degrees to the same side and +10 degrees up, return to center when the reply starts | optional three dots beside the face, like the heart decorator |
+| Speaking | centered, mouth animation by the firmware | level, small speak offset | none |
 | Asleep | closed or sleepy face | level | none |
 
 ## What needs firmware, in order of value

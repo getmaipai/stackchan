@@ -42,8 +42,8 @@ neutral unless someone else is drawing (a turn, a touch reaction, a tilt, the es
 
 ## The ring show (the lights rule's one decorative exception)
 
-Colours outside the status meanings: gold, lime, mint and a warm sparkle (`SHOW_COLOURS`; a test checks distance from every status
-colour and no red). Three patterns (chase, beat pulse, sparkle), every frame has at least two lit colours and differs from
+Colors outside the status meanings: gold, lime, mint and a warm sparkle (`SHOW_COLORS`; a test checks distance from every status
+color and no red). Three patterns (chase, beat pulse, sparkle), every frame has at least two lit colors and differs from
 the one before. Brightness 0.5 (`RING_BRIGHTNESS`). While it runs `StackChanLightService.take_ring` stops the service painting;
 writes go through the adapter, so the camera pink still wins, and a live or camera cue ends the dance. `robot.dance.show_ring`
 off keeps the head and face dance and no lights.
@@ -52,7 +52,7 @@ off keeps the head and face dance and no lights.
 
 `robot.dance.enabled` (default true) and `robot.dance.show_ring` (default true) are read from `settings_changed`
 (`DanceSettings.apply`), so they work as soon as the hub sends them. They still have to be registered in
-`commons/spec/settings/keys.json` (device scope, honoured by home and bot) and Home's `robotSettingsKeys.json`; that is a
+`commons/spec/settings/keys.json` (device scope, honored by home and bot) and Home's `robotSettingsKeys.json`; that is a
 commons tag plus a Home pin, not done here.
 
 ## Not verified (no unit)

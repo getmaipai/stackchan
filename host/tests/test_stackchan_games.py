@@ -372,7 +372,7 @@ def test_the_host_names_match_the_firmware_tables() -> None:
     ("said", "expect"),
     [
         ("play memory", ("start", "memory")),
-        ("let's play the colour memory game", ("start", "memory")),
+        ("let's play the color memory game", ("start", "memory")),
         ("Can we play whack-a-mole?", ("start", "whack")),
         ("start reaction time", ("start", "reaction")),
         ("juega a los topos", ("start", "whack")),
@@ -440,7 +440,7 @@ class FakeGames:
                 "games": [
                     {
                         "id": "memory",
-                        "title": "Colour Memory",
+                        "title": "Color Memory",
                         "lower_is_better": False,
                         "scores": [7, 5, 4],
                     },
@@ -546,7 +546,7 @@ def test_the_settings_page_lists_every_game_and_its_best_scores(tmp_path: Path) 
     view = json.loads(body)
     assert status == 200 and view["ok"] is True
     assert view["lines"] == [
-        "Colour Memory: 7, 5, 4 rounds",
+        "Color Memory: 7, 5, 4 rounds",
         "Reaction Time: 231, 300 ms",
         "Whack-a-Mole: none yet",
     ]
@@ -591,7 +591,7 @@ def test_a_spoken_game_ask_becomes_a_game_command_and_is_answered_in_the_languag
     assert commander.run(stop) == "No game is playing right now."
     listing = parse_head_command("what games do you have")
     assert listing is not None
-    assert commander.run(listing) == "I have Colour Memory, Reaction Time and Whack-a-Mole."
+    assert commander.run(listing) == "I have Color Memory, Reaction Time and Whack-a-Mole."
     best = parse_head_command("what is my best score in reaction time")
     assert best is not None and commander.run(best) == "Your best in Reaction Time is 3 ms."
     # the plain words around the games do not become game commands, and the head commands still work

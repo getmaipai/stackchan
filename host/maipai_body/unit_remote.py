@@ -3,7 +3,7 @@
 
 Each action uses a tool the firmware already has. A unit that is off is not an error to hide: the page says so
 in plain words. Timed actions (flash, look around, find my robot) run on the host and always leave the unit
-centred with the lights off.
+centered with the lights off.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from typing import Any
 
 from maipai_body.bodies.stackchan.games import GAMES
 from maipai_body.bodies.stackchan.profile import (
-    CENTRE_PITCH_DEG,
+    CENTER_PITCH_DEG,
     HEAD_PITCH_MAX_DEG,
     HEAD_YAW_LIMIT_DEG,
 )
@@ -127,7 +127,7 @@ class UnitRemote:
         treat it as an idle look and ignore it. Speed is clamped into the range the unit accepts."""
         speed = max(HEAD_SPEED_MIN, min(HEAD_SPEED_MAX, int(speed)))
         yaw = max(-HEAD_YAW_LIMIT_DEG, min(HEAD_YAW_LIMIT_DEG, int(round(yaw))))
-        pitch = max(CENTRE_PITCH_DEG, min(HEAD_PITCH_MAX_DEG, int(round(pitch))))
+        pitch = max(CENTER_PITCH_DEG, min(HEAD_PITCH_MAX_DEG, int(round(pitch))))
         self._do(unit_id, "self.robot.set_head_angles", {"yaw": yaw, "pitch": pitch, "speed": speed, "source": "user"}, lang, "head movement")
 
     def _angles(self, unit_id: str) -> tuple[int, int] | None:
@@ -194,7 +194,7 @@ class UnitRemote:
             "photo": self._photo is not None,
             "finding": unit_id in self._finders and not self._finders[unit_id].is_set(),
             "muted": self._muted(unit_id),
-            "limits": {"yaw": HEAD_YAW_LIMIT_DEG, "pitch": [CENTRE_PITCH_DEG, HEAD_PITCH_MAX_DEG]},
+            "limits": {"yaw": HEAD_YAW_LIMIT_DEG, "pitch": [CENTER_PITCH_DEG, HEAD_PITCH_MAX_DEG]},
         }
 
     # ---- actions ----
@@ -235,11 +235,11 @@ class UnitRemote:
             raise ExtrasError(_w(lang, "no_state"))
         return {"ok": True, "muted": on, "message": _w(lang, "muted_now" if on else "unmuted_now")}
 
-    def flash(self, unit_id: str, colour: object = None, lang: str | None = None) -> dict[str, Any]:
+    def flash(self, unit_id: str, color: object = None, lang: str | None = None) -> dict[str, Any]:
         rgb = (0, 126, 168)
-        if isinstance(colour, str) and len(colour) == 7 and colour.startswith("#"):
+        if isinstance(color, str) and len(color) == 7 and color.startswith("#"):
             try:
-                rgb = tuple(int(colour[i : i + 2], 16) * LED_MAX // 255 for i in (1, 3, 5))  # type: ignore[assignment]
+                rgb = tuple(int(color[i : i + 2], 16) * LED_MAX // 255 for i in (1, 3, 5))  # type: ignore[assignment]
             except ValueError:
                 pass
         try:
@@ -268,22 +268,22 @@ class UnitRemote:
     def head(self, unit_id: str, yaw: object, pitch: object, lang: str | None = None) -> dict[str, Any]:
         for value in (yaw, pitch):
             if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ExtrasError(_w(lang, "bad_head", yaw=HEAD_YAW_LIMIT_DEG, low=CENTRE_PITCH_DEG, high=HEAD_PITCH_MAX_DEG))
-        if not -HEAD_YAW_LIMIT_DEG <= yaw <= HEAD_YAW_LIMIT_DEG or not CENTRE_PITCH_DEG <= pitch <= HEAD_PITCH_MAX_DEG:  # type: ignore[operator]
-            raise ExtrasError(_w(lang, "bad_head", yaw=HEAD_YAW_LIMIT_DEG, low=CENTRE_PITCH_DEG, high=HEAD_PITCH_MAX_DEG))
+                raise ExtrasError(_w(lang, "bad_head", yaw=HEAD_YAW_LIMIT_DEG, low=CENTER_PITCH_DEG, high=HEAD_PITCH_MAX_DEG))
+        if not -HEAD_YAW_LIMIT_DEG <= yaw <= HEAD_YAW_LIMIT_DEG or not CENTER_PITCH_DEG <= pitch <= HEAD_PITCH_MAX_DEG:  # type: ignore[operator]
+            raise ExtrasError(_w(lang, "bad_head", yaw=HEAD_YAW_LIMIT_DEG, low=CENTER_PITCH_DEG, high=HEAD_PITCH_MAX_DEG))
         start = self._angles(unit_id)
         self._head(unit_id, yaw, pitch, lang)  # type: ignore[arg-type]
         self._moved_to(unit_id, yaw, pitch, lang, start=start)  # type: ignore[arg-type]
         return {"ok": True}
 
-    def centre(self, unit_id: str, lang: str | None = None) -> dict[str, Any]:
+    def center(self, unit_id: str, lang: str | None = None) -> dict[str, Any]:
         start = self._angles(unit_id)
-        self._head(unit_id, 0, CENTRE_PITCH_DEG, lang)
-        self._moved_to(unit_id, 0, CENTRE_PITCH_DEG, lang, start=start)
+        self._head(unit_id, 0, CENTER_PITCH_DEG, lang)
+        self._moved_to(unit_id, 0, CENTER_PITCH_DEG, lang, start=start)
         return {"ok": True}
 
     def _return_to(self, unit_id: str, pose: tuple[int, int] | None, lang: str | None) -> None:
-        yaw, pitch = pose if pose is not None else (0, CENTRE_PITCH_DEG)
+        yaw, pitch = pose if pose is not None else (0, CENTER_PITCH_DEG)
         self._safe(unit_id, lambda: self._head(unit_id, yaw, pitch, lang))
 
     def _steps(self, unit_id: str, steps: list[tuple[float, float, int, float]], lang: str | None) -> tuple[int, int] | None:
@@ -307,9 +307,9 @@ class UnitRemote:
 
     def nod(self, unit_id: str, lang: str | None = None) -> dict[str, Any]:
         """The firmware has no nod tool: three eased pitch steps up and back, then the start pose."""
-        start = self._angles(unit_id) or (0, CENTRE_PITCH_DEG)
+        start = self._angles(unit_id) or (0, CENTER_PITCH_DEG)
         up = min(HEAD_PITCH_MAX_DEG, start[1] + 20)
-        low = max(CENTRE_PITCH_DEG, start[1])
+        low = max(CENTER_PITCH_DEG, start[1])
         try:
             self._steps(unit_id, [(start[0], up, 220, 0.45), (start[0], low, 160, 0.45), (start[0], up - 6, 220, 0.4), (start[0], low, 160, 0.4)], lang)
         finally:
@@ -317,8 +317,8 @@ class UnitRemote:
         return {"ok": True}
 
     def shake(self, unit_id: str, lang: str | None = None) -> dict[str, Any]:
-        start = self._angles(unit_id) or (0, CENTRE_PITCH_DEG)
-        pitch = max(CENTRE_PITCH_DEG, start[1])
+        start = self._angles(unit_id) or (0, CENTER_PITCH_DEG)
+        pitch = max(CENTER_PITCH_DEG, start[1])
         try:
             self._steps(
                 unit_id,
@@ -380,7 +380,7 @@ class UnitRemote:
                 old.set()
         if on is not True:
             self._safe(unit_id, lambda: self._led(unit_id, (0, 0, 0), lang))
-            self._safe(unit_id, lambda: self._head(unit_id, 0, CENTRE_PITCH_DEG, lang))
+            self._safe(unit_id, lambda: self._head(unit_id, 0, CENTER_PITCH_DEG, lang))
             self._safe(unit_id, lambda: self._tool(unit_id, "self.audio.play_sound", {"name": "exclamation", "find": FIND_END}))
             return {"ok": True, "finding": False}
         # one round now, so a unit that is off (or cannot make the sound) is reported right away
@@ -407,7 +407,7 @@ class UnitRemote:
         try:
             while not stop.is_set() and time.monotonic() < deadline:
                 self._safe(unit_id, lambda: self._led(unit_id, (168, 40, 0), lang))
-                self._safe(unit_id, lambda: self._head(unit_id, swing, CENTRE_PITCH_DEG + 10, lang, 300))
+                self._safe(unit_id, lambda: self._head(unit_id, swing, CENTER_PITCH_DEG + 10, lang, 300))
                 stop.wait(0.4)
                 self._safe(unit_id, lambda: self._led(unit_id, (0, 0, 0), lang))
                 self._safe(unit_id, lambda: self._chirp(unit_id, lang))
@@ -416,5 +416,5 @@ class UnitRemote:
         finally:
             stop.set()
             self._safe(unit_id, lambda: self._led(unit_id, (0, 0, 0), lang))
-            self._safe(unit_id, lambda: self._head(unit_id, 0, CENTRE_PITCH_DEG, lang))
+            self._safe(unit_id, lambda: self._head(unit_id, 0, CENTER_PITCH_DEG, lang))
             self._safe(unit_id, lambda: self._tool(unit_id, "self.audio.play_sound", {"name": "exclamation", "find": FIND_END}))

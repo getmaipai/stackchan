@@ -50,7 +50,7 @@ def build_context(
         return client.get_head_angles()
 
     def set_head(yaw: int | None, pitch: int | None) -> object:
-        # Through the Robot object so the lease and the emergency stop are honoured.
+        # Through the Robot object so the lease and the emergency stop are honored.
         import math
 
         pose = HeadPose(

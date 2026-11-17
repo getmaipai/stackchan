@@ -295,7 +295,7 @@ class StackChanVisionBridge:
         if not frame_bytes:
             return None
         # Imported here: it pulls the Reachy SDK, which the hub bundle does not have, and plain
-        # face watching (the common case) never recognises anyone.
+        # face watching (the common case) never recognizes anyone.
         from maipai_body.vision.recognize import recognize_face
 
         try:
@@ -369,7 +369,7 @@ def follow_pose(target: FaceTrackTarget) -> HeadPose:
     import math
 
     from maipai_body.bodies.stackchan.profile import (
-        CENTRE_PITCH_DEG,
+        CENTER_PITCH_DEG,
         FOLLOW_PITCH_SPAN_DEG,
         FOLLOW_YAW_SIGN,
         FOLLOW_YAW_SPAN_DEG,
@@ -379,7 +379,7 @@ def follow_pose(target: FaceTrackTarget) -> HeadPose:
     up_degrees = max(0.0, 0.5 - target.y) * FOLLOW_PITCH_SPAN_DEG
     return HeadPose(
         yaw=math.radians((target.x - 0.5) * FOLLOW_YAW_SPAN_DEG * FOLLOW_YAW_SIGN),
-        pitch=math.radians(CENTRE_PITCH_DEG + up_degrees),
+        pitch=math.radians(CENTER_PITCH_DEG + up_degrees),
     )
 
 

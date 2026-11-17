@@ -51,11 +51,11 @@ The light bars are never red. A calm face is the normal look. A smile or a wink 
 | Wider eyes, closed mouth | It heard you and is listening |
 | Eyes looking up and to one side, a small mouth | It is thinking about your question |
 | Calm face, moving mouth | It is answering |
-| Grey-blue face with a small strip in the top corner | Home is not reachable. The strip says "Offline". It still reacts to touch, and it tries to reconnect on its own |
+| Gray-blue face with a small strip in the top corner | Home is not reachable. The strip says "Offline". It still reacts to touch, and it tries to reconnect on its own |
 | The same strip with a key and "Waiting for Home to approve me" | An admin needs to approve this robot in Home. The light bars pulse cyan until they do |
 | Black screen with a Wi-Fi symbol and words | It is starting up: "Connecting to Wi-Fi...", "Wi-Fi setup needed" (with the name of its setup hotspot and the address to open), "Connecting to Home..." or the approval message above |
 
-When Home comes back the colours return and the strip goes away by itself.
+When Home comes back the colors return and the strip goes away by itself.
 
 ## What the sounds mean
 
@@ -110,7 +110,7 @@ Left and right are the robot's own left and right.
 
 ## The little dance
 
-It lasts about 12 seconds: the head sways and turns, the face changes between happy, a wink and surprised, and the light bars show gold, lime and mint colours. Ask by voice, or use the Dance button in Settings (the robot's page).
+It lasts about 12 seconds: the head sways and turns, the face changes between happy, a wink and surprised, and the light bars show gold, lime and mint colors. Ask by voice, or use the Dance button in Settings (the robot's page).
 
 - It ends at once if you touch it, speak to it, shake or tilt it, or take a picture with it. Then the face and the light bars go back to normal.
 - It does not dance while its battery is at 20 percent or lower (it can while charging), while it is offline, or if you turned dancing off.

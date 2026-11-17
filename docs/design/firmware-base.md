@@ -41,7 +41,7 @@ If the numbers are much worse than the old base, bring the result back before re
 - Rewrites, not rebases: 049, 059, 061, 065, 083, 086 (stop word, wake visibility, barge-in, echo reference, self-test). The wake files are replaced by a shared audio engine and 094 rides on 049.
 - Orphans to delete: 045, 082-sound-direction, 082-sound-tap.
 - Retire when their questions close: diagnostics-only patches 039, 046, 059, 064, 066, 070.
-- Squash chains: head touch (047, 048, 052, 056, 076, 078, 080, 081), avatar credentials (011, 018, 019, 060, 063), offline behaviour, music.
+- Squash chains: head touch (047, 048, 052, 056, 076, 078, 080, 081), avatar credentials (011, 018, 019, 060, 063), offline behavior, music.
 
 Ten riskiest: wake and audio rewrite; offline state machine 075; persistent socket 003; hard mute 106 (the mic must be proven off again);
 the avatar cluster; RAM patches 051, 053, 055, 058; sound gates 142, 117, 141; private-network client 147, 149; update path 133, 145 (a mistake bricks the unit); `main.cpp` and CMake churn 097, 096, 007, 098.

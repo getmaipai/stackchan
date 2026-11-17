@@ -157,7 +157,7 @@ class AvatarServer:
         # is on). The body's one start at boot comes before the unit's socket exists.
         self.start_camera_on_connect: Any = None
         # Vision off (firmware patch 106): True while the camera is switched off. A frame that
-        # arrives then is dropped (never kept, never analysed) and reported as a leak; the app also
+        # arrives then is dropped (never kept, never analyzed) and reported as a leak; the app also
         # hands this server `on_frame_while_vision_off`.
         self.vision_blocked: Any = None
         self.on_frame_while_vision_off: Any = None

@@ -1,9 +1,9 @@
 """The StackChan ring indicator: the Indicator the 12-pixel ring answers.
 
 docs/dev/led-standard-2026-10-20.md: the whole-ring ``set_led_color`` is
-the only colour call the ring takes (one colour, one call), the styles are
+the only color call the ring takes (one color, one call), the styles are
 driven by the host timer (a caller's ``tick()`` about every 50 ms), and
-the colour numbers live in ``ring.py``. The indicator never raises
+the color numbers live in ``ring.py``. The indicator never raises
 ``BodyLost``: a failing ``write`` is logged, at most once a second, and
 swallowed.
 """
@@ -29,17 +29,17 @@ logger = logging.getLogger("maipai_body.bodies.stackchan.ring_indicator")
 
 PULSE_S = 0.15
 # The pulse's white at 0.5 brightness, precomputed: the flash is a fixed
-# colour, independent of whatever look it interrupts.
-PULSE_RGB = ring_rgb(Look(colour=Palette.WHITE, brightness=0.5), 0.0, 0.0)
+# color, independent of whatever look it interrupts.
+PULSE_RGB = ring_rgb(Look(color=Palette.WHITE, brightness=0.5), 0.0, 0.0)
 
 
 class StackChanRingIndicator:
     """Drives the 12-pixel ring from the seam's looks (docs/dev/led-standard-2026-10-20.md).
 
-    ``write`` is the device's whole-ring colour call (the client's
+    ``write`` is the device's whole-ring color call (the client's
     ``set_led_color``); a test passes a recorder instead. ``set_look``
-    writes the look's t=0 colour at once and starts its style clock;
-    ``tick()`` advances an animated look and writes only a changed colour.
+    writes the look's t=0 color at once and starts its style clock;
+    ``tick()`` advances an animated look and writes only a changed color.
     """
 
     def __init__(
@@ -59,7 +59,7 @@ class StackChanRingIndicator:
     def spec(self) -> IndicatorSpec:
         return IndicatorSpec(
             connected=True,
-            palette=[colour for colour in Palette if colour is not Palette.OFF],
+            palette=[color for color in Palette if color is not Palette.OFF],
             pulses=list(PULSE_NAMES),
         )
 
@@ -75,16 +75,16 @@ class StackChanRingIndicator:
         now = self._clock()
         if self._pulse_until is not None:
             if now < self._pulse_until:
-                colour = PULSE_RGB
+                color = PULSE_RGB
             else:
                 self._pulse_until = None
-                colour = self._look_colour(now)
+                color = self._look_color(now)
         else:
             if self._look is None or self._look.style is LookStyle.STEADY:
                 return
-            colour = self._look_colour(now)
-        if colour != self._last:
-            self._send(colour)
+            color = self._look_color(now)
+        if color != self._last:
+            self._send(color)
 
     def pulse(self, name: PulseName) -> None:
         check_pulse(name)
@@ -92,7 +92,7 @@ class StackChanRingIndicator:
         self._send(PULSE_RGB)
 
     def forget(self) -> None:
-        """Drop the look and the last colour without writing: something else drew on the ring
+        """Drop the look and the last color without writing: something else drew on the ring
         (the dance's light show), so the next look must be written even if it equals the old."""
         self._look = None
         self._pulse_until = None
@@ -103,7 +103,7 @@ class StackChanRingIndicator:
         self._pulse_until = None
         self._send((0, 0, 0))
 
-    def _look_colour(self, now: float) -> tuple[int, int, int]:
+    def _look_color(self, now: float) -> tuple[int, int, int]:
         if self._look is None:
             return (0, 0, 0)
         return ring_rgb(self._look, self._look.period_s, now - self._look_started)

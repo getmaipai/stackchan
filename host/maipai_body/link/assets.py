@@ -60,7 +60,7 @@ def load_spec_assets(path: Path = SPEC_ASSETS_PATH) -> tuple[SpecAsset, ...]:
     except (OSError, TypeError, ValueError) as exc:
         raise AssetSyncError(f"cannot read shared robot asset pins at {path}: {exc}") from exc
     if any(not _SHA256.fullmatch(a.sha256) or not a.licence for a in assets):
-        raise AssetSyncError("shared robot asset pins require a sha256 and licence")
+        raise AssetSyncError("shared robot asset pins require a sha256 and license")
     if len({a.id for a in assets}) != len(assets):
         raise AssetSyncError("shared robot asset pins contain duplicate ids")
     return assets

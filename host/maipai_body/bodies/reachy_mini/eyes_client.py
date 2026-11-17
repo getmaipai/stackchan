@@ -1,7 +1,7 @@
 """Reachy Eyes USB serial client (EYES-03), written clean-room.
 
 Source of every fact here is docs/dev/eyes-wire-protocol.md: the public
-README as summarised to us and our own notes. No vendor source, firmware,
+README as summarized to us and our own notes. No vendor source, firmware,
 default or tuned value was read, and no vendor module is imported. The wire
 lines are UNVERIFIED data in ``WireProtocol``; the owner's unit settles them
 by editing that one table. Nothing outside the table is ever written.
@@ -52,7 +52,7 @@ class WireProtocol:
 
     baud: int = 115200
     terminator: bytes = b"\n"
-    colours: dict[Palette, str] = field(
+    colors: dict[Palette, str] = field(
         default_factory=lambda: {
             Palette.WHITE: "WHITE",
             Palette.GREEN: "GREEN",
@@ -77,14 +77,14 @@ class WireProtocol:
         return self.intensity.format(percent=round(max(0.0, min(1.0, brightness)) * 100))
 
     def look_lines(self, look: Look) -> tuple[str, ...]:
-        """Wire lines for a steady look. Off has no colour line of its own."""
-        if look.colour is Palette.OFF:
+        """Wire lines for a steady look. Off has no color line of its own."""
+        if look.color is Palette.OFF:
             return (self.intensity_line(0.0),)
-        return (self.colours[look.colour], self.intensity_line(look.brightness))
+        return (self.colors[look.color], self.intensity_line(look.brightness))
 
     def named_commands(self) -> dict[str, str]:
         """Every line the probe may send, by a short name."""
-        named = {name.value: line for name, line in self.colours.items()}
+        named = {name.value: line for name, line in self.colors.items()}
         named["blink"] = self.blink
         named["blink-enable"] = self.blink_enable
         named["blink-disable"] = self.blink_disable
@@ -171,7 +171,7 @@ class EyesClient:
         self._enqueue(*lines)
 
     def off(self) -> None:
-        self._set_look_lines(self._protocol.look_lines(Look(colour=Palette.OFF, brightness=0.0)))
+        self._set_look_lines(self._protocol.look_lines(Look(color=Palette.OFF, brightness=0.0)))
 
     def set_blinking(self, enabled: bool) -> None:
         self._enqueue(self._protocol.blink_enable if enabled else self._protocol.blink_disable)

@@ -515,21 +515,21 @@ def test_the_network_test_and_details_speak_plainly_when_the_unit_cannot_answer(
 def test_people_are_checked_saved_and_applied(tmp_path: Path) -> None:
     store = PeopleStore(tmp_path / "p.json")
     nova = clean_person(
-        {"name": "Nova B.", "colour": "#40C0FF", "caption_size": "large", "wake_phrase": "hey nova"}
+        {"name": "Nova B.", "color": "#40C0FF", "caption_size": "large", "wake_phrase": "hey nova"}
     )
-    assert nova.id == "nova-b" and nova.colour == "#40c0ff"
+    assert nova.id == "nova-b" and nova.color == "#40c0ff"
     store.save(nova)
-    store.save(clean_person({"name": "Marlow", "colour": "mint"}))
+    store.save(clean_person({"name": "Marlow", "color": "mint"}))
     assert [p.name for p in store.all()] == ["Marlow", "Nova B."]
-    store.save(clean_person({"name": "Nova B.", "colour": "rose"}))  # the same person is replaced
-    assert [p.colour for p in store.all() if p.id == "nova-b"] == ["rose"]
+    store.save(clean_person({"name": "Nova B.", "color": "rose"}))  # the same person is replaced
+    assert [p.color for p in store.all() if p.id == "nova-b"] == ["rose"]
     bad = [
         ({"name": ""}, ExtrasError, "name of 1 to 24"),
         ({"name": "x" * 30}, ExtrasError, "name of 1 to 24"),
         ({"name": "A", "wake_phrase": "hi"}, ExtrasError, "3 to 24"),
         ({"name": "A", "wake_phrase": "ok <b>"}, ExtrasError, "3 to 24"),
-        ({"name": "A", "colour": "#101010"}, faces.FaceError, "too dark"),
-        ({"name": "A", "colour": "purple"}, faces.FaceError, "not one I know"),
+        ({"name": "A", "color": "#101010"}, faces.FaceError, "too dark"),
+        ({"name": "A", "color": "purple"}, faces.FaceError, "not one I know"),
         ({"name": "A", "caption_size": "huge"}, faces.FaceError, "small, medium or large"),
     ]
     for values, error, words in bad:
@@ -552,7 +552,7 @@ def test_a_person_goes_to_the_unit_through_the_face_service(tmp_path: Path) -> N
 
     firmware = FakeFirmware(features=("config", "packs"))
     service = faces.FaceService(firmware, faces.FaceStore(tmp_path / "f.json"))
-    person = clean_person({"name": "Nova", "colour": "mint", "caption_size": "large"})
+    person = clean_person({"name": "Nova", "color": "mint", "caption_size": "large"})
     result = unit_extras.apply_person(service, UNIT, person)
     assert firmware.state["colour"] == "mint" and firmware.state["caption_size"] == "large"
     assert result["pushed"] is True
@@ -647,7 +647,7 @@ def test_new_styles_sizes_and_languages_are_checked_and_flagged_for_old_firmware
     service, _ = _face_service(tmp_path, features=("config",))
     service.sync(UNIT)
     lines = service.unsupported(
-        UNIT, {"style": "stock", "lang": "fr", "caption_size": "large", "colour": "mint"}
+        UNIT, {"style": "stock", "lang": "fr", "caption_size": "large", "color": "mint"}
     )
     assert len(lines) == 3 and not service.unsupported(UNIT, {"style": "classic", "lang": "es"})
 
@@ -745,10 +745,10 @@ def test_the_extras_routes_are_for_the_local_administrator_only(tmp_path: Path) 
 def test_the_people_routes(tmp_path: Path) -> None:
     backend, _, firmware = _backend(tmp_path)
     status, empty = _get(backend, "/api/stackchan/people")
-    assert status == 200 and empty["people"] == [] and "mint" in empty["choices"]["colour"]
+    assert status == 200 and empty["people"] == [] and "mint" in empty["choices"]["color"]
     status, saved = backend.route_post(
         "/api/stackchan/people",
-        {"name": "Nova", "colour": "mint", "caption_size": "large", "wake_phrase": "hey nova"},
+        {"name": "Nova", "color": "mint", "caption_size": "large", "wake_phrase": "hey nova"},
         True,
     )
     assert status == 200 and saved["people"][0]["id"] == "nova"
@@ -790,7 +790,7 @@ def test_the_dashboard_forwards_the_new_routes() -> None:
 def test_the_page_has_every_section_in_every_language(lang: str) -> None:
     page = settings_page.render_page(lang).decode()
     for function in (
-        "BUILDERS.behaviour",
+        "BUILDERS.behavior",
         "reactCard",
         "timeCard",
         "peopleCard",

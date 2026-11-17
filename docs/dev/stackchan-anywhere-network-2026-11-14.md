@@ -20,7 +20,7 @@ At home the robot joins the home Wi-Fi and talks to the hub on the local network
 
 ### Candidate
 
-MicroLink (`github.com/CamM2325/microlink`, MIT licence, reviewed commit `216da3300f0493b0860247d43f7af5ce29df63a5`, 2026-03-17): a Tailscale-compatible client for the ESP32 (control protocol, WireGuard, DERP relay, DISCO, STUN). Tailscale auth key, reusable and ephemeral keys, key-expiry re-registration, Headscale compatible. It is third-party code from one author, not endorsed by Tailscale, so it enters as a pinned, checksummed download (RELEASES-AND-DEPENDENCIES: download, do not vendor), behind a build flag that is OFF until a unit passes the on-device test.
+MicroLink (`github.com/CamM2325/microlink`, MIT license, reviewed commit `216da3300f0493b0860247d43f7af5ce29df63a5`, 2026-03-17): a Tailscale-compatible client for the ESP32 (control protocol, WireGuard, DERP relay, DISCO, STUN). Tailscale auth key, reusable and ephemeral keys, key-expiry re-registration, Headscale compatible. It is third-party code from one author, not endorsed by Tailscale, so it enters as a pinned, checksummed download (RELEASES-AND-DEPENDENCIES: download, do not vendor), behind a build flag that is OFF until a unit passes the on-device test.
 
 ### What the spike measured (build side, 2026-11-14)
 
@@ -68,7 +68,7 @@ This is an estimate from the source and the live heap numbers. It is not proven:
 
 We do not choose B, C or D silently. Option A's gate decides.
 
-### Behaviour once it fits
+### Behavior once it fits
 
 - LAN only on the home network: today the unit sends its pairing token to whatever `ws://` address it holds in flash and never checks who answers. So the robot must NOT try the hub's home LAN address on an unknown network: anything that answers there would receive the token. The LAN path is used only while the joined network is the one marked as home. The home mark is the network name plus the gateway's hardware address, recorded when pairing succeeded on that network (by the hub, never by the page or the person typing it). On any other network the robot brings up the tailnet and uses the hub's tailnet address, and only then. One link, two addresses, no change in the protocol.
 - Credentials: the Tailscale auth key is PASTE-ONLY by an admin. Home does NOT mint keys through the Tailscale API: that was dropped by the owner on 2026-10-15 (OWNER-ANSWERS 1: a third-party account credential in the hub; bot `docs/BACKLOG.md` amendment table and the ROBOT-TAILSCALE-01 hub half). The admin creates the key in the Tailscale admin page and pastes it on the robot's Devices page. The key must be tagged `tag:robot` and EPHEMERAL, and preferably single-use or short-lived (an expiry of days, not months). Home shows the key's expiry to the person (the admin pastes the expiry date with the key, or reads it from the Tailscale admin page; Home never calls the Tailscale API to find out) and a one-click "Forget the network key" that wipes it from the robot.
@@ -180,7 +180,7 @@ Every secret on the robot (Wi-Fi passwords, the Tailscale key, the pairing token
 - No secrets in logs: the auth key, Wi-Fi passwords and tailnet node keys never appear in the body log, the hub log or any record.
 - Child and teen robots: only admins change networks and keys.
 - Prebuilt over hand-built: MicroLink and the existing `SsidManager` are reused; nothing is rewritten.
-- Download, do not vendor: MicroLink is fetched at a pinned commit and checked against a sha256; its licence (MIT) and the x25519 licence file go into `NOTICE`.
+- Download, do not vendor: MicroLink is fetched at a pinned commit and checked against a sha256; its license (MIT) and the x25519 license file go into `NOTICE`.
 
 ## Reuse check
 

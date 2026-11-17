@@ -40,7 +40,7 @@ _TEXT: dict[str, tuple[str, ...]] = {
         "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
         "Words", "Face", "Sound", "Extra", "Dance", "Add a reaction", "none",
         "No scores yet. Say: let's play a game.", "Best", "A game is being played right now.",
-        "Add a person", "Each person can have their own face colour, caption size and wake phrase.",
+        "Add a person", "Each person can have their own face color, caption size and wake phrase.",
         "Nothing leaves your home. Your pictures, words and settings stay on this computer and your unit.", "Camera and microphone switches", "Turn the camera or microphone off for good.",
         "Check for updates", "This computer", "Checks the signed release first. Nothing is installed until you choose Install update.", "Checks Wi-Fi, the link to this computer and the private network, one step at a time.",
         "Your units", "A short note that tells this unit how to behave. Leave it empty for the built-in character.", "Travel key", "Take this unit to another Wi-Fi and it joins your private network by itself. Paste the key from your private network once.", "Paste the travel key", "Send the key", "Forget the key", "Status", "The key goes straight to the unit. It is never shown or kept on this computer.", "Cancel",
@@ -145,7 +145,7 @@ CATALOGS: dict[str, dict[str, str]] = {
 # ---- the everyday device controls and the first-level groups (added with the owner's full settings list) ----
 
 KEYS2 = (
-    "g.home", "g.look", "g.voice", "g.network", "g.behaviour", "g.play", "g.system",
+    "g.home", "g.look", "g.voice", "g.network", "g.behavior", "g.play", "g.system",
     "home.battery", "home.charging", "home.face", "home.room_light", "home.paired",
     "look.brightness", "look.brightness_help", "look.auto", "look.night_dim", "look.led", "look.led_help", "look.led_off", "look.led_bright",
     "voice.volume_now", "voice.speaker_mute", "voice.mic_mute", "voice.wake", "voice.wake_sens", "voice.stop_word", "voice.wake_help",
@@ -156,9 +156,9 @@ KEYS2 = (
 
 _TEXT2: dict[str, tuple[str, ...]] = {
     "en": (
-        "Home", "Look", "Voice and sound", "Network", "Behaviour", "Games and fun", "System",
+        "Home", "Look", "Voice and sound", "Network", "Behavior", "Games and fun", "System",
         "Battery", "Charging", "Face right now", "Room light", "Paired with",
-        "Screen brightness", "How bright the screen is. It never goes fully dark, so you can always find the unit.", "Adjust to the room light", "Dim the screen at night", "Light ring", "The colour of the light ring.", "Off", "Ring brightness",
+        "Screen brightness", "How bright the screen is. It never goes fully dark, so you can always find the unit.", "Adjust to the room light", "Dim the screen at night", "Light ring", "The color of the light ring.", "Off", "Ring brightness",
         "Volume", "Speaker mute", "Microphone mute", "Wake word", "Wake word sensitivity", "Stop word", "Choose whether the unit wakes to its name and how easily it hears it.",
         "Current network", "Signal", "Join a new network", "Opens the unit's own setup window. On your phone, join the hotspot the unit shows, then pick the new Wi-Fi. Saved networks are never listed here.", "Private network", "Use the private network when away", "Private address of this computer", "Strong", "Good", "Weak", "Paired with this computer", "To pair a unit, run stackchan pair on this computer, then type the code on the unit.",
         "Head movement", "Lets the unit turn its head to look at you and around the room.", "Sleep and screen timeout", "How long the unit waits before the screen dims and it goes to sleep.", "Camera", "Turn the camera off. The unit stops looking for faces.", "Full quiet", "No sound, no listening and no movement until you turn this off.",
@@ -180,7 +180,7 @@ _TEXT2: dict[str, tuple[str, ...]] = {
         "Volume", "Haut-parleur en sourdine", "Micro en sourdine", "Mot d'appel", "Sensibilité du mot d'appel", "Mot d'arrêt", "Choisissez si l'unité s'éveille à son nom et avec quelle facilité elle l'entend.",
         "Réseau actuel", "Signal", "Rejoindre un nouveau réseau", "Ouvre la fenêtre de configuration de l'unité. Sur votre téléphone, rejoignez le point d'accès affiché par l'unité, puis choisissez le nouveau Wi-Fi. Les réseaux enregistrés ne sont jamais listés ici.", "Réseau privé", "Utiliser le réseau privé hors de la maison", "Adresse privée de cet ordinateur", "Fort", "Bon", "Faible", "Appairée avec cet ordinateur", "Pour appairer une unité, lancez stackchan pair sur cet ordinateur, puis tapez le code sur l'unité.",
         "Mouvement de la tête", "Laisse l'unité tourner la tête pour vous regarder et regarder la pièce.", "Veille et délai d'écran", "Combien de temps l'unité attend avant de tamiser l'écran et de s'endormir.", "Caméra", "Coupe la caméra. L'unité ne cherche plus les visages.", "Silence total", "Ni son, ni écoute, ni mouvement jusqu'à ce que vous le désactiviez.",
-        "Redémarrer l'unité", "Redémarre l'unité et garde tous les réglages.", "Réinitialiser l'unité", "Efface le Wi-Fi et les réglages enregistrés de l'unité. Il faut ensuite la configurer de nouveau.", "Tapez RESET pour confirmer", "Réinitialiser l'unité", "Mémoire", "Stockage", "libre", "minimum jusqu'ici",
+        "Redémarrer l'unité", "Redémarre l'unité et garde tous les réglages.", "Réinitializer l'unité", "Efface le Wi-Fi et les réglages enregistrés de l'unité. Il faut ensuite la configurer de nouveau.", "Tapez RESET pour confirmer", "Réinitializer l'unité", "Mémoire", "Stockage", "libre", "minimum jusqu'ici",
     ),
     "de": (
         "Start", "Aussehen", "Stimme und Ton", "Netzwerk", "Verhalten", "Spiele und Spaß", "System",
@@ -222,7 +222,7 @@ KEYS3 = (
     "ts.addr", "ts.route", "ts.route.home", "ts.route.private", "ts.last_error",
     "ts.err.bad_key", "ts.err.bad_address", "ts.err.not_compiled", "ts.err.running_restart_first", "ts.err.refusal",
     "ts.test", "ts.test.ok", "ts.test.ready", "ts.test.nokey", "ts.about", "ts.about_body", "ts.guide",
-    "sys.about", "sys.source", "sys.source_note", "sys.host_version", "sys.licence", "sys.docs",
+    "sys.about", "sys.source", "sys.source_note", "sys.host_version", "sys.license", "sys.docs",
     "g.remote", "rem.quick", "rem.beep", "rem.flash", "rem.find", "rem.find_stop", "rem.say", "rem.say_label", "rem.say_go", "rem.pad", "rem.center",
     "rem.look", "rem.nod", "rem.shake", "rem.dance", "rem.dance_go", "rem.dance_stop", "rem.game", "rem.game_go", "rem.photo", "rem.photo_need", "rem.photo_alt",
     "rem.mute", "rem.unmute", "rem.restart", "rem.done", "rem.offline", "rem.limits", "rem.working", "rem.find_on",
@@ -235,7 +235,7 @@ _TEXT3: dict[str, tuple[str, ...]] = {
         "The unit's Tailscale address", "The hub link goes through", "Your home network", "Tailscale", "Last problem",
         "The key was not accepted. Make a new one-time key and paste it again.", "The hub address is not valid. Use the form 100.x.x.x and save again.", "This unit's firmware was built without Tailscale. Update the firmware, then try again.", "The unit is joining right now. Restart it, then forget the key.", "The unit is short of free working space. Try again in a minute.",
         "Test", "Working. The unit is on your Tailscale network and the hub link uses it.", "Ready. The unit joins Tailscale only if it cannot reach the hub.", "Add an auth key and the hub's address first, then test again.", "About this", "Tailscale joins your own devices into one private network. The unit asks it for a route to your home hub only when it is away from home. Your voice, pictures and settings go from the unit to your hub and nowhere else.", "Read the full guide",
-        "About", "Source code and docs", "Open source: free to read, use and change.", "Host version", "Licence", "User docs",
+        "About", "Source code and docs", "Open source: free to read, use and change.", "Host version", "License", "User docs",
         "Remote", "Quick actions", "Beep", "Flash lights", "Find my robot", "Stop finding", "Say something", "Words to say", "Speak", "Head pad", "Center",
         "Look around", "Nod yes", "Shake no", "Dance", "Dance now", "Stop the dance", "Start a game", "Play", "Take a picture", "Needs the camera build", "The picture the unit just took",
         "Mute", "Unmute", "Restart", "Done.", "This unit is offline. Turn it on and bring it near the router, then try again.", "Head limits: left and right 128 degrees, up and down 5 to 85 degrees.", "Working...", "The robot is beeping and flashing until you stop it.",

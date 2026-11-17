@@ -33,7 +33,7 @@ def test_a_known_face_takes_its_band():
     assert kinds(_snap(1, "p_kid")) == ["child"]
 
 
-def test_an_unrecognised_or_band_less_face_is_unknown():
+def test_an_unrecognized_or_band_less_face_is_unknown():
     assert kinds(_snap(1)) == ["unknown"]
     assert kinds(_snap(1, "p_stranger")) == ["unknown"]
 

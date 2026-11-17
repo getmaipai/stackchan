@@ -26,7 +26,7 @@ class FakeStackChanDeviceClient:
         self.led_colors = ((0, 0, 0),) * 12
         self.calls: list[FakeToolCall] = []
         self.pending_motion: list[object] = []
-        self.cancelled_motion_batches = 0
+        self.canceled_motion_batches = 0
         self.photo: bytes | None = None
         self.avatar_frames: list[bytes] = []
         self.battery_status: dict[str, object] = {"percent": 75, "charging": False}
@@ -183,7 +183,7 @@ class FakeStackChanDeviceClient:
     def cancel_pending(self) -> None:
         """Drop only host-side queued targets; this does not cut servo torque."""
         self.pending_motion.clear()
-        self.cancelled_motion_batches += 1
+        self.canceled_motion_batches += 1
 
     def take_photo(self) -> bytes | None:
         self._require_link()

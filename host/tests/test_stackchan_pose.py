@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 
 from maipai_body.bodies.stackchan.expression_map import PRIMITIVE_BODY_MAP
-from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG, STACKCHAN_PROFILE
+from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG, STACKCHAN_PROFILE
 from maipai_body.bodies.stackchan.renderer import pitch_for
 from maipai_body.bodies.stackchan.routines import RestRenderer
 from maipai_body.expression.rest import PITCH_FRACTION, RestOutput
@@ -22,17 +22,17 @@ class _Client:
 
 def test_level_is_the_bottom_of_the_range_not_its_middle():
     # The pitch servo only travels up from level (3 to 87 degrees): the middle, 45, is 45 up.
-    assert CENTRE_PITCH_DEG <= 10
-    assert math.isclose(pitch_for(STACKCHAN_PROFILE), math.radians(CENTRE_PITCH_DEG))
+    assert CENTER_PITCH_DEG <= 10
+    assert math.isclose(pitch_for(STACKCHAN_PROFILE), math.radians(CENTER_PITCH_DEG))
 
 
 def test_every_expression_primitive_stays_at_or_above_level_and_below_the_top():
-    low = math.radians(CENTRE_PITCH_DEG)
+    low = math.radians(CENTER_PITCH_DEG)
     high = math.radians(STACKCHAN_PROFILE.axis("head_pitch").max)
     for name, action in PRIMITIVE_BODY_MAP.items():
         pitch = pitch_for(STACKCHAN_PROFILE, action.pitch_fraction)
         assert low <= pitch <= high, name
-        assert pitch < math.radians(CENTRE_PITCH_DEG + 15), f"{name} is a small move, not a look-up"
+        assert pitch < math.radians(CENTER_PITCH_DEG + 15), f"{name} is a small move, not a look-up"
 
 
 def test_the_perk_lifts_the_head_and_a_negative_fraction_never_goes_below_level():

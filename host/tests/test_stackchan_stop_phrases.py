@@ -26,7 +26,7 @@ from maipai_body.bodies.stackchan.stop_phrases import is_stop_phrase
         "Okay, stop!",
     ],
 )
-def test_stop_phrases_are_recognised(text):
+def test_stop_phrases_are_recognized(text):
     assert is_stop_phrase(text)
 
 

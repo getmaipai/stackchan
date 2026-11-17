@@ -32,7 +32,7 @@ def test_inside_the_deadband_nothing_moves():
     assert all(o is None or o.head_yaw == 0.0 for _, o in out)
 
 
-def test_face_right_of_centre_turns_the_head_right_negative_yaw():
+def test_face_right_of_center_turns_the_head_right_negative_yaw():
     ctrl = GazeController(now=0.0)
     _run(ctrl, 0.0, 0.1, lambda t: (0.4, 0.0))
     assert ctrl.head_yaw < 0.0

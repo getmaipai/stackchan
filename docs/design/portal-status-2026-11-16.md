@@ -43,4 +43,4 @@ Saving against the old portal: 82,992 bytes (about 81 KB); the design estimate w
 3. Joining: the access point changes channel while joining, so the answer may not reach the phone; the page then says the link was lost and the unit still joins. Check the real flow.
 4. The boot flow: `startNetwork` now waits during setup; confirm the face and boot steps behind it are acceptable.
 5. Runtime heap while open and after close.
-6. Limit: the hotspot is open and the page is plain HTTP, so a neighbour in range can watch the password go by. A WPA2 hotspot keyed by the code is the follow-up; it needs the page to stop asking for the code.
+6. Limit: the hotspot is open and the page is plain HTTP, so a neighbor in range can watch the password go by. A WPA2 hotspot keyed by the code is the follow-up; it needs the page to stop asking for the code.

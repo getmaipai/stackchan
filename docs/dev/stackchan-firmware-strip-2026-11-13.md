@@ -91,7 +91,7 @@ normally.
 
 ### 097 remove the Mooncake apps (step 4)
 
-`main.cpp` no longer installs apps or runs the Mooncake loop: it initialises the HAL and calls `startXiaozhi()`, which
+`main.cpp` no longer installs apps or runs the Mooncake loop: it initializes the HAL and calls `startXiaozhi()`, which
 is what the unit did already whenever `startAiAgentOnBoot` was true (the default). The launcher, setup (servo
 calibration, about, account, display, connectivity workers), app center, ESP-NOW controller, EzData, the vendor dance
 app, the avatar phone-call app and the template are filtered out of the build, with the home indicator and the four hal

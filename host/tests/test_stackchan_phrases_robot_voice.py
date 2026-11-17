@@ -29,14 +29,14 @@ def test_voice_render_uses_each_text_and_normalizer_and_private_manifest(tmp_pat
         seen.append((text, voice_id))
         return renderer._decode(_wav())
 
-    original = renderer.normalise_wav
+    original = renderer.normalize_wav
 
     def normalize(data):
         normalized.append(data)
         return original(data)
 
     monkeypatch.setattr(renderer, "synthesize_robot_voice", synthesize)
-    monkeypatch.setattr(renderer, "normalise_wav", normalize)
+    monkeypatch.setattr(renderer, "normalize_wav", normalize)
     monkeypatch.setattr(
         renderer, "encode_ogg", lambda samples, path, ffmpeg, **kwargs: path.write_bytes(b"ogg")
     )

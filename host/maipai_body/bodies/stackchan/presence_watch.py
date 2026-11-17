@@ -204,7 +204,7 @@ OWN_MOVE_BLIND_S = 3.0
 
 class SceneBaseline:
     """The learned picture of the empty room: a few numbers per cell, never a picture. With a
-    ``path`` the cell numbers are kept on disk (a 12 by 16 grid of greys, not an image) so a
+    ``path`` the cell numbers are kept on disk (a 12 by 16 grid of grays, not an image) so a
     restart does not start from whatever the first picture shows."""
 
     def __init__(self, path: object = None) -> None:

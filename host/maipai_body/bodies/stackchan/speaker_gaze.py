@@ -11,7 +11,7 @@ it must not search or scan.
 
 All numbers below are UNMEASURED design defaults; replace them once the
 unit rows in ``docs/dev/measure-runbook.md`` exist. Frame convention:
-``face`` is centred in [-1, 1] on each axis, x right positive, y down
+``face`` is centered in [-1, 1] on each axis, x right positive, y down
 positive; yaw and pitch are radians, positive yaw right, positive pitch down.
 """
 

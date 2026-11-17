@@ -28,8 +28,8 @@ function draw(d){wrap.replaceChildren();
  if(d.mode==='overlay'){const ovin={};const grid=h('div',{class:'hrs'});
   const send=async()=>{const o={};for(const [k] of OV)o[k]=parseInt(ovin[k].value,10);o.color=ovin.color.value;const r=await post('options',{mode:d.mode,fps:d.fps,overlay:o});if(r)draw(r)};
   for(const [k] of OV){const i=h('input',{type:'number',value:d.overlay[k],onchange:send});ovin[k]=i;grid.append(field(k.replace('_',' '),i))}
-  const col=h('input',{type:'color',value:d.overlay.color,'aria-label':S['settings.pics.colour'],onchange:send});ovin.color=col;
-  head.append(h('p',{class:'hint'},S['settings.pics.overlay']),grid,field(S['settings.pics.colour'],col))}
+  const col=h('input',{type:'color',value:d.overlay.color,'aria-label':S['settings.pics.color'],onchange:send});ovin.color=col;
+  head.append(h('p',{class:'hint'},S['settings.pics.overlay']),grid,field(S['settings.pics.color'],col))}
  wrap.append(head);
  const slots=h('div',{class:'tiles',style:'grid-template-columns:repeat(auto-fill,minmax(150px,1fr))'});
  for(const s of d.slots){const max=d.limits.per_slot;const t=h('div',{class:'tile',style:'cursor:default'},h('b',{},S['settings.pics.slot.'+s.slot]));

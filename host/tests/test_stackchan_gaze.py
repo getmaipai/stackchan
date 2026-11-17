@@ -22,7 +22,7 @@ QUESTIONS = [
 
 
 @pytest.mark.parametrize("text", QUESTIONS)
-def test_gaze_questions_are_recognised(text):
+def test_gaze_questions_are_recognized(text):
     assert is_gaze_question(text)
 
 

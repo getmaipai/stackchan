@@ -361,14 +361,14 @@ def _named(host: str, address: str, port: int = 443):
         ("stun.l.google.com", "google-stun"),
     ],
 )
-def test_each_named_deny_row_is_recognised_by_name(host, deny_id):
+def test_each_named_deny_row_is_recognized_by_name(host, deny_id):
     rows = _rows(_named(host, STRAY_IP))
     denied = [r for r in rows if r.denied]
     assert [r.denied for r in denied] == [deny_id]
     assert not nc.passes(rows)
 
 
-def test_ntp_is_recognised_by_its_port_and_also_fails_the_check():
+def test_ntp_is_recognized_by_its_port_and_also_fails_the_check():
     rows = _rows([udp_frame(ROBOT, 123, "203.0.113.50", 123, b"n" * 48)])
     assert [r.denied for r in rows] == ["ntp"]
     assert not nc.passes(rows)

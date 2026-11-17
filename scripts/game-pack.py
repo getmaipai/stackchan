@@ -72,11 +72,11 @@ class PackError(ValueError):
 
 def rgb565(text: str) -> int:
     if not (isinstance(text, str) and len(text) == 7 and text[0] == "#"):
-        raise PackError(f"colour {text!r} must look like #rrggbb. Write it that way.")
+        raise PackError(f"color {text!r} must look like #rrggbb. Write it that way.")
     try:
         r, g, b = (int(text[i : i + 2], 16) for i in (1, 3, 5))
     except ValueError as error:
-        raise PackError(f"colour {text!r} must look like #rrggbb. Write it that way.") from error
+        raise PackError(f"color {text!r} must look like #rrggbb. Write it that way.") from error
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 
 
@@ -191,7 +191,7 @@ def build(desc: dict, *, seed: int | None = None) -> bytes:
             s.get("y", 0),
             s.get("w", s.get("r", 0)),
             s.get("h", 0),
-            rgb565(s.get("colour", "#ffffff")),
+            rgb565(s.get("color", s.get("colour", "#ffffff"))),  # "colour": an older pack file
             state_mask(s.get("states"), where),
             text,
             0,

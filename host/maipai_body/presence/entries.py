@@ -1,7 +1,7 @@
 """Presence entries (age band only) from the vision watch and the hub's roster.
 
 Only the nearest face carries a verdict, so it takes its person's band; every
-other face is `unknown`. A face with no recognised person, or a person with no
+other face is `unknown`. A face with no recognized person, or a person with no
 known band, is `unknown` too: nothing here ever raises a band to adult. A watch
 that is off reports nothing at all (None), which every consumer treats as the
 safe direction.

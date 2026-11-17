@@ -95,7 +95,7 @@ class RecordedMove:
         if len(times) != len(samples):
             raise InvalidMove(f"{name}: {len(times)} times but {len(samples)} samples")
         # Pollen's own clips repeat a timestamp (a step between two poses: mini-deep-sleep,
-        # toc-toc-toc, waiting, wake-mini-up). Equal neighbours are a step, never a gap,
+        # toc-toc-toc, waiting, wake-mini-up). Equal neighbors are a step, never a gap,
         # so only a backwards time or a move with no duration is malformed.
         if any(b < a for a, b in zip(times, times[1:], strict=False)):
             raise InvalidMove(f"{name}: times must not decrease")

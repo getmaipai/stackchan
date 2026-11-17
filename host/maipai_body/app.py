@@ -246,8 +246,8 @@ class StackChanBehavior:
         # Why the unit is occupied (a turn is running, or full quiet is on), "" when free: set once
         # the voice bridge exists. No idle look starts while it is not empty.
         self.head_busy: Callable[[], str] = lambda: ""
-        # True once any move left the head off centre; the post-turn settle only runs then.
-        self._head_off_centre = False
+        # True once any move left the head off center; the post-turn settle only runs then.
+        self._head_off_center = False
         self._hold_until = float("-inf")
         # Touch, swipe and shake events from the unit (patch 021) wake a drowsy or sleeping robot.
         # Set by the service wiring; None means no unit events are available.
@@ -468,7 +468,7 @@ class StackChanBehavior:
         # Ambient moves (the idle settle, face following) go through the one head-motion gate.
         if not self.head_gate.allow(f"ambient:{primitive}", response=self._active.is_set()):
             return False
-        self._head_off_centre = True
+        self._head_off_center = True
         self._note_own_move()
         return self._with_lease(
             lambda: self._expression.render_ambient(primitive, SuppressionContext())
@@ -491,7 +491,7 @@ class StackChanBehavior:
         # "listening" leaves room for a pet's face; thinking and speaking own the face and voice.
         self._phase = {"listening": "listening", "settle": "idle"}.get(state, "busy")
         # Only states that really move the head ask the gate (and count toward its cap); the
-        # settle back to centre is essential and always passes.
+        # settle back to center is essential and always passes.
         moves = state in {"listening", "thinking", "speaking"}
         may_move = (
             self.head_gate.allow(f"turn:{state}", response=True)
@@ -509,7 +509,7 @@ class StackChanBehavior:
             if state == "listening" and not self._night_turned:
                 self._night_turned = True
                 if may_move:
-                    self._head_off_centre = True
+                    self._head_off_center = True
                     self._with_lease(
                         lambda: self._expression.render_ambient("attend", SuppressionContext())
                     )
@@ -527,10 +527,10 @@ class StackChanBehavior:
         def render() -> None:
             if state == "settle":
                 self._turn_face_held = False
-                # Only a head that actually left centre is brought back: a quiet turn that moved
+                # Only a head that actually left center is brought back: a quiet turn that moved
                 # nothing must not move the head again (the unit was settling after every turn).
-                if self._head_off_centre and may_move and time.monotonic() >= self._hold_until:
-                    self._head_off_centre = False
+                if self._head_off_center and may_move and time.monotonic() >= self._hold_until:
+                    self._head_off_center = False
                     self._expression.render_ambient("settle", SuppressionContext())
                 return
             self._expression.render_turn_state(
@@ -543,7 +543,7 @@ class StackChanBehavior:
                 # The glance up replaces the listening perk; both are the one listening move.
                 glanced = not self._turn_face_held and aim and self._glance_up_for_speaker()
             if primitive is not None and may_move and not self._turn_face_held and not glanced:
-                self._head_off_centre = True
+                self._head_off_center = True
                 self._expression.render_ambient(primitive, SuppressionContext())
             elif state == "reply_mood":
                 self._expression.render_turn_state("reply_mood", mood=mood)
@@ -770,7 +770,7 @@ class StackChanBehavior:
                 if box is not None:
                     self._end_search(
                         now,
-                        f"found a person at x {box.centre_x:.2f}; looking for the face there",
+                        f"found a person at x {box.center_x:.2f}; looking for the face there",
                         found=True,
                     )
                     self._tracker_start(now, box, "found by the sweep")
@@ -949,7 +949,7 @@ class StackChanBehavior:
 
     def _tracker_apply(self, now: float, action: Any) -> bool:
         from maipai_body.bodies.stackchan.gaze import GazeReason
-        from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG
+        from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG
 
         tracker = self._tracker
         self._log_tracker()
@@ -965,13 +965,13 @@ class StackChanBehavior:
             move = action.move
             pose = HeadPose(
                 yaw=math.radians(move.yaw_deg),
-                pitch=math.radians(CENTRE_PITCH_DEG + move.pitch_deg),
+                pitch=math.radians(CENTER_PITCH_DEG + move.pitch_deg),
             )
             self._with_lease(
                 lambda: self.robot.head.set(pose=pose, duration_s=move.duration_s, speed=move.speed)
             )
             self._note_own_move()
-            self._head_off_centre = True
+            self._head_off_center = True
             self.gaze.note(GazeReason.SEARCH)
             logger.info(
                 "StackChan person-then-face: %s, yaw %.0f, pitch %.0f up from level",
@@ -983,7 +983,7 @@ class StackChanBehavior:
         if action.kind == "return":
             self.head_gate.allow("person-then-face:return", essential=True)
             self._note_own_move()
-            self._move_head_slowly(HeadPose(yaw=0.0, pitch=math.radians(CENTRE_PITCH_DEG)))
+            self._move_head_slowly(HeadPose(yaw=0.0, pitch=math.radians(CENTER_PITCH_DEG)))
             tracker.note_pose(0.0, 0.0)
             return True
         return tracker.active
@@ -1056,11 +1056,11 @@ class StackChanBehavior:
         """Move now, before any frame can be seen (the camera is paused while the unit listens
         and speaks), so the person sees the head react; the look for the face confirms it."""
         from maipai_body.bodies.stackchan.gaze import GazeReason
-        from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG
+        from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG
 
         up = 0.0 if level_only else GLANCE_PITCH_DEG
         pose = HeadPose(
-            yaw=math.radians(-self.REACT_PAN_DEG), pitch=math.radians(CENTRE_PITCH_DEG + up)
+            yaw=math.radians(-self.REACT_PAN_DEG), pitch=math.radians(CENTER_PITCH_DEG + up)
         )
         try:
             self._with_lease(
@@ -1069,7 +1069,7 @@ class StackChanBehavior:
         except Exception:
             self._warn_limited("search", "StackChan first move toward the person failed")
             return
-        self._head_off_centre = True
+        self._head_off_center = True
         self._tracker.note_pose(-self.REACT_PAN_DEG, up)
         self.hold_pose(4.0)  # the settle after the reply must not undo it before the look starts
         self.gaze.note(GazeReason.COMMAND, "face")
@@ -1101,7 +1101,7 @@ class StackChanBehavior:
         except Exception:
             self._warn_limited("search", "StackChan turn to the person failed")
             return False
-        self._head_off_centre = True
+        self._head_off_center = True
         self._tracker.note_pose(*follow_pose_degrees(target))
         self.gaze.note(GazeReason.COMMAND, "face")
         return True
@@ -1148,13 +1148,13 @@ class StackChanBehavior:
             self._watching_since = now
         # Quiet: nobody seen and nothing really moved for two minutes, and this run has watched
         # that long (the first picture after a restart may well have someone in it; the room
-        # kept on disk covers the start). Never while the head is away from centre.
+        # kept on disk covers the start). Never while the head is away from center.
         quiet = (
             now - self._last_person_seen >= BASELINE_QUIET_S
             and now - self._watching_since >= BASELINE_QUIET_S
             and (motion_age is None or motion_age >= BASELINE_QUIET_S / 2)
             and not self._search.active
-            and not self._head_off_centre
+            and not self._head_off_center
         )
         if quiet:
             self._baseline.learn(thumb, now)
@@ -1207,15 +1207,15 @@ class StackChanBehavior:
         paused while the unit listens, so the face is looked for after the reply). The caller
         holds the listening state's own head-gate allowance; this is that one move."""
         from maipai_body.bodies.stackchan.gaze import GazeReason
-        from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG
+        from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG
 
-        pose = HeadPose(yaw=0.0, pitch=math.radians(CENTRE_PITCH_DEG + SPEAKER_PITCH_DEG))
+        pose = HeadPose(yaw=0.0, pitch=math.radians(CENTER_PITCH_DEG + SPEAKER_PITCH_DEG))
         try:
             self.robot.head.set(pose=pose, duration_s=0.5, speed=TURN_SPEED)
         except Exception:
             self._warn_limited("search", "StackChan glance toward the speaker failed")
             return False
-        self._head_off_centre = True
+        self._head_off_center = True
         self._note_own_move()
         self._search_after_turn = True
         self._tracker.note_pose(0.0, SPEAKER_PITCH_DEG)
@@ -1229,12 +1229,12 @@ class StackChanBehavior:
         self, yaw_deg: float, pitch_deg: float, hold_s: float = STEP_S, speed: int = MOVE_SPEED
     ) -> None:
         from maipai_body.bodies.stackchan.gaze import GazeReason
-        from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG
+        from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG
 
-        pose = HeadPose(yaw=math.radians(yaw_deg), pitch=math.radians(CENTRE_PITCH_DEG + pitch_deg))
+        pose = HeadPose(yaw=math.radians(yaw_deg), pitch=math.radians(CENTER_PITCH_DEG + pitch_deg))
         self._move_head_slowly(pose, hold_s, speed)
         self._note_own_move()
-        self._head_off_centre = True
+        self._head_off_center = True
         self._tracker.note_pose(yaw_deg, pitch_deg)
         self.gaze.note(GazeReason.SEARCH)
 
@@ -1311,9 +1311,9 @@ class StackChanBehavior:
         # Back to the resting pose: essential, so it never counts against the gate's cap.
         self.head_gate.allow("search:return", essential=True)
         self._note_own_move()
-        from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG
+        from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG
 
-        self._move_head_slowly(HeadPose(yaw=0.0, pitch=math.radians(CENTRE_PITCH_DEG)))
+        self._move_head_slowly(HeadPose(yaw=0.0, pitch=math.radians(CENTER_PITCH_DEG)))
         self._tracker.note_pose(0.0, 0.0)
 
     def dark_confirmed(self, now: float | None = None) -> bool:
@@ -1482,7 +1482,7 @@ class StackChanBehavior:
         target = FaceTrackTarget(detected=True, x=face[0], y=face[1])
         pose = follow_pose(target)
         self.robot.head.set(pose=pose)  # the lease is held by the turn state that called this
-        self._head_off_centre = True
+        self._head_off_center = True
         self._note_own_move()
         self._tracker.note_pose(*follow_pose_degrees(target))
         self.gaze.note(GazeReason.TRACK)
@@ -1491,7 +1491,7 @@ class StackChanBehavior:
 
     def _turn_toward_person(self) -> bool:
         """No fresh face at listen start, but the Look detector saw a body a moment ago: one brisk
-        turn toward it (the box centre, tilted toward its top) instead of the blind glance up; the
+        turn toward it (the box center, tilted toward its top) instead of the blind glance up; the
         tracker then looks for the face there after the reply."""
         if self._vision is None or not self._look_ready():
             return False
@@ -1502,20 +1502,20 @@ class StackChanBehavior:
         from maipai_body.bodies.stackchan.vision_bridge import follow_pose, follow_pose_degrees
         from maipai_body.hal.seam import FaceTrackTarget
 
-        target = FaceTrackTarget(detected=True, x=box.centre_x, y=box.top)
+        target = FaceTrackTarget(detected=True, x=box.center_x, y=box.top)
         try:
             self.robot.head.set(pose=follow_pose(target), duration_s=0.5, speed=TURN_SPEED)
         except Exception:
             self._warn_limited("search", "StackChan turn toward the person failed")
             return False
-        self._head_off_centre = True
+        self._head_off_center = True
         self._note_own_move()
         self._tracker.note_pose(*follow_pose_degrees(target))
         self._search_after_turn = True  # look for the face there once the reply is over
         self.gaze.note(GazeReason.SEARCH)
         logger.info(
             "StackChan turned toward the person who spoke: a body at x %.2f, no face in view",
-            box.centre_x,
+            box.center_x,
         )
         return True
 
@@ -2623,7 +2623,7 @@ async def _serve_stackchan_channels(
         )
         behavior.on_face_found = head_commander.face_found
         from maipai_body.bodies.stackchan.dance_wiring import wire_dance
-        from maipai_body.bodies.stackchan.head_commands import CENTRE_PITCH, CENTRE_YAW, SPEED
+        from maipai_body.bodies.stackchan.head_commands import CENTER_PITCH, CENTER_YAW, SPEED
 
         runner = wire_dance(
             voice=voice,
@@ -2631,7 +2631,7 @@ async def _serve_stackchan_channels(
             light=light,
             night=night,
             head_commander=head_commander,
-            level_head=lambda: _move_head(CENTRE_YAW, CENTRE_PITCH, SPEED),
+            level_head=lambda: _move_head(CENTER_YAW, CENTER_PITCH, SPEED),
             device_connected=device_connected,
             full_quiet_reason=behavior.privacy.muted_reason,
         )
@@ -2645,7 +2645,7 @@ async def _serve_stackchan_channels(
             wire_music_dance,
         )
 
-        # The unit analyses the room's sound only while robot.dance.auto is on and it is not muted.
+        # The unit analyzes the room's sound only while robot.dance.auto is on and it is not muted.
         music_switch = MusicFeatureSwitch(
             voice.robot.client._call,
             auto=lambda: behavior.dance_settings.auto,
@@ -2727,7 +2727,7 @@ async def _serve_stackchan_channels(
             behavior=behavior,
             runner=runner,
             move_head=_move_head,
-            centre_pitch=CENTRE_PITCH,
+            center_pitch=CENTER_PITCH,
             speed=SPEED,
             switch=music_switch,
             identify_post=identify_post,

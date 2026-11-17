@@ -69,12 +69,12 @@ def test_no_look_key_exists_outside_the_standards_table():
 def test_every_row_equals_the_standards_table():
     for name, cells in _standard_rows().items():
         key = LookKey(name)
-        colour, weight, style = looks.LOOKS[key]
-        _, _, doc_colour, doc_style, doc_period, doc_brightness, _ = cells[:7]
+        color, weight, style = looks.LOOKS[key]
+        _, _, doc_color, doc_style, doc_period, doc_brightness, _ = cells[:7]
         if key is LookKey.IDLE:
             assert weight == 0.0
             continue
-        assert colour.value == doc_colour, name
+        assert color.value == doc_color, name
         assert style.value == doc_style, name
         assert looks.period_s(key) == (_number(doc_period) or 0.0), name
         if key in looks.FIXED_ROWS:
@@ -85,12 +85,12 @@ def test_every_row_equals_the_standards_table():
             assert looks.CAMERA_FLOOR == _number(doc_brightness)
 
 
-def test_the_table_has_no_red_and_one_meaning_per_colour():
-    for colour, weight, style in looks.LOOKS.values():
-        assert colour in set(Palette)
+def test_the_table_has_no_red_and_one_meaning_per_color():
+    for color, weight, style in looks.LOOKS.values():
+        assert color in set(Palette)
         assert 0.0 <= weight <= 1.0
         assert style in set(LookStyle)
-    assert "red" not in {colour.value for colour, _, _ in looks.LOOKS.values()}
+    assert "red" not in {color.value for color, _, _ in looks.LOOKS.values()}
     lit = {key: row[0] for key, row in looks.LOOKS.items() if key is not LookKey.IDLE}
     by_status = {k: c for k, c in lit.items() if k is not LookKey.DANCE}
     assert len(set(by_status.values())) == len(by_status)
@@ -104,8 +104,8 @@ def test_live_and_camera_never_fall_below_their_floors(level, presence, minute):
     settings = IndicatorSettings(brightness=max(level, 0.2), night_brightness=0.0)
     live = resolve(_request(live=True, settings=settings, presence=presence, minute=minute))
     camera = resolve(_request(camera=True, settings=settings, presence=presence, minute=minute))
-    assert live.colour is Palette.GREEN and live.brightness >= looks.LIVE_FLOOR
-    assert camera.colour is Palette.PINK
+    assert live.color is Palette.GREEN and live.brightness >= looks.LIVE_FLOOR
+    assert camera.color is Palette.PINK
     assert camera.style is LookStyle.FLASH
     assert camera.brightness >= looks.CAMERA_FLOOR
 
@@ -150,7 +150,7 @@ def test_listening_is_blue_steady_at_the_level():
     look = resolve(
         _request(funnel=FunnelState.LISTENING, settings=IndicatorSettings(brightness=0.8))
     )
-    assert look.colour is Palette.BLUE and look.style is LookStyle.STEADY
+    assert look.color is Palette.BLUE and look.style is LookStyle.STEADY
     assert look.brightness == pytest.approx(0.8)
 
 
@@ -169,7 +169,7 @@ def test_the_one_amber_covers_offline_a_fault_and_a_low_battery():
     ]
     assert looks_seen[0] == looks_seen[1] == looks_seen[2]
     look = looks_seen[0]
-    assert look.colour is Palette.AMBER
+    assert look.color is Palette.AMBER
     assert look.style is LookStyle.PULSE
     assert look.period_s == 10.0
     assert look.brightness == pytest.approx(0.3)
@@ -195,8 +195,8 @@ def test_a_disabled_indicator_shows_nothing_but_the_capture_cues():
     off = IndicatorSettings(enabled=False)
     for kwargs in ({"funnel": FunnelState.LISTENING}, {"offline": True}, {"pairing": True}):
         assert resolve(_request(settings=off, **kwargs)) is None
-    assert resolve(_request(settings=off, live=True)).colour is Palette.GREEN
-    assert resolve(_request(settings=off, camera=True)).colour is Palette.PINK
+    assert resolve(_request(settings=off, live=True)).color is Palette.GREEN
+    assert resolve(_request(settings=off, camera=True)).color is Palette.PINK
 
 
 def test_night_uses_the_night_level_and_a_child_lowers_it_further():
@@ -251,7 +251,7 @@ def _literal_hits(path: Path) -> list[str]:
     return hits
 
 
-def test_looks_py_is_the_only_colour_or_level_literal_site_in_indicator():
+def test_looks_py_is_the_only_color_or_level_literal_site_in_indicator():
     for path in sorted((PACKAGE / "indicator").glob("*.py")):
         if path.name == "looks.py":
             continue
@@ -263,7 +263,7 @@ def test_no_module_outside_the_seam_and_the_client_names_a_palette_member():
         PACKAGE / "hal" / "seam.py",
         PACKAGE / "bodies" / "reachy_mini" / "eyes_client.py",
         PACKAGE / "bodies" / "reachy_mini" / "fake.py",
-        # One palette-to-hardware map per body (the light standard); no colour name elsewhere.
+        # One palette-to-hardware map per body (the light standard); no color name elsewhere.
         PACKAGE / "bodies" / "stackchan" / "ring.py",
         PACKAGE / "bodies" / "stackchan" / "ring_indicator.py",
         PACKAGE / "indicator" / "looks.py",
@@ -291,7 +291,7 @@ def test_resolve_key_agrees_with_resolve_over_a_seeded_sweep():
             assert look is None
         else:
             assert look is not None
-            assert look.colour is looks.LOOKS[key][0]
+            assert look.color is looks.LOOKS[key][0]
             assert look.style is looks.LOOKS[key][2]
 
 
@@ -306,7 +306,7 @@ def test_camera_is_pink_flash_at_its_floor_even_night_with_a_child():
     settings = IndicatorSettings(brightness=0.2, night_brightness=0.0)
     look = resolve(_request(camera=True, settings=settings, minute=NIGHT_MINUTE, presence=[CHILD]))
     assert look is not None
-    assert look.colour is Palette.PINK
+    assert look.color is Palette.PINK
     assert look.style is LookStyle.FLASH
     assert look.brightness >= looks.CAMERA_FLOOR
 

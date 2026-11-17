@@ -65,7 +65,7 @@ def settle(tracker, now, action):
 # -- box to head -----------------------------------------------------------------------------
 
 
-def test_the_box_centre_maps_to_yaw_like_face_following_with_the_units_sign():
+def test_the_box_center_maps_to_yaw_like_face_following_with_the_units_sign():
     assert yaw_error_deg(box(0.5)) == 0.0
     assert yaw_error_deg(box(0.0)) == pytest.approx(-HALF)
     assert yaw_error_deg(box(0.75)) == pytest.approx(HALF / 2)
@@ -118,12 +118,12 @@ def test_a_look_taken_before_the_head_settled_is_not_evidence():
     # The same stale picture arrives twice: nothing moves.
     assert observe(tracker, 10.4, [box(0.2)], look_at=10.3).kind == "none"
     assert observe(tracker, settled + 0.1, [box(0.2)], look_at=settled - 0.05).kind == "none"
-    # A frame after the settle counts: the person is still left of centre, so one more step.
+    # A frame after the settle counts: the person is still left of center, so one more step.
     action = observe(tracker, settled + 0.6, [box(0.3)], look_at=settled + 0.5)
     assert action.kind == "move" and action.move.yaw_deg * HALF < 0  # still toward the left
 
 
-def test_aiming_gives_up_on_centring_after_four_moves_and_follows_anyway():
+def test_aiming_gives_up_on_centering_after_four_moves_and_follows_anyway():
     tracker = PersonTracker()
     action = start(tracker, now=10.0, cx=0.0)
     now, moves = 10.0, 1
@@ -148,10 +148,10 @@ def test_someone_else_moving_the_head_is_remembered_so_the_next_aim_is_relative(
 # -- the face search from a still body -----------------------------------------------------
 
 
-def _centre_then_still(tracker):
-    """Aim at a person who ends up centred and stands still: the face search begins."""
+def _center_then_still(tracker):
+    """Aim at a person who ends up centered and stands still: the face search begins."""
     start(tracker, now=10.0, cx=0.2)
-    assert observe(tracker, 20.0, [box(0.5)]).kind == "none"  # centred once
+    assert observe(tracker, 20.0, [box(0.5)]).kind == "none"  # centered once
     assert observe(tracker, 21.0, [box(0.5)]).kind == "none"  # twice: following the body
     assert tracker.stage == "follow"
     now = 21.0 + STILL_FOR_SEARCH_S + 0.1
@@ -160,9 +160,9 @@ def _centre_then_still(tracker):
     return now, action
 
 
-def test_centred_and_still_starts_the_face_search_which_tilts_up_then_pans():
+def test_centered_and_still_starts_the_face_search_which_tilts_up_then_pans():
     tracker = PersonTracker()
-    now, action = _centre_then_still(tracker)
+    now, action = _center_then_still(tracker)
     assert action.move.pitch_deg == TILT_STEP_DEG and action.move.yaw_deg == tracker.pose[0]
     yaw = action.move.yaw_deg
     poses = [action.move]
@@ -183,7 +183,7 @@ def test_centred_and_still_starts_the_face_search_which_tilts_up_then_pans():
         and "back to the body" in action.move.why
     )
     events = tracker.drain_events()
-    assert any("aiming -> follow: centred" in e for e in events)
+    assert any("aiming -> follow: centered" in e for e in events)
     assert any("follow -> face-search: standing still" in e for e in events)
     assert any(
         "face-search -> follow: no face in any pose" in e and "waits 60 s" in e for e in events
@@ -199,7 +199,7 @@ def test_a_face_during_the_search_or_the_aim_means_found_and_follow():
     tracker = PersonTracker()
     start(tracker, now=10.0, cx=0.2)
     action = observe(tracker, 13.4, [box(0.5)], face_age=0.2, face_xy=(0.5, 0.45))
-    assert tracker.stage == "follow" and action.kind == "none"  # the face is centred: hold
+    assert tracker.stage == "follow" and action.kind == "none"  # the face is centered: hold
     assert any(
         "aiming -> follow: face found after 3.4 s, 1 aim move(s)" in e
         for e in tracker.drain_events()
@@ -209,7 +209,7 @@ def test_a_face_during_the_search_or_the_aim_means_found_and_follow():
 # -- following -------------------------------------------------------------------------------
 
 
-def test_following_turns_toward_a_walking_person_in_capped_natural_steps_and_holds_when_centred():
+def test_following_turns_toward_a_walking_person_in_capped_natural_steps_and_holds_when_centered():
     tracker = PersonTracker()
     start(tracker, now=10.0, cx=0.5)
     observe(tracker, 11.0, [box(0.5)])
@@ -233,7 +233,7 @@ def test_following_turns_toward_a_walking_person_in_capped_natural_steps_and_hol
     )  # relative to where it points
     assert "follow the body" in action.move.why
     now = settle(tracker, now, action)
-    assert observe(tracker, now, [box(0.52)]).kind == "none"  # centred: hold
+    assert observe(tracker, now, [box(0.52)]).kind == "none"  # centered: hold
     assert tracker.stage == "follow"
 
 
@@ -242,7 +242,7 @@ def test_following_prefers_the_face_and_tilts_toward_it():
     action = observe(tracker, 1.0, [], face_age=0.1, face_xy=(0.5, 0.1))  # a face high up
     assert tracker.stage == "follow"
     assert any("face seen at x 0.50, y 0.10 -> follow" in e for e in tracker.drain_events())
-    # The first move after a find is immediate: up toward the face, no turn (it is centred).
+    # The first move after a find is immediate: up toward the face, no turn (it is centered).
     assert action.kind == "move" and action.move.pitch_deg > 0 and abs(action.move.yaw_deg) < 1e-6
     assert "follow the face" in action.move.why
     now = settle(tracker, 1.0, action)
@@ -288,14 +288,14 @@ def test_sitting_still_for_a_long_while_relaxes_and_a_move_wakes_it():
     assert tracker.stage == "follow"
 
 
-def test_the_follow_report_measures_how_far_off_centre_the_person_sat():
+def test_the_follow_report_measures_how_far_off_center_the_person_sat():
     tracker = PersonTracker()
     assert tracker.follow_report() is None
     start(tracker, now=10.0, cx=0.5)
     observe(tracker, 11.0, [box(0.5)])
     observe(tracker, 12.0, [box(0.7)])
     report = tracker.follow_report()
-    assert report is not None and "follow move(s)" in report and "off centre" in report
+    assert report is not None and "follow move(s)" in report and "off center" in report
 
 
 # -- caps and back-offs ----------------------------------------------------------------------

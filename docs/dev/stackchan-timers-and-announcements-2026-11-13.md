@@ -26,7 +26,7 @@ Owner decision 2026-11-13: on-device timers, no Bluetooth. Status: built and com
 | Hub announcements | `bodies/stackchan/announce.py` |
 | Wiring, events, check-in `timers_active` | `app.py` (`_wire_timers_and_announcements`), `link/checkin.py` |
 
-Behaviour: at most 8 active; a timer is 1 s to 24 h; an alarm is the next HH:MM of the unit's local day. A timer is stored as an
+Behavior: at most 8 active; a timer is 1 s to 24 h; an alarm is the next HH:MM of the unit's local day. A timer is stored as an
 absolute Unix time, so it survives a reboot and rings with no hub. Due while the unit was off: rings if at most 10 minutes late,
 otherwise dropped and reported (`timer_missed`). A timer set while the clock was never set runs on boot time and is not saved.
 When one rings: happy face with the reminder card showing its label, cyan pulsing ring (the lights standard's `pairing` row: cyan at 0.6, a short pulse every 2 s),
@@ -69,7 +69,7 @@ says the line through the body's own speech path. Refused (with the reason in th
   error. Fall back to the hub's own timer for other bodies and for a StackChan that does not ack.
 - Announcements: `device-command` kind `announce` with `{text, urgent?}`; ack `state` is `{status: "delivered"}` or
   `{status: "refused", reason: "disabled" | "muted" | "quiet" | "night" | "empty" | "unreachable"}`; on a refusal Home uses its own notice.
-- Registry keys (device scope, honoured by bot): `robot.timers.enabled` (boolean, default true, label "Timers and alarms on this robot",
+- Registry keys (device scope, honored by bot): `robot.timers.enabled` (boolean, default true, label "Timers and alarms on this robot",
   help "Lets me set and ring timers and alarms myself, even when Home is off."), `robot.announce.enabled` (boolean, default true, label
   "Announcements from Home", help "Lets Home say things like 'dinner is ready' through me."). `robot.muted` and `robot.quiet` are read
   if Home sends them in the settings frame (boolean); the bot treats a missing key as off.

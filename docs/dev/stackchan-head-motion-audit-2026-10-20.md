@@ -11,7 +11,7 @@ effect on the unit, and patch 038 (plus 037) on the next flash.
 |---|---|---|---|
 | Idle settle, face following (`attend`) | `app.py` `render_primitive` | `HeadMotionGate`: refused while power is unknown or stale, charging, night, `robot.idle.level` is still, resting, or over the per-minute cap | only on battery with a known reading and level calm or lively |
 | Turn cues (`perk`, `attend`, `speak`) | `app.py` `render_turn_state` | gate with `response=True` (answers a person), still subject to the cap of 12 head moves a minute | a person is mid-turn |
-| Settle after a turn | `app.py` `render_turn_state("settle")` | runs only if an earlier move left the head off centre, and passes the same gate | once per turn that moved the head, never after a quiet turn |
+| Settle after a turn | `app.py` `render_turn_state("settle")` | runs only if an earlier move left the head off center, and passes the same gate | once per turn that moved the head, never after a quiet turn |
 | Rest pose (drowsy, asleep) | `app.py` `rest_step` -> `RestRenderer` | sends only when the rest stage changes (a few times per long quiet spell) | stage change |
 | Night turn to a speaker | `app.py` night branch | gate plus one turn per night wake | a person speaks |
 | Safe stop `head.hold` | `robot/core.py`, `vision_bridge.py` | none by design; it reads the angles and holds them, it does not travel | an e-stop or a lost link |

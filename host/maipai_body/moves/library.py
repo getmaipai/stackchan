@@ -1,7 +1,7 @@
 """The pinned move libraries: optional packages installed by Home.
 
 "Download, don't vendor": ``pins.json`` names a full commit revision,
-licence and sha256 per move file. Home installs this optional package;
+license and sha256 per move file. Home installs this optional package;
 the base robot never fetches directly from a dataset host.
 
 Both Pollen libraries (emotions and dances, each Apache-2.0 on its

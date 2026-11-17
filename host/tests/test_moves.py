@@ -357,7 +357,7 @@ def _stepped_move_json() -> dict:
     return data
 
 
-def test_equal_neighbouring_timestamps_parse_as_a_step():
+def test_equal_neighboring_timestamps_parse_as_a_step():
     move = RecordedMove.from_json("toc-toc-toc", _stepped_move_json())
     assert move.duration_s == pytest.approx(0.2)
     before = move.sample(0.0999).pose.yaw

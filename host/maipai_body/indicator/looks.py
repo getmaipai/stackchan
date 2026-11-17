@@ -1,11 +1,11 @@
-"""EYES-02: the one look table, and the only site of a colour or a level.
+"""EYES-02: the one look table, and the only site of a color or a level.
 
 Nothing else in ``indicator/`` names a palette member or a brightness
 number (a grep test holds that line). The palette has no red.
 
 The table is the ring standard approved by the owner on 2026-11-13
 (``docs/dev/led-standard-2026-10-20.md``, "The ring table"): the ring is
-dark unless it tells a person something they need right now. Five colours,
+dark unless it tells a person something they need right now. Five colors,
 one meaning each: green = your voice is leaving the robot, pink = a picture
 is being taken, cyan = I need a person, amber = look at the screen, blue =
 your turn. A test parses that table and fails when a ``LookKey`` or a look
@@ -63,7 +63,7 @@ class LookKey(StrEnum):
     IDLE = "idle"
 
 
-# row: (colour, weight, style). For the share rows (listening) the weight is the share of the
+# row: (color, weight, style). For the share rows (listening) the weight is the share of the
 # day or night level; the cues keep their floors; pairing and attention are fixed brightnesses.
 LOOKS: dict[LookKey, tuple[Palette, float, LookStyle]] = {
     LookKey.LIVE: (Palette.GREEN, 1.0, LookStyle.STEADY),
@@ -152,16 +152,16 @@ def period_s(key: LookKey) -> float:
 
 
 def _row(key: LookKey, brightness: float) -> Look | None:
-    colour, _, style = LOOKS[key]
+    color, _, style = LOOKS[key]
     if brightness <= 0.0:
         return None
-    return Look(colour=colour, brightness=min(1.0, brightness), style=style, period_s=period_s(key))
+    return Look(color=color, brightness=min(1.0, brightness), style=style, period_s=period_s(key))
 
 
 def _cue(key: LookKey, floor: float, settings: IndicatorSettings) -> Look:
-    colour, weight, style = LOOKS[key]
+    color, weight, style = LOOKS[key]
     return Look(
-        colour=colour,
+        color=color,
         brightness=min(1.0, max(floor, weight * settings.brightness)),
         style=style,
         period_s=period_s(key),

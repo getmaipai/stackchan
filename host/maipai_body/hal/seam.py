@@ -320,7 +320,7 @@ class FaceTracker(Protocol):
 
 
 class Palette(StrEnum):
-    """The only colours the eyes may show.
+    """The only colors the eyes may show.
 
     There is no red, by design: a red light on a face that watches a child
     reads as alarm. The set is closed, so a red cannot be named, parsed
@@ -355,9 +355,9 @@ class LookStyle(StrEnum):
 
 
 class Look(BaseModel):
-    """A look for the eyes or ring: one palette colour, one brightness, one style."""
+    """A look for the eyes or ring: one palette color, one brightness, one style."""
 
-    colour: Palette
+    color: Palette
     brightness: float = Field(default=1.0, ge=0.0, le=1.0)
     style: LookStyle = LookStyle.STEADY
     period_s: float = Field(default=0.0, ge=0.0)  # 0 for steady; the table sets it per row

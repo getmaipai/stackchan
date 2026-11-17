@@ -129,7 +129,7 @@ What to verify before the new repo counts as real (each is a command with an exp
 ## 4. Vendored spec copy and drift check (decision 10)
 
 Today `bot` reads the spec from a sibling checkout (`../commons-tags/spec-spec-v0.1.208/spec`, `spec_pin.py`, `scripts/spec-dir.sh`).
-That makes the repo depend on a neighbour, which decision 2 forbids. Reachy copies the mechanism this repo uses.
+That makes the repo depend on a neighbor, which decision 2 forbids. Reachy copies the mechanism this repo uses.
 
 - Vendor to `host/spec-vendor/spec/` (data only: records, fixtures, `gen`, assets) plus `STAMP.md` naming the source tag
   (now `spec-v0.1.208`). `scripts/spec-dir.sh` prints that path; `MAIPAI_SPEC_DIR` points there.

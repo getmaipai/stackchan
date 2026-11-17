@@ -11,7 +11,7 @@ What you say to it stays in your home. AI on your own computer answers, with no 
 
 It is faster and smoother than the factory firmware, and it works away from home, over your private network. It adds timers, a camera that can name the people you enrol, a coding companion and a local API.
 
-Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) for the full feature set: memories, companions and personalities, cloned voices, recognising people, naming songs, the camera, watching and monitoring, find and remote control, and more.
+Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) for the full feature set: memories, companions and personalities, cloned voices, recognizing people, naming songs, the camera, watching and monitoring, find and remote control, and more.
 
 [See how it compares](docs/user/compare.md) with the factory firmware, and with MaiPai Home, side by side.
 
@@ -24,14 +24,14 @@ MaiPai for StackChan is one thing: a private voice robot. It does a small set of
 **The robot, with your own LLM**
 
 - **[Voice](docs/user/voice.md):** Say the wake word and talk. Follow-up questions need no wake word, you can interrupt, ten voice commands work with no model involved, spoken lines play when the host is out of reach, and you can set the speech speed and pitch.
-- **[Faces and clock](docs/user/face-and-look.md):** Five face styles, face extras and word reactions, any colour or none, time-of-day and clock faces, night mode and optional captions.
+- **[Faces and clock](docs/user/face-and-look.md):** Five face styles, face extras and word reactions, any color or none, time-of-day and clock faces, night mode and optional captions.
 - **[Timers and alarms](docs/user/timers-and-alarms.md):** A ring that empties as time runs out, named timers, snooze and quiet hours.
 - **[Reactions](docs/user/moves-and-moods.md):** Pickup, shake, tilt and petting, a breathing idle, tap-the-face mute, a mood that grows with care, an hourly chime and low-battery steps.
 - **[Privacy controls](docs/user/mute-and-camera-off.md):** Mute, camera off and full quiet, one tap each. [Nothing is ever monitored in secret](docs/user/no-stealth.md).
-- **[Games](docs/user/games-and-pet.md):** Colour memory, reaction time and whack-a-mole, with your best scores kept on the robot.
+- **[Games](docs/user/games-and-pet.md):** Color memory, reaction time and whack-a-mole, with your best scores kept on the robot.
 - **[Music and dance](docs/user/music-and-dance.md):** Dance on request, six named dances, and a sway to your music. Off until you turn it on.
 - **[Away from home](docs/user/use-it-anywhere.md):** Reach your host from any Wi-Fi: the robot joins your private network by itself when it cannot reach your host.
-- **[Security](docs/user/security.md), [updates](docs/user/updates.md), [lights and sounds](docs/user/lights-and-sounds.md) and [languages](docs/user/languages.md):** Pairing with a code, a Wi-Fi setup page with an on-screen code, a reset on the robot, signed updates with rollback, soft tones and one light colour per meaning, six languages.
+- **[Security](docs/user/security.md), [updates](docs/user/updates.md), [lights and sounds](docs/user/lights-and-sounds.md) and [languages](docs/user/languages.md):** Pairing with a code, a Wi-Fi setup page with an on-screen code, a reset on the robot, signed updates with rollback, soft tones and one light color per meaning, six languages.
 
 **More, with [MaiPai Home](docs/user/with-maipai-home.md)** (free, open source)
 
@@ -57,7 +57,7 @@ Flash the robot from the web flasher (the build is trimmed: Bluetooth is off and
 
 ### With MaiPai Home
 
-[MaiPai Home](docs/user/with-maipai-home.md) adds the full feature set: memories, companions and personalities, cloned voices, recognising people, naming songs, the camera, watching and monitoring, and household rules.
+[MaiPai Home](docs/user/with-maipai-home.md) adds the full feature set: memories, companions and personalities, cloned voices, recognizing people, naming songs, the camera, watching and monitoring, and household rules.
 Set `brain = "home"` and run `stackchan check`.
 
 

@@ -288,10 +288,10 @@ def test_empty_session_cookie_raises_immediately():
 
 class _CancelServer(http.server.BaseHTTPRequestHandler):
     """Answers `POST /api/turn/{turn_id}/cancel` - records the exact
-    path requested and returns the class-level scripted `cancelled`
+    path requested and returns the class-level scripted `canceled`
     value."""
 
-    cancelled: bool = True
+    canceled: bool = True
     path_requested: str | None = None
     status: int = 200
 
@@ -308,7 +308,7 @@ class _CancelServer(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        body = json.dumps({"cancelled": self.cancelled}).encode("utf-8")
+        body = json.dumps({"cancelled": self.canceled}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -318,7 +318,7 @@ class _CancelServer(http.server.BaseHTTPRequestHandler):
 
 @pytest.fixture
 def cancel_server():
-    _CancelServer.cancelled = True
+    _CancelServer.canceled = True
     _CancelServer.path_requested = None
     _CancelServer.status = 200
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _CancelServer)
@@ -333,7 +333,7 @@ def cancel_server():
 
 def test_cancel_posts_to_the_right_path_and_returns_the_result(cancel_server):
     server, handler = cancel_server
-    handler.cancelled = True
+    handler.canceled = True
     client = TurnClient(_base_url(server), "cookie-abc")
 
     result = client.cancel("turn-xyz")
@@ -344,7 +344,7 @@ def test_cancel_posts_to_the_right_path_and_returns_the_result(cancel_server):
 
 def test_cancel_returns_false_for_a_turn_no_longer_in_flight(cancel_server):
     server, handler = cancel_server
-    handler.cancelled = False
+    handler.canceled = False
     client = TurnClient(_base_url(server), "cookie-abc")
 
     result = client.cancel("turn-xyz")

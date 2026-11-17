@@ -15,7 +15,7 @@ When the build settles each one, rename it in the docs or keep it, then delete i
 - `stackchan notify --status pass|fail` (the command exists in the design; the flag is a guess).
 - `stackchan firmware verify` (the design says `verify`).
 
-## Defaults and behaviour
+## Defaults and behavior
 
 - `update_check` default is weekly. `update_channel` default is stable.
 - Voice phrases such as "hard mute", "mirror me", "let's play", "dance", "snooze", "normal".
@@ -60,8 +60,8 @@ Real names already in the design and used as written: `face_style`, `face_color`
 - Source: `docs/dev/stackchan-lights-audit-and-plan-2026-11-13.md` section 5 (the ring standard), `stackchan-sounds-2026-11-13.md` and `stackchan-timers-and-announcements-2026-11-13.md`. Some rows there are marked proposed. The timer ring and tone are built per the timers note; the other rows follow the proposed standard.
 - Conflict to settle: the user docs say the robot shows thinking dots with a quiet tone, while the lights plan (D1) keeps thinking and speaking dark with no tone. The user docs follow the older design for the sound (dots plus a quiet tone, `thinking_cue`) and the lights plan for the ring (dark). The owner should confirm the tone.
 - The 'error' tone and 'listening' pop use the shipped tones (`exclamation`, `popup`). The 'back online' chime is the shipped `success`.
-- The light show colours for the dance are not specified in the notes, so the page does not name them.
-- The lights are two bars of six, one on each side of the base (official hardware page: two rows totaling 12 RGB LEDs), plus a power indicator light at the back. Older design notes call them a ring. The standard drives all 12 the same colour. The drawings put the left bar top to bottom and the right bar bottom to top. The real pixel order and which bar is which is unverified.
+- The light show colors for the dance are not specified in the notes, so the page does not name them.
+- The lights are two bars of six, one on each side of the base (official hardware page: two rows totaling 12 RGB LEDs), plus a power indicator light at the back. Older design notes call them a ring. The standard drives all 12 the same color. The drawings put the left bar top to bottom and the right bar bottom to top. The real pixel order and which bar is which is unverified.
 
 ## From the official docs (checked 2026-11-15)
 
@@ -76,7 +76,7 @@ Real names already in the design and used as written: `face_style`, `face_color`
 ## Install page (2026-11-15)
 
 - `stackchan install-service --remove`, `pipx upgrade stackchan` and the host printing its port are drafts. The design names `stackchan install-service` only.
-- Do not publish the firewall table until the real port and discovery behaviour are known.
+- Do not publish the firewall table until the real port and discovery behavior are known.
 
 ## Renamed term (2026-11-15)
 
@@ -92,10 +92,10 @@ Real names already in the design and used as written: `face_style`, `face_color`
 
 - New planned features: Find (last seen, beep and flash, optional Bluetooth signal meter), remote control (beep, lights, one-way talk, head), live view. Nothing is designed or built. Names `remote_control` and the Remote icon are drafts.
 - Hardware limits: the official specs list Wi-Fi, Bluetooth 5 LE and infrared, three Grove ports, no GPS and no UWB. A GPS module on a Grove port is an idea to evaluate, not a promise.
-- Rules the docs promise: no remote listening, every remote action shows a Remote icon and a tone before speech, Find works even when muted, remote talk is blocked when muted or in full quiet, remote lights avoid the meaning colours.
+- Rules the docs promise: no remote listening, every remote action shows a Remote icon and a tone before speech, Find works even when muted, remote talk is blocked when muted or in full quiet, remote lights avoid the meaning colors.
 - Live view and the three always-on cues (listening, picture, live) are now in docs/design/features.md under Camera. The cue is driven by the same code path that opens the mic or camera, so it cannot be hidden. Live view will be measured after the firmware rebase; numbers to come.
 
-- Confirmed by the build session 2026-11-15 (docs/design/features.md): remote rules, activity log line per remote action, token replaced only from the robot's own settings, home or private network only, no host-to-mic message type. The Remote icon (small screen with two signal arcs, steady, neutral colour) needs a mockup before build. Last seen comes from the unit's heartbeat. Warmer/colder depends on the open Bluetooth review.
+- Confirmed by the build session 2026-11-15 (docs/design/features.md): remote rules, activity log line per remote action, token replaced only from the robot's own settings, home or private network only, no host-to-mic message type. The Remote icon (small screen with two signal arcs, steady, neutral color) needs a mockup before build. Last seen comes from the unit's heartbeat. Warmer/colder depends on the open Bluetooth review.
 
 ## Watch mode and alerts (2026-11-15, owner request)
 

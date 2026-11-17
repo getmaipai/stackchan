@@ -1,6 +1,6 @@
 # StackChan music detection and the automatic dance (2026-11-13)
 
-Owner request 2026-11-13: the unit hears and recognises music; first one subtle "I like this"; if the music goes on it
+Owner request 2026-11-13: the unit hears and recognizes music; first one subtle "I like this"; if the music goes on it
 dances by itself in a build-up; it must not annoy and must respect the battery. Design: the StackChan dance note of the same
 day (parts 2 and 3). The automatic dance is **off by default** (`robot.dance.auto`). Nothing here has run on a unit: the host
 layer runs on a fake clock with scripted number streams, and the firmware feature core runs on synthesized signals.
@@ -41,7 +41,7 @@ battery gate** (the design note's question 3 recommendation: no battery cost whe
 This reads "while charging it follows the same stage rules" as "the same stages and gates, without the percent". Say so if the
 owner meant the percent gates to apply on a charger too (`music_dance.py`, `_gate`).
 
-It does not use the ambient head gate (idle level "still", charging): like the asked dance it is an explicit behaviour behind an
+It does not use the ambient head gate (idle level "still", charging): like the asked dance it is an explicit behavior behind an
 explicit setting.
 
 ## Settings and the hub command (Home must register them)
@@ -52,11 +52,11 @@ explicit setting.
   with an optional `{"fast": true}` payload (detect after 2 s, build-up 6 s after the nod: the whole chain in about 40 s).
 
 The bot reads the settings from `settings_changed` as soon as the hub sends them (`DanceSettings.apply`). They still have to be
-registered in `commons/spec/settings/keys.json` (device scope, honoured by home and bot) and Home's `robotSettingsKeys.json`, and
+registered in `commons/spec/settings/keys.json` (device scope, honored by home and bot) and Home's `robotSettingsKeys.json`, and
 Home's Settings page needs the toggle, the sensitivity choice and a "Test music dance" button that sends `music_test`: a commons
 tag plus a Home pin, not done here.
 
-## What is analysed, what leaves the unit, and the switch
+## What is analyzed, what leaves the unit, and the switch
 
 - **Local.** The unit measures the room's sound itself. Only about 110 bytes of integer features (level, four band shares, tempo,
   confidence, flatness and a few more) leave it, about once a second, only while the room is louder than RMS 400, and never audio.
@@ -68,7 +68,7 @@ tag plus a Home pin, not done here.
   15 seconds. The unit keeps the state in RAM and in its own flash (namespace `mp_music`, key `on`, written only when it changes;
   never the websocket namespace), defaults to off when nothing is stored, and logs `music features off` or `music features on`
   at boot and at each change.
-- Tests: `test_the_unit_analyses_music_only_while_the_setting_is_on_and_it_is_not_silenced`,
+- Tests: `test_the_unit_analyzes_music_only_while_the_setting_is_on_and_it_is_not_silenced`,
   `test_a_reconnect_states_the_switch_again_and_a_failed_call_is_retried` and the patch check
   `test_the_firmware_patch_keeps_music_analysis_off_until_the_host_turns_it_on`.
 
@@ -87,7 +87,7 @@ All at INFO in the bot log, logger `maipai_body.bodies.stackchan.music_dance`:
   reason, e.g. `StackChan music window rejected: reason=weak_beat lv=... bpm=...`. Quiet windows are not logged per-window;
   these diagnostics contain no audio.
 - The unit's own once-a-minute line (`unit music: music_stats seconds=.. loud=.. sent=.. dropped=.. suppressed=..`) says how
-  many seconds it analysed, how many were loud enough, and how many chunks it skipped while the unit spoke or listened.
+  many seconds it analyzed, how many were loud enough, and how many chunks it skipped while the unit spoke or listened.
 - On the serial console (first half hour after boot): `MF <ms> <level> <bpm> <conf> <flat> <zc> <zcspread> <mod> <pause> <onset>`.
 
 ## Test script for the owner
@@ -99,14 +99,14 @@ Needs: the firmware with patches 100 and 101 flashed, the bot release with this 
 
 Ambient song naming also starts when clear music is heard but a dance or nod is suppressed by a gate, so movement restrictions do not prevent naming the song. `music_clip_ready` and `music_clip_cancelled` are in `DIAGNOSTIC_KINDS` so the companion preserves their metadata and cancellation reason for the identify handler.
 
-The host log prefixes this path with `StackChan song naming:`. `skipped` lines name the setting or guard that prevented a capture; `capture started` confirms the requested duration and attempt; `clip cancelled` includes the unit's `why`; `clip ready` and `clip read complete` report metadata size and transfer reads. `clip read failed`, `invalid clip metadata`, `identify post raised`, and the HTTP/JSON lines identify failures without logging audio or credentials. `the unit never said the clip was ready` means the 25-second deadline elapsed. Ambient cancel and expiry lines indicate a retry is scheduled 12 seconds later; only one retry is allowed in a running session. `Home status` reports Home's decision, while `matched` reports the title.
+The host log prefixes this path with `StackChan song naming:`. `skipped` lines name the setting or guard that prevented a capture; `capture started` confirms the requested duration and attempt; `clip canceled` includes the unit's `why`; `clip ready` and `clip read complete` report metadata size and transfer reads. `clip read failed`, `invalid clip metadata`, `identify post raised`, and the HTTP/JSON lines identify failures without logging audio or credentials. `the unit never said the clip was ready` means the 25-second deadline elapsed. Ambient cancel and expiry lines indicate a retry is scheduled 12 seconds later; only one retry is allowed in a running session. `Home status` reports Home's decision, while `matched` reports the title.
 
 Home can send the StackChan `listen_song` device command with `{request_id, seconds?}`. The body
 validates a 1 to 64 character alphanumeric request id and a capture length from 5 to 15 seconds
 (10 seconds by default), then posts the clip to Home with that request id so the waiting chat turn
 can receive the match. This explicit request can capture while ambient song naming is set to ask or
 off, and while a chat turn is active. It is refused while muted, in full quiet, disconnected or
-offline, or while another clip is being captured. Malformed payloads are refused as well. A cancelled
+offline, or while another clip is being captured. Malformed payloads are refused as well. A canceled
 capture or one that does not become ready within 25 seconds releases the pending request.
 
 1. In the robot's settings turn **Dance to music** on (`robot.dance.auto`); leave sensitivity on medium.

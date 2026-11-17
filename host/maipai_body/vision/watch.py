@@ -9,7 +9,7 @@ verdict. This replaces FACE-01's trigger from the daemon's tracker
 `embed`, `gallery`) is reused unchanged.
 
 Rules (OWNER-ANSWERS 4: enrolled only, a child needs a parent's
-enrolment, a teen must agree, visitors are never recognised):
+enrolment, a teen must agree, visitors are never recognized):
 
 * The level is the stricter of the device's `robot.camera.watch_level`
   and the matched person's own `person.vision.watch`. `off` never reads
@@ -326,7 +326,7 @@ class VisionWatch:
 
 
 def _resize(frame: npt.NDArray[Any], size: tuple[int, int]) -> npt.NDArray[Any]:
-    """Nearest-neighbour shrink with numpy (no image dependency here)."""
+    """Nearest-neighbor shrink with numpy (no image dependency here)."""
     width, height = size
     if frame.shape[1] == width and frame.shape[0] == height:
         return frame

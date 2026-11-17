@@ -186,7 +186,7 @@ def test_the_base_robot_assets_carry_no_moves_entry():
         assert "reachy-mini-emotions" not in text and "reachy-mini-dances" not in text
 
 
-def test_the_notice_carries_the_licence_attribution_and_tag():
+def test_the_notice_carries_the_license_attribution_and_tag():
     notice = (ROOT.parent / "NOTICE").read_text()
     assert "Apache-2.0" in notice
     assert "Pollen Robotics" in notice

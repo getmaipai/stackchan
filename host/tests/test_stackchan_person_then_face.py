@@ -16,7 +16,7 @@ from maipai_body.bodies.stackchan.adapter import StackChanRobotAdapter
 from maipai_body.bodies.stackchan.fake import FakeStackChanDeviceClient
 from maipai_body.bodies.stackchan.head_search import AMBIENT_HOLD_S
 from maipai_body.bodies.stackchan.person_tracker import AIM_SPEED, AIM_TILT_STEP_DEG, PersonBox
-from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG, FOLLOW_YAW_SIGN
+from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG, FOLLOW_YAW_SIGN
 from maipai_body.bodies.stackchan.sight import PERSON_NO_FACE, SightAnswers
 from maipai_body.bodies.stackchan.vision_bridge import StackChanVisionBridge
 from maipai_body.vision.look_fast import Detection
@@ -112,11 +112,11 @@ def test_an_arm_only_view_turns_the_head_toward_the_person_and_tilts_up_then_fin
             assert len(calls) == 1
             assert calls[0]["yaw"] * FOLLOW_YAW_SIGN < 0  # left of the picture: toward it
             assert calls[0]["pitch"] == round(
-                CENTRE_PITCH_DEG + AIM_TILT_STEP_DEG
+                CENTER_PITCH_DEG + AIM_TILT_STEP_DEG
             )  # cut off at the top: up
             assert calls[0]["speed"] == AIM_SPEED
             assert behavior._tracker.stage == "aiming"
-            # The move settles, the person is now centred, and then the face appears above.
+            # The move settles, the person is now centered, and then the face appears above.
             vision.people_now = [PersonBox(0.3, 0.0, 0.4, 1.0, 0.85)]
             _tick(behavior, vision, 102.5)
             _tick(behavior, vision, 103.5)
@@ -129,7 +129,7 @@ def test_an_arm_only_view_turns_the_head_toward_the_person_and_tilts_up_then_fin
                 "person seen at x 0.20, box top 0.00" in line and "-> aiming" in line
                 for line in lines
             )
-            assert any("aiming -> follow: centred" in line for line in lines)
+            assert any("aiming -> follow: centered" in line for line in lines)
             assert any("aim at x 0.20, yaw" in line for line in lines)
             # The tracker owns following now: the bridge's own absolute follow stays off.
             assert vision.may_move_asked and not any(vision.may_move_asked)
@@ -200,7 +200,7 @@ def test_a_body_seen_a_moment_ago_turns_the_head_at_listen_start_instead_of_the_
             assert behavior._turn_toward_face()
         calls = _head_calls(device)
         assert calls and calls[-1]["yaw"] * FOLLOW_YAW_SIGN > 0  # right of the picture: toward it
-        assert calls[-1]["pitch"] > round(CENTRE_PITCH_DEG)
+        assert calls[-1]["pitch"] > round(CENTER_PITCH_DEG)
         assert behavior._search_after_turn
         assert any(
             "turned toward the person who spoke: a body at x 0.75" in r.getMessage()
@@ -264,8 +264,8 @@ def test_the_bridge_runs_the_look_detector_on_the_same_frame_and_keeps_boxes_and
     target = bridge.track_stream_frame()
     assert not target.detected
     people = bridge.people(max_age_s=1.0)
-    assert [round(b.centre_x, 2) for b in people] == [0.3, 0.85]
-    assert round(bridge.last_person(max_age_s=1.0).centre_x, 2) == 0.3  # the largest
+    assert [round(b.center_x, 2) for b in people] == [0.3, 0.85]
+    assert round(bridge.last_person(max_age_s=1.0).center_x, 2) == 0.3  # the largest
     assert bridge.person_age() == 0.0 and bridge.look_ready() and bridge.last_look_ms == 8.0
     objects = bridge.objects(1.0)
     assert [(o["label"], o["count"]) for o in objects] == [("person", 2), ("laptop", 1)]
@@ -330,7 +330,7 @@ def test_a_face_in_the_middle_keeps_the_head_still_while_following():
         for i in range(4):
             _tick(behavior, vision, 10.0 + i)
         assert behavior._tracker.stage == "follow"
-        assert not _head_calls(device)  # centred: nothing to do, no twitching
+        assert not _head_calls(device)  # centered: nothing to do, no twitching
         vision.face = (0.9, 0.5)  # they step to the right: a clear move, acted on at once
         _tick(behavior, vision, 15.0)
         calls = _head_calls(device)

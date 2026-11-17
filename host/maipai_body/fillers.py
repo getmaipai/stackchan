@@ -4,7 +4,7 @@
 Two halves live here, both on the host:
 
 * :class:`FillerGenerator` renders a pack of short sounds with the host's own local voice (the same speech
-  server the replies use), several takes each, trims the silence, normalises the loudness, packs them as 8-bit
+  server the replies use), several takes each, trims the silence, normalizes the loudness, packs them as 8-bit
   mu-law at 16 kHz (about 16 KB a second, so a full set stays under the 400 KB pack limit) and keeps the pack
   in the library per voice (``~/.config/maipai/stackchan-fillers``, mode 700).
 * :class:`FillerPlayer` plays one when a turn has had no first audio for the unit's wait (the "While it thinks"
@@ -115,7 +115,7 @@ def trim_silence(samples: np.ndarray, rate: int, *, margin_s: float = 0.02) -> n
     return samples[max(0, loud[0] - margin) : min(len(samples), loud[-1] + margin + 1)]
 
 
-def normalise(samples: np.ndarray, rate: int, *, peak: float = TARGET_PEAK, fade_s: float = 0.006) -> np.ndarray:
+def normalize(samples: np.ndarray, rate: int, *, peak: float = TARGET_PEAK, fade_s: float = 0.006) -> np.ndarray:
     if len(samples) == 0:
         return samples
     top = float(np.max(np.abs(samples)))
@@ -143,12 +143,12 @@ def mulaw_decode(data: bytes) -> np.ndarray:
 
 
 def render_clip(samples: np.ndarray, rate: int) -> np.ndarray | None:
-    """One synthesized take, trimmed to its sound, normalised, at the stored rate; None if it came out empty."""
+    """One synthesized take, trimmed to its sound, normalized, at the stored rate; None if it came out empty."""
     mono = resample(np.asarray(samples, dtype=np.float32).reshape(-1), rate, RATE)
     cut = trim_silence(mono, RATE)
     if len(cut) < int(0.06 * RATE):
         return None
-    return normalise(cut[: int(MAX_CLIP_S * RATE)], RATE)
+    return normalize(cut[: int(MAX_CLIP_S * RATE)], RATE)
 
 
 # ---- the generator ----------------------------------------------------------------------------------

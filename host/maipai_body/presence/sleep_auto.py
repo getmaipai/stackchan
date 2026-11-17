@@ -80,7 +80,7 @@ DEFAULT_QUIET_TO = dtime(7, 0)
 class QuietHours:
     """The household quiet-hours window, from the hub's settings frame.
 
-    ``household.quiet_hours.from`` and ``.to`` are registry keys honoured by ``bot``
+    ``household.quiet_hours.from`` and ``.to`` are registry keys honored by ``bot``
     (spec-v0.1.151). Until the hub sends them the registry defaults apply (21:00 to
     07:00), so a settings frame that only carries changes still gives the right window.
     A window that crosses midnight is handled; equal bounds mean never; a malformed

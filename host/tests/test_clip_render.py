@@ -32,21 +32,21 @@ def _streaming_wav(n: int = 480, rate: int = 24_000) -> bytes:
     return header + pcm
 
 
-def test_normalise_wav_rewrites_a_placeholder_header_into_a_valid_wav():
+def test_normalize_wav_rewrites_a_placeholder_header_into_a_valid_wav():
     import io
     import wave
 
-    fixed = clip_render.normalise_wav(_streaming_wav(480))
+    fixed = clip_render.normalize_wav(_streaming_wav(480))
     with wave.open(io.BytesIO(fixed)) as w:
         assert (w.getnchannels(), w.getsampwidth(), w.getframerate()) == (1, 2, 24_000)
         assert w.getnframes() == 480
 
 
-def test_normalise_wav_rejects_non_16_bit_audio():
+def test_normalize_wav_rejects_non_16_bit_audio():
     bad = bytearray(_streaming_wav())
     bad[34:36] = struct.pack("<H", 24)
     with pytest.raises(ValueError, match="16"):
-        clip_render.normalise_wav(bytes(bad))
+        clip_render.normalize_wav(bytes(bad))
 
 
 def test_render_all_writes_every_clip_and_stamps_the_manifest(tmp_path):

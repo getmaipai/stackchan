@@ -14,7 +14,7 @@ Options live in `firmware.toml`: board, language packs, face packs, features com
 
 ## Reproducible
 
-The same inputs give the same image hash. The build prints the patch list, pinned commits and licence list.
+The same inputs give the same image hash. The build prints the patch list, pinned commits and license list.
 `verify` compares a downloaded release image with a local build.
 
 ## Secret scan

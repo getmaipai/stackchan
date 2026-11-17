@@ -141,9 +141,9 @@ class SettingsBackend:
             live = self.live(device_id)
             wifi = live.get("wifi_configured")
             try:
-                colour = self.faces.config(device_id).colour
+                color = self.faces.config(device_id).color
             except face_settings.FaceError:
-                colour = "none"
+                color = "none"
             units.append(
                 {
                     "device_id": device_id,
@@ -163,7 +163,7 @@ class SettingsBackend:
                     "wait_after_talking": own.get("wait_after_talking", "quick"),
                     "firmware_version": live.get("firmware_version"),
                     "online": live.get("online"),
-                    "colour": colour,
+                    "color": color,
                 }
             )
         online = [u["device_id"] for u in units if u["online"]]
@@ -321,7 +321,7 @@ class SettingsBackend:
         if do == "beep":
             return remote.beep(device_id, values.get("sound", "success"), lang)
         if do == "flash":
-            return remote.flash(device_id, values.get("colour"), lang)
+            return remote.flash(device_id, values.get("color", values.get("colour")), lang)  # "colour": older page
         if do == "find":
             return remote.find(device_id, values.get("on"), lang)
         if do == "say":
@@ -329,7 +329,7 @@ class SettingsBackend:
         if do == "head":
             return remote.head(device_id, values.get("yaw"), values.get("pitch"), lang)
         if do == "center":
-            return remote.centre(device_id, lang)
+            return remote.center(device_id, lang)
         if do == "look":
             return remote.look_around(device_id, lang)
         if do == "nod":
@@ -394,7 +394,7 @@ class SettingsBackend:
         return {
             "people": [p.to_json() for p in self.people.all()],
             "choices": {
-                "colour": ["none", *face_settings.PALETTE],
+                "color": ["none", *face_settings.PALETTE],
                 "caption_size": list(face_settings.CAPTION_SIZES),
             },
             "limits": {"people": extras_mod.PEOPLE_MAX},

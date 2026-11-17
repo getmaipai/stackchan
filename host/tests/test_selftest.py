@@ -202,7 +202,7 @@ def test_all_seven_pass_with_good_fakes() -> None:
     assert overall_ok(results)
     looks_seen = state["looks"]
     assert looks_seen[-1] is None
-    assert [look.colour for look in looks_seen[:-1]] == [
+    assert [look.color for look in looks_seen[:-1]] == [
         Palette.WHITE,
         Palette.BLUE,
         Palette.GREEN,
@@ -219,7 +219,7 @@ def test_all_seven_pass_with_good_fakes() -> None:
         looks.LookKey.ATTENTION,
     ]
     for row, look in zip(keys, looks_seen[:-1], strict=True):
-        colour, weight, style = looks.LOOKS[row]
+        color, weight, style = looks.LOOKS[row]
         assert look.brightness == max(weight, 0.5)
         assert look.style == style
         assert look.period_s == looks.period_s(row)

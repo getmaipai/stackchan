@@ -6,7 +6,7 @@ Three independent states live on the unit and are saved in its own flash:
 * ``muted``: no listening. The unit powers the microphone chip down and reads it back
   (``mic_off_verified``); the host never says "muted" until the unit has said so.
 * ``vision_off``: the camera is not read. The host stops asking for frames, drops any that arrive,
-  analyses nothing and refuses a picture question.
+  analyzes nothing and refuses a picture question.
 * ``quiet`` (full quiet): no movement, no sound out, no listening. Vision keeps whatever it was.
 
 The unit is the authority. A person can change each from the unit's face (tap the eyes, hold the

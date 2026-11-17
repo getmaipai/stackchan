@@ -1,6 +1,6 @@
 """The Reachy Eyes serial client, clean-room (docs/dev/eyes-wire-protocol.md).
 
-Every wire string is UNVERIFIED; these tests pin the client's behaviour and
+Every wire string is UNVERIFIED; these tests pin the client's behavior and
 the byte-level ban on anything not in the documented table.
 """
 
@@ -88,9 +88,9 @@ def test_opens_exclusive_with_50ms_write_timeout_at_115200(pty, make_client):
     assert eyes_client.WRITE_TIMEOUT_S == 0.05
 
 
-def test_colour_and_brightness_bytes(pty, make_client):
+def test_color_and_brightness_bytes(pty, make_client):
     client = make_client(pty.path)
-    client.set_look(Look(colour=Palette.CYAN, brightness=0.5))
+    client.set_look(Look(color=Palette.CYAN, brightness=0.5))
     assert wait_until(lambda: "INTENSITY 50" in pty.lines())
     assert pty.lines() == ["CYAN", "INTENSITY 50"]
 
@@ -119,7 +119,7 @@ def test_unknown_pulse_is_a_value_error_even_when_absent(make_client):
 
 def test_absent_device_never_raises_and_reports_disconnected(make_client):
     client = make_client(None)
-    client.set_look(Look(colour=Palette.GREEN))
+    client.set_look(Look(color=Palette.GREEN))
     client.pulse("blink")
     client.off()
     assert client.spec().connected is False
@@ -131,8 +131,8 @@ def test_latest_look_wins_while_disconnected(pty):
     client = EyesClient(lambda: path["v"], base_backoff_s=0.02, max_backoff_s=0.08)
     client.start()
     try:
-        for colour in (Palette.GREEN, Palette.BLUE, Palette.AMBER, Palette.WHITE, Palette.MAGENTA):
-            client.set_look(Look(colour=colour, brightness=1.0))
+        for color in (Palette.GREEN, Palette.BLUE, Palette.AMBER, Palette.WHITE, Palette.MAGENTA):
+            client.set_look(Look(color=color, brightness=1.0))
         path["v"] = pty.path
         assert wait_until(lambda: "INTENSITY 100" in pty.lines())
         assert pty.lines() == ["MAGENTA", "INTENSITY 100"]
@@ -142,10 +142,10 @@ def test_latest_look_wins_while_disconnected(pty):
 
 def test_reconnect_replays_the_look_after_a_lost_port(pty, make_client):
     client = make_client(pty.path)
-    client.set_look(Look(colour=Palette.AMBER, brightness=0.25))
+    client.set_look(Look(color=Palette.AMBER, brightness=0.25))
     assert wait_until(lambda: len(pty.lines()) == 2)
     client._port.close()  # the cable is pulled under the writer
-    client.set_look(Look(colour=Palette.BLUE, brightness=0.25))
+    client.set_look(Look(color=Palette.BLUE, brightness=0.25))
     assert wait_until(lambda: "BLUE" in pty.lines())
     assert wait_until(lambda: client.connected)
     assert pty.lines()[-2:] == ["BLUE", "INTENSITY 25"]
@@ -168,7 +168,7 @@ def test_write_timeout_drops_the_port_and_recovers(pty, make_client):
             return real.write(data)
 
     client._port = Stalled()
-    client.set_look(Look(colour=Palette.GREEN))
+    client.set_look(Look(color=Palette.GREEN))
     assert wait_until(lambda: "GREEN" in pty.lines())
     assert state["failed"] == 1
 
@@ -177,7 +177,7 @@ def test_a_second_client_cannot_open_the_same_port(pty, make_client):
     first = make_client(pty.path)
     assert wait_until(lambda: first.connected)
     second = make_client(pty.path)
-    second.set_look(Look(colour=Palette.WHITE))
+    second.set_look(Look(color=Palette.WHITE))
     assert not wait_until(lambda: second.connected, timeout_s=0.3)
     assert second.spec().connected is False
 
@@ -203,8 +203,8 @@ def test_replies_are_drained_not_parsed(pty, make_client):
 
 def test_only_table_commands_are_ever_written(pty, make_client):
     client = make_client(pty.path)
-    for colour in Palette:
-        client.set_look(Look(colour=colour, brightness=0.7))
+    for color in Palette:
+        client.set_look(Look(color=color, brightness=0.7))
         client.pulse("blink")
         client.pulse("ack")
     client.set_blinking(True)
@@ -232,8 +232,8 @@ def test_the_table_has_no_banned_word_and_no_red():
     table = repr(DEFAULT_PROTOCOL)
     for word in BANNED:
         assert word not in table, word
-    assert all(is_documented_wire_line(colour) for colour in DEFAULT_PROTOCOL.colours.values())
-    assert set(DEFAULT_PROTOCOL.colours) == set(Palette) - {Palette.OFF}
+    assert all(is_documented_wire_line(color) for color in DEFAULT_PROTOCOL.colors.values())
+    assert set(DEFAULT_PROTOCOL.colors) == set(Palette) - {Palette.OFF}
 
 
 def test_no_vendor_package_constants_or_imports():

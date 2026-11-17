@@ -14,7 +14,7 @@ device asset manifest. Copy the stamped manifest over
     uv run python scripts/render_offline_clips.py verify --out build/clips
 
 Listen to every clip before installing the bundle through Home. The
-voice licence (CC-BY-4.0, credit line in the manifest) was checked on
+voice license (CC-BY-4.0, credit line in the manifest) was checked on
 2026-11-13 and is recorded in NOTICE; fill ``voice.name`` with the voice
 actually used.
 """
@@ -79,11 +79,11 @@ def main(argv: list[str] | None = None) -> int:
             voice=offline_clips.Voice(
                 engine="pocket-tts-english",
                 name=voice_id,
-                licence="CC-BY-4.0",
+                license="CC-BY-4.0",
                 credit=(
                     f"Voice {voice_id} generated with pocket-tts-english, licensed under CC-BY-4.0."
                 ),
-                licence_checked=True,  # checked 2026-11-13 against the Stack's catalog; see NOTICE
+                license_checked=True,  # checked 2026-11-13 against the Stack's catalog; see NOTICE
             ),
         )
         stamped = clip_render.render_all(

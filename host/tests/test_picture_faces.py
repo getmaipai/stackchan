@@ -138,7 +138,7 @@ def test_the_audio_tap_is_one_atomic_read_when_nobody_speaks() -> None:
     assert "new " not in tap and "malloc" not in tap
 
 
-# ---- pictures: resize, colour, compression ---------------------------------------------------------------
+# ---- pictures: resize, color, compression ---------------------------------------------------------------
 
 
 def _solid(width: int, height: int, rgba: tuple[int, int, int, int]) -> bytes:

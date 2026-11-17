@@ -57,7 +57,7 @@ On the settings page, one section per unit: choose a style, then a picture for e
 | Style | What shows | Per expression |
 |---|---|---|
 | Picture only | the picture | one picture |
-| Picture with eyes and mouth drawn on top | the picture, with two eyes and a mouth drawn over it that blink, drift and follow the voice. The owner sets where they go (ten numbers and a colour) | one picture, ideally without eyes and mouth |
+| Picture with eyes and mouth drawn on top | the picture, with two eyes and a mouth drawn over it that blink, drift and follow the voice. The owner sets where they go (ten numbers and a color) | one picture, ideally without eyes and mouth |
 | A short run of frames | the frames in a loop at 1 to 12 a second | up to 6 frames |
 
 Rules the owner meets, in the unit's plain words (English and Spanish, every one says what to do): a pack holds at most 14 frames and 1,000,000 bytes after compression; a neutral picture is required; the speaking picture shows while the unit speaks; an expression with no picture shows the neutral one. Pictures that would not fit are refused on the host before anything is sent, with the same sentence the unit would give.
@@ -136,14 +136,14 @@ Driven over the serial tool path (`@tool ...` on the cable); every reply read; e
 ![Four frames of a sequence of the neutral look, each a little higher or lower.](../images/picture-faces-sequence.png)
 - A privacy look wins: with the unit muted (its saved state) the pack was held and nothing was drawn over the mute look. Only the bench tool can show a picture on a muted unit.
 - Cross-fade: about 5 full-screen flushes per change, so about 20 frames a second during the 240 ms fade; a sequence at 6 frames a second flushes exactly 6 full screens a second; idle with a still picture flushes nothing. The first bench figure for the decode time (7,178 ms at most) was the wait for an upload that held the mutex, counted by mistake; the decode itself is 33 to 44 ms, and the timer now starts after the wait.
-- On a PC: `host/tests/firmware/facefx_core_test.c` and `picface_core_test.c` run under address and undefined-behaviour sanitizers (limits, every refusal in two languages, slot choice, fade curve, cache eviction, overlay sizes, CRC against the standard check value, easing never overshoots, the drift stays in range). `host/tests/test_picture_faces.py` (36 tests) covers the host: resize and colour, the store, the pack rules against the firmware's numbers, the service against a stand-in unit that follows the protocol byte for byte (reassembly, CRC, refusals, offline, reconnect, old firmware), the page routes and the six-language words.
+- On a PC: `host/tests/firmware/facefx_core_test.c` and `picface_core_test.c` run under address and undefined-behavior sanitizers (limits, every refusal in two languages, slot choice, fade curve, cache eviction, overlay sizes, CRC against the standard check value, easing never overshoots, the drift stays in range). `host/tests/test_picture_faces.py` (36 tests) covers the host: resize and color, the store, the pack rules against the firmware's numbers, the service against a stand-in unit that follows the protocol byte for byte (reassembly, CRC, refusals, offline, reconnect, old firmware), the page routes and the six-language words.
 - The settings page, opened in a browser against a stand-in unit: two pictures chosen through the page's own file input, thumbnails shown, Send to the unit answered "The pictures are on the unit.", the style switched to overlay, the ten numbers saved, an invalid width refused with the plain sentence; the Spanish page reads Spanish.
 
 ## Not verified
 
 - **The paired link.** The host module sends the same calls through `voice.call_device_tool` (wired in `app.py` with a connect-time `sync`), but every picture on the unit here went over the USB cable. A 2,732 character tool call over the websocket link, and its timing, were not tried. If the link limits a message to less than that, lower `CHUNK_BYTES` in `picture_faces.py`.
 - **A real photograph through the page on a real phone.** The page was driven with generated canvases in a desktop browser; `createImageBitmap` on a camera photo (rotation, HEIC) was not tried.
-- **The real screen.** Nobody looked at the unit's glass: the pictures are LVGL's own render of what it sends, so colour balance on the panel, the 20 ms refresh looking smooth to a person, and the cross-fade looking good are unjudged.
+- **The real screen.** Nobody looked at the unit's glass: the pictures are LVGL's own render of what it sends, so color balance on the panel, the 20 ms refresh looking smooth to a person, and the cross-fade looking good are unjudged.
 - **A real voice.** The mouth followed a made-up level. The loudness tap was run only through that path; a spoken turn (muted unit, no host) was not.
 - **A packed pack.** Real photographs compress worse than the flat cartoons used here; the byte budget of 1,000,000 may fit fewer than seven photographs. The unit and the host refuse a pack that is too big with a sentence, tested with noise, but a photograph set was not tried.
 - **Other languages.** The settings page words in French, German, Portuguese and Italian are written for this item and not checked by a speaker.
@@ -153,7 +153,7 @@ Driven over the serial tool path (`@tool ...` on the cable); every reply read; e
 
 1. **Keep the pack across a restart.** The assets partition has about 1.7 MB left after the app assets, which will shrink or grow with the stop word model decision, so it is not used. A small dedicated partition (about 1.2 MB) or the tail of the assets partition once the layout is settled would let the pack survive a restart and a Wi-Fi outage. Decide with the partition plan.
 2. **Faster full-screen flush.** A full-screen frame costs 26 to 35 ms, which caps cross-fades and sequences near 30 frames a second. The display bus clock and a double draw buffer are the levers; neither was touched.
-3. **Per person pictures.** The people list has a face colour and caption size per person. A picture pack per person is a small step (the store is already keyed by a name) and was not built.
+3. **Per person pictures.** The people list has a face color and caption size per person. A picture pack per person is a small step (the store is already keyed by a name) and was not built.
 
 ## Checks run
 

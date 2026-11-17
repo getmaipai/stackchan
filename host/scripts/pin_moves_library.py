@@ -6,10 +6,10 @@ Usage (from ``body/``, on the dev Mac, needs network to huggingface.co)::
 
 Resolves each dataset's current commit, downloads every ``*.json`` move
 and ``metadata.jsonl`` at that exact revision, and records the revision,
-the licence the dataset card states, each playable file's sha256, the
+the license the dataset card states, each playable file's sha256, the
 clip index and the clips excluded for leaving the Reachy Mini envelope
 (reported, never clipped). Refuses a library whose card states no
-Apache-2.0 licence. Only motion JSON is read (no Opus sidecars, no code
+Apache-2.0 license. Only motion JSON is read (no Opus sidecars, no code
 repository). The pins go into the optional moves package's manifest in
 the catalog; review the diff before committing. Nothing downloaded is
 kept: only names, checksums and descriptions are written.
@@ -42,7 +42,7 @@ def pin_library(library: str, repo: str) -> dict:
         (tag.split(":", 1)[1] for tag in body.get("tags", []) if tag.startswith("license:")), ""
     )
     if license_id.lower() != "apache-2.0":
-        sys.exit(f"{repo}: card states licence {license_id!r}, not apache-2.0; not pinned")
+        sys.exit(f"{repo}: card states license {license_id!r}, not apache-2.0; not pinned")
     base = f"https://huggingface.co/datasets/{repo}/resolve/{revision}"
     blobs: dict[str, bytes] = {}
     metadata = ""

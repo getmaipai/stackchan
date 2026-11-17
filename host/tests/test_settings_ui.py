@@ -74,18 +74,18 @@ def test_the_script_parses_in_every_language() -> None:
 
 def test_the_page_has_the_eight_groups_and_no_outside_address() -> None:
     page = render_page("en").decode()
-    for group in ("home", "remote", "look", "voice", "network", "behaviour", "play", "system"):
+    for group in ("home", "remote", "look", "voice", "network", "behavior", "play", "system"):
         assert f"BUILDERS.{group}" in page
     assert "prefers-color-scheme" in page and "var(--accent)" in page
     assert not re.search(r"(src|href)=['\"]https?://", page)
     assert "fetch('http" not in page
 
 
-def test_the_unit_list_carries_each_units_colour(sim) -> None:
+def test_the_unit_list_carries_each_units_color(sim) -> None:
     backend, _ = sim
-    backend.faces.update(KITCHEN, {"colour": "mint"})
-    colours = {u["device_id"]: u["colour"] for u in backend.state()["units"]}
-    assert colours == {KITCHEN: "mint", DEN: "none"}
+    backend.faces.update(KITCHEN, {"color": "mint"})
+    colors = {u["device_id"]: u["color"] for u in backend.state()["units"]}
+    assert colors == {KITCHEN: "mint", DEN: "none"}
 
 
 def test_volume_brightness_led_idle_motion_save_send_and_read_back(sim) -> None:
@@ -107,7 +107,7 @@ def test_volume_brightness_led_idle_motion_save_send_and_read_back(sim) -> None:
 
 def test_bad_values_are_refused_in_plain_words_and_change_nothing(sim) -> None:
     backend, units = sim
-    for body in ({"volume": 101}, {"brightness": 5}, {"led": "red"}, {"idle_motion": "yes"}, {"volume": 1, "led": "off"}, {"colour": 1}):
+    for body in ({"volume": 101}, {"brightness": 5}, {"led": "red"}, {"idle_motion": "yes"}, {"volume": 1, "led": "off"}, {"color": 1}):
         status, payload = _post(backend, KITCHEN, "device", body)
         assert status == 400 and "try again" in payload["error"].lower() or "range" in payload["error"], body
     assert units[KITCHEN].device == {}
@@ -238,7 +238,7 @@ def test_remote_refuses_bad_input_and_offline_units_in_plain_words(sim) -> None:
     assert _get(backend, DEN, "remote")[1]["reachable"] is False
 
 
-def test_find_my_robot_runs_until_stopped_and_leaves_the_unit_centred(sim) -> None:
+def test_find_my_robot_runs_until_stopped_and_leaves_the_unit_centered(sim) -> None:
     import time
 
     backend, units = sim
@@ -267,7 +267,7 @@ def test_without_a_camera_the_photo_button_says_so(tmp_path: Path) -> None:
     assert status == 400 and "camera build" in payload["error"]
 
 
-def test_the_about_card_has_version_licence_and_links(sim) -> None:
+def test_the_about_card_has_version_license_and_links(sim) -> None:
     backend, _ = sim
     assert "host_version" in backend.state()
     assert "GNU AGPL-3.0" in settings_ui.JS and "github.com/getmaipai/stackchan" in settings_ui.JS
@@ -276,7 +276,7 @@ def test_the_about_card_has_version_licence_and_links(sim) -> None:
 def test_every_other_section_reads_and_writes_through_the_stand_in(sim) -> None:
     backend, units = sim
     status, payload = backend.route_post(
-        f"/api/stackchan/faces/{KITCHEN}", {"style": "stock", "colour": "sky", "captions": True, "caption_size": "large"}, True
+        f"/api/stackchan/faces/{KITCHEN}", {"style": "stock", "color": "sky", "captions": True, "caption_size": "large"}, True
     )
     assert status == 200 and units[KITCHEN].face["style"] == "stock"
     assert _get(backend, KITCHEN, "reactions")[1]["builtin"] is True
@@ -287,7 +287,7 @@ def test_every_other_section_reads_and_writes_through_the_stand_in(sim) -> None:
     assert _post(backend, KITCHEN, "clock", {"zone": "america_chicago"})[0] == 200
     assert _get(backend, KITCHEN, "clock")[1]["zone"] == "america_chicago"
     assert _post(backend, KITCHEN, "network-test", {})[1]["steps"]
-    assert _get(backend, KITCHEN, "games")[1]["lines"][0].startswith("Colour Memory")
+    assert _get(backend, KITCHEN, "games")[1]["lines"][0].startswith("Color Memory")
     backend.save(KITCHEN, {"speech_speed": 1.2, "speech_pitch": -2, "volume_cap": 40, "name": "Kitchen A"})
     unit = backend.state()["units"][0]
     assert (unit["speech_speed"], unit["speech_pitch"], unit["volume_cap"], unit["name"]) == (1.2, -2, 40, "Kitchen A")

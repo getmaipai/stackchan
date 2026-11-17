@@ -74,7 +74,7 @@ const bad = [];
 const cmp = (id, a, b) => {
   if (a.length !== b.length) { bad.push(id + ': count ' + a.length + ' vs ' + b.length); return; }
   for (let i = 0; i < a.length; i++) {
-    if (a[i][0] !== b[i][0] || a[i][1] !== b[i][1]) { bad.push(id + ': shape ' + i + ' kind/colour ' + a[i].slice(0, 2) + ' vs ' + b[i].slice(0, 2)); return; }
+    if (a[i][0] !== b[i][0] || a[i][1] !== b[i][1]) { bad.push(id + ': shape ' + i + ' kind/color ' + a[i].slice(0, 2) + ' vs ' + b[i].slice(0, 2)); return; }
     if (Math.abs(a[i][2] - b[i][2]) > 1) { bad.push(id + ': shape ' + i + ' opacity ' + a[i][2] + ' vs ' + b[i][2]); return; }
     for (let k = 3; k < 11; k++) if (Math.abs(a[i][k] - b[i][k]) > 0.02) { bad.push(id + ': shape ' + i + ' value ' + (k - 3) + ': ' + a[i][k] + ' vs ' + b[i][k]); return; }
   }

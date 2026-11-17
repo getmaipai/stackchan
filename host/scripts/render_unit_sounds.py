@@ -219,7 +219,7 @@ def encode_ogg(
         )
 
 
-def normalise(samples: np.ndarray) -> np.ndarray:
+def normalize(samples: np.ndarray) -> np.ndarray:
     peak = float(np.max(np.abs(samples)))
     return samples * (PEAK / peak) if peak > 0 else samples
 
@@ -228,7 +228,7 @@ def render(out_dir: Path, ffmpeg: str) -> dict[str, dict[str, object]]:
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, dict[str, object]] = {}
     for name, make in EARCONS.items():
-        samples = normalise(make())
+        samples = normalize(make())
         path = out_dir / f"snd_{name}.ogg"
         encode_ogg(samples, path, ffmpeg)
         data = path.read_bytes()

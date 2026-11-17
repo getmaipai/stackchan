@@ -45,7 +45,7 @@ logger = logging.getLogger("maipai_body.bodies.reachy_mini.motors")
 # move and can latch a servo.
 WAKE_QUIET_S = 2.2
 # The XL330 servos run on 6 to 7 V; the charger lifts the bus above 7.0 V and the
-# firmware's behaviour there is unmeasured (M-R4), so no motion until it is cleared.
+# firmware's behavior there is unmeasured (M-R4), so no motion until it is cleared.
 BUS_VOLTAGE_REFUSE_V = 7.0
 # How long a passed enabled or voltage check is trusted, so a 50 Hz stream is not a
 # REST call per target.

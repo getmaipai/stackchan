@@ -7,7 +7,7 @@ deterministic trajectory test on a manual clock.
 
 Every number is a design default, UNMEASURED until the unit rows in
 ``docs/dev/measure-runbook.md`` replace them. Frame convention, also
-UNVERIFIED on hardware: ``x`` and ``y`` are centred in [-1, 1] (frame
+UNVERIFIED on hardware: ``x`` and ``y`` are centered in [-1, 1] (frame
 width and height both 2.0), positive x to the right of the image,
 positive y down. Yaw is positive to the robot's left, pitch positive down.
 
@@ -56,7 +56,7 @@ LOOK_AROUND_HEAD_LEAD_RAD = 0.6
 
 @dataclass(frozen=True)
 class FaceSample:
-    """One face detection: centred frame coordinates and when it was seen."""
+    """One face detection: centered frame coordinates and when it was seen."""
 
     x: float
     y: float

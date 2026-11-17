@@ -195,7 +195,7 @@ def test_stop_cuts_playback_and_holds_the_head():
 
 
 def test_the_funnel_never_leaves_idle_during_an_outage_except_for_a_command():
-    # an unrecognised phrase: the funnel never moves at all
+    # an unrecognized phrase: the funnel never moves at all
     offline, *_ = _rungs(phrases=["tell me a joke", "stop the music please"])
     offline.machine.link_lost("x")
     loop, parts = _make_loop(

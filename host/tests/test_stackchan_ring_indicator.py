@@ -1,6 +1,6 @@
 """The StackChan ring indicator: the Indicator the 12-pixel ring answers.
 
-Covers docs/dev/led-standard-2026-10-20.md: one colour per whole-ring
+Covers docs/dev/led-standard-2026-10-20.md: one color per whole-ring
 write, styles driven by the host timer through ``tick()``, the pulse
 flash, and the contract that a failing ``write`` is logged, never raised.
 """
@@ -43,7 +43,7 @@ def make(clock: FakeClock | None = None) -> tuple[StackChanRingIndicator, Record
     return StackChanRingIndicator(recorder, clock=clock), recorder, clock
 
 
-_STEADY = Look(colour=Palette.WHITE, brightness=1.0, style=LookStyle.STEADY, period_s=0.0)
+_STEADY = Look(color=Palette.WHITE, brightness=1.0, style=LookStyle.STEADY, period_s=0.0)
 
 
 def test_spec_declares_the_palette_without_off_and_is_connected():
@@ -51,8 +51,8 @@ def test_spec_declares_the_palette_without_off_and_is_connected():
     spec = indicator.spec()
     assert spec.connected is True
     assert Palette.OFF not in spec.palette
-    assert spec.palette == [colour for colour in Palette if colour is not Palette.OFF]
-    assert all("red" not in colour.value for colour in spec.palette)
+    assert spec.palette == [color for color in Palette if color is not Palette.OFF]
+    assert all("red" not in color.value for color in spec.palette)
     assert spec.pulses == ["blink", "ack"]
     assert isinstance(indicator, Indicator)
 
@@ -69,7 +69,7 @@ def test_steady_look_writes_once_and_ticks_write_nothing():
 
 def test_setting_the_same_look_twice_does_not_restart_the_style_clock():
     indicator, recorder, clock = make()
-    look = Look(colour=Palette.WHITE, brightness=1.0, style=LookStyle.BREATHE, period_s=2.0)
+    look = Look(color=Palette.WHITE, brightness=1.0, style=LookStyle.BREATHE, period_s=2.0)
     indicator.set_look(look)
     clock.advance(1.0)
     indicator.set_look(look)
@@ -79,9 +79,9 @@ def test_setting_the_same_look_twice_does_not_restart_the_style_clock():
     assert recorder.writes[-1] == ring_rgb(look, 2.0, 2.0)
 
 
-def test_breathe_look_writes_changing_colours_within_channel_max():
+def test_breathe_look_writes_changing_colors_within_channel_max():
     indicator, recorder, clock = make()
-    look = Look(colour=Palette.WHITE, brightness=1.0, style=LookStyle.BREATHE, period_s=2.0)
+    look = Look(color=Palette.WHITE, brightness=1.0, style=LookStyle.BREATHE, period_s=2.0)
     indicator.set_look(look)
     for i in range(1, 17):
         clock.advance(0.125)
@@ -95,7 +95,7 @@ def test_breathe_look_writes_changing_colours_within_channel_max():
 
 def test_pulse_look_is_on_for_a_quarter_then_off():
     indicator, recorder, clock = make()
-    look = Look(colour=Palette.WHITE, brightness=1.0, style=LookStyle.PULSE, period_s=2.0)
+    look = Look(color=Palette.WHITE, brightness=1.0, style=LookStyle.PULSE, period_s=2.0)
     on = ring_rgb(look, 2.0, 0.1)
     assert on != (0, 0, 0)
     indicator.set_look(look)
@@ -112,7 +112,7 @@ def test_pulse_look_is_on_for_a_quarter_then_off():
 
 def test_flash_look_matches_the_style_factor_timeline():
     indicator, recorder, clock = make()
-    look = Look(colour=Palette.PINK, brightness=1.0, style=LookStyle.FLASH, period_s=0.5)
+    look = Look(color=Palette.PINK, brightness=1.0, style=LookStyle.FLASH, period_s=0.5)
     on = ring_rgb(look, 0.5, 0.05)
     assert on != (0, 0, 0)
     indicator.set_look(look)
@@ -129,7 +129,7 @@ def test_pulse_flashes_then_the_look_returns_after_point_fifteen_s():
     indicator, recorder, clock = make()
     indicator.set_look(_STEADY)
     base = recorder.writes[0]
-    flash = ring_rgb(Look(colour=Palette.WHITE, brightness=0.5), 0.0, 0.0)
+    flash = ring_rgb(Look(color=Palette.WHITE, brightness=0.5), 0.0, 0.0)
     assert flash != base
     indicator.pulse("ack")
     assert recorder.writes[-1] == flash
@@ -169,7 +169,7 @@ def test_a_raising_write_never_propagates_and_logs_at_most_once_a_second(caplog)
         raise RuntimeError("the ring is gone")
 
     indicator = StackChanRingIndicator(boom, clock=clock)
-    look = Look(colour=Palette.WHITE, brightness=1.0, style=LookStyle.BREATHE, period_s=2.0)
+    look = Look(color=Palette.WHITE, brightness=1.0, style=LookStyle.BREATHE, period_s=2.0)
     with caplog.at_level("WARNING", logger="maipai_body.bodies.stackchan.ring_indicator"):
         indicator.set_look(look)
         clock.advance(0.5)
@@ -186,8 +186,8 @@ def test_a_raising_write_never_propagates_and_logs_at_most_once_a_second(caplog)
 def test_every_look_key_sets_a_triple_within_channel_max():
     indicator, recorder, _ = make()
     for key in LOOKS:
-        colour, weight, style = LOOKS[key]
-        look = Look(colour=colour, brightness=weight, style=style, period_s=period_s(key))
+        color, weight, style = LOOKS[key]
+        look = Look(color=color, brightness=weight, style=style, period_s=period_s(key))
         recorder.writes.clear()
         indicator.set_look(look)
         assert len(recorder.writes) == 1

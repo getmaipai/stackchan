@@ -19,11 +19,12 @@ from collections.abc import Callable
 from typing import Any
 
 from maipai_body.hal.errors import BodyLost
+from maipai_body.spelling_aliases import to_unit_keys, upgrade_keys
 from maipai_body.unit_tools import ToolProbe, dumps, is_unknown_tool, unwrap
 
 logger = logging.getLogger("maipai_body.unit_prefs")
 
-_COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
+_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 # key: (kind, allowed or range, default, applied by the unit)
 PREFS: dict[str, tuple[str, Any, Any, bool]] = {
@@ -33,10 +34,10 @@ PREFS: dict[str, tuple[str, Any, Any, bool]] = {
     "filler_wait_s": ("float", (0.2, 1.5), 0.4, False),
     "listen_sound": ("enum", ("off", "chime", "mm"), "chime", True),
     "listen_light": ("enum", ("off", "dim", "normal"), "normal", True),
-    "listen_light_colour": ("colour", None, "#40c0ff", True),
+    "listen_light_color": ("color", None, "#40c0ff", True),
     "listen_face": ("bool", None, True, True),
     "fx_crt": ("bool", None, False, True),
-    "fx_colour_mode": ("enum", ("normal", "mono", "warm", "cool"), "normal", True),
+    "fx_color_mode": ("enum", ("normal", "mono", "warm", "cool"), "normal", True),
     "fx_night_dim": ("bool", None, False, True),
     "fx_glow": ("bool", None, False, True),
     "speech_bubble": ("bool", None, False, True),
@@ -77,9 +78,9 @@ def say(lang: str | None, code: str) -> str:
 
 
 def clean(values: dict[str, Any], error: type[Exception]) -> dict[str, Any]:
-    """The known keys of ``values`` checked and normalised; ``error`` is raised with a plain message."""
+    """The known keys of ``values`` checked and normalized; ``error`` is raised with a plain message."""
     out: dict[str, Any] = {}
-    for key, value in values.items():
+    for key, value in upgrade_keys(values).items():  # an older page or file may send the old spelling
         spec = PREFS.get(key)
         if spec is None:
             continue
@@ -96,9 +97,9 @@ def clean(values: dict[str, Any], error: type[Exception]) -> dict[str, Any]:
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
                 raise error(f"{label} must be a number from {low} to {high}. Pick a number in that range.")
             value = round(float(value), 2)
-        elif kind == "colour":
-            if not (isinstance(value, str) and _COLOUR.match(value)):
-                raise error("The light colour must be a code like #40c0ff. Pick a colour and save again.")
+        elif kind == "color":
+            if not (isinstance(value, str) and _COLOR.match(value)):
+                raise error("The light color must be a code like #40c0ff. Pick a color and save again.")
             value = value.lower()
         out[key] = value
     return out
@@ -106,6 +107,7 @@ def clean(values: dict[str, Any], error: type[Exception]) -> dict[str, Any]:
 
 def prefs_of(saved: dict[str, Any]) -> dict[str, Any]:
     """Every pref with its saved value or its default."""
+    saved = upgrade_keys(saved)
     return {k: saved.get(k, d) for k, d in DEFAULTS.items()}
 
 
@@ -133,7 +135,7 @@ class PrefsService:
 
     def save(self, device_id: str, values: dict[str, Any], lang: str | None = None) -> dict[str, Any]:
         merged = self._put(device_id, values)
-        mine = [k for k in UNIT_KEYS if k in values]
+        mine = [k for k in UNIT_KEYS if k in upgrade_keys(values)]
         if not mine:
             return {"ok": True, "pushed": None, "message": ""}
         return self._send(device_id, merged, lang, mine)
@@ -143,7 +145,8 @@ class PrefsService:
 
         A key the person never touched is left off the call: the unit keeps its own default for it (the speech bubble
         follows the Stock style until a person chooses), so sending the host's default would overwrite that choice."""
-        chosen = [k for k in (keys if keys is not None else UNIT_KEYS) if k in saved]
+        saved = upgrade_keys(saved)
+        chosen = [k for k in (upgrade_keys(dict.fromkeys(keys)) if keys is not None else UNIT_KEYS) if k in saved]
         if not chosen:
             return {"ok": True, "pushed": None, "message": ""}
         have = self.probe.has(device_id, "prefs")
@@ -151,7 +154,7 @@ class PrefsService:
             return {"ok": True, "pushed": False, "pending": False, "message": say(lang, "kept")}
         if have is False:
             return {"ok": True, "pushed": False, "pending": True, "message": say(lang, "soon")}
-        payload = {k: saved[k] for k in chosen}
+        payload = to_unit_keys({k: saved[k] for k in chosen})  # the unit's own key spelling
         try:
             reply = unwrap(self.probe.call(device_id, "self.prefs.set", {"json": dumps(payload)}))
         except (BodyLost, OSError, TimeoutError):

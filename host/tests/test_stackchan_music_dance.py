@@ -76,7 +76,7 @@ class World:
             request_dance=self._request_dance,
             stop_dance=self._stop_dance,
             dance_running=lambda: self.dancing,
-            nod=lambda face, cancelled: self.calls.append((self.t, "nod", face)),
+            nod=lambda face, canceled: self.calls.append((self.t, "nod", face)),
             restore_face=lambda: self.calls.append((self.t, "restore_face", None)),
             situation=lambda: self.sit,
             stop_bob=lambda: self.calls.append((self.t, "stop_bob", None)),
@@ -807,7 +807,7 @@ def _wire(behavior, *, battery=90, night=False):
         behavior=behavior,
         runner=runner,
         move_head=lambda yaw, pitch, speed: moves.append((yaw, pitch, speed)),
-        centre_pitch=5,
+        center_pitch=5,
         speed=120,
         clock=lambda: clock["t"],
         start_ticker=False,
@@ -956,7 +956,7 @@ def _switch(unit: _Unit, state: dict, clock: list[float]):
     )
 
 
-def test_the_unit_analyses_music_only_while_the_setting_is_on_and_it_is_not_silenced():
+def test_the_unit_analyzes_music_only_while_the_setting_is_on_and_it_is_not_silenced():
     unit, state, clock = _Unit(), {"auto": False, "silenced": False}, [0.0]
     switch = _switch(unit, state, clock)
     switch.on_session()  # connect with the setting off: the unit is told off

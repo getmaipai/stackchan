@@ -2,7 +2,7 @@
 
 Every number here is an UNMEASURED design default (the module docstrings
 in ``speech/music.py`` and ``presence/auto_dance.py`` say the same); this
-suite pins the *shape* of the behaviour, not the thresholds' tuning, so a
+suite pins the *shape* of the behavior, not the thresholds' tuning, so a
 future measurement pass can move the constants without rewriting the
 tests. Policy times are kept on a 0.5 s grid where an exact boundary
 matters, so no assertion depends on float rounding.

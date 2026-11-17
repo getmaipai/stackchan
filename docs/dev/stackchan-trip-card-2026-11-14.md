@@ -40,7 +40,7 @@ and repeat for the second. At the friend's house you can also do this there: the
 - **Tailscale red:** open Tailscale in the menu bar, sign in, turn it on. The relay keeps trying.
 - **The Studio red:** the laptop cannot reach your home hub. Check Tailscale here; check the Studio shows online in the Tailscale app on your phone.
   If the Studio is off at home, nothing helps until it is on.
-- **Robot grey or red:** the robot is not connected. Wait a minute; check it joined the `maipai` network; if not, "If something is wrong" below.
+- **Robot gray or red:** the robot is not connected. Wait a minute; check it joined the `maipai` network; if not, "If something is wrong" below.
 - **All green:** the robot is connected through your laptop. Leave the window open.
 
 The relay also sends a Mac notification when the robot connects or is lost, when the Studio cannot be reached, and when Tailscale or Internet Sharing is off.

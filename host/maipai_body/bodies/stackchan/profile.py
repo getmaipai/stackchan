@@ -44,13 +44,13 @@ LED_CHANNEL_MAX = 168
 # "Neutral position is pitch 0" and "90 is up", and the firmware itself returns to pitch 0 as its
 # default pose. The middle of the 5..85 profile range (45) is therefore 45 degrees UP, which is
 # why the head always looked at the ceiling. If 5 does not look level by eye, change this number.
-CENTRE_PITCH_DEG = 5
+CENTER_PITCH_DEG = 5
 # The head's travel, the one place the numbers live (the axes below use them, and so does anything
 # that adds up commanded poses: a pose past these is clamped by the Robot, so a sum that keeps
 # growing no longer matches where the head is, live log 2026-11-13 09:05: a follow reached 252).
 HEAD_YAW_LIMIT_DEG = 128
 HEAD_PITCH_MAX_DEG = 85
-HEAD_PITCH_UP_LIMIT_DEG = HEAD_PITCH_MAX_DEG - CENTRE_PITCH_DEG  # degrees up from level
+HEAD_PITCH_UP_LIMIT_DEG = HEAD_PITCH_MAX_DEG - CENTER_PITCH_DEG  # degrees up from level
 # How many degrees the camera sees side to side and top to bottom: a face at an edge is half
 # of it away. Measured on the unit 2026-11-12 22:12 (a swing of yaw 0, +60, 0, -60 with the head
 # tilted up 50, eight seconds a pose, a frame kept at every look): 60 degrees of yaw moved the

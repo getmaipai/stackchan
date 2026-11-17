@@ -87,7 +87,7 @@
  "shapes": [
   {
    "type": "fill",
-   "colour": "#000000"
+   "color": "#000000"
   },
   {
    "type": "box",
@@ -96,7 +96,7 @@
    "w": 138,
    "h": 94,
    "radius": 12,
-   "colour": "#7a1f1f",
+   "color": "#7a1f1f",
    "states": [
     "show",
     "gap",
@@ -112,7 +112,7 @@
    "w": 138,
    "h": 94,
    "radius": 12,
-   "colour": "#1f6a2a",
+   "color": "#1f6a2a",
    "states": [
     "show",
     "gap",
@@ -128,7 +128,7 @@
    "w": 138,
    "h": 94,
    "radius": 12,
-   "colour": "#1f3a7a",
+   "color": "#1f3a7a",
    "states": [
     "show",
     "gap",
@@ -144,7 +144,7 @@
    "w": 138,
    "h": 94,
    "radius": 12,
-   "colour": "#7a6a1f",
+   "color": "#7a6a1f",
    "states": [
     "show",
     "gap",
@@ -160,7 +160,7 @@
    "w": 138,
    "h": 94,
    "radius": 12,
-   "colour": "#ff4545",
+   "color": "#ff4545",
    "states": [
     "show",
     "gap",
@@ -180,7 +180,7 @@
    "w": 138,
    "h": 94,
    "radius": 12,
-   "colour": "#45ff5a",
+   "color": "#45ff5a",
    "states": [
     "show",
     "gap",
@@ -200,7 +200,7 @@
    "w": 138,
    "h": 94,
    "radius": 12,
-   "colour": "#4585ff",
+   "color": "#4585ff",
    "states": [
     "show",
     "gap",
@@ -220,7 +220,7 @@
    "w": 138,
    "h": 94,
    "radius": 12,
-   "colour": "#ffe045",
+   "color": "#ffe045",
    "states": [
     "show",
     "gap",
@@ -240,7 +240,7 @@
    "y": 80,
    "w": 280,
    "size": "large",
-   "colour": "#ffffff",
+   "color": "#ffffff",
    "states": [
     "intro"
    ]
@@ -252,7 +252,7 @@
    "y": 140,
    "w": 260,
    "size": "medium",
-   "colour": "#c8c8c8",
+   "color": "#c8c8c8",
    "states": [
     "intro"
    ]
@@ -264,7 +264,7 @@
    "y": 90,
    "w": 280,
    "size": "large",
-   "colour": "#ffffff",
+   "color": "#ffffff",
    "states": [
     "over"
    ]
@@ -276,7 +276,7 @@
    "y": 140,
    "w": 280,
    "size": "large",
-   "colour": "#ffe045",
+   "color": "#ffe045",
    "states": [
     "over"
    ]
@@ -284,11 +284,11 @@
  ],
  "texts": {
   "title": {
-   "en": "Colour Memory",
+   "en": "Color Memory",
    "es": "Memoria de colores"
   },
   "hint": {
-   "en": "Watch, then tap the colours in order",
+   "en": "Watch, then tap the colors in order",
    "es": "Mira y toca los colores en orden"
   },
   "over": {

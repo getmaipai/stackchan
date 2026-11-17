@@ -128,7 +128,7 @@ def test_the_channel_sends_only_while_connected_and_dispatches_alarm_commands():
 
 
 def _manifest(*clips):
-    voice = Voice(engine="e", name="n", licence_checked=True)
+    voice = Voice(engine="e", name="n", license_checked=True)
     return Manifest(
         voice=voice,
         sample_rate=16000,

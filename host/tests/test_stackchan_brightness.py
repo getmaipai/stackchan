@@ -36,7 +36,7 @@ from maipai_body.presence.night import NIGHT_BRIGHTNESS, NightController
         ("brightness is weird", "hint", None),
     ],
 )
-def test_brightness_phrases_are_recognised(text, kind, level):
+def test_brightness_phrases_are_recognized(text, kind, level):
     command = parse_brightness_command(text)
     assert command == BrightnessCommand(kind, level)
 

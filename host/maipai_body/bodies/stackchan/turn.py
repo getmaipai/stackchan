@@ -57,7 +57,7 @@ POPUP_HOLD_S = 0.3
 # A listen the device re-opens by itself right after a reply is a follow-up: the person has this
 # long to speak before the turn ends quietly (default 5; a quiet room must not keep it listening).
 FOLLOW_UP_S = 3.5  # a follow-up with no wake word ends fast when nothing voiced arrives
-# After the unit stops speaking its own speaker echo is still in the room: without echo cancelling
+# After the unit stops speaking its own speaker echo is still in the room: without echo canceling
 # the microphone is ignored this long, so it never answers itself.
 ECHO_COOLDOWN_S = 0.9
 FOLLOW_UP_AFTER_S = 2.0
@@ -334,7 +334,7 @@ class StackChanAudioPlayback(AudioPlayback):
         with self._lock:
             return list(self._recorded)
 
-    def _cancelled(self) -> bool:
+    def _canceled(self) -> bool:
         return self._aborted.is_set() or (
             self._cancel_event is not None and self._cancel_event.is_set()
         )
@@ -345,7 +345,7 @@ class StackChanAudioPlayback(AudioPlayback):
             self._sender_future is None
             and len(self._frames) >= LEAD_FRAMES
             and getattr(self._server, "_loop", None) is not None
-            and not self._cancelled()
+            and not self._canceled()
         ):
             self._sender_future = asyncio.run_coroutine_threadsafe(
                 self._sender(), self._server._loop
@@ -361,7 +361,7 @@ class StackChanAudioPlayback(AudioPlayback):
         with self._lock:
             lead = self._frames[:LEAD_FRAMES]
             del self._frames[:LEAD_FRAMES]
-        if not lead or self._cancelled():
+        if not lead or self._canceled():
             return
         first_sentence = self._sentence_start
         self._sentence_start = False
@@ -387,7 +387,7 @@ class StackChanAudioPlayback(AudioPlayback):
         self._note_flight(sent, began)
         deadline = self._clock()
         catching_up = False
-        while not self._cancelled():
+        while not self._canceled():
             with self._lock:
                 finished = self._finished
                 waiting = len(self._frames)
@@ -446,7 +446,7 @@ class StackChanAudioPlayback(AudioPlayback):
             else:
                 catching_up = False
                 await self._async_sleep(max(0.0, deadline - now))
-            if self._cancelled():
+            if self._canceled():
                 break
             self._lateness.append(max(0.0, self._clock() - deadline))
             await self._server.send_audio(
@@ -516,7 +516,7 @@ class StackChanAudioPlayback(AudioPlayback):
         sentence's encoder tail and let the sender carry on into the next sentence."""
         with self._lock:
             self._flush_sentence_locked()
-            if self._sender_future is None and self._frames and not self._cancelled():
+            if self._sender_future is None and self._frames and not self._canceled():
                 # A short first sentence: fewer frames than the lead, so nothing has been sent yet.
                 self._sender_future = asyncio.run_coroutine_threadsafe(
                     self._sender(), self._server._loop
@@ -536,7 +536,7 @@ class StackChanAudioPlayback(AudioPlayback):
     def _finish_and_wait(self) -> None:
         with self._lock:
             self._finished = True
-            if self._sender_future is None and self._frames and not self._cancelled():
+            if self._sender_future is None and self._frames and not self._canceled():
                 # A short sentence: fewer frames than the lead, so nothing has been sent yet.
                 self._sender_future = asyncio.run_coroutine_threadsafe(
                     self._sender(), self._server._loop
@@ -884,7 +884,7 @@ class StackChanTurnBridge:
             "first_audio_ms": self._first_audio_ms,
         }
 
-    async def _recognise(self, base, cookie, capture, started_at):
+    async def _recognize(self, base, cookie, capture, started_at):
         """Speech to text, listening on while the wake patience lasts.
 
         The hub answers a short burst with no speech (a pop-up tone, a click) as ``no_speech``. If
@@ -1185,7 +1185,7 @@ class StackChanTurnBridge:
                 await asyncio.to_thread(self._offline_line, playback)
                 return
             self._current_session = session_id
-            result = await self._recognise(base, cookie, capture, started_at)
+            result = await self._recognize(base, cookie, capture, started_at)
             result = self._gate_result(result, device_id)
             self._log_uplink_level(session_id, capture)
             capture.close()  # recognition is over: stop buffering the microphone
@@ -1641,7 +1641,7 @@ class StackChanTurnBridge:
             await reader
         finally:
             if not finished:
-                cancel_event.set()  # this turn was cancelled: let the reader thread stop too
+                cancel_event.set()  # this turn was canceled: let the reader thread stop too
         if cancel_event.is_set():
             return
         reply = next((e.reply_text for e in reversed(events) if e.reply_text), None)
@@ -1855,7 +1855,7 @@ class StackChanTurnBridge:
             LOG.warning("StackChan offline line is unavailable; install the verified clip bundle")
 
     def _classify(self, result) -> str:
-        """``silence`` (end quietly), ``failed`` (apologise once) or ``speech`` (go on)."""
+        """``silence`` (end quietly), ``failed`` (apologize once) or ``speech`` (go on)."""
         text = (result.text or "").strip()
         if result.kind in {"no_speech", "timeout"}:
             return "silence"

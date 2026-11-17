@@ -148,7 +148,7 @@ class XiaozhiDeviceClient:
             )
         except NotSupported:
             self._no_face_background = True
-            LOG.info("StackChan firmware has no set_face_background tool; the face colour stays as flashed")
+            LOG.info("StackChan firmware has no set_face_background tool; the face color stays as flashed")
             return {"supported": False}
 
     def set_idle_motion(self, enabled: bool) -> object:
@@ -287,7 +287,7 @@ class XiaozhiDeviceClient:
             raise
         except concurrent.futures.CancelledError as exc:
             raise EstopEngaged(
-                "Robot command was cancelled by the software stop. Release it before retrying."
+                "Robot command was canceled by the software stop. Release it before retrying."
             ) from exc
         except RuntimeError as exc:
             message = str(exc)
@@ -1256,7 +1256,7 @@ class XiaozhiServer:
             return reply
         except concurrent.futures.CancelledError as exc:
             raise EstopEngaged(
-                "head move was cancelled by the software stop; release it before moving again"
+                "head move was canceled by the software stop; release it before moving again"
             ) from exc
         except concurrent.futures.TimeoutError as exc:
             self.watchdog.note_tool(False, socket_open=device_id in self._sessions)

@@ -19,7 +19,7 @@ Status words: BUILT, PLANNED (decided, no patch), HOME-ONLY (needs the hub), REM
 | 12 | Phone-app choreography over Bluetooth | REMOVED ON PURPOSE (Bluetooth off) | 098 |
 | 13 | Music dance | PLANNED, host code exists, unit patches not in ORDER | gap doc |
 | 14 | Head move and angle tools | BUILT, with move cap | 038 |
-| 15 | LED ring and colour tool | BUILT, no unit run | A01, C02 |
+| 15 | LED ring and color tool | BUILT, no unit run | A01, C02 |
 | 16 | Ring dark with screen | PLANNED | 050, 114 |
 | 17 | Status bar | BUILT | C01 |
 | 18 | Launcher, home button | REMOVED ON PURPOSE, swipe gestures replace them | 097, C03 |

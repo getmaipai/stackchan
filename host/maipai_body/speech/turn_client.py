@@ -156,7 +156,7 @@ class TurnClient:
     def cancel(self, turn_id: str) -> bool:
         """`POST /api/turn/{turn_id}/cancel` (G8's own barge-in call).
         Returns whether the turn was actually in flight and got
-        cancelled - `False` for a turn that already finished on its
+        canceled - `False` for a turn that already finished on its
         own is not an error, just a race the caller lost. Raises
         :class:`TurnAuthFailed`/:class:`TurnLinkLost` the same way
         :meth:`stream` does."""
@@ -172,7 +172,8 @@ class TurnClient:
                         f"{response.text[:200]}"
                     )
                 response.raise_for_status()
-                return bool(response.json().get("cancelled", False))
+                body = response.json()
+                return bool(body.get("canceled", body.get("cancelled", False)))  # the Stack says cancelled
         except (TurnLinkLost, TurnAuthFailed):
             raise
         except requests.RequestException as exc:
@@ -246,7 +247,7 @@ class TurnClient:
             )
         if kind == "error":
             state.terminal_seen = True
-            # Every error kind maps to CANCEL at the floor (a cancelled
+            # Every error kind maps to CANCEL at the floor (a canceled
             # turn, a safety refusal, a generic engine failure): the
             # audit names turn_cancelled specifically, but nothing calls
             # for a different stop-the-presentation cue per error code,

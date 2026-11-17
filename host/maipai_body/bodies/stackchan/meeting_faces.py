@@ -9,7 +9,7 @@ from collections.abc import Callable
 def face_for_meeting(kind: str) -> tuple[str, ...]:
     return {
         "arrived": ("surprised", "happy"),
-        "recognised": ("happy",),
+        "recognized": ("happy",),
         "child": ("excited",),
         "stranger": ("curious",),
         "left": ("sad",),

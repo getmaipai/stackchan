@@ -20,7 +20,7 @@ from maipai_body.speech.offline_clips import Manifest, manifest_to_json
 from maipai_body.speech.tts_playback import _WAV_HEADER_BYTES, _parse_wav_header
 
 
-def normalise_wav(streamed: bytes) -> bytes:
+def normalize_wav(streamed: bytes) -> bytes:
     """Rewrites Pocket TTS's streaming WAV (a placeholder data-chunk size
     in the header, the same quirk G7's player works around) into a
     standard WAV with true sizes, 16-bit mono."""
@@ -47,7 +47,7 @@ def render_all(manifest: Manifest, out_dir: Path, synthesize: Callable[[str], by
     stamped = []
     for clip in manifest.clips:
         path = out_dir / clip.file
-        data = normalise_wav(synthesize(clip.text))
+        data = normalize_wav(synthesize(clip.text))
         path.write_bytes(data)
         import io
         import wave

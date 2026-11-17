@@ -32,12 +32,12 @@ def test_no_red_is_representable():
         with pytest.raises(ValueError):
             Palette(spelling)
         with pytest.raises(ValidationError):
-            Look(colour=spelling)  # type: ignore[arg-type]
+            Look(color=spelling)  # type: ignore[arg-type]
     assert not hasattr(Palette, "RED")
 
 
 def test_no_palette_value_is_a_red_hue():
-    # Every colour a body may be told to show is a named member; none maps to a
+    # Every color a body may be told to show is a named member; none maps to a
     # raw RGB triple, so a red cannot ride in under another name.
     for member in Palette:
         assert isinstance(member.value, str)
@@ -45,12 +45,12 @@ def test_no_palette_value_is_a_red_hue():
 
 
 def test_a_look_accepts_a_palette_member_and_a_brightness_in_range():
-    look = Look(colour=Palette.GREEN, brightness=0.5)
-    assert look.colour is Palette.GREEN
+    look = Look(color=Palette.GREEN, brightness=0.5)
+    assert look.color is Palette.GREEN
     assert look.brightness == 0.5
     for bad in (-0.1, 1.1):
         with pytest.raises(ValidationError):
-            Look(colour=Palette.GREEN, brightness=bad)
+            Look(color=Palette.GREEN, brightness=bad)
 
 
 def test_only_blink_and_ack_pulse():
@@ -85,7 +85,7 @@ def test_the_spec_names_the_palette_and_the_pulses_the_seam_allows():
 def test_fake_eyes_records_each_call_in_order_with_the_clock_reading():
     now = [10.0]
     eyes = FakeEyes(clock=lambda: now[0])
-    eyes.set_look(Look(colour=Palette.BLUE, brightness=0.25))
+    eyes.set_look(Look(color=Palette.BLUE, brightness=0.25))
     now[0] = 10.5
     eyes.pulse("ack")
     now[0] = 11.0
@@ -95,16 +95,16 @@ def test_fake_eyes_records_each_call_in_order_with_the_clock_reading():
         ("pulse", 10.5),
         ("off", 11.0),
     ]
-    assert eyes.commands[0].look == Look(colour=Palette.BLUE, brightness=0.25)
+    assert eyes.commands[0].look == Look(color=Palette.BLUE, brightness=0.25)
     assert eyes.current_look is None  # off() clears what was showing
 
 
 def test_fake_eyes_current_look_is_the_last_one_set():
     eyes = FakeEyes()
     assert eyes.current_look is None
-    eyes.set_look(Look(colour=Palette.AMBER))
-    eyes.set_look(Look(colour=Palette.CYAN))
-    assert eyes.current_look == Look(colour=Palette.CYAN)
+    eyes.set_look(Look(color=Palette.AMBER))
+    eyes.set_look(Look(color=Palette.CYAN))
+    assert eyes.current_look == Look(color=Palette.CYAN)
 
 
 def test_fakes_satisfy_the_indicator_protocol():
@@ -115,7 +115,7 @@ def test_fakes_satisfy_the_indicator_protocol():
 def test_absent_device_never_raises():
     for eyes in (NullIndicator(), FakeEyes(connected=False)):
         assert eyes.spec().connected is False
-        eyes.set_look(Look(colour=Palette.GREEN))
+        eyes.set_look(Look(color=Palette.GREEN))
         eyes.pulse("blink")
         eyes.pulse("ack")
         eyes.off()
@@ -124,7 +124,7 @@ def test_absent_device_never_raises():
 def test_absent_device_never_raises_body_lost():
     eyes = FakeEyes(connected=False)
     try:
-        eyes.set_look(Look(colour=Palette.WHITE))
+        eyes.set_look(Look(color=Palette.WHITE))
         eyes.pulse("ack")
         eyes.off()
     except BodyLost:  # pragma: no cover - the failure this test names
@@ -133,7 +133,7 @@ def test_absent_device_never_raises_body_lost():
 
 def test_absent_device_returns_at_once_and_records_nothing():
     eyes = FakeEyes(connected=False)
-    eyes.set_look(Look(colour=Palette.GREEN))
+    eyes.set_look(Look(color=Palette.GREEN))
     eyes.pulse("blink")
     eyes.off()
     assert eyes.commands == []
@@ -142,10 +142,10 @@ def test_absent_device_returns_at_once_and_records_nothing():
 
 def test_unplugging_mid_session_degrades_to_absent_without_raising():
     eyes = FakeEyes()
-    eyes.set_look(Look(colour=Palette.GREEN))
+    eyes.set_look(Look(color=Palette.GREEN))
     eyes.unplug()
     assert eyes.spec().connected is False
-    eyes.set_look(Look(colour=Palette.BLUE))
+    eyes.set_look(Look(color=Palette.BLUE))
     eyes.pulse("ack")
     assert [c.kind for c in eyes.commands] == ["set_look"]
 

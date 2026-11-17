@@ -170,19 +170,19 @@ def _dist(a, b):
     return max(abs(x - y) for x, y in zip(a, b, strict=True))
 
 
-def test_show_colours_are_outside_every_status_colour_and_never_red():
-    for colour in D.SHOW_COLOURS[:3]:  # gold, lime, mint (the sparkle is a warm white)
+def test_show_colors_are_outside_every_status_color_and_never_red():
+    for color in D.SHOW_COLORS[:3]:  # gold, lime, mint (the sparkle is a warm white)
         for status in RING_RGB.values():
-            assert _dist(colour, status) > 0.25, (colour, status)
-    for colour in D.SHOW_COLOURS:
-        assert not (colour[0] > 0 and colour[1] == 0 and colour[2] == 0)
+            assert _dist(color, status) > 0.25, (color, status)
+    for color in D.SHOW_COLORS:
+        assert not (color[0] > 0 and color[1] == 0 and color[2] == 0)
     # the status meanings the show must never imitate: green, pink, violet, amber, cyan, blue
     for status in (Palette.GREEN, Palette.PINK, Palette.MAGENTA, Palette.AMBER, Palette.CYAN):
-        for colour in D.SHOW_COLOURS:
-            assert colour != RING_RGB[status]
+        for color in D.SHOW_COLORS:
+            assert color != RING_RGB[status]
 
 
-def test_every_frame_has_two_colours_moves_and_stays_at_half_brightness():
+def test_every_frame_has_two_colors_moves_and_stays_at_half_brightness():
     previous = None
     full_scale = round(168 * D.RING_BRIGHTNESS)
     for tick in range(60):

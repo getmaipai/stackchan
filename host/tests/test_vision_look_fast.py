@@ -65,7 +65,7 @@ def test_letterbox_scales_a_320x240_frame_into_the_square_and_pads_the_rest():
 def _raw_with(cell: int, cls: int, score: float, w_cells: float = 2.0, h_cells: float = 4.0):
     raw = np.zeros((_GRID.shape[0], 85), np.float32)
     raw[:, 4] = 0.0
-    raw[cell, 0:2] = 0.5  # centre of the cell
+    raw[cell, 0:2] = 0.5  # center of the cell
     raw[cell, 2] = np.log(w_cells)
     raw[cell, 3] = np.log(h_cells)
     raw[cell, 4] = 1.0
@@ -73,7 +73,7 @@ def _raw_with(cell: int, cls: int, score: float, w_cells: float = 2.0, h_cells: 
     return raw
 
 
-def test_decode_places_a_person_box_in_frame_shares_with_the_left_edge_negative_of_centre():
+def test_decode_places_a_person_box_in_frame_shares_with_the_left_edge_negative_of_center():
     # A stride-8 cell in the left third of the picture: cell (col 12, row 20) of the 52x52 grid.
     col, row = 12, 20
     cell = row * (INPUT // 8) + col
@@ -84,8 +84,8 @@ def test_decode_places_a_person_box_in_frame_shares_with_the_left_edge_negative_
     assert [d.label for d in found] == ["person"]
     person = found[0]
     expected_cx = ((col + 0.5) * 8 / scale) / width
-    assert person.centre_x == pytest.approx(expected_cx, abs=0.01)
-    assert person.centre_x < 0.5 and 0 <= person.top <= 1 and person.score == pytest.approx(0.9)
+    assert person.center_x == pytest.approx(expected_cx, abs=0.01)
+    assert person.center_x < 0.5 and 0 <= person.top <= 1 and person.score == pytest.approx(0.9)
     assert all(0.0 <= v <= 1.0 for v in person.box)
 
 

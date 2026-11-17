@@ -6,7 +6,7 @@
 |---|---|---|
 | `speech/stt_stream.py`, `SttStreamClient.run` | Stream captured PCM to `/api/stt/stream` | final text, speech state, locally retained audio span |
 | `speech/turn_client.py`, `TurnClient.stream` | POST utterance and speaker/presence context to `/api/turn/stream` | ordered cues and final reply/turn identifiers |
-| `speech/turn_client.py`, `TurnClient.cancel` | POST `/api/turn/{id}/cancel` | whether in-flight work was cancelled |
+| `speech/turn_client.py`, `TurnClient.cancel` | POST `/api/turn/{id}/cancel` | whether in-flight work was canceled |
 | `speech/tts_playback.py`, `TtsPlaybackClient.speak` | POST text and optional turn generation to `/api/tts` | streamed audio and completion/cancel result |
 | `bodies/stackchan/vision_post.py`, `VisionPoster.post` | Upload JPEG plus purpose/scene hints to `/api/devices/me/vision` | acceptance, status and description availability |
 | `link/roster.py`, `RosterPoller.refresh` | GET `/api/devices/me/people` | current people and follow-up policy snapshot |

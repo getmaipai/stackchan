@@ -176,7 +176,7 @@ Replay target: new base at `28b9f0c8`. Statuses are from sequential application 
 
 - Head touch: 047, 048, 052, 056, 076, 078, 080, 081.
 - Avatar credentials: 011, 018, 019, 060, 063.
-- Offline behaviour: 075, 112, 118, 119, 120, 121, 124, 143.
+- Offline behavior: 075, 112, 118, 119, 120, 121, 124, 143.
 - Music: 100, 101, 121, 123, 124, 126-132, 140.
 
 ## Lane ownership

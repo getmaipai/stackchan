@@ -45,20 +45,20 @@ def _director(*, settings=None, presence=None, minute=DAY, connected=True):
     return director, eyes, clock, state
 
 
-def _colour(eyes: FakeEyes):
-    return eyes.current_look.colour if eyes.current_look else None
+def _color(eyes: FakeEyes):
+    return eyes.current_look.color if eyes.current_look else None
 
 
 def test_the_funnel_view_drives_the_table_row():
     director, eyes, _, _ = _director()
     director.on_view(FunnelView(shown=FunnelState.LISTENING))
-    assert _colour(eyes) is looks.LOOKS[looks.LookKey.LISTENING][0]
+    assert _color(eyes) is looks.LOOKS[looks.LookKey.LISTENING][0]
     director.on_view(FunnelView(shown=FunnelState.THINKING))
-    assert _colour(eyes) is None  # thinking and speaking are dark: the face carries them
+    assert _color(eyes) is None  # thinking and speaking are dark: the face carries them
     director.on_view(FunnelView(shown=FunnelState.SPEAKING))
-    assert _colour(eyes) is None
+    assert _color(eyes) is None
     director.on_view(FunnelView(shown=FunnelState.IDLE))
-    assert _colour(eyes) is None  # idle, awake is dark
+    assert _color(eyes) is None  # idle, awake is dark
 
 
 def test_an_unchanged_look_is_not_resent():
@@ -72,7 +72,7 @@ def test_live_capture_outranks_everything_and_is_green():
     director, eyes, _, _ = _director()
     director.on_view(FunnelView(shown=FunnelState.LISTENING, fault=True, muted=True, held=True))
     director.on_capture(CaptureFacts(mic_live=True, camera_tracking=True, camera_read_at=None))
-    assert _colour(eyes) is Palette.GREEN
+    assert _color(eyes) is Palette.GREEN
     assert eyes.current_look.brightness >= looks.LIVE_FLOOR
 
 
@@ -81,10 +81,10 @@ def test_robot_indicator_enabled_false_never_turns_off_the_live_cue():
     director.on_view(FunnelView(shown=FunnelState.LISTENING))
     assert eyes.current_look is None
     director.on_capture(CaptureFacts(mic_live=True, camera_tracking=False, camera_read_at=None))
-    assert _colour(eyes) is Palette.GREEN
+    assert _color(eyes) is Palette.GREEN
     clock.now += looks.CUE_HOLD_S
     director.on_capture(CaptureFacts(mic_live=False, camera_tracking=True, camera_read_at=None))
-    assert _colour(eyes) is Palette.PINK
+    assert _color(eyes) is Palette.PINK
 
 
 def test_a_short_cue_is_held_for_the_cue_floor_time():
@@ -92,10 +92,10 @@ def test_a_short_cue_is_held_for_the_cue_floor_time():
     director.on_capture(CaptureFacts(mic_live=True, camera_tracking=False, camera_read_at=None))
     clock.now += 0.1
     director.on_capture(CaptureFacts(mic_live=False, camera_tracking=False, camera_read_at=None))
-    assert _colour(eyes) is Palette.GREEN, "ended after 0.1 s but the floor holds it"
+    assert _color(eyes) is Palette.GREEN, "ended after 0.1 s but the floor holds it"
     clock.now += looks.CUE_HOLD_S
     director.tick()
-    assert _colour(eyes) is not Palette.GREEN
+    assert _color(eyes) is not Palette.GREEN
 
 
 def test_a_camera_frame_read_shows_the_camera_cue_for_the_hold():
@@ -103,19 +103,19 @@ def test_a_camera_frame_read_shows_the_camera_cue_for_the_hold():
     director.on_capture(
         CaptureFacts(mic_live=False, camera_tracking=False, camera_read_at=clock.now)
     )
-    assert _colour(eyes) is Palette.PINK
+    assert _color(eyes) is Palette.PINK
     clock.now += looks.CUE_HOLD_S + 0.01
     director.tick()
-    assert _colour(eyes) is not Palette.PINK
+    assert _color(eyes) is not Palette.PINK
 
 
 def test_a_fault_is_the_one_amber_pulse_every_ten_seconds():
     director, eyes, _, _ = _director()
     director.on_view(FunnelView(shown=FunnelState.IDLE, fault=True))
-    assert eyes.current_look.colour is Palette.AMBER
+    assert eyes.current_look.color is Palette.AMBER
     assert eyes.current_look.period_s == 10.0
     director.on_view(FunnelView(shown=FunnelState.IDLE, fault=False))
-    assert _colour(eyes) is None
+    assert _color(eyes) is None
 
 
 def test_the_removed_alarm_held_muted_and_offer_facts_show_nothing():
@@ -123,7 +123,7 @@ def test_the_removed_alarm_held_muted_and_offer_facts_show_nothing():
     director.on_view(
         FunnelView(shown=FunnelState.IDLE, alarm=True, held=True, muted=True, offer=True)
     )
-    assert _colour(eyes) is None
+    assert _color(eyes) is None
 
 
 def test_night_with_a_child_is_dimmer_than_night_with_an_adult():

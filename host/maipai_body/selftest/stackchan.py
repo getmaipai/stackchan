@@ -69,10 +69,10 @@ def stackchan_checks(ctx: StackChanSelfTestContext) -> list[Check]:
             return _skip()
         writer = ctx.look_writer
         for key in _LED_KEYS:
-            colour, weight, style = looks.LOOKS[key]
+            color, weight, style = looks.LOOKS[key]
             writer(
                 Look(
-                    colour=colour,
+                    color=color,
                     brightness=max(weight, 0.5),
                     style=style,
                     period_s=looks.period_s(key),

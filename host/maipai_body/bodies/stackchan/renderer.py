@@ -14,7 +14,7 @@ from .expression_map import (
     UNSUPPORTED_PRIMITIVES,
     FaceFrame,
 )
-from .profile import CENTRE_PITCH_DEG
+from .profile import CENTER_PITCH_DEG
 
 
 def _limit(profile: BodyProfile, axis: str, fraction: float) -> float:
@@ -33,7 +33,7 @@ def pitch_for(profile: BodyProfile, fraction: float = 0.0) -> float:
 
     The head only travels up from level, so a negative fraction is level."""
     bound = profile.axis("head_pitch")
-    level = max(bound.min, float(CENTRE_PITCH_DEG))
+    level = max(bound.min, float(CENTER_PITCH_DEG))
     degrees = level + max(0.0, fraction) * (bound.max - level)
     degrees = min(bound.max, max(level, degrees))
     return math.radians(degrees) if bound.unit == "deg" else degrees

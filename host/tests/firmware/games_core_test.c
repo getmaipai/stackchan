@@ -207,7 +207,7 @@ static void test_memory(void)
     CHECK(mg_parse(g_blob[0], g_len[0], &p) == MG_OK);
     mg_start(&r, &p, 1000, 12345);
     CHECK(!r.finished && r.seq_len == 1);
-    CHECK(state_named_text(&r, "Colour Memory"));
+    CHECK(state_named_text(&r, "Color Memory"));
     /* nothing but the intro is drawn: a black fill and the two texts */
     CHECK(visible_count(&r) == 3);
 

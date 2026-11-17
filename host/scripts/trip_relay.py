@@ -10,7 +10,7 @@ inside it): only counts are printed or logged.
   python3 trip_relay.py            # the default: wait for Internet Sharing, relay, heal itself, show a status page
   python3 trip_relay.py --doctor   # plain-English checks and what to do about each one
   python3 trip_relay.py --check    # only test that the Studio's two ports answer over Tailscale
-  python3 trip_relay.py --no-wait  # v1 behaviour: refuse to start if Internet Sharing is not on
+  python3 trip_relay.py --no-wait  # v1 behavior: refuse to start if Internet Sharing is not on
 
 Self-healing: it waits for Internet Sharing to appear, restarts its listeners if they stop or the sharing address changes,
 retries the Studio with a short pause, and notices when the laptop wakes from sleep. macOS notifications (rate limited) tell you
@@ -464,15 +464,15 @@ def build_status(
     }
 
 
-_LIGHT_COLOURS = {"ok": "#1a9c4a", "bad": "#d93636", "wait": "#9aa0a6"}
+_LIGHT_COLORS = {"ok": "#1a9c4a", "bad": "#d93636", "wait": "#9aa0a6"}
 
 
 def render_html(status: dict) -> str:
     rows = []
     for light in status["lights"]:
-        colour = _LIGHT_COLOURS.get(light["state"], "#9aa0a6")
+        color = _LIGHT_COLORS.get(light["state"], "#9aa0a6")
         rows.append(
-            f'<div class="row"><span class="dot" style="background:{colour}"></span>'
+            f'<div class="row"><span class="dot" style="background:{color}"></span>'
             f'<div><div class="label">{escape(light["label"])}</div><div class="detail">{escape(light["detail"])}</div></div></div>'
         )
     return (

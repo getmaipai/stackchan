@@ -14,7 +14,7 @@ by SETTINGS-ROBOT-01) arrives through ``level_provider``:
 * ``lively``: micro-poses twice as often, antenna sway 12 degrees.
 
 The once-a-minute breathe while asleep is ``ExpressionEngine.sleep_breathe``
-(the sleep pose owns the expression layer, so it is not an idle behaviour).
+(the sleep pose owns the expression layer, so it is not an idle behavior).
 """
 
 from __future__ import annotations

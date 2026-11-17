@@ -162,7 +162,7 @@ def test_listen_song_command_validates_payload(payload, expected):
         behavior=behavior,
         runner=runner,
         move_head=lambda *_args: None,
-        centre_pitch=0,
+        center_pitch=0,
         speed=1,
         start_ticker=False,
         identify_post=f.post_with_request,
@@ -193,7 +193,7 @@ def _song_title_behavior(f: Fixture, call_tool=None):
         behavior=behavior,
         runner=runner,
         move_head=lambda *_args: None,
-        centre_pitch=0,
+        center_pitch=0,
         speed=1,
         start_ticker=False,
         identify_post=f.post_with_request,
@@ -315,7 +315,7 @@ def test_pending_capture_times_out_after_session_ends_and_later_session_can_capt
     assert sum(name == "self.music.capture_clip" for name, _ in f.calls) == 2
 
 
-def test_cancelled_pending_capture_clears_after_session_ends():
+def test_canceled_pending_capture_clears_after_session_ends():
     f = Fixture()
     identify = f.build()
     identify.on_session_start(0)
@@ -336,7 +336,7 @@ def test_new_session_does_not_capture_again_while_finished_clip_is_in_result_win
     assert sum(name == "self.music.capture_clip" for name, _ in f.calls) == 1
 
 
-def test_cancelled_event_clears_pending_capture():
+def test_canceled_event_clears_pending_capture():
     f = Fixture()
     identify = f.build()
     identify.on_session_start(0)
@@ -439,7 +439,7 @@ def test_suppressed_music_capture_busy_then_retry_guard_and_cancel_releases(capl
     assert "retry window" in caplog.records[-1].message
 
 
-def test_suppressed_music_cancelled_clip_frees_the_slot_for_the_next_song():
+def test_suppressed_music_canceled_clip_frees_the_slot_for_the_next_song():
     f = Fixture()
     identify = f.build()
     identify.on_music_heard(0, "a nod was less than 2 minutes ago")

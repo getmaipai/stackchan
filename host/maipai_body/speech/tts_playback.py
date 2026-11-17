@@ -47,7 +47,7 @@ class TtsAuthFailed(RuntimeError):
 
 @dataclass
 class TtsResult:
-    kind: Literal["done", "cancelled", "error"]
+    kind: Literal["done", "canceled", "error"]
     error: str | None = None
     first_chunk_pushed: bool = False
 
@@ -126,7 +126,7 @@ class TtsPlaybackClient:
         not follow it (the design's own onset ordering: expression
         before the first audio sample). `stop_event` (if given and set
         mid-stream - G8's own barge-in) stops pushing further chunks and
-        returns `kind="cancelled"`; the ledger keeps whatever prefix was
+        returns `kind="canceled"`; the ledger keeps whatever prefix was
         already pushed, exactly as `AudioPlayback.stop()`'s own contract
         already promises. `turn_id` and `generation` (BARGE-02) tell the hub
         which reply this sentence belongs to: it refuses a stale one with a 409
@@ -155,7 +155,7 @@ class TtsPlaybackClient:
                 if response.status_code == 401:
                     raise TtsAuthFailed(f"hub rejected the tts request: {response.text[:200]}")
                 if response.status_code == 409 and _is_turn_cancelled(response):
-                    return TtsResult(kind="cancelled")
+                    return TtsResult(kind="canceled")
                 response.raise_for_status()
                 return self._stream_into_playback(
                     response, on_first_chunk, stop_event, local_generation
@@ -180,7 +180,7 @@ class TtsPlaybackClient:
 
         for chunk in response.iter_content(chunk_size=_MIN_BUFFER_BYTES):
             if stop_event is not None and stop_event.is_set():
-                return TtsResult(kind="cancelled", first_chunk_pushed=first_chunk_pushed)
+                return TtsResult(kind="canceled", first_chunk_pushed=first_chunk_pushed)
             if not chunk:
                 continue
             if sample_rate is None:
@@ -219,7 +219,7 @@ class TtsPlaybackClient:
             if len(resampled) == 0:
                 continue
             if not self._playback.push(resampled, generation=local_generation):
-                return TtsResult(kind="cancelled", first_chunk_pushed=first_chunk_pushed)
+                return TtsResult(kind="canceled", first_chunk_pushed=first_chunk_pushed)
             if not first_chunk_pushed:
                 first_chunk_pushed = True
                 if on_first_chunk is not None:

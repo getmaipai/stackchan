@@ -20,7 +20,7 @@ firmware already emits it, "Add" means a small instrument to write once the hold
 | Uplink loudness per turn | Peak and RMS of the decoded audio of each turn, in dBFS, plus the noise floor in the half second before speech | Peak exists (`capture.peak`); add RMS and noise floor to the per-turn summary line |
 | Uplink frame arrival | Gap between consecutive 60 ms Opus frames on the host: p50, p95, max, and the count of gaps over 120 ms; frames per turn vs turn length | Add (timestamp in `on_audio`); `UplinkStats` has counts only |
 | Pop-up tone and echo bleed | Peak of the first 0.5 s after listen start, and peak during and just after a reply, against the speech peak | Add (the same capture hook) |
-| Speech recogniser view | `speech_s` (voiced seconds the hub heard) and the final text length per turn, against what was said | Exists in the STT result; add to the INFO line |
+| Speech recognizer view | `speech_s` (voiced seconds the hub heard) and the final text length per turn, against what was said | Exists in the STT result; add to the INFO line |
 | Device-side AFE | Serial log: `MODEL_LOADER` lines at boot (wake model loaded), wake score if the build logs it | Exists (boot log) |
 
 Decision: if the wake rate falls with distance while uplink RMS stays low, it is gain or microphone placement (firmware/audio front end); if frame gaps over 120 ms cluster, it is the network; if `speech_s` is low but RMS is fine, it is endpointing at the hub.

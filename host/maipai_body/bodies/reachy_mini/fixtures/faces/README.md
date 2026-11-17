@@ -3,12 +3,12 @@
 Cartoon faces drawn by `generate.py` from numpy primitives: a flat
 background, an ellipse for the head, two dots, a line. Provenance is
 this repo's own code, nothing downloaded, no photograph of anyone,
-no household photos, no public-domain image to attribute. Licence:
+no household photos, no public-domain image to attribute. License:
 same as the repo.
 
 | File | Content |
 | --- | --- |
-| `face_center.npy` | one synthetic face, centred |
+| `face_center.npy` | one synthetic face, centered |
 | `face_left.npy` | the same face, left quarter |
 | `face_right.npy` | the same face, right quarter |
 | `no_face.npy` | the background only |

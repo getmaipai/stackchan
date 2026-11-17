@@ -42,7 +42,7 @@ REPEAT_ENABLED_KEY = "robot.repeat.enabled"
 VISION_OFF_KEY = "robot.vision_off"
 LOCAL_UNMUTE_KEY = "robot.mute.local_unmute"
 # The StackChan's own sounds (firmware patches 115 to 118, bodies/stackchan/sounds.py). Both are
-# device-scope registry keys honoured by the bot: event sounds on (default true) and event sounds
+# device-scope registry keys honored by the bot: event sounds on (default true) and event sounds
 # also at night (default false). The safety and privacy cues (a picture, a low battery, an error)
 # ignore "off" and the night rule; the hard mute (MUTED_KEY, QUIET_KEY) silences all of them.
 SOUNDS_ENABLED_KEY = "robot.sounds.enabled"

@@ -292,7 +292,7 @@ Example reply text (inside the MCP result):
  {"kind": "head_touch", "at_ms": 812900}]
 ```
 
-Gesture events that cause behaviour: `head_touch`, `head_swipe_forward`, `head_swipe_back`, `shake`,
+Gesture events that cause behavior: `head_touch`, `head_swipe_forward`, `head_swipe_back`, `shake`,
 `level_changed` (adds `volume`, `brightness` percent).
 
 Diagnostic kinds (logged, never a reason to react): `heap_stats`, `stack_stats`, `boot`
@@ -384,7 +384,7 @@ NVS keys written at provisioning: namespace `websocket` (`url`, `token`, `versio
 2. Full list of `features` keys in the unit hello (only `notify` is read by the host).
 3. Exact field lists of `heap_stats`, `stack_stats`, `power_poll` and most diagnostic events; only
    `fw.version`, `boot` heal fields and the update events are read by name.
-4. Unit-side `listen` and `tts` behaviour (state machine, buffering) is in firmware, not host code.
+4. Unit-side `listen` and `tts` behavior (state machine, buffering) is in firmware, not host code.
 5. Shape of `self.get_device_status`, `self.robot.get_reminders` and `self.privacy.get` replies.
 6. Whether the unit sends `stt` or `llm` text frames to the host (the host ignores them if so).
 7. Opus packet size limits from the unit (the host sets none).

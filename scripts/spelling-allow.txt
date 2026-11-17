@@ -1,0 +1,44 @@
+# Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glob> :: *  (skip the file).
+# Each block says why. The old spelling lives only where renaming would break a wire, the flashed firmware, a shared record or another language.
+
+# Vendored text from the shared spec: not ours to edit.
+host/spec-vendor/* :: *
+
+# Firmware patch files and the firmware C sources and their host tests: identifiers (mf_set_colour, MP_FX_COLOUR_MODE, ...)
+# are the flashed firmware's names; the patches are owned by the firmware session and replayed against a merge tree.
+firmware/patches/* :: *
+host/maipai_body/bodies/stackchan/firmware/* :: *
+host/tests/firmware/* :: *
+scripts/fw-face-render/* :: *
+
+# Alias code: the host reads the old key and writes the new one; the unit keeps its own spelling (docs/design/spelling-aliases.md).
+host/maipai_body/spelling_aliases.py :: *
+host/tests/test_spelling_aliases.py :: *
+host/tests/test_unit_polish_routes.py :: (listen_light_colour|older page|knows colour)
+docs/design/spelling-aliases.md :: *
+docs/STYLE.md :: *
+host/maipai_body/cli.py :: --colour
+host/maipai_body/unit_extras.py :: colour
+host/maipai_body/settings_page.py :: colour
+host/maipai_body/speech/offline_clips.py :: licence
+scripts/game-pack.py :: colour
+
+# Wire names owned by the unit, the Stack or the shared spec (event kinds, error codes, record keys): quoted, never renamed here.
+* :: (music_clip_cancelled|turn_cancelled|honoured_by|CancelledError|labelledby|current_task\(\)\.cancelling|face-styles-colours)
+host/maipai_body/speech/turn_client.py :: cancelled
+host/maipai_body/measure/stand_in_hub.py :: cancelled
+host/tests/test_turn_client.py :: cancelled
+host/maipai_body/link/assets.py :: licence
+host/tests/test_assets.py :: licence
+host/scripts/render_unit_phrases.py :: licence
+host/tests/test_stackchan_sounds.py :: licence
+docs/dev/stackchan-sounds-2026-11-13.md :: licence_checked
+docs/design/unit-protocol.md :: cancelled
+
+# Non-English text: French "Licence" in the About card.
+host/maipai_body/i18n_design.py :: "Licence", "Docs d'utilisation"
+
+# Tests that read the unit's side of the wire or the firmware tree: the unit's own key and C identifier spellings.
+host/tests/test_faces.py :: (sent|firmware\.state)\["colour"\]
+host/tests/test_stackchan_train4.py :: firmware\.state\["colour"\]
+host/tests/test_firmware_fx_cores.py :: MP_NAMES_COLOUR

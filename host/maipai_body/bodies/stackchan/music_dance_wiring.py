@@ -47,7 +47,7 @@ DANCE_FROM_S = BUILD_S  # where the dance part of a full round starts (the build
 
 
 class MusicFeatureSwitch:
-    """Tells the unit whether to analyse the room's sound (firmware patch 100's ``self.music.set``).
+    """Tells the unit whether to analyze the room's sound (firmware patch 100's ``self.music.set``).
 
     The features run only while the setting ``robot.dance.auto`` is on and the robot is neither
     muted nor in full quiet; otherwise the unit does no analysis and sends no ``music_feat``
@@ -122,7 +122,7 @@ def wire_music_dance(
     behavior: Any,
     runner: DanceRunner,
     move_head: Callable[[int, int, int], object],
-    centre_pitch: int,
+    center_pitch: int,
     speed: int,
     clock: Callable[[], float] = time.monotonic,
     start_ticker: bool = True,
@@ -136,7 +136,7 @@ def wire_music_dance(
         if switch is not None:
             switch.call("self.robot.stop_dance", {})
 
-    def nod(face: str, cancelled: Callable[[], bool]) -> None:
+    def nod(face: str, canceled: Callable[[], bool]) -> None:
         behavior.show_face(face)
         if switch is not None:
             # The head nods up and down on the beat on the unit until the dance starts.
@@ -148,14 +148,14 @@ def wire_music_dance(
                     "StackChan music bob could not start; using the one nod", exc_info=True
                 )
         try:
-            for yaw, pitch, move_speed, pause in nod_steps(centre_pitch, speed):
-                if cancelled():
+            for yaw, pitch, move_speed, pause in nod_steps(center_pitch, speed):
+                if canceled():
                     break
                 move_head(yaw, pitch, move_speed)
                 time.sleep(pause)
         finally:
             try:
-                move_head(0, centre_pitch, speed)  # one move back to level, always
+                move_head(0, center_pitch, speed)  # one move back to level, always
             except Exception:
                 logger.debug("StackChan music nod could not level the head", exc_info=True)
 

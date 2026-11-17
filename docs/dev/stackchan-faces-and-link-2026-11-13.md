@@ -10,7 +10,7 @@ owner's answers the same day: the face carries thinking and speaking, the ring i
 |---|---|---|
 | 110 | Two new faces in the mint skin: `listening` (eyes a little wider and rounder, mouth a short closed line) and `thinking` (eyes up and to the right, a small level mouth nudged to that side). Two new `Emotion` values, two names in `SetEmotion`. | `emotion.h`, `skins/mint/mint.cpp`, `stackchan_display.cc` |
 | 111 | The shared link screen: one black cover with a glyph slot (the shipped Wi-Fi icons at 1.5 times) and a text slot, used for "Connecting to Wi-Fi...", "Wi-Fi setup needed" (with the hotspot name and address from the setup flow, on their own lines), "Connecting to Home..." and "Waiting for Home to approve me" (slash glyph plus a key drawn from shapes). The ring is dark at boot; only Wi-Fi setup and approval blink it cyan. The old boot cover, boot ring blink and the dim white at the first Standby are removed. | `stackchan_display.cc/.h` |
-| 112 | The standing offline look once the face is up: the muted `offline` palette (grey-blue, eyes 5 px lower), a corner strip with the slash glyph and "Offline" instead of a speech bubble (the mint skin has no bubble, so the old "Offline" and "Can't reach Home" text never showed), a connecting strip (glyph cycling, no words) after 3 s down, restored when the session opens. The offline palette is reserved: the host's palette tool cannot pick it and it is never saved. | `mint.cpp`, `stackchan_display.cc/.h`, `hal_bridge.cc/.h`, `stackchan.cc`, `application.cc`, `websocket_protocol.cc` |
+| 112 | The standing offline look once the face is up: the muted `offline` palette (gray-blue, eyes 5 px lower), a corner strip with the slash glyph and "Offline" instead of a speech bubble (the mint skin has no bubble, so the old "Offline" and "Can't reach Home" text never showed), a connecting strip (glyph cycling, no words) after 3 s down, restored when the session opens. The offline palette is reserved: the host's palette tool cannot pick it and it is never saved. | `mint.cpp`, `stackchan_display.cc/.h`, `hal_bridge.cc/.h`, `stackchan.cc`, `application.cc`, `websocket_protocol.cc` |
 | 113 | The "refused / waiting for approval" state: the unit counts connects that were accepted and then closed before the hub's hello; two in a row show the approval look (full screen at boot, the strip with the muted palette and a cyan ring after). | `websocket_protocol.cc/.h`, `stackchan.cc`, `stackchan_display.cc` |
 | 114 | The power key: a handler that blanks the ring and shows the sleeping face when the key has been held about a second, before the PMIC's own cut about three seconds later. | `stackchan.cc`, `hal_io_expander.cpp`, `hal_bridge.h` |
 
@@ -30,7 +30,7 @@ smoothing differ from the screen. Draw parameters:
 |---|---|---|
 | neutral | dot radius 8 | quadratic from (-26,-4) through (0,14) to (26,-4) |
 | listening | dot radius 10 (neutral 8, surprised 11) | quadratic from (-16,0) through (0,7) to (16,0) |
-| thinking | dot radius 8, offset (+6,-8) from the eye centre | straight line from (-4,3) to (12,3) |
+| thinking | dot radius 8, offset (+6,-8) from the eye center | straight line from (-4,3) to (12,3) |
 | offline palette | background 0xBBC6CE, ink 0x26303A, fill 0x62788A, tongue 0xA5B6C3, eyes 5 px lower | unchanged |
 
 ## How the link looks are decided
@@ -59,10 +59,10 @@ Facts from the code (the pinned M5 tree and patch 050): `stackchan.cc` writes AX
 map is the key's "long press" threshold of about 1 s and the PMIC's own power-off after about 4 s (the shortest settings; the bit meanings
 are from the register map, not yet checked on a unit). Nothing in the firmware reads the key. `Axp2101::PowerOff` (register 0x10 bit 0) is
 used only by the idle shutdown, which already blanks the ring first (patch 050). The ring is 12 pixels held by the PY32 expander on the
-base; the audit's reading, still unmeasured, is that the base keeps its last colours when the CoreS3 loses power.
+base; the audit's reading, still unmeasured, is that the base keeps its last colors when the CoreS3 loses power.
 
 What patch 114 does: at boot it sets bit 2 of register 0x41 (so the PMIC keeps the long-press flag) and clears register 0x49. Every 100 ms
-the touch timer reads register 0x49; when bit 2 is set it clears it, blanks the ring (`leds_blank(true)`, which keeps the host's colours in
+the touch timer reads register 0x49; when bit 2 is set it clears it, blanks the ring (`leds_blank(true)`, which keeps the host's colors in
 the shadow) and sets the `sleeping` face. If the unit is still running 6 s later the key was let go: the ring (only if this handler
 blanked it) and the neutral face come back. Boot already writes the ring black twice (`hal_io_expander.cpp`), and the dim white at the first
 Standby is gone (patch 111).
@@ -71,7 +71,7 @@ What cannot be decided without the unit (10 minutes, power button on USB and on 
 
 1. Does the long-press flag really appear in register 0x49 bit 2 at about 1 s (watch the log line "power key held")?
 2. Does the PMIC cut at about 4 s, and does the unit with USB attached power off or restart (a new "unit boot" line in the host log)?
-3. After the cut, is the ring dark? If the base keeps its last colours, the blank written before the cut is what keeps it dark. If a
+3. After the cut, is the ring dark? If the base keeps its last colors, the blank written before the cut is what keeps it dark. If a
    unit that is off on USB still lights the ring, the base rail is fed from USB and only a blank can help, which this patch does.
 4. A press shorter than 1 s must do nothing visible.
 5. Let go at 2 s: the face and the ring return about 6 s after the flag.

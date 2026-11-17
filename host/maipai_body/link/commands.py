@@ -67,7 +67,7 @@ MIN_COMMAND_CONFIDENCE = 0.8
 
 def route_phrase(heard: str, confidence: float | None = None) -> LocalCommand | None:
     """The command a heard phrase names, or ``None``. Case and punctuation
-    are ignored; the phrase must be on the list in full. When the recogniser reports a
+    are ignored; the phrase must be on the list in full. When the recognizer reports a
     confidence it must be at least ``MIN_COMMAND_CONFIDENCE``: a sound-alike sentence
     ("I'm tired" next to "what time is it") never fires a command."""
     if confidence is not None and confidence < MIN_COMMAND_CONFIDENCE:

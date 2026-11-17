@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Intent: block any mention of projects we studied (private word list), em dashes and filler words in
+# Intent: block British spellings (American only), any mention of projects we studied (private word list), em dashes and filler words in
 # staged files and in a commit message, with a one-line verdict. Zero model tokens.
 # Usage: hygiene-check.sh [--msg FILE] [paths...]   (no paths: staged files)
 # Word list: $NO_MENTION_WORDS or ~/.config/maipai/no-mention-words.txt (one word or phrase per line, never committed).
@@ -31,5 +31,15 @@ for f in ${PATHS[@]+"${PATHS[@]}"}; do
   scan "$f" < <(grep -v -E '^[+ ]?# Upstream:' "$f")
 done
 [ -n "$MSG" ] && [ -f "$MSG" ] && scan "commit message" < "$MSG"
+# American spelling (owner rule 2026-11-16): scripts/spelling-check.py with the allow-list scripts/spelling-allow.txt.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+existing=(); for f in ${PATHS[@]+"${PATHS[@]}"}; do [ -f "$f" ] && existing+=("$f"); done
+if [ ${#existing[@]} -gt 0 ]; then
+  spell="$(python3 "$HERE/spelling-check.py" --root "$(cd "$HERE/.." && pwd)" "${existing[@]}" 2>&1)" || { bad=1; out+="$(printf '%s\n' "$spell" | grep -v '^spelling: FAIL' | head -8 | sed 's/^/  /')"$'\n'; }
+fi
+if [ -n "$MSG" ] && [ -f "$MSG" ]; then
+  hit="$(grep -n -i -E 'colour|behaviour|centre|licence|favourite|cancelled|catalogue' "$MSG" | head -3)"
+  [ -n "$hit" ] && { bad=1; out+="  British spelling in commit message (use American):"$'\n'"$(printf '%s\n' "$hit" | sed 's/^/    /')"$'\n'; }
+fi
 if [ $bad -eq 0 ]; then echo "hygiene: ok (${#PATHS[@]} files)"; exit 0; fi
 echo "hygiene: FAIL"; printf '%s' "$out"; exit 1

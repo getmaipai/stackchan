@@ -116,7 +116,7 @@ def test_a_connected_robot_with_an_unreachable_hub_reads_as_offline_after_ten_se
     poller.poll()
     assert service.facts.offline is True
     assert ring.current is not None
-    assert ring.current.colour is Palette.AMBER
+    assert ring.current.color is Palette.AMBER
 
 
 def test_a_link_that_comes_back_inside_ten_seconds_never_shows_offline():
@@ -499,8 +499,8 @@ def test_a_photo_is_taken_only_while_the_service_shows_the_pink_camera_cue():
     service = StackChanLightService(indicator, minute=lambda: DAY, clock=clock)
     robot._driver("camera").cue_sink = service.cue_camera
     assert robot.camera.frame() == device.photo
-    colour, _, style = looks.LOOKS[looks.LookKey.CAMERA]
-    expected = Look(colour=colour, brightness=0.6, style=style, period_s=0.5)
+    color, _, style = looks.LOOKS[looks.LookKey.CAMERA]
+    expected = Look(color=color, brightness=0.6, style=style, period_s=0.5)
     assert seen == [ring_rgb(expected, 0.5, 0.0)]  # pink, lit before the capture began
     assert seen[0][0] > seen[0][2] > seen[0][1]  # pink: red over blue over green, never dark
     assert seen[0][0] >= round(168 * looks.CAMERA_FLOOR)

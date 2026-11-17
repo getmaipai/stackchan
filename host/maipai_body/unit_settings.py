@@ -15,6 +15,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from maipai_body.spelling_aliases import upgrade_keys
+
 MAX_PERSONA = 2000
 MAX_ALARMS = 12
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -142,12 +144,12 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
     if "led" in values:
         led = values["led"]
         if led != "off" and not (isinstance(led, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", led)):
-            raise SettingsError("The light ring colour must be off or a code like #40c0ff. Pick a colour and save again.")
+            raise SettingsError("The light ring color must be off or a code like #40c0ff. Pick a color and save again.")
         out["led"] = led.lower()
     from maipai_body import unit_prefs
 
     out.update(unit_prefs.clean(values, SettingsError))
-    unknown = set(values) - set(unit_prefs.PREFS) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "wait_after_talking", "led"}
+    unknown = set(upgrade_keys(values)) - set(unit_prefs.PREFS) - {"name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "wait_after_talking", "led"}
     if unknown:
         raise SettingsError(f"Unknown setting {sorted(unknown)[0]}. Remove it and save again.")
     return out
@@ -176,7 +178,7 @@ class UnitSettingsStore:
 
     def get(self, device_id: str) -> dict[str, Any]:
         with self._lock:
-            return dict(self._load().get(device_id, {}))
+            return upgrade_keys(self._load().get(device_id, {}))
 
     def update(self, device_id: str, values: dict[str, Any]) -> dict[str, Any]:
         if not _DEVICE.match(device_id):
@@ -184,7 +186,7 @@ class UnitSettingsStore:
         cleaned = _clean(values)
         with self._lock:
             data = self._load()
-            merged = {**data.get(device_id, {}), **cleaned}
+            merged = {**upgrade_keys(data.get(device_id, {})), **cleaned}
             data[device_id] = merged
             self.path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.path.with_suffix(".tmp")

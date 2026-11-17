@@ -94,8 +94,8 @@ class ClipsUnavailable(RuntimeError):
 class Voice:
     engine: str
     name: str
-    licence_checked: bool
-    licence: str = "CC-BY-4.0"
+    license_checked: bool
+    license: str = "CC-BY-4.0"
     credit: str = "Voice generated with pocket-tts-english, licensed under CC-BY-4.0."
 
 
@@ -124,7 +124,11 @@ class Manifest:
 def load_manifest(path: Path = MANIFEST_PATH) -> Manifest:
     try:
         raw = json.loads(path.read_text())
-        voice = Voice(**raw["voice"])
+        voice_raw = dict(raw["voice"])
+        for old, new in (("licence", "license"), ("licence_checked", "license_checked")):  # spelling alias: older manifests
+            if old in voice_raw:
+                voice_raw.setdefault(new, voice_raw.pop(old))
+        voice = Voice(**voice_raw)
         clips = tuple(Clip(**c) for c in raw["clips"])
         manifest = Manifest(voice=voice, sample_rate=int(raw["sample_rate"]), clips=clips)
     except (OSError, KeyError, TypeError, ValueError) as exc:
@@ -146,9 +150,9 @@ def manifest_to_json(manifest: Manifest) -> str:
                 "voice": {
                     "engine": manifest.voice.engine,
                     "name": manifest.voice.name,
-                    "licence": manifest.voice.licence,
+                    "license": manifest.voice.license,
                     "credit": manifest.voice.credit,
-                    "licence_checked": manifest.voice.licence_checked,
+                    "license_checked": manifest.voice.license_checked,
                 },
                 "sample_rate": manifest.sample_rate,
                 "clips": [

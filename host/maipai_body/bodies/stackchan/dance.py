@@ -20,7 +20,7 @@ Who may start it, and when:
   (``full_quiet_reason``, a hook until the settings registry has such a flag), with the battery at
   20 percent or less while not charging (or unknown) and within ``MIN_GAP_S`` of the last dance.
 - At night an asked dance (voice or hub) is head and face only: no ring, no spoken line.
-- The ring show is the one decorative use of the ring (lights standard): colours outside the status
+- The ring show is the one decorative use of the ring (lights standard): colors outside the status
   meanings (gold, lime, mint, a warm sparkle), always two or more at once, always moving, half
   brightness. A privacy cue (the live green, the camera pink) or any status cue ends the dance and
   so the show; the show never draws over one.
@@ -28,7 +28,7 @@ Who may start it, and when:
   going offline, the emergency stop, or the settings turning it off. Then the ring goes dark (the
   normal rules repaint it) and the head goes back to level.
 
-Settings (registry keys, device scope, honoured by the bot): ``robot.dance.enabled`` (default true)
+Settings (registry keys, device scope, honored by the bot): ``robot.dance.enabled`` (default true)
 and ``robot.dance.show_ring`` (default true). All timings here are design defaults, unmeasured on a
 unit.
 """
@@ -81,21 +81,21 @@ SCRIPT: tuple[tuple[float, str, str], ...] = (
 )
 TOTAL_S = HAPPY_S + 2 * GAP_S + ROBOT_S + HAPPY_S  # 11.7 s
 
-# The one place the show names colours: fractions of full scale. None may be a status colour
+# The one place the show names colors: fractions of full scale. None may be a status color
 # (ring.py RING_RGB: white, green, blue, amber, cyan, violet, pink) and none is red.
 GOLD = (1.0, 0.8, 0.0)
 LIME = (0.6, 1.0, 0.0)
 MINT = (0.3, 1.0, 0.6)
 SPARKLE = (1.0, 0.95, 0.75)
-SHOW_COLOURS = (GOLD, LIME, MINT, SPARKLE)
+SHOW_COLORS = (GOLD, LIME, MINT, SPARKLE)
 
 Rgb = tuple[int, int, int]
 
 
-def _scaled(colour: tuple[float, float, float], level: float = 1.0) -> Rgb:
+def _scaled(color: tuple[float, float, float], level: float = 1.0) -> Rgb:
     r, g, b = (
         max(0, min(LED_CHANNEL_MAX, round(LED_CHANNEL_MAX * c * level * RING_BRIGHTNESS)))
-        for c in colour
+        for c in color
     )
     return (r, g, b)
 
@@ -106,7 +106,7 @@ DARK: Rgb = (0, 0, 0)
 def ring_frame(tick: int, phase: int) -> list[Rgb]:
     """The 12 pixels at ring tick ``tick`` (every ``TICK_S``) in show phase ``phase`` (0 to 2).
 
-    Every frame has at least two different colours lit and every frame differs from the one before
+    Every frame has at least two different colors lit and every frame differs from the one before
     (the show is always moving). Pure, so a test can walk the whole show."""
     pixels = [DARK] * LED_COUNT
     if phase == 0:  # chase: gold and lime walk round, mint trails each

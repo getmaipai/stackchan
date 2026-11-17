@@ -216,7 +216,7 @@ class ReachyMiniClient:
 
     def hold(self) -> None:
         """Cancel whatever is in flight, then re-issue the present pose as an
-        immediate target so nothing drifts once it's cancelled.
+        immediate target so nothing drifts once it's canceled.
 
         A code review (2026-09-27) found this only did the second half:
         without ``StopMoveCmd`` first, a `goto` task keeps writing

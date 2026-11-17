@@ -105,7 +105,7 @@ def test_the_funnel_view_reaches_the_director_and_the_eyes():
     eyes = FakeEyes()
     _, _, seen = _build(eyes)
     seen["view_callback"](FunnelView(shown=FunnelState.LISTENING))
-    assert eyes.current_look is not None and eyes.current_look.colour is Palette.BLUE
+    assert eyes.current_look is not None and eyes.current_look.color is Palette.BLUE
 
 
 def test_director_app_wiring_explicitly_uses_settings_and_presence_stubs():
@@ -123,7 +123,7 @@ def test_the_stt_scope_drives_the_green_live_cue_through_the_tap():
     tap = seen["loop"]["client"]
     tap.start_recording()
     with seen["loop"]["capture_scope"]():
-        assert eyes.current_look.colour is Palette.GREEN
+        assert eyes.current_look.color is Palette.GREEN
     tap.stop_recording()
 
 

@@ -1,7 +1,7 @@
 """Why does the face detector find nobody? A once-a-minute log line, nothing stored.
 
 The camera frames stream in at about 3 KB each and the detector runs on them (host log
-2026-10-22), yet no face is found with the owner in view. A rotated, mirrored or colour-swapped
+2026-10-22), yet no face is found with the owner in view. A rotated, mirrored or color-swapped
 frame defeats the detector. While no face is found, every ``EVERY_S`` seconds the same frame is
 tried in a few other forms and only the detector's best score for each form is kept, per minute.
 The frame is never written anywhere and the score is the only thing that leaves this function.

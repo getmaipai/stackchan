@@ -116,7 +116,7 @@ class SimUnit:
                     "ok": True,
                     "playing": False,
                     "games": [
-                        {"id": "memory", "title": "Colour Memory", "lower_is_better": False, "scores": [7, 5, 4]},
+                        {"id": "memory", "title": "Color Memory", "lower_is_better": False, "scores": [7, 5, 4]},
                         {"id": "reaction", "title": "Quick Tap", "lower_is_better": True, "scores": [412, 455]},
                         {"id": "whack", "title": "Whack a Mole", "lower_is_better": False, "scores": []},
                     ],

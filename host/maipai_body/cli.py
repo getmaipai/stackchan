@@ -28,12 +28,12 @@ def main() -> int:
     name.add_argument("unit", help="Device-Id of the unit, or its current name")
     name.add_argument("new_name", metavar="name", help="the new name, 1 to 40 characters")
     face = commands.add_parser(
-        "face", help="show or change a unit's face: style, colour, captions, time-of-day"
+        "face", help="show or change a unit's face: style, color, captions, time-of-day"
     )
     face.add_argument("action", choices=["show", "set", "sync", "reset"])
     face.add_argument("unit", help="Device-Id of the unit, or its name")
     face.add_argument("--style", help="classic, big_eyes or minimal")
-    face.add_argument("--colour", "--color", dest="colour", help="none, a name, or #rrggbb")
+    face.add_argument("--color", "--colour", dest="color", help="none, a name, or #rrggbb")
     face.add_argument("--captions", choices=["on", "off"])
     face.add_argument("--schedule", choices=["on", "off"], help="change the face by time of day")
     face.add_argument("--hours", help="four hours that rise, for example 6,9,18,21")
@@ -51,15 +51,15 @@ def main() -> int:
     run.add_argument("--script", type=str)
     run.add_argument("--firmware-label", default="stackchan")
     run.add_argument("--play-device", help="host output device for prompt playback")
-    analyse = commands.add_parser("bench-analyse", help="analyse a 48 kHz recording")
-    analyse.add_argument("recording")
-    analyse.add_argument(
+    analyze = commands.add_parser("bench-analyze", help="analyze a 48 kHz recording")
+    analyze.add_argument("recording")
+    analyze.add_argument(
         "--question-end",
         type=float,
         default=0.0,
         help="question end offset in seconds from recording start",
     )
-    frames = commands.add_parser("bench-frames", help="analyse frame timestamps")
+    frames = commands.add_parser("bench-frames", help="analyze frame timestamps")
     frames.add_argument("frametimes")
     compare = commands.add_parser("bench-compare", help="compare two benchmark JSON files")
     compare.add_argument("a")
@@ -140,19 +140,19 @@ def main() -> int:
         print(markdown_table(data))
         print(f"Saved {target}")
         return 0
-    if args.command == "bench-analyse":
-        from maipai_body.measure.bench import analyse_recording
+    if args.command == "bench-analyze":
+        from maipai_body.measure.bench import analyze_recording
 
         print(
             json.dumps(
-                analyse_recording(args.recording, question_end_s=args.question_end), indent=2
+                analyze_recording(args.recording, question_end_s=args.question_end), indent=2
             )
         )
         return 0
     if args.command == "bench-frames":
-        from maipai_body.measure.bench import analyse_frames
+        from maipai_body.measure.bench import analyze_frames
 
-        print(json.dumps(analyse_frames(args.frametimes), indent=2))
+        print(json.dumps(analyze_frames(args.frametimes), indent=2))
         return 0
     if args.command == "bench-compare":
         from maipai_body.measure.bench import compare
@@ -189,8 +189,8 @@ def _face_values(args: argparse.Namespace) -> dict[str, object]:
     values: dict[str, object] = {}
     if args.style is not None:
         values["style"] = args.style
-    if args.colour is not None:
-        values["colour"] = args.colour
+    if args.color is not None:
+        values["color"] = args.color
     if args.captions is not None:
         values["captions"] = args.captions == "on"
     if args.schedule is not None:
@@ -241,7 +241,7 @@ def _face(args: argparse.Namespace) -> int:
         return 2
     if args.action in {"set"} and not values:
         print(
-            "Nothing to set. Add --style, --colour, --captions, --schedule or --hours.",
+            "Nothing to set. Add --style, --color, --captions, --schedule or --hours.",
             file=sys.stderr,
         )
         return 2

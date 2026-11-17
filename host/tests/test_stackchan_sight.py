@@ -80,7 +80,7 @@ def test_when_home_gave_no_description_the_line_is_honest_and_invites_another_tr
         "My camera is on and it is bright here, but I couldn't get a good look just now. "
         "Ask me again in a moment."
     )
-    assert "not being analysed" not in answer and "yet" not in answer
+    assert "not being analyzed" not in answer and "yet" not in answer
 
 
 @pytest.mark.parametrize(

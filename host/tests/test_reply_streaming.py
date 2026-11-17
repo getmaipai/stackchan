@@ -61,7 +61,7 @@ def run_bridge(monkeypatch, stream, *, filler_after_s=1.2, setup=None):
     server._loop = loop
     monkeypatch.setattr(turn_module, "StackChanAudioPlayback", FakePlayback)
     holder: dict = {}
-    cancelled: list = []
+    canceled: list = []
 
     class Turn:
         def __init__(self, base, cookie):
@@ -71,7 +71,7 @@ def run_bridge(monkeypatch, stream, *, filler_after_s=1.2, setup=None):
             return stream(holder["bridge"])
 
         def cancel(self, turn_id):
-            cancelled.append(turn_id)
+            canceled.append(turn_id)
             return True
 
     bridge = StackChanTurnBridge(
@@ -86,7 +86,7 @@ def run_bridge(monkeypatch, stream, *, filler_after_s=1.2, setup=None):
         setup(bridge)
     loop.run_until_complete(bridge._run("session", "02:00:00:00:00:15", FakeCapture()))
     loop.close()
-    return SimpleNamespace(bridge=bridge, plain=plain, cancelled=cancelled)
+    return SimpleNamespace(bridge=bridge, plain=plain, canceled=canceled)
 
 
 def deltas(*parts, final=None):
@@ -199,7 +199,7 @@ def test_cancel_stops_speaking_and_cancels_the_hub_turn(monkeypatch):
 
     result = run_bridge(monkeypatch, stream)
     assert "Never spoken." not in Tts.spoken
-    assert result.cancelled == ["t9"]
+    assert result.canceled == ["t9"]
 
 
 def test_a_brain_that_does_not_stream_is_spoken_from_its_final_reply(monkeypatch):

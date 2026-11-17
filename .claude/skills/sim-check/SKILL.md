@@ -1,6 +1,6 @@
 ---
 name: sim-check
-description: Run every non-hardware check against the virtual unit (protocol conformance, behaviour tests, golden frames, language checks, adapter tests) and print one line plus failing names only. Use after any change to core, host, web app or packs, before any firmware build.
+description: Run every non-hardware check against the virtual unit (protocol conformance, behavior tests, golden frames, language checks, adapter tests) and print one line plus failing names only. Use after any change to core, host, web app or packs, before any firmware build.
 ---
 
 1. Run `scripts/run-bg.sh sim-check -- <the repo's sim check command>` (it wraps the virtual unit, golden frames, conformance and language checks).

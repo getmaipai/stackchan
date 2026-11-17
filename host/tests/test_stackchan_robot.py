@@ -145,7 +145,7 @@ def test_software_estop_latches_and_cancels_host_queued_targets():
 
     assert robot.estop.engaged is True
     assert device.pending_motion == []
-    assert device.cancelled_motion_batches >= 1
+    assert device.canceled_motion_batches >= 1
     assert [call.name for call in device.calls[-2:]] == [
         "self.robot.get_head_angles",
         "self.robot.set_head_angles",
@@ -185,7 +185,7 @@ def test_lost_link_latches_estop_and_sends_no_more_head_angles():
 
     assert robot.estop.engaged is True
     assert device.pending_motion == []
-    assert device.cancelled_motion_batches >= 1
+    assert device.canceled_motion_batches >= 1
     with pytest.raises(EstopEngaged):
         robot.head.goto(pose=HeadPose(pitch=math.radians(45)))
 
@@ -195,7 +195,7 @@ def test_stackchan_estop_safe_stop_uses_supported_head_hold_verb():
     robot = StackChanRobotAdapter(device).robot
     robot.emergency_stop()
     assert robot.last_safe_stop == ()
-    assert device.cancelled_motion_batches >= 1
+    assert device.canceled_motion_batches >= 1
 
 
 def test_camera_photo_and_stream_raise_and_lower_the_cue_and_never_write_the_ring():

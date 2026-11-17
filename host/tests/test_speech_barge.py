@@ -33,11 +33,11 @@ def test_stop_phrase_list_is_closed(text, expected):
 def test_a_stop_word_cuts_playback_within_one_block_and_cancels():
     detector = HitAfter(10)
     proc, _, _, _, recorder, _ = build(silence(500), with_voice=True, stop=detector, timed=True)
-    cancelled: list[str] = []
-    record = proc.speak(LONG, turn_id="t9", on_barge=lambda: cancelled.append("t9"))
-    assert record.cancelled and not record.completed
+    canceled: list[str] = []
+    record = proc.speak(LONG, turn_id="t9", on_barge=lambda: canceled.append("t9"))
+    assert record.canceled and not record.completed
     assert record.cancel_reason == "stop_word"
-    assert cancelled == ["t9"]
+    assert canceled == ["t9"]
     # Detection came on the 10th captured block (0.32 s). The cut is that block,
     # and what played is never more than what the clock let through.
     assert recorder.events[-1] == "stop"
@@ -61,7 +61,7 @@ def test_a_reply_nobody_interrupts_completes_with_no_cancel():
     proc, *_ = build(silence(500), with_voice=True, stop=HitAfter(10_000), timed=True)
     called: list[int] = []
     record = proc.speak("Hello there.", on_barge=lambda: called.append(1))
-    assert record.completed and not record.cancelled and called == []
+    assert record.completed and not record.canceled and called == []
 
 
 def test_an_external_stop_event_cuts_too():
@@ -69,7 +69,7 @@ def test_an_external_stop_event_cuts_too():
     event = threading.Event()
     event.set()
     record = proc.speak(LONG, stop_event=event)
-    assert record.cancelled and record.cancel_reason == "stop_event"
+    assert record.canceled and record.cancel_reason == "stop_event"
     assert record.spoken_prefix == ""
 
 
@@ -80,7 +80,7 @@ def test_a_failing_cancel_callback_does_not_unwind_the_local_cut():
         raise RuntimeError("runtime down")
 
     record = proc.speak(LONG, on_barge=boom)
-    assert record.cancelled
+    assert record.canceled
 
 
 def test_transcript_detector_fires_on_a_spoken_stop_at_the_end_of_the_span():

@@ -133,7 +133,7 @@ class StandInHub:
         self.session_cookie = "session-bench"
         self.paired_requests: list[dict] = []
         self.redeemed_tokens: list[str] = []
-        self.cancelled_turns: list[str] = []
+        self.canceled_turns: list[str] = []
         self.stt_handshakes: list[dict[str, str | None]] = []
         self.state_frames: list[dict] = []
         self.prints: list[dict] = []
@@ -406,7 +406,7 @@ class StandInHub:
             if turn_id not in self._in_flight:
                 return False
             self._cancel_flags.add(turn_id)
-            self.cancelled_turns.append(turn_id)
+            self.canceled_turns.append(turn_id)
             return True
 
     def _track(self, sock: socket.socket) -> None:
@@ -472,8 +472,8 @@ class StandInHub:
                     handler.start_chunked("application/x-ndjson")
                     started = True
                 if turn_id in self._cancel_flags:
-                    cancelled = {"type": "error", "code": "turn_cancelled"}
-                    handler.chunk((json.dumps(cancelled) + "\n").encode())
+                    canceled = {"type": "error", "code": "turn_cancelled"}
+                    handler.chunk((json.dumps(canceled) + "\n").encode())
                     break
                 handler.chunk("".join(json.dumps(line) + "\n" for line in unit).encode())
                 time.sleep(self.event_delay_s)

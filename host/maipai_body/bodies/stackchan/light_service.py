@@ -6,7 +6,7 @@ the night controller and the rest renderer tell it facts and never write a
 pixel. It owns the facts the ring may show (the funnel's shown state, the
 live and camera cues, the needs-you and look-at-the-screen rows, asleep and
 the dark room), re-resolves one look from the one
-table (``indicator/looks.py``, the only site of a colour or a level) on
+table (``indicator/looks.py``, the only site of a color or a level) on
 every change and every ``refresh_s`` (so a night window edge is crossed
 on time), and sends it to the ``StackChanRingIndicator``, which drives
 its own style clock from a ``tick()`` about every 50 ms.

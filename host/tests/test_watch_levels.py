@@ -2,7 +2,7 @@
 scripted stand-ins (a counting embedder, a scripted detector, a fake
 camera) and a real `FaceGallery`. Rules under test (OWNER-ANSWERS 4):
 enrolled only, a child needs a parent's enrolment, a teen must agree,
-visitors are never recognised."""
+visitors are never recognized."""
 
 from __future__ import annotations
 

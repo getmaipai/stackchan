@@ -53,7 +53,7 @@ class HeadTouchFilter:
         for event in head:
             extra = getattr(event, "extra", None) or {}
             if extra.get("strong") in (1, True):
-                return True  # the unit's recogniser saw a touch that reached reading 2 or more
+                return True  # the unit's recognizer saw a touch that reached reading 2 or more
             if extra.get("tap") in (1, True):
                 return True  # the strip and the motion sensor agreed on a tap (firmware patch 081)
             held = extra.get("held_ms")

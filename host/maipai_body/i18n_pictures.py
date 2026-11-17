@@ -9,7 +9,7 @@ from __future__ import annotations
 KEYS = (
     "settings.pics", "settings.pics.help", "settings.pics.mode", "settings.pics.mode.picture",
     "settings.pics.mode.overlay", "settings.pics.mode.sequence", "settings.pics.fps", "settings.pics.overlay",
-    "settings.pics.colour", "settings.pics.add", "settings.pics.remove", "settings.pics.send", "settings.pics.sending",
+    "settings.pics.color", "settings.pics.add", "settings.pics.remove", "settings.pics.send", "settings.pics.sending",
     "settings.pics.clear", "settings.pics.clear_ask", "settings.pics.used", "settings.pics.unreadable",
     "settings.pics.slot.neutral", "settings.pics.slot.happy", "settings.pics.slot.sad", "settings.pics.slot.angry",
     "settings.pics.slot.doubt", "settings.pics.slot.sleepy", "settings.pics.slot.speaking",
@@ -19,8 +19,8 @@ _TEXT: dict[str, tuple[str, ...]] = {
     "en": (
         "Picture face", "Use your own pictures as the face: one for each look. The pictures stay on this computer and go only to your unit.",
         "Style", "Picture only", "Picture with eyes and mouth drawn on top", "A short run of frames",
-        "Frames per second", "Where the eyes and the mouth go, in pixels on the 320 by 240 picture (left eye x and y, right eye x and y, eye width and height, mouth x and y, mouth width and height) and their colour",
-        "Colour of the eyes and mouth", "Choose a picture", "Remove", "Send to the unit", "Sending the pictures...",
+        "Frames per second", "Where the eyes and the mouth go, in pixels on the 320 by 240 picture (left eye x and y, right eye x and y, eye width and height, mouth x and y, mouth width and height) and their color",
+        "Color of the eyes and mouth", "Choose a picture", "Remove", "Send to the unit", "Sending the pictures...",
         "Remove all pictures", "Remove every picture here and from the unit?", "Space used", "That picture could not be read. Choose a PNG or JPEG picture.",
         "Neutral", "Happy", "Sad", "Angry", "Doubtful", "Sleepy", "Speaking",
     ),

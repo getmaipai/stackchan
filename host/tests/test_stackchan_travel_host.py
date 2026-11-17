@@ -1,6 +1,6 @@
 """Travel with the private network, host side: a unit that reaches the hub over a private-network address connects
-and is recognised, several units keyed by Device-Id keep working side by side (one at home, one travelling), and the
-link path reads "away" for the travelling one. The unit's route choice is plain C (test_stackchan_tailnet_travel.py)."""
+and is recognized, several units keyed by Device-Id keep working side by side (one at home, one traveling), and the
+link path reads "away" for the traveling one. The unit's route choice is plain C (test_stackchan_tailnet_travel.py)."""
 
 from __future__ import annotations
 

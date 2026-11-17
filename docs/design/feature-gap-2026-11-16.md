@@ -33,7 +33,7 @@ The security build (CA bundle cut, patches 155 to 158) was not re-measured for h
 |---|---|---|---|---|---|---|
 | Spoken turn over the paired link | features.md Voice; cut: 001, 003, 014, 016, 018 | BUILT-ON-UNIT-VERIFIED | Patches 003-persistent-websocket, 014, 016, 018; host self-test `speech` and `reply` pass after the plain flash | none, soak a longer turn | FW | 1 |
 | Boot, Wi-Fi join, idle face, memory gate | build order step 1 | BUILT-ON-UNIT-VERIFIED | first-flash note (12 min clean, gate passed); faces gate (11.6 min, passed) | none | FW | 1 |
-| Face styles, colour, captions (big-eyes pack, minimal pack) | features.md Faces and look; decisions 22 | BUILT-NOT-VERIFIED | F01, F02; `host/maipai_body/faces.py`, `test_faces.py`; the face tools were never called on the unit | S (call it, look at the screen) | HOST, then FW | 1 |
+| Face styles, color, captions (big-eyes pack, minimal pack) | features.md Faces and look; decisions 22 | BUILT-NOT-VERIFIED | F01, F02; `host/maipai_body/faces.py`, `test_faces.py`; the face tools were never called on the unit | S (call it, look at the screen) | HOST, then FW | 1 |
 | Time-of-day faces | Ideas after a market audit | BUILT-NOT-VERIFIED | F03 | S | FW | 2 |
 | Clock face, works with no host | Faces and look | BUILT-NOT-VERIFIED | F04; `monitor_cue_begin` not in the tree, so the clock avoids cues by state only | S | FW | 1 |
 | Thinking dots and quiet tone | decision 23 | BUILT-NOT-VERIFIED | F05; host `FaceService.thinking` wired to the turn sink in `app.py` | S | FW | 2 |
@@ -70,7 +70,7 @@ The security build (CA bundle cut, patches 155 to 158) was not re-measured for h
 | Core settings page on the host | core-extras-modules.md | BUILT-NOT-VERIFIED | `settings_page.py`, face section, language; checked through routes, never in a browser; hub host is an older release | S | HOST | 1 |
 | English and Spanish | decision 25; languages.md | BUILT-NOT-VERIFIED | host `i18n.py` catalog test; portal table both languages; screen text is ASCII only, no accents | S | HOST | 2 |
 | Travel with the private network | features.md core list; Open | BUILT-NOT-VERIFIED | TN01 to TN06 (rebuilt from 147, 148, 153); behind MAIPAI_TAILNET; measured on the unit with a placeholder key, never joined a real network; see `travel-2026-11-16.md` | L | FW | 3 |
-| Games on one engine (colour memory, action, whack-a-mole) | features.md Touch and play | NOT-BUILT | no engine in the firmware or the host | L | FW | 3 |
+| Games on one engine (color memory, action, whack-a-mole) | features.md Touch and play | NOT-BUILT | no engine in the firmware or the host | L | FW | 3 |
 | Mood that depends on care, saved across days | features.md Touch and play | NOT-BUILT | nothing found | M | FW | 3 |
 | ESP-NOW pose mirroring | features.md Touch and play | NOT-BUILT | ESP-NOW was removed on purpose (097, S01) | M | FW | 3 |
 | Photo-frame face | features.md Ideas | NOT-BUILT | deferred by the design until there is headroom | L | FW | 3 |
@@ -109,7 +109,7 @@ Memory plan: all small state and shared one-second timers. Expect under 3 KB ste
 12. Cooking helper pack (S, HOST): persona text, "next step" command, per-step timers on the existing timer tool. No firmware.
 13. Offline phrases, unit side (M, FW): patch 118, only after the wake and stop checks pass on the unit.
 14. Mood that depends on care, saved across days (M, FW): a small record in saved settings, face shifts driven by the existing touch events.
-15. First game on a built-in engine, colour memory as a signed data pack (L, FW): PSRAM for the pack, no scripting runtime (firmware-memory.md). Build the engine once and ship one game.
+15. First game on a built-in engine, color memory as a signed data pack (L, FW): PSRAM for the pack, no scripting runtime (firmware-memory.md). Build the engine once and ship one game.
 
 Memory plan: 13 and 14 need about 4 KB steady internal each at most; 15 stays in PSRAM. Gate check: a full spoken turn with a game running and the heap line for 10 minutes.
 

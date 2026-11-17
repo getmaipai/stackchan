@@ -2,7 +2,7 @@
 """Arrival-day probe for the Reachy Eyes board (device check 8).
 
 Opens the port the way the client does (exclusive, 115200, 50 ms write
-timeout) and, by default, sends nothing: the README as summarised to us
+timeout) and, by default, sends nothing: the README as summarized to us
 documents no status or ping command. It logs whatever the unit says for
 ``--listen`` seconds. ``--send NAME`` writes one line from the client's
 ``WireProtocol`` table and nothing else can be sent. Every wire string is

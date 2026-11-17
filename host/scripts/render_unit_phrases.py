@@ -6,7 +6,7 @@ text below must match ``body/tests/test_stackchan_sounds.py`` (the group sizes) 
 
 The voice is the Stack's own speech engine with the household's default voice (today the Chatterbox
 Turbo preset, Apache-2.0): our own synthesized voice, no real person. The clips are committed; the
-manifest records the text, the checksum, the voice and the licence check, so a release is
+manifest records the text, the checksum, the voice and the license check, so a release is
 reproducible from the files (speech synthesis itself is not bit-exact between runs). Run on the
 machine that has the Stack, from ``body/``, against a speech engine you started yourself or the
 Stack's TTS route::
@@ -34,7 +34,7 @@ import numpy as np
 import requests
 from render_unit_sounds import RATE, encode_ogg, find_ffmpeg
 
-from maipai_body.speech.clip_render import normalise_wav
+from maipai_body.speech.clip_render import normalize_wav
 
 OUT_DIR = (
     Path(__file__).resolve().parents[1] / "maipai_body/bodies/stackchan/firmware/assets/phrases"
@@ -89,7 +89,7 @@ PAD_S = 0.06
 
 
 def _decode(wav_bytes: bytes) -> tuple[np.ndarray, int]:
-    with wave.open(io.BytesIO(normalise_wav(wav_bytes)), "rb") as w:
+    with wave.open(io.BytesIO(normalize_wav(wav_bytes)), "rb") as w:
         rate = w.getframerate()
         pcm = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float64)
     return pcm / 32768.0, rate

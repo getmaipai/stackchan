@@ -9,7 +9,7 @@ firmware tree is the pinned source at `~/esp/stackchan-build/stackchan-02-run/bu
 
 ## The short version (plain words)
 
-1. We do have a standard: `docs/dev/led-standard-2026-10-20.md`. It is still marked DRAFT (line 5), it has 20 rows and 7 colours, and
+1. We do have a standard: `docs/dev/led-standard-2026-10-20.md`. It is still marked DRAFT (line 5), it has 20 rows and 7 colors, and
    it was never reviewed. The code follows its table, but the firmware, two host side paths and the user guide do their own thing.
 2. The ring is lit far more than the standard wants. Over the last three days the host asked for a lit ring most of the time the unit
    was connected: the night "sleep" glow (dim blue) and the "charging" breathe (green) together covered 97 percent of today's
@@ -21,10 +21,10 @@ firmware tree is the pinned source at `~/esp/stackchan-build/stackchan-02-run/bu
 5. What the owner saw today fits the code: amber is the firmware's own "offline" ring; green on connect is the charging breathe (the
    host's blue "connecting" pulse is never written to the unit); pink is the new "I see someone" glow from bot 0.2.64, which is off by
    default so it was most likely switched on to try it; the white ring after power-off is the firmware's dim white at boot, or the base
-   board keeping its last colour, and one 10 minute check on the unit decides which (section 6).
+   board keeping its last color, and one 10 minute check on the unit decides which (section 6).
 6. Nothing in the firmware or the host turns the ring off when the power button is held. Patch 050 blanks the ring only for the idle
    shutdown and the screen sleep, and its own header says the button is not covered.
-7. The plan: one short table (6 lit states, 5 colours, everything else dark), the firmware boot and offline rings generated from the same
+7. The plan: one short table (6 lit states, 5 colors, everything else dark), the firmware boot and offline rings generated from the same
    table, three bypasses removed, a test that fails on any row outside the table, and a firmware patch that blanks the ring on the
    power key. The host part ships as a bot release; the firmware part needs a build, a flash and a release.
 8. The owner answered the same day (section 8): the face should show feelings and doings, the ring only what a person needs when the
@@ -54,13 +54,13 @@ firmware tree is the pinned source at `~/esp/stackchan-build/stackchan-02-run/bu
 
 | What | Where | What it says |
 |---|---|---|
-| The light standard | `docs/dev/led-standard-2026-10-20.md:1-45` | One meaning per colour and style on every body; no red; quiet by default; the look table in `indicator/looks.py` is the only site of a colour or a level; a 20 row state table; priority list at line 45. "Status: DRAFT, pending architect review" (line 5). |
+| The light standard | `docs/dev/led-standard-2026-10-20.md:1-45` | One meaning per color and style on every body; no red; quiet by default; the look table in `indicator/looks.py` is the only site of a color or a level; a 20 row state table; priority list at line 45. "Status: DRAFT, pending architect review" (line 5). |
 | Idle is dark | `docs/dev/led-standard-2026-10-20.md:34`; `indicator/looks.py:78-79` | Owner ruling 2026-10-21: "no lights for idle; the ring lights only for a real state". The IDLE row has weight 0 and resolves to dark. |
 | Camera is a pink flash | `docs/dev/led-standard-2026-10-20.md:25,83`; `looks.py:73` | Jesse 2026-10-20: pink, two quick flashes then steady, floor 0.5, no setting can dim it. Replaced the red ring. |
 | Charging and low battery | `docs/dev/led-standard-2026-10-20.md:39-40,88`; `looks.py:91-92` | Jesse 2026-10-20: charging is a slow green breathe (4 s, 0.3) while docked; low battery an amber pulse every 20 s. |
 | Night | `looks.py:36-43,166-171`; `indicator/settings.py:51-52` | Night is the household quiet hours (default 21:00 to 07:00); the night level is 0.15 and a child, teen, unknown or missing presence multiplies it by 0.4. |
 | The sleep row | `looks.py:83,232-237`; `settings.py:35,53` | Idle at night shows dim blue (0.3 of the night level) unless `robot.indicator.sleep_eyes` is "off"; the default is "dim". |
-| The one look table and its tests | `looks.py:1-11,71-95`; `tests/test_indicator_looks.py:44,190,197` | A row per state and no red; no colour literal outside `looks.py` in `indicator/`; no module outside the seam names a palette member. |
+| The one look table and its tests | `looks.py:1-11,71-95`; `tests/test_indicator_looks.py:44,190,197` | A row per state and no red; no color literal outside `looks.py` in `indicator/`; no module outside the seam names a palette member. |
 | Priority | `looks.py:199-240` | live, camera, alarm, then (if enabled) fault, held, muted, updating, pairing, connecting, offline, battery low, offer, charging, night sleep, dancing, then the turn funnel. |
 | No new status UI | `home/docs/design/RULES.md:508-512` (S6, owner-approved 2026-10-17) | "System status reaches the person through the existing mechanisms." A new status surface needs an architect verdict and is DUPLICATE when an existing mechanism covers it (lines 540-543). The ring is an existing mechanism; this plan adds no new one. |
 | The settings keys | `settings.py:37-45,103-135` (0.2.64) | `robot.indicator.enabled` ("Show what I am doing with my eyes"), `brightness` (0.6), `night_brightness` (0.15), `sleep_eyes` (off or dim), `alarm` ("Blink amber when I tip or fall"), and since 0.2.64 `sees` ("Glow pink when I see someone", off by default). They live in "Devices, this robot, Lights" (line 32). |
@@ -83,7 +83,7 @@ reaches it through two MCP tools: `self.robot.set_led_color` (whole ring, upstre
 | H4 | The vision tracker | Feeds `sees` (maybe, person, face) | Yes | `app.py:1858` (0.2.64) |
 | H5 | The rest renderer (idle sleep) | Ring dark when asleep, restored on wake | Half: `set_sleeping` blanks the indicator, bypassing the table's own sleep row | `bodies/stackchan/routines.py:143-144`; `light_service.py:128-136`; `app.py:1840` (0.2.64) |
 | H6 | The night controller (dark room) | Writes 12 black pixels straight to the unit when the room goes dark | No: direct `leds.many`, the service does not know | `presence/night.py:416-417`; `app.py:1629-1631` (0.2.64; main `app.py:1116-1118`) |
-| H7 | The camera adapter | Two pink flashes then steady pink at brightness 1.0 (168, 42, 92), then black at the end | Half: it reads the table's colour but writes the ring itself and at a different brightness (1.0) than the service's own camera row (0.6 by day) | `bodies/stackchan/adapter.py:66-69,396-422` |
+| H7 | The camera adapter | Two pink flashes then steady pink at brightness 1.0 (168, 42, 92), then black at the end | Half: it reads the table's color but writes the ring itself and at a different brightness (1.0) than the service's own camera row (0.6 by day) | `bodies/stackchan/adapter.py:66-69,396-422` |
 | H8 | The notification fallback | Whole ring orange (168, 36, 0) when a "show" alert cannot reach the unit, never restored | No: an RGB literal outside `ring.py`, outside the palette | `adapter.py:263-266` |
 | H9 | The self-test | A 0.15 s white pulse at 0.5, inside `suspended()` only | Yes (by design) | `ring_indicator.py:30-33,89-92`; `light_service.py:111-126` |
 | H10 | The write guard | Skips every ring write while no unit session is open | n/a | `light_wiring.py:159-162` |
@@ -100,16 +100,16 @@ code sends.
 | F1 | Ring init at boot | Black, written twice, after the PY32 answers (up to 1.2 s wait) | `hal_io_expander.cpp:16-55` |
 | F2 | Boot cover (patch 033) | A blue blink (0, 17, 84), 250 ms on every 2 s, while joining Wi-Fi and opening the hub session; cyan (0, 91, 101) for Wi-Fi setup. Not a breathe. | patch 033 lines 69-94 (`BootRingTick`), 72-73, 80-88 |
 | F3 | First Standby (patch 033) | All 12 pixels dim white (35, 35, 31), "the ring settles to idle white" | patch 033 header and line 64 (`HideBootCover`) |
-| F4 | Upstream state colours | Removed by patch 033: listening green (0, 50, 0), standby black, speaking blue (0, 0, 50) | upstream `stackchan_display.cc:506,521,529`; patch 033 lines 118-130 |
-| F5 | Offline (patch 075) | Steady amber (40, 18, 0) after 10 s without the hub socket, plus "Offline" in the speech bubble; cleared when the socket is back; host colours set meanwhile are kept in a shadow and come back | patch 075 header item 4, lines 120, 148-164 |
+| F4 | Upstream state colors | Removed by patch 033: listening green (0, 50, 0), standby black, speaking blue (0, 0, 50) | upstream `stackchan_display.cc:506,521,529`; patch 033 lines 118-130 |
+| F5 | Offline (patch 075) | Steady amber (40, 18, 0) after 10 s without the hub socket, plus "Offline" in the speech bubble; cleared when the socket is back; host colors set meanwhile are kept in a shadow and come back | patch 075 header item 4, lines 120, 148-164 |
 | F6 | Screen sleep and idle shutdown (patch 050) | Blanks the ring on entering the power-save sleep, restores it on wake, blanks before `pmic_->PowerOff()` on the idle shutdown | patch 050 lines 26, 31, 39-40, 75 |
 | F7 | Power key hold | Nothing. The AXP2101 cuts power with the shortest hold time (register 0x27 = 0, `stackchan.cc:107`); no handler blanks the ring first. Patch 050's header says so. | patch 050 header line 1; `axp2101.cc:37-41` (`PowerOff` sets bit 0 of 0x10) |
-| F8 | Charging and battery | No ring behaviour. Battery reads go to the screen; the host reads them through `self.battery.get_status` (patch 010). A failed I2C read returns 0, so "charging" reads false (patch 009). | `stackchan.cc:624-632,678-692`; patch 009 lines 13-18; patch 010 lines 10-20 |
-| F9 | Default `Led` class | Not used: the board returns `NoLed`, whose `OnStateChanged` is empty, so the generic xiaozhi state colours never fire | `xiaozhi-esp32/main/boards/common/board.cc:65-68`; `main/led/led.h:12-15` |
+| F8 | Charging and battery | No ring behavior. Battery reads go to the screen; the host reads them through `self.battery.get_status` (patch 010). A failed I2C read returns 0, so "charging" reads false (patch 009). | `stackchan.cc:624-632,678-692`; patch 009 lines 13-18; patch 010 lines 10-20 |
+| F9 | Default `Led` class | Not used: the board returns `NoLed`, whose `OnStateChanged` is empty, so the generic xiaozhi state colors never fire | `xiaozhi-esp32/main/boards/common/board.cc:65-68`; `main/led/led.h:12-15` |
 
 Power facts: the idle shutdown is 600 s on battery and off while on USB by default (`hal.h:118-119`); the screen sleep comes first
 (`stackchan.cc:366-368`). Which rail feeds the PY32 and the ring is not in any code we have; patch 050's header asserts "the ring is fed
-from the base rail and keeps its last colours when the PMIC cuts the CoreS3", and the owner's white ring after power-off today agrees
+from the base rail and keeps its last colors when the PMIC cuts the CoreS3", and the owner's white ring after power-off today agrees
 with it, but it is an assertion, not a measurement.
 
 ## 3. What the ring actually did (hub log, three days)
@@ -155,17 +155,17 @@ What the numbers show:
 | Asleep (rest renderer, 5 min quiet) | not in the table | ring dark (H5), restored on wake | | A second night rule outside the table |
 | Dark room (night controller) | not in the table | 12 black pixels direct (H6) | | A third darkener, bypasses the service |
 | Connecting (boot, Wi-Fi, hub) | blue slow pulse 2 s, 0.5 (line 36) | firmware: blue blink 250 ms every 2 s (F2); host: blue pulse resolved but never written (H10) | "green when connecting" | The host row is invisible; what shows on connect is the charging breathe within a minute (log 08:49:28 connecting, 08:49:42 idle, 08:50:29 charging) |
-| Offline (hub unreachable) | amber, two short pulses every 10 s, 0.3 (line 37) | host: amber double (30, 14, 0 at day level), never fired; firmware: steady amber (40, 18, 0) (F5) | orange or amber | Same colour, two patterns, two different meanings (host: Home unreachable; firmware: host unreachable) |
-| Fault or error | steady amber 0.7 (line 24 in the table) | row exists (`looks.py:87`), nobody feeds `fault` | "yellow when refused" (not found in code; the nearest are the error row at 0.42, which reads yellower than the 0.18 offline, and the orange fallback H8) | Amber at three brightnesses reads as three colours |
+| Offline (hub unreachable) | amber, two short pulses every 10 s, 0.3 (line 37) | host: amber double (30, 14, 0 at day level), never fired; firmware: steady amber (40, 18, 0) (F5) | orange or amber | Same color, two patterns, two different meanings (host: Home unreachable; firmware: host unreachable) |
+| Fault or error | steady amber 0.7 (line 24 in the table) | row exists (`looks.py:87`), nobody feeds `fault` | "yellow when refused" (not found in code; the nearest are the error row at 0.42, which reads yellower than the 0.18 offline, and the orange fallback H8) | Amber at three brightnesses reads as three colors |
 | Pairing or setup | cyan slow pulse 2 s, 0.6 (line 38) | firmware cyan blink for Wi-Fi setup (F2); host row never fed | | Half built |
 | Charging | green breathe 4 s, 0.3, "dark when full" (line 39) | green breathe while `charging` is true, flapping once a minute (section 3); never "dark when full" (no full fact) | "green when connecting" | Noisy, and the screen already shows the battery |
 | Battery low | amber pulse every 20 s, 0.3 (line 40) | row exists (`looks.py:92`), never seen; flips with the failed read | | Shares amber with offline and error |
 | Listening | blue steady, day level (line 31) | blue (0, 20, 101) (`looks.py:80`) | | Follows the standard |
 | Live (voice to Home) | green steady, at least 0.5 (line 23) | green (0, 101, 17) with a 0.5 s hold (`light_service.py:143-154`) | | Follows the standard; overlaps the charging green in hue (steady versus breathe is the only difference, line 39 admits it) |
-| Thinking | magenta breathe 3 s, 0.8 (line 32) | violet (36, 0, 81) breathe (`ring.py:24`) | | Follows; one more colour for a 2 s state the face already shows |
+| Thinking | magenta breathe 3 s, 0.8 (line 32) | violet (36, 0, 81) breathe (`ring.py:24`) | | Follows; one more color for a 2 s state the face already shows |
 | Speaking | white steady, day level (line 33) | white (101, 101, 91) | | Follows; white also means "updating" and the firmware's boot white (F3) |
 | Camera capture | pink, two flashes then steady, floor 0.5 (line 25) | the adapter writes (168, 42, 92) itself (H7); the service's own camera row would give 0.6 by day | | Two writers, two brightnesses for one cue |
-| Vision glow "sees" (0.2.64) | not in the standard | three steady pinks, off by default (`settings.py:45`) | pink | A second meaning for pink, the privacy colour |
+| Vision glow "sees" (0.2.64) | not in the standard | three steady pinks, off by default (`settings.py:45`) | pink | A second meaning for pink, the privacy color |
 | Held, muted, offer, dancing, alarm | rows at lines 26-30, 42 | rows exist, no StackChan caller | | Dead rows; the alarm setting label promises a light that never comes |
 | Updating firmware | white fast pulse 1 s (line 41) | row exists, no caller; updates are a host side operation (firmware README) | | Dead row |
 | Power off (button) | not in the standard | nothing blanks the ring (F7) | white ring stayed on | Missing state |
@@ -189,10 +189,10 @@ Duplicates and clashes, in one list:
 ## 5. The proposed standard: one table
 
 Principles (the owner's, 2026-11-13): the ring is OFF by default and ON only when it tells the person something they need right now;
-always off when the unit is off; minimal and calm; one meaning per colour; one table drives the firmware's boot and shutdown rings, the
+always off when the unit is off; minimal and calm; one meaning per color; one table drives the firmware's boot and shutdown rings, the
 host's looks, the docs and a test that fails on any row outside it.
 
-| Pri | State | Colour | Pattern | Brightness | When it is shown | Who writes it |
+| Pri | State | Color | Pattern | Brightness | When it is shown | Who writes it |
 |---|---|---|---|---|---|---|
 | 1 | Live: your voice is leaving the robot for Home | green | steady | at least 0.5; ignores every setting and level | the whole time audio streams to Home, held 0.5 s after | host |
 | 2 | Camera: a picture is being taken that you should know about | pink | two quick flashes, then steady | at least 0.5; ignores every setting and level | the whole capture | host (through the service only) |
@@ -208,7 +208,7 @@ host's looks, the docs and a test that fails on any row outside it.
 | 12 | Ready: the Home session opens | dark (the chime and the face say it) | | | | |
 | 13 | Power off (button, idle shutdown), and off while still on USB | dark, blanked before the power cut | | | | firmware |
 
-Five colours, each with one meaning: green = your voice is leaving; pink = a picture; cyan = I need you; amber = look at the screen;
+Five colors, each with one meaning: green = your voice is leaving; pink = a picture; cyan = I need you; amber = look at the screen;
 blue = your turn. White only if updating stays. Night and child levels scale rows 5 and 6; rows 1 to 4 keep their floors.
 
 Priority is the row order: live and camera (privacy) over everything, then needs you, attention, listening, updating. Two rows never
@@ -241,12 +241,12 @@ States to REMOVE:
 Known from code: the ring is written over I2C through the PY32 on the base; the CoreS3 is cut by the AXP2101 (`PowerOff`, register
 0x10 bit 0); the hold-to-off time is the shortest (register 0x27 = 0); patch 050 blanks the ring before the idle shutdown and on the
 screen sleep but not on the button; the AXP2101 has a power-key and plug IRQ status register 0x49 (`docs/dev/stackchan-sensor-map.md:10`).
-Not known: whether the base keeps the ring powered and holding its last colour when the CoreS3 is off on USB, and whether holding the
+Not known: whether the base keeps the ring powered and holding its last color when the CoreS3 is off on USB, and whether holding the
 button on USB turns the unit off or reboots it.
 
 Two readings of today's white ring:
 
-- A: the base holds its last colour across the cut. Then the last colour written was white: the firmware's boot white (F3) after a
+- A: the base holds its last color across the cut. Then the last color written was white: the firmware's boot white (F3) after a
   reboot the host never followed (the host writes dark within a second of a session opening, `light_wiring.py:73-98`, so white persists
   only when no session opens).
 - B: on USB the AXP2101 cut re-powers the CoreS3 at once (a reboot, not an off), the firmware runs the boot blink and then dim white (F3),
@@ -313,7 +313,7 @@ idle (idle motion), and draws two decorators of its own: a heart (`main/stackcha
 | `wink` (sent as `winking`) | left dot, right "^", smile with tongue | only an explicit wink; no automatic sender since 2026-10-20 (`led-standard:148`) | 0 |
 | heart decorator | a small heart beside the face for 2.5 s | the firmware's own stroke reaction; the host asks for it through `self.screen.show_symbol` when the firmware has the tool (`app.py:1939-1941`, `reactions.py:146-152`) | not logged as a face |
 | dizzy decorator | a swirl over the eyes | the firmware's own shake reaction | not logged |
-| night palette (patch 017) | the same faces in dimmer colours | the night controller's dark-room night (`presence/night.py`) | 7 night starts today |
+| night palette (patch 017) | the same faces in dimmer colors | the night controller's dark-room night (`presence/night.py`) | 7 night starts today |
 | no face: text cover | "Connecting to Wi-Fi...", "Connecting to Home...", the Wi-Fi setup instructions, "Offline", "Can't reach Home" in the bubble | boot (patch 033), offline (patch 075) | at every boot |
 
 What the owner listed (idle, petted, sleeping, tilted) is what shows on its own. The reply mood faces exist but show only when the hub's
@@ -369,11 +369,11 @@ drives it; how it is today (face / ring); priority (ring rows only, highest wins
 | 36 | Error or fault | the host's fault fact | `sad` as "sorry", the spoken error line (`error_line.py`, exists) | amber one short pulse every 10 s, 0.3 | the existing `exclamation` earcon (falling, 0.9 s) then the error line; at night the earcon only | host | nothing / error row never fed / nothing | 4 |
 | 37 | Updating firmware | an install (host side today) | the firmware's own update screen, if ever device side | white fast pulse 1 s, 0.5, only if device side; else the row goes | nothing during; after the reboot row 5's chime and the host line "I'm updated to version 0.2.65" (the normalizer reads the number) | host (line) | never | 6 |
 | 38 | Screen sleep (firmware power save) | 5 min idle on battery | screen off | off, blanked (patch 050, exists) | nothing | firmware | screen off / blanked / nothing | |
-| 39 | Power button, shutting down | the button held | `sleeping` for the last moment (reuse) | off, blanked before the cut (NEW: the power-key IRQ, section 6) | NEW earcon `goodbye` (three notes falling), at night too (a person is holding it) | firmware | nothing / keeps its last colour / nothing | |
+| 39 | Power button, shutting down | the button held | `sleeping` for the last moment (reuse) | off, blanked before the cut (NEW: the power-key IRQ, section 6) | NEW earcon `goodbye` (three notes falling), at night too (a person is holding it) | firmware | nothing / keeps its last color / nothing | |
 | 40 | Idle shutdown on battery | 10 min idle | screen off | off, blanked (patch 050, exists) | nothing (nobody is there) | firmware | screen off / blanked / nothing | |
 | 41 | Off, still on USB | the unit off, cable in | screen off | off, held dark (section 6 decides how) | nothing | firmware or hardware | screen off / white stayed on / nothing | |
-| 42 | Self-test (Settings, Lights and Sounds) | the admin runs it | the face stays | the test's own colours and the white pulse (exists) | each earcon in turn (NEW: the sound self-test) | host | same / test / nothing | |
-| 43 | DANCE, light show (section 15) | voice "dance", the Settings button or hub command, or music (if the auto setting is on) | the firmware dance faces (Happy squint and open mouth, Robot, Panic wide eyes, LookAround) with `happy` and `wink` between moves | the one decorative ring: rainbow sweep, beat pulse or sparkle at 0.5, colours outside the status meanings, synced to the dance; privacy cues (rows 12 and 19) still win at once | the host line "Let's dance" at the start (optional, day only); no music is played by the unit | host (starts, picks the pattern), firmware (runs the moves and the show) | four head dances exist, no ring, no faces beyond the keyframes, "dance" is refused by voice | |
+| 42 | Self-test (Settings, Lights and Sounds) | the admin runs it | the face stays | the test's own colors and the white pulse (exists) | each earcon in turn (NEW: the sound self-test) | host | same / test / nothing | |
+| 43 | DANCE, light show (section 15) | voice "dance", the Settings button or hub command, or music (if the auto setting is on) | the firmware dance faces (Happy squint and open mouth, Robot, Panic wide eyes, LookAround) with `happy` and `wink` between moves | the one decorative ring: rainbow sweep, beat pulse or sparkle at 0.5, colors outside the status meanings, synced to the dance; privacy cues (rows 12 and 19) still win at once | the host line "Let's dance" at the start (optional, day only); no music is played by the unit | host (starts, picks the pattern), firmware (runs the moves and the show) | four head dances exist, no ring, no faces beyond the keyframes, "dance" is refused by voice | |
 | 44 | Dance ends | the sequence ends, or at once on a touch, a wake word or turn, a shake or tilt, a picture, low battery, offline | `neutral` | off, back to the normal rules | nothing | host, firmware | | |
 
 Ring rows and why each one passes the rule: rows 12 and 19 are privacy cues the whole room must be able to see; rows 2 and 4 need a
@@ -382,7 +382,7 @@ row 11 needs the person now ("I heard you, your turn") and is seen from across t
 side install ever exists. Row 43 is the one decorative exception, asked for on purpose and ended by anything real. Everything else is a
 feeling or a doing: the face.
 
-Five ring colours, one meaning each: green = your voice is leaving the robot; pink = a picture; cyan = I need a person; amber = look at
+Five ring colors, one meaning each: green = your voice is leaving the robot; pink = a picture; cyan = I need a person; amber = look at
 the screen; blue = your turn. White only if row 34 stays.
 
 ## 11. New faces needed, and what is reused
@@ -393,7 +393,7 @@ New (describe only; the owner approves a preview still before any skin change, p
    the blue ring's job up close and keeps it at a distance (row 11 and 12).
 2. `thinking`: the eyes up and to one side, a small closed mouth, no brow; it replaces the violet breathe (row 13). The 2026-10-20 note
    already says this needs a look-direction frame the skin does not have (`led-standard:140-141`).
-3. The OFFLINE family (section 16, firmware-driven): a `muted` face palette (the normal face in grey-blue, eyes a little lowered) and
+3. The OFFLINE family (section 16, firmware-driven): a `muted` face palette (the normal face in gray-blue, eyes a little lowered) and
    two small corner glyphs: the link glyph (cloud with a slash; the shipped `icon_wifi_slash` asset can stand in) and a key beside it for
    "waiting for approval". The connecting animation reuses the shipped `icon_wifi_low`, `medium`, `high` icons cycled. Text: "Waiting for
    Home to approve me".
@@ -444,7 +444,7 @@ face whose eyes lead the head during the look around (row 17).
 | 2 | Host ring table: `looks.py` to the ring rows (LIVE, CAMERA, PAIRING, ATTENTION, LISTENING, DANCE as a mode flag, UPDATING only if device side); remove SEES_*, CHARGING, SLEEP, ERROR, OFFLINE, BATTERY_LOW (merged into ATTENTION), THINKING, SPEAKING, HELD, MUTED, OFFER, DANCING, ALARM, ALARM_DIM, CONNECTING; `resolve_key` to the section 10 priority; `settings.py` drops `sees`, `sleep_eyes`, `alarm`; the night controller, the rest renderer and the camera adapter feed facts instead of writing the ring; the orange fallback goes; the table test compares the `LookKey` set with the doc's table; the grep test covers `app.py`, `adapter.py`, `presence/night.py` | Codex brief, one slice per run | M, 10 to 12 files, about 3 h | the rest renderer wiring (0.2.57 history); the 0.2.64 vision tests |
 | 3 | Battery read: a failed read keeps the last values; a change counts after two reads agree; the poller feeds `battery_low` only (no `charging` fact for the light; the power rule still gets it) | Codex | S, 2 files, 30 min | none |
 | 4 | Host faces and lines: `expression_map.py` gets `listening` and `thinking` behind a firmware-version check (as `sleeping` is), the low battery "tired" refresh and the fault "sorry" face; `face_set.json` grows by two; the low battery and "updated" spoken lines through the normalizer; the tier 1 offline bundle installed and verified on the hub (it has never played, section 17) | Codex | S, 5 files, 1.5 h | the map's "every primitive accounted for" check |
-| 5 | Sounds: a render script makes the eleven earcons from one synth definition (section 14) and the sixteen local clips from the Stack TTS (section 17) into Opus Ogg; the firmware patch embeds them beside the shipped five and adds `self.audio.play_sound(name)`; the sound self-test row in Settings | Codex (script), the firmware session (patch) | M, 1 day | the voice licence line in the manifest (section 17); the app image grows about 120 KB of 1.36 MB free |
+| 5 | Sounds: a render script makes the eleven earcons from one synth definition (section 14) and the sixteen local clips from the Stack TTS (section 17) into Opus Ogg; the firmware patch embeds them beside the shipped five and adds `self.audio.play_sound(name)`; the sound self-test row in Settings | Codex (script), the firmware session (patch) | M, 1 day | the voice license line in the manifest (section 17); the app image grows about 120 KB of 1.36 MB free |
 | 6 | Generated ring header: a script writes the firmware's ring constants (cyan, amber, the pulse period and width, the three show patterns) from `looks.py` and `ring.py`; the firmware patches include it | Codex | S, 3 files, 1 h | the patch set must still apply (`STACKCHAN_CHECK_ONLY=1 recipe.sh`) |
 | 7 | Firmware patch 08x: patch 033 becomes the shared link screen (section 18: one cover, one glyph slot, one text slot, used for Wi-Fi joining, Wi-Fi setup, connecting to Home and waiting for approval; boot ring dark, no Standby white, cyan only for Wi-Fi setup and approval); patch 075 (offline amber becomes the table's pulse; the muted palette and the same link strip in the face's corner for offline and reconnecting, from the link state; the local clip reply to the wake word with the cycle and rate limit); patch 050 (blank on the AXP2101 power-key IRQ before the cut, the `goodbye` earcon; VBUS in and out earcons; the `charged` earcon); patch 013 (the `listening` and `thinking` emotions and the `muted` palette in the mint skin, after the owner approves the stills); patch 020 (the `light_show` tool and the dance faces between moves) | a Claude session with the ESP-IDF toolchain | L, two days plus a build | needs a build, a flash of the owner's unit and a bot release with a firmware version bump (`firmware/pins.toml:6`); the flash waits for the listening session |
 | 8 | Dance on the host: route the voice word "dance" (today refused by `head_commands.py:127`) to `companion.dance` plus the show; the Settings button; the auto-dance setting wiring `presence/auto_dance.py` and `speech/music.py` (both unwired today); every end condition in section 15 | Codex | M, 6 files, 3 h | the 20 Hz pixel path is not used (the show is firmware side) |
@@ -518,7 +518,7 @@ after.
 | Part | Proposal |
 |---|---|
 | Faces | the dance's own keyframe faces (Happy squint and open mouth, Panic wide eyes, Robot, LookAround), `happy` and `wink` between moves; no new face |
-| Ring patterns (firmware, D8) | `rainbow`: the hue walks around the 12 pixels, one turn every 2 s; `beat`: all pixels pulse on the beat, the colour stepping through the hue each bar, at the detected tempo (`speech/music.py`) or 120 BPM when asked by voice; `sparkle`: random pixels flicker in two colours. Brightness 0.5 by day. The colours are deliberately outside the five status meanings: the ring is in a show, not telling a state |
+| Ring patterns (firmware, D8) | `rainbow`: the hue walks around the 12 pixels, one turn every 2 s; `beat`: all pixels pulse on the beat, the color stepping through the hue each bar, at the detected tempo (`speech/music.py`) or 120 BPM when asked by voice; `sparkle`: random pixels flicker in two colors. Brightness 0.5 by day. The colors are deliberately outside the five status meanings: the ring is in a show, not telling a state |
 | Sync | the firmware runs the dance modifier and the show from the same start tick; the host passes the pattern, the length in ms and the tempo |
 | Who starts it | voice "dance" or "dance for me" (routed to `companion.dance` instead of the refusal); a Dance button on the robot's Settings page with the four names; music, only if the auto-dance setting is on (off by default) |
 | How long | one sequence (about 4 to 6 s) for a button; up to 30 s for a voice ask ("dance longer" repeats); 10 s for auto dance |
@@ -535,7 +535,7 @@ while the link is down, so all of this is firmware, driven from the link state p
 
 | State | Face | Glyph | Text | Cost |
 |---|---|---|---|---|
-| Offline (link down 10 s) | the normal face in a NEW `muted` palette (grey-blue, eyes a little lowered), blinks and idle drift on, calm; local reactions keep working (the firmware heart on a pet, the tap feedback) | a small "no link" glyph (cloud with a slash) in the top corner; the shipped `icon_wifi_slash.bin` (1,212 bytes, kept by `recipe.sh:324`) can stand in until a cloud glyph is drawn | "Offline" bubble (exists) | cheap: the palette switch is patch 017's runtime `avatar->setPalette(name, night)` (lines 59-71), already used for the night face; a corner glyph is one `lv_img` on the face layer from the same asset path the status icons use |
+| Offline (link down 10 s) | the normal face in a NEW `muted` palette (gray-blue, eyes a little lowered), blinks and idle drift on, calm; local reactions keep working (the firmware heart on a pet, the tap feedback) | a small "no link" glyph (cloud with a slash) in the top corner; the shipped `icon_wifi_slash.bin` (1,212 bytes, kept by `recipe.sh:324`) can stand in until a cloud glyph is drawn | "Offline" bubble (exists) | cheap: the palette switch is patch 017's runtime `avatar->setPalette(name, night)` (lines 59-71), already used for the night face; a corner glyph is one `lv_img` on the face layer from the same asset path the status icons use |
 | Waiting for approval, refused | the `muted` palette | the link glyph plus a NEW key glyph beside it (about 1 KB as a `.bin`, like `icon_bell`) | "Waiting for Home to approve me" | the glyph asset plus the refused state from the hello reply (patch 018 hands the token off; the refusal is already logged by the firmware) |
 | Connecting (reconnect after the face has shown) | the normal palette | the link glyph animated: the shipped `icon_wifi_low`, `medium`, `high` icons cycled every 300 ms, zero new assets | "Connecting to Home..." in the bubble only if it lasts over 10 s (reconnects are constant) | cheap |
 | Boot (no face yet) | the cover text (patch 033) | the same cycling glyph on the cover | "Connecting to Wi-Fi...", "Connecting to Home..." (exist) | cheap |
@@ -551,13 +551,13 @@ The wake word runs on the unit (WakeNet in the firmware), so the unit can answer
 **Tier 1, the body is up and Home is down.** Already designed and partly built: `turn.py:1311-1325` plays a pre-rendered line from the
 offline clip bundle when a turn fails with `TurnLinkLost`, `TurnAuthFailed` or `TtsAuthFailed` (`turn.py:1215-1216`, also `:988` and
 `:1375`). The bundle (`speech/offline_clips.json`, rendered by `scripts/render_offline_clips.py` with `pocket-tts-english`, CC-BY-4.0,
-`licence_checked: false`) has five unreachable lines ("Sorry, I can't connect to the home hub right now", "I can't reach home right
+`license_checked: false`) has five unreachable lines ("Sorry, I can't connect to the home hub right now", "I can't reach home right
 now", "I'm having trouble connecting to home", "I can't get through to home just now", "I'm not able to connect to home right now"),
 six reconnect lines ("I'm back in touch with home" and five more), the freefall, carry and thermal lines and the pairing-code characters.
 `OfflineSpeaker.say_phrase` picks a variant and never repeats the last one (`offline_clips.py:230-255`); the loop breaker rate-limits it.
 It has never played on the unit: the hub log has no "offline line" or "clip bundle" line in three days, and the body on the hub runs
 inside the Home install, so Home being down usually means the body is down too. Work: install and verify the bundle on the hub (plan
-step 4), and set the licence line (the owner's rule: our own synthesized voice only; `pocket-tts-english` is a model, not a person, and
+step 4), and set the license line (the owner's rule: our own synthesized voice only; `pocket-tts-english` is a model, not a person, and
 its CC-BY credit line is in the manifest).
 
 **Tier 2, no host at all** (the body restarting, Wi-Fi down, the refused state, a reconnect in progress). The firmware plays a local clip
@@ -578,16 +578,16 @@ free; the assets partition's 400 KB free is not needed). A small cycle (never th
 does), a rate limit (one clip per 10 s, at most three a minute, then the tone only), the volume setting, and quiet hours: at night the
 tone only, no clip. Rendered at release time by `release.sh` from the Stack's own TTS (the same voice the hub speaks with, our own
 synthesized voice, no real person), committed as generated assets with their text and checksums in a manifest like
-`offline_clips.json`, so a release is reproducible and the licence line travels with them.
+`offline_clips.json`, so a release is reproducible and the license line travels with them.
 
 **Local commands beyond the wake word.** The stop-word model is MultiNet `mn5q8_en` with seven phonetic commands fixed in the patch
 (`stop`, `stackchan stop`, `be quiet`, `quiet`, `that's enough`, `never mind`, `cancel`; patch 049 lines 181-188), armed only while the
 unit speaks, dropped for good if it costs more than 6 KB of internal RAM and refused below 16 KB free (patch 049 lines 172-175). Two more
 phrases ("what's wrong", "are you connected") need no new model: MultiNet takes commands as phoneme strings at start-up, so the list
-can grow in the same patch. What they do need is arming the recogniser while idle and offline, which is new: today it listens only
+can grow in the same patch. What they do need is arming the recognizer while idle and offline, which is new: today it listens only
 during speech, and the internal RAM floor that gates it (12.5 KB lowest seen) is the real limit. Recommendation: the wake word alone
 triggers the local clip in this release; add "are you connected" as a stop-list entry armed during the offline state only after the
-RAM cost is measured on the unit (one check: free internal RAM with the recogniser armed while idle). Not feasible: free speech or any
+RAM cost is measured on the unit (one check: free internal RAM with the recognizer armed while idle). Not feasible: free speech or any
 phrase outside the fixed list.
 
 ## 18. One shared "link" screen (owner, 2026-11-13)
@@ -606,7 +606,7 @@ component:
 | Slot | Content | States |
 |---|---|---|
 | background | black, full screen (the existing cover) | all not-yet-linked states |
-| glyph slot | top centre, 32 px: the shipped `icon_wifi_low`, `medium`, `high` (1,212 bytes each, already in the assets partition) cycled every 300 ms for "connecting"; `icon_wifi_slash` (1,212 bytes) for "no Wi-Fi" and "offline"; the slash glyph plus a NEW key glyph (about 1 KB) for "waiting for approval" | |
+| glyph slot | top center, 32 px: the shipped `icon_wifi_low`, `medium`, `high` (1,212 bytes each, already in the assets partition) cycled every 300 ms for "connecting"; `icon_wifi_slash` (1,212 bytes) for "no Wi-Fi" and "offline"; the slash glyph plus a NEW key glyph (about 1 KB) for "waiting for approval" | |
 | text slot | the wrapped label below the glyph: "Connecting to Wi-Fi...", the setup instructions, "Connecting to Home...", "Waiting for Home to approve me", "Reconnecting..." | |
 | corner strip | the same glyph and a short word ("Offline", "Reconnecting") at 16 px in the top corner of the face, used when the face is shown | offline, reconnecting |
 

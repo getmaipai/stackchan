@@ -78,7 +78,7 @@ def test_decoding_finds_a_face_at_the_anchor_that_scores_high():
         outputs[f"obj_{stride}"] = np.zeros((1, n, 1), np.float32)
         outputs[f"bbox_{stride}"] = np.zeros((1, n, 4), np.float32)
         outputs[f"kps_{stride}"] = np.zeros((1, n, 10), np.float32)
-    # stride 8, column 3, row 2 of an 8-column grid: centre at ((3 + 0.5) * 8, (2 + 0.5) * 8)
+    # stride 8, column 3, row 2 of an 8-column grid: center at ((3 + 0.5) * 8, (2 + 0.5) * 8)
     index = 2 * (width // 8) + 3
     outputs["cls_8"][0, index, 0] = 0.9
     outputs["obj_8"][0, index, 0] = 0.9

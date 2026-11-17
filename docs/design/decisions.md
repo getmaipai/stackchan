@@ -17,11 +17,11 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 
 ## Scope
 
-11. Scope rule: the robot does what needs its body or talk loop. A feature goes to Home when it is the same for every bot, needs household records, other devices or rooms, or policy. The grey zone is limited to basics the robot must do alone, such as a timer or alarm (2026-11-15).
+11. Scope rule: the robot does what needs its body or talk loop. A feature goes to Home when it is the same for every bot, needs household records, other devices or rooms, or policy. The gray zone is limited to basics the robot must do alone, such as a timer or alarm (2026-11-15).
 12. The host calls no address the owner did not configure.
 13. The own-LLM brain adds no content filter of its own (2026-11-15, correction). Content safety is the connected model's job.
     Body safety stays: servo limits, volume cap, wear limits, camera-on cue, mute, pairing security.
-    An optional family-friendly persona preset may ship, labelled as a prompt and not a guarantee.
+    An optional family-friendly persona preset may ship, labeled as a prompt and not a guarantee.
 
 ## Firmware
 
@@ -36,7 +36,7 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 ## Look and feel
 
 21. Phone app: a web app served by the host. No native app. HTTPS for push alerts via a private-network certificate or reverse proxy.
-22. Face style and colour are configuration. Colour may be none. Defaults are neutral and uncoloured until setup.
+22. Face style and color are configuration. Color may be none. Defaults are neutral and uncolored until setup.
     Captions are optional on every face and off by default (correction to an earlier "on everywhere").
 23. Thinking cue: visual dots always, plus a quiet tone on by default (2026-11-15, overrides "tone off"). Spoken fillers are optional and off.
 24. The head touch strip drives quick sliders when `strip_mode = control`. Default is `petting`.

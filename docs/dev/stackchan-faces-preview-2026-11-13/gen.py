@@ -18,7 +18,7 @@ PAL = {
 def px(v): return round(v * K)
 
 def eye_svg(cx, cy, left, face, pal):
-    """cx, cy: eye box centre in screen px."""
+    """cx, cy: eye box center in screen px."""
     ink = pal["ink"]
     cy = cy + pal["drop"]
     if face in ("neutral", "listening", "thinking"):

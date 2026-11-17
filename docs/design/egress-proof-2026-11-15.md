@@ -7,7 +7,7 @@ No proof. No capture point available from the build Mac sees the unit's traffic,
 ## What was tried (read-only; nothing flashed, no hub or network change)
 
 1. Packet capture on the build Mac. `tcpdump` is installed but the capture devices are root-only and `sudo` needs a password, which an agent may not type. `tshark` is not installed. Even with root, the Mac is a wired client on a switched network (gateway 192.0.2.1), so it only sees broadcast and its own traffic. The unit joins the hub host's Wi-Fi, a different segment path, so its unicast traffic (DNS, SNTP, TLS) never reaches the Mac's interface.
-2. ARP table. It lists about 30 LAN neighbours but no entry can be tied to the unit without its MAC, and ARP shows peers only, not what they connect to. Not a capture.
+2. ARP table. It lists about 30 LAN neighbors but no entry can be tied to the unit without its MAC, and ARP shows peers only, not what they connect to. Not a capture.
 3. Unit serial log (115200 baud, port free, opened without reset). Release logs are WARN level (`CONFIG_LOG_DEFAULT_LEVEL_WARN=y`), and DNS, connect and SNTP lines are not logged at that level. A 25 second read showed only battery info lines and the known "Unknown tool" errors. Serial can show a destination only in an INFO-level build, which needs a flash, so it was not done.
 
 The idle (10 minute) and busy (self-test rounds) windows were not run: a window with a blind capture point would only fake a result.

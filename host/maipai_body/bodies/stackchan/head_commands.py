@@ -2,7 +2,7 @@
 
 "Look left", "look down a little", "nod", "shake your head", "look around" and "look straight"
 move the head through the same Robot seam as every other head move (safe angle limits, the lease,
-the emergency-stop latch), say one short line, and return to centre after ``RETURN_AFTER_S``
+the emergency-stop latch), say one short line, and return to center after ``RETURN_AFTER_S``
 unless the person says "stay". Left and right are the robot's own left and right.
 
 Owner request 2026-11-12 ("when I tell stackchan to turn, it needs to move according to what I
@@ -16,7 +16,7 @@ said"):
   followed (to the left when none is), held for the normal return time. "Turn around" turns the
   head as far to the side as it goes and says honestly that it cannot go all the way around.
 - "turn left" / "turn right" (also "turn left 30 degrees", "turn right ninety degrees", "a little",
-  "all the way") HOLD the new heading for ``HOLD_TURN_S``; it ends on "look straight", "centre",
+  "all the way") HOLD the new heading for ``HOLD_TURN_S``; it ends on "look straight", "center",
   "face forward", on a new command, or when a face is found. "Look left/right/up/down" still
   return after ``RETURN_AFTER_S``. The head only tilts up from level, so "look down" is level.
 
@@ -24,7 +24,7 @@ said"):
   then right, then straight", "turn left and then look up"; up to ``MAX_STEPS`` steps, split on
   "and then", "then", "after that", "and" and commas) runs its steps in order with about
   ``STEP_PAUSE_S`` between them (no 5 second return in between), says one short line for all of
-  it, and then returns to centre after the last step (or holds when the last is a "turn").
+  it, and then returns to center after the last step (or holds when the last is a "turn").
 
 A request that clearly asks for movement but is not one of these ("spin", "walk", "jump") gets
 one fixed reply instead of reaching the hub, whose model answers "I can't".
@@ -46,12 +46,12 @@ from dataclasses import dataclass
 
 from maipai_body.bodies.stackchan.dance import is_dance_request
 from maipai_body.bodies.stackchan.games import parse_ask
-from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG
+from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG
 
 logger = logging.getLogger("maipai_body.bodies.stackchan.head_commands")
 
-CENTRE_YAW = 0
-CENTRE_PITCH = CENTRE_PITCH_DEG  # level; the head only travels up from here
+CENTER_YAW = 0
+CENTER_PITCH = CENTER_PITCH_DEG  # level; the head only travels up from here
 RETURN_AFTER_S = 5.0
 HOLD_TURN_S = 300.0  # a "turn left" keeps its heading this long
 MAX_COMMANDS_PER_MIN = 30
@@ -73,7 +73,7 @@ LOOK_AWAY = "Looking away."
 TURN_AROUND = "I can turn my head about 90 degrees, not all the way around."
 LEVEL_ONLY = "I can only look level."
 
-# Yaw and pitch targets in degrees from the centre pose (yaw 0, pitch 45). The Robot clamps all of
+# Yaw and pitch targets in degrees from the center pose (yaw 0, pitch 45). The Robot clamps all of
 # them to the profile again, so these only choose the size of the move.
 _AMOUNT = {"little": 0.45, "normal": 1.0, "far": 2.0}
 _BASE_YAW = 45
@@ -119,9 +119,9 @@ _AWAY = re.compile(
     r"look somewhere else)\b"
 )
 _TURN_AROUND = re.compile(r"\b(turn around|turn round|turn all the way around|look behind)\b")
-_CENTRE = re.compile(
+_CENTER = re.compile(
     r"\b(look straight|straight ahead|look forward|look ahead|face forward|"
-    r"center|centre|look front|face front|look level)\b"
+    r"center|center|look front|face front|look level)\b"
 )
 _AROUND = re.compile(r"\b(look around|look all around|scan the room|look about)\b")
 _NOD = re.compile(r"\b(nod|say yes|nod yes)\b")
@@ -136,7 +136,7 @@ _UNSUPPORTED = re.compile(
 
 @dataclass(frozen=True)
 class HeadCommand:
-    # "look", "centre", "around", "nod", "shake", "stay", "cannot", "face" (point at the person),
+    # "look", "center", "around", "nod", "shake", "stay", "cannot", "face" (point at the person),
     # "away" (look away from the person), "turnaround" (as far to the side as it goes), "dance"
     # (the little dance, dance.py), "game" (start, stop or list the unit's games, games.py) or
     # "sequence" (several of the others, in order)
@@ -152,7 +152,7 @@ class HeadCommand:
     heard: str = ""  # a "game" command: what was said (the answer is in the same language)
 
 
-def _normalise(text: str) -> str:
+def _normalize(text: str) -> str:
     spoken = re.sub(r"[^\w' ]+", " ", text.lower())
     spoken = _FILLERS.sub(" ", spoken)
     return re.sub(r"\s+", " ", spoken).strip()
@@ -169,8 +169,8 @@ def _spoken_degrees(spoken: str) -> int | None:
 
 _SPLIT = re.compile(r"\s*(?:,|\band then\b|\bthen\b|\bafter that\b|\band\b)\s*")
 _BARE = re.compile(r"^(left|right|up|down|upward|downward)\b")
-_BARE_CENTRE = re.compile(r"^(straight|forward|ahead|front|level|center|centre)\b")
-_STEP_KINDS = {"look", "centre", "nod", "shake", "around", "away"}
+_BARE_CENTER = re.compile(r"^(straight|forward|ahead|front|level|center|center)\b")
+_STEP_KINDS = {"look", "center", "nod", "shake", "around", "away"}
 
 
 def _parse_sequence(text: str) -> HeadCommand | None:
@@ -181,12 +181,12 @@ def _parse_sequence(text: str) -> HeadCommand | None:
     steps: list[HeadCommand] = []
     verb = "look"
     for part in parts:
-        spoken = _normalise(part)
+        spoken = _normalize(part)
         if not spoken:
             return None
         if _BARE.match(spoken):
             spoken = f"{verb} {spoken}"  # "look left then right": the verb carries over
-        elif _BARE_CENTRE.match(spoken):
+        elif _BARE_CENTER.match(spoken):
             spoken = f"look {spoken}" if spoken.split()[0] != "level" else "look level"
         step = _parse_one(spoken, spoken.split(), 8)
         if step is None or step.kind not in _STEP_KINDS:
@@ -203,7 +203,7 @@ def parse_head_command(text: str) -> HeadCommand | None:
     A garbled opening word is harmless (the match searches the sentence). A question, or a long
     sentence, is not a command: "how do I turn right on red" belongs to the hub. Several steps in
     one sentence are a "sequence" (up to ``MAX_SEQUENCE_WORDS`` words)."""
-    spoken = _normalise(text)
+    spoken = _normalize(text)
     words = spoken.split()
     game_ask = parse_ask(text) if words and len(words) <= 12 else None
     if game_ask is not None:
@@ -239,8 +239,8 @@ def _parse_one(spoken: str, words: list[str], word_limit: int) -> HeadCommand | 
         return HeadCommand("nod")
     if _SHAKE.search(spoken) and short and re.search(r"\b(head|no)\b|^shake$", spoken):
         return HeadCommand("shake")
-    if _CENTRE.search(spoken) and len(words) <= 5:
-        return HeadCommand("centre")
+    if _CENTER.search(spoken) and len(words) <= 5:
+        return HeadCommand("center")
     if _UNSUPPORTED.search(spoken) and short:
         return HeadCommand("cannot")
     match = _DIRECTION.search(spoken)
@@ -255,14 +255,14 @@ def _parse_one(spoken: str, words: list[str], word_limit: int) -> HeadCommand | 
 def target_for(command: HeadCommand) -> tuple[int, int]:
     """Yaw and pitch in degrees for a "look" command (the robot's own left is negative yaw)."""
     scale = _AMOUNT[command.amount]
-    yaw, pitch = CENTRE_YAW, CENTRE_PITCH
+    yaw, pitch = CENTER_YAW, CENTER_PITCH
     if command.direction in ("left", "right"):
         size = command.degrees if command.degrees is not None else round(_BASE_YAW * scale)
         size = min(size, MAX_TURN_DEG)
         yaw = -size if command.direction == "left" else size
     elif command.direction == "up":
         size = command.degrees if command.degrees is not None else round(_BASE_PITCH * scale)
-        pitch = CENTRE_PITCH + size
+        pitch = CENTER_PITCH + size
     # "down" is level: the head cannot tilt below it, so it comes back from any raised pose.
     return yaw, pitch
 
@@ -281,7 +281,7 @@ def _sequence_line(command: HeadCommand) -> str:
     for step in command.steps:
         if step.kind == "look":
             names.append(str(step.direction))
-        elif step.kind == "centre":
+        elif step.kind == "center":
             names.append("straight")
         else:
             return "Okay."  # not a plain look: one short word for all of it
@@ -306,7 +306,7 @@ def spoken_line(command: HeadCommand) -> str:
         return TURN_AROUND
     if command.kind == "cannot":
         return CAN_DO
-    return ""  # centre, nod, shake and stay need no words
+    return ""  # center, nod, shake and stay need no words
 
 
 def gaze_detail(command: HeadCommand) -> str:
@@ -409,7 +409,7 @@ class HeadCommander:
             self._on_done(command)  # the gaze reason: "you asked me to look left"
         if command.kind == "face":
             return line  # the face look moves the head itself and keeps it on the face
-        if command.kind != "centre":
+        if command.kind != "center":
             seconds = HOLD_TURN_S if self._holds(command) else self._return_after_s
             self._holding = self._holds(command)
             self._hold_pose(seconds + 1.0)
@@ -445,36 +445,36 @@ class HeadCommander:
             return ""
         if command.kind in ("away", "turnaround"):
             delta = AWAY_DEG if command.kind == "away" else MAX_TURN_DEG
-            self._move(away_yaw(self._face_yaw(), delta), CENTRE_PITCH, SPEED)
+            self._move(away_yaw(self._face_yaw(), delta), CENTER_PITCH, SPEED)
         elif command.kind == "look":
             yaw, pitch = target_for(command)
             self._move(yaw, pitch, SPEED)
-        elif command.kind == "centre":
-            self._move(CENTRE_YAW, CENTRE_PITCH, SPEED)
+        elif command.kind == "center":
+            self._move(CENTER_YAW, CENTER_PITCH, SPEED)
         elif command.kind == "around":
             for yaw in (-60, 60, 0):
-                self._move(yaw, CENTRE_PITCH, SLOW)
+                self._move(yaw, CENTER_PITCH, SLOW)
                 self._sleep(1.4)
         elif command.kind == "nod":
             for _ in range(2):
-                self._move(CENTRE_YAW, CENTRE_PITCH + 12, SPEED)
+                self._move(CENTER_YAW, CENTER_PITCH + 12, SPEED)
                 self._sleep(0.35)
-                self._move(CENTRE_YAW, CENTRE_PITCH, SPEED)
+                self._move(CENTER_YAW, CENTER_PITCH, SPEED)
                 self._sleep(0.35)
-            self._move(CENTRE_YAW, CENTRE_PITCH, SPEED)
+            self._move(CENTER_YAW, CENTER_PITCH, SPEED)
         elif command.kind == "shake":
             for _ in range(2):
-                self._move(-25, CENTRE_PITCH, SPEED)
+                self._move(-25, CENTER_PITCH, SPEED)
                 self._sleep(0.35)
-                self._move(25, CENTRE_PITCH, SPEED)
+                self._move(25, CENTER_PITCH, SPEED)
                 self._sleep(0.35)
-            self._move(CENTRE_YAW, CENTRE_PITCH, SPEED)
+            self._move(CENTER_YAW, CENTER_PITCH, SPEED)
         return ""
 
     def _schedule_return(self, seconds: float | None = None) -> None:
         with self._lock:
             self._timer = self._start_timer(
-                self._return_after_s if seconds is None else seconds, self._return_to_centre
+                self._return_after_s if seconds is None else seconds, self._return_to_center
             )
 
     def _cancel_return(self) -> None:
@@ -485,15 +485,15 @@ class HeadCommander:
         if callable(cancel):
             cancel()
 
-    def _return_to_centre(self) -> None:
+    def _return_to_center(self) -> None:
         with self._lock:
             self._timer = None
         self._holding = False
         try:
             if self._blocked() is None:
-                self._move(CENTRE_YAW, CENTRE_PITCH, SPEED)
+                self._move(CENTER_YAW, CENTER_PITCH, SPEED)
         except Exception as exc:
-            logger.warning("StackChan head could not return to centre: %s", exc)
+            logger.warning("StackChan head could not return to center: %s", exc)
 
     @staticmethod
     def _thread_timer(seconds: float, callback: Callable[[], None]) -> threading.Timer:

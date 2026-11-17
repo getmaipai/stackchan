@@ -66,7 +66,7 @@ def test_settings_are_per_unit_and_persist(tmp_path):
         ({"llm": {"url": "ftp://x"}}, "http://"),
         ({"llm": {"api_key_env": "sk-abc def"}}, "NAME of the environment variable"),
         ({"name": ""}, "1 to 40"),
-        ({"colour": "red"}, "Unknown setting colour"),
+        ({"color": "red"}, "Unknown setting color"),
     ],
 )
 def test_bad_values_are_refused_with_a_fix(tmp_path, bad, match):

@@ -33,7 +33,7 @@ from maipai_body.bodies.stackchan.volume import (
         ("mute", "mute"),
     ],
 )
-def test_volume_phrases_are_recognised(text, kind):
+def test_volume_phrases_are_recognized(text, kind):
     command = parse_volume_command(text)
     assert command is not None and command.kind == kind
 

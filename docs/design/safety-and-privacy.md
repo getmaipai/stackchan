@@ -6,7 +6,7 @@ Promise: private, local AI that is yours. Nothing leaves the home.
 
 - No content filter of our own. Content safety is the responsibility of the connected language model and the owner's persona prompt.
 - The docs, the first-run setup and the README say so in one plain sentence.
-- An optional family-friendly persona preset may ship. It is labelled as a prompt, not a guarantee.
+- An optional family-friendly persona preset may ship. It is labeled as a prompt, not a guarantee.
 - A brain such as MaiPai Home may add its own age and household gates. Those belong to the brain and are not weakened by this repo.
 - What stays in this repo:
   - Body safety: servo limits, slow eased moves, volume cap, thermal and wear limits, no hard shaking by games.

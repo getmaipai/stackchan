@@ -535,7 +535,7 @@ def test_a_second_wake_block_after_barge_in_does_not_double_cancel():
     """The review-caught bug (2026-09-28): the barge-in loop used to
     keep polling wake for as long as `speak_thread.is_alive()`, so a
     worker that was slow to actually exit after `barge_in` was set
-    could have a further wake block scored - re-cancelling the turn and
+    could have a further wake block scored - re-canceling the turn and
     re-rendering CANCEL. Calls `_speak()` directly (not through `run()`)
     so a second scripted wake event left over after the fix correctly
     stops consuming the script isn't later picked up by `_poll_wake`'s

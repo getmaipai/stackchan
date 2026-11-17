@@ -40,7 +40,7 @@ Tests: T1 body (needs this robot's body or the talk loop), T2 same for every bot
 | Cue enforcement (camera and mic) | Firmware, one code path (`monitor_cue_begin`); cue table stays in `monitoring.md` | Hardware truth; a modified host cannot bypass it | T1 |
 | Voice turn and local speech | `stackchan` host | Needed to be complete with no Home | T1 |
 | Own-LLM brain | `stackchan` host, behind the brain seam | The standalone brain; Home is another adapter | T1 |
-| Face, clock, reactions, dance | Firmware for face, clock, timer ring, IMU reactions; host for dance clips and the move files | Body behaviour, same with or without Home | T1 |
+| Face, clock, reactions, dance | Firmware for face, clock, timer ring, IMU reactions; host for dance clips and the move files | Body behavior, same with or without Home | T1 |
 | Vision and identity compute | Home (a Home package or sidecar); `stackchan` keeps camera frame and cue only | Same for every bot; people and consent are Home's | T2, T3 |
 | Watch, monitor and alert logic | Home; unit keeps the sound meter, lifted sensor, `monitor_audio` message and cues | Recipients, quiet hours and history are household | T2, T3 |
 | Find my robot and remote control | Home; unit keeps heartbeat, beep, Remote icon, servo limits, activity log line | Needs accounts and a safe remote path | T3 |
@@ -77,12 +77,12 @@ Only one carve-out stays in the robot repo even when Home has it: a basic the ro
 
 1. `decisions.md` 10: narrow to "vendored copies are definitions and fixtures, never host code"; add "no shared robot code repo".
 2. `decisions.md` 1 and 2: name what happens to `bot` (becomes the Reachy Mini repo or is archived; stops being a framework).
-3. `decisions.md` 11: the grey zone is only "a basic the robot must do alone" (timer, alarm); drop "simple local version" for
+3. `decisions.md` 11: the gray zone is only "a basic the robot must do alone" (timer, alarm); drop "simple local version" for
    identity and routines, which conflicts with `scope-core-vs-home.md`.
 4. `architecture.md`, "One schema": `schema/` here owns the unit protocol only; the capability API and brain interface are
    owned by `commons/spec`, otherwise Reachy Mini must copy from StackChan.
 5. `architecture.md`, capability list: say there are two lists, brain-to-host and body-to-Home, both in the spec; never a third.
-6. `features.md`, "Scope rule": delete local face enrolment and the named camera alert from the grey zone; they are Home.
+6. `features.md`, "Scope rule": delete local face enrolment and the named camera alert from the gray zone; they are Home.
 7. `features.md`, "[Home] Camera": the bundled detector runs in Home compute, not this host; keep only capture and cue here.
 8. `features.md`, "[Home] Integrations host": "All host-side" becomes "All in Home"; this host exposes only the capability API
    and the settings page.

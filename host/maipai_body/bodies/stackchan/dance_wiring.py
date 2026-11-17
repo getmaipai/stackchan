@@ -1,10 +1,10 @@
 """Wire the little dance (dance.py) to a running StackChan service.
 
 One function, ``wire_dance``, so the service's own wiring in app.py stays a few lines: it builds the
-runner from the live robot, light service, night rule and behaviour, then hooks the two triggers
+runner from the live robot, light service, night rule and behavior, then hooks the two triggers
 (the spoken ask through ``HeadCommander`` and the hub's "dance" device command through
 ``behavior.dance_command``; ``behavior.dance_events`` only ends a running dance) and tells the
-behaviour when a dance is running so the ambient head moves, the face watchdog and the look-around
+behavior when a dance is running so the ambient head moves, the face watchdog and the look-around
 stay out of its way.
 """
 

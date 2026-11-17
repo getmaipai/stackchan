@@ -53,7 +53,7 @@ function overlayCard(id,off,why,face,titleKey){let name='rain',level='normal',se
 
 /* Look: feelings, effects, look packs, overlays */
 async function lookCards(id,u,v,has,face){const pv=await prefsView(id),put=prefSaver(id,pv),sp=await api(unitPath(id,'packs')),sd=sp.ok?sp.d:{packs:[],active:{},unit_ready:false};
- const fx=()=>({crt:pv.values.fx_crt,night:pv.values.fx_night_dim,glow:pv.values.fx_glow,mode:pv.values.fx_colour_mode});
+ const fx=()=>({crt:pv.values.fx_crt,night:pv.values.fx_night_dim,glow:pv.values.fx_glow,mode:pv.values.fx_color_mode});
  const upd=()=>face.set({fx:fx(),bubble:pv.values.speech_bubble,dots:pv.values.thinking_dots});upd();
  const feel=card(T('pol.feel.title'),T('pol.feel.help'),
   ptoggle(pv,put,'emotion_faces',T('pol.feel.emotion'),T('pol.feel.emotion_help')),
@@ -63,7 +63,7 @@ async function lookCards(id,u,v,has,face){const pv=await prefsView(id),put=prefS
   ptoggle(pv,put,'fx_crt',T('pol.fx.crt'),T('pol.fx.crt_help'),upd),
   ptoggle(pv,put,'fx_night_dim',T('pol.fx.night'),T('pol.fx.night_help'),upd),
   ptoggle(pv,put,'fx_glow',T('pol.fx.glow'),T('pol.fx.glow_help'),upd),
-  pseg(pv,put,'fx_colour_mode',T('pol.fx.mode'),['normal','mono','warm','cool'],upd),comingNote(pv,'fx_crt'));
+  pseg(pv,put,'fx_color_mode',T('pol.fx.mode'),['normal','mono','warm','cool'],upd),comingNote(pv,'fx_crt'));
  const lookPacks=sd.packs.filter(x=>x.type==='look'),act=(sd.active||{}).look||'';
  const list=h('div',{class:'list',role:'radiogroup','aria-label':T('pol.packs.look')});
  const rowB=(pid,name,sub)=>{const b=h('button',{type:'button',role:'radio',class:'pill','aria-checked':String(act===pid||(!act&&!pid)),style:'justify-content:space-between;display:flex;align-items:center;width:100%;min-height:48px;text-align:left',onclick:async()=>{const r=await save(unitPath(id,'packs/activate'),{type:'look',pack_id:pid});if(r.ok)list.querySelectorAll('button').forEach(x=>x.setAttribute('aria-checked',String(x===b)))}},h('span',{},name),h('span',{class:'hint'},sub||''));return b};
@@ -76,14 +76,14 @@ async function voiceCards(id,u,v){const pv=await prefsView(id),put=prefSaver(id,
  const notice=h('div',{class:'banner',role:'status'},T('pol.listen.all_off'));
  const showNotice=()=>{const x=pv.values;notice.hidden=!(x.listen_sound==='off'&&x.listen_light==='off'&&!x.listen_face)};showNotice();
  const names=['mint','sky','amber','rose','lilac','lime','coral'];const hexName=hx=>names.find(n=>PAL[n].toLowerCase()===String(hx).toLowerCase())||'';
- const col=swatches(T('pol.listen.colour'),names,hexName(pv.values.listen_light_colour),async n=>put({listen_light_colour:PAL[n]}));
- const custom=h('input',{type:'color',value:pv.values.listen_light_colour,'aria-label':T('pol.listen.colour'),onchange:async e=>{const ok=await put({listen_light_colour:e.target.value});if(ok)col.redraw(hexName(e.target.value))}});
+ const col=swatches(T('pol.listen.color'),names,hexName(pv.values.listen_light_color),async n=>put({listen_light_color:PAL[n]}));
+ const custom=h('input',{type:'color',value:pv.values.listen_light_color,'aria-label':T('pol.listen.color'),onchange:async e=>{const ok=await put({listen_light_color:e.target.value});if(ok)col.redraw(hexName(e.target.value))}});
  const test=h('button',{type:'button',class:'btn pri','aria-pressed':'false'},T('pol.listen.test'));
  test.addEventListener('click',()=>press(test,async()=>{const r=await save(unitPath(id,'listen-test'),{},true);if(!r.ok)toast(r.d.error,'bad');else toast(r.d.message,r.d.pending||!r.d.ok?'warn':undefined);return r},true));
  const listen=card(T('pol.listen.title'),T('pol.listen.help'),notice,
   pseg(pv,put,'listen_sound',T('pol.listen.sound'),['off','chime','mm'],showNotice),
   pseg(pv,put,'listen_light',T('pol.listen.light'),['off','dim','normal'],showNotice),
-  h('div',{class:'row'},h('div',{class:'lbl'},h('b',{},T('pol.listen.colour'))),h('div',{style:'display:flex;gap:10px;align-items:center;flex-wrap:wrap'},col,custom)),
+  h('div',{class:'row'},h('div',{class:'lbl'},h('b',{},T('pol.listen.color'))),h('div',{style:'display:flex;gap:10px;align-items:center;flex-wrap:wrap'},col,custom)),
   ptoggle(pv,put,'listen_face',T('pol.listen.face'),T('pol.listen.face_help'),showNotice),
   h('p',{class:'hint'},T('pol.listen.always')),h('div',{class:'btns'},test),comingNote(pv,'listen_sound'));
  /* while it thinks */

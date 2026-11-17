@@ -19,6 +19,6 @@ Read `docs/design/INDEX.md` and the one design note for your slice. Do not read 
 4. Run long commands through `bash scripts/run-bg.sh NAME -- cmd...`, and read the log path, not the log.
 5. Regenerate the index with `bash scripts/repo-map.sh` when files change.
 
-## Licence
+## License
 
 Contributions are under AGPL-3.0. Never commit keys, real addresses or names. Examples use 192.0.2.x and example.com.

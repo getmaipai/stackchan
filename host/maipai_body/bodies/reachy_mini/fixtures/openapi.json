@@ -1615,7 +1615,7 @@
     "/api/media/wobbling/enable": {
       "post": {
         "summary": "Enable Wobbling",
-        "description": "Enable audio-reactive head wobbling.\n\nWhen enabled, audio played on the daemon (sounds, incoming WebRTC\naudio) is analysed and converted into subtle head movements.",
+        "description": "Enable audio-reactive head wobbling.\n\nWhen enabled, audio played on the daemon (sounds, incoming WebRTC\naudio) is analyzed and converted into subtle head movements.",
         "operationId": "enable_wobbling_api_media_wobbling_enable_post",
         "responses": {
           "200": {

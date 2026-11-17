@@ -2,9 +2,9 @@
   "voice": {
     "engine": "pocket-tts-english",
     "name": "",
-    "licence": "CC-BY-4.0",
+    "license": "CC-BY-4.0",
     "credit": "Voice generated with pocket-tts-english, licensed under CC-BY-4.0.",
-    "licence_checked": true
+    "license_checked": true
   },
   "sample_rate": 24000,
   "clips": [

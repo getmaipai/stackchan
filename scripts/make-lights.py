@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Intent: draw the robot's ring colours and tone shapes as small animated SVGs for the docs.
+"""Intent: draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
 Usage: python3 -I scripts/make-lights.py   (writes docs/images/light-*.svg and tone-*.svg)."""
 import math, pathlib
 out = pathlib.Path(__file__).resolve().parent.parent / 'docs' / 'images'
 
-def ring(name, alt, colour=None, anim='steady', dur=2, rainbow=False, back_red=False, dim=False):
+def ring(name, alt, color=None, anim='steady', dur=2, rainbow=False, back_red=False, dim=False):
     dots = ''
     for i in range(12):
         # two bars of six lights: left bar top to bottom, right bar bottom to top
@@ -14,14 +14,14 @@ def ring(name, alt, colour=None, anim='steady', dur=2, rainbow=False, back_red=F
             hues = 'red;yellow;lime;cyan;blue;magenta;red'
             f = f'<animate attributeName="fill" values="{hues}" dur="2s" begin="-{i*2/12:.3f}s" repeatCount="indefinite"/>'
             dots += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="6.5" fill="red">{f}</circle>'
-        elif colour == 'beat':
+        elif color == 'beat':
             hues = '#ef4444;#f59e0b;#22c55e;#06b6d4;#3b82f6;#a855f7;#ef4444'
             dots += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="6.5" fill="#ef4444"><animate attributeName="fill" values="{hues}" dur="4.8s" calcMode="discrete" repeatCount="indefinite"/></circle>'
-        elif colour:
-            dots += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="6.5" fill="{colour}"/>'
+        elif color:
+            dots += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="6.5" fill="{color}"/>'
         else:
             dots += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="6.5" fill="#2b3340"/>'
-    glow = f'<g filter="url(#b)" opacity=".9">{dots}</g>' if (colour or rainbow) else ''
+    glow = f'<g filter="url(#b)" opacity=".9">{dots}</g>' if (color or rainbow) else ''
     group = f'<g>{glow}{dots}'
     if anim == 'pulse':
         a = f'<animate attributeName="opacity" values=".18;1;.18" dur="{dur}s" repeatCount="indefinite"/>'
@@ -49,8 +49,8 @@ ring('light-blue', 'Two light bars glowing blue and steady.', '#3b82f6')
 ring('light-white', 'Two light bars glowing white and pulsing fast.', '#f8fafc', 'pulse', 1)
 ring('light-dark', 'Two light bars, all lights off.', None)
 ring('light-charging', 'Two light bars off, with one small red charging light glowing at the back.', None, back_red=True)
-ring('light-rainbow', 'Two light bars where the colour walks along one bar and up the other, one turn every two seconds.', rainbow=True)
-ring('light-beat', 'Two light bars pulsing together in time with the music, the colour stepping on each beat.', 'beat', 'beat')
+ring('light-rainbow', 'Two light bars where the color walks along one bar and up the other, one turn every two seconds.', rainbow=True)
+ring('light-beat', 'Two light bars pulsing together in time with the music, the color stepping on each beat.', 'beat', 'beat')
 
 def tone(name, alt, notes, click=False):
     w = 120; body = ''

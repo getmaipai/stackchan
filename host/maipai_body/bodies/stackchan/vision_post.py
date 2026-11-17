@@ -48,9 +48,9 @@ class PostResult:
 # down with everything else. So the light level is the 90th percentile of gray (`scene_luma`).
 DARK_BELOW = 50
 BRIGHT_FROM = 110
-# The camera's auto exposure turns a covered lens into a flat grey fog (measured 2026-11-12: mean
+# The camera's auto exposure turns a covered lens into a flat gray fog (measured 2026-11-12: mean
 # 120, no detail) and an arm against the lens into a flat dark one, so a picture without detail
-# says nothing about the room's light. Detail is the mean step between neighbouring sample pixels:
+# says nothing about the room's light. Detail is the mean step between neighboring sample pixels:
 # the lit office measured 6.7 to 10.8, the covered lens 1.9 to 2.0, the hoodie close up 2.1 to 3.0.
 FLAT_EDGES = 3.5
 # The unit's light sensor reads 1 to 2 percent of the true lux and sits behind the screen glass,

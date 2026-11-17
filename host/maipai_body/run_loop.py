@@ -1183,7 +1183,7 @@ class ConversationLoop:
         self._enter(FunnelState.THINKING)
         reply_text: str | None = None
         turn_id: str | None = None
-        cancelled = False
+        canceled = False
         react_move: str | None = None
         react_allowed = False
         generation: int | None = None
@@ -1206,7 +1206,7 @@ class ConversationLoop:
                     if turn_event.cue.phase is Phase.SIGNAL:
                         react_allowed = turn_event.cue.react_allowed
                     if turn_event.cue.phase is Phase.CANCEL:
-                        cancelled = True
+                        canceled = True
                         self._render(turn_event.cue)
                     elif turn_event.cue.phase is not Phase.DONE:
                         # The turn stream's own DONE means "the reply
@@ -1225,7 +1225,7 @@ class ConversationLoop:
             self._enter(FunnelState.IDLE)
             return None
 
-        if cancelled or not reply_text:
+        if canceled or not reply_text:
             self._enter(FunnelState.IDLE)
             return None
 

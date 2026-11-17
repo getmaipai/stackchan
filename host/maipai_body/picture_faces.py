@@ -169,7 +169,7 @@ class PictureError(Exception):
         self.code = code
 
 
-# ---- pictures: resize, colour, compression -------------------------------------------------------------
+# ---- pictures: resize, color, compression -------------------------------------------------------------
 
 
 def resize_rgba(data: bytes, width: int, height: int, fit: str = "cover") -> np.ndarray:
@@ -307,14 +307,14 @@ def check_overlay(overlay: dict[str, Any]) -> dict[str, Any]:
             if isinstance(value, bool) or not isinstance(value, int | float):
                 raise PictureError(say(None, "overlay"), "overlay")
             clean[key] = int(value)
-    colour = overlay.get("color", clean["color"])
-    if not isinstance(colour, str) or len(colour) != 7 or colour[0] != "#":
+    color = overlay.get("color", clean["color"])
+    if not isinstance(color, str) or len(color) != 7 or color[0] != "#":
         raise PictureError(say(None, "overlay"), "overlay")
     try:
-        int(colour[1:], 16)
+        int(color[1:], 16)
     except ValueError:
         raise PictureError(say(None, "overlay"), "overlay") from None
-    clean["color"] = colour.lower()
+    clean["color"] = color.lower()
     c = clean
     sizes_ok = (
         4 <= c["eye_w"] <= 160

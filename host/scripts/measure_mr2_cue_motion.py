@@ -3,7 +3,7 @@
 Design record section 12: cue to first state-feed delta (the unit has no
 encoders, so the state feed is the encoder stand-in) split at the first
 command reaching the seam, amplitude, peak velocity and settling time per
-primitive against the declared limits, and the stall behaviour of the head
+primitive against the declared limits, and the stall behavior of the head
 at each fraction of an axis's limit.
 
 Simulator (sim rows; needs ``uv run --extra sim reachy-mini-daemon --sim

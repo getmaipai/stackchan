@@ -8,7 +8,7 @@
 - It prints exact versions first, with a size and time estimate. The toolchain install is several GB.
 - Options live in `firmware.toml`: board, language packs, face packs, features compiled in or out
   (private-network client, command model, captions, camera, LED ring), default Wi-Fi and host (empty by default), signing key.
-- Reproducible: the same inputs give the same image hash. The build prints the patch list, the pinned commits and the licence list.
+- Reproducible: the same inputs give the same image hash. The build prints the patch list, the pinned commits and the license list.
   `verify` compares a downloaded release image with a local build.
 - The build writes a memory report. A release build below the memory gate floor fails.
 - A public workflow lets anyone fork the repo and build their own image in the cloud, signed with their own key.

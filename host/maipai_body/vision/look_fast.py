@@ -83,7 +83,7 @@ class Detection:
     box: tuple[float, float, float, float]
 
     @property
-    def centre_x(self) -> float:
+    def center_x(self) -> float:
         return self.box[0] + self.box[2] / 2
 
     @property

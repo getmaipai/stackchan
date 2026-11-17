@@ -2,7 +2,7 @@
 
 Same harness the simulator and the unit run (``scripts/measure_mr5_link.py``);
 here the body behind the seam is the kinematic double, so what is proven is
-the harness and the loop's behaviour, not the daemon's.
+the harness and the loop's behavior, not the daemon's.
 """
 
 from __future__ import annotations

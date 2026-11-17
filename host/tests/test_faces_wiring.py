@@ -43,7 +43,7 @@ def test_page_routes_show_and_save_a_unit_face(tmp_path: Path) -> None:
     assert status == 200 and json.loads(body)["values"]["captions"] is False
     status, payload = backend.route_post(
         f"/api/stackchan/faces/{UNIT}",
-        {"lang": "es", "style": "big_eyes", "colour": "mint", "captions": True, "tod": True},
+        {"lang": "es", "style": "big_eyes", "color": "mint", "captions": True, "tod": True},
         True,
     )
     assert status == 200 and payload["pushed"] is True
@@ -51,7 +51,7 @@ def test_page_routes_show_and_save_a_unit_face(tmp_path: Path) -> None:
     status, payload = backend.route_post(f"/api/stackchan/faces/{UNIT}", {"style": "huge"}, True)
     assert status == 400 and "big_eyes, eyes_only, stock, classic or minimal" in payload["error"]
     status, payload = backend.route_post(
-        f"/api/stackchan/faces/{UNIT}", {"colour": "#101010", "lang": "es"}, True
+        f"/api/stackchan/faces/{UNIT}", {"color": "#101010", "lang": "es"}, True
     )
     assert status == 400 and "oscuro" in payload["error"]
     status, payload = backend.route_post(f"/api/stackchan/faces/{UNIT}/reset", {}, True)
@@ -159,7 +159,7 @@ def test_cli_face_set_and_show_without_a_host(cli_env: Path, monkeypatch, capsys
         UNIT,
         "--style",
         "minimal",
-        "--colour",
+        "--color",
         "sky",
         "--captions",
         "on",
@@ -172,7 +172,7 @@ def test_cli_face_set_and_show_without_a_host(cli_env: Path, monkeypatch, capsys
     assert code == 0 and "host is not running" in out
     assert _run(monkeypatch, "show", UNIT) == 0
     shown = capsys.readouterr().out
-    assert "style: minimal" in shown and "colour: sky" in shown and "captions: True" in shown
+    assert "style: minimal" in shown and "color: sky" in shown and "captions: True" in shown
     assert "tod_hours: [5, 8, 19, 22]" in shown
     assert _run(monkeypatch, "reset", UNIT) == 0
     capsys.readouterr()

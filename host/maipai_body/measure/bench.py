@@ -28,7 +28,7 @@ def quantiles(values: list[float]) -> dict[str, float | None]:
     }
 
 
-def analyse_recording(
+def analyze_recording(
     path: str | Path, threshold: float = 0.012, question_end_s: float = 0.0
 ) -> list[dict[str, Any]]:
     """Split mono/stereo 48 kHz PCM recordings into active segments and report silence gaps."""
@@ -87,7 +87,7 @@ def analyse_recording(
     return out
 
 
-def analyse_frames(path: str | Path) -> dict[str, float | int]:
+def analyze_frames(path: str | Path) -> dict[str, float | int]:
     stamps = [float(line.strip()) for line in Path(path).read_text().splitlines() if line.strip()]
     if len(stamps) < 2 or any(b <= a for a, b in zip(stamps, stamps[1:])):
         raise ValueError("Provide at least two strictly increasing frame timestamps.")

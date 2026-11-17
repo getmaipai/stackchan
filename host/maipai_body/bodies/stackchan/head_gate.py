@@ -54,11 +54,11 @@ class HeadMotionGate:
     def allow(self, source: str, *, response: bool = False, essential: bool = False) -> bool:
         """Whether ``source`` may move the head now. ``response`` marks a move during a turn.
 
-        ``essential`` is a return to centre or a safety hold: it always passes, is never counted
+        ``essential`` is a return to center or a safety hold: it always passes, is never counted
         and never uses up the cap (a refused settle left the head looking at the ceiling)."""
         if essential:
             self.allowed += 1
-            self._log(source, True, "return to centre or hold")
+            self._log(source, True, "return to center or hold")
             return True
         if response:
             verdict, reason = True, "answering a person"

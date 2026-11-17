@@ -21,7 +21,7 @@ One firmware and one host program make a complete private voice robot with its o
 
 Every feature is split in two.
 
-- Body half: the trigger, the face and servo behaviour, the sound, the light, the UI cue. Always in this repo.
+- Body half: the trigger, the face and servo behavior, the sound, the light, the UI cue. Always in this repo.
   Same in every setup. Example for a timer: the ring that empties, the chime, the stop touch.
 - Brain half: the part that needs knowledge or judgement. Example: understanding "set a pasta timer for ten minutes".
 

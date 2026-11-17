@@ -5,8 +5,8 @@ import wave
 import pytest
 
 from maipai_body.measure.bench import (
-    analyse_frames,
-    analyse_recording,
+    analyze_frames,
+    analyze_recording,
     compare,
     run_sim,
     script_path,
@@ -37,7 +37,7 @@ def test_script_has_twenty_expected_turns():
 def test_recording_finds_known_gap(tmp_path):
     path = tmp_path / "known.wav"
     _wav(path, [(50, 63)])
-    rows = analyse_recording(path, question_end_s=0)
+    rows = analyze_recording(path, question_end_s=0)
     assert len(rows) == 1
     assert rows[0]["stutter_count"] == 1
     assert rows[0]["longest_gap_s"] == pytest.approx(0.13)
@@ -47,7 +47,7 @@ def test_recording_finds_known_gap(tmp_path):
 def test_frames_reports_median_p95_and_drops(tmp_path):
     path = tmp_path / "frames.txt"
     path.write_text("0\n0.0083333\n0.0166666\n0.0500000\n")
-    result = analyse_frames(path)
+    result = analyze_frames(path)
     assert result["median_ms"] == pytest.approx(8.3333)
     assert result["p95_ms"] == pytest.approx(33.3334)
     assert result["dropped_frames"] == 3

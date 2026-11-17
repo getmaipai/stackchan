@@ -3,7 +3,7 @@
 ``TranscriptStopDetector`` is the first, engine-neutral detector: the VAD gates
 a short span of captured speech, the speech-to-text engine transcribes it at
 the end of the span, and the closed stop list decides. It runs on the array's
-echo-cancelled channel; whether that channel really leaves the robot deaf to
+echo-canceled channel; whether that channel really leaves the robot deaf to
 its own voice is the bench row (M-R3, double-talk at real playback levels) and
 is UNVERIFIED here. BARGE-02 swaps in the keyword spotter behind the same
 ``StopDetector`` seam so the word is caught mid-span, not at its end.

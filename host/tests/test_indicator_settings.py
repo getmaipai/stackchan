@@ -1,4 +1,4 @@
-"""EYES-02: the three robot-only settings keys the lights honour."""
+"""EYES-02: the three robot-only settings keys the lights honor."""
 
 from __future__ import annotations
 

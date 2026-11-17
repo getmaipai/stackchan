@@ -95,7 +95,7 @@
         "wake-mini-up": "antenna_right target 3.1416 rad is outside [-3.1416, 3.1416] rad (the running daemon's /api/kinematics/urdf, right_antenna/left_antenna joint limits (reachy-mini daemon 1.11.0, verified live against the simulator, 2026-09-27), 2026-09-27)"
       },
       "clips": {
-        "amazed1": "When you discover something extraordinary. It could be a new robot, or someone tells you you've been programmed with new abilities. It can also be when you admire what someone has done.",
+        "amazed1": "When you discover something extraordinary. It could be a new robot, or someone tells you you've been programd with new abilities. It can also be when you admire what someone has done.",
         "anxiety1": "You look around without really knowing where to look. You can use this movement whenever you feel fear.",
         "attentive1": "Use this when you want to show that you're listening to the conversation. You encourage the speaker to keep talking. You can follow with attentive2 if the person hasn't finished speaking.",
         "attentive2": "You can do this movement while someone is talking, and follow with attentive1 if they haven\u2019t finished.",

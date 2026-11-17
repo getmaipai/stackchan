@@ -268,7 +268,7 @@ class LocalTtsClient:
         except requests.RequestException as exc:
             raise TtsLinkLost(f"local text-to-speech failed: {exc}") from exc
         if stop_event is not None and stop_event.is_set():
-            return TtsResult(kind="cancelled")
+            return TtsResult(kind="canceled")
         with wave.open(io.BytesIO(response.content), "rb") as wav:
             if wav.getsampwidth() != 2:
                 return TtsResult(
@@ -284,7 +284,7 @@ class LocalTtsClient:
             self._playback.output_samplerate(),
         )
         if not self._playback.push(audio, generation=generation):
-            return TtsResult(kind="cancelled")
+            return TtsResult(kind="canceled")
         if on_first_chunk is not None:
             on_first_chunk()
         return TtsResult(kind="done", first_chunk_pushed=True)

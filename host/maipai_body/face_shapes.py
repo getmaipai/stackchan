@@ -28,7 +28,7 @@ const FEMO={};FT.emotions.forEach((e,i)=>{FEMO[e]=i});
 const MP={EW:0,EH:1,DY:2,LID:3,SLANT:4,CHEEK:5,RSCALE:6,RLIFT:7,MCURVE:8,MOPEN:9,MW:10,MON:11,MTILT:12,MX:13,BROW:14,BLIFT:15,BTILT:16,BR:17,HEART:18,DIM:19,GX:20,GY:21,N:22};
 const f01=x=>x<0?0:x>1?1:x;
 function fsh(out,kind,col,opa,v){const r=[kind,col,Math.round(f01(opa)*255)];for(let i=0;i<8;i++)r.push(v[i]||0);out.push(r)}
-/* an eye around its own centre: kind 0 rounded box, 1 circle, 2 mask ring, 3 quad, 4 line, 5 heart; colour 0 face, 1 screen, 2 highlight */
+/* an eye around its own center: kind 0 rounded box, 1 circle, 2 mask ring, 3 quad, 4 line, 5 heart; color 0 face, 1 screen, 2 highlight */
 function eyeShapes(st,a){const out=[];let ew=a.ew,eh=a.eh;
  if(st.mouth===0&&a.voice>0){eh*=1+.14*a.voice;ew*=1-.04*a.voice}
  const bl=a.blink;
@@ -88,7 +88,7 @@ function springStep(sp,t,dt){if(dt>.05)dt=.05;const k=420,cz=2*Math.sqrt(420)*.6
  for(let n=0;n<2;n++){const h=dt*.5;for(let i=0;i<MP.N;i++){sp.v[i]+=(k*(t[i]-sp.x[i])-cz*sp.v[i])*h;sp.x[i]+=sp.v[i]*h;if(i===MP.LID||i===MP.CHEEK||i===MP.MON||i===MP.BROW||i===MP.HEART)sp.x[i]=f01(sp.x[i])}}}
 function newSpring(t){return{x:Array.from(t),v:new Array(MP.N).fill(0)}}
 function rrPath(c,x,y,w,h,r){r=Math.min(r,w/2,h/2);c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
-/* paint a shape list around (cx, cy): fg the face colour, bg the screen colour */
+/* paint a shape list around (cx, cy): fg the face color, bg the screen color */
 function paintShapes(c,sh,cx,cy,fg,bg){
  for(const s of sh){const col=s[1]===1?bg:fg,v=s.slice(3);c.globalAlpha=s[2]/255;c.fillStyle=col;c.strokeStyle=col;
   if(s[0]===0){rr(c,cx+v[0]-v[2]/2,cy+v[1]-v[3]/2,v[2],v[3],v[4]);c.fill()}

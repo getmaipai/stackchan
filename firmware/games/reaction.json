@@ -54,7 +54,7 @@
  "shapes": [
   {
    "type": "fill",
-   "colour": "#000000",
+   "color": "#000000",
    "states": [
     "intro",
     "over"
@@ -62,28 +62,28 @@
   },
   {
    "type": "fill",
-   "colour": "#b02020",
+   "color": "#b02020",
    "states": [
     "wait"
    ]
   },
   {
    "type": "fill",
-   "colour": "#20a040",
+   "color": "#20a040",
    "states": [
     "go"
    ]
   },
   {
    "type": "fill",
-   "colour": "#2050b0",
+   "color": "#2050b0",
    "states": [
     "result"
    ]
   },
   {
    "type": "fill",
-   "colour": "#c07010",
+   "color": "#c07010",
    "states": [
     "early"
    ]
@@ -95,7 +95,7 @@
    "y": 80,
    "w": 280,
    "size": "large",
-   "colour": "#ffffff",
+   "color": "#ffffff",
    "states": [
     "intro"
    ]
@@ -107,7 +107,7 @@
    "y": 140,
    "w": 260,
    "size": "medium",
-   "colour": "#c8c8c8",
+   "color": "#c8c8c8",
    "states": [
     "intro"
    ]
@@ -119,7 +119,7 @@
    "y": 120,
    "w": 280,
    "size": "large",
-   "colour": "#ffffff",
+   "color": "#ffffff",
    "states": [
     "wait"
    ]
@@ -131,7 +131,7 @@
    "y": 120,
    "w": 280,
    "size": "large",
-   "colour": "#ffffff",
+   "color": "#ffffff",
    "states": [
     "go"
    ]
@@ -143,7 +143,7 @@
    "y": 110,
    "w": 280,
    "size": "large",
-   "colour": "#ffffff",
+   "color": "#ffffff",
    "states": [
     "result"
    ]
@@ -155,7 +155,7 @@
    "y": 165,
    "w": 280,
    "size": "medium",
-   "colour": "#dfe8ff",
+   "color": "#dfe8ff",
    "states": [
     "result"
    ]
@@ -167,7 +167,7 @@
    "y": 105,
    "w": 280,
    "size": "large",
-   "colour": "#ffffff",
+   "color": "#ffffff",
    "states": [
     "early"
    ]
@@ -179,7 +179,7 @@
    "y": 160,
    "w": 280,
    "size": "medium",
-   "colour": "#ffe9c8",
+   "color": "#ffe9c8",
    "states": [
     "early"
    ]
@@ -191,7 +191,7 @@
    "y": 105,
    "w": 280,
    "size": "large",
-   "colour": "#45ff5a",
+   "color": "#45ff5a",
    "states": [
     "over"
    ]
@@ -203,7 +203,7 @@
    "y": 160,
    "w": 280,
    "size": "medium",
-   "colour": "#c8c8c8",
+   "color": "#c8c8c8",
    "states": [
     "over"
    ]

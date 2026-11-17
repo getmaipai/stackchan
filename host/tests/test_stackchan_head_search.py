@@ -36,7 +36,7 @@ from maipai_body.bodies.stackchan.head_search import (
     STEPS as STEP_TABLE,
 )
 from maipai_body.bodies.stackchan.presence_watch import PERSON_SHARE, SceneBaseline
-from maipai_body.bodies.stackchan.profile import CENTRE_PITCH_DEG
+from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG
 
 
 def test_a_look_runs_its_poses_in_turn_then_finishes():
@@ -94,7 +94,7 @@ def test_the_look_glances_up_a_little_first_then_looks_up_and_over():
     assert {step.yaw_deg for step in PERSON_STEPS[2:]} == {-PAN_DEG, PAN_DEG}
     for step in PERSON_STEPS + DARK_STEPS:
         assert abs(step.yaw_deg) <= 30 and 0 <= step.pitch_deg <= 25
-        assert math.radians(CENTRE_PITCH_DEG + step.pitch_deg) < math.radians(85)
+        assert math.radians(CENTER_PITCH_DEG + step.pitch_deg) < math.radians(85)
 
 
 class _Vision:
@@ -183,11 +183,11 @@ def test_a_look_started_by_movement_runs_its_poses_slowly_and_waits_after_a_miss
         looked = calls[-5:]
         assert looked[0] == {
             "yaw": 0,
-            "pitch": round(CENTRE_PITCH_DEG + GLANCE_PITCH_DEG),
+            "pitch": round(CENTER_PITCH_DEG + GLANCE_PITCH_DEG),
             "speed": MOVE_SPEED,
         }
         assert [c["yaw"] for c in looked[1:]] == [0, -PAN_DEG, PAN_DEG, 0]
-        assert looked[-1]["pitch"] == round(CENTRE_PITCH_DEG)  # back to rest, slowly
+        assert looked[-1]["pitch"] == round(CENTER_PITCH_DEG)  # back to rest, slowly
         assert all(c["speed"] == MOVE_SPEED for c in looked)
         lines = [r.getMessage() for r in caplog.records]
         assert any("the picture moved" in line for line in lines)
@@ -329,7 +329,7 @@ def test_someone_speaking_gets_a_brisk_glance_up_and_a_look_after_the_reply(capl
         with caplog.at_level(logging.INFO, logger="maipai_body.app"):
             behavior.render_turn_state("listening")
         glances = [c for c in _head_calls(device) if c["speed"] == 130]
-        assert glances and glances[-1]["pitch"] == round(CENTRE_PITCH_DEG + 15)
+        assert glances and glances[-1]["pitch"] == round(CENTER_PITCH_DEG + 15)
         assert any("glanced up toward the speaker" in r.getMessage() for r in caplog.records)
         behavior.search_tick(100.0)  # mid-turn: no look yet
         assert not behavior._search.active
@@ -584,7 +584,7 @@ def test_turn_to_me_looks_after_the_reply_at_idle_level_still_and_says_so_when_n
         took = _tick_until_done(behavior, 100.7)
         assert took < ASK_FIRST_PASS_S + ASK_SECOND_PASS_S + 1.0
         assert lines == ["I can't see you yet, say something or move closer."]
-        assert _head_calls(device)[-1]["pitch"] == round(CENTRE_PITCH_DEG)  # back to neutral
+        assert _head_calls(device)[-1]["pitch"] == round(CENTER_PITCH_DEG)  # back to neutral
     finally:
         behavior.close()
 
@@ -599,7 +599,7 @@ def test_im_down_here_looks_level_and_to_the_sides_and_names_the_limit_when_nobo
         assert behavior._search.reason == "ask_level"
         _tick_until_done(behavior, 100.2)
         calls = _head_calls(device)[-(len(ASK_LEVEL_STEPS) + 1) :]
-        assert {c["pitch"] for c in calls} == {round(CENTRE_PITCH_DEG)}  # level, never up
+        assert {c["pitch"] for c in calls} == {round(CENTER_PITCH_DEG)}  # level, never up
         assert (
             min(c["yaw"] for c in calls) <= -ASK_PAN_DEG
             and max(c["yaw"] for c in calls) >= ASK_PAN_DEG
@@ -649,7 +649,7 @@ def test_turn_to_me_moves_at_once_and_the_look_starts_on_the_first_tick_after_th
         assert behavior.find_person(False) == "searching"
         first = _head_calls(device)[before:]
         assert len(first) == 1 and first[0]["yaw"] != 0  # a frame-free glance and small pan
-        assert first[0]["pitch"] > round(CENTRE_PITCH_DEG)
+        assert first[0]["pitch"] > round(CENTER_PITCH_DEG)
         behavior.search_tick(100.0)
         assert not behavior._search.active  # not mid-turn
         behavior._active.clear()  # the reply is over, the unit is idle

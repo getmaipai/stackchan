@@ -2,7 +2,7 @@
 
 The seam-shape checks take ``body_client``, so they run against the fake
 always and against the simulator when ``MAIPAI_BODY_LIVE=1`` (the same
-suite, two backends). The scripted behaviour is the fake's own, so it
+suite, two backends). The scripted behavior is the fake's own, so it
 runs on the fake only.
 """
 

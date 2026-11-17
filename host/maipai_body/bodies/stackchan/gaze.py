@@ -77,7 +77,7 @@ _COMMAND_NAMES = {
     "turnaround": "turn around",
     "turn_left": "turn left",
     "turn_right": "turn right",
-    "centre": "look straight ahead",
+    "center": "look straight ahead",
     "nod": "nod",
     "shake": "shake my head",
 }

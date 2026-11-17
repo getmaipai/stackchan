@@ -67,7 +67,7 @@ Later images have their own acceptance lists: priority (image 2), QR scan with t
 
 ## Not verified
 
-Everything on the unit. The component override and the ordering function are designed, not written. MicroLink's behaviour with PSRAM stacks, the access point and page RAM, and QR read quality are unmeasured.
+Everything on the unit. The component override and the ordering function are designed, not written. MicroLink's behavior with PSRAM stacks, the access point and page RAM, and QR read quality are unmeasured.
 
 
 ## Patch 140: the song title bar (added 2026-11-14)

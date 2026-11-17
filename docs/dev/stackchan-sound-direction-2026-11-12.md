@@ -44,7 +44,7 @@ Yes, in the pinned esp-sr 2.3.1 (`managed_components/espressif__esp-sr`): `esp_d
 `esp_afe_doa.h` exist for the esp32s3 target and the symbols `esp_doa_create/process/destroy`
 and `afe_doa_create/process/destroy` are in `libesp_audio_processor.a` and
 `libesp_audio_front_end.a`. It is an SRP-PHAT estimator for two microphones that takes the
-sample rate, an angular resolution, the microphone spacing in metres and a frame size, and
+sample rate, an angular resolution, the microphone spacing in meters and a frame size, and
 returns a 0 to 180 degree angle. It is **not enabled** in xiaozhi or StackChan. Patch 082 does
 not use it: the spacing is unknown and its memory cost on the unit is not, and a plain
 cross-correlation gives the raw lag the measurement needs. It is the natural next step once the
@@ -58,7 +58,7 @@ time difference ranges over plus or minus `d / 343 s`: for 45 mm that is 131 us,
 sample at 24 kHz is about 18 degrees near the front and the steps grow toward the sides;
 sub-sample interpolation of the correlation peak (patch 082 does a parabolic fit) gives finer
 steps when the sound is broadband (speech, a clap). Front and behind read the same: a two-mic
-line cannot tell them apart. Level difference alone: the two mics sit a few centimetres apart
+line cannot tell them apart. Level difference alone: the two mics sit a few centimeters apart
 on the same face, so the shadow of the head gives at most a few dB off to a side; it can
 confirm a side at the lag limit, not measure an angle.
 
@@ -69,7 +69,7 @@ resampler, is handed to `maipai_sound_tap`. `082-sound-direction.patch` (StackCh
 `hal/hal_sound_dir.cpp` sums each channel's energy and their cross-correlation over lags of
 -8..8 samples in the audio input task (static buffers, about 0.4 M multiply-adds a second), and
 a small worker task turns the sums into features every 100 ms: RMS of each channel, the lag of
-the correlation peak (sub-sample), a confidence (normalised peak, 0..1) and the level difference
+the correlation peak (sub-sample), a confidence (normalized peak, 0..1) and the level difference
 in dB. For the first half hour after boot every window above the quiet floor (RMS 40) prints
 `SD <ms> <rms0> <rms1> <lag_x100> <conf_x100> <db_x10>` on the serial console. A `sound_dir`
 device event with the same numbers (and `rate`) goes to the host at most every 1.5 s while a

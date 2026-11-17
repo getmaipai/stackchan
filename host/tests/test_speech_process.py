@@ -188,7 +188,7 @@ def test_last_utterance_is_cropped_to_the_speech_span():
 def test_speak_plays_every_sentence_and_records_the_row():
     proc, _, _, _, recorder, clock = build([], with_voice=True)
     record = proc.speak("Hello there. How are you.", turn_id="t1")
-    assert record.completed and not record.cancelled
+    assert record.completed and not record.canceled
     assert record.spoken_prefix == "Hello there. How are you."
     assert [s.text for s in record.segments] == ["Hello there.", "How are you."]
     assert abs(record.heard_s - 1.0) < 0.05

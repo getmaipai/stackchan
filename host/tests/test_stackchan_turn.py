@@ -226,7 +226,7 @@ def test_abort_emits_settle_state():
     assert states == ["settle"]
 
 
-def test_a_hub_failure_after_real_speech_apologises_once_and_never_twice_in_a_row(monkeypatch):
+def test_a_hub_failure_after_real_speech_apologizes_once_and_never_twice_in_a_row(monkeypatch):
     import maipai_body.bodies.stackchan.turn as turn_module
 
     loop = asyncio.new_event_loop()
@@ -791,7 +791,7 @@ def test_a_dropped_stt_socket_reconnects_instead_of_ending_the_turn():
     )
     bridge._current_session = "s"
     capture = SimpleNamespace(closed=False)
-    result = asyncio.run(bridge._recognise("b", "c", capture, bridge._clock()))
+    result = asyncio.run(bridge._recognize("b", "c", capture, bridge._clock()))
     assert result.kind == "final" and len(calls) == 2
 
 
@@ -811,7 +811,7 @@ def test_a_dropped_stt_socket_near_the_deadline_still_raises():
     bridge._current_session = "s"
     with pytest.raises(SttStreamError):
         asyncio.run(
-            bridge._recognise("b", "c", SimpleNamespace(closed=False), bridge._clock() - 10.0)
+            bridge._recognize("b", "c", SimpleNamespace(closed=False), bridge._clock() - 10.0)
         )
 
 
@@ -934,7 +934,7 @@ def test_stop_cancels_the_hub_turn(monkeypatch):
     server = FakeServer()
     server._loop = loop
     monkeypatch.setattr(turn_module, "StackChanAudioPlayback", FakePlayback)
-    cancelled = []
+    canceled = []
     holder = {}
 
     class CancellableTurn(FakeTurn):
@@ -944,7 +944,7 @@ def test_stop_cancels_the_hub_turn(monkeypatch):
             yield SimpleNamespace(reply_text="never spoken")
 
         def cancel(self, turn_id):
-            cancelled.append(turn_id)
+            canceled.append(turn_id)
             return True
 
     bridge = StackChanTurnBridge(
@@ -958,7 +958,7 @@ def test_stop_cancels_the_hub_turn(monkeypatch):
     holder["bridge"] = bridge
     loop.run_until_complete(bridge._run("session", "02:00:00:00:00:15", FakeCapture()))
     loop.close()
-    assert cancelled == ["turn-7"]
+    assert canceled == ["turn-7"]
 
 
 def test_a_listen_right_after_a_line_it_said_on_its_own_is_closed_not_a_follow_up():

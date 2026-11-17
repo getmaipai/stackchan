@@ -38,9 +38,9 @@ def _words(lang: str | None, key: str, **values: object) -> str:
     return (table.get(key) or _WORDS["en"][key]).format(**values)
 
 
-def hex_to_rgb(colour: str) -> tuple[int, int, int]:
+def hex_to_rgb(color: str) -> tuple[int, int, int]:
     """``#40c0ff`` as three ring channels, scaled from 255 down to the ring's own 168."""
-    raw = [int(colour[i : i + 2], 16) for i in (1, 3, 5)]
+    raw = [int(color[i : i + 2], 16) for i in (1, 3, 5)]
     return (raw[0] * LED_MAX // 255, raw[1] * LED_MAX // 255, raw[2] * LED_MAX // 255)
 
 
@@ -95,16 +95,16 @@ class UnitDevice:
             raise ExtrasError(_words(lang, "bad_value", field="Idle motion"))
         return self._send(unit_id, "self.robot.set_idle_motion", {"enabled": value}, lang)
 
-    def set_led(self, unit_id: str, colour: object, lang: str | None = None) -> dict[str, Any]:
-        if colour == "off":
+    def set_led(self, unit_id: str, color: object, lang: str | None = None) -> dict[str, Any]:
+        if color == "off":
             red = green = blue = 0
-        elif isinstance(colour, str) and len(colour) == 7 and colour.startswith("#"):
+        elif isinstance(color, str) and len(color) == 7 and color.startswith("#"):
             try:
-                red, green, blue = hex_to_rgb(colour)
+                red, green, blue = hex_to_rgb(color)
             except ValueError:
-                raise ExtrasError(_words(lang, "bad_value", field="Colour")) from None
+                raise ExtrasError(_words(lang, "bad_value", field="Color")) from None
         else:
-            raise ExtrasError(_words(lang, "bad_value", field="Colour"))
+            raise ExtrasError(_words(lang, "bad_value", field="Color"))
         return self._send(unit_id, "self.robot.set_led_color", {"red": red, "green": green, "blue": blue}, lang)
 
     def set_privacy(self, unit_id: str, name: str, value: object, lang: str | None = None) -> dict[str, Any]:

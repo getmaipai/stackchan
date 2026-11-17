@@ -110,7 +110,7 @@ def test_connecting_sends_only_what_was_chosen_and_nothing_when_nothing_was(new)
     ("body", "word"),
     [
         ({"filler_wait_s": 0.1}, "0.2 to 1.5"), ({"filler_wait_s": 9}, "0.2 to 1.5"), ({"filler_mode": "song"}, "none, tone, phrase"),
-        ({"listen_light_colour": "blue"}, "#40c0ff"), ({"emotion_faces": "yes"}, "on or off"), ({"listen_sound": "bell"}, "off, chime, mm"),
+        ({"listen_light_color": "blue"}, "#40c0ff"), ({"emotion_faces": "yes"}, "on or off"), ({"listen_sound": "bell"}, "off, chime, mm"),
     ],
 )  # fmt: skip
 def test_bad_prefs_are_refused_in_plain_words_and_change_nothing(old, body, word):
@@ -248,10 +248,23 @@ def test_the_script_asks_only_for_words_that_exist():
     asked = set(re.findall(r"T\('(pol\.[a-z0-9_.]+)'\)", js))
     asked |= {f"pol.ov.{n}" for n in ("rain", "snow", "sun", "clouds", "wind", "thunder", "fog", "stars", "disco", "confetti", "fireworks", "hearts", "steam", "balloons", "leaves", "zzz")}
     asked |= {f"pol.type.{t}{s}" for t in ("look", "sound", "dance", "game") for s in ("", "_help")}
-    asked |= {f"pol.{k}.{o}" for k, opts in {"filler_mode": ("none", "tone", "phrase"), "listen_sound": ("off", "chime", "mm"), "listen_light": ("off", "dim", "normal"), "fx_colour_mode": ("normal", "mono", "warm", "cool")}.items() for o in opts}
+    asked |= {f"pol.{k}.{o}" for k, opts in {"filler_mode": ("none", "tone", "phrase"), "listen_sound": ("off", "chime", "mm"), "listen_light": ("off", "dim", "normal"), "fx_color_mode": ("normal", "mono", "warm", "cool")}.items() for o in opts}
     page = render_page("es").decode()
     assert asked and "settings.ui.pol.listen.title" in page
     for code in i18n.SUPPORTED:
         for key in asked:
             assert f"settings.ui.{key}" in i18n.CATALOG[code], (code, key)
     assert "BUILDERS.packs" in js and "g.packs" in js
+
+
+def test_the_unit_gets_its_own_key_spelling_and_an_old_key_from_a_page_is_accepted(new):
+    """Owner rule 2026-11-16: the host says color; the flashed unit still knows colour (docs/design/spelling-aliases.md)."""
+    backend, units = new
+    units[KITCHEN].calls.clear()
+    status, out = post(backend, KITCHEN, "prefs", {"listen_light_color": "#112233", "fx_color_mode": "warm"})
+    assert status == 200 and out["pushed"] is True
+    assert json.loads([c for c in units[KITCHEN].calls if c[0] == "self.prefs.set"][-1][1]["json"]) == {"listen_light_colour": "#112233", "fx_colour_mode": "warm"}
+    status, out = post(backend, KITCHEN, "prefs", {"listen_light_colour": "#445566"})  # an older page
+    assert status == 200 and out["pushed"] is True
+    assert get(backend, KITCHEN, "prefs")[1]["values"]["listen_light_color"] == "#445566"
+    assert "listen_light_colour" not in backend.store.get(KITCHEN)

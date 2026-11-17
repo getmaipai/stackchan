@@ -33,7 +33,7 @@ def test_the_device_client_writes_all_twelve_pixels_in_one_tool_call():
     except ValueError as exc:
         assert "12" in str(exc)
     else:
-        raise AssertionError("eleven colours must be refused")
+        raise AssertionError("eleven colors must be refused")
 
 
 def test_the_night_camera_reads_the_stream_frame_through_the_adapter_driver():

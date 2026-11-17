@@ -2,7 +2,7 @@
 """Face settings per unit, and how they reach the unit (firmware patches F01 to F06).
 
 The face is neutral by default: white on black, the classic look, no captions, no time-of-day
-change, no clock by itself. Style, colour, captions, the time-of-day schedule, the thinking tone,
+change, no clock by itself. Style, color, captions, the time-of-day schedule, the thinking tone,
 the language of the clock face and the clock are saved settings. This module holds them per unit
 (keyed by the unit's Device-Id), checks them with the same rules the firmware uses, and sends them
 through the unit's ``self.face.*`` tools. The unit keeps its own copy in its flash, so the face
@@ -28,6 +28,7 @@ from typing import Any
 
 from maipai_body.hal.errors import BodyLost
 from maipai_body.i18n import normalize
+from maipai_body.spelling_aliases import to_unit_keys, upgrade_keys
 
 logger = logging.getLogger("maipai_body.faces")
 
@@ -66,7 +67,7 @@ BANDS = ("morning", "day", "evening", "night")
 DEFAULT_HOURS = (6, 9, 18, 21)
 MAX_CLOCK_IDLE_S = 3600
 MAX_SHOW_CLOCK_S = 3600
-MIN_LUMA = 60  # of 255: a colour darker than this cannot be seen on the black screen
+MIN_LUMA = 60  # of 255: a color darker than this cannot be seen on the black screen
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 _NEED = {  # firmware feature word a setting needs; a unit without it ignores the setting
     "background": "background",
@@ -85,12 +86,12 @@ _NEED = {  # firmware feature word a setting needs; a unit without it ignores th
 _MESSAGES: dict[str, dict[str, str]] = {
     "en": {
         "style": "The face style {value!r} does not exist. Choose big_eyes, eyes_only, stock, classic or minimal.",
-        "bright": "That screen colour is too bright for white eyes to show. Choose a darker colour.",
+        "bright": "That screen color is too bright for white eyes to show. Choose a darker color.",
         "caption_size": "The caption size {value!r} does not exist. Choose small, medium or large.",
         "decor": "The face extra {value!r} does not exist. Choose dizzy, heart, anger, tears, sparkles, stars or zzz.",
         "decor_seconds": "A face extra can show for 1 to 60 seconds. Type a number in that range.",
-        "colour": "The colour {value!r} is not one I know. Choose none, a name (mint, sky, amber, rose, lilac, lime, coral) or a code like #40c0ff.",
-        "dark": "That colour is too dark to see on the black screen. Choose a lighter colour.",
+        "color": "The color {value!r} is not one I know. Choose none, a name (mint, sky, amber, rose, lilac, lime, coral) or a code like #40c0ff.",
+        "dark": "That color is too dark to see on the black screen. Choose a lighter color.",
         "hours": "The day bands must be four hours from 0 to 23 that rise: morning, day, evening, night. Fix the hours and save again.",
         "lang": "The language {value!r} is not supported. Choose en, es, fr, de, pt or it.",
         "clock_style": "The clock style {value!r} does not exist. Choose digits or ring.",
@@ -110,7 +111,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "caption_size": "El tamano de subtitulos {value!r} no existe. Elige small, medium o large.",
         "decor": "El adorno de cara {value!r} no existe. Elige dizzy, heart, anger, tears, sparkles, stars o zzz.",
         "decor_seconds": "Un adorno de cara puede verse de 1 a 60 segundos. Escribe un numero en ese rango.",
-        "colour": "No conozco el color {value!r}. Elige none, un nombre (mint, sky, amber, rose, lilac, lime, coral) o un codigo como #40c0ff.",
+        "color": "No conozco el color {value!r}. Elige none, un nombre (mint, sky, amber, rose, lilac, lime, coral) o un codigo como #40c0ff.",
         "dark": "Ese color es demasiado oscuro para verse en la pantalla negra. Elige un color mas claro.",
         "hours": "Las franjas del dia son cuatro horas de 0 a 23 que suben: manana, dia, tarde, noche. Corrige las horas y guarda otra vez.",
         "lang": "El idioma {value!r} no esta disponible. Elige en, es, fr, de, pt o it.",
@@ -137,8 +138,8 @@ _FEATURE_WORDS = {
         "config": "face settings",
         "packs": "the extra face styles and caption sizes",
         "looks": "the eyes-only and stock face styles",
-        "background": "a screen colour",
-        "tint": "the emotion colours",
+        "background": "a screen color",
+        "tint": "the emotion colors",
         "decor": "face extras",
         "langs6": "screen words in French, German, Portuguese and Italian",
     },
@@ -179,25 +180,25 @@ def luma(red: int, green: int, blue: int) -> int:
     return (red * 30 + green * 59 + blue * 11) // 100
 
 
-def valid_colour(value: str) -> str | None:
-    """None when the colour is fine, otherwise "colour" (unknown) or "dark" (too dark to see)."""
+def valid_color(value: str) -> str | None:
+    """None when the color is fine, otherwise "color" (unknown) or "dark" (too dark to see)."""
     if value == "none" or value in PALETTE:
         return None
     if not _HEX.match(value):
-        return "colour"
+        return "color"
     red, green, blue = (int(value[i : i + 2], 16) for i in (1, 3, 5))
     return "dark" if luma(red, green, blue) < MIN_LUMA else None
 
 
-MAX_BG_LUMA = 100  # of 255: a screen colour brighter than this hides the white eyes
+MAX_BG_LUMA = 100  # of 255: a screen color brighter than this hides the white eyes
 
 
 def valid_background(value: str) -> str | None:
-    """None when the screen colour is fine, otherwise "colour" (unknown) or "bright" (hides the white eyes)."""
+    """None when the screen color is fine, otherwise "color" (unknown) or "bright" (hides the white eyes)."""
     if value == "none" or value in PALETTE:
         return None
     if not _HEX.match(value):
-        return "colour"
+        return "color"
     red, green, blue = (int(value[i : i + 2], 16) for i in (1, 3, 5))
     return "bright" if luma(red, green, blue) > MAX_BG_LUMA else None
 
@@ -207,9 +208,9 @@ class FaceConfig:
     """One unit's face settings. The defaults are the neutral, plain face."""
 
     style: str = DEFAULT_STYLE
-    colour: str = "none"  # the eye colour: none is white, a palette name, or #rrggbb
-    background: str = "none"  # the screen colour: none is black, a palette name (dimmed), or a dark #rrggbb
-    emotion_tint: bool = True  # the eyes lean a little toward a colour per emotion
+    color: str = "none"  # the eye color: none is white, a palette name, or #rrggbb
+    background: str = "none"  # the screen color: none is black, a palette name (dimmed), or a dark #rrggbb
+    emotion_tint: bool = True  # the eyes lean a little toward a color per emotion
     captions: bool = False
     tod: bool = False
     tod_hours: tuple[int, int, int, int] = DEFAULT_HOURS
@@ -221,10 +222,14 @@ class FaceConfig:
     caption_size: str = "medium"
 
     def to_wire(self) -> dict[str, Any]:
-        """The JSON object ``self.face.set_config`` takes."""
+        """The JSON object ``self.face.set_config`` takes (the unit's own key spelling)."""
+        return to_unit_keys(self.to_json())
+
+    def to_json(self) -> dict[str, Any]:
+        """The saved and page form, with the host's key names."""
         return {
             "style": self.style,
-            "colour": self.colour.lower(),
+            "color": self.color.lower(),
             "background": self.background.lower(),
             "emotion_tint": self.emotion_tint,
             "captions": self.captions,
@@ -237,9 +242,6 @@ class FaceConfig:
             "clock_idle_s": self.clock_idle_s,
             "caption_size": self.caption_size,
         }
-
-    def to_json(self) -> dict[str, Any]:
-        return self.to_wire()
 
 
 def _flag(field: str, value: object, lang: str | None) -> bool:
@@ -254,6 +256,7 @@ def clean(base: FaceConfig, values: Mapping[str, Any], lang: str | None = None) 
     Nothing is changed unless every field is valid (the same all-or-nothing rule the unit uses).
     ``lang`` picks the language of the error message; it defaults to the config's own language.
     """
+    values = upgrade_keys(values)  # older pages and files use the old key name
     say_lang = lang or values.get("lang") or base.lang
     out = base
     for field, value in values.items():
@@ -265,18 +268,18 @@ def clean(base: FaceConfig, values: Mapping[str, Any], lang: str | None = None) 
             out = replace(out, style=value)
         elif field == "background":
             if not isinstance(value, str):
-                raise FaceError(_say(say_lang, "colour", value=value))
+                raise FaceError(_say(say_lang, "color", value=value))
             problem = valid_background(value if value in PALETTE or value == "none" else value.lower())
             if problem is not None:
                 raise FaceError(_say(say_lang, problem, value=value))
             out = replace(out, background=value.lower())
-        elif field == "colour":
+        elif field == "color":
             if not isinstance(value, str):
-                raise FaceError(_say(say_lang, "colour", value=value))
-            problem = valid_colour(value if value in PALETTE or value == "none" else value.lower())
+                raise FaceError(_say(say_lang, "color", value=value))
+            problem = valid_color(value if value in PALETTE or value == "none" else value.lower())
             if problem is not None:
                 raise FaceError(_say(say_lang, problem, value=value))
-            out = replace(out, colour=value.lower())
+            out = replace(out, color=value.lower())
         elif field in ("captions", "tod", "thinking_tone", "clock24", "emotion_tint"):
             out = replace(out, **{field: _flag(field, value, say_lang)})
         elif field == "tod_hours":
@@ -326,7 +329,7 @@ def from_stored(raw: object) -> FaceConfig:
         return FaceConfig()
     try:
         return clean(
-            FaceConfig(), {k: v for k, v in raw.items() if k in FaceConfig.__dataclass_fields__}
+            FaceConfig(), {k: v for k, v in upgrade_keys(raw).items() if k in FaceConfig.__dataclass_fields__}
         )
     except FaceError:
         return FaceConfig()
@@ -704,7 +707,7 @@ def settings_view(service: FaceService, unit_id: str, lang: str | None = None) -
         "values": config.to_json(),
         "choices": {
             "style": list(STYLES),
-            "colour": ["none", *PALETTE],
+            "color": ["none", *PALETTE],
             "background": ["none", *PALETTE],
             "clock_style": list(CLOCK_STYLES),
             "caption_size": list(CAPTION_SIZES),

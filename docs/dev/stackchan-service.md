@@ -57,7 +57,7 @@ The release signing key never sits on disk. Store the Ed25519 private key PEM on
 
 Create the Ed25519 release key once and store it in the login Keychain as described above. Then run `scripts/cut-release.sh <tag> --signing-key keychain:<item>` (optionally with `--date YYYY-MM-DD`). It stages and signs all release assets locally and prints the exact `gh release create` command with a generated notes file. Review the assets and run that printed command when ready to publish.
 
-## Stop behaviour
+## Stop behavior
 
 The xiaozhi service exposes the shared Robot interface. `MAIPAI_BODY=stackchan` selects the StackChan service; `MAIPAI_BODY=fake` selects the same service path for a local fake peer, and other values keep the configured Reachy path. Once an authenticated StackChan session arrives, the app connects the turn bridge's listening, thinking, speaking, reply mood and settle events to the registered StackChan renderer. The presence worker starts the avatar camera stream, performs bounded anonymous face tracking from the newest frame, and stops the stream and worker on shutdown. Listening glances, detected faces are attended, and idle uses the static settle pose because this body has no verified breathing motion. Head targets and expression LEDs use the shared Robot object, retaining lease, profile clamp and software estop checks. The software stop cancels queued moves and best-effort sends the current head angles again to stop an accepted move; if reading those angles fails, the estop stays latched and reports `BodyLost`. This is not a hardware power cut and cannot guarantee the servo has stopped, so use the robot's power switch to cut servo power.
 

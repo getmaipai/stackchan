@@ -11,7 +11,7 @@ The unit opens a WebSocket client connection to the host for the voice turn (Opu
 - Discovery: the unit finds the host by name or a saved address. Bonjour advertising from the app works on a normal Wi-Fi. On the Personal Hotspot the phone is the gateway (a fixed private address, commonly 172.20.10.1), so the unit can use that address as a fallback and skip discovery.
 - Hotspot case: the app must listen on the hotspot's bridge interface. Listening on all interfaces normally covers it, but this is the part most likely to surprise; test it first.
 - Background: the hard limit. iOS suspends a backgrounded app within seconds. Ways to stay alive (a playing-audio background mode, location updates, a Bluetooth role) are narrow, and abusing them risks App Store rejection. Plan for a foreground-only app that keeps the screen on in a dock, and treat true background serving as unproven until a long soak test passes.
-- Audio: decode the Opus frames with a bundled libopus; speech to text with the on-device speech recogniser (only for languages it supports on-device, English and Spanish are covered); text to speech with the system synthesiser, or a bundled neural voice.
+- Audio: decode the Opus frames with a bundled libopus; speech to text with the on-device speech recognizer (only for languages it supports on-device, English and Spanish are covered); text to speech with the system synthesiser, or a bundled neural voice.
 - Model: the phone's on-device system model where available, or a small bundled model through an on-device runtime. Speed and memory are the open questions (2 to 4 GB budget for a foreground app).
 
 ## Verdict and test order

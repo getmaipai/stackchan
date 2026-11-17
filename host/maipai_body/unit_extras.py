@@ -34,9 +34,10 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from maipai_body.faces import CAPTION_SIZES, DECORATORS, FaceError, valid_colour
+from maipai_body.faces import CAPTION_SIZES, DECORATORS, FaceError, valid_color
 from maipai_body.hal.errors import BodyLost
 from maipai_body.i18n import normalize
+from maipai_body.spelling_aliases import upgrade_keys
 
 logger = logging.getLogger("maipai_body.unit_extras")
 
@@ -67,7 +68,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "person_wake": "A wake phrase is 3 to 24 letters, numbers or spaces. Type a shorter or longer phrase, or leave it empty.",
         "person_many": "The list holds at most {max} people. Remove one, then add the new one.",
         "person_unknown": "That person is not in the list. Add them first.",
-        "person_applied": "{name}'s face colour and caption size were sent to the unit.",
+        "person_applied": "{name}'s face color and caption size were sent to the unit.",
         "bad_file": "The file {path} could not be read. Fix or remove it; the built-in choices are used meanwhile.",
         "travel_key": "A Tailscale auth key is 16 to 200 letters, numbers or dashes with no spaces (it starts with tskey-). Paste the whole key and try again.",
         "travel_saved": "Saved on the unit. It joins Tailscale the next time it cannot reach your hub, then erases the key.",
@@ -840,7 +841,7 @@ def person_id(name: str) -> str:
 class Person:
     id: str
     name: str
-    colour: str = "none"
+    color: str = "none"
     caption_size: str = "medium"
     wake_phrase: str = ""
 
@@ -848,7 +849,7 @@ class Person:
         return {
             "id": self.id,
             "name": self.name,
-            "colour": self.colour,
+            "color": self.color,
             "caption_size": self.caption_size,
             "wake_phrase": self.wake_phrase,
         }
@@ -856,16 +857,17 @@ class Person:
 
 def clean_person(values: Mapping[str, Any], lang: str | None = None) -> Person:
     """A person from the page's fields, every one checked. Raises ``ExtrasError`` or ``FaceError``."""
+    values = upgrade_keys(values)  # a people file saved before the spelling change says "colour"
     name = str(values.get("name", "")).strip()
     if not _NAME.match(name):
         raise ExtrasError(say(lang, "person_name"))
-    colour = str(values.get("colour", "none") or "none").strip()
-    key = colour if colour == "none" or not colour.startswith("#") else colour.lower()
-    problem = valid_colour(key)
+    color = str(values.get("color", "none") or "none").strip()
+    key = color if color == "none" or not color.startswith("#") else color.lower()
+    problem = valid_color(key)
     if problem is not None:
         from maipai_body.faces import _say as face_say
 
-        raise FaceError(face_say(lang, problem, value=colour))
+        raise FaceError(face_say(lang, problem, value=color))
     size = str(values.get("caption_size", "medium") or "medium")
     if size not in CAPTION_SIZES:
         from maipai_body.faces import _say as face_say
@@ -878,7 +880,7 @@ def clean_person(values: Mapping[str, Any], lang: str | None = None) -> Person:
 
 
 class PeopleStore:
-    """The people this unit's owner customises: a name, a face colour, a caption size and a wake phrase."""
+    """The people this unit's owner customizes: a name, a face color, a caption size and a wake phrase."""
 
     def __init__(self, path: Path | None = None) -> None:
         self._file = _JsonFile(path or _config_dir() / "stackchan-people.json")
@@ -917,9 +919,9 @@ class PeopleStore:
 def apply_person(
     faces: Any, unit_id: str, person: Person, lang: str | None = None
 ) -> dict[str, Any]:
-    """Send a person's face colour and caption size to a unit (the face service pushes it)."""
+    """Send a person's face color and caption size to a unit (the face service pushes it)."""
     result = faces.update(
-        unit_id, {"colour": person.colour, "caption_size": person.caption_size}, lang
+        unit_id, {"color": person.color, "caption_size": person.caption_size}, lang
     )
     result["message"] = result.get("message") or say(lang, "person_applied", name=person.name)
     return result

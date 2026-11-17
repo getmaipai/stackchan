@@ -33,7 +33,7 @@ THRESHOLDS = {
     "high": Thresholds(0.6, 0.50, 0.45, 0.010),
 }
 
-# What speech engines invent from noise, per language. Matched on the whole normalised utterance.
+# What speech engines invent from noise, per language. Matched on the whole normalized utterance.
 HALLUCINATIONS = {
     "en": {
         "thank you",
@@ -82,7 +82,7 @@ def _frames(samples: np.ndarray) -> np.ndarray:
 
 
 def _pitched(frame: np.ndarray) -> float:
-    """Normalised autocorrelation peak between 70 and 400 Hz (0 to 1)."""
+    """Normalized autocorrelation peak between 70 and 400 Hz (0 to 1)."""
     frame = frame - frame.mean()
     energy = float(np.dot(frame, frame))
     if energy <= 1e-12:
@@ -122,12 +122,12 @@ def check_audio(samples: np.ndarray, level: str = DEFAULT_LEVEL) -> Verdict:
     return Verdict(True, "", voiced_s)
 
 
-def normalise(text: str) -> str:
+def normalize(text: str) -> str:
     return " ".join(_PUNCT.sub(" ", text.lower()).split())
 
 
 def check_text(text: str, language: str = "en") -> Verdict:
-    words = normalise(text)
+    words = normalize(text)
     if not words:
         return Verdict(False, "only punctuation or nothing")
     if words in HALLUCINATIONS.get(language[:2].lower(), HALLUCINATIONS["en"]):

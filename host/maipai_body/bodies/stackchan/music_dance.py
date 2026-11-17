@@ -16,7 +16,7 @@ Every time and number here is an UNMEASURED design default; the logs below exist
 2. The nod: one subtle "I like this": two small slow nods and a happy or a wink face for about
    3 s. No ring light. Once per music session.
 3. The build-up: if the music is still clear ``nod_to_build_s`` (20 s) after the nod began, about
-   10 s of the firmware's happy sway with a slow two-colour glow on the ring in the last 3 s
+   10 s of the firmware's happy sway with a slow two-color glow on the ring in the last 3 s
    (0.2 bright).
 4. The dance: straight on, up to 20 s of the firmware keyframe dances (the head moves only inside
    the unit: it refuses more than 40 head calls a minute, patch 038) with the ring show. It is
@@ -35,7 +35,7 @@ first stage of a dance); the same music never starts a second session (the unit 
 unknown nothing; while charging there is no battery gate (no battery cost; the design note's
 question 3 recommendation, to be confirmed) but every other rule applies.
 
-Not the ambient head gate: the nod and the dance are explicit behaviours behind an explicit
+Not the ambient head gate: the nod and the dance are explicit behaviors behind an explicit
 setting, so the 2026-10-20 "still while charging or at idle level still" rule for wandering does
 not apply, the same as for the asked dance. They obey the situation gates above.
 
@@ -297,7 +297,7 @@ _BUILD_AND_DANCE: tuple[tuple[float, str, str], ...] = (
 
 def glow_frame(tick: int) -> list[Rgb]:
     """The build-up's ring: gold and lime in alternating pixels that swap every second tick, at
-    0.2 brightness. Always two colours, always moving."""
+    0.2 brightness. Always two colors, always moving."""
     first, second = (GOLD, LIME) if (tick // 2) % 2 == 0 else (LIME, GOLD)
     return [_scaled(first if i % 2 == 0 else second, GLOW_LEVEL) for i in range(LED_COUNT)]
 
@@ -323,7 +323,7 @@ CALM_PLAN = Plan(((0.0, "face", "happy"), (0.0, "dance", "happy")), DANCE_S, lam
 
 # ---------------------------------------------------------------- the controller
 
-NodFn = Callable[[str, Callable[[], bool]], object]  # (face, cancelled) -> blocks until done
+NodFn = Callable[[str, Callable[[], bool]], object]  # (face, canceled) -> blocks until done
 
 
 @dataclass
@@ -997,12 +997,12 @@ class MusicDance:
 TEST_FEAT = MusicFeat(lv=2400, b=(40, 35, 18, 7), bpm=120, tc=80, fl=12, zc=15, zs=80, mo=15, ps=3)
 
 
-def nod_steps(centre_pitch: int, speed: int) -> list[tuple[int, int, int, float]]:
+def nod_steps(center_pitch: int, speed: int) -> list[tuple[int, int, int, float]]:
     """The nod as (yaw, pitch, speed, pause after): two small slow nods of 8 degrees, then level."""
     steps: list[tuple[int, int, int, float]] = []
     for _ in range(2):
-        steps.append((0, centre_pitch + 8, speed, 0.55))
-        steps.append((0, centre_pitch, speed, 0.55))
+        steps.append((0, center_pitch + 8, speed, 0.55))
+        steps.append((0, center_pitch, speed, 0.55))
     return steps
 
 

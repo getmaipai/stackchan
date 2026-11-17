@@ -9,7 +9,7 @@ Voice turn and speech (`speech/` except voices and voiceprint), `turn.py`, `repe
 - Vision and identity: `vision/` (gallery, recognize, embed, detect, watch, live_view, look_fast, capture except the cue path), `vision_bridge.py`, `vision_post.py`, `ambient_vision.py`, `sight.py`, `person_tracker.py`, `speaker_gaze.py`, `meeting_faces.py`.
 - Household and identity: `speaker_evidence.py`, `speaker_fusion.py`, `speech/voiceprint.py`, `owner_levels.py`, `presence_watch.py`, `presence/{attention,arbitration,funnel,entries,observations,doa,auto_dance}.py` (who is home, who is speaking), `announce.py`, `initiative/offer.py`, `companion.py`, `routines.py`.
 - Music identification and library: `music_identify.py`, `song_title.py`, `speech/music.py`.
-- Voices catalogue: `speech/voices.py` and cloned-voice handling (Home owns voice records; the core keeps the plain built-in voice).
+- Voices catalog: `speech/voices.py` and cloned-voice handling (Home owns voice records; the core keeps the plain built-in voice).
 - Old dashboard: `dashboard/` (Home is the dashboard). The core gets its OWN small local settings page, new code, built in the flasher and settings phase: robot status, the `robot.toml` settings, the pairing code, mute, update and the persona text. It is served by the core host, needs no Home, and never shows household data.
 - `moves/` stays in core because dance needs it.
 

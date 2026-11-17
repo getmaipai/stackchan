@@ -3,7 +3,7 @@
 `docs/dev/stackchan-person-then-face-2026-11-12.md` is the design. The fast Look pass
 (`vision/look_fast.py`) gives a person box even when only an arm or a torso is in view; this
 tracker turns that box into a few head moves: aim the head at the person (yaw from the box
-centre, a tilt up when the box is cut off at the top), then look for the face above the box in
+center, a tilt up when the box is cut off at the top), then look for the face above the box in
 small tilt steps and one small pan, and once the person is found, follow them: the face when one
 is in view, the body when not, with smoothing, a dead zone and a speed that looks natural. It
 knows nothing about servos or the camera: the behavior in app.py feeds it one look at a time (the
@@ -45,14 +45,14 @@ PERSON_WINDOW = 3
 FACE_GONE_S = 5.0  # no face this long before a body is acted on (as SEARCH_FACE_GONE_S)
 FACE_FRESH_S = 1.0  # a face seen this recently is the target
 
-AIM_DEAD_ZONE = 0.08  # of the frame width around the middle: centred, do not hunt
+AIM_DEAD_ZONE = 0.08  # of the frame width around the middle: centered, do not hunt
 AIM_GAIN = 0.7  # share of the yaw error moved in one step
 AIM_MAX_STEP_DEG = 30.0  # and the cap on one step
 AIM_SPEED = 300  # servo speed: the spring is stiff enough to settle in about a second
 AIM_SETTLE_S = 0.6  # after a move ends, before a look counts (a frame is up to 0.5 s old)
 AIM_MAX_MOVES = 4
 AIM_TIMEOUT_S = 6.0
-CENTRED_LOOKS = 2  # looks in the dead zone before the face search starts
+CENTERED_LOOKS = 2  # looks in the dead zone before the face search starts
 BOX_TOP_CUT = 0.05  # the box starts this close to the top edge: the person is cut off, tilt up
 AIM_TILT_STEP_DEG = 25.0  # that tilt, with the yaw move (a seated person's face sits well above)
 FOLLOW_CONFIRM_LOOKS = 2  # a follow move needs the error over the dead zone this many looks running
@@ -78,7 +78,7 @@ FOLLOW_PITCH_DEAD_ZONE = 0.2
 FOLLOW_SMOOTH = 0.6  # weight of the newest measurement in the smoothed target (1 = none)
 # A walking person (owner's pacing test 2026-11-12: "it never followed me"): a target that moved
 # more than the dead zone since the look before is acted on at once (no second look), and the
-# head aims a little ahead of it, a constant-velocity lead from the last two centres, because the
+# head aims a little ahead of it, a constant-velocity lead from the last two centers, because the
 # camera, the detector and the spring servo together lag about half a second.
 MOVING_STEP = 0.08  # of the frame width between two looks: the target is walking, act now
 LEAD_S = 0.5
@@ -92,7 +92,7 @@ BODY_HEAD_SHARE = 0.15  # the point to look at on a body without a face: this fa
 
 PERSON_GONE_S = 2.0  # no box this long while aiming: the person left the picture
 BACKOFF_S = (60.0, 3 * 60.0, 600.0)  # after a miss on the same still person: 1, 3, 10 minutes
-RETRY_MOVE = 0.15  # the box centre moved this share of the frame: a new try is worth it
+RETRY_MOVE = 0.15  # the box center moved this share of the frame: a new try is worth it
 MAX_ATTEMPTS = 3  # in ATTEMPTS_WINDOW_S
 ATTEMPTS_WINDOW_S = 600.0
 ATTEMPT_CAP_S = 12.0  # aiming and the face search together (following is open-ended)
@@ -117,7 +117,7 @@ class PersonBox:
     score: float
 
     @property
-    def centre_x(self) -> float:
+    def center_x(self) -> float:
         return self.x + self.w / 2
 
     @property
@@ -160,19 +160,19 @@ def choose_person(boxes: list[PersonBox], last: PersonBox | None = None) -> Pers
     if not good:
         return None
     if last is not None:
-        near = [b for b in good if abs(b.centre_x - last.centre_x) <= max(0.2, last.w)]
+        near = [b for b in good if abs(b.center_x - last.center_x) <= max(0.2, last.w)]
         if near:
             return max(near, key=lambda b: b.area)
     good.sort(key=lambda b: -b.area)
     best = good[0]
     ties = [b for b in good if b.area >= best.area * 0.9]
-    return min(ties, key=lambda b: abs(b.centre_x - 0.5))
+    return min(ties, key=lambda b: abs(b.center_x - 0.5))
 
 
 def yaw_error_deg(box: PersonBox) -> float:
     """How far off the picture's middle the person is, in head degrees, with the same
     camera-to-head mapping (span and sign) face following uses."""
-    return (box.centre_x - 0.5) * FOLLOW_YAW_SPAN_DEG * FOLLOW_YAW_SIGN
+    return (box.center_x - 0.5) * FOLLOW_YAW_SPAN_DEG * FOLLOW_YAW_SIGN
 
 
 def clamp_pose(yaw_deg: float, pitch_deg: float) -> tuple[float, float]:
@@ -202,7 +202,7 @@ class PersonTracker:
         self._stage_at = 0.0
         self._moves = 0
         self._follow_moves = 0
-        self._centred = 0
+        self._centered = 0
         self._judge_after = float("-inf")  # a look's frame must be newer than this to count
         self._poses: list[tuple[float, float]] = []
         self._pose_index = -1
@@ -216,7 +216,7 @@ class PersonTracker:
         self._face_last_seen = float("-inf")
         # Following: the smoothed target, its speed, when it was last seen and last moved.
         self._track: tuple[float, float] | None = None  # smoothed (x, y)
-        self._off_centre_looks = 0  # looks in a row with the target outside the dead zone
+        self._off_center_looks = 0  # looks in a row with the target outside the dead zone
         self._just_found = False  # the first move after a face or body is found is immediate
         self._was_following = False  # aiming again after a follow lost sight: wait, not search
         self._lost_at = float("-inf")
@@ -225,7 +225,7 @@ class PersonTracker:
         self._still_since: float | None = None
         self._target_last_at = float("-inf")
         self._relaxed_at: tuple[float, float] | None = None  # where the person was when relaxed
-        self.lag_samples: list[float] = []  # measured: how far off centre the target sat (shares)
+        self.lag_samples: list[float] = []  # measured: how far off center the target sat (shares)
 
     # -- what the behavior tells it -------------------------------------------------------------
 
@@ -341,7 +341,7 @@ class PersonTracker:
         where = (
             face_xy
             if face_fresh and face_xy is not None
-            else (chosen.centre_x, chosen.top)
+            else (chosen.center_x, chosen.top)
             if chosen is not None
             else None
         )
@@ -368,7 +368,7 @@ class PersonTracker:
         if seen < PERSON_LOOKS:
             return NONE
         if self._missed_box is not None and (
-            abs(chosen.centre_x - self._missed_box.centre_x) >= RETRY_MOVE
+            abs(chosen.center_x - self._missed_box.center_x) >= RETRY_MOVE
         ):
             self._misses = 0  # they moved: the earlier miss no longer counts
             self._missed_box = None
@@ -384,7 +384,7 @@ class PersonTracker:
         self._last_box, self._last_box_at = box, now
         self._started_at = self._stage_at = now
         self._moves = self._follow_moves = 0
-        self._centred = 0
+        self._centered = 0
         self._judge_after = float("-inf")
         self._track = None
         self._relaxed_at = None
@@ -392,7 +392,7 @@ class PersonTracker:
         self._was_following = False
         self.stage = AIMING
         self.events.append(
-            f"person {how} at x {box.centre_x:.2f}, box top {box.top:.2f}, score {box.score:.2f}"
+            f"person {how} at x {box.center_x:.2f}, box top {box.top:.2f}, score {box.score:.2f}"
             f" -> aiming"
         )
         return self._aim(now, box)
@@ -405,12 +405,12 @@ class PersonTracker:
         self._target = box
         self._target_last_at = now
         error = yaw_error_deg(box)
-        if abs(box.centre_x - 0.5) <= AIM_DEAD_ZONE:
-            self._centred += 1
-            if self._centred >= CENTRED_LOOKS:
-                return self._begin_follow(now, "centred")
+        if abs(box.center_x - 0.5) <= AIM_DEAD_ZONE:
+            self._centered += 1
+            if self._centered >= CENTERED_LOOKS:
+                return self._begin_follow(now, "centered")
             return NONE
-        self._centred = 0
+        self._centered = 0
         if self._moves >= AIM_MAX_MOVES or now - self._stage_at > AIM_TIMEOUT_S:
             return self._begin_follow(now, "roughly on the person")
         step = max(-AIM_MAX_STEP_DEG, min(AIM_MAX_STEP_DEG, error * AIM_GAIN))
@@ -418,7 +418,7 @@ class PersonTracker:
         pitch = self.pose[1]
         if box.top <= BOX_TOP_CUT:
             pitch = min(TILT_MAX_DEG, pitch + AIM_TILT_STEP_DEG)
-        return self._move(now, yaw, pitch, AIM_SPEED, f"aim at x {box.centre_x:.2f}")
+        return self._move(now, yaw, pitch, AIM_SPEED, f"aim at x {box.center_x:.2f}")
 
     def _begin_follow(self, now: float, why: str) -> Action:
         """Aimed: follow the body from here; the face search starts once they stand still."""
@@ -459,7 +459,7 @@ class PersonTracker:
         if self._pose_index >= len(self._poses):
             return self._search_missed(now, "no face in any pose")
         yaw, pitch = self._poses[self._pose_index]
-        if box is not None and abs(box.centre_x - 0.5) > 2 * AIM_DEAD_ZONE:
+        if box is not None and abs(box.center_x - 0.5) > 2 * AIM_DEAD_ZONE:
             # The person drifted: fold the correction into this pose.
             yaw = self.pose[0] + yaw_error_deg(box) * AIM_GAIN
             self._poses = [(yaw, p) for _, p in self._poses]
@@ -498,7 +498,7 @@ class PersonTracker:
         if face_fresh and face_xy is not None:
             target = face_xy
         elif box is not None:
-            target = (box.centre_x, box.top + BODY_HEAD_SHARE * box.h)
+            target = (box.center_x, box.top + BODY_HEAD_SHARE * box.h)
         else:
             target = None
         if target is None:
@@ -508,7 +508,7 @@ class PersonTracker:
                 )
                 self.stage = AIMING
                 self._stage_at = now
-                self._moves = self._centred = 0
+                self._moves = self._centered = 0
                 self._started_at = now  # the attempt cap counts from here
                 self._was_following = True
                 self._lost_at = now
@@ -569,13 +569,13 @@ class PersonTracker:
             move
             and not self._just_found
             and not moving
-            and self._off_centre_looks + 1 < FOLLOW_CONFIRM_LOOKS
+            and self._off_center_looks + 1 < FOLLOW_CONFIRM_LOOKS
         ):
-            self._off_centre_looks += 1
-            return NONE  # one look off centre may be jitter: wait for the next before moving
+            self._off_center_looks += 1
+            return NONE  # one look off center may be jitter: wait for the next before moving
         if not move:
-            self._off_centre_looks = 0
-            self._just_found = False  # centred at the find: a later step needs two looks
+            self._off_center_looks = 0
+            self._just_found = False  # centered at the find: a later step needs two looks
             # In the dead zone: hold. Standing still this long with no face: look for it above
             # the body; still for a long while: relax, and a step across the room wakes it.
             if self._still_since is None:
@@ -599,7 +599,7 @@ class PersonTracker:
         self._still_since = None
         self._track = None  # the head moves: the next look's picture starts afresh
         self._prev_target = None
-        self._off_centre_looks = 0
+        self._off_center_looks = 0
         self._just_found = False
         self._follow_moves += 1
         return self._move(
@@ -656,7 +656,7 @@ class PersonTracker:
         return events
 
     def follow_report(self) -> str | None:
-        """One line of measured following: moves and how far off centre the target sat."""
+        """One line of measured following: moves and how far off center the target sat."""
         if not self.lag_samples:
             return None
         samples = sorted(self.lag_samples)
@@ -664,7 +664,7 @@ class PersonTracker:
         moves, self._follow_moves, self.lag_samples = self._follow_moves, 0, []
         return (
             f"{moves} follow move(s); the target sat a median {median:.2f} "
-            f"(at most {samples[-1]:.2f}) of the frame width off centre over {len(samples)} looks"
+            f"(at most {samples[-1]:.2f}) of the frame width off center over {len(samples)} looks"
         )
 
 

@@ -1,9 +1,9 @@
 # ruff: noqa: E501
-"""The look and the behaviour of the settings page: styles, the live face drawing and every panel.
+"""The look and the behavior of the settings page: styles, the live face drawing and every panel.
 
 ``render_page`` in ``settings_page`` fills ``__STRINGS__`` and ``__LANG__`` and adds the picture-face panel. The page
 is plain HTML, CSS and JavaScript with no outside file, no font download and no network call except to this host.
-Colours are tokens (CSS variables) that follow the browser's light or dark setting or the page's own switch.
+Colors are tokens (CSS variables) that follow the browser's light or dark setting or the page's own switch.
 """
 
 from __future__ import annotations
@@ -168,7 +168,7 @@ const BASE={lang:'__LANG__'},LANG='__LANG__';
 try{const th=localStorage.getItem('theme');if(th&&th!=='auto')document.documentElement.setAttribute('data-theme',th)}catch(e){}
 const T=k=>S['settings.ui.'+k]||k;
 const $=(s,r)=>(r||document).querySelector(s);
-const ICO={packs:'M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10',home:'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',remote:'M12 2v4M12 18v4M2 12h4M18 12h4M12 8l-3 3 3 3 3-3z',look:'M12 3a9 9 0 100 18 9 9 0 000-18zM9 10v2M15 10v2M9 15c1.5 1.4 4.5 1.4 6 0',voice:'M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3',network:'M2 9a15 15 0 0120 0M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0M12 19.5h.01',behaviour:'M4 6h16M4 12h16M4 18h16M8 4v4M16 10v4M10 16v4',play:'M6 12h4M8 10v4M15 11h.01M18 13h.01M17 7H7a5 5 0 00-4.9 6l.7 3.6A2.5 2.5 0 007.3 17.8l.9-1.3h7.6l.9 1.3a2.5 2.5 0 004.5-1.2l.7-3.6A5 5 0 0017 7z',system:'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1'};
+const ICO={packs:'M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10',home:'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',remote:'M12 2v4M12 18v4M2 12h4M18 12h4M12 8l-3 3 3 3 3-3z',look:'M12 3a9 9 0 100 18 9 9 0 000-18zM9 10v2M15 10v2M9 15c1.5 1.4 4.5 1.4 6 0',voice:'M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3',network:'M2 9a15 15 0 0120 0M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0M12 19.5h.01',behavior:'M4 6h16M4 12h16M4 18h16M8 4v4M16 10v4M10 16v4',play:'M6 12h4M8 10v4M15 11h.01M18 13h.01M17 7H7a5 5 0 00-4.9 6l.7 3.6A2.5 2.5 0 007.3 17.8l.9-1.3h7.6l.9 1.3a2.5 2.5 0 004.5-1.2l.7-3.6A5 5 0 0017 7z',system:'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1'};
 function h(tag,props,...kids){const el=document.createElement(tag);
  for(const k in props||{}){const v=props[k];if(v==null||v===false)continue;
   if(k==='class')el.className=v;else if(k.startsWith('on'))el.addEventListener(k.slice(2),v);
@@ -209,7 +209,7 @@ function slider(label,min,max,step,val,fmt,live,done,ends,off){const id=uid();co
  return h('div',{class:'slide'+(off?' off':'')},h('div',{class:'head'},h('label',{for:id,class:'f'},label,off?[' ',soonBadge()]:null),out),inp,ends?h('div',{class:'ends'},h('span',{},ends[0]),h('span',{},ends[1])):null)}
 function swatches(label,vals,val,fn,withNone){const g=h('div',{class:'sws',role:'radiogroup','aria-label':label});
  const draw=()=>g.querySelectorAll('button').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.v===val)));
- for(const c of vals)g.append(h('button',{type:'button',role:'radio','data-v':c,class:'swatch'+(c==='none'?' none':''),style:c==='none'?null:'background:'+PAL[c],title:S['settings.face.colour.'+c]||c,'aria-label':S['settings.face.colour.'+c]||c,onclick:async()=>{const old=val;val=c;draw();const ok=await fn(c);if(ok===false){val=old;draw()}}}));
+ for(const c of vals)g.append(h('button',{type:'button',role:'radio','data-v':c,class:'swatch'+(c==='none'?' none':''),style:c==='none'?null:'background:'+PAL[c],title:S['settings.face.color.'+c]||c,'aria-label':S['settings.face.color.'+c]||c,onclick:async()=>{const old=val;val=c;draw();const ok=await fn(c);if(ok===false){val=old;draw()}}}));
  draw();g.redraw=v=>{val=v;draw()};return g}
 function field(label,el){return h('label',{class:'f'},label,el)}
 function ask(text,okLabel){return new Promise(res=>{const d=h('dialog',{},h('p',{},text),h('div',{class:'btns'},
@@ -219,7 +219,7 @@ function loading(el){el.append(h('div',{class:'empty'},'...'))}
 
 /* ---- the face drawing: same shapes as the unit's styles (320 by 240 screen) ---- */
 const PAL={none:'#f4f4f4',mint:'#5fe0b5',sky:'#6cc3ff',amber:'#ffbf47',rose:'#ff8fa3',lilac:'#b48cff',lime:'#b9e65c',coral:'#ff7a5c'};
-const colourOf=c=>PAL[c]||(/^#[0-9a-f]{6}$/i.test(c)?c:PAL.none);
+const colorOf=c=>PAL[c]||(/^#[0-9a-f]{6}$/i.test(c)?c:PAL.none);
 /*__FACE_SHAPES__*/
 /* the stock skin as shipped: its own look rows from the table of the core (the other styles are the shape model above) */
 const GEO={stock:{d:20,x:70,y:-16,my:26,mo:2,mw:90,mt:6,stock:1}};
@@ -242,7 +242,7 @@ function heartP(c,x,y,s){c.beginPath();c.moveTo(x,y+s*.48);c.bezierCurveTo(x-s*.
 function star(c,x,y,r){const k=.16;c.beginPath();c.moveTo(x,y-r);c.quadraticCurveTo(x+r*k,y-r*k,x+r,y);c.quadraticCurveTo(x+r*k,y+r*k,x,y+r);c.quadraticCurveTo(x-r*k,y+r*k,x-r,y);c.quadraticCurveTo(x-r*k,y-r*k,x,y-r);c.fill()}
 const views=new Set();
 class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.width;this.hh=cv.height;
- this.o=Object.assign({style:'big_eyes',colour:'none',background:'none',tint:true,state:'neutral',mode:'face',captions:false,size:'medium',lang:'en',decor:'none',dim:0,c24:false,cstyle:'digits',live:true},o||{});
+ this.o=Object.assign({style:'big_eyes',color:'none',background:'none',tint:true,state:'neutral',mode:'face',captions:false,size:'medium',lang:'en',decor:'none',dim:0,c24:false,cstyle:'digits',live:true},o||{});
  this.st=document.createElement('canvas');this.st.width=640;this.st.height=480;this.sc=this.st.getContext('2d');
  this._state=this.o.state;this.st0=0;this.t=rnd(0,5);this.P={};this.snap();this.gx=0;this.gy=0;this.gtx=0;this.gty=0;this.gn=1;this.bl=0;this.bs=-1;this.bn=rnd(1,3);this.v=0;this.vt=0;this.vtg=0;this.vis=true;
  if(this.o.live){views.add(this);if('IntersectionObserver' in window)new IntersectionObserver(e=>{this.vis=e[0].isIntersecting}).observe(cv)}this.draw()}
@@ -253,12 +253,12 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
   if(o.state==='sleeping'){const e=clamp((this.t-this.st0)/1.5,0,1);lid=50+(sh-50)*(e*e*(3-2*e))}
   if(o.dim>0)lid=Math.min(lid,100-o.dim*28);
   T.l=lid;T.r=(l.r||0)+(l.b?180:0);T.s=l.s;const m=l.m;T.w=m[0]*g.mw/36;T.bend=m[1];T.mt=m[2]*(.5+.5*g.mt/8);T.wob=m[3];T.split=m[4];T.mtilt=m[5];
-  const rgb=rgbOf(colourOf(o.colour)),c=tinted(rgb,(o.tint!==false&&!g.stock)?l.t:'',.6);T.cr=c[0];T.cg=c[1];T.cb=c[2];return T}
+  const rgb=rgbOf(colorOf(o.color)),c=tinted(rgb,(o.tint!==false&&!g.stock)?l.t:'',.6);T.cr=c[0];T.cg=c[1];T.cb=c[2];return T}
 
  isArt(){return !(FST[this.o.style]||FST.big_eyes).stock}
  emoOf(){const s=this.o.state;return s==='thinking'||s==='speaking'?'neutral':(FEMO[s]!==undefined?s:'neutral')}
  tgtArt(){const st=FST[this.o.style]||FST.big_eyes;return FT.pose[st.name][this.emoOf()+(this.o.state==='thinking'?'+thinking':'')]}
- colTarget(){const o=this.o,e=this.emoOf();return tinted(rgbOf(colourOf(o.colour)),o.tint!==false?FT.looks[FEMO[e]].tint:'',.6)}
+ colTarget(){const o=this.o,e=this.emoOf();return tinted(rgbOf(colorOf(o.color)),o.tint!==false?FT.looks[FEMO[e]].tint:'',.6)}
  snapArt(){const T=this.tgtArt(),st=FST[this.o.style]||FST.big_eyes;this.sp=newSpring(T);this.mo=T[MP.MOPEN];this.mc=mouthTarget(st,FEMO[this.emoOf()],false,false,0,0);this.lidv=(1-T[MP.LID])*100;this.lid0=this.lidv;this.col=this.colTarget();this.bf=0;this.bk=0;this.sp.x[MP.GX]=T[MP.GX];this.sp.x[MP.GY]=T[MP.GY]}
  stepArt(dt){const st=FST[this.o.style]||FST.big_eyes,e=this.emoOf(),T=this.tgtArt(),state=this.o.state;this.t+=dt;
   springStep(this.sp,T,dt);const ct=this.colTarget(),ca=1-Math.exp(-dt/.22);this.col=this.col.map((x,i)=>x+(ct[i]-x)*ca);
@@ -336,8 +336,8 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
  ovClear(){this.o.overlay=null}
  draw(){const o=this.o,d=this.d;d.setTransform(1,0,0,1,0,0);d.fillStyle='#000';d.fillRect(0,0,this.w,this.hh);
   const sc=this.sc;sc.setTransform(1,0,0,1,0,0);sc.fillStyle=bgOf(o.background);sc.fillRect(0,0,640,480);sc.setTransform(2,0,0,2,0,0);
-  if(o.mode==='clock')this.clock(sc,colourOf(o.colour));else this.paint(sc);
-  if(o.captions&&o.mode==='face'){const px={small:14,medium:18,large:24}[o.size]||18;sc.fillStyle='rgba(0,0,0,.6)';sc.fillRect(0,240-px*1.9,320,px*1.9);sc.fillStyle=colourOf(o.colour);sc.font='600 '+px+'px system-ui,sans-serif';sc.textAlign='center';sc.textBaseline='middle';sc.fillText(HELLO[o.lang]||HELLO.en,160,240-px*.95)}
+  if(o.mode==='clock')this.clock(sc,colorOf(o.color));else this.paint(sc);
+  if(o.captions&&o.mode==='face'){const px={small:14,medium:18,large:24}[o.size]||18;sc.fillStyle='rgba(0,0,0,.6)';sc.fillRect(0,240-px*1.9,320,px*1.9);sc.fillStyle=colorOf(o.color);sc.font='600 '+px+'px system-ui,sans-serif';sc.textAlign='center';sc.textBaseline='middle';sc.fillText(HELLO[o.lang]||HELLO.en,160,240-px*.95)}
   d.imageSmoothingEnabled=true;const fx=o.fx||{};
   if(fx.glow){d.save();d.filter='blur(9px) brightness(1.5)';d.globalAlpha=.55;d.drawImage(this.st,0,0,this.w,this.hh);d.restore()}
   d.save();if(fx.mode&&FXM[fx.mode])d.filter=FXM[fx.mode];d.drawImage(this.st,0,0,this.w,this.hh);d.restore();
@@ -355,14 +355,14 @@ requestAnimationFrame(loop);
 function bandNow(hours){const hr=new Date().getHours();return hr>=hours[3]||hr<hours[0]?'night':hr>=hours[2]?'evening':hr>=hours[1]?'day':'morning'}
 
 /* ---- the page frame: units, groups, theme, language ---- */
-const GROUPS=['home','remote','look','voice','packs','network','behaviour','play','system'];
-const NAMEKEY={home:'g.home',remote:'g.remote',look:'g.look',voice:'g.voice',packs:'g.packs',network:'g.network',behaviour:'g.behaviour',play:'g.play',system:'g.system'};
+const GROUPS=['home','remote','look','voice','packs','network','behavior','play','system'];
+const NAMEKEY={home:'g.home',remote:'g.remote',look:'g.look',voice:'g.voice',packs:'g.packs',network:'g.network',behavior:'g.behavior',play:'g.play',system:'g.system'};
 let UNITS=[],UNIT=null,CUR='home',BUILT={};
 const panels={};
 const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
 const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
 function setTheme(v){const r=document.documentElement;if(v==='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',v);lsSet('theme',v)}
-function accentFor(u){const k=u&&u.colour;return !k||k==='none'?'#35c79a':colourOf(k)}
+function accentFor(u){const k=u&&u.color;return !k||k==='none'?'#35c79a':colorOf(k)}
 function applyAccent(){document.documentElement.style.setProperty('--accent',accentFor(UNIT))}
 function shell(){
  const nav=h('nav',{class:'nav','aria-label':T('nav.label')});
@@ -497,8 +497,8 @@ BUILDERS.home=async(p,u)=>{
  const ov=await api(unitPath(u.device_id,'overview')),fv=await faceView(u.device_id);
  const o=ov.ok?ov.d:{reachable:false};const v=fv.values||{};
  const cv=h('canvas',{width:640,height:480,role:'img','aria-label':T('preview')});
- const face=new Face(cv,{style:v.style,colour:v.colour,background:v.background,tint:v.emotion_tint,captions:v.captions,size:v.caption_size,lang:v.lang});
- const pvc=card(T('home.face'),null,h('div',{class:'screen'},cv),h('p',{class:'hint'},(S['settings.face.style.'+v.style]||v.style||'')+', '+(S['settings.face.colour.'+v.colour]||v.colour||'')),h('div',{class:'btns'},h('button',{class:'btn',type:'button',onclick:()=>go('look')},S['settings.ui.g.look'])));
+ const face=new Face(cv,{style:v.style,color:v.color,background:v.background,tint:v.emotion_tint,captions:v.captions,size:v.caption_size,lang:v.lang});
+ const pvc=card(T('home.face'),null,h('div',{class:'screen'},cv),h('p',{class:'hint'},(S['settings.face.style.'+v.style]||v.style||'')+', '+(S['settings.face.color.'+v.color]||v.color||'')),h('div',{class:'btns'},h('button',{class:'btn',type:'button',onclick:()=>go('look')},S['settings.ui.g.look'])));
  const stats=h('div',{class:'stats'});
  stats.append(h('div',{class:'stat'},h('b',{},u.online?S['settings.online.yes']:S['settings.online.no']),h('span',{},S['settings.online'])));
  stats.append(h('div',{class:'stat'},h('b',{},o.battery?o.battery.percent+'%':'-'),h('span',{},T('home.battery')+(o.battery&&o.battery.charging?', '+T('home.charging'):''))));
@@ -516,22 +516,22 @@ BUILDERS.look=async(p,u)=>{
  if(fv.error||!fv.values){p.append(card(S['settings.face'],null,h('div',{class:'banner bad'},fv.error||T('net_error')),h('button',{class:'btn',onclick:()=>{BUILT.look=false;p.querySelectorAll(':scope>:not(h1)').forEach(n=>n.remove());go('look',true)}},T('retry'))));return}
  let v=Object.assign({},fv.values);const c=fv.choices;const feats=fv.features;const has=f=>feats==null||feats.includes(f);
  const cv=h('canvas',{width:640,height:480,role:'img','aria-label':T('preview')});
- const face=new Face(cv,{style:v.style,colour:v.colour,background:v.background,tint:v.emotion_tint,captions:v.captions,size:v.caption_size,lang:v.lang,c24:v.clock24,cstyle:v.clock_style});
- const refresh=()=>{face.set({style:v.style,colour:v.colour,background:v.background,tint:v.emotion_tint,captions:v.captions,size:v.caption_size,lang:v.lang,c24:v.clock24,cstyle:v.clock_style,dim:v.tod&&bandNow(v.tod_hours)==='night'?1:0});tiles.forEach(t=>t.set({colour:v.colour,background:v.background,tint:v.emotion_tint}))};
- const put=async patch=>{const old=Object.assign({},v);Object.assign(v,patch);refresh();const r=await save(facePath(id),patch);if(!r.ok){v=old;refresh();return false}if(patch.colour){u.colour=patch.colour;applyAccent();drawChips()}return true};
+ const face=new Face(cv,{style:v.style,color:v.color,background:v.background,tint:v.emotion_tint,captions:v.captions,size:v.caption_size,lang:v.lang,c24:v.clock24,cstyle:v.clock_style});
+ const refresh=()=>{face.set({style:v.style,color:v.color,background:v.background,tint:v.emotion_tint,captions:v.captions,size:v.caption_size,lang:v.lang,c24:v.clock24,cstyle:v.clock_style,dim:v.tod&&bandNow(v.tod_hours)==='night'?1:0});tiles.forEach(t=>t.set({color:v.color,background:v.background,tint:v.emotion_tint}))};
+ const put=async patch=>{const old=Object.assign({},v);Object.assign(v,patch);refresh();const r=await save(facePath(id),patch);if(!r.ok){v=old;refresh();return false}if(patch.color){u.color=patch.color;applyAccent();drawChips()}return true};
  const looks=['neutral','happy','sad','angry','surprised','thinking','sleepy','sleeping','tired','speaking','love'];
  const states=seg(T('try_look'),looks.map(s=>({v:s,t:T('state.'+s)})).concat([{v:'clock',t:S['settings.ui.nav.time']}]),'neutral',s=>{if(s==='clock')face.set({mode:'clock'});else face.set({mode:'face',state:s});return true});
  const pv=card(T('preview'),T('preview_note'),h('div',{class:'pv'},h('div',{class:'screen'},cv),states));
  const tiles=[];
  const gallery=h('div',{class:'tiles',role:'radiogroup','aria-label':S['settings.face.style']});
- const gal=[];for(const s of c.style){const tc=h('canvas',{width:160,height:120,'aria-hidden':'true'});const tf=new Face(tc,{style:s,colour:v.colour,background:v.background,tint:v.emotion_tint,live:false});tf.drawOnce();tiles.push(tf);
+ const gal=[];for(const s of c.style){const tc=h('canvas',{width:160,height:120,'aria-hidden':'true'});const tf=new Face(tc,{style:s,color:v.color,background:v.background,tint:v.emotion_tint,live:false});tf.drawOnce();tiles.push(tf);
   const off=!has('looks')&&['eyes_only','stock'].includes(s);
   const b=h('button',{type:'button',role:'radio',class:'tile','aria-checked':String(v.style===s),disabled:off,title:off?T('soon'):null,onclick:async()=>{const ok=await put({style:s});if(ok)gal.forEach(x=>x.setAttribute('aria-checked',String(x===b)))}},h('div',{class:'screen'},tc),S['settings.face.style.'+s]||pretty(s));gal.push(b);gallery.append(b)}
- const sw=swatches(S['settings.face.colour'],c.colour,v.colour,s=>put({colour:s}),true);
- const custom=h('input',{type:'color',value:/^#/.test(v.colour)?v.colour:'#40c0ff','aria-label':S['settings.face.colour']+' (custom)',onchange:async e=>{const ok=await put({colour:e.target.value});if(ok)sw.redraw(e.target.value)}});
+ const sw=swatches(S['settings.face.color'],c.color,v.color,s=>put({color:s}),true);
+ const custom=h('input',{type:'color',value:/^#/.test(v.color)?v.color:'#40c0ff','aria-label':S['settings.face.color']+' (custom)',onchange:async e=>{const ok=await put({color:e.target.value});if(ok)sw.redraw(e.target.value)}});
  const look=card(S['settings.face.style'],null,gallery);
- const colour=card(S['settings.face.colour'],null,sw,field('',custom));
- const bsw=swatches(S['settings.face.background'],c.background||c.colour,v.background||'none',s=>put({background:s}),true);
+ const color=card(S['settings.face.color'],null,sw,field('',custom));
+ const bsw=swatches(S['settings.face.background'],c.background||c.color,v.background||'none',s=>put({background:s}),true);
  const bcustom=h('input',{type:'color',value:/^#/.test(v.background||'')?v.background:'#102030','aria-label':S['settings.face.background']+' (custom)',onchange:async e=>{const ok=await put({background:e.target.value});if(ok)bsw.redraw(e.target.value)}});
  const bgcard=card(S['settings.face.background'],null,bsw,field('',bcustom));
  const tintcard=card(S['settings.face.tint'],S['settings.face.tint_help'],toggle(S['settings.face.tint'],null,v.emotion_tint!==false,on=>put({emotion_tint:on}),!has('tint')));
@@ -551,7 +551,7 @@ BUILDERS.look=async(p,u)=>{
  ledSw.querySelector('[data-v=off]').classList.add('none');ledSw.querySelector('[data-v=off]').title=T('look.led_off');ledSw.querySelector('[data-v=off]').setAttribute('aria-label',T('look.led_off'));
  const led=card(T('look.led'),T('look.led_help'),ledSw,slider(T('look.led_bright'),10,100,5,100,x=>x+'%',null,null,null,true));
  refresh();const pol=await lookCards(id,u,v,has,face);
- p.append(h('div',{class:'two'},h('div',{class:'stack sticky'},pv,...banners),h('div',{class:'stack'},look,pol.cards[2],colour,bgcard,tintcard,pol.cards[0],pol.cards[1],pol.cards[3],caps,tod,bright,led,card(null,null,reset))));
+ p.append(h('div',{class:'two'},h('div',{class:'stack sticky'},pv,...banners),h('div',{class:'stack'},look,pol.cards[2],color,bgcard,tintcard,pol.cards[0],pol.cards[1],pol.cards[3],caps,tod,bright,led,card(null,null,reset))));
  const pics=picSection(u.device_id);p.append(h('div',{class:'stack',style:'margin-top:18px'},pics))};
 
 /* ---- VOICE AND SOUND ---- */
@@ -604,8 +604,8 @@ async function tsCard(p,u){const id=u.device_id,tv=await api(unitPath(id,'travel
  function errOf(x){return {refusal:T('ts.err.refusal'),key:T('ts.err.bad_key'),error:T('ts.err.bad_key')}[x.last_error]||''}
  return c}
 
-/* ---- BEHAVIOUR ---- */
-BUILDERS.behaviour=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'overview')),sv=ov.ok?ov.d.saved:{idle_motion:true},pr=ov.ok?ov.d.privacy:null;
+/* ---- BEHAVIOR ---- */
+BUILDERS.behavior=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'overview')),sv=ov.ok?ov.d.saved:{idle_motion:true},pr=ov.ok?ov.d.privacy:null;
  const body=card(T('beh.head'),null,seg(T('Idle movement'),[{v:'off',t:T('Off')},{v:'calm',t:T('Calm')},{v:'lively',t:T('Lively')}],sv.idle_movement||'off',async m=>(await save(unitPath(id,'device'),{idle_movement:m})).ok),h('p',{class:'help'},T('Off keeps the head still until it is spoken to. Calm and lively let it look around when nobody is talking.')),
   toggle(T('Look toward the speaker'),T('Turns or glances toward you when you start talking.'),!!sv.look_speaker,async on=>(await save(unitPath(id,'device'),{look_speaker:on})).ok),
   toggle(T('Look for faces'),T('Searches the room with the camera when something moves. Needs the camera on.'),!!sv.look_faces,async on=>(await save(unitPath(id,'device'),{look_faces:on})).ok),
@@ -646,12 +646,12 @@ async function reactCard(u){const id=u.device_id,r=await api(unitPath(id,'reacti
 async function peopleCard(u){const id=u.device_id,r=await api('/api/stackchan/people'),c=card(S['settings.people'],T('people.empty_help'));
  if(!r.ok){c.append(h('div',{class:'banner'},r.d.error||T('net_error')));return c}
  let d=r.d;const list=h('div',{class:'list'});
- const one=(person)=>{const p=Object.assign({id:'',name:'',colour:'none',caption_size:'medium',wake_phrase:''},person);
+ const one=(person)=>{const p=Object.assign({id:'',name:'',color:'none',caption_size:'medium',wake_phrase:''},person);
   const name=h('input',{type:'text',value:p.name,maxlength:24}),wake=h('input',{type:'text',value:p.wake_phrase,maxlength:24});
-  const sw=swatches(S['settings.people.colour'],d.choices.colour,p.colour,x=>{p.colour=x});
+  const sw=swatches(S['settings.people.color'],d.choices.color,p.color,x=>{p.color=x});
   const sz=seg(S['settings.people.caption'],d.choices.caption_size.map(s=>({v:s,t:S['settings.face.caption_size.'+s]})),p.caption_size,x=>{p.caption_size=x});
   const row=h('div',{class:'item',style:'display:grid;gap:12px'},h('div',{class:'hrs'},field(S['settings.people.name'],name),field(S['settings.people.wake'],wake)),sw,sz,h('div',{class:'btns'},
-   h('button',{class:'btn pri',type:'button',onclick:async()=>{const k=await save('/api/stackchan/people',{id:p.id,name:name.value,colour:p.colour,caption_size:p.caption_size,wake_phrase:wake.value});if(k.ok){d=k.d;draw()}}},S['settings.people.save']),
+   h('button',{class:'btn pri',type:'button',onclick:async()=>{const k=await save('/api/stackchan/people',{id:p.id,name:name.value,color:p.color,caption_size:p.caption_size,wake_phrase:wake.value});if(k.ok){d=k.d;draw()}}},S['settings.people.save']),
    p.id?h('button',{class:'btn',type:'button',onclick:()=>save('/api/stackchan/people/'+encodeURIComponent(p.id)+'/use/'+encodeURIComponent(id),{})},S['settings.people.use']):null,
    p.id?h('button',{class:'btn bad',type:'button',onclick:async()=>{const k=await api('/api/stackchan/people/'+encodeURIComponent(p.id)+'/remove',{});if(k.ok){d=k.d;draw()}}},S['settings.people.remove']):null));return row};
  const draw=()=>{list.replaceChildren();if(!d.people.length)list.append(h('div',{class:'empty'},S['settings.people.none']));for(const x of d.people)list.append(one(x))};
@@ -665,7 +665,7 @@ BUILDERS.play=async(p,u)=>{const id=u.device_id,g=await api(unitPath(id,'games')
  else games.append(h('div',{class:'banner'},(g.d&&g.d.error)||T('net_error')),h('span',{class:'badge'},T('soon')));
  const decor=card(S['settings.extra'],null);let pickd=null;
  const view=window.__faceviews||(window.__faceviews={});
- if(fv.choices){const cv=h('canvas',{width:640,height:480,role:'img','aria-label':T('preview')});const v=fv.values;const face=new Face(cv,{style:v.style,colour:v.colour,background:v.background,tint:v.emotion_tint});
+ if(fv.choices){const cv=h('canvas',{width:640,height:480,role:'img','aria-label':T('preview')});const v=fv.values;const face=new Face(cv,{style:v.style,color:v.color,background:v.background,tint:v.emotion_tint});
   const pills=h('div',{class:'pills'});for(const n of fv.choices.decorators){const b=h('button',{class:'pill',type:'button','aria-pressed':'false',onclick:async()=>{pills.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));face.set({decor:n});save(unitPath(id,'decorate'),{name:n,seconds:6},true)}},S['settings.decor.'+n]||pretty(n));pills.append(b)}
   decor.append(h('div',{class:'screen'},cv),pills,h('div',{class:'btns'},h('button',{class:'btn',type:'button',onclick:()=>{pills.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));face.set({decor:'none'});save(unitPath(id,'decorate'),{name:'none'},true)}},S['settings.extra.stop'])))}
  else decor.append(h('div',{class:'banner'},fv.error||T('net_error')));
@@ -690,7 +690,7 @@ BUILDERS.system=async(p,u)=>{const id=u.device_id;
  const word=h('input',{type:'text',autocomplete:'off','aria-label':T('sys.reset_type')});
  const reset=card(T('sys.reset'),T('sys.reset_help'),field(T('sys.reset_type'),word),h('div',{class:'btns'},h('button',{class:'btn bad',type:'button',onclick:async()=>{if(word.value!=='RESET'){toast(T('sys.reset_type'),'bad');return}if(await ask(T('sys.reset_help'),T('sys.reset_go'))){const r=await save(unitPath(id,'reset'),{confirm_word:word.value});if(r.ok)word.value=''}}},T('sys.reset_go'))));
  const lk=(t,u2)=>h('a',{class:'lnk',href:u2,target:'_blank',rel:'noopener noreferrer'},t);
- const about=card(T('sys.about'),T('sys.source_note'),kv([[S['settings.firmware'],u.firmware_version||S['settings.firmware.unknown']],[T('sys.host_version'),HOSTV],[T('sys.licence'),'GNU AGPL-3.0']]),
+ const about=card(T('sys.about'),T('sys.source_note'),kv([[S['settings.firmware'],u.firmware_version||S['settings.firmware.unknown']],[T('sys.host_version'),HOSTV],[T('sys.license'),'GNU AGPL-3.0']]),
   h('div',{class:'list'},h('div',{},lk(T('sys.source'),'https://github.com/getmaipai/stackchan')),h('div',{},lk(T('sys.docs'),'https://github.com/getmaipai/stackchan/tree/main/docs/user'))));
  p.append(h('div',{class:'grid'},unit,det,upd,about,rst,reset))};
 """

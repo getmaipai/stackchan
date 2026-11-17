@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from maipai_body import reply_tags, unit_prefs
+from maipai_body.spelling_aliases import to_unit_keys
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
@@ -82,21 +83,21 @@ def _unit_table(cores: Path) -> list[tuple[str, str, str, int]]:
 def test_the_unit_keeps_every_key_the_host_defines_under_the_same_name(cores: Path) -> None:
     table = _unit_table(cores)
     names = [row[0] for row in table]
-    host = list(unit_prefs.PREFS)
+    host = list(to_unit_keys(dict.fromkeys(unit_prefs.PREFS)))  # the unit keeps its own spelling of two keys
     assert names[: len(host)] == host  # same names, same order: never renamed
     assert names[len(host) :] == ["pickup_reaction"]  # the one extra row the pickup patch reads
     for key, nvs, _kind, _unit in table:
         assert nvs == key[:15]  # a flash key is the first 15 characters of the name
     unit_applied = [key for key, _nvs, _kind, unit in table if unit]
-    assert unit_applied == list(unit_prefs.UNIT_KEYS)  # the keys the host sends are the keys the unit applies
+    assert unit_applied == list(to_unit_keys(dict.fromkeys(unit_prefs.UNIT_KEYS)))  # the keys the host sends are the keys the unit applies
 
 
 def test_the_unit_accepts_every_value_the_host_can_send(cores: Path) -> None:
     text = (cores / "maipai_prefs_core.h").read_text()
-    colour = re.search(r"MP_NAMES_COLOUR\[\] = \{([^}]*)\}", text)
-    assert colour is not None
-    unit_modes = set(re.findall(r'"(\w+)"', colour.group(1)))
-    assert set(unit_prefs.PREFS["fx_colour_mode"][1]) <= unit_modes
+    color = re.search(r"MP_NAMES_COLOUR\[\] = \{([^}]*)\}", text)
+    assert color is not None
+    unit_modes = set(re.findall(r'"(\w+)"', color.group(1)))
+    assert set(unit_prefs.PREFS["fx_color_mode"][1]) <= unit_modes
     for key in ("filler_mode", "listen_sound", "listen_light"):
         short = {"filler_mode": "FILLER", "listen_sound": "SOUND", "listen_light": "LIGHT"}[key]
         found = re.search(rf"MP_NAMES_{short}\[\] = \{{([^}}]*)\}}", text)

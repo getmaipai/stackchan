@@ -26,7 +26,7 @@ person ids and levels, and the outputs are the strict spec shapes built by
   detector (`vision/look_fast.py`) that no face covers adds one `unknown`
   entry (basis `unknown`), so someone standing with their back to the robot
   is still "not alone". A box and the face inside it are one person. Boxes
-  are geometry only: nobody is named or recognised from how they look.
+  are geometry only: nobody is named or recognized from how they look.
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ Box = tuple[float, float, float, float]  # x, y, width, height as shares of the 
 def uncovered_person_boxes(person_boxes: Sequence[Box], face_boxes: Sequence[Box]) -> int:
     """How many person boxes have no face inside them.
 
-    A face covers the box that contains its centre; one face covers one box and
+    A face covers the box that contains its center; one face covers one box and
     one box is covered once, so a face and its own person box are one person."""
     free = list(person_boxes)
     for fx, fy, fw, fh in face_boxes:

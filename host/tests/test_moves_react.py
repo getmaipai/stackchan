@@ -132,7 +132,7 @@ def test_a_failing_hook_never_breaks_the_turn():
     assert parts["tts"].speak_calls == ["hello"]
 
 
-def test_a_cancelled_turn_plays_no_move():
+def test_a_canceled_turn_plays_no_move():
     calls = []
     events = [
         TurnEvent(cue=Cue(phase=Phase.CANCEL, cue_seq=1), turn_id="turn-1", react_move="happy1"),

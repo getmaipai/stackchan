@@ -218,7 +218,7 @@ class MusicIdentify:
                     self._captured = False
                     self._request_id = None
             logger.info(
-                "%s clip cancelled: why=%r%s", LOG, why, "; retry in 12 seconds" if retry else ""
+                "%s clip canceled: why=%r%s", LOG, why, "; retry in 12 seconds" if retry else ""
             )
             return
         with self._lock:

@@ -46,14 +46,14 @@ the figure to respect: anything that allocates internal RAM at start-up needs to
    the host, where "stop" ends the turn silently. Cost: nothing to build. Risk: the wake word's
    reliability at the robot's normal volume is unknown. This needs a test, not a patch.
 1. **A command-word model beside the wake word (MultiNet).** Add `mn5q8_en` (2.1 MB flash) with a
-   short list ("stop", "stop talking", "be quiet", "never mind"), fed from the AFE's echo-cancelled
+   short list ("stop", "stop talking", "be quiet", "never mind"), fed from the AFE's echo-canceled
    output in the same task, active in the Speaking state only. Gives "StackChan, stop" with no wake
    word. Costs: about 2.1 MB of the 4 MB assets partition (headroom unmeasured), PSRAM for the
    model, extra CPU on core 1 for every 32 ms frame, and a Kconfig and asset-packing change. Risk:
    the 12.5 KB internal minimum, and false stops from the robot's own speech.
-2. **Keep the uplink open while speaking and let the host listen.** Stream echo-cancelled audio
+2. **Keep the uplink open while speaking and let the host listen.** Stream echo-canceled audio
    to the hub during playback and match stop phrases there. Costs: Wi-Fi traffic during speech, a
-   host-side streaming recogniser, about a second of latency, and the half-duplex design the
+   host-side streaming recognizer, about a second of latency, and the half-duplex design the
    firmware uses today. The most work for the slowest stop.
 
 ## Recommendation
@@ -80,7 +80,7 @@ flash may ride the next firmware batch.
 
 - **Model and words.** `mn5q8_en` with seven commands: stop, stackchan stop, be quiet, quiet,
   that's enough, never mind, cancel (phonemes from esp-sr's `multinet_g2p.py`). It listens to the
-  AFE's echo-cancelled output, only in the Speaking state. A hit at 0.85 or more aborts the reply;
+  AFE's echo-canceled output, only in the Speaking state. A hit at 0.85 or more aborts the reply;
   the abort message makes the host end the turn silently. The model threshold is 0.5 so near-misses
   can be logged.
 - **Assets.** The measured assets image was 2,298,029 bytes. Without the launcher icons and
