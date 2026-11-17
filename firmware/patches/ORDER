@@ -123,3 +123,12 @@ Y02-find-my-robot-overrides-mute.patch
 Y03-opus-decode-above-the-screen-task.patch
 Y04-find-and-game-screen-cues.patch
 Z01-boot-event-names-the-crash.patch
+TB01-listening-cues.patch
+TB02-pack-loader-and-flash-cache.patch
+TB03-while-it-thinks-filler.patch
+TB04-pickup-detection.patch
+TB05-visible-remote-control.patch
+TA01-prefs-store-and-tools.patch
+TA02-screen-effects-and-governor.patch
+TA03-overlay-engine.patch
+TA04-speech-bubble.patch

@@ -1,0 +1,781 @@
+# Intent: One preference store on the unit and the tools the host's settings page already waits on (owner brief 2026-11-16, checkpoint 1). hal/maipai_prefs_core.h is one table: every key the host defines in unit_prefs.py (emotion_faces, overlays_enabled, filler_mode, filler_wait_s, listen_sound, listen_light, listen_light_colour, listen_face, fx_crt, fx_colour_mode, fx_night_dim, fx_glow, speech_bubble, thinking_dots), its kind, range and default, plus pickup_reaction (off, face, face_sound), which the pickup patch reads. The store (hal/maipai_fx.cc) keeps each setting under its own key in the namespace maipai_prefs, as text (a bool is true or false, an enum its name, a colour #rrggbb, a number its digits) so any reader can use the stock settings class, with a name longer than 15 characters cut to its first 15 (the rule the listening cue reader shares); it writes only the keys that changed and, when the listening cue patch is built in, tells its reader at once through a weak reference; a damaged or out-of-range value is ignored and the default stays; a key never set is kept apart from a key set to its default (the speech bubble follows the Stock style until a person chooses). self.prefs.get answers every value, the chosen keys and the keys the unit applies; self.prefs.set takes {json: '{...}'} and applies all or nothing, with an error that names the field and the fix. Colour modes: the host's names (normal, mono, warm, cool) plus duotone, amber and green; the older names full and monotone are accepted. The setting thinking_dots turns the three thinking dots off (the quiet tone stays). Other code can watch changes with maipai_prefs_watch (the listening cues and fillers read the same store). Costs: one 14 row table in flash, a mutex, about 100 bytes of RAM; nothing runs until a tool is called.
+# Placement: unit (the settings are applied with no host; the host copy is what the settings page shows)
+# Upstream: firmware/main/hal/hal_mcp.cpp (tool registration), hal/maipai_face.cc (the thinking cue) and Kconfig.projbuild; new files hal/maipai_prefs_core.h, hal/maipai_fx.h, hal/maipai_fx.cc
+# Check after a flash: self.prefs.get lists 14 values and the unit_keys; self.prefs.set {"json":"{\"fx_crt\":true}"} answers changed [fx_crt] and the value is there after a reboot; a bad value (fx_colour_mode purple) changes nothing and says what to send.
+
+diff --git a/firmware/main/hal/maipai_prefs_core.h b/firmware/main/hal/maipai_prefs_core.h
+new file mode 100644
+index 0000000..90126e0
+--- /dev/null
++++ b/firmware/main/hal/maipai_prefs_core.h
+@@ -0,0 +1,440 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The unit's one preferences table (patch TA01): the pure logic. No ESP-IDF, no heap, no clock. Header-only plain C99 so a
++ * host compiler can test it (host/tests/firmware/prefs_core_test.c).
++ *
++ * One row per setting. The key names are the ones the host defines in host/maipai_body/unit_prefs.py (PREFS) and sends in
++ * one call, self.prefs.set {"json": "{...}"}; they are never renamed here. The store keeps each setting under its own flash
++ * key in the namespace "maipai_prefs", saved as text (a bool is "true" or "false", an enum is its name, a colour is "#rrggbb",
++ * a number is its digits) so any reader can use the stock settings class. A flash key is 15 characters at most, so a longer
++ * name is cut to its first 15 characters (the rule every reader of the store shares; the wire name is always the long one).
++ * A key that was never set reads its default, and the unit
++ * keeps "never set" apart from "set to the default" (the speech bubble follows the Stock style until a person chooses).
++ *
++ * Applying is all or nothing: a field that is not valid changes nothing and the error says what to send instead.
++ */
++#ifndef MAIPAI_PREFS_CORE_H
++#define MAIPAI_PREFS_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++
++#define MP_NAMESPACE "maipai_prefs"
++
++#define MP_BOOL 0
++#define MP_ENUM 1
++#define MP_FLOAT 2  /* stored times 100 */
++#define MP_COLOUR 3 /* 0xRRGGBB */
++
++/* Row indexes. */
++enum {
++    MP_EMOTION_FACES = 0,
++    MP_OVERLAYS_ENABLED,
++    MP_FILLER_MODE,
++    MP_FILLER_WAIT_S,
++    MP_LISTEN_SOUND,
++    MP_LISTEN_LIGHT,
++    MP_LISTEN_LIGHT_COLOUR,
++    MP_LISTEN_FACE,
++    MP_FX_CRT,
++    MP_FX_COLOUR_MODE,
++    MP_FX_NIGHT_DIM,
++    MP_FX_GLOW,
++    MP_SPEECH_BUBBLE,
++    MP_THINKING_DOTS,
++    MP_PICKUP_REACTION, /* not in the host's table yet: the pickup patch reads it (off, face, face_sound) */
++    MP_COUNT
++};
++
++/* fx_colour_mode values (the first four are the host's own names; the rest are extra looks the unit also accepts). */
++enum { MP_CM_NORMAL = 0, MP_CM_MONO, MP_CM_WARM, MP_CM_COOL, MP_CM_DUOTONE, MP_CM_AMBER, MP_CM_GREEN, MP_CM_COUNT };
++
++typedef struct {
++    const char* key; /* the wire name, as the host has it */
++    const char* nvs; /* the flash key: 15 characters at most */
++    uint8_t kind;
++    int32_t lo, hi;  /* range (float: times 100; enum: unused) */
++    int32_t def;
++    uint8_t unit;    /* 1: the unit applies it itself (the host sends these) */
++    const char* const* names; /* enum names, NULL ended */
++} mp_def_t;
++
++static const char* const MP_NAMES_FILLER[] = {"none", "tone", "phrase", NULL};
++static const char* const MP_NAMES_SOUND[] = {"off", "chime", "mm", NULL};
++static const char* const MP_NAMES_LIGHT[] = {"off", "dim", "normal", NULL};
++static const char* const MP_NAMES_COLOUR[] = {"normal", "mono", "warm", "cool", "duotone", "amber", "green", NULL};
++static const char* const MP_NAMES_PICKUP[] = {"off", "face", "face_sound", NULL};
++
++static const mp_def_t MP_DEFS[MP_COUNT] = {
++    {"emotion_faces", "emotion_faces", MP_BOOL, 0, 1, 1, 0, NULL},
++    {"overlays_enabled", "overlays_enable", MP_BOOL, 0, 1, 1, 0, NULL},
++    {"filler_mode", "filler_mode", MP_ENUM, 0, 2, 1, 0, MP_NAMES_FILLER},
++    {"filler_wait_s", "filler_wait_s", MP_FLOAT, 20, 150, 40, 0, NULL},
++    {"listen_sound", "listen_sound", MP_ENUM, 0, 2, 1, 1, MP_NAMES_SOUND},
++    {"listen_light", "listen_light", MP_ENUM, 0, 2, 2, 1, MP_NAMES_LIGHT},
++    {"listen_light_colour", "listen_light_co", MP_COLOUR, 0, 0xFFFFFF, 0x40C0FF, 1, NULL},
++    {"listen_face", "listen_face", MP_BOOL, 0, 1, 1, 1, NULL},
++    {"fx_crt", "fx_crt", MP_BOOL, 0, 1, 0, 1, NULL},
++    {"fx_colour_mode", "fx_colour_mode", MP_ENUM, 0, MP_CM_COUNT - 1, 0, 1, MP_NAMES_COLOUR},
++    {"fx_night_dim", "fx_night_dim", MP_BOOL, 0, 1, 0, 1, NULL},
++    {"fx_glow", "fx_glow", MP_BOOL, 0, 1, 0, 1, NULL},
++    {"speech_bubble", "speech_bubble", MP_BOOL, 0, 1, 0, 1, NULL},
++    {"thinking_dots", "thinking_dots", MP_BOOL, 0, 1, 1, 1, NULL},
++    {"pickup_reaction", "pickup_reaction", MP_ENUM, 0, 2, 1, 0, MP_NAMES_PICKUP},
++};
++
++typedef struct {
++    int32_t v[MP_COUNT];
++    uint32_t set; /* bit i: the setting was chosen (it is saved in flash) */
++} mp_prefs_t;
++
++static inline void mp_defaults(mp_prefs_t* p)
++{
++    for (int i = 0; i < MP_COUNT; i++) {
++        p->v[i] = MP_DEFS[i].def;
++    }
++    p->set = 0;
++}
++
++static inline int mp_find(const char* key)
++{
++    for (int i = 0; i < MP_COUNT; i++) {
++        if (strcmp(MP_DEFS[i].key, key) == 0) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++/* The wire name of an enum value, or "" when out of range. */
++static inline const char* mp_enum_name(int idx, int32_t value)
++{
++    const char* const* n = MP_DEFS[idx].names;
++    if (n == NULL || value < 0) {
++        return "";
++    }
++    for (int32_t i = 0; n[i] != NULL; i++) {
++        if (i == value) {
++            return n[i];
++        }
++    }
++    return "";
++}
++
++/* An enum value from a name; the old and plain names for the colour modes are accepted. -1: not a name of this setting. */
++static inline int mp_enum_value(int idx, const char* name)
++{
++    const char* const* n = MP_DEFS[idx].names;
++    if (n == NULL) {
++        return -1;
++    }
++    for (int i = 0; n[i] != NULL; i++) {
++        if (strcmp(n[i], name) == 0) {
++            return i;
++        }
++    }
++    if (idx == MP_FX_COLOUR_MODE) {
++        if (strcmp(name, "full") == 0) return MP_CM_NORMAL;
++        if (strcmp(name, "monotone") == 0) return MP_CM_MONO;
++    }
++    return -1;
++}
++
++/* ------------------------------------------------------------- a flat JSON object, read without a library */
++
++typedef struct {
++    char key[40];
++    char str[24]; /* a string value, or the digits of a number */
++    int is_str;
++    int is_bool; /* str holds "true" or "false" */
++} mp_tok_t;
++
++static inline const char* mp_skip(const char* p)
++{
++    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') {
++        p++;
++    }
++    return p;
++}
++
++static inline const char* mp_read_string(const char* p, char* out, size_t cap)
++{
++    size_t n = 0;
++    if (*p != '"') {
++        return NULL;
++    }
++    p++;
++    while (*p != '\0' && *p != '"') {
++        char c = *p++;
++        if (c == '\\' && *p != '\0') {
++            c = *p++;
++        }
++        if (n + 1 < cap) {
++            out[n++] = c;
++        }
++    }
++    if (*p != '"') {
++        return NULL;
++    }
++    out[n] = '\0';
++    return p + 1;
++}
++
++/* Reads "key": value pairs from {...}. Returns the next position, or NULL on a syntax error. *done is set at the closing brace. */
++static inline const char* mp_next(const char* p, mp_tok_t* t, int* done)
++{
++    p = mp_skip(p);
++    if (*p == ',') {
++        p = mp_skip(p + 1);
++    }
++    if (*p == '}') {
++        *done = 1;
++        return p + 1;
++    }
++    p = mp_read_string(p, t->key, sizeof t->key);
++    if (p == NULL) {
++        return NULL;
++    }
++    p = mp_skip(p);
++    if (*p != ':') {
++        return NULL;
++    }
++    p = mp_skip(p + 1);
++    t->is_str = t->is_bool = 0;
++    t->str[0] = '\0';
++    if (*p == '"') {
++        t->is_str = 1;
++        return mp_read_string(p, t->str, sizeof t->str);
++    }
++    size_t n = 0;
++    while (*p != '\0' && *p != ',' && *p != '}' && *p != ' ' && *p != '\n' && *p != '\r' && *p != '\t') {
++        if (n + 1 < sizeof t->str) {
++            t->str[n++] = *p;
++        }
++        p++;
++    }
++    t->str[n] = '\0';
++    t->is_bool = strcmp(t->str, "true") == 0 || strcmp(t->str, "false") == 0;
++    return n > 0 ? p : NULL;
++}
++
++/* A decimal like "0.4", "1" or "1.25" times 100, rounded; -1 when it is not a plain number. */
++static inline int32_t mp_hundredths(const char* s)
++{
++    int32_t whole = 0, frac = 0, digits = 0, seen_dot = 0, any = 0;
++    if (*s == '\0') {
++        return -1;
++    }
++    for (; *s != '\0'; s++) {
++        if (*s == '.' && !seen_dot) {
++            seen_dot = 1;
++        } else if (*s >= '0' && *s <= '9') {
++            any = 1;
++            if (!seen_dot) {
++                whole = whole * 10 + (*s - '0');
++                if (whole > 100000) return -1;
++            } else if (digits < 3) {
++                frac = frac * 10 + (*s - '0');
++                digits++;
++            }
++        } else {
++            return -1;
++        }
++    }
++    if (!any) {
++        return -1;
++    }
++    while (digits < 3) {
++        frac *= 10;
++        digits++;
++    }
++    return whole * 100 + (frac + 5) / 10; /* third digit rounds */
++}
++
++static inline int mp_hex(char c)
++{
++    if (c >= '0' && c <= '9') return c - '0';
++    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
++    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
++    return -1;
++}
++
++static inline int32_t mp_colour(const char* s)
++{
++    if (s[0] != '#' || strlen(s) != 7) {
++        return -1;
++    }
++    int32_t v = 0;
++    for (int i = 1; i < 7; i++) {
++        const int h = mp_hex(s[i]);
++        if (h < 0) {
++            return -1;
++        }
++        v = v * 16 + h;
++    }
++    return v;
++}
++
++static inline void mp_err(char* err, size_t cap, const char* a, const char* b)
++{
++    if (err != NULL && cap > 0) {
++        snprintf(err, cap, "%s%s", a, b);
++    }
++}
++
++/* One value for row idx from a token. 0 ok, else an error written to err. */
++static inline int mp_value(int idx, const mp_tok_t* t, int32_t* out, char* err, size_t cap)
++{
++    const mp_def_t* d = &MP_DEFS[idx];
++    char label[40];
++    size_t k = 0;
++    for (const char* c = d->key; *c != '\0' && k + 1 < sizeof label; c++) {
++        label[k++] = *c == '_' ? ' ' : *c;
++    }
++    label[k] = '\0';
++    char msg[160];
++    switch (d->kind) {
++        case MP_BOOL:
++            if (!t->is_bool) {
++                snprintf(msg, sizeof msg, "%s must be on or off. Choose true or false and send again.", label);
++                mp_err(err, cap, msg, "");
++                return 1;
++            }
++            *out = t->str[0] == 't';
++            return 0;
++        case MP_ENUM: {
++            const int v = t->is_str ? mp_enum_value(idx, t->str) : -1;
++            if (v < 0) {
++                char list[100] = "";
++                for (int i = 0; d->names[i] != NULL; i++) {
++                    if (strlen(list) + strlen(d->names[i]) + 3 < sizeof list) {
++                        strcat(list, i ? ", " : "");
++                        strcat(list, d->names[i]);
++                    }
++                }
++                snprintf(msg, sizeof msg, "%s must be one of %s. Pick one and send again.", label, list);
++                mp_err(err, cap, msg, "");
++                return 1;
++            }
++            *out = v;
++            return 0;
++        }
++        case MP_FLOAT: {
++            const int32_t v = (t->is_str || t->is_bool) ? -1 : mp_hundredths(t->str);
++            if (v < d->lo || v > d->hi) {
++                snprintf(msg, sizeof msg, "%s must be a number from %d.%02d to %d.%02d. Pick a number in that range.", label,
++                         (int)(d->lo / 100), (int)(d->lo % 100), (int)(d->hi / 100), (int)(d->hi % 100));
++                mp_err(err, cap, msg, "");
++                return 1;
++            }
++            *out = v;
++            return 0;
++        }
++        default: {
++            const int32_t v = t->is_str ? mp_colour(t->str) : -1;
++            if (v < 0) {
++                mp_err(err, cap, "The light colour must be a code like #40c0ff. Pick a colour and send again.", "");
++                return 1;
++            }
++            *out = v;
++            return 0;
++        }
++    }
++}
++
++/* Applies a JSON object of settings. All or nothing. Keys the table does not know are skipped (the host may send newer ones).
++ * Returns 0, or 1 with err filled. *changed gets a bit per row whose value or "chosen" state changed. */
++static inline int mp_apply_json(mp_prefs_t* p, const char* json, char* err, size_t cap, uint32_t* changed)
++{
++    mp_prefs_t next = *p;
++    uint32_t ch = 0;
++    const char* s = mp_skip(json);
++    if (*s != '{') {
++        mp_err(err, cap, "json is not an object. Send something like {\"fx_crt\":true}.", "");
++        return 1;
++    }
++    s++;
++    for (;;) {
++        mp_tok_t t;
++        int done = 0;
++        s = mp_next(s, &t, &done);
++        if (s == NULL) {
++            mp_err(err, cap, "json could not be read. Send one flat object such as {\"fx_crt\":true}.", "");
++            return 1;
++        }
++        if (done) {
++            break;
++        }
++        const int idx = mp_find(t.key);
++        if (idx < 0) {
++            continue;
++        }
++        int32_t v = 0;
++        if (mp_value(idx, &t, &v, err, cap) != 0) {
++            return 1;
++        }
++        if (next.v[idx] != v || !(next.set & (1u << idx))) {
++            ch |= 1u << idx;
++        }
++        next.v[idx] = v;
++        next.set |= 1u << idx;
++    }
++    *p = next;
++    if (changed != NULL) {
++        *changed = ch;
++    }
++    return 0;
++}
++
++/* The whole table as {"ok":true,"values":{...},"chosen":[...],"unit_keys":[...]}. Returns the length, 0 when cap is too small. */
++static inline size_t mp_to_json(const mp_prefs_t* p, char* out, size_t cap)
++{
++    size_t n = 0;
++#define MP_PUT(...)                                                      \
++    do {                                                                 \
++        const int w_ = snprintf(out + n, cap - n, __VA_ARGS__);          \
++        if (w_ < 0 || (size_t)w_ >= cap - n) return 0;                   \
++        n += (size_t)w_;                                                 \
++    } while (0)
++    MP_PUT("{\"ok\":true,\"values\":{");
++    for (int i = 0; i < MP_COUNT; i++) {
++        const mp_def_t* d = &MP_DEFS[i];
++        MP_PUT("%s\"%s\":", i ? "," : "", d->key);
++        switch (d->kind) {
++            case MP_BOOL: MP_PUT("%s", p->v[i] ? "true" : "false"); break;
++            case MP_ENUM: MP_PUT("\"%s\"", mp_enum_name(i, p->v[i])); break;
++            case MP_FLOAT: MP_PUT("%d.%02d", (int)(p->v[i] / 100), (int)(p->v[i] % 100)); break;
++            default: MP_PUT("\"#%06x\"", (unsigned)p->v[i]); break;
++        }
++    }
++    MP_PUT("},\"chosen\":[");
++    int first = 1;
++    for (int i = 0; i < MP_COUNT; i++) {
++        if (p->set & (1u << i)) {
++            MP_PUT("%s\"%s\"", first ? "" : ",", MP_DEFS[i].key);
++            first = 0;
++        }
++    }
++    MP_PUT("],\"unit_keys\":[");
++    first = 1;
++    for (int i = 0; i < MP_COUNT; i++) {
++        if (MP_DEFS[i].unit) {
++            MP_PUT("%s\"%s\"", first ? "" : ",", MP_DEFS[i].key);
++            first = 0;
++        }
++    }
++    MP_PUT("]}");
++#undef MP_PUT
++    return n;
++}
++
++/* The speech bubble: a person's choice if they made one, else on for the Stock style and off for every other. */
++static inline int mp_bubble_on(const mp_prefs_t* p, int style_is_stock)
++{
++    return (p->set & (1u << MP_SPEECH_BUBBLE)) ? p->v[MP_SPEECH_BUBBLE] != 0 : style_is_stock != 0;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_fx.h b/firmware/main/hal/maipai_fx.h
+new file mode 100644
+index 0000000..9084b6f
+--- /dev/null
++++ b/firmware/main/hal/maipai_fx.h
+@@ -0,0 +1,27 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The unit's saved preferences (patch TA01), and later the screen effects (TA02), the overlays (TA03) and the speech bubble
++ * (TA04). Logic: maipai_prefs_core.h (the table). With CONFIG_MAIPAI_FX off nothing here is compiled and the tools do not exist.
++ */
++#pragma once
++#include <sdkconfig.h>
++#include <stdint.h>
++#include "maipai_prefs_core.h"
++
++#if CONFIG_MAIPAI_FX
++// Registers self.prefs.get and self.prefs.set.
++void maipai_fx_register_tools();
++// Reads the saved preferences. Safe from any task, any time after the flash store is up.
++mp_prefs_t maipai_prefs();
++// One setting's value now (the row index of maipai_prefs_core.h). Safe from any task.
++int32_t maipai_pref(int idx);
++// Called after a change with a bit per row that changed (a mask of 1 << MP_x). Runs on the task that made the change.
++typedef void (*maipai_prefs_cb)(uint32_t changed);
++bool maipai_prefs_watch(maipai_prefs_cb cb);  // up to 6 watchers; false when full
++// Whether the thinking cue draws its three dots (the setting thinking_dots; the quiet tone is separate).
++bool maipai_fx_thinking_dots();
++#else
++inline void maipai_fx_register_tools() {}
++inline bool maipai_fx_thinking_dots() { return true; }
++#endif
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+new file mode 100644
+index 0000000..cebb9ff
+--- /dev/null
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -0,0 +1,212 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The unit's preferences (patch TA01): one store, one flash key per setting in the namespace "maipai_prefs", written only
++ * for the settings that changed. self.prefs.get and self.prefs.set are the tools the host's settings page calls. The same
++ * file grows the screen effects (TA02), the overlays (TA03), the speech bubble (TA04) and the governor (TA02).
++ */
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_FX
++#include "maipai_fx.h"
++#include "maipai_prefs_core.h"
++#include <mcp_server.h>
++#include <esp_log.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++#include <cstdio>
++#include <mutex>
++#include <string>
++
++static const char* TAG = "MAIPAI-FX";
++
++// Defined by the listening cue patch when it is built in; a weak reference, so this file does not need it.
++void maipai_tb_prefs_invalidate() __attribute__((weak));
++
++namespace {
++std::mutex s_mutex;  // a leaf lock: nothing else is taken while it is held
++mp_prefs_t s_prefs;
++bool s_loaded = false;
++maipai_prefs_cb s_watch[6];
++int s_watch_n = 0;
++
++std::string reply_error(const char* word)
++{
++    std::string out = "{\"ok\":false,\"error\":\"";
++    for (const char* c = word; *c != '\0'; c++) {
++        if (*c == '"' || *c == '\\') {
++            out += '\\';
++        }
++        out += *c;
++    }
++    return out + "\"}";
++}
++
++// The text a setting is saved as (see maipai_prefs_core.h).
++std::string encode(int idx, int32_t v)
++{
++    char buf[24];
++    switch (MP_DEFS[idx].kind) {
++        case MP_BOOL: return v ? "true" : "false";
++        case MP_ENUM: return mp_enum_name(idx, v);
++        case MP_FLOAT: snprintf(buf, sizeof buf, "%d.%02d", static_cast<int>(v / 100), static_cast<int>(v % 100)); return buf;
++        default: snprintf(buf, sizeof buf, "#%06x", static_cast<unsigned>(v)); return buf;
++    }
++}
++
++// A saved text back to a value; false when it is not valid for this setting (a damaged or newer value).
++bool decode(int idx, const char* text, int32_t* out)
++{
++    mp_tok_t t;
++    memset(&t, 0, sizeof t);
++    snprintf(t.str, sizeof t.str, "%s", text);
++    const uint8_t kind = MP_DEFS[idx].kind;
++    t.is_bool          = kind == MP_BOOL && (strcmp(t.str, "true") == 0 || strcmp(t.str, "false") == 0);
++    t.is_str           = kind == MP_ENUM || kind == MP_COLOUR;
++    return mp_value(idx, &t, out, nullptr, 0) == 0;
++}
++
++void load_locked()
++{
++    mp_defaults(&s_prefs);
++    s_loaded = true;
++    nvs_handle_t h;
++    if (nvs_open(MP_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
++        return;  // nothing saved yet: every setting reads its default
++    }
++    for (int i = 0; i < MP_COUNT; i++) {
++        char text[24];
++        size_t len = sizeof text;
++        int32_t v  = 0;
++        if (nvs_get_str(h, MP_DEFS[i].nvs, text, &len) == ESP_OK && decode(i, text, &v)) {  // a bad value is ignored: the default stays
++            s_prefs.v[i] = v;
++            s_prefs.set |= 1u << i;
++        }
++    }
++    nvs_close(h);
++}
++
++void ensure_loaded()
++{
++    std::lock_guard<std::mutex> lock(s_mutex);
++    if (!s_loaded) {
++        load_locked();
++    }
++}
++
++// Writes the rows in `mask`, one key each, and commits once. Flash is touched only for what changed.
++void save(const mp_prefs_t& p, uint32_t mask)
++{
++    nvs_handle_t h;
++    if (mask == 0 || nvs_open(MP_NAMESPACE, NVS_READWRITE, &h) != ESP_OK) {
++        return;
++    }
++    for (int i = 0; i < MP_COUNT; i++) {
++        if (mask & (1u << i)) {
++            nvs_set_str(h, MP_DEFS[i].nvs, encode(i, p.v[i]).c_str());
++        }
++    }
++    nvs_commit(h);
++    nvs_close(h);
++}
++
++void tell(uint32_t changed)
++{
++    if (maipai_tb_prefs_invalidate != nullptr) {
++        maipai_tb_prefs_invalidate();  // the listening cues and fillers read the same keys: tell them at once (weak: absent without their patch)
++    }
++    maipai_prefs_cb cbs[6];
++    int n;
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        n = s_watch_n;
++        for (int i = 0; i < n; i++) cbs[i] = s_watch[i];
++    }
++    for (int i = 0; i < n; i++) cbs[i](changed);
++}
++}  // namespace
++
++mp_prefs_t maipai_prefs()
++{
++    ensure_loaded();
++    std::lock_guard<std::mutex> lock(s_mutex);
++    return s_prefs;
++}
++
++int32_t maipai_pref(int idx)
++{
++    ensure_loaded();
++    std::lock_guard<std::mutex> lock(s_mutex);
++    return (idx >= 0 && idx < MP_COUNT) ? s_prefs.v[idx] : 0;
++}
++
++bool maipai_prefs_watch(maipai_prefs_cb cb)
++{
++    std::lock_guard<std::mutex> lock(s_mutex);
++    if (cb == nullptr || s_watch_n >= 6) {
++        return false;
++    }
++    s_watch[s_watch_n++] = cb;
++    return true;
++}
++
++bool maipai_fx_thinking_dots()
++{
++    return maipai_pref(MP_THINKING_DOTS) != 0;
++}
++
++void maipai_fx_register_tools()
++{
++    ensure_loaded();
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.prefs.get",
++                "Read every preference the unit keeps in its own flash (screen effects, speech bubble, thinking dots, listening "
++                "cues, thinking tone) with the keys that were chosen. Answers {ok, values, chosen, unit_keys}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    char buf[1100];
++                    const mp_prefs_t p = maipai_prefs();
++                    if (mp_to_json(&p, buf, sizeof buf) == 0) {
++                        return reply_error("the preferences did not fit the reply: report this");
++                    }
++                    return std::string(buf);
++                });
++    mcp.AddTool("self.prefs.set",
++                "Change preferences. json is a JSON object with any of: fx_crt, fx_night_dim, fx_glow, speech_bubble, "
++                "thinking_dots, listen_face (true or false), fx_colour_mode (normal, mono, warm, cool, duotone, amber or green), "
++                "listen_sound (off, chime or mm), listen_light (off, dim or normal), listen_light_colour (#rrggbb), filler_mode "
++                "(none, tone or phrase), filler_wait_s (0.2 to 1.5), emotion_faces and overlays_enabled (true or false). Each is "
++                "kept in flash and applied at once. Nothing changes unless every field is valid. Answers {ok, changed} or "
++                "{ok:false, error}.",
++                PropertyList({Property("json", kPropertyTypeString, std::string("{}"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    ensure_loaded();
++                    const std::string text = properties["json"].value<std::string>();
++                    char err[200]          = "";
++                    uint32_t changed       = 0;
++                    mp_prefs_t snapshot;
++                    {
++                        std::lock_guard<std::mutex> lock(s_mutex);
++                        mp_prefs_t next = s_prefs;
++                        if (mp_apply_json(&next, text.c_str(), err, sizeof err, &changed) != 0) {
++                            return reply_error(err);
++                        }
++                        s_prefs  = next;
++                        snapshot = next;
++                    }
++                    save(snapshot, changed);
++                    if (changed != 0) {
++                        tell(changed);
++                    }
++                    std::string out = "{\"ok\":true,\"changed\":[";
++                    bool first      = true;
++                    for (int i = 0; i < MP_COUNT; i++) {
++                        if (changed & (1u << i)) {
++                            out += std::string(first ? "\"" : ",\"") + MP_DEFS[i].key + "\"";
++                            first = false;
++                        }
++                    }
++                    ESP_LOGI(TAG, "prefs set, %d changed", __builtin_popcount(changed));
++                    return out + "]}";
++                });
++}
++#endif
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index dfc098c..dedadc3 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -103,6 +103,16 @@ config MAIPAI_FACE_CAPTIONS
+         Lets a person turn on the words the unit says as text on the face (off by default, decision 22).
+         Off: the words are never drawn on the face, and the setting is not offered.
+ 
++config MAIPAI_FX
++    bool "Saved preferences and screen effects: scanlines, colour modes, night dim, glow, overlays, the speech bubble"
++    default y
++    help
++        One preference store in the unit's flash (namespace maipai_prefs, one key per setting) with the tools
++        self.prefs.get and self.prefs.set, a post-processing step in the display flush (CRT scanlines, colour modes,
++        night dim, a baked glow halo), the overlay engine (rain, snow, stars, zzz and the rest; tools self.overlay.status,
++        set and clear) and an adaptive governor that sheds load when frames run late. Each effect is off by default.
++        Off: no tools and no code; the display flush is the base one.
++
+ config MAIPAI_FACE_TOD
+     bool "Time-of-day face variants"
+     default y
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+index d902578..b812922 100644
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -8,6 +8,8 @@ CONFIG_BT_ENABLED=n
+ # (off build is 480 bytes smaller than the baseline). The five after CONFIG require MAIPAI_FACE_CONFIG.
+ CONFIG_MAIPAI_FACE_CONFIG=y
+ CONFIG_MAIPAI_FACE_CAPTIONS=y
++# Saved preferences and screen effects (patches TA01 to TA04): the preference store, scanlines, colour modes, night dim, glow, overlays.
++CONFIG_MAIPAI_FX=y
+ CONFIG_MAIPAI_FACE_TOD=y
+ CONFIG_MAIPAI_FACE_CLOCK=y
+ CONFIG_MAIPAI_FACE_THINKING=y
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 13ba56a..bfaf5dc 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -13,6 +13,7 @@
+ #include "maipai_daily.h"
+ #include "maipai_mood.h"
+ #include "maipai_face.h"
++#include "maipai_fx.h"
+ #include "maipai_decor.h"
+ #include "maipai_react.h"
+ #include "maipai_tz.h"
+@@ -629,6 +630,9 @@ void Hal::xiaozhi_mcp_init()
+     // self.face.set_config and get_config (patch F01).
+     maipai_face_register_tools();
+ 
++    // self.prefs.get and set, self.overlay.status, set and clear (patches TA01 and TA03).
++    maipai_fx_register_tools();
++
+     // self.face.decorate and self.face.decor_list (patch U01).
+     maipai_decor_register_tools();
+ 
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+index af733a5..88b865f 100644
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -6,6 +6,7 @@
+ #include <sdkconfig.h>
+ #if CONFIG_MAIPAI_FACE_CONFIG
+ #include "maipai_face.h"
++#include "maipai_fx.h"
+ #include "maipai_face_tod_core.h"
+ #include "maipai_look_core.h"
+ #include "maipai_privacy.h"
+@@ -359,7 +360,9 @@ void maipai_face_thinking(bool on)
+         return;
+     }
+     const int tone = mf_think_begin(&s_think, now, c.thinking_tone);
+-    face->setThinking(true);
++    if (maipai_fx_thinking_dots()) {  // patch TA01: the setting thinking_dots turns the three dots off; the tone stays
++        face->setThinking(true);
++    }
+     if (tone) {
+         maipai_sounds_play("vibration");  // quiet; the sound policy and the hard mute may still silence it
+     }

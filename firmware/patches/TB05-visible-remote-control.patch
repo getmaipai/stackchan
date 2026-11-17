@@ -1,0 +1,688 @@
+# Intent: Always-visible remote control (owner decision 2026-11-16, cannot be turned off). self.remote.session(active,label) with a 10 s dead-man timeout shows a steady violet glyph at the top left and a dim violet ring tint; self.remote.action(kind,text,seconds) shows the banner (Remote: moving, finding me, photo, dance, game, message, listening) and a short tone and answers a one-use 15 s token; an action without a valid token is refused and logged (maipai_remote_core.h gives the gate). self.remote.say(text,token) shows the exact text in a Remote message bubble for 0.8 s before it may be spoken (always, whatever the speech bubble setting), 200 characters at most, 3 a minute, setting remote_speaking off, ask (default: tap to allow) or on; a tap or the stop word in the notice cancels it; the unit has no voice, so it reports result speak or cancelled by self.remote.say_status and a remote_say event. The last 10 actions are listed by self.remote.history. This patch also registers all the new tools in hal_mcp.cpp (TB01 to TB05).
+# Placement: unit (the indicator must not depend on the host)
+# Upstream: firmware/main/hal/{maipai_screen.cc,hal_mcp.cpp} (ours, W01); new hal/maipai_remote_core.h, maipai_remote.{h,cc}
+# Check after a flash: self.remote.session active shows the glyph and the tint and 10 s without a call clears them; self.remote.action then self.remote.say shows the bubble, a tap cancels, the stop word cancels, a fourth say in a minute is refused; history lists them. NOT YET WIRED: the existing head, find, photo, dance and game tools do not check the token yet (the host passes it; the gate function is maipai_remote core mr_gate); that is the next step.
+
+diff --git a/firmware/main/hal/maipai_remote_core.h b/firmware/main/hal/maipai_remote_core.h
+new file mode 100644
+index 0000000..e71a9d9
+--- /dev/null
++++ b/firmware/main/hal/maipai_remote_core.h
+@@ -0,0 +1,240 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Visible remote control (patch TB05): the pure logic. Nobody may make the robot do or say something without the robot
++ * showing it, and this cannot be turned off. A host that acts on the robot (a page, the app, a Tailscale link) first calls
++ * self.remote.session (while any controller is connected; a 10 s dead-man timeout clears it if the host dies), then
++ * self.remote.action(kind, text) before each action, which answers a one-use cue token; an action that arrives without a
++ * valid token is ignored and logged. A remote SAY shows its exact text in a bubble for 0.8 s before it is spoken, can be
++ * cancelled by a tap or the stop word in that time, is at most 200 characters, at most 3 a minute, and follows the setting
++ * "Remote speaking: off, ask first, on" (default ask first). The last 10 actions are kept. Plain C99, no clock of its own.
++ * Host test: host/tests/firmware/remote_core_test.c.
++ */
++#ifndef MAIPAI_REMOTE_CORE_H
++#define MAIPAI_REMOTE_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++#define MR_DEAD_MAN_MS 10000u
++#define MR_TOKEN_LIFE_MS 15000u
++#define MR_SAY_NOTICE_MS 800u
++#define MR_ASK_WAIT_MS 30000u
++#define MR_SAY_MAX_CHARS 200u
++#define MR_SAY_PER_MIN 3
++#define MR_HISTORY 10
++#define MR_LABEL_MAX 23
++#define MR_TEXT_KEEP 47
++
++typedef enum { MR_SPEAK_OFF = 0, MR_SPEAK_ASK, MR_SPEAK_ON } mr_speak_t;
++
++/* kinds: what the banner says is the device's; the order is the history's number */
++typedef enum { MR_MOVE = 0, MR_FIND, MR_PHOTO, MR_DANCE, MR_GAME, MR_SAY, MR_LISTEN, MR_KIND_COUNT } mr_kind_t;
++static const char* const MR_KIND_NAMES[MR_KIND_COUNT] = {"move", "find", "photo", "dance", "game", "say", "listen"};
++static const char* const MR_BANNERS[MR_KIND_COUNT]    = {"Remote: moving", "Remote: finding me", "Remote: photo", "Remote: dance",
++                                                         "Remote: game",   "Remote message",     "Remote: listening"};
++
++static inline int mr_kind_by_name(const char* s)
++{
++    if (s == NULL) return -1;
++    for (int i = 0; i < MR_KIND_COUNT; i++) if (strcmp(s, MR_KIND_NAMES[i]) == 0) return i;
++    return -1;
++}
++
++typedef enum {
++    MR_OK = 0, MR_NO_SESSION, MR_NO_TOKEN, MR_BAD_TOKEN, MR_WRONG_KIND, MR_TOO_LONG, MR_EMPTY, MR_RATE, MR_SAY_OFF, MR_BUSY, MR_BAD_KIND, MR_REASON_COUNT
++} mr_reason_t;
++static const char* const MR_REASONS[MR_REASON_COUNT] = {"ok", "no_session", "no_token", "bad_token", "wrong_kind", "too_long", "empty", "rate_limit", "say_off", "busy", "bad_kind"};
++
++typedef struct {
++    uint32_t at_ms;
++    uint8_t kind;
++    uint8_t reason; /* mr_reason_t: MR_OK when it was done */
++    uint8_t cancelled;
++    char who[MR_LABEL_MAX + 1];
++    char text[MR_TEXT_KEEP + 1];
++} mr_entry_t;
++
++typedef struct {
++    /* session */
++    uint8_t active;
++    char label[MR_LABEL_MAX + 1];
++    uint32_t seen_ms;
++    /* token: one at a time, one use */
++    uint32_t token;
++    uint8_t token_kind;
++    uint32_t token_at;
++    uint32_t counter;
++    /* say */
++    uint8_t say_state; /* 0 idle, 1 notice, 2 asking */
++    uint32_t say_at;
++    uint32_t say_len;
++    /* rate */
++    uint32_t say_times[MR_SAY_PER_MIN];
++    uint8_t say_n;
++    /* history, newest last */
++    mr_entry_t hist[MR_HISTORY];
++    uint8_t hist_n;
++    uint8_t hist_head;
++    mr_speak_t speaking; /* Remote speaking */
++} mr_t;
++
++static inline void mr_init(mr_t* r)
++{
++    memset(r, 0, sizeof(*r));
++    r->speaking = MR_SPEAK_ASK;
++    r->counter  = 0x9E3779B1u;
++}
++
++static inline void mr_log(mr_t* r, uint32_t now, int kind, mr_reason_t why, const char* text, int cancelled)
++{
++    mr_entry_t* e = &r->hist[r->hist_head];
++    memset(e, 0, sizeof(*e));
++    e->at_ms = now;
++    e->kind = (uint8_t)kind;
++    e->reason = (uint8_t)why;
++    e->cancelled = (uint8_t)cancelled;
++    strncpy(e->who, r->label, MR_LABEL_MAX);
++    if (text != NULL) {
++        size_t n = strlen(text);
++        if (n > MR_TEXT_KEEP) n = MR_TEXT_KEEP;
++        for (size_t i = 0; i < n; i++) e->text[i] = ((unsigned char)text[i] < 32) ? ' ' : text[i];
++    }
++    r->hist_head = (uint8_t)((r->hist_head + 1) % MR_HISTORY);
++    if (r->hist_n < MR_HISTORY) r->hist_n++;
++}
++
++/* The i-th newest entry (0 is the newest), or NULL. Nothing ever clears the history but the reboot. */
++static inline const mr_entry_t* mr_recent(const mr_t* r, int i)
++{
++    if (i < 0 || i >= r->hist_n) return NULL;
++    return &r->hist[(r->hist_head + MR_HISTORY - 1 - i) % MR_HISTORY];
++}
++
++/* self.remote.session: the host says a controller is connected (active) or gone; it repeats about every 3 s while on. */
++static inline void mr_session(mr_t* r, int active, const char* label, uint32_t now)
++{
++    if (active) {
++        if (!r->active) {
++            memset(r->label, 0, sizeof(r->label));
++            strncpy(r->label, (label != NULL && *label) ? label : "remote", MR_LABEL_MAX);
++        }
++        r->active = 1;
++        r->seen_ms = now;
++    } else {
++        r->active = 0;
++        r->token = 0;
++        r->say_state = 0;
++    }
++}
++
++/* 1 while a controller counts as connected (the dead-man timeout: no call for 10 s clears it by itself). */
++static inline int mr_session_on(mr_t* r, uint32_t now)
++{
++    if (r->active && now - r->seen_ms >= MR_DEAD_MAN_MS) {
++        r->active = 0;
++        r->token = 0;
++        r->say_state = 0;
++    }
++    return r->active;
++}
++
++/* self.remote.action(kind, text): the cue call before an action. On MR_OK `*token` is the one-use token. */
++static inline mr_reason_t mr_action(mr_t* r, const char* kind, uint32_t now, uint32_t* token)
++{
++    const int k = mr_kind_by_name(kind);
++    if (k < 0) { mr_log(r, now, MR_KIND_COUNT - 1, MR_BAD_KIND, kind, 0); return MR_BAD_KIND; }
++    if (!mr_session_on(r, now)) { mr_log(r, now, k, MR_NO_SESSION, NULL, 0); return MR_NO_SESSION; }
++    r->counter = r->counter * 1664525u + 1013904223u;
++    r->token = (r->counter >> 3) | 1u; /* never 0 */
++    r->token_kind = (uint8_t)k;
++    r->token_at = now;
++    *token = r->token;
++    return MR_OK;
++}
++
++/* The gate every remote-origin action calls first. Token 0 is "none". On MR_OK the token is used up. A refusal is logged. */
++static inline mr_reason_t mr_gate(mr_t* r, const char* kind, uint32_t token, uint32_t now)
++{
++    const int k = mr_kind_by_name(kind);
++    if (k < 0) { mr_log(r, now, MR_KIND_COUNT - 1, MR_BAD_KIND, kind, 0); return MR_BAD_KIND; }
++    mr_reason_t why = MR_OK;
++    if (token == 0) why = MR_NO_TOKEN;
++    else if (r->token == 0 || token != r->token || now - r->token_at > MR_TOKEN_LIFE_MS) why = MR_BAD_TOKEN;
++    else if (r->token_kind != k) why = MR_WRONG_KIND;
++    else if (!mr_session_on(r, now)) why = MR_NO_SESSION;
++    if (why != MR_OK) { mr_log(r, now, k, why, NULL, 0); return why; }
++    r->token = 0;
++    return MR_OK;
++}
++
++/* A remote SAY with its token. On MR_OK the notice starts: the device shows the bubble now; mr_say_poll says when to speak. */
++static inline mr_reason_t mr_say(mr_t* r, const char* text, uint32_t token, uint32_t now)
++{
++    if (text == NULL || *text == 0) { mr_log(r, now, MR_SAY, MR_EMPTY, NULL, 0); return MR_EMPTY; }
++    const size_t n = strlen(text);
++    const mr_reason_t g = mr_gate(r, "say", token, now);
++    if (g != MR_OK) return g;
++    if (n > MR_SAY_MAX_CHARS) { mr_log(r, now, MR_SAY, MR_TOO_LONG, text, 0); return MR_TOO_LONG; }
++    if (r->speaking == MR_SPEAK_OFF) { mr_log(r, now, MR_SAY, MR_SAY_OFF, text, 0); return MR_SAY_OFF; }
++    if (r->say_state != 0) { mr_log(r, now, MR_SAY, MR_BUSY, text, 0); return MR_BUSY; }
++    /* at most 3 in any 60 s */
++    int recent = 0;
++    for (int i = 0; i < r->say_n; i++) if (now - r->say_times[i] < 60000u) recent++;
++    if (recent >= MR_SAY_PER_MIN) { mr_log(r, now, MR_SAY, MR_RATE, text, 0); return MR_RATE; }
++    if (r->say_n < MR_SAY_PER_MIN) r->say_times[r->say_n++] = now;
++    else { memmove(r->say_times, r->say_times + 1, sizeof(r->say_times[0]) * (MR_SAY_PER_MIN - 1)); r->say_times[MR_SAY_PER_MIN - 1] = now; }
++    r->say_state = 1;
++    r->say_at = now;
++    r->say_len = (uint32_t)n;
++    mr_log(r, now, MR_SAY, MR_OK, text, 0);
++    return MR_OK;
++}
++
++typedef enum { MR_SAY_NONE = 0, MR_SAY_SPEAK, MR_SAY_CANCELLED, MR_SAY_ASKING } mr_say_event_t;
++
++/* Polled every 50 ms. SPEAK: speak the text now. CANCELLED: drop it. ASKING (once): show "tap to allow". */
++static inline mr_say_event_t mr_say_poll(mr_t* r, uint32_t now)
++{
++    if (r->say_state == 0) return MR_SAY_NONE;
++    if (!mr_session_on(r, now)) { r->say_state = 0; r->hist[(r->hist_head + MR_HISTORY - 1) % MR_HISTORY].cancelled = 1; return MR_SAY_CANCELLED; }
++    if (r->say_state == 1 && now - r->say_at >= MR_SAY_NOTICE_MS) {
++        if (r->speaking == MR_SPEAK_ASK) { r->say_state = 2; r->say_at = now; return MR_SAY_ASKING; }
++        r->say_state = 0;
++        return MR_SAY_SPEAK;
++    }
++    if (r->say_state == 2 && now - r->say_at >= MR_ASK_WAIT_MS) {
++        r->say_state = 0;
++        r->hist[(r->hist_head + MR_HISTORY - 1) % MR_HISTORY].cancelled = 1;
++        return MR_SAY_CANCELLED;
++    }
++    return MR_SAY_NONE;
++}
++
++/* A tap on the robot: during the notice it cancels (mode on), while asking it allows. Returns the event it caused. */
++static inline mr_say_event_t mr_tap(mr_t* r, uint32_t now)
++{
++    (void)now;
++    if (r->say_state == 2) { r->say_state = 0; return MR_SAY_SPEAK; }
++    if (r->say_state == 1) { r->say_state = 0; r->hist[(r->hist_head + MR_HISTORY - 1) % MR_HISTORY].cancelled = 1; return MR_SAY_CANCELLED; }
++    return MR_SAY_NONE;
++}
++
++/* The stop word or any "stop": cancels a pending say in either state. */
++static inline mr_say_event_t mr_stop(mr_t* r)
++{
++    if (r->say_state != 0) { r->say_state = 0; r->hist[(r->hist_head + MR_HISTORY - 1) % MR_HISTORY].cancelled = 1; return MR_SAY_CANCELLED; }
++    return MR_SAY_NONE;
++}
++
++static inline int mr_parse_speaking(const char* s, mr_speak_t* out)
++{
++    if (s == NULL) return 0;
++    if (strcmp(s, "off") == 0) { *out = MR_SPEAK_OFF; return 1; }
++    if (strcmp(s, "ask") == 0) { *out = MR_SPEAK_ASK; return 1; }
++    if (strcmp(s, "on") == 0) { *out = MR_SPEAK_ON; return 1; }
++    return 0;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_remote.h b/firmware/main/hal/maipai_remote.h
+new file mode 100644
+index 0000000..040a4e5
+--- /dev/null
++++ b/firmware/main/hal/maipai_remote.h
+@@ -0,0 +1,18 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Visible remote control, device side (patch TB05). Logic: maipai_remote_core.h. Whatever the owner's cue settings say, the
++ * glyph and the violet tint below cannot be turned off.
++ */
++#pragma once
++
++// self.remote.session, action, say, say_status and history.
++void maipai_remote_register_tools();
++// A tap on the robot (from the touch funnel): allows or cancels a pending remote message. True when it did either.
++bool maipai_remote_tap();
++// The stop word: cancels a pending remote message. True when it did.
++bool maipai_remote_stop();
++// The listening ring went dark: put the violet remote tint back if a remote session is on.
++void maipai_remote_ring_refresh();
++// True while a remote session is on (the dead-man timeout counted): for other modules that want to show it.
++bool maipai_remote_active();
+diff --git a/firmware/main/hal/maipai_remote.cc b/firmware/main/hal/maipai_remote.cc
+new file mode 100644
+index 0000000..03089e7
+--- /dev/null
++++ b/firmware/main/hal/maipai_remote.cc
+@@ -0,0 +1,358 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Visible remote control (patch TB05). While a controller is connected: a steady violet glyph at the top left of the face
++ * and a dim violet ring when nothing else uses it. For each action the host first calls self.remote.action(kind, text); the
++ * unit shows the banner ("Remote: moving") for the action's time and a short tone (the sound policy may silence the tone; the
++ * banner it may not), and answers a one-use token that the action must carry. A remote SAY shows the exact text, with the
++ * label "Remote message", for 0.8 s before it may be spoken; a tap or the stop word in that time cancels it; with "ask first"
++ * the robot waits for a tap on its screen. The unit has no voice of its own, so the host speaks only after the unit
++ * reports result "speak" (the say_status tool, and a "remote_say" event). The last 10 actions are kept in RAM and listed by
++ * self.remote.history; nothing clears them.
++ * Memory: the state is 1.9 KB (10 history entries of 80 bytes, the rest small), in PSRAM; internal RAM: a pointer.
++ */
++#include "maipai_remote.h"
++#include "maipai_remote_core.h"
++#include "maipai_listen.h"
++#include "maipai_sounds.h"
++#include "board/hal_bridge.h"
++#include "device_events.h"
++#include "hal.h"
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <lvgl.h>
++#include <mcp_server.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <mutex>
++#include <settings.h>
++#include <string>
++
++static const char* TAG = "MAIPAI-REMOTE";
++
++namespace {
++
++std::mutex s_mu;
++mr_t* s_r = nullptr;  // PSRAM
++lv_obj_t* s_glyph  = nullptr;
++lv_obj_t* s_banner = nullptr;
++lv_obj_t* s_banner_label = nullptr;
++lv_obj_t* s_bubble = nullptr;
++lv_obj_t* s_bubble_label = nullptr;
++lv_timer_t* s_timer = nullptr;
++uint32_t s_banner_until = 0;
++std::string s_say_text;
++bool s_tint_on = false;
++std::atomic<bool> s_tint_refresh{true};
++std::atomic<uint32_t> s_say_id{0};
++std::atomic<int> s_say_result{0};  // 0 none yet, 1 speak, 2 cancelled
++std::atomic<bool> s_stop_armed{false};
++
++uint32_t ms_now() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++lv_color_t violet() { return lv_color_make(0xA0, 0x70, 0xFF); }
++
++void build_ui()  // LVGL lock held
++{
++    s_glyph = lv_obj_create(lv_layer_top());
++    lv_obj_remove_style_all(s_glyph);
++    lv_obj_remove_flag(s_glyph, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_remove_flag(s_glyph, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_size(s_glyph, 26, 18);
++    lv_obj_align(s_glyph, LV_ALIGN_TOP_LEFT, 8, 8);
++    lv_obj_set_style_radius(s_glyph, 5, 0);
++    lv_obj_set_style_border_width(s_glyph, 2, 0);
++    lv_obj_set_style_border_color(s_glyph, violet(), 0);
++    lv_obj_set_style_bg_opa(s_glyph, LV_OPA_TRANSP, 0);
++    lv_obj_t* dot = lv_obj_create(s_glyph);  // a screen with a pointer: a remote link, steady, never blinking
++    lv_obj_remove_style_all(dot);
++    lv_obj_remove_flag(dot, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_size(dot, 6, 6);
++    lv_obj_center(dot);
++    lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
++    lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
++    lv_obj_set_style_bg_color(dot, violet(), 0);
++    lv_obj_add_flag(s_glyph, LV_OBJ_FLAG_HIDDEN);
++
++    s_banner = lv_obj_create(lv_layer_top());
++    lv_obj_remove_style_all(s_banner);
++    lv_obj_remove_flag(s_banner, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_size(s_banner, 240, 26);
++    lv_obj_align(s_banner, LV_ALIGN_BOTTOM_MID, 0, -6);
++    lv_obj_set_style_radius(s_banner, 13, 0);
++    lv_obj_set_style_bg_opa(s_banner, LV_OPA_COVER, 0);
++    lv_obj_set_style_bg_color(s_banner, lv_color_make(0x30, 0x20, 0x58), 0);
++    s_banner_label = lv_label_create(s_banner);
++    lv_obj_set_style_text_color(s_banner_label, lv_color_white(), 0);
++    lv_obj_center(s_banner_label);
++    lv_obj_add_flag(s_banner, LV_OBJ_FLAG_HIDDEN);
++
++    s_bubble = lv_obj_create(lv_layer_top());  // always shown for a remote message, whatever the speech bubble setting says
++    lv_obj_remove_style_all(s_bubble);
++    lv_obj_remove_flag(s_bubble, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_size(s_bubble, 300, 110);
++    lv_obj_align(s_bubble, LV_ALIGN_BOTTOM_MID, 0, -4);
++    lv_obj_set_style_radius(s_bubble, 14, 0);
++    lv_obj_set_style_bg_opa(s_bubble, LV_OPA_COVER, 0);
++    lv_obj_set_style_bg_color(s_bubble, lv_color_make(0x30, 0x20, 0x58), 0);
++    lv_obj_set_style_border_width(s_bubble, 2, 0);
++    lv_obj_set_style_border_color(s_bubble, violet(), 0);
++    lv_obj_set_style_pad_all(s_bubble, 8, 0);
++    s_bubble_label = lv_label_create(s_bubble);
++    lv_obj_set_width(s_bubble_label, 280);
++    lv_label_set_long_mode(s_bubble_label, LV_LABEL_LONG_WRAP);
++    lv_obj_set_style_text_color(s_bubble_label, lv_color_white(), 0);
++    lv_obj_add_flag(s_bubble, LV_OBJ_FLAG_HIDDEN);
++}
++
++void arm_stop(bool on)
++{
++    if (s_stop_armed.exchange(on) != on) hal_bridge::stop_word_arm(on);
++}
++
++void show_banner(const char* text, uint32_t ms)  // LVGL lock held
++{
++    if (s_banner == nullptr) return;
++    lv_label_set_text(s_banner_label, text);
++    lv_obj_center(s_banner_label);
++    lv_obj_remove_flag(s_banner, LV_OBJ_FLAG_HIDDEN);
++    s_banner_until = ms_now() + ms;
++}
++
++void bubble(const char* label, const char* text, const char* hint)  // LVGL lock held
++{
++    std::string full = std::string(label) + "\n" + text;
++    if (hint != nullptr && *hint) full += std::string("\n") + hint;
++    lv_label_set_text(s_bubble_label, full.c_str());
++    lv_obj_remove_flag(s_bubble, LV_OBJ_FLAG_HIDDEN);
++}
++
++void finish_say(mr_say_event_t ev)  // LVGL lock held
++{
++    if (ev == MR_SAY_NONE) return;
++    if (s_bubble != nullptr) lv_obj_add_flag(s_bubble, LV_OBJ_FLAG_HIDDEN);
++    arm_stop(false);
++    const bool speak = ev == MR_SAY_SPEAK;
++    s_say_result.store(speak ? 1 : 2);
++    char extra[64];
++    snprintf(extra, sizeof(extra), "\"result\":\"%s\",\"id\":%u", speak ? "speak" : "cancelled", static_cast<unsigned>(s_say_id.load()));
++    device_events_push("remote_say", extra);
++}
++
++void tick(lv_timer_t*)  // every 100 ms, inside the LVGL task with its lock
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    const uint32_t now = ms_now();
++    const bool on = mr_session_on(s_r, now) != 0;
++    if (s_glyph != nullptr) {
++        if (on) lv_obj_remove_flag(s_glyph, LV_OBJ_FLAG_HIDDEN);
++        else lv_obj_add_flag(s_glyph, LV_OBJ_FLAG_HIDDEN);
++    }
++    if (s_banner != nullptr && s_banner_until != 0 && static_cast<int32_t>(now - s_banner_until) >= 0) {
++        lv_obj_add_flag(s_banner, LV_OBJ_FLAG_HIDDEN);
++        s_banner_until = 0;
++    }
++    const mr_say_event_t ev = mr_say_poll(s_r, now);
++    if (ev == MR_SAY_ASKING) {
++        bubble("Remote message", s_say_text.c_str(), "Tap to allow, or say stop");
++    } else {
++        finish_say(ev);
++    }
++    if (s_r->say_state == 0 && s_bubble != nullptr) lv_obj_add_flag(s_bubble, LV_OBJ_FLAG_HIDDEN);
++    // the violet tint: dim, steady, only while no listening cue and no other owner lights the ring
++    if (on && !maipai_listen_ring_active()) {
++        if (!s_tint_on || s_tint_refresh.exchange(false)) {
++            hal_bridge::leds_cue(18, 8, 40);
++            s_tint_on = true;
++        }
++    } else if (s_tint_on && !maipai_listen_ring_active()) {
++        hal_bridge::leds_cue_off();
++        s_tint_on = false;
++    } else if (maipai_listen_ring_active()) {
++        s_tint_on = false;  // the listening light has the ring; the tint returns when it goes dark
++    }
++}
++
++void ensure_ui()
++{
++    if (s_timer != nullptr) return;
++    LvglLockGuard lock;
++    build_ui();
++    s_timer = lv_timer_create(tick, 100, nullptr);
++}
++
++mr_speak_t speaking_pref()
++{
++    Settings st("maipai_prefs", false);
++    mr_speak_t m = MR_SPEAK_ASK;
++    mr_parse_speaking(st.GetString("remote_speaking", "ask").c_str(), &m);  // key is 15 characters
++    return m;
++}
++
++std::string reply_reason(mr_reason_t r, uint32_t token = 0)
++{
++    if (r == MR_OK) {
++        return std::string("{\"ok\":true,\"token\":") + std::to_string(token) + "}";
++    }
++    return std::string("{\"ok\":false,\"reason\":\"") + MR_REASONS[r] + "\"}";
++}
++
++}  // namespace
++
++bool maipai_remote_active()
++{
++    if (s_r == nullptr) return false;
++    std::lock_guard<std::mutex> lock(s_mu);
++    return mr_session_on(s_r, ms_now()) != 0;
++}
++
++void maipai_remote_ring_refresh() { s_tint_refresh.store(true); s_tint_on = false; }
++
++bool maipai_remote_tap()
++{
++    if (s_r == nullptr) return false;
++    std::lock_guard<std::mutex> lock(s_mu);
++    const mr_say_event_t ev = mr_tap(s_r, ms_now());
++    if (ev == MR_SAY_NONE) return false;
++    // called from the touch funnel (the display thread, which may hold the LVGL lock): finish through the next tick
++    s_say_result.store(ev == MR_SAY_SPEAK ? 1 : 2);
++    char extra[64];
++    snprintf(extra, sizeof(extra), "\"result\":\"%s\",\"id\":%u", ev == MR_SAY_SPEAK ? "speak" : "cancelled", static_cast<unsigned>(s_say_id.load()));
++    device_events_push("remote_say", extra);
++    arm_stop(false);  // the bubble is hidden by the next tick (no LVGL call here: the caller may hold its lock)
++    return true;
++}
++
++bool maipai_remote_stop()
++{
++    if (s_r == nullptr) return false;
++    std::lock_guard<std::mutex> lock(s_mu);
++    const mr_say_event_t ev = mr_stop(s_r);
++    if (ev == MR_SAY_NONE) return false;
++    s_say_result.store(2);
++    char extra[64];
++    snprintf(extra, sizeof(extra), "\"result\":\"cancelled\",\"id\":%u", static_cast<unsigned>(s_say_id.load()));
++    device_events_push("remote_say", extra);
++    arm_stop(false);
++    return true;
++}
++
++void maipai_remote_register_tools()
++{
++    s_r = static_cast<mr_t*>(heap_caps_calloc(1, sizeof(mr_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (s_r == nullptr) {
++        ESP_LOGW(TAG, "no memory for the remote state: remote control stays off");
++        return;
++    }
++    mr_init(s_r);
++    auto& mcp = McpServer::GetInstance();
++
++    mcp.AddTool("self.remote.session",
++                "A controller (the settings page, the app, a Tailscale link) is connected (active true) or gone (false). The host calls it on "
++                "connect and disconnect and repeats it about every 3 seconds while connected: 10 seconds without a call clears it, so a "
++                "crashed host cannot leave it on. While on the robot shows a steady violet glyph and a dim violet ring. label is who: "
++                "a few words. Answers {ok}.",
++                PropertyList({Property("active", kPropertyTypeBoolean, true), Property("label", kPropertyTypeString, std::string("remote"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    ensure_ui();
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    const bool was = mr_session_on(s_r, ms_now()) != 0;
++                    s_r->speaking = speaking_pref();
++                    mr_session(s_r, properties["active"].value<bool>() ? 1 : 0, properties["label"].value<std::string>().c_str(), ms_now());
++                    if (!was && s_r->active) {
++                        char extra[48];
++                        snprintf(extra, sizeof(extra), "\"on\":true");
++                        device_events_push("remote_session", extra);
++                    }
++                    return std::string("{\"ok\":true,\"active\":") + (s_r->active ? "true" : "false") + "}";
++                });
++
++    mcp.AddTool("self.remote.action",
++                "The cue call before any remote action: kind (move, find, photo, dance, game, say, listen), text (a few words, shown "
++                "and logged), seconds (how long the banner shows, 1 to 30). The robot shows the banner and plays a short tone (the sound "
++                "policy may silence the tone, never the banner) and answers a one-use token the action must carry; an action without one "
++                "is ignored and logged. photo and listen also need the camera or listening cue (monitor_cue_begin) and a 3 second "
++                "countdown, which the host shows through this banner by calling with seconds 3 first. Answers {ok, token} or {ok:false, reason}.",
++                PropertyList({Property("kind", kPropertyTypeString, std::string("move")), Property("text", kPropertyTypeString, std::string("")),
++                              Property("seconds", kPropertyTypeInteger, 4, 1, 30)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    ensure_ui();
++                    const std::string kind = properties["kind"].value<std::string>();
++                    const std::string text = properties["text"].value<std::string>();
++                    uint32_t token = 0;
++                    mr_reason_t r;
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        r = mr_action(s_r, kind.c_str(), ms_now(), &token);
++                    }
++                    if (r != MR_OK) return reply_reason(r);
++                    const int k = mr_kind_by_name(kind.c_str());
++                    {
++                        LvglLockGuard lock;
++                        show_banner(MR_BANNERS[k], static_cast<uint32_t>(properties["seconds"].value<int>()) * 1000u);
++                    }
++                    (void)maipai_sounds_play("vibration");  // a short distinct tone, per the sound policy
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        mr_log(s_r, ms_now(), k, MR_OK, text.c_str(), 0);
++                    }
++                    return reply_reason(MR_OK, token);
++                });
++
++    mcp.AddTool("self.remote.say",
++                "A message for the robot to say, with the token from self.remote.action(kind say). The robot shows the exact text in a bubble "
++                "labelled Remote message for 0.8 s first; a tap or the stop word in that time cancels it; with Remote speaking set to ask "
++                "first it then waits for a tap to allow. At most 200 characters and 3 a minute. The unit has no voice: speak only when "
++                "self.remote.say_status or the remote_say event says result speak. Answers {ok, id} or {ok:false, reason}.",
++                PropertyList({Property("text", kPropertyTypeString, std::string("")), Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    ensure_ui();
++                    const std::string text = properties["text"].value<std::string>();
++                    mr_reason_t r;
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        s_r->speaking = speaking_pref();
++                        r = mr_say(s_r, text.c_str(), static_cast<uint32_t>(properties["token"].value<int>()), ms_now());
++                        if (r == MR_OK) s_say_text = text;
++                    }
++                    if (r != MR_OK) return reply_reason(r);
++                    s_say_id.fetch_add(1);
++                    s_say_result.store(0);
++                    {
++                        LvglLockGuard lock;
++                        bubble("Remote message", text.c_str(), "");
++                    }
++                    arm_stop(true);  // the stop word works during the notice
++                    return std::string("{\"ok\":true,\"id\":") + std::to_string(s_say_id.load()) + "}";
++                });
++
++    mcp.AddTool("self.remote.say_status",
++                "The last remote message: its id and result (none yet, speak, cancelled). Answers {ok, id, result}.", PropertyList(),
++                [](const PropertyList&) -> ReturnValue {
++                    static const char* const w[3] = {"none", "speak", "cancelled"};
++                    return std::string("{\"ok\":true,\"id\":") + std::to_string(s_say_id.load()) + ",\"result\":\"" + w[s_say_result.load()] + "\"}";
++                });
++
++    mcp.AddTool("self.remote.history",
++                "The last 10 remote actions, newest first: seconds since boot, kind, who, whether it was done or why not, whether it was "
++                "cancelled, and the first words. Nothing clears it. Answers {ok, items}.",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    std::string out = "{\"ok\":true,\"active\":";
++                    out += mr_session_on(s_r, ms_now()) ? "true" : "false";
++                    out += ",\"items\":[";
++                    for (int i = 0; i < MR_HISTORY; i++) {
++                        const mr_entry_t* e = mr_recent(s_r, i);
++                        if (e == nullptr) break;
++                        char one[200];
++                        snprintf(one, sizeof(one), "%s{\"t\":%u,\"kind\":\"%s\",\"who\":\"%s\",\"result\":\"%s\",\"cancelled\":%s,\"text\":\"%s\"}",
++                                 i ? "," : "", static_cast<unsigned>(e->at_ms / 1000), MR_KIND_NAMES[e->kind], e->who, MR_REASONS[e->reason],
++                                 e->cancelled ? "true" : "false", e->text);
++                        out += one;
++                    }
++                    out += "]}";
++                    return out;
++                });
++}
+diff --git a/firmware/main/hal/maipai_screen.cc b/firmware/main/hal/maipai_screen.cc
+index 72dd685..455bbfd 100644
+--- a/firmware/main/hal/maipai_screen.cc
++++ b/firmware/main/hal/maipai_screen.cc
+@@ -4,6 +4,7 @@
+ // The screen's wake rule, device side (patch W01). See maipai_screen_core.h for the rule and why it exists.
+ #include "maipai_screen.h"
+ #include "maipai_screen_core.h"
++#include "maipai_remote.h"
+ #include "board/hal_bridge.h"
+ #include "device_events.h"
+ 
+@@ -95,6 +96,7 @@ void maipai_screen_touch(int num)
+     if (down.exchange(true)) {
+         return;  // a finger already on the glass: the wake ran at the touch down
+     }
++    (void)maipai_remote_tap();  // patch TB05: a tap allows or cancels a remote message that waits
+     if (maipai_screen_wake("touch")) {
+         s_touch_woke_ms.store(now_ms());  // this press only woke the screen
+     }
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+index 13ba56a..38e4dc8 100644
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -25,6 +25,10 @@
+ #include "maipai_facebench.h"
+ #include "maipai_picface.h"
+ #include "maipai_screen.h"
++#include "maipai_listen.h"
++#include "maipai_filler.h"
++#include "maipai_packs.h"
++#include "maipai_remote.h"
+ #if CONFIG_MAIPAI_DANCE_EXTRAS
+ #include "maipai_dances_core.h"
+ #endif
+@@ -632,6 +636,13 @@ void Hal::xiaozhi_mcp_init()
+     // self.face.decorate and self.face.decor_list (patch U01).
+     maipai_decor_register_tools();
+ 
++    // self.listen.test (patch TB01), self.filler.status and play (TB03), self.pack.* and the flash cache (TB02), and
++    // self.remote.* (TB05). Registered together here.
++    maipai_listen_register_tools();
++    maipai_filler_register_tools();
++    maipai_packs_register_tools();
++    maipai_remote_register_tools();
++
+     // self.screen.get_level, and the bench touch (patch W01).
+     maipai_screen_register_tools();
+ #if CONFIG_MAIPAI_SERIAL_TOOLS

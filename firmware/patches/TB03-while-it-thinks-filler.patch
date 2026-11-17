@@ -1,0 +1,692 @@
+# Intent: The thinking sound option (owner decision 2026-11-16): filler_mode none, tone (default) or phrase and filler_wait_s 0.2 to 1.5 s (default 0.4), read from maipai_prefs. When the thinking cue starts a one-shot timer waits the person's time; if no answer audio has started, the unit is not speaking, not muted, not in quiet hours or full quiet and no filler played this turn, it plays one: the tone (two soft notes, rendered at boot into 6.7 KB of PSRAM) or a take from the filler pack (mu-law clips of the host's filler pack, never the same sound twice, hmm uh ah oh and the like, held in PSRAM as sent). self.filler.status and self.filler.play (the host asks for one after its own wait; the same guards, once per turn). The older fixed thinking tone is replaced by this rule.
+# Placement: unit (the filler plays on the robot with no host round trip)
+# Upstream: firmware/main/hal/maipai_face.cc (ours, F05, X01); new hal/maipai_filler_core.h, maipai_filler.{h,cc}
+# Check after a flash: self.filler.status; a slow answer (stop the model) plays one tone after the wait; a fast answer plays none; muted plays none; phrase mode with a filler pack plays a take; measure wake-to-first-sound with and without.
+
+diff --git a/firmware/main/hal/maipai_filler_core.h b/firmware/main/hal/maipai_filler_core.h
+new file mode 100644
+index 0000000..3e9d80a
+--- /dev/null
++++ b/firmware/main/hal/maipai_filler_core.h
+@@ -0,0 +1,325 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * "While it thinks" (patch TB03): the pure logic. When a person has spoken and the answer is slow, the robot can fill the
++ * wait with a short soft tone, or with a short non-word sound (hmm, uh, ah) from the filler pack, so the silence does not
++ * read as "it did not hear me". It never hides a real fault: it plays once per turn, only while no answer audio has
++ * started, only after a wait the person set (0.2 to 1.5 s, default 0.4 s), never over speech, and mute, "sounds off" and
++ * quiet hours silence it. This file holds the delay rule, the pick (never the same sound twice in a row), the pack's index
++ * reader, the mu-law table of the host's filler format and the tone. Plain C99, no clock of its own, no hardware.
++ * Host test: host/tests/firmware/filler_core_test.c.
++ */
++#ifndef MAIPAI_FILLER_CORE_H
++#define MAIPAI_FILLER_CORE_H
++
++#include <math.h>
++#include <stddef.h>
++#include <stdint.h>
++#include <stdlib.h>
++#include <string.h>
++
++#define TF_MODE_NONE 0
++#define TF_MODE_TONE 1
++#define TF_MODE_PHRASE 2
++#define TF_WAIT_MIN_MS 200
++#define TF_WAIT_MAX_MS 1500
++#define TF_WAIT_DEFAULT_MS 400
++
++typedef struct {
++    uint8_t mode;     /* filler_mode: none, tone, phrase (the default is tone) */
++    uint16_t wait_ms; /* filler_wait_s, in milliseconds */
++} tf_prefs_t;
++
++static inline void tf_prefs_default(tf_prefs_t* p)
++{
++    p->mode    = TF_MODE_TONE;
++    p->wait_ms = TF_WAIT_DEFAULT_MS;
++}
++
++static inline int tf_parse_mode(const char* s, uint8_t* out)
++{
++    if (s == NULL) return 0;
++    if (strcmp(s, "none") == 0) { *out = TF_MODE_NONE; return 1; }
++    if (strcmp(s, "tone") == 0) { *out = TF_MODE_TONE; return 1; }
++    if (strcmp(s, "phrase") == 0) { *out = TF_MODE_PHRASE; return 1; }
++    return 0;
++}
++
++/* Seconds (as the page saves them, "0.4") to milliseconds inside the allowed range; 0 and untouched on anything else. */
++static inline int tf_parse_wait(const char* s, uint16_t* out)
++{
++    if (s == NULL || *s == 0) return 0;
++    char* end = NULL;
++    const double v = strtod(s, &end);
++    if (end == s || *end != 0 || !(v == v)) return 0;
++    long ms = (long)(v * 1000.0 + 0.5);
++    if (ms < TF_WAIT_MIN_MS) ms = TF_WAIT_MIN_MS;
++    if (ms > TF_WAIT_MAX_MS) ms = TF_WAIT_MAX_MS;
++    *out = (uint16_t)ms;
++    return 1;
++}
++
++/* ---- the delay rule ---- */
++
++typedef struct {
++    uint8_t waiting;   /* thinking has started and no answer audio has */
++    uint8_t played;    /* a filler already played this turn */
++    uint8_t audio;     /* answer audio has started this turn */
++    uint32_t since_ms; /* when thinking started */
++} tf_rule_t;
++
++typedef struct {
++    uint8_t muted;      /* the hard mute */
++    uint8_t sound_ok;   /* the sound policy says a quiet earcon may play now (sounds on, not quiet hours) */
++    uint8_t full_quiet;
++    uint8_t speaking;   /* the robot is speaking now */
++} tf_env_t;
++
++typedef enum { TF_SKIP_NONE = 0, TF_SKIP_MODE, TF_SKIP_ENV, TF_SKIP_ONCE, TF_SKIP_AUDIO, TF_SKIP_NOT_YET, TF_SKIP_NO_TURN, TF_SKIP_COUNT } tf_skip_t;
++static const char* const TF_SKIP_WORDS[TF_SKIP_COUNT] = {"played", "mode_none", "silenced", "already_played", "answer_started", "not_yet", "no_turn"};
++
++static inline void tf_rule_init(tf_rule_t* r) { memset(r, 0, sizeof(*r)); }
++
++/* A new turn begins (the person starts to talk): forget the last one. */
++static inline void tf_turn_start(tf_rule_t* r) { memset(r, 0, sizeof(*r)); }
++
++/* The robot starts thinking (the person finished speaking). */
++static inline void tf_thinking(tf_rule_t* r, uint32_t now_ms)
++{
++    if (!r->waiting && !r->audio) {
++        r->waiting  = 1;
++        r->since_ms = now_ms;
++    }
++}
++
++/* The answer's first audio started (or thinking ended another way): the wait is over. */
++static inline void tf_answer_audio(tf_rule_t* r)
++{
++    r->audio   = 1;
++    r->waiting = 0;
++}
++
++static inline tf_skip_t tf_gate(const tf_rule_t* r, uint8_t mode, const tf_env_t* e)
++{
++    if (mode == TF_MODE_NONE) return TF_SKIP_MODE;
++    if (e->muted || !e->sound_ok || e->full_quiet || e->speaking) return TF_SKIP_ENV;
++    if (r->played) return TF_SKIP_ONCE;
++    if (r->audio) return TF_SKIP_AUDIO;
++    return TF_SKIP_NONE;
++}
++
++/* Polled every 50 ms or so while waiting. Returns TF_SKIP_NONE when a filler of `*play` (TF_MODE_*) must play now; the
++ * rule then marks the turn as played. `have_phrases` says whether the filler pack holds sounds (else a phrase is a tone). */
++static inline tf_skip_t tf_poll(tf_rule_t* r, uint32_t now_ms, const tf_prefs_t* p, const tf_env_t* e, int have_phrases, uint8_t* play)
++{
++    if (!r->waiting) return r->audio ? TF_SKIP_AUDIO : TF_SKIP_NO_TURN;
++    const tf_skip_t g = tf_gate(r, p->mode, e);
++    if (g != TF_SKIP_NONE) return g;
++    if (now_ms - r->since_ms < p->wait_ms) return TF_SKIP_NOT_YET;
++    r->played  = 1;
++    r->waiting = 0;
++    *play      = (p->mode == TF_MODE_PHRASE && have_phrases) ? TF_MODE_PHRASE : TF_MODE_TONE;
++    return TF_SKIP_NONE;
++}
++
++/* The host asked for one now (it ran the delay itself). The same guards, no wait. */
++static inline tf_skip_t tf_play_now(tf_rule_t* r, uint8_t mode, const tf_env_t* e, int have_phrases, uint8_t* play)
++{
++    const tf_skip_t g = tf_gate(r, mode, e);
++    if (g != TF_SKIP_NONE) return g;
++    r->played  = 1;
++    r->waiting = 0;
++    *play      = (mode == TF_MODE_PHRASE && have_phrases) ? TF_MODE_PHRASE : TF_MODE_TONE;
++    return TF_SKIP_NONE;
++}
++
++/* ---- the filler pack: its index.json ---- */
++
++#define TF_MAX_CLIPS 48
++#define TF_NAME_MAX 15
++#define TF_FILE_MAX 31
++
++typedef struct {
++    char name[TF_NAME_MAX + 1];
++    char file[TF_FILE_MAX + 1];
++    uint16_t ms;
++} tf_clip_t;
++
++typedef struct {
++    uint16_t rate;
++    uint8_t n;
++    tf_clip_t clip[TF_MAX_CLIPS];
++} tf_index_t;
++
++/* Finds `"key"` followed by a colon in [s, end); returns the position after the colon (white space skipped), or NULL. */
++static inline const char* tf_find_key(const char* s, const char* end, const char* key)
++{
++    const size_t kl = strlen(key);
++    for (const char* p = s; p + kl + 2 < end; p++) {
++        if (*p == '"' && memcmp(p + 1, key, kl) == 0 && p[1 + kl] == '"') {
++            const char* q = p + kl + 2;
++            while (q < end && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')) q++;
++            if (q < end && *q == ':') {
++                q++;
++                while (q < end && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')) q++;
++                return q < end ? q : NULL;
++            }
++        }
++    }
++    return NULL;
++}
++
++/* A string value at p (p points at the opening quote), copied into out[cap] with no escapes allowed. 1 on success. */
++static inline int tf_read_string(const char* p, const char* end, char* out, size_t cap)
++{
++    if (p == NULL || p >= end || *p != '"') return 0;
++    p++;
++    size_t n = 0;
++    while (p < end && *p != '"') {
++        if (*p == '\\' || (unsigned char)*p < 32 || n + 1 >= cap) return 0;
++        out[n++] = *p++;
++    }
++    if (p >= end) return 0;
++    out[n] = 0;
++    return n > 0;
++}
++
++static inline int tf_read_int(const char* p, const char* end, long* out)
++{
++    if (p == NULL || p >= end) return 0;
++    long v  = 0;
++    int any = 0;
++    while (p < end && *p >= '0' && *p <= '9') {
++        v = v * 10 + (*p - '0');
++        if (v > 10000000) return 0;
++        p++;
++        any = 1;
++    }
++    if (!any) return 0;
++    *out = v;
++    return 1;
++}
++
++/* Reads the host's index: {"rate":16000,"codec":"mulaw","lang":"en","clips":[{"name":"hmm","file":"hmm_1.ulaw","ms":420},...]}.
++ * Only mu-law is understood. A clip with a bad field is skipped; a file name with a slash is refused. Returns the clips kept. */
++static inline int tf_parse_index(const char* json, size_t len, tf_index_t* out)
++{
++    memset(out, 0, sizeof(*out));
++    if (json == NULL || len < 20 || len > 16384) return 0;
++    const char* end = json + len;
++    long rate       = 0;
++    char codec[12]  = "";
++    if (!tf_read_int(tf_find_key(json, end, "rate"), end, &rate) || rate < 4000 || rate > 48000) return 0;
++    if (!tf_read_string(tf_find_key(json, end, "codec"), end, codec, sizeof(codec)) || strcmp(codec, "mulaw") != 0) return 0;
++    const char* arr = tf_find_key(json, end, "clips");
++    if (arr == NULL || *arr != '[') return 0;
++    out->rate = (uint16_t)rate;
++    const char* p = arr + 1;
++    while (p < end && out->n < TF_MAX_CLIPS) {
++        while (p < end && *p != '{' && *p != ']') p++;
++        if (p >= end || *p == ']') break;
++        const char* obj_end = p;
++        int depth           = 0;
++        while (obj_end < end) {
++            if (*obj_end == '{') depth++;
++            if (*obj_end == '}' && --depth == 0) break;
++            obj_end++;
++        }
++        if (obj_end >= end) break;
++        tf_clip_t c;
++        memset(&c, 0, sizeof(c));
++        long ms = 0;
++        const int ok = tf_read_string(tf_find_key(p, obj_end, "name"), obj_end, c.name, sizeof(c.name)) &&
++                       tf_read_string(tf_find_key(p, obj_end, "file"), obj_end, c.file, sizeof(c.file)) &&
++                       tf_read_int(tf_find_key(p, obj_end, "ms"), obj_end, &ms) && ms > 0 && ms <= 5000 && strchr(c.file, '/') == NULL &&
++                       strstr(c.file, "..") == NULL;
++        if (ok) {
++            c.ms                = (uint16_t)ms;
++            out->clip[out->n++] = c;
++        }
++        p = obj_end + 1;
++    }
++    return out->n;
++}
++
++/* The names that suit a wait (a sigh or a laugh do not). */
++static inline int tf_name_fits(const char* name)
++{
++    static const char* const ok[] = {"hmm", "uh", "um", "ah", "oh", "aha", "mm_hm"};
++    for (size_t i = 0; i < sizeof(ok) / sizeof(ok[0]); i++) {
++        if (strcmp(name, ok[i]) == 0) return 1;
++    }
++    return 0;
++}
++
++/* Picks a clip: a random take of a fitting sound that is not the one played last. `rnd` is any random number. `last` is
++ * the index of the clip played last, or -1. Returns the clip index, or -1 when the pack has none. When nothing fits
++ * the wait, any clip may be chosen. */
++static inline int tf_pick(const tf_index_t* x, int last, uint32_t rnd)
++{
++    if (x->n == 0) return -1;
++    int any_fit = 0;
++    for (int i = 0; i < x->n; i++) any_fit |= tf_name_fits(x->clip[i].name);
++    const char* last_name = (last >= 0 && last < x->n) ? x->clip[last].name : "";
++    int cand[TF_MAX_CLIPS], n = 0;
++    for (int pass = 0; pass < 2 && n == 0; pass++) {
++        for (int i = 0; i < x->n; i++) {
++            if (any_fit && !tf_name_fits(x->clip[i].name)) continue;
++            if (pass == 0 && strcmp(x->clip[i].name, last_name) == 0) continue; /* the second pass allows it: one sound only */
++            cand[n++] = i;
++        }
++    }
++    if (n == 0) return -1;
++    /* equal weight per sound: choose the sound by index among distinct names */
++    int names[TF_MAX_CLIPS], nn = 0;
++    for (int k = 0; k < n; k++) {
++        int seen = 0;
++        for (int j = 0; j < nn; j++) seen |= strcmp(x->clip[names[j]].name, x->clip[cand[k]].name) == 0;
++        if (!seen) names[nn++] = cand[k];
++    }
++    const int sound = names[(rnd >> 8) % (uint32_t)nn];
++    int takes[TF_MAX_CLIPS], m = 0;
++    for (int k = 0; k < n; k++) {
++        if (strcmp(x->clip[cand[k]].name, x->clip[sound].name) == 0) takes[m++] = cand[k];
++    }
++    return takes[(rnd >> 16) % (uint32_t)m];
++}
++
++/* ---- the filler format: mu-law as the host writes it (not G.711: y = byte/127.5 - 1, x = sign(y) * (256^|y| - 1) / 255) ---- */
++
++static inline void tf_ulaw_table(int16_t t[256])
++{
++    for (int b = 0; b < 256; b++) {
++        const float y = (float)b / 127.5f - 1.0f;
++        const float a = powf(256.0f, fabsf(y));
++        float x       = (a - 1.0f) / 255.0f;
++        if (y < 0.0f) x = -x;
++        if (x > 1.0f) x = 1.0f;
++        if (x < -1.0f) x = -1.0f;
++        t[b] = (int16_t)(x * 32767.0f);
++    }
++}
++
++/* ---- the tone: two short soft notes, language-free (the host's recipe: 660 Hz for 90 ms, then 880 Hz for 120 ms) ---- */
++
++#define TF_TONE_RATE 16000
++#define TF_TONE_SAMPLES (TF_TONE_RATE * 210 / 1000) /* 3360 */
++
++static inline size_t tf_render_tone(int16_t* out, size_t cap)
++{
++    size_t pos = 0;
++    static const float freq[2] = {660.0f, 880.0f};
++    static const float len[2]  = {0.09f, 0.12f};
++    for (int k = 0; k < 2; k++) {
++        const size_t n = (size_t)(len[k] * TF_TONE_RATE);
++        for (size_t i = 0; i < n && pos < cap; i++, pos++) {
++            const float t   = (float)i / TF_TONE_RATE;
++            const float s   = sinf(3.14159265f * t / len[k]);
++            const float env = s * s;
++            out[pos]        = (int16_t)(0.18f * env * sinf(6.2831853f * freq[k] * t) * 32767.0f);
++        }
++    }
++    return pos;
++}
++
++#endif /* MAIPAI_FILLER_CORE_H */
+diff --git a/firmware/main/hal/maipai_filler.h b/firmware/main/hal/maipai_filler.h
+new file mode 100644
+index 0000000..3ababff
+--- /dev/null
++++ b/firmware/main/hal/maipai_filler.h
+@@ -0,0 +1,18 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * "While it thinks": the filler tone and the filler pack's sounds, device side (patch TB03). Logic: maipai_filler_core.h.
++ */
++#pragma once
++#include <cstddef>
++#include <cstdint>
++
++// self.filler.status and self.filler.play. Renders the tone into 6.7 KB of PSRAM.
++void maipai_filler_register_tools();
++// A new turn begins (the unit starts to listen): the filler may play once more.
++void maipai_filler_turn_start();
++// The thinking cue started or ended: on starts the wait; the filler plays when it passes with no answer audio.
++void maipai_filler_thinking(bool on);
++// The filler pack changed (the shared pack loader calls this). A zip payload, or null/0 to go back to the tone only.
++// Returns false (and a plain reason in *why) when the pack cannot be used; nothing changes then.
++bool maipai_filler_load_pack(const uint8_t* payload, size_t len, const char** why);
+diff --git a/firmware/main/hal/maipai_filler.cc b/firmware/main/hal/maipai_filler.cc
+new file mode 100644
+index 0000000..1ff41bc
+--- /dev/null
++++ b/firmware/main/hal/maipai_filler.cc
+@@ -0,0 +1,289 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * "While it thinks" (patch TB03). The wait is the person's (filler_wait_s, 0.2 to 1.5 s, default 0.4 s). When thinking
++ * starts a one-shot timer is set for that wait; when it fires, the delay rule (maipai_filler_core.h) decides: no answer audio,
++ * not speaking, not muted or quiet, once per turn. The tone is rendered at boot; phrases are the filler pack's mu-law clips,
++ * held as sent in one PSRAM block and decoded to a short scratch buffer at play time. Plays through AudioService::PlayPcm and
++ * the sound policy gate. Steady internal RAM: the rule and counters, about 100 bytes, plus one esp_timer (about 100 bytes).
++ */
++#include "maipai_filler.h"
++#include "maipai_filler_core.h"
++#include "maipai_pack_core.h"
++#include "maipai_tbprefs.h"
++#include "maipai_privacy.h"
++#include "maipai_sounds.h"
++#include <application.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_random.h>
++#include <esp_timer.h>
++#include <mcp_server.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <mutex>
++
++static const char* TAG = "MAIPAI-FILLER";
++
++namespace {
++
++std::mutex s_mu;
++tf_rule_t s_rule;
++int16_t* s_tone = nullptr;  // PSRAM
++size_t s_tone_n = 0;
++int16_t s_ulaw[256];
++bool s_ulaw_ready = false;
++
++// the held pack: tf_index_t is 48 clips of 50 bytes, so it lives in PSRAM with the sound bytes
++struct Held {
++    tf_index_t index;
++    uint8_t* bytes = nullptr;          // all clips back to back
++    uint32_t off[TF_MAX_CLIPS] = {};
++    uint32_t len[TF_MAX_CLIPS] = {};
++    uint32_t total = 0;
++};
++Held* s_held = nullptr;
++int s_last_clip = -1;
++esp_timer_handle_t s_timer = nullptr;
++std::atomic<uint32_t> s_plays{0}, s_phrases{0};
++std::atomic<uint32_t> s_skip[TF_SKIP_COUNT];
++std::atomic<int> s_last_skip{-1};
++char s_last_name[TF_NAME_MAX + 1] = "";
++
++uint32_t ms_now() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++tf_env_t env_now()
++{
++    tf_env_t e = {};
++    e.sound_ok   = maipai_sounds_gate("success") ? 1 : 0;  // not allowed at night, off when sounds are off
++    e.muted      = maipai_muted() ? 1 : 0;
++    e.full_quiet = maipai_quiet() ? 1 : 0;
++    e.speaking   = Application::GetInstance().GetDeviceState() == kDeviceStateSpeaking ? 1 : 0;
++    return e;
++}
++
++void play_tone()
++{
++    if (s_tone != nullptr) {
++        Application::GetInstance().GetAudioService().PlayPcm(s_tone, s_tone_n, TF_TONE_RATE);
++    }
++}
++
++// call with s_mu held; decodes one clip and queues it
++bool play_clip_locked(int idx)
++{
++    if (s_held == nullptr || idx < 0 || idx >= s_held->index.n) return false;
++    const uint32_t n = s_held->len[idx];
++    int16_t* pcm = static_cast<int16_t*>(heap_caps_malloc(n * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (pcm == nullptr) return false;
++    const uint8_t* in = s_held->bytes + s_held->off[idx];
++    for (uint32_t i = 0; i < n; i++) pcm[i] = s_ulaw[in[i]];
++    const bool ok = Application::GetInstance().GetAudioService().PlayPcm(pcm, n, s_held->index.rate);
++    heap_caps_free(pcm);  // PlayPcm copies
++    if (ok) {
++        strncpy(s_last_name, s_held->index.clip[idx].name, TF_NAME_MAX);
++        s_phrases.fetch_add(1);
++    }
++    return ok;
++}
++
++void do_play(uint8_t what)
++{
++    bool done = false;
++    if (what == TF_MODE_PHRASE) {
++        std::lock_guard<std::mutex> lock(s_mu);
++        if (s_held != nullptr) {
++            const int idx = tf_pick(&s_held->index, s_last_clip, esp_random());
++            if (play_clip_locked(idx)) {
++                s_last_clip = idx;
++                done = true;
++            }
++        }
++    }
++    if (!done) {
++        play_tone();
++        strcpy(s_last_name, "tone");
++    }
++    s_plays.fetch_add(1);
++}
++
++void timer_cb(void*)
++{
++    const MaipaiTbPrefs prefs = maipai_tb_prefs();
++    const tf_env_t env = env_now();
++    uint8_t play = 0;
++    tf_skip_t r;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        r = tf_poll(&s_rule, ms_now(), &prefs.filler, &env, s_held != nullptr ? 1 : 0, &play);
++    }
++    s_last_skip.store(r);
++    if (r == TF_SKIP_NONE) {
++        do_play(play);
++    } else {
++        s_skip[r].fetch_add(1);
++    }
++}
++
++void ensure_timer()
++{
++    if (s_timer != nullptr) return;
++    esp_timer_create_args_t a = {};
++    a.callback = timer_cb;
++    a.name     = "filler";
++    esp_timer_create(&a, &s_timer);
++}
++
++void free_held_locked()
++{
++    if (s_held != nullptr) {
++        if (s_held->bytes != nullptr) heap_caps_free(s_held->bytes);
++        heap_caps_free(s_held);
++        s_held = nullptr;
++    }
++    s_last_clip = -1;
++}
++
++long inflate_raw(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap);
++
++}  // namespace
++
++// ---- the shared pack loader's consumer ----
++#include <miniz.h>
++namespace {
++long inflate_raw(const uint8_t* in, size_t inlen, uint8_t* out, size_t cap)
++{
++    const size_t n = tinfl_decompress_mem_to_mem(out, cap, in, inlen, 0);  // raw deflate
++    return n == TINFL_DECOMPRESS_MEM_TO_MEM_FAILED ? -1 : static_cast<long>(n);
++}
++}  // namespace
++
++bool maipai_filler_load_pack(const uint8_t* payload, size_t len, const char** why)
++{
++    *why = "";
++    if (payload == nullptr || len == 0) {
++        std::lock_guard<std::mutex> lock(s_mu);
++        free_held_locked();
++        return true;
++    }
++    tpz_t* z = static_cast<tpz_t*>(heap_caps_malloc(sizeof(tpz_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (z == nullptr) { *why = tpk_say(TPK_ERR_MEMORY, 0); return false; }
++    struct Free { void* p; ~Free() { heap_caps_free(p); } } free_z{z};
++    if (tpz_open(z, payload, len) != TPK_OK) { *why = tpk_say(TPK_ERR_ZIP, 0); return false; }
++    const tpz_entry_t* ie = tpz_find(z, "index.json");
++    if (ie == nullptr || ie->usize > 16384) { *why = tpk_say(TPK_ERR_ZIP, 0); return false; }
++    char* json = static_cast<char*>(heap_caps_malloc(ie->usize + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (json == nullptr) { *why = tpk_say(TPK_ERR_MEMORY, 0); return false; }
++    struct Free2 { void* p; ~Free2() { heap_caps_free(p); } } free_j{json};
++    if (tpz_extract(z, ie, reinterpret_cast<uint8_t*>(json), ie->usize, inflate_raw) != TPK_OK) { *why = tpk_say(TPK_ERR_ZIP, 0); return false; }
++    Held* h = static_cast<Held*>(heap_caps_calloc(1, sizeof(Held), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (h == nullptr) { *why = tpk_say(TPK_ERR_MEMORY, 0); return false; }
++    if (tf_parse_index(json, ie->usize, &h->index) == 0) { heap_caps_free(h); *why = tpk_say(TPK_ERR_ZIP, 0); return false; }
++    uint32_t total = 0;
++    int keep = 0;
++    for (int i = 0; i < h->index.n; i++) {
++        const tpz_entry_t* e = tpz_find(z, h->index.clip[i].file);
++        if (e == nullptr || e->usize == 0 || e->usize > 80000 || total + e->usize > TPK_MAX_BYTES[TPK_FILLER]) continue;
++        h->index.clip[keep] = h->index.clip[i];
++        h->off[keep]        = total;
++        h->len[keep]        = e->usize;
++        total += e->usize;
++        keep++;
++    }
++    h->index.n = static_cast<uint8_t>(keep);
++    if (keep == 0) { heap_caps_free(h); *why = tpk_say(TPK_ERR_ZIP, 0); return false; }
++    h->bytes = static_cast<uint8_t*>(heap_caps_malloc(total, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (h->bytes == nullptr) { heap_caps_free(h); *why = tpk_say(TPK_ERR_MEMORY, 0); return false; }
++    h->total = total;
++    for (int i = 0; i < keep; i++) {
++        const tpz_entry_t* e = tpz_find(z, h->index.clip[i].file);
++        if (tpz_extract(z, e, h->bytes + h->off[i], h->len[i], inflate_raw) != TPK_OK) {
++            heap_caps_free(h->bytes); heap_caps_free(h); *why = tpk_say(TPK_ERR_ZIP, 0); return false;
++        }
++    }
++    std::lock_guard<std::mutex> lock(s_mu);
++    free_held_locked();
++    s_held = h;
++    ESP_LOGI(TAG, "filler pack: %d sounds, %u bytes", keep, static_cast<unsigned>(total));
++    return true;
++}
++
++void maipai_filler_turn_start()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    tf_turn_start(&s_rule);
++}
++
++void maipai_filler_thinking(bool on)
++{
++    ensure_timer();
++    if (!on) {
++        esp_timer_stop(s_timer);
++        return;
++    }
++    const MaipaiTbPrefs prefs = maipai_tb_prefs();
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        tf_thinking(&s_rule, ms_now());
++    }
++    esp_timer_stop(s_timer);
++    if (prefs.filler.mode != TF_MODE_NONE) {
++        esp_timer_start_once(s_timer, static_cast<uint64_t>(prefs.filler.wait_ms) * 1000ULL);
++    }
++}
++
++void maipai_filler_register_tools()
++{
++    tf_rule_init(&s_rule);
++    tf_ulaw_table(s_ulaw);
++    s_ulaw_ready = true;
++    s_tone = static_cast<int16_t*>(heap_caps_malloc(TF_TONE_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (s_tone != nullptr) s_tone_n = tf_render_tone(s_tone, TF_TONE_SAMPLES);
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.filler.status",
++                "The \"While it thinks\" sound: mode (none, tone, phrase), the wait in ms, whether a filler pack is held and how many "
++                "sounds, what played and what was skipped and why. Answers {ok, ...}.",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    const MaipaiTbPrefs prefs = maipai_tb_prefs();
++                    static const char* const modes[3] = {"none", "tone", "phrase"};
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    char out[480];
++                    int n = snprintf(out, sizeof(out),
++                                     "{\"ok\":true,\"mode\":\"%s\",\"wait_ms\":%u,\"held\":%s,\"sounds\":%d,\"played\":%u,\"phrases\":%u,"
++                                     "\"last\":\"%s\",\"last_skip\":\"%s\",\"skipped\":{",
++                                     modes[prefs.filler.mode], static_cast<unsigned>(prefs.filler.wait_ms), s_held ? "true" : "false",
++                                     s_held ? s_held->index.n : 0, static_cast<unsigned>(s_plays.load()),
++                                     static_cast<unsigned>(s_phrases.load()), s_last_name,
++                                     s_last_skip.load() >= 0 ? TF_SKIP_WORDS[s_last_skip.load()] : "");
++                    for (int i = 1; i < TF_SKIP_COUNT; i++) {
++                        n += snprintf(out + n, sizeof(out) - n, "%s\"%s\":%u", i > 1 ? "," : "", TF_SKIP_WORDS[i],
++                                      static_cast<unsigned>(s_skip[i].load()));
++                    }
++                    snprintf(out + n, sizeof(out) - n, "}}");
++                    return std::string(out);
++                });
++    mcp.AddTool("self.filler.play",
++                "Play the filler now, for a host that ran the wait itself: mode tone or phrase. The same guards as the unit's own "
++                "rule: once per turn, not over speech, not muted or in quiet hours. Answers {ok, played, why}.",
++                PropertyList({Property("mode", kPropertyTypeString, std::string("tone"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    uint8_t mode = TF_MODE_TONE;
++                    if (!tf_parse_mode(properties["mode"].value<std::string>().c_str(), &mode)) {
++                        return std::string("{\"ok\":false,\"error\":\"The mode must be none, tone or phrase. Choose one of them.\"}");
++                    }
++                    const tf_env_t env = env_now();
++                    uint8_t play = 0;
++                    tf_skip_t r;
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        r = tf_play_now(&s_rule, mode, &env, s_held != nullptr ? 1 : 0, &play);
++                    }
++                    if (r != TF_SKIP_NONE) {
++                        s_skip[r].fetch_add(1);
++                        return std::string("{\"ok\":true,\"played\":false,\"why\":\"") + TF_SKIP_WORDS[r] + "\"}";
++                    }
++                    do_play(play);
++                    return std::string("{\"ok\":true,\"played\":true,\"what\":\"") + (play == TF_MODE_PHRASE ? "phrase" : "tone") + "\"}";
++                });
++}
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+index af733a5..b8876e7 100644
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -18,6 +18,8 @@
+ #if CONFIG_MAIPAI_FACE_THINKING
+ #include "maipai_face_think_core.h"
+ #include "maipai_sounds.h"
++#include "maipai_filler.h"
++#include "maipai_listen.h"
+ #include <esp_timer.h>
+ #endif
+ #if CONFIG_MAIPAI_FACE_CLOCK
+@@ -348,6 +350,8 @@ void maipai_face_thinking(bool on)
+         if (mf_think_end(&s_think) && face != nullptr) {
+             face->setThinking(false);
+         }
++        maipai_filler_thinking(false);
++        maipai_listen_thinking(false);
+         return;
+     }
+     if (face == nullptr || face->getPanel() == nullptr) {
+@@ -358,11 +362,10 @@ void maipai_face_thinking(bool on)
+     if (s_think.active) {
+         return;
+     }
+-    const int tone = mf_think_begin(&s_think, now, c.thinking_tone);
++    (void)mf_think_begin(&s_think, now, c.thinking_tone);
+     face->setThinking(true);
+-    if (tone) {
+-        maipai_sounds_play("vibration");  // quiet; the sound policy and the hard mute may still silence it
+-    }
++    maipai_filler_thinking(true);  // patch TB03: the tone or phrase plays after the person's wait, once, only with no answer yet
++    maipai_listen_thinking(true);  // patch TB01: the ring blinks twice, then pulses slowly
+ }
+ 
+ // Once a second: the cue ends by itself when the host never ended it.

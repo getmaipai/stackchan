@@ -1,4 +1,4 @@
-/* Host test for pickup, carried and set-down (patch TB05), against synthesised accelerometer traces.
+/* Host test for pickup, carried and set-down (patch TB04), against synthesised accelerometer traces.
  * cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> ... -lm.
  *
  * Each trace is built from segments. The world has gravity (1 g up); a segment adds a vertical push `v`, a sideways

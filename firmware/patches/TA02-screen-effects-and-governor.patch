@@ -1,0 +1,615 @@
+# Intent: Screen effects and the adaptive governor (owner brief 2026-11-16, checkpoint 1 and the performance contract). The display's own flush callback is wrapped (a few lines in hal/board/stackchan_display.cc): after LVGL drew an area and before the pixels go to the panel the effects run on that area's RGB565 pixels, counted from the top of the screen so the result does not depend on how LVGL splits a refresh. Colour modes: the pixel's brightness picks a colour from a 32 step ramp built once per mode (grey, sepia, cool, a two colour map, amber and green phosphor); night dim: half brightness; CRT scanlines: every second row at five eighths; glow: a soft halo around each eye baked once into a mask of at most 6,241 bytes (PSRAM, only while the setting is on, freed when it is off) and blended only onto background pixels, starting under the eye's edge so a gaze drift never opens a gap, off while the eyes are shut. The governor times every screen refresh (LVGL refresh start to ready): when more than 55 percent of a second is spent drawing, or one refresh takes over 28 ms, it sheds one step per second in this order: overlay particles halve, glow off, scanlines off, then the plain flat look (all effects, colour mode, night dim and overlays off); three calm seconds in a row restore one step; a second with nothing drawn counts as calm. Nothing is applied when no effect is on (the flush adds one function call and one flag test). Costs: no heap unless glow is on (6,241 bytes of PSRAM), a few hundred bytes of state; per flushed pixel about 14 cycles for a colour mode, 5 for night dim, 6 on half the rows for scanlines.
+# Placement: unit (effects are drawn by the unit; the settings come from the host through self.prefs.set and apply with no host)
+# Upstream: firmware/main/hal/board/stackchan_display.cc (the display set-up and SetEmotion) and hal/maipai_face.cc (the style); new file hal/maipai_fx_core.h
+# Check after a flash: turn on fx_crt, fx_colour_mode amber, fx_night_dim and fx_glow through self.prefs.set and look at the glass; the governor level in self.overlay.status stays 0 at idle and while speaking; measure fps and the worst frame with each effect (scripts/fw-serial.py, bench_fps) and the combination CRT plus rain plus speaking.
+
+diff --git a/firmware/main/hal/maipai_fx_core.h b/firmware/main/hal/maipai_fx_core.h
+new file mode 100644
+index 0000000..f9f7cbc
+--- /dev/null
++++ b/firmware/main/hal/maipai_fx_core.h
+@@ -0,0 +1,287 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Screen effects (patch TA02) and the adaptive governor (patch TA05): the pure logic. No ESP-IDF, no heap, no clock of its
++ * own. Header-only plain C99 so a host compiler can test it (host/tests/firmware/fx_core_test.c) and the host renderer
++ * (scripts/fw-face-render) draws the same code into a picture.
++ *
++ * Every effect works on the RGB565 pixels of one flushed area, after LVGL drew the face and the overlays were composited,
++ * and before the pixels go to the panel. Rows are counted from the top of the screen, never from the top of the area, so
++ * the result does not depend on how LVGL splits a refresh into pieces (a test checks that).
++ *
++ *  - colour modes: the pixel's brightness picks a colour from a 32-step ramp built once per mode (grey, sepia, cool, a
++ *    two-colour map, amber and green phosphor). Colour never carries meaning alone, so the face keeps every shape;
++ *  - night dim: half brightness, two shifts and a mask per pixel;
++ *  - CRT scanlines: every second row at 5/8 brightness (a shift and a mask per pixel on those rows only);
++ *  - glow: a soft halo around each eye, baked once into a small alpha mask (at most 79 by 79 bytes) and blended only onto
++ *    background pixels, so it never touches the eye or the mouth.
++ */
++#ifndef MAIPAI_FX_CORE_H
++#define MAIPAI_FX_CORE_H
++
++#include <math.h>
++#include <stdint.h>
++#include <string.h>
++
++#define MFX_W 320
++#define MFX_H 240
++
++/* ---------------------------------------------------------------- 565 helpers */
++
++/* A pixel at or below this brightness (of 31) is background: the screen colour behind the face, never an eye or a mouth. */
++#define MFX_BG_MAX_LUMA5 10
++
++#define MFX_RB 0xF81F
++#define MFX_G 0x07E0
++
++static inline uint16_t mfx_rgb(int r, int g, int b)
++{
++    return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b & 0xF8) >> 3));
++}
++
++/* 0 to 31: the brightness of a pixel (weights 10, 19 and 3 out of 32 on the three channels at five bits). */
++static inline int mfx_luma5(uint16_t p)
++{
++    const int r = p >> 11, g = (p >> 6) & 31, b = p & 31;
++    return (r * 10 + g * 19 + b * 3) >> 5;
++}
++
++/* dst toward src by a (0 to 255): the two-lane trick, so red and blue go through one multiply and green through another. */
++static inline uint16_t mfx_mix(uint16_t dst, uint16_t src, unsigned a)
++{
++    const unsigned a5 = (a + 4) >> 3; /* 0 to 32 */
++    uint32_t d        = ((uint32_t)dst | ((uint32_t)dst << 16)) & 0x07E0F81Fu;
++    const uint32_t s  = ((uint32_t)src | ((uint32_t)src << 16)) & 0x07E0F81Fu;
++    d                 = (d + (((s - d) * a5) >> 5)) & 0x07E0F81Fu;
++    return (uint16_t)(d | (d >> 16));
++}
++
++/* Half brightness. */
++static inline uint16_t mfx_half(uint16_t p) { return (uint16_t)((p >> 1) & 0x7BEF); }
++
++/* Five eighths: a half and an eighth. */
++static inline uint16_t mfx_five_eighths(uint16_t p) { return (uint16_t)(((p >> 1) & 0x7BEF) + ((p >> 3) & 0x18E3)); }
++
++/* ---------------------------------------------------------------- colour modes */
++
++/* Mirrors maipai_prefs_core.h (MP_CM_*): 0 normal, 1 mono, 2 warm, 3 cool, 4 duotone, 5 amber, 6 green. */
++#define MFX_CM_COUNT 7
++
++static inline void mfx_ramp_build(int mode, uint16_t out[32])
++{
++    /* shadow and highlight colours per mode; the ramp is a straight line between them in 32 steps */
++    static const uint8_t ends[MFX_CM_COUNT][6] = {
++        {0, 0, 0, 255, 255, 255},     /* normal: not used (the pixel is left alone) */
++        {0, 0, 0, 255, 255, 255},     /* mono: grey */
++        {0, 0, 0, 255, 214, 160},     /* warm: sepia */
++        {0, 4, 10, 176, 214, 255},    /* cool: blue-grey */
++        {14, 10, 70, 255, 196, 128},  /* duotone: deep blue shadows, peach highlights */
++        {0, 0, 0, 255, 176, 0},       /* amber phosphor */
++        {0, 0, 0, 80, 255, 80},       /* green phosphor */
++    };
++    const uint8_t* e = ends[(mode >= 0 && mode < MFX_CM_COUNT) ? mode : 0];
++    for (int i = 0; i < 32; i++) {
++        out[i] = mfx_rgb(e[0] + (e[3] - e[0]) * i / 31, e[1] + (e[4] - e[1]) * i / 31, e[2] + (e[5] - e[2]) * i / 31);
++    }
++}
++
++/* ---------------------------------------------------------------- glow */
++
++#define MFX_GLOW_HALO 14   /* pixels of halo beyond the eye's edge */
++#define MFX_GLOW_INSET 5   /* the halo starts this far inside the edge (hidden under the eye), so a gaze drift never shows a gap */
++#define MFX_GLOW_PEAK 120  /* alpha (of 255) at the start of the halo, under the eye's edge */
++#define MFX_GLOW_MAX_SIDE 79 /* an eye of 50 pixels plus the halo on both sides */
++
++/* Side of the mask for an eye of diameter d: 2 * (d / 2 + halo) + 1. */
++static inline int mfx_glow_side(int eye_d) { return 2 * (eye_d / 2 + MFX_GLOW_HALO) + 1; }
++
++/* Bakes the halo: the alpha falls off with the square of the distance from the eye's edge to the halo's rim. Returns the side. */
++static inline int mfx_glow_bake(uint8_t* mask, int eye_d)
++{
++    const int r = eye_d / 2, side = mfx_glow_side(eye_d), c = side / 2;
++    if (side > MFX_GLOW_MAX_SIDE) {
++        return 0;
++    }
++    for (int y = 0; y < side; y++) {
++        for (int x = 0; x < side; x++) {
++            const float d = sqrtf((float)((x - c) * (x - c) + (y - c) * (y - c)));
++            float a       = 0.0f;
++            const float d0 = (float)(r - MFX_GLOW_INSET);
++            if (d >= d0 && d < (float)(r + MFX_GLOW_HALO)) {
++                const float t = (d - d0) / (float)(MFX_GLOW_HALO + MFX_GLOW_INSET);
++                a             = (float)MFX_GLOW_PEAK * (1.0f - t) * (1.0f - t);
++            }
++            mask[y * side + x] = (uint8_t)(a + 0.5f);
++        }
++    }
++    return side;
++}
++
++/* ---------------------------------------------------------------- the whole step for one flushed area */
++
++typedef struct {
++    uint8_t crt;       /* scanlines */
++    uint8_t night;     /* half brightness */
++    uint8_t mode;      /* colour mode, 0 normal */
++    uint8_t glow;      /* 1 when the halo should draw (the governor and a closed eye can switch it off) */
++    uint16_t ramp[32]; /* built for `mode` */
++    const uint8_t* gmask;
++    int gside;
++    int gx[2], gy;     /* where the mask's top left corner lands for the left and the right eye */
++    uint16_t gcol;     /* the halo colour */
++} mfx_t;
++
++static inline int mfx_any(const mfx_t* f) { return f->crt || f->night || f->mode != 0 || (f->glow && f->gmask != NULL); }
++
++static inline void mfx_set_mode(mfx_t* f, int mode)
++{
++    f->mode = (uint8_t)((mode > 0 && mode < MFX_CM_COUNT) ? mode : 0);
++    if (f->mode != 0) {
++        mfx_ramp_build(f->mode, f->ramp);
++    }
++}
++
++/* Even rows are bright and odd rows are dark, counted from the top of the screen. */
++static inline int mfx_row_dark(int y) { return (y & 1) != 0; }
++
++/* Runs the effects over the pixels of area (x1, y1) to (x2, y2), both corners included, laid out row after row with no gaps
++ * (a flush buffer). */
++static inline void mfx_post(const mfx_t* f, uint16_t* px, int x1, int y1, int x2, int y2)
++{
++    const int w = x2 - x1 + 1;
++    if (w <= 0 || y2 < y1) {
++        return;
++    }
++    /* the glow first, so the colour mode and the dim treat it like the rest of the picture */
++    if (f->glow && f->gmask != NULL) {
++        for (int e = 0; e < 2; e++) {
++            const int gx = f->gx[e], gy = f->gy;
++            const int ya = y1 > gy ? y1 : gy, yb = y2 < gy + f->gside - 1 ? y2 : gy + f->gside - 1;
++            const int xa = x1 > gx ? x1 : gx, xb = x2 < gx + f->gside - 1 ? x2 : gx + f->gside - 1;
++            for (int y = ya; y <= yb; y++) {
++                uint16_t* row        = px + (size_t)(y - y1) * (size_t)w;
++                const uint8_t* mrow = f->gmask + (size_t)(y - gy) * (size_t)f->gside;
++                for (int x = xa; x <= xb; x++) {
++                    const unsigned a = mrow[x - gx];
++                    if (a != 0 && mfx_luma5(row[x - x1]) <= MFX_BG_MAX_LUMA5) { /* only on the background */
++                        row[x - x1] = mfx_mix(row[x - x1], f->gcol, a);
++                    }
++                }
++            }
++        }
++    }
++    for (int y = y1; y <= y2; y++) {
++        uint16_t* row = px + (size_t)(y - y1) * (size_t)w;
++        if (f->mode != 0) {
++            for (int x = 0; x < w; x++) {
++                row[x] = f->ramp[mfx_luma5(row[x])];
++            }
++        }
++        if (f->night) {
++            for (int x = 0; x < w; x++) {
++                row[x] = mfx_half(row[x]);
++            }
++        }
++        if (f->crt && mfx_row_dark(y)) {
++            for (int x = 0; x < w; x++) {
++                row[x] = mfx_five_eighths(row[x]);
++            }
++        }
++    }
++}
++
++/* ---------------------------------------------------------------- the governor (patch TA05) */
++
++/* The ladder, first to last: particles halve, glow off, scanlines off, then the plain flat look (every effect, overlay and
++ * colour mode off). Level 0 is everything on. */
++#define MG_LEVEL_FULL 0
++#define MG_LEVEL_HALF_PARTICLES 1
++#define MG_LEVEL_NO_GLOW 2
++#define MG_LEVEL_NO_SCANLINES 3
++#define MG_LEVEL_FLAT 4
++
++#define MG_WINDOW_MS 1000u
++#define MG_SHED_LOAD_PCT 55   /* a share of every second spent drawing above this sheds one step */
++#define MG_SHED_WORST_US 28000u /* or one refresh slower than this (a 30 fps frame is 33 ms) */
++#define MG_CALM_LOAD_PCT 30
++#define MG_CALM_WORST_US 20000u
++#define MG_CALM_WINDOWS 3     /* this many calm seconds in a row restore one step */
++
++typedef struct {
++    uint8_t level;
++    uint8_t calm;
++    uint32_t start_ms;
++    uint32_t busy_us, worst_us, frames;
++    /* the last finished window, for the status tool */
++    uint32_t last_load_pct, last_worst_us, last_fps;
++    uint32_t sheds, restores;
++} mg_t;
++
++static inline void mg_init(mg_t* g) { memset(g, 0, sizeof *g); }
++
++/* Feed one refresh that took frame_us to draw and flush. Returns 1 when the level changed. */
++static inline int mg_feed(mg_t* g, uint32_t now_ms, uint32_t frame_us)
++{
++    if (g->frames == 0 && g->busy_us == 0) {
++        g->start_ms = now_ms;
++    }
++    g->busy_us += frame_us;
++    g->frames++;
++    if (frame_us > g->worst_us) {
++        g->worst_us = frame_us;
++    }
++    const uint32_t span = now_ms - g->start_ms;
++    if (span < MG_WINDOW_MS) {
++        return 0;
++    }
++    const uint32_t load = (uint32_t)(((uint64_t)g->busy_us * 100u) / ((uint64_t)span * 1000u));
++    g->last_load_pct    = load;
++    g->last_worst_us    = g->worst_us;
++    g->last_fps         = (uint32_t)(((uint64_t)g->frames * 1000u) / span);
++    int changed         = 0;
++    if (load > MG_SHED_LOAD_PCT || g->worst_us > MG_SHED_WORST_US) {
++        g->calm = 0;
++        if (g->level < MG_LEVEL_FLAT) {
++            g->level++;
++            g->sheds++;
++            changed = 1;
++        }
++    } else if (load < MG_CALM_LOAD_PCT && g->worst_us < MG_CALM_WORST_US) {
++        if (++g->calm >= MG_CALM_WINDOWS) {
++            g->calm = 0;
++            if (g->level > MG_LEVEL_FULL) {
++                g->level--;
++                g->restores++;
++                changed = 1;
++            }
++        }
++    } else {
++        g->calm = 0;
++    }
++    g->start_ms = now_ms;
++    g->busy_us = g->worst_us = g->frames = 0;
++    return changed;
++}
++
++/* A second with no refresh at all is a calm one: nothing is drawing. Call it from a once-a-second tick. */
++static inline int mg_idle(mg_t* g, uint32_t now_ms)
++{
++    if (g->frames == 0 && now_ms - g->start_ms >= MG_WINDOW_MS) {
++        g->start_ms = now_ms;
++        g->last_load_pct = g->last_worst_us = g->last_fps = 0;
++        if (g->level > MG_LEVEL_FULL && ++g->calm >= MG_CALM_WINDOWS) {
++            g->calm = 0;
++            g->level--;
++            g->restores++;
++            return 1;
++        }
++    }
++    return 0;
++}
++
++static inline int mg_particles_pct(const mg_t* g) { return g->level >= MG_LEVEL_FLAT ? 0 : (g->level >= MG_LEVEL_HALF_PARTICLES ? 50 : 100); }
++static inline int mg_glow_ok(const mg_t* g) { return g->level < MG_LEVEL_NO_GLOW; }
++static inline int mg_scan_ok(const mg_t* g) { return g->level < MG_LEVEL_NO_SCANLINES; }
++static inline int mg_flat(const mg_t* g) { return g->level >= MG_LEVEL_FLAT; }
++
++#endif
+diff --git a/firmware/main/hal/maipai_fx.h b/firmware/main/hal/maipai_fx.h
+index 9084b6f..814a2bb 100644
+--- a/firmware/main/hal/maipai_fx.h
++++ b/firmware/main/hal/maipai_fx.h
+@@ -1,8 +1,9 @@
+ /*
+  * SPDX-License-Identifier: MIT
+  *
+- * The unit's saved preferences (patch TA01), and later the screen effects (TA02), the overlays (TA03) and the speech bubble
+- * (TA04). Logic: maipai_prefs_core.h (the table). With CONFIG_MAIPAI_FX off nothing here is compiled and the tools do not exist.
++ * The unit's saved preferences and the screen effects (patches TA01 to TA04). Logic: maipai_prefs_core.h (the table),
++ * maipai_fx_core.h (scanlines, colour modes, night dim, glow, the governor) and maipai_overlay_core.h (the overlays).
++ * With CONFIG_MAIPAI_FX off nothing here is compiled and the tools do not exist.
+  */
+ #pragma once
+ #include <sdkconfig.h>
+@@ -10,7 +11,9 @@
+ #include "maipai_prefs_core.h"
+ 
+ #if CONFIG_MAIPAI_FX
+-// Registers self.prefs.get and self.prefs.set.
++#include <lvgl.h>
++
++// Registers self.prefs.get and self.prefs.set, and (TA03) self.overlay.status, set and clear.
+ void maipai_fx_register_tools();
+ // Reads the saved preferences. Safe from any task, any time after the flash store is up.
+ mp_prefs_t maipai_prefs();
+@@ -19,9 +22,21 @@ int32_t maipai_pref(int idx);
+ // Called after a change with a bit per row that changed (a mask of 1 << MP_x). Runs on the task that made the change.
+ typedef void (*maipai_prefs_cb)(uint32_t changed);
+ bool maipai_prefs_watch(maipai_prefs_cb cb);  // up to 6 watchers; false when full
++// Whether the speech bubble is on now: the person's choice, else on for the Stock style (TA04).
++bool maipai_fx_bubble_on();
+ // Whether the thinking cue draws its three dots (the setting thinking_dots; the quiet tone is separate).
+ bool maipai_fx_thinking_dots();
++// Hooks the screen effects into the display's flush path and starts the overlay timer. Call once from the display set-up.
++void maipai_fx_attach(lv_display_t* display);
++// The face style changed (the glow's place and the Stock bubble rule follow it). Call with the LVGL lock held.
++void maipai_fx_style_changed();
++// The face is told an emotion by name (SetEmotion). The halo goes while the eyes are shut, and the sleeping look starts and
++// ends the floating zzz (TA03). Call with the LVGL lock held.
++void maipai_fx_note_emotion(const char* emotion);
+ #else
+ inline void maipai_fx_register_tools() {}
++inline bool maipai_fx_bubble_on() { return false; }
+ inline bool maipai_fx_thinking_dots() { return true; }
++inline void maipai_fx_style_changed() {}
++inline void maipai_fx_note_emotion(const char*) {}
+ #endif
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+index cebb9ff..80c7e8b 100644
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -10,10 +10,20 @@
+ #if CONFIG_MAIPAI_FX
+ #include "maipai_fx.h"
+ #include "maipai_prefs_core.h"
++#include "maipai_fx_core.h"
++#include "maipai_look_core.h"
++#include "maipai_face.h"
++#include "maipai_privacy.h"
++#include "hal.h"
+ #include <mcp_server.h>
+ #include <esp_log.h>
++#include <esp_heap_caps.h>
++#include <esp_timer.h>
+ #include <nvs.h>
+ #include <nvs_flash.h>
++#include <src/display/lv_display_private.h>  // the display's own flush callback, to wrap it
++#include <cstddef>
++#include <cstring>
+ #include <cstdio>
+ #include <mutex>
+ #include <string>
+@@ -124,6 +134,136 @@ void tell(uint32_t changed)
+     }
+     for (int i = 0; i < n; i++) cbs[i](changed);
+ }
++
++// ------------------------------------------------------------------------------------------ screen effects (TA02)
++
++// All of this runs on the LVGL task (the flush callback, the refresh events, the timers) or under the LVGL lock (the tools),
++// so none of it needs a lock of its own.
++lv_display_t* s_disp                 = nullptr;
++lv_display_flush_cb_t s_orig_flush   = nullptr;
++mfx_t s_fx;                          // what the flush callback applies now
++uint8_t* s_gmask                     = nullptr;  // the baked halo: PSRAM, only while the glow is on
++int s_gmask_d                        = 0;        // the eye diameter it was baked for
++mg_t s_gov;
++int s_style_id                       = ML_STYLE_BIG_EYES;
++bool s_style_stock                   = false;
++bool s_sleeping                      = false;
++int64_t s_refr_start_us              = 0;
++volatile uint64_t s_post_us          = 0;        // time spent in the flush step since the last status read
++volatile uint32_t s_post_n           = 0;
++volatile uint32_t s_post_worst_us    = 0;
++lv_timer_t* s_gov_timer              = nullptr;
++
++void invalidate_screen()
++{
++    if (s_disp != nullptr) {
++        lv_obj_invalidate(lv_display_get_screen_active(s_disp));
++    }
++}
++
++// Rebuilds s_fx from the saved preferences, the governor's level, and what the face shows. Caller: the LVGL task or lock.
++void apply_effects()
++{
++    const mp_prefs_t p = maipai_prefs();
++    const bool flat    = mg_flat(&s_gov);
++    mfx_t next         = s_fx;
++    next.crt           = !flat && p.v[MP_FX_CRT] && mg_scan_ok(&s_gov);
++    next.night         = !flat && p.v[MP_FX_NIGHT_DIM];
++    mfx_set_mode(&next, flat ? 0 : p.v[MP_FX_COLOUR_MODE]);
++    const ml_style_t* st = ml_style(s_style_id);
++    const bool want_glow = !flat && p.v[MP_FX_GLOW] && mg_glow_ok(&s_gov) && !s_sleeping && st->eye_d > 0 &&
++                           mfx_glow_side(st->eye_d) <= MFX_GLOW_MAX_SIDE;
++    if (want_glow) {
++        if (s_gmask == nullptr) {
++            s_gmask = static_cast<uint8_t*>(heap_caps_malloc(MFX_GLOW_MAX_SIDE * MFX_GLOW_MAX_SIDE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++            s_gmask_d = 0;
++        }
++        if (s_gmask != nullptr && s_gmask_d != st->eye_d) {
++            next.gside = mfx_glow_bake(s_gmask, st->eye_d);
++            s_gmask_d  = st->eye_d;
++        }
++        if (s_gmask != nullptr) {
++            next.gmask = s_gmask;
++            next.gx[0] = 160 - st->eye_x - next.gside / 2;
++            next.gx[1] = 160 + st->eye_x - next.gside / 2;
++            next.gy    = 120 + st->eye_y - next.gside / 2;
++            next.gcol  = 0xFFFF;
++            next.glow  = 1;
++        } else {
++            next.glow = 0;  // no memory for the halo: no glow, no error
++        }
++    } else {
++        next.glow = 0;
++        if (s_gmask != nullptr && !p.v[MP_FX_GLOW]) {  // the setting is off: give the memory back
++            next.gmask = nullptr;
++            heap_caps_free(s_gmask);
++            s_gmask   = nullptr;
++            s_gmask_d = 0;
++        }
++    }
++    const bool same = memcmp(&next, &s_fx, offsetof(mfx_t, ramp)) == 0 && next.mode == s_fx.mode;
++    s_fx            = next;
++    if (!same) {
++        invalidate_screen();  // the whole screen is drawn again once, in the new look
++    }
++}
++
++void post_to_flush(lv_display_t* d, const lv_area_t* a, uint8_t* px)
++{
++    if (mfx_any(&s_fx)) {
++        const int64_t t0 = esp_timer_get_time();
++        mfx_post(&s_fx, reinterpret_cast<uint16_t*>(px), a->x1, a->y1, a->x2, a->y2);
++        const uint32_t us = static_cast<uint32_t>(esp_timer_get_time() - t0);
++        s_post_us += us;
++        s_post_n++;
++        if (us > s_post_worst_us) s_post_worst_us = us;
++    }
++    s_orig_flush(d, a, px);
++}
++
++void on_refresh(lv_event_t* e)
++{
++    if (lv_event_get_code(e) == LV_EVENT_REFR_START) {
++        s_refr_start_us = esp_timer_get_time();
++        return;
++    }
++    if (s_refr_start_us == 0) {
++        return;
++    }
++    const uint32_t us = static_cast<uint32_t>(esp_timer_get_time() - s_refr_start_us);
++    s_refr_start_us   = 0;
++    if (mg_feed(&s_gov, static_cast<uint32_t>(esp_timer_get_time() / 1000), us)) {
++        ESP_LOGW(TAG, "governor: level %d (load %u percent, worst frame %u us)", s_gov.level, (unsigned)s_gov.last_load_pct,
++                 (unsigned)s_gov.last_worst_us);
++        apply_effects();
++    }
++}
++
++// Once a second while the governor holds a level above zero: a quiet second counts as calm and restores a step.
++void gov_tick(lv_timer_t*)
++{
++    if (mg_idle(&s_gov, static_cast<uint32_t>(esp_timer_get_time() / 1000))) {
++        ESP_LOGI(TAG, "governor: restored to level %d", s_gov.level);
++        apply_effects();
++    }
++}
++
++void style_refresh()
++{
++    const mf_config_t c = maipai_face_config();
++    s_style_id          = mf_look_id(c.style);
++    s_style_stock       = c.style == MF_STYLE_STOCK;
++}
++
++void on_prefs(uint32_t changed)
++{
++    const uint32_t fxbits = (1u << MP_FX_CRT) | (1u << MP_FX_COLOUR_MODE) | (1u << MP_FX_NIGHT_DIM) | (1u << MP_FX_GLOW);
++    if (changed & fxbits) {
++        LvglLockGuard lock;
++        style_refresh();
++        apply_effects();
++    }
++}
+ }  // namespace
+ 
+ mp_prefs_t maipai_prefs()
+@@ -150,6 +290,52 @@ bool maipai_prefs_watch(maipai_prefs_cb cb)
+     return true;
+ }
+ 
++bool maipai_fx_bubble_on()
++{
++    const mp_prefs_t p = maipai_prefs();
++    bool stock         = false;
++    {
++        const mf_config_t c = maipai_face_config();
++        stock               = c.style == MF_STYLE_STOCK;
++    }
++    return mp_bubble_on(&p, stock);
++}
++
++void maipai_fx_attach(lv_display_t* display)
++{
++    ensure_loaded();
++    s_disp = display;
++    if (display == nullptr || display->flush_cb == nullptr) {
++        return;
++    }
++    mg_init(&s_gov);
++    memset(&s_fx, 0, sizeof s_fx);
++    s_orig_flush = display->flush_cb;
++    lv_display_set_flush_cb(display, post_to_flush);
++    lv_display_add_event_cb(display, on_refresh, LV_EVENT_REFR_START, nullptr);
++    lv_display_add_event_cb(display, on_refresh, LV_EVENT_REFR_READY, nullptr);
++    s_gov_timer = lv_timer_create(gov_tick, 1000, nullptr);
++    maipai_prefs_watch(on_prefs);
++    style_refresh();
++    apply_effects();
++    ESP_LOGI(TAG, "effects attached: crt %d, night %d, colour mode %d, glow %d", s_fx.crt, s_fx.night, s_fx.mode, s_fx.glow);
++}
++
++void maipai_fx_style_changed()
++{
++    style_refresh();
++    apply_effects();
++}
++
++void maipai_fx_note_emotion(const char* emotion)
++{
++    const bool asleep = emotion != nullptr && (strcmp(emotion, "sleeping") == 0 || strcmp(emotion, "closing") == 0);
++    if (asleep != s_sleeping) {
++        s_sleeping = asleep;
++        apply_effects();  // the halo goes while the eyes are shut
++    }
++}
++
+ bool maipai_fx_thinking_dots()
+ {
+     return maipai_pref(MP_THINKING_DOTS) != 0;
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index d634c7c..f7adc01 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -35,6 +35,7 @@
+ #include <hal/maipai_mood.h>
+ #include <hal/maipai_games.h>
+ #include <hal/maipai_facebench.h>
++#include <hal/maipai_fx.h>
+ #include <hal/maipai_facefx.h>
+ 
+ // True while the Wi-Fi setup portal is open (firmware/portal/maipai_wifi_configuration_ap.cc, patch P03).
+@@ -203,6 +204,7 @@ StackChanAvatarDisplay::StackChanAvatarDisplay(esp_lcd_panel_io_handle_t panel_i
+         return;
+     }
+     maipai_facebench_attach(display_);  // patch H01: bench builds count refreshes; nothing otherwise
++    maipai_fx_attach(display_);         // patch TA02: scanlines, colour modes, night dim, glow in the flush; overlays (TA03)
+ 
+     if (offset_x != 0 || offset_y != 0) {
+         lv_display_set_offset(display_, offset_x, offset_y);
+@@ -1365,6 +1367,8 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         return;
+     }
+ 
++    maipai_fx_note_emotion(emotion);  // patch TA02: the glow follows the eyes; the sleeping look has its floating zzz (TA03)
++
+     // The thinking cue (patch F05): the thinking emotion shows the dots and the doubtful face; any other emotion ends it.
+ #if CONFIG_MAIPAI_FACE_THINKING
+     if (strcmp(emotion, "thinking") == 0) {
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+index 88b865f..c71fec4 100644
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -119,6 +119,7 @@ void apply(DefaultAvatar* face, const mf_config_t& c)
+     face->setLook(mf_look_id(c.style));
+     face->setEmotionTint(c.emotion_tint != 0);
+     face->setEyeLidCap(cap);
++    maipai_fx_style_changed();  // patch TA02: the glow and the Stock bubble rule follow the style
+     face->setCaptionFont(c.caption_size == 0 ? &lv_font_montserrat_14
+                                              : (c.caption_size == 2 ? &lv_font_montserrat_20 : &lv_font_montserrat_16));
+ #if CONFIG_MAIPAI_FACE_CAPTIONS
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index dedadc3..a6ce48e 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -106,6 +106,7 @@ config MAIPAI_FACE_CAPTIONS
+ config MAIPAI_FX
+     bool "Saved preferences and screen effects: scanlines, colour modes, night dim, glow, overlays, the speech bubble"
+     default y
++    depends on MAIPAI_FACE_CONFIG
+     help
+         One preference store in the unit's flash (namespace maipai_prefs, one key per setting) with the tools
+         self.prefs.get and self.prefs.set, a post-processing step in the display flush (CRT scanlines, colour modes,

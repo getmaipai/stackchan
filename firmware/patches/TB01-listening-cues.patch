@@ -1,0 +1,917 @@
+# Intent: The three listening cues (owner decision 2026-11-16), each its own choice read from the NVS namespace maipai_prefs (listen_sound off/chime/mm, listen_light off/dim/normal, listen_light_colour, listen_face): a sound that plays from a sample ready before any network step (the shipped popup clip, or a voice-like mm rendered once at boot into 11.5 KB of PSRAM; both through the sound policy), a light (the LED ring breathing in the person's colour, brighter while it hears speech, a quick double blink at heard, a slower pulse in a rotated colour while thinking, steady dim while speaking, off at idle; one low-priority task, ring updates timed against a 30 ms budget) and a face cue. Mute silences the sound only; quiet hours cap the light at dim; full quiet turns sound, light and face cues off. The privacy cues that cannot be turned off (monitor_cue_begin) are not touched. self.listen.test plays them all once. New: AudioService::PlayPcm (mono samples straight to the playback queue, resampled), hal_bridge::leds_cue and leds_cue_off (a colour over the ring without touching its shadow), maipai_sounds_gate (the sound policy decision without playing), maipai_tb_nvs_key (NVS keys are at most 15 characters, so a longer pref name is cut to its first 15) and the cached prefs reader. The wake word calls maipai_listen_wake first thing in HandleWakeWordDetectedEvent; the later popup call dedupes (6 s).
+# Placement: unit (the cues run on the robot with no host)
+# Upstream: firmware/main/hal/{maipai_wake.cc,maipai_sounds.cc,maipai_sounds.h,hal_io_expander.cpp,board/hal_bridge.h} (ours, T03, 116, 075), xiaozhi-esp32 main/application.cc and main/audio/audio_service.{h,cc} (MIT); new hal/maipai_listen*.{h,cc}, maipai_tbprefs.{h,cc}
+# Check after a flash: self.listen.test answers sound, light and face as set and the ring shows listening, heard, thinking, speaking (read the ring pixels); the wake word plays the chosen sound before the connect; mute keeps the light; self.prefs listen_sound off silences it. Internal RAM steady cost with TB02 to TB05: about 3.1 KB (see the report).
+
+diff --git a/firmware/main/hal/maipai_listen_core.h b/firmware/main/hal/maipai_listen_core.h
+new file mode 100644
+index 0000000..55fbc8a
+--- /dev/null
++++ b/firmware/main/hal/maipai_listen_core.h
+@@ -0,0 +1,269 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The three listening cues (patch TB01): the pure logic. A person near the robot must be able to tell when it listens,
++ * so there are three cues, each its own choice: a sound (a soft chime or a voice-like "mm", from a sample that is ready
++ * before any network step), a light (the LED ring, breathing), and a face. This file holds the choices, the rules that
++ * mute, quiet hours and full quiet apply, the state-to-colour table of the ring, and the one rendered sample ("mm").
++ * Plain C99, no clock of its own, no hardware: a host compiler tests it (host/tests/firmware/listen_core_test.c).
++ *
++ * The privacy cues that can never be turned off (microphone live, camera on) are not here: monitor_cue_begin stays the
++ * single code path for them. Mute turns the sound off but keeps the light and the face; the cues are decoration.
++ */
++#ifndef MAIPAI_LISTEN_CORE_H
++#define MAIPAI_LISTEN_CORE_H
++
++#include <math.h>
++#include <stddef.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++/* ---- the choices (the names are the host's: host/maipai_body/unit_prefs.py) ---- */
++
++#define TL_SOUND_OFF 0
++#define TL_SOUND_CHIME 1
++#define TL_SOUND_MM 2
++#define TL_LIGHT_OFF 0
++#define TL_LIGHT_DIM 1
++#define TL_LIGHT_NORMAL 2
++
++typedef struct {
++    uint8_t sound; /* listen_sound: off, chime, mm */
++    uint8_t light; /* listen_light: off, dim, normal */
++    uint8_t face;  /* listen_face: 0 or 1 */
++    uint8_t r, g, b; /* listen_light_colour, "#rrggbb" */
++} tl_prefs_t;
++
++static inline void tl_prefs_default(tl_prefs_t* p)
++{
++    p->sound = TL_SOUND_CHIME;
++    p->light = TL_LIGHT_NORMAL;
++    p->face  = 1;
++    p->r     = 0x40;
++    p->g     = 0xc0;
++    p->b     = 0xff;
++}
++
++static inline int tl_hex(int c)
++{
++    if (c >= '0' && c <= '9') return c - '0';
++    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
++    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
++    return -1;
++}
++
++/* "#rrggbb" to a colour; 0 and the colour untouched when the text is anything else. */
++static inline int tl_parse_colour(const char* s, uint8_t* r, uint8_t* g, uint8_t* b)
++{
++    if (s == NULL || s[0] != '#' || strlen(s) != 7) {
++        return 0;
++    }
++    int v[6];
++    for (int i = 0; i < 6; i++) {
++        v[i] = tl_hex((unsigned char)s[1 + i]);
++        if (v[i] < 0) {
++            return 0;
++        }
++    }
++    *r = (uint8_t)(v[0] * 16 + v[1]);
++    *g = (uint8_t)(v[2] * 16 + v[3]);
++    *b = (uint8_t)(v[4] * 16 + v[5]);
++    return 1;
++}
++
++/* Each of these answers 1 and sets *out when the text is one of the allowed words, else 0 and *out is untouched. */
++static inline int tl_parse_sound(const char* s, uint8_t* out)
++{
++    if (s == NULL) return 0;
++    if (strcmp(s, "off") == 0) { *out = TL_SOUND_OFF; return 1; }
++    if (strcmp(s, "chime") == 0) { *out = TL_SOUND_CHIME; return 1; }
++    if (strcmp(s, "mm") == 0) { *out = TL_SOUND_MM; return 1; }
++    return 0;
++}
++
++static inline int tl_parse_light(const char* s, uint8_t* out)
++{
++    if (s == NULL) return 0;
++    if (strcmp(s, "off") == 0) { *out = TL_LIGHT_OFF; return 1; }
++    if (strcmp(s, "dim") == 0) { *out = TL_LIGHT_DIM; return 1; }
++    if (strcmp(s, "normal") == 0) { *out = TL_LIGHT_NORMAL; return 1; }
++    return 0;
++}
++
++/* ---- what the rules allow right now ---- */
++
++typedef struct {
++    uint8_t muted;      /* the hard mute */
++    uint8_t quiet_hrs;  /* quiet hours, or the host's "it is dark" */
++    uint8_t full_quiet; /* full quiet: the unit shows the sleeping face and wants nothing from the room */
++    uint8_t sound_ok;   /* the sound policy would play a wake chime now (it already reads mute and "sounds off") */
++} tl_env_t;
++
++typedef struct {
++    uint8_t sound; /* TL_SOUND_*: what plays now (off when the person or the rules say so) */
++    uint8_t light; /* TL_LIGHT_*: what shows now */
++    uint8_t face;  /* 0 or 1 */
++} tl_effective_t;
++
++/* Mute: no sound, light and face stay. Quiet hours: the light is at most dim; the sound goes through the sound policy,
++ * which lets the wake chime through for a person who is there (T03) and silences everything else. Full quiet: no sound
++ * and no light (the face is the sleeping face and does not change either). */
++static inline tl_effective_t tl_effective(const tl_prefs_t* p, const tl_env_t* e)
++{
++    tl_effective_t out;
++    out.sound = p->sound;
++    out.light = p->light;
++    out.face  = p->face;
++    if (e->muted || !e->sound_ok || e->full_quiet) {
++        out.sound = TL_SOUND_OFF;
++    }
++    if (e->full_quiet) {
++        out.light = TL_LIGHT_OFF;
++        out.face  = 0;
++    } else if (e->quiet_hrs && out.light > TL_LIGHT_DIM) {
++        out.light = TL_LIGHT_DIM;
++    }
++    return out;
++}
++
++/* All three off: the page says so in plain words (people near the robot will not see or hear when it listens). */
++static inline int tl_all_off(const tl_prefs_t* p) { return p->sound == TL_SOUND_OFF && p->light == TL_LIGHT_OFF && !p->face; }
++
++/* ---- the light: one state, one colour, one brightness at each moment ---- */
++
++typedef enum {
++    TL_ST_OFF = 0, /* idle: the ring is not ours */
++    TL_ST_LISTEN,  /* after the wake word and in follow-up listening: a soft breath */
++    TL_ST_HEARD,   /* it heard you and starts thinking: a quick double blink, then the thinking pulse */
++    TL_ST_THINK,   /* a different slow pulse in a different colour */
++    TL_ST_SPEAK,   /* steady and dim while it speaks */
++    TL_ST_COUNT
++} tl_state_t;
++
++static const char* const TL_STATE_NAMES[TL_ST_COUNT] = {"off", "listen", "heard", "think", "speak"};
++
++/* Brightness in thousandths of the colour's own value, at "normal"; "dim" is a third of it. These numbers are the
++ * table the test pins. The peak of a channel at normal is 0.43 of its value (the ring is bright at the edge of a desk). */
++#define TL_BREATH_MS 3200   /* listen: one breath */
++#define TL_THINK_MS 1800    /* think: one pulse, slower than a heartbeat, faster than a breath */
++#define TL_BLINK_MS 90      /* heard: each on and each off */
++#define TL_HEARD_MS (4 * TL_BLINK_MS)
++#define TL_PEAK_NORMAL 110  /* of 255 */
++#define TL_PEAK_DIM 36
++#define TL_SPEAK_PERMILLE 220
++#define TL_HEARING_BOOST_PERMILLE 1500 /* listen, while it hears speech: brighter */
++#define TL_PEAK_MAX_NORMAL 165 /* the boosted peak never goes past this */
++#define TL_FRAME_BUDGET_MS 30 /* one ring update may take this long at most (I2C to the expander) */
++
++/* A triangle wave eased with a sine: 0..1000, period `period`, minimum at t=0. */
++static inline int tl_breath_permille(uint32_t t, uint32_t period)
++{
++    const float x = (float)(t % period) / (float)period;
++    return (int)(500.0f - 500.0f * cosf(6.2831853f * x));
++}
++
++typedef struct {
++    uint8_t r, g, b;
++    uint8_t lit; /* 0 when the ring is dark (idle, or a blink gap) */
++} tl_rgb_t;
++
++/* The colour while thinking: the listening colour with its channels rotated, so it is always a different colour
++ * (cyan listens, a lime-green thinks) and still the person's own palette. A grey stays grey: the pulse and the
++ * slower rhythm are then the difference. */
++static inline void tl_think_colour(uint8_t r, uint8_t g, uint8_t b, uint8_t* tr, uint8_t* tg, uint8_t* tb)
++{
++    *tr = g;
++    *tg = b;
++    *tb = r;
++}
++
++/* The ring at `since_ms` after `state` began. `hearing` is the voice-activity bit (it hears speech now). */
++static inline tl_rgb_t tl_frame(tl_state_t state, uint32_t since_ms, int hearing, const tl_prefs_t* p, int light_level)
++{
++    tl_rgb_t out = {0, 0, 0, 0};
++    if (light_level <= TL_LIGHT_OFF || state == TL_ST_OFF || state >= TL_ST_COUNT) {
++        return out;
++    }
++    const int peak = light_level == TL_LIGHT_DIM ? TL_PEAK_DIM : TL_PEAK_NORMAL;
++    uint8_t cr = p->r, cg = p->g, cb = p->b;
++    int permille = 0;
++    switch (state) {
++    case TL_ST_LISTEN:
++        /* a breath between 18 and 100 percent; brighter while it hears speech */
++        permille = 180 + (tl_breath_permille(since_ms, TL_BREATH_MS) * 820) / 1000;
++        break;
++    case TL_ST_HEARD:
++        if (since_ms >= TL_HEARD_MS) {
++            return tl_frame(TL_ST_THINK, since_ms - TL_HEARD_MS, 0, p, light_level);
++        }
++        permille = ((since_ms / TL_BLINK_MS) % 2 == 0) ? 1000 : 0; /* on, off, on, off */
++        break;
++    case TL_ST_THINK:
++        tl_think_colour(p->r, p->g, p->b, &cr, &cg, &cb);
++        permille = 120 + (tl_breath_permille(since_ms, TL_THINK_MS) * 560) / 1000;
++        break;
++    case TL_ST_SPEAK:
++        permille = TL_SPEAK_PERMILLE;
++        break;
++    default:
++        return out;
++    }
++    int scale = (peak * permille) / 1000; /* of 255 */
++    if (state == TL_ST_LISTEN && hearing) {
++        scale = (scale * TL_HEARING_BOOST_PERMILLE) / 1000;
++        const int cap = light_level == TL_LIGHT_DIM ? TL_PEAK_DIM : TL_PEAK_MAX_NORMAL;
++        if (scale > cap) scale = cap;
++    }
++    if (scale <= 0) {
++        return out;
++    }
++    out.r   = (uint8_t)((cr * scale + 127) / 255);
++    out.g   = (uint8_t)((cg * scale + 127) / 255);
++    out.b   = (uint8_t)((cb * scale + 127) / 255);
++    out.lit = (out.r | out.g | out.b) != 0;
++    return out;
++}
++
++/* ---- the sound: a short voice-like "mm", rendered once at boot so nothing is decoded or fetched at the wake ---- */
++
++#define TL_MM_RATE 16000
++#define TL_MM_MS 360
++#define TL_MM_SAMPLES (TL_MM_RATE * TL_MM_MS / 1000) /* 5760 samples, 11,520 bytes */
++
++/* A hummed "mm": a glottal buzz at about 175 Hz falling a little, shaped by a low-pass resonance (the nasal murmur
++ * sits under 800 Hz), an attack of 35 ms and a release of 140 ms. Peak about 0.30 of full scale, so it is a murmur
++ * and never a bark. Deterministic. Returns the sample count. */
++static inline size_t tl_render_mm(int16_t* out, size_t cap)
++{
++    const size_t n = TL_MM_SAMPLES < cap ? (size_t)TL_MM_SAMPLES : cap;
++    float phase = 0.0f;
++    float lp1 = 0.0f, lp2 = 0.0f;
++    for (size_t i = 0; i < n; i++) {
++        const float t  = (float)i / TL_MM_RATE;
++        const float f0 = 182.0f - 22.0f * (t / (TL_MM_MS / 1000.0f));
++        phase += f0 / TL_MM_RATE;
++        phase -= floorf(phase);
++        /* a band-limited-ish buzz: the first eight harmonics at 1/k */
++        float s = 0.0f;
++        for (int k = 1; k <= 8; k++) {
++            s += sinf(6.2831853f * phase * (float)k) / (float)k;
++        }
++        lp1 += 0.20f * (s - lp1); /* two poles near 600 Hz at 16 kHz */
++        lp2 += 0.20f * (lp1 - lp2);
++        float env      = 1.0f;
++        const float ms = t * 1000.0f;
++        if (ms < 35.0f) env = ms / 35.0f;
++        else if (ms > TL_MM_MS - 140.0f) env = ((float)TL_MM_MS - ms) / 140.0f;
++        if (env < 0.0f) env = 0.0f;
++        env = env * env * (3.0f - 2.0f * env); /* smoothstep */
++        float v = lp2 * env * 0.50f;
++        if (v > 1.0f) v = 1.0f;
++        if (v < -1.0f) v = -1.0f;
++        out[i] = (int16_t)(v * 32767.0f * 0.60f);
++    }
++    return n;
++}
++
++#endif /* MAIPAI_LISTEN_CORE_H */
+diff --git a/firmware/main/hal/maipai_listen.h b/firmware/main/hal/maipai_listen.h
+new file mode 100644
+index 0000000..41677b4
+--- /dev/null
++++ b/firmware/main/hal/maipai_listen.h
+@@ -0,0 +1,19 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The three listening cues, device side (patch TB01). Logic: maipai_listen_core.h. Choices: maipai_tbprefs.h.
++ */
++#pragma once
++
++// self.listen.test: plays all enabled cues once.
++void maipai_listen_register_tools();
++
++// The wake word (or a touch) starts a listen: plays the sound cue at once from the preloaded sample, before any network step,
++// and starts the light and face cues. Safe to call twice for one wake: a second call within 1.2 s is ignored. Safe from any task.
++void maipai_listen_wake(int within_ms = 1200);
++
++// The thinking cue began or ended (called by maipai_face_thinking): the ring does a double blink then a slow pulse.
++void maipai_listen_thinking(bool on);
++
++// True while the listening light is on the ring (the remote tint waits for it to go dark).
++bool maipai_listen_ring_active();
+diff --git a/firmware/main/hal/maipai_listen.cc b/firmware/main/hal/maipai_listen.cc
+new file mode 100644
+index 0000000..1bde7fe
+--- /dev/null
++++ b/firmware/main/hal/maipai_listen.cc
+@@ -0,0 +1,222 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The three listening cues (patch TB01): sound, light, face. Each is a choice (maipai_tbprefs.h). The sound is a sample
++ * that is ready before the wake: the chime is the shipped "popup" clip, the "mm" is rendered once at boot into 11.5 KB of
++ * PSRAM. The light is the LED ring, driven by one low-priority task (stack in PSRAM) that wakes every 60 ms while a cue
++ * shows and every 500 ms otherwise; a ring update is one I2C transfer and the time of each is measured (a frame that takes
++ * more than 30 ms is counted). The privacy cues that cannot be turned off (microphone live, camera on) are a different
++ * code path (monitor_cue_begin) and are not touched here.
++ * Steady internal RAM: the task's control block (about 0.4 KB) and the state below (about 0.1 KB).
++ */
++#include "maipai_listen.h"
++#include "maipai_listen_core.h"
++#include "maipai_tbprefs.h"
++#include "maipai_filler.h"
++#include "maipai_privacy.h"
++#include "maipai_sounds.h"
++#include "maipai_timers.h"
++#include "maipai_remote.h"
++#include "board/hal_bridge.h"
++#include <application.h>
++#include <board.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/idf_additions.h>
++#include <freertos/task.h>
++#include <mcp_server.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++
++static const char* TAG = "MAIPAI-LISTEN";
++
++namespace {
++
++int16_t* s_mm        = nullptr;  // PSRAM
++size_t s_mm_n        = 0;
++TaskHandle_t s_task  = nullptr;
++std::atomic<int64_t> s_wake_us{0};
++std::atomic<bool> s_thinking{false};
++std::atomic<int64_t> s_think_us{0};
++std::atomic<int> s_test{0};      // 0 none; else the test step started at s_test_us
++std::atomic<int64_t> s_test_us{0};
++std::atomic<bool> s_lit{false};
++std::atomic<uint32_t> s_slow{0}, s_frames{0}, s_max_us{0};
++
++uint32_t ms_now() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++tl_env_t env_now()
++{
++    tl_env_t e = {};
++    bool night = false;
++    e.sound_ok = maipai_sounds_gate("popup", &night) ? 1 : 0;
++    e.muted      = maipai_muted() ? 1 : 0;
++    e.quiet_hrs  = night ? 1 : 0;
++    e.full_quiet = maipai_quiet() ? 1 : 0;
++    return e;
++}
++
++tl_effective_t effective_now(const tl_prefs_t& p)
++{
++    const tl_env_t e = env_now();
++    return tl_effective(&p, &e);
++}
++
++void play_sound(uint8_t which)
++{
++    if (which == TL_SOUND_CHIME) {
++        (void)maipai_sounds_play("popup");  // the policy gate is inside
++    } else if (which == TL_SOUND_MM && s_mm != nullptr) {
++        Application::GetInstance().GetAudioService().PlayPcm(s_mm, s_mm_n, TL_MM_RATE);
++    }
++}
++
++void render_task(void*)
++{
++    int16_t* buf = static_cast<int16_t*>(heap_caps_malloc(TL_MM_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (buf != nullptr) {
++        s_mm_n = tl_render_mm(buf, TL_MM_SAMPLES);
++        s_mm   = buf;
++    }
++    vTaskDelete(nullptr);
++}
++
++void ring_task(void*)
++{
++    tl_state_t last_state = TL_ST_OFF;
++    int64_t state_since   = 0;
++    bool lit              = false;
++    DeviceState prev_dev  = kDeviceStateIdle;
++    for (;;) {
++        const int wait_ms = (lit || s_test.load() != 0 || s_thinking.load()) ? 60 : 500;
++        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(wait_ms));
++        const int64_t now = esp_timer_get_time();
++        auto& app         = Application::GetInstance();
++        const DeviceState dev = app.GetDeviceState();
++        if (dev == kDeviceStateListening && prev_dev != kDeviceStateListening) {
++            maipai_filler_turn_start();  // a new turn: the filler may play once more
++        }
++        prev_dev = dev;
++
++        const MaipaiTbPrefs prefs = maipai_tb_prefs();
++        const tl_effective_t eff  = effective_now(prefs.listen);
++        tl_state_t st             = TL_ST_OFF;
++        uint32_t since            = 0;
++        int hearing               = 0;
++        if (s_test.load() != 0) {  // self.listen.test: listen 1.6 s, heard + think 1.4 s, speak 0.8 s
++            const int64_t t = (now - s_test_us.load()) / 1000;
++            if (t < 1600) { st = TL_ST_LISTEN; since = static_cast<uint32_t>(t); }
++            else if (t < 1600 + 1400) { st = TL_ST_HEARD; since = static_cast<uint32_t>(t - 1600); }
++            else if (t < 3800) { st = TL_ST_SPEAK; since = static_cast<uint32_t>(t - 3000); }
++            else { s_test.store(0); }
++        } else if (s_thinking.load() && dev != kDeviceStateSpeaking) {
++            st    = TL_ST_HEARD;
++            since = static_cast<uint32_t>((now - s_think_us.load()) / 1000);
++        } else if (dev == kDeviceStateListening) {
++            st      = TL_ST_LISTEN;
++            since   = static_cast<uint32_t>((now - s_wake_us.load()) / 1000);
++            hearing = app.GetAudioService().IsVoiceDetected() ? 1 : 0;
++        } else if (dev == kDeviceStateSpeaking) {
++            st    = TL_ST_SPEAK;
++            since = 0;
++        }
++        if (st != last_state) {
++            last_state  = st;
++            state_since = now;
++        }
++        const tl_rgb_t c = tl_frame(st, since, hearing, &prefs.listen, eff.light);
++        const bool own_ring = maipai_timers_ringing();  // a ringing timer owns the ring
++        if (c.lit && !own_ring) {
++            const int64_t t0 = esp_timer_get_time();
++            hal_bridge::leds_cue(c.r, c.g, c.b);
++            const uint32_t us = static_cast<uint32_t>(esp_timer_get_time() - t0);
++            s_frames.fetch_add(1);
++            if (us > s_max_us.load()) s_max_us.store(us);
++            if (us > TL_FRAME_BUDGET_MS * 1000u) s_slow.fetch_add(1);
++            lit = true;
++            s_lit.store(true);
++        } else if (lit) {
++            hal_bridge::leds_cue_off();
++            lit = false;
++            s_lit.store(false);
++            maipai_remote_ring_refresh();  // the violet remote tint comes back if a remote session is on
++        }
++        (void)state_since;
++    }
++}
++
++void ensure_task()
++{
++    if (s_task != nullptr) return;
++    xTaskCreatePinnedToCoreWithCaps(ring_task, "listen_ring", 3072, nullptr, 1, &s_task, 0, MALLOC_CAP_SPIRAM);
++}
++
++}  // namespace
++
++void maipai_listen_wake(int within_ms)
++{
++    const int64_t now = esp_timer_get_time();
++    const int64_t prev = s_wake_us.load();
++    if (prev != 0 && now - prev < static_cast<int64_t>(within_ms) * 1000) {
++        return;
++    }
++    s_wake_us.store(now);
++    const MaipaiTbPrefs prefs = maipai_tb_prefs();
++    const tl_effective_t eff  = effective_now(prefs.listen);
++    if (eff.sound != TL_SOUND_OFF) {
++        play_sound(eff.sound);  // first: nothing before this waits for the network
++    }
++    if (eff.face) {
++        hal_bridge::react_face("surprised", 500);
++    }
++    if (s_task != nullptr) {
++        xTaskNotifyGive(s_task);
++    }
++}
++
++bool maipai_listen_ring_active() { return s_lit.load(); }
++
++void maipai_listen_thinking(bool on)
++{
++    if (on) {
++        s_think_us.store(esp_timer_get_time());
++    }
++    s_thinking.store(on);
++    if (s_task != nullptr) {
++        xTaskNotifyGive(s_task);
++    }
++}
++
++void maipai_listen_register_tools()
++{
++    xTaskCreate(render_task, "mm_render", 3072, nullptr, 1, nullptr);  // transient: renders the "mm" then ends
++    ensure_task();
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.listen.test",
++                "Plays every enabled listening cue once: the sound (chime or mm), the ring light (listening, heard, thinking, "
++                "speaking) and the face. Follows mute, sounds off, quiet hours and full quiet like a real listen. Answers "
++                "{ok, sound, light, face, ring_frames, ring_slow}.",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    const MaipaiTbPrefs prefs = maipai_tb_prefs();
++                    const tl_effective_t eff  = effective_now(prefs.listen);
++                    static const char* const snd[3] = {"off", "chime", "mm"};
++                    static const char* const lgt[3] = {"off", "dim", "normal"};
++                    if (eff.sound != TL_SOUND_OFF) play_sound(eff.sound);
++                    if (eff.face) hal_bridge::react_face("surprised", 700);
++                    s_test_us.store(esp_timer_get_time());
++                    s_test.store(1);
++                    if (s_task != nullptr) xTaskNotifyGive(s_task);
++                    char out[220];
++                    snprintf(out, sizeof(out),
++                             "{\"ok\":true,\"sound\":\"%s\",\"light\":\"%s\",\"face\":%s,\"sound_chosen\":\"%s\",\"all_off\":%s,"
++                             "\"ring_frames\":%u,\"ring_slow\":%u,\"ring_max_us\":%u}",
++                             snd[eff.sound], lgt[eff.light], eff.face ? "true" : "false", snd[prefs.listen.sound],
++                             tl_all_off(&prefs.listen) ? "true" : "false", static_cast<unsigned>(s_frames.load()),
++                             static_cast<unsigned>(s_slow.load()), static_cast<unsigned>(s_max_us.load()));
++                    return std::string(out);
++                });
++    ESP_LOGI(TAG, "listening cues ready");
++}
+diff --git a/firmware/main/hal/maipai_tbprefs.h b/firmware/main/hal/maipai_tbprefs.h
+new file mode 100644
+index 0000000..55804de
+--- /dev/null
++++ b/firmware/main/hal/maipai_tbprefs.h
+@@ -0,0 +1,31 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The saved choices of the listening cues, "While it thinks" and the pickup reaction, read from the NVS namespace
++ * "maipai_prefs" (patch TB01). The unit's one preference store belongs to the self.prefs tool (patch set A); this file only
++ * READS the keys it needs, with the stock Settings class, and caches them. Key names are the host's
++ * (host/maipai_body/unit_prefs.py). An NVS key holds at most 15 characters, so a longer name is cut to its first 15
++ * characters, by one function both the writer and this reader call: maipai_tb_nvs_key. Value types: an enum is a string
++ * ("chime"), a colour a string ("#40c0ff"), a bool a string ("true", "on", "1") or an integer 0/1, filler_wait_s a string
++ * ("0.4") or an integer number of milliseconds.
++ */
++#pragma once
++#include "maipai_filler_core.h"
++#include "maipai_listen_core.h"
++
++#define MAIPAI_PREFS_NAMESPACE "maipai_prefs"
++
++// Copies the NVS key for a pref name into out (at most 15 characters and the end mark); returns out.
++const char* maipai_tb_nvs_key(const char* name, char out[16]);
++
++// Pickup reaction: 0 off, 1 face only, 2 face and sound (key pickup_reaction: off, face, face_sound).
++struct MaipaiTbPrefs {
++    tl_prefs_t listen;
++    tf_prefs_t filler;
++    uint8_t pickup;
++};
++
++// The saved values (defaults for any key not saved). Cached; re-read from flash when older than 5 s or after an invalidate.
++MaipaiTbPrefs maipai_tb_prefs();
++// The self.prefs.set writer calls this after it saves, so the new values apply at once.
++void maipai_tb_prefs_invalidate();
+diff --git a/firmware/main/hal/maipai_tbprefs.cc b/firmware/main/hal/maipai_tbprefs.cc
+new file mode 100644
+index 0000000..0d25166
+--- /dev/null
++++ b/firmware/main/hal/maipai_tbprefs.cc
+@@ -0,0 +1,114 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Reads the listening, filler and pickup choices from NVS (patch TB01). See maipai_tbprefs.h.
++ */
++#include "maipai_tbprefs.h"
++#include <esp_timer.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/semphr.h>
++#include <settings.h>
++#include <atomic>
++#include <cstring>
++#include <mutex>
++#include <string>
++
++namespace {
++
++std::mutex s_mu;
++MaipaiTbPrefs s_cache;
++int64_t s_loaded_us = -1;
++std::atomic<bool> s_dirty{true};
++
++bool text_true(const std::string& s)
++{
++    return s == "true" || s == "on" || s == "1" || s == "yes";
++}
++bool text_false(const std::string& s)
++{
++    return s == "false" || s == "off" || s == "0" || s == "no";
++}
++
++// A bool saved as a string or as an integer; false and untouched when it is neither.
++void read_bool(Settings& st, const char* name, uint8_t* out)
++{
++    char key[16];
++    maipai_tb_nvs_key(name, key);
++    const std::string s = st.GetString(key, "");
++    if (text_true(s)) {
++        *out = 1;
++        return;
++    }
++    if (text_false(s)) {
++        *out = 0;
++        return;
++    }
++    const int32_t v = st.GetInt(key, -1);
++    if (v == 0 || v == 1) {
++        *out = static_cast<uint8_t>(v);
++    }
++}
++
++std::string read_text(Settings& st, const char* name)
++{
++    char key[16];
++    maipai_tb_nvs_key(name, key);
++    return st.GetString(key, "");
++}
++
++void load(MaipaiTbPrefs* out)
++{
++    tl_prefs_default(&out->listen);
++    tf_prefs_default(&out->filler);
++    out->pickup = 1;
++    Settings st(MAIPAI_PREFS_NAMESPACE, false);
++    std::string s = read_text(st, "listen_sound");
++    uint8_t v;
++    if (tl_parse_sound(s.c_str(), &v)) out->listen.sound = v;
++    s = read_text(st, "listen_light");
++    if (tl_parse_light(s.c_str(), &v)) out->listen.light = v;
++    s = read_text(st, "listen_light_colour");
++    tl_parse_colour(s.c_str(), &out->listen.r, &out->listen.g, &out->listen.b);
++    read_bool(st, "listen_face", &out->listen.face);
++    s = read_text(st, "filler_mode");
++    if (tf_parse_mode(s.c_str(), &v)) out->filler.mode = v;
++    s = read_text(st, "filler_wait_s");
++    uint16_t w;
++    if (tf_parse_wait(s.c_str(), &w)) {
++        out->filler.wait_ms = w;
++    } else {
++        char key[16];
++        maipai_tb_nvs_key("filler_wait_s", key);
++        const int32_t ms = st.GetInt(key, -1);
++        if (ms >= TF_WAIT_MIN_MS && ms <= TF_WAIT_MAX_MS) out->filler.wait_ms = static_cast<uint16_t>(ms);
++    }
++    s = read_text(st, "pickup_reaction");
++    if (s == "off") out->pickup = 0;
++    else if (s == "face") out->pickup = 1;
++    else if (s == "face_sound") out->pickup = 2;
++}
++
++}  // namespace
++
++const char* maipai_tb_nvs_key(const char* name, char out[16])
++{
++    strncpy(out, name != nullptr ? name : "", 15);
++    out[15] = 0;
++    return out;
++}
++
++MaipaiTbPrefs maipai_tb_prefs()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    const int64_t now = esp_timer_get_time();
++    if (s_dirty.exchange(false) || s_loaded_us < 0 || now - s_loaded_us > 5000000) {
++        load(&s_cache);
++        s_loaded_us = now;
++    }
++    return s_cache;
++}
++
++void maipai_tb_prefs_invalidate()
++{
++    s_dirty.store(true);
++}
+diff --git a/firmware/main/hal/hal_io_expander.cpp b/firmware/main/hal/hal_io_expander.cpp
+index 394f7c8..e9dc8e3 100644
+--- a/firmware/main/hal/hal_io_expander.cpp
++++ b/firmware/main/hal/hal_io_expander.cpp
+@@ -107,6 +107,40 @@ void hal_bridge::leds_offline(bool on)
+     _io_expander->refreshLeds();
+ }
+ 
++// The listening light (patch TB01): one colour on all twelve, drawn over whatever the ring shows and taken off again by
++// leds_cue_off(), which puts the colours back from the shadow. The shadow is never written here, so a timer that rings, or
++// the host's own colours, are what comes back. Not drawn while the offline amber shows (nobody is talking to a unit that
++// has no link) and the caller skips it while a ring of its own, such as a ringing timer, is on.
++static bool _rgb_cue = false;
++
++void hal_bridge::leds_cue(uint8_t r, uint8_t g, uint8_t b)
++{
++    if (!_io_expander || _rgb_offline) {
++        return;
++    }
++    _rgb_cue = true;
++    for (int i = 0; i < 12; i++) {
++        _io_expander->setLedColor(i, r, g, b);
++    }
++    _io_expander->refreshLeds();
++}
++
++void hal_bridge::leds_cue_off()
++{
++    if (!_io_expander || !_rgb_cue) {
++        return;
++    }
++    _rgb_cue = false;
++    for (int i = 0; i < 12; i++) {
++        if (_rgb_offline && _rgb_shadow[i][0] == 0 && _rgb_shadow[i][1] == 0 && _rgb_shadow[i][2] == 0) {
++            _io_expander->setLedColor(i, kOfflineAmber[0], kOfflineAmber[1], kOfflineAmber[2]);
++        } else {
++            _io_expander->setLedColor(i, _rgb_shadow[i][0], _rgb_shadow[i][1], _rgb_shadow[i][2]);
++        }
++    }
++    _io_expander->refreshLeds();
++}
++
+ void Hal::refreshRgb()
+ {
+     if (!_io_expander) {
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+index 1c772e1..c4dea30 100644
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -110,5 +110,9 @@ void link_look(int look);
+ void offline_indicator(bool on);
+ void offline_indicator_refresh();
+ void leds_offline(bool on);
++// The listening light (patch TB01): one colour on the whole ring, over what it shows; leds_cue_off puts the ring back from
++// the colours its owners asked for. Safe from any task; each call is one I2C transfer of the twelve LEDs.
++void leds_cue(uint8_t r, uint8_t g, uint8_t b);
++void leds_cue_off();
+ 
+ }  // namespace hal_bridge
+diff --git a/firmware/main/hal/maipai_sounds.h b/firmware/main/hal/maipai_sounds.h
+index 6fd5c14..de0fca9 100644
+--- a/firmware/main/hal/maipai_sounds.h
++++ b/firmware/main/hal/maipai_sounds.h
+@@ -11,6 +11,11 @@ void maipai_sounds_register_tools();
+ // Plays one named sound through the sound policy and the hard mute (patch F05). Returns true if it was queued.
+ bool maipai_sounds_play(const char* name);
+ 
++// Whether the sound policy would let the named sound play now (patch TB01), without playing it: the same gate as
++// maipai_sounds_play (mute, sounds off, quiet hours). For the unit's own PCM cues and fillers, which play through
++// AudioService::PlayPcm. `night_out`, when given, says whether it is night for sounds.
++bool maipai_sounds_gate(const char* name, bool* night_out = nullptr);
++
+ // Whether the hourly chime must stay quiet at this local minute of the day (patch T02): the person's quiet hours
+ // (22:00 to 07:00 when none are set) or the host's "it is dark" while the host is connected.
+ bool maipai_sounds_chime_quiet(int minute);
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+index c50c5ec..22d059f 100644
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -326,6 +326,21 @@ bool maipai_sounds_chime_quiet(int minute)
+     return mh_quiet_now(&s_policy, minute, hal_bridge::hub_link_up()) != 0;
+ }
+ 
++bool maipai_sounds_gate(const char* name, bool* night_out)
++{
++    const int s = ms_sound_from_name(name != nullptr ? name : "");
++    ms_policy_t policy;
++    bool night = false;
++    snapshot(&policy, &night);
++    if (maipai_muted()) {
++        policy.muted = 1;
++    }
++    if (night_out != nullptr) {
++        *night_out = night;
++    }
++    return s >= 0 && ms_decide(&policy, s, 0, night ? 1 : 0, 0) == MS_OK;
++}
++
+ void maipai_sounds_link_event(int event)
+ {
+ #if CONFIG_MAIPAI_OFFLINE_PHRASES
+diff --git a/firmware/main/hal/maipai_wake.cc b/firmware/main/hal/maipai_wake.cc
+index 0bd2f31..8368f9a 100644
+--- a/firmware/main/hal/maipai_wake.cc
++++ b/firmware/main/hal/maipai_wake.cc
+@@ -4,6 +4,7 @@
+  * The wake word's feedback cue and self-test, device side (patch T03). The judging is maipai_wake_core.h.
+  */
+ #include "maipai_wake.h"
++#include "maipai_listen.h"
+ #include "maipai_wake_core.h"
+ #include "maipai_sounds.h"
+ #include "maipai_privacy.h"
+@@ -18,8 +19,9 @@ static const char* TAG = "MAIPAI-WAKE";
+ 
+ void maipai_wake_cue()
+ {
+-    // "popup" is allowed at night (a person is there) but not when sounds are off or the unit is muted.
+-    (void)maipai_sounds_play("popup");
++    // Patch TB01: the cue is the person's choice (off, chime, mm) and already played at the wake word; this is the late call from
++    // the listen start, which only plays when the early one did not (a touch started the listen).
++    maipai_listen_wake(6000);
+ }
+ 
+ namespace {
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.h b/firmware/xiaozhi-esp32/main/audio/audio_service.h
+index 50785ca..cede3fa 100644
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.h
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.h
+@@ -144,6 +144,9 @@ public:
+     bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);
+     std::unique_ptr<AudioStreamPacket> PopPacketFromSendQueue();
+     void PlaySound(const std::string_view& sound);
++    // Plays mono 16-bit samples held in memory (patch TB01): the listening cue, the filler sounds. Resamples to the codec's
++    // rate, goes straight to the playback queue (no decode), and gives up quietly when the queue is full. True if queued.
++    bool PlayPcm(const int16_t* pcm, size_t samples, int sample_rate);
+     bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
+     void ResetDecoder();
+     void SetSpeechOpen(bool open) { speech_open_ = open; }
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.cc b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+index cedf8d1..90e6a54 100644
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+@@ -879,6 +879,50 @@ void AudioService::PlaySound(const std::string_view& ogg) {
+     demuxer->Process(buf, size);
+ }
+ 
++bool AudioService::PlayPcm(const int16_t* pcm, size_t samples, int sample_rate) {
++    if (codec_ == nullptr || pcm == nullptr || samples == 0 || sample_rate <= 0) {
++        return false;
++    }
++    const int out_rate = codec_->output_sample_rate();
++    if (out_rate <= 0) {
++        return false;
++    }
++    AudioTask task;
++    task.type = kAudioTaskTypeDecodeToPlaybackQueue;
++    if (sample_rate == out_rate) {
++        task.pcm.assign(pcm, pcm + samples);
++    } else {
++        // Linear interpolation: these are short earcons and murmurs, not music.
++        const size_t n = static_cast<size_t>((static_cast<uint64_t>(samples) * out_rate) / sample_rate);
++        if (n == 0) {
++            return false;
++        }
++        task.pcm.resize(n);
++        const float step = static_cast<float>(sample_rate) / static_cast<float>(out_rate);
++        for (size_t i = 0; i < n; i++) {
++            const float pos = static_cast<float>(i) * step;
++            const size_t a = static_cast<size_t>(pos);
++            const size_t b = a + 1 < samples ? a + 1 : a;
++            const float f = pos - static_cast<float>(a);
++            task.pcm[i] = static_cast<int16_t>(static_cast<float>(pcm[a]) * (1.0f - f) + static_cast<float>(pcm[b]) * f);
++        }
++    }
++    if (!codec_->output_enabled()) {
++        esp_timer_stop(audio_power_timer_);
++        esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
++        codec_->EnableOutput(true);
++    }
++    {
++        std::lock_guard<std::mutex> lock(audio_queue_mutex_);
++        if (audio_playback_queue_.size() >= MAX_PLAYBACK_TASKS_IN_QUEUE) {
++            return false;
++        }
++        audio_playback_queue_.push_back(std::move(task));
++    }
++    audio_queue_cv_.notify_all();
++    return true;
++}
++
+ bool AudioService::IsIdle() {
+     std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+     return audio_encode_queue_.empty() && IsPlaybackDrainedLocked() && audio_testing_queue_.empty();
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+index a084340..5a7f01e 100644
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -22,6 +22,8 @@
+ #include <hal/maipai_timers.h>
+ #include <hal/maipai_games.h>
+ #include <hal/maipai_wake.h>
++#include <hal/maipai_listen.h>
++#include <hal/maipai_remote.h>
+ #include <hal/maipai_lat.h>
+ #include <esp_timer.h>
+ #include <esp_log.h>
+@@ -117,6 +119,11 @@ void Application::Initialize() {
+     // tells the host to end the turn, and nothing is said.
+     audio_service_.SetStopWordCallback([this]() {
+         Schedule([this]() {
++            // A remote message waiting to be spoken is cancelled first (patch TB05): nothing said without the person's say.
++            if (maipai_remote_stop()) {
++                ESP_LOGI(TAG, "Stop word heard while a remote message waits: cancelled");
++                return;
++            }
+             // A ringing timer or alarm takes the word first (patch 093): it ends the ring, nothing else.
+             if (maipai_timers_request_dismiss("stop")) {
+                 ESP_LOGI(TAG, "Stop word heard while a timer rings: ending the ring");
+@@ -1017,6 +1024,7 @@ void Application::HandleWakeWordDetectedEvent() {
+     maipai_screen_wake("wake word");  // patch W01: the wake word wakes a dimmed screen
+ 
+     MAIPAI_LAT("wake_evt");
++    maipai_listen_wake();  // patch TB01: the listening sound, light and face start now, before any network step
+     auto state = GetDeviceState();
+     auto wake_word = audio_service_.GetLastWakeWord();
+     ESP_LOGI(TAG, "Wake word detected: %s (state: %d)", wake_word.c_str(), (int)state);

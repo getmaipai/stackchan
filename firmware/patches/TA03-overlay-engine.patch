@@ -1,0 +1,1380 @@
+# Intent: One overlay engine with sixteen overlays (owner briefs 2026-11-16): rain, snow, sun, clouds, wind, thunder, fog, stars, leaves, disco (the weather layer) and confetti, fireworks, hearts, steam, balloons, zzz (the event layer). A new overlay replaces the running one in its own layer; the two layers run together. hal/maipai_overlay_core.h holds all of it as plain C: a fixed array of at most 32 particles per layer (14 bytes each), time in fixed 33 ms ticks (a slow frame runs a few ticks and never more than six), a deterministic seed per start, fades of 0.5 s in and out, a particle cap per intensity (light, normal, heavy) that the governor halves, and dirty rectangles (where things were and are) that the caller invalidates so LVGL flushes exactly those pixels. Overlays are composited into each flushed area before the effects; stars, fireworks, the disco light spots and the sun draw only onto background pixels so they never cover an eye or a mouth. The floating zzz: z glyphs of three sizes (7, 11, 15 pixels) spawn every 1.2 to 2 s right of the eyes at the top right, drift up and sideways in a gentle sine, grow, fade and disperse, three to five alive; the sleepy, closing and sleeping looks start it and any other emotion ends it (replacing the static Zzz bubble). One shared 30 fps timer runs only while an overlay is alive. A mute, vision-off or full quiet look, the clock face and the governor's flat fallback hide overlays. Tools: self.overlay.status (layers, names, governor, measured cost), self.overlay.set (name, intensity light|normal|heavy, seconds 0 to 3600, 0 until cleared), self.overlay.clear. Costs: 1.2 KB of static state, no heap, no timer when idle; the flush cost per overlay is in the host cost table (tests/fx_cost.c).
+# Placement: unit (the overlays are drawn by the unit; weather data is never in the core, the host maps a weather update to a tag or a tool call)
+# Upstream: firmware/main/hal/board/stackchan_display.cc (the sleepy emotion's Zzz bubble); new file hal/maipai_overlay_core.h
+# Check after a flash: self.overlay.set for each of the sixteen names, the picture opened and judged; self.overlay.status shows particles and the cost; fps and the worst frame with each overlay idle and speaking; the sleeping look floats zzz and waking ends it.
+
+diff --git a/firmware/main/hal/maipai_overlay_core.h b/firmware/main/hal/maipai_overlay_core.h
+new file mode 100644
+index 0000000..f42af73
+--- /dev/null
++++ b/firmware/main/hal/maipai_overlay_core.h
+@@ -0,0 +1,1067 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The overlay engine (patch TA04): the pure logic. No ESP-IDF, no heap, no clock of its own, no libc beyond string.h.
++ * Header-only plain C99 so a host compiler can test it (host/tests/firmware/overlay_core_test.c) and the host renderer
++ * draws the same code into a picture.
++ *
++ * Sixteen overlays in two layers. A new overlay replaces the one that is running in its own layer; the two layers run
++ * together (rain with confetti, stars with zzz):
++ *   weather layer: rain snow sun clouds wind thunder fog stars leaves disco
++ *   event layer:   confetti fireworks hearts steam balloons zzz
++ * Each layer is one small struct with a fixed array of particles (32 at most, 14 bytes each: 448 bytes), so the whole
++ * engine is under 1 KB of static state and never allocates. Time moves in fixed ticks of 33 ms from the caller's clock
++ * (mo_step), so a slow frame runs several ticks and a fast one none; the same seed always draws the same pictures.
++ *
++ * Drawing is a composite into the pixels of one flushed area (mo_draw), clipped, with an alpha. Overlays that sit "behind"
++ * the face (stars, fog-free sky things, the disco light spots, fireworks) draw only on background pixels, so they never
++ * cover an eye or a mouth. mo_step records small dirty rectangles (where things were and where they are now) that the
++ * caller invalidates so LVGL re-flushes exactly those pixels; nothing else on the panel is rewritten.
++ *
++ * Weather DATA is not here and never will be: the core only draws; the host maps a weather update to a tag or a tool call.
++ */
++#ifndef MAIPAI_OVERLAY_CORE_H
++#define MAIPAI_OVERLAY_CORE_H
++
++#include "maipai_fx_core.h"
++#include <stdint.h>
++#include <string.h>
++
++#define MO_W MFX_W
++#define MO_H MFX_H
++#define MO_TICK_MS 33u
++#define MO_MAX_P 32
++#define MO_MAX_DIRTY 24
++#define MO_FP 8 /* fixed point: eighths of a pixel */
++#define MO_FADE_MS 500u
++#define MO_MAX_STEPS 6 /* a frame that is later than this many ticks catches up by this many, not all of them */
++
++enum {
++    MO_NONE = 0,
++    MO_RAIN,
++    MO_SNOW,
++    MO_SUN,
++    MO_CLOUDS,
++    MO_WIND,
++    MO_THUNDER,
++    MO_FOG,
++    MO_STARS,
++    MO_DISCO,
++    MO_LEAVES,
++    MO_CONFETTI,
++    MO_FIREWORKS,
++    MO_HEARTS,
++    MO_STEAM,
++    MO_BALLOONS,
++    MO_ZZZ,
++    MO_COUNT
++};
++
++static const char* const MO_NAMES[MO_COUNT] = {"", "rain", "snow", "sun", "clouds", "wind", "thunder", "fog", "stars", "disco",
++                                               "leaves", "confetti", "fireworks", "hearts", "steam", "balloons", "zzz"};
++
++static inline int mo_id(const char* name)
++{
++    for (int i = 1; i < MO_COUNT; i++) {
++        if (strcmp(MO_NAMES[i], name) == 0) {
++            return i;
++        }
++    }
++    return 0;
++}
++
++/* 0 weather layer, 1 event layer. */
++static inline int mo_layer_of(int id) { return id >= MO_CONFETTI ? 1 : 0; }
++
++/* Overlays that draw only onto background pixels. */
++static inline int mo_behind(int id) { return id == MO_STARS || id == MO_FIREWORKS || id == MO_DISCO || id == MO_SUN; }
++
++/* Particle cap for an intensity (1 light, 2 normal, 3 heavy). */
++static inline int mo_cap(int id, int intensity)
++{
++    static const uint8_t cap[MO_COUNT][3] = {
++        {0, 0, 0}, {10, 18, 28}, {10, 20, 32}, {0, 0, 0}, {2, 3, 4}, {5, 9, 14}, {8, 10, 12}, {0, 0, 0}, {14, 22, 30}, {3, 5, 7},
++        {6, 12, 18}, {14, 24, 32}, {13, 26, 28}, {5, 9, 14}, {6, 10, 14}, {2, 4, 5}, {5, 5, 5},
++    };
++    if (id <= 0 || id >= MO_COUNT) {
++        return 0;
++    }
++    return cap[id][(intensity < 1 ? 1 : (intensity > 3 ? 3 : intensity)) - 1];
++}
++
++/* ---------------------------------------------------------------- the structs */
++
++typedef struct {
++    int16_t x, y;   /* fixed point (MO_FP) */
++    int16_t vx, vy; /* fixed point per tick */
++    uint16_t age;   /* ticks */
++    uint16_t life;  /* ticks; 0 lives until it leaves the screen */
++    uint8_t a;      /* what the overlay says: size, brightness, kind */
++    uint8_t b;      /* what the overlay says: colour index, phase */
++} mo_p_t;
++
++typedef struct {
++    int16_t x1, y1, x2, y2;
++} mo_rect_t;
++
++typedef struct {
++    uint8_t id;        /* MO_*; MO_NONE when idle */
++    uint8_t intensity; /* 1 to 3 */
++    uint8_t spawning;  /* 0 after the time is up or a stop: no new particles; what is on screen finishes */
++    uint8_t n;         /* live particles */
++    uint32_t rng;
++    uint32_t t_ms;     /* time since start */
++    uint32_t dur_ms;   /* 0: until cleared */
++    uint32_t acc_ms;   /* time not yet turned into ticks */
++    uint32_t tick;
++    int16_t s0, s1, s2; /* the overlay's own: a countdown, an angle, a phase */
++    uint8_t ndirty;
++    uint8_t pct;       /* the governor's particle share, 25 to 100 */
++    uint32_t drawn;    /* a counter of things drawn in the last draw, for the cost model */
++    mo_rect_t dirty[MO_MAX_DIRTY];
++    mo_p_t p[MO_MAX_P];
++} mo_layer_t;
++
++/* ---------------------------------------------------------------- small helpers */
++
++static inline uint32_t mo_rand(uint32_t* s)
++{
++    uint32_t v = *s ? *s : 2463534242u;
++    v ^= v << 13;
++    v ^= v >> 17;
++    v ^= v << 5;
++    *s = v;
++    return v;
++}
++
++static inline int mo_rr(uint32_t* s, int lo, int hi) { return lo + (int)(mo_rand(s) % (uint32_t)(hi - lo + 1)); }
++
++/* sin over 32 steps a turn, amplitude 127. */
++static inline int mo_sin(int phase)
++{
++    static const int8_t t[32] = {0, 25, 49, 71, 90, 106, 117, 125, 127, 125, 117, 106, 90, 71, 49, 25,
++                                 0, -25, -49, -71, -90, -106, -117, -125, -127, -125, -117, -106, -90, -71, -49, -25};
++    return t[phase & 31];
++}
++static inline int mo_cos(int phase) { return mo_sin(phase + 8); }
++
++/* Overlay alpha envelope 0 to 255: fades in over MO_FADE_MS and out over MO_FADE_MS before the end. */
++static inline unsigned mo_env(const mo_layer_t* L)
++{
++    unsigned a = 255;
++    if (L->t_ms < MO_FADE_MS) {
++        a = (unsigned)((uint64_t)L->t_ms * 255u / MO_FADE_MS);
++    }
++    if (!L->spawning && L->dur_ms != 0) {
++        const uint32_t over = L->t_ms > L->dur_ms ? L->t_ms - L->dur_ms : 0;
++        const unsigned out  = over >= MO_FADE_MS ? 0u : (unsigned)(255u - (uint64_t)over * 255u / MO_FADE_MS);
++        if (out < a) {
++            a = out;
++        }
++    }
++    return a;
++}
++
++static inline void mo_mark(mo_layer_t* L, int x1, int y1, int x2, int y2)
++{
++    if (x1 < 0) x1 = 0;
++    if (y1 < 0) y1 = 0;
++    if (x2 > MO_W - 1) x2 = MO_W - 1;
++    if (y2 > MO_H - 1) y2 = MO_H - 1;
++    if (x2 < x1 || y2 < y1) {
++        return;
++    }
++    if (L->ndirty < MO_MAX_DIRTY) {
++        L->dirty[L->ndirty].x1 = (int16_t)x1;
++        L->dirty[L->ndirty].y1 = (int16_t)y1;
++        L->dirty[L->ndirty].x2 = (int16_t)x2;
++        L->dirty[L->ndirty].y2 = (int16_t)y2;
++        L->ndirty++;
++        return;
++    }
++    /* full: grow the rectangle that grows least to take this one in (a bigger area, never a missed one) */
++    int best = 0;
++    long best_cost = 0x7FFFFFFF;
++    for (int i = 0; i < MO_MAX_DIRTY; i++) {
++        const mo_rect_t* r = &L->dirty[i];
++        const int ux1 = x1 < r->x1 ? x1 : r->x1, uy1 = y1 < r->y1 ? y1 : r->y1;
++        const int ux2 = x2 > r->x2 ? x2 : r->x2, uy2 = y2 > r->y2 ? y2 : r->y2;
++        const long cost = (long)(ux2 - ux1 + 1) * (uy2 - uy1 + 1) - (long)(r->x2 - r->x1 + 1) * (r->y2 - r->y1 + 1);
++        if (cost < best_cost) {
++            best_cost = cost;
++            best      = i;
++        }
++    }
++    mo_rect_t* r = &L->dirty[best];
++    if (x1 < r->x1) r->x1 = (int16_t)x1;
++    if (y1 < r->y1) r->y1 = (int16_t)y1;
++    if (x2 > r->x2) r->x2 = (int16_t)x2;
++    if (y2 > r->y2) r->y2 = (int16_t)y2;
++}
++
++/* Moves the dirty rectangles out. Returns how many. */
++static inline int mo_take_dirty(mo_layer_t* L, mo_rect_t* out)
++{
++    const int n = L->ndirty;
++    memcpy(out, L->dirty, sizeof(mo_rect_t) * (size_t)n);
++    L->ndirty = 0;
++    return n;
++}
++
++static inline int mo_px(int fp) { return fp >= 0 ? fp / MO_FP : -((-fp + MO_FP - 1) / MO_FP); }
++
++/* ---------------------------------------------------------------- a canvas: the pixels of one flushed area */
++
++typedef struct {
++    uint16_t* px;
++    int x1, y1, x2, y2, w;
++    int behind; /* 1: only onto background pixels */
++} mc_t;
++
++#ifdef MO_STATS
++static unsigned long mo_stat_puts; /* host cost model only: pixels the overlays wrote */
++#endif
++
++static inline void mc_put(const mc_t* c, int x, int y, uint16_t col, unsigned a)
++{
++    if (x < c->x1 || x > c->x2 || y < c->y1 || y > c->y2 || a == 0) {
++        return;
++    }
++#ifdef MO_STATS
++    mo_stat_puts++;
++#endif
++    uint16_t* p = c->px + (size_t)(y - c->y1) * (size_t)c->w + (size_t)(x - c->x1);
++    if (c->behind && mfx_luma5(*p) > MFX_BG_MAX_LUMA5) {
++        return;
++    }
++    *p = a >= 250 ? col : mfx_mix(*p, col, a);
++}
++
++static inline void mc_rect(const mc_t* c, int x, int y, int w, int h, uint16_t col, unsigned a)
++{
++    for (int j = 0; j < h; j++) {
++        if (y + j < c->y1 || y + j > c->y2) continue;
++        for (int i = 0; i < w; i++) {
++            mc_put(c, x + i, y + j, col, a);
++        }
++    }
++}
++
++static inline void mc_disc(const mc_t* c, int cx, int cy, int r, uint16_t col, unsigned a)
++{
++    for (int dy = -r; dy <= r; dy++) {
++        if (cy + dy < c->y1 || cy + dy > c->y2) continue;
++        for (int dx = -r; dx <= r; dx++) {
++            if (dx * dx + dy * dy <= r * r + r / 2) {
++                mc_put(c, cx + dx, cy + dy, col, a);
++            }
++        }
++    }
++}
++
++static inline void mc_line(const mc_t* c, int x0, int y0, int x1, int y1, uint16_t col, unsigned a)
++{
++    int dx = x1 > x0 ? x1 - x0 : x0 - x1, dy = y1 > y0 ? y0 - y1 : y1 - y0;
++    const int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
++    int err = dx + dy;
++    for (int n = 0; n < 400; n++) {
++        mc_put(c, x0, y0, col, a);
++        if (x0 == x1 && y0 == y1) break;
++        const int e2 = 2 * err;
++        if (e2 >= dy) { err += dy; x0 += sx; }
++        if (e2 <= dx) { err += dx; y0 += sy; }
++    }
++}
++
++/* ---------------------------------------------------------------- colours */
++
++#define MO_RGB(r, g, b) ((uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | (((b) & 0xF8) >> 3)))
++static const uint16_t MO_PARTY[6] = {MO_RGB(255, 80, 120), MO_RGB(80, 200, 255), MO_RGB(255, 210, 60), MO_RGB(120, 230, 120),
++                                     MO_RGB(190, 120, 255), MO_RGB(255, 150, 60)};
++static const uint16_t MO_LEAF[4] = {MO_RGB(214, 120, 40), MO_RGB(190, 150, 40), MO_RGB(170, 70, 30), MO_RGB(130, 150, 40)};
++
++/* ---------------------------------------------------------------- start, stop, clear */
++
++/* Half the width and height of the box a particle of this overlay can fill, for dirty rectangles. */
++static inline void mo_half(int id, int* hw, int* hh)
++{
++    switch (id) {
++        case MO_RAIN: case MO_THUNDER: *hw = 6; *hh = 14; break;
++        case MO_SNOW: *hw = 4; *hh = 4; break;
++        case MO_WIND: *hw = 36; *hh = 8; break;
++        case MO_LEAVES: *hw = 9; *hh = 9; break;
++        case MO_CONFETTI: *hw = 6; *hh = 7; break;
++        case MO_HEARTS: *hw = 16; *hh = 15; break;
++        case MO_STEAM: *hw = 17; *hh = 17; break;
++        case MO_BALLOONS: *hw = 14; *hh = 36; break;
++        case MO_ZZZ: *hw = 16; *hh = 16; break;
++        case MO_FIREWORKS: *hw = 14; *hh = 14; break;
++        case MO_STARS: *hw = 4; *hh = 4; break;
++        case MO_CLOUDS: *hw = 80; *hh = 34; break;
++        default: *hw = 24; *hh = 24; break;
++    }
++}
++
++/* Marks everything this layer may have on screen: its fixed areas and every live particle's box. */
++static inline void mo_mark_extent(mo_layer_t* L)
++{
++    int hw, hh;
++    mo_half(L->id, &hw, &hh);
++    switch (L->id) {
++        case MO_SUN: mo_mark(L, 240, 0, 319, 76); break;
++        case MO_DISCO: mo_mark(L, 128, 0, 192, 54); break;
++        case MO_FOG: mo_mark(L, 0, 59, MO_W - 1, 85); mo_mark(L, 0, 121, MO_W - 1, 147); mo_mark(L, 0, 183, MO_W - 1, 209); break;
++        case MO_THUNDER: mo_mark(L, 0, 0, MO_W - 1, 100); break;
++        default: break;
++    }
++    for (int i = 0; i < L->n; i++) {
++        const int x = mo_px(L->p[i].x), y = mo_px(L->p[i].y);
++        if (L->id == MO_CLOUDS) mo_mark(L, x - 4, y - 4, x + 120, y + 48);
++        else mo_mark(L, x - hw, y - hh, x + hw, y + hh);
++    }
++}
++
++static inline void mo_clear(mo_layer_t* L)
++{
++    if (L->id != MO_NONE) {
++        mo_mark_extent(L); /* repaint what this layer drew */
++    }
++    const uint8_t keep = L->ndirty;
++    mo_rect_t d[MO_MAX_DIRTY];
++    memcpy(d, L->dirty, sizeof d);
++    memset(L, 0, sizeof *L);
++    memcpy(L->dirty, d, sizeof d);
++    L->ndirty = keep;
++    L->pct = 100;
++}
++
++static inline void mo_start(mo_layer_t* L, int id, int intensity, uint32_t seconds, uint32_t seed)
++{
++    mo_clear(L);
++    if (id <= MO_NONE || id >= MO_COUNT) {
++        return;
++    }
++    L->id        = (uint8_t)id;
++    L->intensity = (uint8_t)(intensity < 1 ? 1 : (intensity > 3 ? 3 : intensity));
++    L->spawning  = 1;
++    L->rng       = seed ? seed : 1u;
++    L->dur_ms    = seconds * 1000u;
++    L->pct       = 100;
++    L->s0 = (int16_t)mo_rr(&L->rng, 20, 80); /* thunder: ticks to the first flash; fireworks: ticks to the first rocket */
++    if (id == MO_CLOUDS) {
++        const int n = L->intensity + 1;
++        for (int i = 0; i < n; i++) { /* clouds are placed at the start and drift; a = size 0 to 2, b = shade */
++            mo_p_t* p = &L->p[L->n++];
++            p->x = (int16_t)(((i * (MO_W + 60)) / n - 40 + mo_rr(&L->rng, 0, 20)) * MO_FP);
++            p->y = (int16_t)(mo_rr(&L->rng, 8, 26) * MO_FP);
++            p->vx = (int16_t)mo_rr(&L->rng, 2, 4);
++            p->a = (uint8_t)(i % 2);
++            p->b = L->intensity == 3 ? 1 : 0;
++        }
++    } else if (id == MO_STARS) {
++        const int n = mo_cap(id, L->intensity);
++        for (int i = 0; i < n; i++) {
++            mo_p_t* p = &L->p[L->n++];
++            int x, y;
++            for (int tries = 0; tries < 8; tries++) { /* keep to the top band, the sides and the bottom: not around the face */
++                x = mo_rr(&L->rng, 4, MO_W - 5);
++                y = mo_rr(&L->rng, 4, MO_H - 5);
++                if (y < 58 || y > 200 || x < 44 || x > 276) break;
++            }
++            p->x = (int16_t)(x * MO_FP);
++            p->y = (int16_t)(y * MO_FP);
++            p->a = (uint8_t)mo_rr(&L->rng, 0, 3);          /* brightness step */
++            p->b = (uint8_t)(mo_rr(&L->rng, 0, 9) < 4);    /* 1: a bigger star */
++            p->life = (uint16_t)mo_rr(&L->rng, 3, 14);     /* ticks to the next brightness step */
++        }
++    } else if (id == MO_DISCO) {
++        const int n = mo_cap(id, L->intensity) + 2;
++        for (int i = 0; i < n && L->n < MO_MAX_P; i++) { /* light spots: a = radius, b = colour */
++            mo_p_t* p = &L->p[L->n++];
++            p->x = (int16_t)(mo_rr(&L->rng, 20, MO_W - 20) * MO_FP);
++            p->y = (int16_t)(mo_rr(&L->rng, 30, MO_H - 20) * MO_FP);
++            p->vx = (int16_t)(mo_rr(&L->rng, 8, 18) * (mo_rr(&L->rng, 0, 1) ? 1 : -1));
++            p->vy = (int16_t)(mo_rr(&L->rng, 6, 14) * (mo_rr(&L->rng, 0, 1) ? 1 : -1));
++            p->a = (uint8_t)mo_rr(&L->rng, 5, 9);
++            p->b = (uint8_t)(i % 6);
++        }
++    }
++    mo_mark_extent(L);
++}
++
++/* No new particles; what is on screen finishes. A static overlay fades. */
++static inline void mo_stop(mo_layer_t* L)
++{
++    if (L->id != MO_NONE && L->spawning) {
++        L->spawning = 0;
++        if (L->dur_ms == 0 || L->t_ms < L->dur_ms) {
++            L->dur_ms = L->t_ms; /* the fade starts now */
++        }
++        if (L->id == MO_THUNDER && L->s1 > 0) {
++            L->s1 = 0;
++            mo_mark(L, 0, 0, MO_W - 1, 100);
++        }
++    }
++}
++
++/* ---------------------------------------------------------------- one tick of every overlay */
++
++static inline int mo_alive_cap(const mo_layer_t* L)
++{
++    int cap = mo_cap(L->id, L->intensity) * L->pct / 100;
++    if (cap < 1 && mo_cap(L->id, L->intensity) > 0) cap = 1;
++    return cap > MO_MAX_P ? MO_MAX_P : cap;
++}
++
++static inline mo_p_t* mo_add(mo_layer_t* L)
++{
++    if (L->n >= MO_MAX_P || (int)L->n >= mo_alive_cap(L)) {
++        return NULL;
++    }
++    mo_p_t* p = &L->p[L->n++];
++    memset(p, 0, sizeof *p);
++    return p;
++}
++
++static inline void mo_remove(mo_layer_t* L, int i)
++{
++    L->p[i] = L->p[--L->n];
++}
++
++/* A rectangle around the pixel (cx, cy) of `half` pixels, marked dirty. */
++static inline void mo_mark_at(mo_layer_t* L, int cx, int cy, int hw, int hh)
++{
++    mo_mark(L, cx - hw, cy - hh, cx + hw, cy + hh);
++}
++
++static inline void mo_tick(mo_layer_t* L)
++{
++    const int id = L->id;
++    const uint32_t tms = L->t_ms;
++    L->tick++;
++    L->t_ms += MO_TICK_MS;
++    if (L->spawning && L->dur_ms != 0 && L->t_ms >= L->dur_ms) {
++        L->spawning = 0;
++    }
++    /* the share the governor allows: with fewer allowed, extra particles retire at their next chance */
++    const int cap = mo_alive_cap(L);
++
++    for (int i = (int)L->n - 1; i >= 0; i--) {
++        mo_p_t* p = &L->p[i];
++        const int ox = mo_px(p->x), oy = mo_px(p->y);
++        int gone = 0, hw, hh;
++        mo_half(id, &hw, &hh);
++        p->age++;
++        switch (id) {
++            case MO_RAIN:
++            case MO_THUNDER:
++                p->x += p->vx; p->y += p->vy;
++                gone = mo_px(p->y) > MO_H + 4;
++                break;
++            case MO_SNOW:
++                p->x += (int16_t)((mo_sin((p->age >> 2) + p->b) * (3 + p->a)) / 64);
++                p->y += p->vy;
++                gone = mo_px(p->y) > MO_H + 4;
++                break;
++            case MO_WIND:
++                p->x += p->vx; p->y += (int16_t)(mo_sin((p->age >> 1) + p->b) / 24);
++                gone = mo_px(p->x) > MO_W + 4;
++                break;
++            case MO_CLOUDS:
++                if ((L->tick % 3) == 0) p->x += (int16_t)(p->vx * 3);
++                break;
++            case MO_LEAVES:
++                p->x += (int16_t)(mo_sin((p->age >> 2) + p->b) / 14 + 2); p->y += p->vy;
++                gone = mo_px(p->y) > MO_H + 6 || mo_px(p->x) > MO_W + 8;
++                break;
++            case MO_CONFETTI:
++                p->x += (int16_t)(mo_sin((p->age >> 2) + p->b) / 12); p->y += p->vy;
++                gone = mo_px(p->y) > MO_H + 6;
++                break;
++            case MO_HEARTS:
++                p->x += (int16_t)(mo_sin((p->age >> 3) + p->b) / 20); p->y += p->vy;
++                gone = p->age >= p->life || mo_px(p->y) < -8;
++                break;
++            case MO_STEAM:
++                p->x += (int16_t)(p->vx + mo_sin((p->age >> 3) + p->b) / 40); p->y += p->vy;
++                gone = p->age >= p->life;
++                break;
++            case MO_BALLOONS:
++                p->x += (int16_t)(mo_sin((p->age >> 3) + p->b) / 30); p->y += p->vy;
++                gone = mo_px(p->y) < -30;
++                break;
++            case MO_ZZZ:
++                p->x += (int16_t)(p->vx + mo_sin((p->age >> 2) + p->b) / 80); p->y += p->vy;
++                gone = p->age >= p->life;
++                break;
++            case MO_FIREWORKS:
++                if (p->a == 0) { /* the rocket: rises, then bursts at its height (life holds the target y) */
++                    p->y += p->vy;
++                    if (mo_px(p->y) <= (int)p->life) {
++                        const int sp = L->intensity == 3 ? 12 : 10;
++                        gone = 1;
++                        for (int k = 0; k < sp; k++) {
++                            mo_p_t* s = mo_add(L);
++                            if (s == NULL) break;
++                            const int ph = k * 32 / sp + (int)(mo_rand(&L->rng) % 3);
++                            const int sd = mo_rr(&L->rng, 17, 30);
++                            s->x = p->x; s->y = p->y;
++                            s->vx = (int16_t)(mo_cos(ph) * sd / 127);
++                            s->vy = (int16_t)(mo_sin(ph) * sd / 127);
++                            s->a = 1; s->b = p->b; s->life = (uint16_t)mo_rr(&L->rng, 24, 34);
++                            mo_mark_at(L, mo_px(s->x), mo_px(s->y), 3, 3);
++                        }
++                    }
++                } else { /* a spark: slows, falls */
++                    p->x += p->vx; p->y += p->vy;
++                    p->vx = (int16_t)(p->vx * 15 / 16);
++                    p->vy = (int16_t)(p->vy * 15 / 16 + 1);
++                    gone = p->age >= p->life;
++                }
++                break;
++            case MO_STARS:
++                hw = hh = 3;
++                if (--p->life == 0 || p->life > 60000) { /* the next brightness step */
++                    const int d = (int)(mo_rand(&L->rng) % 3);
++                    p->a = (uint8_t)((p->a + (d == 0 ? 1 : (d == 1 ? 3 : 2))) & 3);
++                    p->life = (uint16_t)mo_rr(&L->rng, 4, 14);
++                    mo_mark_at(L, mo_px(p->x), mo_px(p->y), 3, 3);
++                }
++                if (p->vx != 0 || p->vy != 0) { /* a shooting star */
++                    p->x += p->vx; p->y += p->vy; hw = 30; hh = 30; p->age++;
++                    gone = p->age > 40 || mo_px(p->x) > MO_W || mo_px(p->y) > MO_H;
++                }
++                break;
++            case MO_DISCO: {
++                p->x += p->vx; p->y += p->vy; hw = hh = p->a + 3;
++                if (mo_px(p->x) < p->a + 2 || mo_px(p->x) > MO_W - p->a - 2) p->vx = (int16_t)-p->vx;
++                if (mo_px(p->y) < p->a + 24 || mo_px(p->y) > MO_H - p->a - 2) p->vy = (int16_t)-p->vy;
++                break;
++            }
++            default:
++                break;
++        }
++        if (id == MO_STARS || id == MO_DISCO || id == MO_CLOUDS) {
++            const int nx = mo_px(p->x), ny = mo_px(p->y);
++            if ((id == MO_STARS && (p->vx != 0 || p->vy != 0)) || id == MO_DISCO) {
++                mo_mark_at(L, ox, oy, hw + 2, hh + 2);
++                mo_mark_at(L, nx, ny, hw + 2, hh + 2);
++            } else if (id == MO_CLOUDS && (nx != ox)) {
++                mo_mark(L, ox - 4, oy - 4, nx + 120, ny + 48); /* the cloud's old and new place (it moves right a pixel or so) */
++            }
++            if (id == MO_CLOUDS && nx > MO_W + 30) {
++                if (L->spawning) { mo_mark(L, nx - 4, ny - 4, MO_W - 1, ny + 48); p->x = (int16_t)(-90 * MO_FP); }
++                else gone = 1;
++            }
++            if (gone) { mo_remove(L, i); }
++            continue;
++        }
++        mo_mark(L, (ox < mo_px(p->x) ? ox : mo_px(p->x)) - hw, (oy < mo_px(p->y) ? oy : mo_px(p->y)) - hh,
++                (ox > mo_px(p->x) ? ox : mo_px(p->x)) + hw, (oy > mo_px(p->y) ? oy : mo_px(p->y)) + hh);
++        if (gone) {
++            mo_remove(L, i);
++        }
++    }
++
++    if (!L->spawning) {
++        /* the last of a static overlay fades; its area is marked every few ticks until it is gone */
++        if ((L->tick % 3) == 0 && (id == MO_SUN || id == MO_DISCO || id == MO_FOG || id == MO_STARS || id == MO_CLOUDS)) {
++            mo_mark_extent(L);
++        }
++        return;
++    }
++    (void)tms;
++
++    /* ---- spawning, and the overlays that have no particles */
++    switch (id) {
++        case MO_RAIN:
++        case MO_THUNDER: {
++            const int want = id == MO_THUNDER ? 8 : 0;
++            int room = (id == MO_THUNDER ? (want * L->pct / 100) : cap) - (int)L->n;
++            for (int k = 0; k < 3 && room > 0; k++, room--) {
++                mo_p_t* p = mo_add(L);
++                if (p == NULL) break;
++                p->x = (int16_t)(mo_rr(&L->rng, 0, MO_W + 20) * MO_FP);
++                p->y = (int16_t)(mo_rr(&L->rng, -30, 0) * MO_FP);
++                p->vx = (int16_t)mo_rr(&L->rng, -14, -8);
++                p->vy = (int16_t)mo_rr(&L->rng, 78, 104);
++                p->a = (uint8_t)mo_rr(&L->rng, 3, 6); /* length / 2 */
++            }
++            if (id == MO_THUNDER) {
++                if (--L->s0 <= 0) {
++                    L->s1 = 3; /* flash for three ticks */
++                    L->s2 = (int16_t)mo_rr(&L->rng, 70, 250);
++                    L->s0 = (int16_t)(L->intensity == 3 ? mo_rr(&L->rng, 45, 100) : mo_rr(&L->rng, 80, 180));
++                }
++                if (L->s1 > 0) {
++                    mo_mark(L, 0, 0, MO_W - 1, 100);
++                    if (--L->s1 == 0) mo_mark(L, 0, 0, MO_W - 1, 100);
++                }
++            }
++            break;
++        }
++        case MO_SNOW:
++            for (int k = 0; k < 2 && (int)L->n < cap; k++) {
++                mo_p_t* p = mo_add(L);
++                if (p == NULL) break;
++                p->x = (int16_t)(mo_rr(&L->rng, 0, MO_W) * MO_FP);
++                p->y = (int16_t)(mo_rr(&L->rng, -8, 0) * MO_FP);
++                p->vy = (int16_t)mo_rr(&L->rng, 7, 15);
++                p->a = (uint8_t)mo_rr(&L->rng, 0, 2);
++                p->b = (uint8_t)mo_rr(&L->rng, 0, 31);
++            }
++            break;
++        case MO_WIND:
++            if ((L->tick % 3) == 0 && (int)L->n < cap) {
++                mo_p_t* p = mo_add(L);
++                if (p != NULL) {
++                    p->x = (int16_t)(-24 * MO_FP);
++                    p->y = (int16_t)(mo_rr(&L->rng, 12, MO_H - 12) * MO_FP);
++                    p->vx = (int16_t)mo_rr(&L->rng, 100, 190);
++                    p->a = (uint8_t)mo_rr(&L->rng, 0, 6);
++                    p->b = (uint8_t)mo_rr(&L->rng, 0, 31);
++                }
++            }
++            break;
++        case MO_LEAVES:
++            if ((L->tick % 4) == 0 && (int)L->n < cap) {
++                mo_p_t* p = mo_add(L);
++                if (p != NULL) {
++                    p->x = (int16_t)(mo_rr(&L->rng, -10, MO_W - 40) * MO_FP);
++                    p->y = (int16_t)(-6 * MO_FP);
++                    p->vy = (int16_t)mo_rr(&L->rng, 7, 13);
++                    p->a = (uint8_t)mo_rr(&L->rng, 0, 3);
++                    p->b = (uint8_t)mo_rr(&L->rng, 0, 31);
++                }
++            }
++            break;
++        case MO_CONFETTI: {
++            const int burst = L->tick == 1; /* the first tick throws a handful from the top */
++            int k = burst ? cap / 2 : ((L->tick % 3) == 0 ? 1 : 0);
++            for (; k > 0; k--) {
++                mo_p_t* p = mo_add(L);
++                if (p == NULL) break;
++                p->x = (int16_t)(mo_rr(&L->rng, 6, MO_W - 6) * MO_FP);
++                p->y = (int16_t)(mo_rr(&L->rng, burst ? -60 : -8, -4) * MO_FP);
++                p->vy = (int16_t)mo_rr(&L->rng, 11, 21);
++                p->a = (uint8_t)mo_rr(&L->rng, 0, 5);
++                p->b = (uint8_t)mo_rr(&L->rng, 0, 31);
++            }
++            break;
++        }
++        case MO_FIREWORKS: {
++            int rockets = 0;
++            for (int i = 0; i < L->n; i++) rockets += L->p[i].a == 0;
++            if (--L->s0 <= 0 && rockets < (L->intensity == 1 ? 1 : 2) && (int)L->n + (L->intensity == 3 ? 13 : 11) <= cap) {
++                mo_p_t* p = mo_add(L);
++                if (p != NULL) {
++                    p->x = (int16_t)(mo_rr(&L->rng, 70, 250) * MO_FP);
++                    p->y = (int16_t)((MO_H - 24) * MO_FP);
++                    p->vy = (int16_t)-mo_rr(&L->rng, 26, 36);
++                    p->a = 0;
++                    p->b = (uint8_t)mo_rr(&L->rng, 0, 5);
++                    p->life = (uint16_t)mo_rr(&L->rng, 40, 80); /* the height it bursts at */
++                }
++                L->s0 = (int16_t)(L->intensity == 3 ? mo_rr(&L->rng, 14, 30) : mo_rr(&L->rng, 24, 56));
++            }
++            break;
++        }
++        case MO_HEARTS:
++            if ((L->tick % (L->intensity == 3 ? 8 : (L->intensity == 2 ? 12 : 18))) == 0 && (int)L->n < cap) {
++                mo_p_t* p = mo_add(L);
++                if (p != NULL) {
++                    p->x = (int16_t)(mo_rr(&L->rng, 12, MO_W - 24) * MO_FP);
++                    p->y = (int16_t)((MO_H - 4) * MO_FP);
++                    p->vy = (int16_t)-mo_rr(&L->rng, 6, 12);
++                    p->life = (uint16_t)mo_rr(&L->rng, 110, 170);
++                    p->a = (uint8_t)mo_rr(&L->rng, 0, 1);
++                    p->b = (uint8_t)mo_rr(&L->rng, 0, 31);
++                }
++            }
++            break;
++        case MO_STEAM:
++            if ((L->tick % 6) == 0 && (int)L->n < cap) {
++                mo_p_t* p = mo_add(L);
++                if (p != NULL) {
++                    const int side = (int)(mo_rand(&L->rng) & 1);
++                    p->x = (int16_t)((side ? mo_rr(&L->rng, 236, 262) : mo_rr(&L->rng, 58, 84)) * MO_FP);
++                    p->y = (int16_t)(mo_rr(&L->rng, 205, 222) * MO_FP);
++                    p->vy = (int16_t)-mo_rr(&L->rng, 5, 9);
++                    p->vx = (int16_t)(side ? 1 : -1);
++                    p->life = (uint16_t)mo_rr(&L->rng, 70, 110);
++                    p->b = (uint8_t)mo_rr(&L->rng, 0, 31);
++                }
++            }
++            break;
++        case MO_BALLOONS:
++            if ((L->tick % 40) == 1 && (int)L->n < cap) {
++                mo_p_t* p = mo_add(L);
++                if (p != NULL) {
++                    const int left = (int)(mo_rand(&L->rng) & 1);
++                    p->x = (int16_t)((left ? mo_rr(&L->rng, 16, 56) : mo_rr(&L->rng, 264, 304)) * MO_FP);
++                    p->y = (int16_t)((MO_H + 30) * MO_FP);
++                    p->vy = (int16_t)-mo_rr(&L->rng, 6, 10);
++                    p->a = (uint8_t)mo_rr(&L->rng, 0, 5);
++                    p->b = (uint8_t)mo_rr(&L->rng, 0, 31);
++                }
++            }
++            break;
++        case MO_ZZZ: {
++            if (--L->s0 <= 0 && L->n < 5) {
++                mo_p_t* p = mo_add(L);
++                if (p != NULL) {
++                    p->x = (int16_t)(mo_rr(&L->rng, 268, 290) * MO_FP);
++                    p->y = (int16_t)(mo_rr(&L->rng, 62, 72) * MO_FP);
++                    p->vx = 0;
++                    p->vy = (int16_t)-mo_rr(&L->rng, 2, 3); /* 0.25 to 0.4 pixel a tick */
++                    p->life = (uint16_t)mo_rr(&L->rng, 100, 120);
++                    p->b = (uint8_t)mo_rr(&L->rng, 0, 31);
++                }
++                L->s0 = (int16_t)mo_rr(&L->rng, 36, 60); /* a z every 1.2 to 2 seconds */
++            }
++            break;
++        }
++        case MO_STARS:
++            if (--L->s0 <= 0) { /* an occasional shooting star, in the top band */
++                if ((int)L->n < MO_MAX_P && L->n < mo_cap(id, L->intensity) + 1) {
++                    mo_p_t* p = &L->p[L->n++];
++                    memset(p, 0, sizeof *p);
++                    p->x = (int16_t)(mo_rr(&L->rng, 40, 200) * MO_FP);
++                    p->y = (int16_t)(mo_rr(&L->rng, 6, 30) * MO_FP);
++                    p->vx = (int16_t)mo_rr(&L->rng, 30, 46);
++                    p->vy = (int16_t)mo_rr(&L->rng, 10, 18);
++                    p->a = 3;
++                    p->life = 999;
++                    mo_mark_at(L, mo_px(p->x), mo_px(p->y), 30, 30);
++                }
++                L->s0 = (int16_t)mo_rr(&L->rng, 240, 420);
++            }
++            break;
++        case MO_SUN:
++        case MO_DISCO:
++            if ((L->tick % 3) == 0) mo_mark_extent(L);
++            break;
++        case MO_FOG:
++            if ((L->tick % (L->t_ms < MO_FADE_MS ? 4u : 8u)) == 0) mo_mark_extent(L);
++            break;
++        default:
++            break;
++    }
++    /* a fading-in overlay is repainted every few ticks and once more when the fade-in is over */
++    if ((id == MO_STARS || id == MO_CLOUDS) &&
++        ((L->t_ms < MO_FADE_MS && (L->tick % 3) == 0) || (L->t_ms >= MO_FADE_MS && L->t_ms - MO_TICK_MS < MO_FADE_MS))) {
++        mo_mark_extent(L);
++    }
++    /* a particle spawned this tick shows at once: its box is marked now (the ones that carry their own marks are the fixed ones) */
++    if (id != MO_STARS && id != MO_DISCO && id != MO_CLOUDS) {
++        int hw, hh;
++        mo_half(id, &hw, &hh);
++        for (int i = 0; i < L->n; i++) {
++            if (L->p[i].age == 0) {
++                mo_mark_at(L, mo_px(L->p[i].x), mo_px(L->p[i].y), hw, hh);
++            }
++        }
++    }
++}
++
++/* True when nothing is left to draw: not spawning and no particles, and a fading overlay (sun, fog, disco ball, clouds, stars)
++ * once its fade has run out. */
++static inline int mo_done(const mo_layer_t* L)
++{
++    if (L->id == MO_NONE) {
++        return 1;
++    }
++    if (L->spawning) {
++        return 0;
++    }
++    if (L->id == MO_SUN || L->id == MO_FOG || L->id == MO_DISCO || L->id == MO_CLOUDS || L->id == MO_STARS) {
++        const uint32_t over = L->t_ms > L->dur_ms ? L->t_ms - L->dur_ms : 0;
++        return over >= MO_FADE_MS;
++    }
++    return L->n == 0;
++}
++
++/* Advances by dt_ms of the caller's clock: whole ticks, at most MO_MAX_STEPS. Returns the ticks run. */
++static inline int mo_step(mo_layer_t* L, uint32_t dt_ms)
++{
++    if (L->id == MO_NONE) {
++        return 0;
++    }
++    L->acc_ms += dt_ms;
++    int n = 0;
++    while (L->acc_ms >= MO_TICK_MS && n < MO_MAX_STEPS) {
++        L->acc_ms -= MO_TICK_MS;
++        mo_tick(L);
++        n++;
++    }
++    if (L->acc_ms >= MO_TICK_MS) {
++        L->acc_ms = 0; /* a long stall: skip ahead, do not catch up */
++    }
++    return n;
++}
++
++/* ---------------------------------------------------------------- drawing */
++
++static const uint8_t MO_HEART[7] = {0x36, 0x7F, 0x7F, 0x7F, 0x3E, 0x1C, 0x08}; /* 7 wide, 7 tall */
++
++static inline void mo_draw_z(const mc_t* c, int x, int y, int size, uint16_t col, unsigned a)
++{
++    const int s = 7 + size * 4; /* 7, 11, 15 */
++    const int th = size == 0 ? 1 : 2;
++    for (int t = 0; t < th; t++) {
++        mc_line(c, x, y + t, x + s, y + t, col, a);                   /* top bar */
++        mc_line(c, x + s, y, x, y + s, col, a);                       /* the stroke */
++        mc_line(c, x + s - 1 + t, y, x - 1 + t, y + s, col, a);       /* a second stroke for weight */
++        mc_line(c, x, y + s - t, x + s, y + s - t, col, a);           /* bottom bar */
++    }
++}
++
++static inline void mo_draw_particles(const mo_layer_t* L, const mc_t* cv, unsigned env)
++{
++    const int id = L->id;
++    for (int i = 0; i < L->n; i++) {
++        const mo_p_t* p = &L->p[i];
++        const int x = mo_px(p->x), y = mo_px(p->y);
++        switch (id) {
++            case MO_RAIN:
++            case MO_THUNDER: {
++                const int len = p->a * 2;
++                mc_line(cv, x, y, x + (p->vx * len) / p->vy, y - len, MO_RGB(160, 200, 255), 215);
++                mc_put(cv, x + 1, y, MO_RGB(160, 200, 255), 110); mc_put(cv, x + 1, y - 1, MO_RGB(160, 200, 255), 80);
++                break;
++            }
++            case MO_SNOW: {
++                const uint16_t w = MO_RGB(240, 245, 255);
++                if (p->a == 0) { mc_rect(cv, x, y, 2, 2, w, 210); }
++                else if (p->a == 1) { mc_rect(cv, x, y, 3, 3, w, 230); mc_put(cv, x + 1, y - 1, w, 120); mc_put(cv, x + 1, y + 3, w, 120); }
++                else { mc_disc(cv, x, y, 2, w, 240); }
++                break;
++            }
++            case MO_WIND: {
++                const int len = 16 + p->a * 3;
++                int px = x, py = y;
++                for (int k = 0; k < len; k += 3) { /* a streak with a little curl, fading to the tail */
++                    const int ny = y + mo_sin((p->age >> 1) + p->b + k / 3) / 32;
++                    mc_line(cv, px, py, x - k, ny, MO_RGB(235, 242, 252), 230 - k * 6);
++                    mc_line(cv, px, py + 1, x - k, ny + 1, MO_RGB(235, 242, 252), 120 - k * 3);
++                    px = x - k; py = ny;
++                }
++                break;
++            }
++            case MO_LEAVES: {
++                const uint16_t col = MO_LEAF[p->a & 3];
++                const int ph = ((p->age >> 2) + p->b) & 3;
++                if (ph == 0) { mc_rect(cv, x, y + 1, 8, 3, col, 255); mc_rect(cv, x + 1, y, 5, 5, col, 255); }
++                else if (ph == 1) { mc_line(cv, x, y, x + 5, y + 5, col, 255); mc_line(cv, x + 1, y, x + 6, y + 5, col, 255); mc_rect(cv, x + 1, y + 1, 4, 4, col, 255); }
++                else if (ph == 2) { mc_rect(cv, x + 2, y, 4, 8, col, 255); mc_rect(cv, x + 1, y + 1, 6, 6, col, 255); }
++                else { mc_line(cv, x + 5, y, x, y + 5, col, 255); mc_line(cv, x + 6, y, x + 1, y + 5, col, 255); mc_rect(cv, x + 1, y + 1, 4, 4, col, 255); }
++                break;
++            }
++            case MO_CONFETTI: {
++                const uint16_t col = MO_PARTY[p->a % 6];
++                if (((p->age >> 2) + p->b) & 1) mc_rect(cv, x, y, 3, 5, col, 255);
++                else mc_rect(cv, x, y + 1, 5, 2, col, 255);
++                break;
++            }
++            case MO_HEARTS: {
++                unsigned a = 220;
++                if (p->age < 10) a = a * p->age / 10;
++                if (p->life - p->age < 24) a = a * (p->life - p->age) / 24;
++                const int sc = 1 + p->a;
++                for (int r = 0; r < 7; r++)
++                    for (int q = 0; q < 7; q++)
++                        if (MO_HEART[r] & (0x40 >> q)) mc_rect(cv, x + q * sc, y + r * sc, sc, sc, MO_RGB(255, 110, 160), a);
++                break;
++            }
++            case MO_STEAM: {
++                const int rem = (int)p->life - (int)p->age;
++                unsigned a = (unsigned)(rem > 0 ? rem : 0) * 170 / p->life;
++                if (p->age < 12) a = a * p->age / 12;
++                const int rr = 4 + (int)(p->age / 10);
++                mc_disc(cv, x, y, rr, MO_RGB(232, 238, 244), a / 3);
++                mc_disc(cv, x, y, rr * 2 / 3, MO_RGB(240, 244, 250), a / 2);
++                mc_disc(cv, x, y, rr / 3, MO_RGB(250, 252, 255), a * 2 / 3);
++                break;
++            }
++            case MO_BALLOONS: {
++                static const uint16_t col[6] = {MO_RGB(255, 80, 110), MO_RGB(90, 170, 255), MO_RGB(255, 205, 70),
++                                                MO_RGB(110, 220, 130), MO_RGB(190, 120, 255), MO_RGB(255, 150, 70)};
++                const uint16_t cc = col[p->a % 6];
++                for (int dy = -10; dy <= 10; dy++) {
++                    const int hw = (dy * dy * 49) / 100 > 64 ? 0 : (int)(8 - (dy * dy) / 14);
++                    if (hw > 0) mc_rect(cv, x - hw, y + dy, hw * 2 + 1, 1, cc, 255);
++                }
++                mc_rect(cv, x - 3, y - 6, 2, 3, MO_RGB(255, 255, 255), 150); /* a highlight */
++                mc_put(cv, x - 1, y + 11, cc, 255);
++                mc_put(cv, x, y + 11, cc, 255);
++                mc_put(cv, x + 1, y + 11, cc, 255);
++                for (int k = 0; k < 22; k++) mc_put(cv, x + mo_sin((p->age >> 2) + k / 3 + p->b) / 48, y + 12 + k, MO_RGB(220, 220, 220), 170);
++                break;
++            }
++            case MO_ZZZ: {
++                const int rem = (int)p->life - (int)p->age;
++                unsigned a = 230;
++                if (p->age < 8) a = a * p->age / 8;
++                if (rem < 25) a = a * (unsigned)(rem > 0 ? rem : 0) / 25;
++                const int size = p->age < p->life * 3 / 10 ? 0 : (p->age < p->life * 65 / 100 ? 1 : 2);
++                mo_draw_z(cv, x, y, size, MO_RGB(196, 208, 255), a);
++                break;
++            }
++            case MO_FIREWORKS: {
++                static const uint16_t col[6] = {MO_RGB(255, 110, 120), MO_RGB(110, 210, 255), MO_RGB(255, 220, 90),
++                                                MO_RGB(140, 240, 140), MO_RGB(200, 140, 255), MO_RGB(255, 170, 80)};
++                if (p->a == 0) {
++                    mc_line(cv, x, y, x, y + 4, MO_RGB(255, 240, 200), 255);
++                } else {
++                    const unsigned left = p->life - p->age;
++                    const unsigned a = left * 2 >= p->life ? 255u : 255u * left * 2 / p->life; /* full for the first half, then fades */
++                    mc_rect(cv, x - 1, y - 1, 3, 3, col[p->b % 6], a);
++                    mc_put(cv, x, y - 2, col[p->b % 6], a / 2);
++                    mc_put(cv, x, y + 2, col[p->b % 6], a / 2);
++                    mc_put(cv, x - 2, y, col[p->b % 6], a / 2);
++                    mc_put(cv, x + 2, y, col[p->b % 6], a / 2);
++                    mc_put(cv, x - p->vx / 6, y - p->vy / 6, col[p->b % 6], a / 3); /* a short trail */
++                    mc_put(cv, x - p->vx / 3, y - p->vy / 3, col[p->b % 6], a / 5);
++                }
++                break;
++            }
++            case MO_STARS: {
++                static const uint8_t lvl[4] = {110, 165, 215, 255};
++                const unsigned a = lvl[p->a & 3] * env / 255;
++                const uint16_t w = MO_RGB(255, 255, 230);
++                if (p->vx != 0 || p->vy != 0) { /* a shooting star with a tail */
++                    for (int k = 0; k < 14; k++) mc_put(cv, x - (k * p->vx) / 24, y - (k * p->vy) / 24, w, (255 - k * 17) * env / 255);
++                } else if (p->b) {
++                    mc_put(cv, x, y, w, a);
++                    mc_put(cv, x - 1, y, w, a / 2); mc_put(cv, x + 1, y, w, a / 2); mc_put(cv, x, y - 1, w, a / 2); mc_put(cv, x, y + 1, w, a / 2);
++                    if (p->a == 3) { mc_put(cv, x - 2, y, w, a / 3); mc_put(cv, x + 2, y, w, a / 3); mc_put(cv, x, y - 2, w, a / 3); mc_put(cv, x, y + 2, w, a / 3); }
++                } else {
++                    mc_put(cv, x, y, w, a);
++                }
++                break;
++            }
++            case MO_CLOUDS: {
++                const unsigned a = 215 * env / 255;
++                const uint16_t col = p->b ? MO_RGB(120, 130, 152) : MO_RGB(184, 194, 214);
++                const int s = 1 + p->a; /* 1 to 3 */
++                mc_disc(cv, x + 10 * s, y + 8 * s, 6 * s, col, a);
++                mc_disc(cv, x + 20 * s, y + 6 * s, 8 * s, col, a);
++                mc_disc(cv, x + 30 * s / 1, y + 9 * s, 6 * s, col, a);
++                mc_rect(cv, x + 10 * s, y + 9 * s, 20 * s, 5 * s, col, a);
++                break;
++            }
++            case MO_DISCO: {
++                static const uint16_t col[6] = {MO_RGB(255, 60, 150), MO_RGB(60, 200, 255), MO_RGB(255, 220, 60),
++                                                MO_RGB(90, 255, 120), MO_RGB(170, 90, 255), MO_RGB(255, 140, 50)};
++                mc_disc(cv, x, y, p->a, col[p->b % 6], 120 * env / 255);
++                break;
++            }
++            default:
++                break;
++        }
++    }
++}
++
++/* Draws the overlay of one layer into the canvas. */
++static inline void mo_draw(const mo_layer_t* L, mc_t* cv)
++{
++    if (L->id == MO_NONE) {
++        return;
++    }
++    const unsigned env = mo_env(L);
++    cv->behind = mo_behind(L->id);
++    switch (L->id) {
++        case MO_SUN: {
++            const int cx = 280, cy = 36, pulse = 15 + mo_sin((int)(L->tick / 24)) / 64;
++            const unsigned a = 255 * env / 255;
++            const uint16_t col = MO_RGB(255, 214, 70);
++            mc_disc(cv, cx, cy, pulse + 7, MO_RGB(255, 190, 40), 40 * a / 255); /* soft glow */
++            mc_disc(cv, cx, cy, pulse, col, a);
++            for (int k = 0; k < 8; k++) { /* rays turn slowly */
++                const int ph = (k * 4 + (int)(L->tick / 48)) & 31;
++                const int x0 = cx + mo_cos(ph) * (pulse + 5) / 127, y0 = cy + mo_sin(ph) * (pulse + 5) / 127;
++                const int x1 = cx + mo_cos(ph) * (pulse + 13) / 127, y1 = cy + mo_sin(ph) * (pulse + 13) / 127;
++                mc_line(cv, x0, y0, x1, y1, col, a);
++            }
++            break;
++        }
++        case MO_FOG: {
++            const unsigned base = (L->intensity == 3 ? 150u : (L->intensity == 2 ? 112u : 76u)) * env / 255;
++            static const int cy[3] = {72, 134, 196};
++            for (int b = 0; b < 3; b++) {
++                for (int y = cy[b] - 13; y <= cy[b] + 13; y++) {
++                    if (y < cv->y1 || y > cv->y2) continue;
++                    const int prof = 13 - (y > cy[b] ? y - cy[b] : cy[b] - y); /* 0 to 13, thickest in the middle */
++                    for (int x = (cv->x1 & ~1) + ((y + b) & 1); x <= cv->x2; x += 2) {
++                        const int wave = 160 + mo_sin((x >> 4) + (int)(L->tick >> 3) * (b + 1) + b * 7) / 2; /* 96 to 224 */
++                        mc_put(cv, x, y, MO_RGB(214, 222, 232), base * (unsigned)prof * (unsigned)wave / (13 * 255));
++                    }
++                }
++            }
++            break;
++        }
++        case MO_DISCO: {
++            const unsigned a = env;
++            /* the ball: a string and a mirrored sphere whose facets glint as it turns */
++            mc_line(cv, 160, 0, 160, 14, MO_RGB(200, 200, 210), a);
++            const int r = 16, cy0 = 30, rot = (int)(L->tick / 3);
++            for (int dy = -r; dy <= r; dy++) {
++                if (cy0 + dy < cv->y1 || cy0 + dy > cv->y2) continue;
++                for (int dx = -r; dx <= r; dx++) {
++                    if (dx * dx + dy * dy > r * r) continue;
++                    const int fx = (dx + r + rot) >> 2, fy = (dy + r) >> 2;
++                    const unsigned h = ((unsigned)fx * 73856093u) ^ ((unsigned)fy * 19349663u);
++                    const unsigned g = (h >> 3) & 7; /* 0 to 7 */
++                    const int edge = ((dx + r + rot) & 3) == 0 || ((dy + r) & 3) == 0;
++                    const int shade = 90 + (int)g * 20 + (dx < 0 && dy < 0 ? 30 : 0) - (edge ? 50 : 0);
++                    mc_put(cv, 160 + dx, cy0 + dy, MO_RGB(shade, shade + 4, shade + 14 > 255 ? 255 : shade + 14), a);
++                }
++            }
++            { /* a few sparkles around it */
++                const int sp = (int)(L->tick / 3) & 7;
++                for (int k = 0; k < 4; k++) {
++                    const int ph = (k * 8 + sp * 5) & 31;
++                    const int sx = 160 + mo_cos(ph) * 26 / 127, sy = cy0 + mo_sin(ph) * 22 / 127;
++                    mc_put(cv, sx, sy, MO_RGB(255, 255, 255), a);
++                    mc_put(cv, sx - 1, sy, MO_RGB(255, 255, 255), a / 2); mc_put(cv, sx + 1, sy, MO_RGB(255, 255, 255), a / 2);
++                    mc_put(cv, sx, sy - 1, MO_RGB(255, 255, 255), a / 2); mc_put(cv, sx, sy + 1, MO_RGB(255, 255, 255), a / 2);
++                }
++            }
++            break;
++        }
++        default:
++            break;
++    }
++    mo_draw_particles(L, cv, env);
++    if (L->id == MO_THUNDER && L->s1 > 0) { /* the flash and the bolt */
++        cv->behind = 1;
++        const unsigned a = L->s1 == 3 ? 110u : (L->s1 == 2 ? 70u : 30u);
++        for (int y = cv->y1; y <= cv->y2 && y < 100; y++) {
++            for (int x = cv->x1; x <= cv->x2; x++) mc_put(cv, x, y, MO_RGB(235, 240, 255), a * (unsigned)(100 - y) / 100u);
++        }
++        cv->behind = 0;
++        if (L->s1 >= 2) {
++            int x = L->s2, y = 0;
++            uint32_t r = (uint32_t)L->s2 * 2654435761u + 1u;
++            while (y < 96) {
++                const int nx = x + (int)(mo_rand(&r) % 15u) - 7, ny = y + 10 + (int)(mo_rand(&r) % 6u);
++                mc_line(cv, x, y, nx, ny, MO_RGB(255, 255, 210), 255);
++                mc_line(cv, x + 1, y, nx + 1, ny, MO_RGB(255, 245, 160), 200);
++                x = nx; y = ny;
++            }
++        }
++    }
++}
++
++/* A cost model for one tick: roughly how many pixels the overlay writes and how many it flushes (the sum of its dirty
++ * rectangles' areas). The unit numbers are measured; this is for the host bench and the tests. */
++static inline uint32_t mo_dirty_pixels(const mo_layer_t* L)
++{
++    uint32_t px = 0;
++    for (int i = 0; i < L->ndirty; i++) {
++        px += (uint32_t)(L->dirty[i].x2 - L->dirty[i].x1 + 1) * (uint32_t)(L->dirty[i].y2 - L->dirty[i].y1 + 1);
++    }
++    return px;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+index 80c7e8b..d449f1e 100644
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -11,6 +11,7 @@
+ #include "maipai_fx.h"
+ #include "maipai_prefs_core.h"
+ #include "maipai_fx_core.h"
++#include "maipai_overlay_core.h"
+ #include "maipai_look_core.h"
+ #include "maipai_face.h"
+ #include "maipai_privacy.h"
+@@ -149,11 +150,21 @@ int s_style_id                       = ML_STYLE_BIG_EYES;
+ bool s_style_stock                   = false;
+ bool s_sleeping                      = false;
+ int64_t s_refr_start_us              = 0;
+-volatile uint64_t s_post_us          = 0;        // time spent in the flush step since the last status read
+-volatile uint32_t s_post_n           = 0;
+-volatile uint32_t s_post_worst_us    = 0;
++uint64_t s_post_us          = 0;        // time spent in the flush step since the last status read
++uint32_t s_post_n           = 0;
++uint32_t s_post_worst_us    = 0;
+ lv_timer_t* s_gov_timer              = nullptr;
+ 
++// ------------------------------------------------------------------------------------------ overlays (TA03)
++mo_layer_t s_ov[2];                  // weather layer, event layer: the whole engine's state (under 1.5 KB)
++lv_timer_t* s_ov_timer               = nullptr;  // the one shared 30 fps timer; paused when nothing runs
++int64_t s_ov_last_us                 = 0;
++bool s_ov_hidden                     = false;    // a privacy look, the clock or the flat fallback hides the overlays
++bool s_zzz_auto                      = false;    // the zzz was started by the sleeping look, so waking ends it
++uint32_t s_ov_seed                   = 0x5EED1234u;
++
++void ov_governor_changed();
++
+ void invalidate_screen()
+ {
+     if (s_disp != nullptr) {
+@@ -203,6 +214,7 @@ void apply_effects()
+     }
+     const bool same = memcmp(&next, &s_fx, offsetof(mfx_t, ramp)) == 0 && next.mode == s_fx.mode;
+     s_fx            = next;
++    ov_governor_changed();
+     if (!same) {
+         invalidate_screen();  // the whole screen is drawn again once, in the new look
+     }
+@@ -210,9 +222,19 @@ void apply_effects()
+ 
+ void post_to_flush(lv_display_t* d, const lv_area_t* a, uint8_t* px)
+ {
+-    if (mfx_any(&s_fx)) {
++    const bool overlays = !s_ov_hidden && (s_ov[0].id != MO_NONE || s_ov[1].id != MO_NONE);
++    if (overlays || mfx_any(&s_fx)) {
+         const int64_t t0 = esp_timer_get_time();
+-        mfx_post(&s_fx, reinterpret_cast<uint16_t*>(px), a->x1, a->y1, a->x2, a->y2);
++        uint16_t* pixels = reinterpret_cast<uint16_t*>(px);
++        if (overlays) {  // the overlays first, so the colour mode, the dim and the scanlines treat them like the rest of the picture
++            mc_t cv = {pixels, a->x1, a->y1, a->x2, a->y2, a->x2 - a->x1 + 1, 0};
++            for (int l = 0; l < 2; l++) {
++                mo_draw(&s_ov[l], &cv);
++            }
++        }
++        if (mfx_any(&s_fx)) {
++            mfx_post(&s_fx, pixels, a->x1, a->y1, a->x2, a->y2);
++        }
+         const uint32_t us = static_cast<uint32_t>(esp_timer_get_time() - t0);
+         s_post_us += us;
+         s_post_n++;
+@@ -248,6 +270,122 @@ void gov_tick(lv_timer_t*)
+     }
+ }
+ 
++
++bool ov_any()
++{
++    return s_ov[0].id != MO_NONE || s_ov[1].id != MO_NONE;
++}
++
++void ov_invalidate(mo_layer_t* L)
++{
++    mo_rect_t r[MO_MAX_DIRTY];
++    const int n = mo_take_dirty(L, r);
++    if (s_disp == nullptr) {
++        return;
++    }
++    lv_obj_t* scr = lv_display_get_screen_active(s_disp);
++    for (int i = 0; i < n; i++) {
++        lv_area_t a = {r[i].x1, r[i].y1, r[i].x2, r[i].y2};
++        lv_obj_invalidate_area(scr, &a);
++    }
++}
++
++// Whether overlays may show now: not under a mute, vision-off or quiet look, the clock face or the flat fallback.
++bool ov_should_hide()
++{
++    return mg_flat(&s_gov) || maipai_privacy_bits() != 0 || maipai_face_clock_visible();
++}
++
++void ov_set_hidden(bool hide)
++{
++    if (hide == s_ov_hidden) {
++        return;
++    }
++    s_ov_hidden = hide;
++    for (int l = 0; l < 2; l++) {
++        if (s_ov[l].id != MO_NONE) {
++            mo_mark_extent(&s_ov[l]);  // draw it or wipe it
++            ov_invalidate(&s_ov[l]);
++        }
++    }
++}
++
++void ov_governor_changed()
++{
++    const int pct = mg_particles_pct(&s_gov);
++    for (int l = 0; l < 2; l++) {
++        s_ov[l].pct = static_cast<uint8_t>(pct > 0 ? pct : 100);
++    }
++    if (ov_any()) {
++        ov_set_hidden(ov_should_hide());
++    }
++}
++
++void ov_tick(lv_timer_t*)
++{
++    const int64_t now = esp_timer_get_time();
++    const uint32_t dt = static_cast<uint32_t>((now - s_ov_last_us) / 1000);
++    s_ov_last_us      = now;
++    ov_set_hidden(ov_should_hide());
++    for (int l = 0; l < 2; l++) {
++        mo_layer_t* L = &s_ov[l];
++        if (L->id == MO_NONE) {
++            continue;
++        }
++        if (!s_ov_hidden) {
++            mo_step(L, dt > 200 ? 200 : dt);
++        } else if (L->dur_ms != 0) {
++            L->t_ms += dt;  // the clock runs while hidden, so a timed overlay still ends on time
++            if (L->spawning && L->t_ms >= L->dur_ms) mo_stop(L);
++        }
++        if (mo_done(L)) {
++            if (l == 1) s_zzz_auto = false;
++            mo_clear(L);
++        }
++        ov_invalidate(L);
++    }
++    if (!ov_any()) {
++        lv_timer_pause(s_ov_timer);
++    }
++}
++
++void ov_ensure_timer()
++{
++    s_ov_last_us = esp_timer_get_time();
++    if (s_ov_timer == nullptr) {
++        s_ov_timer = lv_timer_create(ov_tick, MO_TICK_MS, nullptr);
++    } else {
++        lv_timer_resume(s_ov_timer);
++    }
++}
++
++// Starts an overlay (LVGL lock held). Returns false when overlays are switched off in the preferences.
++bool ov_start(int id, int intensity, uint32_t seconds)
++{
++    if (!maipai_pref(MP_OVERLAYS_ENABLED)) {
++        return false;
++    }
++    s_ov_seed = s_ov_seed * 1664525u + 1013904223u + static_cast<uint32_t>(esp_timer_get_time());
++    mo_layer_t* L = &s_ov[mo_layer_of(id)];
++    mo_start(L, id, intensity, seconds, s_ov_seed);
++    L->pct = static_cast<uint8_t>(mg_particles_pct(&s_gov) > 0 ? mg_particles_pct(&s_gov) : 100);
++    ov_set_hidden(ov_should_hide());
++    ov_invalidate(L);
++    ov_ensure_timer();
++    return true;
++}
++
++void ov_clear_all()
++{
++    for (int l = 0; l < 2; l++) {
++        if (s_ov[l].id != MO_NONE) {
++            mo_clear(&s_ov[l]);
++            ov_invalidate(&s_ov[l]);
++        }
++    }
++    s_zzz_auto = false;
++}
++
+ void style_refresh()
+ {
+     const mf_config_t c = maipai_face_config();
+@@ -334,6 +472,16 @@ void maipai_fx_note_emotion(const char* emotion)
+         s_sleeping = asleep;
+         apply_effects();  // the halo goes while the eyes are shut
+     }
++    // The sleepy and sleeping looks float z letters (patch TA03); any other emotion ends them. A zzz asked for by a tool is left alone.
++    const bool zzz = emotion != nullptr && (strcmp(emotion, "sleepy") == 0 || strcmp(emotion, "closing") == 0 || strcmp(emotion, "sleeping") == 0);
++    if (zzz) {
++        if (s_ov[1].id != MO_ZZZ && ov_start(MO_ZZZ, 2, 0)) {
++            s_zzz_auto = true;
++        }
++    } else if (s_zzz_auto && s_ov[1].id == MO_ZZZ) {
++        mo_stop(&s_ov[1]);  // the letters on screen drift off by themselves
++        s_zzz_auto = false;
++    }
+ }
+ 
+ bool maipai_fx_thinking_dots()
+@@ -394,5 +542,79 @@ void maipai_fx_register_tools()
+                     ESP_LOGI(TAG, "prefs set, %d changed", __builtin_popcount(changed));
+                     return out + "]}";
+                 });
++    mcp.AddTool("self.overlay.status",
++                "Read the overlay engine: what runs in the weather layer and the event layer, the names it knows, the governor level "
++                "and the measured draw cost. Answers {ok, enabled, layers, names, governor, cost}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    char buf[1100];
++                    size_t n = 0;
++                    {
++                        LvglLockGuard lock;
++                        const bool on = maipai_pref(MP_OVERLAYS_ENABLED) != 0;
++                        static const char* const intens[] = {"light", "normal", "heavy"};
++                        n += snprintf(buf + n, sizeof buf - n, "{\"ok\":true,\"enabled\":%s,\"hidden\":%s,\"layers\":[", on ? "true" : "false",
++                                      s_ov_hidden ? "true" : "false");
++                        for (int l = 0; l < 2; l++) {
++                            const mo_layer_t& L = s_ov[l];
++                            const int left      = (L.id != MO_NONE && L.dur_ms != 0 && L.t_ms < L.dur_ms) ? static_cast<int>((L.dur_ms - L.t_ms + 999) / 1000) : 0;
++                            n += snprintf(buf + n, sizeof buf - n, "%s{\"layer\":\"%s\",\"name\":\"%s\",\"intensity\":\"%s\",\"seconds_left\":%d,\"particles\":%d}",
++                                          l ? "," : "", l ? "event" : "weather", L.id != MO_NONE ? MO_NAMES[L.id] : "none",
++                                          L.id != MO_NONE ? intens[L.intensity - 1] : "normal", left, L.n);
++                        }
++                        n += snprintf(buf + n, sizeof buf - n, "],\"names\":[");
++                        for (int i = 1; i < MO_COUNT; i++) {
++                            n += snprintf(buf + n, sizeof buf - n, "%s\"%s\"", i > 1 ? "," : "", MO_NAMES[i]);
++                        }
++                        const uint32_t pn = s_post_n;
++                        n += snprintf(buf + n, sizeof buf - n,
++                                      "],\"governor\":{\"level\":%d,\"particles_pct\":%d,\"load_pct\":%u,\"worst_us\":%u,\"fps\":%u,\"sheds\":%u,\"restores\":%u},"
++                                      "\"cost\":{\"flushes\":%u,\"post_avg_us\":%u,\"post_worst_us\":%u}}",
++                                      s_gov.level, mg_particles_pct(&s_gov), (unsigned)s_gov.last_load_pct, (unsigned)s_gov.last_worst_us,
++                                      (unsigned)s_gov.last_fps, (unsigned)s_gov.sheds, (unsigned)s_gov.restores, (unsigned)pn,
++                                      (unsigned)(pn ? s_post_us / pn : 0), (unsigned)s_post_worst_us);
++                        s_post_us = 0; s_post_n = 0; s_post_worst_us = 0;
++                    }
++                    return std::string(buf, n < sizeof buf ? n : sizeof buf - 1);
++                });
++    mcp.AddTool("self.overlay.set",
++                "Draw an overlay on top of the face. name is one of rain, snow, sun, clouds, wind, thunder, fog, stars, disco, "
++                "confetti, fireworks, hearts, steam, balloons, leaves or zzz. intensity is light, normal or heavy. seconds is how long "
++                "it runs (1 to 3600; 0 runs until self.overlay.clear). A new overlay replaces the running one in its own layer "
++                "(weather: rain, snow, sun, clouds, wind, thunder, fog, stars, leaves, disco; event: confetti, fireworks, hearts, "
++                "steam, balloons, zzz). A mute, vision-off or quiet look and the clock face hide overlays. Answers {ok} or "
++                "{ok:false,error}.",
++                PropertyList({Property("name", kPropertyTypeString, std::string("rain")),
++                              Property("intensity", kPropertyTypeString, std::string("normal")),
++                              Property("seconds", kPropertyTypeInteger, 8, 0, 3600)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string name      = properties["name"].value<std::string>();
++                    const std::string intensity = properties["intensity"].value<std::string>();
++                    const int seconds           = properties["seconds"].value<int>();
++                    const int id                = mo_id(name.c_str());
++                    if (id == 0) {
++                        return reply_error("that overlay is not known: use rain, snow, sun, clouds, wind, thunder, fog, stars, disco, confetti, fireworks, hearts, steam, balloons, leaves or zzz");
++                    }
++                    int level = 0;
++                    if (intensity == "light") level = 1;
++                    else if (intensity == "normal") level = 2;
++                    else if (intensity == "heavy") level = 3;
++                    if (level == 0) {
++                        return reply_error("intensity must be light, normal or heavy: pick one and send again");
++                    }
++                    if (seconds < 0 || seconds > 3600) {
++                        return reply_error("seconds must be from 0 to 3600: 0 runs until cleared");
++                    }
++                    LvglLockGuard lock;
++                    if (!ov_start(id, level, static_cast<uint32_t>(seconds))) {
++                        return reply_error("overlays are turned off in the settings: turn them on and send again");
++                    }
++                    return std::string("{\"ok\":true}");
++                });
++    mcp.AddTool("self.overlay.clear", "Remove every overlay at once. Answers {ok}.", std::vector<Property>{},
++                [](const PropertyList&) -> ReturnValue {
++                    LvglLockGuard lock;
++                    ov_clear_all();
++                    return std::string("{\"ok\":true}");
++                });
+ }
+ #endif
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index f7adc01..8e69980 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -1409,7 +1409,9 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         avatar.setEmotion(Emotion::Sad);
+     } else if (strcmp(emotion, "sleepy") == 0) {
+         avatar.setEmotion(Emotion::Sleepy);
+-        avatar.setSpeech("Zzz...");
++#if !CONFIG_MAIPAI_FX
++        avatar.setSpeech("Zzz...");  // patch TA03 replaces this static bubble with floating z letters (the zzz overlay)
++#endif
+         is_sleeping_ = true;
+         // avatar.mouth().setWeight(10);
+ 

@@ -1,4 +1,4 @@
-/* Host test for visible remote control (patch TB06). cc -std=c99 -Wall -Wextra -Werror -I<dir> remote_core_test.c */
+/* Host test for visible remote control (patch TB05). cc -std=c99 -Wall -Wextra -Werror -I<dir> remote_core_test.c */
 #include <stdio.h>
 #include <string.h>
 #include "maipai_remote_core.h"
