@@ -25,3 +25,17 @@ Yes, the unit's command recognizer is language specific. The model on the unit i
 6. **Later options:** a custom keyword model trained for a specific word in a specific language (Espressif offers custom wake word training), or a newer multilingual model if one ships.
 
 **Gate:** per language, at least 90 percent accepts on clean clips, under 1 false accept per hour of background speech and music, and no change in the memory gate.
+
+## Wake word first, or no wake word (owner question, 2026-11-17)
+
+**Default: wake word, then the command.** The wake word engine runs on the unit, so "Hi Stack Chan, quiet" works with the host asleep: the unit hears the wake word, opens a short command window (about 4 seconds), and the offline recognizer takes the command. No host, no network, no model. This is the mode for every command in the list.
+
+**Commands with no wake word are limited to the moments the robot is already making sound** (armed states): while it speaks (the stop word today), while an alarm or timer rings, and while a countdown is ending. In those moments "stop", "quiet" and "enough" work alone, because a person is already being interrupted by the robot. At every other time the robot ignores command words.
+
+**Optional, off by default: "hands-free" commands** (a setting): a very short list such as "mute" and "stop the timer" with no wake word. Off by default because every always-armed word is a false-trigger risk (a meeting, a video call, a TV). If switched on, the false-accept gate is stricter: under 1 false accept per 8 hours of speech and music, measured on the unit.
+
+**Meetings and false triggers (what protects you now):**
+- Mute and full quiet turn the wake word off entirely (the privacy switches already do this and show their cue).
+- A Meeting preset (see `next-ui-countdown-2026-11-17.md`) sets the unit to do-not-listen for the length of the countdown, with a visible cue, then restores listening by itself. Voice: "meeting mode for an hour".
+- A wake word sensitivity setting (low, normal, high) and the existing detection mode; the settings page shows the false wake count per day from the unit's own counters so the owner can tune it.
+- The unit shows its listening state with the light and the face at all times; a false wake that hears no speech goes back to idle quickly (the quiet-turn rule).
