@@ -61,3 +61,14 @@ Final rule (owner reason: feature logic in the public repo invites hacks and cop
 - The firmware already includes some body halves for the moved features (camera capture, streaming, the music detector). Decide which stay compiled in and which become optional builds, to keep the core small and inside the memory gate.
 - Whether `home_url` pairing should be offered during first setup, so the extras are one step away.
 - The docs mark moved features with the `Needs MaiPai Home` tag. Moving one back to the core is a tag change plus a design decision.
+
+## The App Store test (owner, 2026-11-17; supersedes the camera and remote rows above where they differ)
+
+Owner: the stock robot has an App Store, so "any feature that can come through the App Store can go local." The working test is now:
+
+1. **Stock parity.** If the stock firmware or its App Center delivers a feature (photo, live view, monitoring, gallery, dance, games, data display, remote control), we may build it locally, as long as it needs no outside service and no household-wide data. We never ship less than stock, except what stock does through the vendor's cloud, which we replace with the owner's own model or Home.
+2. **Local means on the owner's own host.** Frames, photos and audio stay on the owner's host (or the hub), never on a third party. Camera and remote features are opt-in, off by default, and always show their cue.
+3. **Apps are packages, not firmware forks.** Optional features ship as host-side packages and unit data packs (games, scenes, voice games, translator, photo booth). One firmware image carries the capabilities; the owner turns them on. A smaller `core` image stays an option if the memory gate ever needs it, with the same signing.
+4. **Home stays the owner of** outside services (weather, news, calendars, email), household records and other rooms, per-person identity and memory, policy, and the child and teen gates. In local mode those are off or answered from the model's own knowledge; in Home mode the hub supplies them.
+
+What changed: the camera and remote rows in the table above (take my picture, face follow, find my robot, remote control) may now be built locally. Recognition, names and storage across the household still go to Home.
