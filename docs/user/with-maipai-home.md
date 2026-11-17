@@ -4,12 +4,13 @@ MaiPai Home is an optional brain. The robot is complete without it. Use it if yo
 
 ## What it adds
 
-MaiPai for StackChan on its own is a simple, private voice robot. These run with MaiPai Home:
+These run with MaiPai Home:
 
-- The camera: snapshots, face follow, the name list and "what is this". [Details](camera.md)
-- Watch mode and security alerts, and the baby and pet monitor. [Watch](watch-and-alerts.md), [monitor](baby-and-pet-monitor.md)
-- Find my robot, remote beep, lights, talk, pan and tilt, and live view. [Details](find-and-remote.md)
+- Names for the people the camera sees, and "what is this". [Details](camera.md)
+- Household-wide alerts and monitoring across rooms. [Watch](watch-and-alerts.md), [monitor](baby-and-pet-monitor.md)
 - The coding companion, and home tools such as the local API and MQTT. [Coding](coding-companion.md), [tools](home-tools.md)
+
+The camera, remote control and monitoring themselves can run on your own host without Home. See [Find the robot and control it remotely](find-and-remote.md).
 
 And the features across all of MaiPai Home:
 

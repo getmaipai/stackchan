@@ -1,8 +1,6 @@
 # Find the robot and control it remotely
 
-<span class="home-tag">Needs MaiPai Home</span>
-
-This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
+Remote controls are built and flashed and work without MaiPai Home: beep, flash, find my robot (it works even when muted), say something, pan and tilt, head pad, nod, shake, dance, start a game and take a photo, from the settings page on your host. They are off until you turn on remote access, and every action shows a violet cue on the robot that cannot be turned off. Live view is planned. Not yet checked on a robot.
 
 
 

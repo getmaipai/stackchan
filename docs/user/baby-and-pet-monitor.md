@@ -1,8 +1,6 @@
 # Use the robot as a baby or pet monitor
 
-<span class="home-tag">Needs MaiPai Home</span>
-
-This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
+<span class="planned-tag">Planned</span> The monitor is planned to run on your own host, opt-in, off by default, with a cue that cannot be hidden. Sound and pictures stay on your host. Sharing across rooms and the household needs <span class="home-tag">Needs MaiPai Home</span>.
 
 
 

@@ -18,7 +18,7 @@ MaiPai for StackChan is open-source firmware and a host program for the [StackCh
 
 **Private by design.** What you say stays in your home. AI on your own computer answers, with no cloud service, no vendor account and no telemetry, and the host calls only the addresses you list in one settings file. Mute, camera off and full quiet take one tap, and [nothing is ever monitored in secret](docs/user/no-stealth.md). [Privacy](docs/user/privacy.md), [security](docs/user/security.md).
 
-**New things it can do.** Five faces and your own pictures as a face, 26 screen effects, swipe pages and a control sheet, games with saved best scores, voice timers and alarms that work with no model, dances to your music, six languages, and a camera that can name the people you enrol. [Everything it does](docs/user/features.md).
+**New things it can do.** Five faces and your own pictures as a face, 26 screen effects, swipe pages and a control sheet, games with saved best scores, voice timers and alarms that work with no model, dances to your music, six languages, remote controls and a camera you switch on yourself, with a cue that cannot be hidden. [Everything it does](docs/user/features.md).
 
 **Take it with you.** Away from home the robot joins your private network by itself and reaches your host from any Wi-Fi: a friend's house, a hotel, the office. Setup takes a phone and a setup code on the robot's screen. [Use it away from home](docs/user/use-it-anywhere.md).
 
@@ -38,7 +38,7 @@ Flash the robot from the web flasher (the build is trimmed: Bluetooth is off and
 
 ### With MaiPai Home
 
-[MaiPai Home](docs/user/with-maipai-home.md) adds the full feature set: memories, companions and personalities, cloned voices, recognizing people, naming songs, the camera, watching and monitoring, and household rules.
+[MaiPai Home](docs/user/with-maipai-home.md) adds the full feature set: memories, companions and personalities, cloned voices, recognizing people, naming songs, live lookups across rooms and household rules.
 Set `brain = "home"` and run `stackchan check`.
 
 

@@ -10,17 +10,21 @@ The robot works the same way with both. The difference is where the thinking hap
 
 ## What works in both
 
-Voice chat, the wake word, the stop word, faces and animations, screen effects, swipe pages, games, timers and alarms (set and cancel by voice, with no model), photos on the robot, the settings page, remote controls with their cues, the private network option and updates from your own host.
+Voice chat, the wake word, the stop word, faces and animations, screen effects, swipe pages, games, timers and alarms (set and cancel by voice, with no model), the settings page, remote controls with their cues (beep, flash, find my robot, say, pan and tilt, photo), turning toward you, the private network option and updates from your own host.
 
-## What only Home adds
+## The rule: if it needs no outside service and no household data, it can run on your own host
+
+The robot's camera, remote control and monitoring can run with your own model. They are opt-in, off by default, and show a cue on the robot that cannot be hidden. Frames, photos and sound stay on your own host. Built and flashed today: remote controls, photo and turning toward you. Live view, watching, alerts and the monitor are planned. Not yet checked on a robot.
+
+## What MaiPai Home adds
 
 <span class="home-tag">Needs MaiPai Home</span>
 
-- Live weather and other lookups, shown as a card or spoken.
-- Memories and people.
-- Scenes and household tools.
-- Face recognition by the hub.
-- The package catalog.
+- Outside services: live weather, news, calendars and email, shown as a card or spoken.
+- Names and recognizing people by face and voice.
+- Memories and household records, and other rooms.
+- Household rules, including the gates for children and teens.
+- Companions and personalities, cloned voices, scenes and household tools, and the package catalog.
 
 With your own model, ask about the weather and the model answers from what it knows, with no live data. The page says "Connect Home for live weather" where it matters. Not yet checked: that the hub's weather tool can send a card back to the robot.
 

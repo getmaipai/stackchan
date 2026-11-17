@@ -2,7 +2,7 @@
 
 Every feature on one page. Scan the table, then open the page for the ones you care about.
 
-**MaiPai for StackChan on its own is a simple, private voice robot.** Rows marked <span class="home-tag">Needs MaiPai Home</span> run with MaiPai Home. A feature that needs something you have not set up hides itself, and the settings page says what is missing.
+**MaiPai for StackChan runs on your own model, with no Home needed.** Camera, remote control and monitoring can run on your own host, opt-in and off by default. Rows marked <span class="home-tag">Needs MaiPai Home</span> run with MaiPai Home. A feature that needs something you have not set up hides itself, and the settings page says what is missing.
 
 ![The settings page with each feature switched on or off.](../images/web-features.svg)
 
@@ -86,23 +86,23 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Reset on the robot** | Hold a button for 3 seconds to erase Wi-Fi, pairing and settings. | Robot | [Troubleshooting](troubleshooting.md) |
 | **Signed updates with rollback** | You choose when to install. A failed start rolls back. | Robot | [Updates](updates.md) |
 
-## With MaiPai Home
+## Camera, remote control and MaiPai Home
 
 All of these need a MaiPai Home hub. Set `brain = "home"` to use them: [Use MaiPai Home as the brain](with-maipai-home.md).
 
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
-| **Take my picture, snapshots** | Ask for a picture and see it on your phone. | <span class="home-tag">Needs MaiPai Home</span> | [Camera](camera.md) |
+| **Take my picture, snapshots** | Ask for a picture and see it on your phone. | Robot, opt-in (photo built; voice snapshots planned) | [Camera](camera.md) |
 | **Face follow, wave, mirror** | The head follows your face, waves back and mirrors you. | <span class="home-tag">Needs MaiPai Home</span> | [Camera](camera.md) |
 | **What is this** | Hold something up and hear what it is. | <span class="home-tag">Needs MaiPai Home</span> | [Camera](camera.md) |
 | **Name list** | A local list of names it can match to faces you enrol. | <span class="home-tag">Needs MaiPai Home</span> | [Camera](camera.md) |
-| **Live view** | A low-resolution live view of the room, with the pink lights on the whole time. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
-| **Watch and alerts** | Motion and sound alerts with a snapshot. | <span class="home-tag">Needs MaiPai Home</span> | [Watch and alerts](watch-and-alerts.md) |
-| **Alarm and siren** | Red and blue lights and a siren for a security alert. | <span class="home-tag">Needs MaiPai Home</span> | [Watch and alerts](watch-and-alerts.md) |
-| **Baby and pet monitor** | Listen and look from your phone. Started on the robot and always shown. | <span class="home-tag">Needs MaiPai Home</span> | [Baby and pet monitor](baby-and-pet-monitor.md) |
-| **Find my robot** | See where it was last seen and make it beep and flash. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
-| **Remote beep, lights, talk** | Control the robot from the web app. It always shows when someone is using it. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
-| **Remote pan and tilt** | Move the head from your phone, within a safe range. | <span class="home-tag">Needs MaiPai Home</span> | [Find and remote](find-and-remote.md) |
+| **Live view** | A low-resolution live view of the room, with the pink lights on the whole time. | Robot, opt-in <span class="planned-tag">Planned</span> | [Find and remote](find-and-remote.md) |
+| **Watch and alerts** | Motion and sound alerts with a snapshot. | Robot, opt-in <span class="planned-tag">Planned</span> | [Watch and alerts](watch-and-alerts.md) |
+| **Alarm and siren** | Red and blue lights and a siren for a security alert. | Robot, opt-in <span class="planned-tag">Planned</span> | [Watch and alerts](watch-and-alerts.md) |
+| **Baby and pet monitor** | Listen and look from your phone. Started on the robot and always shown. | Robot, opt-in <span class="planned-tag">Planned</span> | [Baby and pet monitor](baby-and-pet-monitor.md) |
+| **Find my robot** | See where it was last seen and make it beep and flash. | Robot, opt-in | [Find and remote](find-and-remote.md) |
+| **Remote beep, lights, talk** | Control the robot from the web app. It always shows when someone is using it. | Robot, opt-in | [Find and remote](find-and-remote.md) |
+| **Remote pan and tilt** | Move the head from your phone, within a safe range. | Robot, opt-in | [Find and remote](find-and-remote.md) |
 | **Coding companion** | Agent status on the face, a build light, dictation and touch approvals. | <span class="home-tag">Needs MaiPai Home</span> | [Coding companion](coding-companion.md) |
 | **Local API, event stream, MQTT** | Wire the robot to your own tools and home automation, all off by default. | <span class="home-tag">Needs MaiPai Home</span> | [Home tools](home-tools.md) |
 | **Home-automation bridge and metrics** | Trigger scenes and chart the robot. | <span class="home-tag">Needs MaiPai Home</span> | [Home tools](home-tools.md) |
@@ -122,7 +122,7 @@ Likely to come, not finished. Do not count on these yet.
 |---|---|---|
 | **Pickup detection** <span class="planned-tag">Planned</span> | Still being built. | [Moves and moods](moves-and-moods.md) |
 | **Brighter dim level, funnier whack-a-mole** <span class="planned-tag">Planned</span> | A brighter dim level, real moles and funny sounds. Still being built. | [Games](games-and-pet.md) |
-| **More games** <span class="planned-tag">Planned</span> | Tic-Tac-Toe, a Bop-It style game, Simon Says and Rock-Paper-Scissors. Still being built. | [Games](games-and-pet.md) |
+| **More games** <span class="planned-tag">Planned</span> | Tic-Tac-Toe, Do It (button tiles), Rock Paper Scissors, Magic 8-Ball, Dice and Coin. Talk games: 20 Questions, riddles, trivia, word chain, would-you-rather and bedtime stories. A Dance to music toggle. Still being built, not flashed. | [Games](games-and-pet.md) |
 | **Scenes and data cards** <span class="planned-tag">Planned</span> | One tag that sets several looks at once (stormy, party and more), and cards such as weather shown by MaiPai Home. In progress. | [Local vs Home](local-vs-home.md) |
 | **Wi-Fi roaming** <span class="planned-tag">Planned</span> | Move between your saved Wi-Fi networks, and a ported private-network join. In progress. | [Away from home](use-it-anywhere.md) |
 | **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |

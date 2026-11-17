@@ -1,8 +1,6 @@
 # Use the camera
 
-<span class="home-tag">Needs MaiPai Home</span>
-
-This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
+<span class="planned-tag">Planned</span> Taking a photo from the settings page is built and flashed, and it works without MaiPai Home. It is off until you turn it on, shows its cue every time, and the picture stays on your own host. Snapshots by voice, live view and the rest of this page are planned for your own host too. Naming people, recognizing faces and "what is this" need <span class="home-tag">Needs MaiPai Home</span>. Not yet checked on a robot.
 
 
 The camera is off until you turn it on. Frames go to your MaiPai Home hub and never to an outside service.
