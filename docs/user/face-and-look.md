@@ -89,6 +89,18 @@ While the robot thinks, three animated dots show where the mouth is, on every st
 
 When the battery is low the robot looks tired, not sad: half-closed eyes and a slow blink at 20 percent, more droop at 10 percent and the sleepy face at 5 percent. A cable clears it. When it goes to sleep its eyes close slowly, stay shut with a thin curved line, and open again with a stretch when it wakes.
 
+## Scenes
+
+<span class="planned-tag">Planned</span> Scenes are built on the host but not flashed on the robot yet.
+
+A scene sets the whole look in one go: the face, an effect on the screen (rain, snow, balloons), the light ring and a quiet sound. There are ten: rainy day, snowy day, sunny day, bedtime, party, birthday, cozy, spooky, focus and celebrate.
+
+The robot only shows a scene when it is told to. Your language model can ask for one with a tag at the start of a sentence, like `[scene rainy_day]`, and `[scene off]` ends it. The tag is never spoken. Home can ask for one too. The robot never picks a scene from the words it hears.
+
+To change a scene, open the settings page, then Look, then Scenes. Pick a scene, change its face, effect, light, sound or how long it lasts, and press Save. "Test on the robot" shows the saved scene. "Back to the shipped scene" undoes your changes.
+
+A scene never moves the robot, takes a picture or changes a privacy setting. Quiet hours, sleep, mute and a remote control that is in use all win over a scene, and the robot still speaks. Light ring colors from a scene need a later ring update, so for now a scene changes the face, the effect and the sound.
+
 ## Quick sliders
 
 Slide your finger along the head strip to open a small overlay. It shows volume and brightness. Add more with `quick_sliders`.

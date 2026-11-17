@@ -41,7 +41,7 @@ If the light bars pulse cyan slowly <img src="../images/light-cyan.svg" alt="cya
 
 ## If the robot cannot join Wi-Fi
 
-It opens a setup page. Connect your phone to the network named `MaiPai-StackChan-` and four letters. The robot's screen shows a six-digit setup code. Open the page, pick your Wi-Fi, enter the password, the host address and the code. The code changes every few minutes, and five wrong tries lock that window.
+It opens a setup page. Connect your phone to the network named `stackchan-` and four letters or digits. The robot's screen shows a six-digit setup code. Open the page, pick your Wi-Fi, enter the password, the host address and the code. The page stays open after a network is saved, so you can add more than one: tap Finish when you are done. The code changes every few minutes, and five wrong tries lock that window. <span class="planned-tag">Planned</span> The new hotspot name, the page that stays open for several networks and the Finish button are built but not flashed and not tested on a robot yet.
 
 If you will take the robot away from home, also type a one-time key for your private network: see [Use the robot away from home](use-it-anywhere.md).
 
