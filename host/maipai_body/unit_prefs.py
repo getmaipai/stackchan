@@ -42,7 +42,9 @@ PREFS: dict[str, tuple[str, Any, Any, bool]] = {
     "fx_glow": ("bool", None, False, True),
     "speech_bubble": ("bool", None, False, True),
     "thinking_dots": ("bool", None, True, True),
-    "captions_mode": ("enum", ("off", "subtitles", "banner"), "subtitles", True),
+    # Captions are OFF unless a person turns them on, except the Stock style, whose own bubble became the subtitles (unit patch FI05;
+    # the unit's mp_captions_mode and settings_ui.py agree).
+    "captions_mode": ("enum", ("off", "subtitles", "banner"), "off", True),
     "top_bar": ("enum", ("hidden", "always"), "hidden", True),
     # Turn toward faces (the unit's own seeker, firmware patch S10): off, only after it is spoken to, or also when somebody walks in.
     # "talk" until the memory gate has been measured with the seeker running; the flash key is 13 characters.
@@ -144,6 +146,7 @@ class PrefsService:
         all_off = values["listen_sound"] == "off" and values["listen_light"] == "off" and not values["listen_face"]
         return {
             "values": values,
+            "saved": sorted(upgrade_keys(self._get(device_id))),  # keys a person chose (the page shows the Stock captions default for the rest)
             "unit_keys": list(UNIT_KEYS),
             "unit_ready": ready is True,
             "reachable": ready is not None,

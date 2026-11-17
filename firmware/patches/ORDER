@@ -169,3 +169,4 @@ S10-face-seek-core.patch
 S11-turn-to-faces-setting.patch
 O01-overlay-engine-bigger-shapes-and-combinations.patch
 O02-overlays-leave-text-zones-and-eyes.patch
+FI05-captions-default-off.patch

@@ -1132,8 +1132,12 @@ class XiaozhiServer:
         start: bool = True,
         stop: bool = True,
         prebuffer: int = 3,
+        caption: str | None = None,
     ) -> None:
-        """Send encoded 24 kHz Opus frames; the first `prebuffer` go fast, the rest paced."""
+        """Send encoded 24 kHz Opus frames; the first `prebuffer` go fast, the rest paced.
+
+        `caption` is the exact words of the sentence about to play; the unit's subtitle strip reads the `text` field
+        of `tts sentence_start` (firmware patches N01 and N04)."""
         websocket = self._sessions.get(device_id)
         if self._sessions.get(device_id) is not websocket or not self._session_authorized(
             device_id
@@ -1149,9 +1153,10 @@ class XiaozhiServer:
             # frames sent right behind tts start were lost (stutter heard on 2026-10-19).
             await asyncio.sleep(SPEAK_SETTLE_S)
         if sentence_start:
-            await self._json(
-                websocket, self._session_ids[device_id], "tts", {"state": "sentence_start"}
-            )
+            sentence = {"state": "sentence_start"}
+            if caption:
+                sentence["text"] = caption
+            await self._json(websocket, self._session_ids[device_id], "tts", sentence)
         interval = 0.06
         deadline = time.monotonic()
         try:

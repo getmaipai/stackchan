@@ -21,6 +21,7 @@ import numpy as np
 import numpy.typing as npt
 
 from maipai_body import reply_tags
+from maipai_body.bodies.stackchan import captions
 from maipai_body.bodies.stackchan.error_line import ErrorLineBreaker
 from maipai_body.speaker_evidence import SpeakerEvidenceError, speaker_evidence
 from maipai_body.speech.capture import BLOCK_SAMPLES
@@ -257,6 +258,12 @@ class StackChanAudioPlayback(AudioPlayback):
         self._recorded: list[bytes] = []
         self._lock = threading.RLock()
         self._sentence_start = True
+        # Caption markers (patches N01/N04): frames ever queued and sent (not reset per sentence), the sentence being
+        # spoken now as (first frame, pieces), and the (frame, text) markers waiting for the sender.
+        self._added = 0
+        self._popped = 0
+        self._cap_open: tuple[int, list[str]] | None = None
+        self._cap_marks: list[tuple[int, str]] = []
         self._clock, self._sleep, self._async_sleep = clock, sleeper, async_sleep
         self._cancel_event: threading.Event | None = None
         self._aborted = threading.Event()
@@ -327,7 +334,36 @@ class StackChanAudioPlayback(AudioPlayback):
     def _add_packets_locked(self, packets) -> None:
         made = [bytes(packet) for packet in packets]
         self._frames.extend(made)
+        self._added += len(made)
         self._recorded.extend(made)
+
+    def caption(self, text: str) -> None:
+        """The sentence whose audio is queued next; the unit shows its exact words when that audio starts."""
+        parts = captions.pieces(text)
+        with self._lock:
+            self._close_caption_locked()
+            if parts:
+                self._cap_open = (self._added, parts)
+                self._cap_marks.append((self._added, parts[0]))
+
+    def _close_caption_locked(self) -> None:
+        """The open sentence is fully queued: place its later pieces by their share of its characters."""
+        if self._cap_open is None:
+            return
+        start, parts = self._cap_open
+        self._cap_open = None
+        total = self._added - start
+        chars = sum(len(p) for p in parts) or 1
+        spent = len(parts[0])
+        for part in parts[1:]:
+            self._cap_marks.append((start + int(total * spent / chars), part))
+            spent += len(part)
+
+    def _take_caption_locked(self, frame_index: int) -> str | None:
+        """The next caption due at or before this frame (one per send; a late piece goes out on the next frame)."""
+        if self._cap_marks and self._cap_marks[0][0] <= frame_index:
+            return self._cap_marks.pop(0)[1]
+        return None
 
     def recorded_frames(self) -> list[bytes]:
         """The Opus packets of everything encoded for this reply, as sent to the unit."""
@@ -361,6 +397,8 @@ class StackChanAudioPlayback(AudioPlayback):
         with self._lock:
             lead = self._frames[:LEAD_FRAMES]
             del self._frames[:LEAD_FRAMES]
+            lead_caption = self._take_caption_locked(self._popped + len(lead) - 1)
+            self._popped += len(lead)
         if not lead or self._canceled():
             return
         first_sentence = self._sentence_start
@@ -381,6 +419,7 @@ class StackChanAudioPlayback(AudioPlayback):
             start=first_sentence,
             stop=False,
             prebuffer=len(lead),
+            **({"caption": lead_caption} if lead_caption else {}),
         )
         total = len(lead)
         sent = len(lead)  # since `began`, the last time the schedule was based
@@ -408,6 +447,8 @@ class StackChanAudioPlayback(AudioPlayback):
                 with self._lock:
                     batch = self._frames[:REFILL_FRAMES]
                     del self._frames[:REFILL_FRAMES]
+                    batch_caption = self._take_caption_locked(self._popped + len(batch) - 1)
+                    self._popped += len(batch)
                 self._was_starved = False
                 self._refills += 1
                 began = self._clock()
@@ -415,17 +456,22 @@ class StackChanAudioPlayback(AudioPlayback):
                 await self._server.send_audio(
                     self._device_id,
                     batch,
-                    sentence_start=False,
+                    sentence_start=batch_caption is not None,
                     start=False,
                     stop=False,
                     prebuffer=len(batch),
+                    **({"caption": batch_caption} if batch_caption else {}),
                 )
                 total += len(batch)
                 sent = len(batch)
                 deadline = self._clock()
                 continue
+            frame_caption = None
             with self._lock:
                 frame = self._frames.pop(0) if self._frames else None
+                if frame is not None:
+                    frame_caption = self._take_caption_locked(self._popped)
+                    self._popped += 1
             if frame is None:
                 continue
             deadline += FRAME_S
@@ -449,9 +495,19 @@ class StackChanAudioPlayback(AudioPlayback):
             if self._canceled():
                 break
             self._lateness.append(max(0.0, self._clock() - deadline))
-            await self._server.send_audio(
-                self._device_id, [frame], sentence_start=False, start=False, stop=False
-            )
+            if frame_caption:
+                await self._server.send_audio(
+                    self._device_id,
+                    [frame],
+                    sentence_start=True,
+                    start=False,
+                    stop=False,
+                    caption=frame_caption,
+                )
+            else:
+                await self._server.send_audio(
+                    self._device_id, [frame], sentence_start=False, start=False, stop=False
+                )
             total += 1
             sent += 1
             self._play_until = max(self._play_until, self._clock()) + FRAME_S
@@ -510,6 +566,7 @@ class StackChanAudioPlayback(AudioPlayback):
         self._add_packets_locked(self._encoder.encode(None))
         self._samples = np.zeros(0, dtype=np.float32)
         self._encoder = self._new_encoder()
+        self._close_caption_locked()
 
     def end_sentence(self) -> None:
         """One sentence is fully synthesized. The reply stays one paced stream: flush this
@@ -531,6 +588,7 @@ class StackChanAudioPlayback(AudioPlayback):
         """Send already encoded packets again, paced like a reply (nothing is recorded again)."""
         with self._lock:
             self._frames.extend(frames)
+            self._added += len(frames)
         self._finish_and_wait()
 
     def _finish_and_wait(self) -> None:
@@ -569,6 +627,8 @@ class StackChanAudioPlayback(AudioPlayback):
         with self._lock:
             self._samples = np.zeros(0, dtype=np.float32)
             self._frames.clear()
+            self._popped = self._added
+            self._cap_open, self._cap_marks = None, []
             self._pitch_buffer = []
             if self._sender_future is not None:
                 self._sender_future.cancel()
@@ -1555,6 +1615,7 @@ class StackChanTurnBridge:
                 index + 1,
                 len(sentence),
             )
+            self._caption(playback, sentence)
             await asyncio.to_thread(tts.speak, sentence, stop_event=cancel_event)
             synthesized_at = self._clock()
             if cancel_event.is_set():
@@ -1830,6 +1891,17 @@ class StackChanTurnBridge:
         ).start()
         return True
 
+    @staticmethod
+    def _caption(playback, text: str) -> None:
+        """Tell the playback which words the next audio speaks (the unit's subtitles); never fails a reply."""
+        mark = getattr(playback, "caption", None)
+        if mark is None or not text:
+            return
+        try:
+            mark(text)
+        except Exception:
+            LOG.debug("StackChan caption skipped", exc_info=True)
+
     def _say_reaction(self, playback, base: str, cookie: str, text: str) -> None:
         try:
             self._say(playback, base, cookie, text)
@@ -1848,6 +1920,10 @@ class StackChanTurnBridge:
 
             cache = self.cache_dir or (Path.home() / ".cache" / "maipai-body")
             speaker = OfflineSpeaker(ensure_clip_bundle(cache), playback)
+            try:
+                self._caption(playback, speaker.selected_text(UNREACHABLE) or "")
+            except Exception:
+                LOG.debug("StackChan offline caption skipped", exc_info=True)
             speaker.say_phrase(UNREACHABLE)
             playback.stop()
             playback.end()
@@ -1886,6 +1962,7 @@ class StackChanTurnBridge:
     def _say(self, playback, base: str, cookie: str, text: str) -> None:
         """Speak one short line through the hub's voice (a confirmation, not a chat reply)."""
         try:
+            self._caption(playback, text)
             self.tts_factory(base, cookie, playback).speak(text)
             playback.stop()
             playback.end()
@@ -1901,6 +1978,7 @@ class StackChanTurnBridge:
             except Exception:  # a sound never decides whether the apology is spoken
                 LOG.debug("StackChan error earcon failed", exc_info=True)
         try:
+            self._caption(playback, "I couldn't understand that. Please try again.")
             self.tts_factory(base, cookie, playback).speak(
                 "I couldn't understand that. Please try again."
             )

@@ -47,7 +47,10 @@ async function lookCards(id,u,v,has,face){const pv=await prefsView(id),put=prefS
   ptoggle(pv,put,'emotion_faces',T('pol.feel.emotion'),T('pol.feel.emotion_help')),
   ptoggle(pv,put,'speech_bubble',T('pol.feel.bubble'),T('pol.feel.bubble_help'),upd),
   ptoggle(pv,put,'thinking_dots',T('pol.feel.dots'),T('pol.feel.dots_help'),upd),comingNote(pv,'speech_bubble'));
- const caps=card(T('pol.cap.title'),T('pol.cap.help'),pseg(pv,put,'captions_mode',T('pol.cap.mode'),['off','subtitles','banner'],upd),comingNote(pv,'captions_mode'));
+ const capsSaved=(pv.saved||[]).includes('captions_mode');if(!capsSaved&&(v||{}).style==='stock')pv.values.captions_mode='subtitles';
+ const capsOff=h('p',{class:'hint',role:'status',hidden:pv.values.captions_mode!=='off'},T('pol.cap.off_note'));
+ const capsUpd=x=>{upd();capsOff.hidden=pv.values.captions_mode!=='off'};
+ const caps=card(T('pol.cap.title'),T('pol.cap.help'),pseg(pv,put,'captions_mode',T('pol.cap.mode'),['off','subtitles','banner'],capsUpd),capsOff,comingNote(pv,'captions_mode'));
  const topbar=card(T('pol.top.title'),T('pol.top.help'),pseg(pv,put,'top_bar',T('pol.top.mode'),['hidden','always'],upd),comingNote(pv,'top_bar'));
  const eff=card(T('pol.fx.title'),T('pol.fx.help'),
   ptoggle(pv,put,'fx_crt',T('pol.fx.crt'),T('pol.fx.crt_help'),upd),

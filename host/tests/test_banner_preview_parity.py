@@ -153,7 +153,7 @@ def test_the_two_settings_are_in_the_hosts_table() -> None:
     assert unit_prefs.PREFS["captions_mode"] == (
         "enum",
         ("off", "subtitles", "banner"),
-        "subtitles",
+        "off",
         True,
     )
     assert unit_prefs.PREFS["top_bar"] == ("enum", ("hidden", "always"), "hidden", True)

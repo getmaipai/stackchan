@@ -1,0 +1,18 @@
+# Intent: The captions default is OFF for every style except Stock (owner decision on speech bubbles: default off, a setting turns it on). The unit already behaved that way (mp_captions_mode falls back to the older bubble setting, the Stock style or the face's captions flag, off otherwise), but the table row said 1 (subtitles), so self.prefs.get and the settings page disagreed with what the screen did. The row's default becomes 0 (off); nothing else changes and a saved choice still wins.
+# Placement: unit (the row lives in the unit's own flash; the host copy is what the settings page shows)
+# Upstream: firmware/main/hal/maipai_prefs_core.h (ours, patch N01 added the row)
+# Check after a flash: self.prefs.get lists captions_mode with value off on a unit that never saved it; with the Stock style and no saved choice the strip still shows subtitles; saving subtitles or banner still survives a reboot.
+
+diff --git a/firmware/main/hal/maipai_prefs_core.h b/firmware/main/hal/maipai_prefs_core.h
+index 247ee37..0000000 100644
+--- a/firmware/main/hal/maipai_prefs_core.h
++++ b/firmware/main/hal/maipai_prefs_core.h
+@@ -87,7 +87,7 @@
+     {"fx_glow", "fx_glow", MP_BOOL, 0, 1, 0, 1, NULL},
+     {"speech_bubble", "speech_bubble", MP_BOOL, 0, 1, 0, 1, NULL},
+     {"thinking_dots", "thinking_dots", MP_BOOL, 0, 1, 1, 1, NULL},
+-    {"captions_mode", "captions_mode", MP_ENUM, 0, 2, 1, 1, MP_NAMES_CAPTIONS},
++    {"captions_mode", "captions_mode", MP_ENUM, 0, 2, 0, 1, MP_NAMES_CAPTIONS},
+     {"top_bar", "top_bar", MP_ENUM, 0, 1, 0, 1, MP_NAMES_TOPBAR},
+     {"pickup_reaction", "pickup_reaction", MP_ENUM, 0, 2, 1, 0, MP_NAMES_PICKUP},
+ };
