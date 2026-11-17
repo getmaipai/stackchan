@@ -13,6 +13,10 @@ The light bars glow blue <img src="../images/light-blue.svg" alt="blue light bar
 
 ![The robot face in the listening state.](../images/listening.svg)
 
+## The wake word
+
+The default wake word is "Hi, Stack Chan". Other ready-made words and a phrase you make up are <span class="planned-tag">Planned</span>. Offline voice commands, which need no host, are planned too. The wake word, the English stop word and the audio front end come from Espressif's speech library, which the build downloads under its own license.
+
 ## Voice commands
 
 These work in any sentence that starts with the wake word.

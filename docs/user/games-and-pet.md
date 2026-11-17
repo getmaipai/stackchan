@@ -5,6 +5,8 @@ The games and the pet mood run on the robot itself, so they work with your own L
 
 ## Games
 
+The next robot image removes Reaction Time, makes games full height with a swipe-down bar and makes game sounds follow the system volume. Built, not flashed.
+
 The robot has six games. Color memory, reaction time and whack-a-mole are on the flashed robot. Tic-Tac-Toe, Do It and Rock Paper Scissors, the funny moles and the talk games are built but not flashed yet, and not tested on a robot. They run on the robot itself, so they work even when MaiPai Home is off.
 
 - **Color memory.** The robot shows a pattern with lights and sounds. Tap the colors back in the same order. Each round adds one step. Your score is the number of rounds you got right.

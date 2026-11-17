@@ -72,6 +72,10 @@ MaiPai for StackChan is a hobby project. We read everything (eventually), but ma
 
 MaiPai for StackChan is free and open source. If it helps you, [sponsoring on GitHub](https://github.com/sponsors/JesseWebDotCom) pays for test hardware, such as more robots, a computer for bigger models and a phone for travel tests. We test on that hardware ourselves and publish what we measure.
 
+## What is in this repository
+
+Source code, patches to the StackChan firmware and a build recipe. No model or library binaries are stored here. The build downloads Espressif's speech library, which provides the wake word "Hi, Stack Chan", the English stop word and the audio front end, under its own license. [THIRD-PARTY.md](THIRD-PARTY.md) and `NOTICE` list every download and license. Ready-made images on GitHub Releases may come later.
+
 ## Development
 
 Start with [the developer overview](docs/dev/overview.md), read `docs/dev/contributing.md`, then run `bash scripts/check.sh` before you send a change. Build from source and the host design are under `docs/dev/`.
