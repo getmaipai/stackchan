@@ -65,3 +65,20 @@ Left, with the reason:
 ## Checks
 
 `bash scripts/hygiene-check.sh`, `bash scripts/boundary-check.sh`, `bash scripts/check.sh`: see `.runs/security-fixes.result.md`.
+
+## Sniffing and man in the middle: decision (owner question, 2026-11-17)
+
+Yes, protect the robot-to-host link, before the first public release. Today the unit speaks plain WebSocket to the host on the home network, so anyone who can see traffic on that network (a guest on the Wi-Fi, a compromised device) could read what the robot sends (its microphone audio while a turn runs, commands, camera frames when the camera is on) or inject commands by posing as the host. What protects us now: the pairing key, signed firmware updates, hash-pinned model downloads, the remote controls that are off by default with cues that cannot be hidden, the host's settings page bound to this computer only, and the private network (WireGuard) path when it is used.
+
+**Design (TLS item, now scheduled)**
+1. **TLS with a pinned private certificate authority.** At pairing the host makes a private CA and a host certificate; the unit stores the CA's fingerprint (not a public root), and every connection is `wss` to the host, checked against that pin. A stranger on the network cannot present a valid certificate, so a man in the middle fails at the handshake.
+2. **Authenticated both ways.** The unit also proves itself with its device key and a short-lived token (a nonce per session, already carried as a session id), so a stranger cannot pose as the robot.
+3. **Same for the other channels:** the audio and camera channels, and the host's small HTTP route for photos and notification sounds (https with the same pin).
+4. **No downgrade:** once paired for TLS, the unit refuses plain `ws`. A "trusted home network, no encryption" option exists only as an explicit setting for debugging, off by default and shown in the Security check screen.
+5. **Setup hotspot:** the setup code stays on the screen; the credentials sent in setup go over the robot's own temporary network, and the page says to do setup at home. The hotspot is closed after setup.
+6. **Cost on the unit [estimate, to be measured]:** the stock firmware already speaks `wss` to its vendor's cloud, so the TLS client exists; the work is the pin, the private CA and keeping the TLS buffers in PSRAM so internal RAM keeps its floors (handshake peak is the number to measure). A few KB of flash.
+7. **Tests:** a host that presents a different certificate is refused; a replayed session id is refused; tampered frames are refused; a wake and a turn still work with the TLS link (latency measured, handshake once per connection); the memory gate with an active TLS session.
+
+**Other exposure to check in the Security check screen:** the host's HTTP port 8767 (photos, notification audio) is plain http on the LAN until item 3 lands; the settings page is loopback only; the Tailscale key is never in a release.
+
+**Order:** after the current firmware round: (1) the TLS link with the pinned private CA, (2) the Tools app (`next-network-tools-2026-11-17.md`) beginning with the Wi-Fi scan, signal meter and the Security check screen.
