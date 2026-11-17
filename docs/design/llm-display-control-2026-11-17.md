@@ -280,13 +280,42 @@ Goal: Home (or any source with the right permission) can run richer screens on t
 
 **Who may send what:** Home and the owner may send every type. The model may send `text`, `list`, `progress` and `countdown` only, never `modal` or `image` (a modal from a model is an interrupt the model could abuse). A host package the owner installed may send the same as the owner. The child and teen gates apply to what a card may show and when a modal may interrupt.
 
-**Is there a generic layout language?** Not in v1. Home already has a UI schema its own apps render. The unit could later render a very small subset of that same schema (grid, text, icon, progress, button) so the definition stays in one place. That is a later decision, taken only if the fixed types prove too limiting after phase 4. It would not change the permission rules above.
+**Is there a generic layout language?** Yes, see 8.2b (revised after the owner suggested the source send the shapes). The earlier note said not in v1; that is superseded. Home already has a UI schema its own apps render. The unit could later render a very small subset of that same schema (grid, text, icon, progress, button) so the definition stays in one place. That is a later decision, taken only if the fixed types prove too limiting after phase 4. It would not change the permission rules above.
 
 **Local mode:** the same channel works. A calendar comes from the owner's own file or tool; a household calendar service, email, weather and news are Home tools. In local mode a card with no data source simply is not sent.
 
 **Cost [estimate, to be measured]:** the calendar and flashcard layouts add about 6 to 10 KB of flash for the draw code and 3 to 5 KB of PSRAM while shown; no new internal RAM in steady state. The image path reuses the picture page's decoder.
 
 **Build order:** (1) `modal` and `image` with dismiss and events (smallest, most useful), (2) `calendar`, (3) `flashcards` and `progress`, (4) the generic subset decision.
+
+### 8.2b Dynamic display lists: the source sends the shapes, the unit draws them (owner idea 2026-11-17, recommended; replaces the "no layout language in v1" call in 8.2a)
+
+Idea: instead of a fixed layout in firmware for every card and game, the unit holds one small drawing engine. Home, a host package or the owner sends a display list: the shapes, text, icons, animation flags and touch areas. The unit draws it and reports touches. The engine for games already works this way (data packs plus an engine); this makes it the one drawing path.
+
+**Fits our rules:** it is the App Store test in practice (apps are data, not firmware forks); the definition lives in one place and is shared with Home's own screen format, so Home renders the same list in its web app and on the unit; it is the "one definition, one implementation" platform rule.
+
+**The primitives (bounded, no scripting):**
+- `rect`, `round`, `circle`, `line`, `arc` with color tokens (theme tokens plus a few named colors, never raw colors that break the theme or the cue palette).
+- `text` (size 14, 16, 20 or 24), `icon` (from the unit's icon table, by name), `image` (by id, 320 by 156 at most), `bar` and `ring` (a value 0 to 1), `grid` (rows by columns, cells hold other primitives).
+- Props on any element: `blink`, `pulse`, `ease_to` (position or size with an easing curve and duration), `fade`, `z`.
+- `touch` areas with an `action` string and optional `value`; the unit returns `card_action` events (see 8.2a) and also runs a few local actions with no host round trip: `dismiss`, `flip`, `next`, `prev`, `toggle`.
+- Limits: at most 64 elements per list, 4 KB per push (JSON or a compact binary form), 6 animations at once, coordinates only inside the card zone, text cleaned by the same plain-text rules as tiles. A bad list is refused whole with a plain error.
+
+**Why it can save flash:** one interpreter replaces many static layouts. The calendar, flash cards, modal, image frame, the game boards and tiles, and the settings-style screens become lists. The first build adds the interpreter (an estimate of 10 to 15 KB of flash, to be measured); the saving appears when the static drawing code for the games and cards is retired. The games drawing code today is large source, but source size is not binary size: the real saving is measured from the linker map after a migration, never promised before. Built-in pages that must work with no host (clock, timers, the control sheet, faces) stay native.
+
+**Safety and limits:**
+- The engine can never draw over the banner row, the subtitle strip, the remote chip or the camera and mic cues, and it cannot change the face or the ring: cards live in the card zone only.
+- Touch areas are at least 44 by 44; a list that tries a smaller one is refused. Every list gets the drag bar and a local dismiss that a source cannot remove.
+- The model may send only the simple card types of 8.2, never a free display list (it could draw something that imitates a system cue). Home, the owner and installed host packages may send display lists.
+- Child and teen gates decide what lists may interrupt; quiet hours and full quiet apply as for modals.
+
+**Dynamic content and offline:** a list can be cached on the unit by id (up to 8 lists, in PSRAM, evicted oldest first) so a game or a flash card set keeps working with the host asleep. Lists carry a version; the host pushes a changed one. A card with no host and no cache shows a plain "Not available right now" line.
+
+**Performance:** drawing uses LVGL objects created in PSRAM when a list is pushed and deleted when it closes, like the overlays. The animation governor sheds blink and pulse first. A 64-element list is checked against the same cost model as an overlay before it ships (bench: p99 refresh gap under 50 ms).
+
+**Testing:** a parser fuzz (random and malformed lists), a size and element cap test, a render test that draws each primitive on the Mac with the real LVGL code and compares with golden images, and a bench run for the frame gap.
+
+**Phases:** (1) the interpreter with rect, text, icon, round, bar, touch, `dismiss`, `blink`, events back; port `modal` and `image` onto it; (2) grid, ring, arc and animations; port `calendar` and `flashcards`; (3) the cache and Home's shared definition; (4) migrate the game boards and retire their static drawing, measuring the linker map before and after; (5) decide about the model's allowed subset.
 
 ### 8.3 Which things are tags, which are tool calls
 
