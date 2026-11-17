@@ -1,0 +1,155 @@
+# Intent: One overlay screen at a time. The bot settings screen, the quick settings panel, the Wi-Fi page and the More screens each opened on the top layer without knowing about the others, so a host tool or a second touch could leave Settings, Games and More up at once, drawn over each other. A single screen state (maipai_screens_core.h, maipai_screens.h) now owns them: opening one closes the one that was up, a screen that closes tells the state, and a page, the sheet or the face shown by self.page.show closes any overlay screen. self.page.show also takes settings, wifi and more. The Wi-Fi button of the settings screen opens a page titled Wi-Fi with only Wi-Fi content (the volume and brightness sliders stay on the sheet and the Quick settings panel); the More menu gains a Quick settings button (volume, brightness, Wi-Fi and Reset) titled as it is.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_more.cc (ours, U03 to U05), new maipai_screens_core.h and maipai_screens.h
+# Check after a flash: self.page.show settings, then more, then wifi: only the last one is on the screen; Done or a swipe down returns to the face or the page below.
+
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -8,6 +8,7 @@
+ #include <sdkconfig.h>
+ #include "maipai_more.h"
+ #if MAIPAI_MORE_SCREEN
++#include "maipai_screens.h"
+ #include "maipai_face.h"
+ #include "hal.h"
+ #include <lvgl.h>
+@@ -75,6 +76,7 @@ void close_all()
+         lv_obj_delete_async(s_root);
+         s_root = nullptr;
+     }
++    maipai_screen_closed(MSCR_MORE);
+ }
+ 
+ lv_obj_t* label(lv_obj_t* parent, const char* text, const lv_font_t* font)
+@@ -129,6 +131,12 @@ void clear_page()
+ 
+ void on_back_menu(lv_event_t*) { show(PAGE_MENU); }
+ void on_close(lv_event_t*) { close_all(); }
++extern "C" void maipai_display_open_quick(void);
++void on_open_quick(lv_event_t*)
++{
++    close_all();
++    maipai_display_open_quick();  // the stock Quick settings panel (volume, brightness, Wi-Fi, Reset): its own screen, titled as it is
++}
+ void on_open_page(lv_event_t* e) { show(static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)))); }
+ 
+ #if CONFIG_MAIPAI_TZ
+@@ -339,6 +347,7 @@ void build_menu()
+ #if CONFIG_MAIPAI_GAMES
+     button(s_root, tx("Games", "Juegos"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_GAMES)));
+ #endif
++    button(s_root, tx("Quick settings", "Ajustes rapidos"), 100, on_open_quick);
+ }
+ 
+ // The fixed top of every page (patch UI01): the grabber handle, the page title and a 44 px target at the top right (Back on a
+@@ -407,6 +416,8 @@ void show(int page)
+ 
+ void maipai_more_open()
+ {
++    maipai_screen_register(MSCR_MORE, close_all);
++    maipai_screen_open(MSCR_MORE);  // one overlay screen at a time (patch UI09)
+     if (s_root != nullptr) {
+         return;
+     }
+diff --git a/firmware/main/hal/maipai_screens_core.h b/firmware/main/hal/maipai_screens_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_screens_core.h
+@@ -0,0 +1,45 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * One current full-screen overlay (patch UI09): the pure state. Plain C99, no ESP call. Host test: host/tests/firmware/screens_core_test.c.
++ *
++ * The bot's settings screen, the quick settings panel, the Wi-Fi page and the More screens (time zone, network test, version, games)
++ * each used to open on the top layer without knowing about the others, so a host tool or a second touch could leave Settings, Games
++ * and More up at once, drawn over each other. Now every one of them asks here before it opens: the screen that was current is closed
++ * first, and a screen that closes tells this state. Exactly one of them is current at a time.
++ */
++#ifndef MAIPAI_SCREENS_CORE_H
++#define MAIPAI_SCREENS_CORE_H
++
++#include <stdint.h>
++
++enum { MSCR_NONE = -1, MSCR_SETTINGS = 0, MSCR_QUICK, MSCR_WIFI, MSCR_MORE, MSCR_COUNT };
++
++typedef struct {
++    int8_t cur;           /* the one screen that is up, or MSCR_NONE */
++    uint8_t visible_mask; /* bit per screen that has objects on the glass: never more than one bit */
++} mscr_t;
++
++static inline void mscr_init(mscr_t* s)
++{
++    s->cur = MSCR_NONE;
++    s->visible_mask = 0;
++}
++
++/* A screen wants to open. Returns the screen to close first (MSCR_NONE when none), and makes `id` the current one. */
++static inline int mscr_open(mscr_t* s, int id)
++{
++    const int prev = (s->cur != MSCR_NONE && s->cur != id) ? s->cur : MSCR_NONE;
++    s->cur = (int8_t)id;
++    return prev;
++}
++
++/* A screen has closed itself (or was closed). */
++static inline void mscr_closed(mscr_t* s, int id)
++{
++    if (s->cur == id) {
++        s->cur = MSCR_NONE;
++    }
++}
++
++#endif /* MAIPAI_SCREENS_CORE_H */
+diff --git a/firmware/main/hal/maipai_screens.h b/firmware/main/hal/maipai_screens.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_screens.h
+@@ -0,0 +1,46 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The single owner of the full-screen overlays (patch UI09). Header only; the LVGL lock is held by every caller. See maipai_screens_core.h.
++ *   maipai_screen_register(id, close)   once: how to close that screen (it must call maipai_screen_closed(id) itself)
++ *   maipai_screen_open(id)              before building a screen: closes the one that is up, if any
++ *   maipai_screen_closed(id)            when a screen goes away
++ *   maipai_screen_close_all()           something else (a page, the face) takes over the glass
++ */
++#pragma once
++#include "maipai_screens_core.h"
++
++namespace maipai_screens_detail {
++inline mscr_t g_state = {MSCR_NONE, 0};
++inline void (*g_close[MSCR_COUNT])() = {};
++}  // namespace maipai_screens_detail
++
++inline void maipai_screen_register(int id, void (*close)())
++{
++    if (id >= 0 && id < MSCR_COUNT) {
++        maipai_screens_detail::g_close[id] = close;
++    }
++}
++
++inline void maipai_screen_open(int id)
++{
++    const int prev = mscr_open(&maipai_screens_detail::g_state, id);
++    if (prev != MSCR_NONE && maipai_screens_detail::g_close[prev] != nullptr) {
++        maipai_screens_detail::g_close[prev]();
++    }
++}
++
++inline void maipai_screen_closed(int id)
++{
++    mscr_closed(&maipai_screens_detail::g_state, id);
++}
++
++inline void maipai_screen_close_all()
++{
++    const int cur = maipai_screens_detail::g_state.cur;
++    if (cur != MSCR_NONE && maipai_screens_detail::g_close[cur] != nullptr) {
++        maipai_screens_detail::g_close[cur]();
++    }
++}
++
++inline int maipai_screen_current() { return maipai_screens_detail::g_state.cur; }

@@ -191,19 +191,34 @@ static void test_sleep_sequence(void)
 
     ml_lids_emotion(&s, ML_SLEEPY, t, 100.0f);
     CHECK(s.phase == ML_PH_SLEEPY);
-    uint32_t longest_prev = 0;
-    int blinks_seen = 0;
-    for (uint32_t k = 0; k < 40000; k += 20) {
+    /* patch UI06: the sleepy look nods off and fights to stay awake: hold, droop, shut, snap open, settle, a half droop, over and over,
+     * with random step lengths, so the loop never repeats exactly. */
+    float lo_seen = 1000.0f, hi_seen = 0.0f;
+    uint32_t steps = 0, last_start = 0, lens[40];
+    int nlens = 0;
+    for (uint32_t k = 0; k < 60000; k += 20) {
         t = 1000 + k;
-        const float v = ml_lids_target(&s, 50.0f, shut, t);
-        CHECK(v >= shut && v <= 50.0f);
-        if (s.blink_len_ms > longest_prev) {
-            longest_prev = s.blink_len_ms;
-            blinks_seen++;
+        const float v = ml_lids_target(&s, 35.0f, shut, t);
+        CHECK(v >= shut - 0.01f && v <= 100.0f);
+        if (v < lo_seen) lo_seen = v;
+        if (v > hi_seen) hi_seen = v;
+        if (s.blink_start_ms != last_start) {
+            last_start = s.blink_start_ms;
+            steps++;
+            if (nlens < 40) lens[nlens++] = s.blink_len_ms;
+            CHECK(s.blink_len_ms >= ML_NOD_SNAP_MS && s.blink_len_ms <= ML_NOD_STARE_HI);
         }
     }
-    CHECK(blinks_seen >= 4 && longest_prev > ML_SLEEPY_BLINK_MS); /* each blink stays a little longer */
-    CHECK(longest_prev <= ML_SLEEPY_BLINK_MAX_MS);
+    CHECK(steps >= 30);                                  /* six steps a cycle: many cycles in a minute */
+    CHECK(lo_seen <= shut + 0.5f && hi_seen >= 90.0f);   /* it shuts its eyes and snaps them wide open */
+    int differ = 0;
+    for (int i = 2; i + 6 < nlens; i++) differ += lens[i] != lens[i + 6];
+    CHECK(differ >= 3);                                  /* irregular: a cycle is not the one before */
+    /* leaving the sleepy look ends the loop */
+    ml_lids_emotion(&s, ML_NEUTRAL, t, 50.0f);
+    CHECK(s.phase == ML_PH_AWAKE);
+    ml_lids_emotion(&s, ML_SLEEPY, t, 100.0f);
+    CHECK(s.phase == ML_PH_SLEEPY);
 
     /* closing: monotonic from the shown lid down to shut over ML_CLOSE_MS, then closed */
     t = 100000;

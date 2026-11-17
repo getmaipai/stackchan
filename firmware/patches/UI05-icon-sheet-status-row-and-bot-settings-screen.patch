@@ -1,0 +1,943 @@
+# Intent: The control sheet and the bot's own settings screen. Mute, Quiet, Light, Timers, Games and the last tile are drawn icons (a speaker, a moon, a bulb, a clock, a game pad, a gear), six 44 by 44 tiles in one row, so the sheet is shorter. The top row of the sheet is the stock-style status row: Wi-Fi signal bars at the left, the time in the middle, the battery bar and percent at the right, colored by state (green good, amber low, red critical, dimmed at night). The gear tile opens a settings screen on the bot: a face style picker (Big eyes, Eyes only, Stock, Classic, Minimal, and Pictures while a picture pack is held) with a live preview of the choice, a Status icons switch, a Wi-Fi button (quick settings), a Done target 108 by 44 and the grabber handle; a swipe down closes it. A style is drawn at once and saved from the main task through maipai_face_set_style (the same flash key the settings page face style uses; the host is told by a face_style_changed event and the page reads it back with self.face.get_config), the switch through maipai_pref_set from the main task. The Games tile is a drawn die showing five (the game pad was not liked). The Wi-Fi button opens the Wi-Fi page and a new More button opens the More screens; opening the settings screen first closes any other overlay screen (patch UI09), and a page, the sheet or the face shown from a tool closes it.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages_core.h, maipai_pages.cc, maipai_pages.h, maipai_pages_unit.cc (ours, P10 to P13, UI01)
+# Check after a flash: Swipe up for the sheet: six icon tiles, the status row on top; the gear opens Settings: tap a style and the face changes and the preview follows; the Status icons switch; swipe down closes.
+
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -495,12 +495,12 @@ static inline void mpg_age_text(char* out, size_t n, uint32_t age_s, int es)
+ static inline int mpg_tiles_save_due(uint32_t now_s, uint32_t last_save_s) { return last_save_s == 0 || now_s - last_save_s >= MPG_TILES_SAVE_GAP_S; }
+ 
+ /* ---- icons: drawn shapes in a 24 by 24 box, so no icon font is needed ---- */
+-enum { MPG_SH_CIRCLE = 0, MPG_SH_RING, MPG_SH_RECT, MPG_SH_ROUND, MPG_SH_CUT };
++enum { MPG_SH_CIRCLE = 0, MPG_SH_RING, MPG_SH_RECT, MPG_SH_ROUND, MPG_SH_CUT, MPG_SH_CUTC /* a circle in the background color (patch UI05) */ };
+ typedef struct {
+     uint8_t kind;      /* MPG_SH_*; CUT is a rectangle in the background color (a hole) */
+     int8_t x, y, w, h; /* for a circle or ring, x y is the top left of its box and w = h the diameter */
+ } mpg_shape_t;
+-#define MPG_ICON_SHAPES_MAX 8
++#define MPG_ICON_SHAPES_MAX 10
+ 
+ static inline int mpg_icon_shapes(int icon, mpg_shape_t* s)
+ {
+@@ -572,6 +572,54 @@ static inline int mpg_icon_shapes(int icon, mpg_shape_t* s)
+     return n;
+ }
+ 
++/* ---- the control sheet's tile icons (patch UI05): the same 24 by 24 shapes, drawn instead of words ---- */
++static inline int mpg_sheet_icon_shapes(int item, mpg_shape_t* s)
++{
++    int n = 0;
++#define SH(k, X, Y, W, H) do { s[n].kind = (k); s[n].x = (X); s[n].y = (Y); s[n].w = (W); s[n].h = (H); n++; } while (0)
++    switch (item) {
++        case MPG_S_MUTE: /* a speaker and one sound wave */
++            SH(MPG_SH_ROUND, 1, 9, 6, 6);
++            SH(MPG_SH_ROUND, 6, 4, 5, 16);
++            SH(MPG_SH_RING, 9, 5, 14, 14);
++            SH(MPG_SH_CUT, 9, 3, 5, 18);
++            SH(MPG_SH_ROUND, 6, 4, 5, 16);
++            break;
++        case MPG_S_QUIET: /* a crescent moon */
++            SH(MPG_SH_CIRCLE, 3, 3, 18, 18);
++            SH(MPG_SH_CUTC, 8, 0, 16, 16);
++            break;
++        case MPG_S_LIGHT: return mpg_icon_shapes(MPG_I_LAMP, s);
++        case MPG_S_TIMERS: /* a clock face with two hands */
++            SH(MPG_SH_RING, 1, 2, 21, 21);
++            SH(MPG_SH_ROUND, 11, 6, 2, 8);
++            SH(MPG_SH_ROUND, 11, 12, 7, 2);
++            SH(MPG_SH_ROUND, 9, 0, 6, 2);
++            break;
++        case MPG_S_GAMES: /* a die showing five: a rounded square with five holes (the game pad was not liked, patch UI09) */
++            SH(MPG_SH_ROUND, 2, 2, 20, 20);
++            SH(MPG_SH_CUTC, 5, 5, 4, 4);
++            SH(MPG_SH_CUTC, 15, 5, 4, 4);
++            SH(MPG_SH_CUTC, 10, 10, 4, 4);
++            SH(MPG_SH_CUTC, 5, 15, 4, 4);
++            SH(MPG_SH_CUTC, 15, 15, 4, 4);
++            break;
++        default: /* MPG_S_COUNT, the last tile: a gear (patch UI05: the "More" tile opens the bot's own settings) */
++            SH(MPG_SH_RING, 5, 5, 14, 14);
++            SH(MPG_SH_ROUND, 10, 0, 4, 5);
++            SH(MPG_SH_ROUND, 10, 19, 4, 5);
++            SH(MPG_SH_ROUND, 0, 10, 5, 4);
++            SH(MPG_SH_ROUND, 19, 10, 5, 4);
++            SH(MPG_SH_CIRCLE, 3, 3, 5, 5);
++            SH(MPG_SH_CIRCLE, 16, 3, 5, 5);
++            SH(MPG_SH_CIRCLE, 3, 16, 5, 5);
++            SH(MPG_SH_CIRCLE, 16, 16, 5, 5);
++            break;
++    }
++#undef SH
++    return n;
++}
++
+ /* ---- the control sheet's layout ---- */
+ #define MPG_SHEET_PAD 8
+ typedef struct {
+@@ -580,28 +628,31 @@ typedef struct {
+ } mpg_rect_t;
+ typedef struct {
+     int16_t top_y;               /* the sheet covers y top_y to 240 */
+-    int16_t status_y, status_h;  /* the status text block, or 0 height */
++    int16_t status_y, status_h;  /* the status row (Wi-Fi bars, time, battery), or 0 height (patch UI05) */
++    int16_t text_y, text_h;      /* the text lines for the private network and the address, or 0 height */
+     mpg_rect_t r[MPG_SHEET_MAX_ITEMS + 1];  /* sliders and tiles; the "More" tile is last, item MPG_S_COUNT */
+     uint8_t n;
+     uint8_t status_items[MPG_SHEET_MAX_STATUS];
+     uint8_t n_status;
+ } mpg_sheet_t;
+ 
+-#define MPG_TILE_W 100      /* three to a row (patch UI01: 44 px high and wide enough for the 20 px font) */
++#define MPG_TILE_W 44       /* patch UI05: an icon tile is 44 by 44, up to six in one row (the last is the gear) */
+ #define MPG_TILE_H 44
+-#define MPG_TILE_COLS 3
++#define MPG_TILE_COLS 6
+ #define MPG_TILE_GAP 4   /* between rows */
+ #define MPG_TILE_GAPX 6  /* between columns */
+ #define MPG_SLIDER_ROW_H 44
+ #define MPG_SLIDER_W 144
+ #define MPG_STATUS_LINE_H 20
++#define MPG_STATUS_ROW_H 24    /* the top row of the sheet: Wi-Fi bars at the left, the time in the middle, the battery at the right */
+ #define MPG_SHEET_HANDLE_H 14  /* the grabber handle's band at the top of the sheet */
+ 
+-/* Lays the sheet out from the bottom edge up. Sliders go two to a row, tiles three to a row (always ending with "More"). */
++/* Lays the sheet out from the bottom edge up. The status row (Wi-Fi, battery) is the top row, sliders go two to a row, the icon
++ * tiles are one row ending with the gear; the private network and the address are text lines under the status row. */
+ static inline void mpg_sheet_layout(const mpg_cfg_t* c, mpg_sheet_t* L)
+ {
+     memset(L, 0, sizeof(*L));
+-    int sliders[MPG_SHEET_MAX_SLIDERS], ns = 0, tiles[MPG_SHEET_MAX_TILES + 1], nt = 0;
++    int sliders[MPG_SHEET_MAX_SLIDERS], ns = 0, tiles[MPG_SHEET_MAX_TILES + 1], nt = 0, row = 0, lines = 0;
+     for (int i = 0; i < c->n_items; i++) {
+         const int it = c->items[i], k = mpg_sheet_kind(it);
+         if (k == 0 && ns < MPG_SHEET_MAX_SLIDERS) {
+@@ -610,26 +661,37 @@ static inline void mpg_sheet_layout(const mpg_cfg_t* c, mpg_sheet_t* L)
+             tiles[nt++] = it;
+         } else if (k == 2 && L->n_status < MPG_SHEET_MAX_STATUS) {
+             L->status_items[L->n_status++] = (uint8_t)it;
++            if (it == MPG_S_WIFI || it == MPG_S_BATTERY) {
++                row = 1;
++            } else {
++                lines++;
++            }
+         }
+     }
+-    tiles[nt++] = MPG_S_COUNT;  /* More */
++    tiles[nt++] = MPG_S_COUNT;  /* the gear */
+     const int tile_rows = (nt + MPG_TILE_COLS - 1) / MPG_TILE_COLS;
+     const int slider_rows = (ns + 1) / 2;
+     int h = MPG_SHEET_HANDLE_H;
+-    int status_lines = 0;
+-    if (L->n_status > 0) {
+-        status_lines = L->n_status > 2 ? 2 : 1;
+-        h += status_lines * MPG_STATUS_LINE_H + 4;
++    if (row) {
++        h += MPG_STATUS_ROW_H;
++    }
++    if (lines > 0) {
++        h += lines * MPG_STATUS_LINE_H + 4;
+     }
+     h += slider_rows * (MPG_SLIDER_ROW_H + 4);
+     h += tile_rows * MPG_TILE_H + (tile_rows - 1) * MPG_TILE_GAP;
+     h += 6;
+     L->top_y = (int16_t)(240 - h);
+     int y = L->top_y + MPG_SHEET_HANDLE_H;
+-    if (status_lines) {
++    if (row) {
+         L->status_y = (int16_t)y;
+-        L->status_h = (int16_t)(status_lines * MPG_STATUS_LINE_H);
+-        y += status_lines * MPG_STATUS_LINE_H + 4;
++        L->status_h = MPG_STATUS_ROW_H;
++        y += MPG_STATUS_ROW_H;
++    }
++    if (lines > 0) {
++        L->text_y = (int16_t)y;
++        L->text_h = (int16_t)(lines * MPG_STATUS_LINE_H);
++        y += lines * MPG_STATUS_LINE_H + 4;
+     }
+     for (int i = 0; i < ns; i++) {
+         mpg_rect_t* r = &L->r[L->n++];
+@@ -654,6 +716,68 @@ static inline void mpg_sheet_layout(const mpg_cfg_t* c, mpg_sheet_t* L)
+     }
+ }
+ 
++/* The colors of the status row follow the state (patch UI05): 0 good (green), 1 low (amber), 2 critical (red). */
++static inline int mpg_signal_level(int bars) { return bars >= 3 ? 0 : (bars == 2 ? 1 : 2); }
++static inline int mpg_battery_level(int pct, int charging) { return charging || pct >= 30 ? 0 : (pct >= 15 ? 1 : 2); }
++
++/* ---- the bot's own settings screen (patch UI05): the face style picker with a preview, the status icons switch ---- */
++/* Style ids are the unit's MF_STYLE_* values (maipai_face_core.h); the order is the order of the tiles. */
++#define MPG_SET_STYLES 5
++static const uint8_t MPG_SET_STYLE_ID[MPG_SET_STYLES] = {1 /* big eyes */, 9 /* eyes only */, 10 /* stock */, 0 /* classic */, 2 /* minimal */};
++static const char* const MPG_SET_STYLE_NAME[2][MPG_SET_STYLES] = {
++    {"Big eyes", "Eyes only", "Stock", "Classic", "Minimal"},
++    {"Ojos grandes", "Solo ojos", "Original", "Clasica", "Minima"},
++};
++#define MPG_SET_TILES_MAX (MPG_SET_STYLES + 1)  /* the sixth tile is the picture faces, only while a picture pack is held */
++typedef struct {
++    int16_t x, y, w, h;
++} mpg_box_t;
++/* The screen is 320 by 240: a fixed top (grabber, title, Wi-Fi and Done targets), the preview and the style tiles, the switch row. */
++static inline mpg_box_t mpg_set_wifi_box(void) { mpg_box_t b = {96, 8, 104, 44}; return b; }
++static inline mpg_box_t mpg_set_done_box(void) { mpg_box_t b = {204, 8, 108, 44}; return b; }
++static inline mpg_box_t mpg_set_preview_box(void) { mpg_box_t b = {8, 56, 112, 90}; return b; }
++static inline mpg_box_t mpg_set_tile_box(int i) { mpg_box_t b = {(int16_t)(128 + (i % 2) * 92), (int16_t)(56 + (i / 2) * 46), 90, 44}; return b; }
++static inline mpg_box_t mpg_set_switch_box(void) { mpg_box_t b = {8, 194, 198, 44}; return b; }   /* patch UI09: the More button takes the right part of the row */
++static inline mpg_box_t mpg_set_more_box(void) { mpg_box_t b = {210, 194, 102, 44}; return b; }
++/* A style's schematic face in the preview box (112 by 90): kind 0 circle, 1 rounded rectangle; x y w h and the radius. */
++typedef struct {
++    uint8_t kind;
++    int8_t x, y, w, h, r;
++} mpg_pshape_t;
++#define MPG_PSHAPES_MAX 3
++static inline int mpg_set_preview_shapes(int style_id, mpg_pshape_t* s)
++{
++    int n = 0;
++#define PS(k, X, Y, W, H, R) do { s[n].kind = (k); s[n].x = (X); s[n].y = (Y); s[n].w = (W); s[n].h = (H); s[n].r = (R); n++; } while (0)
++    switch (style_id) {
++        case 9: /* eyes only: the big eyes with no mouth */
++            PS(1, 18, 22, 30, 34, 10);
++            PS(1, 64, 22, 30, 34, 10);
++            break;
++        case 10: /* stock: small round eyes and a small mouth */
++            PS(0, 22, 28, 18, 18, 9);
++            PS(0, 72, 28, 18, 18, 9);
++            PS(1, 44, 62, 24, 4, 2);
++            break;
++        case 0: /* classic: round eyes, a wider mouth */
++            PS(0, 14, 16, 34, 34, 17);
++            PS(0, 64, 16, 34, 34, 17);
++            PS(1, 36, 68, 40, 6, 3);
++            break;
++        case 2: /* minimal: two dots */
++            PS(0, 30, 36, 10, 10, 5);
++            PS(0, 72, 36, 10, 10, 5);
++            break;
++        default: /* big eyes (the default) */
++            PS(1, 18, 20, 30, 34, 10);
++            PS(1, 64, 20, 30, 34, 10);
++            PS(1, 40, 68, 32, 6, 3);
++            break;
++    }
++#undef PS
++    return n;
++}
++
+ /* ---- page contents ---- */
+ /* A countdown as words: "4:32", or "1:02:10" from one hour up. */
+ static inline void mpg_fmt_left(char* out, size_t n, int64_t secs)
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -12,6 +12,7 @@
+ #include <cstring>
+ #include <new>
+ #include "maipai_face_clock_core.h"
++#include "maipai_screens.h"
+ 
+ LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+ 
+@@ -27,10 +28,12 @@ bool s_ready = false;
+ std::atomic<bool> s_open_a{false};
+ std::atomic<int> s_pos_a{0};
+ std::atomic<bool> s_sheet_a{false};
++std::atomic<bool> s_set_a{false};
+ std::atomic<int> s_pending{0};
+ 
+ lv_obj_t* s_page    = nullptr;
+ lv_obj_t* s_sheet   = nullptr;
++lv_obj_t* s_set     = nullptr;  // the bot's own settings screen (patch UI05)
+ lv_timer_t* s_timer = nullptr;
+ int s_page_type     = -1;
+ int s_page_pos      = 99;
+@@ -67,12 +70,20 @@ struct Ui {
+ Ui* s_ui = nullptr;
+ 
+ struct ShUi {
+-    lv_obj_t* stat;
+-    lv_obj_t* tile_state[MPG_SHEET_MAX_ITEMS + 1];
+-    lv_obj_t* tile_name[MPG_SHEET_MAX_ITEMS + 1];
++    lv_obj_t* stat;  // the text lines (private network, address)
+     lv_obj_t* tile_btn[MPG_SHEET_MAX_ITEMS + 1];
+     lv_obj_t* slider[2];
+     int8_t last_on[MPG_SHEET_MAX_ITEMS + 1];  // what each toggle shows now: a style is set only when it changes (a set always repaints)
++    // the status row (patch UI05): Wi-Fi bars, the time, the battery
++    lv_obj_t* wbar[4];
++    lv_obj_t* tclock;
++    lv_obj_t* bbody;
++    lv_obj_t* bfill;
++    lv_obj_t* bnub;
++    lv_obj_t* btxt;
++    int last_bars, last_pct;
++    bool last_charging;
++    bool has_wifi, has_batt;
+ };
+ ShUi* s_sh = nullptr;
+ 
+@@ -147,11 +158,9 @@ void set_text_if(lv_obj_t* l, const char* s)
+     }
+ }
+ 
+-// A drawn icon: the shapes of maipai_pages_core.h in a 24 by 24 box, scaled by an integer factor.
+-void draw_icon(lv_obj_t* parent, int icon, int x, int y, int scale, lv_color_t c, lv_color_t bg)
++// Drawn shapes: the 24 by 24 icon boxes of maipai_pages_core.h, scaled by an integer factor.
++void draw_shapes(lv_obj_t* parent, const mpg_shape_t* sh, int n, int x, int y, int scale, lv_color_t c, lv_color_t bg)
+ {
+-    mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
+-    const int n = mpg_icon_shapes(icon, sh);
+     for (int i = 0; i < n; i++) {
+         const int sx = x + sh[i].x * scale, sy = y + sh[i].y * scale, sw = sh[i].w * scale, shh = sh[i].h * scale;
+         switch (sh[i].kind) {
+@@ -165,11 +174,25 @@ void draw_icon(lv_obj_t* parent, int icon, int x, int y, int scale, lv_color_t c
+             }
+             case MPG_SH_RECT: box(parent, sx, sy, sw, shh, c, 0); break;
+             case MPG_SH_ROUND: box(parent, sx, sy, sw, shh, c, scale); break;
++            case MPG_SH_CUTC: box(parent, sx, sy, sw, shh, bg, LV_RADIUS_CIRCLE); break;
+             default: box(parent, sx, sy, sw, shh, bg, 0); break;
+         }
+     }
+ }
+ 
++void draw_icon(lv_obj_t* parent, int icon, int x, int y, int scale, lv_color_t c, lv_color_t bg)
++{
++    mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
++    draw_shapes(parent, sh, mpg_icon_shapes(icon, sh), x, y, scale, c, bg);
++}
++
++// Signal and charge colors (patch UI05): green good, amber low, red critical, dimmed at night like every other color.
++lv_color_t level_color(int level)
++{
++    static const uint8_t rgb[3][3] = {{70, 220, 120}, {255, 190, 60}, {255, 90, 80}};
++    return shade(lv_color_make(rgb[level][0], rgb[level][1], rgb[level][2]), night_pct());
++}
++
+ // ---- the page frame ----
+ void free_ui()
+ {
+@@ -204,9 +227,12 @@ void drop_sheet()
+     s_sheet_a.store(false);
+ }
+ 
++void drop_settings();
++
+ void publish()
+ {
+-    s_open_a.store(s_page != nullptr || s_sheet != nullptr);
++    s_set_a.store(s_set != nullptr);
++    s_open_a.store(s_page != nullptr || s_sheet != nullptr || s_set != nullptr);
+     s_pos_a.store(s_page != nullptr ? s_g.pos : 0);
+     s_sheet_a.store(s_sheet != nullptr);
+ }
+@@ -702,6 +728,7 @@ void build_frame(lv_obj_t* root)
+ // ---- show and close ----
+ void close_everything()
+ {
++    drop_settings();
+     drop_sheet();
+     drop_page();
+     if (s_timer != nullptr) {
+@@ -751,6 +778,7 @@ void show_type(int type, int pos)
+ }
+ 
+ void build_sheet();
++void build_settings();
+ 
+ void apply(const mgs_out_t& o)
+ {
+@@ -798,8 +826,6 @@ void apply(const mgs_out_t& o)
+ }
+ 
+ // ---- the control sheet ----
+-const char* yes_no(bool on) { return on ? tx("on", "si") : tx("off", "no"); }
+-
+ void sheet_status_text(char* out, size_t n)
+ {
+     mpg_sheet_t L;
+@@ -809,23 +835,8 @@ void sheet_status_text(char* out, size_t n)
+     for (int i = 0; i < L.n_status; i++) {
+         char part[48] = "";
+         switch (L.status_items[i]) {
+-            case MPG_S_WIFI: {
+-                const int b = s_host->wifi_bars();
+-                if (b < 0) {
+-                    snprintf(part, sizeof(part), "Wi-Fi %s", tx("off", "sin red"));
+-                } else {
+-                    snprintf(part, sizeof(part), "Wi-Fi %d/4", b);
+-                }
+-                break;
+-            }
+-            case MPG_S_BATTERY: {
+-                bool charging = false;
+-                const int p = s_host->battery_pct(&charging);
+-                if (p >= 0) {
+-                    snprintf(part, sizeof(part), "%s %d%%%s", tx("Battery", "Bateria"), p, charging ? "+" : "");
+-                }
+-                break;
+-            }
++            case MPG_S_WIFI:
++            case MPG_S_BATTERY: break;  // drawn in the status row
+             case MPG_S_TAILNET: {
+                 const int t = s_host->tailnet();
+                 if (t >= 0) {
+@@ -882,9 +893,9 @@ void on_sheet_tile(lv_event_t* e)
+             }
+             return;
+         }
+-        default:  // MPG_S_COUNT: More
++        default:  // MPG_S_COUNT: the gear, the bot's own settings (patch UI05)
+             sheet_pick();
+-            s_host->open_more();
++            build_settings();
+             return;
+     }
+     sheet_pick();
+@@ -902,14 +913,79 @@ void on_slider(lv_event_t* e)
+     }
+ }
+ 
++// A toggle tile: the icon in the tile's colors, inverted while it is on (a state is never told by color alone: the tile fills).
++void paint_tile(lv_obj_t* b, int item, bool on)
++{
++    lv_obj_clean(b);
++    lv_obj_set_style_bg_color(b, on ? fg(100) : fg(16), 0);
++    const lv_color_t bg = on ? fg(100) : fg(16);
++    mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
++    draw_shapes(b, sh, mpg_sheet_icon_shapes(item, sh), (MPG_TILE_W - 24) / 2, (MPG_TILE_H - 24) / 2, 1, on ? lv_color_black() : fg(100), bg);
++}
++
++void sheet_clock_text(char* out, size_t n)
++{
++    struct tm t = {};
++    if (!s_host->local_time(&t)) {
++        snprintf(out, n, "--:--");
++    } else if (s_host->clock24()) {
++        snprintf(out, n, "%02d:%02d", t.tm_hour, t.tm_min);
++    } else {
++        snprintf(out, n, "%d:%02d", t.tm_hour % 12 == 0 ? 12 : t.tm_hour % 12, t.tm_min);
++    }
++}
++
+ void sheet_refresh()
+ {
+     if (s_sh == nullptr || s_sheet == nullptr) {
+         return;
+     }
+-    char buf[160];
+-    sheet_status_text(buf, sizeof(buf));
+-    set_text_if(s_sh->stat, buf);
++    if (s_sh->stat != nullptr) {
++        char buf[160];
++        sheet_status_text(buf, sizeof(buf));
++        set_text_if(s_sh->stat, buf);
++    }
++    if (s_sh->tclock != nullptr) {
++        char t[16];
++        sheet_clock_text(t, sizeof(t));
++        set_text_if(s_sh->tclock, t);
++    }
++    if (s_sh->has_wifi) {
++        const int bars = s_host->wifi_bars();
++        if (bars != s_sh->last_bars) {
++            s_sh->last_bars = bars;
++            const lv_color_t on = level_color(mpg_signal_level(bars < 0 ? 0 : bars));
++            for (int k = 0; k < 4; k++) {
++                lv_obj_set_style_bg_color(s_sh->wbar[k], k < bars ? on : fg(22), 0);
++            }
++        }
++    }
++    if (s_sh->has_batt) {
++        bool charging = false;
++        const int p   = s_host->battery_pct(&charging);
++        if (p != s_sh->last_pct || charging != s_sh->last_charging) {
++            s_sh->last_pct      = p;
++            s_sh->last_charging = charging;
++            if (p < 0) {
++                lv_obj_add_flag(s_sh->bbody, LV_OBJ_FLAG_HIDDEN);
++                lv_obj_add_flag(s_sh->bnub, LV_OBJ_FLAG_HIDDEN);
++                lv_obj_add_flag(s_sh->btxt, LV_OBJ_FLAG_HIDDEN);
++            } else {
++                lv_obj_remove_flag(s_sh->bbody, LV_OBJ_FLAG_HIDDEN);
++                lv_obj_remove_flag(s_sh->bnub, LV_OBJ_FLAG_HIDDEN);
++                lv_obj_remove_flag(s_sh->btxt, LV_OBJ_FLAG_HIDDEN);
++                const lv_color_t c = level_color(mpg_battery_level(p, charging ? 1 : 0));
++                lv_obj_set_width(s_sh->bfill, p * 20 / 100 < 2 ? 2 : p * 20 / 100);
++                lv_obj_set_style_bg_color(s_sh->bfill, c, 0);
++                lv_obj_set_style_border_color(s_sh->bbody, fg(80), 0);
++                lv_obj_set_style_bg_color(s_sh->bnub, fg(80), 0);
++                char t[16];
++                snprintf(t, sizeof(t), "%d%%%s", p, charging ? "+" : "");
++                lv_label_set_text(s_sh->btxt, t);
++                lv_obj_set_style_text_color(s_sh->btxt, c, 0);
++            }
++        }
++    }
+     mpg_sheet_t L;
+     mpg_sheet_layout(&s_cfg, &L);
+     for (int i = 0; i < L.n; i++) {
+@@ -920,11 +996,7 @@ void sheet_refresh()
+                 continue;
+             }
+             s_sh->last_on[i] = on ? 1 : 0;
+-            lv_obj_set_style_bg_color(s_sh->tile_btn[i], on ? fg(100) : fg(16), 0);
+-            lv_obj_t* l1 = s_sh->tile_state[i];
+-            lv_obj_set_style_text_color(l1, on ? lv_color_black() : fg(100), 0);
+-            lv_obj_set_style_text_color(s_sh->tile_name[i], on ? lv_color_black() : fg(100), 0);
+-            set_text_if(l1, on ? yes_no(true) : yes_no(false));
++            paint_tile(s_sh->tile_btn[i], item, on);
+         }
+     }
+ }
+@@ -938,6 +1010,8 @@ void build_sheet()
+     }
+     memset(s_sh, 0, sizeof(*s_sh));
+     memset(s_sh->last_on, -1, sizeof(s_sh->last_on));
++    s_sh->last_bars = -2;
++    s_sh->last_pct  = -2;
+     mpg_sheet_t L;
+     mpg_sheet_layout(&s_cfg, &L);
+     const int h = 240 - L.top_y;
+@@ -947,11 +1021,41 @@ void build_sheet()
+     lv_obj_set_style_border_color(r, fg(45), 0);
+     s_sheet = r;
+     box(r, 136, 4, 48, 5, fg(70), 3);  // the grabber handle (patch UI01): a swipe down closes the sheet
++    // The status row (patch UI05), like the stock swipe-down row: Wi-Fi bars at the left, the time in the middle, the battery at the right.
++    for (int i = 0; i < L.n_status; i++) {
++        s_sh->has_wifi |= L.status_items[i] == MPG_S_WIFI;
++        s_sh->has_batt |= L.status_items[i] == MPG_S_BATTERY;
++    }
+     if (L.status_h > 0) {
++        const int y0 = L.status_y - L.top_y;
++        s_sh->tclock = text(r, "", kMid, fg(90));
++        lv_obj_set_width(s_sh->tclock, 320);
++        lv_obj_set_style_text_align(s_sh->tclock, LV_TEXT_ALIGN_CENTER, 0);
++        lv_obj_set_pos(s_sh->tclock, 0, y0);
++        if (s_sh->has_wifi) {
++            for (int k = 0; k < 4; k++) {
++                const int bh = 6 + k * 4;
++                s_sh->wbar[k] = box(r, 12 + k * 8, y0 + 20 - bh, 6, bh, fg(22), 2);
++            }
++        }
++        if (s_sh->has_batt) {
++            s_sh->bbody = box(r, 280, y0 + 4, 26, 14, lv_color_black(), 3);
++            lv_obj_set_style_bg_opa(s_sh->bbody, LV_OPA_TRANSP, 0);
++            lv_obj_set_style_border_width(s_sh->bbody, 2, 0);
++            s_sh->bfill = box(s_sh->bbody, 0, 0, 20, 10, fg(100), 1);
++            lv_obj_set_pos(s_sh->bfill, 0, 0);
++            s_sh->bnub = box(r, 306, y0 + 8, 3, 6, fg(80), 1);
++            s_sh->btxt = text(r, "", kSmall, fg(100));
++            lv_obj_set_width(s_sh->btxt, 56);
++            lv_obj_set_style_text_align(s_sh->btxt, LV_TEXT_ALIGN_RIGHT, 0);
++            lv_obj_set_pos(s_sh->btxt, 220, y0 + 2);
++        }
++    }
++    if (L.text_h > 0) {
+         s_sh->stat = text(r, "", kSmall, fg(85));
+         lv_label_set_long_mode(s_sh->stat, LV_LABEL_LONG_DOT);
+-        lv_obj_set_size(s_sh->stat, 304, L.status_h);
+-        lv_obj_set_pos(s_sh->stat, 8, L.status_y - L.top_y);
++        lv_obj_set_size(s_sh->stat, 304, L.text_h);
++        lv_obj_set_pos(s_sh->stat, 8, L.text_y - L.top_y);
+     }
+     int si = 0;
+     for (int i = 0; i < L.n; i++) {
+@@ -990,24 +1094,195 @@ void build_sheet()
+         lv_obj_set_style_border_width(b, 1, 0);
+         lv_obj_set_style_border_color(b, fg(40), 0);
+         lv_obj_set_style_bg_color(b, fg(45), LV_STATE_PRESSED);
+-        const bool toggle = q.item == MPG_S_MUTE || q.item == MPG_S_QUIET || q.item == MPG_S_LIGHT;
+-        const char* name  = q.item == MPG_S_COUNT ? tx("More", "Mas") : MPG_SHEET_TITLE[es() ? 1 : 0][q.item];
+-        lv_obj_t* l = text(b, name, kMid, fg(100));
+-        if (toggle) {
+-            lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 0);
+-            lv_obj_t* st = text(b, "", kSmall, fg(100));
+-            lv_obj_align(st, LV_ALIGN_BOTTOM_MID, 0, 0);
+-            s_sh->tile_state[i] = st;
+-            s_sh->tile_name[i]  = l;
+-        } else {
+-            lv_obj_center(l);
+-        }
+         s_sh->tile_btn[i] = b;
++        paint_tile(b, q.item, false);
+         lv_obj_add_event_cb(b, on_sheet_tile, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(q.item)));
+     }
+     sheet_refresh();
+ }
+ 
++// ---- the bot's own settings screen (patch UI05) ----
++struct SetUi {
++    lv_obj_t* tile[MPG_SET_TILES_MAX];
++    int n;
++    lv_obj_t* prev;
++    lv_obj_t* sw;
++    lv_obj_t* sw_lbl;
++    int cur_style;
++    bool icons;
++};
++SetUi* s_su = nullptr;
++
++void drop_settings()
++{
++    if (s_set != nullptr) {
++        lv_obj_delete_async(s_set);
++        s_set = nullptr;
++    }
++    delete s_su;
++    s_su = nullptr;
++    s_set_a.store(false);
++    maipai_screen_closed(MSCR_SETTINGS);
++}
++
++void close_settings_screen()  // the manager's way to close it when another screen opens
++{
++    drop_settings();
++    publish();
++}
++
++lv_obj_t* set_button(lv_obj_t* parent, const mpg_box_t& b, bool on)
++{
++    lv_obj_t* o = box(parent, b.x, b.y, b.w, b.h, on ? fg(100) : fg(16), 10, true);
++    lv_obj_set_style_border_width(o, 1, 0);
++    lv_obj_set_style_border_color(o, fg(40), 0);
++    lv_obj_set_style_bg_color(o, fg(45), LV_STATE_PRESSED);
++    return o;
++}
++
++void set_paint_preview()
++{
++    if (s_su == nullptr) {
++        return;
++    }
++    lv_obj_clean(s_su->prev);
++    mpg_pshape_t sh[MPG_PSHAPES_MAX];
++    const int n = mpg_set_preview_shapes(s_su->cur_style, sh);
++    for (int i = 0; i < n; i++) {
++        box(s_su->prev, sh[i].x, sh[i].y, sh[i].w, sh[i].h, fg(100), sh[i].r);
++    }
++}
++
++void set_paint_tiles()
++{
++    if (s_su == nullptr) {
++        return;
++    }
++    for (int i = 0; i < s_su->n; i++) {
++        const bool on = i < MPG_SET_STYLES && MPG_SET_STYLE_ID[i] == s_su->cur_style;
++        lv_obj_set_style_bg_color(s_su->tile[i], on ? fg(100) : fg(16), 0);
++        lv_obj_t* l = lv_obj_get_child(s_su->tile[i], 0);
++        if (l != nullptr) {
++            lv_obj_set_style_text_color(l, on ? lv_color_black() : fg(100), 0);
++        }
++    }
++}
++
++void set_paint_switch()
++{
++    if (s_su == nullptr) {
++        return;
++    }
++    lv_obj_set_style_bg_color(s_su->sw, s_su->icons ? fg(100) : fg(16), 0);
++    char t[48];
++    snprintf(t, sizeof(t), "%s: %s", tx("Status icons", "Iconos de estado"), s_su->icons ? tx("on", "si") : tx("off", "no"));
++    lv_label_set_text(s_su->sw_lbl, t);
++    lv_obj_set_style_text_color(s_su->sw_lbl, s_su->icons ? lv_color_black() : fg(100), 0);
++    lv_obj_center(s_su->sw_lbl);
++}
++
++void on_set_style(lv_event_t* e)
++{
++    const int i = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
++    if (i >= MPG_SET_STYLES) {  // the picture faces: show them on the pictures page
++        drop_settings();
++        maipai_pages_show(MPG_P_FRAME);
++        return;
++    }
++    s_su->cur_style = MPG_SET_STYLE_ID[i];
++    s_host->set_face_style(s_su->cur_style);
++    set_paint_preview();
++    set_paint_tiles();
++}
++
++void on_set_switch(lv_event_t*)
++{
++    s_su->icons = !s_su->icons;
++    s_host->set_status_icons(s_su->icons);
++    set_paint_switch();
++}
++
++void on_set_close(lv_event_t*)
++{
++    drop_settings();
++    publish();
++}
++
++void on_set_wifi(lv_event_t*)
++{
++    drop_settings();
++    publish();
++    s_host->open_wifi();  // the Wi-Fi page: only Wi-Fi content
++}
++
++void on_set_more(lv_event_t*)
++{
++    drop_settings();
++    publish();
++    s_host->open_more();  // the More screens
++}
++
++void on_set_gesture(lv_event_t*)
++{
++    if (lv_indev_get_gesture_dir(lv_indev_active()) == LV_DIR_BOTTOM) {
++        on_set_close(nullptr);
++    }
++}
++
++void build_settings()
++{
++    maipai_screen_register(MSCR_SETTINGS, close_settings_screen);
++    maipai_screen_open(MSCR_SETTINGS);  // one overlay screen at a time: whatever else was up closes first
++    drop_settings();
++    maipai_screen_open(MSCR_SETTINGS);
++    s_su = new (std::nothrow) SetUi();
++    if (s_su == nullptr) {
++        return;
++    }
++    memset(s_su, 0, sizeof(*s_su));
++    s_su->cur_style = s_host->face_style();
++    s_su->icons     = s_host->status_icons();
++    lv_obj_t* r = box(lv_layer_top(), 0, 0, 320, 240, lv_color_black(), 0, true);
++    s_set = r;
++    box(r, 136, 3, 48, 5, fg(70), 3);  // the grabber handle: a swipe down closes the screen
++    lv_obj_t* t = text(r, tx("Settings", "Ajustes"), kMid, fg(100));
++    lv_obj_set_pos(t, 8, 18);
++    mpg_box_t wb = mpg_set_wifi_box();
++    lv_obj_t* wifi = set_button(r, wb, false);
++    lv_obj_center(text(wifi, "Wi-Fi", kMid, fg(100)));
++    lv_obj_add_event_cb(wifi, on_set_wifi, LV_EVENT_CLICKED, nullptr);
++    mpg_box_t db = mpg_set_done_box();
++    lv_obj_t* done = set_button(r, db, false);
++    lv_obj_center(text(done, tx("Done", "Listo"), kMid, fg(100)));
++    lv_obj_add_event_cb(done, on_set_close, LV_EVENT_CLICKED, nullptr);
++    mpg_box_t pb = mpg_set_preview_box();
++    s_su->prev   = box(r, pb.x, pb.y, pb.w, pb.h, fg(8), 12);
++    lv_obj_set_style_border_width(s_su->prev, 1, 0);
++    lv_obj_set_style_border_color(s_su->prev, fg(40), 0);
++    s_su->n = MPG_SET_STYLES + (s_host->pictures_held() ? 1 : 0);
++    for (int i = 0; i < s_su->n; i++) {
++        lv_obj_t* b = set_button(r, mpg_set_tile_box(i), false);
++        const char* name = i < MPG_SET_STYLES ? MPG_SET_STYLE_NAME[es() ? 1 : 0][i] : tx("Pictures", "Fotos");
++        lv_obj_t* l = text(b, name, fit_font(name, 80) == kBig ? kMid : fit_font(name, 80), fg(100));
++        lv_obj_center(l);
++        s_su->tile[i] = b;
++        lv_obj_add_event_cb(b, on_set_style, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
++    }
++    s_su->sw     = set_button(r, mpg_set_switch_box(), false);
++    s_su->sw_lbl = text(s_su->sw, "", kSmall, fg(100));
++    lv_obj_t* more = set_button(r, mpg_set_more_box(), false);
++    lv_obj_center(text(more, tx("More", "Mas"), kMid, fg(100)));
++    lv_obj_add_event_cb(more, on_set_more, LV_EVENT_CLICKED, nullptr);
++    lv_obj_add_event_cb(s_su->sw, on_set_switch, LV_EVENT_CLICKED, nullptr);
++    lv_obj_add_event_cb(r, on_set_gesture, LV_EVENT_GESTURE, nullptr);
++    set_paint_preview();
++    set_paint_tiles();
++    set_paint_switch();
++    s_g.last_touch_ms = now_ms();
++    ensure_timer();
++    publish();
++}
++
+ // ---- the timer: one at a time, only while something is open ----
+ void timer_cb(lv_timer_t*)
+ {
+@@ -1021,6 +1296,9 @@ void maipai_pages_attach(MaipaiPagesHost* host, lv_color_t (*fgcb)())
+ {
+     s_host = host;
+     s_fg   = fgcb;
++    // The top layer must never scroll: the sheet's root reaches 14 px below the glass, so a drag over it could move every overlay (the
++    // bench showed the sheet 33 px low after a swipe down, with its icon row off the screen; patch UI05).
++    lv_obj_remove_flag(lv_layer_top(), LV_OBJ_FLAG_SCROLLABLE);
+     mpg_defaults(&s_cfg);
+     mgs_init(&s_g);
+     mgs_config(&s_g, s_cfg.n_left, s_cfg.n_right, s_cfg.sheet_s, s_cfg.idle_s);
+@@ -1040,6 +1318,7 @@ const mpg_cfg_t& maipai_pages_config() { return s_cfg; }
+ bool maipai_pages_open() { return s_open_a.load(); }
+ int maipai_pages_position() { return s_pos_a.load(); }
+ bool maipai_pages_sheet_open() { return s_sheet_a.load(); }
++bool maipai_pages_settings_open() { return s_set_a.load(); }
+ 
+ void maipai_pages_touch_down(int x, int y, unsigned flags)
+ {
+@@ -1061,6 +1340,13 @@ bool maipai_pages_touch_up(int x, int y)
+     if (!s_ready) {
+         return false;
+     }
++    if (s_set != nullptr && s_g.down &&
++        mgs_swipe_of(s_g.x0, s_g.y0, x, y, now_ms() - s_g.t0) == MGS_SW_DOWN) {  // a swipe down closes the bot's settings screen (patch UI05)
++        mgs_up(&s_g, x, y, now_ms());
++        drop_settings();
++        publish();
++        return true;
++    }
+     const mgs_out_t o = mgs_up(&s_g, x, y, now_ms());
+     apply(o);
+     return o.consume != 0;
+@@ -1078,6 +1364,9 @@ bool maipai_pages_show(int type)
+     if (!s_ready) {
+         return false;
+     }
++    if (type != -3) {
++        maipai_screen_close_all();  // a page, the sheet or the face takes the glass: no overlay screen stays up under or over it (patch UI09)
++    }
+     if (type == -1) {
+         s_g.mode = MGS_FACE;
+         s_g.pos = s_g.under_pos = 0;
+@@ -1085,6 +1374,11 @@ bool maipai_pages_show(int type)
+         close_everything();
+         return true;
+     }
++    if (type == -3) {
++        drop_sheet();
++        build_settings();
++        return true;
++    }
+     if (type == -2) {
+         s_g.under_pos = s_g.mode == MGS_PAGE ? s_g.pos : 0;
+         s_g.mode      = MGS_SHEET;
+@@ -1108,14 +1402,22 @@ bool maipai_pages_show(int type)
+ 
+ void maipai_pages_step()
+ {
+-    if (!s_ready || (s_page == nullptr && s_sheet == nullptr)) {
+-        if (s_timer != nullptr && s_page == nullptr && s_sheet == nullptr) {
++    if (!s_ready || (s_page == nullptr && s_sheet == nullptr && s_set == nullptr)) {
++        if (s_timer != nullptr && s_page == nullptr && s_sheet == nullptr && s_set == nullptr) {
+             lv_timer_delete(s_timer);
+             s_timer = nullptr;
+         }
+         return;
+     }
+     int ev = s_pending.exchange(0);
++    if (s_set != nullptr) {  // the settings screen: the wake word, speech or a minute without a touch brings the face back
++        if ((ev != 0 && !s_g.down) || (!s_g.down && now_ms() - s_g.last_touch_ms > 60000u)) {
++            drop_settings();
++            publish();
++            return;
++        }
++        return;
++    }
+     if (s_host->ringing()) {
+         ev = MGS_EV_TIMER_RING;  // a ringing timer brings the face back so the ring is seen and a touch can end it
+     } else if (s_host->game_running()) {
+diff --git a/firmware/main/hal/maipai_pages.h b/firmware/main/hal/maipai_pages.h
+--- a/firmware/main/hal/maipai_pages.h
++++ b/firmware/main/hal/maipai_pages.h
+@@ -75,7 +75,14 @@ public:
+     virtual int battery_pct(bool* charging) { *charging = false; return -1; }
+     virtual int tailnet() { return -1; }          // -1 not in this build, 0 off, 1 connecting, 2 up
+     virtual const char* address() { return ""; }
+-    virtual void open_more() {}                   // the settings panel of quick settings
++    virtual void open_wifi() {}                   // the Wi-Fi page: current network, signal, saved networks (patch UI09)
++    virtual void open_more() {}                   // the More screens (time zone, network test, version, games)
++    // the bot's own settings screen (patch UI05)
++    virtual int face_style() { return 1; }        // the MF_STYLE_* value now
++    virtual void set_face_style(int) {}           // draws it, saves it from the main task and tells the host; the LVGL lock is held
++    virtual bool pictures_held() { return false; }
++    virtual bool status_icons() { return false; }
++    virtual void set_status_icons(bool) {}        // saved from the main task
+     virtual void stop_all() {}                    // the stop swipe: stop speaking and end a game
+     virtual void volume_step(int) {}              // an edge swipe
+     virtual void bump() {}                        // a swipe toward a side with no page
+@@ -91,6 +98,8 @@ bool maipai_pages_open();
+ // The strip position on screen now (0 the face or the sheet), and whether the sheet is up. Safe from any task.
+ int maipai_pages_position();
+ bool maipai_pages_sheet_open();
++// True while the bot's own settings screen is up (its touches belong to it: no page change, no stop swipe). Safe from any task.
++bool maipai_pages_settings_open();
+ // Touches, from the LVGL task with the lock held: one call when a finger goes down and one when it lifts. `flags` are MGS_F_*.
+ // touch_up returns true when the touch was a gesture (a swipe): the face must not treat it as a tap.
+ void maipai_pages_touch_down(int x, int y, unsigned flags);
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -7,6 +7,8 @@
+ #include "maipai_pages_unit.h"
+ #if CONFIG_MAIPAI_PAGES
+ #include "maipai_pages.h"
++#include "maipai_more.h"
++#include "maipai_screens.h"
+ #include "maipai_face.h"
+ #include "maipai_fx.h"
+ #include "maipai_games.h"
+@@ -48,6 +50,7 @@ bool maipai_display_ready(void);
+ bool maipai_display_overlay_open(void);
+ void maipai_display_volume_step(int delta);
+ void maipai_display_open_quick(void);
++void maipai_display_open_wifi(void);  // patch UI09: the Wi-Fi page
+ void maipai_display_stop_swipe(void);
+ void maipai_display_face_toggle(int action);  // MTC_ACTION_MUTE (1) or MTC_ACTION_QUIET (3)
+ }
+@@ -351,11 +354,25 @@ public:
+         }
+         return line;
+     }
+-    void open_more() override { maipai_display_open_quick(); }
++    void open_wifi() override { maipai_display_open_wifi(); }
++    void open_more() override { maipai_more_open(); }
++    // the bot's own settings screen (patch UI05)
++    int face_style() override { return maipai_face_config().style; }
++    void set_face_style(int style) override { maipai_face_set_style(style); }  // the LVGL lock is held; the flash write is deferred inside
++    bool pictures_held() override { return maipai_picface_frame_total() > 0; }
++    bool status_icons() override { return maipai_pref(MP_STATUS_ICONS) != 0; }
++    void set_status_icons(bool on) override
++    {
++        // the flash write runs on the main task, never on the screen task
++        Application::GetInstance().Schedule([on]() { maipai_pref_set(MP_STATUS_ICONS, on ? 1 : 0); });
++    }
+     void stop_all() override { maipai_display_stop_swipe(); }
+     void volume_step(int d) override { maipai_display_volume_step(d); }
+ };
+ 
++static_assert(MF_STYLE_BIG_EYES == 1 && MF_STYLE_EYES_ONLY == 9 && MF_STYLE_STOCK == 10 && MF_STYLE_CLASSIC == 0 && MF_STYLE_MINIMAL == 2,
++              "MPG_SET_STYLE_ID (maipai_pages_core.h) must follow the face styles");
++
+ UnitHost s_host;
+ 
+ // ---- the touch hook: every finger, whichever object it landed on ----
+@@ -370,7 +387,7 @@ void on_indev(lv_event_t* e)
+     if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
+         s_last_gesture.store(false);
+         // quick settings and the screens opened from it own their touches: this finger changes no page
+-        maipai_pages_touch_down(p.x, p.y, (maipai_games_active() ? MGS_F_GAME : 0) | (maipai_display_overlay_open() ? MGS_F_WOKE : 0) |
++        maipai_pages_touch_down(p.x, p.y, (maipai_games_active() ? MGS_F_GAME : 0) | (maipai_display_overlay_open() || maipai_pages_settings_open() ? MGS_F_WOKE : 0) |
+                                               (maipai_screen_peek_wake_touch() ? MGS_F_WOKE : 0));
+     } else if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
+         s_last_gesture.store(maipai_pages_touch_up(p.x, p.y));
+@@ -551,10 +568,25 @@ void maipai_pages_unit_register_tools()
+                 });
+     mcp.AddTool("self.page.show",
+                 "Show a page on the screen now: name is clock, timers, games, actions, frame or tiles; face goes back to the face; sheet opens the control "
+-                "sheet. It returns to the face by itself after the page idle time. Answers {ok} or {ok:false,error}.",
++                "sheet; settings, wifi and more open those screens (only one screen is up at a time). It returns to the face by itself after the page idle time. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("face"))}), [](const PropertyList& properties) -> ReturnValue {
+                     const std::string name = properties["name"].value<std::string>();
+-                    const int type         = name == "face" ? -1 : (name == "sheet" ? -2 : mpg_page_by_name(name.c_str()));
++                    const bool screen      = name == "settings" || name == "wifi" || name == "more";  // patch UI09: the overlay screens, one at a time
++                    const int type         = name == "face" ? -1 : (name == "sheet" ? -2 : (name == "settings" ? -3 : mpg_page_by_name(name.c_str())));
++                    if (screen) {
++                        if (!maipai_display_ready()) {
++                            return error_json("The unit is still starting up. Try again in a few seconds.");
++                        }
++                        LvglLockGuard lock;
++                        if (name == "settings") {
++                            maipai_pages_show(-3);
++                        } else if (name == "wifi") {
++                            maipai_display_open_wifi();
++                        } else {
++                            maipai_more_open();
++                        }
++                        return std::string("{\"ok\":true}");
++                    }
+                     if (type == MPG_P_NONE || (type < 0 && name != "face" && name != "sheet")) {
+                         return error_json("The page name must be one of clock, timers, games, actions, frame, tiles, sheet or face. Send one of those names.");
+                     }

@@ -149,14 +149,14 @@ static void test_session_chip(void)
     mb_init(&b);
     int k;
     mb_session(&b, 1, "remote");
-    CHECK(strcmp(shown(&b, &k), "Remote connected") == 0 && k == 2);
+    CHECK(strcmp(shown(&b, &k), "Remote") == 0 && k == 2);
     CHECK((b.strip & (1u << MB_FLAG_REMOTE)) != 0);
     mb_session(&b, 1, "Kitchen tablet in the hall");
-    CHECK(strcmp(shown(&b, &k), "Remote connected: Kitchen tablet in th") == 0);   /* long labels are cut to 20 letters */
+    CHECK(strcmp(shown(&b, &k), "Remote: Kitchen tabl") == 0);   /* long labels are cut to 12 letters */
     mb_post(&b, 100, "Remote: moving", MB_ICON_REMOTE, MB_PRIO_PRIVACY, MB_TAG_CUE, 2000);
     CHECK(strcmp(shown(&b, &k), "Remote: moving") == 0 && k == 1); /* a message takes the row from the chip */
     mb_tick(&b, 3000);
-    CHECK(strcmp(shown(&b, &k), "Remote connected: Kitchen tablet in th") == 0 && k == 2); /* and the chip returns, steady */
+    CHECK(strcmp(shown(&b, &k), "Remote: Kitchen tabl") == 0 && k == 2); /* and the chip returns, steady */
     mb_session(&b, 0, "");
     shown(&b, &k);
     CHECK(k == 0 && (b.strip & (1u << MB_FLAG_REMOTE)) == 0);
@@ -261,26 +261,26 @@ static void test_heartbeat_does_not_redraw(void)
     mb_t b;
     mb_init(&b);
     int k;
-    mb_session(&b, 1, "Settings page");
-    CHECK(strcmp(shown(&b, &k), "Remote connected: Settings page") == 0 && k == 2);
+    mb_session(&b, 1, "Settings");
+    CHECK(strcmp(shown(&b, &k), "Remote: Settings") == 0 && k == 2);
     const uint32_t rev = b.rev;
     const mb_rect_t row = mb_row_rect();
     for (int i = 0; i < 50; i++) {
-        mb_session(&b, 1, "Settings page");
+        mb_session(&b, 1, "Settings");
         mb_tick(&b, 1000u + (uint32_t)i * 3000u);
     }
     CHECK(b.rev == rev);                                          /* no invalidation at all */
     mb_rect_t r = mb_row_rect();
     CHECK(memcmp(&r, &row, sizeof r) == 0);
-    CHECK(strcmp(shown(&b, &k), "Remote connected: Settings page") == 0);
+    CHECK(strcmp(shown(&b, &k), "Remote: Settings") == 0);
     /* a real change of label or state does redraw, once */
-    mb_session(&b, 1, "Phone app");
-    CHECK(b.rev == rev + 1 && strcmp(shown(&b, &k), "Remote connected: Phone app") == 0);
-    mb_session(&b, 1, "Phone app");
+    mb_session(&b, 1, "Phone");
+    CHECK(b.rev == rev + 1 && strcmp(shown(&b, &k), "Remote: Phone") == 0);
+    mb_session(&b, 1, "Phone");
     CHECK(b.rev == rev + 1);
-    /* a controller with no name of its own: just "Remote connected" */
+    /* a controller with no name of its own: just "Remote" */
     mb_session(&b, 1, "remote");
-    CHECK(strcmp(shown(&b, &k), "Remote connected") == 0);
+    CHECK(strcmp(shown(&b, &k), "Remote") == 0);
     mb_session(&b, 0, "remote");
     shown(&b, &k);
     CHECK(k == 0);
@@ -289,7 +289,7 @@ static void test_heartbeat_does_not_redraw(void)
     mb_post(&b, 100, "Here I am!", MB_ICON_RING, MB_PRIO_NOTICE, MB_TAG_FIND, 2000);
     CHECK(strcmp(shown(&b, &k), "Here I am!") == 0 && k == 1);
     mb_tick(&b, 4000);
-    CHECK(strcmp(shown(&b, &k), "Remote connected: Home hub") == 0 && k == 2);
+    CHECK(strcmp(shown(&b, &k), "Remote: Home hub") == 0 && k == 2);
 }
 
 static void test_time_wrap(void)

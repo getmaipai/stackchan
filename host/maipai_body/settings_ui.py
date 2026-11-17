@@ -239,6 +239,7 @@ function tinted(rgb,t,amt){if(!t||amt<=0)return rgb;if(t==='dim'){const k=1-.38*
 function mouthPts(m,ph){const s=clamp(m.split,0,1),ca=Math.cos(m.tilt*Math.PI/180),sa=Math.sin(m.tilt*Math.PI/180),out=[];for(let i=0;i<17;i++){const u=i/16,ux=u*2-1,x1=ux*m.w/2,y1=m.bend*(.5-ux*ux),half=u<.5?u*2:(u-.5)*2,hx=half*2-1,x2=(u<.5?-.25:.25)*m.w+hx*m.w/4,y2=m.bend*(.5-hx*hx);let x=x1+(x2-x1)*s,y=y1+(y2-y1)*s;if(m.wob>.01)y+=m.wob*Math.sin(6.2832*(ux*1.25+ph));out.push([x*ca-y*sa,x*sa+y*ca])}return out}
 const HELLO={en:'Hello!',es:'Hola!',fr:'Bonjour!',de:'Hallo!',pt:'Ola!',it:'Ciao!'};
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const ease01=x=>{x=clamp(x,0,1);return x*x*(3-2*x)};
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const REDUCED=(()=>{try{return matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){return false}})();
 function rr(c,x,y,w,hh,r){r=Math.min(r,w/2,hh/2);c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+hh,r);c.arcTo(x+w,y+hh,x,y+hh,r);c.arcTo(x,y+hh,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
@@ -253,6 +254,12 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
  if(this.o.live){views.add(this);if('IntersectionObserver' in window)new IntersectionObserver(e=>{this.vis=e[0].isIntersecting}).observe(cv)}this.draw()}
  set(o){const ch=o.style&&o.style!==this.o.style;if(o.state&&o.state!==this._state){this._state=o.state;this.st0=this.t;this.lid0=this.lidv}Object.assign(this.o,o);if(ch)this.snap();if(!this.o.live)this.drawOnce()}
  shutPct(d){return Math.max(6,Math.max(3,d*.125)/d*100)}
+ /* patch UI06: the sleepy look nods off and fights to stay awake: hold, droop, shut, snap open, settle, a half droop; random step lengths */
+ nodLid(base,sh){const N=this.nod||(this.nod={n:0,s:this.t,len:1.2}),R=[[.9,1.9],[1,1.5],[.3,.8],[.14,.14],[.5,1.2],[.7,1]];
+  if(this.t-N.s>=N.len){N.n++;N.s=this.t;const r=R[N.n%6];N.len=r[0]+Math.random()*(r[1]-r[0])}
+  const st=N.n%6,k=ease01((this.t-N.s)/N.len),held=base+22,nod=sh+3;
+  return st===0?held:st===1?held+(nod-held)*k:st===2?sh:st===3?95:st===4?95+(held-95)*k:held+(base-held)*(k<.55?k/.55:(1-k)/.45)}
+ snoreOf(t){const ph=(t*1000)%3400;return ph<1100?ph/1100:ph<1400?1:ph<2700?1-(ph-1400)/1300:0}
  lookOf(){return Object.assign({},LK[STL[this.o.state]||'neutral'])}
  target(){const o=this.o,g=GEO.stock,l=this.lookOf(),T={},sh=this.shutPct(g.d);let lid=l.l;
   if(o.state==='sleeping'){const e=clamp((this.t-this.st0)/1.5,0,1);lid=50+(sh-50)*(e*e*(3-2*e))}
@@ -274,12 +281,13 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
   else{
    let dip=false;
    if(state==='sleeping'){this.bf=0;this.bs=-1}
-   else{const sleepy=state==='sleepy';
+   else{const sleepy=false;
     if(this.bs<0){this.bn-=dt;if(this.bn<=0){this.bs=this.t}}
     if(this.bs>=0){const el=(this.t-this.bs)*1000,len=sleepy?Math.min(1400,360+this.bk*140):140;
      if(el<len){if(sleepy){dip=true;this.bf=0}else this.bf=blinkFactor(el)}
      else{this.bs=-1;this.bf=0;this.bk=sleepy?this.bk+1:0;this.bn=sleepy?3.2:rnd(2.6,5.2)}}}
-   if(dip)openT=shut+6;
+   if(state==='sleepy'){openT=this.nodLid(Math.min(openT,45),shut)}
+   else if(dip)openT=shut+6;
    const amp=Math.round(st.drift*FT.drift_scale[FEMO[e]]);
    this.gn-=dt;if(this.gn<=0){this.gn=rnd(.7,2.2);this.gtx=Math.round(rnd(-amp-.5,amp+.5));this.gty=Math.round(rnd(-amp-.5,amp+.5))*.7}
    if(!(amp>0&&this.lidv>40)){this.gtx=0;this.gty=0}
@@ -287,6 +295,7 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
   this.lidv+=(openT-this.lidv)*(1-Math.exp(-dt/(openT<this.lidv?.028:.085)));if(Math.abs(openT-this.lidv)<.4)this.lidv=openT;
   let want=T[MP.MOPEN];
   if(state==='speaking'){this.vt-=dt;if(this.vt<=0){if(Math.random()<.22){this.vtg=0;this.vt=rnd(.15,.45)}else{this.vtg=rnd(.35,1);this.vt=rnd(.08,.18)}}want=this.vtg}
+  if(state==='sleeping'){want=.5*this.snoreOf(this.t)}
   if(state==='tired'){const k=((this.t*1000)%6000)/6000,x=(k-.1)/.5;if(x>0&&x<1){const y=Math.sin(Math.PI*x);want=y*y*.6}}
   this.mo+=(want-this.mo)*(1-Math.exp(-dt/(want>this.mo?.038:.105)));
   const sp=state==='speaking',open=sp&&this.vtg>0?.08+.82*this.vtg:0,tg=mouthTarget(st,FEMO[e],false,sp,open,this.t*1000);if(!this.mc)this.mc=tg;this.mc=mouthFollow(this.mc,tg,dt*1000,mouthTauFor(this.mc,tg,sp,open))}
@@ -301,6 +310,9 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
    paintShapes(c,eye,160+side*st.eye_x+ox,ZC+st.eye_y+oy,fg,bg);
    paintShapes(c,browShapes(st,side,P[MP.EW]*es,P[MP.EH]*es,es,gx,side>0?P[MP.RLIFT]:0,P[MP.BR],P[MP.BROW],P[MP.BLIFT],P[MP.BTILT]),160+side*st.eye_x,ZC+st.eye_y+br,fg,bg)}
   if(st.mouth===1&&this.mc)paintShapes(c,mouthShapes(this.mc,(t%2.4)/2.4,P[MP.MON]),160,ZC+st.mouth_y+br*.5,fg,bg);
+  if(o.state==='sleeping'&&!REDUCED){const ph=(t*1000)%3400,pk=ph>1400&&ph<2700?(ph-1400)/1300:0,dc=((t*1000)%11000)/1000;c.fillStyle=fg;
+   if(pk>0){c.globalAlpha=.78*(1-pk);c.beginPath();c.arc(160+34+10*pk+5,ZC+st.mouth_y-6-16*pk+5,5,0,6.2832);c.fill()}
+   if(dc<1.6){c.globalAlpha=.86-.59*dc/1.6;c.beginPath();c.arc(160-30+3,ZC+st.mouth_y+10+16*dc/1.6+3,3,0,6.2832);c.fill()}c.globalAlpha=1}
   if(o.state==='thinking'&&o.dots!==false){c.fillStyle=fg;for(let i=0;i<3;i++){const d=dotOf(st,i,(t-this.st0)*1000);c.globalAlpha=d[3]/255;c.beginPath();c.arc(160+d[0],ZC+d[1],d[2]/2,0,6.2832);c.fill()}c.globalAlpha=1}
   this.decor(c,fg,ZC+st.eye_y,160-st.eye_x,160+st.eye_x,st.ew,st.eh);c.restore()}
  snap(){if(this.isArt()){this.snapArt();return}this.T=this.target();for(const k of KEYS)this.P[k]=this.T[k]}

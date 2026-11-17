@@ -1,0 +1,373 @@
+# Intent: Status icons in the banner row, and why they sometimes did not show. The row learned that the unit was listening only from a poll of the device state every 2 s, so a short listen was missed, and a notice queued behind a steady one (the link message) waited for it to end; a steady notice that was preempted was dropped. Now every state change is posted when it happens (new maipai_status_core.h; wake word, listen, thinking), the mic glyph stays 1.5 s after the last listen and is checked every tick, a status message has the privacy priority and its own tag (MB_TAG_STATUS) so it replaces the last status in place, and a preempted steady notice waits in the queue instead of vanishing. New pref status_icons (off by default; the listening sound and ring light of TB01 still signal the same states, the remote chip and the mic glyph are never affected). Also adds maipai_face_set_style, the face style chosen on the bot (drawn at once, saved from the main task, device event face_style_changed).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_banner.cc, maipai_banner_core.h (ours, N01), maipai_prefs_core.h (TA01), maipai_face.cc, maipai_listen.cc (TB01), stackchan_display.cc SetStatus
+# Check after a flash: self.prefs.set {"json":"{\"status_icons\":true}"}: wake word shows Heard you, a listen shows Listening, thinking shows Thinking in the top row, also for a short listen; with it false only the sound and light signal them.
+
+diff --git a/firmware/main/hal/maipai_status_core.h b/firmware/main/hal/maipai_status_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_status_core.h
+@@ -0,0 +1,48 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Status icons for the banner row (patch UI04): the pure rules. Plain C99, no ESP call, no heap, no clock of its own.
++ * Host test: host/tests/firmware/status_core_test.c.
++ *
++ * Why the icons sometimes did not show (found 2026-11-17): the row only learned that the unit was listening from a poll every 2 s of
++ * the device state, so a listen shorter than the poll, or one that began and ended between two polls, never reached the row; and a
++ * notice that was queued behind a steady one (the link message) waited for it to end. Now every state change is posted when it
++ * happens, the mic glyph stays at least MST_MIC_HOLD_MS after the last listen, and a status message has the highest priority
++ * (the same as the privacy cues) with its own tag, so it replaces the last status in place and is not queued behind a notice.
++ *
++ * The icons are a choice (pref status_icons, off by default). With them off the same states are still signaled by the listening
++ * cues of patch TB01 (the chime and the ring light, both on by default). The remote chip and the mic glyph are privacy cues: they
++ * are never affected by this setting.
++ */
++#ifndef MAIPAI_STATUS_CORE_H
++#define MAIPAI_STATUS_CORE_H
++
++#include <stdint.h>
++
++#define MST_MIC_HOLD_MS 1500u /* the mic glyph stays this long after the unit stopped listening, so a short listen is seen */
++
++enum { MST_WAKE = 0, MST_LISTEN, MST_THINK, MST_COUNT };
++
++/* English and Spanish words; the icon is a banner icon id (MB_ICON_*: 2 check, 7 speech) so the row needs no new shape. */
++static const char* const MST_TEXT[2][MST_COUNT] = {{"Heard you", "Listening", "Thinking"}, {"Te oi", "Escuchando", "Pensando"}};
++static const uint8_t MST_ICON[MST_COUNT] = {2, 7, 7};
++/* How long it stays at most: the state change clears it sooner; the limit keeps a missed change from leaving it up (the banner's own
++ * longest hold is MB_MAX_HOLD_MS). */
++static const uint32_t MST_HOLD_MS[MST_COUNT] = {1500u, 30000u, 45000u};
++
++static inline const char* mst_text(int kind, int es) { return kind >= 0 && kind < MST_COUNT ? MST_TEXT[es ? 1 : 0][kind] : ""; }
++static inline int mst_icon(int kind) { return kind >= 0 && kind < MST_COUNT ? MST_ICON[kind] : 0; }
++static inline uint32_t mst_hold_ms(int kind) { return kind >= 0 && kind < MST_COUNT ? MST_HOLD_MS[kind] : 0u; }
++
++/* The mic glyph: shown while listening (event or poll), and for MST_MIC_HOLD_MS after the last listen. hold_until 0 means none. */
++static inline int mst_mic_shown(int live, uint32_t hold_until, uint32_t now, int polled)
++{
++    return live || polled || (hold_until != 0u && (int32_t)(now - hold_until) < 0);
++}
++static inline uint32_t mst_mic_hold_until(uint32_t now)
++{
++    const uint32_t t = now + MST_MIC_HOLD_MS;
++    return t == 0u ? 1u : t;
++}
++
++#endif /* MAIPAI_STATUS_CORE_H */
+diff --git a/firmware/main/hal/maipai_banner_core.h b/firmware/main/hal/maipai_banner_core.h
+--- a/firmware/main/hal/maipai_banner_core.h
++++ b/firmware/main/hal/maipai_banner_core.h
+@@ -69,7 +69,7 @@ enum {
+     MB_ICON_KEY,
+     MB_ICON_COUNT
+ };
+-enum { MB_TAG_NONE = 0, MB_TAG_CAPTION, MB_TAG_VOLUME, MB_TAG_SAY, MB_TAG_CUE, MB_TAG_FIND, MB_TAG_LINK, MB_TAG_GAME };
++enum { MB_TAG_NONE = 0, MB_TAG_CAPTION, MB_TAG_VOLUME, MB_TAG_SAY, MB_TAG_CUE, MB_TAG_FIND, MB_TAG_LINK, MB_TAG_GAME, MB_TAG_STATUS /* patch UI04: heard, listening, thinking */ };
+ enum { MB_FLAG_MIC = 0, MB_FLAG_CAMERA, MB_FLAG_REMOTE, MB_FLAG_BATTERY, MB_FLAG_WIFI, MB_FLAG_COUNT };
+ enum { MB_FIT_ONE = 0, MB_FIT_MARQUEE };
+ enum { MB_BAR_HIDDEN = 0, MB_BAR_ALWAYS = 1 }; /* the "Top bar" setting */
+@@ -191,9 +191,9 @@ static inline int mb_post(mb_t* b, uint32_t now, const char* text, int icon, int
+         return 1;
+     }
+     if (m.prio < b->cur.prio && (uint32_t)(now - b->shown_ms) >= MB_MIN_MS) { /* more urgent, and the minimum time is up */
+-        if (!b->cur.sticky && b->cur.prio != MB_PRIO_CAPTION && !mb_due(now, b->until_ms)) {
++        if (b->cur.prio != MB_PRIO_CAPTION && (b->cur.sticky || !mb_due(now, b->until_ms))) { /* patch UI04: a steady notice waits too, it is not lost */
+             mb_msg_t old = b->cur;
+-            old.hold_ms = b->until_ms - now;
++            if (!old.sticky) old.hold_ms = b->until_ms - now;
+             mb_q_push_front(b, &old);
+         }
+         mb_show(b, &m, now);
+@@ -250,9 +250,9 @@ static inline int mb_tick(mb_t* b, uint32_t now)
+         if (best >= 0) {
+             mb_msg_t next = b->q[best];
+             mb_q_remove(b, best);
+-            if (!b->cur.sticky && b->cur.prio != MB_PRIO_CAPTION && !mb_due(now, b->until_ms)) {
++            if (b->cur.prio != MB_PRIO_CAPTION && (b->cur.sticky || !mb_due(now, b->until_ms))) {
+                 mb_msg_t old = b->cur;
+-                old.hold_ms = b->until_ms - now;
++                if (!old.sticky) old.hold_ms = b->until_ms - now;
+                 mb_q_push_front(b, &old);
+             }
+             mb_show(b, &next, now);
+diff --git a/firmware/main/hal/maipai_banner.h b/firmware/main/hal/maipai_banner.h
+--- a/firmware/main/hal/maipai_banner.h
++++ b/firmware/main/hal/maipai_banner.h
+@@ -33,6 +33,12 @@ void maipai_banner_clear_tag(int tag);
+ void maipai_banner_session(bool on, const char* label);
+ // A strip glyph on or off (MB_FLAG_*); hold_ms > 0 ends it by itself.
+ void maipai_banner_flag(int flag, bool on, uint32_t hold_ms);
++// Status icons (patch UI04, maipai_status_core.h). maipai_banner_status posts the state at once (kind MST_*), only while the "status icons"
++// setting is on; the mic glyph (a privacy cue) is event driven and always on: maipai_banner_mic says the unit is or is no longer listening.
++void maipai_banner_set_status_icons(bool on);
++void maipai_banner_status(int kind, bool spanish);
++void maipai_banner_status_clear();
++void maipai_banner_mic(bool live);
+ // "Top bar" setting: MB_BAR_HIDDEN (default) or MB_BAR_ALWAYS.
+ void maipai_banner_set_bar_mode(int mode);
+ // "Captions" setting: MB_CAP_OFF, MB_CAP_SUBTITLES (the strip at the bottom, the default when on) or MB_CAP_BANNER (the row).
+diff --git a/firmware/main/hal/maipai_banner.cc b/firmware/main/hal/maipai_banner.cc
+--- a/firmware/main/hal/maipai_banner.cc
++++ b/firmware/main/hal/maipai_banner.cc
+@@ -11,6 +11,8 @@
+  * and one 0.7 KB state in PSRAM.
+  */
+ #include "maipai_banner.h"
++#include "maipai_status_core.h"
++#include <atomic>
+ 
+ #include <stackchan/avatar/skins/default/default.h>
+ 
+@@ -430,13 +432,18 @@ void apply_opacity()
+     lv_obj_set_style_opa(s_chip, (lv_opa_t)s_opa, 0);
+ }
+ 
++std::atomic<bool> s_status_icons{false};
++std::atomic<bool> s_mic_event{false};
++std::atomic<uint32_t> s_mic_hold{0};
++bool s_mic_polled = false;
++
+ void apply_status(const maipai_banner_status_t& st, uint32_t now)
+ {
++    s_mic_polled = st.mic_live;
+     s_batt_level = st.battery_level;
+     s_bars = st.wifi_bars;
+     s_wifi_up = st.wifi_up;
+     s_hub_up = st.hub_up;
+-    mb_flag(s_b, MB_FLAG_MIC, st.mic_live, now, 0);
+     mb_flag(s_b, MB_FLAG_BATTERY, mb_battery_shown(st.battery_level, st.charging, st.on_cable, s_bar_mode, 0), now, 0);
+     mb_flag(s_b, MB_FLAG_WIFI, mb_wifi_shown(st.wifi_up, st.hub_up, s_bar_mode), now, 0);
+ }
+@@ -454,6 +461,7 @@ void tick(lv_timer_t*)
+         s_poll(&st);
+         apply_status(st, now);
+     }
++    mb_flag(s_b, MB_FLAG_MIC, mst_mic_shown(s_mic_event.load(), s_mic_hold.load(), now, s_mic_polled), now, 0);  // every tick, not every 2 s (patch UI04)
+     mb_tick(s_b, now);
+     const uint32_t strip = mb_strip_visible(s_b);
+     const lv_color_t fg = fg_color();
+@@ -560,6 +568,35 @@ void maipai_banner_session(bool on, const char* label)
+     mb_session(s_b, on ? 1 : 0, label);  // a heartbeat renewal changes nothing and is never redrawn
+ }
+ 
++void maipai_banner_set_status_icons(bool on)
++{
++    s_status_icons.store(on);
++    if (!on) {
++        maipai_banner_status_clear();
++    }
++}
++
++void maipai_banner_status(int kind, bool spanish)
++{
++    if (!s_status_icons.load()) {
++        return;
++    }
++    maipai_banner_post(mst_text(kind, spanish ? 1 : 0), mst_icon(kind), MB_PRIO_PRIVACY, MB_TAG_STATUS, mst_hold_ms(kind));
++}
++
++void maipai_banner_status_clear()
++{
++    maipai_banner_clear_tag(MB_TAG_STATUS);
++}
++
++void maipai_banner_mic(bool live)
++{
++    s_mic_event.store(live);
++    if (!live) {
++        s_mic_hold.store(mst_mic_hold_until(now_ms()));
++    }
++}
++
+ void maipai_banner_flag(int flag, bool on, uint32_t hold_ms)
+ {
+     if (s_b == nullptr) return;
+diff --git a/firmware/main/hal/maipai_prefs_core.h b/firmware/main/hal/maipai_prefs_core.h
+--- a/firmware/main/hal/maipai_prefs_core.h
++++ b/firmware/main/hal/maipai_prefs_core.h
+@@ -48,6 +48,7 @@ enum {
+     MP_CAPTIONS_MODE,   /* patch N01, N04: off, subtitles (the strip at the bottom, the default when on) or banner (the row at the top) */
+     MP_TOP_BAR,         /* patch N01: hidden (default) or always show battery and Wi-Fi in the top row */
+     MP_TURN_TO_FACES,   /* patch S11: off, talk (after the wake word, the default) or always; read by the seeker (hal/maipai_seek_core.h) */
++    MP_STATUS_ICONS,    /* patch UI04: the banner row shows the heard, listening and thinking states as an icon and a word; off by default */
+     MP_PICKUP_REACTION, /* not in the host's table yet: the pickup patch reads it (off, face, face_sound) */
+     MP_COUNT
+ };
+@@ -92,6 +93,7 @@ static const mp_def_t MP_DEFS[MP_COUNT] = {
+     {"captions_mode", "captions_mode", MP_ENUM, 0, 2, 0, 1, MP_NAMES_CAPTIONS},
+     {"top_bar", "top_bar", MP_ENUM, 0, 1, 0, 1, MP_NAMES_TOPBAR},
+     {"turn_to_faces", "turn_to_faces", MP_ENUM, 0, 2, 1, 1, MP_NAMES_TURN},
++    {"status_icons", "status_icons", MP_BOOL, 0, 1, 0, 1, NULL},
+     {"pickup_reaction", "pickup_reaction", MP_ENUM, 0, 2, 1, 0, MP_NAMES_PICKUP},
+ };
+ 
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -482,11 +482,12 @@ void banner_apply()
+ {
+     maipai_banner_set_captions(maipai_fx_captions_mode());
+     maipai_banner_set_bar_mode(static_cast<int>(maipai_pref(MP_TOP_BAR)));
++    maipai_banner_set_status_icons(maipai_pref(MP_STATUS_ICONS) != 0);  // patch UI04
+ }
+ 
+ void on_prefs(uint32_t changed)
+ {
+-    if (changed & ((1u << MP_SPEECH_BUBBLE) | (1u << MP_CAPTIONS_MODE) | (1u << MP_TOP_BAR))) {
++    if (changed & ((1u << MP_SPEECH_BUBBLE) | (1u << MP_CAPTIONS_MODE) | (1u << MP_TOP_BAR) | (1u << MP_STATUS_ICONS))) {
+         banner_apply();
+     }
+     if (changed & ((1u << MP_SPEECH_BUBBLE) | (1u << MP_CAPTIONS_MODE))) {  // the words on screen go away when they turn off
+@@ -661,7 +662,7 @@ void maipai_fx_register_tools()
+                     return std::string(buf);
+                 });
+     mcp.AddTool("self.prefs.set",
+-                "Change preferences: json is an object with any of fx_crt, fx_night_dim, fx_glow, speech_bubble, thinking_dots, listen_face, emotion_faces, overlays_enabled (true or false), fx_colour_mode, listen_sound, listen_light, listen_light_colour, filler_mode, filler_wait_s, captions_mode (off, banner, bubble), top_bar (hidden, always). Kept in flash and applied at once; nothing changes unless all are valid.",
++                "Change preferences: json is an object with any of fx_crt, fx_night_dim, fx_glow, speech_bubble, thinking_dots, listen_face, emotion_faces, overlays_enabled (true or false), fx_colour_mode, listen_sound, listen_light, listen_light_colour, filler_mode, filler_wait_s, captions_mode (off, banner, bubble), top_bar (hidden, always), status_icons (true or false). Kept in flash and applied at once; nothing changes unless all are valid.",
+                 PropertyList({Property("json", kPropertyTypeString, std::string("{}"))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     ensure_loaded();
+diff --git a/firmware/main/hal/maipai_listen.cc b/firmware/main/hal/maipai_listen.cc
+--- a/firmware/main/hal/maipai_listen.cc
++++ b/firmware/main/hal/maipai_listen.cc
+@@ -18,6 +18,9 @@
+ #include "maipai_timers.h"
+ #include "maipai_remote.h"
+ #include "maipai_pages.h"
++#include "maipai_banner.h"
++#include "maipai_face.h"
++#include "maipai_status_core.h"
+ #include "maipai_lat.h"
+ #include "maipai_seek.h"
+ #include "board/hal_bridge.h"
+@@ -166,6 +169,8 @@ void maipai_listen_wake(int within_ms)
+     maipai_seek_addressed();  // patch S12: the face seeker looks for the person who spoke (or touched)
+     s_wake_us.store(now);
+     maipai_pages_event(MGS_EV_WAKE);  // patch P13: the face comes back from a page or the sheet at the wake word
++    maipai_banner_mic(true);          // patch UI04: the mic glyph at once, not at the next 2 s poll
++    maipai_banner_status(MST_WAKE, maipai_face_config().lang == MF_LANG_ES);  // only while the status icons are on
+     MAIPAI_LAT("listen_wake_in");
+     const MaipaiTbPrefs prefs = maipai_tb_prefs();
+     const tl_effective_t eff  = effective_now(prefs.listen);
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -6,6 +6,8 @@
+ #include <sdkconfig.h>
+ #if CONFIG_MAIPAI_FACE_CONFIG
+ #include "maipai_face.h"
++#include "device_events.h"
++#include <application.h>
+ #include "maipai_lang.h"
+ #include "maipai_fx.h"
+ #include "maipai_face_tod_core.h"
+@@ -22,6 +24,8 @@
+ #include "maipai_sounds.h"
+ #include "maipai_filler.h"
+ #include "maipai_listen.h"
++#include "maipai_banner.h"
++#include "maipai_status_core.h"
+ #include <esp_timer.h>
+ #endif
+ #if CONFIG_MAIPAI_FACE_CLOCK
+@@ -358,7 +362,11 @@ void maipai_face_thinking(bool on)
+ {
+     auto* face = current_face();
+     if (!on) {
+-        if (mf_think_end(&s_think) && face != nullptr) {
++        const bool ended = mf_think_end(&s_think);
++        if (ended) {
++            maipai_banner_status_clear();  // patch UI04: the Thinking icon goes with the dots
++        }
++        if (ended && face != nullptr) {
+             face->setThinking(false);
+         }
+         maipai_filler_thinking(false);
+@@ -374,6 +382,7 @@ void maipai_face_thinking(bool on)
+         return;
+     }
+     (void)mf_think_begin(&s_think, now, c.thinking_tone);
++    maipai_banner_status(MST_THINK, c.lang == MF_LANG_ES);  // patch UI04: only while the status icons are on
+     if (maipai_fx_thinking_dots()) {  // patch TA01: the setting thinking_dots turns the three dots off
+         face->setThinking(true);
+     }
+@@ -747,6 +756,28 @@ void maipai_face_attach(DefaultAvatar* face)
+     ESP_LOGI(TAG, "face: style %s, colour mode %d", MF_STYLE_NAMES[c.style] != nullptr ? MF_STYLE_NAMES[c.style] : "?", c.colour_mode);
+ }
+ 
++bool maipai_face_set_style(int style)
++{
++    if (!mf_style_ok(style)) {
++        return false;
++    }
++    mf_config_t next = maipai_face_config();
++    if (next.style == style) {
++        return true;
++    }
++    next.style = static_cast<uint8_t>(style);
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        s_cfg = next;
++    }
++    apply(current_face(), next);  // the caller holds the LVGL lock
++    Application::GetInstance().Schedule([next]() { save(next); });  // flash is written on the main task, never the screen task
++    char extra[48];
++    snprintf(extra, sizeof(extra), "\"style\":\"%s\"", MF_STYLE_NAMES[style] != nullptr ? MF_STYLE_NAMES[style] : "big_eyes");
++    device_events_push("face_style_changed", extra);
++    return true;
++}
++
+ void maipai_face_register_tools()
+ {
+     auto& mcp = McpServer::GetInstance();
+diff --git a/firmware/main/hal/maipai_face.h b/firmware/main/hal/maipai_face.h
+--- a/firmware/main/hal/maipai_face.h
++++ b/firmware/main/hal/maipai_face.h
+@@ -21,8 +21,13 @@ void maipai_face_attach(stackchan::avatar::DefaultAvatar* face);
+ void maipai_face_register_tools();
+ // A copy of the settings now in force.
+ mf_config_t maipai_face_config();
++// Patch UI04: the style chosen on the bot's own settings screen. Draws it at once (the caller holds the LVGL lock), saves it from the
++// main task (never from the screen task) and tells the host (device event face_style_changed) so the settings page follows.
++// False for a style the unit does not draw (see mf_style_ok).
++bool maipai_face_set_style(int style);
+ #else
+ inline void maipai_face_register_tools() {}
++inline bool maipai_face_set_style(int) { return false; }
+ #endif
+ 
+ // Whether the words the unit says may be drawn on the face (patch F02): off unless a person turned captions on.
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -40,6 +40,7 @@
+ #include <hal/maipai_pages_unit.h>
+ #if CONFIG_MAIPAI_BANNER_ROW
+ #include <hal/maipai_banner.h>
++#include <hal/maipai_status_core.h>
+ #endif
+ #include <hal/maipai_facefx.h>
+ 
+@@ -1999,6 +2000,20 @@ void StackChanAvatarDisplay::SetStatus(const char* status)
+     bool is_idle      = false;
+     bool is_listening = false;
+ 
++#if CONFIG_MAIPAI_BANNER_ROW
++    // Patch UI04: every state change reaches the banner row when it happens (it used to learn of a listen from a 2 s poll, so a short
++    // listen was missed). The mic glyph is a privacy cue and always follows; the Listening word only while the status icons are on.
++    {
++        const bool listening_now = strcmp(status, Lang::Strings::LISTENING) == 0;
++        maipai_banner_mic(listening_now);
++        if (listening_now) {
++            maipai_banner_status(MST_LISTEN, strncmp(Lang::CODE, "es", 2) == 0);
++        } else {
++            maipai_banner_status_clear();
++        }
++    }
++#endif
++
+     if (strcmp(status, Lang::Strings::LISTENING) == 0) {
+         maipai_pages_event(MGS_EV_WAKE);  // patch P13: a listen brings the face back from a page or the sheet
+         if (speaking_modifier_id_ >= 0) {

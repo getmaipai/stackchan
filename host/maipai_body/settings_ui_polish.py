@@ -54,7 +54,7 @@ async function lookCards(id,u,v,has,face){const pv=await prefsView(id),put=prefS
  const capsOff=h('p',{class:'hint',role:'status',hidden:pv.values.captions_mode!=='off'},T('pol.cap.off_note'));
  const capsUpd=x=>{upd();capsOff.hidden=pv.values.captions_mode!=='off'};
  const caps=card(T('pol.cap.title'),T('pol.cap.help'),pseg(pv,put,'captions_mode',T('pol.cap.mode'),['off','subtitles','banner'],capsUpd),capsOff,comingNote(pv,'captions_mode'));
- const topbar=card(T('pol.top.title'),T('pol.top.help'),pseg(pv,put,'top_bar',T('pol.top.mode'),['hidden','always'],upd),comingNote(pv,'top_bar'));
+ const topbar=card(T('pol.top.title'),T('pol.top.help'),pseg(pv,put,'top_bar',T('pol.top.mode'),['hidden','always'],upd),ptoggle(pv,put,'status_icons',T('pol.top.icons'),T('pol.top.icons_help'),upd),comingNote(pv,'top_bar'));
  const eff=card(T('pol.fx.title'),T('pol.fx.help'),
   ptoggle(pv,put,'fx_crt',T('pol.fx.crt'),T('pol.fx.crt_help'),upd),
   ptoggle(pv,put,'fx_night_dim',T('pol.fx.night'),T('pol.fx.night_help'),upd),

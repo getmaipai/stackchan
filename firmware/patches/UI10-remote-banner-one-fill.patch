@@ -1,0 +1,60 @@
+# Intent: The remote banner showed two stylings (a bordered violet pill inside a differently colored bar, plus a separate right block). The whole 312 by 26 row is now ONE fill: violet while the remote chip shows, the normal dark row otherwise; the inner holder has no fill and no border. The chip stays always on and cannot be turned off.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_banner.cc (ours, N01, UI07)
+# Check after a flash: connect the settings page Remote tab; the whole top row is one violet bar with the icon and "Remote: Settings" on it.
+
+diff --git a/firmware/main/hal/maipai_banner.cc b/firmware/main/hal/maipai_banner.cc
+index aeee0d6..7957497 100644
+--- a/firmware/main/hal/maipai_banner.cc
++++ b/firmware/main/hal/maipai_banner.cc
+@@ -29,6 +29,7 @@ namespace {
+ std::mutex s_mu;
+ mb_t* s_b = nullptr;
+ lv_obj_t* s_row = nullptr;    // the one rectangle (the background)
++bool s_chip_row = false;      // patch UI10: the row is filled violet as a whole while the remote chip shows
+ lv_obj_t* s_chip = nullptr;   // the content holder: a violet chip for a session, plain otherwise
+ lv_obj_t* s_icon = nullptr;
+ lv_obj_t* s_clip = nullptr;
+@@ -340,26 +341,20 @@ void render()
+         // the holder: the whole text area for a message; a chip is as wide as its text, never more than the text area
+         const int full = MB_ROW_W - 6 - (mb_strip_w(strip) > 0 ? mb_strip_w(strip) + 6 : 0);
+         int cw = full;
+-        if (chip) {
+-            cw = 5 + MB_ICON_W + 4 + one.x + 12;
+-            if (cw > full) cw = full;
+-        }
+         lv_obj_set_size(s_chip, cw, hh);
+         lv_obj_set_pos(s_chip, 3, 2);
+-        if (chip) {
+-            fill(s_chip, chip_bg());
+-            lv_obj_set_style_border_width(s_chip, 1, 0);
+-            lv_obj_set_style_border_color(s_chip, violet(), 0);
+-        } else {
+-            lv_obj_set_style_bg_opa(s_chip, LV_OPA_TRANSP, 0);
+-            lv_obj_set_style_border_width(s_chip, 0, 0);
+-        }
++        /* Patch UI10: ONE fill for the whole row (the owner saw a pill inside a differently colored bar). The remote
++         * chip colors the row itself; the holder has no fill and no border of its own. */
++        s_chip_row = chip;
++        fill(s_row, chip ? chip_bg() : lv_color_make(0x0E, 0x10, 0x16));
++        lv_obj_set_style_bg_opa(s_chip, LV_OPA_TRANSP, 0);
++        lv_obj_set_style_border_width(s_chip, 0, 0);
+         draw_icon(icon, violet_msg ? lv_color_white() : fg);
+         lv_obj_set_pos(s_icon, 5, (hh - 22) / 2);
+         if (icon == MB_ICON_NONE) lv_obj_add_flag(s_icon, LV_OBJ_FLAG_HIDDEN);
+         else lv_obj_remove_flag(s_icon, LV_OBJ_FLAG_HIDDEN);
+         const int tx = icon == MB_ICON_NONE ? 9 : 5 + MB_ICON_W + 4;
+-        const int tw = chip ? cw - tx - 8 : room;
++        const int tw = chip ? cw - tx - 8 : room;  /* UI10: the chip text area is the whole row text area */
+         lv_obj_set_pos(s_clip, tx, 0);
+         lv_obj_set_size(s_clip, tw, hh);
+         lv_obj_set_style_text_color(s_label, violet_msg ? lv_color_white() : fg, 0);
+@@ -428,7 +423,7 @@ void apply_opacity()
+         return;
+     }
+     lv_obj_remove_flag(s_row, LV_OBJ_FLAG_HIDDEN);
+-    lv_obj_set_style_bg_opa(s_row, (lv_opa_t)(215 * s_opa / 255), 0);
++    lv_obj_set_style_bg_opa(s_row, (lv_opa_t)((s_chip_row ? 255 : 215) * s_opa / 255), 0);
+     lv_obj_set_style_opa(s_chip, (lv_opa_t)s_opa, 0);
+ }
+ 

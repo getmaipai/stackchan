@@ -184,3 +184,13 @@ S12-seek-core-measured-geometry.patch
 S13-seek-wire-core-and-camera-grab.patch
 S14-seek-task-tools-and-setting.patch
 FI07-picface-uses-psram-inflate.patch
+UI01-bigger-targets-longer-sheet-no-find-clock-games.patch
+UI02-quick-settings-and-more-screens-dismissable.patch
+UI03-color-memory-tone-and-light-together.patch
+UI04-status-icons-banner-events-pref-face-style.patch
+UI05-icon-sheet-status-row-and-bot-settings-screen.patch
+UI06-sleepy-nods-off-sleeping-snores.patch
+UI07-remote-chip-short-text-status-never-covers-it.patch
+UI08-game-buttons-inside-the-safe-area.patch
+UI09-single-overlay-screen-wifi-page-die-icon.patch
+UI10-remote-banner-one-fill.patch

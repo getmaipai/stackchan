@@ -227,7 +227,7 @@ def test_a_command_phrase_needs_high_confidence():
 
 def test_the_route_of_a_tired_sentence_is_chat():
     bridge = SimpleNamespace(
-        volume_control=object(), brightness_control=object(), head_control=object()
+        volume_control=object(), brightness_control=object(), head_control=object(), alarm_control=None
     )
     route, _why = StackChanTurnBridge._route_of(bridge, "I am so tired", "speech")
     assert route == "chat"

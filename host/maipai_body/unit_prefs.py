@@ -49,6 +49,9 @@ PREFS: dict[str, tuple[str, Any, Any, bool]] = {
     # Turn toward faces (the unit's own seeker, firmware patch S10): off, only after it is spoken to, or also when somebody walks in.
     # "talk" until the memory gate has been measured with the seeker running; the flash key is 13 characters.
     "turn_to_faces": ("enum", ("off", "talk", "always"), "talk", True),
+    # The banner row shows the heard, listening and thinking states as an icon and a word (firmware patch UI04). Off by default: the
+    # sound and the light of the listening cues (listen_sound, listen_light) still signal the same states.
+    "status_icons": ("bool", None, False, True),
 }
 
 FACE_OWNERS = ("robot", "hub", "off")  # who turns toward faces: this robot (default), the Home hub, nobody

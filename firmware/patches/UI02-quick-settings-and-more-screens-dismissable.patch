@@ -1,0 +1,440 @@
+# Intent: Owner's hands-on test, part 2. The quick settings screen (the stock panel the sheet's More tile opens) and the More screens (time zone, network test, version, games) could not be dismissed: their column of controls ran off the 240 px glass and pushed Done out of sight. Both are rebuilt with fixed positions: a grabber handle at the top, a Done or Back target 108 by 44 at the top right, 44 px controls with the 20 px font, two Wi-Fi rows folded into one row of up to three networks, and a swipe down (or a tap on the empty background of quick settings) closes them. The More menu is a two by two grid; a sub page's swipe down goes back to the menu.
+# Placement: unit
+# Upstream: firmware/main/hal/board/stackchan_display.cc (stock quick panel, patched R01, U03) and maipai_more.cc (ours, U03 to U05)
+# Check after a flash: Open the sheet, tap More: quick settings shows Done at the top right, a handle, big sliders; swipe down closes it; More opens a grid and Back or a swipe down returns.
+
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -941,17 +941,17 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+         return;
+     }
+ 
++    // Patch UI01: a fixed layout, nothing off the screen (the old column pushed Done below the glass when Wi-Fi had several
++    // networks). Every control is at least 44 px high. A grabber handle at the top, a Done target at the top right, a swipe
++    // down (or up) and a tap on the empty background all close it.
+     quick_panel_ = lv_obj_create(lv_layer_top());
+     lv_obj_set_size(quick_panel_, lv_pct(100), lv_pct(100));
+     lv_obj_set_style_bg_color(quick_panel_, lv_color_black(), 0);
+     lv_obj_set_style_bg_opa(quick_panel_, LV_OPA_COVER, 0);
+     lv_obj_set_style_border_width(quick_panel_, 0, 0);
+     lv_obj_set_style_radius(quick_panel_, 0, 0);
+-    lv_obj_set_style_pad_all(quick_panel_, 8, 0);
++    lv_obj_set_style_pad_all(quick_panel_, 0, 0);
+     lv_obj_remove_flag(quick_panel_, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_set_flex_flow(quick_panel_, LV_FLEX_FLOW_COLUMN);
+-    lv_obj_set_flex_align(quick_panel_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+-    lv_obj_set_style_pad_row(quick_panel_, 6, 0);
+ 
+     auto make_label = [](lv_obj_t* parent, const char* text) {
+         lv_obj_t* label = lv_label_create(parent);
+@@ -960,73 +960,80 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+         lv_label_set_text(label, text);
+         return label;
+     };
++    auto make_button = [&](int x, int y, int w, int h, const char* text) {
++        lv_obj_t* button = lv_button_create(quick_panel_);
++        lv_obj_set_pos(button, x, y);
++        lv_obj_set_size(button, w, h);
++        lv_obj_t* lab = make_label(button, text);
++        lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
++        lv_obj_set_width(lab, w - 12);
++        lv_obj_set_style_text_align(lab, LV_TEXT_ALIGN_CENTER, 0);
++        lv_obj_center(lab);
++        return button;
++    };
++    auto make_slider = [&](int y, const char* name, int lo, int value, lv_event_cb_t cb) {
++        lv_obj_t* lab = make_label(quick_panel_, name);
++        lv_obj_set_pos(lab, 10, y + 10);
++        lv_obj_t* sl = lv_slider_create(quick_panel_);
++        lv_obj_set_size(sl, 150, 16);
++        lv_obj_set_pos(sl, 154, y + 14);
++        lv_obj_set_ext_click_area(sl, 14);
++        lv_obj_set_style_pad_all(sl, 8, LV_PART_KNOB);
++        lv_slider_set_range(sl, lo, 100);
++        lv_slider_set_value(sl, value, LV_ANIM_OFF);
++        lv_obj_add_event_cb(sl, cb, LV_EVENT_VALUE_CHANGED, nullptr);
++        return sl;
++    };
+ 
+-    lv_obj_t* title = make_label(quick_panel_, "Quick settings");
+-    lv_obj_set_width(title, LV_PCT(100));
+-    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+-
+-    lv_obj_t* volume_row = lv_obj_create(quick_panel_);
+-    lv_obj_remove_flag(volume_row, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_set_size(volume_row, LV_PCT(100), LV_SIZE_CONTENT);
+-    lv_obj_set_flex_flow(volume_row, LV_FLEX_FLOW_ROW);
+-    lv_obj_set_flex_align(volume_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+-    lv_obj_set_style_pad_column(volume_row, 6, 0);
+-    lv_obj_add_flag(volume_row, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
++    // grabber handle: the top edge, centered
++    lv_obj_t* grab = lv_obj_create(quick_panel_);
++    lv_obj_remove_flag(grab, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_size(grab, 48, 5);
++    lv_obj_set_pos(grab, 136, 3);
++    lv_obj_set_style_radius(grab, 3, 0);
++    lv_obj_set_style_border_width(grab, 0, 0);
++    lv_obj_set_style_bg_color(grab, lv_color_hex(0xB0B0B0), 0);
++    lv_obj_set_style_bg_opa(grab, LV_OPA_COVER, 0);
+ 
+-    make_label(volume_row, "Volume");
++    lv_obj_t* title = make_label(quick_panel_, "Quick settings");
++    lv_obj_set_pos(title, 10, 16);
+ 
+-    lv_obj_t* volume_slider = lv_slider_create(volume_row);
+-    lv_obj_set_width(volume_slider, 160);
+-    lv_slider_set_range(volume_slider, 20, 100);
+-    auto codec = Board::GetInstance().GetAudioCodec();
+-    lv_slider_set_value(volume_slider, codec != nullptr ? codec->output_volume() : 80, LV_ANIM_OFF);
+-    lv_obj_add_event_cb(volume_slider,
++    lv_obj_t* done_button = make_button(204, 8, 108, 44, "Done");
++    lv_obj_add_event_cb(done_button,
+                         [](lv_event_t* event) {
+-                            auto c = Board::GetInstance().GetAudioCodec();
+-                            if (c != nullptr) {
+-                                c->SetOutputVolume(lv_slider_get_value(lv_event_get_target_obj(event)));
++                            (void)event;
++                            if (_quick_settings_display_ != nullptr) {
++                                _quick_settings_display_->CloseQuickSettings();
+                             }
+                         },
+-                        LV_EVENT_VALUE_CHANGED, nullptr);
+-
+-    lv_obj_t* brightness_row = lv_obj_create(quick_panel_);
+-    lv_obj_remove_flag(brightness_row, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_set_size(brightness_row, LV_PCT(100), LV_SIZE_CONTENT);
+-    lv_obj_set_flex_flow(brightness_row, LV_FLEX_FLOW_ROW);
+-    lv_obj_set_flex_align(brightness_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+-    lv_obj_set_style_pad_column(brightness_row, 6, 0);
+-    lv_obj_add_flag(brightness_row, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
+-
+-    make_label(brightness_row, "Brightness");
++                        LV_EVENT_CLICKED, nullptr);
+ 
+-    lv_obj_t* brightness_slider = lv_slider_create(brightness_row);
+-    lv_obj_set_width(brightness_slider, 160);
+-    lv_slider_set_range(brightness_slider, 10, 100);
++    auto codec = Board::GetInstance().GetAudioCodec();
++    make_slider(54, "Volume", 20, codec != nullptr ? codec->output_volume() : 80,
++                [](lv_event_t* event) {
++                    auto c = Board::GetInstance().GetAudioCodec();
++                    if (c != nullptr) {
++                        c->SetOutputVolume(lv_slider_get_value(lv_event_get_target_obj(event)));
++                    }
++                });
+     auto* backlight = Board::GetInstance().GetBacklight();
+-    lv_slider_set_value(brightness_slider, backlight != nullptr ? backlight->brightness() : 80, LV_ANIM_OFF);
+-    lv_obj_add_event_cb(brightness_slider,
+-                        [](lv_event_t* event) {
+-                            auto* backlight = Board::GetInstance().GetBacklight();
+-                            if (backlight != nullptr) {
+-                                backlight->SetBrightness(lv_slider_get_value(lv_event_get_target_obj(event)), true);
+-                            }
+-                        },
+-                        LV_EVENT_VALUE_CHANGED, nullptr);
+-
+-    lv_obj_t* wifi_title = make_label(quick_panel_, "Wi-Fi");
+-    lv_obj_add_flag(wifi_title, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
++    make_slider(100, "Brightness", 10, backlight != nullptr ? backlight->brightness() : 80,
++                [](lv_event_t* event) {
++                    auto* backlight = Board::GetInstance().GetBacklight();
++                    if (backlight != nullptr) {
++                        backlight->SetBrightness(lv_slider_get_value(lv_event_get_target_obj(event)), true);
++                    }
++                });
+ 
++    // Wi-Fi: up to three saved networks in one row of 44 px buttons (the name is cut with dots)
+     const auto& ssids = SsidManager::GetInstance().GetSsidList();
+     size_t ssid_count = ssids.size();
+-    if (ssid_count > 4) {
+-        ssid_count = 4;
++    if (ssid_count > 3) {
++        ssid_count = 3;
+     }
+     for (size_t i = 0; i < ssid_count; i++) {
+-        lv_obj_t* button = lv_button_create(quick_panel_);
+-        lv_obj_set_width(button, LV_PCT(100));
+-        lv_obj_add_flag(button, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
+-        lv_obj_t* ssid_label = make_label(button, ssids[i].ssid.c_str());
+-        lv_obj_center(ssid_label);
++        const int bw = ssid_count == 1 ? 304 : (ssid_count == 2 ? 150 : 99);
++        lv_obj_t* button = make_button(8 + static_cast<int>(i) * (bw + 4), 148, bw, 44, ssids[i].ssid.c_str());
+         lv_obj_add_event_cb(button,
+                             [](lv_event_t* event) {
+                                 int index = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
+@@ -1039,25 +1046,21 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+                             LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+     }
+ 
+-    // The last row: Reset (patch R01), More (patches U03 to U05) and Done share it. Reset opens the confirm screen,
+-    // which erases nothing until its button is held for 3 seconds; More opens the time zone, network test and
+-    // version pages.
++    // The bottom row: Reset (patch R01) and More (patches U03 to U05), 44 px high. Reset opens the confirm screen, which erases
++    // nothing until its button is held for 3 seconds; More opens the time zone, network test and version pages.
+ #if CONFIG_MAIPAI_RESET_ON_DEVICE
+     constexpr int kResetButton = 1;
+ #else
+     constexpr int kResetButton = 0;
+ #endif
+-    constexpr int kRowButtons = 1 + kResetButton + MAIPAI_MORE_SCREEN;
+-    constexpr int kRowPct     = kRowButtons == 3 ? 31 : (kRowButtons == 2 ? 48 : 100);
+-    bool row_started          = false;
++    constexpr int kRowButtons = kResetButton + MAIPAI_MORE_SCREEN;
++    constexpr int kRowW       = kRowButtons == 2 ? 150 : 304;
++    int bx                    = 8;
++    (void)kRowW;
++    (void)bx;
+ #if CONFIG_MAIPAI_RESET_ON_DEVICE
+-    lv_obj_t* reset_button = lv_button_create(quick_panel_);
+-    lv_obj_set_width(reset_button, LV_PCT(kRowPct));
+-    lv_obj_add_flag(reset_button, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
+-    row_started = true;
+-    lv_obj_t* reset_label =
+-        make_label(reset_button, mrc_text(mrc_lang_from_code(Lang::CODE), MRC_STR_BUTTON));
+-    lv_obj_center(reset_label);
++    lv_obj_t* reset_button = make_button(bx, 194, kRowW, 44, mrc_text(mrc_lang_from_code(Lang::CODE), MRC_STR_BUTTON));
++    bx += kRowW + 4;
+     lv_obj_add_event_cb(reset_button,
+                         [](lv_event_t* event) {
+                             (void)event;
+@@ -1068,14 +1071,7 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+                         LV_EVENT_CLICKED, nullptr);
+ #endif
+ #if MAIPAI_MORE_SCREEN
+-    lv_obj_t* more_button = lv_button_create(quick_panel_);
+-    lv_obj_set_width(more_button, LV_PCT(kRowPct));
+-    if (!row_started) {
+-        lv_obj_add_flag(more_button, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
+-        row_started = true;
+-    }
+-    lv_obj_t* more_label = make_label(more_button, strncmp(Lang::CODE, "es", 2) == 0 ? "Mas" : "More");
+-    lv_obj_center(more_label);
++    lv_obj_t* more_button = make_button(bx, 194, kRowW, 44, strncmp(Lang::CODE, "es", 2) == 0 ? "Mas" : "More");
+     lv_obj_add_event_cb(more_button,
+                         [](lv_event_t* event) {
+                             (void)event;
+@@ -1084,22 +1080,15 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+                         LV_EVENT_CLICKED, nullptr);
+ #endif
+ 
+-    lv_obj_t* done_button = lv_button_create(quick_panel_);
+-    lv_obj_set_width(done_button, LV_PCT(kRowPct));
+-    if (!row_started) {
+-        lv_obj_add_flag(done_button, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
+-    }
+-    lv_obj_t* done_label = make_label(done_button, "Done");
+-    lv_obj_center(done_label);
+-    lv_obj_add_event_cb(done_button,
++    // a tap on the empty background closes it (a control takes its own taps; a label is not clickable)
++    lv_obj_add_event_cb(quick_panel_,
+                         [](lv_event_t* event) {
+-                            (void)event;
+-                            if (_quick_settings_display_ != nullptr) {
+-                                _quick_settings_display_->CloseQuickSettings();
++                            auto* display = static_cast<StackChanAvatarDisplay*>(lv_event_get_user_data(event));
++                            if (display != nullptr) {
++                                display->CloseQuickSettings();
+                             }
+                         },
+-                        LV_EVENT_CLICKED, nullptr);
+-
++                        LV_EVENT_SHORT_CLICKED, this);
+     lv_obj_add_event_cb(quick_panel_,
+                         [](lv_event_t* event) {
+                             auto* display = static_cast<StackChanAvatarDisplay*>(lv_event_get_user_data(event));
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -92,8 +92,9 @@ lv_obj_t* button(lv_obj_t* parent, const char* text, int width_pct, Click on_cli
+ {
+     lv_obj_t* b = lv_button_create(parent);
+     lv_obj_set_width(b, LV_PCT(width_pct));
+-    lv_obj_set_height(b, 38);
+-    lv_obj_t* l = label(b, text, &lv_font_montserrat_16);
++    lv_obj_set_height(b, 44);  // patch UI01: every touch target is at least 44 px high, with the 20 px font
++    lv_obj_t* l = label(b, text, &lv_font_montserrat_20);
++    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+     lv_obj_center(l);
+     lv_obj_add_event_cb(b, on_click, LV_EVENT_CLICKED, user);
+     return b;
+@@ -168,9 +169,6 @@ void build_tz()
+     if (s_zone < 0) {
+         s_zone = mz_default_index();
+     }
+-    lv_obj_t* title = label(s_root, tx("Time zone", "Zona horaria"), &lv_font_montserrat_20);
+-    lv_obj_set_width(title, LV_PCT(100));
+-    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+     lv_obj_t* prev = button(s_root, "<", 22, on_tz_prev);
+     new_row(prev);
+     s_zone_lbl = label(s_root, "", &lv_font_montserrat_20);
+@@ -186,9 +184,8 @@ void build_tz()
+     lv_obj_set_width(s_note_lbl, LV_PCT(100));
+     lv_obj_set_style_text_align(s_note_lbl, LV_TEXT_ALIGN_CENTER, 0);
+     new_row(s_note_lbl);
+-    lv_obj_t* save = button(s_root, tx("Save", "Guardar"), 48, on_tz_save);
++    lv_obj_t* save = button(s_root, tx("Save", "Guardar"), 100, on_tz_save);
+     new_row(save);
+-    button(s_root, tx("Back", "Atras"), 48, on_back_menu);
+     tz_refresh();
+     s_timer = lv_timer_create(tz_tick, 1000, nullptr);
+ }
+@@ -200,13 +197,8 @@ void on_net_again(lv_event_t*) { show(PAGE_NET); }
+ 
+ void build_net()
+ {
+-    lv_obj_t* title = label(s_root, tx("Network test", "Prueba de red"), &lv_font_montserrat_20);
+-    lv_obj_set_width(title, LV_PCT(100));
+-    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
++    lv_obj_t* again = button(s_root, tx("Test again", "Probar otra vez"), 100, on_net_again);
+     net_fill();
+-    lv_obj_t* again = button(s_root, tx("Test again", "Probar otra vez"), 48, on_net_again);
+-    new_row(again);
+-    button(s_root, tx("Back", "Atras"), 48, on_back_menu);
+ }
+ 
+ void net_fill()
+@@ -275,9 +267,6 @@ void on_ver_tap(lv_event_t*)
+ void build_version()
+ {
+     mv_init(&s_ver);
+-    lv_obj_t* title = label(s_root, tx("Version", "Version"), &lv_font_montserrat_20);
+-    lv_obj_set_width(title, LV_PCT(100));
+-    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+     s_ver_lbl = label(s_root, "", &lv_font_montserrat_20);
+     lv_obj_set_width(s_ver_lbl, LV_PCT(100));
+     lv_obj_set_style_text_align(s_ver_lbl, LV_TEXT_ALIGN_CENTER, 0);
+@@ -291,8 +280,6 @@ void build_version()
+         lv_obj_add_flag(s_ver_rows[i], LV_OBJ_FLAG_HIDDEN);
+         new_row(s_ver_rows[i]);
+     }
+-    lv_obj_t* back = button(s_root, tx("Back", "Atras"), 100, on_back_menu);
+-    new_row(back);
+     ver_refresh();
+     s_timer = lv_timer_create(ver_tick, 1000, nullptr);
+ }
+@@ -318,9 +305,6 @@ void on_game(lv_event_t* e)
+ 
+ void build_games()
+ {
+-    lv_obj_t* title = label(s_root, tx("Games", "Juegos"), &lv_font_montserrat_20);
+-    lv_obj_set_width(title, LV_PCT(100));
+-    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+     for (int i = 0; i < maipai_games_count(); i++) {
+         char line[64];
+         const int best = maipai_games_best(i);
+@@ -337,32 +321,60 @@ void build_games()
+     lv_obj_set_width(s_game_note, LV_PCT(100));
+     lv_label_set_long_mode(s_game_note, LV_LABEL_LONG_WRAP);
+     new_row(s_game_note);
+-    new_row(button(s_root, tx("Back", "Atras"), 100, on_back_menu));
+ }
+ #endif
+ 
+ void build_menu()
+ {
+-    lv_obj_t* title = label(s_root, tx("More", "Mas"), &lv_font_montserrat_20);
+-    lv_obj_set_width(title, LV_PCT(100));
+-    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
++    // a two by two grid of 44 px buttons; Done is the fixed target at the top right (see chrome)
+ #if CONFIG_MAIPAI_TZ
+-    new_row(button(s_root, tx("Time zone", "Zona horaria"), 100, on_open_page,
+-                   reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_TZ))));
++    button(s_root, tx("Time zone", "Zona horaria"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_TZ)));
+ #endif
+ #if CONFIG_MAIPAI_NETTEST
+-    new_row(button(s_root, tx("Network test", "Prueba de red"), 100, on_open_page,
+-                   reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_NET))));
++    button(s_root, tx("Network test", "Prueba de red"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_NET)));
+ #endif
+ #if CONFIG_MAIPAI_VERSION
+-    new_row(button(s_root, tx("Version", "Version"), 100, on_open_page,
+-                   reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_VERSION))));
++    button(s_root, tx("Version", "Version"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_VERSION)));
+ #endif
+ #if CONFIG_MAIPAI_GAMES
+-    new_row(button(s_root, tx("Games", "Juegos"), 100, on_open_page,
+-                   reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_GAMES))));
++    button(s_root, tx("Games", "Juegos"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_GAMES)));
+ #endif
+-    new_row(button(s_root, tx("Done", "Listo"), 100, on_close));
++}
++
++// The fixed top of every page (patch UI01): the grabber handle, the page title and a 44 px target at the top right (Back on a
++// sub page, Done on the menu), all outside the flex flow. A swipe down on the screen does the same as the target.
++void chrome(int page)
++{
++    const char* titles_en[] = {"More", "Time zone", "Network test", "Version", "Games"};
++    const char* titles_es[] = {"Mas", "Zona horaria", "Prueba de red", "Version", "Juegos"};
++    lv_obj_t* grab = lv_obj_create(s_root);
++    lv_obj_add_flag(grab, LV_OBJ_FLAG_IGNORE_LAYOUT);
++    lv_obj_remove_flag(grab, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_size(grab, 48, 5);
++    lv_obj_set_pos(grab, 136, 3);
++    lv_obj_set_style_radius(grab, 3, 0);
++    lv_obj_set_style_border_width(grab, 0, 0);
++    lv_obj_set_style_bg_color(grab, lv_color_hex(0xB0B0B0), 0);
++    lv_obj_set_style_bg_opa(grab, LV_OPA_COVER, 0);
++    lv_obj_t* t = label(s_root, s_es ? titles_es[page] : titles_en[page], &lv_font_montserrat_20);
++    lv_obj_add_flag(t, LV_OBJ_FLAG_IGNORE_LAYOUT);
++    lv_obj_set_pos(t, 10, 16);
++    lv_obj_t* b = button(s_root, page == PAGE_MENU ? tx("Done", "Listo") : tx("Back", "Atras"), 0, page == PAGE_MENU ? on_close : on_back_menu);
++    lv_obj_add_flag(b, LV_OBJ_FLAG_IGNORE_LAYOUT);
++    lv_obj_set_size(b, 108, 44);
++    lv_obj_set_pos(b, 204, 8);
++}
++
++void on_screen_gesture(lv_event_t*)
++{
++    const lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_active());
++    if (dir == LV_DIR_BOTTOM) {
++        if (s_page == PAGE_MENU) {
++            close_all();
++        } else {
++            lv_async_call([](void*) { show(PAGE_MENU); }, nullptr);  // the touched button may be deleted: not inside its own event
++        }
++    }
+ }
+ 
+ void show(int page)
+@@ -374,21 +386,22 @@ void show(int page)
+     s_page = page;
+     switch (page) {
+ #if CONFIG_MAIPAI_TZ
+-        case PAGE_TZ: build_tz(); return;
++        case PAGE_TZ: build_tz(); chrome(page); return;
+ #endif
+ #if CONFIG_MAIPAI_NETTEST
+-        case PAGE_NET: build_net(); return;
++        case PAGE_NET: build_net(); chrome(page); return;
+ #endif
+ #if CONFIG_MAIPAI_VERSION
+-        case PAGE_VERSION: build_version(); return;
++        case PAGE_VERSION: build_version(); chrome(page); return;
+ #endif
+ #if CONFIG_MAIPAI_GAMES
+-        case PAGE_GAMES: build_games(); return;
++        case PAGE_GAMES: build_games(); chrome(page); return;
+ #endif
+         default: break;
+     }
+     s_page = PAGE_MENU;
+     build_menu();
++    chrome(PAGE_MENU);
+ }
+ }  // namespace
+ 
+@@ -405,11 +418,13 @@ void maipai_more_open()
+     lv_obj_set_style_border_width(s_root, 0, 0);
+     lv_obj_set_style_radius(s_root, 0, 0);
+     lv_obj_set_style_pad_all(s_root, 8, 0);
++    lv_obj_set_style_pad_top(s_root, 58, 0);  // the fixed top (grabber, title, Back or Done) takes the first 56 px
+     lv_obj_set_style_pad_row(s_root, 6, 0);
+     lv_obj_set_style_pad_column(s_root, 6, 0);
+     lv_obj_remove_flag(s_root, LV_OBJ_FLAG_SCROLLABLE);
+     lv_obj_set_flex_flow(s_root, LV_FLEX_FLOW_ROW_WRAP);
+     lv_obj_set_flex_align(s_root, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
++    lv_obj_add_event_cb(s_root, on_screen_gesture, LV_EVENT_GESTURE, nullptr);
+     show(PAGE_MENU);
+ }
+ #endif

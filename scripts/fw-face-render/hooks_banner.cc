@@ -80,6 +80,12 @@ struct FakeHost : MaipaiPagesHost {
     int tailnet() override { return tail; }
     const char* address() override { return addr.c_str(); }
     void open_more() override { log += "more;"; }
+    int style_ = 1; bool icons_ = false, pics_ = false;
+    int face_style() override { return style_; }
+    void set_face_style(int v) override { style_ = v; log += "style;"; }
+    bool pictures_held() override { return pics_; }
+    bool status_icons() override { return icons_; }
+    void set_status_icons(bool v) override { icons_ = v; log += "icons;"; }
     void stop_all() override { log += "stop;"; }
     void volume_step(int d) override { vol += d; log += "volume;"; }
     void bump() override { log += "bump;"; }
@@ -129,7 +135,7 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
 #ifdef MAIPAI_PAGES_RENDER
     // pages: pcfg TEXT | pshow NAME|face|sheet | pswipe X0 Y0 X1 Y1 MS | pset KEY VALUE | ptile ICON LABEL VALUE | ptimer SECONDS LABEL | pstate | pevent NAME
     if (c == "pcfg") { std::string t; std::getline(in, t); if (!t.empty() && t[0] == ' ') t.erase(0, 1); mpg_cfg_t cfg; const int ok = mpg_cfg_from_text(&cfg, t.c_str()); maipai_pages_set_config(cfg); printf("pcfg %d\n", ok); return true; }
-    if (c == "pshow") { std::string n; in >> n; int t = n == "face" ? -1 : (n == "sheet" ? -2 : mpg_page_by_name(n.c_str())); printf("pshow %s %d\n", n.c_str(), maipai_pages_show(t) ? 1 : 0); return true; }
+    if (c == "pshow") { std::string n; in >> n; int t = n == "face" ? -1 : (n == "sheet" ? -2 : (n == "settings" ? -3 : mpg_page_by_name(n.c_str()))); printf("pshow %s %d\n", n.c_str(), maipai_pages_show(t) ? 1 : 0); return true; }
     if (c == "pswipe") {
         int x0, y0, x1, y1, ms; in >> x0 >> y0 >> x1 >> y1 >> ms;
         maipai_pages_touch_down(x0, y0, 0);
@@ -142,7 +148,7 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
     if (c == "pset") {
         std::string k; in >> k; std::string v; in >> v; FakeHost& h = g_pages_host; const int n = atoi(v.c_str()); const bool b = v == "on" || v == "1";
         if (k == "night") h.night_ = b; else if (k == "c24") h.c24 = b; else if (k == "ring") h.ring = b; else if (k == "es") h.es_ = b;
-        else if (k == "quiet") h.quiet_ = b; else if (k == "mute") h.muted_ = b; else if (k == "light") h.light = b;
+        else if (k == "style") h.style_ = n; else if (k == "icons") h.icons_ = b; else if (k == "pics") h.pics_ = b; else if (k == "quiet") h.quiet_ = b; else if (k == "mute") h.muted_ = b; else if (k == "light") h.light = b;
         else if (k == "vol") h.vol = n; else if (k == "bri") h.bri = n; else if (k == "bars") h.bars = n; else if (k == "bat") h.bat = n;
         else if (k == "charging") h.charging = b; else if (k == "tail") h.tail = n; else if (k == "frames") h.frames = n; else if (k == "age") h.tile_age = (uint32_t)n;
         else if (k == "addr") h.addr = v; else if (k == "hh") h.hh = n; else if (k == "mm") h.mm = n;
@@ -179,6 +185,9 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
     if (c == "bclear") { std::string t; in >> t; maipai_banner_clear_tag(pick(t, tags, 8)); return true; }
     if (c == "bsession") { std::string o, l; in >> o; std::getline(in, l); if (!l.empty() && l[0] == ' ') l.erase(0, 1); maipai_banner_session(o == "on", l.c_str()); return true; }
     if (c == "bflag") { std::string f, o; unsigned hold = 0; in >> f >> o >> hold; maipai_banner_flag(pick(f, flags, 5), o == "on", hold); return true; }
+    if (c == "bsicons") { std::string o; in >> o; maipai_banner_set_status_icons(o == "on"); return true; }  // patch UI04: the status icons setting
+    if (c == "bst") { int k; in >> k; maipai_banner_status(k, false); return true; }                          // a state: 0 heard, 1 listening, 2 thinking
+    if (c == "bstc") { maipai_banner_status_clear(); return true; }
     if (c == "bcaps") { std::string m; in >> m; maipai_banner_set_captions(m == "off" ? MB_CAP_OFF : (m == "banner" ? MB_CAP_BANNER : MB_CAP_SUBTITLES)); return true; }
     if (c == "ssay") { std::string rest; std::getline(in, rest); if (!rest.empty() && rest[0] == ' ') rest.erase(0, 1); maipai_subtitles_say(rest.c_str(), false); return true; }
     if (c == "send") { maipai_subtitles_end(); return true; }

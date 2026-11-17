@@ -21,7 +21,7 @@ static void test_table(void)
     const char* host[] = {"emotion_faces", "overlays_enabled", "filler_mode", "filler_wait_s", "listen_sound", "listen_light",
                           "listen_light_colour", "listen_face", "fx_crt", "fx_colour_mode", "fx_night_dim", "fx_glow",
                           "speech_bubble", "thinking_dots", "captions_mode", "top_bar", "turn_to_faces"};
-    CHECK(MP_COUNT == 18); /* the host's 17 (patch N01 added captions_mode and top_bar, patch S11 turn_to_faces) and pickup_reaction, which the pickup patch reads */
+    CHECK(MP_COUNT == 19); /* the host's 17 (patch N01 added captions_mode and top_bar, patch S11 turn_to_faces) and pickup_reaction, which the pickup patch reads, and status_icons (patch UI04) */
     CHECK(strcmp(MP_DEFS[MP_CAPTIONS_MODE].key, "captions_mode") == 0 && MP_DEFS[MP_CAPTIONS_MODE].unit == 1 && MP_DEFS[MP_CAPTIONS_MODE].def == 0);
     CHECK(strcmp(MP_DEFS[MP_TOP_BAR].key, "top_bar") == 0 && MP_DEFS[MP_TOP_BAR].unit == 1 && MP_DEFS[MP_TOP_BAR].def == 0);
     CHECK(strcmp(MP_DEFS[MP_TURN_TO_FACES].key, "turn_to_faces") == 0 && MP_DEFS[MP_TURN_TO_FACES].unit == 1 && MP_DEFS[MP_TURN_TO_FACES].def == 1 && strlen(MP_DEFS[MP_TURN_TO_FACES].nvs) <= 15);
@@ -94,6 +94,9 @@ static void test_apply(void)
     CHECK(memcmp(&before, &p, sizeof p) == 0);
     /* unknown keys are skipped, known ones in the same object still apply */
     CHECK(mp_apply_json(&p, "{ \"from_the_future\" : \"x\", \"thinking_dots\" : false }", err, sizeof err, &ch) == 0 && p.v[MP_THINKING_DOTS] == 0);
+    CHECK(p.v[MP_STATUS_ICONS] == 0 && strcmp(MP_DEFS[MP_STATUS_ICONS].key, "status_icons") == 0 && MP_DEFS[MP_STATUS_ICONS].unit == 1);  /* off by default */
+    CHECK(mp_apply_json(&p, "{\"status_icons\":true}", err, sizeof err, &ch) == 0 && p.v[MP_STATUS_ICONS] == 1);
+    CHECK(mp_apply_json(&p, "{\"status_icons\":false}", err, sizeof err, &ch) == 0 && p.v[MP_STATUS_ICONS] == 0);
     CHECK(mp_apply_json(&p, "{\"pickup_reaction\":\"face_sound\"}", err, sizeof err, &ch) == 0 && p.v[MP_PICKUP_REACTION] == 2);
     CHECK(mp_apply_json(&p, "{\"pickup_reaction\":\"loud\"}", err, sizeof err, &ch) == 1);
     /* the other colour names */

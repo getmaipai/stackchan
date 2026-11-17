@@ -52,7 +52,7 @@ def test_defaults_are_the_clock_on_the_left_and_the_games_on_the_right():
     assert (
         d["left"] == ["clock"]
         and d["right"] == ["games"]
-        and d["sheet_s"] == 6
+        and d["sheet_s"] == 10
         and d["idle_s"] == 20
     )
     assert swipe_pages.clean({}, None, Bad) == d
@@ -66,14 +66,15 @@ def test_defaults_are_the_clock_on_the_left_and_the_games_on_the_right():
         ({"left": ["clock", "timers", "games", "frame"]}, "three"),
         ({"left": ["weather"]}, "page name"),
         ({"left": "clock"}, "page name"),
-        ({"sheet_s": 4}, "5 to 15"),
-        ({"sheet_s": 16}, "5 to 15"),
-        ({"sheet_s": True}, "5 to 15"),
+        ({"sheet_s": 4}, "8 to 30"),
+        ({"sheet_s": 31}, "8 to 30"),
+        ({"sheet_s": True}, "8 to 30"),
         ({"idle_s": 4}, "5 to 300"),
         ({"idle_s": 301}, "5 to 300"),
-        ({"actions": ["find", "beep", "dance"]}, "4 to 6"),
-        ({"actions": ["find", "find", "beep", "dance"]}, "4 to 6"),
-        ({"actions": ["find", "beep", "dance", "sing"]}, "4 to 6"),
+        ({"actions": ["beep"]}, "2 to 4"),
+        ({"actions": ["beep", "beep", "dance", "game"]}, "2 to 4"),
+        ({"actions": ["beep", "dance", "game", "sing"]}, "2 to 4"),
+        ({"actions": ["beep", "dance", "game", "hello", "beep"]}, "2 to 4"),
         ({"sheet_items": ["volume", "volume"]}, "each once"),
         ({"sheet_items": ["volume", "brightness", "bogus"]}, "sheet item"),
     ],
@@ -89,9 +90,9 @@ def test_the_longest_choices_pass_and_a_partial_choice_keeps_the_rest():
         {
             "left": ["timers", "clock", "frame"],
             "right": ["games", "actions", "tiles"],
-            "sheet_s": 15,
+            "sheet_s": 30,
             "idle_s": 300,
-            "actions": ["hello", "find", "beep", "dance", "game"],
+            "actions": ["hello", "beep", "dance", "game"],
             "sheet_items": list(swipe_pages.SHEET_ITEMS),
         },
         None,
@@ -100,7 +101,7 @@ def test_the_longest_choices_pass_and_a_partial_choice_keeps_the_rest():
     assert (
         out["left"] == ["timers", "clock", "frame"]
         and out["right"][2] == "tiles"
-        and len(out["sheet_items"]) == 12
+        and len(out["sheet_items"]) == 11
     )
     again = swipe_pages.clean({"sheet_s": 9}, out, Bad)
     assert (
@@ -163,6 +164,25 @@ def test_a_unit_without_the_tools_keeps_the_choice_and_says_it_is_coming(old):
     assert status == 200 and out["pending"] is True
 
 
+def test_find_me_is_gone_but_an_old_choice_still_loads():
+    """Patch UI01: find me left the actions and the sheet. An older saved choice or caller that names it is read, never refused."""
+    assert "find" not in swipe_pages.ACTIONS and "find" not in swipe_pages.SHEET_ITEMS
+    assert "find" not in swipe_pages.DEFAULTS["actions"] and "find" not in swipe_pages.DEFAULTS["sheet_items"]
+    old = {
+        "actions": ["find", "beep", "dance", "game"],
+        "sheet_items": ["volume", "mute", "find", "timers"],
+        "sheet_s": 6,
+    }
+    out = swipe_pages.clean({}, old, Bad)
+    assert out["actions"] == ["beep", "dance", "game"]
+    assert out["sheet_items"] == ["volume", "mute", "timers"]
+    assert out["sheet_s"] == 8  # the sheet's shortest time is now 8 s
+    sent = swipe_pages.clean({"actions": ["find", "hello", "beep", "dance", "game"]}, None, Bad)
+    assert sent["actions"] == ["hello", "beep", "dance", "game"]
+    short = swipe_pages.clean({"actions": ["find", "game"]}, None, Bad)
+    assert short["actions"] == ["game", "beep"]
+
+
 def test_a_ready_unit_gets_the_whole_choice_in_one_call_and_again_on_connect(new):
     backend, units = new
     status, out = post(
@@ -172,7 +192,7 @@ def test_a_ready_unit_gets_the_whole_choice_in_one_call_and_again_on_connect(new
         {
             "left": ["timers", "clock"],
             "right": ["actions"],
-            "actions": ["find", "beep", "hello", "game"],
+            "actions": ["beep", "dance", "hello", "game"],
         },
     )
     assert status == 200 and out["pushed"] is True and out["values"]["right"] == ["actions"]
@@ -180,7 +200,7 @@ def test_a_ready_unit_gets_the_whole_choice_in_one_call_and_again_on_connect(new
     assert (
         sent["left"] == ["timers", "clock"]
         and sent["right"] == ["actions"]
-        and sent["actions"] == ["find", "beep", "hello", "game"]
+        and sent["actions"] == ["beep", "dance", "hello", "game"]
         and sent["idle_s"] == 20
     )
     units[KITCHEN].pages.clear()
@@ -199,8 +219,8 @@ def test_a_bad_choice_is_a_400_with_the_unit_sentence_and_changes_nothing(new):
     status, out = post(backend, KITCHEN, "pages", {"left": ["clock", "clock"]})
     assert status == 400 and "once" in out["error"]
     status, out = post(backend, KITCHEN, "pages", {"sheet_s": 99})
-    assert status == 400 and "5 to 15" in out["error"]
-    assert get(backend, KITCHEN, "pages")[1]["values"]["sheet_s"] == 6
+    assert status == 400 and "8 to 30" in out["error"]
+    assert get(backend, KITCHEN, "pages")[1]["values"]["sheet_s"] == 10
     assert not [c for c in units[KITCHEN].calls if c[0] == "self.pages.set"]
 
 
@@ -298,20 +318,10 @@ def test_the_page_script_has_the_section_and_parses():
 def _core_binary(tmp_path_factory: pytest.TempPathFactory) -> Path | None:
     if shutil.which("cc") is None or shutil.which("git") is None:
         return None
-    work = tmp_path_factory.mktemp("pagescore")
-    for name in ("P11-pages-data-and-layout-core.patch", "P10-gesture-state-machine-core.patch"):
-        if not (PATCHES / name).is_file():
-            return None
-        text = (PATCHES / name).read_text()
-        diff = work / "p.diff"
-        diff.write_text(text[text.index("diff --git") :])
-        run = subprocess.run(
-            ["git", "apply", "--include=firmware/main/hal/*_core.h", str(diff)],
-            cwd=work,
-            capture_output=True,
-            text=True,
-        )
-        assert run.returncode == 0, run.stderr
+    from firmware_order_cores import cores_dir  # the cores as the whole ORDER leaves them (patch UI01 changes P10 and P11)
+
+    work = cores_dir(tmp_path_factory).parents[2]
+    work = Path(work)
     hal = work / "firmware" / "main" / "hal"
     out = work / "dump"
     build_run = subprocess.run(
@@ -369,19 +379,19 @@ def test_pages_table_json_is_what_the_core_prints_and_the_module_agrees(core):
     assert t["defaults"] == {
         "left": swipe_pages.DEFAULTS["left"],
         "right": swipe_pages.DEFAULTS["right"],
-        "sheet_s": 6,
+        "sheet_s": 10,
         "idle_s": 20,
     }
 
 
 _LAYOUTS = [
-    "volume,brightness,mute,quiet,light,find,timers,games,wifi,battery",
-    "volume,brightness,mute,quiet,light,find,timers,games,wifi,battery,tailnet,address",
+    "volume,brightness,mute,quiet,light,timers,games,wifi,battery",
+    "volume,brightness,mute,quiet,light,timers,games,wifi,battery,tailnet,address",
     "mute,quiet",
     "volume,wifi,address,tailnet",
     "battery",
-    "mute,quiet,light,find,timers,games",
-    "brightness,volume,find",
+    "mute,quiet,light,timers,games",
+    "brightness,volume,timers",
     "wifi,battery,tailnet,address,volume,mute",
 ]
 

@@ -53,11 +53,9 @@ COMPILER = load_compiler()
 
 @pytest.fixture(scope="module")
 def core_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    work = tmp_path_factory.mktemp("games_core")
-    (work / "maipai_games_core.h").write_text(
-        added_file("G01-game-engine-core.patch", "firmware/main/hal/maipai_games_core.h")
-    )
-    return work
+    from firmware_order_cores import cores_dir  # the header as the whole ORDER leaves it (patch UI03 adds the Color Memory tones)
+
+    return cores_dir(tmp_path_factory)
 
 
 # ---------------------------------------------------------------------------------------------

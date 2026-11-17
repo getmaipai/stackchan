@@ -49,8 +49,8 @@ LOG_READ_MAX = 500
 
 SESSION_TOOL = "self.remote.session"
 ACTION_TOOL = "self.remote.action"
-LOCAL_LABEL = "Settings page"
-SESSION_LABEL_MAX = 20  # the unit shows "Remote connected: <label>" in a fixed row: a short plain name ("Settings page", "Phone app", "Home hub")
+LOCAL_LABEL = "Settings"
+SESSION_LABEL_MAX = 12  # the unit shows "Remote: <label>" in a fixed 312 px row, whole, with no dots: a short plain name ("Settings", "Phone", "Home hub")
 
 # Remote page button -> (kind sent to the unit, banner words). A stop button needs no cue and is not listed.
 KINDS: dict[str, tuple[str, str]] = {

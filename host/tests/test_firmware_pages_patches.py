@@ -55,18 +55,11 @@ def _touch_core() -> str | None:
     ("test", "needs_touch"),
     [("gesture_core_test.c", True), ("pages_core_test.c", False)],
 )
-def test_the_core_tests_pass_against_the_patch_text(tmp_path, test, needs_touch):
-    (tmp_path / "maipai_gesture_core.h").write_text(
-        _added(NAMES[0], "firmware/main/hal/maipai_gesture_core.h")
-    )
-    (tmp_path / "maipai_pages_core.h").write_text(
-        _added(NAMES[1], "firmware/main/hal/maipai_pages_core.h")
-    )
-    if needs_touch:
-        touch = _touch_core()
-        if touch is None:
-            pytest.skip("the touch core is not in the patch list on this checkout")
-        (tmp_path / "maipai_touch_core.h").write_text(touch)
+def test_the_core_tests_pass_against_the_patch_text(tmp_path, tmp_path_factory, test, needs_touch):
+    from firmware_order_cores import cores_dir  # the cores as the whole ORDER leaves them (patch UI01 changes P10 and P11)
+
+    for core in ("maipai_gesture_core.h", "maipai_pages_core.h", "maipai_touch_core.h"):
+        shutil.copy(cores_dir(tmp_path_factory) / core, tmp_path / core)
     binary = tmp_path / "t"
     build = subprocess.run(
         [

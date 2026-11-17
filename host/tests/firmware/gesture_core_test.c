@@ -30,7 +30,7 @@ static mgs_out_t swipe(mgs_t* g, int x0, int y0, int x1, int y1, uint32_t ms) { 
 static void fresh(mgs_t* g)
 {
     mgs_init(g);
-    mgs_config(g, 1, 1, 6, 20);
+    mgs_config(g, 1, 1, 10, 20);
 }
 
 static void test_swipe_classifier(void)
@@ -74,7 +74,7 @@ static void test_longer_strips(void)
 {
     mgs_t g;
     mgs_init(&g);
-    mgs_config(&g, 3, 3, 6, 20);
+    mgs_config(&g, 3, 3, 10, 20);
     for (int i = 1; i <= 3; i++) {
         mgs_out_t o = swipe(&g, 120, 100, 220, 100, 200);
         CHECK(o.act == MGS_ACT_SHOW_PAGE && o.arg == -i);
@@ -86,7 +86,7 @@ static void test_longer_strips(void)
     }
     CHECK(swipe(&g, 220, 100, 120, 100, 200).act == MGS_ACT_SHOW_FACE);
     /* no pages configured: both directions bump and the face stays */
-    mgs_config(&g, 0, 0, 6, 20);
+    mgs_config(&g, 0, 0, 10, 20);
     CHECK(swipe(&g, 120, 100, 220, 100, 200).act == MGS_ACT_BUMP);
     CHECK(swipe(&g, 220, 100, 120, 100, 200).act == MGS_ACT_BUMP);
     CHECK(g.mode == MGS_FACE);
@@ -183,16 +183,16 @@ static void test_sheet_auto_dismiss(void)
     fresh(&g);
     swipe(&g, 160, 230, 160, 130, 250);
     uint32_t t0 = T;
-    CHECK(mgs_tick(&g, t0 + 5900).act == MGS_ACT_NONE);
-    CHECK(mgs_tick(&g, t0 + 6000).act == MGS_ACT_SHOW_FACE);  /* closes back to the face after 6 s */
+    CHECK(mgs_tick(&g, t0 + 9900).act == MGS_ACT_NONE);
+    CHECK(mgs_tick(&g, t0 + 10000).act == MGS_ACT_SHOW_FACE);  /* closes back to the face after 10 s (patch UI01: it was 6) */
     CHECK(g.mode == MGS_FACE);
     /* the time is set from the last touch: a touch on the sheet restarts it */
     swipe(&g, 160, 230, 160, 130, 250);
     t0 = T;
     mgs_down(&g, 100, 200, t0 + 4000, 0);
     mgs_up(&g, 100, 200, t0 + 4100);
-    CHECK(mgs_tick(&g, t0 + 9000).act == MGS_ACT_NONE);
-    CHECK(mgs_tick(&g, t0 + 10100).act != MGS_ACT_NONE);
+    CHECK(mgs_tick(&g, t0 + 14000).act == MGS_ACT_NONE);
+    CHECK(mgs_tick(&g, t0 + 14100).act != MGS_ACT_NONE);   /* the 10 s count began again at the touch */
     /* no timer runs while a finger is down (a slider being dragged) */
     swipe(&g, 160, 230, 160, 130, 250);
     t0 = T;
@@ -201,12 +201,12 @@ static void test_sheet_auto_dismiss(void)
     CHECK(mgs_tick(&g, t0 + 60000).act == MGS_ACT_NONE && g.mode == MGS_SHEET);
     mgs_up(&g, 140, 200, t0 + 60100);
     CHECK(mgs_tick(&g, t0 + 60200).act == MGS_ACT_NONE);
-    CHECK(mgs_tick(&g, t0 + 66200).act != MGS_ACT_NONE);
-    /* the setting goes from 5 to 15 s and is clamped */
+    CHECK(mgs_tick(&g, t0 + 70100).act != MGS_ACT_NONE);
+    /* the setting goes from 8 to 30 s and is clamped */
     mgs_config(&g, 1, 1, 2, 20);
-    CHECK(g.sheet_s == 5);
+    CHECK(g.sheet_s == 8);
     mgs_config(&g, 1, 1, 99, 20);
-    CHECK(g.sheet_s == 15);
+    CHECK(g.sheet_s == 30);
     mgs_config(&g, 1, 1, 12, 20);
     CHECK(g.sheet_s == 12);
     swipe(&g, 160, 230, 160, 130, 250);
@@ -231,12 +231,12 @@ static void test_page_idle_return(void)
     CHECK(mgs_tick(&g, t0 + 34000).act == MGS_ACT_NONE);
     CHECK(mgs_tick(&g, t0 + 35100).act == MGS_ACT_SHOW_FACE);
     /* idle setting is 5 to 300 s */
-    mgs_config(&g, 1, 1, 6, 1);
+    mgs_config(&g, 1, 1, 10, 1);
     CHECK(g.idle_s == 5);
-    mgs_config(&g, 1, 1, 6, 900);
+    mgs_config(&g, 1, 1, 10, 900);
     CHECK(g.idle_s == 300);
     /* nothing happens at rest: the face has no timer */
-    mgs_config(&g, 1, 1, 6, 20);
+    mgs_config(&g, 1, 1, 10, 20);
     g.mode = MGS_FACE;
     CHECK(mgs_tick(&g, T + 1000000).act == MGS_ACT_NONE);
 }
@@ -342,13 +342,13 @@ static void test_host_jump_and_strip_change(void)
 {
     mgs_t g;
     mgs_init(&g);
-    mgs_config(&g, 2, 2, 6, 20);
+    mgs_config(&g, 2, 2, 10, 20);
     mgs_out_t o = mgs_goto(&g, -2, T);
     CHECK(o.act == MGS_ACT_SHOW_PAGE && o.arg == -2 && g.mode == MGS_PAGE);
     CHECK(mgs_goto(&g, 3, T).act == MGS_ACT_NONE);  /* no such position */
     CHECK(mgs_goto(&g, 0, T).act == MGS_ACT_SHOW_FACE);
     mgs_goto(&g, 2, T);
-    mgs_config(&g, 1, 1, 6, 20);  /* the owner shortened the strip while a far page was up */
+    mgs_config(&g, 1, 1, 10, 20);  /* the owner shortened the strip while a far page was up */
     CHECK(g.mode == MGS_FACE && g.pos == 0);
     swipe(&g, 160, 230, 160, 130, 250);
     CHECK(mgs_goto(&g, 1, T).act == MGS_ACT_NONE);  /* the sheet stays up */
@@ -389,7 +389,7 @@ static void test_sweep_never_leaves_range(void)
         for (int n_right = 0; n_right <= 3; n_right++) {
             mgs_t g;
             mgs_init(&g);
-            mgs_config(&g, n_left, n_right, 6, 20);
+            mgs_config(&g, n_left, n_right, 10, 20);
             for (int y0 = 0; y0 < MGS_H; y0 += 20) {
                 for (int x0 = 0; x0 < MGS_W; x0 += 16) {
                     const int dxs[] = {-90, 0, 90};

@@ -548,6 +548,63 @@ static void test_regions_stay_inside(void)
     }
 }
 
+/* Patch UI01: the Color Memory tones last exactly as long as the tile stays lit, have four different pitches and start and end at zero. */
+static void test_color_tones(void)
+{
+    static int16_t buf[MG_COLOR_TONE_SAMPLES + 8];
+    int crossings[MG_COLOR_TONES];
+    CHECK(MG_COLOR_TONE_SAMPLES == MG_COLOR_TONE_RATE / 1000 * MG_COLOR_LIT_MS);
+    CHECK(mg_color_tone(-1, buf, sizeof(buf) / 2) == 0 && mg_color_tone(MG_COLOR_TONES, buf, sizeof(buf) / 2) == 0);
+    CHECK(mg_color_tone(0, buf, MG_COLOR_TONE_SAMPLES - 1) == 0);
+    for (int c = 0; c < MG_COLOR_TONES; c++) {
+        memset(buf, 0x55, sizeof(buf));
+        const size_t n = mg_color_tone(c, buf, sizeof(buf) / 2);
+        CHECK(n == (size_t)MG_COLOR_TONE_SAMPLES);
+        CHECK(buf[0] == 0 && buf[n - 1] >= -300 && buf[n - 1] <= 300);   /* a click free start and end */
+        int peak = 0, up = 0;
+        for (size_t i = 0; i < n; i++) {
+            const int a = buf[i] < 0 ? -buf[i] : buf[i];
+            peak = a > peak ? a : peak;
+            if (i > 0 && buf[i - 1] < 0 && buf[i] >= 0) up++;
+        }
+        CHECK(peak > 12000 && peak < 16100);
+        crossings[c] = up;
+        /* the pitch: rising zero crossings in 450 ms are 0.45 f, within 3 percent */
+        const int want = (int)(MG_COLOR_HZ[c] * MG_COLOR_LIT_MS / 1000);
+        CHECK(up >= want * 97 / 100 - 1 && up <= want * 103 / 100 + 1);
+    }
+    CHECK(crossings[0] != crossings[1] && crossings[1] != crossings[2] && crossings[2] != crossings[3] && crossings[0] != crossings[2]);
+}
+
+/* Patch UI08: every tap target of the three games lies inside the safe area (clear of the banner row and the subtitle strip, at least 44 px
+ * high, at least 8 px from the side and the bottom of the glass) and the targets of one game do not overlap. */
+static void test_buttons_stay_in_the_safe_area(void)
+{
+    for (int g = 0; g < 3; g++) {
+        mg_pack_t p;
+        CHECK(mg_parse(g_blob[g], g_len[g], &p) == MG_OK);
+        for (int i = 0; i < p.n_regions; i++) {
+            mg_region_t r;
+            mg_region_get(&p, i, &r);
+            CHECK(r.y >= MG_SAFE_TOP && (int)r.y + r.h <= MG_SAFE_BOTTOM);
+            CHECK(r.h >= MG_BUTTON_MIN && r.w >= MG_BUTTON_MIN);
+            CHECK(r.x >= 8 && (int)r.x + r.w <= 320 - 8 && (int)r.y + r.h <= 240 - 8);
+            for (int j = 0; j < i; j++) {
+                mg_region_t q;
+                mg_region_get(&p, j, &q);
+                CHECK(r.x + r.w <= q.x || q.x + q.w <= r.x || r.y + r.h <= q.y || q.y + q.h <= r.y);
+            }
+        }
+        /* a drawn shape that is a button (a box or a circle of a region) is inside it: the text rows stay out of the targets' rows */
+        for (int i = 0; i < p.n_shapes; i++) {
+            mg_shape_t sh;
+            mg_shape_get(&p, i, &sh);
+            if (sh.type == MG_SH_BOX) CHECK(sh.y >= MG_SAFE_TOP && sh.y + sh.h <= MG_SAFE_BOTTOM);
+            if (sh.type == MG_SH_CIRCLE) CHECK(sh.y - sh.aux >= MG_SAFE_TOP && sh.y + sh.aux <= MG_SAFE_BOTTOM);
+        }
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc != 4) {
@@ -567,6 +624,8 @@ int main(int argc, char** argv)
     test_hostile_packs();
     test_scores_and_text();
     test_regions_stay_inside();
+    test_color_tones();
+    test_buttons_stay_in_the_safe_area();
     if (failures == 0) {
         printf("all passed\n");
         return 0;

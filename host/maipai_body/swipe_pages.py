@@ -32,14 +32,14 @@ KEY = "swipe_pages"
 TABLE_PATH = Path(__file__).with_name("pages_table.json")
 
 PAGES = ("clock", "timers", "games", "actions", "frame", "tiles")
-ACTIONS = ("find", "beep", "dance", "game", "hello")
+ACTIONS = ("beep", "dance", "game", "hello")
+LEGACY_FIND = "find"  # the removed find-me button: an old saved choice or an old caller may still name it; it is read and dropped
 SHEET_ITEMS = (
     "volume",
     "brightness",
     "mute",
     "quiet",
     "light",
-    "find",
     "timers",
     "games",
     "wifi",
@@ -49,12 +49,13 @@ SHEET_ITEMS = (
 )
 ICONS = ("none", "sun", "cloud", "rain", "home", "bell", "heart", "lamp", "temp", "check")
 SIDE_MAX = 3
-SHEET_S = (5, 15)
+SHEET_S = (8, 30)
+SHEET_S_OLD_MIN = 5  # before patch UI01 the shortest was 5 s: 5 to 7 are read as 8
 IDLE_S = (5, 300)
-ACTIONS_COUNT = (4, 6)
-MAX_SLIDERS, MAX_TILES, MAX_STATUS = 2, 7, 4
+ACTIONS_COUNT = (2, 4)
+MAX_SLIDERS, MAX_TILES, MAX_STATUS = 2, 5, 4
 SLIDERS = ("volume", "brightness")
-TILE_ITEMS = ("mute", "quiet", "light", "find", "timers", "games")
+TILE_ITEMS = ("mute", "quiet", "light", "timers", "games")
 STATUS_ITEMS = ("wifi", "battery", "tailnet", "address")
 TILES_MAX = 6
 TILE_LABEL = 12
@@ -63,16 +64,15 @@ TILE_VALUE = 10
 DEFAULTS: dict[str, Any] = {
     "left": ["clock"],
     "right": ["games"],
-    "sheet_s": 6,
+    "sheet_s": 10,
     "idle_s": 20,
-    "actions": ["find", "beep", "dance", "game"],
+    "actions": ["beep", "dance", "game", "hello"],
     "sheet_items": [
         "volume",
         "brightness",
         "mute",
         "quiet",
         "light",
-        "find",
         "timers",
         "games",
         "wifi",
@@ -84,13 +84,13 @@ DEFAULTS: dict[str, Any] = {
 ERR_PAGE = "A page name must be one of clock, timers, games, actions, frame or tiles. Send one of those names."
 ERR_DUP = "Each page can be in the strip once. Remove the repeated page and send the list again."
 ERR_LONG = "Each side of the face holds up to three pages. Send three or fewer on each side."
-ERR_SHEET_S = "The control sheet closes after 5 to 15 seconds. Send a number from 5 to 15."
+ERR_SHEET_S = "The control sheet closes after 8 to 30 seconds. Send a number from 8 to 30."
 ERR_IDLE_S = "A page returns to the face after 5 to 300 seconds. Send a number from 5 to 300."
 ERR_ACTION = (
-    "Quick actions are find, beep, dance, game and hello. Send 4 to 6 of those names, each once."
+    "Quick actions are beep, dance, game and hello. Send 2 to 4 of those names, each once."
 )
-ERR_ITEM = "A sheet item is volume, brightness, mute, quiet, light, find, timers, games, wifi, battery, tailnet or address, each once."
-ERR_ITEM_FULL = "The sheet holds up to 2 sliders, 7 buttons and 4 status lines. Remove one and send the list again."
+ERR_ITEM = "A sheet item is volume, brightness, mute, quiet, light, timers, games, wifi, battery, tailnet or address, each once."
+ERR_ITEM_FULL = "The sheet holds up to 2 sliders, 5 buttons and 4 status lines. Remove one and send the list again."
 
 SAY: dict[str, tuple[str, str]] = {
     "soon": (
@@ -140,11 +140,32 @@ def _names(
     return list(value)
 
 
+def migrate(values: dict[str, Any]) -> dict[str, Any]:
+    """An older choice, read the way the unit reads it (patch UI01): find me is dropped from the actions and the sheet, too few actions left
+    after that are topped up in their usual order, and a sheet time under the new shortest is raised to it. Never an error."""
+    out = dict(values)
+    had_find = isinstance(out.get("actions"), list) and LEGACY_FIND in out["actions"]
+    for key in ("actions", "sheet_items"):
+        if isinstance(out.get(key), list):
+            out[key] = [x for x in out[key] if x != LEGACY_FIND]
+    if had_find and all(isinstance(x, str) for x in out["actions"]):
+        for name in ACTIONS:
+            if len(out["actions"]) >= ACTIONS_COUNT[0]:
+                break
+            if name not in out["actions"]:
+                out["actions"].append(name)
+    sheet_s = out.get("sheet_s")
+    if isinstance(sheet_s, int) and not isinstance(sheet_s, bool) and SHEET_S_OLD_MIN <= sheet_s < SHEET_S[0]:
+        out["sheet_s"] = SHEET_S[0]
+    return out
+
+
 def clean(
     values: dict[str, Any], current: dict[str, Any] | None, error: type[Exception]
 ) -> dict[str, Any]:
     """The whole choice: ``current`` (or the defaults) with ``values`` laid over it, every rule of the unit applied."""
-    out = {**DEFAULTS, **(current or {})}
+    out = migrate({**DEFAULTS, **(current or {})})
+    values = migrate(values)
     for key in ("left", "right"):
         if key in values:
             out[key] = _names(values[key], PAGES, error, ERR_PAGE)

@@ -60,7 +60,7 @@ def test_every_remote_action_is_preceded_by_its_cue(cued, body) -> None:
     before = [n for n in names[:first] if n not in {"self.remote.session"}]
     assert before == [], before
     cue = next(a for n, a in kitchen.calls if n == "self.remote.action")
-    assert cue["cue"] and cue["label"] == "Settings page" and cue["kind"]
+    assert cue["cue"] and cue["label"] == "Settings" and cue["kind"]
 
 
 def test_the_host_never_acts_when_the_unit_does_not_accept_the_cue(cued) -> None:
@@ -179,7 +179,7 @@ def test_the_log_keeps_time_who_what_and_words_and_is_never_cleared(cued, tmp_pa
     rows = backend.activity.log.rows()
     assert [r["action"] for r in rows] == ["light", "say"]  # newest first
     say = rows[1]
-    assert say["controller"] == "Settings page" and say["text"] == "Dinner is ready" and say["result"] == "done" and say["unit"] == KITCHEN
+    assert say["controller"] == "Settings" and say["text"] == "Dinner is ready" and say["result"] == "done" and say["unit"] == KITCHEN
     assert say["time"][:4].isdigit() and "T" in say["time"]
     assert [r["action"] for r in backend.activity.log.rows(action="say")] == ["say"]
     assert backend.activity.log.rows(controller="nobody") == []
@@ -300,7 +300,7 @@ def test_a_find_loop_asks_for_a_fresh_cue_before_the_window_closes() -> None:
 
 
 def test_the_session_label_the_unit_shows_is_short_and_plain() -> None:
-    """The unit draws "Remote connected: <label>" in one fixed row: the label is a short plain name and is cut at 20 letters."""
+    """The unit draws "Remote: <label>" in one fixed row, whole: the label is a short plain name and is cut at 12 letters."""
     sent: list[dict] = []
 
     class _Log:
@@ -312,8 +312,8 @@ def test_the_session_label_the_unit_shows_is_short_and_plain() -> None:
     activity._send_session("unit-1", True, "  A very long controller name that would not fit  ")
     activity._send_session("unit-1", True, "   ")
     activity._send_session("unit-1", True, ra.LOCAL_LABEL)
-    assert sent[0]["label"] == "A very long controll"
+    assert sent[0]["label"] == "A very long "
     assert len(sent[0]["label"]) <= ra.SESSION_LABEL_MAX
     assert sent[1]["label"] == ra.LOCAL_LABEL  # an empty name becomes the plain default
-    assert sent[2]["label"] == "Settings page"
+    assert sent[2]["label"] == "Settings"
     assert all(item["tool"] == ra.SESSION_TOOL and item["active"] is True for item in sent)

@@ -1,0 +1,56 @@
+# Intent: The remote chip text was too long for the fixed 312 by 26 px banner row ("Remote connected: Settings pa..." was cut). It is now "Remote" plus the controller label ("Remote: Settings", "Remote: Phone", "Remote: Home hub"), just "Remote" with no label; labels are cut at 12 letters (was 20), so the whole text always fits with no marquee and no dots. Also a status icon message (patch UI04) never covers the chip: while a remote session is on, the unit posts no status message. The chip stays violet, always on, and cannot be turned off.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_banner_core.h and maipai_banner.cc (ours, N01, UI04)
+# Check after a flash: the settings page Remote tab connects: the top row shows Remote: Settings in full; with status icons on, the row still shows the chip while it is connected.
+
+diff --git a/firmware/main/hal/maipai_banner_core.h b/firmware/main/hal/maipai_banner_core.h
+--- a/firmware/main/hal/maipai_banner_core.h
++++ b/firmware/main/hal/maipai_banner_core.h
+@@ -278,15 +278,16 @@ static inline int mb_tick(mb_t* b, uint32_t now)
+ }
+ 
+ /* ---- the session chip ---- */
++#define MB_SESSION_LABEL_MAX 12 /* patch UI07 (was 20): the whole chip text always fits the fixed row with no marquee and no dots */
+ /* A heartbeat renewal (the same state, the same label) changes nothing and never bumps rev, so the row is not redrawn. */
+ static inline void mb_session(mb_t* b, int on, const char* label)
+ {
+     char text[24];
+     if (label == NULL || label[0] == '\0' || strcmp(label, "remote") == 0) {
+-        text[0] = '\0'; /* the controller has no name of its own: the chip says only "Remote connected" */
++        text[0] = '\0'; /* the controller has no name of its own: the chip says only "Remote" */
+     } else {
+         size_t n = strlen(label);
+-        if (n > 20) n = 20;
++        if (n > MB_SESSION_LABEL_MAX) n = MB_SESSION_LABEL_MAX; /* patch UI07: 12 letters, so "Remote: Settings" fits the row whole */
+         memcpy(text, label, n);
+         text[n] = '\0';
+     }
+@@ -315,7 +316,7 @@ static inline int mb_content(const mb_t* b, const char** text_out, int* icon_out
+         return 1;
+     }
+     if (b->session) {
+-        strcpy(chip, "Remote connected");
++        strcpy(chip, "Remote"); /* patch UI07: was "Remote connected", which the 312 px row cut ("Remote connected: Settings pa...") */
+         if (b->session_label[0] != '\0') {
+             strcat(chip, ": ");
+             strncat(chip, b->session_label, sizeof(chip) - strlen(chip) - 1);
+diff --git a/firmware/main/hal/maipai_banner.cc b/firmware/main/hal/maipai_banner.cc
+--- a/firmware/main/hal/maipai_banner.cc
++++ b/firmware/main/hal/maipai_banner.cc
+@@ -578,9 +578,15 @@ void maipai_banner_set_status_icons(bool on)
+ 
+ void maipai_banner_status(int kind, bool spanish)
+ {
+-    if (!s_status_icons.load()) {
++    if (!s_status_icons.load() || s_b == nullptr) {
+         return;
+     }
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        if (s_b->session) {
++            return;  // the remote chip (violet, always on) owns the row while a controller is connected: a status never covers it
++        }
++    }
+     maipai_banner_post(mst_text(kind, spanish ? 1 : 0), mst_icon(kind), MB_PRIO_PRIVACY, MB_TAG_STATUS, mst_hold_ms(kind));
+ }
+ 

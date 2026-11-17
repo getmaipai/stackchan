@@ -1,0 +1,664 @@
+# Intent: Owner's hands-on test, part 1. Every touch target on the control sheet and the swipe pages is at least 44 by 44 px and the text is the biggest bundled font that fits: the sheet has three tiles to a row, 44 px tiles and sliders with a 44 px grab area, 16 px status text and a 48 px grabber handle; the games page has no title and 44 to 52 px rows with the name in the 24 px font; the timers page has 44 px rows and a 58 by 44 cancel; the quick actions use the 24 px font. Every page a swipe down dismisses shows the grabber handle at its top edge. The clock page has its page dots in the bottom row and bigger digits (108 by 56, bar 12, was 87 by 44, bar 9). The control sheet now closes after 10 s (it was 6; the range is 8 to 30, an older saved 5 to 7 is read as 8) and the count restarts on every touch. Find me is removed from the sheet tiles and the quick actions (2 to 4 actions now); an old saved text, an old host call or an old setting naming find is read and dropped, never an error, and too few actions left are topped up. Geometry and limits are in maipai_pages_core.h, which the host table and the settings page preview copy.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages_core.h, maipai_pages.cc, maipai_pages_unit.cc, maipai_gesture_core.h (ours, P10 to P13)
+# Check after a flash: Swipe up for the sheet: tiles are 44 px high, the sheet stays about 10 s and a touch restarts the count, no Find me anywhere; the clock is bigger with the dots at the bottom; the games rows are bigger; every page shows a small handle at the top.
+
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -8,18 +8,20 @@
+  *   clock    big digits or a ring, dimmed at night; works with no host once the time is set
+  *   timers   the named countdowns of the timer tool, with a cancel and three quick starts
+  *   games    the games on the unit with their best scores and a play button
+- *   actions  four to six big buttons chosen by the owner: find, beep, dance, game, say hi
++ *   actions  two to four big buttons chosen by the owner: beep, dance, game, say hi
+  *   frame    the owner's pictures (the picture face pack), one at a time
+  *   tiles    up to six tiles pushed by the host: an icon, a label and a value; the core has no data source
+  * The default is the clock on the left of the face and the games on the right, and nothing else until the owner chooses.
+  *
+  * The configuration is one short text line saved under one flash key (pages_cfg, 9 characters) and sent by the host as the
+  * same fields in JSON; this file validates and saves the text, the unit maps the JSON to the same setters:
+- *     L=clock,timers;R=games;S=6;I=20;A=find,beep,dance,game;C=volume,brightness,mute,quiet,light,find,timers,games,wifi,battery
++ *     L=clock,timers;R=games;S=10;I=20;A=beep,dance,game,hello;C=volume,brightness,mute,quiet,light,timers,games,wifi,battery
++ * A saved text from before patch UI01 may still name "find" (the find-me button was removed); it is read and dropped, never an error.
+  * Every setter is all or nothing and returns a plain sentence saying what to send instead.
+  *
+  * The zone: pages live in the face zone (screen y 28 to 184); the banner above and the subtitles below are never covered by a page.
+- * The sheet covers the lower part of the screen from its own top to y 240 (about the lower half to two thirds), never the banner.
++ * The sheet covers the lower part of the screen from its own top to y 240 (the lower three quarters at most), never the banner.
++ * Touch targets are at least 44 by 44 px (patch UI01). A page that a swipe down dismisses shows a grabber handle at its top edge.
+  */
+ #ifndef MAIPAI_PAGES_CORE_H
+ #define MAIPAI_PAGES_CORE_H
+@@ -47,31 +49,34 @@ static const char* const MPG_PAGE_TITLE[2][MPG_P_COUNT] = {
+ };
+ 
+ /* ---- quick actions ---- */
+-enum { MPG_A_FIND = 0, MPG_A_BEEP, MPG_A_DANCE, MPG_A_GAME, MPG_A_HELLO, MPG_A_COUNT };
+-#define MPG_ACTIONS_MIN 4
+-#define MPG_ACTIONS_MAX 6
+-static const char* const MPG_ACTION_NAMES[MPG_A_COUNT] = {"find", "beep", "dance", "game", "hello"};
++enum { MPG_A_BEEP = 0, MPG_A_DANCE, MPG_A_GAME, MPG_A_HELLO, MPG_A_COUNT };
++#define MPG_ACTIONS_MIN 2
++#define MPG_ACTIONS_MAX 4
++static const char* const MPG_ACTION_NAMES[MPG_A_COUNT] = {"beep", "dance", "game", "hello"};
+ static const char* const MPG_ACTION_TITLE[2][MPG_A_COUNT] = {
+-    {"Find me", "Beep", "Dance", "Games", "Say hi"},
+-    {"Buscame", "Pitido", "Baile", "Juegos", "Saludar"},
++    {"Beep", "Dance", "Games", "Say hi"},
++    {"Pitido", "Baile", "Juegos", "Saludar"},
+ };
++/* The removed find-me button: an old saved text or an old host may still name it. It is read and dropped (patch UI01). */
++#define MPG_LEGACY_FIND "find"
++static inline int mpg_is_legacy(const char* name) { return name != NULL && strcmp(name, MPG_LEGACY_FIND) == 0; }
+ 
+ /* ---- control sheet items ---- */
+ enum {
+     MPG_S_VOLUME = 0, MPG_S_BRIGHTNESS,                                            /* sliders */
+-    MPG_S_MUTE, MPG_S_QUIET, MPG_S_LIGHT, MPG_S_FIND, MPG_S_TIMERS, MPG_S_GAMES,   /* tiles */
++    MPG_S_MUTE, MPG_S_QUIET, MPG_S_LIGHT, MPG_S_TIMERS, MPG_S_GAMES,               /* tiles */
+     MPG_S_WIFI, MPG_S_BATTERY, MPG_S_TAILNET, MPG_S_ADDRESS,                       /* status text */
+     MPG_S_COUNT
+ };
+-static const char* const MPG_SHEET_NAMES[MPG_S_COUNT] = {"volume", "brightness", "mute", "quiet", "light", "find", "timers", "games",
++static const char* const MPG_SHEET_NAMES[MPG_S_COUNT] = {"volume", "brightness", "mute", "quiet", "light", "timers", "games",
+                                                           "wifi", "battery", "tailnet", "address"};
+ static const char* const MPG_SHEET_TITLE[2][MPG_S_COUNT] = {
+-    {"Volume", "Bright", "Mute", "Quiet", "Light", "Find me", "Timers", "Games", "Wi-Fi", "Battery", "Private net", "Settings"},
+-    {"Volumen", "Brillo", "Silencio", "Calma", "Luz", "Buscame", "Tiempos", "Juegos", "Wi-Fi", "Bateria", "Red privada", "Ajustes"},
++    {"Volume", "Bright", "Mute", "Quiet", "Light", "Timers", "Games", "Wi-Fi", "Battery", "Private net", "Settings"},
++    {"Volumen", "Brillo", "Silencio", "Calma", "Luz", "Tiempos", "Juegos", "Wi-Fi", "Bateria", "Red privada", "Ajustes"},
+ };
+-#define MPG_SHEET_MAX_ITEMS 12
++#define MPG_SHEET_MAX_ITEMS 11
+ #define MPG_SHEET_MAX_SLIDERS 2
+-#define MPG_SHEET_MAX_TILES 7   /* the eighth tile is always "More" (the settings panel: Wi-Fi networks, reset, version) */
++#define MPG_SHEET_MAX_TILES 5   /* the sixth tile is always "More" (the settings panel: Wi-Fi networks, reset, version) */
+ #define MPG_SHEET_MAX_STATUS 4
+ static inline int mpg_sheet_kind(int item) { return item <= MPG_S_BRIGHTNESS ? 0 : (item <= MPG_S_GAMES ? 1 : 2); } /* 0 slider, 1 tile, 2 status */
+ 
+@@ -79,7 +84,7 @@ static inline int mpg_sheet_kind(int item) { return item <= MPG_S_BRIGHTNESS ? 0
+ typedef struct {
+     uint8_t left[MPG_SIDE_MAX], right[MPG_SIDE_MAX]; /* nearest the face first; MPG_P_NONE ends the list */
+     uint8_t n_left, n_right;
+-    uint8_t sheet_s;      /* 5 to 15 */
++    uint8_t sheet_s;      /* 8 to 30 */
+     uint16_t idle_s;      /* 5 to 300 */
+     uint8_t actions[MPG_ACTIONS_MAX];
+     uint8_t n_actions;
+@@ -87,8 +92,10 @@ typedef struct {
+     uint8_t n_items;
+ } mpg_cfg_t;
+ 
+-#define MPG_SHEET_S_MIN 5
+-#define MPG_SHEET_S_MAX 15
++#define MPG_SHEET_S_MIN 8   /* patch UI01: the sheet used to close after 6 s, which was too fast to use */
++#define MPG_SHEET_S_MAX 30
++#define MPG_SHEET_S_DEFAULT 10
++#define MPG_SHEET_S_OLD_MIN 5  /* the shortest time before patch UI01: 5 to 7 are read as 8 */
+ #define MPG_IDLE_S_MIN 5
+ #define MPG_IDLE_S_MAX 300
+ 
+@@ -130,20 +137,17 @@ static inline void mpg_defaults(mpg_cfg_t* c)
+     c->n_left = 1;
+     c->right[0] = MPG_P_GAMES;
+     c->n_right = 1;
+-    c->sheet_s = 6;
++    c->sheet_s = MPG_SHEET_S_DEFAULT;
+     c->idle_s = 20;
+-    c->actions[0] = MPG_A_FIND;
+-    c->actions[1] = MPG_A_BEEP;
+-    c->actions[2] = MPG_A_DANCE;
+-    c->actions[3] = MPG_A_GAME;
++    c->actions[0] = MPG_A_BEEP;
++    c->actions[1] = MPG_A_DANCE;
++    c->actions[2] = MPG_A_GAME;
++    c->actions[3] = MPG_A_HELLO;
+     c->n_actions = 4;
+-    for (int i = 4; i < MPG_ACTIONS_MAX; i++) {
+-        c->actions[i] = MPG_A_COUNT;
+-    }
+     for (int i = 0; i < MPG_SHEET_MAX_ITEMS; i++) {
+         c->items[i] = MPG_S_COUNT;
+     }
+-    const uint8_t items[] = {MPG_S_VOLUME, MPG_S_BRIGHTNESS, MPG_S_MUTE, MPG_S_QUIET, MPG_S_LIGHT, MPG_S_FIND,
++    const uint8_t items[] = {MPG_S_VOLUME, MPG_S_BRIGHTNESS, MPG_S_MUTE, MPG_S_QUIET, MPG_S_LIGHT,
+                              MPG_S_TIMERS, MPG_S_GAMES, MPG_S_WIFI, MPG_S_BATTERY};
+     c->n_items = (uint8_t)sizeof(items);
+     memcpy(c->items, items, sizeof(items));
+@@ -153,11 +157,11 @@ static inline void mpg_defaults(mpg_cfg_t* c)
+ #define MPG_ERR_PAGE "A page name must be one of clock, timers, games, actions, frame or tiles. Send one of those names."
+ #define MPG_ERR_DUP "Each page can be in the strip once. Remove the repeated page and send the list again."
+ #define MPG_ERR_LONG "Each side of the face holds up to three pages. Send three or fewer on each side."
+-#define MPG_ERR_SHEET_S "The control sheet closes after 5 to 15 seconds. Send a number from 5 to 15."
++#define MPG_ERR_SHEET_S "The control sheet closes after 8 to 30 seconds. Send a number from 8 to 30."
+ #define MPG_ERR_IDLE_S "A page returns to the face after 5 to 300 seconds. Send a number from 5 to 300."
+-#define MPG_ERR_ACTION "Quick actions are find, beep, dance, game and hello. Send 4 to 6 of those names, each once."
+-#define MPG_ERR_ITEM "A sheet item is volume, brightness, mute, quiet, light, find, timers, games, wifi, battery, tailnet or address, each once."
+-#define MPG_ERR_ITEM_FULL "The sheet holds up to 2 sliders, 7 buttons and 4 status lines. Remove one and send the list again."
++#define MPG_ERR_ACTION "Quick actions are beep, dance, game and hello. Send 2 to 4 of those names, each once."
++#define MPG_ERR_ITEM "A sheet item is volume, brightness, mute, quiet, light, timers, games, wifi, battery, tailnet or address, each once."
++#define MPG_ERR_ITEM_FULL "The sheet holds up to 2 sliders, 5 buttons and 4 status lines. Remove one and send the list again."
+ 
+ /* The page types on both sides, together, with no repeats: names are validated by the caller with mpg_page_by_name. */
+ static inline const char* mpg_set_pages(mpg_cfg_t* c, const int* left, int nl, const int* right, int nr)
+@@ -214,7 +218,6 @@ static inline const char* mpg_set_actions(mpg_cfg_t* c, const int* a, int n)
+         }
+         seen |= 1u << a[i];
+     }
+-    /* five actions exist, so six is only reachable with a repeat, which is refused above */
+     for (int i = 0; i < MPG_ACTIONS_MAX; i++) {
+         c->actions[i] = (uint8_t)(i < n ? a[i] : (int)MPG_A_COUNT);
+     }
+@@ -327,8 +330,8 @@ static inline int mpg_split(const char* s, size_t len, int (*by)(const char*), i
+         if (i < len) {
+             i++;
+         }
+-        if (w == 0) {
+-            continue;
++        if (w == 0 || mpg_is_legacy(word)) {
++            continue;  /* an empty piece, or the removed find-me name: dropped */
+         }
+         if (n >= max) {
+             return -1;
+@@ -379,6 +382,19 @@ static inline int mpg_cfg_from_text(mpg_cfg_t* c, const char* text)
+         *c = d;
+         return 0;
+     }
++    if (sheet_s >= MPG_SHEET_S_OLD_MIN && sheet_s < MPG_SHEET_S_MIN) {
++        sheet_s = MPG_SHEET_S_MIN;  /* saved before patch UI01 (5 to 7 seconds): the new shortest */
++    }
++    /* dropping find may leave too few actions: add the missing ones in their usual order */
++    for (int a = 0; a < MPG_A_COUNT && na < MPG_ACTIONS_MIN; a++) {
++        int have = 0;
++        for (int i = 0; i < na; i++) {
++            have |= act[i] == a;
++        }
++        if (!have) {
++            act[na++] = a;
++        }
++    }
+     mpg_cfg_t t = d;
+     if (mpg_set_pages(&t, left, nl, right, nr) != NULL || mpg_set_timeouts(&t, sheet_s, idle_s) != NULL ||
+         mpg_set_actions(&t, act, na) != NULL || mpg_set_items(&t, it, ni) != NULL) {
+@@ -571,14 +587,17 @@ typedef struct {
+     uint8_t n_status;
+ } mpg_sheet_t;
+ 
+-#define MPG_TILE_W 72
+-#define MPG_TILE_H 38
++#define MPG_TILE_W 100      /* three to a row (patch UI01: 44 px high and wide enough for the 20 px font) */
++#define MPG_TILE_H 44
++#define MPG_TILE_COLS 3
+ #define MPG_TILE_GAP 4   /* between rows */
+ #define MPG_TILE_GAPX 6  /* between columns */
+-#define MPG_SLIDER_ROW_H 28
+-#define MPG_STATUS_LINE_H 16
++#define MPG_SLIDER_ROW_H 44
++#define MPG_SLIDER_W 144
++#define MPG_STATUS_LINE_H 20
++#define MPG_SHEET_HANDLE_H 14  /* the grabber handle's band at the top of the sheet */
+ 
+-/* Lays the sheet out from the bottom edge up. Sliders go two to a row, tiles four to a row (always ending with "More"). */
++/* Lays the sheet out from the bottom edge up. Sliders go two to a row, tiles three to a row (always ending with "More"). */
+ static inline void mpg_sheet_layout(const mpg_cfg_t* c, mpg_sheet_t* L)
+ {
+     memset(L, 0, sizeof(*L));
+@@ -594,19 +613,19 @@ static inline void mpg_sheet_layout(const mpg_cfg_t* c, mpg_sheet_t* L)
+         }
+     }
+     tiles[nt++] = MPG_S_COUNT;  /* More */
+-    const int tile_rows = (nt + 3) / 4;
++    const int tile_rows = (nt + MPG_TILE_COLS - 1) / MPG_TILE_COLS;
+     const int slider_rows = (ns + 1) / 2;
+-    int h = 8 /* handle */ + 6;
++    int h = MPG_SHEET_HANDLE_H;
+     int status_lines = 0;
+     if (L->n_status > 0) {
+-        status_lines = L->n_status > 3 ? 2 : 1;
++        status_lines = L->n_status > 2 ? 2 : 1;
+         h += status_lines * MPG_STATUS_LINE_H + 4;
+     }
+     h += slider_rows * (MPG_SLIDER_ROW_H + 4);
+     h += tile_rows * MPG_TILE_H + (tile_rows - 1) * MPG_TILE_GAP;
+     h += 6;
+     L->top_y = (int16_t)(240 - h);
+-    int y = L->top_y + 8;
++    int y = L->top_y + MPG_SHEET_HANDLE_H;
+     if (status_lines) {
+         L->status_y = (int16_t)y;
+         L->status_h = (int16_t)(status_lines * MPG_STATUS_LINE_H);
+@@ -615,23 +634,23 @@ static inline void mpg_sheet_layout(const mpg_cfg_t* c, mpg_sheet_t* L)
+     for (int i = 0; i < ns; i++) {
+         mpg_rect_t* r = &L->r[L->n++];
+         r->item = (uint8_t)sliders[i];
+-        r->w = 144;
++        r->w = MPG_SLIDER_W;
+         r->h = MPG_SLIDER_ROW_H;
+-        r->x = (int16_t)(MPG_SHEET_PAD + (i % 2) * (144 + 16));
++        r->x = (int16_t)(MPG_SHEET_PAD + (i % 2) * (MPG_SLIDER_W + 16));
+         r->y = (int16_t)(y + (i / 2) * (MPG_SLIDER_ROW_H + 4));
+     }
+     y += slider_rows * (MPG_SLIDER_ROW_H + 4);
+     for (int i = 0; i < nt; i++) {
+         mpg_rect_t* r = &L->r[L->n++];
+-        const int in_row = (i / 4 == tile_rows - 1) ? nt - (tile_rows - 1) * 4 : 4;
+-        const int col = i % 4;
++        const int in_row = (i / MPG_TILE_COLS == tile_rows - 1) ? nt - (tile_rows - 1) * MPG_TILE_COLS : MPG_TILE_COLS;
++        const int col = i % MPG_TILE_COLS;
+         const int row_w = in_row * MPG_TILE_W + (in_row - 1) * MPG_TILE_GAPX;
+-        const int row_w_full = 4 * MPG_TILE_W + 3 * MPG_TILE_GAPX;
++        const int row_w_full = MPG_TILE_COLS * MPG_TILE_W + (MPG_TILE_COLS - 1) * MPG_TILE_GAPX;
+         r->item = (uint8_t)tiles[i];
+         r->w = MPG_TILE_W;
+         r->h = MPG_TILE_H;
+         r->x = (int16_t)((MPG_W_FULL - row_w_full) / 2 + (col * (MPG_TILE_W + MPG_TILE_GAPX)) + (row_w_full - row_w) / 2);
+-        r->y = (int16_t)(y + (i / 4) * (MPG_TILE_H + MPG_TILE_GAP));
++        r->y = (int16_t)(y + (i / MPG_TILE_COLS) * (MPG_TILE_H + MPG_TILE_GAP));
+     }
+ }
+ 
+@@ -680,23 +699,25 @@ static inline mpg_clock_layout_t mpg_clock_layout(int ring_style)
+     memset(&l, 0, sizeof(l));
+     if (ring_style) {
+         l.digit_w = 22; l.digit_h = 45; l.bar = 5; l.gap = 4; l.colon_w = 10;  /* h = 3 bar + 2 L: 15 + 30 */
+-        l.ring = 140;
++        l.ring = 134;
+         l.ring_cx = MPG_ZONE_W / 2;
+-        l.ring_cy = 72;
++        l.ring_cy = 78;
+         const int w = 4 * l.digit_w + 2 * l.gap + l.colon_w;
+         l.x0 = (MPG_ZONE_W - w) / 2;
+-        l.y0 = 72 - l.digit_h / 2 - 6;
++        l.y0 = 78 - l.digit_h / 2 - 6;
+         l.date_y = l.y0 + l.digit_h + 8;
+         l.ampm_x = l.x0 + w - 36;
+         l.ampm_y = l.y0 - 20;
+     } else {
+-        l.digit_w = 44; l.digit_h = 87; l.bar = 9; l.gap = 10; l.colon_w = 22;
++        /* patch UI01: the three page dots sit in the bottom row (MPG_PAGER_Y), so the digits take the room above the date line:
++         * h = 3 bar + 2 L = 36 + 72 = 108 (it was 87), a bar of 12 (it was 9), under the grabber handle. */
++        l.digit_w = 56; l.digit_h = 108; l.bar = 12; l.gap = 10; l.colon_w = 26;
+         const int w = 4 * l.digit_w + 2 * l.gap + l.colon_w;
+         l.x0 = (MPG_ZONE_W - w) / 2;
+         l.y0 = 10;
+-        l.date_y = l.y0 + l.digit_h + 8;
+-        l.ampm_x = l.x0 + w - 30;
+-        l.ampm_y = l.y0 - 4;
++        l.date_y = l.y0 + l.digit_h + 3;
++        l.ampm_x = l.x0 + w - 34;
++        l.ampm_y = l.date_y + 3;
+     }
+     return l;
+ }
+@@ -730,10 +751,41 @@ static inline void mpg_cell(int i, int n, int area_x, int area_y, int area_w, in
+ 
+ /* The pager dots: where each of n dots sits for the strip (left pages, the face, right pages), in zone coordinates. */
+ static inline int mpg_pager_x(int n, int index) { return MPG_ZONE_W / 2 + (index * 2 - (n - 1)) * 7; }
+-#define MPG_PAGER_Y 148
++#define MPG_PAGER_Y 150  /* the bottom row of the zone (zone height 156): dots 146 to 154 */
+ #define MPG_CONTENT_Y 24  /* below the page title */
+ #define MPG_CONTENT_BOTTOM 140
+ 
++/* Touch targets are at least this many pixels on each side (patch UI01). */
++#define MPG_TOUCH_MIN 44
++
++/* The games page (patch UI01): no title, the grabber handle at the top; the rows are as tall as the zone allows, at most 52 px, at
++ * least 44 for three games. Rows start at y 10 and end by y 146, above the page dots. */
++#define MPG_GAMES_TOP 10
++#define MPG_GAMES_AREA_H 136
++#define MPG_GAMES_GAP 2
++static inline void mpg_games_row(int n, int i, int* y, int* h)
++{
++    if (n < 1) {
++        n = 1;
++    }
++    int hh = (MPG_GAMES_AREA_H - (n - 1) * MPG_GAMES_GAP) / n;
++    if (hh > 52) {
++        hh = 52;
++    }
++    *h = hh;
++    *y = MPG_GAMES_TOP + i * (hh + MPG_GAMES_GAP);
++}
++
++/* The timers page (patch UI01): rows 44 px high, a cancel target 56 by 44; with three timers the title gives way (rows start at
++ * y 10), with one or none there is room for the three quick starts, 44 px high (56 with no timer). */
++#define MPG_TIMER_ROW_H 44
++#define MPG_TIMER_PITCH 46
++static inline int mpg_timer_top(int n) { return n >= 3 ? 10 : 24; }
++static inline int mpg_timer_title(int n) { return n < 3; }
++static inline int mpg_timer_quick(int n) { return n <= 1; }
++static inline int mpg_timer_quick_y(void) { return 72; }
++static inline int mpg_timer_quick_h(int n) { return n == 0 ? 56 : 44; }
++
+ /* A row of the timers page: up to four rows of 26 px, and three quick starts when there is room. */
+ #define MPG_TIMER_ROWS 4
+ static const uint16_t MPG_QUICK_TIMER_MIN[3] = {1, 5, 10};
+@@ -745,7 +797,7 @@ static inline int mpg_action_blocked(int action, int quiet, int muted)
+         return action != MPG_A_GAME;
+     }
+     if (muted) {
+-        return action == MPG_A_BEEP || action == MPG_A_FIND;
++        return action == MPG_A_BEEP;
+     }
+     return 0;
+ }
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -246,6 +246,13 @@ lv_obj_t* make_root()
+     return r;
+ }
+ 
++// The grabber handle at the top edge of every screen that a swipe down dismisses (patch UI01).
++void grabber(lv_obj_t* root)
++{
++    lv_obj_t* g = box(root, MPG_ZONE_W / 2 - 24, 2, 48, 5, fg(70), 3);
++    lv_obj_move_foreground(g);
++}
++
+ void title(lv_obj_t* root, int type)
+ {
+     lv_obj_t* l = text(root, MPG_PAGE_TITLE[es() ? 1 : 0][type], kSmall, fg(70));
+@@ -351,7 +358,7 @@ void build_clock(lv_obj_t* root)
+     const int cx  = l.x0 + 2 * l.digit_w + l.gap + (l.colon_w - l.bar) / 2;
+     s_ui->colon[0] = box(root, cx, l.y0 + l.digit_h / 3 - l.bar / 2, l.bar, l.bar, c, l.bar / 3);
+     s_ui->colon[1] = box(root, cx, l.y0 + 2 * l.digit_h / 3 - l.bar / 2, l.bar, l.bar, c, l.bar / 3);
+-    s_ui->date     = text(root, "", kMid, fg(70));
++    s_ui->date     = text(root, "", l.ring ? kSmall : kMid, fg(70));  // inside the ring the date needs the smaller font
+     lv_obj_set_width(s_ui->date, MPG_ZONE_W);
+     lv_obj_set_style_text_align(s_ui->date, LV_TEXT_ALIGN_CENTER, 0);
+     lv_obj_set_pos(s_ui->date, 0, l.date_y);
+@@ -400,6 +407,7 @@ void timers_refresh()
+         lv_obj_clean(s_page);
+         s_ui->toast = nullptr;
+         build_timers(s_page);
++        grabber(s_page);
+         return;
+     }
+     for (int i = 0; i < n; i++) {
+@@ -418,25 +426,27 @@ void build_timers(lv_obj_t* root)
+     }
+     s_ui->tn   = n;
+     s_ui->tsig = timers_sig(t, n);
+-    title(root, MPG_P_TIMERS);
++    if (mpg_timer_title(n)) {
++        title(root, MPG_P_TIMERS);
++    }
+     pager(root);
+     const lv_color_t card = fg(16);
+     for (int i = 0; i < n; i++) {
+-        const int y = 26 + i * 38;
+-        box(root, 8, y, 304, 34, card, 10);
++        const int y = mpg_timer_top(n) + i * MPG_TIMER_PITCH;
++        box(root, 8, y, 304, MPG_TIMER_ROW_H, card, 10);
+         lv_obj_t* lab = text(root, t[i].label[0] != '\0' ? t[i].label : tx("Timer", "Temporizador"), kText, fg(100));
+         lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
+-        lv_obj_set_width(lab, 130);
+-        lv_obj_set_pos(lab, 20, y + 6);
++        lv_obj_set_width(lab, 120);
++        lv_obj_set_pos(lab, 18, y + 10);
+         s_ui->trow_time[i] = text(root, "", kBig, fg(100));
+         char left[16];
+         mpg_fmt_left(left, sizeof(left), t[i].left_s);
+         lv_label_set_text(s_ui->trow_time[i], left);
+-        lv_obj_set_pos(s_ui->trow_time[i], 150, y + 3);
++        lv_obj_set_pos(s_ui->trow_time[i], 142, y + 8);
+         s_ui->tids[i] = t[i].id;
+-        lv_obj_t* x = box(root, 266, y, 46, 34, fg(30), 10, true);
++        lv_obj_t* x = box(root, 254, y, 58, MPG_TIMER_ROW_H, fg(30), 10, true);
+         lv_obj_set_style_bg_color(x, fg(60), LV_STATE_PRESSED);
+-        lv_obj_t* xl = text(x, LV_SYMBOL_CLOSE, kSmall, fg(100));
++        lv_obj_t* xl = text(x, LV_SYMBOL_CLOSE, kMid, fg(100));
+         lv_obj_center(xl);
+         lv_obj_add_event_cb(x, on_timer_cancel, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t[i].id)));
+     }
+@@ -446,9 +456,9 @@ void build_timers(lv_obj_t* root)
+         lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
+         lv_obj_set_pos(none, 0, 34);
+     }
+-    if (n <= 2) {
+-        const int y = n == 0 ? 72 : 26 + n * 38 + 2;
+-        const int h = n == 0 ? 56 : 38;
++    if (mpg_timer_quick(n)) {
++        const int y = mpg_timer_quick_y();
++        const int h = mpg_timer_quick_h(n);
+         for (int i = 0; i < 3; i++) {
+             lv_obj_t* b = box(root, 8 + i * 104, y, 96, h, fg(16), 10, true);
+             lv_obj_set_style_border_width(b, 1, 0);
+@@ -456,7 +466,7 @@ void build_timers(lv_obj_t* root)
+             lv_obj_set_style_bg_color(b, fg(40), LV_STATE_PRESSED);
+             char s[16];
+             snprintf(s, sizeof(s), "+%u min", static_cast<unsigned>(MPG_QUICK_TIMER_MIN[i]));
+-            lv_obj_t* l = text(b, s, kSmall, fg(100));
++            lv_obj_t* l = text(b, s, kMid, fg(100));
+             lv_obj_center(l);
+             lv_obj_add_event_cb(b, on_timer_add, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(MPG_QUICK_TIMER_MIN[i])));
+         }
+@@ -475,7 +485,6 @@ void on_game(lv_event_t* e)
+ 
+ void build_games(lv_obj_t* root)
+ {
+-    title(root, MPG_P_GAMES);
+     pager(root);
+     const int n = s_host->game_count() > 3 ? 3 : s_host->game_count();
+     if (n == 0) {
+@@ -485,20 +494,25 @@ void build_games(lv_obj_t* root)
+         lv_obj_set_pos(none, 0, 56);
+         return;
+     }
++    // Patch UI01: no title (the grabber handle is at the top), rows 44 to 52 px high, the game name in the biggest font that fits.
+     for (int i = 0; i < n; i++) {
+-        const int y = 26 + i * 38;
+-        lv_obj_t* b = box(root, 8, y, 304, 34, fg(16), 10, true);
++        int y, h;
++        mpg_games_row(n, i, &y, &h);
++        lv_obj_t* b = box(root, 8, y, 304, h, fg(16), 12, true);
+         lv_obj_set_style_border_width(b, 1, 0);
+         lv_obj_set_style_border_color(b, fg(40), 0);
+         lv_obj_set_style_bg_color(b, fg(40), LV_STATE_PRESSED);
+-        lv_obj_t* name = text(b, s_host->game_title(i), kText, fg(100));
+-        lv_obj_align(name, LV_ALIGN_LEFT_MID, 12, 0);
++        const char* gt = s_host->game_title(i);
++        lv_obj_t* name = text(b, gt, fit_font(gt, 168), fg(100));
++        lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
++        lv_obj_set_width(name, 168);
++        lv_obj_align(name, LV_ALIGN_LEFT_MID, 14, 0);
+         char best[24];
+         mpg_best_text(best, sizeof(best), s_host->game_best(i), es());
+-        lv_obj_t* bl = text(b, best, kTiny, fg(70));
+-        lv_obj_align(bl, LV_ALIGN_RIGHT_MID, -44, 0);
+-        lv_obj_t* play = text(b, LV_SYMBOL_PLAY, kSmall, fg(100));
+-        lv_obj_align(play, LV_ALIGN_RIGHT_MID, -12, 0);
++        lv_obj_t* bl = text(b, best, kSmall, fg(70));
++        lv_obj_align(bl, LV_ALIGN_RIGHT_MID, -50, 0);
++        lv_obj_t* play = text(b, LV_SYMBOL_PLAY, kBig, fg(100));
++        lv_obj_align(play, LV_ALIGN_RIGHT_MID, -14, 0);
+         lv_obj_add_event_cb(b, on_game, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+     }
+ }
+@@ -529,7 +543,7 @@ void build_actions(lv_obj_t* root)
+         lv_obj_set_style_border_width(b, 1, 0);
+         lv_obj_set_style_border_color(b, fg(blocked ? 25 : 55), 0);
+         lv_obj_set_style_bg_color(b, fg(45), LV_STATE_PRESSED);
+-        lv_obj_t* l = text(b, MPG_ACTION_TITLE[es() ? 1 : 0][a], kMid, fg(blocked ? 40 : 100));
++        lv_obj_t* l = text(b, MPG_ACTION_TITLE[es() ? 1 : 0][a], fit_font(MPG_ACTION_TITLE[es() ? 1 : 0][a], w - 12), fg(blocked ? 40 : 100));
+         lv_obj_center(l);
+         lv_obj_add_event_cb(b, on_action, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(a)));
+     }
+@@ -731,6 +745,7 @@ void show_type(int type, int pos)
+         case MPG_P_FRAME: build_frame(s_page); break;
+         default: build_tiles(s_page); break;
+     }
++    grabber(s_page);
+     ensure_timer();
+     publish();
+ }
+@@ -854,11 +869,6 @@ void on_sheet_tile(lv_event_t* e)
+         case MPG_S_MUTE: s_host->toggle_mute(); break;
+         case MPG_S_QUIET: s_host->toggle_quiet(); break;
+         case MPG_S_LIGHT: s_host->toggle_light(); break;
+-        case MPG_S_FIND:
+-            if (!mpg_action_blocked(MPG_A_FIND, s_host->quiet(), s_host->muted())) {
+-                s_host->action(MPG_A_FIND);
+-            }
+-            break;
+         case MPG_S_TIMERS:
+         case MPG_S_GAMES: {
+             const int type = item == MPG_S_TIMERS ? MPG_P_TIMERS : MPG_P_GAMES;
+@@ -936,11 +946,11 @@ void build_sheet()
+     lv_obj_set_style_border_side(r, LV_BORDER_SIDE_TOP, 0);
+     lv_obj_set_style_border_color(r, fg(45), 0);
+     s_sheet = r;
+-    box(r, 142, 4, 36, 4, fg(50), 2);
++    box(r, 136, 4, 48, 5, fg(70), 3);  // the grabber handle (patch UI01): a swipe down closes the sheet
+     if (L.status_h > 0) {
+-        s_sh->stat = text(r, "", kTiny, fg(85));
+-        lv_label_set_long_mode(s_sh->stat, LV_LABEL_LONG_WRAP);
+-        lv_obj_set_width(s_sh->stat, 304);
++        s_sh->stat = text(r, "", kSmall, fg(85));
++        lv_label_set_long_mode(s_sh->stat, LV_LABEL_LONG_DOT);
++        lv_obj_set_size(s_sh->stat, 304, L.status_h);
+         lv_obj_set_pos(s_sh->stat, 8, L.status_y - L.top_y);
+     }
+     int si = 0;
+@@ -948,12 +958,12 @@ void build_sheet()
+         const mpg_rect_t& q = L.r[i];
+         const int x = q.x, y = q.y - L.top_y;
+         if (q.item < MPG_S_MUTE) {
+-            lv_obj_t* sl_name = text(r, MPG_SHEET_TITLE[es() ? 1 : 0][q.item], kTiny, fg(80));
+-            lv_obj_set_pos(sl_name, x, y - 1);
++            lv_obj_t* sl_name = text(r, MPG_SHEET_TITLE[es() ? 1 : 0][q.item], kSmall, fg(90));
++            lv_obj_set_pos(sl_name, x, y);
+             lv_obj_t* sl = lv_slider_create(r);
+-            lv_obj_set_size(sl, q.w, 10);
+-            lv_obj_set_pos(sl, x, y + 18);
+-            lv_obj_set_ext_click_area(sl, 10);
++            lv_obj_set_size(sl, q.w - 16, 16);
++            lv_obj_set_pos(sl, x + 8, y + 26);
++            lv_obj_set_ext_click_area(sl, 14);  // with the label's row the grab area is 44 px high
+             const bool vol = q.item == MPG_S_VOLUME;
+             lv_slider_set_range(sl, vol ? 20 : 10, 100);
+             lv_slider_set_value(sl, vol ? s_host->volume() : s_host->brightness(), LV_ANIM_OFF);
+@@ -966,10 +976,10 @@ void build_sheet()
+                 lv_obj_set_style_outline_width(sl, 0, part);
+                 lv_obj_set_style_bg_color(sl, part == LV_PART_MAIN ? fg(30) : fg(100), part);
+             }
+-            lv_obj_set_style_radius(sl, 5, LV_PART_MAIN);
+-            lv_obj_set_style_radius(sl, 5, LV_PART_INDICATOR);
++            lv_obj_set_style_radius(sl, 8, LV_PART_MAIN);
++            lv_obj_set_style_radius(sl, 8, LV_PART_INDICATOR);
+             lv_obj_set_style_radius(sl, LV_RADIUS_CIRCLE, LV_PART_KNOB);
+-            lv_obj_set_style_pad_all(sl, 5, LV_PART_KNOB);
++            lv_obj_set_style_pad_all(sl, 8, LV_PART_KNOB);
+             lv_obj_add_event_cb(sl, on_slider, LV_EVENT_VALUE_CHANGED, reinterpret_cast<void*>(static_cast<intptr_t>(q.item)));
+             if (si < 2) {
+                 s_sh->slider[si++] = sl;
+@@ -982,11 +992,11 @@ void build_sheet()
+         lv_obj_set_style_bg_color(b, fg(45), LV_STATE_PRESSED);
+         const bool toggle = q.item == MPG_S_MUTE || q.item == MPG_S_QUIET || q.item == MPG_S_LIGHT;
+         const char* name  = q.item == MPG_S_COUNT ? tx("More", "Mas") : MPG_SHEET_TITLE[es() ? 1 : 0][q.item];
+-        lv_obj_t* l = text(b, name, kTiny, fg(100));
++        lv_obj_t* l = text(b, name, kMid, fg(100));
+         if (toggle) {
+-            lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 3);
+-            lv_obj_t* st = text(b, "", kTiny, fg(100));
+-            lv_obj_align(st, LV_ALIGN_BOTTOM_MID, 0, -3);
++            lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 0);
++            lv_obj_t* st = text(b, "", kSmall, fg(100));
++            lv_obj_align(st, LV_ALIGN_BOTTOM_MID, 0, 0);
+             s_sh->tile_state[i] = st;
+             s_sh->tile_name[i]  = l;
+         } else {
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -228,7 +228,6 @@ public:
+     void action(int a) override
+     {
+         switch (a) {
+-            case MPG_A_FIND: Application::GetInstance().Schedule([]() { maipai_sounds_find_chirp(); }); break;
+             case MPG_A_BEEP: Application::GetInstance().Schedule([]() { maipai_sounds_play("popup"); }); break;
+             case MPG_A_DANCE: Application::GetInstance().Schedule([]() { maipai_dance_play("happy"); }); break;
+             case MPG_A_GAME:
+@@ -416,7 +415,13 @@ bool read_names(const cJSON* arr, int (*by)(const char*), int* out, int max, int
+     const cJSON* it = nullptr;
+     cJSON_ArrayForEach(it, arr)
+     {
+-        if (!cJSON_IsString(it) || *n >= max) {
++        if (!cJSON_IsString(it)) {
++            return false;
++        }
++        if (mpg_is_legacy(it->valuestring)) {
++            continue;  // the removed find-me name from an old host or saved choice: dropped, not an error (patch UI01)
++        }
++        if (*n >= max) {
+             return false;
+         }
+         const int v = by(it->valuestring);
+@@ -471,20 +476,20 @@ void maipai_pages_unit_register_tools()
+                     char buf[512];
+                     snprintf(buf, sizeof(buf),
+                              "{\"ok\":true,\"version\":1,\"open\":%s,\"page\":\"%s\",\"position\":%d,\"sheet\":%s,\"tiles\":%d,\"tiles_age_s\":%u,"
+-                             "\"pages\":[\"clock\",\"timers\",\"games\",\"actions\",\"frame\",\"tiles\"],\"actions\":[\"find\",\"beep\",\"dance\",\"game\",\"hello\"],"
+-                             "\"sheet_items\":[\"volume\",\"brightness\",\"mute\",\"quiet\",\"light\",\"find\",\"timers\",\"games\",\"wifi\",\"battery\",\"tailnet\",\"address\"]}",
++                             "\"pages\":[\"clock\",\"timers\",\"games\",\"actions\",\"frame\",\"tiles\"],\"actions\":[\"beep\",\"dance\",\"game\",\"hello\"],"
++                             "\"sheet_items\":[\"volume\",\"brightness\",\"mute\",\"quiet\",\"light\",\"timers\",\"games\",\"wifi\",\"battery\",\"tailnet\",\"address\"]}",
+                              maipai_pages_open() ? "true" : "false", type >= 0 ? MPG_PAGE_NAMES[type] : (maipai_pages_open() && !maipai_pages_sheet_open() ? "extra" : "face"),
+                              pos, maipai_pages_sheet_open() ? "true" : "false", n, static_cast<unsigned>(age));
+                     return std::string(buf);
+                 });
+     mcp.AddTool("self.pages.get",
+                 "Read the swipe page choice. Answers {ok, left, right, sheet_s, idle_s, actions, sheet_items}: the pages left and right of the face "
+-                "(nearest first), the control sheet's closing time (5 to 15 s), the page idle time (5 to 300 s), the quick actions and the sheet items.",
++                "(nearest first), the control sheet's closing time (8 to 30 s), the page idle time (5 to 300 s), the quick actions and the sheet items.",
+                 std::vector<Property>{}, [](const PropertyList&) -> ReturnValue { return cfg_json(maipai_pages_config()); });
+     mcp.AddTool("self.pages.set",
+                 "Change the swipe pages: json is an object with any of left and right (arrays of up to three of clock, timers, games, actions, frame, tiles; "
+-                "a page at most once in all), sheet_s (5 to 15), idle_s (5 to 300), actions (4 to 6 of find, beep, dance, game, hello) and sheet_items "
+-                "(volume, brightness, mute, quiet, light, find, timers, games, wifi, battery, tailnet, address). Saved in flash and applied at once; "
++                "a page at most once in all), sheet_s (8 to 30), idle_s (5 to 300), actions (2 to 4 of beep, dance, game, hello) and sheet_items "
++                "(volume, brightness, mute, quiet, light, timers, games, wifi, battery, tailnet, address). Saved in flash and applied at once; "
+                 "nothing changes unless every field is valid. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("json", kPropertyTypeString, std::string("{}"))}), [](const PropertyList& properties) -> ReturnValue {
+                     const std::string text = properties["json"].value<std::string>();
+@@ -514,7 +519,11 @@ void maipai_pages_unit_register_tools()
+                         why = MPG_ERR_SHEET_S;
+                     }
+                     if (why == nullptr && (js != nullptr || ji != nullptr)) {
+-                        why = mpg_set_timeouts(&cfg, js != nullptr ? js->valueint : 0, ji != nullptr ? ji->valueint : 0);
++                        int sv = js != nullptr ? js->valueint : 0;
++                        if (sv >= MPG_SHEET_S_OLD_MIN && sv < MPG_SHEET_S_MIN) {
++                            sv = MPG_SHEET_S_MIN;  // an old host's 5 to 7 seconds: the new shortest
++                        }
++                        why = mpg_set_timeouts(&cfg, sv, ji != nullptr ? ji->valueint : 0);
+                     }
+                     const cJSON* ja = cJSON_GetObjectItemCaseSensitive(root, "actions");
+                     if (why == nullptr && ja != nullptr) {
+diff --git a/firmware/main/hal/maipai_gesture_core.h b/firmware/main/hal/maipai_gesture_core.h
+--- a/firmware/main/hal/maipai_gesture_core.h
++++ b/firmware/main/hal/maipai_gesture_core.h
+@@ -20,8 +20,8 @@
+  * timer or played a game (a game keeps the touches that begin outside the edges) is consumed: it changes no page.
+  *
+  * Other inputs: the wake word, speech and a head tap end any page or sheet at once and show the face (never while a finger is on
+- * the screen); a page returns to the face after the idle time (20 s by default), the sheet closes after its own (6 s by default,
+- * 5 to 15). Neither timer runs while a finger is down.
++ * the screen); a page returns to the face after the idle time (20 s by default), the sheet closes after its own (10 s by default,
++ * 8 to 30). Neither timer runs while a finger is down.
+  */
+ #ifndef MAIPAI_GESTURE_CORE_H
+ #define MAIPAI_GESTURE_CORE_H
+@@ -37,9 +37,9 @@
+ #define MGS_SWIPE_MIN_SPEED 60    /* px a second */
+ #define MGS_TAP_MAX_PX 12
+ #define MGS_TAP_MAX_MS 500
+-#define MGS_SHEET_S_MIN 5
+-#define MGS_SHEET_S_MAX 15
+-#define MGS_SHEET_S_DEFAULT 6
++#define MGS_SHEET_S_MIN 8     /* patch UI01: 6 s was too fast to use; the idle time restarts on every touch (down and up) */
++#define MGS_SHEET_S_MAX 30
++#define MGS_SHEET_S_DEFAULT 10
+ #define MGS_IDLE_S_MIN 5
+ #define MGS_IDLE_S_MAX 300
+ #define MGS_IDLE_S_DEFAULT 20

@@ -1,0 +1,392 @@
+# Intent: Sleepy and sleeping are now two different looks. SLEEPY has no Z at all (no bubble and no floating letters) and nods off and fights to stay awake: a slow irregular loop of six steps (the eyes hold on, droop, shut for a moment, snap wide open, settle, a half droop it catches) with random step lengths; face only, no head motion. SLEEPING keeps the eyes shut and now snores (the mouth slowly opens and closes with a small puff that rises and fades) and now and then a drool drop slides down from the corner of the mouth; the floating z letters (the zzz overlay, fixed zones and the governor unchanged) belong to sleeping and closing only. Low battery stays the tired look. Also (patch UI09): the Wi-Fi page (title Wi-Fi: the current network and its signal, up to three saved networks with a 44 px connect target, Done, swipe down) and the registration of the quick settings panel with the single screen state.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_look_core.h (ours, V10 and later), stackchan_display.cc SetEmotion, maipai_fx.cc maipai_fx_note_emotion (TA03)
+# Check after a flash: Send the sleepy emotion: the eyes droop, shut, snap open, repeat, with no Z; send sleeping: eyes shut, the mouth snores, a drool drop now and then, z letters float.
+
+diff --git a/firmware/main/hal/maipai_look_core.h b/firmware/main/hal/maipai_look_core.h
+--- a/firmware/main/hal/maipai_look_core.h
++++ b/firmware/main/hal/maipai_look_core.h
+@@ -253,6 +253,20 @@ static inline float ml_eye_area_fraction(float open_pct)
+ #define ML_BLINK_SHUT_MS 140u    /* a blink is shut for this long in all */
+ #define ML_BLINK_MIN_GAP_MS 2600u
+ #define ML_BLINK_MAX_GAP_MS 5200u
++/* patch UI06: the nodding-off loop of the sleepy look (ml_lids_target): step lengths in ms, lid percents */
++#define ML_NOD_STARE_LO 900u
++#define ML_NOD_STARE_HI 1900u
++#define ML_NOD_DROOP_LO 1000u
++#define ML_NOD_DROOP_HI 1500u
++#define ML_NOD_SHUT_LO 300u
++#define ML_NOD_SHUT_HI 800u
++#define ML_NOD_SNAP_MS 140u
++#define ML_NOD_SETTLE_LO 500u
++#define ML_NOD_SETTLE_HI 1200u
++#define ML_NOD_HALF_LO 700u
++#define ML_NOD_HALF_HI 1000u
++#define ML_NOD_HOLD_PCT 22.0f
++#define ML_NOD_SNAP_PCT 95.0f
+ #define ML_SLEEPY_BLINK_MS 360u  /* the first slow blink of a sleepy eye; each next one stays this much longer */
+ #define ML_SLEEPY_BLINK_GROW_MS 140u
+ #define ML_SLEEPY_BLINK_MAX_MS 1400u
+@@ -363,23 +377,34 @@ static inline float ml_lids_target(ml_lids_t* s, float base, float shut_pct, uin
+             return base;
+         }
+         case ML_PH_SLEEPY: {
+-            if (s->blink_len_ms == 0 && now_ms >= s->next_blink_ms) {
+-                uint32_t len = ML_SLEEPY_BLINK_MS + s->blinks * ML_SLEEPY_BLINK_GROW_MS;
+-                if (len > ML_SLEEPY_BLINK_MAX_MS) len = ML_SLEEPY_BLINK_MAX_MS;
+-                s->blink_start_ms = now_ms;
+-                s->blink_len_ms = len;
++            /* Patch UI06: nodding off and fighting to stay awake, a slow irregular loop of six steps: the eyes hold on (stare), droop,
++             * shut for a moment, snap wide open (it wakes itself), settle, then a half droop that it catches. The lengths are random
++             * within a range, so the loop never repeats exactly. */
++            if (s->blink_len_ms == 0 || now_ms - s->blink_start_ms >= s->blink_len_ms) {
++                uint32_t v = s->rng ? s->rng : 7u;
++                v ^= v << 13; v ^= v >> 17; v ^= v << 5; s->rng = v;
+                 s->blinks++;
++                s->blink_start_ms = now_ms;
++                static const uint16_t lo[6] = {ML_NOD_STARE_LO, ML_NOD_DROOP_LO, ML_NOD_SHUT_LO, ML_NOD_SNAP_MS, ML_NOD_SETTLE_LO, ML_NOD_HALF_LO};
++                static const uint16_t hi[6] = {ML_NOD_STARE_HI, ML_NOD_DROOP_HI, ML_NOD_SHUT_HI, ML_NOD_SNAP_MS, ML_NOD_SETTLE_HI, ML_NOD_HALF_HI};
++                const int step = (int)(s->blinks % 6u);
++                s->blink_len_ms = (uint32_t)lo[step] + (hi[step] > lo[step] ? v % (uint32_t)(hi[step] - lo[step] + 1u) : 0u);
+             }
+-            if (s->blink_len_ms) {
+-                const uint32_t b = now_ms - s->blink_start_ms;
+-                if (b >= s->blink_len_ms) {
+-                    s->blink_len_ms = 0;
+-                    s->next_blink_ms = now_ms + ML_SLEEPY_GAP_MS;
+-                } else {
+-                    return shut_pct + 6.0f; /* the lids come down and stay a little longer each time */
++            const int step = (int)(s->blinks % 6u);
++            const float k = ml_ease_inout((float)(now_ms - s->blink_start_ms) / (float)s->blink_len_ms);
++            const float held = base + ML_NOD_HOLD_PCT;                  /* the eyes held up with effort */
++            const float nod = shut_pct + 3.0f;                          /* nearly shut */
++            switch (step) {
++                case 0: return held;                                    /* stare */
++                case 1: return held + (nod - held) * k;                 /* droop */
++                case 2: return shut_pct;                                /* shut */
++                case 3: return ML_NOD_SNAP_PCT;                         /* snap open */
++                case 4: return ML_NOD_SNAP_PCT + (held - ML_NOD_SNAP_PCT) * k; /* settle */
++                default: {                                              /* half droop, caught */
++                    const float dip = k < 0.55f ? k / 0.55f : (1.0f - k) / 0.45f;
++                    return held + (base - held) * dip;
+                 }
+             }
+-            return base;
+         }
+         default:
+             return base;
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -41,6 +41,7 @@
+ #if CONFIG_MAIPAI_BANNER_ROW
+ #include <hal/maipai_banner.h>
+ #include <hal/maipai_status_core.h>
++#include <hal/maipai_screens.h>
+ #endif
+ #include <hal/maipai_facefx.h>
+ 
+@@ -71,6 +72,7 @@ mtc_region_t s_last_region = MTC_REGION_REST;
+ constexpr int kTapEdgeDeadZonePx = 24;
+ constexpr uint32_t kTapDebounceMs = 800;
+ StackChanAvatarDisplay* s_self = nullptr;  // patch P13: the one display, for the swipe pages
++lv_obj_t* s_wifi_panel = nullptr;          // patch UI09: the Wi-Fi page, while it is up
+ }  // namespace
+ 
+ LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+@@ -900,7 +902,7 @@ extern "C" void maipai_quick_settings_close(void)
+ 
+ // Patch P13: what the swipe pages ask of the display. The caller holds the LVGL lock where the display is touched.
+ extern "C" bool maipai_display_ready(void) { return s_self != nullptr && s_self->boot_done_; }
+-extern "C" bool maipai_display_overlay_open(void) { return s_self != nullptr && s_self->quick_panel_ != nullptr; }
++extern "C" bool maipai_display_overlay_open(void) { return s_self != nullptr && (s_self->quick_panel_ != nullptr || s_wifi_panel != nullptr); }
+ extern "C" void maipai_display_volume_step(int delta)
+ {
+     if (s_self != nullptr) {
+@@ -913,6 +915,101 @@ extern "C" void maipai_display_open_quick(void)
+         s_self->OpenQuickSettings();
+     }
+ }
++// ---- patch UI09: the Wi-Fi page, only Wi-Fi: the current network and its signal, the saved networks with a connect target, Done ----
++static void wifi_page_close()
++{
++    if (s_wifi_panel != nullptr) {
++        lv_obj_delete_async(s_wifi_panel);
++        s_wifi_panel = nullptr;
++    }
++    maipai_screen_closed(MSCR_WIFI);
++}
++extern "C" void maipai_display_open_wifi(void)
++{
++    maipai_screen_register(MSCR_WIFI, wifi_page_close);
++    maipai_screen_open(MSCR_WIFI);
++    if (s_wifi_panel != nullptr) {
++        return;
++    }
++    lv_obj_t* p = lv_obj_create(lv_layer_top());
++    s_wifi_panel = p;
++    lv_obj_set_size(p, lv_pct(100), lv_pct(100));
++    lv_obj_set_style_bg_color(p, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
++    lv_obj_set_style_border_width(p, 0, 0);
++    lv_obj_set_style_radius(p, 0, 0);
++    lv_obj_set_style_pad_all(p, 0, 0);
++    lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
++    auto label = [](lv_obj_t* parent, const char* text, int x, int y) {
++        lv_obj_t* l = lv_label_create(parent);
++        lv_obj_set_style_text_font(l, &BUILTIN_TEXT_FONT, 0);
++        lv_obj_set_style_text_color(l, lv_color_white(), 0);
++        lv_label_set_text(l, text);
++        lv_obj_set_pos(l, x, y);
++        return l;
++    };
++    const bool es = strncmp(Lang::CODE, "es", 2) == 0;
++    lv_obj_t* grab = lv_obj_create(p);
++    lv_obj_remove_flag(grab, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_size(grab, 48, 5);
++    lv_obj_set_pos(grab, 136, 3);
++    lv_obj_set_style_radius(grab, 3, 0);
++    lv_obj_set_style_border_width(grab, 0, 0);
++    lv_obj_set_style_bg_color(grab, lv_color_hex(0xB0B0B0), 0);
++    lv_obj_set_style_bg_opa(grab, LV_OPA_COVER, 0);
++    label(p, "Wi-Fi", 10, 16);
++    lv_obj_t* done = lv_button_create(p);
++    lv_obj_set_pos(done, 204, 8);
++    lv_obj_set_size(done, 108, 44);
++    lv_obj_center(label(done, es ? "Listo" : "Done", 0, 0));
++    lv_obj_add_event_cb(done, [](lv_event_t*) { wifi_page_close(); }, LV_EVENT_CLICKED, nullptr);
++    // the current network and its signal
++    wifi_ap_record_t ap;
++    char line[72];
++    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
++        const int bars = ap.rssi > -55 ? 4 : (ap.rssi > -65 ? 3 : (ap.rssi > -75 ? 2 : 1));
++        snprintf(line, sizeof(line), "%s %.24s", es ? "Conectada:" : "Connected:", reinterpret_cast<const char*>(ap.ssid));
++        lv_obj_t* l = label(p, line, 10, 56);
++        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
++        lv_obj_set_width(l, 300);
++        snprintf(line, sizeof(line), "%s %d/4", es ? "Senal:" : "Signal:", bars);
++        label(p, line, 10, 78);
++    } else {
++        label(p, es ? "Sin conexion Wi-Fi" : "Not connected", 10, 56);
++    }
++    // the saved networks (up to three), each a 44 px target that switches to it
++    const auto& ssids = SsidManager::GetInstance().GetSsidList();
++    const size_t n = ssids.size() > 3 ? 3 : ssids.size();
++    if (n == 0) {
++        label(p, es ? "No hay redes guardadas" : "No saved networks", 10, 110);
++    }
++    for (size_t i = 0; i < n; i++) {
++        lv_obj_t* b = lv_button_create(p);
++        lv_obj_set_pos(b, 8, 104 + static_cast<int>(i) * 46);
++        lv_obj_set_size(b, 304, 44);
++        lv_obj_t* l = label(b, ssids[i].ssid.c_str(), 0, 0);
++        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
++        lv_obj_set_width(l, 280);
++        lv_obj_center(l);
++        lv_obj_add_event_cb(b,
++                            [](lv_event_t* event) {
++                                const int index = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
++                                SsidManager::GetInstance().SetDefaultSsid(index);
++                                esp_wifi_disconnect();
++                                maipai_banner_post("Switching Wi-Fi", MB_ICON_NONE, MB_PRIO_NOTICE, MB_TAG_VOLUME, 1600);
++                                wifi_page_close();
++                            },
++                            LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
++    }
++    lv_obj_add_event_cb(p,
++                        [](lv_event_t*) {
++                            if (lv_indev_get_gesture_dir(lv_indev_active()) == LV_DIR_BOTTOM) {
++                                wifi_page_close();
++                            }
++                        },
++                        LV_EVENT_GESTURE, nullptr);
++}
++
+ extern "C" void maipai_display_stop_swipe(void)
+ {
+     if (maipai_games_stop_locked("swipe")) {  // the stop swipe ends a running game first (patch G01)
+@@ -938,6 +1035,12 @@ void StackChanAvatarDisplay::ToggleQuickSettings()
+ 
+ void StackChanAvatarDisplay::OpenQuickSettings()
+ {
++    maipai_screen_register(MSCR_QUICK, []() {
++        if (_quick_settings_display_ != nullptr) {
++            _quick_settings_display_->CloseQuickSettings();
++        }
++    });
++    maipai_screen_open(MSCR_QUICK);  // patch UI09: one overlay screen at a time
+     if (quick_panel_ != nullptr) {
+         return;
+     }
+@@ -1255,6 +1358,7 @@ void StackChanAvatarDisplay::CloseQuickSettings()
+         quick_panel_ = nullptr;
+     }
+     _quick_settings_display_ = nullptr;
++    maipai_screen_closed(MSCR_QUICK);
+ }
+ 
+ 
+@@ -1426,6 +1530,119 @@ void hal_bridge::mood_refresh()
+     }
+ }
+ 
++// ---- patch UI06: the sleeping look snores and now and then drools ----
++// Sleeping: the mouth opens and closes slowly (a snore) with a small puff that rises and fades, and now and then a drool drop slides
++// down from the corner of the mouth. One 120 ms timer while the look is on; nothing exists otherwise. The sleepy look has none of this
++// (it nods off instead, maipai_look_core.h) and no floating z letters either; those belong to sleeping only (maipai_fx.cc).
++namespace {
++lv_timer_t* s_snore_timer = nullptr;
++lv_obj_t* s_snore_puff    = nullptr;
++lv_obj_t* s_snore_drool   = nullptr;
++uint32_t s_snore_t0       = 0;
++uint32_t s_drool_at       = 0;  // 0: none running; else when the drop began
++uint32_t s_drool_next     = 0;
++uint32_t s_snore_rng      = 0x2545F491u;
++constexpr int kSnoreMs = 3400;
++constexpr int kMouthX = 160, kMouthY = 160;  // the mouth of the faces, in screen pixels
++
++void snore_stop()
++{
++    if (s_snore_timer != nullptr) {
++        lv_timer_delete(s_snore_timer);
++        s_snore_timer = nullptr;
++        if (s_snore_puff != nullptr) {
++            lv_obj_delete(s_snore_puff);
++            s_snore_puff = nullptr;
++        }
++        if (s_snore_drool != nullptr) {
++            lv_obj_delete(s_snore_drool);
++            s_snore_drool = nullptr;
++        }
++        if (GetStackChan().hasAvatar()) {
++            GetStackChan().avatar().mouth().setWeight(0);
++        }
++    }
++}
++
++void snore_tick(lv_timer_t*)
++{
++    if (!GetStackChan().hasAvatar()) {
++        return;
++    }
++    const uint32_t now = lv_tick_get();
++    const uint32_t ph  = (now - s_snore_t0) % kSnoreMs;
++    // in 1100 ms, held 300, out 1300, rest 700
++    float w = 0.0f, puff = 0.0f;
++    if (ph < 1100) {
++        w = 30.0f * (ph / 1100.0f);
++    } else if (ph < 1400) {
++        w = 30.0f;
++    } else if (ph < 2700) {
++        const float k = (ph - 1400) / 1300.0f;
++        w             = 30.0f * (1.0f - k);
++        puff          = k;
++    }
++    GetStackChan().avatar().mouth().setWeight(static_cast<int>(w));
++    if (maipai_pages_open()) {
++        puff = 0.0f;
++        s_drool_at   = 0;
++        s_drool_next = now + 1000;
++        if (s_snore_drool != nullptr) lv_obj_add_flag(s_snore_drool, LV_OBJ_FLAG_HIDDEN);
++    }
++    if (s_snore_puff != nullptr) {
++        if (puff > 0.0f) {
++            lv_obj_remove_flag(s_snore_puff, LV_OBJ_FLAG_HIDDEN);
++            lv_obj_set_pos(s_snore_puff, kMouthX + 34 + static_cast<int>(10 * puff), kMouthY - 6 - static_cast<int>(16 * puff));
++            lv_obj_set_style_bg_opa(s_snore_puff, static_cast<lv_opa_t>(200 * (1.0f - puff)), 0);
++        } else {
++            lv_obj_add_flag(s_snore_puff, LV_OBJ_FLAG_HIDDEN);
++        }
++    }
++    if (s_snore_drool != nullptr) {
++        if (s_drool_at == 0 && now >= s_drool_next) {
++            s_drool_at = now | 1u;
++        }
++        if (s_drool_at != 0) {
++            const uint32_t el = now - s_drool_at;
++            if (el < 1600) {
++                lv_obj_remove_flag(s_snore_drool, LV_OBJ_FLAG_HIDDEN);
++                lv_obj_set_pos(s_snore_drool, kMouthX - 30, kMouthY + 10 + static_cast<int>(el * 16 / 1600));
++                lv_obj_set_style_bg_opa(s_snore_drool, static_cast<lv_opa_t>(220 - el * 150 / 1600), 0);
++            } else {
++                lv_obj_add_flag(s_snore_drool, LV_OBJ_FLAG_HIDDEN);
++                s_drool_at = 0;
++                s_snore_rng ^= s_snore_rng << 13; s_snore_rng ^= s_snore_rng >> 17; s_snore_rng ^= s_snore_rng << 5;
++                s_drool_next = now + 6000 + s_snore_rng % 9000;  // now and then, never on a beat
++            }
++        }
++    }
++}
++
++void snore_start()
++{
++    if (s_snore_timer != nullptr || !GetStackChan().hasAvatar()) {
++        return;
++    }
++    lv_obj_t* parent = lv_layer_top();  // above the face; hidden while a page or the sheet covers it (snore_tick)
++    auto dot = [parent](int d) {
++        lv_obj_t* o = lv_obj_create(parent);
++        lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_set_size(o, d, d);
++        lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
++        lv_obj_set_style_border_width(o, 0, 0);
++        lv_obj_set_style_bg_color(o, lv_color_white(), 0);
++        lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++        return o;
++    };
++    s_snore_puff  = dot(10);
++    s_snore_drool = dot(6);
++    s_snore_t0    = lv_tick_get();
++    s_drool_at    = 0;
++    s_drool_next  = s_snore_t0 + 4000;
++    s_snore_timer = lv_timer_create(snore_tick, 120, nullptr);
++}
++}  // namespace
++
+ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+ {
+     s_emotion_seq++;
+@@ -1442,6 +1659,9 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         return;
+     }
+ 
++    if (strcmp(emotion, "sleeping") != 0) {
++        snore_stop();  // patch UI06
++    }
+     maipai_fx_note_emotion(emotion);  // patch TA02: the glow follows the eyes; the sleeping look has its floating zzz (TA03)
+ 
+     // The thinking cue (patch F05): the thinking emotion shows the dots and the doubtful face; any other emotion ends it.
+@@ -1485,9 +1705,7 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         avatar.setEmotion(Emotion::Sad);
+     } else if (strcmp(emotion, "sleepy") == 0) {
+         avatar.setEmotion(Emotion::Sleepy);
+-#if !CONFIG_MAIPAI_FX
+-        avatar.setSpeech("Zzz...");  // patch TA03 replaces this static bubble with floating z letters (the zzz overlay)
+-#endif
++        avatar.setSpeech("");  // patch UI06: the sleepy look has no Z at all (no bubble, no floating letters); it nods off instead
+         is_sleeping_ = true;
+         // avatar.mouth().setWeight(10);
+ 
+@@ -1523,6 +1741,7 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         // sends it after five quiet minutes). "sleepy" keeps its U-shaped eyes and bubble.
+         avatar.setEmotion(Emotion::Sleeping);  // patch X01: the lids close over 1.5 s if they were open, then stay shut
+         avatar.mouth().setWeight(0);
++        snore_start();  // patch UI06: the mouth snores slowly and now and then a drool drop slides down
+         avatar.setSpeech("");
+         is_sleeping_ = true;
+         if (idle_motion_modifier_id_ >= 0) {
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -627,8 +627,9 @@ void maipai_fx_note_emotion(const char* emotion)
+         s_sleeping = asleep;
+         apply_effects();  // the halo goes while the eyes are shut
+     }
+-    // The sleepy and sleeping looks float z letters (patch TA03); any other emotion ends them. A zzz asked for by a tool is left alone.
+-    const bool zzz = emotion != nullptr && (strcmp(emotion, "sleepy") == 0 || strcmp(emotion, "closing") == 0 || strcmp(emotion, "sleeping") == 0);
++    // The floating z letters belong to the sleeping look (patch TA03, narrowed by patch UI06: the sleepy look nods off and has none); any
++    // other emotion ends them. A zzz asked for by a tool is left alone.
++    const bool zzz = emotion != nullptr && (strcmp(emotion, "closing") == 0 || strcmp(emotion, "sleeping") == 0);
+     if (zzz) {
+         bool combo = false;  // a running combination (stormy, party...) is not replaced by the sleeping look's letters
+         for (int l = 0; l < MO_LAYERS; l++) combo = combo || s_ov[l].combo != 0;

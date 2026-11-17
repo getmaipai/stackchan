@@ -18,9 +18,9 @@ static void test_defaults_and_strip(void)
     mpg_defaults(&c);
     CHECK(c.n_left == 1 && c.left[0] == MPG_P_CLOCK);
     CHECK(c.n_right == 1 && c.right[0] == MPG_P_GAMES);
-    CHECK(c.sheet_s == 6 && c.idle_s == 20);
-    CHECK(c.n_actions == 4 && c.actions[3] == MPG_A_GAME);
-    CHECK(c.n_items == 10 && c.items[0] == MPG_S_VOLUME);
+    CHECK(c.sheet_s == 10 && c.idle_s == 20);   /* patch UI01: the sheet stays 10 s, it was 6 */
+    CHECK(c.n_actions == 4 && c.actions[0] == MPG_A_BEEP && c.actions[3] == MPG_A_HELLO);
+    CHECK(c.n_items == 9 && c.items[0] == MPG_S_VOLUME);
     CHECK(mpg_page_at(&c, -1) == MPG_P_CLOCK);
     CHECK(mpg_page_at(&c, 1) == MPG_P_GAMES);
     CHECK(mpg_page_at(&c, 0) == -1 && mpg_page_at(&c, -2) == -1 && mpg_page_at(&c, 2) == -1);
@@ -55,20 +55,22 @@ static void test_timeouts_actions_items(void)
 {
     mpg_cfg_t c;
     mpg_defaults(&c);
-    CHECK(mpg_set_timeouts(&c, 15, 300) == NULL && c.sheet_s == 15 && c.idle_s == 300);
-    CHECK(mpg_set_timeouts(&c, 16, 0) != NULL && c.sheet_s == 15);
-    CHECK(mpg_set_timeouts(&c, 4, 0) != NULL);
+    CHECK(mpg_set_timeouts(&c, 30, 300) == NULL && c.sheet_s == 30 && c.idle_s == 300);
+    CHECK(mpg_set_timeouts(&c, 31, 0) != NULL && c.sheet_s == 30);
+    CHECK(mpg_set_timeouts(&c, 7, 0) != NULL && mpg_set_timeouts(&c, 5, 0) != NULL);   /* the old 5 to 7 are refused */
     CHECK(mpg_set_timeouts(&c, 0, 4) != NULL && mpg_set_timeouts(&c, 0, 301) != NULL && c.idle_s == 300);
     CHECK(mpg_set_timeouts(&c, 0, 0) == NULL);  /* 0 leaves a value as it is */
-    CHECK(mpg_set_timeouts(&c, 5, 5) == NULL && c.sheet_s == 5 && c.idle_s == 5);
-    int a5[5] = {MPG_A_HELLO, MPG_A_FIND, MPG_A_BEEP, MPG_A_DANCE, MPG_A_GAME};
-    CHECK(mpg_set_actions(&c, a5, 5) == NULL && c.n_actions == 5 && c.actions[0] == MPG_A_HELLO);
-    CHECK(mpg_set_actions(&c, a5, 3) != NULL);   /* fewer than four */
-    CHECK(mpg_set_actions(&c, a5, 7) != NULL);   /* more than six */
-    int rep[4] = {MPG_A_FIND, MPG_A_FIND, MPG_A_BEEP, MPG_A_DANCE};
-    CHECK(mpg_set_actions(&c, rep, 4) != NULL && c.n_actions == 5);
-    int unk[4] = {MPG_A_FIND, MPG_A_BEEP, MPG_A_DANCE, 9};
+    CHECK(mpg_set_timeouts(&c, 8, 5) == NULL && c.sheet_s == 8 && c.idle_s == 5);
+    int a4[4] = {MPG_A_HELLO, MPG_A_BEEP, MPG_A_DANCE, MPG_A_GAME};
+    CHECK(mpg_set_actions(&c, a4, 4) == NULL && c.n_actions == 4 && c.actions[0] == MPG_A_HELLO);
+    CHECK(mpg_set_actions(&c, a4, 2) == NULL && c.n_actions == 2);
+    CHECK(mpg_set_actions(&c, a4, 1) != NULL);   /* fewer than two */
+    CHECK(mpg_set_actions(&c, a4, 5) != NULL);   /* more than four */
+    int rep[4] = {MPG_A_BEEP, MPG_A_BEEP, MPG_A_DANCE, MPG_A_GAME};
+    CHECK(mpg_set_actions(&c, rep, 4) != NULL && c.n_actions == 2);
+    int unk[4] = {MPG_A_BEEP, MPG_A_DANCE, MPG_A_GAME, 9};
     CHECK(mpg_set_actions(&c, unk, 4) != NULL);
+    CHECK(mpg_action_by_name("find") == -1 && mpg_sheet_by_name("find") == -1);   /* find me is gone; the saved text path drops it */
     int it[12];
     for (int i = 0; i < 12; i++) it[i] = i;
     int ok[12];
@@ -78,19 +80,18 @@ static void test_timeouts_actions_items(void)
     ok[n++] = MPG_S_MUTE;
     ok[n++] = MPG_S_QUIET;
     ok[n++] = MPG_S_LIGHT;
-    ok[n++] = MPG_S_FIND;
     ok[n++] = MPG_S_TIMERS;
     ok[n++] = MPG_S_GAMES;
     ok[n++] = MPG_S_WIFI;
     ok[n++] = MPG_S_BATTERY;
     ok[n++] = MPG_S_TAILNET;
     ok[n++] = MPG_S_ADDRESS;
-    CHECK(mpg_set_items(&c, ok, 12) == NULL && c.n_items == 12);
+    CHECK(mpg_set_items(&c, ok, 11) == NULL && c.n_items == 11);
     ok[1] = MPG_S_VOLUME;
-    CHECK(mpg_set_items(&c, ok, 12) != NULL);    /* a repeat */
+    CHECK(mpg_set_items(&c, ok, 11) != NULL);    /* a repeat */
     int none[1];
     CHECK(mpg_set_items(&c, none, 0) == NULL && c.n_items == 0);
-    CHECK(mpg_set_items(&c, it, 13) != NULL);
+    CHECK(mpg_set_items(&c, it, 12) != NULL);
 }
 
 static void test_text_store_round_trip(void)
@@ -99,10 +100,10 @@ static void test_text_store_round_trip(void)
     mpg_defaults(&a);
     int l[2] = {MPG_P_TIMERS, MPG_P_FRAME}, r[3] = {MPG_P_GAMES, MPG_P_ACTIONS, MPG_P_TILES};
     CHECK(mpg_set_pages(&a, l, 2, r, 3) == NULL);
-    CHECK(mpg_set_timeouts(&a, 9, 45) == NULL);
+    CHECK(mpg_set_timeouts(&a, 12, 45) == NULL);
     char text[MPG_TEXT_MAX + 1];
     CHECK(mpg_cfg_to_text(&a, text, sizeof(text)) > 0);
-    CHECK(strcmp(text, "L=timers,frame;R=games,actions,tiles;S=9;I=45;A=find,beep,dance,game;C=volume,brightness,mute,quiet,light,find,timers,games,wifi,battery") == 0);
+    CHECK(strcmp(text, "L=timers,frame;R=games,actions,tiles;S=12;I=45;A=beep,dance,game,hello;C=volume,brightness,mute,quiet,light,timers,games,wifi,battery") == 0);
     CHECK(mpg_cfg_from_text(&b, text) == 1);
     CHECK(memcmp(&a, &b, sizeof(a)) == 0);
     /* the longest configuration fits the flash text: six pages, six actions would not exist (five), twelve items */
@@ -110,11 +111,11 @@ static void test_text_store_round_trip(void)
     mpg_defaults(&big);
     int bl[3] = {MPG_P_CLOCK, MPG_P_TIMERS, MPG_P_GAMES}, br[3] = {MPG_P_ACTIONS, MPG_P_FRAME, MPG_P_TILES};
     CHECK(mpg_set_pages(&big, bl, 3, br, 3) == NULL);
-    int a5[5] = {MPG_A_HELLO, MPG_A_FIND, MPG_A_BEEP, MPG_A_DANCE, MPG_A_GAME};
-    CHECK(mpg_set_actions(&big, a5, 5) == NULL);
-    int all[12];
-    for (int i = 0; i < 12; i++) all[i] = i;
-    CHECK(mpg_set_items(&big, all, 12) == NULL);
+    int a4[4] = {MPG_A_HELLO, MPG_A_BEEP, MPG_A_DANCE, MPG_A_GAME};
+    CHECK(mpg_set_actions(&big, a4, 4) == NULL);
+    int all[11];
+    for (int i = 0; i < 11; i++) all[i] = i;
+    CHECK(mpg_set_items(&big, all, 11) == NULL);
     const int len = mpg_cfg_to_text(&big, text, sizeof(text));
     CHECK(len > 0 && len <= MPG_TEXT_MAX);
     CHECK(mpg_cfg_from_text(&b, text) == 1 && memcmp(&big, &b, sizeof(b)) == 0);
@@ -126,13 +127,19 @@ static void test_text_store_round_trip(void)
     mpg_defaults(&d);
     CHECK(mpg_cfg_from_text(&b, NULL) == 0 && memcmp(&b, &d, sizeof(b)) == 0);
     CHECK(mpg_cfg_from_text(&b, "") == 0 && memcmp(&b, &d, sizeof(b)) == 0);
-    CHECK(mpg_cfg_from_text(&b, "L=clock;R=clock;S=6;I=20;A=find,beep,dance,game;C=volume") == 0 && memcmp(&b, &d, sizeof(b)) == 0);
-    CHECK(mpg_cfg_from_text(&b, "L=bogus;R=games;S=6;I=20;A=find,beep,dance,game;C=volume") == 0);
-    CHECK(mpg_cfg_from_text(&b, "L=clock;R=games;S=99;I=20;A=find,beep,dance,game;C=volume") == 0);
-    CHECK(mpg_cfg_from_text(&b, "L=clock;R=games;S=6;I=20;A=find;C=volume") == 0);
+    CHECK(mpg_cfg_from_text(&b, "L=clock;R=clock;S=10;I=20;A=beep,dance,game,hello;C=volume") == 0 && memcmp(&b, &d, sizeof(b)) == 0);
+    CHECK(mpg_cfg_from_text(&b, "L=bogus;R=games;S=10;I=20;A=beep,dance,game,hello;C=volume") == 0);
+    CHECK(mpg_cfg_from_text(&b, "L=clock;R=games;S=99;I=20;A=beep,dance,game,hello;C=volume") == 0);
+    CHECK(mpg_cfg_from_text(&b, "L=clock;R=games;S=10;I=20;A=beep;C=volume") == 1 && b.n_actions == 2);   /* one is topped up to the two a strip needs */
+    CHECK(mpg_cfg_from_text(&b, "L=clock;R=games;S=10;I=20;A=;C=volume") == 1 && b.n_actions == 2);
     CHECK(mpg_cfg_from_text(&b, "garbage;;;===") == 0);
     /* an empty strip is a valid saved choice */
-    CHECK(mpg_cfg_from_text(&b, "L=;R=;S=6;I=20;A=find,beep,dance,game;C=volume,mute") == 1 && b.n_left == 0 && b.n_right == 0 && b.n_items == 2);
+    CHECK(mpg_cfg_from_text(&b, "L=;R=;S=10;I=20;A=beep,dance,game,hello;C=volume,mute") == 1 && b.n_left == 0 && b.n_right == 0 && b.n_items == 2);
+    /* a text saved before patch UI01 (find in the actions and the items, a 6 s sheet) loads with find dropped and the time raised */
+    CHECK(mpg_cfg_from_text(&b, "L=clock;R=games;S=6;I=20;A=find,beep,dance,game;C=volume,brightness,mute,find,timers") == 1);
+    CHECK(b.sheet_s == 8 && b.n_actions == 3 && b.actions[0] == MPG_A_BEEP && b.actions[1] == MPG_A_DANCE && b.actions[2] == MPG_A_GAME);
+    CHECK(b.n_items == 4 && b.items[3] == MPG_S_TIMERS);
+    CHECK(mpg_cfg_from_text(&b, "L=clock;R=games;S=15;I=20;A=hello,find,beep,dance,game;C=volume,find") == 1 && b.n_actions == 4 && b.actions[0] == MPG_A_HELLO && b.sheet_s == 15 && b.n_items == 1);
     /* the flash key and the text limit */
     CHECK(strlen("pages_cfg") <= 15 && strlen("page_tiles") <= 15);
 }
@@ -190,19 +197,19 @@ static void test_sheet_layout(void)
     mpg_sheet_t L;
     mpg_sheet_layout(&c, &L);
     /* the default sheet: status line, one slider row, two tile rows (six tiles and More) */
-    CHECK(L.top_y >= 80 && L.top_y <= 110);   /* the lower half to the lower 60 percent of the screen */
+    CHECK(L.top_y >= 90 && L.top_y <= 120);   /* patch UI05: one row of icon tiles, so the sheet is the lower 55 percent */
     CHECK(L.top_y >= 28);                      /* never over the banner */
-    CHECK(L.n_status == 2 && L.status_h == 16);
+    CHECK(L.n_status == 2 && L.status_h == MPG_STATUS_ROW_H && L.text_h == 0);   /* Wi-Fi and battery: the status row */
     int tiles = 0, sliders = 0;
     for (int i = 0; i < L.n; i++) {
         const mpg_rect_t* r = &L.r[i];
         CHECK(r->x >= 0 && r->x + r->w <= 320 && r->y >= L.top_y && r->y + r->h <= 240);
         if (r->item == MPG_S_COUNT || mpg_sheet_kind(r->item) == 1) {
             tiles++;
-            CHECK(r->w >= 64 && r->h >= 38);   /* large touch targets: 4.8 mm and more on the 2 inch screen */
+            CHECK(r->w >= MPG_TOUCH_MIN && r->h >= MPG_TOUCH_MIN);   /* touch targets are at least 44 by 44 */
         } else {
             sliders++;
-            CHECK(r->h >= 28);
+            CHECK(r->h >= MPG_TOUCH_MIN);
         }
         for (int j = i + 1; j < L.n; j++) {
             const mpg_rect_t* q = &L.r[j];
@@ -210,7 +217,7 @@ static void test_sheet_layout(void)
             CHECK(apart);
         }
     }
-    CHECK(sliders == 2 && tiles == 7);   /* mute quiet light find timers games + More */
+    CHECK(sliders == 2 && tiles == 6);   /* volume and brightness; mute quiet light timers games + the gear */
     CHECK(L.r[L.n - 1].item == MPG_S_COUNT);
     /* every configuration fits: any subset of items keeps the sheet on the screen and below the banner */
     for (unsigned mask = 0; mask < (1u << MPG_S_COUNT); mask += 7) {
@@ -224,7 +231,7 @@ static void test_sheet_layout(void)
             continue;
         }
         mpg_sheet_layout(&d, &L);
-        CHECK(L.top_y >= 28 && L.top_y <= 240 - 8 - 38 - 8);
+        CHECK(L.top_y >= 28 && L.top_y <= 240 - MPG_SHEET_HANDLE_H - MPG_TILE_H - 6);
         for (int i = 0; i < L.n; i++) {
             CHECK(L.r[i].x >= 0 && L.r[i].x + L.r[i].w <= 320 && L.r[i].y >= L.top_y && L.r[i].y + L.r[i].h <= 240);
         }
@@ -234,6 +241,132 @@ static void test_sheet_layout(void)
     CHECK(mpg_set_items(&c, none, 0) == NULL);
     mpg_sheet_layout(&c, &L);
     CHECK(L.n == 1 && L.r[0].item == MPG_S_COUNT && L.n_status == 0);
+}
+
+/* Patch UI05 and UI04: icon tiles, the status row and the bot's own settings screen. */
+static void test_icons_status_row_and_settings_screen(void)
+{
+    mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
+    for (int item = MPG_S_MUTE; item <= MPG_S_COUNT; item++) {
+        if (item > MPG_S_GAMES && item != MPG_S_COUNT) continue;
+        const int n = mpg_sheet_icon_shapes(item, sh);
+        CHECK(n >= 2 && n <= MPG_ICON_SHAPES_MAX);
+        for (int k = 0; k < n; k++) {
+            CHECK(sh[k].x >= 0 && sh[k].y >= 0 && sh[k].x + sh[k].w <= 24 && sh[k].y + sh[k].h <= 24 && sh[k].w > 0 && sh[k].h > 0);
+        }
+    }
+    /* the status row sits at the top of the sheet and the text lines for the network and the address under it */
+    mpg_cfg_t c;
+    mpg_defaults(&c);
+    int it[6] = {MPG_S_VOLUME, MPG_S_WIFI, MPG_S_BATTERY, MPG_S_TAILNET, MPG_S_ADDRESS, MPG_S_MUTE};
+    CHECK(mpg_set_items(&c, it, 6) == NULL);
+    mpg_sheet_t L;
+    mpg_sheet_layout(&c, &L);
+    CHECK(L.status_h == MPG_STATUS_ROW_H && L.status_y == L.top_y + MPG_SHEET_HANDLE_H);
+    CHECK(L.text_h == 2 * MPG_STATUS_LINE_H && L.text_y == L.status_y + MPG_STATUS_ROW_H);
+    CHECK(L.top_y >= 28);
+    int only_text[2] = {MPG_S_TAILNET, MPG_S_ADDRESS};
+    CHECK(mpg_set_items(&c, only_text, 2) == NULL);
+    mpg_sheet_layout(&c, &L);
+    CHECK(L.status_h == 0 && L.text_h == 2 * MPG_STATUS_LINE_H);
+    /* the tiles are one row of up to six, centered, 44 by 44 and apart */
+    mpg_defaults(&c);
+    mpg_sheet_layout(&c, &L);
+    int row_y = -1, ntile = 0;
+    for (int i = 0; i < L.n; i++) {
+        if (L.r[i].item == MPG_S_COUNT || mpg_sheet_kind(L.r[i].item) == 1) {
+            if (row_y < 0) row_y = L.r[i].y;
+            CHECK(L.r[i].y == row_y && L.r[i].w == 44 && L.r[i].h == 44);
+            ntile++;
+        }
+    }
+    CHECK(ntile == 6 && L.r[L.n - 1].item == MPG_S_COUNT && L.r[L.n - 1].x + 44 <= 320 && L.r[L.n - 6].x >= 0);
+    CHECK(L.r[L.n - 6].x + L.r[L.n - 1].x + 44 == 320);   /* centered */
+    /* colors follow the state: green good, amber low, red critical */
+    CHECK(mpg_signal_level(4) == 0 && mpg_signal_level(3) == 0 && mpg_signal_level(2) == 1 && mpg_signal_level(1) == 2 && mpg_signal_level(0) == 2);
+    CHECK(mpg_battery_level(80, 0) == 0 && mpg_battery_level(30, 0) == 0 && mpg_battery_level(29, 0) == 1 && mpg_battery_level(15, 0) == 1 &&
+          mpg_battery_level(14, 0) == 2 && mpg_battery_level(5, 1) == 0);
+    /* the settings screen: every target at least 44 by 44, nothing off the glass or overlapping, five styles and the pictures tile */
+    mpg_box_t boxes[2 + MPG_SET_TILES_MAX + 2];
+    int nb = 0;
+    boxes[nb++] = mpg_set_wifi_box();
+    boxes[nb++] = mpg_set_done_box();
+    for (int i = 0; i < MPG_SET_TILES_MAX; i++) boxes[nb++] = mpg_set_tile_box(i);
+    boxes[nb++] = mpg_set_switch_box();
+    boxes[nb++] = mpg_set_more_box();
+    for (int i = 0; i < nb; i++) {
+        CHECK(boxes[i].w >= MPG_TOUCH_MIN && boxes[i].h >= MPG_TOUCH_MIN);
+        CHECK(boxes[i].x >= 0 && boxes[i].y >= 0 && boxes[i].x + boxes[i].w <= 320 && boxes[i].y + boxes[i].h <= 240);
+        for (int j = 0; j < i; j++) {
+            CHECK(boxes[i].x + boxes[i].w <= boxes[j].x || boxes[j].x + boxes[j].w <= boxes[i].x || boxes[i].y + boxes[i].h <= boxes[j].y ||
+                  boxes[j].y + boxes[j].h <= boxes[i].y);
+        }
+    }
+    const mpg_box_t pv = mpg_set_preview_box();
+    CHECK(pv.x + pv.w <= mpg_set_tile_box(0).x && pv.y + pv.h <= mpg_set_switch_box().y);
+    for (int i = 0; i < MPG_SET_STYLES; i++) {
+        mpg_pshape_t ps[MPG_PSHAPES_MAX];
+        const int n = mpg_set_preview_shapes(MPG_SET_STYLE_ID[i], ps);
+        CHECK(n >= 2 && n <= MPG_PSHAPES_MAX);
+        for (int k = 0; k < n; k++) CHECK(ps[k].x >= 0 && ps[k].y >= 0 && ps[k].x + ps[k].w <= pv.w && ps[k].y + ps[k].h <= pv.h);
+        CHECK(strlen(MPG_SET_STYLE_NAME[0][i]) > 0 && strlen(MPG_SET_STYLE_NAME[1][i]) > 0);
+    }
+}
+
+/* Patch UI07: every page's content lies inside the content zone (screen y 28 to 184, zone y 0 to 156): never over the banner row (screen
+ * y 0 to 28), never over the page dots at the bottom edge or the subtitle zone below the zone, and clear of the grabber handle. */
+#define ZONE_CONTENT_TOP 0
+#define ZONE_DOTS_TOP (MPG_PAGER_Y - 4)
+static int in_zone(int x, int y, int w, int h)
+{
+    return x >= 0 && x + w <= MPG_ZONE_W && y >= ZONE_CONTENT_TOP && y + h <= ZONE_DOTS_TOP && MPG_ZONE_Y + y >= 28 && MPG_ZONE_Y + y + h <= 184;
+}
+static int clear_of_grabber(int x, int y, int w, int h)
+{
+    const int gx = MPG_ZONE_W / 2 - 24, gy = 2, gw = 48, gh = 5;
+    return x + w <= gx || gx + gw <= x || y + h <= gy || gy + gh <= y;
+}
+
+static void test_every_page_content_stays_in_the_zone(void)
+{
+    CHECK(MPG_ZONE_Y == 28 && MPG_ZONE_Y + MPG_ZONE_H == 184);
+    CHECK(MPG_PAGER_Y + 4 <= MPG_ZONE_H);   /* the dots sit inside the zone, at its bottom edge */
+    for (int ring = 0; ring <= 1; ring++) {   /* clock: the digits, the date line, the AM mark */
+        const mpg_clock_layout_t l = mpg_clock_layout(ring);
+        const int w = 4 * l.digit_w + 2 * l.gap + l.colon_w;
+        CHECK(in_zone(l.x0, l.y0, w, l.digit_h) && clear_of_grabber(l.x0, l.y0, w, l.digit_h));
+        CHECK(in_zone(0, l.date_y, MPG_ZONE_W, 23));
+        if (ring) CHECK(in_zone(l.ring_cx - l.ring / 2, l.ring_cy - l.ring / 2, l.ring, l.ring));
+    }
+    for (int n = 1; n <= 3; n++) {            /* games */
+        for (int i = 0; i < n; i++) {
+            int y, h;
+            mpg_games_row(n, i, &y, &h);
+            CHECK(in_zone(8, y, 304, h) && clear_of_grabber(8, y, 304, h));
+        }
+    }
+    for (int n = 0; n <= 3; n++) {            /* timers: rows, then the quick starts */
+        for (int i = 0; i < n; i++) {
+            const int y = mpg_timer_top(n) + i * MPG_TIMER_PITCH;
+            CHECK(in_zone(8, y, 304, MPG_TIMER_ROW_H) && clear_of_grabber(8, y, 304, MPG_TIMER_ROW_H));
+        }
+        if (mpg_timer_quick(n)) CHECK(in_zone(8, mpg_timer_quick_y(), 304, mpg_timer_quick_h(n)));
+    }
+    for (int n = 1; n <= 6; n++) {            /* quick actions and the dashboard tiles share the grid */
+        for (int i = 0; i < n; i++) {
+            int x, y, w, h;
+            mpg_cell(i, n, 8, 26, 304, 108, 8, &x, &y, &w, &h);
+            CHECK(in_zone(x, y, w, h) && clear_of_grabber(x, y, w, h));
+        }
+    }
+    CHECK(in_zone(64, 0, 192, 144));          /* the picture frame (the grabber is drawn over its top edge on purpose) */
+    /* the title of a page, the grabber and the status row of the sheet never reach the banner row either */
+    CHECK(MPG_ZONE_Y + 2 >= 28);
+    mpg_cfg_t c;
+    mpg_defaults(&c);
+    mpg_sheet_t L;
+    mpg_sheet_layout(&c, &L);
+    CHECK(L.top_y >= 28);
 }
 
 static void test_page_contents(void)
@@ -255,7 +388,10 @@ static void test_page_contents(void)
         const int w = 4 * l.digit_w + 2 * l.gap + l.colon_w;
         CHECK(l.x0 >= 0 && l.x0 + w <= MPG_ZONE_W);
         CHECK(((l.digit_h - 3 * l.bar) % 2) == 0);   /* h = 3 bar + 2 L, as the bar math needs */
-        CHECK(l.date_y + 22 <= MPG_PAGER_Y);         /* the date clears the pager dots */
+        CHECK(l.date_y + 23 <= MPG_PAGER_Y - 4);     /* the date clears the pager dots, which sit in the bottom row */
+        if (!ring) {
+            CHECK(l.digit_h >= 100 && l.digit_w >= 54);   /* patch UI01: the clock is bigger than before (87 by 44) */
+        }
         CHECK(l.y0 >= 0);
         if (ring) {
             CHECK(l.ring_cy - l.ring / 2 >= 0 && l.ring_cy + l.ring / 2 <= MPG_PAGER_Y + 2);
@@ -274,13 +410,29 @@ static void test_page_contents(void)
             }
         }
     }
+    /* patch UI01: the games rows and the timer rows are at least 44 px high for three and fit above the dots */
+    for (int n = 1; n <= 3; n++) {
+        for (int i = 0; i < n; i++) {
+            int y, h;
+            mpg_games_row(n, i, &y, &h);
+            CHECK(h >= MPG_TOUCH_MIN && h <= 52 && y >= 0 && y + h <= MPG_PAGER_Y - 4);
+        }
+    }
+    for (int n = 0; n <= 3; n++) {
+        CHECK(n == 0 || mpg_timer_top(n) + (n - 1) * MPG_TIMER_PITCH + MPG_TIMER_ROW_H <= MPG_PAGER_Y - 4);
+        CHECK(MPG_TIMER_ROW_H >= MPG_TOUCH_MIN);
+        if (mpg_timer_quick(n)) {
+            CHECK(mpg_timer_quick_h(n) >= MPG_TOUCH_MIN && mpg_timer_quick_y() + mpg_timer_quick_h(n) <= MPG_PAGER_Y - 4);
+            CHECK(n == 0 || mpg_timer_quick_y() >= mpg_timer_top(n) + n * MPG_TIMER_PITCH);
+        }
+    }
     /* the pager dots stay inside the zone and are centered */
     for (int n = 2; n <= 7; n++) {
         CHECK(mpg_pager_x(n, 0) + mpg_pager_x(n, n - 1) == MPG_ZONE_W);
     }
     /* a quiet unit does not play sounds or dance on a button, and a muted one does not beep */
     CHECK(mpg_action_blocked(MPG_A_DANCE, 1, 0) && mpg_action_blocked(MPG_A_BEEP, 1, 0) && !mpg_action_blocked(MPG_A_GAME, 1, 0));
-    CHECK(mpg_action_blocked(MPG_A_BEEP, 0, 1) && mpg_action_blocked(MPG_A_FIND, 0, 1) == 1 && !mpg_action_blocked(MPG_A_DANCE, 0, 1));
+    CHECK(mpg_action_blocked(MPG_A_BEEP, 0, 1) && !mpg_action_blocked(MPG_A_DANCE, 0, 1));
     CHECK(!mpg_action_blocked(MPG_A_BEEP, 0, 0));
     CHECK(mpg_frame_next(3, 2) == 0 && mpg_frame_next(3, 0) == 1 && mpg_frame_next(0, 0) == 0);
     /* page names and titles line up */
@@ -321,6 +473,15 @@ static void print_table(void)
         for (int k = 0; k < n; k++) printf("%s[%d,%d,%d,%d,%d]", k ? "," : "", s[k].kind, s[k].x, s[k].y, s[k].w, s[k].h);
         printf("]");
     }
+    printf("},\"sheet_icons\":{");
+    for (int it = MPG_S_MUTE; it <= MPG_S_COUNT; it++) {
+        if (it > MPG_S_GAMES && it != MPG_S_COUNT) continue;
+        mpg_shape_t s[MPG_ICON_SHAPES_MAX];
+        const int n = mpg_sheet_icon_shapes(it, s);
+        printf("%s\"%s\":[", it > MPG_S_MUTE ? "," : "", it == MPG_S_COUNT ? "more" : MPG_SHEET_NAMES[it]);
+        for (int k = 0; k < n; k++) printf("%s[%d,%d,%d,%d,%d]", k ? "," : "", s[k].kind, s[k].x, s[k].y, s[k].w, s[k].h);
+        printf("]");
+    }
     printf("},\"sheet_default\":{\"top_y\":%d,\"rects\":[", L.top_y);
     for (int i = 0; i < L.n; i++) printf("%s[%d,%d,%d,%d,%d]", i ? "," : "", L.r[i].item, L.r[i].x, L.r[i].y, L.r[i].w, L.r[i].h);
     printf("]},\"defaults\":{\"left\":[\"clock\"],\"right\":[\"games\"],\"sheet_s\":%d,\"idle_s\":%d}}\n", d.sheet_s, d.idle_s);
@@ -339,7 +500,7 @@ static int print_layout(const char* list)
     }
     mpg_sheet_t L;
     mpg_sheet_layout(&c, &L);
-    printf("{\"top_y\":%d,\"status_y\":%d,\"status_h\":%d,\"status\":[", L.top_y, L.status_y, L.status_h);
+    printf("{\"top_y\":%d,\"status_y\":%d,\"status_h\":%d,\"text_y\":%d,\"text_h\":%d,\"status\":[", L.top_y, L.status_y, L.status_h, L.text_y, L.text_h);
     for (int i = 0; i < L.n_status; i++) printf("%s%d", i ? "," : "", L.status_items[i]);
     printf("],\"rects\":[");
     for (int i = 0; i < L.n; i++) printf("%s[%d,%d,%d,%d,%d]", i ? "," : "", L.r[i].item, L.r[i].x, L.r[i].y, L.r[i].w, L.r[i].h);
@@ -363,6 +524,8 @@ int main(int argc, char** argv)
     test_tiles();
     test_icons();
     test_sheet_layout();
+    test_icons_status_row_and_settings_screen();
+    test_every_page_content_stays_in_the_zone();
     test_page_contents();
     if (failures) {
         printf("%d failure(s)\n", failures);

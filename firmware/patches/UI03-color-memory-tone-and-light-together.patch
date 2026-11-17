@@ -1,0 +1,319 @@
+# Intent: Owner's hands-on test, part 3: the Color Memory beep was not timed with the light. The rule that lights a tile and the one that plays its tone fire together, but the tone reached the codec about 3 ms later while the tile reached the panel 7 to 310 ms later (median 13 ms, measured with the bench: first display flush whose area touches the tile, after the redraw). The tone now waits for that flush and starts from the display's flush-start event for the tile (a 100 ms fallback if no strip comes) and is a pure sine of exactly the lit time, 450 ms (memory.json show, echo and correct are all 450 ms, was 650, 220 and 600), four pitches (E4, C4, G4, A3) made by a recurrence into four PSRAM buffers (58 KB) held only while Color Memory runs. Measured after the change: the tone call is made inside the flush-start event, and the first audio block reaches the codec 0 to 3 ms after that strip starts (4 to 6 ms after the call); the I2S buffer delay is not measured (it needs a microphone). Bench builds log GAMELAT lines (tone call, light asked, flush areas) and LAT game_audio_out.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games.cc, maipai_games_core.h (ours, G01 to G03) and xiaozhi audio_service.cc (bench mark only)
+# Check after a flash: Color Memory: each color's tone starts with its tile and ends when it goes dark; mute still silences it and the light still shows.
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -43,6 +43,9 @@ static const char* TAG        = "MAIPAI-GAMES";
+ static const char* kNamespace = "mp_games";
+ 
+ extern "C" {
++#if CONFIG_MAIPAI_GAMES_BENCH
++extern volatile int64_t g_mp_pcm_call_us;  // audio_service.cc (bench only): set before a game tone, read when its first block reaches the codec
++#endif
+ extern const uint8_t _binary_memory_mpk_start[];
+ extern const uint8_t _binary_memory_mpk_end[];
+ extern const uint8_t _binary_reaction_mpk_start[];
+@@ -327,6 +330,14 @@ void redraw(Game* g, bool force)
+ }
+ 
+ // ---- the running game ----
++#if CONFIG_MAIPAI_GAMES_BENCH
++int64_t s_light_mark_us = 0;  // bench only: when the light was last asked for
++void on_disp_event(lv_event_t* e);
++#endif
++void color_tones_free();
++void color_sync_attach(bool on);
++void color_tone_fallback(uint32_t now);
++bool color_tones_make();
+ 
+ void end_locked(const char* how)
+ {
+@@ -335,6 +346,14 @@ void end_locked(const char* how)
+         return;
+     }
+     s_game = nullptr;
++    color_sync_attach(false);
++    color_tones_free();
++#if CONFIG_MAIPAI_GAMES_BENCH
++    if (lv_display_t* d = lv_display_get_default()) {
++        lv_display_remove_event_cb_with_user_data(d, on_disp_event, nullptr);
++    }
++    s_light_mark_us = 0;
++#endif
+     if (g->timer != nullptr) {
+         lv_timer_delete(g->timer);
+     }
+@@ -400,12 +419,150 @@ void commit_score(Game* g)
+     Application::GetInstance().Schedule([id, copy]() { write_scores(id, copy); });
+ }
+ 
++// ---- patch UI01: Color Memory plays its tone and shows its light as one event ----
++// The rule that lights a tile and the rule that sounds its tone fire in the same instant, but they reach the person by two paths:
++// the tone starts about 3 ms after the call (the audio task has the first block at the codec), the tile only when LVGL has drawn
++// it and the first strip that carries it is sent to the panel (27 to 90 ms later on the unit, see the patch header). So the tone is
++// not started in after_event: it waits, and the first display flush whose area touches the lit tile starts it. The face keeps
++// redrawing under the game, so a strip comes every 10 ms; a tone whose strip never comes (a dark screen) starts after 100 ms anyway.
++// The tone is a pure sine of exactly the time the tile stays lit (MG_COLOR_LIT_MS, also in memory.json).
++struct ColorTone {
++    int idx;           // -1: none waiting
++    int16_t x1, y1, x2, y2;
++    uint32_t since_ms;
++};
++ColorTone s_ct = {-1, 0, 0, 0, 0, 0};
++int16_t* s_ct_buf[MG_COLOR_TONES] = {};  // the four tones, held in PSRAM while Color Memory runs (about 58 KB)
++
++bool is_color_game(const Game* g)
++{
++    return strcmp(g->id, "memory") == 0;
++}
++
++void color_tones_free()
++{
++    s_ct.idx = -1;
++    for (auto& b : s_ct_buf) {
++        if (b != nullptr) {
++            heap_caps_free(b);
++            b = nullptr;
++        }
++    }
++}
++
++bool color_tones_make()
++{
++    for (int i = 0; i < MG_COLOR_TONES; i++) {
++        if (s_ct_buf[i] == nullptr) {
++            s_ct_buf[i] = static_cast<int16_t*>(heap_caps_malloc(MG_COLOR_TONE_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++            if (s_ct_buf[i] == nullptr || mg_color_tone(i, s_ct_buf[i], MG_COLOR_TONE_SAMPLES) == 0) {
++                color_tones_free();
++                return false;  // no memory: the game then falls back to the shipped sounds
++            }
++        }
++    }
++    return true;
++}
++
++void play_color_tone(int idx)
++{
++    if (idx < 0 || idx >= MG_COLOR_TONES || s_ct_buf[idx] == nullptr || !maipai_sounds_gate("popup")) {
++        return;  // mute, sounds off or night: the light still shows
++    }
++#if CONFIG_MAIPAI_GAMES_BENCH
++    const int64_t t0 = esp_timer_get_time();
++    g_mp_pcm_call_us = t0;
++#endif
++    const bool ok = Application::GetInstance().GetAudioService().PlayPcm(s_ct_buf[idx], MG_COLOR_TONE_SAMPLES, MG_COLOR_TONE_RATE);  // PlayPcm copies
++#if CONFIG_MAIPAI_GAMES_BENCH
++    ESP_LOGW("GAMELAT", "%lld tone_call idx=%d took %lld us ok=%d", static_cast<long long>(t0 / 1000), idx,
++             static_cast<long long>(esp_timer_get_time() - t0), ok ? 1 : 0);
++#else
++    (void)ok;
++#endif
++}
++
++// A display flush is about to start: if it carries the waiting tone's tile, the tone starts now.
++void on_flush_sync(lv_event_t* e)
++{
++    if (s_ct.idx < 0) {
++        return;
++    }
++    const lv_area_t* a = static_cast<const lv_area_t*>(lv_event_get_param(e));
++    if (a == nullptr || a->x2 < s_ct.x1 || a->x1 > s_ct.x2 || a->y2 < s_ct.y1 || a->y1 > s_ct.y2) {
++        return;
++    }
++    const int idx = s_ct.idx;
++    s_ct.idx      = -1;
++    play_color_tone(idx);
++}
++
++void color_sync_attach(bool on)
++{
++    lv_display_t* d = lv_display_get_default();
++    if (d == nullptr) {
++        return;
++    }
++    if (on) {
++        lv_display_add_event_cb(d, on_flush_sync, LV_EVENT_FLUSH_START, nullptr);
++    } else {
++        lv_display_remove_event_cb_with_user_data(d, on_flush_sync, nullptr);
++    }
++}
++
++// The tick: a tone whose strip never came (a dark or busy screen) starts after 100 ms.
++void color_tone_fallback(uint32_t now)
++{
++    if (s_ct.idx >= 0 && now - s_ct.since_ms >= 100) {
++        const int idx = s_ct.idx;
++        s_ct.idx      = -1;
++        play_color_tone(idx);
++    }
++}
++
++void redraw(Game* g, bool force);
++#if CONFIG_MAIPAI_GAMES_BENCH
++void on_disp_event(lv_event_t* e)
++{
++    if (s_light_mark_us == 0) {
++        return;
++    }
++    const int64_t now = esp_timer_get_time();
++    if (now - s_light_mark_us > 400000) {
++        s_light_mark_us = 0;
++        return;
++    }
++    const lv_event_code_t code = lv_event_get_code(e);
++    if (code == LV_EVENT_REFR_READY) {
++        ESP_LOGW("GAMELAT", "%lld light_refr_ready +%lld us", static_cast<long long>(now / 1000), static_cast<long long>(now - s_light_mark_us));
++        return;
++    }
++    const lv_area_t* a = static_cast<const lv_area_t*>(lv_event_get_param(e));
++    if (a == nullptr) {
++        return;
++    }
++    ESP_LOGW("GAMELAT", "%lld light_%s +%lld us area %d,%d,%d,%d", static_cast<long long>(now / 1000),
++             code == LV_EVENT_FLUSH_START ? "flush_start" : "flush_finish", static_cast<long long>(now - s_light_mark_us),
++             static_cast<int>(a->x1), static_cast<int>(a->y1), static_cast<int>(a->x2), static_cast<int>(a->y2));
++}
++#endif
++
+ // Plays the tones the player queued, saves a committed score, redraws; ends the game when the player finished.
+ void after_event(Game* g)
+ {
+     mg_run_t& r = g->run;
++    bool color_event = false;
+     for (int i = 0; i < r.tone_n; i++) {
+-        (void)maipai_sounds_play(MG_TONES[r.tone_q[i]]);  // the sound policy and the mute decide; a refusal is silence
++        if (is_color_game(g) && r.tone_q[i] < MG_COLOR_TONES && s_ct_buf[r.tone_q[i]] != nullptr) {
++            // the tone waits for the strip that carries its tile (see above); a second one in the same event replaces the first
++            mg_region_t rg;
++            mg_region_get(&g->pack, r.tone_q[i], &rg);
++            s_ct = {r.tone_q[i], static_cast<int16_t>(rg.x), static_cast<int16_t>(rg.y), static_cast<int16_t>(rg.x + rg.w - 1),
++                    static_cast<int16_t>(rg.y + rg.h - 1), now_ms()};
++            color_event = true;
++        } else {
++            (void)maipai_sounds_play(MG_TONES[r.tone_q[i]]);  // the sound policy and the mute decide; a refusal is silence
++        }
+         g->tones++;
+         s_tones_total++;
+     }
+@@ -414,6 +571,14 @@ void after_event(Game* g)
+         r.save_pending = 0;
+         commit_score(g);
+     }
++#if CONFIG_MAIPAI_GAMES_BENCH
++    if (color_event) {
++        s_light_mark_us = esp_timer_get_time();
++        ESP_LOGW("GAMELAT", "%lld light_asked idx=%d", static_cast<long long>(s_light_mark_us / 1000), s_ct.idx);
++    }
++#else
++    (void)color_event;
++#endif
+     redraw(g, false);
+     if (r.finished) {
+         end_locked(r.budget_hit ? "budget" : "finished");
+@@ -444,6 +609,7 @@ void tick_cb(lv_timer_t*)
+         hal_bridge::power_keep_awake();  // a game keeps the screen on
+     }
+     mg_tick(&g->run, now);
++    color_tone_fallback(now);
+     after_event(g);
+ }
+ 
+@@ -590,6 +756,16 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     s_game = g;
+     s_active.store(true);
+     s_stop_req.store(nullptr);
++    if (strcmp(g->id, "memory") == 0 && color_tones_make()) {
++        color_sync_attach(true);
++    }
++#if CONFIG_MAIPAI_GAMES_BENCH
++    if (lv_display_t* d = lv_display_get_default()) {
++        lv_display_add_event_cb(d, on_disp_event, LV_EVENT_FLUSH_START, nullptr);
++        lv_display_add_event_cb(d, on_disp_event, LV_EVENT_FLUSH_FINISH, nullptr);
++        lv_display_add_event_cb(d, on_disp_event, LV_EVENT_REFR_READY, nullptr);
++    }
++#endif
+     g->timer = lv_timer_create(tick_cb, kTickMs, nullptr);
+     if (!maipai_mic_blocked()) {
+         hal_bridge::stop_word_arm(true);  // best effort: the stop word ends a game
+diff --git a/firmware/main/hal/maipai_games_core.h b/firmware/main/hal/maipai_games_core.h
+--- a/firmware/main/hal/maipai_games_core.h
++++ b/firmware/main/hal/maipai_games_core.h
+@@ -105,6 +105,51 @@ typedef enum { MG_SH_FILL = 0, MG_SH_CIRCLE, MG_SH_BOX, MG_SH_RING, MG_SH_TEXT,
+ /* The tones are the unit's shipped sounds, played through the sound policy; the last is the error sound. */
+ static const char* const MG_TONES[MG_TONE_COUNT] = {"popup", "vibration", "success", "low_battery", "exclamation"};
+ 
++/* Patch UI01: the Color Memory tones. The shipped sounds differ in length (a tile is lit for a fixed time), so the four colors play
++ * a pure tone of exactly the lit time, started together with the tile: red, green, blue and yellow are four pitches. The lit time
++ * is also in firmware/games/memory.json (show, echo and correct all last MG_COLOR_LIT_MS); a test keeps both equal.
++ * The tone is a sine with a 10 ms rise and a 40 ms fall, made with a recurrence (no libm) into a caller buffer. */
++#define MG_COLOR_LIT_MS 450
++#define MG_COLOR_TONE_RATE 16000
++#define MG_COLOR_TONE_SAMPLES ((MG_COLOR_TONE_RATE / 1000) * MG_COLOR_LIT_MS)
++#define MG_COLOR_TONES 4
++static const uint16_t MG_COLOR_HZ[MG_COLOR_TONES] = {330, 262, 392, 220}; /* red E4, green C4, blue G4, yellow A3 */
++
++/* Fills out (cap samples, at least MG_COLOR_TONE_SAMPLES) with color `idx`; returns the number of samples, 0 for a bad index. */
++static inline size_t mg_color_tone(int idx, int16_t* out, size_t cap)
++{
++    if (idx < 0 || idx >= MG_COLOR_TONES || out == NULL || cap < (size_t)MG_COLOR_TONE_SAMPLES) {
++        return 0;
++    }
++    const float w = 6.2831853f * (float)MG_COLOR_HZ[idx] / (float)MG_COLOR_TONE_RATE;
++    const float w2 = w * w;
++    const float c = 1.0f - w2 / 2.0f + w2 * w2 / 24.0f - w2 * w2 * w2 / 720.0f;
++    const float sn = w - w2 * w / 6.0f + w2 * w2 * w / 120.0f;
++    float y1 = sn, y2 = 0.0f; /* y[1], y[0] of sin(w n) */
++    const size_t n = (size_t)MG_COLOR_TONE_SAMPLES;
++    const size_t rise = (size_t)(MG_COLOR_TONE_RATE / 100), fall = (size_t)(MG_COLOR_TONE_RATE / 25);
++    for (size_t i = 0; i < n; i++) {
++        float y;
++        if (i == 0) {
++            y = 0.0f;
++        } else if (i == 1) {
++            y = y1;
++        } else {
++            y = 2.0f * c * y1 - y2;
++            y2 = y1;
++            y1 = y;
++        }
++        float env = 1.0f;
++        if (i < rise) {
++            env = (float)i / (float)rise;
++        } else if (i + fall > n) {
++            env = (float)(n - i) / (float)fall;
++        }
++        out[i] = (int16_t)(y * env * 16000.0f);
++    }
++    return n;
++}
++
+ typedef enum {
+     MG_OK = 0,
+     MG_E_SHORT,
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.cc b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+@@ -5,6 +5,8 @@
+ #include <hal/maipai_lat.h>
+ #include <esp_heap_caps.h>
+ 
++volatile int64_t g_mp_pcm_call_us = 0;  // patch UI01: the games set it before a tone (bench builds only read it); 8 bytes
++
+ #define RATE_CVT_CFG(_src_rate, _dest_rate, _channel)                                        \
+     (esp_ae_rate_cvt_cfg_t) {                                                                \
+         .src_rate = (uint32_t)(_src_rate), .dest_rate = (uint32_t)(_dest_rate),              \
+@@ -449,6 +451,11 @@ void AudioService::AudioOutputTask() {
+                            (unsigned)audio_decode_queue_.size());
+             }
+             s_blocks++;
++            if (g_mp_pcm_call_us != 0) {  // patch UI01 (bench): the first block of a game tone reaches the codec
++                const int64_t call = g_mp_pcm_call_us;
++                g_mp_pcm_call_us = 0;
++                MAIPAI_LAT("game_audio_out +%lld us after the tone was asked for (%u samples)", (long long)(t0 - call), (unsigned)task.pcm.size());
++            }
+             codec_->OutputData(task.pcm);
+             s_end_us = esp_timer_get_time();
+             if (s_end_us - t0 > 200000) { MAIPAI_LAT("slow_out %lld ms", (long long)((s_end_us - t0) / 1000)); }

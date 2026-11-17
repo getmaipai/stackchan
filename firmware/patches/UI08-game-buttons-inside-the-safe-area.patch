@@ -1,0 +1,20 @@
+# Intent: Owner test of Color Memory: the color buttons were too low. Every tap target of the three games now lies fully inside the safe area, clear of the banner row (y 0 to 28) and the subtitle strip (y 184 to 240): Color Memory is a 2 by 2 board of 138 by 68 px tiles between y 36 and 180, Whack-a-Mole three rows of 44 px between y 46 and 182 under a score row at y 36 (circles of radius 20 and 17), Reaction Time has no buttons. The core names the safe area (MG_SAFE_TOP 28, MG_SAFE_BOTTOM 184, MG_BUTTON_MIN 44) and a host test keeps every region and every drawn box or circle inside it, at least 44 px high and 8 px from the side of the glass. The packs themselves are firmware/games/*.json and *.mpk (repo data, rebuilt with scripts/game-pack.py).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games_core.h (ours, G01)
+# Check after a flash: Color Memory from the games page: all four colors are fully visible and easy to tap, none touches the bottom edge or the subtitle strip.
+
+diff --git a/firmware/main/hal/maipai_games_core.h b/firmware/main/hal/maipai_games_core.h
+--- a/firmware/main/hal/maipai_games_core.h
++++ b/firmware/main/hal/maipai_games_core.h
+@@ -55,6 +55,11 @@
+ #define MG_EDGE_R 300
+ #define MG_EDGE_T 28
+ #define MG_EDGE_B 220
++/* Patch UI08: the safe area of a button. The banner row above (y 0 to 28) and the subtitle strip below (y 184 to 240) are never covered by
++ * a game's tap targets, and a target is at least 44 px high. A test keeps the three built-in games inside it. */
++#define MG_SAFE_TOP 28
++#define MG_SAFE_BOTTOM 184
++#define MG_BUTTON_MIN 44
+ 
+ #define MG_FLAG_LOWER_BETTER 1
+ 
