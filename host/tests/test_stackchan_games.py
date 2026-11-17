@@ -22,7 +22,8 @@ ROOT = HERE.parent.parent
 PATCHES = ROOT / "firmware" / "patches"
 GAMES_DIR = ROOT / "firmware" / "games"
 C_TESTS = HERE / "firmware"
-IDS = ("memory", "reaction", "whack")
+IDS = ("memory", "reaction", "whack", "tictactoe", "bopit", "rps", "eightball", "dice")  # UI13 adds tictactoe, bopit, rps; UI15 the last two
+OLD_IDS = IDS[:3]  # what games_core_test.c (patch G01) plays
 HAVE_CC = shutil.which("cc") is not None
 HAVE_CXX = shutil.which("c++") is not None
 
@@ -81,7 +82,7 @@ def test_the_engine_core_passes_its_c_test_on_the_shipped_packs(
         )
     assert build.returncode == 0, build.stderr
     run = subprocess.run(
-        [str(binary), *(str(GAMES_DIR / f"{i}.mpk") for i in IDS)], capture_output=True, text=True
+        [str(binary), *(str(GAMES_DIR / f"{i}.mpk") for i in OLD_IDS)], capture_output=True, text=True
     )
     assert run.returncode == 0, run.stdout + run.stderr
     assert "all passed" in run.stdout
@@ -101,7 +102,7 @@ def test_the_committed_pack_is_what_the_compiler_makes_from_its_table(game: str)
 @pytest.mark.parametrize("game", IDS)
 def test_a_shipped_pack_is_small_ascii_and_free_of_dashes(game: str) -> None:
     blob = (GAMES_DIR / f"{game}.mpk").read_bytes()
-    assert len(blob) < 4096  # far under the 16 KB target and the 64 KB ceiling of the design note
+    assert len(blob) < 8192  # far under the 16 KB ceiling of the pack format
     info = COMPILER.info(blob)
     assert info["crc_ok"] and info["id"] == game and not info["signed"]
     assert chr(8212).encode() not in blob

@@ -43,6 +43,7 @@ class BrainTurn:
         present=None,
         conversation_id=None,
         ask_answer=None,
+        instructions=None,
     ) -> Iterator[Any]:
         return self._brain.stream_turn(
             TurnRequest(
@@ -51,6 +52,7 @@ class BrainTurn:
                 present=present,
                 conversation_id=conversation_id or self._conversation_id,
                 ask_answer=ask_answer,
+                instructions=instructions,
             )
         )
 

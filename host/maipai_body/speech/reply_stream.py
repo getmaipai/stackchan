@@ -11,6 +11,7 @@ Two small pieces, both pure text with no I/O so they are easy to test:
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -18,10 +19,25 @@ from dataclasses import dataclass
 from maipai_body import reply_tags
 
 MAX_TAG_CHARS = 60
+DISCARD_CHARS = 400  # a bracket run past MAX_TAG_CHARS is never spoken; it is dropped up to its ``]``, a newline, or this many characters
+JSON_CHARS = 400  # a ``{"...`` run is dropped the same way (never spoken)
 SOFT_LIMIT_CHARS = 240
 _TAGLIKE = re.compile(rf"^\[[A-Za-z_:\-= ]{{0,{MAX_TAG_CHARS}}}$")
+_JSONSTART = re.compile(r'^\{\s*"')
+_INNER_TAG = re.compile(r"\[[^\[\]]*\]")
+
+
+def _jsonlike(run: str) -> bool:
+    """A ``{`` run that starts like JSON, tags inside it aside (a tag between the brace and the quote must not hide it)."""
+    while True:
+        shorter = _INNER_TAG.sub("", run)
+        if shorter == run:
+            return _JSONSTART.match(run) is not None
+        run = shorter
+
 _BOUNDARY = re.compile(r"""([.!?…]+["')\]]*)(\s+)|(\n+)""")
 _ABBREVIATIONS = frozenset({"mr", "mrs", "ms", "dr", "st", "vs", "prof", "sr", "jr"})
+LOG = logging.getLogger("maipai_body.speech.reply_stream")
 
 
 def _tidy(sentence: str) -> str:
@@ -36,40 +52,133 @@ class TagStripper:
     """Drops ``[...]`` spans from a stream of chunks; ``on_tag`` hears each tag's inner text.
 
     With ``marks`` on, a private-use character is left where each tag was, so a later step can tell which
-    sentence each tag belonged to (see :class:`ReplyTagger`). Off (the default) nothing is left behind."""
+    sentence each tag belonged to (see :class:`ReplyTagger`). Off (the default) nothing is left behind.
+
+    A bracket run is never spoken when it is longer than ``MAX_TAG_CHARS`` and never when it is JSON: a run that
+    grows past the limit without its ``]`` is dropped up to the matching ``]``, the next newline or
+    ``DISCARD_CHARS`` characters, and a ``{"`` run is dropped up to its closing brace. Each drop is counted in
+    ``dropped`` and logged with its length only (never the words). A short ``[`` that never closes before a
+    newline or the end of the stream is plain text, unless it only has tag letters (then it is a cut-off tag
+    and is dropped)."""
 
     def __init__(self, on_tag: Callable[[str], None] | None = None, *, marks: bool = False) -> None:
-        self._held = ""
+        self._held = ""  # an open "[" run, not yet known to be a tag
+        self._depth = 0  # square brackets opened inside the held run (a nested JSON array, say)
+        self._discard = 0  # characters dropped so far from a run longer than MAX_TAG_CHARS (0: not discarding)
+        self._brace = ""  # an open "{" run that may be JSON
+        self._brace_depth = 0
         self._on_tag = on_tag
         self._marks = marks
         self.tags: list[str] = []
+        self.dropped = 0
+
+    def _drop(self, kind: str, size: int) -> None:
+        self.dropped += 1
+        LOG.info("reply text: a %s of %d characters was dropped from speech (never spoken)", kind, size)
 
     def feed(self, chunk: str) -> str:
         out: list[str] = []
         for char in chunk:
-            if self._held:
-                self._held += char
-                if char == "]":
-                    inner = self._held[1:-1].strip()
-                    self._held = ""
-                    self.tags.append(inner)
-                    if self._marks:
-                        out.append(MARK)
-                    if self._on_tag is not None:
-                        self._on_tag(inner)
-                elif char == "\n" or len(self._held) > MAX_TAG_CHARS:
-                    out.append(self._held)  # not a tag after all: it is plain text
-                    self._held = ""
-            elif char == "[":
-                self._held = "["
-            else:
-                out.append(char)
+            self._step(char, out)
         return "".join(out)
 
+    def _step(self, char: str, out: list[str]) -> None:
+        if self._discard:
+            self._discarding(char, out)
+        elif self._held:
+            self._holding(char, out)
+        elif self._brace:
+            self._braces(char, out)
+        elif char == "[":
+            self._held, self._depth = "[", 0
+        elif char == "{":
+            self._brace, self._brace_depth = "{", 1
+        else:
+            out.append(char)
+
+    def _replay(self, run: str, out: list[str]) -> None:
+        """A ``{`` or ``[`` run that is not a tag or JSON is plain text, but a tag or JSON inside it still is one: its characters go
+        through the machine again (after the opening character, so this ends)."""
+        out.append(run[0])
+        for char in run[1:]:
+            self._step(char, out)
+
+    def _holding(self, char: str, out: list[str]) -> None:
+        self._held += char
+        if char == "[":
+            self._depth += 1
+            closed = False
+        elif char == "]" and self._depth:
+            self._depth -= 1
+            closed = False
+        else:
+            closed = char == "]"
+        if len(self._held) > MAX_TAG_CHARS:
+            size = len(self._held)  # too long to be a tag: never spoken
+            self._held = ""
+            if closed:
+                self._drop("bracket run", size)
+                self._depth = 0
+            else:
+                self._discard = size
+            return
+        if closed:
+            inner = self._held[1:-1].strip()
+            self._held = ""
+            self.tags.append(inner)
+            if self._marks:
+                out.append(MARK)
+            if self._on_tag is not None:
+                self._on_tag(inner)
+        elif char == "\n":
+            held, self._held, self._depth = self._held, "", 0
+            self._replay(held, out)  # not a tag after all: it is plain text (but a JSON start inside it is still dropped)
+
+    def _discarding(self, char: str, out: list[str]) -> None:
+        self._discard += 1
+        if char == "[":
+            self._depth += 1
+        elif char == "]" and self._depth:
+            self._depth -= 1
+        elif char == "]" or char == "\n" or self._discard > DISCARD_CHARS:
+            self._drop("bracket run", self._discard)
+            self._discard, self._depth = 0, 0
+            if char == "\n":
+                out.append(char)
+
+    def _braces(self, char: str, out: list[str]) -> None:
+        self._brace += char
+        if char == "{":
+            self._brace_depth += 1
+        elif char == "}":
+            self._brace_depth -= 1
+        if self._brace_depth == 0 or char == "\n" or len(self._brace) > JSON_CHARS:
+            run, self._brace = self._brace, ""
+            if _jsonlike(run):
+                self._drop("JSON run", len(run))
+                if char == "\n":
+                    out.append(char)
+            else:
+                self._replay(run, out)
+
     def flush(self) -> str:
-        """The end of the stream: an unfinished tag is dropped, anything else is plain text."""
-        held, self._held = self._held, ""
-        return "" if _TAGLIKE.match(held) else held
+        """The end of the stream: an unfinished tag or JSON run is dropped, anything else is plain text."""
+        out: list[str] = []
+        while self._brace or self._held or self._discard:
+            if self._discard:
+                self._drop("bracket run", self._discard)
+                self._discard, self._depth = 0, 0
+            elif self._brace:
+                brace, self._brace = self._brace, ""
+                if _jsonlike(brace):
+                    self._drop("JSON run", len(brace))
+                else:
+                    self._replay(brace, out)
+            else:
+                held, self._held, self._depth = self._held, "", 0
+                if not _TAGLIKE.match(held):
+                    self._replay(held, out)
+        return "".join(out)
 
 
 class SentenceSplitter:
@@ -122,8 +231,8 @@ class SentenceSplitter:
 
 @dataclass(frozen=True)
 class Cue:
-    """One thing to do at a point in the reply: ``mood`` (name), ``overlay`` (name, intensity, seconds)
-    or ``overlay_end`` (name)."""
+    """One thing to do at a point in the reply: ``mood`` (name), ``overlay`` (name, intensity, seconds), ``overlay_end`` (name),
+    ``scene`` (name), ``scene_off``, ``sound`` (name) or ``light`` (color name or off, seconds)."""
 
     kind: str
     name: str
@@ -144,7 +253,8 @@ class ReplyTagger:
 
     A mood tag becomes a ``mood`` cue ahead of its sentence. An overlay tag becomes an ``overlay`` cue ahead of
     the sentence where it opens and an ``overlay_end`` cue after the sentence where it closes; one left open
-    ends with the sentence it started in. The robot is told what to show: a reply with no mood tag changes no
+    ends with the sentence it started in. A scene, sound or light tag becomes one cue ahead of its sentence (they follow
+    the same switch as overlays: decoration). The robot is told what to show: a reply with no mood tag changes no
     face (there is no guessing from the words, owner decision 2026-11-17). ``moods`` and ``overlays`` switch each kind off:
     their tags are still removed, never spoken.
     """
@@ -157,6 +267,7 @@ class ReplyTagger:
         self._open: dict[str, Cue] = {}  # overlays opened in an earlier sentence, still running
         self._sentences = 0
         self._mood_seen = False
+        self.tags_dropped = 0  # tags that meant nothing (unknown name, bad argument): never spoken, counted for the bench
 
     @property
     def tags(self) -> list[str]:
@@ -187,7 +298,11 @@ class ReplyTagger:
         found: list[reply_tags.Tag] = []
         for _ in range(raw.count(MARK)):
             if self._tagged < len(self._strip.tags):
-                found.append(reply_tags.parse_tag(self._strip.tags[self._tagged]))
+                tag = reply_tags.parse_tag(self._strip.tags[self._tagged])
+                if tag.kind == "unknown":
+                    self.tags_dropped += 1
+                    LOG.debug("reply text: a bracket tag with no meaning was dropped (never spoken)")
+                found.append(tag)
                 self._tagged += 1
         return found
 
@@ -216,6 +331,8 @@ class ReplyTagger:
                     self._open[tag.name] = before[-1]  # a span over several sentences
                 else:
                     after.append(Cue("overlay_end", tag.name))  # unclosed: to the end of this sentence
+            elif tag.kind in ("scene", "scene_off", "sound", "light") and self._overlays:
+                before.append(Cue(tag.kind, tag.name, seconds=tag.seconds))
             elif tag.kind == "overlay_end" and self._overlays and (tag.name in self._open or tag.name in opened_here):
                 self._open.pop(tag.name, None)
                 after.append(Cue("overlay_end", tag.name))

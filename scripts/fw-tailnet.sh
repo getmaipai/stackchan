@@ -34,9 +34,12 @@ git -C "$DEST" fetch --no-tags "$REPO" "$COMMIT"
 git -C "$DEST" checkout --detach --force "$COMMIT"
 git -C "$DEST" clean -fdq
 [[ "$(git -C "$DEST" rev-parse HEAD)" == "$COMMIT" ]] || { echo "The download does not match the pinned commit. Check the repository address and retry." >&2; exit 1; }
-sed -n '/^diff --git/,$p' "$ROOT/firmware/tailnet/microlink.patch" > "$DEST/.maipai-lib.patch"
-git -C "$DEST" apply --check .maipai-lib.patch || { echo "The library patch does not apply to $COMMIT. Update firmware/tailnet/ together with the pin." >&2; exit 1; }
-git -C "$DEST" apply .maipai-lib.patch
-rm -f "$DEST/.maipai-lib.patch"
-echo "Private-network client ready at $DEST (commit $COMMIT, library patch applied)."
+# The library patches apply in this order, each on top of the one before (RM04 added the second).
+for lib_patch in microlink.patch microlink-region.patch; do
+    sed -n '/^diff --git/,$p' "$ROOT/firmware/tailnet/$lib_patch" > "$DEST/.maipai-lib.patch"
+    git -C "$DEST" apply --check .maipai-lib.patch || { echo "The library patch $lib_patch does not apply to $COMMIT. Update firmware/tailnet/ together with the pin." >&2; exit 1; }
+    git -C "$DEST" apply .maipai-lib.patch
+    rm -f "$DEST/.maipai-lib.patch"
+done
+echo "Private-network client ready at $DEST (commit $COMMIT, library patches applied)."
 echo "Next: source scripts/fw-env.sh"

@@ -17,6 +17,14 @@ Overlay tag (a span of the reply; the overlay starts when the span is spoken and
 A span may cover several sentences when its closing tag has already arrived with the text (a reply spoken from
 one piece); when a model streams one sentence at a time, an overlay ends with the sentence it opened in.
 
+Scene tag (one named preset that sets mood, effect, ring light and a quiet sound together; scenes.py holds the table):
+
+    [scene rainy_day]   [scene:birthday]   [scene off]
+
+Sound and light tags (the prefix is required, so a stray word in brackets never fires one):
+
+    [sound:success]   [light:blue]   [light:blue 30]   [light:off]
+
 Spanish works too: [feliz], [triste], [lluvia]...[/lluvia], [nieve fuerte]. A tag that is not in these lists is
 dropped and never spoken. ``mood:`` and ``overlay:`` prefixes are accepted ([mood:happy]).
 
@@ -101,6 +109,33 @@ OVERLAY_ALIASES: dict[str, str] = {
     "sleep": "sleeping", "asleep": "sleeping", "durmiendo": "sleeping",
 }  # fmt: skip
 
+# ---- scenes, sounds and the ring light: names only (the values are in scenes.py and command_bus.py) ------
+
+SCENE_NAMES: tuple[str, ...] = (
+    "rainy_day", "snowy_day", "sunny_day", "bedtime", "party", "birthday", "cozy", "spooky", "focus", "celebrate",
+)  # fmt: skip
+SCENE_ALIASES: dict[str, str] = {
+    "rainy": "rainy_day", "rain": "rainy_day", "lluvioso": "rainy_day", "dia_de_lluvia": "rainy_day",
+    "snowy": "snowy_day", "dia_de_nieve": "snowy_day",
+    "sunny": "sunny_day", "dia_soleado": "sunny_day",
+    "sleep": "bedtime", "hora_de_dormir": "bedtime", "dormir": "bedtime",
+    "fiesta": "party", "cumpleanos": "birthday", "cumpleaños": "birthday",
+    "acogedor": "cozy", "espeluznante": "spooky", "concentracion": "focus", "concentración": "focus",
+    "celebracion": "celebrate", "celebración": "celebrate",
+}  # fmt: skip
+SCENE_OFF_WORDS: frozenset[str] = frozenset({"off", "end", "none", "clear", "apagar", "fin"})
+SCENE_HEADS: frozenset[str] = frozenset({"scene", "escena"})
+
+# The sounds a reply may ask for (the unit's own list minus the ones that mean something: find, low battery, offline).
+MODEL_SOUNDS: tuple[str, ...] = ("success", "popup", "vibration", "exclamation")
+# With a child present a reply may only play these.
+QUIET_SOUNDS: tuple[str, ...] = ("success", "popup")
+# The ring's colors are the palette the seam allows (hal/seam.py Palette, with no red and without the camera cue's pink).
+LIGHT_COLORS: tuple[str, ...] = ("white", "green", "blue", "amber", "cyan", "magenta")
+LIGHT_OFF = "off"
+MODEL_LIGHT_MAX_S = 30
+DEFAULT_LIGHT_S = 20
+
 INTENSITIES: tuple[str, ...] = ("light", "normal", "heavy")
 INTENSITY_ALIASES: dict[str, str] = {
     "soft": "light", "gentle": "light", "ligera": "light", "ligero": "light", "suave": "light",
@@ -117,11 +152,13 @@ WORDS_PER_SECOND = 2.6  # a calm speaking pace; the span's overlay lasts about a
 
 @dataclass(frozen=True)
 class Tag:
-    """What one ``[...]`` meant. ``kind`` is mood, overlay (open), overlay_end (close) or unknown."""
+    """What one ``[...]`` meant. ``kind`` is mood, overlay (open), overlay_end (close), scene, scene_off, sound, light or
+    unknown. ``seconds`` is only used by light."""
 
     kind: str
     name: str = ""
     intensity: str = DEFAULT_INTENSITY
+    seconds: float = 0.0
 
 
 def _word(text: str) -> str:
@@ -144,6 +181,8 @@ def parse_tag(inner: str) -> Tag:
     if not words:
         return Tag("unknown")
     head, rest = _word(words[0]), " ".join(words[1:])
+    if not forced and not closing and head in SCENE_HEADS | {"sound", "light"}:
+        return _prefixed(head, words[1:])
     # a name of two words ("fuegos artificiales") is tried first, then one word with an intensity after it
     name = _overlay_name(_word(" ".join(words[:2]))) if len(words) > 1 else None
     if name is not None:
@@ -169,6 +208,31 @@ def parse_tag(inner: str) -> Tag:
     return Tag("unknown")
 
 
+def _prefixed(head: str, args: list[str]) -> Tag:
+    """The tags that need their prefix: ``scene``, ``sound`` and ``light``. Anything not on a list is unknown."""
+    if head in SCENE_HEADS:
+        word = _word(" ".join(args))
+        if word in SCENE_OFF_WORDS:
+            return Tag("scene_off")
+        word = SCENE_ALIASES.get(word, word)
+        return Tag("scene", word) if word in SCENE_NAMES else Tag("unknown")
+    if not args:
+        return Tag("unknown")
+    name = _word(args[0])
+    if head == "sound":
+        return Tag("sound", name) if name in MODEL_SOUNDS and len(args) == 1 else Tag("unknown")
+    if name != LIGHT_OFF and name not in LIGHT_COLORS:
+        return Tag("unknown")
+    seconds = float(DEFAULT_LIGHT_S)
+    if len(args) == 2:
+        if not args[1].isdigit() or not 1 <= int(args[1]) <= MAX_SECONDS:
+            return Tag("unknown")
+        seconds = float(args[1])
+    elif len(args) > 2:
+        return Tag("unknown")
+    return Tag("light", name, seconds=seconds)
+
+
 def _overlay_name(word: str) -> str | None:
     word = OVERLAY_ALIASES.get(word, word)
     return word if word in OVERLAYS else None
@@ -185,12 +249,16 @@ def span_seconds(text: str) -> float:
 PERSONA_SUFFIX = (
     " Start every reply with exactly one mood tag in square brackets, chosen from: "
     + " ".join(f"[{m}]" for m in MOODS)
-    + ". The tag is never spoken. Example: [happy] Sure, I can do that!"
+    + ". Only when it fits, add at most one effect such as [rain] [snow] [hearts] [confetti] [stars], or one scene that sets"
+    + " the whole look: "
+    + " ".join(f"[scene {n}]" for n in SCENE_NAMES)
+    + ". [scene off] ends a scene. Tags are never spoken. Never write a tag you are not sure of."
+    + " Example: [happy] [scene birthday] Happy birthday!"
 )
 
 
 def persona_with_tags(persona: str) -> str:
-    """The persona text plus the one-line mood tag instruction (not added twice)."""
+    """The persona text plus the short tag instruction (mood, effect, scene; not added twice)."""
     if "mood tag in square brackets" in persona:
         return persona
     return persona.rstrip() + PERSONA_SUFFIX

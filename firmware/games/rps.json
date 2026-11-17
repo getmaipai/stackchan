@@ -1,0 +1,1466 @@
+{
+ "id": "rps",
+ "counters": [
+  "score",
+  "me",
+  "bot",
+  "d"
+ ],
+ "score": "score",
+ "seed": 0,
+ "title": "title",
+ "description": "hint",
+ "start": "intro",
+ "states": {
+  "intro": {
+   "timer": [
+    2200,
+    2200
+   ]
+  },
+  "choose": {},
+  "beat1": {
+   "timer": [
+    380,
+    380
+   ]
+  },
+  "beat2": {
+   "timer": [
+    380,
+    380
+   ]
+  },
+  "beat3": {
+   "timer": [
+    380,
+    380
+   ]
+  },
+  "beat4": {
+   "timer": [
+    380,
+    380
+   ]
+  },
+  "reveal": {},
+  "win": {
+   "timer": [
+    1800,
+    1800
+   ]
+  },
+  "tie": {
+   "timer": [
+    1800,
+    1800
+   ]
+  },
+  "lose": {
+   "timer": [
+    2200,
+    2200
+   ]
+  },
+  "over": {
+   "timer": [
+    3200,
+    3200
+   ]
+  }
+ },
+ "regions": [
+  {
+   "name": "rock",
+   "x": 20,
+   "y": 54,
+   "w": 94,
+   "h": 130
+  },
+  {
+   "name": "paper",
+   "x": 114,
+   "y": 54,
+   "w": 94,
+   "h": 130
+  },
+  {
+   "name": "scissors",
+   "x": 208,
+   "y": 54,
+   "w": 92,
+   "h": 130
+  }
+ ],
+ "shapes": [
+  {
+   "type": "fill",
+   "color": "#13202b",
+   "states": [
+    "intro",
+    "choose",
+    "reveal",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "over"
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#0f3d1e",
+   "states": [
+    "win"
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#4a1010",
+   "states": [
+    "lose"
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#2c2c36",
+   "states": [
+    "tie"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 22,
+   "y": 56,
+   "w": 90,
+   "h": 126,
+   "radius": 12,
+   "color": "#243b52",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 116,
+   "y": 56,
+   "w": 90,
+   "h": 126,
+   "radius": 12,
+   "color": "#243b52",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 210,
+   "y": 56,
+   "w": 88,
+   "h": 126,
+   "radius": 12,
+   "color": "#243b52",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 22,
+   "y": 56,
+   "w": 90,
+   "h": 126,
+   "radius": 12,
+   "color": "#ff9d3c",
+   "states": [
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "bot",
+    0
+   ]
+  },
+  {
+   "type": "box",
+   "x": 116,
+   "y": 56,
+   "w": 90,
+   "h": 126,
+   "radius": 12,
+   "color": "#ff9d3c",
+   "states": [
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "bot",
+    1
+   ]
+  },
+  {
+   "type": "box",
+   "x": 210,
+   "y": 56,
+   "w": 88,
+   "h": 126,
+   "radius": 12,
+   "color": "#ff9d3c",
+   "states": [
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "bot",
+    2
+   ]
+  },
+  {
+   "type": "box",
+   "x": 27,
+   "y": 61,
+   "w": 80,
+   "h": 116,
+   "radius": 9,
+   "color": "#3a78c2",
+   "states": [
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "me",
+    0
+   ]
+  },
+  {
+   "type": "box",
+   "x": 121,
+   "y": 61,
+   "w": 80,
+   "h": 116,
+   "radius": 9,
+   "color": "#3a78c2",
+   "states": [
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "me",
+    1
+   ]
+  },
+  {
+   "type": "box",
+   "x": 215,
+   "y": 61,
+   "w": 78,
+   "h": 116,
+   "radius": 9,
+   "color": "#3a78c2",
+   "states": [
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "me",
+    2
+   ]
+  },
+  {
+   "type": "box",
+   "x": 39,
+   "y": 96,
+   "w": 56,
+   "h": 44,
+   "radius": 14,
+   "color": "#f0c8a0",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 46,
+   "y": 94,
+   "r": 10,
+   "color": "#f0c8a0",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 60,
+   "y": 94,
+   "r": 10,
+   "color": "#f0c8a0",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 74,
+   "y": 94,
+   "r": 10,
+   "color": "#f0c8a0",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 88,
+   "y": 94,
+   "r": 10,
+   "color": "#f0c8a0",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 39,
+   "y": 116,
+   "r": 11,
+   "color": "#d9a878",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 137,
+   "y": 106,
+   "w": 48,
+   "h": 38,
+   "radius": 10,
+   "color": "#f0c8a0",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 137,
+   "y": 78,
+   "w": 11,
+   "h": 34,
+   "radius": 5,
+   "color": "#f0c8a0",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 149,
+   "y": 70,
+   "w": 11,
+   "h": 42,
+   "radius": 5,
+   "color": "#f0c8a0",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 161,
+   "y": 74,
+   "w": 11,
+   "h": 38,
+   "radius": 5,
+   "color": "#f0c8a0",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 173,
+   "y": 82,
+   "w": 11,
+   "h": 30,
+   "radius": 5,
+   "color": "#f0c8a0",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 121,
+   "y": 118,
+   "w": 24,
+   "h": 11,
+   "radius": 5,
+   "color": "#d9a878",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "line",
+   "x": 236,
+   "y": 130,
+   "x2": 270,
+   "y2": 78,
+   "thickness": 8,
+   "color": "#dfe3e8",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "line",
+   "x": 272,
+   "y": 130,
+   "x2": 238,
+   "y2": 78,
+   "thickness": 8,
+   "color": "#c0c6cd",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 234,
+   "y": 140,
+   "r": 12,
+   "thickness": 5,
+   "color": "#ff5a4d",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 274,
+   "y": 140,
+   "r": 12,
+   "thickness": 5,
+   "color": "#ff5a4d",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 254,
+   "y": 106,
+   "r": 5,
+   "color": "#7a8896",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "rock",
+   "x": 67,
+   "y": 168,
+   "w": 88,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "paper",
+   "x": 161,
+   "y": 168,
+   "w": 88,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "scissors",
+   "x": 254,
+   "y": 168,
+   "w": 86,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "you",
+   "x": 45,
+   "y": 68,
+   "w": 44,
+   "size": "small",
+   "color": "#ffffff",
+   "states": [
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "me",
+    0
+   ]
+  },
+  {
+   "type": "text",
+   "text": "me",
+   "x": 89,
+   "y": 68,
+   "w": 44,
+   "size": "small",
+   "color": "#ffd9a8",
+   "states": [
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "bot",
+    0
+   ]
+  },
+  {
+   "type": "text",
+   "text": "you",
+   "x": 139,
+   "y": 68,
+   "w": 44,
+   "size": "small",
+   "color": "#ffffff",
+   "states": [
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "me",
+    1
+   ]
+  },
+  {
+   "type": "text",
+   "text": "me",
+   "x": 183,
+   "y": 68,
+   "w": 44,
+   "size": "small",
+   "color": "#ffd9a8",
+   "states": [
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "bot",
+    1
+   ]
+  },
+  {
+   "type": "text",
+   "text": "you",
+   "x": 232,
+   "y": 68,
+   "w": 44,
+   "size": "small",
+   "color": "#ffffff",
+   "states": [
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "me",
+    2
+   ]
+  },
+  {
+   "type": "text",
+   "text": "me",
+   "x": 276,
+   "y": 68,
+   "w": 44,
+   "size": "small",
+   "color": "#ffd9a8",
+   "states": [
+    "win",
+    "tie",
+    "lose"
+   ],
+   "when": [
+    "bot",
+    2
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 38,
+   "y": 40,
+   "r": 12,
+   "color": "#ffd34d",
+   "states": [
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 34,
+   "y": 37,
+   "r": 2,
+   "color": "#202020",
+   "states": [
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "circle",
+   "x": 42,
+   "y": 37,
+   "r": 2,
+   "color": "#202020",
+   "states": [
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "line",
+   "x": 33,
+   "y": 43,
+   "x2": 38,
+   "y2": 47,
+   "thickness": 2,
+   "color": "#202020",
+   "states": [
+    "lose"
+   ]
+  },
+  {
+   "type": "line",
+   "x": 38,
+   "y": 47,
+   "x2": 43,
+   "y2": 43,
+   "thickness": 2,
+   "color": "#202020",
+   "states": [
+    "lose"
+   ]
+  },
+  {
+   "type": "line",
+   "x": 33,
+   "y": 47,
+   "x2": 38,
+   "y2": 43,
+   "thickness": 2,
+   "color": "#202020",
+   "states": [
+    "win"
+   ]
+  },
+  {
+   "type": "line",
+   "x": 38,
+   "y": 43,
+   "x2": 43,
+   "y2": 47,
+   "thickness": 2,
+   "color": "#202020",
+   "states": [
+    "win"
+   ]
+  },
+  {
+   "type": "line",
+   "x": 33,
+   "y": 45,
+   "x2": 43,
+   "y2": 45,
+   "thickness": 2,
+   "color": "#202020",
+   "states": [
+    "tie"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "title",
+   "x": 160,
+   "y": 70,
+   "w": 280,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "intro"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "hint",
+   "x": 160,
+   "y": 120,
+   "w": 270,
+   "size": "medium",
+   "color": "#c8c8c8",
+   "states": [
+    "intro"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "pickone",
+   "x": 150,
+   "y": 40,
+   "w": 200,
+   "size": "medium",
+   "color": "#ffe045",
+   "states": [
+    "choose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "wins",
+   "x": 268,
+   "y": 40,
+   "w": 80,
+   "size": "small",
+   "color": "#ffffff",
+   "states": [
+    "choose",
+    "beat1",
+    "beat2",
+    "beat3",
+    "beat4",
+    "win",
+    "tie",
+    "lose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "b1",
+   "x": 160,
+   "y": 40,
+   "w": 200,
+   "size": "medium",
+   "color": "#ffe045",
+   "states": [
+    "beat1"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "b2",
+   "x": 160,
+   "y": 40,
+   "w": 200,
+   "size": "medium",
+   "color": "#ffe045",
+   "states": [
+    "beat2"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "b3",
+   "x": 160,
+   "y": 40,
+   "w": 200,
+   "size": "medium",
+   "color": "#ffe045",
+   "states": [
+    "beat3"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "b4",
+   "x": 160,
+   "y": 40,
+   "w": 200,
+   "size": "large",
+   "color": "#ff9d3c",
+   "states": [
+    "beat4"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "youwin",
+   "x": 160,
+   "y": 40,
+   "w": 190,
+   "size": "medium",
+   "color": "#7CFC8A",
+   "states": [
+    "win"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "iwin",
+   "x": 160,
+   "y": 40,
+   "w": 190,
+   "size": "medium",
+   "color": "#ff8a80",
+   "states": [
+    "lose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "tie",
+   "x": 160,
+   "y": 40,
+   "w": 190,
+   "size": "medium",
+   "color": "#ffffff",
+   "states": [
+    "tie"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "over",
+   "x": 160,
+   "y": 70,
+   "w": 280,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "over"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "score_big",
+   "x": 160,
+   "y": 120,
+   "w": 280,
+   "size": "large",
+   "color": "#ffe045",
+   "states": [
+    "over"
+   ]
+  }
+ ],
+ "texts": {
+  "title": {
+   "en": "Rock Paper Scissors",
+   "es": "Piedra papel tijera"
+  },
+  "hint": {
+   "en": "Win as many in a row as you can",
+   "es": "Gana todas las que puedas seguidas"
+  },
+  "pickone": {
+   "en": "Pick one",
+   "es": "Elige una"
+  },
+  "wins": {
+   "en": "Wins %0",
+   "es": "Victorias %0"
+  },
+  "rock": {
+   "en": "Rock",
+   "es": "Piedra"
+  },
+  "paper": {
+   "en": "Paper",
+   "es": "Papel"
+  },
+  "scissors": {
+   "en": "Scissors",
+   "es": "Tijera"
+  },
+  "you": {
+   "en": "YOU",
+   "es": "TU"
+  },
+  "me": {
+   "en": "ME",
+   "es": "YO"
+  },
+  "b1": {
+   "en": "Rock...",
+   "es": "Piedra..."
+  },
+  "b2": {
+   "en": "Paper...",
+   "es": "Papel..."
+  },
+  "b3": {
+   "en": "Scissors...",
+   "es": "Tijera..."
+  },
+  "b4": {
+   "en": "Shoot!",
+   "es": "Ya!"
+  },
+  "youwin": {
+   "en": "You win this one!",
+   "es": "Ganas esta!"
+  },
+  "iwin": {
+   "en": "I win!",
+   "es": "Gano yo!"
+  },
+  "tie": {
+   "en": "Tie, again",
+   "es": "Empate, otra vez"
+  },
+  "over": {
+   "en": "I got you",
+   "es": "Te gane"
+  },
+  "score_big": {
+   "en": "Wins in a row: %0",
+   "es": "Victorias seguidas: %0"
+  }
+ },
+ "rules": [
+  {
+   "state": "intro",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "score",
+     0
+    ],
+    [
+     "set",
+     "bot",
+     -1
+    ],
+    [
+     "set",
+     "me",
+     -1
+    ]
+   ]
+  },
+  {
+   "state": "intro",
+   "on": "timer",
+   "go": "choose"
+  },
+  {
+   "state": "intro",
+   "on": "tap",
+   "go": "choose"
+  },
+  {
+   "state": "choose",
+   "on": "tap",
+   "region": "rock",
+   "go": "beat1",
+   "do": [
+    [
+     "set",
+     "me",
+     0
+    ],
+    [
+     "set",
+     "bot",
+     -1
+    ],
+    [
+     "sync",
+     "me"
+    ],
+    [
+     "tone",
+     "boop"
+    ]
+   ]
+  },
+  {
+   "state": "choose",
+   "on": "tap",
+   "region": "paper",
+   "go": "beat1",
+   "do": [
+    [
+     "set",
+     "me",
+     1
+    ],
+    [
+     "set",
+     "bot",
+     -1
+    ],
+    [
+     "sync",
+     "me"
+    ],
+    [
+     "tone",
+     "squeak"
+    ]
+   ]
+  },
+  {
+   "state": "choose",
+   "on": "tap",
+   "region": "scissors",
+   "go": "beat1",
+   "do": [
+    [
+     "set",
+     "me",
+     2
+    ],
+    [
+     "set",
+     "bot",
+     -1
+    ],
+    [
+     "sync",
+     "me"
+    ],
+    [
+     "tone",
+     "boing"
+    ]
+   ]
+  },
+  {
+   "state": "beat1",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "cue0"
+    ]
+   ]
+  },
+  {
+   "state": "beat1",
+   "on": "timer",
+   "go": "beat2"
+  },
+  {
+   "state": "beat2",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "cue1"
+    ]
+   ]
+  },
+  {
+   "state": "beat2",
+   "on": "timer",
+   "go": "beat3"
+  },
+  {
+   "state": "beat3",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "cue2"
+    ]
+   ]
+  },
+  {
+   "state": "beat3",
+   "on": "timer",
+   "go": "beat4"
+  },
+  {
+   "state": "beat4",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "cue5"
+    ]
+   ]
+  },
+  {
+   "state": "beat4",
+   "on": "timer",
+   "go": "reveal",
+   "do": [
+    [
+     "rand",
+     "bot",
+     3
+    ],
+    [
+     "copy",
+     "d",
+     "me"
+    ],
+    [
+     "sub_ctr",
+     "d",
+     "bot"
+    ],
+    [
+     "add",
+     "d",
+     3
+    ],
+    [
+     "sync",
+     "bot"
+    ]
+   ]
+  },
+  {
+   "state": "reveal",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "d",
+    3
+   ],
+   "go": "tie"
+  },
+  {
+   "state": "reveal",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "d",
+    4
+   ],
+   "go": "win"
+  },
+  {
+   "state": "reveal",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "d",
+    1
+   ],
+   "go": "win"
+  },
+  {
+   "state": "reveal",
+   "on": "enter",
+   "go": "lose"
+  },
+  {
+   "state": "win",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "add",
+     "score",
+     1
+    ],
+    [
+     "tone",
+     "fanfare"
+    ],
+    [
+     "celebrate",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "win",
+   "on": "timer",
+   "go": "choose",
+   "do": [
+    [
+     "set",
+     "bot",
+     -1
+    ],
+    [
+     "set",
+     "me",
+     -1
+    ]
+   ]
+  },
+  {
+   "state": "tie",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "wah"
+    ]
+   ]
+  },
+  {
+   "state": "tie",
+   "on": "timer",
+   "go": "choose",
+   "do": [
+    [
+     "set",
+     "bot",
+     -1
+    ],
+    [
+     "set",
+     "me",
+     -1
+    ]
+   ]
+  },
+  {
+   "state": "lose",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "haha"
+    ]
+   ]
+  },
+  {
+   "state": "lose",
+   "on": "timer",
+   "go": "over"
+  },
+  {
+   "state": "over",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "save"
+    ]
+   ]
+  },
+  {
+   "state": "over",
+   "on": "timer",
+   "go": "end"
+  },
+  {
+   "state": "over",
+   "on": "tap",
+   "go": "end"
+  }
+ ]
+}

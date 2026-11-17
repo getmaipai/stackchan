@@ -1,0 +1,48 @@
+# Intent: the second library patch for the pinned private-network client (applied by scripts/fw-tailnet.sh after microlink.patch, to the downloaded copy outside this tree). Adds microlink_set_home_derp_region(): the unit moves its home relay to the relay region the hub is on. Why (patch RM04): two nodes can only start a handshake through a relay when they share a relay region (a node sends to a peer through its own home relay and the peer listens on its own). The client's default region (Frankfurt) differs from a hub on another region, so a handshake started by the unit failed and worked only when the hub spoke first. The old firmware pinned one region by hand; the unit now learns the hub's region from the network map and follows it, using the steps the client's own relay-region override already uses (home region, Hostinfo update, relay reconnect).
+# Placement: unit (library patch for the travel client; applied outside the unit tree)
+# Upstream: components/microlink of the pinned client (MIT), see firmware/tailnet/PIN
+# Check after a flash: with a hub on another relay region than the unit's default, the serial log says "moving the home relay to the hub's region" once, the unit's first message to the hub gets through without the hub speaking first, and self.tailnet.status reports relay equal to hub_relay.
+diff --git a/components/microlink/include/microlink.h b/components/microlink/include/microlink.h
+--- a/components/microlink/include/microlink.h
++++ b/components/microlink/include/microlink.h
+@@ -343,6 +343,12 @@
+ esp_err_t microlink_set_wg_tx_copyfree(microlink_t *ml, bool on);
+ bool microlink_get_wg_tx_copyfree(const microlink_t *ml);
+ void microlink_get_wg_tx_profile(uint32_t *pkts, uint64_t *us, bool reset);
++
++/* MAIPAI: move the home relay to `region` (a region of the current DERPMap). The control plane learns the new home
++ * with the next Hostinfo and the relay connection follows. Peers reach this node through its home relay, and a node
++ * reaches a peer through the peer's, so a node whose home differs from its peer's cannot start a handshake alone.
++ * Returns ESP_ERR_NOT_FOUND when the region is not in the map, ESP_OK (also when already there) otherwise. */
++esp_err_t microlink_set_home_derp_region(microlink_t *ml, uint16_t region);
+ 
+ /* Returns the human-readable city name for a DERP region (from the
+  * MapResponse DERPMap.RegionName field). Returns NULL if region_id is
+diff --git a/components/microlink/src/microlink.c b/components/microlink/src/microlink.c
+--- a/components/microlink/src/microlink.c
++++ b/components/microlink/src/microlink.c
+@@ -823,6 +823,24 @@
+         }
+     }
+     return NULL;
++}
++
++/* MAIPAI: see microlink.h. Same steps as the netcheck override in ml_coord.c. */
++esp_err_t microlink_set_home_derp_region(microlink_t *ml, uint16_t region) {
++    if (!ml || region == 0) return ESP_ERR_INVALID_ARG;
++    bool known = false;
++    for (int i = 0; i < ml->derp_region_count; i++) {
++        if (ml->derp_regions[i].region_id == region) { known = true; break; }
++    }
++    if (!known) return ESP_ERR_NOT_FOUND;
++    if (ml->derp_home_region == region) return ESP_OK;
++    ESP_LOGW(TAG, "Home relay region %u -> %u (the peer's region)", ml->derp_home_region, region);
++    ml->derp_home_region = region;
++    ml->netinfo_dirty = true;
++    if (ml->derp.connected) {
++        xEventGroupSetBits(ml->events, ML_EVT_DERP_RECONNECT);
++    }
++    return ESP_OK;
+ }
+ 
+ esp_err_t microlink_set_wg_tx_copyfree(microlink_t *ml, bool on) { return ml_wg_set_tx_copyfree(ml, on); }

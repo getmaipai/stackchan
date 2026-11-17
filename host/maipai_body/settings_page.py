@@ -22,6 +22,7 @@ from maipai_body import packs as packs_mod
 from maipai_body import phrase_packs as phrase_packs_mod
 from maipai_body import picture_faces as picture_mod
 from maipai_body import remote_activity as activity_mod
+from maipai_body import scenes as scenes_mod
 from maipai_body import unit_device as device_mod
 from maipai_body import unit_extras as extras_mod
 from maipai_body import unit_remote as remote_mod
@@ -267,7 +268,7 @@ class SettingsBackend:
                 "That unit is not paired. Pair it first, then open its settings."
             )
 
-    _DEVICE_KEYS = ("volume", "brightness", "idle_motion", "idle_movement", "look_speaker", "look_faces", "face_owner", "led", "mute", "vision_off", "quiet")
+    _DEVICE_KEYS = ("volume", "brightness", "idle_motion", "idle_movement", "look_speaker", "look_faces", "dance_to_music", "face_owner", "led", "mute", "vision_off", "quiet")
 
     def _saved_device(self, device_id: str) -> dict[str, Any]:
         own = self.store.get(device_id)
@@ -278,9 +279,22 @@ class SettingsBackend:
             "idle_movement": own.get("idle_movement", "off"),
             "look_speaker": own.get("look_speaker", False),
             "look_faces": own.get("look_faces", False),
+            "dance_to_music": own.get("dance_to_music", False),
+            "dance_status": self._dance_status(device_id),
             "face_owner": own.get("face_owner", "robot"),
             "led": own.get("led", "off"),
         }
+
+    def _dance_status(self, device_id: str) -> str:
+        """The plain state of "Dance to music" for the page: off, waiting, listening, dancing, paused or unsupported (see music_dance_wiring.status_code)."""
+        hook = getattr(self, "music_status", None)
+        saved = bool(self.store.get(device_id).get("dance_to_music", False))
+        if hook is None:
+            return "waiting" if saved else "off"
+        try:
+            return str(hook(saved))
+        except Exception:
+            return "waiting" if saved else "off"
 
     def _device_post(self, device_id: str, values: dict[str, Any], lang: str) -> dict[str, Any]:
         """One everyday control: send it to the unit, then keep the value here so the page can show it again."""
@@ -293,6 +307,12 @@ class SettingsBackend:
                 result = self.device.set_volume(device_id, value, lang)
             elif key == "brightness":
                 result = self.device.set_brightness(device_id, value, lang)
+            elif key == "dance_to_music":
+                if not isinstance(value, bool):
+                    raise SettingsError("Dance to music must be on or off. Choose on or off and save again.")
+                self.store.update(device_id, {key: value})
+                self._notify_saved(device_id, {key: value})  # app.py turns the music dance controller on or off
+                return {"ok": True, key: value, "status": self._dance_status(device_id)}
             elif key in ("look_speaker", "look_faces"):
                 self.store.update(device_id, {key: value})
                 self._notify_saved(device_id, {key: value})
@@ -365,6 +385,8 @@ class SettingsBackend:
             return self.polish.overlays.remote_set(device_id, values.get("name"), values.get("intensity"), values.get("seconds"), lang)
         if do == "overlay_clear":
             return self.polish.overlays.remote_clear(device_id, lang)
+        if do == "scene":
+            return self.polish.scene_test(device_id, values.get("name"), lang)
         raise extras_mod.ExtrasError(device_mod._words(lang, "bad_value", field=str(do)))
 
     def _cue_view(self, device_id: str, lang: str) -> dict[str, Any]:
@@ -441,6 +463,8 @@ class SettingsBackend:
                 body = self.polish.prefs.view(device_id, lang)
             elif what == "pages":
                 body = self.polish.pages.view(device_id, lang)
+            elif what == "scenes":
+                body = self.polish.scenes.view(device_id)
             elif what == "packs":
                 body = self.polish.packs.view(device_id, lang)
             elif what == "fillers":
@@ -456,6 +480,7 @@ class SettingsBackend:
             picture_mod.PictureError,
             packs_mod.PackError,
             overlays_mod.OverlayError,
+            scenes_mod.SceneError,
             SettingsError,
         ) as error:
             return 400, JSON, json.dumps({"error": str(error)}).encode()
@@ -496,6 +521,10 @@ class SettingsBackend:
             else:
                 reply = polish.pages.push_tiles(device_id, values.get("tiles"), lang)
             return (400 if reply.get("ok") is False and "error" in reply else 200), reply
+        if action == "scenes":
+            if values.get("reset") is True:
+                return 200, polish.scenes.reset(device_id, values.get("name"), lang)
+            return 200, polish.scenes.save(device_id, values.get("name"), {k: v for k, v in values.items() if k != "name"}, lang)
         if action == "listen-test":
             return 200, polish.prefs.test_listen(device_id, lang)
         if action == "packs/activate":
@@ -569,7 +598,7 @@ class SettingsBackend:
         try:
             if rest == "people" or rest.startswith("people/"):
                 return self._people_post(rest, values, lang)
-            for polish_action in ("prefs", "pages", "pages/show", "pages/tiles", "listen-test", "packs/activate", "packs/sync", "fillers/generate", "phrases/generate"):
+            for polish_action in ("prefs", "scenes", "pages", "pages/show", "pages/tiles", "listen-test", "packs/activate", "packs/sync", "fillers/generate", "phrases/generate"):
                 if rest.endswith("/" + polish_action):
                     device_id = rest[: -len(polish_action) - 1]
                     self._unit_known(device_id)
@@ -612,6 +641,7 @@ class SettingsBackend:
             picture_mod.PictureError,
             packs_mod.PackError,
             overlays_mod.OverlayError,
+            scenes_mod.SceneError,
             SettingsError,
         ) as error:
             return 400, {"error": str(error)}

@@ -1,0 +1,1188 @@
+# Intent: Whack-a-mole is drawn with a real mole (head, ears, nose, eyes, a hole and a dirt mound) wearing one of four funny faces at random and a dazed face with stars when hit, with funny hit, miss and escape sounds; and the games page and the engine grow Tic-Tac-Toe, a Bop-It style "Do It", Simon Says and Rock Paper Scissors. The drawing moves into a header with LVGL only (maipai_games_draw.h) that the host renderer compiles too; a sound waits for the display strip that carries its picture (the UI03 rule for every game); shake, tilt and pet reach a running game from the imu and head touch tasks through atomics only (those tasks run on PSRAM stacks and never touch flash or NVS); Bop-It takes taps and swipes when the finger lifts; the games page and the More screen's games list are grids of two columns with a More tile.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games.cc and maipai_games.h (ours, G02, G03), hal_imu.cpp and hal_head_touch.cpp (M5Stack, small hooks), board/stackchan_display.cc (ours, G03), maipai_pages.cc and maipai_more.cc (ours, P13, UI01)
+# Check after a flash: Games page shows seven games (a More tile); Whack-a-Mole shows a mole with a funny face, a bonk or squeak on a hit, a funny sound on a miss and when a mole hides; Tic-Tac-Toe, Do It, Simon Says and Rock Paper Scissors start from the page and by voice; every button is inside y 28 to 184.
+# Kconfig: none (MAIPAI_GAMES, default y)
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -10,6 +10,9 @@
+ #if CONFIG_MAIPAI_GAMES
+ #include "maipai_games.h"
+ #include "maipai_games_core.h"
++#include "maipai_games_draw.h"
++#include "maipai_games_input_core.h"
++#include "maipai_gesture_core.h"
+ #include "maipai_banner.h"
+ #include "maipai_face.h"
+ #include "maipai_privacy.h"
+@@ -52,12 +55,20 @@ extern const uint8_t _binary_reaction_mpk_start[];
+ extern const uint8_t _binary_reaction_mpk_end[];
+ extern const uint8_t _binary_whack_mpk_start[];
+ extern const uint8_t _binary_whack_mpk_end[];
++extern const uint8_t _binary_tictactoe_mpk_start[];
++extern const uint8_t _binary_tictactoe_mpk_end[];
++extern const uint8_t _binary_bopit_mpk_start[];
++extern const uint8_t _binary_bopit_mpk_end[];
++extern const uint8_t _binary_simonsays_mpk_start[];
++extern const uint8_t _binary_simonsays_mpk_end[];
++extern const uint8_t _binary_rps_mpk_start[];
++extern const uint8_t _binary_rps_mpk_end[];
+ }
+ 
+ namespace {
+ 
+-constexpr int kBuiltIns   = 3;
+-constexpr int kMaxGames   = kBuiltIns + 1;  // the three, plus one pack loaded from outside (bench builds)
++constexpr int kBuiltIns   = 7;  // patch UI13: memory, reaction, whack, tictactoe, bopit, simonsays, rps
++constexpr int kMaxGames   = kBuiltIns + 1;  // the built-ins, plus one pack loaded from outside (bench builds)
+ constexpr uint32_t kTickMs = 30;
+ 
+ struct Source {
+@@ -68,6 +79,10 @@ const Source kBuilt[kBuiltIns] = {
+     {_binary_memory_mpk_start, _binary_memory_mpk_end},
+     {_binary_reaction_mpk_start, _binary_reaction_mpk_end},
+     {_binary_whack_mpk_start, _binary_whack_mpk_end},
++    {_binary_tictactoe_mpk_start, _binary_tictactoe_mpk_end},
++    {_binary_bopit_mpk_start, _binary_bopit_mpk_end},
++    {_binary_simonsays_mpk_start, _binary_simonsays_mpk_end},
++    {_binary_rps_mpk_start, _binary_rps_mpk_end},
+ };
+ 
+ // A pack loaded from outside the image (only the bench tool does this today): one slot, in PSRAM.
+@@ -91,9 +106,13 @@ struct Game {
+     uint8_t type[MG_MAX_SHAPES];
+     uint8_t text[MG_MAX_SHAPES];
+     int16_t last_ctr[MG_COUNTERS];
++    uint8_t last_board[MG_BOARD_CELLS];
+     uint8_t last_state;
+     bool es;
+     bool lower;
++    bool tap_on_release;  // patch UI13: a touch is a tap when the finger lifts (Bop-It), so a swipe is not also a tap
++    lv_point_precise_t pts[MG_MAX_SHAPES][2];  // the end points of the LINE shapes
++    mgd::Mole mole;
+     int entry;
+     int rank;
+     uint32_t last_awake_ms;
+@@ -105,6 +124,8 @@ struct Game {
+ Game* s_game = nullptr;  // owned by the LVGL task: touched only with the LVGL lock held
+ std::atomic<bool> s_active{false};
+ std::atomic<const char*> s_stop_req{nullptr};
++uint32_t s_inputs_total = 0;  // sensor inputs the tick has taken (bench status), so a stray tilt or shake on a still unit shows
++std::atomic<uint32_t> s_input_bits{0};  // patch UI13: bit n set = event n (MG_EV_*) waits for the next 30 ms tick
+ uint32_t s_tones_total = 0;
+ uint32_t s_saves_total = 0;
+ 
+@@ -230,103 +251,18 @@ void write_scores(const char* id, const uint16_t scores[MG_SCORES])
+ 
+ // ---- drawing ----
+ 
+-lv_color_t colour(uint16_t c)
+-{
+-    return lv_color_make(static_cast<uint8_t>(((c >> 11) & 31) << 3), static_cast<uint8_t>(((c >> 5) & 63) << 2),
+-                         static_cast<uint8_t>((c & 31) << 3));
+-}
+-
+-const lv_font_t* font_for(int size)
+-{
+-    return size == 0 ? &lv_font_montserrat_14 : (size == 1 ? &lv_font_montserrat_16 : &lv_font_montserrat_20);
+-}
+-
+-lv_obj_t* plain(lv_obj_t* parent)
+-{
+-    lv_obj_t* o = lv_obj_create(parent);
+-    lv_obj_remove_style_all(o);
+-    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+-    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+-    return o;
+-}
+-
+-lv_obj_t* build_shape(lv_obj_t* parent, const mg_shape_t& s)
+-{
+-    switch (s.type) {
+-        case MG_SH_FILL: {
+-            lv_obj_t* o = plain(parent);
+-            lv_obj_set_size(o, 320, 240);
+-            lv_obj_set_pos(o, 0, 0);
+-            lv_obj_set_style_bg_color(o, colour(s.colour), 0);
+-            lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+-            return o;
+-        }
+-        case MG_SH_CIRCLE:
+-        case MG_SH_RING: {
+-            lv_obj_t* o = plain(parent);
+-            lv_obj_set_size(o, s.w * 2, s.w * 2);
+-            lv_obj_set_pos(o, s.x - s.w, s.y - s.w);
+-            lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
+-            if (s.type == MG_SH_CIRCLE) {
+-                lv_obj_set_style_bg_color(o, colour(s.colour), 0);
+-                lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+-            } else {
+-                lv_obj_set_style_border_color(o, colour(s.colour), 0);
+-                lv_obj_set_style_border_width(o, s.aux > 0 ? s.aux : 2, 0);
+-            }
+-            return o;
+-        }
+-        case MG_SH_BOX: {
+-            lv_obj_t* o = plain(parent);
+-            lv_obj_set_size(o, s.w, s.h);
+-            lv_obj_set_pos(o, s.x, s.y);
+-            lv_obj_set_style_radius(o, s.aux, 0);
+-            lv_obj_set_style_bg_color(o, colour(s.colour), 0);
+-            lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+-            return o;
+-        }
+-        default: {  // MG_SH_TEXT
+-            lv_obj_t* o = lv_label_create(parent);
+-            lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+-            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+-            const lv_font_t* font = font_for(s.aux);
+-            const int width       = s.w > 0 ? s.w : 280;
+-            lv_obj_set_style_text_font(o, font, 0);
+-            lv_obj_set_style_text_color(o, colour(s.colour), 0);
+-            lv_obj_set_style_text_align(o, LV_TEXT_ALIGN_CENTER, 0);
+-            lv_label_set_long_mode(o, LV_LABEL_LONG_WRAP);
+-            lv_obj_set_width(o, width);
+-            lv_obj_set_pos(o, s.x - width / 2, s.y - lv_font_get_line_height(font) / 2);
+-            return o;
+-        }
+-    }
+-}
+-
++// Patch UI13: the shapes are drawn by maipai_games_draw.h (LVGL only), which the host renderer compiles too.
+ void redraw(Game* g, bool force)
+ {
+     mg_run_t& r = g->run;
+-    if (!force && r.state == g->last_state && memcmp(r.ctr, g->last_ctr, sizeof(g->last_ctr)) == 0) {
++    if (!force && r.state == g->last_state && memcmp(r.ctr, g->last_ctr, sizeof(g->last_ctr)) == 0 &&
++        memcmp(r.board, g->last_board, sizeof(g->last_board)) == 0) {
+         return;
+     }
+     g->last_state = r.state;
+     memcpy(g->last_ctr, r.ctr, sizeof(g->last_ctr));
+-    for (int i = 0; i < g->pack.n_shapes; i++) {
+-        lv_obj_t* o = g->obj[i];
+-        if (o == nullptr) {
+-            continue;
+-        }
+-        if (mg_shape_visible(&r, i)) {
+-            if (g->type[i] == MG_SH_TEXT) {
+-                char buf[MG_TEXT_LEN + 16];
+-                mg_text(&r, g->text[i], g->es ? 1 : 0, buf, sizeof(buf));
+-                lv_label_set_text(o, buf);
+-            }
+-            lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+-        } else {
+-            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+-        }
+-    }
++    memcpy(g->last_board, r.board, sizeof(g->last_board));
++    mgd::draw_state(r, g->obj, g->type, g->text, &g->mole, g->es);
+ }
+ 
+ // ---- the running game ----
+@@ -335,6 +271,7 @@ int64_t s_light_mark_us = 0;  // bench only: when the light was last asked for
+ void on_disp_event(lv_event_t* e);
+ #endif
+ void color_tones_free();
++void sfx_free();
+ void color_sync_attach(bool on);
+ void color_tone_fallback(uint32_t now);
+ bool color_tones_make();
+@@ -348,6 +285,7 @@ void end_locked(const char* how)
+     s_game = nullptr;
+     color_sync_attach(false);
+     color_tones_free();
++    sfx_free();
+ #if CONFIG_MAIPAI_GAMES_BENCH
+     if (lv_display_t* d = lv_display_get_default()) {
+         lv_display_remove_event_cb_with_user_data(d, on_disp_event, nullptr);
+@@ -432,6 +370,78 @@ struct ColorTone {
+     uint32_t since_ms;
+ };
+ ColorTone s_ct = {-1, 0, 0, 0, 0, 0};
++
++// ---- patch UI13: the funny sounds (maipai_games_sfx_core.h) ----
++// A clip is rendered into a PSRAM buffer when the rule asks for it and played with PlayPcm (the unit's volume and the sound policy
++// decide how loud, as for the Color Memory tones). When the rule named the region its picture changes (the sync action), the clip
++// waits for the first display strip that carries that region, so the sound and the picture start together; a picture whose strip
++// never comes (a dark screen) starts after 100 ms anyway. A clip with no picture to wait for plays at once.
++struct SfxPending {
++    bool on, rect;
++    int16_t x1, y1, x2, y2;
++    uint32_t since_ms;
++    size_t n;
++};
++SfxPending s_sfx          = {};
++int16_t* s_sfx_buf        = nullptr;
++
++void sfx_free()
++{
++    s_sfx.on = false;
++    if (s_sfx_buf != nullptr) {
++        heap_caps_free(s_sfx_buf);
++        s_sfx_buf = nullptr;
++    }
++}
++
++void sfx_play_now()
++{
++    if (!s_sfx.on || s_sfx_buf == nullptr) {
++        s_sfx.on = false;
++        return;
++    }
++    s_sfx.on = false;
++#if CONFIG_MAIPAI_GAMES_BENCH
++    const int64_t t0 = esp_timer_get_time();
++    g_mp_pcm_call_us = t0;
++    ESP_LOGW("GAMELAT", "%lld sfx_play %u samples, %u ms after it was asked for%s", static_cast<long long>(t0 / 1000), static_cast<unsigned>(s_sfx.n),
++             static_cast<unsigned>(now_ms() - s_sfx.since_ms), s_sfx.rect ? " (waited for its picture)" : " (at once)");
++#endif
++    (void)Application::GetInstance().GetAudioService().PlayPcm(s_sfx_buf, s_sfx.n, MGS_SFX_RATE);  // PlayPcm copies
++}
++
++// Renders clip `clip` and plays it now, or when the strip of `region` (a region number, or MG_NO_REGION) is on the panel.
++void sfx_queue(const Game* g, int clip, int region)
++{
++    if (!maipai_sounds_gate("popup")) {
++        return;  // mute, sounds off or night: the picture still shows
++    }
++    if (s_sfx_buf == nullptr) {
++        s_sfx_buf = static_cast<int16_t*>(heap_caps_malloc(MGS_SFX_MAX_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (s_sfx_buf == nullptr) {
++            return;
++        }
++    }
++    const size_t n = mgs_render(clip, s_sfx_buf, MGS_SFX_MAX_SAMPLES);
++    if (n == 0) {
++        return;
++    }
++    s_sfx.n        = n;
++    s_sfx.on       = true;
++    s_sfx.since_ms = now_ms();
++    s_sfx.rect     = false;
++    if (region >= 0 && region < g->pack.n_regions) {
++        mg_region_t rg;
++        mg_region_get(&g->pack, region, &rg);
++        s_sfx.x1   = static_cast<int16_t>(rg.x);
++        s_sfx.y1   = static_cast<int16_t>(rg.y);
++        s_sfx.x2   = static_cast<int16_t>(rg.x + rg.w - 1);
++        s_sfx.y2   = static_cast<int16_t>(rg.y + rg.h - 1);
++        s_sfx.rect = true;
++    } else {
++        sfx_play_now();
++    }
++}
+ int16_t* s_ct_buf[MG_COLOR_TONES] = {};  // the four tones, held in PSRAM while Color Memory runs (about 58 KB)
+ 
+ bool is_color_game(const Game* g)
+@@ -483,13 +493,20 @@ void play_color_tone(int idx)
+ }
+ 
+ // A display flush is about to start: if it carries the waiting tone's tile, the tone starts now.
++void sfx_play_now();
+ void on_flush_sync(lv_event_t* e)
+ {
+-    if (s_ct.idx < 0) {
++    if (s_ct.idx < 0 && !s_sfx.on) {
+         return;
+     }
+     const lv_area_t* a = static_cast<const lv_area_t*>(lv_event_get_param(e));
+-    if (a == nullptr || a->x2 < s_ct.x1 || a->x1 > s_ct.x2 || a->y2 < s_ct.y1 || a->y1 > s_ct.y2) {
++    if (a == nullptr) {
++        return;
++    }
++    if (s_sfx.on && s_sfx.rect && !(a->x2 < s_sfx.x1 || a->x1 > s_sfx.x2 || a->y2 < s_sfx.y1 || a->y1 > s_sfx.y2)) {
++        sfx_play_now();  // patch UI13: a funny sound starts with the strip that carries its picture
++    }
++    if (s_ct.idx < 0 || a->x2 < s_ct.x1 || a->x1 > s_ct.x2 || a->y2 < s_ct.y1 || a->y1 > s_ct.y2) {
+         return;
+     }
+     const int idx = s_ct.idx;
+@@ -518,6 +535,9 @@ void color_tone_fallback(uint32_t now)
+         s_ct.idx      = -1;
+         play_color_tone(idx);
+     }
++    if (s_sfx.on && now - s_sfx.since_ms >= 100) {
++        sfx_play_now();
++    }
+ }
+ 
+ void redraw(Game* g, bool force);
+@@ -560,6 +580,8 @@ void after_event(Game* g)
+             s_ct = {r.tone_q[i], static_cast<int16_t>(rg.x), static_cast<int16_t>(rg.y), static_cast<int16_t>(rg.x + rg.w - 1),
+                     static_cast<int16_t>(rg.y + rg.h - 1), now_ms()};
+             color_event = true;
++        } else if (r.tone_q[i] >= MGS_TONE_SHIPPED) {
++            sfx_queue(g, r.tone_q[i] - MGS_TONE_SHIPPED, r.sync_region == MG_NO_REGION ? -1 : r.sync_region);
+         } else {
+             (void)maipai_sounds_play(MG_TONES[r.tone_q[i]]);  // the sound policy and the mute decide; a refusal is silence
+         }
+@@ -608,6 +630,18 @@ void tick_cb(lv_timer_t*)
+         g->last_awake_ms = now;
+         hal_bridge::power_keep_awake();  // a game keeps the screen on
+     }
++    if (const uint32_t bits = s_input_bits.exchange(0)) {  // patch UI13: shakes, tilts and pets the sensors' tasks posted
++        for (int ev = MG_EV_SWIPE_L; ev < MG_EV_COUNT; ev++) {
++            if (bits & (1u << ev)) {
++                s_inputs_total++;
++                mg_input(&g->run, ev, now);
++                after_event(g);
++                if (s_game != g) {
++                    return;  // the input ended the game (the game record is gone)
++                }
++            }
++        }
++    }
+     mg_tick(&g->run, now);
+     color_tone_fallback(now);
+     after_event(g);
+@@ -686,6 +720,8 @@ bool maipai_games_lower_is_better(int index)
+     return false;
+ }
+ 
++static_assert(static_cast<int>(MAIPAI_GAME_EV_SHAKE) == static_cast<int>(MG_EV_SHAKE) && static_cast<int>(MAIPAI_GAME_EV_PET) == static_cast<int>(MG_EV_PET), "the sensor tasks name events by number");
++
+ const char* maipai_games_start_locked(const char* name, const char* source)
+ {
+     const bool es = want_spanish();
+@@ -695,8 +731,8 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     }
+     const int slot = slot_by_name(name);
+     if (slot < 0) {
+-        return say(es, "That game is not on this unit. Ask for memory, reaction or whack.",
+-                   "Ese juego no esta en esta unidad. Pide memory, reaction o whack.");
++        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, simonsays or rps.",
++                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit, simonsays o rps.");
+     }
+     if (maipai_quiet()) {
+         return say(es, "The unit is in full quiet, so no game starts. Turn full quiet off, then ask again.",
+@@ -709,8 +745,8 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     const uint8_t* data;
+     size_t len;
+     if (!slot_bytes(slot, &data, &len)) {
+-        return say(es, "That game is not on this unit. Ask for memory, reaction or whack.",
+-                   "Ese juego no esta en esta unidad. Pide memory, reaction o whack.");
++        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, simonsays or rps.",
++                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit, simonsays o rps.");
+     }
+     Game* g = static_cast<Game*>(heap_caps_calloc(1, sizeof(Game), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+     if (g == nullptr) {
+@@ -724,6 +760,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     }
+     g->es    = es;
+     g->lower = (g->pack.flags & MG_FLAG_LOWER_BETTER) != 0;
++    g->tap_on_release = (g->pack.flags & MG_FLAG_TAP_ON_RELEASE) != 0;
+     g->entry = slot;
+     g->rank  = -1;
+     snprintf(g->id, sizeof(g->id), "%s", g->pack.id);
+@@ -748,7 +785,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+         mg_shape_get(&g->pack, i, &s);
+         g->type[i] = s.type;
+         g->text[i] = s.text;
+-        g->obj[i]  = build_shape(g->root, s);
++        g->obj[i]  = mgd::build_shape(g->root, s, g->pts[i], &g->mole);
+     }
+     show_best(g, false);
+     g->last_awake_ms = now_ms();
+@@ -756,9 +793,10 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     s_game = g;
+     s_active.store(true);
+     s_stop_req.store(nullptr);
+-    if (strcmp(g->id, "memory") == 0 && color_tones_make()) {
+-        color_sync_attach(true);
++    if (strcmp(g->id, "memory") == 0) {
++        (void)color_tones_make();  // no memory: the game then plays the shipped sounds
+     }
++    color_sync_attach(true);  // patch UI13: every game may start a sound together with its picture
+ #if CONFIG_MAIPAI_GAMES_BENCH
+     if (lv_display_t* d = lv_display_get_default()) {
+         lv_display_add_event_cb(d, on_disp_event, LV_EVENT_FLUSH_START, nullptr);
+@@ -766,6 +804,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+         lv_display_add_event_cb(d, on_disp_event, LV_EVENT_REFR_READY, nullptr);
+     }
+ #endif
++    s_input_bits.store(0);
+     g->timer = lv_timer_create(tick_cb, kTickMs, nullptr);
+     if (!maipai_mic_blocked()) {
+         hal_bridge::stop_word_arm(true);  // best effort: the stop word ends a game
+@@ -801,13 +840,77 @@ bool maipai_games_request_stop(const char* how)
+ void maipai_games_touch(int x, int y)
+ {
+     Game* g = s_game;
+-    if (g == nullptr) {
+-        return;
++    if (g == nullptr || g->tap_on_release) {
++        return;  // a game that takes its taps when the finger lifts hears the release instead
+     }
+     mg_tap(&g->run, x, y, now_ms());
+     after_event(g);
+ }
+ 
++// Patch UI13: the finger lifted (LVGL task, lock held). A game that takes taps on release gets a swipe left or right as its own event and a
++// still touch as a tap where it began; a swipe down or up is the unit's (stop, quick settings) and never reaches here.
++void maipai_games_release(int x0, int y0, int x1, int y1, uint32_t held_ms)
++{
++    Game* g = s_game;
++    if (g == nullptr || !g->tap_on_release) {
++        return;
++    }
++    const uint32_t now = now_ms();
++    const mgs_swipe_t sw = mgs_swipe_of(x0, y0, x1, y1, held_ms);
++    if (sw == MGS_SW_LEFT) {
++        mg_input(&g->run, MG_EV_SWIPE_L, now);
++    } else if (sw == MGS_SW_RIGHT) {
++        mg_input(&g->run, MG_EV_SWIPE_R, now);
++    } else if (sw == MGS_SW_NONE && mgs_abs(x1 - x0) <= MGS_TAP_MAX_PX && mgs_abs(y1 - y0) <= MGS_TAP_MAX_PX && held_ms <= MGS_TAP_MAX_MS) {
++        mg_tap(&g->run, x0, y0, now);
++    } else {
++        return;
++    }
++    after_event(g);
++}
++
++// Patch UI13: inputs from the sensors' own tasks (the imu task and the head touch task run on PSRAM stacks): atomics only, no lock, no
++// flash, no NVS and no allocation. The tick reads them within 30 ms.
++void maipai_games_post_input(int ev)
++{
++    if (s_active.load() && ev >= MG_EV_SWIPE_L && ev < MG_EV_COUNT) {
++        s_input_bits.fetch_or(1u << ev);
++    }
++}
++
++namespace {
++mgi_t s_tilt;               // touched only by the imu task
++bool s_tilt_was_active = false;
++}  // namespace
++
++void maipai_games_imu_feed(float ax, float ay, float az, uint32_t now_ms_in)
++{
++    if (!s_active.load()) {
++        s_tilt_was_active = false;
++        return;
++    }
++    if (!s_tilt_was_active) {
++        mgi_init(&s_tilt);  // the pose the unit rests in when a game starts is its level
++        s_tilt_was_active = true;
++    }
++    switch (mgi_update(&s_tilt, ax, ay, az, now_ms_in)) {
++        case MGI_LEFT: maipai_games_post_input(MG_EV_TILT_L); break;
++        case MGI_RIGHT: maipai_games_post_input(MG_EV_TILT_R); break;
++        case MGI_FORWARD: maipai_games_post_input(MG_EV_TILT_F); break;
++        case MGI_BACK: maipai_games_post_input(MG_EV_TILT_B); break;
++        default: break;
++    }
++}
++
++void maipai_games_shake(uint32_t now_ms_in)
++{
++    if (!s_active.load()) {
++        return;
++    }
++    mgi_note_shake(&s_tilt, now_ms_in);
++    maipai_games_post_input(MG_EV_SHAKE);
++}
++
+ // ---- the tools ----
+ 
+ namespace {
+@@ -983,7 +1086,8 @@ void maipai_games_register_tools()
+                     return out + "]}";
+                 });
+     mcp.AddTool("self.game.start",
+-                "Start a game on the unit's screen: memory (colour memory), reaction (reaction time) or whack (whack-a-mole). "
++                "Start a game on the unit's screen: memory (colour memory), reaction (reaction time), whack (whack-a-mole), tictactoe, "
++                "bopit (tap, swipe, shake, pet or tilt as called), simonsays (tilt or shake only when Simon says) or rps (rock paper scissors). "
+                 "It never starts in full quiet or during an update. A person stops it with a swipe down from the bottom edge "
+                 "or by saying stop. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("memory")),
+@@ -1022,7 +1126,7 @@ void maipai_games_register_tools()
+                     const int slot         = slot_by_name(name.c_str());
+                     mg_pack_t p;
+                     if (slot < 0 || !slot_pack(slot, &p)) {
+-                        return error_json("That game is not on this unit. Ask for memory, reaction or whack.");
++                        return error_json("That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, simonsays or rps.");
+                     }
+                     return std::string("{\"ok\":true,\"game\":\"") + p.id + "\",\"lower_is_better\":" +
+                            ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(slot) + "}";
+@@ -1041,9 +1145,36 @@ void maipai_games_register_tools()
+                     if (s_game == nullptr) {
+                         return error_json("No game is running.");
+                     }
+-                    maipai_games_touch(x, y);
++                    if (s_game->tap_on_release) {
++                        maipai_games_release(x, y, x, y, 100);  // a still touch of 100 ms: what a finger does for a game that takes taps on release
++                    } else {
++                        maipai_games_touch(x, y);
++                    }
+                     return std::string("{\"ok\":true,\"edge\":false}");
+                 });
++    // Patch UI13: the inputs the sensors post, through the same entry (atomics, the tick reads them within 30 ms).
++    mcp.AddTool("self.game.bench_event", "Bench only: post an input as the sensors do: 3 swipe left, 4 swipe right, 5 shake, 6 pet, 7 tilt left, "
++                "8 tilt right, 9 tilt forward, 10 tilt back. Answers {ok, posted}.",
++                PropertyList({Property("event", kPropertyTypeInteger, 5, 3, 10)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const bool on = s_active.load();
++                    maipai_games_post_input(properties["event"].value<int>());
++                    return std::string("{\"ok\":true,\"posted\":") + (on ? "true" : "false") + "}";
++                });
++    mcp.AddTool("self.game.bench_swipe", "Bench only: a finger that swipes from x0, y0 to x1, y1 in ms milliseconds, as the touch release hands it to a game "
++                "that takes taps on release. Answers {ok}.",
++                PropertyList({Property("x0", kPropertyTypeInteger, 200, 0, 319), Property("y0", kPropertyTypeInteger, 100, 0, 239),
++                              Property("x1", kPropertyTypeInteger, 100, 0, 319), Property("y1", kPropertyTypeInteger, 100, 0, 239),
++                              Property("ms", kPropertyTypeInteger, 200, 1, 2000)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    LvglLockGuard lock;
++                    if (s_game == nullptr) {
++                        return error_json("No game is running.");
++                    }
++                    maipai_games_release(properties["x0"].value<int>(), properties["y0"].value<int>(), properties["x1"].value<int>(),
++                                         properties["y1"].value<int>(), static_cast<uint32_t>(properties["ms"].value<int>()));
++                    return std::string("{\"ok\":true}");
++                });
+     mcp.AddTool("self.game.bench_request_stop", "Bench only: ask the running game to end the way the stop word does (no lock, "
+                 "ends within 30 ms). Answers {ok, asked}.",
+                 std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
+@@ -1053,12 +1184,12 @@ void maipai_games_register_tools()
+     mcp.AddTool("self.game.status", "Bench only: the player's state, counters and totals.", std::vector<Property>{},
+                 [](const PropertyList&) -> ReturnValue {
+                     LvglLockGuard lock;
+-                    char out[640];
++                    char out[760];
+                     uint32_t internal_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+                     if (s_game == nullptr) {
+                         snprintf(out, sizeof(out),
+-                                 "{\"ok\":true,\"active\":false,\"tones\":%u,\"saves\":%u,\"internal_free\":%u,\"psram_free\":%u}",
+-                                 static_cast<unsigned>(s_tones_total), static_cast<unsigned>(s_saves_total),
++                                 "{\"ok\":true,\"active\":false,\"tones\":%u,\"saves\":%u,\"inputs\":%u,\"internal_free\":%u,\"psram_free\":%u}",
++                                 static_cast<unsigned>(s_tones_total), static_cast<unsigned>(s_saves_total), static_cast<unsigned>(s_inputs_total),
+                                  static_cast<unsigned>(internal_free), static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
+                         return std::string(out);
+                     }
+@@ -1069,11 +1200,11 @@ void maipai_games_register_tools()
+                     }
+                     snprintf(out, sizeof(out),
+                              "{\"ok\":true,\"active\":true,\"game\":\"%s\",\"state\":%d,\"ctr\":[%d,%d,%d,%d,%d,%d,%d,%d],"
+-                             "\"seq\":[%s],\"seq_pos\":%d,\"steps\":%d,\"finished\":%s,\"tones\":%u,\"saves\":%u,"
+-                             "\"internal_free\":%u,\"psram_free\":%u}",
++                             "\"board\":\"%d%d%d%d%d%d%d%d%d\",\"seq\":[%s],\"seq_pos\":%d,\"steps\":%d,\"finished\":%s,\"tones\":%u,\"saves\":%u,"
++                             "\"inputs\":%u,\"internal_free\":%u,\"psram_free\":%u}",
+                              s_game->id, r.state, r.ctr[0], r.ctr[1], r.ctr[2], r.ctr[3], r.ctr[4], r.ctr[5], r.ctr[6], r.ctr[7],
+-                             seq, r.seq_pos, r.steps, r.finished ? "true" : "false", static_cast<unsigned>(s_tones_total),
+-                             static_cast<unsigned>(s_saves_total), static_cast<unsigned>(internal_free),
++                             r.board[0], r.board[1], r.board[2], r.board[3], r.board[4], r.board[5], r.board[6], r.board[7], r.board[8], seq, r.seq_pos, r.steps, r.finished ? "true" : "false", static_cast<unsigned>(s_tones_total),
++                             static_cast<unsigned>(s_saves_total), static_cast<unsigned>(s_inputs_total), static_cast<unsigned>(internal_free),
+                              static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
+                     return std::string(out);
+                 });
+diff --git a/firmware/main/hal/maipai_games.h b/firmware/main/hal/maipai_games.h
+--- a/firmware/main/hal/maipai_games.h
++++ b/firmware/main/hal/maipai_games.h
+@@ -11,12 +11,13 @@
+ 
+ #if CONFIG_MAIPAI_GAMES
+ #include <stdbool.h>
++#include <stdint.h>
+ 
+ // Registers self.game.list, start, stop and scores (and the bench tools in a bench build).
+ void maipai_games_register_tools();
+ // True from the moment a game starts until it ends. Cheap and safe from any task.
+ bool maipai_games_active();
+-// Starts a game by id ("memory", "reaction", "whack"). Returns "" or a plain sentence saying what is wrong and what to do.
++// Starts a game by id ("memory", "reaction", "whack", "tictactoe", "bopit", "simonsays", "rps"). Returns "" or a plain sentence saying what is wrong and what to do.
+ // The caller holds the LVGL lock. `source` is "touch", "voice" or "host" (reported in the game_started event).
+ const char* maipai_games_start_locked(const char* id, const char* source);
+ // Ends the running game from the LVGL task (the stop swipe); the caller holds the LVGL lock. True if one was running.
+@@ -25,6 +26,16 @@ bool maipai_games_stop_locked(const char* how);
+ bool maipai_games_request_stop(const char* how);
+ // A touch that began outside the screen edges, in screen pixels (LVGL task, lock held).
+ void maipai_games_touch(int x, int y);
++// Patch UI13: the finger lifted (LVGL task, lock held). Only a game that takes its taps on release uses it (a swipe left or right, or a tap).
++void maipai_games_release(int x0, int y0, int x1, int y1, uint32_t held_ms);
++enum { MAIPAI_GAME_EV_SHAKE = 5, MAIPAI_GAME_EV_PET = 6 };  // equal to MG_EV_SHAKE and MG_EV_PET (checked in maipai_games.cc)
++// Patch UI13: inputs from the unit's sensors, safe from any task (atomics only, no lock, flash, NVS or allocation; the imu and head touch
++// tasks run on PSRAM stacks). An event is one of the MG_EV_* numbers of maipai_games_core.h (shake 5, pet 6).
++void maipai_games_post_input(int event);
++// One accelerometer sample, m/s^2, about every 100 ms, from the imu task: the tilt detector for the games that listen for tilts.
++void maipai_games_imu_feed(float ax, float ay, float az, uint32_t now_ms);
++// The imu task saw a shake: a shake event for the game, and the tilt detector keeps quiet for a moment.
++void maipai_games_shake(uint32_t now_ms);
+ // The saved best of each game, for the games page: 0 when none. `lower` tells which way is better.
+ int maipai_games_count();
+ const char* maipai_games_id(int index);
+@@ -37,4 +48,9 @@ inline bool maipai_games_active() { return false; }
+ inline bool maipai_games_request_stop(const char*) { return false; }
+ inline bool maipai_games_stop_locked(const char*) { return false; }
+ inline void maipai_games_touch(int, int) {}
++inline void maipai_games_release(int, int, int, int, unsigned) {}
++inline void maipai_games_post_input(int) {}
++enum { MAIPAI_GAME_EV_SHAKE = 5, MAIPAI_GAME_EV_PET = 6 };
++inline void maipai_games_imu_feed(float, float, float, unsigned) {}
++inline void maipai_games_shake(unsigned) {}
+ #endif
+diff --git a/firmware/main/hal/maipai_games_draw.h b/firmware/main/hal/maipai_games_draw.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_games_draw.h
+@@ -0,0 +1,281 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * How a game's shapes are drawn (patch UI13), with LVGL only: no ESP call, so the host renderer (scripts/fw-face-render/games_render.cc)
++ * draws the very same screens the unit shows. Shapes are built once, hidden, and shown or hidden by the player as the game's state and
++ * counters change. Besides the plain ones (fill, circle, box, ring, text) there is the LINE (a thick rounded segment, for the Tic-Tac-Toe
++ * crosses and the scissors) and the MOLE: one character built from 19 small shapes that stands in the hole named by a counter and wears
++ * the funny face named by another (grin, goofy tongue, startled, helmet, and the dazed face with stars after a hit).
++ */
++#ifndef MAIPAI_GAMES_DRAW_H
++#define MAIPAI_GAMES_DRAW_H
++
++#include <lvgl.h>
++#include "maipai_games_core.h"
++
++namespace mgd {
++
++inline lv_color_t color_of(uint16_t c)
++{
++    return lv_color_make(static_cast<uint8_t>(((c >> 11) & 31) << 3), static_cast<uint8_t>(((c >> 5) & 63) << 2),
++                         static_cast<uint8_t>((c & 31) << 3));
++}
++
++inline const lv_font_t* font_for(int size)
++{
++    return size == 0 ? &lv_font_montserrat_14 : (size == 1 ? &lv_font_montserrat_16 : &lv_font_montserrat_20);
++}
++
++inline lv_obj_t* plain(lv_obj_t* parent)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_style_all(o);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++    return o;
++}
++
++/* ---- the mole ---- */
++enum {
++    P_BODY = 0, P_EAR_L, P_EAR_R, P_IN_L, P_IN_R, P_MUZZLE, P_NOSE, P_EYE_L, P_EYE_R, P_PUP_L, P_PUP_R, P_MOUTH, P_TEETH, P_TONGUE,
++    P_DOME, P_RIM, P_X_L, P_X_R, P_STARS, P_COUNT
++};
++
++struct Mole {
++    lv_obj_t* root;           /* a transparent holder over the whole screen; hiding it hides the mole */
++    lv_obj_t* part[P_COUNT];
++    int last_x, last_y, last_face, last_size;
++};
++
++constexpr uint32_t kBodyC = 0x8b5a2b, kEarInC = 0xe8a0a8, kMuzzleC = 0xd9b38c, kNoseC = 0xff8fa3, kWhiteC = 0xffffff, kPupilC = 0x101010,
++                   kMouthC = 0x3a0f0f, kTongueC = 0xff5f7a, kHelmetC = 0xf5c518, kRimC = 0xc99700, kStarC = 0xffe045;
++
++inline lv_obj_t* blob(lv_obj_t* parent, uint32_t rgb, int radius)
++{
++    lv_obj_t* o = plain(parent);
++    lv_obj_set_style_bg_color(o, lv_color_hex(rgb), 0);
++    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++    lv_obj_set_style_radius(o, radius, 0);
++    return o;
++}
++
++inline lv_obj_t* tag(lv_obj_t* parent, const char* text, const lv_font_t* font, uint32_t rgb)
++{
++    lv_obj_t* o = lv_label_create(parent);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++    lv_obj_set_style_text_font(o, font, 0);
++    lv_obj_set_style_text_color(o, lv_color_hex(rgb), 0);
++    lv_label_set_text(o, text);
++    return o;
++}
++
++inline void mole_build(lv_obj_t* parent, Mole* m)
++{
++    memset(m, 0, sizeof(*m));
++    m->last_x = m->last_y = m->last_face = m->last_size = -9999;
++    m->root = plain(parent);
++    lv_obj_set_size(m->root, 320, 240);
++    lv_obj_set_pos(m->root, 0, 0);
++    lv_obj_t* r = m->root;
++    m->part[P_BODY]   = blob(r, kBodyC, 14);
++    m->part[P_EAR_L]  = blob(r, kBodyC, LV_RADIUS_CIRCLE);
++    m->part[P_EAR_R]  = blob(r, kBodyC, LV_RADIUS_CIRCLE);
++    m->part[P_IN_L]   = blob(r, kEarInC, LV_RADIUS_CIRCLE);
++    m->part[P_IN_R]   = blob(r, kEarInC, LV_RADIUS_CIRCLE);
++    m->part[P_MUZZLE] = blob(r, kMuzzleC, 6);
++    m->part[P_NOSE]   = blob(r, kNoseC, LV_RADIUS_CIRCLE);
++    m->part[P_EYE_L]  = blob(r, kWhiteC, LV_RADIUS_CIRCLE);
++    m->part[P_EYE_R]  = blob(r, kWhiteC, LV_RADIUS_CIRCLE);
++    m->part[P_PUP_L]  = blob(r, kPupilC, LV_RADIUS_CIRCLE);
++    m->part[P_PUP_R]  = blob(r, kPupilC, LV_RADIUS_CIRCLE);
++    m->part[P_MOUTH]  = blob(r, kMouthC, 2);
++    m->part[P_TEETH]  = blob(r, kWhiteC, 1);
++    m->part[P_TONGUE] = blob(r, kTongueC, 3);
++    m->part[P_DOME]   = blob(r, kHelmetC, 14);
++    m->part[P_RIM]    = blob(r, kRimC, 2);
++    m->part[P_X_L]    = tag(r, "x", &lv_font_montserrat_14, kPupilC);
++    m->part[P_X_R]    = tag(r, "x", &lv_font_montserrat_14, kPupilC);
++    m->part[P_STARS]  = tag(r, "* * *", &lv_font_montserrat_14, kStarC);
++}
++
++inline void put(lv_obj_t* o, int x, int y, int w, int h, bool show)
++{
++    if (show) {
++        lv_obj_set_size(o, w, h);
++        lv_obj_set_pos(o, x, y);
++        lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++    } else {
++        lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++    }
++}
++
++/* Puts the mole with its feet at (bx, by) (they are hidden under the dirt mound drawn over them) wearing face `face`; `size` is its width in
++ * pixels (30 is the size the numbers below were drawn for). A mole that is already in that place with that face is left alone. */
++inline void mole_apply(Mole* m, int bx, int by, int face, int size)
++{
++    if (m->last_x == bx && m->last_y == by && m->last_face == face && m->last_size == size) {
++        return;
++    }
++    m->last_x = bx;
++    m->last_y = by;
++    m->last_face = face;
++    m->last_size = size;
++    auto sc = [size](int v) { return (v * size + (v < 0 ? -15 : 15)) / 30; };
++    lv_obj_t** p = m->part;
++    const int bw = sc(28), bh = sc(34);
++    const int top = by - bh, fy = top + sc(15);
++    const bool helmet = face == MG_FACE_HELMET, dazed = face == MG_FACE_DAZED, startled = face == MG_FACE_STARTLED, tongue = face == MG_FACE_TONGUE;
++    put(p[P_BODY], bx - bw / 2, top, bw, bh, true);
++    put(p[P_EAR_L], bx - sc(15), top - sc(1), sc(10), sc(10), !helmet);
++    put(p[P_EAR_R], bx + sc(5), top - sc(1), sc(10), sc(10), !helmet);
++    put(p[P_IN_L], bx - sc(13), top + sc(1), sc(6), sc(6), !helmet);
++    put(p[P_IN_R], bx + sc(7), top + sc(1), sc(6), sc(6), !helmet);
++    put(p[P_MUZZLE], bx - sc(9), fy + sc(1), sc(18), sc(13), true);
++    put(p[P_NOSE], bx - sc(4), fy + sc(2), sc(8), sc(6), true);
++    const int er = startled ? sc(5) : sc(4);   /* eye radius */
++    const int ey = fy - sc(5);
++    put(p[P_EYE_L], bx - sc(7) - er, ey - er, 2 * er, 2 * er, !dazed);
++    put(p[P_EYE_R], bx + sc(7) - er, ey - er, 2 * er, 2 * er, !dazed);
++    const int pr = startled ? sc(1) : sc(2);   /* pupil radius, and where it looks: toward each other for the goofy face */
++    const int po = tongue ? sc(2) : 0;
++    put(p[P_PUP_L], bx - sc(7) + po - pr, ey - pr, 2 * pr + 1, 2 * pr + 1, !dazed);
++    put(p[P_PUP_R], bx + sc(7) - po - pr, ey - pr, 2 * pr + 1, 2 * pr + 1, !dazed);
++    /* the mouth: a wide grin, a thin line with the tongue out, an open o, a small smile under the helmet, a wobble when dazed */
++    int mw = sc(14), mh = sc(5), mr = 2;
++    if (tongue) { mw = sc(10); mh = sc(3); }
++    if (startled) { mw = sc(7); mh = sc(7); mr = LV_RADIUS_CIRCLE; }
++    if (helmet) { mw = sc(8); mh = sc(3); }
++    if (dazed) { mw = sc(8); mh = sc(3); }
++    const int my = fy + sc(8);
++    lv_obj_set_style_radius(p[P_MOUTH], mr, 0);
++    put(p[P_MOUTH], bx - mw / 2, my, mw, mh, true);
++    put(p[P_TEETH], bx - sc(5), my, sc(10), sc(2), face == MG_FACE_GRIN);
++    put(p[P_TONGUE], bx - sc(1), my + sc(2), sc(5), sc(8), tongue);
++    put(p[P_DOME], bx - sc(16), top - sc(6), sc(32), sc(12), helmet);
++    put(p[P_RIM], bx - sc(17), top + sc(4), sc(34), sc(3), helmet);
++    put(p[P_X_L], bx - sc(7) - sc(3), ey - sc(8), 12, 16, dazed);
++    put(p[P_X_R], bx + sc(7) - sc(3), ey - sc(8), 12, 16, dazed);
++    if (dazed) {
++        lv_obj_set_size(p[P_STARS], LV_SIZE_CONTENT, LV_SIZE_CONTENT);
++        lv_obj_set_pos(p[P_STARS], bx - sc(18), top - sc(7));
++        lv_obj_remove_flag(p[P_STARS], LV_OBJ_FLAG_HIDDEN);
++    } else {
++        lv_obj_add_flag(p[P_STARS], LV_OBJ_FLAG_HIDDEN);
++    }
++    lv_obj_remove_flag(m->root, LV_OBJ_FLAG_HIDDEN);
++}
++
++/* ---- the shapes ---- */
++
++/* Builds one shape under `parent`, hidden. `pts` is where a LINE keeps its two points (they must outlive the object); `mole` is filled
++ * in for a MOLE shape. Returns the object the player shows and hides. */
++inline lv_obj_t* build_shape(lv_obj_t* parent, const mg_shape_t& s, lv_point_precise_t* pts, Mole* mole)
++{
++    switch (s.type) {
++        case MG_SH_FILL: {
++            lv_obj_t* o = plain(parent);
++            lv_obj_set_size(o, 320, 240);
++            lv_obj_set_pos(o, 0, 0);
++            lv_obj_set_style_bg_color(o, color_of(s.colour), 0);
++            lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++            return o;
++        }
++        case MG_SH_CIRCLE:
++        case MG_SH_RING: {
++            lv_obj_t* o = plain(parent);
++            lv_obj_set_size(o, s.w * 2, s.w * 2);
++            lv_obj_set_pos(o, s.x - s.w, s.y - s.w);
++            lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
++            if (s.type == MG_SH_CIRCLE) {
++                lv_obj_set_style_bg_color(o, color_of(s.colour), 0);
++                lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++            } else {
++                lv_obj_set_style_border_color(o, color_of(s.colour), 0);
++                lv_obj_set_style_border_width(o, s.aux > 0 ? s.aux : 2, 0);
++            }
++            return o;
++        }
++        case MG_SH_BOX: {
++            lv_obj_t* o = plain(parent);
++            lv_obj_set_size(o, s.w, s.h);
++            lv_obj_set_pos(o, s.x, s.y);
++            lv_obj_set_style_radius(o, s.aux, 0);
++            lv_obj_set_style_bg_color(o, color_of(s.colour), 0);
++            lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++            return o;
++        }
++        case MG_SH_LINE: {
++            lv_obj_t* o = lv_line_create(parent);
++            lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            pts[0].x = s.x;
++            pts[0].y = s.y;
++            pts[1].x = s.w;
++            pts[1].y = s.h;
++            lv_line_set_points(o, pts, 2);
++            lv_obj_set_style_line_width(o, s.aux > 0 ? s.aux : 2, 0);
++            lv_obj_set_style_line_color(o, color_of(s.colour), 0);
++            lv_obj_set_style_line_rounded(o, true, 0);
++            return o;
++        }
++        case MG_SH_MOLE:
++            mole_build(parent, mole);
++            return mole->root;
++        default: {  // MG_SH_TEXT
++            lv_obj_t* o = lv_label_create(parent);
++            lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            const lv_font_t* font = font_for(s.aux);
++            const int width       = s.w > 0 ? s.w : 280;
++            lv_obj_set_style_text_font(o, font, 0);
++            lv_obj_set_style_text_color(o, color_of(s.colour), 0);
++            lv_obj_set_style_text_align(o, LV_TEXT_ALIGN_CENTER, 0);
++            lv_label_set_long_mode(o, LV_LABEL_LONG_WRAP);
++            lv_obj_set_width(o, width);
++            lv_obj_set_pos(o, s.x - width / 2, s.y - lv_font_get_line_height(font) / 2);
++            return o;
++        }
++    }
++}
++
++/* Where the mole stands: the bottom middle of its hole's touch region, a little up from the region's bottom edge. */
++inline void mole_place(const mg_pack_t* p, int region, int* bx, int* by)
++{
++    mg_region_t g;
++    mg_region_get(p, region, &g);
++    *bx = g.x + g.w / 2;
++    *by = g.y + g.h - 6;
++}
++
++/* Shows or hides every shape for the run's present state and counters; texts get their counters filled in. */
++inline void draw_state(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type, const uint8_t* text, Mole* mole, bool es)
++{
++    for (int i = 0; i < r.p->n_shapes; i++) {
++        lv_obj_t* o = obj[i];
++        if (o == nullptr) {
++            continue;
++        }
++        if (mg_shape_visible(&r, i)) {
++            if (type[i] == MG_SH_TEXT) {
++                char buf[MG_TEXT_LEN + 16];
++                mg_text(&r, text[i], es ? 1 : 0, buf, sizeof(buf));
++                lv_label_set_text(o, buf);
++            } else if (type[i] == MG_SH_MOLE) {
++                mg_shape_t s;
++                mg_shape_get(r.p, i, &s);
++                int bx, by;
++                mole_place(r.p, mg_mole_region(&r, &s), &bx, &by);
++                mole_apply(mole, bx, by, r.ctr[s.aux], s.w > 0 ? s.w : 30);
++            }
++            lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++        } else {
++            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++        }
++    }
++}
++
++}  // namespace mgd
++
++#endif
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -604,13 +604,13 @@ endif()
+ # Games (patch G01): the three game packs ride in the app image as flash data (read in place, no RAM). The packs are data
+ # files of the MaiPai repo, made by scripts/game-pack.py; `source scripts/fw-env.sh` points MAIPAI_GAMES_DIR at them.
+ if(CONFIG_MAIPAI_GAMES)
+-    foreach(f memory.mpk reaction.mpk whack.mpk)
++    foreach(f memory.mpk reaction.mpk whack.mpk tictactoe.mpk bopit.mpk simonsays.mpk rps.mpk)
+         if(NOT DEFINED ENV{MAIPAI_GAMES_DIR} OR NOT EXISTS "$ENV{MAIPAI_GAMES_DIR}/${f}")
+             message(FATAL_ERROR "CONFIG_MAIPAI_GAMES is on but the game pack ${f} was not found. Run `source scripts/fw-env.sh` from the repo (it sets MAIPAI_GAMES_DIR), or set CONFIG_MAIPAI_GAMES=n.")
+         endif()
+         target_add_binary_data(${COMPONENT_LIB} "$ENV{MAIPAI_GAMES_DIR}/${f}" BINARY)
+     endforeach()
+-    message(STATUS "Games: 3 packs from $ENV{MAIPAI_GAMES_DIR}")
++    message(STATUS "Games: 7 packs from $ENV{MAIPAI_GAMES_DIR}")
+ else()
+     message(STATUS "Games: off")
+ endif()
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -1778,6 +1778,14 @@ void StackChanAvatarDisplay::OnFaceRelease(lv_event_t* event)
+     }
+     s_trace_live = false;
+     if (maipai_games_active()) {  // while a game runs, no touch toggles mute, vision or quiet (patch G01)
++        // Patch UI13: a game that takes its taps on release (Bop-It) learns here whether the touch was a swipe or a tap.
++        if (s_trace.region0 != MTC_REGION_EDGE) {
++            lv_point_t end = {s_trace.x, s_trace.y};
++            if (lv_indev_t* indev = lv_indev_active()) {
++                lv_indev_get_point(indev, &end);
++            }
++            maipai_games_release(s_trace.x0, s_trace.y0, end.x, end.y, GetHAL().millis() - s_trace.t0);
++        }
+         return;
+     }
+     if (maipai_pages_open() || maipai_pages_last_touch_was_gesture()) {  // patch P13: a swipe, or a page or the sheet on screen, toggles nothing
+diff --git a/firmware/main/hal/hal_imu.cpp b/firmware/main/hal/hal_imu.cpp
+--- a/firmware/main/hal/hal_imu.cpp
++++ b/firmware/main/hal/hal_imu.cpp
+@@ -9,6 +9,7 @@
+ #include "maipai_screen.h"
+ #include "maipai_orient_core.h"
+ #include "maipai_pickup.h"
++#include "maipai_games.h"
+ #include "device_events.h"
+ #include <cstdio>
+ #include "drivers/bmi270/bmi270.h"
+@@ -45,6 +46,7 @@ static void _imu_task(void* param)
+             // mclog::debug("IMU Accel: {:.2f}\t{:.2f}\t{:.2f}", data.accel_x, data.accel_y, data.accel_z);
+ 
+             motion_detector->update(data.accel_x, data.accel_y, data.accel_z);
++            maipai_games_imu_feed(data.accel_x, data.accel_y, data.accel_z, static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount())));  // patch UI13: tilts for the games
+ 
+             const int pose = mo_update(&orientation, data.accel_x, data.accel_y, data.accel_z,
+                                        static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount())));
+@@ -62,6 +64,7 @@ static void _imu_task(void* param)
+ 
+             if (motion_detector->isShakeDetected()) {
+                 mclog::tagInfo(_tag, "Shake Detected!");
++                maipai_games_shake(static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount())));  // patch UI13
+                 GetHAL().onImuMotionEvent.emit(ImuMotionEvent::Shake);
+             }
+             // if (motion_detector->isPickUpDetected()) {
+diff --git a/firmware/main/hal/hal_head_touch.cpp b/firmware/main/hal/hal_head_touch.cpp
+--- a/firmware/main/hal/hal_head_touch.cpp
++++ b/firmware/main/hal/hal_head_touch.cpp
+@@ -7,6 +7,7 @@
+ #include "drivers/Si12T/Si12T.h"
+ #include "board/hal_bridge.h"
+ #include "maipai_pages.h"
++#include "maipai_games.h"
+ #include <mooncake_log.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
+@@ -161,6 +162,9 @@ static void _head_touch_update_task(void* param)
+         gesture = recognizer.update(data);
+         if (gesture != HeadPetGesture::None) {
+             GetHAL().onHeadPetGesture.emit(gesture);
++            if (gesture == HeadPetGesture::Press) {
++                maipai_games_post_input(MAIPAI_GAME_EV_PET);  // patch UI13: a pet is an input for the games (atomics only: this task runs on a PSRAM stack)
++            }
+             if (gesture != HeadPetGesture::Release) {
+                 maipai_pages_event(MGS_EV_HEAD_TAP);  // patch P13: a touch on the head brings the face back from a page
+             }
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -509,36 +509,78 @@ void on_game(lv_event_t* e)
+     }
+ }
+ 
++int s_games_off = 0;  // patch UI13: the first game on the games page
++void show_type(int type, int pos);
++
++void games_rebuild(void*)
++{
++    if (s_page != nullptr && s_page_type == MPG_P_GAMES) {
++        const int pos = s_page_pos;
++        s_page_type   = -1;  // show_type returns early for the page that is already up
++        show_type(MPG_P_GAMES, pos);
++    }
++}
++
++void on_games_more(lv_event_t*)
++{
++    s_games_off = mpg_games_next_offset(s_games_off, s_host->game_count());
++    lv_async_call(games_rebuild, nullptr);  // the tile that was tapped is part of the page that is replaced
++}
++
+ void build_games(lv_obj_t* root)
+ {
+     pager(root);
+-    const int n = s_host->game_count() > 3 ? 3 : s_host->game_count();
+-    if (n == 0) {
++    const int total = s_host->game_count();
++    if (total == 0) {
+         lv_obj_t* none = text(root, tx("No games on this unit", "No hay juegos en esta unidad"), kMid, fg(70));
+         lv_obj_set_width(none, MPG_ZONE_W);
+         lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
+         lv_obj_set_pos(none, 0, 56);
+         return;
+     }
+-    // Patch UI01: no title (the grabber handle is at the top), rows 44 to 52 px high, the game name in the biggest font that fits.
+-    for (int i = 0; i < n; i++) {
+-        int y, h;
+-        mpg_games_row(n, i, &y, &h);
+-        lv_obj_t* b = box(root, 8, y, 304, h, fg(16), 12, true);
++    if (s_games_off >= total) {
++        s_games_off = 0;
++    }
++    // Patch UI13: a grid of two columns and three rows of 44 px tiles; the sixth is More when there are more than six games.
++    const int per = mpg_games_per_page(total);
++    for (int slot = 0; slot < MPG_GAMES_SLOTS; slot++) {
++        const bool more = mpg_games_has_more(total) && slot == MPG_GAMES_SLOTS - 1;
++        const int i     = s_games_off + slot;
++        if (!more && (slot >= per || i >= total)) {
++            continue;  // an empty slot (the last page): the More tile still takes the sixth
++        }
++        int x, y, w, h;
++        mpg_games_tile(slot, &x, &y, &w, &h);
++        lv_obj_t* b = box(root, x, y, w, h, fg(more ? 8 : 16), 12, true);
+         lv_obj_set_style_border_width(b, 1, 0);
+         lv_obj_set_style_border_color(b, fg(40), 0);
+         lv_obj_set_style_bg_color(b, fg(40), LV_STATE_PRESSED);
++        if (more) {
++            lv_obj_t* l = text(b, tx("More games", "Mas juegos"), kMid, fg(100));
++            lv_obj_center(l);
++            lv_obj_add_event_cb(b, on_games_more, LV_EVENT_CLICKED, nullptr);
++            continue;
++        }
+         const char* gt = s_host->game_title(i);
+-        lv_obj_t* name = text(b, gt, fit_font(gt, 168), fg(100));
+-        lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+-        lv_obj_set_width(name, 168);
+-        lv_obj_align(name, LV_ALIGN_LEFT_MID, 14, 0);
+-        char best[24];
+-        mpg_best_text(best, sizeof(best), s_host->game_best(i), es());
+-        lv_obj_t* bl = text(b, best, kSmall, fg(70));
+-        lv_obj_align(bl, LV_ALIGN_RIGHT_MID, -50, 0);
+-        lv_obj_t* play = text(b, LV_SYMBOL_PLAY, kBig, fg(100));
+-        lv_obj_align(play, LV_ALIGN_RIGHT_MID, -14, 0);
++        const bool long_name = text_w(gt, kTiny) > w - 12;  // "Rock Paper Scissors": two small lines and no best line, nothing is cut
++        const lv_font_t* nf = long_name ? kTiny : (text_w(gt, kSmall) <= w - 12 ? kSmall : kTiny);  // one size for the names that fit
++        lv_obj_t* name = text(b, gt, nf, fg(100));
++        lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
++        if (long_name) {
++            lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
++            lv_obj_set_width(name, w - 12);
++            lv_obj_center(name);
++        } else {
++            lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
++            lv_obj_set_size(name, w - 12, lv_font_get_line_height(nf));
++            lv_obj_align(name, LV_ALIGN_TOP_MID, 0, 2);
++            char best[24];
++            mpg_best_text(best, sizeof(best), s_host->game_best(i), es());
++            lv_obj_t* bl = text(b, best, kTiny, fg(70));
++            lv_obj_set_width(bl, w - 12);
++            lv_obj_set_style_text_align(bl, LV_TEXT_ALIGN_CENTER, 0);
++            lv_obj_align(bl, LV_ALIGN_BOTTOM_MID, 0, -2);
++        }
+         lv_obj_add_event_cb(b, on_game, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+     }
+ }
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -887,6 +887,29 @@ static inline int mpg_pager_x(int n, int index) { return MPG_ZONE_W / 2 + (index
+ #define MPG_GAMES_TOP 10
+ #define MPG_GAMES_AREA_H 136
+ #define MPG_GAMES_GAP 2
++/* Patch UI13: seven games do not fit three rows. The games page is a grid of two columns and three rows of 44 px tiles (slot 0 to 5, row by
++ * row); with more than six games the last slot is a "More" tile and the others show five games a page. */
++#define MPG_GAMES_COLS 2
++#define MPG_GAMES_SLOTS 6
++#define MPG_GAMES_TILE_W 150
++#define MPG_GAMES_TILE_H 44
++#define MPG_GAMES_COL_GAP 4
++static inline int mpg_games_per_page(int total) { return total <= MPG_GAMES_SLOTS ? total : MPG_GAMES_SLOTS - 1; }
++static inline int mpg_games_has_more(int total) { return total > MPG_GAMES_SLOTS; }
++static inline void mpg_games_tile(int slot, int* x, int* y, int* w, int* h)
++{
++    *w = MPG_GAMES_TILE_W;
++    *h = MPG_GAMES_TILE_H;
++    *x = (slot % MPG_GAMES_COLS == 0) ? 8 : 8 + MPG_GAMES_TILE_W + MPG_GAMES_COL_GAP;
++    *y = MPG_GAMES_TOP + (slot / MPG_GAMES_COLS) * (MPG_GAMES_TILE_H + MPG_GAMES_GAP);
++}
++/* The first game on the page after `offset` when More is tapped (it wraps to the first page). */
++static inline int mpg_games_next_offset(int offset, int total)
++{
++    const int next = offset + mpg_games_per_page(total);
++    return next >= total ? 0 : next;
++}
++
+ static inline void mpg_games_row(int n, int i, int* y, int* h)
+ {
+     if (n < 1) {
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -9,6 +9,7 @@
+ #include "maipai_more.h"
+ #if MAIPAI_MORE_SCREEN
+ #include "maipai_screens.h"
++#include "maipai_pages_core.h"
+ #include "maipai_face.h"
+ #include "hal.h"
+ #include <lvgl.h>
+@@ -311,19 +312,39 @@ void on_game(lv_event_t* e)
+     maipai_quick_settings_close();
+ }
+ 
++int s_games_off = 0;  // patch UI13: the first game shown on this page
++
++void on_games_more(lv_event_t*)
++{
++    s_games_off = mpg_games_next_offset(s_games_off, maipai_games_count());
++    show(PAGE_GAMES);
++}
++
++// Patch UI13: seven games do not fit the rows of this screen: two buttons a row, three rows, and a More button for the rest (five games a page).
+ void build_games()
+ {
+-    for (int i = 0; i < maipai_games_count(); i++) {
+-        char line[64];
+-        const int best = maipai_games_best(i);
+-        if (best > 0) {
+-            snprintf(line, sizeof(line), "%s  %s %d%s", maipai_games_title(i, s_es), tx("best", "mejor"), best,
+-                     maipai_games_lower_is_better(i) ? " ms" : "");
+-        } else {
+-            snprintf(line, sizeof(line), "%s", maipai_games_title(i, s_es));
++    const int total = maipai_games_count();
++    if (s_games_off >= total) {
++        s_games_off = 0;
++    }
++    const int per = mpg_games_per_page(total);
++    for (int slot = 0; slot < MPG_GAMES_SLOTS; slot++) {
++        const bool more = mpg_games_has_more(total) && slot == MPG_GAMES_SLOTS - 1;
++        const int i     = s_games_off + slot;
++        if (!more && (slot >= per || i >= total)) {
++            continue;
++        }
++        if (more) {
++            lv_obj_t* b = button(s_root, tx("More games", "Mas juegos"), 48, on_games_more);
++            if (slot % 2 == 0) {
++                new_row(b);
++            }
++            continue;
++        }
++        lv_obj_t* b = button(s_root, maipai_games_title(i, s_es), 48, on_game, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
++        if (slot % 2 == 0) {
++            new_row(b);
+         }
+-        lv_obj_t* b = button(s_root, line, 100, on_game, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+-        new_row(b);
+     }
+     s_game_note = label(s_root, "", &lv_font_montserrat_14);
+     lv_obj_set_width(s_game_note, LV_PCT(100));

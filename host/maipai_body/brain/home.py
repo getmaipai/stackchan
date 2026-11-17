@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Any, Callable
+from collections.abc import Callable, Iterator
+from typing import Any
 
 from maipai_body.brain.interface import BrainFeature, TurnRequest, VisionRequest
 from maipai_body.speech.turn_client import TurnClient, TurnEvent

@@ -23,7 +23,38 @@ OVERLAY_ES = {
     "party": "Fiesta", "celebrate": "Celebración", "love": "Amor", "sleeping": "Durmiendo",
 }  # fmt: skip
 
+SCENE_EN = {
+    "rainy_day": "Rainy day", "snowy_day": "Snowy day", "sunny_day": "Sunny day", "bedtime": "Bedtime", "party": "Party",
+    "birthday": "Birthday", "cozy": "Cozy", "spooky": "Spooky", "focus": "Focus", "celebrate": "Celebrate",
+}  # fmt: skip
+SCENE_ES = {
+    "rainy_day": "Día de lluvia", "snowy_day": "Día de nieve", "sunny_day": "Día soleado", "bedtime": "Hora de dormir", "party": "Fiesta",
+    "birthday": "Cumpleaños", "cozy": "Acogedor", "spooky": "Misterioso", "focus": "Concentración", "celebrate": "Celebrar",
+}  # fmt: skip
+MOOD_EN = {"happy": "Happy", "sad": "Sad", "surprised": "Surprised", "angry": "Angry", "doubt": "Unsure", "love": "Loving", "sleepy": "Sleepy", "neutral": "Calm"}
+MOOD_ES = {"happy": "Feliz", "sad": "Triste", "surprised": "Sorprendido", "angry": "Enojado", "doubt": "Con duda", "love": "Cariñoso", "sleepy": "Con sueño", "neutral": "Tranquilo"}
+LIGHT_EN = {"white": "White", "green": "Green", "blue": "Blue", "amber": "Amber", "cyan": "Cyan", "magenta": "Magenta"}
+LIGHT_ES = {"white": "Blanca", "green": "Verde", "blue": "Azul", "amber": "Ámbar", "cyan": "Cian", "magenta": "Magenta"}
+SOUND_EN = {"success": "Success chime", "popup": "Pop", "vibration": "Buzz", "exclamation": "Alert"}
+SOUND_ES = {"success": "Campanita de éxito", "popup": "Pop", "vibration": "Zumbido", "exclamation": "Aviso"}
+
 EN: dict[str, str] = {
+    "pol.scene.title": "Scenes",
+    "pol.scene.help": "One scene sets the face, an effect, the ring light and a quiet sound together. A reply can ask for one with a tag like [scene rainy_day]. Change a scene here for this robot.",
+    "pol.scene.pick": "Scene",
+    "pol.scene.mood": "Face",
+    "pol.scene.fx": "Effect",
+    "pol.scene.light": "Ring light",
+    "pol.scene.sound": "Sound",
+    "pol.scene.hold": "How long",
+    "pol.scene.none": "None",
+    "pol.scene.save": "Save this scene",
+    "pol.scene.saved": "Saved.",
+    "pol.scene.test": "Test on the robot",
+    "pol.scene.test_help": "Test plays the saved version of the scene. Save your changes first.",
+    "pol.scene.partly": "Shown, except the parts this robot cannot do yet.",
+    "pol.scene.reset": "Back to the shipped scene",
+    "pol.scene.off": "Scene off",
     "g.packs": "Packs",
     "pol.coming": "Coming with the next unit update",
     "pol.ov.title": "Overlays",
@@ -44,6 +75,16 @@ EN: dict[str, str] = {
     "pol.feel.bubble_help": "Show the words in a bubble while it speaks.",
     "pol.feel.dots": "Thinking dots",
     "pol.feel.dots_help": "Three moving dots by the mouth while it thinks.",
+    "pol.dance.title": "Dance to music",
+    "pol.dance.toggle": "Dance to music",
+    "pol.dance.help": "When music plays near the unit it nods, sways and changes its face to the beat. Saying dance still works either way.",
+    "pol.dance.privacy": "The unit measures sound levels and tempo only. No audio is kept or sent.",
+    "pol.dance.status.off": "Off. The unit is not listening for music.",
+    "pol.dance.status.waiting": "On. Waiting for the unit to connect.",
+    "pol.dance.status.listening": "On. Listening for music (levels and tempo only).",
+    "pol.dance.status.dancing": "On. Dancing to the music now.",
+    "pol.dance.status.paused": "On, but paused while the unit is muted or in quiet mode.",
+    "pol.dance.status.unsupported": "On, but this unit's software cannot hear music yet. Update the unit.",
     "pol.look.title": "Turning toward people",
     "pol.look.help": "The robot can turn its head toward you on its own. It uses a few small pictures from its camera, looks at them once and forgets them: nothing is saved and nothing leaves the robot. The camera light shows on the screen every time the camera is used.",
     "pol.look.mode": "Turn toward faces",
@@ -185,6 +226,22 @@ EN: dict[str, str] = {
     "pol.phr.en_only": "Phrases for this language are not available yet. The robot says its built-in ones.",
 }
 ES: dict[str, str] = {
+    "pol.scene.title": "Escenas",
+    "pol.scene.help": "Una escena ajusta la cara, un efecto, la luz del anillo y un sonido suave a la vez. Una respuesta puede pedir una con una etiqueta como [scene rainy_day]. Cambia aquí una escena para este robot.",
+    "pol.scene.pick": "Escena",
+    "pol.scene.mood": "Cara",
+    "pol.scene.fx": "Efecto",
+    "pol.scene.light": "Luz del anillo",
+    "pol.scene.sound": "Sonido",
+    "pol.scene.hold": "Cuánto dura",
+    "pol.scene.none": "Ninguno",
+    "pol.scene.save": "Guardar esta escena",
+    "pol.scene.saved": "Guardado.",
+    "pol.scene.test": "Probar en el robot",
+    "pol.scene.test_help": "La prueba usa la versión guardada de la escena. Guarda tus cambios primero.",
+    "pol.scene.partly": "Mostrada, salvo lo que este robot todavía no puede hacer.",
+    "pol.scene.reset": "Volver a la escena original",
+    "pol.scene.off": "Apagar la escena",
     "g.packs": "Paquetes",
     "pol.coming": "Llega con la próxima actualización de la unidad",
     "pol.ov.title": "Superposiciones",
@@ -205,6 +262,16 @@ ES: dict[str, str] = {
     "pol.feel.bubble_help": "Muestra las palabras en un globo mientras habla.",
     "pol.feel.dots": "Puntos de pensar",
     "pol.feel.dots_help": "Tres puntos que se mueven junto a la boca mientras piensa.",
+    "pol.dance.title": "Bailar con la música",
+    "pol.dance.toggle": "Bailar con la música",
+    "pol.dance.help": "Cuando suena música cerca de la unidad, asiente, se balancea y cambia de cara al ritmo. Decir baila sigue funcionando en ambos casos.",
+    "pol.dance.privacy": "La unidad solo mide niveles de sonido y tempo. No se guarda ni se envía ningún audio.",
+    "pol.dance.status.off": "Apagado. La unidad no escucha música.",
+    "pol.dance.status.waiting": "Encendido. Esperando a que la unidad se conecte.",
+    "pol.dance.status.listening": "Encendido. Escuchando música (solo niveles y tempo).",
+    "pol.dance.status.dancing": "Encendido. Bailando con la música ahora.",
+    "pol.dance.status.paused": "Encendido, pero en pausa mientras la unidad está silenciada o en modo silencio.",
+    "pol.dance.status.unsupported": "Encendido, pero el software de esta unidad aún no oye música. Actualiza la unidad.",
     "pol.look.title": "Girar hacia las personas",
     "pol.look.help": "El robot puede girar la cabeza hacia ti por sí solo. Usa unas pocas imágenes pequeñas de su cámara, las mira una vez y las olvida: no se guarda nada y nada sale del robot. La luz de la cámara aparece en la pantalla cada vez que se usa.",
     "pol.look.mode": "Girar hacia las caras",
@@ -345,6 +412,11 @@ ES: dict[str, str] = {
     "pol.phr.made": "Las frases están listas y enviadas al robot.",
     "pol.phr.en_only": "Todavía no hay frases para este idioma. El robot dice las integradas.",
 }
+for _prefix, _en, _es in (("n", SCENE_EN, SCENE_ES), ("m", MOOD_EN, MOOD_ES), ("l", LIGHT_EN, LIGHT_ES), ("s", SOUND_EN, SOUND_ES)):
+    for _name, _text in _en.items():
+        EN[f"pol.scene.{_prefix}.{_name}"] = _text
+    for _name, _text in _es.items():
+        ES[f"pol.scene.{_prefix}.{_name}"] = _text
 for _name, _text in OVERLAY_EN.items():
     EN[f"pol.ov.{_name}"] = _text
 for _name, _text in OVERLAY_ES.items():

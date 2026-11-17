@@ -80,6 +80,15 @@ class MusicFeatureSwitch:
     def sent(self) -> bool | None:
         return self._sent
 
+    @property
+    def unsupported(self) -> bool:
+        """The unit's software has no music analysis (it answered that it has no such tool)."""
+        return self._unsupported
+
+    @property
+    def silenced(self) -> bool:
+        return bool(self._silenced())
+
     def sync(self, *, force: bool = False) -> None:
         with self._lock:
             want = self.wanted
@@ -115,6 +124,24 @@ class MusicFeatureSwitch:
     def on_session(self, _device_id: object = None) -> None:
         """A (re)connect: state it again, whatever was sent before."""
         self.sync(force=True)
+
+
+def music_status_code(*, saved: bool, auto: bool, switch: MusicFeatureSwitch, state: str) -> str:
+    """The plain state of "Dance to music" for the settings page.
+
+    ``off``: the toggle is off. ``unsupported``: the unit's software has no music analysis.
+    ``paused``: muted or in full quiet. ``waiting``: on, but the unit has not been told yet
+    (not connected). ``dancing``: a music session is on. ``listening``: on and told, no music
+    right now. ``saved`` is the page's saved choice, ``auto`` the live switch (Home can set it)."""
+    if not (saved or auto):
+        return "off"
+    if switch.unsupported:
+        return "unsupported"
+    if switch.silenced:
+        return "paused"
+    if switch.sent is not True:
+        return "waiting"
+    return "dancing" if state in ACTIVE_STATES else "listening"
 
 
 def wire_music_dance(

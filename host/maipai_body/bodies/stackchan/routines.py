@@ -7,6 +7,7 @@ import time
 
 from maipai_body.expression.rest import RestOutput
 from maipai_body.hal.seam import BodyProfile, HeadActuator, HeadPose
+from maipai_body.presence.night import DIM_FLOOR
 
 from .activity import log_activity
 from .avatar.server import control_avatar, sleeping_avatar
@@ -46,7 +47,7 @@ class RestRenderer:
         set_brightness=None,
         restore_brightness=None,
         set_ring_sleeping=None,
-        sleep_brightness: int = 5,
+        sleep_brightness: int = 35,  # was 5, too dim to read (2026-11-17); never below DIM_FLOOR
         blink_delay_s: float = 0.2,
         sleep=None,
         firmware_version=lambda: None,
@@ -59,7 +60,7 @@ class RestRenderer:
         self._set_brightness = set_brightness
         self._restore_brightness = restore_brightness
         self._set_ring_sleeping = set_ring_sleeping
-        self._sleep_brightness = sleep_brightness
+        self._sleep_brightness = max(DIM_FLOOR, int(sleep_brightness))
         self._blink_delay_s = blink_delay_s
         self._sleep = sleep
         self._firmware_version = firmware_version

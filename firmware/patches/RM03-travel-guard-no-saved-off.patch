@@ -1,0 +1,26 @@
+# Intent: The private-network boot-loop guard no longer saves "off" (found by the old firmware, 2026-11-14 and 2026-11-15). Three crashed boots in a row with the client running used to set the saved switch to off, so the client stayed off for good and a unit away from home, where the client is its only way to the hub, never came back until someone set it up again. Now the guard switches the client off for that one boot only and says so; the next boot tries again. The guard still protects: a crash loop skips one boot in four. The old firmware renamed the saved key to drop old "off" values; this tree has never shipped the client on a unit, so there is nothing old to drop.
+# Placement: unit (the robot's own travel client; works with the host off)
+# Upstream: bot patch 147 (maipai_tailnet.cc, boot-loop guard) of the old firmware, rebuilt; firmware/main/hal/maipai_tailnet.cc from patch TN01
+# Check after a flash: self.tailnet.status after the guard tripped (three crashed boots with the client up) shows guard_off true for that boot, and after the next restart the client starts again (enabled stays true).
+# Kconfig: MAIPAI_TAILNET.
+
+diff --git a/firmware/main/hal/maipai_tailnet.cc b/firmware/main/hal/maipai_tailnet.cc
+--- a/firmware/main/hal/maipai_tailnet.cc
++++ b/firmware/main/hal/maipai_tailnet.cc
+@@ -338,11 +338,11 @@ void maipai_tailnet_init()
+     load_saved();
+     if (!allowed) {
+         s_guard_off = true;
+-        if (s_enabled) {
+-            s_enabled = false;
+-            save_u8(kKeyOn, 0);
+-        }
+-        ESP_LOGW(TAG, "the boot-loop guard switched the client off (%d crashed boots in a row)", MT_GUARD_CRASHES);
++        // This boot only, never saved (patch RM03): the next boot tries the client again. Away from home the client is the
++        // only way to the hub, so a guard that saved "off" would strand the unit until someone set it up again. The guard
++        // stays what it was for protection: three crashed boots in a row skip one boot, the counter then starts over.
++        s_enabled = false;
++        ESP_LOGW(TAG, "the boot-loop guard switched the client off for this boot (%d crashed boots in a row)", MT_GUARD_CRASHES);
+         device_events_push("tailnet_state", "\"state\":\"guard_off\",\"ip\":\"\"");
+         mt_guard_stable(&s_guard);
+         return;

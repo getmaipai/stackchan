@@ -63,6 +63,11 @@ tag plus a Home pin, not done here.
   No sound is kept on the unit either.
 - **Off unless the setting is on.** The analysis runs only while `robot.dance.auto` is on and the robot is neither muted nor in
   full quiet. With it off the unit reads no chunk into the features, sends no `music_feat` event and no `music_stats` diagnostic.
+- **Who sets it (2026-11-17).** `robot.dance.auto` reached the host only through Home's settings push, and Home's page has no control for it, so a robot
+  without Home never had the switch on and the unit stayed at `music features off`. The local settings page now has **Dance to music** (Behavior
+  page, per-unit key `dance_to_music`, default off): saving it sets the same `DanceSettings.auto` and syncs the unit's switch at once, and it is applied
+  again on every connect. Home's push still works and the last writer wins. The status line comes from `music_status_code` in `music_dance_wiring.py`.
+  Not run on a real unit: a real track next to the unit is still needed.
 - **The switch.** The host calls the unit's tool `self.music.set(enabled)` (`MusicFeatureSwitch` in `music_dance_wiring.py`)
   when the setting turns on or off, when muted or full quiet start or end, on every connect, and retries a failed call every
   15 seconds. The unit keeps the state in RAM and in its own flash (namespace `mp_music`, key `on`, written only when it changes;

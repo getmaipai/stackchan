@@ -1,0 +1,179 @@
+# Intent: The regional fix for the private network (the last open item of the old firmware). Two nodes start a handshake through a relay only when both sit on the same relay region: a node sends to a peer through its own home relay and the peer listens on its own. The client's default home region differs from a hub on another region, so a handshake the unit started failed and worked only when the hub spoke first. The old firmware pinned one region by hand (preferred_derp_region = 1). Here the unit learns the hub's region from the network map (the peer entry of the saved hub address) and moves its home relay there once (maipai_tailnet_core.h mt_region_wanted, at most 3 moves a boot and 60 s apart, tested on the host), then saves the region (NVS key derp, u16, written from the timer task which has an internal stack) so the next start begins there and needs no move. The move itself is a new library call, microlink_set_home_derp_region(), in the second library patch firmware/tailnet/microlink-region.patch (applied by scripts/fw-tailnet.sh after microlink.patch); it reuses the steps the client's own relay-region override takes. self.tailnet.status gains relay (the unit's home region) and hub_relay (the hub's). Cost: no new task or buffer; two small stack structures (about 250 bytes) on the timer task while it runs the two-second check, 2 bytes of NVS.
+# Placement: unit (the robot's own travel client; works with the host off); library patch outside the unit tree
+# Upstream: bot patch 147 (preferred_derp_region = 1) of the old firmware, generalized; components/microlink of the pinned client (MIT), see firmware/tailnet/microlink-region.patch
+# Check after a flash: needs a real join (the owner's one-time key and the hub's private address): with the hub's relay region different from the unit's default, the log says 'moving the home relay to the hub's region' once, self.tailnet.status shows relay equal to hub_relay, and the unit's first message to the hub gets through without the hub speaking first; the next start logs no move.
+# Kconfig: MAIPAI_TAILNET.
+
+diff --git a/firmware/main/hal/maipai_tailnet.cc b/firmware/main/hal/maipai_tailnet.cc
+--- a/firmware/main/hal/maipai_tailnet.cc
++++ b/firmware/main/hal/maipai_tailnet.cc
+@@ -48,6 +48,7 @@ static const char* kKeyOn     = "on";
+ static const char* kKeyPeer   = "peer";
+ static const char* kKeyKey    = "key";
+ static const char* kKeyJoined = "joined";
++static const char* kKeyRegion = "derp";  // patch RM04: the hub's home relay region the unit last learned (u16)
+ 
+ static RTC_NOINIT_ATTR mt_guard_t s_guard;  // survives a crash reset, not a power cycle
+ static volatile bool s_enabled   = false;
+@@ -61,6 +62,10 @@ static volatile int s_fails      = 0;
+ static volatile int s_refusal    = 0;  // the last mt_start_t that was not a start, for the status
+ static char s_peer[16]           = "";
+ static mt_route_t s_route        = {0, 0};
++static volatile uint16_t s_region_saved = 0;  // patch RM04: learned relay region, used as the client's default at the next start
++static volatile int s_relay_home = 0;         // patch RM04: the relay region the client is on now (status only)
++static volatile int s_relay_hub  = 0;         // patch RM04: the hub's home relay region from the network map (status only)
++static mt_region_t s_region      = {0, 0};
+ 
+ bool maipai_tailnet_compiled()
+ {
+@@ -111,6 +116,10 @@ static void load_saved()
+     if (nvs_get_str(h, kKeyPeer, peer, &len) == ESP_OK && mt_peer_ok(peer)) {
+         strlcpy(s_peer, peer, sizeof(s_peer));
+     }
++    uint16_t region = 0;
++    if (nvs_get_u16(h, kKeyRegion, &region) == ESP_OK) {
++        s_region_saved = region;
++    }
+     size_t klen = 0;
+     s_key_saved = nvs_get_str(h, kKeyKey, nullptr, &klen) == ESP_OK && klen > 1;
+     nvs_close(h);
+@@ -212,6 +221,54 @@ static void on_state(microlink_t* ml, microlink_state_t state, void*)
+     push_state_event();
+ }
+ 
++// Patch RM04: move the client's home relay to the hub's relay region (see maipai_tailnet_core.h). Runs on the timer task
++// (an internal stack: the NVS write is safe here).
++static void follow_hub_relay()
++{
++    const uint32_t hub_ip = mt_parse_ip(s_peer);
++    if (hub_ip == 0 || s_ml == nullptr) {
++        return;  // no hub address saved: nothing to follow
++    }
++    microlink_diag_t diag;
++    if (microlink_get_diag(s_ml, &diag) != ESP_OK) {
++        return;
++    }
++    int hub_region = 0;
++    for (int i = 0; i < diag.peer_count; i++) {
++        microlink_peer_info_t peer;
++        if (microlink_get_peer_info(s_ml, i, &peer) == ESP_OK && peer.vpn_ip == hub_ip) {
++            hub_region = peer.derp_region;
++            break;
++        }
++    }
++    s_relay_home = diag.derp_home_region;
++    s_relay_hub  = hub_region;
++    const int64_t now_ms = esp_timer_get_time() / 1000;
++    const int want = mt_region_wanted(&s_region, now_ms, diag.derp_home_region, hub_region, s_state == ML_STATE_CONNECTED ? 1 : 0);
++    if (want != 0) {
++        const esp_err_t err = microlink_set_home_derp_region(s_ml, (uint16_t)want);
++        if (err == ESP_OK) {
++            mt_region_moved(&s_region, now_ms);
++            ESP_LOGW(TAG, "the hub is on relay region %d, this unit was on %d: moving the home relay to the hub's region", want,
++                     (int)diag.derp_home_region);
++            device_events_push("tailnet_state", "\"state\":\"relay_moved\",\"ip\":\"\"");
++        } else {
++            ESP_LOGW(TAG, "the hub's relay region %d is not usable from here (%s)", want, esp_err_to_name(err));
++            mt_region_moved(&s_region, now_ms);  // counts as a try: no retry storm
++        }
++    }
++    // Remember the region the unit is homed on once it equals the hub's, so the next start begins there.
++    if (hub_region > 0 && diag.derp_home_region == hub_region && s_region_saved != hub_region) {
++        nvs_handle_t h;
++        if (nvs_open(kNamespace, NVS_READWRITE, &h) == ESP_OK) {
++            nvs_set_u16(h, kKeyRegion, (uint16_t)hub_region);
++            nvs_commit(h);
++            nvs_close(h);
++            s_region_saved = (uint16_t)hub_region;
++        }
++    }
++}
++
+ // Every two seconds while the client runs, on the timer task (an internal stack, so flash writes are safe here).
+ static void poll_cb(void*)
+ {
+@@ -234,6 +291,9 @@ static void poll_cb(void*)
+         s_joined    = true;
+         ESP_LOGW(TAG, "the unit joined the private network; the pairing key was erased");
+     }
++    if (s_state == ML_STATE_CONNECTED) {
++        follow_hub_relay();
++    }
+     if (!s_stable_said && (esp_timer_get_time() - s_started_at_us) / 1000 >= MT_STABLE_MS) {
+         mt_guard_stable(&s_guard);
+         s_stable_said = true;
+@@ -280,6 +340,7 @@ static void tailnet_task(void*)
+     config.enable_disco     = true;
+     config.max_peers        = CONFIG_MAIPAI_TAILNET_MAX_PEERS;
+     config.priority_peer_ip = mt_parse_ip(s_peer);
++    config.preferred_derp_region = s_region_saved;  // patch RM04: the hub's relay region from the last time; 0 = the client's default
+     ESP_LOGW(TAG, "starting the client (internal free %u, largest block %u)",
+              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+@@ -447,10 +508,11 @@ void maipai_tailnet_register_tools()
+                     if (s_vpn_ip != 0) {
+                         mt_ip_to_str(s_vpn_ip, ip);
+                     }
+-                    char buf[400];
++                    char buf[480];
+                     snprintf(buf, sizeof(buf),
+                              "{\"compiled\":%s,\"enabled\":%s,\"guard_off\":%s,\"key_saved\":%s,\"peer_saved\":%s,\"joined\":%s,"
+                              "\"state\":\"%s\",\"ip\":\"%s\",\"ready\":%s,\"route\":\"%s\",\"fails\":%d,\"refusal\":%d,"
++                             "\"relay\":%d,\"hub_relay\":%d,"
+                              "\"internal_free\":%u,\"largest_block\":%u}",
+                              maipai_tailnet_compiled() ? "true" : "false", s_enabled ? "true" : "false",
+                              s_guard_off ? "true" : "false", s_key_saved ? "true" : "false", s_peer[0] ? "true" : "false",
+@@ -461,7 +523,8 @@ void maipai_tailnet_register_tools()
+                              "off",
+ #endif
+                              ip, maipai_tailnet_ready() ? "true" : "false", s_route.route ? "private" : "home", (int)s_fails,
+-                             (int)s_refusal, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
++                             (int)s_refusal, (int)s_relay_home, (int)s_relay_hub,
++                             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+                     return std::string(buf);
+                 });
+diff --git a/firmware/main/hal/maipai_tailnet_core.h b/firmware/main/hal/maipai_tailnet_core.h
+--- a/firmware/main/hal/maipai_tailnet_core.h
++++ b/firmware/main/hal/maipai_tailnet_core.h
+@@ -202,3 +202,40 @@ static inline int mt_url_with_host(const char* url, const char* host, char* out,
+     int w = snprintf(out, cap, "%.*s%s%s", (int)(start - url), url, host, end);
+     return (w > 0 && (size_t)w < cap) ? 1 : 0;
+ }
++
++/* The home relay region (patch RM04). Two private-network nodes can only start a handshake through a relay when both
++ * are connected to the same relay region: a node sends to a peer through its own home relay, and the peer listens on
++ * its own. The client picks a default region, so a unit whose default differs from the hub's relay could join the
++ * network and still never reach the hub unless the hub spoke first (seen on the old firmware, 2026-11-15, where the
++ * answer was to pin the hub's region by hand). The unit now learns the hub's region from the network map and moves its
++ * home relay there. `home` is the region the client is on, `hub` the hub's home region (0 = unknown). Moves are
++ * limited: at most MT_REGION_MAX_MOVES a boot, MT_REGION_GAP_MS apart, so a hub that flips between regions can never
++ * make the unit reconnect its relay over and over. */
++#define MT_REGION_MAX_MOVES 3
++#define MT_REGION_GAP_MS 60000
++
++typedef struct {
++    int moves;
++    int64_t last_move_ms;
++} mt_region_t;
++
++/* The region to move the home relay to now, or 0 to stay. Pure: call mt_region_moved after a move really happened. */
++static inline int mt_region_wanted(const mt_region_t* r, int64_t now_ms, int home, int hub, int connected)
++{
++    if (!connected || hub <= 0 || home <= 0 || hub == home) {
++        return 0;
++    }
++    if (r->moves >= MT_REGION_MAX_MOVES) {
++        return 0;
++    }
++    if (r->moves > 0 && now_ms - r->last_move_ms < MT_REGION_GAP_MS) {
++        return 0;
++    }
++    return hub;
++}
++
++static inline void mt_region_moved(mt_region_t* r, int64_t now_ms)
++{
++    r->moves++;
++    r->last_move_ms = now_ms;
++}

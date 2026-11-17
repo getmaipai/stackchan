@@ -68,13 +68,13 @@ def test_sleep_dims_without_changing_owner_and_wake_blinks_then_restores():
         sleep=lambda _seconds: None,
     )
     renderer.render(_out("asleep"), client, STACKCHAN_PROFILE)
-    assert applied_brightness == [5]
+    assert applied_brightness == [35]  # the resting dim was 5 and too dim to read (2026-11-17); the floor is 25
     assert owner_brightness == 73
     assert ring == [True]
     assert _payload(client.frames[-1])["leftEye"]["weight"] == 0
     renderer.render(_out("awake", wake=True), client, STACKCHAN_PROFILE)
     assert client.frames[-2:] == [sleeping_avatar(), control_avatar("neutral")]
-    assert applied_brightness == [5, 73]
+    assert applied_brightness == [35, 73]
     assert owner_brightness == 73
     assert ring == [True, False]
 
@@ -88,7 +88,7 @@ def test_sleep_face_is_firmware_gated_and_brightness_failure_does_not_block_face
     renderer = RestRenderer(set_brightness=fail, firmware_version=lambda: "0.2.53")
     renderer.render(_out("asleep"), client, STACKCHAN_PROFILE)
     assert client.frames[-1].expression == "sleepy"
-    assert "brightness set to 5 failed" in caplog.text
+    assert "brightness set to 35 failed" in caplog.text
 
     new_firmware = _Client()
     RestRenderer(firmware_version=lambda: "0.2.54").render(
@@ -192,14 +192,14 @@ def test_the_real_behavior_sends_the_rest_faces_and_wakes_cleanly():
         assert behavior.rest_step(start + 301.0) == "asleep"
         shown = [getattr(frame, "expression", "") for frame in device.avatar_frames]
         assert "sleepy" in shown  # the drowsy face reached the unit
-        assert levels == [5] and ring == [True]
+        assert levels == [35] and ring == [True]
         frames = len(device.avatar_frames)
         for second in range(302, 330):  # nothing is resent or re-dimmed while it sleeps
             behavior.rest_step(start + float(second))
-        assert len(device.avatar_frames) == frames and levels == [5]
+        assert len(device.avatar_frames) == frames and levels == [35]
         behavior._last_person_seen = start + 340.0
         assert behavior.rest_step(start + 341.0) == "awake"
-        assert levels == [5, 80] and ring == [True, False]
+        assert levels == [35, 80] and ring == [True, False]
         assert getattr(device.avatar_frames[-1], "expression", "") == "neutral"
     finally:
         behavior.close()

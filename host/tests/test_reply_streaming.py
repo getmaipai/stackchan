@@ -116,7 +116,9 @@ def test_stripper_removes_a_tag_split_across_chunks():
     assert out == "Hi  there."
     assert seen == ["mood: joy"]
     long_text = "Not a tag [1 and then a very long span of text that never closes at all ok"
-    assert "Not a tag" in TagStripper().feed(long_text)
+    stripper = TagStripper()
+    assert stripper.feed(long_text) == "Not a tag "  # a bracket run past 60 characters is dropped, never spoken (section 8.4)
+    assert stripper.flush() == "" and stripper.dropped == 1
 
 
 def test_stripper_drops_an_unfinished_tag_at_the_end_but_keeps_plain_brackets():

@@ -1,7 +1,8 @@
 # ruff: noqa: E501
 """The unit's games, the host side (firmware patch G01).
 
-The unit plays the games itself (color memory, reaction time, whack-a-mole): the screen, the
+The unit plays the games itself (color memory, reaction time, whack-a-mole, tic-tac-toe, a button game called "do it", rock paper
+scissors, the magic 8 ball and dice and coin): the screen, the
 touches, the tones, the rules and the best scores are the firmware's, so a game works with Home
 down. This module is what only the host adds:
 
@@ -93,6 +94,88 @@ GAMES: tuple[Game, ...] = (
         False,
         {"en": "moles", "es": "topos"},
     ),
+    Game(
+        "tictactoe",
+        {"en": "Tic-Tac-Toe", "es": "Tres en raya"},
+        (
+            "tictactoe",
+            "tic tac toe",
+            "tic tac",
+            "noughts and crosses",
+            "naughts and crosses",
+            "tres en raya",
+            "tres en linea",
+            "el gato",
+            "gato",
+        ),
+        False,
+        {"en": "points", "es": "puntos"},
+    ),
+    Game(
+        "bopit",
+        {"en": "Do It", "es": "Hazlo"},
+        (
+            "bopit",
+            "do it",
+            "do it game",
+            "tap swipe shake",
+            "hazlo",
+            "haz lo que digo",
+        ),
+        False,
+        {"en": "moves", "es": "movimientos"},
+    ),
+    Game(
+        "rps",
+        {"en": "Rock Paper Scissors", "es": "Piedra papel tijera"},
+        (
+            "rps",
+            "rock paper scissors",
+            "rock paper or scissors",
+            "rock scissors paper",
+            "roshambo",
+            "piedra papel tijera",
+            "piedra papel o tijera",
+            "piedra papel y tijera",
+            "pptj",
+        ),
+        False,
+        {"en": "wins", "es": "victorias"},
+    ),
+    Game(
+        "eightball",
+        {"en": "Magic 8-Ball", "es": "Bola 8 magica"},
+        (
+            "eightball",
+            "magic 8 ball",
+            "magic eight ball",
+            "8 ball",
+            "eight ball",
+            "bola 8",
+            "bola 8 magica",
+            "bola magica",
+        ),
+        False,
+        {"en": "questions", "es": "preguntas"},
+    ),
+    Game(
+        "dice",
+        {"en": "Dice and Coin", "es": "Dados y moneda"},
+        (
+            "dice",
+            "dice and coin",
+            "a dice",
+            "a die",
+            "coin flip",
+            "coin",
+            "dados",
+            "dado",
+            "dados y moneda",
+            "moneda",
+        ),
+        False,
+        {"en": "rolls", "es": "tiradas"},
+    ),
 )
 IDS = tuple(g.id for g in GAMES)
 
@@ -135,6 +218,31 @@ _LIST = (
     "cuales juegos",
     "lista de juegos",
     "lista los juegos",
+)
+# Short asks that start a game by themselves, with no word like "play" ("roll a dice", "flip a coin"), in English and Spanish.
+_DIRECT = (
+    ("roll a dice", "dice"),
+    ("roll a die", "dice"),
+    ("roll the dice", "dice"),
+    ("roll the die", "dice"),
+    ("roll some dice", "dice"),
+    ("roll dice", "dice"),
+    ("throw the dice", "dice"),
+    ("flip a coin", "dice"),
+    ("toss a coin", "dice"),
+    ("flip the coin", "dice"),
+    ("coin flip", "dice"),
+    ("heads or tails", "dice"),
+    ("tira un dado", "dice"),
+    ("tira los dados", "dice"),
+    ("lanza un dado", "dice"),
+    ("lanza una moneda", "dice"),
+    ("tira una moneda", "dice"),
+    ("cara o cruz", "dice"),
+    ("ask the magic 8 ball", "eightball"),
+    ("ask the magic eight ball", "eightball"),
+    ("pregunta a la bola 8", "eightball"),
+    ("pregunta a la bola magica", "eightball"),
 )
 _SCORES = (
     "best score",
@@ -181,6 +289,9 @@ def parse_ask(text: object) -> tuple[str, str | None] | None:
         return ("stop", None)
     if any(p in said for p in _LIST):
         return ("list", None)
+    for phrase, game_id in _DIRECT:
+        if f" {phrase} " in f" {said} ":
+            return ("start", game_id)
     game = find_game(said)
     if any(p in said for p in _SCORES):
         return ("scores", game.id if game else None)
@@ -191,7 +302,7 @@ def parse_ask(text: object) -> tuple[str, str | None] | None:
 
 _SPANISH_WORDS = frozenset(
     "juega jugar juguemos jugamos quiero deja termina acaba que cuales lista mejor puntuacion puntuaciones "
-    "topo topos memoria reaccion reflejos colores pon empieza para el los las".split()
+    "topo topos memoria reaccion reflejos colores pon empieza para el los las tres raya linea gato hazlo piedra papel tijera dados dado moneda bola magica cara cruz tira lanza".split()
 )
 
 
@@ -221,13 +332,13 @@ _LINES = {
 
 _PLAIN = {
     "en": {
-        "no_game": "I do not know that game. Ask for memory, reaction or whack-a-mole.",
+        "no_game": "I do not know that game. Ask for memory, reaction, whack-a-mole, tic-tac-toe, do it, rock paper scissors, magic 8 ball or dice.",
         "unreachable": "I could not reach my body to do that. Check that it is on, then ask again.",
         "old_firmware": "This unit's firmware has no games. Update the unit's firmware, then ask again.",
         "none": "No scores yet. Play a game and the best ones show here.",
     },
     "es": {
-        "no_game": "No conozco ese juego. Pide memoria, reaccion o atrapa topos.",
+        "no_game": "No conozco ese juego. Pide memoria, reaccion, atrapa topos, tres en raya, hazlo, piedra papel tijera, bola 8 magica o dados.",
         "unreachable": "No pude llegar a mi cuerpo para hacerlo. Comprueba que este encendido y pidelo otra vez.",
         "old_firmware": "El firmware de esta unidad no tiene juegos. Actualizalo y pidelo otra vez.",
         "none": "Todavia no hay puntuaciones. Juega y las mejores se muestran aqui.",

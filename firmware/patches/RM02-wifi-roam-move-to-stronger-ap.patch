@@ -1,0 +1,124 @@
+# Intent: Wi-Fi roaming, the move (patch RM01 starts the scan). The setup component's station code treats every scan result as a connect scan: it queues the access points of the saved networks, strongest first, and calls esp_wifi_connect(). A scan that ends while the unit is already joined would therefore reconnect at once, even to the same access point, and the old firmware's roam block relied on exactly that unchecked behavior. This patch gives HandleScanResult a first step for the joined case: take an access point of the same network name only when it is at least 8 dB stronger than the current one (mr_pick in maipai_roam_core.h, tested on the host), put it first in the connect queue with the access point being left behind it as the way back, and disconnect; the component's own disconnect handler then connects to the queue (no retry of the weak access point, no new code path). The same copy forces the component's remember_bssid flag to 0 when it reads its settings: the old firmware's patch 044 wrote 1 into NVS (it pins the access point and so disables roaming), and a unit flashed over that firmware without erasing its settings would otherwise never roam. With nothing clearly better the unit stays and logs one line. The component in managed_components is not edited (checksums and dependencies.lock stay valid): firmware/vendor_fixes/wifi_roam.cmake copies wifi_station.cc into the build folder, inserts firmware/vendor_fixes/wifi_roam_block.inc and swaps the copy in, the way FI02 does for the camera driver; the configure stops with an error if the vendor text changed. The scan result copy is at most 48 records (about 6 KB) in PSRAM, freed in the same call.
+# Placement: unit (the robot's own Wi-Fi link)
+# Upstream: firmware/CMakeLists.txt of the StackChan main component (MIT); wifi_station.cc of 78/esp-wifi-connect 3.3.1 (MIT), edited only in the build folder
+# Check after a flash: carry the unit between two access points of one network name; the log shows 'Roam: <name> from -7x dBm on channel A to -5x dBm on channel B' and the link comes back within a few seconds on the stronger one; with only one access point the log shows 'Roam scan: no clearly stronger access point' and the link never drops. Build check: the configure log must not stop with 'MaiPai RM02'.
+# Kconfig: none.
+
+diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
+--- a/firmware/CMakeLists.txt
++++ b/firmware/CMakeLists.txt
+@@ -28,6 +28,9 @@ include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
+ # Camera driver start-up race (patch FI02): see vendor_fixes/camera_vsync.cmake.
+ include("${CMAKE_CURRENT_LIST_DIR}/vendor_fixes/camera_vsync.cmake")
+ 
++# Wi-Fi roaming, the scan-done step (patch RM02): see vendor_fixes/wifi_roam.cmake.
++include("${CMAKE_CURRENT_LIST_DIR}/vendor_fixes/wifi_roam.cmake")
++
+ # Auto-load a local sdkconfig overlay (git-ignored) when present. Lets
+ # self-hosted / custom deployments pin CONFIG_STACKCHAN_SERVER_URL,
+ # CONFIG_OTA_URL, etc. without touching committed defaults.
+diff --git a/firmware/vendor_fixes/wifi_roam.cmake b/firmware/vendor_fixes/wifi_roam.cmake
+new file mode 100644
+--- /dev/null
++++ b/firmware/vendor_fixes/wifi_roam.cmake
+@@ -0,0 +1,55 @@
++# Wi-Fi roaming (patch RM02), included from firmware/CMakeLists.txt. The setup component's station code handles a scan
++# result as a connect scan: it queues every access point of a saved network and connects to the first. A scan that
++# ends while the unit is already joined (the roam scan the unit starts when the signal stays weak, patch RM01) would
++# make it reconnect at once, even to the same access point. The fix gives HandleScanResult a first step for that case:
++# choose a clearly stronger access point of the same network name (maipai_roam_core.h) and move to it, or stay.
++# The component in managed_components is not edited, so its checksums and dependencies.lock stay valid: at configure
++# time this script copies wifi_station.cc into the build directory, inserts wifi_roam_block.inc (and forces the pin flag
++# off, see below), and swaps the copy in
++# for the original (the same method as vendor_fixes/camera_vsync.cmake). The configure stops with an error if the
++# vendor text changed, so a component update cannot silently drop the fix. The swap runs deferred, after project().
++set(maipai_wifi_roam_dir "${CMAKE_CURRENT_LIST_DIR}")
++
++function(maipai_wifi_roam_fix)
++    idf_component_get_property(wifi_lib 78__esp-wifi-connect COMPONENT_LIB)
++    if(NOT wifi_lib)
++        return()
++    endif()
++    idf_component_get_property(wifi_dir 78__esp-wifi-connect COMPONENT_DIR)
++    set(src "${wifi_dir}/wifi_station.cc")
++    if(NOT EXISTS "${src}")
++        return()
++    endif()
++    file(READ "${src}" text)
++    file(READ "${maipai_wifi_roam_dir}/wifi_roam_block.inc" block)
++    set(out "${CMAKE_BINARY_DIR}/maipai_vendor/wifi_station.cc")
++
++    set(old_inc "#include \"ssid_manager.h\"\n")
++    set(new_inc "#include \"ssid_manager.h\"\n#include \"maipai_roam_core.h\"  /* MaiPai RM02 */\n")
++    set(old_fn "void WifiStation::HandleScanResult() {\n")
++    set(new_fn "void WifiStation::HandleScanResult() {\n${block}")
++    # The old firmware's patch 044 wrote NVS wifi/remember_bssid = 1, which pins the access point (the component's own
++    # comment: "intentionally disables roaming between same-SSID APs"). A unit flashed over that firmware without erasing
++    # its settings still carries the 1, so the component never reads it here: the flag is forced to 0.
++    set(old_nv "        err = nvs_get_u8(nvs, \"remember_bssid\", &remember_bssid_);\n        if (err != ESP_OK) {\n            remember_bssid_ = 0;\n        }\n")
++    set(new_nv "${old_nv}        remember_bssid_ = 0;  /* MaiPai RM02: never pin one access point, even when an old build saved 1 */\n")
++    foreach(pair old_inc;old_fn;old_nv)
++        string(FIND "${text}" "${${pair}}" pos)
++        if(pos EQUAL -1)
++            message(FATAL_ERROR "MaiPai RM02: the Wi-Fi component's wifi_station.cc no longer has the text this fix edits (${pair}). Update firmware/vendor_fixes/wifi_roam.cmake for the new version of 78/esp-wifi-connect.")
++        endif()
++    endforeach()
++    string(REPLACE "${old_inc}" "${new_inc}" text "${text}")
++    string(REPLACE "${old_fn}" "${new_fn}" text "${text}")
++    string(REPLACE "${old_nv}" "${new_nv}" text "${text}")
++    file(WRITE "${out}" "${text}")
++    set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${src}" "${maipai_wifi_roam_dir}/wifi_roam_block.inc")
++
++    get_target_property(srcs ${wifi_lib} SOURCES)
++    list(FILTER srcs EXCLUDE REGEX "wifi_station\\.cc$")
++    list(APPEND srcs "${out}")
++    set_property(TARGET ${wifi_lib} PROPERTY SOURCES ${srcs})
++    target_include_directories(${wifi_lib} PRIVATE "${CMAKE_SOURCE_DIR}/main/hal")
++endfunction()
++
++cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL maipai_wifi_roam_fix)
+diff --git a/firmware/vendor_fixes/wifi_roam_block.inc b/firmware/vendor_fixes/wifi_roam_block.inc
+new file mode 100644
+--- /dev/null
++++ b/firmware/vendor_fixes/wifi_roam_block.inc
+@@ -0,0 +1,40 @@
++    if (was_connected_) {
++        // MaiPai RM02: a scan that ends while the unit is joined is a roam scan (patch RM01 starts one when the signal
++        // stays weak), never a connect scan. Move to an access point of the same network name that is clearly
++        // stronger (maipai_roam_core.h, mr_pick), or stay. The access point left stays in the queue as the way back.
++        uint16_t found = 0;
++        esp_wifi_scan_get_ap_num(&found);
++        uint16_t n = found > 48 ? 48 : found;
++        wifi_ap_record_t* recs = n ? (wifi_ap_record_t*)malloc(n * sizeof(wifi_ap_record_t)) : nullptr;
++        mr_ap_t* aps = n ? (mr_ap_t*)malloc(n * sizeof(mr_ap_t)) : nullptr;
++        wifi_ap_record_t cur = {};
++        if (recs == nullptr || aps == nullptr || esp_wifi_scan_get_ap_records(&n, recs) != ESP_OK) {
++            esp_wifi_clear_ap_list();
++        } else if (esp_wifi_sta_get_ap_info(&cur) == ESP_OK) {
++            for (int i = 0; i < n; i++) {
++                aps[i].rssi = recs[i].rssi;
++                memcpy(aps[i].bssid, recs[i].bssid, 6);
++                aps[i].same_ssid = strcmp((const char*)recs[i].ssid, (const char*)cur.ssid) == 0 ? 1 : 0;
++            }
++            const int pick = mr_pick(cur.rssi, cur.bssid, aps, n);
++            if (pick < 0) {
++                ESP_LOGW(TAG, "Roam scan: no clearly stronger access point of %s (now %d dBm), staying", ssid_.c_str(), cur.rssi);
++            } else {
++                ESP_LOGW(TAG, "Roam: %s from %d dBm on channel %d to %d dBm on channel %d (BSSID ending %02x:%02x)",
++                         ssid_.c_str(), cur.rssi, cur.primary, recs[pick].rssi, recs[pick].primary,
++                         recs[pick].bssid[4], recs[pick].bssid[5]);
++                WifiApRecord next = {ssid_, password_, recs[pick].primary, recs[pick].authmode, {0}};
++                memcpy(next.bssid, recs[pick].bssid, 6);
++                WifiApRecord back = {ssid_, password_, cur.primary, cur.authmode, {0}};
++                memcpy(back.bssid, cur.bssid, 6);
++                connect_queue_.clear();
++                connect_queue_.push_back(next);
++                connect_queue_.push_back(back);
++                reconnect_count_ = MAX_RECONNECT_COUNT;  // the disconnect below goes to the queue, not to a retry of this access point
++                esp_wifi_disconnect();
++            }
++        }
++        free(recs);
++        free(aps);
++        return;
++    }

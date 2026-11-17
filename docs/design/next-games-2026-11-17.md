@@ -1,10 +1,12 @@
 # Next games (2026-11-17)
 
-Placement: backlog note. Built today: Color Memory, Reaction Time, Whack-a-mole (data packs in `firmware/games/`). Owner asked for a Bop-It style game and Tic-Tac-Toe, and for other ideas. Build after the current UI batch (one flash window per batch).
+Status (2026-11-17, later the same day): items 0 to 4 are built (item 3, Simon Says, was removed again by `UI14`) as firmware patches `UI11` to `UI13`; see `games-v2-2026-11-17.md` for what was built, the measured numbers and what was not verified.
 
-1. **Bop-It style ("Do it!").** The bot calls an action and a clock runs: Tap, Swipe left, Swipe right, Shake, Pet the head, Tilt. It speeds up each round; a miss or a late move ends the run. Needs engine support for swipe, shake (IMU) and head-touch inputs and a voice or tone cue per action.
+Placement: backlog note. Built today: Color Memory, Reaction Time, Whack-a-mole (data packs in `firmware/games/`). Owner asked for a game that calls moves (Do It) and Tic-Tac-Toe, and for other ideas. Build after the current UI batch (one flash window per batch).
+
+1. **Do It ("Do it!").** The bot calls an action and a clock runs: Tap, Swipe left, Swipe right, Shake, Pet the head, Tilt. It speeds up each round; a miss or a late move ends the run. Needs engine support for swipe, shake (IMU) and head-touch inputs and a voice or tone cue per action.
 2. **Tic-Tac-Toe.** Three difficulty levels (random, blocks wins, perfect). Big 3x3 board filling the play area; the bot plays by tapping its mark and says its move.
-3. **Simon Says (head and face).** The bot says "Simon says tilt me" and so on; only commands starting with "Simon says" count. Uses the IMU only.
+3. **Simon Says (head and face), DROPPED 2026-11-17 by the owner (overlap with Do It; he prefers buttons).** The bot says "Simon says tilt me" and so on; only commands starting with "Simon says" count. Uses the IMU only.
 4. **Rock, Paper, Scissors.** Tap a choice; the bot shows its pick with a face and a sound.
 Skipped on purpose: any game that needs sound direction (the unit has one microphone).
 

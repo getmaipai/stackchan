@@ -1,0 +1,177 @@
+# Intent: The test hook that lets the private path be proven at home (old patch 153, rebuilt for this tree's single hub link). self.network.prefer_tailnet(minutes) (1 to 60; 0 turns it off) makes the hub link use the private route for that long even though the home address works, and reopens an open link through it (the reconnect loop closes its socket within 5 s of the request). Refused with tailnet_not_ready while the client is not connected and with no_hub_address while no hub private address is saved. Never saved: a restart clears it. It is an MCP tool, so only the authenticated hub connection can call it. The rule is plain C (mt_prefer_* in maipai_tailnet_core.h), tested on the host. self.tailnet.status gains prefer. Cost: 16 bytes of internal RAM, no task.
+# Placement: unit (the hub link is the unit's own)
+# Upstream: bot patch 153 (prefer-tailnet-hook) of the old firmware, rebuilt; firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc of the Xiaozhi component (MIT)
+# Check after a flash: needs a real join. self.network.prefer_tailnet(5) answers {"ok":true,"minutes":5}; the log says 'Private network preference changed: reconnecting to the hub' then 'connecting to the hub over the private network'; the hub sees the unit from a 100.64.0.0/10 address; after five minutes the next reconnect uses the home address again. With the client not connected it answers tailnet_not_ready.
+# Kconfig: MAIPAI_TAILNET (off removes the hook's loop check).
+
+diff --git a/firmware/main/hal/maipai_tailnet.cc b/firmware/main/hal/maipai_tailnet.cc
+--- a/firmware/main/hal/maipai_tailnet.cc
++++ b/firmware/main/hal/maipai_tailnet.cc
+@@ -66,6 +66,8 @@ static volatile uint16_t s_region_saved = 0;  // patch RM04: learned relay regio
+ static volatile int s_relay_home = 0;         // patch RM04: the relay region the client is on now (status only)
+ static volatile int s_relay_hub  = 0;         // patch RM04: the hub's home relay region from the network map (status only)
+ static mt_region_t s_region      = {0, 0};
++static volatile int64_t s_prefer_until_ms = 0;  // patch RM05: the prefer-private-route hook's deadline, uptime ms, 0 = off
++static volatile unsigned s_prefer_gen = 0;      // patch RM05: counts hook requests, so the link reopens through the new route
+ 
+ bool maipai_tailnet_compiled()
+ {
+@@ -451,12 +453,30 @@ void maipai_tailnet_note_connect(bool ok)
+     consider_start(false);
+ }
+ 
++bool maipai_tailnet_prefer_active()
++{
++    return mt_prefer_active(s_prefer_until_ms, esp_timer_get_time() / 1000) != 0;
++}
++
++bool maipai_tailnet_prefer_take()
++{
++    static unsigned seen = 0;
++    const unsigned gen = s_prefer_gen;
++    if (gen == seen) {
++        return false;
++    }
++    seen = gen;
++    return true;
++}
++
+ std::string maipai_tailnet_route_url(const std::string& saved_url)
+ {
+     if (!maipai_tailnet_compiled()) {
+         return saved_url;
+     }
+-    const int route = mt_route_choose(&s_route, maipai_tailnet_ready() ? 1 : 0, s_peer[0] != '\0' ? 1 : 0);
++    const int normal = mt_route_choose(&s_route, maipai_tailnet_ready() ? 1 : 0, s_peer[0] != '\0' ? 1 : 0);
++    // Patch RM05: while the test hook is on, the private route is used whatever the normal rule says.
++    const int route = mt_prefer_route(normal, maipai_tailnet_prefer_active() ? 1 : 0, maipai_tailnet_ready() ? 1 : 0, s_peer[0] != '\0' ? 1 : 0);
+     if (route != 1) {
+         return saved_url;
+     }
+@@ -498,6 +518,35 @@ static void forget_identity()
+ void maipai_tailnet_register_tools()
+ {
+     auto& mcp = McpServer::GetInstance();
++    // Patch RM05: the test hook that lets the private path be tried at home. Not saved: a restart clears it.
++    mcp.AddTool("self.network.prefer_tailnet",
++                "Test hook: for the next N minutes (1 to 60; 0 turns it off) the link to the hub uses the private network "
++                "even when the home address works, and an open link is reopened through it at once. It is never saved: a "
++                "restart clears it. Refused while the private network is not connected or the hub's private address is not "
++                "saved. Answers {\"ok\":true,\"minutes\":N} or {\"ok\":false,\"error\":\"not_compiled\"|\"tailnet_not_ready\"|"
++                "\"no_hub_address\"|\"bad_minutes\"}.",
++                PropertyList({Property("minutes", kPropertyTypeInteger, 5, 0, MT_PREFER_MAX_MIN)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    if (!maipai_tailnet_compiled()) {
++                        return std::string("{\"ok\":false,\"error\":\"not_compiled\"}");
++                    }
++                    const int minutes = properties["minutes"].value<int>();
++                    if (minutes < 0 || minutes > MT_PREFER_MAX_MIN) {
++                        return std::string("{\"ok\":false,\"error\":\"bad_minutes\"}");
++                    }
++                    if (minutes > 0 && s_peer[0] == '\0') {
++                        return std::string("{\"ok\":false,\"error\":\"no_hub_address\"}");
++                    }
++                    if (minutes > 0 && !maipai_tailnet_ready()) {
++                        return std::string("{\"ok\":false,\"error\":\"tailnet_not_ready\"}");
++                    }
++                    s_prefer_until_ms = minutes > 0 ? mt_prefer_deadline(esp_timer_get_time() / 1000, minutes) : 0;
++                    s_prefer_gen      = s_prefer_gen + 1;
++                    ESP_LOGW(TAG, "prefer the private network: %d minutes", minutes);
++                    char buf[48];
++                    snprintf(buf, sizeof(buf), "{\"ok\":true,\"minutes\":%d}", minutes);
++                    return std::string(buf);
++                });
+     mcp.AddTool("self.tailnet.status",
+                 "Travel with the private network: whether it is built in, switched on, whether a pairing key or the hub's "
+                 "private address is saved (never the key itself), whether the unit joined before, its state (idle, "
+@@ -512,7 +561,7 @@ void maipai_tailnet_register_tools()
+                     snprintf(buf, sizeof(buf),
+                              "{\"compiled\":%s,\"enabled\":%s,\"guard_off\":%s,\"key_saved\":%s,\"peer_saved\":%s,\"joined\":%s,"
+                              "\"state\":\"%s\",\"ip\":\"%s\",\"ready\":%s,\"route\":\"%s\",\"fails\":%d,\"refusal\":%d,"
+-                             "\"relay\":%d,\"hub_relay\":%d,"
++                             "\"relay\":%d,\"hub_relay\":%d,\"prefer\":%s,"
+                              "\"internal_free\":%u,\"largest_block\":%u}",
+                              maipai_tailnet_compiled() ? "true" : "false", s_enabled ? "true" : "false",
+                              s_guard_off ? "true" : "false", s_key_saved ? "true" : "false", s_peer[0] ? "true" : "false",
+@@ -523,7 +572,7 @@ void maipai_tailnet_register_tools()
+                              "off",
+ #endif
+                              ip, maipai_tailnet_ready() ? "true" : "false", s_route.route ? "private" : "home", (int)s_fails,
+-                             (int)s_refusal, (int)s_relay_home, (int)s_relay_hub,
++                             (int)s_refusal, (int)s_relay_home, (int)s_relay_hub, maipai_tailnet_prefer_active() ? "true" : "false",
+                              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+                     return std::string(buf);
+diff --git a/firmware/main/hal/maipai_tailnet.h b/firmware/main/hal/maipai_tailnet.h
+--- a/firmware/main/hal/maipai_tailnet.h
++++ b/firmware/main/hal/maipai_tailnet.h
+@@ -41,3 +41,12 @@ extern "C" int maipai_portal_tailnet_save(const char* key, const char* peer);
+ 
+ // The same checks without saving anything (the setup page asks before it joins Wi-Fi). Same return values.
+ extern "C" int maipai_portal_tailnet_check(const char* key, const char* peer);
++
++// Patch RM05, the test hook behind self.network.prefer_tailnet: true while "use the private network" is on (a number of
++// minutes asked by the host, never saved). The hub link uses the private route for that time whatever the normal rule
++// says, so the private path can be tried at home.
++bool maipai_tailnet_prefer_active();
++
++// True once for each new request of the hook: the hub link closes its socket then, so the next connect goes through the
++// route the hook chose (or the normal one when the hook has just ended).
++bool maipai_tailnet_prefer_take();
+diff --git a/firmware/main/hal/maipai_tailnet_core.h b/firmware/main/hal/maipai_tailnet_core.h
+--- a/firmware/main/hal/maipai_tailnet_core.h
++++ b/firmware/main/hal/maipai_tailnet_core.h
+@@ -239,3 +239,32 @@ static inline void mt_region_moved(mt_region_t* r, int64_t now_ms)
+     r->moves++;
+     r->last_move_ms = now_ms;
+ }
++
++/* The prefer-private-route test hook (patch RM05): "use the private network for the next N minutes". The deadline is
++ * kept in milliseconds of uptime; 0 means off. Never saved, so a restart clears it. Returns the deadline for a request
++ * of `minutes` (1 to MT_PREFER_MAX_MIN, anything else is refused with 0) made at `now_ms`. */
++#define MT_PREFER_MAX_MIN 60
++
++static inline int64_t mt_prefer_deadline(int64_t now_ms, int minutes)
++{
++    if (minutes < 1 || minutes > MT_PREFER_MAX_MIN) {
++        return 0;
++    }
++    return now_ms + (int64_t)minutes * 60000;
++}
++
++/* True while the hook is on: a deadline is set and has not passed. */
++static inline int mt_prefer_active(int64_t deadline_ms, int64_t now_ms)
++{
++    return deadline_ms != 0 && now_ms < deadline_ms;
++}
++
++/* The route the next connect uses with the hook: the private route (1) while the hook is on and the private network is
++ * ready with a saved hub address; otherwise the route the normal rule chose. */
++static inline int mt_prefer_route(int normal_route, int prefer_on, int tailnet_ready, int peer_saved)
++{
++    if (prefer_on && tailnet_ready && peer_saved) {
++        return 1;
++    }
++    return normal_route;
++}
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -381,6 +381,17 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+                     }
+                     self->last_incoming_time_ = std::chrono::steady_clock::now();
+                 }
++#if CONFIG_MAIPAI_TAILNET
++                if (maipai_tailnet_prefer_take()) {
++                    // Patch RM05 (test hook self.network.prefer_tailnet): close the open socket; the reconnect below opens
++                    // the next one through the route the hook chose.
++                    auto websocket = self->GetWebSocket();
++                    if (websocket != nullptr) {
++                        ESP_LOGW(TAG, "Private network preference changed: reconnecting to the hub");
++                        websocket->Close();
++                    }
++                }
++#endif
+             }
+             if (bits & WEBSOCKET_PROTOCOL_STOP_EVENT) {
+                 break;

@@ -682,6 +682,9 @@ class StackChanTurnBridge:
         # "Look left", "nod": answered here too, since the hub's model can only say "I can't".
         self.head_control = head_control
         self.alarm_control = alarm_control
+        # Talk games ("play twenty questions", "tell me a riddle"; talk_games.py): started here with a fixed line, then
+        # the model plays with the game's rules next to its persona. None means no talk games.
+        self.talk_games = None
         # "What are you looking at?": answered from the head's own reason, never by the hub.
         self.gaze_control = gaze_control
         # "Can you see me?": answered from what the host knows, never "I can't see".
@@ -780,6 +783,12 @@ class StackChanTurnBridge:
         self.filler_player = None
         # True while something outranks decoration (sleep, the low-battery tired look): no overlay starts.
         self.decoration_blocked: Callable[[], bool] = lambda: False
+        # The command bus (command_bus.py): when set, every decoration a reply asks for (overlay, scene, sound, light) goes through
+        # its permission, gate, priority and rate checks. None leaves the older direct overlay path.
+        self.command_bus = None
+        # Whether a child is present and whether a remote cue holds this unit, by Device-Id; Home and the remote page fill them in.
+        self.child_present: Callable[[str], bool] = lambda _device_id: False
+        self.remote_active: Callable[[str], bool] = lambda _device_id: False
 
     async def on_audio(self, session_id: str, data: bytes) -> None:
         stats = self._audio_stats.setdefault(session_id, [0, 0])
@@ -1157,7 +1166,7 @@ class StackChanTurnBridge:
         if result.kind != "final":
             return
         text = result.text or ""
-        route, why = self._route_of(text, outcome)
+        route, why = self._route_of(text, outcome, device_id)
         shown = repr(text) if os.environ.get("MAIPAI_STACKCHAN_LOG_UTTERANCES") == "1" else (
             f"({len(text.split())} words)"
         )
@@ -1170,7 +1179,7 @@ class StackChanTurnBridge:
             why,
         )
 
-    def _route_of(self, text: str, outcome: str) -> tuple[str, str]:
+    def _route_of(self, text: str, outcome: str, device_id: str = "") -> tuple[str, str]:
         """Where this utterance goes: a local command (and which), or the chat model."""
         if outcome != "speech":
             return "none", f"classified {outcome}"
@@ -1181,6 +1190,9 @@ class StackChanTurnBridge:
 
         if is_stop_phrase(text):
             return "local command", "stop phrase on the fixed list"
+        talk = getattr(self, "talk_games", None)
+        if talk is not None and talk.parse(text, device_id) is not None:
+            return "local command", "talk game start or end wording found"
         if self.volume_control is not None and parse_volume_command(text) is not None:
             return "local command", "volume wording found"
         if self.brightness_control is not None and bright.parse_brightness_command(text):
@@ -1280,6 +1292,8 @@ class StackChanTurnBridge:
                     "yes" if stop else "no",
                 )
                 if stop:
+                    if self.talk_games is not None:
+                        self.talk_games.on_stop_phrase(device_id, result.text)  # "that's enough" also ends a talk game
                     # "Stop", "never mind", "be quiet": end the turn here, nothing is said.
                     LOG.info("StackChan voice: stop phrase heard; going idle without the hub")
                     self._quiet_streak = 0
@@ -1345,6 +1359,15 @@ class StackChanTurnBridge:
                         await asyncio.to_thread(self._say, playback, base, cookie, line)
                         self._breaker.note_speech()
                     return
+            if self.talk_games is not None:
+                talk_command = self.talk_games.parse(result.text or "", device_id)
+                if talk_command is not None:
+                    line = await asyncio.to_thread(self.talk_games.run, talk_command, device_id)
+                    LOG.info("StackChan voice: talk game %s %s", talk_command.kind, talk_command.game or "")
+                    if line:
+                        await asyncio.to_thread(self._say, playback, base, cookie, line)
+                        self._breaker.note_speech()
+                    return
             if self.head_control is not None:
                 from maipai_body.bodies.stackchan.head_commands import parse_head_command
 
@@ -1405,6 +1428,13 @@ class StackChanTurnBridge:
                     self._breaker.note_speech()
                     return
             turn = self._turn_for(device_id, base, cookie)
+            if self.talk_games is not None:
+                rules = self.talk_games.begin_turn(device_id)
+                if rules:
+                    from maipai_body.bodies.stackchan.talk_games import GameTurn
+
+                    own = self.units is not None and self.units.has_own_llm(device_id)
+                    turn = GameTurn(turn, rules, persona_path=own)
             await self._stream_reply(
                 session_id, turn, result, playback, cancel_event, base, cookie, device_id=device_id
             )
@@ -1475,6 +1505,50 @@ class StackChanTurnBridge:
                 LOG.debug("StackChan voice: overlay cue failed", exc_info=True)
 
         self._side.submit(run)
+
+    def show_mood(self, cue_name: str) -> None:
+        """Draw a mood on the face now (the settings page's scene Test); ``cue_name`` is an expression cue such as ``happiness``."""
+        self._emit_expression("reply_mood", mood=cue_name)
+
+    def _bus_cue(self, device_id: str, cue, budget) -> str | None:
+        """Send one decoration cue from the reply through the command bus as the model's request. Returns the mood a scene may set
+        (the caller draws it unless the reply named a mood itself). Never raises; the unit calls run off this thread."""
+        bus = self.command_bus
+        if bus is None or not device_id:
+            return None
+        from maipai_body.command_bus import Command
+
+        if cue.kind == "overlay":
+            command = Command("fx.set", {"name": cue.name, "intensity": cue.intensity, "seconds": cue.seconds or reply_tags.DEFAULT_SECONDS})
+        elif cue.kind == "overlay_end":
+            command = Command("fx.clear")
+        elif cue.kind == "scene":
+            command = Command("scene.set", {"name": cue.name})
+        elif cue.kind == "scene_off":
+            command = Command("scene.clear")
+        elif cue.kind == "sound":
+            command = Command("sound.play", {"name": cue.name})
+        elif cue.kind == "light":
+            command = Command("light.look", {"color": cue.name, "seconds": cue.seconds or reply_tags.DEFAULT_LIGHT_S})
+        else:
+            return None
+        deferred: list = []
+        try:
+            result = bus.send(device_id, command, budget, defer=deferred)
+        except Exception:
+            LOG.debug("StackChan voice: decoration cue failed", exc_info=True)
+            return None
+
+        def run() -> None:
+            for execute, device, args in deferred:
+                try:
+                    execute(device, args)
+                except Exception:
+                    LOG.debug("StackChan voice: decoration call failed", exc_info=True)
+
+        if deferred:
+            self._side.submit(run)
+        return result.mood if command.cmd == "scene.set" else None
 
     async def _stream_reply(
         self,
@@ -1579,17 +1653,30 @@ class StackChanTurnBridge:
             )
             self._notify(self.on_reply_mood, mood)
 
+        reply_budget = self.command_bus.new_reply() if self.command_bus is not None else None
+        named_mood = False  # the reply named a mood itself: a scene's mood never replaces it
+
         def run_cues(cues) -> None:
-            nonlocal mood_event
+            nonlocal mood_event, named_mood
             for cue in cues:
+                scene_mood = None
                 if cue.kind == "mood":
+                    named_mood = True
+                    mood = cue.name
+                elif self.command_bus is not None:
+                    scene_mood = self._bus_cue(device_id, cue, reply_budget)
+                    mood = scene_mood if scene_mood and not named_mood else None
+                elif cue.kind in ("overlay", "overlay_end"):
+                    self._overlay_cue(device_id, cue)
+                    continue
+                else:
+                    continue
+                if mood:
                     mood_event = SimpleNamespace(
-                        cue=SimpleNamespace(expressed_emotion=reply_tags.MOOD_CUE[cue.name])
+                        cue=SimpleNamespace(expressed_emotion=reply_tags.MOOD_CUE[mood])
                     )
                     if spoken:
                         apply_mood()
-                else:
-                    self._overlay_cue(device_id, cue)
 
         async def speak(sentence: str) -> bool:
             nonlocal tts

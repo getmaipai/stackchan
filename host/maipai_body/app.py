@@ -2645,6 +2645,7 @@ async def _serve_stackchan_channels(
         head_commander.game = _GameService(voice.robot.client._call).spoken
         from maipai_body.bodies.stackchan.music_dance_wiring import (
             MusicFeatureSwitch,
+            music_status_code,
             wire_music_dance,
         )
 
@@ -2654,6 +2655,8 @@ async def _serve_stackchan_channels(
             auto=lambda: behavior.dance_settings.auto,
             silenced=lambda: bool(behavior.speech_muted() or _unit_muted(behavior)),
         )
+        # The settings page's "Dance to music" toggle flips dance_settings.auto, then asks for this sync (see _wire_idle_setting).
+        behavior.music_sync = music_switch.sync
         from maipai_body.bodies.stackchan.wifi_list import WifiList
 
         wifi_list = WifiList(music_switch.call, on_changed=behavior.unit_facts.changed.set)
@@ -2739,6 +2742,12 @@ async def _serve_stackchan_channels(
         )
 
         sounds.dance_active = lambda: music_dance.state in {"nod", "watch", "show", "calm", "break"}
+        behavior.music_status = lambda saved: music_status_code(
+            saved=saved,
+            auto=behavior.dance_settings.auto,
+            switch=music_switch,
+            state=music_dance.state,
+        )
 
         def idle_face_allowed() -> bool:
             if not IDLE_FACES_ENABLED or behavior._active.is_set():
@@ -2816,6 +2825,10 @@ async def _serve_stackchan_channels(
             ),
         )
         bridge.vision_ask = behavior.vision_ask
+        from maipai_body.bodies.stackchan.talk_games import TalkGames
+
+        # Voice games the model plays ("play twenty questions"): the start and end are answered here with no model.
+        bridge.talk_games = TalkGames()
         bridge.muted_reason = behavior.privacy.muted_reason
         bridge.on_error_line = sounds.on_error_line
         behavior.announce = bridge.speak_reaction
@@ -2952,6 +2965,13 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
             behavior.on_idle_level()
         if "idle_motion" in values and getattr(behavior, "resync_idle", None) is not None:
             behavior.resync_idle()
+        if isinstance(values.get("dance_to_music"), bool):
+            # "Dance to music" (off until chosen): the same switch Home's robot.dance.auto flips. The music dance controller
+            # runs only while it is on, and the unit analyzes the room's sound only then (MusicFeatureSwitch).
+            behavior.dance_settings.apply({"robot.dance.auto": values["dance_to_music"]})
+            sync = getattr(behavior, "music_sync", None)
+            if sync is not None:
+                sync()
         for key in ("look_speaker", "look_faces"):
             if isinstance(values.get(key), bool):
                 choice[key] = values[key]
@@ -2982,9 +3002,11 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
                 "idle_movement": own.get("idle_movement", "off"),
                 "look_speaker": own.get("look_speaker", False),
                 "look_faces": own.get("look_faces", False),
+                "dance_to_music": own.get("dance_to_music", False),
             },
         )
 
+    backend.music_status = lambda saved: getattr(behavior, "music_status", lambda s: "waiting" if s else "off")(saved)
     voice.session_listeners.append(on_connect)
 
 

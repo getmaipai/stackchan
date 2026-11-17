@@ -575,7 +575,7 @@ BUILDERS.look=async(p,u)=>{
  ledSw.querySelector('[data-v=off]').classList.add('none');ledSw.querySelector('[data-v=off]').title=T('look.led_off');ledSw.querySelector('[data-v=off]').setAttribute('aria-label',T('look.led_off'));
  const led=card(T('look.led'),T('look.led_help'),ledSw,slider(T('look.led_bright'),10,100,5,100,x=>x+'%',null,null,null,true));
  refresh();const pol=await lookCards(id,u,v,has,face);
- p.append(h('div',{class:'two'},h('div',{class:'stack sticky'},pv,...banners),h('div',{class:'stack'},look,pol.cards[2],color,bgcard,tintcard,pol.cards[0],pol.cards[1],pol.cards[3],caps,tod,bright,led,card(null,null,reset))));
+ p.append(h('div',{class:'two'},h('div',{class:'stack sticky'},pv,...banners),h('div',{class:'stack'},look,pol.cards[2],color,bgcard,tintcard,pol.cards[0],pol.cards[1],pol.cards[3],pol.cards[6],caps,tod,bright,led,card(null,null,reset))));
  const pics=picSection(u.device_id);p.append(h('div',{class:'stack',style:'margin-top:18px'},pics))};
 
 /* ---- VOICE AND SOUND ---- */
@@ -639,7 +639,10 @@ BUILDERS.behavior=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'ov
  const priv=card(S['settings.ui.nav.privacy'],T('privacy.lead'),toggle(T('beh.vision'),T('beh.vision_help'),pr?pr.vision_off:false,async on=>(await save(unitPath(id,'device'),{vision_off:on})).ok,!pr),
   toggle(T('beh.quiet_mode'),T('beh.quiet_mode_help'),pr?pr.quiet:false,async on=>(await save(unitPath(id,'device'),{quiet:on})).ok,!pr),
   toggle(T('voice.mic_mute'),T('voice.mute_help'),pr?pr.mute:u.muted,async on=>(await save(unitPath(id,'device'),{mute:on})).ok,!pr));
- p.append(h('div',{class:'grid'},body,seek,priv),h('div',{class:'stack',style:'margin-top:18px'},...(swipe?[swipe]:[]),await timeCard(u),await alarmCard(u),await reactCard(u),await peopleCard(u)))};
+ p.append(h('div',{class:'grid'},body,seek,priv,musicCard(id,sv)),h('div',{class:'stack',style:'margin-top:18px'},...(swipe?[swipe]:[]),await timeCard(u),await alarmCard(u),await reactCard(u),await peopleCard(u)))};
+/* Dance to music: the unit measures sound levels and tempo only; the host turns the dance controller on (off until chosen). */
+function musicCard(id,sv){const st=h('p',{class:'hint',role:'status'},T('pol.dance.status.'+(sv.dance_status||'off')));
+ const c=card(T('pol.dance.title'),T('pol.dance.privacy'),toggle(T('pol.dance.toggle'),T('pol.dance.help'),!!sv.dance_to_music,async on=>{const r=await save(unitPath(id,'device'),{dance_to_music:on});if(r.ok&&r.d.status)st.textContent=T('pol.dance.status.'+r.d.status);return r.ok}),st);return c}
 async function timeCard(u){const id=u.device_id,cv=await api(unitPath(id,'clock')),fv=await faceView(id),v=fv.values||{},has=f=>fv.features==null||(fv.features||[]).includes(f);
  const c=card(S['settings.clock'],T('time.zone_help'));
  if(cv.ok&&cv.d.zones){const sel=h('select',{'aria-label':S['settings.clock.zone'],onchange:e=>save(unitPath(id,'clock'),{zone:e.target.value})});for(const z of cv.d.zones)sel.append(h('option',{value:z.id,selected:z.id===cv.d.zone},z.label));
@@ -689,13 +692,14 @@ BUILDERS.play=async(p,u)=>{const id=u.device_id,g=await api(unitPath(id,'games')
  if(g.ok&&g.d.games){if(g.d.playing)games.append(h('div',{class:'banner'},T('games.playing')));
   const L=h('div',{class:'list'});for(const x of g.d.games)L.append(h('div',{class:'item'},h('div',{class:'grow'},h('b',{},x.title)),h('div',{class:'pills'},x.scores.length?x.scores.map((s,i)=>h('span',{class:'badge',title:T('games.best')},(i===0?T('games.best')+' ':'')+s+(x.unit?' '+x.unit:''))):h('span',{class:'hint'},T('games.empty')))));games.append(L)}
  else games.append(h('div',{class:'banner'},(g.d&&g.d.error)||T('net_error')),h('span',{class:'badge'},T('soon')));
+ const tk=g.d&&g.d.talk,talkCard=tk?card(tk.title,tk.help,h('div',{class:'list'},...tk.games.map(x=>h('div',{class:'item'},h('div',{class:'grow'},h('b',{},x.title),h('div',{class:'hint'},x.hint)))))):null;
  const decor=card(S['settings.extra'],null);let pickd=null;
  const view=window.__faceviews||(window.__faceviews={});
  if(fv.choices){const cv=h('canvas',{width:640,height:480,role:'img','aria-label':T('preview')});const v=fv.values;const face=new Face(cv,{style:v.style,color:v.color,background:v.background,tint:v.emotion_tint});
   const pills=h('div',{class:'pills'});for(const n of fv.choices.decorators){const b=h('button',{class:'pill',type:'button','aria-pressed':'false',onclick:async()=>{pills.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));face.set({decor:n});save(unitPath(id,'decorate'),{name:n,seconds:6},true)}},S['settings.decor.'+n]||pretty(n));pills.append(b)}
   decor.append(h('div',{class:'screen'},cv),pills,h('div',{class:'btns'},h('button',{class:'btn',type:'button',onclick:()=>{pills.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));face.set({decor:'none'});save(unitPath(id,'decorate'),{name:'none'},true)}},S['settings.extra.stop'])))}
  else decor.append(h('div',{class:'banner'},fv.error||T('net_error')));
- p.append(h('div',{class:'grid'},games,decor))};
+ p.append(h('div',{class:'grid'},games,...(talkCard?[talkCard]:[]),decor))};
 
 /* ---- SYSTEM ---- */
 BUILDERS.system=async(p,u)=>{const id=u.device_id;

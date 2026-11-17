@@ -25,14 +25,32 @@ VERSION = 1
 HEADER = 40
 MAX_PACK = 16384
 SIG_LEN = 64
-LIMITS = {"states": 16, "regions": 12, "shapes": 48, "texts": 24, "trans": 96, "actions": 255}
+LIMITS = {"states": 16, "regions": 12, "shapes": 64, "texts": 32, "trans": 96, "actions": 255}
 COUNTERS = 8
 TEXT_LEN = 48
 EDGE = (20, 28, 300, 220)  # left, top, right, bottom: the unit keeps the edges for its swipes
 TONES = ("popup", "vibration", "success", "low_battery", "exclamation")
+# Patch UI12: the games' own funny sounds, made in code (maipai_games_sfx_core.h; a test keeps these names equal to the header).
+# A tone id is 0 to 4 for a shipped sound, 5 + n for clip n, 0x80 + g for group g (one clip of the group at random).
+CLIPS = (
+    "bonk_squeak", "bonk_boop", "squeak", "boing", "wah", "raspberry", "boop", "haha", "whistle", "trombone",
+    "good", "fanfare", "bad", "cue0", "cue1", "cue2", "cue3", "cue4", "cue5",
+    "rattle", "thud", "mystic", "ting",
+)  # fmt: skip
+GROUPS = ("bonk", "miss", "escape")
+TONE_IDS = {
+    **{name: i for i, name in enumerate(TONES)},
+    **{name: 5 + i for i, name in enumerate(CLIPS)},
+    **{name: 0x80 + i for i, name in enumerate(GROUPS)},
+}
+BOARD_CTR0 = 16  # a shape condition "board3" reads board cell 3 (counter 16 + 3)
+TIMER_FROM_CTR = 0xFFFF
 STAY, END, ANY_REGION, ANY = 0xFE, 0xFF, 0xFE, 0xFF
-EVENTS = {"enter": 0, "timer": 1, "tap": 2}
-SHAPES = {"fill": 0, "circle": 1, "box": 2, "ring": 3, "text": 4}
+EVENTS = {
+    "enter": 0, "timer": 1, "tap": 2, "swipe_l": 3, "swipe_r": 4, "shake": 5, "pet": 6,
+    "tilt_l": 7, "tilt_r": 8, "tilt_f": 9, "tilt_b": 10, "easy": 11,
+}  # fmt: skip
+SHAPES = {"fill": 0, "circle": 1, "box": 2, "ring": 3, "text": 4, "line": 5, "mole": 6, "die": 7, "coin": 8}
 SIZES = {"small": 0, "medium": 1, "large": 2}
 GUARDS = {
     "ctr_eq": 1,
@@ -44,6 +62,7 @@ GUARDS = {
     "seq_more": 7,
     "seq_last": 8,
     "reg_eq_ctr": 9,
+    "cell_free": 10,
 }
 CTR_GUARDS = {"ctr_eq", "ctr_ne", "ctr_lt", "ctr_ge", "reg_eq_ctr"}
 OPS = {
@@ -63,6 +82,15 @@ OPS = {
     "tone_ctr": 13,
     "save": 14,
     "set_reg": 15,
+    "sub_ctr": 16,
+    "floor": 17,
+    "board_clear": 18,
+    "board_place": 19,
+    "board_bot": 20,
+    "board_result": 21,
+    "sync": 22,
+    "light": 23,
+    "celebrate": 24,
 }
 
 
@@ -133,7 +161,7 @@ def build(desc: dict, *, seed: int | None = None) -> bytes:
     if not 1 <= len(state_names) <= LIMITS["states"]:
         raise PackError(f"states must be 1 to {LIMITS['states']}. Fix the table.")
     if len(region_names) > LIMITS["regions"] or len(text_names) > LIMITS["texts"] or not text_names:
-        raise PackError("regions must be at most 12 and texts 1 to 24. Fix the table.")
+        raise PackError("regions must be at most 12 and texts 1 to 32. Fix the table.")
     all_mask = (1 << len(state_names)) - 1
 
     def state_mask(spec: object, where: str) -> int:
@@ -145,17 +173,13 @@ def build(desc: dict, *, seed: int | None = None) -> bytes:
             mask |= 1 << _index(state_names, n, "state", where)
         return mask
 
-    states = b"".join(
-        struct.pack(
-            "<HH",
-            *(
-                list(st.get("timer", [0, 0]))
-                if isinstance(st.get("timer", [0, 0]), list)
-                else [st["timer"]] * 2
-            ),
-        )
-        for st in desc["states"].values()
-    )
+    def timer_of(st: dict) -> list[int]:
+        spec = st.get("timer", [0, 0])
+        if isinstance(spec, dict):  # {"ctr": name}: the time in a counter, in ms (a game that speeds up)
+            return [TIMER_FROM_CTR, _index(counters, spec.get("ctr"), "counter", "state timer")]
+        return list(spec) if isinstance(spec, list) else [spec] * 2
+
+    states = b"".join(struct.pack("<HH", *timer_of(st)) for st in desc["states"].values())
     regions = b""
     for r in desc.get("regions", []):
         x, y, w, h = r["x"], r["y"], r["w"], r["h"]
@@ -172,7 +196,11 @@ def build(desc: dict, *, seed: int | None = None) -> bytes:
             raise PackError(f"{where}: type must be one of {', '.join(SHAPES)}. Fix it.")
         cond_ctr, cond_val = 0xFF, 0
         if s.get("when"):
-            cond_ctr = _index(counters, s["when"][0], "counter", where)
+            name_ = s["when"][0]
+            if isinstance(name_, str) and name_.startswith("board") and name_[5:].isdigit() and int(name_[5:]) < 9:
+                cond_ctr = BOARD_CTR0 + int(name_[5:])  # the Tic-Tac-Toe board cell (0 empty, 1 the person, 2 the unit)
+            else:
+                cond_ctr = _index(counters, name_, "counter", where)
             cond_val = int(s["when"][1])
             if not -128 <= cond_val <= 127:
                 raise PackError(f"{where}: the 'when' value must be -128 to 127. Fix it.")
@@ -181,16 +209,31 @@ def build(desc: dict, *, seed: int | None = None) -> bytes:
         if kind == SHAPES["text"]:
             text = _index(text_names, s.get("text"), "text", where)
             aux = SIZES[s.get("size", "medium")]
+        sx, sy, sw, sh = s.get("x", 0), s.get("y", 0), s.get("w", s.get("r", 0)), s.get("h", 0)
+        if kind == SHAPES["line"]:  # from (x, y) to (x2, y2): the end point rides in the width and height fields
+            sw, sh = s.get("x2", 0), s.get("y2", 0)
+        if kind == SHAPES["mole"]:  # the region counter picks the hole, the face counter the face; r is its size
+            cond_ctr = _index(counters, s.get("region"), "counter", where)
+            aux = _index(counters, s.get("face"), "counter", where)
+            cond_val = 0
+        if kind in (SHAPES["die"], SHAPES["coin"]):  # a value counter, and the mode in which it shows (counter, value)
+            cond_ctr = _index(counters, s.get("value"), "counter", where)
+            mode = s.get("mode")
+            if mode:
+                aux, cond_val = _index(counters, mode[0], "counter", where), int(mode[1])
+            else:
+                aux, cond_val = 0, -128
+            sw = s.get("size", 60)
         shapes += struct.pack(
             "<BBbBhhhhHHBB",
             kind,
             cond_ctr,
             cond_val,
             aux,
-            s.get("x", 0),
-            s.get("y", 0),
-            s.get("w", s.get("r", 0)),
-            s.get("h", 0),
+            sx,
+            sy,
+            sw,
+            sh,
             rgb565(s.get("color", s.get("colour", "#ffffff"))),  # "colour": an older pack file
             state_mask(s.get("states"), where),
             text,
@@ -251,17 +294,23 @@ def build(desc: dict, *, seed: int | None = None) -> bytes:
                 )
             a, v = 0, 0
             name_ = act[0]
-            if name_ in ("set", "add", "rand", "div"):
+            if name_ in ("set", "add", "rand", "div", "floor", "board_place"):
                 a, v = _index(counters, act[1], "counter", where), int(act[2])
-            elif name_ in ("add_ctr", "copy"):
+            elif name_ in ("add_ctr", "copy", "sub_ctr", "board_bot"):
                 a, v = (
                     _index(counters, act[1], "counter", where),
                     _index(counters, act[2], "counter", where),
                 )
-            elif name_ in ("elapsed", "seq_to_ctr", "set_reg", "tone_ctr"):
+            elif name_ in ("elapsed", "seq_to_ctr", "set_reg", "tone_ctr", "board_result", "sync"):
                 a = _index(counters, act[1], "counter", where)
+            elif name_ in ("light", "celebrate"):
+                a, v = 0, int(act[1])
             elif name_ == "tone":
-                a = _index(list(TONES), act[1], "tone", where)
+                if act[1] not in TONE_IDS:
+                    raise PackError(
+                        f"{where}: tone {act[1]!r} is not one of {', '.join(TONE_IDS)}. Fix the name."
+                    )
+                a = TONE_IDS[act[1]]
             actions += struct.pack("<BBh", op, a, v)
             n_actions += 1
         count = n_actions - first
@@ -302,7 +351,7 @@ def build(desc: dict, *, seed: int | None = None) -> bytes:
         "<4sBBBBBBHHBBIBBBBHH12s",
         MAGIC,
         VERSION,
-        1 if desc.get("lower_is_better") else 0,
+        (1 if desc.get("lower_is_better") else 0) | (2 if desc.get("tap_on_release") else 0),
         len(state_names),
         len(region_names),
         len(desc.get("shapes", [])),
@@ -421,6 +470,7 @@ def info(blob: bytes) -> dict:
         "id": vals[18].rstrip(b"\0").decode(),
         "version": vals[1],
         "lower_is_better": bool(vals[2] & 1),
+        "tap_on_release": bool(vals[2] & 2),
         "states": vals[3],
         "regions": vals[4],
         "shapes": vals[5],

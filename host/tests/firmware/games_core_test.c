@@ -369,7 +369,7 @@ static void test_whack(void)
         now += 30;
         mg_tick(&r, now);
         if (r.state == 2 /* up */ && r.ctr[2] >= 0) {
-            CHECK(visible_count(&r) == 1 + 9 + 1 + 1); /* fill, nine holes, one mole, the score text */
+            CHECK(visible_count(&r) == 1 + 9 + 1 + 18 + 1); /* fill, nine holes, one mole, nine mounds of two shapes, the score text */
             mg_tap(&r, centre_x(&p, r.ctr[2]), centre_y(&p, r.ctr[2]), now);
             taps++;
         }

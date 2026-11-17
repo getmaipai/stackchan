@@ -1,0 +1,1437 @@
+{
+ "id": "tictactoe",
+ "counters": [
+  "score",
+  "diff",
+  "cell",
+  "move",
+  "res",
+  "said",
+  "row",
+  "col"
+ ],
+ "score": "score",
+ "seed": 0,
+ "title": "title",
+ "description": "title",
+ "start": "menu",
+ "states": {
+  "menu": {},
+  "turn": {},
+  "pcheck": {},
+  "think": {
+   "timer": [
+    650,
+    650
+   ]
+  },
+  "bcheck": {},
+  "win": {
+   "timer": [
+    3500,
+    3500
+   ]
+  },
+  "lose": {
+   "timer": [
+    3500,
+    3500
+   ]
+  },
+  "draw": {
+   "timer": [
+    3500,
+    3500
+   ]
+  }
+ },
+ "regions": [
+  {
+   "name": "c0",
+   "x": 20,
+   "y": 28,
+   "w": 93,
+   "h": 52
+  },
+  {
+   "name": "c1",
+   "x": 113,
+   "y": 28,
+   "w": 93,
+   "h": 52
+  },
+  {
+   "name": "c2",
+   "x": 206,
+   "y": 28,
+   "w": 94,
+   "h": 52
+  },
+  {
+   "name": "c3",
+   "x": 20,
+   "y": 80,
+   "w": 93,
+   "h": 52
+  },
+  {
+   "name": "c4",
+   "x": 113,
+   "y": 80,
+   "w": 93,
+   "h": 52
+  },
+  {
+   "name": "c5",
+   "x": 206,
+   "y": 80,
+   "w": 94,
+   "h": 52
+  },
+  {
+   "name": "c6",
+   "x": 20,
+   "y": 132,
+   "w": 93,
+   "h": 52
+  },
+  {
+   "name": "c7",
+   "x": 113,
+   "y": 132,
+   "w": 93,
+   "h": 52
+  },
+  {
+   "name": "c8",
+   "x": 206,
+   "y": 132,
+   "w": 94,
+   "h": 52
+  }
+ ],
+ "shapes": [
+  {
+   "type": "fill",
+   "color": "#0e1624"
+  },
+  {
+   "type": "box",
+   "x": 112,
+   "y": 30,
+   "w": 2,
+   "h": 152,
+   "radius": 1,
+   "color": "#5f7388",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 22,
+   "y": 79,
+   "w": 276,
+   "h": 2,
+   "radius": 1,
+   "color": "#5f7388",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 205,
+   "y": 30,
+   "w": 2,
+   "h": 152,
+   "radius": 1,
+   "color": "#5f7388",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 22,
+   "y": 131,
+   "w": 276,
+   "h": 2,
+   "radius": 1,
+   "color": "#5f7388",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ]
+  },
+  {
+   "type": "line",
+   "x": 49,
+   "y": 37,
+   "x2": 83,
+   "y2": 71,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board0",
+    1
+   ]
+  },
+  {
+   "type": "line",
+   "x": 83,
+   "y": 37,
+   "x2": 49,
+   "y2": 71,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board0",
+    1
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 66,
+   "y": 54,
+   "r": 20,
+   "thickness": 7,
+   "color": "#ff7043",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board0",
+    2
+   ]
+  },
+  {
+   "type": "line",
+   "x": 142,
+   "y": 37,
+   "x2": 176,
+   "y2": 71,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board1",
+    1
+   ]
+  },
+  {
+   "type": "line",
+   "x": 176,
+   "y": 37,
+   "x2": 142,
+   "y2": 71,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board1",
+    1
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 159,
+   "y": 54,
+   "r": 20,
+   "thickness": 7,
+   "color": "#ff7043",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board1",
+    2
+   ]
+  },
+  {
+   "type": "line",
+   "x": 236,
+   "y": 37,
+   "x2": 270,
+   "y2": 71,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board2",
+    1
+   ]
+  },
+  {
+   "type": "line",
+   "x": 270,
+   "y": 37,
+   "x2": 236,
+   "y2": 71,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board2",
+    1
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 253,
+   "y": 54,
+   "r": 20,
+   "thickness": 7,
+   "color": "#ff7043",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board2",
+    2
+   ]
+  },
+  {
+   "type": "line",
+   "x": 49,
+   "y": 89,
+   "x2": 83,
+   "y2": 123,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board3",
+    1
+   ]
+  },
+  {
+   "type": "line",
+   "x": 83,
+   "y": 89,
+   "x2": 49,
+   "y2": 123,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board3",
+    1
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 66,
+   "y": 106,
+   "r": 20,
+   "thickness": 7,
+   "color": "#ff7043",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board3",
+    2
+   ]
+  },
+  {
+   "type": "line",
+   "x": 142,
+   "y": 89,
+   "x2": 176,
+   "y2": 123,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board4",
+    1
+   ]
+  },
+  {
+   "type": "line",
+   "x": 176,
+   "y": 89,
+   "x2": 142,
+   "y2": 123,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board4",
+    1
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 159,
+   "y": 106,
+   "r": 20,
+   "thickness": 7,
+   "color": "#ff7043",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board4",
+    2
+   ]
+  },
+  {
+   "type": "line",
+   "x": 236,
+   "y": 89,
+   "x2": 270,
+   "y2": 123,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board5",
+    1
+   ]
+  },
+  {
+   "type": "line",
+   "x": 270,
+   "y": 89,
+   "x2": 236,
+   "y2": 123,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board5",
+    1
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 253,
+   "y": 106,
+   "r": 20,
+   "thickness": 7,
+   "color": "#ff7043",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board5",
+    2
+   ]
+  },
+  {
+   "type": "line",
+   "x": 49,
+   "y": 141,
+   "x2": 83,
+   "y2": 175,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board6",
+    1
+   ]
+  },
+  {
+   "type": "line",
+   "x": 83,
+   "y": 141,
+   "x2": 49,
+   "y2": 175,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board6",
+    1
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 66,
+   "y": 158,
+   "r": 20,
+   "thickness": 7,
+   "color": "#ff7043",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board6",
+    2
+   ]
+  },
+  {
+   "type": "line",
+   "x": 142,
+   "y": 141,
+   "x2": 176,
+   "y2": 175,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board7",
+    1
+   ]
+  },
+  {
+   "type": "line",
+   "x": 176,
+   "y": 141,
+   "x2": 142,
+   "y2": 175,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board7",
+    1
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 159,
+   "y": 158,
+   "r": 20,
+   "thickness": 7,
+   "color": "#ff7043",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board7",
+    2
+   ]
+  },
+  {
+   "type": "line",
+   "x": 236,
+   "y": 141,
+   "x2": 270,
+   "y2": 175,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board8",
+    1
+   ]
+  },
+  {
+   "type": "line",
+   "x": 270,
+   "y": 141,
+   "x2": 236,
+   "y2": 175,
+   "thickness": 7,
+   "color": "#4fc3f7",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board8",
+    1
+   ]
+  },
+  {
+   "type": "ring",
+   "x": 253,
+   "y": 158,
+   "r": 20,
+   "thickness": 7,
+   "color": "#ff7043",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "board8",
+    2
+   ]
+  },
+  {
+   "type": "box",
+   "x": 24,
+   "y": 31,
+   "w": 272,
+   "h": 46,
+   "radius": 10,
+   "color": "#1d3a5f",
+   "states": [
+    "menu"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "easy",
+   "x": 160,
+   "y": 54,
+   "w": 240,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "menu"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 24,
+   "y": 83,
+   "w": 272,
+   "h": 46,
+   "radius": 10,
+   "color": "#1d3a5f",
+   "states": [
+    "menu"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "medium",
+   "x": 160,
+   "y": 106,
+   "w": 240,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "menu"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 24,
+   "y": 135,
+   "w": 272,
+   "h": 46,
+   "radius": 10,
+   "color": "#1d3a5f",
+   "states": [
+    "menu"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "hard",
+   "x": 160,
+   "y": 158,
+   "w": 240,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "menu"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "title",
+   "x": 160,
+   "y": 200,
+   "w": 300,
+   "size": "small",
+   "color": "#c8c8c8",
+   "states": [
+    "menu"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "yourturn",
+   "x": 160,
+   "y": 218,
+   "w": 300,
+   "size": "small",
+   "color": "#ffffff",
+   "states": [
+    "turn",
+    "think"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "played",
+   "x": 160,
+   "y": 200,
+   "w": 300,
+   "size": "small",
+   "color": "#ffe045",
+   "states": [
+    "turn",
+    "think",
+    "win",
+    "lose",
+    "draw"
+   ],
+   "when": [
+    "said",
+    1
+   ]
+  },
+  {
+   "type": "text",
+   "text": "youwin",
+   "x": 160,
+   "y": 218,
+   "w": 300,
+   "size": "small",
+   "color": "#7CFC8A",
+   "states": [
+    "win"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "iwin",
+   "x": 160,
+   "y": 218,
+   "w": 300,
+   "size": "small",
+   "color": "#ff8a80",
+   "states": [
+    "lose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "drawn",
+   "x": 160,
+   "y": 218,
+   "w": 300,
+   "size": "small",
+   "color": "#ffffff",
+   "states": [
+    "draw"
+   ]
+  }
+ ],
+ "texts": {
+  "title": {
+   "en": "Tic-Tac-Toe",
+   "es": "Tres en raya"
+  },
+  "easy": {
+   "en": "Easy",
+   "es": "Facil"
+  },
+  "medium": {
+   "en": "Medium",
+   "es": "Medio"
+  },
+  "hard": {
+   "en": "Hard",
+   "es": "Dificil"
+  },
+  "yourturn": {
+   "en": "Your turn",
+   "es": "Tu turno"
+  },
+  "played": {
+   "en": "I played row %6 column %7",
+   "es": "Jugue fila %6 columna %7"
+  },
+  "youwin": {
+   "en": "You win!",
+   "es": "Ganas!"
+  },
+  "iwin": {
+   "en": "I win!",
+   "es": "Gano yo!"
+  },
+  "drawn": {
+   "en": "A draw",
+   "es": "Empate"
+  }
+ },
+ "rules": [
+  {
+   "state": "menu",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "board_clear"
+    ],
+    [
+     "set",
+     "score",
+     0
+    ],
+    [
+     "set",
+     "move",
+     -1
+    ],
+    [
+     "set",
+     "res",
+     0
+    ],
+    [
+     "set",
+     "said",
+     0
+    ],
+    [
+     "set",
+     "diff",
+     0
+    ]
+   ]
+  },
+  {
+   "state": "menu",
+   "on": "tap",
+   "region": "c0",
+   "go": "turn",
+   "do": [
+    [
+     "set",
+     "diff",
+     0
+    ],
+    [
+     "tone",
+     "good"
+    ]
+   ]
+  },
+  {
+   "state": "menu",
+   "on": "tap",
+   "region": "c1",
+   "go": "turn",
+   "do": [
+    [
+     "set",
+     "diff",
+     0
+    ],
+    [
+     "tone",
+     "good"
+    ]
+   ]
+  },
+  {
+   "state": "menu",
+   "on": "tap",
+   "region": "c2",
+   "go": "turn",
+   "do": [
+    [
+     "set",
+     "diff",
+     0
+    ],
+    [
+     "tone",
+     "good"
+    ]
+   ]
+  },
+  {
+   "state": "menu",
+   "on": "tap",
+   "region": "c3",
+   "go": "turn",
+   "do": [
+    [
+     "set",
+     "diff",
+     1
+    ],
+    [
+     "tone",
+     "good"
+    ]
+   ]
+  },
+  {
+   "state": "menu",
+   "on": "tap",
+   "region": "c4",
+   "go": "turn",
+   "do": [
+    [
+     "set",
+     "diff",
+     1
+    ],
+    [
+     "tone",
+     "good"
+    ]
+   ]
+  },
+  {
+   "state": "menu",
+   "on": "tap",
+   "region": "c5",
+   "go": "turn",
+   "do": [
+    [
+     "set",
+     "diff",
+     1
+    ],
+    [
+     "tone",
+     "good"
+    ]
+   ]
+  },
+  {
+   "state": "menu",
+   "on": "tap",
+   "region": "c6",
+   "go": "turn",
+   "do": [
+    [
+     "set",
+     "diff",
+     2
+    ],
+    [
+     "tone",
+     "good"
+    ]
+   ]
+  },
+  {
+   "state": "menu",
+   "on": "tap",
+   "region": "c7",
+   "go": "turn",
+   "do": [
+    [
+     "set",
+     "diff",
+     2
+    ],
+    [
+     "tone",
+     "good"
+    ]
+   ]
+  },
+  {
+   "state": "menu",
+   "on": "tap",
+   "region": "c8",
+   "go": "turn",
+   "do": [
+    [
+     "set",
+     "diff",
+     2
+    ],
+    [
+     "tone",
+     "good"
+    ]
+   ]
+  },
+  {
+   "state": "turn",
+   "on": "tap",
+   "region": "any_region",
+   "if": [
+    "cell_free"
+   ],
+   "go": "pcheck",
+   "do": [
+    [
+     "set_reg",
+     "cell"
+    ],
+    [
+     "board_place",
+     "cell",
+     1
+    ],
+    [
+     "board_result",
+     "res"
+    ],
+    [
+     "sync",
+     "cell"
+    ],
+    [
+     "tone",
+     "cue2"
+    ]
+   ]
+  },
+  {
+   "state": "pcheck",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "res",
+    1
+   ],
+   "go": "win"
+  },
+  {
+   "state": "pcheck",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "res",
+    3
+   ],
+   "go": "draw"
+  },
+  {
+   "state": "pcheck",
+   "on": "enter",
+   "go": "think"
+  },
+  {
+   "state": "think",
+   "on": "timer",
+   "go": "bcheck",
+   "do": [
+    [
+     "board_bot",
+     "move",
+     "diff"
+    ],
+    [
+     "board_place",
+     "move",
+     2
+    ],
+    [
+     "board_result",
+     "res"
+    ],
+    [
+     "copy",
+     "row",
+     "move"
+    ],
+    [
+     "div",
+     "row",
+     3
+    ],
+    [
+     "copy",
+     "col",
+     "move"
+    ],
+    [
+     "sub_ctr",
+     "col",
+     "row"
+    ],
+    [
+     "sub_ctr",
+     "col",
+     "row"
+    ],
+    [
+     "sub_ctr",
+     "col",
+     "row"
+    ],
+    [
+     "add",
+     "row",
+     1
+    ],
+    [
+     "add",
+     "col",
+     1
+    ],
+    [
+     "set",
+     "said",
+     1
+    ],
+    [
+     "sync",
+     "move"
+    ],
+    [
+     "tone",
+     "cue0"
+    ]
+   ]
+  },
+  {
+   "state": "bcheck",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "res",
+    2
+   ],
+   "go": "lose"
+  },
+  {
+   "state": "bcheck",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "res",
+    3
+   ],
+   "go": "draw"
+  },
+  {
+   "state": "bcheck",
+   "on": "enter",
+   "go": "turn"
+  },
+  {
+   "state": "win",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "diff",
+    0
+   ],
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "score",
+     10
+    ],
+    [
+     "tone",
+     "fanfare"
+    ],
+    [
+     "celebrate",
+     1
+    ],
+    [
+     "save"
+    ]
+   ]
+  },
+  {
+   "state": "win",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "diff",
+    1
+   ],
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "score",
+     20
+    ],
+    [
+     "tone",
+     "fanfare"
+    ],
+    [
+     "celebrate",
+     1
+    ],
+    [
+     "save"
+    ]
+   ]
+  },
+  {
+   "state": "win",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "diff",
+    2
+   ],
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "score",
+     30
+    ],
+    [
+     "tone",
+     "fanfare"
+    ],
+    [
+     "celebrate",
+     1
+    ],
+    [
+     "save"
+    ]
+   ]
+  },
+  {
+   "state": "draw",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "diff",
+    0
+   ],
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "score",
+     3
+    ],
+    [
+     "tone",
+     "boop"
+    ],
+    [
+     "save"
+    ]
+   ]
+  },
+  {
+   "state": "draw",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "diff",
+    1
+   ],
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "score",
+     6
+    ],
+    [
+     "tone",
+     "boop"
+    ],
+    [
+     "save"
+    ]
+   ]
+  },
+  {
+   "state": "draw",
+   "on": "enter",
+   "if": [
+    "ctr_eq",
+    "diff",
+    2
+   ],
+   "go": "stay",
+   "do": [
+    [
+     "set",
+     "score",
+     9
+    ],
+    [
+     "tone",
+     "boop"
+    ],
+    [
+     "save"
+    ]
+   ]
+  },
+  {
+   "state": "lose",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "trombone"
+    ]
+   ]
+  },
+  {
+   "state": [
+    "win",
+    "lose",
+    "draw"
+   ],
+   "on": "timer",
+   "go": "end"
+  },
+  {
+   "state": [
+    "win",
+    "lose",
+    "draw"
+   ],
+   "on": "tap",
+   "region": "any",
+   "go": "end"
+  }
+ ]
+}

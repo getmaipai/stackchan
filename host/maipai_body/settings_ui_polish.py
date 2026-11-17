@@ -42,6 +42,25 @@ function overlayCard(id,off,why,face,titleKey){let name='rain',level='normal',se
  clr.addEventListener('click',()=>press(clr,async()=>{if(face)face.ovClear();const r=await remote(id,{do:'overlay_clear'});if(!r.ok)toast(r.d.error,'bad');else if(r.d.pending)toast(r.d.message,'warn');return r},true));
  return card(T(titleKey||'pol.ov.title'),T('pol.ov.help'),pills,lv,sl,h('div',{class:'btns'},test,clr))}
 
+/* Scenes: one preset sets the mood, an effect, the ring color and a quiet sound together. Pick one, change it, Save, Test it. The table is the host's (scenes.py); this card only edits it. */
+async function sceneCard(id){const r=await api(unitPath(id,'scenes'));if(!r.ok)return null;const d=r.d,op=d.options;let cur=d.scenes[0].name;
+ const rows={};for(const x of d.scenes)rows[x.name]={mood:x.mood,fx:x.fx,level:x.level,light:x.light,sound:x.sound,hold_s:x.hold_s};
+ const dflt=Object.assign({},d.defaults);
+ const pills=h('div',{class:'pills',role:'radiogroup','aria-label':T('pol.scene.pick')}),body=h('div',{});
+ const pick=(label,key,list,word)=>{const s=h('select',{'aria-label':label,onchange:e=>{rows[cur][key]=e.target.value}});for(const v of list)s.append(h('option',{value:v,selected:v===rows[cur][key]},v?word(v):T('pol.scene.none')));return h('div',{class:'row'},h('div',{class:'lbl'},h('b',{},label)),s)};
+ const draw=()=>{pills.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===cur)));const x=rows[cur];
+  body.replaceChildren(pick(T('pol.scene.mood'),'mood',op.mood,v=>T('pol.scene.m.'+v)),pick(T('pol.scene.fx'),'fx',op.fx,v=>T('pol.ov.'+v)),
+   seg(T('pol.ov.level'),op.level.map(v=>({v,t:T('pol.ov.'+v)})),x.level,v=>{x.level=v;return true}),
+   pick(T('pol.scene.light'),'light',op.light,v=>T('pol.scene.l.'+v)),pick(T('pol.scene.sound'),'sound',op.sound,v=>T('pol.scene.s.'+v)),
+   slider(T('pol.scene.hold'),d.hold[0],Math.min(d.hold[1],60),1,Math.min(x.hold_s,60),v=>v+' s',v=>{x.hold_s=v}))};
+ for(const x of d.scenes)pills.append(h('button',{type:'button',class:'pill',role:'radio','data-v':x.name,onclick:()=>{cur=x.name;draw()}},T('pol.scene.n.'+x.name)));
+ const done=(rr,ok)=>{if(!rr.ok)toast(rr.d.error,'bad');else if(ok)toast(ok)};
+ const sv=h('button',{type:'button',class:'btn pri'},T('pol.scene.save'));sv.addEventListener('click',()=>press(sv,async()=>{const rr=await api(unitPath(id,'scenes'),Object.assign({name:cur},rows[cur]));done(rr,T('pol.scene.saved'));return rr},true));
+ const ts=h('button',{type:'button',class:'btn'},T('pol.scene.test'));ts.addEventListener('click',()=>press(ts,async()=>{const rr=await remote(id,{do:'scene',name:cur});if(!rr.ok)toast(rr.d.error,'bad');else toast(rr.d.skipped&&rr.d.skipped.length?T('pol.scene.partly'):T('rem.done'),rr.d.skipped&&rr.d.skipped.length?'warn':'');return rr},true));
+ const rs=h('button',{type:'button',class:'btn'},T('pol.scene.reset'));rs.addEventListener('click',()=>press(rs,async()=>{const rr=await api(unitPath(id,'scenes'),{name:cur,reset:true});if(rr.ok){rows[cur]=Object.assign({},dflt[cur]);draw()}done(rr,T('pol.scene.saved'));return rr},true));
+ const off=h('button',{type:'button',class:'btn'},T('pol.scene.off'));off.addEventListener('click',()=>press(off,async()=>{const rr=await remote(id,{do:'scene',name:'off'});if(!rr.ok)toast(rr.d.error,'bad');return rr},true));
+ draw();return card(T('pol.scene.title'),T('pol.scene.help'),pills,body,h('p',{class:'hint'},T('pol.scene.test_help')),h('div',{class:'btns'},sv,ts,rs,off))}
+
 /* Look: feelings, effects, look packs, overlays */
 async function lookCards(id,u,v,has,face){const pv=await prefsView(id),put=prefSaver(id,pv),sp=await api(unitPath(id,'packs')),sd=sp.ok?sp.d:{packs:[],active:{},unit_ready:false};
  const fx=()=>({crt:pv.values.fx_crt,night:pv.values.fx_night_dim,glow:pv.values.fx_glow,mode:pv.values.fx_color_mode});
@@ -65,7 +84,7 @@ async function lookCards(id,u,v,has,face){const pv=await prefsView(id),put=prefS
  const rowB=(pid,name,sub)=>{const b=h('button',{type:'button',role:'radio',class:'pill','aria-checked':String(act===pid||(!act&&!pid)),style:'justify-content:space-between;display:flex;align-items:center;width:100%;min-height:48px;text-align:left',onclick:async()=>{const r=await save(unitPath(id,'packs/activate'),{type:'look',pack_id:pid});if(r.ok)list.querySelectorAll('button').forEach(x=>x.setAttribute('aria-checked',String(x===b)))}},h('span',{},name),h('span',{class:'hint'},sub||''));return b};
  list.append(rowB('',T('pol.packs.builtin'),T('pol.packs.builtin_help')));for(const x of lookPacks)list.append(rowB(x.id,x.name,Math.ceil(x.size/1000)+' KB'));
  const packsCard=card(T('pol.packs.look'),T('pol.packs.look_help'),list,lookPacks.length?null:h('p',{class:'hint'},T('pol.packs.none_look')),sd.unit_ready?null:h('p',{class:'hint'},comingBadge()));
- return{pv,cards:[feel,caps,topbar,eff,packsCard,overlayCard(id,false,'',face)]}}
+ const scn=await sceneCard(id);return{pv,cards:[feel,caps,topbar,eff,packsCard,overlayCard(id,false,'',face),scn]}}
 
 /* Voice: when it listens, while it thinks */
 async function voiceCards(id,u,v){const pv=await prefsView(id),put=prefSaver(id,pv),lang=v.lang||LANG;

@@ -1,0 +1,105 @@
+# Intent: The owner found Simon Says (text only, sensors only) overlapped with Do It and prefers buttons. Simon Says is removed from the player and from the app image (pack list 7 to 6 games). Do It is now a button game: its pack (firmware/games/bopit.json, a data file) shows six large tiles (Tap, Swipe left, Swipe right, Shake, Pet head, Tilt) under the call-out, and pressing the matching tile or doing the physical move counts. Rock Paper Scissors becomes three full-height tiles (94 by 130 px, tap anywhere in one) with large drawn hands and scissors, a countdown beat (rock, paper, scissors, shoot), a short sound per choice, funny win, tie and lose sounds and a face reaction (a data pack, firmware/games/rps.json); the pack limit for shapes goes from 48 to 64 for it. Every game then uses on-screen buttons or tiles.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games.cc (ours, G02, UI13) and firmware/main/CMakeLists.txt (ours, G01, UI13)
+# Check after a flash: the Games page lists six games with no More tile; Do It shows a call-out and six tiles, the called tile lights up, and pressing it (or swiping, shaking, petting, tilting as called) scores; no Simon Says anywhere.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -59,15 +59,13 @@ extern const uint8_t _binary_tictactoe_mpk_start[];
+ extern const uint8_t _binary_tictactoe_mpk_end[];
+ extern const uint8_t _binary_bopit_mpk_start[];
+ extern const uint8_t _binary_bopit_mpk_end[];
+-extern const uint8_t _binary_simonsays_mpk_start[];
+-extern const uint8_t _binary_simonsays_mpk_end[];
+ extern const uint8_t _binary_rps_mpk_start[];
+ extern const uint8_t _binary_rps_mpk_end[];
+ }
+ 
+ namespace {
+ 
+-constexpr int kBuiltIns   = 7;  // patch UI13: memory, reaction, whack, tictactoe, bopit, simonsays, rps
++constexpr int kBuiltIns   = 6;  // patch UI14: memory, reaction, whack, tictactoe, bopit, rps
+ constexpr int kMaxGames   = kBuiltIns + 1;  // the built-ins, plus one pack loaded from outside (bench builds)
+ constexpr uint32_t kTickMs = 30;
+ 
+@@ -81,7 +79,6 @@ const Source kBuilt[kBuiltIns] = {
+     {_binary_whack_mpk_start, _binary_whack_mpk_end},
+     {_binary_tictactoe_mpk_start, _binary_tictactoe_mpk_end},
+     {_binary_bopit_mpk_start, _binary_bopit_mpk_end},
+-    {_binary_simonsays_mpk_start, _binary_simonsays_mpk_end},
+     {_binary_rps_mpk_start, _binary_rps_mpk_end},
+ };
+ 
+@@ -731,8 +728,8 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     }
+     const int slot = slot_by_name(name);
+     if (slot < 0) {
+-        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, simonsays or rps.",
+-                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit, simonsays o rps.");
++        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit or rps.",
++                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit o rps.");
+     }
+     if (maipai_quiet()) {
+         return say(es, "The unit is in full quiet, so no game starts. Turn full quiet off, then ask again.",
+@@ -745,8 +742,8 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     const uint8_t* data;
+     size_t len;
+     if (!slot_bytes(slot, &data, &len)) {
+-        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, simonsays or rps.",
+-                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit, simonsays o rps.");
++        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit or rps.",
++                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit o rps.");
+     }
+     Game* g = static_cast<Game*>(heap_caps_calloc(1, sizeof(Game), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+     if (g == nullptr) {
+@@ -1087,7 +1084,7 @@ void maipai_games_register_tools()
+                 });
+     mcp.AddTool("self.game.start",
+                 "Start a game on the unit's screen: memory (colour memory), reaction (reaction time), whack (whack-a-mole), tictactoe, "
+-                "bopit (tap, swipe, shake, pet or tilt as called), simonsays (tilt or shake only when Simon says) or rps (rock paper scissors). "
++                "bopit (press the tile or do the move that is called: tap, swipe, shake, pet or tilt) or rps (rock paper scissors). "
+                 "It never starts in full quiet or during an update. A person stops it with a swipe down from the bottom edge "
+                 "or by saying stop. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("memory")),
+@@ -1126,7 +1123,7 @@ void maipai_games_register_tools()
+                     const int slot         = slot_by_name(name.c_str());
+                     mg_pack_t p;
+                     if (slot < 0 || !slot_pack(slot, &p)) {
+-                        return error_json("That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, simonsays or rps.");
++                        return error_json("That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit or rps.");
+                     }
+                     return std::string("{\"ok\":true,\"game\":\"") + p.id + "\",\"lower_is_better\":" +
+                            ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(slot) + "}";
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -604,13 +604,13 @@ endif()
+ # Games (patch G01): the three game packs ride in the app image as flash data (read in place, no RAM). The packs are data
+ # files of the MaiPai repo, made by scripts/game-pack.py; `source scripts/fw-env.sh` points MAIPAI_GAMES_DIR at them.
+ if(CONFIG_MAIPAI_GAMES)
+-    foreach(f memory.mpk reaction.mpk whack.mpk tictactoe.mpk bopit.mpk simonsays.mpk rps.mpk)
++    foreach(f memory.mpk reaction.mpk whack.mpk tictactoe.mpk bopit.mpk rps.mpk)
+         if(NOT DEFINED ENV{MAIPAI_GAMES_DIR} OR NOT EXISTS "$ENV{MAIPAI_GAMES_DIR}/${f}")
+             message(FATAL_ERROR "CONFIG_MAIPAI_GAMES is on but the game pack ${f} was not found. Run `source scripts/fw-env.sh` from the repo (it sets MAIPAI_GAMES_DIR), or set CONFIG_MAIPAI_GAMES=n.")
+         endif()
+         target_add_binary_data(${COMPONENT_LIB} "$ENV{MAIPAI_GAMES_DIR}/${f}" BINARY)
+     endforeach()
+-    message(STATUS "Games: 7 packs from $ENV{MAIPAI_GAMES_DIR}")
++    message(STATUS "Games: 6 packs from $ENV{MAIPAI_GAMES_DIR}")
+ else()
+     message(STATUS "Games: off")
+ endif()
+diff --git a/firmware/main/hal/maipai_games_core.h b/firmware/main/hal/maipai_games_core.h
+--- a/firmware/main/hal/maipai_games_core.h
++++ b/firmware/main/hal/maipai_games_core.h
+@@ -34,7 +34,7 @@
+ #define MG_SIG_LEN 64
+ #define MG_MAX_STATES 16
+ #define MG_MAX_REGIONS 12
+-#define MG_MAX_SHAPES 48
++#define MG_MAX_SHAPES 64 /* patch UI14: was 48; the big Rock Paper Scissors screen draws hands and a face */
+ #define MG_MAX_TEXTS 24
+ #define MG_MAX_TRANS 96
+ #define MG_MAX_ACTIONS 255

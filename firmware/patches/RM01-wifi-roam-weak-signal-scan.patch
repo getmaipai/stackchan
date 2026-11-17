@@ -1,0 +1,233 @@
+# Intent: Wi-Fi roaming, the trigger (owner 2026-11-15: carried upstairs, the unit stayed on the far access point of a mesh that shares one network name, then the self-restart fired at -77 dBm). Ported from the old firmware's patch 154 and made testable. Every two seconds a timer reads the signal of the access point the unit is on; the signal must stay below -70 dBm for 10 seconds (hysteresis: it stays weak until it is better than -67), then one scan starts, at most one a minute, never while a turn, a ring or an update is going on (a weak signal that outlasts the turn scans right after it). The old firmware pinned the access point (its patch 044) so the unit could never leave it; this tree does not pin one (the setup component's remember_bssid stays off, the setup page copy never sets it), so the only thing missing was a reason to look, and this is it (a unit flashed over the old firmware without erasing its settings still carries the pin flag in NVS; RM02 makes the unit ignore it). The rules are plain C (maipai_roam_core.h) tested on the host (host/tests/firmware/roam_core_test.c). The timer runs on the timer task, takes no flash or NVS, no task and no buffer: it costs one timer handle and 40 bytes of internal RAM. Patch RM02 makes the scan result do something.
+# Placement: unit (the robot's own Wi-Fi link; works with the host off)
+# Upstream: bot patch 154 (wifi-use-now, the roam block) of the old firmware, rebuilt; firmware/main/hal/hal.cpp of the StackChan main component (MIT)
+# Check after a flash: with a weak signal (carry the unit away from its access point until the signal is below -70 dBm, or use an access point with a low transmit power) the serial log shows 'wifi_roam_scan: signal -7x dBm stayed weak for 10 s' once, then no second line for a minute; during a conversation no such line appears until the conversation ends. Needs RM02 for the unit to move.
+# Kconfig: none.
+
+diff --git a/firmware/main/hal/maipai_roam_core.h b/firmware/main/hal/maipai_roam_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_roam_core.h
+@@ -0,0 +1,112 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Wi-Fi roaming, the pure rules (patch RM01): plain C, no ESP-IDF, so a host compiler can test them
++ * (host/tests/firmware/roam_core_test.c).
++ *
++ * The case (owner 2026-11-15): carried upstairs, the unit stayed on the far access point of a mesh that shares one
++ * network name until the self-restart fired at -77 dBm. The radio never leaves an access point while it still
++ * answers, so something must look for a better one. Two rules:
++ *
++ *  1. The trigger (mr_tick). The signal is weak when it is below -70 dBm. It must stay weak for 10 seconds before
++ *     one scan starts. Hysteresis: once weak, the unit stays weak until the signal is better than -67 dBm, so a
++ *     reading that flickers around -70 does not restart the 10 second count. At most one scan a minute. No scan
++ *     while a turn is going on (listening, thinking, speaking, an update): a scan takes the radio away from the
++ *     voice link for a moment. A weak signal that lasts through a turn scans right after it.
++ *  2. The choice (mr_pick), made on the scan result. Another access point of the same network name is taken only
++ *     when it is at least 8 dB stronger than the one the unit is on now. A smaller gain is not worth the second
++ *     the link is down while the unit moves.
++ */
++#ifndef MAIPAI_ROAM_CORE_H
++#define MAIPAI_ROAM_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define MR_WEAK_DBM (-70)    /* below this the signal is weak */
++#define MR_CLEAR_DBM (-67)   /* weak ends only above this (3 dB of hysteresis) */
++#define MR_WEAK_MS 10000     /* the signal must stay weak this long before a scan */
++#define MR_COOLDOWN_MS 60000 /* at least this long between two scans */
++#define MR_BETTER_DB 8       /* a candidate must beat the current access point by this much */
++#define MR_TICK_MS 2000      /* the period of the caller's timer */
++
++typedef struct {
++    uint8_t weak;          /* 1 while the signal counts as weak */
++    uint8_t scanned;       /* 1 once a scan was started (last_scan_ms is valid) */
++    int64_t weak_since_ms; /* when the weak period began (or when the last scan started) */
++    int64_t last_scan_ms;
++} mr_state_t;
++
++typedef enum {
++    MR_IDLE = 0, /* nothing to do */
++    MR_SCAN      /* start one scan now */
++} mr_action_t;
++
++static inline void mr_init(mr_state_t* s)
++{
++    memset(s, 0, sizeof(*s));
++}
++
++/* One look at the link. `connected`: the unit has joined an access point. `rssi`: its signal in dBm (0 or positive
++ * means unknown). `busy`: a turn or an update is going on. Returns MR_SCAN when a scan should start now. */
++static inline mr_action_t mr_tick(mr_state_t* s, int64_t now_ms, int connected, int rssi, int busy)
++{
++    if (!connected || rssi >= 0) {
++        s->weak = 0;  /* not on an access point, or no reading: nothing to roam from */
++        return MR_IDLE;
++    }
++    if (rssi < MR_WEAK_DBM) {
++        if (!s->weak) {
++            s->weak          = 1;
++            s->weak_since_ms = now_ms;
++        }
++    } else if (rssi > MR_CLEAR_DBM) {
++        s->weak = 0;  /* clearly better again: the count starts over next time */
++        return MR_IDLE;
++    }
++    /* Between -70 and -67 the state stays what it was (the hysteresis band). */
++    if (!s->weak) {
++        return MR_IDLE;
++    }
++    if (now_ms - s->weak_since_ms < MR_WEAK_MS) {
++        return MR_IDLE;
++    }
++    if (s->scanned && now_ms - s->last_scan_ms < MR_COOLDOWN_MS) {
++        return MR_IDLE;
++    }
++    if (busy) {
++        return MR_IDLE;  /* the weak count keeps running: the scan goes right after the turn */
++    }
++    s->scanned       = 1;
++    s->last_scan_ms  = now_ms;
++    s->weak_since_ms = now_ms;  /* the next scan needs another 10 weak seconds and the cool-down */
++    return MR_SCAN;
++}
++
++/* One access point from a scan result. */
++typedef struct {
++    int8_t rssi;
++    uint8_t bssid[6];
++    uint8_t same_ssid; /* 1 when it has the network name the unit is joined to */
++} mr_ap_t;
++
++/* The index of the access point to move to, or -1 to stay. Only access points with the same network name and another
++ * address count; the strongest wins; it must beat `cur_rssi` by MR_BETTER_DB. */
++static inline int mr_pick(int cur_rssi, const uint8_t cur_bssid[6], const mr_ap_t* aps, int n)
++{
++    int best = -1;
++    for (int i = 0; i < n; i++) {
++        if (!aps[i].same_ssid || memcmp(aps[i].bssid, cur_bssid, 6) == 0) {
++            continue;
++        }
++        if (best < 0 || aps[i].rssi > aps[best].rssi) {
++            best = i;
++        }
++    }
++    if (best < 0 || aps[best].rssi < cur_rssi + MR_BETTER_DB) {
++        return -1;
++    }
++    return best;
++}
++
++#endif /* MAIPAI_ROAM_CORE_H */
+diff --git a/firmware/main/hal/maipai_roam.h b/firmware/main/hal/maipai_roam.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_roam.h
+@@ -0,0 +1,12 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Wi-Fi roaming (patch RM01): when the signal stays weak, look for a better access point of the same network name.
++ * The rules are in maipai_roam_core.h; the choice among scan results is made in the Wi-Fi component's scan handler
++ * (patch RM02, firmware/vendor_fixes/wifi_roam.cmake).
++ */
++#pragma once
++
++// Starts the two-second link check. No flash, no NVS and no task of its own: it runs on the timer task. Call once
++// after the Wi-Fi stack is up (Hal::startXiaozhi).
++void maipai_roam_init();
+diff --git a/firmware/main/hal/maipai_roam.cc b/firmware/main/hal/maipai_roam.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_roam.cc
+@@ -0,0 +1,69 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Wi-Fi roaming, device side (patch RM01). Every two seconds, on the timer task, it reads the signal of the access
++ * point the unit is on and asks mr_tick (maipai_roam_core.h) whether to scan. A scan that ends while the unit is
++ * joined is handled by the Wi-Fi component's scan-done code (patch RM02): it moves to a stronger access point of the
++ * same network name, or does nothing. Nothing here touches flash or NVS, and no task or buffer is created: the cost
++ * is one timer handle and 40 bytes of state.
++ */
++#include "maipai_roam.h"
++#include "maipai_roam_core.h"
++#include "device_events.h"
++#include <application.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <esp_wifi.h>
++#include <cstdio>
++
++static const char* TAG = "MAIPAI-ROAM";
++
++namespace {
++
++mr_state_t s_state;
++esp_timer_handle_t s_timer = nullptr;
++
++void tick(void*)
++{
++    wifi_ap_record_t ap;
++    const bool connected = esp_wifi_sta_get_ap_info(&ap) == ESP_OK;
++    const int rssi       = connected ? ap.rssi : 0;
++    // A turn, a ring, an update or anything that is not plain idle keeps the radio for the voice link.
++    const bool busy = Application::GetInstance().GetDeviceState() != kDeviceStateIdle;
++    const int64_t now_ms = esp_timer_get_time() / 1000;
++    if (mr_tick(&s_state, now_ms, connected ? 1 : 0, rssi, busy ? 1 : 0) != MR_SCAN) {
++        return;
++    }
++    // Active scan of every channel, short dwell: the driver goes back to the home channel between channels, so the
++    // voice link is only held up for a moment each time.
++    wifi_scan_config_t cfg = {};
++    cfg.scan_type          = WIFI_SCAN_TYPE_ACTIVE;
++    cfg.scan_time.active.min = 40;
++    cfg.scan_time.active.max = 80;
++    const esp_err_t err = esp_wifi_scan_start(&cfg, false);
++    ESP_LOGW(TAG, "wifi_roam_scan: signal %d dBm stayed weak for %d s, looking for a better access point (%s)", rssi,
++             MR_WEAK_MS / 1000, err == ESP_OK ? "started" : esp_err_to_name(err));
++    char extra[64];
++    snprintf(extra, sizeof(extra), "\"why\":\"weak_signal\",\"rssi\":%d", rssi);
++    device_events_push("wifi_roam_scan", extra);
++}
++
++}  // namespace
++
++void maipai_roam_init()
++{
++    if (s_timer != nullptr) {
++        return;
++    }
++    mr_init(&s_state);
++    esp_timer_create_args_t args = {};
++    args.callback                = tick;
++    args.name                    = "wifi_roam";
++    args.skip_unhandled_events   = true;
++    if (esp_timer_create(&args, &s_timer) != ESP_OK) {
++        ESP_LOGW(TAG, "roaming is off (no timer); a restart tries again");
++        s_timer = nullptr;
++        return;
++    }
++    esp_timer_start_periodic(s_timer, (uint64_t)MR_TICK_MS * 1000ULL);
++}
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -126,6 +126,7 @@ void Hal::updateHeapStatusLog()
+ #include "maipai_privacy.h"
+ #include "maipai_timers.h"
+ #include "maipai_tailnet.h"
++#include "maipai_roam.h"
+ #include "maipai_daily.h"
+ #include "maipai_facebench.h"
+ #include "maipai_packs.h"
+@@ -227,6 +228,7 @@ void Hal::startXiaozhi()
+     // The saved timers and alarms (patch 091) come back before the update task ticks them.
+     maipai_timers_init();
+     maipai_tailnet_init();  // travel with the private network: reads the saved switch, starts nothing (patch TN01)
++    maipai_roam_init();     // Wi-Fi roaming: a weak signal for 10 s starts one scan for a better access point (patch RM01)
+ 
+     // Start stackchan update task
+     xTaskCreatePinnedToCore(_stackchan_update_task, "stackchan", 5120, NULL, 3, NULL, 1);  // patch M04: measured margin was 524 bytes of 4096

@@ -42,7 +42,7 @@ function pgIcon(g,name,x,y,sc,col,bg){for(const [k,sx,sy,w,hh] of (PGT.icon_shap
 function pgSegs(d){return [0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F][d]}
 function pgDigit(g,d,x,y,w,hh,t,col){const len=(hh-3*t)/2,m=pgSegs(d),R=[[x+t,y,w-2*t,t],[x+w-t,y+t,t,len],[x+w-t,y+2*t+len,t,len],[x+t,y+2*t+2*len,w-2*t,t],[x,y+2*t+len,t,len],[x,y+t,t,len],[x+t,y+t+len,w-2*t,t]];
  for(let s=0;s<7;s++)if(m&(1<<s))pgRound(g,R[s][0],R[s][1],R[s][2],R[s][3],t/3,col)}
-function pgDrawPage(g,type,fg,cfg,idx,n,dim){const C=pgShades(fg),d=dim?35:100,col=C(d),dm=p=>C(p*d/100);
+function pgDrawPage(g,type,fg,cfg,idx,n,dim){const C=pgShades(fg),d=dim?55:100,col=C(d),dm=p=>C(p*d/100);
  g.fillStyle='#000';g.fillRect(0,28,320,156);g.save();g.translate(0,28);g.font='16px system-ui,sans-serif';g.textBaseline='top';
  const title=T('pg.page.'+type);
  if(type!=='clock'&&type!=='frame'&&type!=='games'){g.fillStyle=dm(70);g.fillText(title,10,2)}
@@ -53,7 +53,8 @@ function pgDrawPage(g,type,fg,cfg,idx,n,dim){const C=pgShades(fg),d=dim?35:100,c
  else if(type==='timers'){const rows=[[T('pg.sample.tea'),'4:32']];
   rows.forEach((r,i)=>{const y=24+i*46;pgRound(g,8,y,304,44,10,dm(16));g.fillStyle=col;g.font='18px system-ui,sans-serif';g.fillText(r[0],18,y+12);g.font='24px system-ui,sans-serif';g.fillText(r[1],142,y+9);pgRound(g,254,y,58,44,10,dm(30));g.font='20px system-ui,sans-serif';g.fillText('x',277,y+11)});
   [1,5,10].forEach((m,i)=>{pgRound(g,8+i*104,72,96,44,10,dm(16),dm(55));g.fillStyle=col;g.font='20px system-ui,sans-serif';g.textAlign='center';g.fillText('+'+m+' min',8+i*104+48,83);g.textAlign='left'})}
- else if(type==='games'){[['memory',14],['reaction',287],['whack',22]].forEach((r,i)=>{const y=10+i*46;pgRound(g,8,y,304,44,12,dm(16),dm(40));g.fillStyle=col;g.font='24px system-ui,sans-serif';g.fillText(T('pg.sample.'+r[0]),22,y+9);g.font='16px system-ui,sans-serif';g.fillStyle=dm(70);g.textAlign='right';g.fillText(T('pg.sample.best')+' '+r[1],262,y+13);g.textAlign='left';g.fillStyle=col;g.beginPath();g.moveTo(286,y+11);g.lineTo(286,y+33);g.lineTo(302,y+22);g.fill()})}
+ else if(type==='games'){[['memory',14],['reaction',287],['whack',22],['tictactoe',30],['bopit',12]].forEach((r,i)=>{const x=8+(i%2)*154,y=10+Math.floor(i/2)*46;pgRound(g,x,y,150,44,12,dm(16),dm(40));g.fillStyle=col;g.font='20px system-ui,sans-serif';g.textAlign='center';g.fillText(T('pg.sample.'+r[0]),x+75,y+3);g.font='14px system-ui,sans-serif';g.fillStyle=dm(70);g.fillText(T('pg.sample.best')+' '+r[1],x+75,y+26);g.textAlign='left'});
+  pgRound(g,162,102,150,44,12,dm(8),dm(40));g.fillStyle=col;g.font='20px system-ui,sans-serif';g.textAlign='center';g.fillText(T('pg.sample.more'),237,113);g.textAlign='left'}
  else if(type==='actions'){const a=cfg.actions;a.forEach((nm,i)=>{const [x,y,w,hh]=pgCell(i,a.length,8,26,304,108,8);pgRound(g,x,y,w,hh,12,dm(16),dm(55));g.fillStyle=col;g.font='24px system-ui,sans-serif';g.textAlign='center';g.fillText(T('pg.action.'+nm),x+w/2,y+hh/2-13);g.textAlign='left'})}
  else if(type==='frame'){const gr=g.createLinearGradient(64,0,256,144);gr.addColorStop(0,'#1a3a8f');gr.addColorStop(.5,'#8a5a9a');gr.addColorStop(1,'#f0c040');g.fillStyle=gr;g.fillRect(64,0,192,144)}
  else{const tl=[['sun','weather','72 F'],['home','garage','Open'],['lamp','lights','3 on'],['temp','inside','68 F'],['bell','mail','1'],['heart','mom','Home']];
@@ -68,7 +69,7 @@ function pgSheetIcon(g,name,x,y,col,bg){for(const [k,sx,sy,w,hh] of (PGT.sheet_i
  else if(k===4){g.fillStyle=bg;g.fillRect(X,Y,w,hh)}
  else if(k===5){g.fillStyle=bg;g.beginPath();g.ellipse(X+w/2,Y+hh/2,w/2,hh/2,0,0,7);g.fill()}
  else pgRound(g,X,Y,w,hh,k===3?1:0,col)}}
-function pgDrawSheet(g,fg,cfg,dim){const C=pgShades(fg),d=dim?35:100,L=pgLayout(cfg.sheet_items),dm=p=>C(p*d/100);
+function pgDrawSheet(g,fg,cfg,dim){const C=pgShades(fg),d=dim?55:100,L=pgLayout(cfg.sheet_items),dm=p=>C(p*d/100);
  g.fillStyle=C(10*d/100);g.beginPath();g.roundRect(0,L.top_y,320,260-L.top_y,14);g.fill();g.fillStyle=dm(45);g.fillRect(14,L.top_y,292,2);pgRound(g,136,L.top_y+4,48,5,3,dm(70));
  g.textBaseline='top';
  if(L.status_h){const has=n=>L.status.includes(PGT.sheet.indexOf(n));g.font='20px system-ui,sans-serif';g.fillStyle=dm(90);g.textAlign='center';g.fillText('10:24',160,L.status_y);g.textAlign='left';

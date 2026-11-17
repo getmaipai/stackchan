@@ -73,6 +73,9 @@ EN: dict[str, str] = {
     "pg.sample.memory": "Color memory",
     "pg.sample.reaction": "Reaction time",
     "pg.sample.whack": "Whack-a-mole",
+    "pg.sample.tictactoe": "Tic-Tac-Toe",
+    "pg.sample.bopit": "Do it",
+    "pg.sample.more": "More games",
     "pg.sample.best": "Best",
 }
 ES: dict[str, str] = {
@@ -141,6 +144,9 @@ ES: dict[str, str] = {
     "pg.sample.memory": "Memoria de colores",
     "pg.sample.reaction": "Reacción",
     "pg.sample.whack": "Golpea al topo",
+    "pg.sample.tictactoe": "Tres en raya",
+    "pg.sample.bopit": "Hazlo",
+    "pg.sample.more": "Mas juegos",
     "pg.sample.best": "Mejor",
 }
 

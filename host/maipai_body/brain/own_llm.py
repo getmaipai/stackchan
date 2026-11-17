@@ -142,7 +142,10 @@ class OwnLLMBrain:
         history = self._history.setdefault(
             conversation, deque(maxlen=max(1, self.config.history_messages))
         )
-        messages = [{"role": "system", "content": self.config.persona}]
+        system = self.config.persona
+        if request.instructions:
+            system = f"{system}\n\n{request.instructions}"
+        messages = [{"role": "system", "content": system}]
         messages.extend(history)
         messages.append({"role": "user", "content": request.text})
         headers = {"Content-Type": "application/json"}

@@ -24,8 +24,11 @@ POLL_S = 10.0
 # Night volume is this share of the owner's volume. It was 40%, which made a night misfire sound
 # broken; it never drops below half the owner's volume.
 NIGHT_VOLUME_SHARE = 0.5
-# Pending measurement on the unit: the dimmed backlight level (0 to 100).
-NIGHT_BRIGHTNESS = 15
+# The dimmed backlight level (0 to 100) at night and while the unit rests. The owner said 15 and 5
+# were too dim to read the face (2026-11-17), so the default is 35 and no automatic dim goes below
+# DIM_FLOOR. A level a person picks (slider or voice) is theirs.
+DIM_FLOOR = 25
+NIGHT_BRIGHTNESS = 35
 DEFAULT_OWNER_VOLUME = 70
 DEFAULT_OWNER_BRIGHTNESS = 100
 UNREADABLE_LIGHT_GRACE_S = 600.0

@@ -1,0 +1,1124 @@
+# Intent: Two more games from the owner's list, as data packs (firmware/games/eightball.json, dice.json) on a few engine additions: Magic 8-Ball (shake the unit gently or tap the ball; a dark ball with a floating triangle window, twenty classic answers in English and Spanish, a mysterious hum, a face and a ring light cue) and Dice and Coin (tap to roll one or two big drawn dice or flip a coin, six tumbling frames, a rattle on the roll and a thud or a coin ring on landing, the result big; a gentle shake rolls too). Engine: a die shape and a coin shape (drawn in maipai_games_draw.h), a ring-light action that starts with its sound, four more sound clips (rattle, thud, mystic, ting), 32 texts per pack. Celebrations: a win (Tic-Tac-Toe win, a Rock Paper Scissors round won) and every new best score show confetti (a new best: confetti and fireworks, 4 s) through the overlay engine with the happy face; it sheds under the governor, keeps the banner row and subtitle strip clear and does nothing when overlays are off. Motion: the mole pops with an ease-out overshoot and is squashed when struck, dice hop and bounce, the coin flips, bounces and glints, the eight ball wobbles on a damped spring and its window fades in and floats, the Rock Paper Scissors hands bump with the beat, Tic-Tac-Toe marks draw in, Do It's called tile pulses (arithmetic on existing objects, no new heap). Gentle shake (owner rule: nobody shakes the unit hard): the games get every 20 ms accelerometer sample and use their own detector, where a small quick wobble of a few centimeters counts (strokes of 2.2 m/s^2, three within 0.9 s) and a very violent one (20 m/s^2 or more) does not count and answers "Easy!" with no points; the hints and tiles say "Gentle shake" (Spanish "Agita suave").
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games.cc, maipai_games_core.h, maipai_games_sfx_core.h, maipai_games_input_core.h, maipai_games_draw.h (ours, G01 to UI14), hal_imu.cpp (M5Stack, one hook), maipai_fx.cc and maipai_fx.h (ours, TA01 to TA04: one exported function), firmware/main/CMakeLists.txt (ours)
+# Check after a flash: the Games page lists eight games (five and a More tile, then three); Magic 8-Ball answers after a gentle shake or a tap with a hum and a blue then green, amber or red ring light; Dice and Coin rolls with a rattle and lands with a thud; a hard shake shows Easy! and scores nothing; no hint says shake hard.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -15,6 +15,7 @@
+ #include "maipai_gesture_core.h"
+ #include "maipai_banner.h"
+ #include "maipai_face.h"
++#include "maipai_fx.h"
+ #include "maipai_privacy.h"
+ #include "maipai_remote.h"
+ #include "maipai_sounds.h"
+@@ -61,11 +62,15 @@ extern const uint8_t _binary_bopit_mpk_start[];
+ extern const uint8_t _binary_bopit_mpk_end[];
+ extern const uint8_t _binary_rps_mpk_start[];
+ extern const uint8_t _binary_rps_mpk_end[];
++extern const uint8_t _binary_eightball_mpk_start[];
++extern const uint8_t _binary_eightball_mpk_end[];
++extern const uint8_t _binary_dice_mpk_start[];
++extern const uint8_t _binary_dice_mpk_end[];
+ }
+ 
+ namespace {
+ 
+-constexpr int kBuiltIns   = 6;  // patch UI14: memory, reaction, whack, tictactoe, bopit, rps
++constexpr int kBuiltIns   = 8;  // patch UI15: memory, reaction, whack, tictactoe, bopit, rps, eightball, dice
+ constexpr int kMaxGames   = kBuiltIns + 1;  // the built-ins, plus one pack loaded from outside (bench builds)
+ constexpr uint32_t kTickMs = 30;
+ 
+@@ -80,6 +85,8 @@ const Source kBuilt[kBuiltIns] = {
+     {_binary_tictactoe_mpk_start, _binary_tictactoe_mpk_end},
+     {_binary_bopit_mpk_start, _binary_bopit_mpk_end},
+     {_binary_rps_mpk_start, _binary_rps_mpk_end},
++    {_binary_eightball_mpk_start, _binary_eightball_mpk_end},
++    {_binary_dice_mpk_start, _binary_dice_mpk_end},
+ };
+ 
+ // A pack loaded from outside the image (only the bench tool does this today): one slot, in PSRAM.
+@@ -109,7 +116,7 @@ struct Game {
+     bool lower;
+     bool tap_on_release;  // patch UI13: a touch is a tap when the finger lifts (Bop-It), so a swipe is not also a tap
+     lv_point_precise_t pts[MG_MAX_SHAPES][2];  // the end points of the LINE shapes
+-    mgd::Mole mole;
++    mgd::Parts parts;  // patch UI15: the mole, the dice and the coin
+     int entry;
+     int rank;
+     uint32_t last_awake_ms;
+@@ -121,6 +128,8 @@ struct Game {
+ Game* s_game = nullptr;  // owned by the LVGL task: touched only with the LVGL lock held
+ std::atomic<bool> s_active{false};
+ std::atomic<const char*> s_stop_req{nullptr};
++int s_pending_light = -1;       // patch UI15: a ring light cue waiting for its sound
++uint32_t s_light_off_ms = 0;    // and when the ring goes dark again (0: nothing lit)
+ uint32_t s_inputs_total = 0;  // sensor inputs the tick has taken (bench status), so a stray tilt or shake on a still unit shows
+ std::atomic<uint32_t> s_input_bits{0};  // patch UI13: bit n set = event n (MG_EV_*) waits for the next 30 ms tick
+ uint32_t s_tones_total = 0;
+@@ -259,7 +268,7 @@ void redraw(Game* g, bool force)
+     g->last_state = r.state;
+     memcpy(g->last_ctr, r.ctr, sizeof(g->last_ctr));
+     memcpy(g->last_board, r.board, sizeof(g->last_board));
+-    mgd::draw_state(r, g->obj, g->type, g->text, &g->mole, g->es);
++    mgd::draw_state(r, g->obj, g->type, g->text, &g->parts, g->es, now_ms());
+ }
+ 
+ // ---- the running game ----
+@@ -283,6 +292,11 @@ void end_locked(const char* how)
+     color_sync_attach(false);
+     color_tones_free();
+     sfx_free();
++    if (s_light_off_ms != 0) {
++        s_light_off_ms = 0;
++        GetHAL().showRgbColor(0, 0, 0);
++    }
++    s_pending_light = -1;
+ #if CONFIG_MAIPAI_GAMES_BENCH
+     if (lv_display_t* d = lv_display_get_default()) {
+         lv_display_remove_event_cb_with_user_data(d, on_disp_event, nullptr);
+@@ -329,6 +343,15 @@ void show_best(Game* g, bool record)
+     maipai_banner_post(text, MB_ICON_CHECK, MB_PRIO_NOTICE, MB_TAG_GAME, record ? 4000u : 2500u);
+ }
+ 
++// Patch UI15: a celebration on the screen (confetti, or confetti and fireworks for a new best) through the overlay engine, which sheds it
++// under load, keeps the banner row and subtitle strip clear and does nothing when overlays are off, with the happy face. The caller holds the
++// LVGL lock (the LVGL task); the sound that goes with it is the rule's own (a fanfare) or the new-best sound.
++void celebrate(int level)
++{
++    (void)maipai_fx_celebrate(level);
++    hal_bridge::react_face("happy", level >= 2 ? 4000 : 3000);
++}
++
+ void commit_score(Game* g)
+ {
+     const int value = g->run.ctr[g->pack.score_ctr];
+@@ -346,6 +369,9 @@ void commit_score(Game* g)
+     if (rank == 0) {
+         show_best(g, true);  // a new best: shown on the game screen, with its own tone
+         (void)maipai_sounds_play("success");
++        if (mg_celebration_for_rank(rank) > 0) {
++            celebrate(mg_celebration_for_rank(rank));  // the big one, with the success sound
++        }
+     }
+     s_saves_total++;
+     // The flash write runs on the main task, never on the screen task (and only here, once, when a game ends).
+@@ -380,20 +406,71 @@ struct SfxPending {
+     size_t n;
+ };
+ SfxPending s_sfx          = {};
+-int16_t* s_sfx_buf        = nullptr;
++// Patch UI15: the ring light cue (the LIGHT action). It starts with the sound it belongs to and goes dark after 1.4 s.
++void light_apply(int color)
++{
++    static const uint8_t rgb[6][3] = {{0, 0, 0}, {0, 40, 160}, {0, 150, 40}, {170, 110, 0}, {170, 20, 10}, {110, 20, 150}};
++    if (color < 0 || color > 5 || maipai_quiet()) {
++        return;
++    }
++    GetHAL().showRgbColor(rgb[color][0], rgb[color][1], rgb[color][2]);
++    s_light_off_ms = color == 0 ? 0 : (now_ms() | 1u) + 1400u;
++}
++// Patch UI15: a clip is rendered once, into its own PSRAM buffer, when a game starts (clips_prepare) and played from there, so a roll or a tap
++// costs a copy and not a render in the middle of a motion (the render stalled the display for about a tenth of a second).
++int16_t* s_clip_buf[MGS_CLIPS] = {};
++size_t s_clip_n[MGS_CLIPS]     = {};
++const int16_t* s_sfx_pcm       = nullptr;
+ 
+ void sfx_free()
+ {
+     s_sfx.on = false;
+-    if (s_sfx_buf != nullptr) {
+-        heap_caps_free(s_sfx_buf);
+-        s_sfx_buf = nullptr;
++    s_sfx_pcm = nullptr;
++    for (int i = 0; i < MGS_CLIPS; i++) {
++        if (s_clip_buf[i] != nullptr) {
++            heap_caps_free(s_clip_buf[i]);
++            s_clip_buf[i] = nullptr;
++            s_clip_n[i]   = 0;
++        }
++    }
++}
++
++bool clip_ready(int clip)
++{
++    if (clip < 0 || clip >= MGS_CLIPS) {
++        return false;
++    }
++    if (s_clip_buf[clip] != nullptr) {
++        return true;
++    }
++    const size_t want = mgs_clip_samples(clip);
++    s_clip_buf[clip]  = static_cast<int16_t*>(heap_caps_malloc(want * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (s_clip_buf[clip] == nullptr) {
++        return false;
++    }
++    s_clip_n[clip] = mgs_render(clip, s_clip_buf[clip], want);
++    return s_clip_n[clip] > 0;
++}
++
++// Renders every clip a pack's rules can ask for (a group's members, the cue clips a counter may pick), once, at the game's start.
++void clips_prepare(const mg_pack_t& p)
++{
++    for (int i = 0; i < p.n_actions; i++) {
++        const uint8_t* a = p.b + p.o_actions + static_cast<size_t>(i) * MG_ACTION_SIZE;
++        if (a[0] == MG_OP_TONE_CTR) {
++            for (int c = MGS_C_CUE0; c <= MGS_C_CUE5; c++) (void)clip_ready(c);
++        } else if (a[0] == MG_OP_TONE && a[1] >= MGS_TONE_GROUP && a[1] < MGS_TONE_GROUP + MGS_GROUPS) {
++            const int g = a[1] - MGS_TONE_GROUP;
++            for (int k = 0; k < MGS_GROUP[g].n; k++) (void)clip_ready(MGS_GROUP[g].clip[k]);
++        } else if (a[0] == MG_OP_TONE && a[1] >= MGS_TONE_SHIPPED && a[1] < MGS_TONE_SHIPPED + MGS_CLIPS) {
++            (void)clip_ready(a[1] - MGS_TONE_SHIPPED);
++        }
+     }
+ }
+ 
+ void sfx_play_now()
+ {
+-    if (!s_sfx.on || s_sfx_buf == nullptr) {
++    if (!s_sfx.on || s_sfx_pcm == nullptr) {
+         s_sfx.on = false;
+         return;
+     }
+@@ -404,7 +481,11 @@ void sfx_play_now()
+     ESP_LOGW("GAMELAT", "%lld sfx_play %u samples, %u ms after it was asked for%s", static_cast<long long>(t0 / 1000), static_cast<unsigned>(s_sfx.n),
+              static_cast<unsigned>(now_ms() - s_sfx.since_ms), s_sfx.rect ? " (waited for its picture)" : " (at once)");
+ #endif
+-    (void)Application::GetInstance().GetAudioService().PlayPcm(s_sfx_buf, s_sfx.n, MGS_SFX_RATE);  // PlayPcm copies
++    (void)Application::GetInstance().GetAudioService().PlayPcm(s_sfx_pcm, s_sfx.n, MGS_SFX_RATE);  // PlayPcm copies
++    if (s_pending_light >= 0) {
++        light_apply(s_pending_light);  // the light starts with the sound
++        s_pending_light = -1;
++    }
+ }
+ 
+ // Renders clip `clip` and plays it now, or when the strip of `region` (a region number, or MG_NO_REGION) is on the panel.
+@@ -413,16 +494,11 @@ void sfx_queue(const Game* g, int clip, int region)
+     if (!maipai_sounds_gate("popup")) {
+         return;  // mute, sounds off or night: the picture still shows
+     }
+-    if (s_sfx_buf == nullptr) {
+-        s_sfx_buf = static_cast<int16_t*>(heap_caps_malloc(MGS_SFX_MAX_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+-        if (s_sfx_buf == nullptr) {
+-            return;
+-        }
+-    }
+-    const size_t n = mgs_render(clip, s_sfx_buf, MGS_SFX_MAX_SAMPLES);
+-    if (n == 0) {
++    if (!clip_ready(clip)) {
+         return;
+     }
++    const size_t n = s_clip_n[clip];
++    s_sfx_pcm      = s_clip_buf[clip];
+     s_sfx.n        = n;
+     s_sfx.on       = true;
+     s_sfx.since_ms = now_ms();
+@@ -491,8 +567,23 @@ void play_color_tone(int idx)
+ 
+ // A display flush is about to start: if it carries the waiting tone's tile, the tone starts now.
+ void sfx_play_now();
++#if CONFIG_MAIPAI_GAMES_BENCH
++// Patch UI15 (bench only): the gaps between display strips while a game runs, in 5 ms buckets (the last bucket holds 250 ms and more).
++uint32_t s_gap_hist[51];
++int64_t s_gap_last_us = 0;
++#endif
+ void on_flush_sync(lv_event_t* e)
+ {
++#if CONFIG_MAIPAI_GAMES_BENCH
++    {
++        const int64_t t = esp_timer_get_time();
++        if (s_gap_last_us != 0) {
++            int b = static_cast<int>((t - s_gap_last_us) / 5000);
++            s_gap_hist[b > 50 ? 50 : b]++;
++        }
++        s_gap_last_us = t;
++    }
++#endif
+     if (s_ct.idx < 0 && !s_sfx.on) {
+         return;
+     }
+@@ -586,6 +677,18 @@ void after_event(Game* g)
+         s_tones_total++;
+     }
+     r.tone_n = 0;
++    if (r.celebrate > 0) {
++        celebrate(r.celebrate);  // a win the rules named: confetti with the fanfare they queued
++        r.celebrate = 0;
++    }
++    if (r.light_new) {
++        r.light_new = 0;
++        if (s_sfx.on) {
++            s_pending_light = r.light;  // it waits for its sound (and its picture)
++        } else {
++            light_apply(r.light);
++        }
++    }
+     if (r.save_pending) {
+         r.save_pending = 0;
+         commit_score(g);
+@@ -639,6 +742,11 @@ void tick_cb(lv_timer_t*)
+             }
+         }
+     }
++    mgd::animate(g->run, g->obj, g->type, g->pts, &g->parts, now);  // patch UI15: the springs and easings of this moment (inside a 30 ms tick)
++    if (s_light_off_ms != 0 && static_cast<int32_t>(now - s_light_off_ms) >= 0) {
++        s_light_off_ms = 0;
++        GetHAL().showRgbColor(0, 0, 0);
++    }
+     mg_tick(&g->run, now);
+     color_tone_fallback(now);
+     after_event(g);
+@@ -728,8 +836,8 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     }
+     const int slot = slot_by_name(name);
+     if (slot < 0) {
+-        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit or rps.",
+-                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit o rps.");
++        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, rps, eightball or dice.",
++                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit, rps, eightball o dice.");
+     }
+     if (maipai_quiet()) {
+         return say(es, "The unit is in full quiet, so no game starts. Turn full quiet off, then ask again.",
+@@ -742,8 +850,8 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     const uint8_t* data;
+     size_t len;
+     if (!slot_bytes(slot, &data, &len)) {
+-        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit or rps.",
+-                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit o rps.");
++        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, rps, eightball or dice.",
++                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit, rps, eightball o dice.");
+     }
+     Game* g = static_cast<Game*>(heap_caps_calloc(1, sizeof(Game), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+     if (g == nullptr) {
+@@ -769,6 +877,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+             snprintf(s_entries[slot].id, sizeof(s_entries[slot].id), "%s", g->id);
+         }
+     }
++    clips_prepare(g->pack);  // patch UI15: the game's sounds are made before it is shown
+     g->root = lv_obj_create(lv_layer_top());
+     lv_obj_remove_style_all(g->root);
+     lv_obj_remove_flag(g->root, LV_OBJ_FLAG_CLICKABLE);
+@@ -782,7 +891,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+         mg_shape_get(&g->pack, i, &s);
+         g->type[i] = s.type;
+         g->text[i] = s.text;
+-        g->obj[i]  = mgd::build_shape(g->root, s, g->pts[i], &g->mole);
++        g->obj[i]  = mgd::build_shape(g->root, s, g->pts[i], &g->parts);
+     }
+     show_best(g, false);
+     g->last_awake_ms = now_ms();
+@@ -877,6 +986,8 @@ void maipai_games_post_input(int ev)
+ 
+ namespace {
+ mgi_t s_tilt;               // touched only by the imu task
++mgi_shake_t s_shake;        // patch UI15: the gentle shake detector, the imu task only
++int s_imu_pass = 0;
+ bool s_tilt_was_active = false;
+ }  // namespace
+ 
+@@ -888,8 +999,20 @@ void maipai_games_imu_feed(float ax, float ay, float az, uint32_t now_ms_in)
+     }
+     if (!s_tilt_was_active) {
+         mgi_init(&s_tilt);  // the pose the unit rests in when a game starts is its level
++        mgi_shake_init(&s_shake);
++        s_imu_pass        = 0;
+         s_tilt_was_active = true;
+     }
++    // Patch UI15: called every 20 ms. The gentle shake sees every sample; the tilt detector was written for 100 ms samples and sees every fifth.
++    const int shake = mgi_shake_update(&s_shake, ax, ay, az, now_ms_in);
++    if (shake != MGI_SHAKE_NONE) {
++        mgi_note_shake(&s_tilt, now_ms_in);
++        maipai_games_post_input(shake == MGI_SHAKE_OK ? MG_EV_SHAKE : MG_EV_EASY);
++        return;
++    }
++    if (++s_imu_pass % 5 != 0) {
++        return;
++    }
+     switch (mgi_update(&s_tilt, ax, ay, az, now_ms_in)) {
+         case MGI_LEFT: maipai_games_post_input(MG_EV_TILT_L); break;
+         case MGI_RIGHT: maipai_games_post_input(MG_EV_TILT_R); break;
+@@ -1084,7 +1207,8 @@ void maipai_games_register_tools()
+                 });
+     mcp.AddTool("self.game.start",
+                 "Start a game on the unit's screen: memory (colour memory), reaction (reaction time), whack (whack-a-mole), tictactoe, "
+-                "bopit (press the tile or do the move that is called: tap, swipe, shake, pet or tilt) or rps (rock paper scissors). "
++                "bopit (press the tile or do the move that is called: tap, swipe, gentle shake, pet or tilt), rps (rock paper scissors), "
++                "eightball (magic 8 ball: gently shake the unit or tap the ball) or dice (dice and coin: tap or gently shake). "
+                 "It never starts in full quiet or during an update. A person stops it with a swipe down from the bottom edge "
+                 "or by saying stop. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("memory")),
+@@ -1123,7 +1247,7 @@ void maipai_games_register_tools()
+                     const int slot         = slot_by_name(name.c_str());
+                     mg_pack_t p;
+                     if (slot < 0 || !slot_pack(slot, &p)) {
+-                        return error_json("That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit or rps.");
++                        return error_json("That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, rps, eightball or dice.");
+                     }
+                     return std::string("{\"ok\":true,\"game\":\"") + p.id + "\",\"lower_is_better\":" +
+                            ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(slot) + "}";
+@@ -1150,9 +1274,30 @@ void maipai_games_register_tools()
+                     return std::string("{\"ok\":true,\"edge\":false}");
+                 });
+     // Patch UI13: the inputs the sensors post, through the same entry (atomics, the tick reads them within 30 ms).
++    mcp.AddTool("self.game.bench_gaps", "Bench only: the gaps between display strips since the last call (p50, p99, worst in ms, and how many). "
++                "Reads and clears. A game running with motion is what it measures.", std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    LvglLockGuard lock;
++                    uint32_t total = 0;
++                    for (uint32_t c : s_gap_hist) total += c;
++                    auto pct = [&](int p) {
++                        uint32_t need = (total * p + 99) / 100, acc = 0;
++                        for (int b = 0; b <= 50; b++) {
++                            acc += s_gap_hist[b];
++                            if (acc >= need && total > 0) return b * 5 + 5;
++                        }
++                        return 255;
++                    };
++                    int worst = 0;
++                    for (int b = 0; b <= 50; b++) if (s_gap_hist[b] != 0) worst = b * 5 + 5;
++                    char out[160];
++                    snprintf(out, sizeof(out), "{\"ok\":true,\"count\":%u,\"p50_ms\":%d,\"p99_ms\":%d,\"worst_ms\":%d}", static_cast<unsigned>(total), pct(50), pct(99), worst);
++                    memset(s_gap_hist, 0, sizeof(s_gap_hist));
++                    s_gap_last_us = 0;
++                    return std::string(out);
++                });
+     mcp.AddTool("self.game.bench_event", "Bench only: post an input as the sensors do: 3 swipe left, 4 swipe right, 5 shake, 6 pet, 7 tilt left, "
+-                "8 tilt right, 9 tilt forward, 10 tilt back. Answers {ok, posted}.",
+-                PropertyList({Property("event", kPropertyTypeInteger, 5, 3, 10)}),
++                "8 tilt right, 9 tilt forward, 10 tilt back, 11 too-hard shake. Answers {ok, posted}.",
++                PropertyList({Property("event", kPropertyTypeInteger, 5, 3, 11)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     const bool on = s_active.load();
+                     maipai_games_post_input(properties["event"].value<int>());
+diff --git a/firmware/main/hal/maipai_games_core.h b/firmware/main/hal/maipai_games_core.h
+--- a/firmware/main/hal/maipai_games_core.h
++++ b/firmware/main/hal/maipai_games_core.h
+@@ -35,7 +35,7 @@
+ #define MG_MAX_STATES 16
+ #define MG_MAX_REGIONS 12
+ #define MG_MAX_SHAPES 64 /* patch UI14: was 48; the big Rock Paper Scissors screen draws hands and a face */
+-#define MG_MAX_TEXTS 24
++#define MG_MAX_TEXTS 32 /* patch UI15: was 24; the eight ball holds twenty answers */
+ #define MG_MAX_TRANS 96
+ #define MG_MAX_ACTIONS 255
+ #define MG_COUNTERS 8
+@@ -94,6 +94,7 @@ typedef enum {
+     MG_EV_TILT_R = 8,
+     MG_EV_TILT_F = 9,
+     MG_EV_TILT_B = 10,
++    MG_EV_EASY = 11, /* patch UI15: a shake so hard that it does not count (the game answers "Easy!") */
+     MG_EV_COUNT
+ } mg_event_t;
+ 
+@@ -136,7 +137,9 @@ typedef enum {
+     MG_OP_BOARD_BOT,    /* the unit's move into counter a; the difficulty (0 random, 1 blocks wins, 2 perfect) is counter v */
+     MG_OP_BOARD_RESULT, /* counter a: 0 playing, 1 person won, 2 unit won, 3 draw */
+     MG_OP_SYNC,         /* the region in counter a is where the tones of this event show their change (-1 none) */
+-    MG_OP_MAX = MG_OP_SYNC
++    MG_OP_LIGHT,        /* patch UI15: the ring light shows color v (0 off, 1 blue, 2 green, 3 amber, 4 red, 5 purple) for a moment, with the sound */
++    MG_OP_CELEBRATE,    /* patch UI15: a win: confetti on the screen (value 1), or the big one with fireworks (value 2), with the happy face */
++    MG_OP_MAX = MG_OP_CELEBRATE
+ } mg_op_t;
+ 
+ /* Patch UI12: LINE is a thick segment from (x, y) to (w, h) (aux is its thickness); MOLE is the whack-a-mole character, drawn by the player
+@@ -149,7 +152,9 @@ typedef enum {
+     MG_SH_TEXT,
+     MG_SH_LINE,
+     MG_SH_MOLE,
+-    MG_SH_MAX = MG_SH_MOLE
++    MG_SH_DIE,  /* patch UI15: a die (w px square at x, y) showing the number in counter cond_ctr; drawn only while counter aux equals cond_val (-128: always) */
++    MG_SH_COIN, /* a coin (w px across at x, y) showing heads (0), tails (1) or edge on (2) from counter cond_ctr, with the same mode condition */
++    MG_SH_MAX = MG_SH_COIN
+ } mg_shape_type_t;
+ 
+ /* The mole's faces (the value of the face counter). */
+@@ -492,6 +497,9 @@ static inline mg_err_t mg_parse(const uint8_t* b, size_t len, mg_pack_t* p)
+         if (s.type == MG_SH_MOLE && (s.cond_ctr >= MG_COUNTERS || s.aux >= MG_COUNTERS || p->n_regions == 0)) {
+             return MG_E_REF; /* the mole needs a region counter and a face counter */
+         }
++        if ((s.type == MG_SH_DIE || s.type == MG_SH_COIN) && (s.cond_ctr >= MG_COUNTERS || s.aux >= MG_COUNTERS)) {
++            return MG_E_REF; /* a die and a coin need a value counter and a mode counter */
++        }
+         if (s.x < -64 || s.x > 384 || s.y < -64 || s.y > 304 || s.w < 0 || s.w > 400 || s.h < 0 || s.h > 400) {
+             return MG_E_REF;
+         }
+@@ -536,6 +544,12 @@ static inline mg_err_t mg_parse(const uint8_t* b, size_t len, mg_pack_t* p)
+             case MG_OP_SET_REG: case MG_OP_FLOOR: case MG_OP_BOARD_PLACE: case MG_OP_BOARD_RESULT: case MG_OP_SYNC:
+                 if (a[1] >= MG_COUNTERS) return MG_E_REF;
+                 break;
++            case MG_OP_LIGHT:
++                if (v < 0 || v > 5) return MG_E_REF;
++                break;
++            case MG_OP_CELEBRATE:
++                if (v < 1 || v > 2) return MG_E_REF;
++                break;
+             case MG_OP_BOARD_BOT:
+                 if (a[1] >= MG_COUNTERS || v < 0 || v >= MG_COUNTERS) return MG_E_REF;
+                 break;
+@@ -604,6 +618,8 @@ typedef struct {
+     uint8_t tap_region;
+     uint8_t tone_n;
+     uint8_t tone_q[MG_TONE_Q];
++    uint8_t celebrate;        /* patch UI15: the biggest celebration a rule asked for in this event (0 none, 1 confetti, 2 confetti and fireworks) */
++    uint8_t light, light_new; /* patch UI15: the last ring color a rule asked for, and whether the player has taken it yet */
+     uint8_t sync_region;  /* patch UI12: the region the tones of the last event belong to (MG_NO_REGION: none) */
+     uint8_t board[MG_BOARD_CELLS];
+     uint16_t steps;       /* transitions run by the last event */
+@@ -813,6 +829,8 @@ static inline void mg_act(mg_run_t* r, const uint8_t* a, uint32_t now)
+         }
+         case MG_OP_BOARD_BOT: r->ctr[c] = (int16_t)mg_board_bot(r, r->ctr[v]); break;
+         case MG_OP_BOARD_RESULT: r->ctr[c] = (int16_t)mg_board_result(r->board); break;
++        case MG_OP_CELEBRATE: r->celebrate = (uint8_t)(v > r->celebrate ? v : r->celebrate); break;
++        case MG_OP_LIGHT: r->light = (uint8_t)(v < 0 ? 0 : v); r->light_new = 1; break;
+         case MG_OP_SYNC: r->sync_region = (r->ctr[c] >= 0 && r->ctr[c] < 255) ? (uint8_t)r->ctr[c] : (uint8_t)MG_NO_REGION; break;
+         default: break;
+     }
+@@ -965,6 +983,9 @@ static inline int mg_shape_visible(const mg_run_t* r, int i)
+     if (s.type == MG_SH_MOLE) {
+         return mg_mole_region(r, &s) != MG_NO_REGION;
+     }
++    if (s.type == MG_SH_DIE || s.type == MG_SH_COIN) { /* the value counter is read when drawing; here only the mode condition */
++        return s.cond_val == -128 || r->ctr[s.aux] == s.cond_val;
++    }
+     if (s.cond_ctr == 0xFF) {
+         return 1;
+     }
+@@ -1020,6 +1041,10 @@ static inline int mg_text(const mg_run_t* r, int idx, int es, char* out, size_t
+  * lower is (a reaction time). Returns the place the new score took (0 is first), or -1 when it did not make the list
+  * (or was not a score: zero or less). Ties keep the older score first.
+  */
++/* Patch UI15: what a finished game earns on the screen. Only a new best (place 0 of the saved list) is the big celebration; a score that
++ * made the list but not first, a score that did not, and a loss (rank -1: nothing saved) earn none. A win inside a game is the rules' own. */
++static inline int mg_celebration_for_rank(int rank) { return rank == 0 ? 2 : 0; }
++
+ static inline int mg_scores_add(uint16_t s[MG_SCORES], int lower_better, int value)
+ {
+     if (value < 1) {
+diff --git a/firmware/main/hal/maipai_games_sfx_core.h b/firmware/main/hal/maipai_games_sfx_core.h
+--- a/firmware/main/hal/maipai_games_sfx_core.h
++++ b/firmware/main/hal/maipai_games_sfx_core.h
+@@ -47,6 +47,7 @@ enum {
+     MGS_C_HAHA, MGS_C_WHISTLE, MGS_C_TROMBONE,
+     MGS_C_GOOD, MGS_C_FANFARE, MGS_C_BAD,
+     MGS_C_CUE0, MGS_C_CUE1, MGS_C_CUE2, MGS_C_CUE3, MGS_C_CUE4, MGS_C_CUE5,
++    MGS_C_RATTLE, MGS_C_THUD, MGS_C_MYSTIC, MGS_C_TING, /* patch UI15: dice rattle, a landing thud, the eight ball's eerie hum, a coin's ring */
+     MGS_CLIPS
+ };
+ 
+@@ -71,6 +72,11 @@ static const mgs_clip_t MGS_CLIP[MGS_CLIPS] = {
+     {"cue3", 1, {{784, 784, 150, MGS_W_SINE, 90}}},
+     {"cue4", 1, {{880, 880, 150, MGS_W_SINE, 90}}},
+     {"cue5", 1, {{988, 988, 150, MGS_W_SINE, 90}}},
++    {"rattle", 8, {{150, 110, 40, MGS_W_SQUARE, 40}, {0, 0, 25, MGS_W_REST, 1}, {170, 120, 40, MGS_W_SQUARE, 45}, {0, 0, 20, MGS_W_REST, 1},
++                   {140, 100, 40, MGS_W_SQUARE, 40}, {0, 0, 25, MGS_W_REST, 1}, {180, 130, 45, MGS_W_SQUARE, 45}, {160, 90, 60, MGS_W_SQUARE, 35}}},
++    {"thud", 2, {{150, 55, 110, MGS_W_SINE, 100}, {70, 40, 90, MGS_W_SINE, 60}}},
++    {"mystic", 3, {{196, 262, 240, MGS_W_TRI, 70}, {262, 185, 300, MGS_W_TRI, 70}, {440, 330, 260, MGS_W_SINE, 45}}},
++    {"ting", 2, {{1318, 1318, 90, MGS_W_SINE, 80}, {1760, 1760, 260, MGS_W_SINE, 70}}},
+ };
+ 
+ /* The groups: a clip is picked at random from the clips listed. */
+diff --git a/firmware/main/hal/maipai_games_input_core.h b/firmware/main/hal/maipai_games_input_core.h
+--- a/firmware/main/hal/maipai_games_input_core.h
++++ b/firmware/main/hal/maipai_games_input_core.h
+@@ -109,4 +109,93 @@ static inline int mgi_update(mgi_t* t, float x, float y, float z, uint32_t now_m
+     return MGI_NONE;
+ }
+ 
++
++/*
++ * Patch UI15: the gentle shake. Owner rule: nobody should have to shake the unit hard, so a small quick wobble of a few centimeters counts,
++ * and a very violent shake does not (the game answers "Easy!" and gives no points). Samples come every 20 ms (50 Hz).
++ *
++ * The pull's slow part (gravity, the pose) is followed by a low pass filter (time constant about 0.25 s) and taken away; what is left is
++ * the motion. On the axis that moves most, a swing that reaches 2.2 m/s^2 (0.22 g) on one side and then the other counts as a stroke.
++ * Three strokes within 0.9 s are a shake. A wobble of 3 cm at 3 Hz is about 10 m/s^2 and a wobble of 1 cm at 2.5 Hz about 2.5 m/s^2, so
++ * both count; a tap on the table, a slow tilt or a lone bump does not (one stroke, or none). If the motion reaches 20 m/s^2 (2 g) in the
++ * same window the shake is "too hard": it returns MGI_SHAKE_EASY instead and the game gives no points.
++ */
++#define MGI_SHAKE_LP 0.08f
++#define MGI_SHAKE_STROKE 2.2f
++#define MGI_SHAKE_STROKES 3
++#define MGI_SHAKE_WINDOW_MS 900u
++#define MGI_SHAKE_TOO_HARD 20.0f
++#define MGI_SHAKE_REFRACT_MS 800u
++
++typedef enum { MGI_SHAKE_NONE = 0, MGI_SHAKE_OK, MGI_SHAKE_EASY } mgi_shake_result_t;
++
++typedef struct {
++    float base[3];
++    int primed, axis, last_sign, strokes;
++    uint32_t first_ms, hard_ms, quiet_until_ms;
++    int hard;
++} mgi_shake_t;
++
++static inline void mgi_shake_init(mgi_shake_t* k)
++{
++    memset(k, 0, sizeof(*k));
++    k->axis = -1;
++}
++
++/* One accelerometer sample (m/s^2, every 20 ms). Returns MGI_SHAKE_OK, MGI_SHAKE_EASY or MGI_SHAKE_NONE. */
++static inline int mgi_shake_update(mgi_shake_t* k, float x, float y, float z, uint32_t now_ms)
++{
++    const float in[3] = {x, y, z};
++    if (!k->primed) {
++        memcpy(k->base, in, sizeof(k->base));
++        k->primed = 1;
++        return MGI_SHAKE_NONE;
++    }
++    float dev[3], m2 = 0.0f;
++    int axis = 0;
++    for (int i = 0; i < 3; i++) {
++        dev[i] = in[i] - k->base[i];
++        k->base[i] += MGI_SHAKE_LP * dev[i];
++        m2 += dev[i] * dev[i];
++        if (mgi_abs(dev[i]) > mgi_abs(dev[axis])) {
++            axis = i;
++        }
++    }
++    if ((int32_t)(now_ms - k->quiet_until_ms) < 0) {
++        return MGI_SHAKE_NONE;
++    }
++    if (k->strokes > 0 && now_ms - k->first_ms > MGI_SHAKE_WINDOW_MS) {
++        k->strokes = 0;
++        k->hard    = 0;
++        k->axis    = -1;
++    }
++    if (m2 >= MGI_SHAKE_TOO_HARD * MGI_SHAKE_TOO_HARD) {
++        k->hard    = 1;
++        k->hard_ms = now_ms;
++    }
++    if (mgi_abs(dev[axis]) >= MGI_SHAKE_STROKE) {
++        const int sign = dev[axis] > 0 ? 1 : -1;
++        if (axis != k->axis) {
++            k->axis      = axis;
++            k->last_sign = 0;
++        }
++        if (sign != k->last_sign) {
++            k->last_sign = sign;
++            if (k->strokes == 0) {
++                k->first_ms = now_ms;
++            }
++            k->strokes++;
++        }
++    }
++    if (k->strokes >= MGI_SHAKE_STROKES || (k->hard && k->strokes >= 2)) {
++        const int hard = k->hard;
++        k->strokes = 0;
++        k->hard    = 0;
++        k->axis    = -1;
++        k->quiet_until_ms = now_ms + MGI_SHAKE_REFRACT_MS;
++        return hard ? MGI_SHAKE_EASY : MGI_SHAKE_OK;
++    }
++    return MGI_SHAKE_NONE;
++}
++
+ #endif
+diff --git a/firmware/main/hal/maipai_games_draw.h b/firmware/main/hal/maipai_games_draw.h
+--- a/firmware/main/hal/maipai_games_draw.h
++++ b/firmware/main/hal/maipai_games_draw.h
+@@ -10,6 +10,7 @@
+ #ifndef MAIPAI_GAMES_DRAW_H
+ #define MAIPAI_GAMES_DRAW_H
+ 
++#include <math.h>
+ #include <lvgl.h>
+ #include "maipai_games_core.h"
+ 
+@@ -45,7 +46,7 @@ enum {
+ struct Mole {
+     lv_obj_t* root;           /* a transparent holder over the whole screen; hiding it hides the mole */
+     lv_obj_t* part[P_COUNT];
+-    int last_x, last_y, last_face, last_size;
++    int last_x, last_y, last_face, last_size, last_sx, last_sy;
+ };
+ 
+ constexpr uint32_t kBodyC = 0x8b5a2b, kEarInC = 0xe8a0a8, kMuzzleC = 0xd9b38c, kNoseC = 0xff8fa3, kWhiteC = 0xffffff, kPupilC = 0x101010,
+@@ -113,15 +114,17 @@ inline void put(lv_obj_t* o, int x, int y, int w, int h, bool show)
+ 
+ /* Puts the mole with its feet at (bx, by) (they are hidden under the dirt mound drawn over them) wearing face `face`; `size` is its width in
+  * pixels (30 is the size the numbers below were drawn for). A mole that is already in that place with that face is left alone. */
+-inline void mole_apply(Mole* m, int bx, int by, int face, int size)
++inline void mole_apply(Mole* m, int bx, int by, int face, int size, int star_dx = 0, int star_dy = 0)
+ {
+-    if (m->last_x == bx && m->last_y == by && m->last_face == face && m->last_size == size) {
++    if (m->last_x == bx && m->last_y == by && m->last_face == face && m->last_size == size && m->last_sx == star_dx && m->last_sy == star_dy) {
+         return;
+     }
+     m->last_x = bx;
+     m->last_y = by;
+     m->last_face = face;
+     m->last_size = size;
++    m->last_sx = star_dx;
++    m->last_sy = star_dy;
+     auto sc = [size](int v) { return (v * size + (v < 0 ? -15 : 15)) / 30; };
+     lv_obj_t** p = m->part;
+     const int bw = sc(28), bh = sc(34);
+@@ -159,7 +162,7 @@ inline void mole_apply(Mole* m, int bx, int by, int face, int size)
+     put(p[P_X_R], bx + sc(7) - sc(3), ey - sc(8), 12, 16, dazed);
+     if (dazed) {
+         lv_obj_set_size(p[P_STARS], LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+-        lv_obj_set_pos(p[P_STARS], bx - sc(18), top - sc(7));
++        lv_obj_set_pos(p[P_STARS], bx - sc(18) + star_dx, top - sc(7) + star_dy);
+         lv_obj_remove_flag(p[P_STARS], LV_OBJ_FLAG_HIDDEN);
+     } else {
+         lv_obj_add_flag(p[P_STARS], LV_OBJ_FLAG_HIDDEN);
+@@ -167,11 +170,121 @@ inline void mole_apply(Mole* m, int bx, int by, int face, int size)
+     lv_obj_remove_flag(m->root, LV_OBJ_FLAG_HIDDEN);
+ }
+ 
++/* ---- the die and the coin (patch UI15) ---- */
++struct Die {
++    lv_obj_t* box;     /* the white rounded square; the pips are its children */
++    lv_obj_t* pip[7];  /* top left, top right, middle left, middle, middle right, bottom left, bottom right */
++    int value, side;
++};
++struct Coin {
++    lv_obj_t* body;    /* the gold disc */
++    lv_obj_t* part[5]; /* heads: a head and shoulders; tails: a star of three crossing lines */
++    int face, dia;
++};
++constexpr int kMaxDice = 3;
++struct Parts {
++    Mole mole;
++    Die die[kMaxDice];
++    Coin coin;
++    int n_dice;
++    /* patch UI15: motion bookkeeping (no heap; the times are the player's milliseconds) */
++    uint32_t state_ms, mole_ms, coin_ms, die_ms[kMaxDice], appear_ms[MG_MAX_SHAPES];
++    int last_state, mole_key, coin_face, die_val[kMaxDice];
++    uint8_t shown[MG_MAX_SHAPES], faded[MG_MAX_SHAPES];
++};
++
++inline lv_obj_t* die_build(lv_obj_t* parent, Die* d, int side)
++{
++    d->side  = side;
++    d->value = -1;
++    d->box   = blob(parent, 0xf8f8f0, side / 6);
++    lv_obj_set_style_border_color(d->box, lv_color_hex(0x9a9a90), 0);
++    lv_obj_set_style_border_width(d->box, 2, 0);
++    lv_obj_set_size(d->box, side, side);
++    static const int8_t pos[7][2] = {{25, 25}, {75, 25}, {25, 50}, {50, 50}, {75, 50}, {25, 75}, {75, 75}};  // percent of the side
++    const int pr = side / 12 + 1;
++    for (int i = 0; i < 7; i++) {
++        d->pip[i] = blob(d->box, 0x181818, LV_RADIUS_CIRCLE);
++        lv_obj_set_size(d->pip[i], 2 * pr, 2 * pr);
++        lv_obj_set_pos(d->pip[i], side * pos[i][0] / 100 - pr - 2, side * pos[i][1] / 100 - pr - 2);  // minus the border
++        lv_obj_add_flag(d->pip[i], LV_OBJ_FLAG_HIDDEN);
++    }
++    return d->box;
++}
++
++/* Shows number v (1 to 6; anything else is a blank face). */
++inline void die_show(Die* d, int v)
++{
++    if (d->value == v) {
++        return;
++    }
++    d->value = v;
++    // pips by number: 1 centre; 2 corners; 3 corners and centre; 4 four corners; 5 four and centre; 6 two columns of three
++    static const uint8_t on[7] = {0x00, 0x08, 0x41, 0x49, 0x63, 0x6B, 0x77};
++    // bit order: 0 top left, 1 top right, 2 middle left, 3 centre, 4 middle right, 5 bottom left, 6 bottom right
++    uint8_t m = (v >= 1 && v <= 6) ? on[v] : 0;
++    for (int i = 0; i < 7; i++) {
++        if ((m >> i) & 1) {
++            lv_obj_remove_flag(d->pip[i], LV_OBJ_FLAG_HIDDEN);
++        } else {
++            lv_obj_add_flag(d->pip[i], LV_OBJ_FLAG_HIDDEN);
++        }
++    }
++}
++
++inline lv_obj_t* coin_build(lv_obj_t* parent, Coin* c, int dia)
++{
++    c->dia  = dia;
++    c->face = -1;
++    c->body = blob(parent, 0xe6b800, LV_RADIUS_CIRCLE);
++    lv_obj_set_style_border_color(c->body, lv_color_hex(0xb38600), 0);
++    lv_obj_set_style_border_width(c->body, 4, 0);
++    lv_obj_set_size(c->body, dia, dia);
++    c->part[0] = blob(c->body, 0xb38600, LV_RADIUS_CIRCLE);  // heads: the head
++    c->part[1] = blob(c->body, 0xb38600, dia / 6);            // heads: the shoulders
++    for (int i = 2; i < 5; i++) {                            // tails: three bars crossing like a star
++        c->part[i] = blob(c->body, 0xb38600, 3);
++    }
++    for (auto* o : c->part) {
++        lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++    }
++    return c->body;
++}
++
++/* Shows heads (0), tails (1) or edge on (2: a thin disc, as in the middle of a flip). */
++inline void coin_show(Coin* c, int face, int x, int y)
++{
++    if (c->face == face) {
++        return;
++    }
++    c->face = face;
++    const int d = c->dia;
++    const int w = face == 2 ? d / 5 : d;
++    lv_obj_set_size(c->body, w, d);
++    lv_obj_set_pos(c->body, x - w / 2, y - d / 2);
++    const bool heads = face == 0, tails = face == 1;
++    const int inner = d - 8;  // inside the border
++    auto put_in = [&](lv_obj_t* o, int ox, int oy, int ow, int oh, bool show) {
++        if (show) {
++            lv_obj_set_size(o, ow, oh);
++            lv_obj_set_pos(o, ox, oy);
++            lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++        } else {
++            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++        }
++    };
++    put_in(c->part[0], inner / 2 - inner / 8, inner / 5, inner / 4, inner / 4, heads);
++    put_in(c->part[1], inner / 2 - inner / 4, inner / 2 + 2, inner / 2, inner / 3, heads);
++    put_in(c->part[2], inner / 2 - inner / 20, inner / 6, inner / 10, inner * 2 / 3, tails);
++    put_in(c->part[3], inner / 6, inner / 2 - inner / 20, inner * 2 / 3, inner / 10, tails);
++    put_in(c->part[4], inner / 2 - inner / 20, inner / 2 - inner / 4, inner / 10, inner / 2, false);
++}
++
+ /* ---- the shapes ---- */
+ 
+ /* Builds one shape under `parent`, hidden. `pts` is where a LINE keeps its two points (they must outlive the object); `mole` is filled
+  * in for a MOLE shape. Returns the object the player shows and hides. */
+-inline lv_obj_t* build_shape(lv_obj_t* parent, const mg_shape_t& s, lv_point_precise_t* pts, Mole* mole)
++inline lv_obj_t* build_shape(lv_obj_t* parent, const mg_shape_t& s, lv_point_precise_t* pts, Parts* parts)
+ {
+     switch (s.type) {
+         case MG_SH_FILL: {
+@@ -221,8 +334,20 @@ inline lv_obj_t* build_shape(lv_obj_t* parent, const mg_shape_t& s, lv_point_pre
+             return o;
+         }
+         case MG_SH_MOLE:
+-            mole_build(parent, mole);
+-            return mole->root;
++            mole_build(parent, &parts->mole);
++            return parts->mole.root;
++        case MG_SH_DIE: {
++            lv_obj_t* o = die_build(parent, &parts->die[parts->n_dice < kMaxDice ? parts->n_dice : kMaxDice - 1], s.w > 0 ? s.w : 60);
++            if (parts->n_dice < kMaxDice) parts->n_dice++;
++            lv_obj_set_pos(o, s.x - s.w / 2, s.y - s.w / 2);
++            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            return o;
++        }
++        case MG_SH_COIN: {
++            lv_obj_t* o = coin_build(parent, &parts->coin, s.w > 0 ? s.w : 80);
++            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            return o;
++        }
+         default: {  // MG_SH_TEXT
+             lv_obj_t* o = lv_label_create(parent);
+             lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+@@ -250,14 +375,23 @@ inline void mole_place(const mg_pack_t* p, int region, int* bx, int* by)
+ }
+ 
+ /* Shows or hides every shape for the run's present state and counters; texts get their counters filled in. */
+-inline void draw_state(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type, const uint8_t* text, Mole* mole, bool es)
++inline void draw_state(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type, const uint8_t* text, Parts* parts, bool es, uint32_t now_ms = 0)
+ {
++    if (r.state != parts->last_state) {
++        parts->last_state = r.state;
++        parts->state_ms   = now_ms;
++    }
+     for (int i = 0; i < r.p->n_shapes; i++) {
+         lv_obj_t* o = obj[i];
+         if (o == nullptr) {
+             continue;
+         }
+         if (mg_shape_visible(&r, i)) {
++            if (!parts->shown[i]) {
++                parts->shown[i]     = 1;
++                parts->appear_ms[i] = now_ms;  // a shape that has just appeared (a mark on the board) draws itself in
++                parts->faded[i]     = 0;
++            }
+             if (type[i] == MG_SH_TEXT) {
+                 char buf[MG_TEXT_LEN + 16];
+                 mg_text(&r, text[i], es ? 1 : 0, buf, sizeof(buf));
+@@ -267,15 +401,198 @@ inline void draw_state(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* t
+                 mg_shape_get(r.p, i, &s);
+                 int bx, by;
+                 mole_place(r.p, mg_mole_region(&r, &s), &bx, &by);
+-                mole_apply(mole, bx, by, r.ctr[s.aux], s.w > 0 ? s.w : 30);
++                const int key = mg_mole_region(&r, &s) * 8 + r.ctr[s.aux];
++                if (key != parts->mole_key) {
++                    parts->mole_key = key;
++                    parts->mole_ms  = now_ms;  // it pops up (or is struck) now
++                }
++                mole_apply(&parts->mole, bx, by, r.ctr[s.aux], s.w > 0 ? s.w : 30);
++            } else if (type[i] == MG_SH_DIE) {
++                mg_shape_t s;
++                mg_shape_get(r.p, i, &s);
++                for (int k = 0; k < parts->n_dice; k++) {
++                    if (parts->die[k].box == o) {
++                        if (parts->die_val[k] != r.ctr[s.cond_ctr]) {
++                            parts->die_val[k] = r.ctr[s.cond_ctr];
++                            parts->die_ms[k]  = now_ms;  // a new number: the die hops
++                        }
++                        die_show(&parts->die[k], r.ctr[s.cond_ctr]);
++                    }
++                }
++            } else if (type[i] == MG_SH_COIN) {
++                mg_shape_t s;
++                mg_shape_get(r.p, i, &s);
++                if (parts->coin_face != r.ctr[s.cond_ctr]) {
++                    parts->coin_face = r.ctr[s.cond_ctr];
++                    parts->coin_ms   = now_ms;
++                }
++                coin_show(&parts->coin, r.ctr[s.cond_ctr], s.x, s.y);
+             }
+             lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+         } else {
++            parts->shown[i] = 0;
+             lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+         }
+     }
+ }
+ 
++/* ---- motion (patch UI15) ----
++ * Called every 30 ms tick of a running game (and by the host renderer for keyframes). It only moves, resizes or fades the few objects a
++ * game's moment needs and only inside that moment's window, so a still screen costs nothing: the mole pops up with an ease-out overshoot and
++ * is squashed when struck, with stars circling; dice hop in turn and bounce on landing, the coin flips (its width goes through edge-on),
++ * bounces and glints; the eight ball wobbles with a damped spring when shaken and its window fades in and floats; the Rock Paper Scissors
++ * hands bump with each beat and the unit's pick fades in; the Tic-Tac-Toe marks draw themselves in; Do It's called tile pulses. All of it
++ * is arithmetic on existing objects: no allocation, no new object. Returns true while something still moves (the caller keeps ticking). */
++inline float ease_out(float p) { p = p < 0 ? 0 : (p > 1 ? 1 : p); return 1.0f - (1.0f - p) * (1.0f - p) * (1.0f - p); }
++inline float ease_back(float p)
++{
++    p = p < 0 ? 0 : (p > 1 ? 1 : p);
++    const float c1 = 1.70158f, c3 = c1 + 1.0f, q = p - 1.0f;
++    return 1.0f + c3 * q * q * q + c1 * q * q;
++}
++
++inline void shape_origin(const mg_shape_t& s, int* x, int* y)
++{
++    switch (s.type) {
++        case MG_SH_CIRCLE: case MG_SH_RING: *x = s.x - s.w; *y = s.y - s.w; break;
++        case MG_SH_TEXT: *x = s.x - (s.w > 0 ? s.w : 280) / 2; *y = s.y - lv_font_get_line_height(font_for(s.aux)) / 2; break;
++        default: *x = s.x; *y = s.y; break;
++    }
++}
++
++inline bool animate(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type, lv_point_precise_t (*pts)[2], Parts* P, uint32_t now)
++{
++    bool busy = false;
++    const mg_pack_t* pk = r.p;
++    const bool is_ball = strcmp(pk->id, "eightball") == 0, is_rps = strcmp(pk->id, "rps") == 0, is_ttt = strcmp(pk->id, "tictactoe") == 0,
++               is_bop = strcmp(pk->id, "bopit") == 0;
++    const float t_state = (float)(now - P->state_ms);
++    for (int i = 0; i < pk->n_shapes; i++) {
++        lv_obj_t* o = obj[i];
++        if (o == nullptr || !P->shown[i]) {
++            continue;
++        }
++        mg_shape_t s;
++        mg_shape_get(pk, i, &s);
++        const float t_app = (float)(now - P->appear_ms[i]);
++        if (type[i] == MG_SH_MOLE) {
++            const float t = (float)(now - P->mole_ms);
++            const int face = r.ctr[s.aux];
++            int bx, by;
++            mole_place(pk, mg_mole_region(&r, &s), &bx, &by);
++            if (t < 330.0f || (face == MG_FACE_DAZED && t < 460.0f)) {
++                const float pop = t < 240.0f ? (1.0f - ease_back(t / 240.0f)) * 30.0f : 0.0f;
++                const float sq  = face == MG_FACE_DAZED ? 0.14f * (1.0f - ease_out(t / 220.0f)) : 0.0f;  // struck: squashed, then settles
++                const int size  = (int)((s.w > 0 ? s.w : 30) * (1.0f + sq));
++                const int orbit = face == MG_FACE_DAZED ? (int)(6.0f * sinf(t / 90.0f)) : 0;
++                mole_apply(&P->mole, bx, by + (int)pop, face, size, orbit, face == MG_FACE_DAZED ? (int)(2.0f * cosf(t / 90.0f)) : 0);
++                busy = true;
++            } else {
++                mole_apply(&P->mole, bx, by, face, s.w > 0 ? s.w : 30);
++            }
++        } else if (type[i] == MG_SH_DIE) {
++            for (int k = 0; k < P->n_dice; k++) {
++                if (P->die[k].box != o) continue;
++                const float t = (float)(now - P->die_ms[k]) - 90.0f * (float)k;  // the second die follows the first by 90 ms
++                float y = 0, x = 0;
++                if (t >= 0 && t < 90.0f) {
++                    y = -9.0f * sinf(3.14159f * t / 90.0f);
++                    x = ((P->die_val[k] & 1) ? 2.0f : -2.0f) * sinf(3.14159f * t / 90.0f);
++                } else if (t >= 100.0f && t < 450.0f) {
++                    y = -4.0f * expf(-(t - 100.0f) / 90.0f) * fabsf(sinf((t - 100.0f) / 38.0f));  // landing: bounces and settles
++                }
++                if (t < 450.0f) busy = true;
++                lv_obj_set_pos(o, s.x - s.w / 2 + (int)x, s.y - s.w / 2 + (int)y);
++            }
++        } else if (type[i] == MG_SH_COIN) {
++            const float t = (float)(now - P->coin_ms);
++            float y = 0;
++            if (P->coin_face == 2) y = -12.0f * sinf(t / 70.0f); else if (t < 420.0f) y = -9.0f * expf(-t / 110.0f) * fabsf(sinf(t / 42.0f));
++            const int w = lv_obj_get_width(o);
++            lv_obj_set_pos(o, s.x - w / 2, s.y - s.w / 2 + (int)y);
++            lv_obj_t* glint = P->coin.part[4];
++            if (P->coin_face != 2 && t < 260.0f) {  // a glint runs across the face after it lands
++                const int inner = s.w - 8;
++                lv_obj_set_size(glint, inner / 8, inner / 3);
++                lv_obj_set_pos(glint, (int)((inner - inner / 8) * (t / 260.0f)), inner / 6);
++                lv_obj_set_style_bg_color(glint, lv_color_hex(0xfff4b0), 0);
++                lv_obj_remove_flag(glint, LV_OBJ_FLAG_HIDDEN);
++            } else {
++                lv_obj_add_flag(glint, LV_OBJ_FLAG_HIDDEN);
++            }
++            if (P->coin_face == 2 || t < 420.0f) busy = true;
++        } else if (is_ball && ((i >= 1 && i <= 10) || (type[i] == MG_SH_TEXT && s.y >= 80 && s.y <= 100 && s.x == 160))) {
++            // the ball wobbles with a damped spring from the moment it is shaken; the window and the answer fade in and then float
++            const float tk = (float)(now - P->state_ms);
++            const bool shaking = r.state == 1, answered = r.state == 2;
++            float dx = 0, dy = 0;
++            if (shaking) {
++                dx = 14.0f * expf(-tk / 650.0f) * sinf(tk / 48.0f);
++                dy = 3.0f * cosf(tk / 48.0f);
++                busy = true;
++            } else if (answered) {
++                dx = 14.0f * expf(-(tk + 1100.0f) / 650.0f) * sinf((tk + 1100.0f) / 48.0f);
++                if (i >= 4) dy = 2.0f * sinf((float)now / 380.0f);  // the window floats gently
++                busy = true;
++            }
++            int ox, oy;
++            shape_origin(s, &ox, &oy);
++            lv_obj_set_pos(o, ox + (int)dx, oy + (int)dy);
++            if (i >= 4 && answered && tk < 380.0f) {
++                lv_obj_set_style_opa(o, (lv_opa_t)(255.0f * ease_out(tk / 380.0f)), 0);  // fades in out of the fog
++                P->faded[i] = 1;
++            } else if (P->faded[i]) {
++                lv_obj_set_style_opa(o, LV_OPA_COVER, 0);
++                P->faded[i] = 0;
++            }
++        } else if (is_rps && i >= 13 && i < 30 && r.state >= 2 && r.state <= 5) {
++            const float p = t_state / 380.0f;  // the hands bump once a beat; the last, "shoot", bumps higher
++            const float bump = sinf(3.14159f * (p > 1 ? 1 : p)) * (r.state == 5 ? 8.0f : 5.0f);
++            lv_obj_set_y(o, -(int)bump);
++            busy = true;
++        } else if (is_rps && i >= 13 && i < 30 && r.state >= 7) {
++            lv_obj_set_y(o, 0);
++        } else if (is_rps && i >= 7 && i <= 9 && r.state >= 7) {
++            if (t_state < 240.0f) {
++                lv_obj_set_style_opa(o, (lv_opa_t)(255.0f * ease_out(t_state / 240.0f)), 0);  // the unit's pick pops in
++                P->faded[i] = 1;
++                busy = true;
++            } else if (P->faded[i]) {
++                lv_obj_set_style_opa(o, LV_OPA_COVER, 0);
++                P->faded[i] = 0;
++            }
++        } else if (is_ttt && type[i] == MG_SH_LINE && t_app < 330.0f) {
++            const float delay = s.w < s.x ? 110.0f : 0.0f;  // the second stroke of an X follows the first
++            const float p     = ease_out((t_app - delay) / 200.0f);
++            pts[i][1].x = (lv_value_precise_t)(s.x + (s.w - s.x) * p);
++            pts[i][1].y = (lv_value_precise_t)(s.y + (s.h - s.y) * p);
++            lv_line_set_points(o, pts[i], 2);
++            busy = true;
++        } else if (is_ttt && type[i] == MG_SH_LINE && t_app >= 330.0f && (pts[i][1].x != s.w || pts[i][1].y != s.h)) {
++            pts[i][1].x = s.w;
++            pts[i][1].y = s.h;
++            lv_line_set_points(o, pts[i], 2);
++        } else if (is_ttt && type[i] == MG_SH_RING && t_app < 300.0f) {
++            const float k = 0.3f + 0.7f * ease_back(t_app / 260.0f);  // an O grows in with a little overshoot
++            const int d   = (int)(2.0f * s.w * k);
++            lv_obj_set_size(o, d, d);
++            lv_obj_set_pos(o, s.x - d / 2, s.y - d / 2);
++            busy = true;
++        } else if (is_ttt && type[i] == MG_SH_RING && t_app >= 300.0f && lv_obj_get_width(o) != 2 * s.w) {
++            lv_obj_set_size(o, 2 * s.w, 2 * s.w);
++            lv_obj_set_pos(o, s.x - s.w, s.y - s.w);
++        } else if (is_bop && i >= 9 && i <= 14 && r.state == 2) {
++            lv_obj_set_style_opa(o, (lv_opa_t)(215.0f + 40.0f * sinf((float)now / 120.0f)), 0);  // the called tile pulses
++            P->faded[i] = 1;
++            busy = true;
++        } else if (is_bop && i >= 9 && i <= 14 && P->faded[i]) {
++            lv_obj_set_style_opa(o, LV_OPA_COVER, 0);
++            P->faded[i] = 0;
++        }
++    }
++    return busy;
++}
++
+ }  // namespace mgd
+ 
+ #endif
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -604,13 +604,13 @@ endif()
+ # Games (patch G01): the three game packs ride in the app image as flash data (read in place, no RAM). The packs are data
+ # files of the MaiPai repo, made by scripts/game-pack.py; `source scripts/fw-env.sh` points MAIPAI_GAMES_DIR at them.
+ if(CONFIG_MAIPAI_GAMES)
+-    foreach(f memory.mpk reaction.mpk whack.mpk tictactoe.mpk bopit.mpk rps.mpk)
++    foreach(f memory.mpk reaction.mpk whack.mpk tictactoe.mpk bopit.mpk rps.mpk eightball.mpk dice.mpk)
+         if(NOT DEFINED ENV{MAIPAI_GAMES_DIR} OR NOT EXISTS "$ENV{MAIPAI_GAMES_DIR}/${f}")
+             message(FATAL_ERROR "CONFIG_MAIPAI_GAMES is on but the game pack ${f} was not found. Run `source scripts/fw-env.sh` from the repo (it sets MAIPAI_GAMES_DIR), or set CONFIG_MAIPAI_GAMES=n.")
+         endif()
+         target_add_binary_data(${COMPONENT_LIB} "$ENV{MAIPAI_GAMES_DIR}/${f}" BINARY)
+     endforeach()
+-    message(STATUS "Games: 6 packs from $ENV{MAIPAI_GAMES_DIR}")
++    message(STATUS "Games: 8 packs from $ENV{MAIPAI_GAMES_DIR}")
+ else()
+     message(STATUS "Games: off")
+ endif()
+diff --git a/firmware/main/hal/hal_imu.cpp b/firmware/main/hal/hal_imu.cpp
+--- a/firmware/main/hal/hal_imu.cpp
++++ b/firmware/main/hal/hal_imu.cpp
+@@ -40,13 +40,15 @@ static void _imu_task(void* param)
+         if (_bmi270 && _bmi270->update()) {
+             fresh = true;
+             maipai_pickup_feed(_bmi270->getData().accel_x, _bmi270->getData().accel_y, _bmi270->getData().accel_z);
++            // Patch UI15: the games get every 20 ms sample (a gentle shake is a quick small wobble); atomics only inside
++            maipai_games_imu_feed(_bmi270->getData().accel_x, _bmi270->getData().accel_y, _bmi270->getData().accel_z,
++                                  static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount())));
+         }
+         if (fresh && pass % 5 == 0) {
+             auto& data = _bmi270->getData();
+             // mclog::debug("IMU Accel: {:.2f}\t{:.2f}\t{:.2f}", data.accel_x, data.accel_y, data.accel_z);
+ 
+             motion_detector->update(data.accel_x, data.accel_y, data.accel_z);
+-            maipai_games_imu_feed(data.accel_x, data.accel_y, data.accel_z, static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount())));  // patch UI13: tilts for the games
+ 
+             const int pose = mo_update(&orientation, data.accel_x, data.accel_y, data.accel_z,
+                                        static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount())));
+@@ -64,7 +66,6 @@ static void _imu_task(void* param)
+ 
+             if (motion_detector->isShakeDetected()) {
+                 mclog::tagInfo(_tag, "Shake Detected!");
+-                maipai_games_shake(static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount())));  // patch UI13
+                 GetHAL().onImuMotionEvent.emit(ImuMotionEvent::Shake);
+             }
+             // if (motion_detector->isPickUpDetected()) {
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -458,6 +458,15 @@ bool ov_start(int id, int intensity, uint32_t seconds)
+     return true;
+ }
+ 
++}  // namespace
++
++bool maipai_fx_celebrate(int level)
++{
++    return ov_start(mo_id(level >= 2 ? "celebrate" : "confetti"), level >= 2 ? 3 : 2, level >= 2 ? 4u : 3u);
++}
++
++namespace {
++
+ void ov_clear_all()
+ {
+     for (int l = 0; l < MO_LAYERS; l++) {
+diff --git a/firmware/main/hal/maipai_fx.h b/firmware/main/hal/maipai_fx.h
+--- a/firmware/main/hal/maipai_fx.h
++++ b/firmware/main/hal/maipai_fx.h
+@@ -31,6 +31,10 @@ bool maipai_fx_bubble_on();
+ int maipai_fx_captions_mode();
+ // Whether the thinking cue draws its three dots (the setting thinking_dots; the quiet tone is separate).
+ bool maipai_fx_thinking_dots();
++// Patch UI15: a game's celebration. level 1: confetti for 3 s; level 2: confetti and fireworks for 4 s. It goes through the overlay engine
++// (the governor sheds it under load, the banner row and the subtitle strip stay clear) and does nothing when the overlays setting is off.
++// Call with the LVGL lock held. True when an overlay started.
++bool maipai_fx_celebrate(int level);
+ // Hooks the screen effects into the display's flush path and starts the overlay timer. Call once from the display set-up.
+ void maipai_fx_attach(lv_display_t* display);
+ #if CONFIG_MAIPAI_FACE_BENCH
+@@ -49,4 +53,5 @@ inline int maipai_fx_captions_mode() { return 0; }
+ inline bool maipai_fx_thinking_dots() { return true; }
+ inline void maipai_fx_style_changed() {}
+ inline void maipai_fx_note_emotion(const char*) {}
++inline bool maipai_fx_celebrate(int) { return false; }
+ #endif

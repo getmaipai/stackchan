@@ -28,6 +28,9 @@ class TurnRequest:
     present: list[dict[str, Any]] | None = None
     conversation_id: str | None = None
     ask_answer: dict[str, Any] | None = None
+    # Extra system instructions for this turn only (a talk game's rules); the unit's own model
+    # reads them next to its persona.
+    instructions: str | None = None
 
 
 @dataclass(frozen=True)

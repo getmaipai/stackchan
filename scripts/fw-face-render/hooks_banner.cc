@@ -48,9 +48,9 @@ struct FakeHost : MaipaiPagesHost {
     }
     void timer_cancel(uint32_t id) override { for (int i = 0; i < ntm; i++) if (tm[i].id == id) { for (int k = i; k + 1 < ntm; k++) tm[k] = tm[k + 1]; ntm--; break; } log += "cancel;"; }
     void timer_add(int s, const char* l) override { if (ntm < 4) { tm[ntm].id = 100 + ntm; tm[ntm].left_s = s + (int)(g_fake_us / 1000000) - 1; snprintf(tm[ntm].label, sizeof(tm[ntm].label), "%s", l); ntm++; } }
-    int game_count() override { return 3; }
-    const char* game_title(int i) override { static const char* n[3] = {"Color memory", "Reaction time", "Whack-a-mole"}; return n[i]; }
-    int game_best(int i) override { static const int b[3] = {14, 287, 22}; return b[i]; }
+    int game_count() override { return 8; }  // patch UI15: eight games, the page is a grid with a More tile
+    const char* game_title(int i) override { static const char* n[8] = {"Color Memory", "Reaction Time", "Whack-a-Mole", "Tic-Tac-Toe", "Do It", "Rock Paper Scissors", "Magic 8-Ball", "Dice and Coin"}; return n[i]; }
+    int game_best(int i) override { static const int b[8] = {14, 287, 22, 30, 0, 3, 0, 0}; return b[i]; }
     const char* game_start(int i) override { log += "game" + std::to_string(i) + ";"; return ""; }
     void action(int a) override { log += std::string("action_") + MPG_ACTION_NAMES[a] + ";"; }
     const mpg_tiles_t* tiles(uint32_t* age) override { *age = tile_age; return tl.n ? &tl : nullptr; }
@@ -158,6 +158,15 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
     if (c == "ptiles_clear") { mpg_tiles_clear(&g_pages_host.tl); return true; }
     if (c == "ptimer") { int sec; std::string l; in >> sec >> l; if (l == "_") l = ""; for (auto& ch : l) if (ch == '~') ch = ' '; g_pages_host.timer_add(sec, l.c_str()); return true; }
     if (c == "pevent") { std::string n; in >> n; maipai_pages_event(n == "wake" ? MGS_EV_WAKE : (n == "speech" ? MGS_EV_SPEECH : MGS_EV_HEAD_TAP)); return true; }
+    if (c == "pclick") {  // patch UI13: a click on whatever clickable object the top layer has at X Y (a page's own buttons)
+        int x, y;
+        in >> x >> y;
+        lv_point_t pt = {x, y};
+        lv_obj_t* o = lv_indev_search_obj(lv_layer_top(), &pt);
+        printf("pclick %d %d %s\n", x, y, o != nullptr ? "hit" : "nothing");
+        if (o != nullptr) lv_obj_send_event(o, LV_EVENT_CLICKED, nullptr);
+        return true;
+    }
     if (c == "pcount") {  // objects under the top layer now (the banner and subtitles hold some), for the cost table
         std::function<int(lv_obj_t*)> count = [&](lv_obj_t* o) { int n = 0; for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) n += 1 + count(lv_obj_get_child(o, i)); return n; };
         std::string label; in >> label;

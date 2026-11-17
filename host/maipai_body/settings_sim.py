@@ -122,6 +122,11 @@ class SimUnit:
                         {"id": "memory", "title": "Color Memory", "lower_is_better": False, "scores": [7, 5, 4]},
                         {"id": "reaction", "title": "Quick Tap", "lower_is_better": True, "scores": [412, 455]},
                         {"id": "whack", "title": "Whack a Mole", "lower_is_better": False, "scores": []},
+                        {"id": "tictactoe", "title": "Tic-Tac-Toe", "lower_is_better": False, "scores": [30, 10]},
+                        {"id": "bopit", "title": "Do It", "lower_is_better": False, "scores": [9]},
+                        {"id": "rps", "title": "Rock Paper Scissors", "lower_is_better": False, "scores": [3]},
+                        {"id": "eightball", "title": "Magic 8-Ball", "lower_is_better": False, "scores": []},
+                        {"id": "dice", "title": "Dice and Coin", "lower_is_better": False, "scores": []},
                     ],
                 }
             if name == "self.battery.get_status":

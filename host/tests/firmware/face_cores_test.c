@@ -195,6 +195,7 @@ static void test_bands(void)
     CHECK(mf_band_lid_cap(MF_BAND_NIGHT) < mf_band_lid_cap(MF_BAND_EVENING));
     CHECK(mf_band_lid_cap(MF_BAND_DAY) == 100 && mf_band_dim_pct(MF_BAND_DAY) == 100);
     CHECK(mf_band_dim_pct(MF_BAND_NIGHT) < mf_band_dim_pct(MF_BAND_EVENING));
+    CHECK(mf_band_dim_pct(MF_BAND_NIGHT) >= 70);   /* patch UI11: the night colors stay readable (55 was too dim) */
     CHECK(mf_scale_channel(255, 55) == 140 && mf_scale_channel(0, 55) == 0 && mf_scale_channel(255, 100) == 255);
     /* even the dimmest night colour of the dimmest palette colour stays visible */
     for (int i = 0; i < MF_PALETTE_COUNT; i++) {

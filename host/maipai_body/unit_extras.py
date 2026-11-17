@@ -758,6 +758,7 @@ class UnitExtras:
 
     def games(self, unit_id: str, lang: str | None = None) -> dict[str, Any]:
         """Every game on the unit and its best scores, as data and as lines of plain words for the page."""
+        from maipai_body.bodies.stackchan import talk_games
         from maipai_body.bodies.stackchan.games import GameService
 
         if not unit_id:
@@ -766,14 +767,16 @@ class UnitExtras:
             lambda name, args: self._tool(unit_id, name, args), language=normalize(lang)
         )
         view = service.list(lang)
+        # The games the model plays by voice (talk_games.py): a separate group, listed even when the unit's own games are not.
+        talk = talk_games.group(lang)
         if view.get("ok") is not True:
-            return {"ok": False, "error": view.get("error", ""), "lines": [view.get("error", "")]}
+            return {"ok": False, "error": view.get("error", ""), "lines": [view.get("error", "")], "talk": talk}
         none = "ninguna todavia" if normalize(lang) == "es" else "none yet"
         lines = []
         for game in view["games"]:
             best = ", ".join(str(n) for n in game["scores"]) or none
             lines.append(f"{game['title']}: {best} {game['unit'] if game['scores'] else ''}".rstrip())
-        return {**view, "lines": lines}
+        return {**view, "lines": lines, "talk": talk}
 
     # ---- the connect event ----
 

@@ -194,3 +194,15 @@ UI07-remote-chip-short-text-status-never-covers-it.patch
 UI08-game-buttons-inside-the-safe-area.patch
 UI09-single-overlay-screen-wifi-page-die-icon.patch
 UI10-remote-banner-one-fill.patch
+RM01-wifi-roam-weak-signal-scan.patch
+RM02-wifi-roam-move-to-stronger-ap.patch
+RM03-travel-guard-no-saved-off.patch
+RM04-travel-follow-hub-relay-region.patch
+RM05-travel-prefer-private-route-hook.patch
+RM06-setup-hotspot-named-stackchan.patch
+RM07-setup-page-stays-open-for-several-networks.patch
+UI11-dim-floor-readable-night.patch
+UI12-games-engine-inputs-board-and-sounds.patch
+UI13-games-v2-draw-inputs-and-page.patch
+UI14-do-it-buttons-and-no-simon-says.patch
+UI15-magic-8-ball-dice-and-gentle-shake.patch

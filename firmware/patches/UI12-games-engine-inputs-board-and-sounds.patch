@@ -1,0 +1,682 @@
+# Intent: The games engine learns what the next games need, in the pure core with tests. Inputs besides a tap (swipe left and right, shake, pet, tilt four ways); a timer that reads its time from a counter (a game that speeds up); more actions (subtract, floor, a sync region for sounds, the Tic-Tac-Toe board with three levels of bot: random, takes and blocks wins, perfect); two shape types (a thick line, and the mole the whack-a-mole game draws); a pack flag that takes a tap when the finger lifts; funny sounds as short tone sequences made in code (no sound files), with groups that pick one at random; the tilt detector for the unit's accelerometer.
+# Placement: unit (pure C99 headers, no ESP-IDF; tested by host/tests/firmware/games_v2_core_test.c)
+# Upstream: firmware/main/hal/maipai_games_core.h (ours, G01, UI01, UI08); new files maipai_games_sfx_core.h and maipai_games_input_core.h
+# Check after a flash: see UI13 (the device side that draws and plays these).
+# Kconfig: none (compiled with MAIPAI_GAMES)
+
+diff --git a/firmware/main/hal/maipai_games_core.h b/firmware/main/hal/maipai_games_core.h
+--- a/firmware/main/hal/maipai_games_core.h
++++ b/firmware/main/hal/maipai_games_core.h
+@@ -8,7 +8,8 @@
+  *
+  * Pack bytes (all numbers little endian):
+  *   header 40 bytes   magic "MPGK", version, flags, counts, score counter, seed, step budget, start state, title
+- *   states   n * 4    timer_min ms (u16), timer_max ms (u16): a state's timer is random in that range, 0 and 0 is none
++ *   states   n * 4    timer_min ms (u16), timer_max ms (u16): a state's timer is random in that range, 0 and 0 is none;
++ *                     patch UI12: timer_min 0xFFFF means "the time in counter timer_max" (a game that speeds up)
+  *   regions  n * 8    x, y (s16), w, h (u16): touch regions, always inside the touch edges the unit reserves
+  *   shapes   n * 18   type, cond counter, cond value, aux, x, y, w, h (s16), colour (RGB565), state mask (u16), text, pad
+  *   texts    n * 96   English 48 bytes then Spanish 48 bytes, ASCII, NUL padded; "%0" to "%7" prints a counter
+@@ -23,6 +24,8 @@
+ #include <stdint.h>
+ #include <string.h>
+ 
++#include "maipai_games_sfx_core.h"
++
+ #define MG_MAGIC "MPGK"
+ #define MG_VERSION 1
+ #define MG_HEADER 40
+@@ -61,7 +64,15 @@
+ #define MG_SAFE_BOTTOM 184
+ #define MG_BUTTON_MIN 44
+ 
++/* Patch UI12: the board of Tic-Tac-Toe (nine cells in the player, read by shapes as counters 16 to 24) and the 'timer from a counter'. */
++#define MG_BOARD_CELLS 9
++#define MG_BOARD_CTR0 16 /* a shape's condition counter 16 + i reads board cell i (0 empty, 1 the person, 2 the unit) */
++#define MG_TIMER_FROM_CTR 0xFFFF
++#define MG_TIMER_MIN_MS 80
++#define MG_TIMER_MAX_MS 30000
++
+ #define MG_FLAG_LOWER_BETTER 1
++#define MG_FLAG_TAP_ON_RELEASE 2 /* patch UI12: a touch is a tap when the finger lifts, so a swipe is not also a tap (Bop-It) */
+ 
+ #define MG_STAY 0xFE /* a transition's next state: stay, run the actions only */
+ #define MG_END 0xFF  /* a transition's next state: the game ends */
+@@ -69,7 +80,22 @@
+ #define MG_ARG_ANY 0xFF
+ #define MG_NO_REGION 0xFF
+ 
+-typedef enum { MG_EV_ENTER = 0, MG_EV_TIMER = 1, MG_EV_TAP = 2, MG_EV_COUNT } mg_event_t;
++/* Patch UI12: the inputs besides a tap. A swipe is a finger moving left or right inside the play area; a shake, a tilt (the unit's own
++ * accelerometer, four ways) and a pet (the head's touch strip) come from the unit's sensors. */
++typedef enum {
++    MG_EV_ENTER = 0,
++    MG_EV_TIMER = 1,
++    MG_EV_TAP = 2,
++    MG_EV_SWIPE_L = 3,
++    MG_EV_SWIPE_R = 4,
++    MG_EV_SHAKE = 5,
++    MG_EV_PET = 6,
++    MG_EV_TILT_L = 7,
++    MG_EV_TILT_R = 8,
++    MG_EV_TILT_F = 9,
++    MG_EV_TILT_B = 10,
++    MG_EV_COUNT
++} mg_event_t;
+ 
+ typedef enum {
+     MG_G_NONE = 0,
+@@ -82,7 +108,8 @@ typedef enum {
+     MG_G_SEQ_MORE, /* the player is not on the last step of the sequence */
+     MG_G_SEQ_LAST,
+     MG_G_REG_EQ_CTR, /* the tapped region equals counter a */
+-    MG_G_MAX = MG_G_REG_EQ_CTR
++    MG_G_CELL_FREE,  /* patch UI12: the tapped region is a Tic-Tac-Toe cell with nothing in it */
++    MG_G_MAX = MG_G_CELL_FREE
+ } mg_guard_t;
+ 
+ typedef enum {
+@@ -102,10 +129,31 @@ typedef enum {
+     MG_OP_TONE_CTR,
+     MG_OP_SAVE,
+     MG_OP_SET_REG,
+-    MG_OP_MAX = MG_OP_SET_REG
++    MG_OP_SUB_CTR,      /* patch UI12: a counter minus another */
++    MG_OP_FLOOR,        /* a counter is at least the value */
++    MG_OP_BOARD_CLEAR,
++    MG_OP_BOARD_PLACE,  /* cell in counter a gets the value (1 the person, 2 the unit) when empty */
++    MG_OP_BOARD_BOT,    /* the unit's move into counter a; the difficulty (0 random, 1 blocks wins, 2 perfect) is counter v */
++    MG_OP_BOARD_RESULT, /* counter a: 0 playing, 1 person won, 2 unit won, 3 draw */
++    MG_OP_SYNC,         /* the region in counter a is where the tones of this event show their change (-1 none) */
++    MG_OP_MAX = MG_OP_SYNC
+ } mg_op_t;
+ 
+-typedef enum { MG_SH_FILL = 0, MG_SH_CIRCLE, MG_SH_BOX, MG_SH_RING, MG_SH_TEXT, MG_SH_MAX = MG_SH_TEXT } mg_shape_type_t;
++/* Patch UI12: LINE is a thick segment from (x, y) to (w, h) (aux is its thickness); MOLE is the whack-a-mole character, drawn by the player
++ * at the bottom center of the region whose number is in counter cond_ctr, with the funny face whose number is in counter aux (w is its size). */
++typedef enum {
++    MG_SH_FILL = 0,
++    MG_SH_CIRCLE,
++    MG_SH_BOX,
++    MG_SH_RING,
++    MG_SH_TEXT,
++    MG_SH_LINE,
++    MG_SH_MOLE,
++    MG_SH_MAX = MG_SH_MOLE
++} mg_shape_type_t;
++
++/* The mole's faces (the value of the face counter). */
++typedef enum { MG_FACE_GRIN = 0, MG_FACE_TONGUE, MG_FACE_STARTLED, MG_FACE_HELMET, MG_FACE_DAZED, MG_FACE_COUNT } mg_face_t;
+ 
+ /* The tones are the unit's shipped sounds, played through the sound policy; the last is the error sound. */
+ static const char* const MG_TONES[MG_TONE_COUNT] = {"popup", "vibration", "success", "low_battery", "exclamation"};
+@@ -423,17 +471,27 @@ static inline mg_err_t mg_parse(const uint8_t* b, size_t len, mg_pack_t* p)
+             return MG_E_EDGE;
+         }
+     }
++    for (int i = 0; i < p->n_states; i++) { /* patch UI12: a timer may name a counter */
++        const uint8_t* st = b + p->o_states + (size_t)i * MG_STATE_SIZE;
++        if (mg_u16(st) == MG_TIMER_FROM_CTR && mg_u16(st + 2) >= MG_COUNTERS) {
++            return MG_E_REF;
++        }
++    }
+     const uint16_t all_states = (uint16_t)((1u << p->n_states) - 1u);
+     for (int i = 0; i < p->n_shapes; i++) {
+         mg_shape_t s;
+         mg_shape_get(p, i, &s);
+-        if (s.type > MG_SH_MAX || (s.cond_ctr != 0xFF && s.cond_ctr >= MG_COUNTERS) || s.mask == 0 ||
+-            (s.mask & (uint16_t)~all_states) != 0) {
++        const int cond_ok = s.cond_ctr == 0xFF || s.cond_ctr < MG_COUNTERS ||
++                            (s.cond_ctr >= MG_BOARD_CTR0 && s.cond_ctr < MG_BOARD_CTR0 + MG_BOARD_CELLS);
++        if (s.type > MG_SH_MAX || !cond_ok || s.mask == 0 || (s.mask & (uint16_t)~all_states) != 0) {
+             return MG_E_REF;
+         }
+         if (s.type == MG_SH_TEXT && (s.text >= p->n_texts || s.aux > 2)) {
+             return MG_E_REF;
+         }
++        if (s.type == MG_SH_MOLE && (s.cond_ctr >= MG_COUNTERS || s.aux >= MG_COUNTERS || p->n_regions == 0)) {
++            return MG_E_REF; /* the mole needs a region counter and a face counter */
++        }
+         if (s.x < -64 || s.x > 384 || s.y < -64 || s.y > 304 || s.w < 0 || s.w > 400 || s.h < 0 || s.h > 400) {
+             return MG_E_REF;
+         }
+@@ -475,10 +533,13 @@ static inline mg_err_t mg_parse(const uint8_t* b, size_t len, mg_pack_t* p)
+         }
+         switch (a[0]) {
+             case MG_OP_SET: case MG_OP_ADD: case MG_OP_ELAPSED: case MG_OP_SEQ_TO_CTR: case MG_OP_TONE_CTR:
+-            case MG_OP_SET_REG:
++            case MG_OP_SET_REG: case MG_OP_FLOOR: case MG_OP_BOARD_PLACE: case MG_OP_BOARD_RESULT: case MG_OP_SYNC:
+                 if (a[1] >= MG_COUNTERS) return MG_E_REF;
+                 break;
+-            case MG_OP_ADD_CTR: case MG_OP_COPY:
++            case MG_OP_BOARD_BOT:
++                if (a[1] >= MG_COUNTERS || v < 0 || v >= MG_COUNTERS) return MG_E_REF;
++                break;
++            case MG_OP_ADD_CTR: case MG_OP_COPY: case MG_OP_SUB_CTR:
+                 if (a[1] >= MG_COUNTERS || v < 0 || v >= MG_COUNTERS) return MG_E_REF;
+                 break;
+             case MG_OP_RAND:
+@@ -488,7 +549,7 @@ static inline mg_err_t mg_parse(const uint8_t* b, size_t len, mg_pack_t* p)
+                 if (a[1] >= MG_COUNTERS || v == 0) return MG_E_REF;
+                 break;
+             case MG_OP_TONE:
+-                if (a[1] >= MG_TONE_COUNT) return MG_E_REF;
++                if (!mgs_tone_ok(a[1])) return MG_E_REF;
+                 break;
+             default: break;
+         }
+@@ -543,6 +604,8 @@ typedef struct {
+     uint8_t tap_region;
+     uint8_t tone_n;
+     uint8_t tone_q[MG_TONE_Q];
++    uint8_t sync_region;  /* patch UI12: the region the tones of the last event belong to (MG_NO_REGION: none) */
++    uint8_t board[MG_BOARD_CELLS];
+     uint16_t steps;       /* transitions run by the last event */
+     uint32_t entered_ms, timer_due_ms, rng;
+ } mg_run_t;
+@@ -575,15 +638,129 @@ static inline int mg_guard_ok(const mg_run_t* r, uint8_t kind, uint8_t a, int16_
+         case MG_G_SEQ_MORE: return (int)r->seq_pos + 1 < (int)r->seq_len;
+         case MG_G_SEQ_LAST: return (int)r->seq_pos + 1 >= (int)r->seq_len;
+         case MG_G_REG_EQ_CTR: return r->tap_region != MG_NO_REGION && (int)r->tap_region == (int)r->ctr[a];
++        case MG_G_CELL_FREE: return r->tap_region < MG_BOARD_CELLS && r->board[r->tap_region] == 0;
+         default: return 0;
+     }
+ }
+ 
++/* Queues a tone: a shipped sound (0 to 4), a clip (5 + n) or a group, where one clip of the group is picked with the game's own
++ * generator, so a fixed seed gives the same sounds. The queue holds clip numbers and shipped ids only. */
+ static inline void mg_tone(mg_run_t* r, int id)
+ {
+-    if (id >= 0 && id < MG_TONE_COUNT && r->tone_n < MG_TONE_Q) {
+-        r->tone_q[r->tone_n++] = (uint8_t)id;
++    if (!mgs_tone_ok(id) || r->tone_n >= MG_TONE_Q) {
++        return;
++    }
++    if (id >= MGS_TONE_GROUP) {
++        const int g = id - MGS_TONE_GROUP;
++        id = MGS_TONE_SHIPPED + MGS_GROUP[g].clip[mg_rand(r) % MGS_GROUP[g].n];
++    }
++    r->tone_q[r->tone_n++] = (uint8_t)id;
++}
++
++/* ---- the board of Tic-Tac-Toe ---- */
++static inline int mg_board_win(const uint8_t* b, int who)
++{
++    static const uint8_t L[8][3] = {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}, {0, 3, 6}, {1, 4, 7}, {2, 5, 8}, {0, 4, 8}, {2, 4, 6}};
++    for (int i = 0; i < 8; i++) {
++        if (b[L[i][0]] == who && b[L[i][1]] == who && b[L[i][2]] == who) {
++            return 1;
++        }
++    }
++    return 0;
++}
++
++/* 0 playing, 1 the person (X) won, 2 the unit (O) won, 3 a draw. */
++static inline int mg_board_result(const uint8_t* b)
++{
++    if (mg_board_win(b, 1)) {
++        return 1;
++    }
++    if (mg_board_win(b, 2)) {
++        return 2;
++    }
++    for (int i = 0; i < MG_BOARD_CELLS; i++) {
++        if (b[i] == 0) {
++            return 0;
++        }
++    }
++    return 3;
++}
++
++/* Negamax with alpha-beta: the score of the position for `who` to move (win 10 minus depth, loss the opposite, draw 0). */
++static inline int mg_board_search(uint8_t* b, int who, int depth, int alpha, int beta)
++{
++    const int res = mg_board_result(b);
++    if (res != 0) {
++        if (res == 3) {
++            return 0;
++        }
++        return res == who ? 10 - depth : depth - 10;
++    }
++    int best = -100;
++    for (int i = 0; i < MG_BOARD_CELLS; i++) {
++        if (b[i] != 0) {
++            continue;
++        }
++        b[i]    = (uint8_t)who;
++        int v   = -mg_board_search(b, 3 - who, depth + 1, -beta, -alpha);
++        b[i]    = 0;
++        if (v > best) {
++            best = v;
++        }
++        if (best > alpha) {
++            alpha = best;
++        }
++        if (alpha >= beta) {
++            break;
++        }
++    }
++    return best;
++}
++
++/* The unit's move (as player 2) at a difficulty: 0 any free cell; 1 take a win, else block the person's win, else any free cell;
++ * 2 perfect play (it never loses), choosing at random among equally good cells. Returns the cell, or -1 when the board is full. */
++static inline int mg_board_bot(mg_run_t* r, int level)
++{
++    uint8_t* b = r->board;
++    int free_n = 0, free_c[MG_BOARD_CELLS];
++    for (int i = 0; i < MG_BOARD_CELLS; i++) {
++        if (b[i] == 0) {
++            free_c[free_n++] = i;
++        }
++    }
++    if (free_n == 0) {
++        return -1;
++    }
++    if (level >= 1) {
++        for (int pass = 0; pass < 2; pass++) { /* pass 0: win; pass 1: block */
++            const int who = pass == 0 ? 2 : 1;
++            for (int k = 0; k < free_n; k++) {
++                b[free_c[k]] = (uint8_t)who;
++                const int w  = mg_board_win(b, who);
++                b[free_c[k]] = 0;
++                if (w) {
++                    return free_c[k];
++                }
++            }
++        }
++    }
++    if (level >= 2) {
++        int best = -100, n_best = 0, best_c[MG_BOARD_CELLS];
++        for (int k = 0; k < free_n; k++) {
++            b[free_c[k]] = 2;
++            const int v  = -mg_board_search(b, 1, 1, -100, 100);
++            b[free_c[k]] = 0;
++            if (v > best) {
++                best   = v;
++                n_best = 0;
++            }
++            if (v == best) {
++                best_c[n_best++] = free_c[k];
++            }
++        }
++        return best_c[mg_rand(r) % (uint32_t)n_best];
+     }
++    return free_c[mg_rand(r) % (uint32_t)free_n];
+ }
+ 
+ static inline void mg_act(mg_run_t* r, const uint8_t* a, uint32_t now)
+@@ -624,6 +801,19 @@ static inline void mg_act(mg_run_t* r, const uint8_t* a, uint32_t now)
+             }
+             break;
+         case MG_OP_SET_REG: r->ctr[c] = r->tap_region == MG_NO_REGION ? (int16_t)-1 : (int16_t)r->tap_region; break;
++        case MG_OP_SUB_CTR: r->ctr[c] = mg_sat((int32_t)r->ctr[c] - r->ctr[v]); break;
++        case MG_OP_FLOOR: if (r->ctr[c] < v) r->ctr[c] = v; break;
++        case MG_OP_BOARD_CLEAR: memset(r->board, 0, sizeof(r->board)); break;
++        case MG_OP_BOARD_PLACE: {
++            const int cell = r->ctr[c];
++            if (cell >= 0 && cell < MG_BOARD_CELLS && r->board[cell] == 0 && (v == 1 || v == 2)) {
++                r->board[cell] = (uint8_t)v;
++            }
++            break;
++        }
++        case MG_OP_BOARD_BOT: r->ctr[c] = (int16_t)mg_board_bot(r, r->ctr[v]); break;
++        case MG_OP_BOARD_RESULT: r->ctr[c] = (int16_t)mg_board_result(r->board); break;
++        case MG_OP_SYNC: r->sync_region = (r->ctr[c] >= 0 && r->ctr[c] < 255) ? (uint8_t)r->ctr[c] : (uint8_t)MG_NO_REGION; break;
+         default: break;
+     }
+ }
+@@ -639,7 +829,10 @@ static inline void mg_enter(mg_run_t* r, uint32_t now)
+         return;
+     }
+     uint32_t d = lo;
+-    if (hi > lo) {
++    if (lo == MG_TIMER_FROM_CTR) { /* patch UI12: the time is in a counter (a game that speeds up), kept between 80 ms and 30 s */
++        const int v = r->ctr[hi & (MG_COUNTERS - 1)];
++        d = (uint32_t)(v < MG_TIMER_MIN_MS ? MG_TIMER_MIN_MS : (v > MG_TIMER_MAX_MS ? MG_TIMER_MAX_MS : v));
++    } else if (hi > lo) {
+         d += mg_rand(r) % ((uint32_t)hi - lo + 1u);
+     }
+     r->timer_due_ms = now + d;
+@@ -652,6 +845,7 @@ static inline void mg_fire(mg_run_t* r, int event, int tap_region, uint32_t now)
+     const mg_pack_t* p = r->p;
+     r->steps           = 0;
+     r->tap_region      = (uint8_t)tap_region;
++    r->sync_region     = MG_NO_REGION;
+     for (;;) {
+         const uint8_t* hit = NULL;
+         for (int i = 0; i < p->n_trans && hit == NULL; i++) {
+@@ -706,7 +900,8 @@ static inline void mg_start(mg_run_t* r, const mg_pack_t* p, uint32_t now, uint3
+     r->p     = p;
+     r->state = p->start_state;
+     r->rng   = p->seed != 0 ? p->seed : (fallback_seed != 0 ? fallback_seed : 0x2545F491u);
+-    r->tap_region = MG_NO_REGION;
++    r->tap_region  = MG_NO_REGION;
++    r->sync_region = MG_NO_REGION;
+     mg_enter(r, now);
+     mg_fire(r, MG_EV_ENTER, MG_NO_REGION, now);
+ }
+@@ -743,6 +938,22 @@ static inline void mg_tap(mg_run_t* r, int x, int y, uint32_t now)
+     mg_fire(r, MG_EV_TAP, mg_region_at(r->p, x, y), now);
+ }
+ 
++/* Patch UI12: an input that is not a tap (a swipe, a shake, a pet, a tilt). */
++static inline void mg_input(mg_run_t* r, int event, uint32_t now)
++{
++    if (r->finished || event < MG_EV_SWIPE_L || event >= MG_EV_COUNT) {
++        return;
++    }
++    mg_fire(r, event, MG_NO_REGION, now);
++}
++
++/* The region a mole shape stands in (the value of its region counter), or MG_NO_REGION. */
++static inline int mg_mole_region(const mg_run_t* r, const mg_shape_t* s)
++{
++    const int v = r->ctr[s->cond_ctr];
++    return (v >= 0 && v < r->p->n_regions) ? v : MG_NO_REGION;
++}
++
+ /* Is shape i drawn in the current state? */
+ static inline int mg_shape_visible(const mg_run_t* r, int i)
+ {
+@@ -751,7 +962,16 @@ static inline int mg_shape_visible(const mg_run_t* r, int i)
+     if (!((s.mask >> r->state) & 1u)) {
+         return 0;
+     }
+-    return s.cond_ctr == 0xFF || r->ctr[s.cond_ctr] == s.cond_val;
++    if (s.type == MG_SH_MOLE) {
++        return mg_mole_region(r, &s) != MG_NO_REGION;
++    }
++    if (s.cond_ctr == 0xFF) {
++        return 1;
++    }
++    if (s.cond_ctr >= MG_BOARD_CTR0) {
++        return r->board[s.cond_ctr - MG_BOARD_CTR0] == (uint8_t)s.cond_val;
++    }
++    return r->ctr[s.cond_ctr] == s.cond_val;
+ }
+ 
+ /* A text with its counters filled in ("%0" is counter 0, "%%" a percent sign). Returns the length. */
+diff --git a/firmware/main/hal/maipai_games_sfx_core.h b/firmware/main/hal/maipai_games_sfx_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_games_sfx_core.h
+@@ -0,0 +1,161 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The games' funny sounds (patch UI12): short tone sequences made in code, so no sound file is added. A clip is a list of
++ * segments, each a glide from one pitch to another in a sine, square or triangle wave (or a rest). The player renders a clip into a
++ * PCM buffer at 16 kHz and plays it through the audio service, so the unit's volume and the sound policy decide how loud it is.
++ * A group is a few clips of one kind (a hit, a miss, an escaped mole); a game asks for the group and one clip is picked at random.
++ * Plain C99, no libm, no allocation: a host test renders every clip and checks its length, its level and that it ends in silence.
++ *
++ * Tone ids in a pack: 0 to 4 are the shipped sounds, 5 + n is clip n, 0x80 + g is group g.
++ */
++#ifndef MAIPAI_GAMES_SFX_CORE_H
++#define MAIPAI_GAMES_SFX_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++
++#define MGS_SFX_RATE 16000
++#define MGS_SFX_AMP 12000        /* of 32767: the codec's volume does the rest */
++#define MGS_SFX_ATTACK 64        /* samples (4 ms) */
++#define MGS_SFX_RELEASE 128      /* samples (8 ms) */
++#define MGS_SFX_MAX_SEGS 8
++#define MGS_SFX_MAX_MS 900       /* no clip is longer */
++#define MGS_SFX_MAX_SAMPLES ((MGS_SFX_RATE / 1000) * MGS_SFX_MAX_MS)
++#define MGS_TONE_SHIPPED 5       /* the first clip's tone id */
++#define MGS_TONE_GROUP 0x80      /* the first group's tone id */
++
++typedef enum { MGS_W_SINE = 0, MGS_W_SQUARE, MGS_W_TRI, MGS_W_REST } mgs_wave_t;
++
++typedef struct {
++    uint16_t f0, f1; /* pitch at the start and end of the segment, Hz */
++    uint16_t ms;
++    uint8_t wave;
++    uint8_t vol;     /* 1 to 100 */
++} mgs_seg_t;
++
++typedef struct {
++    const char* name;
++    uint8_t n;
++    mgs_seg_t seg[MGS_SFX_MAX_SEGS];
++} mgs_clip_t;
++
++/* The clips. The first four are a hit (a bonk and a squeak), then a miss, then an escaped mole, then the plain game sounds. */
++enum {
++    MGS_C_BONK_SQUEAK = 0, MGS_C_BONK_BOOP, MGS_C_SQUEAK, MGS_C_BOING,
++    MGS_C_WAH, MGS_C_RASPBERRY, MGS_C_BOOP,
++    MGS_C_HAHA, MGS_C_WHISTLE, MGS_C_TROMBONE,
++    MGS_C_GOOD, MGS_C_FANFARE, MGS_C_BAD,
++    MGS_C_CUE0, MGS_C_CUE1, MGS_C_CUE2, MGS_C_CUE3, MGS_C_CUE4, MGS_C_CUE5,
++    MGS_CLIPS
++};
++
++static const mgs_clip_t MGS_CLIP[MGS_CLIPS] = {
++    {"bonk_squeak", 2, {{420, 120, 110, MGS_W_SINE, 100}, {900, 1500, 80, MGS_W_SINE, 70}}},
++    {"bonk_boop", 4, {{300, 90, 130, MGS_W_TRI, 100}, {0, 0, 30, MGS_W_REST, 1}, {1200, 1800, 60, MGS_W_SINE, 70}, {1800, 1300, 80, MGS_W_SINE, 60}}},
++    {"squeak", 2, {{1000, 1900, 60, MGS_W_SINE, 80}, {1900, 1100, 100, MGS_W_SINE, 70}}},
++    {"boing", 2, {{200, 560, 90, MGS_W_TRI, 100}, {560, 170, 220, MGS_W_TRI, 90}}},
++    {"wah", 3, {{430, 330, 140, MGS_W_TRI, 90}, {0, 0, 40, MGS_W_REST, 1}, {360, 220, 240, MGS_W_TRI, 90}}},
++    {"raspberry", 1, {{120, 80, 240, MGS_W_SQUARE, 45}}},
++    {"boop", 3, {{260, 200, 90, MGS_W_SINE, 100}, {0, 0, 40, MGS_W_REST, 1}, {200, 140, 150, MGS_W_SINE, 100}}},
++    {"haha", 7, {{720, 640, 70, MGS_W_TRI, 90}, {0, 0, 30, MGS_W_REST, 1}, {620, 560, 70, MGS_W_TRI, 90}, {0, 0, 30, MGS_W_REST, 1},
++                 {540, 480, 70, MGS_W_TRI, 90}, {0, 0, 30, MGS_W_REST, 1}, {460, 380, 120, MGS_W_TRI, 90}}},
++    {"whistle", 1, {{1500, 300, 380, MGS_W_SINE, 80}}},
++    {"trombone", 4, {{330, 300, 160, MGS_W_TRI, 90}, {300, 270, 160, MGS_W_TRI, 90}, {270, 240, 160, MGS_W_TRI, 90}, {240, 150, 300, MGS_W_TRI, 90}}},
++    {"good", 2, {{600, 900, 70, MGS_W_SINE, 90}, {900, 1200, 100, MGS_W_SINE, 90}}},
++    {"fanfare", 4, {{523, 523, 90, MGS_W_TRI, 90}, {659, 659, 90, MGS_W_TRI, 90}, {784, 784, 90, MGS_W_TRI, 90}, {1047, 1047, 220, MGS_W_TRI, 90}}},
++    {"bad", 2, {{300, 200, 140, MGS_W_SQUARE, 45}, {200, 120, 220, MGS_W_SQUARE, 45}}},
++    {"cue0", 1, {{440, 440, 150, MGS_W_SINE, 90}}},
++    {"cue1", 1, {{554, 554, 150, MGS_W_SINE, 90}}},
++    {"cue2", 1, {{659, 659, 150, MGS_W_SINE, 90}}},
++    {"cue3", 1, {{784, 784, 150, MGS_W_SINE, 90}}},
++    {"cue4", 1, {{880, 880, 150, MGS_W_SINE, 90}}},
++    {"cue5", 1, {{988, 988, 150, MGS_W_SINE, 90}}},
++};
++
++/* The groups: a clip is picked at random from the clips listed. */
++enum { MGS_G_HIT = 0, MGS_G_MISS, MGS_G_ESCAPE, MGS_GROUPS };
++#define MGS_GROUP_MAX 4
++static const struct {
++    const char* name;
++    uint8_t n;
++    uint8_t clip[MGS_GROUP_MAX];
++} MGS_GROUP[MGS_GROUPS] = {
++    {"bonk", 4, {MGS_C_BONK_SQUEAK, MGS_C_BONK_BOOP, MGS_C_SQUEAK, MGS_C_BOING}},
++    {"miss", 3, {MGS_C_WAH, MGS_C_RASPBERRY, MGS_C_BOOP, 0}},
++    {"escape", 3, {MGS_C_HAHA, MGS_C_WHISTLE, MGS_C_TROMBONE, 0}},
++};
++
++/* Is this a tone id a pack may use? */
++static inline int mgs_tone_ok(int id)
++{
++    return (id >= 0 && id < MGS_TONE_SHIPPED) || (id >= MGS_TONE_SHIPPED && id < MGS_TONE_SHIPPED + MGS_CLIPS) ||
++           (id >= MGS_TONE_GROUP && id < MGS_TONE_GROUP + MGS_GROUPS);
++}
++
++/* sin(2 pi p) for p in [0, 1): a parabola with one correction pass, within 1 percent: a funny sound, not an instrument. */
++static inline float mgs_sin(float p)
++{
++    float x = p < 0.5f ? p : p - 1.0f; /* -0.5 to 0.5 */
++    float a = x < 0 ? -x : x;
++    float y = 8.0f * x * (1.0f - 2.0f * a);
++    float ay = y < 0 ? -y : y;
++    return 0.775f * y + 0.225f * y * ay;
++}
++
++/* The length of a clip in samples (0 for a bad index). */
++static inline size_t mgs_clip_samples(int clip)
++{
++    if (clip < 0 || clip >= MGS_CLIPS) {
++        return 0;
++    }
++    size_t n = 0;
++    for (int i = 0; i < MGS_CLIP[clip].n; i++) {
++        n += (size_t)(MGS_SFX_RATE / 1000) * MGS_CLIP[clip].seg[i].ms;
++    }
++    return n;
++}
++
++/* Renders a clip into out (cap samples). Returns the number of samples, 0 when the index is bad or cap is too small. */
++static inline size_t mgs_render(int clip, int16_t* out, size_t cap)
++{
++    const size_t total = mgs_clip_samples(clip);
++    if (total == 0 || out == NULL || cap < total) {
++        return 0;
++    }
++    size_t at = 0;
++    float phase = 0.0f;
++    for (int s = 0; s < MGS_CLIP[clip].n; s++) {
++        const mgs_seg_t* g = &MGS_CLIP[clip].seg[s];
++        const size_t n = (size_t)(MGS_SFX_RATE / 1000) * g->ms;
++        for (size_t i = 0; i < n; i++) {
++            float v = 0.0f;
++            if (g->wave != MGS_W_REST) {
++                const float f = (float)g->f0 + ((float)g->f1 - (float)g->f0) * (float)i / (float)n;
++                phase += f / (float)MGS_SFX_RATE;
++                if (phase >= 1.0f) {
++                    phase -= 1.0f;
++                }
++                if (g->wave == MGS_W_SINE) {
++                    v = mgs_sin(phase);
++                } else if (g->wave == MGS_W_SQUARE) {
++                    v = phase < 0.5f ? 0.6f : -0.6f;
++                } else {
++                    const float q = phase < 0.5f ? phase : 1.0f - phase; /* 0 to 0.5 to 0 */
++                    v = 4.0f * q - 1.0f;
++                }
++                float env = (float)g->vol / 100.0f;
++                if (i < MGS_SFX_ATTACK) {
++                    env *= (float)i / (float)MGS_SFX_ATTACK;
++                } else if (i + MGS_SFX_RELEASE > n) {
++                    env *= (float)(n - i) / (float)MGS_SFX_RELEASE;
++                }
++                v *= env;
++            }
++            out[at++] = (int16_t)(v * (float)MGS_SFX_AMP);
++        }
++    }
++    return at;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_games_input_core.h b/firmware/main/hal/maipai_games_input_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_games_input_core.h
+@@ -0,0 +1,112 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Game inputs from the unit's own sensors (patch UI12): the tilt detector and the swipe test, pure C99 with no ESP call and no clock of
++ * its own. The accelerometer sits in the head and reads about +1 g along the axis that points up (+y when the unit stands, measured
++ * 2026-10-22); a roll to the unit's right turns the pull toward +x, a roll to its left toward -x, face down toward -z and on its back
++ * toward +z (the host's orientation table). The detector works from the pose the unit rests in when the game starts, so a head that
++ * looks a little up or down does not read as a tilt.
++ *
++ * A tilt is the filtered pull leaving that rest pose by about 22 degrees (0.38 g) on one axis for two samples in a row; it must come
++ * back within 0.15 g before the next one counts, and none counts while the unit is being moved or shaken (the pull's length is not
++ * one g) or right after a shake. Samples come every 100 ms.
++ */
++#ifndef MAIPAI_GAMES_INPUT_CORE_H
++#define MAIPAI_GAMES_INPUT_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define MGI_G 9.80665f
++#define MGI_ALPHA 0.6f
++#define MGI_TILT_G 0.38f        /* of one g: about 22 degrees */
++#define MGI_BACK_G 0.15f        /* the pull must return this close to the rest pose to re-arm */
++#define MGI_HOLD_SAMPLES 2
++#define MGI_MIN_MAG 7.0f        /* m/s^2: shorter or longer than one g means the unit is moving */
++#define MGI_MAX_MAG 12.6f
++#define MGI_SETTLE_SAMPLES 8    /* a pose held this long (0.8 s) becomes the rest pose */
++#define MGI_SETTLE_G 0.12f
++#define MGI_SHAKE_QUIET_MS 700u /* no tilt right after a shake */
++
++typedef enum { MGI_NONE = 0, MGI_LEFT, MGI_RIGHT, MGI_FORWARD, MGI_BACK } mgi_tilt_t;
++
++typedef struct {
++    float f[3];     /* the filtered pull */
++    float rest[3];  /* the rest pose */
++    int primed, have_rest, armed, hold, still;
++    int cand;       /* the direction being held */
++    uint32_t quiet_until_ms;
++} mgi_t;
++
++static inline void mgi_init(mgi_t* t)
++{
++    memset(t, 0, sizeof(*t));
++    t->armed = 1;
++}
++
++static inline void mgi_note_shake(mgi_t* t, uint32_t now_ms)
++{
++    t->quiet_until_ms = now_ms + MGI_SHAKE_QUIET_MS;
++    t->hold           = 0;
++    t->armed          = 0; /* the tilt that follows a shake is part of the shake */
++}
++
++static inline float mgi_abs(float v) { return v < 0 ? -v : v; }
++
++/* One accelerometer sample (m/s^2). Returns MGI_LEFT, MGI_RIGHT, MGI_FORWARD or MGI_BACK when a tilt just counted, else MGI_NONE. */
++static inline int mgi_update(mgi_t* t, float x, float y, float z, uint32_t now_ms)
++{
++    const float in[3] = {x, y, z};
++    for (int i = 0; i < 3; i++) {
++        t->f[i] = t->primed ? t->f[i] + MGI_ALPHA * (in[i] - t->f[i]) : in[i];
++    }
++    t->primed = 1;
++    const float m2 = t->f[0] * t->f[0] + t->f[1] * t->f[1] + t->f[2] * t->f[2];
++    if (m2 < MGI_MIN_MAG * MGI_MIN_MAG || m2 > MGI_MAX_MAG * MGI_MAX_MAG) { /* moving: neither rest nor tilt */
++        t->hold  = 0;
++        t->still = 0;
++        return MGI_NONE;
++    }
++    if (!t->have_rest) {
++        memcpy(t->rest, t->f, sizeof(t->rest));
++        t->have_rest = 1;
++    }
++    const float dx = t->f[0] - t->rest[0], dz = t->f[2] - t->rest[2], dy = t->f[1] - t->rest[1];
++    const float ax = mgi_abs(dx), az = mgi_abs(dz);
++    const float far = ax > az ? ax : az;
++    const float lim = MGI_TILT_G * MGI_G, back = MGI_BACK_G * MGI_G, settle = MGI_SETTLE_G * MGI_G;
++    /* the rest pose follows a pose that has been still for a while */
++    if (mgi_abs(dx) < settle && mgi_abs(dy) < settle && mgi_abs(dz) < settle) {
++        if (++t->still >= MGI_SETTLE_SAMPLES) {
++            for (int i = 0; i < 3; i++) {
++                t->rest[i] += 0.1f * (t->f[i] - t->rest[i]);
++            }
++        }
++    } else if (far >= lim) {
++        t->still = 0;
++    }
++    if (!t->armed) {
++        if (far < back && (int32_t)(now_ms - t->quiet_until_ms) >= 0) {
++            t->armed = 1;
++            t->hold  = 0;
++        }
++        return MGI_NONE;
++    }
++    if (far < lim || (int32_t)(now_ms - t->quiet_until_ms) < 0) {
++        t->hold = 0;
++        return MGI_NONE;
++    }
++    const int dir = ax >= az ? (dx > 0 ? MGI_RIGHT : MGI_LEFT) : (dz > 0 ? MGI_BACK : MGI_FORWARD);
++    if (dir != t->cand) {
++        t->cand = dir;
++        t->hold = 0;
++    }
++    if (++t->hold >= MGI_HOLD_SAMPLES) {
++        t->armed = 0;
++        t->hold  = 0;
++        return dir;
++    }
++    return MGI_NONE;
++}
++
++#endif

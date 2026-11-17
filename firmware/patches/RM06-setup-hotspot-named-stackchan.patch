@@ -1,0 +1,35 @@
+# Intent: The setup hotspot is named stackchan-XXXX (XXXX is the last two bytes of the unit's Wi-Fi address in hex), as on the old firmware (owner 2026-11-17), instead of MaiPai-StackChan-XXXX. Several robots in setup mode still show as different, recognizable networks. The DHCP hostname the router shows follows the same prefix (stackchan-XXXX instead of Xiaozhi-XXXX), as the old firmware's patch 155 did. The name check in the portal core test changes with it.
+# Placement: unit (the robot's own Wi-Fi setup path)
+# Upstream: bot patch 155 (setup-hotspot-name) of the old firmware; firmware/portal/maipai_portal_core.h (patch P01) and main/boards/common/wifi_board.cc of the Xiaozhi component (MIT)
+# Check after a flash: forget every network, power-cycle: the screen and the phone's Wi-Fi list show stackchan-<4 hex digits>; the router lists the unit as stackchan-<4 hex digits>.
+# Kconfig: MAIPAI_WIFI_PORTAL.
+
+diff --git a/firmware/portal/maipai_portal_core.h b/firmware/portal/maipai_portal_core.h
+--- a/firmware/portal/maipai_portal_core.h
++++ b/firmware/portal/maipai_portal_core.h
+@@ -146,10 +146,11 @@ static inline size_t mp_table_json(int lang, char* buf, size_t cap)
+     return n;
+ }
+ 
+-/* The hotspot name: generic, with the last two bytes of the Wi-Fi address in hex so two units never clash. */
++/* The hotspot name (patch RM06): "stackchan-" and the last two bytes of the Wi-Fi address in hex, so two units never
++ * clash and each shows as its own, recognizable network. Same name as the old firmware's setup hotspot. */
+ static inline void mp_ssid(char* out, size_t cap, uint8_t mac4, uint8_t mac5)
+ {
+-    snprintf(out, cap, "MaiPai-StackChan-%02X%02X", mac4, mac5);
++    snprintf(out, cap, "stackchan-%02X%02X", mac4, mac5);
+ }
+ 
+ /* A setup code from one random word: six digits, never fewer. */
+diff --git a/firmware/xiaozhi-esp32/main/boards/common/wifi_board.cc b/firmware/xiaozhi-esp32/main/boards/common/wifi_board.cc
+--- a/firmware/xiaozhi-esp32/main/boards/common/wifi_board.cc
++++ b/firmware/xiaozhi-esp32/main/boards/common/wifi_board.cc
+@@ -54,7 +54,7 @@ void WifiBoard::StartNetwork() {
+ 
+     // Initialize WiFi manager
+     WifiManagerConfig config;
+-    config.ssid_prefix = "Xiaozhi";
++    config.ssid_prefix = "stackchan";  // patch RM06: the DHCP hostname is stackchan-XXXX like the setup hotspot
+     config.language = Lang::CODE;
+     config.show_ota_config = true;
+     config.show_sleep_config = true;

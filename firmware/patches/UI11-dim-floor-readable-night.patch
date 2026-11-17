@@ -1,0 +1,29 @@
+# Intent: The owner said the dim screen was too dim to read. The host's night and resting dims were 15 and 5 percent of the backlight and the unit stacked its own dims on top (the face colors at 55 percent at night, the swipe pages at 35). The unit's own part: the face's night color band is 75 percent instead of 55 and the pages dim to 55 percent instead of 35. The host half (night level 35, rest level 35, nothing automatic below 25) is in host/maipai_body.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_face_tod_core.h (ours, F-series) and maipai_pages_core.h (ours, P13, UI01)
+# Check after a flash: at night the face and the swipe pages are clearly readable at arm's length; the quick settings slider still goes from 10 to 100 and its saved value is untouched.
+
+diff --git a/firmware/main/hal/maipai_face_tod_core.h b/firmware/main/hal/maipai_face_tod_core.h
+--- a/firmware/main/hal/maipai_face_tod_core.h
++++ b/firmware/main/hal/maipai_face_tod_core.h
+@@ -53,7 +53,7 @@ static inline int mf_band_dim_pct(int band)
+ {
+     switch (band) {
+         case MF_BAND_EVENING: return 85;
+-        case MF_BAND_NIGHT: return 55;
++        case MF_BAND_NIGHT: return 75; /* patch UI11: was 55, too dim to read (owner, 2026-11-17) */
+         default: return 100;
+     }
+ }
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -803,7 +803,7 @@ static inline void mpg_best_text(char* out, size_t n, int best, int es)
+ }
+ 
+ /* Night dims the clock page and holds the slideshow still. 100 is full color. */
+-#define MPG_NIGHT_DIM_PCT 35
++#define MPG_NIGHT_DIM_PCT 55 /* patch UI11: was 35, too dim to read (owner, 2026-11-17) */
+ static inline int mpg_dim_pct(int night) { return night ? MPG_NIGHT_DIM_PCT : 100; }
+ static inline uint8_t mpg_scale(uint8_t c, int pct) { return (uint8_t)((c * pct + 50) / 100); }
+ 

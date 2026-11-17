@@ -132,7 +132,7 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if values["face_owner"] not in ("robot", "hub", "off"):
             raise SettingsError("Who turns toward faces must be this robot, my Home hub or off. Pick one and save again.")
         out["face_owner"] = values["face_owner"]
-    for flag in ("look_speaker", "look_faces"):
+    for flag in ("look_speaker", "look_faces", "dance_to_music"):
         if flag in values:
             if not isinstance(values[flag], bool):
                 raise SettingsError("That setting must be on or off.")
@@ -156,10 +156,19 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(values["swipe_pages"], dict):
             raise SettingsError("The swipe pages choice must be an object. Open the Swipe pages section and save again.")
         out["swipe_pages"] = swipe_pages.clean(values["swipe_pages"], None, SettingsError)
+    if "scenes" in values:  # the owner's changes to the scene table (scenes.py): only rows of the shipped scene names
+        from maipai_body import reply_tags, scenes
+
+        if not isinstance(values["scenes"], dict) or any(n not in reply_tags.SCENE_NAMES for n in values["scenes"]):
+            raise SettingsError("The scenes choice must name only the shipped scenes. Open the Scenes section and save again.")
+        try:
+            out["scenes"] = {n: scenes.clean_row(r) for n, r in values["scenes"].items()}
+        except scenes.SceneError as error:
+            raise SettingsError(str(error)) from error
     from maipai_body import unit_prefs
 
     out.update(unit_prefs.clean(values, SettingsError))
-    unknown = set(upgrade_keys(values)) - set(unit_prefs.PREFS) - {"swipe_pages", "name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "face_owner", "wait_after_talking", "led"}
+    unknown = set(upgrade_keys(values)) - set(unit_prefs.PREFS) - {"swipe_pages", "scenes", "name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "dance_to_music", "face_owner", "wait_after_talking", "led"}
     if unknown:
         raise SettingsError(f"Unknown setting {sorted(unknown)[0]}. Remove it and save again.")
     return out

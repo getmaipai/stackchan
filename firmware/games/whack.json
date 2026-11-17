@@ -3,7 +3,9 @@
  "counters": [
   "score",
   "moles",
-  "cell"
+  "cell",
+  "face",
+  "miss"
  ],
  "score": "score",
  "seed": 0,
@@ -27,6 +29,12 @@
    "timer": [
     700,
     1000
+   ]
+  },
+  "hit": {
+   "timer": [
+    380,
+    380
    ]
   },
   "over": {
@@ -107,227 +115,543 @@
    "color": "#0b2a12"
   },
   {
-   "type": "circle",
+   "type": "box",
+   "x": 36,
+   "y": 71,
+   "w": 60,
+   "h": 17,
+   "radius": 9,
+   "color": "#100804",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 129,
+   "y": 71,
+   "w": 60,
+   "h": 17,
+   "radius": 9,
+   "color": "#100804",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 222,
+   "y": 71,
+   "w": 60,
+   "h": 17,
+   "radius": 9,
+   "color": "#100804",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 36,
+   "y": 117,
+   "w": 60,
+   "h": 17,
+   "radius": 9,
+   "color": "#100804",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 129,
+   "y": 117,
+   "w": 60,
+   "h": 17,
+   "radius": 9,
+   "color": "#100804",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 222,
+   "y": 117,
+   "w": 60,
+   "h": 17,
+   "radius": 9,
+   "color": "#100804",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 36,
+   "y": 163,
+   "w": 60,
+   "h": 17,
+   "radius": 9,
+   "color": "#100804",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 129,
+   "y": 163,
+   "w": 60,
+   "h": 17,
+   "radius": 9,
+   "color": "#100804",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 222,
+   "y": 163,
+   "w": 60,
+   "h": 17,
+   "radius": 9,
+   "color": "#100804",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "mole",
+   "region": "cell",
+   "face": "face",
+   "r": 34,
+   "states": [
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 32,
+   "y": 81,
+   "w": 68,
+   "h": 10,
+   "radius": 5,
+   "color": "#5a3a1e",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 42,
+   "y": 81,
+   "w": 48,
+   "h": 4,
+   "radius": 2,
+   "color": "#7d5430",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 125,
+   "y": 81,
+   "w": 68,
+   "h": 10,
+   "radius": 5,
+   "color": "#5a3a1e",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 135,
+   "y": 81,
+   "w": 48,
+   "h": 4,
+   "radius": 2,
+   "color": "#7d5430",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 218,
+   "y": 81,
+   "w": 68,
+   "h": 10,
+   "radius": 5,
+   "color": "#5a3a1e",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 228,
+   "y": 81,
+   "w": 48,
+   "h": 4,
+   "radius": 2,
+   "color": "#7d5430",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 32,
+   "y": 127,
+   "w": 68,
+   "h": 10,
+   "radius": 5,
+   "color": "#5a3a1e",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 42,
+   "y": 127,
+   "w": 48,
+   "h": 4,
+   "radius": 2,
+   "color": "#7d5430",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 125,
+   "y": 127,
+   "w": 68,
+   "h": 10,
+   "radius": 5,
+   "color": "#5a3a1e",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 135,
+   "y": 127,
+   "w": 48,
+   "h": 4,
+   "radius": 2,
+   "color": "#7d5430",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 218,
+   "y": 127,
+   "w": 68,
+   "h": 10,
+   "radius": 5,
+   "color": "#5a3a1e",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 228,
+   "y": 127,
+   "w": 48,
+   "h": 4,
+   "radius": 2,
+   "color": "#7d5430",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 32,
+   "y": 173,
+   "w": 68,
+   "h": 10,
+   "radius": 5,
+   "color": "#5a3a1e",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 42,
+   "y": 173,
+   "w": 48,
+   "h": 4,
+   "radius": 2,
+   "color": "#7d5430",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 125,
+   "y": 173,
+   "w": 68,
+   "h": 10,
+   "radius": 5,
+   "color": "#5a3a1e",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 135,
+   "y": 173,
+   "w": 48,
+   "h": 4,
+   "radius": 2,
+   "color": "#7d5430",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 218,
+   "y": 173,
+   "w": 68,
+   "h": 10,
+   "radius": 5,
+   "color": "#5a3a1e",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 228,
+   "y": 173,
+   "w": 48,
+   "h": 4,
+   "radius": 2,
+   "color": "#7d5430",
+   "states": [
+    "down",
+    "up",
+    "hit"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "cross",
    "x": 66,
-   "y": 68,
-   "r": 20,
-   "color": "#3b2a1a",
+   "y": 66,
+   "w": 40,
+   "size": "medium",
+   "color": "#ff4d4d",
    "states": [
     "down",
-    "up"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 159,
-   "y": 68,
-   "r": 20,
-   "color": "#3b2a1a",
-   "states": [
-    "down",
-    "up"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 252,
-   "y": 68,
-   "r": 20,
-   "color": "#3b2a1a",
-   "states": [
-    "down",
-    "up"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 66,
-   "y": 114,
-   "r": 20,
-   "color": "#3b2a1a",
-   "states": [
-    "down",
-    "up"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 159,
-   "y": 114,
-   "r": 20,
-   "color": "#3b2a1a",
-   "states": [
-    "down",
-    "up"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 252,
-   "y": 114,
-   "r": 20,
-   "color": "#3b2a1a",
-   "states": [
-    "down",
-    "up"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 66,
-   "y": 160,
-   "r": 20,
-   "color": "#3b2a1a",
-   "states": [
-    "down",
-    "up"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 159,
-   "y": 160,
-   "r": 20,
-   "color": "#3b2a1a",
-   "states": [
-    "down",
-    "up"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 252,
-   "y": 160,
-   "r": 20,
-   "color": "#3b2a1a",
-   "states": [
-    "down",
-    "up"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 66,
-   "y": 68,
-   "r": 17,
-   "color": "#d9a05b",
-   "states": [
     "up"
    ],
    "when": [
-    "cell",
+    "miss",
     0
    ]
   },
   {
-   "type": "circle",
+   "type": "text",
+   "text": "cross",
    "x": 159,
-   "y": 68,
-   "r": 17,
-   "color": "#d9a05b",
+   "y": 66,
+   "w": 40,
+   "size": "medium",
+   "color": "#ff4d4d",
    "states": [
+    "down",
     "up"
    ],
    "when": [
-    "cell",
+    "miss",
     1
    ]
   },
   {
-   "type": "circle",
+   "type": "text",
+   "text": "cross",
    "x": 252,
-   "y": 68,
-   "r": 17,
-   "color": "#d9a05b",
+   "y": 66,
+   "w": 40,
+   "size": "medium",
+   "color": "#ff4d4d",
    "states": [
+    "down",
     "up"
    ],
    "when": [
-    "cell",
+    "miss",
     2
    ]
   },
   {
-   "type": "circle",
+   "type": "text",
+   "text": "cross",
    "x": 66,
-   "y": 114,
-   "r": 17,
-   "color": "#d9a05b",
+   "y": 112,
+   "w": 40,
+   "size": "medium",
+   "color": "#ff4d4d",
    "states": [
+    "down",
     "up"
    ],
    "when": [
-    "cell",
+    "miss",
     3
    ]
   },
   {
-   "type": "circle",
+   "type": "text",
+   "text": "cross",
    "x": 159,
-   "y": 114,
-   "r": 17,
-   "color": "#d9a05b",
+   "y": 112,
+   "w": 40,
+   "size": "medium",
+   "color": "#ff4d4d",
    "states": [
+    "down",
     "up"
    ],
    "when": [
-    "cell",
+    "miss",
     4
    ]
   },
   {
-   "type": "circle",
+   "type": "text",
+   "text": "cross",
    "x": 252,
-   "y": 114,
-   "r": 17,
-   "color": "#d9a05b",
+   "y": 112,
+   "w": 40,
+   "size": "medium",
+   "color": "#ff4d4d",
    "states": [
+    "down",
     "up"
    ],
    "when": [
-    "cell",
+    "miss",
     5
    ]
   },
   {
-   "type": "circle",
+   "type": "text",
+   "text": "cross",
    "x": 66,
-   "y": 160,
-   "r": 17,
-   "color": "#d9a05b",
+   "y": 158,
+   "w": 40,
+   "size": "medium",
+   "color": "#ff4d4d",
    "states": [
+    "down",
     "up"
    ],
    "when": [
-    "cell",
+    "miss",
     6
    ]
   },
   {
-   "type": "circle",
+   "type": "text",
+   "text": "cross",
    "x": 159,
-   "y": 160,
-   "r": 17,
-   "color": "#d9a05b",
+   "y": 158,
+   "w": 40,
+   "size": "medium",
+   "color": "#ff4d4d",
    "states": [
+    "down",
     "up"
    ],
    "when": [
-    "cell",
+    "miss",
     7
    ]
   },
   {
-   "type": "circle",
+   "type": "text",
+   "text": "cross",
    "x": 252,
-   "y": 160,
-   "r": 17,
-   "color": "#d9a05b",
+   "y": 158,
+   "w": 40,
+   "size": "medium",
+   "color": "#ff4d4d",
    "states": [
+    "down",
     "up"
    ],
    "when": [
-    "cell",
+    "miss",
     8
    ]
   },
@@ -365,7 +689,8 @@
    "color": "#ffffff",
    "states": [
     "down",
-    "up"
+    "up",
+    "hit"
    ]
   },
   {
@@ -413,6 +738,10 @@
   "score_big": {
    "en": "Score %0 of 15",
    "es": "Puntos %0 de 15"
+  },
+  "cross": {
+   "en": "X",
+   "es": "X"
   }
  },
  "rules": [
@@ -435,6 +764,16 @@
      "set",
      "cell",
      -1
+    ],
+    [
+     "set",
+     "face",
+     0
+    ],
+    [
+     "set",
+     "miss",
+     -1
     ]
    ]
   },
@@ -447,18 +786,6 @@
    "state": "intro",
    "on": "tap",
    "go": "down"
-  },
-  {
-   "state": "down",
-   "on": "enter",
-   "go": "stay",
-   "do": [
-    [
-     "set",
-     "cell",
-     -1
-    ]
-   ]
   },
   {
    "state": "down",
@@ -481,9 +808,39 @@
      9
     ],
     [
+     "rand",
+     "face",
+     4
+    ],
+    [
      "add",
      "moles",
      1
+    ],
+    [
+     "set",
+     "miss",
+     -1
+    ]
+   ]
+  },
+  {
+   "state": "down",
+   "on": "tap",
+   "region": "any_region",
+   "go": "stay",
+   "do": [
+    [
+     "set_reg",
+     "miss"
+    ],
+    [
+     "sync",
+     "miss"
+    ],
+    [
+     "tone",
+     "miss"
     ]
    ]
   },
@@ -495,7 +852,7 @@
     "reg_eq_ctr",
     "cell"
    ],
-   "go": "down",
+   "go": "hit",
    "do": [
     [
      "add",
@@ -503,13 +860,57 @@
      1
     ],
     [
+     "set",
+     "face",
+     4
+    ],
+    [
+     "sync",
+     "cell"
+    ],
+    [
      "tone",
-     "popup"
+     "bonk"
     ]
    ]
   },
   {
    "state": "up",
+   "on": "tap",
+   "region": "any_region",
+   "go": "stay",
+   "do": [
+    [
+     "set_reg",
+     "miss"
+    ],
+    [
+     "sync",
+     "miss"
+    ],
+    [
+     "tone",
+     "miss"
+    ]
+   ]
+  },
+  {
+   "state": "up",
+   "on": "timer",
+   "go": "down",
+   "do": [
+    [
+     "sync",
+     "cell"
+    ],
+    [
+     "tone",
+     "escape"
+    ]
+   ]
+  },
+  {
+   "state": "hit",
    "on": "timer",
    "go": "down"
   },
@@ -520,7 +921,7 @@
    "do": [
     [
      "tone",
-     "success"
+     "fanfare"
     ],
     [
      "save"

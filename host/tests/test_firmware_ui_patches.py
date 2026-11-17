@@ -110,7 +110,7 @@ def test_sleepy_has_no_z_and_sleeping_snores():
 
 def test_every_game_button_is_inside_the_safe_area_in_the_sources():
     """The packs' own tables: no button below y 184 (the subtitle strip), none above y 28 (the banner row), each at least 44 px high."""
-    for game in ("memory", "reaction", "whack"):
+    for game in ("memory", "reaction", "whack", "tictactoe", "bopit", "rps", "eightball", "dice"):
         description = json.loads((ROOT / "firmware" / "games" / f"{game}.json").read_text())
         for region in description["regions"]:
             assert region["y"] >= 28 and region["y"] + region["h"] <= 184, (game, region)
