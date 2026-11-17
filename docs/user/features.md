@@ -24,6 +24,9 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Weather and mood overlays** | 26 overlays, single and combined, such as stormy, rainy, snowy, sunny, windy, night, party, celebrate, love and sleeping. It slows down by itself if the robot is busy. Not yet seen by a person. | Robot | [Face and look](face-and-look.md) |
 | **CRT and color effects** | Optional screen looks, set on the settings page. Not yet seen by a person. | Robot | [Face and look](face-and-look.md) |
 | **Top banner and subtitle strip** | A fixed top row for the remote cue, find, game, offline and battery, and a subtitle strip at the bottom. | Robot | [Face and look](face-and-look.md) |
+| **Filler sounds** | A short sound or phrase while the robot thinks: none, tone or phrase. Not yet heard by a person. | Robot | [Voice](voice.md) |
+| **Language packs** | English is built in. Other languages arrive as packs. Screen text is plain ASCII, so accented letters are shown without accents. Offline phrase packs are built from the voice you use. | Robot | [Languages](languages.md) |
+| **Turn toward faces** | The robot can sweep and look for a face. Choose off, when I talk to it (the default) or always. The camera cue shows while it looks. It finds motion, not faces: a face detector is not built. Not yet tried with a real face. | Robot | [Face and look](face-and-look.md) |
 | **Smoother eyes and mouth** | Eased eye moves, a smooth blink, a drifting gaze and a mouth that follows your voice. Measured 22 to 45 frames a second while the eyes move. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Your own picture faces** | Upload your own pictures on the settings page, one per look, as picture only, picture with animated eyes and mouth, or a short run of frames. Nothing leaves your home. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Faces and color** | Five face styles (big eyes, eyes only, stock, classic, minimal), any eye color, optional captions, a tired look when the battery is low and three dots while it thinks. | Robot | [Face and look](face-and-look.md) |
@@ -31,8 +34,8 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Face extras and word reactions** | Sweat, hearts, stars and more on the face, and reactions to words like "thanks" in six languages. | Robot | [Face and look](face-and-look.md) |
 | **Per-person settings** | A face color and caption size for each person. | Robot | [Face and look](face-and-look.md) |
 | **Time zone** | Pick one of 31 zones on the robot or the settings page. | Robot | [Face and look](face-and-look.md) |
-| **Control sheet** <span class="planned-tag">Planned</span> | Swipe up from the bottom for volume, brightness, mute, quiet, the listening light, find, timers, games and the Wi-Fi and battery state. | Robot (bench tested, not in the flashed build yet) | [Swipe pages](swipe-pages.md) |
-| **Swipe pages** <span class="planned-tag">Planned</span> | Swipe left or right on the face for a clock, timers, games, quick actions, your pictures or dashboard tiles, in the order you choose. | Robot (bench tested, not in the flashed build yet) | [Swipe pages](swipe-pages.md) |
+| **Control sheet** | Swipe up from the bottom for volume, brightness, mute, quiet, the listening light, find, timers, games and the Wi-Fi and battery state. | Robot | [Swipe pages](swipe-pages.md) |
+| **Swipe pages** | Swipe left or right on the face for a clock, timers, games, quick actions, your pictures or dashboard tiles, in the order you choose. | Robot | [Swipe pages](swipe-pages.md) |
 
 ## Keep time
 
@@ -116,8 +119,6 @@ Likely to come, not finished. Do not count on these yet.
 
 | Feature | What it will do | Page |
 |---|---|---|
-| **Filler sounds, language packs, offline phrase packs** <span class="planned-tag">Planned</span> | Built and bench tested, not in the flashed robot build yet. | [Voice](voice.md) |
-| **Turn toward a face** <span class="planned-tag">Planned</span> | The robot sweeps and looks for a face by itself, with the camera cue showing. Bench tested, not in the flashed build yet. The face detector itself is not built. | [Face and look](face-and-look.md) |
 | **Pickup detection** <span class="planned-tag">Planned</span> | Still being built. | [Moves and moods](moves-and-moods.md) |
 | **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |
 | **Encrypted link at home** <span class="planned-tag">Planned</span> | Encrypt the robot's link to your host on your home Wi-Fi, and check it is talking to your host. | [Security](security.md) |
