@@ -1,0 +1,82 @@
+# Intent: self.face.snapshot (bench builds only) never showed the overlays or the screen effects: they are drawn on the pixels in the display flush hook, after LVGL, and the snapshot takes the LVGL picture only, so every overlay picture of integrations 2 and 3 looked empty even while the overlays ran. maipai_fx_snapshot_post now runs the same two passes (the overlays with the face and text zones protected, then the scanlines, colour mode, dim and glow) over the snapshot picture, with the LVGL lock held.
+# Placement: unit (bench build only; the plain image has no snapshot tool and is byte for byte unchanged)
+# Upstream: firmware/main/hal/maipai_fx.cc, maipai_fx.h and maipai_facebench.cc (ours, patches TA02, O03, FI03)
+# Check after a flash (bench image): start an overlay (self.overlay.set stormy heavy), then self.face.snapshot shows the clouds, rain and lightning around the eyes; with CRT on the scanlines show in the picture.
+
+diff --git a/firmware/main/hal/maipai_facebench.cc b/firmware/main/hal/maipai_facebench.cc
+index 6566e46..bba4968 100644
+--- a/firmware/main/hal/maipai_facebench.cc
++++ b/firmware/main/hal/maipai_facebench.cc
+@@ -17,6 +17,7 @@
+ #if CONFIG_MAIPAI_FACE_BENCH
+ #include "maipai_facefx.h"
+ #include "maipai_face.h"
++#include "maipai_fx.h"
+ #include "hal.h"
+ #include <mcp_server.h>
+ #include <esp_heap_caps.h>
+@@ -402,6 +403,11 @@ void snapshot_body()
+             }
+             lv_draw_buf_destroy(top);
+         }
++#if CONFIG_MAIPAI_FX
++        if (buf != nullptr) {  // patch FI06: the overlays and effects are drawn at flush time, so lay them over the picture as well
++            maipai_fx_snapshot_post(buf->data, buf->header.w, buf->header.h, buf->header.stride);
++        }
++#endif
+     }
+     if (buf == nullptr) {
+         return;
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+index a7d76d1..19c9b46 100644
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -504,6 +504,33 @@ void on_prefs(uint32_t changed)
+ }
+ }  // namespace
+ 
++#if CONFIG_MAIPAI_FACE_BENCH
++// Patch FI06 (bench builds only): the overlays and the screen effects are drawn on the pixels in the flush hook, after LVGL, so a screen
++// snapshot never held them. This runs the same two passes over a snapshot picture (RGB565, little endian). Caller holds the LVGL lock.
++void maipai_fx_snapshot_post(uint8_t* data, int w, int h, int stride)
++{
++    const bool overlays = !s_ov_hidden && mo_any(s_ov);
++    if (!overlays && !mfx_any(&s_fx)) {
++        return;
++    }
++    const bool whole = stride == w * 2;
++    const int bands  = whole ? 1 : h;
++    const int rows   = whole ? h : 1;
++    for (int b = 0; b < bands; b++) {
++        const int y1     = whole ? 0 : b;
++        uint16_t* pixels = reinterpret_cast<uint16_t*>(data + static_cast<size_t>(y1) * stride);
++        if (overlays) {
++            mc_t cv = mc_make(pixels, 0, y1, w - 1, y1 + rows - 1, maipai_banner_zone_busy() ? 1 : 0, maipai_subtitles_visible() ? 1 : 0);
++            ov_protect_face(&cv);
++            mo_draw_all(s_ov, &cv);
++        }
++        if (mfx_any(&s_fx)) {
++            mfx_post(&s_fx, pixels, 0, y1, w - 1, y1 + rows - 1);
++        }
++    }
++}
++#endif
++
+ mp_prefs_t maipai_prefs()
+ {
+     ensure_loaded();
+diff --git a/firmware/main/hal/maipai_fx.h b/firmware/main/hal/maipai_fx.h
+index ed13282..a52e613 100644
+--- a/firmware/main/hal/maipai_fx.h
++++ b/firmware/main/hal/maipai_fx.h
+@@ -30,6 +30,10 @@ int maipai_fx_captions_mode();
+ bool maipai_fx_thinking_dots();
+ // Hooks the screen effects into the display's flush path and starts the overlay timer. Call once from the display set-up.
+ void maipai_fx_attach(lv_display_t* display);
++#if CONFIG_MAIPAI_FACE_BENCH
++// Patch FI06 (bench builds only): lays the overlays and the screen effects over a snapshot picture. Call with the LVGL lock held.
++void maipai_fx_snapshot_post(uint8_t* data, int w, int h, int stride);
++#endif
+ // The face style changed (the glow's place and the Stock bubble rule follow it). Call with the LVGL lock held.
+ void maipai_fx_style_changed();
+ // The face is told an emotion by name (SetEmotion). The halo goes while the eyes are shut, and the sleeping look starts and

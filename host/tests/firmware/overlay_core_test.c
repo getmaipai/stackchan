@@ -699,6 +699,75 @@ static void test_protected_ellipses(void)
     CHECK(inside > 0);
 }
 
+/* ---- bringing the overlays back after a hide (patch O03): never one full redraw, always the same boxes in the end ---- */
+
+static unsigned char cover_full[MO_W * MO_H], cover_steps[MO_W * MO_H];
+
+static long paint_rects(unsigned char* map, const mo_rect_t* r, int n)
+{
+    long px = 0;
+    for (int k = 0; k < n; k++) {
+        px += (long)(r[k].x2 - r[k].x1 + 1) * (r[k].y2 - r[k].y1 + 1);
+        for (int y = r[k].y1; y <= r[k].y2; y++)
+            for (int x = r[k].x1; x <= r[k].x2; x++) map[y * MO_W + x] = 1;
+    }
+    return px;
+}
+
+static void test_unhide_in_steps(void)
+{
+    const int budget = 6000;
+    for (int id = 1; id < MO_COUNT + MOP_COUNT; id++) {
+        const int eid = id < MO_COUNT ? id : MO_PRESET_BASE + (id - MO_COUNT);
+        mo_layer_t L[MO_LAYERS];
+        memset(L, 0, sizeof L);
+        mo_set(L, eid, 3, 0, 909);
+        for (int t = 0; t < 240; t++) for (int l = 0; l < MO_LAYERS; l++) { mo_step(&L[l], 33); L[l].ndirty = 0; }
+        memset(cover_full, 0, sizeof cover_full);
+        memset(cover_steps, 0, sizeof cover_steps);
+        long worst = 0;
+        for (int l = 0; l < MO_LAYERS; l++) {
+            mo_layer_t full = L[l];
+            full.ndirty = 0;
+            mo_mark_extent(&full);
+            paint_rects(cover_full, full.dirty, full.ndirty);
+            int cur = 0;
+            for (int guard = 0; guard < 200; guard++) {
+                L[l].ndirty = 0;
+                const int done = mo_unhide_step(&L[l], &cur, budget);
+                const long px = paint_rects(cover_steps, L[l].dirty, L[l].ndirty);
+                if (px > worst) worst = px;
+                if (done) break;
+            }
+        }
+        long missing = 0;
+        for (int i = 0; i < MO_W * MO_H; i++) missing += cover_full[i] && !cover_steps[i];
+        if (missing) printf("unhide misses pixels: %d: %ld\n", eid, missing);
+        CHECK(missing == 0);
+        CHECK(worst <= budget + 40000); /* a step is the budget plus the one box that crossed it (the biggest is a fog band or the flash) */
+    }
+    /* the heavy ones really are spread out: a storm or fog takes several frames, and the first frame is a small part of it */
+    mo_layer_t L[MO_LAYERS];
+    memset(L, 0, sizeof L);
+    mo_set(L, MO_PRESET_BASE + MOP_STORMY, 3, 0, 5);
+    for (int t = 0; t < 240; t++) for (int l = 0; l < MO_LAYERS; l++) { mo_step(&L[l], 33); L[l].ndirty = 0; }
+    int cur = 0, n = 0;
+    long first = 0, sum = 0;
+    for (int l = 0; l < 2; l++) {
+        cur = 0;
+        for (int guard = 0; guard < 200; guard++) {
+            L[l].ndirty = 0;
+            const int done = mo_unhide_step(&L[l], &cur, budget);
+            const long px = mo_dirty_pixels(&L[l]);
+            if (n == 0) first = px;
+            sum += px;
+            n++;
+            if (done) break;
+        }
+    }
+    CHECK(n >= 6 && first < 60000 && sum > 2 * first); /* several frames, none of them a full-screen redraw */
+}
+
 int main(void)
 {
     test_names();
@@ -714,6 +783,7 @@ int main(void)
     test_presets();
     test_caps_and_shedding();
     test_protected_ellipses();
+    test_unhide_in_steps();
     if (fails) {
         printf("%d failed\n", fails);
         return 1;

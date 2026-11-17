@@ -1,0 +1,382 @@
+# Intent: Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the governor sat at its flat look 68 percent of a 12 minute run: at the flat level it restored one step, the overlays came back with one full-screen redraw of 60 to 120 ms, and that one slow frame shed it straight back). (1) Hysteresis: it sheds only when at least 3 of the last 10 frames were slow (over 45 ms), and restores one level only after 2 s with no slow frame. (2) Grace: for 1.5 s after an overlay starts, the overlays come back, or a level is restored, only 6 slow frames in 10 shed, so the first draw never sheds. (3) Cheap unhide: when the overlays come back nothing is redrawn at once; mo_unhide_step marks the fixed areas and the particle boxes about 6000 pixels a tick, spread over several frames, and the ladder restores the particles in two steps (30 then 50 percent) before 100. (4) A floor: the ladder is now glow off, scanlines off, particles to 50 percent, particles to 30 percent (a requested overlay is still recognizable), then the flat look; while any overlay runs the governor stops at 30 percent and only an emergency (the 99th percentile of frame time over 100 ms for 5 s in a row) goes on to the flat look. The status tool keeps its numbers. Host tests replay scripted frame traces (calm, sustained slowness, a restore spike, the floor, the emergency, a 12 minute run) and show it never oscillates; the host renderer pictures are byte for byte the same.
+# Placement: unit (the governor and the overlays run on the robot with no host)
+# Upstream: firmware/main/hal/maipai_fx_core.h, maipai_overlay_core.h and maipai_fx.cc (ours, patches TA02, TA05, O01, O02)
+# Check after a flash: self.overlay.set stormy heavy for 12 minutes, then self.overlay.status: governor level stays at or above the floor level 4 and the sheds count stays small with restores following them; scripts/fw-serial.py snap shows the overlay in every snapshot; CRT and glow on give the same result with those two shed first.
+
+diff --git a/firmware/main/hal/maipai_fx_core.h b/firmware/main/hal/maipai_fx_core.h
+--- a/firmware/main/hal/maipai_fx_core.h
++++ b/firmware/main/hal/maipai_fx_core.h
+@@ -190,76 +190,135 @@ static inline void mfx_post(const mfx_t* f, uint16_t* px, int x1, int y1, int x2
+     }
+ }
+ 
+-/* ---------------------------------------------------------------- the governor (patch TA05) */
++/* ---------------------------------------------------------------- the governor (patches TA05, O03) */
+ 
+-/* The ladder, first to last: particles halve, glow off, scanlines off, then the plain flat look (every effect, overlay and
+- * colour mode off). Level 0 is everything on. */
++/* The ladder, first to last (owner order, patch O03): glow off, scanlines off, particles halve, particles at the floor (30 percent: a
++ * requested overlay is still recognizable there), then the plain flat look (every effect, overlay and colour mode off). Level 0 is
++ * everything on. While an overlay is running (mg_set_floor) the ladder stops at the floor and only an emergency (frames over 100 ms for
++ * five seconds running) goes on to flat. */
+ #define MG_LEVEL_FULL 0
+-#define MG_LEVEL_HALF_PARTICLES 1
+-#define MG_LEVEL_NO_GLOW 2
+-#define MG_LEVEL_NO_SCANLINES 3
+-#define MG_LEVEL_FLAT 4
+-
+-#define MG_WINDOW_MS 1000u
+-#define MG_SHED_LOAD_PCT 55   /* a share of every second spent drawing above this sheds one step */
+-#define MG_SHED_WORST_US 28000u /* or one refresh slower than this (a 30 fps frame is 33 ms) */
+-#define MG_CALM_LOAD_PCT 30
+-#define MG_CALM_WORST_US 20000u
+-#define MG_CALM_WINDOWS 3     /* this many calm seconds in a row restore one step */
++#define MG_LEVEL_NO_GLOW 1
++#define MG_LEVEL_NO_SCANLINES 2
++#define MG_LEVEL_HALF_PARTICLES 3
++#define MG_LEVEL_LOW_PARTICLES 4
++#define MG_LEVEL_FLAT 5
++
++#define MG_WINDOW_MS 1000u        /* the statistics window of the status tool */
++#define MG_SLOW_US 45000u         /* a slow frame */
++#define MG_WIN_FRAMES 10          /* shed when this many of the last ... frames were slow */
++#define MG_SLOW_IN_WIN 3          /* ... at least three */
++#define MG_GRACE_SLOW_IN_WIN 6    /* during the grace period only a sustained run of slow frames sheds */
++#define MG_GRACE_MS 1500u         /* after an overlay starts or a level is restored */
++#define MG_RESTORE_MS 2000u       /* restore one level after this long without a slow frame */
++#define MG_EMERGENCY_US 100000u   /* a frame this slow counts toward the emergency */
++#define MG_EMERGENCY_SECONDS 5    /* seconds in a row whose 99th percentile is over MG_EMERGENCY_US */
+ 
+ typedef struct {
+     uint8_t level;
+-    uint8_t calm;
++    uint8_t floor;      /* an overlay is running: never below the floor level unless an emergency */
++    uint8_t emergency;
++    uint8_t nwin;       /* frames in the slow window, up to MG_WIN_FRAMES */
++    uint16_t win;       /* one bit a frame, 1 = slow, newest in bit 0 */
++    uint8_t vslow;      /* consecutive very slow seconds */
++    uint8_t pad;
++    uint32_t last_slow_ms, grace_until_ms;
++    uint32_t sec_frames, sec_over;
++    /* the statistics window, for the status tool */
+     uint32_t start_ms;
+     uint32_t busy_us, worst_us, frames;
+-    /* the last finished window, for the status tool */
+     uint32_t last_load_pct, last_worst_us, last_fps;
+     uint32_t sheds, restores;
+ } mg_t;
+ 
+ static inline void mg_init(mg_t* g) { memset(g, 0, sizeof *g); }
+ 
+-/* Feed one refresh that took frame_us to draw and flush. Returns 1 when the level changed. */
++static inline int mg_max_level(const mg_t* g) { return (g->floor && !g->emergency) ? MG_LEVEL_LOW_PARTICLES : MG_LEVEL_FLAT; }
++static inline int mg_in_grace(const mg_t* g, uint32_t now_ms) { return (int32_t)(now_ms - g->grace_until_ms) < 0; }
++
++/* An overlay was started or the overlays came back: for 1.5 s one slow frame (the first draw costs a frame) never sheds. */
++static inline void mg_note_start(mg_t* g, uint32_t now_ms)
++{
++    g->grace_until_ms = now_ms + MG_GRACE_MS;
++    g->nwin = 0;
++    g->win = 0;
++}
++
++static inline int mg_popcount10(uint16_t v)
++{
++    int n = 0;
++    for (; v != 0; v = (uint16_t)(v & (v - 1))) n++;
++    return n;
++}
++
++/* One level back up after MG_RESTORE_MS with no slow frame. Returns 1 when the level changed. */
++static inline int mg_try_restore(mg_t* g, uint32_t now_ms)
++{
++    if (g->level > MG_LEVEL_FULL && now_ms - g->last_slow_ms >= MG_RESTORE_MS) {
++        g->level--;
++        g->restores++;
++        g->emergency = 0;
++        g->last_slow_ms = now_ms; /* the next level waits its own two seconds */
++        mg_note_start(g, now_ms);
++        return 1;
++    }
++    return 0;
++}
++
++/* An overlay is running (on) or not: the ladder stops at the floor while one runs. Returns 1 when the level changed. */
++static inline int mg_set_floor(mg_t* g, int on)
++{
++    g->floor = (uint8_t)(on != 0);
++    if (g->level > mg_max_level(g)) {
++        g->level = (uint8_t)mg_max_level(g);
++        return 1;
++    }
++    return 0;
++}
++
++/* Feed one refresh that took frame_us to draw and flush. Returns 1 when the level changed.
++ * Shed only after MG_SLOW_IN_WIN slow frames (over 45 ms) within the last 10 frames (6 in the grace period); restore one level after
++ * 2 s with no slow frame; a lone slow frame, such as the first draw of an overlay, does nothing. */
+ static inline int mg_feed(mg_t* g, uint32_t now_ms, uint32_t frame_us)
+ {
+     if (g->frames == 0 && g->busy_us == 0) {
+         g->start_ms = now_ms;
++        if (g->last_slow_ms == 0) g->last_slow_ms = now_ms;
+     }
+     g->busy_us += frame_us;
+     g->frames++;
+-    if (frame_us > g->worst_us) {
+-        g->worst_us = frame_us;
++    g->sec_frames++;
++    if (frame_us > g->worst_us) g->worst_us = frame_us;
++    if (frame_us > MG_EMERGENCY_US) g->sec_over++;
++    int changed = 0;
++    const int slow = frame_us > MG_SLOW_US;
++    g->win = (uint16_t)(((g->win << 1) | (uint16_t)slow) & 0x3FFu);
++    if (g->nwin < MG_WIN_FRAMES) g->nwin++;
++    if (slow) g->last_slow_ms = now_ms;
++    const int need = mg_in_grace(g, now_ms) ? MG_GRACE_SLOW_IN_WIN : MG_SLOW_IN_WIN;
++    if (mg_popcount10(g->win) >= need && g->level < mg_max_level(g)) {
++        g->level++;
++        g->sheds++;
++        g->win = 0;
++        g->nwin = 0;
++        g->last_slow_ms = now_ms;
++        changed = 1;
++    } else if (!slow) {
++        changed = mg_try_restore(g, now_ms);
+     }
+     const uint32_t span = now_ms - g->start_ms;
+-    if (span < MG_WINDOW_MS) {
+-        return 0;
+-    }
+-    const uint32_t load = (uint32_t)(((uint64_t)g->busy_us * 100u) / ((uint64_t)span * 1000u));
+-    g->last_load_pct    = load;
+-    g->last_worst_us    = g->worst_us;
+-    g->last_fps         = (uint32_t)(((uint64_t)g->frames * 1000u) / span);
+-    int changed         = 0;
+-    if (load > MG_SHED_LOAD_PCT || g->worst_us > MG_SHED_WORST_US) {
+-        g->calm = 0;
+-        if (g->level < MG_LEVEL_FLAT) {
+-            g->level++;
+-            g->sheds++;
+-            changed = 1;
++    if (span >= MG_WINDOW_MS) {
++        g->last_load_pct = (uint32_t)(((uint64_t)g->busy_us * 100u) / ((uint64_t)span * 1000u));
++        g->last_worst_us = g->worst_us;
++        g->last_fps      = (uint32_t)(((uint64_t)g->frames * 1000u) / span);
++        const int very   = g->sec_over >= 2 && g->sec_over * 100u >= g->sec_frames; /* the 99th percentile is over 100 ms */
++        g->vslow         = (uint8_t)(very ? (g->vslow < 255 ? g->vslow + 1 : 255) : 0);
++        if (g->vslow >= MG_EMERGENCY_SECONDS && !g->emergency) {
++            g->emergency = 1; /* only now may a requested overlay go to the flat look */
+         }
+-    } else if (load < MG_CALM_LOAD_PCT && g->worst_us < MG_CALM_WORST_US) {
+-        if (++g->calm >= MG_CALM_WINDOWS) {
+-            g->calm = 0;
+-            if (g->level > MG_LEVEL_FULL) {
+-                g->level--;
+-                g->restores++;
+-                changed = 1;
+-            }
+-        }
+-    } else {
+-        g->calm = 0;
++        g->sec_frames = g->sec_over = 0;
++        g->start_ms = now_ms;
++        g->busy_us = g->worst_us = g->frames = 0;
+     }
+-    g->start_ms = now_ms;
+-    g->busy_us = g->worst_us = g->frames = 0;
+     return changed;
+ }
+ 
+@@ -269,17 +328,19 @@ static inline int mg_idle(mg_t* g, uint32_t now_ms)
+     if (g->frames == 0 && now_ms - g->start_ms >= MG_WINDOW_MS) {
+         g->start_ms = now_ms;
+         g->last_load_pct = g->last_worst_us = g->last_fps = 0;
+-        if (g->level > MG_LEVEL_FULL && ++g->calm >= MG_CALM_WINDOWS) {
+-            g->calm = 0;
+-            g->level--;
+-            g->restores++;
+-            return 1;
+-        }
++        g->vslow = 0;
++        g->sec_frames = g->sec_over = 0;
++    }
++    if (g->frames == 0) {
++        return mg_try_restore(g, now_ms);
+     }
+     return 0;
+ }
+ 
+-static inline int mg_particles_pct(const mg_t* g) { return g->level >= MG_LEVEL_FLAT ? 0 : (g->level >= MG_LEVEL_HALF_PARTICLES ? 50 : 100); }
++static inline int mg_particles_pct(const mg_t* g)
++{
++    return g->level >= MG_LEVEL_FLAT ? 0 : (g->level >= MG_LEVEL_LOW_PARTICLES ? 30 : (g->level >= MG_LEVEL_HALF_PARTICLES ? 50 : 100));
++}
+ static inline int mg_glow_ok(const mg_t* g) { return g->level < MG_LEVEL_NO_GLOW; }
+ static inline int mg_scan_ok(const mg_t* g) { return g->level < MG_LEVEL_NO_SCANLINES; }
+ static inline int mg_flat(const mg_t* g) { return g->level >= MG_LEVEL_FLAT; }
+diff --git a/firmware/main/hal/maipai_overlay_core.h b/firmware/main/hal/maipai_overlay_core.h
+--- a/firmware/main/hal/maipai_overlay_core.h
++++ b/firmware/main/hal/maipai_overlay_core.h
+@@ -547,19 +547,39 @@ static inline void mo_ext(int id, const mo_p_t* p, int* x1, int* y1, int* x2, in
+     *x1 = x - hw; *y1 = y - hh; *x2 = x + hw; *y2 = y + hh;
+ }
+ 
+-/* Marks the fixed areas of a layer (the sun, the moon, the ball, the fog bands, the flash). */
+-static inline void mo_mark_fixed(mo_layer_t* L)
++/* How many separate fixed areas a layer has (the fog's four bands are four, everything else one or none). */
++static inline int mo_fixed_parts(int id)
++{
++    switch (id) {
++        case MO_SUN: case MO_MOON: case MO_DISCO: case MO_THUNDER: return 1;
++        case MO_FOG: return 4;
++        default: return 0;
++    }
++}
++
++/* Marks one fixed area of a layer (the sun, the moon, the ball, a fog band, the flash). */
++static inline void mo_mark_fixed_part(mo_layer_t* L, int k)
+ {
+     switch (L->id) {
+         case MO_SUN: mo_mark(L, 212, 0, 319, 98); break;
+         case MO_MOON: mo_mark(L, 240, 20, 308, 88); break;
+         case MO_DISCO: mo_mark(L, 120, 0, 200, 72); break;
+-        case MO_FOG: mo_mark(L, 0, 20, MO_W - 1, 84); mo_mark(L, 0, 76, MO_W - 1, 140); mo_mark(L, 0, 132, MO_W - 1, 196); mo_mark(L, 0, 182, MO_W - 1, 246); break;
++        case MO_FOG: {
++            static const int y1[4] = {20, 76, 132, 182}, y2[4] = {84, 140, 196, 246};
++            mo_mark(L, 0, y1[k & 3], MO_W - 1, y2[k & 3]);
++            break;
++        }
+         case MO_THUNDER: mo_mark(L, 0, 0, MO_W - 1, 136); break;
+         default: break;
+     }
+ }
+ 
++/* Marks the fixed areas of a layer. */
++static inline void mo_mark_fixed(mo_layer_t* L)
++{
++    for (int k = 0; k < mo_fixed_parts(L->id); k++) mo_mark_fixed_part(L, k);
++}
++
+ /* Marks everything this layer may have on screen: its fixed areas and every live particle's box. */
+ static inline void mo_mark_extent(mo_layer_t* L)
+ {
+@@ -571,6 +591,33 @@ static inline void mo_mark_extent(mo_layer_t* L)
+     }
+ }
+ 
++/* Brings a layer back after the overlays were hidden without one big redraw (patch O03): each call marks the next fixed area or particle
++ * boxes until about budget_px pixels are marked, then stops; call it once a tick with the same cursor (start at 0) until it returns 1. The
++ * boxes are the ones mo_mark_extent marks, only spread over several frames and over the layer's particle groups. */
++static inline int mo_unhide_step(mo_layer_t* L, int* cursor, int budget_px)
++{
++    if (L->id == MO_NONE) {
++        return 1;
++    }
++    long marked = 0;
++    const int parts = mo_fixed_parts(L->id);
++    while (marked < budget_px && *cursor < parts + L->n) {
++        const uint8_t before = L->ndirty;
++        mo_rect_t last = {0, 0, -1, -1};
++        if (*cursor < parts) {
++            mo_mark_fixed_part(L, *cursor);
++        } else {
++            int x1, y1, x2, y2;
++            mo_ext(L->id, &L->p[*cursor - parts], &x1, &y1, &x2, &y2);
++            mo_mark(L, x1, y1, x2, y2);
++        }
++        if (L->ndirty > before) last = L->dirty[L->ndirty - 1];
++        marked += (long)(last.x2 - last.x1 + 1) * (long)(last.y2 - last.y1 + 1);
++        (*cursor)++;
++    }
++    return *cursor >= parts + L->n;
++}
++
+ static inline void mo_clear(mo_layer_t* L)
+ {
+     if (L->id != MO_NONE) {
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -176,6 +176,8 @@ lv_timer_t* s_ov_timer               = nullptr;  // the one shared 30 fps timer;
+ int64_t s_ov_last_us                 = 0;
+ bool s_ov_hidden                     = false;    // a privacy look, the clock or the flat fallback hides the overlays
+ bool s_zzz_auto                      = false;    // the zzz was started by the sleeping look, so waking ends it
++int s_unhide_cur[MO_LAYERS]          = {};       // patch O03: where the staged redraw of each layer is after the overlays came back
++bool s_unhide_pending                = false;
+ bool s_ov_banner_was                 = false;    // the text zones the last overlay tick saw (when one changes, its rows are drawn again)
+ bool s_ov_subs_was                   = false;
+ uint32_t s_ov_seed                   = 0x5EED1234u;
+@@ -333,14 +335,31 @@ void ov_set_hidden(bool hide)
+         return;
+     }
+     s_ov_hidden = hide;
++    if (!hide) {
++        // coming back (patch O03): no full-screen redraw in one frame; ov_tick marks a few boxes a tick, and the governor gets its grace period
++        for (int l = 0; l < MO_LAYERS; l++) s_unhide_cur[l] = 0;
++        s_unhide_pending = true;
++        mg_note_start(&s_gov, static_cast<uint32_t>(esp_timer_get_time() / 1000));
++        return;
++    }
++    s_unhide_pending = false;
+     for (int l = 0; l < MO_LAYERS; l++) {
+         if (s_ov[l].id != MO_NONE) {
+-            mo_mark_extent(&s_ov[l]);  // draw it or wipe it
++            mo_mark_extent(&s_ov[l]);  // wipe it
+             ov_invalidate(&s_ov[l]);
+         }
+     }
+ }
+ 
++// While an overlay runs the governor keeps it (patch O03): effects go first, then particles down to the floor, and only an emergency
++// (frames over 100 ms for five seconds) turns the overlay off.
++void gov_floor_sync()
++{
++    if (mg_set_floor(&s_gov, ov_any() ? 1 : 0)) {
++        apply_effects();
++    }
++}
++
+ void ov_governor_changed()
+ {
+     const int pct = mg_particles_pct(&s_gov);
+@@ -373,6 +392,14 @@ void ov_tick(lv_timer_t*)
+         s_ov_banner_was = banner_now;
+         s_ov_subs_was   = subs_now;
+     }
++    if (s_unhide_pending && !s_ov_hidden) {  // the staged redraw: about 6000 pixels of boxes a tick
++        bool all = true;
++        for (int l = 0; l < MO_LAYERS; l++) {
++            all = mo_unhide_step(&s_ov[l], &s_unhide_cur[l], 6000) && all;
++            ov_invalidate(&s_ov[l]);
++        }
++        s_unhide_pending = !all;
++    }
+     for (int l = 0; l < MO_LAYERS; l++) {
+         mo_layer_t* L = &s_ov[l];
+         if (L->id == MO_NONE) {
+@@ -392,6 +419,7 @@ void ov_tick(lv_timer_t*)
+     }
+     if (!ov_any()) {
+         lv_timer_pause(s_ov_timer);
++        gov_floor_sync();
+     }
+ }
+ 
+@@ -419,6 +447,8 @@ bool ov_start(int id, int intensity, uint32_t seconds)
+     for (int l = 0; l < MO_LAYERS; l++) {
+         s_ov[l].pct = static_cast<uint8_t>(mg_particles_pct(&s_gov) > 0 ? mg_particles_pct(&s_gov) : 100);
+     }
++    mg_note_start(&s_gov, static_cast<uint32_t>(esp_timer_get_time() / 1000));  // the first draw costs a frame: one slow frame does not shed
++    gov_floor_sync();
+     ov_set_hidden(ov_should_hide());
+     for (int l = 0; l < MO_LAYERS; l++) {
+         ov_invalidate(&s_ov[l]);
+@@ -436,6 +466,7 @@ void ov_clear_all()
+         }
+     }
+     s_zzz_auto = false;
++    gov_floor_sync();
+ }
+ 
+ void style_refresh()

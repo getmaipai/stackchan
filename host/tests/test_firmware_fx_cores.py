@@ -28,6 +28,7 @@ CHAIN = [
     "N02-banner-row-messages.patch",
     "S11-turn-to-faces-setting.patch",  # the turn_to_faces row, between top_bar and pickup_reaction
     "O01-overlay-engine-bigger-shapes-and-combinations.patch",  # the overlay core as it is now (bigger shapes, three layers, combinations)
+    "O03-governor-hysteresis-grace-floor-staged-unhide.patch",  # the governor and the staged unhide
     "O02-overlays-leave-text-zones-and-eyes.patch",  # ml_eye_center_y and the text-zone keep-out
     "FI05-captions-default-off.patch",  # the captions row defaults to off
 ]
