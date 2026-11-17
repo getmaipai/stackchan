@@ -18,11 +18,15 @@ Placement: design note and source for the user docs (the docs session turns it i
 | Time and date (public network time) | The host sets the clock; time zones built in | Same |
 | Firmware updates from the vendor | Signed update from your own host (key not yet created) [unverified] | Same, through the hub |
 | Phone app control and Bluetooth | Not built; the settings page and remote controllers replace it | Same, plus the hub's app |
-| Video call and camera upload to a web address | Removed on purpose (vendor cloud) | Camera and photos go to the hub only |
+| Video call and camera upload to a web address | Upload to a web address removed on purpose (vendor cloud). Photos and live view to your own host stay local, opt-in, with the cue | Same, plus the hub keeps and recognizes them |
 | App Center, cloud data, vendor accounts | Removed on purpose | The hub's package catalog |
 | Reminders and timers | On the unit, no network | Same |
 
 Stock offers no on-device weather feature [from code: no weather or forecast strings in the stock firmware tree]. The weather answers the stock robot gives come from its cloud agent. So parity on weather means: ask in Home mode and the hub answers with live data; ask in local mode and the model answers from its own knowledge, with no live data.
+
+## The App Store test (owner, 2026-11-17)
+
+Anything stock offers in its firmware or App Center can be built locally when it needs no outside service and no household data. So these are local, opt-in, off by default, with a cue that cannot be hidden: photo and "take my picture" with a countdown, live view, monitoring, the gallery on your host, remote control and find my robot, face turning, dance and dance to music, games, translator, story time. Home adds names and recognition, storage across the household, outside data (weather and the like), memory and the child and teen gates.
 
 ## What each mode gives you
 

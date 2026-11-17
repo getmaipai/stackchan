@@ -254,4 +254,4 @@ Files: firmware/CMakeLists.txt, firmware/main/CMakeLists.txt, firmware/main/Kcon
 
 ## Scope note (2026-11-15)
 
-Patches for features tagged [Home] in `features.md` (camera capture and streaming, music detector, monitor and remote body halves) are ported or rebuilt as usual but each is gated by its own Kconfig switch, default off in the `core` preset, on in the `home` preset. The merge step adds the gating after layers A to C land.
+Patches for features tagged [Home] in `features.md` (camera capture and streaming, music detector, monitor and remote body halves) are ported or rebuilt as usual but each is gated by its own Kconfig switch. Since 2026-11-17 (owner, the App Store test) the shipped image has the switches on and the features opt-in at run time; the switches remain for a smaller `core` image if the memory gate needs one.

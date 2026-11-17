@@ -65,6 +65,8 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 
 The core MaiPai for StackChan app is a private voice robot, simple and single purpose. Camera features, watch mode, baby and pet monitor, find my robot, remote control, live view, games, the coding companion and integrations move to MaiPai Home (tag [Home] in `features.md`). The unit keeps their body halves and the cue code path. Firmware ships as two presets from one source, `core` and `home`; feature logic for those is not kept in this public repo (it lives in Home against a capability API this repo exposes). Detail: `docs/design/features.md` ("Core and Home").
 
+Update, 2026-11-17 (owner): the App Store test supersedes the paragraph above. Anything the stock robot or its App Center offers (photo, live view, monitoring, gallery, dance, games, remote control) may be built locally when it needs no outside service and no household data. One image carries the capabilities, opt-in and with their cues; Home keeps outside services, household records, identity and memory, policy and the child and teen gates. Details: `docs/dev/scope-core-vs-home.md`.
+
 ## Bluetooth for v1 (decided 2026-11-15)
 
 v1 ships with Bluetooth OFF (patch 098, a Kconfig switch). After v1 lands and the memory gate passes, measure the compiled-in-but-off cost and the running cost; if flash and idle heap cost stay near the owner's 1 KB figure, add phone setup over Bluetooth (start only during setup) as a DEFER feature. Presence by Bluetooth stays dropped. The review item stays in `features.md`.
