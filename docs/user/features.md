@@ -134,7 +134,7 @@ Likely to come, not finished. Do not count on these yet.
 
 ## Not included
 
-Sound direction, Bluetooth, a phone app, a voice that shows emotion (the face carries emotion), guessing a mood from your words (the robot shows only what it is told), and anything that calls an outside service by itself.
+Sound direction, Bluetooth, a phone app, a voice that shows emotion (the face carries emotion), guessing a mood from your words (the robot shows only what it is told), and anything that calls an outside service by itself. Streaming radio was tried and dropped: the speaker is small, music sounded thin and the robot answered the music through its own microphone. A future version needs music decoding in the firmware and an echo test first.
 
 ## Also useful
 
