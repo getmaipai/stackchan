@@ -144,3 +144,26 @@ One catalog lists every command the unit accepts, with parameter limits and a co
 4. How should pack permissions, signing and revocation work for a household with children?
 5. Where does declarative stop and code begin? Give a rule of thumb.
 6. Anything here that adds avoidable latency to a spoken turn, or that could make the robot do something the owner did not ask for?
+
+## 8. Outside review and decisions (2026-11-17)
+
+An outside reviewer read this note (design only, not the code). Verdict: approve a prototype of a smaller version; defer the universal object system, broad animation and the app catalog until three real features prove the shared engine. Decisions taken by the build session (the owner can reverse any):
+
+| Point | Decision |
+|---|---|
+| "Everything is an object" | Share packaging and metadata only. UI, dialogs, assets and permissions stay separate schemas. |
+| Drawing engine | Start with templates (message, choices, quiz, progress, calendar, alert). Open primitives come later, only for a real feature that needs them. |
+| Animation | Start with blink and fade. Replace "six animations" with a cost budget (points per element by size and rate), checked on the bench. |
+| Priority | Explicit owner input outranks Home automation. Ownership by expiring lease per resource: screen, speaker, head, ring. Privacy and the child and teen gates stay first; remote cues next. |
+| Permissions | A pack's permissions are requests. Effective access is the intersection of what it requests, what the owner granted, and current policy (quiet hours, child gate, mute). |
+| Dialogs | Before adding verbs, define cancellation, unexpected answers, errors and retries, and cleanup (scene off, card cleared, lease released) on every exit. |
+| Connection loss | Define per resource: the unit keeps the clock, timers, alarms and a cached card until its time, drops any host-owned lease after a timeout, clears any modal that needs an answer, and replays nothing when the host returns (commands carry a session id and a sequence number). |
+| Calendar | The month grid is a display-only overview (blinking marked days). Touch uses a week strip (seven 44 px day buttons) and an agenda list. Six week rows at 44 px (264) cannot fit the 156 px content zone. |
+| Memory | The soak numbers pass the gate but the largest-block margin is thin on some builds. Add an endurance run with churn (screen changes, reconnects, audio, camera) before any release. Keep explicit internal-RAM budgets: PSRAM-only allocation is not the whole strategy (internal RAM is still needed, and external RAM is unreachable while the flash cache is off). |
+| Privacy wording | "Local mode: nothing leaves the home" stays the promise. Every outside connection is an explicit, owner-enabled integration with a published list of what it sends (the egress proof lists them). |
+| Signed packs | A signature proves origin and integrity, nothing more. Also required: an authenticated host connection, permission enforcement, resource limits and owner removal. An offline unit learns revocations only when it reconnects; say so. |
+| One WebSocket | Control and stop get their own priority lane; images and packs go over the host's HTTP route in bounded chunks; queues are bounded and drop stale work; every command carries a session id so a reconnect cannot replay old actions. |
+| Model output | Prefer separate speech and validated action fields where the model or Home supports them; keep reply tags as the compatibility path. |
+| Data versus code | Data when a feature combines existing capabilities. Code when it adds a capability, a security boundary, a timing requirement or a resource lifecycle. |
+
+**Prototype scope (first build):** a quiz (choices, touch events, stored answers), a bedtime dialog (speech, cancel, timeout, scene cleanup) and an alert (interrupt, dismiss, ownership, expiry), all through the same small template renderer and the host dialog runner. JSON for authoring and host validation; a compact bounded form on the wire only if measurements justify it; LVGL stays underneath with its small partial-draw buffers.
