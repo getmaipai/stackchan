@@ -1,6 +1,6 @@
 # MaiPai for StackChan
 
-### StackChan firmware, rewritten: private, secure, faster, more abilities. Your own LLM or MaiPai Home, on any network.
+### Faster, steadier, private and portable firmware for your StackChan desk robot. Your own LLM or MaiPai Home, on any network.
 
 [Documentation](docs/user/features.md) · [Getting started](docs/user/getting-started.md) · [Which setup?](docs/user/which-setup.md) · [Compare](docs/user/compare.md) · [Questions](docs/user/faq.md) · [Troubleshooting](docs/user/troubleshooting.md)
 
@@ -8,42 +8,21 @@
 >
 > **Pictures are placeholders.** The drawings in these docs are mock-ups, not photos or screens from a real robot. Real screenshots from the final build replace them before release.
 
-MaiPai for StackChan is open-source firmware and a host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot.
-What you say to it stays in your home. AI on your own computer answers, with no cloud service, no vendor account and no telemetry, and the host calls only the addresses you list in one settings file.
-
-It is faster and smoother than the factory firmware, and it works away from home, over your private network. It adds timers, a camera that can name the people you enrol, a coding companion and a local API.
-
-Connect it to [MaiPai Home](docs/user/with-maipai-home.md) (free, open source) for the full feature set: memories, companions and personalities, cloned voices, recognizing people, naming songs, the camera, watching and monitoring, find and remote control, and more.
-
-[See how it compares](docs/user/compare.md) with the factory firmware, and with MaiPai Home, side by side.
+MaiPai for StackChan is open-source firmware and a host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot. It replaces the factory firmware with something quicker, steadier and yours.
 
 ![The robot on a desk showing the big-eyes face, with the settings page open on a laptop beside it.](docs/images/hero.svg)
 
-## What it does
+## Why you would want it
 
-MaiPai for StackChan is one thing: a private voice robot. It does a small set of things well, and everything bigger runs with MaiPai Home.
+**Fast and steady.** Wake cue in under 150 ms. "Stop" and touch commands in under 300 ms. Replies start on the first finished sentence, so you do not wait for the whole answer. The robot also stays calm and keeps running: a restart guard, a signed update that rolls itself back if the new version fails, and fewer false wake-ups from fan noise. [Voice](docs/user/voice.md), [updates](docs/user/updates.md).
 
-**The robot, with your own LLM**
+**Private by design.** What you say stays in your home. AI on your own computer answers, with no cloud service, no vendor account and no telemetry, and the host calls only the addresses you list in one settings file. Mute, camera off and full quiet take one tap, and [nothing is ever monitored in secret](docs/user/no-stealth.md). [Privacy](docs/user/privacy.md), [security](docs/user/security.md).
 
-- **[Voice](docs/user/voice.md):** Say the wake word and talk. Follow-up questions need no wake word, you can interrupt, ten voice commands work with no model involved, spoken lines play when the host is out of reach, and you can set the speech speed and pitch.
-- **[Faces and clock](docs/user/face-and-look.md):** Five face styles, face extras and word reactions, any color or none, time-of-day and clock faces, night mode and optional captions.
-- **[Timers and alarms](docs/user/timers-and-alarms.md):** A ring that empties as time runs out, named timers, snooze and quiet hours.
-- **[Reactions](docs/user/moves-and-moods.md):** Pickup, shake, tilt and petting, a breathing idle, tap-the-face mute, a mood that grows with care, an hourly chime and low-battery steps.
-- **[Privacy controls](docs/user/mute-and-camera-off.md):** Mute, camera off and full quiet, one tap each. [Nothing is ever monitored in secret](docs/user/no-stealth.md).
-- **[Games](docs/user/games-and-pet.md):** Color memory, reaction time and whack-a-mole, with your best scores kept on the robot.
-- **[Music and dance](docs/user/music-and-dance.md):** Dance on request, six named dances, and a sway to your music. Off until you turn it on.
-- **[Away from home](docs/user/use-it-anywhere.md):** Reach your host from any Wi-Fi: the robot joins your private network by itself when it cannot reach your host.
-- **[Security](docs/user/security.md), [updates](docs/user/updates.md), [lights and sounds](docs/user/lights-and-sounds.md) and [languages](docs/user/languages.md):** Pairing with a code, a Wi-Fi setup page with an on-screen code, a reset on the robot, signed updates with rollback, soft tones and one light color per meaning, six languages.
+**New things it can do.** Five faces and your own pictures as a face, 26 screen effects, swipe pages and a control sheet, games with saved best scores, voice timers and alarms that work with no model, dances to your music, six languages, and a camera that can name the people you enrol. [Everything it does](docs/user/features.md).
 
-**More, with [MaiPai Home](docs/user/with-maipai-home.md)** (free, open source)
+**Take it with you.** Away from home the robot joins your private network by itself and reaches your host from any Wi-Fi: a friend's house, a hotel, the office. Setup takes a phone and a setup code on the robot's screen. [Use it away from home](docs/user/use-it-anywhere.md).
 
-- **Seeing:** [snapshots, face follow, a name list and "what is this"](docs/user/camera.md).
-- **Security:** [motion and sound alerts and an alarm](docs/user/watch-and-alerts.md), and a [baby and pet monitor](docs/user/baby-and-pet-monitor.md).
-- **Find and control:** [find my robot, remote beep, lights, talk, pan and tilt, and live view](docs/user/find-and-remote.md).
-- **Play and build:** a [coding companion](docs/user/coding-companion.md), and [home tools](docs/user/home-tools.md) such as a local API and MQTT.
-- **The household:** memory across days, people, calendars, announcements, naming songs, and rules for children and teens.
-
-Wake cue in under 150 ms. "Stop" and touch commands in under 300 ms. Replies start on the first finished sentence.
+**Go further with MaiPai Home** (free, open source). Connect the robot to [MaiPai Home](docs/user/with-maipai-home.md) for memories, companions and personalities, cloned voices, recognizing people, naming songs, live lookups, watching and monitoring, find and remote control, and rules for children and teens. [See how it compares](docs/user/compare.md) with the factory firmware, and with MaiPai Home, side by side.
 
 ## Get started
 
