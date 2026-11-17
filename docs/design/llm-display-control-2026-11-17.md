@@ -318,17 +318,31 @@ Over the limit: dropped, counted, never spoken, never an error to the person. Ph
 than 3 changes per second (the common web guideline) [unverified: general knowledge, not read this session], and the org rule is
 stricter for the ring: no fast flashing [from docs].
 
-### 8.6 Defaults when the model sends nothing (host fallback)
+### 8.6 When the model sends nothing (no fallback, no guessing)
 
 | Case | Rule |
 |---|---|
 | No mood tag in the first sentence | Nothing changes. No guessing from the words (owner decision 2026-11-17); the cure is a better instruction, a tool call for strong models, or Home's separate events |
 | No mood from words | keep the current face (exists) |
-| Emoji in the reply | map to a mood; strip from speech |
-| Effect | no fallback except a few safe phrases: "happy birthday" to party, "good night" to sleeping. A keyword like "rain" never starts rain by itself ("it is not raining" would be wrong) |
+| Emoji in the reply | stripped from speech; not mapped to a mood (that would be guessing) |
+| Effect | none. Words never start an effect by themselves ("it is not raining" would be wrong) |
 | Card | none; a card without data is worse than none |
 | Sound, light | none |
 | The model speaks a tag as words (parser miss) | detected by the bench; the speech path also drops any `[word]` of at most 24 letters from speech even if unknown (exists) |
+
+### 8.6a Scenes: one tag that sets the whole look (owner question 2026-11-17, recommendation)
+
+The design had mood, effect, sound and light as separate tags and no scene. A scene is one named preset that expands on the host into several catalog commands, so a model sends one tag instead of four, which small models do more reliably.
+
+- **Grammar:** `[scene rainy_day]` at the start of a sentence, closed by the next scene tag, `[scene off]` or the end of the reply. Parsed and stripped like every other tag, never spoken.
+- **What a scene holds:** an optional mood, a back-layer effect (rain, snow, sun, stars), an optional front effect, a ring light color, an optional quiet sound, and a hold time. Example: `rainy_day` = calm mood, rain, a cool blue ring, a soft rain sound.
+- **Start set (about 10):** rainy_day, snowy_day, sunny_day, bedtime, party, birthday, cozy, spooky, focus, celebrate. A preset table, one definition in the host (and the unit's overlay names), editable on the settings page.
+- **Not a new command:** `scene.set name` is one more catalog entry. It expands to commands that pass the same permission and priority checks as if each had been sent alone; a scene can never carry a body move, a photo or a privacy change.
+- **Mixing:** an explicit mood tag after a scene tag wins for the face; a remote cue, privacy and the child and teen gates always win over a scene. A scene is a lease at the same priority as the model's own effects and ends with the turn unless it names a hold time.
+- **Sources:** the model (tag or function), Home (event, so the hub can send scenes it owns, such as a weather scene with a card), and the owner's controls. No guessing from the words.
+- **Home packages:** scenes can be shipped as catalog packages later; the host holds the local table.
+- **Build:** a small host table and parser (about one day with tests), no firmware change if every part of a scene already maps to existing overlay, light and sound commands.
+- **Not to be confused with:** the camera scene-awareness work in Home (what the robot sees); this is only how the robot looks and sounds.
 
 ### 8.7 Teaching the model
 
@@ -468,3 +482,5 @@ a flash.
 5. Card hold time: 8 seconds by default, a touch dismisses it.
 
 6. No guessing, anywhere (owner, 2026-11-17): the robot only does what a source tells it, through the message or command stream. The design question is when and how each source (model tag, tool call, Home event, owner control) sends each command, not how the host can infer one. The keyword mood guess is deleted.
+
+7. Scenes: yes, add `[scene name]` presets that expand into catalog commands (section 8.6a); started by a source, never inferred.
