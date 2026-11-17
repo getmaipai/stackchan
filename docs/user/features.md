@@ -21,14 +21,18 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
+| **Weather and mood overlays** | 26 overlays, single and combined, such as stormy, rainy, snowy, sunny, windy, night, party, celebrate, love and sleeping. It slows down by itself if the robot is busy. Not yet seen by a person. | Robot | [Face and look](face-and-look.md) |
+| **CRT and color effects** | Optional screen looks, set on the settings page. Not yet seen by a person. | Robot | [Face and look](face-and-look.md) |
+| **Top banner and subtitle strip** | A fixed top row for the remote cue, find, game, offline and battery, and a subtitle strip at the bottom. | Robot | [Face and look](face-and-look.md) |
 | **Smoother eyes and mouth** | Eased eye moves, a smooth blink, a drifting gaze and a mouth that follows your voice. Measured 22 to 45 frames a second while the eyes move. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Your own picture faces** | Upload your own pictures on the settings page, one per look, as picture only, picture with animated eyes and mouth, or a short run of frames. Nothing leaves your home. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
-| **Faces and colour** | Five face styles (big eyes, eyes only, stock, classic, minimal), any eye colour, optional captions, a tired look when the battery is low and three dots while it thinks. | Robot | [Face and look](face-and-look.md) |
+| **Faces and color** | Five face styles (big eyes, eyes only, stock, classic, minimal), any eye color, optional captions, a tired look when the battery is low and three dots while it thinks. | Robot | [Face and look](face-and-look.md) |
 | **Clock and time-of-day faces** | A clock face, a face that changes with the hour, and night mode. | Robot | [Face and look](face-and-look.md) |
 | **Face extras and word reactions** | Sweat, hearts, stars and more on the face, and reactions to words like "thanks" in six languages. | Robot | [Face and look](face-and-look.md) |
-| **Per-person settings** | A face colour and caption size for each person. | Robot | [Face and look](face-and-look.md) |
+| **Per-person settings** | A face color and caption size for each person. | Robot | [Face and look](face-and-look.md) |
 | **Time zone** | Pick one of 31 zones on the robot or the settings page. | Robot | [Face and look](face-and-look.md) |
-| **Quick sliders** | Swipe up for volume, brightness and saved Wi-Fi. | Robot | [Voice](voice.md) |
+| **Control sheet** <span class="planned-tag">Planned</span> | Swipe up from the bottom for volume, brightness, mute, quiet, the listening light, find, timers, games and the Wi-Fi and battery state. | Robot (bench tested, not in the flashed build yet) | [Swipe pages](swipe-pages.md) |
+| **Swipe pages** <span class="planned-tag">Planned</span> | Swipe left or right on the face for a clock, timers, games, quick actions, your pictures or dashboard tiles, in the order you choose. | Robot (bench tested, not in the flashed build yet) | [Swipe pages](swipe-pages.md) |
 
 ## Keep time
 
@@ -45,7 +49,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Pickup, shake, tilt, petting** | It looks surprised, dizzy, tilted or happy. | Robot | [Reactions](moves-and-moods.md) |
 | **Mood from care** | Its resting face follows how much you pet it. | Robot | [Reactions](moves-and-moods.md) |
 | **Dance and music** | Dance on request, six named dances, and a sway to the music with mood faces. Off until you turn it on. | Robot | [Music and dance](music-and-dance.md) |
-| **Pet mood and games** | Three games on the robot (colour memory, reaction time, whack-a-mole) with saved best scores, and a pet mood that depends on care. | Robot | [Games and pet](games-and-pet.md) |
+| **Pet mood and games** | Three games on the robot (color memory, reaction time, whack-a-mole) with saved best scores, and a pet mood that depends on care. | Robot | [Games and pet](games-and-pet.md) |
 | **Breathing idle and quiet mode** | Calm moves when nothing happens, softer when you ask. | Robot | [Reactions](moves-and-moods.md) |
 | **Low-battery steps** | A chirp at 20 percent, a spoken ask at 10, sleep at 5. | Robot | [Reactions](moves-and-moods.md) |
 
@@ -54,7 +58,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
 | **Mute, camera off, full quiet** | Three taps on the face. The screen shows each state. | Robot | [Mute and camera off](mute-and-camera-off.md) |
-| **Lights and sounds** | One light colour and one tone per meaning. | Robot | [Lights and sounds](lights-and-sounds.md) |
+| **Lights and sounds** | One light color and one tone per meaning. | Robot | [Lights and sounds](lights-and-sounds.md) |
 | **No stealth** | Every monitoring mode shows on the robot. | Robot | [No stealth](no-stealth.md) |
 | **Conversations stay in your home** | Only your host or hub is called. | Robot | [Privacy](privacy.md) |
 
@@ -65,8 +69,9 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Wi-Fi setup page** | A setup code on the robot screen, a short window and a lock after wrong tries. | Robot | [Getting started](getting-started.md) |
 | **Away from home (Tailscale)** | The robot joins your private network by itself when it cannot reach your host, using a one-time key. Works from any Wi-Fi: a friend's house, a hotel, the office. | Robot | [Away from home](use-it-anywhere.md) |
 | **Several robots, one host** | One host serves each robot by its own ID. | Robot | [Install the host](install-the-host.md) |
+| **Remote cue on the robot** | Every remote action shows a purple cue on the robot that cannot be turned off. Remote access is off by default. | Robot | [Security](security.md) |
 | **Remote controls on the settings page** | Beep, flash, find my robot (works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. | Robot | [Settings](settings.md) |
-| **Network test and version screen** | Swipe up, More: a plain check of Wi-Fi, your host and the private network, and the version. | Robot | [Troubleshooting](troubleshooting.md) |
+| **Network test and version screen** | Swipe up from the bottom, More, More: a plain check of Wi-Fi, your host and the private network, and the version. | Robot | [Troubleshooting](troubleshooting.md) |
 | **Your own LLM or MaiPai Home** | Point the robot at any OpenAI-compatible chat address, or at a MaiPai Home hub. | Robot | [Which setup?](which-setup.md) |
 
 ## Set up and keep safe
@@ -111,9 +116,9 @@ Likely to come, not finished. Do not count on these yet.
 
 | Feature | What it will do | Page |
 |---|---|---|
-| **Mood and weather overlays, filler sounds, pack library, effects** <span class="planned-tag">Planned</span> | The host side is built (mood tags, weather and other overlay tags, filler sounds of none, tone or phrase, a pack library, CRT and colour effects, a remote activity log and remote-speaking rules). It reaches the robot with the next robot update. | [Face and look](face-and-look.md) |
-| **Speech bubble, floating zzz, three listening cues, pickup detection** <span class="planned-tag">Planned</span> | Still being built on the robot. | [Face and look](face-and-look.md) |
-| **Remote cue on the robot** <span class="planned-tag">Planned</span> | Every remote action will show a cue on the robot that cannot be turned off, and remote speaking will ask first on the robot. Still being built. | [Security](security.md) |
+| **Filler sounds, language packs, offline phrase packs** <span class="planned-tag">Planned</span> | Built and bench tested, not in the flashed robot build yet. | [Voice](voice.md) |
+| **Turn toward a face** <span class="planned-tag">Planned</span> | The robot sweeps and looks for a face by itself, with the camera cue showing. Bench tested, not in the flashed build yet. The face detector itself is not built. | [Face and look](face-and-look.md) |
+| **Pickup detection** <span class="planned-tag">Planned</span> | Still being built. | [Moves and moods](moves-and-moods.md) |
 | **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |
 | **Encrypted link at home** <span class="planned-tag">Planned</span> | Encrypt the robot's link to your host on your home Wi-Fi, and check it is talking to your host. | [Security](security.md) |
 | **Outside games** <span class="planned-tag">Planned</span> | Load games you or others make. Signed packs only. | [Games](games-and-pet.md) |
