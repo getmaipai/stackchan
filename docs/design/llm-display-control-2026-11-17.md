@@ -256,6 +256,38 @@ Common: `hold_s` 3 to 60 (default 12), after which the face returns. All text is
 `self.card.show {"json": "..."}`; the unit parses it with a fixed small parser into a fixed layout per type. There is no layout
 language and no model-written layout (that is the lesson of APL: data apart from layout).
 
+### 8.2a Interactive cards, modals and images (owner question 2026-11-17, recommendation)
+
+Goal: Home (or any source with the right permission) can run richer screens on the unit: a calendar with a blinking date, flash cards with progress, an alert modal with a dismiss, an image with a dismiss. Placement: the renderer is unit firmware (small, fixed layouts), the content and the logic are Home tools or host packages, the channel is the one command catalog.
+
+**Principle: the unit renders, the source owns the logic.** The unit never runs an app. It draws a card from small data, handles touch locally (flip, next, dismiss), and reports what the person did as an event. The source holds the state and decides what to show next. If the source goes away, the card times out and the face returns.
+
+**New card types** (same rules as 8.2: fixed layouts, PSRAM only while shown, no layout language):
+
+| Type | Payload | What the unit does |
+|---|---|---|
+| `calendar` | `{"month":"2026-11","today":17,"marks":[{"d":20,"blink":true},{"d":24}],"label":""}` | draws a month grid (7 columns), highlights today, blinks marked days (max 4 blinking, 1 Hz, steady when effects are off), tap a day sends `card_action {day}`; the source answers with a `list` card of that day's items |
+| `flashcards` | `{"deck":"","cards":[{"q":"","a":""}],"i":0,"total":20,"right":3}` (up to 12 cards per push, 40 characters per side) | flips on tap, three buttons (Got it, Again, Skip) move on locally; a progress bar and "3 of 20" show; the unit batches results and sends `card_action {deck,i,result}`; the source pushes the next batch |
+| `progress` | `{"title":"","value":0.6,"label":"","style":"bar|ring"}` | a bar or ring that animates to the value; used alone or inside another card |
+| `modal` | `{"title":"","body":"","level":"info|warn|alert","buttons":["Dismiss"],"hold_s":0}` | covers the face zone only (never the banner row, subtitle strip or remote chip); up to 2 buttons; swipe down or tap outside always dismisses; sends `card_action {id,button}`; a distinct frame so it cannot be mistaken for a system cue |
+| `image` | `{"id":"","caption":"","fit":"contain"}` | a picture from the owner's library or the source's upload, shown with a drag bar and a close target; pictures are prepared by the host or Home at most 320 by 156 and sent over the host's HTTP route, not through the command channel |
+
+**Common props:** `blink` or `pulse` on any element (a flag the unit animates, never faster than 1 Hz), `hold_s`, `priority`, `id`, and up to three `buttons`. Every card can always be dismissed locally by a swipe down, shown by the drag bar; a source cannot remove that.
+
+**Events back to the source:** `card_action {id, action, value}` over the same channel the unit already uses. Rate limited to 5 per second. Events go only to the source that owns the card; the model never sees them unless Home passes them on.
+
+**Priority and the card stack:** alert modal, then a source card, then ambient (the model's own card, tiles). A higher priority covers a lower one and the lower one returns after (one level of stack, not a history). Privacy cues, the remote chip, the banner row and the camera and mic cues are never covered. Quiet hours and full quiet silence a modal's sound, not its picture, except `alert` level, which the owner can set to override quiet hours.
+
+**Who may send what:** Home and the owner may send every type. The model may send `text`, `list`, `progress` and `countdown` only, never `modal` or `image` (a modal from a model is an interrupt the model could abuse). A host package the owner installed may send the same as the owner. The child and teen gates apply to what a card may show and when a modal may interrupt.
+
+**Is there a generic layout language?** Not in v1. Home already has a UI schema its own apps render. The unit could later render a very small subset of that same schema (grid, text, icon, progress, button) so the definition stays in one place. That is a later decision, taken only if the fixed types prove too limiting after phase 4. It would not change the permission rules above.
+
+**Local mode:** the same channel works. A calendar comes from the owner's own file or tool; a household calendar service, email, weather and news are Home tools. In local mode a card with no data source simply is not sent.
+
+**Cost [estimate, to be measured]:** the calendar and flashcard layouts add about 6 to 10 KB of flash for the draw code and 3 to 5 KB of PSRAM while shown; no new internal RAM in steady state. The image path reuses the picture page's decoder.
+
+**Build order:** (1) `modal` and `image` with dismiss and events (smallest, most useful), (2) `calendar`, (3) `flashcards` and `progress`, (4) the generic subset decision.
+
 ### 8.3 Which things are tags, which are tool calls
 
 | Thing | Model path | Why |
@@ -484,3 +516,10 @@ a flash.
 6. No guessing, anywhere (owner, 2026-11-17): the robot only does what a source tells it, through the message or command stream. The design question is when and how each source (model tag, tool call, Home event, owner control) sends each command, not how the host can infer one. The keyword mood guess is deleted.
 
 7. Scenes: yes, add `[scene name]` presets that expand into catalog commands (section 8.6a); started by a source, never inferred.
+
+## Built so far (2026-11-17, host only, no firmware change)
+
+- Phase 1 parser hole: a bracket run longer than 60 characters, and a `{"` JSON run, is dropped from speech and logged by length only (`speech/reply_stream.py`). Fuzz and split-stream tests: `tests/test_reply_stream_hardening.py`. Not done from phase 1: emoji removal, the lenient lead-in forms, `\[` as a spoken bracket (the owner decision of no guessing makes the first two moot).
+- Phase 2 scenes: `[scene name]` and `[scene off]`, one table in `scenes.py` (names in `reply_tags.py`), edited per unit on the settings page (Look, Scenes), expanded through the bus.
+- Phase 3 bus: `command_bus.py` holds the catalog, the source-by-permission matrix as data, priorities (owner, Home, routines, model), leases for face, effect and ring light, gates and the model's limits. The model path is wired for the tags `[scene]`, `[sound:name]`, `[light:name seconds]` and the existing mood and effect tags. Cards and `show_card` are phases 4 and 5 (they need `self.card.*` on the unit) and are not built.
+- Ring color: the ring standard is dark unless it tells a person something, and its table is the owner's. A scene's light part and `[light:...]` reach a `ring` hook on `Polish` that nothing fills yet, so they are skipped and counted until the owner approves a scene row in `indicator/looks.py`. The colors are the seam's palette (no red).
