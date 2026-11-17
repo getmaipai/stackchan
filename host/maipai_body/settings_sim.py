@@ -46,6 +46,10 @@ class SimUnit:
         self.pack_buffer: dict[str, Any] = {}
         self.prefs: dict[str, Any] = {}
         self.pages: dict[str, Any] = {}  # swipe pages (firmware patches P10 to P13)
+        # The passcode lock as the unit keeps it (unit_lock.py): the code lives only here, like the unit's hash; the host never sees it.
+        self.lock_code: str | None = None
+        self.locked = False
+        self.lock_auto = 0
         self.shown = ""
         self.tiles: list[dict[str, Any]] = []
         self.face = face_settings.FaceConfig().to_wire()
@@ -120,7 +124,6 @@ class SimUnit:
                     "playing": False,
                     "games": [
                         {"id": "memory", "title": "Color Memory", "lower_is_better": False, "scores": [7, 5, 4]},
-                        {"id": "reaction", "title": "Quick Tap", "lower_is_better": True, "scores": [412, 455]},
                         {"id": "whack", "title": "Whack a Mole", "lower_is_better": False, "scores": []},
                         {"id": "tictactoe", "title": "Tic-Tac-Toe", "lower_is_better": False, "scores": [30, 10]},
                         {"id": "bopit", "title": "Do It", "lower_is_better": False, "scores": [9]},
@@ -208,6 +211,7 @@ NEXT_TOOLS = frozenset({
     "self.remote.session", "self.remote.action",
     "self.look.status", "self.look.claim", "self.look.release",
     "self.pages.status", "self.pages.get", "self.pages.set", "self.page.show", "self.page.tiles",
+    "self.lock.status", "self.lock.set", "self.lock.clear", "self.lock.now", "self.lock.config",
 })  # fmt: skip
 
 
@@ -260,6 +264,8 @@ def _next(self: SimUnit, name: str, args: dict[str, Any]) -> dict[str, Any]:
     if name == "self.page.tiles":
         self.tiles = json.loads(args.get("json", "[]"))
         return {"ok": True, "tiles": len(self.tiles)}
+    if name.startswith("self.lock."):
+        return self._lock_tool(name, args)
     if name == "self.look.status":
         holder = getattr(self, "look_holder", None)
         return {"ok": True, "owner": "host" if holder else "unit", "lease_owner": holder or ""}
@@ -276,6 +282,43 @@ def _next(self: SimUnit, name: str, args: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True}
 
 
+def _lock_tool(self: SimUnit, name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """The five lock tools with the unit's rules: while locked only status and now answer; a change to an existing code needs the current one."""
+    if name == "self.lock.status":
+        return {"ok": True, "has_code": self.lock_code is not None, "locked": self.locked, "auto_minutes": self.lock_auto}
+    if name == "self.lock.now":
+        if self.lock_code is None:
+            return {"ok": False, "reason": "no_code"}
+        self.locked = True
+        return {"ok": True, "locked": True}
+    if self.locked:
+        return {"ok": False, "reason": "locked"}
+    if name == "self.lock.config":
+        minutes = args.get("auto_minutes")
+        if minutes not in (0, 1, 5, 15, 30, 60) or isinstance(minutes, bool):
+            return {"ok": False, "reason": "bad_minutes"}
+        self.lock_auto = minutes
+        return {"ok": True, "auto_minutes": minutes}
+    if name == "self.lock.clear":
+        if self.lock_code is None:
+            return {"ok": False, "reason": "no_code"}
+        if args.get("current") != self.lock_code:
+            return {"ok": False, "reason": "wrong_current"}
+        self.lock_code = None
+        return {"ok": True}
+    code = args.get("code")  # self.lock.set
+    if not (isinstance(code, str) and code.isascii() and code.isdigit() and 4 <= len(code) <= 6):
+        return {"ok": False, "reason": "bad_code"}
+    if self.lock_code is not None:
+        if "current" not in args:
+            return {"ok": False, "reason": "current_needed"}
+        if args["current"] != self.lock_code:
+            return {"ok": False, "reason": "wrong_current"}
+    self.lock_code = code
+    return {"ok": True}
+
+
+SimUnit._lock_tool = _lock_tool  # type: ignore[attr-defined]
 SimUnit._next = _next  # type: ignore[attr-defined]
 
 

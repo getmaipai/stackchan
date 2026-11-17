@@ -1,0 +1,652 @@
+# Intent: Owner request (2026-11-17), part 1 of 2: the pure layout and words of the new Apps screens, and the sheet's Apps tile. maipai_apps_core.h (plain C99, no heap, no clock) holds the apps table (Timers, Alarms, Clock, Quick actions, Pictures only while a picture pack exists, Dashboard, Dance, Lock), the wall of big tiles (2 by 2 per page, 138 by 88 px, 4 px gaps, y 28 to 208, the page dots centered at y 216 under the tiles), the one-touch classifier (a tap, a swipe left or right for the next or previous page, and the games' drag bar rule: a swipe down that begins on the strip y 28 to 44 dismisses, a press above y 36 starts no tap), the Timers geometry (presets 1, 5, 10 and 15 minutes, the reserved Countdown hook, rows 44 px high with a 92 by 44 Cancel), the Alarms geometry and the time picker (hour and minute steppers, AM or PM, Cancel and Save, every target 44 px or more), the Settings layout (a tab column General, Network, Faces, Info and a scrolling list, rows of at least 44 px, a slider row keeps 20 px of empty room under the knob, a scroll indicator, a tab state) and the words in English and Spanish (the other four languages read the English). The control sheet keeps its one row of six tiles (Mute, Quiet, Light, Apps, Games, Settings) and no Lock tile: the tile saved under the key "timers" is now the Apps tile (the key keeps its name so a saved choice and a host that sends it keep working; "apps" is read as the same item), its title says Apps and its icon is four squares. MSCR_APPS joins the single overlay screen manager.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_apps_core.h (ours, new), maipai_pages_core.h (ours, P11, UI05), maipai_screens_core.h (ours, UI09)
+# Check after a flash: Open the sheet (swipe up from the bottom edge): one row of six tiles, the fourth is four small squares (Apps). Nothing else changes until UI17.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_apps_core.h
+@@ -0,0 +1,583 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The Apps wall, the Timers and Alarms apps and the tabbed Settings screen (patch UI16): the pure data and layout. Plain C99, no ESP call, no heap,
++ * no clock of its own. Host test: host/tests/firmware/apps_core_test.c. The drawing and the wiring are maipai_apps.cc.
++ *
++ * One overlay screen at a time (maipai_screens_core.h): the apps screen has five views that replace each other on the same glass:
++ *   APPS     a paged wall of big tiles (two by two, as big as the Color Memory tiles), the dots under the tiles, swipe left or right for the next page
++ *   GAMES    the same wall for the games the unit holds (read from the games table, so it follows whatever games exist)
++ *   TIMERS   the quick presets, the running timers with a big Cancel each, and the Countdown hook (reserved, off until the full screen countdown exists)
++ *   ALARMS   the set alarms with a big Cancel each and an Add alarm time picker (hour and minute steppers, AM or PM)
++ *   PICKER   the Add alarm time picker
++ * and Settings is its own screen: a tab column on the left (General, Network, Faces, Info) and a scrollable list on the right.
++ *
++ * The zone is the content zone y 28 to 224 (the banner above and the cue strip below are never covered). A swipe down that BEGINS on the drag strip
++ * (y 28 to 44, the same rule as the games, patch GM02) dismisses the screen. A press above y 36 is the bar's and starts no tap. Every target is at
++ * least 44 px on both sides.
++ */
++#ifndef MAIPAI_APPS_CORE_H
++#define MAIPAI_APPS_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++
++#include "maipai_pages_core.h" /* mpg_shape_t and the shared icon shapes */
++
++/* ---- the zone and the drag bar ---- */
++#define MAC_TOP 28
++#define MAC_BOTTOM 224
++#define MAC_W 320
++#define MAC_DRAG_TOP 28
++#define MAC_DRAG_BOTTOM 44 /* a swipe down that begins above this dismisses the screen */
++#define MAC_DRAG_DEAD_Y 36 /* a press above this starts no tap */
++#define MAC_DRAG_MIN_DY 24
++#define MAC_DRAG_MAX_MS 1500u
++#define MAC_TARGET_MIN 44
++
++/* ---- one touch: a tap, a page swipe or the dismiss swipe ---- */
++#define MAC_TAP_MAX_PX 12
++#define MAC_TAP_MAX_MS 700u
++#define MAC_PAGE_SWIPE_MIN_PX 36
++#define MAC_PAGE_SWIPE_MAX_MS 900u
++enum { MAC_T_NONE = 0, MAC_T_TAP, MAC_T_NEXT, MAC_T_PREV, MAC_T_DISMISS };
++
++typedef struct {
++    int16_t x0, y0;
++    uint32_t t0;
++    uint8_t down;
++} mac_touch_t;
++
++static inline int mac_abs(int v) { return v < 0 ? -v : v; }
++static inline void mac_touch_down(mac_touch_t* t, int x, int y, uint32_t now_ms)
++{
++    t->x0 = (int16_t)x;
++    t->y0 = (int16_t)y;
++    t->t0 = now_ms;
++    t->down = 1;
++}
++/* A press here is the drag bar's: it starts no tap. */
++static inline int mac_press_dead(int y) { return y >= MAC_DRAG_TOP && y < MAC_DRAG_DEAD_Y; }
++/* The finger began on the drag strip, went down at least MAC_DRAG_MIN_DY and stayed mostly vertical, in time. */
++static inline int mac_drag_dismiss(int x0, int y0, int x1, int y1, uint32_t held_ms)
++{
++    const int dy = y1 - y0, dx = mac_abs(x1 - x0);
++    return y0 >= MAC_DRAG_TOP && y0 < MAC_DRAG_BOTTOM && dy >= MAC_DRAG_MIN_DY && dx * 2 <= dy && held_ms <= MAC_DRAG_MAX_MS;
++}
++/* `paged` is true on the wall views: a horizontal swipe changes the page (the finger moving left shows the next page). */
++static inline int mac_touch_up(mac_touch_t* t, int x, int y, uint32_t now_ms, int paged)
++{
++    if (!t->down) {
++        return MAC_T_NONE;
++    }
++    t->down = 0;
++    const uint32_t held = now_ms - t->t0;
++    const int dx = x - t->x0, dy = y - t->y0;
++    if (mac_drag_dismiss(t->x0, t->y0, x, y, held)) {
++        return MAC_T_DISMISS;
++    }
++    if (paged && mac_abs(dx) >= MAC_PAGE_SWIPE_MIN_PX && mac_abs(dx) * 2 >= mac_abs(dy) * 3 && held <= MAC_PAGE_SWIPE_MAX_MS) {
++        return dx < 0 ? MAC_T_NEXT : MAC_T_PREV;
++    }
++    if (mac_abs(dx) <= MAC_TAP_MAX_PX && mac_abs(dy) <= MAC_TAP_MAX_PX && held <= MAC_TAP_MAX_MS && !mac_press_dead(t->y0)) {
++        return MAC_T_TAP;
++    }
++    return MAC_T_NONE;
++}
++
++/* ---- the apps ---- */
++enum { MAC_APP_TIMERS = 0, MAC_APP_ALARMS, MAC_APP_CLOCK, MAC_APP_QUICK, MAC_APP_PICTURES, MAC_APP_DASHBOARD, MAC_APP_DANCE, MAC_APP_LOCK, MAC_APP_COUNT };
++static const char* const MAC_APP_NAMES[MAC_APP_COUNT] = {"timers", "alarms", "clock", "quick", "pictures", "dashboard", "dance", "lock"};
++static const char* const MAC_APP_TITLE[2][MAC_APP_COUNT] = {
++    {"Timers", "Alarms", "Clock", "Quick actions", "Pictures", "Dashboard", "Dance", "Lock"},
++    {"Temporizadores", "Alarmas", "Reloj", "Acciones", "Fotos", "Panel", "Baile", "Bloquear"},
++};
++#define MAC_APP_MAX MAC_APP_COUNT
++
++/* The apps the wall lists, in order. Pictures only while a picture pack exists. Returns the count. */
++static inline int mac_apps_list(int pictures_held, uint8_t* out)
++{
++    int n = 0;
++    for (int a = 0; a < MAC_APP_COUNT; a++) {
++        if (a == MAC_APP_PICTURES && !pictures_held) {
++            continue;
++        }
++        out[n++] = (uint8_t)a;
++    }
++    return n;
++}
++
++/* The strip page an app opens (the existing swipe pages), or -1 when the app is not a strip page. */
++static inline int mac_app_strip_page(int app)
++{
++    switch (app) {
++        case MAC_APP_CLOCK: return MPG_P_CLOCK;
++        case MAC_APP_QUICK: return MPG_P_ACTIONS;
++        case MAC_APP_PICTURES: return MPG_P_FRAME;
++        case MAC_APP_DASHBOARD: return MPG_P_TILES;
++        default: return -1;
++    }
++}
++
++/* ---- the wall: two by two tiles of the Color Memory size, the dots below ---- */
++#define MAC_WALL_COLS 2
++#define MAC_WALL_ROWS 2
++#define MAC_WALL_PER_PAGE (MAC_WALL_COLS * MAC_WALL_ROWS)
++#define MAC_WALL_TILE_W 138 /* as wide as the Color Memory tiles */
++#define MAC_WALL_TILE_H 88  /* the memory tiles are 96 high; here the dots take the bottom strip */
++#define MAC_WALL_GAP 4
++#define MAC_WALL_X0 20
++#define MAC_WALL_Y0 28
++#define MAC_WALL_DOTS_Y 216 /* the center of the dots: they sit under the tiles (which end at y 208) and above the zone's bottom edge */
++#define MAC_WALL_DOT_PITCH 14
++#define MAC_WALL_DOT_ON 8
++#define MAC_WALL_DOT_OFF 6
++
++static inline int mac_wall_pages(int total) { return total <= 0 ? 1 : (total + MAC_WALL_PER_PAGE - 1) / MAC_WALL_PER_PAGE; }
++static inline int mac_wall_clamp(int page, int total)
++{
++    const int last = mac_wall_pages(total) - 1;
++    return page < 0 ? 0 : (page > last ? last : page);
++}
++/* Tiles on a page (the last page may be short). */
++static inline int mac_wall_count(int page, int total)
++{
++    const int first = page * MAC_WALL_PER_PAGE;
++    const int left = total - first;
++    return left <= 0 ? 0 : (left > MAC_WALL_PER_PAGE ? MAC_WALL_PER_PAGE : left);
++}
++static inline void mac_wall_tile(int slot, int* x, int* y, int* w, int* h)
++{
++    *w = MAC_WALL_TILE_W;
++    *h = MAC_WALL_TILE_H;
++    *x = MAC_WALL_X0 + (slot % MAC_WALL_COLS) * (MAC_WALL_TILE_W + MAC_WALL_GAP);
++    *y = MAC_WALL_Y0 + (slot / MAC_WALL_COLS) * (MAC_WALL_TILE_H + MAC_WALL_GAP);
++}
++/* The slot under a point, or -1. Tiles are the only targets, so the gaps and the dots strip hit nothing. */
++static inline int mac_wall_hit(int x, int y)
++{
++    for (int s = 0; s < MAC_WALL_PER_PAGE; s++) {
++        int tx, ty, tw, th;
++        mac_wall_tile(s, &tx, &ty, &tw, &th);
++        if (x >= tx && x < tx + tw && y >= ty && y < ty + th) {
++            return s;
++        }
++    }
++    return -1;
++}
++/* The center x of dot `index` of `n` dots (no dots for one page). */
++static inline int mac_wall_dot_x(int n, int index) { return MAC_W / 2 + (index * 2 - (n - 1)) * (MAC_WALL_DOT_PITCH / 2); }
++/* One step: +1 next, -1 previous; the ends do not wrap (a swipe past the last page does nothing). Returns the new page. */
++static inline int mac_wall_step(int page, int total, int dir) { return mac_wall_clamp(page + dir, total); }
++
++/* ---- Timers ---- */
++#define MAC_PRESETS 4
++static const uint8_t MAC_PRESET_MIN[MAC_PRESETS] = {1, 5, 10, 15};
++#define MAC_COUNTDOWN_READY 0 /* the Countdown button is reserved: it turns on when the full screen countdown exists (next-ui-countdown note) */
++#define MAC_ROW_TOP 86        /* the list of timers and alarms starts under the button row */
++#define MAC_ROW_H 44
++#define MAC_ROW_PITCH 46
++#define MAC_LIST_H (MAC_BOTTOM - MAC_ROW_TOP) /* 138: exactly three rows */
++#define MAC_ROWS_VISIBLE 3
++#define MAC_ACTIVE_MAX 8 /* the timer core's limit for timers and alarms together (MT_MAX_ACTIVE) */
++#define MAC_BTN_ROW_Y 38
++#define MAC_BTN_ROW_H 44
++
++static inline void mac_preset_box(int i, int* x, int* y, int* w, int* h)
++{
++    *x = 8 + i * 52;
++    *y = MAC_BTN_ROW_Y;
++    *w = 48;
++    *h = MAC_BTN_ROW_H;
++}
++static inline void mac_countdown_box(int* x, int* y, int* w, int* h)
++{
++    *x = 218;
++    *y = MAC_BTN_ROW_Y;
++    *w = 94;
++    *h = MAC_BTN_ROW_H;
++}
++/* A list row: 304 wide at x 8; its Cancel target is the right 92 px. */
++static inline void mac_row_box(int i, int* x, int* y, int* w, int* h)
++{
++    *x = 8;
++    *y = MAC_ROW_TOP + i * MAC_ROW_PITCH;
++    *w = 304;
++    *h = MAC_ROW_H;
++}
++static inline void mac_cancel_box(int i, int* x, int* y, int* w, int* h)
++{
++    *x = 8 + 304 - 92;
++    *y = MAC_ROW_TOP + i * MAC_ROW_PITCH;
++    *w = 92;
++    *h = MAC_ROW_H;
++}
++/* How much the list can scroll: rows beyond the third. */
++static inline int mac_list_content_h(int n) { return n <= 0 ? 0 : n * MAC_ROW_PITCH - (MAC_ROW_PITCH - MAC_ROW_H); }
++static inline int mac_list_scrolls(int n) { return mac_list_content_h(n) > MAC_LIST_H; }
++
++/* A time left: "4:32", or "1:02:10" from one hour up. */
++static inline void mac_fmt_left(char* out, size_t n, int32_t secs)
++{
++    if (secs < 0) {
++        secs = 0;
++    }
++    if (secs >= 3600) {
++        snprintf(out, n, "%d:%02d:%02d", (int)(secs / 3600), (int)((secs / 60) % 60), (int)(secs % 60));
++    } else {
++        snprintf(out, n, "%d:%02d", (int)(secs / 60), (int)(secs % 60));
++    }
++}
++
++/* ---- Alarms ---- */
++/* A clock time as words: "7:30 AM" or "07:30". */
++static inline void mac_fmt_time(char* out, size_t n, int hour, int minute, int clock24)
++{
++    if (clock24) {
++        snprintf(out, n, "%02d:%02d", hour, minute);
++    } else {
++        snprintf(out, n, "%d:%02d %s", hour % 12 == 0 ? 12 : hour % 12, minute, hour >= 12 ? "PM" : "AM");
++    }
++}
++
++typedef struct {
++    uint8_t hour; /* 0 to 23 */
++    uint8_t minute;
++} mac_pick_t;
++
++/* The picker starts at the next full hour after now (07:20 starts at 08:00); with no clock it starts at 07:00. */
++static inline void mac_pick_default(mac_pick_t* p, int known, int now_hour)
++{
++    p->hour = (uint8_t)(known ? (now_hour + 1) % 24 : 7);
++    p->minute = 0;
++}
++static inline void mac_pick_hour(mac_pick_t* p, int dir) { p->hour = (uint8_t)((p->hour + 24 + (dir < 0 ? -1 : 1)) % 24); }
++static inline void mac_pick_minute(mac_pick_t* p, int dir) { p->minute = (uint8_t)((p->minute + 60 + (dir < 0 ? -1 : 1)) % 60); }
++/* The hour as shown: 1 to 12 with AM or PM, or 0 to 23. */
++static inline int mac_pick_shown_hour(const mac_pick_t* p, int clock24) { return clock24 ? p->hour : (p->hour % 12 == 0 ? 12 : p->hour % 12); }
++static inline int mac_pick_is_pm(const mac_pick_t* p) { return p->hour >= 12; }
++/* AM or PM set directly: the hour keeps its place in the half day. */
++static inline void mac_pick_set_pm(mac_pick_t* p, int pm) { p->hour = (uint8_t)((p->hour % 12) + (pm ? 12 : 0)); }
++
++/* The picker's boxes: three columns (hour, minute, AM and PM), each with plus above, the value, minus below; Cancel and Save at the bottom. */
++#define MAC_PICK_PLUS_Y 38
++#define MAC_PICK_VAL_Y 84
++#define MAC_PICK_VAL_H 46
++#define MAC_PICK_MINUS_Y 132
++#define MAC_PICK_BTN_Y 180
++static inline int mac_pick_col_x(int col, int clock24)
++{
++    /* with AM and PM the three columns span the width; on a 24 hour clock the two number columns are centered */
++    if (clock24) {
++        return col == 0 ? 52 : 168;
++    }
++    return col == 0 ? 12 : (col == 1 ? 112 : 216);
++}
++#define MAC_PICK_COL_W 92
++static inline void mac_pick_plus_box(int col, int clock24, int* x, int* y, int* w, int* h) { *x = mac_pick_col_x(col, clock24); *y = MAC_PICK_PLUS_Y; *w = col == 2 ? 88 : MAC_PICK_COL_W - 4; *h = 44; }
++static inline void mac_pick_minus_box(int col, int clock24, int* x, int* y, int* w, int* h) { *x = mac_pick_col_x(col, clock24); *y = MAC_PICK_MINUS_Y; *w = col == 2 ? 88 : MAC_PICK_COL_W - 4; *h = 44; }
++static inline void mac_pick_val_box(int col, int clock24, int* x, int* y, int* w, int* h) { *x = mac_pick_col_x(col, clock24); *y = MAC_PICK_VAL_Y; *w = col == 2 ? 88 : MAC_PICK_COL_W - 4; *h = MAC_PICK_VAL_H; }
++static inline void mac_pick_ampm_box(int pm, int* x, int* y, int* w, int* h) { *x = mac_pick_col_x(2, 0); *y = pm ? 134 : 84; *w = 88; *h = 44; }
++static inline void mac_pick_cancel_box(int* x, int* y, int* w, int* h) { *x = 8; *y = MAC_PICK_BTN_Y; *w = 148; *h = 44; }
++static inline void mac_pick_save_box(int* x, int* y, int* w, int* h) { *x = 164; *y = MAC_PICK_BTN_Y; *w = 148; *h = 44; }
++
++/* ---- Settings: the tab column and the right list ---- */
++enum { MAC_TAB_GENERAL = 0, MAC_TAB_NETWORK, MAC_TAB_FACES, MAC_TAB_INFO, MAC_TAB_COUNT };
++static const char* const MAC_TAB_NAMES[MAC_TAB_COUNT] = {"general", "network", "faces", "info"};
++static const char* const MAC_TAB_TITLE[2][MAC_TAB_COUNT] = {
++    {"General", "Network", "Faces", "Info"},
++    {"General", "Red", "Caras", "Info"},
++};
++#define MAC_TAB_X 4
++#define MAC_TAB_W 76
++#define MAC_TAB_Y0 32
++#define MAC_TAB_PITCH 48
++#define MAC_TAB_H 44
++#define MAC_PANE_X 88
++#define MAC_PANE_W 228
++#define MAC_PANE_HEAD_Y 38 /* the pane's header row: the tab title and the Done target */
++#define MAC_PANE_HEAD_H 44
++#define MAC_PANE_Y 86      /* the scrolling list */
++#define MAC_PANE_H (MAC_BOTTOM - MAC_PANE_Y)
++#define MAC_PANE_ROW_W 216 /* 12 px stay free at the right for the scroll indicator */
++#define MAC_DIV_X 84
++static inline void mac_tab_box(int i, int* x, int* y, int* w, int* h) { *x = MAC_TAB_X; *y = MAC_TAB_Y0 + i * MAC_TAB_PITCH; *w = MAC_TAB_W; *h = MAC_TAB_H; }
++static inline void mac_done_box(int* x, int* y, int* w, int* h) { *x = MAC_PANE_X + MAC_PANE_W - 96 - 4; *y = MAC_PANE_HEAD_Y; *w = 96; *h = MAC_PANE_HEAD_H; }
++
++/* Settings rows. A row is one line of the right list: a slider, a switch, a choice that cycles, a button, two lines of information, a face
++ * preview or a pair of style tiles. Interactive rows are at least 44 px; a slider row also keeps 20 px of empty room under the knob (patch QS01). */
++enum {
++    MAC_K_SLIDER = 0, MAC_K_SWITCH, MAC_K_CHOICE, MAC_K_BUTTON, MAC_K_INFO, MAC_K_PAIR
++};
++enum {
++    MAC_R_VOLUME = 0, MAC_R_BRIGHT, MAC_R_NIGHT, MAC_R_STATUS_ICONS, MAC_R_AUTOLOCK, MAC_R_LOCK_NOW, MAC_R_LANGUAGE, MAC_R_MORE,
++    MAC_R_WIFI_PAGE, MAC_R_SSID, MAC_R_SIGNAL, MAC_R_TAILNET, MAC_R_HUB,
++    MAC_R_PAIR0, MAC_R_PAIR1, MAC_R_PAIR2,
++    MAC_R_I_TAG, MAC_R_I_IMAGE, MAC_R_I_SLOT, MAC_R_I_MEM, MAC_R_I_HOST, MAC_R_I_HINT,
++    MAC_R_I_DETAIL0, MAC_R_I_DETAIL1, MAC_R_I_DETAIL2, MAC_R_I_DETAIL3, MAC_R_I_DETAIL4, MAC_R_I_DETAIL5,
++    MAC_R_COUNT
++};
++#define MAC_SLIDER_Y 28       /* the slider's top inside its row (the label line is above it) */
++#define MAC_SLIDER_ROW_H 72   /* label line, the slider (grab area 44, its knob reaches 8 px beyond it), then 20 px of empty room under the knob */
++#define MAC_LINE_ROW_H 48     /* a 44 px row and a 4 px gap */
++#define MAC_PAIR_ROW_H 46     /* a row of two 44 px style tiles and a 2 px gap: three rows are 138 px, the height of the list */
++#define MAC_SET_ROWS_MAX 16
++#define MAC_SF_LOCK 1u      /* the passcode lock is built in: auto lock and Lock now */
++#define MAC_SF_TAILNET 2u   /* the private network is built in */
++#define MAC_SF_PICTURES 4u  /* a picture pack is held: a sixth face tile */
++#define MAC_SF_DETAILS 8u   /* the ten-tap details are open: the Info tab lists them */
++
++typedef struct {
++    uint8_t id;   /* MAC_R_* */
++    uint8_t kind; /* MAC_K_* */
++    int16_t y;    /* from the top of the list */
++    int16_t h;
++} mac_row_t;
++
++static inline int mac_row_kind(int id)
++{
++    switch (id) {
++        case MAC_R_VOLUME: case MAC_R_BRIGHT: return MAC_K_SLIDER;
++        case MAC_R_NIGHT: case MAC_R_STATUS_ICONS: return MAC_K_SWITCH;
++        case MAC_R_AUTOLOCK: return MAC_K_CHOICE;
++        case MAC_R_LOCK_NOW: case MAC_R_WIFI_PAGE: case MAC_R_MORE: return MAC_K_BUTTON;
++        case MAC_R_PAIR0: case MAC_R_PAIR1: case MAC_R_PAIR2: return MAC_K_PAIR;
++        default: return MAC_K_INFO;
++    }
++}
++static inline int mac_row_height(int id)
++{
++    const int k = mac_row_kind(id);
++    return k == MAC_K_SLIDER ? MAC_SLIDER_ROW_H : (k == MAC_K_PAIR ? MAC_PAIR_ROW_H : MAC_LINE_ROW_H);
++}
++/* The empty room under a row (a slider row keeps its room inside the row). */
++static inline int mac_row_gap(int kind) { return kind == MAC_K_SLIDER ? 0 : (kind == MAC_K_PAIR ? 2 : 4); }
++
++/* The rows of a tab, top to bottom, with their offsets. Returns how many. `flags` are MAC_SF_*. */
++static inline int mac_set_rows(int tab, unsigned flags, mac_row_t* out)
++{
++    uint8_t ids[MAC_SET_ROWS_MAX];
++    int n = 0;
++    switch (tab) {
++        case MAC_TAB_GENERAL:
++            ids[n++] = MAC_R_VOLUME;
++            ids[n++] = MAC_R_BRIGHT;
++            ids[n++] = MAC_R_NIGHT;
++            ids[n++] = MAC_R_STATUS_ICONS;
++            if (flags & MAC_SF_LOCK) {
++                ids[n++] = MAC_R_AUTOLOCK;
++                ids[n++] = MAC_R_LOCK_NOW;
++            }
++            ids[n++] = MAC_R_LANGUAGE;
++            ids[n++] = MAC_R_MORE; /* the older More screens: time zone, network test (opened from here since the settings screen was rebuilt) */
++            break;
++        case MAC_TAB_NETWORK:
++            ids[n++] = MAC_R_WIFI_PAGE;
++            ids[n++] = MAC_R_SSID;
++            ids[n++] = MAC_R_SIGNAL;
++            if (flags & MAC_SF_TAILNET) {
++                ids[n++] = MAC_R_TAILNET;
++            }
++            ids[n++] = MAC_R_HUB;
++            break;
++        case MAC_TAB_FACES:
++            ids[n++] = MAC_R_PAIR0; /* the preview of the chosen style is drawn in the pane header, so it stays in view while the tiles are used */
++            ids[n++] = MAC_R_PAIR1;
++            ids[n++] = MAC_R_PAIR2; /* the fifth style, and the picture faces while a picture pack is held */
++            break;
++        default:
++            ids[n++] = MAC_R_I_TAG;
++            ids[n++] = MAC_R_I_IMAGE;
++            ids[n++] = MAC_R_I_SLOT;
++            ids[n++] = MAC_R_I_MEM;
++            ids[n++] = MAC_R_I_HOST;
++            if (flags & MAC_SF_DETAILS) {
++                for (int d = 0; d < 6; d++) {
++                    ids[n++] = (uint8_t)(MAC_R_I_DETAIL0 + d);
++                }
++            } else {
++                ids[n++] = MAC_R_I_HINT;
++            }
++            break;
++    }
++    int y = 0;
++    for (int i = 0; i < n; i++) {
++        out[i].id = ids[i];
++        out[i].kind = (uint8_t)mac_row_kind(ids[i]);
++        out[i].y = (int16_t)y;
++        out[i].h = (int16_t)mac_row_height(ids[i]);
++        y += out[i].h;
++    }
++    return n;
++}
++static inline int mac_rows_total_h(const mac_row_t* r, int n) { return n <= 0 ? 0 : r[n - 1].y + r[n - 1].h; }
++
++/* The scroll position, kept inside the list. */
++static inline int mac_scroll_clamp(int y, int content_h, int view_h)
++{
++    const int max = content_h > view_h ? content_h - view_h : 0;
++    return y < 0 ? 0 : (y > max ? max : y);
++}
++/* The scroll indicator: a bar in a track as tall as the view. Returns 0 (no bar) when everything fits. */
++static inline int mac_scroll_bar(int content_h, int view_h, int scroll_y, int* bar_y, int* bar_h)
++{
++    if (content_h <= view_h || view_h <= 0) {
++        return 0;
++    }
++    int h = view_h * view_h / content_h;
++    if (h < 16) {
++        h = 16;
++    }
++    const int travel = view_h - h, max = content_h - view_h;
++    const int s = mac_scroll_clamp(scroll_y, content_h, view_h);
++    *bar_h = h;
++    *bar_y = max > 0 ? s * travel / max : 0;
++    return 1;
++}
++
++/* The tab state: which tab, and one scroll position each (a tab opens at the top the first time and where it was left after that). */
++typedef struct {
++    uint8_t tab;
++    int16_t scroll[MAC_TAB_COUNT];
++} mac_set_t;
++static inline void mac_set_init(mac_set_t* s) { memset(s, 0, sizeof(*s)); }
++static inline int mac_set_tab(mac_set_t* s, int tab)
++{
++    if (tab < 0 || tab >= MAC_TAB_COUNT || tab == s->tab) {
++        return 0;
++    }
++    s->tab = (uint8_t)tab;
++    return 1;
++}
++
++/* The auto lock choices follow the lock core (LK_AUTO_MINUTES); a tap moves to the next and wraps to Off. */
++#define MAC_AUTO_COUNT 6
++static const uint8_t MAC_AUTO_MIN[MAC_AUTO_COUNT] = {0, 1, 5, 15, 30, 60};
++static inline int mac_auto_next(int minutes)
++{
++    for (int i = 0; i < MAC_AUTO_COUNT; i++) {
++        if (MAC_AUTO_MIN[i] == minutes) {
++            return MAC_AUTO_MIN[(i + 1) % MAC_AUTO_COUNT];
++        }
++    }
++    return 0;
++}
++static inline void mac_auto_text(char* out, size_t n, int minutes, int es)
++{
++    if (minutes <= 0) {
++        snprintf(out, n, "%s", es ? "No" : "Off");
++    } else {
++        snprintf(out, n, "%d min", minutes);
++    }
++}
++
++/* The style tiles of the Faces tab: pair row p holds tiles 2p and 2p + 1 (MPG_SET_STYLES face styles, then Pictures while a pack is held). */
++static inline int mac_pair_tiles(int pair_row, int pictures_held)
++{
++    const int total = MPG_SET_STYLES + (pictures_held ? 1 : 0);
++    const int left = total - pair_row * 2;
++    return left <= 0 ? 0 : (left > 2 ? 2 : left);
++}
++/* The Wi-Fi signal in words from the bars (0 to 4, -1 off). */
++static inline int mac_signal_word(int bars) { return bars < 0 ? 0 : (bars >= 3 ? 3 : (bars == 2 ? 2 : 1)); } /* 0 none, 1 weak, 2 fair, 3 good */
++
++/* ---- words (English and Spanish; the other languages read the English) ---- */
++enum {
++    MAC_S_APPS = 0, MAC_S_GAMES, MAC_S_NO_TIMERS, MAC_S_NO_ALARMS, MAC_S_ADD_ALARM, MAC_S_SAVE, MAC_S_CANCEL, MAC_S_COUNTDOWN, MAC_S_MIN, MAC_S_DONE,
++    MAC_S_TIMER, MAC_S_ALARM, MAC_S_AM, MAC_S_PM, MAC_S_NO_GAMES, MAC_S_LOCK_HINT, MAC_S_FULL, MAC_S_NO_CLOCK, MAC_S_QUIET_ON, MAC_S_MUTED,
++    MAC_S_VOLUME, MAC_S_BRIGHT, MAC_S_NIGHT, MAC_S_STATUS_ICONS, MAC_S_AUTOLOCK, MAC_S_LOCK_NOW, MAC_S_LANGUAGE, MAC_S_ON, MAC_S_OFF,
++    MAC_S_WIFI_PAGE, MAC_S_SSID, MAC_S_SIGNAL, MAC_S_TAILNET, MAC_S_HUB, MAC_S_NOT_CONNECTED,
++    MAC_S_SIG_NONE, MAC_S_SIG_WEAK, MAC_S_SIG_FAIR, MAC_S_SIG_GOOD, MAC_S_TN_UP, MAC_S_TN_JOIN, MAC_S_TN_OFF, MAC_S_TN_NO,
++    MAC_S_FIRMWARE, MAC_S_IMAGE, MAC_S_SLOT, MAC_S_MEMORY, MAC_S_HOST, MAC_S_TEN_TAPS, MAC_S_LOCKED_NOTE, MAC_S_PICTURES, MAC_S_LANG_NAME,
++    MAC_S_IMG_OK, MAC_S_IMG_WAIT, MAC_S_IMG_USB, MAC_S_IMG_UNKNOWN, MAC_S_NO_HOST, MAC_S_MORE,
++    MAC_S_COUNT
++};
++static const char* const MAC_STR[MAC_S_COUNT][2] = {
++    {"Apps", "Apps"},
++    {"Games", "Juegos"},
++    {"No timers running", "Sin temporizadores"},
++    {"No alarms set", "Sin alarmas"},
++    {"Add alarm", "Agregar alarma"},
++    {"Save", "Guardar"},
++    {"Cancel", "Cancelar"},
++    {"Countdown", "Cuenta"},
++    {"min", "min"},
++    {"Done", "Listo"},
++    {"Timer", "Temporizador"},
++    {"Alarm", "Alarma"},
++    {"AM", "AM"},
++    {"PM", "PM"},
++    {"No games on this unit", "No hay juegos en esta unidad"},
++    {"Set a lock code on the settings page first.", "Pon un codigo en la pagina de ajustes primero."},
++    {"8 timers and alarms are set. Cancel one first.", "Hay 8 temporizadores y alarmas. Cancela uno primero."},
++    {"The clock is not set yet. Your home hub sets it.", "El reloj aun no esta puesto. Tu centro del hogar lo pone."},
++    {"Quiet is on. Turn it off to use this.", "Calma activada. Apagala para usar esto."},
++    {"Sound is muted. Unmute to use this.", "El sonido esta en silencio. Activalo para usar esto."},
++    {"Volume", "Volumen"},
++    {"Brightness", "Brillo"},
++    {"Night dim", "Brillo de noche"},
++    {"Status icons", "Iconos de estado"},
++    {"Auto lock", "Bloqueo auto"},
++    {"Lock now", "Bloquear ahora"},
++    {"Language", "Idioma"},
++    {"On", "Si"},
++    {"Off", "No"},
++    {"Wi-Fi settings", "Ajustes de Wi-Fi"},
++    {"Network", "Red"},
++    {"Signal", "Senal"},
++    {"Private network", "Red privada"},
++    {"Home hub", "Centro del hogar"},
++    {"Not connected", "Sin conexion"},
++    {"None", "Ninguna"},
++    {"Weak", "Debil"},
++    {"Fair", "Regular"},
++    {"Good", "Buena"},
++    {"Up", "Activa"},
++    {"Joining", "Uniendo"},
++    {"Off", "Apagada"},
++    {"Not in this build", "No incluida"},
++    {"Firmware", "Firmware"},
++    {"Image", "Imagen"},
++    {"Slot", "Ranura"},
++    {"Memory", "Memoria"},
++    {"Host name", "Nombre"},
++    {"Tap Firmware 10 times for details", "Toca Firmware 10 veces para ver mas"},
++    {"Locked: unlock to use this.", "Bloqueado: desbloquea para usar esto."},
++    {"Pictures", "Fotos"},
++    {"English", "Espanol"},
++    {"Confirmed", "Confirmada"},
++    {"Waiting to confirm", "Por confirmar"},
++    {"Flashed by cable", "Puesta por cable"},
++    {"Not known", "Sin datos"},
++    {"Not set", "Sin definir"},
++    {"More settings", "Mas ajustes"},
++};
++static inline const char* mac_str(int id, int es) { return (id >= 0 && id < MAC_S_COUNT) ? MAC_STR[id][es ? 1 : 0] : ""; }
++static inline const char* mac_row_label(int row, int es)
++{
++    switch (row) {
++        case MAC_R_VOLUME: return mac_str(MAC_S_VOLUME, es);
++        case MAC_R_BRIGHT: return mac_str(MAC_S_BRIGHT, es);
++        case MAC_R_NIGHT: return mac_str(MAC_S_NIGHT, es);
++        case MAC_R_STATUS_ICONS: return mac_str(MAC_S_STATUS_ICONS, es);
++        case MAC_R_AUTOLOCK: return mac_str(MAC_S_AUTOLOCK, es);
++        case MAC_R_LOCK_NOW: return mac_str(MAC_S_LOCK_NOW, es);
++        case MAC_R_LANGUAGE: return mac_str(MAC_S_LANGUAGE, es);
++        case MAC_R_MORE: return mac_str(MAC_S_MORE, es);
++        case MAC_R_WIFI_PAGE: return mac_str(MAC_S_WIFI_PAGE, es);
++        case MAC_R_SSID: return mac_str(MAC_S_SSID, es);
++        case MAC_R_SIGNAL: return mac_str(MAC_S_SIGNAL, es);
++        case MAC_R_TAILNET: return mac_str(MAC_S_TAILNET, es);
++        case MAC_R_HUB: return mac_str(MAC_S_HUB, es);
++        case MAC_R_I_TAG: return mac_str(MAC_S_FIRMWARE, es);
++        case MAC_R_I_IMAGE: return mac_str(MAC_S_IMAGE, es);
++        case MAC_R_I_SLOT: return mac_str(MAC_S_SLOT, es);
++        case MAC_R_I_MEM: return mac_str(MAC_S_MEMORY, es);
++        case MAC_R_I_HOST: return mac_str(MAC_S_HOST, es);
++        default: return "";
++    }
++}
++
++#endif /* MAIPAI_APPS_CORE_H */
+diff --git a/firmware/main/hal/maipai_screens_core.h b/firmware/main/hal/maipai_screens_core.h
+--- a/firmware/main/hal/maipai_screens_core.h
++++ b/firmware/main/hal/maipai_screens_core.h
+@@ -13,7 +13,7 @@
+ 
+ #include <stdint.h>
+ 
+-enum { MSCR_NONE = -1, MSCR_SETTINGS = 0, MSCR_QUICK, MSCR_WIFI, MSCR_MORE, MSCR_LOCK, MSCR_COUNT };
++enum { MSCR_NONE = -1, MSCR_SETTINGS = 0, MSCR_QUICK, MSCR_WIFI, MSCR_MORE, MSCR_LOCK, MSCR_APPS, MSCR_COUNT };  /* MSCR_APPS (patch UI16): the Apps wall, the games wall, Timers and Alarms */
+ 
+ typedef struct {
+     int8_t cur;           /* the one screen that is up, or MSCR_NONE */
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -71,8 +71,8 @@ enum {
+ static const char* const MPG_SHEET_NAMES[MPG_S_COUNT] = {"volume", "brightness", "mute", "quiet", "light", "timers", "games",
+                                                           "wifi", "battery", "tailnet", "address"};
+ static const char* const MPG_SHEET_TITLE[2][MPG_S_COUNT] = {
+-    {"Volume", "Bright", "Mute", "Quiet", "Light", "Timers", "Games", "Wi-Fi", "Battery", "Private net", "Settings"},
+-    {"Volumen", "Brillo", "Silencio", "Calma", "Luz", "Tiempos", "Juegos", "Wi-Fi", "Bateria", "Red privada", "Ajustes"},
++    {"Volume", "Bright", "Mute", "Quiet", "Light", "Apps", "Games", "Wi-Fi", "Battery", "Private net", "Settings"},
++    {"Volumen", "Brillo", "Silencio", "Calma", "Luz", "Apps", "Juegos", "Wi-Fi", "Bateria", "Red privada", "Ajustes"},
+ };
+ #define MPG_SHEET_MAX_ITEMS 11
+ #define MPG_SHEET_MAX_SLIDERS 2
+@@ -117,8 +117,14 @@ static inline int mpg_action_by_name(const char* name)
+     }
+     return -1;
+ }
++/* Patch UI16: the sheet item saved as "timers" is the Apps tile now (it opens the wall of apps, Timers among them). The key keeps its name so a saved
++ * choice and a host that sends it keep working; "apps" is read as the same item. */
++#define MPG_SHEET_ALIAS_APPS "apps"
+ static inline int mpg_sheet_by_name(const char* name)
+ {
++    if (name != NULL && strcmp(name, MPG_SHEET_ALIAS_APPS) == 0) {
++        return MPG_S_TIMERS;
++    }
+     for (int i = 0; name != NULL && i < MPG_S_COUNT; i++) {
+         if (strcmp(name, MPG_SHEET_NAMES[i]) == 0) {
+             return i;
+@@ -590,11 +596,11 @@ static inline int mpg_sheet_icon_shapes(int item, mpg_shape_t* s)
+             SH(MPG_SH_CUTC, 8, 0, 16, 16);
+             break;
+         case MPG_S_LIGHT: return mpg_icon_shapes(MPG_I_LAMP, s);
+-        case MPG_S_TIMERS: /* a clock face with two hands */
+-            SH(MPG_SH_RING, 1, 2, 21, 21);
+-            SH(MPG_SH_ROUND, 11, 6, 2, 8);
+-            SH(MPG_SH_ROUND, 11, 12, 7, 2);
+-            SH(MPG_SH_ROUND, 9, 0, 6, 2);
++        case MPG_S_TIMERS: /* the Apps tile (patch UI16): four small squares */
++            SH(MPG_SH_ROUND, 2, 2, 9, 9);
++            SH(MPG_SH_ROUND, 13, 2, 9, 9);
++            SH(MPG_SH_ROUND, 2, 13, 9, 9);
++            SH(MPG_SH_ROUND, 13, 13, 9, 9);
+             break;
+         case MPG_S_GAMES: /* a die showing five: a rounded square with five holes (the game pad was not liked, patch UI09) */
+             SH(MPG_SH_ROUND, 2, 2, 20, 20);

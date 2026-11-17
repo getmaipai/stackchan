@@ -30,6 +30,7 @@ PROBES: dict[str, tuple[str, dict[str, Any]]] = {
     "prefs": ("self.prefs.get", {}),
     "look": ("self.look.status", {}),  # who turns the head toward faces: this unit's seeker and its owner lease
     "pages": ("self.pages.status", {}),  # the swipe pages and the control sheet (firmware patches P10 to P13)
+    "lock": ("self.lock.status", {}),  # the passcode lock (unit_lock.py); read-only, never returns the code or its hash
     "remote": ("self.remote.session", {"active": False, "label": ""}),  # the remote cue: glyph, banner, message bubble
 }
 

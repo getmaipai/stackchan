@@ -197,7 +197,7 @@ def test_the_new_packs_are_what_the_compiler_makes_and_use_the_new_features() ->
     tones = {a[1] for r in whack["rules"] for a in r.get("do", []) if a[0] == "tone"}
     assert {"bonk", "miss", "escape"} <= tones  # the funny sounds: a hit, a miss, an escaped mole
     bop = json.loads((GAMES_DIR / "bopit.json").read_text())
-    assert bop["tap_on_release"] is True and bop["states"]["call"]["timer"] == {"ctr": "limit"}
+    assert bop["tap_on_release"] is True and bop["states"]["show"]["timer"] == {"ctr": "limit"}  # patch GM04: Do It is a reaction game
     events = {r["on"] for r in bop["rules"]}
     assert {
         "tap",
@@ -210,7 +210,7 @@ def test_the_new_packs_are_what_the_compiler_makes_and_use_the_new_features() ->
         "tilt_f",
         "tilt_b",
     } <= events
-    assert len(bop["regions"]) == 7  # six big tiles and the call-out box (UI14)
+    assert len(bop["regions"]) == 1  # patch GM04: one big button, the whole play area (UI14 had six tiles)
     assert (
         not (GAMES_DIR / "simonsays.json").exists() and not (GAMES_DIR / "simonsays.mpk").exists()
     )
@@ -423,7 +423,7 @@ def test_the_settings_preview_dims_the_pages_by_the_same_percent_as_the_unit(
 def test_every_shake_hint_says_gently_in_both_languages_and_never_hard() -> None:
     """Owner rule (2026-11-17): nobody should shake the unit hard. Hints, tiles and call-outs say gently."""
     for game, needles in (
-        ("bopit", ("Gentle shake", "Gently shake!", "Agita suave", "Agita suavemente!")),
+        ("bopit", ("Gentle shake!", "Agita suave!")),
         ("eightball", ("gently shake", "agita suavemente")),
         ("dice", ("gently shake", "agita suavemente")),
     ):
@@ -476,14 +476,12 @@ def test_the_ring_light_cue_starts_with_its_sound_and_goes_dark_by_itself() -> N
 
 def test_the_motion_code_finds_its_shapes_where_the_packs_put_them() -> None:
     """maipai_games_draw.h animates shapes by their place in the pack (UI15); the packs must keep those places."""
+    # patch GM04: Do It and Rock Paper Scissors draw their moving parts as icon shapes (found by type and flag, not by place)
     rps = json.loads((GAMES_DIR / "rps.json").read_text())["shapes"]
-    assert [s["type"] for s in rps[:4]] == ["fill"] * 4
-    assert all(s["type"] == "box" and s.get("when", ["", 0])[0] == "bot" for s in rps[7:10])
-    assert all(s["type"] in ("box", "circle", "line", "ring") for s in rps[13:30])
-    assert rps[30]["type"] == "text"  # the labels follow the hands
+    assert sum(s["type"] == "icon" and "pop" in s.get("flags", []) for s in rps) == 2
+    assert sum(s["type"] == "icon" and "bump" in s.get("flags", []) for s in rps) == 1
     bop = json.loads((GAMES_DIR / "bopit.json").read_text())["shapes"]
-    assert [s["type"] for s in bop[:3]] == ["fill"] * 3
-    assert all(s["type"] == "box" and s.get("when", ["", 0])[0] == "act" for s in bop[9:15])
+    assert sum(s["type"] == "icon" and "pop" in s.get("flags", []) for s in bop) == 1
     ball = json.loads((GAMES_DIR / "eightball.json").read_text())["shapes"]
     assert (
         ball[0]["type"] == "fill"
@@ -501,14 +499,13 @@ def test_celebration_is_wired_through_the_overlay_engine_and_the_new_best() -> N
     assert (
         "celebrate(mg_celebration_for_rank(rank));" in patch and "celebrate(r.celebrate);" in patch
     )
-    for game, count in (("tictactoe", 3), ("rps", 1)):
+    for game, count, states in (("tictactoe", 3, ("win",)), ("rps", 2, ("win", "mwin"))):
         rules = json.loads((GAMES_DIR / f"{game}.json").read_text())["rules"]
         wins = [r for r in rules if any(a[0] == "celebrate" for a in r.get("do", []))]
-        assert len(wins) == count and all(r["state"] in ("win",) for r in wins), game
+        assert len(wins) == count and all(r["state"] in states for r in wins), game
     for game in (
         "whack",
         "memory",
-        "reaction",
         "bopit",
         "eightball",
         "dice",

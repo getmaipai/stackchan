@@ -1,0 +1,126 @@
+# Intent: Removes the Reaction Time game completely (owner request 2026-11-17: Do It takes its place with the Reaction Time interface). The pack is no longer embedded, the player's table has seven games (memory, whack, tictactoe, bopit, rps, eightball, dice), and the start tool and its sentences no longer name it. A saved reaction score stays in the unit's flash under its old key and is never read again (it is dropped quietly). The pages and the More screen read the table, so the game is gone from the Games page and the More list.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games.cc (ours, G01, UI13, UI15, LK03, GM02)
+# Check after a flash: self.game.list names seven games and no reaction game; self.game.start with the name reaction answers that the game is not on this unit.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -53,8 +53,6 @@ extern volatile int64_t g_mp_pcm_call_us;  // audio_service.cc (bench only): set
+ #endif
+ extern const uint8_t _binary_memory_mpk_start[];
+ extern const uint8_t _binary_memory_mpk_end[];
+-extern const uint8_t _binary_reaction_mpk_start[];
+-extern const uint8_t _binary_reaction_mpk_end[];
+ extern const uint8_t _binary_whack_mpk_start[];
+ extern const uint8_t _binary_whack_mpk_end[];
+ extern const uint8_t _binary_tictactoe_mpk_start[];
+@@ -71,7 +69,7 @@ extern const uint8_t _binary_dice_mpk_end[];
+ 
+ namespace {
+ 
+-constexpr int kBuiltIns   = 8;  // patch UI15: memory, reaction, whack, tictactoe, bopit, rps, eightball, dice
++constexpr int kBuiltIns   = 7;  // patch GM06: memory, whack, tictactoe, bopit (Do It), rps, eightball, dice
+ constexpr int kMaxGames   = kBuiltIns + 1;  // the built-ins, plus one pack loaded from outside (bench builds)
+ constexpr uint32_t kTickMs = 30;
+ 
+@@ -81,7 +79,6 @@ struct Source {
+ };
+ const Source kBuilt[kBuiltIns] = {
+     {_binary_memory_mpk_start, _binary_memory_mpk_end},
+-    {_binary_reaction_mpk_start, _binary_reaction_mpk_end},
+     {_binary_whack_mpk_start, _binary_whack_mpk_end},
+     {_binary_tictactoe_mpk_start, _binary_tictactoe_mpk_end},
+     {_binary_bopit_mpk_start, _binary_bopit_mpk_end},
+@@ -840,8 +837,8 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     }
+     const int slot = slot_by_name(name);
+     if (slot < 0) {
+-        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, rps, eightball or dice.",
+-                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit, rps, eightball o dice.");
++        return say(es, "That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball or dice.",
++                   "Ese juego no esta en esta unidad. Pide memory, whack, tictactoe, bopit, rps, eightball o dice.");
+     }
+     if (maipai_quiet()) {
+         return say(es, "The unit is in full quiet, so no game starts. Turn full quiet off, then ask again.",
+@@ -854,8 +851,8 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     const uint8_t* data;
+     size_t len;
+     if (!slot_bytes(slot, &data, &len)) {
+-        return say(es, "That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, rps, eightball or dice.",
+-                   "Ese juego no esta en esta unidad. Pide memory, reaction, whack, tictactoe, bopit, rps, eightball o dice.");
++        return say(es, "That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball or dice.",
++                   "Ese juego no esta en esta unidad. Pide memory, whack, tictactoe, bopit, rps, eightball o dice.");
+     }
+     Game* g = static_cast<Game*>(heap_caps_calloc(1, sizeof(Game), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+     if (g == nullptr) {
+@@ -1218,8 +1215,9 @@ void maipai_games_register_tools()
+                     return out + "]}";
+                 });
+     mcp.AddTool("self.game.start",
+-                "Start a game on the unit's screen: memory (colour memory), reaction (reaction time), whack (whack-a-mole), tictactoe, "
+-                "bopit (press the tile or do the move that is called: tap, swipe, gentle shake, pet or tilt), rps (rock paper scissors), "
++                "Start a game on the unit's screen: memory (colour memory), whack (whack-a-mole), tictactoe, "
++                "bopit (Do It: do the move that is shown, or press the big button: tap, swipe, gentle shake, pet or tilt; it gets faster each round), "
++                "rps (rock paper scissors, best of three), "
+                 "eightball (magic 8 ball: gently shake the unit or tap the ball) or dice (dice and coin: tap or gently shake). "
+                 "It never starts in full quiet or during an update. A person stops it with a swipe down from the bottom edge "
+                 "or by saying stop. Answers {ok} or {ok:false,error}.",
+@@ -1259,7 +1257,7 @@ void maipai_games_register_tools()
+                     const int slot         = slot_by_name(name.c_str());
+                     mg_pack_t p;
+                     if (slot < 0 || !slot_pack(slot, &p)) {
+-                        return error_json("That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit, rps, eightball or dice.");
++                        return error_json("That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball or dice.");
+                     }
+                     return std::string("{\"ok\":true,\"game\":\"") + p.id + "\",\"lower_is_better\":" +
+                            ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(slot) + "}";
+diff --git a/firmware/main/hal/maipai_games.h b/firmware/main/hal/maipai_games.h
+--- a/firmware/main/hal/maipai_games.h
++++ b/firmware/main/hal/maipai_games.h
+@@ -17,7 +17,7 @@
+ void maipai_games_register_tools();
+ // True from the moment a game starts until it ends. Cheap and safe from any task.
+ bool maipai_games_active();
+-// Starts a game by id ("memory", "reaction", "whack", "tictactoe", "bopit", "simonsays", "rps"). Returns "" or a plain sentence saying what is wrong and what to do.
++// Starts a game by id ("memory", "whack", "tictactoe", "bopit" (Do It), "rps", "eightball", "dice"). Returns "" or a plain sentence saying what is wrong and what to do.
+ // The caller holds the LVGL lock. `source` is "touch", "voice" or "host" (reported in the game_started event).
+ const char* maipai_games_start_locked(const char* id, const char* source);
+ // Ends the running game from the LVGL task (the stop swipe); the caller holds the LVGL lock. True if one was running.
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -604,13 +604,13 @@ endif()
+ # Games (patch G01): the three game packs ride in the app image as flash data (read in place, no RAM). The packs are data
+ # files of the MaiPai repo, made by scripts/game-pack.py; `source scripts/fw-env.sh` points MAIPAI_GAMES_DIR at them.
+ if(CONFIG_MAIPAI_GAMES)
+-    foreach(f memory.mpk reaction.mpk whack.mpk tictactoe.mpk bopit.mpk rps.mpk eightball.mpk dice.mpk)
++    foreach(f memory.mpk whack.mpk tictactoe.mpk bopit.mpk rps.mpk eightball.mpk dice.mpk)
+         if(NOT DEFINED ENV{MAIPAI_GAMES_DIR} OR NOT EXISTS "$ENV{MAIPAI_GAMES_DIR}/${f}")
+             message(FATAL_ERROR "CONFIG_MAIPAI_GAMES is on but the game pack ${f} was not found. Run `source scripts/fw-env.sh` from the repo (it sets MAIPAI_GAMES_DIR), or set CONFIG_MAIPAI_GAMES=n.")
+         endif()
+         target_add_binary_data(${COMPONENT_LIB} "$ENV{MAIPAI_GAMES_DIR}/${f}" BINARY)
+     endforeach()
+-    message(STATUS "Games: 8 packs from $ENV{MAIPAI_GAMES_DIR}")
++    message(STATUS "Games: 7 packs from $ENV{MAIPAI_GAMES_DIR}")
+ else()
+     message(STATUS "Games: off")
+ endif()
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -267,11 +267,11 @@ config MAIPAI_DANCE_EXTRAS
+         The table is flash data; a dance builds about 1 KB of heap while it plays. Off here: the four built-in dances.
+ 
+ config MAIPAI_GAMES
+-    bool "Games: a small data-pack player with colour memory, reaction time and whack-a-mole"
++    bool "Games: a small data-pack player with seven games (color memory, whack-a-mole, tic-tac-toe, Do It, rock paper scissors, magic 8 ball, dice and coin)"
+     default y
+     help
+         One player runs games that are data (a table of states, touch areas, drawn shapes, texts and rules), never code.
+-        Three games are in the app image as flash data (about 4 KB). Nothing exists while no game runs: no task, no timer,
++        The games are in the app image as flash data (about 25 KB). Nothing exists while no game runs: no task, no timer,
+         no objects. A game starts from the touch screen (quick settings, More, Games) or by the tools self.game.start,
+         list, stop and scores; a swipe down from the bottom edge or the stop word ends it. Full quiet stops it and
+         refuses a start; a mute plays it with no sound. Scores (top five per game) are saved once, when a game ends.

@@ -4,7 +4,11 @@
   "score",
   "me",
   "bot",
-  "d"
+  "d",
+  "mw",
+  "bw",
+  "z",
+  "rd"
  ],
  "score": "score",
  "seed": 0,
@@ -18,107 +22,115 @@
     2200
    ]
   },
-  "choose": {},
-  "beat1": {
+  "c1": {
    "timer": [
-    380,
-    380
+    560,
+    560
    ]
   },
-  "beat2": {
+  "c2": {
    "timer": [
-    380,
-    380
+    560,
+    560
    ]
   },
-  "beat3": {
+  "c3": {
    "timer": [
-    380,
-    380
+    560,
+    560
    ]
   },
-  "beat4": {
+  "shoot": {
    "timer": [
-    380,
-    380
+    1200,
+    1200
    ]
   },
-  "reveal": {},
-  "win": {
+  "early": {
    "timer": [
-    1800,
-    1800
+    1300,
+    1300
    ]
   },
-  "tie": {
+  "reveal": {
    "timer": [
-    1800,
-    1800
+    800,
+    800
    ]
   },
-  "lose": {
-   "timer": [
-    2200,
-    2200
-   ]
-  },
-  "over": {
-   "timer": [
-    3200,
-    3200
-   ]
-  }
+  "won": {},
+  "lost": {},
+  "win": {},
+  "lose": {},
+  "tie": {},
+  "slow": {},
+  "mwin": {},
+  "mlose": {}
  },
  "regions": [
   {
    "name": "rock",
    "x": 20,
-   "y": 54,
-   "w": 94,
-   "h": 130
+   "y": 78,
+   "w": 93,
+   "h": 94
   },
   {
    "name": "paper",
-   "x": 114,
-   "y": 54,
-   "w": 94,
-   "h": 130
+   "x": 113,
+   "y": 78,
+   "w": 93,
+   "h": 94
   },
   {
    "name": "scissors",
-   "x": 208,
-   "y": 54,
-   "w": 92,
-   "h": 130
+   "x": 206,
+   "y": 78,
+   "w": 94,
+   "h": 94
+  },
+  {
+   "name": "again",
+   "x": 20,
+   "y": 176,
+   "w": 138,
+   "h": 48
+  },
+  {
+   "name": "quit",
+   "x": 162,
+   "y": 176,
+   "w": 138,
+   "h": 48
   }
  ],
  "shapes": [
   {
    "type": "fill",
-   "color": "#13202b",
+   "color": "#13202b"
+  },
+  {
+   "type": "fill",
+   "color": "#173f2b",
    "states": [
-    "intro",
-    "choose",
-    "reveal",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "over"
+    "shoot"
    ]
   },
   {
    "type": "fill",
    "color": "#0f3d1e",
    "states": [
-    "win"
+    "win",
+    "mwin"
    ]
   },
   {
    "type": "fill",
    "color": "#4a1010",
    "states": [
-    "lose"
+    "lose",
+    "mlose",
+    "slow"
    ]
   },
   {
@@ -129,769 +141,180 @@
    ]
   },
   {
-   "type": "box",
-   "x": 22,
-   "y": 56,
-   "w": 90,
-   "h": 126,
-   "radius": 12,
-   "color": "#243b52",
+   "type": "fill",
+   "color": "#4a3a10",
    "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 116,
-   "y": 56,
-   "w": 90,
-   "h": 126,
-   "radius": 12,
-   "color": "#243b52",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 210,
-   "y": 56,
-   "w": 88,
-   "h": 126,
-   "radius": 12,
-   "color": "#243b52",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
+    "early"
    ]
   },
   {
    "type": "box",
    "x": 22,
-   "y": 56,
+   "y": 80,
+   "w": 89,
+   "h": 90,
+   "radius": 12,
+   "color": "#2f6fb5",
+   "states": [
+    "c1",
+    "c2",
+    "c3",
+    "shoot"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 115,
+   "y": 80,
+   "w": 89,
+   "h": 90,
+   "radius": 12,
+   "color": "#2f6fb5",
+   "states": [
+    "c1",
+    "c2",
+    "c3",
+    "shoot"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 208,
+   "y": 80,
    "w": 90,
-   "h": 126,
+   "h": 90,
    "radius": 12,
-   "color": "#ff9d3c",
+   "color": "#2f6fb5",
    "states": [
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "bot",
-    0
+    "c1",
+    "c2",
+    "c3",
+    "shoot"
    ]
   },
   {
-   "type": "box",
-   "x": 116,
-   "y": 56,
-   "w": 90,
-   "h": 126,
-   "radius": 12,
-   "color": "#ff9d3c",
+   "type": "icon",
+   "icon": "rock",
+   "x": 66,
+   "y": 112,
+   "size": 56,
+   "color": "#ffffff",
    "states": [
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "bot",
-    1
+    "intro",
+    "c1",
+    "c2",
+    "c3",
+    "shoot"
    ]
   },
   {
-   "type": "box",
-   "x": 210,
-   "y": 56,
-   "w": 88,
-   "h": 126,
-   "radius": 12,
-   "color": "#ff9d3c",
+   "type": "icon",
+   "icon": "paper",
+   "x": 160,
+   "y": 112,
+   "size": 56,
+   "color": "#ffffff",
    "states": [
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "bot",
-    2
+    "intro",
+    "c1",
+    "c2",
+    "c3",
+    "shoot"
    ]
   },
   {
-   "type": "box",
-   "x": 27,
-   "y": 61,
-   "w": 80,
-   "h": 116,
-   "radius": 9,
-   "color": "#3a78c2",
+   "type": "icon",
+   "icon": "scissors",
+   "x": 253,
+   "y": 112,
+   "size": 56,
+   "color": "#ffffff",
    "states": [
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "me",
-    0
-   ]
-  },
-  {
-   "type": "box",
-   "x": 121,
-   "y": 61,
-   "w": 80,
-   "h": 116,
-   "radius": 9,
-   "color": "#3a78c2",
-   "states": [
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "me",
-    1
-   ]
-  },
-  {
-   "type": "box",
-   "x": 215,
-   "y": 61,
-   "w": 78,
-   "h": 116,
-   "radius": 9,
-   "color": "#3a78c2",
-   "states": [
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "me",
-    2
-   ]
-  },
-  {
-   "type": "box",
-   "x": 39,
-   "y": 96,
-   "w": 56,
-   "h": 44,
-   "radius": 14,
-   "color": "#f0c8a0",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 46,
-   "y": 94,
-   "r": 10,
-   "color": "#f0c8a0",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 60,
-   "y": 94,
-   "r": 10,
-   "color": "#f0c8a0",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 74,
-   "y": 94,
-   "r": 10,
-   "color": "#f0c8a0",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 88,
-   "y": 94,
-   "r": 10,
-   "color": "#f0c8a0",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 39,
-   "y": 116,
-   "r": 11,
-   "color": "#d9a878",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 137,
-   "y": 106,
-   "w": 48,
-   "h": 38,
-   "radius": 10,
-   "color": "#f0c8a0",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 137,
-   "y": 78,
-   "w": 11,
-   "h": 34,
-   "radius": 5,
-   "color": "#f0c8a0",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 149,
-   "y": 70,
-   "w": 11,
-   "h": 42,
-   "radius": 5,
-   "color": "#f0c8a0",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 161,
-   "y": 74,
-   "w": 11,
-   "h": 38,
-   "radius": 5,
-   "color": "#f0c8a0",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 173,
-   "y": 82,
-   "w": 11,
-   "h": 30,
-   "radius": 5,
-   "color": "#f0c8a0",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 121,
-   "y": 118,
-   "w": 24,
-   "h": 11,
-   "radius": 5,
-   "color": "#d9a878",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "line",
-   "x": 236,
-   "y": 130,
-   "x2": 270,
-   "y2": 78,
-   "thickness": 8,
-   "color": "#dfe3e8",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "line",
-   "x": 272,
-   "y": 130,
-   "x2": 238,
-   "y2": 78,
-   "thickness": 8,
-   "color": "#c0c6cd",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "ring",
-   "x": 234,
-   "y": 140,
-   "r": 12,
-   "thickness": 5,
-   "color": "#ff5a4d",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "ring",
-   "x": 274,
-   "y": 140,
-   "r": 12,
-   "thickness": 5,
-   "color": "#ff5a4d",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 254,
-   "y": 106,
-   "r": 5,
-   "color": "#7a8896",
-   "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
+    "intro",
+    "c1",
+    "c2",
+    "c3",
+    "shoot"
    ]
   },
   {
    "type": "text",
    "text": "rock",
-   "x": 67,
-   "y": 168,
+   "x": 66,
+   "y": 156,
    "w": 88,
-   "size": "large",
+   "size": "medium",
    "color": "#ffffff",
    "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
+    "c1",
+    "c2",
+    "c3",
+    "shoot"
    ]
   },
   {
    "type": "text",
    "text": "paper",
-   "x": 161,
-   "y": 168,
+   "x": 160,
+   "y": 156,
    "w": 88,
-   "size": "large",
+   "size": "medium",
    "color": "#ffffff",
    "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
+    "c1",
+    "c2",
+    "c3",
+    "shoot"
    ]
   },
   {
    "type": "text",
    "text": "scissors",
-   "x": 254,
-   "y": 168,
-   "w": 86,
-   "size": "large",
+   "x": 253,
+   "y": 156,
+   "w": 88,
+   "size": "medium",
    "color": "#ffffff",
    "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
+    "c1",
+    "c2",
+    "c3",
+    "shoot"
    ]
   },
   {
-   "type": "text",
-   "text": "you",
-   "x": 45,
-   "y": 68,
-   "w": 44,
-   "size": "small",
+   "type": "fill",
+   "color": "#13202b",
+   "alpha": 150,
+   "states": [
+    "c1",
+    "c2",
+    "c3"
+   ]
+  },
+  {
+   "type": "icon",
+   "icon": "rock",
+   "x": 160,
+   "y": 199,
+   "size": 44,
    "color": "#ffffff",
-   "states": [
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
+   "flags": [
+    "mirror",
+    "bump"
    ],
-   "when": [
-    "me",
-    0
-   ]
-  },
-  {
-   "type": "text",
-   "text": "me",
-   "x": 89,
-   "y": 68,
-   "w": 44,
-   "size": "small",
-   "color": "#ffd9a8",
    "states": [
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "bot",
-    0
-   ]
-  },
-  {
-   "type": "text",
-   "text": "you",
-   "x": 139,
-   "y": 68,
-   "w": 44,
-   "size": "small",
-   "color": "#ffffff",
-   "states": [
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "me",
-    1
-   ]
-  },
-  {
-   "type": "text",
-   "text": "me",
-   "x": 183,
-   "y": 68,
-   "w": 44,
-   "size": "small",
-   "color": "#ffd9a8",
-   "states": [
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "bot",
-    1
-   ]
-  },
-  {
-   "type": "text",
-   "text": "you",
-   "x": 232,
-   "y": 68,
-   "w": 44,
-   "size": "small",
-   "color": "#ffffff",
-   "states": [
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "me",
-    2
-   ]
-  },
-  {
-   "type": "text",
-   "text": "me",
-   "x": 276,
-   "y": 68,
-   "w": 44,
-   "size": "small",
-   "color": "#ffd9a8",
-   "states": [
-    "win",
-    "tie",
-    "lose"
-   ],
-   "when": [
-    "bot",
-    2
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 38,
-   "y": 40,
-   "r": 12,
-   "color": "#ffd34d",
-   "states": [
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 34,
-   "y": 37,
-   "r": 2,
-   "color": "#202020",
-   "states": [
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "circle",
-   "x": 42,
-   "y": 37,
-   "r": 2,
-   "color": "#202020",
-   "states": [
-    "win",
-    "tie",
-    "lose"
-   ]
-  },
-  {
-   "type": "line",
-   "x": 33,
-   "y": 43,
-   "x2": 38,
-   "y2": 47,
-   "thickness": 2,
-   "color": "#202020",
-   "states": [
-    "lose"
-   ]
-  },
-  {
-   "type": "line",
-   "x": 38,
-   "y": 47,
-   "x2": 43,
-   "y2": 43,
-   "thickness": 2,
-   "color": "#202020",
-   "states": [
-    "lose"
-   ]
-  },
-  {
-   "type": "line",
-   "x": 33,
-   "y": 47,
-   "x2": 38,
-   "y2": 43,
-   "thickness": 2,
-   "color": "#202020",
-   "states": [
-    "win"
-   ]
-  },
-  {
-   "type": "line",
-   "x": 38,
-   "y": 43,
-   "x2": 43,
-   "y2": 47,
-   "thickness": 2,
-   "color": "#202020",
-   "states": [
-    "win"
-   ]
-  },
-  {
-   "type": "line",
-   "x": 33,
-   "y": 45,
-   "x2": 43,
-   "y2": 45,
-   "thickness": 2,
-   "color": "#202020",
-   "states": [
-    "tie"
+    "c1",
+    "c2",
+    "c3",
+    "shoot"
    ]
   },
   {
    "type": "text",
    "text": "title",
    "x": 160,
-   "y": 70,
+   "y": 56,
    "w": 280,
    "size": "large",
    "color": "#ffffff",
@@ -903,7 +326,7 @@
    "type": "text",
    "text": "hint",
    "x": 160,
-   "y": 120,
+   "y": 176,
    "w": 270,
    "size": "medium",
    "color": "#c8c8c8",
@@ -913,90 +336,106 @@
   },
   {
    "type": "text",
-   "text": "pickone",
-   "x": 150,
-   "y": 40,
-   "w": 200,
-   "size": "medium",
-   "color": "#ffe045",
-   "states": [
-    "choose"
-   ]
-  },
-  {
-   "type": "text",
-   "text": "wins",
-   "x": 268,
-   "y": 40,
-   "w": 80,
+   "text": "line1",
+   "x": 160,
+   "y": 46,
+   "w": 290,
    "size": "small",
-   "color": "#ffffff",
+   "color": "#c8d4e0",
    "states": [
-    "choose",
-    "beat1",
-    "beat2",
-    "beat3",
-    "beat4",
+    "c1",
+    "c2",
+    "c3",
+    "shoot",
+    "reveal",
     "win",
+    "lose",
     "tie",
-    "lose"
+    "slow",
+    "mwin",
+    "mlose",
+    "early"
    ]
   },
   {
    "type": "text",
    "text": "b1",
    "x": 160,
-   "y": 40,
-   "w": 200,
-   "size": "medium",
+   "y": 66,
+   "w": 290,
+   "size": "large",
    "color": "#ffe045",
    "states": [
-    "beat1"
+    "c1"
    ]
   },
   {
    "type": "text",
    "text": "b2",
    "x": 160,
-   "y": 40,
-   "w": 200,
-   "size": "medium",
+   "y": 66,
+   "w": 290,
+   "size": "large",
    "color": "#ffe045",
    "states": [
-    "beat2"
+    "c2"
    ]
   },
   {
    "type": "text",
    "text": "b3",
    "x": 160,
-   "y": 40,
-   "w": 200,
-   "size": "medium",
+   "y": 66,
+   "w": 290,
+   "size": "large",
    "color": "#ffe045",
    "states": [
-    "beat3"
+    "c3"
    ]
   },
   {
    "type": "text",
-   "text": "b4",
+   "text": "shoot",
    "x": 160,
-   "y": 40,
-   "w": 200,
-   "size": "large",
+   "y": 66,
+   "w": 290,
+   "size": "xlarge",
    "color": "#ff9d3c",
    "states": [
-    "beat4"
+    "shoot"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "early",
+   "x": 160,
+   "y": 66,
+   "w": 290,
+   "size": "large",
+   "color": "#ffb36b",
+   "states": [
+    "early"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "slow",
+   "x": 160,
+   "y": 66,
+   "w": 290,
+   "size": "large",
+   "color": "#ff8a80",
+   "states": [
+    "slow"
    ]
   },
   {
    "type": "text",
    "text": "youwin",
    "x": 160,
-   "y": 40,
-   "w": 190,
-   "size": "medium",
+   "y": 66,
+   "w": 290,
+   "size": "large",
    "color": "#7CFC8A",
    "states": [
     "win"
@@ -1006,9 +445,9 @@
    "type": "text",
    "text": "iwin",
    "x": 160,
-   "y": 40,
-   "w": 190,
-   "size": "medium",
+   "y": 66,
+   "w": 290,
+   "size": "large",
    "color": "#ff8a80",
    "states": [
     "lose"
@@ -1018,9 +457,9 @@
    "type": "text",
    "text": "tie",
    "x": 160,
-   "y": 40,
-   "w": 190,
-   "size": "medium",
+   "y": 66,
+   "w": 290,
+   "size": "large",
    "color": "#ffffff",
    "states": [
     "tie"
@@ -1028,26 +467,206 @@
   },
   {
    "type": "text",
-   "text": "over",
+   "text": "mwin",
    "x": 160,
-   "y": 70,
-   "w": 280,
+   "y": 66,
+   "w": 290,
    "size": "large",
-   "color": "#ffffff",
+   "color": "#7CFC8A",
    "states": [
-    "over"
+    "mwin"
    ]
   },
   {
    "type": "text",
-   "text": "score_big",
+   "text": "mlose",
    "x": 160,
-   "y": 120,
-   "w": 280,
+   "y": 66,
+   "w": 290,
    "size": "large",
-   "color": "#ffe045",
+   "color": "#ff8a80",
    "states": [
-    "over"
+    "mlose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "waitfor",
+   "x": 160,
+   "y": 124,
+   "w": 270,
+   "size": "medium",
+   "color": "#ffe9c2",
+   "states": [
+    "early"
+   ]
+  },
+  {
+   "type": "icon",
+   "value": "me",
+   "first": "rock",
+   "x": 90,
+   "y": 134,
+   "size": 84,
+   "color": "#ffffff",
+   "flags": [
+    "pop"
+   ],
+   "states": [
+    "reveal",
+    "win",
+    "lose",
+    "tie",
+    "mwin",
+    "mlose"
+   ]
+  },
+  {
+   "type": "icon",
+   "value": "bot",
+   "first": "rock",
+   "x": 230,
+   "y": 134,
+   "size": 84,
+   "color": "#ffffff",
+   "flags": [
+    "pop",
+    "mirror"
+   ],
+   "states": [
+    "reveal",
+    "win",
+    "lose",
+    "tie",
+    "mwin",
+    "mlose",
+    "slow"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "you",
+   "x": 90,
+   "y": 82,
+   "w": 120,
+   "size": "small",
+   "color": "#ffffff",
+   "states": [
+    "reveal",
+    "win",
+    "lose",
+    "tie",
+    "mwin",
+    "mlose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "me",
+   "x": 230,
+   "y": 82,
+   "w": 120,
+   "size": "small",
+   "color": "#ffd9a8",
+   "states": [
+    "reveal",
+    "win",
+    "lose",
+    "tie",
+    "mwin",
+    "mlose",
+    "slow"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "q",
+   "x": 90,
+   "y": 126,
+   "w": 120,
+   "size": "xlarge",
+   "color": "#ffffff",
+   "states": [
+    "slow"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 20,
+   "y": 176,
+   "w": 138,
+   "h": 48,
+   "radius": 12,
+   "color": "#2b8a3e",
+   "states": [
+    "win",
+    "lose",
+    "tie",
+    "slow",
+    "mwin",
+    "mlose"
+   ]
+  },
+  {
+   "type": "box",
+   "x": 162,
+   "y": 176,
+   "w": 138,
+   "h": 48,
+   "radius": 12,
+   "color": "#4a5a70",
+   "states": [
+    "win",
+    "lose",
+    "tie",
+    "slow",
+    "mwin",
+    "mlose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "again",
+   "x": 89,
+   "y": 200,
+   "w": 130,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "win",
+    "lose",
+    "tie",
+    "slow"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "rematch",
+   "x": 89,
+   "y": 200,
+   "w": 130,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "mwin",
+    "mlose"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "quit",
+   "x": 231,
+   "y": 200,
+   "w": 130,
+   "size": "large",
+   "color": "#ffffff",
+   "states": [
+    "win",
+    "lose",
+    "tie",
+    "slow",
+    "mwin",
+    "mlose"
    ]
   }
  ],
@@ -1057,16 +676,12 @@
    "es": "Piedra papel tijera"
   },
   "hint": {
-   "en": "Win as many in a row as you can",
-   "es": "Gana todas las que puedas seguidas"
+   "en": "Best of 3. Tap when you hear SHOOT",
+   "es": "Gana 2 de 3. Toca al oir YA"
   },
-  "pickone": {
-   "en": "Pick one",
-   "es": "Elige una"
-  },
-  "wins": {
-   "en": "Wins %0",
-   "es": "Victorias %0"
+  "line1": {
+   "en": "Round %7 of 3   You %4 - %5 Me",
+   "es": "Ronda %7 de 3   Tu %4 - %5 Yo"
   },
   "rock": {
    "en": "Rock",
@@ -1080,14 +695,6 @@
    "en": "Scissors",
    "es": "Tijera"
   },
-  "you": {
-   "en": "YOU",
-   "es": "TU"
-  },
-  "me": {
-   "en": "ME",
-   "es": "YO"
-  },
   "b1": {
    "en": "Rock...",
    "es": "Piedra..."
@@ -1100,29 +707,65 @@
    "en": "Scissors...",
    "es": "Tijera..."
   },
-  "b4": {
-   "en": "Shoot!",
-   "es": "Ya!"
+  "shoot": {
+   "en": "SHOOT!",
+   "es": "YA!"
+  },
+  "early": {
+   "en": "Too early!",
+   "es": "Muy pronto!"
+  },
+  "waitfor": {
+   "en": "Wait for SHOOT, then tap",
+   "es": "Espera el YA y toca"
+  },
+  "slow": {
+   "en": "Too slow!",
+   "es": "Muy lento!"
   },
   "youwin": {
-   "en": "You win this one!",
-   "es": "Ganas esta!"
+   "en": "You win!",
+   "es": "Ganas!"
   },
   "iwin": {
    "en": "I win!",
    "es": "Gano yo!"
   },
   "tie": {
-   "en": "Tie, again",
-   "es": "Empate, otra vez"
+   "en": "Tie!",
+   "es": "Empate!"
   },
-  "over": {
-   "en": "I got you",
-   "es": "Te gane"
+  "mwin": {
+   "en": "You win the match!",
+   "es": "Ganas la partida!"
   },
-  "score_big": {
-   "en": "Wins in a row: %0",
-   "es": "Victorias seguidas: %0"
+  "mlose": {
+   "en": "I win the match!",
+   "es": "Gano la partida!"
+  },
+  "you": {
+   "en": "YOU",
+   "es": "TU"
+  },
+  "me": {
+   "en": "ME",
+   "es": "YO"
+  },
+  "q": {
+   "en": "?",
+   "es": "?"
+  },
+  "again": {
+   "en": "Play again",
+   "es": "Otra vez"
+  },
+  "rematch": {
+   "en": "Rematch",
+   "es": "Revancha"
+  },
+  "quit": {
+   "en": "Quit",
+   "es": "Salir"
   }
  },
  "rules": [
@@ -1138,109 +781,71 @@
     ],
     [
      "set",
-     "bot",
-     -1
+     "mw",
+     0
+    ],
+    [
+     "set",
+     "bw",
+     0
     ],
     [
      "set",
      "me",
      -1
+    ],
+    [
+     "set",
+     "bot",
+     0
+    ],
+    [
+     "set",
+     "d",
+     0
     ]
    ]
   },
   {
    "state": "intro",
    "on": "timer",
-   "go": "choose"
+   "go": "c1"
   },
   {
    "state": "intro",
    "on": "tap",
-   "go": "choose"
+   "go": "c1"
   },
   {
-   "state": "choose",
-   "on": "tap",
-   "region": "rock",
-   "go": "beat1",
-   "do": [
-    [
-     "set",
-     "me",
-     0
-    ],
-    [
-     "set",
-     "bot",
-     -1
-    ],
-    [
-     "sync",
-     "me"
-    ],
-    [
-     "tone",
-     "boop"
-    ]
-   ]
-  },
-  {
-   "state": "choose",
-   "on": "tap",
-   "region": "paper",
-   "go": "beat1",
-   "do": [
-    [
-     "set",
-     "me",
-     1
-    ],
-    [
-     "set",
-     "bot",
-     -1
-    ],
-    [
-     "sync",
-     "me"
-    ],
-    [
-     "tone",
-     "squeak"
-    ]
-   ]
-  },
-  {
-   "state": "choose",
-   "on": "tap",
-   "region": "scissors",
-   "go": "beat1",
-   "do": [
-    [
-     "set",
-     "me",
-     2
-    ],
-    [
-     "set",
-     "bot",
-     -1
-    ],
-    [
-     "sync",
-     "me"
-    ],
-    [
-     "tone",
-     "boing"
-    ]
-   ]
-  },
-  {
-   "state": "beat1",
+   "state": "c1",
    "on": "enter",
    "go": "stay",
    "do": [
+    [
+     "rand",
+     "bot",
+     3
+    ],
+    [
+     "set",
+     "me",
+     -1
+    ],
+    [
+     "copy",
+     "rd",
+     "mw"
+    ],
+    [
+     "add_ctr",
+     "rd",
+     "bw"
+    ],
+    [
+     "add",
+     "rd",
+     1
+    ],
     [
      "tone",
      "cue0"
@@ -1248,12 +853,7 @@
    ]
   },
   {
-   "state": "beat1",
-   "on": "timer",
-   "go": "beat2"
-  },
-  {
-   "state": "beat2",
+   "state": "c2",
    "on": "enter",
    "go": "stay",
    "do": [
@@ -1264,12 +864,7 @@
    ]
   },
   {
-   "state": "beat2",
-   "on": "timer",
-   "go": "beat3"
-  },
-  {
-   "state": "beat3",
+   "state": "c3",
    "on": "enter",
    "go": "stay",
    "do": [
@@ -1280,12 +875,7 @@
    ]
   },
   {
-   "state": "beat3",
-   "on": "timer",
-   "go": "beat4"
-  },
-  {
-   "state": "beat4",
+   "state": "shoot",
    "on": "enter",
    "go": "stay",
    "do": [
@@ -1296,15 +886,151 @@
    ]
   },
   {
-   "state": "beat4",
+   "state": "c1",
    "on": "timer",
+   "go": "c2"
+  },
+  {
+   "state": "c2",
+   "on": "timer",
+   "go": "c3"
+  },
+  {
+   "state": "c3",
+   "on": "timer",
+   "go": "shoot"
+  },
+  {
+   "state": [
+    "c1",
+    "c2",
+    "c3"
+   ],
+   "on": "tap",
+   "region": "any_region",
+   "go": "early"
+  },
+  {
+   "state": "early",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "bad"
+    ],
+    [
+     "set",
+     "me",
+     -1
+    ]
+   ]
+  },
+  {
+   "state": "early",
+   "on": "timer",
+   "go": "c1"
+  },
+  {
+   "state": "shoot",
+   "on": "tap",
+   "region": "rock",
    "go": "reveal",
    "do": [
     [
-     "rand",
-     "bot",
-     3
+     "set",
+     "me",
+     0
     ],
+    [
+     "set",
+     "z",
+     0
+    ],
+    [
+     "sync",
+     "z"
+    ],
+    [
+     "tone",
+     "boop"
+    ]
+   ]
+  },
+  {
+   "state": "shoot",
+   "on": "tap",
+   "region": "paper",
+   "go": "reveal",
+   "do": [
+    [
+     "set",
+     "me",
+     1
+    ],
+    [
+     "set",
+     "z",
+     0
+    ],
+    [
+     "sync",
+     "z"
+    ],
+    [
+     "tone",
+     "boop"
+    ]
+   ]
+  },
+  {
+   "state": "shoot",
+   "on": "tap",
+   "region": "scissors",
+   "go": "reveal",
+   "do": [
+    [
+     "set",
+     "me",
+     2
+    ],
+    [
+     "set",
+     "z",
+     0
+    ],
+    [
+     "sync",
+     "z"
+    ],
+    [
+     "tone",
+     "boop"
+    ]
+   ]
+  },
+  {
+   "state": "shoot",
+   "on": "timer",
+   "go": "slow",
+   "do": [
+    [
+     "add",
+     "bw",
+     1
+    ],
+    [
+     "set",
+     "d",
+     9
+    ]
+   ]
+  },
+  {
+   "state": "reveal",
+   "on": "enter",
+   "go": "stay",
+   "do": [
     [
      "copy",
      "d",
@@ -1319,16 +1045,12 @@
      "add",
      "d",
      3
-    ],
-    [
-     "sync",
-     "bot"
     ]
    ]
   },
   {
    "state": "reveal",
-   "on": "enter",
+   "on": "timer",
    "if": [
     "ctr_eq",
     "d",
@@ -1338,39 +1060,106 @@
   },
   {
    "state": "reveal",
-   "on": "enter",
+   "on": "timer",
    "if": [
     "ctr_eq",
     "d",
     4
    ],
-   "go": "win"
+   "go": "won",
+   "do": [
+    [
+     "add",
+     "mw",
+     1
+    ]
+   ]
   },
   {
    "state": "reveal",
-   "on": "enter",
+   "on": "timer",
    "if": [
     "ctr_eq",
     "d",
     1
    ],
-   "go": "win"
+   "go": "won",
+   "do": [
+    [
+     "add",
+     "mw",
+     1
+    ]
+   ]
   },
   {
    "state": "reveal",
+   "on": "timer",
+   "go": "lost",
+   "do": [
+    [
+     "add",
+     "bw",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "won",
+   "on": "enter",
+   "if": [
+    "ctr_ge",
+    "mw",
+    2
+   ],
+   "go": "mwin"
+  },
+  {
+   "state": "won",
+   "on": "enter",
+   "go": "win"
+  },
+  {
+   "state": "lost",
+   "on": "enter",
+   "if": [
+    "ctr_ge",
+    "bw",
+    2
+   ],
+   "go": "mlose"
+  },
+  {
+   "state": "lost",
    "on": "enter",
    "go": "lose"
+  },
+  {
+   "state": "slow",
+   "on": "enter",
+   "if": [
+    "ctr_ge",
+    "bw",
+    2
+   ],
+   "go": "mlose"
+  },
+  {
+   "state": "slow",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "trombone"
+    ]
+   ]
   },
   {
    "state": "win",
    "on": "enter",
    "go": "stay",
    "do": [
-    [
-     "add",
-     "score",
-     1
-    ],
     [
      "tone",
      "fanfare"
@@ -1378,51 +1167,6 @@
     [
      "celebrate",
      1
-    ]
-   ]
-  },
-  {
-   "state": "win",
-   "on": "timer",
-   "go": "choose",
-   "do": [
-    [
-     "set",
-     "bot",
-     -1
-    ],
-    [
-     "set",
-     "me",
-     -1
-    ]
-   ]
-  },
-  {
-   "state": "tie",
-   "on": "enter",
-   "go": "stay",
-   "do": [
-    [
-     "tone",
-     "wah"
-    ]
-   ]
-  },
-  {
-   "state": "tie",
-   "on": "timer",
-   "go": "choose",
-   "do": [
-    [
-     "set",
-     "bot",
-     -1
-    ],
-    [
-     "set",
-     "me",
-     -1
     ]
    ]
   },
@@ -1438,29 +1182,101 @@
    ]
   },
   {
-   "state": "lose",
-   "on": "timer",
-   "go": "over"
-  },
-  {
-   "state": "over",
+   "state": "tie",
    "on": "enter",
    "go": "stay",
+   "do": [
+    [
+     "tone",
+     "wah"
+    ]
+   ]
+  },
+  {
+   "state": "mwin",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "add",
+     "score",
+     1
+    ],
+    [
+     "tone",
+     "fanfare"
+    ],
+    [
+     "celebrate",
+     2
+    ]
+   ]
+  },
+  {
+   "state": "mlose",
+   "on": "enter",
+   "go": "stay",
+   "do": [
+    [
+     "tone",
+     "trombone"
+    ]
+   ]
+  },
+  {
+   "state": [
+    "win",
+    "lose",
+    "tie",
+    "slow"
+   ],
+   "on": "tap",
+   "region": "again",
+   "go": "c1"
+  },
+  {
+   "state": [
+    "mwin",
+    "mlose"
+   ],
+   "on": "tap",
+   "region": "again",
+   "go": "c1",
+   "do": [
+    [
+     "set",
+     "mw",
+     0
+    ],
+    [
+     "set",
+     "bw",
+     0
+    ],
+    [
+     "set",
+     "me",
+     -1
+    ]
+   ]
+  },
+  {
+   "state": [
+    "win",
+    "lose",
+    "tie",
+    "slow",
+    "mwin",
+    "mlose"
+   ],
+   "on": "tap",
+   "region": "quit",
+   "go": "end",
    "do": [
     [
      "save"
     ]
    ]
-  },
-  {
-   "state": "over",
-   "on": "timer",
-   "go": "end"
-  },
-  {
-   "state": "over",
-   "on": "tap",
-   "go": "end"
   }
  ]
 }

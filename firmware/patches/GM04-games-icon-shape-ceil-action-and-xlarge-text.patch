@@ -1,0 +1,92 @@
+# Intent: Engine pieces for the Reaction Time style Do It and the best of three Rock Paper Scissors (owner request 2026-11-17). A new ICON shape: a large drawn icon (tap, swipe left, swipe right, gentle shake, pet, tilt, rock, paper, scissors) centered at x, y, whose number is a fixed icon or a counter plus the first icon of a group, with a mode condition like the die, flags for mirrored, pop in and bump, and a see-through FILL (the height field is the opacity, used to dim the choice tiles until SHOOT). A new CEIL action (a counter is at most a value, the other end of FLOOR) and an extra large text size (the 24 px font). The pack format version stays 1; every older pack is unchanged. Part of the stack GM04 to GM06 (the packs are firmware/games/*.json).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games_core.h (ours, G01, UI12, GM01)
+# Check after a flash: Play Do It and Rock Paper Scissors: the large icons and the extra large words show, the dimmed tiles light up at SHOOT.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_games_core.h b/firmware/main/hal/maipai_games_core.h
+--- a/firmware/main/hal/maipai_games_core.h
++++ b/firmware/main/hal/maipai_games_core.h
+@@ -140,7 +140,8 @@ typedef enum {
+     MG_OP_SYNC,         /* the region in counter a is where the tones of this event show their change (-1 none) */
+     MG_OP_LIGHT,        /* patch UI15: the ring light shows color v (0 off, 1 blue, 2 green, 3 amber, 4 red, 5 purple) for a moment, with the sound */
+     MG_OP_CELEBRATE,    /* patch UI15: a win: confetti on the screen (value 1), or the big one with fireworks (value 2), with the happy face */
+-    MG_OP_MAX = MG_OP_CELEBRATE
++    MG_OP_CEIL,         /* patch GM04: a counter is at most the value (the other end of FLOOR) */
++    MG_OP_MAX = MG_OP_CEIL
+ } mg_op_t;
+ 
+ /* Patch UI12: LINE is a thick segment from (x, y) to (w, h) (aux is its thickness); MOLE is the whack-a-mole character, drawn by the player
+@@ -155,9 +156,22 @@ typedef enum {
+     MG_SH_MOLE,
+     MG_SH_DIE,  /* patch UI15: a die (w px square at x, y) showing the number in counter cond_ctr; drawn only while counter aux equals cond_val (-128: always) */
+     MG_SH_COIN, /* a coin (w px across at x, y) showing heads (0), tails (1) or edge on (2) from counter cond_ctr, with the same mode condition */
+-    MG_SH_MAX = MG_SH_COIN
++    MG_SH_ICON, /* patch GM04: a large drawn icon (a gesture or a hand) w px square centered at x, y; the icon number is the shape's text byte plus counter cond_ctr
++                 * (a group of icons indexed by a counter), or just the text byte when cond_ctr is 0xFF (one fixed icon); drawn only while counter aux equals
++                 * cond_val (-128: always) and the number is a real icon; h holds the flags below */
++    MG_SH_MAX = MG_SH_ICON
+ } mg_shape_type_t;
+ 
++/* Patch GM04: the icons, and the flags of an icon shape's h field. A FILL shape's h is its opacity (1 to 255; 0 is solid). */
++typedef enum {
++    MG_ICON_TAP = 0, MG_ICON_SWIPE_L, MG_ICON_SWIPE_R, MG_ICON_SHAKE, MG_ICON_PET, MG_ICON_TILT,
++    MG_ICON_ROCK, MG_ICON_PAPER, MG_ICON_SCISSORS,
++    MG_ICONS
++} mg_icon_t;
++#define MG_ICON_MIRROR 0x100 /* drawn left to right reversed */
++#define MG_ICON_POP 0x200    /* when it appears it pops: it grows from about half size with a little overshoot, in 300 ms */
++#define MG_ICON_BUMP 0x400   /* it bumps up and down once each time the game enters a state (a fist counting the beats) */
++
+ /* The mole's faces (the value of the face counter). */
+ typedef enum { MG_FACE_GRIN = 0, MG_FACE_TONGUE, MG_FACE_STARTLED, MG_FACE_HELMET, MG_FACE_DAZED, MG_FACE_COUNT } mg_face_t;
+ 
+@@ -492,7 +506,7 @@ static inline mg_err_t mg_parse(const uint8_t* b, size_t len, mg_pack_t* p)
+         if (s.type > MG_SH_MAX || !cond_ok || s.mask == 0 || (s.mask & (uint16_t)~all_states) != 0) {
+             return MG_E_REF;
+         }
+-        if (s.type == MG_SH_TEXT && (s.text >= p->n_texts || s.aux > 2)) {
++        if (s.type == MG_SH_TEXT && (s.text >= p->n_texts || s.aux > 3)) { /* patch GM04: size 3 is the extra large font */
+             return MG_E_REF;
+         }
+         if (s.type == MG_SH_MOLE && (s.cond_ctr >= MG_COUNTERS || s.aux >= MG_COUNTERS || p->n_regions == 0)) {
+@@ -501,7 +515,10 @@ static inline mg_err_t mg_parse(const uint8_t* b, size_t len, mg_pack_t* p)
+         if ((s.type == MG_SH_DIE || s.type == MG_SH_COIN) && (s.cond_ctr >= MG_COUNTERS || s.aux >= MG_COUNTERS)) {
+             return MG_E_REF; /* a die and a coin need a value counter and a mode counter */
+         }
+-        if (s.x < -64 || s.x > 384 || s.y < -64 || s.y > 304 || s.w < 0 || s.w > 400 || s.h < 0 || s.h > 400) {
++        if (s.type == MG_SH_ICON && ((s.cond_ctr >= MG_COUNTERS && s.cond_ctr != 0xFF) || s.text >= MG_ICONS || s.aux >= MG_COUNTERS)) {
++            return MG_E_REF; /* an icon needs a number (a counter or a fixed icon) and a mode counter */
++        }
++        if (s.x < -64 || s.x > 384 || s.y < -64 || s.y > 304 || s.w < 0 || s.w > 400 || s.h < 0 || (s.h > 400 && s.type != MG_SH_ICON)) { /* patch GM04: an icon's h holds its flags */
+             return MG_E_REF;
+         }
+     }
+@@ -542,7 +559,7 @@ static inline mg_err_t mg_parse(const uint8_t* b, size_t len, mg_pack_t* p)
+         }
+         switch (a[0]) {
+             case MG_OP_SET: case MG_OP_ADD: case MG_OP_ELAPSED: case MG_OP_SEQ_TO_CTR: case MG_OP_TONE_CTR:
+-            case MG_OP_SET_REG: case MG_OP_FLOOR: case MG_OP_BOARD_PLACE: case MG_OP_BOARD_RESULT: case MG_OP_SYNC:
++            case MG_OP_SET_REG: case MG_OP_FLOOR: case MG_OP_CEIL: case MG_OP_BOARD_PLACE: case MG_OP_BOARD_RESULT: case MG_OP_SYNC:
+                 if (a[1] >= MG_COUNTERS) return MG_E_REF;
+                 break;
+             case MG_OP_LIGHT:
+@@ -820,6 +837,7 @@ static inline void mg_act(mg_run_t* r, const uint8_t* a, uint32_t now)
+         case MG_OP_SET_REG: r->ctr[c] = r->tap_region == MG_NO_REGION ? (int16_t)-1 : (int16_t)r->tap_region; break;
+         case MG_OP_SUB_CTR: r->ctr[c] = mg_sat((int32_t)r->ctr[c] - r->ctr[v]); break;
+         case MG_OP_FLOOR: if (r->ctr[c] < v) r->ctr[c] = v; break;
++        case MG_OP_CEIL: if (r->ctr[c] > v) r->ctr[c] = v; break; /* patch GM04 */
+         case MG_OP_BOARD_CLEAR: memset(r->board, 0, sizeof(r->board)); break;
+         case MG_OP_BOARD_PLACE: {
+             const int cell = r->ctr[c];
+@@ -987,6 +1005,10 @@ static inline int mg_shape_visible(const mg_run_t* r, int i)
+     if (s.type == MG_SH_DIE || s.type == MG_SH_COIN) { /* the value counter is read when drawing; here only the mode condition */
+         return s.cond_val == -128 || r->ctr[s.aux] == s.cond_val;
+     }
++    if (s.type == MG_SH_ICON) { /* patch GM04: the mode condition, and the number has to be a real icon (a hand that has not been shown yet is -1) */
++        const int id = s.cond_ctr == 0xFF ? (int)s.text : (int)r->ctr[s.cond_ctr] + (int)s.text;
++        return (s.cond_ctr == 0xFF || r->ctr[s.cond_ctr] >= 0) && id >= 0 && id < MG_ICONS && (s.cond_val == -128 || r->ctr[s.aux] == s.cond_val);
++    }
+     if (s.cond_ctr == 0xFF) {
+         return 1;
+     }

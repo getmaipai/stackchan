@@ -105,6 +105,7 @@ REVIEWED_PSRAM_STACK_TASKS = {
     "_head_touch_update_task": "head touch: no flash",
     "reader_task": "serial tools, bench builds only",
     "seek_task": "S14: the face seeker; the setting comes through maipai_tb_prefs (cached, TC02), the gates through the FM05 guarded readers, the camera and the head touch no flash; scripts/psram-stack-lint.py walks it",
+    "fd_task": "FD02: the face detector (experiment image); the model is read in place from the app image (no partition call), the camera read and the model touch no flash, the seek task passes every setting in; scripts/psram-stack-lint.py walks it",
     "snapshot_worker": "FI03: the bench snapshot; draws through LVGL and writes on the cable, no settings and no flash, bench builds only",
     "frame_task": "P13: the picture frame page decodes one frame of the held pack into a PSRAM buffer; takes the pack mutex, no settings, no flash",
     "opus_codec": "M02: decodes, resamples, encodes and queues audio; its callbacks only set event bits; no settings, no flash",

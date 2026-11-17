@@ -1,0 +1,45 @@
+# Intent: Owner request: Color Memory and the other games use the full height of the glass. The subtitle strip no longer draws while a game screen is up (the banner row keeps the remote, privacy, camera and microphone cues), so the games' safe area runs from y 28 to y 224 (an 8 px bottom margin) instead of y 184, and the bottom edge that stops a game starts at y 224. Color Memory is a 2 by 2 board of 138 by 96 px tiles with 4 px gaps between y 28 and y 224 (firmware/games/memory.json, rebuilt with scripts/game-pack.py, whose edge now ends at y 224).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games_core.h (ours, G01 and UI08), maipai_subtitles.cc (ours, N04)
+# Check after a flash: Color Memory from the games page: the four colors fill the screen from just under the banner row to a thin margin at the bottom; no subtitle line is drawn over any game while it speaks.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_games_core.h b/firmware/main/hal/maipai_games_core.h
+--- a/firmware/main/hal/maipai_games_core.h
++++ b/firmware/main/hal/maipai_games_core.h
+@@ -57,11 +57,12 @@
+ #define MG_EDGE_L 20
+ #define MG_EDGE_R 300
+ #define MG_EDGE_T 28
+-#define MG_EDGE_B 220
+-/* Patch UI08: the safe area of a button. The banner row above (y 0 to 28) and the subtitle strip below (y 184 to 240) are never covered by
+- * a game's tap targets, and a target is at least 44 px high. A test keeps the three built-in games inside it. */
++#define MG_EDGE_B 224 /* patch GM01: was 220; the games use the full height now */
++/* Patch UI08, widened by patch GM01: the safe area of a button. The banner row above (y 0 to 28) is never covered by a game's tap targets,
++ * and a target is at least 44 px high. The subtitle strip no longer draws while a game screen is up, so the area runs to y 224 (an 8 px
++ * margin at the bottom of the 240 px glass); the swipe from the bottom edge that stops a game keeps y 224 and below. */
+ #define MG_SAFE_TOP 28
+-#define MG_SAFE_BOTTOM 184
++#define MG_SAFE_BOTTOM 224
+ #define MG_BUTTON_MIN 44
+ 
+ /* Patch UI12: the board of Tic-Tac-Toe (nine cells in the player, read by shapes as counters 16 to 24) and the 'timer from a counter'. */
+diff --git a/firmware/main/hal/maipai_subtitles.cc b/firmware/main/hal/maipai_subtitles.cc
+--- a/firmware/main/hal/maipai_subtitles.cc
++++ b/firmware/main/hal/maipai_subtitles.cc
+@@ -8,6 +8,7 @@
+  * of nothing; idle there is a timer and a 0.1 KB state.
+  */
+ #include "maipai_subtitles.h"
++#include "maipai_games.h"
+ 
+ #include <cstring>
+ #include <mutex>
+@@ -167,6 +168,7 @@ void maipai_subtitles_attach(lv_color_t (*fg)())
+ void maipai_subtitles_say(const char* text, bool sticky)
+ {
+     if (text == nullptr || *text == '\0') return;
++    if (maipai_games_active()) return;  // patch GM01: no subtitle strip over a game screen (the banner row keeps its cues)
+     std::lock_guard<std::mutex> lock(s_mu);
+     std::string t(text);
+     for (auto& c : t) {

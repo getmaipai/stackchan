@@ -1,7 +1,7 @@
 # ruff: noqa: E501
 """The unit's games, the host side (firmware patch G01).
 
-The unit plays the games itself (color memory, reaction time, whack-a-mole, tic-tac-toe, a button game called "do it", rock paper
+The unit plays the games itself (color memory, whack-a-mole, tic-tac-toe, a game called "do it" that gets faster each round, rock paper
 scissors, the magic 8 ball and dice and coin): the screen, the
 touches, the tones, the rules and the best scores are the firmware's, so a game works with Home
 down. This module is what only the host adds:
@@ -62,21 +62,6 @@ GAMES: tuple[Game, ...] = (
         {"en": "rounds", "es": "rondas"},
     ),
     Game(
-        "reaction",
-        {"en": "Reaction Time", "es": "Tiempo de reaccion"},
-        (
-            "reaction",
-            "reaction time",
-            "reflexes",
-            "reaction game",
-            "reaccion",
-            "tiempo de reaccion",
-            "reflejos",
-        ),
-        True,
-        {"en": "ms", "es": "ms"},
-    ),
-    Game(
         "whack",
         {"en": "Whack-a-Mole", "es": "Atrapa topos"},
         (
@@ -123,7 +108,7 @@ GAMES: tuple[Game, ...] = (
             "haz lo que digo",
         ),
         False,
-        {"en": "moves", "es": "movimientos"},
+        {"en": "rounds", "es": "rondas"},
     ),
     Game(
         "rps",
@@ -140,7 +125,7 @@ GAMES: tuple[Game, ...] = (
             "pptj",
         ),
         False,
-        {"en": "wins", "es": "victorias"},
+        {"en": "matches won", "es": "partidas ganadas"},
     ),
     Game(
         "eightball",
@@ -302,7 +287,7 @@ def parse_ask(text: object) -> tuple[str, str | None] | None:
 
 _SPANISH_WORDS = frozenset(
     "juega jugar juguemos jugamos quiero deja termina acaba que cuales lista mejor puntuacion puntuaciones "
-    "topo topos memoria reaccion reflejos colores pon empieza para el los las tres raya linea gato hazlo piedra papel tijera dados dado moneda bola magica cara cruz tira lanza".split()
+    "topo topos memoria colores pon empieza para el los las tres raya linea gato hazlo piedra papel tijera dados dado moneda bola magica cara cruz tira lanza".split()
 )
 
 
@@ -332,13 +317,13 @@ _LINES = {
 
 _PLAIN = {
     "en": {
-        "no_game": "I do not know that game. Ask for memory, reaction, whack-a-mole, tic-tac-toe, do it, rock paper scissors, magic 8 ball or dice.",
+        "no_game": "I do not know that game. Ask for memory, whack-a-mole, tic-tac-toe, do it, rock paper scissors, magic 8 ball or dice.",
         "unreachable": "I could not reach my body to do that. Check that it is on, then ask again.",
         "old_firmware": "This unit's firmware has no games. Update the unit's firmware, then ask again.",
         "none": "No scores yet. Play a game and the best ones show here.",
     },
     "es": {
-        "no_game": "No conozco ese juego. Pide memoria, reaccion, atrapa topos, tres en raya, hazlo, piedra papel tijera, bola 8 magica o dados.",
+        "no_game": "No conozco ese juego. Pide memoria, atrapa topos, tres en raya, hazlo, piedra papel tijera, bola 8 magica o dados.",
         "unreachable": "No pude llegar a mi cuerpo para hacerlo. Comprueba que este encendido y pidelo otra vez.",
         "old_firmware": "El firmware de esta unidad no tiene juegos. Actualizalo y pidelo otra vez.",
         "none": "Todavia no hay puntuaciones. Juega y las mejores se muestran aqui.",

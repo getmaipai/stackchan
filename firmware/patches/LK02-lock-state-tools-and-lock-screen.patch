@@ -1,0 +1,875 @@
+# Intent: The unit side of the passcode lock: the state in the unit's own settings namespace mp_lock (salt and hash as text, the lock flag and the auto choice; written from a normal task, never a PSRAM-stack task, read once at boot before anything listens, so a locked unit is locked after a power loss), the auto lock timer, the tools self.lock.status, set, clear, now and config (never the code, the hash or its length; a locked unit answers set, clear and config with reason locked, so no remote command clears the lock), and the lock screen: the face sleeps (the same hold as full quiet) with a small padlock dimmed to the night level; a touch shows the keypad under the banner row (twelve large keys, 100 by 44 px, three across and four down, in the 24 px font: digits, backspace, a cancel back to the lock screen; a row of six entry dots with a tiny padlock; no words anywhere; a wrong six-digit entry shakes the dots and flashes them red for 0.6 s; back to the lock screen after 15 s); a touch while an alarm or timer rings stops the ring and shows no keypad. Locking closes any page, sheet, settings, Wi-Fi, quick settings and More screen and ends a game. Quick settings, Wi-Fi and More do not open while locked. Nothing exists while the unit is unlocked: no timer, no object.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_lock.h, maipai_lock.cc, maipai_lock_draw.h (ours), maipai_screens_core.h (ours, UI09), hal.cpp, hal_mcp.cpp, board/stackchan_display.cc, stackchan_display.h, hal_bridge.h (M5Stack, small hooks), firmware/main/Kconfig.projbuild, firmware/sdkconfig.core.defaults
+# Check after a flash: Set a code with self.lock.set, lock with self.lock.now: the screen shows the sleeping face and a dim padlock; a touch shows the keypad; the right code unlocks and the face wakes; a wrong six digits shows one line and clears; a reboot while locked comes back locked. status never shows the code.
+# Kconfig: CONFIG_MAIPAI_LOCK (default y)
+
+diff --git a/firmware/main/hal/maipai_lock.h b/firmware/main/hal/maipai_lock.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_lock.h
+@@ -0,0 +1,47 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The passcode lock, unit side (patches LK02 and LK03). Logic: maipai_lock_core.h. The unit enforces it alone, with the host off:
++ * the state is saved in the unit's own settings namespace "mp_lock", so a locked unit is locked after a power loss. The code is
++ * never stored, logged or reported: only a salted, stretched hash. With CONFIG_MAIPAI_LOCK off nothing here is compiled and every
++ * question below answers "not locked".
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_LOCK
++// True while the unit is locked. One atomic read: safe from every task, never touches flash.
++bool maipai_lock_locked();
++// True once a code is set.
++bool maipai_lock_has_code();
++// Locked units do not listen: the wake word, the stop word and a listening turn are off.
++inline bool maipai_lock_blocks_voice() { return maipai_lock_locked(); }
++// Lock now (the sheet tile, the settings screen, the tool, the voice command). False when no code is set. `source` is a short literal.
++bool maipai_lock_now(const char* source);
++// A person or the host did something (a touch, the wake word, a remote action): the auto lock restarts. Any task, no lock taken.
++void maipai_lock_activity();
++// A remote controller's call of this kind may go on? Locked: only "find" (beep and flash) may.
++bool maipai_lock_remote_allowed(const char* kind);
++// Boot (main task, after the settings storage is up): loads the saved state so the first question already has the right answer.
++void maipai_lock_boot();
++// From the 20 ms update task: the auto lock timer and the lock screen's coming and going.
++void maipai_lock_tick();
++// Tools self.lock.status, set, clear, now and config.
++void maipai_lock_register_tools();
++// The auto lock choice (minutes, 0 off) and the unlocking keypad's words follow the saved language.
++int maipai_lock_auto_minutes();
++// Settings screen rows: sets the auto lock choice from the unit's own screen (refused while locked).
++bool maipai_lock_set_auto(int minutes);
++#else
++inline bool maipai_lock_locked() { return false; }
++inline bool maipai_lock_has_code() { return false; }
++inline bool maipai_lock_blocks_voice() { return false; }
++inline bool maipai_lock_now(const char*) { return false; }
++inline void maipai_lock_activity() {}
++inline bool maipai_lock_remote_allowed(const char*) { return true; }
++inline void maipai_lock_boot() {}
++inline void maipai_lock_tick() {}
++inline void maipai_lock_register_tools() {}
++inline int maipai_lock_auto_minutes() { return 0; }
++inline bool maipai_lock_set_auto(int) { return false; }
++#endif
+diff --git a/firmware/main/hal/maipai_lock.cc b/firmware/main/hal/maipai_lock.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_lock.cc
+@@ -0,0 +1,459 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The passcode lock, unit side (patches LK02 and LK03). See maipai_lock.h and maipai_lock_core.h.
++ *
++ * Threads: the state record is guarded by one mutex (leaf lock, never held while calling out); the "locked" flag is also an atomic
++ * so every task can ask without a lock and without flash. Flash (the saved state) is touched only on the main task: boot reads it,
++ * a change is written by a callback scheduled onto it (never from a PSRAM-stack task, patch FM05).
++ * Screens: built and removed only with the LVGL lock held, from the 20 ms update task (a lock) or a key press (an unlock).
++ * Memory: nothing exists while the unit is unlocked: no timer, no object. Locked: three small objects, and the keypad's 24 while it shows.
++ * The code is never logged: no log line below takes a digit, a hash or a salt.
++ */
++#include <sdkconfig.h>
++#include "maipai_lock.h"
++#if CONFIG_MAIPAI_LOCK
++#include "maipai_lock_core.h"
++#include "maipai_lock_draw.h"
++#include "maipai_face.h"
++#include "maipai_games.h"
++#include "maipai_pages.h"
++#include "maipai_screens.h"
++#include "maipai_timers.h"
++#include "board/hal_bridge.h"
++#include "device_events.h"
++#include "hal.h"
++#include <application.h>
++#include <mcp_server.h>
++#include <settings.h>
++#include <esp_log.h>
++#include <esp_random.h>
++#include <esp_timer.h>
++#include <lvgl.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <mutex>
++#include <string>
++
++static const char* TAG = "MAIPAI-LOCK";
++
++extern "C" {
++bool maipai_display_ready(void);
++void maipai_quick_settings_close(void);
++}
++
++namespace {
++
++std::mutex s_mu;
++mlk_t s_st;
++std::atomic<bool> s_locked{false};
++std::atomic<bool> s_has_code{false};
++std::atomic<int> s_auto{0};
++std::atomic<uint32_t> s_act_ms{0};
++std::atomic<bool> s_ui_want{false};
++std::atomic<int> s_sync_event{0};  // set by a key press: the next tick need not wait
++bool s_ui_on = false;              // LVGL lock held to touch it
++
++lv_obj_t* s_root = nullptr;
++lv_timer_t* s_pad_timer = nullptr;
++
++uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++bool spanish() { return maipai_face_config().lang == MF_LANG_ES; }
++
++void publish_flags()  // s_mu held
++{
++    s_locked.store(s_st.locked != 0);
++    s_has_code.store(s_st.has_code != 0);
++    s_auto.store(s_st.auto_min);
++    s_ui_want.store(s_st.locked != 0);
++}
++
++// What is saved: the salt and hash as text, the lock flag and the auto choice. Runs on the main task.
++void persist()
++{
++    std::string salt, hash;
++    int locked, auto_min;
++    bool has;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        char sh[LK_SALT_LEN * 2 + 1], hh[LK_HASH_LEN * 2 + 1];
++        mlk_hex(s_st.salt, LK_SALT_LEN, sh);
++        mlk_hex(s_st.hash, LK_HASH_LEN, hh);
++        salt = sh;
++        hash = hh;
++        locked = s_st.locked;
++        auto_min = s_st.auto_min;
++        has = s_st.has_code;
++    }
++    Application::GetInstance().Schedule([salt, hash, locked, auto_min, has]() {
++        Settings st("mp_lock", true);
++        if (has) {
++            st.SetString("salt", salt);
++            st.SetString("hash", hash);
++        } else {
++            st.EraseAll();
++        }
++        st.SetInt("locked", locked);
++        st.SetInt("auto", auto_min);
++    });
++}
++
++void announce(const char* source)
++{
++    char extra[96];
++    snprintf(extra, sizeof(extra), "\"locked\":%d,\"has_code\":%d,\"source\":\"%.12s\"", s_locked.load() ? 1 : 0, s_has_code.load() ? 1 : 0, source);
++    device_events_push("lock", extra);
++    ESP_LOGW(TAG, "state: locked=%d has_code=%d (source %s)", s_locked.load() ? 1 : 0, s_has_code.load() ? 1 : 0, source);
++}
++
++// The lock takes hold: whatever is listening or speaking stops, the wake word and the stop word go off. Main task.
++void apply_locked()
++{
++    auto& app = Application::GetInstance();
++    auto& audio = app.GetAudioService();
++    const auto state = app.GetDeviceState();
++    if (state == kDeviceStateListening || state == kDeviceStateConnecting) {
++        app.StopListening();
++    } else if (state == kDeviceStateSpeaking) {
++        app.AbortSpeaking(kAbortReasonNone);
++    }
++    audio.EnableVoiceProcessing(false);
++    audio.EnableWakeWordDetection(false);
++    audio.SetStopWordArmed(false);
++}
++
++// The unlock: the wake word is armed again for an idle unit (the same rule as unmuting). Main task.
++void apply_unlocked()
++{
++    auto& app = Application::GetInstance();
++    const auto state = app.GetDeviceState();
++    if (state == kDeviceStateIdle || state == kDeviceStateUnknown) {
++        app.GetAudioService().EnableWakeWordDetection(true);  // stays off when muted or in full quiet
++    }
++}
++
++// ---- the screens (LVGL lock held); the drawing is maipai_lock_draw.h, shared with the host renderer ----
++mlkd::Pad s_pad_ui;
++
++void dots_refresh()
++{
++    int n;
++    bool wrong;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        n = s_st.n;
++        wrong = s_st.wrong_shown != 0;
++    }
++    mlkd::refresh_pad(&s_pad_ui, n, wrong, spanish());
++}
++
++void pad_close()
++{
++    if (s_pad_timer != nullptr) {
++        lv_timer_delete(s_pad_timer);
++        s_pad_timer = nullptr;
++    }
++    if (s_pad_ui.panel != nullptr) {
++        mlkd::stop_flash(&s_pad_ui);
++        lv_anim_delete(s_pad_ui.row, nullptr);
++        lv_obj_delete(s_pad_ui.panel);
++        s_pad_ui = mlkd::Pad();
++    }
++}
++
++void ui_teardown()
++{
++    pad_close();
++    if (s_root != nullptr) {
++        lv_obj_delete(s_root);
++        s_root = nullptr;
++    }
++    maipai_screen_closed(MSCR_LOCK);
++    hal_bridge::lock_face(false);
++    s_ui_on = false;
++}
++
++void on_unlocked_ui()  // from a key press, LVGL lock held
++{
++    ui_teardown();
++    persist();
++    announce("keypad");
++    Application::GetInstance().Schedule([]() { apply_unlocked(); });
++}
++
++void handle_key(char key)  // LVGL lock held: a key of the keypad (a real press and the bench tool both come here)
++{
++    maipai_lock_activity();
++    int ev;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        ev = mlk_key(&s_st, key, now_ms());
++        if (ev == MLK_EV_UNLOCK) publish_flags();
++    }
++    if (ev == MLK_EV_UNLOCK) {
++        on_unlocked_ui();
++        return;
++    }
++    if (ev == MLK_EV_CANCEL) {
++        pad_close();
++        return;
++    }
++    dots_refresh();
++    if (ev == MLK_EV_WRONG) {
++        mlkd::shake_dots(&s_pad_ui);  // a short shake and a red flash, no sentence
++    }
++}
++
++void on_key(lv_event_t* e)
++{
++    handle_key(static_cast<char>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e))));
++}
++
++void pad_tick(lv_timer_t*)
++{
++    bool back;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        back = mlk_keypad_tick(&s_st, now_ms()) != 0;
++    }
++    if (back) pad_close();
++}
++
++void pad_open()
++{
++    if (s_pad_ui.panel != nullptr || s_root == nullptr) return;
++    mlkd::build_pad(s_root, &s_pad_ui, spanish(), on_key);
++    s_pad_timer = lv_timer_create(pad_tick, 500, nullptr);
++    dots_refresh();
++}
++
++void handle_press()  // LVGL lock held: a touch on the lock screen
++{
++    maipai_lock_activity();
++    if (maipai_timers_request_dismiss("touch")) {
++        return;  // a ringing alarm or timer stops with one tap, no code (safety); the tap shows no keypad
++    }
++    bool show;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        show = s_st.locked && !s_st.keypad;
++        if (show) mlk_screen_touch(&s_st, now_ms());
++    }
++    if (show) pad_open();
++}
++
++void on_root_press(lv_event_t*) { handle_press(); }
++
++void ui_build()
++{
++    maipai_pages_close();       // a page or the sheet that was up
++    maipai_screen_close_all();  // the settings, Wi-Fi, quick settings or More screen that was up (one screen at a time)
++    maipai_quick_settings_close();
++    maipai_games_stop_locked("lock");
++    maipai_screen_register(MSCR_LOCK, [] { /* the lock screen is closed only by the unlock */ });
++    maipai_screen_open(MSCR_LOCK);
++    s_root = lv_obj_create(lv_layer_sys());  // above everything, so the sleeping face's floating z letters and snore puff never draw over the keypad
++    lv_obj_remove_flag(s_root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(s_root, 320, 240);
++    lv_obj_set_pos(s_root, 0, 0);
++    lv_obj_set_style_bg_opa(s_root, LV_OPA_TRANSP, 0);  // the sleeping face shows through
++    lv_obj_set_style_border_width(s_root, 0, 0);
++    lv_obj_set_style_pad_all(s_root, 0, 0);
++    lv_obj_add_flag(s_root, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_add_event_cb(s_root, on_root_press, LV_EVENT_PRESSED, nullptr);
++    mlkd::build_padlock(s_root);
++    hal_bridge::lock_face(true);
++    s_ui_on = true;
++}
++
++}  // namespace
++
++bool maipai_lock_locked() { return s_locked.load(); }
++bool maipai_lock_has_code() { return s_has_code.load(); }
++int maipai_lock_auto_minutes() { return s_auto.load(); }
++void maipai_lock_activity() { s_act_ms.store(now_ms()); }
++
++bool maipai_lock_remote_allowed(const char* kind)
++{
++    return !s_locked.load() || (kind != nullptr && strcmp(kind, "find") == 0);
++}
++
++bool maipai_lock_now(const char* source)
++{
++    int r;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        r = mlk_lock_now(&s_st, now_ms());
++        if (r == MLK_R_OK) publish_flags();
++    }
++    if (r != MLK_R_OK) return false;
++    persist();
++    announce(source != nullptr ? source : "now");
++    Application::GetInstance().Schedule([]() { apply_locked(); });
++    return true;
++}
++
++bool maipai_lock_set_auto(int minutes)
++{
++    int r;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        r = mlk_set_auto(&s_st, minutes);
++        if (r == MLK_R_OK) publish_flags();
++    }
++    if (r == MLK_R_OK) persist();
++    return r == MLK_R_OK;
++}
++
++void maipai_lock_boot()
++{
++    Settings st("mp_lock", false);
++    const std::string salt = st.GetString("salt", "");
++    const std::string hash = st.GetString("hash", "");
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        mlk_load(&s_st, salt.c_str(), hash.c_str(), st.GetInt("locked", 0), st.GetInt("auto", 0), now_ms());
++        publish_flags();
++    }
++    s_act_ms.store(now_ms());
++    ESP_LOGW(TAG, "saved state: locked=%d has_code=%d auto=%d", s_locked.load() ? 1 : 0, s_has_code.load() ? 1 : 0, s_auto.load());
++}
++
++void maipai_lock_tick()
++{
++    // The screen follows the state at once (a key press or a tool changed it).
++    if (s_ui_want.load() != s_ui_on && maipai_display_ready() && hal_bridge::is_xiaozhi_ready()) {
++        LvglLockGuard lock;
++        if (s_ui_want.load() && !s_ui_on) {
++            ui_build();
++        } else if (!s_ui_want.load() && s_ui_on) {
++            ui_teardown();
++        }
++    }
++    static uint32_t last = 0;
++    const uint32_t now = now_ms();
++    if (now - last < 250) return;
++    last = now;
++    if (!s_has_code.load() || s_locked.load() || s_auto.load() == 0) return;  // off costs nothing
++    const bool busy = Application::GetInstance().GetDeviceState() != kDeviceStateIdle;
++    bool due;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        const uint32_t act = s_act_ms.load();
++        if (static_cast<int32_t>(act - s_st.last_activity_ms) > 0) mlk_activity(&s_st, act);
++        due = mlk_idle_due(&s_st, now, maipai_timers_ringing() ? 1 : 0, busy ? 1 : 0) != 0;
++    }
++    if (due) maipai_lock_now("auto");
++}
++
++namespace {
++
++std::string reply(int reason)
++{
++    char out[96];
++    mlk_reply_json(reason, out, sizeof(out));
++    return std::string(out);
++}
++
++}  // namespace
++
++void maipai_lock_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.lock.status",
++                "The passcode lock: has_code, locked and auto_minutes (0 off). Never returns the code, the hash or its length.", PropertyList(),
++                [](const PropertyList&) -> ReturnValue {
++                    char out[128];
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    mlk_status_json(&s_st, out, sizeof(out));
++                    return std::string(out);
++                });
++    mcp.AddTool("self.lock.set",
++                "Set or change the passcode: code is 4 to 6 digits; changing one needs current. Refused while locked. Answers {ok} or {ok:false, reason: bad_code, "
++                "current_needed, wrong_current or locked}. The code is never stored, only a salted hash.",
++                PropertyList({Property("code", kPropertyTypeString, std::string("")), Property("current", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    uint8_t salt[LK_SALT_LEN];
++                    esp_fill_random(salt, sizeof(salt));
++                    const std::string code = properties["code"].value<std::string>();
++                    const std::string current = properties["current"].value<std::string>();
++                    int r;
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        r = mlk_set(&s_st, code.c_str(), current.c_str(), salt);
++                        if (r == MLK_R_OK) {
++                            s_st.last_activity_ms = now_ms();
++                            publish_flags();
++                        }
++                    }
++                    if (r == MLK_R_OK) {
++                        persist();
++                        announce("tool");
++                    }
++                    return reply(r);
++                });
++    mcp.AddTool("self.lock.clear",
++                "Remove the passcode: current is the code now set. Refused while locked. Answers {ok} or {ok:false, reason}.",
++                PropertyList({Property("current", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string current = properties["current"].value<std::string>();
++                    int r;
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        r = mlk_clear(&s_st, current.c_str());
++                        if (r == MLK_R_OK) publish_flags();
++                    }
++                    if (r == MLK_R_OK) {
++                        persist();
++                        announce("tool");
++                    }
++                    return reply(r);
++                });
++    mcp.AddTool("self.lock.now", "Lock the unit now. Answers {ok} or {ok:false, reason:no_code}.", PropertyList(),
++                [](const PropertyList&) -> ReturnValue {
++                    if (maipai_lock_locked()) return std::string("{\"ok\":true,\"locked\":true}");
++                    const bool ok = maipai_lock_now("tool");
++                    return ok ? std::string("{\"ok\":true,\"locked\":true}") : reply(MLK_R_NO_CODE);
++                });
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++    // Bench builds only: the lock screen's touch and keypad keys through the same handlers a finger reaches (not the glass hit test).
++    mcp.AddTool("self.lock.bench_touch", "Bench only: a touch on the lock screen (shows the keypad, or stops a ringing alarm).", PropertyList(),
++                [](const PropertyList&) -> ReturnValue {
++                    if (!maipai_lock_locked() || !s_ui_on) return std::string("{\"ok\":false,\"reason\":\"not_locked\"}");
++                    LvglLockGuard lock;
++                    handle_press();
++                    return std::string("{\"ok\":true}");
++                });
++    mcp.AddTool("self.lock.bench_key", "Bench only: one key of the keypad: a digit, B (backspace) or C (cancel). Answers {ok, unlocked, keypad}.",
++                PropertyList({Property("key", kPropertyTypeString, std::string("1"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string k = properties["key"].value<std::string>();
++                    if (!maipai_lock_locked() || !s_ui_on || k.size() != 1) return std::string("{\"ok\":false,\"reason\":\"not_locked\"}");
++                    {
++                        LvglLockGuard lock;
++                        handle_key(k[0]);
++                    }
++                    return std::string("{\"ok\":true,\"unlocked\":") + (maipai_lock_locked() ? "false" : "true") + ",\"keypad\":" + (s_pad_ui.panel != nullptr ? "true" : "false") + "}";
++                });
++#endif
++    mcp.AddTool("self.lock.config",
++                "The auto lock: auto_minutes is 0 (off), 1, 5, 15, 30 or 60 minutes with no touch, wake word or remote action. Refused while locked.",
++                PropertyList({Property("auto_minutes", kPropertyTypeInteger, 0, 0, 1000)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const int minutes = properties["auto_minutes"].value<int>();
++                    int r;
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        r = mlk_set_auto(&s_st, minutes);
++                        if (r == MLK_R_OK) publish_flags();
++                    }
++                    if (r != MLK_R_OK) return reply(r);
++                    persist();
++                    char out[64];
++                    snprintf(out, sizeof(out), "{\"ok\":true,\"auto_minutes\":%d}", minutes);
++                    return std::string(out);
++                });
++}
++#endif  // CONFIG_MAIPAI_LOCK
+diff --git a/firmware/main/hal/maipai_lock_draw.h b/firmware/main/hal/maipai_lock_draw.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_lock_draw.h
+@@ -0,0 +1,151 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The lock screen's drawing (patch LK02): the small padlock and the keypad panel, as plain LVGL objects. Header only, shared by the unit
++ * (maipai_lock.cc) and the host renderer (scripts/fw-face-render/lock_render.cc), so the pictures judged on the Mac are the ones the unit draws.
++ * The caller holds the LVGL lock. Geometry comes from maipai_lock_core.h.
++ */
++#pragma once
++#include <lvgl.h>
++#include <string>
++#include "maipai_lock_core.h"
++
++namespace mlkd {
++
++struct Pad {
++    lv_obj_t* panel = nullptr;
++    lv_obj_t* row = nullptr;  // the entry dots (and a tiny padlock); it shakes on a wrong code
++    lv_obj_t* dots[LK_CODE_MAX] = {};
++    lv_timer_t* flash = nullptr;  // ends the red flash
++};
++
++inline lv_color_t dim() { return lv_color_hex(0x5A5A5A); }  // the night level: readable in a dark room, never bright
++
++inline lv_obj_t* box(lv_obj_t* parent, int x, int y, int w, int h, lv_color_t color, int radius)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_pos(o, x, y);
++    lv_obj_set_size(o, w, h);
++    lv_obj_set_style_radius(o, radius, 0);
++    lv_obj_set_style_border_width(o, 0, 0);
++    lv_obj_set_style_pad_all(o, 0, 0);
++    lv_obj_set_style_bg_color(o, color, 0);
++    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++    return o;
++}
++
++// A small padlock at the bottom of the screen, under the sleeping face: a shackle over a body with a keyhole, dimmed to the night level.
++inline void build_padlock(lv_obj_t* root)
++{
++    lv_obj_t* shackle = box(root, 148, 196, 24, 22, dim(), 10);
++    lv_obj_set_style_bg_opa(shackle, LV_OPA_TRANSP, 0);
++    lv_obj_set_style_border_width(shackle, 3, 0);
++    lv_obj_set_style_border_color(shackle, dim(), 0);
++    box(root, 142, 208, 36, 24, dim(), 5);
++    box(root, 157, 214, 6, 9, lv_color_black(), 3);
++}
++
++// The keypad panel under the banner row: a row of entry dots (with a tiny padlock at its left) and 12 large keys. No words.
++inline void build_pad(lv_obj_t* root, Pad* pad, bool es, lv_event_cb_t on_key)
++{
++    (void)es;
++    pad->panel = box(root, 0, 28, 320, 212, lv_color_black(), 0);
++    pad->row = lv_obj_create(pad->panel);
++    lv_obj_remove_style_all(pad->row);
++    lv_obj_remove_flag(pad->row, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_size(pad->row, 320, 20);
++    lv_obj_set_pos(pad->row, 0, 2);
++    // the tiny padlock, dimmed
++    lv_obj_t* sh = box(pad->row, 76, 3, 10, 9, dim(), 4);
++    lv_obj_set_style_bg_opa(sh, LV_OPA_TRANSP, 0);
++    lv_obj_set_style_border_width(sh, 2, 0);
++    lv_obj_set_style_border_color(sh, dim(), 0);
++    box(pad->row, 73, 9, 16, 11, dim(), 3);
++    const int x0 = 100;  // six dots centered to the right of the padlock
++    for (int i = 0; i < LK_CODE_MAX; i++) {  // filled as digits go in: the count is what was typed, never what the code needs
++        pad->dots[i] = box(pad->row, x0 + i * 22, 3, LK_DOT_SIZE, LK_DOT_SIZE, lv_color_white(), LK_DOT_SIZE / 2);
++        lv_obj_set_style_border_width(pad->dots[i], 2, 0);
++        lv_obj_set_style_border_color(pad->dots[i], lv_color_white(), 0);
++    }
++    for (int i = 0; i < LK_KEYS; i++) {
++        const char key = mlk_key_char(i);
++        lv_obj_t* b = lv_button_create(pad->panel);
++        lv_obj_set_size(b, LK_KEY_W, LK_KEY_H);
++        lv_obj_set_pos(b, mlk_key_x(i), mlk_key_y(i) - 28);
++        lv_obj_set_style_bg_color(b, lv_color_hex(key == 'B' || key == 'C' ? 0x303030 : 0x202020), 0);
++        lv_obj_set_style_border_width(b, 1, 0);
++        lv_obj_set_style_border_color(b, lv_color_hex(0x707070), 0);
++        lv_obj_set_style_radius(b, 10, 0);
++        lv_obj_t* l = lv_label_create(b);
++        lv_obj_set_style_text_font(l, &lv_font_montserrat_24, 0);
++        lv_obj_set_style_text_color(l, lv_color_white(), 0);
++        const std::string label = key == 'B' ? "<" : (key == 'C' ? "X" : std::string(1, key));
++        lv_label_set_text(l, label.c_str());
++        lv_obj_center(l);
++        if (on_key != nullptr) {
++            lv_obj_add_event_cb(b, on_key, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(key)));
++        }
++    }
++}
++
++inline void paint_dots(const Pad* pad, bool red)
++{
++    for (int i = 0; i < LK_CODE_MAX; i++) {
++        if (pad->dots[i] == nullptr) continue;
++        lv_obj_set_style_border_color(pad->dots[i], red ? lv_color_hex(0xFF3030) : lv_color_white(), 0);
++        lv_obj_set_style_bg_color(pad->dots[i], red ? lv_color_hex(0xFF3030) : lv_color_white(), 0);
++    }
++}
++
++// `n` dots filled. `wrong` paints the dots red (no sentence). Neither says how long the code is.
++inline void refresh_pad(const Pad* pad, int n, bool wrong, bool es)
++{
++    (void)es;
++    for (int i = 0; i < LK_CODE_MAX; i++) {
++        if (pad->dots[i] != nullptr) {
++            lv_obj_set_style_bg_opa(pad->dots[i], (i < n || wrong) ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
++        }
++    }
++    paint_dots(pad, wrong);
++}
++
++inline void stop_flash(Pad* pad)
++{
++    if (pad->flash != nullptr) {
++        lv_timer_delete(pad->flash);
++        pad->flash = nullptr;
++    }
++}
++
++// The error feedback on the unit: a short shake of the dots (plus or minus 8 px, 360 ms) and a red flash of 600 ms. The next key paints them back.
++inline void shake_dots(Pad* pad)
++{
++    if (pad->row == nullptr) return;
++    lv_anim_t a;
++    lv_anim_init(&a);
++    lv_anim_set_var(&a, pad->row);
++    lv_anim_set_exec_cb(&a, [](void* o, int32_t v) { lv_obj_set_x(static_cast<lv_obj_t*>(o), v); });
++    lv_anim_set_values(&a, -8, 0);
++    lv_anim_set_duration(&a, 360);
++    lv_anim_set_path_cb(&a, [](const lv_anim_t* an) -> int32_t {
++        const int32_t t = lv_map(an->act_time, 0, an->duration, 0, 1024);  // a damped swing: three swings that die out
++        const int32_t amp = 8 * (1024 - t) / 1024;
++        return ((t / 170) % 2 == 0 ? amp : -amp);
++    });
++    lv_anim_start(&a);
++    stop_flash(pad);
++    pad->flash = lv_timer_create([](lv_timer_t* t) {
++        Pad* p = static_cast<Pad*>(lv_timer_get_user_data(t));
++        paint_dots(p, false);
++        for (auto* d : p->dots) {
++            if (d != nullptr) lv_obj_set_style_bg_opa(d, LV_OPA_TRANSP, 0);  // after a wrong entry nothing is typed
++        }
++        lv_obj_set_x(p->row, 0);
++        p->flash = nullptr;
++        lv_timer_delete(t);
++    }, 600, pad);
++}
++
++}  // namespace mlkd
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -289,6 +289,16 @@ config MAIPAI_PAGES
+         no objects and no pictures are held at rest (about 150 bytes of state). Tools self.pages.status, get and set,
+         self.page.show and self.page.tiles. Off here: the old swipes (left and right volume, up quick settings, down stop).
+ 
++config MAIPAI_LOCK
++    bool "Passcode lock: a 4 to 6 digit code, a keypad, an auto lock timer, enforced on the unit"
++    default y
++    help
++        A code keeps other people from using the robot. Locked, the unit does not hear the wake word, the stop word is off, the
++        touch screen shows only a lock screen (the sleeping face with a small padlock) and a keypad, the control sheet, pages,
++        games and settings are off and remote controllers are refused (except find my robot). Timers and alarms keep ringing and
++        one tap stops a ringing one. The state is saved in the settings namespace mp_lock, so a locked unit is locked after a power
++        loss. Only a salted, stretched hash of the code is kept. Tools self.lock.status, set, clear, now and config. Off here: no lock.
++
+ config MAIPAI_GAMES_BENCH
+     bool "Bench only: tap and status tools for games, and loading unsigned outside packs"
+     default n
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -24,6 +24,7 @@ CONFIG_MAIPAI_VERSION=y
+ CONFIG_MAIPAI_GAMES=y
+ # Swipe pages and the control sheet (patches P10 to P13): nothing exists while the face shows.
+ CONFIG_MAIPAI_PAGES=y
++CONFIG_MAIPAI_LOCK=y
+ # Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
+ # and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
+ # destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -125,6 +125,7 @@ void Hal::updateHeapStatusLog()
+ #include <assets/assets.h>
+ #include "maipai_privacy.h"
+ #include "maipai_timers.h"
++#include "maipai_lock.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_roam.h"
+ #include "maipai_daily.h"
+@@ -159,6 +160,7 @@ static void _stackchan_update_task(void* param)
+ 
+         tools::update_reminders();
+         maipai_timers_tick();  // on-unit timers and alarms (patch 091)
++        maipai_lock_tick();    // the auto lock and the lock screen (patch LK02)
+         maipai_daily_tick();   // the daily rules: low battery and the rest (patches T01 to T05)
+         maipai_packs_boot_poll(hal_bridge::is_xiaozhi_ready());  // patch FM04: the saved look and filler, once, at the first standby
+ 
+@@ -227,6 +229,7 @@ void Hal::startXiaozhi()
+ 
+     // The saved timers and alarms (patch 091) come back before the update task ticks them.
+     maipai_timers_init();
++    maipai_lock_boot();  // patch LK02: a locked unit is locked again before anything listens
+     maipai_tailnet_init();  // travel with the private network: reads the saved switch, starts nothing (patch TN01)
+     maipai_roam_init();     // Wi-Fi roaming: a weak signal for 10 s starts one scan for a better access point (patch RM01)
+ 
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -24,6 +24,7 @@
+ #include "maipai_music.h"
+ #include "maipai_games.h"
+ #include "maipai_pages_unit.h"
++#include "maipai_lock.h"
+ #include "maipai_facebench.h"
+ #include "maipai_picface.h"
+ #include "maipai_screen.h"
+@@ -701,6 +702,9 @@ void Hal::xiaozhi_mcp_init()
+     // self.game.list, start, stop and scores (patch G01). Nothing runs until a game starts.
+     maipai_games_register_tools();
+ 
++    // self.lock.status, set, clear, now and config (patch LK02).
++    maipai_lock_register_tools();
++
+     // self.pages.status, get, set, self.page.show and self.page.tiles (patch P13).
+     maipai_pages_unit_register_tools();
+ 
+diff --git a/firmware/main/hal/maipai_screens_core.h b/firmware/main/hal/maipai_screens_core.h
+--- a/firmware/main/hal/maipai_screens_core.h
++++ b/firmware/main/hal/maipai_screens_core.h
+@@ -13,7 +13,7 @@
+ 
+ #include <stdint.h>
+ 
+-enum { MSCR_NONE = -1, MSCR_SETTINGS = 0, MSCR_QUICK, MSCR_WIFI, MSCR_MORE, MSCR_COUNT };
++enum { MSCR_NONE = -1, MSCR_SETTINGS = 0, MSCR_QUICK, MSCR_WIFI, MSCR_MORE, MSCR_LOCK, MSCR_COUNT };
+ 
+ typedef struct {
+     int8_t cur;           /* the one screen that is up, or MSCR_NONE */
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -48,6 +48,7 @@
+ // True while the Wi-Fi setup portal is open (firmware/portal/maipai_wifi_configuration_ap.cc, patch P03).
+ extern "C" bool maipai_portal_active(void);
+ #include <hal/maipai_privacy.h>
++#include <hal/maipai_lock.h>
+ #include <hal/maipai_screen.h>
+ #include <hal/maipai_touch_core.h>
+ #include <hal/maipai_cue_core.h>
+@@ -911,6 +912,9 @@ extern "C" void maipai_display_volume_step(int delta)
+ }
+ extern "C" void maipai_display_open_quick(void)
+ {
++    if (maipai_lock_locked()) {  // patch LK04
++        return;
++    }
+     if (s_self != nullptr) {
+         s_self->OpenQuickSettings();
+     }
+@@ -926,6 +930,9 @@ static void wifi_page_close()
+ }
+ extern "C" void maipai_display_open_wifi(void)
+ {
++    if (maipai_lock_locked()) {  // patch LK04
++        return;
++    }
+     maipai_screen_register(MSCR_WIFI, wifi_page_close);
+     maipai_screen_open(MSCR_WIFI);
+     if (s_wifi_panel != nullptr) {
+@@ -1522,6 +1529,34 @@ void hal_bridge::react_face(const char* emotion, int hold_ms)
+     }
+ }
+ 
++// Patch LK02: locked, the face sleeps (the same look as full quiet, drawn dimmed by the lock screen's padlock); unlocked, it wakes.
++void StackChanAvatarDisplay::ApplyLockFace(bool locked)
++{
++    auto& stackchan = GetStackChan();
++    if (!stackchan.hasAvatar() || lock_face_ == locked) {
++        return;
++    }
++    DisplayLockGuard lock(this);
++    lock_face_ = locked;
++    if (locked) {
++        SetEmotion("sleeping");
++    } else if (!quiet_face_) {
++        is_sleeping_ = false;
++        SetEmotion("neutral");
++        if (hal_bridge::is_xiaozhi_idle() && idle_expression_modifier_id_ < 0) {
++            idle_expression_modifier_id_ = stackchan.addModifier(std::make_unique<IdleExpressionModifier>());
++        }
++    }
++}
++
++void hal_bridge::lock_face(bool locked)
++{
++    auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
++    if (display != nullptr) {
++        display->ApplyLockFace(locked);
++    }
++}
++
+ void hal_bridge::mood_refresh()
+ {
+     auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
+@@ -1655,7 +1690,7 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+     DisplayLockGuard lock(this);
+ 
+     // Full quiet keeps the sleeping face: no other emotion draws over it (patch 105).
+-    if (quiet_face_ && strcmp(emotion, "sleeping") != 0) {
++    if ((quiet_face_ || lock_face_) && strcmp(emotion, "sleeping") != 0) {  // patch LK02: locked holds the sleeping face too
+         return;
+     }
+ 
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -41,6 +41,7 @@ private:
+     int privacy_bits_                   = 0;      // the looks now drawn (patch 105)
+     bool mood_baseline_                 = true;   // the face is the resting one, so the saved mood may shift it (patch M01)
+     bool quiet_face_                    = false;  // full quiet: the sleeping face holds against every emotion
++    bool lock_face_                     = false;  // locked (patch LK02): the same hold
+     lv_obj_t* quiet_marker_             = nullptr;
+     lv_timer_t* cue_timer_              = nullptr;
+     uint8_t idle_motion_level_          = 2;
+@@ -150,6 +151,7 @@ public:
+     void LvglUnlock();
+     // The face looks of mute, vision off and full quiet (patch 105). The caller holds the LVGL lock.
+     void ApplyPrivacyFace(int bits, bool animate);
++    void ApplyLockFace(bool locked);  // patch LK02: the sleeping face while the unit is locked
+     void OnFaceToggle(int action);
+     lv_disp_t* GetLvglDisplay();
+ };
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -83,6 +83,8 @@ void react_face(const char* emotion, int hold_ms);
+ // Redraws the resting face for the saved mood (patch M01). Only changes a face that is resting (not mid-emotion, not
+ // asleep, not in full quiet). Safe from any task; takes the LVGL lock.
+ void mood_refresh();
++// Patch LK02: the sleeping face while the unit is locked (true), and the resting face again when it is unlocked (false). Any task.
++void lock_face(bool locked);
+ // The camera-on cue (patch T05): a small camera glyph over the face while a picture or video frame is being read,
+ // kept `hold_ms` after the last one. Nothing turns it off but time. Safe from any task.
+ void monitor_cue_begin(int hold_ms);

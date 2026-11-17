@@ -275,7 +275,7 @@ def test_every_page_word_has_english_and_spanish():
         "pg.sample.tea",
         "pg.sample.pasta",
         "pg.sample.memory",
-        "pg.sample.reaction",
+        "pg.sample.rps",
         "pg.sample.whack",
         "pg.sample.tictactoe",
         "pg.sample.bopit",

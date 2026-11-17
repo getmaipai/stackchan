@@ -24,6 +24,7 @@ from maipai_body import (
     reply_tags,
     scenes,
     swipe_pages,
+    unit_lock,
     unit_prefs,
 )
 from maipai_body import overlays as overlays_mod
@@ -60,6 +61,7 @@ class Polish:
         self.active = active or packs_mod.ActiveStore()
         self.prefs = unit_prefs.PrefsService(self.probe, get, put)
         self.pages = swipe_pages.SwipePagesService(self.probe, get, put)  # swipe pages and the control sheet (firmware patches P10 to P13)
+        self.lock = unit_lock.LockService(self.probe)  # the passcode lock: forwards to the unit, never keeps the code
         self.overlays = overlays_mod.OverlayDirector(self.probe)
         # One command bus for every source that decorates the unit (command_bus.py): the model's tags, the settings page, Home.
         # ``gate_state`` says what outranks decoration (``attach`` fills it from the turn bridge); ``ring`` is the ring light's sink

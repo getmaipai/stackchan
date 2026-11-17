@@ -1,0 +1,223 @@
+# Intent: Bench tools for the on-unit face detector (owner brief 2026-11-17), experiment image only. self.look.detect_test {model msrmnp or pico224 (empty: the Kconfig default), frames 1 to 300 (default 20), crop full, center or follow (empty: full for msrmnp, center for pico224), order rgb or bgr, hz 0 to 5, force, wait_s 0 to 60 (default 25)} runs the detector on the unit's own camera for N frames and answers measured numbers: the milliseconds per frame as [p50, p99] for the camera read, the format conversion, the model call and the whole grab-to-boxes time and the pace kept (cycle), the first frame after a model was created (the load) apart, the faces found (frames with a face, boxes, best and average score in percent), the pixel format the camera delivered, the window used, and the memory as [internal free, internal largest block, PSRAM free, PSRAM largest block] before, the lowest seen during (sampled after every model call) and after, plus the internal low-water mark. It refuses when a turn is going on, the unit is muted, in full quiet or vision is off, and when internal RAM is under the admission floor unless force is true (the answer says how far under). The camera-on cue is lit for every frame (maipai_facedet.cc asks before each grab); a test that outlasts wait_s answers done false and self.look.detect_status {detail:true} gives the result when it ends. self.look.detect_status answers whether a model is loaded and which, the counters, the newest face (center, width, score, age) and the stream state; self.look.status gains the flat fields fd_loaded, fd_score_pct, fd_cx and fd_age_ms (read only, for a host: a number pair, no picture). Replies use whole numbers only (float formatting is the deep part of a small stack).
+# Placement: unit (bench and read-only status; the host sees only numbers)
+# Upstream: new firmware/main/hal/maipai_facedet_tools.cc; maipai_facedet.h, maipai_seek.cc (patches FD02 and S14: the register call and the status tail)
+# Check after a flash: self.look.detect_test {model:"pico224", frames:20} answers done true with p50 and p99 of infer and total, the format name, faces and the memory triples; the same with msrmnp; internal free after matches before within 1 KB once the model is freed (self.look.detect_status loaded false 10 s later); a lit camera cue is visible for the whole run; with the unit muted the call answers the refusal; self.look.status carries fd_loaded.
+
+diff --git a/firmware/main/hal/maipai_facedet_tools.cc b/firmware/main/hal/maipai_facedet_tools.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_facedet_tools.cc
+@@ -0,0 +1,158 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face detection bench tools (patch FD03): self.look.detect_test and self.look.detect_status. Experiment image only. The numbers
++ * they answer are the ones the go or no-go of docs/design/face-detect-esp-dl-2026-11-17.md section 9 asks for: milliseconds a
++ * frame (median and 99th percentile) for the camera read, the format conversion, the model and the whole grab-to-box time, faces
++ * and score found, and internal and PSRAM memory before, during (the lowest seen after a model call) and after. No picture and
++ * no pixel leaves the unit: only counts, scores and times. The camera-on cue is lit for every frame (maipai_facedet.cc).
++ * Reply text uses whole numbers only (scores in percent): float formatting is the deep part of a small stack.
++ */
++#include "maipai_facedet.h"
++
++#if defined(CONFIG_MAIPAI_FACE_DETECT) && CONFIG_MAIPAI_FACE_DETECT
++
++#include "maipai_privacy.h"
++#include <application.h>
++#include <esp_log.h>
++#include <mcp_server.h>
++#include <cstdio>
++#include <cstring>
++#include <string>
++
++static const char* TAG = "MAIPAI-DET";
++
++namespace {
++
++const char* fmt_name(int f)
++{
++    switch (f) {
++        case MW_FMT_YUYV: return "yuyv";
++        case MW_FMT_UYVY: return "uyvy";
++        case MW_FMT_RGB565: return "rgb565";
++        case MW_FMT_GREY: return "grey";
++        default: return "none";
++    }
++}
++
++const char* crop_name(int c) { return c == FD_CROP_FULL ? "full" : c == FD_CROP_CENTER ? "center" : "follow"; }
++
++std::string err_json(const char* what)
++{
++    char buf[200];
++    snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"%.150s\"}", what);
++    return buf;
++}
++
++// The whole result in one buffer, under the caller's care (one tool call at a time: the MCP task is single).
++const char* result_json(const FdTestResult& r, bool done)
++{
++    static char buf[1800];
++    const FdTestParams& p = r.params;
++    int n = snprintf(
++        buf, sizeof(buf),
++        "{\"ok\":true,\"done\":%s,\"state\":%u,\"model\":\"%s\",\"crop\":\"%s\",\"order\":\"%s\",\"hz\":%d,\"frames\":%d,\"frames_done\":%d,"
++        "\"fmt\":\"%s\",\"frame\":\"%dx%d\",\"window\":\"%d,%d %dx%d\",\"frames_with_face\":%d,\"faces\":%d,\"score_best_pct\":%d,\"score_avg_pct\":%d,"
++        "\"ms\":{\"grab\":[%u,%u],\"conv\":[%u,%u],\"infer\":[%u,%u],\"total\":[%u,%u],\"cycle\":[%u,%u],\"first\":%u,\"wall\":%u},"
++        "\"mem\":{\"before\":[%u,%u,%u,%u],\"during_min\":[%u,%u,%u,%u],\"after\":[%u,%u,%u,%u],\"int_low_water\":%u},"
++        "\"loaded_before\":%u,\"camera_busy\":%u,\"cue\":\"on every frame\",\"p\":\"[p50,p99] ms; mem [int_free,int_block,psram_free,psram_block]\"%s%s%s}",
++        done ? "true" : "false", static_cast<unsigned>(r.state), FD_MODEL_NAMES[p.model < FD_MODEL_COUNT && p.model >= 0 ? p.model : 0], crop_name(p.crop),
++        p.swap_rb ? "bgr" : "rgb", p.hz, p.frames, r.frames_done, fmt_name(r.fmt), r.frame_w, r.frame_h, r.win_x, r.win_y, r.win_w, r.win_h,
++        r.frames_with_face, r.faces_total, static_cast<int>(r.score_best * 100.0f + 0.5f), static_cast<int>(r.score_avg * 100.0f + 0.5f),
++        static_cast<unsigned>(r.grab_p50), static_cast<unsigned>(r.grab_p99), static_cast<unsigned>(r.conv_p50), static_cast<unsigned>(r.conv_p99),
++        static_cast<unsigned>(r.infer_p50), static_cast<unsigned>(r.infer_p99), static_cast<unsigned>(r.total_p50), static_cast<unsigned>(r.total_p99),
++        static_cast<unsigned>(r.cycle_p50), static_cast<unsigned>(r.cycle_p99), static_cast<unsigned>(r.first_ms), static_cast<unsigned>(r.total_ms),
++        static_cast<unsigned>(r.before.int_free), static_cast<unsigned>(r.before.int_big), static_cast<unsigned>(r.before.ps_free),
++        static_cast<unsigned>(r.before.ps_big), static_cast<unsigned>(r.during_min.int_free), static_cast<unsigned>(r.during_min.int_big),
++        static_cast<unsigned>(r.during_min.ps_free), static_cast<unsigned>(r.during_min.ps_big), static_cast<unsigned>(r.after.int_free),
++        static_cast<unsigned>(r.after.int_big), static_cast<unsigned>(r.after.ps_free), static_cast<unsigned>(r.after.ps_big),
++        static_cast<unsigned>(r.internal_low_water), static_cast<unsigned>(r.loaded_before), static_cast<unsigned>(r.refused_busy),
++        r.error[0] != '\0' ? ",\"error\":\"" : "", r.error[0] != '\0' ? r.error : "", r.error[0] != '\0' ? "\"" : "");
++    (void)n;
++    return buf;
++}
++
++}  // namespace
++
++void maipai_fd_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++
++    mcp.AddTool("self.look.detect_test",
++                "Bench: runs the on-unit face detector on the camera for N frames and answers measured times and memory. model: msrmnp (MSR plus "
++                "MNP) or pico224 (ESPDet-Pico 224), empty means the built-in default. frames 1 to 300 (default 20). crop: full, center (160 by 120 "
++                "window in the middle) or follow (that window on the last face); empty means full for msrmnp and center for pico224. order: rgb "
++                "(default) or bgr (a channel order check). hz 0 runs frames back to back, 2 to 5 keeps that rate. force true runs even when "
++                "internal RAM is under the admission floor. wait_s 0 to 60 (default 25): how long to wait for the end; if it takes longer the "
++                "answer says done false and self.look.detect_status {detail:true} gives the result later. The camera-on cue is lit for every "
++                "frame. Answers {ok, done, ms:{grab,conv,infer,total,cycle:[p50,p99], first, wall}, mem:{before,during_min,after}, faces, "
++                "score_*_pct, fmt, window, ...}.",
++                PropertyList({Property("model", kPropertyTypeString, std::string("")), Property("frames", kPropertyTypeInteger, 20, 1, 300),
++                              Property("crop", kPropertyTypeString, std::string("")), Property("order", kPropertyTypeString, std::string("rgb")),
++                              Property("hz", kPropertyTypeInteger, 0, 0, 5), Property("force", kPropertyTypeBoolean, false),
++                              Property("wait_s", kPropertyTypeInteger, 25, 0, 60)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string model_s = properties["model"].value<std::string>();
++                    int model                 = CONFIG_MAIPAI_FACE_DETECT_DEFAULT_MODEL;
++                    if (!model_s.empty()) {
++                        model = fd_model_parse(model_s.c_str());
++                        if (model < 0) return err_json("model must be msrmnp or pico224");
++                    }
++                    const std::string crop_s = properties["crop"].value<std::string>();
++                    int crop                 = model == FD_MODEL_PICO224 ? FD_CROP_CENTER : FD_CROP_FULL;
++                    if (crop_s == "full") crop = FD_CROP_FULL;
++                    else if (crop_s == "center") crop = FD_CROP_CENTER;
++                    else if (crop_s == "follow") crop = FD_CROP_FOLLOW;
++                    else if (!crop_s.empty()) return err_json("crop must be full, center or follow");
++                    const std::string order = properties["order"].value<std::string>();
++                    if (order != "rgb" && order != "bgr" && !order.empty()) return err_json("order must be rgb or bgr");
++                    auto& app = Application::GetInstance();
++                    if (app.GetDeviceState() != kDeviceStateIdle) return err_json("the unit is busy (a turn is going on): try when it is idle");
++                    if (maipai_muted()) return err_json("the unit is muted: no camera");
++                    if (maipai_quiet()) return err_json("the unit is in full quiet: no camera");
++                    if (maipai_vision_off()) return err_json("vision is off: no camera");
++                    FdTestParams p{};
++                    p.model   = model;
++                    p.frames  = properties["frames"].value<int>();
++                    p.crop    = crop;
++                    p.swap_rb = order == "bgr" ? 1 : 0;
++                    p.hz      = properties["hz"].value<int>();
++                    p.force   = properties["force"].value<bool>() ? 1 : 0;
++                    const int wait_s = properties["wait_s"].value<int>();
++                    static FdTestResult res;  // the one reply copy (about 400 bytes)
++                    const int rc = maipai_fd_test(p, static_cast<uint32_t>(wait_s) * 1000u, &res);
++                    ESP_LOGW(TAG, "detect_test %s frames %d rc %d", FD_MODEL_NAMES[model], p.frames, rc);
++                    if (rc == -2) return err_json("a detection test is already running: read it with self.look.detect_status");
++                    if (rc == -1) return err_json(res.error[0] != '\0' ? res.error : "the test failed");
++                    return std::string(result_json(res, rc == 0));
++                });
++
++    mcp.AddTool("self.look.detect_status",
++                "Bench: what the on-unit face detector is doing: whether a model is loaded and which, counters, the newest face (center in the "
++                "320 by 240 frame, score in percent, age), whether a stream is wanted, and with detail true the last detect_test result. "
++                "Answers {ok, ...}.",
++                PropertyList({Property("detail", kPropertyTypeBoolean, false)}), [](const PropertyList& properties) -> ReturnValue {
++                    if (properties["detail"].value<bool>()) {
++                        static FdTestResult res;
++                        maipai_fd_result(&res);
++                        if (res.state == 0) return err_json("no test has run yet");
++                        return std::string(result_json(res, res.state != 1));
++                    }
++                    FdStatus st;
++                    maipai_fd_status(&st);
++                    char buf[560];
++                    snprintf(buf, sizeof(buf),
++                             "{\"ok\":true,\"built\":true,\"loaded\":%s,\"model\":\"%s\",\"runs\":%u,\"runs_with_face\":%u,\"refused\":%u,"
++                             "\"errors\":%u,\"camera_busy\":%u,\"last_infer_ms\":%u,\"last_total_ms\":%u,\"stream_left_ms\":%u,\"test_state\":%d,"
++                             "\"face\":{\"valid\":%s,\"cx\":%d,\"cy\":%d,\"w\":%d,\"score_pct\":%d,\"age_ms\":%ld}}",
++                             st.loaded ? "true" : "false", st.model >= 0 && st.model < FD_MODEL_COUNT ? FD_MODEL_NAMES[st.model] : "none",
++                             static_cast<unsigned>(st.runs), static_cast<unsigned>(st.runs_with_face), static_cast<unsigned>(st.refused),
++                             static_cast<unsigned>(st.errors), static_cast<unsigned>(st.camera_busy), static_cast<unsigned>(st.last_infer_ms),
++                             static_cast<unsigned>(st.last_total_ms), static_cast<unsigned>(st.want_left_ms), st.test_state,
++                             st.face.valid ? "true" : "false", static_cast<int>(st.face.cx), static_cast<int>(st.face.cy), static_cast<int>(st.face.w),
++                             static_cast<int>(st.face.score * 100.0f + 0.5f), st.face.valid ? static_cast<long>(st.face_age_ms) : -1L);
++                    return std::string(buf);
++                });
++}
++
++#endif  // CONFIG_MAIPAI_FACE_DETECT
+diff --git a/firmware/main/hal/maipai_facedet.h b/firmware/main/hal/maipai_facedet.h
+--- a/firmware/main/hal/maipai_facedet.h
++++ b/firmware/main/hal/maipai_facedet.h
+@@ -87,4 +87,12 @@ void maipai_fd_status(FdStatus* out);
+ // Frees the model now (the task also does it after the idle time).
+ void maipai_fd_unload_request();
+ 
++// Patch FD03: registers self.look.detect_test and self.look.detect_status. Call once from the main task after the seek tools. Does
++// nothing (no code) when the experiment switch is off.
++void maipai_fd_register_tools();
++
++#else
++
++inline void maipai_fd_register_tools() {}
++
+ #endif  // CONFIG_MAIPAI_FACE_DETECT
+diff --git a/firmware/main/hal/maipai_seek.cc b/firmware/main/hal/maipai_seek.cc
+--- a/firmware/main/hal/maipai_seek.cc
++++ b/firmware/main/hal/maipai_seek.cc
+@@ -19,6 +19,7 @@
+ #include "maipai_sounds.h"
+ #include "maipai_screen.h"
+ #include "maipai_remote.h"
++#include "maipai_facedet.h"
+ #include "board/hal_bridge.h"
+ #include "board/stackchan_camera.h"
+ #include "hal.h"
+@@ -297,6 +298,20 @@ void maipai_seek_register_tools()
+                     mw_status_json(s_w, s_mode.load(), ms_now(), buf, sizeof(buf));
+                     std::string out(buf);
+                     xSemaphoreGive(s_mu);
++#if defined(CONFIG_MAIPAI_FACE_DETECT) && CONFIG_MAIPAI_FACE_DETECT
++                    // Patch FD03, read only: the face detector's own state as flat fields (a host reads them; no picture, a number pair).
++                    FdStatus st;
++                    maipai_fd_status(&st);
++                    char tail[200];
++                    snprintf(tail, sizeof(tail), ",\"fd_loaded\":%s,\"fd_score_pct\":%d,\"fd_cx\":%d,\"fd_age_ms\":%ld",
++                             st.loaded ? "true" : "false", st.face.valid ? static_cast<int>(st.face.score * 100.0f + 0.5f) : -1,
++                             st.face.valid ? static_cast<int>(st.face.cx) : -1, st.face.valid ? static_cast<long>(st.face_age_ms) : -1L);
++                    if (!out.empty() && out.back() == '}') {
++                        out.pop_back();
++                        out += tail;
++                        out += '}';
++                    }
++#endif
+                     return out;
+                 });
+ 
+@@ -338,4 +353,6 @@ void maipai_seek_register_tools()
+                     ESP_LOGI(TAG, "calibration started");
+                     return std::string("{\"ok\":true,\"started\":true}");
+                 });
++
++    maipai_fd_register_tools();  // patch FD03: the bench tools of the face detector (nothing when the experiment switch is off)
+ }

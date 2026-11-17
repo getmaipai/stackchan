@@ -685,6 +685,8 @@ class StackChanTurnBridge:
         # Talk games ("play twenty questions", "tell me a riddle"; talk_games.py): started here with a fixed line, then
         # the model plays with the game's rules next to its persona. None means no talk games.
         self.talk_games = None
+        # The spoken word "lock" ("bloquear"): locks the unit that heard it (lock_voice.py). None means the word goes to the model.
+        self.lock_control = None
         # "What are you looking at?": answered from the head's own reason, never by the hub.
         self.gaze_control = gaze_control
         # "Can you see me?": answered from what the host knows, never "I can't see".
@@ -1190,6 +1192,9 @@ class StackChanTurnBridge:
 
         if is_stop_phrase(text):
             return "local command", "stop phrase on the fixed list"
+        lock = getattr(self, "lock_control", None)
+        if lock is not None and lock.parse(text) is not None:
+            return "local command", "lock word on the fixed list"
         talk = getattr(self, "talk_games", None)
         if talk is not None and talk.parse(text, device_id) is not None:
             return "local command", "talk game start or end wording found"
@@ -1315,6 +1320,18 @@ class StackChanTurnBridge:
                 result, session_id, playback, base, cookie
             ):
                 return
+            if self.lock_control is not None:
+                lock_command = self.lock_control.parse(result.text or "")
+                if lock_command is not None:
+                    # Only the word "lock". A spoken code is never taken (lock_voice.py); the words are not logged.
+                    line = await asyncio.to_thread(self.lock_control.run, lock_command, device_id)
+                    LOG.info("StackChan voice: lock command")
+                    if line:
+                        await asyncio.to_thread(self._say, playback, base, cookie, line)
+                        self._breaker.note_speech()
+                    self._quiet_idle.add(session_id)
+                    await self._go_idle(device_id)
+                    return
             if self.alarm_control is not None:
                 alarm_command = self.alarm_control.parse(result.text or "")
                 if alarm_command is not None:

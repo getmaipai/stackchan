@@ -1,6 +1,6 @@
 /* Host test for the game engine core (patch G01):
  *   cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> games_core_test.c -o t
- *   ./t memory.mpk reaction.mpk whack.mpk
+ *   ./t memory.mpk whack.mpk   (patch GM04: Reaction Time is gone)
  * Fixed seeds throughout: a failure repeats. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,8 +16,8 @@ static int failures;
         }                                                  \
     } while (0)
 
-static uint8_t g_blob[3][MG_MAX_PACK];
-static size_t g_len[3];
+static uint8_t g_blob[2][MG_MAX_PACK];
+static size_t g_len[2];
 
 static void load(int i, const char* path)
 {
@@ -85,15 +85,14 @@ static int visible_count(const mg_run_t* r)
 static void test_parse_and_refusals(void)
 {
     mg_pack_t p;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
         CHECK(mg_parse(g_blob[i], g_len[i], &p) == MG_OK);
         CHECK(!p.has_sig);
         CHECK(g_len[i] < 6144);                      /* far under the 16 KB target */
         CHECK(p.n_states <= MG_MAX_STATES && p.n_trans <= MG_MAX_TRANS);
     }
     CHECK(mg_parse(g_blob[0], g_len[0], &p) == MG_OK && strcmp(p.id, "memory") == 0 && !(p.flags & MG_FLAG_LOWER_BETTER));
-    CHECK(mg_parse(g_blob[1], g_len[1], &p) == MG_OK && strcmp(p.id, "reaction") == 0 && (p.flags & MG_FLAG_LOWER_BETTER));
-    CHECK(mg_parse(g_blob[2], g_len[2], &p) == MG_OK && strcmp(p.id, "whack") == 0);
+    CHECK(mg_parse(g_blob[1], g_len[1], &p) == MG_OK && strcmp(p.id, "whack") == 0 && !(p.flags & MG_FLAG_LOWER_BETTER));
 
     uint8_t b[MG_MAX_PACK];
     const size_t n = g_len[0];
@@ -286,72 +285,11 @@ static void test_memory(void)
     CHECK(differ > 0);
 }
 
-static void test_reaction(void)
-{
-    mg_pack_t p;
-    mg_run_t r;
-    CHECK(mg_parse(g_blob[1], g_len[1], &p) == MG_OK);
-    CHECK(p.n_regions == 0);
-    mg_start(&r, &p, 0, 99);
-    uint32_t now = 0;
-    /* intro to wait */
-    mg_tap(&r, 160, 120, now += 100);
-    CHECK(state_named_text(&r, "Wait..."));
-    /* an early tap: "Too soon", the round is not counted, then back to waiting */
-    mg_tap(&r, 160, 120, now += 100);
-    CHECK(state_named_text(&r, "Too soon!") && r.ctr[1] == 0);
-    now += 1700;
-    mg_tick(&r, now);
-    CHECK(state_named_text(&r, "Wait..."));
-
-    /* three rounds with known delays: 250, 300 and 350 ms */
-    const int delay[3] = {250, 300, 350};
-    for (int round = 0; round < 3; round++) {
-        int guard = 0;
-        while (r.state != 2 /* go */ && guard++ < 1000) {
-            now += 30;
-            mg_tick(&r, now);
-        }
-        CHECK(r.state == 2);
-        CHECK(r.tone_n >= 1 && r.tone_q[r.tone_n - 1] == 0);
-        r.tone_n = 0;
-        CHECK(r.timer_due_ms - r.entered_ms == 2000);
-        mg_tap(&r, 100, 100, r.entered_ms + (uint32_t)delay[round]);
-        CHECK(r.ctr[3] == delay[round]);
-        CHECK(state_named_text(&r, round == 0 ? "250 ms" : (round == 1 ? "300 ms" : "350 ms")));
-        now = r.entered_ms + 1600;
-        mg_tick(&r, now);
-    }
-    CHECK(state_named_text(&r, "Average 300 ms"));
-    CHECK(r.save_pending && r.ctr[p.score_ctr] == 300);
-    CHECK(r.tone_n == 1 && r.tone_q[0] == 2);
-
-    /* A waiting time is random in 1.5 to 4 s and the same for a fixed seed. */
-    int lo = 99999, hi = 0;
-    for (uint32_t seed = 1; seed < 60; seed++) {
-        mg_start(&r, &p, 0, seed);
-        mg_tap(&r, 100, 100, 10); /* intro to wait */
-        const int d = (int)(r.timer_due_ms - r.entered_ms);
-        if (d < lo) lo = d;
-        if (d > hi) hi = d;
-    }
-    CHECK(lo >= 1500 && hi <= 4000 && hi - lo > 500);
-
-    /* No tap at all in the go state: counted as 2000 ms, the game still ends. */
-    mg_start(&r, &p, 0, 5);
-    now = 0;
-    for (int t = 0; t < 60000 && !r.finished; t += 30) {
-        now += 30;
-        mg_tick(&r, now);
-    }
-    CHECK(r.finished && r.saved && r.ctr[p.score_ctr] == 2000);
-}
-
 static void test_whack(void)
 {
     mg_pack_t p;
     mg_run_t r;
-    CHECK(mg_parse(g_blob[2], g_len[2], &p) == MG_OK && p.n_regions == 9);
+    CHECK(mg_parse(g_blob[1], g_len[1], &p) == MG_OK && p.n_regions == 9);
     /* the nine cells tile the area inside the edges with no overlap and no gap between neighbours */
     for (int i = 0; i < 9; i++) {
         for (int k = i + 1; k < 9; k++) {
@@ -423,7 +361,7 @@ static void test_budget_and_loops(void)
     mg_start(&r, &p, 0, 1);
     CHECK(r.budget_hit && r.steps == 6);
     /* and the real packs never come near it */
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
         mg_parse(g_blob[i], g_len[i], &p);
         mg_start(&r, &p, 0, 3);
         for (uint32_t now = 0; now < 40000; now += 30) {
@@ -449,7 +387,7 @@ static void test_hostile_packs(void)
 {
     uint8_t b[MG_MAX_PACK];
     int accepted = 0, refused = 0;
-    for (int which = 0; which < 3; which++) {
+    for (int which = 0; which < 2; which++) {
         for (int round = 0; round < 1500; round++) {
             const size_t n = g_len[which];
             memcpy(b, g_blob[which], n);
@@ -508,7 +446,7 @@ static void test_scores_and_text(void)
     CHECK(mg_scores_add(s, 0, 0) == -1 && mg_scores_add(s, 0, -4) == -1);
     CHECK(mg_scores_add(s, 0, 2) == 4 && s[4] == 2);
 
-    uint16_t t[MG_SCORES] = {0, 0, 0, 0, 0};   /* lower is better: reaction times */
+    uint16_t t[MG_SCORES] = {0, 0, 0, 0, 0};   /* lower is better: a time (the engine still ranks it; no shipped game uses it) */
     CHECK(mg_scores_add(t, 1, 300) == 0);
     CHECK(mg_scores_add(t, 1, 250) == 0 && t[0] == 250);
     CHECK(mg_scores_add(t, 1, 400) == 2);
@@ -518,23 +456,23 @@ static void test_scores_and_text(void)
     /* counters in text */
     mg_pack_t p;
     mg_run_t r;
-    mg_parse(g_blob[1], g_len[1], &p);
+    mg_parse(g_blob[1], g_len[1], &p);  /* the whack-a-mole pack: text 4 is "Score %0 of 15" */
     mg_start(&r, &p, 0, 1);
     char out[64];
-    r.ctr[3] = 1234;
-    CHECK(mg_text(&r, 4, 0, out, sizeof(out)) == 7 && strcmp(out, "1234 ms") == 0);
-    r.ctr[3] = -7;
+    r.ctr[0] = 1234;
+    CHECK(mg_text(&r, 4, 0, out, sizeof(out)) == 16 && strcmp(out, "Score 1234 of 15") == 0);
+    r.ctr[0] = -7;
     mg_text(&r, 4, 0, out, sizeof(out));
-    CHECK(strcmp(out, "-7 ms") == 0);
-    CHECK(mg_text(&r, 4, 0, out, 4) == 3 && strcmp(out, "-7 ") == 0);   /* never past the buffer */
+    CHECK(strcmp(out, "Score -7 of 15") == 0);
+    CHECK(mg_text(&r, 4, 0, out, 4) == 3 && strcmp(out, "Sco") == 0);   /* never past the buffer */
     /* Spanish when it has a line, English when it has none */
-    CHECK(strcmp(mg_text_raw(&p, 0, 1), "Tiempo de reaccion") == 0);
-    CHECK(strcmp(mg_text_raw(&p, 0, 0), "Reaction Time") == 0);
+    CHECK(strcmp(mg_text_raw(&p, 0, 1), "Atrapa topos") == 0);
+    CHECK(strcmp(mg_text_raw(&p, 0, 0), "Whack-a-Mole") == 0);
 }
 
 static void test_regions_stay_inside(void)
 {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
         mg_pack_t p;
         mg_parse(g_blob[i], g_len[i], &p);
         for (int k = 0; k < p.n_regions; k++) {
@@ -580,7 +518,7 @@ static void test_color_tones(void)
  * high, at least 8 px from the side and the bottom of the glass) and the targets of one game do not overlap. */
 static void test_buttons_stay_in_the_safe_area(void)
 {
-    for (int g = 0; g < 3; g++) {
+    for (int g = 0; g < 2; g++) {
         mg_pack_t p;
         CHECK(mg_parse(g_blob[g], g_len[g], &p) == MG_OK);
         for (int i = 0; i < p.n_regions; i++) {
@@ -607,18 +545,17 @@ static void test_buttons_stay_in_the_safe_area(void)
 
 int main(int argc, char** argv)
 {
-    if (argc != 4) {
-        printf("usage: games_core_test memory.mpk reaction.mpk whack.mpk\n");
+    if (argc != 3) {
+        printf("usage: games_core_test memory.mpk whack.mpk\n");
         return 2;
     }
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
         load(i, argv[i + 1]);
     }
     CHECK(MG_TONE_COUNT == 5 && strcmp(MG_TONES[4], "exclamation") == 0);
     test_parse_and_refusals();
     test_signature_rule();
     test_memory();
-    test_reaction();
     test_whack();
     test_budget_and_loops();
     test_hostile_packs();

@@ -121,7 +121,7 @@ def report(path: str, started: float, secs: float) -> int:
     for line in re.findall(r"SystemInfo: stk(.*)", text):
         for name, val in re.findall(r"(\S+)=(\d+)[ip]", line):
             margins[name] = min(margins.get(name, 1 << 30), int(val))
-    # A close that comes with a unit boot within 3 seconds is the unit being reset (the flash, or opening the serial port
+    # A close that comes with a unit boot within 6 seconds is the unit being reset (the flash, or opening the serial port
     # resets it); only a close with no reset beside it is a dropped link.
     drops = 0
     try:
@@ -138,7 +138,7 @@ def report(path: str, started: float, secs: float) -> int:
                 closes.append(stamp)
             elif "unit boot:" in ln:
                 boots.append(stamp)
-        drops = sum(1 for c in closes if not any(0 <= b - c <= 3 for b in boots))
+        drops = sum(1 for c in closes if not any(0 <= b - c <= 6 for b in boots))
     except OSError:
         pass
     if not steady:

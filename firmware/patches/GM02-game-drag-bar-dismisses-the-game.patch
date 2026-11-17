@@ -1,0 +1,117 @@
+# Intent: Owner request: every game screen has the drag bar grabber (the same one as the sheet and the other screens) and a swipe down from it dismisses the game. Only a swipe that BEGINS on the strip (the top 16 px of the content zone, y 28 to 44), goes down at least 24 px and stays mostly vertical counts; a press above y 36 is the bar's and starts no tile tap (a tile may begin at y 28: the bar overlays its top 8 px); everything from y 36 down belongs to the game, so in-game swipes (Do It) and taps (Whack, Tic-Tac-Toe) are untouched. Dismissing ends the game the usual way: its sounds stop, a best score is saved if one was earned, confetti and overlays are cleared and the screen is released.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games_input_core.h, maipai_games_draw.h, maipai_games.cc (ours)
+# Check after a flash: Start any game: a small gray bar shows at the top under the banner row. Swipe down from it: the game ends and the face or the page below returns. A tap on a tile just below it still counts.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_games_input_core.h b/firmware/main/hal/maipai_games_input_core.h
+--- a/firmware/main/hal/maipai_games_input_core.h
++++ b/firmware/main/hal/maipai_games_input_core.h
+@@ -198,4 +198,31 @@ static inline int mgi_shake_update(mgi_shake_t* k, float x, float y, float z, ui
+     return MGI_SHAKE_NONE;
+ }
+ 
++/* Patch GM02: the drag bar of a game screen. The grabber (48 by 5 px) sits at the top of the content zone like the one on the sheet and the
++ * other screens. Only a swipe DOWN that BEGINS on the strip (y 28 to 44) ends the game; a press above y 36 is the bar's and starts no tile
++ * tap (a tile may begin at y 28: the bar overlays its top 8 px), and everything from y 36 down belongs to the game. */
++#define MG_DRAG_TOP 28
++#define MG_DRAG_BOTTOM 44
++#define MG_DRAG_DEAD_Y 36
++#define MG_DRAG_MIN_DY 24
++#define MG_DRAG_MAX_MS 1500u
++#define MG_DRAG_GRAB_X 136
++#define MG_DRAG_GRAB_Y 31
++#define MG_DRAG_GRAB_W 48
++#define MG_DRAG_GRAB_H 5
++
++/* A press here is the drag bar's, not a tile's. */
++static inline int mg_drag_press_dead(int y)
++{
++    return y >= MG_DRAG_TOP && y < MG_DRAG_DEAD_Y;
++}
++
++/* The finger began on the strip, went down at least MG_DRAG_MIN_DY and stayed mostly vertical, in time: the game is dismissed. */
++static inline int mg_drag_dismiss(int x0, int y0, int x1, int y1, uint32_t held_ms)
++{
++    const int dy = y1 - y0;
++    const int dx = x1 >= x0 ? x1 - x0 : x0 - x1;
++    return y0 >= MG_DRAG_TOP && y0 < MG_DRAG_BOTTOM && dy >= MG_DRAG_MIN_DY && dx * 2 <= dy && held_ms <= MG_DRAG_MAX_MS;
++}
++
+ #endif
+diff --git a/firmware/main/hal/maipai_games_draw.h b/firmware/main/hal/maipai_games_draw.h
+--- a/firmware/main/hal/maipai_games_draw.h
++++ b/firmware/main/hal/maipai_games_draw.h
+@@ -13,6 +13,7 @@
+ #include <math.h>
+ #include <lvgl.h>
+ #include "maipai_games_core.h"
++#include "maipai_games_input_core.h"
+ 
+ namespace mgd {
+ 
+@@ -593,6 +594,21 @@ inline bool animate(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type
+     return busy;
+ }
+ 
++// Patch GM02: the drag bar grabber of a game screen, the same bar as the sheet and the other screens (it never takes a touch). Drawn after the
++// shapes so it overlays the top 8 px of a tile that begins at y 28.
++inline lv_obj_t* build_drag_bar(lv_obj_t* parent)
++{
++    lv_obj_t* grab = lv_obj_create(parent);
++    lv_obj_remove_style_all(grab);
++    lv_obj_remove_flag(grab, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_pos(grab, MG_DRAG_GRAB_X, MG_DRAG_GRAB_Y);
++    lv_obj_set_size(grab, MG_DRAG_GRAB_W, MG_DRAG_GRAB_H);
++    lv_obj_set_style_radius(grab, 3, 0);
++    lv_obj_set_style_bg_color(grab, lv_color_hex(0xB0B0B0), 0);
++    lv_obj_set_style_bg_opa(grab, LV_OPA_80, 0);
++    return grab;
++}
++
+ }  // namespace mgd
+ 
+ #endif
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -831,7 +831,7 @@ static_assert(static_cast<int>(MAIPAI_GAME_EV_SHAKE) == static_cast<int>(MG_EV_S
+ const char* maipai_games_start_locked(const char* name, const char* source)
+ {
+     const bool es = want_spanish();
+-    if (maipai_lock_locked()) {  // patch LK04
++    if (maipai_lock_locked()) {  // patch LK03
+         return say(es, "The unit is locked. Unlock it with the code on its screen first.", "La unidad esta bloqueada. Desbloqueala primero con el codigo en su pantalla.");
+     }
+     if (s_game != nullptr) {
+@@ -897,6 +897,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+         g->text[i] = s.text;
+         g->obj[i]  = mgd::build_shape(g->root, s, g->pts[i], &g->parts);
+     }
++    mgd::build_drag_bar(g->root);  // patch GM02: the same grabber as the sheet and the other screens
+     show_best(g, false);
+     g->last_awake_ms = now_ms();
+     mg_start(&g->run, &g->pack, now_ms(), esp_random());
+@@ -953,6 +954,9 @@ void maipai_games_touch(int x, int y)
+     if (g == nullptr || g->tap_on_release) {
+         return;  // a game that takes its taps when the finger lifts hears the release instead
+     }
++    if (mg_drag_press_dead(y)) {
++        return;  // patch GM02: the top 8 px of the content zone are the drag bar's
++    }
+     mg_tap(&g->run, x, y, now_ms());
+     after_event(g);
+ }
+@@ -962,7 +966,11 @@ void maipai_games_touch(int x, int y)
+ void maipai_games_release(int x0, int y0, int x1, int y1, uint32_t held_ms)
+ {
+     Game* g = s_game;
+-    if (g == nullptr || !g->tap_on_release) {
++    if (g != nullptr && mg_drag_dismiss(x0, y0, x1, y1, held_ms)) {
++        end_locked("dragbar");  // patch GM02: a swipe down from the drag bar ends the game: sounds, best score, overlays and the screen are released
++        return;
++    }
++    if (g == nullptr || !g->tap_on_release || mg_drag_press_dead(y0)) {
+         return;
+     }
+     const uint32_t now = now_ms();

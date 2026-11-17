@@ -1,7 +1,7 @@
 // The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these commands:
 //   bpost PRIO ICON TAG HOLD_MS text...   (PRIO privacy|notice|caption; ICON none|remote|check|battery|wifioff|bars|ring|speech|key;
 //                                          TAG none|caption|volume|say|cue|find|link|game; HOLD 0 = until cleared)
-//   bstatus LEVEL CHARGING WIFI_UP HUB_UP MIC | bbar hidden|always (the gauges the unit polls; the strip decides what shows)
+//   bstatus LEVEL CHARGING WIFI_UP HUB_UP MIC | bwifiscreen on|off (a Wi-Fi screen is up: no strip glyph, patch WF01) | bbar hidden|always (the gauges the unit polls; the strip decides what shows)
 //   bclear TAG | bsession on|off [label] | bflag mic|camera|remote|battery|wifi on|off [HOLD_MS] | bcaps off|subtitles|banner | ssay TEXT | send | sstop | bvis
 #include "render_hooks.h"
 #include "maipai_look_core.h"
@@ -91,6 +91,15 @@ struct FakeHost : MaipaiPagesHost {
     void bump() override { log += "bump;"; }
 };
 static FakeHost g_pages_host;
+// The renderer is not a unit: nothing is locked and no game runs (patches LK03 and GM01 call these from the pages and the subtitles).
+#include "maipai_lock.h"
+#include "maipai_games.h"
+#if CONFIG_MAIPAI_LOCK
+bool maipai_lock_locked() { return false; }
+#endif
+#if CONFIG_MAIPAI_GAMES
+bool maipai_games_active() { return false; }
+#endif
 #endif
 using namespace stackchan::avatar;
 extern "C" { volatile int g_md_legacy = 0; }  // the dirty-rectangle switch of patch V20 (bench only on the unit)
@@ -193,6 +202,7 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
     }
     if (c == "bclear") { std::string t; in >> t; maipai_banner_clear_tag(pick(t, tags, 8)); return true; }
     if (c == "bsession") { std::string o, l; in >> o; std::getline(in, l); if (!l.empty() && l[0] == ' ') l.erase(0, 1); maipai_banner_session(o == "on", l.c_str()); return true; }
+    if (c == "bwifiscreen") { std::string o; in >> o; maipai_banner_wifi_screen(o == "on"); return true; }  // patch WF01: a Wi-Fi screen is up
     if (c == "bflag") { std::string f, o; unsigned hold = 0; in >> f >> o >> hold; maipai_banner_flag(pick(f, flags, 5), o == "on", hold); return true; }
     if (c == "bsicons") { std::string o; in >> o; maipai_banner_set_status_icons(o == "on"); return true; }  // patch UI04: the status icons setting
     if (c == "bst") { int k; in >> k; maipai_banner_status(k, false); return true; }                          // a state: 0 heard, 1 listening, 2 thinking

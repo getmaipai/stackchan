@@ -1,6 +1,6 @@
 # Two new features: passcode lock and streaming radio (2026-11-17)
 
-Placement: design note and backlog. Nothing here is built. Each item carries a placement line from the App Store test (`docs/dev/scope-core-vs-home.md`).
+Placement: design note and backlog. The passcode lock (section 1) is built in firmware patches LK01 to LK03 and in the host settings page; it is not flashed on the owner's unit until the memory gate result below is filled in. Radio (section 2) is not built. Each item carries a placement line from the App Store test (`docs/dev/scope-core-vs-home.md`).
 
 ## 1. Passcode lock
 
@@ -10,8 +10,8 @@ Placement: design note and backlog. Nothing here is built. Each item carries a p
 
 **Behavior**
 - Lock state is stored on the unit and survives a reboot: a locked robot is still locked after power loss.
-- Locking: manual (settings page, a lock tile on the control sheet, or the voice command "lock"), or automatic after N idle minutes (off, 1, 5, 15, 30, 60; idle means no touch, wake word or remote action).
-- Locked screen: the sleeping face with a small padlock icon, dimmed to the night level. A touch shows a keypad (a 3 by 4 grid of 44 px keys, 4 to 6 digits, backspace, a cancel that returns to the lock screen). Unlock only by the keypad. A spoken code is never accepted (it can be overheard).
+- Locking: manual (settings page, the More screen, or the voice command "lock"), or automatic after N idle minutes (off, 1, 5, 15, 30, 60; idle means no touch, wake word or remote action).
+- Locked screen: the sleeping face with a small padlock icon, dimmed to the night level. A touch shows a keypad (twelve large keys, 100 by 44 px, three across and four down, 4 to 6 digits, backspace, a cancel that returns to the lock screen; no words: entry dots and keys only; a wrong code shakes the dots and flashes them red). Unlock only by the keypad. A spoken code is never accepted (it can be overheard).
 - While locked: the wake word engine is off (so no wake, and no listening for it), the stop word is off, the touch screen shows only the keypad, the control sheet, pages, games, settings and swipes are off, remote controllers are refused except "find my robot" (beep and flash, so a lost robot can be found), the camera and microphone cues keep working and nothing new turns them on.
 - Still works while locked: timers and alarms keep ringing, and a ringing alarm or timer can be stopped with one tap without the code (safety); the clock runs; privacy cues; mute; low battery shows.
 - The code: 4 to 6 digits, set on the settings page (changing it needs the current code if one is set). Stored as a salted, stretched hash in the unit's settings storage; the code itself is never stored, logged or sent. The host never holds the code; it asks the unit to set or clear it.
@@ -24,7 +24,17 @@ Placement: design note and backlog. Nothing here is built. Each item carries a p
 
 **Tests:** wake word ignored while locked; touch limited to the keypad; the hash is salted and the code never appears in logs or the settings dump; auto lock after the idle time and not while an alarm rings; a reboot stays locked; alarms still ring; the lock cannot be cleared by any remote command; a wrong code never reveals the length.
 
-## 2. Streaming radio and a player
+**Built (2026-11-17), what the patches do beyond the text above**
+- `LK01` is the pure C core (`maipai_lock_core.h`, host test `lock_core_test.c`). The hash is PBKDF2 with HMAC-SHA-256, 2000 rounds, a 16 byte random salt; it uses the core's own SHA-256, not the chip's hash block, because the rounds need the raw compression function that the SDK's hash API does not expose. `LK_WRONG_DELAY_MS` is 0 (owner decision, no lockout); it is the one place to raise.
+- There is no "enter" key: every digit from the fourth on is checked, so the screen never shows how long the code is. Six wrong digits clear the entry and show one wording.
+- `LK02` is the unit module (state in settings namespace `mp_lock`, the tools `self.lock.status`, `set`, `clear`, `now`, `config`, the lock screen and keypad). A locked unit answers `set`, `clear` and `config` with reason `locked`, and no tool unlocks.
+- `LK03` is the enforcement (wake word, voice processing, stop word, swipes, pages, sheet, settings, Wi-Fi, quick settings, games, remote controllers except find) and a Lock button on the More screen (shown only while a code is set). Owner decision, 2026-11-17: the control sheet keeps its one row of six tiles and has no lock tile; the Apps list and Settings, General are the planned homes for Lock.
+- The physical two-step reset erases the namespace with everything else (a test keeps `mp_lock` out of the reset's keep list).
+
+## 2. Streaming radio and a player (REMOVED 2026-11-17: tried on the unit and dropped)
+
+**Outcome (owner, 2026-11-17):** a host-side player was built and played real streams and a local file through the unit. The unit's small speaker is weak and music sounded thin and distorted even with a richer encoder, a level control and a soft limiter; the robot also answered the music through its own microphone. The owner asked to remove the feature. The code, tests, settings card and saved stations were deleted. If revisited, the first step is a firmware music decode path and a bench echo test, not more host code. The design below is kept as a record.
+
 
 **Placement:** split.
 - **The player is a host package (local).** The host fetches a stream the owner names, turns it into the same Opus audio the unit already plays for speech, and sends it over the existing audio channel. The unit needs no new codec. Volume, mute, quiet hours and the stop word work as for speech. A "now playing" card shows the station. It plays through the same small speaker: chiptunes and spoken-word stations suit it; full-range music will sound thin.

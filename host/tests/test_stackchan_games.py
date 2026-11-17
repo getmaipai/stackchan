@@ -22,8 +22,8 @@ ROOT = HERE.parent.parent
 PATCHES = ROOT / "firmware" / "patches"
 GAMES_DIR = ROOT / "firmware" / "games"
 C_TESTS = HERE / "firmware"
-IDS = ("memory", "reaction", "whack", "tictactoe", "bopit", "rps", "eightball", "dice")  # UI13 adds tictactoe, bopit, rps; UI15 the last two
-OLD_IDS = IDS[:3]  # what games_core_test.c (patch G01) plays
+IDS = ("memory", "whack", "tictactoe", "bopit", "rps", "eightball", "dice")  # UI13 adds tictactoe, bopit, rps; UI15 the last two; GM04 removes Reaction Time
+OLD_IDS = IDS[:2]  # what games_core_test.c (patch G01) plays: memory and whack
 HAVE_CC = shutil.which("cc") is not None
 HAVE_CXX = shutil.which("c++") is not None
 
@@ -373,11 +373,13 @@ def test_the_host_names_match_the_firmware_tables() -> None:
         ("play memory", ("start", "memory")),
         ("let's play the color memory game", ("start", "memory")),
         ("Can we play whack-a-mole?", ("start", "whack")),
-        ("start reaction time", ("start", "reaction")),
+        ("start tic tac toe", ("start", "tictactoe")),
+        ("play reaction time", None),  # patch GM04: that game is gone, so nothing starts
         ("juega a los topos", ("start", "whack")),
         ("Juguemos al atrapa topos", ("start", "whack")),
         ("quiero jugar a memoria de colores", ("start", "memory")),
-        ("quiero jugar tiempo de reacción", ("start", "reaction")),
+        ("quiero jugar tres en raya", ("start", "tictactoe")),
+        ("quiero jugar tiempo de reacción", None),
         ("stop the game", ("stop", None)),
         ("para el juego", ("stop", None)),
         ("what games do you have", ("list", None)),
@@ -444,10 +446,10 @@ class FakeGames:
                         "scores": [7, 5, 4],
                     },
                     {
-                        "id": "reaction",
-                        "title": "Reaction Time",
-                        "lower_is_better": True,
-                        "scores": [231, 300],
+                        "id": "tictactoe",
+                        "title": "Tic-Tac-Toe",
+                        "lower_is_better": False,
+                        "scores": [30, 10],
                     },
                     {
                         "id": "whack",
@@ -469,9 +471,9 @@ def test_the_service_starts_stops_lists_and_answers_spoken_asks() -> None:
     assert unit.calls[-1] == ("self.game.start", {"name": "whack"})
     assert service.stop()["was"] is True
     view = service.list("es")
-    assert view["ok"] and [g["title"] for g in view["games"]][1] == "Tiempo de reaccion"
-    assert view["games"][1]["lower_is_better"] is True and view["games"][1]["unit"] == "ms"
-    assert service.ask("play reaction time")["game"] == "reaction"
+    assert view["ok"] and [g["title"] for g in view["games"]][1] == "Tres en raya"
+    assert view["games"][1]["lower_is_better"] is False and view["games"][1]["unit"] == "puntos"
+    assert service.ask("play tic tac toe")["game"] == "tictactoe"
     assert service.ask("what games do you have")["games"][0]["scores"] == [7, 5, 4]
     assert service.ask("best score in memory")["scores"] == [3]
     assert service.ask("good morning") is None
@@ -546,7 +548,7 @@ def test_the_settings_page_lists_every_game_and_its_best_scores(tmp_path: Path) 
     assert status == 200 and view["ok"] is True
     assert view["lines"] == [
         "Color Memory: 7, 5, 4 rounds",
-        "Reaction Time: 231, 300 ms",
+        "Tic-Tac-Toe: 30, 10 points",
         "Whack-a-Mole: none yet",
     ]
     status, _, body = backend.route_get(path, "es", True)
@@ -590,9 +592,9 @@ def test_a_spoken_game_ask_becomes_a_game_command_and_is_answered_in_the_languag
     assert commander.run(stop) == "No game is playing right now."
     listing = parse_head_command("what games do you have")
     assert listing is not None
-    assert commander.run(listing) == "I have Color Memory, Reaction Time and Whack-a-Mole."
-    best = parse_head_command("what is my best score in reaction time")
-    assert best is not None and commander.run(best) == "Your best in Reaction Time is 3 ms."
+    assert commander.run(listing) == "I have Color Memory, Tic-Tac-Toe and Whack-a-Mole."
+    best = parse_head_command("what is my best score in tic tac toe")
+    assert best is not None and commander.run(best) == "Your best in Tic-Tac-Toe is 3 points."
     # the plain words around the games do not become game commands, and the head commands still work
     assert parse_head_command("stop") is None
     left = parse_head_command("look left")

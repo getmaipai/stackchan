@@ -183,6 +183,8 @@ STEADY_LEVEL = 800  # a song heard across a room measured 1000 to 1900
 STEADY_MO_MAX = 32  # speech modulates at 3 to 6 Hz (45 to 60); songs measured 6 to 30
 STEADY_PS_MAX = 20  # speech has pauses (45); songs measured 0 to 28
 STEADY_FL_MAX = 97  # white noise is 97 and up
+STRONG_BEAT_TC = 40  # a tempo confidence this high is a real rhythm
+STRONG_BEAT_FL_BONUS = 6  # so it may be a little flatter before it counts as noise (white noise stays at 97)
 
 
 def _steady_sound(feat: MusicFeat) -> bool:
@@ -227,6 +229,23 @@ def judge(feat: MusicFeat, sensitivity: str = "medium", *, relaxed: bool = False
     if feat.ps >= ps_max and feat.tc < sens.ps_tc_free:
         return Verdict(False, "speech_like_pauses")
     return Verdict(True, "music")
+
+
+STRONG_BEAT_TC = 40  # a tempo confidence this high is a real rhythm
+STRONG_BEAT_FL_MAX = 94  # so it may be a little flatter before it counts as noise (white noise is 97)
+
+
+def judge_host(feat: MusicFeat, sensitivity: str = "medium", *, relaxed: bool = False) -> Verdict:
+    """``judge`` plus one host-only allowance. The unit's own judge (firmware patch V03) is fixed in the flashed image, so
+    the shared rule stays as it is; here, a window that fails only on flatness but has a clear steady beat (tc 40 or more,
+    flatness under 94) is judged again with the flatness taken out. One real song measured fl 89 with tc 53 on
+    2026-11-17 and was refused at the shared limit of 88. Every other check (speech modulation, pauses, tempo range) still applies."""
+    verdict = judge(feat, sensitivity, relaxed=relaxed)
+    if not verdict.music and verdict.why == "too_flat" and feat.tc >= STRONG_BEAT_TC and feat.fl <= STRONG_BEAT_FL_MAX:
+        from dataclasses import replace
+
+        return judge(replace(feat, fl=80), sensitivity, relaxed=relaxed)
+    return verdict
 
 
 # ---------------------------------------------------------------- timing and the plan
@@ -424,7 +443,7 @@ class MusicDance:
                 return
             self._count_minute(now)
             relaxed = self.state in ("nod", "watch", "show", "calm", "break")
-            verdict = judge(feat, self.settings.auto_sensitivity, relaxed=relaxed)
+            verdict = judge_host(feat, self.settings.auto_sensitivity, relaxed=relaxed)
             self._talk.append(feat.ps >= TALKER_PS or feat.mo >= TALKER_MO)
             if verdict.music and self._talker_over():
                 verdict = Verdict(False, "talker_over_music")

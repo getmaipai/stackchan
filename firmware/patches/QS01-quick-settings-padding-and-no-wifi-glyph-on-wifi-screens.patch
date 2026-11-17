@@ -1,0 +1,209 @@
+# Intent: Two owner requests on the unit's own screens. (1) The quick settings screen had no room under the Volume and Brightness sliders, so a finger lifting from a slider could press the Wi-Fi or More button. The sliders move up (Volume row at y 50, Brightness at y 88), the saved Wi-Fi networks start at y 146 (20 px of empty space under the Brightness knob) and the bottom row (Reset, More) moves down to y 196, 6 px under the Wi-Fi row. Taps on the buttons and on the empty background are ignored for 300 ms after a slider touch ends. (2) The strip at the right of the banner row never draws the Wi-Fi glyph where the screen or the message is already about Wi-Fi: the wifi-off and bars message icons (the old rule covered wifi-off only), the connecting and Wi-Fi setup cover, and the Wi-Fi page (new maipai_banner_wifi_screen).
+# Placement: unit
+# Upstream: firmware/main/hal/board/stackchan_display.cc (M5Stack, patches UI01 and C02), maipai_banner.cc, maipai_banner.h (ours, N01)
+# Check after a flash: Open Quick settings, drag the Volume slider and let go over the Wi-Fi row: nothing is pressed. Empty space shows under both sliders. Unplug the router: the connecting screen and the setup screen show no Wi-Fi glyph in the upper right; the face with Wi-Fi down still shows the slashed bars.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -746,6 +746,8 @@ void hal_bridge::link_look(int look)
+ 
+ void StackChanAvatarDisplay::ShowBootCover(const char* text, int ring_kind, int glyph_kind)
+ {
++    // Patch WF01: the connecting and setup cover is about Wi-Fi: the strip draws no Wi-Fi glyph over it.
++    maipai_banner_wifi_screen(text != nullptr && (strstr(text, "Wi-Fi") != nullptr || strstr(text, "Connecting") != nullptr));
+     if (boot_label_ != nullptr) {
+         lv_label_set_text(boot_label_, text);
+     }
+@@ -765,6 +767,7 @@ void StackChanAvatarDisplay::ShowBootCover(const char* text, int ring_kind, int
+ 
+ void StackChanAvatarDisplay::HideBootCover()
+ {
++    maipai_banner_wifi_screen(false);  // patch WF01
+     if (boot_cover_ != nullptr) {
+         lv_obj_add_flag(boot_cover_, LV_OBJ_FLAG_HIDDEN);
+         SetCoverGlyph(-1);
+@@ -912,7 +915,7 @@ extern "C" void maipai_display_volume_step(int delta)
+ }
+ extern "C" void maipai_display_open_quick(void)
+ {
+-    if (maipai_lock_locked()) {  // patch LK04
++    if (maipai_lock_locked()) {  // patch LK02
+         return;
+     }
+     if (s_self != nullptr) {
+@@ -926,15 +929,17 @@ static void wifi_page_close()
+         lv_obj_delete_async(s_wifi_panel);
+         s_wifi_panel = nullptr;
+     }
++    maipai_banner_wifi_screen(false);  // patch WF01
+     maipai_screen_closed(MSCR_WIFI);
+ }
+ extern "C" void maipai_display_open_wifi(void)
+ {
+-    if (maipai_lock_locked()) {  // patch LK04
++    if (maipai_lock_locked()) {  // patch LK02
+         return;
+     }
+     maipai_screen_register(MSCR_WIFI, wifi_page_close);
+     maipai_screen_open(MSCR_WIFI);
++    maipai_banner_wifi_screen(true);  // patch WF01: the Wi-Fi page is about Wi-Fi
+     if (s_wifi_panel != nullptr) {
+         return;
+     }
+@@ -1040,6 +1045,14 @@ void StackChanAvatarDisplay::ToggleQuickSettings()
+     }
+ }
+ 
++// Patch QS01: a finger that lets go of a slider must not also press a button right under it. Taps on the panel's buttons and its empty
++// background are ignored for 300 ms after a slider touch ends.
++static uint32_t s_slider_up_ms = 0;
++static bool quick_taps_ignored()
++{
++    return s_slider_up_ms != 0 && static_cast<uint32_t>(GetHAL().millis() - s_slider_up_ms) < 300u;
++}
++
+ void StackChanAvatarDisplay::OpenQuickSettings()
+ {
+     maipai_screen_register(MSCR_QUICK, []() {
+@@ -1093,6 +1106,8 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+         lv_slider_set_range(sl, lo, 100);
+         lv_slider_set_value(sl, value, LV_ANIM_OFF);
+         lv_obj_add_event_cb(sl, cb, LV_EVENT_VALUE_CHANGED, nullptr);
++        lv_obj_add_event_cb(sl, [](lv_event_t*) { s_slider_up_ms = GetHAL().millis() | 1u; }, LV_EVENT_RELEASED, nullptr);
++        lv_obj_add_event_cb(sl, [](lv_event_t*) { s_slider_up_ms = GetHAL().millis() | 1u; }, LV_EVENT_PRESS_LOST, nullptr);
+         return sl;
+     };
+ 
+@@ -1113,6 +1128,9 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+     lv_obj_add_event_cb(done_button,
+                         [](lv_event_t* event) {
+                             (void)event;
++                            if (quick_taps_ignored()) {
++                                return;
++                            }
+                             if (_quick_settings_display_ != nullptr) {
+                                 _quick_settings_display_->CloseQuickSettings();
+                             }
+@@ -1120,7 +1138,7 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+                         LV_EVENT_CLICKED, nullptr);
+ 
+     auto codec = Board::GetInstance().GetAudioCodec();
+-    make_slider(54, "Volume", 20, codec != nullptr ? codec->output_volume() : 80,
++    make_slider(50, "Volume", 20, codec != nullptr ? codec->output_volume() : 80,
+                 [](lv_event_t* event) {
+                     auto c = Board::GetInstance().GetAudioCodec();
+                     if (c != nullptr) {
+@@ -1128,7 +1146,7 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+                     }
+                 });
+     auto* backlight = Board::GetInstance().GetBacklight();
+-    make_slider(100, "Brightness", 10, backlight != nullptr ? backlight->brightness() : 80,
++    make_slider(88, "Brightness", 10, backlight != nullptr ? backlight->brightness() : 80,
+                 [](lv_event_t* event) {
+                     auto* backlight = Board::GetInstance().GetBacklight();
+                     if (backlight != nullptr) {
+@@ -1144,9 +1162,12 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+     }
+     for (size_t i = 0; i < ssid_count; i++) {
+         const int bw = ssid_count == 1 ? 304 : (ssid_count == 2 ? 150 : 99);
+-        lv_obj_t* button = make_button(8 + static_cast<int>(i) * (bw + 4), 148, bw, 44, ssids[i].ssid.c_str());
++        lv_obj_t* button = make_button(8 + static_cast<int>(i) * (bw + 4), 146, bw, 44, ssids[i].ssid.c_str());  // patch QS01: 20 px of empty space under the sliders
+         lv_obj_add_event_cb(button,
+                             [](lv_event_t* event) {
++                                if (quick_taps_ignored()) {
++                                    return;
++                                }
+                                 int index = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
+                                 SsidManager::GetInstance().SetDefaultSsid(index);
+                                 esp_wifi_disconnect();
+@@ -1170,11 +1191,14 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+     (void)kRowW;
+     (void)bx;
+ #if CONFIG_MAIPAI_RESET_ON_DEVICE
+-    lv_obj_t* reset_button = make_button(bx, 194, kRowW, 44, mrc_text(mrc_lang_from_code(Lang::CODE), MRC_STR_BUTTON));
++    lv_obj_t* reset_button = make_button(bx, 196, kRowW, 44, mrc_text(mrc_lang_from_code(Lang::CODE), MRC_STR_BUTTON));
+     bx += kRowW + 4;
+     lv_obj_add_event_cb(reset_button,
+                         [](lv_event_t* event) {
+                             (void)event;
++                            if (quick_taps_ignored()) {
++                                return;
++                            }
+                             if (_quick_settings_display_ != nullptr) {
+                                 _quick_settings_display_->OpenResetConfirm();
+                             }
+@@ -1182,10 +1206,13 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+                         LV_EVENT_CLICKED, nullptr);
+ #endif
+ #if MAIPAI_MORE_SCREEN
+-    lv_obj_t* more_button = make_button(bx, 194, kRowW, 44, strncmp(Lang::CODE, "es", 2) == 0 ? "Mas" : "More");
++    lv_obj_t* more_button = make_button(bx, 196, kRowW, 44, strncmp(Lang::CODE, "es", 2) == 0 ? "Mas" : "More");
+     lv_obj_add_event_cb(more_button,
+                         [](lv_event_t* event) {
+                             (void)event;
++                            if (quick_taps_ignored()) {
++                                return;
++                            }
+                             maipai_more_open();
+                         },
+                         LV_EVENT_CLICKED, nullptr);
+@@ -1195,7 +1222,7 @@ void StackChanAvatarDisplay::OpenQuickSettings()
+     lv_obj_add_event_cb(quick_panel_,
+                         [](lv_event_t* event) {
+                             auto* display = static_cast<StackChanAvatarDisplay*>(lv_event_get_user_data(event));
+-                            if (display != nullptr) {
++                            if (display != nullptr && !quick_taps_ignored()) {
+                                 display->CloseQuickSettings();
+                             }
+                         },
+diff --git a/firmware/main/hal/maipai_banner.cc b/firmware/main/hal/maipai_banner.cc
+--- a/firmware/main/hal/maipai_banner.cc
++++ b/firmware/main/hal/maipai_banner.cc
+@@ -27,6 +27,7 @@
+ namespace {
+ 
+ std::mutex s_mu;
++bool s_wifi_screen = false;  // patch WF01: a Wi-Fi screen is up (connecting, setup, the Wi-Fi page); mu held
+ mb_t* s_b = nullptr;
+ lv_obj_t* s_row = nullptr;    // the one rectangle (the background)
+ bool s_chip_row = false;      // patch UI10: the row is filled violet as a whole while the remote chip shows
+@@ -326,7 +327,9 @@ void render()
+     int icon = 0, prio = 0;
+     const int kind = mb_content(s_b, &text, &icon, &prio);
+     uint32_t strip = mb_strip_visible(s_b);
+-    if (icon == MB_ICON_WIFI_OFF) strip &= ~(1u << MB_FLAG_WIFI);  // the message already shows that glyph
++    // Patch WF01: a Wi-Fi glyph is never drawn where the screen or the message is already about Wi-Fi: the wifi-off and the bars message icons, and the
++    // connecting, setup, retry and Wi-Fi screens (which draw their own link icon).
++    if (icon == MB_ICON_WIFI_OFF || icon == MB_ICON_BARS || s_wifi_screen) strip &= ~(1u << MB_FLAG_WIFI);
+     if (icon == MB_ICON_BATTERY) strip &= ~(1u << MB_FLAG_BATTERY);
+     const lv_color_t fg = fg_color();
+     if (kind != 0 && s_row != nullptr) {  // with nothing to say the old content stays while the row fades out
+@@ -585,6 +588,14 @@ void maipai_banner_status(int kind, bool spanish)
+     maipai_banner_post(mst_text(kind, spanish ? 1 : 0), mst_icon(kind), MB_PRIO_PRIVACY, MB_TAG_STATUS, mst_hold_ms(kind));
+ }
+ 
++void maipai_banner_wifi_screen(bool on)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (s_wifi_screen == on) return;
++    s_wifi_screen = on;
++    s_b->rev++;  // the next tick draws the strip again without (or with) the Wi-Fi glyph
++}
++
+ void maipai_banner_status_clear()
+ {
+     maipai_banner_clear_tag(MB_TAG_STATUS);
+diff --git a/firmware/main/hal/maipai_banner.h b/firmware/main/hal/maipai_banner.h
+--- a/firmware/main/hal/maipai_banner.h
++++ b/firmware/main/hal/maipai_banner.h
+@@ -38,6 +38,8 @@ void maipai_banner_flag(int flag, bool on, uint32_t hold_ms);
+ void maipai_banner_set_status_icons(bool on);
+ void maipai_banner_status(int kind, bool spanish);
+ void maipai_banner_status_clear();
++// Patch WF01: a screen that is itself about Wi-Fi is up (the connecting and setup cover, the Wi-Fi page): the strip draws no Wi-Fi glyph over it.
++void maipai_banner_wifi_screen(bool on);
+ void maipai_banner_mic(bool live);
+ // "Top bar" setting: MB_BAR_HIDDEN (default) or MB_BAR_ALWAYS.
+ void maipai_banner_set_bar_mode(int mode);

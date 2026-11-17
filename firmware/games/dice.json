@@ -65,30 +65,30 @@
   {
    "name": "m0",
    "x": 20,
-   "y": 136,
+   "y": 170,
    "w": 94,
-   "h": 46
+   "h": 54
   },
   {
    "name": "m1",
    "x": 114,
-   "y": 136,
+   "y": 170,
    "w": 94,
-   "h": 46
+   "h": 54
   },
   {
    "name": "m2",
    "x": 208,
-   "y": 136,
+   "y": 170,
    "w": 92,
-   "h": 46
+   "h": 54
   },
   {
    "name": "area",
    "x": 20,
    "y": 28,
    "w": 280,
-   "h": 104
+   "h": 140
   }
  ],
  "shapes": [
@@ -99,8 +99,8 @@
   {
    "type": "die",
    "x": 160,
-   "y": 80,
-   "size": 72,
+   "y": 90,
+   "size": 80,
    "value": "d1",
    "mode": [
     "mode",
@@ -120,9 +120,9 @@
   },
   {
    "type": "die",
-   "x": 112,
-   "y": 80,
-   "size": 66,
+   "x": 108,
+   "y": 90,
+   "size": 72,
    "value": "d1",
    "mode": [
     "mode",
@@ -142,9 +142,9 @@
   },
   {
    "type": "die",
-   "x": 208,
-   "y": 80,
-   "size": 66,
+   "x": 212,
+   "y": 90,
+   "size": 72,
    "value": "d2",
    "mode": [
     "mode",
@@ -165,8 +165,8 @@
   {
    "type": "coin",
    "x": 160,
-   "y": 80,
-   "size": 84,
+   "y": 90,
+   "size": 96,
    "value": "c",
    "mode": [
     "mode",
@@ -187,9 +187,9 @@
   {
    "type": "box",
    "x": 22,
-   "y": 138,
+   "y": 172,
    "w": 90,
-   "h": 42,
+   "h": 50,
    "radius": 10,
    "color": "#1d3a5f",
    "states": [
@@ -207,9 +207,9 @@
   {
    "type": "box",
    "x": 116,
-   "y": 138,
+   "y": 172,
    "w": 90,
-   "h": 42,
+   "h": 50,
    "radius": 10,
    "color": "#1d3a5f",
    "states": [
@@ -227,9 +227,9 @@
   {
    "type": "box",
    "x": 210,
-   "y": 138,
+   "y": 172,
    "w": 88,
-   "h": 42,
+   "h": 50,
    "radius": 10,
    "color": "#1d3a5f",
    "states": [
@@ -247,9 +247,9 @@
   {
    "type": "box",
    "x": 22,
-   "y": 138,
+   "y": 172,
    "w": 90,
-   "h": 42,
+   "h": 50,
    "radius": 10,
    "color": "#e0a800",
    "states": [
@@ -271,9 +271,9 @@
   {
    "type": "box",
    "x": 116,
-   "y": 138,
+   "y": 172,
    "w": 90,
-   "h": 42,
+   "h": 50,
    "radius": 10,
    "color": "#e0a800",
    "states": [
@@ -295,9 +295,9 @@
   {
    "type": "box",
    "x": 210,
-   "y": 138,
+   "y": 172,
    "w": 88,
-   "h": 42,
+   "h": 50,
    "radius": 10,
    "color": "#e0a800",
    "states": [
@@ -320,7 +320,7 @@
    "type": "text",
    "text": "m_one",
    "x": 67,
-   "y": 159,
+   "y": 197,
    "w": 86,
    "size": "medium",
    "color": "#ffffff",
@@ -340,7 +340,7 @@
    "type": "text",
    "text": "m_two",
    "x": 161,
-   "y": 159,
+   "y": 197,
    "w": 86,
    "size": "medium",
    "color": "#ffffff",
@@ -360,7 +360,7 @@
    "type": "text",
    "text": "m_coin",
    "x": 254,
-   "y": 159,
+   "y": 197,
    "w": 84,
    "size": "medium",
    "color": "#ffffff",
@@ -380,7 +380,7 @@
    "type": "text",
    "text": "hint",
    "x": 160,
-   "y": 200,
+   "y": 150,
    "w": 300,
    "size": "small",
    "color": "#c8c8c8",
@@ -392,7 +392,7 @@
    "type": "text",
    "text": "r_one",
    "x": 160,
-   "y": 204,
+   "y": 150,
    "w": 300,
    "size": "large",
    "color": "#ffe045",
@@ -408,7 +408,7 @@
    "type": "text",
    "text": "r_two",
    "x": 160,
-   "y": 204,
+   "y": 150,
    "w": 300,
    "size": "large",
    "color": "#ffe045",
@@ -424,7 +424,7 @@
    "type": "text",
    "text": "r_heads",
    "x": 160,
-   "y": 204,
+   "y": 150,
    "w": 300,
    "size": "large",
    "color": "#ffe045",
@@ -440,7 +440,7 @@
    "type": "text",
    "text": "r_tails",
    "x": 160,
-   "y": 204,
+   "y": 150,
    "w": 300,
    "size": "large",
    "color": "#ffe045",
@@ -456,7 +456,7 @@
    "type": "text",
    "text": "easy",
    "x": 160,
-   "y": 204,
+   "y": 150,
    "w": 300,
    "size": "large",
    "color": "#ffd9a8",
@@ -468,7 +468,7 @@
    "type": "text",
    "text": "easyhint",
    "x": 160,
-   "y": 226,
+   "y": 166,
    "w": 300,
    "size": "small",
    "color": "#ffd9a8",

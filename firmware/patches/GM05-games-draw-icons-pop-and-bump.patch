@@ -1,0 +1,333 @@
+# Intent: Draws the new ICON shape (patch GM04): each icon is a table of rounded boxes, discs, rings and thick lines in a 100 by 100 grid laid out from LVGL objects (at most 6 boxes or discs and 4 lines), so one routine draws every icon at every size; an icon whose number is fixed allocates only its own parts. A popping icon grows from half size with an overshoot in 300 ms when it appears (Do It's action, the two hands of Rock Paper Scissors) and a bumping icon (the counting fist) rises and falls once for each state entered. The see-through fill and the 24 px text size are drawn. The old hand-placed motion code for Rock Paper Scissors (hands that bump, the unit's pick fading in) and for Do It's called tile pulse is removed: both games are built from icons now. Still pictures taken by the host renderer are taken after the pop, never in the middle of it.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games_draw.h (ours, UI13, UI15, GM02)
+# Check after a flash: In Do It the icon pops when the action is shown; in Rock Paper Scissors the fist bumps with each beat and both hands pop at the reveal.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_games_draw.h b/firmware/main/hal/maipai_games_draw.h
+--- a/firmware/main/hal/maipai_games_draw.h
++++ b/firmware/main/hal/maipai_games_draw.h
+@@ -25,7 +25,7 @@ inline lv_color_t color_of(uint16_t c)
+ 
+ inline const lv_font_t* font_for(int size)
+ {
+-    return size == 0 ? &lv_font_montserrat_14 : (size == 1 ? &lv_font_montserrat_16 : &lv_font_montserrat_20);
++    return size == 0 ? &lv_font_montserrat_14 : (size == 1 ? &lv_font_montserrat_16 : (size == 2 ? &lv_font_montserrat_20 : &lv_font_montserrat_24));  /* patch GM04: size 3 */
+ }
+ 
+ inline lv_obj_t* plain(lv_obj_t* parent)
+@@ -182,12 +182,178 @@ struct Coin {
+     lv_obj_t* part[5]; /* heads: a head and shoulders; tails: a star of three crossing lines */
+     int face, dia;
+ };
++/* ---- the icons (patch GM04) ----
++ * A large icon is a handful of plain LVGL objects (rounded boxes, discs, rings, thick lines) laid out from a table in a 100 by 100 grid, so
++ * the same code draws it at any size and the pop animation only re-lays it out. A gesture icon (tap, swipe, shake, pet, tilt) and the three hands
++ * (rock, paper, scissors) are in the table; an icon whose number never changes allocates only the parts that icon needs. */
++constexpr int kIconBlobs = 6, kIconLines = 4, kMaxIcons = 6;
++enum { K_END = 0, K_BOX, K_DISC, K_RING, K_LINE };
++enum { C_MAIN = 0, C_DARK, C_WHITE, C_AMBER, C_SKIN, C_SKIN2, C_STEEL, C_STEEL2, C_RED, C_GRAY };
++struct IPart {
++    uint8_t kind;
++    int8_t a, b, c, d;  /* box: x y w h; disc and ring: cx cy radius; line: x1 y1 x2 y2 */
++    uint8_t e, col;     /* box: corner radius; ring and line: thickness */
++};
++static const IPart kIconTap[]    = {{K_RING, 50, 66, 34, 0, 5, C_AMBER}, {K_RING, 50, 66, 20, 0, 5, C_AMBER}, {K_BOX, 41, 6, 18, 60, 9, C_MAIN}, {K_END, 0, 0, 0, 0, 0, 0}};
++static const IPart kIconSwipe[]  = {{K_LINE, 84, 50, 24, 50, 10, C_MAIN}, {K_LINE, 24, 50, 48, 26, 10, C_MAIN}, {K_LINE, 24, 50, 48, 74, 10, C_MAIN},
++                                    {K_DISC, 84, 50, 10, 0, 0, C_AMBER}, {K_END, 0, 0, 0, 0, 0, 0}};
++static const IPart kIconShake[]  = {{K_BOX, 32, 22, 36, 56, 14, C_MAIN}, {K_DISC, 43, 44, 5, 0, 0, C_DARK}, {K_DISC, 57, 44, 5, 0, 0, C_DARK},
++                                    {K_LINE, 22, 32, 14, 50, 6, C_AMBER}, {K_LINE, 14, 50, 22, 68, 6, C_AMBER}, {K_LINE, 78, 32, 86, 50, 6, C_AMBER},
++                                    {K_LINE, 86, 50, 78, 68, 6, C_AMBER}, {K_END, 0, 0, 0, 0, 0, 0}};
++static const IPart kIconPet[]    = {{K_DISC, 50, 64, 26, 0, 0, C_MAIN}, {K_DISC, 41, 62, 4, 0, 0, C_DARK}, {K_DISC, 59, 62, 4, 0, 0, C_DARK},
++                                    {K_BOX, 24, 8, 52, 22, 11, C_SKIN}, {K_LINE, 12, 14, 20, 28, 5, C_AMBER}, {K_LINE, 88, 14, 80, 28, 5, C_AMBER},
++                                    {K_END, 0, 0, 0, 0, 0, 0}};
++static const IPart kIconTilt[]   = {{K_LINE, 30, 80, 70, 26, 36, C_MAIN}, {K_DISC, 50, 53, 5, 0, 0, C_DARK}, {K_LINE, 8, 94, 92, 94, 6, C_AMBER},
++                                    {K_LINE, 78, 10, 92, 22, 6, C_AMBER}, {K_LINE, 92, 22, 80, 36, 6, C_AMBER}, {K_END, 0, 0, 0, 0, 0, 0}};
++static const IPart kIconRock[]   = {{K_BOX, 22, 38, 56, 50, 18, C_SKIN}, {K_DISC, 28, 34, 12, 0, 0, C_SKIN}, {K_DISC, 43, 28, 12, 0, 0, C_SKIN},
++                                    {K_DISC, 58, 28, 12, 0, 0, C_SKIN}, {K_DISC, 73, 34, 12, 0, 0, C_SKIN}, {K_BOX, 14, 58, 36, 16, 8, C_SKIN2},
++                                    {K_END, 0, 0, 0, 0, 0, 0}};
++static const IPart kIconPaper[]  = {{K_BOX, 24, 48, 52, 44, 16, C_SKIN}, {K_BOX, 24, 12, 12, 44, 6, C_SKIN}, {K_BOX, 37, 6, 12, 50, 6, C_SKIN},
++                                    {K_BOX, 50, 4, 12, 52, 6, C_SKIN}, {K_BOX, 63, 10, 12, 46, 6, C_SKIN}, {K_BOX, 6, 58, 26, 13, 6, C_SKIN2},
++                                    {K_END, 0, 0, 0, 0, 0, 0}};
++static const IPart kIconScissors[] = {{K_LINE, 34, 76, 70, 8, 10, C_STEEL}, {K_LINE, 66, 76, 30, 8, 10, C_STEEL2}, {K_RING, 30, 82, 14, 0, 7, C_RED},
++                                      {K_RING, 70, 82, 14, 0, 7, C_RED}, {K_DISC, 50, 42, 7, 0, 0, C_GRAY}, {K_END, 0, 0, 0, 0, 0, 0}};
++
++/* The table of an icon, and whether it is drawn mirrored by itself (the right swipe is the left one reversed). */
++inline const IPart* icon_table(int id, bool* mirror)
++{
++    *mirror = false;
++    switch (id) {
++        case MG_ICON_TAP: return kIconTap;
++        case MG_ICON_SWIPE_L: return kIconSwipe;
++        case MG_ICON_SWIPE_R: *mirror = true; return kIconSwipe;
++        case MG_ICON_SHAKE: return kIconShake;
++        case MG_ICON_PET: return kIconPet;
++        case MG_ICON_TILT: return kIconTilt;
++        case MG_ICON_ROCK: return kIconRock;
++        case MG_ICON_PAPER: return kIconPaper;
++        case MG_ICON_SCISSORS: return kIconScissors;
++        default: return nullptr;
++    }
++}
++
++/* How many boxes, discs and rings (blobs) and lines an icon has. */
++inline void icon_counts(int id, int* nb, int* nl)
++{
++    bool m;
++    const IPart* t = icon_table(id, &m);
++    *nb = *nl = 0;
++    for (; t != nullptr && t->kind != K_END; t++) {
++        if (t->kind == K_LINE) (*nl)++; else (*nb)++;
++    }
++}
++
++struct Icon {
++    lv_obj_t* root;
++    lv_obj_t* blob[kIconBlobs];
++    lv_obj_t* line[kIconLines];
++    lv_point_precise_t pts[kIconLines][2];
++    int nb, nl;
++    int id, size, x, y, flags;
++    uint16_t colour;
++};
++
++inline lv_obj_t* icon_build(lv_obj_t* parent, Icon* ic, int nb, int nl)
++{
++    memset(ic, 0, sizeof(*ic));
++    ic->id   = -1;
++    ic->nb   = nb < kIconBlobs ? nb : kIconBlobs;
++    ic->nl   = nl < kIconLines ? nl : kIconLines;
++    ic->root = plain(parent);
++    for (int i = 0; i < ic->nb; i++) {
++        ic->blob[i] = plain(ic->root);
++    }
++    for (int i = 0; i < ic->nl; i++) {
++        lv_obj_t* o = lv_line_create(ic->root);
++        lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++        lv_obj_set_style_line_rounded(o, true, 0);
++        ic->line[i] = o;
++    }
++    return ic->root;
++}
++
++inline lv_color_t icon_color(int col, uint16_t main)
++{
++    const lv_color_t m = color_of(main);
++    switch (col) {
++        case C_MAIN: return m;
++        case C_DARK: return lv_color_make(static_cast<uint8_t>(m.red * 4 / 10), static_cast<uint8_t>(m.green * 4 / 10), static_cast<uint8_t>(m.blue * 4 / 10));
++        case C_WHITE: return lv_color_hex(0xffffff);
++        case C_AMBER: return lv_color_hex(0xffb020);
++        case C_SKIN: return lv_color_hex(0xf0c8a0);
++        case C_SKIN2: return lv_color_hex(0xd9a878);
++        case C_STEEL: return lv_color_hex(0xdfe3e8);
++        case C_STEEL2: return lv_color_hex(0xaeb6c0);
++        case C_RED: return lv_color_hex(0xff5a4d);
++        default: return lv_color_hex(0x7a8896);
++    }
++}
++
++/* Lays the icon out at its place and size (a size of 0 or less hides every part). The same arguments as the last call do nothing. */
++inline void icon_show(Icon* ic, int id, int cx, int cy, int size, bool mirror, uint16_t colour)
++{
++    if (ic->id == id && ic->size == size && ic->x == cx && ic->y == cy && ic->flags == (mirror ? 1 : 0) && ic->colour == colour) {
++        return;
++    }
++    ic->id = id; ic->size = size; ic->x = cx; ic->y = cy; ic->flags = mirror ? 1 : 0; ic->colour = colour;
++    bool self_mirror;
++    const IPart* t = icon_table(id, &self_mirror);
++    mirror = mirror != self_mirror;
++    lv_obj_set_size(ic->root, size > 0 ? size : 1, size > 0 ? size : 1);
++    lv_obj_set_pos(ic->root, cx - size / 2, cy - size / 2);
++    int ib = 0, il = 0;
++    auto sc = [size](int v) { return (v * size + 50) / 100; };
++    for (; t != nullptr && size > 0 && t->kind != K_END; t++) {
++        const int x1 = mirror ? 100 - t->a : t->a;
++        if (t->kind == K_LINE) {
++            if (il >= ic->nl) continue;
++            lv_obj_t* o = ic->line[il];
++            ic->pts[il][0].x = sc(x1);
++            ic->pts[il][0].y = sc(t->b);
++            ic->pts[il][1].x = sc(mirror ? 100 - t->c : t->c);
++            ic->pts[il][1].y = sc(t->d);
++            lv_line_set_points(o, ic->pts[il], 2);
++            lv_obj_set_style_line_width(o, sc(t->e) < 2 ? 2 : sc(t->e), 0);
++            lv_obj_set_style_line_color(o, icon_color(t->col, colour), 0);
++            lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++            il++;
++            continue;
++        }
++        if (ib >= ic->nb) continue;
++        lv_obj_t* o = ic->blob[ib++];
++        int x = 0, y = 0, w = 0, h = 0, radius = 0;
++        if (t->kind == K_BOX) {
++            x = sc(mirror ? 100 - (t->a + t->c) : t->a); y = sc(t->b); w = sc(t->c); h = sc(t->d); radius = sc(t->e);
++        } else {
++            const int r = sc(t->c);
++            x = sc(x1) - r; y = sc(t->b) - r; w = h = 2 * r; radius = LV_RADIUS_CIRCLE;
++        }
++        lv_obj_set_pos(o, x, y);
++        lv_obj_set_size(o, w < 1 ? 1 : w, h < 1 ? 1 : h);
++        lv_obj_set_style_radius(o, radius, 0);
++        if (t->kind == K_RING) {
++            lv_obj_set_style_bg_opa(o, LV_OPA_TRANSP, 0);
++            lv_obj_set_style_border_width(o, sc(t->e) < 2 ? 2 : sc(t->e), 0);
++            lv_obj_set_style_border_color(o, icon_color(t->col, colour), 0);
++        } else {
++            lv_obj_set_style_border_width(o, 0, 0);
++            lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++            lv_obj_set_style_bg_color(o, icon_color(t->col, colour), 0);
++        }
++        lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++    }
++    for (; ib < ic->nb; ib++) lv_obj_add_flag(ic->blob[ib], LV_OBJ_FLAG_HIDDEN);
++    for (; il < ic->nl; il++) lv_obj_add_flag(ic->line[il], LV_OBJ_FLAG_HIDDEN);
++}
++
+ constexpr int kMaxDice = 3;
+ struct Parts {
+     Mole mole;
+     Die die[kMaxDice];
+     Coin coin;
+-    int n_dice;
++    Icon icon[kMaxIcons];  /* patch GM04 */
++    int n_dice, n_icons;
+     /* patch UI15: motion bookkeeping (no heap; the times are the player's milliseconds) */
+     uint32_t state_ms, mole_ms, coin_ms, die_ms[kMaxDice], appear_ms[MG_MAX_SHAPES];
+     int last_state, mole_key, coin_face, die_val[kMaxDice];
+@@ -293,7 +459,7 @@ inline lv_obj_t* build_shape(lv_obj_t* parent, const mg_shape_t& s, lv_point_pre
+             lv_obj_set_size(o, 320, 240);
+             lv_obj_set_pos(o, 0, 0);
+             lv_obj_set_style_bg_color(o, color_of(s.colour), 0);
+-            lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++            lv_obj_set_style_bg_opa(o, (s.h > 0 && s.h < 255) ? static_cast<lv_opa_t>(s.h) : static_cast<lv_opa_t>(LV_OPA_COVER), 0);  /* patch GM04: h is the opacity */
+             return o;
+         }
+         case MG_SH_CIRCLE:
+@@ -349,6 +515,13 @@ inline lv_obj_t* build_shape(lv_obj_t* parent, const mg_shape_t& s, lv_point_pre
+             lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+             return o;
+         }
++        case MG_SH_ICON: {  // patch GM04
++            int nb = kIconBlobs, nl = kIconLines;
++            if (s.cond_ctr == 0xFF) icon_counts(s.text, &nb, &nl);  // a fixed icon needs only its own parts
++            Icon* ic = &parts->icon[parts->n_icons < kMaxIcons ? parts->n_icons : kMaxIcons - 1];
++            if (parts->n_icons < kMaxIcons) parts->n_icons++;
++            return icon_build(parent, ic, nb, nl);
++        }
+         default: {  // MG_SH_TEXT
+             lv_obj_t* o = lv_label_create(parent);
+             lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+@@ -375,6 +548,8 @@ inline void mole_place(const mg_pack_t* p, int region, int* bx, int* by)
+     *by = g.y + g.h - 6;
+ }
+ 
++inline bool icon_apply(Parts* P, lv_obj_t* o, const mg_shape_t& s, const mg_run_t& r, uint32_t now, uint32_t t_app, uint32_t t_state);
++
+ /* Shows or hides every shape for the run's present state and counters; texts get their counters filled in. */
+ inline void draw_state(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type, const uint8_t* text, Parts* parts, bool es, uint32_t now_ms = 0)
+ {
+@@ -420,6 +595,10 @@ inline void draw_state(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* t
+                         die_show(&parts->die[k], r.ctr[s.cond_ctr]);
+                     }
+                 }
++            } else if (type[i] == MG_SH_ICON) {
++                mg_shape_t s;
++                mg_shape_get(r.p, i, &s);
++                (void)icon_apply(parts, o, s, r, now_ms, now_ms - parts->appear_ms[i], now_ms - parts->state_ms);
+             } else if (type[i] == MG_SH_COIN) {
+                 mg_shape_t s;
+                 mg_shape_get(r.p, i, &s);
+@@ -452,6 +631,32 @@ inline float ease_back(float p)
+     return 1.0f + c3 * q * q * q + c1 * q * q;
+ }
+ 
++/* Patch GM04: puts an icon shape at its place for this moment. A popping icon grows from half size with an overshoot in 300 ms after it appears;
++ * a bumping icon (the fist that counts the beats) rises and falls once in 560 ms after each state is entered. Returns true while it moves. */
++inline bool icon_apply(Parts* P, lv_obj_t* o, const mg_shape_t& s, const mg_run_t& r, uint32_t now, uint32_t t_app, uint32_t t_state)
++{
++    Icon* ic = nullptr;
++    for (int k = 0; k < P->n_icons; k++) {
++        if (P->icon[k].root == o) ic = &P->icon[k];
++    }
++    if (ic == nullptr) return false;
++    (void)now;
++    const int id = s.cond_ctr == 0xFF ? (int)s.text : (int)r.ctr[s.cond_ctr] + (int)s.text;
++    float scale = 1.0f;
++    int dy = 0;
++    bool busy = false;
++    if ((s.h & MG_ICON_POP) && t_app < 300u) {
++        scale = 0.5f + 0.5f * ease_back((float)t_app / 300.0f);
++        busy = true;
++    }
++    if ((s.h & MG_ICON_BUMP) && t_state < 560u) {
++        dy   = -(int)(sinf(3.14159f * (float)t_state / 560.0f) * (float)(s.w / 6));
++        busy = true;
++    }
++    icon_show(ic, id, s.x, s.y + dy, (int)((float)(s.w > 0 ? s.w : 60) * scale), (s.h & MG_ICON_MIRROR) != 0, s.colour);
++    return busy;
++}
++
+ inline void shape_origin(const mg_shape_t& s, int* x, int* y)
+ {
+     switch (s.type) {
+@@ -465,9 +670,7 @@ inline bool animate(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type
+ {
+     bool busy = false;
+     const mg_pack_t* pk = r.p;
+-    const bool is_ball = strcmp(pk->id, "eightball") == 0, is_rps = strcmp(pk->id, "rps") == 0, is_ttt = strcmp(pk->id, "tictactoe") == 0,
+-               is_bop = strcmp(pk->id, "bopit") == 0;
+-    const float t_state = (float)(now - P->state_ms);
++    const bool is_ball = strcmp(pk->id, "eightball") == 0, is_ttt = strcmp(pk->id, "tictactoe") == 0;
+     for (int i = 0; i < pk->n_shapes; i++) {
+         lv_obj_t* o = obj[i];
+         if (o == nullptr || !P->shown[i]) {
+@@ -476,7 +679,9 @@ inline bool animate(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type
+         mg_shape_t s;
+         mg_shape_get(pk, i, &s);
+         const float t_app = (float)(now - P->appear_ms[i]);
+-        if (type[i] == MG_SH_MOLE) {
++        if (type[i] == MG_SH_ICON) {  // patch GM04: Do It's icon and the Rock Paper Scissors hands pop; the counting fist bumps
++            if (icon_apply(P, o, s, r, now, now - P->appear_ms[i], now - P->state_ms)) busy = true;
++        } else if (type[i] == MG_SH_MOLE) {
+             const float t = (float)(now - P->mole_ms);
+             const int face = r.ctr[s.aux];
+             int bx, by;
+@@ -546,22 +751,6 @@ inline bool animate(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type
+                 lv_obj_set_style_opa(o, LV_OPA_COVER, 0);
+                 P->faded[i] = 0;
+             }
+-        } else if (is_rps && i >= 13 && i < 30 && r.state >= 2 && r.state <= 5) {
+-            const float p = t_state / 380.0f;  // the hands bump once a beat; the last, "shoot", bumps higher
+-            const float bump = sinf(3.14159f * (p > 1 ? 1 : p)) * (r.state == 5 ? 8.0f : 5.0f);
+-            lv_obj_set_y(o, -(int)bump);
+-            busy = true;
+-        } else if (is_rps && i >= 13 && i < 30 && r.state >= 7) {
+-            lv_obj_set_y(o, 0);
+-        } else if (is_rps && i >= 7 && i <= 9 && r.state >= 7) {
+-            if (t_state < 240.0f) {
+-                lv_obj_set_style_opa(o, (lv_opa_t)(255.0f * ease_out(t_state / 240.0f)), 0);  // the unit's pick pops in
+-                P->faded[i] = 1;
+-                busy = true;
+-            } else if (P->faded[i]) {
+-                lv_obj_set_style_opa(o, LV_OPA_COVER, 0);
+-                P->faded[i] = 0;
+-            }
+         } else if (is_ttt && type[i] == MG_SH_LINE && t_app < 330.0f) {
+             const float delay = s.w < s.x ? 110.0f : 0.0f;  // the second stroke of an X follows the first
+             const float p     = ease_out((t_app - delay) / 200.0f);
+@@ -582,13 +771,6 @@ inline bool animate(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type
+         } else if (is_ttt && type[i] == MG_SH_RING && t_app >= 300.0f && lv_obj_get_width(o) != 2 * s.w) {
+             lv_obj_set_size(o, 2 * s.w, 2 * s.w);
+             lv_obj_set_pos(o, s.x - s.w, s.y - s.w);
+-        } else if (is_bop && i >= 9 && i <= 14 && r.state == 2) {
+-            lv_obj_set_style_opa(o, (lv_opa_t)(215.0f + 40.0f * sinf((float)now / 120.0f)), 0);  // the called tile pulses
+-            P->faded[i] = 1;
+-            busy = true;
+-        } else if (is_bop && i >= 9 && i <= 14 && P->faded[i]) {
+-            lv_obj_set_style_opa(o, LV_OPA_COVER, 0);
+-            P->faded[i] = 0;
+         }
+     }
+     return busy;

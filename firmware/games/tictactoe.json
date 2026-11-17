@@ -51,63 +51,63 @@
    "x": 20,
    "y": 28,
    "w": 93,
-   "h": 52
+   "h": 56
   },
   {
    "name": "c1",
    "x": 113,
    "y": 28,
    "w": 93,
-   "h": 52
+   "h": 56
   },
   {
    "name": "c2",
    "x": 206,
    "y": 28,
    "w": 94,
-   "h": 52
+   "h": 56
   },
   {
    "name": "c3",
    "x": 20,
-   "y": 80,
+   "y": 84,
    "w": 93,
-   "h": 52
+   "h": 56
   },
   {
    "name": "c4",
    "x": 113,
-   "y": 80,
+   "y": 84,
    "w": 93,
-   "h": 52
+   "h": 56
   },
   {
    "name": "c5",
    "x": 206,
-   "y": 80,
+   "y": 84,
    "w": 94,
-   "h": 52
+   "h": 56
   },
   {
    "name": "c6",
    "x": 20,
-   "y": 132,
+   "y": 140,
    "w": 93,
-   "h": 52
+   "h": 56
   },
   {
    "name": "c7",
    "x": 113,
-   "y": 132,
+   "y": 140,
    "w": 93,
-   "h": 52
+   "h": 56
   },
   {
    "name": "c8",
    "x": 206,
-   "y": 132,
+   "y": 140,
    "w": 94,
-   "h": 52
+   "h": 56
   }
  ],
  "shapes": [
@@ -120,7 +120,7 @@
    "x": 112,
    "y": 30,
    "w": 2,
-   "h": 152,
+   "h": 164,
    "radius": 1,
    "color": "#5f7388",
    "states": [
@@ -134,7 +134,7 @@
   {
    "type": "box",
    "x": 22,
-   "y": 79,
+   "y": 83,
    "w": 276,
    "h": 2,
    "radius": 1,
@@ -152,7 +152,7 @@
    "x": 205,
    "y": 30,
    "w": 2,
-   "h": 152,
+   "h": 164,
    "radius": 1,
    "color": "#5f7388",
    "states": [
@@ -166,7 +166,7 @@
   {
    "type": "box",
    "x": 22,
-   "y": 131,
+   "y": 139,
    "w": 276,
    "h": 2,
    "radius": 1,
@@ -182,9 +182,9 @@
   {
    "type": "line",
    "x": 49,
-   "y": 37,
+   "y": 39,
    "x2": 83,
-   "y2": 71,
+   "y2": 73,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -202,9 +202,9 @@
   {
    "type": "line",
    "x": 83,
-   "y": 37,
+   "y": 39,
    "x2": 49,
-   "y2": 71,
+   "y2": 73,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -222,7 +222,7 @@
   {
    "type": "ring",
    "x": 66,
-   "y": 54,
+   "y": 56,
    "r": 20,
    "thickness": 7,
    "color": "#ff7043",
@@ -241,9 +241,9 @@
   {
    "type": "line",
    "x": 142,
-   "y": 37,
+   "y": 39,
    "x2": 176,
-   "y2": 71,
+   "y2": 73,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -261,9 +261,9 @@
   {
    "type": "line",
    "x": 176,
-   "y": 37,
+   "y": 39,
    "x2": 142,
-   "y2": 71,
+   "y2": 73,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -281,7 +281,7 @@
   {
    "type": "ring",
    "x": 159,
-   "y": 54,
+   "y": 56,
    "r": 20,
    "thickness": 7,
    "color": "#ff7043",
@@ -300,9 +300,9 @@
   {
    "type": "line",
    "x": 236,
-   "y": 37,
+   "y": 39,
    "x2": 270,
-   "y2": 71,
+   "y2": 73,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -320,9 +320,9 @@
   {
    "type": "line",
    "x": 270,
-   "y": 37,
+   "y": 39,
    "x2": 236,
-   "y2": 71,
+   "y2": 73,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -340,7 +340,7 @@
   {
    "type": "ring",
    "x": 253,
-   "y": 54,
+   "y": 56,
    "r": 20,
    "thickness": 7,
    "color": "#ff7043",
@@ -359,9 +359,9 @@
   {
    "type": "line",
    "x": 49,
-   "y": 89,
+   "y": 95,
    "x2": 83,
-   "y2": 123,
+   "y2": 129,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -379,9 +379,9 @@
   {
    "type": "line",
    "x": 83,
-   "y": 89,
+   "y": 95,
    "x2": 49,
-   "y2": 123,
+   "y2": 129,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -399,7 +399,7 @@
   {
    "type": "ring",
    "x": 66,
-   "y": 106,
+   "y": 112,
    "r": 20,
    "thickness": 7,
    "color": "#ff7043",
@@ -418,9 +418,9 @@
   {
    "type": "line",
    "x": 142,
-   "y": 89,
+   "y": 95,
    "x2": 176,
-   "y2": 123,
+   "y2": 129,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -438,9 +438,9 @@
   {
    "type": "line",
    "x": 176,
-   "y": 89,
+   "y": 95,
    "x2": 142,
-   "y2": 123,
+   "y2": 129,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -458,7 +458,7 @@
   {
    "type": "ring",
    "x": 159,
-   "y": 106,
+   "y": 112,
    "r": 20,
    "thickness": 7,
    "color": "#ff7043",
@@ -477,9 +477,9 @@
   {
    "type": "line",
    "x": 236,
-   "y": 89,
+   "y": 95,
    "x2": 270,
-   "y2": 123,
+   "y2": 129,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -497,9 +497,9 @@
   {
    "type": "line",
    "x": 270,
-   "y": 89,
+   "y": 95,
    "x2": 236,
-   "y2": 123,
+   "y2": 129,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -517,7 +517,7 @@
   {
    "type": "ring",
    "x": 253,
-   "y": 106,
+   "y": 112,
    "r": 20,
    "thickness": 7,
    "color": "#ff7043",
@@ -536,9 +536,9 @@
   {
    "type": "line",
    "x": 49,
-   "y": 141,
+   "y": 151,
    "x2": 83,
-   "y2": 175,
+   "y2": 185,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -556,9 +556,9 @@
   {
    "type": "line",
    "x": 83,
-   "y": 141,
+   "y": 151,
    "x2": 49,
-   "y2": 175,
+   "y2": 185,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -576,7 +576,7 @@
   {
    "type": "ring",
    "x": 66,
-   "y": 158,
+   "y": 168,
    "r": 20,
    "thickness": 7,
    "color": "#ff7043",
@@ -595,9 +595,9 @@
   {
    "type": "line",
    "x": 142,
-   "y": 141,
+   "y": 151,
    "x2": 176,
-   "y2": 175,
+   "y2": 185,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -615,9 +615,9 @@
   {
    "type": "line",
    "x": 176,
-   "y": 141,
+   "y": 151,
    "x2": 142,
-   "y2": 175,
+   "y2": 185,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -635,7 +635,7 @@
   {
    "type": "ring",
    "x": 159,
-   "y": 158,
+   "y": 168,
    "r": 20,
    "thickness": 7,
    "color": "#ff7043",
@@ -654,9 +654,9 @@
   {
    "type": "line",
    "x": 236,
-   "y": 141,
+   "y": 151,
    "x2": 270,
-   "y2": 175,
+   "y2": 185,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -674,9 +674,9 @@
   {
    "type": "line",
    "x": 270,
-   "y": 141,
+   "y": 151,
    "x2": 236,
-   "y2": 175,
+   "y2": 185,
    "thickness": 7,
    "color": "#4fc3f7",
    "states": [
@@ -694,7 +694,7 @@
   {
    "type": "ring",
    "x": 253,
-   "y": 158,
+   "y": 168,
    "r": 20,
    "thickness": 7,
    "color": "#ff7043",
@@ -715,7 +715,7 @@
    "x": 24,
    "y": 31,
    "w": 272,
-   "h": 46,
+   "h": 50,
    "radius": 10,
    "color": "#1d3a5f",
    "states": [
@@ -726,7 +726,7 @@
    "type": "text",
    "text": "easy",
    "x": 160,
-   "y": 54,
+   "y": 56,
    "w": 240,
    "size": "large",
    "color": "#ffffff",
@@ -737,9 +737,9 @@
   {
    "type": "box",
    "x": 24,
-   "y": 83,
+   "y": 87,
    "w": 272,
-   "h": 46,
+   "h": 50,
    "radius": 10,
    "color": "#1d3a5f",
    "states": [
@@ -750,7 +750,7 @@
    "type": "text",
    "text": "medium",
    "x": 160,
-   "y": 106,
+   "y": 112,
    "w": 240,
    "size": "large",
    "color": "#ffffff",
@@ -761,9 +761,9 @@
   {
    "type": "box",
    "x": 24,
-   "y": 135,
+   "y": 143,
    "w": 272,
-   "h": 46,
+   "h": 50,
    "radius": 10,
    "color": "#1d3a5f",
    "states": [
@@ -774,7 +774,7 @@
    "type": "text",
    "text": "hard",
    "x": 160,
-   "y": 158,
+   "y": 168,
    "w": 240,
    "size": "large",
    "color": "#ffffff",
@@ -786,7 +786,7 @@
    "type": "text",
    "text": "title",
    "x": 160,
-   "y": 200,
+   "y": 210,
    "w": 300,
    "size": "small",
    "color": "#c8c8c8",
@@ -798,29 +798,30 @@
    "type": "text",
    "text": "yourturn",
    "x": 160,
-   "y": 218,
+   "y": 210,
    "w": 300,
    "size": "small",
    "color": "#ffffff",
    "states": [
     "turn",
     "think"
+   ],
+   "when": [
+    "said",
+    0
    ]
   },
   {
    "type": "text",
-   "text": "played",
+   "text": "playedturn",
    "x": 160,
-   "y": 200,
-   "w": 300,
+   "y": 210,
+   "w": 310,
    "size": "small",
    "color": "#ffe045",
    "states": [
     "turn",
-    "think",
-    "win",
-    "lose",
-    "draw"
+    "think"
    ],
    "when": [
     "said",
@@ -831,9 +832,9 @@
    "type": "text",
    "text": "youwin",
    "x": 160,
-   "y": 218,
+   "y": 210,
    "w": 300,
-   "size": "small",
+   "size": "medium",
    "color": "#7CFC8A",
    "states": [
     "win"
@@ -841,10 +842,10 @@
   },
   {
    "type": "text",
-   "text": "iwin",
+   "text": "playediwin",
    "x": 160,
-   "y": 218,
-   "w": 300,
+   "y": 210,
+   "w": 310,
    "size": "small",
    "color": "#ff8a80",
    "states": [
@@ -855,9 +856,9 @@
    "type": "text",
    "text": "drawn",
    "x": 160,
-   "y": 218,
+   "y": 210,
    "w": 300,
-   "size": "small",
+   "size": "medium",
    "color": "#ffffff",
    "states": [
     "draw"
@@ -885,21 +886,21 @@
    "en": "Your turn",
    "es": "Tu turno"
   },
-  "played": {
-   "en": "I played row %6 column %7",
-   "es": "Jugue fila %6 columna %7"
-  },
   "youwin": {
    "en": "You win!",
    "es": "Ganas!"
   },
-  "iwin": {
-   "en": "I win!",
-   "es": "Gano yo!"
-  },
   "drawn": {
    "en": "A draw",
    "es": "Empate"
+  },
+  "playedturn": {
+   "en": "I played row %6 column %7. Your turn",
+   "es": "Jugue fila %6 columna %7. Tu turno"
+  },
+  "playediwin": {
+   "en": "I played row %6 column %7. I win!",
+   "es": "Jugue fila %6 columna %7. Gano yo!"
   }
  },
  "rules": [

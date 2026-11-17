@@ -6,6 +6,8 @@
   "limit",
   "tmp",
   "cue",
+  "base",
+  "wait",
   "z"
  ],
  "score": "score",
@@ -21,84 +23,173 @@
     2200
    ]
   },
-  "pick": {},
-  "call": {
+  "wait": {
+   "timer": {
+    "ctr": "wait"
+   }
+  },
+  "show": {
    "timer": {
     "ctr": "limit"
    }
   },
   "ok": {
    "timer": [
-    330,
-    330
+    300,
+    300
    ]
   },
   "over": {
    "timer": [
-    3000,
-    3000
+    3200,
+    3200
    ]
   }
  },
  "regions": [
   {
-   "name": "t0",
-   "x": 20,
-   "y": 82,
-   "w": 92,
-   "h": 49
-  },
-  {
-   "name": "t1",
-   "x": 114,
-   "y": 82,
-   "w": 92,
-   "h": 49
-  },
-  {
-   "name": "t2",
-   "x": 208,
-   "y": 82,
-   "w": 92,
-   "h": 49
-  },
-  {
-   "name": "t3",
-   "x": 20,
-   "y": 133,
-   "w": 92,
-   "h": 49
-  },
-  {
-   "name": "t4",
-   "x": 114,
-   "y": 133,
-   "w": 92,
-   "h": 49
-  },
-  {
-   "name": "t5",
-   "x": 208,
-   "y": 133,
-   "w": 92,
-   "h": 49
-  },
-  {
-   "name": "cue",
+   "name": "big",
    "x": 20,
    "y": 28,
    "w": 280,
-   "h": 50
+   "h": 196
   }
  ],
  "shapes": [
   {
    "type": "fill",
-   "color": "#0e1a2e",
+   "color": "#0e1a2e"
+  },
+  {
+   "type": "fill",
+   "color": "#10263f",
    "states": [
-    "intro",
-    "pick",
-    "call"
+    "wait"
+   ],
+   "when": [
+    "cue",
+    18
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#0f3a4a",
+   "states": [
+    "wait"
+   ],
+   "when": [
+    "cue",
+    19
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#123f2c",
+   "states": [
+    "wait"
+   ],
+   "when": [
+    "cue",
+    20
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#3b3b10",
+   "states": [
+    "wait"
+   ],
+   "when": [
+    "cue",
+    21
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#4a2a10",
+   "states": [
+    "wait"
+   ],
+   "when": [
+    "cue",
+    22
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#4a1414",
+   "states": [
+    "wait"
+   ],
+   "when": [
+    "cue",
+    23
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#1e5fb0",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "cue",
+    18
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#1596a8",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "cue",
+    19
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#1f9d55",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "cue",
+    20
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#b8860b",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "cue",
+    21
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#d9650c",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "cue",
+    22
+   ]
+  },
+  {
+   "type": "fill",
+   "color": "#c0262d",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "cue",
+    23
    ]
   },
   {
@@ -116,360 +207,12 @@
    ]
   },
   {
-   "type": "box",
-   "x": 22,
-   "y": 84,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#1d3a5f",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 116,
-   "y": 84,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#1d3a5f",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 210,
-   "y": 84,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#1d3a5f",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 22,
-   "y": 135,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#1d3a5f",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 116,
-   "y": 135,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#1d3a5f",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 210,
-   "y": 135,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#1d3a5f",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "box",
-   "x": 22,
-   "y": 84,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#e0a800",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    0
-   ]
-  },
-  {
-   "type": "box",
-   "x": 116,
-   "y": 84,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#e0a800",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    1
-   ]
-  },
-  {
-   "type": "box",
-   "x": 210,
-   "y": 84,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#e0a800",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    2
-   ]
-  },
-  {
-   "type": "box",
-   "x": 22,
-   "y": 135,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#e0a800",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    3
-   ]
-  },
-  {
-   "type": "box",
-   "x": 116,
-   "y": 135,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#e0a800",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    4
-   ]
-  },
-  {
-   "type": "box",
-   "x": 210,
-   "y": 135,
-   "w": 88,
-   "h": 45,
-   "radius": 10,
-   "color": "#e0a800",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    5
-   ]
-  },
-  {
-   "type": "text",
-   "text": "t_tap",
-   "x": 66,
-   "y": 106,
-   "w": 84,
-   "size": "small",
-   "color": "#ffffff",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "text",
-   "text": "t_swl",
-   "x": 160,
-   "y": 106,
-   "w": 84,
-   "size": "small",
-   "color": "#ffffff",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "text",
-   "text": "t_swr",
-   "x": 254,
-   "y": 106,
-   "w": 84,
-   "size": "small",
-   "color": "#ffffff",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "text",
-   "text": "t_shake",
-   "x": 66,
-   "y": 157,
-   "w": 84,
-   "size": "small",
-   "color": "#ffffff",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "text",
-   "text": "t_pet",
-   "x": 160,
-   "y": 157,
-   "w": 84,
-   "size": "small",
-   "color": "#ffffff",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "text",
-   "text": "t_tilt",
-   "x": 254,
-   "y": 157,
-   "w": 84,
-   "size": "small",
-   "color": "#ffffff",
-   "states": [
-    "call",
-    "ok"
-   ]
-  },
-  {
-   "type": "text",
-   "text": "c_tap",
-   "x": 160,
-   "y": 50,
-   "w": 260,
-   "size": "large",
-   "color": "#ffe045",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    0
-   ]
-  },
-  {
-   "type": "text",
-   "text": "c_swl",
-   "x": 160,
-   "y": 50,
-   "w": 260,
-   "size": "large",
-   "color": "#ffe045",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    1
-   ]
-  },
-  {
-   "type": "text",
-   "text": "c_swr",
-   "x": 160,
-   "y": 50,
-   "w": 260,
-   "size": "large",
-   "color": "#ffe045",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    2
-   ]
-  },
-  {
-   "type": "text",
-   "text": "c_shake",
-   "x": 160,
-   "y": 50,
-   "w": 260,
-   "size": "large",
-   "color": "#ffe045",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    3
-   ]
-  },
-  {
-   "type": "text",
-   "text": "c_pet",
-   "x": 160,
-   "y": 50,
-   "w": 260,
-   "size": "large",
-   "color": "#ffe045",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    4
-   ]
-  },
-  {
-   "type": "text",
-   "text": "c_tilt",
-   "x": 160,
-   "y": 50,
-   "w": 260,
-   "size": "large",
-   "color": "#ffe045",
-   "states": [
-    "call"
-   ],
-   "when": [
-    "act",
-    5
-   ]
-  },
-  {
    "type": "text",
    "text": "title",
    "x": 160,
-   "y": 80,
+   "y": 96,
    "w": 280,
-   "size": "large",
+   "size": "xlarge",
    "color": "#ffffff",
    "states": [
     "intro"
@@ -479,7 +222,7 @@
    "type": "text",
    "text": "hint",
    "x": 160,
-   "y": 130,
+   "y": 150,
    "w": 270,
    "size": "medium",
    "color": "#c8c8c8",
@@ -490,23 +233,158 @@
   {
    "type": "text",
    "text": "score",
-   "x": 276,
-   "y": 38,
-   "w": 70,
+   "x": 160,
+   "y": 47,
+   "w": 200,
    "size": "small",
    "color": "#ffffff",
    "states": [
-    "call",
+    "wait",
+    "show",
     "ok"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "wait",
+   "x": 160,
+   "y": 112,
+   "w": 280,
+   "size": "xlarge",
+   "color": "#cfe6ff",
+   "states": [
+    "wait"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "waithint",
+   "x": 160,
+   "y": 158,
+   "w": 270,
+   "size": "medium",
+   "color": "#9fb6d0",
+   "states": [
+    "wait"
+   ]
+  },
+  {
+   "type": "icon",
+   "value": "act",
+   "x": 160,
+   "y": 117,
+   "size": 132,
+   "color": "#ffffff",
+   "flags": [
+    "pop"
+   ],
+   "states": [
+    "show"
+   ]
+  },
+  {
+   "type": "text",
+   "text": "c_tap",
+   "x": 160,
+   "y": 198,
+   "w": 280,
+   "size": "xlarge",
+   "color": "#ffffff",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "act",
+    0
+   ]
+  },
+  {
+   "type": "text",
+   "text": "c_swl",
+   "x": 160,
+   "y": 198,
+   "w": 280,
+   "size": "xlarge",
+   "color": "#ffffff",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "act",
+    1
+   ]
+  },
+  {
+   "type": "text",
+   "text": "c_swr",
+   "x": 160,
+   "y": 198,
+   "w": 280,
+   "size": "xlarge",
+   "color": "#ffffff",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "act",
+    2
+   ]
+  },
+  {
+   "type": "text",
+   "text": "c_shake",
+   "x": 160,
+   "y": 198,
+   "w": 280,
+   "size": "xlarge",
+   "color": "#ffffff",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "act",
+    3
+   ]
+  },
+  {
+   "type": "text",
+   "text": "c_pet",
+   "x": 160,
+   "y": 198,
+   "w": 280,
+   "size": "xlarge",
+   "color": "#ffffff",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "act",
+    4
+   ]
+  },
+  {
+   "type": "text",
+   "text": "c_tilt",
+   "x": 160,
+   "y": 198,
+   "w": 280,
+   "size": "xlarge",
+   "color": "#ffffff",
+   "states": [
+    "show"
+   ],
+   "when": [
+    "act",
+    5
    ]
   },
   {
    "type": "text",
    "text": "nice",
    "x": 160,
-   "y": 50,
-   "w": 200,
-   "size": "large",
+   "y": 120,
+   "w": 280,
+   "size": "xlarge",
    "color": "#7CFC8A",
    "states": [
     "ok"
@@ -514,23 +392,59 @@
   },
   {
    "type": "text",
-   "text": "over",
+   "text": "r_early",
    "x": 160,
-   "y": 80,
+   "y": 76,
    "w": 280,
    "size": "large",
-   "color": "#ffffff",
+   "color": "#ff9d3c",
    "states": [
     "over"
+   ],
+   "when": [
+    "tmp",
+    0
+   ]
+  },
+  {
+   "type": "text",
+   "text": "r_wrong",
+   "x": 160,
+   "y": 76,
+   "w": 280,
+   "size": "large",
+   "color": "#ff9d3c",
+   "states": [
+    "over"
+   ],
+   "when": [
+    "tmp",
+    1
+   ]
+  },
+  {
+   "type": "text",
+   "text": "r_slow",
+   "x": 160,
+   "y": 76,
+   "w": 280,
+   "size": "large",
+   "color": "#ff9d3c",
+   "states": [
+    "over"
+   ],
+   "when": [
+    "tmp",
+    2
    ]
   },
   {
    "type": "text",
    "text": "score_big",
    "x": 160,
-   "y": 130,
+   "y": 140,
    "w": 280,
-   "size": "large",
+   "size": "xlarge",
    "color": "#ffe045",
    "states": [
     "over"
@@ -538,77 +452,69 @@
   }
  ],
  "texts": {
-  "t_tap": {
-   "en": "Tap",
-   "es": "Toca"
-  },
-  "c_tap": {
-   "en": "Tap it!",
-   "es": "Toca!"
-  },
-  "t_swl": {
-   "en": "Swipe left",
-   "es": "Desliza izq"
-  },
-  "c_swl": {
-   "en": "Swipe left!",
-   "es": "Desliza a la izquierda!"
-  },
-  "t_swr": {
-   "en": "Swipe right",
-   "es": "Desliza der"
-  },
-  "c_swr": {
-   "en": "Swipe right!",
-   "es": "Desliza a la derecha!"
-  },
-  "t_shake": {
-   "en": "Gentle shake",
-   "es": "Agita suave"
-  },
-  "c_shake": {
-   "en": "Gently shake!",
-   "es": "Agita suavemente!"
-  },
-  "t_pet": {
-   "en": "Pet head",
-   "es": "Acaricia"
-  },
-  "c_pet": {
-   "en": "Pet my head!",
-   "es": "Acaricia mi cabeza!"
-  },
-  "t_tilt": {
-   "en": "Tilt",
-   "es": "Inclina"
-  },
-  "c_tilt": {
-   "en": "Tilt me!",
-   "es": "Inclinadme!"
-  },
   "title": {
    "en": "Do It",
    "es": "Hazlo"
   },
   "hint": {
-   "en": "Press the tile or do the move",
-   "es": "Pulsa el boton o haz el gesto"
+   "en": "Do the move it shows, a bit faster each time",
+   "es": "Haz el gesto que muestra, mas rapido cada vez"
   },
   "score": {
    "en": "Score %0",
    "es": "Puntos %0"
   },
+  "wait": {
+   "en": "Wait...",
+   "es": "Espera..."
+  },
+  "waithint": {
+   "en": "Do not tap yet",
+   "es": "Aun no toques"
+  },
   "nice": {
    "en": "Yes!",
    "es": "Si!"
   },
-  "over": {
-   "en": "Missed it",
-   "es": "Fallaste"
+  "r_early": {
+   "en": "Too early!",
+   "es": "Muy pronto!"
+  },
+  "r_wrong": {
+   "en": "Wrong move!",
+   "es": "Movimiento incorrecto!"
+  },
+  "r_slow": {
+   "en": "Too slow!",
+   "es": "Muy lento!"
   },
   "score_big": {
    "en": "Score %0",
    "es": "Puntos %0"
+  },
+  "c_tap": {
+   "en": "Tap!",
+   "es": "Toca!"
+  },
+  "c_swl": {
+   "en": "Swipe left!",
+   "es": "Desliza izq!"
+  },
+  "c_swr": {
+   "en": "Swipe right!",
+   "es": "Desliza der!"
+  },
+  "c_shake": {
+   "en": "Gentle shake!",
+   "es": "Agita suave!"
+  },
+  "c_pet": {
+   "en": "Pet my head!",
+   "es": "Acaricia!"
+  },
+  "c_tilt": {
+   "en": "Tilt me!",
+   "es": "Inclina!"
   }
  },
  "rules": [
@@ -625,29 +531,85 @@
     [
      "set",
      "limit",
-     3200
+     3000
     ],
     [
      "set",
-     "z",
-     6
+     "base",
+     2200
+    ],
+    [
+     "set",
+     "cue",
+     18
+    ],
+    [
+     "set",
+     "tmp",
+     0
     ]
    ]
   },
   {
    "state": "intro",
    "on": "timer",
-   "go": "pick"
+   "go": "wait",
+   "do": [
+    [
+     "copy",
+     "wait",
+     "base"
+    ],
+    [
+     "rand",
+     "tmp",
+     700
+    ],
+    [
+     "add_ctr",
+     "wait",
+     "tmp"
+    ]
+   ]
   },
   {
    "state": "intro",
    "on": "tap",
-   "go": "pick"
+   "go": "wait",
+   "do": [
+    [
+     "copy",
+     "wait",
+     "base"
+    ],
+    [
+     "rand",
+     "tmp",
+     700
+    ],
+    [
+     "add_ctr",
+     "wait",
+     "tmp"
+    ]
+   ]
   },
   {
-   "state": "pick",
-   "on": "enter",
-   "go": "call",
+   "state": "wait",
+   "on": "tap",
+   "go": "over",
+   "do": [
+    [
+     "set",
+     "tmp",
+     0
+    ]
+   ]
+  },
+  {
+   "state": "wait",
+   "on": "timer",
+   "go": "show",
    "do": [
     [
      "rand",
@@ -655,14 +617,9 @@
      6
     ],
     [
-     "copy",
-     "cue",
-     "act"
-    ],
-    [
-     "add",
-     "cue",
-     18
+     "set",
+     "z",
+     0
     ],
     [
      "sync",
@@ -675,109 +632,12 @@
    ]
   },
   {
-   "state": "call",
+   "state": "show",
    "on": "tap",
-   "region": "t0",
-   "if": [
-    "ctr_eq",
-    "act",
-    0
-   ],
    "go": "ok"
   },
   {
-   "state": "call",
-   "on": "tap",
-   "region": "t0",
-   "go": "over"
-  },
-  {
-   "state": "call",
-   "on": "tap",
-   "region": "t1",
-   "if": [
-    "ctr_eq",
-    "act",
-    1
-   ],
-   "go": "ok"
-  },
-  {
-   "state": "call",
-   "on": "tap",
-   "region": "t1",
-   "go": "over"
-  },
-  {
-   "state": "call",
-   "on": "tap",
-   "region": "t2",
-   "if": [
-    "ctr_eq",
-    "act",
-    2
-   ],
-   "go": "ok"
-  },
-  {
-   "state": "call",
-   "on": "tap",
-   "region": "t2",
-   "go": "over"
-  },
-  {
-   "state": "call",
-   "on": "tap",
-   "region": "t3",
-   "if": [
-    "ctr_eq",
-    "act",
-    3
-   ],
-   "go": "ok"
-  },
-  {
-   "state": "call",
-   "on": "tap",
-   "region": "t3",
-   "go": "over"
-  },
-  {
-   "state": "call",
-   "on": "tap",
-   "region": "t4",
-   "if": [
-    "ctr_eq",
-    "act",
-    4
-   ],
-   "go": "ok"
-  },
-  {
-   "state": "call",
-   "on": "tap",
-   "region": "t4",
-   "go": "over"
-  },
-  {
-   "state": "call",
-   "on": "tap",
-   "region": "t5",
-   "if": [
-    "ctr_eq",
-    "act",
-    5
-   ],
-   "go": "ok"
-  },
-  {
-   "state": "call",
-   "on": "tap",
-   "region": "t5",
-   "go": "over"
-  },
-  {
-   "state": "call",
+   "state": "show",
    "on": "swipe_l",
    "if": [
     "ctr_eq",
@@ -787,7 +647,19 @@
    "go": "ok"
   },
   {
-   "state": "call",
+   "state": "show",
+   "on": "swipe_l",
+   "go": "over",
+   "do": [
+    [
+     "set",
+     "tmp",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "show",
    "on": "swipe_r",
    "if": [
     "ctr_eq",
@@ -797,7 +669,19 @@
    "go": "ok"
   },
   {
-   "state": "call",
+   "state": "show",
+   "on": "swipe_r",
+   "go": "over",
+   "do": [
+    [
+     "set",
+     "tmp",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "show",
    "on": "shake",
    "if": [
     "ctr_eq",
@@ -807,7 +691,19 @@
    "go": "ok"
   },
   {
-   "state": "call",
+   "state": "show",
+   "on": "shake",
+   "go": "over",
+   "do": [
+    [
+     "set",
+     "tmp",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "show",
    "on": "pet",
    "if": [
     "ctr_eq",
@@ -817,89 +713,116 @@
    "go": "ok"
   },
   {
-   "state": "call",
-   "on": "tilt_l",
-   "if": [
-    "ctr_eq",
-    "act",
-    5
-   ],
-   "go": "ok"
-  },
-  {
-   "state": "call",
-   "on": "tilt_r",
-   "if": [
-    "ctr_eq",
-    "act",
-    5
-   ],
-   "go": "ok"
-  },
-  {
-   "state": "call",
-   "on": "tilt_f",
-   "if": [
-    "ctr_eq",
-    "act",
-    5
-   ],
-   "go": "ok"
-  },
-  {
-   "state": "call",
-   "on": "tilt_b",
-   "if": [
-    "ctr_eq",
-    "act",
-    5
-   ],
-   "go": "ok"
-  },
-  {
-   "state": "call",
-   "on": "swipe_l",
-   "go": "over"
-  },
-  {
-   "state": "call",
-   "on": "swipe_r",
-   "go": "over"
-  },
-  {
-   "state": "call",
-   "on": "shake",
-   "go": "over"
-  },
-  {
-   "state": "call",
+   "state": "show",
    "on": "pet",
-   "go": "over"
+   "go": "over",
+   "do": [
+    [
+     "set",
+     "tmp",
+     1
+    ]
+   ]
   },
   {
-   "state": "call",
+   "state": "show",
    "on": "tilt_l",
-   "go": "over"
+   "if": [
+    "ctr_eq",
+    "act",
+    5
+   ],
+   "go": "ok"
   },
   {
-   "state": "call",
+   "state": "show",
+   "on": "tilt_l",
+   "go": "over",
+   "do": [
+    [
+     "set",
+     "tmp",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "show",
    "on": "tilt_r",
-   "go": "over"
+   "if": [
+    "ctr_eq",
+    "act",
+    5
+   ],
+   "go": "ok"
   },
   {
-   "state": "call",
+   "state": "show",
+   "on": "tilt_r",
+   "go": "over",
+   "do": [
+    [
+     "set",
+     "tmp",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "show",
    "on": "tilt_f",
-   "go": "over"
+   "if": [
+    "ctr_eq",
+    "act",
+    5
+   ],
+   "go": "ok"
   },
   {
-   "state": "call",
+   "state": "show",
+   "on": "tilt_f",
+   "go": "over",
+   "do": [
+    [
+     "set",
+     "tmp",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "show",
    "on": "tilt_b",
-   "go": "over"
+   "if": [
+    "ctr_eq",
+    "act",
+    5
+   ],
+   "go": "ok"
   },
   {
-   "state": "call",
+   "state": "show",
+   "on": "tilt_b",
+   "go": "over",
+   "do": [
+    [
+     "set",
+     "tmp",
+     1
+    ]
+   ]
+  },
+  {
+   "state": "show",
    "on": "timer",
-   "go": "over"
+   "go": "over",
+   "do": [
+    [
+     "set",
+     "tmp",
+     2
+    ]
+   ]
   },
   {
    "state": "ok",
@@ -919,7 +842,7 @@
     [
      "div",
      "tmp",
-     12
+     7
     ],
     [
      "sub_ctr",
@@ -932,6 +855,41 @@
      650
     ],
     [
+     "copy",
+     "tmp",
+     "base"
+    ],
+    [
+     "div",
+     "tmp",
+     10
+    ],
+    [
+     "sub_ctr",
+     "base",
+     "tmp"
+    ],
+    [
+     "floor",
+     "base",
+     600
+    ],
+    [
+     "copy",
+     "cue",
+     "score"
+    ],
+    [
+     "ceil",
+     "cue",
+     5
+    ],
+    [
+     "add",
+     "cue",
+     18
+    ],
+    [
      "tone",
      "good"
     ]
@@ -940,7 +898,24 @@
   {
    "state": "ok",
    "on": "timer",
-   "go": "pick"
+   "go": "wait",
+   "do": [
+    [
+     "copy",
+     "wait",
+     "base"
+    ],
+    [
+     "rand",
+     "tmp",
+     700
+    ],
+    [
+     "add_ctr",
+     "wait",
+     "tmp"
+    ]
+   ]
   },
   {
    "state": "over",

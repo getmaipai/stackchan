@@ -167,6 +167,7 @@ class SettingsBackend:
                     "ignore_noise": own.get("ignore_noise", "medium"),
                     "look_speaker": own.get("look_speaker", False),
                     "look_faces": own.get("look_faces", False),
+                    "look_on_wake": own.get("look_on_wake", True),
                     "face_owner": own.get("face_owner", "robot"),
                     "wait_after_talking": own.get("wait_after_talking", "quick"),
                     "firmware_version": live.get("firmware_version"),
@@ -268,7 +269,7 @@ class SettingsBackend:
                 "That unit is not paired. Pair it first, then open its settings."
             )
 
-    _DEVICE_KEYS = ("volume", "brightness", "idle_motion", "idle_movement", "look_speaker", "look_faces", "dance_to_music", "face_owner", "led", "mute", "vision_off", "quiet")
+    _DEVICE_KEYS = ("volume", "brightness", "idle_motion", "idle_movement", "look_speaker", "look_faces", "look_on_wake", "dance_to_music", "face_owner", "led", "mute", "vision_off", "quiet")
 
     def _saved_device(self, device_id: str) -> dict[str, Any]:
         own = self.store.get(device_id)
@@ -279,6 +280,7 @@ class SettingsBackend:
             "idle_movement": own.get("idle_movement", "off"),
             "look_speaker": own.get("look_speaker", False),
             "look_faces": own.get("look_faces", False),
+            "look_on_wake": own.get("look_on_wake", True),
             "dance_to_music": own.get("dance_to_music", False),
             "dance_status": self._dance_status(device_id),
             "face_owner": own.get("face_owner", "robot"),
@@ -313,7 +315,7 @@ class SettingsBackend:
                 self.store.update(device_id, {key: value})
                 self._notify_saved(device_id, {key: value})  # app.py turns the music dance controller on or off
                 return {"ok": True, key: value, "status": self._dance_status(device_id)}
-            elif key in ("look_speaker", "look_faces"):
+            elif key in ("look_speaker", "look_faces", "look_on_wake"):
                 self.store.update(device_id, {key: value})
                 self._notify_saved(device_id, {key: value})
                 return {"ok": True, key: value}
@@ -463,6 +465,8 @@ class SettingsBackend:
                 body = self.polish.prefs.view(device_id, lang)
             elif what == "pages":
                 body = self.polish.pages.view(device_id, lang)
+            elif what == "lock":
+                body = self.polish.lock.view(device_id, lang)
             elif what == "scenes":
                 body = self.polish.scenes.view(device_id)
             elif what == "packs":
@@ -521,6 +525,17 @@ class SettingsBackend:
             else:
                 reply = polish.pages.push_tiles(device_id, values.get("tiles"), lang)
             return (400 if reply.get("ok") is False and "error" in reply else 200), reply
+        if action in {"lock", "lock/clear", "lock/now", "lock/auto"}:
+            # The code goes from this request to the unit tool and nowhere else: it is never logged, stored or echoed (unit_lock.py).
+            if action == "lock":
+                reply = polish.lock.set_code(device_id, values.get("code"), values.get("confirm_code"), values.get("current"), lang)
+            elif action == "lock/clear":
+                reply = polish.lock.clear_code(device_id, values.get("current"), lang)
+            elif action == "lock/now":
+                reply = polish.lock.lock_now(device_id, lang)
+            else:
+                reply = polish.lock.set_auto(device_id, values.get("auto_minutes"), lang)
+            return (400 if reply.get("ok") is False else 200), reply
         if action == "scenes":
             if values.get("reset") is True:
                 return 200, polish.scenes.reset(device_id, values.get("name"), lang)
@@ -598,7 +613,7 @@ class SettingsBackend:
         try:
             if rest == "people" or rest.startswith("people/"):
                 return self._people_post(rest, values, lang)
-            for polish_action in ("prefs", "scenes", "pages", "pages/show", "pages/tiles", "listen-test", "packs/activate", "packs/sync", "fillers/generate", "phrases/generate"):
+            for polish_action in ("prefs", "scenes", "pages", "pages/show", "pages/tiles", "lock", "lock/clear", "lock/now", "lock/auto", "listen-test", "packs/activate", "packs/sync", "fillers/generate", "phrases/generate"):
                 if rest.endswith("/" + polish_action):
                     device_id = rest[: -len(polish_action) - 1]
                     self._unit_known(device_id)

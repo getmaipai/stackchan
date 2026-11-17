@@ -14,5 +14,5 @@ L="$FW/managed_components/lvgl__lvgl"
 mkdir -p "$OUT"
 [ -f "$PG/lvgl.a" ] || { echo "no $PG/lvgl.a: run bash scripts/fw-face-render/build.sh first (MAIPAI_FW_TREE=$FW)" >&2; exit 1; }
 clang++ -std=gnu++20 -O1 -w -I"$PG/inc" -I"$L" -I"$L/src" -I"$R/stub" -I"$FW/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$R/games_render.cc" "$PG/lvgl.a" -o "$OUT/games_render" -lz
-python3 "$R/scene_games.py" "$REPO/firmware/games" "$OUT" > "$OUT/scene_games.txt"
+python3 "$R/scene_games.py" "${MAIPAI_GAMES_DIR:-$REPO/firmware/games}" "$OUT" > "$OUT/scene_games.txt"
 "$OUT/games_render" < "$OUT/scene_games.txt"

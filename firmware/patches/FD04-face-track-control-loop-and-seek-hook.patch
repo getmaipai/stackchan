@@ -1,0 +1,854 @@
+# Intent: The head follows a detected face by itself (owner brief 2026-11-17, docs/design/face-detect-esp-dl-2026-11-17.md sections 5 to 7), experiment image only, behind MAIPAI_FACE_TRACK (default n) and a runtime switch that is off after every boot (self.look.detect_track {on}). maipai_face_track_core.h is the pure control loop a host compiler tests (host/tests/firmware/face_track_core_test.c): while a talk goes on (setting talk) or a mover was just seen (setting always) it asks for a detection stream (PROBE, at most 10 s, then 30 s rest); two detections in a row with a score of 0.6 or more start TRACK; every later detection becomes a head move from the angle the head had when the picture was taken (a 16-sample reading history, interpolated at the picture's time), the box center smoothed (EMA 0.6, a jump over 40 percent of the width believed only when repeated), a 4 degree dead band across and 5 degrees up and down (leaving it takes two detections in a row), PD with no integral (Kp 0.6 and 0.4, Kd 0.1 on an EMA of the error), steps capped at 12 degrees, one move per 600 ms and only after the head settled, at most 20 moves in 60 s and at most MAIPAI_FACE_TRACK_HOUR_MIN minutes (default 10) of probe, track and hold work in an hour (then it holds the pose and says nothing), a stall guard (a move of 10 degrees or more that the head did not follow by 3 degrees ends TRACK and keeps it off for 30 s), three misses in a row hold the pose, 20 s after the last sighting the head returns to center once, a face that stays in one place for 20 s ends TRACK (a poster or a screen) and rests 30 s, 30 s without speech ends it in setting talk, and a picture older than 3 s is never turned for. Quiet hours and night use speed 55 percent. Pan only unless MAIPAI_FACE_TRACK_TILT is on (half gain, own dead band, the pitch sign is untested on the unit). The seek task (patch S14) runs it every 50 ms while it is not off: it reads the gates the seek core already reads, the look lease (a host that holds it stops the tracker at once, no camera, no move), the lock (a weak reference to maipai_lock_locked, so this patch does not depend on the lock patches), the new maipai_pickup_held (lifted or carried) and the detector's newest face; it keeps the seek core quiet (its mode reads off) while the tracker holds the head and moves the head through the same remote-gated path a person's head move takes. self.look.detect_track {on} arms or disarms it and answers the state; self.look.status gains fd_track, fd_tracks, fd_moves, fd_moves_min, fd_stalls, fd_end and fd_hour_s.
+# Placement: unit (carve-out 3: a basic the robot does with no brain; Home still wins: a host lease stops it, and Home may read the status fields)
+# Upstream: new firmware/main/hal/maipai_face_track_core.h; maipai_seek.cc (patches S14, FD03), maipai_pickup.{h,cc} (patch TB04: one read-only accessor), main/Kconfig.projbuild (patch FD01)
+# Check after a flash: on the bench image, armed only for the test, self.look.detect_track {on:true} then a talk in front of the unit: the camera cue is lit while the stream runs, the head turns toward a person standing 1 to 2 m off to the side and stops within the dead band, no move when the person stands still, a printed face moved by hand is followed and ends after 20 s of standing still, moves stay under 20 a minute (fd_moves_min), self.look.claim from the host stops it at once (fd_track off, no camera cue), mute, vision off, full quiet and a pickup each end it with no move, and fd_stalls stays 0 on a free head.
+
+diff --git a/firmware/main/hal/maipai_face_track_core.h b/firmware/main/hal/maipai_face_track_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_face_track_core.h
+@@ -0,0 +1,541 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face tracking, the pure control loop (patch FD04). Plain C99, no ESP call, no clock of its own, no allocation: the caller passes
++ * the time, the gates, the head angles and the newest detection, and reads back what to do. A host compiler tests it
++ * (host/tests/firmware/face_track_core_test.c). Design: docs/design/face-detect-esp-dl-2026-11-17.md sections 5 to 7.
++ *
++ * What it does. While a talk goes on (setting talk) or a mover was just seen (setting always) it asks for a detection stream
++ * (PROBE). Two detections in a row with a score of at least 0.6 start TRACK; from then on every detection that is not a miss
++ * is turned into a head move:
++ *   - the picture is 0.25 to 0.4 s old when its result arrives, so the error is measured against the head angle AT CAPTURE (a short
++ *     history of readings is interpolated at the picture's time) and the absolute target is that angle plus the step;
++ *   - the box center is smoothed (EMA 0.6); a jump over 40 percent of the width is believed only when the next detection repeats it;
++ *   - dead band 4 degrees across (5 degrees up and down); leaving it takes two detections in a row, entering it ends the move;
++ *   - PD: step = Kp * e + Kd * de/dt on an EMA of the error, no integral term (the servo already settles short), capped at 12 degrees;
++ *   - rate limit: one move per 600 ms, only after the head settled; at most 20 moves in 60 seconds; at most FT_HOUR_MS of work
++ *     (probe, track and hold) in an hour; after that it holds the pose and says nothing;
++ *   - stall guard: a move of 10 degrees or more that the head did not follow by 3 degrees ends TRACK and keeps it off for 30 s;
++ *   - three misses in a row hold the pose (HOLD, still detecting); 20 s after the last sighting the head returns to center once;
++ *   - a face that sits in the same place for 20 s ends TRACK (a poster or a screen), then 30 s off; 30 s with nobody talking ends it;
++ *   - a face older than 3 s is never turned for.
++ * Everything stops at once, with no move, when the switch is off, a host holds the lease, the gates close (asleep, muted, privacy
++ * sleep, vision off, full quiet), the unit is locked, carried or a remote session holds the head. Tilt (pitch) uses half the gain and
++ * its own dead band; it is off unless the build asks for it.
++ */
++#ifndef MAIPAI_FACE_TRACK_CORE_H
++#define MAIPAI_FACE_TRACK_CORE_H
++
++#include <math.h>
++#include <stddef.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++
++#define FT_PIC_W 320.0f
++#define FT_PIC_H 240.0f
++#define FT_FOV_H_DEG 52.0f
++#define FT_FOV_V_DEG 39.0f
++#define FT_DEAD_YAW_DEG 4.0f
++#define FT_DEAD_PITCH_DEG 5.0f
++#define FT_KP_YAW 0.6f
++#define FT_KP_PITCH 0.4f
++#define FT_KD 0.1f
++#define FT_ERR_EMA 0.5f
++#define FT_BOX_EMA 0.6f
++#define FT_JUMP_FRAC 0.40f
++#define FT_STEP_CAP_DEG 12.0f
++#define FT_PAN_MAX_DEG 80.0f
++#define FT_TILT_MAX_DEG 30.0f
++#define FT_MIN_MOVE_DEG 1.0f
++#define FT_MOVE_GAP_MS 600u
++#define FT_BUDGET_MOVES 20
++#define FT_BUDGET_WINDOW_MS 60000u
++#define FT_START_HITS 2
++#define FT_START_SCORE 0.6f
++#define FT_HYST_HITS 2
++#define FT_MISS_HOLD 3
++#define FT_STALE_MS 3000u
++#define FT_NOBODY_MS 20000u
++#define FT_STILL_CAP_MS 20000u
++#define FT_STILL_BAND_PX 16.0f
++#define FT_QUIET_END_MS 30000u    /* setting talk: this long after the last speech the tracker ends */
++#define FT_PROBE_MS 10000u        /* a probe that finds nothing stops after this long ... */
++#define FT_PROBE_REST_MS 30000u   /* ... and rests this long */
++#define FT_STALL_ASK_DEG 10.0f
++#define FT_STALL_MOVED_DEG 3.0f
++#define FT_STALL_WAIT_MS 1500u
++#define FT_STALL_COOL_MS 30000u
++#define FT_STILL_COOL_MS 30000u
++#define FT_HOUR_MS 3600000u
++#define FT_HIST 16
++#define FT_SPEED_NORMAL 100
++#define FT_SPEED_QUIET 55
++
++enum { FT_MODE_OFF = 0, FT_MODE_TALK, FT_MODE_ALWAYS };
++enum { FT_OFF = 0, FT_PROBE, FT_TRACK, FT_HOLD, FT_COOL, FT_STATE_COUNT };
++static const char* const FT_STATE_NAMES[FT_STATE_COUNT] = {"off", "probe", "track", "hold", "cool"};
++enum { FT_END_NONE = 0, FT_END_GATE, FT_END_LOST, FT_END_STILL, FT_END_QUIET, FT_END_STALL, FT_END_HOUR, FT_END_COUNT };
++static const char* const FT_END_NAMES[FT_END_COUNT] = {"none", "gate", "lost", "still", "quiet", "stall", "hour"};
++enum { FT_REASON_TRACK = 1, FT_REASON_RETURN };
++
++typedef struct {
++    float x_sign;       /* +1: the right of the picture is the unit's right (the seek core's x_sign) */
++    float fov_h_deg;    /* the measured field of view (the seek core's fov_deg) */
++    float y_sign;       /* pitch sign: -1 means a face low in the picture needs the head to tilt down (check on the unit) */
++    uint32_t hour_ms;   /* most work in an hour */
++    uint8_t tilt;       /* 1: also tilt */
++} ft_cfg_t;
++
++typedef struct {
++    uint32_t now_ms;
++    uint8_t armed;          /* the runtime switch (self.look.detect_track) */
++    uint8_t gates_ok;       /* awake, not muted, not privacy sleep, vision on, not full quiet */
++    uint8_t leased;         /* a host holds the look lease */
++    uint8_t locked;         /* the unit is locked */
++    uint8_t carried;        /* lifted or carried */
++    uint8_t remote_busy;    /* a remote session owns the head */
++    uint8_t mode;           /* FT_MODE_* from the setting */
++    uint8_t conversation;
++    uint8_t blob_recent;    /* setting always: a mover was seen in the last 3 s */
++    uint8_t head_settled;
++    uint8_t quiet_or_night;
++    float pan_deg, tilt_deg;
++    /* a detection result is new when face_seq changed; face_valid says whether it found a face */
++    uint32_t face_seq;
++    uint8_t face_valid;
++    float face_cx, face_cy, face_w, face_score;
++    uint32_t face_at_ms;    /* when its picture was taken */
++} ft_in_t;
++
++typedef struct {
++    uint8_t own;            /* 1: the tracker holds the head: the seek core should stay out */
++    uint8_t want_detect;    /* 1: keep the detection stream wanted */
++    uint8_t move;           /* 1: move to pan_deg (and tilt_deg when has_tilt) */
++    uint8_t has_tilt;
++    float pan_deg, tilt_deg;
++    uint8_t speed_pct;
++    uint8_t reason;         /* FT_REASON_* */
++    uint8_t state;
++} ft_out_t;
++
++typedef struct {
++    uint32_t t;
++    float pan, tilt;
++} ft_sample_t;
++
++typedef struct {
++    ft_cfg_t cfg;
++    uint8_t state;
++    uint8_t end_reason;
++    ft_sample_t hist[FT_HIST];
++    uint8_t hist_n, hist_i;
++    uint32_t seen_seq;
++    uint32_t state_at, probe_at, rest_until, cool_until;
++    uint8_t hits, miss, oob_hits, active;
++    float cx_s, cy_s, e_ema_yaw, e_ema_pitch;
++    uint8_t have_box, have_ema;
++    uint32_t ema_at;
++    uint8_t jump_pending;
++    float jump_cx, jump_cy;
++    uint32_t last_face_at, last_move_at, last_speech_at;
++    float still_cx, still_cy;
++    uint32_t still_at;
++    uint8_t returned;
++    /* budget and hour */
++    uint32_t moves[FT_BUDGET_MOVES];
++    uint8_t moves_n;
++    uint32_t hour_start, hour_acc, acc_at;
++    /* stall guard */
++    uint8_t stall_pending;
++    uint32_t stall_at;
++    float stall_from, stall_ask;
++    /* counters */
++    uint32_t moves_total, tracks, stalls, ends[FT_END_COUNT], returns;
++} ft_t;
++
++static inline void ft_init(ft_t* t, const ft_cfg_t* cfg)
++{
++    memset(t, 0, sizeof(*t));
++    t->cfg = *cfg;
++    if (t->cfg.fov_h_deg < 10.0f) {
++        t->cfg.fov_h_deg = FT_FOV_H_DEG;
++    }
++    if (t->cfg.x_sign == 0.0f) {
++        t->cfg.x_sign = 1.0f;
++    }
++    if (t->cfg.y_sign == 0.0f) {
++        t->cfg.y_sign = -1.0f;
++    }
++    if (t->cfg.hour_ms == 0) {
++        t->cfg.hour_ms = FT_HOUR_MS / 6u;
++    }
++}
++
++static inline int32_t ft_dt(uint32_t a, uint32_t b) { return (int32_t)(a - b); }
++
++/* Head readings, newest last; the caller adds one about every 100 ms while the tracker is not off. */
++static inline void ft_hist_add(ft_t* t, uint32_t now, float pan, float tilt)
++{
++    t->hist[t->hist_i].t = now;
++    t->hist[t->hist_i].pan = pan;
++    t->hist[t->hist_i].tilt = tilt;
++    t->hist_i = (uint8_t)((t->hist_i + 1) % FT_HIST);
++    if (t->hist_n < FT_HIST) {
++        t->hist_n++;
++    }
++}
++
++/* The head's angles at time `at`: interpolated between the two readings around it, the oldest or newest when outside. */
++static inline void ft_hist_at(const ft_t* t, uint32_t at, float cur_pan, float cur_tilt, float* pan, float* tilt)
++{
++    if (t->hist_n == 0) {
++        *pan = cur_pan;
++        *tilt = cur_tilt;
++        return;
++    }
++    const ft_sample_t* prev = NULL;
++    for (int k = 0; k < t->hist_n; k++) { /* oldest to newest */
++        int idx = (t->hist_i + FT_HIST - t->hist_n + k) % FT_HIST;
++        const ft_sample_t* s = &t->hist[idx];
++        if (ft_dt(s->t, at) >= 0) {
++            if (prev == NULL) {
++                *pan = s->pan;
++                *tilt = s->tilt;
++                return;
++            }
++            uint32_t span = s->t - prev->t;
++            float f = span == 0 ? 1.0f : (float)(at - prev->t) / (float)span;
++            *pan = prev->pan + (s->pan - prev->pan) * f;
++            *tilt = prev->tilt + (s->tilt - prev->tilt) * f;
++            return;
++        }
++        prev = s;
++    }
++    *pan = prev->pan; /* the picture is newer than every reading */
++    *tilt = prev->tilt;
++}
++
++static inline float ft_clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
++
++static inline void ft_account(ft_t* t, uint32_t now)
++{
++    if (t->hour_start == 0 || (uint32_t)(now - t->hour_start) >= FT_HOUR_MS) {
++        t->hour_start = now ? now : 1;
++        t->hour_acc = 0;
++        t->acc_at = now;
++    }
++    if (t->state == FT_PROBE || t->state == FT_TRACK || t->state == FT_HOLD) {
++        t->hour_acc += now - t->acc_at;
++    }
++    t->acc_at = now;
++}
++
++static inline int ft_budget_free(ft_t* t, uint32_t now)
++{
++    int n = 0;
++    for (int i = 0; i < t->moves_n; i++) {
++        if ((uint32_t)(now - t->moves[i]) < FT_BUDGET_WINDOW_MS) {
++            t->moves[n++] = t->moves[i];
++        }
++    }
++    t->moves_n = (uint8_t)n;
++    return n < FT_BUDGET_MOVES;
++}
++
++static inline void ft_budget_spend(ft_t* t, uint32_t now)
++{
++    if (t->moves_n >= FT_BUDGET_MOVES) {
++        memmove(t->moves, t->moves + 1, sizeof(t->moves[0]) * (FT_BUDGET_MOVES - 1));
++        t->moves_n = FT_BUDGET_MOVES - 1;
++    }
++    t->moves[t->moves_n++] = now;
++}
++
++static inline void ft_enter(ft_t* t, int state, uint32_t now)
++{
++    t->state = (uint8_t)state;
++    t->state_at = now;
++    t->hits = t->miss = t->oob_hits = 0;
++    t->active = 0;
++    t->jump_pending = 0;
++    if (state != FT_TRACK && state != FT_HOLD) {
++        t->have_box = t->have_ema = 0;
++    }
++}
++
++static inline void ft_end(ft_t* t, int reason, uint32_t now, uint32_t cool_ms)
++{
++    t->end_reason = (uint8_t)reason;
++    t->ends[reason]++;
++    if (cool_ms > 0) {
++        t->cool_until = now + cool_ms;
++        ft_enter(t, FT_COOL, now);
++    } else {
++        ft_enter(t, FT_OFF, now);
++    }
++    t->stall_pending = 0;
++}
++
++/* One tick: the caller runs it about every 50 ms and when a detection arrives. */
++static inline void ft_tick(ft_t* t, const ft_in_t* in, ft_out_t* out)
++{
++    memset(out, 0, sizeof(*out));
++    const uint32_t now = in->now_ms;
++    ft_account(t, now);
++    out->state = t->state;
++    int allowed = in->armed && in->gates_ok && !in->leased && !in->locked && !in->carried && !in->remote_busy && in->mode != FT_MODE_OFF;
++    if (!allowed) {
++        if (t->state != FT_OFF) {
++            ft_end(t, FT_END_GATE, now, 0);
++        }
++        t->seen_seq = in->face_seq;
++        out->state = t->state;
++        return;
++    }
++    if (in->conversation) {
++        t->last_speech_at = now;
++    }
++    if (t->state == FT_COOL && ft_dt(now, t->cool_until) >= 0) {
++        ft_enter(t, FT_OFF, now);
++    }
++    int hour_over = t->hour_acc >= t->cfg.hour_ms;
++    if (hour_over && t->state != FT_OFF && t->state != FT_COOL) {
++        ft_end(t, FT_END_HOUR, now, 0); /* holds the pose and says nothing; the hour's end clears it */
++    }
++    if (hour_over) {
++        t->seen_seq = in->face_seq;
++        out->state = t->state;
++        return;
++    }
++    /* a new detection, if any */
++    const int fresh = in->face_seq != t->seen_seq;
++    t->seen_seq = in->face_seq;
++    const int hit = fresh && in->face_valid;
++    const int miss = fresh && !in->face_valid;
++
++    if (t->state == FT_OFF) {
++        const int want = (in->mode == FT_MODE_TALK && in->conversation) || (in->mode == FT_MODE_ALWAYS && in->blob_recent);
++        if (want && ft_dt(now, t->rest_until) >= 0) {
++            ft_enter(t, FT_PROBE, now);
++            t->probe_at = now;
++        }
++    }
++    if (t->state == FT_PROBE) {
++        const int still_wanted = (in->mode == FT_MODE_TALK && in->conversation) || (in->mode == FT_MODE_ALWAYS && in->blob_recent) ||
++                                 (in->mode == FT_MODE_TALK && (uint32_t)(now - t->last_speech_at) < 3000u);
++        if (!still_wanted || (uint32_t)(now - t->probe_at) >= FT_PROBE_MS) {
++            if ((uint32_t)(now - t->probe_at) >= FT_PROBE_MS) {
++                t->rest_until = now + FT_PROBE_REST_MS;
++            }
++            ft_enter(t, FT_OFF, now);
++        } else {
++            if (hit && in->face_score >= FT_START_SCORE) {
++                t->hits++;
++            } else if (fresh) {
++                t->hits = 0;
++            }
++            if (t->hits >= FT_START_HITS) {
++                ft_enter(t, FT_TRACK, now);
++                t->cx_s = in->face_cx;
++                t->cy_s = in->face_cy;
++                t->have_box = 1;
++                t->have_ema = 0;
++                t->ema_at = in->face_at_ms;
++                t->last_face_at = in->face_at_ms;
++                t->still_cx = in->face_cx;
++                t->still_cy = in->face_cy;
++                t->still_at = now;
++                t->last_move_at = 0;
++                t->returned = 0;
++                t->tracks++;
++            } else {
++                out->want_detect = 1;
++                out->state = t->state;
++                return;
++            }
++        }
++    }
++    if (t->state == FT_OFF || t->state == FT_COOL) {
++        out->state = t->state;
++        return;
++    }
++
++    /* TRACK or HOLD from here: the tracker owns the head */
++    out->own = 1;
++    out->want_detect = 1;
++    if (in->mode == FT_MODE_TALK && !in->conversation && (uint32_t)(now - t->last_speech_at) >= FT_QUIET_END_MS) {
++        ft_end(t, FT_END_QUIET, now, 0);
++        out->own = 0;
++        out->want_detect = 0;
++        out->state = t->state;
++        return;
++    }
++    /* the stall guard: the last move asked for a lot and the head did not follow */
++    if (t->stall_pending && ft_dt(now, t->stall_at) >= 0) {
++        t->stall_pending = 0;
++        if (fabsf(in->pan_deg - t->stall_from) < FT_STALL_MOVED_DEG) {
++            t->stalls++;
++            ft_end(t, FT_END_STALL, now, FT_STALL_COOL_MS);
++            out->own = 0;
++            out->want_detect = 0;
++            out->state = t->state;
++            return;
++        }
++    }
++    if (miss) {
++        t->miss++;
++        t->hits = 0;
++    }
++    if (hit) {
++        int accept = 1;
++        if (t->have_box) {
++            float dx = fabsf(in->face_cx - t->cx_s) / FT_PIC_W;
++            if (dx > FT_JUMP_FRAC) { /* a jump: believed only when the next detection repeats it */
++                if (t->jump_pending && fabsf(in->face_cx - t->jump_cx) / FT_PIC_W < 0.15f) {
++                    t->have_box = 0; /* it repeated: take the new place as the box */
++                } else {
++                    t->jump_pending = 1;
++                    t->jump_cx = in->face_cx;
++                    t->jump_cy = in->face_cy;
++                    accept = 0;
++                    t->miss++; /* counts as no sighting of the old place */
++                }
++            }
++        }
++        if (accept) {
++            t->jump_pending = 0;
++            t->miss = 0;
++            if (t->state == FT_HOLD) {
++                ft_enter(t, FT_TRACK, now);
++                t->have_box = 0;
++                t->returned = 0;
++            }
++            if (!t->have_box) {
++                t->cx_s = in->face_cx;
++                t->cy_s = in->face_cy;
++                t->have_box = 1;
++                t->have_ema = 0;
++            } else {
++                t->cx_s = FT_BOX_EMA * in->face_cx + (1.0f - FT_BOX_EMA) * t->cx_s;
++                t->cy_s = FT_BOX_EMA * in->face_cy + (1.0f - FT_BOX_EMA) * t->cy_s;
++            }
++            t->last_face_at = in->face_at_ms;
++            /* a face that sits in one place cannot hold the head forever */
++            if (fabsf(t->cx_s - t->still_cx) > FT_STILL_BAND_PX || fabsf(t->cy_s - t->still_cy) > FT_STILL_BAND_PX) {
++                t->still_cx = t->cx_s;
++                t->still_cy = t->cy_s;
++                t->still_at = now;
++            } else if ((uint32_t)(now - t->still_at) >= FT_STILL_CAP_MS) {
++                ft_end(t, FT_END_STILL, now, FT_STILL_COOL_MS);
++                out->own = 0;
++                out->want_detect = 0;
++                out->state = t->state;
++                return;
++            }
++            /* the control step, once per accepted detection */
++            float pan_c, tilt_c;
++            ft_hist_at(t, in->face_at_ms, in->pan_deg, in->tilt_deg, &pan_c, &tilt_c);
++            const float e_yaw = (t->cx_s / FT_PIC_W - 0.5f) * t->cfg.fov_h_deg * t->cfg.x_sign;
++            const float e_pit = (t->cy_s / FT_PIC_H - 0.5f) * FT_FOV_V_DEG * t->cfg.y_sign;
++            float d_yaw = 0.0f, d_pit = 0.0f;
++            if (t->have_ema) {
++                float dt_s = (float)((uint32_t)(in->face_at_ms - t->ema_at)) / 1000.0f;
++                if (dt_s > 0.05f && dt_s < 2.0f) {
++                    float ey = FT_ERR_EMA * e_yaw + (1.0f - FT_ERR_EMA) * t->e_ema_yaw;
++                    float ep = FT_ERR_EMA * e_pit + (1.0f - FT_ERR_EMA) * t->e_ema_pitch;
++                    d_yaw = (ey - t->e_ema_yaw) / dt_s;
++                    d_pit = (ep - t->e_ema_pitch) / dt_s;
++                    t->e_ema_yaw = ey;
++                    t->e_ema_pitch = ep;
++                }
++            } else {
++                t->e_ema_yaw = e_yaw;
++                t->e_ema_pitch = e_pit;
++                t->have_ema = 1;
++            }
++            t->ema_at = in->face_at_ms;
++            const int out_yaw = fabsf(e_yaw) >= FT_DEAD_YAW_DEG;
++            const int out_pit = t->cfg.tilt && fabsf(e_pit) >= FT_DEAD_PITCH_DEG;
++            if (out_yaw || out_pit) {
++                if (t->oob_hits < 255) {
++                    t->oob_hits++;
++                }
++                if (t->oob_hits >= FT_HYST_HITS) {
++                    t->active = 1;
++                }
++            } else {
++                t->oob_hits = 0;
++                t->active = 0;
++            }
++            const int fresh_enough = (uint32_t)(now - in->face_at_ms) <= FT_STALE_MS;
++            if (t->active && fresh_enough && in->head_settled && (t->last_move_at == 0 || (uint32_t)(now - t->last_move_at) >= FT_MOVE_GAP_MS) &&
++                ft_budget_free(t, now)) {
++                float sy = ft_clampf(FT_KP_YAW * e_yaw + FT_KD * d_yaw, -FT_STEP_CAP_DEG, FT_STEP_CAP_DEG);
++                float pan_t = ft_clampf(pan_c + (out_yaw ? sy : 0.0f), -FT_PAN_MAX_DEG, FT_PAN_MAX_DEG);
++                float tilt_t = tilt_c;
++                int has_tilt = 0;
++                if (out_pit) {
++                    float sp = ft_clampf(FT_KP_PITCH * e_pit + FT_KD * d_pit, -FT_STEP_CAP_DEG, FT_STEP_CAP_DEG);
++                    tilt_t = ft_clampf(tilt_c + sp, -FT_TILT_MAX_DEG, FT_TILT_MAX_DEG);
++                    has_tilt = 1;
++                }
++                if (fabsf(pan_t - in->pan_deg) >= FT_MIN_MOVE_DEG || (has_tilt && fabsf(tilt_t - in->tilt_deg) >= FT_MIN_MOVE_DEG)) {
++                    out->move = 1;
++                    out->pan_deg = pan_t;
++                    out->tilt_deg = tilt_t;
++                    out->has_tilt = (uint8_t)has_tilt;
++                    out->speed_pct = in->quiet_or_night ? FT_SPEED_QUIET : FT_SPEED_NORMAL;
++                    out->reason = FT_REASON_TRACK;
++                    t->last_move_at = now;
++                    t->moves_total++;
++                    ft_budget_spend(t, now);
++                    float asked = fabsf(pan_t - in->pan_deg);
++                    if (asked >= FT_STALL_ASK_DEG && !t->stall_pending) { /* one check at a time: a later move must not push it back */
++                        t->stall_pending = 1;
++                        t->stall_at = now + FT_STALL_WAIT_MS;
++                        t->stall_from = in->pan_deg;
++                        t->stall_ask = asked;
++                    }
++                }
++            }
++        }
++    }
++    /* lost: hold the pose, then go back to center once */
++    if (t->state == FT_TRACK && t->miss >= FT_MISS_HOLD) {
++        ft_enter(t, FT_HOLD, now);
++    }
++    if (t->state == FT_HOLD && (uint32_t)(now - t->last_face_at) >= FT_NOBODY_MS) {
++        if (!t->returned && fabsf(in->pan_deg) > 3.0f && in->head_settled) {
++            out->move = 1;
++            out->pan_deg = 0.0f;
++            out->tilt_deg = 0.0f;
++            out->has_tilt = 0;
++            out->speed_pct = in->quiet_or_night ? FT_SPEED_QUIET : FT_SPEED_NORMAL;
++            out->reason = FT_REASON_RETURN;
++            t->returned = 1;
++            t->returns++;
++        }
++        ft_end(t, FT_END_LOST, now, 0);
++        out->own = out->move ? 1 : 0;
++        out->want_detect = 0;
++    }
++    out->state = t->state;
++}
++
++/* The status fields for self.look.status (flat, whole numbers). */
++static inline int ft_status_json(const ft_t* t, uint32_t now, char* buf, size_t n)
++{
++    int left = 0;
++    for (int i = 0; i < t->moves_n; i++) {
++        if ((uint32_t)(now - t->moves[i]) < FT_BUDGET_WINDOW_MS) {
++            left++;
++        }
++    }
++    return snprintf(buf, n,
++                    "\"fd_track\":\"%s\",\"fd_tracks\":%u,\"fd_moves\":%u,\"fd_moves_min\":%d,\"fd_stalls\":%u,\"fd_end\":\"%s\",\"fd_hour_s\":%u",
++                    FT_STATE_NAMES[t->state < FT_STATE_COUNT ? t->state : 0], (unsigned)t->tracks, (unsigned)t->moves_total, left,
++                    (unsigned)t->stalls, FT_END_NAMES[t->end_reason < FT_END_COUNT ? t->end_reason : 0], (unsigned)(t->hour_acc / 1000u));
++}
++
++#endif /* MAIPAI_FACE_TRACK_CORE_H */
+diff --git a/firmware/main/hal/maipai_seek.cc b/firmware/main/hal/maipai_seek.cc
+--- a/firmware/main/hal/maipai_seek.cc
++++ b/firmware/main/hal/maipai_seek.cc
+@@ -20,6 +20,13 @@
+ #include "maipai_screen.h"
+ #include "maipai_remote.h"
+ #include "maipai_facedet.h"
++#include "maipai_pickup.h"
++#if defined(CONFIG_MAIPAI_FACE_TRACK) && CONFIG_MAIPAI_FACE_TRACK && defined(CONFIG_MAIPAI_FACE_DETECT) && CONFIG_MAIPAI_FACE_DETECT
++#define MAIPAI_TRACK 1
++#include "maipai_face_track_core.h"
++#else
++#define MAIPAI_TRACK 0
++#endif
+ #include "board/hal_bridge.h"
+ #include "board/stackchan_camera.h"
+ #include "hal.h"
+@@ -39,6 +46,11 @@
+ 
+ static const char* TAG = "MAIPAI-SEEK";
+ 
++#if MAIPAI_TRACK
++// Patch FD04: the lock (patches LK01 to LK03) may or may not be in the image: a weak reference, so this patch does not depend on it.
++bool maipai_lock_locked() __attribute__((weak));
++#endif
++
+ namespace {
+ 
+ mw_t* s_w                   = nullptr;  // PSRAM
+@@ -56,6 +68,17 @@ bool s_mem_have             = false;
+ 
+ uint32_t ms_now() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
+ 
++#if MAIPAI_TRACK
++// Patch FD04: the face tracker. The control loop is maipai_face_track_core.h; this is its wiring.
++ft_t* s_ft                    = nullptr;  // PSRAM
++std::atomic<bool> s_track_armed{false};   // the runtime switch: off after every boot
++std::atomic<bool> s_track_own{false};     // the tracker holds the head: the seek core stays quiet
++std::atomic<bool> s_track_active{false};  // not off: the head is read about every 100 ms
++mw_env_t s_env;                           // the gates the seek core read on its last pass
++uint32_t s_trk_runs = 0, s_trk_face_seq = 0, s_trk_seq = 0, s_trk_read_at = 0;
++float s_trk_pan = 0.0f, s_trk_tilt = 0.0f;
++#endif
++
+ // The task starts when the tools register, before the servos exist: until they do there is no head to read or move.
+ bool head_ready() { return GetStackChan().hasMotion(); }
+ 
+@@ -78,7 +101,11 @@ void op_env(void*, mw_env_t* e)
+     // At rest in "talk" nothing needs the head's angle: the bus is not read (and the face loop not made to wait) until a wake word,
+     // a run, a calibration or the "always" watch needs it.
+     const bool need_pan = s_w->seek.state != MS_IDLE || s_w->addr_latched || s_w->pending > 0 || s_w->cal.state == MW_CAL_RUN ||
+-                          s_mode.load() == MS_MODE_ALWAYS || s_addr.load();
++                          s_mode.load() == MS_MODE_ALWAYS || s_addr.load()
++#if MAIPAI_TRACK
++                          || s_track_active.load()
++#endif
++        ;
+     static bool s_had_pan = false;
+     if (need_pan) {
+         s_pan_cache = read_pan();
+@@ -110,6 +137,9 @@ void op_env(void*, mw_env_t* e)
+         // else. awake stays 0, so the core runs nothing.
+         e->awake = 0;
+         e->mode  = s_mode.load();
++#if MAIPAI_TRACK
++        s_env = *e;
++#endif
+         return;
+     }
+     e->awake           = !hal_bridge::display_is_asleep() ? 1 : 0;
+@@ -125,6 +155,9 @@ void op_env(void*, mw_env_t* e)
+     const MaipaiTbPrefs prefs = maipai_tb_prefs();
+     e->mode            = prefs.turn_to_faces > 2 ? 1 : prefs.turn_to_faces;
+     s_mode.store(e->mode);
++#if MAIPAI_TRACK
++    if (s_track_own.load()) e->mode = MS_MODE_OFF;  // the tracker holds the head: the seek core stays quiet (no camera, no move)
++#endif
+     // Memory is read at most twice a second (the largest-block call walks the heap).
+     if (!s_mem_have || ms_dt(now, s_mem_at) > 500) {
+         s_mem_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+@@ -135,6 +168,9 @@ void op_env(void*, mw_env_t* e)
+     e->free_internal    = s_mem_free;
+     e->largest_internal = s_mem_big;
+     e->late             = 0;
++#if MAIPAI_TRACK
++    s_env = *e;
++#endif
+ }
+ 
+ int op_grab(void*, uint8_t* gray)
+@@ -180,6 +216,100 @@ void op_log(void*, const char* line)
+ #endif
+ }
+ 
++
++#if MAIPAI_TRACK
++// ---- Patch FD04: the face tracker's wiring (the loop and its tests are maipai_face_track_core.h) ------------------------------------
++float read_tilt()
++{
++    if (!head_ready()) return 0.0f;
++    LvglLockGuard lock;
++    return static_cast<float>(GetStackChan().motion().pitchServo().getCurrentAngle()) / 10.0f;
++}
++
++void track_move(const ft_out_t& o)
++{
++    // Pan goes through the path every seek move takes: the remote-session gate, source user, the 100 to 150 speed.
++    op_head(nullptr, o.pan_deg, o.speed_pct, o.reason == FT_REASON_RETURN ? MS_REASON_RETURN : MS_REASON_FOLLOW);
++#if CONFIG_MAIPAI_FACE_TRACK_TILT
++    if (o.has_tilt && head_ready() && maipai_remote_gate("move_near", "user", 0)) {
++        int speed = 150 * static_cast<int>(o.speed_pct) / 100;
++        if (speed < 100) speed = 100;
++        const int tilt = static_cast<int>(o.tilt_deg >= 0 ? o.tilt_deg + 0.5f : o.tilt_deg - 0.5f);
++        LvglLockGuard lock;
++        GetStackChan().motion().pitchServo().moveWithSpeed(tilt * 10, speed);
++    }
++#endif
++}
++
++// One pass, after the seek core's own pass: builds the inputs from what the seek core already read, runs the loop, asks the detector
++// for frames while it wants them and moves the head. Reads the head about every 100 ms while it is not off; at rest it reads nothing.
++void track_step()
++{
++    if (s_ft == nullptr) return;
++    const uint32_t now = ms_now();
++    ft_in_t in;
++    memset(&in, 0, sizeof(in));
++    in.now_ms = now;
++    in.armed  = s_track_armed.load() ? 1 : 0;
++    const mw_env_t& e = s_env;
++    in.gates_ok       = e.awake && !e.muted && !e.privacy_sleep && !e.vision_off && !e.full_quiet;
++    in.mode           = s_mode.load();  // the setting itself: the core's copy reads off while the tracker holds the head
++    in.conversation   = e.conversation;
++    in.head_settled   = e.head_settled;
++    in.quiet_or_night = e.quiet_or_night;
++    xSemaphoreTake(s_mu, portMAX_DELAY);
++    in.leased      = ms_lease_active(&s_w->seek.lease, now) ? 1 : 0;
++    in.blob_recent = (s_w->seek.seen_any && ms_dt(now, s_w->seek.last_seen) < 3000) ? 1 : 0;
++    // The seek core is mid run (a look, a sweep, a turn) or a calibration pans the head: the tracker waits for it.
++    const uint8_t cs = s_w->seek.state;
++    in.remote_busy   = (s_w->cal.state == MW_CAL_RUN || (!s_track_own.load() && cs != MS_IDLE && cs != MS_HOLD && cs != MS_COOL)) ? 1 : 0;
++    s_ft->cfg.x_sign    = s_w->seek.x_sign;
++    s_ft->cfg.fov_h_deg = s_w->seek.fov_deg;
++    xSemaphoreGive(s_mu);
++    in.locked  = (maipai_lock_locked != nullptr && maipai_lock_locked()) ? 1 : 0;
++    in.carried = maipai_pickup_held() ? 1 : 0;
++    if (s_ft->state != FT_OFF && ms_dt(now, s_trk_read_at) >= 100) {  // the head, for the picture-time angle
++        s_trk_pan     = read_pan();
++        s_trk_tilt    = s_ft->cfg.tilt ? read_tilt() : 0.0f;
++        s_trk_read_at = now;
++        ft_hist_add(s_ft, now, s_trk_pan, s_trk_tilt);
++    }
++    in.pan_deg  = s_trk_pan;
++    in.tilt_deg = s_trk_tilt;
++    // The newest detection: a run that found nothing is a miss (the detector publishes faces only, so runs tell misses).
++    FdStatus st;
++    maipai_fd_status(&st);
++    if (st.runs != s_trk_runs) {
++        s_trk_runs = st.runs;
++        s_trk_seq++;
++        if (st.face.valid && st.face.seq != s_trk_face_seq) {
++            s_trk_face_seq = st.face.seq;
++            in.face_valid  = 1;
++            in.face_cx     = st.face.cx;
++            in.face_cy     = st.face.cy;
++            in.face_w      = st.face.w;
++            in.face_score  = st.face.score;
++            in.face_at_ms  = st.face.at_ms;
++        } else {
++            in.face_at_ms = now - 100;
++        }
++    }
++    in.face_seq = s_trk_seq;
++    ft_out_t out;
++    xSemaphoreTake(s_mu, portMAX_DELAY);  // the status tool reads the same state
++    ft_tick(s_ft, &in, &out);
++    const uint8_t ft_state = s_ft->state;
++    xSemaphoreGive(s_mu);
++    s_track_own.store(out.own != 0);
++    s_track_active.store(ft_state != FT_OFF);
++    if (out.want_detect) maipai_fd_want(600, FD_CROP_FOLLOW);  // renewed every pass: it stops within 600 ms of the last one
++    if (out.move) {
++        ESP_LOGW(TAG, "track move: pan %d (from %d) %s", static_cast<int>(out.pan_deg), static_cast<int>(in.pan_deg), FT_STATE_NAMES[out.state]);
++        track_move(out);
++    }
++}
++#endif
++
+ void seek_task(void*)
+ {
+     mw_ops_t ops;
+@@ -194,10 +324,16 @@ void seek_task(void*)
+     ops.unlock = op_unlock;
+     ops.log    = op_log;
+     for (;;) {
+-        const uint32_t wait = mw_period_ms(s_w);
+-        s_w->wait_ms        = wait;
++        uint32_t wait = mw_period_ms(s_w);
++#if MAIPAI_TRACK
++        if (s_track_active.load() && wait > MW_TICK_MS) wait = MW_TICK_MS;  // the tracker runs at the fast pace while it is not off
++#endif
++        s_w->wait_ms = wait;
+         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(wait));
+         mw_step(s_w, &ops);
++#if MAIPAI_TRACK
++        track_step();
++#endif
+     }
+ }
+ 
+@@ -210,6 +346,21 @@ bool ensure_started()
+         return false;
+     }
+     mw_init(s_w, 0);
++#if MAIPAI_TRACK
++    s_ft = static_cast<ft_t*>(heap_caps_calloc(1, sizeof(ft_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (s_ft != nullptr) {
++        ft_cfg_t cfg;
++        memset(&cfg, 0, sizeof(cfg));
++        cfg.x_sign    = MS_IMAGE_X_SIGN;
++        cfg.fov_h_deg = MS_FOV_DEG;
++        cfg.y_sign    = -1.0f;
++        cfg.hour_ms   = static_cast<uint32_t>(CONFIG_MAIPAI_FACE_TRACK_HOUR_MIN) * 60000u;
++#if CONFIG_MAIPAI_FACE_TRACK_TILT
++        cfg.tilt = 1;
++#endif
++        ft_init(s_ft, &cfg);
++    }
++#endif
+     s_mu = xSemaphoreCreateMutex();
+     if (s_mu == nullptr) return false;
+     if (xTaskCreatePinnedToCoreWithCaps(seek_task, "seek", 6144, nullptr, 1, &s_task, 0, MALLOC_CAP_SPIRAM) != pdPASS) {
+@@ -311,6 +462,20 @@ void maipai_seek_register_tools()
+                         out += tail;
+                         out += '}';
+                     }
++#endif
++#if MAIPAI_TRACK
++                    if (s_ft != nullptr && !out.empty() && out.back() == '}') {  // Patch FD04: the tracker's own fields
++                        char tt[200];
++                        xSemaphoreTake(s_mu, portMAX_DELAY);
++                        const int n = ft_status_json(s_ft, ms_now(), tt, sizeof(tt));
++                        xSemaphoreGive(s_mu);
++                        if (n > 0 && n < static_cast<int>(sizeof(tt))) {
++                            out.pop_back();
++                            out += ',';
++                            out += tt;
++                            out += '}';
++                        }
++                    }
+ #endif
+                     return out;
+                 });
+@@ -354,5 +519,27 @@ void maipai_seek_register_tools()
+                     return std::string("{\"ok\":true,\"started\":true}");
+                 });
+ 
++#if MAIPAI_TRACK
++    mcp.AddTool("self.look.detect_track",
++                "Experiment build: arms (on true) or disarms (on false, the default) the head's own face tracking. It is off after every boot. "
++                "Armed, the unit follows a face it detects while a talk goes on (setting talk) or after a mover is seen (setting always), "
++                "never while a host holds the look lease, the unit is asleep, locked, carried, muted, in full quiet or vision is off. "
++                "Answers {ok, armed, state, own}; self.look.status carries the counters (fd_track, fd_moves, fd_stalls, fd_end).",
++                PropertyList({Property("on", kPropertyTypeBoolean, false)}), [](const PropertyList& properties) -> ReturnValue {
++                    if (s_ft == nullptr) return err_json("no PSRAM for the tracker");
++                    const bool on = properties["on"].value<bool>();
++                    s_track_armed.store(on);
++                    xTaskNotifyGive(s_task);
++                    char buf[120];
++                    xSemaphoreTake(s_mu, portMAX_DELAY);
++                    const uint8_t state = s_ft->state;
++                    xSemaphoreGive(s_mu);
++                    snprintf(buf, sizeof(buf), "{\"ok\":true,\"armed\":%s,\"state\":\"%s\",\"own\":%s}", on ? "true" : "false",
++                             FT_STATE_NAMES[state < FT_STATE_COUNT ? state : 0], s_track_own.load() ? "true" : "false");
++                    ESP_LOGW(TAG, "face tracking %s", on ? "armed" : "disarmed");
++                    return std::string(buf);
++                });
++#endif
++
+     maipai_fd_register_tools();  // patch FD03: the bench tools of the face detector (nothing when the experiment switch is off)
+ }
+diff --git a/firmware/main/hal/maipai_pickup.h b/firmware/main/hal/maipai_pickup.h
+--- a/firmware/main/hal/maipai_pickup.h
++++ b/firmware/main/hal/maipai_pickup.h
+@@ -12,3 +12,6 @@ void maipai_pickup_own_activity();
+ // One accelerometer reading in m/s^2, about every 20 ms, from the motion task. Sends the "lifted", "carried", "set_down" and
+ // "shaken" device events and applies the saved pickup reaction.
+ void maipai_pickup_feed(float ax, float ay, float az);
++
++// Patch FD04: true while the unit is held (lifted or carried). A plain read of the detector's flag; safe from any task.
++bool maipai_pickup_held();
+diff --git a/firmware/main/hal/maipai_pickup.cc b/firmware/main/hal/maipai_pickup.cc
+--- a/firmware/main/hal/maipai_pickup.cc
++++ b/firmware/main/hal/maipai_pickup.cc
+@@ -80,3 +80,8 @@ void maipai_pickup_feed(float ax, float ay, float az)
+     }
+     react(ev);
+ }
++
++bool maipai_pickup_held()
++{
++    return s_ready && s_det.held != 0;
++}

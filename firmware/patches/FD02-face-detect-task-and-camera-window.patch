@@ -1,0 +1,975 @@
+# Intent: The on-unit face detector (owner brief 2026-11-17), experiment image only (CONFIG_MAIPAI_FACE_DETECT). maipai_facedet_core.h is the pure part a host compiler tests: fd_convert_rgb888 turns a window of the camera frame (YUYV, UYVY, RGB565 little endian or gray, BT.601) into the RGB888 the face models take, with an optional red/blue swap for a channel order check; fd_crop_origin places the 160 by 120 window (centered on a point, kept inside the frame, even column); fd_pick chooses the one face (the largest weighted toward the middle, above the score floor); fd_ring_t and fd_percentile give the p50 and p99 of the measured milliseconds; fd_period_ms clamps the rate to 2 to 5 a second; fd_model_parse names the models. maipai_facedet.cc is the device side: one task (priority 1 on core 0, a 12 KB stack in PSRAM, never touches flash, NVS or a partition: the model is read in place from the app image, the library's partition code is not on that path) that is created lazily on the first call and does nothing until asked. Per frame it asks for the camera-on cue (1.2 s, before every grab), takes the unit's own camera frame through the new StackChanCamera::DetectGrab (same lock, same two-read rule and the same 150 KB copy that is freed at once as SeekGrab), converts the window into a PSRAM RGB buffer (the conversion time is measured apart), and runs the model: MSR plus MNP (primary; on the whole 320 by 240 frame, the library shrinks it to 120 by 160) or ESPDet-Pico 224 (on a 160 by 120 native crop, in the middle or around the last face), selectable by the Kconfig default and per call. The model is created at the first run (weights copied to PSRAM, activations in PSRAM, max_internal_size 0, greedy manager), is refused when internal RAM is under the admission floor (the bench can force it), prints the library's profile_memory table once per load, and is freed 10 s after the last use. The newest face (center, size, score, the picture's time, a sequence number) is published under a spinlock; maipai_fd_want keeps a detection stream running at the configured rate only while a caller renews it (it stops within 1 s of the last renewal and never reads the camera with vision off, muted or in full quiet). No tool and no caller yet: FD03 adds the bench tools, FD04 the tracker.
+# Placement: unit (carve-out 3, the robot turns toward a face with no brain; only a box, a score and a time exist, no picture is kept and no identity is made)
+# Upstream: new firmware/main/hal/maipai_facedet_core.h, maipai_facedet.{h,cc}; firmware/main/hal/board/stackchan_camera.{h,cc} (patches S13 and FI02). Library: espressif/esp-dl 3.3.15 and human_face_detect 0.5.2 (patch FD01)
+# Check after a flash: nothing runs by itself; with FD03 on top: self.look.detect_test on the bench answers p50 and p99 times, the pixel format and the memory numbers, the camera cue is lit for every frame, the internal free before and after a model load and unload cycle matches within 1 KB, and the model's memory table appears once in the cable log.
+
+diff --git a/firmware/main/hal/maipai_facedet_core.h b/firmware/main/hal/maipai_facedet_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_facedet_core.h
+@@ -0,0 +1,269 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face detection on the unit, the pure part (patch FD02). Plain C99, no ESP call, no clock of its own, no allocation: a host
++ * compiler tests it (host/tests/firmware/facedet_core_test.c). The device file maipai_facedet.cc owns the model, the camera and
++ * the task; everything it has to decide or compute without hardware is here:
++ *   - fd_convert_rgb888: a window of a camera frame (YUYV, UYVY, RGB565 little endian or gray) to the 8-bit RGB the face models
++ *     take, with an optional red/blue swap (a wrong channel order halves the hit rate, so the bench can try both);
++ *   - fd_crop_origin: where a crop window of the frame sits (centered on a point, kept inside the frame, even column for YUV);
++ *   - fd_pick: the one face to follow out of the boxes a model found (the biggest near the middle, above the score floor);
++ *   - fd_ring_t and fd_percentile: the p50 and p99 of the measured milliseconds;
++ *   - fd_period_ms and fd_model_parse: the rate clamp (2 to 5 a second) and the model names.
++ * Placement: unit. Upstream: none (ours).
++ */
++#ifndef MAIPAI_FACEDET_CORE_H
++#define MAIPAI_FACEDET_CORE_H
++
++#include <math.h>
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++#include "maipai_seek_wire_core.h"
++
++#define FD_FRAME_W 320
++#define FD_FRAME_H 240
++#define FD_CROP_W 160
++#define FD_CROP_H 120
++#define FD_RATE_MIN_HZ 2
++#define FD_RATE_MAX_HZ 5
++#define FD_SAMPLES 256
++
++enum { FD_MODEL_MSRMNP = 0, FD_MODEL_PICO224 = 1, FD_MODEL_COUNT };
++static const char* const FD_MODEL_NAMES[FD_MODEL_COUNT] = {"msrmnp", "pico224"};
++
++/* "msrmnp" or "msr" is 0, "pico224" or "pico" is 1, anything else -1. */
++static inline int fd_model_parse(const char* s)
++{
++    if (s == NULL) {
++        return -1;
++    }
++    if (strcmp(s, "msrmnp") == 0 || strcmp(s, "msr") == 0) {
++        return FD_MODEL_MSRMNP;
++    }
++    if (strcmp(s, "pico224") == 0 || strcmp(s, "pico") == 0) {
++        return FD_MODEL_PICO224;
++    }
++    return -1;
++}
++
++/* Milliseconds between two detections for a rate in hertz: 2 to 5 a second, 0 or less means the default of 3. */
++static inline uint32_t fd_period_ms(int hz)
++{
++    if (hz <= 0) {
++        hz = 3;
++    }
++    if (hz < FD_RATE_MIN_HZ) {
++        hz = FD_RATE_MIN_HZ;
++    }
++    if (hz > FD_RATE_MAX_HZ) {
++        hz = FD_RATE_MAX_HZ;
++    }
++    return 1000u / (uint32_t)hz;
++}
++
++/* ---- the picture: a window of a camera frame to RGB888 --------------------------------------------------------------------------- */
++
++static inline uint8_t fd_clamp8(int v)
++{
++    return (uint8_t)(v < 0 ? 0 : v > 255 ? 255 : v);
++}
++
++/* BT.601 limited range, integer. */
++static inline void fd_yuv_to_rgb(int y, int u, int v, uint8_t* r, uint8_t* g, uint8_t* b)
++{
++    int c = (y - 16) * 298, d = u - 128, e = v - 128;
++    *r = fd_clamp8((c + 409 * e + 128) >> 8);
++    *g = fd_clamp8((c - 100 * d - 208 * e + 128) >> 8);
++    *b = fd_clamp8((c + 516 * d + 128) >> 8);
++}
++
++/* Converts the cw by ch window at (x0, y0) of a w by h frame in `fmt` (MW_FMT_*) into `dst` (cw * ch * 3 bytes, RGB order, or BGR order
++ * when swap_rb). Returns 0, or -1 when the window is outside the frame, the format is unknown, the buffer is too short or a YUV window
++ * starts on an odd column. */
++static inline int fd_convert_rgb888(const uint8_t* src, size_t len, int w, int h, int fmt, int x0, int y0, int cw, int ch, uint8_t* dst,
++                                    int swap_rb)
++{
++    int bpp = mw_bpp(fmt);
++    if (src == NULL || dst == NULL || bpp == 0 || w <= 0 || h <= 0 || cw <= 0 || ch <= 0 || x0 < 0 || y0 < 0 || x0 + cw > w || y0 + ch > h ||
++        len < (size_t)w * (size_t)h * (size_t)bpp) {
++        return -1;
++    }
++    if ((fmt == MW_FMT_YUYV || fmt == MW_FMT_UYVY) && (x0 & 1)) {
++        return -1;
++    }
++    for (int j = 0; j < ch; j++) {
++        uint8_t* o = dst + (size_t)j * (size_t)cw * 3u;
++        for (int i = 0; i < cw; i++) {
++            int x = x0 + i, y = y0 + j;
++            uint8_t r, g, b;
++            const uint8_t* p = src + ((size_t)y * (size_t)w + (size_t)x) * (size_t)bpp;
++            if (fmt == MW_FMT_RGB565) {
++                int v = p[0] | (p[1] << 8);
++                int rr = (v >> 11) & 31, gg = (v >> 5) & 63, bb = v & 31;
++                r = (uint8_t)((rr << 3) | (rr >> 2));
++                g = (uint8_t)((gg << 2) | (gg >> 4));
++                b = (uint8_t)((bb << 3) | (bb >> 2));
++            } else if (fmt == MW_FMT_GREY) {
++                r = g = b = p[0];
++            } else {
++                const uint8_t* q = src + ((size_t)y * (size_t)w + (size_t)(x & ~1)) * 2u; /* the pair of pixels this one is in */
++                int yy, u, v;
++                if (fmt == MW_FMT_YUYV) {
++                    yy = q[(x & 1) ? 2 : 0];
++                    u = q[1];
++                    v = q[3];
++                } else {
++                    yy = q[(x & 1) ? 3 : 1];
++                    u = q[0];
++                    v = q[2];
++                }
++                fd_yuv_to_rgb(yy, u, v, &r, &g, &b);
++            }
++            if (swap_rb) {
++                o[0] = b;
++                o[1] = g;
++                o[2] = r;
++            } else {
++                o[0] = r;
++                o[1] = g;
++                o[2] = b;
++            }
++            o += 3;
++        }
++    }
++    return 0;
++}
++
++/* The top-left corner of a cw by ch window centered on (cx, cy) in a fw by fh frame, kept inside it, on an even column. */
++static inline void fd_crop_origin(int fw, int fh, int cw, int ch, float cx, float cy, int* x0, int* y0)
++{
++    int x = (int)(cx - (float)cw * 0.5f), y = (int)(cy - (float)ch * 0.5f);
++    if (x > fw - cw) {
++        x = fw - cw;
++    }
++    if (y > fh - ch) {
++        y = fh - ch;
++    }
++    if (x < 0) {
++        x = 0;
++    }
++    if (y < 0) {
++        y = 0;
++    }
++    *x0 = x & ~1;
++    *y0 = y;
++}
++
++/* ---- the face to follow ----------------------------------------------------------------------------------------------------------- */
++
++typedef struct {
++    float x0, y0, x1, y1; /* corners in frame pixels */
++    float score;
++} fd_box_t;
++
++typedef struct {
++    uint8_t valid;
++    float cx, cy; /* center in frame pixels */
++    float w, h;
++    float score;
++    uint32_t at_ms; /* when the picture was taken */
++    uint32_t seq;
++} fd_face_t;
++
++/* One face out of n boxes: those with score at least `thr`, the largest weighted by how near the middle of the frame it is (a box
++ * in the middle counts fully, one at the edge half). Returns 1 with `out` filled (at_ms and seq are the caller's), 0 when none. */
++static inline int fd_pick(const fd_box_t* b, int n, float thr, int fw, int fh, fd_face_t* out)
++{
++    int best = -1;
++    float best_v = 0.0f;
++    for (int i = 0; i < n; i++) {
++        if (b[i].score < thr || b[i].x1 <= b[i].x0 || b[i].y1 <= b[i].y0) {
++            continue;
++        }
++        float cx = (b[i].x0 + b[i].x1) * 0.5f;
++        float area = (b[i].x1 - b[i].x0) * (b[i].y1 - b[i].y0);
++        float off = fabsf(cx / (float)fw - 0.5f); /* 0 in the middle, 0.5 at an edge */
++        float v = area * (1.0f - off);
++        if (v > best_v) {
++            best_v = v;
++            best = i;
++        }
++    }
++    if (best < 0) {
++        return 0;
++    }
++    out->valid = 1;
++    out->cx = (b[best].x0 + b[best].x1) * 0.5f;
++    out->cy = (b[best].y0 + b[best].y1) * 0.5f;
++    out->w = b[best].x1 - b[best].x0;
++    out->h = b[best].y1 - b[best].y0;
++    out->score = b[best].score;
++    (void)fh;
++    return 1;
++}
++
++/* ---- the measured times ----------------------------------------------------------------------------------------------------------- */
++
++typedef struct {
++    uint32_t v[FD_SAMPLES];
++    int n;        /* samples held (the newest FD_SAMPLES) */
++    uint32_t seen; /* samples ever added */
++} fd_ring_t;
++
++static inline void fd_ring_clear(fd_ring_t* r)
++{
++    r->n = 0;
++    r->seen = 0;
++}
++
++static inline void fd_ring_add(fd_ring_t* r, uint32_t x)
++{
++    r->v[r->seen % FD_SAMPLES] = x;
++    r->seen++;
++    r->n = r->seen < FD_SAMPLES ? (int)r->seen : FD_SAMPLES;
++}
++
++/* Nearest-rank percentile (pct 1 to 100) of what the ring holds; 0 when empty. */
++static inline uint32_t fd_percentile(const fd_ring_t* r, int pct)
++{
++    if (r->n <= 0) {
++        return 0;
++    }
++    uint32_t s[FD_SAMPLES];
++    int n = r->n;
++    for (int i = 0; i < n; i++) {
++        s[i] = r->v[i];
++    }
++    for (int i = 1; i < n; i++) { /* insertion sort: at most 256 values */
++        uint32_t x = s[i];
++        int j = i - 1;
++        while (j >= 0 && s[j] > x) {
++            s[j + 1] = s[j];
++            j--;
++        }
++        s[j + 1] = x;
++    }
++    if (pct < 1) {
++        pct = 1;
++    }
++    if (pct > 100) {
++        pct = 100;
++    }
++    int rank = (pct * n + 99) / 100; /* 1-based nearest rank */
++    return s[rank - 1];
++}
++
++static inline uint32_t fd_ring_max(const fd_ring_t* r)
++{
++    uint32_t m = 0;
++    for (int i = 0; i < r->n; i++) {
++        if (r->v[i] > m) {
++            m = r->v[i];
++        }
++    }
++    return m;
++}
++
++#endif /* MAIPAI_FACEDET_CORE_H */
+diff --git a/firmware/main/hal/maipai_facedet.h b/firmware/main/hal/maipai_facedet.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_facedet.h
+@@ -0,0 +1,90 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face detection on the unit, device side (patches FD02 to FD04). Logic and its tests: maipai_facedet_core.h. Built only when
++ * CONFIG_MAIPAI_FACE_DETECT is on (the experiment image); with it off this header declares nothing and the file adds no code.
++ */
++#pragma once
++
++#include "sdkconfig.h"
++
++#if defined(CONFIG_MAIPAI_FACE_DETECT) && CONFIG_MAIPAI_FACE_DETECT
++
++#include "maipai_facedet_core.h"
++
++#include <cstddef>
++#include <cstdint>
++
++// Where the camera window sits: the whole frame, the 160 by 120 window in the middle, or that window centered on the last face.
++enum { FD_CROP_FULL = 0, FD_CROP_CENTER = 1, FD_CROP_FOLLOW = 2 };
++
++struct FdMem {
++    uint32_t int_free, int_big, ps_free, ps_big;
++};
++
++struct FdTestParams {
++    int model;   // FD_MODEL_*
++    int frames;  // 1 to 300
++    int crop;    // FD_CROP_*
++    int swap_rb; // 1: hand the model blue-green-red (a channel order check)
++    int hz;      // 0: back to back; 2 to 5: one detection every 1000/hz ms
++    int force;   // 1: run even when internal RAM is under the admission floor (the numbers say how far under)
++};
++
++// Everything a test measured. Times are milliseconds per frame; p50 and p99 are nearest rank over the frames of this run.
++struct FdTestResult {
++    uint8_t state;  // 0 never run, 1 running, 2 done, 3 refused or failed
++    char error[120];
++    FdTestParams params;
++    int frames_done, frames_with_face, faces_total;
++    float score_best, score_avg;  // over the frames that had a face
++    int fmt, frame_w, frame_h, win_x, win_y, win_w, win_h;
++    uint32_t grab_p50, grab_p99;    // camera read (two reads), without the conversion
++    uint32_t conv_p50, conv_p99;    // camera format to RGB888 window
++    uint32_t infer_p50, infer_p99;  // the model call (pre, model, post; the first frame of a fresh load is counted apart)
++    uint32_t total_p50, total_p99;  // grab to boxes
++    uint32_t first_ms;              // the first frame after the model was created (load plus one run)
++    uint32_t cycle_p50, cycle_p99;  // from one frame's start to the next (the pace that was kept)
++    FdMem before;                   // before anything of the test ran (model unloaded unless it was kept from earlier)
++    FdMem during_min;               // the lowest internal free and block, the lowest PSRAM free, sampled after every model call
++    FdMem after;                    // after the test, model still loaded
++    uint32_t internal_low_water;    // heap_caps_get_minimum_free_size(internal) at the end
++    uint32_t loaded_before;         // 1 when a model was already loaded
++    uint32_t total_ms;              // wall time of the whole run
++    uint32_t refused_busy;          // frames skipped because the camera was busy
++};
++
++struct FdStatus {
++    int model;          // the model loaded now, -1 none
++    int loaded;
++    uint32_t runs, runs_with_face, refused, errors, camera_busy;
++    uint32_t last_infer_ms, last_total_ms;
++    uint32_t want_left_ms;  // how long the stream is still wanted
++    fd_face_t face;
++    uint32_t face_age_ms;   // 0xFFFFFFFF when none
++    int test_state;         // FdTestResult::state
++};
++
++// Starts the detector task (once; lazy: nothing exists until the first call). False when it cannot (no PSRAM for the stack).
++bool maipai_fd_start();
++
++// Runs a bench test on the detector task. Blocks the caller up to wait_ms (0: do not wait). Returns 0 done (out is complete), 1 still
++// running (the result comes with maipai_fd_result), -1 refused (out->error says why: muted, vision off, memory), -2 another test runs.
++int maipai_fd_test(const FdTestParams& p, uint32_t wait_ms, FdTestResult* out);
++
++// The last finished (or running) test.
++void maipai_fd_result(FdTestResult* out);
++
++// The seek task asks for a detection stream: the detector takes frames at the configured rate for hold_ms (renew it to continue).
++// Stops by itself when not renewed; never reads the camera when vision is off. mode: FD_CROP_*.
++void maipai_fd_want(uint32_t hold_ms, int crop_mode);
++
++// The newest face (a copy, under a spinlock). 1 when a face was published, 0 when there is none yet.
++int maipai_fd_latest(fd_face_t* out, uint32_t* age_ms);
++
++void maipai_fd_status(FdStatus* out);
++
++// Frees the model now (the task also does it after the idle time).
++void maipai_fd_unload_request();
++
++#endif  // CONFIG_MAIPAI_FACE_DETECT
+diff --git a/firmware/main/hal/maipai_facedet.cc b/firmware/main/hal/maipai_facedet.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_facedet.cc
+@@ -0,0 +1,542 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Face detection on the unit, device side (patch FD02). One task owns the ESP-DL model and the camera window; callers (the bench
++ * tool of FD03, the tracker of FD04) hand it work and read the answer. Experiment image only (CONFIG_MAIPAI_FACE_DETECT).
++ *
++ * Rules (docs/design/face-detect-esp-dl-2026-11-17.md section 8, scripts/psram-stack-lint.py):
++ *   - The task's stack is in PSRAM, so it never calls flash, NVS or the partition API. The model lives in the app image as read-only
++ *     data (MODEL_LOCATION_IN_FLASH_RODATA, no partition read); the library's partition code is not on that path. Nothing here
++ *     reads a saved setting: the seek task passes everything in.
++ *   - Weights and activations are PSRAM first (the library's max_internal_size 0 with the greedy memory manager, param_copy on).
++ *     The RGB window is a PSRAM buffer allocated with the model and freed with it.
++ *   - Lazy: no task and no model exist until the first call; the model is freed CONFIG_MAIPAI_FACE_DETECT_UNLOAD_S seconds after
++ *     the last use. A load is refused when internal RAM is under the admission floor (Kconfig numbers, default 40,000 free and a
++ *     24,000 byte block) unless the bench asks to force it.
++ *   - The camera-on cue is asked before every frame, for longer than one period, so it is lit for as long as frames are read.
++ *   - The stream only runs while a caller keeps asking for it (maipai_fd_want); a caller that stops asking stops it within 1 s.
++ */
++#include "maipai_facedet.h"
++
++#if defined(CONFIG_MAIPAI_FACE_DETECT) && CONFIG_MAIPAI_FACE_DETECT
++
++#include "maipai_privacy.h"
++#include "board/hal_bridge.h"
++#include "board/stackchan_camera.h"
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/idf_additions.h>
++#include <freertos/semphr.h>
++#include <freertos/task.h>
++#include <human_face_detect.hpp>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <new>
++
++static const char* TAG = "MAIPAI-DET";
++
++namespace {
++
++constexpr uint32_t kCueMs      = 1200;  // the camera-on cue, asked before every frame
++constexpr uint32_t kUnloadMs   = CONFIG_MAIPAI_FACE_DETECT_UNLOAD_S * 1000u;
++constexpr size_t kRgbBytes     = FD_FRAME_W * FD_FRAME_H * 3;  // the whole frame at most; a crop uses the first 57,600 bytes
++constexpr int kMaxBoxes        = 8;
++constexpr int kStackBytes      = 12288;  // PSRAM; the library's run has no deep recursion but its setup builds a graph
++constexpr float kScoreFloor    = CONFIG_MAIPAI_FACE_DETECT_SCORE_PCT / 100.0f;
++
++struct One {
++    int rc;  // 0 ok, 1 busy, 2 no picture or a failed load
++    uint32_t grab_ms, conv_ms, infer_ms, total_ms;
++    int fmt, frame_w, frame_h, win_x, win_y, win_w, win_h;
++    int nbox;
++    fd_box_t box[kMaxBoxes];
++    uint8_t fresh;  // the model was created for this frame (the frame includes the load)
++};
++
++struct Work {
++    FdTestResult res;
++    fd_ring_t grab, conv, infer, total, cycle;
++};
++
++Work* s_w                        = nullptr;  // PSRAM
++SemaphoreHandle_t s_mu           = nullptr;  // guards res and the job fields
++SemaphoreHandle_t s_done         = nullptr;  // given when a test ends
++TaskHandle_t s_task              = nullptr;
++HumanFaceDetect* s_det           = nullptr;
++int s_model                      = -1;
++uint8_t* s_rgb                   = nullptr;  // PSRAM
++bool s_job                       = false;
++FdTestParams s_params{};
++portMUX_TYPE s_face_mux          = portMUX_INITIALIZER_UNLOCKED;
++fd_face_t s_face{};
++std::atomic<uint32_t> s_want_until{0};
++std::atomic<int> s_want_crop{FD_CROP_FOLLOW};
++std::atomic<bool> s_unload_req{false};
++uint32_t s_last_use              = 0;
++uint32_t s_seq                   = 0;
++uint32_t s_runs = 0, s_runs_face = 0, s_refused = 0, s_errors = 0, s_busy = 0, s_last_infer = 0, s_last_total = 0;
++bool s_have_face_at              = false;
++
++uint32_t ms_now() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++FdMem read_mem()
++{
++    FdMem m;
++    m.int_free = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
++    m.int_big  = static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
++    m.ps_free  = static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
++    m.ps_big   = static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
++    return m;
++}
++
++bool admitted(const FdMem& m)
++{
++    return m.int_free >= static_cast<uint32_t>(CONFIG_MAIPAI_FACE_DETECT_MIN_FREE_INTERNAL) &&
++           m.int_big >= static_cast<uint32_t>(CONFIG_MAIPAI_FACE_DETECT_MIN_BLOCK_INTERNAL);
++}
++
++void unload()
++{
++    if (s_det != nullptr) {
++        delete s_det;
++        s_det   = nullptr;
++        s_model = -1;
++    }
++    if (s_rgb != nullptr) {
++        heap_caps_free(s_rgb);
++        s_rgb = nullptr;
++    }
++    const FdMem m = read_mem();
++    ESP_LOGW(TAG, "model unloaded: internal free %u block %u, PSRAM free %u", static_cast<unsigned>(m.int_free), static_cast<unsigned>(m.int_big),
++             static_cast<unsigned>(m.ps_free));
++}
++
++// Makes the model (the library loads it at the first run). 0 ok, -1 not enough memory.
++int ensure_model(int model)
++{
++    if (s_det != nullptr && s_model == model) return 0;
++    if (s_det != nullptr) unload();
++    if (s_rgb == nullptr) {
++        s_rgb = static_cast<uint8_t*>(heap_caps_malloc(kRgbBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (s_rgb == nullptr) return -1;
++    }
++    const auto type = model == FD_MODEL_PICO224 ? HumanFaceDetect::ESPDET_PICO_224_224_FACE : HumanFaceDetect::MSRMNP_S8_V1;
++    s_det           = new (std::nothrow) HumanFaceDetect(type, true);
++    if (s_det == nullptr) return -1;
++    s_det->set_score_thr(kScoreFloor, 0);
++    if (model == FD_MODEL_MSRMNP) s_det->set_score_thr(kScoreFloor, 1);
++    s_model = model;
++    return 0;
++}
++
++struct Sink {
++    int mode;      // FD_CROP_*
++    float hx, hy;  // where a follow window is centered (frame pixels)
++    int swap;
++    uint32_t conv_us;
++    int fmt, fw, fh, x0, y0, cw, ch;
++};
++
++int sink_fn(void* ctx, const uint8_t* data, size_t len, int w, int h, int fmt)
++{
++    auto* s = static_cast<Sink*>(ctx);
++    int cw = w, ch = h, x0 = 0, y0 = 0;
++    if (s->mode != FD_CROP_FULL) {
++        cw = w < FD_CROP_W ? w : FD_CROP_W;
++        ch = h < FD_CROP_H ? h : FD_CROP_H;
++        float cx = s->mode == FD_CROP_FOLLOW ? s->hx : static_cast<float>(w) * 0.5f;
++        float cy = s->mode == FD_CROP_FOLLOW ? s->hy : static_cast<float>(h) * 0.5f;
++        fd_crop_origin(w, h, cw, ch, cx, cy, &x0, &y0);
++    }
++    s->fmt = fmt;
++    s->fw  = w;
++    s->fh  = h;
++    s->x0  = x0;
++    s->y0  = y0;
++    s->cw  = cw;
++    s->ch  = ch;
++    if (static_cast<size_t>(cw) * static_cast<size_t>(ch) * 3u > kRgbBytes) return 1;
++    const int64_t t0 = esp_timer_get_time();
++    const int rc     = fd_convert_rgb888(data, len, w, h, fmt, x0, y0, cw, ch, s_rgb, s->swap);
++    s->conv_us       = static_cast<uint32_t>(esp_timer_get_time() - t0);
++    return rc;
++}
++
++// One frame: camera read, conversion, model. The cue is asked first.
++void detect_one(int model, int crop, int swap, One* r)
++{
++    memset(r, 0, sizeof(*r));
++    r->rc = 2;
++    StackChanCamera* cam = hal_bridge::board_get_camera();
++    if (cam == nullptr || s_rgb == nullptr) return;
++    hal_bridge::monitor_cue_begin(static_cast<int>(kCueMs));
++    Sink sk{};
++    sk.mode = crop;
++    sk.swap = swap;
++    fd_face_t last;
++    uint32_t age = 0;
++    if (crop == FD_CROP_FOLLOW && maipai_fd_latest(&last, &age) && age < 2000) {
++        sk.hx = last.cx;
++        sk.hy = last.cy;
++    } else {
++        sk.hx = FD_FRAME_W * 0.5f;
++        sk.hy = FD_FRAME_H * 0.5f;
++    }
++    const int64_t t0 = esp_timer_get_time();
++    const int g      = cam->DetectGrab(sink_fn, &sk);
++    const int64_t t1 = esp_timer_get_time();
++    if (g != 0) {
++        r->rc = g;
++        return;
++    }
++    r->conv_ms  = (sk.conv_us + 500) / 1000;
++    const uint32_t grab_all = static_cast<uint32_t>((t1 - t0 + 500) / 1000);
++    r->grab_ms  = grab_all > r->conv_ms ? grab_all - r->conv_ms : 0;
++    r->fmt      = sk.fmt;
++    r->frame_w  = sk.fw;
++    r->frame_h  = sk.fh;
++    r->win_x    = sk.x0;
++    r->win_y    = sk.y0;
++    r->win_w    = sk.cw;
++    r->win_h    = sk.ch;
++    const bool first = s_det == nullptr || s_model != model;
++    if (ensure_model(model) != 0) {
++        r->rc = 2;
++        return;
++    }
++    r->fresh = first ? 1 : 0;
++    dl::image::img_t img;
++    img.data     = s_rgb;
++    img.width    = static_cast<uint16_t>(sk.cw);
++    img.height   = static_cast<uint16_t>(sk.ch);
++    img.pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888;
++    const int64_t t2 = esp_timer_get_time();
++    auto& res        = s_det->run(img);
++    const int64_t t3 = esp_timer_get_time();
++    r->infer_ms      = static_cast<uint32_t>((t3 - t2 + 500) / 1000);
++    for (auto& d : res) {
++        if (r->nbox >= kMaxBoxes || d.box.size() < 4) continue;
++        fd_box_t& b = r->box[r->nbox++];
++        b.x0        = static_cast<float>(d.box[0] + sk.x0);
++        b.y0        = static_cast<float>(d.box[1] + sk.y0);
++        b.x1        = static_cast<float>(d.box[2] + sk.x0);
++        b.y1        = static_cast<float>(d.box[3] + sk.y0);
++        b.score     = d.score;
++    }
++    r->total_ms = static_cast<uint32_t>((t3 - t0 + 500) / 1000);
++    r->rc       = 0;
++    s_last_use  = ms_now();
++    if (r->fresh) {
++        // Verbatim, once per load: internal, PSRAM and flash use by category (a two-stage model has two raw models).
++        s_det->get_raw_model(0)->profile_memory();
++        if (model == FD_MODEL_MSRMNP) s_det->get_raw_model(1)->profile_memory();
++    }
++}
++
++void publish(const One& o, uint32_t picture_at)
++{
++    fd_face_t f;
++    memset(&f, 0, sizeof(f));
++    const bool got = fd_pick(o.box, o.nbox, kScoreFloor, o.frame_w > 0 ? o.frame_w : FD_FRAME_W, o.frame_h > 0 ? o.frame_h : FD_FRAME_H, &f);
++    s_runs++;
++    s_last_infer = o.infer_ms;
++    s_last_total = o.total_ms;
++    if (got) {
++        s_runs_face++;
++        f.at_ms = picture_at;
++        f.seq   = ++s_seq;
++        taskENTER_CRITICAL(&s_face_mux);
++        s_face = f;
++        taskEXIT_CRITICAL(&s_face_mux);
++        s_have_face_at = true;
++    }
++}
++
++void note_min(FdMem* lo, const FdMem& m)
++{
++    if (m.int_free < lo->int_free) lo->int_free = m.int_free;
++    if (m.int_big < lo->int_big) lo->int_big = m.int_big;
++    if (m.ps_free < lo->ps_free) lo->ps_free = m.ps_free;
++    if (m.ps_big < lo->ps_big) lo->ps_big = m.ps_big;
++}
++
++void fail_test(const char* why)
++{
++    xSemaphoreTake(s_mu, portMAX_DELAY);
++    s_w->res.state = 3;
++    snprintf(s_w->res.error, sizeof(s_w->res.error), "%s", why);
++    xSemaphoreGive(s_mu);
++    xSemaphoreGive(s_done);
++}
++
++void run_test()
++{
++    xSemaphoreTake(s_mu, portMAX_DELAY);
++    const FdTestParams p = s_params;
++    xSemaphoreGive(s_mu);
++    fd_ring_clear(&s_w->grab);
++    fd_ring_clear(&s_w->conv);
++    fd_ring_clear(&s_w->infer);
++    fd_ring_clear(&s_w->total);
++    fd_ring_clear(&s_w->cycle);
++    FdTestResult& r = s_w->res;
++    const FdMem before = read_mem();
++    r.before        = before;
++    r.loaded_before = s_det != nullptr ? 1 : 0;
++    if (s_det == nullptr && !p.force && !admitted(before)) {
++        char msg[120];
++        snprintf(msg, sizeof(msg), "internal RAM too low to load a model: free %u (need %d), block %u (need %d); force=true runs anyway",
++                 static_cast<unsigned>(before.int_free), CONFIG_MAIPAI_FACE_DETECT_MIN_FREE_INTERNAL, static_cast<unsigned>(before.int_big),
++                 CONFIG_MAIPAI_FACE_DETECT_MIN_BLOCK_INTERNAL);
++        s_refused++;
++        fail_test(msg);
++        return;
++    }
++    FdMem lo = before;
++    float score_sum = 0.0f, score_best = 0.0f;
++    int frames_face = 0, faces = 0, done = 0, busy = 0;
++    uint32_t first_ms = 0;
++    const uint32_t period = p.hz > 0 ? fd_period_ms(p.hz) : 0;
++    const uint32_t t_start = ms_now();
++    uint32_t prev_start = 0;
++    for (int i = 0; i < p.frames; i++) {
++        if (maipai_muted() || maipai_quiet() || maipai_vision_off()) {
++            fail_test("stopped: the unit was muted, in full quiet or vision was turned off during the test");
++            return;
++        }
++        const uint32_t fs = ms_now();
++        if (prev_start != 0) fd_ring_add(&s_w->cycle, fs - prev_start);
++        prev_start = fs;
++        One o;
++        detect_one(p.model, p.crop, p.swap_rb, &o);
++        if (o.rc == 1) {
++            busy++;
++            s_busy++;
++            vTaskDelay(pdMS_TO_TICKS(60));
++            continue;
++        }
++        if (o.rc != 0) {
++            s_errors++;
++            fail_test("no picture from the camera, or the model could not be created (see the log)");
++            return;
++        }
++        note_min(&lo, read_mem());
++        r.fmt = o.fmt; r.frame_w = o.frame_w; r.frame_h = o.frame_h; r.win_x = o.win_x; r.win_y = o.win_y; r.win_w = o.win_w; r.win_h = o.win_h;
++        fd_ring_add(&s_w->grab, o.grab_ms);
++        fd_ring_add(&s_w->conv, o.conv_ms);
++        if (o.fresh) {
++            first_ms = o.total_ms;  // the load is in this frame: counted apart, not in the steady times
++        } else {
++            fd_ring_add(&s_w->infer, o.infer_ms);
++            fd_ring_add(&s_w->total, o.total_ms);
++        }
++        publish(o, fs);
++        fd_face_t f;
++        if (fd_pick(o.box, o.nbox, kScoreFloor, o.frame_w, o.frame_h, &f)) {
++            frames_face++;
++            score_sum += f.score;
++            if (f.score > score_best) score_best = f.score;
++        }
++        faces += o.nbox;
++        done++;
++        if (period > 0) {
++            const uint32_t spent = ms_now() - fs;
++            if (spent < period) vTaskDelay(pdMS_TO_TICKS(period - spent));
++        }
++    }
++    xSemaphoreTake(s_mu, portMAX_DELAY);
++    r.frames_done      = done;
++    r.frames_with_face = frames_face;
++    r.faces_total      = faces;
++    r.score_best       = score_best;
++    r.score_avg        = frames_face > 0 ? score_sum / static_cast<float>(frames_face) : 0.0f;
++    r.grab_p50 = fd_percentile(&s_w->grab, 50);   r.grab_p99 = fd_percentile(&s_w->grab, 99);
++    r.conv_p50 = fd_percentile(&s_w->conv, 50);   r.conv_p99 = fd_percentile(&s_w->conv, 99);
++    r.infer_p50 = fd_percentile(&s_w->infer, 50); r.infer_p99 = fd_percentile(&s_w->infer, 99);
++    r.total_p50 = fd_percentile(&s_w->total, 50); r.total_p99 = fd_percentile(&s_w->total, 99);
++    r.cycle_p50 = fd_percentile(&s_w->cycle, 50); r.cycle_p99 = fd_percentile(&s_w->cycle, 99);
++    r.first_ms         = first_ms;
++    r.during_min       = lo;
++    r.after            = read_mem();
++    r.internal_low_water = static_cast<uint32_t>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
++    r.total_ms         = ms_now() - t_start;
++    r.refused_busy     = static_cast<uint32_t>(busy);
++    r.state            = 2;
++    xSemaphoreGive(s_mu);
++    ESP_LOGW(TAG, "test done: %s frames %d faces-in %d p50 infer %u total %u, int free %u block %u", FD_MODEL_NAMES[p.model], done, frames_face,
++             static_cast<unsigned>(r.infer_p50), static_cast<unsigned>(r.total_p50), static_cast<unsigned>(r.during_min.int_free),
++             static_cast<unsigned>(r.during_min.int_big));
++    xSemaphoreGive(s_done);
++}
++
++// One stream frame while a caller keeps the stream wanted.
++void stream_step()
++{
++    if (maipai_muted() || maipai_quiet() || maipai_vision_off()) return;
++    const FdMem m = read_mem();
++    if (s_det == nullptr && !admitted(m)) {
++        s_refused++;
++        return;
++    }
++    One o;
++    const uint32_t at = ms_now();
++    detect_one(CONFIG_MAIPAI_FACE_DETECT_DEFAULT_MODEL, s_want_crop.load(), 0, &o);
++    if (o.rc == 1) {
++        s_busy++;
++        return;
++    }
++    if (o.rc != 0) {
++        s_errors++;
++        return;
++    }
++    publish(o, at);
++}
++
++void fd_task(void*)
++{
++    for (;;) {
++        const uint32_t now = ms_now();
++        uint32_t wait      = 1000;
++        const bool wanted  = static_cast<int32_t>(s_want_until.load() - now) > 0;
++        if (s_det != nullptr && !wanted) {
++            const uint32_t idle = now - s_last_use;
++            wait                = idle >= kUnloadMs ? 1 : kUnloadMs - idle;
++        } else if (s_det == nullptr && !wanted) {
++            wait = portMAX_DELAY;
++        }
++        ulTaskNotifyTake(pdTRUE, wait == portMAX_DELAY ? portMAX_DELAY : pdMS_TO_TICKS(wait));
++        xSemaphoreTake(s_mu, portMAX_DELAY);
++        const bool job = s_job;
++        s_job          = false;
++        xSemaphoreGive(s_mu);
++        if (job) {
++            run_test();
++            continue;
++        }
++        const uint32_t t = ms_now();
++        if (static_cast<int32_t>(s_want_until.load() - t) > 0) {
++            const uint32_t s = ms_now();
++            stream_step();
++            const uint32_t period = fd_period_ms(CONFIG_MAIPAI_FACE_DETECT_RATE_HZ);
++            const uint32_t spent  = ms_now() - s;
++            if (spent < period) vTaskDelay(pdMS_TO_TICKS(period - spent));
++        }
++        if (s_unload_req.exchange(false) || (s_det != nullptr && static_cast<int32_t>(s_want_until.load() - ms_now()) <= 0 &&
++                                             ms_now() - s_last_use >= kUnloadMs)) {
++            unload();
++        }
++    }
++}
++
++}  // namespace
++
++bool maipai_fd_start()
++{
++    if (s_task != nullptr) return true;
++    s_w = static_cast<Work*>(heap_caps_calloc(1, sizeof(Work), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (s_w == nullptr) {
++        ESP_LOGE(TAG, "no PSRAM for the detector state (%u bytes)", static_cast<unsigned>(sizeof(Work)));
++        return false;
++    }
++    s_mu   = xSemaphoreCreateMutex();
++    s_done = xSemaphoreCreateBinary();
++    if (s_mu == nullptr || s_done == nullptr) return false;
++    // Priority 1 on core 0, like the seek task: below the face loop and the servo task (3, core 1) and the audio tasks.
++    if (xTaskCreatePinnedToCoreWithCaps(fd_task, "facedet", kStackBytes, nullptr, 1, &s_task, 0, MALLOC_CAP_SPIRAM) != pdPASS) {
++        s_task = nullptr;
++        ESP_LOGE(TAG, "the detector task did not start");
++        return false;
++    }
++    return true;
++}
++
++int maipai_fd_test(const FdTestParams& p, uint32_t wait_ms, FdTestResult* out)
++{
++    if (!maipai_fd_start()) {
++        memset(out, 0, sizeof(*out));
++        out->state = 3;
++        snprintf(out->error, sizeof(out->error), "no PSRAM for the detector task");
++        return -1;
++    }
++    xSemaphoreTake(s_mu, portMAX_DELAY);
++    if (s_w->res.state == 1 || s_job) {
++        *out = s_w->res;
++        xSemaphoreGive(s_mu);
++        return -2;
++    }
++    memset(&s_w->res, 0, sizeof(s_w->res));
++    s_w->res.state  = 1;
++    s_w->res.params = p;
++    s_params        = p;
++    s_job           = true;
++    xSemaphoreTake(s_done, 0);  // clear a stale give
++    xSemaphoreGive(s_mu);
++    xTaskNotifyGive(s_task);
++    if (wait_ms > 0 && xSemaphoreTake(s_done, pdMS_TO_TICKS(wait_ms)) == pdTRUE) {
++        xSemaphoreTake(s_mu, portMAX_DELAY);
++        *out = s_w->res;
++        xSemaphoreGive(s_mu);
++        return out->state == 2 ? 0 : -1;
++    }
++    xSemaphoreTake(s_mu, portMAX_DELAY);
++    *out = s_w->res;
++    xSemaphoreGive(s_mu);
++    return 1;
++}
++
++void maipai_fd_result(FdTestResult* out)
++{
++    if (s_w == nullptr || s_mu == nullptr) {
++        memset(out, 0, sizeof(*out));
++        return;
++    }
++    xSemaphoreTake(s_mu, portMAX_DELAY);
++    *out = s_w->res;
++    xSemaphoreGive(s_mu);
++}
++
++void maipai_fd_want(uint32_t hold_ms, int crop_mode)
++{
++    if (!maipai_fd_start()) return;
++    s_want_crop.store(crop_mode);
++    s_want_until.store(ms_now() + hold_ms);
++    xTaskNotifyGive(s_task);
++}
++
++int maipai_fd_latest(fd_face_t* out, uint32_t* age_ms)
++{
++    taskENTER_CRITICAL(&s_face_mux);
++    *out = s_face;
++    taskEXIT_CRITICAL(&s_face_mux);
++    if (!out->valid) {
++        if (age_ms != nullptr) *age_ms = 0xFFFFFFFFu;
++        return 0;
++    }
++    if (age_ms != nullptr) *age_ms = ms_now() - out->at_ms;
++    return 1;
++}
++
++void maipai_fd_status(FdStatus* out)
++{
++    memset(out, 0, sizeof(*out));
++    out->model  = s_model;
++    out->loaded = s_det != nullptr ? 1 : 0;
++    out->runs = s_runs; out->runs_with_face = s_runs_face; out->refused = s_refused; out->errors = s_errors; out->camera_busy = s_busy;
++    out->last_infer_ms = s_last_infer;
++    out->last_total_ms = s_last_total;
++    const int32_t left = static_cast<int32_t>(s_want_until.load() - ms_now());
++    out->want_left_ms  = left > 0 ? static_cast<uint32_t>(left) : 0;
++    (void)maipai_fd_latest(&out->face, &out->face_age_ms);
++    out->test_state = s_w != nullptr ? s_w->res.state : 0;
++}
++
++void maipai_fd_unload_request()
++{
++    s_unload_req.store(true);
++    if (s_task != nullptr) xTaskNotifyGive(s_task);
++}
++
++#endif  // CONFIG_MAIPAI_FACE_DETECT
+diff --git a/firmware/main/hal/board/stackchan_camera.h b/firmware/main/hal/board/stackchan_camera.h
+--- a/firmware/main/hal/board/stackchan_camera.h
++++ b/firmware/main/hal/board/stackchan_camera.h
+@@ -14,6 +14,12 @@ public:
+     // 0 ok; 1 busy (the video stream or a photo holds the camera: ask again); 2 no picture (vision off, no frame, format unknown).
+     int SeekGrab(uint8_t* gray);
+ 
++    // Patch FD02: one frame for the face detector. The sink gets the frame (data, length, width, height, MW_FMT_* format) while the
++    // camera lock is held and copies out what it needs; the 150 KB copy is dropped when it returns. Same answers as SeekGrab:
++    // 0 ok, 1 busy, 2 no picture (also when the sink returns nonzero).
++    typedef int (*DetectSink)(void* ctx, const uint8_t* data, size_t len, int w, int h, int fmt);
++    int DetectGrab(DetectSink sink, void* ctx);
++
+     auto TryLockFrame()
+     {
+         return std::unique_lock<std::recursive_mutex>(capture_mutex_, std::try_to_lock);
+diff --git a/firmware/main/hal/board/stackchan_camera.cc b/firmware/main/hal/board/stackchan_camera.cc
+--- a/firmware/main/hal/board/stackchan_camera.cc
++++ b/firmware/main/hal/board/stackchan_camera.cc
+@@ -53,3 +53,34 @@ int StackChanCamera::SeekGrab(uint8_t* gray)
+     frame_.format = 0;
+     return rc == 0 ? 0 : 2;
+ }
++
++// Patch FD02: the frame for the face detector (see the header). Same lock and the same two-read rule as SeekGrab. Experiment image only.
++#if defined(CONFIG_MAIPAI_FACE_DETECT) && CONFIG_MAIPAI_FACE_DETECT
++int StackChanCamera::DetectGrab(DetectSink sink, void* ctx)
++{
++    if (maipai_vision_off()) {
++        return 2;
++    }
++    auto lock = TryLockFrame();
++    if (!lock.owns_lock()) {
++        return 1;
++    }
++    if (!CaptureFrame(false, 1) || frame_.data == nullptr) {
++        return 2;
++    }
++    int fmt = MW_FMT_NONE;
++    switch (frame_.format) {
++        case V4L2_PIX_FMT_YUYV: fmt = MW_FMT_YUYV; break;
++        case V4L2_PIX_FMT_UYVY: fmt = MW_FMT_UYVY; break;
++        case V4L2_PIX_FMT_RGB565: fmt = MW_FMT_RGB565; break;
++        case V4L2_PIX_FMT_GREY: fmt = MW_FMT_GREY; break;
++        default: break;
++    }
++    const int rc = sink != nullptr ? sink(ctx, frame_.data, frame_.len, frame_.width, frame_.height, fmt) : 1;
++    heap_caps_free(frame_.data);
++    frame_.data   = nullptr;
++    frame_.len    = 0;
++    frame_.format = 0;
++    return rc == 0 ? 0 : 2;
++}
++#endif  // CONFIG_MAIPAI_FACE_DETECT

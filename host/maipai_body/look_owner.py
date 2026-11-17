@@ -41,7 +41,11 @@ LEASE_OWNER = "home-hub"  # the name the unit sees; lowercase letters, digits, d
 LEASE_TTL_S = 15
 HEARTBEAT_S = 5.0
 OWNERS = ("robot", "hub", "off")
-STATUS_KEYS = ("owner", "enabled", "setting", "state", "last_face_ago_ms", "last_seen_ago_ms", "lease_owner", "detector", "fov_deg", "x_sign", "turns", "bursts")
+STATUS_KEYS = (
+    "owner", "enabled", "setting", "state", "last_face_ago_ms", "last_seen_ago_ms", "lease_owner", "detector", "fov_deg", "x_sign", "turns", "bursts",
+    # The experiment image's on-unit face detector (firmware patches FD03 and FD04), read only: a number pair and counters, never a picture.
+    "fd_loaded", "fd_score_pct", "fd_cx", "fd_age_ms", "fd_track", "fd_tracks", "fd_moves", "fd_moves_min", "fd_stalls", "fd_end", "fd_hour_s",
+)  # fmt: skip
 STATUS_FRESH_S = 20.0  # a status older than this is not shown (the unit went away or the heartbeat stopped)
 
 

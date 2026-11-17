@@ -1,0 +1,39 @@
+# Intent: Owner report: game sounds were low. Every synthesized game effect is now scaled so its loudest sample is 22000 of 32767, the loudness of the notification chimes (their peaks are 18000 to 25000), with no clipping; before, a short quiet clip peaked near 4000. The clips are played with PlayPcm through the codec, so the Volume slider and the saved volume change the games exactly as they change speech and the chimes.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games_sfx_core.h (ours, UI12)
+# Check after a flash: Play Dice and Coin and Magic 8-Ball at the same volume as a timer chime: the effects are as loud as the chime.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_games_sfx_core.h b/firmware/main/hal/maipai_games_sfx_core.h
+--- a/firmware/main/hal/maipai_games_sfx_core.h
++++ b/firmware/main/hal/maipai_games_sfx_core.h
+@@ -16,7 +16,8 @@
+ #include <stdint.h>
+ 
+ #define MGS_SFX_RATE 16000
+-#define MGS_SFX_AMP 12000        /* of 32767: the codec's volume does the rest */
++#define MGS_SFX_AMP 12000        /* of 32767: the synthesis level before the clip is normalized (patch GM03) */
++#define MGS_SFX_PEAK 22000       /* patch GM03: every clip is scaled so its loudest sample is this, of 32767: about the loudness of the notification chimes (their peaks are 18000 to 25000), never clipping. The codec's volume (the Volume slider) then sets how loud, for the games exactly as for speech and the chimes. */
+ #define MGS_SFX_ATTACK 64        /* samples (4 ms) */
+ #define MGS_SFX_RELEASE 128      /* samples (8 ms) */
+ #define MGS_SFX_MAX_SEGS 8
+@@ -161,6 +162,19 @@ static inline size_t mgs_render(int clip, int16_t* out, size_t cap)
+             out[at++] = (int16_t)(v * (float)MGS_SFX_AMP);
+         }
+     }
++    /* Patch GM03: normalize. A quiet clip (a short hum at 40 percent) used to play far below the chimes at the same volume. */
++    int32_t peak = 0;
++    for (size_t i = 0; i < at; i++) {
++        const int32_t a = out[i] < 0 ? -(int32_t)out[i] : (int32_t)out[i];
++        if (a > peak) {
++            peak = a;
++        }
++    }
++    if (peak > 0) {
++        for (size_t i = 0; i < at; i++) {
++            out[i] = (int16_t)(((int32_t)out[i] * MGS_SFX_PEAK) / peak);
++        }
++    }
+     return at;
+ }
+ 

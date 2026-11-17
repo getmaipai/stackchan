@@ -132,7 +132,7 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if values["face_owner"] not in ("robot", "hub", "off"):
             raise SettingsError("Who turns toward faces must be this robot, my Home hub or off. Pick one and save again.")
         out["face_owner"] = values["face_owner"]
-    for flag in ("look_speaker", "look_faces", "dance_to_music"):
+    for flag in ("look_speaker", "look_faces", "look_on_wake", "dance_to_music"):
         if flag in values:
             if not isinstance(values[flag], bool):
                 raise SettingsError("That setting must be on or off.")
@@ -168,7 +168,7 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
     from maipai_body import unit_prefs
 
     out.update(unit_prefs.clean(values, SettingsError))
-    unknown = set(upgrade_keys(values)) - set(unit_prefs.PREFS) - {"swipe_pages", "scenes", "name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "dance_to_music", "face_owner", "wait_after_talking", "led"}
+    unknown = set(upgrade_keys(values)) - set(unit_prefs.PREFS) - {"swipe_pages", "scenes", "name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "look_on_wake", "dance_to_music", "face_owner", "wait_after_talking", "led"}
     if unknown:
         raise SettingsError(f"Unknown setting {sorted(unknown)[0]}. Remove it and save again.")
     return out

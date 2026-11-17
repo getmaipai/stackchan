@@ -1,0 +1,1911 @@
+# Intent: Owner request (2026-11-17), part 2 of 2: the screens, drawn by the unit's own LVGL code (maipai_apps.cc) and wired to the unit (maipai_pages_unit.cc). The sheet's Apps tile opens the Apps wall (two pages of big tiles with the dots under them; a swipe left or right changes page); each app opens: Timers and Alarms are screens of their own, Clock, Quick actions, Pictures and Dashboard open the swipe page of that name, Dance dances (refused with a plain line in quiet or mute), Lock locks at once with the passcode lock (patches LK02 and LK03) or, with no code set, shows the hint to set a code on the settings page. The sheet's Games tile opens the same wall for the games the unit holds (read from the games table, so it follows whatever games exist). Timers: quick presets of 1, 5, 10 and 15 minutes, the running timers with the time left and a 44 px Cancel each (the list scrolls past three), and a Countdown button that is reserved and off for the later full screen countdown (MAC_COUNTDOWN_READY 0, host hook countdown_open). Alarms: the set alarms (time and label) with a Cancel each and Add alarm: a time picker with hour and minute steppers (a long press repeats), AM or PM on a 12 hour clock and Save, using the timer core's own add and cancel (no new storage format). Settings (the gear): a tab column General, Network, Faces, Info always on the left and a scrolling list on the right with a scroll indicator, a Done target, and a swipe down that begins on the top strip closes. General: volume and brightness sliders (20 px of empty room under each knob and taps ignored for 300 ms after a slider is let go, as patch QS01), Night dim and Status icons switches, the auto lock choice and Lock now (the lock hooks), the language (read only) and More settings (time zone and network test). Network: the Wi-Fi page link, the network name, the signal, the private network state and the hub address. Faces: the face style picker with a live preview (and the picture faces while a picture pack is held). Info: the release tag, the image state, the slot, the memory line and the host name; ten taps on the firmware line list the full details, as the version screen did. One overlay screen at a time (maipai_screens.h), nothing exists until a view opens (the 250 ms timer, the objects and one state record are made then and freed on close; at rest only pointers and three atomics, under 100 bytes of internal RAM). The wake word, speech, a ring, a game or half a minute (a minute in Settings) without a touch returns to the face.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_apps.h, maipai_apps.cc (ours, new), maipai_pages.h, maipai_pages.cc, maipai_pages_unit.cc (ours, P12, P13, UI05)
+# Check after a flash: Swipe up, tap the Apps tile: the wall shows Timers, Alarms, Clock and Quick actions with two dots under the tiles; swipe left: Dashboard, Dance and Lock. Tap Timers, tap 5 and see a running timer with Cancel; swipe down from the top strip: the face returns. Tap Lock with no code set: the hint shows. Open Games from the sheet: the games wall. Tap the gear: the tabs on the left; drag the volume slider, change a tab, scroll the list, tap Done.
+# Kconfig: CONFIG_MAIPAI_PAGES
+
+diff --git a/firmware/main/hal/maipai_apps.h b/firmware/main/hal/maipai_apps.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_apps.h
+@@ -0,0 +1,37 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The Apps wall, the Timers and Alarms apps and the tabbed Settings screen, drawing and wiring (patch UI16). Logic and layout:
++ * maipai_apps_core.h. Everything it reads or does goes through MaipaiPagesHost (maipai_pages.h), so the same code runs on the unit
++ * and in the host renderer (scripts/fw-face-render/apps_render.cc). Nothing exists until a view is opened (no timer, no objects, one
++ * state record of about 600 bytes in the heap); closing it frees all of it. One overlay screen at a time (maipai_screens.h).
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_PAGES || defined(MAIPAI_HOST_RENDER)
++#include <lvgl.h>
++#include "maipai_pages.h"
++
++enum { MAV_APPS = 0, MAV_GAMES, MAV_TIMERS, MAV_ALARMS, MAV_SETTINGS, MAV_COUNT };
++
++// Hooks the screens up (called by maipai_pages_attach). Call with the LVGL lock held. Creates nothing.
++void maipai_apps_attach(MaipaiPagesHost* host, lv_color_t (*fg)());
++// Opens a view (MAV_*), closing whatever other overlay screen is up. LVGL lock held. False when locked, not attached or out of memory.
++bool maipai_apps_show(int view);
++// True while any of these screens is on the glass (the Settings screen included). Safe from any task.
++bool maipai_apps_open();
++// True while the Settings screen is the one up. Safe from any task.
++bool maipai_apps_settings_open();
++// An outside event (MGS_EV_*), from any task: the screen goes back to the face at the next tick. Does nothing while nothing is open.
++void maipai_apps_event(int ev);
++// Runs the 250 ms work now (the host renderer calls this instead of waiting for the timer).
++void maipai_apps_step();
++// Closes and frees everything. LVGL lock held.
++void maipai_apps_close();
++#else
++inline bool maipai_apps_open() { return false; }
++inline bool maipai_apps_settings_open() { return false; }
++inline void maipai_apps_event(int) {}
++inline void maipai_apps_close() {}
++#endif
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -0,0 +1,1300 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The Apps wall, the Timers and Alarms apps and the tabbed Settings screen (patch UI16). See maipai_apps.h and maipai_apps_core.h.
++ * Runs on the LVGL task with the lock held; the only calls from other tasks are maipai_apps_event and the atomic readers.
++ */
++#include <sdkconfig.h>
++#include "maipai_apps.h"
++#if CONFIG_MAIPAI_PAGES || defined(MAIPAI_HOST_RENDER)
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <new>
++#include "maipai_apps_core.h"
++#include "maipai_face_core.h"
++#include "maipai_screens.h"
++#include "maipai_lock.h"
++
++namespace {
++
++MaipaiPagesHost* g_host = nullptr;
++lv_color_t (*g_fg)()    = nullptr;
++bool g_ready            = false;
++std::atomic<bool> g_open_a{false};
++std::atomic<bool> g_set_a{false};
++std::atomic<int> g_pending{0};
++
++constexpr uint32_t kIdleWallMs  = 30000;  // a wall, Timers or Alarms returns to the face after 30 s without a touch
++constexpr uint32_t kIdleSetMs   = 60000;  // Settings and the time picker wait a minute
++constexpr uint32_t kToastMs     = 2500;
++constexpr uint32_t kSliderGapMs = 300;    // patch QS01: taps are ignored this long after a slider is let go
++constexpr int kMaxGames         = 16;
++constexpr int kKindTimer         = 1;  // the timer core's MT_KIND_TIMER and MT_KIND_ALARM (maipai_timers_core.h)
++constexpr int kKindAlarm         = 2;
++
++const lv_font_t* kTiny  = &lv_font_montserrat_14;
++const lv_font_t* kSmall = &lv_font_montserrat_16;
++const lv_font_t* kMid   = &lv_font_montserrat_20;
++const lv_font_t* kBig   = &lv_font_montserrat_24;
++
++// One state record, allocated when a view opens and freed when the screen closes.
++struct St {
++    lv_obj_t* root = nullptr;
++    int id         = MSCR_APPS;  // the screen manager's id for this screen
++    int view       = MAV_APPS;
++    mac_touch_t touch;
++    bool taken          = false;  // the finger made a swipe or began on the drag bar: no tap follows
++    uint32_t last_touch = 0;
++    bool night_seen     = false;
++    // the toast
++    lv_obj_t* toast     = nullptr;
++    uint32_t toast_until = 0;
++    // the walls
++    int page = 0;
++    uint8_t apps[MAC_APP_MAX];
++    int n_items = 0;  // apps or games on the wall
++    lv_obj_t* dots_holder = nullptr;
++    // timers and alarms
++    lv_obj_t* list = nullptr;
++    lv_obj_t* left[MAC_ACTIVE_MAX];
++    uint32_t ids[MAC_ACTIVE_MAX];
++    int n_rows = 0;
++    int sig    = 0;
++    mac_pick_t pick;
++    lv_obj_t* pick_val[2];
++    lv_obj_t* ampm[2];
++    // settings
++    mac_set_t set;
++    mac_row_t rows[MAC_SET_ROWS_MAX];
++    int n_set_rows = 0;
++    lv_obj_t* pane     = nullptr;
++    lv_obj_t* thumb    = nullptr;
++    int pane_tab       = 0;
++    lv_obj_t* row_obj[MAC_SET_ROWS_MAX];
++    lv_obj_t* row_val[MAC_R_COUNT];  // by row id
++    int8_t sh_night = -1, sh_icons = -1;
++    int sh_auto = -1;  // what the person just chose (the saved value follows from the main task a moment later)
++    lv_obj_t* tile_obj[6];
++    int cur_style = 1;
++    int content_h = 0;
++    uint32_t slider_up_ms = 0;
++    mv_state_t ver;
++    bool details = false;
++};
++St* S = nullptr;
++
++bool es() { return g_host != nullptr && g_host->spanish(); }
++const char* tx(int id) { return mac_str(id, es() ? 1 : 0); }
++uint32_t now_ms() { return g_host != nullptr ? g_host->now_ms() : 0; }
++int Y(int y) { return y - MAC_TOP; }  // the root starts at screen y 28
++
++lv_color_t shade(lv_color_t c, int pct) { return lv_color_make(mpg_scale(c.red, pct), mpg_scale(c.green, pct), mpg_scale(c.blue, pct)); }
++int night_pct() { return g_host != nullptr ? mpg_dim_pct(g_host->night()) : 100; }
++lv_color_t fg(int pct = 100)
++{
++    const lv_color_t c = g_fg != nullptr ? g_fg() : lv_color_white();
++    return shade(c, pct * night_pct() / 100);
++}
++
++lv_obj_t* box(lv_obj_t* parent, int x, int y, int w, int h, lv_color_t c, int radius, bool clickable = false)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_style_all(o);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    if (clickable) {
++        lv_obj_add_flag(o, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_add_flag(o, LV_OBJ_FLAG_EVENT_BUBBLE);  // the finger also reaches the root, which classifies swipes and the drag bar
++    } else {
++        lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++    }
++    lv_obj_set_pos(o, x, y);
++    lv_obj_set_size(o, w, h);
++    lv_obj_set_style_radius(o, radius, 0);
++    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++    lv_obj_set_style_bg_color(o, c, 0);
++    return o;
++}
++
++lv_obj_t* text(lv_obj_t* parent, const char* s, const lv_font_t* font, lv_color_t c)
++{
++    lv_obj_t* l = lv_label_create(parent);
++    lv_obj_remove_flag(l, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_style_text_font(l, font, 0);
++    lv_obj_set_style_text_color(l, c, 0);
++    lv_label_set_text(l, s);
++    return l;
++}
++
++int text_w(const char* s, const lv_font_t* f)
++{
++    lv_point_t p;
++    lv_text_get_size(&p, s, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
++    return p.x;
++}
++const lv_font_t* fit_font(const char* s, int avail)
++{
++    if (text_w(s, kMid) <= avail) return kMid;
++    if (text_w(s, kSmall) <= avail) return kSmall;
++    return kTiny;
++}
++void set_text_if(lv_obj_t* l, const char* s)
++{
++    if (l != nullptr && strcmp(lv_label_get_text(l), s) != 0) {
++        lv_label_set_text(l, s);
++    }
++}
++
++// A target: a rounded box that fills while it is pressed, with its label centered. `on` fills it (a state is never told by color alone).
++lv_obj_t* button(lv_obj_t* parent, int x, int y, int w, int h, const char* label, const lv_font_t* font, bool on = false, bool enabled = true)
++{
++    lv_obj_t* b = box(parent, x, y, w, h, on ? fg(100) : fg(enabled ? 16 : 8), 10, enabled);
++    lv_obj_set_style_border_width(b, 1, 0);
++    lv_obj_set_style_border_color(b, fg(enabled ? 40 : 22), 0);
++    if (enabled) {
++        lv_obj_set_style_bg_color(b, fg(45), LV_STATE_PRESSED);
++    }
++    if (label != nullptr && label[0] != '\0') {
++        lv_obj_t* l = text(b, label, font, on ? lv_color_black() : fg(enabled ? 100 : 35));
++        lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
++        lv_obj_set_width(l, w - 2);
++        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++        lv_obj_align(l, LV_ALIGN_CENTER, 0, 0);
++    }
++    return b;
++}
++
++// ---- drawn icons: the shapes of maipai_pages_core.h, scaled ----
++void draw_shapes(lv_obj_t* parent, const mpg_shape_t* sh, int n, int x, int y, int scale, lv_color_t c, lv_color_t bg)
++{
++    for (int i = 0; i < n; i++) {
++        const int sx = x + sh[i].x * scale, sy = y + sh[i].y * scale, sw = sh[i].w * scale, shh = sh[i].h * scale;
++        switch (sh[i].kind) {
++            case MPG_SH_CIRCLE: box(parent, sx, sy, sw, shh, c, LV_RADIUS_CIRCLE); break;
++            case MPG_SH_RING: {
++                lv_obj_t* o = box(parent, sx, sy, sw, shh, c, LV_RADIUS_CIRCLE);
++                lv_obj_set_style_bg_opa(o, LV_OPA_TRANSP, 0);
++                lv_obj_set_style_border_width(o, scale * 2, 0);
++                lv_obj_set_style_border_color(o, c, 0);
++                break;
++            }
++            case MPG_SH_RECT: box(parent, sx, sy, sw, shh, c, 0); break;
++            case MPG_SH_ROUND: box(parent, sx, sy, sw, shh, c, scale); break;
++            case MPG_SH_CUTC: box(parent, sx, sy, sw, shh, bg, LV_RADIUS_CIRCLE); break;
++            default: box(parent, sx, sy, sw, shh, bg, 0); break;
++        }
++    }
++}
++
++// The wall icons, in the 24 by 24 box.
++int app_shapes(int app, mpg_shape_t* s)
++{
++    int n = 0;
++#define SH(k, X, Y2, W, H) do { s[n].kind = (k); s[n].x = (X); s[n].y = (Y2); s[n].w = (W); s[n].h = (H); n++; } while (0)
++    switch (app) {
++        case MAC_APP_TIMERS: /* a stopwatch: a ring, a crown and one hand */
++            SH(MPG_SH_RING, 2, 3, 20, 20);
++            SH(MPG_SH_ROUND, 9, 0, 6, 3);
++            SH(MPG_SH_ROUND, 11, 8, 2, 8);
++            SH(MPG_SH_ROUND, 19, 3, 4, 3);
++            break;
++        case MAC_APP_ALARMS: return mpg_icon_shapes(MPG_I_BELL, s);
++        case MAC_APP_CLOCK: /* a clock face with two hands */
++            SH(MPG_SH_RING, 1, 1, 22, 22);
++            SH(MPG_SH_ROUND, 11, 5, 2, 8);
++            SH(MPG_SH_ROUND, 11, 11, 7, 2);
++            break;
++        case MAC_APP_QUICK: /* four small squares */
++            SH(MPG_SH_ROUND, 2, 2, 9, 9);
++            SH(MPG_SH_ROUND, 13, 2, 9, 9);
++            SH(MPG_SH_ROUND, 2, 13, 9, 9);
++            SH(MPG_SH_ROUND, 13, 13, 9, 9);
++            break;
++        case MAC_APP_PICTURES: /* a frame with a sun and a hill */
++            SH(MPG_SH_ROUND, 1, 3, 22, 18);
++            SH(MPG_SH_CUT, 4, 6, 16, 12);
++            SH(MPG_SH_CIRCLE, 14, 7, 4, 4);
++            SH(MPG_SH_ROUND, 5, 13, 10, 5);
++            break;
++        case MAC_APP_DASHBOARD: /* tiles of different sizes */
++            SH(MPG_SH_ROUND, 1, 1, 10, 13);
++            SH(MPG_SH_ROUND, 13, 1, 10, 7);
++            SH(MPG_SH_ROUND, 13, 10, 10, 13);
++            SH(MPG_SH_ROUND, 1, 16, 10, 7);
++            break;
++        case MAC_APP_DANCE: /* two music notes */
++            SH(MPG_SH_CIRCLE, 1, 15, 8, 8);
++            SH(MPG_SH_ROUND, 7, 3, 3, 15);
++            SH(MPG_SH_ROUND, 7, 2, 14, 4);
++            SH(MPG_SH_ROUND, 18, 3, 3, 14);
++            SH(MPG_SH_CIRCLE, 12, 14, 8, 8);
++            break;
++        default: /* lock: a shackle over a body with a keyhole */
++            SH(MPG_SH_RING, 6, 0, 12, 14);
++            SH(MPG_SH_ROUND, 3, 10, 18, 13);
++            SH(MPG_SH_CUTC, 10, 14, 4, 4);
++            SH(MPG_SH_CUT, 11, 17, 2, 4);
++            break;
++    }
++#undef SH
++    return n;
++}
++
++// ---- the frame of every view ----
++void toast(const char* msg)
++{
++    if (S == nullptr || S->root == nullptr) {
++        return;
++    }
++    if (S->toast != nullptr) {
++        lv_obj_delete(S->toast);
++        S->toast = nullptr;
++    }
++    lv_obj_t* t = box(S->root, 8, Y(MAC_BOTTOM - 42), 304, 40, fg(30), 10);  // two lines of small text
++    lv_obj_set_style_border_width(t, 1, 0);
++    lv_obj_set_style_border_color(t, fg(70), 0);
++    lv_obj_t* l = text(t, msg, kTiny, fg(100));
++    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
++    lv_obj_set_width(l, 288);
++    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++    lv_obj_align(l, LV_ALIGN_CENTER, 0, 0);
++    S->toast       = t;
++    S->toast_until = now_ms() + kToastMs;
++}
++
++// The drag bar at the top of the zone, the same grabber as the sheet, the games and the other screens (it never takes a touch).
++void grabber()
++{
++    lv_obj_t* g = box(S->root, MAC_W / 2 - 24, Y(31), 48, 5, fg(70), 3);
++    lv_obj_move_foreground(g);
++}
++
++void close_all();
++void build(int view);
++
++void async_close(void*) { close_all(); }
++void async_view(void* p) { if (S != nullptr) build(static_cast<int>(reinterpret_cast<intptr_t>(p))); }
++void request_view(int view) { lv_async_call(async_view, reinterpret_cast<void*>(static_cast<intptr_t>(view))); }
++void async_page(void* p)
++{
++    if (S == nullptr || (S->view != MAV_APPS && S->view != MAV_GAMES)) {
++        return;
++    }
++    const int np = mac_wall_step(S->page, S->n_items, static_cast<int>(reinterpret_cast<intptr_t>(p)));
++    if (np != S->page) {
++        S->page = np;
++        build(S->view);
++    }
++}
++
++// The finger: down, up, and what the touch was (a tap, a page swipe or the drag bar's dismiss).
++void on_root(lv_event_t* e)
++{
++    if (S == nullptr) {
++        return;
++    }
++    const lv_event_code_t code = lv_event_get_code(e);
++    lv_point_t p = {0, 0};
++    lv_indev_t* in = lv_indev_active();
++    if (in != nullptr) {
++        lv_indev_get_point(in, &p);
++    }
++    if (code == LV_EVENT_PRESSED) {
++        mac_touch_down(&S->touch, p.x, p.y, now_ms());
++        S->taken      = false;
++        S->last_touch = now_ms();
++    } else if (code == LV_EVENT_RELEASED) {
++        const bool paged = S->view == MAV_APPS || S->view == MAV_GAMES;
++        const int r      = mac_touch_up(&S->touch, p.x, p.y, now_ms(), paged);
++        S->taken         = r != MAC_T_TAP;  // the click that follows a swipe, a dead press or a slow press is ignored
++        S->last_touch    = now_ms();
++        if (r == MAC_T_DISMISS) {
++            lv_async_call(async_close, nullptr);
++        } else if (r == MAC_T_NEXT) {
++            lv_async_call(async_page, reinterpret_cast<void*>(static_cast<intptr_t>(1)));
++        } else if (r == MAC_T_PREV) {
++            lv_async_call(async_page, reinterpret_cast<void*>(static_cast<intptr_t>(-1)));
++        }
++    } else if (code == LV_EVENT_PRESS_LOST) {
++        S->touch.down = 0;
++        S->taken      = true;
++    }
++}
++
++bool taps_ignored()
++{
++    return S == nullptr || S->taken || (S->slider_up_ms != 0 && now_ms() - S->slider_up_ms < kSliderGapMs);
++}
++
++// ---- the walls: Apps and Games ----
++void on_wall_tile(lv_event_t* e)
++{
++    if (taps_ignored()) {
++        return;
++    }
++    const int idx = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
++    if (S->view == MAV_GAMES) {
++        const char* why = g_host->game_start(idx);  // on success the page steps aside by itself (the game draws on the same layer)
++        if (why != nullptr && why[0] != '\0') {
++            toast(why);
++        } else {
++            close_all();
++        }
++        return;
++    }
++    const int app = S->apps[idx];
++    switch (app) {
++        case MAC_APP_TIMERS: request_view(MAV_TIMERS); break;
++        case MAC_APP_ALARMS: request_view(MAV_ALARMS); break;
++        case MAC_APP_DANCE:
++            if (mpg_action_blocked(MPG_A_DANCE, g_host->quiet(), g_host->muted())) {
++                toast(g_host->quiet() ? tx(MAC_S_QUIET_ON) : tx(MAC_S_MUTED));
++            } else {
++                g_host->action(MPG_A_DANCE);
++                close_all();  // the face is the show
++            }
++            break;
++        case MAC_APP_LOCK:
++            if (!g_host->lock_has_code()) {
++                toast(tx(MAC_S_LOCK_HINT));  // the Security hint: the code is set on the settings page, never on the unit
++            } else {
++                close_all();
++                g_host->lock_now();  // the lock screen takes the glass; a touch there shows the keypad (patches LK02 and LK03)
++            }
++            break;
++        default: {
++            const int type = mac_app_strip_page(app);
++            close_all();
++            if (type >= 0) {
++                g_host->open_strip_page(type);
++            }
++            break;
++        }
++    }
++}
++
++void build_wall(int view)
++{
++    int total = 0;
++    if (view == MAV_APPS) {
++        total = mac_apps_list(g_host->pictures_held() ? 1 : 0, S->apps);
++    } else {
++        total = g_host->game_count();
++        if (total > kMaxGames) {
++            total = kMaxGames;
++        }
++    }
++    S->n_items = total;
++    S->page    = mac_wall_clamp(S->page, total);
++    if (total == 0) {
++        lv_obj_t* none = text(S->root, tx(MAC_S_NO_GAMES), kMid, fg(70));
++        lv_obj_set_width(none, 280);
++        lv_label_set_long_mode(none, LV_LABEL_LONG_WRAP);
++        lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
++        lv_obj_set_pos(none, 20, Y(96));
++        return;
++    }
++    const int count = mac_wall_count(S->page, total);
++    for (int slot = 0; slot < count; slot++) {
++        const int idx = S->page * MAC_WALL_PER_PAGE + slot;
++        int x, y, w, h;
++        mac_wall_tile(slot, &x, &y, &w, &h);
++        lv_obj_t* b = box(S->root, x, Y(y), w, h, fg(16), 12, true);
++        lv_obj_set_style_border_width(b, 1, 0);
++        lv_obj_set_style_border_color(b, fg(40), 0);
++        lv_obj_set_style_bg_color(b, fg(45), LV_STATE_PRESSED);
++        lv_obj_add_event_cb(b, on_wall_tile, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(idx)));
++        if (view == MAV_APPS) {
++            const int app = S->apps[idx];
++            mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
++            draw_shapes(b, sh, app_shapes(app, sh), (w - 48) / 2, 8, 2, fg(100), fg(16));
++            const char* name = MAC_APP_TITLE[es() ? 1 : 0][app];
++            lv_obj_t* l = text(b, name, fit_font(name, w - 12), fg(100));
++            lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
++            lv_obj_set_size(l, w - 12, lv_font_get_line_height(fit_font(name, w - 12)));
++            lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++            lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -6);
++        } else {
++            const char* gt = g_host->game_title(idx);
++            lv_obj_t* l = text(b, gt, kSmall, fg(100));  // one size for every game; a long name wraps to two lines
++            lv_obj_set_width(l, w - 12);
++            lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
++            lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++            lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 14);
++            char best[24];
++            mpg_best_text(best, sizeof(best), g_host->game_best(idx), es());
++            lv_obj_t* bl = text(b, best, kTiny, fg(70));
++            lv_obj_set_width(bl, w - 12);
++            lv_obj_set_style_text_align(bl, LV_TEXT_ALIGN_CENTER, 0);
++            lv_obj_align(bl, LV_ALIGN_BOTTOM_MID, 0, -6);
++        }
++    }
++    const int pages = mac_wall_pages(total);
++    if (pages > 1) {  // the page dots sit under the tiles at the bottom edge of the zone
++        for (int i = 0; i < pages; i++) {
++            const bool on = i == S->page;
++            const int d   = on ? MAC_WALL_DOT_ON : MAC_WALL_DOT_OFF;
++            box(S->root, mac_wall_dot_x(pages, i) - d / 2, Y(MAC_WALL_DOTS_Y) - d / 2, d, d, fg(on ? 100 : 32), LV_RADIUS_CIRCLE);
++        }
++    }
++}
++
++// ---- Timers and Alarms: a list of rows with a big Cancel each ----
++int items_sig(const MaipaiPageTimer* t, int n)
++{
++    int sig = n;
++    for (int i = 0; i < n; i++) {
++        sig = sig * 31 + static_cast<int>(t[i].id) * 7 + t[i].hour * 3 + t[i].minute;
++    }
++    return sig;
++}
++
++void on_cancel(lv_event_t* e)
++{
++    if (taps_ignored()) {
++        return;
++    }
++    g_host->timer_cancel(static_cast<uint32_t>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e))));
++    S->sig = -1;  // the list is rebuilt at the next tick
++}
++
++void on_preset(lv_event_t* e)
++{
++    if (taps_ignored()) {
++        return;
++    }
++    const int mins    = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
++    const char* why   = g_host->app_timer_add(mins * 60);
++    if (why != nullptr && why[0] != '\0') {
++        toast(why);
++    }
++    S->sig = -1;
++}
++
++void on_countdown(lv_event_t* e)
++{
++    if (taps_ignored() || !MAC_COUNTDOWN_READY) {
++        return;
++    }
++    (void)e;  // reserved: the later full screen countdown shows the first running timer here
++    g_host->countdown_open(S->ids[0]);
++}
++
++void on_add_alarm(lv_event_t*)
++{
++    if (taps_ignored()) {
++        return;
++    }
++    struct tm t = {};
++    const bool known = g_host->local_time(&t);
++    mac_pick_default(&S->pick, known ? 1 : 0, t.tm_hour);
++    request_view(MAV_COUNT);  // the picker (MAV_COUNT stands for it in the view request)
++}
++
++void list_rows(int kind)
++{
++    MaipaiPageTimer t[MAC_ACTIVE_MAX];
++    const int n  = g_host->app_items(kind, t, MAC_ACTIVE_MAX);
++    S->n_rows    = n;
++    S->sig       = items_sig(t, n);
++    const int Hh = mac_list_content_h(n);
++    // the list: a scrolling area three rows high at the bottom of the zone
++    lv_obj_t* l = lv_obj_create(S->root);
++    lv_obj_remove_style_all(l);
++    lv_obj_set_pos(l, 0, Y(MAC_ROW_TOP));
++    lv_obj_set_size(l, MAC_W, MAC_LIST_H);
++    lv_obj_add_flag(l, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_add_flag(l, LV_OBJ_FLAG_EVENT_BUBBLE);
++    lv_obj_add_flag(l, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_scroll_dir(l, LV_DIR_VER);
++    lv_obj_set_scrollbar_mode(l, LV_SCROLLBAR_MODE_OFF);
++    lv_obj_remove_flag(l, LV_OBJ_FLAG_SCROLL_ELASTIC);
++    S->list = l;
++    if (n == 0) {
++        lv_obj_t* none = text(l, kind == kKindTimer ? tx(MAC_S_NO_TIMERS) : tx(MAC_S_NO_ALARMS), kMid, fg(70));
++        lv_obj_set_width(none, MAC_W);
++        lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
++        lv_obj_set_pos(none, 0, 44);
++        return;
++    }
++    for (int i = 0; i < n; i++) {
++        const int y = i * MAC_ROW_PITCH;
++        box(l, 8, y, 304, MAC_ROW_H, fg(16), 10);
++        char when[24];
++        if (kind == kKindTimer) {
++            mac_fmt_left(when, sizeof(when), t[i].left_s);
++        } else if (t[i].hour < 0) {
++            snprintf(when, sizeof(when), "--:--");  // an alarm kept in flash while the clock is not set yet
++        } else {
++            mac_fmt_time(when, sizeof(when), t[i].hour, t[i].minute, g_host->clock24() ? 1 : 0);
++        }
++        S->left[i] = text(l, when, kind == kKindTimer ? kBig : kMid, fg(100));  // an alarm's "12:05 PM" is longer than a countdown
++        lv_obj_set_pos(S->left[i], 18, y + (kind == kKindTimer ? 9 : 11));
++        S->ids[i] = t[i].id;
++        const char* name = t[i].label[0] != '\0' ? t[i].label : (kind == kKindTimer ? tx(MAC_S_TIMER) : tx(MAC_S_ALARM));
++        lv_obj_t* lab = text(l, name, kSmall, fg(70));
++        lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
++        lv_obj_set_size(lab, 88, 20);  // dots need a fixed height, or the name wraps instead
++        lv_obj_set_pos(lab, 122, y + 12);
++        int x, yy, w, h;
++        mac_cancel_box(0, &x, &yy, &w, &h);
++        lv_obj_t* c = button(l, x, y, w, h, tx(MAC_S_CANCEL), kSmall);
++        lv_obj_add_event_cb(c, on_cancel, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t[i].id)));
++    }
++    (void)Hh;
++}
++
++void build_timers()
++{
++    for (int i = 0; i < MAC_PRESETS; i++) {
++        int x, y, w, h;
++        mac_preset_box(i, &x, &y, &w, &h);
++        lv_obj_t* b = button(S->root, x, Y(y), w, h, "", kMid);
++        char n[8];
++        snprintf(n, sizeof(n), "%u", static_cast<unsigned>(MAC_PRESET_MIN[i]));
++        lv_obj_t* a = text(b, n, kMid, fg(100));
++        lv_obj_align(a, LV_ALIGN_TOP_MID, 0, 3);
++        lv_obj_t* m = text(b, tx(MAC_S_MIN), kTiny, fg(70));
++        lv_obj_align(m, LV_ALIGN_BOTTOM_MID, 0, -3);
++        lv_obj_add_event_cb(b, on_preset, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(MAC_PRESET_MIN[i])));
++    }
++    int x, y, w, h;
++    mac_countdown_box(&x, &y, &w, &h);
++    lv_obj_t* cd = button(S->root, x, Y(y), w, h, tx(MAC_S_COUNTDOWN), kTiny, false, MAC_COUNTDOWN_READY != 0);
++    lv_obj_add_event_cb(cd, on_countdown, LV_EVENT_CLICKED, nullptr);  // reserved: dead until MAC_COUNTDOWN_READY
++    list_rows(kKindTimer);
++}
++
++void build_alarms()
++{
++    lv_obj_t* add = button(S->root, 8, Y(MAC_BTN_ROW_Y), 304, MAC_BTN_ROW_H, tx(MAC_S_ADD_ALARM), kMid);
++    lv_obj_add_event_cb(add, on_add_alarm, LV_EVENT_CLICKED, nullptr);
++    list_rows(kKindAlarm);
++}
++
++// The time picker: hour and minute steppers (and AM or PM on a 12 hour clock), Cancel and Save.
++void pick_paint()
++{
++    const bool c24 = g_host->clock24();
++    char v[8];
++    snprintf(v, sizeof(v), c24 ? "%02d" : "%d", mac_pick_shown_hour(&S->pick, c24 ? 1 : 0));
++    set_text_if(S->pick_val[0], v);
++    snprintf(v, sizeof(v), "%02d", S->pick.minute);
++    set_text_if(S->pick_val[1], v);
++    if (!c24) {
++        for (int pm = 0; pm < 2; pm++) {
++            const bool on = (mac_pick_is_pm(&S->pick) ? 1 : 0) == pm;
++            if (S->ampm[pm] != nullptr) {
++                lv_obj_set_style_bg_color(S->ampm[pm], on ? fg(100) : fg(16), 0);
++                lv_obj_t* l = lv_obj_get_child(S->ampm[pm], 0);
++                if (l != nullptr) {
++                    lv_obj_set_style_text_color(l, on ? lv_color_black() : fg(100), 0);
++                }
++            }
++        }
++    }
++}
++
++void on_step(lv_event_t* e)
++{
++    if (S == nullptr || S->view != MAV_COUNT) {
++        return;
++    }
++    // a long press repeats (LV_EVENT_LONG_PRESSED_REPEAT); a plain tap steps once
++    const lv_event_code_t code = lv_event_get_code(e);
++    if (code == LV_EVENT_CLICKED && taps_ignored()) {
++        return;
++    }
++    const int d    = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));  // +-1 hour, +-2 minute
++    if (d == 1 || d == -1) {
++        mac_pick_hour(&S->pick, d);
++    } else {
++        mac_pick_minute(&S->pick, d > 0 ? 1 : -1);
++    }
++    S->last_touch = now_ms();
++    pick_paint();
++}
++void on_ampm(lv_event_t* e)
++{
++    if (taps_ignored()) {
++        return;
++    }
++    mac_pick_set_pm(&S->pick, static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e))));
++    pick_paint();
++}
++void on_pick_cancel(lv_event_t*)
++{
++    if (!taps_ignored()) {
++        request_view(MAV_ALARMS);
++    }
++}
++void on_pick_save(lv_event_t*)
++{
++    if (taps_ignored()) {
++        return;
++    }
++    const char* why = g_host->app_alarm_add(S->pick.hour, S->pick.minute);
++    if (why != nullptr && why[0] != '\0') {
++        toast(why);
++        return;
++    }
++    request_view(MAV_ALARMS);
++}
++
++void build_picker()
++{
++    const bool c24 = g_host->clock24();
++    for (int col = 0; col < 2; col++) {
++        int x, y, w, h;
++        mac_pick_plus_box(col, c24 ? 1 : 0, &x, &y, &w, &h);
++        lv_obj_t* up = button(S->root, x, Y(y), w, h, "+", kBig);
++        lv_obj_add_event_cb(up, on_step, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(col == 0 ? 1 : 2)));
++        lv_obj_add_event_cb(up, on_step, LV_EVENT_LONG_PRESSED_REPEAT, reinterpret_cast<void*>(static_cast<intptr_t>(col == 0 ? 1 : 2)));
++        mac_pick_val_box(col, c24 ? 1 : 0, &x, &y, &w, &h);
++        lv_obj_t* v = box(S->root, x, Y(y), w, h, fg(8), 10);
++        S->pick_val[col] = text(v, "", kBig, fg(100));
++        lv_obj_center(S->pick_val[col]);
++        mac_pick_minus_box(col, c24 ? 1 : 0, &x, &y, &w, &h);
++        lv_obj_t* dn = button(S->root, x, Y(y), w, h, "-", kBig);
++        lv_obj_add_event_cb(dn, on_step, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(col == 0 ? -1 : -2)));
++        lv_obj_add_event_cb(dn, on_step, LV_EVENT_LONG_PRESSED_REPEAT, reinterpret_cast<void*>(static_cast<intptr_t>(col == 0 ? -1 : -2)));
++    }
++    // the colon between the two number columns
++    int cx, cy, cw, ch;
++    mac_pick_val_box(0, c24 ? 1 : 0, &cx, &cy, &cw, &ch);
++    lv_obj_t* colon = text(S->root, ":", kBig, fg(100));
++    lv_obj_set_pos(colon, c24 ? 150 : 105, Y(cy) + 10);
++    S->ampm[0] = S->ampm[1] = nullptr;
++    if (!c24) {
++        for (int pm = 0; pm < 2; pm++) {
++            int x, y, w, h;
++            mac_pick_ampm_box(pm, &x, &y, &w, &h);
++            lv_obj_t* b = button(S->root, x, Y(y), w, h, tx(pm ? MAC_S_PM : MAC_S_AM), kMid);
++            lv_obj_add_event_cb(b, on_ampm, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(pm)));
++            S->ampm[pm] = b;
++        }
++    }
++    int x, y, w, h;
++    mac_pick_cancel_box(&x, &y, &w, &h);
++    lv_obj_t* c = button(S->root, x, Y(y), w, h, tx(MAC_S_CANCEL), kMid);
++    lv_obj_add_event_cb(c, on_pick_cancel, LV_EVENT_CLICKED, nullptr);
++    mac_pick_save_box(&x, &y, &w, &h);
++    lv_obj_t* sv = button(S->root, x, Y(y), w, h, tx(MAC_S_SAVE), kMid, true);
++    lv_obj_add_event_cb(sv, on_pick_save, LV_EVENT_CLICKED, nullptr);
++    pick_paint();
++}
++
++// ---- Settings ----
++unsigned set_flags()
++{
++    unsigned f = 0;
++    if (g_host->lock_available()) f |= MAC_SF_LOCK;
++    if (g_host->tailnet() >= 0) f |= MAC_SF_TAILNET;
++    if (g_host->pictures_held()) f |= MAC_SF_PICTURES;
++    if (S->details) f |= MAC_SF_DETAILS;
++    return f;
++}
++
++const char* lang_name(int l)
++{
++    static const char* const n[MF_LANG_COUNT] = {"English", "Espanol", "Francais", "Deutsch", "Portugues", "Italiano"};
++    return l >= 0 && l < MF_LANG_COUNT ? n[l] : n[0];
++}
++
++int row_height_box(const mac_row_t& r) { return r.h - mac_row_gap(r.kind); }
++
++int auto_now() { return S != nullptr && S->sh_auto >= 0 ? S->sh_auto : g_host->auto_lock_minutes(); }
++bool night_on() { return S != nullptr && S->sh_night >= 0 ? S->sh_night != 0 : g_host->night_dim(); }
++bool icons_on() { return S != nullptr && S->sh_icons >= 0 ? S->sh_icons != 0 : g_host->status_icons(); }
++
++// The text of an information row (and the value text of a switch or a choice).
++void row_text(int id, char* out, size_t n)
++{
++    out[0] = '\0';
++    switch (id) {
++        case MAC_R_NIGHT: snprintf(out, n, "%s", night_on() ? tx(MAC_S_ON) : tx(MAC_S_OFF)); break;
++        case MAC_R_STATUS_ICONS: snprintf(out, n, "%s", icons_on() ? tx(MAC_S_ON) : tx(MAC_S_OFF)); break;
++        case MAC_R_AUTOLOCK: mac_auto_text(out, n, auto_now(), es() ? 1 : 0); break;
++        case MAC_R_LANGUAGE: snprintf(out, n, "%s", lang_name(g_host->language())); break;
++        case MAC_R_SSID: {
++            const char* s = g_host->wifi_ssid();
++            snprintf(out, n, "%s", s != nullptr && s[0] != '\0' ? s : tx(MAC_S_NOT_CONNECTED));
++            break;
++        }
++        case MAC_R_SIGNAL: {
++            const int bars = g_host->wifi_bars();
++            const int w    = mac_signal_word(bars);
++            if (bars < 0) {
++                snprintf(out, n, "%s", tx(MAC_S_NOT_CONNECTED));
++            } else {
++                snprintf(out, n, "%s (%d/4)", tx(MAC_S_SIG_NONE + w), bars);
++            }
++            break;
++        }
++        case MAC_R_TAILNET: {
++            const int t = g_host->tailnet();
++            snprintf(out, n, "%s", t == 2 ? tx(MAC_S_TN_UP) : (t == 1 ? tx(MAC_S_TN_JOIN) : (t == 0 ? tx(MAC_S_TN_OFF) : tx(MAC_S_TN_NO))));
++            break;
++        }
++        case MAC_R_HUB: {
++            const char* a = g_host->address();
++            if (a != nullptr && a[0] != '\0') {
++                const char* sp = strchr(a, ' ');
++                snprintf(out, n, "%s", sp != nullptr && strchr(a, ':') != nullptr && strchr(a, ':') < sp ? sp + 1 : a);  // the line comes as "Settings: host:port"
++            } else {
++                snprintf(out, n, "%s", tx(MAC_S_NO_HOST));
++            }
++            break;
++        }
++        case MAC_R_I_HOST: {
++            const char* h = g_host->host_name();
++            snprintf(out, n, "%s", h != nullptr && h[0] != '\0' ? h : tx(MAC_S_NO_HOST));
++            break;
++        }
++        case MAC_R_I_HINT: snprintf(out, n, "%s", tx(MAC_S_TEN_TAPS)); break;
++        default:
++            if (id == MAC_R_I_TAG || id == MAC_R_I_IMAGE || id == MAC_R_I_SLOT || id == MAC_R_I_MEM || (id >= MAC_R_I_DETAIL0 && id <= MAC_R_I_DETAIL5)) {
++                mv_info_t info;
++                memset(&info, 0, sizeof(info));
++                g_host->version_info(&info);
++                if (id == MAC_R_I_TAG) {
++                    mv_tag(info.version, out, n);
++                } else if (id == MAC_R_I_IMAGE) {
++                    snprintf(out, n, "%s", tx(info.image_state == MV_IMG_VALID ? MAC_S_IMG_OK : (info.image_state == MV_IMG_PENDING ? MAC_S_IMG_WAIT : (info.image_state == MV_IMG_USB ? MAC_S_IMG_USB : MAC_S_IMG_UNKNOWN))));
++                } else if (id == MAC_R_I_SLOT) {
++                    snprintf(out, n, "%s", info.slot_known ? info.slot : "?");
++                } else if (id == MAC_R_I_MEM) {
++                    char a[16], b[16];
++                    mv_bytes_word(info.internal_free, a, sizeof(a));
++                    mv_bytes_word(info.internal_min, b, sizeof(b));
++                    snprintf(out, n, es() ? "%s libres, minimo %s" : "%s free, low %s", a, b);
++                } else {
++                    char rows[MV_LINES][MV_LINE];
++                    mv_detail_lines(&info, rows);
++                    snprintf(out, n, "%s", rows[id - MAC_R_I_DETAIL0]);
++                }
++            }
++            break;
++    }
++}
++
++void on_slider(lv_event_t* e)
++{
++    lv_obj_t* sl   = static_cast<lv_obj_t*>(lv_event_get_target(e));
++    const int id   = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
++    const int v    = lv_slider_get_value(sl);
++    if (id == MAC_R_VOLUME) {
++        g_host->set_volume(v);
++    } else {
++        g_host->set_brightness(v);
++    }
++    if (S != nullptr) {
++        S->last_touch = now_ms();
++        char t[40];
++        snprintf(t, sizeof(t), "%s  %d", tx(id == MAC_R_VOLUME ? MAC_S_VOLUME : MAC_S_BRIGHT), v);
++        set_text_if(S->row_val[id], t);
++    }
++}
++void on_slider_up(lv_event_t*)
++{
++    if (S != nullptr) {
++        S->slider_up_ms = now_ms() | 1u;
++    }
++}
++
++void repaint_row(int idx);
++
++void on_row(lv_event_t* e)
++{
++    if (taps_ignored()) {
++        return;
++    }
++    const intptr_t u = reinterpret_cast<intptr_t>(lv_event_get_user_data(e));
++    const int id = static_cast<int>(u & 0xFF), sub = static_cast<int>(u >> 8);
++    int idx = -1;
++    for (int i = 0; i < S->n_set_rows; i++) {
++        if (S->rows[i].id == id) idx = i;
++    }
++    switch (id) {
++        case MAC_R_NIGHT: S->sh_night = night_on() ? 0 : 1; g_host->set_night_dim(S->sh_night != 0); break;
++        case MAC_R_STATUS_ICONS: S->sh_icons = icons_on() ? 0 : 1; g_host->set_status_icons(S->sh_icons != 0); break;
++        case MAC_R_AUTOLOCK:
++            if (!g_host->lock_has_code()) {
++                toast(tx(MAC_S_LOCK_HINT));
++                return;
++            }
++            S->sh_auto = mac_auto_next(auto_now());
++            g_host->set_auto_lock(S->sh_auto);
++            break;
++        case MAC_R_LOCK_NOW:
++            if (!g_host->lock_has_code()) {
++                toast(tx(MAC_S_LOCK_HINT));
++            } else {
++                close_all();
++                g_host->lock_now();
++            }
++            return;
++        case MAC_R_WIFI_PAGE:
++            close_all();
++            g_host->open_wifi();  // the Wi-Fi page: only Wi-Fi content
++            return;
++        case MAC_R_MORE:
++            close_all();
++            g_host->open_more();  // the More screens: time zone, network test, version
++            return;
++        case MAC_R_I_TAG:
++            if (mv_tap(&S->ver, now_ms())) {
++                S->details = true;
++                request_view(MAV_SETTINGS);
++            }
++            return;
++        case MAC_R_PAIR0: case MAC_R_PAIR1: case MAC_R_PAIR2: {
++            const int tile = (id - MAC_R_PAIR0) * 2 + sub;
++            if (tile >= MPG_SET_STYLES) {  // the picture faces: shown on the pictures page
++                close_all();
++                g_host->open_strip_page(MPG_P_FRAME);
++                return;
++            }
++            S->cur_style = MPG_SET_STYLE_ID[tile];
++            g_host->set_face_style(S->cur_style);
++            request_view(MAV_SETTINGS);  // the preview and the filled tile follow
++            return;
++        }
++        default: return;
++    }
++    if (idx >= 0) {
++        repaint_row(idx);
++    }
++}
++
++void on_tab(lv_event_t* e)
++{
++    if (taps_ignored()) {
++        return;
++    }
++    const int tab = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
++    if (mac_set_tab(&S->set, tab)) {
++        request_view(MAV_SETTINGS);
++    }
++}
++void on_done(lv_event_t*)
++{
++    if (!taps_ignored()) {
++        close_all();
++    }
++}
++
++void on_pane_scroll(lv_event_t*)
++{
++    if (S == nullptr || S->pane == nullptr || S->thumb == nullptr) {
++        return;
++    }
++    int by, bh;
++    if (mac_scroll_bar(S->content_h, MAC_PANE_H, lv_obj_get_scroll_y(S->pane), &by, &bh)) {
++        lv_obj_set_height(S->thumb, bh);
++        lv_obj_set_y(S->thumb, by);
++    }
++}
++
++// The value text and fill of a switch, a choice or an information row.
++void repaint_row(int i)
++{
++    const mac_row_t& r = S->rows[i];
++    char t[96];
++    row_text(r.id, t, sizeof(t));
++    if (r.kind == MAC_K_SWITCH) {
++        const bool on = r.id == MAC_R_NIGHT ? night_on() : icons_on();
++        lv_obj_set_style_bg_color(S->row_obj[i], on ? fg(100) : fg(16), 0);
++        lv_obj_set_style_text_color(S->row_val[r.id], on ? lv_color_black() : fg(100), 0);
++        lv_obj_t* lab = lv_obj_get_child(S->row_obj[i], 0);
++        if (lab != nullptr) {
++            lv_obj_set_style_text_color(lab, on ? lv_color_black() : fg(100), 0);
++        }
++    }
++    set_text_if(S->row_val[r.id], t);
++    if (r.kind == MAC_K_CHOICE || r.kind == MAC_K_SWITCH) {
++        lv_obj_align(S->row_val[r.id], LV_ALIGN_RIGHT_MID, -12, 0);
++    }
++}
++
++void build_slider_row(lv_obj_t* parent, const mac_row_t& r, int i)
++{
++    lv_obj_t* c = lv_obj_create(parent);
++    lv_obj_remove_style_all(c);
++    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_add_flag(c, LV_OBJ_FLAG_EVENT_BUBBLE);
++    lv_obj_set_pos(c, 0, r.y);
++    lv_obj_set_size(c, MAC_PANE_ROW_W, r.h);
++    S->row_obj[i] = c;
++    const bool vol = r.id == MAC_R_VOLUME;
++    const int v    = vol ? g_host->volume() : g_host->brightness();
++    char t[40];
++    snprintf(t, sizeof(t), "%s  %d", tx(vol ? MAC_S_VOLUME : MAC_S_BRIGHT), v);
++    S->row_val[r.id] = text(c, t, kSmall, fg(90));
++    lv_obj_set_pos(S->row_val[r.id], 4, 0);
++    lv_obj_t* sl = lv_slider_create(c);
++    lv_obj_set_size(sl, MAC_PANE_ROW_W - 28, 16);
++    lv_obj_set_pos(sl, 14, MAC_SLIDER_Y);
++    lv_obj_set_ext_click_area(sl, 14);  // with the label's row the grab area is 44 px high
++    lv_slider_set_range(sl, vol ? 20 : 10, 100);
++    lv_slider_set_value(sl, v, LV_ANIM_OFF);
++    const lv_part_t parts[3] = {LV_PART_MAIN, LV_PART_INDICATOR, LV_PART_KNOB};
++    for (lv_part_t part : parts) {
++        lv_obj_set_style_bg_opa(sl, LV_OPA_COVER, part);
++        lv_obj_set_style_border_width(sl, 0, part);
++        lv_obj_set_style_shadow_width(sl, 0, part);
++        lv_obj_set_style_outline_width(sl, 0, part);
++        lv_obj_set_style_bg_color(sl, part == LV_PART_MAIN ? fg(30) : fg(100), part);
++    }
++    lv_obj_set_style_radius(sl, 8, LV_PART_MAIN);
++    lv_obj_set_style_radius(sl, 8, LV_PART_INDICATOR);
++    lv_obj_set_style_radius(sl, LV_RADIUS_CIRCLE, LV_PART_KNOB);
++    lv_obj_set_style_pad_all(sl, 8, LV_PART_KNOB);
++    lv_obj_add_event_cb(sl, on_slider, LV_EVENT_VALUE_CHANGED, reinterpret_cast<void*>(static_cast<intptr_t>(r.id)));
++    lv_obj_add_event_cb(sl, on_slider_up, LV_EVENT_RELEASED, nullptr);
++    lv_obj_add_event_cb(sl, on_slider_up, LV_EVENT_PRESS_LOST, nullptr);
++}
++
++// The face preview in the pane header (Faces tab): the chosen style's schematic face, scaled to fit beside the title.
++void build_header_preview()
++{
++    const int bx = MAC_PANE_X + 70, bw = 54, bh = 44;
++    lv_obj_t* p = box(S->root, bx, Y(MAC_PANE_HEAD_Y), bw, bh, fg(8), 8);
++    lv_obj_set_style_border_width(p, 1, 0);
++    lv_obj_set_style_border_color(p, fg(40), 0);
++    mpg_pshape_t sh[MPG_PSHAPES_MAX];
++    const int n = mpg_set_preview_shapes(S->cur_style, sh);
++    for (int k = 0; k < n; k++) {  // the schematic is drawn in 112 by 90; here at 45 percent (50 by 40)
++        const int w = sh[k].w * 9 / 20 < 3 ? 3 : sh[k].w * 9 / 20, h = sh[k].h * 9 / 20 < 3 ? 3 : sh[k].h * 9 / 20;
++        box(p, 2 + sh[k].x * 9 / 20, 2 + sh[k].y * 9 / 20, w, h, fg(100), sh[k].r * 9 / 20);
++    }
++}
++
++void build_pair_row(lv_obj_t* parent, const mac_row_t& r, int i)
++{
++    const bool pics = g_host->pictures_held();
++    const int pair  = r.id - MAC_R_PAIR0;
++    const int cnt   = mac_pair_tiles(pair, pics ? 1 : 0);
++    lv_obj_t* c     = lv_obj_create(parent);
++    lv_obj_remove_style_all(c);
++    lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_add_flag(c, LV_OBJ_FLAG_EVENT_BUBBLE);
++    lv_obj_set_pos(c, 0, r.y);
++    lv_obj_set_size(c, MAC_PANE_ROW_W, 44);
++    S->row_obj[i] = c;
++    for (int k = 0; k < cnt; k++) {
++        const int tile = pair * 2 + k;
++        const bool on  = tile < MPG_SET_STYLES && MPG_SET_STYLE_ID[tile] == S->cur_style;
++        const char* nm = tile < MPG_SET_STYLES ? MPG_SET_STYLE_NAME[es() ? 1 : 0][tile] : tx(MAC_S_PICTURES);
++        lv_obj_t* b = button(c, k * 110, 0, 106, 44, nm, fit_font(nm, 94) == kMid ? kSmall : fit_font(nm, 94), on);
++        lv_obj_add_event_cb(b, on_row, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(r.id | (k << 8))));
++    }
++}
++
++void build_line_row(lv_obj_t* parent, const mac_row_t& r, int i)
++{
++    const bool clickable = r.kind == MAC_K_SWITCH || r.kind == MAC_K_CHOICE || r.kind == MAC_K_BUTTON || r.id == MAC_R_I_TAG;
++    lv_obj_t* b = box(parent, 0, r.y, MAC_PANE_ROW_W, 44, fg(clickable ? 16 : 8), 10, clickable);
++    lv_obj_set_style_border_width(b, 1, 0);
++    lv_obj_set_style_border_color(b, fg(clickable ? 40 : 24), 0);
++    if (clickable) {
++        lv_obj_set_style_bg_color(b, fg(45), LV_STATE_PRESSED);
++        lv_obj_add_event_cb(b, on_row, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(r.id)));
++    }
++    S->row_obj[i] = b;
++    char t[96];
++    row_text(r.id, t, sizeof(t));
++    if (r.kind == MAC_K_BUTTON) {
++        lv_obj_t* l = text(b, mac_row_label(r.id, es() ? 1 : 0), kSmall, fg(100));
++        lv_obj_center(l);
++        return;
++    }
++    if (r.kind == MAC_K_SWITCH || r.kind == MAC_K_CHOICE) {
++        const bool on = r.kind == MAC_K_SWITCH && (r.id == MAC_R_NIGHT ? night_on() : icons_on());
++        if (on) {
++            lv_obj_set_style_bg_color(b, fg(100), 0);
++        }
++        lv_obj_t* l = text(b, mac_row_label(r.id, es() ? 1 : 0), kSmall, on ? lv_color_black() : fg(100));
++        lv_obj_align(l, LV_ALIGN_LEFT_MID, 12, 0);
++        S->row_val[r.id] = text(b, t, kSmall, on ? lv_color_black() : fg(100));
++        lv_obj_align(S->row_val[r.id], LV_ALIGN_RIGHT_MID, -12, 0);
++        return;
++    }
++    // an information row: the name small on top, the value under it
++    const bool detail = r.id >= MAC_R_I_DETAIL0 && r.id <= MAC_R_I_DETAIL5;
++    const char* label = mac_row_label(r.id, es() ? 1 : 0);
++    if (label[0] != '\0') {
++        lv_obj_t* l = text(b, label, kTiny, fg(60));
++        lv_obj_set_pos(l, 10, 2);
++    }
++    const lv_font_t* vf = detail || r.id == MAC_R_I_HINT ? kTiny : kSmall;
++    lv_obj_t* v = text(b, t, vf, fg(100));
++    lv_label_set_long_mode(v, r.id == MAC_R_I_HINT ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
++    if (r.id == MAC_R_I_HINT) {
++        lv_obj_set_width(v, MAC_PANE_ROW_W - 20);
++    } else {
++        lv_obj_set_size(v, MAC_PANE_ROW_W - 20, lv_font_get_line_height(vf));
++    }
++    if (r.id == MAC_R_I_HINT) {
++        lv_obj_align(v, LV_ALIGN_LEFT_MID, 10, 0);
++    } else {
++        lv_obj_set_pos(v, 10, detail ? 14 : 18);
++    }
++    S->row_val[r.id] = v;
++}
++
++void build_settings()
++{
++    S->cur_style = g_host->face_style();
++    // the tab column
++    for (int t = 0; t < MAC_TAB_COUNT; t++) {
++        int x, y, w, h;
++        mac_tab_box(t, &x, &y, &w, &h);
++        const bool on = t == S->set.tab;
++        const char* nm = MAC_TAB_TITLE[es() ? 1 : 0][t];
++        lv_obj_t* b = button(S->root, x, Y(y), w, h, nm, fit_font(nm, w - 8) == kMid ? kSmall : fit_font(nm, w - 8), on);
++        lv_obj_add_event_cb(b, on_tab, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t)));
++    }
++    box(S->root, MAC_DIV_X, Y(MAC_TAB_Y0), 1, MAC_BOTTOM - MAC_TAB_Y0 - 4, fg(30), 0);
++    // the pane header: the tab's name and the Done target
++    lv_obj_t* title = text(S->root, MAC_TAB_TITLE[es() ? 1 : 0][S->set.tab], kMid, fg(100));
++    lv_obj_set_pos(title, MAC_PANE_X + 4, Y(MAC_PANE_HEAD_Y) + 10);
++    if (S->set.tab == MAC_TAB_FACES) {
++        build_header_preview();
++    }
++    int dx, dy, dw, dh;
++    mac_done_box(&dx, &dy, &dw, &dh);
++    lv_obj_t* done = button(S->root, dx, Y(dy), dw, dh, tx(MAC_S_DONE), kMid);
++    lv_obj_add_event_cb(done, on_done, LV_EVENT_CLICKED, nullptr);
++    // the list on the right: a vertical scroll area
++    S->n_set_rows = mac_set_rows(S->set.tab, set_flags(), S->rows);
++    lv_obj_t* pane = lv_obj_create(S->root);
++    lv_obj_remove_style_all(pane);
++    lv_obj_set_pos(pane, MAC_PANE_X, Y(MAC_PANE_Y));
++    lv_obj_set_size(pane, MAC_PANE_W, MAC_PANE_H);
++    lv_obj_add_flag(pane, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_add_flag(pane, LV_OBJ_FLAG_EVENT_BUBBLE);
++    lv_obj_add_flag(pane, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_scroll_dir(pane, LV_DIR_VER);
++    lv_obj_set_scrollbar_mode(pane, LV_SCROLLBAR_MODE_OFF);
++    lv_obj_remove_flag(pane, LV_OBJ_FLAG_SCROLL_ELASTIC);
++    S->pane = pane;
++    S->pane_tab = S->set.tab;
++    int content = 0;
++    for (int i = 0; i < S->n_set_rows; i++) {
++        const mac_row_t& r = S->rows[i];
++        switch (r.kind) {
++            case MAC_K_SLIDER: build_slider_row(pane, r, i); break;
++            case MAC_K_PAIR: build_pair_row(pane, r, i); break;
++            default: build_line_row(pane, r, i); break;
++        }
++        const int bottom = r.y + row_height_box(r);
++        content = bottom > content ? bottom : content;
++    }
++    S->content_h = content;
++    // the scroll indicator: a thin track at the right edge with a bar that follows the list
++    S->thumb = nullptr;
++    int by, bh;
++    if (mac_scroll_bar(content, MAC_PANE_H, 0, &by, &bh)) {
++        lv_obj_t* track = box(S->root, MAC_PANE_X + MAC_PANE_W - 6, Y(MAC_PANE_Y), 4, MAC_PANE_H, fg(14), 2);
++        S->thumb        = box(track, 0, by, 4, bh, fg(75), 2);
++        lv_obj_add_event_cb(pane, on_pane_scroll, LV_EVENT_SCROLL, nullptr);
++    }
++    if (S->set.scroll[S->set.tab] != 0) {
++        lv_obj_scroll_to_y(pane, mac_scroll_clamp(S->set.scroll[S->set.tab], content, MAC_PANE_H), LV_ANIM_OFF);
++        on_pane_scroll(nullptr);
++    }
++}
++
++// ---- views ----
++void build(int view)
++{
++    if (S == nullptr || S->root == nullptr) {
++        return;
++    }
++    if (view == MAV_COUNT) {
++        // the time picker is a view of the Alarms screen
++    }
++    if (S->pane != nullptr && S->view == MAV_SETTINGS) {  // a tab keeps where it was scrolled to
++        S->set.scroll[S->pane_tab] = static_cast<int16_t>(lv_obj_get_scroll_y(S->pane));
++    }
++    lv_obj_clean(S->root);
++    S->toast = nullptr;
++    S->list  = nullptr;
++    S->pane  = nullptr;
++    S->thumb = nullptr;
++    S->n_rows = 0;
++    S->view  = view;
++    switch (view) {
++        case MAV_APPS:
++        case MAV_GAMES: build_wall(view); break;
++        case MAV_TIMERS: build_timers(); break;
++        case MAV_ALARMS: build_alarms(); break;
++        case MAV_COUNT: build_picker(); break;
++        default: build_settings(); break;
++    }
++    S->last_touch = now_ms();
++    grabber();
++}
++
++void refresh()
++{
++    if (S == nullptr) {
++        return;
++    }
++    if (S->view == MAV_TIMERS || S->view == MAV_ALARMS) {
++        const int kind = S->view == MAV_TIMERS ? kKindTimer : kKindAlarm;
++        MaipaiPageTimer t[MAC_ACTIVE_MAX];
++        const int n = g_host->app_items(kind, t, MAC_ACTIVE_MAX);
++        if (items_sig(t, n) != S->sig) {
++            const int keep = S->list != nullptr ? static_cast<int>(lv_obj_get_scroll_y(S->list)) : 0;
++            build(S->view);
++            if (S->list != nullptr && keep > 0) {
++                lv_obj_scroll_to_y(S->list, mac_scroll_clamp(keep, mac_list_content_h(S->n_rows), MAC_LIST_H), LV_ANIM_OFF);
++            }
++            return;
++        }
++        if (S->view == MAV_TIMERS) {
++            for (int i = 0; i < n && i < MAC_ACTIVE_MAX; i++) {
++                char left[24];
++                mac_fmt_left(left, sizeof(left), t[i].left_s);
++                set_text_if(S->left[i], left);
++            }
++        }
++    } else if (S->view == MAV_SETTINGS) {
++        // live rows: the signal, the memory line and the ten-tap details closing by themselves
++        if (S->details && !mv_is_open(&S->ver, now_ms())) {
++            S->details = false;
++            build(MAV_SETTINGS);
++            return;
++        }
++        for (int i = 0; i < S->n_set_rows; i++) {
++            const int id = S->rows[i].id;
++            if (id == MAC_R_SIGNAL || id == MAC_R_SSID || id == MAC_R_TAILNET || id == MAC_R_I_MEM) {
++                char t[96];
++                row_text(id, t, sizeof(t));
++                set_text_if(S->row_val[id], t);
++            }
++        }
++    }
++}
++
++void tick(lv_timer_t*) { maipai_apps_step(); }
++lv_timer_t* g_timer = nullptr;
++
++void close_all()
++{
++    if (g_timer != nullptr) {
++        lv_timer_delete(g_timer);
++        g_timer = nullptr;
++    }
++    if (S != nullptr) {
++        const int id = S->id;
++        if (S->root != nullptr) {
++            lv_obj_delete_async(S->root);
++        }
++        delete S;
++        S = nullptr;
++        maipai_screen_closed(id);
++    }
++    g_open_a.store(false);
++    g_set_a.store(false);
++}
++
++}  // namespace
++
++// ================= public =================
++void maipai_apps_attach(MaipaiPagesHost* host, lv_color_t (*fgcb)())
++{
++    g_host = host;
++    g_fg   = fgcb;
++    maipai_screen_register(MSCR_APPS, close_all);
++    maipai_screen_register(MSCR_SETTINGS, close_all);
++    g_ready = true;
++}
++
++bool maipai_apps_open() { return g_open_a.load(); }
++bool maipai_apps_settings_open() { return g_set_a.load(); }
++void maipai_apps_event(int ev)
++{
++    if (g_open_a.load()) {
++        g_pending.store(ev);
++    }
++}
++
++bool maipai_apps_show(int view)
++{
++    if (!g_ready || view < 0 || view >= MAV_COUNT || maipai_lock_locked()) {  // patch LK03: no screen while locked
++        return false;
++    }
++    const int id = view == MAV_SETTINGS ? MSCR_SETTINGS : MSCR_APPS;
++    maipai_screen_open(id);  // one overlay screen at a time: whatever else was up (the other one of these included) closes first
++    if (S != nullptr && S->id != id) {
++        close_all();
++        maipai_screen_open(id);
++    }
++    if (S == nullptr) {
++        S = new (std::nothrow) St();
++        if (S == nullptr) {
++            maipai_screen_closed(id);
++            return false;
++        }
++        mac_set_init(&S->set);
++        mv_init(&S->ver);
++        S->id = id;
++        lv_obj_t* r = box(lv_layer_top(), 0, MAC_TOP, MAC_W, 240 - MAC_TOP, lv_color_black(), 0, true);
++        lv_obj_move_to_index(r, 0);  // under the banner row and the cue strips, which stay where they are
++        lv_obj_add_event_cb(r, on_root, LV_EVENT_PRESSED, nullptr);
++        lv_obj_add_event_cb(r, on_root, LV_EVENT_RELEASED, nullptr);
++        lv_obj_add_event_cb(r, on_root, LV_EVENT_PRESS_LOST, nullptr);
++        S->root       = r;
++        S->night_seen = g_host->night();
++        g_timer       = lv_timer_create(tick, 250, nullptr);
++    }
++    S->page = 0;
++    S->details = false;
++    if (view == MAV_SETTINGS) {
++        mac_set_init(&S->set);  // Settings always opens on General, at the top
++    }
++    g_open_a.store(true);
++    g_set_a.store(view == MAV_SETTINGS);
++    build(view);
++    return true;
++}
++
++void maipai_apps_step()
++{
++    if (S == nullptr) {
++        if (g_timer != nullptr) {
++            lv_timer_delete(g_timer);
++            g_timer = nullptr;
++        }
++        return;
++    }
++    const uint32_t now = now_ms();
++    int ev             = g_pending.exchange(0);
++    if (S->touch.down) {
++        S->last_touch = now;  // no timer runs while a finger is down
++        return;
++    }
++    const uint32_t idle = (S->view == MAV_SETTINGS || S->view == MAV_COUNT) ? kIdleSetMs : kIdleWallMs;
++    if (ev != 0 || g_host->ringing() || g_host->game_running() || now - S->last_touch > idle) {
++        close_all();  // the wake word, speech, a ring, a game or a quiet minute brings the face back
++        return;
++    }
++    if (S->toast != nullptr && now >= S->toast_until) {
++        lv_obj_delete(S->toast);
++        S->toast = nullptr;
++    }
++    const bool night = g_host->night();
++    if (night != S->night_seen) {  // day to night repaints in the dimmer color
++        S->night_seen = night;
++        build(S->view);
++        return;
++    }
++    refresh();
++}
++
++void maipai_apps_close() { close_all(); }
++#endif
+diff --git a/firmware/main/hal/maipai_pages.h b/firmware/main/hal/maipai_pages.h
+--- a/firmware/main/hal/maipai_pages.h
++++ b/firmware/main/hal/maipai_pages.h
+@@ -21,11 +21,15 @@
+ #include <time.h>
+ #include "maipai_gesture_core.h"
+ #include "maipai_pages_core.h"
++#include "maipai_version_core.h"
+ 
+ typedef struct {
+     uint32_t id;
+     int32_t left_s;
+     char label[25];
++    uint8_t kind;  // patch UI16: 1 timer, 2 alarm (the timer core's MT_KIND_*); 0 when the host does not say
++    int8_t hour;   // an alarm's time of day (local), 0 to 23; the Alarms app shows it
++    int8_t minute; // 0 to 59
+ } MaipaiPageTimer;
+ 
+ class MaipaiPagesHost {
+@@ -86,6 +90,25 @@ public:
+     virtual void stop_all() {}                    // the stop swipe: stop speaking and end a game
+     virtual void volume_step(int) {}              // an edge swipe
+     virtual void bump() {}                        // a swipe toward a side with no page
++    // the Apps wall, the Timers and Alarms apps and the tabbed Settings (patch UI16)
++    virtual int app_items(int /*kind*/, MaipaiPageTimer*, int) { return 0; }  // the running timers (kind 1) or the set alarms (kind 2), at most max
++    virtual int active_count() { return 0; }                                  // timers and alarms together (the core holds at most 8)
++    virtual const char* app_timer_add(int /*seconds*/) { return ""; }         // "" on success, else a plain sentence
++    virtual const char* app_alarm_add(int /*hour*/, int /*minute*/) { return ""; }
++    virtual void open_strip_page(int /*type*/) {}                             // shows a swipe page (clock, quick actions, pictures, dashboard) by type
++    virtual bool lock_available() { return false; }
++    virtual bool lock_has_code() { return false; }
++    virtual bool lock_now() { return false; }
++    virtual int auto_lock_minutes() { return 0; }
++    virtual void set_auto_lock(int) {}
++    virtual bool night_dim() { return false; }
++    virtual void set_night_dim(bool) {}           // saved from the main task
++    virtual const char* wifi_ssid() { return ""; }  // "" when not connected
++    virtual bool version_info(mv_info_t*) { return false; }
++    virtual const char* host_name() { return ""; }
++    virtual int language() { return 0; }          // MF_LANG_*
++    virtual bool countdown_ready() { return false; }              // reserved hook for the full screen countdown (next-ui-countdown note)
++    virtual void countdown_open(uint32_t /*timer_id*/) {}
+ };
+ 
+ // Hooks the pages up. `fg` gives the face color. Call once with the LVGL lock held. Nothing is created yet.
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -14,6 +14,7 @@
+ #include "maipai_face_clock_core.h"
+ #include "maipai_screens.h"
+ #include "maipai_lock.h"
++#include "maipai_apps.h"
+ 
+ LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+ 
+@@ -29,12 +30,10 @@ bool s_ready = false;
+ std::atomic<bool> s_open_a{false};
+ std::atomic<int> s_pos_a{0};
+ std::atomic<bool> s_sheet_a{false};
+-std::atomic<bool> s_set_a{false};
+ std::atomic<int> s_pending{0};
+ 
+ lv_obj_t* s_page    = nullptr;
+ lv_obj_t* s_sheet   = nullptr;
+-lv_obj_t* s_set     = nullptr;  // the bot's own settings screen (patch UI05)
+ lv_timer_t* s_timer = nullptr;
+ int s_page_type     = -1;
+ int s_page_pos      = 99;
+@@ -228,12 +227,9 @@ void drop_sheet()
+     s_sheet_a.store(false);
+ }
+ 
+-void drop_settings();
+-
+ void publish()
+ {
+-    s_set_a.store(s_set != nullptr);
+-    s_open_a.store(s_page != nullptr || s_sheet != nullptr || s_set != nullptr);
++    s_open_a.store(s_page != nullptr || s_sheet != nullptr);
+     s_pos_a.store(s_page != nullptr ? s_g.pos : 0);
+     s_sheet_a.store(s_sheet != nullptr);
+ }
+@@ -771,7 +767,6 @@ void build_frame(lv_obj_t* root)
+ // ---- show and close ----
+ void close_everything()
+ {
+-    drop_settings();
+     drop_sheet();
+     drop_page();
+     if (s_timer != nullptr) {
+@@ -821,7 +816,6 @@ void show_type(int type, int pos)
+ }
+ 
+ void build_sheet();
+-void build_settings();
+ 
+ void apply(const mgs_out_t& o)
+ {
+@@ -923,22 +917,14 @@ void on_sheet_tile(lv_event_t* e)
+         case MPG_S_MUTE: s_host->toggle_mute(); break;
+         case MPG_S_QUIET: s_host->toggle_quiet(); break;
+         case MPG_S_LIGHT: s_host->toggle_light(); break;
+-        case MPG_S_TIMERS:
+-        case MPG_S_GAMES: {
+-            const int type = item == MPG_S_TIMERS ? MPG_P_TIMERS : MPG_P_GAMES;
+-            int pos = mpg_pos_of(&s_cfg, type);
+-            drop_sheet();
+-            if (pos == 0) {
+-                s_extra_type = type;
+-                apply(mgs_show_extra(&s_g, now_ms()));
+-            } else {
+-                apply(mgs_pick_goto(&s_g, pos, now_ms()));
+-            }
++        case MPG_S_TIMERS:  // patch UI16: the Apps tile opens the wall of apps; the Games tile opens the wall of games
++        case MPG_S_GAMES:
++            sheet_pick();
++            maipai_apps_show(item == MPG_S_TIMERS ? MAV_APPS : MAV_GAMES);
+             return;
+-        }
+-        default:  // MPG_S_COUNT: the gear, the bot's own settings (patch UI05)
++        default:  // MPG_S_COUNT: the gear, the tabbed settings screen (patches UI05 and UI16)
+             sheet_pick();
+-            build_settings();
++            maipai_apps_show(MAV_SETTINGS);
+             return;
+     }
+     sheet_pick();
+@@ -1144,188 +1130,6 @@ void build_sheet()
+     sheet_refresh();
+ }
+ 
+-// ---- the bot's own settings screen (patch UI05) ----
+-struct SetUi {
+-    lv_obj_t* tile[MPG_SET_TILES_MAX];
+-    int n;
+-    lv_obj_t* prev;
+-    lv_obj_t* sw;
+-    lv_obj_t* sw_lbl;
+-    int cur_style;
+-    bool icons;
+-};
+-SetUi* s_su = nullptr;
+-
+-void drop_settings()
+-{
+-    if (s_set != nullptr) {
+-        lv_obj_delete_async(s_set);
+-        s_set = nullptr;
+-    }
+-    delete s_su;
+-    s_su = nullptr;
+-    s_set_a.store(false);
+-    maipai_screen_closed(MSCR_SETTINGS);
+-}
+-
+-void close_settings_screen()  // the manager's way to close it when another screen opens
+-{
+-    drop_settings();
+-    publish();
+-}
+-
+-lv_obj_t* set_button(lv_obj_t* parent, const mpg_box_t& b, bool on)
+-{
+-    lv_obj_t* o = box(parent, b.x, b.y, b.w, b.h, on ? fg(100) : fg(16), 10, true);
+-    lv_obj_set_style_border_width(o, 1, 0);
+-    lv_obj_set_style_border_color(o, fg(40), 0);
+-    lv_obj_set_style_bg_color(o, fg(45), LV_STATE_PRESSED);
+-    return o;
+-}
+-
+-void set_paint_preview()
+-{
+-    if (s_su == nullptr) {
+-        return;
+-    }
+-    lv_obj_clean(s_su->prev);
+-    mpg_pshape_t sh[MPG_PSHAPES_MAX];
+-    const int n = mpg_set_preview_shapes(s_su->cur_style, sh);
+-    for (int i = 0; i < n; i++) {
+-        box(s_su->prev, sh[i].x, sh[i].y, sh[i].w, sh[i].h, fg(100), sh[i].r);
+-    }
+-}
+-
+-void set_paint_tiles()
+-{
+-    if (s_su == nullptr) {
+-        return;
+-    }
+-    for (int i = 0; i < s_su->n; i++) {
+-        const bool on = i < MPG_SET_STYLES && MPG_SET_STYLE_ID[i] == s_su->cur_style;
+-        lv_obj_set_style_bg_color(s_su->tile[i], on ? fg(100) : fg(16), 0);
+-        lv_obj_t* l = lv_obj_get_child(s_su->tile[i], 0);
+-        if (l != nullptr) {
+-            lv_obj_set_style_text_color(l, on ? lv_color_black() : fg(100), 0);
+-        }
+-    }
+-}
+-
+-void set_paint_switch()
+-{
+-    if (s_su == nullptr) {
+-        return;
+-    }
+-    lv_obj_set_style_bg_color(s_su->sw, s_su->icons ? fg(100) : fg(16), 0);
+-    char t[48];
+-    snprintf(t, sizeof(t), "%s: %s", tx("Status icons", "Iconos de estado"), s_su->icons ? tx("on", "si") : tx("off", "no"));
+-    lv_label_set_text(s_su->sw_lbl, t);
+-    lv_obj_set_style_text_color(s_su->sw_lbl, s_su->icons ? lv_color_black() : fg(100), 0);
+-    lv_obj_center(s_su->sw_lbl);
+-}
+-
+-void on_set_style(lv_event_t* e)
+-{
+-    const int i = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
+-    if (i >= MPG_SET_STYLES) {  // the picture faces: show them on the pictures page
+-        drop_settings();
+-        maipai_pages_show(MPG_P_FRAME);
+-        return;
+-    }
+-    s_su->cur_style = MPG_SET_STYLE_ID[i];
+-    s_host->set_face_style(s_su->cur_style);
+-    set_paint_preview();
+-    set_paint_tiles();
+-}
+-
+-void on_set_switch(lv_event_t*)
+-{
+-    s_su->icons = !s_su->icons;
+-    s_host->set_status_icons(s_su->icons);
+-    set_paint_switch();
+-}
+-
+-void on_set_close(lv_event_t*)
+-{
+-    drop_settings();
+-    publish();
+-}
+-
+-void on_set_wifi(lv_event_t*)
+-{
+-    drop_settings();
+-    publish();
+-    s_host->open_wifi();  // the Wi-Fi page: only Wi-Fi content
+-}
+-
+-void on_set_more(lv_event_t*)
+-{
+-    drop_settings();
+-    publish();
+-    s_host->open_more();  // the More screens
+-}
+-
+-void on_set_gesture(lv_event_t*)
+-{
+-    if (lv_indev_get_gesture_dir(lv_indev_active()) == LV_DIR_BOTTOM) {
+-        on_set_close(nullptr);
+-    }
+-}
+-
+-void build_settings()
+-{
+-    maipai_screen_register(MSCR_SETTINGS, close_settings_screen);
+-    maipai_screen_open(MSCR_SETTINGS);  // one overlay screen at a time: whatever else was up closes first
+-    drop_settings();
+-    maipai_screen_open(MSCR_SETTINGS);
+-    s_su = new (std::nothrow) SetUi();
+-    if (s_su == nullptr) {
+-        return;
+-    }
+-    memset(s_su, 0, sizeof(*s_su));
+-    s_su->cur_style = s_host->face_style();
+-    s_su->icons     = s_host->status_icons();
+-    lv_obj_t* r = box(lv_layer_top(), 0, 0, 320, 240, lv_color_black(), 0, true);
+-    s_set = r;
+-    box(r, 136, 3, 48, 5, fg(70), 3);  // the grabber handle: a swipe down closes the screen
+-    lv_obj_t* t = text(r, tx("Settings", "Ajustes"), kMid, fg(100));
+-    lv_obj_set_pos(t, 8, 18);
+-    mpg_box_t wb = mpg_set_wifi_box();
+-    lv_obj_t* wifi = set_button(r, wb, false);
+-    lv_obj_center(text(wifi, "Wi-Fi", kMid, fg(100)));
+-    lv_obj_add_event_cb(wifi, on_set_wifi, LV_EVENT_CLICKED, nullptr);
+-    mpg_box_t db = mpg_set_done_box();
+-    lv_obj_t* done = set_button(r, db, false);
+-    lv_obj_center(text(done, tx("Done", "Listo"), kMid, fg(100)));
+-    lv_obj_add_event_cb(done, on_set_close, LV_EVENT_CLICKED, nullptr);
+-    mpg_box_t pb = mpg_set_preview_box();
+-    s_su->prev   = box(r, pb.x, pb.y, pb.w, pb.h, fg(8), 12);
+-    lv_obj_set_style_border_width(s_su->prev, 1, 0);
+-    lv_obj_set_style_border_color(s_su->prev, fg(40), 0);
+-    s_su->n = MPG_SET_STYLES + (s_host->pictures_held() ? 1 : 0);
+-    for (int i = 0; i < s_su->n; i++) {
+-        lv_obj_t* b = set_button(r, mpg_set_tile_box(i), false);
+-        const char* name = i < MPG_SET_STYLES ? MPG_SET_STYLE_NAME[es() ? 1 : 0][i] : tx("Pictures", "Fotos");
+-        lv_obj_t* l = text(b, name, fit_font(name, 80) == kBig ? kMid : fit_font(name, 80), fg(100));
+-        lv_obj_center(l);
+-        s_su->tile[i] = b;
+-        lv_obj_add_event_cb(b, on_set_style, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+-    }
+-    s_su->sw     = set_button(r, mpg_set_switch_box(), false);
+-    s_su->sw_lbl = text(s_su->sw, "", kSmall, fg(100));
+-    lv_obj_t* more = set_button(r, mpg_set_more_box(), false);
+-    lv_obj_center(text(more, tx("More", "Mas"), kMid, fg(100)));
+-    lv_obj_add_event_cb(more, on_set_more, LV_EVENT_CLICKED, nullptr);
+-    lv_obj_add_event_cb(s_su->sw, on_set_switch, LV_EVENT_CLICKED, nullptr);
+-    lv_obj_add_event_cb(r, on_set_gesture, LV_EVENT_GESTURE, nullptr);
+-    set_paint_preview();
+-    set_paint_tiles();
+-    set_paint_switch();
+-    s_g.last_touch_ms = now_ms();
+-    ensure_timer();
+-    publish();
+-}
+-
+ // ---- the timer: one at a time, only while something is open ----
+ void timer_cb(lv_timer_t*)
+ {
+@@ -1345,6 +1149,7 @@ void maipai_pages_attach(MaipaiPagesHost* host, lv_color_t (*fgcb)())
+     mpg_defaults(&s_cfg);
+     mgs_init(&s_g);
+     mgs_config(&s_g, s_cfg.n_left, s_cfg.n_right, s_cfg.sheet_s, s_cfg.idle_s);
++    maipai_apps_attach(host, fgcb);  // patch UI16
+     s_ready = true;
+ }
+ 
+@@ -1358,10 +1163,10 @@ void maipai_pages_set_config(const mpg_cfg_t& cfg)
+ }
+ 
+ const mpg_cfg_t& maipai_pages_config() { return s_cfg; }
+-bool maipai_pages_open() { return s_open_a.load(); }
++bool maipai_pages_open() { return s_open_a.load() || maipai_apps_open(); }
+ int maipai_pages_position() { return s_pos_a.load(); }
+ bool maipai_pages_sheet_open() { return s_sheet_a.load(); }
+-bool maipai_pages_settings_open() { return s_set_a.load(); }
++bool maipai_pages_settings_open() { return maipai_apps_settings_open(); }
+ 
+ void maipai_pages_touch_down(int x, int y, unsigned flags)
+ {
+@@ -1383,13 +1188,6 @@ bool maipai_pages_touch_up(int x, int y)
+     if (!s_ready) {
+         return false;
+     }
+-    if (s_set != nullptr && s_g.down &&
+-        mgs_swipe_of(s_g.x0, s_g.y0, x, y, now_ms() - s_g.t0) == MGS_SW_DOWN) {  // a swipe down closes the bot's settings screen (patch UI05)
+-        mgs_up(&s_g, x, y, now_ms());
+-        drop_settings();
+-        publish();
+-        return true;
+-    }
+     const mgs_out_t o = mgs_up(&s_g, x, y, now_ms());
+     apply(o);
+     return o.consume != 0;
+@@ -1400,6 +1198,7 @@ void maipai_pages_event(int ev)
+     if (s_open_a.load()) {
+         s_pending.store(ev);
+     }
++    maipai_apps_event(ev);  // patch UI16: the wake word and speech also bring the face back from the apps screens
+ }
+ 
+ bool maipai_pages_show(int type)
+@@ -1419,8 +1218,7 @@ bool maipai_pages_show(int type)
+     }
+     if (type == -3) {
+         drop_sheet();
+-        build_settings();
+-        return true;
++        return maipai_apps_show(MAV_SETTINGS);  // patch UI16: the tabbed settings screen
+     }
+     if (type == -2) {
+         s_g.under_pos = s_g.mode == MGS_PAGE ? s_g.pos : 0;
+@@ -1445,22 +1243,14 @@ bool maipai_pages_show(int type)
+ 
+ void maipai_pages_step()
+ {
+-    if (!s_ready || (s_page == nullptr && s_sheet == nullptr && s_set == nullptr)) {
+-        if (s_timer != nullptr && s_page == nullptr && s_sheet == nullptr && s_set == nullptr) {
++    if (!s_ready || (s_page == nullptr && s_sheet == nullptr)) {
++        if (s_timer != nullptr && s_page == nullptr && s_sheet == nullptr) {
+             lv_timer_delete(s_timer);
+             s_timer = nullptr;
+         }
+         return;
+     }
+     int ev = s_pending.exchange(0);
+-    if (s_set != nullptr) {  // the settings screen: the wake word, speech or a minute without a touch brings the face back
+-        if ((ev != 0 && !s_g.down) || (!s_g.down && now_ms() - s_g.last_touch_ms > 60000u)) {
+-            drop_settings();
+-            publish();
+-            return;
+-        }
+-        return;
+-    }
+     if (s_host->ringing()) {
+         ev = MGS_EV_TIMER_RING;  // a ringing timer brings the face back so the ring is seen and a touch can end it
+     } else if (s_host->game_running()) {
+@@ -1512,5 +1302,6 @@ void maipai_pages_close()
+     mgs_init(&s_g);
+     mgs_config(&s_g, s_cfg.n_left, s_cfg.n_right, s_cfg.sheet_s, s_cfg.idle_s);
+     close_everything();
++    maipai_apps_close();  // patch UI16
+ }
+ #endif
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -7,6 +7,9 @@
+ #include "maipai_pages_unit.h"
+ #if CONFIG_MAIPAI_PAGES
+ #include "maipai_pages.h"
++#include "maipai_apps.h"
++#include "maipai_apps_core.h"
++#include "maipai_version.h"
+ #include "maipai_more.h"
+ #include "maipai_screens.h"
+ #include "maipai_face.h"
+@@ -30,6 +33,7 @@
+ #include <cJSON.h>
+ #include <esp_heap_caps.h>
+ #include <esp_log.h>
++#include <esp_netif.h>
+ #include <esp_timer.h>
+ #include <esp_wifi.h>
+ #include <nvs.h>
+@@ -369,6 +373,125 @@ public:
+     }
+     void stop_all() override { maipai_display_stop_swipe(); }
+     void volume_step(int d) override { maipai_display_volume_step(d); }
++
++    // ---- the Apps wall, the Timers and Alarms apps and the tabbed Settings (patch UI16) ----
++    int app_items(int kind, MaipaiPageTimer* out, int max) override
++    {
++#if CONFIG_MAIPAI_FACE_TIMERS
++        maipai_timer_view_t v[MAC_ACTIVE_MAX];
++        const int total = maipai_timers_view(v, MAC_ACTIVE_MAX);
++        const int64_t now = esp_timer_get_time() / 1000;
++        const time_t wall = time(nullptr);
++        int n = 0;
++        for (int i = 0; i < total && n < max; i++) {
++            if (v[i].kind != kind) {
++                continue;
++            }
++            MaipaiPageTimer& o = out[n++];
++            memset(&o, 0, sizeof(o));
++            o.id     = v[i].id;
++            o.kind   = v[i].kind;
++            o.left_s = static_cast<int32_t>((v[i].due_ms - now + 500) / 1000);
++            snprintf(o.label, sizeof(o.label), "%s", v[i].label);
++            if (kind == 2) {
++                o.hour = -1;  // the clock is not set yet: the screen shows dashes
++            }
++            if (kind == 2 && wall >= 1704067200) {  // an alarm's time of day: the moment it fires, on the wall clock, in local time
++                struct tm t = {};
++                const time_t at = wall + (o.left_s > 0 ? o.left_s : 0);
++                localtime_r(&at, &t);
++                o.hour   = static_cast<int8_t>(t.tm_hour);
++                o.minute = static_cast<int8_t>(t.tm_min);
++            }
++        }
++        return n;
++#else
++        (void)kind; (void)out; (void)max;
++        return 0;
++#endif
++    }
++    int active_count() override
++    {
++#if CONFIG_MAIPAI_FACE_TIMERS
++        maipai_timer_view_t v[MAC_ACTIVE_MAX];
++        return maipai_timers_view(v, MAC_ACTIVE_MAX);
++#else
++        return 0;
++#endif
++    }
++    const char* app_timer_add(int seconds) override
++    {
++        if (active_count() >= MAC_ACTIVE_MAX) {
++            return mac_str(MAC_S_FULL, spanish() ? 1 : 0);
++        }
++        timer_add(seconds, "");  // the main task adds it (the tool and the screen use the same call)
++        return "";
++    }
++    const char* app_alarm_add(int hour, int minute) override
++    {
++        struct tm t = {};
++        if (!local_time(&t)) {
++            return mac_str(MAC_S_NO_CLOCK, spanish() ? 1 : 0);
++        }
++        if (active_count() >= MAC_ACTIVE_MAX) {
++            return mac_str(MAC_S_FULL, spanish() ? 1 : 0);
++        }
++        Application::GetInstance().Schedule([hour, minute]() { maipai_timers_add_alarm(hour, minute, "", (maipai_privacy_bits() & kPrivMute) != 0); });
++        return "";
++    }
++    void open_strip_page(int type) override { maipai_pages_show(type); }
++    bool lock_available() override
++    {
++#if CONFIG_MAIPAI_LOCK
++        return true;
++#else
++        return false;
++#endif
++    }
++    bool lock_has_code() override { return maipai_lock_has_code(); }
++    bool lock_now() override { return maipai_lock_now("apps"); }
++    int auto_lock_minutes() override { return maipai_lock_auto_minutes(); }
++    void set_auto_lock(int minutes) override
++    {
++        // the lock's own settings are written from the main task, never from the screen task
++        Application::GetInstance().Schedule([minutes]() { maipai_lock_set_auto(minutes); });
++    }
++    bool night_dim() override { return maipai_pref(MP_FX_NIGHT_DIM) != 0; }
++    void set_night_dim(bool on) override { Application::GetInstance().Schedule([on]() { maipai_pref_set(MP_FX_NIGHT_DIM, on ? 1 : 0); }); }
++    const char* wifi_ssid() override
++    {
++        static char ssid[33];
++        wifi_ap_record_t ap;
++        if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) {
++            ssid[0] = '\0';
++            return ssid;
++        }
++        snprintf(ssid, sizeof(ssid), "%s", reinterpret_cast<const char*>(ap.ssid));
++        return ssid;
++    }
++    bool version_info(mv_info_t* out) override
++    {
++#if CONFIG_MAIPAI_VERSION
++        maipai_version_read(out);
++        return true;
++#else
++        (void)out;
++        return false;
++#endif
++    }
++    const char* host_name() override
++    {
++        static char name[40];
++        const char* h = nullptr;
++        esp_netif_t* nif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
++        if (nif != nullptr && esp_netif_get_hostname(nif, &h) == ESP_OK && h != nullptr) {
++            snprintf(name, sizeof(name), "%s", h);
++        } else {
++            name[0] = '\0';
++        }
++        return name;
++    }
++    int language() override { return maipai_face_config().lang; }
+ };
+ 
+ static_assert(MF_STYLE_BIG_EYES == 1 && MF_STYLE_EYES_ONLY == 9 && MF_STYLE_STOCK == 10 && MF_STYLE_CLASSIC == 0 && MF_STYLE_MINIMAL == 2,
+@@ -388,7 +511,7 @@ void on_indev(lv_event_t* e)
+     if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
+         s_last_gesture.store(false);
+         // quick settings and the screens opened from it own their touches: this finger changes no page
+-        maipai_pages_touch_down(p.x, p.y, (maipai_games_active() ? MGS_F_GAME : 0) | (maipai_display_overlay_open() || maipai_pages_settings_open() ? MGS_F_WOKE : 0) |
++        maipai_pages_touch_down(p.x, p.y, (maipai_games_active() ? MGS_F_GAME : 0) | (maipai_display_overlay_open() || maipai_pages_settings_open() || maipai_apps_open() ? MGS_F_WOKE : 0) |
+                                               (maipai_screen_peek_wake_touch() ? MGS_F_WOKE : 0));
+     } else if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
+         s_last_gesture.store(maipai_pages_touch_up(p.x, p.y));

@@ -315,6 +315,14 @@ def _merge_more() -> None:
 
     for code, words in swipe_pages_words.CATALOGS.items():
         CATALOG[code].update(words)
+    from maipai_body import i18n_lock as lock_words
+
+    for code, words in lock_words.CATALOGS.items():
+        CATALOG[code].update(words)
+    from maipai_body import i18n_wake as wake_words
+
+    for code, words in wake_words.CATALOGS.items():
+        CATALOG[code].update(words)
 
 
 _merge_more()

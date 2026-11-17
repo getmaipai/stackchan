@@ -1,0 +1,300 @@
+# Intent: What a locked unit refuses, and a Lock button on the More screen. Locked: the wake word engine, voice processing and the stop word stay off (a wake word that still arrives is dropped; unlocking arms the wake word again for an idle unit); no swipe does anything (the pages gesture hook returns), no page, sheet, settings, Wi-Fi, More or quick settings screen opens (by touch or by the self.page.show tool), no game starts; remote controllers are refused (self.remote.session, say, action and the gate for every cued kind) except find my robot, which still beeps and flashes; a touch, the wake word or a remote action restarts the auto lock timer. The More screen shows a Lock button beside Quick settings while a code is set (owner decision: the control sheet keeps its one row of six tiles and has no lock tile); a tap locks at once.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/audio/audio_service.cc, application.cc (small hooks), firmware/main/hal/maipai_pages.cc, maipai_pages_unit.cc, maipai_more.cc, maipai_games.cc, maipai_remote.cc, maipai_screen.cc (ours)
+# Check after a flash: Locked: say the wake word (nothing wakes), swipe up from the bottom (no sheet), call self.page.show and self.game.start (both refused), call self.remote.action with kind move (refused) and with kind find (beeps and flashes). Unlocked with a code set: Quick settings, More shows a Lock button and a tap locks. The control sheet is unchanged.
+# Kconfig: CONFIG_MAIPAI_LOCK
+
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.cc b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+@@ -2,6 +2,7 @@
+ #include <esp_log.h>
+ #include <cstring>
+ #include <hal/maipai_privacy.h>
++#include <hal/maipai_lock.h>
+ #include <hal/maipai_lat.h>
+ #include <esp_heap_caps.h>
+ 
+@@ -774,6 +775,11 @@ std::unique_ptr<AudioStreamPacket> AudioService::PopWakeWordPacket() {
+ 
+ void AudioService::EnableWakeWordDetection(bool enable) {
+     ESP_LOGD(TAG, "%s wake word detection", enable ? "Enabling" : "Disabling");
++    if (enable && maipai_lock_blocks_voice()) {  // patch LK03: a locked unit does not listen for the wake word
++        ESP_LOGW(TAG, "wake word stays off: locked");
++        xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
++        return;
++    }
+     if (enable && maipai_mic_blocked()) {
+         ESP_LOGW(TAG, "wake word stays off: muted or in full quiet");
+         xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
+@@ -827,6 +833,10 @@ void AudioService::ReleaseWakeWordResources() {
+ 
+ void AudioService::EnableVoiceProcessing(bool enable) {
+     ESP_LOGD(TAG, "%s voice processing", enable ? "Enabling" : "Disabling");
++    if (enable && maipai_lock_blocks_voice()) {  // patch LK03
++        ESP_LOGW(TAG, "voice processing stays off: locked");
++        return;
++    }
+     if (enable && maipai_mic_blocked()) {
+         ESP_LOGW(TAG, "voice processing stays off: muted or in full quiet");
+         return;
+@@ -1037,6 +1047,9 @@ void AudioService::SetStopWordCallback(std::function<void()> callback) {
+ }
+ 
+ void AudioService::SetStopWordArmed(bool armed) {
++    if (armed && maipai_lock_blocks_voice()) {  // patch LK03: the stop word is off while locked
++        armed = false;
++    }
+     if (audio_engine_) {
+         audio_engine_->SetStopWordArmed(armed);
+     }
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -18,6 +18,7 @@
+ #include <hal/maipai_heal.h>
+ #include <hal/maipai_screen.h>
+ #include <hal/maipai_privacy.h>
++#include <hal/maipai_lock.h>
+ #include <hal/maipai_sounds.h>
+ #include <hal/maipai_timers.h>
+ #include <hal/maipai_games.h>
+@@ -118,6 +119,9 @@ void Application::Initialize() {
+     // The on-unit stop word (patch 049): a hit while speaking aborts the reply; the abort message
+     // tells the host to end the turn, and nothing is said.
+     audio_service_.SetStopWordCallback([this]() {
++        if (maipai_lock_blocks_voice()) {  // patch LK03
++            return;
++        }
+         Schedule([this]() {
+             // A remote message waiting to be spoken is cancelled first (patch TB05): nothing said without the person's say.
+             if (maipai_remote_stop()) {
+@@ -1018,8 +1022,8 @@ void Application::HandleStopListeningEvent() {
+ }
+ 
+ void Application::HandleWakeWordDetectedEvent() {
+-    if (!protocol_ || maipai_mic_blocked()) {
+-        return;  // a wake word that arrives after the mute is dropped (patch 107)
++    if (!protocol_ || maipai_mic_blocked() || maipai_lock_blocks_voice()) {
++        return;  // a wake word that arrives after the mute is dropped (patch 107), and after the lock (patch LK03)
+     }
+     maipai_screen_wake("wake word");  // patch W01: the wake word wakes a dimmed screen
+ 
+@@ -1323,8 +1327,8 @@ void Application::AbortSpeaking(AbortReason reason) {
+ }
+ 
+ void Application::SetListeningMode(ListeningMode mode) {
+-    if (maipai_mic_blocked()) {
+-        // Muted or in full quiet (patch 107): every way into listening ends here. The unit goes back to idle
++    if (maipai_mic_blocked() || maipai_lock_blocks_voice()) {
++        // Muted, in full quiet (patch 107) or locked (patch LK03): every way into listening ends here. The unit goes back to idle
+         // (it may have been set to connecting on the way).
+         ESP_LOGW(TAG, "listening refused: muted or in full quiet");
+         if (GetDeviceState() != kDeviceStateIdle) {
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -13,6 +13,7 @@
+ #include <new>
+ #include "maipai_face_clock_core.h"
+ #include "maipai_screens.h"
++#include "maipai_lock.h"
+ 
+ LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+ 
+@@ -1403,7 +1404,7 @@ void maipai_pages_event(int ev)
+ 
+ bool maipai_pages_show(int type)
+ {
+-    if (!s_ready) {
++    if (!s_ready || maipai_lock_locked()) {  // patch LK03: no page, sheet or settings screen while locked
+         return false;
+     }
+     if (type != -3) {
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -19,6 +19,7 @@
+ #include "maipai_sounds.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_timers.h"
++#include "maipai_lock.h"
+ #include "board/hal_bridge.h"
+ #include "hal.h"
+ #include <application.h>
+@@ -378,7 +379,7 @@ UnitHost s_host;
+ // ---- the touch hook: every finger, whichever object it landed on ----
+ void on_indev(lv_event_t* e)
+ {
+-    if (!maipai_display_ready()) {
++    if (!maipai_display_ready() || maipai_lock_locked()) {  // patch LK03: locked, no swipe does anything
+         return;
+     }
+     lv_indev_t* in = static_cast<lv_indev_t*>(lv_event_get_target(e));
+@@ -577,6 +578,9 @@ void maipai_pages_unit_register_tools()
+                         if (!maipai_display_ready()) {
+                             return error_json("The unit is still starting up. Try again in a few seconds.");
+                         }
++                        if (maipai_lock_locked()) {
++                            return error_json("The unit is locked. Unlock it with the code on its screen first.");
++                        }
+                         LvglLockGuard lock;
+                         if (name == "settings") {
+                             maipai_pages_show(-3);
+@@ -593,6 +597,9 @@ void maipai_pages_unit_register_tools()
+                     if (!maipai_display_ready()) {
+                         return error_json("The unit is still starting up. Try again in a few seconds.");
+                     }
++                    if (maipai_lock_locked()) {
++                        return error_json("The unit is locked. Unlock it with the code on its screen first.");
++                    }
+                     LvglLockGuard lock;
+                     return maipai_pages_show(type) ? std::string("{\"ok\":true}") : error_json("That page cannot show right now. Try again in a moment.");
+                 });
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -9,6 +9,7 @@
+ #include "maipai_more.h"
+ #if MAIPAI_MORE_SCREEN
+ #include "maipai_screens.h"
++#include "maipai_lock.h"
+ #include "maipai_pages_core.h"
+ #include "maipai_face.h"
+ #include "hal.h"
+@@ -132,6 +133,13 @@ void clear_page()
+ 
+ void on_back_menu(lv_event_t*) { show(PAGE_MENU); }
+ void on_close(lv_event_t*) { close_all(); }
++extern "C" void maipai_quick_settings_close(void);
++void on_lock(lv_event_t*)
++{
++    close_all();
++    maipai_quick_settings_close();
++    maipai_lock_now("more");  // patch LK03: the lock screen takes the glass within a moment
++}
+ extern "C" void maipai_display_open_quick(void);
+ void on_open_quick(lv_event_t*)
+ {
+@@ -368,7 +376,11 @@ void build_menu()
+ #if CONFIG_MAIPAI_GAMES
+     button(s_root, tx("Games", "Juegos"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_GAMES)));
+ #endif
+-    button(s_root, tx("Quick settings", "Ajustes rapidos"), 100, on_open_quick);
++    const bool lockable = maipai_lock_has_code();  // patch LK03: Lock sits beside Quick settings while a code is set
++    if (lockable) {
++        button(s_root, tx("Lock", "Bloquear"), 48, on_lock);
++    }
++    button(s_root, tx("Quick settings", "Ajustes rapidos"), lockable ? 48 : 100, on_open_quick);
+ }
+ 
+ // The fixed top of every page (patch UI01): the grabber handle, the page title and a 44 px target at the top right (Back on a
+@@ -437,6 +449,9 @@ void show(int page)
+ 
+ void maipai_more_open()
+ {
++    if (maipai_lock_locked()) {  // patch LK03
++        return;
++    }
+     maipai_screen_register(MSCR_MORE, close_all);
+     maipai_screen_open(MSCR_MORE);  // one overlay screen at a time (patch UI09)
+     if (s_root != nullptr) {
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -9,6 +9,7 @@
+ #include <sdkconfig.h>
+ #if CONFIG_MAIPAI_GAMES
+ #include "maipai_games.h"
++#include "maipai_lock.h"
+ #include "maipai_games_core.h"
+ #include "maipai_games_draw.h"
+ #include "maipai_games_input_core.h"
+@@ -830,6 +831,9 @@ static_assert(static_cast<int>(MAIPAI_GAME_EV_SHAKE) == static_cast<int>(MG_EV_S
+ const char* maipai_games_start_locked(const char* name, const char* source)
+ {
+     const bool es = want_spanish();
++    if (maipai_lock_locked()) {  // patch LK04
++        return say(es, "The unit is locked. Unlock it with the code on its screen first.", "La unidad esta bloqueada. Desbloqueala primero con el codigo en su pantalla.");
++    }
+     if (s_game != nullptr) {
+         return say(es, "A game is already running. Stop it first (swipe down from the bottom edge, or say stop), then start another.",
+                    "Ya hay un juego en marcha. Detenlo primero (desliza hacia abajo desde el borde inferior, o di para), y luego empieza otro.");
+diff --git a/firmware/main/hal/maipai_remote.cc b/firmware/main/hal/maipai_remote.cc
+--- a/firmware/main/hal/maipai_remote.cc
++++ b/firmware/main/hal/maipai_remote.cc
+@@ -16,6 +16,7 @@
+ #include "maipai_banner.h"
+ #include "maipai_remote_core.h"
+ #include "maipai_listen.h"
++#include "maipai_lock.h"
+ #include "maipai_sounds.h"
+ #include "board/hal_bridge.h"
+ #include "device_events.h"
+@@ -143,6 +144,12 @@ static mr_reason_t s_last_refusal = MR_OK;
+ 
+ bool maipai_remote_gate(const char* kind, const char* source, int token)
+ {
++    // patch LK03: a locked unit refuses every remote controller call except "find my robot" (beep and flash), so a lost robot can be found.
++    if (!maipai_lock_remote_allowed(kind) && (source == nullptr || strcmp(source, "remote") == 0 || maipai_remote_active())) {
++        ESP_LOGW(TAG, "remote %s refused: the unit is locked", kind);
++        s_last_refusal = MR_NO_SESSION;
++        return false;
++    }
+     // patch FM03: a call with no remote source passes unless a remote session is on and the kind is cued (core: mr_gate_call).
+     if (s_r == nullptr) return source == nullptr || strcmp(source, "remote") != 0;  // no remote state: only a remote call is refused
+     mr_reason_t r = MR_NO_SESSION;
+@@ -209,6 +216,9 @@ void maipai_remote_register_tools()
+                 PropertyList({Property("active", kPropertyTypeBoolean, true), Property("label", kPropertyTypeString, std::string("remote")),
+                               Property("host", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
++                    // patch LK03: a locked unit still lets a controller connect (the violet chip shows), because find my robot needs a session for its
++                    // cue token; every other action is refused by self.remote.action and the gate below.
++                    maipai_lock_activity();
+                     ensure_ui();
+                     std::lock_guard<std::mutex> lock(s_mu);
+                     const bool was = mr_session_on(s_r, ms_now()) != 0;
+@@ -230,6 +240,8 @@ void maipai_remote_register_tools()
+                 [](const PropertyList& properties) -> ReturnValue {
+                     ensure_ui();
+                     const std::string kind = properties["kind"].value<std::string>();
++                    if (!maipai_lock_remote_allowed(kind.c_str())) return std::string("{\"ok\":false,\"reason\":\"locked\"}");  // patch LK03: only find
++                    maipai_lock_activity();
+                     const std::string text = properties["text"].value<std::string>();
+                     uint32_t token = 0;
+                     mr_reason_t r;
+@@ -254,6 +266,7 @@ void maipai_remote_register_tools()
+                 PropertyList({Property("text", kPropertyTypeString, std::string("")), Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     ensure_ui();
++                    if (maipai_lock_locked()) return std::string("{\"ok\":false,\"reason\":\"locked\"}");  // patch LK03
+                     const std::string text = properties["text"].value<std::string>();
+                     mr_reason_t r;
+                     {
+diff --git a/firmware/main/hal/maipai_screen.cc b/firmware/main/hal/maipai_screen.cc
+--- a/firmware/main/hal/maipai_screen.cc
++++ b/firmware/main/hal/maipai_screen.cc
+@@ -3,6 +3,7 @@
+  */
+ // The screen's wake rule, device side (patch W01). See maipai_screen_core.h for the rule and why it exists.
+ #include "maipai_screen.h"
++#include "maipai_lock.h"
+ #include "maipai_screen_core.h"
+ #include "maipai_remote.h"
+ #include "board/hal_bridge.h"
+@@ -64,6 +65,7 @@ bool restore_if_dim(const char* why, bool hub_gone_rule)
+ 
+ bool maipai_screen_wake(const char* why)
+ {
++    maipai_lock_activity();  // patch LK02: a touch, the wake word or a remote input restarts the auto lock
+     const int64_t now = now_ms();
+     auto* backlight   = Board::GetInstance().GetBacklight();
+     if (backlight == nullptr) {
+@@ -96,6 +98,7 @@ void maipai_screen_touch(int num)
+     if (down.exchange(true)) {
+         return;  // a finger already on the glass: the wake ran at the touch down
+     }
++    maipai_lock_activity();  // patch LK02
+     (void)maipai_remote_tap();  // patch TB05: a tap allows or cancels a remote message that waits
+     if (maipai_screen_wake("touch")) {
+         s_touch_woke_ms.store(now_ms());  // this press only woke the screen

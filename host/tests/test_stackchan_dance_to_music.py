@@ -230,3 +230,17 @@ def test_dance_settings_stay_in_step_with_homes_key() -> None:
     settings = DanceSettings()
     settings.apply({"robot.dance.auto": True})
     assert settings.auto is True  # Home's push and the page share one switch
+
+
+def test_a_clear_steady_beat_that_is_a_little_flat_still_counts_on_the_host() -> None:
+    from dataclasses import replace
+
+    from maipai_body.bodies.stackchan.music_dance import judge, judge_host
+    from test_stackchan_music_dance import MUSIC
+
+    real_song = replace(MUSIC, tc=53, fl=89, bpm=103, mo=6, ps=28)  # measured 2026-11-17: refused as too flat by the shared rule
+    assert judge(real_song).why == "too_flat"
+    assert judge_host(real_song).music is True
+    assert judge_host(replace(real_song, tc=30)).why == "too_flat"  # a weak beat gets no allowance
+    assert judge_host(replace(real_song, fl=96)).why == "too_flat"  # noise stays refused
+    assert judge_host(replace(real_song, mo=60)).music is False  # speech-like modulation still refuses it

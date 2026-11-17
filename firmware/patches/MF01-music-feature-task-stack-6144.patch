@@ -1,0 +1,18 @@
+# Intent: The music feature task "musicfeat" (stack in PSRAM) had 584 bytes of stack left in the last gate against the rule's 1024 minimum, so its stack grows from 4096 to 6144 bytes. A PSRAM stack must never reach flash or saved settings; the task only analyses audio and the muted flag is read before it starts, so nothing else changes (scripts/psram-stack-lint.py still passes).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_music.cc (ours)
+# Check after a flash: the memory line stack-margin for musicfeat is at least 1024 bytes with music features on (self.music.set on).
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_music.cc b/firmware/main/hal/maipai_music.cc
+--- a/firmware/main/hal/maipai_music.cc
++++ b/firmware/main/hal/maipai_music.cc
+@@ -431,7 +431,7 @@ void maipai_music_init()
+     // flash read: the assert in spi_flash_disable_interrupts_caches_and_other_cpu fires). The saved privacy choice is
+     // read from flash lazily on its first use, so read it here, on this task's internal stack, before the worker runs.
+     (void)maipai_muted();
+-    xTaskCreatePinnedToCoreWithCaps(worker_task, "musicfeat", 4096, nullptr, 1, nullptr, 1, MALLOC_CAP_SPIRAM);
++    xTaskCreatePinnedToCoreWithCaps(worker_task, "musicfeat", 6144, nullptr, 1, nullptr, 1, MALLOC_CAP_SPIRAM);
+     ESP_LOGI(TAG, "music dance ready: %u byte history in PSRAM, gate rms %d", static_cast<unsigned>(sizeof(mm_an_t)),
+              kGateRms);
+     set_enabled(nvs_enabled(), false);  // off at boot unless the host last turned it on

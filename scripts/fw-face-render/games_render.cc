@@ -5,7 +5,7 @@
 //   state N                  put the game in state N (the number is the state's place in the pack's table)
 //   ctr I V                  set counter I
 //   board I V                set Tic-Tac-Toe cell I (0 empty, 1 the person, 2 the unit)
-//   guides on|off            draw the banner row and subtitle strip lines (y 28 and 184) and the touch regions on the picture
+//   guides on|off            draw the banner row, drag bar strip and bottom margin lines (y 28, 44 and 224) and the touch regions on the picture
 //   t MS / draw             the clock (for motion keyframes) and a draw at that time; snap draws at the present clock
 //   snap FILE.png            draw and write the screen as a PNG
 //   sheet FILE.png COLS      a grid of every snap so far at half size
@@ -107,13 +107,14 @@ static bool load(const char* path)
         g_text[i] = s.text;
         g_obj[i]  = mgd::build_shape(g_root, s, g_pts[i], &g_mole);
     }
+    mgd::build_drag_bar(g_root);  // patch GM02: the drag bar on every game screen
     g_loaded = true;
     return true;
 }
 
 static std::vector<uint8_t> grab()
 {
-    mgd::draw_state(g_run, g_obj, g_type, g_text, &g_mole, g_es, g_now);
+    mgd::draw_state(g_run, g_obj, g_type, g_text, &g_mole, g_es, g_now >= 900 ? g_now - 900 : 0);  // patch GM04: a still picture is taken well after what appeared (no pop in the middle)
     mgd::animate(g_run, g_obj, g_type, g_pts, &g_mole, g_now);  // the springs and easings at this moment
     lv_obj_invalidate(lv_screen_active());
     lv_refr_now(nullptr);
@@ -135,7 +136,8 @@ static std::vector<uint8_t> grab()
         };
         for (int x = 0; x < 320; x++) {
             put(x, 27, 255, 0, 255);
-            put(x, 184, 255, 0, 255);
+            put(x, MG_SAFE_BOTTOM, 255, 0, 255);  // the bottom of the safe area (patch GM01: y 224)
+            put(x, MG_DRAG_BOTTOM, 255, 255, 0);  // the end of the drag bar strip (patch GM02)
         }
         for (int i = 0; i < g_pack.n_regions; i++) {  // the touch regions in cyan
             mg_region_t g;

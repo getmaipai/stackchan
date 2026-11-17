@@ -1,7 +1,7 @@
 /* Host test for the game engine additions of patches UI12 and UI13: the new inputs, the board, the timer from a counter, the sound clips,
  * the tilt detector and the four new games plus the redrawn whack-a-mole, each played by a scripted bot with a fixed seed.
  *   cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers> games_v2_core_test.c -o t
- *   ./t memory.mpk reaction.mpk whack.mpk tictactoe.mpk bopit.mpk rps.mpk eightball.mpk dice.mpk
+ *   ./t memory.mpk whack.mpk tictactoe.mpk bopit.mpk rps.mpk eightball.mpk dice.mpk   (patch GM04: seven games, no Reaction Time; Do It and Rock Paper Scissors have games_gm_test.c)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +18,7 @@ static int failures;
         }                                                  \
     } while (0)
 
-enum { N_PACKS = 8, P_MEMORY = 0, P_REACTION, P_WHACK, P_TTT, P_BOPIT, P_RPS, P_BALL, P_DICE };
+enum { N_PACKS = 7, P_MEMORY = 0, P_WHACK, P_TTT, P_BOPIT, P_RPS, P_BALL, P_DICE };
 static uint8_t g_blob[N_PACKS][MG_MAX_PACK];
 static size_t g_len[N_PACKS];
 static mg_pack_t g_pack[N_PACKS];
@@ -90,8 +90,8 @@ static void test_all_packs_parse_and_stay_in_the_safe_area(void)
         }
     }
     CHECK((g_pack[P_BOPIT].flags & MG_FLAG_TAP_ON_RELEASE) != 0 && (g_pack[P_TTT].flags & MG_FLAG_TAP_ON_RELEASE) == 0);
-    CHECK(g_pack[P_TTT].n_regions == 9 && g_pack[P_RPS].n_regions == 3);
-    CHECK(g_pack[P_BOPIT].n_regions == 7);   /* six tiles and the call-out box */
+    CHECK(g_pack[P_TTT].n_regions == 9 && g_pack[P_RPS].n_regions == 5);
+    CHECK(g_pack[P_BOPIT].n_regions == 1);   /* patch GM04: Do It is one big button the size of the play area */
 }
 
 static void test_new_refusals(void)
@@ -169,7 +169,7 @@ static void test_sound_clips(void)
             peak        = a > peak ? a : peak;
             loud += a > 1000;
         }
-        CHECK(peak > 1500 && peak <= MGS_SFX_AMP);      /* it makes sound, and never louder than the ceiling */
+        CHECK(peak > 1500 && peak <= MGS_SFX_PEAK);     /* it makes sound, and never louder than the ceiling (patch GM03) */
         CHECK(loud > (int)(n / 10));
         CHECK(buf[0] == 0 && buf[n - 1] >= -400 && buf[n - 1] <= 400); /* a click free start and end */
         CHECK(MGS_CLIP[c].n >= 1 && MGS_CLIP[c].n <= MGS_SFX_MAX_SEGS && MGS_CLIP[c].name[0] != 0);
@@ -566,230 +566,8 @@ static void test_tictactoe(void)
     CHECK(r.state == T_MENU);
 }
 
-/* ------------------------------------------------------------------ Do It (the button game) */
-enum { B_INTRO = 0, B_PICK, B_CALL, B_OK, B_OVER };
-
-static int bop_input(mg_run_t* r, int act, uint32_t now)
-{
-    switch (act) {
-        case 0: mg_tap(r, cx(&g_pack[P_BOPIT], 0), cy(&g_pack[P_BOPIT], 0), now); return 1;
-        case 1: mg_input(r, MG_EV_SWIPE_L, now); return 1;
-        case 2: mg_input(r, MG_EV_SWIPE_R, now); return 1;
-        case 3: mg_input(r, MG_EV_SHAKE, now); return 1;
-        case 4: mg_input(r, MG_EV_PET, now); return 1;
-        default: mg_input(r, MG_EV_TILT_L + (int)(now / 30) % 4, now); return 1;
-    }
-}
-
-static void test_bopit(void)
-{
-    const mg_pack_t* p = &g_pack[P_BOPIT];
-    mg_run_t r;
-    mg_start(&r, p, 0, 777);
-    uint32_t now = run_to(&r, 0, 2300);
-    CHECK(r.state == B_CALL);
-    int seen_act[6] = {0};
-    int last_limit = r.ctr[2];
-    CHECK(last_limit == 3200);
-    for (int round = 0; round < 40 && !r.finished; round++) {
-        CHECK(r.state == B_CALL);
-        seen_act[r.ctr[1]]++;
-        CHECK(r.ctr[1] >= 0 && r.ctr[1] < 6 && r.tone_n >= 1);        /* a cue tone starts with the call */
-        CHECK(r.sync_region == 6);                                    /* and waits for the call-out box to be drawn */
-        const int limit = r.ctr[2];
-        CHECK((int32_t)(r.timer_due_ms - r.entered_ms) == limit);     /* the timer is the counter */
-        /* a wrong input ends the run (try it on a copy of the state) */
-        mg_run_t wrong = r;
-        bop_input(&wrong, (r.ctr[1] + 1) % 6, now + 30);
-        CHECK(wrong.state == B_OVER);
-        /* the right one scores and the next call is faster */
-        r.tone_n = 0;
-        bop_input(&r, r.ctr[1], now + 30);
-        CHECK(r.state == B_OK && r.ctr[0] == round + 1);
-        now = run_to(&r, now + 30, now + 400);
-        CHECK(r.state == B_CALL);
-        CHECK(r.ctr[2] <= limit && r.ctr[2] >= 650);
-        if (limit > 700) CHECK(r.ctr[2] < limit);
-        last_limit = r.ctr[2];
-    }
-    CHECK(last_limit == 650 || last_limit < 3200);
-    for (int a = 0; a < 6; a++) CHECK(seen_act[a] > 0);
-    /* a late move ends the run and the score is saved */
-    mg_start(&r, p, 0, 777);
-    now = run_to(&r, 0, 2300);
-    now = run_to(&r, now, now + 3400);
-    CHECK(r.state == B_OVER && r.save_pending == 1 && r.ctr[0] == 0);
-    /* an input in the pause after a good move is ignored (the shake that tilts is one event) */
-    mg_start(&r, p, 0, 777);
-    now = run_to(&r, 0, 2300);
-    bop_input(&r, r.ctr[1], now + 30);
-    CHECK(r.state == B_OK);
-    mg_input(&r, MG_EV_SHAKE, now + 60);
-    mg_input(&r, MG_EV_TILT_L, now + 90);
-    CHECK(r.state == B_OK);
-    /* five inputs from the sensors reach a rule only when the game's rules name them */
-    mg_start(&r, &g_pack[P_MEMORY], 0, 1);
-    mg_input(&r, MG_EV_SHAKE, 10);
-    CHECK(!r.finished);
-    mg_input(&r, 99, 10);
-    mg_input(&r, MG_EV_ENTER, 10);
-    mg_input(&r, MG_EV_TAP, 10);
-    CHECK(!r.finished);
-}
-
-static uint32_t until_state(mg_run_t* r, uint32_t now, int want)
-{
-    int guard = 0;
-    while (r->state != want && !r->finished && guard++ < 1000) {
-        now += 30;
-        mg_tick(r, now);
-    }
-    return now;
-}
-
-/* Pressing a tile counts as its move; the wrong tile, or a tap beside the tiles that is not in one, behaves as the rules say. */
-static void test_bopit_tiles(void)
-{
-    const mg_pack_t* p = &g_pack[P_BOPIT];
-    mg_run_t r;
-    mg_start(&r, p, 0, 4);
-    uint32_t now = run_to(&r, 0, 2300);
-    for (int round = 0; round < 12; round++) {
-        CHECK(r.state == B_CALL);
-        const int act = r.ctr[1];
-        mg_run_t wrong = r;
-        mg_tap(&wrong, cx(p, (act + 2) % 6), cy(&g_pack[P_BOPIT], (act + 2) % 6), now + 30);
-        CHECK(wrong.state == B_OVER);
-        mg_run_t gap = r;
-        mg_tap(&gap, 10, 100, now + 30);              /* the side edge: no region, ignored */
-        CHECK(gap.state == B_CALL);
-        mg_run_t cue = r;
-        mg_tap(&cue, cx(p, 6), cy(p, 6), now + 30);   /* the call-out box is not a button */
-        CHECK(cue.state == B_CALL);
-        mg_tap(&r, cx(p, act), cy(p, act), now + 30); /* the called tile scores */
-        CHECK(r.state == B_OK && r.ctr[0] == round + 1);
-        now = until_state(&r, now + 30, B_CALL);
-    }
-    /* the tiles are six targets in a 3 by 2 grid inside the safe area, 92 by 49 px */
-    for (int i = 0; i < 6; i++) {
-        mg_region_t g;
-        mg_region_get(p, i, &g);
-        CHECK(g.w == 92 && g.h == 49 && g.y >= 82 && g.y + g.h <= MG_SAFE_BOTTOM);
-    }
-}
-
-/* ------------------------------------------------------------------ rock paper scissors */
-enum { R_INTRO = 0, R_CHOOSE, R_B1, R_B2, R_B3, R_B4, R_REVEAL, R_WIN, R_TIE, R_LOSE, R_OVER };
-
-static uint32_t rps_until(mg_run_t* r, uint32_t now, int want)
-{
-    int guard = 0;
-    while (r->state != want && !r->finished && guard++ < 2000) {
-        now += 30;
-        mg_tick(r, now);
-    }
-    return now;
-}
-
-static void test_rps(void)
-{
-    const mg_pack_t* p = &g_pack[P_RPS];
-    int outcome[3][3];
-    memset(outcome, -1, sizeof(outcome));
-    /* the tiles are as big as the play area allows: three across, each 92 to 94 px wide and 130 px tall, tap anywhere in one */
-    for (int i = 0; i < 3; i++) {
-        mg_region_t g;
-        mg_region_get(p, i, &g);
-        CHECK(g.w >= 92 && g.h == 130 && g.y == 54 && g.y + g.h == MG_SAFE_BOTTOM);
-        CHECK(mg_region_at(p, g.x + 1, g.y + 1) == i && mg_region_at(p, g.x + g.w - 1, g.y + g.h - 1) == i);
-    }
-    for (uint32_t seed = 1; seed < 400; seed++) {
-        mg_run_t r;
-        mg_start(&r, p, 0, seed);
-        uint32_t now = run_to(&r, 0, 2300);
-        CHECK(r.state == R_CHOOSE);
-        const int me = (int)(seed % 3);
-        r.tone_n = 0;
-        mg_tap(&r, cx(p, me), cy(p, me), now);
-        CHECK(r.state == R_B1 && r.ctr[1] == me && r.sync_region == me);
-        CHECK(r.tone_n >= 1);   /* a short sound for the choice, and the first beat of the countdown */
-        const int choice_clip = r.tone_q[0];
-        CHECK(choice_clip >= MGS_TONE_SHIPPED);
-        /* a tap during the countdown changes nothing */
-        mg_tap(&r, cx(p, (me + 1) % 3), cy(p, (me + 1) % 3), now + 30);
-        CHECK(r.ctr[1] == me);
-        /* the countdown: four beats, each with its own tone (rock, paper, scissors, shoot) */
-        int beat_clips[4] = {0};
-        int beats         = 1;
-        beat_clips[0]     = r.tone_q[r.tone_n - 1];
-        for (int want = R_B2; want <= R_B4; want++) {
-            r.tone_n = 0;
-            now      = rps_until(&r, now, want);
-            CHECK(r.state == want && r.tone_n == 1);
-            beat_clips[beats++] = r.tone_q[0];
-        }
-        CHECK(beats == 4 && beat_clips[0] != beat_clips[1] && beat_clips[1] != beat_clips[2] && beat_clips[2] != beat_clips[3]);
-        r.tone_n = 0;
-        while (r.state == R_B4 && !r.finished) {
-            now += 30;
-            mg_tick(&r, now);
-        }
-        const int bot = r.ctr[2];
-        CHECK(bot >= 0 && bot < 3 && r.sync_region == bot);
-        CHECK(r.state == R_WIN || r.state == R_TIE || r.state == R_LOSE);
-        CHECK(r.tone_n == 1);   /* one result sound: a fanfare, a wah or a laugh */
-        const int want = me == bot ? R_TIE : (((me - bot + 3) % 3) == 1 ? R_WIN : R_LOSE);
-        CHECK(r.state == want);
-        outcome[me][bot] = r.state;
-        if (r.state == R_WIN) CHECK(r.ctr[0] == 1);
-        /* its pick is drawn as a lit tile, the person's as a blue tile, and the face shows */
-        int lit = 0, faces = 0;
-        for (int i = 0; i < p->n_shapes; i++) {
-            mg_shape_t sh;
-            mg_shape_get(p, i, &sh);
-            if (!mg_shape_visible(&r, i)) continue;
-            lit += sh.type == MG_SH_BOX && sh.cond_ctr == 2;
-            faces += sh.type == MG_SH_CIRCLE && sh.w == 12;
-        }
-        CHECK(lit == 1 && faces == 1);
-    }
-    for (int a = 0; a < 3; a++) {
-        for (int b = 0; b < 3; b++) CHECK(outcome[a][b] >= 0);
-    }
-    /* the sounds differ: win, tie and lose use three different clips */
-    int clip_of[3] = {-1, -1, -1};
-    for (uint32_t seed = 1; seed < 200 && (clip_of[0] < 0 || clip_of[1] < 0 || clip_of[2] < 0); seed++) {
-        mg_run_t r;
-        mg_start(&r, p, 0, seed);
-        uint32_t now = run_to(&r, 0, 2300);
-        mg_tap(&r, cx(p, 0), cy(p, 0), now);
-        r.tone_n = 0;
-        now = rps_until(&r, now, R_B4);
-        r.tone_n = 0;
-        while (r.state == R_B4 && !r.finished) {
-            now += 30;
-            mg_tick(&r, now);
-        }
-        const int idx = r.state == R_WIN ? 0 : (r.state == R_TIE ? 1 : 2);
-        clip_of[idx]  = r.tone_q[0];
-    }
-    CHECK(clip_of[0] > 0 && clip_of[1] > 0 && clip_of[2] > 0 && clip_of[0] != clip_of[1] && clip_of[1] != clip_of[2] && clip_of[0] != clip_of[2]);
-    /* a streak of wins scores; the first loss ends the run and is saved */
-    mg_run_t r;
-    mg_start(&r, p, 0, 5);
-    uint32_t now = run_to(&r, 0, 2300);
-    int streak = 0;
-    for (int i = 0; i < 300 && !r.finished; i++) {
-        if (r.state == R_CHOOSE) {
-            const int pick = (int)(now / 30) % 3;
-            mg_tap(&r, cx(p, pick), cy(p, pick), now);
-        }
-        const int before = r.ctr[0];
-        now = run_to(&r, now, now + 400);
-        streak += r.ctr[0] > before;
-    }
-    CHECK(r.finished && r.saved && r.ctr[0] == streak);
-}
+/* Patch GM04: the Do It and Rock Paper Scissors state machines are tested in games_gm_test.c. */
+enum { B_INTRO = 0, B_WAIT, B_SHOW, B_OK, B_OVER };
 
 /* ------------------------------------------------------------------ the new guard, ops and the timer */
 static void test_engine_bits(void)
@@ -806,6 +584,14 @@ static void test_engine_bits(void)
     a[0] = MG_OP_SUB_CTR; a[1] = 1; a[2] = 0; a[3] = 0;
     mg_act(&r, a, 0);
     CHECK(r.ctr[1] == 1);
+    /* patch GM04: ceil keeps a counter at most the value, and leaves a smaller one alone */
+    r.ctr[4] = 40;
+    a[0] = MG_OP_CEIL; a[1] = 4; a[2] = 5; a[3] = 0;
+    mg_act(&r, a, 0);
+    CHECK(r.ctr[4] == 5);
+    r.ctr[4] = 3;
+    mg_act(&r, a, 0);
+    CHECK(r.ctr[4] == 3);
     /* sync with -1 is none */
     r.ctr[3] = -1;
     a[0] = MG_OP_SYNC; a[1] = 3; a[2] = 0; a[3] = 0;
@@ -814,7 +600,7 @@ static void test_engine_bits(void)
     /* a timer from a counter is held between 80 ms and 30 s */
     mg_run_t t;
     mg_start(&t, &g_pack[P_BOPIT], 0, 9);
-    t.state  = B_CALL;
+    t.state  = B_SHOW;
     t.ctr[2] = 5;
     mg_enter(&t, 1000);
     CHECK(t.timer_due_ms == 1000 + MG_TIMER_MIN_MS);
@@ -1049,7 +835,7 @@ static void test_celebration(void)
     CHECK(mg_celebration_for_rank(mg_scores_add(scores, 0, 9)) == 2);    /* a new best: yes */
     CHECK(mg_celebration_for_rank(mg_scores_add(scores, 0, 9)) == 0);    /* a tie keeps the older first: not a new best */
     CHECK(mg_celebration_for_rank(mg_scores_add(scores, 0, 0)) == 0);    /* a score of zero is not saved */
-    uint16_t times[MG_SCORES] = {0};                                      /* a reaction time: lower is better */
+    uint16_t times[MG_SCORES] = {0};                                      /* a time: lower is better */
     CHECK(mg_celebration_for_rank(mg_scores_add(times, 1, 400)) == 2 && mg_celebration_for_rank(mg_scores_add(times, 1, 450)) == 0 &&
           mg_celebration_for_rank(mg_scores_add(times, 1, 380)) == 2);
     /* Tic-Tac-Toe: only the win celebrates (a draw and a loss do not), whatever the level */
@@ -1078,24 +864,6 @@ static void test_celebration(void)
         }
     }
     CHECK(wins > 20 && others > 20);
-    /* Rock Paper Scissors: the won round celebrates; a tie and a lost round do not */
-    int rw = 0, ro = 0;
-    for (uint32_t seed = 1; seed < 300; seed++) {
-        const mg_pack_t* p = &g_pack[P_RPS];
-        mg_run_t r;
-        mg_start(&r, p, 0, seed);
-        uint32_t now = run_to(&r, 0, 2300);
-        mg_tap(&r, cx(p, (int)(seed % 3)), cy(p, (int)(seed % 3)), now);
-        int celebrated = 0;
-        int guard = 0;
-        while (r.state != R_WIN && r.state != R_TIE && r.state != R_LOSE && guard++ < 400) {
-            now += 30;
-            mg_tick(&r, now);
-            celebrated |= r.celebrate;
-        }
-        if (r.state == R_WIN) { rw++; CHECK(celebrated == 1); } else { ro++; CHECK(celebrated == 0); }
-    }
-    CHECK(rw > 50 && ro > 50);
     /* the other games never celebrate by rule (a new best does it, in the player) */
     for (int g = 0; g < N_PACKS; g++) {
         if (g == P_TTT || g == P_RPS) continue;
@@ -1175,7 +943,7 @@ static void test_hostile_new_packs(void)
 int main(int argc, char** argv)
 {
     if (argc != 1 + N_PACKS) {
-        printf("usage: games_v2_core_test memory.mpk reaction.mpk whack.mpk tictactoe.mpk bopit.mpk rps.mpk eightball.mpk dice.mpk\n");
+        printf("usage: games_v2_core_test memory.mpk whack.mpk tictactoe.mpk bopit.mpk rps.mpk eightball.mpk dice.mpk\n");
         return 2;
     }
     for (int i = 0; i < N_PACKS; i++) {
@@ -1188,9 +956,6 @@ int main(int argc, char** argv)
     test_board();
     test_whack();
     test_tictactoe();
-    test_bopit();
-    test_bopit_tiles();
-    test_rps();
     test_engine_bits();
     test_gentle_shake();
     test_eightball();

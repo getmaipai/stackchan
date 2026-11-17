@@ -1,0 +1,298 @@
+/* Host test for the Apps wall, the Timers and Alarms apps and the tabbed Settings layout (patch UI16):
+ * cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers> apps_core_test.c */
+#include <stdio.h>
+#include <string.h>
+#include "maipai_apps_core.h"
+#include "maipai_lock_core.h"
+
+static int failures;
+#define CHECK(cond)                                                      \
+    do {                                                                 \
+        if (!(cond)) {                                                   \
+            printf("FAIL line %d: %s\n", __LINE__, #cond);               \
+            failures++;                                                  \
+        }                                                                \
+    } while (0)
+
+static int up(mac_touch_t* t, int x0, int y0, int x1, int y1, uint32_t ms, int paged)
+{
+    mac_touch_down(t, x0, y0, 1000);
+    return mac_touch_up(t, x1, y1, 1000 + ms, paged);
+}
+
+static void test_touch(void)
+{
+    mac_touch_t t;
+    memset(&t, 0, sizeof(t));
+    CHECK(up(&t, 100, 100, 102, 101, 120, 1) == MAC_T_TAP);
+    CHECK(up(&t, 100, 100, 100, 100, 800, 1) == MAC_T_NONE);          /* a press held too long is not a tap */
+    CHECK(up(&t, 100, 30, 100, 31, 100, 1) == MAC_T_NONE);            /* the drag bar's press starts no tap */
+    CHECK(up(&t, 100, 35, 100, 35, 100, 1) == MAC_T_NONE);
+    CHECK(up(&t, 100, 36, 100, 36, 100, 1) == MAC_T_TAP);             /* y 36 and below belongs to the targets */
+    CHECK(up(&t, 100, 40, 102, 80, 200, 1) == MAC_T_DISMISS);         /* begun on the strip, 40 px down: dismiss */
+    CHECK(up(&t, 100, 40, 102, 60, 200, 1) == MAC_T_NONE);            /* only 20 px: not enough */
+    CHECK(up(&t, 100, 44, 100, 120, 200, 1) == MAC_T_NONE);           /* begun at y 44 or below: a scroll or a drag, never a dismiss */
+    CHECK(up(&t, 100, 30, 140, 80, 200, 1) == MAC_T_NONE);            /* too slanted */
+    CHECK(up(&t, 100, 30, 100, 80, 1600, 1) == MAC_T_NONE);           /* too slow */
+    CHECK(up(&t, 250, 120, 100, 124, 200, 1) == MAC_T_NEXT);          /* the finger moves left: the next page */
+    CHECK(up(&t, 100, 120, 250, 116, 200, 1) == MAC_T_PREV);
+    CHECK(up(&t, 250, 120, 100, 124, 200, 0) == MAC_T_NONE);          /* not a paged view */
+    CHECK(up(&t, 250, 120, 230, 120, 200, 1) == MAC_T_NONE);          /* under 36 px */
+    CHECK(up(&t, 250, 120, 150, 210, 200, 1) == MAC_T_NONE);          /* mostly diagonal */
+    CHECK(mac_touch_up(&t, 0, 0, 5000, 1) == MAC_T_NONE);             /* an up with no down */
+    CHECK(mac_press_dead(28) && mac_press_dead(35) && !mac_press_dead(36) && !mac_press_dead(27));
+}
+
+static void test_wall(void)
+{
+    CHECK(mac_wall_pages(0) == 1 && mac_wall_pages(1) == 1 && mac_wall_pages(4) == 1 && mac_wall_pages(5) == 2 && mac_wall_pages(8) == 2 && mac_wall_pages(9) == 3);
+    CHECK(mac_wall_count(0, 8) == 4 && mac_wall_count(1, 8) == 4 && mac_wall_count(1, 7) == 3 && mac_wall_count(2, 7) == 0 && mac_wall_count(0, 2) == 2);
+    CHECK(mac_wall_clamp(-1, 8) == 0 && mac_wall_clamp(5, 8) == 1 && mac_wall_clamp(0, 0) == 0);
+    CHECK(mac_wall_step(0, 8, 1) == 1 && mac_wall_step(1, 8, 1) == 1 && mac_wall_step(1, 8, -1) == 0 && mac_wall_step(0, 8, -1) == 0);
+    for (int a = 0; a < MAC_WALL_PER_PAGE; a++) {
+        int x, y, w, h;
+        mac_wall_tile(a, &x, &y, &w, &h);
+        CHECK(w == 138 && h >= 73 && h <= 96);                           /* as big as the Color Memory tiles (138 wide) */
+        CHECK(x >= 0 && x + w <= MAC_W && y >= MAC_TOP && y + h <= MAC_WALL_DOTS_Y - MAC_WALL_DOT_ON / 2); /* the dots stay below the tiles */
+        CHECK(w >= MAC_TARGET_MIN && h >= MAC_TARGET_MIN);
+        for (int b = a + 1; b < MAC_WALL_PER_PAGE; b++) {
+            int x2, y2, w2, h2;
+            mac_wall_tile(b, &x2, &y2, &w2, &h2);
+            const int sep_x = x + w <= x2 || x2 + w2 <= x, sep_y = y + h <= y2 || y2 + h2 <= y;
+            CHECK(sep_x || sep_y);
+            if (!sep_x) CHECK(y2 - (y + h) == MAC_WALL_GAP || y - (y2 + h2) == MAC_WALL_GAP);   /* 4 px between the rows */
+            if (!sep_y) CHECK(x2 - (x + w) == MAC_WALL_GAP || x - (x2 + w2) == MAC_WALL_GAP);   /* and between the columns */
+        }
+        CHECK(mac_wall_hit(x + w / 2, y + h / 2) == a);
+        CHECK(mac_wall_hit(x, y) == a && mac_wall_hit(x + w - 1, y + h - 1) == a);
+    }
+    CHECK(mac_wall_hit(10, 100) == -1 && mac_wall_hit(160, 100) == -1 && mac_wall_hit(100, MAC_WALL_DOTS_Y) == -1);   /* the margins, the gap and the dots hit nothing */
+    CHECK(MAC_WALL_Y0 == MAC_TOP);                                        /* the tiles use the zone from its top */
+    CHECK(MAC_WALL_DOTS_Y + MAC_WALL_DOT_ON / 2 <= MAC_BOTTOM);
+    /* dots: centered, evenly spaced, one pixel row apart from the tiles */
+    CHECK(mac_wall_dot_x(2, 0) + mac_wall_dot_x(2, 1) == MAC_W);
+    CHECK(mac_wall_dot_x(3, 1) == MAC_W / 2);
+    CHECK(mac_wall_dot_x(3, 2) - mac_wall_dot_x(3, 1) == MAC_WALL_DOT_PITCH);
+}
+
+static void test_apps(void)
+{
+    uint8_t l[MAC_APP_MAX];
+    CHECK(mac_apps_list(0, l) == MAC_APP_COUNT - 1);
+    CHECK(mac_apps_list(1, l) == MAC_APP_COUNT);
+    int has_pics = 0;
+    for (int i = 0; i < MAC_APP_COUNT; i++) has_pics |= l[i] == MAC_APP_PICTURES;
+    CHECK(has_pics);
+    mac_apps_list(0, l);
+    for (int i = 0; i < MAC_APP_COUNT - 1; i++) CHECK(l[i] != MAC_APP_PICTURES);
+    CHECK(l[0] == MAC_APP_TIMERS && l[1] == MAC_APP_ALARMS && l[2] == MAC_APP_CLOCK && l[3] == MAC_APP_QUICK);   /* the order the owner listed */
+    CHECK(l[MAC_APP_COUNT - 2] == MAC_APP_LOCK && l[MAC_APP_COUNT - 3] == MAC_APP_DANCE);
+    CHECK(mac_wall_pages(mac_apps_list(1, l)) == 2 && mac_wall_pages(mac_apps_list(0, l)) == 2);
+    for (int a = 0; a < MAC_APP_COUNT; a++) {
+        CHECK(MAC_APP_NAMES[a][0] != '\0' && MAC_APP_TITLE[0][a][0] != '\0' && MAC_APP_TITLE[1][a][0] != '\0');
+    }
+    CHECK(mac_app_strip_page(MAC_APP_CLOCK) == MPG_P_CLOCK && mac_app_strip_page(MAC_APP_QUICK) == MPG_P_ACTIONS);
+    CHECK(mac_app_strip_page(MAC_APP_PICTURES) == MPG_P_FRAME && mac_app_strip_page(MAC_APP_DASHBOARD) == MPG_P_TILES);
+    CHECK(mac_app_strip_page(MAC_APP_TIMERS) == -1 && mac_app_strip_page(MAC_APP_LOCK) == -1 && mac_app_strip_page(MAC_APP_DANCE) == -1);
+}
+
+static void test_timers_alarms(void)
+{
+    int x, y, w, h, x2, y2, w2, h2;
+    CHECK(MAC_PRESETS == 4 && MAC_PRESET_MIN[0] == 1 && MAC_PRESET_MIN[1] == 5 && MAC_PRESET_MIN[2] == 10 && MAC_PRESET_MIN[3] == 15);
+    for (int i = 0; i < MAC_PRESETS; i++) {
+        mac_preset_box(i, &x, &y, &w, &h);
+        CHECK(w >= MAC_TARGET_MIN && h >= MAC_TARGET_MIN && y >= MAC_DRAG_DEAD_Y && x >= 0 && x + w <= MAC_W);
+        mac_countdown_box(&x2, &y2, &w2, &h2);
+        CHECK(x + w <= x2);                                              /* the Countdown hook sits right of the presets */
+        if (i > 0) {
+            int px, py, pw, ph;
+            mac_preset_box(i - 1, &px, &py, &pw, &ph);
+            CHECK(px + pw <= x);
+        }
+    }
+    mac_countdown_box(&x, &y, &w, &h);
+    CHECK(w >= MAC_TARGET_MIN && h >= MAC_TARGET_MIN && x + w <= MAC_W && MAC_COUNTDOWN_READY == 0);
+    CHECK(MAC_ROW_TOP >= MAC_BTN_ROW_Y + MAC_BTN_ROW_H);                 /* the list starts under the buttons */
+    for (int i = 0; i < MAC_ROWS_VISIBLE; i++) {
+        mac_row_box(i, &x, &y, &w, &h);
+        CHECK(h >= MAC_TARGET_MIN && y + h <= MAC_BOTTOM);
+        mac_cancel_box(i, &x2, &y2, &w2, &h2);
+        CHECK(w2 >= MAC_TARGET_MIN && h2 >= MAC_TARGET_MIN && x2 >= x && x2 + w2 <= x + w && y2 == y);   /* a big Cancel in each row */
+    }
+    CHECK(!mac_list_scrolls(0) && !mac_list_scrolls(1) && !mac_list_scrolls(3) && mac_list_scrolls(4) && mac_list_scrolls(MAC_ACTIVE_MAX));
+    CHECK(mac_list_content_h(3) <= MAC_LIST_H && mac_list_content_h(0) == 0);
+    char b[24];
+    mac_fmt_left(b, sizeof(b), 272); CHECK(strcmp(b, "4:32") == 0);
+    mac_fmt_left(b, sizeof(b), 3725); CHECK(strcmp(b, "1:02:05") == 0);
+    mac_fmt_left(b, sizeof(b), -4); CHECK(strcmp(b, "0:00") == 0);
+    mac_fmt_time(b, sizeof(b), 7, 30, 0); CHECK(strcmp(b, "7:30 AM") == 0);
+    mac_fmt_time(b, sizeof(b), 0, 5, 0); CHECK(strcmp(b, "12:05 AM") == 0);
+    mac_fmt_time(b, sizeof(b), 12, 0, 0); CHECK(strcmp(b, "12:00 PM") == 0);
+    mac_fmt_time(b, sizeof(b), 21, 9, 0); CHECK(strcmp(b, "9:09 PM") == 0);
+    mac_fmt_time(b, sizeof(b), 7, 5, 1); CHECK(strcmp(b, "07:05") == 0);
+
+    /* the time picker */
+    mac_pick_t p;
+    mac_pick_default(&p, 1, 10); CHECK(p.hour == 11 && p.minute == 0);
+    mac_pick_default(&p, 1, 23); CHECK(p.hour == 0);
+    mac_pick_default(&p, 0, 5); CHECK(p.hour == 7 && p.minute == 0);
+    p.hour = 23; mac_pick_hour(&p, 1); CHECK(p.hour == 0);
+    mac_pick_hour(&p, -1); CHECK(p.hour == 23);
+    p.minute = 59; mac_pick_minute(&p, 1); CHECK(p.minute == 0 && p.hour == 23);   /* minutes wrap without carrying into the hour */
+    mac_pick_minute(&p, -1); CHECK(p.minute == 59);
+    p.hour = 0; CHECK(mac_pick_shown_hour(&p, 0) == 12 && mac_pick_shown_hour(&p, 1) == 0 && !mac_pick_is_pm(&p));
+    p.hour = 12; CHECK(mac_pick_shown_hour(&p, 0) == 12 && mac_pick_is_pm(&p));
+    p.hour = 15; CHECK(mac_pick_shown_hour(&p, 0) == 3 && mac_pick_is_pm(&p));
+    mac_pick_set_pm(&p, 0); CHECK(p.hour == 3);
+    mac_pick_set_pm(&p, 1); CHECK(p.hour == 15);
+    p.hour = 0; mac_pick_set_pm(&p, 1); CHECK(p.hour == 12);                      /* 12 AM to PM is noon */
+    p.hour = 12; mac_pick_set_pm(&p, 0); CHECK(p.hour == 0);
+    for (int c24 = 0; c24 < 2; c24++) {
+        for (int col = 0; col < (c24 ? 2 : 3); col++) {
+            mac_pick_plus_box(col, c24, &x, &y, &w, &h); CHECK(w >= MAC_TARGET_MIN && h >= MAC_TARGET_MIN && x >= 0 && x + w <= MAC_W && y >= MAC_DRAG_DEAD_Y);
+            mac_pick_minus_box(col, c24, &x2, &y2, &w2, &h2); CHECK(w2 >= MAC_TARGET_MIN && h2 >= MAC_TARGET_MIN && y2 + h2 <= MAC_PICK_BTN_Y);
+            CHECK(y + h <= MAC_PICK_VAL_Y && MAC_PICK_VAL_Y + MAC_PICK_VAL_H <= y2);
+        }
+    }
+    mac_pick_ampm_box(0, &x, &y, &w, &h); mac_pick_ampm_box(1, &x2, &y2, &w2, &h2);
+    CHECK(h >= MAC_TARGET_MIN && h2 >= MAC_TARGET_MIN && y + h <= y2 && y2 + h2 <= MAC_PICK_BTN_Y);
+    mac_pick_cancel_box(&x, &y, &w, &h); mac_pick_save_box(&x2, &y2, &w2, &h2);
+    CHECK(h >= MAC_TARGET_MIN && h2 >= MAC_TARGET_MIN && x + w <= x2 && y2 + h2 <= MAC_BOTTOM);
+}
+
+static void test_settings(void)
+{
+    mac_row_t r[MAC_SET_ROWS_MAX];
+    int n;
+    for (unsigned flags = 0; flags < 16; flags++) {
+        for (int tab = 0; tab < MAC_TAB_COUNT; tab++) {
+            n = mac_set_rows(tab, flags, r);
+            CHECK(n >= 3 && n <= MAC_SET_ROWS_MAX);
+            int y = 0;
+            for (int i = 0; i < n; i++) {
+                CHECK(r[i].y == y && r[i].h > 0);
+                y += r[i].h;
+                const int box_h = r[i].h - mac_row_gap(r[i].kind);
+                if (r[i].kind != MAC_K_SLIDER) CHECK(box_h >= MAC_TARGET_MIN);   /* every row is at least 44 px */
+                CHECK(r[i].kind == mac_row_kind(r[i].id));
+                for (int k = i + 1; k < n; k++) CHECK(r[i].id != r[k].id);       /* no row twice */
+            }
+            CHECK(mac_rows_total_h(r, n) == y);
+        }
+    }
+    /* a slider row keeps 20 px of empty room under the knob (patch QS01): label 18, slider at y 28 (16 high, the knob 8 more each side) */
+    CHECK(MAC_SLIDER_ROW_H - (MAC_SLIDER_Y + 16 + 8) >= 20);
+    /* the rows of each tab, with every flag set */
+    n = mac_set_rows(MAC_TAB_GENERAL, MAC_SF_LOCK | MAC_SF_TAILNET | MAC_SF_PICTURES, r);
+    CHECK(n == 8 && r[0].id == MAC_R_VOLUME && r[1].id == MAC_R_BRIGHT && r[2].id == MAC_R_NIGHT && r[3].id == MAC_R_STATUS_ICONS && r[4].id == MAC_R_AUTOLOCK && r[5].id == MAC_R_LOCK_NOW && r[6].id == MAC_R_LANGUAGE && r[7].id == MAC_R_MORE);
+    n = mac_set_rows(MAC_TAB_GENERAL, 0, r);
+    CHECK(n == 6);                                                       /* no lock built in: no auto lock and no Lock now */
+    n = mac_set_rows(MAC_TAB_NETWORK, MAC_SF_TAILNET, r);
+    CHECK(n == 5 && r[0].id == MAC_R_WIFI_PAGE && r[1].id == MAC_R_SSID && r[2].id == MAC_R_SIGNAL && r[3].id == MAC_R_TAILNET && r[4].id == MAC_R_HUB);
+    CHECK(mac_set_rows(MAC_TAB_NETWORK, 0, r) == 4);
+    n = mac_set_rows(MAC_TAB_FACES, 0, r);
+    CHECK(n == 3 && mac_rows_total_h(r, n) <= MAC_PANE_H + 2);           /* the three style rows fit the list with no scrolling */
+    n = mac_set_rows(MAC_TAB_INFO, 0, r);
+    CHECK(n == 6 && r[5].id == MAC_R_I_HINT);
+    n = mac_set_rows(MAC_TAB_INFO, MAC_SF_DETAILS, r);
+    CHECK(n == 5 + 6 && r[5].id == MAC_R_I_DETAIL0 && r[10].id == MAC_R_I_DETAIL5);   /* the ten taps swap the hint for the details */
+    CHECK(mac_set_rows(MAC_TAB_COUNT + 3, 0, r) >= 1);                    /* an unknown tab reads as Info, never crashes */
+
+    /* tabs: four, always visible, on the left, at least 44 by 44, inside the zone, not touching the pane */
+    int x, y, w, h, x2, y2, w2, h2;
+    for (int t = 0; t < MAC_TAB_COUNT; t++) {
+        mac_tab_box(t, &x, &y, &w, &h);
+        CHECK(w >= MAC_TARGET_MIN && h >= MAC_TARGET_MIN && x >= 0 && x + w < MAC_DIV_X && y >= MAC_DRAG_DEAD_Y - 4 && y + h <= MAC_BOTTOM);
+        if (t > 0) { int px, py, pw, ph; mac_tab_box(t - 1, &px, &py, &pw, &ph); CHECK(py + ph <= y); }
+        CHECK(MAC_TAB_TITLE[0][t][0] != '\0' && MAC_TAB_TITLE[1][t][0] != '\0' && MAC_TAB_NAMES[t][0] != '\0');
+    }
+    mac_done_box(&x, &y, &w, &h);
+    CHECK(w >= MAC_TARGET_MIN && h >= MAC_TARGET_MIN && x >= MAC_PANE_X && x + w <= MAC_W && y + h <= MAC_PANE_Y);
+    CHECK(MAC_PANE_X > MAC_DIV_X && MAC_PANE_X + MAC_PANE_W <= MAC_W && MAC_PANE_Y + MAC_PANE_H == MAC_BOTTOM && MAC_PANE_ROW_W + 12 <= MAC_PANE_W);
+    (void)x2; (void)y2; (void)w2; (void)h2;
+
+    /* the tab state */
+    mac_set_t s;
+    mac_set_init(&s);
+    CHECK(s.tab == MAC_TAB_GENERAL);
+    CHECK(mac_set_tab(&s, MAC_TAB_FACES) == 1 && s.tab == MAC_TAB_FACES);
+    CHECK(mac_set_tab(&s, MAC_TAB_FACES) == 0);                          /* the same tab again changes nothing */
+    CHECK(mac_set_tab(&s, 9) == 0 && mac_set_tab(&s, -1) == 0 && s.tab == MAC_TAB_FACES);
+
+    /* scrolling */
+    CHECK(mac_scroll_clamp(-5, 300, 138) == 0 && mac_scroll_clamp(500, 300, 138) == 162 && mac_scroll_clamp(40, 300, 138) == 40 && mac_scroll_clamp(40, 100, 138) == 0);
+    int by, bh;
+    CHECK(mac_scroll_bar(100, 138, 0, &by, &bh) == 0);                   /* everything fits: no indicator */
+    CHECK(mac_scroll_bar(276, 138, 0, &by, &bh) == 1 && by == 0 && bh == 69);
+    CHECK(mac_scroll_bar(276, 138, 138, &by, &bh) == 1 && by + bh == 138);   /* at the end the bar touches the bottom of the track */
+    CHECK(mac_scroll_bar(276, 138, 999, &by, &bh) == 1 && by + bh == 138);
+    CHECK(mac_scroll_bar(5000, 138, 100, &by, &bh) == 1 && bh >= 16);
+    CHECK(mac_scroll_bar(276, 138, 69, &by, &bh) == 1 && by == (138 - 69) / 2 + 0);
+
+    /* auto lock: the choices follow the lock core, a tap goes to the next and wraps to Off */
+    CHECK(MAC_AUTO_COUNT == LK_AUTO_COUNT);
+    for (int i = 0; i < MAC_AUTO_COUNT; i++) CHECK(MAC_AUTO_MIN[i] == LK_AUTO_MINUTES[i] && mlk_auto_ok(MAC_AUTO_MIN[i]));
+    CHECK(mac_auto_next(0) == 1 && mac_auto_next(1) == 5 && mac_auto_next(15) == 30 && mac_auto_next(60) == 0 && mac_auto_next(7) == 0);
+    char b[16];
+    mac_auto_text(b, sizeof(b), 0, 0); CHECK(strcmp(b, "Off") == 0);
+    mac_auto_text(b, sizeof(b), 0, 1); CHECK(strcmp(b, "No") == 0);
+    mac_auto_text(b, sizeof(b), 15, 0); CHECK(strcmp(b, "15 min") == 0);
+
+    /* the style tiles: five face styles then Pictures while a pack is held */
+    CHECK(mac_pair_tiles(0, 0) == 2 && mac_pair_tiles(1, 0) == 2 && mac_pair_tiles(2, 0) == 1 && mac_pair_tiles(2, 1) == 2 && mac_pair_tiles(3, 1) == 0);
+    CHECK(mac_signal_word(-1) == 0 && mac_signal_word(1) == 1 && mac_signal_word(2) == 2 && mac_signal_word(3) == 3 && mac_signal_word(4) == 3);
+}
+
+static void test_words_and_sheet(void)
+{
+    for (int i = 0; i < MAC_S_COUNT; i++) {
+        const char* en = MAC_STR[i][0];
+        const char* es = MAC_STR[i][1];
+        CHECK(en[0] != '\0' && es[0] != '\0');
+        CHECK(strlen(en) < 64 && strlen(es) < 64);
+        for (const char* p = en; *p; p++) CHECK((unsigned char)*p >= 0x20 && (unsigned char)*p < 0x7F);    /* the screen font: plain ASCII */
+        for (const char* p = es; *p; p++) CHECK((unsigned char)*p >= 0x20 && (unsigned char)*p < 0x7F);
+    }
+    CHECK(strcmp(mac_str(MAC_S_CANCEL, 0), "Cancel") == 0 && strcmp(mac_str(MAC_S_CANCEL, 1), "Cancelar") == 0);
+    CHECK(strcmp(mac_str(-1, 0), "") == 0 && strcmp(mac_str(MAC_S_COUNT, 1), "") == 0);
+    CHECK(strcmp(mac_row_label(MAC_R_VOLUME, 1), "Volumen") == 0 && mac_row_label(MAC_R_PAIR0, 0)[0] == '\0');
+    for (int row = 0; row < MAC_R_COUNT; row++) {
+        const int k = mac_row_kind(row);
+        if (k != MAC_K_PAIR && !(row >= MAC_R_I_DETAIL0 && row <= MAC_R_I_DETAIL5) && row != MAC_R_I_HINT) CHECK(mac_row_label(row, 0)[0] != '\0');
+    }
+    /* the sheet: the saved key "timers" is the Apps tile, "apps" reads as the same, the tile's title says Apps */
+    CHECK(mpg_sheet_by_name("timers") == MPG_S_TIMERS && mpg_sheet_by_name("apps") == MPG_S_TIMERS);
+    CHECK(strcmp(MPG_SHEET_TITLE[0][MPG_S_TIMERS], "Apps") == 0 && strcmp(MPG_SHEET_TITLE[1][MPG_S_TIMERS], "Apps") == 0);
+    mpg_cfg_t c;
+    CHECK(mpg_cfg_from_text(&c, "L=clock;R=games;S=10;I=20;A=beep,dance,game,hello;C=volume,brightness,mute,quiet,light,apps,games,wifi,battery") == 1);
+    CHECK(c.n_items == 9 && c.items[5] == MPG_S_TIMERS);
+    mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
+    CHECK(mpg_sheet_icon_shapes(MPG_S_TIMERS, sh) == 4);                 /* four squares */
+    /* the sheet stays one row of six tiles (Mute, Quiet, Light, Apps, Games, Settings) with no Lock tile */
+    mpg_sheet_t L;
+    mpg_defaults(&c);
+    mpg_sheet_layout(&c, &L);
+    int tiles = 0, sliders = 0;
+    for (int i = 0; i < L.n; i++) {
+        if (L.r[i].item < MPG_S_MUTE) sliders++; else tiles++;
+        CHECK(L.r[i].item <= MPG_S_COUNT);
+    }
+    CHECK(sliders == 2 && tiles == 6 && L.r[L.n - 1].item == MPG_S_COUNT);
+}
+
+int main(void)
+{
+    test_touch();
+    test_wall();
+    test_apps();
+    test_timers_alarms();
+    test_settings();
+    test_words_and_sheet();
+    if (failures) {
+        printf("%d failures\n", failures);
+        return 1;
+    }
+    printf("apps core: all checks passed\n");
+    return 0;
+}

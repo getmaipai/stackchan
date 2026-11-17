@@ -11,6 +11,7 @@ from __future__ import annotations
 from maipai_body.banner_shapes import banner_js
 from maipai_body.face_shapes import face_js
 from maipai_body.overlay_shapes import overlay_js
+from maipai_body.settings_ui_lock import JS_LOCK
 from maipai_body.settings_ui_pages import JS_PAGES_FULL
 from maipai_body.settings_ui_polish import JS_POLISH
 
@@ -379,8 +380,8 @@ requestAnimationFrame(loop);
 function bandNow(hours){const hr=new Date().getHours();return hr>=hours[3]||hr<hours[0]?'night':hr>=hours[2]?'evening':hr>=hours[1]?'day':'morning'}
 
 /* ---- the page frame: units, groups, theme, language ---- */
-const GROUPS=['home','remote','look','voice','packs','network','behavior','play','system'];
-const NAMEKEY={home:'g.home',remote:'g.remote',look:'g.look',voice:'g.voice',packs:'g.packs',network:'g.network',behavior:'g.behavior',play:'g.play',system:'g.system'};
+const GROUPS=['home','remote','look','voice','packs','network','behavior','security','play','system'];
+const NAMEKEY={home:'g.home',remote:'g.remote',look:'g.look',voice:'g.voice',packs:'g.packs',network:'g.network',behavior:'g.behavior',security:'g.security',play:'g.play',system:'g.system'};
 let UNITS=[],UNIT=null,CUR='home',BUILT={};
 const panels={};
 const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
@@ -632,6 +633,7 @@ async function tsCard(p,u){const id=u.device_id,tv=await api(unitPath(id,'travel
 BUILDERS.behavior=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'overview')),sv=ov.ok?ov.d.saved:{idle_motion:true},pr=ov.ok?ov.d.privacy:null;
  const body=card(T('beh.head'),null,seg(T('Idle movement'),[{v:'off',t:T('Off')},{v:'calm',t:T('Calm')},{v:'lively',t:T('Lively')}],sv.idle_movement||'off',async m=>(await save(unitPath(id,'device'),{idle_movement:m})).ok),h('p',{class:'help'},T('Off keeps the head still until it is spoken to. Calm and lively let it look around when nobody is talking.')),
   toggle(T('Look toward the speaker'),T('Turns or glances toward you when you start talking.'),!!sv.look_speaker,async on=>(await save(unitPath(id,'device'),{look_speaker:on})).ok),
+  toggle(T('wake_look'),T('wake_look_help'),sv.look_on_wake!==false,async on=>(await save(unitPath(id,'device'),{look_on_wake:on})).ok),
   toggle(T('Look for faces'),T('Searches the room with the camera when something moves. Needs the camera on.'),!!sv.look_faces,async on=>(await save(unitPath(id,'device'),{look_faces:on})).ok),
   toggle(T('beh.sleep'),T('beh.sleep_help'),false,()=>false,true));
  const seek=await lookSeekCard(id,sv);
@@ -725,7 +727,7 @@ BUILDERS.system=async(p,u)=>{const id=u.device_id;
  p.append(h('div',{class:'grid'},unit,det,upd,about,rst,reset))};
 """
 
-JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH + JS_PAGES_FULL
+JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH + JS_PAGES_FULL + JS_LOCK
 
 PAGE = r"""<!doctype html><html lang='__CODE__'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>

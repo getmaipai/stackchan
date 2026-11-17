@@ -259,3 +259,25 @@ def test_a_unit_without_the_look_tool_has_no_status_and_an_unreachable_one_keeps
     clock2.now += 5.0
     owner2.tick(UNIT)  # the unit does not answer: no crash
     assert owner2.view(UNIT)["reachable"] is True or owner2.view(UNIT)["reachable"] is False
+
+
+def test_the_experiment_units_detector_fields_pass_through_read_only():
+    """Patches FD03 and FD04 add flat fd_* fields to self.look.status; the heartbeat keeps them for the page and still drops anything else."""
+    unit = Unit()
+    answers = {"ok": True, "owner": "unit", "enabled": True, "fd_loaded": True, "fd_score_pct": 83, "fd_cx": 171, "fd_age_ms": 240, "fd_track": "track",
+               "fd_tracks": 2, "fd_moves": 9, "fd_moves_min": 3, "fd_stalls": 0, "fd_end": "none", "fd_hour_s": 61, "picture": "dropped"}
+    base = unit.__call__
+
+    def call(name, arguments, **kw):
+        if name == "self.look.status":
+            unit.calls.append((name, dict(arguments)))
+            return dict(answers)
+        return base(name, arguments, **kw)
+
+    clock = Clock()
+    owner = LookOwner(ToolProbe(call, clock=clock), lambda _d: {}, hub_configured=lambda: False, tracking=lambda: False, clock=clock)
+    owner.tick(UNIT)
+    status = owner.view(UNIT)["status"]
+    assert status["fd_loaded"] is True and status["fd_score_pct"] == 83 and status["fd_track"] == "track" and status["fd_moves_min"] == 3
+    assert "picture" not in status
+    assert all(k.startswith("fd_") or k in ("owner", "enabled", "age_s") for k in status)

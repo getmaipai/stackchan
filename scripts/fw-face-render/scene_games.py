@@ -17,6 +17,14 @@ def game(name, *cmds):
 
 
 L.append("guides off")
+# color memory (patch GM01: the tiles use the full height): counters score0 lit1; states intro0 show1 gap2 input3 echo4 correct5 over6
+game("memory", "state 0"); snap("memory_intro")
+L += ["state 1", "ctr 1 -1"]; snap("memory_tiles")
+L += ["ctr 1 0"]; snap("memory_lit_red")
+L += ["ctr 1 3"]; snap("memory_lit_yellow")
+L += ["guides on", "ctr 1 -1"]; snap("memory_guides"); L.append("guides off")
+L += ["state 6", "ctr 0 5"]; snap("memory_over")
+L.append("clear")
 # whack-a-mole: counters score0 moles1 cell2 face3 miss4; states intro0 down1 up2 hit3 over4
 game("whack", "state 0"); snap("whack_intro")
 L += ["state 1", "ctr 0 3", "ctr 2 -1"]; snap("whack_down")
@@ -27,6 +35,8 @@ L += ["state 2", "ctr 3 0", "ctr 2 5", "ctr 4 2"]; snap("whack_miss_mark")
 L += ["guides on", "state 2", "ctr 3 0", "ctr 2 0", "ctr 4 -1"]; snap("whack_layout_guides"); L.append("guides off")
 L += ["state 4", "ctr 0 11"]; snap("whack_over")
 L += ["lang es", "state 2", "ctr 3 1", "ctr 2 4", "ctr 4 -1"]; snap("whack_up_es"); L.append("lang en")
+L.append(f"sheet {out}/sheet_whack.png 4")
+L.append("clear")
 # tic-tac-toe: counters score0 diff1 cell2 move3 res4 said5 row6 col7; states menu0 turn1 pcheck2 think3 bcheck4 win5 lose6 draw7
 game("tictactoe", "state 0"); snap("ttt_menu")
 L += ["guides on"]; snap("ttt_menu_guides"); L += ["guides off"]
@@ -39,28 +49,44 @@ L += ["state 3", "ctr 5 0"]; snap("ttt_think")
 L += ["state 5", "ctr 5 1", "board 1 1", "board 2 1", "board 4 1"]; snap("ttt_win")
 L += ["state 6", "board 0 2", "board 1 2", "board 2 2", "board 4 1", "board 8 1", "board 6 1"]; snap("ttt_lose")
 L += ["lang es", "state 0"]; snap("ttt_menu_es"); L.append("lang en")
-# do it (button game): counters score0 act1 limit2 tmp3 cue4 z5; states intro0 pick1 call2 ok3 over4
+L.append(f"sheet {out}/sheet_ttt.png 4")
+L.append("clear")
+# do it (patch GM04, the Reaction Time interface): counters score0 act1 limit2 tmp3 cue4 base5 wait6 z7; states intro0 wait1 show2 ok3 over4
 game("bopit", "state 0"); snap("doit_intro")
-for act in (0, 1, 3, 5):
-    L += ["state 2", f"ctr 1 {act}", f"ctr 0 {act + 3}"]
-    snap(f"doit_call_{act}")
+for lvl in (0, 2, 5):
+    L += ["state 1", f"ctr 4 {18 + lvl}", f"ctr 0 {lvl}"]; snap(f"doit_wait_L{lvl}")
+for act, lvl in ((0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)):
+    L += ["state 2", f"ctr 1 {act}", f"ctr 4 {18 + lvl}", f"ctr 0 {act + 1}"]; snap(f"doit_show_{act}")
 L += ["state 3", "ctr 0 7"]; snap("doit_ok")
-L += ["state 4", "ctr 0 7"]; snap("doit_over")
-L += ["guides on", "state 2", "ctr 1 4"]; snap("doit_guides"); L.append("guides off")
-L += ["lang es", "state 2", "ctr 1 2"]; snap("doit_call_es"); L.append("lang en")
-# rock paper scissors: counters score0 me1 bot2 d3; states intro0 choose1 beat1 2 beat2 3 beat3 4 beat4 5 reveal6 win7 tie8 lose9 over10
+for why in (0, 1, 2):
+    L += ["state 4", f"ctr 3 {why}", "ctr 0 7"]; snap(f"doit_over_{why}")
+L += ["guides on", "state 2", "ctr 1 4", "ctr 4 20"]; snap("doit_guides"); L.append("guides off")
+L += ["lang es", "state 2", "ctr 1 2", "ctr 4 21"]; snap("doit_show_es"); L += ["state 1"]; snap("doit_wait_es"); L.append("lang en")
+L.append(f"sheet {out}/sheet_doit.png 4")
+L.append("clear")
+# rock paper scissors, best of three (patch GM04): counters score0 me1 bot2 d3 mw4 bw5 z6 rd7;
+# states intro0 c1 1 c2 2 c3 3 shoot4 early5 reveal6 won7 lost8 win9 lose10 tie11 slow12 mwin13 mlose14
 game("rps", "state 0"); snap("rps_intro")
-L += ["state 1", "ctr 0 2", "ctr 1 -1", "ctr 2 -1"]; snap("rps_choose")
-L += ["guides on"]; snap("rps_choose_guides"); L += ["guides off"]
-L += ["state 3", "ctr 1 1"]; snap("rps_beat_paper_picked")
-L += ["state 5"]; snap("rps_beat_shoot")
-L += ["state 7", "ctr 1 0", "ctr 2 2"]; snap("rps_win_rock_beats_scissors")
-L += ["state 9", "ctr 1 0", "ctr 2 1"]; snap("rps_lose_paper_beats_rock")
-L += ["state 8", "ctr 1 2", "ctr 2 2"]; snap("rps_tie_scissors")
-L += ["state 10", "ctr 0 3"]; snap("rps_over")
-L += ["lang es", "state 1", "ctr 1 -1", "ctr 2 -1"]; snap("rps_choose_es")
+L += ["state 1", "ctr 1 -1", "ctr 2 1", "ctr 7 1"]; snap("rps_count_rock")
+L += ["state 2"]; snap("rps_count_paper")
+L += ["state 3"]; snap("rps_count_scissors")
+L += ["state 4"]; snap("rps_shoot")
+L += ["guides on"]; snap("rps_shoot_guides"); L += ["guides off"]
+L += ["state 5"]; snap("rps_early")
+L += ["state 6", "ctr 1 0", "ctr 2 2"]; snap("rps_reveal")
+L += ["state 9", "ctr 1 0", "ctr 2 2", "ctr 4 1", "ctr 7 2"]; snap("rps_result_win")
+L += ["state 10", "ctr 1 0", "ctr 2 1", "ctr 4 1", "ctr 5 1", "ctr 7 3"]; snap("rps_result_lose")
+L += ["state 11", "ctr 1 2", "ctr 2 2"]; snap("rps_result_tie")
+L += ["state 12", "ctr 1 -1", "ctr 2 1"]; snap("rps_result_slow")
+L += ["guides on", "state 9", "ctr 1 1", "ctr 2 0"]; snap("rps_result_guides"); L += ["guides off"]
+L += ["state 13", "ctr 1 1", "ctr 2 0", "ctr 4 2", "ctr 5 1", "ctr 7 3"]; snap("rps_match_win")
+L += ["state 14", "ctr 1 2", "ctr 2 0", "ctr 4 1", "ctr 5 2", "ctr 7 3"]; snap("rps_match_lose")
+L += ["lang es", "state 4"]; snap("rps_shoot_es"); L += ["state 9", "ctr 1 1", "ctr 2 0"]; snap("rps_result_es")
+L.append(f"sheet {out}/sheet_rps.png 4")
+L.append("clear")
 # magic 8 ball: counters score0 ans1 kind2 z3; states ready0 shake1 answer2 easy3
 L += ["lang en"]
+L.append("clear")
 game("eightball", "state 0"); snap("ball_ready")
 L += ["state 1"]; snap("ball_shake")
 L += ["state 2", "ctr 1 3", "ctr 2 0"]; snap("ball_yes")
@@ -69,6 +95,8 @@ L += ["ctr 1 16", "ctr 2 2"]; snap("ball_no")
 L += ["state 3"]; snap("ball_easy")
 L += ["lang es", "state 2", "ctr 1 10", "ctr 2 1"]; snap("ball_es")
 L += ["guides on"]; snap("ball_guides"); L += ["guides off", "lang en"]
+L.append(f"sheet {out}/sheet_ball.png 4")
+L.append("clear")
 # dice and coin: counters mode0 d1 1 d2 2 c3 cf4 tot5 z6 k7; states idle0 r1..r6 1..6 land7 easy8
 game("dice", "state 0", "ctr 0 0", "ctr 1 4"); snap("dice_idle")
 L += ["state 3", "ctr 1 2"]; snap("dice_tumble")
@@ -80,6 +108,7 @@ L += ["state 2", "ctr 3 2"]; snap("coin_edge")
 L += ["state 8"]; snap("dice_easy")
 L += ["guides on", "state 7", "ctr 0 1", "ctr 7 2"]; snap("dice_guides"); L += ["guides off"]
 L += ["lang es", "ctr 0 2", "ctr 3 0", "ctr 7 3"]; snap("coin_es")
+L.append(f"sheet {out}/sheet_dice.png 4")
 # motion keyframes (patch UI15): a change is drawn at t=1000 and the picture is taken some milliseconds later
 def key(game_name, name, dts, setup):
     for dt in dts:
@@ -95,9 +124,9 @@ L.append(f"sheet {out}/keys_a.png 4")
 L.append("clear")
 key("dice", "d_hop", (30, 60, 150, 260), ["state 4", "ctr 0 1", "ctr 1 3", "ctr 2 5"])
 key("dice", "c_flip", (30, 120, 260), ["state 7", "ctr 0 2", "ctr 3 0", "ctr 7 3"])
-key("rps", "r_bump", (60, 190, 330), ["state 3", "ctr 1 1"])
-key("rps", "r_pop", (40, 120, 300), ["state 7", "ctr 1 0", "ctr 2 2"])
+key("rps", "r_bump", (60, 190, 330), ["state 2", "ctr 1 -1", "ctr 2 1"])
+key("rps", "r_pop", (40, 120, 300), ["state 9", "ctr 1 0", "ctr 2 2"])
 key("tictactoe", "t_draw", (40, 120, 250, 400), ["state 1", "board 4 1", "board 0 2", "ctr 5 1", "ctr 6 1", "ctr 7 1"])
-key("bopit", "o_pulse", (0, 260, 520), ["state 2", "ctr 1 1", "ctr 0 3"])
+key("bopit", "o_pop", (0, 100, 300), ["state 2", "ctr 1 1", "ctr 4 19", "ctr 0 3"])
 L.append(f"sheet {out}/keys_b.png 4")
 print("\n".join(L))

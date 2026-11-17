@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from maipai_body import wake_look as wake_look_mod
 from maipai_body.bodies.stackchan.companion import DIAGNOSTIC_KINDS
 from maipai_body.bodies.stackchan.head_search import (
     AMBIENT_FACE_QUIET_S,
@@ -57,6 +58,7 @@ from maipai_body.bodies.stackchan.person_tracker import (
     PersonTracker,
     choose_person,
 )
+from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG as CENTER_PITCH_DEG_WAKE
 from maipai_body.expression.engine import ExpressionEngine
 from maipai_body.expression.suppression import SuppressionContext
 from maipai_body.hal.errors import BodyLost, NotPermitted
@@ -243,6 +245,16 @@ class StackChanBehavior:
         # request always works).
         self.look_toward_speaker = False
         self.look_for_faces = False
+        # "Look around when I hear the wake word" (wake_look.py; default on, needs no camera). The hooks are set by the service wiring:
+        # what the unit says (locked, a game), and whether the unit's own seeker owns seeking.
+        self.look_on_wake = True
+        self.wake_unit_busy: Callable[[], str] = lambda: ""
+        self.wake_seeker_owns: Callable[[], bool] = lambda: False
+        self.wake_looks = 0
+        self.wake_look_scale = 1.0  # tests set 0 to run the pan at once
+        self._wake_stop = threading.Event()
+        self._wake_thread: threading.Thread | None = None
+        self._last_wake_look = float("-inf")
         # Why the unit is occupied (a turn is running, or full quiet is on), "" when free: set once
         # the voice bridge exists. No idle look starts while it is not empty.
         self.head_busy: Callable[[], str] = lambda: ""
@@ -482,6 +494,9 @@ class StackChanBehavior:
 
     def render_turn_state(self, state: str, *, mood: str | None = None) -> None:
         self._active.set()
+        was_resting = self._rest.stage != "awake"  # the turn wakes it just below; a wake from sleep does not look around
+        if state != "listening":
+            self.stop_wake_look()  # the reply began, the turn ended or a stop word came: the pan ends where it is
         if self._rest.stage != "awake":
             # A turn wakes the robot at once (blink, screen, ring) before its own face is shown.
             try:
@@ -538,10 +553,24 @@ class StackChanBehavior:
             )
             glanced = False
             if state == "listening":
-                aim = may_move and self.look_toward_speaker
+                # "Look toward the speaker" on keeps its own wake turn as it was; the wake look is for when it is off.
+                wake_look = (
+                    may_move
+                    and not self.look_toward_speaker
+                    and self._wake_look_allowed(was_resting)
+                )
+                aim = may_move and (self.look_toward_speaker or wake_look)
                 self._turn_face_held = aim and self._turn_toward_face()
                 # The glance up replaces the listening perk; both are the one listening move.
-                glanced = not self._turn_face_held and aim and self._glance_up_for_speaker()
+                glanced = (
+                    not self._turn_face_held
+                    and aim
+                    and self._glance_up_for_speaker(
+                        wake_look_mod.PITCH_DEG if wake_look else SPEAKER_PITCH_DEG
+                    )
+                )
+                if wake_look and glanced:
+                    self._start_wake_look()
             if primitive is not None and may_move and not self._turn_face_held and not glanced:
                 self._head_off_center = True
                 self._expression.render_ambient(primitive, SuppressionContext())
@@ -1202,14 +1231,115 @@ class StackChanBehavior:
             return False
         return SceneBaseline.changed(thumb, self._still_thumb) >= STILL_CHANGE_SHARE
 
-    def _glance_up_for_speaker(self) -> bool:
+    # ---- look around on the wake word (wake_look.py) -------------------------------------------------------------------
+
+    def _wake_look_local_block(self, was_resting: bool = False) -> str:
+        """Why the head must not look around now, from what the host itself knows ("" when free). No camera frame is read."""
+        if was_resting or self._rest.stage != "awake":
+            return "asleep or drowsy"
+        if self.night_active():
+            return "night or quiet hours"
+        privacy = getattr(self, "privacy", None)
+        if (
+            bool(getattr(privacy, "muted", False))
+            or bool(getattr(privacy, "quiet", False))
+            or self.speech_muted()
+        ):
+            return "muted or full quiet"
+        orientation = self.orientation
+        if self.pose_held() or (orientation is not None and orientation.sensors_untrusted()):
+            return "carried, tilted or held"
+        if self.dance_active():
+            return "a dance is running"
+        holder = self.robot.lease_holder
+        if holder is not None and holder != self._holder:
+            return "another source holds the head"
+        return ""
+
+    def _wake_look_allowed(self, was_resting: bool = False) -> bool:
+        """Every gate for the look on the wake word, then the once-per-15-s allowance (taken here). The caller holds the listening
+        state's own head-gate allowance; the pan asks the gate again for each move."""
+        if not self.look_on_wake:
+            return False
+        reason = self._wake_look_local_block(was_resting)
+        if not reason:
+            try:
+                reason = self.wake_unit_busy()
+            except Exception:
+                reason = ""
+        if not reason and self.wake_seeker_owns():
+            reason = "the unit's own seeker owns seeking"
+        now = time.monotonic()
+        if not reason and now - self._last_wake_look < wake_look_mod.COOLDOWN_S:
+            reason = "one look in the last 15 s"
+        if reason:
+            logger.info("StackChan wake look skipped: %s", reason)
+            return False
+        self._last_wake_look = now
+        return True
+
+    def _start_wake_look(self) -> None:
+        """After the glance up: the pan runs in its own thread so the turn is never held up."""
+        self.stop_wake_look()
+        stop = self._wake_stop = threading.Event()
+        self.wake_looks += 1
+        self._wake_thread = threading.Thread(
+            target=self._wake_look_run, args=(stop,), name="stackchan-wake-look", daemon=True
+        )
+        self._wake_thread.start()
+
+    def stop_wake_look(self, why: str = "") -> None:
+        """End the pan at once (a touch, the reply, the turn's end); the head stays where it is and the settle brings it back."""
+        thread = self._wake_thread
+        if not self._wake_stop.is_set() and thread is not None and thread.is_alive():
+            logger.info("StackChan wake look stopped%s", f": {why}" if why else "")
+        self._wake_stop.set()
+
+    def _wake_look_run(self, stop: threading.Event) -> None:
+        scale = self.wake_look_scale
+        if stop.wait((wake_look_mod.GLANCE_S + wake_look_mod.PAUSE_AFTER_GLANCE_S) * scale):
+            return
+        for yaw, move_s, pause_s in wake_look_mod.STEPS:
+            if stop.is_set() or not self._active.is_set() or self._phase != "listening":
+                return
+            reason = self._wake_look_local_block()
+            if reason:
+                logger.info("StackChan wake look stopped: %s", reason)
+                return
+            if not self.head_gate.allow("turn:wake-look", response=True):
+                return
+            pose = HeadPose(
+                yaw=math.radians(yaw),
+                pitch=math.radians(CENTER_PITCH_DEG_WAKE + wake_look_mod.PITCH_DEG),
+            )
+            moved: list[bool] = []
+
+            def move(pose: HeadPose = pose, move_s: float = move_s) -> None:
+                if stop.is_set():
+                    return
+                self.robot.head.set(pose=pose, duration_s=move_s, speed=wake_look_mod.SPEED)
+                moved.append(True)
+
+            try:
+                held = self._with_lease(move)
+            except Exception:
+                self._warn_limited("search", "StackChan wake look move failed")
+                return
+            if not held or not moved:
+                return  # another source took the head, or the pan was stopped: nothing more
+            self._note_own_move()
+            self._tracker.note_pose(yaw, wake_look_mod.PITCH_DEG)
+            if stop.wait((move_s + pause_s) * scale):
+                return
+
+    def _glance_up_for_speaker(self, pitch_deg: float = SPEAKER_PITCH_DEG) -> bool:
         """Someone spoke and no face is in view: a brisk, smooth glance up now (the camera is
         paused while the unit listens, so the face is looked for after the reply). The caller
         holds the listening state's own head-gate allowance; this is that one move."""
         from maipai_body.bodies.stackchan.gaze import GazeReason
         from maipai_body.bodies.stackchan.profile import CENTER_PITCH_DEG
 
-        pose = HeadPose(yaw=0.0, pitch=math.radians(CENTER_PITCH_DEG + SPEAKER_PITCH_DEG))
+        pose = HeadPose(yaw=0.0, pitch=math.radians(CENTER_PITCH_DEG + pitch_deg))
         try:
             self.robot.head.set(pose=pose, duration_s=0.5, speed=TURN_SPEED)
         except Exception:
@@ -1218,10 +1348,10 @@ class StackChanBehavior:
         self._head_off_center = True
         self._note_own_move()
         self._search_after_turn = True
-        self._tracker.note_pose(0.0, SPEAKER_PITCH_DEG)
+        self._tracker.note_pose(0.0, pitch_deg)
         self.gaze.note(GazeReason.SEARCH)
         logger.info(
-            "StackChan glanced up toward the speaker: pitch %.0f up from level", SPEAKER_PITCH_DEG
+            "StackChan glanced up toward the speaker: pitch %.0f up from level", pitch_deg
         )
         return True
 
@@ -1710,6 +1840,8 @@ class StackChanBehavior:
         events = self._head_filter.accept(now, events)
         if self._search.active and any(getattr(e, "kind", None) in HEAD_KINDS for e in events):
             self._end_search(now, "a touch")
+        if any(getattr(e, "kind", None) in HEAD_KINDS for e in events):
+            self.stop_wake_look("a touch")
         for event in events:
             if getattr(event, "kind", None) in _LOGGED_UNIT_EVENTS:
                 extra = getattr(event, "extra", None) or {}
@@ -1829,6 +1961,7 @@ class StackChanBehavior:
 
     def close(self) -> None:
         self._closed.set()
+        self.stop_wake_look()
         self.stop_presence()
         close = getattr(self._vision, "close", None)
         if callable(close):
@@ -2829,6 +2962,10 @@ async def _serve_stackchan_channels(
 
         # Voice games the model plays ("play twenty questions"): the start and end are answered here with no model.
         bridge.talk_games = TalkGames()
+        from maipai_body.bodies.stackchan.lock_voice import LockVoice
+
+        # "Lock" / "bloquear": the unit that heard it locks, no model call. The service is read late (the settings polish is built after this).
+        bridge.lock_control = LockVoice(lambda: getattr(getattr(voice, "polish", None), "lock", None))
         bridge.muted_reason = behavior.privacy.muted_reason
         bridge.on_error_line = sounds.on_error_line
         behavior.announce = bridge.speak_reaction
@@ -2975,6 +3112,11 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
         for key in ("look_speaker", "look_faces"):
             if isinstance(values.get(key), bool):
                 choice[key] = values[key]
+        if isinstance(values.get("look_on_wake"), bool):
+            behavior.look_on_wake = values["look_on_wake"]  # "Look around when I hear the wake word" (wake_look.py)
+            if not behavior.look_on_wake:
+                behavior.stop_wake_look("the setting was turned off")
+        unit_id[0] = device_id
         sync_look(device_id)
 
     def sync_look(device_id: str) -> None:
@@ -2991,6 +3133,27 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
         behavior.look_for_faces = bool(choice["look_faces"]) and may
 
     choice = {"look_speaker": False, "look_faces": False}
+    unit_id: list[str | None] = [None]  # the unit the last save or connect named (one unit per host in practice)
+    from maipai_body.wake_look import UnitCheck
+
+    behavior.wake_unit_busy = UnitCheck(
+        lambda: getattr(getattr(voice, "polish", None), "probe", None), lambda: unit_id[0]
+    ).reason
+
+    def seeker_owns() -> bool:
+        """The owner chose that nobody turns toward faces (the wake look then stays still)."""
+        owner = getattr(voice, "look_owner", None)
+        device_id = unit_id[0]
+        if owner is None or not device_id:
+            return False
+        try:
+            # Only "nobody turns toward faces" blocks the wake look. The unit's own seeker moves on motion and the wake look is
+            # a short pan after the wake word, so a robot-owned unit still looks around when called (owner request 2026-11-17).
+            return owner.setting(device_id) == "off"
+        except Exception:
+            return False
+
+    behavior.wake_seeker_owns = seeker_owns
     voice.look_sync = sync_look
     backend.on_saved = apply
 
@@ -3002,6 +3165,7 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
                 "idle_movement": own.get("idle_movement", "off"),
                 "look_speaker": own.get("look_speaker", False),
                 "look_faces": own.get("look_faces", False),
+                "look_on_wake": own.get("look_on_wake", True),
                 "dance_to_music": own.get("dance_to_music", False),
             },
         )

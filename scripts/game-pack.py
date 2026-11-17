@@ -28,7 +28,7 @@ SIG_LEN = 64
 LIMITS = {"states": 16, "regions": 12, "shapes": 64, "texts": 32, "trans": 96, "actions": 255}
 COUNTERS = 8
 TEXT_LEN = 48
-EDGE = (20, 28, 300, 220)  # left, top, right, bottom: the unit keeps the edges for its swipes
+EDGE = (20, 28, 300, 224)  # left, top, right, bottom: the unit keeps the edges for its swipes
 TONES = ("popup", "vibration", "success", "low_battery", "exclamation")
 # Patch UI12: the games' own funny sounds, made in code (maipai_games_sfx_core.h; a test keeps these names equal to the header).
 # A tone id is 0 to 4 for a shipped sound, 5 + n for clip n, 0x80 + g for group g (one clip of the group at random).
@@ -50,8 +50,16 @@ EVENTS = {
     "enter": 0, "timer": 1, "tap": 2, "swipe_l": 3, "swipe_r": 4, "shake": 5, "pet": 6,
     "tilt_l": 7, "tilt_r": 8, "tilt_f": 9, "tilt_b": 10, "easy": 11,
 }  # fmt: skip
-SHAPES = {"fill": 0, "circle": 1, "box": 2, "ring": 3, "text": 4, "line": 5, "mole": 6, "die": 7, "coin": 8}
-SIZES = {"small": 0, "medium": 1, "large": 2}
+SHAPES = {
+    "fill": 0, "circle": 1, "box": 2, "ring": 3, "text": 4, "line": 5, "mole": 6, "die": 7, "coin": 8, "icon": 9,
+}  # fmt: skip
+SIZES = {"small": 0, "medium": 1, "large": 2, "xlarge": 3}  # patch GM04: xlarge is the 24 px font
+# Patch GM04: the drawn icons (maipai_games_core.h, MG_ICON_*) and the flags of an icon shape.
+ICONS = {
+    "tap": 0, "swipe_left": 1, "swipe_right": 2, "shake": 3, "pet": 4, "tilt": 5,
+    "rock": 6, "paper": 7, "scissors": 8,
+}  # fmt: skip
+ICON_FLAGS = {"mirror": 0x100, "pop": 0x200, "bump": 0x400}
 GUARDS = {
     "ctr_eq": 1,
     "ctr_ne": 2,
@@ -91,6 +99,7 @@ OPS = {
     "sync": 22,
     "light": 23,
     "celebrate": 24,
+    "ceil": 25,
 }
 
 
@@ -216,6 +225,31 @@ def build(desc: dict, *, seed: int | None = None) -> bytes:
             cond_ctr = _index(counters, s.get("region"), "counter", where)
             aux = _index(counters, s.get("face"), "counter", where)
             cond_val = 0
+        if kind == SHAPES["fill"] and s.get("alpha"):  # a see-through fill: the opacity (1 to 254) rides in the height field
+            sh = int(s["alpha"])
+            if not 1 <= sh <= 254:
+                raise PackError(f"{where}: alpha must be 1 to 254. Fix it.")
+        if kind == SHAPES["icon"]:  # (x, y) is the center, size the side; "icon" names a fixed one, "value" a counter that holds the number
+            if s.get("icon") is not None:
+                if s["icon"] not in ICONS:
+                    raise PackError(f"{where}: icon {s['icon']!r} is not one of {', '.join(ICONS)}. Fix the name.")
+                cond_ctr, text = 0xFF, ICONS[s["icon"]]
+            else:  # a counter picks one of a group of icons: the number is the counter plus the first icon of the group
+                cond_ctr = _index(counters, s.get("value"), "counter", where)
+                if s.get("first", "tap") not in ICONS:
+                    raise PackError(f"{where}: first icon {s['first']!r} is not one of {', '.join(ICONS)}. Fix the name.")
+                text = ICONS[s.get("first", "tap")]
+            mode = s.get("mode")
+            if mode:
+                aux, cond_val = _index(counters, mode[0], "counter", where), int(mode[1])
+            else:
+                aux, cond_val = 0, -128
+            sw = s.get("size", 60)
+            sh = 0
+            for flag in s.get("flags", []):
+                if flag not in ICON_FLAGS:
+                    raise PackError(f"{where}: icon flag {flag!r} is not one of {', '.join(ICON_FLAGS)}. Fix it.")
+                sh |= ICON_FLAGS[flag]
         if kind in (SHAPES["die"], SHAPES["coin"]):  # a value counter, and the mode in which it shows (counter, value)
             cond_ctr = _index(counters, s.get("value"), "counter", where)
             mode = s.get("mode")
@@ -294,7 +328,7 @@ def build(desc: dict, *, seed: int | None = None) -> bytes:
                 )
             a, v = 0, 0
             name_ = act[0]
-            if name_ in ("set", "add", "rand", "div", "floor", "board_place"):
+            if name_ in ("set", "add", "rand", "div", "floor", "ceil", "board_place"):
                 a, v = _index(counters, act[1], "counter", where), int(act[2])
             elif name_ in ("add_ctr", "copy", "sub_ctr", "board_bot"):
                 a, v = (
