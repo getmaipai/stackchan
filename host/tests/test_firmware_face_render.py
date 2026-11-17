@@ -18,8 +18,9 @@ import pytest
 TREE = os.environ.get("MAIPAI_FW_TREE", "")
 RENDER = Path(__file__).resolve().parents[2] / "scripts" / "fw-face-render"
 STYLES = {"stock": 20}  # the circle styles: only Stock is a circle with a tilted lid now
-# the approved design (patch V10): the eye box (width, height) of each of the other styles
-BOXES = {"big_eyes": (96, 104, 165), "eyes_only": (84, 88, 168), "classic": (56, 72, 150), "minimal": (28, 40, 145)}  # width, height, a row above the mouth
+# the approved design (patch V10) inside the face zone (patch N04: Big eyes at 0.82, eyes only at 0.9; every eye is above y 150 and every
+# mouth below it): the eye box (width, height) of each of the other styles
+BOXES = {"big_eyes": (79, 85, 150), "eyes_only": (76, 80, 150), "classic": (56, 72, 150), "minimal": (28, 40, 150)}  # width, height, a row above the mouth
 
 pytestmark = pytest.mark.skipif(
     not TREE or not Path(TREE, "managed_components").is_dir() or shutil.which("clang++") is None,
@@ -107,7 +108,7 @@ def _boxes(render: Path, style: str, lead: str, frames: int) -> list[tuple[tuple
     return [(rows[i], rows[i + 1]) for i in range(0, len(rows), 2)]
 
 
-EYE_X = {"big_eyes": 85, "eyes_only": 75, "classic": 70, "minimal": 62}
+EYE_X = {"big_eyes": 70, "eyes_only": 70, "classic": 70, "minimal": 62}
 
 
 @pytest.mark.parametrize("style", sorted(BOXES))

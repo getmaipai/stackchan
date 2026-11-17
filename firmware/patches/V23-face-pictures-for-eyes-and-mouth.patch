@@ -1,0 +1,687 @@
+# Intent: Fast eyes, part 4 (owner brief 2026-11-16: the facial animation stutters, the earlier X02 build was smooth). Measured on the unit: the cheek and lid triangles of the emotions and the sixteen round-ended line draws of the speaking mouth are expensive LVGL masked draws (an emotion change refreshed in 22 ms, a speaking refresh in 9.5 ms). The looks do not change; only how they reach the screen. The shape list of the approved design stays the one definition (V10, V12). A new pure core, hal/maipai_sprite_core.h, rasterizes it: one RGB565 plus alpha picture per eye (the rounded box with its corner edge, the pupil and the two highlights, the lid and the cheek cut out of the alpha) and one alpha mask for the mouth (a round brush stamped along the 17 points at half-pixel places), each handed to LVGL as one image blit; the picture is built in the update loop (measured: building it in the draw event instead, once per refresh, was slower, 29.7 against 32.5 refreshes a second while the eyes move, because the loop's work overlaps the SPI send of the refresh before). Lists the pictures cannot draw (a heart, the closed-eye arc, an eye fading in or out, a stroke thicker than 36) stay shape draws. The dirty rectangles of V21 are unchanged: LVGL clips the blit to them. Memory: the pictures live in PSRAM (an eye 54,612 bytes, the mouth mask 15,840, the brush set 7,052: 132,116 bytes for Big eyes, allocated on first use and when the style changes); internal RAM cost is about 200 bytes (the members of two eyes and the mouth, no static buffers).
+# Placement: unit (the face runs on the robot, so it is complete with no host); the settings page preview is unchanged (it draws the same shape lists)
+# Upstream: firmware/main/stackchan/avatar/skins/default/{default.h,eyes.cpp,mouth.cpp} of the StackChan main component (MIT) as changed by X01, V10, V12, V21; new file hal/maipai_sprite_core.h
+# Check after a flash: Big eyes neutral, happy, sad, angry, doubt, surprised, sleepy and tired look as before (scripts/fw-serial.py snap, then compare with self.face.bench_mode sprite_off 1); a steady speaking mouth is the same pill; the host renderer (scripts/fw-face-render, command sprite off|on) draws both and the PNGs agree to within one pixel on the edges.
+
+diff --git a/firmware/main/hal/maipai_sprite_core.h b/firmware/main/hal/maipai_sprite_core.h
+new file mode 100644
+
+--- /dev/null
++++ b/firmware/main/hal/maipai_sprite_core.h
+@@ -0,0 +1,369 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Sprites for the face (patch V23): the pure drawing code. No ESP-IDF, no heap, no clock. Header-only plain C99 so a host compiler
++ * tests it (host/tests/firmware/sprite_core_test.c); the skin (eyes.cpp, mouth.cpp) owns the buffers and hands them to LVGL as images.
++ *
++ * Why: LVGL's software drawing spends about 150 cycles on every anti-aliased pixel of a rounded box, a disc, a triangle or a
++ * round-ended line (8 to 15 ms for a Big eyes refresh against 4 to 6 ms for the earlier faces-core eyes). The looks do not change. Only
++ * how they reach the screen does: the shape list of the approved design (ml_shape_t, hal/maipai_look_core.h) is rasterized here into
++ * one small picture per eye (RGB565 plus an alpha plane) and one alpha mask for the mouth, and LVGL blits each as a single image.
++ *
++ * Coordinates: shape coordinates are whole pixels, relative to the shape list's origin, and are pixel EDGES (a disc at (0, 0) with
++ * radius r covers x from -r to r). Pixel (i, j) of a picture covers [i, i+1] by [j, j+1]; its centre is (i + 0.5, j + 0.5).
++ * Coverage is the usual distance estimate: clamp(r + 0.5 - distance of the pixel centre from the edge).
++ */
++#ifndef MAIPAI_SPRITE_CORE_H
++#define MAIPAI_SPRITE_CORE_H
++
++#include "maipai_look_core.h"
++#include <math.h>
++#include <stdint.h>
++#include <string.h>
++
++/* The picture of an eye: the box it covers, relative to the shape list's origin. */
++typedef struct {
++    int x1, y1, w, h;
++} msp_box_t;
++
++/* ---------------------------------------------------------------- small helpers */
++
++/* Square root without the library call (the unit's FPU has no square root): bit estimate and two Newton steps, good to 1e-5. */
++static inline float msp_sqrt(float x)
++{
++    if (x <= 0.0f) return 0.0f;
++    union { float f; uint32_t u; } c = {x};
++    c.u = 0x5f375a86u - (c.u >> 1); /* 1 / sqrt(x) */
++    float y = c.f;
++    y = y * (1.5f - 0.5f * x * y * y);
++    y = y * (1.5f - 0.5f * x * y * y);
++    y = y * (1.5f - 0.5f * x * y * y);
++    return x * y;
++}
++
++static inline int msp_iceil(float x) { int i = (int)x; return (float)i < x ? i + 1 : i; }
++static inline int msp_ifloor(float x) { int i = (int)x; return (float)i > x ? i - 1 : i; }
++static inline int msp_imin(int a, int b) { return a < b ? a : b; }
++static inline int msp_imax(int a, int b) { return a > b ? a : b; }
++static inline float msp_clamp01(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
++
++/* dst moved toward src by w (0 to 255), on 5-6-5 fields. */
++static inline uint16_t msp_mix565(uint16_t dst, uint16_t src, int w)
++{
++    if (w <= 0) return dst;
++    if (w >= 255) return src;
++    const int r = ((dst >> 11) & 31) * (255 - w) + ((src >> 11) & 31) * w;
++    const int g = ((dst >> 5) & 63) * (255 - w) + ((src >> 5) & 63) * w;
++    const int b = (dst & 31) * (255 - w) + (src & 31) * w;
++    return (uint16_t)((((r + 127) / 255) << 11) | (((g + 127) / 255) << 5) | ((b + 127) / 255));
++}
++
++/* ---------------------------------------------------------------- disc and rounded box rows
++ * For the row whose centre is dy away from the middle of a circle of radius r: the pixel centres within `xo` of the middle are
++ * touched, within `xi` are fully covered (xi is -1 when none is). */
++static inline void msp_row_reach(float r, float dy, float* xo, float* xi)
++{
++    const float o2 = (r + 0.5f) * (r + 0.5f) - dy * dy;
++    *xo = o2 > 0.0f ? msp_sqrt(o2) : -1.0f;
++    const float i2 = (r - 0.5f) * (r - 0.5f) - dy * dy;
++    *xi = i2 > 0.0f ? msp_sqrt(i2) : -1.0f;
++}
++
++/* Cover of a pixel whose centre is (dx, dy) from the middle of a circle of radius r, 0 to 255. */
++static inline int msp_cov(float r, float dx, float dy)
++{
++    const float c = r + 0.5f - msp_sqrt(dx * dx + dy * dy);
++    return c <= 0.0f ? 0 : (c >= 1.0f ? 255 : (int)(c * 255.0f + 0.5f));
++}
++
++/* A disc of radius r around (cx, cy) painted over an RGB565 picture w by h: full pixels take `color`, edge pixels mix toward it. */
++static inline void msp_disc_paint(uint16_t* rgb, int w, int h, float cx, float cy, float r, uint16_t color)
++{
++    const int j0 = msp_imax(0, msp_ifloor(cy - r - 0.5f)), j1 = msp_imin(h - 1, msp_iceil(cy + r + 0.5f));
++    for (int j = j0; j <= j1; j++) {
++        const float dy = (float)j + 0.5f - cy;
++        float xo, xi;
++        msp_row_reach(r, dy, &xo, &xi);
++        if (xo < 0.0f) continue;
++        const int lo = msp_imax(0, msp_iceil(cx - xo - 0.5f)), hi = msp_imin(w - 1, msp_ifloor(cx + xo - 0.5f));
++        int flo = 1 << 20, fhi = -(1 << 20);
++        if (xi >= 0.0f) {
++            flo = msp_iceil(cx - xi - 0.5f);
++            fhi = msp_ifloor(cx + xi - 0.5f);
++        }
++        uint16_t* row = rgb + (size_t)j * (size_t)w;
++        for (int i = lo; i <= hi; i++) {
++            if (i >= flo && i <= fhi) {
++                const int e = fhi < hi ? fhi : hi;
++                for (int k = i; k <= e; k++) row[k] = color;
++                i = e;
++                continue;
++            }
++            const int c = msp_cov(r, (float)i + 0.5f - cx, dy);
++            if (c > 0) row[i] = msp_mix565(row[i], color, c);
++        }
++    }
++}
++
++/* The alpha of a rounded box w by h, corner radius rad (already limited to half the short side): 255 inside, an anti-aliased edge at the corners. */
++static inline void msp_rrect_alpha(uint8_t* a, int w, int h, int rad)
++{
++    if (rad < 0) rad = 0;
++    if (rad > w / 2) rad = w / 2;
++    if (rad > h / 2) rad = h / 2;
++    for (int j = 0; j < h; j++) {
++        uint8_t* row = a + (size_t)j * (size_t)w;
++        float dyc = 0.0f;
++        if (j < rad) dyc = (float)rad - ((float)j + 0.5f);
++        else if (j >= h - rad) dyc = ((float)j + 0.5f) - (float)(h - rad);
++        if (rad == 0 || dyc <= 0.0f) {
++            memset(row, 255, (size_t)w);
++            continue;
++        }
++        float xo, xi;
++        msp_row_reach((float)rad, dyc, &xo, &xi);
++        int lo = xo < 0.0f ? rad : msp_imax(0, msp_iceil((float)rad - xo - 0.5f));
++        int full = xi < 0.0f ? rad : msp_imin(rad, msp_iceil((float)rad - xi - 0.5f));
++        if (lo > full) lo = full;
++        memset(row, 0, (size_t)lo);
++        for (int i = lo; i < full; i++) {
++            const int c = msp_cov((float)rad, (float)rad - ((float)i + 0.5f), dyc);
++            row[i] = (uint8_t)c;
++            row[w - 1 - i] = (uint8_t)c;
++        }
++        memset(row + w - lo, 0, (size_t)lo);
++        memset(row + full, 255, (size_t)(w - 2 * full));
++    }
++}
++
++/* Erase (multiply the alpha by 1 - cover) the quad q (x, y of four corners: top left, top right, bottom right, bottom left; vertical
++ * sides), in picture coordinates. This is a lid or a cheek strip of the shape list. */
++static inline void msp_erase_quad(uint8_t* a, int w, int h, const float* q)
++{
++    const float xl = q[0], xr = q[2];
++    if (xr <= xl) return;
++    const float yt0 = q[1], yt1 = q[3], yb0 = q[7], yb1 = q[5];
++    const int i0 = msp_imax(0, msp_ifloor(xl)), i1 = msp_imin(w - 1, msp_iceil(xr) - 1);
++    for (int i = i0; i <= i1; i++) {
++        const float xa = (float)i > xl ? (float)i : xl, xb = (float)(i + 1) < xr ? (float)(i + 1) : xr;
++        const float fx = xb - xa;
++        if (fx <= 0.0f) continue;
++        const float t = ((xa + xb) * 0.5f - xl) / (xr - xl);
++        const float yt = yt0 + (yt1 - yt0) * t, yb = yb0 + (yb1 - yb0) * t;
++        if (yb <= yt) continue;
++        const int j0 = msp_imax(0, msp_ifloor(yt)), j1 = msp_imin(h - 1, msp_iceil(yb) - 1);
++        for (int j = j0; j <= j1; j++) {
++            const float ya = (float)j > yt ? (float)j : yt, yc = (float)(j + 1) < yb ? (float)(j + 1) : yb;
++            const float c = fx * (yc - ya);
++            if (c <= 0.0f) continue;
++            uint8_t* p = a + (size_t)j * (size_t)w + i;
++            if (c >= 0.995f) *p = 0;
++            else *p = (uint8_t)(((int)*p * (int)((1.0f - c) * 256.0f)) >> 8);
++        }
++    }
++}
++
++/* ---------------------------------------------------------------- the eye */
++
++/* 1 when the shape list is a plain eye the picture can draw (a fully opaque box, then discs, the mask ring and lid or cheek quads), with
++ * the box it covers in `box`; 0 for a heart, a closed-eye arc, a fading eye or anything else (the caller draws those as shapes). */
++static inline int msp_eye_plain(const ml_shape_t* sh, int n, msp_box_t* box)
++{
++    if (n < 1 || sh[0].kind != ML_SH_RRECT || sh[0].opa != 255) return 0;
++    for (int i = 1; i < n; i++) {
++        const ml_shape_t* s = &sh[i];
++        switch (s->kind) {
++            case ML_SH_CIRCLE:
++                if (s->opa != 255) return 0;
++                break;
++            case ML_SH_RING: break;
++            case ML_SH_QUAD:
++                if (s->opa != 255 || s->col != ML_COL_BG) return 0;
++                if (s->v[0] != s->v[6] || s->v[2] != s->v[4]) return 0; /* vertical sides only (every lid and cheek strip is) */
++                break;
++            default: return 0;
++        }
++    }
++    const ml_shape_t* e = &sh[0];
++    box->w  = (int)lroundf(e->v[2]);
++    box->h  = (int)lroundf(e->v[3]);
++    box->x1 = (int)lroundf(e->v[0] - e->v[2] * 0.5f);
++    box->y1 = (int)lroundf(e->v[1] - e->v[3] * 0.5f);
++    return box->w > 0 && box->h > 0;
++}
++
++/* Draw the plain eye into rgb (w*h u16) and a (w*h u8): the face colour fg for the box, the screen colour bg for the pupil and
++ * the highlights in the face colour; the lid and the cheek take their cover out of the alpha. The box is `box` (from msp_eye_plain). */
++static inline void msp_eye_render(const ml_shape_t* sh, int n, const msp_box_t* box, uint16_t fg, uint16_t bg, uint16_t* rgb, uint8_t* a)
++{
++    const int w = box->w, h = box->h;
++    for (size_t i = 0, e = (size_t)w * (size_t)h; i < e; i++) rgb[i] = fg;
++    int rad = (int)lroundf(sh[0].v[4]);
++    msp_rrect_alpha(a, w, h, rad);
++    const float ox = (float)-box->x1, oy = (float)-box->y1;
++    for (int i = 1; i < n; i++) {
++        const ml_shape_t* s = &sh[i];
++        if (s->kind == ML_SH_CIRCLE) {
++            msp_disc_paint(rgb, w, h, s->v[0] + ox, s->v[1] + oy, s->v[2], s->col == ML_COL_BG ? bg : fg);
++        } else if (s->kind == ML_SH_QUAD) {
++            float q[8];
++            for (int k = 0; k < 4; k++) {
++                q[k * 2]     = s->v[k * 2] + ox;
++                q[k * 2 + 1] = s->v[k * 2 + 1] + oy;
++            }
++            msp_erase_quad(a, w, h, q);
++        }
++    }
++}
++
++/* ---------------------------------------------------------------- the mouth stroke
++ * A stroke along a polyline with round ends, drawn as a round brush stamped every pixel along it (at half-pixel places), then the
++ * brush rows: solid in the middle, a soft edge at each end. The result is a mask (alpha only); LVGL colours it. */
++
++#define MSP_BRUSH_MAX 40 /* the brush is at most this many pixels wide: a stroke up to 36 thick */
++
++typedef struct {
++    int t;                                          /* thickness this set was made for, 0 = none */
++    int size, c;                                    /* canvas size and the pixel edge the circle is centred on */
++    uint8_t px[4][MSP_BRUSH_MAX * MSP_BRUSH_MAX];   /* the brush for the four half-pixel phases (fx + 2 fy) */
++    int8_t lo[4][MSP_BRUSH_MAX], flo[4][MSP_BRUSH_MAX], fhi[4][MSP_BRUSH_MAX], hi[4][MSP_BRUSH_MAX]; /* per row: first touched, first solid, first after solid, first after touched */
++} msp_brush_t;
++
++static inline void msp_brush_make(msp_brush_t* b, int t)
++{
++    if (t < 1) t = 1;
++    if (t > MSP_BRUSH_MAX - 4) t = MSP_BRUSH_MAX - 4;
++    const float r = (float)t * 0.5f;
++    b->t    = t;
++    b->c    = msp_iceil(r) + 1;
++    b->size = 2 * b->c + 1;
++    for (int ph = 0; ph < 4; ph++) {
++        const float cx = (float)b->c + ((ph & 1) ? 0.5f : 0.0f), cy = (float)b->c + ((ph & 2) ? 0.5f : 0.0f);
++        for (int j = 0; j < b->size; j++) {
++            uint8_t* row = &b->px[ph][j * MSP_BRUSH_MAX];
++            memset(row, 0, MSP_BRUSH_MAX);
++            const float dy = (float)j + 0.5f - cy;
++            float xo, xi;
++            msp_row_reach(r, dy, &xo, &xi);
++            int lo = b->size, flo = b->size, fhi = b->size, hi = b->size;
++            if (xo >= 0.0f) {
++                lo = msp_imax(0, msp_iceil(cx - xo - 0.5f));
++                hi = msp_imin(b->size, msp_ifloor(cx + xo - 0.5f) + 1);
++                if (xi >= 0.0f) {
++                    flo = msp_iceil(cx - xi - 0.5f);
++                    fhi = msp_ifloor(cx + xi - 0.5f) + 1;
++                    if (flo < lo) flo = lo;
++                    if (fhi > hi) fhi = hi;
++                    if (fhi < flo) fhi = flo;
++                } else {
++                    flo = fhi = (lo + hi) / 2;
++                }
++                for (int i = lo; i < flo; i++) row[i] = (uint8_t)msp_cov(r, (float)i + 0.5f - cx, dy);
++                for (int i = flo; i < fhi; i++) row[i] = 255;
++                for (int i = fhi; i < hi; i++) row[i] = (uint8_t)msp_cov(r, (float)i + 0.5f - cx, dy);
++            }
++            b->lo[ph][j] = (int8_t)lo;
++            b->flo[ph][j] = (int8_t)flo;
++            b->fhi[ph][j] = (int8_t)fhi;
++            b->hi[ph][j] = (int8_t)hi;
++        }
++    }
++}
++
++/* One stamp of the brush with its pixel origin at (ox, oy) in the mask (w by h). */
++static inline void msp_brush_stamp(const msp_brush_t* b, int ph, uint8_t* m, int w, int h, int ox, int oy)
++{
++    for (int j = 0; j < b->size; j++) {
++        const int y = oy + j;
++        if (y < 0 || y >= h) continue;
++        const int lo = b->lo[ph][j], flo = b->flo[ph][j], fhi = b->fhi[ph][j], hi = b->hi[ph][j];
++        if (lo >= hi) continue;
++        uint8_t* row = m + (size_t)y * (size_t)w;
++        const uint8_t* src = &b->px[ph][j * MSP_BRUSH_MAX];
++        for (int i = lo; i < flo; i++) {
++            const int x = ox + i;
++            if (x >= 0 && x < w && src[i] > row[x]) row[x] = src[i];
++        }
++        int s = ox + flo, e = ox + fhi;
++        if (s < 0) s = 0;
++        if (e > w) e = w;
++        if (e > s) memset(row + s, 255, (size_t)(e - s));
++        for (int i = fhi; i < hi; i++) {
++            const int x = ox + i;
++            if (x >= 0 && x < w && src[i] > row[x]) row[x] = src[i];
++        }
++    }
++}
++
++/* 1 when the shape list is a mouth stroke the mask can draw (round-ended lines of one width, or one disc), with the box it covers (and the
++ * thickness in *t). The box includes the brush. */
++static inline int msp_stroke_plain(const ml_shape_t* sh, int n, msp_box_t* box, int* t, uint8_t* opa)
++{
++    if (n < 1) return 0;
++    int x1 = 1 << 20, y1 = 1 << 20, x2 = -(1 << 20), y2 = -(1 << 20), tt = 0;
++    for (int i = 0; i < n; i++) {
++        const ml_shape_t* s = &sh[i];
++        if (s->opa != sh[0].opa || s->col != sh[0].col) return 0;
++        int ti, px[2] = {0, 0}, py[2] = {0, 0}, m;
++        if (s->kind == ML_SH_LINE) {
++            ti = (int)lroundf(s->v[4]);
++            if (ti < 1) ti = 1;
++            px[0] = (int)lroundf(s->v[0]); py[0] = (int)lroundf(s->v[1]);
++            px[1] = (int)lroundf(s->v[2]); py[1] = (int)lroundf(s->v[3]);
++            m = 2;
++        } else if (s->kind == ML_SH_CIRCLE) {
++            ti = (int)lroundf(s->v[2] * 2.0f);
++            px[0] = (int)lroundf(s->v[0]); py[0] = (int)lroundf(s->v[1]);
++            m = 1;
++        } else {
++            return 0;
++        }
++        if (i > 0 && ti != tt) return 0;
++        tt = ti;
++        for (int k = 0; k < m; k++) {
++            x1 = msp_imin(x1, px[k]); x2 = msp_imax(x2, px[k]);
++            y1 = msp_imin(y1, py[k]); y2 = msp_imax(y2, py[k]);
++        }
++    }
++    if (tt > MSP_BRUSH_MAX - 4) return 0;
++    const int pad = msp_iceil((float)tt * 0.5f) + 2;
++    box->x1 = x1 - pad;
++    box->y1 = y1 - pad;
++    box->w  = x2 - x1 + 2 * pad + 1;
++    box->h  = y2 - y1 + 2 * pad + 1;
++    *t      = tt;
++    *opa    = sh[0].opa;
++    return 1;
++}
++
++/* Draw the stroke into the mask (box->w by box->h bytes). `brush` is filled for this thickness on first use. */
++static inline void msp_stroke_render(const ml_shape_t* sh, int n, const msp_box_t* box, int t, msp_brush_t* brush, uint8_t* m)
++{
++    if (brush->t != msp_imax(1, msp_imin(t, MSP_BRUSH_MAX - 4))) msp_brush_make(brush, t);
++    memset(m, 0, (size_t)box->w * (size_t)box->h);
++    for (int i = 0; i < n; i++) {
++        const ml_shape_t* s = &sh[i];
++        float x0, y0, x1, y1;
++        if (s->kind == ML_SH_LINE) {
++            x0 = (float)lroundf(s->v[0]); y0 = (float)lroundf(s->v[1]);
++            x1 = (float)lroundf(s->v[2]); y1 = (float)lroundf(s->v[3]);
++        } else {
++            x0 = x1 = (float)lroundf(s->v[0]);
++            y0 = y1 = (float)lroundf(s->v[1]);
++        }
++        /* LVGL draws a line through the middle of the pixels its end points name, so the brush centre is half a pixel in */
++        x0 += 0.5f - (float)box->x1; x1 += 0.5f - (float)box->x1;
++        y0 += 0.5f - (float)box->y1; y1 += 0.5f - (float)box->y1;
++        const float dx = x1 - x0, dy = y1 - y0;
++        const int steps = msp_imax(1, msp_imax((int)fabsf(dx), (int)fabsf(dy)));
++        for (int k = 0; k <= steps; k++) {
++            const float f  = (float)k / (float)steps;
++            const int qx = (int)lroundf((x0 + dx * f) * 2.0f), qy = (int)lroundf((y0 + dy * f) * 2.0f);
++            const int ph = (qx & 1) + 2 * (qy & 1);
++            msp_brush_stamp(brush, ph, m, box->w, box->h, (qx >> 1) - brush->c, (qy >> 1) - brush->c);
++            if (steps == 1 && dx == 0.0f && dy == 0.0f) break;
++        }
++    }
++}
++
++#endif
+
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -13,6 +13,7 @@
+ #include <smooth_lvgl.hpp>
+ #include <memory>
+ #include "../../../../hal/maipai_look_core.h"
++#include "../../../../hal/maipai_sprite_core.h"
+ 
+ namespace stackchan::avatar {
+ 
+@@ -118,6 +119,13 @@ private:
+     ml_shape_t _sh[ML_MAX_SHAPES];
+     int _nsh = 0, _ox = 0, _oy = 0;
+     int _bb[4] = {0, 0, 0, 0};  // the bounds drawn now, relative to the art's middle: x1 y1 x2 y2
++    // Patch V23: the eye as one picture (RGB565 plus an alpha plane, in PSRAM) that LVGL blits, instead of a dozen masked shape draws.
++    void build_sprite();
++    bool _sprite_on = false, _sprite_stale = true;
++    uint8_t* _sdata = nullptr;
++    size_t _scap    = 0;
++    msp_box_t _sbox = {0, 0, 0, 0};
++    lv_draw_buf_t _sbuf;
+     ml_shape_t _bsh[2];
+     int _nbsh = 0, _bbx = 0, _bby = 0;
+     int _bbb[4] = {0, 0, 0, 0};
+@@ -150,6 +158,10 @@ void ml_shape_list_bounds(const ml_shape_t* sh, int n, int b[4]);
+ // The eased pose of the face (the approved design): read by the mouth.
+ const float* ml_shown_pose();
+ extern int g_ml_emotion;
++// Patch V23: 1 draws the face from shape lists again (bench A/B, host renderer); 0 uses the pictures.
++extern "C" volatile int g_msp_off;
++// Where picture memory comes from (PSRAM on the unit).
++void* msp_alloc(size_t bytes);
+ 
+ /**
+  * @brief The mouth. In the stock style a rounded bar that grows into a box; in every other style a stroke along a curve
+@@ -197,6 +209,16 @@ private:
+     int _drawn_key[7] = {};
+     // Patch V10: the mouth of the approved design is a list of shapes (a curve, or a filled lens when open).
+     ml_shape_t _msh[ML_MAX_SHAPES];
++    // Patch V23: the stroke as one alpha mask (PSRAM) that LVGL colours and blits, instead of sixteen round-ended line draws.
++    void build_mask();
++    bool _mask_on = false, _mask_stale = true;
++    uint8_t* _mdata = nullptr;
++    size_t _mcap    = 0;
++    msp_box_t _mbox = {0, 0, 0, 0};
++    uint8_t _mopa   = 255;
++    int _mt         = 0;
++    msp_brush_t* _brush = nullptr;
++    lv_draw_buf_t _mbuf;
+     int _nmsh    = 0;
+     int _mbb[4]  = {0, 0, 0, 0};
+     float _mo    = 0.0f;
+
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -8,11 +8,25 @@
+ #include <cmath>
+ #include "../../../../hal/maipai_facefx_core.h"
+ #include "../../../../hal/maipai_dirty_core.h"
++#include <esp_heap_caps.h>
+ 
+ // One scratch set for every dirty-rectangle diff (eyes, brows, mouth all run on the one face task under the screen lock): the face task's
+ // stack is 4 KB and a set on it overflowed (found on the unit, 2026-11-16).
+ md_set_t g_md_scratch;
+ 
++// Patch V23: 1 draws the face from shape lists (the old way), 0 from pictures. Bench builds flip it to compare on one image.
++extern "C" {
++volatile int g_msp_off = 0;
++// Bench builds set this to count what building a picture costs; nothing else uses it.
++void (*g_msp_timing)(uint32_t us) = nullptr;
++}
++
++// Picture memory: PSRAM on the unit (the pictures are read by the drawing code, never by an interrupt or the flash driver).
++void* stackchan::avatar::msp_alloc(size_t bytes)
++{
++    return heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
++}
++
+ using namespace uitk;
+ using namespace uitk::lvgl_cpp;
+ using namespace stackchan::avatar;
+@@ -296,6 +310,10 @@ DefaultEyes::~DefaultEyes()
+         lv_obj_delete(_brow);
+         _brow = nullptr;
+     }
++    if (_sdata != nullptr) {
++        free(_sdata);
++        _sdata = nullptr;
++    }
+     _eyelid.reset();
+     _eye.reset();
+     _container.reset();
+@@ -371,6 +389,13 @@ void DefaultEyes::place_art()
+     lv_obj_align(_brow, LV_ALIGN_CENTER, x, st->eye_y - 60);
+     _nsh = _nbsh = 0;
+     _ox = _oy = 0;
++    _sprite_on = false;
++    _sprite_stale = true;
++    if (_sdata != nullptr) {  // the style's eye size sets the picture's room
++        free(_sdata);
++        _sdata = nullptr;
++        _scap  = 0;
++    }
+     lv_obj_invalidate(_art);
+     lv_obj_invalidate(_brow);
+ }
+@@ -525,6 +550,7 @@ void DefaultEyes::setColors(lv_color_t primaryColor, lv_color_t secondaryColor)
+         box(_art, _sh, _nsh, _ox, _oy, 0);
+         box(_brow, _bsh, _nbsh, 0, 0, 60);
+     }
++    _sprite_stale = true;  // patch V23: the picture holds the colours
+     _eye->setBgColor(primaryColor);
+     _eyelid->setBgColor(secondaryColor);
+ }
+@@ -702,6 +728,13 @@ void DefaultEyes::update_art(uint32_t ms)
+         _nsh = n;
+         _ox  = ox;
+         _oy  = oy;
++        _sprite_stale = true;
++    }
++    // Built here, in the update loop, not when the screen draws: measured on the unit, the picture built in the draw event (once per refresh,
++    // 29.7 refreshes a second while the eyes move) was slower than the one built in the loop (32.5): the loop's work overlaps the SPI send of
++    // the refresh before, the draw event's work does not.
++    if (_sprite_stale && vis) {
++        build_sprite();
+     }
+     // the brow
+     ml_shape_t bs[2];
+@@ -730,6 +763,42 @@ void DefaultEyes::update_art(uint32_t ms)
+     }
+ }
+ 
++// Patch V23: draw the eye's shape list into its picture. Lists the picture cannot draw (a heart, the closed arc, an eye that is fading
++// in or out) stay shape draws: _sprite_on tells drawArt which.
++void DefaultEyes::build_sprite()
++{
++    _sprite_stale = false;
++    _sprite_on    = false;
++    if (g_msp_off || _nsh == 0) {
++        return;
++    }
++    msp_box_t b;
++    if (!msp_eye_plain(_sh, _nsh, &b)) {
++        return;
++    }
++    const size_t px = (size_t)b.w * (size_t)b.h;
++    if (_sdata == nullptr) {  // room for the style's eye at 1.2 by 1.35 times its size (the surprised look, the widest blink and the loudest pulse fit)
++        const ml_style_t* st = ml_style(_style);
++        const size_t cw = (size_t)(st->ew * 1.2f) + 8, ch = (size_t)(st->eh * 1.35f) + 8;
++        _scap  = cw * ch;
++        _sdata = static_cast<uint8_t*>(msp_alloc(_scap * 3));
++        if (_sdata == nullptr) {
++            _scap = 0;
++        }
++    }
++    if (_sdata == nullptr || px > _scap) {
++        return;
++    }
++    const int64_t t0 = esp_timer_get_time();
++    msp_eye_render(_sh, _nsh, &b, lv_color_to_u16(_fg), lv_color_to_u16(_bg), reinterpret_cast<uint16_t*>(_sdata), _sdata + px * 2);
++    if (g_msp_timing != nullptr) {
++        g_msp_timing(static_cast<uint32_t>(esp_timer_get_time() - t0));
++    }
++    lv_draw_buf_init(&_sbuf, (uint32_t)b.w, (uint32_t)b.h, LV_COLOR_FORMAT_RGB565A8, (uint32_t)b.w * 2, _sdata, (uint32_t)(px * 3));
++    _sbox      = b;
++    _sprite_on = true;
++}
++
+ void DefaultEyes::drawArt(lv_event_t* e)
+ {
+     lv_layer_t* layer = lv_event_get_layer(e);
+@@ -738,7 +807,19 @@ void DefaultEyes::drawArt(lv_event_t* e)
+     }
+     lv_area_t a;
+     lv_obj_get_coords(_art, &a);
+-    ml_draw_shape_list(layer, _sh, _nsh, (a.x1 + a.x2) / 2 + _ox, (a.y1 + a.y2) / 2 + _oy, _fg, _bg);
++    if (_sprite_stale) {
++        build_sprite();
++    }
++    const int cx = (a.x1 + a.x2) / 2 + _ox, cy = (a.y1 + a.y2) / 2 + _oy;
++    if (_sprite_on) {
++        lv_draw_image_dsc_t d;
++        lv_draw_image_dsc_init(&d);
++        d.src = &_sbuf;
++        const lv_area_t at = {cx + _sbox.x1, cy + _sbox.y1, cx + _sbox.x1 + _sbox.w - 1, cy + _sbox.y1 + _sbox.h - 1};
++        lv_draw_image(layer, &d, &at);
++        return;
++    }
++    ml_draw_shape_list(layer, _sh, _nsh, cx, cy, _fg, _bg);
+ }
+ 
+ void DefaultEyes::drawBrow(lv_event_t* e)
+
+diff --git a/firmware/main/stackchan/avatar/skins/default/mouth.cpp b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+
+--- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+@@ -11,6 +11,7 @@
+ #include "../../../../hal/maipai_dirty_core.h"
+ 
+ extern md_set_t g_md_scratch;
++extern "C" void (*g_msp_timing)(uint32_t us);
+ using namespace uitk;
+ using namespace uitk::lvgl_cpp;
+ using namespace stackchan::avatar;
+@@ -69,6 +70,8 @@ DefaultMouth::~DefaultMouth()
+         lv_obj_delete(_draw);
+         _draw = nullptr;
+     }
++    free(_mdata);
++    free(_brush);
+     _mouth.reset();
+ }
+ 
+@@ -93,6 +96,8 @@ void DefaultMouth::setStyle(int style)
+     _px = _py = 0x7fffffff;
+     _drawn_w  = -1;
+     _nmsh     = 0;
++    _mask_on  = false;
++    _mask_stale = true;
+     if (_draw != nullptr) {
+         lv_obj_invalidate(_draw);
+     }
+@@ -209,7 +214,64 @@ void DefaultMouth::drawCute(lv_event_t* e)
+     }
+     lv_area_t a;
+     lv_obj_get_coords(_draw, &a);
+-    ml_draw_shape_list(layer, _msh, _nmsh, (a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2, _color, lv_color_black());
++    if (_mask_stale) {
++        build_mask();
++    }
++    const int cx = (a.x1 + a.x2) / 2, cy = (a.y1 + a.y2) / 2;
++    if (_mask_on) {
++        lv_draw_image_dsc_t d;
++        lv_draw_image_dsc_init(&d);
++        d.src         = &_mbuf;
++        d.recolor     = _color;
++        d.recolor_opa = LV_OPA_COVER;
++        d.opa         = _mopa;
++        const lv_area_t at = {cx + _mbox.x1, cy + _mbox.y1, cx + _mbox.x1 + _mbox.w - 1, cy + _mbox.y1 + _mbox.h - 1};
++        lv_draw_image(layer, &d, &at);
++        return;
++    }
++    ml_draw_shape_list(layer, _msh, _nmsh, cx, cy, _color, lv_color_black());
++}
++
++// Patch V23: the stroke as one alpha mask. Lists it cannot draw (a stroke thicker than the brush) stay shape draws.
++void DefaultMouth::build_mask()
++{
++    _mask_stale = false;
++    _mask_on    = false;
++    if (g_msp_off || _nmsh == 0) {
++        return;
++    }
++    msp_box_t b;
++    int t;
++    uint8_t opa;
++    if (!msp_stroke_plain(_msh, _nmsh, &b, &t, &opa)) {
++        return;
++    }
++    if (_mdata == nullptr) {  // room for the widest and tallest stroke the room allows
++        _mcap  = (size_t)kDrawW * (size_t)kDrawH;
++        _mdata = static_cast<uint8_t*>(msp_alloc(_mcap));
++        _brush = static_cast<msp_brush_t*>(msp_alloc(sizeof(msp_brush_t)));
++        if (_mdata == nullptr || _brush == nullptr) {
++            free(_mdata);
++            free(_brush);
++            _mdata = nullptr;
++            _brush = nullptr;
++            _mcap  = 0;
++            return;
++        }
++        _brush->t = 0;
++    }
++    if ((size_t)b.w * (size_t)b.h > _mcap) {
++        return;
++    }
++    const int64_t t0 = esp_timer_get_time();
++    msp_stroke_render(_msh, _nmsh, &b, t, _brush, _mdata);
++    if (g_msp_timing != nullptr) {
++        g_msp_timing(static_cast<uint32_t>(esp_timer_get_time() - t0));
++    }
++    lv_draw_buf_init(&_mbuf, (uint32_t)b.w, (uint32_t)b.h, LV_COLOR_FORMAT_A8, (uint32_t)b.w, _mdata, (uint32_t)(b.w * b.h));
++    _mbox    = b;
++    _mopa    = opa;
++    _mask_on = true;
+ }
+ 
+ // One eased step (patch H02, X01). While the unit speaks the mouth follows the loudness of its voice; otherwise the weight
+@@ -279,7 +341,12 @@ void DefaultMouth::_update()
+             }
+             memcpy(_msh, tmp, sizeof(ml_shape_t) * (size_t)n);
+             _nmsh = n;
++            _mask_stale = true;
+         }
++        if (_mask_stale && _visible && !_suppressed) {
++            build_mask();
++        }
++
+     }
+ 
+     {  // patch V20: the same spring as the eyes' gaze

@@ -8,7 +8,9 @@ Colors are tokens (CSS variables) that follow the browser's light or dark settin
 
 from __future__ import annotations
 
+from maipai_body.banner_shapes import banner_js
 from maipai_body.face_shapes import face_js
+from maipai_body.overlay_shapes import overlay_js
 from maipai_body.settings_ui_polish import JS_POLISH
 
 CSS = r"""
@@ -102,6 +104,8 @@ label.f{display:grid;gap:6px;font-size:.88rem;color:var(--muted);font-weight:600
 .pills{display:flex;flex-wrap:wrap;gap:8px}
 .pill{min-height:40px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--card2);cursor:pointer;font-weight:600}
 .pill[aria-pressed=true]{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.pill.ovp{display:inline-flex;flex-direction:column;align-items:center;gap:4px;padding:6px 6px 8px;border-radius:14px;min-width:108px}
+.ovthumb{width:96px;height:72px;border-radius:8px;background:#000;display:block}
 .kv{display:grid;grid-template-columns:minmax(110px,40%) 1fr;gap:8px 16px;font-size:.95rem}
 .kv dt{color:var(--muted)}.kv dd{margin:0;overflow-wrap:anywhere;font-weight:600}
 .stat{display:grid;gap:4px;padding:16px;border-radius:16px;background:var(--card2);border:1px solid var(--line)}
@@ -222,7 +226,7 @@ const PAL={none:'#f4f4f4',mint:'#5fe0b5',sky:'#6cc3ff',amber:'#ffbf47',rose:'#ff
 const colorOf=c=>PAL[c]||(/^#[0-9a-f]{6}$/i.test(c)?c:PAL.none);
 /*__FACE_SHAPES__*/
 /* the stock skin as shipped: its own look rows from the table of the core (the other styles are the shape model above) */
-const GEO={stock:{d:20,x:70,y:-16,my:26,mo:2,mw:90,mt:6,stock:1}};
+const GEO={stock:{d:20,x:70,y:-8,my:46,mo:2,mw:90,mt:6,stock:1}};
 const LK={};FT.emotions.forEach((e,i)=>{const k=FT.looks[i],m=k.stock.mouth;LK[e]={l:k.stock.lid,b:k.stock.from_bottom,r:k.stock.tilt,s:k.stock.scale,m:m,t:k.tint}});
 const STL={neutral:'neutral',happy:'happy',sad:'sad',angry:'angry',thinking:'doubt',sleepy:'sleepy',speaking:'neutral',love:'love',surprised:'surprised',tired:'tired',sleeping:'sleeping'};
 const KEYS=['l','r','s','w','bend','mt','wob','split','mtilt','cr','cg','cb'];
@@ -293,13 +297,16 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
    const es=side>0?P[MP.RSCALE]:1,ew=P[MP.EW]*es,eh=P[MP.EH]*es,gx=this.gx+P[MP.GX],gy=this.gy+P[MP.GY];
    const ox=Math.round(gx),oy=Math.round(P[MP.DY]+gy+(side>0?P[MP.RLIFT]:0)+br);
    const eye=eyeShapes(st,{side:side,ew:ew,eh:eh,lid:1-this.lidv/100,slant:P[MP.SLANT],cheek:P[MP.CHEEK],blink:this.bf,heart:P[MP.HEART],beat:beat,closed:f01((26-this.lidv)/12),gx:gx,gy:gy,voice:speaking?this.mo:0});
-   paintShapes(c,eye,160+side*st.eye_x+ox,120+st.eye_y+oy,fg,bg);
-   paintShapes(c,browShapes(st,side,P[MP.EW]*es,P[MP.EH]*es,es,gx,side>0?P[MP.RLIFT]:0,P[MP.BR],P[MP.BROW],P[MP.BLIFT],P[MP.BTILT]),160+side*st.eye_x,120+st.eye_y+br,fg,bg)}
-  if(st.mouth===1&&this.mc)paintShapes(c,mouthShapes(this.mc,(t%2.4)/2.4,P[MP.MON]),160,120+st.mouth_y+br*.5,fg,bg);
-  if(o.state==='thinking'&&o.dots!==false){c.fillStyle=fg;for(let i=0;i<3;i++){const d=dotOf(st,i,(t-this.st0)*1000);c.globalAlpha=d[3]/255;c.beginPath();c.arc(160+d[0],120+d[1],d[2]/2,0,6.2832);c.fill()}c.globalAlpha=1}
-  this.decor(c,fg,120+st.eye_y,160-st.eye_x,160+st.eye_x,st.ew,st.eh);c.restore()}
+   paintShapes(c,eye,160+side*st.eye_x+ox,ZC+st.eye_y+oy,fg,bg);
+   paintShapes(c,browShapes(st,side,P[MP.EW]*es,P[MP.EH]*es,es,gx,side>0?P[MP.RLIFT]:0,P[MP.BR],P[MP.BROW],P[MP.BLIFT],P[MP.BTILT]),160+side*st.eye_x,ZC+st.eye_y+br,fg,bg)}
+  if(st.mouth===1&&this.mc)paintShapes(c,mouthShapes(this.mc,(t%2.4)/2.4,P[MP.MON]),160,ZC+st.mouth_y+br*.5,fg,bg);
+  if(o.state==='thinking'&&o.dots!==false){c.fillStyle=fg;for(let i=0;i<3;i++){const d=dotOf(st,i,(t-this.st0)*1000);c.globalAlpha=d[3]/255;c.beginPath();c.arc(160+d[0],ZC+d[1],d[2]/2,0,6.2832);c.fill()}c.globalAlpha=1}
+  this.decor(c,fg,ZC+st.eye_y,160-st.eye_x,160+st.eye_x,st.ew,st.eh);c.restore()}
  snap(){if(this.isArt()){this.snapArt();return}this.T=this.target();for(const k of KEYS)this.P[k]=this.T[k]}
- step(dt){if(this.isArt()){this.stepArt(dt);return}this.t+=dt;this.T=this.target();const a=1-Math.exp(-dt*14),am=1-Math.exp(-dt/.09);for(const k of KEYS)this.P[k]+=(this.T[k]-this.P[k])*(k==='l'||k==='r'||k==='s'||k[0]==='c'?a:am);
+ bannerNow(o){const strip=[];if(o.topbar==='always')strip.push('battery','wifi');let b=o.banner;if(!b&&o.capmode==='banner'&&o.state==='speaking')b={text:HELLO[o.lang]||HELLO.en,icon:'speech',kind:'msg'};
+  return Object.assign({text:'',icon:'none',kind:'msg',fg:colorOf(o.color),fade:this.bo==null?1:this.bo},b||{},{strip:strip.concat((b&&b.strip)||[])})}
+ subNow(o){const on=(o.capmode||'subtitles')==='subtitles'&&o.state==='speaking';return{text:HELLO[o.lang]||HELLO.en,opa:on?1:(this.so||0)}}
+ step(dt){{const o=this.o,want=o.mode==='face'&&!!(o.banner||(o.capmode==='banner'&&o.state==='speaking'));this.bo=mbFadeStep(Math.round((this.bo||0)*255),want,Math.round(dt*1000))/255;const sub=(o.capmode||'subtitles')==='subtitles'&&o.state==='speaking'&&o.mode==='face';this.so=mbFadeStep(Math.round((this.so||0)*255),sub,Math.round(dt*1000))/255}if(this.isArt()){this.stepArt(dt);return}this.t+=dt;this.T=this.target();const a=1-Math.exp(-dt*14),am=1-Math.exp(-dt/.09);for(const k of KEYS)this.P[k]+=(this.T[k]-this.P[k])*(k==='l'||k==='r'||k==='s'||k[0]==='c'?a:am);
   if(REDUCED){this.gx=0;this.gy=0;this.bl=0;return}
   if(this.o.state==='speaking'){this.vt-=dt;if(this.vt<=0){if(Math.random()<.22){this.vtg=0;this.vt=rnd(.15,.45)}else{this.vtg=rnd(.35,1);this.vt=rnd(.08,.18)}}this.v+=(this.vtg-this.v)*Math.min(1,dt/.06)}else this.v+=(0-this.v)*Math.min(1,dt/.1);
   this.gn-=dt;const D=(GEO.stock).d/6;if(this.gn<=0){this.gn=rnd(.8,2.2);this.gtx=rnd(-D,D);this.gty=rnd(-D*.6,D*.6)}
@@ -312,14 +319,14 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
   c.save();c.lineCap='round';c.lineJoin='round';c.fillStyle=col;c.strokeStyle=col;
   const sh=this.shutPct(g.d);
   for(const side of[-1,1]){const lid=P.l*(1-this.bl)+sh*this.bl,rr=g.d*P.s/2,edge=rr*(1-lid/50),lift=lid<30?-(30-Math.max(0,lid))/30*g.d*P.s/2*.95:0,rot=P.r*(side<0?1:-1);
-   c.save();c.translate(160+side*g.x+this.gx*.6,120+g.y+this.gy*.6+br+lift);c.rotate(rot*Math.PI/180);c.beginPath();c.arc(0,0,rr,0,6.2832);c.clip();c.fillStyle=col;c.fillRect(-rr-2,edge,2*rr+4,2*rr-edge+4);c.restore()}
-  const my=120+g.my+br*.5;
+   c.save();c.translate(160+side*g.x+this.gx*.6,ZC+g.y+this.gy*.6+br+lift);c.rotate(rot*Math.PI/180);c.beginPath();c.arc(0,0,rr,0,6.2832);c.clip();c.fillStyle=col;c.fillRect(-rr-2,edge,2*rr+4,2*rr-edge+4);c.restore()}
+  const my=ZC+g.my+br*.5;
   if(o.state==='thinking'&&o.dots!==false){for(let i=0;i<3;i++){const ph=((t/1.2)-i*.33)%1,u=Math.abs(((ph<0?ph+1:ph)*2)%2-1),k=1-u;c.globalAlpha=(90+165*k)/255;c.beginPath();c.arc(160+(i-1)*24,my-k*5,(8+4*k)/2,0,6.2832);c.fill()}c.globalAlpha=1}
   else if(g.mo===2){const op=clamp(this.v*.9,0,1),w=90-30*op,hh=6+44*op;c.beginPath();rr2(c,160-w/2,my-hh/2,w,hh,16*op);c.fill()}
   else if(g.mo===1){const m={w:P.w,bend:P.bend,mt:P.mt,wob:P.wob,split:P.split,tilt:P.mtilt},op=this.v,flat=Math.min(1,op*2.2),sc=g.mw/46,mm={w:m.w+op*(12*sc-m.w),bend:m.bend*(1-flat),mt:m.mt+op*(34*sc-m.mt),wob:m.wob*(1-flat),split:m.split*(1-flat),tilt:m.tilt},pts=mouthPts(mm,(t%2.4)/2.4),xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]),tt=Math.max(2,mm.mt);
    if(Math.max(...xs)-Math.min(...xs)<tt/3&&Math.max(...ys)-Math.min(...ys)<tt/3){c.beginPath();c.arc(160+(Math.min(...xs)+Math.max(...xs))/2,my+(Math.min(...ys)+Math.max(...ys))/2,tt/2,0,6.2832);c.fill()}
    else{c.lineWidth=tt;c.beginPath();pts.forEach((p,i)=>i?c.lineTo(160+p[0],my+p[1]):c.moveTo(160+p[0],my+p[1]));c.stroke()}}
-  this.decor(c,col,120+g.y,160-g.x,160+g.x,g.d,g.d);c.restore()}
+  this.decor(c,col,ZC+g.y,160-g.x,160+g.x,g.d,g.d);c.restore()}
  decor(c,col,ey,L,R,ew,eh){const n=this.o.decor,t=this.t;if(!n||n==='none')return;c.fillStyle=col;c.strokeStyle=col;c.lineWidth=4;
   if(n==='sparkles'||n==='stars'){[[L-ew*.7,ey-eh*.5,0],[R+ew*.7,ey-eh*.3,1.3],[160,ey-eh*.8,2.4]].forEach(([x,y,p])=>star(c,x,y,7+9*(.5+.5*Math.sin(t*3+p))))}
   else if(n==='tears'){for(let i=0;i<2;i++){const ph=((t+i)%2)/2,x=(i?R:L)+ew*.18,y=ey+eh/2+8+ph*40;c.globalAlpha=1-ph*ph;c.beginPath();c.arc(x,y,7,0,6.2832);c.fill()}c.globalAlpha=1}
@@ -336,15 +343,19 @@ class Face{constructor(cv,o){this.cv=cv;this.d=cv.getContext('2d');this.w=cv.wid
  ovClear(){this.o.overlay=null}
  draw(){const o=this.o,d=this.d;d.setTransform(1,0,0,1,0,0);d.fillStyle='#000';d.fillRect(0,0,this.w,this.hh);
   const sc=this.sc;sc.setTransform(1,0,0,1,0,0);sc.fillStyle=bgOf(o.background);sc.fillRect(0,0,640,480);sc.setTransform(2,0,0,2,0,0);
-  if(o.mode==='clock')this.clock(sc,colorOf(o.color));else this.paint(sc);
-  if(o.captions&&o.mode==='face'){const px={small:14,medium:18,large:24}[o.size]||18;sc.fillStyle='rgba(0,0,0,.6)';sc.fillRect(0,240-px*1.9,320,px*1.9);sc.fillStyle=colorOf(o.color);sc.font='600 '+px+'px system-ui,sans-serif';sc.textAlign='center';sc.textBaseline='middle';sc.fillText(HELLO[o.lang]||HELLO.en,160,240-px*.95)}
+  const bn=o.mode==='face'?this.bannerNow(o):null,sub=o.mode==='face'?this.subNow(o):null;
+  if(o.mode==='face'&&o.overlay&&this.t<o.overlay.until){const y0=bn&&(bn.text||bn.strip.length)&&bn.fade>0?BT.zones.face[0]:0,y1=sub&&sub.opa>0?BT.zones.subtitles[0]:BT.screen_h;sc.save();sc.beginPath();sc.rect(0,y0,BT.screen_w,y1-y0);sc.clip();drawOv(sc,o.overlay,this.t);sc.restore()} /* the overlay is behind the face and leaves the banner row and the subtitle strip alone while they show, as on the unit */
+  if(o.mode==='clock')this.clock(sc,colorOf(o.color));
+  else{sc.save();sc.beginPath();sc.rect(0,BT.zones.face[0],BT.screen_w,BT.zones.face[1]-BT.zones.face[0]);sc.clip();this.paint(sc);sc.restore()} /* the face lives in its own zone and is clipped to it, as on the unit */
+  if(bn&&(bn.text||bn.strip.length)&&bn.fade>0)paintBanner(sc,bn,this.t,bn.fade);
+  if(sub&&sub.opa>0)paintSubtitles(sc,sub.text,colorOf(o.color),sub.opa);
+  if(false){const px={small:14,medium:18,large:24}[o.size]||18;sc.fillStyle='rgba(0,0,0,.6)';sc.fillRect(0,240-px*1.9,320,px*1.9);sc.fillStyle=colorOf(o.color);sc.font='600 '+px+'px system-ui,sans-serif';sc.textAlign='center';sc.textBaseline='middle';sc.fillText(HELLO[o.lang]||HELLO.en,160,240-px*.95)}
   d.imageSmoothingEnabled=true;const fx=o.fx||{};
   if(fx.glow){d.save();d.filter='blur(9px) brightness(1.5)';d.globalAlpha=.55;d.drawImage(this.st,0,0,this.w,this.hh);d.restore()}
   d.save();if(fx.mode&&FXM[fx.mode])d.filter=FXM[fx.mode];d.drawImage(this.st,0,0,this.w,this.hh);d.restore();
-  if(o.overlay&&this.t<o.overlay.until)drawOv(d,o.overlay,this.t,this.w,this.hh);
   if(fx.crt){d.fillStyle='rgba(0,0,0,.34)';for(let y=1;y<this.hh;y+=3)d.fillRect(0,y,this.w,1);const g=d.createRadialGradient(this.w/2,this.hh/2,this.hh*.35,this.w/2,this.hh/2,this.hh*.85);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.45)');d.fillStyle=g;d.fillRect(0,0,this.w,this.hh)}
   if(fx.night){d.fillStyle='rgba(40,16,0,.36)';d.fillRect(0,0,this.w,this.hh)}
-  if(o.bubble&&o.mode==='face'&&o.state==='speaking'){const bw=this.w*.7,bh=this.hh*.17,bx=(this.w-bw)/2,by=this.hh*.03;d.fillStyle='rgba(255,255,255,.92)';rr(d,bx,by,bw,bh,bh/2);d.fill();d.fillStyle='#222';d.font='600 '+Math.round(bh*.5)+'px system-ui,sans-serif';d.textAlign='center';d.textBaseline='middle';d.fillText(HELLO[o.lang]||HELLO.en,this.w/2,by+bh/2)}
+  if(false){const bw=this.w*.7,bh=this.hh*.17,bx=(this.w-bw)/2,by=this.hh*.03;d.fillStyle='rgba(255,255,255,.92)';rr(d,bx,by,bw,bh,bh/2);d.fill();d.fillStyle='#222';d.font='600 '+Math.round(bh*.5)+'px system-ui,sans-serif';d.textAlign='center';d.textBaseline='middle';d.fillText(HELLO[o.lang]||HELLO.en,this.w/2,by+bh/2)}
   if(o.dim>0){d.fillStyle='rgba(0,0,0,'+(o.dim*.45)+')';d.fillRect(0,0,this.w,this.hh)}}
  drawOnce(){this.snap();this.bl=0;this.gx=0;this.gy=0;if(this.isArt())this.bf=0;this.draw()}}
 let last=performance.now(),acc=0;
@@ -610,10 +621,11 @@ BUILDERS.behavior=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'ov
   toggle(T('Look toward the speaker'),T('Turns or glances toward you when you start talking.'),!!sv.look_speaker,async on=>(await save(unitPath(id,'device'),{look_speaker:on})).ok),
   toggle(T('Look for faces'),T('Searches the room with the camera when something moves. Needs the camera on.'),!!sv.look_faces,async on=>(await save(unitPath(id,'device'),{look_faces:on})).ok),
   toggle(T('beh.sleep'),T('beh.sleep_help'),false,()=>false,true));
+ const seek=await lookSeekCard(id,sv);
  const priv=card(S['settings.ui.nav.privacy'],T('privacy.lead'),toggle(T('beh.vision'),T('beh.vision_help'),pr?pr.vision_off:false,async on=>(await save(unitPath(id,'device'),{vision_off:on})).ok,!pr),
   toggle(T('beh.quiet_mode'),T('beh.quiet_mode_help'),pr?pr.quiet:false,async on=>(await save(unitPath(id,'device'),{quiet:on})).ok,!pr),
   toggle(T('voice.mic_mute'),T('voice.mute_help'),pr?pr.mute:u.muted,async on=>(await save(unitPath(id,'device'),{mute:on})).ok,!pr));
- p.append(h('div',{class:'grid'},body,priv),h('div',{class:'stack',style:'margin-top:18px'},await timeCard(u),await alarmCard(u),await reactCard(u),await peopleCard(u)))};
+ p.append(h('div',{class:'grid'},body,seek,priv),h('div',{class:'stack',style:'margin-top:18px'},await timeCard(u),await alarmCard(u),await reactCard(u),await peopleCard(u)))};
 async function timeCard(u){const id=u.device_id,cv=await api(unitPath(id,'clock')),fv=await faceView(id),v=fv.values||{},has=f=>fv.features==null||(fv.features||[]).includes(f);
  const c=card(S['settings.clock'],T('time.zone_help'));
  if(cv.ok&&cv.d.zones){const sel=h('select',{'aria-label':S['settings.clock.zone'],onchange:e=>save(unitPath(id,'clock'),{zone:e.target.value})});for(const z of cv.d.zones)sel.append(h('option',{value:z.id,selected:z.id===cv.d.zone},z.label));
@@ -695,7 +707,7 @@ BUILDERS.system=async(p,u)=>{const id=u.device_id;
  p.append(h('div',{class:'grid'},unit,det,upd,about,rst,reset))};
 """
 
-JS = JS.replace("/*__FACE_SHAPES__*/", face_js()) + JS_POLISH
+JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH
 
 PAGE = r"""<!doctype html><html lang='__CODE__'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>

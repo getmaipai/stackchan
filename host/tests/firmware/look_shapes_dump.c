@@ -14,7 +14,7 @@ static void f(float v) { printf("%.4f", (double)v); }
 
 static void table(void)
 {
-    printf("{\n \"emotions\": [");
+    printf("{\n \"zone_cy\": %d,\n \"zone_eye_top\": %d,\n \"emotions\": [", ML_ZONE_CENTER_Y, ML_ZONE_EYE_TOP);
     for (int e = 0; e < ML_COUNT; e++) printf("%s\"%s\"", e ? ", " : "", EMO[e]);
     printf("],\n \"styles\": [\n");
     for (int i = 0; i < ML_STYLE_COUNT; i++) {

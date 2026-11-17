@@ -23,6 +23,11 @@ CHAIN = [
     "TA02-screen-effects-and-governor.patch",
     "TA03-overlay-engine.patch",
     "TA04-speech-bubble.patch",
+    "TB04-pickup-detection.patch",  # the pickup row of the table, which N02 sits beside
+    "N01-banner-row-and-subtitles.patch",
+    "N02-banner-row-messages.patch",
+    "S11-turn-to-faces-setting.patch",  # the turn_to_faces row, between top_bar and pickup_reaction
+    "O01-overlay-engine-bigger-shapes-and-combinations.patch",  # the overlay core as it is now (bigger shapes, three layers, combinations)
 ]
 
 
@@ -46,7 +51,7 @@ def cores(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return work / "firmware" / "main" / "hal"
 
 
-@pytest.mark.parametrize("source", ["prefs_core_test.c", "fx_core_test.c", "overlay_core_test.c"])
+@pytest.mark.parametrize("source", ["prefs_core_test.c", "fx_core_test.c", "overlay_core_test.c", "banner_core_test.c", "subs_core_test.c"])
 def test_the_c_cores_pass_their_tests(cores: Path, source: str, tmp_path: Path) -> None:
     if shutil.which("cc") is None:
         pytest.skip("no C compiler on this machine")
@@ -108,8 +113,11 @@ def test_the_unit_accepts_every_value_the_host_can_send(cores: Path) -> None:
 def test_the_unit_draws_every_overlay_the_host_can_name(cores: Path) -> None:
     text = (cores / "maipai_overlay_core.h").read_text()
     names = re.search(r"MO_NAMES\[MO_COUNT\] = \{([^}]*)\}", text, re.S)
-    assert names is not None
+    combos = re.search(r"MOP_NAMES\[MOP_COUNT\] = \{([^}]*)\}", text, re.S)
+    assert names is not None and combos is not None
     unit_names = [n for n in re.findall(r'"(\w*)"', names.group(1)) if n]
-    assert sorted(unit_names) == sorted(
-        reply_tags.OVERLAYS
-    )  # one list, in two places that must agree
+    unit_combos = [n for n in re.findall(r'"(\w*)"', combos.group(1)) if n]
+    parts_only = {"moon", "sparkles"}  # drawn only as parts of a combination, so the host does not name them
+    assert sorted(set(unit_names) - parts_only) == sorted(reply_tags.ELEMENT_OVERLAYS)  # one list, in two places that must agree
+    assert sorted(unit_combos) == sorted(reply_tags.COMBINED_OVERLAYS)
+    assert list(reply_tags.OVERLAYS) == list(reply_tags.ELEMENT_OVERLAYS) + list(reply_tags.COMBINED_OVERLAYS)

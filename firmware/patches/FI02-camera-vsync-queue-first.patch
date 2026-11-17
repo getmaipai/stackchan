@@ -1,0 +1,80 @@
+# Intent: Camera driver start-up race (seen twice in nine boots, assert at queue.c:1180 from dvp_vsync_isr). The vendor DVP camera controller registers its V-SYNC interrupt (gpio_isr_handler_add enables it) before it creates the event queue the interrupt posts to; when the sensor is already streaming, the first V-SYNC lands in that gap and xQueueGenericSendFromISR asserts. The fix creates the queue first, frees it in the error path once, and makes the interrupt return when there is no queue. The component in managed_components is not edited (its checksums and dependencies.lock stay valid): vendor_fixes/camera_vsync.cmake copies the one source file into the build directory, applies the five edits (the configure stops with an error naming the file when the vendor text no longer matches, so a component update cannot silently drop the fix) and swaps the copy in for the original, deferred until project() has made the target (the same way the Wi-Fi portal swap works, patch P02).
+# Placement: unit (vendor camera driver of the robot firmware)
+# Upstream: firmware/managed_components/espressif__esp_cam_sensor/src/driver_dvp/esp_cam_ctlr_dvp_cam.c (Apache-2.0) is the file copied and edited at configure time
+# Check after a flash: 20 USB-reset boots with no assert; the camera photo tool still returns a frame; build-dir maipai_vendor/esp_cam_ctlr_dvp_cam.c holds the FI02 marks and build.ninja compiles that file, not the vendor one.
+
+diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
+--- a/firmware/CMakeLists.txt
++++ b/firmware/CMakeLists.txt
+@@ -25,6 +25,9 @@ include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
+ # MaiPai Wi-Fi portal (patch P02): see portal/portal.cmake.
+ include("${CMAKE_CURRENT_LIST_DIR}/portal/portal.cmake")
+ 
++# Camera driver start-up race (patch FI02): see vendor_fixes/camera_vsync.cmake.
++include("${CMAKE_CURRENT_LIST_DIR}/vendor_fixes/camera_vsync.cmake")
++
+ # Auto-load a local sdkconfig overlay (git-ignored) when present. Lets
+ # self-hosted / custom deployments pin CONFIG_STACKCHAN_SERVER_URL,
+ # CONFIG_OTA_URL, etc. without touching committed defaults.
+diff --git a/firmware/vendor_fixes/camera_vsync.cmake b/firmware/vendor_fixes/camera_vsync.cmake
+new file mode 100644
+--- /dev/null
++++ b/firmware/vendor_fixes/camera_vsync.cmake
+@@ -0,0 +1,57 @@
++# Camera driver start-up race (patch FI02), included from firmware/CMakeLists.txt. The vendor camera component's DVP
++# controller registers its V-SYNC interrupt (gpio_isr_handler_add enables it) before it creates the event queue the
++# interrupt posts to. When the sensor is already running, the first V-SYNC lands in that gap and xQueueGenericSendFromISR
++# asserts (queue.c:1180, seen twice in nine boots). The fix creates the queue first and makes the interrupt return when
++# the queue is not there. The component in managed_components is not edited, so its checksums and dependencies.lock stay
++# valid: at configure time this script copies the one source file into the build directory, applies the edits below
++# (the configure stops with an error if the vendor text changed, so a component update cannot silently drop the fix),
++# and swaps the copy in for the original. The swap runs deferred, after project() has made every component's build target.
++set(maipai_vendor_fix_dir "${CMAKE_CURRENT_LIST_DIR}")
++
++function(maipai_camera_vsync_fix)
++    idf_component_get_property(cam_lib espressif__esp_cam_sensor COMPONENT_LIB)
++    if(NOT cam_lib)
++        return()
++    endif()
++    idf_component_get_property(cam_dir espressif__esp_cam_sensor COMPONENT_DIR)
++    set(src "${cam_dir}/src/driver_dvp/esp_cam_ctlr_dvp_cam.c")
++    if(NOT EXISTS "${src}")
++        return()
++    endif()
++    set(out "${CMAKE_BINARY_DIR}/maipai_vendor/esp_cam_ctlr_dvp_cam.c")
++    file(READ "${src}" text)
++
++    # 1. The queue exists before the V-SYNC interrupt can run.
++    set(old_irq "    /* Initialize DVP V-SYNC interrupt */\n")
++    set(new_irq "    /* MaiPai FI02: the interrupt posts to this queue, so it is created first */\n    ctlr->event_queue = xQueueCreate(DVP_CAM_EVENT_QUEUE_SIZE, sizeof(dvp_cam_event_t));\n    ESP_GOTO_ON_FALSE(ctlr->event_queue, ESP_ERR_NO_MEM, fail2, TAG, \"failed to create event queue\");\n\n    /* Initialize DVP V-SYNC interrupt */\n")
++    set(old_mk "    ctlr->event_queue = xQueueCreate(DVP_CAM_EVENT_QUEUE_SIZE, sizeof(dvp_cam_event_t));\n    ESP_GOTO_ON_FALSE(ctlr->event_queue, ESP_ERR_NO_MEM, fail5, TAG, \"failed to create event queue\");\n\n    ctlr->base.del")
++    set(new_mk "    ctlr->base.del")
++    # 2. The error path frees the early queue once (fail6 no longer deletes it).
++    set(old_f6 "fail6:\n    vQueueDelete(ctlr->event_queue);\nfail5:")
++    set(new_f6 "fail6:\nfail5:")
++    set(old_f2 "fail2:\n    heap_caps_free(ctlr->dma_desc);")
++    set(new_f2 "fail2:\n    if (ctlr->event_queue) {\n        vQueueDelete(ctlr->event_queue);\n        ctlr->event_queue = NULL;\n    }\n    heap_caps_free(ctlr->dma_desc);")
++    # 3. An interrupt that runs with no queue (a late one while the controller is torn down) returns at once.
++    set(old_isr "    dvp_cam_ctlr_t *dvp = (dvp_cam_ctlr_t *)arg;\n\n    /* Start capturing stream when receiving V-SYNC start  */\n")
++    set(new_isr "    dvp_cam_ctlr_t *dvp = (dvp_cam_ctlr_t *)arg;\n\n    if (dvp == NULL || dvp->event_queue == NULL) {  /* MaiPai FI02 */\n        return;\n    }\n\n    /* Start capturing stream when receiving V-SYNC start  */\n")
++    foreach(pair old_irq;old_mk;old_f6;old_f2;old_isr)
++        string(FIND "${text}" "${${pair}}" pos)
++        if(pos EQUAL -1)
++            message(FATAL_ERROR "MaiPai FI02: the camera component's esp_cam_ctlr_dvp_cam.c no longer has the text this fix edits (${pair}). Update firmware/vendor_fixes/camera_vsync.cmake for the new version of espressif/esp_cam_sensor.")
++        endif()
++    endforeach()
++    string(REPLACE "${old_irq}" "${new_irq}" text "${text}")
++    string(REPLACE "${old_mk}" "${new_mk}" text "${text}")
++    string(REPLACE "${old_f6}" "${new_f6}" text "${text}")
++    string(REPLACE "${old_f2}" "${new_f2}" text "${text}")
++    string(REPLACE "${old_isr}" "${new_isr}" text "${text}")
++    file(WRITE "${out}" "${text}")
++    set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${src}")
++
++    get_target_property(srcs ${cam_lib} SOURCES)
++    list(FILTER srcs EXCLUDE REGEX "driver_dvp/esp_cam_ctlr_dvp_cam\\.c$")
++    list(APPEND srcs "${out}")
++    set_property(TARGET ${cam_lib} PROPERTY SOURCES ${srcs})
++endfunction()
++
++cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL maipai_camera_vsync_fix)

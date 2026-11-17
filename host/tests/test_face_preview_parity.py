@@ -5,7 +5,7 @@ The unit's face model is ``maipai_look_core.h``. ``face_table.json`` must be wha
 (``face_shapes.py``) must make the same shapes from the same inputs: the same kinds in the same order, the same count, the
 same positions within a pixel (the C core uses single precision, the page double), for every style and every pose that matters.
 
-The headers come from the firmware patches in order (as ``test_stackchan_train4.cores`` does) plus the V10 patches; set
+The headers come from every firmware patch in ``firmware/patches/ORDER``, keeping only the ``*_core.h`` files; set
 ``MAIPAI_FW_TREE`` to a firmware folder to check a tree that has not been exported to patches yet.
 """
 
@@ -33,14 +33,11 @@ def _headers(tmp_path_factory: pytest.TempPathFactory) -> Path:
         return Path(TREE, "main", "hal")
     if shutil.which("git") is None:
         pytest.skip("git is not installed")
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("_train4_chain", HERE / "test_stackchan_train4.py")
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
     work = tmp_path_factory.mktemp("v10cores")
-    for name in mod.CORE_CHAIN:  # the same chain the other core tests use (it ends with the face design, V10)
+    # The whole of ORDER, every patch in its place, keeping only the core headers (the files that need no ESP-IDF). A hand-kept
+    # chain drifted every time a patch was added or moved (the V20 to V26 and N01 to N04 patches broke it); ORDER cannot.
+    order = [line.strip() for line in (PATCHES / "ORDER").read_text().splitlines() if line.strip() and not line.startswith("#")]
+    for name in order:
         text = (PATCHES / name).read_text()
         diff = work / "p.diff"
         diff.write_text(text[text.index("diff --git") :])

@@ -305,8 +305,14 @@ Diagnostic kinds (logged, never a reason to react): `heap_stats`, `stack_stats`,
 `wifi_use_revert` (hub unreachable 3 minutes), `privacy`, `privacy_refused`, `timer_fired`,
 `timer_ended`, `timer_missed`, `music_feat`, `music_stats`, `music_clip_ready`,
 `music_clip_cancelled`, and the update set `firmware_update_started`, `_progress` (`percent`),
-`_done`, `_failed` (`reason`), `_validated` [from code: companion.py, self_heal.py,
-firmware_update.py].
+`_done`, `_failed` (`reason`), `_validated` (`path`: host or quiet), `_rolled_back` (patch FM01), and
+`boot_core` (patch FM02: after a crash, the flash core dump summary: `task`, `pc`, `cause`, `bt` the first four
+return addresses in hex) [from code: companion.py, self_heal.py, firmware_update.py].
+
+Remote session heartbeat: `self.remote.session {active, label, host}`; `host` is the host's id for the second remote
+floor (patch FM03, `docs/design/safety-and-privacy.md`). The unit's pickup events `lifted`, `carried`, `set_down`
+and `shaken` (each with `axis`) are read by the host's touch poll and make no pet reaction; they can wake a sleeper
+(`host/tests/test_pickup_events_host.py`).
 
 Battery and power: pulled, not pushed. `self.battery.get_status` returns `percent` 0 to 100 and
 `charging`; any other shape is rejected as lost body. Host caches it for 5 s [from code: server.py,

@@ -198,6 +198,7 @@ NEXT_TOOLS = frozenset({
     "self.pack.status", "self.pack.begin", "self.pack.data", "self.pack.commit", "self.pack.remove",
     "self.filler.status", "self.filler.play", "self.prefs.get", "self.prefs.set", "self.listen.test",
     "self.remote.session", "self.remote.action",
+    "self.look.status", "self.look.claim", "self.look.release",
 })  # fmt: skip
 
 
@@ -238,6 +239,19 @@ def _next(self: SimUnit, name: str, args: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "active": bool(args.get("active"))}
     if name == "self.prefs.set":
         self.prefs.update(json.loads(args.get("json", "{}")))
+        return {"ok": True}
+    if name == "self.look.status":
+        holder = getattr(self, "look_holder", None)
+        return {"ok": True, "owner": "host" if holder else "unit", "lease_owner": holder or ""}
+    if name == "self.look.claim":
+        holder = getattr(self, "look_holder", None)
+        if holder not in (None, args.get("owner")):
+            return {"ok": False, "error": f"Face seeking is held by {holder}. Wait for it to be released."}
+        self.look_holder = args.get("owner")
+        return {"ok": True}
+    if name == "self.look.release":
+        if getattr(self, "look_holder", None) == args.get("owner"):
+            self.look_holder = None
         return {"ok": True}
     return {"ok": True}
 

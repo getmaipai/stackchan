@@ -1,0 +1,19 @@
+{
+ "screen_w": 320,
+ "screen_h": 240,
+ "zones": {"banner": [0, 28], "face": [28, 184], "subtitles": [184, 240]},
+ "row": {"x": 4, "y": 1, "w": 312, "h": 26, "r": 13},
+ "pad_x": 8,
+ "icon_w": 22,
+ "strip": {"glyph_w": 20, "gap": 4},
+ "fade_ms": 150,
+ "font_px": 14,
+ "min_ms": 1500,
+ "max_hold_ms": 20000,
+ "subtitles": {"font_px": 20, "lines": 2, "pad_y": 4, "fade_ms": 150, "end_hold_ms": 800, "page_per_char_ms": 55, "page_min_ms": 1600, "page_max_ms": 3500},
+ "scroll_px_s": 36,
+ "scroll_pause_ms": 900,
+ "text_max": 120,
+ "icons": ["none", "remote", "check", "battery", "wifi_off", "bars", "ring", "speech", "key"],
+ "flags": ["mic", "camera", "remote", "battery", "wifi"]
+}

@@ -123,7 +123,11 @@ class StackChanDashboardPairingTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(request["method"], "tools/call")
             self.assertIsInstance(request["id"], int)
             self.assertEqual(request["params"]["name"], "self.robot.set_head_angles")
-            self.assertEqual(request["params"]["arguments"], {"yaw": 12, "pitch": 40, "speed": 150})
+            # Patch FM03: a head move that is not a controller's carries the host's session id as its token.
+            self.assertEqual(
+                request["params"]["arguments"],
+                {"yaw": 12, "pitch": 40, "speed": 150, "token": self.xiaozhi.remote_host_id},
+            )
             await ws.send(
                 json.dumps(
                     {

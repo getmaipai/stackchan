@@ -51,7 +51,7 @@ def test_prefs_start_at_their_defaults_and_say_the_unit_lacks_the_tool(old):
     assert status == 200 and view["unit_ready"] is False and view["reachable"] is True
     v = view["values"]
     assert (v["emotion_faces"], v["filler_mode"], v["filler_wait_s"], v["listen_sound"], v["listen_face"], v["speech_bubble"]) == (True, "tone", 0.4, "chime", True, False)
-    assert view["features"] == {"overlay": False, "pack": False, "filler": False, "prefs": False}
+    assert view["features"] == {"overlay": False, "pack": False, "filler": False, "prefs": False, "look": False}
 
 
 def test_host_only_prefs_save_with_no_message_and_unit_prefs_say_they_wait(old):

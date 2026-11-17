@@ -55,6 +55,29 @@ The unit shows `--:--` until the time is valid. An optional local time server fi
 - No names, addresses or credentials of any household in code, docs or examples. Examples use reserved documentation addresses and names.
 - The local API binds to the LAN, needs the token for reads and writes, and remote reach is a separate documented switch.
 
+## Remote control trust boundary (patch FM03, 2026-11-16)
+
+Who is trusted: the paired host. The unit takes tool calls from it and from nobody else (pairing token on the link). A paired
+controller (a phone, a page, a Tailscale link) is not trusted: it reaches the unit only through the host.
+
+Two floors, each enough alone against a host bug:
+
+1. **Cue floor (TC01).** A call marked `source: remote` must carry the one-use token the unit answered to `self.remote.action`
+   for that kind. The host sets `source` and `token` itself from the unit's answer (`RemoteCue`).
+2. **Source-free floor (FM03).** The unit does not trust the `source` field, because the caller chooses it. While a remote
+   session is on, the cued kinds (head move beyond 45 degrees yaw or pitch, find, photo, dance, game, listen) need either a
+   cue token for that kind or the session's host id as `token`. The host announces its id in the `self.remote.session`
+   heartbeat (`host`) and stamps it on every call that is not made for a controller, at the one place all unit calls pass
+   (`XiaozhiServer.call_device_tool`). A call made while a controller's action runs is never stamped.
+
+Host rules (`host/maipai_body/remote_trust.py`, tested in `host/tests/test_remote_trust.py`): a controller request that names
+`source`, `token`, `host`, `host_id`, `cue` or `cue_kind` is refused and logged before the unit hears anything; the controller's
+pairing token is spent on the route and never forwarded.
+
+What this does not cover: a hostile host (it holds the id), and a unit with no session on (nothing remote to protect; the owner's
+own page and the voice turn work as before). An older host that sends no id leaves floor 2 open; floor 1 still applies. Unit test:
+`host/tests/firmware/remote_floor_test.c`.
+
 ## Open
 
 - TLS between unit and host: certificate pinned at pairing or a reverse proxy.

@@ -1,0 +1,57 @@
+# Intent: Stacks sized to what ten minutes of stress measured (patch M01): audio_input 6144 to 4096 (4,552 B free of 6,144), the websocket reconnect task 6144 to 4096 (3,980 free), the system event task 4096 to 3072 (2,600 free), the main task 8192 to 6144 (5,068 free). The stackchan loop task goes the other way, 4096 to 5120: it had 524 bytes left, under the 1,024 floor.
+# Placement: unit (task stack sizes of the robot firmware)
+# Upstream: firmware/xiaozhi-esp32/main/audio/audio_service.cc, protocols/websocket_protocol.cc (MIT), firmware/main/hal/hal.cpp, firmware/sdkconfig.core.defaults
+# Check after a flash: the memory line's stk entry shows every task with at least 1,024 bytes free after a stress run (scripts/fw-stress.py).
+# Kconfig: CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=3072, CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144 (sdkconfig.core.defaults).
+
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.cc b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+index 12cc692..536b87c 100644
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+@@ -134,7 +134,7 @@ void AudioService::Start() {
+             audio_service->AudioInputTask();
+             vTaskDelete(NULL);
+         },
+-        "audio_input", 2048 * 3, this, 8, &audio_input_task_handle_, 0);
++        "audio_input", 2048 * 2, this, 8, &audio_input_task_handle_, 0);  // patch M04: 4 KB (measured margin 4.5 KB of 6 KB)
+ 
+     /* Start the audio output task */
+     xTaskCreate(
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+index 37efdbb..93ed79f 100644
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -49,7 +49,7 @@ bool WebsocketProtocol::Start() {
+         return true;
+     }
+     xEventGroupClearBits(event_group_handle_, WEBSOCKET_PROTOCOL_STOP_EVENT | WEBSOCKET_PROTOCOL_STOPPED_EVENT);
+-    if (xTaskCreate(ReconnectTask, "ws_reconnect", 6144, this, 3, &reconnect_task_handle_) != pdPASS) {
++    if (xTaskCreate(ReconnectTask, "ws_reconnect", 4096, this, 3, &reconnect_task_handle_) != pdPASS) {
+         reconnect_task_handle_ = nullptr;
+         ESP_LOGE(TAG, "Failed to start websocket reconnect task");
+         return false;
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+index 4422fc5..763ec88 100644
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -202,7 +202,7 @@ void Hal::startXiaozhi()
+     maipai_tailnet_init();  // travel with the private network: reads the saved switch, starts nothing (patch TN01)
+ 
+     // Start stackchan update task
+-    xTaskCreatePinnedToCore(_stackchan_update_task, "stackchan", 4096, NULL, 3, NULL, 1);
++    xTaskCreatePinnedToCore(_stackchan_update_task, "stackchan", 5120, NULL, 3, NULL, 1);  // patch M04: measured margin was 524 bytes of 4096
+ 
+     hal_bridge::start_xiaozhi_app();
+ 
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+index fe4f037..086afde 100644
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -46,3 +46,7 @@ CONFIG_LV_DEF_REFR_PERIOD=20
+ CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+ CONFIG_ESP_COREDUMP_LOGS=n
+ CONFIG_ESP_COREDUMP_MAX_TASKS_NUM=20
++# Memory headroom (patch M04): shorter stacks where the measured margin allows (system event task 4096 to 3072, main task
++# 8192 to 6144). The lowest free stack seen over ten minutes of stress is in docs/design/memory-headroom-2026-11-16.md.
++CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=3072
++CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144

@@ -28,9 +28,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from maipai_body import unit_remote
+from maipai_body import remote_trust, unit_remote
 from maipai_body.hal.errors import BodyLost
 from maipai_body.i18n import normalize
+from maipai_body.remote_trust import gated_kind
 from maipai_body.unit_extras import ExtrasError, _JsonFile, _reply, say
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ LOG_READ_MAX = 500
 SESSION_TOOL = "self.remote.session"
 ACTION_TOOL = "self.remote.action"
 LOCAL_LABEL = "Settings page"
+SESSION_LABEL_MAX = 20  # the unit shows "Remote connected: <label>" in a fixed row: a short plain name ("Settings page", "Phone app", "Home hub")
 
 # Remote page button -> (kind sent to the unit, banner words). A stop button needs no cue and is not listed.
 KINDS: dict[str, tuple[str, str]] = {
@@ -78,6 +80,7 @@ _WORDS = {
         "bad_label": "Give the controller a name of 1 to 40 characters.",
         "no_such": "That controller is not in the list. Reload the page.",
         "no_cue_note": "this unit shows no remote cue yet",
+        "reserved": "The request names {names}, which only the host may set. Remove it and send the action again.",
     },
     "es": {
         "off": "El acceso remoto esta apagado. Activalo en los ajustes de Actividad remota y vuelve a intentarlo.",
@@ -93,6 +96,7 @@ _WORDS = {
         "bad_label": "Dale al control un nombre de 1 a 40 caracteres.",
         "no_such": "Ese control no esta en la lista. Recarga la pagina.",
         "no_cue_note": "esta unidad aun no muestra aviso remoto",
+        "reserved": "La peticion nombra {names}, que solo el anfitrion puede fijar. Quitalo y envia la accion otra vez.",
     },
 }
 _KIND_NAMES = {
@@ -257,23 +261,6 @@ class RemoteLog:
 # ---------------------------------------------------------------------------------------------
 
 
-def _gated_kind(name: str, arguments: Mapping[str, Any]) -> str | None:
-    """The cue kind a unit tool call belongs to when it is a remote-facing action, else None (patch TC01)."""
-    if name == "self.robot.set_head_angles":
-        return "move"
-    if name == "self.robot.dance":
-        return "dance"
-    if name == "self.game.start":
-        return "game"
-    if name == "self.audio.play_sound" and arguments.get("find") == 1:
-        return "find"
-    if name == "self.listen.test":
-        return "listen"
-    if name == "self.camera.take_photo":
-        return "photo"
-    return None
-
-
 class RemoteCue:
     """The cue of one controller action, as the unit answered it: marks the action's unit tool calls ``source: remote`` and
     carries the one-use token on the first of them (the unit then keeps the kind open for the banner time).
@@ -290,7 +277,7 @@ class RemoteCue:
     def marker(self, name: str, arguments: Mapping[str, Any]) -> dict[str, object]:
         if not self.gated:
             return {}
-        kind = _gated_kind(name, arguments)
+        kind = gated_kind(name, arguments)
         if kind is None or (kind != self.kind and not (kind == "move" and self.kind == "find")):
             return {}
         token = self.token
@@ -373,6 +360,27 @@ class RemoteActivity:
         label = str(controller["label"]) if controller else LOCAL_LABEL
         if controller is not None and not self.store.settings()["enabled"]:
             raise ExtrasError(_w(lang, "off"))
+        if controller is not None:
+            named = remote_trust.reserved_in(values)
+            if named:  # patch FM03: only the host sets these; a controller that names one is refused and the try is logged
+                error = ExtrasError(_w(lang, "reserved", names=", ".join(named)))
+                self.log.add(controller=label, unit=unit_id, action=str(do), result="refused", note=str(error))
+                raise error
+            with remote_trust.controller_scope():
+                return self._act(unit_id, do, values, run, lang, controller, kind_banner, label)
+        return self._act(unit_id, do, values, run, lang, controller, kind_banner, label)
+
+    def _act(
+        self,
+        unit_id: str,
+        do: str,
+        values: Mapping[str, Any],
+        run: Callable[[], dict[str, Any]],
+        lang: str | None,
+        controller: Mapping[str, Any] | None,
+        kind_banner: tuple[str, str] | None,
+        label: str,
+    ) -> dict[str, Any]:
         if kind_banner is None or (do == "find" and values.get("on") is not True):
             return run()  # stop buttons and anything that is not an action on the robot need no cue
         kind, banner = kind_banner
@@ -501,7 +509,7 @@ class RemoteActivity:
 
     def _send_session(self, unit_id: str, active: bool, label: str) -> None:
         try:
-            self._call(SESSION_TOOL, {"active": active, "label": label}, device_id=unit_id, timeout=3.0)
+            self._call(SESSION_TOOL, {"active": active, "label": label.strip()[:SESSION_LABEL_MAX] or LOCAL_LABEL}, device_id=unit_id, timeout=3.0)
         except Exception:
             logger.debug("remote session %s not sent to %s", active, unit_id[-5:], exc_info=True)
 

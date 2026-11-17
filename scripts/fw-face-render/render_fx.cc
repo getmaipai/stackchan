@@ -190,6 +190,23 @@ int main()
             if (speaking) maipai_speech_feed_bench(level);
             frame(); frame();
             write_png(f.c_str(), s_buf);
+        } else if (c == "zonecheck") {
+            // zonecheck STYLE EMOTION SPEAK THINK: after one frame, how many pixels are lit in the banner zone (y 0 to 28) and in the
+            // subtitle zone (y 184 to 240); with no banner and no subtitle both must be 0 (the face stays in its own zone, patch N04)
+            std::string st, em; int sp = 0, th = 0; in >> st >> em >> sp >> th;
+            if (speaking) maipai_speech_feed_bench(level);
+            frame();
+            auto rgb = to_rgb(s_buf);
+            int top = 0, bottom = 0, miny = 999, maxy = -1;
+            for (int y = 0; y < 240; y++) for (int x = 0; x < 320; x++) {
+                const int i = (y * 320 + x) * 3;
+                if (rgb[i] + rgb[i + 1] + rgb[i + 2] > 60) {
+                    if (y < 28) top++; else if (y >= 184) bottom++;
+                    if (y < miny) miny = y;
+                    if (y > maxy) maxy = y;
+                }
+            }
+            printf("zone %s %s speak %d think %d top %d bottom %d miny %d maxy %d\n", st.c_str(), em.c_str(), sp, th, top, bottom, miny, maxy);
         } else if (c == "count") {
             // count x0 y0 x1 y1: how many pixels in the box are lit (brighter than half), for the shape tests
             int x0, y0, x1, y1; in >> x0 >> y0 >> x1 >> y1;

@@ -22,9 +22,9 @@ static void test_styles(void)
         CHECK(s->name != NULL);
         /* the eyes lie on the screen, apart from each other, and the touch regions (maipai_touch_core.h) hold them */
         const int left = 160 - s->eye_x - s->ew / 2, right = 160 - s->eye_x + s->ew / 2;
-        CHECK(left >= 20 && right <= 127);
-        const int top = 120 + s->eye_y - s->eh / 2, bot = 120 + s->eye_y + s->eh / 2;
-        CHECK(top >= 28 && bot <= 165);
+        CHECK(left >= 20 && right <= 130); /* Big eyes at 0.82 of the design (patch N04) end at 129 */
+        const int top = ML_ZONE_CENTER_Y + s->eye_y - s->eh / 2, bot = ML_ZONE_CENTER_Y + s->eye_y + s->eh / 2; /* offsets are from the middle of the face zone (patch N04) */
+        CHECK(top >= ML_ZONE_EYE_TOP && bot <= ML_ZONE_Y1);
         CHECK(s->eye_x - s->ew / 2 > 0); /* the eyes do not touch */
         CHECK(s->r_pct >= 55 && s->r_pct <= 100);
         if (s->mouth != ML_MOUTH_NONE) {
@@ -37,7 +37,7 @@ static void test_styles(void)
     CHECK(ml_style(-1) == ml_style(ML_STYLE_BIG_EYES));
     CHECK(ml_style(99) == ml_style(ML_STYLE_BIG_EYES));
     CHECK(ml_style(ML_STYLE_STOCK)->eye_d == 20); /* the stock eye as shipped */
-    CHECK(ml_style(ML_STYLE_BIG_EYES)->pupil == 1 && ml_style(ML_STYLE_BIG_EYES)->ew == 96 && ml_style(ML_STYLE_BIG_EYES)->eh == 104);
+    CHECK(ml_style(ML_STYLE_BIG_EYES)->pupil == 1 && ml_style(ML_STYLE_BIG_EYES)->ew == 79 && ml_style(ML_STYLE_BIG_EYES)->eh == 85); /* the design's 96 by 104 at 0.82 (patch N04) */
     CHECK(ml_style(ML_STYLE_STOCK)->mouth == ML_MOUTH_BAR);
     CHECK(ml_style(ML_STYLE_EYES_ONLY)->mouth == ML_MOUTH_NONE);
 }
@@ -277,8 +277,8 @@ static void test_dots_at_mouth(void)
                     CHECK(d.y <= s->mouth_y && d.y >= s->mouth_y - 5);
                     CHECK(d.opa >= 90);
                     CHECK(abs(d.x) <= ML_DOT_SPACING);
-                } else { /* the approved design: 13 px dots, 26 apart, low on the face, y 84 to 92 from the middle */
-                    CHECK(d.y <= 92 && d.y >= 84 && d.d == 13);
+                } else { /* the approved design: 13 px dots, 26 apart, low on the face, y 48 to 56 from the middle of the face zone (patch N04) */
+                    CHECK(d.y <= 56 && d.y >= 48 && d.d == 13);
                     CHECK(d.opa >= 89);
                     CHECK(abs(d.x) <= 26);
                 }
@@ -458,7 +458,7 @@ static void test_brow_and_mouth_shapes(void)
     CHECK(ml_brow_shapes(big, -1, 96, 104, 1, 0, 0, 0, 0.0f, 0, 0, out, 2) == 0); /* no brow when none is asked for */
     CHECK(ml_brow_shapes(ml_style(ML_STYLE_MINIMAL), -1, 28, 40, 1, 0, 0, 0, 1.0f, 0, 0, out, 2) == 0);
     CHECK(ml_brow_shapes(big, -1, 96, 104, 1, 0, 0, 0, 1.0f, 0, 1.0f, out, 2) == 1);
-    CHECK(out[0].kind == ML_SH_LINE && out[0].v[4] == 8.0f);
+    CHECK(out[0].kind == ML_SH_LINE && out[0].v[4] == 7.0f); /* the brow's 8 px at 0.82 */
     const float ly = out[0].v[1], ry = out[0].v[3]; /* the left brow of angry: the inner (right) end is lower */
     CHECK(ry > ly);
     /* the mouth (patch V12): the chunky stroke, as pieces */
@@ -482,7 +482,7 @@ static void test_brow_and_mouth_shapes(void)
 static void test_chunky_mouth_speech(void)
 {
     const ml_style_t* big = ml_style(ML_STYLE_BIG_EYES);
-    CHECK(big->mouth_w == 46 && big->mouth_t == 8); /* the chunky size, not the thin one */
+    CHECK(big->mouth_w == 38 && big->mouth_t == 7); /* the chunky size at 0.82 (patch N04), not the thin one */ /* the chunky size, not the thin one */
     CHECK(ml_style(ML_STYLE_CLASSIC)->mouth_t >= 6 && ml_style(ML_STYLE_MINIMAL)->mouth_w == 22);
     /* level to open amount: shut under 8, never down as the level rises, and at least six distinct shapes across the range */
     float prev = -1.0f;
@@ -527,8 +527,23 @@ static void test_chunky_mouth_speech(void)
     CHECK(ml_mouth_tau(&shut, &wide, 1, 0.9f) == 40.0f && ml_mouth_tau(&wide, &shut, 1, 0.0f) == 105.0f);
 }
 
+/* The glow is baked around each eye and placed from ml_eye_center_y: its box must be centered on the lit eye of every style (patch O02: it sat 14 px low). */
+static void test_glow_follows_the_eye_center(void)
+{
+    for (int i = 0; i < ML_STYLE_COUNT; i++) {
+        const ml_style_t* st = ml_style(i);
+        CHECK(ml_eye_center_y(st) == ML_ZONE_CENTER_Y + st->eye_y);
+        CHECK(ml_eye_center_y(st) != 120 + st->eye_y);
+        if (st->eye_d <= 0) continue;
+        const int side = 2 * (st->eh / 2 + 14) + 1, gy = ml_eye_center_y(st) - side / 2; /* the unit's placement */
+        CHECK(gy + side / 2 == ml_eye_center_y(st));
+        CHECK(ml_eye_center_y(st) - st->eh / 2 >= ML_ZONE_EYE_TOP - 4 && ml_eye_center_y(st) + st->eh / 2 <= ML_ZONE_Y1);
+    }
+}
+
 int main(void)
 {
+    test_glow_follows_the_eye_center();
     test_styles();
     test_eye_stays_a_circle();
     test_closed_lift();

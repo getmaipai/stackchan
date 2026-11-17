@@ -42,7 +42,15 @@ PREFS: dict[str, tuple[str, Any, Any, bool]] = {
     "fx_glow": ("bool", None, False, True),
     "speech_bubble": ("bool", None, False, True),
     "thinking_dots": ("bool", None, True, True),
+    "captions_mode": ("enum", ("off", "subtitles", "banner"), "subtitles", True),
+    "top_bar": ("enum", ("hidden", "always"), "hidden", True),
+    # Turn toward faces (the unit's own seeker, firmware patch S10): off, only after it is spoken to, or also when somebody walks in.
+    # "talk" until the memory gate has been measured with the seeker running; the flash key is 13 characters.
+    "turn_to_faces": ("enum", ("off", "talk", "always"), "talk", True),
 }
+
+FACE_OWNERS = ("robot", "hub", "off")  # who turns toward faces: this robot (default), the Home hub, nobody
+DEFAULT_FACE_OWNER = "robot"
 UNIT_KEYS = tuple(k for k, spec in PREFS.items() if spec[3])
 DEFAULTS: dict[str, Any] = {k: spec[2] for k, spec in PREFS.items()}
 
@@ -105,6 +113,21 @@ def clean(values: dict[str, Any], error: type[Exception]) -> dict[str, Any]:
     return out
 
 
+def own_owner(saved: dict[str, Any]) -> str:
+    """Who turns toward faces for this unit: "robot" (default), "hub" or "off"."""
+    owner = saved.get("face_owner", DEFAULT_FACE_OWNER)
+    return owner if owner in FACE_OWNERS else DEFAULT_FACE_OWNER
+
+
+def effective_turn_to_faces(saved: dict[str, Any]) -> str:
+    """The value the unit gets: the person's choice, except that "Who turns toward faces: off" switches the unit's seeker off
+    whatever was chosen (the choice itself is kept and comes back when the owner is set to the robot again)."""
+    if own_owner(saved) == "off":
+        return "off"
+    value = saved.get("turn_to_faces", DEFAULTS["turn_to_faces"])
+    return value if value in PREFS["turn_to_faces"][1] else DEFAULTS["turn_to_faces"]
+
+
 def prefs_of(saved: dict[str, Any]) -> dict[str, Any]:
     """Every pref with its saved value or its default."""
     saved = upgrade_keys(saved)
@@ -129,7 +152,9 @@ class PrefsService:
                 "pack": self.probe.has(device_id, "pack") is True,
                 "filler": self.probe.has(device_id, "filler") is True,
                 "prefs": ready is True,
+                "look": self.probe.has(device_id, "look") is True,
             },
+            "face_owner": own_owner(self._get(device_id)),
             "notice": say(lang, "all_off") if all_off else "",
         }
 
@@ -147,6 +172,10 @@ class PrefsService:
         follows the Stock style until a person chooses), so sending the host's default would overwrite that choice."""
         saved = upgrade_keys(saved)
         chosen = [k for k in (upgrade_keys(dict.fromkeys(keys)) if keys is not None else UNIT_KEYS) if k in saved]
+        if own_owner(saved) == "off" and "turn_to_faces" not in chosen and keys is None:
+            chosen.append("turn_to_faces")  # the unit must hear "off" even when the person never chose a value
+        if "turn_to_faces" in chosen:
+            saved = {**saved, "turn_to_faces": effective_turn_to_faces(saved)}
         if not chosen:
             return {"ok": True, "pushed": None, "message": ""}
         have = self.probe.has(device_id, "prefs")
@@ -162,6 +191,11 @@ class PrefsService:
         if reply.get("ok") is not True:
             return {"ok": True, "pushed": False, "pending": is_unknown_tool(reply), "message": say(lang, "soon")}
         return {"ok": True, "pushed": True, "pending": False, "message": say(lang, "sent")}
+
+    def resend_look(self, device_id: str, lang: str | None = None) -> dict[str, Any]:
+        """The owner of face seeking changed: send the unit the value it is due now (off, or the person's choice again)."""
+        saved = self._get(device_id)
+        return self._send(device_id, {**saved, "turn_to_faces": saved.get("turn_to_faces", DEFAULTS["turn_to_faces"])}, lang, ["turn_to_faces"])
 
     def test_listen(self, device_id: str, lang: str | None = None) -> dict[str, Any]:
         try:

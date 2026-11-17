@@ -1,0 +1,58 @@
+# Intent: Remove the stock status bar (owner idea 2026-11-16): the vendor's green bar with the time, battery and Wi-Fi that slides down at the top of the face. It is created once the unit is ready and updated every pass of the update task. It is now behind the Kconfig option MAIPAI_STOCK_STATUS_BAR (default n) and its source (apps/common/status_bar) is left out of the build, so its LVGL objects, its animation values, its time label, its icon images and its per-pass update are gone. Battery and Wi-Fi show in the banner row only when something is wrong, and the full values live in the settings page.
+# Placement: unit (the display runs on the robot)
+# Upstream: firmware/main/hal/hal.cpp, firmware/main/CMakeLists.txt and firmware/main/Kconfig.projbuild of the StackChan main component (MIT, patch 097 already left the vendor apps out)
+# Check after a flash: no green bar slides down at the top of the face; the heap numbers before and after on the same image (self.mem or the memory line) show the freed bytes.
+
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+index fff2f3c..bb61891 100644
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -169,11 +169,15 @@ static void _stackchan_update_task(void* param)
+         if (!is_setup_done) {
+             // Setup when xiaozhi ready
+             GetHAL().startSntp();
++#if CONFIG_MAIPAI_STOCK_STATUS_BAR
+             view::create_status_bar(0x81DBBD, 0x134233);
++#endif
+             is_setup_done = true;
+         }
+ 
++#if CONFIG_MAIPAI_STOCK_STATUS_BAR
+         view::update_status_bar();
++#endif
+     }
+ }
+ 
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+index 7a1f4ae..23fec4f 100644
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -25,6 +25,10 @@ file(GLOB_RECURSE STACK_CHAN_SOURCES
+ )
+ # MaiPai strip (patch 097): vendor apps outside the voice agent are not built.
+ list(FILTER STACK_CHAN_SOURCES EXCLUDE REGEX "/apps/(app_[a-z_]+|common/home_indicator)/")
++if(NOT CONFIG_MAIPAI_STOCK_STATUS_BAR)
++    # Patch N01: the stock status bar is not built (its objects, its timer and its icons are not linked).
++    list(FILTER STACK_CHAN_SOURCES EXCLUDE REGEX "/apps/common/status_bar/")
++endif()
+ list(FILTER STACK_CHAN_SOURCES EXCLUDE REGEX "/hal/hal_(ezdata|account|espnow|app_center)\\.cpp$")
+ # Omit BLE transport code from this firmware build.
+ list(FILTER STACK_CHAN_SOURCES EXCLUDE REGEX "/hal/(hal_ble\.cpp$|utils/bleprph/)")
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index f280e83..5fd227c 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -113,6 +113,13 @@ config MAIPAI_BANNER_ROW
+         cues that must always show. The face moves down 8 to 12 px, eased, while it shows. Off here: the older bottom
+         bubbles and strip (bench builds only; nothing remote-related would show then).
+ 
++config MAIPAI_STOCK_STATUS_BAR
++    bool "The stock status bar (time, battery and Wi-Fi) at the top of the face"
++    default n
++    help
++        The vendor's green bar that slides down at the top of the face. Off by default: the banner row shows battery and Wi-Fi
++        only when something is wrong. On: the bar is compiled in and created once the unit is ready, as before.
++
+ config MAIPAI_FX
+     bool "Saved preferences and screen effects: scanlines, colour modes, night dim, glow, overlays, the speech bubble"
+     default y

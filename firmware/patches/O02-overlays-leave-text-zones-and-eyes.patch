@@ -1,0 +1,273 @@
+# Intent: Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, front) in PSRAM; post_to_flush draws them front to back with the banner row and the subtitle strip left alone while they show (the banner zone counts as busy for the row, a chip or any strip glyph: maipai_banner_zone_busy) and with the eyes and the mouth of the style on screen protected (dark pupils and open mouths are not background). When a text zone appears or goes away its rows are invalidated once so they are drawn again with or without the overlays. self.overlay.set takes the ten named combinations (a combination replaces everything, a single overlay replaces its layer and ends a combination), self.overlay.status lists three layers and all the names, and the sleepy look's zzz does not replace a running combination. The tool text lists every name and says what stays on top. The glow is centered on the eye from ml_eye_center_y (the face zone middle, y 106, plus the style's eye offset): it was placed from y 120, the middle of the screen, which N04 stopped using, so it sat 14 px low.
+# Placement: unit (the overlays run on the robot with no host)
+# Upstream: firmware/main/hal/maipai_look_core.h (ours, patch X01, N04), firmware/main/hal/maipai_fx.cc (ours, patches TA03, TC03, N02), maipai_banner.cc and maipai_banner.h (ours, patches N01, FI01)
+# Check after a flash: with a banner message showing, rain or stormy never draws in rows 0 to 27; with a subtitle showing, never in rows 184 to 239; self.overlay.set stormy, rainy, snowy, sunny, windy, night, party, celebrate, love and sleeping each answer {ok:true}; self.overlay.status shows the layers; heap: internal free steady unchanged, PSRAM down by 1.4 KB.
+
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -158,15 +158,15 @@ uint32_t s_post_worst_us    = 0;
+ lv_timer_t* s_gov_timer              = nullptr;
+ 
+ // ------------------------------------------------------------------------------------------ overlays (TA03)
+-// Weather layer, event layer: the whole engine's state (1.35 KB). It lives in PSRAM (patch TC03): as a static it took 1.35 KB
+-// of the largest free internal block.
+-mo_layer_t (*s_ov_p)[2] = nullptr;
+-mo_layer_t (&ov_arr())[2]
++// Weather layer, event layer, front layer (patch O01): the whole engine's state (2.76 KB). It lives in PSRAM (patch TC03): as a static it
++// would take 2.76 KB of the largest free internal block.
++mo_layer_t (*s_ov_p)[MO_LAYERS] = nullptr;
++mo_layer_t (&ov_arr())[MO_LAYERS]
+ {
+     if (s_ov_p == nullptr) {
+-        s_ov_p = static_cast<mo_layer_t (*)[2]>(heap_caps_calloc(1, sizeof(mo_layer_t[2]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        s_ov_p = static_cast<mo_layer_t (*)[MO_LAYERS]>(heap_caps_calloc(1, sizeof(mo_layer_t[MO_LAYERS]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+         if (s_ov_p == nullptr) {
+-            s_ov_p = static_cast<mo_layer_t (*)[2]>(heap_caps_calloc(1, sizeof(mo_layer_t[2]), MALLOC_CAP_8BIT));
++            s_ov_p = static_cast<mo_layer_t (*)[MO_LAYERS]>(heap_caps_calloc(1, sizeof(mo_layer_t[MO_LAYERS]), MALLOC_CAP_8BIT));
+         }
+     }
+     return *s_ov_p;
+@@ -176,6 +176,8 @@ lv_timer_t* s_ov_timer               = nullptr;  // the one shared 30 fps timer;
+ int64_t s_ov_last_us                 = 0;
+ bool s_ov_hidden                     = false;    // a privacy look, the clock or the flat fallback hides the overlays
+ bool s_zzz_auto                      = false;    // the zzz was started by the sleeping look, so waking ends it
++bool s_ov_banner_was                 = false;    // the text zones the last overlay tick saw (when one changes, its rows are drawn again)
++bool s_ov_subs_was                   = false;
+ uint32_t s_ov_seed                   = 0x5EED1234u;
+ 
+ void ov_governor_changed();
+@@ -212,7 +214,7 @@ void apply_effects()
+             next.gmask = s_gmask;
+             next.gx[0] = 160 - st->eye_x - next.gside / 2;
+             next.gx[1] = 160 + st->eye_x - next.gside / 2;
+-            next.gy    = 120 + st->eye_y - next.gside / 2;
++            next.gy    = ml_eye_center_y(st) - next.gside / 2;  // the face zone middle (y 106), not the screen middle (O02)
+             next.gcol  = 0xFFFF;
+             next.glow  = 1;
+         } else {
+@@ -235,17 +237,31 @@ void apply_effects()
+     }
+ }
+ 
++// Keeps the overlays out of the eyes and the mouth of the style on screen: a pupil and an open mouth are dark, and a dark pixel would
++// pass for background. Positions are from the middle of the face zone (screen y 106, patch N04).
++void ov_protect_face(mc_t* cv)
++{
++    const ml_style_t* st = ml_style(s_style_id);
++    if (st->eye_d > 0) {
++        mc_protect(cv, 160 - st->eye_x, ml_eye_center_y(st), st->ew / 2 + 2, st->eh / 2 + 2);
++        mc_protect(cv, 160 + st->eye_x, ml_eye_center_y(st), st->ew / 2 + 2, st->eh / 2 + 2);
++    }
++    if (st->mouth != ML_MOUTH_NONE) {
++        mc_protect(cv, 160, 106 + st->mouth_y, st->mouth_w / 2 + 2, st->stock_look ? 14 : 15);
++    }
++}
++
+ void post_to_flush(lv_display_t* d, const lv_area_t* a, uint8_t* px)
+ {
+-    const bool overlays = !s_ov_hidden && (s_ov[0].id != MO_NONE || s_ov[1].id != MO_NONE);
++    const bool overlays = !s_ov_hidden && mo_any(s_ov);
+     if (overlays || mfx_any(&s_fx)) {
+         const int64_t t0 = esp_timer_get_time();
+         uint16_t* pixels = reinterpret_cast<uint16_t*>(px);
+         if (overlays) {  // the overlays first, so the colour mode, the dim and the scanlines treat them like the rest of the picture
+-            mc_t cv = {pixels, a->x1, a->y1, a->x2, a->y2, a->x2 - a->x1 + 1, 0};
+-            for (int l = 0; l < 2; l++) {
+-                mo_draw(&s_ov[l], &cv);
+-            }
++            // the banner row and the subtitle strip are text layers: the overlays leave their rows alone while they show (patch O01)
++            mc_t cv = mc_make(pixels, a->x1, a->y1, a->x2, a->y2, maipai_banner_zone_busy() ? 1 : 0, maipai_subtitles_visible() ? 1 : 0);
++            ov_protect_face(&cv);
++            mo_draw_all(s_ov, &cv);
+         }
+         if (mfx_any(&s_fx)) {
+             mfx_post(&s_fx, pixels, a->x1, a->y1, a->x2, a->y2);
+@@ -288,7 +304,7 @@ void gov_tick(lv_timer_t*)
+ 
+ bool ov_any()
+ {
+-    return s_ov[0].id != MO_NONE || s_ov[1].id != MO_NONE;
++    return mo_any(s_ov);
+ }
+ 
+ void ov_invalidate(mo_layer_t* L)
+@@ -317,7 +333,7 @@ void ov_set_hidden(bool hide)
+         return;
+     }
+     s_ov_hidden = hide;
+-    for (int l = 0; l < 2; l++) {
++    for (int l = 0; l < MO_LAYERS; l++) {
+         if (s_ov[l].id != MO_NONE) {
+             mo_mark_extent(&s_ov[l]);  // draw it or wipe it
+             ov_invalidate(&s_ov[l]);
+@@ -328,7 +344,7 @@ void ov_set_hidden(bool hide)
+ void ov_governor_changed()
+ {
+     const int pct = mg_particles_pct(&s_gov);
+-    for (int l = 0; l < 2; l++) {
++    for (int l = 0; l < MO_LAYERS; l++) {
+         s_ov[l].pct = static_cast<uint8_t>(pct > 0 ? pct : 100);
+     }
+     if (ov_any()) {
+@@ -342,7 +358,22 @@ void ov_tick(lv_timer_t*)
+     const uint32_t dt = static_cast<uint32_t>((now - s_ov_last_us) / 1000);
+     s_ov_last_us      = now;
+     ov_set_hidden(ov_should_hide());
+-    for (int l = 0; l < 2; l++) {
++    // a text zone that appeared or went away: the rows it covered are drawn again, with or without the overlays
++    const bool banner_now = maipai_banner_zone_busy(), subs_now = maipai_subtitles_visible();
++    if ((banner_now != s_ov_banner_was || subs_now != s_ov_subs_was) && s_disp != nullptr) {
++        lv_obj_t* scr = lv_display_get_screen_active(s_disp);
++        if (banner_now != s_ov_banner_was) {
++            lv_area_t top = {0, 0, MO_W - 1, MO_ZONE_TOP - 1};
++            lv_obj_invalidate_area(scr, &top);
++        }
++        if (subs_now != s_ov_subs_was) {
++            lv_area_t bottom = {0, MO_ZONE_BOTTOM, MO_W - 1, MO_H - 1};
++            lv_obj_invalidate_area(scr, &bottom);
++        }
++        s_ov_banner_was = banner_now;
++        s_ov_subs_was   = subs_now;
++    }
++    for (int l = 0; l < MO_LAYERS; l++) {
+         mo_layer_t* L = &s_ov[l];
+         if (L->id == MO_NONE) {
+             continue;
+@@ -381,18 +412,24 @@ bool ov_start(int id, int intensity, uint32_t seconds)
+         return false;
+     }
+     s_ov_seed = s_ov_seed * 1664525u + 1013904223u + static_cast<uint32_t>(esp_timer_get_time());
+-    mo_layer_t* L = &s_ov[mo_layer_of(id)];
+-    mo_start(L, id, intensity, seconds, s_ov_seed);
+-    L->pct = static_cast<uint8_t>(mg_particles_pct(&s_gov) > 0 ? mg_particles_pct(&s_gov) : 100);
++    // an element runs in its own layer; a named combination (stormy, rainy...) fills the layers and replaces everything (patch O01)
++    if (mo_set(s_ov, id, intensity, seconds, s_ov_seed) == 0) {
++        return false;
++    }
++    for (int l = 0; l < MO_LAYERS; l++) {
++        s_ov[l].pct = static_cast<uint8_t>(mg_particles_pct(&s_gov) > 0 ? mg_particles_pct(&s_gov) : 100);
++    }
+     ov_set_hidden(ov_should_hide());
+-    ov_invalidate(L);
++    for (int l = 0; l < MO_LAYERS; l++) {
++        ov_invalidate(&s_ov[l]);
++    }
+     ov_ensure_timer();
+     return true;
+ }
+ 
+ void ov_clear_all()
+ {
+-    for (int l = 0; l < 2; l++) {
++    for (int l = 0; l < MO_LAYERS; l++) {
+         if (s_ov[l].id != MO_NONE) {
+             mo_clear(&s_ov[l]);
+             ov_invalidate(&s_ov[l]);
+@@ -515,7 +552,9 @@ void maipai_fx_note_emotion(const char* emotion)
+     // The sleepy and sleeping looks float z letters (patch TA03); any other emotion ends them. A zzz asked for by a tool is left alone.
+     const bool zzz = emotion != nullptr && (strcmp(emotion, "sleepy") == 0 || strcmp(emotion, "closing") == 0 || strcmp(emotion, "sleeping") == 0);
+     if (zzz) {
+-        if (s_ov[1].id != MO_ZZZ && ov_start(MO_ZZZ, 2, 0)) {
++        bool combo = false;  // a running combination (stormy, party...) is not replaced by the sleeping look's letters
++        for (int l = 0; l < MO_LAYERS; l++) combo = combo || s_ov[l].combo != 0;
++        if (s_ov[1].id != MO_ZZZ && !combo && ov_start(MO_ZZZ, 2, 0)) {
+             s_zzz_auto = true;
+         }
+     } else if (s_zzz_auto && s_ov[1].id == MO_ZZZ) {
+@@ -578,10 +617,10 @@ void maipai_fx_register_tools()
+                     return out + "]}";
+                 });
+     mcp.AddTool("self.overlay.status",
+-                "Read the overlay engine: what runs in the weather layer and the event layer, the names it knows, the governor level "
+-                "and the measured draw cost. Answers {ok, enabled, layers, names, governor, cost}.",
++                "Read the overlay engine: what runs in the weather layer, the event layer and the front layer, the names it knows (overlays and named "
++                "combinations), the governor level and the measured draw cost. Answers {ok, enabled, layers, names, governor, cost}.",
+                 std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
+-                    char buf[1100];
++                    char buf[1600];
+                     size_t n = 0;
+                     {
+                         LvglLockGuard lock;
+@@ -589,17 +628,21 @@ void maipai_fx_register_tools()
+                         static const char* const intens[] = {"light", "normal", "heavy"};
+                         n += snprintf(buf + n, sizeof buf - n, "{\"ok\":true,\"enabled\":%s,\"hidden\":%s,\"layers\":[", on ? "true" : "false",
+                                       s_ov_hidden ? "true" : "false");
+-                        for (int l = 0; l < 2; l++) {
++                        static const char* const layer_names[MO_LAYERS] = {"weather", "event", "front"};
++                        for (int l = 0; l < MO_LAYERS; l++) {
+                             const mo_layer_t& L = s_ov[l];
+                             const int left      = (L.id != MO_NONE && L.dur_ms != 0 && L.t_ms < L.dur_ms) ? static_cast<int>((L.dur_ms - L.t_ms + 999) / 1000) : 0;
+                             n += snprintf(buf + n, sizeof buf - n, "%s{\"layer\":\"%s\",\"name\":\"%s\",\"intensity\":\"%s\",\"seconds_left\":%d,\"particles\":%d}",
+-                                          l ? "," : "", l ? "event" : "weather", L.id != MO_NONE ? MO_NAMES[L.id] : "none",
++                                          l ? "," : "", layer_names[l], L.id != MO_NONE ? MO_NAMES[L.id] : "none",
+                                           L.id != MO_NONE ? intens[L.intensity - 1] : "normal", left, L.n);
+                         }
+                         n += snprintf(buf + n, sizeof buf - n, "],\"names\":[");
+                         for (int i = 1; i < MO_COUNT; i++) {
+                             n += snprintf(buf + n, sizeof buf - n, "%s\"%s\"", i > 1 ? "," : "", MO_NAMES[i]);
+                         }
++                        for (int i = 0; i < MOP_COUNT; i++) {
++                            n += snprintf(buf + n, sizeof buf - n, ",\"%s\"", MOP_NAMES[i]);
++                        }
+                         const uint32_t pn = s_post_n;
+                         n += snprintf(buf + n, sizeof buf - n,
+                                       "],\"governor\":{\"level\":%d,\"particles_pct\":%d,\"load_pct\":%u,\"worst_us\":%u,\"fps\":%u,\"sheds\":%u,\"restores\":%u},"
+@@ -612,7 +655,7 @@ void maipai_fx_register_tools()
+                     return std::string(buf, n < sizeof buf ? n : sizeof buf - 1);
+                 });
+     mcp.AddTool("self.overlay.set",
+-                "Draw an overlay: name (rain, snow, sun, clouds, wind, thunder, fog, stars, leaves, disco, confetti, fireworks, hearts, steam, balloons, zzz), intensity (light, normal, heavy), seconds (1 to 3600; 0 until cleared). One runs per layer (weather, event). Answers {ok} or {ok:false,error}.",
++                "Draw an overlay: name (rain, snow, sun, clouds, wind, thunder, fog, stars, leaves, disco, confetti, fireworks, hearts, steam, balloons, zzz, or a named combination: stormy, rainy, snowy, sunny, windy, night, party, celebrate, love, sleeping), intensity (light, normal, heavy), seconds (1 to 3600; 0 until cleared). A single overlay runs in its own layer (weather or event) beside the other; a combination replaces everything. The banner row and the subtitle strip are never covered, and the eyes and mouth stay in front. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("rain")),
+                               Property("intensity", kPropertyTypeString, std::string("normal")),
+                               Property("seconds", kPropertyTypeInteger, 8, 0, 3600)}),
+@@ -622,7 +665,7 @@ void maipai_fx_register_tools()
+                     const int seconds           = properties["seconds"].value<int>();
+                     const int id                = mo_id(name.c_str());
+                     if (id == 0) {
+-                        return reply_error("that overlay is not known: use rain, snow, sun, clouds, wind, thunder, fog, stars, disco, confetti, fireworks, hearts, steam, balloons, leaves or zzz");
++                        return reply_error("that overlay is not known: use rain, snow, sun, clouds, wind, thunder, fog, stars, disco, confetti, fireworks, hearts, steam, balloons, leaves, zzz, stormy, rainy, snowy, sunny, windy, night, party, celebrate, love or sleeping");
+                     }
+                     int level = 0;
+                     if (intensity == "light") level = 1;
+diff --git a/firmware/main/hal/maipai_banner.cc b/firmware/main/hal/maipai_banner.cc
+--- a/firmware/main/hal/maipai_banner.cc
++++ b/firmware/main/hal/maipai_banner.cc
+@@ -556,3 +556,11 @@ void maipai_banner_step()
+     tick(nullptr);
+     maipai_subtitles_step();
+ }
++// Patch O01: whether anything of the banner zone (y 0 to 27) is on screen: the row or its chip, or a glyph of the strip. The overlays leave
++// the zone alone while it is busy (the text layers draw above the overlays).
++bool maipai_banner_zone_busy()
++{
++    if (s_b == nullptr) return false;
++    std::lock_guard<std::mutex> lock(s_mu);
++    return s_b->has_cur || s_b->session || mb_strip_visible(s_b) != 0;
++}
+diff --git a/firmware/main/hal/maipai_banner.h b/firmware/main/hal/maipai_banner.h
+--- a/firmware/main/hal/maipai_banner.h
++++ b/firmware/main/hal/maipai_banner.h
+@@ -43,5 +43,7 @@ int maipai_banner_captions();
+ void maipai_banner_bypass(bool on);
+ // True while the row (or a chip) is on screen (for the tests and the bench).
+ bool maipai_banner_visible();
++// True while the row, a chip or any strip glyph is on screen: the overlays leave the banner zone (y 0 to 27) alone then (patch O01).
++bool maipai_banner_zone_busy();
+ // One timer step (the host renderer calls it by hand; on the unit the LVGL timer does).
+ void maipai_banner_step();
+diff --git a/firmware/main/hal/maipai_look_core.h b/firmware/main/hal/maipai_look_core.h
+--- a/firmware/main/hal/maipai_look_core.h
++++ b/firmware/main/hal/maipai_look_core.h
+@@ -79,6 +79,10 @@ static const ml_style_t ML_STYLES[ML_STYLE_COUNT] = {
+     {"minimal", 40, 62, -10, 56, ML_MOUTH_CUTE, 22, 3, 0, 28, 40, 100, 0, 0, 5, 4},
+ };
+ 
++/* Screen y of the middle of the eyes of a style (patch O02: the glow and the overlays' eye protection use it; styles are measured from the
++ * middle of the face zone, y 106, not from the middle of the screen, y 120). */
++static inline int ml_eye_center_y(const ml_style_t* st) { return ML_ZONE_CENTER_Y + st->eye_y; }
++
+ static inline const ml_style_t* ml_style(int id) { return &ML_STYLES[(id >= 0 && id < ML_STYLE_COUNT) ? id : ML_STYLE_BIG_EYES]; }
+ 
+ /* The side of the square an eye is drawn in: room for the circle and one pixel of edge on every side. */

@@ -243,4 +243,10 @@ class FirmwareUpdater:
                 self.done_version, self.done_at = self.target_version, now
         elif kind == "firmware_update_validated":
             self.done_version = self.done_at = None
+        elif kind == "firmware_update_rolled_back":
+            # Patch FM01: the unit judged its own first boot and went back to the old image.
+            self.failed_at = now
+            self.failed_version = self.done_version or self.target_version
+            self.failure_reason = "rolled_back"
+            self.done_version = self.done_at = None
         LOG.info("StackChan firmware update: event %s", kind)

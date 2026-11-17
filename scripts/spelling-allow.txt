@@ -42,3 +42,6 @@ host/maipai_body/i18n_design.py :: "Licence", "Docs d'utilisation"
 host/tests/test_faces.py :: (sent|firmware\.state)\["colour"\]
 host/tests/test_stackchan_train4.py :: firmware\.state\["colour"\]
 host/tests/test_firmware_fx_cores.py :: MP_NAMES_COLOUR
+
+# Generated index: it quotes the Intent lines of the firmware patch files, which keep their old spelling until the patches are swept with a replay check.
+docs/design/INDEX.md :: *

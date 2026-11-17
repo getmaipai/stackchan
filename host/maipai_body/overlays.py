@@ -85,7 +85,8 @@ class OverlayDirector:
     # ---- the settings Remote page: loud about what it did not do ------------------------------
 
     def remote_set(self, device_id: str, name: object, intensity: object, seconds: object, lang: str | None = None) -> dict[str, Any]:
-        tag = reply_tags.parse_tag(str(name))
+        text = str(name).strip()
+        tag = reply_tags.parse_tag(text if ":" in text or "=" in text else f"overlay:{text}")  # "love" is also a mood: the page means the overlay
         if tag.kind != "overlay":
             raise OverlayError(say(lang, "unknown", names=", ".join(reply_tags.OVERLAYS)))
         level = intensity if intensity in reply_tags.INTENSITIES else tag.intensity

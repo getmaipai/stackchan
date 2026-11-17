@@ -1,0 +1,646 @@
+# Intent: The banner row, part 2 (owner asked twice that the remote bar not sit over the mouth). Every message that was drawn at the bottom of the face now goes to the banner row at the top: the Remote cue and the Remote SAY text (TB05, TC01, TC04: the exact words sticky until spoken or canceled, a long text scrolls, with the tap or stop hint first when asked first), the remote session as a violet chip (the old glyph at the top left and the bottom bar are gone), "Here I am!" and the game best score (Y04), the notices of the daily rules (T01), the volume and Wi-Fi toasts, the link looks (R03: the slashed bars with Offline, the bars with Connecting, the key with Waiting for approval), the camera-on cue (T05, now in the strip) and the captions (TA04: now the subtitle strip). New settings: captions_mode (off, subtitles by default when on, banner; the Stock style's bubble became the subtitles) and top_bar (hidden by default, or always show battery and Wi-Fi). The Wi-Fi setup hint shows as still subtitles because its name and code must stay readable; a remote say that is spoken continues as subtitles after the banner showed it first. Battery under 20 percent and Wi-Fi or hub link lost show as small glyphs in the strip; the microphone-live glyph follows the listening state. The settings table order keeps the host's 16 keys first.
+# Placement: unit (settings are kept in the unit's own flash; the host copy is what the settings page shows)
+# Upstream: firmware/main/hal/{maipai_remote.cc,maipai_games.cc,maipai_prefs_core.h,maipai_fx.cc,maipai_fx.h,maipai_face.cc} and board/stackchan_display.{cc,h} (ours, patches TB05, Y04, TA01, TA04, F01, R03, T05)
+# Check after a flash: self.prefs.get shows captions_mode banner and top_bar hidden; the Offline look, a find chirp, a volume swipe, a game best score and a remote say each appear in the top row; self.prefs.set {"captions_mode":"banner"} shows the words in the top row.
+
+diff --git a/firmware/main/hal/maipai_remote.cc b/firmware/main/hal/maipai_remote.cc
+index 8677906..aff834b 100644
+--- a/firmware/main/hal/maipai_remote.cc
++++ b/firmware/main/hal/maipai_remote.cc
+@@ -1,8 +1,9 @@
+ /*
+  * SPDX-License-Identifier: MIT
+  *
+- * Visible remote control (patch TB05). While a controller is connected: a steady violet glyph at the top left of the face
+- * and a dim violet ring when nothing else uses it. For each action the host first calls self.remote.action(kind, text); the
++ * Visible remote control (patch TB05). While a controller is connected: a steady violet chip in the banner row at the top of the
++ * screen (patch N01: "Remote: connected", the remote glyph beside it in the strip) and a dim violet ring when nothing else uses
++ * it; nothing remote is drawn over the mouth. For each action the host first calls self.remote.action(kind, text); the
+  * unit shows the banner ("Remote: moving") for the action's time and a short tone (the sound policy may silence the tone; the
+  * banner it may not), and answers a one-use token that the action must carry. A remote SAY shows the exact text, with the
+  * label "Remote message", for 0.8 s before it may be spoken; a tap or the stop word in that time cancels it; with "ask first"
+@@ -12,6 +13,7 @@
+  * Memory: the state is 1.9 KB (10 history entries of 80 bytes, the rest small), in PSRAM; internal RAM: a pointer.
+  */
+ #include "maipai_remote.h"
++#include "maipai_banner.h"
+ #include "maipai_remote_core.h"
+ #include "maipai_listen.h"
+ #include "maipai_sounds.h"
+@@ -36,13 +38,7 @@ namespace {
+ 
+ std::mutex s_mu;
+ mr_t* s_r = nullptr;  // PSRAM
+-lv_obj_t* s_glyph  = nullptr;
+-lv_obj_t* s_banner = nullptr;
+-lv_obj_t* s_banner_label = nullptr;
+-lv_obj_t* s_bubble = nullptr;
+-lv_obj_t* s_bubble_label = nullptr;
+ lv_timer_t* s_timer = nullptr;
+-uint32_t s_banner_until = 0;
+ std::string s_say_text;
+ bool s_tint_on = false;
+ std::atomic<bool> s_tint_refresh{true};
+@@ -52,89 +48,32 @@ std::atomic<bool> s_stop_armed{false};
+ 
+ uint32_t ms_now() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
+ 
+-lv_color_t violet() { return lv_color_make(0xA0, 0x70, 0xFF); }
+-
+-void build_ui()  // LVGL lock held
+-{
+-    s_glyph = lv_obj_create(lv_layer_top());
+-    lv_obj_remove_style_all(s_glyph);
+-    lv_obj_remove_flag(s_glyph, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_remove_flag(s_glyph, LV_OBJ_FLAG_CLICKABLE);
+-    lv_obj_set_size(s_glyph, 26, 18);
+-    lv_obj_align(s_glyph, LV_ALIGN_TOP_LEFT, 8, 8);
+-    lv_obj_set_style_radius(s_glyph, 5, 0);
+-    lv_obj_set_style_border_width(s_glyph, 2, 0);
+-    lv_obj_set_style_border_color(s_glyph, violet(), 0);
+-    lv_obj_set_style_bg_opa(s_glyph, LV_OPA_TRANSP, 0);
+-    lv_obj_t* dot = lv_obj_create(s_glyph);  // a screen with a pointer: a remote link, steady, never blinking
+-    lv_obj_remove_style_all(dot);
+-    lv_obj_remove_flag(dot, LV_OBJ_FLAG_CLICKABLE);
+-    lv_obj_set_size(dot, 6, 6);
+-    lv_obj_center(dot);
+-    lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+-    lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+-    lv_obj_set_style_bg_color(dot, violet(), 0);
+-    lv_obj_add_flag(s_glyph, LV_OBJ_FLAG_HIDDEN);
+-
+-    s_banner = lv_obj_create(lv_layer_top());
+-    lv_obj_remove_style_all(s_banner);
+-    lv_obj_remove_flag(s_banner, LV_OBJ_FLAG_CLICKABLE);
+-    lv_obj_set_size(s_banner, 240, 26);
+-    lv_obj_align(s_banner, LV_ALIGN_BOTTOM_MID, 0, -6);
+-    lv_obj_set_style_radius(s_banner, 13, 0);
+-    lv_obj_set_style_bg_opa(s_banner, LV_OPA_COVER, 0);
+-    lv_obj_set_style_bg_color(s_banner, lv_color_make(0x30, 0x20, 0x58), 0);
+-    s_banner_label = lv_label_create(s_banner);
+-    lv_obj_set_style_text_color(s_banner_label, lv_color_white(), 0);
+-    lv_obj_center(s_banner_label);
+-    lv_obj_add_flag(s_banner, LV_OBJ_FLAG_HIDDEN);
+-
+-    s_bubble = lv_obj_create(lv_layer_top());  // always shown for a remote message, whatever the speech bubble setting says
+-    lv_obj_remove_style_all(s_bubble);
+-    lv_obj_remove_flag(s_bubble, LV_OBJ_FLAG_CLICKABLE);
+-    lv_obj_set_size(s_bubble, 300, 110);
+-    lv_obj_align(s_bubble, LV_ALIGN_BOTTOM_MID, 0, -4);
+-    lv_obj_set_style_radius(s_bubble, 14, 0);
+-    lv_obj_set_style_bg_opa(s_bubble, LV_OPA_COVER, 0);
+-    lv_obj_set_style_bg_color(s_bubble, lv_color_make(0x30, 0x20, 0x58), 0);
+-    lv_obj_set_style_border_width(s_bubble, 2, 0);
+-    lv_obj_set_style_border_color(s_bubble, violet(), 0);
+-    lv_obj_set_style_pad_all(s_bubble, 8, 0);
+-    s_bubble_label = lv_label_create(s_bubble);
+-    lv_obj_set_width(s_bubble_label, 280);
+-    lv_label_set_long_mode(s_bubble_label, LV_LABEL_LONG_WRAP);
+-    lv_obj_set_style_text_color(s_bubble_label, lv_color_white(), 0);
+-    lv_obj_add_flag(s_bubble, LV_OBJ_FLAG_HIDDEN);
+-}
+ 
+ void arm_stop(bool on)
+ {
+     if (s_stop_armed.exchange(on) != on) hal_bridge::stop_word_arm(on);
+ }
+ 
+-void show_banner(const char* text, uint32_t ms)  // LVGL lock held
++void show_banner(const char* text, uint32_t ms)  // any task (patch N01: the banner row at the top)
+ {
+-    if (s_banner == nullptr) return;
+-    lv_label_set_text(s_banner_label, text);
+-    lv_obj_center(s_banner_label);
+-    lv_obj_remove_flag(s_banner, LV_OBJ_FLAG_HIDDEN);
+-    s_banner_until = ms_now() + ms;
++    maipai_banner_post(text, MB_ICON_REMOTE, MB_PRIO_PRIVACY, MB_TAG_CUE, ms);
+ }
+ 
+-void bubble(const char* label, const char* text, const char* hint)  // LVGL lock held
++// The exact words of a remote message, in the banner row until the message is spoken or cancelled (sticky). A long text scrolls.
++void bubble(const char* label, const char* text, const char* hint)
+ {
+-    std::string full = std::string(label) + "\n" + text;
+-    if (hint != nullptr && *hint) full += std::string("\n") + hint;
+-    lv_label_set_text(s_bubble_label, full.c_str());
+-    lv_obj_remove_flag(s_bubble, LV_OBJ_FLAG_HIDDEN);
++    (void)label;
++    std::string full = (hint != nullptr && *hint) ? std::string(hint) + ": " + text : std::string("Remote: ") + text;
++    maipai_banner_post(full.c_str(), MB_ICON_REMOTE, MB_PRIO_PRIVACY, MB_TAG_SAY, 0);
+ }
+ 
+ void finish_say(mr_say_event_t ev)  // LVGL lock held
+ {
+     if (ev == MR_SAY_NONE) return;
+-    if (s_bubble != nullptr) lv_obj_add_flag(s_bubble, LV_OBJ_FLAG_HIDDEN);
++    maipai_banner_clear_tag(MB_TAG_SAY);
+     arm_stop(false);
+     const bool speak = ev == MR_SAY_SPEAK;
++    if (speak && maipai_banner_captions() == MB_CAP_SUBTITLES) maipai_subtitles_say(s_say_text.c_str(), false);  // patch N04: the banner showed it first, the subtitles go on
+     s_say_result.store(speak ? 1 : 2);
+     char extra[64];
+     snprintf(extra, sizeof(extra), "\"result\":\"%s\",\"id\":%u", speak ? "speak" : "cancelled", static_cast<unsigned>(s_say_id.load()));
+@@ -146,21 +85,14 @@ void tick(lv_timer_t*)  // every 100 ms, inside the LVGL task with its lock
+     std::lock_guard<std::mutex> lock(s_mu);
+     const uint32_t now = ms_now();
+     const bool on = mr_session_on(s_r, now) != 0;
+-    if (s_glyph != nullptr) {
+-        if (on) lv_obj_remove_flag(s_glyph, LV_OBJ_FLAG_HIDDEN);
+-        else lv_obj_add_flag(s_glyph, LV_OBJ_FLAG_HIDDEN);
+-    }
+-    if (s_banner != nullptr && s_banner_until != 0 && static_cast<int32_t>(now - s_banner_until) >= 0) {
+-        lv_obj_add_flag(s_banner, LV_OBJ_FLAG_HIDDEN);
+-        s_banner_until = 0;
+-    }
++    maipai_banner_session(on, s_r->label);  // the violet chip while a controller is connected: steady, never blinking
+     const mr_say_event_t ev = mr_say_poll(s_r, now);
+     if (ev == MR_SAY_ASKING) {
+         bubble("Remote message", s_say_text.c_str(), "Tap to allow, or say stop");
+     } else {
+         finish_say(ev);
+     }
+-    if (s_r->say_state == 0 && s_bubble != nullptr) lv_obj_add_flag(s_bubble, LV_OBJ_FLAG_HIDDEN);
++    if (s_r->say_state == 0) maipai_banner_clear_tag(MB_TAG_SAY);
+     // the violet tint: dim, steady, only while no listening cue and no other owner lights the ring
+     if (on && !maipai_listen_ring_active()) {
+         if (!s_tint_on || s_tint_refresh.exchange(false)) {
+@@ -179,7 +111,6 @@ void ensure_ui()
+ {
+     if (s_timer != nullptr) return;
+     LvglLockGuard lock;
+-    build_ui();
+     s_timer = lv_timer_create(tick, 100, nullptr);
+ }
+ 
+@@ -244,7 +175,7 @@ bool maipai_remote_tap()
+     char extra[64];
+     snprintf(extra, sizeof(extra), "\"result\":\"%s\",\"id\":%u", ev == MR_SAY_SPEAK ? "speak" : "cancelled", static_cast<unsigned>(s_say_id.load()));
+     device_events_push("remote_say", extra);
+-    arm_stop(false);  // the bubble is hidden by the next tick (no LVGL call here: the caller may hold its lock)
++    arm_stop(false);  // the banner text is cleared by the next tick
+     return true;
+ }
+ 
+@@ -273,8 +204,8 @@ void maipai_remote_register_tools()
+     auto& mcp = McpServer::GetInstance();
+ 
+     mcp.AddTool("self.remote.session",
+-                "A controller is connected (active true) or gone. Repeat about every 3 s while connected: 10 s without a call clears it. Shows a violet glyph and ring. label says who. Answers {ok}.",
++                "A controller is connected (active true) or gone. Repeat about every 3 s while connected: 10 s without a call clears it. Shows the violet chip in the top row and the ring. label says who. Answers {ok}.",
+                 PropertyList({Property("active", kPropertyTypeBoolean, true), Property("label", kPropertyTypeString, std::string("remote")),
+                               Property("host", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     ensure_ui();
+@@ -306,10 +237,7 @@ void maipai_remote_register_tools()
+                     }
+                     if (r != MR_OK) return reply_reason(r);
+                     const int k = mr_kind_by_name(kind.c_str());
+-                    {
+-                        LvglLockGuard lock;
+-                        show_banner(MR_BANNERS[k], static_cast<uint32_t>(properties["seconds"].value<int>()) * 1000u);
+-                    }
++                    show_banner(MR_BANNERS[k], static_cast<uint32_t>(properties["seconds"].value<int>()) * 1000u);
+                     (void)maipai_sounds_play("vibration");  // a short distinct tone, per the sound policy
+                     {
+                         std::lock_guard<std::mutex> lock(s_mu);
+@@ -334,10 +262,7 @@ void maipai_remote_register_tools()
+                     if (r != MR_OK) return reply_reason(r);
+                     s_say_id.fetch_add(1);
+                     s_say_result.store(0);
+-                    {
+-                        LvglLockGuard lock;
+-                        bubble("Remote message", text.c_str(), "");
+-                    }
++                    bubble("Remote message", text.c_str(), "");
+                     arm_stop(true);  // the stop word works during the notice
+                     return std::string("{\"ok\":true,\"id\":") + std::to_string(s_say_id.load()) + "}";
+                 });
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+index 36c288b..e307b82 100644
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -10,6 +10,7 @@
+ #if CONFIG_MAIPAI_GAMES
+ #include "maipai_games.h"
+ #include "maipai_games_core.h"
++#include "maipai_banner.h"
+ #include "maipai_face.h"
+ #include "maipai_privacy.h"
+ #include "maipai_remote.h"
+@@ -83,7 +84,6 @@ struct Game {
+     mg_run_t run;
+     lv_obj_t* root;
+     lv_timer_t* timer;
+-    lv_obj_t* best_lbl;  // patch Y04: "Best N" in the top corner, "New best! N" after a record
+     lv_obj_t* obj[MG_MAX_SHAPES];
+     uint8_t type[MG_MAX_SHAPES];
+     uint8_t text[MG_MAX_SHAPES];
+@@ -355,12 +355,10 @@ void end_locked(const char* how)
+     device_events_push("game_ended", extra);
+ }
+ 
+-// Patch Y04: the saved best of this game (0 when none), as a corner label on the game screen.
++// Patch Y04, moved by patch N01: the saved best of this game (0 when none) goes to the banner row at the top ("Best N" at the
++// start, "New best! N" after a record), not to a label on the game screen.
+ void show_best(Game* g, bool record)
+ {
+-    if (g->best_lbl == nullptr) {
+-        return;
+-    }
+     int best = 0;
+     {
+         std::lock_guard<std::mutex> lock(s_mutex);
+@@ -369,14 +367,12 @@ void show_best(Game* g, bool record)
+     char text[32];
+     if (record) {
+         snprintf(text, sizeof(text), g->es ? "Nuevo record! %d" : "New best! %d", best);
+-        lv_obj_set_style_text_color(g->best_lbl, lv_color_make(255, 214, 64), 0);
+     } else if (best > 0) {
+         snprintf(text, sizeof(text), g->es ? "Mejor %d" : "Best %d", best);
+-        lv_obj_set_style_text_color(g->best_lbl, lv_color_make(170, 170, 170), 0);
+     } else {
+-        text[0] = '\0';
++        return;
+     }
+-    lv_label_set_text(g->best_lbl, text);
++    maipai_banner_post(text, MB_ICON_CHECK, MB_PRIO_NOTICE, MB_TAG_GAME, record ? 4000u : 2500u);
+ }
+ 
+ void commit_score(Game* g)
+@@ -588,10 +584,6 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+         g->text[i] = s.text;
+         g->obj[i]  = build_shape(g->root, s);
+     }
+-    g->best_lbl = lv_label_create(g->root);
+-    lv_obj_remove_flag(g->best_lbl, LV_OBJ_FLAG_CLICKABLE);
+-    lv_obj_set_style_text_font(g->best_lbl, &lv_font_montserrat_14, 0);
+-    lv_obj_align(g->best_lbl, LV_ALIGN_TOP_RIGHT, -6, 3);
+     show_best(g, false);
+     g->last_awake_ms = now_ms();
+     mg_start(&g->run, &g->pack, now_ms(), esp_random());
+diff --git a/firmware/main/hal/maipai_prefs_core.h b/firmware/main/hal/maipai_prefs_core.h
+index d88505d..247ee37 100644
+--- a/firmware/main/hal/maipai_prefs_core.h
++++ b/firmware/main/hal/maipai_prefs_core.h
+@@ -45,6 +45,8 @@ enum {
+     MP_FX_GLOW,
+     MP_SPEECH_BUBBLE,
+     MP_THINKING_DOTS,
++    MP_CAPTIONS_MODE,   /* patch N01, N04: off, subtitles (the strip at the bottom, the default when on) or banner (the row at the top) */
++    MP_TOP_BAR,         /* patch N01: hidden (default) or always show battery and Wi-Fi in the top row */
+     MP_PICKUP_REACTION, /* not in the host's table yet: the pickup patch reads it (off, face, face_sound) */
+     MP_COUNT
+ };
+@@ -67,6 +69,8 @@ static const char* const MP_NAMES_SOUND[] = {"off", "chime", "mm", NULL};
+ static const char* const MP_NAMES_LIGHT[] = {"off", "dim", "normal", NULL};
+ static const char* const MP_NAMES_COLOUR[] = {"normal", "mono", "warm", "cool", "duotone", "amber", "green", NULL};
+ static const char* const MP_NAMES_PICKUP[] = {"off", "face", "face_sound", NULL};
++static const char* const MP_NAMES_CAPTIONS[] = {"off", "subtitles", "banner", NULL};
++static const char* const MP_NAMES_TOPBAR[] = {"hidden", "always", NULL};
+ 
+ static const mp_def_t MP_DEFS[MP_COUNT] = {
+     {"emotion_faces", "emotion_faces", MP_BOOL, 0, 1, 1, 0, NULL},
+@@ -83,6 +87,8 @@ static const mp_def_t MP_DEFS[MP_COUNT] = {
+     {"fx_glow", "fx_glow", MP_BOOL, 0, 1, 0, 1, NULL},
+     {"speech_bubble", "speech_bubble", MP_BOOL, 0, 1, 0, 1, NULL},
+     {"thinking_dots", "thinking_dots", MP_BOOL, 0, 1, 1, 1, NULL},
++    {"captions_mode", "captions_mode", MP_ENUM, 0, 2, 1, 1, MP_NAMES_CAPTIONS},
++    {"top_bar", "top_bar", MP_ENUM, 0, 1, 0, 1, MP_NAMES_TOPBAR},
+     {"pickup_reaction", "pickup_reaction", MP_ENUM, 0, 2, 1, 0, MP_NAMES_PICKUP},
+ };
+ 
+@@ -437,4 +443,18 @@ static inline int mp_bubble_on(const mp_prefs_t* p, int style_is_stock)
+     return (p->set & (1u << MP_SPEECH_BUBBLE)) ? p->v[MP_SPEECH_BUBBLE] != 0 : style_is_stock != 0;
+ }
+ 
++/* The captions mode (patches N01, N04): the person's choice if they made one, else what the older settings say: subtitles when
++ * the older speech bubble was chosen on, when the style is Stock (its bubble became the subtitles) or when the face's captions
++ * flag is on, off otherwise. 0 off, 1 subtitles, 2 banner. */
++static inline int mp_captions_mode(const mp_prefs_t* p, int face_captions, int style_is_stock)
++{
++    if (p->set & (1u << MP_CAPTIONS_MODE)) return (int)p->v[MP_CAPTIONS_MODE];
++    if (p->set & (1u << MP_SPEECH_BUBBLE)) {
++        if (p->v[MP_SPEECH_BUBBLE] != 0) return 1;
++    } else if (style_is_stock) {
++        return 1;
++    }
++    return face_captions ? 1 : 0;
++}
++
+ #endif
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+index e1c6855..6510e84 100644
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -9,6 +9,7 @@
+ 
+ #if CONFIG_MAIPAI_FX
+ #include "maipai_fx.h"
++#include "maipai_banner.h"
+ #include "maipai_prefs_core.h"
+ #include "maipai_fx_core.h"
+ #include "maipai_overlay_core.h"
+@@ -407,9 +408,19 @@ void style_refresh()
+     s_style_stock       = c.style == MF_STYLE_STOCK;
+ }
+ 
++// Patch N01: tells the banner row the Captions mode (banner takes the words, bubble and off leave them to the bubble) and the Top bar mode.
++void banner_apply()
++{
++    maipai_banner_set_captions(maipai_fx_captions_mode());
++    maipai_banner_set_bar_mode(static_cast<int>(maipai_pref(MP_TOP_BAR)));
++}
++
+ void on_prefs(uint32_t changed)
+ {
+-    if (changed & (1u << MP_SPEECH_BUBBLE)) {  // patch TA04: turned off, the words on screen go away
++    if (changed & ((1u << MP_SPEECH_BUBBLE) | (1u << MP_CAPTIONS_MODE) | (1u << MP_TOP_BAR))) {
++        banner_apply();
++    }
++    if (changed & ((1u << MP_SPEECH_BUBBLE) | (1u << MP_CAPTIONS_MODE))) {  // the words on screen go away when they turn off
+         LvglLockGuard lock;
+         auto& chan = GetStackChan();
+         if (chan.hasAvatar() && !maipai_face_captions_on()) {
+@@ -449,6 +460,13 @@ bool maipai_prefs_watch(maipai_prefs_cb cb)
+     return true;
+ }
+ 
++int maipai_fx_captions_mode()
++{
++    const mp_prefs_t p = maipai_prefs();
++    const mf_config_t c = maipai_face_config();
++    return mp_captions_mode(&p, c.captions != 0, c.style == MF_STYLE_STOCK);
++}
++
+ bool maipai_fx_bubble_on()
+ {
+     const mp_prefs_t p = maipai_prefs();
+@@ -484,6 +502,7 @@ void maipai_fx_style_changed()
+ {
+     style_refresh();
+     apply_effects();
++    banner_apply();  // patch N01: the Stock style keeps its bubble, the other styles use the banner
+ }
+ 
+ void maipai_fx_note_emotion(const char* emotion)
+@@ -526,7 +545,7 @@ void maipai_fx_register_tools()
+                     return std::string(buf);
+                 });
+     mcp.AddTool("self.prefs.set",
+-                "Change preferences: json is an object with any of fx_crt, fx_night_dim, fx_glow, speech_bubble, thinking_dots, listen_face, emotion_faces, overlays_enabled (true or false), fx_colour_mode, listen_sound, listen_light, listen_light_colour, filler_mode, filler_wait_s. Kept in flash and applied at once; nothing changes unless all are valid.",
++                "Change preferences: json is an object with any of fx_crt, fx_night_dim, fx_glow, speech_bubble, thinking_dots, listen_face, emotion_faces, overlays_enabled (true or false), fx_colour_mode, listen_sound, listen_light, listen_light_colour, filler_mode, filler_wait_s, captions_mode (off, banner, bubble), top_bar (hidden, always). Kept in flash and applied at once; nothing changes unless all are valid.",
+                 PropertyList({Property("json", kPropertyTypeString, std::string("{}"))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     ensure_loaded();
+diff --git a/firmware/main/hal/maipai_fx.h b/firmware/main/hal/maipai_fx.h
+index 814a2bb..ed13282 100644
+--- a/firmware/main/hal/maipai_fx.h
++++ b/firmware/main/hal/maipai_fx.h
+@@ -24,6 +24,8 @@ typedef void (*maipai_prefs_cb)(uint32_t changed);
+ bool maipai_prefs_watch(maipai_prefs_cb cb);  // up to 6 watchers; false when full
+ // Whether the speech bubble is on now: the person's choice, else on for the Stock style (TA04).
+ bool maipai_fx_bubble_on();
++// The captions mode now (patch N01): 0 off, 1 banner, 2 bubble, from the Captions setting, else the older settings and the style.
++int maipai_fx_captions_mode();
+ // Whether the thinking cue draws its three dots (the setting thinking_dots; the quiet tone is separate).
+ bool maipai_fx_thinking_dots();
+ // Hooks the screen effects into the display's flush path and starts the overlay timer. Call once from the display set-up.
+@@ -36,6 +38,7 @@ void maipai_fx_note_emotion(const char* emotion);
+ #else
+ inline void maipai_fx_register_tools() {}
+ inline bool maipai_fx_bubble_on() { return false; }
++inline int maipai_fx_captions_mode() { return 0; }
+ inline bool maipai_fx_thinking_dots() { return true; }
+ inline void maipai_fx_style_changed() {}
+ inline void maipai_fx_note_emotion(const char*) {}
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+index 0cf335c..d76767f 100644
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -329,7 +329,13 @@ bool maipai_face_captions_on()
+ {
+     // The words show when captions are on, or when the speech bubble is on (patch TA04: off by default, on for the Stock style)
+     // and no privacy look (mute, vision off, full quiet) is showing.
+-    return maipai_face_config().captions != 0 || (maipai_fx_bubble_on() && maipai_privacy_bits() == 0);
++    // Patch N01: the Captions mode (off, banner, bubble) decides; a privacy look hides the words except under the face's own captions flag.
++#if CONFIG_MAIPAI_FX
++    const int mode = maipai_fx_captions_mode();
++    return mode != 0 && (maipai_privacy_bits() == 0 || maipai_face_config().captions != 0);
++#else
++    return maipai_face_config().captions != 0;
++#endif
+ }
+ #endif
+ 
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+index 8e69980..804c1f9 100644
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -36,6 +36,9 @@
+ #include <hal/maipai_games.h>
+ #include <hal/maipai_facebench.h>
+ #include <hal/maipai_fx.h>
++#if CONFIG_MAIPAI_BANNER_ROW
++#include <hal/maipai_banner.h>
++#endif
+ #include <hal/maipai_facefx.h>
+ 
+ // True while the Wi-Fi setup portal is open (firmware/portal/maipai_wifi_configuration_ap.cc, patch P03).
+@@ -67,6 +70,34 @@ constexpr uint32_t kTapDebounceMs = 800;
+ }  // namespace
+ 
+ LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
++
++#include <hal/board/hal_bridge.h>
++#if CONFIG_MAIPAI_BANNER_ROW
++// The hub link look as the banner row last showed it (0 up, 1 connecting, 2 offline, 3 waiting for approval): the strip's Wi-Fi
++// glyph reads it (patch N01).
++static int s_banner_link = 0;
++
++// Every 2 s, from the banner's LVGL timer: the gauges the strip needs. Battery and Wi-Fi glyphs show only when something is wrong.
++void StackChanAvatarDisplay::BannerPoll(maipai_banner_status_t* st)
++{
++    int level = -1;
++    bool charging = false, on_cable = false;
++    if (hal_bridge::board_battery_state(&level, &charging, &on_cable)) {
++        st->battery_level = level;
++        st->charging      = charging;
++        st->on_cable      = on_cable;
++    }
++    wifi_ap_record_t ap;
++    st->wifi_up = esp_wifi_sta_get_ap_info(&ap) == ESP_OK;
++    if (st->wifi_up) {
++        st->wifi_bars = ap.rssi > -55 ? 4 : (ap.rssi > -65 ? 3 : (ap.rssi > -75 ? 2 : 1));
++    } else {
++        st->wifi_bars = 0;
++    }
++    st->hub_up   = s_banner_link != 2;
++    st->mic_live = Application::GetInstance().GetDeviceState() == kDeviceStateListening;
++}
++#endif
+ LV_FONT_DECLARE(BUILTIN_ICON_FONT);
+ LV_FONT_DECLARE(font_material_symbols_30_4);
+ 
+@@ -358,6 +389,17 @@ void StackChanAvatarDisplay::SetupUI()
+     lv_obj_add_event_cb(avatar_panel, &StackChanAvatarDisplay::OnFaceRelease, LV_EVENT_PRESS_LOST, this);
+     lv_obj_add_event_cb(avatar_panel, &StackChanAvatarDisplay::OnGesture, LV_EVENT_GESTURE, this);
+     stackchan.attachAvatar(std::move(avatar));
++#if CONFIG_MAIPAI_BANNER_ROW
++    maipai_banner_attach(
++        []() -> lv_color_t {
++            if (auto* face = dynamic_cast<DefaultAvatar*>(&GetStackChan().avatar())) {
++                return face->shownColor();
++            }
++            return lv_color_white();
++        },
++        &StackChanAvatarDisplay::BannerPoll);
++    maipai_fx_style_changed();  // patch N01: the Captions setting picks the subtitles or the banner
++#endif
+     stackchan.addModifier(std::make_unique<BreathModifier>());
+     blink_modifier_id_ = stackchan.addModifier(std::make_unique<BlinkModifier>());
+     stackchan.addModifier(std::make_unique<HeadPetModifier>());
+@@ -586,43 +628,25 @@ void StackChanAvatarDisplay::LinkTick(lv_timer_t* timer)
+ // bars and "Offline", or a key and "Waiting for approval".
+ void StackChanAvatarDisplay::ShowStrip(int look)
+ {
+-    if (strip_ == nullptr) {
+-        strip_ = lv_obj_create(lv_layer_top());
+-        lv_obj_remove_style_all(strip_);
+-        lv_obj_remove_flag(strip_, LV_OBJ_FLAG_CLICKABLE);
+-        lv_obj_remove_flag(strip_, LV_OBJ_FLAG_SCROLLABLE);
+-        lv_obj_set_size(strip_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+-        lv_obj_set_pos(strip_, 6, 5);
+-        lv_obj_set_flex_flow(strip_, LV_FLEX_FLOW_ROW);
+-        lv_obj_set_flex_align(strip_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+-        lv_obj_set_style_pad_column(strip_, 5, 0);
+-    }
+-    link_glyph_free(strip_glyph_);
+-    if (strip_label_ != nullptr) {
+-        lv_obj_delete(strip_label_);
+-        strip_label_ = nullptr;
+-    }
+-    strip_glyph_ = link_glyph_new(strip_, 2, look != 3, look == 3, false);
+-    if (look != 3) {
+-        link_glyph_bars(strip_glyph_, look == 1 ? link_step_ : 0, look == 2, false);
+-    }
+-    if (look != 1) {
+-        strip_label_ = lv_label_create(strip_);
+-        lv_obj_set_style_text_font(strip_label_, &BUILTIN_TEXT_FONT, 0);
+-        lv_obj_set_style_text_color(strip_label_, link_on(false), 0);
+-        lv_label_set_text(strip_label_, look == 2 ? "Offline" : "Waiting for approval");
+-    }
++#if CONFIG_MAIPAI_BANNER_ROW
++    // Patch N01: the link looks live in the banner row at the top, never over the mouth: the slashed bars with "Offline", the
++    // bars with "Connecting...", or the key with "Waiting for approval". Steady until the link changes.
++    s_banner_link = look;
++    const char* text = look == 1 ? "Connecting..." : (look == 2 ? "Offline" : "Waiting for approval");
++    const int icon   = look == 1 ? MB_ICON_BARS : (look == 2 ? MB_ICON_WIFI_OFF : MB_ICON_KEY);
++    maipai_banner_post(text, icon, MB_PRIO_NOTICE, MB_TAG_LINK, 0);
++#else
++    (void)look;
++#endif
+     UpdateLinkTimer();
+ }
+ 
+ void StackChanAvatarDisplay::HideStrip()
+ {
+-    link_glyph_free(strip_glyph_);
+-    if (strip_ != nullptr) {
+-        lv_obj_delete(strip_);
+-        strip_       = nullptr;
+-        strip_label_ = nullptr;
+-    }
++#if CONFIG_MAIPAI_BANNER_ROW
++    s_banner_link = 0;
++    maipai_banner_clear_tag(MB_TAG_LINK);
++#endif
+     UpdateLinkTimer();
+ }
+ 
+@@ -801,6 +825,11 @@ void StackChanAvatarDisplay::ChangeVolume(int delta)
+ 
+ void StackChanAvatarDisplay::ShowToast(const char* text)
+ {
++#if CONFIG_MAIPAI_BANNER_ROW
++    // Patch N01: a toast (Volume, Switching Wi-Fi) is information: the banner row at the top, never the bottom of the face.
++    maipai_banner_post(text, MB_ICON_NONE, MB_PRIO_NOTICE, MB_TAG_VOLUME, 1600);
++    return;
++#endif
+     if (toast_label_ == nullptr) {
+         toast_label_ = lv_label_create(lv_layer_top());
+         lv_obj_set_style_text_font(toast_label_, &BUILTIN_TEXT_FONT, 0);
+@@ -1630,7 +1659,9 @@ void hal_bridge::privacy_face_apply(int bits, bool animate)
+ }
+ 
+ // A few words on the face for a while (patch T01). One timer, restarted by each notice; the words go when it ends.
++#if !CONFIG_MAIPAI_BANNER_ROW
+ static lv_timer_t* s_notice_timer = nullptr;
++#endif
+ 
+ void hal_bridge::notice(const char* text, int ms)
+ {
+@@ -1638,6 +1669,13 @@ void hal_bridge::notice(const char* text, int ms)
+     if (display == nullptr || text == nullptr || !GetStackChan().hasAvatar()) {
+         return;
+     }
++#if CONFIG_MAIPAI_BANNER_ROW
++    // Patch N01: a notice is information, so it goes to the banner row at the top, whatever the captions setting says.
++    const bool find    = strcmp(text, "Here I am!") == 0;
++    const bool battery = strstr(text, "attery") != nullptr || strstr(text, "harge") != nullptr;
++    maipai_banner_post(text, find ? MB_ICON_RING : (battery ? MB_ICON_BATTERY : MB_ICON_CHECK), MB_PRIO_NOTICE, find ? MB_TAG_FIND : MB_TAG_NONE,
++                       ms > 0 ? static_cast<uint32_t>(ms) : 3000u);
++#else
+     display->LvglLock();
+     GetStackChan().avatar().setSpeech(text);
+     if (s_notice_timer != nullptr) {
+@@ -1653,6 +1691,7 @@ void hal_bridge::notice(const char* text, int ms)
+         ms > 0 ? ms : 3000, nullptr);
+     lv_timer_set_repeat_count(s_notice_timer, 1);
+     display->LvglUnlock();
++#endif
+ }
+ 
+ // ---- the camera-on cue (patch T05) ----
+@@ -1699,6 +1738,11 @@ void hal_bridge::monitor_cue_begin(int hold_ms)
+         std::lock_guard<std::mutex> lock(s_cue_mutex);
+         draw = mc_begin(&s_cue, static_cast<uint32_t>(esp_timer_get_time() / 1000), hold_ms > 0 ? hold_ms : MC_HOLD_PHOTO_MS) != 0;
+     }
++#if CONFIG_MAIPAI_BANNER_ROW
++    maipai_banner_flag(MB_FLAG_CAMERA, true, static_cast<uint32_t>(hold_ms > 0 ? hold_ms : MC_HOLD_PHOTO_MS));  // patch N01: in the strip
++    (void)draw;
++    return;
++#endif
+     if (!draw) {
+         return;  // already showing: the hold was extended, no drawing
+     }
+@@ -1795,11 +1839,18 @@ void StackChanAvatarDisplay::SetChatMessage(const char* role, const char* conten
+ 
+     DisplayLockGuard lock(this);
+ 
++#if CONFIG_MAIPAI_BANNER_ROW
++    const bool portal_words = maipai_portal_active();
++    if (portal_words) maipai_banner_bypass(true);  // the setup hint (name and code) must stay still and readable: the bubble keeps it
++#endif
+     if (strcmp(role, "system") == 0) {
+         stackchan.avatar().setSpeech(ascii_punctuation(content));
+     } else if (strcmp(role, "assistant") == 0) {
+         stackchan.avatar().setSpeech(ascii_punctuation(content));
+     }
++#if CONFIG_MAIPAI_BANNER_ROW
++    if (portal_words) maipai_banner_bypass(false);
++#endif
+ }
+ 
+ void StackChanAvatarDisplay::ClearChatMessages()
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+index 721d5df..38a2579 100644
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
+@@ -77,6 +77,7 @@ private:
+     static void OnFaceRelease(lv_event_t* event);
+     void ChangeVolume(int delta);
+     void ShowToast(const char* text);
++    static void BannerPoll(struct maipai_banner_status_t* st);  // patch N01
+     void EnsureQuietMarker();
+     void ToggleQuickSettings();
+     void OpenQuickSettings();

@@ -20,11 +20,14 @@ static void test_table(void)
     /* the host's PREFS keys, in its order (host/maipai_body/unit_prefs.py) */
     const char* host[] = {"emotion_faces", "overlays_enabled", "filler_mode", "filler_wait_s", "listen_sound", "listen_light",
                           "listen_light_colour", "listen_face", "fx_crt", "fx_colour_mode", "fx_night_dim", "fx_glow",
-                          "speech_bubble", "thinking_dots"};
-    CHECK(MP_COUNT == 15); /* the host's 14 and pickup_reaction, which the pickup patch reads */
+                          "speech_bubble", "thinking_dots", "captions_mode", "top_bar", "turn_to_faces"};
+    CHECK(MP_COUNT == 18); /* the host's 17 (patch N01 added captions_mode and top_bar, patch S11 turn_to_faces) and pickup_reaction, which the pickup patch reads */
+    CHECK(strcmp(MP_DEFS[MP_CAPTIONS_MODE].key, "captions_mode") == 0 && MP_DEFS[MP_CAPTIONS_MODE].unit == 1 && MP_DEFS[MP_CAPTIONS_MODE].def == 1);
+    CHECK(strcmp(MP_DEFS[MP_TOP_BAR].key, "top_bar") == 0 && MP_DEFS[MP_TOP_BAR].unit == 1 && MP_DEFS[MP_TOP_BAR].def == 0);
+    CHECK(strcmp(MP_DEFS[MP_TURN_TO_FACES].key, "turn_to_faces") == 0 && MP_DEFS[MP_TURN_TO_FACES].unit == 1 && MP_DEFS[MP_TURN_TO_FACES].def == 1 && strlen(MP_DEFS[MP_TURN_TO_FACES].nvs) <= 15);
     CHECK(strcmp(MP_DEFS[MP_PICKUP_REACTION].key, "pickup_reaction") == 0 && MP_DEFS[MP_PICKUP_REACTION].unit == 0);
     for (int i = 0; i < MP_COUNT; i++) {
-        if (i < 14) CHECK(strcmp(MP_DEFS[i].key, host[i]) == 0);
+        if (i < 17) CHECK(strcmp(MP_DEFS[i].key, host[i]) == 0);
         CHECK(strlen(MP_DEFS[i].nvs) <= 15); /* a flash key is 15 characters at most */
         CHECK(strncmp(MP_DEFS[i].nvs, MP_DEFS[i].key, 15) == 0 && strlen(MP_DEFS[i].nvs) == (strlen(MP_DEFS[i].key) < 15 ? strlen(MP_DEFS[i].key) : 15)); /* the first 15 characters: the rule the other readers of the store share */
         for (int j = 0; j < i; j++) {
@@ -38,6 +41,27 @@ static void test_table(void)
     CHECK(p.v[MP_THINKING_DOTS] == 1 && p.v[MP_LISTEN_FACE] == 1 && p.v[MP_LISTEN_SOUND] == 1 && p.v[MP_LISTEN_LIGHT] == 2);
     CHECK(p.v[MP_LISTEN_LIGHT_COLOUR] == 0x40C0FF && p.v[MP_FILLER_WAIT_S] == 40 && p.v[MP_FILLER_MODE] == 1);
     CHECK(p.set == 0);
+}
+
+static void test_captions_mode(void)
+{
+    mp_prefs_t p;
+    mp_defaults(&p);
+    /* nothing chosen: the Stock style keeps its words (its bubble became the subtitles), the others show them when the face's
+     * captions flag is on */
+    CHECK(mp_captions_mode(&p, 0, 0) == 0 && mp_captions_mode(&p, 1, 0) == 1 && mp_captions_mode(&p, 0, 1) == 1 && mp_captions_mode(&p, 1, 1) == 1);
+    char err[200] = "";
+    uint32_t ch = 0;
+    /* the older speech bubble choice still counts: on means subtitles, off means the Stock style no longer forces them */
+    CHECK(mp_apply_json(&p, "{\"speech_bubble\":true}", err, sizeof err, &ch) == 0 && mp_captions_mode(&p, 0, 0) == 1);
+    CHECK(mp_apply_json(&p, "{\"speech_bubble\":false}", err, sizeof err, &ch) == 0 && mp_captions_mode(&p, 0, 1) == 0 && mp_captions_mode(&p, 1, 1) == 1);
+    /* the new setting wins over every older one */
+    CHECK(mp_apply_json(&p, "{\"captions_mode\":\"banner\"}", err, sizeof err, &ch) == 0 && mp_captions_mode(&p, 0, 1) == 2 && mp_captions_mode(&p, 0, 0) == 2);
+    CHECK(mp_apply_json(&p, "{\"captions_mode\":\"off\"}", err, sizeof err, &ch) == 0 && mp_captions_mode(&p, 1, 1) == 0);
+    CHECK(mp_apply_json(&p, "{\"captions_mode\":\"subtitles\",\"top_bar\":\"always\"}", err, sizeof err, &ch) == 0 && mp_captions_mode(&p, 0, 0) == 1 && p.v[MP_TOP_BAR] == 1);
+    CHECK(mp_apply_json(&p, "{\"captions_mode\":\"bubble\"}", err, sizeof err, &ch) == 1 && p.v[MP_CAPTIONS_MODE] == 1); /* the bubble is gone: a wrong name changes nothing */
+    CHECK(strcmp(mp_enum_name(MP_TOP_BAR, 0), "hidden") == 0 && mp_enum_value(MP_TOP_BAR, "always") == 1);
+    CHECK(strcmp(mp_enum_name(MP_CAPTIONS_MODE, 1), "subtitles") == 0 && strcmp(mp_enum_name(MP_CAPTIONS_MODE, 2), "banner") == 0);
 }
 
 static void test_apply(void)
@@ -134,6 +158,7 @@ static void test_json_out(void)
 int main(void)
 {
     test_table();
+    test_captions_mode();
     test_apply();
     test_bubble_rule();
     test_json_out();

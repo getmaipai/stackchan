@@ -1,0 +1,240 @@
+# Intent: Fast eyes, part 1 (owner brief 2026-11-16: the eyes move slowly). Measure first: bench builds count where a screen refresh spends its time (LVGL render against the wait for the SPI flush), how long the face loop waits for the screen lock and how long one avatar pass takes, the p50 and p99 of a refresh and of the gap between two refreshes, the pixels per refresh and the face task's free stack; self.face.bench_mode switches the old whole-box redraw back on (dirty 1) so the before and after numbers come from one image. Plain images are unchanged apart from two clock reads per pass of the face loop.
+# Placement: unit (bench builds only for the counters; the two clock reads are in every image)
+# Upstream: firmware/main/hal/{maipai_facebench.cc,maipai_facebench.h,hal.cpp} (ours, patches H01, X02)
+# Check after a flash: self.face.bench_run what=idle answers avg_render_ms, avg_wait_ms, avg_lock_ms, avg_upd_ms, p99_gap_ms and face_task_stack_min_free.
+
+diff --git a/firmware/main/hal/maipai_facebench.cc b/firmware/main/hal/maipai_facebench.cc
+
+--- a/firmware/main/hal/maipai_facebench.cc
++++ b/firmware/main/hal/maipai_facebench.cc
+@@ -38,6 +38,11 @@
+ 
+ static const char* TAG = "MAIPAI-FACEBENCH";
+ 
++extern "C" {
++volatile int g_md_legacy = 0;
++}
++static lv_display_t* s_disp = nullptr;
++
+ namespace {
+ std::atomic<uint32_t> s_refresh{0};
+ std::atomic<uint32_t> s_flush{0};
+@@ -46,6 +51,22 @@ std::atomic<uint64_t> s_refr_us{0};
+ std::atomic<uint32_t> s_loop{0};
+ uint64_t s_refr_start = 0;
+ 
++// Patch V20: where a refresh spends its time. render = LVGL drawing, wait = LVGL waiting for the previous flush to finish
++// (the SPI link), lock = the update task waiting for the screen lock, upd = one avatar update pass; one-millisecond histograms
++// (the last bin takes everything longer) give the p50 and p99 of a refresh and of the gap between two refreshes.
++constexpr int kHist = 100;
++std::atomic<uint64_t> s_wait_us{0}, s_render_us{0}, s_lock_us{0}, s_upd_us{0};
++std::atomic<uint32_t> s_stack_min{99999};
++std::atomic<uint32_t> s_upd_max_us{0}, s_lock_max_us{0};
++std::atomic<uint32_t> s_h_refr[kHist], s_h_gap[kHist], s_h_upd[kHist];
++uint64_t s_wait_start = 0, s_wait_sum = 0, s_last_ready = 0;
++
++void hist_add(std::atomic<uint32_t>* h, uint64_t us)
++{
++    uint64_t b = us / 1000;
++    h[b >= kHist ? kHist - 1 : b]++;
++}
++
+ // Refreshes per whole second of uptime, for the peak and the "while it moves" figures.
+ constexpr int kBins = 256;
+ struct Bin {
+@@ -67,12 +88,44 @@ void count_bin()
+ struct Snap {
+     uint32_t refresh, flush, loop;
+     uint64_t px, refr_us, at_us;
++    uint64_t wait_us, render_us, lock_us, upd_us;
++    uint32_t h_refr[kHist], h_gap[kHist], h_upd[kHist];
+ };
+ 
+ Snap now_snap()
+ {
+-    return Snap{s_refresh.load(), s_flush.load(), s_loop.load(), s_flush_px.load(), s_refr_us.load(),
+-                static_cast<uint64_t>(esp_timer_get_time())};
++    Snap s{};
++    s.refresh = s_refresh.load();
++    s.flush = s_flush.load();
++    s.loop = s_loop.load();
++    s.px = s_flush_px.load();
++    s.refr_us = s_refr_us.load();
++    s.at_us = static_cast<uint64_t>(esp_timer_get_time());
++    s.wait_us = s_wait_us.load();
++    s.render_us = s_render_us.load();
++    s.lock_us = s_lock_us.load();
++    s.upd_us = s_upd_us.load();
++    for (int i = 0; i < kHist; i++) {
++        s.h_refr[i] = s_h_refr[i].load();
++        s.h_gap[i] = s_h_gap[i].load();
++        s.h_upd[i] = s_h_upd[i].load();
++    }
++    return s;
++}
++
++// The millisecond at which `frac` of the samples between two snapshots lie at or below.
++int pct_ms(const uint32_t* a, const uint32_t* b, double frac)
++{
++    uint64_t total = 0;
++    for (int i = 0; i < kHist; i++) total += b[i] - a[i];
++    if (total == 0) return 0;
++    const uint64_t want = static_cast<uint64_t>(total * frac + 0.999999);
++    uint64_t run = 0;
++    for (int i = 0; i < kHist; i++) {
++        run += b[i] - a[i];
++        if (run >= want) return i + 1;
++    }
++    return kHist;
+ }
+ 
+ Snap s_last_log;
+@@ -96,14 +149,22 @@ std::string rates(const Snap& a, const Snap& b)
+             active_s++;
+         }
+     }
+-    char out[420];
++    char out[900];
+     snprintf(out, sizeof(out),
+              "\"seconds\":%.1f,\"refresh_per_s\":%.1f,\"flush_per_s\":%.1f,\"full_frames_per_s\":%.1f,"
+              "\"avg_refresh_ms\":%.1f,\"loop_per_s\":%.1f,\"peak_refresh_per_s\":%u,\"active_seconds\":%u,"
+-             "\"active_refresh_per_s\":%.1f",
++             "\"active_refresh_per_s\":%.1f,\"avg_px\":%.0f,\"avg_render_ms\":%.2f,\"avg_wait_ms\":%.2f,\"avg_lock_ms\":%.2f,"
++             "\"avg_upd_ms\":%.2f,\"p50_refresh_ms\":%d,\"p99_refresh_ms\":%d,\"p50_gap_ms\":%d,\"p99_gap_ms\":%d,\"p99_upd_ms\":%d,\"face_task_stack_min_free\":%u",
+              sec, refreshes / sec, (b.flush - a.flush) / sec, (b.px - a.px) / 76800.0 / sec,
+              refreshes ? (b.refr_us - a.refr_us) / 1000.0 / refreshes : 0.0, (b.loop - a.loop) / sec,
+-             static_cast<unsigned>(peak), static_cast<unsigned>(active_s), active_s ? static_cast<double>(active_n) / active_s : 0.0);
++             static_cast<unsigned>(peak), static_cast<unsigned>(active_s), active_s ? static_cast<double>(active_n) / active_s : 0.0,
++             refreshes ? static_cast<double>(b.px - a.px) / refreshes : 0.0,
++             refreshes ? (b.render_us - a.render_us) / 1000.0 / refreshes : 0.0,
++             refreshes ? (b.wait_us - a.wait_us) / 1000.0 / refreshes : 0.0,
++             (b.loop - a.loop) ? (b.lock_us - a.lock_us) / 1000.0 / (b.loop - a.loop) : 0.0,
++             (b.loop - a.loop) ? (b.upd_us - a.upd_us) / 1000.0 / (b.loop - a.loop) : 0.0,
++             pct_ms(a.h_refr, b.h_refr, 0.5), pct_ms(a.h_refr, b.h_refr, 0.99), pct_ms(a.h_gap, b.h_gap, 0.5),
++             pct_ms(a.h_gap, b.h_gap, 0.99), pct_ms(a.h_upd, b.h_upd, 0.99), static_cast<unsigned>(s_stack_min.load()));
+     return out;
+ }
+ 
+@@ -112,12 +173,26 @@ void on_event(lv_event_t* e)
+     switch (lv_event_get_code(e)) {
+         case LV_EVENT_REFR_START:
+             s_refr_start = static_cast<uint64_t>(esp_timer_get_time());
++            s_wait_sum   = 0;
++            break;
++        case LV_EVENT_FLUSH_WAIT_START:
++            s_wait_start = static_cast<uint64_t>(esp_timer_get_time());
++            break;
++        case LV_EVENT_FLUSH_WAIT_FINISH:
++            s_wait_sum += static_cast<uint64_t>(esp_timer_get_time()) - s_wait_start;
+             break;
+-        case LV_EVENT_REFR_READY:
++        case LV_EVENT_REFR_READY: {
++            const uint64_t t = static_cast<uint64_t>(esp_timer_get_time());
+             s_refresh++;
+             count_bin();
+-            s_refr_us += static_cast<uint64_t>(esp_timer_get_time()) - s_refr_start;
++            s_refr_us += t - s_refr_start;
++            s_wait_us += s_wait_sum;
++            s_render_us += (t - s_refr_start) > s_wait_sum ? (t - s_refr_start) - s_wait_sum : 0;
++            hist_add(s_h_refr, t - s_refr_start);
++            if (s_last_ready != 0) hist_add(s_h_gap, t - s_last_ready);
++            s_last_ready = t;
+             break;
++        }
+         case LV_EVENT_FLUSH_START: {
+             const lv_area_t* a = static_cast<const lv_area_t*>(lv_event_get_param(e));
+             if (a != nullptr) {
+@@ -293,9 +368,12 @@ void dump_snapshot()
+ void maipai_facebench_attach(lv_display_t* display)
+ {
+     lvgl_port_lock(0);
++    s_disp = display;
+     lv_display_add_event_cb(display, on_event, LV_EVENT_REFR_START, nullptr);
+     lv_display_add_event_cb(display, on_event, LV_EVENT_REFR_READY, nullptr);
+     lv_display_add_event_cb(display, on_event, LV_EVENT_FLUSH_START, nullptr);
++    lv_display_add_event_cb(display, on_event, LV_EVENT_FLUSH_WAIT_START, nullptr);
++    lv_display_add_event_cb(display, on_event, LV_EVENT_FLUSH_WAIT_FINISH, nullptr);
+     s_last_log  = now_snap();
+     s_last_tool = s_last_log;
+     lv_timer_create(log_tick, 10000, nullptr);
+@@ -307,6 +385,17 @@ void maipai_facebench_loop_tick()
+     s_loop++;
+ }
+ 
++void maipai_facebench_loop_times(uint32_t lock_us, uint32_t upd_us)
++{
++    s_lock_us += lock_us;
++    s_upd_us += upd_us;
++    if (upd_us > s_upd_max_us.load()) s_upd_max_us.store(upd_us);
++    if (lock_us > s_lock_max_us.load()) s_lock_max_us.store(lock_us);
++    hist_add(s_h_upd, upd_us);
++    const uint32_t hw = static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr)) * sizeof(StackType_t);
++    if (hw < s_stack_min.load()) s_stack_min.store(hw);
++}
++
+ void maipai_facebench_register_tools()
+ {
+     auto& mcp = McpServer::GetInstance();
+@@ -319,6 +408,14 @@ void maipai_facebench_register_tools()
+                     s_last_tool = n;
+                     return out;
+                 });
++    mcp.AddTool("self.face.bench_mode",
++                "Bench only (patch V20): switch between the old drawing and the new one on the same image. dirty 1 = the old whole-box redraw of "
++                "every part, 0 = only the shapes that changed.",
++                PropertyList({Property("dirty", kPropertyTypeInteger, 0, 0, 1)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    g_md_legacy = properties["dirty"].value<int>();
++                    return std::string("{\"ok\":true}");
++                });
+     mcp.AddTool("self.face.bench_run",
+                 "Bench only: run a workload for seconds (1 to 25; a tool that runs 30 s stalls the main loop and the unit restarts itself) and answer the draw rates measured over it. what is idle "
+                 "(nothing asked), talk (the speaking look with a synthetic speech level; level 1 to 100 holds one level), move (the eyes jump every 50 ms, the ceiling) or emotions (the six "
+
+diff --git a/firmware/main/hal/maipai_facebench.h b/firmware/main/hal/maipai_facebench.h
+
+--- a/firmware/main/hal/maipai_facebench.h
++++ b/firmware/main/hal/maipai_facebench.h
+@@ -9,14 +9,19 @@
+ #include <lvgl.h>
+ 
+ #if CONFIG_MAIPAI_FACE_BENCH
++// Patch V20: bench A/B switch. bit 0: the old whole-box redraws (md_diff), 
++extern "C" volatile int g_md_legacy;
+ // Counts screen refreshes and flushed pixels. Call once after the display exists (LVGL lock held).
+ void maipai_facebench_attach(lv_display_t* display);
+ // Once per pass of the avatar update loop.
+ void maipai_facebench_loop_tick();
++// Patch V20: how long one pass waited for the screen lock and how long the avatar update took, microseconds.
++void maipai_facebench_loop_times(uint32_t lock_us, uint32_t upd_us);
+ // Registers self.face.bench_fps, bench_run, bench_speak and snapshot.
+ void maipai_facebench_register_tools();
+ #else
+ inline void maipai_facebench_attach(lv_display_t*) {}
+ inline void maipai_facebench_loop_tick() {}
++inline void maipai_facebench_loop_times(uint32_t, uint32_t) {}
+ inline void maipai_facebench_register_tools() {}
+ #endif
+
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -149,7 +149,9 @@ static void _stackchan_update_task(void* param)
+         maipai_daily_tick();   // the daily rules: low battery and the rest (patches T01 to T05)
+         maipai_packs_boot_poll(hal_bridge::is_xiaozhi_ready());  // patch FM04: the saved look and filler, once, at the first standby
+ 
++        const int64_t lock_t0 = esp_timer_get_time();
+         LvglLockGuard lock;
++        const int64_t upd_t0 = esp_timer_get_time();
+ 
+ #if !CONFIG_MAIPAI_FACE_FLUID
+         // The base slept 100 ms here WITH the screen lock held while the unit was busy, so the screen could draw only a
+@@ -161,6 +163,7 @@ static void _stackchan_update_task(void* param)
+ 
+         GetStackChan().update();
+         maipai_facebench_loop_tick();  // patch H01: bench builds count passes of this loop
++        maipai_facebench_loop_times(static_cast<uint32_t>(upd_t0 - lock_t0), static_cast<uint32_t>(esp_timer_get_time() - upd_t0));
+ 
+         if (!hal_bridge::is_xiaozhi_ready()) {
+             continue;

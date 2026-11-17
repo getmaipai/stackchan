@@ -58,21 +58,29 @@ MOOD_ALIASES: dict[str, str] = {
 
 # ---- the one list of overlays ----------------------------------------------------------------------
 
-OVERLAYS: tuple[str, ...] = (
+# The single overlays, then the named combinations (patch O01). The unit's core has the same two lists (MO_NAMES without its two parts
+# "moon" and "sparkles", and MOP_NAMES); tests/test_firmware_fx_cores.py keeps them equal.
+ELEMENT_OVERLAYS: tuple[str, ...] = (
     "rain", "snow", "sun", "clouds", "wind", "thunder", "fog", "stars",
     "disco", "confetti", "fireworks", "hearts", "steam", "balloons", "leaves", "zzz",
 )  # fmt: skip
+COMBINED_OVERLAYS: tuple[str, ...] = (
+    "stormy", "rainy", "snowy", "sunny", "windy", "night", "party", "celebrate", "love", "sleeping",
+)  # fmt: skip
+OVERLAYS: tuple[str, ...] = ELEMENT_OVERLAYS + COMBINED_OVERLAYS
+# A name that is both a mood and an overlay: a bare tag means the mood, ``[overlay:love]`` (or a heavy or light word after it) the overlay.
+MOOD_AND_OVERLAY: frozenset[str] = frozenset({"love"})
 
 OVERLAY_ALIASES: dict[str, str] = {
-    "lluvia": "rain", "llover": "rain", "lluvioso": "rain",
-    "nieve": "snow", "nevada": "snow",
-    "sol": "sun", "soleado": "sun",
+    "lluvia": "rain", "llover": "rain",
+    "nieve": "snow",
+    "sol": "sun",
     "nubes": "clouds", "nube": "clouds", "nublado": "clouds", "cloud": "clouds", "cloudy": "clouds",
-    "viento": "wind", "windy": "wind",
-    "trueno": "thunder", "truenos": "thunder", "tormenta": "thunder", "storm": "thunder", "relampago": "thunder", "relámpago": "thunder",
+    "viento": "wind",
+    "trueno": "thunder", "truenos": "thunder", "relampago": "thunder", "relámpago": "thunder",
     "niebla": "fog", "bruma": "fog", "foggy": "fog",
-    "estrellas": "stars", "estrella": "stars", "star": "stars", "noche": "stars",
-    "discoteca": "disco", "fiesta": "disco",
+    "estrellas": "stars", "estrella": "stars", "star": "stars",
+    "discoteca": "disco",
     "confeti": "confetti",
     "fuegos": "fireworks", "fuegosartificiales": "fireworks", "fuegos_artificiales": "fireworks", "firework": "fireworks",
     "corazones": "hearts", "corazon": "hearts", "corazón": "hearts", "heart": "hearts",
@@ -80,6 +88,17 @@ OVERLAY_ALIASES: dict[str, str] = {
     "globos": "balloons", "globo": "balloons", "balloon": "balloons",
     "hojas": "leaves", "hoja": "leaves", "leaf": "leaves", "otoño": "leaves", "otono": "leaves",
     "ronquido": "zzz", "dormir": "zzz", "snore": "zzz",
+    # the combined names (clouds, rain, thunder and so on in one): English, then Spanish
+    "storm": "stormy", "thunderstorm": "stormy", "tormenta": "stormy", "tormentoso": "stormy", "tormenta_electrica": "stormy", "tormenta_eléctrica": "stormy",
+    "lluvioso": "rainy", "lluviosa": "rainy",
+    "snowfall": "snowy", "nevada": "snowy", "nevado": "snowy", "nevoso": "snowy",
+    "sunshine": "sunny", "soleado": "sunny", "soleada": "sunny", "despejado": "sunny", "dia_soleado": "sunny", "día_soleado": "sunny",
+    "ventoso": "windy", "ventosa": "windy",
+    "nighttime": "night", "noche": "night", "nocturno": "night", "noche_estrellada": "night", "starry": "night",
+    "fiesta": "party", "festejo": "party", "parranda": "party", "birthday": "party", "cumpleaños": "party", "cumpleanos": "party",
+    "celebration": "celebrate", "celebrar": "celebrate", "celebracion": "celebrate", "celebración": "celebrate", "hooray": "celebrate", "hurra": "celebrate",
+    "lovely": "love", "romance": "love", "romantic": "love", "romantico": "love", "romántico": "love", "enamorado": "love", "enamorada": "love",
+    "sleep": "sleeping", "asleep": "sleeping", "durmiendo": "sleeping",
 }  # fmt: skip
 
 INTENSITIES: tuple[str, ...] = ("light", "normal", "heavy")
@@ -112,8 +131,10 @@ def _word(text: str) -> str:
 def parse_tag(inner: str) -> Tag:
     """Classify the text between the brackets. Never raises: anything else is ``unknown``."""
     text = inner.strip().lower()
+    forced = ""
     for prefix in ("mood:", "overlay:", "mood=", "overlay="):
         if text.startswith(prefix):
+            forced = prefix[:-1]
             text = text[len(prefix) :].strip()
             break
     closing = text.startswith("/")
@@ -129,6 +150,11 @@ def parse_tag(inner: str) -> Tag:
         rest = " ".join(words[2:])
     else:
         name = _overlay_name(head)
+    # [love] is the mood unless the tag says overlay or carries an intensity word; [/love] always closes the overlay
+    if name in MOOD_AND_OVERLAY and head in MOOD_AND_OVERLAY and not closing and not rest and forced != "overlay":
+        name = None
+    if forced == "mood" and name is not None and head not in OVERLAYS:
+        name = None
     if name is not None:
         if closing:
             return Tag("overlay_end", name)

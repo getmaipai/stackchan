@@ -28,6 +28,7 @@ from maipai_body.bodies.stackchan.avatar_frames import (
 from maipai_body.bodies.stackchan.self_heal import SelfHealState, WakeSelfTest
 from maipai_body.bodies.stackchan.ws_logging import listener_logger
 from maipai_body.hal.errors import BodyLost, EstopEngaged, NotSupported, OutOfEnvelope
+from maipai_body.remote_trust import new_host_id, stamp_call
 
 from .pairing import PairingStore
 from .watchdog import DeviceWatchdog
@@ -414,6 +415,8 @@ class XiaozhiServer:
         self._early_device_replies: dict[str, dict[str, Any]] = {}
         self._device_call_deadlines: dict[str, float] = {}
         self._next_device_request_id = itertools.count(1)
+        # Patch FM03: this host's id for the unit's second remote floor (see maipai_body/remote_trust.py).
+        self.remote_host_id = new_host_id()
         self._speaking: set[str] = set()
         self._source_requests: dict[str, list[float]] = {}
         self._notification_audio: dict[tuple[str, str], bytes] = {}
@@ -1233,6 +1236,7 @@ class XiaozhiServer:
             device_id, websocket = next(iter(self._sessions.items()))
         if not self._session_authorized(device_id):
             raise PermissionError("StackChan pairing is revoked. Approve and provision it again.")
+        arguments = stamp_call(name, arguments, self.remote_host_id)  # patch FM03: the unit's second remote floor
         # StackChan firmware parses MCP request ids as numeric JSON-RPC ids.
         request_id = next(self._next_device_request_id)
         request_key = str(request_id)

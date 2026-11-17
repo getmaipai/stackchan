@@ -23,6 +23,7 @@ FACE_TABLE = json.loads(TABLE_PATH.read_text())
 FACE_JS = r"""
 /* ---- the face model of the unit (hal/maipai_look_core.h), as shapes ---- */
 const FT=__FACE_TABLE__;
+const ZC=FT.zone_cy; /* the middle of the face zone (y 28 to 184): the style offsets are from here, patch N04 */
 const FST={};FT.styles.forEach((s,i)=>{s.id=i;FST[s.name]=s});
 const FEMO={};FT.emotions.forEach((e,i)=>{FEMO[e]=i});
 const MP={EW:0,EH:1,DY:2,LID:3,SLANT:4,CHEEK:5,RSCALE:6,RLIFT:7,MCURVE:8,MOPEN:9,MW:10,MON:11,MTILT:12,MX:13,BROW:14,BLIFT:15,BTILT:16,BR:17,HEART:18,DIM:19,GX:20,GY:21,N:22};
@@ -54,7 +55,8 @@ function eyeShapes(st,a){const out=[];let ew=a.ew,eh=a.eh;
  return out}
 function browShapes(st,side,ew,eh,es,gx,rlift,br,on,blift,btilt){const out=[];if(on<=.02||!st.brows)return out;
  const cx=gx*.6,y=(side>0?rlift:0)-(eh*es)*.5-st.blw*2.4-blift-(side>0?br:0),len=ew*es*.78,ang=btilt*.38*(-side),ca=Math.cos(ang),sa=Math.sin(ang);
- fsh(out,4,0,f01(on),[cx-len*.5*ca,y-len*.5*sa,cx+len*.5*ca,y+len*.5*sa,st.blw]);return out}
+ const y0=y-len*.5*sa,y1=y+len*.5*sa,lim=FT.zone_eye_top+st.blw*.5+2-(FT.zone_cy+st.eye_y),lo=Math.min(y0,y1),push=lo<lim?lim-lo:0; /* patch N04: never above the zone's eye line */
+ fsh(out,4,0,f01(on),[cx-len*.5*ca,y0+push,cx+len*.5*ca,y1+push,st.blw]);return out}
 /* the mouth (patch V12): one stroke along a curve, the same pieces as the unit's ml_mouth_shapes; m = {w,bend,t,wob,split,tilt} */
 const hround=x=>x<0?-Math.round(-x):Math.round(x);
 function mouthPoints(m,ph){const s=m.split<0?0:m.split>1?1:m.split,ca=Math.cos(m.tilt*.0174533),sa=Math.sin(m.tilt*.0174533),out=[];
@@ -82,10 +84,11 @@ function mouthTauFor(cur,t,speaking,open){return(t.t>cur.t&&(speaking||open>0))?
 function blinkFactor(ms){if(ms<55)return ms/55;if(ms<140){const u=1-(ms-55)/85;return u*u}return 0}
 function dotOf(st,i,elapsed){const period=1200,ph=(elapsed+(3-i)*400)%period,half=600,up=ph<half?ph:period-ph,k=up/half;
  if(st.stock)return[(i-1)*24,st.mouth_y-Math.round(k*5),8+Math.round(k*4),90+Math.round(k*165)];
- return[(i-1)*26,92-Math.round(k*8),13,89+Math.round(k*166)]}
-/* the spring of the pose: k 420, damping ratio 0.62, two sub steps, steps capped at 50 ms */
-function springStep(sp,t,dt){if(dt>.05)dt=.05;const k=420,cz=2*Math.sqrt(420)*.62;
- for(let n=0;n<2;n++){const h=dt*.5;for(let i=0;i<MP.N;i++){sp.v[i]+=(k*(t[i]-sp.x[i])-cz*sp.v[i])*h;sp.x[i]+=sp.v[i]*h;if(i===MP.LID||i===MP.CHEEK||i===MP.MON||i===MP.BROW||i===MP.HEART)sp.x[i]=f01(sp.x[i])}}}
+ return[(i-1)*26,st.mouth_y-Math.round(k*8),13,89+Math.round(k*166)]}
+/* the spring of the pose: k 900 (patch V20, was 420), damping ratio 0.62, sub steps of at most 8 ms, steps capped at 50 ms */
+function springStep(sp,t,dt){if(dt>.05)dt=.05;const k=900,cz=2*Math.sqrt(900)*.62;
+ const steps=Math.floor(dt/.008)+1,h=dt/steps;
+ for(let n=0;n<steps;n++){for(let i=0;i<MP.N;i++){sp.v[i]+=(k*(t[i]-sp.x[i])-cz*sp.v[i])*h;sp.x[i]+=sp.v[i]*h;if(i===MP.LID||i===MP.CHEEK||i===MP.MON||i===MP.BROW||i===MP.HEART)sp.x[i]=f01(sp.x[i])}}}
 function newSpring(t){return{x:Array.from(t),v:new Array(MP.N).fill(0)}}
 function rrPath(c,x,y,w,h,r){r=Math.min(r,w/2,h/2);c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
 /* paint a shape list around (cx, cy): fg the face color, bg the screen color */

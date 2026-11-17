@@ -330,3 +330,58 @@ def test_no_filler_when_off_when_fast_or_when_muted(monkeypatch):
 
         run_bridge(monkeypatch, stream, setup=setup)
         assert filler.calls == [], prefs
+
+
+# ---- the named combinations (patch O01) ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "name"),
+    [
+        ("stormy", "stormy"), ("storm", "stormy"), ("tormenta", "stormy"), ("tormenta eléctrica", "stormy"), ("thunderstorm", "stormy"),
+        ("rainy", "rainy"), ("lluvioso", "rainy"), ("snowy", "snowy"), ("nevado", "snowy"), ("nevada", "snowy"),
+        ("sunny", "sunny"), ("soleado", "sunny"), ("día soleado", "sunny"), ("windy", "windy"), ("ventoso", "windy"),
+        ("night", "night"), ("noche", "night"), ("noche estrellada", "night"), ("party", "party"), ("fiesta", "party"),
+        ("celebrate", "celebrate"), ("celebración", "celebrate"), ("celebracion", "celebrate"),
+        ("lovely", "love"), ("romántico", "love"), ("enamorada", "love"), ("sleeping", "sleeping"), ("durmiendo", "sleeping"),
+        ("thunder", "thunder"), ("trueno", "thunder"), ("rain", "rain"), ("viento", "wind"), ("sol", "sun"),
+    ],
+)  # fmt: skip
+def test_the_combined_overlays_have_english_and_spanish_names(text, name):
+    tag = reply_tags.parse_tag(text)
+    assert (tag.kind, tag.name) == ("overlay", name)
+
+
+def test_every_combined_overlay_has_its_own_tag_and_a_closing_tag():
+    assert reply_tags.OVERLAYS == reply_tags.ELEMENT_OVERLAYS + reply_tags.COMBINED_OVERLAYS and len(reply_tags.OVERLAYS) == 26
+    for name in reply_tags.COMBINED_OVERLAYS:
+        assert reply_tags.parse_tag(f"overlay:{name}").name == name
+        assert reply_tags.parse_tag(f"/{name}") == reply_tags.Tag("overlay_end", name)
+        assert reply_tags.parse_tag(f"{name} heavy").intensity == "heavy"
+    assert reply_tags.parse_tag("tormenta fuerte") == reply_tags.Tag("overlay", "stormy", "heavy")
+
+
+def test_love_stays_the_mood_unless_the_tag_says_overlay():
+    assert reply_tags.parse_tag("love") == reply_tags.Tag("mood", "love")
+    assert reply_tags.parse_tag("amor") == reply_tags.Tag("mood", "love")
+    assert reply_tags.parse_tag("overlay:love") == reply_tags.Tag("overlay", "love")
+    assert reply_tags.parse_tag("love heavy") == reply_tags.Tag("overlay", "love", "heavy")
+    assert reply_tags.parse_tag("/love") == reply_tags.Tag("overlay_end", "love")
+    assert reply_tags.parse_tag("mood:love") == reply_tags.Tag("mood", "love")
+
+
+def test_a_combined_overlay_span_runs_through_the_stream_splitter():
+    items = run(["[stormy]it is a wild night outside[/stormy] stay in."])
+    assert cues(items) == [("overlay", "stormy"), ("overlay_end", "stormy")]
+    assert spoken(items) == ["it is a wild night outside stay in."]
+    items = run(["[overlay:love]I like you[/love]. [love] Me too."])
+    assert cues(items) == [("overlay", "love"), ("overlay_end", "love"), ("mood", "love")]
+
+
+def test_the_settings_page_sends_a_combined_name_and_love_as_the_overlay():
+    director, sent = make_director(True)
+    assert director.remote_set("aa:bb", "love", "heavy", 6)["name"] == "love"
+    assert director.remote_set("aa:bb", "celebrate", None, None)["name"] == "celebrate"
+    sets = [args for tool, args in sent if tool == "self.overlay.set"]
+    assert sets[0] == {"name": "love", "intensity": "heavy", "seconds": 6}
+    assert sets[1]["name"] == "celebrate"

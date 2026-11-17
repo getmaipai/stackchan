@@ -1,0 +1,63 @@
+# Intent: Every tool's descriptor (name, description, property list, callback) is built at start-up and kept for good; the pieces under 256 bytes sat in internal RAM. While a tool is built every allocation may now come from PSRAM, so the tool table holds no internal RAM. Same tools, same answers.
+# Placement: unit (MCP tool registry of the robot firmware)
+# Upstream: firmware/xiaozhi-esp32/main/mcp_server.cc (MIT) and firmware/main/Kconfig.projbuild
+# Check after a flash: a tools/list reply is identical to the one before; internal_free is higher by the table's size.
+# Kconfig: MAIPAI_TOOLS_IN_PSRAM (default y).
+
+diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/main/mcp_server.cc
+index c297dc3..11b3a37 100644
+--- a/firmware/xiaozhi-esp32/main/mcp_server.cc
++++ b/firmware/xiaozhi-esp32/main/mcp_server.cc
+@@ -190,13 +190,33 @@ void McpServer::AddTool(std::unique_ptr<McpTool> tool) {
+     tools_.push_back(std::move(tool));
+ }
+ 
++#if CONFIG_MAIPAI_TOOLS_IN_PSRAM
++// Patch M03: a tool's descriptor (name, description, property list, callback) is held for the life of the unit. While one
++// is being built, every allocation may come from PSRAM, whatever its size; the tool table then holds no internal RAM
++// for small pieces. The limit is put back on the way out. Registration runs at boot and from a few module start-ups on
++// one task at a time, so no other path allocates in the window that matters.
++#include <esp_heap_caps.h>
++namespace {
++struct PsramAllocScope {
++    PsramAllocScope() { heap_caps_malloc_extmem_enable(0); }
++    ~PsramAllocScope() { heap_caps_malloc_extmem_enable(CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL); }
++};
++}  // namespace
++#endif
++
+ void McpServer::AddTool(const std::string& name, const std::string& description,
+                         const PropertyList& properties, ToolCallback callback) {
++#if CONFIG_MAIPAI_TOOLS_IN_PSRAM
++    PsramAllocScope psram_scope;
++#endif
+     AddTool(std::make_unique<McpTool>(name, description, properties, std::move(callback)));
+ }
+ 
+ void McpServer::AddUserOnlyTool(const std::string& name, const std::string& description,
+                                 const PropertyList& properties, ToolCallback callback) {
++#if CONFIG_MAIPAI_TOOLS_IN_PSRAM
++    PsramAllocScope psram_scope;
++#endif
+     auto tool = std::make_unique<McpTool>(name, description, properties, std::move(callback));
+     tool->set_user_only(true);
+     AddTool(std::move(tool));
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index 45ea3a3..6621035 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -321,6 +321,14 @@ config MAIPAI_OPUS_STACK_PSRAM
+         Frees 24 KB of internal RAM. The task only decodes, resamples, encodes and queues audio and never reads saved
+         settings or calls flash (the rule in patch TC02). Turn off to put the stack back in internal RAM.
+ 
++config MAIPAI_TOOLS_IN_PSRAM
++    bool "Tool descriptors (names, descriptions, property lists, callbacks) held in PSRAM"
++    default y
++    help
++        Every tool the unit offers is built once at start-up and kept for good. With this on, the pieces of each tool are
++        allocated from PSRAM whatever their size, so the table holds no internal RAM. Turn off to keep the old placement
++        (pieces under 256 bytes in internal RAM).
++
+ config MAIPAI_FACE_FLUID
+     bool "Fluid face: eased eyes and tilt, a smooth blink, gaze drift, a mouth that follows the voice, a faster draw loop"
+     default y

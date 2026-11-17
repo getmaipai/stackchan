@@ -1,0 +1,115 @@
+# Intent: Fable review section 4 (2026-11-16). The pack boot task (scan the flash cache, apply a saved look and filler) was started by an esp_timer 15 s after boot, a guess at when the wake word model had finished loading (its 6 KB internal stack taken earlier cut the largest free internal block from 25.6 KB to 8.7 KB, patch TC03). Now the main loop starts it once, on the first time the application reaches standby, which happens after the model is loaded; if the unit never reaches standby the task starts after 120 s anyway. The timer is gone (one timer object and its callback less). The task still has an internal stack and ends itself; no task keeps a PSRAM stack for this job.
+# Placement: unit (a saved look applies on the robot with no host)
+# Upstream: main/hal/{maipai_packs.cc,maipai_packs.h,hal.cpp} (ours, patches TB02 and TC03); new file hal/maipai_packboot_core.h
+# Check after a flash: host/tests/firmware/packboot_core_test.c passes; the boot log shows "pack cache:" right after the first standby, not at a fixed 15 s; self.pack.status shows booted true; the memory line's int_big is not lower than before the patch.
+
+diff --git a/firmware/main/hal/maipai_packboot_core.h b/firmware/main/hal/maipai_packboot_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_packboot_core.h
+@@ -0,0 +1,26 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * When the pack boot task starts (patch FM04): the pure rule, no ESP-IDF (host test: host/tests/firmware/packboot_core_test.c).
++ *
++ * Patch TB02 started the task from a timer 15 s after boot because its 6 KB internal stack, taken while the wake word model
++ * loads (about 7 s in), cut the largest free internal block from 25.6 KB to 8.7 KB. A fixed delay is a guess about the
++ * model. The model has finished loading when the application first reaches standby, so the main loop starts the task on that
++ * event, once. If the unit never reaches standby (no Wi-Fi, a long connect) the task still starts after MPB_FALLBACK_S, so
++ * a saved look is applied even then.
++ */
++#ifndef MAIPAI_PACKBOOT_CORE_H
++#define MAIPAI_PACKBOOT_CORE_H
++
++#include <stdint.h>
++
++#define MPB_FALLBACK_S 120u
++
++static inline int mpb_should_start(int already_started, int standby_reached, uint32_t uptime_s)
++{
++    if (already_started) return 0;
++    if (standby_reached) return 1;
++    return uptime_s >= MPB_FALLBACK_S;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_packs.cc b/firmware/main/hal/maipai_packs.cc
+--- a/firmware/main/hal/maipai_packs.cc
++++ b/firmware/main/hal/maipai_packs.cc
+@@ -10,6 +10,7 @@
+  * flash is written; internal RAM about 0.9 KB (directory, report, receiver, flags).
+  */
+ #include "maipai_packs.h"
++#include "maipai_packboot_core.h"
+ #include "maipai_pack_core.h"
+ #include "maipai_packcache_core.h"
+ #include "maipai_filler.h"
+@@ -192,8 +193,23 @@
+     vTaskDelete(nullptr);
+ }
+ 
++std::atomic<bool> s_boot_started{false};
++
+ }  // namespace
+ 
++// Called every pass of the main loop (patch FM04). Cheap: one atomic read once the task has started.
++void maipai_packs_boot_poll(bool standby_reached)
++{
++    if (s_pm == nullptr || s_boot_started.load()) return;
++    if (!mpb_should_start(0, standby_reached ? 1 : 0, static_cast<uint32_t>(esp_timer_get_time() / 1000000))) return;
++    if (s_boot_started.exchange(true)) return;
++    // Transient: ends when the cache is applied. The wake model has loaded by now, so its 6 KB internal stack no longer costs
++    // the largest free block (the 15 s timer of patch TB02 guessed at this moment).
++    if (xTaskCreate(boot_task, "pack_boot", 6144, nullptr, 1, nullptr) != pdPASS) {
++        ESP_LOGW(TAG, "the pack boot task did not start (low memory): a saved look is not applied until the next restart");
++    }
++}
++
+ const uint8_t* maipai_pack_bytes(int type, size_t* len)
+ {
+     std::lock_guard<std::mutex> lock(s_mu);
+@@ -212,12 +228,7 @@
+     tpk_rx_init(&s_rx);
+     memset(&s_dir, 0, sizeof(s_dir));
+     s_dir.slot = 2;
+-    // Transient: ends when the cache is applied. Started 15 s after boot, not now: its 6 KB internal stack, taken while the wake
+-    // word model loads (about 7 s in), left the largest free internal block at 8.7 KB instead of 25.6 KB (patch TC03).
+-    static esp_timer_handle_t boot_timer = nullptr;
+-    const esp_timer_create_args_t boot_args = {.callback = [](void*) { xTaskCreate(boot_task, "pack_boot", 6144, nullptr, 1, nullptr); },
+-                                               .arg = nullptr, .dispatch_method = ESP_TIMER_TASK, .name = "pack_boot", .skip_unhandled_events = true};
+-    if (esp_timer_create(&boot_args, &boot_timer) == ESP_OK) esp_timer_start_once(boot_timer, 15000000);
++    // The boot task is started by maipai_packs_boot_poll from the main loop, on the first standby (patch FM04), not by a timer.
+     auto& mcp = McpServer::GetInstance();
+ 
+     mcp.AddTool("self.pack.status",
+diff --git a/firmware/main/hal/maipai_packs.h b/firmware/main/hal/maipai_packs.h
+--- a/firmware/main/hal/maipai_packs.h
++++ b/firmware/main/hal/maipai_packs.h
+@@ -14,3 +14,7 @@
+ // The cached or sent pack of a type held in memory for its user, or null. For the types that have no user yet (language,
+ // sound, dance, game) a consumer calls this when it needs the bytes; the pointer stays valid until the pack changes.
+ const uint8_t* maipai_pack_bytes(int type, size_t* len);
++
++// Patch FM04: the main loop calls this every pass with "the application has reached standby". It starts the one-shot boot task
++// (scan the flash cache, apply a saved look and filler) once, on the first standby, or after 120 s whatever happens.
++void maipai_packs_boot_poll(bool standby_reached);
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -128,6 +128,7 @@
+ #include "maipai_tailnet.h"
+ #include "maipai_daily.h"
+ #include "maipai_facebench.h"
++#include "maipai_packs.h"
+ 
+ void Hal::xiaozhi_board_init()
+ {
+@@ -146,6 +147,7 @@
+         tools::update_reminders();
+         maipai_timers_tick();  // on-unit timers and alarms (patch 091)
+         maipai_daily_tick();   // the daily rules: low battery and the rest (patches T01 to T05)
++        maipai_packs_boot_poll(hal_bridge::is_xiaozhi_ready());  // patch FM04: the saved look and filler, once, at the first standby
+ 
+         LvglLockGuard lock;
+ 

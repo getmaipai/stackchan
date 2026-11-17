@@ -1,0 +1,45 @@
+# Intent: The lowest free stack of every task, once a minute, on the memory line's log (gate item: at least 1,024 bytes of margin on every task we own), so a stack trim is judged from numbers and a stack that is too thin shows before it overflows. Only with the memory line on.
+# Placement: unit (a log line of the robot firmware)
+# Upstream: firmware/xiaozhi-esp32/main/system_info.cc of the Xiaozhi component (MIT), patch TN05
+# Check after a flash: with MAIPAI_MEMORY_LINE on, the log shows 'SystemInfo: stk main=5068i audio_input=4552i ... audio_afe=10156p' every 60 seconds (i = stack in internal RAM, p = in PSRAM; the number is the lowest free bytes); scripts/fw-stress.py reads it.
+# Kconfig: none (rides on MAIPAI_MEMORY_LINE).
+
+diff --git a/firmware/xiaozhi-esp32/main/system_info.cc b/firmware/xiaozhi-esp32/main/system_info.cc
+index 441c79e..9180710 100644
+--- a/firmware/xiaozhi-esp32/main/system_info.cc
++++ b/firmware/xiaozhi-esp32/main/system_info.cc
+@@ -10,6 +10,7 @@
+ #include <esp_ota_ops.h>
+ #include <esp_pm.h>
+ #include <esp_heap_caps.h>
++#include <esp_memory_utils.h>
+ #if CONFIG_IDF_TARGET_ESP32P4 && !CONFIG_XIAOZHI_NETWORK_ETHERNET
+ #include "esp_wifi_remote.h"
+ #endif
+@@ -156,6 +157,26 @@ void SystemInfo::PrintHeapStats() {
+     ESP_LOGW(TAG, "mem internal_free=%u internal_min=%u int_big=%u psram_free=%u psram_min=%u", free_sram, min_free_sram,
+              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+              (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM));
++    // Patch M01: once a minute the lowest free stack of every task ("i" = stack in internal RAM, "p" = in PSRAM), so a stack
++    // trim is judged from numbers (gate: at least 1,024 bytes of margin on every task). The table lives in PSRAM and the
++    // line is built before it is printed, so nothing waits on the console while the scheduler is suspended.
++    static unsigned s_stk_calls = 0;
++    if (++s_stk_calls % 6 == 0) {
++        UBaseType_t n = uxTaskGetNumberOfTasks();
++        TaskStatus_t* st = (TaskStatus_t*)heap_caps_malloc(sizeof(TaskStatus_t) * (n + 4), MALLOC_CAP_SPIRAM);
++        char* line = (char*)heap_caps_malloc(1024, MALLOC_CAP_SPIRAM);
++        if (st && line) {
++            n = uxTaskGetSystemState(st, n + 4, nullptr);
++            size_t len = 0;
++            for (UBaseType_t i = 0; i < n && len + 40 < 1024; i++) {
++                len += snprintf(line + len, 1024 - len, " %s=%u%c", st[i].pcTaskName, (unsigned)st[i].usStackHighWaterMark,
++                                esp_ptr_internal(st[i].pxStackBase) ? 'i' : 'p');
++            }
++            ESP_LOGW(TAG, "stk%s", line);
++        }
++        heap_caps_free(st);
++        heap_caps_free(line);
++    }
+ #else
+     ESP_LOGI(TAG, "free sram: %u minimal sram: %u", free_sram, min_free_sram);
+ #endif

@@ -1,0 +1,20 @@
+# Intent: Fast eyes, part 7. The screen refresh is bound by the SPI link to the panel (about 0.5 microseconds per flushed pixel, 28 thousand pixels while both Big eyes move) and LVGL's "render" time includes the wait inside the flush call. LVGL had ONE 20 row buffer: it could not draw the next piece until the SPI had sent the last, so a refresh was drawing plus sending. The same 12.8 KB of internal DMA memory is now two 10 row buffers: LVGL draws one while the link sends the other. No internal RAM is added. Measured on one image (bench_mode one_buffer, shape lists, eyes moving): the wait for the flush drops from 10.1 to 1.9 ms, refreshes a second rise from 27.8 to 31.4 and the slowest 1 percent of refreshes from 46 to 29 ms.
+# Placement: unit (every image)
+# Upstream: firmware/main/hal/board/stackchan_display.cc (ours)
+# Check after a flash: the face looks the same on a photo of the screen and in scripts/fw-serial.py snap; self.face.bench_run what move answers avg_wait_ms under 4.
+
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -174,8 +174,8 @@ StackChanAvatarDisplay::StackChanAvatarDisplay(esp_lcd_panel_io_handle_t panel_i
+         .io_handle      = panel_io_,
+         .panel_handle   = panel_,
+         .control_handle = nullptr,
+-        .buffer_size    = static_cast<uint32_t>(width_ * 20),
+-        .double_buffer  = false,
++        .buffer_size    = static_cast<uint32_t>(width_ * 10),  // patch V26: two half buffers (the same 12.8 KB): LVGL draws one while the SPI sends the other
++        .double_buffer  = true,
+         .trans_size     = 0,
+         .hres           = static_cast<uint32_t>(width_),
+         .vres           = static_cast<uint32_t>(height_),

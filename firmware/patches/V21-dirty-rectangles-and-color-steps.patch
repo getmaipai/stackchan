@@ -1,0 +1,400 @@
+# Intent: Fast eyes, part 2. The face invalidates only what changed: shape lists of the eyes, the brows and the mouth are matched shape by shape, an unchanged shape adds nothing, a changed one adds the bounds of its old and new place, and the pieces are merged to at most two areas per eye, one per brow and two for the mouth (LVGL falls back to a full redraw when its 32 invalid areas run out, and every area costs a pass over the object tree). A colour step of the emotion tint is redrawn only when the 5-6-5 value the screen can show changes, and only over the shapes, not over the whole art object (it was a full screen redraw on every step of every tint change: 76.8 thousand pixels per frame on the host model, 27 to 37 thousand now). A first version that sent thin strips along the outlines made a refresh slower on the unit (more areas, 8 ms of CPU per pass) and was dropped. One scratch set of rectangles is shared by all parts (the face task has a 4 KB stack: a set on its stack overflowed and reset the unit).
+# Placement: unit (the face runs on the robot, so it is complete with no host)
+# Upstream: firmware/main/stackchan/avatar/skins/default/{eyes.cpp,mouth.cpp,default.cpp} of the StackChan main component (MIT) as changed by X01, V10, V12; new file hal/maipai_dirty_core.h
+# Check after a flash: Big eyes drift, blink, change emotion and speak with no stale pixel or ghost edge (the host check: hostrender `verify` compares the screen the unit would hold with a fresh full draw on every frame of a scripted run); host/tests/firmware/dirty_core_test.c passes; face_task_stack_min_free in self.face.bench_run stays above 300.
+
+diff --git a/firmware/main/hal/maipai_dirty_core.h b/firmware/main/hal/maipai_dirty_core.h
+new file mode 100644
+
+--- /dev/null
++++ b/firmware/main/hal/maipai_dirty_core.h
+@@ -0,0 +1,197 @@
++#ifndef MAIPAI_DIRTY_CORE_H
++#define MAIPAI_DIRTY_CORE_H
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * What changed between two shape lists of a face part (patch V20), as a few small rectangles, so the screen sends only
++ * those pixels over the display link instead of the whole box of the eye.
++ *
++ * The old way invalidated the union of the old and the new bounds of the WHOLE list whenever any shape moved one pixel:
++ * a Big eye is a 108 by 108 box, so one pixel of drift sent 11.7 thousand pixels per eye. Here the lists are matched shape
++ * by shape (same kind and colour, in order); a shape that did not change adds nothing; a shape that changed adds the bounds of
++ * its old and its new place; a shape that appeared or went away adds its bounds. The pieces are merged down to the few areas the
++ * caller allows (every area costs LVGL a pass over the object tree and the shape list: measured on the unit, thin strips per
++ * shape made a refresh slower, not faster, and the strip maths cost 8 ms of CPU per pass). Everything LVGL needs: a pixel that can differ lies inside one of the rectangles (two pixels of margin for the
++ * anti-aliased edge), so the redraw of just those rectangles equals the redraw of the whole screen. The host check
++ * (hostrender, command `verify`) compares the two on every frame of a scripted run.
++ *
++ * Pure C, no heap: used by the unit (skins/default/eyes.cpp, mouth.cpp), the host renderer and the core test.
++ */
++#include "maipai_look_core.h"
++#include <math.h>
++#include <stdint.h>
++#include <stdlib.h>
++#if defined(MD_HOST_SWITCH)
++#define MD_LEGACY_ON (getenv("MAIPAI_LEGACY_DIRTY") != NULL)
++#elif defined(__has_include)
++#if __has_include(<sdkconfig.h>)
++#include <sdkconfig.h>
++#ifdef CONFIG_MAIPAI_FACE_BENCH
++#ifdef __cplusplus
++extern "C" {
++#endif
++extern volatile int g_md_legacy; /* set by self.face.bench_mode: 1 sends the whole old box again (the before numbers) */
++#ifdef __cplusplus
++}
++#endif
++#define MD_LEGACY_ON (g_md_legacy != 0)
++#endif
++#endif
++#endif
++
++#define MD_MAX_RECTS 24 /* collected; md_diff reduces them to the `limit` the caller asks for */
++#define MD_MARGIN 2
++
++typedef struct {
++    int x1, y1, x2, y2; /* inclusive pixel corners, relative to the centre of the list's object */
++} md_rect_t;
++
++typedef struct {
++    md_rect_t r[MD_MAX_RECTS];
++    int n;
++    int overflow; /* more rectangles than fit: r[0] is then the one box around everything */
++} md_set_t;
++
++static inline int md_min(int a, int b) { return a < b ? a : b; }
++static inline int md_max(int a, int b) { return a > b ? a : b; }
++
++/* The pixel bounds of one shape, relative to the object's centre, with the margin. */
++static inline void md_shape_bounds(const ml_shape_t* s, int ox, int oy, md_rect_t* b)
++{
++    float x1 = 0, y1 = 0, x2 = 0, y2 = 0;
++    switch (s->kind) {
++        case ML_SH_RRECT: case ML_SH_RING: {
++            float w = s->v[2], h = s->v[3];
++            if (s->kind == ML_SH_RING) { w += 2.0f * s->v[5]; h += 2.0f * s->v[5]; }
++            x1 = s->v[0] - w * 0.5f; x2 = s->v[0] + w * 0.5f; y1 = s->v[1] - h * 0.5f; y2 = s->v[1] + h * 0.5f;
++            break;
++        }
++        case ML_SH_CIRCLE:
++            x1 = s->v[0] - s->v[2]; x2 = s->v[0] + s->v[2]; y1 = s->v[1] - s->v[2]; y2 = s->v[1] + s->v[2];
++            break;
++        case ML_SH_QUAD:
++            x1 = x2 = s->v[0]; y1 = y2 = s->v[1];
++            for (int k = 1; k < 4; k++) {
++                x1 = fminf(x1, s->v[k * 2]); x2 = fmaxf(x2, s->v[k * 2]); y1 = fminf(y1, s->v[k * 2 + 1]); y2 = fmaxf(y2, s->v[k * 2 + 1]);
++            }
++            break;
++        case ML_SH_LINE: {
++            const float m = s->v[4] * 0.5f + 1.0f;
++            x1 = fminf(s->v[0], s->v[2]) - m; x2 = fmaxf(s->v[0], s->v[2]) + m;
++            y1 = fminf(s->v[1], s->v[3]) - m; y2 = fmaxf(s->v[1], s->v[3]) + m;
++            break;
++        }
++        case ML_SH_HEART: {
++            const float m = s->v[2] * 1.1f;
++            x1 = s->v[0] - m; x2 = s->v[0] + m; y1 = s->v[1] - m; y2 = s->v[1] + m;
++            break;
++        }
++        default: break;
++    }
++    b->x1 = (int)floorf(x1) + ox - MD_MARGIN;
++    b->x2 = (int)ceilf(x2) + ox + MD_MARGIN;
++    b->y1 = (int)floorf(y1) + oy - MD_MARGIN;
++    b->y2 = (int)ceilf(y2) + oy + MD_MARGIN;
++}
++
++static inline void md_add(md_set_t* s, int x1, int y1, int x2, int y2)
++{
++    if (x2 < x1 || y2 < y1) return;
++    if (s->n >= MD_MAX_RECTS) { /* full: grow the last box to take this one (never drop a pixel) */
++        md_rect_t* l = &s->r[MD_MAX_RECTS - 1];
++        l->x1 = md_min(l->x1, x1); l->y1 = md_min(l->y1, y1); l->x2 = md_max(l->x2, x2); l->y2 = md_max(l->y2, y2);
++        s->overflow = 1;
++        return;
++    }
++    s->r[s->n].x1 = x1; s->r[s->n].y1 = y1; s->r[s->n].x2 = x2; s->r[s->n].y2 = y2;
++    s->n++;
++}
++
++static inline void md_add_bounds(md_set_t* s, const md_rect_t* b) { md_add(s, b->x1, b->y1, b->x2, b->y2); }
++
++static inline int md_same_shape(const ml_shape_t* a, const ml_shape_t* b)
++{
++    if (a->kind != b->kind || a->col != b->col || a->opa != b->opa) return 0;
++    for (int k = 0; k < 8; k++) {
++        if (a->v[k] != b->v[k]) return 0;
++    }
++    return 1;
++}
++
++/* All the rectangles that must be redrawn when the list `a` (drawn at offset aox, aoy) becomes `b` (at box_, boy). */
++static inline void md_reduce(md_set_t* set, int limit);
++static inline void md_diff(md_set_t* set, const ml_shape_t* a, int na, int aox, int aoy, const ml_shape_t* b, int nb, int box_, int boy, int limit)
++{
++    set->n = 0;
++    set->overflow = 0;
++#ifdef MD_LEGACY_ON /* bench builds and the host renderer can ask for the old whole-box behaviour, to compare */
++    if (MD_LEGACY_ON) {
++        md_rect_t t0;
++        for (int q = 0; q < na; q++) { md_shape_bounds(&a[q], aox, aoy, &t0); md_add(set, t0.x1, t0.y1, t0.x2, t0.y2); }
++        for (int q = 0; q < nb; q++) { md_shape_bounds(&b[q], box_, boy, &t0); md_add(set, t0.x1, t0.y1, t0.x2, t0.y2); }
++        if (set->n > 1) {
++            md_rect_t u = set->r[0];
++            for (int k = 1; k < set->n; k++) { u.x1 = md_min(u.x1, set->r[k].x1); u.y1 = md_min(u.y1, set->r[k].y1); u.x2 = md_max(u.x2, set->r[k].x2); u.y2 = md_max(u.y2, set->r[k].y2); }
++            set->r[0] = u; set->n = 1;
++        }
++        return;
++    }
++#endif
++    int i = 0, j = 0;
++    md_rect_t t;
++    while (i < na || j < nb) {
++        if (i < na && j < nb && a[i].kind == b[j].kind && a[i].col == b[j].col) {
++            if (a[i].opa == b[j].opa && aox == box_ && aoy == boy && md_same_shape(&a[i], &b[j])) {
++                /* unchanged */
++            } else {
++                md_shape_bounds(&a[i], aox, aoy, &t); md_add_bounds(set, &t);
++                md_shape_bounds(&b[j], box_, boy, &t); md_add_bounds(set, &t);
++            }
++            i++; j++;
++        } else if (i < na && j + 1 < nb && a[i].kind == b[j + 1].kind && a[i].col == b[j + 1].col) {
++            md_shape_bounds(&b[j], box_, boy, &t); md_add_bounds(set, &t); /* new[j] appeared */
++            j++;
++        } else if (j < nb && i + 1 < na && a[i + 1].kind == b[j].kind && a[i + 1].col == b[j].col) {
++            md_shape_bounds(&a[i], aox, aoy, &t); md_add_bounds(set, &t); /* old[i] went away */
++            i++;
++        } else {
++            if (i < na) { md_shape_bounds(&a[i], aox, aoy, &t); md_add_bounds(set, &t); i++; }
++            if (j < nb) { md_shape_bounds(&b[j], box_, boy, &t); md_add_bounds(set, &t); j++; }
++        }
++    }
++    md_reduce(set, limit);
++}
++
++/* Merge rectangles, the pair that wastes the fewest pixels first, until at most `limit` are left. LVGL keeps 32 invalid areas for the
++ * whole screen and falls back to a full redraw when they run out, so each part of the face gets a small budget. */
++static inline long md_rect_area(const md_rect_t* r) { return (long)(r->x2 - r->x1 + 1) * (long)(r->y2 - r->y1 + 1); }
++static inline void md_reduce(md_set_t* set, int limit)
++{
++    while (set->n > limit && set->n > 1) {
++        int bi = 0, bj = 1;
++        long best = 0x7fffffffL;
++        for (int i = 0; i < set->n; i++) {
++            for (int j = i + 1; j < set->n; j++) {
++                md_rect_t u = set->r[i];
++                u.x1 = md_min(u.x1, set->r[j].x1); u.y1 = md_min(u.y1, set->r[j].y1);
++                u.x2 = md_max(u.x2, set->r[j].x2); u.y2 = md_max(u.y2, set->r[j].y2);
++                const long waste = md_rect_area(&u) - md_rect_area(&set->r[i]) - md_rect_area(&set->r[j]);
++                if (waste < best) { best = waste; bi = i; bj = j; }
++            }
++        }
++        set->r[bi].x1 = md_min(set->r[bi].x1, set->r[bj].x1); set->r[bi].y1 = md_min(set->r[bi].y1, set->r[bj].y1);
++        set->r[bi].x2 = md_max(set->r[bi].x2, set->r[bj].x2); set->r[bi].y2 = md_max(set->r[bi].y2, set->r[bj].y2);
++        set->r[bj] = set->r[set->n - 1];
++        set->n--;
++    }
++}
++
++/* Pixels in the rectangles (for the bench and the test). */
++static inline long md_area(const md_set_t* s)
++{
++    long t = 0;
++    for (int k = 0; k < s->n; k++) t += (long)(s->r[k].x2 - s->r[k].x1 + 1) * (long)(s->r[k].y2 - s->r[k].y1 + 1);
++    return t;
++}
++
++#endif /* MAIPAI_DIRTY_CORE_H */
+
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -7,6 +7,11 @@
+ #include <esp_timer.h>
+ #include <cmath>
+ #include "../../../../hal/maipai_facefx_core.h"
++#include "../../../../hal/maipai_dirty_core.h"
++
++// One scratch set for every dirty-rectangle diff (eyes, brows, mouth all run on the one face task under the screen lock): the face task's
++// stack is 4 KB and a set on it overflowed (found on the unit, 2026-11-16).
++md_set_t g_md_scratch;
+ 
+ using namespace uitk;
+ using namespace uitk::lvgl_cpp;
+@@ -35,6 +40,12 @@ static bool s_spring_init = false;
+ static int64_t s_spring_us = 0;
+ static bool s_thinking     = false;
+ static float s_blink       = 0.0f;
++#ifdef MD_HOST_SWITCH
++void md_host_blink_now()  // host renderer only: the next pass blinks
++{
++    s_lids.next_blink_ms = 0;
++}
++#endif
+ float stackchan::avatar::g_ml_voice = 0.0f;
+ int stackchan::avatar::g_ml_emotion = ML_NEUTRAL;
+ 
+@@ -492,8 +503,27 @@ void DefaultEyes::setColors(lv_color_t primaryColor, lv_color_t secondaryColor)
+     _fg = primaryColor;
+     _bg = secondaryColor;
+     if (_art != nullptr) {
+-        lv_obj_invalidate(_art);
+-        lv_obj_invalidate(_brow);
++        // Patch V20: a colour step redraws the shapes, not the whole (screen sized) art object.
++        auto box = [&](lv_obj_t* obj, const ml_shape_t* sh, int n, int ox, int oy, int yoff) {
++            if (!_visible || !_art_mode) {
++                return;
++            }
++            if (n <= 0) {
++                return;
++            }
++            lv_area_t a;
++            lv_obj_get_coords(obj, &a);
++            const int cx = (a.x1 + a.x2) / 2, cy = (a.y1 + a.y2) / 2 + yoff;
++            md_rect_t u = {1 << 20, 1 << 20, -(1 << 20), -(1 << 20)}, t;
++            for (int i = 0; i < n; i++) {
++                md_shape_bounds(&sh[i], ox, oy, &t);
++                u.x1 = md_min(u.x1, t.x1); u.y1 = md_min(u.y1, t.y1); u.x2 = md_max(u.x2, t.x2); u.y2 = md_max(u.y2, t.y2);
++            }
++            lv_area_t o = {cx + u.x1, cy + u.y1, cx + u.x2, cy + u.y2};
++            lv_obj_invalidate_area(obj, &o);
++        };
++        box(_art, _sh, _nsh, _ox, _oy, 0);
++        box(_brow, _bsh, _nbsh, 0, 0, 60);
+     }
+     _eye->setBgColor(primaryColor);
+     _eyelid->setBgColor(secondaryColor);
+@@ -652,18 +682,15 @@ void DefaultEyes::update_art(uint32_t ms)
+     }
+     const bool vis = _visible;
+     if (n != _nsh || ox != _ox || oy != _oy || memcmp(tmp, _sh, sizeof(ml_shape_t) * (size_t)n) != 0) {
+-        int nb[4];
+-        ml_shape_list_bounds(tmp, n, nb);
+-        lv_area_t a;
+-        lv_obj_get_coords(_art, &a);
+-        const int cx = (a.x1 + a.x2) / 2, cy = (a.y1 + a.y2) / 2;
+         if (vis) {
+-            if (_nsh > 0) {
+-                lv_area_t o = {cx + _ox + _bb[0], cy + _oy + _bb[1], cx + _ox + _bb[2], cy + _oy + _bb[3]};
+-                lv_obj_invalidate_area(_art, &o);
+-            }
+-            if (n > 0) {
+-                lv_area_t o = {cx + ox + nb[0], cy + oy + nb[1], cx + ox + nb[2], cy + oy + nb[3]};
++            // Patch V20: only the strips where the old and the new drawing differ go to the screen, shape by shape.
++            md_set_t& dirty = g_md_scratch;
++            md_diff(&dirty, _sh, _nsh, _ox, _oy, tmp, n, ox, oy, 2);
++            lv_area_t a;
++            lv_obj_get_coords(_art, &a);
++            const int cx = (a.x1 + a.x2) / 2, cy = (a.y1 + a.y2) / 2;
++            for (int k = 0; k < dirty.n; k++) {
++                lv_area_t o = {cx + dirty.r[k].x1, cy + dirty.r[k].y1, cx + dirty.r[k].x2, cy + dirty.r[k].y2};
+                 lv_obj_invalidate_area(_art, &o);
+             }
+         }
+@@ -671,9 +698,6 @@ void DefaultEyes::update_art(uint32_t ms)
+         _nsh = n;
+         _ox  = ox;
+         _oy  = oy;
+-        for (int k = 0; k < 4; k++) {
+-            _bb[k] = nb[k];
+-        }
+     }
+     // the brow
+     ml_shape_t bs[2];
+@@ -686,26 +710,19 @@ void DefaultEyes::update_art(uint32_t ms)
+     }
+     const int bx = 0, by = 0;
+     if (bn != _nbsh || bx != _bbx || by != _bby || memcmp(bs, _bsh, sizeof(ml_shape_t) * (size_t)bn) != 0) {
+-        int nb[4];
+-        ml_shape_list_bounds(bs, bn, nb);
+-        lv_area_t a;
+-        lv_obj_get_coords(_brow, &a);
+-        const int cx = (a.x1 + a.x2) / 2, cy = (a.y1 + a.y2) / 2 + 60;
+         if (vis) {
+-            if (_nbsh > 0) {
+-                lv_area_t o = {cx + _bbb[0], cy + _bbb[1], cx + _bbb[2], cy + _bbb[3]};
+-                lv_obj_invalidate_area(_brow, &o);
+-            }
+-            if (bn > 0) {
+-                lv_area_t o = {cx + nb[0], cy + nb[1], cx + nb[2], cy + nb[3]};
++            md_set_t& dirty = g_md_scratch;
++            md_diff(&dirty, _bsh, _nbsh, 0, 0, bs, bn, 0, 0, 1);
++            lv_area_t a;
++            lv_obj_get_coords(_brow, &a);
++            const int cx = (a.x1 + a.x2) / 2, cy = (a.y1 + a.y2) / 2 + 60;
++            for (int k = 0; k < dirty.n; k++) {
++                lv_area_t o = {cx + dirty.r[k].x1, cy + dirty.r[k].y1, cx + dirty.r[k].x2, cy + dirty.r[k].y2};
+                 lv_obj_invalidate_area(_brow, &o);
+             }
+         }
+         memcpy(_bsh, bs, sizeof(ml_shape_t) * (size_t)bn);
+         _nbsh = bn;
+-        for (int k = 0; k < 4; k++) {
+-            _bbb[k] = nb[k];
+-        }
+     }
+ }
+ 
+
+diff --git a/firmware/main/stackchan/avatar/skins/default/mouth.cpp b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+
+--- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+@@ -8,7 +8,9 @@
+ #include <cmath>
+ #include "../../../../hal/maipai_facefx.h"
+ #include "../../../../hal/maipai_facefx_core.h"
++#include "../../../../hal/maipai_dirty_core.h"
+ 
++extern md_set_t g_md_scratch;
+ using namespace uitk;
+ using namespace uitk::lvgl_cpp;
+ using namespace stackchan::avatar;
+@@ -264,26 +266,19 @@ void DefaultMouth::_update()
+             }
+         }
+         if (n != _nmsh || memcmp(tmp, _msh, sizeof(ml_shape_t) * (size_t)n) != 0) {
+-            int nb[4];
+-            ml_shape_list_bounds(tmp, n, nb);
+             if (_visible && !_suppressed) {
++                md_set_t& dirty = g_md_scratch;
++                md_diff(&dirty, _msh, _nmsh, 0, 0, tmp, n, 0, 0, 2);
+                 lv_area_t a;
+                 lv_obj_get_coords(_draw, &a);
+                 const int cx = (a.x1 + a.x2) / 2, cy = (a.y1 + a.y2) / 2;
+-                if (_nmsh > 0) {
+-                    lv_area_t o = {cx + _mbb[0], cy + _mbb[1], cx + _mbb[2], cy + _mbb[3]};
+-                    lv_obj_invalidate_area(_draw, &o);
+-                }
+-                if (n > 0) {
+-                    lv_area_t o = {cx + nb[0], cy + nb[1], cx + nb[2], cy + nb[3]};
++                for (int k = 0; k < dirty.n; k++) {
++                    lv_area_t o = {cx + dirty.r[k].x1, cy + dirty.r[k].y1, cx + dirty.r[k].x2, cy + dirty.r[k].y2};
+                     lv_obj_invalidate_area(_draw, &o);
+                 }
+             }
+             memcpy(_msh, tmp, sizeof(ml_shape_t) * (size_t)n);
+             _nmsh = n;
+-            for (int k = 0; k < 4; k++) {
+-                _mbb[k] = nb[k];
+-            }
+         }
+     }
+ 
+
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.cpp b/firmware/main/stackchan/avatar/skins/default/default.cpp
+
+--- a/firmware/main/stackchan/avatar/skins/default/default.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/default.cpp
+@@ -42,7 +42,8 @@ Container* DefaultAvatar::getPanel() const
+ // The colour the face is drawn in after the tint: set on the eyes, the mouth and the thinking dots.
+ void DefaultAvatar::apply_color()
+ {
+-    const int packed = ((int)_rgb[0] << 16) | ((int)_rgb[1] << 8) | (int)_rgb[2];
++    // Patch V20: the screen shows 5, 6 and 5 bits, so a step finer than that is not redrawn (it was a full screen redraw per step)
++    const int packed = (((int)_rgb[0] >> 3) << 11) | (((int)_rgb[1] >> 2) << 5) | ((int)_rgb[2] >> 3);
+     if (packed == _drawn_rgb) {
+         return;
+     }

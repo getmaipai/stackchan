@@ -149,14 +149,15 @@ class StackChanFirmwareEndToEndTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["yaw"], 90)
         name, args = await device.wait_tool_call("self.robot.set_head_angles")
         self.assertEqual(name, "self.robot.set_head_angles")
-        self.assertEqual(args, {"yaw": 90, "pitch": 60, "speed": 150})
+        host = self.service.remote_host_id  # patch FM03: a head move that is not a controller's carries the host's session id
+        self.assertEqual(args, {"yaw": 90, "pitch": 60, "speed": 150, "token": host})
         self.assertEqual(device._motion_target, {"yaw": 90.0, "pitch": 60.0})
         await asyncio.to_thread(
             robot.head.set,
             yaw=None,
             pitch=math.radians(45),
         )
-        self.assertEqual(device.tool_calls[-1][1], {"yaw": -9999, "pitch": 45, "speed": 150})
+        self.assertEqual(device.tool_calls[-1][1], {"yaw": -9999, "pitch": 45, "speed": 150, "token": host})
         self.assertEqual(device._motion_target["yaw"], 90.0)
 
     async def test_firmware_reconnects_with_backoff_after_a_dropped_socket(self):

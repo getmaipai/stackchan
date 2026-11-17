@@ -1,0 +1,17 @@
+# Intent: With the camera initialized (the whole run), the driver held a 32 KB DMA buffer in internal RAM. The camera now receives each frame straight into PSRAM (the ESP32-S3 supports it).
+# Placement: unit (camera driver option of the robot firmware)
+# Upstream: firmware/sdkconfig.core.defaults (esp32-camera CAMERA_PSRAM_DMA)
+# Check after a flash: the host log's camera line still reports frames and sizes as before; internal_free is about 32 KB higher.
+# Kconfig: CONFIG_CAMERA_PSRAM_DMA=y (sdkconfig.core.defaults).
+
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+index 086afde..b5728cf 100644
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -50,3 +50,6 @@ CONFIG_ESP_COREDUMP_MAX_TASKS_NUM=20
+ # 8192 to 6144). The lowest free stack seen over ten minutes of stress is in docs/design/memory-headroom-2026-11-16.md.
+ CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=3072
+ CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
++# Memory headroom (patch M06): the camera receives each frame straight into PSRAM. Without this the driver holds a 32 KB
++# DMA buffer in internal RAM for as long as the camera is initialized, which is the whole run.
++CONFIG_CAMERA_PSRAM_DMA=y

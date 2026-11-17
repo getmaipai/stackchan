@@ -1,0 +1,57 @@
+# Intent: The opus codec task's 24 KB stack is the largest single holder of internal RAM. The task only decodes, resamples, encodes and queues audio (its callbacks only set event bits), reads no saved settings and calls no flash, so the stack can live in PSRAM (TC02 rule). A static task on a PSRAM stack allocated once, so the task can end and start again on the same memory.
+# Placement: unit (audio service of the robot firmware)
+# Upstream: firmware/xiaozhi-esp32/main/audio/audio_service.cc (MIT) and firmware/main/Kconfig.projbuild
+# Check after a flash: the memory line's stk entry shows opus_codec=...p (PSRAM); internal_free is about 24 KB higher than without it; a listen test and a spoken turn decode and play with no gap; the host's lateness figure is unchanged.
+# Kconfig: MAIPAI_OPUS_STACK_PSRAM (default y).
+
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.cc b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+index 90e6a54..12cc692 100644
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+@@ -165,6 +165,28 @@ void AudioService::Start() {
+ #endif
+ 
+     /* Start the opus codec task */
++#if CONFIG_MAIPAI_OPUS_STACK_PSRAM
++    // Patch M02: the 24 KB stack lives in PSRAM (static task, so it can end itself and start again on the same memory).
++    // This task only decodes, resamples, encodes and queues: it never reads saved settings or touches flash (the TC02
++    // rule; scripts/check on the task list lists it). The callbacks it runs only set event bits.
++    static StackType_t* s_opus_stack = nullptr;
++    static StaticTask_t* s_opus_tcb = nullptr;
++    const uint32_t kOpusStack = 2048 * 12;
++    if (s_opus_stack == nullptr) {
++        s_opus_stack = static_cast<StackType_t*>(heap_caps_malloc(kOpusStack, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        s_opus_tcb = static_cast<StaticTask_t*>(heap_caps_malloc(sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
++    }
++    if (s_opus_stack != nullptr && s_opus_tcb != nullptr) {
++        opus_codec_task_handle_ = xTaskCreateStatic(
++            [](void* arg) {
++                AudioService* audio_service = (AudioService*)arg;
++                audio_service->OpusCodecTask();
++                vTaskDelete(NULL);
++            },
++            "opus_codec", kOpusStack, this, 5, s_opus_stack, s_opus_tcb);
++        return;
++    }
++#endif
+     xTaskCreate(
+         [](void* arg) {
+             AudioService* audio_service = (AudioService*)arg;
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index a6ce48e..45ea3a3 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -314,6 +314,13 @@ config MAIPAI_MEMORY_LINE
+         Prints the five numbers the memory gate reads (docs/design/firmware-memory.md) as one log line at WARN, so a
+         release-level log shows them. Off here: the old INFO line only. A bench and soak build turns it on.
+ 
++config MAIPAI_OPUS_STACK_PSRAM
++    bool "Opus codec task stack (24 KB) in PSRAM instead of internal RAM"
++    default y
++    help
++        Frees 24 KB of internal RAM. The task only decodes, resamples, encodes and queues audio and never reads saved
++        settings or calls flash (the rule in patch TC02). Turn off to put the stack back in internal RAM.
++
+ config MAIPAI_FACE_FLUID
+     bool "Fluid face: eased eyes and tilt, a smooth blink, gaze drift, a mouth that follows the voice, a faster draw loop"
+     default y

@@ -1,0 +1,274 @@
+# Intent: Fast eyes, part 5 (bench builds only). Counters that say why a face is not smooth: every gap of 40 ms or more between two refreshes (under 400 ms, longer is a still face) with what it was made of (the refresh that ended it, what the avatar update held the screen lock for, the rest: the screen task asleep, waiting or pushed aside), the whole time a pass of the update loop held the screen lock, what building a picture costs (avg_pic_ms, pic_per_s), and the A/B switches of one image: self.face.bench_mode sprite_off 1 (shape lists, patch V23), ls_wide 1 (servo and LED buses under the lock, patch V25), one_buffer 1 (one half buffer, patch V26). self.face.bench_run also writes its answer as one FACERUN log line, because the long reply on the cable can be cut by another task's log line. The counter snapshots (four 100 bin histograms) are static, not on the main task's 6 KB stack: with the new counters they overflowed it (found on the unit, 2026-11-16).
+# Placement: unit (bench builds only)
+# Upstream: firmware/main/hal/maipai_facebench.{cc,h} (ours, patches H01, V20)
+# Check after a flash: self.face.bench_run what move answers slow_gaps, avg_hold_ms, avg_pic_ms and writes a FACERUN line; bench_mode one_buffer 1 and 0 switch the draw buffers while the face runs.
+
+diff --git a/firmware/main/hal/maipai_facebench.cc b/firmware/main/hal/maipai_facebench.cc
+
+--- a/firmware/main/hal/maipai_facebench.cc
++++ b/firmware/main/hal/maipai_facebench.cc
+@@ -34,12 +34,17 @@
+ #include <atomic>
+ #include <cstdio>
+ #include <cstdlib>
++#include <src/display/lv_display_private.h>  // patch V26: the two draw buffers of the display (bench A/B only)
++#include <cstring>
+ #include <string>
+ 
+ static const char* TAG = "MAIPAI-FACEBENCH";
+ 
+ extern "C" {
+ volatile int g_md_legacy = 0;
++extern volatile int g_msp_off;
++extern volatile int g_ls_wide;
++extern void (*g_msp_timing)(uint32_t us);
+ }
+ static lv_display_t* s_disp = nullptr;
+ 
+@@ -61,6 +66,23 @@ std::atomic<uint32_t> s_upd_max_us{0}, s_lock_max_us{0};
+ std::atomic<uint32_t> s_h_refr[kHist], s_h_gap[kHist], s_h_upd[kHist];
+ uint64_t s_wait_start = 0, s_wait_sum = 0, s_last_ready = 0;
+ 
++// Patch V24: what a slow gap (40 ms or more between two refreshes) was made of. render = the refresh that ended it, upd = what the avatar
++// update held the screen lock for inside it; the rest is the screen task asleep, waiting for the lock, or pushed aside by another task.
++std::atomic<uint32_t> s_jank_n{0};
++std::atomic<uint64_t> s_jank_gap_us{0}, s_jank_render_us{0}, s_jank_upd_us{0}, s_jank_max_us{0};
++uint64_t s_gap_upd_acc = 0;
++
++// Patch V26: what building the eye pictures and the mouth mask cost (microseconds, and how many), and the buffer A/B.
++std::atomic<uint64_t> s_pic_us{0};
++std::atomic<uint32_t> s_pic_n{0};
++lv_draw_buf_t* s_buf1 = nullptr;
++lv_draw_buf_t* s_buf2 = nullptr;
++
++// Patch V25: the whole time one pass held the screen lock.
++std::atomic<uint64_t> s_hold_us{0};
++std::atomic<uint32_t> s_hold_max_us{0};
++std::atomic<uint32_t> s_h_hold[kHist];
++
+ void hist_add(std::atomic<uint32_t>* h, uint64_t us)
+ {
+     uint64_t b = us / 1000;
+@@ -90,11 +112,16 @@ struct Snap {
+     uint64_t px, refr_us, at_us;
+     uint64_t wait_us, render_us, lock_us, upd_us;
+     uint32_t h_refr[kHist], h_gap[kHist], h_upd[kHist];
++    uint32_t jank_n;
++    uint64_t jank_gap_us, jank_render_us, jank_upd_us, hold_us, pic_us;
++    uint32_t pic_n;
++    uint32_t h_hold[kHist];
+ };
+ 
+-Snap now_snap()
++// Snapshots are large (four histograms): they live in static storage, never on a task's stack (the main task has 6 KB, patch M04).
++void snap_into(Snap* sp)
+ {
+-    Snap s{};
++    Snap& s = *sp;
+     s.refresh = s_refresh.load();
+     s.flush = s_flush.load();
+     s.loop = s_loop.load();
+@@ -105,12 +132,19 @@ Snap now_snap()
+     s.render_us = s_render_us.load();
+     s.lock_us = s_lock_us.load();
+     s.upd_us = s_upd_us.load();
++    s.jank_n = s_jank_n.load();
++    s.jank_gap_us = s_jank_gap_us.load();
++    s.jank_render_us = s_jank_render_us.load();
++    s.jank_upd_us = s_jank_upd_us.load();
++    s.hold_us = s_hold_us.load();
++    s.pic_us = s_pic_us.load();
++    s.pic_n = s_pic_n.load();
++    for (int i = 0; i < kHist; i++) s.h_hold[i] = s_h_hold[i].load();
+     for (int i = 0; i < kHist; i++) {
+         s.h_refr[i] = s_h_refr[i].load();
+         s.h_gap[i] = s_h_gap[i].load();
+         s.h_upd[i] = s_h_upd[i].load();
+     }
+-    return s;
+ }
+ 
+ // The millisecond at which `frac` of the samples between two snapshots lie at or below.
+@@ -149,12 +183,13 @@ std::string rates(const Snap& a, const Snap& b)
+             active_s++;
+         }
+     }
+-    char out[900];
+-    snprintf(out, sizeof(out),
++    std::string out(1400, '\0');
++    snprintf(&out[0], out.size(),
+              "\"seconds\":%.1f,\"refresh_per_s\":%.1f,\"flush_per_s\":%.1f,\"full_frames_per_s\":%.1f,"
+              "\"avg_refresh_ms\":%.1f,\"loop_per_s\":%.1f,\"peak_refresh_per_s\":%u,\"active_seconds\":%u,"
+              "\"active_refresh_per_s\":%.1f,\"avg_px\":%.0f,\"avg_render_ms\":%.2f,\"avg_wait_ms\":%.2f,\"avg_lock_ms\":%.2f,"
+-             "\"avg_upd_ms\":%.2f,\"p50_refresh_ms\":%d,\"p99_refresh_ms\":%d,\"p50_gap_ms\":%d,\"p99_gap_ms\":%d,\"p99_upd_ms\":%d,\"face_task_stack_min_free\":%u",
++             "\"avg_upd_ms\":%.2f,\"p50_refresh_ms\":%d,\"p99_refresh_ms\":%d,\"p50_gap_ms\":%d,\"p99_gap_ms\":%d,\"p99_upd_ms\":%d,\"face_task_stack_min_free\":%u,"
++             "\"slow_gaps\":%u,\"slow_gap_ms\":%.1f,\"slow_gap_render_ms\":%.1f,\"slow_gap_upd_ms\":%.1f,\"slow_gap_other_ms\":%.1f,\"avg_hold_ms\":%.2f,\"p99_hold_ms\":%d,\"pic_per_s\":%.1f,\"avg_pic_ms\":%.2f",
+              sec, refreshes / sec, (b.flush - a.flush) / sec, (b.px - a.px) / 76800.0 / sec,
+              refreshes ? (b.refr_us - a.refr_us) / 1000.0 / refreshes : 0.0, (b.loop - a.loop) / sec,
+              static_cast<unsigned>(peak), static_cast<unsigned>(active_s), active_s ? static_cast<double>(active_n) / active_s : 0.0,
+@@ -164,7 +199,15 @@ std::string rates(const Snap& a, const Snap& b)
+              (b.loop - a.loop) ? (b.lock_us - a.lock_us) / 1000.0 / (b.loop - a.loop) : 0.0,
+              (b.loop - a.loop) ? (b.upd_us - a.upd_us) / 1000.0 / (b.loop - a.loop) : 0.0,
+              pct_ms(a.h_refr, b.h_refr, 0.5), pct_ms(a.h_refr, b.h_refr, 0.99), pct_ms(a.h_gap, b.h_gap, 0.5),
+-             pct_ms(a.h_gap, b.h_gap, 0.99), pct_ms(a.h_upd, b.h_upd, 0.99), static_cast<unsigned>(s_stack_min.load()));
++             pct_ms(a.h_gap, b.h_gap, 0.99), pct_ms(a.h_upd, b.h_upd, 0.99), static_cast<unsigned>(s_stack_min.load()),
++             static_cast<unsigned>(b.jank_n - a.jank_n),
++             (b.jank_n - a.jank_n) ? (b.jank_gap_us - a.jank_gap_us) / 1000.0 / (b.jank_n - a.jank_n) : 0.0,
++             (b.jank_n - a.jank_n) ? (b.jank_render_us - a.jank_render_us) / 1000.0 / (b.jank_n - a.jank_n) : 0.0,
++             (b.jank_n - a.jank_n) ? (b.jank_upd_us - a.jank_upd_us) / 1000.0 / (b.jank_n - a.jank_n) : 0.0,
++             (b.jank_n - a.jank_n) ? ((b.jank_gap_us - a.jank_gap_us) - (b.jank_render_us - a.jank_render_us) - (b.jank_upd_us - a.jank_upd_us)) / 1000.0 / (b.jank_n - a.jank_n) : 0.0,
++             (b.loop - a.loop) ? (b.hold_us - a.hold_us) / 1000.0 / (b.loop - a.loop) : 0.0, pct_ms(a.h_hold, b.h_hold, 0.99), (b.pic_n - a.pic_n) / sec,
++             (b.pic_n - a.pic_n) ? (b.pic_us - a.pic_us) / 1000.0 / (b.pic_n - a.pic_n) : 0.0);
++    out.resize(strlen(out.c_str()));
+     return out;
+ }
+ 
+@@ -189,7 +232,16 @@ void on_event(lv_event_t* e)
+             s_wait_us += s_wait_sum;
+             s_render_us += (t - s_refr_start) > s_wait_sum ? (t - s_refr_start) - s_wait_sum : 0;
+             hist_add(s_h_refr, t - s_refr_start);
+-            if (s_last_ready != 0) hist_add(s_h_gap, t - s_last_ready);
++            if (s_last_ready != 0) {
++                hist_add(s_h_gap, t - s_last_ready);
++                if (t - s_last_ready >= 40000 && t - s_last_ready < 400000) {  // longer than that is a still face, not a slow one
++                    s_jank_n++;
++                    s_jank_gap_us += t - s_last_ready;
++                    s_jank_render_us += t - s_refr_start;
++                    s_jank_upd_us += s_gap_upd_acc;
++                }
++            }
++            s_gap_upd_acc = 0;
+             s_last_ready = t;
+             break;
+         }
+@@ -208,7 +260,8 @@ void on_event(lv_event_t* e)
+ 
+ void log_tick(lv_timer_t*)
+ {
+-    const Snap n = now_snap();
++    static Snap n;
++    snap_into(&n);
+     ESP_LOGW(TAG, "FACEFPS %s", rates(s_last_log, n).c_str());
+     s_last_log = n;
+ }
+@@ -235,7 +288,8 @@ int speech_pattern(uint32_t t_ms)
+ std::string run_workload(const std::string& what, int seconds, int level)
+ {
+     const int64_t end_us = esp_timer_get_time() + static_cast<int64_t>(seconds) * 1000000;
+-    const Snap start     = now_snap();
++    static Snap start, fin;
++    snap_into(&start);
+     if (what == "talk") {
+         set_status(Lang::Strings::SPEAKING);
+         const int64_t t0 = esp_timer_get_time();
+@@ -291,7 +345,10 @@ std::string run_workload(const std::string& what, int seconds, int level)
+     } else {
+         vTaskDelay(pdMS_TO_TICKS(seconds * 1000));  // idle: the face as shipped, nothing asked of it
+     }
+-    return std::string("{\"ok\":true,\"what\":\"") + what + "\"," + rates(start, now_snap()) + "}";
++    const std::string out = std::string("{\"ok\":true,\"what\":\"") + what + "\"," + rates(start, (snap_into(&fin), fin)) + "}";
++    // One log line is written whole; a long reply on the cable can be cut by another task's log line, so the Mac reads this one.
++    ESP_LOGW(TAG, "FACERUN %s", out.c_str());
++    return out;
+ }
+ 
+ // A short task that holds the speaking look and a steady speech level, so the screen can be dumped while the unit "speaks"
+@@ -369,12 +426,15 @@ void maipai_facebench_attach(lv_display_t* display)
+ {
+     lvgl_port_lock(0);
+     s_disp = display;
++    g_msp_timing = maipai_facebench_picture;  // patch V26
++    s_buf1 = display->buf_1;
++    s_buf2 = display->buf_2;
+     lv_display_add_event_cb(display, on_event, LV_EVENT_REFR_START, nullptr);
+     lv_display_add_event_cb(display, on_event, LV_EVENT_REFR_READY, nullptr);
+     lv_display_add_event_cb(display, on_event, LV_EVENT_FLUSH_START, nullptr);
+     lv_display_add_event_cb(display, on_event, LV_EVENT_FLUSH_WAIT_START, nullptr);
+     lv_display_add_event_cb(display, on_event, LV_EVENT_FLUSH_WAIT_FINISH, nullptr);
+-    s_last_log  = now_snap();
++    snap_into(&s_last_log);
+     s_last_tool = s_last_log;
+     lv_timer_create(log_tick, 10000, nullptr);
+     lvgl_port_unlock();
+@@ -389,6 +449,7 @@ void maipai_facebench_loop_times(uint32_t lock_us, uint32_t upd_us)
+ {
+     s_lock_us += lock_us;
+     s_upd_us += upd_us;
++    s_gap_upd_acc += upd_us;
+     if (upd_us > s_upd_max_us.load()) s_upd_max_us.store(upd_us);
+     if (lock_us > s_lock_max_us.load()) s_lock_max_us.store(lock_us);
+     hist_add(s_h_upd, upd_us);
+@@ -396,6 +457,18 @@ void maipai_facebench_loop_times(uint32_t lock_us, uint32_t upd_us)
+     if (hw < s_stack_min.load()) s_stack_min.store(hw);
+ }
+ 
++void maipai_facebench_picture(uint32_t us)
++{
++    s_pic_us += us;
++    s_pic_n++;
++}
++
++void maipai_facebench_hold(uint32_t us)
++{
++    s_hold_us += us;
++    hist_add(s_h_hold, us);
++}
++
+ void maipai_facebench_register_tools()
+ {
+     auto& mcp = McpServer::GetInstance();
+@@ -403,7 +476,8 @@ void maipai_facebench_register_tools()
+                 "Bench only: the face draw rate since the last call: screen refreshes per second, full-frame equivalents per "
+                 "second, average refresh time and passes of the update loop per second.",
+                 std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
+-                    const Snap n = now_snap();
++                    static Snap n;
++                    snap_into(&n);
+                     const std::string out = "{\"ok\":true," + rates(s_last_tool, n) + "}";
+                     s_last_tool = n;
+                     return out;
+@@ -411,9 +485,20 @@ void maipai_facebench_register_tools()
+     mcp.AddTool("self.face.bench_mode",
+                 "Bench only (patch V20): switch between the old drawing and the new one on the same image. dirty 1 = the old whole-box redraw of "
+                 "every part, 0 = only the shapes that changed.",
+-                PropertyList({Property("dirty", kPropertyTypeInteger, 0, 0, 1)}),
++                PropertyList({Property("dirty", kPropertyTypeInteger, 0, 0, 1), Property("sprite_off", kPropertyTypeInteger, 0, 0, 1),
++                              Property("ls_wide", kPropertyTypeInteger, 0, 0, 1), Property("one_buffer", kPropertyTypeInteger, 0, 0, 1)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     g_md_legacy = properties["dirty"].value<int>();
++                    g_msp_off   = properties["sprite_off"].value<int>();  // patch V23: 1 draws shape lists again, 0 uses the pictures
++                    g_ls_wide   = properties["ls_wide"].value<int>();     // patch V25: 1 keeps the servo and LED buses under the screen lock
++                    if (s_disp != nullptr && s_buf2 != nullptr) {  // patch V26: 1 draws into one half buffer only (no overlap of drawing and the SPI flush)
++                        const bool one = properties["one_buffer"].value<int>() != 0;
++                        LvglLockGuard lock;
++                        while (s_disp->flushing) {
++                            vTaskDelay(1);
++                        }
++                        lv_display_set_draw_buffers(s_disp, s_buf1, one ? nullptr : s_buf2);
++                    }
+                     return std::string("{\"ok\":true}");
+                 });
+     mcp.AddTool("self.face.bench_run",
+
+diff --git a/firmware/main/hal/maipai_facebench.h b/firmware/main/hal/maipai_facebench.h
+
+--- a/firmware/main/hal/maipai_facebench.h
++++ b/firmware/main/hal/maipai_facebench.h
+@@ -17,11 +17,17 @@ void maipai_facebench_attach(lv_display_t* display);
+ void maipai_facebench_loop_tick();
+ // Patch V20: how long one pass waited for the screen lock and how long the avatar update took, microseconds.
+ void maipai_facebench_loop_times(uint32_t lock_us, uint32_t upd_us);
++// Patch V25: how long one pass held the screen lock in all (the update, the status bar, a skipped rest of the pass).
++void maipai_facebench_hold(uint32_t us);
++// Patch V26: how long building one eye picture or the mouth mask took.
++void maipai_facebench_picture(uint32_t us);
+ // Registers self.face.bench_fps, bench_run, bench_speak and snapshot.
+ void maipai_facebench_register_tools();
+ #else
+ inline void maipai_facebench_attach(lv_display_t*) {}
+ inline void maipai_facebench_loop_tick() {}
+ inline void maipai_facebench_loop_times(uint32_t, uint32_t) {}
++inline void maipai_facebench_hold(uint32_t) {}
++inline void maipai_facebench_picture(uint32_t) {}
+ inline void maipai_facebench_register_tools() {}
+ #endif

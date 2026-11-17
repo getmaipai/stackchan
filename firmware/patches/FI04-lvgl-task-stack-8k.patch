@@ -1,0 +1,18 @@
+# Intent: The LVGL task's stack was the port's default 7168 bytes. In the final gate run under screen effects (CRT, overlays, the banner and subtitle text) its lowest free stack fell to 976 bytes, under the 1024 byte floor of the stack gate (2,224 free early in the same run). It is now 8192 bytes (internal RAM +1 KB; the gate has 30 KB to spare), which leaves at least 2 KB.
+# Placement: unit (display task of the robot firmware)
+# Upstream: firmware/main/hal/board/stackchan_display.cc (ours); the port's lvgl_port_cfg_t of esp_lvgl_port
+# Check after a flash: the memory line's stk entry for taskLVGL stays above 2,048 through the stress run with CRT, every overlay and a speaking turn; internal_free is about 1 KB lower than without the patch.
+
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -195,6 +195,9 @@ StackChanAvatarDisplay::StackChanAvatarDisplay(esp_lcd_panel_io_handle_t panel_i
+     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+     // port_cfg.task_priority   = 20;
+     port_cfg.task_priority = 3;
++    // Patch FI04: the LVGL task's stack was 7168 bytes (the default). Under the screen effects, the overlays and the banner and
++    // subtitle text it fell to 976 free (the gate floor is 1024); 8192 keeps at least 2 KB free. Internal RAM: +1 KB.
++    port_cfg.task_stack = 8192;
+ #if CONFIG_SOC_CPU_CORES_NUM > 1
+     port_cfg.task_affinity = 1;
+ #endif

@@ -160,6 +160,7 @@ class SettingsBackend:
                     "ignore_noise": own.get("ignore_noise", "medium"),
                     "look_speaker": own.get("look_speaker", False),
                     "look_faces": own.get("look_faces", False),
+                    "face_owner": own.get("face_owner", "robot"),
                     "wait_after_talking": own.get("wait_after_talking", "quick"),
                     "firmware_version": live.get("firmware_version"),
                     "online": live.get("online"),
@@ -260,7 +261,7 @@ class SettingsBackend:
                 "That unit is not paired. Pair it first, then open its settings."
             )
 
-    _DEVICE_KEYS = ("volume", "brightness", "idle_motion", "idle_movement", "look_speaker", "look_faces", "led", "mute", "vision_off", "quiet")
+    _DEVICE_KEYS = ("volume", "brightness", "idle_motion", "idle_movement", "look_speaker", "look_faces", "face_owner", "led", "mute", "vision_off", "quiet")
 
     def _saved_device(self, device_id: str) -> dict[str, Any]:
         own = self.store.get(device_id)
@@ -271,6 +272,7 @@ class SettingsBackend:
             "idle_movement": own.get("idle_movement", "off"),
             "look_speaker": own.get("look_speaker", False),
             "look_faces": own.get("look_faces", False),
+            "face_owner": own.get("face_owner", "robot"),
             "led": own.get("led", "off"),
         }
 
@@ -289,6 +291,13 @@ class SettingsBackend:
                 self.store.update(device_id, {key: value})
                 self._notify_saved(device_id, {key: value})
                 return {"ok": True, key: value}
+            elif key == "face_owner":
+                if value not in ("robot", "hub", "off"):
+                    raise SettingsError("Who turns toward faces must be this robot, my Home hub or off. Pick one and save again.")
+                self.store.update(device_id, {"face_owner": value})
+                self._notify_saved(device_id, {"face_owner": value})
+                pushed = self.polish.prefs.resend_look(device_id, lang)  # the unit hears "off", or its own choice again
+                return {"ok": True, "face_owner": value, "pushed": pushed.get("pushed"), "pending": bool(pushed.get("pending")), "message": pushed.get("message", "")}
             elif key == "idle_movement":
                 # The host decides every idle head move from this level (power_idle and the looks
                 # in app.py); the unit's own flag follows it, so nothing here talks to the unit.

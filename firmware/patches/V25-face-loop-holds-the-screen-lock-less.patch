@@ -1,0 +1,91 @@
+# Intent: Fast eyes, part 6. The face update loop held the screen lock for the whole of StackChan::update(), which also writes the head servos (UART bus) and the LED strips, so the screen could not draw for as long as those buses took; LVGL and the loop run at the same priority on one core and serialise on that lock. StackChan::update() is split: updateScreen() (modifiers and avatar, needs the lock) and updateBody() (servos and LEDs, does not). The loop writes the buses first, then takes the lock for the screen part and the status bar. A bench A/B (self.face.bench_mode ls_wide 1) puts the old scope back on the same image.
+# Placement: unit (the lock scope is in every image)
+# Upstream: firmware/main/stackchan/stackchan.h of the StackChan main component (MIT); firmware/main/hal/hal.cpp (ours, patches H01, V20)
+# Check after a flash: head moves and light colours still work (they are written one pass earlier, outside the lock); self.face.bench_run what move answers avg_hold_ms and p99_hold_ms.
+
+diff --git a/firmware/main/stackchan/stackchan.h b/firmware/main/stackchan/stackchan.h
+
+--- a/firmware/main/stackchan/stackchan.h
++++ b/firmware/main/stackchan/stackchan.h
+@@ -128,6 +128,15 @@ public:
+      *
+      */
+     void update()
++    {
++        updateScreen();
++        updateBody();
++    }
++
++    /**
++     * @brief Patch V25: the part of update() that draws on the screen (the modifiers and the avatar). Call it with the screen lock held.
++     */
++    void updateScreen()
+     {
+         _modifier_pool.forEach([this](Modifier* modifier, int id) { modifier->_update(*this); });
+         _modifier_pool.cleanup();
+@@ -135,7 +144,14 @@ public:
+         if (_avatar) {
+             _avatar->update();
+         }
++    }
+ 
++    /**
++     * @brief Patch V25: the part of update() that talks to the servo and the LED buses. It needs no screen lock: with the lock held it
++     * kept the screen from drawing for as long as the buses took.
++     */
++    void updateBody()
++    {
+         if (_motion) {
+             _motion->update();
+         }
+
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -137,6 +137,18 @@ void Hal::xiaozhi_board_init()
+     hal_bridge::xiaozhi_board_init();
+ }
+ 
++// Patch V25: 1 keeps the servo and LED bus writes under the screen lock, as before (bench A/B only).
++extern "C" {
++volatile int g_ls_wide = 0;
++}
++
++// Patch V25: how long one pass of the update loop held the screen lock, whichever way the pass ends (bench builds count it).
++struct HoldTimer {
++    int64_t t0;
++    explicit HoldTimer(int64_t start) : t0(start) {}
++    ~HoldTimer() { maipai_facebench_hold(static_cast<uint32_t>(esp_timer_get_time() - t0)); }
++};
++
+ static void _stackchan_update_task(void* param)
+ {
+     bool is_setup_done = false;
+@@ -149,9 +161,14 @@ static void _stackchan_update_task(void* param)
+         maipai_daily_tick();   // the daily rules: low battery and the rest (patches T01 to T05)
+         maipai_packs_boot_poll(hal_bridge::is_xiaozhi_ready());  // patch FM04: the saved look and filler, once, at the first standby
+ 
++        // Patch V25: the servo and LED buses are written before the screen lock is taken, not under it (bench A/B: ls_wide 1 puts them back).
++        if (!g_ls_wide) {
++            GetStackChan().updateBody();
++        }
+         const int64_t lock_t0 = esp_timer_get_time();
+         LvglLockGuard lock;
+         const int64_t upd_t0 = esp_timer_get_time();
++        HoldTimer hold(upd_t0);
+ 
+ #if !CONFIG_MAIPAI_FACE_FLUID
+         // The base slept 100 ms here WITH the screen lock held while the unit was busy, so the screen could draw only a
+@@ -161,7 +178,10 @@ static void _stackchan_update_task(void* param)
+         }
+ #endif
+ 
+-        GetStackChan().update();
++        GetStackChan().updateScreen();
++        if (g_ls_wide) {
++            GetStackChan().updateBody();
++        }
+         maipai_facebench_loop_tick();  // patch H01: bench builds count passes of this loop
+         maipai_facebench_loop_times(static_cast<uint32_t>(upd_t0 - lock_t0), static_cast<uint32_t>(esp_timer_get_time() - upd_t0));
+ 

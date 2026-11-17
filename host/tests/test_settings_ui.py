@@ -102,7 +102,7 @@ def test_volume_brightness_led_idle_motion_save_send_and_read_back(sim) -> None:
     assert units[KITCHEN].device["self.audio_speaker.set_volume"] == {"volume": 35}
     assert units[KITCHEN].device["self.robot.set_led_color"] == {"red": 42, "green": 126, "blue": 168}
     saved = _get(backend, KITCHEN, "overview")[1]["saved"]
-    assert saved == {"volume": 35, "brightness": 60, "idle_motion": False, "idle_movement": "off", "look_speaker": False, "look_faces": False, "led": "#40c0ff"}
+    assert saved == {"volume": 35, "brightness": 60, "idle_motion": False, "idle_movement": "off", "look_speaker": False, "look_faces": False, "face_owner": "robot", "led": "#40c0ff"}
 
 
 def test_bad_values_are_refused_in_plain_words_and_change_nothing(sim) -> None:
@@ -371,3 +371,27 @@ def test_a_unit_that_rejects_a_tool_gives_a_plain_json_error_not_a_dropped_conne
     finally:
         server.stop()
         threading.Event()
+
+
+def test_who_turns_toward_faces_is_saved_validated_and_read_back(sim) -> None:
+    backend, _units = sim[0], sim[1]
+    assert _get(backend, KITCHEN, "overview")[1]["saved"]["face_owner"] == "robot"  # this robot by default
+    for value in ("hub", "off", "robot"):
+        status, payload = _post(backend, KITCHEN, "device", {"face_owner": value})
+        assert status == 200 and payload["face_owner"] == value
+        assert _get(backend, KITCHEN, "overview")[1]["saved"]["face_owner"] == value
+    status, payload = _post(backend, KITCHEN, "device", {"face_owner": "everybody"})
+    assert status >= 400 and "this robot, my Home hub or off" in json.dumps(payload)
+    assert _get(backend, KITCHEN, "overview")[1]["saved"]["face_owner"] == "robot"  # a bad value changes nothing
+    status, payload = _post(backend, KITCHEN, "prefs", {"turn_to_faces": "always"})
+    assert status == 200
+    assert _get(backend, KITCHEN, "prefs")[1]["values"]["turn_to_faces"] == "always"
+    status, payload = _post(backend, KITCHEN, "prefs", {"turn_to_faces": "sometimes"})
+    assert status >= 400 and "turn to faces" in json.dumps(payload)
+
+
+def test_the_page_script_has_the_turn_toward_faces_card_and_its_words_in_every_language() -> None:
+    assert "lookSeekCard" in settings_ui.JS and "face_owner" in settings_ui.JS
+    for code in i18n.SUPPORTED:
+        for key in ("look.title", "look.mode", "look.owner", "turn_to_faces.talk", "face_owner.hub"):
+            assert f"settings.ui.pol.{key}" in i18n.CATALOG[code], (code, key)

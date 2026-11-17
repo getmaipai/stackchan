@@ -1691,6 +1691,9 @@ class StackChanBehavior:
                     "wifi": "unit wifi",
                     "offline_tap": "unit offline",
                     "coredump": "unit crash",
+                    "boot_core": "unit crash",
+                    "firmware_update_validated": "unit update",
+                    "firmware_update_rolled_back": "unit update",
                     "heal": "unit heal",
                     "wake_selftest": "unit wake",
                     "sound_played": "unit sound",
@@ -2859,6 +2862,7 @@ async def _serve_stackchan_channels(
         polish.attach(bridge)
         voice.polish = polish  # the settings page reads the same state
         voice.session_listeners.append(polish.on_connect)
+        _wire_look_owner(voice, units, behavior, polish, stop_event)
         from maipai_body.selftest.stackchan_wiring import build_context, build_service_hooks
         from maipai_body.speech.turn_client import TurnClient
 
@@ -2904,6 +2908,36 @@ async def _serve_stackchan_channels(
 _IDLE_LEVELS = {"off": "still", "calm": "calm", "lively": "lively"}
 
 
+def _wire_look_owner(voice, units, behavior, polish, stop_event) -> None:
+    """Who turns toward faces (look_owner.py): the heartbeat that holds the unit's owner lease while the Home hub's tracking runs."""
+    from maipai_body.look_owner import LookLeaseRunner, LookOwner
+
+    def hub_configured() -> bool:
+        return getattr(units.base, "brain", "llm") == "home" or bool(os.environ.get("MAIPAI_HUB_URL", "").strip())
+
+    def tracking() -> bool:
+        vision = getattr(behavior, "_vision", None)
+        ready = getattr(behavior, "_look_ready", None)
+        return bool(
+            vision is not None
+            and callable(ready)
+            and ready()
+            and (behavior.look_toward_speaker or behavior.look_for_faces)
+            and behavior.watch_level() != "off"
+        )
+
+    owner = LookOwner(polish.probe, units.store.get, hub_configured=hub_configured, tracking=tracking)
+    voice.look_owner = owner
+    voice.session_listeners.append(owner.forget)
+    runner = LookLeaseRunner(
+        owner,
+        lambda: list(getattr(voice, "_sessions", ())),
+        stop_event,
+        apply=lambda device_id: getattr(voice, "look_sync", lambda _id: None)(device_id),
+    )
+    threading.Thread(target=runner.run, name="look-lease", daemon=True).start()
+
+
 def _wire_idle_setting(backend, units, behavior, voice) -> None:
     """The page's "Idle movement" (off, calm, lively; default off) sets the one idle level every
     ambient head move is gated on. It is applied at start, when a unit connects, and on each save."""
@@ -2915,10 +2949,26 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
             behavior.on_idle_level()
         if "idle_motion" in values and getattr(behavior, "resync_idle", None) is not None:
             behavior.resync_idle()
-        for key, attr in (("look_speaker", "look_toward_speaker"), ("look_faces", "look_for_faces")):
+        for key in ("look_speaker", "look_faces"):
             if isinstance(values.get(key), bool):
-                setattr(behavior, attr, values[key])
+                choice[key] = values[key]
+        sync_look(device_id)
 
+    def sync_look(device_id: str) -> None:
+        """The host's own face search (this person's two choices) runs only when it owns face seeking, or when the robot owns it
+        but this unit cannot seek yet (look_owner.py); with no owner service every choice applies as before."""
+        owner = getattr(voice, "look_owner", None)
+        may = True
+        if owner is not None:
+            try:
+                may = owner.host_may_search(device_id)
+            except Exception:
+                may = True
+        behavior.look_toward_speaker = bool(choice["look_speaker"]) and may
+        behavior.look_for_faces = bool(choice["look_faces"]) and may
+
+    choice = {"look_speaker": False, "look_faces": False}
+    voice.look_sync = sync_look
     backend.on_saved = apply
 
     def on_connect(device_id: str) -> None:

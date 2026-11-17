@@ -1,0 +1,113 @@
+# Intent: self.face.snapshot (bench builds only) took the active screen and left out the top layer, so the banner row, the strip glyphs and the subtitles never showed in the pictures used to judge the screen. It now also takes the top layer with its alpha and lays it over the screen picture before writing it on the cable, so the picture is what the glass shows. The snapshot also runs on a worker whose stack is in PSRAM: every MCP tool runs on the main task (a 6 KB stack since patch M04) and drawing the screen twice there left 316 bytes free; the worker draws through LVGL and writes on the cable (no settings, no flash), the tool waits for it. A new bench tool self.face.bench_caption gives the face its words (the avatar's speech text, routed by the Captions setting) so the subtitle strip and the banner caption can be captured: the own-LLM host sends no sentence text with a reply today, so no real turn shows subtitles.
+# Placement: unit (bench build only; the plain image has no snapshot tool)
+# Upstream: firmware/main/hal/maipai_facebench.cc (ours, patch H01)
+# Check after a flash (bench image): a snapshot with a remote session chip or a message up shows the row at the top; a snapshot while the robot speaks shows the subtitle strip at the bottom; the memory line's stk entry for main does not fall after a snapshot.
+
+diff --git a/firmware/main/hal/maipai_facebench.cc b/firmware/main/hal/maipai_facebench.cc
+--- a/firmware/main/hal/maipai_facebench.cc
++++ b/firmware/main/hal/maipai_facebench.cc
+@@ -23,6 +23,8 @@
+ #include <esp_log.h>
+ #include <esp_timer.h>
+ #include <freertos/FreeRTOS.h>
++#include <freertos/idf_additions.h>
++#include <freertos/semphr.h>
+ #include <freertos/task.h>
+ #include <board.h>
+ #include <display.h>
+@@ -372,12 +374,34 @@ void speak_task(void* arg)
+     vTaskDelete(nullptr);
+ }
+ 
+-void dump_snapshot()
++void snapshot_body()
+ {
+     lv_draw_buf_t* buf;
+     {
+         LvglLockGuard lock;
+         buf = lv_snapshot_take(lv_screen_active(), LV_COLOR_FORMAT_RGB565);
++        // Patch FI04: the banner row, the strip and the subtitles live on the top layer, which a screen snapshot leaves out.
++        // Take that layer as well (with its alpha) and lay it over the screen, so the picture is what the glass shows.
++        lv_draw_buf_t* top = buf != nullptr ? lv_snapshot_take(lv_layer_top(), LV_COLOR_FORMAT_ARGB8888) : nullptr;
++        if (top != nullptr) {
++            const uint32_t tw = top->header.w < buf->header.w ? top->header.w : buf->header.w;
++            const uint32_t th = top->header.h < buf->header.h ? top->header.h : buf->header.h;
++            for (uint32_t y = 0; y < th; y++) {
++                const uint8_t* src = top->data + y * top->header.stride;
++                uint8_t* dst       = buf->data + y * buf->header.stride;
++                for (uint32_t x = 0; x < tw; x++) {
++                    const uint8_t b = src[x * 4], g = src[x * 4 + 1], r = src[x * 4 + 2], al = src[x * 4 + 3];
++                    if (al == 0) continue;
++                    const uint16_t px = static_cast<uint16_t>(dst[x * 2] | (dst[x * 2 + 1] << 8));
++                    const int dr = ((px >> 11) & 31) * 255 / 31, dg = ((px >> 5) & 63) * 255 / 63, db = (px & 31) * 255 / 31;
++                    const int rr = (r * al + dr * (255 - al)) / 255, rg = (g * al + dg * (255 - al)) / 255, rb = (b * al + db * (255 - al)) / 255;
++                    const uint16_t out = static_cast<uint16_t>(((rr >> 3) << 11) | ((rg >> 2) << 5) | (rb >> 3));
++                    dst[x * 2]         = out & 0xFF;
++                    dst[x * 2 + 1]     = out >> 8;
++                }
++            }
++            lv_draw_buf_destroy(top);
++        }
+     }
+     if (buf == nullptr) {
+         return;
+@@ -420,6 +444,38 @@ void dump_snapshot()
+     fflush(stdout);
+     lv_draw_buf_destroy(buf);
+ }
++
++// Patch FI03: the MCP tools run on the main task (a 6 KB stack since patch M04), and drawing the screen twice for a snapshot
++// left only 316 bytes free there. The snapshot is taken by a worker whose stack is in PSRAM (bench builds only; it draws through LVGL
++// and writes on the cable, no settings and no flash). The tool waits for it.
++SemaphoreHandle_t s_snap_req  = nullptr;
++SemaphoreHandle_t s_snap_done = nullptr;
++
++void snapshot_worker(void*)
++{
++    for (;;) {
++        xSemaphoreTake(s_snap_req, portMAX_DELAY);
++        snapshot_body();
++        xSemaphoreGive(s_snap_done);
++    }
++}
++
++void dump_snapshot()
++{
++    if (s_snap_req == nullptr) {
++        s_snap_req  = xSemaphoreCreateBinary();
++        s_snap_done = xSemaphoreCreateBinary();
++        if (s_snap_req == nullptr || s_snap_done == nullptr ||
++            xTaskCreatePinnedToCoreWithCaps(snapshot_worker, "snap_worker", 8 * 1024, nullptr, 2, nullptr, 1, MALLOC_CAP_SPIRAM) != pdPASS) {
++            ESP_LOGW("MAIPAI-FACEBENCH", "snapshot worker not started");
++            snapshot_body();  // the old way, on the caller's stack
++            return;
++        }
++    }
++    xSemaphoreGive(s_snap_req);
++    xSemaphoreTake(s_snap_done, pdMS_TO_TICKS(90000));
++}
++
+ }  // namespace
+ 
+ void maipai_facebench_attach(lv_display_t* display)
+@@ -530,6 +586,20 @@ void maipai_facebench_register_tools()
+                     }
+                     return std::string("{\"ok\":true}");
+                 });
++    mcp.AddTool("self.face.bench_caption",
++                "Bench only: gives the face the words it would say (the avatar's speech text, routed by the Captions setting), so "
++                "self.face.snapshot can capture the subtitle strip or the banner caption. An empty text clears it.",
++                PropertyList({Property("text", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string text = properties["text"].value<std::string>();
++                    LvglLockGuard lock;
++                    auto& chan = GetStackChan();
++                    if (!chan.hasAvatar()) {
++                        return std::string("{\"ok\":false,\"error\":\"no face\"}");
++                    }
++                    chan.avatar().setSpeech(text.c_str());
++                    return std::string("{\"ok\":true}");
++                });
+     mcp.AddTool("self.face.bench_emotion",
+                 "Bench only: show an emotion exactly as the host would ask for it, optionally on a style drawn for the moment only (not saved) (neutral, happy, sad, angry, doubtful, surprised, sleepy, "
+                 "tired, closing, sleeping, love, content, thinking), so self.face.snapshot can capture it. tired_level (0 to 3) sets the "

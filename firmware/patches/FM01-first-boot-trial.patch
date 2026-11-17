@@ -1,0 +1,320 @@
+# Intent: Fable review risk 1 (2026-11-16). Patch 160 let the boot loader judge the first boot of a wirelessly installed image, so any reset before the image was kept (the vendor camera panic on about half of the cold USB boots) rolled a good image back, and a unit on a trip with no host rolled back at 60 s. Now the app marks the image good at its first boot (the boot loader's blind rule cannot fire) and keeps its own trial record in flash (namespace fwtrial): a crash reset in a boot where the camera had not yet settled (2 s after board init returns) is a free pass, at most three; a crash after that is a strike and the second strike rolls back; a power loss or software restart is no fault; the trial ends good at 20 s with the host link up or, as the second path, at 60 s with no crash and no host needed; a trial still open at 120 s (a stuck main loop, a camera init that never returns) rolls back. The rule is a pure header tested with scripted boots. Events: firmware_update_validated now carries path host or quiet; firmware_update_rolled_back is new.
+# Placement: unit (the robot decides about its own boot slot)
+# Upstream: main/hal/{hal.cpp,maipai_update.cc,maipai_update.h} (ours, patches 159 and 160); new file hal/maipai_update_core.h
+# Check after a flash: host/tests/firmware/update_core_test.c passes on the PC. On the unit after a wireless update: the log says "on trial", then "reached the host; keeping it" at about 25 s; with the host off it says "ran 60 seconds with no crash; keeping it"; a power cycle inside the first minute keeps the new image.
+
+diff --git a/firmware/main/hal/maipai_update_core.h b/firmware/main/hal/maipai_update_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_update_core.h
+@@ -0,0 +1,115 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The trial rule for a wirelessly installed image (patch FM01): the pure state machine, no ESP-IDF, so a host
++ * compiler can run it with scripted boots (host/tests/firmware/update_core_test.c).
++ *
++ * Patch 160 kept a new image only after 20 s with the host link up, and the boot loader itself rolls back any
++ * pending image that resets before it is marked good. Two faults that are not the image's own rolled back a good
++ * image: the vendor camera component panics on about half of the cold USB boots (the VSYNC interrupt fires before
++ * its queue exists), and a unit on a trip has no host at boot. Now the app marks the image good at once (so the
++ * boot loader's blind rule cannot fire) and keeps its own trial record in flash:
++ *   - a crash reset before the camera has settled in the dead boot is a free pass (at most MUC_FREE_PASSES);
++ *   - a crash reset after it is a strike; MUC_STRIKES_TO_ROLLBACK strikes roll back to the old slot;
++ *   - a power loss or a software restart is no fault at all;
++ *   - the trial ends good when the unit has run MUC_HOST_AFTER_S with the host link up, or MUC_QUIET_AFTER_S with no
++ *     crash at all (the trip case), the camera settled and the main loop alive either way;
++ *   - a trial still open at MUC_STALL_AFTER_S (a stuck main loop or a camera init that never returns) rolls back.
++ */
++#ifndef MAIPAI_UPDATE_CORE_H
++#define MAIPAI_UPDATE_CORE_H
++
++#include <stdbool.h>
++#include <stdint.h>
++
++#define MUC_FREE_PASSES 3
++#define MUC_STRIKES_TO_ROLLBACK 2
++#define MUC_HOST_AFTER_S 20
++#define MUC_QUIET_AFTER_S 60
++#define MUC_STALL_AFTER_S 120
++#define MUC_CAMERA_SETTLE_MS 2000 /* the camera counts as settled this long after board init returns */
++
++typedef struct {
++    uint8_t active;       /* a trial is open */
++    uint8_t strikes;      /* crashes after the camera had settled */
++    uint8_t free_passes;  /* crashes before it had */
++    uint8_t stage;        /* in this boot: 0 camera not settled yet, 1 settled (persisted so the next boot can judge) */
++    uint16_t boots;       /* boots since the install */
++    uint16_t pad;
++} muc_trial_t;
++
++typedef enum {
++    MUC_BOOT_IDLE = 0,   /* no trial: nothing to do */
++    MUC_BOOT_START,      /* first boot of a new image: mark it good now (defuses the boot loader), open the trial */
++    MUC_BOOT_CONTINUE,   /* a trial is open: carry on */
++    MUC_BOOT_ROLLBACK,   /* the trial is lost: go back to the old slot */
++} muc_boot_t;
++
++typedef enum {
++    MUC_STEP_IDLE = 0,   /* no trial */
++    MUC_STEP_WAIT,
++    MUC_STEP_KEEP_HOST,  /* trial ends good: the host answered */
++    MUC_STEP_KEEP_QUIET, /* trial ends good: no crash for MUC_QUIET_AFTER_S, no host needed */
++    MUC_STEP_ROLLBACK,   /* stalled: go back to the old slot */
++} muc_step_t;
++
++/* Call once per boot, before the board starts. pending is the boot loader's state of this image (pending
++ * verify = first boot after an install); crash_reset is true for a panic, a watchdog or a brownout reset. */
++static inline muc_boot_t muc_boot(muc_trial_t* t, bool pending, bool crash_reset, bool* dirty)
++{
++    *dirty = false;
++    if (pending) {
++        t->active = 1;
++        t->strikes = 0;
++        t->free_passes = 0;
++        t->stage = 0;
++        t->boots = 1;
++        *dirty = true;
++        return MUC_BOOT_START;
++    }
++    if (!t->active) {
++        return MUC_BOOT_IDLE;
++    }
++    t->boots++;
++    if (crash_reset) {
++        if (t->stage >= 1 || t->free_passes >= MUC_FREE_PASSES) {
++            t->strikes++;
++        } else {
++            t->free_passes++;
++        }
++    }
++    t->stage = 0;
++    *dirty = true;
++    return t->strikes >= MUC_STRIKES_TO_ROLLBACK ? MUC_BOOT_ROLLBACK : MUC_BOOT_CONTINUE;
++}
++
++/* Call about once a second from a task that does not depend on the main loop. up_s is the uptime of this boot,
++ * camera_settled is true MUC_CAMERA_SETTLE_MS after board init returned, loop_alive is true when the main loop
++ * ran within the last few seconds. dirty is set when the record must be saved. */
++static inline muc_step_t muc_step(muc_trial_t* t, uint32_t up_s, bool camera_settled, bool loop_alive, bool host_up,
++                                  bool* dirty)
++{
++    *dirty = false;
++    if (!t->active) {
++        return MUC_STEP_IDLE;
++    }
++    if (camera_settled && t->stage == 0) {
++        t->stage = 1;
++        *dirty = true;
++    }
++    if (t->stage >= 1 && loop_alive) {
++        if (host_up && up_s >= MUC_HOST_AFTER_S) {
++            t->active = 0;
++            *dirty = true;
++            return MUC_STEP_KEEP_HOST;
++        }
++        if (up_s >= MUC_QUIET_AFTER_S) {
++            t->active = 0;
++            *dirty = true;
++            return MUC_STEP_KEEP_QUIET;
++        }
++    }
++    return up_s >= MUC_STALL_AFTER_S ? MUC_STEP_ROLLBACK : MUC_STEP_WAIT;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_update.cc b/firmware/main/hal/maipai_update.cc
+--- a/firmware/main/hal/maipai_update.cc
++++ b/firmware/main/hal/maipai_update.cc
+@@ -2,6 +2,7 @@
+  * SPDX-License-Identifier: MIT
+  */
+ #include "maipai_update.h"
++#include "maipai_update_core.h"
+ #include "hal.h"
+ #include "device_events.h"
+ #include "board/hal_bridge.h"
+@@ -13,6 +14,7 @@
+ #include <esp_log.h>
+ #include <esp_ota_ops.h>
+ #include <esp_system.h>
++#include <nvs.h>
+ #include <esp_timer.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
+@@ -145,9 +147,14 @@
+ 
+ namespace {
+ 
+-constexpr int64_t kConfirmAfterUs = 20LL * 1000000;
+-constexpr int64_t kRollbackAfterUs = 60LL * 1000000;
+-esp_timer_handle_t s_rollback_timer = nullptr;
++// Patch FM01: the first-boot trial. The rule is maipai_update_core.h (tested on the PC with scripted boots); this part
++// reads the flash record, the reset reason and the boot loader's state, and carries out the verdict.
++constexpr const char* kTrialNs  = "fwtrial";
++constexpr const char* kTrialKey = "t";
++muc_trial_t s_trial{};
++esp_timer_handle_t s_trial_timer = nullptr;
++std::atomic<int64_t> s_board_done_us{0};  // when board init returned (0: not yet)
++std::atomic<int64_t> s_loop_us{0};        // last time the main loop ran
+ 
+ bool image_pending()
+ {
+@@ -157,35 +164,119 @@
+            state == ESP_OTA_IMG_PENDING_VERIFY;
+ }
+ 
+-void rollback_now(void*)
++void trial_load()
+ {
+-    if (!image_pending()) return;
+-    ESP_LOGE(kTag,
+-             "The new firmware did not reach the host within 60 seconds. Going back to the previous firmware. "
+-             "Check the host and the Wi-Fi, then start the update again.");
++    std::memset(&s_trial, 0, sizeof(s_trial));
++    nvs_handle_t h;
++    if (nvs_open(kTrialNs, NVS_READONLY, &h) != ESP_OK) return;
++    size_t len = sizeof(s_trial);
++    muc_trial_t t{};
++    if (nvs_get_blob(h, kTrialKey, &t, &len) == ESP_OK && len == sizeof(t)) s_trial = t;
++    nvs_close(h);
++}
++
++void trial_save()
++{
++    nvs_handle_t h;
++    if (nvs_open(kTrialNs, NVS_READWRITE, &h) != ESP_OK) return;
++    if (s_trial.active) {
++        nvs_set_blob(h, kTrialKey, &s_trial, sizeof(s_trial));
++    } else {
++        nvs_erase_key(h, kTrialKey);
++    }
++    nvs_commit(h);
++    nvs_close(h);
++}
++
++void roll_back(const char* why)
++{
++    ESP_LOGE(kTag, "%s Going back to the previous firmware. Check the host and the Wi-Fi, then start the update again.", why);
++    s_trial.active = 0;
++    trial_save();
++    device_events_push("firmware_update_rolled_back", "");
++    vTaskDelay(pdMS_TO_TICKS(300));
+     esp_ota_mark_app_invalid_rollback_and_reboot();
++    // Only reached when no earlier firmware exists: keep this one and go on.
++    ESP_LOGE(kTag, "There is no earlier firmware to go back to. Keeping this one.");
+ }
+ 
++void trial_tick(void*)
++{
++    const int64_t now = esp_timer_get_time();
++    const int64_t done = s_board_done_us.load();
++    const bool camera = done != 0 && now - done >= static_cast<int64_t>(MUC_CAMERA_SETTLE_MS) * 1000;
++    const bool alive = now - s_loop_us.load() < 5000000;
++    bool dirty = false;
++    const muc_step_t step = muc_step(&s_trial, static_cast<uint32_t>(now / 1000000), camera, alive,
++                                     hal_bridge::hub_link_up(), &dirty);
++    if (dirty) trial_save();
++    switch (step) {
++        case MUC_STEP_KEEP_HOST:
++        case MUC_STEP_KEEP_QUIET:
++            esp_timer_stop(s_trial_timer);
++            if (step == MUC_STEP_KEEP_HOST) {
++                ESP_LOGI(kTag, "the new image reached the host; keeping it");
++            } else {
++                ESP_LOGI(kTag, "the new image ran 60 seconds with no crash; keeping it");
++            }
++            device_events_push("firmware_update_validated",
++                               step == MUC_STEP_KEEP_HOST ? "\"path\":\"host\"" : "\"path\":\"quiet\"");
++            break;
++        case MUC_STEP_ROLLBACK:
++            esp_timer_stop(s_trial_timer);
++            roll_back("The new firmware did not settle within 120 seconds.");
++            break;
++        default:
++            break;
++    }
++}
++
++bool crash_reset()
++{
++    switch (esp_reset_reason()) {
++        case ESP_RST_PANIC:
++        case ESP_RST_INT_WDT:
++        case ESP_RST_TASK_WDT:
++        case ESP_RST_WDT:
++        case ESP_RST_BROWNOUT:
++        case ESP_RST_CPU_LOCKUP:
++            return true;
++        default:
++            return false;
++    }
++}
++
+ }  // namespace
+ 
+ void maipai_update_arm()
+ {
+-    if (!image_pending()) return;
+-    ESP_LOGI(kTag, "this image was installed wirelessly and is pending: it is kept once it reaches the host, else rolled back in 60 s");
+-    const esp_timer_create_args_t args = {.callback = rollback_now, .name = "fwrollback"};
+-    if (esp_timer_create(&args, &s_rollback_timer) == ESP_OK) {
+-        esp_timer_start_once(s_rollback_timer, kRollbackAfterUs);
++    trial_load();
++    bool dirty = false;
++    const muc_boot_t verdict = muc_boot(&s_trial, image_pending(), crash_reset(), &dirty);
++    if (verdict == MUC_BOOT_IDLE) return;
++    if (verdict == MUC_BOOT_START) {
++        // Defuse the boot loader's blind rule (any reset before "good" rolls back): our own record judges from here.
++        esp_ota_mark_app_valid_cancel_rollback();
++        ESP_LOGI(kTag, "this image was installed wirelessly: on trial for 60 s without a crash, or 20 s with the host");
+     }
++    if (dirty) trial_save();
++    if (verdict == MUC_BOOT_ROLLBACK) {
++        roll_back("The new firmware crashed twice after it had started.");
++        return;
++    }
++    s_loop_us = esp_timer_get_time();
++    const esp_timer_create_args_t args = {.callback = trial_tick, .name = "fwtrial"};
++    if (esp_timer_create(&args, &s_trial_timer) == ESP_OK) {
++        esp_timer_start_periodic(s_trial_timer, 1000000);
++    }
+ }
+ 
++void maipai_update_board_ready()
++{
++    s_board_done_us = esp_timer_get_time();
++}
++
+ void maipai_update_confirm_poll()
+ {
+-    if (s_rollback_timer == nullptr || esp_timer_get_time() < kConfirmAfterUs) return;
+-    if (!hal_bridge::hub_link_up() || !image_pending()) return;
+-    esp_timer_stop(s_rollback_timer);
+-    esp_timer_delete(s_rollback_timer);
+-    s_rollback_timer = nullptr;
+-    ESP_LOGI(kTag, "the new image reached the host; keeping it");
+-    esp_ota_mark_app_valid_cancel_rollback();
+-    device_events_push("firmware_update_validated", "");
++    s_loop_us = esp_timer_get_time();
+ }
+diff --git a/firmware/main/hal/maipai_update.h b/firmware/main/hal/maipai_update.h
+--- a/firmware/main/hal/maipai_update.h
++++ b/firmware/main/hal/maipai_update.h
+@@ -17,4 +17,5 @@
+ // to the old slot when that has not happened within 60 seconds, a hang included. Images flashed over USB
+ // are never pending and are not affected.
+ void maipai_update_arm();
++void maipai_update_board_ready();  // patch FM01: board init (the camera included) has returned
+ void maipai_update_confirm_poll();
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -42,6 +42,7 @@
+ #endif
+     maipai_update_arm();  // patch 160: a new wireless image that never reaches the host rolls back
+     xiaozhi_board_init();
++    maipai_update_board_ready();  // patch FM01: a crash before this is the vendor camera's, not the image's
+     xiaozhi_mcp_init();
+     maipai_heal_boot_report();  // patch 085
+     head_touch_init();

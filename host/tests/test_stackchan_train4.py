@@ -48,16 +48,10 @@ FACES_CORE = [
     "V12-chunky-mouth-on-anime-eyes.patch",  # the chunky mouth of the faces core on those eyes (V11 touches no header)
 ]  # patches after Train 5 that change the pure headers (look core, face core, decor core, reaction rows)
 # The patches whose pure headers the face cores need, in order (U06 changes three of them).
-CORE_CHAIN = [
-    "F01-face-config.patch",
-    "F03-face-time-of-day.patch",
-    "F04-face-clock.patch",
-    "F05-face-thinking-cue.patch",
-    "F06-face-timer-countdowns.patch",
-    *TRAIN4[1:],
-    "H02-face-fluid-motion.patch",  # the eased-motion core the look core includes
-    *FACES_CORE,
-]
+# Every patch of ORDER up to FI04 (the last entry of the final integration), in order; only the pure headers are kept. A hand kept list
+# drifted whenever a patch was added (V20 to V26 and N01 to N04 broke it); S10 and later patches are tested by their own lanes.
+_ORDER_ALL = [n for n in (PATCHES / "ORDER").read_text().split() if n]
+CORE_CHAIN = _ORDER_ALL[: _ORDER_ALL.index("FI04-lvgl-task-stack-8k.patch") + 1]
 
 
 @pytest.fixture(scope="module")

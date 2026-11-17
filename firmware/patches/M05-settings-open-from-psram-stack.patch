@@ -1,0 +1,30 @@
+# Intent: Saved settings live in flash, and a flash call from a task whose stack is in PSRAM reboots the unit (the boot loops of 2026-11-16, TC02). The settings reader now logs an error naming the task when it is opened from a PSRAM stack, before the flash call does the damage. With the lint in host/tests (every PSRAM-stack task reviewed) it keeps the class of fault from coming back.
+# Placement: unit (settings reader of the robot firmware)
+# Upstream: firmware/xiaozhi-esp32/main/settings.cc (MIT)
+# Check after a flash: no 'opened from task ... whose stack is in PSRAM' line in a normal run.
+# Kconfig: none.
+
+diff --git a/firmware/xiaozhi-esp32/main/settings.cc b/firmware/xiaozhi-esp32/main/settings.cc
+index 3b40622..97d3d9d 100644
+--- a/firmware/xiaozhi-esp32/main/settings.cc
++++ b/firmware/xiaozhi-esp32/main/settings.cc
+@@ -2,10 +2,19 @@
+ 
+ #include <esp_log.h>
+ #include <nvs_flash.h>
++#include <esp_memory_utils.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
+ 
+ #define TAG "Settings"
+ 
+ Settings::Settings(const std::string& ns, bool read_write) : ns_(ns), read_write_(read_write) {
++    // Patch M05: saved settings live in flash, and a flash call from a task whose stack is in PSRAM reboots the unit
++    // (the boot loops of 2026-11-16, patch TC02). Say so loudly, with the task's name, before the call does it.
++    if (!esp_ptr_internal(__builtin_frame_address(0))) {
++        ESP_LOGE(TAG, "Settings \"%s\" opened from task %s, whose stack is in PSRAM; read it on the main task (rule TC02)", ns.c_str(),
++                 pcTaskGetName(nullptr));
++    }
+     nvs_open(ns.c_str(), read_write_ ? NVS_READWRITE : NVS_READONLY, &nvs_handle_);
+ }
+ 

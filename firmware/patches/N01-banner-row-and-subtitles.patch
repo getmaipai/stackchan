@@ -1,0 +1,1541 @@
+# Intent: The banner row and the subtitle strip, part 1 (owner decisions 2026-11-16). The screen has three fixed zones and nothing moves between them: the banner zone (y 0 to 28, reserved even when empty), the face zone (y 28 to 184) and the subtitle zone (y 184 to 240). The banner row is ONE rectangle, the same for every message (x 4, y 1, 312 by 26, radius 13): a leading icon, the text (a marquee only when it overflows the text area), a priority queue (privacy and remote cues first, then notices, then captions), a minimum display time of 1.5 s, auto-hide, replace-in-place tags, the violet remote session chip INSIDE the row (steady, text "Remote connected" and the controller label after it only when it has one, never redrawn on a heartbeat), and a small icon strip at the right for the always-on cues (microphone live, camera on, remote) and for battery and Wi-Fi only when something is wrong. The row fades in and out at full width over 150 ms; it never grows, shrinks or moves. The subtitle strip shows what the robot is saying at the bottom: no box, the build's own 20 px text font in white with a dark outline, at most two lines centered (one line in the middle of the zone), long sentences paged, a 150 ms fade, and it leaves 0.8 s after the robot stops talking. Pure logic and geometry live in hal/maipai_banner_core.h and hal/maipai_subs_core.h (host tested; the geometry is printed as the settings page table); the drawing is hal/maipai_banner.cc and hal/maipai_subtitles.cc on the top layer. The speech bubble gets a route hook so the avatar's words go to the subtitles or the banner. Cost: one 0.7 KB state in PSRAM and one 0.1 KB state, two timers (33 ms only while something shows, 100 ms otherwise); about 24 LVGL objects while the row shows and six while subtitles show, none when idle (deleted after 20 s and 5 s).
+# Placement: unit (the banner runs on the robot, so it is complete with no host)
+# Upstream: firmware/main/stackchan/avatar/skins/default/{default.h,speech_bubble.cpp} (ours, patch TA04); new files hal/maipai_banner_core.h, hal/maipai_banner.h, hal/maipai_banner.cc
+# Check after a flash: self.remote.session active true shows the violet chip "Remote: connected" at the top and nothing at the bottom; self.remote.action shows its cue at the top; the face moves down and back without a jump; scripts/fw-serial.py snap of every style with a banner (host renderer PNGs under scripts/fw-face-render).
+
+diff --git a/firmware/main/hal/maipai_banner_core.h b/firmware/main/hal/maipai_banner_core.h
+new file mode 100644
+index 0000000..f9d9686
+--- /dev/null
++++ b/firmware/main/hal/maipai_banner_core.h
+@@ -0,0 +1,453 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The banner row (patch N01) and the fixed zones of the screen. Pure logic, no LVGL: the message queue with priorities and a
++ * minimum display time, the session chip, the small icon strip, the marquee offset, and the geometry the settings page preview
++ * shares (host/maipai_body/banner_table.json is what this file prints).
++ *
++ * The screen has three fixed zones and nothing moves between them (owner decision 2026-11-16): the banner zone (y 0 to 28,
++ * reserved even when empty), the face zone (y 28 to 184) and the subtitle zone (y 184 to 240). The banner row is ONE rectangle:
++ * the same x, y, width, height and corner radius for every message; only what is inside changes (icon left, text, strip right).
++ * A text longer than its text area scrolls (marquee); a short one never shrinks the row. The row fades in and out at full width.
++ *
++ *  - a message has a text, an icon, a priority (privacy and remote cues first, then notices, then captions), a tag (a new
++ *    message with the same tag and priority replaces the old one in place, so "Volume 40" never queues behind "Volume 30")
++ *    and a hold time (0: until cleared);
++ *  - a message shows at least MB_MIN_MS; a more urgent one waits for that and then takes the row, the one it displaced is
++ *    queued again; captions never queue behind anything but the one caption slot (the newest wins);
++ *  - while a remote session is on and no message shows, the row shows the session chip inside the row (steady, never blinking);
++ *    a heartbeat renewal changes nothing (no redraw);
++ *  - the strip holds small glyphs: the cues that must always show (mic live, camera on, remote) and battery or Wi-Fi only
++ *    when something is wrong (or always, when the owner chose "show battery and Wi-Fi always").
++ * Nothing here allocates. Times are milliseconds from any steady clock; 32-bit wrap is handled.
++ */
++#ifndef MAIPAI_BANNER_CORE_H
++#define MAIPAI_BANNER_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++/* ---- the zones and the row (pixels on the 320 by 240 screen) ---- */
++#define MB_SCREEN_W 320
++#define MB_SCREEN_H 240
++#define MB_ZONE_BANNER_Y0 0
++#define MB_ZONE_BANNER_Y1 28
++#define MB_ZONE_FACE_Y0 28
++#define MB_ZONE_FACE_Y1 184
++#define MB_ZONE_SUB_Y0 184
++#define MB_ZONE_SUB_Y1 240
++#define MB_ROW_X 4
++#define MB_ROW_Y 1
++#define MB_ROW_W 312
++#define MB_ROW_H 26
++#define MB_ROW_R 13
++#define MB_PAD_X 8
++#define MB_ICON_W 22     /* the leading icon box */
++#define MB_STRIP_GLYPH_W 20
++#define MB_STRIP_GAP 4
++#define MB_FADE_MS 150   /* the row fades in and out at full width */
++#define MB_FONT_PX 14
++
++#define MB_TEXT_MAX 120
++#define MB_QUEUE 4
++#define MB_MIN_MS 1500u
++#define MB_MAX_HOLD_MS 20000u
++#define MB_SCROLL_PX_S 36
++#define MB_SCROLL_PAUSE_MS 900u
++
++enum { MB_PRIO_PRIVACY = 0, MB_PRIO_NOTICE = 1, MB_PRIO_CAPTION = 2 };
++enum {
++    MB_ICON_NONE = 0,
++    MB_ICON_REMOTE,
++    MB_ICON_CHECK,
++    MB_ICON_BATTERY,
++    MB_ICON_WIFI_OFF,
++    MB_ICON_BARS,
++    MB_ICON_RING,
++    MB_ICON_SPEECH,
++    MB_ICON_KEY,
++    MB_ICON_COUNT
++};
++enum { MB_TAG_NONE = 0, MB_TAG_CAPTION, MB_TAG_VOLUME, MB_TAG_SAY, MB_TAG_CUE, MB_TAG_FIND, MB_TAG_LINK, MB_TAG_GAME };
++enum { MB_FLAG_MIC = 0, MB_FLAG_CAMERA, MB_FLAG_REMOTE, MB_FLAG_BATTERY, MB_FLAG_WIFI, MB_FLAG_COUNT };
++enum { MB_FIT_ONE = 0, MB_FIT_MARQUEE };
++enum { MB_BAR_HIDDEN = 0, MB_BAR_ALWAYS = 1 }; /* the "Top bar" setting */
++
++#define MB_FLAG_ALWAYS_ON ((1u << MB_FLAG_MIC) | (1u << MB_FLAG_CAMERA) | (1u << MB_FLAG_REMOTE)) /* privacy cues: never hidden */
++
++typedef struct {
++    char text[MB_TEXT_MAX];
++    uint8_t icon;
++    uint8_t prio;
++    uint8_t tag;
++    uint8_t sticky;   /* shown until cleared */
++    uint32_t hold_ms; /* meaningful when not sticky */
++} mb_msg_t;
++
++typedef struct {
++    mb_msg_t cur;
++    uint8_t has_cur;
++    uint32_t shown_ms;
++    uint32_t until_ms;
++    mb_msg_t q[MB_QUEUE];
++    uint8_t nq;
++    uint8_t session;
++    char session_label[24];
++    uint32_t strip;                  /* bit per MB_FLAG_* */
++    uint32_t strip_until[MB_FLAG_COUNT]; /* 0: no expiry */
++    uint8_t bar_mode;
++    uint32_t rev;                    /* bumps on every visible change: the drawing runs only then */
++} mb_t;
++
++static inline int mb_due(uint32_t now, uint32_t at) { return (int32_t)(now - at) >= 0; }
++
++static inline void mb_init(mb_t* b)
++{
++    memset(b, 0, sizeof(*b));
++}
++
++static inline void mb_copy_text(char* dst, const char* src)
++{
++    size_t n = src != NULL ? strlen(src) : 0;
++    if (n >= MB_TEXT_MAX) n = MB_TEXT_MAX - 1;
++    if (n > 0) memcpy(dst, src, n);
++    dst[n] = '\0';
++}
++
++static inline void mb_show(mb_t* b, const mb_msg_t* m, uint32_t now)
++{
++    b->cur = *m;
++    b->has_cur = 1;
++    b->shown_ms = now;
++    if (m->sticky) {
++        b->until_ms = 0;
++    } else {
++        uint32_t hold = m->hold_ms < MB_MIN_MS ? MB_MIN_MS : m->hold_ms;
++        if (hold > MB_MAX_HOLD_MS) hold = MB_MAX_HOLD_MS;
++        b->until_ms = now + hold;
++    }
++    b->rev++;
++}
++
++static inline int mb_q_worst(const mb_t* b) /* the index of the entry to drop: the lowest priority, the oldest of those */
++{
++    int w = 0;
++    for (int i = 1; i < b->nq; i++) {
++        if (b->q[i].prio > b->q[w].prio) w = i;
++    }
++    return w;
++}
++
++static inline void mb_q_remove(mb_t* b, int i)
++{
++    for (int k = i; k + 1 < b->nq; k++) b->q[k] = b->q[k + 1];
++    b->nq--;
++}
++
++static inline void mb_q_push_front(mb_t* b, const mb_msg_t* m)
++{
++    if (b->nq >= MB_QUEUE) b->nq = MB_QUEUE - 1; /* the oldest tail entry makes room */
++    for (int k = b->nq; k > 0; k--) b->q[k] = b->q[k - 1];
++    b->q[0] = *m;
++    b->nq++;
++}
++
++/* Posts a message. Returns 1 when it shows now or waits in the queue, 0 when it was dropped (queue full of more urgent ones). */
++static inline int mb_post(mb_t* b, uint32_t now, const char* text, int icon, int prio, int tag, uint32_t hold_ms)
++{
++    if (text == NULL || text[0] == '\0') return 0;
++    mb_msg_t m;
++    memset(&m, 0, sizeof(m));
++    mb_copy_text(m.text, text);
++    m.icon = (uint8_t)(icon >= 0 && icon < MB_ICON_COUNT ? icon : MB_ICON_NONE);
++    m.prio = (uint8_t)(prio < 0 ? 0 : (prio > MB_PRIO_CAPTION ? MB_PRIO_CAPTION : prio));
++    m.tag = (uint8_t)tag;
++    m.sticky = hold_ms == 0 ? 1 : 0;
++    m.hold_ms = hold_ms;
++    /* the same tag and priority: replace in place (a refresh of the same words only extends the hold) */
++    if (m.tag != MB_TAG_NONE) {
++        if (b->has_cur && b->cur.tag == m.tag && b->cur.prio == m.prio) {
++            const int same = strcmp(b->cur.text, m.text) == 0 && b->cur.icon == m.icon;
++            const uint32_t shown = b->shown_ms;
++            mb_show(b, &m, now);
++            if (same) b->shown_ms = shown; /* keeps the marquee where it is */
++            else b->shown_ms = now;
++            return 1;
++        }
++        for (int i = 0; i < b->nq; i++) {
++            if (b->q[i].tag == m.tag && b->q[i].prio == m.prio) {
++                b->q[i] = m;
++                return 1;
++            }
++        }
++    }
++    if (!b->has_cur) {
++        mb_show(b, &m, now);
++        return 1;
++    }
++    if (m.prio == MB_PRIO_CAPTION && b->cur.prio == MB_PRIO_CAPTION) { /* the newest caption wins */
++        mb_show(b, &m, now);
++        return 1;
++    }
++    if (m.prio < b->cur.prio && (uint32_t)(now - b->shown_ms) >= MB_MIN_MS) { /* more urgent, and the minimum time is up */
++        if (!b->cur.sticky && b->cur.prio != MB_PRIO_CAPTION && !mb_due(now, b->until_ms)) {
++            mb_msg_t old = b->cur;
++            old.hold_ms = b->until_ms - now;
++            mb_q_push_front(b, &old);
++        }
++        mb_show(b, &m, now);
++        return 1;
++    }
++    if (b->nq >= MB_QUEUE) {
++        const int w = mb_q_worst(b);
++        if (b->q[w].prio < m.prio) return 0;
++        mb_q_remove(b, w);
++    }
++    b->q[b->nq++] = m;
++    return 1;
++}
++
++/* Clears the messages with this tag: the showing one ends once its minimum time is up (at once when sticky), queued ones go. */
++static inline int mb_clear_tag(mb_t* b, uint32_t now, int tag)
++{
++    int changed = 0;
++    for (int i = b->nq - 1; i >= 0; i--) {
++        if (b->q[i].tag == tag) {
++            mb_q_remove(b, i);
++            changed = 1;
++        }
++    }
++    if (b->has_cur && b->cur.tag == tag) {
++        if ((uint32_t)(now - b->shown_ms) >= MB_MIN_MS || b->cur.sticky) {
++            b->has_cur = 0;
++            b->rev++;
++        } else {
++            b->cur.sticky = 0;
++            b->until_ms = b->shown_ms + MB_MIN_MS;
++        }
++        changed = 1;
++    }
++    return changed;
++}
++
++/* The clock: expires the showing message, promotes the queue, lets a more urgent queued one take the row. 1 when the row changed. */
++static inline int mb_tick(mb_t* b, uint32_t now)
++{
++    const uint32_t before = b->rev;
++    for (int i = b->nq - 1; i >= 0; i--) { /* an entry whose own time ran out while it waited is stale */
++        if (!b->q[i].sticky && b->q[i].hold_ms == 0) mb_q_remove(b, i);
++    }
++    if (b->has_cur && !b->cur.sticky && mb_due(now, b->until_ms) && (uint32_t)(now - b->shown_ms) >= MB_MIN_MS) {
++        b->has_cur = 0;
++        b->rev++;
++    }
++    if (b->has_cur && b->nq > 0 && (uint32_t)(now - b->shown_ms) >= MB_MIN_MS) {
++        int best = -1;
++        for (int i = 0; i < b->nq; i++) {
++            if (b->q[i].prio < b->cur.prio && (best < 0 || b->q[i].prio < b->q[best].prio)) best = i;
++        }
++        if (best >= 0) {
++            mb_msg_t next = b->q[best];
++            mb_q_remove(b, best);
++            if (!b->cur.sticky && b->cur.prio != MB_PRIO_CAPTION && !mb_due(now, b->until_ms)) {
++                mb_msg_t old = b->cur;
++                old.hold_ms = b->until_ms - now;
++                mb_q_push_front(b, &old);
++            }
++            mb_show(b, &next, now);
++        }
++    }
++    if (!b->has_cur && b->nq > 0) {
++        int best = 0;
++        for (int i = 1; i < b->nq; i++) {
++            if (b->q[i].prio < b->q[best].prio) best = i;
++        }
++        mb_msg_t next = b->q[best];
++        mb_q_remove(b, best);
++        mb_show(b, &next, now);
++    }
++    for (int f = 0; f < MB_FLAG_COUNT; f++) { /* strip glyphs with an expiry */
++        if ((b->strip & (1u << f)) && b->strip_until[f] != 0 && mb_due(now, b->strip_until[f])) {
++            b->strip &= ~(1u << f);
++            b->strip_until[f] = 0;
++            b->rev++;
++        }
++    }
++    return b->rev != before;
++}
++
++/* ---- the session chip ---- */
++/* A heartbeat renewal (the same state, the same label) changes nothing and never bumps rev, so the row is not redrawn. */
++static inline void mb_session(mb_t* b, int on, const char* label)
++{
++    char text[24];
++    if (label == NULL || label[0] == '\0' || strcmp(label, "remote") == 0) {
++        text[0] = '\0'; /* the controller has no name of its own: the chip says only "Remote connected" */
++    } else {
++        size_t n = strlen(label);
++        if (n > 20) n = 20;
++        memcpy(text, label, n);
++        text[n] = '\0';
++    }
++    const uint8_t was = b->session;
++    b->session = on ? 1 : 0;
++    if (on && strcmp(text, b->session_label) != 0) {
++        strcpy(b->session_label, text);
++        b->rev++;
++    }
++    if (was != b->session) b->rev++;
++    const uint32_t bit = 1u << MB_FLAG_REMOTE;
++    const uint32_t had = b->strip & bit;
++    if (on) b->strip |= bit;
++    else b->strip &= ~bit;
++    if (had != (b->strip & bit)) b->rev++;
++}
++
++/* What the row shows now: a message, the session chip, or nothing. kind 0 nothing, 1 message, 2 chip. */
++static inline int mb_content(const mb_t* b, const char** text_out, int* icon_out, int* prio_out)
++{
++    static char chip[48];
++    if (b->has_cur) {
++        *text_out = b->cur.text;
++        *icon_out = b->cur.icon;
++        *prio_out = b->cur.prio;
++        return 1;
++    }
++    if (b->session) {
++        strcpy(chip, "Remote connected");
++        if (b->session_label[0] != '\0') {
++            strcat(chip, ": ");
++            strncat(chip, b->session_label, sizeof(chip) - strlen(chip) - 1);
++        }
++        *text_out = chip;
++        *icon_out = MB_ICON_REMOTE;
++        *prio_out = MB_PRIO_PRIVACY;
++        return 2;
++    }
++    *text_out = "";
++    *icon_out = MB_ICON_NONE;
++    *prio_out = MB_PRIO_CAPTION;
++    return 0;
++}
++
++/* ---- the strip ---- */
++static inline void mb_flag(mb_t* b, int flag, int on, uint32_t now, uint32_t hold_ms)
++{
++    if (flag < 0 || flag >= MB_FLAG_COUNT) return;
++    const uint32_t bit = 1u << flag;
++    const int was = (b->strip & bit) != 0;
++    if (on) b->strip |= bit;
++    else b->strip &= ~bit;
++    b->strip_until[flag] = (on && hold_ms > 0) ? (now + hold_ms) | 1u : 0;
++    if (was != (on != 0)) b->rev++;
++}
++
++/* Battery: shown when under 20 percent and not charging, briefly after a cable goes in, or always when the owner chose so. */
++static inline int mb_battery_shown(int level, int charging, int on_cable, int bar_mode, int blip)
++{
++    if (level < 0) return 0;
++    if (bar_mode == MB_BAR_ALWAYS) return 1;
++    if (blip && charging) return 1;
++    return level < 20 && !charging && !on_cable;
++}
++
++static inline int mb_wifi_shown(int wifi_up, int hub_up, int bar_mode)
++{
++    if (bar_mode == MB_BAR_ALWAYS) return 1;
++    return !wifi_up || !hub_up;
++}
++
++/* The strip bits that show: the privacy cues always, the rest per the setting (the unit sets MB_FLAG_BATTERY and MB_FLAG_WIFI
++ * only when mb_battery_shown and mb_wifi_shown say so). */
++static inline uint32_t mb_strip_visible(const mb_t* b) { return b->strip; }
++
++static inline int mb_strip_count(uint32_t bits)
++{
++    int n = 0;
++    for (int i = 0; i < MB_FLAG_COUNT; i++) n += (bits >> i) & 1u;
++    return n;
++}
++
++static inline int mb_strip_w(uint32_t bits)
++{
++    const int n = mb_strip_count(bits);
++    return n == 0 ? 0 : n * MB_STRIP_GLYPH_W + (n - 1) * MB_STRIP_GAP;
++}
++
++/* ---- fitting and the marquee ---- */
++/* The room for the text in the row with this strip: the row is always the same; the strip takes its glyphs' width off the text. */
++static inline int mb_text_room(uint32_t strip_bits, int icon)
++{
++    int w = MB_ROW_W - 2 * MB_PAD_X - (icon != MB_ICON_NONE ? MB_ICON_W + 4 : 0);
++    const int s = mb_strip_w(strip_bits);
++    if (s > 0) w -= s + 6;
++    return w;
++}
++
++/* text_w: its width on one line. A text that fits shows as it is; a longer one scrolls. The row never changes size. */
++static inline int mb_fit(int text_w, int room) { return text_w <= room ? MB_FIT_ONE : MB_FIT_MARQUEE; }
++
++static inline uint32_t mb_marquee_pass_ms(int overflow_px)
++{
++    if (overflow_px <= 0) return 0;
++    return 2u * MB_SCROLL_PAUSE_MS + (uint32_t)overflow_px * 1000u / MB_SCROLL_PX_S;
++}
++
++/* How far the text has moved left, 0 to overflow_px, after t_ms on screen: waits, scrolls to the end, waits, then starts over. */
++static inline int mb_marquee_x(uint32_t t_ms, int overflow_px)
++{
++    if (overflow_px <= 0) return 0;
++    const uint32_t scroll = (uint32_t)overflow_px * 1000u / MB_SCROLL_PX_S;
++    const uint32_t period = 2u * MB_SCROLL_PAUSE_MS + scroll + 400u;
++    const uint32_t t = t_ms % period;
++    if (t < MB_SCROLL_PAUSE_MS) return 0;
++    if (t < MB_SCROLL_PAUSE_MS + scroll) return (int)((t - MB_SCROLL_PAUSE_MS) * (uint32_t)MB_SCROLL_PX_S / 1000u);
++    return overflow_px;
++}
++
++/* The fade of the row: 0 to 255, one step of dt_ms toward fully shown (visible) or gone. Always arrives. */
++static inline int mb_fade_step(int opa, int visible, uint32_t dt_ms)
++{
++    const int goal = visible ? 255 : 0;
++    int step = (int)((dt_ms > 100u ? 100u : dt_ms) * 255u / MB_FADE_MS);
++    if (step < 1) step = 1;
++    if (opa < goal) return opa + step > goal ? goal : opa + step;
++    if (opa > goal) return opa - step < goal ? goal : opa - step;
++    return opa;
++}
++
++/* ---- rectangles (x0, y0 inclusive, x1, y1 exclusive) for the layout test and the preview ---- */
++typedef struct {
++    int x0, y0, x1, y1;
++} mb_rect_t;
++
++static inline mb_rect_t mb_rect(int x0, int y0, int x1, int y1)
++{
++    mb_rect_t r = {x0, y0, x1, y1};
++    return r;
++}
++static inline mb_rect_t mb_zone_banner(void) { return mb_rect(0, MB_ZONE_BANNER_Y0, MB_SCREEN_W, MB_ZONE_BANNER_Y1); }
++static inline mb_rect_t mb_zone_face(void) { return mb_rect(0, MB_ZONE_FACE_Y0, MB_SCREEN_W, MB_ZONE_FACE_Y1); }
++static inline mb_rect_t mb_zone_sub(void) { return mb_rect(0, MB_ZONE_SUB_Y0, MB_SCREEN_W, MB_ZONE_SUB_Y1); }
++/* The row: the same rectangle for every message, every chip and every length of text. */
++static inline mb_rect_t mb_row_rect(void) { return mb_rect(MB_ROW_X, MB_ROW_Y, MB_ROW_X + MB_ROW_W, MB_ROW_Y + MB_ROW_H); }
++static inline int mb_rect_overlap(mb_rect_t a, mb_rect_t b) { return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1; }
++static inline int mb_rect_inside(mb_rect_t inner, mb_rect_t outer)
++{
++    return inner.x0 >= outer.x0 && inner.x1 <= outer.x1 && inner.y0 >= outer.y0 && inner.y1 <= outer.y1;
++}
++
++/* ---- the settings ---- */
++enum { MB_CAP_OFF = 0, MB_CAP_SUBTITLES = 1, MB_CAP_BANNER = 2 };
++
++/* How long a caption shows: about 55 ms a character, at least 2.6 s, at most 12 s. */
++static inline uint32_t mb_caption_hold(int chars)
++{
++    uint32_t ms = (uint32_t)chars * 55u;
++    if (ms < 2600u) ms = 2600u;
++    if (ms > 12000u) ms = 12000u;
++    return ms;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_banner.h b/firmware/main/hal/maipai_banner.h
+new file mode 100644
+index 0000000..4127b7e
+--- /dev/null
++++ b/firmware/main/hal/maipai_banner.h
+@@ -0,0 +1,47 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The banner row (patch N01): the one place for information, a rounded row at the top of the screen. Logic and geometry:
++ * maipai_banner_core.h. Every post is safe from any task and takes no LVGL lock: it only changes the queue; the row is drawn by
++ * its own LVGL timer. Nothing informational is drawn over the mouth or the lower half of the screen.
++ */
++#pragma once
++
++#include <lvgl.h>
++#include <stdint.h>
++
++#include "maipai_banner_core.h"
++#include "maipai_subtitles.h"
++
++struct maipai_banner_status_t {
++    int battery_level = -1;  // percent, -1 unknown
++    bool charging     = false;
++    bool on_cable     = false;
++    int wifi_bars     = 4;   // 0 to 4
++    bool wifi_up      = true;
++    bool hub_up       = true;
++    bool mic_live     = false;
++};
++
++// Starts the timer; the row and the strip are built on the top layer when something shows. LVGL lock held. fg gives the face's
++// foreground color (it follows the face's color setting); poll (optional) is read every 2 s for the strip.
++void maipai_banner_attach(lv_color_t (*fg)(), void (*poll)(maipai_banner_status_t*));
++// A message. prio: MB_PRIO_*, tag: MB_TAG_*, hold_ms 0 = until cleared.
++void maipai_banner_post(const char* text, int icon, int prio, int tag, uint32_t hold_ms);
++void maipai_banner_clear_tag(int tag);
++// The remote session chip (violet, steady) while a controller is connected.
++void maipai_banner_session(bool on, const char* label);
++// A strip glyph on or off (MB_FLAG_*); hold_ms > 0 ends it by itself.
++void maipai_banner_flag(int flag, bool on, uint32_t hold_ms);
++// "Top bar" setting: MB_BAR_HIDDEN (default) or MB_BAR_ALWAYS.
++void maipai_banner_set_bar_mode(int mode);
++// "Captions" setting: MB_CAP_OFF, MB_CAP_SUBTITLES (the strip at the bottom, the default when on) or MB_CAP_BANNER (the row).
++// The avatar's words (setSpeech) are routed accordingly; an empty text means the robot stopped talking.
++void maipai_banner_set_captions(int mode);
++int maipai_banner_captions();
++// While true the words are shown as still subtitles whatever the mode says (the Wi-Fi setup hint must stay readable).
++void maipai_banner_bypass(bool on);
++// True while the row (or a chip) is on screen (for the tests and the bench).
++bool maipai_banner_visible();
++// One timer step (the host renderer calls it by hand; on the unit the LVGL timer does).
++void maipai_banner_step();
+diff --git a/firmware/main/hal/maipai_banner.cc b/firmware/main/hal/maipai_banner.cc
+new file mode 100644
+index 0000000..3695691
+--- /dev/null
++++ b/firmware/main/hal/maipai_banner.cc
+@@ -0,0 +1,558 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The banner row (patch N01). See maipai_banner.h. ONE rectangle, always: x 4, y 1, 312 by 26, radius 13, in the banner zone
++ * (y 0 to 28). Its content is a holder with a leading icon and the text (a marquee only when the text overflows the text area,
++ * or a dotted end for the session chip), and the strip of small glyphs at the right end. The row fades in and out at full
++ * width; a short message never shrinks it and the session chip is a violet chip inside it. The face does not move for it.
++ * Objects exist only while something shows (about 24) and are deleted after 20 s of nothing; idle there is a timer and one
++ * 0.7 KB state in PSRAM.
++ */
++#include "maipai_banner.h"
++
++#include <stackchan/avatar/skins/default/default.h>
++
++#include <cstdlib>
++#include <cstring>
++#include <mutex>
++#include <string>
++#ifndef MAIPAI_HOST_RENDER
++#include <esp_heap_caps.h>  // the state lives in PSRAM on the unit; the host renderer (scripts/fw-face-render) uses calloc
++#endif
++
++namespace {
++
++std::mutex s_mu;
++mb_t* s_b = nullptr;
++lv_obj_t* s_row = nullptr;    // the one rectangle (the background)
++lv_obj_t* s_chip = nullptr;   // the content holder: a violet chip for a session, plain otherwise
++lv_obj_t* s_icon = nullptr;
++lv_obj_t* s_clip = nullptr;
++lv_obj_t* s_label = nullptr;
++lv_obj_t* s_strip = nullptr;
++lv_obj_t* s_glyph[MB_FLAG_COUNT] = {};
++lv_obj_t* s_batt_fill = nullptr;
++lv_obj_t* s_wifi_bars[4] = {};
++lv_obj_t* s_wifi_slash = nullptr;
++lv_obj_t* s_cam_a = nullptr;
++lv_obj_t* s_cam_b = nullptr;
++lv_timer_t* s_timer = nullptr;
++lv_color_t (*s_fg)() = nullptr;
++void (*s_poll)(maipai_banner_status_t*) = nullptr;
++lv_point_precise_t s_slash_pts[2] = {{0, 15}, {18, 1}};
++lv_point_precise_t s_check_pts[3] = {{3, 11}, {8, 16}, {18, 5}};
++
++int s_caps = MB_CAP_SUBTITLES;
++bool s_bypass = false;
++uint32_t s_last_ms = 0;
++uint32_t s_poll_ms = 0;
++uint32_t s_drawn_rev = 0xFFFFFFFFu;
++uint32_t s_drawn_strip = 0xFFFFFFFFu;
++uint32_t s_drawn_fg = 0xFFFFFFFFu;
++int s_fit = MB_FIT_ONE;
++int s_overflow = 0;
++int s_opa = 0;
++int s_kind = 0;
++int s_batt_level = -1;
++int s_bars = 4;
++bool s_hub_up = true;
++bool s_wifi_up = true;
++int s_bar_mode = MB_BAR_HIDDEN;
++uint32_t s_period = 100;
++uint32_t s_idle_since = 0;
++
++lv_color_t violet() { return lv_color_make(0xA0, 0x70, 0xFF); }
++lv_color_t chip_bg() { return lv_color_make(0x30, 0x20, 0x58); }
++
++lv_color_t fg_color()
++{
++    lv_color_t c = s_fg != nullptr ? s_fg() : lv_color_white();
++    const int lum = (c.red * 3 + c.green * 6 + c.blue) / 10;
++    return lum < 90 ? lv_color_white() : c;  // a dark face color would vanish on the dark row
++}
++
++uint32_t pack(lv_color_t c) { return ((uint32_t)c.red << 16) | ((uint32_t)c.green << 8) | c.blue; }
++
++uint32_t now_ms() { return lv_tick_get(); }
++
++lv_obj_t* box(lv_obj_t* parent, int x, int y, int w, int h, int radius)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_style_all(o);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(o, w, h);
++    lv_obj_set_pos(o, x, y);
++    lv_obj_set_style_radius(o, radius, 0);
++    return o;
++}
++
++void fill(lv_obj_t* o, lv_color_t c)
++{
++    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++    lv_obj_set_style_bg_color(o, c, 0);
++}
++
++void outline(lv_obj_t* o, lv_color_t c, int w)
++{
++    lv_obj_set_style_border_width(o, w, 0);
++    lv_obj_set_style_border_color(o, c, 0);
++    lv_obj_set_style_bg_opa(o, LV_OPA_TRANSP, 0);
++}
++
++lv_obj_t* line(lv_obj_t* parent, lv_point_precise_t* pts, int n, lv_color_t c, int w)
++{
++    lv_obj_t* l = lv_line_create(parent);
++    lv_obj_remove_flag(l, LV_OBJ_FLAG_CLICKABLE);
++    lv_line_set_points(l, pts, n);
++    lv_obj_set_style_line_width(l, w, 0);
++    lv_obj_set_style_line_color(l, c, 0);
++    lv_obj_set_style_line_rounded(l, true, 0);
++    return l;
++}
++
++void clear_children(lv_obj_t* o)
++{
++    while (lv_obj_get_child_count(o) > 0) lv_obj_delete(lv_obj_get_child(o, 0));
++}
++
++// The leading icon, 22 by 22, drawn from boxes and lines (no font, no image).
++void draw_icon(int kind, lv_color_t c)
++{
++    clear_children(s_icon);
++    switch (kind) {
++        case MB_ICON_REMOTE: {  // a screen with a pointer: a remote link
++            lv_obj_t* f = box(s_icon, 1, 3, 20, 15, 4);
++            outline(f, violet(), 2);
++            lv_obj_t* d = box(f, 0, 0, 6, 6, LV_RADIUS_CIRCLE);
++            lv_obj_center(d);
++            fill(d, violet());
++            break;
++        }
++        case MB_ICON_CHECK:
++            line(s_icon, s_check_pts, 3, c, 3);
++            break;
++        case MB_ICON_BATTERY: {
++            lv_obj_t* f = box(s_icon, 1, 5, 17, 11, 3);
++            outline(f, c, 2);
++            lv_obj_t* n = box(s_icon, 18, 8, 3, 5, 1);
++            fill(n, c);
++            lv_obj_t* l = box(s_icon, 4, 8, 4, 5, 1);
++            fill(l, lv_color_make(255, 90, 80));
++            break;
++        }
++        case MB_ICON_WIFI_OFF:
++        case MB_ICON_BARS: {
++            for (int i = 0; i < 4; i++) {
++                const int h = 4 + i * 4;
++                lv_obj_t* r = box(s_icon, 1 + i * 5, 19 - h, 4, h, 1);
++                fill(r, kind == MB_ICON_BARS ? (i < 2 ? c : lv_color_make(70, 76, 84)) : lv_color_make(120, 128, 140));
++            }
++            if (kind == MB_ICON_WIFI_OFF) line(s_icon, s_slash_pts, 2, lv_color_make(255, 90, 80), 2);
++            break;
++        }
++        case MB_ICON_RING: {
++            lv_obj_t* r = box(s_icon, 2, 2, 18, 18, LV_RADIUS_CIRCLE);
++            outline(r, c, 2);
++            lv_obj_t* d = box(s_icon, 7, 7, 8, 8, LV_RADIUS_CIRCLE);
++            fill(d, c);
++            break;
++        }
++        case MB_ICON_SPEECH: {
++            lv_obj_t* r = box(s_icon, 1, 3, 20, 13, 6);
++            outline(r, c, 2);
++            lv_obj_t* t = box(s_icon, 5, 15, 4, 4, 1);
++            fill(t, c);
++            break;
++        }
++        case MB_ICON_KEY: {
++            lv_obj_t* r = box(s_icon, 1, 6, 10, 10, LV_RADIUS_CIRCLE);
++            outline(r, c, 2);
++            lv_obj_t* s = box(s_icon, 10, 10, 11, 2, 0);
++            fill(s, c);
++            lv_obj_t* t = box(s_icon, 17, 12, 2, 4, 0);
++            fill(t, c);
++            break;
++        }
++        default:
++            break;
++    }
++}
++
++void build_glyphs()
++{
++    for (int i = 0; i < MB_FLAG_COUNT; i++) {
++        s_glyph[i] = box(s_strip, 0, 0, MB_STRIP_GLYPH_W, 18, 0);
++        lv_obj_add_flag(s_glyph[i], LV_OBJ_FLAG_HIDDEN);
++    }
++    // mic live: a capsule on a cradle
++    lv_obj_t* cap = box(s_glyph[MB_FLAG_MIC], 7, 0, 6, 10, 3);
++    fill(cap, lv_color_make(255, 90, 80));
++    lv_obj_t* cradle = box(s_glyph[MB_FLAG_MIC], 3, 5, 14, 8, 7);
++    outline(cradle, lv_color_make(255, 90, 80), 2);
++    lv_obj_set_style_border_side(cradle, LV_BORDER_SIDE_BOTTOM, 0);
++    lv_obj_t* stem = box(s_glyph[MB_FLAG_MIC], 9, 13, 2, 4, 0);
++    fill(stem, lv_color_make(255, 90, 80));
++    // camera on: a rounded outline with a filled lens
++    s_cam_a = box(s_glyph[MB_FLAG_CAMERA], 0, 1, 20, 15, 4);
++    s_cam_b = box(s_cam_a, 0, 0, 7, 7, LV_RADIUS_CIRCLE);
++    lv_obj_center(s_cam_b);
++    // remote: filled violet with a dark dot, not mistaken for the camera
++    lv_obj_t* rf = box(s_glyph[MB_FLAG_REMOTE], 0, 1, 20, 15, 4);
++    fill(rf, violet());
++    lv_obj_t* rd = box(rf, 0, 0, 6, 6, LV_RADIUS_CIRCLE);
++    lv_obj_center(rd);
++    fill(rd, chip_bg());
++    // battery (low): an outline, a nub and a fill that follows the level
++    lv_obj_t* bf = box(s_glyph[MB_FLAG_BATTERY], 0, 3, 17, 11, 3);
++    s_batt_fill = box(bf, 0, 0, 4, 5, 1);
++    lv_obj_set_pos(s_batt_fill, 0, 0);
++    (void)box(s_glyph[MB_FLAG_BATTERY], 17, 6, 3, 5, 1);  // the nub: painted with the outline in paint_strip
++    // Wi-Fi: four bars; the slash shows when the link is down
++    for (int i = 0; i < 4; i++) {
++        const int h = 4 + i * 3;
++        s_wifi_bars[i] = box(s_glyph[MB_FLAG_WIFI], i * 5, 16 - h, 4, h, 1);
++    }
++    s_wifi_slash = line(s_glyph[MB_FLAG_WIFI], s_slash_pts, 2, lv_color_make(255, 90, 80), 2);
++    lv_obj_add_flag(s_wifi_slash, LV_OBJ_FLAG_HIDDEN);
++}
++
++void paint_strip(lv_color_t fg)
++{
++    lv_obj_set_style_border_color(s_cam_a, fg, 0);
++    lv_obj_set_style_border_width(s_cam_a, 2, 0);
++    lv_obj_set_style_bg_opa(s_cam_a, LV_OPA_TRANSP, 0);
++    fill(s_cam_b, fg);
++    lv_obj_t* bf = lv_obj_get_parent(s_batt_fill);
++    outline(bf, fg, 2);
++    lv_obj_t* bn = lv_obj_get_child(s_glyph[MB_FLAG_BATTERY], 1);
++    fill(bn, fg);
++    const bool low = s_batt_level >= 0 && s_batt_level < 20;
++    fill(s_batt_fill, low ? lv_color_make(255, 90, 80) : fg);
++    int w = s_batt_level < 0 ? 4 : (s_batt_level * 11) / 100;
++    if (w < 2) w = 2;
++    lv_obj_set_size(s_batt_fill, w, 5);
++    for (int i = 0; i < 4; i++) {
++        const bool lit = s_wifi_up && s_hub_up ? i < s_bars : false;
++        fill(s_wifi_bars[i], lit ? fg : lv_color_make(80, 88, 98));
++    }
++    if (s_wifi_up && s_hub_up) lv_obj_add_flag(s_wifi_slash, LV_OBJ_FLAG_HIDDEN);
++    else lv_obj_remove_flag(s_wifi_slash, LV_OBJ_FLAG_HIDDEN);
++}
++
++const lv_font_t* font() { return &lv_font_montserrat_14; }
++
++void measure(const char* text, int max_w, lv_point_t* sz)
++{
++    lv_text_get_size(sz, text, font(), 0, 0, max_w, LV_TEXT_FLAG_NONE);
++}
++
++// The objects exist only while the row or the strip need them: idle, the banner holds no LVGL object at all.
++void build_ui()
++{
++    lv_obj_t* top = lv_layer_top();
++    s_row = box(top, MB_ROW_X, MB_ROW_Y, MB_ROW_W, MB_ROW_H, MB_ROW_R);
++    fill(s_row, lv_color_make(0x0E, 0x10, 0x16));
++    lv_obj_set_style_bg_opa(s_row, 0, 0);
++    s_chip = box(s_row, 3, 2, MB_ROW_W - 6, MB_ROW_H - 4, (MB_ROW_H - 4) / 2);
++    lv_obj_set_style_opa(s_chip, 0, 0);
++    s_icon = box(s_chip, 5, 0, MB_ICON_W, 22, 0);
++    s_clip = box(s_chip, 5 + MB_ICON_W + 4, 0, 200, MB_ROW_H - 4, 0);
++    s_label = lv_label_create(s_clip);
++    lv_obj_remove_flag(s_label, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_style_text_font(s_label, font(), 0);
++    lv_label_set_long_mode(s_label, LV_LABEL_LONG_MODE_CLIP);
++    lv_obj_add_flag(s_row, LV_OBJ_FLAG_HIDDEN);
++    s_strip = box(top, 0, 0, 1, 18, 0);
++    build_glyphs();
++    s_drawn_rev = 0xFFFFFFFFu;
++    s_drawn_strip = 0xFFFFFFFFu;
++    s_opa = 0;
++}
++
++void teardown_ui()
++{
++    if (s_row != nullptr) lv_obj_delete(s_row);
++    if (s_strip != nullptr) lv_obj_delete(s_strip);
++    s_row = s_chip = s_icon = s_clip = s_label = s_strip = nullptr;
++    for (auto& g : s_glyph) g = nullptr;
++    s_batt_fill = s_cam_a = s_cam_b = s_wifi_slash = nullptr;
++    for (auto& w : s_wifi_bars) w = nullptr;
++}
++
++// Lays the content out for what the row shows now. The row's own rectangle never changes. mu held.
++void render()
++{
++    const char* text = "";
++    int icon = 0, prio = 0;
++    const int kind = mb_content(s_b, &text, &icon, &prio);
++    uint32_t strip = mb_strip_visible(s_b);
++    if (icon == MB_ICON_WIFI_OFF) strip &= ~(1u << MB_FLAG_WIFI);  // the message already shows that glyph
++    if (icon == MB_ICON_BATTERY) strip &= ~(1u << MB_FLAG_BATTERY);
++    const lv_color_t fg = fg_color();
++    if (kind != 0) {  // with nothing to say the old content stays while the row fades out
++        const bool chip = kind == 2;
++        const bool violet_msg = chip || icon == MB_ICON_REMOTE;
++        const int room = mb_text_room(strip, icon);  // the same text area for a message and for a chip
++        lv_point_t one;
++        measure(text, 4000, &one);
++        const int line_h = lv_font_get_line_height(font());
++        const int hh = MB_ROW_H - 4;
++        s_fit = chip ? MB_FIT_ONE : mb_fit(one.x, room);
++        // the holder: the whole text area for a message; a chip is as wide as its text, never more than the text area
++        const int full = MB_ROW_W - 6 - (mb_strip_w(strip) > 0 ? mb_strip_w(strip) + 6 : 0);
++        int cw = full;
++        if (chip) {
++            cw = 5 + MB_ICON_W + 4 + one.x + 12;
++            if (cw > full) cw = full;
++        }
++        lv_obj_set_size(s_chip, cw, hh);
++        lv_obj_set_pos(s_chip, 3, 2);
++        if (chip) {
++            fill(s_chip, chip_bg());
++            lv_obj_set_style_border_width(s_chip, 1, 0);
++            lv_obj_set_style_border_color(s_chip, violet(), 0);
++        } else {
++            lv_obj_set_style_bg_opa(s_chip, LV_OPA_TRANSP, 0);
++            lv_obj_set_style_border_width(s_chip, 0, 0);
++        }
++        draw_icon(icon, violet_msg ? lv_color_white() : fg);
++        lv_obj_set_pos(s_icon, 5, (hh - 22) / 2);
++        if (icon == MB_ICON_NONE) lv_obj_add_flag(s_icon, LV_OBJ_FLAG_HIDDEN);
++        else lv_obj_remove_flag(s_icon, LV_OBJ_FLAG_HIDDEN);
++        const int tx = icon == MB_ICON_NONE ? 9 : 5 + MB_ICON_W + 4;
++        const int tw = chip ? cw - tx - 8 : room;
++        lv_obj_set_pos(s_clip, tx, 0);
++        lv_obj_set_size(s_clip, tw, hh);
++        lv_obj_set_style_text_color(s_label, violet_msg ? lv_color_white() : fg, 0);
++        s_overflow = 0;
++        if (chip) {  // the session text is stable: a long label ends in dots, it never scrolls or resizes the row
++            std::string t(text);
++            lv_point_t sz;
++            measure(t.c_str(), 4000, &sz);
++            while (sz.x > tw && t.size() > 1) {
++                t.pop_back();
++                const std::string trial = t + "...";
++                measure(trial.c_str(), 4000, &sz);
++                if (sz.x <= tw) {
++                    t = trial;
++                    break;
++                }
++            }
++            lv_label_set_text(s_label, t.c_str());
++            lv_label_set_long_mode(s_label, LV_LABEL_LONG_MODE_CLIP);
++            lv_obj_set_width(s_label, tw);
++        } else {
++            lv_label_set_text(s_label, text);
++            lv_label_set_long_mode(s_label, LV_LABEL_LONG_MODE_CLIP);
++            lv_obj_set_width(s_label, one.x + 2);
++            s_overflow = one.x > tw ? one.x - tw + 6 : 0;
++            if (s_fit == MB_FIT_MARQUEE && !s_b->cur.sticky) {  // the hold covers one full pass
++                uint32_t pass = mb_marquee_pass_ms(s_overflow) + 600u;
++                if (pass > MB_MAX_HOLD_MS) pass = MB_MAX_HOLD_MS;
++                if ((int32_t)(s_b->shown_ms + pass - s_b->until_ms) > 0) s_b->until_ms = s_b->shown_ms + pass;
++            }
++        }
++        lv_obj_set_pos(s_label, 0, (hh - line_h) / 2);
++        s_kind = kind;
++    }
++    // the strip: right end of the same row
++    lv_obj_set_pos(s_strip, MB_ROW_X + MB_ROW_W - MB_PAD_X - mb_strip_w(strip), MB_ROW_Y + (MB_ROW_H - 18) / 2);
++    lv_obj_set_size(s_strip, mb_strip_w(strip) > 0 ? mb_strip_w(strip) : 1, 18);
++    int x = 0;
++    for (int i = 0; i < MB_FLAG_COUNT; i++) {
++        const bool on = (strip & (1u << i)) != 0;
++        if (on) {
++            lv_obj_remove_flag(s_glyph[i], LV_OBJ_FLAG_HIDDEN);
++            lv_obj_set_pos(s_glyph[i], x, 0);
++            x += MB_STRIP_GLYPH_W + MB_STRIP_GAP;
++        } else {
++            lv_obj_add_flag(s_glyph[i], LV_OBJ_FLAG_HIDDEN);
++        }
++    }
++    paint_strip(fg);
++    s_drawn_rev = s_b->rev;
++    s_drawn_strip = mb_strip_visible(s_b);
++    s_drawn_fg = pack(fg);
++}
++
++void apply_opacity()
++{
++    if (s_row == nullptr) return;
++    if (s_opa <= 0) {
++        lv_obj_add_flag(s_row, LV_OBJ_FLAG_HIDDEN);
++        return;
++    }
++    lv_obj_remove_flag(s_row, LV_OBJ_FLAG_HIDDEN);
++    lv_obj_set_style_bg_opa(s_row, (lv_opa_t)(215 * s_opa / 255), 0);
++    lv_obj_set_style_opa(s_chip, (lv_opa_t)s_opa, 0);
++}
++
++void apply_status(const maipai_banner_status_t& st, uint32_t now)
++{
++    s_batt_level = st.battery_level;
++    s_bars = st.wifi_bars;
++    s_wifi_up = st.wifi_up;
++    s_hub_up = st.hub_up;
++    mb_flag(s_b, MB_FLAG_MIC, st.mic_live, now, 0);
++    mb_flag(s_b, MB_FLAG_BATTERY, mb_battery_shown(st.battery_level, st.charging, st.on_cable, s_bar_mode, 0), now, 0);
++    mb_flag(s_b, MB_FLAG_WIFI, mb_wifi_shown(st.wifi_up, st.hub_up, s_bar_mode), now, 0);
++}
++
++void tick(lv_timer_t*)
++{
++    if (s_b == nullptr) return;
++    std::lock_guard<std::mutex> lock(s_mu);
++    const uint32_t now = now_ms();
++    const uint32_t dt = now - s_last_ms;
++    s_last_ms = now;
++    if (s_poll != nullptr && (s_poll_ms == 0 || now - s_poll_ms >= 2000u)) {
++        s_poll_ms = now | 1u;
++        maipai_banner_status_t st;
++        s_poll(&st);
++        apply_status(st, now);
++    }
++    mb_tick(s_b, now);
++    const uint32_t strip = mb_strip_visible(s_b);
++    const lv_color_t fg = fg_color();
++    const char* text;
++    int icon, prio;
++    const int kind = mb_content(s_b, &text, &icon, &prio);
++    const bool need = kind != 0 || strip != 0 || s_opa > 0;
++    if (need) s_idle_since = 0;
++    else if (s_idle_since == 0) s_idle_since = now | 1u;
++    if (s_row == nullptr) {
++        if (!need) return;
++        build_ui();
++    } else if (!need && now - s_idle_since >= 20000u) {  // nothing to show for 20 s: give the objects back
++        teardown_ui();
++        s_kind = 0;
++        return;
++    }
++    if (s_drawn_rev != s_b->rev || s_drawn_strip != strip || s_drawn_fg != pack(fg)) render();
++    const int opa = mb_fade_step(s_opa, kind != 0, dt == 0 ? 33 : dt);
++    if (opa != s_opa) {
++        s_opa = opa;
++        apply_opacity();
++    } else if (s_opa == 0) {
++        apply_opacity();
++    }
++    if (kind == 1 && s_fit == MB_FIT_MARQUEE && s_overflow > 0) {
++        lv_obj_set_x(s_label, -mb_marquee_x(now - s_b->shown_ms, s_overflow));
++    }
++    const bool busy = kind != 0 || s_opa != 0;
++    const uint32_t want = busy ? 33u : 100u;
++    if (s_period != want) {
++        s_period = want;
++        lv_timer_set_period(s_timer, want);
++    }
++}
++
++// The speech bubble's words (the avatar's setSpeech) go where the Captions setting says. An empty text means the robot stopped.
++bool route_speech(std::string_view text)
++{
++    if (s_b == nullptr) return false;
++    if (s_bypass) {  // the Wi-Fi setup hint: still, readable, kept until the next one
++        if (!text.empty()) maipai_subtitles_say(std::string(text).c_str(), true);
++        return true;
++    }
++    if (s_caps == MB_CAP_BANNER) {
++        std::lock_guard<std::mutex> lock(s_mu);
++        const uint32_t now = now_ms();
++        if (text.empty()) {
++            mb_clear_tag(s_b, now, MB_TAG_CAPTION);
++            return true;
++        }
++        std::string t(text);
++        for (auto& ch : t) {
++            if (ch == '\n') ch = ' ';
++        }
++        mb_post(s_b, now, t.c_str(), MB_ICON_SPEECH, MB_PRIO_CAPTION, MB_TAG_CAPTION, mb_caption_hold((int)t.size()));
++        return true;
++    }
++    if (s_caps == MB_CAP_SUBTITLES) {
++        if (text.empty()) maipai_subtitles_end();
++        else maipai_subtitles_say(std::string(text).c_str(), false);
++        return true;
++    }
++    return true;  // off: the words are not drawn anywhere
++}
++
++}  // namespace
++
++void maipai_banner_attach(lv_color_t (*fg)(), void (*poll)(maipai_banner_status_t*))
++{
++    if (s_timer != nullptr) return;
++    if (s_b == nullptr) {
++#ifndef MAIPAI_HOST_RENDER
++        s_b = static_cast<mb_t*>(heap_caps_calloc(1, sizeof(mb_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++#else
++        s_b = static_cast<mb_t*>(calloc(1, sizeof(mb_t)));
++#endif
++        if (s_b == nullptr) return;
++        mb_init(s_b);
++    }
++    s_fg = fg;
++    s_poll = poll;
++    s_last_ms = now_ms();
++    stackchan::avatar::setSpeechRoute(route_speech);
++    maipai_subtitles_attach(fg);
++    s_timer = lv_timer_create(tick, 100, nullptr);  // the objects are built when something shows and deleted after 20 s of nothing
++}
++
++void maipai_banner_post(const char* text, int icon, int prio, int tag, uint32_t hold_ms)
++{
++    if (s_b == nullptr) return;
++    std::lock_guard<std::mutex> lock(s_mu);
++    mb_post(s_b, now_ms(), text, icon, prio, tag, hold_ms);
++}
++
++void maipai_banner_clear_tag(int tag)
++{
++    if (s_b == nullptr) return;
++    std::lock_guard<std::mutex> lock(s_mu);
++    mb_clear_tag(s_b, now_ms(), tag);
++}
++
++void maipai_banner_session(bool on, const char* label)
++{
++    if (s_b == nullptr) return;
++    std::lock_guard<std::mutex> lock(s_mu);
++    mb_session(s_b, on ? 1 : 0, label);  // a heartbeat renewal changes nothing and is never redrawn
++}
++
++void maipai_banner_flag(int flag, bool on, uint32_t hold_ms)
++{
++    if (s_b == nullptr) return;
++    std::lock_guard<std::mutex> lock(s_mu);
++    mb_flag(s_b, flag, on ? 1 : 0, now_ms(), hold_ms);
++}
++
++void maipai_banner_set_bar_mode(int mode)
++{
++    s_bar_mode = mode == MB_BAR_ALWAYS ? MB_BAR_ALWAYS : MB_BAR_HIDDEN;
++    if (s_b != nullptr) {
++        std::lock_guard<std::mutex> lock(s_mu);
++        s_b->bar_mode = static_cast<uint8_t>(s_bar_mode);
++        s_poll_ms = 0;  // re-read the gauges now
++    }
++}
++
++void maipai_banner_set_captions(int mode)
++{
++    s_caps = mode;
++    if (mode != MB_CAP_SUBTITLES) maipai_subtitles_stop();  // the words on screen go away
++}
++int maipai_banner_captions() { return s_caps; }
++void maipai_banner_bypass(bool on) { s_bypass = on; }
++bool maipai_banner_visible()
++{
++    if (s_b == nullptr) return false;
++    std::lock_guard<std::mutex> lock(s_mu);
++    return s_b->has_cur || s_b->session;
++}
++void maipai_banner_step()
++{
++    tick(nullptr);
++    maipai_subtitles_step();
++}
+diff --git a/firmware/main/hal/maipai_subs_core.h b/firmware/main/hal/maipai_subs_core.h
+new file mode 100644
+index 0000000..c445882
+--- /dev/null
++++ b/firmware/main/hal/maipai_subs_core.h
+@@ -0,0 +1,142 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The subtitle strip (patch N04): what the robot is saying, at the bottom of the screen, sentence by sentence. Pure timing, no
++ * LVGL: a sentence is cut into pages of at most two lines (the cutting needs the font, so hal/maipai_subtitles.cc does it and
++ * hands over the character count of each page); a page shows for about 55 ms a character (1.6 s at least, 3.5 s at most); the
++ * last page of the last sentence stays 0.8 s after the robot stops talking and then fades out over 150 ms; a new sentence fades
++ * in over 150 ms. When the host sends word timing a soft highlight can follow it; without timing there is none.
++ * The zone is fixed: y 184 to 240, nothing else draws there and the face never moves for it.
++ */
++#ifndef MAIPAI_SUBS_CORE_H
++#define MAIPAI_SUBS_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define MS_ZONE_Y0 184
++#define MS_ZONE_Y1 240
++#define MS_FONT_PX 20      /* the build's own 20 px text font (accented Latin included) */
++#define MS_LINES 2
++#define MS_PAD_Y 4
++#define MS_MAX_PAGES 8
++#define MS_FADE_MS 150u
++#define MS_END_HOLD_MS 800u
++#define MS_PAGE_PER_CHAR_MS 55u
++#define MS_PAGE_MIN_MS 1600u
++#define MS_PAGE_MAX_MS 3500u
++#define MS_LINGER_MS 2600u /* with no end signal: the last page leaves this long after it appeared */
++
++enum { MS_IDLE = 0, MS_IN, MS_SHOW, MS_OUT };
++
++typedef struct {
++    uint8_t phase;
++    uint8_t pages;
++    uint8_t page;
++    uint8_t ending;      /* the robot has stopped talking */
++    uint16_t chars[MS_MAX_PAGES];
++    uint32_t phase_at;
++    uint32_t page_at;
++    uint32_t end_at;
++    uint32_t rev;        /* bumps when the text or the page changes: the drawing runs only then */
++} ms_t;
++
++static inline int ms_due(uint32_t now, uint32_t at) { return (int32_t)(now - at) >= 0; }
++
++static inline void ms_init(ms_t* s) { memset(s, 0, sizeof(*s)); }
++
++static inline uint32_t ms_page_ms(int chars)
++{
++    uint32_t ms = (uint32_t)chars * MS_PAGE_PER_CHAR_MS;
++    if (ms < MS_PAGE_MIN_MS) ms = MS_PAGE_MIN_MS;
++    if (ms > MS_PAGE_MAX_MS) ms = MS_PAGE_MAX_MS;
++    return ms;
++}
++
++/* A new sentence, cut into `pages` pages of `chars[i]` characters. It replaces what shows: a fade in over 150 ms. */
++static inline void ms_begin(ms_t* s, uint32_t now, int pages, const uint16_t* chars)
++{
++    if (pages < 1) return;
++    if (pages > MS_MAX_PAGES) pages = MS_MAX_PAGES;
++    s->pages = (uint8_t)pages;
++    for (int i = 0; i < pages; i++) s->chars[i] = chars[i];
++    s->page = 0;
++    s->page_at = now;
++    s->phase = MS_IN;
++    s->phase_at = now;
++    s->ending = 0;
++    s->rev++;
++}
++
++/* The robot stopped talking (or the sentences ran out): the last page stays 0.8 s more and then goes. */
++static inline void ms_end(ms_t* s, uint32_t now)
++{
++    if (s->phase == MS_IDLE || s->ending) return;
++    s->ending = 1;
++    s->end_at = now;
++}
++
++/* Everything goes at once (captions turned off, a mute): a fade out. */
++static inline void ms_stop(ms_t* s, uint32_t now)
++{
++    if (s->phase == MS_IDLE || s->phase == MS_OUT) return;
++    s->phase = MS_OUT;
++    s->phase_at = now;
++}
++
++/* The clock. 1 when the text or the page changed (the drawing must run); the opacity moves by itself. */
++static inline int ms_tick(ms_t* s, uint32_t now)
++{
++    const uint32_t before = s->rev;
++    if (s->phase == MS_IN && ms_due(now, s->phase_at + MS_FADE_MS)) s->phase = MS_SHOW;
++    if (s->phase == MS_IN || s->phase == MS_SHOW) {
++        if (s->page + 1 < s->pages) {
++            if (ms_due(now, s->page_at + ms_page_ms(s->chars[s->page]))) {
++                s->page++;
++                s->page_at = now;
++                s->rev++;
++            }
++        } else {
++            const uint32_t last_done = s->page_at + ms_page_ms(s->chars[s->page]);
++            int leave = 0;
++            if (s->ending && ms_due(now, (ms_due(s->end_at, last_done) ? s->end_at : last_done) + MS_END_HOLD_MS)) leave = 1;
++            if (!s->ending && ms_due(now, s->page_at + MS_LINGER_MS + ms_page_ms(s->chars[s->page]))) leave = 1;
++            if (leave) {
++                s->phase = MS_OUT;
++                s->phase_at = now;
++            }
++        }
++    }
++    if (s->phase == MS_OUT && ms_due(now, s->phase_at + MS_FADE_MS)) {
++        s->phase = MS_IDLE;
++        s->pages = 0;
++        s->rev++;
++    }
++    return s->rev != before;
++}
++
++/* The opacity now, 0 to 255. */
++static inline int ms_opa(const ms_t* s, uint32_t now)
++{
++    if (s->phase == MS_IDLE) return 0;
++    if (s->phase == MS_IN) {
++        const uint32_t d = now - s->phase_at;
++        return d >= MS_FADE_MS ? 255 : (int)(d * 255u / MS_FADE_MS);
++    }
++    if (s->phase == MS_OUT) {
++        const uint32_t d = now - s->phase_at;
++        return d >= MS_FADE_MS ? 0 : 255 - (int)(d * 255u / MS_FADE_MS);
++    }
++    return 255;
++}
++
++static inline int ms_visible(const ms_t* s) { return s->phase != MS_IDLE; }
++
++/* The strip's rectangle: the whole bottom zone, full width. Text lines are centered in it: one line uses the vertical middle. */
++static inline int ms_text_top(int lines, int line_h)
++{
++    const int h = MS_ZONE_Y1 - MS_ZONE_Y0;
++    return MS_ZONE_Y0 + (h - lines * line_h) / 2;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_subtitles.h b/firmware/main/hal/maipai_subtitles.h
+new file mode 100644
+index 0000000..5b38c0e
+--- /dev/null
++++ b/firmware/main/hal/maipai_subtitles.h
+@@ -0,0 +1,25 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The subtitle strip (patch N04): the robot's spoken words at the bottom of the screen, in the fixed subtitle zone (y 184 to
++ * 240), sentence by sentence, white text with a dark outline, no box. Timing: maipai_subs_core.h. Safe from any task: a call
++ * only changes the state; an LVGL timer draws.
++ */
++#pragma once
++
++#include <lvgl.h>
++
++#include "maipai_subs_core.h"
++
++// Starts the timer. fg (optional) gives the text color. LVGL lock held.
++void maipai_subtitles_attach(lv_color_t (*fg)());
++// A sentence (one tts sentence message, or a remote message that is now spoken). It replaces what shows with a 150 ms fade.
++// sticky: it stays until the next one (the Wi-Fi setup hint).
++void maipai_subtitles_say(const char* text, bool sticky);
++// The robot stopped talking: the last page leaves 0.8 s later.
++void maipai_subtitles_end();
++// Everything goes now (captions turned off).
++void maipai_subtitles_stop();
++bool maipai_subtitles_visible();
++// One timer step (the host renderer calls it by hand).
++void maipai_subtitles_step();
+diff --git a/firmware/main/hal/maipai_subtitles.cc b/firmware/main/hal/maipai_subtitles.cc
+new file mode 100644
+index 0000000..44df879
+--- /dev/null
++++ b/firmware/main/hal/maipai_subtitles.cc
+@@ -0,0 +1,203 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The subtitle strip (patch N04). See maipai_subtitles.h and maipai_subs_core.h. The fixed zone is y 184 to 240, full width, no
++ * box: white text with a dark outline (four dark copies one pixel off, the white one on top), at most two lines of the build's
++ * 20 px text font, centered; one line sits in the vertical middle of the zone. A sentence that needs more than two lines is
++ * paged. The face never moves for it. Objects: one holder and five labels, built when a sentence arrives and deleted after 5 s
++ * of nothing; idle there is a timer and a 0.1 KB state.
++ */
++#include "maipai_subtitles.h"
++
++#include <cstring>
++#include <mutex>
++#include <string>
++#include <vector>
++
++#ifdef BUILTIN_TEXT_FONT
++LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
++#define MS_FONT (&BUILTIN_TEXT_FONT)  // the unit's 20 px text font, accented Latin included, already in the image
++#else
++#define MS_FONT (&lv_font_montserrat_20)  // the host renderer has no unit font
++#endif
++
++namespace {
++
++constexpr int kWidth = 304;  // the text width: 8 px of margin on each side
++
++std::mutex s_mu;
++ms_t s_s;
++std::vector<std::string> s_pages;
++bool s_sticky = false;
++lv_obj_t* s_box = nullptr;
++lv_obj_t* s_main = nullptr;
++lv_obj_t* s_shadow[4] = {};
++lv_timer_t* s_timer = nullptr;
++lv_color_t (*s_fg)() = nullptr;
++uint32_t s_drawn_rev = 0xFFFFFFFFu;
++uint32_t s_period = 100;
++uint32_t s_idle_since = 0;
++int s_opa_drawn = -1;
++
++uint32_t now_ms() { return lv_tick_get(); }
++
++void measure(const std::string& t, int max_w, lv_point_t* sz) { lv_text_get_size(sz, t.c_str(), MS_FONT, 0, 0, max_w, LV_TEXT_FLAG_NONE); }
++
++// A sentence cut at word boundaries into pages of at most two lines.
++std::vector<std::string> paginate(const std::string& text)
++{
++    std::vector<std::string> pages;
++    const int line_h = lv_font_get_line_height(MS_FONT);
++    std::string cur;
++    size_t i = 0;
++    while (i < text.size()) {
++        size_t j = text.find(' ', i);
++        if (j == std::string::npos) j = text.size();
++        const std::string word = text.substr(i, j - i);
++        i = j + 1;
++        if (word.empty()) continue;
++        const std::string trial = cur.empty() ? word : cur + " " + word;
++        lv_point_t sz;
++        measure(trial, kWidth, &sz);
++        if (sz.y > line_h * MS_LINES && !cur.empty()) {
++            pages.push_back(cur);
++            cur = word;
++        } else {
++            cur = trial;
++        }
++    }
++    if (!cur.empty()) pages.push_back(cur);
++    if (pages.size() > MS_MAX_PAGES) pages.resize(MS_MAX_PAGES);
++    return pages;
++}
++
++void build_ui()
++{
++    s_box = lv_obj_create(lv_layer_top());
++    lv_obj_remove_style_all(s_box);
++    lv_obj_remove_flag(s_box, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(s_box, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(s_box, 320, MS_ZONE_Y1 - MS_ZONE_Y0);
++    lv_obj_set_pos(s_box, 0, MS_ZONE_Y0);
++    lv_obj_set_style_opa(s_box, 0, 0);
++    for (int i = 0; i < 5; i++) {
++        lv_obj_t* l = lv_label_create(s_box);
++        lv_obj_remove_flag(l, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_set_style_text_font(l, MS_FONT, 0);
++        lv_label_set_long_mode(l, LV_LABEL_LONG_MODE_WRAP);
++        lv_obj_set_width(l, kWidth);
++        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++        if (i < 4) {
++            lv_obj_set_style_text_color(l, lv_color_black(), 0);
++            s_shadow[i] = l;
++        } else {
++            lv_obj_set_style_text_color(l, s_fg != nullptr ? s_fg() : lv_color_white(), 0);
++            s_main = l;
++        }
++    }
++    s_drawn_rev = 0xFFFFFFFFu;
++    s_opa_drawn = -1;
++}
++
++void teardown_ui()
++{
++    if (s_box != nullptr) lv_obj_delete(s_box);
++    s_box = s_main = nullptr;
++    for (auto& l : s_shadow) l = nullptr;
++}
++
++void draw_page()
++{
++    if (s_box == nullptr || s_s.page >= s_pages.size()) return;
++    const std::string& t = s_pages[s_s.page];
++    lv_point_t sz;
++    measure(t, kWidth, &sz);
++    const int line_h = lv_font_get_line_height(MS_FONT);
++    const int lines = sz.y / (line_h > 0 ? line_h : 1) < 1 ? 1 : (sz.y / line_h > MS_LINES ? MS_LINES : sz.y / line_h);
++    const int top = ms_text_top(lines, line_h) - MS_ZONE_Y0;  // one line sits in the middle of the zone
++    static const int dx[4] = {-1, 1, -1, 1}, dy[4] = {-1, -1, 1, 1};
++    for (int i = 0; i < 5; i++) {
++        lv_obj_t* l = i < 4 ? s_shadow[i] : s_main;
++        lv_label_set_text(l, t.c_str());
++        lv_obj_set_pos(l, 8 + (i < 4 ? dx[i] : 0), top + (i < 4 ? dy[i] : 0));
++    }
++    lv_obj_set_style_text_color(s_main, s_fg != nullptr ? s_fg() : lv_color_white(), 0);
++    s_drawn_rev = s_s.rev;
++}
++
++void tick(lv_timer_t*)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    const uint32_t now = now_ms();
++    if (s_sticky && s_s.phase == MS_SHOW) s_s.page_at = now;  // a sticky text (the Wi-Fi setup hint) never leaves by itself
++    ms_tick(&s_s, now);
++    const bool vis = ms_visible(&s_s);
++    if (vis) s_idle_since = 0;
++    else if (s_idle_since == 0) s_idle_since = now | 1u;
++    if (s_box == nullptr) {
++        if (!vis) return;
++        build_ui();
++    } else if (!vis && now - s_idle_since >= 5000u) {
++        teardown_ui();
++        return;
++    }
++    if (vis && s_drawn_rev != s_s.rev) draw_page();
++    const int opa = ms_opa(&s_s, now);
++    if (s_box != nullptr && opa != s_opa_drawn) {
++        s_opa_drawn = opa;
++        lv_obj_set_style_opa(s_box, (lv_opa_t)opa, 0);
++    }
++    const uint32_t want = vis ? 33u : 100u;
++    if (want != s_period && s_timer != nullptr) {
++        s_period = want;
++        lv_timer_set_period(s_timer, want);
++    }
++}
++
++}  // namespace
++
++void maipai_subtitles_attach(lv_color_t (*fg)())
++{
++    if (s_timer != nullptr) return;
++    s_fg = fg;
++    ms_init(&s_s);
++    s_timer = lv_timer_create(tick, 100, nullptr);
++}
++
++void maipai_subtitles_say(const char* text, bool sticky)
++{
++    if (text == nullptr || *text == '\0') return;
++    std::lock_guard<std::mutex> lock(s_mu);
++    std::string t(text);
++    for (auto& c : t) {
++        if (c == '\n') c = ' ';
++    }
++    s_pages = paginate(t);
++    if (s_pages.empty()) return;
++    uint16_t chars[MS_MAX_PAGES];
++    for (size_t i = 0; i < s_pages.size(); i++) chars[i] = (uint16_t)s_pages[i].size();
++    s_sticky = sticky;
++    ms_begin(&s_s, now_ms(), (int)s_pages.size(), chars);
++}
++
++void maipai_subtitles_end()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (s_sticky) return;
++    ms_end(&s_s, now_ms());
++}
++
++void maipai_subtitles_stop()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    s_sticky = false;
++    ms_stop(&s_s, now_ms());
++}
++
++bool maipai_subtitles_visible()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    return ms_visible(&s_s);
++}
++
++void maipai_subtitles_step() { tick(nullptr); }
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+index 15d8aae..1ae67b1 100644
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -16,6 +16,11 @@
+ 
+ namespace stackchan::avatar {
+ 
++// The banner row (patch N01) takes the speech words while the Captions setting says banner: the route returns true when it
++// consumed them (an empty text clears), false to let the bubble draw them as before.
++using SpeechRoute = bool (*)(std::string_view text);
++void setSpeechRoute(SpeechRoute route);
++
+ /**
+  * @brief The default skin. Patch X01 rebuilt its eyes, mouth and thinking cue on hal/maipai_look_core.h: a style table,
+  * a lid that never clips an open eye, a mouth that is one family of shapes, a sleep sequence, thinking dots at the mouth
+diff --git a/firmware/main/stackchan/avatar/skins/default/speech_bubble.cpp b/firmware/main/stackchan/avatar/skins/default/speech_bubble.cpp
+index 398ee18..88e8c4f 100644
+--- a/firmware/main/stackchan/avatar/skins/default/speech_bubble.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/speech_bubble.cpp
+@@ -27,6 +27,11 @@ static const int _fade_step     = 64;   // opacity lost per step: four steps fro
+ 
+ LV_IMAGE_DECLARE(default_bubble_arrow);
+ 
++namespace stackchan::avatar {
++static SpeechRoute s_route = nullptr;
++void setSpeechRoute(SpeechRoute route) { s_route = route; }
++}  // namespace stackchan::avatar
++
+ namespace {
+ const lv_font_t* font_of(Label* l)
+ {
+@@ -197,6 +202,10 @@ void DefaultSpeechBubble::hide()
+ 
+ void DefaultSpeechBubble::setSpeech(std::string_view text)
+ {
++    if (s_route != nullptr && s_route(text)) {  // patch N01: the banner row shows these words
++        if (_phase != 0) hide();
++        return;
++    }
+     if (text.empty()) {
+         clearSpeech();
+         return;
+@@ -212,6 +221,7 @@ void DefaultSpeechBubble::setSpeech(std::string_view text)
+ 
+ void DefaultSpeechBubble::clearSpeech()
+ {
++    if (s_route != nullptr) (void)s_route(std::string_view());  // the banner's caption goes too
+     _text->setText("");
+     hide();
+ }
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+index a6ce48e..f280e83 100644
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -103,6 +103,16 @@ config MAIPAI_FACE_CAPTIONS
+         Lets a person turn on the words the unit says as text on the face (off by default, decision 22).
+         Off: the words are never drawn on the face, and the setting is not offered.
+ 
++config MAIPAI_BANNER_ROW
++    bool "Banner row at the top of the screen for every message and cue"
++    default y
++    depends on MAIPAI_FACE_CONFIG
++    help
++        The one place for information: a rounded row at the top of the screen (remote cues and the violet session chip,
++        notices, "Here I am!", game best score, link looks, captions in banner mode), with a small icon strip for the
++        cues that must always show. The face moves down 8 to 12 px, eased, while it shows. Off here: the older bottom
++        bubbles and strip (bench builds only; nothing remote-related would show then).
++
+ config MAIPAI_FX
+     bool "Saved preferences and screen effects: scanlines, colour modes, night dim, glow, overlays, the speech bubble"
+     default y

@@ -1,0 +1,246 @@
+# Intent: The face has a fixed zone (owner decision 2026-11-16): y 28 to 184 of the 320 by 240 screen, laid out once and never moved or scaled for the banner above it or the subtitles below it. The default skin gets a transparent holder of that rectangle inside its whole-screen panel (so touches and swipes work everywhere as before); the holder clips what leaves it. Style offsets are from the middle of the zone (screen y 106). Big eyes is the approved design at 0.82 (eye 79 by 85, brows 7 px); Eyes only, Stock, Classic and Minimal keep their sizes; every eye top is at y 32 or lower, every mouth is centered at y 162 (the stock bar at 152) and its tallest open shape ends by y 180; the thinking dots sit at the mouth's place; the external gaze range is 10 px (was 16) and the mouth's own offset 2 px (was 8); the brows are pushed down so they never reach above the eye line; an eye's vertical offset (pose, gaze and drift together) is clamped so its lit shapes stay inside the zone. A core test checks 47,000 shape boxes over every style, emotion, lid, blink, voice level and gaze extreme. Colors: the screen behind the panel takes the face's background color, so the banner and subtitle zones match.
+# Placement: unit (the face runs on the robot, so it is complete with no host)
+# Upstream: firmware/main/hal/maipai_look_core.h and firmware/main/stackchan/avatar/skins/default/{default.h,default.cpp,eyes.cpp,mouth.cpp} (ours, patches X01, V10 to V12, V20 to V22)
+# Check after a flash: every style times every emotion drawn from the unit (scripts/fw-serial.py snap): nothing lit above y 28 or below y 184; the host renderer sheets and the zone check (scripts/fw-face-render, scene_banner.py) say the same.
+
+diff --git a/firmware/main/hal/maipai_look_core.h b/firmware/main/hal/maipai_look_core.h
+index e073be2..bee8843 100644
+--- a/firmware/main/hal/maipai_look_core.h
++++ b/firmware/main/hal/maipai_look_core.h
+@@ -25,6 +25,15 @@
+ #include <stdint.h>
+ #include <string.h>
+ 
++/* ---------------------------------------------------------------- the face zone (patch N04)
++ * The screen has fixed zones: the banner (y 0 to 28), the face (y 28 to 184) and the subtitles (y 184 to 240). The face is laid
++ * out once for its zone and never moves or scales for what the other two show. All offsets below are from the middle of the zone. */
++#define ML_ZONE_Y0 28
++#define ML_ZONE_Y1 184
++#define ML_ZONE_CENTER_Y 106 /* the middle of the face zone, in screen pixels */
++#define ML_ZONE_EYE_TOP 32   /* no eye, brow or decoration starts above this screen y */
++#define ML_ZONE_MOUTH_END 180 /* no mouth shape ends below this screen y */
++
+ /* ---------------------------------------------------------------- styles */
+ 
+ #define ML_STYLE_BIG_EYES 0
+@@ -59,12 +68,15 @@ typedef struct {
+ } ml_style_t;
+ 
+ static const ml_style_t ML_STYLES[ML_STYLE_COUNT] = {
+-    /* name       eye_d eye_x eye_y mouth_y mouth        mw  mt stock  ew   eh  r%  pupil brows drift blw */
+-    {"big_eyes", 104, 85, -22, 80, ML_MOUTH_CUTE, 46, 8, 0, 96, 104, 100, 1, 1, 6, 8},
+-    {"eyes_only", 88, 75, 0, 92, ML_MOUTH_NONE, 0, 0, 0, 84, 88, 55, 0, 0, 8, 0},
+-    {"stock", 20, 70, -16, 26, ML_MOUTH_BAR, 90, 6, 1, 20, 20, 100, 0, 0, 3, 0},
+-    {"classic", 72, 70, -26, 52, ML_MOUTH_CUTE, 36, 6, 0, 56, 72, 90, 0, 1, 5, 7},
+-    {"minimal", 40, 62, -16, 40, ML_MOUTH_CUTE, 22, 3, 0, 28, 40, 100, 0, 0, 6, 4},
++    /* name       eye_d eye_x eye_y mouth_y mouth        mw  mt stock  ew   eh  r%  pupil brows drift blw
++     * Positions are from the middle of the FACE ZONE (screen y 106: the zone is y 28 to 184, patch N04), not of the screen.
++     * Big eyes is the approved design at 0.82; Eyes only, Stock, Classic and Minimal keep their sizes. Every mouth centre is
++     * at screen y 162 (offset 56; the bar 152), its tallest open shape ends by y 180; every eye top is at y 36 or lower. */
++    {"big_eyes", 85, 70, -14, 56, ML_MOUTH_CUTE, 38, 7, 0, 79, 85, 100, 1, 1, 5, 7},
++    {"eyes_only", 80, 70, 0, 56, ML_MOUTH_NONE, 0, 0, 0, 76, 80, 55, 0, 0, 6, 0},
++    {"stock", 20, 70, -8, 46, ML_MOUTH_BAR, 90, 6, 1, 20, 20, 100, 0, 0, 3, 0},
++    {"classic", 72, 70, -18, 56, ML_MOUTH_CUTE, 36, 6, 0, 56, 72, 90, 0, 1, 5, 7},
++    {"minimal", 40, 62, -10, 56, ML_MOUTH_CUTE, 22, 3, 0, 28, 40, 100, 0, 0, 5, 4},
+ };
+ 
+ static inline const ml_style_t* ml_style(int id) { return &ML_STYLES[(id >= 0 && id < ML_STYLE_COUNT) ? id : ML_STYLE_BIG_EYES]; }
+@@ -504,9 +516,9 @@ static inline ml_dot_t ml_dot(const ml_style_t* st, int i, uint32_t elapsed_ms)
+         d.opa = (uint8_t)(90 + (int)lroundf(k * 165.0f));
+         return d;
+     }
+-    /* the approved design (V10): 13 px dots, 26 apart, low on the face (y 212 of 240), rising 8 px and brightening */
++    /* the approved design (V10): 13 px dots, 26 apart, at the mouth's place, rising 8 px and brightening */
+     d.x = (int16_t)((i - 1) * 26);
+-    d.y = (int16_t)(92 - (int)lroundf(k * 8.0f));
++    d.y = (int16_t)(st->mouth_y - (int)lroundf(k * 8.0f));
+     d.d = 13;
+     d.opa = (uint8_t)(89 + (int)lroundf(k * 166.0f));
+     return d;
+@@ -794,7 +806,14 @@ static inline int ml_brow_shapes(const ml_style_t* st, int side, float ew, float
+     const float len = ew * es * 0.78f, ang = btilt * 0.38f * (float)(-side);
+     const float ca = cosf(ang), sa = sinf(ang);
+     ml_shape_t* l = ml_sh(out, &n, max, ML_SH_LINE, ML_COL_FG, ml_clamp01f(on));
+-    if (l) { l->v[0] = cx - len * 0.5f * ca; l->v[1] = y - len * 0.5f * sa; l->v[2] = cx + len * 0.5f * ca; l->v[3] = y + len * 0.5f * sa; l->v[4] = (float)st->blw; }
++    if (l) {
++        float y0 = y - len * 0.5f * sa, y1 = y + len * 0.5f * sa;
++        /* patch N04: the brow never reaches above the zone's eye line (screen y 32): it is pushed down by what it lacks */
++        const float top_limit = (float)ML_ZONE_EYE_TOP + (float)st->blw * 0.5f + 2.0f - ((float)ML_ZONE_CENTER_Y + (float)st->eye_y);
++        const float low = y0 < y1 ? y0 : y1;
++        const float push = low < top_limit ? top_limit - low : 0.0f;
++        l->v[0] = cx - len * 0.5f * ca; l->v[1] = y0 + push; l->v[2] = cx + len * 0.5f * ca; l->v[3] = y1 + push; l->v[4] = (float)st->blw;
++    }
+     return n;
+ }
+ 
+@@ -865,4 +884,50 @@ static inline float ml_blink_factor(uint32_t since_ms)
+     return 0.0f;
+ }
+ 
++
++/* ---- patch N04: keeping every shape inside the face zone */
++/* The box of the shapes that light pixels (a shape in the screen color lights nothing): b = x0, y0, x1, y1 around the shapes' own centre. */
++static inline int ml_shapes_bbox(const ml_shape_t* sh, int n, float b[4])
++{
++    int any = 0;
++    float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
++#define ML_BB(px, py)                                                              \
++    do {                                                                           \
++        if (!any) { x0 = x1 = (px); y0 = y1 = (py); any = 1; }                     \
++        else { if ((px) < x0) x0 = (px); if ((px) > x1) x1 = (px); if ((py) < y0) y0 = (py); if ((py) > y1) y1 = (py); } \
++    } while (0)
++    for (int i = 0; i < n; i++) {
++        const ml_shape_t* s = &sh[i];
++        if (s->col == ML_COL_BG || s->opa < 8) continue;
++        const float* v = s->v;
++        switch (s->kind) {
++            case ML_SH_RRECT: ML_BB(v[0] - v[2] * 0.5f, v[1] - v[3] * 0.5f); ML_BB(v[0] + v[2] * 0.5f, v[1] + v[3] * 0.5f); break;
++            case ML_SH_CIRCLE: ML_BB(v[0] - v[2], v[1] - v[2]); ML_BB(v[0] + v[2], v[1] + v[2]); break;
++            case ML_SH_QUAD: for (int k = 0; k < 4; k++) ML_BB(v[2 * k], v[2 * k + 1]); break;
++            case ML_SH_LINE: {
++                const float h = v[4] * 0.5f;
++                ML_BB(v[0] - h, v[1] - h); ML_BB(v[0] + h, v[1] + h); ML_BB(v[2] - h, v[3] - h); ML_BB(v[2] + h, v[3] + h);
++                break;
++            }
++            case ML_SH_HEART: ML_BB(v[0] - v[2] * 0.95f, v[1] - v[2] * 0.55f); ML_BB(v[0] + v[2] * 0.95f, v[1] + v[2] * 0.5f); break; /* the bezier's own extent */
++            default: break;
++        }
++    }
++#undef ML_BB
++    b[0] = x0; b[1] = y0; b[2] = x1; b[3] = y1;
++    return any;
++}
++
++/* The eye's vertical offset (pose, gaze and drift together) kept so that its lit shapes stay inside the face zone: its top at
++ * screen y 32 or lower and its bottom above the subtitle zone. top_rel and bottom_rel are the box of its shapes around its own centre. */
++static inline int ml_zone_clamp_oy(const ml_style_t* st, int oy, float top_rel, float bottom_rel)
++{
++    const float c = (float)ML_ZONE_CENTER_Y + (float)st->eye_y;
++    const float lo = (float)ML_ZONE_EYE_TOP - c - top_rel;
++    const float hi = (float)(ML_ZONE_Y1 - 4) - c - bottom_rel;
++    if ((float)oy > hi) oy = (int)floorf(hi);
++    if ((float)oy < lo) oy = (int)ceilf(lo);
++    return oy;
++}
++
+ #endif /* MAIPAI_LOOK_CORE_H */
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+index 1ae67b1..a86ace1 100644
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -57,6 +57,7 @@ public:
+ private:
+     void apply_color();
+     std::unique_ptr<uitk::lvgl_cpp::Container> _pannel;
++    std::unique_ptr<uitk::lvgl_cpp::Container> _zone;  // patch N04: the face zone, y 28 to 184, inside the whole-screen panel
+     int _style      = ML_STYLE_BIG_EYES;
+     bool _tint_on   = true;
+     bool _thinking  = false;
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.cpp b/firmware/main/stackchan/avatar/skins/default/default.cpp
+index 9a96d1a..575fd5d 100644
+--- a/firmware/main/stackchan/avatar/skins/default/default.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/default.cpp
+@@ -18,13 +18,29 @@ void DefaultAvatar::init(lv_obj_t* parent, const lv_font_t* font)
+     _pannel->setRadius(0);
+     _pannel->setBorderWidth(0);
+     _pannel->setBgColor(secondaryColor);
++    lv_obj_set_style_bg_color(parent, secondaryColor, 0);  // the screen shows the same color in the banner and subtitle zones
++    lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0);
++    _pannel->setPadding(0, 0, 0, 0);  // patch N04: the holder below is placed from the panel's own corner
+     _pannel->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
+ 
+-    _key_elements.leftEye  = std::make_unique<DefaultEyes>(_pannel->get(), primaryColor, secondaryColor, true);
+-    _key_elements.rightEye = std::make_unique<DefaultEyes>(_pannel->get(), primaryColor, secondaryColor, false);
+-    _key_elements.mouth    = std::make_unique<DefaultMouth>(_pannel->get(), primaryColor, secondaryColor);
++    // Patch N04: the face has its own zone, y 28 to 184: a transparent holder of that rectangle that clips what leaves it, so nothing
++    // of the face can ever reach the banner zone above or the subtitle zone below. The face never moves or scales for them. The
++    // panel stays the whole screen so touches, swipes and the quick settings gesture work everywhere as before.
++    _zone = std::make_unique<Container>(_pannel->get());
++    _zone->align(LV_ALIGN_TOP_MID, 0, 28);
++    _zone->setSize(320, 156);
++    _zone->setRadius(0);
++    _zone->setBorderWidth(0);
++    _zone->setBgOpa(0);
++    _zone->setPadding(0, 0, 0, 0);
++    _zone->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
++    _zone->removeFlag(LV_OBJ_FLAG_CLICKABLE);
++
++    _key_elements.leftEye  = std::make_unique<DefaultEyes>(_zone->get(), primaryColor, secondaryColor, true);
++    _key_elements.rightEye = std::make_unique<DefaultEyes>(_zone->get(), primaryColor, secondaryColor, false);
++    _key_elements.mouth    = std::make_unique<DefaultMouth>(_zone->get(), primaryColor, secondaryColor);
+     _key_elements.speechBubble =
+-        std::make_unique<DefaultSpeechBubble>(_pannel->get(), primaryColor, secondaryColor, font);
++        std::make_unique<DefaultSpeechBubble>(_zone->get(), primaryColor, secondaryColor, font);
+     _rgb[0] = primaryColor.red;
+     _rgb[1] = primaryColor.green;
+     _rgb[2] = primaryColor.blue;
+@@ -71,6 +87,7 @@ void DefaultAvatar::setColors(lv_color_t primary, lv_color_t secondary)
+     secondaryColor = secondary;
+     if (_pannel) {
+         _pannel->setBgColor(secondary);
++        lv_obj_set_style_bg_color(lv_obj_get_parent(_pannel->get()), secondary, 0);
+     }
+     _drawn_rgb = -1;
+     _rgb[0]    = primary.red;
+@@ -153,7 +170,7 @@ void DefaultAvatar::setThinking(bool on)
+             const lv_color_t c = shownColor();
+             for (int i = 0; i < ML_DOT_COUNT; i++) {
+                 if (_dots[i] == nullptr) {
+-                    _dots[i] = lv_obj_create(_pannel->get());
++                    _dots[i] = lv_obj_create(_zone->get());
+                     lv_obj_remove_style_all(_dots[i]);
+                     lv_obj_remove_flag(_dots[i], LV_OBJ_FLAG_CLICKABLE);  // a touch on a dot is a touch on the face
+                     lv_obj_remove_flag(_dots[i], LV_OBJ_FLAG_SCROLLABLE);
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+index 9fe40dc..d50b9c5 100644
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -17,8 +17,8 @@ using namespace uitk;
+ using namespace uitk::lvgl_cpp;
+ using namespace stackchan::avatar;
+ 
+-static const Vector2i _eye_min_offset = Vector2i(-16, -16);
+-static const Vector2i _eye_max_offset = Vector2i(16, 16);
++static const Vector2i _eye_min_offset = Vector2i(-10, -10);  // patch N04: the gaze range stays inside the face zone
++static const Vector2i _eye_max_offset = Vector2i(10, 10);
+ 
+ // One gaze drift for both eyes (patch H02): the first eye to step in a frame advances it.
+ static mx_drift_t s_drift;
+@@ -675,7 +675,8 @@ void DefaultEyes::update_art(uint32_t ms)
+     in.gy     = gy;
+     in.voice  = g_ml_voice;
+     _d_now    = in.eh;
+-    const int ox = (int)lroundf(gx), oy = (int)lroundf(P[MP_DY] + gy + (side > 0 ? P[MP_RLIFT] : 0.0f));
++    const int ox = (int)lroundf(gx);
++    int oy       = (int)lroundf(P[MP_DY] + gy + (side > 0 ? P[MP_RLIFT] : 0.0f));
+     // shapes are made around the eye's own centre; the gaze moves the centre, the pupil moves 1.3 times as far
+     ml_shape_t tmp[ML_MAX_SHAPES];
+     const int n = ml_eye_shapes(&in, tmp, ML_MAX_SHAPES);
+@@ -684,6 +685,10 @@ void DefaultEyes::update_art(uint32_t ms)
+             tmp[i].v[k] = roundf(tmp[i].v[k]);
+         }
+     }
++    {  // patch N04: the pose, the gaze and the drift together never push the eye out of the face zone
++        float bb[4];
++        if (ml_shapes_bbox(tmp, n, bb)) oy = ml_zone_clamp_oy(st, oy, bb[1], bb[3]);
++    }
+     const bool vis = _visible;
+     if (n != _nsh || ox != _ox || oy != _oy || memcmp(tmp, _sh, sizeof(ml_shape_t) * (size_t)n) != 0) {
+         if (vis) {
+diff --git a/firmware/main/stackchan/avatar/skins/default/mouth.cpp b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+index 053c949..0c4cb38 100644
+--- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+@@ -16,9 +16,9 @@ using namespace uitk::lvgl_cpp;
+ using namespace stackchan::avatar;
+ 
+ // The stock bar (the stock style): 90 by 6 when shut, 60 by 50 when open, and where it sits.
+-static const Vector2i _mouth_pos        = Vector2i(0, 26);
+-static const Vector2i _mouth_min_offset = Vector2i(-16, -16);
+-static const Vector2i _mouth_max_offset = Vector2i(16, 16);
++static const Vector2i _mouth_pos        = Vector2i(0, 46);  // patch N04: from the middle of the face zone
++static const Vector2i _mouth_min_offset = Vector2i(-16, -4);  // patch N04: the mouth never leaves its place in the face zone by more than 2 px
++static const Vector2i _mouth_max_offset = Vector2i(16, 4);
+ static const Vector2i _mouth_min_size   = Vector2i(90, 6);
+ static const Vector2i _mouth_max_size   = Vector2i(60, 50);
+ static const int _mouth_min_radius      = 0;

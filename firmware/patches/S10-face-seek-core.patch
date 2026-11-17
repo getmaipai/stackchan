@@ -1,0 +1,798 @@
+# Intent: Turning toward a person, part 1: the pure core (owner brief 2026-11-16, first built 2026-11-17). hal/maipai_seek_core.h holds the whole decision and nothing that touches hardware: a frame difference on a 40 by 30 gray picture (brightness shifts removed, speckle eroded, the biggest connected blob wins, a light flicker or a slid picture is refused); the seek state machine (wake word, one look at the current view, then one bounded search over five pan stops at -60, -30, 0, +30 and +60 degrees with about 300 ms of camera at each, stop at the first mover, give up and return to center; the "always" setting adds a one frame a second watch at rest that turns once for somebody walking in and goes home 20 s after the last sighting; a gentle follow while a talk goes on); the limits (4 turns a minute, a search and its turn count once, never a turn for a target older than 3 s, camera bursts at least 1 s apart and each with the camera-on cue, slower moves in quiet mode and at night); and the owner lease (self.look.claim with a 15 s ttl renewed every 5 s, release, expiry, one holder at a time, nothing kept over a reboot; while a lease is held the unit moves no head and runs no camera for faces). No sound direction is used. A face detector is an option of a separate build (ms_init with detector 1): the blob then only says where to look and a face there decides. State is about 5 KB (one previous frame and the labeling scratch), to be allocated in PSRAM by the caller. Nothing is wired yet: this patch adds one header and its host test, so it costs nothing on a unit.
+# Placement: unit (the robot seeks with no host; a host that does its own tracking takes the lease)
+# Upstream: new file firmware/main/hal/maipai_seek_core.h only; later patches wire it to the camera, the servo and the tools
+# Check after a flash: nothing to check yet (not wired). Host test: host/tests/firmware/seek_core_test.c (cc -std=c99 -Wall -Wextra -Werror seek_core_test.c -lm).
+
+diff --git a/firmware/main/hal/maipai_seek_core.h b/firmware/main/hal/maipai_seek_core.h
+new file mode 100644
+index 0000000..7e42039
+--- /dev/null
++++ b/firmware/main/hal/maipai_seek_core.h
+@@ -0,0 +1,787 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Turning toward a person (patch S10): the pure logic. Plain C99, no ESP call, no clock of its own: the caller passes the time,
++ * the head pose and the gray frames, and reads back what to do. A host compiler tests it against synthetic frame sequences and
++ * scripted lease cases (host/tests/firmware/seek_core_test.c).
++ *
++ * What it does. Three jobs, cheapest first:
++ *   1. Address: when the wake word fires, look at the current view; if somebody moves there, turn to the middle of them and hold
++ *      eye contact; if not, one bounded search over five pan stops (-60, -30, 0, +30, +60 degrees, about 300 ms of camera at each),
++ *      stop at the first sign of a person, give up and return to center.
++ *   2. Notice (setting "always" only): one frame a second at rest; somebody walks in, turn once, say nothing, go back after 20 s
++ *      with nobody. Never a search, never wandering.
++ *   3. Follow: while a talk goes on, a person who moves is followed in small, slow corrections.
++ * "Somebody moves" is a frame difference on a 40 by 30 gray picture (about 1.2 KB a frame): global brightness shifts (a light
++ * flicker, auto exposure) are removed first, speckle is eroded, the largest connected blob wins. A face detector is an option of
++ * a separate build: when `detector` is set the blob only suggests where to look and a face found there decides.
++ * No sound direction is used anywhere (owner correction 2026-11-16).
++ *
++ * Limits that never bend. At most 4 turns a minute (a search and the turn that ends it count once; the return to center is free);
++ * never a turn for a target seen more than 3 s ago; the camera runs in bursts of about 300 ms at least 1 s apart and only while
++ * awake, not muted, not in privacy sleep, vision on, not in full quiet, and while seeking is wanted; every burst carries the
++ * camera-on cue; while a host holds the lease the head never moves for faces here and the camera is not run for seeking.
++ * Frames are read once and dropped; only the previous 40 by 30 frame is kept, in memory this file never allocates (it sits in the
++ * caller's struct: about 5 KB, put it in PSRAM).
++ */
++#ifndef MAIPAI_SEEK_CORE_H
++#define MAIPAI_SEEK_CORE_H
++
++#include <math.h>
++#include <stddef.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++
++#define MS_W 40
++#define MS_H 30
++#define MS_PIX (MS_W * MS_H)
++
++/* The numbers, in one place. */
++#define MS_FOV_DEG 65.0f           /* horizontal field of view of the camera */
++#define MS_IMAGE_X_SIGN 1.0f       /* +1: the right of the picture is the unit's right (check on the unit; flip here only) */
++#define MS_PAN_MAX_DEG 80.0f
++#define MS_STOP_COUNT 5
++#define MS_SWEEP_SKIP_DEG 10.0f    /* a stop this near the pose of the first look was already seen */
++#define MS_PIX_THRESH 20           /* a pixel changed when it moved this much after the brightness shift is removed */
++#define MS_LIGHT_SHIFT 22          /* a mean brightness change above this is a light change, not a person */
++#define MS_CHANGED_MAX_PCT 55      /* more of the picture changed than this: the camera or the light moved, not a person */
++#define MS_BLOB_MIN 10             /* pixels (after erosion) for the smallest blob that counts */
++#define MS_PREV_MAX_AGE_MS 2500u   /* the previous frame is useless when older than this */
++#define MS_BURST_MS 300u           /* a burst of two frames, the second this long after the first minus a little */
++#define MS_FRAME_GAP_MS 250u
++#define MS_BURST_WAIT_MS 900u      /* a requested burst that delivers nothing in this time is a miss */
++#define MS_BURST_SPACING_MS 1000u  /* no burst starts sooner than this after the last one began (a sweep stop needs its move) */
++#define MS_IDLE_PERIOD_MS 1000u    /* the "always" watch: one frame a second at rest */
++#define MS_IDLE_PERIOD_QUIET_MS 2000u
++#define MS_HOLD_PERIOD_MS 1000u    /* follow while holding eye contact */
++#define MS_SETTLE_MIN_MS 200u      /* after a move, the picture is not trusted before this */
++#define MS_SETTLE_MAX_MS 3000u
++#define MS_TARGET_MAX_AGE_MS 3000u /* never turn for something seen longer ago than this */
++#define MS_TURNS_PER_MIN 4
++#define MS_ADDR_WINDOW_MS 30000u   /* after the wake word, seeking is wanted this long (longer while a talk goes on) */
++#define MS_NOBODY_MS 20000u        /* back to center after this long without a sighting */
++#define MS_FOLLOW_MIN_DEG 8.0f     /* a smaller offset is eye contact already */
++#define MS_FOLLOW_SPACING_MS 2000u
++#define MS_COUNTED_TURN_DEG 15.0f  /* a follow step this big is a turn and spends one of the four */
++#define MS_COOL_MS 2000u
++#define MS_COOL_DENIED_MS 10000u   /* the camera was refused (memory): stay away this long */
++#define MS_SPEED_NORMAL 100        /* percent of the head's usual eased speed */
++#define MS_SPEED_QUIET 55
++#define MS_CUE_MS 1000u            /* the camera-on cue stays this long past a burst start */
++
++enum { MS_MODE_OFF = 0, MS_MODE_TALK, MS_MODE_ALWAYS, MS_MODE_COUNT };
++static const char* const MS_MODE_NAMES[MS_MODE_COUNT] = {"off", "talk", "always"};
++
++enum {
++    MS_IDLE = 0,
++    MS_LOOK,       /* the first look at the current view after the wake word */
++    MS_SWEEP_MOVE, /* moving to the next pan stop */
++    MS_SWEEP_LOOK, /* looking at a pan stop */
++    MS_TURN,       /* moving to the middle of the person */
++    MS_RELOOK,     /* detector build: looking again where the blob was, for a face */
++    MS_HOLD,       /* eye contact, gentle follow */
++    MS_RETURN,     /* moving back to center */
++    MS_COOL,       /* a short rest before anything starts again */
++    MS_STATE_COUNT
++};
++static const char* const MS_STATE_NAMES[MS_STATE_COUNT] = {"idle", "look", "sweep_move", "sweep_look", "turn", "relook", "hold", "return", "cool"};
++
++/* ---- the lease: exactly one party drives face seeking at a time -------------------------------------------------------------- */
++
++#define MS_OWNER_MAX 23
++#define MS_LEASE_TTL_DEFAULT_S 15
++#define MS_LEASE_TTL_MIN_S 5
++#define MS_LEASE_TTL_MAX_S 60
++
++enum { MS_LEASE_OK = 0, MS_LEASE_RENEWED, MS_LEASE_BUSY, MS_LEASE_BAD };
++
++typedef struct {
++    uint8_t held;
++    char owner[MS_OWNER_MAX + 1];
++    uint32_t until_ms; /* expires when now reaches this */
++} ms_lease_t;
++
++static inline int32_t ms_dt(uint32_t a, uint32_t b) { return (int32_t)(a - b); }
++
++static inline int ms_owner_ok(const char* owner)
++{
++    size_t n = owner == NULL ? 0 : strlen(owner);
++    if (n == 0 || n > MS_OWNER_MAX) {
++        return 0;
++    }
++    for (size_t i = 0; i < n; i++) {
++        char c = owner[i];
++        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.')) {
++            return 0;
++        }
++    }
++    return 1;
++}
++
++static inline int ms_lease_active(ms_lease_t* l, uint32_t now)
++{
++    if (l->held && ms_dt(now, l->until_ms) >= 0) {
++        l->held = 0;
++        l->owner[0] = '\0';
++    }
++    return l->held;
++}
++
++/* A claim (or the heartbeat that renews it). ttl_s 0 means the default. A second claimant is refused while the first holds. */
++static inline int ms_lease_claim(ms_lease_t* l, const char* owner, int ttl_s, uint32_t now)
++{
++    if (!ms_owner_ok(owner) || ttl_s < 0) {
++        return MS_LEASE_BAD;
++    }
++    if (ttl_s == 0) {
++        ttl_s = MS_LEASE_TTL_DEFAULT_S;
++    }
++    if (ttl_s < MS_LEASE_TTL_MIN_S) {
++        ttl_s = MS_LEASE_TTL_MIN_S;
++    }
++    if (ttl_s > MS_LEASE_TTL_MAX_S) {
++        ttl_s = MS_LEASE_TTL_MAX_S;
++    }
++    int renewed = 0;
++    if (ms_lease_active(l, now)) {
++        if (strcmp(l->owner, owner) != 0) {
++            return MS_LEASE_BUSY;
++        }
++        renewed = 1;
++    }
++    l->held = 1;
++    strcpy(l->owner, owner);
++    l->until_ms = now + (uint32_t)ttl_s * 1000u;
++    return renewed ? MS_LEASE_RENEWED : MS_LEASE_OK;
++}
++
++/* Release: only the holder can. Nothing held is not an error. */
++static inline int ms_lease_release(ms_lease_t* l, const char* owner, uint32_t now)
++{
++    if (!ms_owner_ok(owner)) {
++        return MS_LEASE_BAD;
++    }
++    if (!ms_lease_active(l, now)) {
++        return MS_LEASE_OK;
++    }
++    if (strcmp(l->owner, owner) != 0) {
++        return MS_LEASE_BUSY;
++    }
++    l->held = 0;
++    l->owner[0] = '\0';
++    return MS_LEASE_OK;
++}
++
++/* ---- motion: frame difference on a 40 by 30 gray picture ------------------------------------------------------------------- */
++
++enum { MS_BLOB_NONE = 0, MS_BLOB_FOUND, MS_BLOB_LIGHT, MS_BLOB_BIG };
++
++typedef struct {
++    int kind;
++    int area;       /* pixels in the winning blob */
++    float cx, cy;   /* its center, in pixels */
++    int changed;    /* pixels over the threshold before erosion (for the tests) */
++} ms_blob_t;
++
++typedef struct {
++    uint8_t mask[MS_PIX];
++    uint16_t queue[MS_PIX];
++} ms_scratch_t;
++
++static inline void ms_blob(const uint8_t* a, const uint8_t* b, ms_scratch_t* sc, ms_blob_t* out)
++{
++    memset(out, 0, sizeof(*out));
++    long sum_a = 0, sum_b = 0;
++    for (int i = 0; i < MS_PIX; i++) {
++        sum_a += a[i];
++        sum_b += b[i];
++    }
++    int shift = (int)((sum_b - sum_a) / MS_PIX);
++    if (shift > MS_LIGHT_SHIFT || shift < -MS_LIGHT_SHIFT) {
++        out->kind = MS_BLOB_LIGHT;
++        return;
++    }
++    int changed = 0;
++    for (int i = 0; i < MS_PIX; i++) {
++        int d = (int)b[i] - (int)a[i] - shift;
++        if (d < 0) {
++            d = -d;
++        }
++        sc->mask[i] = d >= MS_PIX_THRESH;
++        changed += sc->mask[i];
++    }
++    out->changed = changed;
++    if (changed * 100 > MS_PIX * MS_CHANGED_MAX_PCT) {
++        out->kind = MS_BLOB_BIG;
++        return;
++    }
++    /* erosion: keep a pixel only when at least two of its four neighbours changed too (single pixels of noise vanish) */
++    for (int y = 0; y < MS_H; y++) {
++        for (int x = 0; x < MS_W; x++) {
++            int i = y * MS_W + x;
++            if (!sc->mask[i]) {
++                continue;
++            }
++            int n = 0;
++            n += x > 0 && (sc->mask[i - 1] & 1);
++            n += x < MS_W - 1 && (sc->mask[i + 1] & 1);
++            n += y > 0 && (sc->mask[i - MS_W] & 1);
++            n += y < MS_H - 1 && (sc->mask[i + MS_W] & 1);
++            if (n >= 2) {
++                sc->mask[i] |= 2; /* bit 1: survives */
++            }
++        }
++    }
++    for (int i = 0; i < MS_PIX; i++) {
++        sc->mask[i] = (sc->mask[i] & 2) ? 1 : 0;
++    }
++    /* connected blobs (4-neighbour), the biggest wins; a tie goes to the one nearer the middle */
++    int best_area = 0;
++    float best_cx = 0, best_cy = 0, best_d = 1e9f;
++    for (int start = 0; start < MS_PIX; start++) {
++        if (sc->mask[start] != 1) {
++            continue;
++        }
++        int head = 0, tail = 0, area = 0;
++        long sx = 0, sy = 0;
++        sc->queue[tail++] = (uint16_t)start;
++        sc->mask[start] = 2;
++        while (head < tail) {
++            int i = sc->queue[head++];
++            int x = i % MS_W, y = i / MS_W;
++            area++;
++            sx += x;
++            sy += y;
++            int nb[4] = {x > 0 ? i - 1 : -1, x < MS_W - 1 ? i + 1 : -1, y > 0 ? i - MS_W : -1, y < MS_H - 1 ? i + MS_W : -1};
++            for (int k = 0; k < 4; k++) {
++                if (nb[k] >= 0 && sc->mask[nb[k]] == 1) {
++                    sc->mask[nb[k]] = 2;
++                    sc->queue[tail++] = (uint16_t)nb[k];
++                }
++            }
++        }
++        float cx = (float)sx / (float)area, cy = (float)sy / (float)area;
++        float d = fabsf(cx - (MS_W - 1) * 0.5f);
++        if (area > best_area || (area == best_area && d < best_d)) {
++            best_area = area;
++            best_cx = cx;
++            best_cy = cy;
++            best_d = d;
++        }
++    }
++    if (best_area >= MS_BLOB_MIN) {
++        out->kind = MS_BLOB_FOUND;
++        out->area = best_area;
++        out->cx = best_cx;
++        out->cy = best_cy;
++    }
++}
++
++/* The head angle (degrees, left negative) from a pixel column of the 40 wide picture. */
++static inline float ms_offset_deg(float cx_px)
++{
++    return (cx_px - (MS_W - 1) * 0.5f) * (MS_FOV_DEG / (float)MS_W) * MS_IMAGE_X_SIGN;
++}
++
++static inline float ms_clamp_pan(float p)
++{
++    return p > MS_PAN_MAX_DEG ? MS_PAN_MAX_DEG : (p < -MS_PAN_MAX_DEG ? -MS_PAN_MAX_DEG : p);
++}
++
++/* ---- the seeker ------------------------------------------------------------------------------------------------------------- */
++
++typedef struct {
++    uint32_t now_ms;
++    float pan_deg;          /* where the head is (left negative) */
++    uint8_t head_settled;   /* the servo reached its goal */
++    uint8_t addressed;      /* edge: the wake word just fired */
++    uint8_t conversation;   /* a turn is going on (listening, thinking, speaking) */
++    uint8_t awake, muted, privacy_sleep, vision_off, full_quiet;
++    uint8_t quiet_or_night; /* slower, quieter moves */
++    uint8_t camera_denied;  /* the unit refused the camera (memory admission) */
++    uint8_t mode;           /* MS_MODE_* from the setting */
++    const uint8_t* frame;   /* a gray 40 by 30 frame taken now at pan_deg, or NULL */
++    uint8_t face_valid;     /* detector build: a face was found in this frame */
++    float face_cx;          /* ... at this place across the frame, 0 (left) to 1 (right) */
++} ms_in_t;
++
++enum { MS_REASON_NONE = 0, MS_REASON_ADDRESS, MS_REASON_NOTICE, MS_REASON_FOLLOW, MS_REASON_SWEEP, MS_REASON_RETURN, MS_REASON_RELOOK };
++
++typedef struct {
++    uint8_t move;           /* 1: start a head move to pan_deg */
++    float pan_deg;
++    uint8_t speed_pct;
++    uint8_t reason;
++    uint8_t camera;         /* 1: capture `frames` frames `gap_ms` apart now, and feed each one back as in.frame */
++    uint8_t frames;
++    uint16_t gap_ms;
++    uint8_t want_face;      /* detector build: run the detector on these frames */
++    uint16_t cue_ms;        /* show the camera-on cue for this long (monitor_cue_begin) */
++} ms_out_t;
++
++typedef struct {
++    uint8_t state;
++    uint8_t detector;       /* set at init by the build that has a face detector */
++    ms_lease_t lease;
++    /* the previous frame */
++    uint8_t prev[MS_PIX];
++    uint8_t prev_valid;
++    uint32_t prev_at;
++    float prev_pan;
++    ms_scratch_t scratch;
++    /* bursts */
++    uint32_t last_burst_at;
++    uint8_t burst_have_last;
++    uint8_t burst_wanted;   /* frames still expected from the burst in flight */
++    uint32_t burst_deadline;
++    uint32_t next_idle_at;
++    /* the search and the target */
++    uint8_t reason;
++    float stops[MS_STOP_COUNT];
++    uint8_t stop_n, stop_i;
++    float look_pan;         /* the pose of the first look (stops near it are skipped) */
++    uint8_t have_target;
++    float target_pan;
++    uint32_t target_at;     /* when it was seen */
++    uint8_t target_is_face;
++    uint8_t turn_paid;      /* this address already spent its slot of the four a minute */
++    uint8_t burst_kind;     /* what the burst in flight is for: 0 none, 1 a look (a result is due), 2 a watch */
++    uint8_t turn_issued;    /* the move of the turn was sent */
++    uint8_t turn_counted;   /* this run's turn is in turns_total */
++    uint8_t relook;         /* after this turn, look again for a face (detector build) */
++    uint32_t next_hold_at;
++    uint32_t addr_until;
++    uint32_t last_seen;
++    uint8_t seen_any;
++    uint32_t last_follow;
++    uint32_t move_at;
++    uint32_t state_at;
++    uint32_t cool_until;
++    float center_pan;
++    /* the four turns a minute */
++    uint32_t turns[MS_TURNS_PER_MIN];
++    uint8_t turns_n;
++    /* what a status call reports */
++    uint32_t last_face_at;
++    uint8_t last_face_any;
++    uint32_t bursts, turns_total, searches_total, camera_ms;
++} ms_t;
++
++static inline void ms_init(ms_t* s, uint8_t detector)
++{
++    memset(s, 0, sizeof(*s));
++    s->detector = detector;
++}
++
++static inline int ms_turn_slots_free(ms_t* s, uint32_t now)
++{
++    int n = 0;
++    for (int i = 0; i < s->turns_n; i++) {
++        if (ms_dt(now, s->turns[i]) < 60000) {
++            s->turns[n++] = s->turns[i];
++        }
++    }
++    s->turns_n = (uint8_t)n;
++    return MS_TURNS_PER_MIN - n;
++}
++
++static inline void ms_turn_spend(ms_t* s, uint32_t now)
++{
++    if (ms_turn_slots_free(s, now) > 0) {
++        s->turns[s->turns_n++] = now;
++    }
++}
++
++/* Who drives face seeking now: 0 nobody (setting off), 1 this unit, 2 a host (the lease). */
++static inline int ms_owner(ms_t* s, uint8_t mode, uint32_t now)
++{
++    if (ms_lease_active(&s->lease, now)) {
++        return 2;
++    }
++    return mode == MS_MODE_OFF ? 0 : 1;
++}
++
++/* Remember a face seen by any path (for the status call; a host that holds the lease may ask for one look). */
++static inline void ms_note_face(ms_t* s, uint32_t now)
++{
++    s->last_face_at = now;
++    s->last_face_any = 1;
++}
++
++static inline void ms_reset_run(ms_t* s, uint8_t state)
++{
++    s->state = state;
++    s->burst_wanted = 0;
++    s->have_target = 0;
++    s->turn_paid = 0;
++    s->turn_counted = 0;
++    s->reason = MS_REASON_NONE;
++    s->stop_n = s->stop_i = 0;
++}
++
++static inline void ms_request_burst(ms_t* s, ms_out_t* out, uint32_t now, int frames, int want_face, uint8_t reason)
++{
++    out->camera = 1;
++    out->frames = (uint8_t)frames;
++    out->gap_ms = frames > 1 ? MS_FRAME_GAP_MS : 0;
++    out->want_face = (uint8_t)(want_face && s->detector);
++    out->cue_ms = MS_CUE_MS;
++    if (out->reason == MS_REASON_NONE) {
++        out->reason = reason;
++    }
++    s->burst_wanted = (uint8_t)frames;
++    s->burst_deadline = now + MS_BURST_WAIT_MS + (frames > 1 ? MS_FRAME_GAP_MS : 0);
++    s->last_burst_at = now;
++    s->burst_have_last = 1;
++    s->bursts++;
++    s->camera_ms += MS_BURST_MS;
++}
++
++static inline int ms_burst_ok(ms_t* s, uint32_t now)
++{
++    return !s->burst_have_last || ms_dt(now, s->last_burst_at) >= (int32_t)MS_BURST_SPACING_MS;
++}
++
++static inline uint8_t ms_speed(const ms_in_t* in) { return in->quiet_or_night ? MS_SPEED_QUIET : MS_SPEED_NORMAL; }
++
++static inline void ms_move(ms_t* s, ms_out_t* out, const ms_in_t* in, float pan, uint8_t reason)
++{
++    out->move = 1;
++    out->pan_deg = ms_clamp_pan(pan);
++    out->speed_pct = reason == MS_REASON_RETURN ? (uint8_t)(ms_speed(in) * 6 / 10) : ms_speed(in);
++    out->reason = reason;
++    s->move_at = in->now_ms;
++    s->prev_valid = 0; /* the picture changes with the head */
++}
++
++/* Start the five stops. Starting from the end nearer the head keeps the travel short; stops near the first look are skipped. */
++static inline void ms_plan_sweep(ms_t* s, float pan_now)
++{
++    static const float all[MS_STOP_COUNT] = {-60.0f, -30.0f, 0.0f, 30.0f, 60.0f};
++    s->stop_n = 0;
++    s->stop_i = 0;
++    s->look_pan = pan_now;
++    for (int k = 0; k < MS_STOP_COUNT; k++) {
++        float p = pan_now > 0 ? all[MS_STOP_COUNT - 1 - k] : all[k];
++        if (fabsf(p - pan_now) >= MS_SWEEP_SKIP_DEG) {
++            s->stops[s->stop_n++] = p;
++        }
++    }
++}
++
++static inline void ms_begin_return(ms_t* s, ms_out_t* out, const ms_in_t* in)
++{
++    s->have_target = 0;
++    s->burst_wanted = 0;
++    if (fabsf(in->pan_deg - s->center_pan) < 3.0f && in->head_settled) {
++        s->state = MS_COOL;
++        s->cool_until = in->now_ms + MS_COOL_MS;
++        return;
++    }
++    ms_move(s, out, in, s->center_pan, MS_REASON_RETURN);
++    s->state = MS_RETURN;
++    s->state_at = in->now_ms;
++}
++
++/* The target a frame shows, when it shows one: a face (detector) first, else the blob. Returns 0 none, 1 blob, 2 face. */
++static inline int ms_eval(ms_t* s, const ms_in_t* in, float* pan_out)
++{
++    if (in->face_valid && s->detector) {
++        *pan_out = ms_clamp_pan(in->pan_deg + (in->face_cx - 0.5f) * MS_FOV_DEG * MS_IMAGE_X_SIGN);
++        return 2;
++    }
++    if (!s->prev_valid || ms_dt(in->now_ms, s->prev_at) > (int32_t)MS_PREV_MAX_AGE_MS || fabsf(in->pan_deg - s->prev_pan) > 1.0f) {
++        return 0;
++    }
++    ms_blob_t b;
++    ms_blob(s->prev, in->frame, &s->scratch, &b);
++    if (b.kind != MS_BLOB_FOUND) {
++        return 0;
++    }
++    *pan_out = ms_clamp_pan(in->pan_deg + ms_offset_deg(b.cx));
++    return 1;
++}
++
++/* A target is known: aim at it, now if the head is free (and a turn is allowed), else when it is, but never for a stale one. */
++static inline void ms_aim(ms_t* s, ms_out_t* out, const ms_in_t* in)
++{
++    uint32_t now = in->now_ms;
++    if (ms_dt(now, s->target_at) > (int32_t)MS_TARGET_MAX_AGE_MS) { /* seen too long ago: let it go */
++        s->have_target = 0;
++        ms_begin_return(s, out, in);
++        return;
++    }
++    if (!in->head_settled) {
++        return; /* try again next tick; the age check above ends the wait */
++    }
++    if (!s->turn_paid) {
++        if (ms_turn_slots_free(s, now) <= 0) {
++            s->have_target = 0;
++            s->state = MS_COOL;
++            s->cool_until = now + MS_COOL_MS;
++            return;
++        }
++        ms_turn_spend(s, now);
++        s->turn_paid = 1;
++    }
++    if (!s->turn_counted) {
++        s->turn_counted = 1;
++        s->turns_total++;
++    }
++    ms_move(s, out, in, s->target_pan, s->reason == MS_REASON_NONE ? MS_REASON_ADDRESS : s->reason);
++    s->turn_issued = 1;
++    s->state = MS_TURN;
++    s->state_at = now;
++}
++
++static inline void ms_next_stop(ms_t* s, ms_out_t* out, const ms_in_t* in)
++{
++    if (s->stop_i >= s->stop_n) { /* every stop seen, nobody: give up and go back to center */
++        ms_begin_return(s, out, in);
++        return;
++    }
++    ms_move(s, out, in, s->stops[s->stop_i], MS_REASON_SWEEP);
++    s->state = MS_SWEEP_MOVE;
++    s->state_at = in->now_ms;
++}
++
++/* One tick (the caller runs it about every 50 ms and at once when a frame arrives). `out` says what to do. */
++static inline void ms_tick(ms_t* s, const ms_in_t* in, ms_out_t* out)
++{
++    memset(out, 0, sizeof(*out));
++    uint32_t now = in->now_ms;
++    int camera_ok = in->awake && !in->muted && !in->privacy_sleep && !in->vision_off && !in->full_quiet;
++    int leased = ms_lease_active(&s->lease, now);
++    if (in->mode == MS_MODE_OFF || !camera_ok || leased) { /* nothing runs: no camera, no head move */
++        if (s->state != MS_IDLE) {
++            ms_reset_run(s, MS_IDLE);
++        }
++        s->burst_kind = 0;
++        s->prev_valid = 0;
++        s->next_idle_at = now;
++        return;
++    }
++    if (in->camera_denied) { /* the unit refused the camera: stay away */
++        if (s->state != MS_COOL) {
++            ms_reset_run(s, MS_COOL);
++        }
++        s->burst_kind = 0;
++        s->cool_until = now + MS_COOL_DENIED_MS;
++        s->prev_valid = 0;
++        return;
++    }
++    if (in->addressed) {
++        s->addr_until = now + MS_ADDR_WINDOW_MS;
++        if ((s->state == MS_IDLE || s->state == MS_COOL) && ms_turn_slots_free(s, now) > 0) {
++            ms_reset_run(s, MS_LOOK);
++            s->reason = MS_REASON_ADDRESS;
++            s->state_at = now;
++            s->look_pan = in->pan_deg;
++            s->center_pan = 0.0f;
++            s->burst_kind = 0;
++            ms_turn_spend(s, now); /* one slot for the whole address: search and turn together */
++            s->turn_paid = 1;
++            s->searches_total++;
++        }
++    }
++    if (in->conversation && ms_dt(s->addr_until, now) < (int32_t)(MS_ADDR_WINDOW_MS / 2)) {
++        s->addr_until = now + MS_ADDR_WINDOW_MS / 2; /* a talk keeps seeking wanted */
++    }
++    int wanted = ms_dt(s->addr_until, now) > 0;
++
++    /* A frame fed back, or a burst that never came: the result of a look (1 hit, 2 miss) or of a watch. */
++    int result = 0;
++    float tpan = 0.0f;
++    int tkind = 0;
++    if (in->frame != NULL) {
++        if (!in->head_settled || ms_dt(now, s->move_at) < (int32_t)MS_SETTLE_MIN_MS) {
++            s->prev_valid = 0; /* taken while the head moved: not a picture to compare */
++        } else {
++            if (s->burst_wanted > 0) {
++                s->burst_wanted--;
++            }
++            if (s->burst_wanted == 0 && s->burst_kind != 0) {
++                tkind = ms_eval(s, in, &tpan);
++                result = tkind ? 1 : 2;
++            }
++            memcpy(s->prev, in->frame, MS_PIX);
++            s->prev_valid = 1;
++            s->prev_at = now;
++            s->prev_pan = in->pan_deg;
++        }
++    } else if (s->burst_kind != 0 && s->burst_wanted > 0 && ms_dt(now, s->burst_deadline) > 0) {
++        s->burst_wanted = 0; /* it delivered nothing: a miss */
++        s->prev_valid = 0;
++        result = 2;
++    }
++    int watch_hit = 0;
++    if (result != 0) {
++        int kind = s->burst_kind;
++        s->burst_kind = 0;
++        if (result == 1) {
++            s->have_target = 1;
++            s->target_pan = tpan;
++            s->target_at = now;
++            s->target_is_face = tkind == 2;
++            s->last_seen = now;
++            s->seen_any = 1;
++            if (tkind == 2) {
++                ms_note_face(s, now);
++            }
++        }
++        if (kind == 2) {
++            watch_hit = result == 1;
++            result = 0; /* a watch result is not a look result */
++        }
++    }
++    int ready = in->head_settled && s->burst_kind == 0 && ms_burst_ok(s, now) && ms_dt(now, s->move_at) >= (int32_t)MS_SETTLE_MIN_MS;
++
++    switch (s->state) {
++    case MS_IDLE:
++        if (in->mode != MS_MODE_ALWAYS) {
++            break;
++        }
++        if (watch_hit && ms_turn_slots_free(s, now) > 0) {
++            ms_reset_run(s, MS_TURN);
++            s->reason = MS_REASON_NOTICE;
++            s->have_target = 1;
++            s->turn_issued = 0;
++            s->center_pan = 0.0f;
++            s->state = MS_TURN; /* waits for the head if it is busy, then turns once */
++            ms_aim(s, out, in);
++        } else if (ready && ms_dt(now, s->next_idle_at) >= 0) {
++            ms_request_burst(s, out, now, 1, 1, MS_REASON_NOTICE);
++            s->burst_kind = 2;
++            s->next_idle_at = now + (in->quiet_or_night ? MS_IDLE_PERIOD_QUIET_MS : MS_IDLE_PERIOD_MS);
++        }
++        break;
++    case MS_LOOK:
++        if (result == 1) {
++            if (s->detector && !s->target_is_face) {
++                s->relook = 1; /* the blob says where; a face there says who */
++            }
++            ms_aim(s, out, in);
++        } else if (result == 2) {
++            ms_plan_sweep(s, in->pan_deg);
++            ms_next_stop(s, out, in);
++        } else if (ready) {
++            ms_request_burst(s, out, now, 2, 1, MS_REASON_ADDRESS);
++            s->burst_kind = 1;
++        }
++        break;
++    case MS_SWEEP_MOVE:
++        if ((in->head_settled && ms_dt(now, s->move_at) >= (int32_t)MS_SETTLE_MIN_MS) || ms_dt(now, s->state_at) > (int32_t)MS_SETTLE_MAX_MS) {
++            s->state = MS_SWEEP_LOOK;
++            s->state_at = now;
++        }
++        break;
++    case MS_SWEEP_LOOK:
++        if (result == 1) {
++            if (s->detector && !s->target_is_face) {
++                s->relook = 1;
++            }
++            ms_aim(s, out, in);
++        } else if (result == 2) {
++            s->stop_i++;
++            ms_next_stop(s, out, in);
++        } else if (ready) {
++            ms_request_burst(s, out, now, 2, 1, MS_REASON_SWEEP);
++            s->burst_kind = 1;
++        }
++        break;
++    case MS_TURN:
++        if (!s->turn_issued) {
++            ms_aim(s, out, in); /* the head was busy: aim as soon as it is free, unless the target went stale */
++        } else if ((in->head_settled && ms_dt(now, s->move_at) >= (int32_t)MS_SETTLE_MIN_MS) || ms_dt(now, s->state_at) > (int32_t)MS_SETTLE_MAX_MS) {
++            s->turn_issued = 0;
++            s->state_at = now;
++            if (s->relook) {
++                s->relook = 0;
++                s->state = MS_RELOOK;
++            } else {
++                s->state = MS_HOLD;
++                s->last_seen = now;
++                s->next_hold_at = now + MS_HOLD_PERIOD_MS;
++            }
++        }
++        break;
++    case MS_RELOOK:
++        if (result == 1 && s->target_is_face) {
++            s->turn_issued = 0;
++            ms_aim(s, out, in); /* eye contact: the small last correction to the face */
++        } else if (result != 0) { /* no face there: back to the sweep if there is one, else go home */
++            s->have_target = 0;
++            if (s->stop_n > 0) {
++                s->stop_i++;
++                ms_next_stop(s, out, in);
++            } else {
++                ms_begin_return(s, out, in);
++            }
++        } else if (ready) {
++            ms_request_burst(s, out, now, 2, 1, MS_REASON_RELOOK);
++            s->burst_kind = 1;
++        }
++        break;
++    case MS_HOLD: {
++        int nobody = ms_dt(now, s->last_seen) >= (int32_t)MS_NOBODY_MS;
++        if (!in->conversation && (nobody || (in->mode == MS_MODE_TALK && !wanted))) {
++            ms_begin_return(s, out, in);
++            break;
++        }
++        if (watch_hit) {
++            float off = s->target_pan - in->pan_deg;
++            if (fabsf(off) >= MS_FOLLOW_MIN_DEG && ms_dt(now, s->last_follow) >= (int32_t)MS_FOLLOW_SPACING_MS && in->head_settled) {
++                int big = fabsf(off) >= MS_COUNTED_TURN_DEG;
++                if (!big || ms_turn_slots_free(s, now) > 0) {
++                    if (big) {
++                        ms_turn_spend(s, now);
++                        s->turns_total++;
++                    }
++                    ms_move(s, out, in, s->target_pan, MS_REASON_FOLLOW);
++                    out->speed_pct = (uint8_t)(ms_speed(in) * 7 / 10); /* a gentle follow */
++                    s->last_follow = now;
++                }
++            }
++        } else if (ready && ms_dt(now, s->next_hold_at) >= 0) {
++            ms_request_burst(s, out, now, 1, 1, MS_REASON_FOLLOW);
++            s->burst_kind = 2;
++            s->next_hold_at = now + MS_HOLD_PERIOD_MS;
++        }
++        break;
++    }
++    case MS_RETURN:
++        if ((in->head_settled && ms_dt(now, s->move_at) >= (int32_t)MS_SETTLE_MIN_MS) || ms_dt(now, s->state_at) > (int32_t)MS_SETTLE_MAX_MS) {
++            s->state = MS_COOL;
++            s->cool_until = now + MS_COOL_MS;
++            s->prev_valid = 0;
++        }
++        break;
++    case MS_COOL:
++        if (ms_dt(now, s->cool_until) >= 0) {
++            ms_reset_run(s, MS_IDLE);
++            s->next_idle_at = now;
++        }
++        break;
++    default:
++        ms_reset_run(s, MS_IDLE);
++        break;
++    }
++}
++
++/* What self.look.status says (JSON text into buf). owner: "unit" (this robot seeks), "host" (a lease is held), "none" (setting off). */
++static inline int ms_status_json(ms_t* s, uint8_t mode, uint32_t now, char* buf, size_t n)
++{
++    int who = ms_owner(s, mode, now);
++    const char* owner = who == 2 ? "host" : (who == 1 ? "unit" : "none");
++    long ttl = who == 2 ? (long)ms_dt(s->lease.until_ms, now) : 0;
++    long face_ago = s->last_face_any ? (long)ms_dt(now, s->last_face_at) : -1;
++    return snprintf(buf, n,
++                    "{\"ok\":true,\"owner\":\"%s\",\"lease_owner\":\"%s\",\"lease_ttl_ms\":%ld,\"setting\":\"%s\",\"state\":\"%s\","
++                    "\"last_face_ago_ms\":%ld,\"detector\":%s,\"turns\":%u,\"searches\":%u,\"bursts\":%u}",
++                    owner, who == 2 ? s->lease.owner : "", ttl, MS_MODE_NAMES[mode < MS_MODE_COUNT ? mode : 0],
++                    MS_STATE_NAMES[s->state < MS_STATE_COUNT ? s->state : 0], face_ago, s->detector ? "true" : "false",
++                    (unsigned)s->turns_total, (unsigned)s->searches_total, (unsigned)s->bursts);
++}
++
++#endif /* MAIPAI_SEEK_CORE_H */

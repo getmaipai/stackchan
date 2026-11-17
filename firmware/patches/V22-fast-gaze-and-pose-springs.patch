@@ -1,0 +1,146 @@
+# Intent: Fast eyes, part 3. The motion constants: the gaze is a damped spring (stiffness 2600, damping ratio 0.65: 90 percent of a jump in about 45 ms, settled in about 120 ms, 7 percent over) instead of an exponential of 70 ms that took 210 ms to reach 95 percent, for both eyes and the mouth position; the spring of the pose (emotion, lid, slant, cheek, brows, mouth) is stiffness 900 instead of 420 at the same damping ratio 0.62 (settled in about 210 ms instead of 350 ms, 8 percent over) with sub steps of at most 8 ms so the larger stiffness stays accurate at 30 fps. The blink (140 ms) and the mouth attack (40 ms) were already as asked. The settings page preview (host/maipai_body/face_shapes.py) carries the same pose spring.
+# Placement: unit (the face runs on the robot, so it is complete with no host); the settings page preview draws the same motion
+# Upstream: firmware/main/hal/{maipai_facefx_core.h,maipai_look_core.h} (ours, patches H02, X01, V10) and the skin's eyes.cpp, mouth.cpp, default.h
+# Check after a flash: a gaze change snaps in about 100 ms with a hint of overshoot; an emotion change settles in about 200 ms; host/tests/test_face_preview_parity.py and look_core_test.c pass.
+
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -551,8 +551,12 @@ void DefaultEyes::_update()
+     _last_us       = now;
+     const uint32_t ms = static_cast<uint32_t>(now / 1000);
+ 
+-    _sx = mx_follow(_sx, static_cast<float>(_position.x), dt, MX_TAU_POS_MS);
+-    _sy = mx_follow(_sy, static_cast<float>(_position.y), dt, MX_TAU_POS_MS);
++    {  // patch V20: the gaze is a damped spring (see MX_GAZE_K)
++        mx_spring1_t gx = {_sx, _vx}, gy = {_sy, _vy};
++        mx_spring1_step(&gx, static_cast<float>(_position.x), dt, MX_GAZE_K, MX_GAZE_ZETA);
++        mx_spring1_step(&gy, static_cast<float>(_position.y), dt, MX_GAZE_K, MX_GAZE_ZETA);
++        _sx = gx.x; _vx = gx.v; _sy = gy.x; _vy = gy.v;
++    }
+ 
+     // The lid the emotion asks for, then the sequence (sleepy, closing, waking) and the blink on top of it, stepped once per frame
+     // for both eyes.
+
+diff --git a/firmware/main/stackchan/avatar/skins/default/mouth.cpp b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+
+--- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+@@ -282,7 +282,11 @@ void DefaultMouth::_update()
+         }
+     }
+ 
+-    _sx = mx_follow(_sx, static_cast<float>(_position.x), dt, MX_TAU_POS_MS);
+-    _sy = mx_follow(_sy, static_cast<float>(_position.y), dt, MX_TAU_POS_MS);
++    {  // patch V20: the same spring as the eyes' gaze
++        mx_spring1_t gx = {_sx, _vx}, gy = {_sy, _vy};
++        mx_spring1_step(&gx, static_cast<float>(_position.x), dt, MX_GAZE_K, MX_GAZE_ZETA);
++        mx_spring1_step(&gy, static_cast<float>(_position.y), dt, MX_GAZE_K, MX_GAZE_ZETA);
++        _sx = gx.x; _vx = gx.v; _sy = gy.x; _vy = gy.v;
++    }
+     layout();
+ }
+
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -131,7 +131,7 @@ private:
+     // Fluid motion (patch H02): what is drawn now (_s*) and when it was last stepped.
+     bool _started    = false;
+     int64_t _last_us = 0;
+-    float _sx = 0, _sy = 0, _sw_eff = 100, _srot = 0, _scale = 1.0f, _scale_target = 1.0f, _d_now = 0;
++    float _sx = 0, _sy = 0, _vx = 0, _vy = 0, _sw_eff = 100, _srot = 0, _scale = 1.0f, _scale_target = 1.0f, _d_now = 0;
+     int _drawn_dx = 0, _drawn_dy = 0, _drawn_rot = 0;
+     int _px = 0x7fffffff, _py = 0x7fffffff;
+     int _drawn_edge = 1 << 20;
+@@ -186,7 +186,7 @@ private:
+     void apply_visibility();
+     bool _started    = false;
+     int64_t _last_us = 0;
+-    float _sw = 0, _sx = 0, _sy = 0;
++    float _sw = 0, _sx = 0, _sy = 0, _vx = 0, _vy = 0;
+     int _drawn_w = -1;
+     int _px = 0x7fffffff, _py = 0x7fffffff;
+     bool _sealed     = false;
+
+diff --git a/firmware/main/hal/maipai_facefx_core.h b/firmware/main/hal/maipai_facefx_core.h
+
+--- a/firmware/main/hal/maipai_facefx_core.h
++++ b/firmware/main/hal/maipai_facefx_core.h
+@@ -20,6 +20,10 @@
+ #include <stdint.h>
+ 
+ #define MX_TAU_POS_MS 70.0f     /* where the eyes look */
++/* Patch V20: the gaze is a damped spring (fast attack, a little overshoot, soft settle), not an exponential of 70 ms (which took 210 ms to
++ * reach 95 percent and read as slow). k 2600 and damping ratio 0.65: 90 percent of a jump in about 45 ms, settled in about 120 ms, 7 percent over. */
++#define MX_GAZE_K 2600.0f
++#define MX_GAZE_ZETA 0.65f
+ #define MX_TAU_ROT_MS 110.0f    /* the tilt that goes with an emotion */
+ #define MX_TAU_LID_CLOSE_MS 28.0f
+ #define MX_TAU_LID_OPEN_MS 85.0f
+@@ -45,6 +49,25 @@ static inline float mx_follow(float cur, float target, float dt_ms, float tau_ms
+     return cur + (target - cur) * (dt_ms / (tau_ms + dt_ms));
+ }
+ 
++typedef struct {
++    float x, v;
++} mx_spring1_t;
++
++/* One step of a damped spring toward target; dt in milliseconds, sub-steps of at most 6 ms so a slow frame stays stable. */
++static inline void mx_spring1_step(mx_spring1_t* sp, float target, float dt_ms, float k, float zeta)
++{
++    float dt = dt_ms * 0.001f;
++    if (dt <= 0.0f) return;
++    if (dt > 0.05f) dt = 0.05f;
++    int n = (int)(dt / 0.006f) + 1;
++    const float h = dt / (float)n, c = 2.0f * sqrtf(k) * zeta;
++    for (int i = 0; i < n; i++) {
++        sp->v += (k * (target - sp->x) - c * sp->v) * h;
++        sp->x += sp->v * h;
++    }
++    if (fabsf(target - sp->x) < 0.02f && fabsf(sp->v) < 0.3f) { sp->x = target; sp->v = 0.0f; }
++}
++
+ static inline float mx_lid_tau(float cur, float target)
+ {
+     return target < cur ? MX_TAU_LID_CLOSE_MS : MX_TAU_LID_OPEN_MS;
+
+diff --git a/firmware/main/hal/maipai_look_core.h b/firmware/main/hal/maipai_look_core.h
+
+--- a/firmware/main/hal/maipai_look_core.h
++++ b/firmware/main/hal/maipai_look_core.h
+@@ -557,7 +557,7 @@ static inline void ml_tinted(uint8_t fr, uint8_t fg, uint8_t fb, int tint, float
+  * holds the table generated from this file; host/tests/test_face_preview_parity.py checks the two give the same shapes).
+  * The numbers are those of the approved design board, step for step:
+  *  - a pose is a set of targets (MP_*) per emotion; the face follows them with a damped spring (about 8 percent overshoot,
+- *    settled in about 350 ms);
++ *    settled in about 210 ms);
+  *  - the eye is a rounded box; Big eyes adds a pupil (37 percent of the short side) that follows the gaze 1.3 times as far as
+  *    the eye does, with two highlights; the pupil is masked by the eye so a big look cuts it to a crescent;
+  *  - the lid is the half plane above a straight edge (lid = the fraction of the eye height it covers, slant tilts the edge)
+@@ -633,7 +633,8 @@ static inline void ml_pose_target(const ml_style_t* st, int emotion, int thinkin
+ /* The gaze drift scale of a pose (a resting eye drifts, a loving or sleeping one does not). */
+ static inline float ml_pose_drift_scale(int emotion) { return ml_spec(emotion, 0).dr; }
+ 
+-/* ---- the spring: k 420, damping ratio 0.62, two sub steps; the step is capped at 50 ms */
++/* ---- the spring: k 900 (patch V20, was 420), damping ratio 0.62, sub steps of 8 ms; the step is capped at 50 ms. About 8 percent overshoot, settled in about 210 ms */
++#define ML_SPRING_K 900.0f
+ typedef struct {
+     float x[MP_N], v[MP_N];
+ } ml_spring_t;
+@@ -648,9 +649,10 @@ static inline float ml_clamp01f(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ?
+ static inline void ml_spring_step(ml_spring_t* sp, const float t[MP_N], float dt_s)
+ {
+     if (dt_s > 0.05f) dt_s = 0.05f;
+-    const float k = 420.0f, cz = 2.0f * sqrtf(420.0f) * 0.62f;
+-    for (int n = 0; n < 2; n++) {
+-        const float h = dt_s * 0.5f;
++    const float k = ML_SPRING_K, cz = 2.0f * sqrtf(ML_SPRING_K) * 0.62f;
++    const int steps = (int)(dt_s / 0.008f) + 1; /* sub steps of at most 8 ms: stable and accurate at k 900 (two steps were enough at 420) */
++    const float h = dt_s / (float)steps;
++    for (int n = 0; n < steps; n++) {
+         for (int i = 0; i < MP_N; i++) {
+             sp->v[i] += (k * (t[i] - sp->x[i]) - cz * sp->v[i]) * h;
+             sp->x[i] += sp->v[i] * h;

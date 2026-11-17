@@ -1,0 +1,154 @@
+# Intent: Fable review risk 2 (2026-11-16). The remote token gate (TC01) passed every call whose source was not "remote", and the caller chooses that field, so one host bug that left it out let a controller act with no cue. Now the unit has a second floor that does not read source: while a remote session is on, a cued kind (a head move beyond 45 degrees yaw or 45 degrees pitch, find, photo, dance, game, listen) from any call that is not marked remote must carry the session's own host id as its token (the paired host announces it in self.remote.session as the new host property and stamps it on every call that is not a controller's), or a valid cue token for that kind. Anything else is ignored, logged as not_host in self.remote.history and answered {"ok":false,"reason":"not_host"}. With no session on, with an older host that announced no id, and for a head move inside the safe range, nothing changes. The id is dropped with the session, so a stale id never opens a new one.
+# Placement: unit (the robot refuses a cued action it was not shown to the person for); the host half is host/maipai_body/remote_trust.py
+# Upstream: main/hal/{maipai_remote_core.h,maipai_remote.cc,maipai_remote.h,hal_mcp.cpp} (ours, patches TB05, TC01 and TC04)
+# Check after a flash: host/tests/firmware/remote_floor_test.c passes on the PC; with the host running and a controller session open, self.robot.dance with no token answers not_host and the same call from the host's own page plays; self.robot.set_head_angles yaw 20 with no token still moves.
+
+diff --git a/firmware/main/hal/maipai_remote_core.h b/firmware/main/hal/maipai_remote_core.h
+--- a/firmware/main/hal/maipai_remote_core.h
++++ b/firmware/main/hal/maipai_remote_core.h
+@@ -45,9 +45,9 @@
+ }
+ 
+ typedef enum {
+-    MR_OK = 0, MR_NO_SESSION, MR_NO_TOKEN, MR_BAD_TOKEN, MR_WRONG_KIND, MR_TOO_LONG, MR_EMPTY, MR_RATE, MR_SAY_OFF, MR_BUSY, MR_BAD_KIND, MR_REASON_COUNT
++    MR_OK = 0, MR_NO_SESSION, MR_NO_TOKEN, MR_BAD_TOKEN, MR_WRONG_KIND, MR_TOO_LONG, MR_EMPTY, MR_RATE, MR_SAY_OFF, MR_BUSY, MR_BAD_KIND, MR_NOT_HOST, MR_REASON_COUNT
+ } mr_reason_t;
+-static const char* const MR_REASONS[MR_REASON_COUNT] = {"ok", "no_session", "no_token", "bad_token", "wrong_kind", "too_long", "empty", "rate_limit", "say_off", "busy", "bad_kind"};
++static const char* const MR_REASONS[MR_REASON_COUNT] = {"ok", "no_session", "no_token", "bad_token", "wrong_kind", "too_long", "empty", "rate_limit", "say_off", "busy", "bad_kind", "not_host"};
+ 
+ typedef struct {
+     uint32_t at_ms;
+@@ -85,6 +85,8 @@
+     uint32_t window_ms;                    /* the banner time of the last cue */
+     uint32_t grant_until[MR_KIND_COUNT];
+     uint8_t grant_on[MR_KIND_COUNT];
++    /* second floor (patch FM03): the id the paired host announced in self.remote.session; 0 when it announced none */
++    uint32_t host_id;
+ } mr_t;
+ 
+ static inline void mr_init(mr_t* r)
+@@ -132,10 +134,25 @@
+         r->seen_ms = now;
+     } else {
+         r->active = 0;
++        r->host_id = 0;
+         r->token = 0;
+         r->say_state = 0;
+         memset(r->grant_on, 0, sizeof(r->grant_on));
+     }
++}
++
++/* The paired host's id for this session (patch FM03), sent with every self.remote.session heartbeat. A call that is not from a
++ * controller (no source "remote": the owner's page, the voice turn) carries it as its `token` for the cued kinds. 0 is "none". */
++static inline void mr_set_host(mr_t* r, uint32_t host_id)
++{
++    if (host_id != 0) r->host_id = host_id;
++}
++
++/* The kinds that need the host's id (or a cue token) from a call with no source while a remote session is on: the head beyond
++ * the safe range (the caller says "move" only for those and "move_near" for the rest), find, photo, dance, game, listen. */
++static inline int mr_kind_needs_host(int k)
++{
++    return k == MR_MOVE || k == MR_FIND || k == MR_PHOTO || k == MR_DANCE || k == MR_GAME || k == MR_LISTEN;
+ }
+ 
+ /* 1 while a controller counts as connected (the dead-man timeout: no call for 10 s clears it by itself). */
+@@ -143,6 +160,7 @@
+ {
+     if (r->active && now - r->seen_ms >= MR_DEAD_MAN_MS) {
+         r->active = 0;
++        r->host_id = 0;
+         r->token = 0;
+         r->say_state = 0;
+         memset(r->grant_on, 0, sizeof(r->grant_on));
+@@ -197,13 +215,23 @@
+     return mr_session_on(r, now);
+ }
+ 
+-/* The gate for one tool call (patch TC01). A call whose source is not "remote" (no source, "user", the unit's own) is
+- * local and always passes, nothing logged. A call marked "remote" must carry the one-use token from self.remote.action for
+- * that kind; a call with no token passes only inside the window a token of the same kind opened. Anything else is
+- * refused, logged, and the caller does nothing. */
++/* The gate for one tool call (patches TC01 and FM03). Two floors, and the second does not read `source`:
++ *  1. A call marked source "remote" must carry the one-use token from self.remote.action for that kind; with none it passes only
++ *     inside the window a token of the same kind opened. Anything else is refused and logged.
++ *  2. A call with any other source (none, "user", the voice turn) passes when no remote session is on, when the kind is not a
++ *     cued one, or when the host announced no id (an older host). While a session is on, a cued kind needs the session's own host
++ *     id as `token` (the paired host stamps it on every call that is not a controller's) or a valid cue token for that kind.
++ *     A controller that reaches the unit with the source left out carries neither, so it is refused, logged and ignored. */
+ static inline mr_reason_t mr_gate_call(mr_t* r, const char* source, const char* kind, uint32_t token, uint32_t now)
+ {
+-    if (source == NULL || strcmp(source, "remote") != 0) return MR_OK;
++    if (source == NULL || strcmp(source, "remote") != 0) {
++        const int k = mr_kind_by_name(kind);
++        if (k < 0 || !mr_kind_needs_host(k) || !mr_session_on(r, now) || r->host_id == 0) return MR_OK;
++        if (token != 0 && token == r->host_id) return MR_OK;
++        if (token != 0 && mr_gate(r, kind, token, now) == MR_OK) return MR_OK;
++        mr_log(r, now, k, MR_NOT_HOST, NULL, 0);
++        return MR_NOT_HOST;
++    }
+     if (token == 0 && mr_grant_open(r, mr_kind_by_name(kind), now)) return MR_OK;
+     return mr_gate(r, kind, token, now);
+ }
+diff --git a/firmware/main/hal/maipai_remote.cc b/firmware/main/hal/maipai_remote.cc
+--- a/firmware/main/hal/maipai_remote.cc
++++ b/firmware/main/hal/maipai_remote.cc
+@@ -212,7 +212,8 @@
+ 
+ bool maipai_remote_gate(const char* kind, const char* source, int token)
+ {
+-    if (source == nullptr || strcmp(source, "remote") != 0) return true;  // local and person-asked calls are unchanged
++    // patch FM03: a call with no remote source passes unless a remote session is on and the kind is cued (core: mr_gate_call).
++    if (s_r == nullptr) return source == nullptr || strcmp(source, "remote") != 0;  // no remote state: only a remote call is refused
+     mr_reason_t r = MR_NO_SESSION;
+     if (s_r != nullptr) {
+         std::lock_guard<std::mutex> lock(s_mu);
+@@ -274,13 +275,15 @@
+ 
+     mcp.AddTool("self.remote.session",
+                 "A controller is connected (active true) or gone. Repeat about every 3 s while connected: 10 s without a call clears it. Shows a violet glyph and ring. label says who. Answers {ok}.",
+-                PropertyList({Property("active", kPropertyTypeBoolean, true), Property("label", kPropertyTypeString, std::string("remote"))}),
++                PropertyList({Property("active", kPropertyTypeBoolean, true), Property("label", kPropertyTypeString, std::string("remote")),
++                              Property("host", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     ensure_ui();
+                     std::lock_guard<std::mutex> lock(s_mu);
+                     const bool was = mr_session_on(s_r, ms_now()) != 0;
+                     s_r->speaking = speaking_pref();
+                     mr_session(s_r, properties["active"].value<bool>() ? 1 : 0, properties["label"].value<std::string>().c_str(), ms_now());
++                    if (s_r->active) mr_set_host(s_r, static_cast<uint32_t>(properties["host"].value<int>()));  // patch FM03
+                     if (!was && s_r->active) {
+                         char extra[48];
+                         snprintf(extra, sizeof(extra), "\"on\":true");
+diff --git a/firmware/main/hal/maipai_remote.h b/firmware/main/hal/maipai_remote.h
+--- a/firmware/main/hal/maipai_remote.h
++++ b/firmware/main/hal/maipai_remote.h
+@@ -20,5 +20,8 @@
+ // person-asked call and always passes. A "remote" call must carry the one-use token self.remote.action answered for this kind
+ // (move, find, photo, dance, game, listen); with none, or a wrong one, it is ignored and logged. True when the call may go on.
+ bool maipai_remote_gate(const char* kind, const char* source, int token);
++// Patch FM03: a call with no source "remote" is also gated while a remote session is on, for the cued kinds (head beyond the safe
++// range, find, photo, dance, game, listen): it must carry the session's host id (or a cue token) as its token. The head move passes
++// "move" for a far move and "move_near" for a safe one. See the trust boundary in docs/design/safety-and-privacy.md.
+ // The answer a refused tool call gives: {"ok":false,"reason":"..."} (reason is the last refusal: no_token, bad_token, ...).
+ const char* maipai_remote_refusal();
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -280,6 +280,16 @@
+                            if (properties["source"].value<std::string>() == "remote") {
+                                const std::string cue_kind = properties["cue_kind"].value<std::string>() == "find" ? "find" : "move";
+                                if (!maipai_remote_gate(cue_kind.c_str(), "remote", properties["token"].value<int>())) {
++                                   return std::string(maipai_remote_refusal());
++                               }
++                           } else {
++                               // patch FM03: second floor. While a remote session is on, a head move beyond +/-45 degrees yaw or
++                               // 45 degrees pitch from a call that is not a controller's needs the host's session id as its token.
++                               const int fy = properties["yaw"].value<int>();
++                               const int fp = properties["pitch"].value<int>();
++                               const bool far = (fy != -9999 && (fy > 45 || fy < -45)) || (fp != -9999 && fp > 45);
++                               if (!maipai_remote_gate(far ? "move" : "move_near", properties["source"].value<std::string>().c_str(),
++                                                       properties["token"].value<int>())) {
+                                    return std::string(maipai_remote_refusal());
+                                }
+                            }

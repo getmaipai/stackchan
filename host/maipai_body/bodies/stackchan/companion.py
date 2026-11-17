@@ -33,6 +33,7 @@ DIAGNOSTIC_KINDS = frozenset(
         "heap_stats",
         "stack_stats",
         "boot",
+        "boot_core",  # firmware patch FM02: the flash core dump summary after a crash (task, pc, cause, four return addresses)
         "shake_peak",
         "imu_stats",
         "avatar_channel",
@@ -72,6 +73,7 @@ DIAGNOSTIC_KINDS = frozenset(
         "firmware_update_done",
         "firmware_update_failed",
         "firmware_update_validated",
+        "firmware_update_rolled_back",  # firmware patch FM01: the unit's own first-boot trial failed
         "game_started",  # firmware patch G01: which game, what started it (touch, tool)
         "game_ended",  # firmware patch G01: which game, how it ended, score, place
     }

@@ -2,6 +2,7 @@
 #include "render_hooks.h"
 #include "maipai_look_core.h"
 using namespace stackchan::avatar;
+extern "C" volatile int g_msp_off;  // patch V23: 1 draws shape lists, 0 the pictures
 void render_hook_init(DefaultAvatar*, lv_obj_t*) {}
 void render_hook_frame(DefaultAvatar*) {}
 Emotion render_hook_emotion(const std::string& n)
@@ -23,6 +24,7 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
         av->leftEye().setWeight(lid); av->rightEye().setWeight(lid);
         return true;
     }
+    if (c == "sprite") { std::string n; in >> n; g_msp_off = (n == "off") ? 1 : 0; return true; }  // sprite on|off: pictures or shape lists (patch V23)
     if (c == "think") { std::string n; in >> n; av->setThinking(n == "on"); return true; }
     if (c == "tint") { std::string n; in >> n; av->setEmotionTint(n == "on"); return true; }
     if (c == "colour") { int r, g, b, br = 0, bg = 0, bb = 0; in >> r >> g >> b; if (in >> br >> bg >> bb) {} av->setColors(lv_color_make(r, g, b), lv_color_make(br, bg, bb)); return true; }

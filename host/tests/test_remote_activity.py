@@ -297,3 +297,23 @@ def test_a_find_loop_asks_for_a_fresh_cue_before_the_window_closes() -> None:
     assert cue.marker("self.robot.set_head_angles", {}) == {"source": "remote", "token": 0, "cue_kind": "find"}
     now[0] = ra.FIND_RENEW_S + 1
     assert cue.marker("self.audio.play_sound", {"find": 1})["token"] == 99 and renewed == [1]
+
+
+def test_the_session_label_the_unit_shows_is_short_and_plain() -> None:
+    """The unit draws "Remote connected: <label>" in one fixed row: the label is a short plain name and is cut at 20 letters."""
+    sent: list[dict] = []
+
+    class _Log:
+        def add(self, **_kw):
+            return None
+
+    activity = ra.RemoteActivity.__new__(ra.RemoteActivity)
+    activity._call = lambda tool, arguments, **_kw: sent.append({"tool": tool, **arguments})  # type: ignore[method-assign]
+    activity._send_session("unit-1", True, "  A very long controller name that would not fit  ")
+    activity._send_session("unit-1", True, "   ")
+    activity._send_session("unit-1", True, ra.LOCAL_LABEL)
+    assert sent[0]["label"] == "A very long controll"
+    assert len(sent[0]["label"]) <= ra.SESSION_LABEL_MAX
+    assert sent[1]["label"] == ra.LOCAL_LABEL  # an empty name becomes the plain default
+    assert sent[2]["label"] == "Settings page"
+    assert all(item["tool"] == ra.SESSION_TOOL and item["active"] is True for item in sent)

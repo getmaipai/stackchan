@@ -34,7 +34,7 @@ def _added(patch: str, path: str) -> str:
 def test_tc01_replays_last_after_the_two_tracks() -> None:
     order = _order()
     assert order.index(TC01) > order.index("TA04-speech-bubble.patch") > order.index("TB05-visible-remote-control.patch")
-    assert order[-4:] == [TC01, "TC02-flash-reads-off-psram-stacks.patch", "TC03-boot-internal-ram.patch", "TC04-remote-cue-sound-light-setting-look.patch"] and (PATCHES / TC01).is_file()
+    assert order[order.index(TC01) : order.index(TC01) + 4] == [TC01, "TC02-flash-reads-off-psram-stacks.patch", "TC03-boot-internal-ram.patch", "TC04-remote-cue-sound-light-setting-look.patch"] and (PATCHES / TC01).is_file()
     head = (PATCHES / TC01).read_text().split("diff --git", 1)[0]
     for label in ("# Intent:", "# Placement:", "# Upstream:", "# Check after a flash:"):
         assert label in head
@@ -104,6 +104,8 @@ REVIEWED_PSRAM_STACK_TASKS = {
     "_imu_task": "IMU: pickup reaction reads the cached prefs (TC02)",
     "_head_touch_update_task": "head touch: no flash",
     "reader_task": "serial tools, bench builds only",
+    "snapshot_worker": "FI03: the bench snapshot; draws through LVGL and writes on the cable, no settings and no flash, bench builds only",
+    "opus_codec": "M02: decodes, resamples, encodes and queues audio; its callbacks only set event bits; no settings, no flash",
 }
 
 
@@ -125,3 +127,25 @@ def test_the_prefs_reader_never_reads_flash_on_a_psram_stack() -> None:
     assert "esp_ptr_internal" in fixed and "esp_timer_start_once" in fixed
     assert "maipai_tb_prefs();" in fixed and 'maipai_sounds_gate("popup"' in fixed  # the one early read on the main task
     assert "Settings st(MAIPAI_PREFS_NAMESPACE" in reader
+
+
+def test_a_static_task_with_a_psram_stack_is_reviewed_too() -> None:
+    """A task made with xTaskCreateStatic on a heap_caps_malloc(..., MALLOC_CAP_SPIRAM) stack is as exposed as a WithCaps one."""
+    found: set[str] = set()
+    for name in _order():
+        text = (PATCHES / name).read_text()
+        added = "\n".join(line[1:] for line in text.splitlines() if line.startswith("+"))
+        if "MALLOC_CAP_SPIRAM" not in added or "xTaskCreateStatic" not in added:
+            continue
+        for match in re.finditer(r'"([a-z_]+)",\s*k?[A-Za-z_0-9 *]*,\s*this,\s*\d+,\s*[a-z_]*stack', added):
+            found.add(match.group(1))
+        for match in re.finditer(r'xTaskCreateStatic\([^;]*?"([a-z_]+)"', added, re.S):
+            found.add(match.group(1))
+    reviewed = set(REVIEWED_PSRAM_STACK_TASKS) | {"audio_afe", "encode_wake_word"}  # the engine's own tasks, in the vendor code
+    unknown = found - reviewed
+    assert not unknown, f"a static task with a PSRAM stack has no review for flash or NVS use: {sorted(unknown)}"
+
+
+def test_the_settings_reader_names_a_psram_stack_caller() -> None:
+    text = (PATCHES / "M05-settings-open-from-psram-stack.patch").read_text()
+    assert "esp_ptr_internal(__builtin_frame_address(0))" in text and "pcTaskGetName" in text

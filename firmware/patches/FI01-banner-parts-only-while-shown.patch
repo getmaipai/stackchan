@@ -1,0 +1,292 @@
+# Intent: The banner (N01) kept more LVGL objects alive than it showed. Its first build made the row's five objects, the strip container and all five glyphs (about 24 objects) whenever ANY strip glyph was on, and kept them 20 s after the last message; one always-on glyph (microphone live, Wi-Fi) therefore held about 3.4 KB of internal RAM at idle. Now each part exists only while it shows: the row's objects while a message is up and 2 s after it fades, the strip container only while at least one glyph is on, and each glyph's own objects (with the camera, battery and Wi-Fi sub-objects) only while its flag is on. A glyph that turns off is deleted at once. Nothing visible changes; the row is kept behind the strip (lv_obj_move_background) when it is built later than the strip.
+# Placement: unit (the banner is drawn by the robot)
+# Upstream: firmware/main/hal/maipai_banner.cc (ours, patch N01)
+# Check after a flash: with no message and the microphone glyph on, the memory line's internal_free is about 3 KB higher than on the N01 image; a message still fades in and out over the strip; the strip glyphs appear and disappear as the flags change.
+
+diff --git a/firmware/main/hal/maipai_banner.cc b/firmware/main/hal/maipai_banner.cc
+--- a/firmware/main/hal/maipai_banner.cc
++++ b/firmware/main/hal/maipai_banner.cc
+@@ -5,8 +5,10 @@
+  * (y 0 to 28). Its content is a holder with a leading icon and the text (a marquee only when the text overflows the text area,
+  * or a dotted end for the session chip), and the strip of small glyphs at the right end. The row fades in and out at full
+  * width; a short message never shrinks it and the session chip is a violet chip inside it. The face does not move for it.
+- * Objects exist only while something shows (about 24) and are deleted after 20 s of nothing; idle there is a timer and one
+- * 0.7 KB state in PSRAM.
++ * Objects exist only for what shows now: the row's five objects while a message is up (and 2 s after it fades), the strip's
++ * container while any glyph is on, and each glyph's own objects only while its flag is on (patch FI01: the first build kept the
++ * row, the container and all five glyphs alive whenever one glyph showed, about 3.4 KB of internal RAM). Idle there is a timer
++ * and one 0.7 KB state in PSRAM.
+  */
+ #include "maipai_banner.h"
+ 
+@@ -32,6 +34,7 @@ lv_obj_t* s_label = nullptr;
+ lv_obj_t* s_strip = nullptr;
+ lv_obj_t* s_glyph[MB_FLAG_COUNT] = {};
+ lv_obj_t* s_batt_fill = nullptr;
++lv_obj_t* s_batt_nub = nullptr;
+ lv_obj_t* s_wifi_bars[4] = {};
+ lv_obj_t* s_wifi_slash = nullptr;
+ lv_obj_t* s_cam_a = nullptr;
+@@ -179,65 +182,93 @@ void draw_icon(int kind, lv_color_t c)
+     }
+ }
+ 
+-void build_glyphs()
++// One strip glyph's objects (patch FI01): built when its flag turns on, deleted when it turns off.
++void build_glyph(int i)
+ {
+-    for (int i = 0; i < MB_FLAG_COUNT; i++) {
+-        s_glyph[i] = box(s_strip, 0, 0, MB_STRIP_GLYPH_W, 18, 0);
+-        lv_obj_add_flag(s_glyph[i], LV_OBJ_FLAG_HIDDEN);
++    s_glyph[i] = box(s_strip, 0, 0, MB_STRIP_GLYPH_W, 18, 0);
++    lv_obj_add_flag(s_glyph[i], LV_OBJ_FLAG_HIDDEN);
++    switch (i) {
++        case MB_FLAG_MIC: {  // mic live: a capsule on a cradle
++            lv_obj_t* cap = box(s_glyph[i], 7, 0, 6, 10, 3);
++            fill(cap, lv_color_make(255, 90, 80));
++            lv_obj_t* cradle = box(s_glyph[i], 3, 5, 14, 8, 7);
++            outline(cradle, lv_color_make(255, 90, 80), 2);
++            lv_obj_set_style_border_side(cradle, LV_BORDER_SIDE_BOTTOM, 0);
++            lv_obj_t* stem = box(s_glyph[i], 9, 13, 2, 4, 0);
++            fill(stem, lv_color_make(255, 90, 80));
++            break;
++        }
++        case MB_FLAG_CAMERA:  // camera on: a rounded outline with a filled lens
++            s_cam_a = box(s_glyph[i], 0, 1, 20, 15, 4);
++            s_cam_b = box(s_cam_a, 0, 0, 7, 7, LV_RADIUS_CIRCLE);
++            lv_obj_center(s_cam_b);
++            break;
++        case MB_FLAG_REMOTE: {  // remote: filled violet with a dark dot, not mistaken for the camera
++            lv_obj_t* rf = box(s_glyph[i], 0, 1, 20, 15, 4);
++            fill(rf, violet());
++            lv_obj_t* rd = box(rf, 0, 0, 6, 6, LV_RADIUS_CIRCLE);
++            lv_obj_center(rd);
++            fill(rd, chip_bg());
++            break;
++        }
++        case MB_FLAG_BATTERY: {  // battery (low): an outline, a nub and a fill that follows the level
++            lv_obj_t* bf = box(s_glyph[i], 0, 3, 17, 11, 3);
++            s_batt_fill = box(bf, 0, 0, 4, 5, 1);
++            lv_obj_set_pos(s_batt_fill, 0, 0);
++            s_batt_nub = box(s_glyph[i], 17, 6, 3, 5, 1);  // painted with the outline in paint_strip
++            break;
++        }
++        case MB_FLAG_WIFI:  // Wi-Fi: four bars; the slash shows when the link is down
++            for (int k = 0; k < 4; k++) {
++                const int h = 4 + k * 3;
++                s_wifi_bars[k] = box(s_glyph[i], k * 5, 16 - h, 4, h, 1);
++            }
++            s_wifi_slash = line(s_glyph[i], s_slash_pts, 2, lv_color_make(255, 90, 80), 2);
++            lv_obj_add_flag(s_wifi_slash, LV_OBJ_FLAG_HIDDEN);
++            break;
++        default:
++            break;
+     }
+-    // mic live: a capsule on a cradle
+-    lv_obj_t* cap = box(s_glyph[MB_FLAG_MIC], 7, 0, 6, 10, 3);
+-    fill(cap, lv_color_make(255, 90, 80));
+-    lv_obj_t* cradle = box(s_glyph[MB_FLAG_MIC], 3, 5, 14, 8, 7);
+-    outline(cradle, lv_color_make(255, 90, 80), 2);
+-    lv_obj_set_style_border_side(cradle, LV_BORDER_SIDE_BOTTOM, 0);
+-    lv_obj_t* stem = box(s_glyph[MB_FLAG_MIC], 9, 13, 2, 4, 0);
+-    fill(stem, lv_color_make(255, 90, 80));
+-    // camera on: a rounded outline with a filled lens
+-    s_cam_a = box(s_glyph[MB_FLAG_CAMERA], 0, 1, 20, 15, 4);
+-    s_cam_b = box(s_cam_a, 0, 0, 7, 7, LV_RADIUS_CIRCLE);
+-    lv_obj_center(s_cam_b);
+-    // remote: filled violet with a dark dot, not mistaken for the camera
+-    lv_obj_t* rf = box(s_glyph[MB_FLAG_REMOTE], 0, 1, 20, 15, 4);
+-    fill(rf, violet());
+-    lv_obj_t* rd = box(rf, 0, 0, 6, 6, LV_RADIUS_CIRCLE);
+-    lv_obj_center(rd);
+-    fill(rd, chip_bg());
+-    // battery (low): an outline, a nub and a fill that follows the level
+-    lv_obj_t* bf = box(s_glyph[MB_FLAG_BATTERY], 0, 3, 17, 11, 3);
+-    s_batt_fill = box(bf, 0, 0, 4, 5, 1);
+-    lv_obj_set_pos(s_batt_fill, 0, 0);
+-    (void)box(s_glyph[MB_FLAG_BATTERY], 17, 6, 3, 5, 1);  // the nub: painted with the outline in paint_strip
+-    // Wi-Fi: four bars; the slash shows when the link is down
+-    for (int i = 0; i < 4; i++) {
+-        const int h = 4 + i * 3;
+-        s_wifi_bars[i] = box(s_glyph[MB_FLAG_WIFI], i * 5, 16 - h, 4, h, 1);
++}
++
++void delete_glyph(int i)
++{
++    if (s_glyph[i] == nullptr) return;
++    lv_obj_delete(s_glyph[i]);
++    s_glyph[i] = nullptr;
++    if (i == MB_FLAG_CAMERA) s_cam_a = s_cam_b = nullptr;
++    if (i == MB_FLAG_BATTERY) s_batt_fill = s_batt_nub = nullptr;
++    if (i == MB_FLAG_WIFI) {
++        for (auto& w : s_wifi_bars) w = nullptr;
++        s_wifi_slash = nullptr;
+     }
+-    s_wifi_slash = line(s_glyph[MB_FLAG_WIFI], s_slash_pts, 2, lv_color_make(255, 90, 80), 2);
+-    lv_obj_add_flag(s_wifi_slash, LV_OBJ_FLAG_HIDDEN);
+ }
+ 
+ void paint_strip(lv_color_t fg)
+ {
+-    lv_obj_set_style_border_color(s_cam_a, fg, 0);
+-    lv_obj_set_style_border_width(s_cam_a, 2, 0);
+-    lv_obj_set_style_bg_opa(s_cam_a, LV_OPA_TRANSP, 0);
+-    fill(s_cam_b, fg);
+-    lv_obj_t* bf = lv_obj_get_parent(s_batt_fill);
+-    outline(bf, fg, 2);
+-    lv_obj_t* bn = lv_obj_get_child(s_glyph[MB_FLAG_BATTERY], 1);
+-    fill(bn, fg);
+-    const bool low = s_batt_level >= 0 && s_batt_level < 20;
+-    fill(s_batt_fill, low ? lv_color_make(255, 90, 80) : fg);
+-    int w = s_batt_level < 0 ? 4 : (s_batt_level * 11) / 100;
+-    if (w < 2) w = 2;
+-    lv_obj_set_size(s_batt_fill, w, 5);
+-    for (int i = 0; i < 4; i++) {
+-        const bool lit = s_wifi_up && s_hub_up ? i < s_bars : false;
+-        fill(s_wifi_bars[i], lit ? fg : lv_color_make(80, 88, 98));
++    if (s_cam_a != nullptr) {
++        lv_obj_set_style_border_color(s_cam_a, fg, 0);
++        lv_obj_set_style_border_width(s_cam_a, 2, 0);
++        lv_obj_set_style_bg_opa(s_cam_a, LV_OPA_TRANSP, 0);
++        fill(s_cam_b, fg);
++    }
++    if (s_batt_fill != nullptr) {
++        outline(lv_obj_get_parent(s_batt_fill), fg, 2);
++        fill(s_batt_nub, fg);
++        const bool low = s_batt_level >= 0 && s_batt_level < 20;
++        fill(s_batt_fill, low ? lv_color_make(255, 90, 80) : fg);
++        int w = s_batt_level < 0 ? 4 : (s_batt_level * 11) / 100;
++        if (w < 2) w = 2;
++        lv_obj_set_size(s_batt_fill, w, 5);
++    }
++    if (s_wifi_slash != nullptr) {
++        for (int i = 0; i < 4; i++) {
++            const bool lit = s_wifi_up && s_hub_up ? i < s_bars : false;
++            fill(s_wifi_bars[i], lit ? fg : lv_color_make(80, 88, 98));
++        }
++        if (s_wifi_up && s_hub_up) lv_obj_add_flag(s_wifi_slash, LV_OBJ_FLAG_HIDDEN);
++        else lv_obj_remove_flag(s_wifi_slash, LV_OBJ_FLAG_HIDDEN);
+     }
+-    if (s_wifi_up && s_hub_up) lv_obj_add_flag(s_wifi_slash, LV_OBJ_FLAG_HIDDEN);
+-    else lv_obj_remove_flag(s_wifi_slash, LV_OBJ_FLAG_HIDDEN);
+ }
+ 
+ const lv_font_t* font() { return &lv_font_montserrat_14; }
+@@ -247,13 +278,15 @@ void measure(const char* text, int max_w, lv_point_t* sz)
+     lv_text_get_size(sz, text, font(), 0, 0, max_w, LV_TEXT_FLAG_NONE);
+ }
+ 
+-// The objects exist only while the row or the strip need them: idle, the banner holds no LVGL object at all.
+-void build_ui()
++// The row's objects exist only while a message shows (and 2 s after it fades); the strip's container only while a glyph is on
++// (patch FI01). Idle, the banner holds no LVGL object at all.
++void build_row()
+ {
+     lv_obj_t* top = lv_layer_top();
+     s_row = box(top, MB_ROW_X, MB_ROW_Y, MB_ROW_W, MB_ROW_H, MB_ROW_R);
+     fill(s_row, lv_color_make(0x0E, 0x10, 0x16));
+     lv_obj_set_style_bg_opa(s_row, 0, 0);
++    lv_obj_move_background(s_row);  // the strip, when it exists, stays above the row's rectangle
+     s_chip = box(s_row, 3, 2, MB_ROW_W - 6, MB_ROW_H - 4, (MB_ROW_H - 4) / 2);
+     lv_obj_set_style_opa(s_chip, 0, 0);
+     s_icon = box(s_chip, 5, 0, MB_ICON_W, 22, 0);
+@@ -263,20 +296,23 @@ void build_ui()
+     lv_obj_set_style_text_font(s_label, font(), 0);
+     lv_label_set_long_mode(s_label, LV_LABEL_LONG_MODE_CLIP);
+     lv_obj_add_flag(s_row, LV_OBJ_FLAG_HIDDEN);
+-    s_strip = box(top, 0, 0, 1, 18, 0);
+-    build_glyphs();
+     s_drawn_rev = 0xFFFFFFFFu;
+-    s_drawn_strip = 0xFFFFFFFFu;
+     s_opa = 0;
+ }
+ 
+-void teardown_ui()
++void teardown_row()
+ {
+     if (s_row != nullptr) lv_obj_delete(s_row);
+-    if (s_strip != nullptr) lv_obj_delete(s_strip);
+-    s_row = s_chip = s_icon = s_clip = s_label = s_strip = nullptr;
+-    for (auto& g : s_glyph) g = nullptr;
+-    s_batt_fill = s_cam_a = s_cam_b = s_wifi_slash = nullptr;
++    s_row = s_chip = s_icon = s_clip = s_label = nullptr;
++    s_kind = 0;
++}
++
++void teardown_strip()
++{
++    if (s_strip != nullptr) lv_obj_delete(s_strip);  // the glyphs go with it
++    s_strip = nullptr;
++    for (int i = 0; i < MB_FLAG_COUNT; i++) s_glyph[i] = nullptr;
++    s_cam_a = s_cam_b = s_batt_fill = s_batt_nub = s_wifi_slash = nullptr;
+     for (auto& w : s_wifi_bars) w = nullptr;
+ }
+ 
+@@ -290,7 +326,7 @@ void render()
+     if (icon == MB_ICON_WIFI_OFF) strip &= ~(1u << MB_FLAG_WIFI);  // the message already shows that glyph
+     if (icon == MB_ICON_BATTERY) strip &= ~(1u << MB_FLAG_BATTERY);
+     const lv_color_t fg = fg_color();
+-    if (kind != 0) {  // with nothing to say the old content stays while the row fades out
++    if (kind != 0 && s_row != nullptr) {  // with nothing to say the old content stays while the row fades out
+         const bool chip = kind == 2;
+         const bool violet_msg = chip || icon == MB_ICON_REMOTE;
+         const int room = mb_text_room(strip, icon);  // the same text area for a message and for a chip
+@@ -356,18 +392,24 @@ void render()
+         lv_obj_set_pos(s_label, 0, (hh - line_h) / 2);
+         s_kind = kind;
+     }
+-    // the strip: right end of the same row
+-    lv_obj_set_pos(s_strip, MB_ROW_X + MB_ROW_W - MB_PAD_X - mb_strip_w(strip), MB_ROW_Y + (MB_ROW_H - 18) / 2);
+-    lv_obj_set_size(s_strip, mb_strip_w(strip) > 0 ? mb_strip_w(strip) : 1, 18);
+-    int x = 0;
+-    for (int i = 0; i < MB_FLAG_COUNT; i++) {
+-        const bool on = (strip & (1u << i)) != 0;
+-        if (on) {
+-            lv_obj_remove_flag(s_glyph[i], LV_OBJ_FLAG_HIDDEN);
+-            lv_obj_set_pos(s_glyph[i], x, 0);
+-            x += MB_STRIP_GLYPH_W + MB_STRIP_GAP;
+-        } else {
+-            lv_obj_add_flag(s_glyph[i], LV_OBJ_FLAG_HIDDEN);
++    // the strip: right end of the same row; only the glyphs that are on have objects
++    if (strip == 0) {
++        teardown_strip();
++    } else {
++        if (s_strip == nullptr) s_strip = box(lv_layer_top(), 0, 0, 1, 18, 0);
++        lv_obj_set_pos(s_strip, MB_ROW_X + MB_ROW_W - MB_PAD_X - mb_strip_w(strip), MB_ROW_Y + (MB_ROW_H - 18) / 2);
++        lv_obj_set_size(s_strip, mb_strip_w(strip), 18);
++        int x = 0;
++        for (int i = 0; i < MB_FLAG_COUNT; i++) {
++            const bool on = (strip & (1u << i)) != 0;
++            if (on) {
++                if (s_glyph[i] == nullptr) build_glyph(i);
++                lv_obj_remove_flag(s_glyph[i], LV_OBJ_FLAG_HIDDEN);
++                lv_obj_set_pos(s_glyph[i], x, 0);
++                x += MB_STRIP_GLYPH_W + MB_STRIP_GAP;
++            } else {
++                delete_glyph(i);
++            }
+         }
+     }
+     paint_strip(fg);
+@@ -418,16 +460,13 @@ void tick(lv_timer_t*)
+     const char* text;
+     int icon, prio;
+     const int kind = mb_content(s_b, &text, &icon, &prio);
+-    const bool need = kind != 0 || strip != 0 || s_opa > 0;
+-    if (need) s_idle_since = 0;
++    const bool need_row = kind != 0 || s_opa > 0;
++    if (need_row) s_idle_since = 0;
+     else if (s_idle_since == 0) s_idle_since = now | 1u;
+     if (s_row == nullptr) {
+-        if (!need) return;
+-        build_ui();
+-    } else if (!need && now - s_idle_since >= 20000u) {  // nothing to show for 20 s: give the objects back
+-        teardown_ui();
+-        s_kind = 0;
+-        return;
++        if (need_row) build_row();
++    } else if (!need_row && now - s_idle_since >= 2000u) {  // nothing to show for 2 s: give the row's objects back
++        teardown_row();
+     }
+     if (s_drawn_rev != s_b->rev || s_drawn_strip != strip || s_drawn_fg != pack(fg)) render();
+     const int opa = mb_fade_step(s_opa, kind != 0, dt == 0 ? 33 : dt);

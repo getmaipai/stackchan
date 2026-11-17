@@ -28,6 +28,7 @@ PROBES: dict[str, tuple[str, dict[str, Any]]] = {
     "pack": ("self.pack.status", {"type": "look"}),
     "filler": ("self.filler.status", {}),
     "prefs": ("self.prefs.get", {}),
+    "look": ("self.look.status", {}),  # who turns the head toward faces: this unit's seeker and its owner lease
     "remote": ("self.remote.session", {"active": False, "label": ""}),  # the remote cue: glyph, banner, message bubble
 }
 

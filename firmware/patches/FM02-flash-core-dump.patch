@@ -1,0 +1,76 @@
+# Intent: Fable review risk 5 (2026-11-16): the flash core dump was off, so the next panic had no backtrace. It is on now: the coredump partition (64 KB at 0xFF0000) already exists, the dump keeps at most 20 tasks so it fits, and the espcoredump log strings are off. After a crash reset (not a brownout) the boot reads the dump summary and pushes a boot_core event right after the boot event: task, pc, cause and the first four return addresses (the event extra holds 112 characters). scripts/fw-coredump.py reads the partition over the serial port and decodes the whole dump with the build's ELF. The "zero RAM" claim of the review is checked by the build: the IDF reserves a 1,792 byte internal stack for the dump writer when stacks may be in PSRAM; the measured cost is in docs/design/fable-memory-review-2026-11-16.md, "Fix status".
+# (main/CMakeLists.txt now lists the espcoredump component, which the boot summary needs.)
+# Placement: unit (crash evidence stays on the robot until the host or the owner reads it)
+# Upstream: firmware/sdkconfig.core.defaults (patch S02) and main/hal/maipai_heal.cc (ours, patches 085 and Z01)
+# Check after a flash: bash scripts/fw-coredump.py --port <port> shows "no core dump" on a clean unit; after a forced panic the next boot logs "core dump:" with the task and pc and the host log has a boot_core event; the script decodes the same crash with the ELF.
+
+diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
+--- a/firmware/sdkconfig.core.defaults
++++ b/firmware/sdkconfig.core.defaults
+@@ -40,3 +40,9 @@
+ CONFIG_MAIPAI_PICTURE_FACES=y
+ # Fluid face (patch H02): the screen may redraw every 20 ms (the base waited 33 ms, which held it near 25 refreshes a second).
+ CONFIG_LV_DEF_REFR_PERIOD=20
++# Flash core dump (patch FM02): a panic or watchdog reset leaves registers and stacks in the 64 KB coredump partition (it exists
++# already, 0xFF0000). The boot_core event reports the summary; scripts/fw-coredump.py decodes it with the build's ELF. The espcoredump
++# log strings are off (they sit in internal RAM) and the dump keeps at most 20 tasks so it fits the partition.
++CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
++CONFIG_ESP_COREDUMP_LOGS=n
++CONFIG_ESP_COREDUMP_MAX_TASKS_NUM=20
+diff --git a/firmware/main/hal/maipai_heal.cc b/firmware/main/hal/maipai_heal.cc
+--- a/firmware/main/hal/maipai_heal.cc
++++ b/firmware/main/hal/maipai_heal.cc
+@@ -12,6 +12,7 @@
+ #include "maipai_heal_core.h"
+ 
+ #include <esp_attr.h>
++#include <esp_core_dump.h>
+ #include <esp_log.h>
+ #include <esp_heap_caps.h>
+ #include <esp_system.h>
+@@ -334,4 +335,34 @@
+              static_cast<int>(rr), reset_name(rr), last, count, hold ? 1 : 0, why);
+     ESP_LOGI(kTag, "boot: %s", extra);
+     device_events_push("boot", extra);
++#if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH
++    // Patch FM02: after a crash the flash core dump (partition coredump, 64 KB) holds the registers and stacks. Its
++    // summary goes to the host as the boot_core event right after the boot event: the task, the pc, the cause and the first
++    // four return addresses (the event's extra holds 112 characters). scripts/fw-coredump.py decodes the whole dump with the
++    // ELF of the build. A dump left from an older crash is not reported after a normal restart.
++    if (crash && rr != ESP_RST_BROWNOUT && esp_core_dump_image_check() == ESP_OK) {
++        auto* sum = static_cast<esp_core_dump_summary_t*>(
++            heap_caps_calloc(1, sizeof(esp_core_dump_summary_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (sum != nullptr) {
++            if (esp_core_dump_get_summary(sum) == ESP_OK) {
++                char task[16];
++                memcpy(task, sum->exc_task, sizeof(task));
++                task[sizeof(task) - 1] = '\0';
++                for (char* q = task; *q != '\0'; ++q) {
++                    if (*q == '"' || *q == '\\' || static_cast<unsigned char>(*q) < 32) *q = '_';
++                }
++                const uint32_t* bt = sum->exc_bt_info.bt;
++                const uint32_t n   = sum->exc_bt_info.depth;
++                char core[112];
++                snprintf(core, sizeof(core), "\"task\":\"%s\",\"pc\":\"%x\",\"cause\":%u,\"bt\":\"%x:%x:%x:%x\"", task,
++                         static_cast<unsigned>(sum->exc_pc), static_cast<unsigned>(sum->ex_info.exc_cause),
++                         static_cast<unsigned>(n > 0 ? bt[0] : 0), static_cast<unsigned>(n > 1 ? bt[1] : 0),
++                         static_cast<unsigned>(n > 2 ? bt[2] : 0), static_cast<unsigned>(n > 3 ? bt[3] : 0));
++                ESP_LOGE(kTag, "core dump: %s", core);
++                device_events_push("boot_core", core);
++            }
++            heap_caps_free(sum);
++        }
++    }
++#endif
+ }
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -333,6 +333,7 @@
+                         esp_driver_ppa
+                         esp_app_format
+                         app_update
++                        espcoredump
+                         spi_flash
+                         console
+                         efuse
