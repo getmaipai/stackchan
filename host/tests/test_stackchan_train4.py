@@ -48,12 +48,11 @@ FACES_CORE = [
     "V12-chunky-mouth-on-anime-eyes.patch",  # the chunky mouth of the faces core on those eyes (V11 touches no header)
 ]  # patches after Train 5 that change the pure headers (look core, face core, decor core, reaction rows)
 # The patches whose pure headers the face cores need, in order (U06 changes three of them).
-# Every patch of ORDER up to FI04 (the last entry of the final integration), in order; only the pure headers are kept. A hand kept list
-# drifted whenever a patch was added (V20 to V26 and N01 to N04 broke it); S10 and later patches are tested by their own lanes.
+# Every patch of ORDER, in order; only the pure headers are kept (--include below). A hand kept list drifted whenever a patch was added
+# (V20 to V26, N01 to N04 and the face seek patches broke it), and a prefix of ORDER missed headers a later patch changes
+# (ml_eye_center_y arrives with the banner and fixed zones patches), so the whole chain is applied and new patches need no edit here.
 _ORDER_ALL = [n for n in (PATCHES / "ORDER").read_text().split() if n]
-CORE_CHAIN = _ORDER_ALL[: _ORDER_ALL.index("FI04-lvgl-task-stack-8k.patch") + 1]
-# K10 and K11 change two of these headers (the screen words became a language pack): face_cores_test.c reads them through the pack's words.
-CORE_CHAIN += ["K10-pack-types-phrase-and-cache-format-2.patch", "K11-language-pack-screen-words.patch"]
+CORE_CHAIN = _ORDER_ALL
 
 
 @pytest.fixture(scope="module")
