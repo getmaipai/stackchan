@@ -14,7 +14,7 @@ The first release of MaiPai for StackChan. Everything on the [Features](features
 - Five face styles, seven face extras, word reactions, a time zone picker, a network test and a version screen.
 - Six languages: English, Spanish, French, German, Portuguese and Italian.
 - Offline phrases, dance on request, six named dances and a sway to music.
-- Three games: color memory, reaction time and whack-a-mole, with best scores.
+- Seven games: color memory, whack-a-mole, Tic-Tac-Toe, Do It, Rock Paper Scissors, Magic 8-Ball and dice and coin, with best scores.
 - Travel: the robot joins your private network by itself when it cannot reach your host.
 - Reset on the robot, and a restart guard.
 - Several robots on one host, speech speed and pitch, and a cooking persona.

@@ -4,6 +4,12 @@
 
 The face is home. You swipe on the screen to reach other things, and the robot goes back to the face by itself. All of it runs on the robot, so it works with your own LLM, with MaiPai Home, and with no host at all. A swipe has not been tried on a real robot yet: the first check is listed in [the design note](../design/pages-2026-11-17.md).
 
+![The control sheet on the robot, with Wi-Fi, time, battery, volume, brightness and the quick row.](../images/unit-control-sheet.png)
+
+![The Timers app on the robot, with 1, 5, 10 and 15 minute buttons and a running timer.](../images/unit-timers-app.png)
+
+![The settings screen on the robot, with General, Network, Faces and Info tabs.](../images/unit-settings-general.png)
+
 ## The swipes
 
 | You do this | The robot does this |

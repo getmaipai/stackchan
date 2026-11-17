@@ -6,7 +6,7 @@
 
 > **Draft.** These docs are written as if v1.0.0 is finished, so the owner can review the full product. Remove this note when v1.0.0 ships.
 >
-> **Pictures are placeholders.** The drawings in these docs are mock-ups, not photos or screens from a real robot. Real screenshots from the final build replace them before release.
+> **Some pictures are placeholders.** Pictures named `unit-` are real screenshots from the flashed robot. The other drawings are mock-ups and will be replaced before release.
 
 MaiPai for StackChan is open-source firmware and a host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot. It replaces the factory firmware with something quicker, steadier and yours.
 

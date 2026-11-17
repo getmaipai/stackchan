@@ -5,18 +5,27 @@ The games and the pet mood run on the robot itself, so they work with your own L
 
 ## Games
 
-The next robot image removes Reaction Time, makes games full height with a swipe-down bar and makes game sounds follow the system volume. Built, not flashed.
+Every game is full height. Swipe down on the bar at the top to leave. Game sounds are at chime level and follow the system volume. Reaction Time is gone.
 
-The robot has six games. Color memory, reaction time and whack-a-mole are on the flashed robot. Tic-Tac-Toe, Do It and Rock Paper Scissors, the funny moles and the talk games are built but not flashed yet, and not tested on a robot. They run on the robot itself, so they work even when MaiPai Home is off.
+![The Games page on the robot: Color Memory, Whack-a-Mole, Tic-Tac-Toe, Do It, Rock Paper Scissors and More games.](../images/unit-games-page.png)
+
+The robot has seven games, all on the flashed robot. The talk games are built but not flashed yet, and not tested with a live model. No finger has been tested on the glass by a person. They run on the robot itself, so they work even when MaiPai Home is off.
+
+![Color Memory on the robot: four colored tiles.](../images/unit-game-color-memory.png)
 
 - **Color memory.** The robot shows a pattern with lights and sounds. Tap the colors back in the same order. Each round adds one step. Your score is the number of rounds you got right.
-- **Reaction time.** The screen is red. When it turns green, tap as fast as you can. Three rounds. Your score is your average in milliseconds, and lower is better.
 - **Whack-a-mole.** Funny moles pop up in a grid of nine holes: a grinning one, one with its tongue out, a startled one and one in a helmet. Tap each one before it hides. A hit gives a dazed mole with stars and a bonk or a squeak. A tap on the wrong hole and a mole that gets away each have their own funny sounds. There are 15 moles.
-- **Tic-Tac-Toe.** <span class="planned-tag">Built, not flashed</span> Pick a level by tapping a row: Easy plays random moves, Medium takes a win and blocks yours, Hard never loses. You are X and go first. The robot plays its O and tells you its move, "I played row 2 column 3". A win scores 10, 20 or 30 by level, a draw 3, 6 or 9.
-- **Do It.** <span class="planned-tag">Built, not flashed</span> The robot calls a move and a clock runs. Press the big tile that matches, or do the move itself: tap, swipe left, swipe right, shake the robot, pet its head or tilt it. Every round is a little faster. A wrong move or a late one ends the run. Your score is the moves you got right.
-- **Rock Paper Scissors.** <span class="planned-tag">Built, not flashed</span> Tap rock, paper or scissors. The robot shows its pick. A tie plays again. Your score is how many you win in a row.
+- **Tic-Tac-Toe.** Pick a level by tapping a row: Easy plays random moves, Medium takes a win and blocks yours, Hard never loses. You are X and go first. The robot plays its O and tells you its move, "I played row 2 column 3". A win scores 10, 20 or 30 by level, a draw 3, 6 or 9.
+![Do It on the robot, calling "Swipe left!".](../images/unit-game-do-it.png)
 
-To start one by touch, swipe left on the face to open the Games page (or swipe up from the bottom and press **Games**), then press the game you want. Each tile shows your best score, and **More games** shows the rest. To start one by voice, say "play memory", "play reaction" or "play whack-a-mole". In Spanish, say "juega a memoria" or "juega a los topos". Say "what games do you have" to hear the list.
+- **Do It.** Wait for the screen to change color. Then it shows a move in big words and a big picture: tap, swipe left, swipe right, gentle shake, pet my head or tilt. Do the move, or press the big button (the whole screen), as fast as you can. Every round is faster, and the color and the tone change as it speeds up. A wrong move, a tap too early or a late answer ends the run. Your score is the rounds you got right, and a new best gets confetti.
+![Rock Paper Scissors on the robot, with Play again and Quit.](../images/unit-game-rps.png)
+
+- **Rock Paper Scissors.** A best of three match. The robot bumps its fist three times, "Rock, paper, scissors", with a beat each time while the three choices are dim. At "SHOOT" they light up and you tap one within a second and a bit. A tap too early starts the round again. No tap is a loss. Both hands are shown, yours on the left, then the result and two buttons, **Play again** and **Quit**. After the match press **Rematch** or **Quit**. Your score is the matches you won, saved when you press **Quit**.
+- **Magic 8-Ball.** Ask a question, then gently shake the robot or tap the ball for an answer.
+- **Dice and Coin.** Tap or gently shake to roll one die, two dice or flip a coin.
+
+To start one by touch, swipe left on the face to open the Games page (or swipe up from the bottom and press **Games**), then press the game you want. Each tile shows your best score, and **More games** shows the rest. To start one by voice, say "play memory", "play do it" or "play whack-a-mole". In Spanish, say "juega a memoria" or "juega a los topos". Say "what games do you have" to hear the list.
 
 To stop a game, swipe down from the bottom edge of the screen, or say "stop". A game you stop early does not save a score.
 

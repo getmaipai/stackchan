@@ -7,6 +7,8 @@ You can change every item here at any time. None of it needs a reflash.
 Five styles ship. **Big eyes** is the default. **Eyes only** has no mouth. **Stock** is the original StackChan face, as it came. **Classic** has rounder eyes and **minimal** is a quiet face for the night. Pick one in the settings page on your host or set `face_style` in `robot.toml`. The older styles (round, cat, robot, sleepy, retro pixel and heart eyes) are gone: a robot that had one now shows big eyes.
 The page shows a live preview that uses the same drawing code as the robot.
 
+![The big-eyes face on the robot.](../images/unit-face-big-eyes.png)
+
 ![The big-eyes face and the minimal face side by side.](../images/face-styles.svg)
 
 ## Smoother eyes and mouth

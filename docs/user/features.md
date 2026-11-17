@@ -26,7 +26,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Top banner and subtitle strip** | A fixed top row for the remote cue, find, game, offline and battery, and a subtitle strip at the bottom. | Robot | [Face and look](face-and-look.md) |
 | **Filler sounds** | A short sound or phrase while the robot thinks: none, tone or phrase. Not yet heard by a person. | Robot | [Voice](voice.md) |
 | **Language packs** | English is built in. Other languages arrive as packs. Screen text is plain ASCII, so accented letters are shown without accents. Offline phrase packs are built from the voice you use. | Robot | [Languages](languages.md) |
-| **Turn toward faces** | The robot can sweep and look for a face. Choose off, when I talk to it (the default) or always. The camera cue shows while it looks. It finds motion, not faces: a face detector is not built. Not yet tried with a real face. | Robot | [Face and look](face-and-look.md) |
+| **Turn toward faces** <span class="planned-tag">Planned</span> | It does not move yet: the robot's seeker is in talk mode and the host gets no camera frames. A face detector on the robot is built as an experiment, switched off and not flashed. | Robot | [Face and look](face-and-look.md) |
 | **Smoother eyes and mouth** | Eased eye moves, a smooth blink, a drifting gaze and a mouth that follows your voice. Measured 22 to 45 frames a second while the eyes move. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Your own picture faces** | Upload your own pictures on the settings page, one per look, as picture only, picture with animated eyes and mouth, or a short run of frames. Nothing leaves your home. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Faces and color** | Five face styles (big eyes, eyes only, stock, classic, minimal), any eye color, optional captions, a tired look when the battery is low and three dots while it thinks. | Robot | [Face and look](face-and-look.md) |
@@ -52,7 +52,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Pickup, shake, tilt, petting** | It looks surprised, dizzy, tilted or happy. | Robot | [Reactions](moves-and-moods.md) |
 | **Mood from care** | Its resting face follows how much you pet it. | Robot | [Reactions](moves-and-moods.md) |
 | **Dance and music** | Dance on request, six named dances, and a sway to the music with mood faces. Off until you turn it on. | Robot | [Music and dance](music-and-dance.md) |
-| **Pet mood and games** | Three games on the robot (color memory, reaction time, whack-a-mole) with saved best scores, and a pet mood that depends on care. | Robot | [Games and pet](games-and-pet.md) |
+| **Pet mood and games** | Seven games on the robot (color memory, whack-a-mole, tic-tac-toe, Do It, rock paper scissors, a magic 8-ball, dice and a coin) with saved best scores, and a pet mood that depends on care. | Robot | [Games and pet](games-and-pet.md) |
 | **Breathing idle and quiet mode** | Calm moves when nothing happens, softer when you ask. | Robot | [Reactions](moves-and-moods.md) |
 | **Low-battery steps** | A chirp at 20 percent, a spoken ask at 10, sleep at 5. | Robot | [Reactions](moves-and-moods.md) |
 
@@ -125,15 +125,15 @@ Likely to come, not finished. Do not count on these yet.
 | **More games** <span class="planned-tag">Built, not flashed</span> | Tic-Tac-Toe, Do It (button tiles), Rock Paper Scissors, funnier moles, six talk games (20 Questions, riddles, trivia, word chain, would-you-rather, bedtime stories) and a Dance to music toggle. Not tested with a real track or a live model. Magic 8-Ball, Dice and Coin are still planned. | [Games](games-and-pet.md) |
 | **Scenes and data cards** <span class="planned-tag">Planned</span> | One tag that sets several looks at once (stormy, party and more), and cards such as weather shown by MaiPai Home. In progress. | [Local vs Home](local-vs-home.md) |
 | **Wi-Fi roaming** <span class="planned-tag">Planned</span> | Move between your saved Wi-Fi networks, and a ported private-network join. In progress. | [Away from home](use-it-anywhere.md) |
-| **Passcode lock** <span class="planned-tag">Built, not flashed</span> | A code, an auto-lock time, a Lock now button and a big keypad. | Robot | [Settings](settings.md) |
-| **Apps list, tabbed settings** <span class="planned-tag">Built, not flashed</span> | An Apps list with Timers and Alarms apps, and a settings screen with tabs. | Robot | [Swipe pages](swipe-pages.md) |
-| **Full-height games** <span class="planned-tag">Built, not flashed</span> | Games fill the screen, with a swipe-down bar to leave, sounds that follow the system volume, Do It on a reaction screen and Rock Paper Scissors with a countdown and Play again. Reaction Time is removed in this image. | Robot | [Games](games-and-pet.md) |
+| **Passcode lock** | A code you set on the settings page, an auto-lock time, a Lock now button and a big keypad. The keypad drawing is still being confirmed on the real screen. | Robot | [Settings](settings.md) |
+| **Apps list, tabbed settings** | An Apps list (Timers, Alarms, Clock, Quick actions, Pictures, Dashboard, Dance, Lock) with on-screen timer and alarm apps, a settings screen with General, Network, Faces and Info tabs, and a one-row quick access bar: Mute, Quiet, Light, Apps, Games, Settings. | Robot | [Swipe pages](swipe-pages.md) |
+| **Full-height games** | Seven games fill the screen, with a swipe-down bar to leave and sounds that follow the system volume. Do It and Rock Paper Scissors are rebuilt. Reaction Time is removed. | Robot | [Games](games-and-pet.md) |
 | **More wake words** <span class="planned-tag">Planned</span> | Other ready-made wake words and a phrase you make up. The default stays "Hi, Stack Chan". | Robot | [Voice](voice.md) |
 | **Offline voice commands** <span class="planned-tag">Planned</span> | Commands the robot understands with no host. | Robot | [Voice](voice.md) |
 | **Focus countdown** <span class="planned-tag">Planned</span> | A full-screen countdown with pictures and a small chip. | Robot | [Timers and alarms](timers-and-alarms.md) |
 | **Face detection on the robot** <span class="planned-tag">Planned</span> | The robot finds faces by itself. An experiment image is built, not flashed. | Robot | [Face and look](face-and-look.md) |
 | **Scenes and display lists** <span class="planned-tag">Planned</span> | One tag sets several looks at once, and lists the model can show. Design only. | Robot | [Face and look](face-and-look.md) |
-| **Wake look-around** <span class="planned-tag">Planned</span> | The robot looks around when it wakes. Host side is on, unverified with a real wake. | Robot | [Face and look](face-and-look.md) |
+| **Wake look-around** <span class="planned-tag">Planned</span> | The robot looks around when it wakes. The host side is on, but it is not verified with a real wake. | Robot | [Face and look](face-and-look.md) |
 | **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |
 | **Encrypted link at home** <span class="planned-tag">Planned</span> | Encrypt the robot's link to your host on your home Wi-Fi, and check it is talking to your host. | [Security](security.md) |
 | **Outside games** <span class="planned-tag">Planned</span> | Load games you or others make. Signed packs only. | [Games](games-and-pet.md) |
