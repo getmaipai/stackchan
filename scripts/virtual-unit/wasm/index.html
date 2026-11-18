@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual robot in the browser</title>
+<style>
+:root { --bg: #fff; --fg: #1c1c1e; --muted: #6b6b70; --line: #d9d9de; --acc: #0a6cff; }
+@media (prefers-color-scheme: dark) { :root { --bg: #141416; --fg: #f2f2f5; --muted: #9a9aa2; --line: #333338; --acc: #5aa2ff; } }
+body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; max-width: 760px; margin-inline: auto; }
+h1 { font-size: 20px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 24px 0 8px; }
+p, small { color: var(--muted); margin: 4px 0; }
+canvas { width: 100%; max-width: 480px; aspect-ratio: 4 / 3; background: #000; border-radius: 10px; touch-action: none; image-rendering: pixelated; display: block; }
+button { font: inherit; padding: 6px 12px; border: 1px solid var(--line); background: transparent; color: var(--fg); border-radius: 8px; cursor: pointer; }
+button:hover { border-color: var(--acc); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; align-items: center; }
+pre { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 8px; overflow: auto; margin: 8px 0; font-size: 13px; }
+label { display: inline-flex; gap: 6px; align-items: center; }
+</style>
+</head>
+<body>
+<h1>Virtual robot in the browser</h1>
+<p>The unit's own face code and C cores, compiled to WebAssembly. No server. Tap the face.</p>
+
+<h2>Face (the unit's LVGL display code)</h2>
+<canvas id="face" width="320" height="240" aria-label="The robot's face. Tap to change its look."></canvas>
+<div class="row">
+  <button data-emo="0">neutral</button><button data-emo="1">happy</button><button data-emo="2">angry</button><button data-emo="3">sad</button>
+  <button data-emo="4">doubt</button><button data-emo="5">sleepy</button><button data-emo="6">surprised</button>
+  <label><input type="checkbox" id="speak"> speaking</label>
+</div>
+<pre id="stats">loading...</pre>
+
+<h2>Cores with a fake clock</h2>
+<div class="row"><button id="lockSet">Set code 1234 and lock</button><button id="lockTouch">Touch</button>
+  <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="4">4</button><button data-k="9">9</button></div>
+<div class="row"><label>Battery <input type="range" id="bat" min="0" max="100" value="80"></label>
+  <label><input type="checkbox" id="usb"> USB</label><label><input type="checkbox" id="carried"> carried</label></div>
+<div class="row"><button id="ladder">Run the dance ladder, 60 s, loud music</button></div>
+<pre id="cores"></pre>
+
+<script src="build/face.js"></script>
+<script src="build/cores.js"></script>
+<script src="page.js"></script>
+</body>
+</html>
