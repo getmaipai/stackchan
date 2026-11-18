@@ -111,7 +111,7 @@ def relevant(ev: "Evidence", profile: str, text: str, limit: int = 4) -> list[di
     for p in ev.patches:
         if not rx.search((p["name"] + " " + p["intent"]).lower()):
             continue
-        score = sum(math.log(len(ev.patches) / ev._df[t]) for t in want & ev._ptok[p["name"]] if ev._df[t] <= 40)
+        score = sum(math.log(len(ev.patches) / ev._df[t]) for t in sorted(want & ev._ptok[p["name"]]) if ev._df[t] <= 40)  # sorted: float sums over a set flip near-ties between runs
         if score >= 2.5:
             scored.append((score, p))
     scored.sort(key=lambda x: (-x[0], x[1]["name"]))
