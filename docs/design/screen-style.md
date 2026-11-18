@@ -57,5 +57,5 @@ One **page indicator** everywhere (swipe pages, wizard steps, games wall pages):
 
 ## Documented exceptions (owner, 2026-11-18)
 
-- **The lock keypad.** Twelve keys in three columns and four rows (the owner's request of 2026-11-17: large keys, three across, four down) under the entry dots are 100 by 44 px with 4 px gaps. Four rows of 48 px keys do not fit between the dots row and the bottom edge (188 px are free; four 48 px keys need 192 before any gap), and the owner accepted the keypad as the one place that stays under the standard. Its floor is held by the lock core test (keys at least 44 px, gaps at least 4 px, nothing off the glass), so a change to the layout is a conscious edit of both.
+- **The lock keypad is no longer an exception.** It is four columns and three rows of 70 by 56 px keys with 8 px gaps (patch UX13g; three columns by four rows of 56 px keys did not fit under the dots row, and the owner chose the 4 by 3 pad that meets the standard).
 - **Boards.** A game board cell may be under 56 px when the board fills the play field and a finger places one piece at a time, never under 24 px and never with a different kind of target closer than 8 px (`docs/plan/screen-standards-audit.md`, batch 6).

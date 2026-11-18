@@ -166,19 +166,19 @@ int main(int argc, char** argv)
         CHECK(strstr(js, MLK_REASONS[i]) != NULL || i == 0);
     }
 
-    /* the keypad: 12 large keys (100 by 44 px, 4 px gaps) fill the zone under the banner row, inside the glass, none over another; the dots sit above */
-    CHECK(mlk_key_char(0) == '1' && mlk_key_char(9) == 'B' && mlk_key_char(10) == '0' && mlk_key_char(11) == 'C' && mlk_key_char(12) == '\0');
-    CHECK(LK_KEY_W >= 100 && LK_KEY_H >= 44 && LK_KEY_SIZE >= 44 && LK_KEYS == 12);
+    /* the keypad (patch UX13g): 12 keys in four columns and three rows (70 by 56 px, 8 px gaps) fill the zone under the banner row, inside the glass, none over another; the dots sit above */
+    CHECK(mlk_key_char(0) == '1' && mlk_key_char(9) == '0' && mlk_key_char(10) == 'B' && mlk_key_char(11) == 'C' && mlk_key_char(12) == '\0');
+    CHECK(LK_KEY_W >= 56 && LK_KEY_H >= 56 && LK_KEY_SIZE >= 56 && LK_KEYS == 12);   /* the primary target of the screen standard */
     for (int i = 0; i < LK_KEYS; i++) {
         CHECK(mlk_key_x(i) >= 0 && mlk_key_x(i) + LK_KEY_W <= 320 && mlk_key_y(i) >= 28 && mlk_key_y(i) + LK_KEY_H <= 240);
-        CHECK(LK_KEY_W >= 100 && LK_KEY_H >= 44 && LK_PAD_GAPX >= 4 && LK_PAD_GAPY >= 4);   /* the documented exception (docs/design/screen-style.md): the keypad floor, never smaller */
+        CHECK(LK_PAD_GAPX >= 8 && LK_PAD_GAPY >= 8 && mlk_key_x(i) >= 8 && mlk_key_x(i) + LK_KEY_W <= 312);   /* 8 px gaps and an 8 px margin */
         for (int j = i + 1; j < LK_KEYS; j++) {
             const int ox = mlk_key_x(i) < mlk_key_x(j) + LK_KEY_W && mlk_key_x(j) < mlk_key_x(i) + LK_KEY_W;
             const int oy = mlk_key_y(i) < mlk_key_y(j) + LK_KEY_H && mlk_key_y(j) < mlk_key_y(i) + LK_KEY_H;
             CHECK(!(ox && oy));
         }
     }
-    CHECK(mlk_key_y(9) + LK_KEY_H == 236 && mlk_key_y(0) == LK_PAD_Y);
+    CHECK(mlk_key_y(11) + LK_KEY_H == 236 && mlk_key_y(0) == LK_PAD_Y);
     CHECK(LK_DOTS_Y >= 28 && LK_DOTS_Y + LK_DOT_SIZE <= LK_PAD_Y); /* the dots fit between the banner row and the keys */
 
     /* both languages say every line, in plain ASCII */
