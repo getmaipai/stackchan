@@ -3351,7 +3351,19 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
     from maipai_body.settings_server import SettingsServer
 
     try:
-        server = SettingsServer(backend, "127.0.0.1", port)
+        lan = False
+        try:
+            from maipai_body.config import load_config
+
+            lan = load_config().settings.lan
+        except Exception:
+            lan = False
+        auth = None
+        if lan:
+            from maipai_body.local_guard import SettingsAuth
+
+            auth = SettingsAuth(_default_pairing_path().parent / "settings-token")
+        server = SettingsServer(backend, "0.0.0.0" if lan else "127.0.0.1", port, auth=auth)
     except OSError:
         logger.warning(
             "settings page port %d is in use; set MAIPAI_STACKCHAN_SETTINGS_PORT to a free port",

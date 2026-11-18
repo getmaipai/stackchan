@@ -20,6 +20,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="stackchan")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("run", help="start the host the robot connects to")
+    commands.add_parser(
+        "settings-token", help="print the token that logs a phone in to the settings page"
+    )
     commands.add_parser("check", help="test the model and speech addresses in robot.toml")
     commands.add_parser("forget", help="unpair every robot (use before giving one away)")
     commands.add_parser("pair", help="show a one-use pairing code")
@@ -181,6 +184,16 @@ def main() -> int:
     store = PairingStore(default_pairing_path())
     if args.command in {"units", "name"}:
         return _units_or_name(args, config, store)
+    if args.command == "settings-token":
+        from maipai_body.local_guard import SettingsAuth
+
+        token = SettingsAuth(default_pairing_path().parent / "settings-token").token
+        print(f"Settings token: {token}")
+        print("On your phone open http://<this computer's address>:8051/settings?token=<the token> once.")
+        if not config.settings.lan:
+            print("The page is still local only. Set lan = true under [settings] in robot.toml, restart the host, then use the address above.")
+        print("Anyone on your Wi-Fi who learns the token can change the robot's settings: keep it private.")
+        return 0
     if args.command == "check":
         return _check(config)
     if args.command == "forget":

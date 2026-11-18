@@ -37,6 +37,11 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if getattr(self, "_set_cookie", False):
+            self.send_header(
+                "Set-Cookie",
+                f"{local_guard.COOKIE}={self.server.auth.token}; Path=/; HttpOnly; SameSite=Strict",
+            )
         self.end_headers()
         self.wfile.write(body)
 
@@ -45,6 +50,27 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _local(self) -> bool:
         return local_guard.request_is_local(self.client_address[0], self.headers)
+
+    def _token_login(self) -> bool:
+        """A phone (or a proxied page) logged in with the settings token."""
+        auth = self.server.auth
+        return auth is not None and auth.valid(self.headers, urlsplit(self.path).query)
+
+    def _admin(self) -> bool:
+        return self._local() or self._token_login()
+
+    def _login_needed(self) -> bool:
+        """Refuse a request that is neither local nor logged in; says how to log in."""
+        if self._admin():
+            return False
+        if self.server.auth is None:
+            return False  # no login configured: the Host check and the local flag decide
+        self._error(
+            HTTPStatus.UNAUTHORIZED,
+            "Open the settings page with your settings token. Run `stackchan settings-token` on "
+            "the host computer, then open /settings?token=<the token> once on this device.",
+        )
+        return True
 
     def _host_refused(self) -> bool:
         """A name that is not this computer (a rebound hostname) reads nothing."""
@@ -58,14 +84,21 @@ class _Handler(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self) -> None:  # noqa: N802
-        if self._host_refused():
+        if self._login_needed():
+            return
+        self._set_cookie = (
+            self.server.auth is not None
+            and not self._local()
+            and "token=" in urlsplit(self.path).query
+        )
+        if not self._token_login() and self._host_refused():
             return
         parts = urlsplit(self.path)
         lang = (parse_qs(parts.query).get("lang") or [""])[0] or self.headers.get(
             "Accept-Language", ""
         ).split(",")[0] or self.server.backend.language
         try:
-            routed = self.server.backend.route_get(parts.path, normalize(lang), self._local())
+            routed = self.server.backend.route_get(parts.path, normalize(lang), self._admin())
         except Exception:
             LOG.warning("settings page GET %s failed", parts.path, exc_info=True)
             return self._error(HTTPStatus.INTERNAL_SERVER_ERROR, FAILED)
@@ -75,8 +108,12 @@ class _Handler(BaseHTTPRequestHandler):
         self._reply(status, body, content_type)
 
     def do_POST(self) -> None:  # noqa: N802
+        self._set_cookie = False
+        if self._login_needed():
+            return
         host, origin = self.headers.get("Host", ""), self.headers.get("Origin")
-        if host.rsplit(":", 1)[0] not in {"127.0.0.1", "localhost", "[::1]"} or (
+        by_token = not self._local() and self._token_login()
+        if (not by_token and not local_guard.host_is_local(host)) or (
             origin is not None and urlsplit(origin).netloc != host
         ):
             return self._error(
@@ -104,7 +141,7 @@ class _Handler(BaseHTTPRequestHandler):
         except ValueError as error:
             return self._error(HTTPStatus.BAD_REQUEST, str(error))
         try:
-            routed = self.server.backend.route_post(urlsplit(self.path).path, body, self._local())
+            routed = self.server.backend.route_post(urlsplit(self.path).path, body, self._admin())
         except Exception:
             LOG.warning("settings page POST %s failed", urlsplit(self.path).path, exc_info=True)
             return self._error(HTTPStatus.INTERNAL_SERVER_ERROR, FAILED)
@@ -117,9 +154,16 @@ class _Handler(BaseHTTPRequestHandler):
 class SettingsServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, backend: SettingsBackend, host: str = "127.0.0.1", port: int = 8051) -> None:
+    def __init__(
+        self,
+        backend: SettingsBackend,
+        host: str = "127.0.0.1",
+        port: int = 8051,
+        auth: local_guard.SettingsAuth | None = None,
+    ) -> None:
         super().__init__((host, port), _Handler)
         self.backend = backend
+        self.auth = auth  # None: loopback only, no login
         self._thread: threading.Thread | None = None
 
     @property

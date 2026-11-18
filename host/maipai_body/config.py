@@ -44,6 +44,12 @@ class RemoteConfig(StrictModel):
     enabled: bool | None = None
 
 
+class SettingsPageConfig(StrictModel):
+    """lan = true lets a phone on your Wi-Fi open the settings page, with the settings token."""
+
+    lan: bool = False
+
+
 class UpdateConfig(StrictModel):
     """Where signed releases come from. Nothing is fetched; a folder is read."""
 
@@ -116,6 +122,7 @@ class RobotConfig(StrictModel):
     units: dict[str, UnitConfig] = Field(default_factory=dict)
     llm: LlmConfig = Field(default_factory=LlmConfig)
     home: HomeConfig = Field(default_factory=HomeConfig)
+    settings: SettingsPageConfig = Field(default_factory=SettingsPageConfig)
     remote: RemoteConfig = Field(default_factory=RemoteConfig)
     update: UpdateConfig = Field(default_factory=UpdateConfig)
 

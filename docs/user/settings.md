@@ -35,6 +35,10 @@ One of six languages. See `languages.md`. The robot changes at once with no file
 
 Run `stackchan check` after any change to your addresses. Environment variables override secrets in the file.
 
+## Open the settings page from your phone
+
+The page is for the host computer only until you turn this on. In `robot.toml` add `lan = true` under `[settings]` and restart the host. Run `stackchan settings-token`, then open `http://<the host's address>:8051/settings?token=<the token>` on your phone once; the phone stays logged in. Anyone on your Wi-Fi who learns the token can change the robot's settings, so keep it private. The page is plain web (not encrypted) inside your home network, so do not turn this on for a network you do not trust.
+
 ## All settings at a glance
 
 | Setting | What it does | Default |
