@@ -50,6 +50,18 @@ def main() -> int:
     face.add_argument(
         "--host-url", default="http://127.0.0.1:8051", help="the running host's settings page"
     )
+    character = commands.add_parser("character", help="build or check an illustrated character pack")
+    character_commands = character.add_subparsers(dest="character_action", required=True)
+    character_build = character_commands.add_parser("build", help="build a character pack from image files")
+    character_build.add_argument("src")
+    character_build.add_argument("out_zip")
+    character_build.add_argument("--name", required=True)
+    character_build.add_argument("--author", required=True)
+    character_build.add_argument("--license", required=True)
+    character_build.add_argument("--mode", choices=["picture", "overlay", "sequence"], default="picture")
+    character_build.add_argument("--fps", type=int, default=6)
+    character_check = character_commands.add_parser("check", help="check a character pack")
+    character_check.add_argument("pack")
     bench = commands.add_parser("bench", help="start the local unit testing console")
     bench.add_argument("--host", default="127.0.0.1")
     bench.add_argument("--port", type=int, default=9790)
@@ -94,6 +106,24 @@ def main() -> int:
             sub.add_argument("--unit", help="Device-Id of the paired unit")
             sub.add_argument("--host-url", default="http://127.0.0.1:8050")
     args = parser.parse_args()
+    if args.command == "character":
+        from maipai_body.character_pack import build_pack, validate_pack
+        from maipai_body.picture_faces import PictureError
+
+        if args.character_action == "check":
+            problems = validate_pack(args.pack)
+            if problems:
+                print("\n".join(problems))
+                return 1
+            print("Pack is valid.")
+            return 0
+        try:
+            build_pack(args.src, args.out_zip, args.name, args.author, args.license, args.mode, args.fps)
+        except (PictureError, OSError) as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        print(f"Built {args.out_zip}")
+        return 0
     if args.command in {"flash", "update"}:
         return _flash_or_update(args)
     if args.command == "face":
