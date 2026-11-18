@@ -64,238 +64,68 @@ diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
 diff --git a/firmware/main/hal/maipai_motion_limit.cc b/firmware/main/hal/maipai_motion_limit.cc
 --- a/firmware/main/hal/maipai_motion_limit.cc
 +++ b/firmware/main/hal/maipai_motion_limit.cc
-@@ -0,0 +1,231 @@
-+/*
-+ * SPDX-License-Identifier: MIT
-+ *
-+ * The movement limiter, device side (patch ML01). One small state (about 40 bytes) in a static; the tools and the NVS choice are
-+ * set up once at boot, on the registering task's internal stack. The servo update (the stackchan task) feeds the readings.
-+ */
-+#include <sdkconfig.h>
-+#include "maipai_motion_limit.h"
-+#include "maipai_motion_limit_core.h"
-+#include "maipai_pickup.h"
-+#include "board/hal_bridge.h"
-+#include <esp_log.h>
-+#include <esp_timer.h>
-+#include <mcp_server.h>
-+#include <nvs.h>
-+#include <nvs_flash.h>
-+#include <cmath>
-+#include <cstdio>
-+#include <cstring>
-+#include <string>
-+
-+static const char* TAG = "MAIPAI-MOTION";
-+
-+namespace {
-+mml_t s_mml;
-+bool s_ready = false;
-+uint32_t s_power_at = 0;
-+int s_level = -1;
-+int s_cable = 0;
-+float s_acc[3] = {0.0f, 9.8f, 0.0f};  // the low-passed pull, fed by the IMU task
-+volatile int s_pitch_deg10 = 0;       // the head's pitch, tenths of a degree, from the servo layer
-+constexpr const char* kNs = "mp_motion";  // its own namespace
-+constexpr const char* kKey = "usb_limit";
-+
-+uint32_t now_ms()
-+{
-+    return static_cast<uint32_t>(esp_timer_get_time() / 1000);
-+}
-+
-+void ensure()
-+{
-+    if (!s_ready) {
-+        mml_init(&s_mml);
-+        s_ready = true;
-+    }
-+}
-+}  // namespace
-+
-+// One accelerometer reading (m/s^2) from the IMU task, every 20 ms: the orientation band (upright, tilted, side, inverted) comes from it;
-+// the head's pitch is taken off first. An unreadable IMU simply stops calling this and the band turns "unknown" after 2 s.
-+void maipai_motion_feed_accel(float ax, float ay, float az)
-+{
-+    ensure();
-+    s_acc[0] += 0.2f * (ax - s_acc[0]);
-+    s_acc[1] += 0.2f * (ay - s_acc[1]);
-+    s_acc[2] += 0.2f * (az - s_acc[2]);
-+    mml_orient_feed(&s_mml, now_ms(), s_acc[0], s_acc[1], s_acc[2], static_cast<float>(s_pitch_deg10) / 10.0f);
-+}
-+
-+void maipai_motion_note_pitch(int angle_tenths)
-+{
-+    s_pitch_deg10 = angle_tenths;
-+}
-+
-+void maipai_motion_tick()
-+{
-+    ensure();
-+    const uint32_t now = now_ms();
-+    if (s_power_at == 0 || now - s_power_at >= 500) {
-+        s_power_at = now ? now : 1u;
-+        int level = 0;
-+        bool charging = false, on_cable = false;
-+        if (hal_bridge::board_battery_state(&level, &charging, &on_cable)) {
-+            s_level = level;
-+            s_cable = on_cable ? 1 : 0;
-+        }  // unknown: the last reading stays
-+    }
-+    mml_step(&s_mml, now, maipai_pickup_held() ? 1 : 0, s_cable, s_level);
-+}
-+
-+int maipai_motion_state()
-+{
-+    ensure();
-+    return mml_state(&s_mml);
-+}
-+
-+bool maipai_motion_hold()
-+{
-+    ensure();
-+    if (mml_scale(&s_mml) > 0) {
-+        return false;
-+    }
-+    s_mml.refused++;
-+    return true;
-+}
-+
-+int maipai_motion_scale()
-+{
-+    ensure();
-+    return mml_scale(&s_mml);
-+}
-+
+@@ -100,10 +100,19 @@ int maipai_motion_scale()
+     return mml_scale(&s_mml);
+ }
+ 
 +// Patch SF31: what the servo layer was actually handed and given back by the limiter on its last calls, so the status can say what is applied.
 +namespace {
 +int s_app_angle_in = 0, s_app_angle_out = 0, s_app_scale = 100;
 +int s_app_speed_in = 0, s_app_speed_out = 0, s_app_speed_pct = 100;
 +}  // namespace
 +
-+int maipai_motion_angle(int angle)
-+{
-+    ensure();
-+    const int out = mml_angle(&s_mml, angle, angle);
+ int maipai_motion_angle(int angle)
+ {
+     ensure();
+     const int out = mml_angle(&s_mml, angle, angle);
 +    s_app_angle_in = angle;
 +    s_app_angle_out = out;
 +    s_app_scale = mml_scale(&s_mml);
-+    if (out != angle) {
-+        s_mml.limited++;
-+    }
-+    return out;
-+}
-+
-+int maipai_motion_speed(int speed)
-+{
-+    ensure();
-+    const int cap = mml_speed_cap(&s_mml);
+     if (out != angle) {
+         s_mml.limited++;
+     }
+@@ -114,7 +123,10 @@ int maipai_motion_speed(int speed)
+ {
+     ensure();
+     const int cap = mml_speed_cap(&s_mml);
+-    return speed > cap ? cap : speed;
 +    s_app_speed_in = speed;
 +    s_app_speed_out = speed > cap ? cap : speed;
 +    s_app_speed_pct = mml_speed_pct(&s_mml);
 +    return s_app_speed_out;
-+}
-+
-+float maipai_motion_stiffness(float stiffness)
-+{
-+    ensure();
-+    return mml_stiffness(&s_mml, stiffness);
-+}
-+
-+int maipai_motion_dance_max()
-+{
-+    ensure();
-+    return mml_dance_max(&s_mml);
-+}
-+
-+bool maipai_motion_dances_ok()
-+{
-+    ensure();
-+    return mml_dances_ok(&s_mml) != 0;
-+}
-+
-+void maipai_motion_register_tools()
-+{
-+    ensure();
-+    nvs_handle_t h;
-+    uint8_t v = 1;
-+    if (nvs_open(kNs, NVS_READONLY, &h) == ESP_OK) {
-+        if (nvs_get_u8(h, kKey, &v) != ESP_OK) {
-+            v = 1;
-+        }
-+        nvs_close(h);
-+    }
-+    s_mml.usb_limit = v == 0 ? 0 : 1;  // default limited
-+    auto& mcp = McpServer::GetInstance();
-+    mcp.AddTool("self.motion.status",
-+                "How much the head may move now. state: free, usb_limited (on a USB cable the robot moves gently), battery_limited (it "
-+                "moves more gently as the battery runs low) or carried (held or carried: no movement). Also reasons, usb, carried, "
-+                "battery_band (none, mild, limited, minimal, hold), scale (percent of the excursion), speed_cap (0 to 1000), "
+ }
+ 
+ float maipai_motion_stiffness(float stiffness)
+@@ -152,7 +164,8 @@ void maipai_motion_register_tools()
+                 "How much the head may move now. state: free, usb_limited (on a USB cable the robot moves gently), battery_limited (it "
+                 "moves more gently as the battery runs low) or carried (held or carried: no movement). Also reasons, usb, carried, "
+                 "battery_band (none, mild, limited, minimal, hold), scale (percent of the excursion), speed_cap (0 to 1000), "
+-                "dance_max (0 to 4) and refused_count.",
 +                "dance_max (0 to 4), refused_count, limited_count and applied: the angle and speed the servo layer last handed to the limiter and got back, "
 +                "with the scale and speed percent used (what is applied, not only what the state says).",
-+                PropertyList(), [](const PropertyList&) -> ReturnValue {
-+                    ensure();
-+                    char reason[120];
-+                    reason[0] = 0;
-+                    auto add = [&](const char* text) {
-+                        if (reason[0]) strncat(reason, ", ", sizeof(reason) - strlen(reason) - 1);
-+                        strncat(reason, text, sizeof(reason) - strlen(reason) - 1);
-+                    };
-+                    const int orient = mml_orient(&s_mml, now_ms());
-+                    if (s_mml.carried) add("held or carried");
-+                    if (orient == MML_O_TILTED) add("tilted");
-+                    else if (orient == MML_O_SIDE) add("on its side or face down");
-+                    else if (orient == MML_O_INVERTED) add("upside down");
-+                    else if (orient == MML_O_UNKNOWN) add("no orientation reading");
-+                    if (s_mml.usb && s_mml.usb_limit) add("on a USB cable");
-+                    if (!s_mml.usb && s_mml.band > 0) add("the battery is low");
+                 PropertyList(), [](const PropertyList&) -> ReturnValue {
+                     ensure();
+                     char reason[120];
+@@ -169,15 +182,16 @@ void maipai_motion_register_tools()
+                     else if (orient == MML_O_UNKNOWN) add("no orientation reading");
+                     if (s_mml.usb && s_mml.usb_limit) add("on a USB cable");
+                     if (!s_mml.usb && s_mml.band > 0) add("the battery is low");
+-                    char out[560];
 +                    char out[720];
-+                    snprintf(out, sizeof(out),
-+                             "{\"ok\":true,\"state\":\"%s\",\"reasons\":\"%s\",\"usb\":%s,\"carried\":%s,\"orientation\":\"%s\",\"tilt_deg\":%d,\"usb_limit\":\"%s\","
-+                             "\"battery\":%d,\"battery_band\":\"%s\",\"scale\":%d,\"speed_cap\":%d,\"dance_max\":%d,"
+                     snprintf(out, sizeof(out),
+                              "{\"ok\":true,\"state\":\"%s\",\"reasons\":\"%s\",\"usb\":%s,\"carried\":%s,\"orientation\":\"%s\",\"tilt_deg\":%d,\"usb_limit\":\"%s\","
+                              "\"battery\":%d,\"battery_band\":\"%s\",\"scale\":%d,\"speed_cap\":%d,\"dance_max\":%d,"
+-                             "\"refused_count\":%u,\"limited_count\":%u}",
 +                             "\"refused_count\":%u,\"limited_count\":%u,"
 +                             "\"applied\":{\"angle_in\":%d,\"angle_out\":%d,\"scale\":%d,\"speed_in\":%d,\"speed_out\":%d,\"speed_pct\":%d}}",
-+                             mml_state_name(&s_mml), reason, s_mml.usb ? "true" : "false", s_mml.carried ? "true" : "false", mml_orient_name(orient), static_cast<int>(s_mml.tilt_deg),
-+                             s_mml.usb_limit ? "limited" : "off", s_mml.level, mml_band_name(&s_mml), mml_scale(&s_mml),
-+                             mml_speed_cap(&s_mml), mml_dance_max(&s_mml), static_cast<unsigned>(s_mml.refused),
+                              mml_state_name(&s_mml), reason, s_mml.usb ? "true" : "false", s_mml.carried ? "true" : "false", mml_orient_name(orient), static_cast<int>(s_mml.tilt_deg),
+                              s_mml.usb_limit ? "limited" : "off", s_mml.level, mml_band_name(&s_mml), mml_scale(&s_mml),
+                              mml_speed_cap(&s_mml), mml_dance_max(&s_mml), static_cast<unsigned>(s_mml.refused),
+-                             static_cast<unsigned>(s_mml.limited));
 +                             static_cast<unsigned>(s_mml.limited), s_app_angle_in, s_app_angle_out, s_app_scale, s_app_speed_in, s_app_speed_out, s_app_speed_pct);
-+                    return std::string(out);
-+                });
-+    mcp.AddTool("self.motion.set",
-+                "Choose the USB rule: usb_limit limited (the default: on a USB cable the robot moves gently) or off (it moves freely on "
-+                "USB). Off never lifts the carried rule or the battery ladder. Saved. Answers {ok,usb_limit}.",
-+                PropertyList({Property("usb_limit", kPropertyTypeString, std::string("limited"))}),
-+                [](const PropertyList& properties) -> ReturnValue {
-+                    ensure();
-+                    const std::string c = properties["usb_limit"].value<std::string>();
-+                    if (c != "limited" && c != "off") {
-+                        return std::string("{\"ok\":false,\"error\":\"usb_limit is limited or off\"}");
-+                    }
-+                    s_mml.usb_limit = c == "off" ? 0 : 1;
-+                    nvs_handle_t w;
-+                    if (nvs_open(kNs, NVS_READWRITE, &w) == ESP_OK) {
-+                        nvs_set_u8(w, kKey, s_mml.usb_limit);
-+                        nvs_commit(w);
-+                        nvs_close(w);
-+                    }
-+                    return std::string(s_mml.usb_limit ? "{\"ok\":true,\"usb_limit\":\"limited\"}" : "{\"ok\":true,\"usb_limit\":\"off\"}");
-+                });
-+#if CONFIG_MAIPAI_FACE_BENCH
-+    // Bench builds only: force the readings (-1 releases): carried 0 or 1, usb 0 or 1, level 0 to 100.
-+    mcp.AddTool("self.motion.force", "Bench only: force the carried flag, the cable, the charge and the orientation band (0 upright, 1 tilted, 2 side, 3 inverted, 4 unknown; -1 releases each). Answers {ok}.",
-+                PropertyList({Property("carried", kPropertyTypeInteger, -1, -1, 1), Property("usb", kPropertyTypeInteger, -1, -1, 1),
-+                              Property("level", kPropertyTypeInteger, -1, -1, 100), Property("orient", kPropertyTypeInteger, -1, -1, 4)}),
-+                [](const PropertyList& properties) -> ReturnValue {
-+                    ensure();
-+                    s_mml.force_carried = static_cast<int8_t>(properties["carried"].value<int>());
-+                    s_mml.force_usb     = static_cast<int8_t>(properties["usb"].value<int>());
-+                    s_mml.force_level   = static_cast<int8_t>(properties["level"].value<int>());
-+                    s_mml.force_orient  = static_cast<int8_t>(properties["orient"].value<int>());
-+                    return std::string("{\"ok\":true}");
-+                });
-+#endif
-+    ESP_LOGI(TAG, "movement limiter ready: USB rule %s", s_mml.usb_limit ? "limited" : "off");
-+}
+                     return std::string(out);
+                 });
+     mcp.AddTool("self.motion.set",
 diff --git a/firmware/main/hal/maipai_bench.cc b/firmware/main/hal/maipai_bench.cc
 --- a/firmware/main/hal/maipai_bench.cc
 +++ b/firmware/main/hal/maipai_bench.cc
