@@ -58,6 +58,17 @@ export async function fetchAndVerify(parts, fetchBytes, subtle = globalThis.cryp
     if ((await sha256Hex(data, subtle)) !== part.sha256) {
       throw new FlasherError(`${part.path} does not match the release list, so nothing was written to the robot. Download the release again.`);
     }
+    // The size is only known now: an empty file, one that runs past the end of the flash, or one that runs into the next file would be written over something else.
+    if (data.length === 0) {
+      throw new FlasherError(`${part.path} is empty, so nothing was written to the robot. Download the release again.`);
+    }
+    if (part.offset + data.length > FLASH_BYTES) {
+      throw new FlasherError(`${part.path} would run past the end of the robot's flash, so nothing was written. Download the release again.`);
+    }
+    const before = out[out.length - 1];
+    if (before && before.offset + before.data.length > part.offset) {
+      throw new FlasherError(`${before.path} runs into ${part.path} on the robot, so nothing was written. Download the release again.`);
+    }
     out.push({ path: part.path, offset: part.offset, data });
   }
   return out;

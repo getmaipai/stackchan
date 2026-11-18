@@ -110,6 +110,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/benchmark-factory-vs-ours.md` (44): Benchmark: factory firmware against MaiPai for StackChan
 - `docs/dev/build-from-source.md` (47): Build from source
 - `docs/dev/contributing.md` (24): Contributing
+- `docs/dev/cross-review-status.md` (44): Cross-review bugs: fixed and still open
 - `docs/dev/draft-names.md` (131): Draft names to confirm
 - `docs/dev/e2e-virtual-unit.md` (48): End to end on the virtual unit (the spoken-turn check without hardware)
 - `docs/dev/egress-table.md` (14): Generated egress table
@@ -165,6 +166,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/stackchan-vision-post-2026-10-22.md` (63): Robot vision, bot side (0.2.44)
 - `docs/dev/stackchan-voice-measurements-2026-10-20.md` (69): StackChan voice path: what to measure (2026-10-20)
 - `docs/dev/stackchan-wireless-update-2026-11-14.md` (61): StackChan wireless firmware update (design, 2026-11-14)
+- `docs/dev/test-speed.md` (13): Suite speed (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
 - `docs/dev/virtual-unit-3d.md` (30): The 3D virtual unit: body, power, axes
 - `docs/dev/virtual-unit-fidelity.md` (32): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
@@ -241,6 +243,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/images/web-settings.svg` (1): no header
 - `docs/images/wifi-setup.svg` (1): no header
 - `docs/plan/OPEN-DECISIONS.md` (23): Open decisions (2026-11-18)
+- `docs/plan/bug-claims.md` (8): Bug claims
 - `docs/plan/coding-companion-package.md` (36): Coding companion and agent tools (package design, for review before building)
 - `docs/plan/doc-screenshots.md` (21): Doc screenshots from the virtual unit
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
@@ -308,7 +311,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/lights-and-sounds.md` (62): Lights and sounds
 - `docs/user/local-vs-home.md` (52): What you get with your own model and with MaiPai Home
 - `docs/user/lock.md` (30): Lock the robot with a code
-- `docs/user/memory-notes.md` (23): Memory notes (optional package)
+- `docs/user/memory-notes.md` (30): Memory notes (optional package)
 - `docs/user/moves-and-moods.md` (85): How the robot reacts
 - `docs/user/music-and-dance.md` (35): Music and dance
 - `docs/user/mute-and-camera-off.md` (56): Mute, turn off the camera, or go fully quiet
@@ -653,10 +656,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/tailnet/microlink-region.patch` (48): the second library patch for the pinned private-network client (applied by scripts/fw-tailnet.sh after microli
 - `firmware/tailnet/microlink.patch` (310): the library patch for the pinned private-network client (applied by scripts/fw-tailnet.sh to the downloaded co
 - `flasher/README.md` (9): Web flasher
-- `flasher/flasher-core.js` (57): The flasher's logic with no page and no serial port in it, so it can be tested in Node: read the release manif
-- `flasher/flasher.js` (87): no header
-- `flasher/index.html` (40): status { min-height:3em; } #status.good { color:var(--good); } #status.bad { color:var(--bad); }
-- `flasher/test/core.test.mjs` (42): no header
+- `flasher/flasher-core.js` (151): The flasher's logic with no page and no serial port in it, so it can be tested in Node: read the release manif
+- `flasher/flasher.js` (122): Only this page's own site is read: a ?manifest= that names another site is refused (resolveManifestUrl).
+- `flasher/index.html` (41): status { min-height:3em; } #status.good { color:var(--good); } #status.bad { color:var(--bad); }
+- `flasher/test/core.test.mjs` (107): Red team, report 17: sizes are only known after the download, so the checks that need them happen in fetchAndV
+- `flasher/trusted-keys.json` (3): no header
 - `flasher/vendor/esptool-js-0.7.0.js` (2): no header
 - `flasher/vendor/esptool-js-LICENSE.txt` (201): no header
 - `host/.gitkeep` (0): no header
@@ -881,7 +885,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/firmware/pins.toml` (47): The tailnet client (patch 147): downloaded at this commit into the build root when recipe.sh gets --tailnet, n
 - `host/maipai_body/bodies/stackchan/firmware/recipe.sh` (584): no-persistent-websocket)
 - `host/maipai_body/bodies/stackchan/firmware/release.sh` (93): date) BUILD_DATE="$2"; shift 2 ;;
-- `host/maipai_body/bodies/stackchan/firmware/update_header.py` (82): The signed update header (docs/plan/signed-update-anti-rollback.md, agreed with the firmware track): 56 bytes,
+- `host/maipai_body/bodies/stackchan/firmware/update_header.py` (84): The signed update header (docs/plan/signed-update-anti-rollback.md, agreed with the firmware track): 56 bytes,
 - `host/maipai_body/bodies/stackchan/firmware/verify.sh` (48): public-key) (($# >= 2)) || { echo "Pass --public-key PATH (the release's Ed25519 public key PEM) so verify.sh 
 - `host/maipai_body/bodies/stackchan/firmware_update.py` (264): Conservative host-side StackChan firmware update controller."""
 - `host/maipai_body/bodies/stackchan/frame_check.py` (94): Why does the face detector find nobody? A once-a-minute log line, nothing stored.
@@ -936,7 +940,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/wifi_list.py` (258): The names in StackChan's saved Wi-Fi list (firmware patch 023)."""
 - `host/maipai_body/bodies/stackchan/ws_logging.py` (37): Quiet logging for the StackChan websocket listeners.
 - `host/maipai_body/bodies/stackchan/xiaozhi/__init__.py` (6): LAN xiaozhi protocol server and provisioning helpers for StackChan."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/link_exchange.py` (214): Host half of the link key exchange (docs/plan/link-key-exchange.md): X25519 plus a six-digit code the unit sho
+- `host/maipai_body/bodies/stackchan/xiaozhi/link_exchange.py` (225): Host half of the link key exchange (docs/plan/link-key-exchange.md): X25519 plus a six-digit code the unit sho
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (224): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
 - `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (633): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
@@ -1212,16 +1216,16 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/wake_look.py` (76): ruff: noqa: E501
 - `host/maipai_packages/__init__.py` (2): Optional local packages. Each one is off by default and costs nothing while off: nothing here is
 - `host/maipai_packages/coding_companion/__init__.py` (11): The coding companion: the robot shows what a coding agent on this computer is doing.
-- `host/maipai_packages/coding_companion/clean.py` (54): Everything the agent sends is cleaned before it is shown, and refused when it looks like a secret or a path.""
+- `host/maipai_packages/coding_companion/clean.py` (58): Everything the agent sends is cleaned before it is shown, and refused when it looks like a secret or a path.""
 - `host/maipai_packages/coding_companion/handler.py` (17): The spoken request: "what is my coding agent doing". Answered here from a fixed phrase, with no model call."""
 - `host/maipai_packages/coding_companion/hook.py` (67): A hook a coding agent runs to tell the robot its state. It sends the state, the kind and the project name, and
-- `host/maipai_packages/coding_companion/server.py` (120): The agent's endpoint: POST /status on 127.0.0.1 with the package's own token.
+- `host/maipai_packages/coding_companion/server.py` (121): The agent's endpoint: POST /status on 127.0.0.1 with the package's own token.
 - `host/maipai_packages/coding_companion/state.py` (68): The agent's latest state, as the package keeps it. Only the newest state is kept (changes are coalesced)."""
 - `host/maipai_packages/home_assistant/__init__.py` (12): Home Assistant voice and camera snapshots, as an optional local package (off by default).
-- `host/maipai_packages/home_assistant/client.py` (153): The Home Assistant connection: conversation text in, speech text out; one camera picture on request."""
+- `host/maipai_packages/home_assistant/client.py` (165): The Home Assistant connection: conversation text in, speech text out; one camera picture on request."""
 - `host/maipai_packages/memory_notes/__init__.py` (12): Local memory for several adults as plain per-person notes files.
-- `host/maipai_packages/memory_notes/admission.py` (70): What may be stored, and who may read it (shaped like the shared memory admission concept).
-- `host/maipai_packages/memory_notes/store.py` (189): One plain text file per person; one note per line: ``- 2026-11-18 [ab12cd] the note``."""
+- `host/maipai_packages/memory_notes/admission.py` (76): What may be stored, and who may read it (shaped like the shared memory admission concept).
+- `host/maipai_packages/memory_notes/store.py` (288): One plain text file per person; one note per line: ``- 2026-11-18 [ab12cd] the note``."""
 - `host/maipai_packages/wake_word_maker/__init__.py` (10): Make your own wake word on this computer: record clips on the settings page, train a small model, check it, in
 - `host/maipai_packages/wake_word_maker/engine/__init__.py` (1): The small local wake-word trainer (features, dataset, training, checking). Copied from scripts/wakeword with o
 - `host/maipai_packages/wake_word_maker/engine/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
@@ -1863,7 +1867,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_config_switches.py` (33): The robot.toml switches [remote] enabled and [home] url do something."""
 - `host/tests/test_connection_loss.py` (33): Losing the connection raises BodyLost once; nothing is retried silently."""
 - `host/tests/test_cross_review_open_bugs.py` (181): ruff: noqa: E501
-- `host/tests/test_cross_review_open_bugs_2.py` (297): ruff: noqa: E501
+- `host/tests/test_cross_review_open_bugs_2.py` (279): ruff: noqa: E501
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
@@ -1907,7 +1911,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_firmware_ui_patches.py` (133): ruff: noqa: E501
 - `host/tests/test_firmware_update_signature.py` (60): An image from Home is served to the unit only when its detached signature verifies."""
 - `host/tests/test_firmware_y_patches.py` (67): The 2026-11-16 reliability patches (Y01 to Y04): listed in ORDER, documented, and the plain-C rules compile an
-- `host/tests/test_flasher_page.py` (23): The web flasher's logic (flasher/flasher-core.js) runs under Node: manifest checks, hash checks, nothing writt
+- `host/tests/test_flasher_page.py` (53): The web flasher's logic (flasher/flasher-core.js) runs under Node: manifest checks, hash checks, nothing writt
 - `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
 - `host/tests/test_fuzz_cores.py` (22): A short run of the sanitizer fuzz of the unit's parsers (scripts/fuzz-cores.sh, docs/dev/fuzzing-and-hostile-p
 - `host/tests/test_fw_stress_gate.py` (43): The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
@@ -1915,7 +1919,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_gaze.py` (156): S-EXPR-04: deterministic gaze trajectories, one test per rule (UNMEASURED defaults)."""
 - `host/tests/test_hal_seam.py` (32): Both the real client and the fake satisfy the same HAL seam methods."""
 - `host/tests/test_head_record_and_dryrun.py` (387): ruff: noqa: E501
-- `host/tests/test_home_assistant_package.py` (229): The Home Assistant package: spoken requests by trigger phrase, one listed camera picture, token from the envir
+- `host/tests/test_home_assistant_package.py` (233): The Home Assistant package: spoken requests by trigger phrase, one listed camera picture, token from the envir
 - `host/tests/test_hostile_unit_replies.py` (51): ruff: noqa: E501
 - `host/tests/test_http_follows_link.py` (47): On an encrypted link the unit is told encrypted web addresses; a required unit is refused on the plain port.""
 - `host/tests/test_hub_host.py` (183): Parser accepts the string; main reports the actionable validation error.
@@ -1974,7 +1978,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_measure_turn_driver.py` (185): The scripted turn M-R1 and M-R4 run on a clock: a recorded utterance fed in real
 - `host/tests/test_measure_wake_doa.py` (275): M-R3: wake and direction of arrival on this array. The scoring, the bearing maths
 - `host/tests/test_measure_wifi_cycle.py` (101): M-R5 on the unit: the real radio is cycled and the time until the hub answers is read.
-- `host/tests/test_memory_notes.py` (194): The memory notes package: plain per-person files, remember and forget on request, off by default."""
+- `host/tests/test_memory_notes.py` (229): The memory notes package: plain per-person files, remember and forget on request, off by default."""
 - `host/tests/test_motion_state.py` (181): MOVE-CARRY-01a: the deterministic motion state from scripted IMU readings.
 - `host/tests/test_motion_state_carry.py` (217): MOVE-CARRY-01c: the held look, the one short line, and the setting.
 - `host/tests/test_motion_state_hold.py` (249): MOVE-CARRY-01b: while held the body commands no motion; after put down it
@@ -2266,6 +2270,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/check.sh` (31): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
+- `scripts/e2e-flake-hunt.sh` (21): find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. Each run's full 
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
 - `scripts/fuzz/core_fuzz.c` (333): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
@@ -2330,8 +2335,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/readiness.py` (187): First-release readiness: the friend test as a checklist, made from the state of the repository.
 - `scripts/regen-core-tables.py` (26): Regenerate the tables the host page draws from, as the unit's cores print them after the whole firmware/patche
 - `scripts/release-report.py` (183): One markdown page per firmware build: image sizes per slot, memory numbers from a stress log, frame cost per s
-- `scripts/release.sh` (90): turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a det
+- `scripts/release.sh` (96): turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a det
 - `scripts/repo-map.sh` (19): generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line),
+- `scripts/review-status.py` (87): The cross-review bug table: every test in host/tests/test_cross_review_open_bugs*.py, its owner, and whether t
 - `scripts/run-bg.sh` (18): run a long command (firmware build, flash, soak, gate) with its full output in a log file and
 - `scripts/spec-dir.sh` (4): no header
 - `scripts/spec-drift-check.sh` (32): the vendored spec (host/spec-vendor/spec) is a snapshot, never edited by hand. Fails when a vendored file diff
@@ -2340,6 +2346,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/stackchan-egress-proof.sh` (66): no header
 - `scripts/stackchan-no-third-party.sh` (119): Hostnames only: the image legitimately carries board and class names such as M5StackCoreS3Board.
 - `scripts/test-all.sh` (17): the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. Run 
+- `scripts/test-fast.sh` (6): the host suite without the slow tests (the end to end on the virtual unit and the sanitizer fuzz, marked `slow
+- `scripts/test-sharded.py` (75): Run the host suite in N pytest processes at once, one group of test files each (no plugin needed). Files are d
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
 - `scripts/virtual-unit/build-face.sh` (19): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (30): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche

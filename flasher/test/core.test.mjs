@@ -74,3 +74,34 @@ test("two files at one address are refused", async () => {
   const h = "a".repeat(64);
   assert.throws(() => parseManifest({ builds: [{ chipFamily: "ESP32-S3", parts: [{ path: "a.bin", offset: 0, sha256: h }, { path: "b.bin", offset: 0, sha256: h }] }] }), /same place/);
 });
+
+// Red team, report 17: sizes are only known after the download, so the checks that need them happen in fetchAndVerify, before anything is written.
+async function listFor(parts) {
+  const files = {};
+  const out = [];
+  for (const [path, offset, bytesData] of parts) {
+    files[path] = bytesData;
+    out.push({ path, offset, sha256: await sha256Hex(bytesData) });
+  }
+  return { parts: parseManifest({ builds: [{ chipFamily: "ESP32-S3", parts: out }] }).parts, files };
+}
+
+test("a file that runs into the next one is refused before anything is written", async () => {
+  const { parts, files } = await listFor([["a.bin", 0, new Uint8Array(8192).fill(1)], ["b.bin", 4096, new Uint8Array(100).fill(2)]]);
+  await assert.rejects(fetchAndVerify(parts, async (p) => files[p]), /overlap|runs into/);
+});
+
+test("a file that runs past the end of the 16 MB flash is refused", async () => {
+  const { parts, files } = await listFor([["a.bin", 16773120, new Uint8Array(8192).fill(1)]]);
+  await assert.rejects(fetchAndVerify(parts, async (p) => files[p]), /end of the flash|too big|past/);
+});
+
+test("an empty file is refused", async () => {
+  const { parts, files } = await listFor([["a.bin", 0, new Uint8Array(0)]]);
+  await assert.rejects(fetchAndVerify(parts, async (p) => files[p]), /empty/);
+});
+
+test("files that touch end to end are fine", async () => {
+  const { parts, files } = await listFor([["a.bin", 0, new Uint8Array(4096).fill(1)], ["b.bin", 4096, new Uint8Array(100).fill(2)]]);
+  assert.equal((await fetchAndVerify(parts, async (p) => files[p])).length, 2);
+});
