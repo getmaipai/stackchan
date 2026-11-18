@@ -91,3 +91,14 @@ A test mode injects faults and requires recovery with no person acting: kill a w
 Built and tested: `stackchan service install|status|start|stop|logs|uninstall` for launchd (the plist passes `plutil -lint`) and systemd (the unit text is tested; not installed on a Linux machine here), Windows written and untested; the rotating log (5 files of 5 MB); `supervisor.py` (watchdog, heartbeat, back-off, failed state, per-unit workers) with the threads started through `service_threads` supervised automatically and the settings page restarted when it dies; the health document, the `/health` page, `/api/stackchan/health` and `stackchan status`; per-unit isolation tests with 2 and 10 units; chaos tests at the thread level (kill a worker, kill the settings server, a worker that keeps failing).
 
 Not built yet: the first-run page button for the service install (the command works; a button that changes system files from a web page needs its own decision); heartbeat reporting from the voice and avatar servers and the local model server (they are not yet registered as workers); pushing a degraded part to the robot's screen; the host update that swaps and rolls back; the process-level chaos tests in the e2e rig (kill the host, a unit connection mid-turn, at 10 units: needs the playground's multi-instance rig); the per-unit behavior objects for touch, music dance, self-heal hold and the light service (need the second unit on the bench).
+
+## Tests from the playground track (2026-11-18)
+
+Built in `scripts/virtual-unit/e2e_fleet.py` and run by `host/tests/test_e2e_fleet.py` (details: `docs/dev/e2e-virtual-unit.md`, "Many robots, faults and the service"):
+
+- **Isolation with 2, 10 and 25 units** against the real host: words, answers, moods and speech frames stay with their unit, one slow unit holds nobody, a timer lives on one unit, a cut connection heals alone.
+- **Chaos:** host killed mid-turn with 2 and 10 units and restarted, speech, model and voice servers down in turn, a relay that delays, swallows and cuts packets.
+- **Service:** `stackchan service install` on this Mac under a temporary label and home (the module's `LABEL` and `service_env` are replaced by the scenario, nothing of the real install is touched), `kill -9`, launchd brings it back, the unit reconnects, the service is removed. systemd is not tested here (no Linux machine or container); the unit text is tested in `host/tests/test_service_and_health.py`.
+
+Found and for the app track: (1) a turn's mood frame goes to every connected unit; (2) no fault hook: add `MAIPAI_CHAOS=1` and a localhost POST that kills one named worker so the supervisor tests can run inside a real host; (3) 25 units asking at the same instant lose turns (20 are fine); (4) the unit's Offline label after 45 s (patch 143) is firmware logic; the host has no part in it.
+

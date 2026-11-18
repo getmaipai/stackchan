@@ -37,6 +37,34 @@ It runs as `host/tests/test_e2e_virtual_unit.py` in `scripts/test-all.sh` (the 1
 
 `VirtualUnit.jump(ms)` moves the fake clock ahead at once (the renderer's tick and the tools' time). `idle_jump` uses 3, 25 and 50 days, which passes 2^31 ms and 2^32 ms where the unit's 32 bit tick wraps. The unit side is covered here and by `host/tests/firmware/wrap_soak_test.c` (the cores across both wraps). The host side cannot be jumped from outside: it runs on the machine's own clock and the repo has no tool that moves another process's clock, so its timers are covered by the fake-clock unit tests of each module.
 
+
+## Many robots, faults and the service (decision 16)
+
+`uv run --project host python scripts/virtual-unit/e2e.py --fleet --jobs 2` (the test `host/tests/test_e2e_fleet.py`, marked slow; `capacity_probe` is run by name). Scenarios are in `scripts/virtual-unit/e2e_fleet.py`.
+
+| Scenario | What it does | Asserts |
+|---|---|---|
+| `fleet_2`, `fleet_10` | N virtual units (own name, pairing, avatar socket and a voice of their own pitch) ask at the same moment; the fake speech to text reads the pitch back and knows who asked | each unit's words reach the model once and no unit's words reach another prompt; each answer is spoken once; every unit shows its own mood; each unit gets the same number of speech frames; no connection is lost; the rig's own loop kept up |
+| `fleet_25` | 25 units connected, five asking at once, five rounds | the same checks |
+| `capacity_probe` | 5, 10, 15, 20 and 25 of 25 units ask at the very same moment | a measured number: see the findings below |
+| `fleet_slow_unit` | one unit's model answer takes 9 s | the other units finish while it waits, with their own time |
+| `fleet_unit_state` | a timer by voice on one unit | it exists on that unit only |
+| `chaos_cut_connection` | one unit's socket is aborted mid-turn with four units asking | the others finish, it reconnects by itself, its next turn works, no other connection moved |
+| `chaos_host_kill_2`, `chaos_host_kill_10` | the host is killed with SIGKILL mid-turn; a keep-alive (what launchd KeepAlive does) restarts it after 1 s | every unit reconnects with no person acting, every next turn works, the status page (`/api/stackchan/health`) says all connected |
+| `chaos_worker_down` | the speech to text, the model and the voice server return HTTP 500 in turn | the turn ends, the host says what failed and stays up, the next turn works, the other unit keeps its connection |
+| `chaos_packets` | a TCP relay adds 300 ms to every chunk, then swallows data for 6 s and cuts | turns still finish with delay; the units reconnect by themselves; a unit not behind the relay is untouched |
+| `chaos_internal_workers` | kill the settings server, pairing, update and package workers inside the host | GAP: no fault hook exists |
+| `service_kill9` | the host installed by `stackchan service install` as a launchd agent under a temporary label and home, its own ports | `kill -9` and launchd starts it again; the unit reconnects; a turn works; the label and files are removed at the end |
+
+The units' clocks run at half-second steps (a tenth of real time beyond ten units) so twenty five renderers do not use the whole machine; the rig measures its own loop lag and says so when it is the one that stalled.
+
+### What the fleet found (2026-11-18)
+
+1. **A turn's mood frame reaches every connected unit** (`[happy]` of one unit's reply shows on the others). GAP in `fleet_2`, `fleet_10` and `fleet_25`; claimed in `docs/plan/bug-claims.md`. Speech audio and the voice events stay with the unit that asked.
+2. **Concurrent turns:** all 20 of 25 connected units can ask at the very same moment and be answered; at 25 at once only 5 are. The cliff is between 20 and 25 on this Mac (the host and 25 renderers share it, so it is a floor on a fast machine, not a limit of the design).
+3. **No fault hook** inside the host: the supervisor restarts what dies, but nothing kills a named worker of a running host from outside. Proposal: `MAIPAI_CHAOS=1` plus `POST /api/stackchan/chaos {"kill": "<worker>"}` on the settings server, localhost only (`docs/plan/service-and-supervision.md`).
+4. **The unit's offline look is not modeled.** The firmware shows an Offline label after 45 s without the link (patch 143). The virtual unit does not run that rule, so the rig sets the flags by hand; the drawing is the golden frames `screen-offline` and `screen-status-normal`. The firmware has no cover specific to "host away".
+
 ## Known gaps and blockers
 
 A check marked `known_gap` prints GAP and does not fail; when it starts passing, the run fails once to say the flag can go. Two gaps found earlier are fixed:

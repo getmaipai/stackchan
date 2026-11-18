@@ -66,9 +66,9 @@ def wav_tone(seconds: float = 0.6, hz: int = 220) -> bytes:
     return buf.getvalue()
 
 
-def canned_opus(parts: list[tuple[float, float]], frame_ms: int = 60) -> list[bytes]:
+def canned_opus(parts: list[tuple[float, float]], frame_ms: int = 60, f0: float = 140.0) -> list[bytes]:
     """Opus packets of canned audio: parts of (seconds, loudness 0 to 1). Silence, then a voiced stretch (a harmonic tone that wobbles like a voice), then silence: the host's
-    own endpointing finds the speech start and the quiet that ends it, as it does for a person."""
+    own endpointing finds the speech start and the quiet that ends it, as it does for a person. `f0` is the voice's pitch: a fleet gives each unit its own, and the fake speech to text reads it back."""
     import av
     import numpy as np
 
@@ -81,7 +81,7 @@ def canned_opus(parts: list[tuple[float, float]], frame_ms: int = 60) -> list[by
     for seconds, level in parts:
         for _ in range(int(seconds * 1000 / frame_ms)):
             t = (np.arange(n) + index * n) / 16000.0
-            voice = sum(np.sin(2 * np.pi * f * t) / (k + 1) for k, f in enumerate((140, 280, 420, 560))) * (0.6 + 0.4 * np.sin(2 * np.pi * 3.5 * t))
+            voice = sum(np.sin(2 * np.pi * f * t) / (k + 1) for k, f in enumerate((f0, 2 * f0, 3 * f0, 4 * f0))) * (0.6 + 0.4 * np.sin(2 * np.pi * 3.5 * t))
             samples = (level * 9000 * voice).astype(np.int16)
             frame = av.AudioFrame.from_ndarray(samples.reshape(1, -1), format="s16", layout="mono")
             frame.sample_rate = 16000
@@ -103,6 +103,10 @@ class FakeModels:
         self.tts_requests: list[str] = []
         self.port = free_port()
         self._runner: web.AppRunner | None = None
+        self.stt_resolver = None   # callable(audio file bytes) -> text: many units asking at once (e2e_fleet.py); None keeps the queue of stt_texts
+        self.llm_delay: list[tuple[str, float]] = []   # (regex on the user's words, seconds the model waits before it answers): a slow unit
+        self.mode = {"stt": "ok", "tts": "ok", "llm": "ok"}   # ok | fail (HTTP 500) | hang (never answers): a worker of the stack down (e2e_chaos.py)
+        self.stamps: list[tuple[str, str, float]] = []   # (kind, words, time) of every request the stack answered
 
     async def _models(self, request):
         return web.json_response({"data": [{"id": "scripted"}]})
@@ -121,10 +125,24 @@ class FakeModels:
         if self._runner:
             await self._runner.cleanup()
 
+    async def _down(self, kind: str):
+        if self.mode[kind] == "fail":
+            return web.Response(status=500, text=f"the scripted {kind} server is down")
+        if self.mode[kind] == "hang":
+            await asyncio.sleep(3600)
+        return None
+
     async def _chat(self, request: web.Request) -> web.StreamResponse:
         body = await request.json()
         self.llm_requests.append(body)
+        down = await self._down("llm")
+        if down is not None:
+            return down
         user = next((m["content"] for m in reversed(body["messages"]) if m["role"] == "user"), "")
+        self.stamps.append(("llm", user, time.time()))
+        for pattern, delay in self.llm_delay:
+            if re.search(pattern, user, re.I):
+                await asyncio.sleep(delay)
         reply = next((r for pattern, r in self.llm_script if re.search(pattern, user, re.I)), self.default_reply)
         resp = web.StreamResponse(headers={"Content-Type": "text/event-stream"})
         await resp.prepare(request)
@@ -138,12 +156,21 @@ class FakeModels:
         form = await request.post()
         audio = form["file"].file.read()
         self.stt_requests.append(len(audio))
+        down = await self._down("stt")
+        if down is not None:
+            return down
+        if self.stt_resolver is not None:
+            return web.json_response({"text": self.stt_resolver(audio)})
         text = (self.stt_texts.pop(0) if len(self.stt_texts) > 1 else self.stt_texts[0]) if self.stt_texts else ""   # the last scripted line repeats if asked again
         return web.json_response({"text": text})
 
     async def _tts(self, request: web.Request) -> web.Response:
         body = await request.json()
         self.tts_requests.append(str(body.get("input", "")))
+        down = await self._down("tts")
+        if down is not None:
+            return down
+        self.stamps.append(("tts", str(body.get("input", "")), time.time()))
         return web.Response(body=wav_tone(0.5), content_type="audio/wav")
 
 
@@ -514,6 +541,7 @@ async def readme_steps(rig: Rig, check) -> None:
 
 from e2e_extra import EXTRA  # noqa: E402
 from e2e_hostile import EXTRA_HOSTILE  # noqa: E402
+from e2e_fleet import EXTRA_FLEET, make_service_rig  # noqa: E402
 
 async def brain_modes(rig: Rig, check) -> None:
     """The Brain page: the host serves it, the three test buttons answer for the scripted stack (way 2), way 1 saves Home's address, and the local stack (way 3)
@@ -551,15 +579,16 @@ async def brain_modes(rig: Rig, check) -> None:
     check("an install of an unknown size is refused in plain words", status == 400 and b"small or the better" in raw, raw[:160].decode(errors="replace"))
 
 
-SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps, "brain_modes": brain_modes, **EXTRA, **EXTRA_HOSTILE}
-NEEDS_SETTINGS_PAGE = {"key_exchange", "hostile_settings", "brain_modes"}
-SCENARIO_TIMEOUT_S = {"soak": 4 * 3600, "hostile_unauthenticated": 600, "hostile_paired_peer": 900, "hostile_settings": 600}  # the soak is long on purpose; the others stop after three minutes
+SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps, "brain_modes": brain_modes, **EXTRA, **EXTRA_HOSTILE, **EXTRA_FLEET}
+NEEDS_SETTINGS_PAGE = {"key_exchange", "hostile_settings", "brain_modes", "chaos_host_kill_2", "chaos_host_kill_10", "chaos_internal_workers", "service_kill9"}
+NEEDS_SERVICE = {"service_kill9"}   # the host runs as a launchd service under a temporary label (e2e_fleet.py)
+SCENARIO_TIMEOUT_S = {"fleet_25": 600, "fleet_10": 420, "chaos_host_kill_10": 600, "chaos_packets": 300, "service_kill9": 300, "soak": 4 * 3600, "hostile_unauthenticated": 600, "hostile_paired_peer": 900, "hostile_settings": 600}  # the soak is long on purpose; the others stop after three minutes
 
 
 async def run(names: list[str], venv: Path | None) -> int:
     failures: list[str] = []
     for name in names:
-        rig = Rig(venv)
+        rig = make_service_rig(Rig)(venv) if name in NEEDS_SERVICE else Rig(venv)
         if name in NEEDS_SETTINGS_PAGE:
             rig.settings_port = free_port()
 
@@ -637,7 +666,10 @@ def main(argv: list[str] | None = None) -> int:
         i = args.index("--jobs")
         jobs = int(args[i + 1])
         del args[i : i + 2]
-    names = args or list(SCENARIOS)
+    if "--fleet" in args:   # the many-unit, chaos and service scenarios (e2e_fleet.py): heavy, so their own run and their own test (host/tests/test_e2e_fleet.py)
+        args.remove("--fleet")
+        args = [n for n in EXTRA_FLEET if n != "capacity_probe"] + args
+    names = args or [n for n in SCENARIOS if n not in EXTRA_FLEET]
     unknown = [n for n in names if n not in SCENARIOS]
     if unknown:
         print(f"unknown scenario {unknown}; known: {', '.join(SCENARIOS)}", file=sys.stderr)

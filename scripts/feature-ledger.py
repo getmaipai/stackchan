@@ -142,6 +142,21 @@ def decision_rows(ev: Evidence, audience: str) -> list[dict]:
             out.append(row(audience="user", area="Motion and dances", name=name, desc=desc, percent=pct, status=rules.status_for(pct),
                            where=["firmware/patches/MD01-music-dance-ladder-and-beat-dance.patch", "scripts/virtual-unit/dance_sim.py", f"host/tests/golden/screens/dance-{'5-down' if key == 'down' else {'eyes': '1-eyes', 'nod': '2-nod', 'sway': '3-sway', 'full': '4-full'}[key]}.png"],
                            doc="docs/dev/virtual-unit-dance.md", rule="the ladder core and the show run in the virtual unit with a golden frame per step; none of it has run on the unit's screen and ring together", tags=["music dance"]))
+        fleet = "e2e_fleet" in ev.tests
+        fp = 70 if fleet else 40
+        for name, desc, where, rule in (
+            ("Several robots on one host", "One host serves any number of StackChans, each with its own name, pairing, settings and turns; one robot's turn does not delay or break another's.", ["host/maipai_body/units.py", "scripts/virtual-unit/e2e_fleet.py"],
+             "tested with 2, 10 and 25 virtual units against the real host; one defect found (a turn's mood frame reaches every unit)"),
+            ("The host runs as a service that restarts itself", "stackchan service install makes the host start at login or boot and start again after a crash.", ["host/maipai_body/service_cmd.py", "scripts/virtual-unit/e2e_fleet.py"],
+             "launchd on a Mac was tested with kill -9; systemd and Windows are written, not run here"),
+            ("The parts of the host are watched and restarted", "A watchdog restarts a dead or silent part alone, with back-off, and reports one that keeps failing.", ["host/maipai_body/supervisor.py"],
+             "unit tests with a fake clock; no fault hook inside a running host yet, so no kill of a named worker in the chaos run"),
+            ("The status page for the host and each robot", "One page and one JSON document say what runs, what does not, and which robots are connected, in plain words.", ["host/maipai_body/health.py"],
+             "tested directly and read after the host was killed and restarted in the chaos run"),
+            ("What each robot shows while the host is away", "The robot keeps its face, reconnects by itself, and shows the Offline label after 45 seconds without the link.", ["firmware/patches/143-offline-label-after-45-s.patch", "scripts/virtual-unit/e2e_fleet.py"],
+             "the drawing is a golden frame; the 45 second rule is firmware logic the virtual unit does not run"),
+        ):
+            out.append(row(audience="user", area="Updates and setup" if "service" in name or "watched" in name or "status" in name else "With MaiPai Home", name=name, desc=desc, percent=fp, status=rules.status_for(fp), where=where, doc="docs/plan/service-and-supervision.md", rule=rule, tags=["decision 16"]))
         area, doc = "Updates and setup", "docs/design/first-run-flow.md"
         base = 70 if ux12 and first_run_tested else 40 if ux12 else 10
         shown = "the first run shows the choice in six languages and saves the answer; a person has not done it on the unit"
@@ -155,6 +170,9 @@ def decision_rows(ev: Evidence, audience: str) -> list[dict]:
         out.append(row(audience="user", area="Link and travel", name="Encrypted link on by default", desc="A paired host and robot use the encrypted link unless the owner chooses the plain link and reads a plain warning.", percent=10 if linked else 0, status="designed" if linked else "idea",
                        where=["docs/design/encrypted-link.md", "firmware/patches/SF20-link-key-schedule-core.patch"], doc="docs/design/encrypted-link.md", rule="the encrypted link is built and opt-in; the default waits for the memory budget table (decision 11)", tags=["decision 13"]))
     else:
+        fleet = "e2e_fleet" in ev.tests
+        out.append(row(audience="maker", area="Virtual playground", name="Fleet, chaos and service scenarios", desc="N virtual units (2, 10, 25) against the real host: isolation, a slow unit, a cut connection, the host killed mid-turn, worker servers down, a bad network, and a launchd service killed with kill -9.", percent=70 if fleet else 10,
+                       status=rules.status_for(70 if fleet else 10), where=["scripts/virtual-unit/e2e_fleet.py", "host/tests/test_e2e_fleet.py"], doc="docs/dev/e2e-virtual-unit.md", rule="files exist and test_e2e_fleet.py runs them"))
         sim = exists("scripts/virtual-unit/dance_sim.py")
         out.append(row(audience="maker", area="Virtual playground", name="Music dance simulation", desc="The unit's real ladder core (compiled from patch MD01) and the host's director run on simulated songs, with a golden frame per step.", percent=70 if sim else 10,
                        status=rules.status_for(70 if sim else 10), where=["scripts/virtual-unit/dance_sim.py", "scripts/virtual-unit/dance_core.py", "scripts/virtual-unit/dance/ladder_sim.c"], doc="docs/dev/virtual-unit-dance.md", rule="files exist and test_virtual_unit_dance.py runs it"))
