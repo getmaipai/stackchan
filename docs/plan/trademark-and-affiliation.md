@@ -55,3 +55,7 @@ Nothing here is legal clearance. It records what the sources establish and what 
 ## Game names
 
 Games use generic names only: Four in a Row, Mine Finder, Paddle, Fleet, Word Grid, Memory, Dots, Reversi-style names that are plain words. No trademarked game names: not Connect 4, Minesweeper, Pong, Battleship, Boggle, Scrabble, Simon or Tetris-like games. A new game is named from what it is, and a name that someone could have registered is checked before it ships.
+
+## Open item: translating the short notice
+
+The short notice on the unit's version page is English only (one wording, `docs/legal/affiliation.json`). It is not machine-translated: a translation needs a native and legal review first. Until then the page shows the English notice in every language.

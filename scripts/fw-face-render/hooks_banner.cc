@@ -195,7 +195,11 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
         lv_point_t pt = {x, y};
         lv_obj_t* o = lv_indev_search_obj(lv_layer_top(), &pt);
         while (o != nullptr && !lv_obj_has_flag(o, LV_OBJ_FLAG_SCROLLABLE)) o = lv_obj_get_parent(o);
-        if (o != nullptr) lv_obj_scroll_by(o, 0, -dy, LV_ANIM_OFF);
+        if (o != nullptr) {   // never past the ends, as a drag cannot go
+            const int room = dy > 0 ? (int)lv_obj_get_scroll_bottom(o) : -(int)lv_obj_get_scroll_top(o);
+            if ((dy > 0 && dy > room) || (dy < 0 && dy < room)) dy = room;
+            lv_obj_scroll_by(o, 0, -dy, LV_ANIM_OFF);
+        }
         printf("pscrollby %s %d\n", o != nullptr ? "done" : "nothing", o != nullptr ? (int)lv_obj_get_scroll_y(o) : 0);
         return true;
     }
