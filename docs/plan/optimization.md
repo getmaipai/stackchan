@@ -37,6 +37,18 @@ Assets partition by item (measured): wake-word models 2,469,827; the stock Noto 
 
 Nothing in 1 to 3 changes the app image: it frees the **assets partition** for installed-set packs (decision 20). Items 5 to 8 and 10 shrink the app image and widen the margin under the 20 percent rule.
 
+### Correction after reading the code (2026-11-18): the stock font is not unused
+
+The "common 20" font (1,287,460 bytes) is **the display's default text font**: `index.json` in the assets image names it (`"text_font": "font_noto_sans_common_20_4.bin"`, charset `common`, 20 px, 4 bpp, bundle `noto-v1`), `Assets::Apply` loads it at boot through `LvglCBinFont` (read in place from the mapped partition) and sets it with `display->SetTextFont`; it also fills `text_font_capability`, which tells the host it may push glyph bundles for other scripts. Every label that does not set its own font uses it. So it cannot simply be dropped. Items 1 and 3 above change to:
+
+| # | Item | Saves | How to decide |
+|---|---|---:|---|
+| 1a | Build the image with the `basic` charset at 20 px (123 KB, the Latin set the app image already carries as `font_noto_sans_basic_20_4`) instead of `common` | about 1.16 MB of the assets partition | **Glyph coverage first**: every string of the six languages (en, es, fr, de, pt, it) and the host-pushed captions must be drawable; a host test over the string tables against the font's character map. If a glyph is missing, the language keeps its pack path (the glyph bundle push) |
+| 1b | Or use `common` at 16 px (885,948 bytes) | about 401 KB | a size change of every default-font label: the screens are re-measured (UX13 fixed sizes of 16 and 20 px) |
+| 3 | The seven stock app icons (84,612 bytes each) are listed in `extra_files` of the same `index.json` | up to 592,284 bytes | the stock Setup and App Center apps load them; whether any is reachable on our unit is decided by a probe that counts `GetAssetData` calls per name during a full walk of the screens (to build: a counter in `Assets::GetAssetData`, bench images only, read by a bench tool) |
+
+The probe in item "Measurement before any trim" therefore becomes: (a) the glyph-coverage test for 1a, (b) the `GetAssetData` counter for the icons.
+
 ### Measurement before any trim
 
 1. A **font and asset probe** (bench tool, to build): lists every assets-partition item and the font objects the screens create, so items 1 to 3 are decided by the unit, not by reading code.
@@ -104,3 +116,7 @@ Numbers come from a clean install of the host package (what a friend gets: `.run
 | Local stack downloads | small 637,373,182 bytes (runtime, 0.5B model, Moonshine, Piper); better 1,263,293,886 | the small model is already the smallest that holds a conversation; no further saving | n/a | the catalog test pins the sizes |
 | Logs and databases | the log rotates (5 files of 5 MB, 25 MB at most); the host's JSON files (pairing, installed sets, update builds, notes) are each a few KB and grow only with people and units | cap the notes file count already enforced (200 per person); nothing else grows without bound | none | `test_rotating_log` |
 | Release report | none yet | `scripts/host-footprint.py` prints every number above (`--json` for the report; `--run` starts the host for 10 s); add it to `scripts/release-report.py` | none | the script runs in `scripts/check.sh --docs`? no: it runs in the release step only |
+
+## Glyph coverage test for the smaller font (2026-11-18)
+
+`host/tests/test_text_font_glyph_coverage.py` (in the checks) compares the "basic" charset (890 codepoints, from the fonts component) with the unit's own strings: every non-ASCII character in a string of `firmware/main/hal` (19 distinct characters today: the accented letters of the first-run tables) is in it, and so are the letters of the six languages. Two characters of the six languages are **not** in it: the French ligature "œ" and the euro sign. No unit string uses them; text the host pushes (captions, names) reaches them through the glyph-push path, which stays because the unit keeps the font capability. The gap list is pinned in the test, so a change is a decision. **The test passes, so item 1a is open**, with one step left before the switch: the assets image needs a "basic" 20 px font file. The fonts component ships only the "common" files as `.bin`; "basic" exists only as compiled C in the app. A subset tool (`scripts/font-subset.py`: read the common 20 px file, keep the basic codepoints, write a new file the same loader accepts) plus a host test that the loader's table walk finds every basic glyph is the next piece; until it passes on a unit the current font stays.

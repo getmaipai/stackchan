@@ -154,6 +154,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
+- `docs/dev/feature-ledger.html` (84): no header
+- `docs/dev/feature-ledger.html` (84): no header
+- `docs/dev/feature-ledger.md` (1114): Feature ledger
+- `docs/dev/feature-ledger.md` (1114): Feature ledger
 - `docs/dev/feature-ledger.md` (1114): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
@@ -386,6 +390,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/docs-site.md` (47): Documentation site
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
+- `docs/plan/face-parts.md` (76): Face parts and the asset bank (plan)
 - `docs/plan/first-release-notes-draft.md` (52): First release notes draft (2026-11-18)
 - `docs/plan/first-run-brain-choice.md` (25): The brain choice at first run: what the robot sends and what the host does (2026-11-18)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
@@ -404,10 +409,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/offline-audit-unit.md` (42): Offline audit, the unit half (firmware track, 2026-11-18)
 - `docs/plan/offline-mumble-firmware.md` (49): Offline mumble voice: feasibility on the unit (firmware track, 2026-11-18)
 - `docs/plan/offload-to-host.md` (50): Offload to the host: what the unit does that the host could serve or compute
-- `docs/plan/optimization.md` (106): Optimization: the image diet, the patch series cleanup, and the host side
+- `docs/plan/optimization.md` (122): Optimization: the image diet, the patch series cleanup, and the host side
 - `docs/plan/pantry-reader-firmware.md` (38): Content pantry on the unit: the reader, the size budget and the heard list (firmware track, 2026-11-18)
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
-- `docs/plan/per-unit-behavior.md` (28): Per-unit behavior (decision 16, many robots)
+- `docs/plan/per-unit-behavior.md` (29): Per-unit behavior (decision 16, many robots)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/playground-live.md` (33): The host API for a live playground (owner decision 21)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
@@ -690,7 +695,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (336): no header
+- `firmware/patches/ORDER` (341): no header
+- `firmware/patches/ORDER` (341): no header
+- `firmware/patches/ORDER` (341): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -789,6 +796,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF72-grid-animation-layer-and-connect4-chip-drop.patch` (525): Four in a Row gets a generic animation layer in the grid engine and its sounds. The person's disc and the unit
 - `firmware/patches/SF73-away-notice-takes-the-banner-row.patch` (73): The "Can't reach Home" notice after ten minutes away is actually seen. The steady "Offline" look is a banner n
 - `firmware/patches/SF74-flips-and-pops-for-memory-mines-hangman.patch` (211): The other grid games use the animation layer. Memory Match cards flip (the width closes to the edge and opens 
+- `firmware/patches/SF75-bench-grid-frame-recorder.patch` (155): A frame recorder for the grid games' animations on bench images, because a serial snapshot takes seconds and a
+- `firmware/patches/SF76-grid-inputs-swipes-long-press-vertical-flag.patch` (205): The inputs the grid games were missing. A finger is classified when it lifts as a tap, a long press (still for
+- `firmware/patches/SF77-2048-and-snake-on-the-unit.patch` (261): 2048 (id slide: swipe up, down, left or right to slide and merge the tiles, a new tile pops, over when nothing
+- `firmware/patches/SF78-redraw-only-what-moves.patch` (64): The grid games redraw only the part of the board that moves. The b57 bench recorded 70 to 95 ms between ticks 
+- `firmware/patches/SF79-bench-asset-use-probe.patch` (117): A bench probe for the assets partition: self.bench.asset_use lists which assets the firmware asked the assets 
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -902,7 +914,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5218): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5245): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
@@ -1452,7 +1464,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/static/index.html` (94): The offline ladder: the text is built on the robot from real
 - `host/maipai_body/supervisor.py` (211): Workers under a watchdog: a dead or silent worker is restarted alone, with back-off, and a worker that keeps f
 - `host/maipai_body/swipe_pages.py` (352): ruff: noqa: E501
-- `host/maipai_body/unit_behaviors.py` (123): ruff: noqa: E501
+- `host/maipai_body/unit_behaviors.py` (136): ruff: noqa: E501
 - `host/maipai_body/unit_device.py` (138): ruff: noqa: E501
 - `host/maipai_body/unit_extras.py` (930): ruff: noqa: E501
 - `host/maipai_body/unit_lock.py` (266): ruff: noqa: E501
@@ -1950,6 +1962,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/grid_anim_test.c` (196): Host test for the grid animation layer (patch SF72): cc -std=c99 -Wall -Wextra -Werror -I<dir> grid_anim_test.
 - `host/tests/firmware/grid_core_test.c` (233): Host test for the grid game engine core and its two rule sets (patch SF62): cc -std=c99 -Wall -Wextra -Werror 
 - `host/tests/firmware/grid_games2_test.c` (208): Host test for the second set of grid rule sets (patch SF67): Hangman, the 2048 slider, Snake, Mine Finder. cc 
+- `host/tests/firmware/grid_input_test.c` (81): Host test for the grid games' touch classifier and the vertical-swipe rule of the gesture layer (patch SF76). 
 - `host/tests/firmware/headgate_core_test.c` (24): Host test for the host head-move gate (patch Y01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/heal_core_test.c` (53): Host test for the restart guard's allowance (patch R04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/ir_core_test.c` (72): Host test for the infrared timing rules (patch SF50). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
@@ -2178,7 +2191,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (160): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (65): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (66): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2520,6 +2533,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stt_stream.py` (329): G3+G6 (send side)'s own acceptance: a real local WebSocket server
 - `host/tests/test_supervisor.py` (150): The watchdog: a dead or silent worker is restarted alone, with back-off; a worker that keeps failing is report
 - `host/tests/test_swipe_pages.py` (439): ruff: noqa: E501
+- `host/tests/test_text_font_glyph_coverage.py` (54): Glyph coverage for the smaller text font (docs/plan/optimization.md, item 1a): every non-ASCII character in a 
 - `host/tests/test_thermal.py` (152): THERMAL-01: the warm Compute Module slows, says so, never crashes."""
 - `host/tests/test_timesync.py` (118): ROBOT-TIME-01: the robot's clock comes from the hub."""
 - `host/tests/test_token_scope.py` (31): A settings-token login (a phone) reaches the settings pages but not the host-only controls."""
@@ -2531,7 +2545,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_tts_playback.py` (273): G7's own acceptance (the gap-audit's exact words): "A stand-in
 - `host/tests/test_turn_client.py` (368): G6 (receive side)'s own acceptance: a real local HTTP server
 - `host/tests/test_unit_affiliation_notice.py` (31): The unit's version page carries the project name and the short affiliation notice (owner policy 2026-11-18). T
-- `host/tests/test_unit_behaviors.py` (102): Per-unit touch handling (docs/plan/per-unit-behavior.md, step 2): a tap on the second unit reaches only the se
+- `host/tests/test_unit_behaviors.py` (116): Per-unit touch handling (docs/plan/per-unit-behavior.md, step 2): a tap on the second unit reaches only the se
 - `host/tests/test_unit_hardware.py` (160): The measurement rows' unit-ready checks: what has to hold on the physical Reachy Mini
 - `host/tests/test_unit_lock.py` (470): ruff: noqa: E501
 - `host/tests/test_unit_lock_voice.py` (200): ruff: noqa: E501
@@ -2588,9 +2602,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/.gitkeep` (0): no header
 - `schema/asset-kinds.json` (68): no header
 - `schema/base-tools.json` (10): no header
-- `schema/memory-budget.json` (774): no header
+- `schema/memory-budget.json` (804): no header
 - `schema/power-model.json` (34): no header
-- `schema/tools.json` (644): no header
+- `schema/tools.json` (652): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
@@ -2728,7 +2742,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/dance_sim.py` (605): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
 - `scripts/virtual-unit/e2e.py` (704): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
-- `scripts/virtual-unit/e2e_fleet.py` (674): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
+- `scripts/virtual-unit/e2e_fleet.py` (701): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
 - `scripts/virtual-unit/e2e_hostile.py` (337): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o

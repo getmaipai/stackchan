@@ -1,0 +1,117 @@
+# Intent: A bench probe for the assets partition: self.bench.asset_use lists which assets the firmware asked the assets loader for since boot, with a count and the size of each. Walk every screen, then read it: an asset that is not listed was never loaded (the stock app icons in docs/plan/optimization.md, item 3). The counters exist in bench images only.
+# Placement: unit (bench only)
+# Upstream: firmware/xiaozhi-esp32/main/assets.cc and assets.h (the stock assets loader) and firmware/main/hal (ours)
+# Check after a flash: on a bench image, self.bench.asset_use right after boot lists index.json, the wake-word models and the text font; after a walk of the screens it also lists any icon the screens drew.
+# Kconfig: CONFIG_MAIPAI_SERIAL_TOOLS (bench images only)
+# Memory cost: none in the plain image (the counters and the report are compiled only with the bench tools); about 1.2 KB of static memory in bench images.
+
+diff --git a/firmware/xiaozhi-esp32/main/assets.h b/firmware/xiaozhi-esp32/main/assets.h
+--- a/firmware/xiaozhi-esp32/main/assets.h
++++ b/firmware/xiaozhi-esp32/main/assets.h
+@@ -41,6 +41,9 @@ public:
+     bool Apply(bool refresh_display_theme = true);
+     bool GetAssetData(const std::string& name, void*& ptr, size_t& size);
+ 
++    // Patch SF79 (bench images): which assets of the partition were asked for since boot and how many times: "name:count:size;" for up to 24 names. For the optimization probe.
++    size_t UseReport(char* out, size_t cap);
++
+     inline bool partition_valid() const { return partition_valid_; }
+     inline std::string default_assets_url() const { return default_assets_url_; }
+     inline TextFontCapability text_font_capability() const { return text_font_capability_; }
+diff --git a/firmware/xiaozhi-esp32/main/assets.cc b/firmware/xiaozhi-esp32/main/assets.cc
+--- a/firmware/xiaozhi-esp32/main/assets.cc
++++ b/firmware/xiaozhi-esp32/main/assets.cc
+@@ -83,10 +83,45 @@ void Assets::UseBuiltInTextFontCapability() {
+ 
+ void Assets::DisableTextFontGlyphPush() { text_font_capability_ = {}; }
+ 
++#include <sdkconfig.h>
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++namespace {
++// Patch SF79: the use counters (a few hundred bytes of static memory; the report is read by a bench tool).
++struct AssetUse { char name[40]; uint32_t count; uint32_t size; };
++AssetUse s_use[24];
++int s_use_n = 0;
++}  // namespace
++#endif
++
+ bool Assets::GetAssetData(const std::string& name, void*& ptr, size_t& size) {
+-    return strategy_ ? strategy_->GetAssetData(this, name, ptr, size) : false;
++    const bool ok = strategy_ ? strategy_->GetAssetData(this, name, ptr, size) : false;
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++    if (ok) {
++        int i = 0;
++        while (i < s_use_n && strcmp(s_use[i].name, name.c_str()) != 0) i++;
++        if (i == s_use_n && s_use_n < 24) {
++            strncpy(s_use[i].name, name.c_str(), sizeof(s_use[i].name) - 1);
++            s_use[i].size = static_cast<uint32_t>(size);
++            s_use[i].count = 0;
++            s_use_n++;
++        }
++        if (i < s_use_n) s_use[i].count++;
++    }
++#endif
++    return ok;
+ }
+ 
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++size_t Assets::UseReport(char* out, size_t cap) {
++    size_t n = 0;
++    for (int i = 0; i < s_use_n && n + 64 < cap; i++) {
++        n += static_cast<size_t>(snprintf(out + n, cap - n, "%s:%u:%u;", s_use[i].name, static_cast<unsigned>(s_use[i].count), static_cast<unsigned>(s_use[i].size)));
++    }
++    if (cap > 0) out[n < cap ? n : cap - 1] = '\0';
++    return n;
++}
++#endif
++
+ bool Assets::LoadSrmodelsFromIndex(Assets* assets, cJSON* root) {
+     void* ptr = nullptr;
+     size_t size = 0;
+diff --git a/firmware/main/hal/maipai_powerprobe.cc b/firmware/main/hal/maipai_powerprobe.cc
+--- a/firmware/main/hal/maipai_powerprobe.cc
++++ b/firmware/main/hal/maipai_powerprobe.cc
+@@ -15,6 +15,7 @@
+ #include <stackchan/stackchan.h>
+ #include <stackchan/motion/servo.h>
+ #include <mcp_server.h>
++#include <assets.h>
+ #include <esp_timer.h>
+ #include <esp_heap_caps.h>
+ #include <freertos/FreeRTOS.h>
+@@ -242,5 +243,35 @@ void maipai_powerprobe_register_tools()
+                     hal_bridge::notice_urgent("Can't reach Home. Check it is on and on the same Wi-Fi. I keep trying.", 20000);
+                     return std::string("{\"ok\":true}");
+                 });
++
++    // Patch SF79 (bench only): which assets of the assets partition the firmware asked for since boot, and how often. Walk every screen, then read this: an asset that is not listed
++    // was never loaded (docs/plan/optimization.md, items 1 and 3). The names the image holds are in its index.json.
++    mcp.AddTool("self.bench.asset_use", "Bench only: the assets of the assets partition that were asked for since boot, as {items:[{name, count, size}]}. An asset not listed was never loaded. "
++                "Walk the screens first (settings, more, apps wall, games, pages) and read it again.", std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    static char buf[1200];
++                    Assets::GetInstance().UseReport(buf, sizeof(buf));
++                    std::string out = "{\"ok\":true,\"items\":[";
++                    const char* p = buf;
++                    bool first = true;
++                    while (*p) {
++                        const char* end = strchr(p, ';');
++                        if (end == nullptr) break;
++                        char name[48];
++                        unsigned count = 0, size = 0;
++                        std::string item(p, end - p);
++                        const size_t c1 = item.find(':'), c2 = item.rfind(':');
++                        if (c1 != std::string::npos && c2 != c1) {
++                            snprintf(name, sizeof(name), "%s", item.substr(0, c1).c_str());
++                            count = static_cast<unsigned>(atoi(item.substr(c1 + 1, c2 - c1 - 1).c_str()));
++                            size  = static_cast<unsigned>(atoi(item.substr(c2 + 1).c_str()));
++                            char row[120];
++                            snprintf(row, sizeof(row), "%s{\"name\":\"%s\",\"count\":%u,\"size\":%u}", first ? "" : ",", name, count, size);
++                            out += row;
++                            first = false;
++                        }
++                        p = end + 1;
++                    }
++                    return out + "]}";
++                });
+ }
+ #endif

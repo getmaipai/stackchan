@@ -86,6 +86,18 @@ class UnitBehaviors:
         with slot.lock:
             slot.events.extend(events)
 
+    def on_connect(self, device_id: str) -> None:
+        """A unit (re)connected: an extra unit reapplies its known pose controls, as the first unit does."""
+        if not device_id or device_id == self._primary_id():
+            return
+        orientation = getattr(self._slot(device_id).behavior, "orientation", None)
+        if orientation is not None:
+            try:
+                with self._scope(device_id):
+                    orientation.reassert()
+            except Exception:
+                LOG.warning("a unit's pose could not be reapplied", exc_info=True)
+
     def tick(self) -> None:
         """One pass over the extra units: touch, then the reaction timer. A raise in one unit is logged and the next unit still runs."""
         now = self._clock()
@@ -100,9 +112,10 @@ class UnitBehaviors:
             try:
                 with self._scope(device_id):
                     behavior.wake_on_touch(now)
-                    tick = getattr(behavior, "reaction_tick", None)
-                    if tick is not None:
-                        tick()
+                    for name in ("reaction_tick", "orientation_tick"):
+                        tick = getattr(behavior, name, None)
+                        if tick is not None:
+                            tick()
             except Exception:
                 behavior._warn_limited("unit-loop", f"the touch loop of unit {device_id[-5:]} failed")
 

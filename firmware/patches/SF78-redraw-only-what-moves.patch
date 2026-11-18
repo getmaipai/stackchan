@@ -1,0 +1,64 @@
+# Intent: The grid games redraw only the part of the board that moves. The b57 bench recorded 70 to 95 ms between ticks while a disc fell (about 15 frames a second) because every tick invalidated the whole 320 by 240 board. A falling disc now invalidates its column, a pulse, flip or pop only its cell and a small margin, and only a shake or a finished tween redraws the whole board. The pictures and the rules are unchanged.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: on the bench image, self.game.bench_record, one connect4 tap, self.game.bench_frames: the spacing between ticks while the disc falls drops from 70 to 95 ms toward the 30 ms tick (gaps_ms well under 100 for the fall); the drop looks the same.
+# Kconfig: none
+# Memory cost: none.
+
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -594,6 +594,35 @@ void record(Grid* g, uint32_t now)
+ inline void record(Grid*, uint32_t) {}
+ #endif
+ 
++// Patch SF78: while a tween runs, only the area it moves in is invalidated (a column for a falling disc, one cell for a pulse, flip or pop; the whole board for a shake). The whole
++// 320 by 240 board redrawn every tick cost about 70 to 95 ms a frame (15 frames a second) on the first bench; a column is a tenth of that.
++void invalidate_rect(Grid* g, int x1, int y1, int x2, int y2)
++{
++    if (g->board == nullptr) return;
++    lv_area_t a = {static_cast<lv_coord_t>(x1), static_cast<lv_coord_t>(y1), static_cast<lv_coord_t>(x2), static_cast<lv_coord_t>(y2)};
++    lv_obj_invalidate_area(g->board, &a);
++}
++
++void redraw_tweens(Grid* g)
++{
++    if (g->anim.shaking) {
++        redraw(g);
++        return;
++    }
++    const int cols = g->lay.cols;
++    for (int i = 0; i < GAN_MAX; i++) {
++        const gan_tw_t& t = g->anim.t[i];
++        if (t.kind == GAN_NONE) continue;
++        const int col = t.cell % cols, row = t.cell / cols;
++        if (t.kind == GAN_FALL) {  // the whole column: the disc, its bounce and the cells it passes
++            invalidate_rect(g, g->lay.x0 + col * g->lay.cw - 2, g->lay.y0 - g->lay.ch, g->lay.x0 + (col + 1) * g->lay.cw + 2, g->lay.y0 + g->lay.ch * g->lay.rows + 4);
++        } else {  // a pulse, a flip or a pop: the cell and a margin for the growth
++            const int x = g->lay.x0 + col * g->lay.cw, y = g->lay.y0 + row * g->lay.ch;
++            invalidate_rect(g, x - 8, y - 8, x + g->lay.cw + 8, y + g->lay.ch + 8);
++        }
++    }
++}
++
+ void tick_cb(lv_timer_t*)
+ {
+     Grid* g = s_grid;
+@@ -627,7 +656,7 @@ void tick_cb(lv_timer_t*)
+     if (g->kind != kC4) {  // patch SF74: the flips and pops of the other grid games (events are not needed: the pictures end by themselves)
+         gan_ev_t ev[GAN_EV_MAX];
+         const int n = gan_tick(&g->anim, now, ev);
+-        if (gan_active(&g->anim) || n > 0) redraw(g);
++        if (n > 0) redraw(g); else if (gan_active(&g->anim)) redraw_tweens(g);  // patch SF78: only the part of the board that moves is redrawn
+     }
+     if (g->kind == kSnake) {
+         if (const uint32_t bits = maipai_games_take_input_bits()) {  // a tilt steers too
+@@ -672,7 +701,7 @@ void tick_cb(lv_timer_t*)
+                 finish(g, g->result_pending);
+             }
+         }
+-        if (gan_active(&g->anim) || n > 0) redraw(g);
++        if (n > 0) redraw(g); else if (gan_active(&g->anim)) redraw_tweens(g);  // patch SF78: only the part of the board that moves is redrawn
+         if (g->result != GR_PLAYING) return;
+     }
+     if (g->unit_thinking) {

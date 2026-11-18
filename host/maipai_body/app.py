@@ -2571,12 +2571,39 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
         )
         extra.reaction = unit_reactions.on_events
         extra.reaction_tick = unit_reactions.tick
+        from maipai_body.bodies.stackchan.orientation import SCREEN_ROTATION_ENABLED, OrientationReactions
+
+        def rotate(degrees: int) -> None:
+            if not SCREEN_ROTATION_ENABLED:
+                return
+            try:
+                client._call("self.screen.set_rotation", {"degrees": degrees})
+            except Exception:
+                extra._warn_limited("rotation", "StackChan screen rotation failed")
+
+        orientation = OrientationReactions(
+            face=lambda expression: extra.show_face(expression, while_listening=False),
+            say=lambda _text: False,  # spoken lines only with one unit connected (turn.py speak_reaction)
+            rotate=rotate,
+            hold_motion=lambda _held: None,  # the unit's own limiter (ML01) already holds a unit that is not upright
+            quiet=lambda: ("night mode is on" if night.night else "") or ("asleep" if extra._rest.stage != "awake" else ""),
+            busy=extra.reaction_blocked,
+            resting=lambda: extra._rest.stage != "awake",
+            head_pitch_deg=lambda: extra._tracker.pose[1],
+            head_moved_ago=extra.head_moved_ago,
+            missed=None,
+            on_set_down=None,
+        )
+        extra.orientation = orientation
+        extra.orientation_tick = orientation.tick
+        extra.pose_held = lambda: orientation.pose != "upright" or _unit_not_upright(extra)
         return extra
 
     behavior.unit_behaviors = UnitBehaviors(
         primary_id=lambda: behavior.primary_unit(), connected=lambda: list(voice._sessions), make_behavior=_make_unit_behavior
     )
     behavior.other_unit_event_handlers.append(behavior.unit_behaviors.feed)
+    voice.session_listeners.append(behavior.unit_behaviors.on_connect)
     behavior.unit_behaviors.start(stop_event)
     _wire_orientation(voice, behavior, bridge, night, power)
     bridge.on_user_words = reactions.on_user_words

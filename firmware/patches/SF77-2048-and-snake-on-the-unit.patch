@@ -1,0 +1,261 @@
+# Intent: 2048 (id slide: swipe up, down, left or right to slide and merge the tiles, a new tile pops, over when nothing can move, the score is the merge total) and Snake (id snake: swipe or tilt the unit to steer, one cell a step, 300 ms at the start and down to 80 ms as it eats, dies on a wall or itself, the score is the food eaten) run on the unit through the grid engine, with the vertical-swipe flag of SF76 set while they run so a swipe down inside the board is the game's (only the bottom edge, the grabber and the stop word stop it). Tilts reach Snake through the games' imu path. Full quiet, the lock and updates refuse or end them as for every game; a game never moves the head.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.game.start slide: a swipe in each direction slides the tiles and a new 2 pops in; self.game.start snake: the snake moves by itself, a swipe or a tilt turns it, eating grows it and speeds it up, a wall ends it with a banner; neither stops on a swipe down inside the board; both end with a swipe down from the grabber at the top, a swipe down that begins on the bottom edge, and the stop word.
+# Kconfig: CONFIG_MAIPAI_GAMES (existing)
+# Memory cost: flash about 2.5 KB (measured: SF76 and SF77 together grew the plain image by 3,056 bytes); a running game adds about 0.3 KB (Snake) in the Grid struct in PSRAM and the one board object; the internal cost is estimated at 600 bytes as the other grid games.
+
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -15,6 +15,8 @@
+ #include "maipai_grid_mines_core.h"
+ #include "maipai_grid_anim_core.h"
+ #include "maipai_grid_input_core.h"
++#include "maipai_grid_slide_core.h"
++#include "maipai_grid_snake_core.h"
+ #include "maipai_games_sfx_core.h"
+ #include <application.h>
+ #include "maipai_games_draw.h"
+@@ -41,13 +43,15 @@
+ #include <cstring>
+ #include <strings.h>
+ 
++uint32_t maipai_games_take_input_bits();  // patch SF77: maipai_games.cc, the sensors' events (tilts) since the last call
++
+ namespace {
+ const char* const kTag = "MAIPAI-GRID";
+ constexpr uint32_t kTickMs       = 30;
+ constexpr uint32_t kIdleMs       = 10u * 60u * 1000u;  // as the other games: no input for 10 minutes ends it
+ constexpr uint32_t kUnitDelayMs  = 450;                // the unit never answers faster than this (it should look like thinking)
+ constexpr uint32_t kOverHoldMs   = 3000;               // the result stays on screen this long, then the game ends
+-enum { kC4 = 0, kMatch = 1, kHangman = 2, kMines = 3, kKinds = 4 };
++enum { kC4 = 0, kMatch = 1, kHangman = 2, kMines = 3, kSlide = 4, kSnake = 5, kKinds = 6 };
+ 
+ struct Info {
+     const char* id;
+@@ -60,6 +64,8 @@ const Info kInfo[kKinds] = {
+     {"match", "Memory Match", "Parejas", true},
+     {"hangman", "Hangman", "Ahorcado", false},
+     {"mines", "Mine Finder", "Buscaminas", true},
++    {"slide", "2048", "2048", false},
++    {"snake", "Snake", "Culebra", false},
+ };
+ 
+ // The word lists (patch SF70): letters A to Z only, 3 to 12 letters. They are data in the image for now; a pack of the table kind replaces them later.
+@@ -82,6 +88,10 @@ struct Grid {
+     gm_t mem;
+     gh_t hang;            // Hangman
+     gmn_t mines;          // Mine Finder
++    gsl_t slide;          // 2048
++    gsn_t snake;          // Snake
++    uint32_t next_step_ms; // Snake: when the snake moves next
++    uint8_t spawn_cell;   // 2048: where the last new tile appeared (255 none)
+     gan_t anim;           // patch SF72: the falling discs, the pulses and the shake
+     uint8_t result_pending;  // Four in a Row: the game is decided, the picture is catching up (GR_PERSON_WON, GR_UNIT_WON, GR_DRAW)
+     uint8_t flash_left;   // pulses still running
+@@ -282,13 +292,45 @@ void draw_mines(Grid* g, lv_layer_t* layer)
+     rect(layer, 262, 100, 12, 10, 0, g->flag_mode ? 0x10141C : 0xF2B24A);
+ }
+ 
++const char* const kPow[18] = {"", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048", "4096", "8192", "16384", "32768", "65536", "131072"};
++const uint32_t kTileColor[12] = {0x1A2236, 0xEEE4DA, 0xEDE0C8, 0xF2B179, 0xF59563, 0xF67C5F, 0xF65E3B, 0xEDCF72, 0xEDCC61, 0xEDC850, 0xEDC53F, 0xEDC22E};
++
++void draw_slide(Grid* g, lv_layer_t* layer)
++{
++    for (int i = 0; i < GS_N * GS_N; i++) {
++        const int e = g->slide.t[i];
++        const int x = g->lay.x0 + (i % GS_N) * g->lay.cw + 3, y = g->lay.y0 + (i / GS_N) * g->lay.ch + 3, w = g->lay.cw - 6;
++        const int pop = gan_pop_scale(&g->anim, i, now_ms());
++        const int grow = w * (pop - 1000) / 2000;
++        rect(layer, x - grow, y - grow, w + 2 * grow, w + 2 * grow, 6, kTileColor[e > 11 ? 11 : e]);
++        if (e > 0) text(layer, kPow[e > 17 ? 17 : e], x, y + w / 2 - 12, x + w - 1, y + w - 1, e <= 2 ? 0x4A4036 : 0xFFFFFF, &lv_font_montserrat_20);
++    }
++}
++
++void draw_snake(Grid* g, lv_layer_t* layer)
++{
++    rect(layer, g->lay.x0 - 2, g->lay.y0 - 2, g->lay.cw * GSN_COLS + 4, g->lay.ch * GSN_ROWS + 4, 6, 0x12261A);
++    for (int i = 0; i < GSN_CELLS; i++) {
++        const bool body = g->snake.occ[i] != 0;
++        const bool head = i == gsn_head(&g->snake);
++        const bool food = i == g->snake.food;
++        if (!body && !food) continue;
++        rect(layer, g->lay.x0 + (i % GSN_COLS) * g->lay.cw + 2, g->lay.y0 + (i / GSN_COLS) * g->lay.ch + 2, g->lay.cw - 4, g->lay.ch - 4, food ? LV_RADIUS_CIRCLE : 6,
++             food ? 0xE04848 : (head ? 0xB4F08F : 0x4CAF50));
++    }
++}
++
+ void draw_cb(lv_event_t* e)
+ {
+     Grid* g = static_cast<Grid*>(lv_event_get_user_data(e));
+     if (g == nullptr || g != s_grid) return;
+     lv_layer_t* layer = lv_event_get_layer(e);
+     const int cols = g->lay.cols, rows = g->lay.rows, cw = g->lay.cw, ch = g->lay.ch;
+-    if (g->kind == kHangman) {
++    if (g->kind == kSlide) {
++        draw_slide(g, layer);
++    } else if (g->kind == kSnake) {
++        draw_snake(g, layer);
++    } else if (g->kind == kHangman) {
+         draw_hangman(g, layer);
+     } else if (g->kind == kMines) {
+         draw_mines(g, layer);
+@@ -415,6 +457,12 @@ void finish(Grid* g, int result)
+     } else if (g->kind == kHangman) {
+         g->won = result == GR_PERSON_WON;
+         g->score = gh_score(&g->hang);
++    } else if (g->kind == kSlide) {
++        g->won = result == GR_PERSON_WON;
++        g->score = static_cast<int>(g->slide.score > 30000u ? 30000u : g->slide.score);
++    } else if (g->kind == kSnake) {
++        g->won = g->snake.score >= 5;
++        g->score = g->snake.score;
+     } else if (g->kind == kMines) {
+         g->won = result == GR_PERSON_WON;
+         const uint32_t secs = (now_ms() - g->start_ms) / 1000u;
+@@ -438,6 +486,12 @@ void finish(Grid* g, int result)
+             snprintf(en, sizeof(en), "It was %s", g->hang.word);
+             snprintf(es, sizeof(es), "Era %s", g->hang.word);
+         }
++    } else if (g->kind == kSlide) {
++        snprintf(en, sizeof(en), record ? "Game over: %d! New best" : "Game over: %d", g->score);
++        snprintf(es, sizeof(es), record ? "Fin: %d! Nuevo record" : "Fin: %d", g->score);
++    } else if (g->kind == kSnake) {
++        snprintf(en, sizeof(en), record ? "%d eaten! New best" : "%d eaten", g->score);
++        snprintf(es, sizeof(es), record ? "%d comidas! Record" : "%d comidas", g->score);
+     } else if (g->kind == kMines) {
+         snprintf(en, sizeof(en), g->won ? (record ? "Cleared in %d s! Best" : "Cleared in %d s") : "Boom!", g->score);
+         snprintf(es, sizeof(es), g->won ? (record ? "Limpio en %d s! Record" : "Limpio en %d s") : "Boom!", g->score);
+@@ -452,7 +506,7 @@ void finish(Grid* g, int result)
+             (void)maipai_fx_celebrate(record ? 2 : 1);
+             hal_bridge::react_face("happy", record ? 4000 : 3000);
+         }
+-    } else if (result == GR_PERSON_WON || (g->kind == kMatch)) {
++    } else if (result == GR_PERSON_WON || (g->kind == kMatch) || ((g->kind == kSlide || g->kind == kSnake) && g->won)) {
+         cue(GR_CUE_WIN);
+         (void)maipai_fx_celebrate(record ? 2 : 1);
+         hal_bridge::react_face("happy", record ? 4000 : 3000);
+@@ -575,6 +629,24 @@ void tick_cb(lv_timer_t*)
+         const int n = gan_tick(&g->anim, now, ev);
+         if (gan_active(&g->anim) || n > 0) redraw(g);
+     }
++    if (g->kind == kSnake) {
++        if (const uint32_t bits = maipai_games_take_input_bits()) {  // a tilt steers too
++            if (bits & (1u << 7)) gsn_turn(&g->snake, GSN_LEFT);
++            if (bits & (1u << 8)) gsn_turn(&g->snake, GSN_RIGHT);
++            if (bits & (1u << 9)) gsn_turn(&g->snake, GSN_UP);
++            if (bits & (1u << 10)) gsn_turn(&g->snake, GSN_DOWN);
++            g->last_input_ms = now;
++        }
++        if (static_cast<int32_t>(now - g->next_step_ms) >= 0) {
++            const int r = gsn_step(&g->snake);
++            g->next_step_ms = now + gsn_interval_ms(&g->snake);
++            if (r == GSN_ATE) cue(GR_CUE_MATCH);
++            redraw(g);
++            if (r == GSN_DIED) { cue(GR_CUE_LOSE); finish(g, GR_UNIT_WON); }
++            else if (r == GSN_WON) finish(g, GR_PERSON_WON);
++        }
++        return;
++    }
+     if (g->kind == kMatch) {
+         const int p0 = g->mem.pending[0], p1 = g->mem.pending[1];
+         if (gm_tick(&g->mem, now)) {
+@@ -645,6 +717,16 @@ const char* maipai_grid_start_locked(const char* name, const char* source)
+         const char* w = (es ? kWordsEs : kWordsEn)[g->seed % kWordCount];
+         gh_init(&g->hang, w, GH_MAX_MISS);
+         g->lay.cols = 9; g->lay.rows = 3; g->lay.cw = 31; g->lay.ch = 32; g->lay.x0 = 20; g->lay.y0 = 126;  // the 26 keys, 3 rows at the bottom
++    } else if (kind == kSlide) {
++        gsl_init(&g->slide, g->seed);
++        gr_layout(&g->lay, GS_N, GS_N, 1);
++        g->spawn_cell = 255;
++        s_vertical.store(true);
++    } else if (kind == kSnake) {
++        gsn_init(&g->snake, g->seed);
++        gr_layout(&g->lay, GSN_COLS, GSN_ROWS, 0);
++        g->next_step_ms = now_ms() + 600;
++        s_vertical.store(true);
+     } else if (kind == kMines) {
+         gmn_init(&g->mines, g->seed);
+         gr_layout(&g->lay, GMN_COLS, GMN_ROWS, 1);
+@@ -763,6 +845,28 @@ void maipai_grid_release(int x0, int y0, int x1, int y1, uint32_t held_ms)
+         end_locked("dragbar");
+         return;
+     }
++    if ((g->kind == kSlide || g->kind == kSnake) && g->result == GR_PLAYING) {
++        const int what = gi_classify(x0, y0, x1, y1, held_ms);
++        const int dir_slide = what == GI_SWIPE_LEFT ? GS_LEFT : (what == GI_SWIPE_RIGHT ? GS_RIGHT : (what == GI_SWIPE_UP ? GS_UP : (what == GI_SWIPE_DOWN ? GS_DOWN : -1)));
++        if (dir_slide < 0) return;
++        g->last_input_ms = now_ms();
++        if (g->kind == kSnake) {
++            gsn_turn(&g->snake, what == GI_SWIPE_LEFT ? GSN_LEFT : (what == GI_SWIPE_RIGHT ? GSN_RIGHT : (what == GI_SWIPE_UP ? GSN_UP : GSN_DOWN)));
++            return;
++        }
++        uint8_t before[GS_N * GS_N];
++        memcpy(before, g->slide.t, sizeof(before));
++        if (gsl_slide(&g->slide, dir_slide)) {
++            cue(GR_CUE_TAP);
++            for (int i = 0; i < GS_N * GS_N; i++) {  // the new tile pops (it is the one cell that was empty and was not filled by the slide: the only difference of count)
++                if (g->slide.t[i] != 0 && before[i] == 0 && (g->slide.t[i] == 1 || g->slide.t[i] == 2)) { gan_pop(&g->anim, now_ms(), i); break; }
++            }
++            redraw(g);
++            const int res = gsl_result(&g->slide);
++            if (res != GR_PLAYING) finish(g, res);
++        }
++        return;
++    }
+     if (g->kind == kMines && g->press_valid && g->result == GR_PLAYING) {
+         g->press_valid = 0;
+         g->last_input_ms = now_ms();
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -854,7 +854,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     }
+     const int slot = slot_by_name(name);
+     if (slot < 0) {
+-        return say(es, "That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4, match, hangman or mines.",
++        return say(es, "That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4, match, hangman, mines, slide or snake.",
+                    "Ese juego no esta en esta unidad. Pide memory, whack, tictactoe, bopit, rps, eightball o dice.");
+     }
+     if (maipai_quiet()) {
+@@ -1014,9 +1014,11 @@ void maipai_games_release(int x0, int y0, int x1, int y1, uint32_t held_ms)
+ 
+ // Patch UI13: inputs from the sensors' own tasks (the imu task and the head touch task run on PSRAM stacks): atomics only, no lock, no
+ // flash, no NVS and no allocation. The tick reads them within 30 ms.
++uint32_t maipai_games_take_input_bits() { return s_input_bits.exchange(0); }  // patch SF77: the grid games read the sensors' tilts here
++
+ void maipai_games_post_input(int ev)
+ {
+-    if (s_active.load() && ev >= MG_EV_SWIPE_L && ev < MG_EV_COUNT) {
++    if ((s_active.load() || maipai_grid_active()) && ev >= MG_EV_SWIPE_L && ev < MG_EV_COUNT) {
+         s_input_bits.fetch_or(1u << ev);
+     }
+ }
+@@ -1030,7 +1032,7 @@ bool s_tilt_was_active = false;
+ 
+ void maipai_games_imu_feed(float ax, float ay, float az, uint32_t now_ms_in)
+ {
+-    if (!s_active.load()) {
++    if (!s_active.load() && !maipai_grid_active()) {  // patch SF77: a grid game (Snake) listens for tilts too
+         s_tilt_was_active = false;
+         return;
+     }
+@@ -1255,7 +1257,7 @@ void maipai_games_register_tools()
+                 "rps (rock paper scissors, best of three), "
+                 "eightball (magic 8 ball: gently shake the unit or tap the ball), dice (dice and coin: tap or gently shake), "
+                 "connect4 (Four in a Row against the unit: tap a column), match (Memory Match: turn two cards, find the pairs), "
+-                "hangman (guess the word letter by letter) or mines (Mine Finder: open the safe cells, flag the mines). "
++                "hangman (guess the word letter by letter), mines (Mine Finder: open the safe cells, flag the mines), slide (2048: swipe to slide and merge the tiles) or snake (steer by swipe or tilt). "
+                 "It never starts in full quiet or during an update. A person stops it with a swipe down from the bottom edge "
+                 "or by saying stop. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("memory")),
+@@ -1303,7 +1305,7 @@ void maipai_games_register_tools()
+                     const int slot         = slot_by_name(name.c_str());
+                     mg_pack_t p;
+                     if (slot < 0 || !slot_pack(slot, &p)) {
+-                        return error_json("That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4, match, hangman or mines.");
++                        return error_json("That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4, match, hangman, mines, slide or snake.");
+                     }
+                     return std::string("{\"ok\":true,\"game\":\"") + p.id + "\",\"lower_is_better\":" +
+                            ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(slot) + "}";

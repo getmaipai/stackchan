@@ -26,3 +26,4 @@ Steps 2 to 4 are about a day; step 5 is one service at a time (half a day each, 
 
 ## Status
 Step 2 built 2026-11-18: `unit_behaviors.py`, `test_unit_behaviors.py` (6 tests), fleet scenario `fleet_touch` (a stroke on unit 1, then unit 2: only that unit shows the heart); `second_unit`, `fleet_2`, `fleet_10`, `fleet_unit_state` and `chaos_cut_connection` stay green. Known gap: spoken reactions on extra units (the host speaks reactions only with one unit connected) and a rest that needs the per-unit turn state before it can run (step 4).
+Step 3 built 2026-11-18: each extra unit has its own `OrientationReactions` (face, rotation, orientation timer, reassert on connect); the motion hold is the unit's own limiter (ML01). Fleet scenario `fleet_orientation` counts the handling (the host log names no unit): one tip is handled once, never by another unit's object. Spoken pose lines still wait for a per-unit voice.
