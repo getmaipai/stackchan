@@ -1,0 +1,161 @@
+# Intent: Wires the first-run flow (screens from patch UX05b). At the first standby of a unit with no saved answers it starts the flow under the screen lock, applies and saves the language, saves the answers (language, name 0 to 5, mode home or own) so the flow never shows again, and pushes a first_run_done event for the host. Adds maipai_face_set_lang. Wi-Fi setup stays with the existing setup cover.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: on a unit with no saved record the flow shows once after Wi-Fi is joined; after the last step the language and name are kept across a restart and the flow does not return; self.device.get_events shows first_run_done once.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -778,6 +778,25 @@ bool maipai_face_set_style(int style)
+     return true;
+ }
+ 
++bool maipai_face_set_lang(int lang)
++{
++    if (lang < 0 || lang >= MF_LANG_COUNT) {
++        return false;
++    }
++    mf_config_t next = maipai_face_config();
++    if (next.lang == lang) {
++        return true;
++    }
++    next.lang = static_cast<uint8_t>(lang);
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        s_cfg = next;
++    }
++    apply(current_face(), next);  // the caller holds the LVGL lock
++    Application::GetInstance().Schedule([next]() { save(next); });  // flash is written on the main task
++    return true;
++}
++
+ void maipai_face_register_tools()
+ {
+     auto& mcp = McpServer::GetInstance();
+diff --git a/firmware/main/hal/maipai_face.h b/firmware/main/hal/maipai_face.h
+--- a/firmware/main/hal/maipai_face.h
++++ b/firmware/main/hal/maipai_face.h
+@@ -25,9 +25,12 @@ mf_config_t maipai_face_config();
+ // main task (never from the screen task) and tells the host (device event face_style_changed) so the settings page follows.
+ // False for a style the unit does not draw (see mf_style_ok).
+ bool maipai_face_set_style(int style);
++// Patch SF09: the screen language (0 en, 1 es, 2 fr, 3 de, 4 pt, 5 it), saved. The caller holds the LVGL lock.
++bool maipai_face_set_lang(int lang);
+ #else
+ inline void maipai_face_register_tools() {}
+ inline bool maipai_face_set_style(int) { return false; }
++inline bool maipai_face_set_lang(int) { return false; }
+ #endif
+ 
+ // Whether the words the unit says may be drawn on the face (patch F02): off unless a person turned captions on.
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -131,6 +131,7 @@ void Hal::updateHeapStatusLog()
+ #include "maipai_daily.h"
+ #include "maipai_facebench.h"
+ #include "maipai_packs.h"
++#include "maipai_firstrun_wire.h"
+ 
+ void Hal::xiaozhi_board_init()
+ {
+@@ -163,6 +164,7 @@ static void _stackchan_update_task(void* param)
+         maipai_lock_tick();    // the auto lock and the lock screen (patch LK02)
+         maipai_daily_tick();   // the daily rules: low battery and the rest (patches T01 to T05)
+         maipai_packs_boot_poll(hal_bridge::is_xiaozhi_ready());  // patch FM04: the saved look and filler, once, at the first standby
++        maipai_firstrun_boot_poll(hal_bridge::is_xiaozhi_ready());  // patch SF09: the first-run flow, once, when no answers are saved
+ 
+         // Patch V25: the servo and LED buses are written before the screen lock is taken, not under it (bench A/B: ls_wide 1 puts them back).
+         if (!g_ls_wide) {
+diff --git a/firmware/main/hal/maipai_firstrun_wire.h b/firmware/main/hal/maipai_firstrun_wire.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_firstrun_wire.h
+@@ -0,0 +1,4 @@
++#pragma once
++// Patch SF09: the first-run flow (screens from patch UX05b) is started once, at the first standby of a unit that has no saved answers.
++// Called about every 20 ms from the update loop; it costs one flag read once the record exists.
++void maipai_firstrun_boot_poll(bool xiaozhi_ready);
+diff --git a/firmware/main/hal/maipai_firstrun_wire.cc b/firmware/main/hal/maipai_firstrun_wire.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_firstrun_wire.cc
+@@ -0,0 +1,77 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Patch SF09: wires the first-run flow. It starts at the first standby of a unit with no saved answers, hands Wi-Fi to the existing
++ * setup cover, saves the answers (language, name 0 to 5, mode 0 home or 1 own) so the flow never shows again, applies the language,
++ * and tells the host through a first_run_done event.
++ */
++#include "maipai_firstrun_wire.h"
++#include "maipai_firstrun.h"
++#include "hal.h"
++#include "maipai_face.h"
++#include "device_events.h"
++#include "board/hal_bridge.h"
++#include <application.h>
++#include <settings.h>
++#include <ssid_manager.h>
++#include <esp_log.h>
++#include <atomic>
++#include <cstdio>
++
++namespace {
++
++const char* const kTag = "MaipaiFirstRun";
++std::atomic<bool> s_checked{false};
++
++bool record_exists()
++{
++    Settings st("mp_firstrun", false);
++    return st.GetInt("done", 0) != 0;
++}
++
++bool wifi_set() { return !SsidManager::GetInstance().GetSsidList().empty(); }
++
++bool hub_known()
++{
++    Settings st("websocket", false);
++    return !st.GetString("url").empty();
++}
++
++void apply_language(int lang) { maipai_face_set_lang(lang); }  // runs under the LVGL lock (a screen callback)
++
++void open_wifi_setup()
++{
++    // The base opens its setup cover by itself while no network is saved; the flow waits for it and is told by maipai_firstrun_wifi_done().
++    ESP_LOGI(kTag, "first run: Wi-Fi setup is handed to the setup cover");
++}
++
++void finished(int lang, int name, int mode)
++{
++    // A screen callback: LVGL lock held. The flash is written on the main task.
++    maipai_face_set_lang(lang);
++    Application::GetInstance().Schedule([lang, name, mode]() {
++        Settings st("mp_firstrun", true);
++        st.SetInt("lang", lang);
++        st.SetInt("name", name);
++        st.SetInt("mode", mode);
++        st.SetInt("done", 1);
++        char extra[64];
++        std::snprintf(extra, sizeof(extra), "\"lang\":%d,\"name\":%d,\"mode\":%d", lang, name, mode);
++        device_events_push("first_run_done", extra);
++        ESP_LOGI(kTag, "first run done: lang %d, name %d, mode %d", lang, name, mode);
++    });
++}
++
++}  // namespace
++
++void maipai_firstrun_boot_poll(bool xiaozhi_ready)
++{
++    if (s_checked.load() || !xiaozhi_ready) return;
++    s_checked.store(true);
++    if (record_exists()) return;  // answered before: never again
++    static const maipai_firstrun_host_t host = {wifi_set, hub_known, apply_language, open_wifi_setup, finished};
++    LvglLockGuard lock;
++    maipai_firstrun_init(&host);
++    maipai_firstrun_start();
++    ESP_LOGI(kTag, "first run started");
++}
