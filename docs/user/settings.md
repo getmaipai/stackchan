@@ -27,7 +27,7 @@ One of six languages. See `languages.md`. The robot changes at once with no file
 ## Other keys
 
 - `brain`: `llm` (your own LLM, the default) or `home`.
-- `llm_url`, `stt_url`, `tts_url`: your model and speech addresses. Blank speech addresses use the built-in engines.
+- `url`, `stt_url`, `tts_url` under `[llm]` in `robot.toml`: your model and speech addresses. A blank speech address uses the built-in engine, which also needs its model folder (`stt_model_dir`, or `tts_model`, `tts_tokens` and `tts_data_dir`). The host does not download speech models.
 - `voice`: the voice to speak with.
 - `thinking_cue`: dots always, plus a quiet tone by default.
 - `strip_mode`: `petting` (default) or `control` for quick sliders.
@@ -40,9 +40,9 @@ Run `stackchan check` after any change to your addresses. Environment variables 
 | Setting | What it does | Default |
 |---|---|---|
 | `brain` | Who answers: your own LLM (`llm`) or MaiPai Home (`home`) | `llm` |
-| `llm_url` | Your model's OpenAI-compatible address | blank |
-| `stt_url`, `tts_url` | Your speech tools. Blank uses the built-in engines | blank |
-| `home_url` | Your MaiPai Home hub address | blank |
+| `[llm] url` | Your model's OpenAI-compatible address | blank |
+| `[llm] stt_url`, `tts_url` | Your speech tools. Blank uses the built-in engines when their model folders are set | blank |
+| `[home] url` | Your MaiPai Home hub address | blank |
 | `language` | English, Spanish, French, German, Portuguese or Italian | English |
 | `voice` | The voice the robot speaks with | built-in voice |
 | `speech_speed` | How fast it talks, 0.75 to 1.5 | 1 |

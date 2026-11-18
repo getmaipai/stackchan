@@ -40,7 +40,8 @@ class HomeConfig(StrictModel):
 
 
 class RemoteConfig(StrictModel):
-    enabled: bool = False
+    # None: the settings page decides. False: remote access stays off whatever the page says.
+    enabled: bool | None = None
 
 
 class UpdateConfig(StrictModel):
@@ -155,11 +156,20 @@ def example_config_path() -> Path:
     return Path.home() / ".config" / "maipai" / "robot.toml"
 
 
+def example_template_path() -> Path:
+    """robot.example.toml: inside the installed package, or beside it in a checkout."""
+    here = Path(__file__).resolve()
+    for candidate in (here.parent / "robot.example.toml", here.parents[1] / "robot.example.toml"):
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError("robot.example.toml is missing from this install; reinstall the host")
+
+
 def load_config(path: str | Path | None = None) -> RobotConfig:
     config_path = Path(path) if path else example_config_path()
     if not config_path.exists():
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        example = Path(__file__).resolve().parents[1] / "robot.example.toml"
+        example = example_template_path()
         config_path.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
         print(f"Created {config_path}. Edit this file to choose your brain and settings.")
     try:

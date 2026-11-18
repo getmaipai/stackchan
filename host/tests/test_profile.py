@@ -74,7 +74,7 @@ def test_tooling_and_runtime_share_one_commons_spec_pin():
         Path(__file__).parents[1] / "maipai_body" / "link" / "assets.py",
     )
     for consumer in consumers:
-        assert "SPEC_CHECKOUT" in consumer.read_text()
+        assert "spec_root" in consumer.read_text()
     stamp = (Path(__file__).parents[1] / "spec-vendor" / "STAMP.md").read_text()
     assert SPEC_VERSION in stamp
 

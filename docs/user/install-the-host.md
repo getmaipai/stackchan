@@ -5,35 +5,34 @@ The host is the program that runs on your computer, between the robot and your m
 ## Install
 
 1. Install `pipx` if you do not have it. Your system's package manager has it.
-2. Run `pipx install git+https://github.com/getmaipai/stackchan`.
+2. Run `pipx install "git+https://github.com/getmaipai/stackchan#subdirectory=host"`.
 3. You'll know it worked when `stackchan --help` lists its commands.
+4. Run `stackchan run` to start the host. It stays in the terminal and prints what it does. The first run writes `~/.config/maipai/robot.toml` for you to edit.
 
 No Docker is needed.
 
 ## Start it when the computer starts
 
-Run `stackchan install-service`. It is off until you run it, and nothing runs as a silent service before then.
-To stop it starting at boot, run `stackchan install-service --remove`.
+There is no start-at-boot command yet. Start the host with `stackchan run`, or run that command from your system's own service tool (systemd on Linux, launchd on a Mac). Nothing runs as a silent service unless you set it up.
 
-Windows service support is not in this release.
+Windows is not supported in this release.
 
 ## Update
 
-Run `pipx upgrade stackchan`, then restart the host. The robot's firmware updates separately: see [Update the robot](updates.md).
+Run `pipx upgrade maipai-bot`, then restart the host. The robot's firmware updates separately: see [Update the robot](updates.md).
 If the host and the robot disagree about versions, the robot says so and names the side to update first.
 
 ## Remove
 
-1. Run `stackchan forget` to unpair the robot.
-2. Run `stackchan install-service --remove` if you set it to start at boot.
-3. Run `pipx uninstall stackchan`.
-4. Delete the host's folder of settings and snapshots if you want them gone.
+1. Stop the host and remove any start-at-boot entry you made.
+2. Run `pipx uninstall maipai-bot`.
+3. Delete the pairing file `~/.local/share/maipai-bot/stackchan-pairing.json` to unpair the robot, and delete the host's folder of settings and snapshots if you want them gone.
 
 You'll know it worked when `stackchan --help` no longer runs. To put the factory firmware back on the robot, see [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md).
 
 ## Firewall
 
-The robot connects to the host, so the host must accept that connection. The host prints its port when it starts.
+The robot connects to the host, so the host must accept that connection. The host listens on the voice port set by `MAIPAI_XIAOZHI_PORT` (the default is in the host log at start).
 If you run a firewall, allow only what the host needs:
 
 | Direction | Who | To | Why |
@@ -46,4 +45,4 @@ Nothing else needs to reach the internet. See [What stays private](privacy.md) f
 
 ## Still need help?
 
-Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.
+Run `stackchan status`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

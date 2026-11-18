@@ -26,8 +26,8 @@ language = "en"
 # quiet_hours_to = "07:00"
 
 [remote]
-# Remote access is disabled unless explicitly enabled.
-enabled = false
+# Remote access starts off and is turned on from the settings page. Uncomment to keep it off whatever the page says.
+# enabled = false
 
 # Several robots: one table per unit, found by its Device-Id (run `stackchan units` to list them).
 # Anything left out uses the top-level value. Settings saved on the settings page win over these,

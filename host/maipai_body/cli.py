@@ -5,9 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
+
+import requests
 
 from maipai_body.bodies.stackchan.xiaozhi.pairing import PairingStore, default_pairing_path
 from maipai_body.config import load_config
@@ -16,6 +19,9 @@ from maipai_body.config import load_config
 def main() -> int:
     parser = argparse.ArgumentParser(prog="stackchan")
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("run", help="start the host the robot connects to")
+    commands.add_parser("check", help="test the model and speech addresses in robot.toml")
+    commands.add_parser("forget", help="unpair every robot (use before giving one away)")
     commands.add_parser("pair", help="show a one-use pairing code")
     commands.add_parser("status", help="show the brain and paired units")
     units = commands.add_parser("units", help="list known units with their name and online state")
@@ -167,10 +173,21 @@ def main() -> int:
             else "FAIL: comparison misses the pass line."
         )
         return 0 if passed else 1
+    if args.command == "run":
+        os.environ.setdefault("MAIPAI_BODY", "stackchan")
+        os.execv(sys.executable, [sys.executable, "-m", "maipai_body.app"])
+        return 0
     config = load_config()
     store = PairingStore(default_pairing_path())
     if args.command in {"units", "name"}:
         return _units_or_name(args, config, store)
+    if args.command == "check":
+        return _check(config)
+    if args.command == "forget":
+        for device_id in list(store.paired_devices()):
+            store.revoke(device_id)
+        print("Every robot is unpaired. Run `stackchan pair` to pair one again.")
+        return 0
     if args.command == "pair":
         print(f"Pairing code: {store.create_pair_code()}")
         print("Enter this code on the unit setup page within 10 minutes.")
@@ -457,3 +474,59 @@ def _update_via_host(args: argparse.Namespace, release, lang: str) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def _reachable(url: str, headers: dict[str, str] | None = None) -> str | None:
+    """None when the address answers, else the plain reason it does not."""
+    try:
+        requests.get(url, headers=headers, timeout=5)
+    except requests.RequestException as exc:
+        return f"cannot be reached ({type(exc).__name__}); check the address and that the program is running"
+    return None
+
+
+def _check(config) -> int:
+    """Test each address in robot.toml and say in plain words what is wrong."""
+    from maipai_body.brain.own_llm import _endpoint
+
+    problems = 0
+    print(f"Brain: {config.brain}")
+    if config.brain == "home":
+        print("Home is the brain: Home must be reachable and the robot paired with it.")
+        return 0
+    llm = config.llm
+    if not llm.url:
+        print("url: not set. Set url under [llm] in robot.toml to your model's address.")
+        return 1
+    key_name = llm.api_key_env
+    headers = None
+    if key_name:
+        import os
+
+        value = os.environ.get(key_name)
+        if not value:
+            print(f"api_key_env: the variable {key_name} is empty. Export it before you run the host.")
+            problems += 1
+        else:
+            headers = {"Authorization": f"Bearer {value}"}
+    why = _reachable(_endpoint(llm.url, "/v1/models"), headers)
+    print("url: ok" if why is None else f"url: {why}")
+    problems += why is not None
+    for name, value, folder in (
+        ("stt_url", llm.stt_url, llm.stt_model_dir),
+        ("tts_url", llm.tts_url, llm.tts_model),
+    ):
+        if value:
+            why = _reachable(value)
+            print(f"{name}: ok" if why is None else f"{name}: {why}")
+            problems += why is not None
+        elif folder:
+            print(f"{name}: not set; the built-in engine uses the model you named")
+        else:
+            print(
+                f"{name}: not set and no built-in model named. Set {name} under [llm], or the "
+                "built-in model folder, or the robot cannot "
+                + ("hear you." if name == "stt_url" else "speak.")
+            )
+            problems += 1
+    return 1 if problems else 0

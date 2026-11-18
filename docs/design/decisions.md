@@ -11,7 +11,7 @@ All dated 2026-11-15 unless noted. Later entries override earlier ones. Each is 
 5. Install is explicit. No silent service. `stackchan install-service` is an opt-in autostart.
 6. Names: package `maipai-stackchan`, command `stackchan`.
 7. The first working origin is a local bare repository on the build machine. The GitHub repo is created when the first cloud lane starts.
-8. Install from GitHub first (`pipx install git+https://github.com/getmaipai/stackchan`). A PyPI listing comes later.
+8. Install from GitHub first (`pipx install "git+https://github.com/getmaipai/stackchan#subdirectory=host"` (the host is in the `host/` folder)). A PyPI listing comes later.
 9. Windows service support is not in v1.
 10. The capability API and record shapes are owned by `commons/spec`. Robot repos and Home vendor stamped definitions and fixtures with a drift check; they never vendor host code. There is no shared robot code repo (2026-11-15).
 

@@ -11,24 +11,24 @@ Before you flash, read [Switch from the factory firmware, or go back](switch-fro
 - Wi-Fi that the robot and the host share.
 - A language model served from an app on a computer you control. The app must offer an OpenAI-compatible chat address, which is the standard web address most local model apps already provide. It looks like `http://192.0.2.10:8080/v1`. See [Host a model](hardware-and-models.md#host-a-model).
 - A computer with enough memory for that model. Bigger models answer better and need more memory. See [Pick hardware and a model](hardware-and-models.md) for a rough size guide.
-- Speech tools are optional, because the host has built-in ones.
+- Speech tools: the host can use its built-in engines when you name their model folders in `robot.toml`, or your own speech servers. See [Settings](settings.md).
 
 How fast and how well the robot answers depends on your model and its hardware. The wake cue, "stop", timers and faces do not.
 
 ## Steps
 
-1. **Install the host.** Run `pipx install git+https://github.com/getmaipai/stackchan`. More on installing, updating and removing it: [Install, update and remove the host](install-the-host.md). You'll know it worked when `stackchan --help` lists its commands.
+1. **Install the host.** Run `pipx install "git+https://github.com/getmaipai/stackchan#subdirectory=host"`. More on installing, updating and removing it: [Install, update and remove the host](install-the-host.md). You'll know it worked when `stackchan --help` lists its commands.
 2. **Flash the robot.** Open the web flasher, plug the robot in by USB and press Install. You can enter your Wi-Fi in the same dialog, or later on the robot's own setup screen.
 
    ![The web flasher with the Install button and the Wi-Fi fields.](../images/flasher.svg)
 
-3. **Pair.** Run `stackchan pair` on the host. A two minute window opens. The robot shows a 6 digit code. Type it on the host. You'll know it worked when the host says the robot is paired and the robot shows its face.
+3. **Pair.** Start the host with `stackchan run` and leave it running. In a second terminal run `stackchan pair`: it prints a 6 digit code that works for 10 minutes. Type the code on the robot's setup page. You'll know it worked when the robot shows its face and `stackchan status` lists it as paired.
 
    ![The robot screen with the 6 digit code, and the host terminal asking for it.](../images/pairing-code.svg)
 
    If you also run MaiPai Home, the robot offers one optional screen after pairing: **Do you run MaiPai Home?** Enter its address, or skip it. You can add it later.
 
-4. **Point at your model.** Open `robot.toml` and set `llm_url` to your model address, for example `http://192.0.2.10:8080`.
+4. **Point at your model.** Open `~/.config/maipai/robot.toml` and set `url` under `[llm]` to your model address, for example `http://192.0.2.10:8080`.
 5. **Check.** Run `stackchan check`. It tests each address and says in plain words what is wrong. You'll know it worked when every line says ok.
 
    ![The terminal after `stackchan check`, every line marked ok.](../images/check-output.svg)
@@ -49,7 +49,7 @@ If you will take the robot away from home, also type a one-time key for your pri
 
 ## Optional
 
-- `stackchan install-service` starts the host when the computer starts. It is off until you run it.
+- Start the host with `stackchan run`. A start-at-boot command is not built yet.
 - `stackchan forget` removes the pairing. Use it before you give the robot away.
 - To use MaiPai Home as the brain, see [With MaiPai Home](with-maipai-home.md). You do not need it.
 

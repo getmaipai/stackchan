@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "sys_platform == 'darwin'",
@@ -662,20 +662,18 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "av" },
+    { name = "esp-idf-nvs-partition-gen" },
+    { name = "num2words" },
     { name = "numpy" },
+    { name = "onnxruntime" },
     { name = "pydantic" },
     { name = "pyserial" },
     { name = "requests" },
+    { name = "scipy" },
     { name = "websockets" },
 ]
 
 [package.optional-dependencies]
-hub = [
-    { name = "esp-idf-nvs-partition-gen" },
-    { name = "num2words" },
-    { name = "onnxruntime" },
-    { name = "scipy" },
-]
 kws = [
     { name = "sherpa-onnx" },
 ]
@@ -704,18 +702,18 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.14,<4" },
     { name = "av", specifier = ">=14,<17" },
-    { name = "esp-idf-nvs-partition-gen", marker = "extra == 'hub'", specifier = "==0.3.0" },
-    { name = "num2words", marker = "extra == 'hub'", specifier = ">=0.5.13,<1" },
+    { name = "esp-idf-nvs-partition-gen", specifier = "==0.3.0" },
+    { name = "num2words", specifier = ">=0.5.13,<1" },
     { name = "num2words", marker = "extra == 'voice'", specifier = ">=0.5.13,<1" },
     { name = "numpy", specifier = ">=2.0,<3" },
-    { name = "onnxruntime", marker = "extra == 'hub'", specifier = "==1.30.0" },
+    { name = "onnxruntime", specifier = "==1.30.0" },
     { name = "openwakeword", marker = "extra == 'voice'", specifier = ">=0.6.0,<0.7" },
     { name = "pydantic", specifier = ">=2.13,<3" },
     { name = "pyserial", specifier = ">=3.5,<4" },
     { name = "reachy-mini", marker = "extra == 'reachy'", specifier = "==1.11.0" },
     { name = "reachy-mini", extras = ["mujoco"], marker = "extra == 'sim'", specifier = "==1.11.0" },
     { name = "requests", specifier = ">=2.34,<3" },
-    { name = "scipy", marker = "extra == 'hub'", specifier = ">=1.14,<2" },
+    { name = "scipy", specifier = ">=1.14,<2" },
     { name = "scipy", marker = "extra == 'voice'", specifier = ">=1.14,<2" },
     { name = "sherpa-onnx", marker = "extra == 'kws'", specifier = ">=1.13.8,<2" },
     { name = "websockets", specifier = ">=15.0,<16" },
@@ -1359,6 +1357,9 @@ wheels = [
 name = "sherpa-onnx"
 version = "1.13.8"
 source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "sherpa-onnx-core" },
+]
 sdist = { url = "https://files.pythonhosted.org/packages/f9/5d/9c19acbe7eebd09cee4b69408532f44dc09e71b6025518ed7dd9c0509d6d/sherpa_onnx-1.13.8.tar.gz", hash = "sha256:68e638f745df120a7fae268b7bae0eaab2362b5ad76fe3389bece1d3cd63272c", size = 1057541, upload-time = "2026-09-10T15:05:43.696Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/35/ed6cc5d2e29f29c9778975bec44ac5e8069e1a3528f7ff1306cbdcdab585/sherpa_onnx-1.13.8-cp312-cp312-macosx_10_15_universal2.whl", hash = "sha256:17ff957b1b33849671262ddbac51815a5a82286f963091bddf85540c9e728c12", size = 4457476, upload-time = "2026-09-10T15:45:38.598Z" },
@@ -1370,6 +1371,16 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/91/2c/4aee534542f2de43c3dadfbe7d436fdecfb28e4c6d5a12f75febdc3f5f8e/sherpa_onnx-1.13.8-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:c8121c87eb80c86a8dbe2cf54ed11ca1150ae0001223bac902471e7b4608e1a9", size = 4461555, upload-time = "2026-09-10T15:58:23.745Z" },
     { url = "https://files.pythonhosted.org/packages/f5/fb/e8a289419f38ed9eb1882d22c12a2680254e5eb945e8e2517c5b2281dd23/sherpa_onnx-1.13.8-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:22f699e1fb2e8dafe02b1521ce74e0928b38cb68ad19f481380acf51e6a6965b", size = 2351239, upload-time = "2026-09-10T15:07:53.4Z" },
     { url = "https://files.pythonhosted.org/packages/33/f5/ff7f45799a1a77f165410fce5080be2cb59cfc98375bf4a56d7d1fe80540/sherpa_onnx-1.13.8-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:7fa6ec595a8b4bba2b91e6f8e58647777050ac4eb9845f5a5026c20636c0e2be", size = 2149334, upload-time = "2026-09-10T15:19:02.491Z" },
+]
+
+[[package]]
+name = "sherpa-onnx-core"
+version = "1.13.8"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/9d/3df22f9c151f4158c99cb38c2bf75cb864c9306316f16870b58ab0252dc7/sherpa_onnx_core-1.13.8-py3-none-macosx_10_15_universal2.whl", hash = "sha256:b279ad024b37f2999834abc5583fe9e70df0fb3f37c20a2d1e76e75ad2ccb1a1", size = 20398884, upload-time = "2026-09-10T14:25:35.095Z" },
+    { url = "https://files.pythonhosted.org/packages/17/2d/98e309811cff9fec48ae48a051b4caab44046755f6bc58daab0c475f40cb/sherpa_onnx_core-1.13.8-py3-none-macosx_10_15_x86_64.whl", hash = "sha256:917422880287baa0f0ae1bd10d9528fa78af8cc7c233d2a953a185a4fe8d83f2", size = 10878335, upload-time = "2026-09-10T14:05:06.488Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/2a/2a47b423fe009bbbcb6d7eed7bcba755d6f9ae923b5664c7208128c32d06/sherpa_onnx_core-1.13.8-py3-none-macosx_11_0_arm64.whl", hash = "sha256:9312bbd46c93e31cecd3abda9cc8e71881d86cc3da3c35c7445ab04025b9fc3e", size = 9552498, upload-time = "2026-09-10T14:20:49.971Z" },
 ]
 
 [[package]]
