@@ -1,0 +1,228 @@
+# Intent: Restore supported accents in unit screen words without changing layout.
+# Placement: unit
+# Upstream: firmware/main/hal screen sources in ours, patches UX07a and earlier
+# Check after a flash: Check Spanish accents and first-run spelling on the robot screen.
+
+diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
+--- a/firmware/main/hal/maipai_apps_core.h
++++ b/firmware/main/hal/maipai_apps_core.h
+@@ -580,11 +580,11 @@
+     {"AM", "AM"},
+     {"PM", "PM"},
+     {"No games on this unit", "No hay juegos en esta unidad"},
+-    {"Set a code on the settings page", "Pon un codigo en la pagina de ajustes"},
++    {"Set a code on the settings page", "Pon un código en la página de ajustes"},
+     {"8 timers and alarms are set. Cancel one first.", "Hay 8 temporizadores y alarmas. Cancela uno primero."},
+-    {"The clock is not set yet. Your home hub sets it.", "El reloj aun no esta puesto. Tu centro del hogar lo pone."},
+-    {"Quiet is on. Turn it off to use this.", "Calma activada. Apagala para usar esto."},
+-    {"Sound is muted. Unmute to use this.", "El sonido esta en silencio. Activalo para usar esto."},
++    {"The clock is not set yet. Your home hub sets it.", "El reloj aún no está puesto. Tu centro del hogar lo pone."},
++    {"Quiet is on. Turn it off to use this.", "Calma activada. Apágala para usar esto."},
++    {"Sound is muted. Unmute to use this.", "El sonido esta en silencio. Actívalo para usar esto."},
+     {"Volume", "Volumen"},
+     {"Brightness", "Brillo"},
+     {"Night dim", "Brillo de noche"},
+@@ -592,16 +592,16 @@
+     {"Auto lock", "Bloqueo auto"},
+     {"Lock now", "Bloquear ahora"},
+     {"Language", "Idioma"},
+-    {"On", "Si"},
++    {"On", "Sí"},
+     {"Off", "No"},
+     {"Wi-Fi settings", "Ajustes de Wi-Fi"},
+     {"Wi-Fi network", "Red Wi-Fi"},
+-    {"Signal", "Senal"},
++    {"Signal", "Señal"},
+     {"Private network", "Red privada"},
+     {"Home hub", "Centro del hogar"},
+-    {"Not connected", "Sin conexion"},
++    {"Not connected", "Sin conexión"},
+     {"None", "Ninguna"},
+-    {"Weak", "Debil"},
++    {"Weak", "Débil"},
+     {"Fair", "Regular"},
+     {"Good", "Buena"},
+     {"Up", "Activa"},
+@@ -609,19 +609,19 @@
+     {"Off", "Apagada"},
+     {"Not in this build", "No incluida"},
+     {"Software version", "Software"},
+-    {"Update status", "Actualizacion"},
++    {"Update status", "Actualización"},
+     {"Update copy", "Copia"},
+     {"Memory", "Memoria"},
+     {"Host name", "Nombre"},
+     {"Locked: unlock to use this.", "Bloqueado: desbloquea para usar esto."},
+     {"Pictures", "Fotos"},
+-    {"English", "Espanol"},
++    {"English", "Español"},
+     {"Installed and ready", "Instalada y lista"},
+-    {"Waiting for confirmation", "Esperando confirmacion"},
++    {"Waiting for confirmation", "Esperando confirmación"},
+     {"Installed by cable", "Instalada por cable"},
+-    {"Not known yet", "Aun no se sabe"},
++    {"Not known yet", "Aún no se sabe"},
+     {"Not set", "Sin definir"},
+-    {"More settings", "Mas ajustes"},
++    {"More settings", "Más ajustes"},
+     {"Listening light", "Luz al escuchar"},
+     {"Uptime", "Tiempo activo"},
+     {"Custom", "Otro"},
+
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -961,7 +961,7 @@
+ 
+ const char* lang_name(int l)
+ {
+-    static const char* const n[MF_LANG_COUNT] = {"English", "Espanol", "Francais", "Deutsch", "Portugues", "Italiano"};
++    static const char* const n[MF_LANG_COUNT] = {"English", "Español", "Français", "Deutsch", "Português", "Italiano"};
+     return l >= 0 && l < MF_LANG_COUNT ? n[l] : n[0];
+ }
+ 
+
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -556,7 +556,7 @@
+         lv_obj_set_style_border_color(b, fg(40), 0);
+         lv_obj_set_style_bg_color(b, fg(40), LV_STATE_PRESSED);
+         if (more) {
+-            lv_obj_t* l = text(b, tx("More games", "Mas juegos"), kBig, fg(100));
++            lv_obj_t* l = text(b, tx("More games", "Más juegos"), kBig, fg(100));
+             lv_obj_center(l);
+             lv_obj_add_event_cb(b, on_games_more, LV_EVENT_CLICKED, nullptr);
+             continue;
+@@ -591,7 +591,7 @@
+     const int a = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
+     if (mpg_action_blocked(a, s_host->quiet(), s_host->muted())) {
+         toast(s_host->quiet() ? tx("Quiet is on. Turn it off to use this.", "Calma activada. Apagala para usar esto.")
+-                              : tx("Sound is muted. Unmute to use this.", "El sonido esta en silencio. Activalo para usar esto."));
++                              : tx("Sound is muted. Unmute to use this.", "El sonido está en silencio. Actívalo para usar esto."));
+         return;
+     }
+     s_host->action(a);
+@@ -625,7 +625,7 @@
+     uint32_t age = 0;
+     const mpg_tiles_t* t = s_host->tiles(&age);
+     if (t == nullptr || t->n == 0) {
+-        lv_obj_t* none = text(root, tx("Nothing to show yet. Your home hub sends the tiles.", "Nada que mostrar todavia. Tu centro del hogar envia los paneles."), kSmall, fg(70));
++        lv_obj_t* none = text(root, tx("Nothing to show yet. Your home hub sends the tiles.", "Nada que mostrar todavía. Tu centro del hogar envía los paneles."), kSmall, fg(70));
+         lv_obj_set_width(none, 280);
+         lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
+         lv_obj_set_pos(none, 20, 52);
+@@ -757,7 +757,7 @@
+     } else {
+         s_ui->buf = nullptr;
+         s_ui->hint = text(root, s_ui->fcount > 0 ? tx("Could not open the pictures right now.", "No se pueden abrir las fotos ahora.")
+-                                                 : tx("No pictures yet. Send a picture face pack from settings.", "Aun no hay fotos. Envia un paquete de caras con fotos desde los ajustes."),
++                                                 : tx("No pictures yet. Send a picture face pack from settings.", "Aún no hay fotos. Envía un paquete de caras con fotos desde los ajustes."),
+                           kSmall, fg(70));
+         lv_obj_set_width(s_ui->hint, 270);
+         lv_obj_set_style_text_align(s_ui->hint, LV_TEXT_ALIGN_CENTER, 0);
+
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -160,7 +160,7 @@
+         snprintf(t, sizeof(t), "%s %s", tx("Saved zone time now:", "Hora ahora en la zona guardada:"), hhmm);
+     } else {
+         snprintf(t, sizeof(t), "%s", tx("The clock is not set yet. Home sets it when it connects.",
+-                                       "El reloj aun no esta puesto. La casa lo pone al conectarse."));
++                                       "El reloj aún no está puesto. La casa lo pone al conectarse."));
+     }
+     lv_label_set_text(s_time_lbl, t);
+ }
+@@ -322,7 +322,7 @@
+             continue;
+         }
+         if (more) {
+-            lv_obj_t* b = button(s_root, tx("More games", "Mas juegos"), 48, on_games_more);
++            lv_obj_t* b = button(s_root, tx("More games", "Más juegos"), 48, on_games_more);
+             if (slot % 2 == 0) {
+                 new_row(b);
+             }
+@@ -350,7 +350,7 @@
+     button(s_root, tx("Network test", "Prueba de red"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_NET)));
+ #endif
+ #if CONFIG_MAIPAI_VERSION
+-    button(s_root, tx("Version", "Version"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_VERSION)));
++    button(s_root, tx("Version", "Versión"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_VERSION)));
+ #endif
+ #if CONFIG_MAIPAI_GAMES
+     button(s_root, tx("Games", "Juegos"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_GAMES)));
+@@ -359,7 +359,7 @@
+     if (lockable) {
+         button(s_root, tx("Lock", "Bloquear"), 48, on_lock);
+     }
+-    button(s_root, tx("Quick settings", "Ajustes rapidos"), lockable ? 48 : 100, on_open_quick);
++    button(s_root, tx("Quick settings", "Ajustes rápidos"), lockable ? 48 : 100, on_open_quick);
+ }
+ 
+ // The fixed top of every page (patch UI01): the grabber handle, the page title and a 44 px target at the top right (Back on a
+@@ -367,7 +367,7 @@
+ void chrome(int page)
+ {
+     const char* titles_en[] = {"More", "Time zone", "Network test", "Version", "Games"};
+-    const char* titles_es[] = {"Mas", "Zona horaria", "Prueba de red", "Version", "Juegos"};
++    const char* titles_es[] = {"Más", "Zona horaria", "Prueba de red", "Versión", "Juegos"};
+     lv_obj_t* grab = lv_obj_create(s_root);
+     lv_obj_add_flag(grab, LV_OBJ_FLAG_IGNORE_LAYOUT);
+     lv_obj_remove_flag(grab, LV_OBJ_FLAG_CLICKABLE);
+@@ -380,7 +380,7 @@
+     lv_obj_t* t = label(s_root, s_es ? titles_es[page] : titles_en[page], &lv_font_montserrat_20);
+     lv_obj_add_flag(t, LV_OBJ_FLAG_IGNORE_LAYOUT);
+     lv_obj_set_pos(t, 10, 16);
+-    lv_obj_t* b = button(s_root, page == PAGE_MENU ? tx("Done", "Listo") : tx("Back", "Atras"), 0, page == PAGE_MENU ? on_close : on_back_menu);
++    lv_obj_t* b = button(s_root, page == PAGE_MENU ? tx("Done", "Listo") : tx("Back", "Atrás"), 0, page == PAGE_MENU ? on_close : on_back_menu);
+     lv_obj_add_flag(b, LV_OBJ_FLAG_IGNORE_LAYOUT);
+     lv_obj_set_size(b, 108, 44);
+     lv_obj_set_pos(b, 204, 8);
+
+diff --git a/firmware/main/hal/maipai_firstrun.cc b/firmware/main/hal/maipai_firstrun.cc
+--- a/firmware/main/hal/maipai_firstrun.cc
++++ b/firmware/main/hal/maipai_firstrun.cc
+@@ -24,29 +24,29 @@
+          "Let's join your Wi-Fi", "How should I think?", "Pair with MaiPai Home", "Use my own model",
+          "Both stay in your home.", "Private by design", "Your voice and pictures stay in your home.",
+          "Nothing goes to the internet unless you turn it on.", "Got it", "All set!", "You can change it later."},
+-        {{"Hola! Elige tu idioma", "Como me llamo?", "Conectemos tu Wi-Fi", "Como debo pensar?", "Privado por diseno", "Todo listo!"},
+-         "Conectemos tu Wi-Fi", "Como debo pensar?", "Vincular MaiPai Home", "Usar mi propio modelo",
+-         "Ambos quedan en casa.", "Privado por diseno", "Tu voz y fotos quedan en casa.",
+-         "Nada va a internet si no lo activas.", "Entendido", "Todo listo!", "Puedes cambiarlo luego."},
+-        {{"Bonjour! Choisissez", "Comment m'appeler?", "Rejoignons votre Wi-Fi", "Comment penser?", "Prive par design", "Tout est pret!"},
+-         "Rejoignons votre Wi-Fi", "Comment penser?", "Associer MaiPai Home", "Mon propre modele",
+-         "Les deux restent chez vous.", "Prive par design", "Voix et photos restent chez vous.",
+-         "Rien ne va sur internet sans accord.", "Compris", "Tout est pret!", "Changez-le plus tard."},
+-        {{"Hallo! Sprache wahlen", "Wie soll ich heissen?", "WLAN verbinden",
++        {{"¡Hola! Elige tu idioma", "¿Cómo me llamo?", "Conectemos tu Wi-Fi", "¿Cómo debo pensar?", "Privado por diseño", "¡Todo listo!"},
++         "Conectemos tu Wi-Fi", "¿Cómo debo pensar?", "Vincular MaiPai Home", "Usar mi propio modelo",
++         "Ambos quedan en casa.", "Privado por diseño", "Tu voz y fotos quedan en casa.",
++         "Nada va a internet si no lo activas.", "Entendido", "¡Todo listo!", "Puedes cambiarlo luego."},
++        {{"Bonjour ! Choisissez", "Comment m'appeler ?", "Rejoignons votre Wi-Fi", "Comment penser ?", "Privé par design", "Tout est prêt !"},
++         "Rejoignons votre Wi-Fi", "Comment penser ?", "Associer MaiPai Home", "Mon propre modèle",
++         "Les deux restent chez vous.", "Privé par design", "Voix et photos restent chez vous.",
++         "Rien ne va sur internet sans accord.", "Compris", "Tout est prêt !", "Changez-le plus tard."},
++        {{"Hallo! Sprache wählen", "Wie soll ich heißen?", "WLAN verbinden",
+           "Wie soll ich denken?", "Privat von Anfang an", "Alles bereit!"},
+          "WLAN verbinden", "Wie soll ich denken?", "Mit MaiPai Home koppeln", "Eigenes Modell nutzen",
+          "Beides bleibt zu Hause.", "Privat von Anfang an", "Stimme und Bilder bleiben zu Hause.",
+-         "Nichts geht ohne Freigabe ins Netz.", "Verstanden", "Alles bereit!", "Spater andern moglich."},
+-        {{"Ola! Escolha o idioma", "Como devo me chamar?", "Conectar ao Wi-Fi", "Como devo pensar?", "Privado por design", "Tudo pronto!"},
++         "Nichts geht ohne Freigabe ins Netz.", "Verstanden", "Alles bereit!", "Später ändern möglich."},
++        {{"Olá! Escolha o idioma", "Como devo me chamar?", "Conectar ao Wi-Fi", "Como devo pensar?", "Privado por design", "Tudo pronto!"},
+          "Conectar ao Wi-Fi", "Como devo pensar?", "Parear com MaiPai Home", "Usar meu modelo",
+          "Ambos ficam em casa.", "Privado por design", "Voz e fotos ficam em casa.",
+-         "Nada vai a internet sem sua permissao.", "Entendi", "Tudo pronto!", "Pode mudar depois."},
++         "Nada vai a internet sem sua permissão.", "Entendi", "Tudo pronto!", "Pode mudar depois."},
+         {{"Ciao! Scegli la lingua", "Come mi chiamo?", "Connetti il Wi-Fi", "Come devo pensare?", "Privato per design", "Tutto pronto!"},
+          "Connetti il Wi-Fi", "Come devo pensare?", "Abbina MaiPai Home", "Usa il mio modello",
+          "Entrambi restano a casa.", "Privato per design", "Voce e foto restano a casa.",
+          "Nulla va online senza permesso.", "Capito", "Tutto pronto!", "Puoi cambiarlo dopo."}
+     };
+-    const char* langs[6] = {"English", "Espanol", "Francais", "Deutsch", "Portugues", "Italiano"};
++    const char* langs[6] = {"English", "Español", "Français", "Deutsch", "Português", "Italiano"};
+     const char* names[6] = {"Astro", "Clover", "Ember", "Nova", "Pippa", "Rover"};
+     const lv_font_t* f16 = maipai_ui_style::small_font();
+     const lv_font_t* f24 = maipai_ui_style::big_font();

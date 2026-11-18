@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 134,
+ "count": 135,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -28,6 +28,7 @@
   "self.face.decorate": "U01-face-decorators.patch",
   "self.face.gaze": "MD03-music-notes-and-eye-gaze-tools.patch",
   "self.face.get_config": "F01-face-config.patch",
+  "self.face.mouth_cues": "SF10-mouth-cues-tool.patch",
   "self.face.music_notes": "MD03-music-notes-and-eye-gaze-tools.patch",
   "self.face.set_config": "F01-face-config.patch",
   "self.face.show_clock": "F04-face-clock.patch",
@@ -232,6 +233,9 @@
    "ms": "integer"
   },
   "self.face.get_config": {},
+  "self.face.mouth_cues": {
+   "cues": "string"
+  },
   "self.face.music_notes": {
    "count": "integer"
   },

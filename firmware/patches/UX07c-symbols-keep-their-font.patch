@@ -1,0 +1,41 @@
+# Intent: The arrows and the close mark are LVGL symbol glyphs that only the Montserrat font holds; the screens that moved to the Noto fonts draw their symbols with Montserrat 24 again.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_ui_style.h, maipai_pages.cc and maipai_firstrun.cc (ours, patches UX02a, UX07a, UX05b)
+# Check after a flash: the back arrow on the first-run screens and the close mark on a timer row are drawn, not empty boxes.
+
+diff --git a/firmware/main/hal/maipai_ui_style.h b/firmware/main/hal/maipai_ui_style.h
+--- a/firmware/main/hal/maipai_ui_style.h
++++ b/firmware/main/hal/maipai_ui_style.h
+@@ -8,6 +8,8 @@
+ namespace maipai_ui_style {
+ inline const lv_font_t* small_font() { return &font_noto_sans_basic_16_4; }
+ inline const lv_font_t* big_font() { return &font_noto_sans_basic_20_4; }
++// The Noto fonts carry letters, not the LVGL symbol glyphs (arrows, the close mark): symbols keep the Montserrat font, already in the image.
++inline const lv_font_t* symbol_font() { return &lv_font_montserrat_24; }
+ inline lv_color_t text() { return lv_color_hex(0xFFFFFF); }
+ inline lv_color_t muted() { return lv_color_hex(0x8C96AA); }
+ inline lv_color_t bg() { return lv_color_black(); }  // the glass itself: screens sit on it
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -472,7 +472,7 @@
+         s_ui->tids[i] = t[i].id;
+         lv_obj_t* x = box(root, 254, y, 58, MPG_TIMER_ROW_H, fg(30), 10, true);
+         lv_obj_set_style_bg_color(x, fg(60), LV_STATE_PRESSED);
+-        lv_obj_t* xl = text(x, LV_SYMBOL_CLOSE, kBig, fg(100));
++        lv_obj_t* xl = text(x, LV_SYMBOL_CLOSE, maipai_ui_style::symbol_font(), fg(100));
+         lv_obj_center(xl);
+         lv_obj_add_event_cb(x, on_timer_cancel, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t[i].id)));
+     }
+diff --git a/firmware/main/hal/maipai_firstrun.cc b/firmware/main/hal/maipai_firstrun.cc
+--- a/firmware/main/hal/maipai_firstrun.cc
++++ b/firmware/main/hal/maipai_firstrun.cc
+@@ -168,7 +168,7 @@
+         const Words& w = words[(language >= 0 && language < MFR_LANG_COUNT) ? language : 0];
+         if (mfr_back_visible(step)) {
+             lv_obj_t* b = box(root, 4, 4, 44, 44, maipai_ui_style::surface(), true);
+-            lv_obj_t* a = label(b, LV_SYMBOL_LEFT, f24, maipai_ui_style::text(), 44);
++            lv_obj_t* a = label(b, LV_SYMBOL_LEFT, maipai_ui_style::symbol_font(), maipai_ui_style::text(), 44);
+             lv_obj_align(a, LV_ALIGN_CENTER, 0, 0);
+             lv_obj_add_event_cb(b, event, LV_EVENT_CLICKED, (void*)(intptr_t)100);
+         }
