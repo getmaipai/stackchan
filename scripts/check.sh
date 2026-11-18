@@ -17,3 +17,6 @@ if command -v gitleaks >/dev/null 2>&1; then
   fi
 fi
 echo "secrets: ok"
+# Licenses (B-4): dependencies named in THIRD-PARTY.md, LICENSE is the AGPL, SPDX lines use a stated license.
+PY=python3; [ -x host/.venv/bin/python ] && PY=host/.venv/bin/python
+"$PY" scripts/license-check.py || exit 1

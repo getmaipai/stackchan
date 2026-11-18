@@ -1,0 +1,12 @@
+{
+  "$id": "movement-limiter-state",
+  "type": "object",
+  "required": ["state", "usb", "battery_percent"],
+  "additionalProperties": false,
+  "properties": {
+    "state": {"enum": ["free", "usb_limited", "battery_limited", "carried", "orientation_limited"]},
+    "usb": {"type": "boolean"},
+    "battery_percent": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+    "reason": {"type": "string", "maxLength": 120}
+  }
+}

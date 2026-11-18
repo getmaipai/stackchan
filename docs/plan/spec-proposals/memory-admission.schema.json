@@ -1,0 +1,15 @@
+{
+  "$id": "memory-admission",
+  "type": "object",
+  "required": ["max_note_chars", "max_notes_per_person", "refused_classes", "read_scope", "children", "accepted_examples", "refused_examples"],
+  "additionalProperties": false,
+  "properties": {
+    "max_note_chars": {"type": "integer", "minimum": 1, "maximum": 2000},
+    "max_notes_per_person": {"type": "integer", "minimum": 1, "maximum": 10000},
+    "refused_classes": {"type": "array", "items": {"enum": ["payment_number", "government_id", "credential", "markup", "hidden_text", "over_length", "empty"]}},
+    "read_scope": {"enum": ["own_person_and_household"]},
+    "children": {"enum": ["never"]},
+    "accepted_examples": {"type": "array", "items": {"type": "string", "maxLength": 300}},
+    "refused_examples": {"type": "array", "items": {"type": "string", "maxLength": 400}}
+  }
+}

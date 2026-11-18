@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+# Intent: licenses stay honest. (1) every host dependency in host/pyproject.toml is named in THIRD-PARTY.md; (2) LICENSE is the AGPL text;
+# (3) a file that carries an SPDX license line uses one of the licenses this repository states (AGPL-3.0, MIT for new firmware files, Apache-2.0).
+# Usage: python3 scripts/license-check.py   (run by scripts/check.sh; needs Python 3.11 or newer for tomllib)
+# Placement: repo gate. Upstream: none.
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # an older system Python: the check is skipped there and runs where uv's Python is used
+    print("license-check: skipped (needs Python 3.11 or newer)")
+    sys.exit(0)
+
+ROOT = Path(__file__).resolve().parents[1]
+ALLOWED = {"MIT", "AGPL-3.0-only", "AGPL-3.0-or-later", "Apache-2.0"}
+
+
+def main() -> int:
+    problems = []
+    project = tomllib.loads((ROOT / "host" / "pyproject.toml").read_text())
+    deps = list(project["project"]["dependencies"])
+    for group in project["project"].get("optional-dependencies", {}).values():
+        deps += group
+    third = (ROOT / "THIRD-PARTY.md").read_text().lower().replace("_", "-")
+    for dep in deps:
+        name = re.split(r"[<>=\[ ;~!]", dep, maxsplit=1)[0].lower().replace("_", "-")
+        if name and name not in third and name not in {"maipai-bot"}:
+            problems.append(f"THIRD-PARTY.md does not name the dependency {name}. Add its license and what it is used for.")
+    if "GNU AFFERO GENERAL PUBLIC LICENSE" not in (ROOT / "LICENSE").read_text():
+        problems.append("LICENSE is not the AGPL text.")
+    files = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, text=True).stdout.split("\0")
+    for name in files:
+        if not name or name.startswith(("firmware/patches/", "host/spec-vendor/")) or name.endswith((".png", ".svg", ".jpg", ".bin", ".gz", ".woff2")):
+            continue
+        try:
+            text = (ROOT / name).read_text(errors="ignore")
+        except OSError:
+            continue
+        for found in re.findall(r"SPDX-License-Identifier:\s*([A-Za-z0-9.\-+]+)", text):
+            if found not in ALLOWED:
+                problems.append(f"{name}: license {found} is not one this repository states. Use one of {sorted(ALLOWED)} or list it in THIRD-PARTY.md and extend the check.")
+    for line in problems:
+        print("license: " + line, file=sys.stderr)
+    print("license: ok" if not problems else f"license: FAIL ({len(problems)})")
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

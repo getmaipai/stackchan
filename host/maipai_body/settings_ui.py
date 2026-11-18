@@ -595,8 +595,7 @@ BUILDERS.voice=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'overv
   seg(T('Ignore background noise'),[{v:'low',t:T('Low')},{v:'medium',t:T('Medium')},{v:'high',t:T('High')}],u.ignore_noise||'medium',async m=>(await unitSet(id,{ignore_noise:m})).ok),h('p',{class:'help'},T('Higher ignores more fans and hiss, but may miss quiet speech.')),null);
  const wake=card(T('voice.wake'),T('voice.wake_help'),toggle(T('voice.wake'),null,true,()=>false,true),slider(T('voice.wake_sens'),0,100,5,50,x=>x+'%',null,null,null,true),toggle(T('voice.stop_word'),null,true,()=>false,true));
  const lang=card(S['settings.face.lang'],null,(()=>{const sel=h('select',{'aria-label':S['settings.face.lang'],onchange:e=>save(facePath(id),{screen_lang:e.target.value})});for(const l of (fv.choices?fv.choices.lang:LANGS_ALL))sel.append(h('option',{value:l,selected:l===v.lang},S['settings.lang.'+l]||l));return sel})());
- const quiet=card(h('span',{},T('voice.quiet'),' ',soonBadge()),T('voice.quiet_help'),h('div',{class:'hrs off'},field('',h('input',{type:'time',value:'22:00',disabled:true,'aria-label':T('voice.quiet')})),field('',h('input',{type:'time',value:'07:00',disabled:true,'aria-label':T('voice.quiet')}))));
- const vc=await voiceCards(id,u,v);p.append(h('div',{class:'grid'},vol,speech,...vc,lang,wake,quiet))};
+ const vc=await voiceCards(id,u,v);p.append(h('div',{class:'grid'},vol,speech,...vc,lang,wake))};
 
 /* ---- NETWORK ---- */
 BUILDERS.network=async(p,u)=>{const id=u.device_id;

@@ -1,0 +1,14 @@
+{
+  "$id": "indicator-row",
+  "type": "object",
+  "required": ["key", "meaning", "color", "style", "period_s", "brightness"],
+  "additionalProperties": false,
+  "properties": {
+    "key": {"enum": ["live", "camera", "pairing", "attention", "listening", "dance", "idle"]},
+    "meaning": {"type": "string", "maxLength": 60},
+    "color": {"enum": ["green", "pink", "cyan", "amber", "blue", "magenta", "dark"]},
+    "style": {"enum": ["steady", "flash", "pulse"]},
+    "period_s": {"type": "number", "minimum": 0},
+    "brightness": {"type": "number", "minimum": 0, "maximum": 1}
+  }
+}

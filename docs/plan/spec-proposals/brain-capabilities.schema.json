@@ -1,0 +1,9 @@
+{
+  "$id": "brain-capabilities",
+  "type": "object",
+  "required": ["features"],
+  "additionalProperties": false,
+  "properties": {
+    "features": {"type": "array", "items": {"enum": ["stt", "llm", "tts", "vision.describe", "people", "timers", "reminders", "settings"]}}
+  }
+}
