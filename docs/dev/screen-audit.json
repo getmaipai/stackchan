@@ -1,4 +1,54 @@
 {
+ "screen-apps-wall": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-games-wall": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-timers-app": {
+  "targets": 9,
+  "fails": 7,
+  "warnings": 0,
+  "failures": [
+   "targets at 4,36 and 4,96 are 4 px apart (under 8)",
+   "targets at 4,96 and 4,156 are 4 px apart (under 8)",
+   "targets at 4,156 and 4,216 are 4 px apart (under 8)",
+   "targets at 4,216 and 4,276 are 4 px apart (under 8)",
+   "targets at 4,276 and 4,336 are 4 px apart (under 8)",
+   "targets at 4,336 and 4,396 are 4 px apart (under 8)",
+   "targets at 4,396 and 4,456 are 4 px apart (under 8)"
+  ]
+ },
+ "screen-settings-general": {
+  "targets": 11,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "screen-settings-network": {
+  "targets": 6,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "screen-settings-faces": {
+  "targets": 8,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "screen-settings-info": {
+  "targets": 6,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
  "more-menu": {
   "targets": 6,
   "fails": 0,
@@ -21,6 +71,170 @@
   "targets": 6,
   "fails": 0,
   "warnings": 1,
+  "failures": []
+ },
+ "first-run-1": {
+  "targets": 7,
+  "fails": 5,
+  "warnings": 0,
+  "failures": [
+   "target 64x36 px (8.1 x 4.6 mm) at 252,4: under 48 px",
+   "targets at 8,62 and 110,62 are 6 px apart (under 8)",
+   "targets at 110,62 and 212,62 are 6 px apart (under 8)",
+   "targets at 8,128 and 110,128 are 6 px apart (under 8)",
+   "targets at 110,128 and 212,128 are 6 px apart (under 8)"
+  ]
+ },
+ "first-run-2": {
+  "targets": 9,
+  "fails": 20,
+  "warnings": 0,
+  "failures": [
+   "target 44x44 px (5.6 x 5.6 mm) at 4,4: under 48 px",
+   "target 64x36 px (8.1 x 4.6 mm) at 252,4: under 48 px",
+   "target 304x44 px (38.6 x 5.6 mm) at 8,48: under 48 px",
+   "target 96x40 px (12.2 x 5.1 mm) at 8,98: under 48 px",
+   "target 96x40 px (12.2 x 5.1 mm) at 110,98: under 48 px",
+   "target 96x40 px (12.2 x 5.1 mm) at 212,98: under 48 px",
+   "target 96x40 px (12.2 x 5.1 mm) at 8,142: under 48 px",
+   "target 96x40 px (12.2 x 5.1 mm) at 110,142: under 48 px",
+   "target 96x40 px (12.2 x 5.1 mm) at 212,142: under 48 px",
+   "targets at 4,4 and 8,48 are 0 px apart (under 8)",
+   "targets at 8,48 and 8,98 are 6 px apart (under 8)",
+   "targets at 8,48 and 110,98 are 6 px apart (under 8)"
+  ]
+ },
+ "first-run-4": {
+  "targets": 5,
+  "fails": 8,
+  "warnings": 0,
+  "failures": [
+   "target 44x44 px (5.6 x 5.6 mm) at 4,4: under 48 px",
+   "target 64x36 px (8.1 x 4.6 mm) at 252,4: under 48 px",
+   "target 280x42 px (35.6 x 5.3 mm) at 20,52: under 48 px",
+   "target 280x42 px (35.6 x 5.3 mm) at 20,98: under 48 px",
+   "target 280x42 px (35.6 x 5.3 mm) at 20,144: under 48 px",
+   "targets at 4,4 and 20,52 are 4 px apart (under 8)",
+   "targets at 20,52 and 20,98 are 4 px apart (under 8)",
+   "targets at 20,98 and 20,144 are 4 px apart (under 8)"
+  ]
+ },
+ "first-run-5": {
+  "targets": 2,
+  "fails": 1,
+  "warnings": 1,
+  "failures": [
+   "target 44x44 px (5.6 x 5.6 mm) at 4,4: under 48 px"
+  ]
+ },
+ "first-run-6": {
+  "targets": 0,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "first-run-next": {
+  "targets": 2,
+  "fails": 2,
+  "warnings": 0,
+  "failures": [
+   "target 140x42 px (17.8 x 5.3 mm) at 90,192: under 48 px",
+   "targets at 8,34 and 90,192 are 6 px apart (under 8)"
+  ]
+ },
+ "screen-camera-on": {
+  "targets": 0,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-subtitles": {
+  "targets": 0,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-timers-running": {
+  "targets": 2,
+  "fails": 3,
+  "warnings": 0,
+  "failures": [
+   "target 58x44 px (7.4 x 5.6 mm) at 254,52: under 48 px",
+   "target 58x44 px (7.4 x 5.6 mm) at 254,98: under 48 px",
+   "targets at 254,52 and 254,98 are 2 px apart (under 8)"
+  ]
+ },
+ "screen-page-clock": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-timers": {
+  "targets": 3,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-games": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-actions": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 4,
+  "failures": []
+ },
+ "screen-control-sheet": {
+  "targets": 8,
+  "fails": 16,
+  "warnings": 6,
+  "failures": [
+   "target 156x44 px (19.8 x 5.6 mm) at 2,140: under 48 px",
+   "target 156x44 px (19.8 x 5.6 mm) at 162,140: under 48 px",
+   "targets at 2,140 and 162,140 are 4 px apart (under 8)",
+   "targets at 2,140 and 5,176 overlap",
+   "targets at 2,140 and 57,176 overlap",
+   "targets at 2,140 and 109,176 overlap",
+   "targets at 2,140 and 161,176 are 3 px apart (under 8)",
+   "targets at 162,140 and 109,176 are 3 px apart (under 8)",
+   "targets at 162,140 and 161,176 overlap",
+   "targets at 162,140 and 213,176 overlap",
+   "targets at 162,140 and 265,176 overlap",
+   "targets at 5,176 and 57,176 are 2 px apart (under 8)"
+  ]
+ },
+ "es-apps-wall": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "es-settings-general": {
+  "targets": 11,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "es-settings-info": {
+  "targets": 6,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "es-page-timers": {
+  "targets": 3,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "es-page-actions": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 4,
   "failures": []
  }
 }

@@ -52,7 +52,7 @@ static void test_wall(void)
     for (int a = 0; a < MAC_WALL_PER_PAGE; a++) {
         int x, y, w, h;
         mac_wall_tile(a, &x, &y, &w, &h);
-        CHECK(w == 154 && h == 90);                                       /* patch NX08: two columns across the whole width, two rows down the zone */
+        CHECK(w == 150 && h == 86);                                       /* patch NX08, spaced by UX13e: two columns across the width with 6 px margins, two rows down the zone */
         { int ax, ay, aw, ah, px, py, pw, ph; mac_tile_art_box(&ax, &ay, &aw, &ah); mac_tile_plate_box(&px, &py, &pw, &ph);
           CHECK(ax >= 0 && ax + aw <= w && ay + ah <= py && py + ph <= h && ph >= 28); }   /* the picture sits above the label plate, both inside the tile */
         CHECK(x >= 0 && x + w <= MAC_W && y >= MAC_TOP && y + h <= MAC_WALL_DOTS_Y - MAC_WALL_DOT_ON / 2); /* the dots stay below the tiles */
@@ -62,7 +62,7 @@ static void test_wall(void)
             mac_wall_tile(b, &x2, &y2, &w2, &h2);
             const int sep_x = x + w <= x2 || x2 + w2 <= x, sep_y = y + h <= y2 || y2 + h2 <= y;
             CHECK(sep_x || sep_y);
-            if (!sep_x) CHECK(y2 - (y + h) == MAC_WALL_GAP || y - (y2 + h2) == MAC_WALL_GAP);   /* 4 px between the rows */
+            if (!sep_x) CHECK(y2 - (y + h) == MAC_WALL_GAP || y - (y2 + h2) == MAC_WALL_GAP);   /* 8 px between the rows (patch UX13e) */
             if (!sep_y) CHECK(x2 - (x + w) == MAC_WALL_GAP || x - (x2 + w2) == MAC_WALL_GAP);   /* and between the columns */
         }
         CHECK(mac_wall_hit(x + w / 2, y + h / 2) == a);
