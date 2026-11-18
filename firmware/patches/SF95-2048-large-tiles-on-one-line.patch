@@ -1,0 +1,19 @@
+# Intent: In 2048 the tiles of 1024 and above (four digits) wrapped onto two lines in the 20 px font (found by the playground's render, game-slide-2048.png). Tiles from 1024 up use the 16 px font so the number stays on one line.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_grid.cc (ours)
+# Check after a flash: a 2048 board with a 1024 and a 2048 tile shows each number on one line inside its tile.
+# Kconfig: none
+# Memory cost: none (a different font pointer for large tiles).
+
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -308,7 +308,7 @@ void draw_slide(Grid* g, lv_layer_t* layer)
+         const int pop = gan_pop_scale(&g->anim, i, now_ms());
+         const int grow = w * (pop - 1000) / 2000;
+         rect(layer, x - grow, y - grow, w + 2 * grow, w + 2 * grow, 6, kTileColor[e > 11 ? 11 : e]);
+-        if (e > 0) text(layer, kPow[e > 17 ? 17 : e], x, y + w / 2 - 12, x + w - 1, y + w - 1, e <= 2 ? 0x4A4036 : 0xFFFFFF, &lv_font_montserrat_20);
++        if (e > 0) text(layer, kPow[e > 17 ? 17 : e], x, y + w / 2 - 12, x + w - 1, y + w - 1, e <= 2 ? 0x4A4036 : 0xFFFFFF, e >= 10 ? &lv_font_montserrat_16 : &lv_font_montserrat_20);   // patch SF95: four digits fit on one line
+     }
+ }
+ 
