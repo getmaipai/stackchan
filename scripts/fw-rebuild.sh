@@ -51,7 +51,7 @@ n=0; total=$(grep -v '^#' "$P/ORDER" | grep -c .)
 mkdir -p "$ROOT/.runs"; LOG="$ROOT/.runs/fw-rebuild.log"; : > "$LOG"
 for f in $(grep -v '^#' "$P/ORDER" | grep .); do
     n=$((n+1))
-    sed -n '/^diff --git/,$p' "$P/$f" > "$TREE/.patch.diff"
+    awk '/^diff --git|^--- /{p=1} p' "$P/$f" > "$TREE/.patch.diff"
     if ! git apply --whitespace=nowarn "$TREE/.patch.diff" 2>"$TREE/.apply.err"; then
         echo "FAIL apply $n/$total $f" | tee -a "$LOG"; head -8 "$TREE/.apply.err" | tee -a "$LOG"
         echo "Fix: the patch no longer applies after the patches before it. Rebase $f onto the tree in $TREE." >&2; exit 1
