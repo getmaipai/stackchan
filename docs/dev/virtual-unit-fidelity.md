@@ -8,9 +8,10 @@ Reading pass 2: it did not converge, and the new flags are mostly different in k
 
 Games (`status`, `bench_event`, `bench_swipe`, `bench_install`), timers (`list`, `snooze`, `cancel`), `clock.set` bound, lock `bench_touch` and `bench_key`, and face `bench_mode` (all four modes). Reports: `.runs/vu-gaps-*.md` of that run; summary of the evidence is in the tests.
 
+`timer.alarm` and `clock.get` now follow the zone's own POSIX rule with daylight saving (`scripts/virtual-unit/posixtz.py`, checked against the system zone database for 2026 in seven zones).
+
 ## Known remaining differences
 
-- `timer.alarm` uses a fixed zone table, not the device clock and its zone rules.
 - Lock `bench_key` models digits, delete and clear only; the firmware's keypad has more states.
 - Anything the unit measures (counters, timing, camera, radio) is a fixed documented value.
 - The checker is not a fixed point: a third pass would flag new nitpicks. Fix a gap when a test needs it.

@@ -7,6 +7,7 @@ import datetime as dt
 import json
 import re
 
+import posixtz
 from tools import tool
 
 ZONES = [("pacific_honolulu", "Honolulu", "HST10"), ("america_anchorage", "Anchorage", "AKST9AKDT,M3.2.0,M11.1.0"),
@@ -35,9 +36,9 @@ def clock_reply(u, a):
     z = next((z for z in ZONES if z[0] == a["zone"]), None)
     local = ""
     if a["epoch"] is not None:
-        # UTC-backed clock with a deterministic basic offset; seasonal transitions preserve the representative firmware rule's display purpose.
-        off = {"america_new_york": -5, "america_chicago": -6, "america_denver": -7, "america_los_angeles": -8, "asia_kolkata": 5}.get(a["zone"], 0)
-        local = dt.datetime.fromtimestamp(a["epoch"] + u.now_ms // 1000 + off * 3600, dt.timezone.utc).strftime("%Y-%m-%d %H:%M")
+        now = a["epoch"] + u.now_ms // 1000
+        off = posixtz.utc_offset(z[2], now) if z else 0  # the zone's own POSIX rule, daylight saving included
+        local = dt.datetime.fromtimestamp(now + off, dt.timezone.utc).strftime("%Y-%m-%d %H:%M")
     return {"ok": True, "zone": z[0] if z else "custom", "label": z[1] if z else "custom", "custom": z is None, "posix": z[2] if z else "", "clock_set": a["epoch"] is not None, "local": local}
 
 @tool("self.clock.get")
@@ -167,11 +168,13 @@ def timer_alarm(u,args):
     if a["epoch"] is None:return {"ok":False,"error":"no_clock"}
     h=args.get("hour",0);m=args.get("minute",0)
     if not 0<=h<=23 or not 0<=m<=59:return {"ok":False,"error":"bad_argument"}
-    offsets={"america_new_york":-5,"america_chicago":-6,"america_denver":-7,"america_los_angeles":-8,"asia_kolkata":5,"asia_tokyo":9}
-    off=offsets.get(a["zone"],0)
-    now=a["epoch"]+u.now_ms//1000+off*3600; cur=dt.datetime.fromtimestamp(now,dt.timezone.utc); target=cur.replace(hour=h,minute=m,second=0,microsecond=0)
-    if target.timestamp()<=now:target+=dt.timedelta(days=1)
-    return timer_add(a,u.now_ms+int(target.timestamp()-now)*1000,args.get("label",""),args.get("silent",False))
+    z=next((z for z in ZONES if z[0]==a["zone"]),None); rule=z[2] if z else "UTC0"
+    now=a["epoch"]+u.now_ms//1000; local_now=now+posixtz.utc_offset(rule,now)
+    cur=dt.datetime.fromtimestamp(local_now,dt.timezone.utc); target=cur.replace(hour=h,minute=m,second=0,microsecond=0)
+    target_local=int(target.timestamp())
+    if target_local<=local_now:target_local+=86400  # the next time the wall clock shows hh:mm
+    target_utc=posixtz.local_to_utc(rule,target_local)
+    return timer_add(a,u.now_ms+int(target_utc-now)*1000,args.get("label",""),args.get("silent",False))
 @tool("self.timer.list")
 def timer_list(u,args):
     a=app(u);timer_update(a,u);return {"clock":a["epoch"] is not None,"ringing":any(t["ringing"] for t in a["timers"]),"timers":[{"id":t["id"],"kind":"timer","left":max(0,(t["due"]-u.now_ms+999)//1000),"label":t["label"]} for t in a["timers"]]}

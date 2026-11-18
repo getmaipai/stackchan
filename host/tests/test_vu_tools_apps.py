@@ -93,3 +93,21 @@ def test_all_requested_apps_tools_are_registered_and_return_dicts():
     for name in names:
         assert name in vunit._tools.REGISTRY
         assert isinstance(vunit._tools.REGISTRY[name](unit(),{}),dict)
+
+
+def test_clock_and_alarms_follow_the_zones_own_posix_rule_with_daylight_saving():
+    """timer.alarm and clock.get use the zone rule from the unit's table (US and Australian daylight saving), not a fixed offset."""
+    import datetime as dt
+
+    summer = int(dt.datetime(2026, 7, 1, 16, 0, tzinfo=dt.timezone.utc).timestamp())  # 12:00 in New York, 02:00 next day in Sydney
+    winter = int(dt.datetime(2026, 12, 1, 17, 0, tzinfo=dt.timezone.utc).timestamp())  # 12:00 in New York, 04:00 next day in Sydney
+    with vunit.VirtualUnit() as u:
+        u.call("self.clock.set_zone", {"zone": "america_new_york"})
+        u.call("self.clock.set", {"epoch": summer})
+        assert u.call("self.clock.get")["local"].endswith("12:00")  # UTC-4 in July
+        out = u.call("self.timer.alarm", {"hour": 13, "minute": 0})
+        assert out["ok"] and 3599 <= u.call("self.timer.list")["timers"][0]["left"] <= 3600  # one hour, to the second
+        u.call("self.clock.set", {"epoch": winter})
+        assert u.call("self.clock.get")["local"].endswith("12:00")  # UTC-5 in December
+        u.call("self.clock.set_zone", {"zone": "australia_sydney"})
+        assert u.call("self.clock.get")["local"].endswith("04:00")  # UTC+11 in December
