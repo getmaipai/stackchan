@@ -46,7 +46,7 @@ def test_the_night_camera_reads_the_stream_frame_through_the_adapter_driver():
     assert "robot.robot.camera.stream_frame" not in source
 
 
-def test_a_connection_that_sends_no_bytes_logs_nothing_but_a_bad_request_still_does(caplog):
+def test_a_connection_that_sends_no_bytes_logs_nothing_and_a_bad_request_is_one_quiet_info_line(caplog):
     import asyncio
     import logging
 
@@ -69,7 +69,7 @@ def test_a_connection_that_sends_no_bytes_logs_nothing_but_a_bad_request_still_d
             await asyncio.sleep(0.2)
             quiet = [r for r in caplog.records if r.levelno >= logging.ERROR]
             assert quiet == []
-            # A garbage request is a real handshake failure and still logs.
+            # A garbage request is logged as one INFO line without a traceback (anyone can send one).
             reader, writer = await asyncio.open_connection("127.0.0.1", port)
             writer.write(b"NOT HTTP AT ALL\r\n\r\n")
             await writer.drain()
@@ -78,7 +78,9 @@ def test_a_connection_that_sends_no_bytes_logs_nothing_but_a_bad_request_still_d
 
     with caplog.at_level(logging.DEBUG, logger="test.ws.quiet"):
         asyncio.run(run())
-    assert any(r.getMessage() == "opening handshake failed" for r in caplog.records)
+    lines = [r for r in caplog.records if "did not complete the WebSocket handshake" in r.getMessage()]
+    assert lines and all(r.levelno == logging.INFO and not r.exc_info for r in lines)
+    assert not any(r.levelno >= logging.ERROR for r in caplog.records)
 
 
 def test_the_bundle_builds_its_face_detector_without_the_reachy_sdk():

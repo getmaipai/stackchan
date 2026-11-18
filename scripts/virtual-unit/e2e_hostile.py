@@ -111,8 +111,7 @@ async def hostile_unauthenticated(rig, check) -> None:
             await quiet(ws.close(), 5)
         await quiet(one(), 30)
     await health(rig, check, "no credentials, frames before hello", mark, before)
-    check("a request that is not valid HTTP does not log an ERROR with a traceback (anyone on the network can fill the log with it)", not errors_since(rig, mark, keep_handshake=True) or not any("handshake failed" in l for l in errors_since(rig, mark, keep_handshake=True)),
-          known_gap="the host logs ERROR 'opening handshake failed' and two tracebacks for every request with a bad header (app track: set the websocket servers' logger to a quiet one for handshake errors)")
+    check("a request that is not valid HTTP does not log an ERROR with a traceback (anyone on the network can fill the log with it)", not errors_since(rig, mark, keep_handshake=True) or not any("handshake failed" in l for l in errors_since(rig, mark, keep_handshake=True)))
 
     # 2. many connections held open without a hello
     mark, before = len(rig.log), sample(rig.proc.pid)
@@ -233,8 +232,7 @@ async def hostile_paired_peer(rig, check) -> None:
     # many sessions with one token at once (the host keeps one session per unit)
     await asyncio.gather(*[quiet(session([json.dumps(HELLO)], pause=0), 30) for _ in range(60)])
     await health(rig, check, "sixty simultaneous sessions with one token", mark, before)
-    check("a session that closes while a command is in flight leaves no unretrieved future in the log", not rig.host_said(r"Future exception was never retrieved"),
-          known_gap="asyncio logs ERROR 'Future exception was never retrieved' (ConnectionError: StackChan disconnected during a command) for every command cut by a closing or superseded session (app track: retrieve the exception when failing the pending commands)")
+    check("a session that closes while a command is in flight leaves no unretrieved future in the log", not rig.host_said(r"Future exception was never retrieved"))
 
     # the avatar port: frames that are not frames
     mark, before = len(rig.log), sample(rig.proc.pid)
@@ -333,8 +331,7 @@ async def hostile_settings(rig, check) -> None:
     check("a unit with several wrong codes is refused for a while and the refusal says so", status == 400 and (b"wait" in text.lower() or b"too many" in text.lower() or b"restart" in text.lower()), f"{status} {text[:160]!r}")
     await health(rig, check, "guessing the pairing digits", len(rig.log), sample(rig.proc.pid))
 
-    check("a unit that drops in the middle of the pairing exchange is logged without a traceback", not rig.host_said(r"pairing exchange stopped"),
-          known_gap="the host logs a WARNING with a traceback ('pairing exchange stopped') when the unit closes its socket while the host waits for the digits (app track: treat a closed socket as an ordinary end)")
+    check("a unit that drops in the middle of the pairing exchange is logged without a traceback", not rig.host_said(r"pairing exchange stopped"))
 
 
 EXTRA_HOSTILE = {"hostile_unauthenticated": hostile_unauthenticated, "hostile_paired_peer": hostile_paired_peer, "hostile_settings": hostile_settings}

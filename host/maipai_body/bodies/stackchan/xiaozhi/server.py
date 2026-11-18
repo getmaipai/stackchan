@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from aiohttp import web
 from websockets.asyncio.server import ServerConnection, serve
-from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
+from websockets.exceptions import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
 
 from maipai_body.bodies.stackchan.avatar_frames import (
     AvatarCommand,
@@ -624,6 +624,8 @@ class XiaozhiServer:
                 await websocket.close(code=1008, reason="Pairing failed.")
             except Exception:
                 pass
+        except (ConnectionClosed, OSError):
+            LOG.info("StackChan pairing exchange ended: the unit closed its connection")
         except Exception:
             LOG.warning("StackChan pairing exchange stopped", exc_info=True)
 
@@ -895,6 +897,7 @@ class XiaozhiServer:
                             "StackChan disconnected during a command. Reconnect and retry."
                         )
                     )
+                    future.exception()  # read it here, so a caller that already gave up does not leave an unretrieved error in the log
                 self._pending_device_calls.pop(request_id, None)
 
     async def _mcp(self, ws: ServerConnection, session_id: str, payload: dict[str, Any]) -> None:
