@@ -35,7 +35,7 @@ typedef struct {
     float speed_dps;
     person_t p[MAXP];
     /* mode and gates */
-    uint8_t mode, awake, muted, privacy, vision_off, full_quiet, quiet, denied, conversation, locked, carried, night;
+    uint8_t mode, awake, muted, privacy, vision_off, full_quiet, quiet, denied, conversation, locked, carried, night, trigger;
     int drop_frames;     /* the camera delivers nothing */
     float flicker;       /* added to every pixel on odd frames */
     int detector_faces;  /* the detector build finds a face when a person is within 6 degrees of the optical axis */
@@ -140,6 +140,8 @@ static void step(world_t* w, int addressed)
     in.locked = w->locked;
     in.carried = w->carried;
     in.night = w->night;
+    in.trigger = w->trigger;
+    w->trigger = 0; /* an edge */
     in.mode = w->mode;
     if (deliver && !w->drop_frames) {
         render(w, frame);
@@ -428,6 +430,63 @@ static void test_two_people_the_bigger_mover_wins(void)
     CHECK(fabsf(w.pan - 22.0f) < 4.0f);
 }
 
+/* ---- patch SF55: the net, the trigger and the sighting window ---- */
+static void test_net_trigger_and_follow_window(void)
+{
+    world_t w;
+    ms_init(&S, 0);
+    world_init(&w, &S, MS_MODE_ALWAYS);
+    run(&w, 5, 0);
+    CHECK(w.bursts == 1);
+    /* a person walks in silently: the 30 s net finds them */
+    person(&w, 0, 25.0f, 1, 6, 50);
+    run(&w, 20, 0);
+    CHECK(w.bursts == 1 && S.turns_total == 0);               /* nothing looks before the net is due */
+    run(&w, 12, 0);
+    CHECK(S.turns_total == 1);
+    /* gates: a trigger with muted, locked, vision off, full quiet or night looks at nothing and is not kept for later */
+    for (int g = 0; g < 5; g++) {
+        ms_init(&S, 0);
+        world_init(&w, &S, MS_MODE_ALWAYS);
+        w.muted = g == 0; w.locked = g == 1; w.vision_off = g == 2; w.full_quiet = g == 3; w.night = g == 4;
+        for (int i = 0; i < 3; i++) { w.trigger = 1; run(&w, 1, 0); }
+        CHECK(w.bursts == 0 && w.moves == 0 && w.camera_when_blocked == 0);
+        w.muted = w.locked = w.vision_off = w.full_quiet = w.night = 0;
+        run(&w, 2, 0);
+        CHECK(w.bursts <= 1);                                  /* only the look an opened gate always starts: not three kept triggers */
+    }
+    /* triggers in a quick row cost no more than one look per burst spacing, and every one carries the cue */
+    ms_init(&S, 0);
+    world_init(&w, &S, MS_MODE_ALWAYS);
+    for (int i = 0; i < 10; i++) { w.trigger = 1; run(&w, 1, 0); }
+    CHECK(w.bursts <= 12 && w.cues_missing == 0);
+    /* after a sighting the watch looks every 2 s for 20 s, then falls back to the net */
+    ms_init(&S, 0);
+    world_init(&w, &S, MS_MODE_ALWAYS);
+    person(&w, 0, 25.0f, 1, 6, 50);
+    run(&w, 6, 0);
+    CHECK(S.turns_total == 1);
+    w.p[0].present = 0;
+    run(&w, 40, 0);
+    const int b1 = w.bursts;
+    run(&w, 20, 0);
+    CHECK(w.bursts - b1 <= 2);                                /* well past the 20 s window: net only */
+}
+
+/* ---- the sound rise ---- */
+static void test_sound_rise(void)
+{
+    ms_sound_t m;
+    memset(&m, 0, sizeof(m));
+    uint32_t t = 0;
+    for (int i = 0; i < 20; i++) { CHECK(!ms_sound_rise(&m, 200, t)); t += 1000; }   /* a quiet room */
+    CHECK(ms_sound_rise(&m, 1500, t));                                               /* a clap */
+    t += 1000;
+    CHECK(!ms_sound_rise(&m, 1500, t));                                              /* held off */
+    for (int i = 0; i < 30; i++) { CHECK(!ms_sound_rise(&m, 1500, t)); t += 1000; }  /* a steady loud room raises the average: no more triggers */
+    CHECK(!ms_sound_rise(&m, 300, t));
+}
+
 /* ---- the notice (always) ---- */
 static void test_notice_turns_once_and_goes_home_after_twenty_seconds(void)
 {
@@ -435,10 +494,16 @@ static void test_notice_turns_once_and_goes_home_after_twenty_seconds(void)
     ms_init(&S, 0);
     world_init(&w, &S, MS_MODE_ALWAYS);
     run(&w, 10, 0);
-    CHECK(w.moves == 0 && S.turns_total == 0);                /* empty room: only the one frame a second */
-    CHECK(w.bursts >= 9 && w.bursts <= 11 && w.cues_missing == 0);
+    CHECK(w.moves == 0 && S.turns_total == 0);                /* empty room: only the first look, then the 30 s net (patch SF55) */
+    CHECK(w.bursts == 1 && w.cues_missing == 0);
+    run(&w, 50, 0);
+    CHECK(w.bursts == 2 || w.bursts == 3);                    /* looks at 0, 30 and 60 s, never a frame a second */
+    CHECK(w.cues_missing == 0);
     person(&w, 0, 25.0f, 1, 6, 50);
+    w.trigger = 1;                                            /* a sound, a touch or a bump: one look at once */
+    const int before = w.bursts;
     run(&w, 6, 0);
+    CHECK(w.bursts >= before + 1 && w.cues_missing == 0);
     CHECK(S.state == MS_HOLD && fabsf(w.pan - 25.0f) < 4.0f);
     CHECK(S.turns_total == 1 && S.searches_total == 0);       /* no sweep */
     w.p[0].present = 0;                                       /* leaves */
@@ -454,12 +519,12 @@ static void test_notice_turns_once_and_goes_home_after_twenty_seconds(void)
     person(&w, 0, 25.0f, 1, 6, 50);
     run(&w, 60, 0);
     CHECK(w.bursts == 0 && w.moves == 0);
-    /* quiet and night: one frame every two seconds */
+    /* quiet and night: the same 30 s net */
     ms_init(&S, 0);
     world_init(&w, &S, MS_MODE_ALWAYS);
     w.quiet = 1;
-    run(&w, 20, 0);
-    CHECK(w.bursts >= 9 && w.bursts <= 11);
+    run(&w, 62, 0);
+    CHECK(w.bursts >= 2 && w.bursts <= 3);
 }
 
 static void test_follow_is_gentle_and_capped(void)
@@ -730,6 +795,8 @@ int main(void)
     test_a_still_person_is_not_seen_by_motion();
     test_light_flicker_makes_no_turn();
     test_two_people_the_bigger_mover_wins();
+    test_net_trigger_and_follow_window();
+    test_sound_rise();
     test_notice_turns_once_and_goes_home_after_twenty_seconds();
     test_follow_is_gentle_and_capped();
     test_always_gates_locked_carried_night();

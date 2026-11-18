@@ -251,7 +251,7 @@ static void test_settings(void)
     /* auto lock: the choices follow the lock core, a tap goes to the next and wraps to Off */
     CHECK(MAC_AUTO_COUNT == LK_AUTO_COUNT);
     for (int i = 0; i < MAC_AUTO_COUNT; i++) CHECK(MAC_AUTO_MIN[i] == LK_AUTO_MINUTES[i] && mlk_auto_ok(MAC_AUTO_MIN[i]));
-    CHECK(mac_auto_next(0) == 1 && mac_auto_next(1) == 5 && mac_auto_next(15) == 30 && mac_auto_next(60) == 0 && mac_auto_next(7) == 0);
+    CHECK(mac_auto_next(0) == 1 && mac_auto_next(1) == 15 && mac_auto_next(15) == 0 && mac_auto_next(30) == 0 && mac_auto_next(7) == 0); /* a saved 5, 30 or 60 wraps to Off on the next tap */
     char b[16];
     mac_auto_text(b, sizeof(b), 0, 0); CHECK(strcmp(b, "Off") == 0);
     mac_auto_text(b, sizeof(b), 0, 1); CHECK(strcmp(b, "No") == 0);

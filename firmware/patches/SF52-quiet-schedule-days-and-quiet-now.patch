@@ -1,0 +1,213 @@
+# Intent: Quiet hours like a phone's quiet time (owner decision 22). The unit's quiet schedule gets days (Sunday to Saturday, a window that wraps midnight belongs to the day it starts on) and a one-tap "Quiet now" that holds until it is turned off. It is off until set. While quiet the unit's own sounds and the hourly chime are silent; alarms and timers the person set still ring, and the always-on safety cues, the tones that answer a person and find-my-robot are unchanged. The saved record grows by two bytes (an old record keeps every day and quiet-now off). self.audio.set_sound_policy takes quiet_days and quiet_now, the new self.audio.quiet_now {on} is the tool for a tile or a dashboard switch, and self.audio.sound_info reports both. Memory cost: none (two bytes of policy).
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.audio.quiet_now {on true} makes self.audio.sound_info answer quiet_now true and night true; a schedule set for Monday to Friday 22:00 to 07:00 is quiet at 23:00 on a Thursday and at 03:00 on a Saturday but not at 23:00 on a Saturday.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_sounds_core.h b/firmware/main/hal/maipai_sounds_core.h
+--- a/firmware/main/hal/maipai_sounds_core.h
++++ b/firmware/main/hal/maipai_sounds_core.h
+@@ -70,6 +70,8 @@ typedef struct {
+     uint8_t dark;        /* the host's verdict "it is night now" (the sensor); trusted only while the host is up */
+     int16_t quiet_from;  /* quiet hours, minutes of the local day; -1 for none */
+     int16_t quiet_to;
++    uint8_t quiet_days;  /* patch SF52: the days the schedule applies to, bit 0 Sunday to bit 6 Saturday (default all seven) */
++    uint8_t quiet_now;   /* patch SF52: "Quiet now": quiet until it is turned off, whatever the schedule says */
+ } ms_policy_t;
+ 
+ static inline void ms_policy_default(ms_policy_t* p)
+@@ -80,6 +82,8 @@ static inline void ms_policy_default(ms_policy_t* p)
+     p->dark = 0;
+     p->quiet_from = -1;
+     p->quiet_to = -1;
++    p->quiet_days = 0x7f;
++    p->quiet_now = 0;
+ }
+ 
+ /* Is minute-of-day `m` inside [from, to)? A window that wraps midnight (22:00 to 07:00) works; from == to is empty. */
+@@ -94,6 +98,23 @@ static inline int ms_in_window(int from, int to, int m)
+     return m >= from || m < to;
+ }
+ 
++/* Patch SF52: the schedule with days, like a phone's quiet time. `weekday` is 0 Sunday to 6 Saturday, -1 while the clock is not set. A window that wraps midnight
++ * belongs to the day it starts on: 22:00 to 07:00 on Friday is quiet until 07:00 on Saturday. With no days set the schedule never applies. */
++static inline int ms_in_schedule(const ms_policy_t* p, int minute, int weekday)
++{
++    if (!ms_in_window(p->quiet_from, p->quiet_to, minute)) return 0;
++    if (weekday < 0 || weekday > 6) return (p->quiet_days & 0x7f) != 0; /* no calendar: the days cannot be told: any selected day counts */
++    int start_day = weekday;
++    if (p->quiet_from > p->quiet_to && minute < p->quiet_to) start_day = (weekday + 6) % 7; /* after midnight: the window began yesterday */
++    return (p->quiet_days >> start_day) & 1;
++}
++
++/* Quiet now for sounds: the "Quiet now" switch, the schedule, or the host's dark verdict while the host is up. */
++static inline int ms_is_night_ex(const ms_policy_t* p, int minute, int weekday, int host_up)
++{
++    return p->quiet_now || ms_in_schedule(p, minute, weekday) || (p->dark && host_up);
++}
++
+ /* Is it night for sound purposes? `minute` is the unit's local minute of the day, -1 while its clock is not set. */
+ static inline int ms_is_night(const ms_policy_t* p, int minute, int host_up)
+ {
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -64,10 +64,22 @@ int minute_of_day()
+     return tm_local.tm_hour * 60 + tm_local.tm_min;
+ }
+ 
++// Patch SF52: the unit's local weekday, 0 Sunday to 6 Saturday, or -1 while its clock has never been set.
++int weekday_now()
++{
++    time_t t = time(nullptr);
++    if (t < 1700000000) {
++        return -1;
++    }
++    struct tm tm_local = {};
++    localtime_r(&t, &tm_local);
++    return tm_local.tm_wday;
++}
++
+ void save_policy_locked()
+ {
+-    uint8_t buf[8];
+-    buf[0] = 1;  // version
++    uint8_t buf[10];
++    buf[0] = 2;  // version (1 had no days and no quiet-now)
+     buf[1] = s_policy.enabled;
+     buf[2] = s_policy.night_ok;
+     buf[3] = s_policy.muted;
+@@ -75,6 +87,8 @@ void save_policy_locked()
+     buf[5] = static_cast<uint8_t>((s_policy.quiet_from >> 8) & 0xFF);
+     buf[6] = static_cast<uint8_t>(s_policy.quiet_to & 0xFF);
+     buf[7] = static_cast<uint8_t>((s_policy.quiet_to >> 8) & 0xFF);
++    buf[8] = s_policy.quiet_days;
++    buf[9] = s_policy.quiet_now;
+     nvs_handle_t h;
+     if (nvs_open(kNamespace, NVS_READWRITE, &h) != ESP_OK) {
+         ESP_LOGW(TAG, "could not save the sound policy");
+@@ -93,14 +107,18 @@ void load_policy_locked()
+     if (nvs_open(kNamespace, NVS_READONLY, &h) != ESP_OK) {
+         return;
+     }
+-    uint8_t buf[8];
++    uint8_t buf[10];
+     size_t n = sizeof(buf);
+-    if (nvs_get_blob(h, kKey, buf, &n) == ESP_OK && n == sizeof(buf) && buf[0] == 1) {
++    if (nvs_get_blob(h, kKey, buf, &n) == ESP_OK && ((n == 8 && buf[0] == 1) || (n == 10 && buf[0] == 2))) {
+         s_policy.enabled    = buf[1] != 0;
+         s_policy.night_ok   = buf[2] != 0;
+         s_policy.muted      = buf[3] != 0;
+         s_policy.quiet_from = static_cast<int16_t>(buf[4] | (buf[5] << 8));
+         s_policy.quiet_to   = static_cast<int16_t>(buf[6] | (buf[7] << 8));
++        if (n == 10) {  // patch SF52: the days and quiet-now; a version 1 record keeps the defaults (every day, off)
++            s_policy.quiet_days = buf[8] & 0x7f;
++            s_policy.quiet_now  = buf[9] != 0;
++        }
+     }
+     nvs_close(h);
+ }
+@@ -131,7 +149,7 @@ void snapshot(ms_policy_t* policy, bool* night)
+         }
+     }
+     *policy = s_policy;
+-    *night  = ms_is_night(&s_policy, minute_of_day(), hal_bridge::hub_link_up()) != 0;
++    *night  = ms_is_night_ex(&s_policy, minute_of_day(), weekday_now(), hal_bridge::hub_link_up()) != 0;
+ }
+ 
+ // Plays one named sound if the policy, the hard mute and the base image allow it; answers the tool's JSON.
+@@ -395,6 +413,12 @@ bool maipai_sounds_chime_quiet(int minute)
+         load_policy_locked();
+         s_loaded = true;
+     }
++    if (s_policy.quiet_now) {
++        return true;  // patch SF52: "Quiet now" silences the hourly chime as well
++    }
++    if (s_policy.quiet_from >= 0 && s_policy.quiet_to >= 0 && s_policy.quiet_from != s_policy.quiet_to) {
++        return ms_is_night_ex(&s_policy, minute, weekday_now(), hal_bridge::hub_link_up()) != 0;  // a set schedule follows its days
++    }
+     return mh_quiet_now(&s_policy, minute, hal_bridge::hub_link_up()) != 0;
+ }
+ 
+@@ -490,13 +514,16 @@ void maipai_sounds_register_tools()
+                 "Set when the unit's own sounds may play. enabled: sounds on. night_ok: sounds also at night. muted: "
+                 "the hard mute. dark: the host says it is night now (the light sensor); the unit trusts it only while "
+                 "Home is connected. quiet_from and quiet_to: quiet hours as minutes of the unit's local day (0 to "
+-                "1439, -1 for none; a window may wrap midnight). Saved in flash except dark.",
++                "1439, -1 for none; a window may wrap midnight; off until set). quiet_days: the days the schedule applies to, a number 0 to 127 with Sunday as 1, Monday 2, Tuesday 4 and so on "
++                "(127 is every day). quiet_now: quiet until turned off, whatever the schedule says (alarms and timers still ring, the safety cues never stop). Saved in flash except dark.",
+                 PropertyList({Property("enabled", kPropertyTypeBoolean, true),
+                               Property("night_ok", kPropertyTypeBoolean, false),
+                               Property("muted", kPropertyTypeBoolean, false),
+                               Property("dark", kPropertyTypeBoolean, false),
+                               Property("quiet_from", kPropertyTypeInteger, -1, -1, 1439),
+-                              Property("quiet_to", kPropertyTypeInteger, -1, -1, 1439)}),
++                              Property("quiet_to", kPropertyTypeInteger, -1, -1, 1439),
++                              Property("quiet_days", kPropertyTypeInteger, 127, 0, 127),
++                              Property("quiet_now", kPropertyTypeBoolean, false)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     std::lock_guard<std::mutex> lock(s_mutex);
+                     if (!s_loaded) {
+@@ -510,9 +537,12 @@ void maipai_sounds_register_tools()
+                     next.dark        = properties["dark"].value<bool>() ? 1 : 0;
+                     next.quiet_from  = static_cast<int16_t>(properties["quiet_from"].value<int>());
+                     next.quiet_to    = static_cast<int16_t>(properties["quiet_to"].value<int>());
++                    next.quiet_days  = static_cast<uint8_t>(properties["quiet_days"].value<int>() & 0x7f);
++                    next.quiet_now   = properties["quiet_now"].value<bool>() ? 1 : 0;
+                     const bool changed = next.enabled != s_policy.enabled || next.night_ok != s_policy.night_ok ||
+                                          next.muted != s_policy.muted || next.quiet_from != s_policy.quiet_from ||
+-                                         next.quiet_to != s_policy.quiet_to;
++                                         next.quiet_to != s_policy.quiet_to || next.quiet_days != s_policy.quiet_days ||
++                                         next.quiet_now != s_policy.quiet_now;
+                     s_policy = next;
+                     if (changed) {
+                         save_policy_locked();  // only a real change touches the flash
+@@ -541,6 +571,26 @@ void maipai_sounds_register_tools()
+                     return phrase_run(group, properties["dry"].value<bool>(), false);
+                 });
+ #endif
++    mcp.AddTool("self.audio.quiet_now",
++                "The one-tap 'Quiet now': on makes the unit's own sounds and the hourly chime quiet until it is turned off; off hands back to the schedule. Alarms and timers the person "
++                "set still ring and the always-on safety cues never stop. Saved. Answers {ok, quiet_now, quiet_from, quiet_to, quiet_days}.",
++                PropertyList({Property("on", kPropertyTypeBoolean, true)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    std::lock_guard<std::mutex> lock(s_mutex);
++                    if (!s_loaded) {
++                        load_policy_locked();
++                        s_loaded = true;
++                    }
++                    const uint8_t want = properties["on"].value<bool>() ? 1 : 0;
++                    if (s_policy.quiet_now != want) {
++                        s_policy.quiet_now = want;
++                        save_policy_locked();
++                    }
++                    char out[160];
++                    snprintf(out, sizeof(out), "{\"ok\":true,\"quiet_now\":%s,\"quiet_from\":%d,\"quiet_to\":%d,\"quiet_days\":%d}", s_policy.quiet_now ? "true" : "false", s_policy.quiet_from,
++                             s_policy.quiet_to, s_policy.quiet_days);
++                    return std::string(out);
++                });
+     mcp.AddTool("self.audio.sound_info",
+                 "The sound policy now, whether it is night for sounds, and the play counts since boot, and how many of "
+                 "the 16 offline clips are in the image (clips_present).",
+@@ -549,7 +599,7 @@ void maipai_sounds_register_tools()
+                     bool night = false;
+                     snapshot(&policy, &night);
+                     std::lock_guard<std::mutex> lock(s_mutex);
+-                    char out[352];
++                    char out[400];
+ #if CONFIG_MAIPAI_OFFLINE_PHRASES
+                     const int present = clips_present();
+                     const unsigned clips_played = s_clips_played, clips_missing = s_clips_missing;
+@@ -561,10 +611,10 @@ void maipai_sounds_register_tools()
+ #endif
+                     snprintf(out, sizeof(out),
+                              "{\"enabled\":%d,\"night_ok\":%d,\"muted\":%d,\"mute_hook\":%d,\"quiet_from\":%d,"
+-                             "\"quiet_to\":%d,\"night\":%s,\"clips_present\":%d,\"clips_total\":16,"
++                             "\"quiet_to\":%d,\"quiet_days\":%d,\"quiet_now\":%s,\"night\":%s,\"clips_present\":%d,\"clips_total\":16,"
+                              "\"played\":%u,\"refused\":%u,\"clips_played\":%u,\"clips_missing\":%u,\"pack_clips\":%d}",
+                              policy.enabled, policy.night_ok, policy.muted, maipai_muted() ? 1 : 0, policy.quiet_from,
+-                             policy.quiet_to, night ? "true" : "false", present, static_cast<unsigned>(s_plays_ok),
++                             policy.quiet_to, policy.quiet_days, policy.quiet_now ? "true" : "false", night ? "true" : "false", present, static_cast<unsigned>(s_plays_ok),
+                              static_cast<unsigned>(s_plays_refused), clips_played, clips_missing, pack_clips);
+                     return std::string(out);
+                 });

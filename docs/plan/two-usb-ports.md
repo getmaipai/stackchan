@@ -44,3 +44,30 @@ Compare the supply verdicts, the resting servo volts and the sag across A to F. 
 ## Camera and Wi-Fi power
 
 A brownout on the controller's USB alone is the risk behind both the limiter and the camera frame rate: the sag figure and the lowest VBUS reading in the probe during a camera run (`self.bench.camera_probe`, held) will say whether a 500 mA port browns out at VGA with Wi-Fi sending.
+
+## First measured numbers and the limiter core to build (2026-11-18)
+
+Bench window 14, back port on the Mac (case A), power probe with the small move: VBUS 4,961 mV, battery 4,197 mV, system rail 4,432 mV, input limit register 1.5 A (the chip is already set high, so the register cannot tell a 500 mA computer port from a charger), servo supply rest 5.2 V and 5.1 V, servo supply sag during the move 0.1 V, lowest VBUS in the move 4,952 mV, verdict healthy. One supply only: the thresholds below are proposals until B to F exist.
+
+**Core to wire (pure, host-tested, in `maipai_motion_limit_core.h`):** the limit factor follows a stored supply state, one of `unknown`, `healthy`, `weak`, `poor`.
+
+| State | How it is reached | Limit |
+|---|---|---|
+| unknown | boot, a cable event, or a measurement older than 60 min on a cable | the safe default: limited as today |
+| healthy | rest at least 4.5 V servo supply, sag at most 0.5 V, VBUS lowest at least 4.6 V, in one probe move less than 60 min old | half excursion lifted: full ladder, but never above 80 percent speed on a cable until the person tests below pass |
+| weak | rest under 4.5 V or sag over 0.5 V or VBUS lowest under 4.6 V | limited as today |
+| poor | rest under 4.0 V or sag over 1.0 V or VBUS lowest under 4.4 V | limited and no dance; the head only follows slowly |
+
+Safe default: unknown. A battery-only unit keeps its ladder. The probe move (15 degrees of yaw at speed 300) runs only when the limiter allows a move, never while carried and never during a dance; it repeats on every cable event and every 60 minutes on a cable. A failed servo read or a failed power chip read leaves the state at unknown, never at healthy. The state is added to an existing status tool (the tool is chosen when the core is wired) so the host can read it.
+
+Thresholds come from measurement: the 4.5 V rest threshold sits 0.6 V under the healthy Mac reading, the 4.0 V poor line is the servo's own minimum working supply from its data sheet (to verify by reading the sheet before wiring), and VBUS 4.6 V and 4.4 V are the chip's input-voltage limit (4,360 mV read) plus margins. They are set after the person tests.
+
+**Person tests (NEEDS-PERSON, one at a time, the bench agent reads `power_probe` after each):**
+
+1. B: back port on a wall charger rated 2 A or more (the most informative case).
+2. Weak source: a cable from a small USB port or an old 500 mA charger into either port; the probe during a camera-off move; then again with `self.bench.camera_probe` running (held).
+3. Long cable: a 2 m thin cable on the Mac, case A and C. A thin cable lowers VBUS at the unit, which is exactly what the limiter must see.
+4. C, D, E, F from the matrix above.
+5. Hub: a cable through an unpowered USB hub.
+
+Compare the rest and sag columns. If every healthy-looking source reads at least 5.0 V rest and under 0.3 V sag, the thresholds stand. If a 500 mA source reads healthy while a charger reads the same, the limit is stricter than the hardware needs and the ladder is lifted for every source that passes.

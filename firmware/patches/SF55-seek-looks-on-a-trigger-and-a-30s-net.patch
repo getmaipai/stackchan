@@ -1,0 +1,233 @@
+# Intent: The seeker's "always" watch looks when a sensor says something happened (a sound rise, a touch on the head, a bump) and otherwise only once every 30 s as a safety net (it was a frame a second, so the camera-on cue was lit about all the time). After a sighting it looks every 2 s for 20 s. Every look is two frames and still asks for the cue first; mute, lock, vision off, full quiet, night and the host lease still stop it, and a trigger seen while a gate is closed is dropped.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.look.status in always mode shows about two looks a minute in an empty room; a tap on the head causes one look within a second, with the cue lit before it; muted, locked or vision off: no look at all.
+# Kconfig: none
+# Memory cost: ms_t grows 12 bytes (in PSRAM with the seek state); the sound detector is 16 bytes of static; no task, no buffer.
+
+diff --git a/firmware/main/hal/maipai_seek_core.h b/firmware/main/hal/maipai_seek_core.h
+--- a/firmware/main/hal/maipai_seek_core.h
++++ b/firmware/main/hal/maipai_seek_core.h
+@@ -52,8 +52,15 @@
+ #define MS_FRAME_GAP_MS 250u
+ #define MS_BURST_WAIT_MS 900u      /* a requested burst that delivers nothing in this time is a miss */
+ #define MS_BURST_SPACING_MS 1000u  /* no burst starts sooner than this after the last one began (a sweep stop needs its move) */
+-#define MS_IDLE_PERIOD_MS 1000u    /* the "always" watch: one frame a second at rest */
+-#define MS_IDLE_PERIOD_QUIET_MS 2000u
++#define MS_IDLE_PERIOD_MS 30000u   /* patch SF55: the "always" watch's safety net at rest: one frame every 30 s (it was one a second) */
++#define MS_IDLE_PERIOD_QUIET_MS 30000u
++#define MS_IDLE_FOLLOW_MS 2000u    /* patch SF55: after a sighting the watch looks every 2 s ... */
++#define MS_IDLE_FOLLOW_QUIET_MS 4000u
++#define MS_IDLE_FOLLOW_WINDOW_MS 20000u /* ... for 20 s, then falls back to the net */
++#define MS_TRIGGER_KEEP_MS 3000u   /* a sensor trigger that finds the camera busy waits this long, then is forgotten */
++#define MS_SOUND_MIN_RISE 400      /* patch SF55: a sound counts as a rise when the level is this far above the slow average (int16 RMS) ... */
++#define MS_SOUND_RATIO_X10 25      /* ... and at least 2.5 times it */
++#define MS_SOUND_HOLDOFF_MS 5000u  /* one sound trigger per this long */
+ #define MS_HOLD_PERIOD_MS 1000u    /* follow while holding eye contact */
+ #define MS_SETTLE_MIN_MS 200u      /* after a move, the picture is not trusted before this */
+ #define MS_SETTLE_MAX_MS 3000u
+@@ -302,6 +309,39 @@ static inline float ms_clamp_pan(float p)
+     return p > MS_PAN_MAX_DEG ? MS_PAN_MAX_DEG : (p < -MS_PAN_MAX_DEG ? -MS_PAN_MAX_DEG : p);
+ }
+ 
++/* ---- patch SF55: a rise in the room's sound level as a trigger -------------------------------------------------------------- */
++
++typedef struct {
++    int ema;            /* slow average of the level */
++    uint8_t have;
++    uint32_t last_at;   /* the last trigger */
++    uint8_t fired_once;
++} ms_sound_t;
++
++/* Feed the level (int16 RMS of the last second) about once a second. Returns 1 for one rise: well above the slow average, at
++ * least MS_SOUND_HOLDOFF_MS after the last. A steady loud room raises the average and does not trigger again. */
++static inline int ms_sound_rise(ms_sound_t* m, int level, uint32_t now)
++{
++    if (level < 0) {
++        level = 0;
++    }
++    if (!m->have) {
++        m->ema = level;
++        m->have = 1;
++        return 0;
++    }
++    const int rise = level - m->ema;
++    const int hit = rise >= MS_SOUND_MIN_RISE && level * 10 >= m->ema * MS_SOUND_RATIO_X10 &&
++                    (!m->fired_once || ms_dt(now, m->last_at) >= (int32_t)MS_SOUND_HOLDOFF_MS);
++    m->ema += (level - m->ema) / 8; /* the average follows in about 8 reads */
++    if (hit) {
++        m->last_at = now;
++        m->fired_once = 1;
++        return 1;
++    }
++    return 0;
++}
++
+ /* ---- the seeker ------------------------------------------------------------------------------------------------------------- */
+ 
+ typedef struct {
+@@ -315,6 +355,7 @@ typedef struct {
+     uint8_t camera_denied;  /* the unit refused the camera (memory admission) */
+     uint8_t locked, carried; /* patch NX06: the passcode lock is on, or the unit is held in a hand: nothing runs, in any mode */
+     uint8_t night;           /* patch NX06: night mode: the idle watch of "always" does not run (a wake word still turns the head, slowly) */
++    uint8_t trigger;         /* patch SF55: edge: a cheap sensor saw something (a sound rise, a touch, a bump): one look is wanted now */
+     uint8_t mode;           /* MS_MODE_* from the setting */
+     const uint8_t* frame;   /* a gray 40 by 30 frame taken now at pan_deg, or NULL */
+     uint8_t face_valid;     /* detector build: a face was found in this frame */
+@@ -351,6 +392,8 @@ typedef struct {
+     uint8_t burst_wanted;   /* frames still expected from the burst in flight */
+     uint32_t burst_deadline;
+     uint32_t next_idle_at;
++    uint8_t trig_pending;   /* patch SF55: a sensor trigger waits for the camera */
++    uint32_t trig_at;
+     /* the search and the target */
+     uint8_t reason;
+     float stops[MS_STOP_COUNT];
+@@ -586,8 +629,16 @@ static inline void ms_tick(ms_t* s, const ms_in_t* in, ms_out_t* out)
+         s->burst_kind = 0;
+         s->prev_valid = 0;
+         s->next_idle_at = now;
++        s->trig_pending = 0; /* patch SF55: a trigger seen while a gate is closed is dropped, never saved for later */
+         return;
+     }
++    if (in->trigger) {
++        s->trig_pending = 1;
++        s->trig_at = now;
++    }
++    if (s->trig_pending && ms_dt(now, s->trig_at) > (int32_t)MS_TRIGGER_KEEP_MS) {
++        s->trig_pending = 0;
++    }
+     if (in->camera_denied) { /* the unit refused the camera: stay away */
+         if (s->state != MS_COOL) {
+             ms_reset_run(s, MS_COOL);
+@@ -676,10 +727,14 @@ static inline void ms_tick(ms_t* s, const ms_in_t* in, ms_out_t* out)
+             s->center_pan = 0.0f;
+             s->state = MS_TURN; /* waits for the head if it is busy, then turns once */
+             ms_aim(s, out, in);
+-        } else if (ready && ms_dt(now, s->next_idle_at) >= 0) {
+-            ms_request_burst(s, out, now, 1, 1, MS_REASON_NOTICE);
++        } else if (ready && (s->trig_pending || ms_dt(now, s->next_idle_at) >= 0)) {
++            /* Patch SF55: a sensor trigger or the 30 s net; every grab still asks for the cue first (ms_request_burst), no path skips it. Two frames in one burst: at 30 s the previous frame is too old to compare. */
++            ms_request_burst(s, out, now, 2, 1, MS_REASON_NOTICE);
+             s->burst_kind = 2;
+-            s->next_idle_at = now + (in->quiet_or_night ? MS_IDLE_PERIOD_QUIET_MS : MS_IDLE_PERIOD_MS);
++            s->trig_pending = 0;
++            const int following = s->seen_any && ms_dt(now, s->last_seen) < (int32_t)MS_IDLE_FOLLOW_WINDOW_MS;
++            s->next_idle_at = now + (following ? (in->quiet_or_night ? MS_IDLE_FOLLOW_QUIET_MS : MS_IDLE_FOLLOW_MS)
++                                               : (in->quiet_or_night ? MS_IDLE_PERIOD_QUIET_MS : MS_IDLE_PERIOD_MS));
+         }
+         break;
+     case MS_LOOK:
+diff --git a/firmware/main/hal/maipai_seek_wire_core.h b/firmware/main/hal/maipai_seek_wire_core.h
+--- a/firmware/main/hal/maipai_seek_wire_core.h
++++ b/firmware/main/hal/maipai_seek_wire_core.h
+@@ -111,6 +111,7 @@ typedef struct {
+     uint8_t quiet_or_night;
+     uint8_t locked, carried;  /* patch NX06: the passcode lock is on, the unit is held in a hand */
+     uint8_t night;            /* patch NX06: night mode (the idle watch of "always" waits for day) */
++    uint8_t trigger;          /* patch SF55: edge: a sound rise, a touch or a bump since the last pass */
+     uint8_t mode;             /* MS_MODE_* from the saved setting */
+     uint8_t late;             /* the unit file's own measure of load (0 or 1) */
+     size_t free_internal, largest_internal;
+@@ -642,6 +643,7 @@ static inline void mw_step(mw_t* w, const mw_ops_t* ops)
+     in.locked = e.locked;
+     in.carried = e.carried;
+     in.night = e.night;
++    in.trigger = e.trigger;
+     in.mode = e.mode;
+     in.frame = frame;
+     in.camera_denied = w->denied_pending;
+diff --git a/firmware/main/hal/maipai_seek.cc b/firmware/main/hal/maipai_seek.cc
+--- a/firmware/main/hal/maipai_seek.cc
++++ b/firmware/main/hal/maipai_seek.cc
+@@ -58,6 +58,13 @@ mw_t* s_w                   = nullptr;  // PSRAM
+ SemaphoreHandle_t s_mu      = nullptr;  // the lease and the calibration result are shared with the tool task
+ TaskHandle_t s_task         = nullptr;
+ std::atomic<bool> s_addr{false};
++}  // namespace
++bool maipai_music_active();  // patch SF55 (maipai_music.cc)
++int maipai_music_level();
++namespace {
++std::atomic<bool> s_trig{false};  // patch SF55: a cheap sensor saw something (touch, bump); consumed by op_env
++ms_sound_t s_sound;                 // patch SF55: the sound-rise detector, read only by op_env
++uint32_t s_sound_at = 0;
+ std::atomic<uint8_t> s_mode{1};          // the last setting the task saw (the tools read it)
+ float s_goal                = 0.0f;      // the last pan the seeker sent
+ uint32_t s_goal_at          = 0;
+@@ -129,6 +136,11 @@ void op_env(void*, mw_env_t* e)
+     const bool near_goal = s_goal_at == 0 || fabsf(e->pan_deg - s_goal) <= 6.0f || ms_dt(now, s_goal_at) > 1800;
+     e->head_settled    = ms_dt(now, s_pan_prev_at) > 300 && (s_goal_at == 0 || ms_dt(now, s_goal_at) > 250) && near_goal;
+     e->addressed       = s_addr.exchange(false) ? 1 : 0;
++    e->trigger         = s_trig.exchange(false) ? 1 : 0;
++    if (maipai_music_active() && ms_dt(now, s_sound_at) >= 1000) {  // patch SF55: the room's level, once a second, when the music features run
++        s_sound_at = now;
++        if (ms_sound_rise(&s_sound, maipai_music_level(), now)) e->trigger = 1;
++    }
+     auto& app          = Application::GetInstance();
+     const DeviceState dev = app.GetDeviceState();
+     e->conversation    = (dev == kDeviceStateListening || dev == kDeviceStateSpeaking || dev == kDeviceStateConnecting) ? 1 : 0;
+@@ -391,6 +403,12 @@ void maipai_seek_addressed()
+     xTaskNotifyGive(s_task);
+ }
+ 
++void maipai_seek_trigger()
++{
++    if (s_task == nullptr) return;
++    s_trig.store(true);  // patch SF55: atomics only (the touch task has its stack in PSRAM); the seek task reads it on its next pass
++}
++
+ void maipai_seek_register_tools()
+ {
+     // Read the saved choices and the sound policy once here, on a task with an internal stack (the seek task has its stack in PSRAM
+diff --git a/firmware/main/hal/maipai_seek.h b/firmware/main/hal/maipai_seek.h
+--- a/firmware/main/hal/maipai_seek.h
++++ b/firmware/main/hal/maipai_seek.h
+@@ -9,6 +9,10 @@
+ // when the setting turn_to_faces is off, or while a host holds the lease.
+ void maipai_seek_addressed();
+ 
++// Patch SF55: a cheap sensor saw something (a touch on the head, a bump): the face seeker may take one look. Atomics only; safe from any task.
++// The camera-on cue still comes before the look, and the gates (mute, lock, vision off, full quiet, night) still decide.
++void maipai_seek_trigger();
++
+ // Registers self.look.claim, release, status and calibrate and starts the seek task (a low priority task whose stack is in PSRAM: it
+ // never reads flash itself, the setting arrives through the cached reader maipai_tb_prefs). Call once from the main task.
+ void maipai_seek_register_tools();
+diff --git a/firmware/main/hal/maipai_pickup.cc b/firmware/main/hal/maipai_pickup.cc
+--- a/firmware/main/hal/maipai_pickup.cc
++++ b/firmware/main/hal/maipai_pickup.cc
+@@ -7,6 +7,7 @@
+  * the unit's own speech through the device state, and ignores the body for 1.5 s after either.
+  */
+ #include "maipai_pickup.h"
++#include "maipai_seek.h"
+ #include "maipai_pickup_core.h"
+ #include "maipai_tbprefs.h"
+ #include "maipai_privacy.h"
+@@ -68,6 +69,7 @@ void maipai_pickup_feed(float ax, float ay, float az)
+     mp_set_speaking(&s_det, Application::GetInstance().GetDeviceState() == kDeviceStateSpeaking ? 1 : 0);
+     const mp_event_t ev = mp_update(&s_det, ax, ay, az, now);
+     if (ev == MP_NONE) return;
++    if (ev != MP_LIFTED && ev != MP_CARRIED) maipai_seek_trigger();  // patch SF55: a bump, a shake or a put-down is a reason for one look
+     char extra[48];
+     snprintf(extra, sizeof(extra), "\"axis\":\"%s\"", mp_axis_name(mp_axis(&s_det)));
+     if (ev == MP_SHAKEN) {
+diff --git a/firmware/main/hal/hal_head_touch.cpp b/firmware/main/hal/hal_head_touch.cpp
+--- a/firmware/main/hal/hal_head_touch.cpp
++++ b/firmware/main/hal/hal_head_touch.cpp
+@@ -8,6 +8,7 @@
+ #include "board/hal_bridge.h"
+ #include "maipai_pages.h"
+ #include "maipai_games.h"
++#include "maipai_seek.h"
+ #include <mooncake_log.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
+@@ -166,6 +167,7 @@ static void _head_touch_update_task(void* param)
+                 maipai_games_post_input(MAIPAI_GAME_EV_PET);  // patch UI13: a pet is an input for the games (atomics only: this task runs on a PSRAM stack)
+             }
+             if (gesture != HeadPetGesture::Release) {
++                maipai_seek_trigger();  // patch SF55: a touch on the head is a reason for one look (atomics only)
+                 maipai_pages_event(MGS_EV_HEAD_TAP);  // patch P13: a touch on the head brings the face back from a page
+             }
+         }

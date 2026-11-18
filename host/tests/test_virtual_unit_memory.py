@@ -48,7 +48,7 @@ def test_every_item_declares_its_cost_and_when_it_is_loaded_and_freed():
 def test_the_gate_and_baseline_are_the_numbers_of_the_memory_note():
     g, b = TABLE["gate"], TABLE["baseline"]
     assert (g["internal_free_median_min"], g["internal_free_lowest_min"], g["largest_block_median_min"], g["largest_block_lowest_min"]) == (40000, 24000, 24000, 16000)
-    assert b["internal_free_median"] == 64093 and b["largest_block_median"] == 25600   # docs/dev/memory-budget.md, windows 10 and 11
+    assert b["internal_free_median"] == 68500 and b["largest_block_median"] == 32024   # b47 bench window 14 (docs/dev/heap-map-b47.md); windows 10 and 11 read 64,093 and 25,600 before SF47
     assert b["internal_free_median"] > g["internal_free_median_min"] and b["internal_free_lowest"] > g["internal_free_lowest_min"]
 
 
@@ -82,20 +82,25 @@ def test_the_budget_breaks_when_too_much_is_open_at_once():
     m.open("screen.first_run")
     assert not m.broken()
     m.open("overlay.layer.back")
-    with pytest.raises(mm.MemoryBudgetError, match="internal_free_lowest.*under its gate"):   # 4,000 + 3,700 + 1,500 + 1,500 + 1,200 is more than the 9,484 above the floor
+    with pytest.raises(mm.MemoryBudgetError, match="internal_free_lowest.*under its gate"):   # 4,000 + 3,700 + 1,500 + 1,500 + 1,200 + 2,500 + 2,500 is more than the 15,828 above the floor (b47 baseline)
         m.open("overlay.layer.event")
         m.open("decor.notes")
+        m.open("screen.page.clock")
+        m.open("screen.page.timers")
     soft = mm.MemoryModel(None, TABLE, strict=False)
-    for k in ("screen.settings", "screen.first_run", "overlay.layer.back", "overlay.layer.event", "decor.notes"):
+    for k in ("screen.settings", "screen.first_run", "overlay.layer.back", "overlay.layer.event", "decor.notes", "screen.page.clock", "screen.page.timers"):
         soft.open(k)
-    assert soft.violations and "decor.notes" in soft.violations[-1]
+    assert soft.violations and "screen.page.timers" in soft.violations[-1]
 
 
 def test_the_camera_stream_as_a_standing_feature_breaks_the_largest_block_gate():
     m = mm.MemoryModel(None, TABLE, strict=False)
-    m.open("feature.avatar_stream")   # a 4 KB stack that stays: the largest block falls from 25,600 to 21,504, under the 24,000 median floor (docs/dev/memory-budget.md says the same)
-    assert any("largest_block_median" in v for v in m.violations)
-    assert m.numbers()["largest_block_median"] == 25600 - 4096
+    m.open("feature.avatar_stream")   # a 4 KB stack that stays: after SF47 the largest block is 32,024 and falls to 27,928, still over the 24,000 floor
+    assert not any("largest_block_median" in v for v in m.violations)
+    assert m.numbers()["largest_block_median"] == 32024 - 4096
+    m.open("task.avatar_lan")         # the link's own 8,192 byte stack is transient (created on first use since SF47): it moves the lowest block only, 19,456, over the 16,000 floor
+    assert m.numbers()["largest_block_lowest"] == 19456
+    assert not m.violations
 
 
 def test_an_item_with_no_declared_cost_is_refused():

@@ -299,3 +299,12 @@ UX11-first-run-name-stackchan-first.patch
 UX12-first-run-skip-brain-question-and-next-steps.patch
 SF46-silent-boot.patch
 SF47-lan-avatar-task-on-first-use.patch
+SF48-bench-power-probe.patch
+SF49-task-supervisor-and-reconnect.patch
+SF50-bench-ir-nfc-probes.patch
+SF51-dance-session-on-a-synthetic-beat.patch
+SF52-quiet-schedule-days-and-quiet-now.patch
+SF53-auto-lock-off-1-15.patch
+SF54-sound-info-volume-now-and-saved.patch
+SF55-seek-looks-on-a-trigger-and-a-30s-net.patch
+SF56-heal-window-and-wait-in-self-version.patch

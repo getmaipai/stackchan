@@ -132,10 +132,10 @@ static void test_lock(void)
     mlk_t v;
     mlk_init(&v);
     mlk_set(&v, "1234", NULL, salt);
-    CHECK(mlk_set_auto_checked(&v, 5, NULL) == MLK_R_OK);
+    CHECK(mlk_set_auto_checked(&v, 15, NULL) == MLK_R_OK);
     CHECK(mlk_set_auto_checked(&v, 0, NULL) == MLK_R_CURRENT_NEEDED);
     CHECK(mlk_set_auto_checked(&v, 0, "9999") == MLK_R_WRONG_CURRENT);
-    CHECK(v.auto_min == 5);
+    CHECK(v.auto_min == 15);
     CHECK(mlk_set_auto_checked(&v, 0, "1234") == MLK_R_OK && v.auto_min == 0);
     mlk_t w;
     mlk_init(&w); /* no code set: nothing to protect */

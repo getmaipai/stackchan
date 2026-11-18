@@ -1,0 +1,48 @@
+# Intent: self.audio.sound_info also reports volume_now (the speaker volume in use) and volume_saved (the value in flash, -1 when none), so a host-set volume and a default 70 can be told apart on the bench and by the host.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: sound_info shows volume_now and volume_saved; after a host set_volume of 40 and a restart both read 40; a fresh unit shows volume_saved -1.
+# Kconfig: none
+# Memory cost: 40 bytes of stack in one tool call; no new task or buffer outside the call.
+
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -6,6 +6,7 @@
+  * extra earcons are not in this build, so they answer "missing". The offline clips (patch V02) are in the image.
+  */
+ #include "maipai_sounds.h"
++#include <settings.h>
+ #include "maipai_sounds_core.h"
+ #include "maipai_phrasepack.h"
+ #include "maipai_hourly_core.h"
+@@ -598,8 +599,15 @@ void maipai_sounds_register_tools()
+                     ms_policy_t policy;
+                     bool night = false;
+                     snapshot(&policy, &night);
++                    // Patch SF54: the speaker volume the unit uses now and the one saved in flash (-1 none), to tell a host-set volume from a default.
++                    const int volume_now = hal_bridge::board_get_speaker_volume();
++                    int volume_saved = -1;
++                    if (maipai_flash_stack_ok("The saved volume")) {
++                        Settings audio("audio", false);
++                        volume_saved = audio.GetInt("output_volume", -1);
++                    }
+                     std::lock_guard<std::mutex> lock(s_mutex);
+-                    char out[400];
++                    char out[440];
+ #if CONFIG_MAIPAI_OFFLINE_PHRASES
+                     const int present = clips_present();
+                     const unsigned clips_played = s_clips_played, clips_missing = s_clips_missing;
+@@ -611,10 +619,10 @@ void maipai_sounds_register_tools()
+ #endif
+                     snprintf(out, sizeof(out),
+                              "{\"enabled\":%d,\"night_ok\":%d,\"muted\":%d,\"mute_hook\":%d,\"quiet_from\":%d,"
+-                             "\"quiet_to\":%d,\"quiet_days\":%d,\"quiet_now\":%s,\"night\":%s,\"clips_present\":%d,\"clips_total\":16,"
++                             "\"quiet_to\":%d,\"quiet_days\":%d,\"quiet_now\":%s,\"volume_now\":%d,\"volume_saved\":%d,\"night\":%s,\"clips_present\":%d,\"clips_total\":16,"
+                              "\"played\":%u,\"refused\":%u,\"clips_played\":%u,\"clips_missing\":%u,\"pack_clips\":%d}",
+                              policy.enabled, policy.night_ok, policy.muted, maipai_muted() ? 1 : 0, policy.quiet_from,
+-                             policy.quiet_to, policy.quiet_days, policy.quiet_now ? "true" : "false", night ? "true" : "false", present, static_cast<unsigned>(s_plays_ok),
++                             policy.quiet_to, policy.quiet_days, policy.quiet_now ? "true" : "false", volume_now, volume_saved, night ? "true" : "false", present, static_cast<unsigned>(s_plays_ok),
+                              static_cast<unsigned>(s_plays_refused), clips_played, clips_missing, pack_clips);
+                     return std::string(out);
+                 });

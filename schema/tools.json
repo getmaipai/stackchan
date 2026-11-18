@@ -1,11 +1,12 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 146,
+ "count": 153,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
   "self.audio.offline_phrase": "V02-offline-phrases.patch",
   "self.audio.play_sound": "116-sound-policy-tools.patch",
+  "self.audio.quiet_now": "SF52-quiet-schedule-days-and-quiet-now.patch",
   "self.audio.set_sound_policy": "116-sound-policy-tools.patch",
   "self.audio.sound_info": "116-sound-policy-tools.patch",
   "self.banner.face_seen": "NX05-face-seen-glyph-and-tool-in-the-banner-strip.patch",
@@ -16,10 +17,15 @@
   "self.bench.firstrun_loop": "SF27-bench-servo-rate-firstrun-loop.patch",
   "self.bench.heap_info": "SF34-head-limiter-barge-bench.patch",
   "self.bench.heap_trace": "SF39-limiter-failclosed-peak-heap.patch",
+  "self.bench.i2c_scan": "SF50-bench-ir-nfc-probes.patch",
   "self.bench.inject": "L06-bench-latency-trace.patch",
+  "self.bench.ir_rx": "SF50-bench-ir-nfc-probes.patch",
+  "self.bench.ir_tx": "SF50-bench-ir-nfc-probes.patch",
   "self.bench.link_selftest": "SF21-link-key-curve-and-storage.patch",
   "self.bench.mic3_check": "SF15-talk-over-mic3-step0.patch",
+  "self.bench.nfc_probe": "SF50-bench-ir-nfc-probes.patch",
   "self.bench.noise": "L06-bench-latency-trace.patch",
+  "self.bench.power_probe": "SF48-bench-power-probe.patch",
   "self.bench.say_test": "SF34-head-limiter-barge-bench.patch",
   "self.bench.servo_rate": "SF27-bench-servo-rate-firstrun-loop.patch",
   "self.bench.set_head": "SF23-bench-head-and-tone-medians.patch",
@@ -28,6 +34,7 @@
   "self.clock.set": "U03-time-zone-picker.patch",
   "self.clock.set_zone": "U03-time-zone-picker.patch",
   "self.clock.zones": "U03-time-zone-picker.patch",
+  "self.dance.session": "SF51-dance-session-on-a-synthetic-beat.patch",
   "self.face.bench_caption": "FI03-bench-snapshot-includes-top-layer.patch",
   "self.face.bench_emotion": "X02-face-styles-colours-and-battery.patch",
   "self.face.bench_fps": "H01-face-bench-tools.patch",
@@ -176,6 +183,9 @@
    "urgent": "boolean",
    "test": "boolean"
   },
+  "self.audio.quiet_now": {
+   "on": "boolean"
+  },
   "self.audio.set_sound_policy": {
    "enabled": "boolean",
    "night_ok": "boolean",
@@ -208,6 +218,7 @@
    "min_used": "integer"
   },
   "self.bench.heap_trace": {},
+  "self.bench.i2c_scan": {},
   "self.bench.inject": {
    "q": "integer",
    "wake": "integer",
@@ -215,14 +226,27 @@
    "tail_ms": "integer",
    "gain_pct": "integer"
   },
+  "self.bench.ir_rx": {
+   "seconds": "integer"
+  },
+  "self.bench.ir_tx": {
+   "address": "integer",
+   "command": "integer",
+   "repeats": "integer",
+   "raw": "string"
+  },
   "self.bench.link_selftest": {},
   "self.bench.mic3_check": {
    "volume": "integer",
    "gain_db": "integer"
   },
+  "self.bench.nfc_probe": {},
   "self.bench.noise": {
    "seconds": "integer",
    "gain_pct": "integer"
+  },
+  "self.bench.power_probe": {
+   "move": "integer"
   },
   "self.bench.say_test": {
    "seconds": "integer",
@@ -249,6 +273,12 @@
    "zone": "string"
   },
   "self.clock.zones": {},
+  "self.dance.session": {
+   "name": "string",
+   "bpm": "integer",
+   "seconds": "integer",
+   "max_stage": "integer"
+  },
   "self.face.bench_caption": {
    "text": "string"
   },

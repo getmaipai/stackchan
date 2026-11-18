@@ -1,0 +1,408 @@
+# Intent: Bench only (CONFIG_MAIPAI_BENCH_IR, off in every shipped image). Read-only probes for the robot's internal I2C bus (self.bench.i2c_scan), the NFC chip (self.bench.nfc_probe: finds the ST25R3916 at 0x50 and reads its identity register once; no radio field, no tag polling) and the infrared receiver (self.bench.ir_rx: GPIO 10 as an input, NEC decode and raw timings). An infrared send (self.bench.ir_tx on GPIO 5, 38 kHz at one third duty, at most 120 ms of marks per call, calls half a second apart, refused on a low battery or when carried) exists only with the extra switch CONFIG_MAIPAI_BENCH_IR_TX, which no build kind turns on. The timing rules are a pure core (maipai_ir_core.h) with a host test. Memory cost: none in a release image; the RMT driver component is added to the build but nothing in it is linked or started unless a probe runs.
+# Placement: unit
+# Upstream: firmware/main/CMakeLists.txt (adds the esp_driver_rmt component), firmware/main/Kconfig.projbuild (ours)
+# Check after a flash: on the irnfc image self.bench.i2c_scan lists 0x34, 0x38, 0x58 and 0x69 among its addresses; self.bench.nfc_probe says present true or false and, when present, an identity byte; self.bench.ir_rx decodes a TV remote key as NEC.
+# Kconfig: CONFIG_MAIPAI_BENCH_IR (default n, needs CONFIG_MAIPAI_SERIAL_TOOLS), CONFIG_MAIPAI_BENCH_IR_TX (default n)
+
+diff --git a/firmware/main/hal/maipai_ir_core.h b/firmware/main/hal/maipai_ir_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_ir_core.h
+@@ -0,0 +1,103 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Infrared timing rules for the bench probes (patch SF50, bench only). Plain C99; host test host/tests/firmware/ir_core_test.c.
++ *   NEC encode and decode on mark and space durations in microseconds, and the hard limits of one transmit call.
++ * A frame is a list of durations that alternate mark, space, mark, space... starting with a mark (the carrier on). NEC: a 9000 us leader mark and a
++ * 4500 us space, then 32 bits sent least significant bit first (address, inverted address, command, inverted command), each a 560 us mark followed by a
++ * 560 us space for 0 or a 1690 us space for 1, and a final 560 us mark. A repeat frame is a 9000 us mark, a 2250 us space and a 560 us mark.
++ * Transmit limits: the total mark time of one call is at most MIR_MAX_MARK_US (the LED is on for a third of it), at most MIR_MAX_DURATIONS durations,
++ * at most MIR_MAX_REPEATS repeats of a frame, and calls are at least MIR_MIN_GAP_MS apart. The unit refuses when the battery is low or it is carried.
++ */
++#ifndef MAIPAI_IR_CORE_H
++#define MAIPAI_IR_CORE_H
++
++#include <stdint.h>
++#include <stdlib.h>
++
++#define MIR_NEC_LEAD_MARK 9000u
++#define MIR_NEC_LEAD_SPACE 4500u
++#define MIR_NEC_REPEAT_SPACE 2250u
++#define MIR_NEC_BIT_MARK 560u
++#define MIR_NEC_ZERO_SPACE 560u
++#define MIR_NEC_ONE_SPACE 1690u
++#define MIR_NEC_FRAME_DURATIONS 68 /* 2 + 32*2 + 2 */
++#define MIR_MAX_DURATIONS 200
++#define MIR_MAX_MARK_US 120000u
++#define MIR_MAX_REPEATS 3
++#define MIR_MIN_GAP_MS 500u
++#define MIR_MIN_BATTERY 30
++
++enum { MIR_OK = 0, MIR_BAD_ARGS, MIR_TOO_LONG, MIR_TOO_MANY_REPEATS, MIR_TOO_SOON, MIR_LOW_BATTERY, MIR_CARRIED, MIR_REASONS };
++static const char* const MIR_REASON_TEXT[MIR_REASONS] = {"ok", "the code or the timings are not valid: send an address and a command of 0 to 255, or a list of durations",
++                                                         "the signal is longer than the limit: shorten it",
++                                                         "too many repeats: at most 3",
++                                                         "too soon after the last send: wait half a second",
++                                                         "the battery is low: charge the unit before sending",
++                                                         "the unit is carried: put it down before sending"};
++
++/* Writes the 68 durations of a NEC frame into d. Returns the count, or 0 when address or command is out of range. */
++static inline int mir_nec_encode(unsigned address, unsigned command, uint32_t* d)
++{
++    if (address > 255u || command > 255u || d == NULL) return 0;
++    const uint32_t word = (address & 0xffu) | ((~address & 0xffu) << 8) | ((command & 0xffu) << 16) | ((~command & 0xffu) << 24);
++    int n = 0;
++    d[n++] = MIR_NEC_LEAD_MARK;
++    d[n++] = MIR_NEC_LEAD_SPACE;
++    for (int i = 0; i < 32; i++) {
++        d[n++] = MIR_NEC_BIT_MARK;
++        d[n++] = ((word >> i) & 1u) ? MIR_NEC_ONE_SPACE : MIR_NEC_ZERO_SPACE;
++    }
++    d[n++] = MIR_NEC_BIT_MARK;
++    d[n++] = 0; /* the line stays idle after the last mark */
++    return n;
++}
++
++static inline int mir_near(uint32_t v, uint32_t want) { return v >= want - want / 4u && v <= want + want / 4u; }
++
++/* Decodes the durations of one received frame. Returns 1 for a NEC frame (address and command filled, inv_ok set when the inverted bytes match), 2 for a repeat
++ * frame, 0 when it is not NEC. n counts the durations (mark first). */
++static inline int mir_nec_decode(const uint32_t* d, int n, unsigned* address, unsigned* command, int* inv_ok)
++{
++    if (d == NULL || n < 3) return 0;
++    if (!mir_near(d[0], MIR_NEC_LEAD_MARK)) return 0;
++    if (mir_near(d[1], MIR_NEC_REPEAT_SPACE) && n <= 4) return 2;
++    if (!mir_near(d[1], MIR_NEC_LEAD_SPACE) || n < 2 + 64) return 0;
++    uint32_t word = 0;
++    for (int i = 0; i < 32; i++) {
++        const uint32_t mark = d[2 + 2 * i], space = d[3 + 2 * i];
++        if (!mir_near(mark, MIR_NEC_BIT_MARK)) return 0;
++        if (mir_near(space, MIR_NEC_ONE_SPACE)) word |= 1u << i;
++        else if (!mir_near(space, MIR_NEC_ZERO_SPACE)) return 0;
++    }
++    const unsigned a = word & 0xffu, na = (word >> 8) & 0xffu, c = (word >> 16) & 0xffu, nc = (word >> 24) & 0xffu;
++    if (address != NULL) *address = a;
++    if (command != NULL) *command = c;
++    if (inv_ok != NULL) *inv_ok = ((a ^ na) == 0xffu) && ((c ^ nc) == 0xffu);
++    return 1;
++}
++
++/* The total mark time (the odd positions are spaces) of a list of durations: marks are at the even positions. */
++static inline uint32_t mir_mark_total(const uint32_t* d, int n)
++{
++    uint32_t t = 0;
++    for (int i = 0; i < n; i += 2) t += d[i];
++    return t;
++}
++
++/* May this call transmit? frames: how many times the list is sent. since_last_ms: time since the last call ended, a big number when none. */
++static inline int mir_tx_allowed(const uint32_t* d, int n, int repeats, uint32_t since_last_ms, int battery_percent, int carried)
++{
++    if (d == NULL || n < 1 || n > MIR_MAX_DURATIONS || repeats < 0) return MIR_BAD_ARGS;
++    if (repeats > MIR_MAX_REPEATS) return MIR_TOO_MANY_REPEATS;
++    for (int i = 0; i < n; i++) {
++        if (d[i] > 200000u) return MIR_BAD_ARGS;
++    }
++    if ((uint64_t)mir_mark_total(d, n) * (uint64_t)(repeats + 1) > MIR_MAX_MARK_US) return MIR_TOO_LONG;
++    if (since_last_ms < MIR_MIN_GAP_MS) return MIR_TOO_SOON;
++    if (battery_percent >= 0 && battery_percent < MIR_MIN_BATTERY) return MIR_LOW_BATTERY;
++    if (carried) return MIR_CARRIED;
++    return MIR_OK;
++}
++
++#endif /* MAIPAI_IR_CORE_H */
+diff --git a/firmware/main/hal/maipai_irnfc_probe.cc b/firmware/main/hal/maipai_irnfc_probe.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_irnfc_probe.cc
+@@ -0,0 +1,238 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Patch SF50 (bench only, CONFIG_MAIPAI_BENCH_IR): read-only probes of the robot's internal I2C bus, the NFC chip and the infrared receiver, and (only with
++ * CONFIG_MAIPAI_BENCH_IR_TX, off in every kind) an infrared send with hard limits. docs/plan/ir-and-nfc.md has the pin sources: IR send GPIO 5 and receive GPIO 10
++ * are stated by the maker's pages and example code; the NFC chip is an ST25R3916 on the internal bus at 0x50 (interrupt pin unknown). Nothing here drives a pin
++ * unless the TX switch is on. The timing rules are maipai_ir_core.h (host test).
++ *   self.bench.i2c_scan   probes every address of the internal bus once (an address probe: a write of no bytes), read-only.
++ *   self.bench.nfc_probe  looks for the ST25R3916 at 0x50 and reads its identity register (0x3F) once. It does not start the radio field and does not poll for a tag:
++ *                         the tag polling sequence is not verified yet (see the doc).
++ *   self.bench.ir_rx      GPIO 10 as an input only: decodes NEC frames and returns raw timings for a few seconds.
++ *   self.bench.ir_tx      (TX switch only) GPIO 5, 38 kHz carrier at one third duty, NEC or raw durations, with the limits of maipai_ir_core.h.
++ */
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_BENCH_IR
++#include "maipai_ir_core.h"
++#include "board/hal_bridge.h"
++#include "maipai_pickup.h"
++#include <driver/gpio.h>
++#include <driver/i2c_master.h>
++#include <driver/rmt_rx.h>
++#include <driver/rmt_tx.h>
++#include <driver/rmt_encoder.h>
++#include <mcp_server.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/queue.h>
++#include <freertos/task.h>
++#include <cstdio>
++#include <string>
++#include <vector>
++
++namespace {
++const char* const kTag = "MaipaiIrNfc";
++constexpr int kIrRxGpio = 10;
++constexpr int kIrTxGpio = 5;
++constexpr int kNfcAddress = 0x50;
++constexpr uint8_t kNfcIdentityReg = 0x3F;  // the ST25R3916 "IC identity" register: type in bits 7..3, revision in bits 2..0 (to verify against the datasheet)
++
++struct RxDone {
++    rmt_symbol_word_t* symbols;
++    size_t count;
++};
++
++bool rx_done_cb(rmt_channel_handle_t, const rmt_rx_done_event_data_t* data, void* user)
++{
++    BaseType_t woken = pdFALSE;
++    RxDone d{data->received_symbols, data->num_symbols};
++    xQueueSendFromISR(static_cast<QueueHandle_t>(user), &d, &woken);
++    return woken == pdTRUE;
++}
++}  // namespace
++
++void maipai_irnfc_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.bench.i2c_scan",
++                "Bench only: probes every address (0x08 to 0x77) of the robot's internal I2C bus once, read-only, and answers the addresses that acknowledged. "
++                "Known on this bus: 0x34 power chip, 0x38 touch, 0x58 expander, 0x69 motion sensor, the audio chips; 0x50 would be the NFC chip.",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    auto bus = hal_bridge::board_get_i2c_bus();
++                    if (bus == nullptr) return std::string("{\"ok\":false,\"error\":\"the internal bus is not ready: try again after the unit has started\"}");
++                    std::string out = "{\"ok\":true,\"found\":[";
++                    int n = 0;
++                    for (int a = 0x08; a <= 0x77; a++) {
++                        if (i2c_master_probe(bus, static_cast<uint16_t>(a), 20) == ESP_OK) {
++                            char b[12];
++                            std::snprintf(b, sizeof(b), "%s\"0x%02x\"", n ? "," : "", a);
++                            out += b;
++                            n++;
++                        }
++                        vTaskDelay(1);
++                    }
++                    out += "],\"count\":" + std::to_string(n) + "}";
++                    return out;
++                });
++    mcp.AddTool("self.bench.nfc_probe",
++                "Bench only: looks for the NFC chip (ST25R3916) at 0x50 on the internal bus and reads its identity register once (type, revision). It does not turn "
++                "the radio field on and does not read tags: the tag sequence is not verified yet. Answers present, the raw byte, type and revision.",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    auto bus = hal_bridge::board_get_i2c_bus();
++                    if (bus == nullptr) return std::string("{\"ok\":false,\"error\":\"the internal bus is not ready: try again after the unit has started\"}");
++                    if (i2c_master_probe(bus, kNfcAddress, 50) != ESP_OK) return std::string("{\"ok\":true,\"present\":false,\"address\":\"0x50\"}");
++                    i2c_device_config_t cfg = {};
++                    cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
++                    cfg.device_address = kNfcAddress;
++                    cfg.scl_speed_hz = 100000;
++                    i2c_master_dev_handle_t dev = nullptr;
++                    if (i2c_master_bus_add_device(bus, &cfg, &dev) != ESP_OK) return std::string("{\"ok\":false,\"error\":\"the bus could not add the device: try again\"}");
++                    uint8_t reg = kNfcIdentityReg, val = 0;
++                    const esp_err_t err = i2c_master_transmit_receive(dev, &reg, 1, &val, 1, 50);
++                    i2c_master_bus_rm_device(dev);
++                    char out[160];
++                    std::snprintf(out, sizeof(out), "{\"ok\":true,\"present\":true,\"address\":\"0x50\",\"read\":%s,\"identity_raw\":%u,\"type\":%u,\"revision\":%u}", err == ESP_OK ? "true" : "false",
++                                  static_cast<unsigned>(val), static_cast<unsigned>(val >> 3), static_cast<unsigned>(val & 7));
++                    return std::string(out);
++                });
++    mcp.AddTool("self.bench.ir_rx",
++                "Bench only: listens on the infrared receiver (GPIO 10, input only) for seconds (1 to 20) and answers each frame it saw: a decoded NEC address and "
++                "command (and whether the inverted bytes matched), a repeat frame, or the raw timings in microseconds (up to 24 durations shown). Point a TV remote at the "
++                "unit's top and press a key. Nothing is transmitted.",
++                PropertyList({Property("seconds", kPropertyTypeInteger, 8, 1, 20)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    rmt_channel_handle_t rx = nullptr;
++                    rmt_rx_channel_config_t cfg = {};
++                    cfg.gpio_num = static_cast<gpio_num_t>(kIrRxGpio);
++                    cfg.clk_src = RMT_CLK_SRC_DEFAULT;
++                    cfg.resolution_hz = 1000000;
++                    cfg.mem_block_symbols = 64;
++                    if (rmt_new_rx_channel(&cfg, &rx) != ESP_OK) return std::string("{\"ok\":false,\"error\":\"the receiver could not start (the pin or the RMT channel is in use): restart the unit and try again\"}");
++                    QueueHandle_t q = xQueueCreate(4, sizeof(RxDone));
++                    rmt_rx_event_callbacks_t cbs = {};
++                    cbs.on_recv_done = rx_done_cb;
++                    rmt_rx_register_event_callbacks(rx, &cbs, q);
++                    rmt_enable(rx);
++                    static rmt_symbol_word_t symbols[128];
++                    rmt_receive_config_t rc = {};
++                    rc.signal_range_min_ns = 1250;
++                    rc.signal_range_max_ns = 12000000;
++                    std::string frames;
++                    int nframes = 0;
++                    const int64_t end_us = esp_timer_get_time() + static_cast<int64_t>(properties["seconds"].value<int>()) * 1000000;
++                    rmt_receive(rx, symbols, sizeof(symbols), &rc);
++                    while (esp_timer_get_time() < end_us && nframes < 12) {
++                        RxDone d;
++                        if (xQueueReceive(q, &d, pdMS_TO_TICKS(200)) != pdTRUE) continue;
++                        std::vector<uint32_t> dur;
++                        for (size_t i = 0; i < d.count; i++) {
++                            const rmt_symbol_word_t& s = d.symbols[i];
++                            if (i == 0 && s.level0 != 0) {  // the receiver idles high: a frame starts with a low mark
++                                dur.push_back(0);
++                            }
++                            dur.push_back(s.duration0);
++                            if (s.duration1 > 0) dur.push_back(s.duration1);
++                        }
++                        // the first entry is a mark: drop a leading placeholder
++                        if (!dur.empty() && dur[0] == 0) dur.erase(dur.begin());
++                        unsigned a = 0, c = 0;
++                        int inv = 0;
++                        const int kind = mir_nec_decode(dur.data(), static_cast<int>(dur.size()), &a, &c, &inv);
++                        char b[96];
++                        if (kind == 1) std::snprintf(b, sizeof(b), "%s{\"nec\":{\"address\":%u,\"command\":%u,\"inverse_ok\":%s}", nframes ? "," : "", a, c, inv ? "true" : "false");
++                        else if (kind == 2) std::snprintf(b, sizeof(b), "%s{\"nec_repeat\":true", nframes ? "," : "");
++                        else std::snprintf(b, sizeof(b), "%s{\"raw_count\":%u", nframes ? "," : "", static_cast<unsigned>(dur.size()));
++                        frames += b;
++                        frames += ",\"us\":[";
++                        for (size_t i = 0; i < dur.size() && i < 24; i++) frames += (i ? "," : "") + std::to_string(dur[i]);
++                        frames += "]}";
++                        nframes++;
++                        rmt_receive(rx, symbols, sizeof(symbols), &rc);
++                    }
++                    rmt_disable(rx);
++                    rmt_del_channel(rx);
++                    vQueueDelete(q);
++                    return std::string("{\"ok\":true,\"pin\":10,\"frames\":[") + frames + "],\"count\":" + std::to_string(nframes) + "}";
++                });
++#if CONFIG_MAIPAI_BENCH_IR_TX
++    mcp.AddTool("self.bench.ir_tx",
++                "Bench only, built only with the infrared send switch: sends one NEC frame (address, command, 0 to 255) or raw durations in microseconds (mark, space, mark, "
++                "...; list '[9000,4500,...]') on GPIO 5 with a 38 kHz carrier at one third duty, repeats 0 to 3. Limits: total mark time at most 120 ms, calls at least half a "
++                "second apart, refused when the battery is under 30 percent or the unit is carried. Watch the LED with a phone camera.",
++                PropertyList({Property("address", kPropertyTypeInteger, 0, 0, 255), Property("command", kPropertyTypeInteger, 8, 0, 255), Property("repeats", kPropertyTypeInteger, 0, 0, 3),
++                              Property("raw", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    static int64_t last_end_us = 0;
++                    uint32_t d[MIR_MAX_DURATIONS];
++                    int n = 0;
++                    const std::string raw = properties["raw"].value<std::string>();
++                    if (raw.empty()) {
++                        n = mir_nec_encode(static_cast<unsigned>(properties["address"].value<int>()), static_cast<unsigned>(properties["command"].value<int>()), d);
++                    } else {
++                        const char* p = raw.c_str();
++                        while (*p && n < MIR_MAX_DURATIONS + 1) {
++                            while (*p && (*p < '0' || *p > '9')) p++;
++                            if (!*p) break;
++                            char* end = nullptr;
++                            const unsigned long v = strtoul(p, &end, 10);
++                            if (n < MIR_MAX_DURATIONS) d[n] = static_cast<uint32_t>(v > 1000000ul ? 1000000ul : v);
++                            n++;
++                            p = end;
++                        }
++                    }
++                    int level = 0;
++                    bool on_cable = false, charging = false;
++                    if (!hal_bridge::board_battery_state(&level, &charging, &on_cable)) level = -1;
++                    const int64_t now = esp_timer_get_time();
++                    const uint32_t since_ms = last_end_us == 0 ? 1000000u : static_cast<uint32_t>((now - last_end_us) / 1000);
++                    const int reason = mir_tx_allowed(d, n > MIR_MAX_DURATIONS ? MIR_MAX_DURATIONS + 1 : n, properties["repeats"].value<int>(), since_ms, level, maipai_pickup_held() ? 1 : 0);
++                    if (n <= 0 || reason != MIR_OK) return std::string("{\"ok\":false,\"error\":\"") + MIR_REASON_TEXT[n <= 0 ? MIR_BAD_ARGS : reason] + "\"}";
++                    rmt_channel_handle_t tx = nullptr;
++                    rmt_tx_channel_config_t cfg = {};
++                    cfg.gpio_num = static_cast<gpio_num_t>(kIrTxGpio);
++                    cfg.clk_src = RMT_CLK_SRC_DEFAULT;
++                    cfg.resolution_hz = 1000000;
++                    cfg.mem_block_symbols = 64;
++                    cfg.trans_queue_depth = 1;
++                    if (rmt_new_tx_channel(&cfg, &tx) != ESP_OK) return std::string("{\"ok\":false,\"error\":\"the transmitter could not start: restart the unit and try again\"}");
++                    rmt_carrier_config_t carrier = {};
++                    carrier.frequency_hz = 38000;
++                    carrier.duty_cycle = 0.33f;
++                    rmt_apply_carrier(tx, &carrier);
++                    rmt_encoder_handle_t enc = nullptr;
++                    rmt_copy_encoder_config_t ec = {};
++                    rmt_new_copy_encoder(&ec, &enc);
++                    std::vector<rmt_symbol_word_t> sym;
++                    for (int rep = 0; rep <= properties["repeats"].value<int>(); rep++) {
++                        for (int i = 0; i < n; i += 2) {
++                            rmt_symbol_word_t s = {};
++                            s.level0 = 1;
++                            s.duration0 = d[i];
++                            s.level1 = 0;
++                            s.duration1 = (i + 1 < n) ? d[i + 1] : 0;
++                            sym.push_back(s);
++                        }
++                        rmt_symbol_word_t gap = {};
++                        gap.level0 = 0;
++                        gap.duration0 = 40000;
++                        gap.level1 = 0;
++                        gap.duration1 = 1;
++                        sym.push_back(gap);
++                    }
++                    rmt_enable(tx);
++                    rmt_transmit_config_t tc = {};
++                    tc.loop_count = 0;
++                    const esp_err_t err = rmt_transmit(tx, enc, sym.data(), sym.size() * sizeof(rmt_symbol_word_t), &tc);
++                    if (err == ESP_OK) rmt_tx_wait_all_done(tx, 1000);
++                    rmt_disable(tx);
++                    rmt_del_encoder(enc);
++                    rmt_del_channel(tx);
++                    gpio_set_direction(static_cast<gpio_num_t>(kIrTxGpio), GPIO_MODE_INPUT);  // the pin goes back to an input
++                    last_end_us = esp_timer_get_time();
++                    return std::string(err == ESP_OK ? "{\"ok\":true,\"pin\":5}" : "{\"ok\":false,\"error\":\"the send failed: try again\"}");
++                });
++#endif
++}
++#endif
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -337,6 +337,7 @@ idf_component_register(SRCS ${SOURCES}
+                         esp_driver_usb_serial_jtag
+                         esp_driver_spi
+                         esp_driver_i2c
++                        esp_driver_rmt
+                         esp_driver_i2s
+                         esp_driver_jpeg
+                         esp_driver_ppa
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -340,6 +340,22 @@ config MAIPAI_SERIAL_TOOLS
+         the cable. It reaches the same tool table the host uses. It needs the cable and nothing on the network can
+         reach it, but it is for bench checks: off in every shipped image, where no reader or driver is built.
+ 
++config MAIPAI_BENCH_IR
++    bool "Bench only: probes for the internal bus, the NFC chip and the infrared receiver"
++    depends on MAIPAI_SERIAL_TOOLS
++    default n
++    help
++        self.bench.i2c_scan, self.bench.nfc_probe and self.bench.ir_rx: read-only probes (an address scan, one identity register of the NFC
++        chip, the infrared receiver pin as an input). Nothing is transmitted. Off in every shipped image: no tool, no code.
++
++config MAIPAI_BENCH_IR_TX
++    bool "Bench only: infrared send (drives GPIO 5) with hard limits"
++    depends on MAIPAI_BENCH_IR
++    default n
++    help
++        self.bench.ir_tx drives the infrared LED pin. The pin comes from the maker's pages (docs/plan/ir-and-nfc.md); the LED's drive circuit is not
++        known. Off in every kind; turn it on only after the owner agrees and the pin is confirmed on the bench with the receive probe.
++
+ config MAIPAI_TALK_OVER
+     bool "Talk over the robot: read the speaker loopback microphone (MIC3)"
+     default n
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -736,6 +736,10 @@ void Hal::xiaozhi_mcp_init()
+     {   // bench only: speech clips into the microphone path (latency runs)
+         extern void maipai_bench_register_tools();
+         maipai_bench_register_tools();
++#if CONFIG_MAIPAI_BENCH_IR
++        extern void maipai_irnfc_register_tools();  // patch SF50
++        maipai_irnfc_register_tools();
++#endif
+         extern void maipai_powerprobe_register_tools();  // patch SF48
+         maipai_powerprobe_register_tools();
+ #if CONFIG_MAIPAI_TALK_OVER

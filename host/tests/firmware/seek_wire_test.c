@@ -609,11 +609,11 @@ static void test_always_notices_and_returns(void)
     world_init(&k, w, MS_MODE_ALWAYS);
     run_ms(&k, w, 6000);
     int idle_grabs = k.grabs;
-    CHECK(idle_grabs >= 3 && idle_grabs <= 8); /* about one frame a second at rest */
+    CHECK(idle_grabs >= 1 && idle_grabs <= 3); /* patch SF55: the first look (two frames), then the 30 s net: no frame a second */
     CHECK(k.moves == 0);
     CHECK(k.logs <= 3); /* an idle watch that sees nothing is one line a minute, not one per frame */
     k.p[0] = (person_t){1, -20.0f, 1, 8.0f};
-    run_ms(&k, w, 5000);
+    run_ms(&k, w, 33000); /* the net looks within 30 s */
     CHECK(fabsf(k.pan + 20.0f) < 8.0f);
     k.p[0].present = 0;
     run_ms(&k, w, 30000);

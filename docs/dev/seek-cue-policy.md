@@ -32,3 +32,7 @@ Effect on the cue: lit about 10 percent of the time at rest instead of about 100
 ## Open
 
 Whether the owner wants the cue lit to mean "looking now" (this proposal) or "the setting is on" (today). The proposal is the honest one for a camera cue; the second is a status light and belongs on the settings page, not on the face.
+
+## Status (SF55, 2026-11-18)
+
+Approved by the coordinator as proposed; the 30 s net is the default and is not a recorded owner decision (the owner can change `MS_IDLE_PERIOD_MS`). Built as patch SF55: triggers are the head touch and any pickup event except a lift or carry (bump, shake, set-down), plus a sound rise read once a second from the music level (`ms_sound_rise`: 400 above the slow average and 2.5 times it, one per 5 s). The sound trigger works only while the music features run (the level comes from that path); without them the touch, the bump and the 30 s net remain. Each look is two frames, because at 30 s the previous frame is too old to compare. Host tests: `seek_core_test.c` (net, trigger, gates drop a trigger, 2 s follow window, sound rise) and `seek_wire_test.c`. Not yet on a unit.

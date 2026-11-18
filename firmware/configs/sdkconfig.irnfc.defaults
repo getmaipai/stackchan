@@ -1,0 +1,2 @@
+# Build kind "irnfc": the bench image with the read-only I2C scan, NFC identity and infrared receive probes. Not the infrared send (CONFIG_MAIPAI_BENCH_IR_TX stays off).
+CONFIG_MAIPAI_BENCH_IR=y

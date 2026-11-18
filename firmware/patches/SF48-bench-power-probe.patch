@@ -1,0 +1,308 @@
+# Intent: Bench only (CONFIG_MAIPAI_SERIAL_TOOLS). self.bench.power_probe {move} reads what the unit can tell about its power: the power chip's status, ADC and input-limit registers (decoded and raw), each servo's supply voltage, load, current and temperature from the servo bus, and the sag of the servo supply and of the cable voltage during a small controlled head move, with a plain verdict (unknown, healthy, weak, poor). It changes nothing in the limiter. Memory cost: none in a release image (bench only).
+# Placement: unit
+# Upstream: firmware/main/hal/hal_servo.cpp, board/stackchan.cc and board/hal_bridge.h (the stock HAL, MIT)
+# Check after a flash: self.bench.power_probe answers vbus_mv near 5000 on a cable and near 0 without, vbat_mv near the battery voltage, both servos ok with volts_tenths about 50 to 80, and a sag figure after the small move.
+# Kconfig: none new
+
+diff --git a/firmware/main/hal/maipai_power_core.h b/firmware/main/hal/maipai_power_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_power_core.h
+@@ -0,0 +1,67 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Power readings (patch SF48, bench only): the pure decoding and the sag figure. Plain C99; host test host/tests/firmware/power_core_test.c.
++ * The register layout is the AXP2101's as read by the unit's own code (status 0x01, battery gauge 0xA4, ADC enables 0x30) and the chip's datasheet for
++ * the ADC and input-limit registers: the probe also returns the raw bytes, so every decoding here can be checked against the datasheet on a real unit.
++ *   status 0x00: bit 5 VBUS good, bit 3 battery present.
++ *   status 0x01: bits 6..5 current direction (1 charging, 2 discharging, 0 standby), bits 2..0 charge state.
++ *   ADC (when enabled in 0x30): VBAT 0x34/0x35, VBUS 0x38/0x39, VSYS 0x3A/0x3B: a 14 bit value in millivolts, high byte first (6 bits).
++ *   0x16 input current limit: 0..5 for 100, 500, 900, 1000, 1500, 2000 mA.  0x15 input voltage limit: 3.88 V plus 80 mV a step.
++ *   The servo bus reports the servo's supply in tenths of a volt (a byte).
++ */
++#ifndef MAIPAI_POWER_CORE_H
++#define MAIPAI_POWER_CORE_H
++
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++
++static inline int mpw_adc_mv(uint8_t high, uint8_t low) { return (int)(((unsigned)(high & 0x3f) << 8) | low); }
++static inline int mpw_vbus_good(uint8_t status0) { return (status0 >> 5) & 1; }
++static inline int mpw_battery_present(uint8_t status0) { return (status0 >> 3) & 1; }
++static inline int mpw_direction(uint8_t status1) { return (status1 >> 5) & 3; } /* 1 charging, 2 discharging, 0 standby, 3 invalid */
++static inline int mpw_charge_state(uint8_t status1) { return status1 & 7; }       /* 0 tri-charge, 1 pre, 2 constant current, 3 constant voltage, 4 done, 5 not charging */
++static inline int mpw_input_limit_ma(uint8_t reg16)
++{
++    static const int t[6] = {100, 500, 900, 1000, 1500, 2000};
++    const int i = reg16 & 7;
++    return i < 6 ? t[i] : -1;
++}
++static inline int mpw_vindpm_mv(uint8_t reg15) { return 3880 + 80 * (reg15 & 15); }
++
++/* The sag of a supply during a move: the resting reading minus the lowest reading seen while the move ran, in the reading's own unit. */
++typedef struct {
++    int base;
++    int lowest;
++    int highest;
++    int n;
++} mpw_sag_t;
++
++static inline void mpw_sag_begin(mpw_sag_t* s, int base)
++{
++    s->base = base;
++    s->lowest = base;
++    s->highest = base;
++    s->n = 0;
++}
++static inline void mpw_sag_add(mpw_sag_t* s, int reading)
++{
++    if (reading < 0) return; /* a failed read says nothing */
++    if (reading < s->lowest) s->lowest = reading;
++    if (reading > s->highest) s->highest = reading;
++    s->n++;
++}
++static inline int mpw_sag(const mpw_sag_t* s) { return s->base - s->lowest; }
++
++/* A plain verdict on the supply of a servo from its resting and loaded readings (tenths of a volt): 0 unknown, 1 healthy, 2 weak (sags more than 0.5 V or
++ * rests under 4.5 V), 3 poor (sags more than 1.0 V or rests under 4.0 V). The proposal in docs/plan/two-usb-ports.md; no limiter uses it yet. */
++static inline int mpw_supply_verdict(int rest_tenths, int sag_tenths)
++{
++    if (rest_tenths <= 0) return 0;
++    if (sag_tenths > 10 || rest_tenths < 40) return 3;
++    if (sag_tenths > 5 || rest_tenths < 45) return 2;
++    return 1;
++}
++
++#endif /* MAIPAI_POWER_CORE_H */
+diff --git a/firmware/main/hal/maipai_powerprobe.cc b/firmware/main/hal/maipai_powerprobe.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_powerprobe.cc
+@@ -0,0 +1,113 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Patch SF48 (bench only, CONFIG_MAIPAI_SERIAL_TOOLS): self.bench.power_probe. Reads what the unit can tell about its power: the power chip's status, ADC and
++ * input-limit registers (decoded and raw), each servo's supply voltage, load, current and temperature from the servo bus, and the sag of those readings
++ * during a small controlled head move. It changes nothing in the limiter; it exists to measure which supply the unit is on (a computer's USB, a charger, the
++ * battery). Decoding: maipai_power_core.h (host test).
++ */
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++#include "maipai_power_core.h"
++#include "board/hal_bridge.h"
++#include <hal/hal.h>
++#include <stackchan/stackchan.h>
++#include <stackchan/motion/servo.h>
++#include <mcp_server.h>
++#include <esp_timer.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
++#include <cstdio>
++#include <string>
++
++extern bool maipai_servo_telemetry(int servo_id, int* volts_tenths, int* load, int* current, int* temp, int* pos);
++
++namespace {
++const char* const kVerdict[4] = {"unknown", "healthy", "weak", "poor"};
++bool read_reg(uint8_t reg, uint8_t* v) { return hal_bridge::board_pmic_read(reg, v); }
++
++int adc_mv(uint8_t high_reg)
++{
++    uint8_t h = 0, l = 0;
++    if (!read_reg(high_reg, &h) || !read_reg(static_cast<uint8_t>(high_reg + 1), &l)) return -1;
++    return mpw_adc_mv(h, l);
++}
++
++struct Servo { int id; bool ok; int volts, load, current, temp, pos; };
++
++Servo read_servo(int id)
++{
++    Servo s{id, false, 0, 0, 0, 0, 0};
++    std::lock_guard<std::recursive_mutex> lock(stackchan::motion::servo_bus_mutex());
++    s.ok = maipai_servo_telemetry(id, &s.volts, &s.load, &s.current, &s.temp, &s.pos);
++    return s;
++}
++}  // namespace
++
++void maipai_powerprobe_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.bench.power_probe",
++                "Bench only: what the unit can tell about its power supply. Answers the power chip's status (vbus_good, battery_present, direction, charge_state), "
++                "vbus_mv, vbat_mv and vsys_mv from its ADC, the input current and voltage limits, the raw bytes of the registers read (regs: [register, value] pairs, to check "
++                "the decoding against the datasheet), each servo's bus telemetry (volts in tenths, load, current, temperature, position) and, when move is 1 and the movement "
++                "limiter allows it, the sag of the servo supply and of the cable voltage during a small yaw move of 15 degrees (the head returns): sag_servo_tenths, "
++                "sag_vbus_mv, lowest and highest readings and a plain supply verdict (unknown, healthy, weak, poor). The battery current is not measured by this chip: only "
++                "its direction. Run it with no cable, with the side port, with the back port and with a charger, and compare.",
++                PropertyList({Property("move", kPropertyTypeInteger, 1, 0, 1)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    uint8_t r00 = 0, r01 = 0, r15 = 0, r16 = 0, r30 = 0;
++                    const bool ok0 = read_reg(0x00, &r00), ok1 = read_reg(0x01, &r01), ok15 = read_reg(0x15, &r15), ok16 = read_reg(0x16, &r16), ok30 = read_reg(0x30, &r30);
++                    const int vbus = adc_mv(0x38), vbat = adc_mv(0x34), vsys = adc_mv(0x3A);
++                    const Servo y0 = read_servo(1), p0 = read_servo(2);
++                    mpw_sag_t sag_servo, sag_vbus;
++                    mpw_sag_begin(&sag_servo, y0.ok ? y0.volts : 0);
++                    mpw_sag_begin(&sag_vbus, vbus < 0 ? 0 : vbus);
++                    bool moved = false;
++                    int worst_load = 0, worst_current = 0;
++                    if (properties["move"].value<int>() == 1 && y0.ok) {
++                        {
++                            LvglLockGuard lock;
++                            auto& motion = GetStackChan().motion();
++                            const int start = motion.yawServo().getCurrentAngle();
++                            motion.yawServo().moveWithSpeed(start + 150, 300);
++                            moved = true;
++                        }
++                        const int64_t t0 = esp_timer_get_time();
++                        while (esp_timer_get_time() - t0 < 1200000) {
++                            const Servo s = read_servo(1);
++                            if (s.ok) {
++                                mpw_sag_add(&sag_servo, s.volts);
++                                if (s.load > worst_load) worst_load = s.load;
++                                if (s.current > worst_current) worst_current = s.current;
++                            }
++                            const int v = adc_mv(0x38);
++                            mpw_sag_add(&sag_vbus, v);
++                            vTaskDelay(pdMS_TO_TICKS(30));
++                        }
++                        {
++                            LvglLockGuard lock;
++                            auto& motion = GetStackChan().motion();
++                            motion.yawServo().moveWithSpeed(motion.yawServo().getCurrentAngle() - 150, 300);
++                        }
++                    }
++                    char out[900];
++                    std::snprintf(
++                        out, sizeof(out),
++                        "{\"ok\":true,\"pmic\":{\"read\":%s,\"vbus_good\":%d,\"battery_present\":%d,\"direction\":%d,\"charge_state\":%d,\"adc_enabled_0x30\":%d,"
++                        "\"vbus_mv\":%d,\"vbat_mv\":%d,\"vsys_mv\":%d,\"input_limit_ma\":%d,\"vindpm_mv\":%d,"
++                        "\"regs\":[[\"0x00\",%u],[\"0x01\",%u],[\"0x15\",%u],[\"0x16\",%u],[\"0x30\",%u]]},"
++                        "\"servo\":[{\"id\":1,\"ok\":%s,\"volts_tenths\":%d,\"load\":%d,\"current\":%d,\"temp\":%d,\"pos\":%d},"
++                        "{\"id\":2,\"ok\":%s,\"volts_tenths\":%d,\"load\":%d,\"current\":%d,\"temp\":%d,\"pos\":%d}],"
++                        "\"move\":{\"done\":%s,\"samples\":%d,\"sag_servo_tenths\":%d,\"servo_lowest_tenths\":%d,\"sag_vbus_mv\":%d,\"vbus_lowest_mv\":%d,"
++                        "\"worst_load\":%d,\"worst_current\":%d,\"verdict\":\"%s\"}}",
++                        (ok0 && ok1) ? "true" : "false", mpw_vbus_good(r00), mpw_battery_present(r00), mpw_direction(r01), mpw_charge_state(r01), ok30 ? r30 : -1, vbus, vbat, vsys,
++                        ok16 ? mpw_input_limit_ma(r16) : -1, ok15 ? mpw_vindpm_mv(r15) : -1, ok0 ? r00 : 0u, ok1 ? r01 : 0u, ok15 ? r15 : 0u, ok16 ? r16 : 0u, ok30 ? r30 : 0u,
++                        y0.ok ? "true" : "false", y0.volts, y0.load, y0.current, y0.temp, y0.pos, p0.ok ? "true" : "false", p0.volts, p0.load, p0.current, p0.temp, p0.pos,
++                        moved ? "true" : "false", sag_servo.n, mpw_sag(&sag_servo), sag_servo.lowest, mpw_sag(&sag_vbus), sag_vbus.lowest, worst_load, worst_current,
++                        kVerdict[mpw_supply_verdict(sag_servo.base, mpw_sag(&sag_servo))]);
++                    return std::string(out);
++                });
++}
++#endif
+diff --git a/firmware/main/hal/hal_servo.cpp b/firmware/main/hal/hal_servo.cpp
+--- a/firmware/main/hal/hal_servo.cpp
++++ b/firmware/main/hal/hal_servo.cpp
+@@ -333,6 +333,19 @@ private:
+     }
+ };
+ 
++// Patch SF48 (bench): what a servo reports on the bus: supply voltage (tenths of a volt), load (0 to 1000), current (raw units), temperature (degrees) and position.
++// Returns false when the servo does not answer. The caller holds the servo layer's lock (servo_bus_mutex).
++bool maipai_servo_telemetry(int servo_id, int* volts_tenths, int* load, int* current, int* temp, int* pos)
++{
++    if (_scs_bus.FeedBack(servo_id) < 0) return false;
++    *pos          = _scs_bus.ReadPos(-1);
++    *load         = _scs_bus.ReadLoad(-1);
++    *volts_tenths = _scs_bus.ReadVoltage(-1);
++    *temp         = _scs_bus.ReadTemper(-1);
++    *current      = _scs_bus.ReadCurrent(-1);
++    return true;
++}
++
+ void Hal::servo_init()
+ {
+     mclog::tagInfo("HAL-Servo", "init");
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -736,6 +736,8 @@ void Hal::xiaozhi_mcp_init()
+     {   // bench only: speech clips into the microphone path (latency runs)
+         extern void maipai_bench_register_tools();
+         maipai_bench_register_tools();
++        extern void maipai_powerprobe_register_tools();  // patch SF48
++        maipai_powerprobe_register_tools();
+ #if CONFIG_MAIPAI_TALK_OVER
+         extern void maipai_mic3_register_tools();  // patch SF15
+         maipai_mic3_register_tools();
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -73,6 +73,8 @@ int board_get_battery_level();
+ bool board_is_battery_charging();
+ // The battery gauge (patch T01): false while the unit has no reading. `on_cable` is true while any outside power is in.
+ bool board_battery_state(int* level, bool* charging, bool* on_cable);
++// Patch SF48 (bench): one register of the power chip (AXP2101) read as it is. False when the read fails.
++bool board_pmic_read(uint8_t reg, uint8_t* value);
+ // Powers the unit off from the low-battery ladder (patch T01). Never called while a cable is in.
+ void battery_power_off();
+ // A few plain words on the face for `ms` milliseconds, whatever the captions setting says (patch T01). Safe from any task.
+diff --git a/firmware/main/hal/board/stackchan.cc b/firmware/main/hal/board/stackchan.cc
+--- a/firmware/main/hal/board/stackchan.cc
++++ b/firmware/main/hal/board/stackchan.cc
+@@ -168,6 +168,8 @@ public:
+         return true;
+     }
+ 
++    esp_err_t TryReadOne(uint8_t reg, uint8_t* value) { return TryReadRegs(reg, value, 1); }  // patch SF48
++
+     esp_err_t TryReadPowerStatus(bool& has_external_power, bool& charging, bool& discharging)
+     {
+         uint8_t power_status = 0;
+@@ -783,6 +785,8 @@ public:
+         power_save_timer_->WakeUp();
+     }
+ 
++    bool PmicReadReg(uint8_t reg, uint8_t* value) { return pmic_->TryReadOne(reg, value) == ESP_OK; }  // patch SF48 (bench power probe)
++
+     // The low-battery ladder's last step (patch T01): the same power-off the idle shutdown uses.
+     void PowerOffLowBattery()
+     {
+@@ -875,6 +879,11 @@ bool hal_bridge::board_battery_state(int* level, bool* charging, bool* on_cable)
+     return true;
+ }
+ 
++bool hal_bridge::board_pmic_read(uint8_t reg, uint8_t* value)
++{
++    return ((M5StackCoreS3Board&)Board::GetInstance()).PmicReadReg(reg, value);
++}
++
+ void hal_bridge::battery_power_off()
+ {
+     ((M5StackCoreS3Board&)Board::GetInstance()).PowerOffLowBattery();
+diff --git a/firmware/main/stackchan/motion/servo.h b/firmware/main/stackchan/motion/servo.h
+--- a/firmware/main/stackchan/motion/servo.h
++++ b/firmware/main/stackchan/motion/servo.h
+@@ -4,12 +4,16 @@
+  * SPDX-License-Identifier: MIT
+  */
+ #pragma once
++#include <mutex>
+ #include <smooth_ui_toolkit.hpp>
+ #include <uitk/short_namespace.hpp>
+ #include <cstdint>
+ 
+ namespace stackchan::motion {
+ 
++// Patch SF48 (bench): the one lock of the servo layer, so the power probe reads the servo bus without meeting a write.
++std::recursive_mutex& servo_bus_mutex();
++
+ /**
+  * @brief
+  *
+diff --git a/firmware/main/stackchan/motion/servo.cpp b/firmware/main/stackchan/motion/servo.cpp
+--- a/firmware/main/stackchan/motion/servo.cpp
++++ b/firmware/main/stackchan/motion/servo.cpp
+@@ -50,6 +50,8 @@ namespace {
+ std::recursive_mutex s_servo_mutex;
+ }  // namespace
+ 
++std::recursive_mutex& servo_bus_mutex() { return s_servo_mutex; }
++
+ int Servo::takePeakTenthDps()
+ {
+     std::lock_guard<std::recursive_mutex> servo_lock(s_servo_mutex);

@@ -64,9 +64,10 @@ int main(int argc, char** argv)
     CHECK(mlk_set(&s, "4821", "9999", SALT_A) == MLK_R_OK);
 
     /* auto lock choices */
-    CHECK(mlk_set_auto(&s, 5) == MLK_R_OK && s.auto_min == 5);
-    CHECK(mlk_set_auto(&s, 7) == MLK_R_BAD_MINUTES && s.auto_min == 5);
-    CHECK(mlk_set_auto(&s, 0) == MLK_R_OK && mlk_set_auto(&s, 60) == MLK_R_OK && mlk_set_auto(&s, 1) == MLK_R_OK);
+    CHECK(mlk_set_auto(&s, 15) == MLK_R_OK && s.auto_min == 15);
+    CHECK(mlk_set_auto(&s, 7) == MLK_R_BAD_MINUTES && s.auto_min == 15);
+    /* patch SF53: off, 1 and 15 minutes are the choices; the older 5, 30 and 60 are no longer offered */
+    CHECK(mlk_set_auto(&s, 0) == MLK_R_OK && mlk_set_auto(&s, 60) == MLK_R_BAD_MINUTES && mlk_set_auto(&s, 5) == MLK_R_BAD_MINUTES && mlk_set_auto(&s, 30) == MLK_R_BAD_MINUTES && mlk_set_auto(&s, 1) == MLK_R_OK);
 
     /* the idle timer: after the time, not before, and not while an alarm rings or a turn runs */
     mlk_activity(&s, 1000);
@@ -141,6 +142,10 @@ int main(int argc, char** argv)
     CHECK(r.has_code && r.locked && r.auto_min == 15 && mlk_check(&r, "123456"));
     mlk_load(&r, "", "", 1, 5, 100);
     CHECK(!r.has_code && !r.locked && r.auto_min == 5);
+    mlk_load(&r, sh, hh, 0, 30, 100);
+    CHECK(r.auto_min == 30);   /* patch SF53: a saved 30 is kept (an earlier version offered it) */
+    mlk_load(&r, sh, hh, 0, 7, 100);
+    CHECK(r.auto_min == 0);    /* a value nobody offered becomes off */
     mlk_load(&r, sh, "zz", 1, 5, 100);
     CHECK(!r.has_code && !r.locked);
     mlk_load(&r, sh, hh, 0, 7, 100);

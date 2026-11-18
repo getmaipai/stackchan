@@ -1,0 +1,554 @@
+# Intent: A dance chosen by hand builds the whole ladder on the unit alone, with no song and no host: eyes, then the nod with the breathing ring and music notes, then the sway with the chasing ring and the disco ball, then the full dance with the swell and a confetti burst, then the way back down. The screen's Dance button, the Dance tile, self.robot.dance (happy, robot, panic, look_around, each with its own tempo) and the word reactions start a session on a steady synthetic beat; the new tool self.dance.session {name or bpm, seconds, max_stage} starts one on purpose and self.robot.stop_dance ends it. The ring patterns for the nod and the sway are painted by the unit while a session runs or when no host is connected. When a session cannot start (muted, full quiet) the keyframe dance plays as before; the movement limiter still caps the step. Memory cost: about 9 KB of flash, a state struct under 120 bytes and one esp_timer, no task and no new internal block while idle.
+# Placement: unit
+# Upstream: firmware/main/stackchan/modifiers/beat_dance.h (the beat dance, MD01), firmware/main/hal (ours)
+# Check after a flash: pressing the screen's Dance button shows the eyes alone first, then the nod with a mint and gold breathing ring and notes, then the sway with a chasing ring and the disco ball, then the full dance with a gold swell and confetti, then it winds down in about 45 seconds; self.robot.stop_dance ends it with the eyes ahead and the ring dark.
+# Kconfig: none new (under CONFIG_MAIPAI_MUSIC_DANCE)
+
+diff --git a/firmware/main/hal/maipai_dance_ladder_core.h b/firmware/main/hal/maipai_dance_ladder_core.h
+--- a/firmware/main/hal/maipai_dance_ladder_core.h
++++ b/firmware/main/hal/maipai_dance_ladder_core.h
+@@ -310,4 +310,131 @@ static inline void mdl_ring_frame(uint8_t out[MDL_RING_PIXELS][3], int swell, in
+     }
+ }
+ 
++/* ---------------------------------------------------------------- a dance chosen by hand: a synthetic beat and the show (patch SF51) */
++
++/* The unit alone has no microphone beat for a dance chosen on the screen or by a tool: the session supplies the music flag, the level, the tempo
++ * confidence and the beat itself, so the ladder climbs, holds and winds down exactly as it does for a song. `total_ms` is when the way down starts. */
++typedef struct {
++    uint32_t t0_ms;
++    uint32_t period_ms;
++    uint32_t total_ms;
++} mdl_synth_t;
++
++static inline void mdl_synth_start(mdl_synth_t* y, uint32_t now_ms, int bpm, uint32_t total_ms)
++{
++    y->t0_ms = now_ms;
++    y->period_ms = bpm > 0 ? mdl_period((uint32_t)(60000 / bpm)) : 600u;
++    y->total_ms = total_ms < 5000u ? 5000u : total_ms;
++}
++
++/* The input for this second: music until total_ms, a steady loud level, a sure beat. */
++static inline void mdl_synth_input(const mdl_synth_t* y, uint32_t now_ms, mdl_in_t* in)
++{
++    in->now_ms = now_ms;
++    in->period_ms = y->period_ms;
++    in->level = 1200;
++    in->tc = 60;
++    in->music = (uint32_t)(now_ms - y->t0_ms) < y->total_ms ? 1 : 0;
++}
++
++/* The tempo of the built-in dances that run as a session, or -1 for a gesture that stays a keyframe dance. */
++static inline int mdl_synth_bpm_for(const char* name)
++{
++    if (name == NULL) return -1;
++    if (strcmp(name, "happy") == 0) return 90;
++    if (strcmp(name, "robot") == 0) return 120;
++    if (strcmp(name, "panic") == 0) return 140;
++    if (strcmp(name, "look_around") == 0) return 80;
++    return -1;
++}
++
++/* What the show adds at a step: the music notes shown (0 none to 3), the disco ball (0 none, 1 light at the sway, 2 normal at the peak), a confetti burst (on
++ * entering the peak) and whether the back layer is cleared (leaving the sway downwards). Mirrors the host's LadderDirector (host/.../dance_ladder.py). */
++typedef struct {
++    uint8_t notes;
++    uint8_t disco;
++    uint8_t confetti;
++    uint8_t clear_overlays;
++} mdl_show_t;
++
++static inline void mdl_show_for_step(int previous, int stage, mdl_show_t* out)
++{
++    static const uint8_t notes[5] = {0, 0, 1, 2, 3};
++    memset(out, 0, sizeof(*out));
++    out->notes = notes[stage < 0 ? 0 : (stage > 4 ? 4 : stage)];
++    if (stage >= 3) {
++        out->disco = stage >= 4 ? 2 : 1;
++        out->confetti = (stage >= 4 && previous < 4) ? 1 : 0;
++    } else if (previous >= 3) {
++        out->clear_overlays = 1;
++    }
++}
++
++#define MDL_FACE_COUNT 8
++static const char* const MDL_FACES[MDL_FACE_COUNT] = {"happy", "serene", "laughing", "love", "surprised", "wink", "silly", "excited"};
++/* The faces of each step (indices into MDL_FACES), as the host's FACES_BY_STAGE. */
++static const uint8_t MDL_FACE_POOL[5][8] = {{0}, {0}, {0, 1, 2, 3}, {0, 1, 2, 3, 4, 5}, {2, 3, 4, 5, 6, 7, 0, 1}};
++static const uint8_t MDL_FACE_POOL_N[5] = {1, 1, 4, 6, 8};
++
++/* Picks the next face of the dance: from the step's list, never one of the last two shown. hist holds the last shown indices (newest last, 0xff none). */
++static inline int mdl_face_next(uint32_t* rng, int stage, uint8_t hist[2])
++{
++    const int st = stage < 1 ? 1 : (stage > 4 ? 4 : stage);
++    uint8_t choice[8];
++    int n = 0;
++    for (int i = 0; i < MDL_FACE_POOL_N[st]; i++) {
++        const uint8_t f = MDL_FACE_POOL[st][i];
++        if (f != hist[0] && f != hist[1]) choice[n++] = f;
++    }
++    if (n == 0) {
++        for (int i = 0; i < MDL_FACE_POOL_N[st]; i++) {
++            if (MDL_FACE_POOL[st][i] != hist[1]) choice[n++] = MDL_FACE_POOL[st][i];
++        }
++    }
++    if (n == 0) choice[n++] = MDL_FACE_POOL[st][0];
++    *rng = *rng * 1664525u + 1013904223u;
++    const uint8_t f = choice[(*rng >> 16) % (uint32_t)n];
++    hist[0] = hist[1];
++    hist[1] = f;
++    return f;
++}
++
++/* The ring at the nod: both halves breathe, mint on the left half and gold on the right, 10 to 18 percent of full (60 percent of the swell when quiet).
++ * The breath is four beats long held between 1.5 and 4 seconds. */
++static inline void mdl_ring_breath(uint8_t out[MDL_RING_PIXELS][3], uint32_t t_ms, uint32_t beat_ms, int full_depth)
++{
++    static const uint8_t mint[3] = {77, 255, 153}, gold[3] = {255, 204, 0};
++    const uint32_t period = mdl_clamp_ms(4u * (beat_ms ? beat_ms : 600u), 1500u, 4000u);
++    const uint32_t x = (t_ms % period) * 1000u / period; /* 0..999 */
++    const uint32_t tri = x < 500u ? x * 2u : (1000u - x) * 2u;                  /* 0..1000..0 */
++    const uint32_t swell = tri * tri / 1000u * (3000u - 2u * tri) / 1000u;       /* smoothstep, 0..1000 */
++    const int depth = full_depth ? 100 : 60;
++    const int pct = 10 + (int)(8u * swell * (uint32_t)depth / 100000u);
++    for (int i = 0; i < MDL_RING_PIXELS; i++) {
++        const uint8_t* c = i < 6 ? mint : gold;
++        for (int k = 0; k < 3; k++) out[i][k] = (uint8_t)(MDL_RING_CHANNEL_MAX * pct / 100 * c[k] / 255);
++    }
++}
++
++/* The ring at the sway: a two-pixel head walks round one pixel per beat over a faint mint wash, 18 to 30 percent of full by the level (0..100), 70 percent of that
++ * on the way down. */
++static inline void mdl_ring_chase(uint8_t out[MDL_RING_PIXELS][3], uint32_t beat_index, int level_pct, int down)
++{
++    static const uint8_t mint[3] = {77, 255, 153}, gold[3] = {255, 204, 0}, lime[3] = {153, 255, 0};
++    const int lvl = level_pct < 0 ? 0 : (level_pct > 100 ? 100 : level_pct);
++    const int scale = down ? 70 : 100;
++    const int base = 8 * scale / 100;
++    const int bright = (18 + 12 * lvl / 100) * scale / 100;
++    const int head = (int)(beat_index % MDL_RING_PIXELS);
++    const int lean_left = (beat_index % 2u) == 0u;
++    for (int i = 0; i < MDL_RING_PIXELS; i++) {
++        const int gain = ((i < 6) == lean_left) ? 100 : 75;
++        const uint8_t* c = mint;
++        int pct = base * gain / 100;
++        if (i == head) { c = gold; pct = bright * gain / 100; }
++        else if (i == (head + MDL_RING_PIXELS - 1) % MDL_RING_PIXELS) { c = lime; pct = bright * gain / 100; }
++        for (int k = 0; k < 3; k++) out[i][k] = (uint8_t)(MDL_RING_CHANNEL_MAX * pct / 100 * c[k] / 255);
++    }
++}
++
+ #endif
+diff --git a/firmware/main/hal/maipai_dance_session.h b/firmware/main/hal/maipai_dance_session.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_dance_session.h
+@@ -0,0 +1,16 @@
++#pragma once
++// Patch SF51: a dance chosen by hand (the screen's Dance button, the Dance tile, self.robot.dance, a word reaction, self.dance.session) runs the whole dance
++// ladder on a synthetic beat: eyes, nod with the breathing ring and notes, sway with the chasing ring and the disco ball, the full dance with the swell and
++// confetti, and the way down. No microphone, no host and no song are needed. The rules are maipai_dance_ladder_core.h (host test dance_synth_test.c).
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_MUSIC_DANCE
++// Starts a session for a named dance (happy, robot, panic, look_around) or at bpm (40 to 200 when name is null or not a tempo dance), for seconds of music
++// (10 to 120) and at most max_stage (1 to 4). False when a dance may not run now (carried, a low battery, muted, full quiet).
++bool maipai_dance_session_start(const char* name, int bpm, int seconds, int max_stage);
++// Ends a session at once (eyes ahead, head level, ring dark, overlays and notes cleared). Takes the LVGL lock: call it without the lock held.
++void maipai_dance_session_stop();
++bool maipai_dance_session_active();
++bool maipai_dance_ring_local();
++void maipai_dance_session_register_tools();
++#endif
+diff --git a/firmware/main/hal/maipai_dance_session.cc b/firmware/main/hal/maipai_dance_session.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_dance_session.cc
+@@ -0,0 +1,228 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Patch SF51: the dance session (see maipai_dance_session.h). One esp_timer once a second (no task): each tick steps the ladder on the main task, sets the step,
++ * and at a step change shows what the show adds there (notes, disco ball, confetti, a face). Memory: a state struct of about 100 bytes and the timer.
++ */
++#include "maipai_dance_session.h"
++
++#if CONFIG_MAIPAI_MUSIC_DANCE
++#include "maipai_dance_ladder_core.h"
++#include "maipai_decor.h"
++#include "maipai_decor_core.h"
++#include "maipai_fx.h"
++#include "maipai_motion_limit.h"
++#include "board/hal_bridge.h"
++#include <application.h>
++#include <hal/hal.h>
++#include <stackchan/stackchan.h>
++#include <mcp_server.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <mutex>
++
++bool maipai_music_stage_set(int stage);
++void maipai_beat_synth_set(uint32_t period_ms, uint32_t ref_ms);
++void maipai_beat_synth_clear();
++
++namespace {
++const char* const kTag = "MaipaiDance";
++
++struct Session {
++    bool active = false;
++    mdl_t st;
++    mdl_synth_t y;
++    int shown = 0;           // the step whose show was applied last
++    uint32_t rng = 1;
++    uint8_t hist[2] = {0xff, 0xff};
++    uint32_t next_face_ms = 0, notes_ms = 0, overlay_ms = 0, stage_ms = 0, confetti_beat = 0;
++};
++std::mutex s_mu;
++Session s_s;
++esp_timer_handle_t s_timer = nullptr;
++std::atomic<bool> s_active{false};
++
++uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++// What a step adds. LVGL lock held. Each call may be refused (overlays off, a privacy look or a ringing timer showing): then it simply does not draw.
++void apply_show(Session& s, int previous, int stage, uint32_t now, bool refresh_only)
++{
++    mdl_show_t sh;
++    mdl_show_for_step(previous, stage, &sh);
++    if (!refresh_only && sh.clear_overlays) maipai_fx_overlay_clear();
++    if (sh.notes > 0) {
++        maipai_decor_show_n(MD_NOTES, 30, sh.notes);
++        s.notes_ms = now;
++    } else if (!refresh_only && previous >= 2) {
++        maipai_decor_show(MD_NONE, 1);
++    }
++    if (sh.disco > 0) {
++        maipai_fx_dance_overlay("disco", sh.disco >= 2 ? 3 : 2, 30);
++        s.overlay_ms = now;
++    }
++    if (sh.confetti) {
++        maipai_fx_dance_overlay("confetti", 3, 4);
++        s.confetti_beat = 0;
++        s.stage_ms = now;
++    }
++}
++
++void face_now(Session& s, int stage, uint32_t now)
++{
++    const int f = mdl_face_next(&s.rng, stage, s.hist);
++    hal_bridge::react_face(MDL_FACES[f], static_cast<int>(s.y.period_ms * (stage == 2 ? 16u : 8u)));
++    s.next_face_ms = now + s.y.period_ms * (stage == 2 ? 16u : 8u);
++}
++
++void finish_locked()
++{
++    // LVGL lock held, s_mu not held
++    maipai_fx_overlay_clear();
++    maipai_decor_show(MD_NONE, 1);
++}
++
++void step_on_main()
++{
++    int stage = 0, previous = 0;
++    uint32_t now = now_ms();
++    bool ended = false;
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        if (!s_s.active) return;
++        mdl_in_t in;
++        mdl_synth_input(&s_s.y, now, &in);
++        stage = mdl_step(&s_s.st, &in);
++        previous = s_s.shown;
++        if (stage == 0) {
++            s_s.active = false;
++            ended = true;
++        }
++    }
++    if (ended) {
++        s_active.store(false);
++        if (s_timer != nullptr) esp_timer_stop(s_timer);
++        maipai_beat_synth_clear();
++        maipai_music_stage_set(0);  // the eyes ahead, the head level, the ring dark
++        LvglLockGuard lock;
++        finish_locked();
++        ESP_LOGI(kTag, "dance session over");
++        return;
++    }
++    if (stage != previous) {
++        maipai_music_stage_set(stage);
++    }
++    LvglLockGuard lock;
++    std::lock_guard<std::mutex> l(s_mu);
++    if (!s_s.active) return;
++    if (stage != previous) {
++        apply_show(s_s, previous, stage, now, false);
++        s_s.shown = stage;
++        if (stage >= 2) face_now(s_s, stage, now);
++    } else {
++        if (stage >= 2 && now >= s_s.next_face_ms) face_now(s_s, stage, now);
++        if (stage >= 2 && now - s_s.notes_ms >= 10000u) apply_show(s_s, stage, stage, now, true);
++        if (stage >= 3 && now - s_s.overlay_ms >= 20000u) {
++            maipai_fx_dance_overlay("disco", stage >= 4 ? 3 : 2, 30);
++            s_s.overlay_ms = now;
++        }
++        if (stage >= 4) {
++            const uint32_t beats = (now - s_s.stage_ms) / (s_s.y.period_ms ? s_s.y.period_ms : 600u);
++            if (beats / 32u > s_s.confetti_beat) {
++                s_s.confetti_beat = beats / 32u;
++                maipai_fx_dance_overlay("confetti", 3, 4);
++            }
++        }
++    }
++}
++
++void tick(void*)
++{
++    Application::GetInstance().Schedule([]() { step_on_main(); });
++}
++}  // namespace
++
++bool maipai_dance_session_start(const char* name, int bpm, int seconds, int max_stage)
++{
++    int tempo = mdl_synth_bpm_for(name);
++    if (tempo < 0) tempo = bpm;
++    if (tempo < 40 || tempo > 200 || !maipai_motion_dances_ok()) return false;
++    seconds = seconds < 10 ? 10 : (seconds > 120 ? 120 : seconds);
++    max_stage = max_stage < 1 ? 1 : (max_stage > 4 ? 4 : max_stage);
++    if (maipai_dance_session_active()) maipai_dance_session_stop();
++    const uint32_t now = now_ms();
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        s_s = Session();
++        mdl_synth_start(&s_s.y, now, tempo, static_cast<uint32_t>(seconds) * 1000u);
++        mdl_start(&s_s.st, max_stage, now);
++        s_s.rng = now | 1u;
++        s_s.stage_ms = now;
++        s_s.active = true;
++        maipai_beat_synth_set(s_s.y.period_ms, now);
++    }
++    if (!maipai_music_stage_set(1)) {  // muted or in full quiet: the unit stays still
++        std::lock_guard<std::mutex> lock(s_mu);
++        s_s.active = false;
++        maipai_beat_synth_clear();
++        return false;
++    }
++    s_active.store(true);
++    {
++        LvglLockGuard lock;
++        std::lock_guard<std::mutex> l(s_mu);
++        s_s.shown = 1;
++    }
++    if (s_timer == nullptr) {
++        esp_timer_create_args_t args = {};
++        args.callback = tick;
++        args.name = "dance_session";
++        esp_timer_create(&args, &s_timer);
++    }
++    if (s_timer != nullptr) esp_timer_start_periodic(s_timer, 1000000);
++    ESP_LOGI(kTag, "dance session: %d BPM, %d s, up to step %d", tempo, seconds, max_stage);
++    return true;
++}
++
++void maipai_dance_session_stop()
++{
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        if (!s_s.active) return;
++        s_s.active = false;
++    }
++    s_active.store(false);
++    if (s_timer != nullptr) esp_timer_stop(s_timer);
++    maipai_beat_synth_clear();
++    maipai_music_stage_set(0);
++    LvglLockGuard lock;
++    finish_locked();
++}
++
++bool maipai_dance_session_active() { return s_active.load(); }
++
++// The nod's breath and the sway's chase are the unit's to paint while a session runs, or when no host is there to paint them.
++bool maipai_dance_ring_local() { return s_active.load() || !hal_bridge::hub_link_up(); }
++
++void maipai_dance_session_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.dance.session",
++                "Starts a dance session on the unit alone: the dance builds on a steady beat of its own, with no song and no host: the eyes look side to side, then the head nods "
++                "(the ring breathes, music notes appear), then it sways (the ring chases, the disco ball shows), then the full dance (the ring swells, confetti), then it winds "
++                "down. name is happy, robot, panic or look_around (each has its own tempo), or give bpm (40 to 200). seconds (10 to 120) is how long the music goes on before the "
++                "way down; max_stage (1 to 4) is the highest step. Refused when the unit is carried, the battery is low, it is muted or in full quiet. Stop it with "
++                "self.robot.stop_dance. Answers {ok}.",
++                PropertyList({Property("name", kPropertyTypeString, std::string("")), Property("bpm", kPropertyTypeInteger, 100, 40, 200), Property("seconds", kPropertyTypeInteger, 45, 10, 120),
++                              Property("max_stage", kPropertyTypeInteger, 4, 1, 4)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string name = properties["name"].value<std::string>();
++                    const bool ok = maipai_dance_session_start(name.empty() ? nullptr : name.c_str(), properties["bpm"].value<int>(), properties["seconds"].value<int>(),
++                                                               properties["max_stage"].value<int>());
++                    return std::string(ok ? "{\"ok\":true}"
++                                          : "{\"ok\":false,\"error\":\"a dance cannot run now: the unit is carried, muted, in full quiet or the battery is low\"}");
++                });
++}
++#endif
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -470,6 +470,12 @@ bool ov_start(int id, int intensity, uint32_t seconds)
+ 
+ }  // namespace
+ 
++// Patch SF51: the dance session starts a named overlay (disco, confetti) and clears them. LVGL lock held. Refused (false) when overlays are off.
++bool maipai_fx_dance_overlay(const char* name, int level, int seconds)
++{
++    return ov_start(mo_id(name), level, static_cast<uint32_t>(seconds));
++}
++
+ bool maipai_fx_celebrate(int level)
+ {
+     return ov_start(mo_id(level >= 2 ? "celebrate" : "confetti"), level >= 2 ? 3 : 2, level >= 2 ? 4u : 3u);
+@@ -794,4 +800,10 @@ void maipai_fx_register_tools()
+                     return std::string("{\"ok\":true}");
+                 });
+ }
++
++// Patch SF51: clears every overlay (the end of a dance session). LVGL lock held.
++void maipai_fx_overlay_clear()
++{
++    ov_clear_all();
++}
+ #endif
+diff --git a/firmware/main/hal/maipai_fx.h b/firmware/main/hal/maipai_fx.h
+--- a/firmware/main/hal/maipai_fx.h
++++ b/firmware/main/hal/maipai_fx.h
+@@ -35,6 +35,9 @@ bool maipai_fx_thinking_dots();
+ // (the governor sheds it under load, the banner row and the subtitle strip stay clear) and does nothing when the overlays setting is off.
+ // Call with the LVGL lock held. True when an overlay started.
+ bool maipai_fx_celebrate(int level);
++// Patch SF51: the dance session starts a named overlay ("disco", "confetti") for seconds and clears them all. LVGL lock held; false when overlays are off.
++bool maipai_fx_dance_overlay(const char* name, int level, int seconds);
++void maipai_fx_overlay_clear();
+ // Hooks the screen effects into the display's flush path and starts the overlay timer. Call once from the display set-up.
+ void maipai_fx_attach(lv_display_t* display);
+ #if CONFIG_MAIPAI_FACE_BENCH
+@@ -54,4 +57,6 @@ inline bool maipai_fx_thinking_dots() { return true; }
+ inline void maipai_fx_style_changed() {}
+ inline void maipai_fx_note_emotion(const char*) {}
+ inline bool maipai_fx_celebrate(int) { return false; }
++inline bool maipai_fx_dance_overlay(const char*, int, int) { return false; }
++inline void maipai_fx_overlay_clear() {}
+ #endif
+diff --git a/firmware/main/hal/maipai_music.cc b/firmware/main/hal/maipai_music.cc
+--- a/firmware/main/hal/maipai_music.cc
++++ b/firmware/main/hal/maipai_music.cc
+@@ -432,8 +432,27 @@ void set_enabled(bool enabled, bool persist)
+ 
+ // The beat of the song for the dance (beat_sway.h): true while a beat was measured in the last 3 seconds with a
+ // confidence of at least 30. Both numbers are on the esp_timer millisecond clock.
++// Patch SF51: a dance chosen by hand has no song: the session sets a steady beat (period and a reference time on the same clock) that the beat dance follows
++// as if it had been measured; cleared when the session ends.
++static std::atomic<uint32_t> s_synth_period{0}, s_synth_ref{0};
++void maipai_beat_synth_set(uint32_t period_ms, uint32_t ref_ms)
++{
++    s_synth_ref.store(ref_ms);
++    s_synth_period.store(period_ms);
++}
++void maipai_beat_synth_clear()
++{
++    s_synth_period.store(0);
++}
++
+ bool maipai_beat_get(uint32_t* period_ms, uint32_t* ref_ms)
+ {
++    const uint32_t synth = s_synth_period.load();
++    if (synth != 0) {
++        *period_ms = synth;
++        *ref_ms = s_synth_ref.load();
++        return true;
++    }
+     const uint32_t now = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+     if (s_beat_conf.load() < 30 || now - s_beat_pub_ms.load() > 3000 || s_beat_period_ms.load() == 0) {
+         return false;
+diff --git a/firmware/main/stackchan/modifiers/beat_dance.h b/firmware/main/stackchan/modifiers/beat_dance.h
+--- a/firmware/main/stackchan/modifiers/beat_dance.h
++++ b/firmware/main/stackchan/modifiers/beat_dance.h
+@@ -21,6 +21,8 @@ bool maipai_beat_get(uint32_t* period_ms, uint32_t* ref_ms);
+ int maipai_music_stage_get();
+ bool maipai_dance_ring_allowed();
+ int maipai_music_level();
++// hal_mcp: whether the unit paints the nod's breath and the sway's chase itself (a hand-chosen dance session, or no host to do it).
++bool maipai_dance_ring_local();
+ 
+ namespace stackchan {
+ 
+@@ -102,6 +104,23 @@ public:
+                 hal.refreshRgb();
+                 _ring_on = true;
+             }
++        } else if ((eff == 2 || eff == 3) && maipai_dance_ring_allowed() && maipai_dance_ring_local()) {
++            // Patch SF51: the nod breathes (mint and gold), the sway chases; the host paints these itself when it runs the show.
++            if (now - _ring_at >= 50) {
++                _ring_at = now;
++                uint8_t px[MDL_RING_PIXELS][3];
++                if (eff == 2) {
++                    mdl_ring_breath(px, now - _t0, period, 1);
++                } else {
++                    mdl_ring_chase(px, static_cast<uint32_t>(eb >= 0 ? eb : 0), 57, 0);
++                }
++                auto& hal = GetHAL();
++                for (int i = 0; i < MDL_RING_PIXELS; i++) {
++                    hal.setRgbColor(static_cast<uint8_t>(i), px[i][0], px[i][1], px[i][2]);
++                }
++                hal.refreshRgb();
++                _ring_on = true;
++            }
+         } else {
+             ring_dark();
+         }
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -22,6 +22,7 @@
+ #include "maipai_update.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_music.h"
++#include "maipai_dance_session.h"
+ #include "maipai_motion_limit.h"
+ #include "maipai_games.h"
+ #include "maipai_pages_unit.h"
+@@ -173,6 +174,13 @@ bool maipai_dance_play(const char* name)
+     if (!sequence) {
+         return false;
+     }
++#if CONFIG_MAIPAI_MUSIC_DANCE
++    // Patch SF51: the four built-in dances with a tempo run as a ladder session on a synthetic beat (eyes, nod, sway, full, way down, with the ring, notes, overlays and
++    // faces); when a session cannot start (muted, full quiet) the keyframe dance plays as before.
++    if (mdl_synth_bpm_for(name) > 0 && maipai_dance_session_start(name, 0, 45, 4)) {
++        return true;
++    }
++#endif
+     LvglLockGuard lock;
+     if (s_dance_modifier_id >= 0) {
+         GetStackChan().removeModifier(s_dance_modifier_id);
+@@ -839,6 +847,9 @@ void Hal::xiaozhi_mcp_init()
+     mclog::tagInfo(_tag, "add robot.stop_dance tool");
+     mcp_server.AddTool("self.robot.stop_dance", "Stop the current built-in dance if one is running.", std::vector<Property>{},
+                        [this](const PropertyList&) -> ReturnValue {
++#if CONFIG_MAIPAI_MUSIC_DANCE
++                           maipai_dance_session_stop();  // patch SF51: ends a dance session (takes the lock itself)
++#endif
+                            LvglLockGuard lock;
+ #if CONFIG_MAIPAI_MUSIC_DANCE
+                            music_stage_locked(0);  // patch MD01: also ends the beat dance (eyes ahead, head level, ring dark)
+@@ -850,6 +861,9 @@ void Hal::xiaozhi_mcp_init()
+                            return true;
+                        });
+ 
++#if CONFIG_MAIPAI_MUSIC_DANCE
++    maipai_dance_session_register_tools();  // patch SF51
++#endif
+     mclog::tagInfo(_tag, "add robot.get_events tool");
+     mcp_server.AddTool("self.robot.get_events",
+                        "Return and clear recent head touch, head swipe, and shake events as a JSON array.",

@@ -1,0 +1,75 @@
+# Intent: The auto lock offers off, 1 and 15 minutes (owner decision 22). A unit that saved 5, 30 or 60 minutes with an earlier version keeps that value until the person picks again: an update never turns a saved auto lock into "off". Memory cost: none.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.lock.set_auto with 5 is refused and with 15 is accepted; a unit that had 30 saved still reports auto_minutes 30 after the update.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_lock_core.h b/firmware/main/hal/maipai_lock_core.h
+--- a/firmware/main/hal/maipai_lock_core.h
++++ b/firmware/main/hal/maipai_lock_core.h
+@@ -186,8 +186,12 @@ typedef struct {
+ enum { MLK_R_OK = 0, MLK_R_BAD_CODE, MLK_R_CURRENT_NEEDED, MLK_R_WRONG_CURRENT, MLK_R_LOCKED, MLK_R_NO_CODE, MLK_R_BAD_MINUTES, MLK_R_TOO_MANY, MLK_R_COUNT };
+ static const char* const MLK_REASONS[MLK_R_COUNT] = {"ok", "bad_code", "current_needed", "wrong_current", "locked", "no_code", "bad_minutes", "too_many"};
+ 
+-#define LK_AUTO_COUNT 6
+-static const uint8_t LK_AUTO_MINUTES[LK_AUTO_COUNT] = {0, 1, 5, 15, 30, 60};
++/* Patch SF53 (owner decision 22): the auto lock offers off, 1 and 15 minutes. A unit that saved 5, 30 or 60 before keeps that value until the person picks again
++ * (LK_AUTO_LEGACY): the saved choice is never turned into "off" by an update. */
++#define LK_AUTO_COUNT 3
++static const uint8_t LK_AUTO_MINUTES[LK_AUTO_COUNT] = {0, 1, 15};
++#define LK_AUTO_LEGACY_COUNT 6
++static const uint8_t LK_AUTO_LEGACY[LK_AUTO_LEGACY_COUNT] = {0, 1, 5, 15, 30, 60};
+ 
+ enum { MLK_EV_NONE = 0, MLK_EV_UNLOCK, MLK_EV_WRONG, MLK_EV_CANCEL, MLK_EV_IGNORED };
+ 
+@@ -214,6 +218,15 @@ static inline int mlk_auto_ok(int minutes)
+     return 0;
+ }
+ 
++/* A saved value is accepted when it is one of today's choices or one an earlier version offered. */
++static inline int mlk_auto_saved_ok(int minutes)
++{
++    for (int i = 0; i < LK_AUTO_LEGACY_COUNT; i++) {
++        if (LK_AUTO_LEGACY[i] == minutes) return 1;
++    }
++    return 0;
++}
++
+ static inline void mlk_derive(const char* code, const uint8_t salt[LK_SALT_LEN], uint8_t out[LK_HASH_LEN])
+ {
+     lk_pbkdf2((const uint8_t*)code, strlen(code), salt, LK_SALT_LEN, LK_KDF_ROUNDS, out);
+@@ -271,7 +284,7 @@ static inline void mlk_load(mlk_t* s, const char* salt_hex, const char* hash_hex
+         memset(s->salt, 0, sizeof(s->salt));
+         memset(s->hash, 0, sizeof(s->hash));
+     }
+-    s->auto_min = (uint8_t)(mlk_auto_ok(auto_min) ? auto_min : 0);
++    s->auto_min = (uint8_t)(mlk_auto_saved_ok(auto_min) ? auto_min : 0);
+     s->last_activity_ms = now;
+ }
+ 
+diff --git a/firmware/main/hal/maipai_lock.cc b/firmware/main/hal/maipai_lock.cc
+--- a/firmware/main/hal/maipai_lock.cc
++++ b/firmware/main/hal/maipai_lock.cc
+@@ -463,7 +463,7 @@ void maipai_lock_register_tools()
+                 });
+ #endif
+     mcp.AddUserOnlyTool("self.lock.config",
+-                "The auto lock: auto_minutes is 0 (off), 1, 5, 15, 30 or 60 minutes with no touch, wake word or remote action. Refused while locked. Turning it off needs current (the code now set).",
++                "The auto lock: auto_minutes is 0 (off), 1 or 15 minutes (a unit that saved 5, 30 or 60 before keeps it) with no touch, wake word or remote action. Refused while locked. Turning it off needs current (the code now set).",
+                 PropertyList({Property("auto_minutes", kPropertyTypeInteger, 0, 0, 1000), Property("current", kPropertyTypeString, std::string(""))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     const int minutes = properties["auto_minutes"].value<int>();
+diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
+--- a/firmware/main/hal/maipai_apps_core.h
++++ b/firmware/main/hal/maipai_apps_core.h
+@@ -509,8 +509,8 @@ static inline int mac_set_tab(mac_set_t* s, int tab)
+ }
+ 
+ /* The auto lock choices follow the lock core (LK_AUTO_MINUTES); a tap moves to the next and wraps to Off. */
+-#define MAC_AUTO_COUNT 6
+-static const uint8_t MAC_AUTO_MIN[MAC_AUTO_COUNT] = {0, 1, 5, 15, 30, 60};
++#define MAC_AUTO_COUNT 3 /* patch SF53 (owner decision 22): off, 1 and 15 minutes, as LK_AUTO_MINUTES */
++static const uint8_t MAC_AUTO_MIN[MAC_AUTO_COUNT] = {0, 1, 15};
+ static inline int mac_auto_next(int minutes)
+ {
+     for (int i = 0; i < MAC_AUTO_COUNT; i++) {

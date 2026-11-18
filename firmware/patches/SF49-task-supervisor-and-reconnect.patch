@@ -1,0 +1,447 @@
+# Intent: Owner decision 16 (the robot copes with a missing host, and nothing quietly dies). The reconnect task is supervised: it beats at least every 5 s; if it stops beating for 3 minutes the supervisor closes its socket, then replaces the task, then restarts the unit with the recorded reason "watchdog:ws_reconnect" (through the self-restart guard, which refuses a third restart in an hour). The supervisor is a one-second timer, not a task, and any long-running task can register. The reconnect wait is the doubling delay with jitter, capped at 30 s for the first ten minutes away and 120 s after, taken in slices of at most 5 s; after ten minutes away the screen says in plain words that Home cannot be reached and what to check, then again every 30 minutes. self.version.get adds reset_reason, self_restarts_this_hour, self_restart_held and a watchdog list (per task: kicks, restarts, reboots, age). Memory cost: static internal about 0.5 KB (the task table), no new task, one esp_timer.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc and .h (nested tree, MIT): beats, the sliced wait, RestartReconnectTask; firmware/main/hal (ours)
+# Check after a flash: self.version.get shows watchdog [{name ws_reconnect, armed true, kicks 0, restarts 0, reboots 0}] and a small age; with the host stopped for 12 minutes the unit shows the plain-words notice once and retries every 120 s at most; the host back within 2 minutes reconnects without a reboot.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_reconnect_core.h b/firmware/main/hal/maipai_reconnect_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_reconnect_core.h
+@@ -0,0 +1,45 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The host-reconnect rules (patch SF49, owner decision 16). Plain C99; host test host/tests/firmware/reconnect_core_test.c.
++ *   mrc_grow   the next delay: doubled, never above the cap.
++ *   mrc_wait   how long to wait before the next try: the delay plus up to a quarter of it as jitter (`rnd` is any 32 bit random), never above the cap.
++ *   mrc_cap    the cap on the wait: 30 s for the first 10 minutes away, then 120 s, so a unit whose host is gone for hours does not keep the radio busy.
++ *   mrc_notice_due   whether the screen should say plain words now: once after 10 minutes away, then every 30 minutes.
++ * The longest wait is the cap (never more than 120 s), so a host that comes back is found within 120 s plus one connect.
++ */
++#ifndef MAIPAI_RECONNECT_CORE_H
++#define MAIPAI_RECONNECT_CORE_H
++
++#include <stdint.h>
++
++#define MRC_INITIAL_MS 1000u
++#define MRC_CAP_NEAR_MS 30000u
++#define MRC_CAP_FAR_MS 120000u
++#define MRC_FAR_AFTER_MS 600000u    /* 10 minutes away */
++#define MRC_NOTICE_EVERY_MS 1800000u /* 30 minutes */
++
++static inline uint32_t mrc_cap(uint32_t away_ms) { return away_ms >= MRC_FAR_AFTER_MS ? MRC_CAP_FAR_MS : MRC_CAP_NEAR_MS; }
++
++static inline uint32_t mrc_grow(uint32_t delay_ms, uint32_t cap_ms)
++{
++    const uint32_t d = delay_ms < MRC_INITIAL_MS ? MRC_INITIAL_MS : delay_ms;
++    return d >= cap_ms / 2u + 1u ? cap_ms : d * 2u;
++}
++
++static inline uint32_t mrc_wait(uint32_t delay_ms, uint32_t cap_ms, uint32_t rnd)
++{
++    const uint32_t d = delay_ms > cap_ms ? cap_ms : delay_ms;
++    const uint32_t w = d + rnd % (d / 4u + 1u);
++    return w > cap_ms ? cap_ms : w;
++}
++
++/* away_ms: how long the host has been unreachable; last_notice_away_ms: the away time at the last notice, 0 for none yet. */
++static inline int mrc_notice_due(uint32_t away_ms, uint32_t last_notice_away_ms)
++{
++    if (away_ms < MRC_FAR_AFTER_MS) return 0;
++    if (last_notice_away_ms == 0) return 1;
++    return away_ms - last_notice_away_ms >= MRC_NOTICE_EVERY_MS;
++}
++
++#endif /* MAIPAI_RECONNECT_CORE_H */
+diff --git a/firmware/main/hal/maipai_super_core.h b/firmware/main/hal/maipai_super_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_super_core.h
+@@ -0,0 +1,102 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The unit's task supervisor (patch SF49, owner decision 16): the pure rule. Plain C99; host test host/tests/firmware/super_core_test.c.
++ * A long-running task beats (msv_beat) at least once in its own timeout. A small timer calls msv_check once a second. A task that has not beaten for one
++ * timeout is kicked (it is asked to unblock: its socket is closed); one that still has not beaten a timeout later is restarted (its task is replaced); one that
++ * still has not beaten a timeout after that makes the unit restart with a recorded reason. A beat at any point clears the escalation. Nothing here has a clock
++ * of its own: the caller passes the time in ms (wrap-safe).
++ */
++#ifndef MAIPAI_SUPER_CORE_H
++#define MAIPAI_SUPER_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define MSV_MAX 8
++
++enum { MSV_NONE = 0, MSV_KICK, MSV_RESTART, MSV_REBOOT };
++
++typedef struct {
++    const char* name;
++    uint32_t timeout_ms;
++    uint32_t last_beat_ms; /* also the time of the last escalation step */
++    uint8_t armed;
++    uint8_t stage;         /* 0 healthy, 1 kicked, 2 restarted */
++    uint32_t kicks, restarts, reboots;
++} msv_task_t;
++
++typedef struct {
++    msv_task_t t[MSV_MAX];
++    int n;
++} msv_t;
++
++typedef struct {
++    int action;
++    int task;
++} msv_out_t;
++
++static inline void msv_init(msv_t* m) { memset(m, 0, sizeof(*m)); }
++
++/* Adds a task, armed from `now`. Returns its id, or -1 when the table is full or the timeout is under one second. */
++static inline int msv_add(msv_t* m, const char* name, uint32_t timeout_ms, uint32_t now)
++{
++    if (m->n >= MSV_MAX || timeout_ms < 1000u || name == NULL) return -1;
++    msv_task_t* t = &m->t[m->n];
++    memset(t, 0, sizeof(*t));
++    t->name = name;
++    t->timeout_ms = timeout_ms;
++    t->last_beat_ms = now;
++    t->armed = 1;
++    return m->n++;
++}
++
++static inline void msv_beat(msv_t* m, int id, uint32_t now)
++{
++    if (id < 0 || id >= m->n) return;
++    m->t[id].last_beat_ms = now;
++    m->t[id].stage = 0;
++}
++
++/* A task that stopped on purpose (the unit is shutting it down) is disarmed; armed again by msv_beat. */
++static inline void msv_disarm(msv_t* m, int id)
++{
++    if (id >= 0 && id < m->n) m->t[id].armed = 0;
++}
++static inline void msv_arm(msv_t* m, int id, uint32_t now)
++{
++    if (id >= 0 && id < m->n) {
++        m->t[id].armed = 1;
++        m->t[id].last_beat_ms = now;
++        m->t[id].stage = 0;
++    }
++}
++
++/* One step: the first action due. The next step waits one timeout from this one. */
++static inline msv_out_t msv_check(msv_t* m, uint32_t now)
++{
++    msv_out_t out = {MSV_NONE, -1};
++    for (int i = 0; i < m->n; i++) {
++        msv_task_t* t = &m->t[i];
++        if (!t->armed) continue;
++        if ((uint32_t)(now - t->last_beat_ms) < t->timeout_ms) continue;
++        t->last_beat_ms = now;
++        out.task = i;
++        if (t->stage == 0) {
++            t->stage = 1;
++            t->kicks++;
++            out.action = MSV_KICK;
++        } else if (t->stage == 1) {
++            t->stage = 2;
++            t->restarts++;
++            out.action = MSV_RESTART;
++        } else {
++            t->reboots++;
++            out.action = MSV_REBOOT;
++        }
++        return out;
++    }
++    return out;
++}
++
++#endif /* MAIPAI_SUPER_CORE_H */
+diff --git a/firmware/main/hal/maipai_super.h b/firmware/main/hal/maipai_super.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_super.h
+@@ -0,0 +1,14 @@
++#pragma once
++// Patch SF49 (owner decision 16): the unit's task supervisor. A long-running task registers with a timeout, beats at least once inside it, and a one-second timer
++// (not a task) kicks, restarts and finally restarts the unit with a recorded reason when it stops beating. The rule is maipai_super_core.h.
++#include <cstddef>
++#include <cstdint>
++
++typedef void (*maipai_super_fn)(void* ctx);
++// kick: ask the task to unblock (close its socket). restart: replace the task (runs on the main task). Either may be null. Returns the id, or -1.
++int maipai_super_register(const char* name, uint32_t timeout_ms, maipai_super_fn kick, maipai_super_fn restart, void* ctx);
++void maipai_super_beat(int id);
++void maipai_super_disarm(int id);  // the task stopped on purpose
++void maipai_super_arm(int id);
++// JSON members without braces: "super":[{"name","kicks","restarts","reboots","age_ms"}...] (counts since boot).
++void maipai_super_report(char* out, size_t cap);
+diff --git a/firmware/main/hal/maipai_super.cc b/firmware/main/hal/maipai_super.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_super.cc
+@@ -0,0 +1,102 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Patch SF49 (owner decision 16): the unit's task supervisor. The rule is maipai_super_core.h (host test); this file is the clock, the actions and the report.
++ * One esp_timer once a second (the timer task runs it; it takes a lock for a few microseconds and does nothing else unless a task is stale). The last step, a restart of
++ * the unit, goes through maipai_heal_restart, which records the reason in flash, counts it and refuses a third restart in an hour (so a fault that survives a restart
++ * never becomes a reboot loop).
++ */
++#include "maipai_super.h"
++#include "maipai_super_core.h"
++#include "maipai_heal.h"
++#include "device_events.h"
++#include <application.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <cstdio>
++#include <mutex>
++
++namespace {
++const char* const kTag = "MaipaiSuper";
++std::mutex s_mu;
++msv_t s_msv;
++struct Hooks { maipai_super_fn kick = nullptr; maipai_super_fn restart = nullptr; void* ctx = nullptr; } s_hooks[MSV_MAX];
++esp_timer_handle_t s_timer = nullptr;
++
++uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++void tick(void*)
++{
++    msv_out_t out;
++    Hooks hooks;
++    const char* name = "";
++    {
++        std::lock_guard<std::mutex> lock(s_mu);
++        out = msv_check(&s_msv, now_ms());
++        if (out.action == MSV_NONE) return;
++        hooks = s_hooks[out.task];
++        name = s_msv.t[out.task].name;
++    }
++    char extra[96];
++    std::snprintf(extra, sizeof(extra), "\"task\":\"%s\",\"action\":\"%s\"", name, out.action == MSV_KICK ? "kick" : (out.action == MSV_RESTART ? "restart" : "reboot"));
++    ESP_LOGW(kTag, "task %s did not report in time: %s", name, out.action == MSV_KICK ? "kicking it" : (out.action == MSV_RESTART ? "restarting it" : "restarting the unit"));
++    device_events_push("watchdog", extra);
++    if (out.action == MSV_KICK && hooks.kick != nullptr) {
++        hooks.kick(hooks.ctx);
++    } else if (out.action == MSV_RESTART && hooks.restart != nullptr) {
++        Application::GetInstance().Schedule([hooks]() { hooks.restart(hooks.ctx); });
++    } else if (out.action == MSV_REBOOT) {
++        char why[40];
++        std::snprintf(why, sizeof(why), "watchdog:%.28s", name);
++        maipai_heal_restart(why, 2000);
++    }
++}
++}  // namespace
++
++int maipai_super_register(const char* name, uint32_t timeout_ms, maipai_super_fn kick, maipai_super_fn restart, void* ctx)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (s_msv.n == 0 && s_timer == nullptr) msv_init(&s_msv);
++    const int id = msv_add(&s_msv, name, timeout_ms, now_ms());
++    if (id < 0) return -1;
++    s_hooks[id] = {kick, restart, ctx};
++    if (s_timer == nullptr) {
++        esp_timer_create_args_t args = {};
++        args.callback = tick;
++        args.name = "super";
++        if (esp_timer_create(&args, &s_timer) == ESP_OK) esp_timer_start_periodic(s_timer, 1000000);
++    }
++    return id;
++}
++
++void maipai_super_beat(int id)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    msv_beat(&s_msv, id, now_ms());
++}
++
++void maipai_super_disarm(int id)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    msv_disarm(&s_msv, id);
++}
++
++void maipai_super_arm(int id)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    msv_arm(&s_msv, id, now_ms());
++}
++
++void maipai_super_report(char* out, size_t cap)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    size_t n = static_cast<size_t>(std::snprintf(out, cap, "\"super\":["));
++    const uint32_t now = now_ms();
++    for (int i = 0; i < s_msv.n && n < cap; i++) {
++        const msv_task_t& t = s_msv.t[i];
++        n += static_cast<size_t>(std::snprintf(out + n, cap - n, "%s{\"name\":\"%s\",\"armed\":%s,\"kicks\":%u,\"restarts\":%u,\"reboots\":%u,\"age_ms\":%u}", i ? "," : "", t.name,
++                                               t.armed ? "true" : "false", static_cast<unsigned>(t.kicks), static_cast<unsigned>(t.restarts), static_cast<unsigned>(t.reboots),
++                                               static_cast<unsigned>(now - t.last_beat_ms)));
++    }
++    if (n < cap) std::snprintf(out + n, cap - n, "]");
++}
+diff --git a/firmware/main/hal/maipai_version.cc b/firmware/main/hal/maipai_version.cc
+--- a/firmware/main/hal/maipai_version.cc
++++ b/firmware/main/hal/maipai_version.cc
+@@ -8,6 +8,9 @@
+ #if CONFIG_MAIPAI_VERSION
+ #include "maipai_version.h"
+ #include "maipai_updatehdr_core.h"
++#include "maipai_super.h"
++#include "maipai_heal.h"
++#include <esp_system.h>
+ #include <mcp_server.h>
+ #include <cJSON.h>
+ #include <esp_app_desc.h>
+@@ -79,6 +82,19 @@ void maipai_version_register_tools()
+                 Settings update_state("mp_update", false);
+                 cJSON_AddNumberToObject(root, "fw_build", static_cast<int>(muh_floor(update_state.GetInt("minbuild", 0), CONFIG_MAIPAI_FW_BUILD)));
+             }
++            {   // Patch SF49: why the unit last restarted itself and what the supervisor did since boot
++                int heal_count = 0;
++                bool heal_hold = false;
++                maipai_heal_status(&heal_count, &heal_hold);
++                cJSON_AddNumberToObject(root, "self_restarts_this_hour", heal_count);
++                cJSON_AddBoolToObject(root, "self_restart_held", heal_hold);
++                cJSON_AddStringToObject(root, "reset_reason", esp_reset_reason() == ESP_RST_POWERON ? "power_on" : (esp_reset_reason() == ESP_RST_SW ? "software" :
++                                        (esp_reset_reason() == ESP_RST_PANIC ? "panic" : (esp_reset_reason() == ESP_RST_TASK_WDT ? "task_watchdog" : "other"))));
++                std::string wd(1100, '\0');
++                maipai_super_report(&wd[0], wd.size());
++                wd.resize(strlen(wd.c_str()));
++                cJSON_AddRawToObject(root, "watchdog", wd.size() > 8 ? wd.c_str() + 8 : "[]");  // skip the key: "super":
++            }
+             char* text      = cJSON_PrintUnformatted(root);
+             std::string out = text != nullptr ? text : "{\"ok\":false,\"error\":\"out of memory: try again\"}";
+             cJSON_free(text);
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -22,6 +22,8 @@
+ #include <hal/maipai_daily.h>
+ #include <hal/maipai_sounds.h>
+ #include <hal/maipai_tailnet.h>
++#include <hal/maipai_super.h>
++#include <hal/maipai_reconnect_core.h>
+ #include <esp_timer.h>
+ #include <esp_wifi.h>
+ #include <cstdio>
+@@ -57,6 +59,18 @@ bool WebsocketProtocol::Start() {
+         ESP_LOGE(TAG, "Failed to start websocket reconnect task");
+         return false;
+     }
++    // Patch SF49: the reconnect task is supervised: it beats at least every 5 s; a stall of 3 minutes closes its socket, then replaces the task, then restarts the unit.
++    if (supervisor_id_ < 0) {
++        supervisor_id_ = maipai_super_register(
++            "ws_reconnect", 180000,
++            [](void* ctx) {
++                auto* self = static_cast<WebsocketProtocol*>(ctx);
++                if (auto websocket = self->GetWebSocket()) websocket->Close();
++            },
++            [](void* ctx) { static_cast<WebsocketProtocol*>(ctx)->RestartReconnectTask(); }, this);
++    } else {
++        maipai_super_arm(supervisor_id_);
++    }
+ #endif
+     return true;
+ }
+@@ -343,6 +357,20 @@ static void push_link_event(const char* state, unsigned attempt, int error, unsi
+     device_events_push("wifi", extra);
+ }
+ 
++// Patch SF49: the supervisor found the reconnect task stuck even after its socket was closed: replace it. Runs on the main task.
++void WebsocketProtocol::RestartReconnectTask() {
++#if CONFIG_STACKCHAN_PERSISTENT_WEBSOCKET
++    ESP_LOGW(TAG, "Replacing the stuck reconnect task");
++    if (reconnect_task_handle_ != nullptr) {
++        vTaskDelete(reconnect_task_handle_);
++        reconnect_task_handle_ = nullptr;
++    }
++    if (auto websocket = GetWebSocket()) websocket->Close();
++    xEventGroupClearBits(event_group_handle_, WEBSOCKET_PROTOCOL_STOP_EVENT | WEBSOCKET_PROTOCOL_STOPPED_EVENT);
++    Start();
++#endif
++}
++
+ void WebsocketProtocol::ReconnectTask(void* arg) {
+     auto* self = static_cast<WebsocketProtocol*>(arg);
+     constexpr uint32_t kInitialDelayMs = 1000;
+@@ -358,8 +386,10 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+     bool connecting_shown = false;
+     bool refused_shown = false;
+     int refused_streak = 0;  // connects in a row that Home accepted and closed before its hello
++    uint32_t last_notice_away_ms = 0;  // patch SF49: the away time at the last plain-words notice
+ 
+     while (!(xEventGroupGetBits(self->event_group_handle_) & WEBSOCKET_PROTOCOL_STOP_EVENT)) {
++        maipai_super_beat(self->supervisor_id_);  // patch SF49
+         xEventGroupClearBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_DISCONNECTED_EVENT | WEBSOCKET_PROTOCOL_CONNECTED_EVENT);
+         attempt++;
+         const int64_t started_us = esp_timer_get_time();
+@@ -380,11 +410,13 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+                 hal_bridge::link_look(0);  // the first hello clears every look
+             }
+             refused_streak = 0;
++            last_notice_away_ms = 0;  // patch SF49
+             push_link_event("ws_up", 0, 0, 0, took_ms);
+             TickType_t connected_at = xTaskGetTickCount();
+             self->last_incoming_time_ = std::chrono::steady_clock::now();
+             EventBits_t bits = 0;
+             while (true) {
++                maipai_super_beat(self->supervisor_id_);  // patch SF49
+                 bits = xEventGroupWaitBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_DISCONNECTED_EVENT | WEBSOCKET_PROTOCOL_STOP_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(5000));
+                 if (bits & (WEBSOCKET_PROTOCOL_DISCONNECTED_EVENT | WEBSOCKET_PROTOCOL_STOP_EVENT)) {
+                     break;
+@@ -460,14 +492,30 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+                 hal_bridge::offline_indicator(true);
+             }
+         }
+-        uint32_t jitter_ms = esp_random() % (delay_ms / 4 + 1);
+-        uint32_t wait_ms = std::min(kMaximumDelayMs, delay_ms + jitter_ms);
+-        EventBits_t bits = xEventGroupWaitBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_STOP_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(wait_ms));
+-        if (bits & WEBSOCKET_PROTOCOL_STOP_EVENT) {
++        // Patch SF49 (owner decision 16): the wait is the doubling delay plus jitter, capped at 30 s for the first ten minutes away and 120 s after (a host that is
++        // gone for hours is not asked every 30 s), and it is taken in slices of at most 5 s so the supervisor sees a beat. After ten minutes away the screen says so in
++        // plain words, then again every 30 minutes.
++        const uint32_t away_ms = static_cast<uint32_t>((esp_timer_get_time() - down_since_us) / 1000);
++        const uint32_t cap_ms = mrc_cap(away_ms);
++        if (mrc_notice_due(away_ms, last_notice_away_ms)) {
++            last_notice_away_ms = away_ms;
++            hal_bridge::notice("Can't reach Home. Check it is on and on the same Wi-Fi. I keep trying.", 9000);
++        }
++        uint32_t wait_ms = mrc_wait(delay_ms, cap_ms, esp_random());
++        bool stopped = false;
++        while (wait_ms > 0 && !stopped) {
++            maipai_super_beat(self->supervisor_id_);
++            const uint32_t slice = std::min<uint32_t>(wait_ms, 5000);
++            EventBits_t slice_bits = xEventGroupWaitBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_STOP_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(slice));
++            stopped = (slice_bits & WEBSOCKET_PROTOCOL_STOP_EVENT) != 0;
++            wait_ms -= slice;
++        }
++        if (stopped) {
+             break;
+         }
+-        delay_ms = std::min(kMaximumDelayMs, delay_ms * 2);
++        delay_ms = mrc_grow(delay_ms, cap_ms);
+     }
++    maipai_super_disarm(self->supervisor_id_);  // patch SF49: it stopped on purpose
+     xEventGroupSetBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_STOPPED_EVENT);
+     vTaskDelete(nullptr);
+ }
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
+@@ -46,6 +46,8 @@ private:
+     void HandleSendFailure();
+     std::shared_ptr<WebSocket> GetWebSocket() const;
+     static void ReconnectTask(void* arg);
++    void RestartReconnectTask();  // patch SF49 (the supervisor replaces a stuck reconnect task)
++    int supervisor_id_ = -1;
+ };
+ 
+ #endif

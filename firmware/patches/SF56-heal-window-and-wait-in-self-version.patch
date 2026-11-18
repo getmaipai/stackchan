@@ -1,0 +1,81 @@
+# Intent: self.version shows when the self-restart hold ends (self_restart_wait_s), when the count of self-restarts expires (heal_window_s_left) and the reason the last restart was made with (heal_boot_why). The count and its rule are unchanged: only a self-restart request counts, a flash, a power-on or any reset reason never does.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.version right after a boot following three self-restarts reads self_restart_held true and self_restart_wait_s near 300; after 300 s of uptime it reads false and 0; after an hour of running heal_window_s_left reaches 0 and the count 0.
+# Kconfig: none
+# Memory cost: 16 bytes of static for the reason text; no task, no buffer.
+
+diff --git a/firmware/main/hal/maipai_heal.cc b/firmware/main/hal/maipai_heal.cc
+--- a/firmware/main/hal/maipai_heal.cc
++++ b/firmware/main/hal/maipai_heal.cc
+@@ -260,6 +260,33 @@ void maipai_heal_restart(const char* why, uint32_t delay_ms)
+     }
+ }
+ 
++// Patch SF56: the numbers behind "held", so the bench and the host can see when it ends. Reads only; nothing here counts a restart.
++int maipai_heal_window_left_s()
++{
++    std::lock_guard<std::mutex> lock(s_mutex);
++    load_locked();
++    expire_locked();
++    if (s_count == 0) {
++        return 0;
++    }
++    const int left = kWindowS - elapsed_locked();
++    return left > 0 ? left : 0;
++}
++
++int maipai_heal_wait_s()
++{
++    std::lock_guard<std::mutex> lock(s_mutex);
++    load_locked();
++    expire_locked();
++    return mhc_wait_s(s_count, static_cast<int>(esp_timer_get_time() / 1000000));
++}
++
++static char s_boot_why[16] = "";
++const char* maipai_heal_boot_why()
++{
++    return s_boot_why;
++}
++
+ void maipai_heal_status(int* count, bool* hold)
+ {
+     std::lock_guard<std::mutex> lock(s_mutex);
+@@ -327,6 +354,7 @@ void maipai_heal_boot_report()
+         } else {
+             why[0] = '\0';
+         }
++        strncpy(s_boot_why, why, sizeof(s_boot_why) - 1);  // patch SF56: kept for self.version (the flash copy is read once)
+         nvs_close(h);
+     }
+     // Z01: the reset reason by name, and after a crash the breadcrumb (last task seen on the other core, its core, and
+diff --git a/firmware/main/hal/maipai_heal.h b/firmware/main/hal/maipai_heal.h
+--- a/firmware/main/hal/maipai_heal.h
++++ b/firmware/main/hal/maipai_heal.h
+@@ -17,6 +17,12 @@ void maipai_heal_restart(const char* why, uint32_t delay_ms);
+ // Restarts counted in this hour's window, and whether the next request would be refused.
+ void maipai_heal_status(int* count, bool* hold);
+ 
++// Patch SF56: seconds until the count of self-restarts expires (0 when the count is 0), the seconds of running still to wait before a
++// further restart is allowed (0 when one is), and the reason this boot's restart was recorded with (empty after a power-on or a crash).
++int maipai_heal_window_left_s();
++int maipai_heal_wait_s();
++const char* maipai_heal_boot_why();
++
+ // The application main loop calls this once a second. The motion sensor task watches it (maipai_heal_watch).
+ void maipai_heal_main_alive();
+ 
+diff --git a/firmware/main/hal/maipai_version.cc b/firmware/main/hal/maipai_version.cc
+--- a/firmware/main/hal/maipai_version.cc
++++ b/firmware/main/hal/maipai_version.cc
+@@ -88,6 +88,9 @@ void maipai_version_register_tools()
+                 maipai_heal_status(&heal_count, &heal_hold);
+                 cJSON_AddNumberToObject(root, "self_restarts_this_hour", heal_count);
+                 cJSON_AddBoolToObject(root, "self_restart_held", heal_hold);
++                cJSON_AddNumberToObject(root, "self_restart_wait_s", maipai_heal_wait_s());          // patch SF56: running seconds until a restart is allowed again
++                cJSON_AddNumberToObject(root, "heal_window_s_left", maipai_heal_window_left_s());    // ... and until the count expires
++                cJSON_AddStringToObject(root, "heal_boot_why", maipai_heal_boot_why());             // why the restart before this boot was made ("" after a power-on or a crash)
+                 cJSON_AddStringToObject(root, "reset_reason", esp_reset_reason() == ESP_RST_POWERON ? "power_on" : (esp_reset_reason() == ESP_RST_SW ? "software" :
+                                         (esp_reset_reason() == ESP_RST_PANIC ? "panic" : (esp_reset_reason() == ESP_RST_TASK_WDT ? "task_watchdog" : "other"))));
+                 std::string wd(1100, '\0');
