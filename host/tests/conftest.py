@@ -12,6 +12,8 @@ from maipai_body.bodies.reachy_mini.client import ReachyMiniClient
 from maipai_body.bodies.reachy_mini.fake import FakeReachyMiniClient
 from maipai_body.bodies.reachy_mini.profile import REACHY_MINI_PROFILE
 
+pytest_plugins = ["tests.exit_guard"]
+
 LIVE_HOST = "localhost"
 LIVE_PORT = 8000
 
