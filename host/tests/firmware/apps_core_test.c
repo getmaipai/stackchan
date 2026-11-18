@@ -201,8 +201,9 @@ static void test_settings(void)
     CHECK(n == 5 && r[0].id == MAC_R_WIFI_PAGE && r[1].id == MAC_R_SSID && r[2].id == MAC_R_SIGNAL && r[3].id == MAC_R_TAILNET && r[4].id == MAC_R_HUB);
     CHECK(mac_set_rows(MAC_TAB_NETWORK, 0, r) == 4);
     n = mac_set_rows(MAC_TAB_FACES, 0, r);
-    CHECK(n == 2 && mac_rows_total_h(r, n) <= MAC_PANE_H + 8);           /* patch UX13: three styles are two tile rows of 56 px with 8 px gaps: they fit the list with no scrolling */
-    CHECK(mac_set_rows(MAC_TAB_FACES, MAC_SF_PICTURES, r) == 2);       /* a picture pack makes the fourth tile: still two rows */
+    CHECK(n == (MPG_SET_STYLES + 1) / 2);                                /* patch UX13: only the tile rows that hold a tile (two styles a row) */
+    CHECK(mac_set_rows(MAC_TAB_FACES, MAC_SF_PICTURES, r) == (MPG_SET_STYLES + 2) / 2);   /* a picture pack adds one tile */
+    if (MPG_SET_STYLES <= 3) CHECK(mac_rows_total_h(r, mac_set_rows(MAC_TAB_FACES, 0, r)) <= MAC_PANE_H + 8);   /* three styles (decision 22) fit the list with no scrolling */
     n = mac_set_rows(MAC_TAB_INFO, 0, r);
     /* patch NX02: every Info row shows at once, whatever the flags say: no hint row, no ten-tap details */
     for (unsigned f = 0; f < 16; f++) {
@@ -260,7 +261,7 @@ static void test_settings(void)
     mac_auto_text(b, sizeof(b), 15, 0); CHECK(strcmp(b, "15 min") == 0);
 
     /* the style tiles: five face styles then Pictures while a pack is held */
-    CHECK(mac_pair_tiles(0, 0) == 2 && mac_pair_tiles(1, 0) == 1 && mac_pair_tiles(1, 1) == 2 && mac_pair_tiles(2, 1) == 0);   /* three face styles (decision 22) then Pictures while a pack is held */
+    CHECK(mac_pair_tiles(0, 0) == 2 && mac_pair_tiles(MPG_SET_STYLES / 2, 1) == (MPG_SET_STYLES % 2 ? 2 : 1) && mac_pair_tiles(MPG_SET_STYLES / 2 + 1, 1) == 0);   /* the face styles then Pictures while a pack is held */
     CHECK(mac_signal_word(-1) == 0 && mac_signal_word(1) == 1 && mac_signal_word(2) == 2 && mac_signal_word(3) == 3 && mac_signal_word(4) == 3);
 }
 
