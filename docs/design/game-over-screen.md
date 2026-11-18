@@ -30,9 +30,15 @@ mgo_beats_best(score, best, lower_is_better)                      // decides new
 | Tic-Tac-Toe | won, lost, draw | Wins 3 | Best 22 | no |
 | 2048 | won (2048 reached), lost | Score 20480 | Best 20480 | no |
 | Snake | lost (a wall or itself) | Length 34 | Best 31 | no |
-| Data-pack games with an end (Color Memory, Whack-a-Mole, Do It) | won or lost by the pack's own rule | Score N | Best N | by the pack |
+| Color Memory | lost when a round is missed (a new best is still marked); there is no win | Round 9 | Best 14 | no |
+| Whack-a-Mole | won when the time is up (score only game) | Score 120 | Best 287 | no |
+| Do It | lost on the first miss (the score is the points before it) | Score 12 | Best 30 | no |
+| Rock Paper Scissors | won, lost or draw by the best of three | Match 2 to 1 | Best 3 | no |
+| Tic-Tac-Toe | won, lost or draw | Wins 3 | Best 22 | no |
 
-Games with no end (Magic 8 Ball, Dice and Coin, Rock Paper Scissors rounds) do not show the screen.
+Games with no end (Magic 8 Ball, Dice and Coin) do not show the screen. A rock paper scissors round inside a match does not either; the match end does.
+
+Open question for the owner: the games that only count points (Whack-a-Mole) are shown as "You won!" so that nobody is told they lost a game with no way to lose; if he prefers a neutral "Time's up!" with the score, the result word is one table entry.
 
 ## What the unit does
 
