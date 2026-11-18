@@ -16,6 +16,7 @@ Listed here as code is vendored or patched. Each entry names the upstream, its l
 | Private-network client in the firmware | license to be confirmed before a release image ships it | not pinned in this repository | Optional away-from-home link. A release build carries neither this client nor any key until its license and pin are recorded here |
 | M5Stack StackChan structure files (K151), from m5stack/M5_Hardware | MIT, Copyright (c) 2021 M5Stack (text in `scripts/virtual-unit/model/source/LICENSE`) | commit 70fb127275ef0e2da21218d1f01cd305754d35fa, ten STL files copied unchanged, hashes in `scripts/virtual-unit/model/SOURCE.md` | Geometry of the virtual unit 3D model (`scripts/virtual-unit/model/stackchan.glb`) |
 | Khronos glTF Validator (`gltf-validator` on npm) | Apache-2.0 | 2.0.0-dev.3.10, installed on demand into the git-ignored `.runs/gltf-validator/`, never vendored | Development check only: `scripts/virtual-unit/model/validate.sh` reads `stackchan.glb` on this machine. Not a runtime dependency of the host or the firmware |
+| three.js | MIT, Copyright (c) 2010-2021 three.js authors (text in `docs-site/vendor/three-r128/LICENSE`) | r128 (npm package 0.128.0), `build/three.min.js` copied unchanged, sha256 `9274bbcec8d96168626c732b5d31c775aa8cfb7eaa0599bec0c175908a2c1ce2` | The 3D model viewer page of the documentation site (`docs-site/viewer.html`), served from the site itself. The same release the virtual unit view loads. Never in the firmware or the host program |
 
 ## Host dependencies
 
