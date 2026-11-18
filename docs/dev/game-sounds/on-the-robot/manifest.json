@@ -1,0 +1,129 @@
+{
+ "version": 1,
+ "what": "the sounds the robot really plays for the games, rendered from its own tone table",
+ "patches": [
+  "sf72.patch"
+ ],
+ "clips": [
+  {
+   "clip": "good",
+   "ms": 170,
+   "wav_bytes": 5484,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "fanfare",
+   "ms": 490,
+   "wav_bytes": 15724,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "bad",
+   "ms": 360,
+   "wav_bytes": 11564,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "thud",
+   "ms": 200,
+   "wav_bytes": 6444,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "rattle",
+   "ms": 295,
+   "wav_bytes": 9484,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "ting",
+   "ms": 350,
+   "wav_bytes": 11244,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "grid_tick_lo",
+   "ms": 45,
+   "wav_bytes": 1484,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "grid_tick_mid",
+   "ms": 45,
+   "wav_bytes": 1484,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "grid_tick_hi",
+   "ms": 45,
+   "wav_bytes": 1484,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "grid_clack_lo",
+   "ms": 60,
+   "wav_bytes": 1964,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "grid_clack_mid",
+   "ms": 60,
+   "wav_bytes": 1964,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "grid_clack_hi",
+   "ms": 60,
+   "wav_bytes": 1964,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "grid_drop",
+   "ms": 70,
+   "wav_bytes": 2284,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "grid_lose",
+   "ms": 520,
+   "wav_bytes": 16684,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  },
+  {
+   "clip": "grid_draw",
+   "ms": 310,
+   "wav_bytes": 9964,
+   "peak": 22000,
+   "peak_of_32767": 0.671,
+   "source": "the unit's own tone table (maipai_games_sfx_core.h) rendered by mgs_render"
+  }
+ ]
+}
