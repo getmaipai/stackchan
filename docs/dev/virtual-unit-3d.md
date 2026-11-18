@@ -56,5 +56,5 @@ The unit has two USB-C sockets: one on the side of the controller and one at the
 - **Rich lights** (on by default) turns the halos and the thrown light on; untick it on a slow graphics card. **Dim room** turns the room's light down so the unit's own lights carry the picture. Drawing one picture took about 0.4 ms with rich lights on the Studio (`ROBOT.perf.ms` in the browser console).
 - Only three.js r128 itself is loaded: the glow is additive sprites, per-corner color on the bars and ordinary point lights, no post-processing script.
 - The two small power lights (the red one at the back and the one under the screen) are lit while the unit has USB power in either socket, as observed on the real unit.
-- The three head touch pads have an outline on the head top, stay solid in **Show inside**, glow under the pointer and for a moment after a touch, and the corner text says which pad was touched.
+- The real unit shows nothing where the three head touch pads are, so the model keeps the head top plain: the pads sit just under the shell. They show in **Show inside**, glow under the pointer and for a moment after a touch, and the corner text says which pad was touched.
 - The unit's clock, the screen picture and the page's state poll run 20 times a second (`STEP_MS` in `view.py`), the rate of the dances' light shows.

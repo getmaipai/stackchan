@@ -746,7 +746,7 @@ def assemble():
     # on the head top: the three zones of the head touch strip, front to back (count and order from the firmware; outlines assumed)
     pad_w, pad_d, pad_gap = 16.0, 8.0, 1.2
     pad_first = front - 15.5
-    pads = [(0.0, top + 0.03, pad_first - i * (pad_d + pad_gap)) for i in range(3)]
+    pads = [(0.0, top - 0.8, pad_first - i * (pad_d + pad_gap)) for i in range(3)]   # under the shell top: nothing shows on the outside of the real unit
 
     g = Glb()
     for i in range(LIGHTS):
@@ -941,8 +941,8 @@ def assemble():
                {'what': 'label drawn for this model; the print is a stand-in', 'basis': 'assumed'})
     for i, c in enumerate(pads):
         g.node('touch_back_%d' % i, head, sub(c, PITCH_O), g.mesh('touch_back_%d' % i, [g.primitive(box(c, (pad_w, 0.06, pad_d)), c, 'touch_pad'),
-                                             g.primitive(band(lambda u, v, h: (u, top + 0.07 + h, v), moved(rounded_outline(pad_w, pad_d, 1.2), c[0], c[2]), moved(rounded_outline(pad_w - 0.7, pad_d - 0.7, 0.9), c[0], c[2]), 0.0), c, 'print')]),
-               {'touch': {'zone': i, 'of': 3, 'order': 'front to back'}, 'what': 'one zone of the head touch strip (three zones in the firmware; position and outline assumed)', 'basis': 'assumed'})
+                                             g.primitive(band(lambda u, v, h: (u, top - 0.76 + h, v), moved(rounded_outline(pad_w, pad_d, 1.2), c[0], c[2]), moved(rounded_outline(pad_w - 0.7, pad_d - 0.7, 0.9), c[0], c[2]), 0.0), c, 'print')]),
+               {'touch': {'zone': i, 'of': 3, 'order': 'front to back'}, 'what': 'one zone of the head touch strip, under the shell top: the real unit shows nothing on the outside (owner, 2026-11-18); three zones in the firmware, position and outline assumed', 'basis': 'assumed'})
     k = 0.70710678
     light_pos = []
     for i in range(LIGHTS):
@@ -1007,7 +1007,7 @@ def assemble():
                           'measured', 'hole centers fitted in the cover, plate and shell files (holder and head: across, height; plate: across, front to back); head sizes are stand-ins'),
             'head_touch_zones': val(3, 'measured', 'firmware head touch code reads three intensities in a row and reports press, release, swipe forward and swipe backward'),
             'head_touch_pad_size': val([mm(pad_w), mm(pad_d)], 'assumed', 'the pads are under the shell and cannot be seen; only the touch board schematic is published'),
-            'head_touch_from_pitch_axis': val([[mm(v) for v in sub(c, PITCH_O)] for c in pads], 'assumed', 'in a row on the head top behind the two connector openings, zone 0 at the front'),
+            'head_touch_from_pitch_axis': val([[mm(v) for v in sub(c, PITCH_O)] for c in pads], 'assumed', 'in a row under the head top behind the two connector openings, zone 0 at the front; not visible from outside'),
             'servo_size': val([mm(v) for v in SERVO_MM], 'measured', 'servo data sheet: 23.2 x 12.1 x 25.25 mm, both servos'),
             'servo_shaft_diameter': val(mm(2 * SERVO_SHAFT_R), 'measured', 'servo data sheet: 20 teeth, 3.95 mm; the base socket and the arm socket measure the same'),
             'servo_positions': val('pan servo upright on the turn axis with its shaft in the base socket; tilt servo lying on top of it with its shaft on the nod axis', 'assumed', 'the shaft axes are measured; where each case ends is not published'),

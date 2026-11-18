@@ -328,7 +328,7 @@ def test_reset_restarts_a_running_unit_and_head_touch_is_logged():
     pads = [by[f"touch_back_{i}"][1] for i in range(3)]
     assert all(f"touch_back_{i}" in head for i in range(3)) and [p["extras"]["touch"]["zone"] for p in pads] == [0, 1, 2]
     assert pads[0]["translation"][2] > pads[1]["translation"][2] > pads[2]["translation"][2], "zone 0 is at the front"
-    assert all(p["translation"][1] > 0.0269 for p in pads), "the pads lie on the head top"
+    assert all(0.0255 < p["translation"][1] < 0.0268 for p in pads), "the pads sit just under the head top: the real unit shows nothing outside"
     assert "pevent head" in (VU / "vunit.py").read_text() and '"head"' in (VU / "view.py").read_text() and "pevent head" in (VU / "scenarios.py").read_text()
 
 
@@ -405,7 +405,7 @@ def test_rear_internals_seen_in_the_owners_photo_are_named_nodes():
         assert led["extras"]["light"] == i and abs(led["translation"][2] - bar["translation"][2]) < 1e-4
         assert abs(led["translation"][0]) < abs(bar["translation"][0]) and led["translation"][0] * bar["translation"][0] > 0 and led["translation"][1] < bar["translation"][1]
     for i in range(3):
-        assert set(mat(f"touch_back_{i}")) == {"touch_pad", "print"}, "each pad has an outline so it shows on the head top"
+        assert set(mat(f"touch_back_{i}")) == {"touch_pad", "print"}, "each pad has an outline so it shows in Show inside"
     assert "lit while the unit has USB power (observed by the owner 2026-11-18)" in by["back_charge_led"][1]["extras"]["what"]
     assert "lit with USB power, same as the rear one" in by["screen_bottom_led"][1]["extras"]["what"]
 

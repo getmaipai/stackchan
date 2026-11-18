@@ -349,21 +349,21 @@
   },
   "head_touch_from_pitch_axis": {
    "basis": "assumed",
-   "note": "in a row on the head top behind the two connector openings, zone 0 at the front",
+   "note": "in a row under the head top behind the two connector openings, zone 0 at the front; not visible from outside",
    "value": [
     [
      0.0,
-     0.02703,
+     0.0262,
      0.00295
     ],
     [
      0.0,
-     0.02703,
+     0.0262,
      -0.00625
     ],
     [
      0.0,
-     0.02703,
+     0.0262,
      -0.01545
     ]
    ]

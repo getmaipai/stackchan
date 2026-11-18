@@ -164,7 +164,7 @@ All are the owner's own photos, kept out of this repository in the session's not
 | `underside-ports-sticker-flat`, `underside-with-base-usbc` (the head top) | the second four-pin connector is light blue, not teal or green | teal, and green inside | light blue; the node keeps the name `green_connector` and the material `port_teal` so nothing that loads them breaks |
 | same | a small clear window beside the round hole between the connectors | missing | added |
 | same | rating label at the black connector's side of the controller top, gray tab at its outer end | as drawn | unchanged |
-| same | the head top is plain: the touch pads do not show | outlined pads | kept outlined on request so they can be found; this differs from the real unit |
+| same | the head top is plain: nothing marks the touch pads (the owner confirmed this) | outlined pads on the top | the pads sit 0.8 mm under the shell top, so the outside is plain; they show in the view's Show inside, and glow under the pointer |
 | `underside-with-base-usbc`, `base-usbc-red-led-blue-battery` | the base's USB-C socket in a metal shell at the back, the red light in the holder flange between two screws, blue battery wrap behind the notch | drawn | unchanged |
 | `side-reset-led-sd-slot-open-back` (underside of the controller) | reset key 8.6 x 6.3 mm at 15.1 mm left of the middle, 6.6 mm behind the glass | 15.0 and 6.6 | confirmed |
 | same | a small **red** light at 6.9 mm left of the middle | drawn as a green one | red; also answers to `red_led_side` |
