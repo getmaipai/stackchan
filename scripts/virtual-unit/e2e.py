@@ -505,10 +505,11 @@ async def readme_steps(rig: Rig, check) -> None:
 
 
 from e2e_extra import EXTRA  # noqa: E402
+from e2e_hostile import EXTRA_HOSTILE  # noqa: E402
 
-SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps, **EXTRA}
-NEEDS_SETTINGS_PAGE = {"key_exchange"}
-SCENARIO_TIMEOUT_S = {"soak": 4 * 3600}  # the soak is long on purpose; the others stop after three minutes
+SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps, **EXTRA, **EXTRA_HOSTILE}
+NEEDS_SETTINGS_PAGE = {"key_exchange", "hostile_settings"}
+SCENARIO_TIMEOUT_S = {"soak": 4 * 3600, "hostile_unauthenticated": 600, "hostile_paired_peer": 900, "hostile_settings": 600}  # the soak is long on purpose; the others stop after three minutes
 
 
 async def run(names: list[str], venv: Path | None) -> int:

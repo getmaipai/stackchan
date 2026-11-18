@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_every_scenario_passes_against_the_real_host():
-    done = subprocess.run([sys.executable, str(ROOT / "scripts" / "virtual-unit" / "e2e.py")], capture_output=True, text=True, timeout=1500, cwd=ROOT)
+    done = subprocess.run([sys.executable, str(ROOT / "scripts" / "virtual-unit" / "e2e.py")], capture_output=True, text=True, timeout=2700, cwd=ROOT)
     out = done.stdout + done.stderr
     if "uv" in out and "failed to" in out.lower() and "install" in out.lower():
         pytest.skip("the clean venv could not be installed here (offline?): " + out[-300:])

@@ -111,7 +111,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/build-from-source.md` (47): Build from source
 - `docs/dev/contributing.md` (24): Contributing
 - `docs/dev/draft-names.md` (131): Draft names to confirm
-- `docs/dev/e2e-virtual-unit.md` (45): End to end on the virtual unit (the spoken-turn check without hardware)
+- `docs/dev/e2e-virtual-unit.md` (48): End to end on the virtual unit (the spoken-turn check without hardware)
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/es7210-mic-gain-and-slots.md` (7): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
@@ -2332,7 +2332,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
-- `scripts/virtual-unit/e2e.py` (571): End to end on the virtual unit, with no hardware and no real models.
+- `scripts/virtual-unit/e2e.py` (572): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a

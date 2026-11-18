@@ -2,7 +2,7 @@
 
 `uv run --project host python scripts/virtual-unit/e2e.py [--fresh-venv] [scenario ...]` runs the real host in a clean venv (the repo's host package installed with `uv pip install`, as the README's step 1 does), in its own-model mode with the documented settings. The robot is a simulated unit whose every tool call goes to the virtual unit: the real LVGL screen code, the movement limiter, the body. A scripted server on localhost plays the model (`/v1/chat/completions`), speech to text (`/v1/audio/transcriptions`) and text to speech (`/v1/audio/speech`); every request it sees is kept. Canned audio (a quiet lead, a voiced stretch, a quiet tail, Opus encoded) is streamed in real time, so the host's own endpointing finds the speech.
 
-It runs as `host/tests/test_e2e_virtual_unit.py` in `scripts/test-all.sh` (about eight minutes for the 13 scenarios; `MAIPAI_E2E=0` turns it off; it skips without the renderer, `uv` or the cached dependencies). `--fresh-venv` installs into an empty temporary venv: the clean install.
+It runs as `host/tests/test_e2e_virtual_unit.py` in `scripts/test-all.sh` (about twenty minutes for the 16 scenarios; `MAIPAI_E2E=0` turns it off; it skips without the renderer, `uv` or the cached dependencies). `--fresh-venv` installs into an empty temporary venv: the clean install.
 
 | Scenario | What it does | Asserts (unit side, host side) |
 |---|---|---|
@@ -19,6 +19,9 @@ It runs as `host/tests/test_e2e_virtual_unit.py` in `scripts/test-all.sh` (about
 | `key_exchange` | an unpaired unit asks to pair; the six digits are typed on the settings page | the host's commitment matches the unit's key schedule core (SF20); a wrong code is refused and the unit is told; the unit's digits are accepted and the unit is told it is paired |
 | `host_id_first_wins` | heartbeats from two host ids, cued calls, session end, 10 s silence | the unit's remote session core (SF01, FM03) keeps the first id, refuses a cued call with another, drops the id with the session or after the dead-man time; the host half is a known gap |
 | `idle_jump` | the fake clock jumps 3, 25 and 50 days | the timer that was due rings, the face is drawn, a spoken turn works; the host's own clock cannot be moved (known gap) |
+| `hostile_unauthenticated` | a peer with no credentials: bad headers, frames before a hello, 300 held connections, hostile pairing messages, a flood of pairing requests | the host stays up, the real unit still gets a reply, threads and descriptors come back, the flood is limited (close code 1013); one log-noise gap |
+| `hostile_paired_peer` | a peer with a valid token: malformed, oversized and binary frames, hello and listen floods, 60 sessions at once, bad avatar frames | the same health checks; one log-noise gap |
+| `hostile_settings` | the settings page: broken and 20 MB bodies, odd paths, guessing the six digits, replaying an accepted code | no file served outside the page, wrong codes never pair, a replayed code is refused, the same health checks; one log-noise gap |
 | `soak` | 500 spoken turns (only with `MAIPAI_SOAK=1`) | every turn got a reply; the host's memory, threads, descriptors and sockets did not grow past the limits |
 
 ## The unit's own cores in the loop
