@@ -43,3 +43,46 @@ def test_tap_on_a_sleeping_unit_changes_nothing():
         u.raw("pclick 20 60")
         after = shot(u)
         assert before == after, "a tap on a sleeping unit must leave the style alone"
+
+
+def _bbox(png):
+    import thumbnails as tn
+    w, h, rows = tn._rows(png)
+    cols = [x // 3 for r in rows[40:140] for x in range(0, len(r), 3) if r[x] > 200]
+    return (min(cols), max(cols), len(cols)) if cols else None
+
+
+def test_the_flip_closes_to_a_line_and_opens_on_the_new_style():
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts" / "virtual-unit"))
+    with vunit.VirtualUnit(profile="screens") as u:
+        open_clock(u)
+        u.advance(700)
+        before = _bbox(u.snapshot_now())
+        u.raw("pclick 20 60")
+        widths = []
+        for _ in range(8):
+            u.raw("advance 33")
+            b = _bbox(u.snapshot_now())
+            widths.append(0 if b is None else b[1] - b[0])
+        assert min(widths) < 60, "the page must close to near a line in the middle of the flip"
+        assert widths[0] < before[1] - before[0], "the first frames narrow"
+        assert widths[-1] > 60 and widths[-1] > min(widths), "the new style opens again"
+
+
+def test_a_tap_during_the_flip_is_ignored():
+    with vunit.VirtualUnit(profile="screens") as u:
+        open_clock(u)
+        u.advance(700)
+        u.raw("pclick 20 60")
+        u.advance(100)
+        u.raw("pclick 20 60")   # mid-flip: ignored, so the page ends in the ring style, not in date and time
+        u.advance(600)
+        two = _bbox(u.snapshot_now())
+    with vunit.VirtualUnit(profile="screens") as u:
+        open_clock(u)
+        u.advance(700)
+        u.raw("pclick 20 60")
+        u.advance(700)
+        one = _bbox(u.snapshot_now())
+    assert two[:2] == one[:2], "a second tap during the flip must not change the style again"

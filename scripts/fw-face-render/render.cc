@@ -233,6 +233,10 @@ int main()
                 if (speaking) maipai_speech_feed_bench(level);
                 frame();
             }
+        } else if (c == "snapnow") {   // a picture of this very frame: no frame runs, no time passes (the filmstrips step with advance 33, one frame each)
+            std::string f; in >> f;
+            write_png(f.c_str(), s_buf);
+            printf("snapnow\n"); fflush(stdout);   // the answer is the barrier: no frame runs to wait for it
         } else if (c == "snap") {
             std::string f; in >> f;
             if (speaking) maipai_speech_feed_bench(level);

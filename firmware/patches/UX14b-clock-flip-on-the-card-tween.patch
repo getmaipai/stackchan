@@ -1,0 +1,133 @@
+# Intent: The clock style change plays a card flip (owner idea 2026-11-18, spec docs/design/clock-styles.md "The flip"). On a tap the page closes to its middle line in 120 ms, the new style is built there and it opens again in 120 ms (240 ms in all), on the Memory card flip's tween (gan_flip_width of patch SF74, so no new engine). No buffer is drawn into: the boxes of the page (digit bars, colon, dots) move toward the middle and narrow; the labels and the ring hide while the card is under 90 percent wide. The state is about 1 KB and exists only for the flip; a tap during the flip is ignored; if there is no room for it the style changes without the flip. Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages.cc (ours)
+# Check after a flash: a tap on the clock flips it to the next style in about a quarter of a second without a flash of the old page; a second tap during the flip does nothing; swiping away during the flip leaves no stripe or hidden text; the free internal memory is the same before and after.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -12,6 +12,7 @@
+ #include <cstring>
+ #include <new>
+ #include "maipai_face_clock_core.h"
++#include "maipai_grid_anim_core.h"  // patch UX14b: the clock flip uses the Memory card flip tween (patch SF74), no new engine
+ #include "maipai_screens.h"
+ #include "maipai_lock.h"
+ #include "maipai_apps.h"
+@@ -299,15 +300,113 @@
+         const int pos = s_page_pos;
+         s_page_type   = -1;  // show_type returns early for the page that is already up
+         show_type(MPG_P_CLOCK, pos);
++    }
++}
++
++// Patch UX14b: the flip. The page closes like a card to its middle line in the first 120 ms, the new style is built there, and it opens in the next 120 ms: the width runs
++// on the Memory card flip's tween (gan_flip_width, GAN_FLIP_MS 240). Nothing is drawn into a buffer: every box of the page (the digit bars, the colon, the dots) moves its x and
++// width toward the middle; the labels and the ring are hidden while the card is narrower than 90 percent. The state (about 1 KB) exists only for the 240 ms of the flip.
++struct FlipItem {
++    lv_obj_t* o;
++    int16_t x, w;
++    uint8_t soft;  // a label or the ring: hidden while narrow
++};
++struct Flip {
++    gan_t anim;
++    lv_timer_t* timer;
++    FlipItem it[56];
++    int n;
++    bool swapped;
++};
++Flip* s_flip = nullptr;
++
++bool flip_page_ok() { return s_page != nullptr && s_page_type == MPG_P_CLOCK; }
++
++void flip_capture(Flip* f)
++{
++    f->n = 0;
++    lv_obj_update_layout(s_page);  // a page built a moment ago has no coordinates until it is laid out
++    const uint32_t kids = lv_obj_get_child_count(s_page);
++    for (uint32_t i = 0; i < kids && f->n < 56; i++) {
++        lv_obj_t* o = lv_obj_get_child(s_page, static_cast<int32_t>(i));
++        FlipItem& it = f->it[f->n++];
++        it.o    = o;
++        it.x    = static_cast<int16_t>(lv_obj_get_x(o));
++        it.w    = static_cast<int16_t>(lv_obj_get_width(o));
++        it.soft = (lv_obj_check_type(o, &lv_label_class) || lv_obj_check_type(o, &lv_arc_class)) ? 1 : 0;
+     }
+ }
+ 
++void flip_scale(Flip* f, int permille)
++{
++    const int mid = MPG_ZONE_W / 2;
++    for (int i = 0; i < f->n; i++) {
++        FlipItem& it = f->it[i];
++        if (it.soft) {
++            if (permille < 900) lv_obj_add_flag(it.o, LV_OBJ_FLAG_HIDDEN);
++            else lv_obj_remove_flag(it.o, LV_OBJ_FLAG_HIDDEN);
++            continue;
++        }
++        int nw = it.w * permille / 1000;
++        if (nw < 2) nw = 2;
++        lv_obj_set_x(it.o, mid + (it.x + it.w / 2 - mid) * permille / 1000 - nw / 2);
++        lv_obj_set_width(it.o, nw);
++    }
++}
++
++void flip_end(bool touch_objects)
++{
++    Flip* f = s_flip;
++    if (f == nullptr) return;
++    s_flip = nullptr;
++    if (touch_objects) flip_scale(f, 1000);  // every box back to its own place and width
++    if (f->timer != nullptr) lv_timer_delete(f->timer);
++    delete f;
++}
++
++void flip_cb(lv_timer_t*)
++{
++    Flip* f = s_flip;
++    if (f == nullptr) return;
++    if (!flip_page_ok()) {  // the page went away (a swipe): nothing of ours is alive
++        flip_end(false);
++        return;
++    }
++    const uint32_t now = now_ms();
++    gan_ev_t ev[GAN_EV_MAX];
++    const int n = gan_tick(&f->anim, now, ev);
++    bool done = false;
++    for (int k = 0; k < n; k++) done = done || ev[k].type == GAN_EV_FLIP_DONE;
++    if (!f->swapped && gan_flip_new_face(&f->anim, 0, now)) {  // the middle of the flip: the page closed, build the new style now
++        f->swapped = true;
++        clock_rebuild(nullptr);
++        if (!flip_page_ok()) { flip_end(false); return; }
++        flip_capture(f);
++    }
++    if (done) {
++        flip_end(true);
++        return;
++    }
++    flip_scale(f, gan_flip_width(&f->anim, 0, now));
++}
++
+ // Patch UX14: a tap cycles the style. A sleeping unit only wakes (the touch that woke it is the unit's own wake, not this tap): the style stays.
++// Patch UX14b: with the flip; a tap during a flip is ignored.
+ void on_clock_tap(lv_event_t*)
+ {
+-    if (s_host == nullptr || s_host->asleep()) return;
++    if (s_host == nullptr || s_host->asleep() || s_flip != nullptr) return;
+     s_host->clock_set_style(mpg_clock_style_next(s_host->clock_style()));
+-    lv_async_call(clock_rebuild, nullptr);  // the tapped object is part of the page that is replaced
++    Flip* f = new (std::nothrow) Flip();
++    if (f == nullptr) {
++        lv_async_call(clock_rebuild, nullptr);  // no room for the flip: the style still changes
++        return;
++    }
++    memset(f, 0, sizeof(*f));
++    gan_init(&f->anim);
++    flip_capture(f);
++    gan_flip(&f->anim, now_ms(), 0);
++    f->timer = lv_timer_create(flip_cb, 30, nullptr);
++    s_flip   = f;
+ }
+ 
+ void clock_paint()

@@ -148,6 +148,29 @@ GRID_SCENARIOS = {
     "game-over-2048-lose": ["game mines 3", "over lost|Score 5184|Best 20480|0|en", "snap {out}"],
 }
 
+# Filmstrips: the frames a scenario collects with ("strip",) steps, half size, three to a row. The flip of a clock style change (patch UX14b) is 240 ms.
+# a strip step runs one renderer frame (33 ms) and takes the picture without running another, so the eight frames after the tap span the 240 ms flip
+_FLIP = [("raw", "pshow clock"), ("advance", 700), ("strip",), ("raw", "pclick 20 60")]
+FILMSTRIPS = {
+    "clock-flip-classic-to-ring": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41")] + _FLIP + [("stripnow",)] * 8,
+    "clock-flip-ring-to-datetime": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 1")] + _FLIP + [("stripnow",)] * 8,
+}
+SCREENS.update(FILMSTRIPS)
+
+
+def strip_png(frames: list, per_row: int = 3) -> bytes:
+    import thumbnails as tn
+    halves = [tn._rows(tn.half(f)) for f in frames]
+    w, h = halves[0][0], halves[0][1]
+    rows = []
+    for r0 in range(0, len(halves), per_row):
+        group = halves[r0:r0 + per_row]
+        for y in range(h):
+            line = b"".join(g[2][y] for g in group) + b"\0" * (3 * w * (per_row - len(group)))
+            rows.append(line)
+    return tn._png(w * per_row, len(rows), rows)
+
+
 COVER_SCENARIOS = {
     "cover-connecting-wifi": ["show 1 0 Connecting to Wi-Fi...", "advance 800", "snap {out}"],
     "cover-connecting-home": ["show 1 0 Connecting to Home...", "advance 800", "snap {out}"],
@@ -247,6 +270,11 @@ def run(u, steps) -> None:
             u.raw(step[1])
         elif step[0] == "advance":
             u.advance(step[1])
+        elif step[0] == "stripnow":   # one renderer frame (33 ms), then a frame for the filmstrip
+            u.raw("advance 33")
+            u.__dict__.setdefault("strip", []).append(u.snapshot_now())
+        elif step[0] == "strip":   # a frame for a filmstrip golden (the frames are put side by side, half size, by strip_png)
+            u.__dict__.setdefault("strip", []).append(u.snapshot())
         elif step[0] == "touch":
             u.touch(*step[1:])
         elif step[0] == "hostaway":   # the unit has been away from its host for 11 minutes: the notice shows (patch SF49), in this language
@@ -296,8 +324,8 @@ def main() -> int:
         else:
             with vunit.VirtualUnit(profile="screens" if is_screen else "face") as u:
                 run(u, SCREENS[name] if is_screen else SCENARIOS[name])
-                png = u.snapshot()
-                problems = layout_problems(u, name)
+                png = strip_png(u.strip) if name in FILMSTRIPS else u.snapshot()
+                problems = [] if name in FILMSTRIPS else layout_problems(u, name)
         folder = GOLDEN_SCREENS if is_screen else GOLDEN
         gold = folder / f"{name}.png"
         if update:

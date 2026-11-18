@@ -24,6 +24,17 @@ When the unit is asleep the clock page shows a moon and "Zz" and is dimmed to 40
 - Asleep: the tap only wakes the screen. The style does not change. The unit's own wake on touch runs first; the page ignores the tap while `asleep()` was true when it arrived.
 - A swipe is not a tap. Page swipes, the sheet swipe and the grabber keep working as before.
 
+## The flip
+
+When the style changes on a tap, the page plays a card flip of 240 ms: it closes to its middle line in the first 120 ms, the new style is built at that moment, and it opens again in the next 120 ms. Patch: `UX14b-clock-flip-on-the-card-tween.patch` (on top of UX14).
+
+- **Same tween as the Match card flip.** The width comes from `gan_flip_width()` and the middle from `gan_flip_new_face()` in `maipai_grid_anim_core.h` (patch SF74); no new engine. A 30 ms timer runs only during the flip.
+- **No buffer.** Nothing is rendered to a surface. Every box of the page (the digit bars, the colon, the page dots) moves its x and width toward the middle line; the labels and the ring are hidden while the card is under 90 percent wide, because text and an arc cannot be squeezed without a buffer.
+- **Memory.** About 1 KB of heap (the tween list and 56 object records) exists only for the 240 ms; nothing is held at rest. If the allocation fails the style still changes, without the flip.
+- **Rules.** A tap during a flip is ignored. Swiping away during a flip leaves nothing behind: the timer notices the page is gone and frees its state without touching the page's objects. The style is saved as in "Keeping the choice", once, when the tap changes it (not per frame).
+- **A tap on a sleeping unit** starts no flip.
+- **Pictures:** `clock-flip-classic-to-ring.png` and `clock-flip-ring-to-datetime.png` are filmstrips of nine frames, 33 ms apart (the frame before the tap, then eight): narrowing, the line, opening on the new style. Tests: `test_clock_styles.py` (it closes and opens; a second tap in the flip is ignored).
+
 ## Keeping the choice
 
 - Stored as the clock style in the face configuration (`clock_style`, today 0 digits or 1 ring). The firmware track extends the range to 0 to 2 (`maipai_face_core.h`: the check `clock_style > 1` becomes `> 2`; the tool text gets the name `date_time`) and the saved byte keeps its place, so an older saved 0 or 1 reads the same.
@@ -43,7 +54,7 @@ The virtual unit keeps the style in the stand-in host (`pset cstyle N`, `pset as
 
 ## Proof on the virtual unit
 
-- Goldens: `clock-classic`, `clock-ring`, `clock-datetime`, each awake and `-asleep` (six frames), `clock-datetime-12h`, and `clock-tap-to-datetime` (four taps, back to classic).
+- Goldens: the two flip filmstrips (see "The flip"), `clock-classic`, `clock-ring`, `clock-datetime`, each awake and `-asleep` (six frames), `clock-datetime-12h`, and `clock-tap-to-datetime` (four taps, back to classic).
 - `host/tests/test_clock_styles.py`: a tap cycles three different styles and wraps; a tap on a sleeping unit changes nothing.
 - `pages_core_test.c`: every style fits above the page dots, the sign has room, the cycle wraps.
 - Not yet proven on a unit: the touch feel of a tap on the page, the sleeping dimming against a real backlight, the saved style after a restart.

@@ -207,6 +207,13 @@ class VirtualUnit:
         self._sync()
         return path.read_bytes()
 
+    def snapshot_now(self) -> bytes:
+        """The screen as it is now: no frame runs and no time passes (snapshot() runs two frames, 66 ms)."""
+        path = Path(self._tmp.name) / "snapnow.png"
+        self._send(f"snapnow {path}")
+        self._read_until("snapnow")
+        return path.read_bytes()
+
     def count(self, x0: int, y0: int, x1: int, y1: int) -> dict:
         self._send(f"count {x0} {y0} {x1} {y1}")
         parts = self._read_until("count").split()
