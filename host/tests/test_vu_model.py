@@ -349,7 +349,7 @@ def test_details_seen_on_the_real_unit_are_named_nodes():
     assert {"led_charge", "led_bottom", "sticker", "sticker_ink", "touch_pad"} <= mats
     for name in ("sticker_side_left", "sticker_side_right", "sticker_top", "sticker_bottom"):
         prims = j["meshes"][by[name][1]["mesh"]]["primitives"]
-        assert {"sticker", "sticker_ink"} <= {j["materials"][p["material"]]["name"] for p in prims}, "paper and print, drawn as geometry"
+        assert "sticker" in {j["materials"][p["material"]]["name"] for p in prims}, "a label drawn as geometry"
     js = (VU / "view3d.js").read_text()
     assert "back_charge_led" in js and "st.hw.charging" in js and "screen_bottom_led" in js
 
@@ -382,7 +382,7 @@ def test_second_pass_openings_are_real_and_every_screw_is_a_node():
     assert "board_parts" in head and {"battery_lead", "servo_wires"} <= yaw - head
     mats = {m["name"]: m for m in j["materials"]}
     button = [mats_name for mats_name in (j["materials"][p["material"]]["name"] for p in j["meshes"][by["power_button"][1]["mesh"]]["primitives"])]
-    assert button == ["button"] and min(mats["button"]["pbrMetallicRoughness"]["baseColorFactor"][:3]) > 0.7, "the side button is a white key"
+    assert button == ["button"] and abs(mats["button"]["pbrMetallicRoughness"]["baseColorFactor"][0] - mats["core"]["pbrMetallicRoughness"]["baseColorFactor"][0]) < 0.05, "the side button is the same plastic as the controller"
     assert [j["materials"][p["material"]]["name"] for p in j["meshes"][by["reset_button"][1]["mesh"]]["primitives"]] == ["button"]
     assert "0x58d68d" not in (VU / "view3d.js").read_text(), "the view does not tint the side button"
 
@@ -449,3 +449,31 @@ def test_no_gap_between_the_controller_and_the_shell():
     shell = next(p for p in head if j["materials"][p["material"]]["name"] == "shell")
     zmin_core, zmax_shell = j["accessors"][core["attributes"]["POSITION"]]["min"][2], j["accessors"][shell["attributes"]["POSITION"]]["max"][2]
     assert zmin_core < zmax_shell - 0.0003, "the controller's body reaches inside the shell's front edge"
+
+
+def test_no_logo_name_or_certification_mark_is_drawn():
+    """Trademark care: the model keeps the shapes of the labels and nothing a maker could own."""
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    mats = {m["name"] for m in j["materials"]}
+    assert "emboss" not in mats and "sticker_orange" not in mats, "no raised logo and no logo-colored patch"
+    mat = lambda name: {j["materials"][p["material"]]["name"] for p in j["meshes"][by[name][1]["mesh"]]["primitives"]}
+    for side in ("sticker_side_left", "sticker_side_right"):
+        assert mat(side) == {"sticker", "sticker_dark"}, "the side labels are blank: no name and no face"
+    assert mat("sticker_top") <= {"sticker", "sticker_gray", "sticker_ink"} and mat("sticker_bottom") == {"sticker", "sticker_dark", "sticker_ink"}
+    src = (VU / "model" / "make_body.py").read_text()
+    calls = re.findall(r"lettering\('([^']*)'", src)
+    assert calls == ["7P"], f"only the board marking is lettered, found {calls}"
+    for word in ("StackChan'", "'CE'", "'M5'", "FCC"):
+        assert word not in src, f"{word} must not be drawn by the builder"
+
+
+def test_the_unsealed_slits_behind_the_top_connectors_are_nodes_the_view_lights():
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    head = descendants(j, by["head"][0])
+    assert {"top_gap_left", "top_gap_right"} <= head
+    assert by["top_gap_left"][1]["extras"]["lights"] == [0, 1] and by["top_gap_right"][1]["extras"]["lights"] == [11, 10]
+    assert by["top_gap_left"][1]["translation"][0] > 0 > by["top_gap_right"][1]["translation"][0]
+    js = (VU / "view3d.js").read_text()
+    assert "top_gap_left" in js and "GRAINY" in js and "onBeforeCompile" in js, "the slits glow with the ring, and the plastics have a grain"

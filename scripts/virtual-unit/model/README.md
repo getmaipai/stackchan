@@ -28,7 +28,7 @@ stackchan
     base_board            the board behind the back socket (a guess: no picture of the open base yet)
     sleeve_left, sleeve_right    metal sleeves in the two rear corner holes
     foot_0..foot_3        the four corner mounting holes underneath (the base has no separate feet)
-    sticker_bottom        label under the base, drawn for the model
+    sticker_bottom        label under the base as a plain shape: no names, logos or marks
     col_base              collider box
     yaw_joint             vertical axis, extras.joint: axis, limit_deg [-128, 128], source
       neck                servo holder and its two covers (turns with yaw)
@@ -52,7 +52,7 @@ stackchan
           reset_button, sd_slot, screen_bottom_led    under the controller: white key, open card slot, light pinhole (positions from the underside photo)
           button_left_top another name for power_button (child of it, no mesh)
           ir_window_0, ir_window_1, red_led_side    the two short slots and another name for screen_bottom_led (owner's photo of the underside)
-          sticker_side_left, sticker_side_right, sticker_top    labels drawn for the model
+          sticker_side_left, sticker_side_right, sticker_top    labels as plain shapes: no names, logos or marks
           touch_back_0..2 the three zones of the head touch strip on the top, front to back (outline assumed)
           col_head        collider box
 ```

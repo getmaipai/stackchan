@@ -19,11 +19,20 @@ function readGlb(THREE, bytes) {
     const a = doc.accessors[i], v = doc.bufferViews[a.bufferView];
     return new THREE.BufferAttribute(new arrays[a.componentType](bin, v.byteOffset || 0, a.count * width[a.type]), width[a.type]);
   }
+  // The housings are matte molded plastic with a fine grain. The file has no pictures in it, so the grain is made here: each plastic's
+  // color is varied a few percent from cell to cell (0.2 mm cells in the part's own frame), which reads as the speckle of the real surface.
+  const GRAINY = {shell: 1, core: 1, base: 1, neck: 1, servo: 1, button: 1};
+  const grain = shader => {
+    shader.vertexShader = 'varying vec3 vGrain;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vGrain = position;');
+    shader.fragmentShader = 'varying vec3 vGrain;\n' + shader.fragmentShader.replace('#include <color_fragment>',
+      '#include <color_fragment>\n  vec3 gc = floor(vGrain * 5000.0);\n  float gn = fract(sin(dot(gc, vec3(12.9898, 78.233, 37.719))) * 43758.5453);\n  diffuseColor.rgb *= 0.95 + 0.10 * gn;');
+  };
   const materials = doc.materials.map(m => {
     const c = m.pbrMetallicRoughness.baseColorFactor;
     const mat = new THREE.MeshStandardMaterial({color: new THREE.Color(srgb(c[0]), srgb(c[1]), srgb(c[2])),
       metalness: m.pbrMetallicRoughness.metallicFactor, roughness: m.pbrMetallicRoughness.roughnessFactor});
     mat.name = m.name;
+    if (GRAINY[m.name]) mat.onBeforeCompile = grain;
     return mat;
   });
   const byName = {};
@@ -124,6 +133,8 @@ function initRobot(THREE, canvas, hooks) {
       if (m) { m.material = new THREE.MeshBasicMaterial({color: 0x8a8a84}); M.leds.push(m); M.ringLeds[i] = m; M.ledHalos[i] = halo(node, 0.007); }
       M.halos[i] = halo(N['ring_light_' + i], 0.009);   // small, so the glow stays on the bar and does not spill onto the controller
     }
+    M.gaps = ['top_gap_left', 'top_gap_right'].map(name => { const node = N[name], m = node && node.children.find(c => c.isMesh); if (!m) return null;
+      m.material = new THREE.MeshBasicMaterial({color: 0x050505}); M.leds.push(m); return {m, px: node.userData.lights || []}; }).filter(Boolean);   // the unsealed slits behind the top connectors
     M.glowLights = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]].map(px => {
       // a spot aimed down, inward and a little to the back: it colors the inside of the shell and the holder, and nothing ahead of the
       // ring board, so no light falls on the controller or its screen (the real unit leaks none there)
@@ -437,6 +448,10 @@ function initRobot(THREE, canvas, hooks) {
             col.setXYZ(v, Math.min(1, off[0] * keep + (p[0] * (1 - f) + q[0] * f) * 0.95 + 0.12 * lv), Math.min(1, off[1] * keep + (p[1] * (1 - f) + q[1] * f) * 0.95 + 0.12 * lv), Math.min(1, off[2] * keep + (p[2] * (1 - f) + q[2] * f) * 0.95 + 0.12 * lv));
           }
           col.needsUpdate = true;
+        }
+        for (const gap of M.gaps) {   // the only place the ring's light escapes on top: dim, in the color of the two lights nearest it
+          let r1 = 0, g1 = 0, b1 = 0; for (const i of gap.px) { r1 += px[i][0]; g1 += px[i][1]; b1 += px[i][2]; }
+          const k = 0.45 / Math.max(1, gap.px.length); gap.m.material.color.setRGB(0.02 + r1 * k, 0.02 + g1 * k, 0.02 + b1 * k);
         }
         for (const g of M.glowLights) {   // what the lights throw on the parts near them, inside and out
           let r1 = 0, g1 = 0, b1 = 0; for (const i of g.px) { r1 += px[i][0]; g1 += px[i][1]; b1 += px[i][2]; }

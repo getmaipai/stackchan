@@ -59,18 +59,18 @@ PARTS = [
 ]
 
 MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. Colors are judged from product photos.
-    ('base', (0.125, 0.125, 0.13, 1.0), 0.0, 0.75, None),
+    ('base', (0.115, 0.118, 0.14, 1.0), 0.0, 0.85, None),            # blue-gray, matte (owner's photos)
     ('port', (0.012, 0.012, 0.014, 1.0), 0.0, 0.5, None),
-    ('neck', (0.56, 0.56, 0.57, 1.0), 0.0, 0.7, None),
-    ('servo', (0.19, 0.19, 0.20, 1.0), 0.0, 0.7, None),
+    ('neck', (0.60, 0.59, 0.55, 1.0), 0.0, 0.85, None),
+    ('servo', (0.23, 0.23, 0.25, 1.0), 0.0, 0.85, None),
     ('camera', (0.80, 0.27, 0.07, 1.0), 0.6, 0.35, None),            # the copper-orange ring round the lens (owner's front photo)
-    ('core', (0.74, 0.74, 0.74, 1.0), 0.0, 0.6, None),
+    ('core', (0.60, 0.59, 0.54, 1.0), 0.0, 0.85, None),             # warm light gray, matte with a fine grain (owner's photos)
     ('glass', (0.004, 0.004, 0.005, 1.0), 0.0, 0.12, None),
     ('light_bar', (0.42, 0.70, 0.72, 1.0), 0.0, 0.35, None),
     ('pcb', (0.012, 0.014, 0.016, 1.0), 0.0, 0.55, None),     # the boards are matte black (owner's photo of the open back)
-    ('shell', (0.72, 0.72, 0.72, 1.0), 0.0, 0.6, None),
+    ('shell', (0.58, 0.57, 0.52, 1.0), 0.0, 0.85, None),
     ('screen', (0.0, 0.0, 0.0, 1.0), 0.0, 0.4, (1.0, 1.0, 1.0)),
-    ('button', (0.83, 0.83, 0.83, 1.0), 0.0, 0.6, None),
+    ('button', (0.62, 0.61, 0.56, 1.0), 0.0, 0.8, None),
     ('port_metal', (0.42, 0.43, 0.46, 1.0), 0.6, 0.4, None),
     ('port_red', (0.45, 0.03, 0.02, 1.0), 0.0, 0.6, None),
     ('servo_case', (0.012, 0.014, 0.02, 1.0), 0.0, 0.5, None),
@@ -91,9 +91,7 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('flex', (0.85, 0.86, 0.88, 1.0), 0.0, 0.5, None),
     ('wire_red', (0.50, 0.02, 0.02, 1.0), 0.0, 0.6, None),
     ('sticker_dark', (0.06, 0.06, 0.065, 1.0), 0.0, 0.7, None),
-    ('sticker_orange', (0.75, 0.13, 0.02, 1.0), 0.0, 0.7, None),
     ('sticker_gray', (0.45, 0.45, 0.46, 1.0), 0.0, 0.7, None),
-    ('emboss', (0.60, 0.60, 0.60, 1.0), 0.0, 0.6, None),
     ('pin_gold', (0.80, 0.58, 0.18, 1.0), 0.9, 0.3, None),
     ('silk', (0.80, 0.80, 0.78, 1.0), 0.0, 0.7, None),
     ('conn_green', (0.25, 0.55, 0.85, 1.0), 0.0, 0.5, None),         # light blue in daylight (it looked green under amber light); the name is kept
@@ -325,22 +323,9 @@ def arc(cx, cy, rx, ry, a0, a1, n=10):
     return [(cx + rx * math.cos(math.radians(a0 + (a1 - a0) * i / n)), cy + ry * math.sin(math.radians(a0 + (a1 - a0) * i / n))) for i in range(n + 1)]
 
 
-_ARCH = [(0.05, 0.5), (0.15, 0.63), (0.3, 0.68), (0.44, 0.62), (0.5, 0.48), (0.5, 0.0)]
-STROKES = {  # letter: (advance, strokes) in a box one capital high; the product's own name on the side labels, and marks
-    'S': (0.62, [[(0.55, 0.84), (0.42, 0.97), (0.22, 0.98), (0.07, 0.86), (0.08, 0.66), (0.29, 0.53), (0.47, 0.41), (0.56, 0.23), (0.46, 0.05), (0.26, 0.0), (0.09, 0.07), (0.0, 0.19)]]),
-    't': (0.44, [[(0.18, 0.95), (0.18, 0.13), (0.27, 0.01), (0.4, 0.02)], [(0.0, 0.68), (0.4, 0.68)]]),
-    'a': (0.62, [arc(0.27, 0.34, 0.27, 0.34, 0, 360, 14), [(0.54, 0.68), (0.54, 0.0)]]),
-    'c': (0.56, [arc(0.3, 0.34, 0.3, 0.34, 50, 310, 12)]),
-    'k': (0.54, [[(0.05, 1.0), (0.05, 0.0)], [(0.45, 0.68), (0.05, 0.28)], [(0.2, 0.43), (0.5, 0.0)]]),
-    'C': (0.8, [arc(0.42, 0.5, 0.42, 0.5, 52, 308, 14)]),
-    'h': (0.6, [[(0.05, 1.0), (0.05, 0.0)], _ARCH]),
-    'n': (0.6, [[(0.05, 0.68), (0.05, 0.0)], _ARCH]),
-    'E': (0.7, [arc(0.42, 0.5, 0.42, 0.5, 52, 308, 14), [(0.1, 0.5), (0.55, 0.5)]]),
-    'o': (0.7, [arc(0.3, 0.5, 0.3, 0.3, 0, 360, 14)]),
+STROKES = {  # character: (advance, strokes) in a box one capital high; only the board marking is lettered
     '7': (0.7, [[(0.05, 1.0), (0.62, 1.0), (0.25, 0.0)]]),
     'P': (0.7, [[(0.05, 0.0), (0.05, 1.0), (0.4, 1.0), (0.58, 0.86), (0.58, 0.64), (0.4, 0.5), (0.05, 0.5)]]),
-    'M': (1.1, [[(0.05, 0.0), (0.05, 1.0), (0.52, 0.25), (1.0, 1.0), (1.0, 0.0)]]),
-    '5': (0.75, [[(0.62, 1.0), (0.1, 1.0), (0.06, 0.55), (0.34, 0.62), (0.56, 0.52), (0.64, 0.3), (0.54, 0.08), (0.32, 0.0), (0.06, 0.1)]]),
 }
 
 
@@ -519,6 +504,7 @@ def assemble():
     geo['head']['camera'] = prism(circle(2.1), 0.0, row, face, face + 0.03)
     dots = prism(circle(1.75), 0.0, row, face + 0.03, face + 0.05)    # the dark lens inside the ring
     geo['head']['button'] = prism(circle(0.5, 10), 0.0, row, face + 0.05, face + 0.06)   # the glint in the middle of the lens
+    geo['head']['print'] = band(lambda u, v, c: (u, v, face + 0.055 + c), moved(circle(1.2, 16), 0.0, row), moved(circle(1.02, 16), 0.0, row), 0.0)   # a ring inside the lens: it is a small dome (owner's close-up)
     geo['head']['pin_gold'] = []
     for dx in (7.1, 9.6):                                     # two tiny gold dots beside the camera, on the robot's left (owner's front photo)
         geo['head']['pin_gold'] += prism(circle(0.3, 8), dx, row, face, face + 0.03)
@@ -547,12 +533,12 @@ def assemble():
     for (u0, u1), hole in zip(zip(cuts, cuts[1:]), (a_hole, otg_hole, well)):
         core += holed(side, u0, u1, z0, z1, hole)
     geo['head']['port'] += tube(side, well, 0.0, -0.8) + flat(side, well, -0.8)          # the dark gap round the button
-    # The key (owner's close-up): a rounded rectangle in a dark gap that is widest at the back; the back 60 percent of the key is flat and
-    # stands a little proud, the front part slopes down toward the glass, with a ridge between them.
-    key = moved(rounded_outline(6.1, 8.5, 1.9), button_c[1], button_c[2] + 0.2)
-    split = button_c[2] + 1.5
+    # The key (owner's close-ups): a tongue narrower than its opening, with a dark gap at the back and down both sides. Its back part sits
+    # low in the opening; a step lifts the front part level with the housing, where the tongue joins it with no gap.
+    key = moved(rounded_outline(5.3, 9.05, 1.8), button_c[1], button_c[2] + 0.33)
+    split = button_c[2] + 1.6
     back_part, front_part = clipped(key, 1, split, True), clipped(key, 1, split, False)
-    button_tris = tube(side, back_part, -0.8, 0.35) + flat(side, back_part, 0.35) + tube(side, front_part, -0.8, 0.0) + flat(side, front_part, 0.0)
+    button_tris = tube(side, back_part, -0.8, -0.45) + flat(side, back_part, -0.45) + tube(side, front_part, -0.8, 0.05) + flat(side, front_part, 0.05)
     # the power mark above the key: a ring open toward the front, with a short line from its middle out through the opening
     pc = (top - 8.2, face - 8.0)
     prints += stroke(side, [(pc[0] + 0.8 * math.sin(math.radians(a)), pc[1] + 0.8 * math.cos(math.radians(a))) for a in range(40, 321, 20)], 0.22, 0.02)
@@ -593,10 +579,11 @@ def assemble():
     sd_pins = []                                              # the row of card contacts inside the slot
     for k in range(8):
         sd_pins += slab(below, sd_c[0] - 3.85 + 1.1 * k, sd_c[0] - 3.35 + 1.1 * k, sd_c[2] + 0.45, sd_c[2] + 0.6, -2.8, -1.2)
-    # the reset key: a pill in a pill-shaped gap; the half toward its mark stands proud, the half toward the light sits lower, with a ridge between
-    reset_cap = moved(rounded_outline(7.6, 5.4, 2.69, 8), reset_c[0] + 0.2, reset_c[2])
-    high, low = clipped(reset_cap, 0, reset_c[0] - 0.4, False), clipped(reset_cap, 0, reset_c[0] - 0.4, True)
-    reset_tris = tube(below, high, -0.8, 0.3) + flat(below, high, 0.3) + tube(below, low, -0.8, -0.05) + flat(below, low, -0.05)
+    # the reset key has the same lift: a tongue in a pill-shaped opening, low at the end toward the light, stepped up level with the housing
+    # at the end toward its mark, where it joins with no gap
+    reset_cap = moved(rounded_outline(7.9, 4.6, 2.29, 8), reset_c[0] + 0.35, reset_c[2])
+    low, high = clipped(reset_cap, 0, reset_c[0] + 0.8, True), clipped(reset_cap, 0, reset_c[0] + 0.8, False)
+    reset_tris = tube(below, low, -0.8, -0.45) + flat(below, low, -0.45) + tube(below, high, -0.8, 0.05) + flat(below, high, 0.05)
     led_bottom_tris = flat(below, moved(circle(0.5, 12), led_bottom_c[0], led_bottom_c[2]), 0.02)
     rc = (21.0, face - 6.6)                                   # the restart mark beside the key: an open ring that ends in an arrowhead
     ring_pts = [(rc[0] + 0.85 * math.cos(math.radians(a)), rc[1] + 0.85 * math.sin(math.radians(a))) for a in range(70, 351, 20)]
@@ -604,10 +591,6 @@ def assemble():
     tip_a = math.radians(70)
     prints += flat(below, [(rc[0] + 0.45 * math.cos(tip_a), rc[1] + 0.45 * math.sin(tip_a)), (rc[0] + 1.25 * math.cos(tip_a), rc[1] + 1.25 * math.sin(tip_a)),
                            (rc[0] + 0.85 * math.cos(tip_a) + 0.6 * math.sin(tip_a), rc[1] + 0.85 * math.sin(tip_a) - 0.6 * math.cos(tip_a))], 0.02)
-    quads, length = lettering('M5', 6.0, 0.8)                  # the raised two-character mark on the speaker side, under the grille (side photo)
-    geo['head']['emboss'] = []
-    for quad in quads:
-        geo['head']['emboss'] += flat(lambda u, v, c: (27.0 + c, u, v), [(top - 49.0 + a, face - 11.3 + b) for a, b in quad], 0.03)
     # The controller sits tight against the shell on the real unit: no gap and nothing seen through the seam. A plate just inside the shell's
     # front edge closes the joint all round (the shell file's front lip is rounded, which otherwise leaves a slit).
     core += prism(rounded_outline(53.2, 53.2, 3.7), 0.0, cy, front - 0.45, front + 0.05)
@@ -740,7 +723,7 @@ def assemble():
         cross = slab(f, u - r * 0.62, u + r * 0.62, v - r * 0.13, v + r * 0.13, c1, c1 + 0.03) + slab(f, u - r * 0.13, u + r * 0.13, v - r * 0.62, v + r * 0.62, c1, c1 + 0.03)
         return tube(f, o, c0, c1) + flat(f, o, c1), cross
 
-    # ---- labels (drawn here; the print is stand-in marks, not copied text, except the product's own name on the side labels)
+    # ---- labels (drawn here as plain shapes: blank paper and stand-in bars; no names, logos, certification marks or codes)
     stickers = {}
     lw, lh = 6.3, 43.0                                           # side labels: width, length (owner's side photo)
     for side_x, name in ((-1, 'sticker_side_right'), (1, 'sticker_side_left')):
@@ -754,20 +737,9 @@ def assemble():
         parts = {'sticker': flat(lab, o), 'sticker_dark': [], 'sticker_ink': []}
         if side_x < 0:                                            # dark end at the bottom on the button side, at the top on the other
             parts['sticker_dark'] = flat(lab, o[n:] + [(lw / 2, -lh / 2 + 12.4), (-lw / 2, -lh / 2 + 13.8)], 0.01)
-            fq = -lh / 2 + 6.4
         else:
             parts['sticker_dark'] = flat(lab, o[:n] + [(-lw / 2, lh / 2 - 13.8), (lw / 2, lh / 2 - 12.4)], 0.01)
-            fq = lh / 2 - 6.4
-        for dq in (-2.85, 2.85):                                  # the little face in the dark end: two dots and a line
-            parts['sticker'] += flat(lab, moved(circle(0.5, 10), 1.2, fq + dq), 0.02)
-        parts['sticker'] += flat(lab, [(-1.1, fq - 1.85), (-0.75, fq - 1.85), (-0.75, fq + 1.85), (-1.1, fq + 1.85)], 0.02)
-        quads, length = lettering('StackChan', 3.6, 0.52)
-        for quad in quads:                                        # the name runs along the label with the letter tops toward the front
-            if side_x < 0:
-                pts = [(-lw / 2 + 1.4 + b, lh / 2 - 2.4 - a) for a, b in quad]
-            else:
-                pts = [(-lw / 2 + 1.4 + b, -lh / 2 + 2.4 + a) for a, b in quad]
-            parts['sticker_ink'] += flat(lab, pts, 0.02)
+        parts.pop('sticker_ink')                                  # a blank label: no name, no face, no maker's artwork (trademark care)
         stickers[name] = (parts, (x, yc, zc))
     tx0, tx1, tz0, tz1 = -15.8, 0.5, front + 1.6, front + 13.9      # the rating label on top of the controller (top photo)
 
@@ -777,11 +749,8 @@ def assemble():
              'sticker_gray': flat(onlabel, [(tx0, tz0), (tx0, tz1), (tx0 + 2.3, tz1), (tx0 + 2.3, tz0)], 0.01), 'sticker_ink': []}
     for r, a0, a1 in dashes(2, tx0 + 3.2, tx1 - 0.8):
         parts['sticker_ink'] += flat(onlabel, [(a0, tz0 + 0.8 + r * 1.5), (a0, tz0 + 1.6 + r * 1.5), (a1, tz0 + 1.6 + r * 1.5), (a1, tz0 + 0.8 + r * 1.5)], 0.02)
-    parts['sticker_ink'] += band(onlabel, moved(rounded_outline(3.6, 4.2, 0.2), tx0 + 5.0, tz1 - 3.2), moved(rounded_outline(3.0, 3.6, 0.2), tx0 + 5.0, tz1 - 3.2), 0.02)
-    parts['sticker_ink'] += flat(onlabel, [(tx0 + 3.2, tz0 + 4.4), (tx0 + 3.2, tz0 + 5.0), (tx0 + 7.0, tz0 + 5.0), (tx0 + 7.0, tz0 + 4.4)], 0.02)
-    quads, length = lettering('CE', 4.4, 0.7)
-    for quad in quads:                                           # letter tops toward the front, as on the unit
-        parts['sticker_ink'] += flat(onlabel, [(tx1 - 0.9 - a, tz1 - 5.6 + b) for a, b in quad], 0.02)
+    for r, a0, a1 in dashes(2, tx0 + 3.2, tx1 - 0.8, 9):         # plain bars only: no certification marks, codes or names are drawn
+        parts['sticker_ink'] += flat(onlabel, [(a0, tz0 + 5.6 + r * 2.6), (a0, tz0 + 6.8 + r * 2.6), (a1, tz0 + 6.8 + r * 2.6), (a1, tz0 + 5.6 + r * 2.6)], 0.02)
     stickers['sticker_top'] = (parts, ((tx0 + tx1) / 2.0, top + 0.03, (tz0 + tz1) / 2.0))
     # on the head top: the three zones of the head touch strip, front to back (count and order from the firmware; outlines assumed)
     pad_w, pad_d, pad_gap = 16.0, 8.0, 1.2
@@ -809,10 +778,6 @@ def assemble():
     for sx in (-19.5, 19.5):                                     # the two dark strips under the base (underside photo)
         geo['base'].setdefault('port', [])
         geo['base']['port'] += box((sx, 0.075, mid + 2.7), (4.0, 0.15, 33.6))
-    quads, length = lettering('M5', 3.8, 0.6)                    # the same mark raised on the plate, behind the label (underside photo)
-    geo['base'].setdefault('servo', [])
-    for quad in quads:
-        geo['base']['servo'] += flat(lambda u, v, c: (u, 0.135, v), [(-length / 2 + a, mid - 23.4 + b) for a, b in quad])
     base = g.node('base', root, mesh=g.mesh('base', prims('base')))
     base_bottom = -32.6 - BASE_DROP - TABLE_Z
     usb_c = (0.0, -24.65 - BASE_DROP - TABLE_Z, -(-296.58 - YAW_Y) + 0.8)
@@ -849,25 +814,14 @@ def assemble():
                {'what': 'metal sleeve in a rear corner mounting hole', 'basis': 'assumed', 'note': "seen in the owner's photo of the underside"})
     lx, lz0, lz1 = 16.25, mid - 17.3, mid + 18.1                 # the big label under the base (underside photo): white, a dark header band, marks
     paper = [(-lx, lz1), (lx, lz1), (lx, lz0 + 4.0), (lx - 4.0, lz0), (-lx + 4.0, lz0), (-lx, lz0 + 4.0)]
-    label = {'sticker': flat(under_base, paper), 'sticker_dark': flat(under_base, [(-lx, lz1), (lx, lz1), (lx, lz1 - 3.5), (-lx, lz1 - 3.5)], 0.01),
-             'sticker_orange': flat(under_base, [(-15.1, lz1 - 4.6), (-10.7, lz1 - 4.6), (-10.7, lz1 - 9.0), (-15.1, lz1 - 9.0)], 0.01),
-             'sticker_gray': flat(under_base, [(-6.5, mid + 4.5), (0.5, mid + 9.5), (4.5, mid + 3.9), (-2.5, mid - 1.1)], 0.01)
-             + flat(under_base, [(-4.2, mid + 2.2), (1.4, mid + 2.2), (1.4, mid - 5.2), (-4.2, mid - 5.2)], 0.012)
-             + flat(under_base, [(-5.6, mid - 6.4), (7.0, mid - 6.4), (7.0, mid - 7.6), (-5.6, mid - 7.6)], 0.01), 'sticker_ink': []}
-    for r, a0, a1 in dashes(6, -15.3, -8.0, 11):                 # two columns of stand-in print
-        label['sticker_ink'] += flat(under_base, [(a0, mid + 7.4 - r * 2.5), (a1, mid + 7.4 - r * 2.5), (a1, mid + 6.6 - r * 2.5), (a0, mid + 6.6 - r * 2.5)], 0.02)
-    for r, a0, a1 in dashes(5, 5.5, 15.3, 7):
-        label['sticker_ink'] += flat(under_base, [(a0, mid + 13.0 - r * 1.9), (a1, mid + 13.0 - r * 1.9), (a1, mid + 12.3 - r * 1.9), (a0, mid + 12.3 - r * 1.9)], 0.02)
-    quads, length = lettering('CE', 4.0, 0.7)
-    for quad in quads:                                           # read with the front of the robot up, as on the unit
-        label['sticker_ink'] += flat(under_base, [(8.6 + a, mid - 1.6 + b) for a, b in quad], 0.02)
-    label['sticker_ink'] += band(under_base, moved(circle(2.0, 16), 11.5, mid - 5.6), moved(circle(1.6, 16), 11.5, mid - 5.6), 0.02)
-    label['sticker_ink'] += band(under_base, moved(circle(2.6, 18), -9.0, mid - 11.0), moved(circle(2.3, 18), -9.0, mid - 11.0), 0.02)
-    label['sticker_ink'] += flat(under_base, [(1.8, mid - 13.4), (5.6, mid - 13.4), (5.6, mid - 14.2), (1.8, mid - 14.2)], 0.02)
-    label['sticker_ink'] += band(under_base, moved(rounded_outline(3.0, 3.6, 0.2), 0.0, mid - 10.6), moved(rounded_outline(2.5, 3.1, 0.2), 0.0, mid - 10.6), 0.02)
+    # A neutral label: a plain rectangle with a blank header band and rows of stand-in bars. The maker's name, artwork, certification marks,
+    # codes and model text are not drawn (trademark care); see docs/plan/trademark-and-affiliation.md.
+    label = {'sticker': flat(under_base, paper), 'sticker_dark': flat(under_base, [(-lx, lz1), (lx, lz1), (lx, lz1 - 3.5), (-lx, lz1 - 3.5)], 0.01), 'sticker_ink': []}
+    for r, a0, a1 in dashes(8, -14.5, 14.5, 11):
+        label['sticker_ink'] += flat(under_base, [(a0, mid + 10.4 - r * 3.0), (a1, mid + 10.4 - r * 3.0), (a1, mid + 9.4 - r * 3.0), (a0, mid + 9.4 - r * 3.0)], 0.02)
     sb = (0.0, -0.03, mid - 2.0)
     g.node('sticker_bottom', base, sb, g.mesh('sticker_bottom', many(label, sb)),
-           {'what': 'label under the base, drawn for this model; the print is a stand-in', 'basis': 'assumed'})
+           {'what': 'label under the base, drawn for this model as a plain shape; the print is a stand-in, with no names, logos or marks', 'basis': 'assumed'})
     b_lo, b_hi = bounds([t for m in geo['base'].values() for t in m])
     g.node('col_base', base, [(b_lo[k] + b_hi[k]) / 2.0 for k in range(3)],
            extras={'collider': {'shape': 'box', 'size': [mm(b_hi[k] - b_lo[k]) for k in range(3)]}})
@@ -927,7 +881,7 @@ def assemble():
            {'screen': {'pixels': [320, 240], 'size_m': [mm(SCREEN_MM[0]), mm(SCREEN_MM[1])],
                        'uv': '0,0 top-left to 1,1 bottom-right as seen from the front; set the live 320x240 frame as the material texture'}})
     g.node('power_button', head, sub(button_c, PITCH_O), g.mesh('power_button', [g.primitive(button_tris, button_c, 'button')]),
-           {'what': "power button on the controller's right side: a white key in a dark gap, flat at the back and sloping toward the glass (owner's close-up)", 'size': [mm(8.5), mm(6.1)]})
+           {'what': "power button on the controller's right side: a tongue in a dark gap, low at the back and stepped up level with the housing at the front (owner's close-ups)", 'size': [mm(9.05), mm(5.3)]})
     g.node('usb_c_otg', head, sub(otg_c, PITCH_O), g.mesh('usb_c_otg', many(otg, otg_c)),
            {'what': "USB-C (OTG) on the controller's right side: an open socket with its tongue", 'opening': {'size': [mm(3.3), mm(9.2)], 'depth': mm(5.5)}})
     g.node('port_a', head, sub(port_a_c, PITCH_O), g.mesh('port_a', many(port_a, port_a_c)),
@@ -944,6 +898,10 @@ def assemble():
     for i, (c, tris) in enumerate(ring_leds):
         g.node('ring_led_%d' % i, head, sub(c, PITCH_O), g.mesh('ring_led_%d' % i, [g.primitive(tris, c, 'ring_led')]),
                {'what': 'the small light of ring_light_%d on the underside of the ring board; it fires sideways into the light bar' % i, 'light': i, 'basis': 'assumed'})
+    for side_name, gx, lights in (('left', 11.0, [0, 1]), ('right', -11.0, [11, 10])):   # the top connectors are not sealed: a slit behind each lets the ring's light out (owner's close-up)
+        c = (gx, top - 0.9, front - 6.5)
+        g.node('top_gap_%s' % side_name, head, sub(c, PITCH_O), g.mesh('top_gap_%s' % side_name, [g.primitive(both(quad_y(1, c[1], gx - 4.3, gx + 4.3, front - 7.1, front - 5.9)), c, 'port')]),
+               {'what': 'the open slit behind a top connector, where light from inside shows', 'lights': lights, 'basis': 'assumed', 'note': "seen in the owner's close-up of the head top; width read off it"})
     g.node('green_connector', head, sub(green_c, PITCH_O), g.mesh('green_connector', [g.primitive(green_tris, green_c, 'conn_green')]),
            {'what': "mint green body of the four-pin top connector, under the ring board on the robot's left", 'basis': 'assumed', 'note': "seen in the owner's photo"})
     b7 = (0.0, cy + 1.0, front - 1.1)
@@ -961,7 +919,7 @@ def assemble():
         g.node('screw_head_%d' % i, head, sub(c, PITCH_O), g.mesh('screw_head_%d' % i, [g.primitive(head_t, c, 'screw_dark'), g.primitive(cross, c, 'chip')]),
                {'what': 'screw that holds the controller mount to the shell', 'basis': 'measured', 'note': 'hole from the shell file; the head is a stand-in'})
     g.node('reset_button', head, sub(reset_c, PITCH_O), g.mesh('reset_button', [g.primitive(reset_tris, reset_c, 'button')]),
-           {'what': "reset button under the controller, beside the card slot: a white key in a dark gap; a press restarts the unit, a 3 second hold enters download mode", 'size': [mm(7.6), mm(5.4)]})
+           {'what': "reset button under the controller, beside the card slot: a tongue in a pill-shaped gap with the same step as the power key; a press restarts the unit, a 3 second hold enters download mode", 'size': [mm(7.9), mm(4.6)]})
     g.node('sd_slot', head, sub(sd_c, PITCH_O), g.mesh('sd_slot', [g.primitive(sd_tris, sd_c, 'port'), g.primitive(sd_pins, sd_c, 'pin_gold')]),
            {'what': 'card slot under the controller: an open slot', 'opening': {'size': [mm(12.9), mm(1.3)], 'depth': mm(3.0)}})
     g.node('screen_bottom_led', head, sub(led_bottom_c, PITCH_O), g.mesh('screen_bottom_led', [g.primitive(led_bottom_tris, led_bottom_c, 'led_bottom')]),
@@ -978,7 +936,7 @@ def assemble():
     for name in sorted(stickers):
         parts, c = stickers[name]
         g.node(name, head, sub(c, PITCH_O), g.mesh(name, many(parts, c)),
-               {'what': 'label drawn for this model; the print is a stand-in', 'basis': 'assumed'})
+               {'what': 'label drawn for this model as a plain shape; the print is a stand-in, with no names, logos or marks', 'basis': 'assumed'})
     for i, c in enumerate(pads):
         g.node('touch_back_%d' % i, head, sub(c, PITCH_O), g.mesh('touch_back_%d' % i, [g.primitive(box(c, (pad_w, 0.06, pad_d)), c, 'touch_pad'),
                                              g.primitive(band(lambda u, v, h: (u, top - 0.76 + h, v), moved(rounded_outline(pad_w, pad_d, 1.2), c[0], c[2]), moved(rounded_outline(pad_w - 0.7, pad_d - 0.7, 0.9), c[0], c[2]), 0.0), c, 'print')]),

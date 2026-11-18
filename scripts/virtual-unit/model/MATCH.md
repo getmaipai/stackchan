@@ -89,9 +89,9 @@ Seen on the real unit and now drawn (all positions read off the photos, so assum
 | Card slot under the controller | `sd_slot` | named on hover |
 | Reset button to the right of the slot: a white key in a dark gap, with a pinhole and two short slots between | `reset_button` | restarts the unit |
 | Button at the top of the left side (as you face the screen) | `power_button`, also named `button_left_top` | power: the product picture says press for on, hold 6 s for off |
-| Name label on each side of the shell, white with a dark end | `sticker_side_left`, `sticker_side_right` | the product's name in drawn strokes, a dark end with a small face |
-| Rating label on top of the controller | `sticker_top` | a gray end band, stand-in bars and two large stand-in marks, no real text |
-| Large label under the base | `sticker_bottom` | a dark header band, an orange square, a gray outline of the robot and stand-in bars |
+| Name label on each side of the shell, white with a dark end | `sticker_side_left`, `sticker_side_right` | a blank label with a dark end; the name and the small face are not drawn (see the note on names and marks below) |
+| Rating label on top of the controller | `sticker_top` | a gray end band and plain stand-in bars; no marks, codes or text |
+| Large label under the base | `sticker_bottom` | a blank dark header band and plain stand-in bars; no artwork, marks or text |
 | Black and teal connectors in the two top openings | in the head mesh | open sockets with four pins each |
 
 Seen and not drawn: the real text, codes and compliance marks on the labels, the finger scoop behind the card slot, the cap in one of the side holes, and the fine print on the boards.
@@ -117,7 +117,7 @@ Each face was rendered at the angle of its photo and set beside it. The pairs ar
 | Top | label 22 x 9 mm | 16.3 x 12.3 mm with a gray end band, placed from the photo |
 | Bottom | no screws, label square | four screws in the plate's holes (centers from the plate file), label 32.5 x 35.4 mm with cut corners, the two dark strips along the sides |
 | Front | holder and base too dark | lighter, from the photos |
-| Speaker side, bottom | the raised two-character mark was missing | drawn in strokes under the grille and behind the base label |
+| Speaker side, bottom | the raised two-character mark was missing | left out on purpose: see the note on names and marks below |
 | Every socket | empty pockets | contacts on both faces of each USB-C tongue, four pins and two plastic keys in port A and in each top connector, a row of contacts in the card slot |
 
 Only the 17 maker pictures and the published drawing were used. No other gallery or video was read.
@@ -159,7 +159,7 @@ All are the owner's own photos, kept out of this repository in the session's not
 | same | two dark microphone holes 14.6 mm to the right and 14.9 mm to the left | white dots at 14.1 | dark holes with a thin rim |
 | `side-m5-speaker-sticker-holes` | speaker grille: 26 holes in three staggered columns (9, 8, 9), 3.2 mm apart, 5.6, 7.7 and 9.7 mm behind the glass | 52 dots in four columns | 26 holes as observed |
 | same | label 6.3 mm wide and 43 mm long, 1.2 mm behind the seam, with a dark end about 13 mm long holding a small face | 5.6 x 41 mm | resized and moved; the shallow recess it sits in is not cut |
-| same | raised two-character mark 4.6 to 11.4 mm behind the glass | 2 mm nearer the glass | moved |
+| same | a raised two-character mark 4.6 to 11.4 mm behind the glass | drawn | removed: it is the maker's logo |
 | same | three round openings with a raised ring each and notched dark spacers; the lights show inside the openings | drawn | unchanged; the view's lights now show in them |
 | `underside-ports-sticker-flat`, `underside-with-base-usbc` (the head top) | the second four-pin connector is light blue, not teal or green | teal, and green inside | light blue; the node keeps the name `green_connector` and the material `port_teal` so nothing that loads them breaks |
 | same | a small clear window beside the round hole between the connectors | missing | added |
@@ -171,7 +171,7 @@ All are the owner's own photos, kept out of this repository in the session's not
 | same | two short dark slots beside the light | drawn in the head mesh | nodes `ir_window_0` and `ir_window_1`. Their purpose is not confirmed: the maker's picture marks infrared on the head top |
 | same | card slot 12.7 mm long with a round finger recess behind it | slot only | the recess rim is marked; the recess is not cut |
 | `base-underside-label` | four socket-head screws, metal sleeves in the two rear corner holes, foam strips, the raised mark, the large label | cross-head screws, no sleeves | socket heads, `sleeve_left` and `sleeve_right` |
-| same | the label's full text | simplified artwork | still simplified: header band, colored square, outline of the robot, bars and two large marks. The text is not drawn |
+| same | a large printed label | simplified artwork with two large marks | a plain rectangle with a blank header band and stand-in bars; none of its text, artwork or marks is drawn |
 | `ring-board-underside-leds` | black board, two rows of six small lights along the two long edges, three small square parts in a row down the middle | six a side, assumed | confirmed; the three parts added |
 | same and `board-7p-flex-ribbon-lit` | white flat cable with blue print, a thick folded black flat cable between the upright board and the holder | pale cable with green print, a helix above the tilt servo | white with blue marks; `coil` is now the folded cable, in the middle |
 | `board-7p-flex-ribbon-lit` | print `7P` and `V1.0` on the upright board | `7P` | `V1.0` is not drawn |
@@ -181,7 +181,29 @@ All are the owner's own photos, kept out of this repository in the session's not
 - There is no gap between the controller and the body. The model showed a slit at that joint, because the shell file's front lip is rounded; a plate just inside the lip now closes it.
 - The lights do not leak onto any part of the controller or its screen. The view's thrown light now points down and back from the ring board, and each halo is small enough to stay on its bar.
 - Nothing on the outside of the head marks the touch pads. They are drawn under the shell top.
-- Two close-ups of the keys. The power key is a rounded rectangle in a dark gap that is widest at the back; its back part is flat and its front part slopes toward the glass. Its mark is a ring open toward the front with a short line through the opening. The reset key is a pill in a pill-shaped gap with a ridge across it, and its mark is an open ring ending in an arrowhead. The light beside it is round and red; the two slots have rounded ends. All now drawn that way.
+- Four close-ups of the keys. Both have the same lift: each key is a tongue narrower than its opening, with a dark gap at one end and down both sides; it sits low at that end, then a step lifts the other end level with the housing, where it joins with no gap. On the power key the raised end is toward the glass; on the reset key it is toward its mark. The power mark is a ring open toward the front with a short line through the opening; the reset mark is an open ring ending in an arrowhead. The light beside the reset key is round and red; the two slots have rounded ends. All now drawn that way.
+
+## Names and marks that are left out on purpose (2026-11-18)
+
+The model keeps the geometry of the structure files (MIT, notice in `NOTICE` and `THIRD-PARTY.md`) and every working part. It does not reproduce anything a maker could own as a mark:
+
+- the raised two-character logo on the speaker side and on the bottom plate: not drawn, the surface is plain;
+- the name and the small face on the two side labels: the labels are blank paper with a dark end;
+- the certification marks, registration codes, model name and specification artwork on the rating label and on the large label under the base: each is a plain rectangle with stand-in bars.
+
+The photo observations above stay as a record of what the real unit carries. `host/tests/test_vu_model.py` fails if a name, logo or mark comes back.
+
+## The row under the screen, close up (owner's photo, 2026-11-18)
+
+The camera is a small dome with rings inside it and a thin orange ring round it. The two microphone holes are dark with a thin lighter rim. The two small dots between the camera and one microphone are pale, not bright gold. The model has the ring, a ring inside the lens, the rimmed holes and the two dots; the dots are drawn gold, which is brighter than the real ones.
+
+## The top connectors are not sealed (owner's close-up, 2026-11-18)
+
+Each four-pin connector on the head top sits in an opening a little deeper than itself, so a slit stays open behind it and the ring's light shows there. This is the one place light escapes on the outside besides the bars and the three side openings. The model has `top_gap_left` and `top_gap_right`, and the view lights each with the two ring lights nearest it. Nothing leaks onto the controller or its screen.
+
+## Plastic color and texture (owner's close-ups, 2026-11-18)
+
+The housings are matte molded plastic with a fine grain. The head shell, the controller and its keys are a warm light gray; the holder is close to it; the holder's back cover is a mid gray; the base is a darker blue-gray, also grained, with plain round holes through its feet. The model's colors were set by eye from the owner's daylight photos, so they are assumed: no color was measured. The file itself carries no pictures, so the grain is made by the view (a few percent of color variation in 0.2 mm cells) and is not in the glb.
 
 ## What to compare on the unit
 

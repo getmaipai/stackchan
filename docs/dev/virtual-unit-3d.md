@@ -58,3 +58,5 @@ The unit has two USB-C sockets: one on the side of the controller and one at the
 - The two small power lights (the red one at the back and the one under the screen) are lit while the unit has USB power in either socket, as observed on the real unit.
 - The real unit shows nothing where the three head touch pads are, so the model keeps the head top plain: the pads sit just under the shell. They show in **Show inside**, glow under the pointer and for a moment after a touch, and the corner text says which pad was touched.
 - The unit's clock, the screen picture and the page's state poll run 20 times a second (`STEP_MS` in `view.py`), the rate of the dances' light shows.
+- The plastics are drawn matte with a fine grain (color varied a few percent in 0.2 mm cells, made in the view because the model file carries no pictures), in the warm light gray and blue-gray of the real unit. The slits behind the two top connectors glow dimly with the ring, as on the real unit, where those connectors are not sealed.
+- The model draws no maker's name, logo or certification mark: the labels are plain shapes.
