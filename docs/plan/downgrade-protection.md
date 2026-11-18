@@ -1,0 +1,7 @@
+# Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
+
+**Today.** The host refuses to offer an image that is not newer than the version the unit reports (`should_update`: `current_or_newer`). The unit checks the detached Ed25519 signature before it boots a new image and rolls back a trial that does not confirm. Nothing on the unit stops a validly signed *older* image: anyone who can serve the unit an old signed image (for example by putting an old release on a hub) can put back a version with a known flaw.
+
+**Proposal.** Every release carries a build number that only goes up (`build_number`, an integer in `flash-manifest.json` and in the update answer). The unit keeps the highest build number it has booted and confirmed in NVS and refuses a signed image with a lower one, in `update_verify.cc` after the signature check and before the write. The release script takes `--build-number` and refuses a number that is not higher than the last release's. A deliberate downgrade (support) needs a physical wipe, the same as the factory reset.
+
+**Tests.** The signed update vectors (`host/tests/fixtures/update-signature-vectors.json`, made by `scripts/make-update-vectors.py`) are the shared bytes for the signature half. The downgrade half needs a C test that boots a build number, then offers a lower one signed by the same key, and expects refusal. Firmware track: take the patch and the C test; the host side already refuses downgrades by version.
