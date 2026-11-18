@@ -46,6 +46,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/firmware-first-flash-2026-11-15.md` (42): First flash of the rebased firmware, 2026-11-15
 - `docs/design/firmware-gate-gaps-2026-11-15.md` (58): Firmware gate gaps, 2026-11-15
 - `docs/design/firmware-memory.md` (98): Firmware memory
+- `docs/design/firmware-rebuild.md` (10): Rebuild the firmware from the repo alone
 - `docs/design/firmware-spike-2026-11-15.md` (16): Firmware spike on unit, 2026-11-15
 - `docs/design/firmware-v1-cut.md` (245): Firmware v1 cut
 - `docs/design/game-engine-note.md` (43): Game engine note (Train 3 item 15, design only, 2026-11-16)
@@ -219,6 +220,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/images/web-settings.svg` (1): no header
 - `docs/images/wifi-setup.svg` (1): no header
 - `docs/plan/OPEN-DECISIONS.md` (23): Open decisions (2026-11-18)
+- `docs/plan/spec-vendor-drift.md` (6): Vendored spec drift check (T-2), owner: playground track, 2026-11-17
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
 - `docs/user/baby-and-pet-monitor.md` (86): Use the robot as a baby or pet monitor
 - `docs/user/camera.md` (76): Use the camera
@@ -396,7 +398,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/MD02-dance-faces-wink-silly-grin-serene-excited.patch` (150): Faces for a good time while it dances, as accents on the face that already exists (no new face table row, so t
 - `firmware/patches/MD03-music-notes-and-eye-gaze-tools.patch` (213): The two small tools the dance needs. self.face.music_notes count 0 to 3 shows that many eighth notes floating 
 - `firmware/patches/MF01-music-feature-task-stack-6144.patch` (18): The music feature task "musicfeat" (stack in PSRAM) had 584 bytes of stack left in the last gate against the r
-- `firmware/patches/MISPLACED` (6): Patches stored with hunks in the wrong place (review finding FP-12). Each is repaired by a later patch, so the
+- `firmware/patches/MISPLACED` (6): Patches stored with hunks in the wrong place. Each is repaired by a later patch, so the tree is only right onc
 - `firmware/patches/ML01-movement-limiter-at-the-servo-layer.patch` (722): One movement limiter at the single place every servo target passes through (Servo::update_angle_anim_target an
 - `firmware/patches/N01-banner-row-and-subtitles.patch` (1541): The banner row and the subtitle strip, part 1 (owner decisions 2026-11-16). The screen has three fixed zones a
 - `firmware/patches/N02-banner-row-messages.patch` (646): The banner row, part 2 (owner asked twice that the remote bar not sit over the mouth). Every message that was 
@@ -414,7 +416,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (238): no header
+- `firmware/patches/ORDER` (240): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window (safety-and-privacy.md finding 4). A new six-digit setup code is made each time setup
@@ -443,6 +445,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/S12-seek-core-measured-geometry.patch` (85): The seek core (patch S10) takes its picture geometry from the seeker instead of two compile-time constants, so
 - `firmware/patches/S13-seek-wire-core-and-camera-grab.patch` (865): The wiring of the seek core to the unit, the pure part (hal/maipai_seek_wire_core.h), and the two hardware rea
 - `firmware/patches/S14-seek-task-tools-and-setting.patch` (482): Turning toward a person, on the unit (owner brief 2026-11-17). A task of priority 1 on core 0 (below the face 
+- `firmware/patches/SF01-time-helper-lock-and-remote-safety.patch` (700): Safety fix, train 1. One shared millisecond-stamp helper (maipai_time_core.h) and its uses: hold, quiet, grace
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1045,6 +1048,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/scripts/stackchan_flash_nonvs.py` (117): Flash a built StackChan image over USB WITHOUT touching NVS (the saved pairing and Wi-Fi stay).
 - `host/scripts/teach_move_live.py` (63): MOVES-02 on a physical unit: teach a move by hand, name it, replay it.
 - `host/scripts/trip_relay.py` (956): Trip relay v2 for the StackChan: runs on the owner's laptop, exposes nothing to the internet.
+- `host/spec-vendor/MANIFEST.sha256` (388): no header
 - `host/spec-vendor/STAMP.md` (2): no header
 - `host/spec-vendor/indicator-standard.md` (19): Ring indicator standard
 - `host/spec-vendor/spec/assets/robot-assets.json` (65): no header
@@ -1493,6 +1497,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/remote_gate_test.c` (89): Host test for the remote token gate on the other remote-facing tools (patch TC01).
 - `host/tests/firmware/reset_core_test.c` (54): Host test for the reset core (patch R01): cc -std=c99 -Wall -Werror -I<dir with the header>. */
 - `host/tests/firmware/roam_core_test.c` (118): Host test for the Wi-Fi roam rules (patch RM01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
+- `host/tests/firmware/safety_core_test.c` (230): Host test for the safety fixes of patches SF01 and SF02.
 - `host/tests/firmware/screen_core_test.c` (58): Host test for the screen's wake rule (patch W01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. *
 - `host/tests/firmware/screens_core_test.c` (199): Host test for the single overlay screen state (patch UI09): cc -std=c99 -Wall -Wextra -Werror -I<dir with the 
 - `host/tests/firmware/seek_core_test.c` (749): Host test for turning toward a person (patch S10): the frame difference, the seek state machine and the owner 
@@ -1873,6 +1878,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_ring_indicator.py` (195): The StackChan ring indicator: the Indicator the 12-pixel ring answers.
 - `host/tests/test_stackchan_robot.py` (294): StackChan profile and xiaozhi adapter promises exercised without hardware."""
 - `host/tests/test_stackchan_runtime.py` (64): Runtime wiring for StackChan behavior, using only local device fakes."""
+- `host/tests/test_stackchan_safety_cores.py` (27): Host tests for the firmware safety trains (patches SF01 and later): the C test compiles against the headers as
 - `host/tests/test_stackchan_screen_wake.py` (104): ruff: noqa: E501
 - `host/tests/test_stackchan_self_heal.py` (254): StackChan self-healing on the host: the restart guard's state, the wake engine self-test
 - `host/tests/test_stackchan_sensors.py` (96): StackChan sensor reads against the fake xiaozhi MCP peer."""
@@ -1929,6 +1935,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_unit_lock_voice.py` (200): ruff: noqa: E501
 - `host/tests/test_unit_polish_routes.py` (271): ruff: noqa: E501
 - `host/tests/test_unit_update_check.py` (298): ruff: noqa: E501
+- `host/tests/test_virtual_unit.py` (134): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
+- `host/tests/test_virtual_unit_parity.py` (37): Tool parity: every firmware tool is either simulated or a named gap. Unsimulated tools xfail (strict), so this
 - `host/tests/test_vision_align.py` (113): FACE-01's own alignment math, checked against known transforms -
 - `host/tests/test_vision_capture.py` (47): The still-image call's bot-side capture path
 - `host/tests/test_vision_detect.py` (91): wanted for a decode-only test, so the instance is built without
@@ -1947,11 +1955,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_wire_packs.py` (359): ruff: noqa: E501
 - `host/tests/voice_fakes.py` (123): Scripted engines and a scripted capture for the speech-process tests."""
 - `schema/.gitkeep` (0): no header
+- `schema/base-tools.json` (10): no header
+- `schema/tools.json` (538): no header
 - `scripts/boundary-check.sh` (28): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (security finding 3).
 - `scripts/check-no-keys.py` (65): refuse any firmware image, release folder or source tree that contains a key (security finding 3).
-- `scripts/check.sh` (7): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (9): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
 - `scripts/fw-build.sh` (41): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate [JOBS]
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).
@@ -2003,7 +2013,16 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/repo-map.sh` (19): generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line),
 - `scripts/run-bg.sh` (18): run a long command (firmware build, flash, soak, gate) with its full output in a log file and
 - `scripts/spec-dir.sh` (4): no header
+- `scripts/spec-drift-check.sh` (32): the vendored spec (host/spec-vendor/spec) is a snapshot, never edited by hand. Fails when a vendored file diff
 - `scripts/spelling-allow.txt` (47): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
 - `scripts/spelling-check.py` (98): fail on British spellings in text files (owner rule 2026-11-16: American spelling everywhere).
 - `scripts/stackchan-egress-proof.sh` (66): no header
 - `scripts/stackchan-no-third-party.sh` (119): Hostnames only: the image legitimately carries board and class names such as M5StackCoreS3Board.
+- `scripts/virtual-unit/build-screens.sh` (27): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
+- `scripts/virtual-unit/cover_gen.py` (37): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
+- `scripts/virtual-unit/cover_render.cc` (130): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
+- `scripts/virtual-unit/scenarios.py` (151): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/tools_extract.py` (82): Write schema/tools.json: every MCP tool name the firmware patches register, with the patch that adds it.
+- `scripts/virtual-unit/view.html` (69): c{position:fixed;left:0;top:0;width:100%;height:100%}
+- `scripts/virtual-unit/view.py` (78): Browser view of the virtual unit: the real LVGL face on a 3D head. Usage: view.py [port]  then open http://127
+- `scripts/virtual-unit/vunit.py` (218): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc

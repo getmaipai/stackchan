@@ -1,4 +1,4 @@
-/* Host test for the safety fixes of patch SF01.
+/* Host test for the safety fixes of patches SF01 and SF02.
  * cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the headers> safety_core_test.c -lm.
  * Every case that names a time past 2^31 ms stands for a unit that has run for more than 24.9 days. */
 #include <math.h>
@@ -12,6 +12,8 @@
 #include "maipai_fx_core.h"
 #include "maipai_face_track_core.h"
 #include "maipai_remote_core.h"
+#include "maipai_touch_core.h"
+#include "maipai_prefs_core.h"
 
 static int failures;
 #define CHECK(cond)                                        \
@@ -192,6 +194,25 @@ static void test_remote(void)
     CHECK(mr_session_on(&r, 4000 + MR_DEAD_MAN_MS + 1) == 0 && r.host_id == 0);
 }
 
+static void test_privacy_tap_and_cues(void)
+{
+    /* a tap turns a switch on, a hold turns it off; the other way round does nothing */
+    CHECK(mtc_toggle_ok(MTC_KIND_TAP, 0) == 1);
+    CHECK(mtc_toggle_ok(MTC_KIND_TAP, 1) == 0);
+    CHECK(mtc_toggle_ok(MTC_KIND_HOLD, 1) == 1);
+    CHECK(mtc_toggle_ok(MTC_KIND_HOLD, 0) == 0);
+    CHECK(mtc_toggle_ok(MTC_KIND_DRAG, 0) == 0 && mtc_toggle_ok(MTC_KIND_NONE, 1) == 0);
+    /* at least one listening cue stays on */
+    mp_prefs_t p;
+    memset(&p, 0, sizeof p);
+    CHECK(mp_all_cues_off(&p) == 1);
+    p.v[MP_LISTEN_FACE] = 1;
+    CHECK(mp_all_cues_off(&p) == 0);
+    p.v[MP_LISTEN_FACE] = 0;
+    p.v[MP_LISTEN_LIGHT] = 2;
+    CHECK(mp_all_cues_off(&p) == 0);
+}
+
 int main(void)
 {
     test_time();
@@ -199,6 +220,7 @@ int main(void)
     test_pickup();
     test_stamps_late();
     test_remote();
+    test_privacy_tap_and_cues();
     if (failures) {
         printf("%d failure(s)\n", failures);
         return 1;

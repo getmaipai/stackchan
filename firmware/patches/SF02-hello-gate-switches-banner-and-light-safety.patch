@@ -1,0 +1,540 @@
+# Intent: Safety fix, train 2. Server hello is taken only as the answer to the unit's own hello; the receive buffer is parsed by length; device events that do not fit are replaced by a marker so the events reply stays valid JSON. Privacy switches: a tap turns one on, a hold turns it off, the press that stops an alarm or ends a game toggles nothing (owner default, docs/plan/OPEN-DECISIONS.md decision 3). The camera cue wakes the screen. The banner row and strip stay above pages, sheets and games. Preferences tool refuses on a locked unit and keeps one listening cue on. Wi-Fi network tools and the private-network setup tool are hidden from the model, and the Wi-Fi tools refuse on a locked unit. The thinking ring ends by itself, LED writes share one lock, and a game's light never paints over the listening ring. The picture-face commit probe and a game that nobody plays are bounded.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc, websocket_protocol.h (nested tree); firmware/main/hal (ours)
+# Check after a flash: a tap on a muted unit's mouth does nothing and a hold turns mute off; tap a lit mouth region on an unmuted unit and mute turns on; the stop-alarm press leaves the switches alone; self.device.get_events returns valid JSON after a long privacy event; self.prefs.set turning off all three listening cues answers an error; the camera mark shows above a running game.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -65,7 +65,7 @@ namespace {
+ struct DeviceEvent {
+     const char* kind;
+     uint32_t at_ms;
+-    char extra[112];
++    char extra[256];
+ };
+ 
+ std::deque<DeviceEvent> s_device_events;
+@@ -79,7 +79,11 @@ void PushDeviceEvent(const char* kind, const char* extra = "")
+     }
+     DeviceEvent event{kind, static_cast<uint32_t>(esp_timer_get_time() / 1000), {0}};
+     if (extra != nullptr) {
+-        snprintf(event.extra, sizeof(event.extra), "%s", extra);
++        // The extras are pasted into a JSON array. A cut one would make the whole reply invalid, so a long one is replaced by a marker.
++        const int n = snprintf(event.extra, sizeof(event.extra), "%s", extra);
++        if (n < 0 || static_cast<size_t>(n) >= sizeof(event.extra)) {
++            snprintf(event.extra, sizeof(event.extra), "\"truncated\":true");
++        }
+     }
+     s_device_events.push_back(event);
+ }
+@@ -493,10 +497,13 @@ void Hal::xiaozhi_mcp_init()
+                        });
+ 
+     mclog::tagInfo(_tag, "add wifi.add tool");
+-    mcp_server.AddTool("self.wifi.add", "Save a Wi-Fi network. Passwords are not returned or logged.",
++    mcp_server.AddUserOnlyTool("self.wifi.add", "Save a Wi-Fi network. Passwords are not returned or logged.",
+                        PropertyList({Property("ssid", kPropertyTypeString, std::string("")),
+                                      Property("password", kPropertyTypeString, std::string("") )}),
+                        [this](const PropertyList& properties) -> ReturnValue {
++                           if (maipai_lock_locked()) {  // patch SF02: a locked unit keeps its networks
++                               return false;
++                           }
+                            const auto ssid = properties["ssid"].value<std::string>();
+                            const auto password = properties["password"].value<std::string>();
+                            if (ssid.empty() || ssid.size() > 32 || password.size() > 63) {
+@@ -507,9 +514,12 @@ void Hal::xiaozhi_mcp_init()
+                        });
+ 
+     mclog::tagInfo(_tag, "add wifi.forget tool");
+-    mcp_server.AddTool("self.wifi.forget", "Forget a saved Wi-Fi network by its listed index.",
++    mcp_server.AddUserOnlyTool("self.wifi.forget", "Forget a saved Wi-Fi network by its listed index.",
+                        PropertyList({Property("index", kPropertyTypeInteger, -1)}),
+                        [this](const PropertyList& properties) -> ReturnValue {
++                           if (maipai_lock_locked()) {
++                               return false;
++                           }
+                            const int index = properties["index"].value<int>();
+                            const auto& ssids = SsidManager::GetInstance().GetSsidList();
+                            if (index < 0 || static_cast<size_t>(index) >= ssids.size()) {
+@@ -520,9 +530,12 @@ void Hal::xiaozhi_mcp_init()
+                        });
+ 
+     mclog::tagInfo(_tag, "add wifi.switch tool");
+-    mcp_server.AddTool("self.wifi.switch", "Make a saved network the first choice and reconnect now.",
++    mcp_server.AddUserOnlyTool("self.wifi.switch", "Make a saved network the first choice and reconnect now.",
+                        PropertyList({Property("index", kPropertyTypeInteger, -1)}),
+                        [this](const PropertyList& properties) -> ReturnValue {
++                           if (maipai_lock_locked()) {
++                               return false;
++                           }
+                            const int index = properties["index"].value<int>();
+                            const auto& ssids = SsidManager::GetInstance().GetSsidList();
+                            if (index < 0 || static_cast<size_t>(index) >= ssids.size()) {
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -240,18 +240,24 @@ bool WebsocketProtocol::ConnectAudioChannel() {
+             }
+         } else {
+             // Parse JSON data
+-            auto root = cJSON_Parse(data);
++            // The receive buffer is not NUL terminated: parse by length.
++            auto root = cJSON_ParseWithLength(data, len);
+             auto type = cJSON_GetObjectItem(root, "type");
+             if (cJSON_IsString(type)) {
+                 if (strcmp(type->valuestring, "hello") == 0) {
+-                    ParseServerHello(root);
++                    // Only the answer to our own hello is taken; a later one is ignored (it could carry a new token).
++                    if (hello_expected_.exchange(false)) {
++                        ParseServerHello(root);
++                    } else {
++                        ESP_LOGW(TAG, "Ignored a server hello that nobody was waiting for");
++                    }
+                 } else {
+                     if (on_incoming_json_ != nullptr) {
+                         on_incoming_json_(root);
+                     }
+                 }
+             } else {
+-                ESP_LOGE(TAG, "Missing message type, data: %s", data);
++                ESP_LOGE(TAG, "Missing message type, data: %.*s", static_cast<int>(len < 200 ? len : 200), data);
+             }
+             cJSON_Delete(root);
+         }
+@@ -285,7 +291,9 @@ bool WebsocketProtocol::ConnectAudioChannel() {
+ 
+     // Send hello message to describe the client
+     auto message = GetHelloMessage();
++    hello_expected_.store(true);
+     if (!SendText(message)) {
++        hello_expected_.store(false);
+         return false;
+     }
+ 
+@@ -293,6 +301,7 @@ bool WebsocketProtocol::ConnectAudioChannel() {
+     // hello (close code 1008): that ends the wait at once and is remembered (patch R03).
+     closed_before_hello_ = false;
+     EventBits_t bits = xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT | WEBSOCKET_PROTOCOL_DISCONNECTED_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
++    hello_expected_.store(false);
+     if (!(bits & WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT)) {
+         closed_before_hello_ = (bits & WEBSOCKET_PROTOCOL_DISCONNECTED_EVENT) != 0;
+         ESP_LOGE(TAG, "Failed to receive server hello%s", closed_before_hello_ ? " (the hub closed the connection first)" : "");
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.h
+@@ -37,6 +37,7 @@ private:
+     bool closed_before_hello_ = false;  // the last connect was accepted and then closed before the hello (patch R03)
+     int last_connect_error_ = 0;  // the last failed connect, for the "wifi" event (patch 075)
+     std::atomic<int> version_{1};
++    std::atomic<bool> hello_expected_{false};  // patch SF02: a server hello counts only while the client hello is waiting for it
+ 
+     void ParseServerHello(const cJSON* root);
+     bool SendText(const std::string& text) override;
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -68,6 +68,7 @@ using namespace stackchan::avatar;
+ namespace {
+ int s_face_press_y = -1;
+ bool s_press_woke_clock = false;  // the press ended the clock face (patch F04)
++bool s_press_in_game = false;     // patch SF02: the press began while a game was running (the game may end on this very touch)
+ // The touch being followed (patch 105): which toggle it can start is decided by maipai_touch_core.h.
+ mtc_trace_t s_trace;
+ bool s_trace_live = false;
+@@ -358,7 +359,7 @@ void StackChanAvatarDisplay::SetupUI()
+             s_press_woke_clock = false;
+             return;
+         }
+-        if (maipai_games_active()) {  // a game takes the taps (patch G01): none of them starts a listen
++        if (maipai_games_active() || s_press_in_game) {  // a game takes the taps (patch G01): none of them starts a listen (nor the one that ends it)
+             return;
+         }
+         if (maipai_pages_open() || maipai_pages_last_touch_was_gesture()) {  // patch P13: a page or the sheet is up, or the touch was a swipe
+@@ -392,7 +393,8 @@ void StackChanAvatarDisplay::SetupUI()
+         // A press that only woke a dimmed screen (patch W01) is treated like the one that woke the clock face: no
+         // listen, no mute, vision or quiet toggle. maipai_screen_take_wake_touch() must run every press (it clears).
+         const bool woke_screen = maipai_screen_take_wake_touch();
+-        s_press_woke_clock     = maipai_face_touched() || woke_screen;
++        s_press_woke_clock     = maipai_face_touched() || woke_screen || ended_ring;  // patch SF02: the press that stops an alarm toggles nothing
++        s_press_in_game        = maipai_games_active();
+         if (ended_ring) {
+             maipai_pages_touch_flags(MGS_F_RINGING);  // patch P13: this touch only ended the ring: it changes no page
+         }
+@@ -1875,9 +1877,9 @@ void StackChanAvatarDisplay::OnFaceRelease(lv_event_t* event)
+         return;
+     }
+     s_trace_live = false;
+-    if (maipai_games_active()) {  // while a game runs, no touch toggles mute, vision or quiet (patch G01)
++    if (maipai_games_active() || s_press_in_game) {  // while a game runs, no touch toggles mute, vision or quiet (patch G01)
+         // Patch UI13: a game that takes its taps on release (Bop-It) learns here whether the touch was a swipe or a tap.
+-        if (s_trace.region0 != MTC_REGION_EDGE) {
++        if (maipai_games_active() && s_trace.region0 != MTC_REGION_EDGE) {
+             lv_point_t end = {s_trace.x, s_trace.y};
+             if (lv_indev_t* indev = lv_indev_active()) {
+                 lv_indev_get_point(indev, &end);
+@@ -1896,8 +1898,16 @@ void StackChanAvatarDisplay::OnFaceRelease(lv_event_t* event)
+     lv_point_t point;
+     lv_indev_get_point(lv_indev_active(), &point);
+     mtc_move(&s_trace, point.x, point.y, GetHAL().millis());
+-    const mtc_action_t action = mtc_action_on_release(&s_trace);
++    // Patch SF02: a tap turns a switch on, a hold turns it off (the same silent tap never does both).
++    const mtc_kind_t kind     = mtc_classify(&s_trace);
++    const mtc_action_t action = (kind == MTC_KIND_TAP || kind == MTC_KIND_HOLD) ? mtc_action_for(s_trace.region0, MTC_KIND_TAP) : MTC_ACTION_NONE;
+     if (action != MTC_ACTION_NONE) {
++        const int bit = action == MTC_ACTION_MUTE ? kPrivMute : (action == MTC_ACTION_VISION ? kPrivVision : kPrivQuiet);
++        if (!mtc_toggle_ok(kind, (maipai_privacy_bits() & bit) != 0)) {
++            ESP_LOGI(TAG, "face touch ignored: %s needs %s", kind == MTC_KIND_TAP ? "a tap on a switch that is on" : "a hold on a switch that is off",
++                     kind == MTC_KIND_TAP ? "a hold to turn it off" : "a tap to turn it on");
++            return;
++        }
+         ESP_LOGW(TAG, "face touch toggle: action %d at (%d,%d) held %u ms", static_cast<int>(action), s_trace.x0, s_trace.y0,
+                  static_cast<unsigned>(s_trace.t - s_trace.t0));  // patch L07
+         self->OnFaceToggle(static_cast<int>(action));
+@@ -2108,6 +2118,7 @@ void hal_bridge::monitor_cue_begin(int hold_ms)
+     if (display == nullptr || !GetStackChan().hasAvatar()) {
+         return;
+     }
++    maipai_screen_wake("camera");  // patch SF02: a dark screen never hides that the camera is on
+     bool draw = false;
+     {
+         std::lock_guard<std::mutex> lock(s_cue_mutex);
+diff --git a/firmware/main/hal/maipai_touch_core.h b/firmware/main/hal/maipai_touch_core.h
+--- a/firmware/main/hal/maipai_touch_core.h
++++ b/firmware/main/hal/maipai_touch_core.h
+@@ -162,6 +162,13 @@ static inline mtc_action_t mtc_action_on_release(const mtc_trace_t* trace)
+     return mtc_action_for(trace->region0, mtc_classify(trace));
+ }
+ 
++/* Owner default 2026-11-18 (docs/plan/OPEN-DECISIONS.md, decision 3): a tap turns a privacy switch ON; turning one OFF needs a hold
++ * (500 ms or more, still, in the same place) or the quick settings sheet. The same silent tap can no longer undo what it just did. */
++static inline int mtc_toggle_ok(mtc_kind_t kind, int switch_is_on)
++{
++    return (kind == MTC_KIND_TAP && !switch_is_on) || (kind == MTC_KIND_HOLD && switch_is_on);
++}
++
+ /* While the finger is still down: has it been held still, in place, long enough to count as a hold in a
+  * hold region? The caller acts once and then ignores the rest of the touch. */
+ static inline mtc_action_t mtc_action_while_down(const mtc_trace_t* trace, uint32_t now_ms)
+diff --git a/firmware/main/hal/maipai_prefs_core.h b/firmware/main/hal/maipai_prefs_core.h
+--- a/firmware/main/hal/maipai_prefs_core.h
++++ b/firmware/main/hal/maipai_prefs_core.h
+@@ -102,6 +102,12 @@ typedef struct {
+     uint32_t set; /* bit i: the setting was chosen (it is saved in flash) */
+ } mp_prefs_t;
+ 
++/* Patch SF02: a person must always be able to see or hear that the unit is listening. 1 when sound, light and face are all off. */
++static inline int mp_all_cues_off(const mp_prefs_t* p)
++{
++    return p->v[MP_LISTEN_SOUND] == 0 && p->v[MP_LISTEN_LIGHT] == 0 && p->v[MP_LISTEN_FACE] == 0;
++}
++
+ static inline void mp_defaults(mp_prefs_t* p)
+ {
+     for (int i = 0; i < MP_COUNT; i++) {
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -678,6 +678,9 @@ void maipai_fx_register_tools()
+                 PropertyList({Property("json", kPropertyTypeString, std::string("{}"))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     ensure_loaded();
++                    if (maipai_lock_locked()) {  // patch SF02: a locked unit keeps its preferences
++                        return reply_error("the unit is locked: unlock it first");
++                    }
+                     const std::string text = properties["json"].value<std::string>();
+                     char err[200]          = "";
+                     uint32_t changed       = 0;
+@@ -688,6 +691,9 @@ void maipai_fx_register_tools()
+                         if (mp_apply_json(&next, text.c_str(), err, sizeof err, &changed) != 0) {
+                             return reply_error(err);
+                         }
++                        if (mp_all_cues_off(&next)) {  // patch SF02: at least one listening cue stays on
++                            return reply_error("at least one listening cue (listen_sound, listen_light or listen_face) must stay on");
++                        }
+                         s_prefs  = next;
+                         snapshot = next;
+                     }
+diff --git a/firmware/main/hal/hal_io_expander.cpp b/firmware/main/hal/hal_io_expander.cpp
+--- a/firmware/main/hal/hal_io_expander.cpp
++++ b/firmware/main/hal/hal_io_expander.cpp
+@@ -8,6 +8,7 @@
+ #include "drivers/PY32IOExpander_Class/PY32IOExpander_Class.hpp"
+ #include <mooncake_log.h>
+ #include <memory>
++#include <mutex>
+ 
+ static const std::string_view _tag = "HAL-IOE";
+ 
+@@ -19,6 +20,12 @@ static bool _rgb_offline = false;
+ static constexpr uint8_t kOfflineAmber[3] = {40, 18, 0};
+ static uint8_t _rgb_shadow[12][3] = {};
+ 
++namespace {
++// Patch SF02: the listening ring, the timers, the games and the offline marker all write the LEDs from different tasks.
++// One recursive lock keeps a colour write and its refresh together.
++std::recursive_mutex s_rgb_mutex;
++}  // namespace
++
+ void Hal::io_expander_init()
+ {
+     mclog::tagInfo(_tag, "init");
+@@ -74,6 +81,7 @@ void Hal::setServoPowerEnabled(bool enabled)
+ 
+ void Hal::setRgbColor(uint8_t index, uint8_t r, uint8_t g, uint8_t b)
+ {
++    std::lock_guard<std::recursive_mutex> rgb_lock(s_rgb_mutex);
+     if (!_io_expander) {
+         return;
+     }
+@@ -93,6 +101,7 @@ void Hal::setRgbColor(uint8_t index, uint8_t r, uint8_t g, uint8_t b)
+ 
+ void hal_bridge::leds_offline(bool on)
+ {
++    std::lock_guard<std::recursive_mutex> rgb_lock(s_rgb_mutex);
+     if (!_io_expander || on == _rgb_offline) {
+         return;
+     }
+@@ -115,6 +124,7 @@ static bool _rgb_cue = false;
+ 
+ void hal_bridge::leds_cue(uint8_t r, uint8_t g, uint8_t b)
+ {
++    std::lock_guard<std::recursive_mutex> rgb_lock(s_rgb_mutex);
+     if (!_io_expander || _rgb_offline) {
+         return;
+     }
+@@ -127,6 +137,7 @@ void hal_bridge::leds_cue(uint8_t r, uint8_t g, uint8_t b)
+ 
+ void hal_bridge::leds_cue_off()
+ {
++    std::lock_guard<std::recursive_mutex> rgb_lock(s_rgb_mutex);
+     if (!_io_expander || !_rgb_cue) {
+         return;
+     }
+@@ -143,6 +154,7 @@ void hal_bridge::leds_cue_off()
+ 
+ void Hal::refreshRgb()
+ {
++    std::lock_guard<std::recursive_mutex> rgb_lock(s_rgb_mutex);
+     if (!_io_expander) {
+         return;
+     }
+@@ -151,6 +163,7 @@ void Hal::refreshRgb()
+ 
+ void Hal::showRgbColor(uint8_t r, uint8_t g, uint8_t b)
+ {
++    std::lock_guard<std::recursive_mutex> rgb_lock(s_rgb_mutex);
+     for (int i = 0; i < 12; i++) {
+         setRgbColor(i, r, g, b);
+     }
+diff --git a/firmware/main/hal/maipai_listen.cc b/firmware/main/hal/maipai_listen.cc
+--- a/firmware/main/hal/maipai_listen.cc
++++ b/firmware/main/hal/maipai_listen.cc
+@@ -115,6 +115,8 @@ void ring_task(void*)
+             else if (t < 1600 + 1400) { st = TL_ST_HEARD; since = static_cast<uint32_t>(t - 1600); }
+             else if (t < 3800) { st = TL_ST_SPEAK; since = static_cast<uint32_t>(t - 3000); }
+             else { s_test.store(0); }
++        } else if (s_thinking.load() && dev != kDeviceStateSpeaking && now - s_think_us.load() > 30LL * 1000 * 1000) {
++            s_thinking.store(false);  // patch SF02: a lost "thinking end" cannot hold the ring on thinking for good
+         } else if (s_thinking.load() && dev != kDeviceStateSpeaking) {
+             st    = TL_ST_HEARD;
+             since = static_cast<uint32_t>((now - s_think_us.load()) / 1000);
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -10,6 +10,8 @@
+ #if CONFIG_MAIPAI_GAMES
+ #include "maipai_games.h"
+ #include "maipai_lock.h"
++#include "maipai_listen.h"
++#include "maipai_time_core.h"
+ #include "maipai_games_core.h"
+ #include "maipai_games_draw.h"
+ #include "maipai_games_input_core.h"
+@@ -72,6 +74,7 @@ namespace {
+ constexpr int kBuiltIns   = 7;  // patch GM06: memory, whack, tictactoe, bopit (Do It), rps, eightball, dice
+ constexpr int kMaxGames   = kBuiltIns + 1;  // the built-ins, plus one pack loaded from outside (bench builds)
+ constexpr uint32_t kTickMs = 30;
++constexpr uint32_t kGameIdleMs = 10u * 60u * 1000u;  // patch SF02: a game with no touch or sensor input for 10 minutes ends
+ 
+ struct Source {
+     const uint8_t* start;
+@@ -118,6 +121,7 @@ struct Game {
+     int entry;
+     int rank;
+     uint32_t last_awake_ms;
++    uint32_t last_input_ms; /* patch SF02: the last touch or sensor input, for the idle limit */
+     uint32_t tones;
+     char id[12];
+     char source[8];
+@@ -292,7 +296,9 @@ void end_locked(const char* how)
+     sfx_free();
+     if (s_light_off_ms != 0) {
+         s_light_off_ms = 0;
+-        GetHAL().showRgbColor(0, 0, 0);
++        if (!maipai_listen_ring_active()) {  // patch SF02: a game's light going out never darkens the listening ring
++            GetHAL().showRgbColor(0, 0, 0);
++        }
+     }
+     s_pending_light = -1;
+ #if CONFIG_MAIPAI_GAMES_BENCH
+@@ -408,7 +414,7 @@ SfxPending s_sfx          = {};
+ void light_apply(int color)
+ {
+     static const uint8_t rgb[6][3] = {{0, 0, 0}, {0, 40, 160}, {0, 150, 40}, {170, 110, 0}, {170, 20, 10}, {110, 20, 150}};
+-    if (color < 0 || color > 5 || maipai_quiet()) {
++    if (color < 0 || color > 5 || maipai_quiet() || maipai_listen_ring_active()) {  // patch SF02: the listening ring is never painted over
+         return;
+     }
+     GetHAL().showRgbColor(rgb[color][0], rgb[color][1], rgb[color][2]);
+@@ -724,11 +730,16 @@ void tick_cb(lv_timer_t*)
+         return;
+     }
+     const uint32_t now = now_ms();
++    if (mt_elapsed(now, g->last_input_ms) >= kGameIdleMs) {  // patch SF02: a game nobody plays no longer keeps the unit awake for ever
++        end_locked("idle");
++        return;
++    }
+     if (now - g->last_awake_ms >= 1000) {
+         g->last_awake_ms = now;
+         hal_bridge::power_keep_awake();  // a game keeps the screen on
+     }
+-    if (const uint32_t bits = s_input_bits.exchange(0)) {  // patch UI13: shakes, tilts and pets the sensors' tasks posted
++    if (const uint32_t bits = s_input_bits.exchange(0)) {
++        g->last_input_ms = now;  // patch UI13: shakes, tilts and pets the sensors' tasks posted
+         for (int ev = MG_EV_SWIPE_L; ev < MG_EV_COUNT; ev++) {
+             if (bits & (1u << ev)) {
+                 s_inputs_total++;
+@@ -743,7 +754,9 @@ void tick_cb(lv_timer_t*)
+     mgd::animate(g->run, g->obj, g->type, g->pts, &g->parts, now);  // patch UI15: the springs and easings of this moment (inside a 30 ms tick)
+     if (s_light_off_ms != 0 && static_cast<int32_t>(now - s_light_off_ms) >= 0) {
+         s_light_off_ms = 0;
+-        GetHAL().showRgbColor(0, 0, 0);
++        if (!maipai_listen_ring_active()) {  // patch SF02: nor does the cue that ends on a game tick
++            GetHAL().showRgbColor(0, 0, 0);
++        }
+     }
+     mg_tick(&g->run, now);
+     color_tone_fallback(now);
+@@ -897,6 +910,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     mgd::build_drag_bar(g->root);  // patch GM02: the same grabber as the sheet and the other screens
+     show_best(g, false);
+     g->last_awake_ms = now_ms();
++    g->last_input_ms = now_ms();
+     mg_start(&g->run, &g->pack, now_ms(), esp_random());
+     s_game = g;
+     s_active.store(true);
+@@ -954,6 +968,7 @@ void maipai_games_touch(int x, int y)
+     if (mg_drag_press_dead(y)) {
+         return;  // patch GM02: the top 8 px of the content zone are the drag bar's
+     }
++    g->last_input_ms = now_ms();
+     mg_tap(&g->run, x, y, now_ms());
+     after_event(g);
+ }
+@@ -971,6 +986,7 @@ void maipai_games_release(int x0, int y0, int x1, int y1, uint32_t held_ms)
+         return;
+     }
+     const uint32_t now = now_ms();
++    g->last_input_ms = now;
+     const mgs_swipe_t sw = mgs_swipe_of(x0, y0, x1, y1, held_ms);
+     if (sw == MGS_SW_LEFT) {
+         mg_input(&g->run, MG_EV_SWIPE_L, now);
+diff --git a/firmware/main/hal/maipai_picface.cc b/firmware/main/hal/maipai_picface.cc
+--- a/firmware/main/hal/maipai_picface.cc
++++ b/firmware/main/hal/maipai_picface.cc
+@@ -113,6 +113,7 @@ std::atomic<bool> s_bench_ignore_privacy{false};  // bench builds only: look at
+ SemaphoreHandle_t s_probe_sem = nullptr;
+ std::atomic<bool> s_probe_ok{false};
+ uint8_t* s_probe_buf = nullptr;
++std::atomic<uint8_t> s_probe_state{0};  // patch SF02: 0 the worker is probing, 1 it finished, 2 the caller gave up and left the buffer to it
+ 
+ uint32_t now_ms()
+ {
+@@ -220,7 +221,13 @@ void worker_task(void*)
+             }
+             xSemaphoreGive(s_mu);
+             s_probe_ok.store(all);
+-            xSemaphoreGive(s_probe_sem);
++            uint8_t expected = 0;
++            if (s_probe_state.compare_exchange_strong(expected, 1)) {
++                xSemaphoreGive(s_probe_sem);
++            } else {  // the caller timed out and left the buffer to this task: free it here
++                heap_caps_free(s_probe_buf);
++                s_probe_buf = nullptr;
++            }
+             continue;
+         }
+         if (key < 0 || pos < 0 || pos >= PF_CACHE_SLOTS) {
+@@ -609,13 +616,24 @@ static std::string commit_pack()
+         }
+     }
+     // Prove every frame opens before it is promised: a pack that cannot be decoded is refused now.
++    if (s_probe_buf != nullptr) {  // an earlier probe that timed out is still decoding into its buffer
++        return error_json(PF_ERR_MEMORY);
++    }
+     s_probe_buf = static_cast<uint8_t*>(heap_caps_malloc(PF_FRAME_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+     if (s_probe_buf == nullptr) {
+         return error_json(PF_ERR_MEMORY);
+     }
++    s_probe_state.store(0);
+     s_req_key.store(-2);
+     xTaskNotifyGive(s_worker);
+-    const bool arrived = xSemaphoreTake(s_probe_sem, pdMS_TO_TICKS(8000)) == pdTRUE;
++    bool arrived = xSemaphoreTake(s_probe_sem, pdMS_TO_TICKS(8000)) == pdTRUE;
++    if (!arrived) {
++        uint8_t expected = 0;
++        if (s_probe_state.compare_exchange_strong(expected, 2)) {
++            return error_json(PF_ERR_DECODE);  // the worker still owns the buffer and frees it when it ends
++        }
++        arrived = xSemaphoreTake(s_probe_sem, 0) == pdTRUE;  // it finished just now
++    }
+     heap_caps_free(s_probe_buf);
+     s_probe_buf = nullptr;
+     s_req_key.store(-1);
+diff --git a/firmware/main/hal/maipai_banner.cc b/firmware/main/hal/maipai_banner.cc
+--- a/firmware/main/hal/maipai_banner.cc
++++ b/firmware/main/hal/maipai_banner.cc
+@@ -464,6 +464,21 @@ void apply_status(const maipai_banner_status_t& st, uint32_t now)
+     mb_flag(s_b, MB_FLAG_WIFI, mb_wifi_shown(st.wifi_up, st.hub_up, s_bar_mode), now, 0);
+ }
+ 
++// Patch SF02: the row and the strip (the camera and mic marks) stay above any page, sheet or game that was put on the top layer after them.
++void keep_on_top()
++{
++    lv_obj_t* top = lv_layer_top();
++    const int32_t n = static_cast<int32_t>(lv_obj_get_child_count(top));
++    if (n < 2 || (s_row == nullptr && s_strip == nullptr)) return;
++    const int32_t want_strip = n - 1;
++    const int32_t want_row = s_strip != nullptr ? n - 2 : n - 1;
++    const bool strip_ok = s_strip == nullptr || lv_obj_get_index(s_strip) == want_strip;
++    const bool row_ok = s_row == nullptr || lv_obj_get_index(s_row) == want_row;
++    if (strip_ok && row_ok) return;
++    if (s_row != nullptr) lv_obj_move_foreground(s_row);
++    if (s_strip != nullptr) lv_obj_move_foreground(s_strip);
++}
++
+ void tick(lv_timer_t*)
+ {
+     if (s_b == nullptr) return;
+@@ -503,6 +518,7 @@ void tick(lv_timer_t*)
+     if (kind == 1 && s_fit == MB_FIT_MARQUEE && s_overflow > 0) {
+         lv_obj_set_x(s_label, -mb_marquee_x(now - s_b->shown_ms, s_overflow));
+     }
++    keep_on_top();
+     const bool busy = kind != 0 || s_opa != 0;
+     const uint32_t want = busy ? 33u : 100u;
+     if (s_period != want) {
+diff --git a/firmware/main/hal/maipai_tailnet.cc b/firmware/main/hal/maipai_tailnet.cc
+--- a/firmware/main/hal/maipai_tailnet.cc
++++ b/firmware/main/hal/maipai_tailnet.cc
+@@ -577,7 +577,7 @@ void maipai_tailnet_register_tools()
+                              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+                     return std::string(buf);
+                 });
+-    mcp.AddTool("self.tailnet.set",
++    mcp.AddUserOnlyTool("self.tailnet.set",
+                 "Set up travel with the private network (saved in flash). enabled switches it on or off (off takes effect at the "
+                 "next restart). key is the one-time pairing key (it is erased once the unit joins; empty keeps what is "
+                 "saved) and peer the hub's private address (100.x.y.z; empty keeps what is saved). now=true tries to start "
