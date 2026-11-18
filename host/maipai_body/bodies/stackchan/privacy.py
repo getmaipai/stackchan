@@ -523,3 +523,29 @@ class PrivacyUnits:
         if device is None and devices:
             device = devices[0]
         return self.state_for(device).muted_reason() if device else None
+
+    # ---- the gates the head and camera code ask, by the unit whose turn or frame it is ----
+
+    def _current(self) -> PrivacyState | None:
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        device = ACTIVE_UNIT.get()
+        if device in self.devices():
+            return self.state_for(device)
+        if self._primary is not None:
+            return self._primary
+        devices = self.devices()
+        return self.state_for(devices[0]) if devices else None
+
+    def head_blocked(self) -> str | None:
+        state = self._current()
+        return state.head_blocked() if state else None
+
+    def vision_off(self) -> bool:
+        state = self._current()
+        return bool(state and state.vision_off)
+
+    def frame_arrived(self) -> None:
+        state = self._current()
+        if state is not None:
+            state.frame_arrived()

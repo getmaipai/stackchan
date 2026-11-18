@@ -332,9 +332,16 @@ class AvatarServer:
                 if frame.kind == CONTROL_MOTION and self.estop_engaged:
                     LOG.warning("blocked avatar motion frame while software estop is engaged")
                 elif frame.kind == CAMERA_FRAME:
-                    if callable(self.vision_blocked) and self.vision_blocked():
-                        if callable(self.on_frame_while_vision_off):
+                    from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+                    unit_mark = ACTIVE_UNIT.set(device_id)  # the privacy gates answer for the unit this frame came from
+                    try:
+                        blocked = callable(self.vision_blocked) and self.vision_blocked()
+                        if blocked and callable(self.on_frame_while_vision_off):
                             self.on_frame_while_vision_off()
+                    finally:
+                        ACTIVE_UNIT.reset(unit_mark)
+                    if blocked:
                         continue
                     if not _valid_jpeg(frame.payload):
                         LOG.warning("discarded malformed StackChan camera frame")

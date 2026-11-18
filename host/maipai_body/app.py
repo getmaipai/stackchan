@@ -2171,14 +2171,14 @@ def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, sto
 
     voice.session_listeners.append(on_unit_connect)
     # Head moves from any part of the host stop in full quiet.
-    voice.robot.robot._driver("head").move_blocked = state.head_blocked
+    voice.robot.robot._driver("head").move_blocked = others.head_blocked
     # No picture is asked for, kept or taken while vision is off; the local watch gate and the
     # stream ask both read this.
     camera_driver.vision_off = lambda: (
-        state.vision_off
+        others.vision_off()
     )  # `_start_stackchan_night` adds it to watch_allowed
-    avatar.vision_blocked = lambda: state.vision_off
-    avatar.on_frame_while_vision_off = state.frame_arrived
+    avatar.vision_blocked = others.vision_off
+    avatar.on_frame_while_vision_off = others.frame_arrived
 
     def ticks() -> None:
         while not stop_event.wait(1.0):
