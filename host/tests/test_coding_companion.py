@@ -174,3 +174,37 @@ def test_off_by_default_and_an_unknown_setting_fails_at_load():
     assert build_brain(RobotConfig()).handlers == []
     with pytest.raises(ValidationError):
         RobotConfig.model_validate({"packages": {"coding_companion": {"enabled": True, "tools": ["show_status"]}}})
+
+
+# ---- the example hook, run for real against the endpoint -------------------------------------------------
+
+def test_the_hook_script_updates_the_robot_with_the_state_only(endpoint, tmp_path):
+    import subprocess
+    import sys
+
+    server, auth, shown = endpoint
+    token_file = tmp_path / "coding-token"
+    result = subprocess.run(
+        [sys.executable, "-m", "maipai_packages.coding_companion.hook", "waiting", "--kind", "permission", "--project", "my-app", "--port", str(server.port), "--token-file", str(token_file)],
+        capture_output=True, text=True, cwd=str(__import__("pathlib").Path(__file__).resolve().parents[1]),
+    )
+    assert result.returncode == 0 and result.stderr == "", result.stderr
+    assert (shown[0].state, shown[0].kind, shown[0].project) == ("waiting", "permission", "my-app")
+    assert shown[0].line == "Needs you"
+
+
+def test_the_hook_never_fails_the_agent_when_the_robot_is_unreachable(tmp_path):
+    import subprocess
+    import sys
+
+    (tmp_path / "t").write_text("x" * 40)
+    result = subprocess.run(
+        [sys.executable, "-m", "maipai_packages.coding_companion.hook", "working", "--port", "1", "--token-file", str(tmp_path / "t")],
+        capture_output=True, text=True, cwd=str(__import__("pathlib").Path(__file__).resolve().parents[1]),
+    )
+    assert result.returncode == 0 and "not reachable" in result.stderr
+    missing = subprocess.run(
+        [sys.executable, "-m", "maipai_packages.coding_companion.hook", "working", "--token-file", str(tmp_path / "none")],
+        capture_output=True, text=True, cwd=str(__import__("pathlib").Path(__file__).resolve().parents[1]),
+    )
+    assert missing.returncode == 0 and "coding-token" in missing.stderr

@@ -17,7 +17,15 @@ Ask "what is my coding agent doing?" The robot answers from a fixed sentence and
 ## Turn it on
 1. In `robot.toml` set `enabled = true` under `[packages.coding_companion]`. Restart the host.
 2. Run `stackchan coding-token`. It makes a private token file and prints where it is. It never prints the token.
-3. Have the agent's hook read the token from that file and post to `http://127.0.0.1:8052/status` with `Authorization: Bearer <token>` and JSON such as `{"state": "waiting", "kind": "permission", "project": "my-app"}`. `state` is `working`, `waiting` or `finished`.
+3. Have the agent run the hook when its state changes. The hook reads the token from that file and sends only the state, the kind and the project name:
+
+```
+python -m maipai_packages.coding_companion.hook working --project my-app
+python -m maipai_packages.coding_companion.hook waiting --kind permission --project my-app
+python -m maipai_packages.coding_companion.hook finished --project my-app
+```
+
+   Use the Python that `pipx` installed for the host (`pipx runpip maipai-bot` shows where it is). The hook never fails the agent: if the robot cannot be reached it prints one line and exits cleanly. To post from another tool, send JSON such as `{"state": "waiting", "kind": "permission", "project": "my-app"}` to `http://127.0.0.1:8052/status` with `Authorization: Bearer <token>`.
 
 The token is not your settings token. The endpoint answers only on this computer and refuses web pages.
 
