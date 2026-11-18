@@ -28,9 +28,9 @@
     1.0
    ],
    "camera": [
-    0.22,
-    0.13,
-    0.08,
+    0.8,
+    0.27,
+    0.07,
     1.0
    ],
    "chip": [
@@ -46,9 +46,9 @@
     1.0
    ],
    "conn_green": [
-    0.3,
-    0.72,
+    0.25,
     0.55,
+    0.85,
     1.0
    ],
    "core": [
@@ -64,15 +64,15 @@
     1.0
    ],
    "flex": [
-    0.62,
-    0.72,
-    0.8,
+    0.85,
+    0.86,
+    0.88,
     1.0
    ],
    "flex_ink": [
-    0.05,
-    0.4,
+    0.08,
     0.22,
+    0.75,
     1.0
    ],
    "glass": [
@@ -82,9 +82,9 @@
     1.0
    ],
    "led_bottom": [
-    0.02,
-    0.06,
-    0.03,
+    0.1,
+    0.012,
+    0.01,
     1.0
    ],
    "led_charge": [
@@ -142,9 +142,9 @@
     1.0
    ],
    "port_teal": [
-    0.0,
-    0.33,
-    0.36,
+    0.22,
+    0.5,
+    0.8,
     1.0
    ],
    "print": [
@@ -408,12 +408,12 @@
   "overall_depth": {
    "basis": "measured",
    "note": "61.5 mm published",
-   "value": 0.06155
+   "value": 0.06156
   },
   "overall_height": {
    "basis": "measured",
    "note": "70.5 mm published; the files stack to 69.05, see base_drop",
-   "value": 0.0705
+   "value": 0.07051
   },
   "port_a_from_pitch_axis": {
    "basis": "assumed",
@@ -618,8 +618,8 @@
    "basis": "assumed",
    "note": "side photos: 0.9 mm behind the shell front edge, 7.2 mm below the head top",
    "value": [
-    0.0056,
-    0.041
+    0.0063,
+    0.043
    ]
   },
   "side_openings": {

@@ -419,3 +419,20 @@ def test_the_view_lights_glow_without_a_second_outside_script():
     assert "st.hw.vbus" in js, "both small power lights follow USB power"
     assert "touch_pad: 1" not in js, "the touch pads stay solid in Show inside"
     assert "STEP_MS = 50" in (VU / "view.py").read_text() and "},50);}" in html, "the unit and the page run at 20 a second"
+
+
+def test_details_corrected_from_the_owners_photos():
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    head, base = descendants(j, by["head"][0]), descendants(j, by["base"][0])
+    assert {"ir_window_0", "ir_window_1", "red_led_side"} <= head and {"sleeve_left", "sleeve_right"} <= base
+    assert "red_led_side" in descendants(j, by["screen_bottom_led"][0]) and "mesh" not in by["red_led_side"][1]
+    assert "purpose not confirmed" in by["ir_window_0"][1]["extras"]["note"]
+    col = {m["name"]: m["pbrMetallicRoughness"]["baseColorFactor"] for m in j["materials"]}
+    assert col["led_bottom"][0] > 3 * col["led_bottom"][1], "the light under the controller is red"
+    assert col["port_teal"][2] > col["port_teal"][1] > col["port_teal"][0], "the second top connector is light blue"
+    assert col["camera"][0] > 0.6 and col["camera"][2] < 0.15, "a copper-orange ring round the lens"
+    assert col["flex_ink"][2] > 0.5, "blue print on the flat cables"
+    assert abs(by["coil"][1]["translation"][0]) < 0.001, "the folded cable is in the middle"
+    src = (VU / "model" / "make_body.py").read_text()
+    assert "enumerate((5.6, 7.7, 9.7))" in src and "range(8 if c == 1 else 9)" in src, "26 holes in the speaker grille: three columns of 9, 8 and 9"

@@ -85,7 +85,7 @@ Seen on the real unit and now drawn (all positions read off the photos, so assum
 | Feature | Node | In the view |
 |---|---|---|
 | Red light in the holder back, between the two screws | `back_charge_led` | lit while the unit has USB power. Observed by the owner 2026-11-18: lit with USB power. The firmware does not drive it (`BUILTIN_LED_GPIO` is not connected) |
-| Light between the card slot and the reset button | `screen_bottom_led` | lit while the unit has USB power. Observed by the owner 2026-11-18: lit with USB power, same as the rear one, so it is a power light and not a download light. Its color is assumed (green) |
+| Light between the card slot and the reset button | `screen_bottom_led` | lit while the unit has USB power. Observed by the owner 2026-11-18: lit with USB power, same as the rear one, so it is a power light and not a download light. Red in the owner's photo of the underside |
 | Card slot under the controller | `sd_slot` | named on hover |
 | Reset button to the right of the slot: a white key in a dark gap, with a pinhole and two short slots between | `reset_button` | restarts the unit |
 | Button at the top of the left side (as you face the screen) | `power_button`, also named `button_left_top` | power: the product picture says press for on, hold 6 s for off |
@@ -143,11 +143,38 @@ Not settled by this photo, and what a photo from the owner would settle:
 1. **Base, opened** (bottom plate off, looking straight in): the board that carries the back USB-C socket, the power parts, where the battery lead and the servo leads go. `base_board` is a guess until then.
 2. **Back, lights off, straight on and level**: the exact size of the ring board, how many small lights sit on each edge, and what the coiled part connects to.
 3. **The other side of the open back** (camera low on the right): the black top connector, the right-hand lights and the cable from the holder to the head.
-4. **Top, straight down, in raking light**: whether the three touch pads show at all on the real head. The model draws them with an outline so they can be found; the maker's top picture shows nothing there.
-5. **Underside of the controller with a cable in**: the color of the light beside the reset button.
-6. **Front and each side, level**: to check the label, button and port places against a real unit and not the maker's pictures.
+4. **The button side, level** (power key, side USB-C, red port): the one face with no photo of the owner's unit yet.
+5. **Back, level, lights off**: the screws and the charge light straight on.
 
 No teardown or assembly photo of the inside of the base or of the ring board was found (one web search, 2026-11-18). Outside figures seen there and not verified: twelve lights in two rows of six, and a battery quoted as 550 mAh in one place and 700 mAh in another.
+
+## Nine more photos of the owner's unit (2026-11-18)
+
+All are the owner's own photos, kept out of this repository in the session's notes folder under `owner-photos/` and cited here by file name. **Orientation:** most were taken with the unit lying down, so they are rotated against the model's frame (Y up, the robot faces +Z, +X is its left). The front photo has the robot's bottom at the right of the picture; the side photo has the front at the left; the two "underside" files show the **top** of the head (the rating label and the two four-pin connectors are on top), one with the front at the right and one with it at the left; the reset photo shows the underside of the controller with the front at the left and the robot's left at the top.
+
+| Photo | Observed | Model before | Now |
+|---|---|---|---|
+| `front-screen-camera-sensors` | camera in the middle of the row under the screen, with a copper-orange ring 4.2 mm across | dull brown ring | orange ring 4.2 mm, dark lens, a glint |
+| same | two tiny gold dots 7.1 and 9.6 mm to the robot's left of the camera | white dots at 6.9 and 9.0 | gold, at 7.1 and 9.6 |
+| same | two dark microphone holes 14.6 mm to the right and 14.9 mm to the left | white dots at 14.1 | dark holes with a thin rim |
+| `side-m5-speaker-sticker-holes` | speaker grille: 26 holes in three staggered columns (9, 8, 9), 3.2 mm apart, 5.6, 7.7 and 9.7 mm behind the glass | 52 dots in four columns | 26 holes as observed |
+| same | label 6.3 mm wide and 43 mm long, 1.2 mm behind the seam, with a dark end about 13 mm long holding a small face | 5.6 x 41 mm | resized and moved; the shallow recess it sits in is not cut |
+| same | raised two-character mark 4.6 to 11.4 mm behind the glass | 2 mm nearer the glass | moved |
+| same | three round openings with a raised ring each and notched dark spacers; the lights show inside the openings | drawn | unchanged; the view's lights now show in them |
+| `underside-ports-sticker-flat`, `underside-with-base-usbc` (the head top) | the second four-pin connector is light blue, not teal or green | teal, and green inside | light blue; the node keeps the name `green_connector` and the material `port_teal` so nothing that loads them breaks |
+| same | a small clear window beside the round hole between the connectors | missing | added |
+| same | rating label at the black connector's side of the controller top, gray tab at its outer end | as drawn | unchanged |
+| same | the head top is plain: the touch pads do not show | outlined pads | kept outlined on request so they can be found; this differs from the real unit |
+| `underside-with-base-usbc`, `base-usbc-red-led-blue-battery` | the base's USB-C socket in a metal shell at the back, the red light in the holder flange between two screws, blue battery wrap behind the notch | drawn | unchanged |
+| `side-reset-led-sd-slot-open-back` (underside of the controller) | reset key 8.6 x 6.3 mm at 15.1 mm left of the middle, 6.6 mm behind the glass | 15.0 and 6.6 | confirmed |
+| same | a small **red** light at 6.9 mm left of the middle | drawn as a green one | red; also answers to `red_led_side` |
+| same | two short dark slots beside the light | drawn in the head mesh | nodes `ir_window_0` and `ir_window_1`. Their purpose is not confirmed: the maker's picture marks infrared on the head top |
+| same | card slot 12.7 mm long with a round finger recess behind it | slot only | the recess rim is marked; the recess is not cut |
+| `base-underside-label` | four socket-head screws, metal sleeves in the two rear corner holes, foam strips, the raised mark, the large label | cross-head screws, no sleeves | socket heads, `sleeve_left` and `sleeve_right` |
+| same | the label's full text | simplified artwork | still simplified: header band, colored square, outline of the robot, bars and two large marks. The text is not drawn |
+| `ring-board-underside-leds` | black board, two rows of six small lights along the two long edges, three small square parts in a row down the middle | six a side, assumed | confirmed; the three parts added |
+| same and `board-7p-flex-ribbon-lit` | white flat cable with blue print, a thick folded black flat cable between the upright board and the holder | pale cable with green print, a helix above the tilt servo | white with blue marks; `coil` is now the folded cable, in the middle |
+| `board-7p-flex-ribbon-lit` | print `7P` and `V1.0` on the upright board | `7P` | `V1.0` is not drawn |
 
 ## What to compare on the unit
 

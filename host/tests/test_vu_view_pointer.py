@@ -283,8 +283,8 @@ def test_the_lights_glow_follow_the_ring_and_both_power_lights_follow_usb_power(
     # both small power lights: dark on battery, lit with a cable in either socket
     for key in ("side", "back"):
         page.js(f"fetch('/hw', {{method: 'POST', body: JSON.stringify({{key: '{key}', value: false}})}}).then(r => r.json())")
-    lit = "ROBOT.model.chargeLed.material.color.r > 0.9 && ROBOT.model.bottomLed.material.color.g > 0.9 && ROBOT.model.powerGlow.every(g => g.l.intensity > 0)"
-    assert page.until("!ST.hw.vbus") and page.until("ROBOT.model.chargeLed.material.color.r < 0.2 && ROBOT.model.bottomLed.material.color.g < 0.2")
+    lit = "ROBOT.model.chargeLed.material.color.r > 0.9 && ROBOT.model.bottomLed.material.color.r > 0.9 && ROBOT.model.powerGlow.every(g => g.l.intensity > 0)"
+    assert page.until("!ST.hw.vbus") and page.until("ROBOT.model.chargeLed.material.color.r < 0.2 && ROBOT.model.bottomLed.material.color.r < 0.2")
     for key in ("back", "side"):
         page.js(f"fetch('/hw', {{method: 'POST', body: JSON.stringify({{key: '{key}', value: true}})}}).then(r => r.json())")
         assert page.until(lit), f"both power lights come on with a cable in the {key} socket"

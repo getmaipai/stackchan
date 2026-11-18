@@ -63,7 +63,7 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('port', (0.012, 0.012, 0.014, 1.0), 0.0, 0.5, None),
     ('neck', (0.56, 0.56, 0.57, 1.0), 0.0, 0.7, None),
     ('servo', (0.19, 0.19, 0.20, 1.0), 0.0, 0.7, None),
-    ('camera', (0.22, 0.13, 0.08, 1.0), 0.5, 0.3, None),
+    ('camera', (0.80, 0.27, 0.07, 1.0), 0.6, 0.35, None),            # the copper-orange ring round the lens (owner's front photo)
     ('core', (0.74, 0.74, 0.74, 1.0), 0.0, 0.6, None),
     ('glass', (0.004, 0.004, 0.005, 1.0), 0.0, 0.12, None),
     ('light_bar', (0.42, 0.70, 0.72, 1.0), 0.0, 0.35, None),
@@ -77,18 +77,18 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('battery', (0.02, 0.09, 0.42, 1.0), 0.0, 0.5, None),
     ('cable', (0.45, 0.45, 0.47, 1.0), 0.0, 0.6, None),
     ('touch_pad', (0.50, 0.53, 0.58, 1.0), 0.0, 0.5, None),
-    ('port_teal', (0.0, 0.33, 0.36, 1.0), 0.0, 0.5, None),
+    ('port_teal', (0.22, 0.50, 0.80, 1.0), 0.0, 0.5, None),          # the second top connector is light blue (owner's top photos); the name is kept
     ('sticker', (0.80, 0.80, 0.79, 1.0), 0.0, 0.7, None),
     ('sticker_ink', (0.012, 0.012, 0.014, 1.0), 0.0, 0.7, None),
     ('led_charge', (0.10, 0.012, 0.01, 1.0), 0.0, 0.4, None),
-    ('led_bottom', (0.02, 0.06, 0.03, 1.0), 0.0, 0.4, None),
+    ('led_bottom', (0.10, 0.012, 0.01, 1.0), 0.0, 0.4, None),         # red when lit (owner's photo of the underside)
     ('print', (0.30, 0.30, 0.31, 1.0), 0.0, 0.7, None),
     ('tongue', (0.20, 0.20, 0.21, 1.0), 0.0, 0.5, None),
     ('screw', (0.55, 0.55, 0.57, 1.0), 0.8, 0.35, None),
     ('screw_dark', (0.02, 0.02, 0.022, 1.0), 0.6, 0.4, None),
     ('chip', (0.015, 0.015, 0.018, 1.0), 0.0, 0.45, None),
     ('conn', (0.74, 0.71, 0.62, 1.0), 0.0, 0.6, None),
-    ('flex', (0.62, 0.72, 0.80, 1.0), 0.0, 0.5, None),
+    ('flex', (0.85, 0.86, 0.88, 1.0), 0.0, 0.5, None),
     ('wire_red', (0.50, 0.02, 0.02, 1.0), 0.0, 0.6, None),
     ('sticker_dark', (0.06, 0.06, 0.065, 1.0), 0.0, 0.7, None),
     ('sticker_orange', (0.75, 0.13, 0.02, 1.0), 0.0, 0.7, None),
@@ -96,8 +96,8 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('emboss', (0.60, 0.60, 0.60, 1.0), 0.0, 0.6, None),
     ('pin_gold', (0.80, 0.58, 0.18, 1.0), 0.9, 0.3, None),
     ('silk', (0.80, 0.80, 0.78, 1.0), 0.0, 0.7, None),
-    ('conn_green', (0.30, 0.72, 0.55, 1.0), 0.0, 0.5, None),
-    ('flex_ink', (0.05, 0.40, 0.22, 1.0), 0.0, 0.6, None),
+    ('conn_green', (0.25, 0.55, 0.85, 1.0), 0.0, 0.5, None),         # light blue in daylight (it looked green under amber light); the name is kept
+    ('flex_ink', (0.08, 0.22, 0.75, 1.0), 0.0, 0.6, None),           # the print on the flat cables is blue (owner's photos)
     ('ring_led', (0.75, 0.75, 0.72, 1.0), 0.0, 0.4, None),
 ]
 LIGHT_OFF = (0.42, 0.70, 0.72, 1.0)
@@ -492,17 +492,22 @@ def assemble():
             if not (max(abs(t[i] + 27.0) for i in (0, 3, 6)) < 1e-6 or max(abs(t[i] - under) for i in (1, 4, 7)) < 1e-6)]
     geo['head']['glass'] = prism(rounded_outline(51.6, 51.6, 3.0), 0.0, cy, face - 0.2, face)
     row = top - 54.0 + 5.9                                    # camera, microphones and light sensor sit in one row under the screen
-    geo['head']['camera'] = prism(circle(2.0), 0.0, row, face, face + 0.03)
-    dots = prism(circle(1.3), 0.0, row, face + 0.03, face + 0.05)
-    geo['head']['button'] = []
-    for dx in (-14.1, 6.9, 9.0, 14.1):                        # two microphones and the two sensor windows, off the published drawing
-        geo['head']['button'] += prism(circle(0.4, 8), dx, row, face, face + 0.03)
-    for r in range(13):                                       # speaker grille on the robot's left side of the controller
-        for c in range(4):
-            dots += disc_x((27.02, top - 10.5 - 2.0 * r - (1.0 if c % 2 else 0.0), face - 5.6 - 1.6 * c), 0.4, 1, 8)
+    geo['head']['camera'] = prism(circle(2.1), 0.0, row, face, face + 0.03)
+    dots = prism(circle(1.75), 0.0, row, face + 0.03, face + 0.05)    # the dark lens inside the ring
+    geo['head']['button'] = prism(circle(0.5, 10), 0.0, row, face + 0.05, face + 0.06)   # the glint in the middle of the lens
+    geo['head']['pin_gold'] = []
+    for dx in (7.1, 9.6):                                     # two tiny gold dots beside the camera, on the robot's left (owner's front photo)
+        geo['head']['pin_gold'] += prism(circle(0.3, 8), dx, row, face, face + 0.03)
+    for dx in (-14.6, 14.9):                                  # the two microphone holes, dark with a thin rim (owner's front photo)
+        dots += prism(circle(0.45, 10), dx, row, face + 0.03, face + 0.05)
+        geo['head'].setdefault('print', [])
+        geo['head']['print'] += prism(circle(0.65, 10), dx, row, face, face + 0.03)
+    for c, behind in enumerate((5.6, 7.7, 9.7)):              # speaker grille on the robot's left side: 26 holes in three staggered columns (owner's side photo)
+        for r in range(8 if c == 1 else 9):
+            dots += disc_x((27.02, top - 8.4 - 3.2 * r - (1.6 if c == 1 else 0.0), face - behind), 0.43, 1, 10)
     dots += quad_x(1, 27.02, top - 45.0, top - 38.0, front + 0.1, front + 1.0)   # the dark notch at the seam under the grille
     geo['head']['port'] = dots
-    prints = []                                               # small gray marks printed on the controller
+    prints = geo['head'].pop('print', [])                     # small gray marks printed on the controller
 
     # ---- the controller's right side (-X): real openings for the button, the USB-C socket and port A (sizes and places from the side photo)
     def side(u, v, c):                                        # u up, v toward the front, c out of the side
@@ -551,8 +556,8 @@ def assemble():
     cuts = [-23.0, 1.0, 6.55, 9.5, 23.0]
     for (u0, u1), hole in zip(zip(cuts, cuts[1:]), (sd_hole, slots[0], slots[1], reset_well)):
         core += holed(below, u0, u1, z0, z1, hole)
-    for s in slots:
-        geo['head']['port'] += tube(below, s, 0.0, -1.5) + flat(below, s, -1.5)
+    slot_tris = [tube(below, sl, 0.0, -1.5) + flat(below, sl, -1.5) for sl in slots]
+    prints_under = band(below, moved(circle(3.4, 24), sd_c[0], sd_c[2]), moved(circle(3.25, 24), sd_c[0], sd_c[2]), 0.02)   # the rim of the round finger recess behind the card slot
     geo['head']['port'] += tube(below, reset_well, 0.0, -0.8) + flat(below, reset_well, -0.8)
     sd_tris = tube(below, sd_hole, 0.0, -3.0) + flat(below, sd_hole, -3.0)
     sd_pins = []                                              # the row of card contacts inside the slot
@@ -565,9 +570,9 @@ def assemble():
     quads, length = lettering('M5', 6.0, 0.8)                  # the raised two-character mark on the speaker side, under the grille (side photo)
     geo['head']['emboss'] = []
     for quad in quads:
-        geo['head']['emboss'] += flat(lambda u, v, c: (27.0 + c, u, v), [(top - 49.0 + a, face - 9.4 + b) for a, b in quad], 0.03)
+        geo['head']['emboss'] += flat(lambda u, v, c: (27.0 + c, u, v), [(top - 49.0 + a, face - 11.3 + b) for a, b in quad], 0.03)
     geo['head']['core'] = core
-    geo['head']['print'] = prints
+    geo['head']['print'] = prints + prints_under
 
     # ---- the two connectors in the top openings: black on the robot's right, teal on its left; each an open socket with four pins
     def above(u, v, c):
@@ -582,7 +587,8 @@ def assemble():
         for k in range(4):
             geo['head'].setdefault('pin_gold', [])
             geo['head']['pin_gold'] += slab(above, sx - 3.3 + 2.0 * k, sx - 2.7 + 2.0 * k, front - 3.6, front - 3.0, -2.0, -0.6)
-    geo['head']['port'] += slab(above, -2.2, 2.2, front - 7.6, front - 0.4, -2.2, -2.0)   # dark behind the two small windows between the connectors
+    geo['head']['port'] += slab(above, -2.2, 2.2, front - 7.6, front - 0.4, -2.2, -2.0)
+    geo['head']['glass'] += slab(above, -0.5, 0.5, front - 1.9, front - 0.5, 0.28, 0.31)   # the small clear window beside the round hole (owner's top photo)   # dark behind the two small windows between the connectors
 
     # ---- the dark shapes between the three round side openings (through the shell wall; black in the photos)
     for sx in (-1, 1):
@@ -602,6 +608,8 @@ def assemble():
     ring_board = {'pcb': box(ring_c, (45.0, 1.2, ring_z1 - ring_z0)), 'chip': [], 'conn': [], 'port': [], 'conn_green': []}
     for x, z, w, d, t, material in ((-6.0, 2.0, 3.0, 3.0, 0.8, 'chip'), (4.0, -6.0, 2.0, 4.0, 0.7, 'chip'), (-12.0, -9.0, 1.2, 2.0, 0.6, 'conn'), (9.0, 6.0, 1.0, 2.0, 0.6, 'conn')):
         ring_board[material] += box((x, ring_under - t / 2, z), (w, t, d))
+    for dz in (4.6, 9.2, 13.3):                                                                  # three small square parts in a row down the middle (owner's photo of the board)
+        ring_board['chip'] += box((0.0, ring_under - 0.3, ring_z0 + dz), (1.0, 0.6, 1.0))
     ring_board['port'] += box((-11.0, ring_under - 2.2, front - 4.6), (10.2, 4.4, 5.6))            # the body of the black top connector, under the board
     green_c = (11.0, ring_under - 2.2, front - 4.6)                                              # the mint green body of the other top connector (owner's photo)
     green_tris = box(green_c, (10.2, 4.4, 5.6))
@@ -694,10 +702,10 @@ def assemble():
 
     # ---- labels (drawn here; the print is stand-in marks, not copied text, except the product's own name on the side labels)
     stickers = {}
-    lw, lh = 5.6, 41.0                                           # side labels: width, length (side photos)
+    lw, lh = 6.3, 43.0                                           # side labels: width, length (owner's side photo)
     for side_x, name in ((-1, 'sticker_side_right'), (1, 'sticker_side_left')):
         x = side_x * 27.04
-        zc, yc = front - 0.9 - lw / 2, top - 7.2 - lh / 2
+        zc, yc = front - 1.2 - lw / 2, top - 5.6 - lh / 2
 
         def lab(p, q, c=0.0, x=x, zc=zc, yc=yc, side_x=side_x):   # p toward the front, q up
             return (x + side_x * c, yc + q, zc + p)
@@ -705,20 +713,20 @@ def assemble():
         n = len(o) // 2
         parts = {'sticker': flat(lab, o), 'sticker_dark': [], 'sticker_ink': []}
         if side_x < 0:                                            # dark end at the bottom on the button side, at the top on the other
-            parts['sticker_dark'] = flat(lab, o[n:] + [(lw / 2, -lh / 2 + 12.6), (-lw / 2, -lh / 2 + 11.4)], 0.01)
-            fq = -lh / 2 + 6.2
+            parts['sticker_dark'] = flat(lab, o[n:] + [(lw / 2, -lh / 2 + 12.4), (-lw / 2, -lh / 2 + 13.8)], 0.01)
+            fq = -lh / 2 + 6.4
         else:
-            parts['sticker_dark'] = flat(lab, o[:n] + [(-lw / 2, lh / 2 - 11.4), (lw / 2, lh / 2 - 12.6)], 0.01)
-            fq = lh / 2 - 6.2
+            parts['sticker_dark'] = flat(lab, o[:n] + [(-lw / 2, lh / 2 - 13.8), (lw / 2, lh / 2 - 12.4)], 0.01)
+            fq = lh / 2 - 6.4
         for dq in (-2.85, 2.85):                                  # the little face in the dark end: two dots and a line
             parts['sticker'] += flat(lab, moved(circle(0.5, 10), 1.2, fq + dq), 0.02)
         parts['sticker'] += flat(lab, [(-1.1, fq - 1.85), (-0.75, fq - 1.85), (-0.75, fq + 1.85), (-1.1, fq + 1.85)], 0.02)
-        quads, length = lettering('StackChan', 3.5, 0.5)
+        quads, length = lettering('StackChan', 3.6, 0.52)
         for quad in quads:                                        # the name runs along the label with the letter tops toward the front
             if side_x < 0:
-                pts = [(-lw / 2 + 1.05 + b, lh / 2 - 2.9 - a) for a, b in quad]
+                pts = [(-lw / 2 + 1.4 + b, lh / 2 - 2.4 - a) for a, b in quad]
             else:
-                pts = [(-lw / 2 + 1.05 + b, -lh / 2 + 2.9 + a) for a, b in quad]
+                pts = [(-lw / 2 + 1.4 + b, -lh / 2 + 2.4 + a) for a, b in quad]
             parts['sticker_ink'] += flat(lab, pts, 0.02)
         stickers[name] = (parts, (x, yc, zc))
     tx0, tx1, tz0, tz1 = -15.8, 0.5, front + 1.6, front + 13.9      # the rating label on top of the controller (top photo)
@@ -791,10 +799,14 @@ def assemble():
     def under_base(u, v, c=0.0):                                 # u toward the robot's left, v toward the front, c down
         return (u, -0.03 - c, v)
     for i, (sx, sz) in enumerate([(-9.0, 26.02), (9.0, 26.02), (9.0, -17.99), (-9.0, -17.99)]):   # hole centers measured in the plate file
-        head_t, cross = screw(lambda u, v, c: (u, 0.9 - c, v), sx, sz, 1.5, 0.0, 0.45)
+        head_t, cross = screw(lambda u, v, c: (u, 0.9 - c, v), sx, sz, 1.5, 0.0, 0.45, socket=True)   # socket heads (owner's photo of the underside)
         c = (sx, 0.45, sz)
         g.node('screw_base_%d' % i, base, c, g.mesh('screw_base_%d' % i, [g.primitive(head_t, c, 'screw'), g.primitive(cross, c, 'screw_dark')]),
                {'what': 'screw that holds the bottom plate', 'basis': 'measured', 'note': 'hole from the plate file; the head is a stand-in'})
+    for sx in (-16.0, 16.0):                                     # the two rear corner holes have metal sleeves (owner's photo of the underside)
+        geo_sleeve = band(lambda u, v, c: (u, 0.12 - c, v), moved(circle(3.0, 20), sx, mid - 24.0), moved(circle(2.43, 20), sx, mid - 24.0), 0.0)
+        g.node('sleeve_%s' % ('right' if sx < 0 else 'left'), base, (sx, 0.12, mid - 24.0), g.mesh('sleeve', [g.primitive(geo_sleeve, (sx, 0.12, mid - 24.0), 'screw')]),
+               {'what': 'metal sleeve in a rear corner mounting hole', 'basis': 'assumed', 'note': "seen in the owner's photo of the underside"})
     lx, lz0, lz1 = 16.25, mid - 17.3, mid + 18.1                 # the big label under the base (underside photo): white, a dark header band, marks
     paper = [(-lx, lz1), (lx, lz1), (lx, lz0 + 4.0), (lx - 4.0, lz0), (-lx + 4.0, lz0), (-lx, lz0 + 4.0)]
     label = {'sticker': flat(under_base, paper), 'sticker_dark': flat(under_base, [(-lx, lz1), (lx, lz1), (lx, lz1 - 3.5), (-lx, lz1 - 3.5)], 0.01),
@@ -842,17 +854,13 @@ def assemble():
     c = (14.7, 41.7, -19.35)
     g.node('screw_servo', yaw, sub(c, YAW_O), g.mesh('screw_servo', [g.primitive(head_t, c, 'screw'), g.primitive(cross, c, 'screw_dark')]),
            {'what': "socket-head screw in the black bracket on the tilt servo's back end", 'basis': 'assumed'})
-    coil, coil_c = [], (8.0, 52.3, -13.0)                         # the black coiled lead above the tilt servo (owner's photo): 7 turns, drawn as a helix
-    turns, seg, cr = 7, 12, 2.2
-    hx = [(coil_c[0] - 3.0 + 6.0 * n / (turns * seg), coil_c[1] + cr * math.cos(2 * math.pi * n / seg), coil_c[2] + cr * math.sin(2 * math.pi * n / seg)) for n in range(turns * seg + 1)]
-    for a, b in zip(hx, hx[1:]):
-        d = [(b[j] - a[j]) / 2.0 for j in range(3)]
-        mid_p = [(a[j] + b[j]) / 2.0 for j in range(3)]
-        rad = (0.0, mid_p[1] - coil_c[1], mid_p[2] - coil_c[2])
-        rl = math.hypot(rad[1], rad[2])
-        coil += obox(mid_p, [v * 1.15 for v in d], (0.0, rad[1] / rl * 0.3, rad[2] / rl * 0.3), (0.3, 0.0, 0.0))
+    coil, coil_c = [], (0.0, PITCH_O[1] + 4.0, 10.5)                # the folded black flat cable between the upright board and the holder (owner's photos)
+    for n in range(6):                                           # six folds stacked, joined at alternate ends
+        y = coil_c[1] - 2.0 + 0.8 * n
+        coil += box((coil_c[0], y, coil_c[2]), (7.5, 0.4, 6.0))
+        coil += box((coil_c[0], y + 0.4, coil_c[2] + (2.8 if n % 2 else -2.8)), (7.5, 0.5, 0.4))
     g.node('coil', yaw, sub(coil_c, YAW_O), g.mesh('coil', [g.primitive(coil, coil_c, 'servo_case')]),
-           {'what': 'black coiled lead above the tilt servo', 'basis': 'assumed', 'note': "seen in the owner's photo of the open back; what it connects is not known"})
+           {'what': 'folded black flat cable (a service loop) between the upright board and the holder', 'basis': 'assumed', 'note': "seen in the owner's photos of the open back; it flexes as the head nods, drawn at rest"})
     inside = [('servo_yaw', {'servo_case': servo_yaw}, 'pan servo: its case turns with the holder, its shaft sits in the base socket (size from the data sheet, position assumed)'),
               ('servo_pitch', {'servo_case': servo_pitch}, 'tilt servo: its shaft drives the arm on the nod axis (size from the data sheet, position assumed)'),
               ('battery', {'battery': battery}, '550 mAh battery behind the holder back cover (capacity published; size and position assumed)'),
@@ -917,7 +925,14 @@ def assemble():
     g.node('sd_slot', head, sub(sd_c, PITCH_O), g.mesh('sd_slot', [g.primitive(sd_tris, sd_c, 'port'), g.primitive(sd_pins, sd_c, 'pin_gold')]),
            {'what': 'card slot under the controller: an open slot', 'opening': {'size': [mm(12.9), mm(1.3)], 'depth': mm(3.0)}})
     g.node('screen_bottom_led', head, sub(led_bottom_c, PITCH_O), g.mesh('screen_bottom_led', [g.primitive(led_bottom_tris, led_bottom_c, 'led_bottom')]),
-           {'what': 'small light under the controller, between the card slot and the reset button; observed by the owner 2026-11-18: lit with USB power, same as the rear one, so it is a power light; its color is assumed', 'basis': 'assumed'})
+           {'what': 'small light under the controller, between the card slot and the reset button; observed by the owner 2026-11-18: lit with USB power, same as the rear one, so it is a power light; red in his photo', 'basis': 'assumed'})
+    for i, (sl, tris_s) in enumerate(zip(slots, slot_tris)):
+        c = (sum(p[0] for p in sl) / len(sl), under, face - 11.0)
+        g.node('ir_window_%d' % i, head, sub(c, PITCH_O), g.mesh('ir_window_%d' % i, [g.primitive(tris_s, c, 'port')]),
+               {'what': 'one of the two short dark slots beside the small light under the controller', 'basis': 'assumed',
+                'note': "seen in the owner's photo; named as infrared windows on the coordinator's word, purpose not confirmed (the maker's picture marks infrared on the head top)"})
+    g.node('red_led_side', g.nodes.index(next(n for n in g.nodes if n['name'] == 'screen_bottom_led')),
+           extras={'what': 'another name for screen_bottom_led: the small red light under the controller'})
     g.node('button_left_top', g.nodes.index(next(n for n in g.nodes if n['name'] == 'power_button')),
            extras={'what': 'another name for power_button: the button at the top of the side that is on the left when you face the screen'})
     for name in sorted(stickers):

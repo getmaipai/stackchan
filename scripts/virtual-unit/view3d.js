@@ -166,9 +166,9 @@ function initRobot(THREE, canvas, hooks) {
     // the two small lights: the red one in the holder back and the one under the screen edge
     const lamp = (node, label) => { if (!node) return null; const m = node.children.find(c => c.isMesh); m.material = new THREE.MeshBasicMaterial({color: 0x000000}); addSwitch(node, new THREE.SphereGeometry(0.003, 6, 6), label, () => {}); return m; };
     M.chargeLed = lamp(N.back_charge_led, 'Power light at the back: lit while the unit has USB power (observed on the real unit, 2026-11-18)');
-    M.bottomLed = lamp(N.screen_bottom_led, 'Power light under the screen: lit with USB power, the same as the one at the back (observed on the real unit, 2026-11-18; its color is assumed)');
+    M.bottomLed = lamp(N.screen_bottom_led, 'Power light under the screen: lit with USB power, the same as the one at the back (observed on the real unit, 2026-11-18): red');
     M.powerGlow = [N.back_charge_led, N.screen_bottom_led].map((node, k) => { if (!node) return null;
-      const l = new THREE.PointLight(k ? 0x35e06a : 0xff3b30, 0, 3, 2); node.add(l); return {l, sp: halo(node, k ? 0.006 : 0.009), color: k ? 0x35e06a : 0xff3b30}; });
+      const l = new THREE.PointLight(0xff3b30, 0, 3, 2); node.add(l); return {l, sp: halo(node, k ? 0.006 : 0.009), color: 0xff3b30}; });   // both are red on the real unit
     if (N.sd_slot) addSwitch(N.sd_slot, new THREE.BoxGeometry(0.016, 0.005, 0.005), 'Card slot (microSD)', () => {});
     // the axes gizmo sits on the model's own joints
     yawGizmo.position.set(0, M.baseTopY + 0.05, 0); pitchGizmo.position.set(0, M.pitchY, 0);
@@ -445,7 +445,7 @@ function initRobot(THREE, canvas, hooks) {
       cable.visible = ports.back.plugged; if (M.sideCable) M.sideCable.visible = ports.side.plugged;
       const powered = st.hw.vbus !== undefined ? st.hw.vbus : (st.hw.usb || st.hw.charging);   // both small lights come on with USB power (observed on the real unit)
       if (M.chargeLed) M.chargeLed.material.color.set(powered ? 0xff5a48 : 0x180403);
-      if (M.bottomLed) M.bottomLed.material.color.set(powered ? 0x5dff8a : 0x04100a);
+      if (M.bottomLed) M.bottomLed.material.color.set(powered ? 0xff5a48 : 0x180403);
       for (const g of M.powerGlow || []) if (g) { g.l.intensity = powered && rich ? 0.9 : 0; g.sp.visible = powered && rich; g.sp.material.color.set(g.color); }
       M.screen.material.color.set(on ? 0xffffff : 0x000000);
     },
