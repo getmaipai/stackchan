@@ -130,6 +130,17 @@ def decision_rows(ev: Evidence, audience: str) -> list[dict]:
     ux12 = exists("firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch")
     out: list[dict] = []
     if audience == "user":
+        steps = [("eyes", "Dance step 1: the eyes", "Only the eyes look side to side on every beat, about 1.5 s, the head still and the ring dark."),
+                 ("nod", "Dance step 2: the nod", "The head nods on the beat, the eyes follow with a small shift, music notes float up, the ring breathes slowly."),
+                 ("sway", "Dance step 3: the sway", "The head sways side to side, a small disco ball shows, the ring chases one light a beat."),
+                 ("full", "Dance step 4: the full dance", "Pan, tilt and sway together, the disco ball in full, confetti at the peak, the ring swells on the beat."),
+                 ("down", "Dance: the way down", "Steps 3, 2 and 1 in reverse as the music fades, then the eyes ahead and the head level.")]
+        simulated = exists("scripts/virtual-unit/dance_sim.py") and "test_virtual_unit_dance" in ev.tests.replace("-", "_") or "dance_sim" in ev.tests
+        pct = 70 if simulated else 40
+        for key, name, desc in steps:
+            out.append(row(audience="user", area="Motion and dances", name=name, desc=desc, percent=pct, status=rules.status_for(pct),
+                           where=["firmware/patches/MD01-music-dance-ladder-and-beat-dance.patch", "scripts/virtual-unit/dance_sim.py", f"host/tests/golden/screens/dance-{'5-down' if key == 'down' else {'eyes': '1-eyes', 'nod': '2-nod', 'sway': '3-sway', 'full': '4-full'}[key]}.png"],
+                           doc="docs/dev/virtual-unit-dance.md", rule="the ladder core and the show run in the virtual unit with a golden frame per step; none of it has run on the unit's screen and ring together", tags=["music dance"]))
         area, doc = "Updates and setup", "docs/design/first-run-flow.md"
         base = 70 if ux12 and first_run_tested else 40 if ux12 else 10
         shown = "the first run shows the choice in six languages and saves the answer; a person has not done it on the unit"
@@ -143,6 +154,9 @@ def decision_rows(ev: Evidence, audience: str) -> list[dict]:
         out.append(row(audience="user", area="Link and travel", name="Encrypted link on by default", desc="A paired host and robot use the encrypted link unless the owner chooses the plain link and reads a plain warning.", percent=10 if linked else 0, status="designed" if linked else "idea",
                        where=["docs/design/encrypted-link.md", "firmware/patches/SF20-link-key-schedule-core.patch"], doc="docs/design/encrypted-link.md", rule="the encrypted link is built and opt-in; the default waits for the memory budget table (decision 11)", tags=["decision 13"]))
     else:
+        sim = exists("scripts/virtual-unit/dance_sim.py")
+        out.append(row(audience="maker", area="Virtual playground", name="Music dance simulation", desc="The unit's real ladder core (compiled from patch MD01) and the host's director run on simulated songs, with a golden frame per step.", percent=70 if sim else 10,
+                       status=rules.status_for(70 if sim else 10), where=["scripts/virtual-unit/dance_sim.py", "scripts/virtual-unit/dance_core.py", "scripts/virtual-unit/dance/ladder_sim.c"], doc="docs/dev/virtual-unit-dance.md", rule="files exist and test_virtual_unit_dance.py runs it"))
         table = exists("docs/dev/memory-budget.md")
         tested = "memory-budget" in ev.tests or "memory_budget" in ev.tests
         pct = 70 if table and tested else 40 if table else 10

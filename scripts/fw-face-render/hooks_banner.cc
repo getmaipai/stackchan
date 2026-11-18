@@ -8,6 +8,7 @@
 #include "maipai_firstrun.h"
 #define MAIPAI_HAVE_FIRSTRUN 1
 #endif
+#include <esp_timer.h>
 #include "maipai_look_core.h"
 #include "maipai_banner.h"
 #include <cstdio>
@@ -194,6 +195,26 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
         for (int i = 0; i < ML_STYLE_COUNT; i++) if (n == ML_STYLES[i].name) av->setLook(i);
         return true;
     }
+    if (c == "face") {  // face NAME: the dance faces as the display's SetEmotion makes them (patch MD02): an emotion plus accents
+        std::string n; in >> n;
+        g_ml_wink_until_ms = 0; g_ml_shut_eyes = false; g_ml_tongue = false;
+        const uint32_t now = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+        int grin = 0;
+        Emotion e = Emotion::Happy;
+        if (n == "laughing" || n == "joy") grin = 85;
+        else if (n == "winking" || n == "wink") g_ml_wink_until_ms = now + 900;
+        else if (n == "silly") { g_ml_wink_until_ms = now + 900; g_ml_tongue = true; }
+        else if (n == "serene") g_ml_shut_eyes = true;
+        else if (n == "excited") { e = Emotion::Surprised; grin = 60; }
+        else if (n == "surprised") e = Emotion::Surprised;
+        else if (n == "love") e = Emotion::Love;
+        else if (n == "content") e = Emotion::Content;
+        else if (n == "neutral") e = Emotion::Neutral;
+        av->setEmotion(e);
+        av->mouth().setWeight(grin);
+        return true;
+    }
+    if (c == "gaze") { int x, y; in >> x >> y; av->leftEye().setPosition(uitk::Vector2i(x, y)); av->rightEye().setPosition(uitk::Vector2i(x, y)); return true; }  // gaze X Y: both eyes look (patch MD02)
     if (c == "think") { std::string n; in >> n; av->setThinking(n == "on"); return true; }
 #ifdef MAIPAI_HAVE_FIRSTRUN
     if (c == "frun") {  // frun start | frun step N LANG MODE | frun wifi: the first-run flow (patches UX05a, UX05b), on the unit's own drawing code

@@ -48,6 +48,12 @@ SCREENS: dict[str, list] = {
     "screen-settings-network": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 102"), ("advance", 500)],
     "screen-settings-faces": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 150"), ("advance", 500)],
     "screen-settings-info": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 198"), ("advance", 500)],
+    # The music dance ladder on a simulated song that builds from quiet to very loud (dance_sim.py: the unit's real ladder core, the host's show): the five steps (patches MD01 to MD03).
+    "dance-1-eyes": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 1300)],
+    "dance-2-nod": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 5200)],
+    "dance-3-sway": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 10300)],
+    "dance-4-full": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 13300)],
+    "dance-5-down": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 27500)],
     "first-run-1": [("raw", "frun step 0 0 -1"), ("advance", 400)],
     "first-run-2": [("raw", "frun step 1 0 -1"), ("advance", 400)],
     "first-run-4": [("raw", "frun step 3 0 -1"), ("advance", 400)],

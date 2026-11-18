@@ -10,7 +10,7 @@ What is real and what is a stand-in (also in docs/dev/virtual-unit-3d.md):
   one (the stronger source feeds, never the sum). Each cable has a source in SOURCES. Every electrical value is ASSUMED until the bench
   measures it: see POWER below.
 - Stand-ins: the boot cover timings (the unit's real boot times are not measured), what the serial cable does (only shown), the dances' head paths
-  (the real dances are tables on the unit; these are simple shapes of the same size and speed class).
+  (the real dances are keyframe tables in the firmware's stackchan/modifiers/dance.h: KEYFRAMES below holds the same numbers, played with an assumed servo speed of 0.4 degrees a second per speed unit).
 """
 
 from __future__ import annotations
@@ -20,6 +20,27 @@ import math
 LEVEL_TIRED_1, LEVEL_TIRED_2, LEVEL_SLEEP = 20, 10, 5  # patch T01: MB_LEVEL_CHIRP, MB_LEVEL_ASK, MB_LEVEL_SLEEP
 SLEEP_GRACE_MS = 8000  # patch T01: MB_SLEEP_GRACE_MS, the words stay on screen this long before the power goes
 BOOT_MS, WIFI_MS, HOME_MS = 2000, 1500, 1000  # stand-ins: how long each cover shows after power on
+# The firmware's four keyframe dances (stackchan/modifiers/dance.h, DanceModifier::Happy, Robot, Panic, LookAround), one row per keyframe:
+# (yaw tenths of a degree, yaw speed, pitch tenths, pitch speed, duration ms, eye x, eye y, eye weight, mouth weight). The eyes move to (x, y) at that weight; the head goes to the angles.
+KEYFRAMES = {
+    "happy": [(0, 200, 0, 200, 500, 0, 0, 100, 0), (300, 200, -100, 200, 800, -10, 0, 50, 50), (-300, 200, -100, 200, 800, 10, 0, 50, 50), (300, 200, -100, 200, 800, -10, 0, 50, 50),
+              (-300, 200, -100, 200, 800, 10, 0, 50, 50), (0, 200, 0, 200, 500, 0, 0, 100, 0)],
+    "robot": [(0, 500, 0, 500, 500, 0, 0, 100, 0), (450, 800, 0, 800, 400, 0, 0, 100, 0), (450, 800, 200, 800, 400, 0, 0, 100, 0), (-450, 800, 200, 800, 600, 0, 0, 100, 0),
+              (-450, 800, 0, 800, 400, 0, 0, 100, 0), (0, 800, 0, 800, 400, 0, 0, 100, 0)],
+    "panic": [(0, 1000, 0, 1000, 100, 0, 0, 100, 100), (200, 1000, 100, 1000, 100, 0, 0, 100, 100), (-200, 1000, -100, 1000, 100, 0, 0, 100, 100), (200, 1000, 100, 1000, 100, 0, 0, 100, 100),
+              (-200, 1000, -100, 1000, 100, 0, 0, 100, 100), (200, 1000, 100, 1000, 100, 0, 0, 100, 100), (0, 200, 0, 200, 500, 0, 0, 100, 0)],
+    "look_around": [(0, 200, 0, 200, 1000, 0, 0, 100, 0), (600, 150, 0, 150, 2000, -20, 0, 100, 20), (-600, 150, 0, 150, 2000, 20, 0, 100, 20), (0, 150, -300, 150, 1500, 0, -20, 100, 40),
+                    (0, 200, 0, 200, 1000, 0, 0, 100, 0)],
+}
+DEG_PER_S_PER_SPEED = 0.4  # an assumption (chosen so every keyframe of the table reaches its angles inside its own time): the unit's servo speed units are not measured in degrees a second
+
+
+def dance_ms(name: str) -> int:
+    """How long a keyframe dance lasts (the sum of its keyframes); the music dance (the ladder) has no end of its own."""
+    rows = KEYFRAMES.get(name)
+    return sum(r[4] for r in rows) if rows else 8000
+
+
 DANCE_MS = 8000
 ORIENTS = ("upright", "tilted", "side", "inverted", "unknown")
 
@@ -224,7 +245,7 @@ class Hardware:
                 self.on, self.sleep_started, self.dance = False, None, ""
                 self.events.append("power off: battery empty")
                 return "power_off"
-        if self.dance and now - self.dance_started >= DANCE_MS:
+        if self.dance and now - self.dance_started >= dance_ms(self.dance):
             self.dance = ""
         return None
 
@@ -246,19 +267,37 @@ class Hardware:
                 "sleeping_soon": self.sleep_started is not None, "events": self.events[-6:]}
 
 
+def keyframe_at(name: str, t_ms: int):
+    """(index, ms into the keyframe) of a keyframe dance at t_ms, or None after its end."""
+    rows = KEYFRAMES.get(name)
+    if not rows:
+        return None
+    t = t_ms
+    for i, r in enumerate(rows):
+        if t < r[4]:
+            return i, t
+        t -= r[4]
+    return None
+
+
 def dance_offset(name: str, t_ms: int, scale: int, speed_cap: int) -> tuple[float, float]:
-    """(yaw, pitch) degrees added to the head by a dance after t_ms. Simple shapes of the right size; `scale` is the limiter's percent of the full
-    excursion and `speed_cap` its speed ceiling (1000 is full): both shrink the motion, as the unit's limiter does."""
+    """(yaw, pitch) degrees added to the head by a keyframe dance after t_ms: the firmware's own key frames, the head going to each keyframe's angles at that keyframe's speed
+    (DEG_PER_S_PER_SPEED, an assumption) and staying there. `scale` is the limiter's percent of the full excursion and `speed_cap` its speed ceiling (1000 is full): both
+    shrink the motion, as the unit's limiter does."""
+    rows = KEYFRAMES.get(name)
+    if not rows:
+        return (0.0, 0.0)
     k = max(0, scale) / 100.0
-    s = 0.3 + 0.7 * min(1.0, max(0, speed_cap) / 1000.0)
-    t = t_ms / 1000.0 * s
-    if name == "happy":
-        return (18 * k * math.sin(t * 5.0), 14 * k * math.sin(t * 10.0))
-    if name == "robot":
-        step = int(t * 2.2) % 4
-        return ((0, 40 * k, 0, -40 * k)[step], (0, 0, 20 * k, 0)[step])
-    if name == "panic":
-        return (35 * k * math.sin(t * 16.0), 10 * k * math.sin(t * 9.0))
-    if name == "look_around":
-        return (60 * k * math.sin(t * 1.2), 8 * k * math.sin(t * 0.6))
-    return (0.0, 0.0)
+    cap = 0.3 + 0.7 * min(1.0, max(0, speed_cap) / 1000.0)
+    yaw = pitch = 0.0
+    t = float(t_ms)
+    for r in rows:
+        ty, tp = r[0] / 10.0, r[2] / 10.0
+        dy, dp = ty - yaw, tp - pitch
+        need = max(abs(dy) / max(1.0, r[1] * DEG_PER_S_PER_SPEED * cap), abs(dp) / max(1.0, r[3] * DEG_PER_S_PER_SPEED * cap)) * 1000.0
+        done = 1.0 if need <= 0 else min(1.0, min(t, r[4]) / need)
+        yaw, pitch = yaw + dy * done, pitch + dp * done
+        if t < r[4]:
+            break
+        t -= r[4]
+    return (yaw * k, pitch * k)

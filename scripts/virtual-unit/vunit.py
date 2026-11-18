@@ -30,7 +30,7 @@ ALIASES = {"doubtful": "doubt"}
 # when you simulate one, add it here and the suite tells you to drop its gap entry.
 SIMULATED = {"self.face.bench_emotion", "self.face.bench_speak", "self.face.snapshot", "self.screen.bench_touch",
              "self.robot.get_head_angles", "self.robot.set_head_angles", "self.robot.set_led_colors", "self.battery.get_status", "self.battery.simulate"}
-SIMULATED |= set(_tools.REGISTRY)
+SIMULATED |= {n for n in _tools.REGISTRY if not n.startswith("sim.")}   # sim.* are controls of the rig, not firmware tools (sim.music, dance_sim.py)
 YAW_RANGE, PITCH_RANGE, KEEP = (-128, 128), (3, 87), -9999  # the servo limits in hal_servo.cpp (the maker advises 5 to 85)
 MOVES_PER_MINUTE = 40  # patch 038
 JSON_TYPES = {"string": str, "integer": int, "boolean": bool}
@@ -63,6 +63,8 @@ class VirtualUnit:
         self.move_start_ms = 0
         self.move_ms = 0
         self.move_times: list[int] = []
+        self.tickers: list = []  # called with the fake clock after every slice of at most 66 ms (two renderer frames) of advance (the music dance, patch MD01, dance_sim.py)
+        self._dance = None
         self.leds = [(0, 0, 0)] * 12
         self.battery = {"percent": 75, "charging": False}
         self._proc: subprocess.Popen | None = None
@@ -105,8 +107,46 @@ class VirtualUnit:
         self._send(command)
         self.log.append({"at_ms": self.now_ms, "name": "renderer", "args": {"command": command}, "ok": True, "result": {}})
 
+    @property
+    def dance(self):
+        """The music dance and keyframe dance simulation (dance_sim.py), made on first use."""
+        if self._dance is None:
+            import dance_sim
+
+            self._dance = dance_sim.DanceSim(self)
+        return self._dance
+
+    def move_head(self, yaw: float, pitch: float, speed: int) -> None:
+        """A head move the unit's own modifiers make (stackchan.motion().moveWithSpeed): no 40 a minute tool limit (patch 038 guards the tool), the limiter's excursion and speed cap still apply."""
+        lim = _tools.REGISTRY["self.motion.status"](self, {})
+        if lim["state"] == "carried":
+            return
+        cur = self.head()
+        yaw1 = max(YAW_RANGE[0], min(YAW_RANGE[1], yaw))
+        pitch1 = max(PITCH_RANGE[0], min(PITCH_RANGE[1], pitch))
+        if lim["scale"] < 100:
+            yaw1, pitch1 = yaw1 * lim["scale"] / 100, pitch1 * lim["scale"] / 100
+        speed = max(1, min(lim["speed_cap"] or 1000, 1000, int(speed)))
+        self.yaw0, self.pitch0, self.yaw1, self.pitch1 = cur["yaw"], cur["pitch"], yaw1, pitch1
+        self.move_start_ms = self.now_ms
+        self.move_ms = int(1000 * max(abs(yaw1 - cur["yaw"]), abs(pitch1 - cur["pitch"])) / (speed * 0.4)) if speed else 0
+
     def advance(self, ms: int) -> None:
-        """Move the fake clock; the face animates for that long."""
+        """Move the fake clock; the face animates for that long. With tickers (the music dance) the time goes in slices of at most 66 ms and each ticker runs after every slice."""
+        if self.tickers and ms > 66:
+            left = ms
+            while left > 0:
+                step = min(66, left)
+                self._advance(step)
+                for t in list(self.tickers):
+                    t(self.now_ms)
+                left -= step
+            return
+        self._advance(ms)
+        for t in list(self.tickers):
+            t(self.now_ms)
+
+    def _advance(self, ms: int) -> None:
         end = self.now_ms + ms
         if self._speak_until and self._speak_until <= end:
             self._send(f"advance {max(0, self._speak_until - self.now_ms)}")
@@ -181,6 +221,8 @@ class VirtualUnit:
     def _call(self, name: str, args: dict | None = None) -> dict:
         args = args or {}
         self.calls.append((name, dict(args)))
+        if name.startswith("sim.") and name in _tools.REGISTRY:   # virtual only controls of the rig (not firmware tools): sim.music
+            return _tools.REGISTRY[name](self, args)
         if name not in self.tool_names:
             return {"isError": True, "text": f"unknown tool {name}: it is not in schema/tools.json"}
         for key, value in args.items():

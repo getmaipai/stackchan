@@ -152,13 +152,18 @@ def reaction_test(u,args):
 
 @tool("self.robot.dance")
 def dance(u,args):
-    name=args.get("name","happy"); valid=("happy","robot","panic","look_around","sway","nod_yes","shake_no","wiggle","bow","groove")
+    name=args.get("name","happy"); valid=("happy","robot","panic","look_around","bob","sway","nod_yes","shake_no","wiggle","bow","groove")
     if name not in valid: return {"ok":False}
     if name in ("sway","nod_yes","shake_no","wiggle","bow","groove"):
         return {"ok":False,"error":"dance extras are unavailable in this build"}
     if _motion(u)["state"]=="carried" or _motion(u)["battery_band"] in ("minimal","hold"):
         return {"ok":False,"error":"movement is limited: put the unit upright and charge the battery"}
-    _state(u)["dance"]=name; return {"ok":True}
+    sim=getattr(u,"dance",None)   # the music dance simulation (dance_sim.py); a bare test unit has none
+    if name=="bob":   # patch MD01: the nod on the beat, step 2 of the ladder, until the dance is stopped
+        return {"ok":bool(sim and sim.bob())}
+    _state(u)["dance"]=name
+    if sim: sim.keyframe_start(name)
+    return {"ok":True}
 
 
 @tool("self.robot.dance_list")
@@ -166,7 +171,10 @@ def dance_list(u,args): return {"builtin":["happy","robot","panic","look_around"
 
 
 @tool("self.robot.stop_dance")
-def stop_dance(u,args): _state(u)["dance"]=""; return {"ok":True}
+def stop_dance(u,args):
+    _state(u)["dance"]=""
+    if getattr(u,"_dance",None) is not None: u.dance.stop(); u.dance.kf=None   # patch MD01: also ends the beat dance (eyes ahead, head level, ring dark)
+    return {"ok":True}
 
 
 @tool("self.robot.get_events")
@@ -205,3 +213,18 @@ def bench_set_head(u, args):
             return out
     head = u.head()
     return {"ok": True, "yaw": head["yaw"], "pitch": head["pitch"], "read_back": True}
+
+
+@tool("sim.music")
+def sim_music(u,args):
+    """Virtual only (not a firmware tool): start, stop or change the simulated song of the music dance. action start|stop|song|status; song slow|fast|loud_peak|quiet|fades; mode home|unit; max_stage 1 to 4."""
+    action=args.get("action","status"); d=u.dance
+    if action=="start":
+        d.start(args.get("song"),args.get("mode"),int(args.get("max_stage",4))); return {"ok":True,**d.status()}
+    if action=="stop":
+        d.stop(); return {"ok":True}
+    if action=="song":
+        try: d.song(args.get("song","fast"))
+        except ValueError as e: return {"ok":False,"error":str(e)}
+        return {"ok":True}
+    return {"ok":True,**d.status()}

@@ -170,6 +170,10 @@ def listen_test(u, args):
 @tool("self.music.get_status")
 def music_status(u, args):
     s = _state(u)
+    if getattr(u, "_dance", None) is not None:
+        d = u._dance.status()
+        return {"ok": True, "enabled": s["music_enabled"], "state": "dancing" if d["running"] else "idle", "bpm": d["bpm"], "beat_ms": 60000 // d["bpm"] if d["bpm"] else 0,
+                "dances": 0, "dropped": 0, "suppressed": 0, "link": d["mode"] == "home", "stage": s["stage"]}
     return {"ok": True, "enabled": s["music_enabled"], "state": "idle", "bpm": 0, "beat_ms": 0,
             "dances": 0, "dropped": 0, "suppressed": 0, "link": False, "stage": s["stage"]}
 
@@ -199,8 +203,12 @@ def music_stage(u, args):
     if s["privacy"]["muted"] or s["privacy"]["quiet"]:
         s["stage"] = 0
         return {"ok": False, "stage": 0, "beat": False}
-    s["stage"] = stage
-    return {"ok": True, "stage": stage, "beat": False}
+    sim = getattr(u, "dance", None)
+    if sim is None:   # a bare test unit: only the stored step
+        s["stage"] = stage
+        return {"ok": True, "stage": stage, "beat": False}
+    got = sim._set_stage(stage)   # patch MD01: the beat dance plays this step, on the simulated song's beat
+    return {"ok": True, "stage": got, "beat": sim.beat(u.now_ms) is not None}
 
 
 @tool("self.power.keep_awake")
