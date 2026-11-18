@@ -1,0 +1,241 @@
+# Intent: The More screen at finger size (owner review 2026-11-18, docs/design/screen-style.md), made together with SF69 (the project name and the affiliation notice on the version page: SF69 alone overflows the page by 42 px, docs/dev/version-page-fit.md). The screen sits under the 28 px status bar with a 56 px header (the title and a 72 by 48 Back or Done target); below it a scrolling column holds the page: every button is 56 px high, the text is the 16 and 20 px Noto fonts (the 14 px Montserrat is gone), the version page scrolls with the affiliation notice as its last row, and a thin scroll bar shows there is more. SF69's strings are unchanged. Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_more.cc (ours)
+# Check after a flash: More shows a header with the title and Done, then one big button per row (Time zone, Version, Games, Lock, Quick settings) that scrolls; Version shows MaiPai for StackChan, the six detail lines and, after scrolling down, the notice as the last row; Back returns to the menu.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+index 2c02760..9d55c65 100644
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -11,6 +11,7 @@
+ #include "maipai_screens.h"
+ #include "maipai_lock.h"
+ #include "maipai_pages_core.h"
++#include "maipai_ui_style.h"
+ #include "maipai_face.h"
+ #include "hal.h"
+ #include <lvgl.h>
+@@ -38,6 +39,7 @@ namespace {
+ enum Page { PAGE_MENU = 0, PAGE_TZ, PAGE_NET, PAGE_VERSION, PAGE_GAMES };
+ 
+ lv_obj_t* s_root     = nullptr;
++lv_obj_t* s_list     = nullptr;  // patch UX13b: the scrolling list under the fixed 56 px header
+ #if CONFIG_MAIPAI_GAMES
+ lv_obj_t* s_game_note = nullptr;
+ #endif
+@@ -91,8 +93,8 @@ lv_obj_t* button(lv_obj_t* parent, const char* text, int width_pct, Click on_cli
+ {
+     lv_obj_t* b = lv_button_create(parent);
+     lv_obj_set_width(b, LV_PCT(width_pct));
+-    lv_obj_set_height(b, 44);  // patch UI01: every touch target is at least 44 px high, with the 20 px font
+-    lv_obj_t* l = label(b, text, &lv_font_montserrat_20);
++    lv_obj_set_height(b, 56);  // patch UX13b: a finger-size target, 56 px (7 mm), with the 20 px font
++    lv_obj_t* l = label(b, text, maipai_ui_style::big_font());
+     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+     lv_obj_center(l);
+     lv_obj_add_event_cb(b, on_click, LV_EVENT_CLICKED, user);
+@@ -112,6 +114,23 @@ void clear_page()
+         s_timer = nullptr;
+     }
+     lv_obj_clean(s_root);
++    s_list = lv_obj_create(s_root);   // patch UX13b: a scrolling column under the 56 px header; each page fills it, a thin scroll bar shows there is more
++    lv_obj_remove_style_all(s_list);
++    lv_obj_set_pos(s_list, 0, 60);
++    lv_obj_set_size(s_list, 320, 152);
++    lv_obj_set_style_pad_left(s_list, 8, 0);
++    lv_obj_set_style_pad_right(s_list, 14, 0);
++    lv_obj_set_style_pad_bottom(s_list, 8, 0);
++    lv_obj_set_style_pad_row(s_list, 8, 0);
++    lv_obj_set_style_pad_column(s_list, 8, 0);
++    lv_obj_add_flag(s_list, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_scroll_dir(s_list, LV_DIR_VER);
++    lv_obj_set_scrollbar_mode(s_list, LV_SCROLLBAR_MODE_AUTO);
++    lv_obj_set_style_bg_color(s_list, lv_color_hex(0x8C96AA), LV_PART_SCROLLBAR);
++    lv_obj_set_style_bg_opa(s_list, LV_OPA_COVER, LV_PART_SCROLLBAR);
++    lv_obj_set_style_width(s_list, 4, LV_PART_SCROLLBAR);
++    lv_obj_set_flex_flow(s_list, LV_FLEX_FLOW_ROW_WRAP);
++    lv_obj_set_flex_align(s_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+ #if CONFIG_MAIPAI_GAMES
+     s_game_note = nullptr;
+ #endif
+@@ -181,22 +200,22 @@ void build_tz()
+     if (s_zone < 0) {
+         s_zone = mz_default_index();
+     }
+-    lv_obj_t* prev = button(s_root, "<", 22, on_tz_prev);
++    lv_obj_t* prev = button(s_list, "<", 22, on_tz_prev);
+     new_row(prev);
+-    s_zone_lbl = label(s_root, "", &lv_font_montserrat_20);
++    s_zone_lbl = label(s_list, "", maipai_ui_style::big_font());
+     lv_obj_set_width(s_zone_lbl, LV_PCT(48));
+     lv_obj_set_style_text_align(s_zone_lbl, LV_TEXT_ALIGN_CENTER, 0);
+-    button(s_root, ">", 22, on_tz_next);
+-    s_time_lbl = label(s_root, "", &lv_font_montserrat_16);
++    button(s_list, ">", 22, on_tz_next);
++    s_time_lbl = label(s_list, "", maipai_ui_style::small_font());
+     lv_obj_set_width(s_time_lbl, LV_PCT(100));
+     lv_label_set_long_mode(s_time_lbl, LV_LABEL_LONG_WRAP);
+     lv_obj_set_style_text_align(s_time_lbl, LV_TEXT_ALIGN_CENTER, 0);
+     new_row(s_time_lbl);
+-    s_note_lbl = label(s_root, "", &lv_font_montserrat_16);
++    s_note_lbl = label(s_list, "", maipai_ui_style::small_font());
+     lv_obj_set_width(s_note_lbl, LV_PCT(100));
+     lv_obj_set_style_text_align(s_note_lbl, LV_TEXT_ALIGN_CENTER, 0);
+     new_row(s_note_lbl);
+-    lv_obj_t* save = button(s_root, tx("Save", "Guardar"), 100, on_tz_save);
++    lv_obj_t* save = button(s_list, tx("Save", "Guardar"), 100, on_tz_save);
+     new_row(save);
+     tz_refresh();
+     s_timer = lv_timer_create(tz_tick, 1000, nullptr);
+@@ -209,7 +228,7 @@ void on_net_again(lv_event_t*) { show(PAGE_NET); }
+ 
+ void build_net()
+ {
+-    lv_obj_t* again = button(s_root, tx("Test again", "Probar otra vez"), 100, on_net_again);
++    lv_obj_t* again = button(s_list, tx("Test again", "Probar otra vez"), 100, on_net_again);
+     net_fill();
+ }
+ 
+@@ -222,18 +241,18 @@ void net_fill()
+     for (int i = 0; i < MN_STEPS; i++) {
+         char line[MN_LINE + 8];
+         snprintf(line, sizeof(line), "%s%s", marks[r.state[i]], r.line[i]);
+-        lv_obj_t* l = label(s_root, line, &lv_font_montserrat_14);
++        lv_obj_t* l = label(s_list, line, maipai_ui_style::small_font());
+         lv_obj_set_width(l, LV_PCT(100));
+         lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+         new_row(l);
+     }
+     char sum[64];
+     mn_summary(&r, lang, sum, sizeof(sum));
+-    lv_obj_t* s = label(s_root, sum, &lv_font_montserrat_16);
++    lv_obj_t* s = label(s_list, sum, maipai_ui_style::small_font());
+     lv_obj_set_width(s, LV_PCT(100));
+     new_row(s);
+     if (r.fix[0] != '\0') {
+-        lv_obj_t* f = label(s_root, r.fix, &lv_font_montserrat_14);
++        lv_obj_t* f = label(s_list, r.fix, maipai_ui_style::small_font());
+         lv_obj_set_width(f, LV_PCT(100));
+         lv_label_set_long_mode(f, LV_LABEL_LONG_WRAP);
+         new_row(f);
+@@ -264,17 +283,17 @@ void ver_tick(lv_timer_t*) { ver_refresh(); }
+ 
+ void build_version()
+ {
+-    s_ver_lbl = label(s_root, "", &lv_font_montserrat_20);
++    s_ver_lbl = label(s_list, "", maipai_ui_style::big_font());
+     lv_obj_set_width(s_ver_lbl, LV_PCT(100));
+     lv_obj_set_style_text_align(s_ver_lbl, LV_TEXT_ALIGN_CENTER, 0);
+     new_row(s_ver_lbl);
+     for (int i = 0; i < MV_LINES; i++) {
+-        s_ver_rows[i] = label(s_root, "", &lv_font_montserrat_14);
++        s_ver_rows[i] = label(s_list, "", maipai_ui_style::small_font());
+         lv_obj_set_width(s_ver_rows[i], LV_PCT(100));
+         lv_label_set_long_mode(s_ver_rows[i], LV_LABEL_LONG_WRAP);
+         new_row(s_ver_rows[i]);
+     }
+-    lv_obj_t* notice = label(s_root, MV_NOTICE, &lv_font_montserrat_14);  // patch SF69: the short affiliation notice
++    lv_obj_t* notice = label(s_list, MV_NOTICE, maipai_ui_style::small_font());  // patch SF69: the short affiliation notice
+     lv_obj_set_width(notice, LV_PCT(100));
+     lv_label_set_long_mode(notice, LV_LABEL_LONG_WRAP);
+     lv_obj_set_style_text_color(notice, lv_color_hex(0x9AA3B2), 0);
+@@ -325,18 +344,18 @@ void build_games()
+             continue;
+         }
+         if (more) {
+-            lv_obj_t* b = button(s_root, tx("More games", "Más juegos"), 48, on_games_more);
++            lv_obj_t* b = button(s_list, tx("More games", "Más juegos"), 48, on_games_more);
+             if (slot % 2 == 0) {
+                 new_row(b);
+             }
+             continue;
+         }
+-        lv_obj_t* b = button(s_root, maipai_games_title(i, s_es), 48, on_game, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
++        lv_obj_t* b = button(s_list, maipai_games_title(i, s_es), 48, on_game, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+         if (slot % 2 == 0) {
+             new_row(b);
+         }
+     }
+-    s_game_note = label(s_root, "", &lv_font_montserrat_14);
++    s_game_note = label(s_list, "", maipai_ui_style::small_font());
+     lv_obj_set_width(s_game_note, LV_PCT(100));
+     lv_label_set_long_mode(s_game_note, LV_LABEL_LONG_WRAP);
+     new_row(s_game_note);
+@@ -349,24 +368,24 @@ void build_menu()
+ #if CONFIG_MAIPAI_TZ
+     // Patch SF57 (owner decision 22): the host sets the zone when one is paired; the picker is for a unit with no host.
+     if (maipai_tz_picker_allowed()) {
+-        button(s_root, tx("Time zone", "Zona horaria"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_TZ)));
++        button(s_list, tx("Time zone", "Zona horaria"), 100, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_TZ)));
+     }
+ #endif
+     // Patch SF57 (owner decision 22): the network test is the host's. The unit keeps self.network.test for the host to call; no button here.
+ #if CONFIG_MAIPAI_VERSION
+-    button(s_root, tx("Version", "Versión"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_VERSION)));
++    button(s_list, tx("Version", "Versión"), 100, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_VERSION)));
+ #endif
+ #if CONFIG_MAIPAI_GAMES
+-    button(s_root, tx("Games", "Juegos"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_GAMES)));
++    button(s_list, tx("Games", "Juegos"), 100, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_GAMES)));
+ #endif
+     const bool lockable = maipai_lock_has_code();  // patch LK03: Lock sits beside Quick settings while a code is set
+     if (lockable) {
+-        button(s_root, tx("Lock", "Bloquear"), 48, on_lock);
++        button(s_list, tx("Lock", "Bloquear"), 100, on_lock);
+     }
+-    button(s_root, tx("Quick settings", "Ajustes rápidos"), lockable ? 48 : 100, on_open_quick);
++    button(s_list, tx("Quick settings", "Ajustes rápidos"), 100, on_open_quick);
+ }
+ 
+-// The fixed top of every page (patch UI01): the grabber handle, the page title and a 44 px target at the top right (Back on a
++// The fixed top of every page (patch UI01, UX13b): the grabber handle, the page title and a 44 px target at the top right (Back on a
+ // sub page, Done on the menu), all outside the flex flow. A swipe down on the screen does the same as the target.
+ void chrome(int page)
+ {
+@@ -376,18 +395,18 @@ void chrome(int page)
+     lv_obj_add_flag(grab, LV_OBJ_FLAG_IGNORE_LAYOUT);
+     lv_obj_remove_flag(grab, LV_OBJ_FLAG_CLICKABLE);
+     lv_obj_set_size(grab, 48, 5);
+-    lv_obj_set_pos(grab, 136, 3);
++    lv_obj_set_pos(grab, 136, 1);
+     lv_obj_set_style_radius(grab, 3, 0);
+     lv_obj_set_style_border_width(grab, 0, 0);
+     lv_obj_set_style_bg_color(grab, lv_color_hex(0xB0B0B0), 0);
+     lv_obj_set_style_bg_opa(grab, LV_OPA_COVER, 0);
+-    lv_obj_t* t = label(s_root, s_es ? titles_es[page] : titles_en[page], &lv_font_montserrat_20);
++    lv_obj_t* t = label(s_root, s_es ? titles_es[page] : titles_en[page], maipai_ui_style::big_font());
+     lv_obj_add_flag(t, LV_OBJ_FLAG_IGNORE_LAYOUT);
+-    lv_obj_set_pos(t, 10, 16);
++    lv_obj_set_pos(t, 10, 17);
+     lv_obj_t* b = button(s_root, page == PAGE_MENU ? tx("Done", "Listo") : tx("Back", "Atrás"), 0, page == PAGE_MENU ? on_close : on_back_menu);
+     lv_obj_add_flag(b, LV_OBJ_FLAG_IGNORE_LAYOUT);
+-    lv_obj_set_size(b, 108, 44);
+-    lv_obj_set_pos(b, 204, 8);
++    lv_obj_set_size(b, 72, 48);
++    lv_obj_set_pos(b, 240, 4);
+ }
+ 
+ void on_screen_gesture(lv_event_t*)
+@@ -442,18 +461,14 @@ void maipai_more_open()
+     }
+     s_es = maipai_face_config().lang == MF_LANG_ES;
+     s_root = lv_obj_create(lv_layer_top());
+-    lv_obj_set_size(s_root, lv_pct(100), lv_pct(100));
++    lv_obj_set_pos(s_root, 0, 28);   // patch UX13b: under the 28 px status bar
++    lv_obj_set_size(s_root, 320, 212);
+     lv_obj_set_style_bg_color(s_root, lv_color_black(), 0);
+     lv_obj_set_style_bg_opa(s_root, LV_OPA_COVER, 0);
+     lv_obj_set_style_border_width(s_root, 0, 0);
+     lv_obj_set_style_radius(s_root, 0, 0);
+-    lv_obj_set_style_pad_all(s_root, 8, 0);
+-    lv_obj_set_style_pad_top(s_root, 58, 0);  // the fixed top (grabber, title, Back or Done) takes the first 56 px
+-    lv_obj_set_style_pad_row(s_root, 6, 0);
+-    lv_obj_set_style_pad_column(s_root, 6, 0);
++    lv_obj_set_style_pad_all(s_root, 0, 0);   // the header and the list place themselves
+     lv_obj_remove_flag(s_root, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_set_flex_flow(s_root, LV_FLEX_FLOW_ROW_WRAP);
+-    lv_obj_set_flex_align(s_root, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+     lv_obj_add_event_cb(s_root, on_screen_gesture, LV_EVENT_GESTURE, nullptr);
+     show(PAGE_MENU);
+ }

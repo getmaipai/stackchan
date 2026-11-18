@@ -2,6 +2,9 @@
  "es-apps-wall": {
   "fails": 4
  },
+ "es-more-menu": {
+  "fails": 0
+ },
  "es-page-actions": {
   "fails": 0
  },
@@ -31,6 +34,15 @@
  },
  "first-run-next": {
   "fails": 2
+ },
+ "more-games": {
+  "fails": 0
+ },
+ "more-menu": {
+  "fails": 0
+ },
+ "more-version": {
+  "fails": 0
  },
  "screen-apps-wall": {
   "fails": 4

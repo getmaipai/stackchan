@@ -1,0 +1,48 @@
+# Intent: The unit's version page names the project, MaiPai for StackChan, at the top (the version stays as the first detail line, where it was already shown) and ends with the short notice "Independent project. Not affiliated with or endorsed by M5Stack or the original StackChan creators." (owner policy of 2026-11-18, docs/plan/trademark-and-affiliation.md). Both strings are the ones in docs/legal/affiliation.json; a host test keeps them equal.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: More, Version shows MaiPai for StackChan on top, the six detail lines, and the notice in gray at the bottom, all readable without scrolling (if the notice does not fit, shorten the detail lines, not the notice).
+# Kconfig: none
+# Memory cost: one more label (about 200 bytes of LVGL memory) while the version page is open; nothing otherwise.
+
+diff --git a/firmware/main/hal/maipai_version_core.h b/firmware/main/hal/maipai_version_core.h
+--- a/firmware/main/hal/maipai_version_core.h
++++ b/firmware/main/hal/maipai_version_core.h
+@@ -124,6 +124,11 @@ static inline int mv_bytes_word(uint32_t bytes, char* out, size_t cap)
+     return snprintf(out, cap, "%u KB", (unsigned)((bytes + 512u) / 1024u));
+ }
+ 
++/* Patch SF69 (owner policy 2026-11-18, docs/plan/trademark-and-affiliation.md): the project's name and the short notice on the version page. The strings are the
++ * ones in docs/legal/affiliation.json ("project" and "short"); a host test keeps them equal. */
++#define MV_PROJECT "MaiPai for StackChan"
++#define MV_NOTICE "Independent project. Not affiliated with or endorsed by M5Stack or the original StackChan creators."
++
+ #define MV_LINES 6
+ #define MV_LINE 80
+ 
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -249,9 +249,7 @@ void ver_refresh()
+     }
+     mv_info_t info;
+     maipai_version_read(&info);
+-    char first[64];
+-    snprintf(first, sizeof(first), "%s", info.version[0] != '\0' ? info.version : "unknown");
+-    lv_label_set_text(s_ver_lbl, first);
++    lv_label_set_text(s_ver_lbl, MV_PROJECT);  // patch SF69: the project's name on top (the version is the first detail line)
+     char rows[MV_LINES][MV_LINE];
+     mv_detail_lines(&info, rows);
+     for (int i = 0; i < MV_LINES; i++) {
+@@ -276,6 +274,11 @@ void build_version()
+         lv_label_set_long_mode(s_ver_rows[i], LV_LABEL_LONG_WRAP);
+         new_row(s_ver_rows[i]);
+     }
++    lv_obj_t* notice = label(s_root, MV_NOTICE, &lv_font_montserrat_14);  // patch SF69: the short affiliation notice
++    lv_obj_set_width(notice, LV_PCT(100));
++    lv_label_set_long_mode(notice, LV_LABEL_LONG_WRAP);
++    lv_obj_set_style_text_color(notice, lv_color_hex(0x9AA3B2), 0);
++    new_row(notice);
+     ver_refresh();
+     s_timer = lv_timer_create(ver_tick, 1000, nullptr);
+ }

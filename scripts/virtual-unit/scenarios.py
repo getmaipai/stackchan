@@ -70,6 +70,13 @@ SCREENS: dict[str, list] = {
     "host-away-notice-de": BAR + [("raw", "bstatus 80 0 1 0 1"), ("hostaway", "de"), ("advance", 250)],
     "host-away-notice-pt": BAR + [("raw", "bstatus 80 0 1 0 1"), ("hostaway", "pt"), ("advance", 250)],
     "host-away-notice-it": BAR + [("raw", "bstatus 80 0 1 0 1"), ("hostaway", "it"), ("advance", 250)],
+    # The More screen (patches U03 to U05, SF69, UX13b): the menu, the version page with the affiliation notice (top, then scrolled to the last row), the games page, in English and Spanish.
+    "more-menu": [("raw", "more open"), ("advance", 500)],
+    "more-version": [("raw", "more open"), ("advance", 400), ("raw", "pclick 160 176"), ("advance", 600)],
+    "more-version-end": [("raw", "more open"), ("advance", 400), ("raw", "pclick 160 176"), ("advance", 400), ("raw", "pscrollby 160 140 9999"), ("advance", 300)],
+    "more-games": [("raw", "more open"), ("advance", 400), ("raw", "pscrollby 160 140 70"), ("advance", 200), ("raw", "pclick 160 170"), ("advance", 600)],
+    "es-more-menu": [("raw", "more lang es"), ("raw", "more open"), ("advance", 500)],
+    "es-more-version-end": [("raw", "more lang es"), ("raw", "more open"), ("advance", 400), ("raw", "pclick 160 176"), ("advance", 400), ("raw", "pscrollby 160 140 9999"), ("advance", 300)],
     "first-run-1": [("raw", "frun step 0 0 -1"), ("advance", 400)],
     "first-run-2": [("raw", "frun step 1 0 -1"), ("advance", 400)],
     "first-run-4": [("raw", "frun step 3 0 -1"), ("advance", 400)],
@@ -221,6 +228,8 @@ def png_pixels(png: bytes) -> bytes:
 def layout_problems(u, name: str) -> list[str]:
     """Layout rules every face must keep (panel 320x240): lit pixels stay on the panel and keep a 4 px edge margin; eyes stay in the upper 60 percent."""
     bad = []
+    if name.startswith(("more-", "es-more-")):   # a scrolling list runs to the bottom edge by design: the screen audit checks these screens
+        return bad
     whole = u.count(0, 0, 320, 240)
     if name not in ("face-sleeping",) and whole["lit"] == 0:
         bad.append("blank screen")
