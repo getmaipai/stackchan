@@ -12,7 +12,7 @@ Placement: host (app track). Goal: a second connected unit gets its own touch, r
 
 ## Design
 1. `UnitBehaviors` registry: `for_unit(id)` returns the primary behavior for the first unit, else a lazily built second instance created with `vision_bridge=None`, `watch_level="off"`, shared hooks copied by reference, and its own `event_poll`.
-2. A trimmed loop `unit_loop` for extra units runs idle render, `wake_on_touch`, `reaction_tick`, `orientation_tick`, `rest_step` and `face_watchdog` (the same methods, no search or tracking).
+2. A trimmed loop for extra units runs `wake_on_touch` and `reaction_tick` first (built, step 2); idle render, `orientation_tick`, `rest_step` and `face_watchdog` follow in steps 3 and 4. A unit's event queue is read once, by the other-unit poll, which hands the events to the unit's behavior (`UnitBehaviors.feed`), so no event is lost to a second reader. The loop runs each unit inside `ACTIVE_UNIT`, so its faces and tools go to it.
 3. Built on unit connect (`voice.session_listeners`), stopped on disconnect; one failure never touches another unit (`_warn_limited` is per instance).
 
 ## Migration order (each step green and pushed)
@@ -23,3 +23,6 @@ Unit: two `StackChanBehavior` instances with fake robots and event queues; event
 
 ## Size
 Steps 2 to 4 are about a day; step 5 is one service at a time (half a day each, five services); step 6 is half a day. Steps 5 and 6 can go to a cloud session once step 4 lands.
+
+## Status
+Step 2 built 2026-11-18: `unit_behaviors.py`, `test_unit_behaviors.py` (6 tests), fleet scenario `fleet_touch` (a stroke on unit 1, then unit 2: only that unit shows the heart); `second_unit`, `fleet_2`, `fleet_10`, `fleet_unit_state` and `chaos_cut_connection` stay green. Known gap: spoken reactions on extra units (the host speaks reactions only with one unit connected) and a rest that needs the per-unit turn state before it can run (step 4).
