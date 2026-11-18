@@ -15,6 +15,10 @@ Privacy keeps your data in your home. Security keeps other people out. This page
 
 *The web security page listing paired devices, with a Forget button next to each. A placeholder drawing, not a real screenshot.*
 
+## Who can open the settings page
+
+The settings page listens only on the host computer (127.0.0.1) until you turn on `lan = true`. Then it listens on your network, and every device other than the host computer must show the settings token, which `stackchan settings-token` prints. A wrong token is refused, and ten wrong tries in a minute lock the login for everyone. The host refuses a page that reaches it through a proxy or under another name. The host will not start the page on your network without a token.
+
 ## No stealth
 
 The robot never monitors in secret. Every listening, looking or watching mode shows on its screen. See [The robot never monitors in secret](no-stealth.md).

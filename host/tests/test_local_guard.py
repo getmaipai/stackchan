@@ -140,3 +140,16 @@ def test_the_size_cap_follows_the_path_not_the_query(sim):
         assert status == 413
     finally:
         server.stop()
+
+
+def test_the_settings_server_refuses_to_listen_beyond_this_computer_without_a_token(tmp_path):
+    import pytest
+
+    from maipai_body.local_guard import SettingsAuth
+    from maipai_body.settings_server import SettingsServer
+
+    with pytest.raises(ValueError, match="settings token"):
+        SettingsServer(object(), "0.0.0.0", 0, auth=None)
+    server = SettingsServer(object(), "0.0.0.0", 0, auth=SettingsAuth(tmp_path / "token"))
+    server.server_close()
+    SettingsServer(object(), "127.0.0.1", 0, auth=None).server_close()

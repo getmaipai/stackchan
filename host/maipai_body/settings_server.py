@@ -167,6 +167,9 @@ class SettingsServer(ThreadingHTTPServer):
         port: int = 8051,
         auth: local_guard.SettingsAuth | None = None,
     ) -> None:
+        if auth is None and host not in LOOPBACK:
+            # A page that listens beyond this computer must ask for the settings token; refuse the combination so a later change cannot open it.
+            raise ValueError("The settings page cannot listen beyond this computer without a settings token. Pass a SettingsAuth, or bind to 127.0.0.1.")
         super().__init__((host, port), _Handler)
         self.backend = backend
         self.auth = auth  # None: loopback only, no login
