@@ -1,0 +1,487 @@
+# Intent: Safety fix, train 8. The millisecond-stamp helper reads a passed deadline as not pending at any later time (deadlines are at most one hour ahead). Lock tool lockouts double each time and are kept in flash across a restart. The servo lock moves into the servo layer so every caller shares it. The picture-face probe hands its buffer over cleanly. The private-network setup tool refuses on a locked unit. Restart timer is created once.
+# Placement: unit
+# Upstream: firmware/main/hal, firmware/main/stackchan/motion (ours)
+# Check after a flash: wrong lock codes sent to the tools lock them for 60 s, then 120 s; the lock keeps its strikes after a restart; dances and head moves show no stutter.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_time_core.h b/firmware/main/hal/maipai_time_core.h
+--- a/firmware/main/hal/maipai_time_core.h
++++ b/firmware/main/hal/maipai_time_core.h
+@@ -1,14 +1,11 @@
+ /*
+  * SPDX-License-Identifier: MIT
+  *
+- * One way to compare 32-bit millisecond stamps (patch SF01). Plain C99, no clock of its own.
+- *
+- * Rules for 32-bit millisecond stamps: a stamp that starts at 0 and is compared with a signed difference is wrong once
+- * the unit has run for 2^31 ms. Use these helpers instead:
+- *   - A stamp of 0 means "not armed". mt_stamp() never returns 0, so a real deadline is never mistaken for it.
+- *   - mt_pending() is true only for an armed stamp that has not been reached.
+- *   - Elapsed time is always an unsigned difference (mt_elapsed), which stays right for 49.7 days of staleness.
+- *   - A stamp that has been reached is cleared by mt_pending_clear() wherever the state can change.
++ * One way to compare 32-bit millisecond stamps (patch SF01, hardened by SF08). Plain C99, no clock of its own.
++ * A stamp of 0 means "not armed". A deadline is armed by mt_stamp() (never 0, never more than MT_MAX_AHEAD_MS ahead) and is
++ * pending only while it lies 1 to MT_MAX_AHEAD_MS ahead of now. A deadline that has passed is therefore not pending again
++ * 2^31 ms later; only the last MT_MAX_AHEAD_MS before the counter itself wraps (49.7 days after the stamp) could read it as
++ * pending, and mt_pending_clear() disarms a stamp at the first read after it passes. Elapsed time uses an unsigned difference.
+  * Host test: host/tests/firmware/safety_core_test.c.
+  */
+ #ifndef MAIPAI_TIME_CORE_H
+@@ -17,11 +14,12 @@
+ #include <stdint.h>
+ 
+ #define MT_HALF 0x80000000u
++#define MT_MAX_AHEAD_MS 3600000u /* the longest deadline any caller sets: one hour */
+ 
+ /* A deadline `delay` ms after `now`; never 0. */
+ static inline uint32_t mt_stamp(uint32_t now, uint32_t delay)
+ {
+-    const uint32_t t = now + delay;
++    const uint32_t t = now + (delay > MT_MAX_AHEAD_MS ? MT_MAX_AHEAD_MS : delay);
+     return t == 0u ? 1u : t;
+ }
+ 
+@@ -32,13 +30,13 @@ static inline uint32_t mt_elapsed(uint32_t now, uint32_t then) { return (uint32_
+ static inline int mt_reached(uint32_t now, uint32_t at) { return (uint32_t)(now - at) < MT_HALF; }
+ 
+ /* True while an armed deadline has not been reached. */
+-static inline int mt_pending(uint32_t now, uint32_t at) { return at != 0u && !mt_reached(now, at); }
++static inline int mt_pending(uint32_t now, uint32_t at) { return at != 0u && (uint32_t)(at - now - 1u) < MT_MAX_AHEAD_MS; }
+ 
+ /* mt_pending that also disarms the stamp once it has been reached, so it does not read as pending after a wrap. */
+ static inline int mt_pending_clear(uint32_t now, uint32_t* at)
+ {
+     if (*at == 0u) return 0;
+-    if (mt_reached(now, *at)) {
++    if (!mt_pending(now, *at)) {
+         *at = 0u;
+         return 0;
+     }
+diff --git a/firmware/main/hal/maipai_lock_core.h b/firmware/main/hal/maipai_lock_core.h
+--- a/firmware/main/hal/maipai_lock_core.h
++++ b/firmware/main/hal/maipai_lock_core.h
+@@ -178,6 +178,7 @@ typedef struct {
+     char digits[LK_CODE_MAX + 1];
+     uint32_t block_until_ms; /* keys are ignored until then (LK_WRONG_DELAY_MS after a wrong code) */
+     uint8_t wrong_shown;     /* the last full entry was wrong: the dots are red until the next key */
++    uint8_t tool_strikes;    /* lockouts so far: each one is twice as long as the one before (kept in flash by the caller) */
+     uint8_t tool_fails;      /* wrong current codes sent to the tools since the last good one (patch SF01) */
+     uint32_t tool_block_until_ms; /* the tools refuse until then; 0 = not blocked */
+ } mlk_t;
+@@ -345,14 +346,24 @@ static inline void mlk_tool_note(mlk_t* s, uint32_t now, int reason)
+ {
+     if (reason == MLK_R_WRONG_CURRENT) {
+         if (++s->tool_fails >= LK_TOOL_MAX_FAILS) {
++            const unsigned shift = s->tool_strikes < 6 ? s->tool_strikes : 6u; /* 60 s, 2, 4 ... up to the one hour that mt_stamp allows */
+             s->tool_fails = 0;
+-            s->tool_block_until_ms = mt_stamp(now, LK_TOOL_LOCKOUT_MS);
++            if (s->tool_strikes < 250) s->tool_strikes++;
++            s->tool_block_until_ms = mt_stamp(now, (uint32_t)LK_TOOL_LOCKOUT_MS << shift);
+         }
+     } else if (reason == MLK_R_OK) {
+         s->tool_fails = 0;
++        s->tool_strikes = 0;
+     }
+ }
+ 
++/* The strikes saved before a restart: a restart does not give the tools a fresh start. One more wrong code then locks them again. */
++static inline void mlk_tool_restore(mlk_t* s, int strikes)
++{
++    s->tool_strikes = (uint8_t)(strikes < 0 ? 0 : (strikes > 250 ? 250 : strikes));
++    s->tool_fails = s->tool_strikes > 0 ? (uint8_t)(LK_TOOL_MAX_FAILS - 1) : 0;
++}
++
+ /* ---- the idle timer ---- */
+ static inline void mlk_activity(mlk_t* s, uint32_t now)
+ {
+diff --git a/firmware/main/hal/maipai_lock.cc b/firmware/main/hal/maipai_lock.cc
+--- a/firmware/main/hal/maipai_lock.cc
++++ b/firmware/main/hal/maipai_lock.cc
+@@ -75,7 +75,7 @@ void publish_flags()  // s_mu held
+ void persist()
+ {
+     std::string salt, hash;
+-    int locked, auto_min;
++    int locked, auto_min, strikes;
+     bool has;
+     {
+         std::lock_guard<std::mutex> lock(s_mu);
+@@ -86,9 +86,10 @@ void persist()
+         hash = hh;
+         locked = s_st.locked;
+         auto_min = s_st.auto_min;
++        strikes = s_st.tool_strikes;
+         has = s_st.has_code;
+     }
+-    Application::GetInstance().Schedule([salt, hash, locked, auto_min, has]() {
++    Application::GetInstance().Schedule([salt, hash, locked, auto_min, strikes, has]() {
+         Settings st("mp_lock", true);
+         if (has) {
+             st.SetString("salt", salt);
+@@ -98,6 +99,7 @@ void persist()
+         }
+         st.SetInt("locked", locked);
+         st.SetInt("auto", auto_min);
++        st.SetInt("tstrikes", strikes);
+     });
+ }
+ 
+@@ -319,6 +321,7 @@ void maipai_lock_boot()
+     {
+         std::lock_guard<std::mutex> lock(s_mu);
+         mlk_load(&s_st, salt.c_str(), hash.c_str(), st.GetInt("locked", 0), st.GetInt("auto", 0), now_ms());
++        if (s_st.has_code) mlk_tool_restore(&s_st, st.GetInt("tstrikes", 0));
+         publish_flags();
+     }
+     s_act_ms.store(now_ms());
+@@ -399,6 +402,7 @@ void maipai_lock_register_tools()
+                         persist();
+                         announce("tool");
+                     }
++                    if (r == MLK_R_WRONG_CURRENT) persist();  // the strikes survive a restart
+                     return reply(r);
+                 });
+     mcp.AddUserOnlyTool("self.lock.clear",
+@@ -419,6 +423,7 @@ void maipai_lock_register_tools()
+                         persist();
+                         announce("tool");
+                     }
++                    if (r == MLK_R_WRONG_CURRENT) persist();  // the strikes survive a restart
+                     return reply(r);
+                 });
+     mcp.AddTool("self.lock.now", "Lock the unit now. Answers {ok} or {ok:false, reason:no_code}.", PropertyList(),
+@@ -463,7 +468,10 @@ void maipai_lock_register_tools()
+                         mlk_tool_note(&s_st, t, r);
+                         if (r == MLK_R_OK) publish_flags();
+                     }
+-                    if (r != MLK_R_OK) return reply(r);
++                    if (r != MLK_R_OK) {
++                        if (r == MLK_R_WRONG_CURRENT) persist();
++                        return reply(r);
++                    }
+                     persist();
+                     char out[64];
+                     snprintf(out, sizeof(out), "{\"ok\":true,\"auto_minutes\":%d}", minutes);
+diff --git a/firmware/main/hal/maipai_picface.cc b/firmware/main/hal/maipai_picface.cc
+--- a/firmware/main/hal/maipai_picface.cc
++++ b/firmware/main/hal/maipai_picface.cc
+@@ -112,7 +112,7 @@ std::atomic<bool> s_showing{false};
+ std::atomic<bool> s_bench_ignore_privacy{false};  // bench builds only: look at the pictures on a muted unit
+ SemaphoreHandle_t s_probe_sem = nullptr;
+ std::atomic<bool> s_probe_ok{false};
+-uint8_t* s_probe_buf = nullptr;
++std::atomic<uint8_t*> s_probe_buf{nullptr};  // written by the commit task and the worker
+ std::atomic<uint8_t> s_probe_state{0};  // patch SF02: 0 the worker is probing, 1 it finished, 2 the caller gave up and left the buffer to it
+ 
+ uint32_t now_ms()
+@@ -212,11 +212,12 @@ void worker_task(void*)
+         const uint32_t gen = s_req_gen.load();
+         if (key == -2) {
+             // Commit proves every frame opens before it is promised (the decoder needs more stack than the tool task has).
+-            bool all = s_probe_buf != nullptr;
++            uint8_t* const probe = s_probe_buf.load();
++            bool all = probe != nullptr;
+             xSemaphoreTake(s_mu, portMAX_DELAY);
+             for (int s = 0; s < PF_SLOTS && all && s_pack != nullptr; s++) {
+                 for (int i = 0; i < s_pack->plan.frames[s] && all; i++) {
+-                    all = decode_frame(s_pack->fr[s][i], s_probe_buf);
++                    all = decode_frame(s_pack->fr[s][i], probe);
+                 }
+             }
+             xSemaphoreGive(s_mu);
+@@ -225,8 +226,8 @@ void worker_task(void*)
+             if (s_probe_state.compare_exchange_strong(expected, 1)) {
+                 xSemaphoreGive(s_probe_sem);
+             } else {  // the caller timed out and left the buffer to this task: free it here
+-                heap_caps_free(s_probe_buf);
+-                s_probe_buf = nullptr;
++                heap_caps_free(probe);
++                s_probe_buf.store(nullptr);
+             }
+             continue;
+         }
+@@ -616,13 +617,16 @@ static std::string commit_pack()
+         }
+     }
+     // Prove every frame opens before it is promised: a pack that cannot be decoded is refused now.
+-    if (s_probe_buf != nullptr) {  // an earlier probe that timed out is still decoding into its buffer
++    if (s_probe_buf.load() != nullptr) {  // an earlier probe that timed out is still decoding into its buffer
+         return error_json(PF_ERR_MEMORY);
+     }
+-    s_probe_buf = static_cast<uint8_t*>(heap_caps_malloc(PF_FRAME_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+-    if (s_probe_buf == nullptr) {
++    uint8_t* probe_buf = static_cast<uint8_t*>(heap_caps_malloc(PF_FRAME_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (probe_buf == nullptr) {
+         return error_json(PF_ERR_MEMORY);
+     }
++    s_probe_buf.store(probe_buf);
++    while (xSemaphoreTake(s_probe_sem, 0) == pdTRUE) {
++    }  // no token left over from an earlier probe
+     s_probe_state.store(0);
+     s_req_key.store(-2);
+     xTaskNotifyGive(s_worker);
+@@ -630,12 +634,14 @@ static std::string commit_pack()
+     if (!arrived) {
+         uint8_t expected = 0;
+         if (s_probe_state.compare_exchange_strong(expected, 2)) {
++            s_req_key.store(-1);
+             return error_json(PF_ERR_DECODE);  // the worker still owns the buffer and frees it when it ends
+         }
+-        arrived = xSemaphoreTake(s_probe_sem, 0) == pdTRUE;  // it finished just now
++        // The worker finished just now: it gives the token right after it sets the state, so this wait is short.
++        arrived = xSemaphoreTake(s_probe_sem, pdMS_TO_TICKS(1000)) == pdTRUE;
+     }
+-    heap_caps_free(s_probe_buf);
+-    s_probe_buf = nullptr;
++    heap_caps_free(probe_buf);
++    s_probe_buf.store(nullptr);
+     s_req_key.store(-1);
+     if (!arrived || !s_probe_ok.load()) {
+         return error_json(PF_ERR_DECODE);
+diff --git a/firmware/main/hal/maipai_tailnet.cc b/firmware/main/hal/maipai_tailnet.cc
+--- a/firmware/main/hal/maipai_tailnet.cc
++++ b/firmware/main/hal/maipai_tailnet.cc
+@@ -9,6 +9,7 @@
+  * its node identity to flash while it starts, and it deletes itself the moment the client is up. After that a
+  * two-second timer does the small jobs (stable mark, forget the key, memory line).
+  */
++#include "maipai_lock.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_tailnet_core.h"
+ #include "device_events.h"
+@@ -527,6 +528,9 @@ void maipai_tailnet_register_tools()
+                 "\"no_hub_address\"|\"bad_minutes\"}.",
+                 PropertyList({Property("minutes", kPropertyTypeInteger, 5, 0, MT_PREFER_MAX_MIN)}),
+                 [](const PropertyList& properties) -> ReturnValue {
++                    if (maipai_lock_locked()) {  // patch SF08: a locked unit keeps its network setup
++                        return std::string("{\"ok\":false,\"error\":\"locked\"}");
++                    }
+                     if (!maipai_tailnet_compiled()) {
+                         return std::string("{\"ok\":false,\"error\":\"not_compiled\"}");
+                     }
+diff --git a/firmware/main/hal/maipai_heal.cc b/firmware/main/hal/maipai_heal.cc
+--- a/firmware/main/hal/maipai_heal.cc
++++ b/firmware/main/hal/maipai_heal.cc
+@@ -216,14 +216,17 @@ void restart_task(void* arg)
+     snprintf(extra, sizeof(extra), "\"action\":\"restart\",\"why\":\"%s\",\"n\":%d", request->why, count + 1);
+     device_events_push("heal", extra);
+     vTaskDelay(pdMS_TO_TICKS(300));  // the log line and the event leave first
+-    // Patch SF03: the restart must happen even when the saved count cannot be written (a stuck lock or flash). A timer restarts the
++    // Patch SF04: the restart must happen even when the saved count cannot be written (a stuck lock or flash). A timer restarts the
+     // unit after 5 s whatever this task is waiting for, and the lock is only tried, never waited for.
+     static esp_timer_handle_t hard_restart = nullptr;
+     esp_timer_create_args_t hard_args = {};
+     hard_args.callback = [](void*) { esp_restart(); };
+     hard_args.name = "heal_hard";
+-    if (esp_timer_create(&hard_args, &hard_restart) == ESP_OK) {
+-        esp_timer_start_once(hard_restart, 5ULL * 1000 * 1000);
++    if (hard_restart == nullptr && esp_timer_create(&hard_args, &hard_restart) != ESP_OK) {
++        hard_restart = nullptr;
++    }
++    if (hard_restart != nullptr) {
++        esp_timer_start_once(hard_restart, 5ULL * 1000 * 1000);  // the unit restarts now whatever the flash does; the saved count is power-fail safe
+     }
+     bool got_lock = false;
+     for (int i = 0; i < 20 && !got_lock; i++) {
+diff --git a/firmware/main/stackchan/motion/servo.cpp b/firmware/main/stackchan/motion/servo.cpp
+--- a/firmware/main/stackchan/motion/servo.cpp
++++ b/firmware/main/stackchan/motion/servo.cpp
+@@ -9,6 +9,7 @@
+ #include <hal/maipai_pickup.h>
+ #include <hal/maipai_motion_limit.h>
+ #include <cmath>
++#include <mutex>
+ 
+ using namespace uitk;
+ 
+@@ -29,8 +30,15 @@ static SpringOptions_t _default_spring_options = {
+     .visualDuration = 0.0,
+ };
+ 
++namespace {
++// Patch SF08: the two servos share one bus, and their commands come from several tasks. Every command and the update
++// take this one lock (recursive: the update calls the commands). It is never held while waiting for another lock.
++std::recursive_mutex s_servo_mutex;
++}  // namespace
++
+ void Servo::init()
+ {
++    std::lock_guard<std::recursive_mutex> servo_lock(s_servo_mutex);
+     apply_default_spring_options();
+ 
+     _angle_anim.teleport(getCurrentAngle());
+@@ -41,6 +49,7 @@ void Servo::init()
+ 
+ void Servo::update()
+ {
++    std::lock_guard<std::recursive_mutex> servo_lock(s_servo_mutex);
+     // Keep update in at most 50Hz
+     if (GetHAL().millis() - _last_tick < 20) {
+         return;
+@@ -81,12 +90,14 @@ void Servo::update()
+ 
+ void Servo::move(int angle)
+ {
++    std::lock_guard<std::recursive_mutex> servo_lock(s_servo_mutex);
+     apply_default_spring_options();
+     update_angle_anim_target(angle);
+ }
+ 
+ void Servo::moveWithSpringParams(int angle, float stiffness, float damping)
+ {
++    std::lock_guard<std::recursive_mutex> servo_lock(s_servo_mutex);
+     const float capped = maipai_motion_stiffness(stiffness);  // patch ML01: the spring (the acceleration) is capped under a limit
+     if (capped < stiffness) {
+         stiffness = capped;
+@@ -102,6 +113,7 @@ void Servo::moveWithSpringParams(int angle, float stiffness, float damping)
+ 
+ void Servo::moveWithSpeed(int angle, int speed)
+ {
++    std::lock_guard<std::recursive_mutex> servo_lock(s_servo_mutex);
+     speed = maipai_motion_speed(speed);  // patch ML01
+     auto spring_options = map_speed_to_spring_options(speed);
+     moveWithSpringParams(angle, spring_options.stiffness, spring_options.damping);
+diff --git a/firmware/main/stackchan/motion/motion.cpp b/firmware/main/stackchan/motion/motion.cpp
+--- a/firmware/main/stackchan/motion/motion.cpp
++++ b/firmware/main/stackchan/motion/motion.cpp
+@@ -18,7 +18,6 @@ void Motion::init()
+ 
+ void Motion::update()
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->update();
+     _pitch_servo->update();
+     maipai_motion_note_pitch(_pitch_servo->commandedAngle());  // patch ML01: the orientation reading is taken relative to the head's pitch
+@@ -36,59 +35,50 @@ Servo& Motion::pitchServo()
+ 
+ void Motion::moveYaw(int angle)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->move(angle);
+ }
+ 
+ void Motion::moveYawWithSpeed(int angle, int speed)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->moveWithSpeed(angle, speed);
+ }
+ 
+ void Motion::movePitch(int angle)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _pitch_servo->move(angle);
+ }
+ 
+ void Motion::movePitchWithSpeed(int angle, int speed)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _pitch_servo->moveWithSpeed(angle, speed);
+ }
+ 
+ void Motion::move(int yawAngle, int pitchAngle)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->move(yawAngle);
+     _pitch_servo->move(pitchAngle);
+ }
+ 
+ void Motion::moveWithSpeed(int yawAngle, int pitchAngle, int speed)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->moveWithSpeed(yawAngle, speed);
+     _pitch_servo->moveWithSpeed(pitchAngle, speed);
+ }
+ 
+ void Motion::goHome(int speed)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->moveWithSpeed(0, speed);
+     _pitch_servo->moveWithSpeed(0, speed);
+ }
+ 
+ void Motion::stop()
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->move(_yaw_servo->getCurrentAngle());
+     _pitch_servo->move(_pitch_servo->getCurrentAngle());
+ }
+ 
+ void Motion::lookAtNormalized(float x, float y, int speed)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     auto angles = calculateNormalizedLookAngles(
+         x, y, _yaw_servo->getAngleLimit().x, _yaw_servo->getAngleLimit().y, _pitch_servo->getAngleLimit().x, _pitch_servo->getAngleLimit().y);
+     moveWithSpeed(angles.yaw, angles.pitch, speed);
+@@ -96,52 +86,44 @@ void Motion::lookAtNormalized(float x, float y, int speed)
+ 
+ void Motion::lookAtPoint(float x, float y, float z, int speed)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     auto angles = calculatePointLookAngles(x, y, z);
+     moveWithSpeed(angles.yaw, angles.pitch, speed);
+ }
+ 
+ bool Motion::isMoving()
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     return _yaw_servo->isMoving() || _pitch_servo->isMoving();
+ }
+ 
+ int Motion::getCurrentYawAngle()
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     return _yaw_servo->getCurrentAngle();
+ }
+ 
+ int Motion::getCurrentPitchAngle()
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     return _pitch_servo->getCurrentAngle();
+ }
+ 
+ uitk::Vector2i Motion::getCurrentAngles()
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     return uitk::Vector2i(_yaw_servo->getCurrentAngle(), _pitch_servo->getCurrentAngle());
+ }
+ 
+ void Motion::setTorqueEnabled(bool enabled)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->setTorqueEnabled(enabled);
+     _pitch_servo->setTorqueEnabled(enabled);
+ }
+ 
+ void Motion::setAutoTorqueReleaseEnabled(bool enabled)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->setAutoTorqueReleaseEnabled(enabled);
+     _pitch_servo->setAutoTorqueReleaseEnabled(enabled);
+ }
+ 
+ void Motion::setAutoAngleSyncEnabled(bool enabled)
+ {
+-    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->setAutoAngleSyncEnabled(enabled);
+     _pitch_servo->setAutoAngleSyncEnabled(enabled);
+ }
+diff --git a/firmware/main/stackchan/motion/motion.h b/firmware/main/stackchan/motion/motion.h
+--- a/firmware/main/stackchan/motion/motion.h
++++ b/firmware/main/stackchan/motion/motion.h
+@@ -8,7 +8,6 @@
+ #include <smooth_ui_toolkit.hpp>
+ #include <uitk/short_namespace.hpp>
+ #include <memory>
+-#include <mutex>
+ 
+ namespace stackchan::motion {
+ 
+@@ -164,8 +163,6 @@ private:
+     std::unique_ptr<Servo> _yaw_servo;
+     std::unique_ptr<Servo> _pitch_servo;
+     bool _is_modify_locked = false;
+-    // Patch SF03: the servo update (its own task) and the commands from other tasks never run at the same moment.
+-    std::recursive_mutex _body_mu;
+ };
+ 
+ }  // namespace stackchan::motion

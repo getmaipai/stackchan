@@ -1,4 +1,4 @@
-# Intent: A listening turn is no longer cut 8 s after it began. The state guard now returns Listening to Idle after 8 s with no voice (counted from the entry or from the last voice heard) and never later than 60 s after the entry (pure rule in maipai_listen_guard_core.h). A long first sentence after the wake word is heard to its end.
+# Intent: The listening guard follows voice. Listening returns to Idle after 8 s with no voice (counted from the entry or from the last voice heard) and never later than 60 s after the entry (pure rule in maipai_listen_guard_core.h).
 # Placement: unit (the listening state machine runs on the robot)
 # Upstream: firmware/xiaozhi-esp32/main/application.cc of the xiaozhi-esp32 tree (MIT)
 # Check after a flash: speak a sentence of 12 seconds after the wake word: the log shows no 'State guard returning listening to idle' until 8 seconds after the last word, and the reply starts; scripts/fw-voice-bench.py ROUNDS --gate passes.
@@ -55,7 +55,7 @@ new file mode 100644
 + * SPDX-License-Identifier: MIT
 + *
 + * When the state guard may return Listening to Idle (patch SF03). Plain C99. The old rule ended every listening state 8 s after it
-+ * began, which cut a long sentence in the middle and never told the host. The new rule: end it after follow_up_s seconds with no
++ * began. The new rule: end it after follow_up_s seconds with no
 + * voice (counted from the entry or from the last voice heard, whichever is later), and never later than cap_s seconds after the entry.
 + * Host test: host/tests/firmware/listen_guard_core_test.c.
 + */

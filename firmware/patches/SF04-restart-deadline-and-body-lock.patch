@@ -1,4 +1,4 @@
-# Intent: Safety fix, train 4. The self-restart now happens within 5 s even when the saved restart count is busy or the flash write stalls (the lock is only tried, and a one-shot timer restarts the unit). Servo commands from other tasks and the servo update no longer run at the same moment (one recursive lock inside Motion).
+# Intent: Safety fix, train 4. The self-restart finishes within 5 s whatever the flash is doing (the lock is only tried, and a one-shot timer restarts the unit). Servo commands and the servo update share one lock.
 # Placement: unit
 # Upstream: firmware/main/hal/maipai_heal.cc, firmware/main/stackchan/motion (ours, M5Stack base)
 # Check after a flash: the dance, head moves and look-at still run smoothly (no stutter from the new lock); self.heal restart test still restarts the unit.

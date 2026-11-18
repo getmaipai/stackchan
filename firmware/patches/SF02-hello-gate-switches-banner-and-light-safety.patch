@@ -1,4 +1,4 @@
-# Intent: Safety fix, train 2. Server hello is taken only as the answer to the unit's own hello; the receive buffer is parsed by length; device events that do not fit are replaced by a marker so the events reply stays valid JSON. Privacy switches: a tap turns one on, a hold turns it off, the press that stops an alarm or ends a game toggles nothing (owner default, docs/plan/OPEN-DECISIONS.md decision 3). The camera cue wakes the screen. The banner row and strip stay above pages, sheets and games. Preferences tool refuses on a locked unit and keeps one listening cue on. Wi-Fi network tools and the private-network setup tool are hidden from the model, and the Wi-Fi tools refuse on a locked unit. The thinking ring ends by itself, LED writes share one lock, and a game's light never paints over the listening ring. The picture-face commit probe and a game that nobody plays are bounded.
+# Intent: Safety fix, train 2. Server hello handling and length-checked parsing; device events that stay valid JSON; privacy switch gestures (a tap turns on, a hold turns off; the press that stops an alarm or ends a game toggles nothing); camera cue; banner layering; tool visibility; LED access; bounded probe and game limits.
 # Placement: unit
 # Upstream: firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc, websocket_protocol.h (nested tree); firmware/main/hal (ours)
 # Check after a flash: a tap on a muted unit's mouth does nothing and a hold turns mute off; tap a lit mouth region on an unmuted unit and mute turns on; the stop-alarm press leaves the switches alone; self.device.get_events returns valid JSON after a long privacy event; self.prefs.set turning off all three listening cues answers an error; the camera mark shows above a running game.
@@ -86,7 +86,7 @@ diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmw
              if (cJSON_IsString(type)) {
                  if (strcmp(type->valuestring, "hello") == 0) {
 -                    ParseServerHello(root);
-+                    // Only the answer to our own hello is taken; a later one is ignored (it could carry a new token).
++                    // Only the answer to our own hello is taken; a later one is ignored.
 +                    if (hello_expected_.exchange(false)) {
 +                        ParseServerHello(root);
 +                    } else {
@@ -208,7 +208,7 @@ diff --git a/firmware/main/hal/maipai_touch_core.h b/firmware/main/hal/maipai_to
  }
  
 +/* Owner default 2026-11-18 (docs/plan/OPEN-DECISIONS.md, decision 3): a tap turns a privacy switch ON; turning one OFF needs a hold
-+ * (500 ms or more, still, in the same place) or the quick settings sheet. The same silent tap can no longer undo what it just did. */
++ * (500 ms or more, still, in the same place) or the quick settings sheet. */
 +static inline int mtc_toggle_ok(mtc_kind_t kind, int switch_is_on)
 +{
 +    return (kind == MTC_KIND_TAP && !switch_is_on) || (kind == MTC_KIND_HOLD && switch_is_on);
@@ -224,7 +224,7 @@ diff --git a/firmware/main/hal/maipai_prefs_core.h b/firmware/main/hal/maipai_pr
      uint32_t set; /* bit i: the setting was chosen (it is saved in flash) */
  } mp_prefs_t;
  
-+/* Patch SF02: a person must always be able to see or hear that the unit is listening. 1 when sound, light and face are all off. */
++/* Patch SF02: at least one listening cue stays on. 1 when sound, light and face are all off. */
 +static inline int mp_all_cues_off(const mp_prefs_t* p)
 +{
 +    return p->v[MP_LISTEN_SOUND] == 0 && p->v[MP_LISTEN_LIGHT] == 0 && p->v[MP_LISTEN_FACE] == 0;
@@ -336,7 +336,7 @@ diff --git a/firmware/main/hal/maipai_listen.cc b/firmware/main/hal/maipai_liste
              else if (t < 3800) { st = TL_ST_SPEAK; since = static_cast<uint32_t>(t - 3000); }
              else { s_test.store(0); }
 +        } else if (s_thinking.load() && dev != kDeviceStateSpeaking && now - s_think_us.load() > 30LL * 1000 * 1000) {
-+            s_thinking.store(false);  // patch SF02: a lost "thinking end" cannot hold the ring on thinking for good
++            s_thinking.store(false);  // patch SF02: the thinking ring ends after 30 s
          } else if (s_thinking.load() && dev != kDeviceStateSpeaking) {
              st    = TL_ST_HEARD;
              since = static_cast<uint32_t>((now - s_think_us.load()) / 1000);
@@ -373,7 +373,7 @@ diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.
      if (s_light_off_ms != 0) {
          s_light_off_ms = 0;
 -        GetHAL().showRgbColor(0, 0, 0);
-+        if (!maipai_listen_ring_active()) {  // patch SF02: a game's light going out never darkens the listening ring
++        if (!maipai_listen_ring_active()) {  // patch SF02: the listening ring stays on
 +            GetHAL().showRgbColor(0, 0, 0);
 +        }
      }
@@ -384,7 +384,7 @@ diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.
  {
      static const uint8_t rgb[6][3] = {{0, 0, 0}, {0, 40, 160}, {0, 150, 40}, {170, 110, 0}, {170, 20, 10}, {110, 20, 150}};
 -    if (color < 0 || color > 5 || maipai_quiet()) {
-+    if (color < 0 || color > 5 || maipai_quiet() || maipai_listen_ring_active()) {  // patch SF02: the listening ring is never painted over
++    if (color < 0 || color > 5 || maipai_quiet() || maipai_listen_ring_active()) {  // patch SF02: the listening ring keeps its colour
          return;
      }
      GetHAL().showRgbColor(rgb[color][0], rgb[color][1], rgb[color][2]);

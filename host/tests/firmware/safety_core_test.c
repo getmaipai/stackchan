@@ -41,6 +41,18 @@ static void test_time(void)
     CHECK(mt_pending_clear(1010, &at) == 1 && at != 0);
     CHECK(mt_pending_clear(1100, &at) == 0 && at == 0); /* reached: disarmed so it cannot flip back */
     CHECK(mt_pending_clear(1100u + MT_HALF, &at) == 0);
+    at = mt_stamp(1000, 50);
+    CHECK(mt_pending_clear(1000u + MT_HALF, &at) == 0 && at == 0); /* read first at +2^31: disarmed, not pending */
+    /* a stamp that was armed and has passed is not pending again 2^31 ms later (a unit up for 25 days) */
+    {
+        const uint32_t armed = mt_stamp(5000, 1500);
+        CHECK(mt_pending(5100, armed));
+        CHECK(!mt_pending(armed + 10, armed));
+        CHECK(!mt_pending(armed + MT_HALF, armed));
+        CHECK(!mt_pending(armed + MT_HALF + 12345u, armed));
+        CHECK(!mt_pending(armed + 2u * MT_MAX_AHEAD_MS, armed));
+    }
+    CHECK(mt_stamp(10, 0xFFFFFFFFu) == 10u + MT_MAX_AHEAD_MS); /* a delay longer than the limit is clamped */
     uint32_t e = 0;
     mt_extend(10, &e, 50);
     CHECK(e == 50);
@@ -56,7 +68,7 @@ static void test_lock(void)
     mlk_t s;
     mlk_init(&s);
     CHECK(mlk_set(&s, "1234", NULL, salt) == MLK_R_OK);
-    /* F-3: the keypad on a unit that has run longer than 24.9 days takes digits. */
+    /* the keypad on a unit that has run longer than 24.9 days takes digits. */
     CHECK(mlk_lock_now(&s, LATE) == MLK_R_OK);
     mlk_screen_touch(&s, LATE);
     CHECK(mlk_key(&s, '1', LATE + 10) == MLK_EV_NONE);
@@ -65,7 +77,7 @@ static void test_lock(void)
     CHECK(mlk_key(&s, '4', LATE + 40) == MLK_EV_UNLOCK);
     CHECK(!s.locked);
 
-    /* F-5: five wrong current codes stop the tools for a minute; a good one in between resets the count. */
+    /* five wrong current codes stop the tools for a minute; a good one in between resets the count. */
     mlk_t t;
     mlk_init(&t);
     CHECK(mlk_set(&t, "1234", NULL, salt) == MLK_R_OK);
@@ -92,7 +104,28 @@ static void test_lock(void)
     CHECK(mlk_tool_open(&u, LATE + 1) == MLK_R_TOO_MANY);
     CHECK(mlk_tool_open(&u, LATE + LK_TOOL_LOCKOUT_MS + 1) == MLK_R_OK);
 
-    /* G-12: turning the auto lock off needs the code; a longer or shorter time does not. */
+    /* the lockouts grow: 60 s, then 120 s, and a restart keeps the strikes */
+    {
+        mlk_t k;
+        mlk_init(&k);
+        mlk_set(&k, "1234", NULL, salt);
+        uint32_t t0 = 1000;
+        for (int i = 0; i < LK_TOOL_MAX_FAILS; i++) mlk_tool_note(&k, t0, MLK_R_WRONG_CURRENT);
+        CHECK(mlk_tool_open(&k, t0 + 59000u) == MLK_R_TOO_MANY && mlk_tool_open(&k, t0 + 61000u) == MLK_R_OK);
+        t0 += 61000u;
+        for (int i = 0; i < LK_TOOL_MAX_FAILS; i++) mlk_tool_note(&k, t0, MLK_R_WRONG_CURRENT);
+        CHECK(mlk_tool_open(&k, t0 + 119000u) == MLK_R_TOO_MANY && mlk_tool_open(&k, t0 + 121000u) == MLK_R_OK);
+        CHECK(k.tool_strikes == 2);
+        mlk_t r;
+        mlk_init(&r);
+        mlk_set(&r, "1234", NULL, salt);
+        mlk_tool_restore(&r, 2); /* after a restart */
+        mlk_tool_note(&r, 500, MLK_R_WRONG_CURRENT);
+        CHECK(mlk_tool_open(&r, 600) == MLK_R_TOO_MANY); /* one wrong code is enough */
+        mlk_tool_note(&r, 9000000u, MLK_R_OK);
+        CHECK(r.tool_strikes == 0);
+    }
+    /* turning the auto lock off needs the code; a longer or shorter time does not. */
     mlk_t v;
     mlk_init(&v);
     mlk_set(&v, "1234", NULL, salt);
@@ -115,7 +148,7 @@ static mp_event_t still(mp_t* d, float theta, uint32_t now)
 
 static void test_pickup(void)
 {
-    /* G-2: an own-move hold, set while the unit has run past 24.9 days, ends. */
+    /* an own-move hold, set while the unit has run past 24.9 days, ends. */
     mp_t d;
     mp_init(&d);
     uint32_t now = LATE;
@@ -125,7 +158,7 @@ static void test_pickup(void)
     for (int i = 0; i < 100; i++, now += 20) still(&d, 0.0f, now); /* 2 s, hold is 1.5 s */
     CHECK(mt_pending(now, d.own_until) == 0);
 
-    /* F-1: lifted and tilted far while the unit moves its own head. */
+    /* lifted and tilted far while the unit moves its own head. */
     mp_init(&d);
     now = 5000;
     for (int i = 0; i < 400; i++, now += 20) still(&d, 0.0f, now); /* resting pose learned */
@@ -177,7 +210,7 @@ static void test_stamps_late(void)
 
 static void test_remote(void)
 {
-    /* G-5: a second heartbeat cannot swap the host id of a running session */
+    /* a second heartbeat cannot swap the host id of a running session */
     mr_t r;
     mr_init(&r);
     mr_session(&r, 1, "remote", 1000);

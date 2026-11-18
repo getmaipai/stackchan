@@ -1,4 +1,4 @@
-# Intent: Safety fix, train 1. One shared millisecond-stamp helper (maipai_time_core.h) and its uses: hold, quiet, grace and lockout windows that never ended after 24.9 days of uptime. Lock tools: an attempt limit, a current code to turn the auto lock off, and the three tools hidden from the model. Remote gate: the locked rule no longer depends on the caller's own source word, and a running session keeps its first host id. Pickup: a lift while the unit moves its own head is detected.
+# Intent: Safety fix, train 1. A shared millisecond-stamp helper (maipai_time_core.h) used by the timing windows; an attempt limit and a current-code rule for the lock tools, and the lock tools hidden from the model; the locked rule applied on tool calls; a host id kept for the whole session; lift detection while the unit moves.
 # Placement: unit
 # Upstream: firmware/main/hal (ours)
 # Check after a flash: self.lock.set with a wrong current five times answers too_many; self.lock.config auto_minutes 0 with no current answers current_needed; lifting the unit by hand and tilting it past 70 degrees while it dances stops the dance within about two seconds.
@@ -14,12 +14,12 @@ new file mode 100644
 + *
 + * One way to compare 32-bit millisecond stamps (patch SF01). Plain C99, no clock of its own.
 + *
-+ * The defect it removes: a stamp that starts at 0 and is compared with `(int32_t)(now - stamp) < 0` reads as "in the future" for good once
-+ * the unit has run 2^31 ms (24.9 days), so a grace, hold, quiet or lockout window never ends. The rules here:
++ * Rules for 32-bit millisecond stamps: a stamp that starts at 0 and is compared with a signed difference is wrong once
++ * the unit has run for 2^31 ms. Use these helpers instead:
 + *   - A stamp of 0 means "not armed". mt_stamp() never returns 0, so a real deadline is never mistaken for it.
 + *   - mt_pending() is true only for an armed stamp that has not been reached.
 + *   - Elapsed time is always an unsigned difference (mt_elapsed), which stays right for 49.7 days of staleness.
-+ *   - A stamp that has been reached is cleared by mt_expire() wherever the state can change, so it cannot look future again.
++ *   - A stamp that has been reached is cleared by mt_pending_clear() wherever the state can change.
 + * Host test: host/tests/firmware/safety_core_test.c.
 + */
 +#ifndef MAIPAI_TIME_CORE_H
@@ -39,13 +39,13 @@ new file mode 100644
 +/* ms since `then` (unsigned, wrap safe). */
 +static inline uint32_t mt_elapsed(uint32_t now, uint32_t then) { return (uint32_t)(now - then); }
 +
-+/* True when now is at or after `at` (valid while `at` is within 24.9 days of now). */
++/* True when now is at or after `at` (valid while `at` is within 2^31 ms of now). */
 +static inline int mt_reached(uint32_t now, uint32_t at) { return (uint32_t)(now - at) < MT_HALF; }
 +
 +/* True while an armed deadline has not been reached. */
 +static inline int mt_pending(uint32_t now, uint32_t at) { return at != 0u && !mt_reached(now, at); }
 +
-+/* mt_pending that also disarms the stamp once it has been reached, so it cannot flip back after a wrap. */
++/* mt_pending that also disarms the stamp once it has been reached, so it does not read as pending after a wrap. */
 +static inline int mt_pending_clear(uint32_t now, uint32_t* at)
 +{
 +    if (*at == 0u) return 0;
@@ -100,8 +100,8 @@ diff --git a/firmware/main/hal/maipai_lock_core.h b/firmware/main/hal/maipai_loc
      return MLK_R_OK;
  }
  
-+/* Turning the auto lock off needs the current code when one is set (patch SF01): without it, anyone at an unlocked unit
-+ * could stop it from ever locking itself. The on-unit picker keeps mlk_set_auto. */
++/* Turning the auto lock off needs the current code when one is set (patch SF01); setting a time does not.
++ * The on-unit picker keeps mlk_set_auto. */
 +static inline int mlk_set_auto_checked(mlk_t* s, int minutes, const char* current)
 +{
 +    if (s->locked) return MLK_R_LOCKED;
@@ -381,8 +381,8 @@ diff --git a/firmware/main/hal/maipai_remote_core.h b/firmware/main/hal/maipai_r
  static inline void mr_set_host(mr_t* r, uint32_t host_id)
  {
 -    if (host_id != 0) r->host_id = host_id;
-+    /* Patch SF01: the first id of a session stays. A later heartbeat cannot swap it, so a caller that joins a running
-+     * session cannot make its own id the one the second floor accepts. The id clears when the session ends (mr_session). */
++    /* Patch SF01: the host id of a session is set once and kept until the session ends (mr_session):
++     * a later heartbeat does not change it. */
 +    if (host_id != 0 && r->host_id == 0) r->host_id = host_id;
  }
  
@@ -480,8 +480,8 @@ diff --git a/firmware/main/hal/maipai_remote.h b/firmware/main/hal/maipai_remote
  // person-asked call and always passes. A "remote" call must carry the one-use token self.remote.action answered for this kind
  // (move, find, photo, dance, game, listen); with none, or a wrong one, it is ignored and logged. True when the call may go on.
 -bool maipai_remote_gate(const char* kind, const char* source, int token);
-+// from_tool (patch SF01): true when the call came in through a tool. A locked unit then refuses every kind but "find"
-+// whatever the call's own source says (the source is the caller's own word and proves nothing).
++// from_tool (patch SF01): true when the call came in through a tool. A locked unit then refuses every kind but "find",
++// whatever source the call names.
 +bool maipai_remote_gate(const char* kind, const char* source, int token, bool from_tool = false);
  // Patch FM03: a call with no source "remote" is also gated while a remote session is on, for the cued kinds (head beyond the safe
  // range, find, photo, dance, game, listen): it must carry the session's host id (or a cue token) as its token. The head move passes

@@ -29,7 +29,8 @@ def build_cores(work: Path) -> Path:
     for name in names:
         text = (PATCHES / name).read_text()
         diff = work / "p.diff"
-        diff.write_text(text[text.index("diff --git") :])
+        start = min(i for i in (text.find("diff --git"), text.find("\n--- ")) if i >= 0)
+        diff.write_text(text[start:].lstrip("\n"))
         run = subprocess.run(
             ["git", "apply", "--include=firmware/main/hal/*_core.h", str(diff)],
             cwd=work,
