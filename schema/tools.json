@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 156,
+ "count": 158,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -65,8 +65,10 @@
   "self.filler.status": "TB03-while-it-thinks-filler.patch",
   "self.firmware.update": "159-wireless-update-from-paired-host.patch",
   "self.game.bench_event": "UI13-games-v2-draw-inputs-and-page.patch",
+  "self.game.bench_frames": "SF75-bench-grid-frame-recorder.patch",
   "self.game.bench_gaps": "UI15-magic-8-ball-dice-and-gentle-shake.patch",
   "self.game.bench_install": "G02-game-player-and-tools.patch",
+  "self.game.bench_record": "SF75-bench-grid-frame-recorder.patch",
   "self.game.bench_request_stop": "G02-game-player-and-tools.patch",
   "self.game.bench_swipe": "UI13-games-v2-draw-inputs-and-page.patch",
   "self.game.bench_tap": "G02-game-player-and-tools.patch",
@@ -378,10 +380,14 @@
   "self.game.bench_event": {
    "event": "integer"
   },
+  "self.game.bench_frames": {},
   "self.game.bench_gaps": {},
   "self.game.bench_install": {
    "pack": "string",
    "done": "boolean"
+  },
+  "self.game.bench_record": {
+   "on": "integer"
   },
   "self.game.bench_request_stop": {},
   "self.game.bench_swipe": {
