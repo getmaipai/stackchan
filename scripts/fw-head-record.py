@@ -2,8 +2,9 @@
 """Record head moves on the unit for the physics calibration: send scripted steps through the tool path, sample the real servo angle against time, write a CSV.
 
 Bench builds only (the serial tool call of scripts/fw-serial.py). The unit must be upright on the table, powered, and its movement limiter free: on a cable the limiter
-halves every move, so the script checks `self.motion.status` first and stops with the way out (or lifts the USB limit for the run with --usb-limit-off and puts it
-back at the end).
+halves every move. The status text is not trusted (the unit says `free` while the USB limit still halves the head), so the script steps the head 60 degrees and measures how much
+of it the servo covers (a free head: 92 to 98 percent, limited: 43 to 48). If the reach is low it stops with the way out, or with --usb-limit-off sets the USB limit off
+explicitly (self.motion.set), proves it by the same reach test, and at the end puts back the value it found and proves that by the reach test too (exit 5 when it did not come back).
 
   fw-head-record.py OUT.csv                       both axes, the full move set (about 45 seconds)
   fw-head-record.py OUT.csv --axes pitch          one axis
@@ -102,17 +103,53 @@ class HttpLink:
         pass
 
 
-def check_limiter(link, allow_usb_limit_off: bool) -> str | None:
-    """None when moves will be unlimited, else the plain message. With --usb-limit-off the USB limit is lifted (returns "restore" to put it back)."""
+REACH_STEP = {"pitch": (10, 70), "yaw": (0, 60)}   # the test step of each axis: 60 degrees, inside the maker's range
+REACH_OK = 0.75   # a free head covers 92 to 98 percent of a large step; the USB limit halves it (43 to 48 percent on the unit)
+
+
+def reach_test(link, axis: str, clock, sleep, settle_s: float = 1.2, watch_s: float = 1.2) -> float:
+    """What the head really does: step the axis by 60 degrees and read how much of it the servo covers (0 to 1). The status text cannot be trusted for this: the unit says
+    `free` while the USB limit still halves the excursion, so the limit is judged by this behavior."""
+    lo, hi = REACH_STEP[axis]
+    link_move(link, axis, lo)
+    sleep(settle_s)
+    base = float(link.call("self.robot.get_head_angles").get(axis, lo))
+    link_move(link, axis, hi)
+    end = clock() + watch_s
+    peak = base
+    while clock() < end:
+        peak = max(peak, float(link.call("self.robot.get_head_angles").get(axis, base)))
+    link_move(link, axis, lo)
+    sleep(settle_s)
+    return max(0.0, (peak - base) / (hi - lo))
+
+
+def prepare_limiter(link, axis: str, allow_usb_limit_off: bool, clock, sleep, log) -> tuple[str | None, dict]:
+    """Make sure moves will be unlimited, by behavior. Returns (problem or None, what to restore: {"prior": value or None, "before": reach}).
+    The status text is shown for information only. With --usb-limit-off the USB limit is set off explicitly (self.motion.set usb_limit off) whatever the status says,
+    and the head's reach is measured again to prove it took."""
     status = link.call("self.motion.status")
-    state = status.get("state", "")
-    if state == "free":
-        return None
-    if state == "usb_limited" and allow_usb_limit_off:
-        link.call("self.motion.set", {"usb_limit": "off"})
-        return "restore"
-    return (f"The movement limiter is {state} ({status.get('reasons', 'no reason given')}), so every move would be shortened. "
-            "Put the unit upright and charged, take it off the cable, or on a cable run again with --usb-limit-off.")
+    log(f"movement limiter status (information only): state {status.get('state', '?')}, usb_limit {status.get('usb_limit', '?')}, scale {status.get('scale', '?')}")
+    before = reach_test(link, axis, clock, sleep)
+    log(f"reach test before: the {axis} covers {before * 100:.0f} percent of a 60 degree step")
+    held = {"prior": None, "before": before}
+    if before >= REACH_OK:
+        return None, held
+    if before < 0.1:   # the head did not move at all: that is not a limiter, and the recording's own check names it (idle, no follow)
+        log("the head did not move in the reach test; the recording will say whether it follows its commands")
+        return None, held
+    if not allow_usb_limit_off:
+        return (f"The head covers only {before * 100:.0f} percent of a 60 degree step, so a movement limiter is shortening every move (the status says {status.get('state', '?')}"
+                f"{': ' + str(status.get('reasons')) if status.get('reasons') else ''}). Take the unit off the cable, or run again with --usb-limit-off."), held
+    held["prior"] = status.get("usb_limit") if status.get("usb_limit") in ("limited", "off") else "limited"
+    link.call("self.motion.set", {"usb_limit": "off"})
+    after = reach_test(link, axis, clock, sleep)
+    log(f"reach test with the USB limit set off: the {axis} covers {after * 100:.0f} percent")
+    if after < REACH_OK:
+        link.call("self.motion.set", {"usb_limit": held["prior"]})
+        return (f"The USB limit was set off but the head still covers only {after * 100:.0f} percent of a 60 degree step, so something else limits it (battery, carried or tilted). "
+                "Put the unit upright and charged, then record again. The USB limit was put back."), held
+    return "restore", held
 
 
 def link_move(link, axis: str, angle: int) -> dict:
@@ -123,10 +160,11 @@ def link_move(link, axis: str, angle: int) -> dict:
 
 def record(link, axes: list[str], out: Path, usb_limit_off: bool = False, hold_s: float = HOLD_S, log=print, clock=time.perf_counter, sleep=time.sleep) -> int:
     moves = move_list(axes)
-    verdict = check_limiter(link, usb_limit_off)
+    verdict, held = prepare_limiter(link, "pitch" if "pitch" in axes else axes[0], usb_limit_off, clock, sleep, log)
     if verdict not in (None, "restore"):
         log(verdict)
         return 2
+    restore_failed = ""
     t0 = clock()
     rows: list[list] = []
     first_after_step: list[str] = []
@@ -165,7 +203,13 @@ def record(link, axes: list[str], out: Path, usb_limit_off: bool = False, hold_s
                     first_after_step.append(f"{mid:.0f} ms: {json.dumps(got)}")
     finally:
         if verdict == "restore":
-            link.call("self.motion.set", {"usb_limit": "limited"})
+            link.call("self.motion.set", {"usb_limit": held["prior"]})
+            restored = reach_test(link, "pitch" if "pitch" in axes else axes[0], clock, sleep)
+            log(f"reach test after the restore: {restored * 100:.0f} percent (before the run {held['before'] * 100:.0f})")
+            if abs(restored - held["before"]) > 0.2:
+                restore_failed = (f"The USB limit was set back to {held['prior']} but the head now covers {restored * 100:.0f} percent where it covered {held['before'] * 100:.0f} before the run. "
+                                  "The limit may not be restored: check the unit's movement limiter before leaving it.")
+                log(restore_failed)
         for axis in axes:
             link_move(link, axis, 10 if axis == "pitch" else 0)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -185,7 +229,7 @@ def record(link, axes: list[str], out: Path, usb_limit_off: bool = False, hold_s
             log(f"The {axis} reading stayed within {max(meas) - min(meas):.1f} degrees while it was commanded over {max(commands) - min(commands):.0f}: the head did not follow, so this recording cannot be fitted. "
                 "The unit ignores head moves while it is idle unless idle movement is on (the serial log says 'set_head_angles ignored: idle'); turn idle movement on or use the bench head command, then record again.")
             return 3
-    return 0
+    return 5 if restore_failed else 0
 
 
 def main(argv: list[str] | None = None) -> int:

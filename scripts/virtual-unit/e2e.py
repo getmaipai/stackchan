@@ -322,13 +322,14 @@ class Rig:
         await self.connect_unit()
 
     async def connect_unit(self) -> None:
-        self.fw = VuFirmware(f"ws://127.0.0.1:{self.xiaozhi_port}", self.token, self.vu, idle_timeout=0.5, backoff=(0.2, 1.0))
-        await self.fw.start()
-        await self.fw.wait_connected(30.0)
-        # the unit's second socket, the avatar channel: the host sends face frames and camera commands on it
+        # the unit's two sockets: the avatar channel (face frames and camera commands from the host) first, then the voice and tool socket, so the host's first face and camera
+        # calls after the unit connects have a channel to go to (a real unit opens both within the same second; the host retries the camera start if it loses the race)
         self.avatar = AvatarPeer(f"ws://127.0.0.1:{self.avatar_port}/stackChan/ws?deviceType=StackChan", DEVICE_ID, CLIENT_ID, self.token)
         await self.avatar.connect()
         self._avatar_task = asyncio.create_task(self._read_avatar())
+        self.fw = VuFirmware(f"ws://127.0.0.1:{self.xiaozhi_port}", self.token, self.vu, idle_timeout=0.5, backoff=(0.2, 1.0))
+        await self.fw.start()
+        await self.fw.wait_connected(30.0)
 
     async def _read_avatar(self) -> None:
         from maipai_body.bodies.stackchan.avatar_frames import decode_frame

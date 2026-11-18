@@ -11,7 +11,7 @@ minimize the squared angle error. It prints the parameters and, with --write, pu
 to measured with a note naming the recording. Pure Python (no numpy): a few hundred samples fit in seconds.
 With --measured-on DATE and --label NAME the written values are marked measured (the spec allows measured or assumed), their note starting "Fitted, measured on the unit" with the date and the recording's file name, and the whole fit is also kept under
 "fits" in the description (NAME is for example before_servo_fix or after_servo_fix), so two fits of the same unit can sit side by side.
-Usage: calibrate.py RECORDING.json [--robot stackchan] [--write] [--fit-friction] [--measured-on YYYY-MM-DD --label NAME]
+Usage: calibrate.py RECORDING.json [--robot stackchan] [--write] [--fit-friction] [--steps-per-s N] [--measured-on YYYY-MM-DD --label NAME]
 Placement: host-side development tool; no firmware change. Upstream: none."""
 
 from __future__ import annotations
@@ -54,11 +54,12 @@ def gravity_coefficient(desc: dict, joint: str) -> tuple[float, float]:
     return (0.0, -v("mass_head") * 9.81 * v("head_center_x"))
 
 
-def simulate(times_ms: list[int], cmd_deg: list[float], q0_deg: float, inertia: float, kp: float, kv: float, damping: float, torque: float, friction: float, gravity: tuple[float, float] | float = (0.0, 0.0), delay_ms: float = 0.0, speed_cap: float | None = None, accel_cap: float | None = None) -> list[float]:
+def simulate(times_ms: list[int], cmd_deg: list[float], q0_deg: float, inertia: float, kp: float, kv: float, damping: float, torque: float, friction: float, gravity: tuple[float, float] | float = (0.0, 0.0), delay_ms: float = 0.0, speed_cap: float | None = None, accel_cap: float | None = None, step_rate: float | None = None) -> list[float]:
     """Semi-implicit Euler at 0.5 ms steps; returns the angle in degrees at each sample time.
     The command is a staircase (it holds its value from the sample where it changed) and reaches the servo `delay_ms` after that sample (the cable and the tool call).
     The servo does not chase a step at once: its own setpoint follows the command at no more than `speed_cap` degrees a second and `accel_cap` degrees a second squared
-    (a trapezoid: it brakes in time to arrive), and the position loop tracks that setpoint. Without caps the setpoint is the command itself."""
+    (a trapezoid: it brakes in time to arrive), and the position loop tracks that setpoint. Without caps the setpoint is the command itself.
+    With `step_rate` (steps a second, measured on the unit: the animation moves the setpoint that often, 50 by design and about 28 on the unit) the setpoint is held between steps."""
     import bisect
 
     gs, gc = (gravity, 0.0) if isinstance(gravity, (int, float)) else gravity
@@ -67,6 +68,7 @@ def simulate(times_ms: list[int], cmd_deg: list[float], q0_deg: float, inertia: 
     out, dt = [], 0.0005
     stamps = [x / 1000.0 + delay_ms / 1000.0 for x in times_ms]
     ref, ref_v = q0_deg, 0.0  # the servo's own setpoint, degrees and degrees a second
+    next_step, applied = t, ref
     for tm in times_ms:
         while t < tm / 1000.0 - 1e-9:
             i = max(0, bisect.bisect_right(stamps, t + 1e-9) - 1)
@@ -78,7 +80,10 @@ def simulate(times_ms: list[int], cmd_deg: list[float], q0_deg: float, inertia: 
                 want = math.copysign(min(speed_cap, math.sqrt(2.0 * accel_cap * abs(err))), err) if err else 0.0
                 ref_v += max(-accel_cap * dt, min(accel_cap * dt, want - ref_v))
                 ref += ref_v * dt
-            target = math.radians(ref)
+            if step_rate is None or t >= next_step:   # the animation hands the servo its setpoint only this often; between steps the servo keeps the last one
+                applied = ref
+                next_step = t + (1.0 / step_rate if step_rate else 0.0)
+            target = math.radians(applied)
             u = max(-torque, min(torque, kp * (target - q) - kv * dq))
             fr = friction * (1 if dq > 0 else -1 if dq < 0 else 0)
             ddq = (u - damping * dq - fr + gs * math.sin(q) + gc * math.cos(q)) / inertia
@@ -89,12 +94,12 @@ def simulate(times_ms: list[int], cmd_deg: list[float], q0_deg: float, inertia: 
     return out
 
 
-def error(rec: dict, inertia: float, theta: list[float], friction: float, gravity: tuple[float, float] | float = (0.0, 0.0), delay_ms: float = 0.0) -> float:
+def error(rec: dict, inertia: float, theta: list[float], friction: float, gravity: tuple[float, float] | float = (0.0, 0.0), delay_ms: float = 0.0, step_rate: float | None = None) -> float:
     t = [s["t_ms"] for s in rec["samples"]]
     cmd = [s["cmd_deg"] for s in rec["samples"]]
     meas = [s["meas_deg"] for s in rec["samples"]]
     kp, kv, damping, torque, *caps = theta
-    sim = simulate(t, cmd, meas[0], inertia, kp, kv, damping, torque, friction, gravity, delay_ms, *(caps if len(caps) == 2 else (None, None)))
+    sim = simulate(t, cmd, meas[0], inertia, kp, kv, damping, torque, friction, gravity, delay_ms, *(caps if len(caps) == 2 else (None, None)), step_rate=step_rate)
     return sum((a - b) ** 2 for a, b in zip(sim, meas)) / len(meas)
 
 
@@ -113,7 +118,7 @@ def load_recording(path: Path) -> dict[str, dict]:
     return out
 
 
-def fit_joints(recs: dict[str, dict], desc: dict, seed: int = 1, rounds: int = 60) -> tuple[dict[str, float], float]:
+def fit_joints(recs: dict[str, dict], desc: dict, seed: int = 1, rounds: int = 60, step_rate: float | None = None) -> tuple[dict[str, float], float]:
     """One fit over every joint present: a gain, a velocity gain and the servo's own speed and acceleration caps per joint (the caps are separate from the gain: the
     position loop is stiff, but the servo walks its setpoint toward a step at a limited rate), and the damping, torque limit and command delay shared by all."""
     v = lambda k: mjcf.value(desc, k)  # noqa: E731
@@ -125,7 +130,7 @@ def fit_joints(recs: dict[str, dict], desc: dict, seed: int = 1, rounds: int = 6
 
     def total(th: list[float]) -> float:
         damping, torque, delay = th[-3], th[-2], th[-1]
-        return sum(error(recs[j], inertia[j], th[4 * i : 4 * i + 2] + [damping, torque, th[4 * i + 2], th[4 * i + 3]], friction, gravity_coefficient(desc, j), delay) for i, j in enumerate(joints)) / len(joints)
+        return sum(error(recs[j], inertia[j], th[4 * i : 4 * i + 2] + [damping, torque, th[4 * i + 2], th[4 * i + 3]], friction, gravity_coefficient(desc, j), delay, step_rate) for i, j in enumerate(joints)) / len(joints)
 
     rng, best, step = random.Random(seed), total(theta), 0.5
     for _ in range(rounds):
@@ -144,7 +149,7 @@ def fit_joints(recs: dict[str, dict], desc: dict, seed: int = 1, rounds: int = 6
     return dict(zip(names, theta)), best
 
 
-def quality(recs: dict[str, dict], desc: dict, fitted: dict[str, float]) -> dict[str, dict]:
+def quality(recs: dict[str, dict], desc: dict, fitted: dict[str, float], step_rate: float | None = None) -> dict[str, dict]:
     """How well the fitted servo reproduces each recording: rms error in degrees, the largest commanded step, the error as a share of it, and how much of the
     biggest step the head had covered half a second after it (the bench saw 40 to 46 percent)."""
     inertia = {"yaw": head_inertia_yaw(desc), "pitch": head_inertia_pitch(desc)}
@@ -152,7 +157,7 @@ def quality(recs: dict[str, dict], desc: dict, fitted: dict[str, float]) -> dict
     friction = mjcf.value(desc, "joint_friction")
     for j, rec in recs.items():
         th = [fitted[f"{j}_kp"], fitted[f"{j}_kv"], fitted["joint_damping"], fitted["torque_limit"], fitted[f"{j}_speed_cap_deg_s"], fitted[f"{j}_accel_cap_deg_s2"]]
-        rms = math.sqrt(error(rec, inertia[j], th, friction, gravity_coefficient(desc, j), fitted["command_delay_ms"]))
+        rms = math.sqrt(error(rec, inertia[j], th, friction, gravity_coefficient(desc, j), fitted["command_delay_ms"], step_rate))
         cmds = [x["cmd_deg"] for x in rec["samples"]]
         step = max((abs(b - a) for a, b in zip(cmds, cmds[1:]) if abs(b - a) > 0), default=0.0)
         out[j] = {"rms_deg": round(rms, 3), "step_deg": round(step, 1), "rms_pct_of_step": round(100 * rms / step, 1) if step else None}
@@ -188,6 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("recording", type=Path)
     ap.add_argument("--robot", default="stackchan")
     ap.add_argument("--write", action="store_true")
+    ap.add_argument("--steps-per-s", type=float, help="the unit's servo animation rate (self.bench.servo_rate); the setpoint then moves in steps at that rate. Default: not modelled. The robot description's servo_steps_per_s holds the measured value.")
     ap.add_argument("--measured-on", help="date of the bench recording; marks the fit as measured on the unit")
     ap.add_argument("--label", help="name of this fit in the description's fits (needs --measured-on)")
     args = ap.parse_args(argv)
@@ -205,11 +211,11 @@ def main(argv: list[str] | None = None) -> int:
             return 3
     desc = mjcf.load(args.robot)
     try:
-        fitted, err = fit_joints(recs, desc)
+        fitted, err = fit_joints(recs, desc, step_rate=args.steps_per_s)
     except (ValueError, OverflowError, ZeroDivisionError) as error_:
         print(f"calibrate: the fit failed ({error_}); the recording does not look like a servo following commands. Record again, or check the CSV.", file=sys.stderr)
         return 3
-    quals = quality(recs, desc, fitted)
+    quals = quality(recs, desc, fitted, args.steps_per_s)
     poor = [j for j, q in quals.items() if q["rms_pct_of_step"] is None or q["rms_pct_of_step"] > MAX_RMS_PCT]
     verdict = "poor: the fitted servo does not reproduce the recording" if poor else "ok"
     print(json.dumps({"joints": sorted(recs), "rms_deg": round(math.sqrt(err), 3), "quality": quals, "verdict": verdict, "fitted": {k: round(x, 6) for k, x in fitted.items()}}, indent=1))
@@ -226,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             for name, val in fitted.items():
                 desc["params"][name].update(v=round(val, 6), src="measured", note="Fitted, measured on the unit: fitted from %s on %s (rms %s), fit %s" % (args.recording.name, args.measured_on, shown, args.label))
-            desc.setdefault("fits", {})[args.label] = {"measured_on": args.measured_on, "recording": args.recording.name, "rms_deg": round(math.sqrt(err), 3),
+            desc.setdefault("fits", {})[args.label] = {"measured_on": args.measured_on, "recording": args.recording.name, "steps_per_s": args.steps_per_s, "rms_deg": round(math.sqrt(err), 3),
                                                        "quality": quals, "params": {k: round(x, 6) for k, x in fitted.items()}}
         else:
             for name, val in fitted.items():

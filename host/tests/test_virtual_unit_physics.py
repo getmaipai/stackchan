@@ -208,3 +208,14 @@ def test_the_head_box_does_not_collide_with_the_base_but_does_with_the_table():
     bits = lambda n: (int(g[n].getAttribute("contype") or 1), int(g[n].getAttribute("conaffinity") or 1))  # noqa: E731
     hits = lambda a, b: bool(bits(a)[0] & bits(b)[1] or bits(b)[0] & bits(a)[1])  # noqa: E731
     assert hits("head", "table") and not hits("head", "base_plate") and hits("base_plate", "table")
+
+
+def test_a_slow_animation_step_rate_holds_the_setpoint_between_steps():
+    desc = mjcf.load()
+    inertia = calibrate.head_inertia_pitch(desc)
+    times = list(range(0, 1500, 25))
+    args = (times, [70.0] * len(times), 10.0, inertia, 0.35, 0.0, 0.0001, 0.12, 0.0, calibrate.gravity_coefficient(desc, "pitch"), 0.0, 536.0, 22000.0)
+    free = calibrate.simulate(*args)
+    slow = calibrate.simulate(*args, step_rate=8.0)
+    assert free != slow and abs(free[-1] - slow[-1]) < 5   # the same place in the end, a different road
+    assert mjcf.value(desc, "servo_steps_per_s") == 28 and desc["params"]["servo_steps_per_s"]["src"] == "measured"

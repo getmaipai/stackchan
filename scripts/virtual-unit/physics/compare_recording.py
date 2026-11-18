@@ -47,13 +47,13 @@ def params(desc: dict, fit: str | None) -> dict[str, float]:
     return {k: float(e["v"]) for k, e in desc["params"].items()}
 
 
-def simulate_step(desc: dict, p: dict[str, float], joint: str, step: dict) -> tuple[list[float], list[float]]:
+def simulate_step(desc: dict, p: dict[str, float], joint: str, step: dict, step_rate: float | None = None) -> tuple[list[float], list[float]]:
     inertia = cal.head_inertia_yaw(desc) if joint == "yaw" else cal.head_inertia_pitch(desc)
     grid = list(range(0, WINDOW_MS + 1, 10))
     times = [step["t0"] + g for g in grid]
     cmd = [step["to_cmd"]] * len(times)
     sim = cal.simulate([step["t0"] - 200] + times, [step["from_cmd"]] + cmd, step["start"], inertia, p[f"{joint}_kp"], p[f"{joint}_kv"], p["joint_damping"], p["torque_limit"],
-                       mjcf.value(desc, "joint_friction"), cal.gravity_coefficient(desc, joint), p["command_delay_ms"], p[f"{joint}_speed_cap_deg_s"], p[f"{joint}_accel_cap_deg_s2"])
+                       mjcf.value(desc, "joint_friction"), cal.gravity_coefficient(desc, joint), p["command_delay_ms"], p[f"{joint}_speed_cap_deg_s"], p[f"{joint}_accel_cap_deg_s2"], step_rate=step_rate)
     return grid, sim[1:]
 
 
@@ -93,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("out", type=Path)
     ap.add_argument("--robot", default="stackchan")
     ap.add_argument("--fit")
+    ap.add_argument("--steps-per-s", type=float, help="hold the simulated setpoint between steps of the unit's servo animation at this rate (the fit's own rate when it has one)")
     ap.add_argument("--title", default="Recorded head against the simulated head")
     args = ap.parse_args(argv)
     desc = mjcf.load(args.robot)
@@ -114,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         by_size = sorted(steps, key=lambda s: abs(s["to_cmd"] - s["from_cmd"]))
         chosen = [by_size[-1], by_size[0]]
         for col, st in enumerate(chosen):
-            grid, sim = simulate_step(desc, p, joint, st)
+            grid, sim = simulate_step(desc, p, joint, st, args.steps_per_s or (desc.get("fits", {}).get(args.fit or "") or {}).get("steps_per_s"))
             svg += panel(10 + col * 455, 70 + row * 280, 445, 270, joint, st, grid, sim)
         row += 1
     svg.append("</svg>")

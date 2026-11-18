@@ -42,6 +42,7 @@ class SimLink:
         self.now, self.rtt, self.state, self.noise = 0.0, rtt, state, noise
         self.hist = {"pitch": [(0.0, 10.0)], "yaw": [(0.0, 0.0)]}
         self.calls, self.rng, self.sim = [], random.Random(3), {}
+        self.limit = state == "usb_limited"   # the USB limit really in force: the excursion around the rest pose is halved (the status text may not say so)
         self.desc = cal.mjcf.load()
 
     def clock(self):
@@ -85,14 +86,17 @@ class SimLink:
 
     def _answer(self, name, args):
         if name == "self.motion.status":
-            return {"ok": True, "state": self.state, "reasons": "on a USB cable" if self.state == "usb_limited" else ""}
+            return {"ok": True, "state": self.state, "reasons": "on a USB cable" if self.state == "usb_limited" else "", "usb_limit": "limited" if self.limit else "off"}
         if name == "self.motion.set":
-            self.state = "free" if args.get("usb_limit") == "off" else "usb_limited"
+            self.limit = args.get("usb_limit") != "off"
+            self.state = "usb_limited" if self.limit else "free"
             return {"ok": True}
         if name == "self.robot.set_head_angles":
             for joint in ("yaw", "pitch"):
                 if joint in args:
-                    self.hist[joint].append((self.now, float(args[joint])))
+                    rest = 10.0 if joint == "pitch" else 0.0
+                    goal = float(args[joint])
+                    self.hist[joint].append((self.now, rest + (goal - rest) * 0.5 if self.limit else goal))
             return {"ok": True}
         if name == "self.robot.get_head_angles":
             return {j: round(self._angle(j, self.now), 2) for j in ("yaw", "pitch")}
@@ -134,10 +138,63 @@ def test_recording_a_simulated_servo_writes_the_csv_and_the_fit_recovers_the_gai
 def test_a_cable_limited_unit_is_refused_with_the_way_out_and_can_be_lifted_for_the_run(tmp_path):
     link = SimLink(state="usb_limited")
     code, lines = _run(link, tmp_path / "x.csv", ["pitch"])
-    assert code == 2 and "usb-limit-off" in lines[0] and not (tmp_path / "x.csv").exists()
+    assert code == 2 and "usb-limit-off" in lines[-1] and not (tmp_path / "x.csv").exists()
     code, _ = _run(link, tmp_path / "y.csv", ["pitch"], usb_limit_off=True)
     assert code == 0 and link.state == "usb_limited"  # restored at the end
     assert ("self.motion.set", {"usb_limit": "off"}) in link.calls and ("self.motion.set", {"usb_limit": "limited"}) in link.calls
+
+
+class StaleStatusLink(SimLink):
+    """The real unit's trouble: the status says `free` while the USB limit still halves the head."""
+
+    def _answer(self, name, args):
+        out = super()._answer(name, args)
+        if name == "self.motion.status":
+            out = {**out, "state": "free", "reasons": ""}
+        return out
+
+
+def test_a_limit_the_status_does_not_show_is_found_by_the_head_reach_and_lifted_explicitly(tmp_path):
+    link = StaleStatusLink(state="usb_limited")
+    code, lines = _run(link, tmp_path / "a.csv", ["pitch"])
+    assert code == 2 and "percent" in lines[-1] and "usb-limit-off" in lines[-1]   # refused although the status says free
+    code, lines = _run(link, tmp_path / "b.csv", ["pitch"], usb_limit_off=True)
+    assert code == 0 and link.limit is True   # the limit is back
+    assert ("self.motion.set", {"usb_limit": "off"}) in link.calls
+    assert any("after the restore" in line for line in lines)
+    rows = list(csv.DictReader((tmp_path / "b.csv").open()))
+    peak = max(float(r["meas_deg"]) for r in rows if r["cmd_deg"] == "70")
+    assert peak > 60   # the recorded large step really reached
+
+
+class StuckLimitLink(SimLink):
+    """A unit that ignores the request to set the limit off."""
+
+    def _answer(self, name, args):
+        if name == "self.motion.set":
+            return {"ok": True}
+        return super()._answer(name, args)
+
+
+def test_a_limit_that_does_not_lift_stops_the_run_and_says_so(tmp_path):
+    link = StuckLimitLink(state="usb_limited")
+    code, lines = _run(link, tmp_path / "c.csv", ["pitch"], usb_limit_off=True)
+    assert code == 2 and "still covers only" in lines[-1] and not (tmp_path / "c.csv").exists()
+
+
+class WontRestoreLink(SimLink):
+    """A unit whose limit does not come back when asked."""
+
+    def _answer(self, name, args):
+        if name == "self.motion.set" and args.get("usb_limit") == "limited":
+            return {"ok": True}
+        return super()._answer(name, args)
+
+
+def test_a_restore_that_did_not_take_is_caught_by_the_same_reach_test(tmp_path):
+    link = WontRestoreLink(state="usb_limited")
+    code, lines = _run(link, tmp_path / "d.csv", ["pitch"], usb_limit_off=True)
+    assert code == 5 and any("may not be restored" in line for line in lines)
 
 
 def test_head_moves_stay_under_the_units_cap_of_forty_a_minute(tmp_path):

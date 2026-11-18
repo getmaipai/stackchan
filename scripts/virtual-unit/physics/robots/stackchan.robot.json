@@ -204,6 +204,11 @@
       "v": 22922.828775,
       "src": "measured",
       "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+    },
+    "servo_steps_per_s": {
+      "v": 28,
+      "src": "measured",
+      "note": "how often the unit's servo animation moves the setpoint, steps a second (self.bench.servo_rate). Designed 50. Bench window 7 (2026-11-18, before the fix): 26 to 31 in every condition, median 28. Window 8 (after SF28): 24 to 43, mostly 28 to 37, noisy within a cell. Taken from the bench numbers, not fitted; use --steps-per-s on calibrate.py for a new reading."
     }
   },
   "joints": [
