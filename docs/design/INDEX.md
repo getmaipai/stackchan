@@ -417,7 +417,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/qa-games-firmware.md` (39): Question and answer games on the unit: the interface and the rules (firmware track, 2026-11-18)
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
 - `docs/plan/release-readiness.md` (43): First release readiness: the friend test
-- `docs/plan/screen-standards-audit.md` (41): Every unit screen against the UX13 standard (audit and fix list)
+- `docs/plan/screen-standards-audit.md` (45): Every unit screen against the UX13 standard (audit and fix list)
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
 - `docs/plan/service-and-supervision.md` (113): The host as a managed service, with supervised parts
 - `docs/plan/signed-update-anti-rollback.md` (20): Signed update with a build number (proposal for the app track, 2026-11-18)
