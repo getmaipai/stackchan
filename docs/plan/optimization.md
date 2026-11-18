@@ -67,6 +67,23 @@ Each owner adds measured numbers here, same format as Part 1.
 |---|---|---|
 | Web app assets and bundle | app track | gzip size per route, unused components, fonts |
 | Thumbnails and screenshots | playground and app track | total bytes of `host/tests/golden` and docs images; `oxipng` and `zopfli` ratios |
-| The 3D model file (glb) | playground (ask the Fable session for the model) | mesh quantization or Draco compression, texture size |
+| The 3D model file (glb) | model session | filled in below (2026-11-18) |
 | Python wheel and install size | app track | installed size of the host environment; unused dependencies |
 | Docs images | playground | `oxipng` over `docs/` images |
+
+### The 3D model file (measured 2026-11-18, model session)
+
+`scripts/virtual-unit/model/stackchan.glb`, built by `make_body.py`: **2,127,368 B** on disk, **763,030 B** with gzip (what a static host sends). 65,258 triangles, 89 nodes, 51 materials, no pictures inside. Where the bytes are (measured): positions 814,224; normals 814,224; indices 391,548; the JSON part 107,312. By mesh: head 770,448; base 638,244; holder 281,556; every drawn detail together under 200,000. So the maker's structure meshes are 80 percent of the file; the details added since are a small part.
+
+| # | Option | Size after | Basis | Cost | Verdict |
+|---|---|---:|---|---|---|
+| 1 | Send as is, gzip on the host | 763,030 B on the wire | measured | none; about 0.6 s at 10 Mbit/s | fine for the local viewer, which reads it from disk |
+| 2 | Quantize: positions as 16-bit, normals as 8-bit (`KHR_mesh_quantization`) | 1,313,144 B on disk, 527,759 B gzip | measured on a prototype built in memory, not shipped | no decoder script: the view has its own small reader and would read the two smaller number types (about 10 lines). Steps of about 1.2 micrometers on an 80 mm part: no visible change | **take this for the web copy** |
+| 3 | meshopt compression | estimate 300,000 to 400,000 B | estimate, not built | needs its decoder, one self-hosted script of about 30 KB; the view's reader would have to hand buffers to it | not worth a second script for one file |
+| 4 | Draco compression | estimate 250,000 B | estimate, not built | its decoder is about 300 KB and, for three.js r128, an example script that would have to be self-hosted; the decoder outweighs the saving | no |
+| 5 | Thin the structure meshes (fewer triangles in the shell, base and holder) | not measured; they are 80 percent of the file | estimate | needs a mesh simplifier (none in the standard library) and a new check that holes and openings survive | only if 2 is not enough |
+| 6 | Leave the inside parts out of a web copy | under 60,000 B saved | measured (sum of the inside nodes) | Show inside would have nothing to show | no |
+| 7 | Share materials, drop unused nodes | under 20,000 B | measured: no node is unused; the 12 light materials are needed one each | none | no gain |
+
+**Target for the static Pages viewer:** at most 600,000 B on the wire. Option 2 meets it (527,759 B) with no decoder and no visible change. Keep the full file for the local viewer and tests; build the web copy from the same generator (`make_body.py --lite`, to write, deterministic like the full one) so the two cannot drift. Not built yet: this section is the measurement only.
+

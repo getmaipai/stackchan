@@ -61,6 +61,10 @@ stackchan
 yaw turns the head toward the robot's right, a positive pitch tilts the face up. Every dimension, the mass estimate and the
 limits are in `stackchan.params.json`, each marked `measured` (from the files or the published drawing) or `assumed`.
 
+## Size
+
+The file is about 2.1 MB on disk and 0.76 MB with gzip (2,127,368 and 763,030 bytes on 2026-11-18). Four fifths of it are the three structure meshes. The measured options for a smaller web copy are in `docs/plan/optimization.md`, Part 3; `host/tests/test_vu_model.py` fails above 8 MB.
+
 ## Limits
 
 The joint limits are the firmware servo layer's hard limits (`firmware/main/hal/hal_servo.cpp` in the upstream tree pinned in
