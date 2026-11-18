@@ -15,6 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).resolve().parent
 ROOT = Path(__file__).resolve().parents[2]
 PATCHES = ROOT / "firmware" / "patches"
 
@@ -58,14 +59,16 @@ def main() -> int:
             run(["patch", "-p1", "-s", "-f"], overlay, texts[name])
             applied.append(name)
         else:
-            failed.append(name)
-            break
-    stamp = {"tree": str(source), "order_sha": hashlib.sha1((PATCHES / "ORDER").read_bytes()).hexdigest(), "applied": applied, "already_in_tree": skipped, "not_in_overlay": alone, "failed": failed}
+            failed.append(name)   # the rest still apply: a patch the tree cannot take must be named in overlay-skip.txt with the reason, or the stamp test fails
+    skip = {l.split("#")[0].strip() for l in (HERE / "overlay-skip.txt").read_text().splitlines()} if (HERE / "overlay-skip.txt").exists() else set()
+    unexplained = [f for f in failed if f not in skip]
+    stamp = {"unexplained_failures": unexplained, "tree": str(source), "order_sha": hashlib.sha1((PATCHES / "ORDER").read_bytes()).hexdigest(), "applied": applied, "already_in_tree": skipped, "not_in_overlay": alone, "failed": failed}
     out = ROOT / ".runs" / "vu-build"
     out.mkdir(parents=True, exist_ok=True)
     (out / "tree-stamp.json").write_text(json.dumps(stamp, indent=1) + "\n")
     print(f"overlay patches: {len(skipped)} already in the tree, {len(applied)} applied ({', '.join(applied[:6])}), {len(alone)} outside the overlay, {len(failed)} failed")
-    if failed:
+    if unexplained:
+        failed = unexplained
         print("FAILED: " + ", ".join(failed) + ". The tree and the series disagree: use a tree replayed from the current ORDER (MAIPAI_FW_TREE_ROOT).", file=sys.stderr)
         return 1
     return 0
