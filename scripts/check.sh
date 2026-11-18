@@ -29,3 +29,4 @@ python3 scripts/virtual-unit/tools_extract.py --check
 
 python3 scripts/make-vu-screenshots.py --check
 python3 scripts/readiness.py --check
+python3 scripts/feature-ledger.py --check

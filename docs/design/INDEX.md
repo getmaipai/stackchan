@@ -106,6 +106,18 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/wake-word-licensing-2026-11-17.md` (47): Wake word models and redistribution: position after review (2026-11-17)
 - `docs/dev/bench-benchmark.md` (21): Running a voice benchmark
 - `docs/dev/bench-dry-run-2026-11-17.md` (23): Bench checks: virtual dry run
+- `docs/dev/bench-evidence/bench-b15.md` (24): Bench b15 window (2026-11-18)
+- `docs/dev/bench-evidence/bench-b19.md` (29): Bench b19 window (2026-11-18)
+- `docs/dev/bench-evidence/bench-b9.md` (66): Bench b9 and b13 (2026-11-18, Mac Studio, unit on <serial port>)
+- `docs/dev/bench-evidence/bench-window10.md` (41): Bench window 10 (2026-11-18, script only)
+- `docs/dev/bench-evidence/bench-window11.md` (40): Bench window 11 (2026-11-18, script only)
+- `docs/dev/bench-evidence/bench-window12.md` (27): Bench window 12 (2026-11-18, script only): STOPPED EARLY, all three b41 images crash-loop
+- `docs/dev/bench-evidence/bench-window4.md` (34): Bench window 4 (2026-11-18)
+- `docs/dev/bench-evidence/bench-window5.md` (49): Bench window 5 (2026-11-18, script only)
+- `docs/dev/bench-evidence/bench-window6.md` (38): Bench window 6 (2026-11-18, script only)
+- `docs/dev/bench-evidence/bench-window7.md` (42): Bench window 7 (2026-11-18, script only)
+- `docs/dev/bench-evidence/bench-window8.md` (47): Bench window 8 (2026-11-18, script only)
+- `docs/dev/bench-evidence/bench-window9.md` (32): Bench window 9 (2026-11-18, script only)
 - `docs/dev/bench.md` (7): StackChan bench
 - `docs/dev/benchmark-factory-vs-ours.md` (44): Benchmark: factory firmware against MaiPai for StackChan
 - `docs/dev/build-from-source.md` (47): Build from source
@@ -116,6 +128,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
+- `docs/dev/feature-ledger.html` (68): no header
+- `docs/dev/feature-ledger.md` (958): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -168,6 +182,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/stackchan-voice-measurements-2026-10-20.md` (69): StackChan voice path: what to measure (2026-10-20)
 - `docs/dev/stackchan-wireless-update-2026-11-14.md` (61): StackChan wireless firmware update (design, 2026-11-14)
 - `docs/dev/test-speed.md` (13): Suite speed (2026-11-18)
+- `docs/dev/translation-review/README.md` (22): Translation review pack
+- `docs/dev/translation-review/STATUS.md` (11): Translation status
+- `docs/dev/translation-review/de.csv` (984): no header
+- `docs/dev/translation-review/es.csv` (984): no header
+- `docs/dev/translation-review/fr.csv` (984): no header
+- `docs/dev/translation-review/it.csv` (984): no header
+- `docs/dev/translation-review/pt.csv` (984): no header
+- `docs/dev/translation-review/status.json` (32): no header
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
 - `docs/dev/virtual-unit-3d.md` (30): The 3D virtual unit: body, power, axes
@@ -250,6 +272,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/doc-screenshots.md` (21): Doc screenshots from the virtual unit
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
+- `docs/plan/first-release-notes-draft.md` (52): First release notes draft (2026-11-18)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
 - `docs/plan/friend-test-path-2026-11-18.md` (25): The friend-test path: what exists and what is missing (2026-11-18)
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
@@ -260,6 +283,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
+- `docs/plan/public-readme-draft.md` (92): Public README draft (2026-11-18)
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
 - `docs/plan/release-readiness.md` (42): First release readiness: the friend test
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
@@ -568,6 +592,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF39-limiter-failclosed-peak-heap.patch` (279): Limiter and heap round after bench window 11. The limiter assumes the cable is in (limited) until the first re
 - `firmware/patches/SF40-update-refusals-say-what-to-do.patch` (57): Every wireless update refusal that said only that nothing was installed now also says what to publish or do ne
 - `firmware/patches/SF41-update-board-id.patch` (93): The signed update header's last 8 bytes carry a board id (ASCII padded with zeros). The unit compares it with 
+- `firmware/patches/SF42-bench-barge-test-silent.patch` (247): Bench only (CONFIG_MAIPAI_SERIAL_TOOLS). self.bench.barge_test {count, gap_ms, no_barge, silent} runs rounds o
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1872,7 +1897,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_connection_loss.py` (33): Losing the connection raises BodyLost once; nothing is retried silently."""
 - `host/tests/test_cross_review_open_bugs.py` (181): ruff: noqa: E501
 - `host/tests/test_cross_review_open_bugs_2.py` (279): ruff: noqa: E501
-- `host/tests/test_cross_review_open_bugs_3.py` (46): ruff: noqa: E501
+- `host/tests/test_cross_review_open_bugs_3.py` (63): ruff: noqa: E501
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
@@ -1894,6 +1919,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_faces_wiring.py` (191): Face settings wired in: the CLI command, the settings page and routes, the turn cue and sync."""
 - `host/tests/test_fakes_sensors.py` (232): The fake's scripted sensors: DoA, IMU, camera frames, the loopback recorder, the face tracker.
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
+- `host/tests/test_feature_ledger.py` (82): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
 - `host/tests/test_firmware_c_cores_final.py` (55): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
@@ -2219,6 +2245,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_tool_parity.py` (45): Every unit tool name the host sends is defined by a firmware patch or stated in tool_parity.py."""
 - `host/tests/test_touch_detector.py` (52): A clip ends at 1.0 s; the full post-drive suppression is 260 ms.
 - `host/tests/test_touch_wiring.py` (62): TOUCH-01 glue: the loop reads the worker's antenna probe and reacts."""
+- `host/tests/test_translation_pack.py` (107): ruff: noqa: E501
 - `host/tests/test_trip_relay.py` (441): The laptop trip relay (body/scripts/trip_relay.py).
 - `host/tests/test_tts_playback.py` (273): G7's own acceptance (the gap-audit's exact words): "A stand-in
 - `host/tests/test_turn_client.py` (368): G6 (receive side)'s own acceptance: a real local HTTP server
@@ -2275,10 +2302,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
-- `scripts/check.sh` (31): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (32): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
 - `scripts/e2e-flake-hunt.sh` (21): find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. Each run's full 
+- `scripts/feature-ledger.py` (417): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
 - `scripts/fuzz/core_fuzz.c` (333): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
@@ -2328,6 +2356,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/install-hooks.sh` (6): point this clone at the tracked hooks (repo-local config only, never global).
 - `scripts/leak-sweep-allow.txt` (0): no header
 - `scripts/leak-sweep.sh` (37): before the repo goes public, no tracked file carries labels or wording from the private reviews.
+- `scripts/ledger_render.py` (140): Rendering for the feature ledger: the markdown page and the one self-contained HTML page (data embedded as JSO
+- `scripts/ledger_rules.py` (118): The rules of the feature ledger: how a row's status and percent are worked out from evidence the repository ho
+- `scripts/ledger_sources.py` (215): Miners for the feature ledger (scripts/feature-ledger.py): everything here only reads the repository and retur
 - `scripts/license-check.py` (52): licenses stay honest. (1) every host dependency in host/pyproject.toml is named in THIRD-PARTY.md; (2) LICENSE
 - `scripts/link-key-vector.py` (124): Reference for the link key exchange in docs/plan/link-key-exchange.md (standard library only).
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
@@ -2344,19 +2375,20 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/readiness.py` (187): First-release readiness: the friend test as a checklist, made from the state of the repository.
 - `scripts/regen-core-tables.py` (26): Regenerate the tables the host page draws from, as the unit's cores print them after the whole firmware/patche
 - `scripts/release-report.py` (183): One markdown page per firmware build: image sizes per slot, memory numbers from a stress log, frame cost per s
-- `scripts/release.sh` (96): turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a det
+- `scripts/release.sh` (98): turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a det
 - `scripts/repo-map.sh` (19): generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line),
 - `scripts/review-status.py` (87): The cross-review bug table: every test in host/tests/test_cross_review_open_bugs*.py, its owner, and whether t
 - `scripts/run-bg.sh` (18): run a long command (firmware build, flash, soak, gate) with its full output in a log file and
 - `scripts/spec-dir.sh` (4): no header
 - `scripts/spec-drift-check.sh` (32): the vendored spec (host/spec-vendor/spec) is a snapshot, never edited by hand. Fails when a vendored file diff
-- `scripts/spelling-allow.txt` (58): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
+- `scripts/spelling-allow.txt` (61): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
 - `scripts/spelling-check.py` (98): fail on British spellings in text files (owner rule 2026-11-16: American spelling everywhere).
 - `scripts/stackchan-egress-proof.sh` (66): no header
 - `scripts/stackchan-no-third-party.sh` (119): Hostnames only: the image legitimately carries board and class names such as M5StackCoreS3Board.
 - `scripts/test-all.sh` (17): the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. Run 
 - `scripts/test-fast.sh` (6): the host suite without the slow tests (the end to end on the virtual unit and the sanitizer fuzz, marked `slow
 - `scripts/test-sharded.py` (75): Run the host suite in N pytest processes at once, one group of test files each (no plugin needed). Files are d
+- `scripts/translation-pack.py` (336): The translator review pack: every user-facing string per language in a plain CSV a native speaker can read and
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
 - `scripts/virtual-unit/build-face.sh` (19): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (30): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
@@ -2367,6 +2399,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
 - `scripts/virtual-unit/e2e_hostile.py` (337): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
+- `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
 - `scripts/virtual-unit/gitify.py` (28): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
 - `scripts/virtual-unit/hw.py` (167): The virtual unit's body: power button, USB-C cable, Wi-Fi, battery, carried and orientation, and what they do 
