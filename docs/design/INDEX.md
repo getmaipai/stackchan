@@ -16,7 +16,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `CLAUDE.md` (1): no header
 - `LICENSE` (664): no header
 - `NOTICE` (30): no header
-- `README.md` (47): MaiPai for StackChan
+- `README.md` (32): MaiPai for StackChan
 - `THIRD-PARTY.md` (49): Third-party notices
 - `docs-site/.gitignore` (1): no header
 - `docs-site/assets/search.js` (21): Filters the page list as you type: every word must appear in the title or summary, or anywhere in the page tex
@@ -216,7 +216,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/heap-map-b47.md` (54): The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
-- `docs/dev/index.md` (95): MaiPai for StackChan: developer guide
+- `docs/dev/index.md` (104): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
 - `docs/dev/model-previews/joints.gif` (1486): Binary file docs/dev/model-previews/joints.gif matches
@@ -392,6 +392,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/public-readme-draft.md` (92): Public README draft (2026-11-18)
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
 - `docs/plan/release-readiness.md` (43): First release readiness: the friend test
+- `docs/plan/release-readiness.md` (43): First release readiness: the friend test
+- `docs/plan/release-readiness.md` (43): First release readiness: the friend test
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
 - `docs/plan/service-and-supervision.md` (113): The host as a managed service, with supervised parts
 - `docs/plan/signed-update-anti-rollback.md` (20): Signed update with a build number (proposal for the app track, 2026-11-18)
@@ -428,7 +430,21 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/ux13c-control-sheet-brief.md` (20): UX13c brief: the control sheet at finger size (for a Codex lane, read by the playground track before it lands)
 - `docs/plan/view-requests.md` (48): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
 - `docs/plan/wasm-spike-report.md` (95): WebAssembly spike: the virtual robot in a browser, no server
-- `docs/playground/index.md` (9): MaiPai for StackChan: playground
+- `docs/playground/dances-and-lights.md` (15): Dances and the light show
+- `docs/playground/dev-architecture.md` (17): Architecture of the virtual unit
+- `docs/playground/dev-assets-and-memory.md` (8): Assets, memory and sounds
+- `docs/playground/dev-reuse-of-firmware.md` (11): How the real firmware code is reused
+- `docs/playground/dev-standards-and-audit.md` (7): Standards and the audit
+- `docs/playground/dev-tests-and-rigs.md` (8): Test suites and rigs
+- `docs/playground/dev-tools-and-goldens.md` (11): Tools, scenarios and goldens
+- `docs/playground/faults.md` (11): Faults: when the host is away
+- `docs/playground/games-and-sounds.md` (7): Games and sounds
+- `docs/playground/index.md` (27): MaiPai for StackChan: the playground
+- `docs/playground/languages.md` (5): Languages
+- `docs/playground/screen-tour.md` (17): The screen tour
+- `docs/playground/start-here.md` (31): Start here
+- `docs/playground/the-3d-robot.md` (13): The 3D robot
+- `docs/playground/troubleshooting.md` (11): Troubleshooting
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
 - `docs/user/about.md` (28): About and legal
 - `docs/user/bench-listening.md` (5): Listen longer on the bench (developers)
@@ -470,7 +486,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/switch-from-the-factory-firmware.md` (40): Switch from the factory firmware, or go back
 - `docs/user/timers-and-alarms.md` (52): Set a timer or alarm
 - `docs/user/troubleshooting.md` (41): Troubleshooting
-- `docs/user/try-the-virtual-robot.md` (28): Try the virtual robot
+- `docs/user/try-the-virtual-robot.md` (30): Try the virtual robot
 - `docs/user/updates.md` (58): Update the robot
 - `docs/user/use-it-anywhere.md` (32): Use the robot away from home
 - `docs/user/use-your-own-stack.md` (13): Use your own stack
@@ -852,7 +868,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5132): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5133): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
@@ -1112,7 +1128,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/sight.py` (195): Honest answers to "can you see me?" and the picture questions when Home gave no description.
 - `host/maipai_body/bodies/stackchan/sleep_z.py` (33): Version-gated host wrapper for the future StackChan sleep Z tool."""
 - `host/maipai_body/bodies/stackchan/song_title.py` (127): Keeps the song title on the robot's face while the song plays (host side).
-- `host/maipai_body/bodies/stackchan/sounds.py` (585): The StackChan's own sounds, the host side (firmware patches 115 to 118).
+- `host/maipai_body/bodies/stackchan/sounds.py` (594): The StackChan's own sounds, the host side (firmware patches 115 to 118).
 - `host/maipai_body/bodies/stackchan/speaker_gaze.py` (119): Speaker gaze for StackChan (BOT-SC-GAZE-01): while someone is talking,
 - `host/maipai_body/bodies/stackchan/speech_backend.py` (35): Where a StackChan turn gets its speech-to-text, answer and text-to-speech (docs/plan/seam-refactor.md, step P3
 - `host/maipai_body/bodies/stackchan/stop_phrases.py` (40): A spoken "stop" heard while listening ends the turn on the robot, without asking the hub.
@@ -1327,7 +1343,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/presence/observations.py` (55): This body's own inputs to the presence funnel (design record section 6):
 - `host/maipai_body/presence/power.py` (257): SELF-SCENE-02: the battery and heat ladder, kept by the body with no hub.
 - `host/maipai_body/presence/safety.py` (44): Tip and freefall from the IMU (design record section 7: "From the IMU: motors
-- `host/maipai_body/presence/sleep_auto.py` (177): SLEEP-AUTO-01: dark and quiet means sleep, arrival wakes.
+- `host/maipai_body/presence/sleep_auto.py` (224): SLEEP-AUTO-01: dark and quiet means sleep, arrival wakes.
 - `host/maipai_body/presence/thermal.py` (189): THERMAL-01: the Compute Module's temperature and throttle flags drive the body's load.
 - `host/maipai_body/presence/touch.py` (89): Antenna touch detection from commanded and observed positions.
 - `host/maipai_body/remote_activity.py` (564): ruff: noqa: E501
@@ -1348,7 +1364,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/selftest/stackchan_wiring.py` (127): BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts.
 - `host/maipai_body/service_cmd.py` (205): The command the service runs: the `stackchan` of this install."""
 - `host/maipai_body/service_threads.py` (71): Background threads of the host service, each started with the stop event it waits on.
-- `host/maipai_body/settings_keys.py` (62): Settings keys shared by body settings consumers."""
+- `host/maipai_body/settings_keys.py` (65): Settings keys shared by body settings consumers."""
 - `host/maipai_body/settings_page.py` (1003): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (185): ruff: noqa: E501
 - `host/maipai_body/settings_sim.py` (436): ruff: noqa: E501
@@ -2313,7 +2329,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_sherpa_engines.py` (15): VOICE-01: the sherpa engines, as far as they can be checked without the unit."""
 - `host/tests/test_sim_downlink.py` (136): Tests for firmware tool-reply latency, dropped replies, and receive timestamps."""
 - `host/tests/test_sim_uplink.py` (104): Tests for StackChanFirmware listen frames and real Opus uplink streaming."""
-- `host/tests/test_sleep_auto.py` (149): SLEEP-AUTO-01: when the body sleeps and when arrival wakes it (UNMEASURED thresholds)."""
+- `host/tests/test_sleep_auto.py` (171): SLEEP-AUTO-01: when the body sleeps and when arrival wakes it (UNMEASURED thresholds)."""
 - `host/tests/test_sleep_state.py` (140): S-EXPR-04: the sleep state differs from muted, and the new cues end at neutral."""
 - `host/tests/test_sleep_wiring.py` (86): SLEEP-AUTO-01 feed: the presence tick drives the policy and the engine's sleep state."""
 - `host/tests/test_speaker_evidence_turn.py` (252): SPEAK-02 / SPEAK-04: the turn carries `speaker_evidence` and `present`, fused
@@ -2418,7 +2434,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_sight.py` (197): Honest answers to "can you see me?" and the picture questions."""
 - `host/tests/test_stackchan_soak.py` (84): Bounded fake-peer soak checks for StackChan camera and reconnect paths."""
 - `host/tests/test_stackchan_song_title_and_phrases.py` (191): The song title keeper (re-sends the title while the song plays) and the beat phrases that
-- `host/tests/test_stackchan_sounds.py` (709): The StackChan's sounds on the host: the play_sound mapping, night and mute gating, quiet hours,
+- `host/tests/test_stackchan_sounds.py` (717): The StackChan's sounds on the host: the play_sound mapping, night and mute gating, quiet hours,
 - `host/tests/test_stackchan_speech_speed.py` (157): Item 11: one speech speed and pitch setting per unit, on the settings page and in the speech output."""
 - `host/tests/test_stackchan_stop_phrases.py` (159): A spoken "stop" while listening ends the turn on the robot (owner request 2026-10-21)."""
 - `host/tests/test_stackchan_tailnet_travel.py` (257): Travel with the private network (firmware patches TN01 to TN06): the pure choices in plain C, the key and addr
@@ -2601,7 +2617,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/link-key-vector.py` (124): Reference for the link key exchange in docs/plan/link-key-exchange.md (standard library only).
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
 - `scripts/make-dashboard-screens.py` (71): A screenshot of each host dashboard page at desktop and phone width, kept in docs/dev/dashboard-screens for re
-- `scripts/make-doc-indexes.py` (71): Keep docs/user/index.md and docs/dev/index.md: a hand-written start, then every page of the folder listed by i
+- `scripts/make-doc-indexes.py` (80): Keep docs/user/index.md and docs/dev/index.md: a hand-written start, then every page of the folder listed by i
 - `scripts/make-doc-screenshots.py` (141): make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, ne
 - `scripts/make-game-sounds.py` (286): Game sounds, synthesized from nothing: short tones, clacks and noise bursts with attack-decay-sustain-release 
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.

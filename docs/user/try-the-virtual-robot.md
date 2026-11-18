@@ -1,5 +1,7 @@
 # Try the virtual robot
 
+> The playground has its own section now: [Start here](../playground/start-here.md). This page stays so old links work.
+
 You can use a StackChan on your Mac, with no robot. It shows the same screens the real robot draws. This page is for people building or testing StackChan; the real robot does not need it.
 
 ## Open it
