@@ -1,0 +1,7 @@
+# Build kind "full": every optional module compiled in and no bench tools: the size and static RAM of the one-image question (owner decision 20).
+CONFIG_MAIPAI_TALK_OVER=y
+CONFIG_MAIPAI_TALK_OVER_AEC=y
+CONFIG_MAIPAI_MIC3_GAIN_DB=12
+CONFIG_MAIPAI_LINK_PSK=y
+CONFIG_ESP_TLS_PSK_VERIFICATION=y
+CONFIG_MAIPAI_AVATAR_TO_HOST=y

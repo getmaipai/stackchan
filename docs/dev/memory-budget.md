@@ -138,3 +138,42 @@ The target (largest block above 36 KB with the link up and a second socket open)
 ### Rules for every new feature (decision 15f)
 
 Its patch header states its memory cost (static internal, runtime internal, PSRAM, largest block effect); it allocates on first use and frees on close; it keeps no persistent internal block of 2 KB or more; and it fails the gate if it breaks the budget (the gate numbers above). SF44 (camera to host) must allocate its second socket and its buffers only while streaming.
+
+## Does everything we want fit in ONE image? (owner decision 20)
+
+**Answer: yes for flash and for static RAM; the runtime internal RAM is decided by rules, not by a split.** Measured on a build with every optional module compiled in and no bench tools (build kind `full`: talk-over and echo canceller, encrypted link, camera to host (SF44), on the b43 tree):
+
+| Image | Binary | Share of the 5,177,344 byte app slot | Room before the 20 percent free rule (4,141,875) | Static internal RAM (IRAM text, data, bss) |
+|---|---:|---:|---:|---:|
+| plain (release image) | 3,731,312 | 72.1 % | 410,563 | 171,107 |
+| **full** (all optional modules on) | 3,745,872 | 72.3 % | **396,003** | 171,123 (+16) |
+
+All the modules together add **14.5 KB of flash and 16 bytes of static internal RAM**; a module that is switched off in plain costs nothing, and one that is on costs flash only until it runs (decision 15). Not in this build and still to add: IR and NFC (the rows in `docs/plan/ir-and-nfc.md`; an estimate of 20 to 40 KB of flash), the supervisor and the reconnect rules (SF49: about 6 KB, already in the b47 plain), so the all-in image is about 3.8 MB, 340 KB under the limit. **One image fits in the slot.**
+
+### The runtime question: the worst simultaneous combinations against the gate
+
+Gate: internal free median at least 40,000, lowest 24,000, largest block median 24,000 and lowest 16,000. Today (windows 10 and 11, link up): median about 64,000 to 69,000, lowest 33,484, largest block 25,600. Adding SF47 (avatar_lan not created at boot) should add 8.5 KB; it is not measured yet.
+
+| Combination | Extra internal RAM while running (estimate) | Median free after | Largest block after | Breaks the gate? |
+|---|---:|---:|---|---|
+| Link on, voice only | about 0 | 64,000 or more | unchanged (25,600, 34,100 with SF47) | no |
+| Link plus echo canceller plus speaking | 1 to 2 KB | 62,000 or more | unchanged | no |
+| Link plus camera stream (second socket) | 4 KB stack plus JPEG work buffers (to measure) | 57,000 to 60,000 | **can fall to 21,500 without SF47 (under the 24,000 median floor), 30,000 with SF47** | **yes without SF47; no with it, if the JPEG work buffers are in PSRAM** |
+| Link plus camera plus AEC speaking | 5 to 7 KB | 55,000 to 58,000 | as above | same as above |
+| IR or NFC while speaking | one RMT driver and an I2C transaction: under 1 KB (to measure) | no change | no change | no |
+| A game starting (6 KB `pack_boot` task, transient) while the link is up | 6 KB for a few seconds | no change after | **a transient hole of 6 KB in the top area** | possibly: the lowest-block floor is 16,000 |
+| Everything at once | 11 to 14 KB | 50,000 to 53,000 | about 20,000 with SF47 | passes the median gate; the lowest-block floor is the tight one |
+
+So the gate is not broken by a combination of modules **provided the camera stream runs only after SF47 and refuses to start when the largest block is under 20,000** (the SF44 gate); the dangerous pair without those two is link plus camera.
+
+### The smallest fix without a split: rules in the kernel
+
+1. **SF47 first** (done, waiting for the boot proof): it removes the 8 KB task from the top area; everything else is sized against that.
+2. **Exclusivity by memory, not by switch:** the camera stream and a game pack write do not run at the same time (the pack task asks first; the stream pauses while it runs). The unit says so on the screen in plain words ("The camera is paused while a game loads").
+3. **Allocate the stream's second socket and its buffers only while streaming**, and release them when the host stops the stream (SF44 as designed).
+4. **One TLS session at a time where possible** (decision 15e): the avatar socket is the second session only while streaming.
+5. **Do not hold the largest block:** the transient 6 KB pack tasks start before the link comes up, or run as one task (see the ranked changes above).
+
+### Recommendation
+
+**One image**, with the modules switchable at runtime and the rules above. **No profile split is needed for flash or for the median gate.** What remains open is measured on the unit: the largest block with the link up and a second socket open, with SF47 in. If that measure is under 24,000 median after SF47, the smallest split is a single second image, "Camera and sensors" (camera stream, IR, NFC, avatar to host), so that the everyday image never allocates them; the everyday image would then be the plain one plus the supervisor. Nothing is decided by this estimate: the numbers that decide are items 1 to 4 of the list "what must be measured on the unit" above plus the post-SF47 map.
