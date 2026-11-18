@@ -4,6 +4,8 @@ A character pack is one ZIP file with pictures of a character. When you install 
 
 ![The Character pack card on the Look page, with a file chooser and an Install button.](../images/shot-character-pack.png)
 
+*The Character pack card on the Look page, with a file chooser and an Install button.*
+
 ## Install one
 1. Open the settings page and go to **Look**.
 2. Find the **Character pack** card.

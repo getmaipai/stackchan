@@ -2,6 +2,7 @@
 reader's setting; filters and search; phone friendly). Placement: docs tooling. Upstream: none."""
 from __future__ import annotations
 
+import re
 import base64
 import html
 import json
@@ -67,7 +68,7 @@ def markdown(rows: list[dict], meta: dict) -> str:
         for area in sorted(by_area):
             lines += [f"### {area} ({len(by_area[area])})", "", "| Feature | What it does | Status | % | Memory | Where | Evidence | Doc |", "|---|---|---|---|---|---|---|---|"]
             for r in by_area[area]:
-                img = f" ![]({r['image']})" if r["image"] else ""
+                img = f" ![{re.sub(r'[][]', '', r['name'])}]({r['image']})" if r["image"] else ""  # the row's own name is its caption
                 where = "<br>".join(f"`{w}`" for w in r["where"][:3]) or ""
                 ev = ", ".join(f"`{b}`" for b in r["bench"][:2]) or r["rule"]
                 doc = f"[{r['doc']}]({r['doc'].split('#')[0].replace('docs/', '../')}{('#' + r['doc'].split('#')[1]) if '#' in r['doc'] else ''})" if r["doc"] else "doc missing"

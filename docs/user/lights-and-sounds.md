@@ -31,18 +31,18 @@ All tones are soft bells. A rising tone is good news and a falling tone is bad n
 
 | Tone | Name | Sounds like | When |
 |---|---|---|---|
-| ![](../images/tone-needs-you.svg) | Needs you | Two rising notes, insistent | Wi-Fi setup or pairing is waiting |
-| ![](../images/tone-plug-in.svg) | Plug in | Two quick rising notes | You plugged in the charger |
-| ![](../images/tone-charged.svg) | Charged | Three rising notes | The battery is full and the cable is in |
-| ![](../images/tone-unplug.svg) | Unplug | One falling note | You pulled the cable out |
-| ![](../images/tone-offline.svg) | Offline | Two falling notes | The link to your host or hub dropped, once for each outage |
-| ![](../images/tone-goodbye.svg) | Goodbye | Three slow falling notes | You turned the robot off with the power key |
-| ![](../images/tone-shutter.svg) | Shutter | A short double click | The camera took a picture |
-| ![](../images/tone-back-online.svg) | Back online | A rising chime | The robot connected, or an update finished |
-| ![](../images/tone-listening.svg) | Listening | A short rising pop | The wake word or a tap opened your turn |
-| ![](../images/tone-low-battery.svg) | Low battery | A chirp | The battery reached 20 percent |
-| ![](../images/tone-siren.svg) | Siren | A loud siren that rises and falls | A security alert, if you chose the alarm |
-| ![](../images/tone-error.svg) | Error | A low, short tone | Something you asked for failed |
+| ![The needs you tone, drawn as a sound wave](../images/tone-needs-you.svg) | Needs you | Two rising notes, insistent | Wi-Fi setup or pairing is waiting |
+| ![The plug in tone, drawn as a sound wave](../images/tone-plug-in.svg) | Plug in | Two quick rising notes | You plugged in the charger |
+| ![The charged tone, drawn as a sound wave](../images/tone-charged.svg) | Charged | Three rising notes | The battery is full and the cable is in |
+| ![The unplug tone, drawn as a sound wave](../images/tone-unplug.svg) | Unplug | One falling note | You pulled the cable out |
+| ![The offline tone, drawn as a sound wave](../images/tone-offline.svg) | Offline | Two falling notes | The link to your host or hub dropped, once for each outage |
+| ![The goodbye tone, drawn as a sound wave](../images/tone-goodbye.svg) | Goodbye | Three slow falling notes | You turned the robot off with the power key |
+| ![The shutter tone, drawn as a sound wave](../images/tone-shutter.svg) | Shutter | A short double click | The camera took a picture |
+| ![The back online tone, drawn as a sound wave](../images/tone-back-online.svg) | Back online | A rising chime | The robot connected, or an update finished |
+| ![The listening tone, drawn as a sound wave](../images/tone-listening.svg) | Listening | A short rising pop | The wake word or a tap opened your turn |
+| ![The low battery tone, drawn as a sound wave](../images/tone-low-battery.svg) | Low battery | A chirp | The battery reached 20 percent |
+| ![The siren tone, drawn as a sound wave](../images/tone-siren.svg) | Siren | A loud siren that rises and falls | A security alert, if you chose the alarm |
+| ![The error tone, drawn as a sound wave](../images/tone-error.svg) | Error | A low, short tone | Something you asked for failed |
 
 The robot chimes only for something you need to notice or something you just did. It never chimes for something it chose to do by itself.
 

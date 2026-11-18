@@ -17,6 +17,8 @@ When it takes a picture, the light bars flash pink twice and stay pink <img src=
 
 ![The robot screen with the camera-on icon.](../images/camera-cue.svg)
 
+*The robot screen with the camera-on icon. A placeholder drawing, not a real screenshot.*
+
 ## You can always tell
 
 The robot always shows when it is listening, looking or taking a picture, and no setting can hide it.
@@ -56,6 +58,8 @@ Say "take my picture". The robot counts down, plays a shutter tone and saves the
 
 ![The countdown screen showing 2.](../images/countdown.svg)
 
+*The countdown screen showing 2. A placeholder drawing, not a real screenshot.*
+
 ## Face follow, wave and mirror
 
 - **Face follow.** The head turns to keep you in view. It uses a small detector that runs in MaiPai Home.
@@ -68,6 +72,8 @@ Add people to a name list in MaiPai Home. The robot can then say who it sees, an
 "Atlas is at the door". The list lives in MaiPai Home.
 
 ![The name list page with two entries.](../images/name-list.svg)
+
+*The name list page with two entries. A placeholder drawing, not a real screenshot.*
 
 ## Keep and delete
 

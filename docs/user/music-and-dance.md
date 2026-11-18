@@ -10,6 +10,8 @@ Say the wake word, then "dance". Name one to pick it: **sway**, **nod yes**, **s
 
 ![The robot mid-dance with a happy face and its head tilted.](../images/dance.svg)
 
+*The robot mid-dance with a happy face and its head tilted. A placeholder drawing, not a real screenshot.*
+
 ## It sways to your music
 
 Turn on **Dance to music** (built and flashed, not yet checked with a real song) on the Behavior page of the settings page on your host. It is off by default. The page shows a status line: off, waiting for the unit, listening, dancing, paused (muted or quiet) or the unit needs an update.
@@ -22,6 +24,8 @@ When music plays near the robot, it finds the beat and dances to it in steps: ey
 - Away from your hub, the robot still sways on its own.
 
 ![The settings page on the host with Dance to music switched on.](../images/dance-settings.svg)
+
+*The settings page on the host with Dance to music switched on. A placeholder drawing, not a real screenshot.*
 
 ## What song is this
 

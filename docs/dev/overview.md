@@ -4,6 +4,8 @@ Start here if you want to build, fix or extend it. Users should read [Getting st
 
 ![The robot links to the host over one connection, and the host calls either a standalone brain or MaiPai Home.](../images/architecture.svg)
 
+*The robot links to the host over one connection, and the host calls either a standalone brain or MaiPai Home. A placeholder drawing, not a real screenshot.*
+
 ## Three layers
 
 1. **Robot (firmware).** The face, touch, motion sensor, servos, camera, microphones, speaker, wake word, clock, timers, settings, Wi-Fi and pairing.

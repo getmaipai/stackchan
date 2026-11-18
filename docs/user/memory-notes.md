@@ -4,6 +4,8 @@ Off by default. When you turn it on, the robot keeps short notes for each adult 
 
 ![What the robot says, and the notes file it keeps.](../images/shot-memory-notes.png)
 
+*What the robot says, and the notes file it keeps.*
+
 ## Turn it on
 In `robot.toml` add the block under `[packages.memory_notes]`: `enabled = true`, the names of the adults in `people`, and `default_person`. Restart the host.
 

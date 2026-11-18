@@ -22,6 +22,8 @@ Mute and camera off still work: if you turn the camera off, motion watching stop
 
 ![The robot face with a camera icon, a microphone icon and the word Watching.](../images/watching.svg)
 
+*The robot face with a camera icon, a microphone icon and the word Watching. A placeholder drawing, not a real screenshot.*
+
 ## What it notices
 
 | It notices | How | Needs |
@@ -45,6 +47,8 @@ In a warning or an alarm, the light bars swap between red and blue, twice a seco
 We keep the swap slow, under three flashes a second, so it is safer for people who are sensitive to flashing lights. It stops by itself after one minute, or when you disarm it.
 
 ![The robot screen in alert mode, red and blue with a large ALERT.](../images/alert-screen.svg)
+
+*The robot screen in alert mode, red and blue with a large ALERT. A placeholder drawing, not a real screenshot.*
 
 Red and blue are used only in alert mode, so you never see them for anything else.
 

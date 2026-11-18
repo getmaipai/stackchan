@@ -9,9 +9,15 @@ The page shows a live preview that uses the same drawing code as the robot.
 
 ![The clock page: big white digits, the day and AM or PM, and three small page dots.](../images/vu-clock.png)
 
+*The clock page: big white digits, the day and AM or PM, and three small page dots.*
+
 ![The big-eyes face on the robot.](../images/unit-face-big-eyes.png)
 
+*The big-eyes face on the robot.*
+
 ![The big-eyes face and the minimal face side by side.](../images/face-styles.svg)
+
+*The big-eyes face and the minimal face side by side. A placeholder drawing, not a real screenshot.*
 
 ## Smoother eyes and mouth
 
@@ -49,6 +55,8 @@ Color never carries meaning alone. Every state also has a shape or an icon, so t
 
 ![The same face in three colors.](../images/face-colors.svg)
 
+*The same face in three colors. A placeholder drawing, not a real screenshot.*
+
 ## Captions
 
 Captions show the spoken words on the screen. They are off by default. Turn them on with `captions = true`, or in the settings page on your host.
@@ -73,6 +81,8 @@ Sleepy is a robot nodding off: heavy eyes, slow blinks, no Z. Sleeping is eyes s
 The clock shows big digits or a ring. It dims at night. It keeps working if the host is off, once the host has set the time.
 
 ![The clock face with big digits, then dimmed in night mode.](../images/clock-face.svg)
+
+*The clock face with big digits, then dimmed in night mode. A placeholder drawing, not a real screenshot.*
 
 ## Expressions
 
@@ -111,6 +121,8 @@ Slide your finger along the head strip to open a small overlay. It shows volume 
 If you prefer petting on the strip, leave `strip_mode` at `petting`. Set it to `control` to use the sliders.
 
 ![The slider overlay for volume on the robot screen.](../images/quick-sliders.svg)
+
+*The slider overlay for volume on the robot screen. A placeholder drawing, not a real screenshot.*
 
 ## Still need help?
 

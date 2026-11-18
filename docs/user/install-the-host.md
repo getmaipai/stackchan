@@ -11,6 +11,8 @@ The host is the program that runs on your computer, between the robot and your m
 
 ![The robot's screen while it waits to be approved: crossed-out signal bars and a key, and the words "Waiting for Home to approve me".](../images/vu-pairing.png)
 
+*The robot's screen while it waits to be approved: crossed-out signal bars and a key, and the words "Waiting for Home to approve me".*
+
 No Docker is needed.
 
 ## Start it when the computer starts

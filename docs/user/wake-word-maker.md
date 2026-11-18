@@ -4,6 +4,8 @@ Off by default. You record a word, the host trains a small model on your compute
 
 ![The Make your own wake word card on the Voice page.](../images/shot-wake-word-maker.png)
 
+*The Make your own wake word card on the Voice page.*
+
 ## Turn it on
 In `robot.toml`, set `enabled = true` under `[packages.wake_word_maker]`. Restart the host. Open the settings page **on the host computer** and go to Voice and sound.
 

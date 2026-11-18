@@ -16,9 +16,15 @@ Tap the same spot again to turn the switch off. Each tap makes no sound. The eye
 
 ![The robot face muted, with a flat closed mouth.](../images/face-mute.svg)
 
+*The robot face muted, with a flat closed mouth. A placeholder drawing, not a real screenshot.*
+
 ![The robot face with the camera off and calm, half-closed eyes.](../images/face-camera-off.svg)
 
+*The robot face with the camera off and calm, half-closed eyes. A placeholder drawing, not a real screenshot.*
+
 ![The robot face in full quiet, asleep with a small pause mark.](../images/face-full-quiet.svg)
+
+*The robot face in full quiet, asleep with a small pause mark. A placeholder drawing, not a real screenshot.*
 
 Tapping a switch makes no sound and changes no lights. The face shows the state, and the eyes blink once. [All lights and sounds](lights-and-sounds.md).
 

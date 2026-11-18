@@ -37,9 +37,13 @@ When you connect MaiPai Home, Home puts the firmware build on the robot that has
 
 ![The robot's screen while it waits for MaiPai Home to approve it: crossed-out signal bars and a key.](../images/vu-pairing.png)
 
+*The robot's screen while it waits for MaiPai Home to approve it: crossed-out signal bars and a key.*
+
 The robot is not reflashed. Pick another brain on the same page to go back. Your timers, faces and settings stay.
 
 ![The web page with the brain choice set to MaiPai Home.](../images/brain-switch.svg)
+
+*The web page with the brain choice set to MaiPai Home. A placeholder drawing, not a real screenshot.*
 
 ## What Home needs
 

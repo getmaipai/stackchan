@@ -19,6 +19,8 @@ Run `stackchan token` to create a token. Run `stackchan check` to test each addr
 
 ![The web page with the API, MQTT and metrics switches.](../images/api-settings.svg)
 
+*The web page with the API, MQTT and metrics switches. A placeholder drawing, not a real screenshot.*
+
 ## Ideas
 
 - A status light for your server: the light bars turn red when a job fails.

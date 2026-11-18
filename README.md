@@ -1,7 +1,12 @@
 # MaiPai for StackChan
 
 ![The robot talking, dancing, showing rain and opening its games page.](docs/images/hero-robot.gif)
+
+*The robot on its own screen: it talks, dances, shows rain and opens its games page, with no cloud involved.*
+
 ![The virtual robot playground.](docs/images/hero-playground.gif)
+
+*The virtual robot playground: a 3D model, the robot's screen and a tool panel, so you can try everything before you own a robot.*
 
 Custom firmware for the [StackChan](https://github.com/m5stack/StackChan) desk robot, plus a small host program. Private and local: your robot talks to a model you choose, and nothing leaves your home unless you point it there.
 

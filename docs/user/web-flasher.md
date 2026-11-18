@@ -4,6 +4,8 @@ The flasher is a web page. It writes the robot's program over a USB cable.
 
 ![The flasher page with an Install button and the list of files.](../images/shot-web-flasher.png)
 
+*The flasher page with an Install button and the list of files.*
+
 ## What you need
 - A computer with Chrome or Edge.
 - A USB cable.

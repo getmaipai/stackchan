@@ -19,6 +19,8 @@ Not yet checked on a robot: a real join with a real key, a spoken turn over the 
 
 ![The setup page with the one-time key field.](../images/tailscale-settings.svg)
 
+*The setup page with the one-time key field. A placeholder drawing, not a real screenshot.*
+
 ## What it contacts
 
 Only when it joins, the robot contacts a public coordination service over an encrypted connection, so your devices can find each other. It sends no voice, snapshots or settings there. At home it contacts nothing outside your network.

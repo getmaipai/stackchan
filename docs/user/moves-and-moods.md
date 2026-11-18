@@ -13,6 +13,8 @@ Petting uses the head strip. If you set `strip_mode = "control"`, the strip open
 
 ![Four faces: surprised, dizzy, tilted and happy.](../images/reactions.svg)
 
+*Four faces: surprised, dizzy, tilted and happy. A placeholder drawing, not a real screenshot.*
+
 ## Tap the face
 
 You touch the screen, not the head strip. Each tap has its own screen so you always know what you did. Details: [Mute, camera off and full quiet](mute-and-camera-off.md).
@@ -26,6 +28,8 @@ You touch the screen, not the head strip. Each tap has its own screen so you alw
 The screen shows a calm icon for each state, not an X on the eyes.
 
 ![The three face tap zones marked on the robot's face.](../images/tap-zones.svg)
+
+*The three face tap zones marked on the robot's face. A placeholder drawing, not a real screenshot.*
 
 ## How you hold it
 
@@ -79,6 +83,8 @@ The camera-on cue is the one cue you cannot turn off.
 Below 15 percent, the light bars pulse amber once every 10 seconds <img src="../images/light-amber.svg" alt="amber light bars" height="22"> and the screen says "Battery low". A small red light at the back shows while it charges <img src="../images/light-charging.svg" alt="red charging light" height="22">. Two quick rising notes play when you plug in and one falling note when you unplug. [All lights and sounds](lights-and-sounds.md).
 
 ![The low-battery icon at 10 percent.](../images/low-battery.svg)
+
+*The low-battery icon at 10 percent. A placeholder drawing, not a real screenshot.*
 
 ## Still need help?
 

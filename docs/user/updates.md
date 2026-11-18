@@ -21,6 +21,8 @@ The same keys appear in `robot.toml`, in the settings page on your host and on t
 
 ![The update settings with "ask" selected.](../images/update-settings.svg)
 
+*The update settings with "ask" selected. A placeholder drawing, not a real screenshot.*
+
 ## Install an update
 
 1. The robot or the settings page on your host tells you a version is ready.
@@ -30,13 +32,19 @@ The same keys appear in `robot.toml`, in the settings page on your host and on t
 
 ![The update screen at 62 percent, with the words "Do not unplug".](../images/vu-update.png)
 
+*The update screen at 62 percent, with the words "Do not unplug".*
+
 ![The update-ready card with Install and Release notes buttons.](../images/update-ready.svg)
+
+*The update-ready card with Install and Release notes buttons. A placeholder drawing, not a real screenshot.*
 
 ## Updates over Wi-Fi
 
 You don't need a cable. The robot downloads the update over Wi-Fi, checks its signature, and shows an animated updating icon while it installs. It runs on battery, so keep it plugged in for a big update.
 
 ![The robot screen with an animated updating icon.](../images/updating.svg)
+
+*The robot screen with an animated updating icon. A placeholder drawing, not a real screenshot.*
 
 While it installs, the light bars pulse white fast <img src="../images/light-white.svg" alt="white light bars" height="22"> and an animated icon shows on the screen. Do not unplug it. A rising chime plays when it is back online.
 

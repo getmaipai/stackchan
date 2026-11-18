@@ -6,9 +6,15 @@ The face is home. You swipe on the screen to reach other things, and the robot g
 
 ![The control sheet on the robot, with Wi-Fi, time, battery, volume, brightness and the quick row.](../images/unit-control-sheet.png)
 
+*The control sheet on the robot, with Wi-Fi, time, battery, volume, brightness and the quick row.*
+
 ![The Timers app on the robot, with minute presets on the left and a running timer with a progress bar and Cancel.](../images/unit-timers-app.png)
 
+*The Timers app on the robot, with minute presets on the left and a running timer with a progress bar and Cancel.*
+
 ![The settings screen on the robot, with General, Network, Faces and Info tabs.](../images/unit-settings-general.png)
+
+*The settings screen on the robot, with General, Network, Faces and Info tabs.*
 
 ## The swipes
 
@@ -35,6 +41,8 @@ You choose up to three pages on each side of the face. A page appears once. Unti
 
 ![The clock page.](../images/vu-clock.png)
 
+*The clock page.*
+
 - **Clock.** Big digits or a ring, dimmed at night. It shows a dash until the robot knows the time.
 - **Timers.** Your running timers with a cancel button, and three buttons to start 1, 5 or 10 minutes.
 - **Games.** Each game with your best score. Press a row to play.
@@ -50,7 +58,11 @@ It shows volume and brightness sliders, a line with the Wi-Fi signal, the time a
 
 ![The control sheet: volume and brightness sliders, the time, Wi-Fi and battery, and the buttons Mute, Sleep, Lock, Apps, Games and Setup.](../images/vu-control-sheet.png)
 
+*The control sheet: volume and brightness sliders, the time, Wi-Fi and battery, and the buttons Mute, Sleep, Lock, Apps, Games and Setup.*
+
 ![The Info tab on the robot, showing firmware version, image and slot.](../images/unit-info-tab.png)
+
+*The Info tab on the robot, showing firmware version, image and slot.*
 
 ## The Apps and Games walls
 
@@ -58,7 +70,11 @@ Apps and games show as big colored tiles, each with its own picture: a stopwatch
 
 ![The Apps wall on the robot: Timers, Alarms, Clock and Quick actions.](../images/unit-apps-wall.png)
 
+*The Apps wall on the robot: Timers, Alarms, Clock and Quick actions.*
+
 ![The Games wall on the robot: Color Memory, Whack-a-Mole, Tic-Tac-Toe and Do It, each with a picture and a best score.](../images/unit-games-page.png)
+
+*The Games wall on the robot: Color Memory, Whack-a-Mole, Tic-Tac-Toe and Do It, each with a picture and a best score.*
 
 ## The Timers app
 

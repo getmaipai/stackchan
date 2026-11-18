@@ -20,17 +20,25 @@ You do not need a language model yet. The host can install a small one for you.
 
    ![The web flasher with the Install button and the Wi-Fi fields.](../images/flasher.svg)
 
+   *The web flasher with the Install button and the Wi-Fi fields. A placeholder drawing, not a real screenshot.*
+
 4. **Pair.** On the host computer run `stackchan pair`. It prints a 6 digit code that works for 10 minutes. Type the code on the robot's setup page. You will know it worked when the robot shows its face and the host page "On my robot" lists it.
 
    ![The robot screen with the 6 digit code, and the host terminal asking for it.](../images/pairing-code.svg)
+
+   *The robot screen with the 6 digit code, and the host terminal asking for it. A placeholder drawing, not a real screenshot.*
 
 5. **Check.** Run `stackchan check`. It tests each address and says in plain words what is wrong. You will know it worked when every line says ok.
 
    ![The terminal after `stackchan check`, every line marked ok.](../images/check-output.svg)
 
+   *The terminal after `stackchan check`, every line marked ok. A placeholder drawing, not a real screenshot.*
+
 6. **Talk.** Say the wake word, then ask a question. The face shows dots while it thinks, then it answers. If nothing happens, see [Troubleshooting](troubleshooting.md).
 
    ![The robot face with thinking dots.](../images/first-turn.svg)
+
+   *The robot face with thinking dots. A placeholder drawing, not a real screenshot.*
 
 If the light bars pulse cyan slowly <img src="../images/light-cyan.svg" alt="cyan light bars" height="22"> and you hear two rising notes, the robot needs you: it is waiting for Wi-Fi details or for the pairing code.
 
@@ -40,9 +48,15 @@ The first time it starts, the robot asks three things on its own screen: your la
 
 ![First start, step 1: pick a language. Six buttons: English, Español, Français, Deutsch, Português and Italiano.](../images/vu-first-run-language.png)
 
+*First start, step 1: pick a language. Six buttons: English, Español, Français, Deutsch, Português and Italiano.*
+
 ![First start, step 2: What should I be called? Six names to pick from.](../images/vu-first-run-name.png)
 
+*First start, step 2: What should I be called? Six names to pick from.*
+
 ![First start, step 3: How should I think? Pair with MaiPai Home, or Use my own model. Both stay in your home.](../images/vu-first-run-mode.png)
+
+*First start, step 3: How should I think? Pair with MaiPai Home, or Use my own model. Both stay in your home.*
 
 ## If the robot cannot join Wi-Fi
 
@@ -51,6 +65,8 @@ It opens a setup page. Connect your phone to the network named `stackchan-` and 
 If you will take the robot away from home, also type a one-time key for your private network: see [Use the robot away from home](use-it-anywhere.md).
 
 ![The setup page with a list of networks.](../images/wifi-setup.svg)
+
+*The setup page with a list of networks. A placeholder drawing, not a real screenshot.*
 
 ## Good to know
 

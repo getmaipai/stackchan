@@ -13,6 +13,8 @@ The light bars glow blue <img src="../images/light-blue.svg" alt="blue light bar
 
 ![The robot face in the listening state.](../images/listening.svg)
 
+*The robot face in the listening state. A placeholder drawing, not a real screenshot.*
+
 ## The wake word
 
 The default wake word is "Hi, Stack Chan". Other ready-made words and a phrase you make up are <span class="planned-tag">Planned</span>. Offline voice commands, which need no host, are planned too. The wake word, the English stop word and the audio front end come from Espressif's speech library, which the build downloads under its own license.
@@ -42,6 +44,8 @@ The robot hears "stop" even while it is speaking. Say "StackChan, stop", and it 
 Say "set brightness to 50 percent", "brighter", "dimmer", or "it's too bright". Swipe up from the bottom edge of the screen for the control sheet with volume, brightness, mute, quiet and more. A swipe that starts at the very side edge of the screen changes the volume. Swipe down to stop. Swipe left or right on the face to move through your [swipe pages](swipe-pages.md).
 
 ![The swipe-up control panel with volume and brightness sliders.](../images/control-panel.svg)
+
+*The swipe-up control panel with volume and brightness sliders. A placeholder drawing, not a real screenshot.*
 
 ## Sounds
 

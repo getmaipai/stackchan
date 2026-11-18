@@ -4,6 +4,8 @@ A code keeps other people from using the robot. The robot keeps the code itself 
 
 ![The lock screen: a dark screen with a gray padlock.](../images/vu-lock-screen.png)
 
+*The lock screen: a dark screen with a gray padlock.*
+
 ## Set a code
 1. Open the settings page and go to **Security**.
 2. In the Passcode lock card, type a code of 4 to 6 digits and type it again.
@@ -14,9 +16,13 @@ Touch the lock screen. A keypad opens. Type your digits. A dot fills in for each
 
 ![The keypad with three of six dots filled in.](../images/vu-lock-keypad.png)
 
+*The keypad with three of six dots filled in.*
+
 A wrong code turns the dots red.
 
 ![The keypad with six red dots after a wrong code.](../images/vu-lock-wrong.png)
+
+*The keypad with six red dots after a wrong code.*
 
 After several wrong codes in a row the robot makes you wait before you can try again.
 

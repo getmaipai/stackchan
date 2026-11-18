@@ -7,9 +7,13 @@ When the time is up the robot plays a tone and shows a pulsing icon. Say "stop" 
 
 ![The timers page with nothing running and three buttons to start a timer: plus 1, plus 5 and plus 10 minutes.](../images/vu-timers.png)
 
+*The timers page with nothing running and three buttons to start a timer: plus 1, plus 5 and plus 10 minutes.*
+
 When it rings, the light bars pulse cyan <img src="../images/light-cyan.svg" alt="cyan light bars" height="22"> and the robot plays its tone now and every 8 seconds, until you touch it or say "stop". [All lights and sounds](lights-and-sounds.md).
 
 ![The ring timer at 60 percent, with the time left in the middle.](../images/timer-ring.svg)
+
+*The ring timer at 60 percent, with the time left in the middle. A placeholder drawing, not a real screenshot.*
 
 ## Several timers
 
@@ -26,6 +30,8 @@ Say "wake me at seven". When it rings, say "snooze" for a short delay. If you ig
 Each kind of alarm has its own tone, so you know a kitchen timer from a wake-up alarm without looking.
 
 ![The alarm screen with a bell icon and the snooze hint.](../images/alarm-ringing.svg)
+
+*The alarm screen with a bell icon and the snooze hint. A placeholder drawing, not a real screenshot.*
 
 ## Announcements from MaiPai Home
 

@@ -24,6 +24,8 @@ The fit describes the slow behavior; when the firmware track fixes the animation
 
 ![Recorded head against the simulated head, before the servo fix](head-fit-before-servo-fix.svg)
 
+*Recorded head against the simulated head, before the servo fix. A placeholder drawing, not a real screenshot.*
+
 What the picture shows: the simulated head settles in about 0.7 s and its end points sit on the readings. Between them the simulation rings (a period of about 60 ms) where the recording has no evidence of it: the unit was read about five times a second, so a ring faster than 0.4 s cannot be seen, and the fit left the velocity gain near zero. Read the curve as correct at the settle time and the end point, and unproven in between. The next recording should read faster than 5 samples a second (or log on the unit) before the damping is trusted.
 
 ## Servo step rate

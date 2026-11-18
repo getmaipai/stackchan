@@ -5,6 +5,8 @@ Changing a setting never needs a reflash.
 
 ![The on-robot settings, General page, with Volume and Brightness sliders.](../images/vu-settings-general.png)
 
+*The on-robot settings, General page, with Volume and Brightness sliders.*
+
 ## Face style (`face_style`)
 
 Picks the look of the face: big eyes, stock or minimal. The settings page on your host shows a preview.
@@ -85,6 +87,8 @@ Clears Wi-Fi networks, pairing and settings, after a confirmation. See [Keep the
 - `idle_motion`: turn the idle moves off.
 
 ![The settings page on the host with robot status, settings, the pairing code, mute and update.](../images/web-settings.svg)
+
+*The settings page on the host with robot status, settings, the pairing code, mute and update. A placeholder drawing, not a real screenshot.*
 
 ## Still need help?
 

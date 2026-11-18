@@ -4,6 +4,8 @@ The settings page has a **Family and safety** card on the Home page. It tells yo
 
 ![The Home page on a phone: the Family and safety card, then Pair a robot and Open this page on your phone.](../images/shot-parent-view.png)
 
+*The Home page on a phone: the Family and safety card, then Pair a robot and Open this page on your phone.*
+
 ## What you see
 - **Robot:** online or offline.
 - **Microphone:** listening or muted.

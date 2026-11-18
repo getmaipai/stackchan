@@ -6,6 +6,8 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 
 ![The settings page with each feature switched on or off.](../images/web-features.svg)
 
+*The settings page with each feature switched on or off. A placeholder drawing, not a real screenshot.*
+
 ## Talk
 
 | Feature | What it does | Runs on | Page |

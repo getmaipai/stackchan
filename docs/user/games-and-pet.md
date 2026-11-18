@@ -9,19 +9,29 @@ Every game is full height. Swipe down on the bar at the top to leave. Game sound
 
 ![The Games wall: a colored tile per game with its best score.](../images/vu-games.png)
 
+*The Games wall: a colored tile per game with its best score.*
+
 ![The Games wall on the robot: big colored tiles with a picture and a best score for each game.](../images/unit-games-page.png)
+
+*The Games wall on the robot: big colored tiles with a picture and a best score for each game.*
 
 The robot has seven games, all on the flashed robot. The talk games are built but not flashed yet, and not tested with a live model. No finger has been tested on the glass by a person. They run on the robot itself, so they work even when MaiPai Home is off.
 
 ![Color Memory on the robot: four colored tiles.](../images/unit-game-color-memory.png)
+
+*Color Memory on the robot: four colored tiles.*
 
 - **Color memory.** The robot shows a pattern with lights and sounds. Tap the colors back in the same order. Each round adds one step. Your score is the number of rounds you got right.
 - **Whack-a-mole.** Funny moles pop up in a grid of nine holes: a grinning one, one with its tongue out, a startled one and one in a helmet. Tap each one before it hides. A hit gives a dazed mole with stars and a bonk or a squeak. A tap on the wrong hole and a mole that gets away each have their own funny sounds. There are 15 moles.
 - **Tic-Tac-Toe.** Pick a level by tapping a row: Easy plays random moves, Medium takes a win and blocks yours, Hard never loses. You are X and go first. The robot plays its O and tells you its move, "I played row 2 column 3". A win scores 10, 20 or 30 by level, a draw 3, 6 or 9.
 ![Do It on the robot, calling "Swipe left!".](../images/unit-game-do-it.png)
 
+*Do It on the robot, calling "Swipe left!".*
+
 - **Do It.** Wait for the screen to change color. Then it shows a move in big words and a big picture: tap, swipe left, swipe right, gentle shake, pet my head or tilt. Do the move, or press the big button (the whole screen), as fast as you can. Every round is faster, and the color and the tone change as it speeds up. A wrong move, a tap too early or a late answer ends the run. Your score is the rounds you got right, and a new best gets confetti.
 ![Rock Paper Scissors on the robot, with Play again and Quit.](../images/unit-game-rps.png)
+
+*Rock Paper Scissors on the robot, with Play again and Quit.*
 
 - **Rock Paper Scissors.** A best of three match. The robot bumps its fist three times, "Rock, paper, scissors", with a beat each time while the three choices are dim. At "SHOOT" they light up and you tap one within a second and a bit. A tap too early starts the round again. No tap is a loss. Both hands are shown, yours on the left, then the result and two buttons, **Play again** and **Quit**. After the match press **Rematch** or **Quit**. Your score is the matches you won, saved when you press **Quit**.
 - **Magic 8-Ball.** Ask a question, then gently shake the robot or tap the ball for an answer.
@@ -44,7 +54,11 @@ Colors always sit in a fixed place on the screen, so you can play without tellin
 
 ![The color-memory game with four shapes.](../images/game-memory.svg)
 
+*The color-memory game with four shapes. A placeholder drawing, not a real screenshot.*
+
 ![The whack-a-mole variant mid-round.](../images/game-whack.svg)
+
+*The whack-a-mole variant mid-round. A placeholder drawing, not a real screenshot.*
 
 To start one by voice, say "play tic tac toe", "play do it", "play rock paper scissors" or "play whack a mole".
 
@@ -76,6 +90,8 @@ The mood is saved across days and shows in the face and the idle moves. It never
 Turn it off with `pet_mood = false`.
 
 ![Three mood faces: happy, bored and lonely.](../images/mood-faces.svg)
+
+*Three mood faces: happy, bored and lonely. A placeholder drawing, not a real screenshot.*
 
 
 ## Still need help?

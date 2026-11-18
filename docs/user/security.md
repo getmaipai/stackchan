@@ -13,6 +13,8 @@ Privacy keeps your data in your home. Security keeps other people out. This page
 
 ![The web security page listing paired devices, with a Forget button next to each.](../images/security-settings.svg)
 
+*The web security page listing paired devices, with a Forget button next to each. A placeholder drawing, not a real screenshot.*
+
 ## No stealth
 
 The robot never monitors in secret. Every listening, looking or watching mode shows on its screen. See [The robot never monitors in secret](no-stealth.md).

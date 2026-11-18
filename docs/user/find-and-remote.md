@@ -28,6 +28,8 @@ There is no ultra-wideband chip, so there is no arrow like the one on a lost pho
 
 ![The web app Find screen with last seen, a Make it beep button and a signal meter.](../images/find-me.svg)
 
+*The web app Find screen with last seen, a Make it beep button and a signal meter. A placeholder drawing, not a real screenshot.*
+
 ## Remote control
 
 Turn on `remote_control` in the settings. Then, from the web app, you can:
@@ -49,6 +51,8 @@ With live view, you can look around the room the same way.
 Every pan or tilt writes one line to the activity log. A remote head move follows the same limits as any other move. It is refused while the robot is being carried or is blocked, and it is rate limited, so it cannot be used to wear out or jam the motors.
 
 ![The web app Remote screen with Beep, Lights, Talk and Head controls.](../images/remote-control.svg)
+
+*The web app Remote screen with Beep, Lights, Talk and Head controls. A placeholder drawing, not a real screenshot.*
 
 ## You always know
 
