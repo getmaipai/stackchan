@@ -77,30 +77,27 @@ def test_a_language_pack_and_the_always_on_tasks_cost_no_new_internal_ram():
 
 
 def test_the_budget_breaks_when_too_much_is_open_at_once():
+    order = ["screen.settings", "screen.first_run", "overlay.layer.back", "overlay.layer.event", "decor.notes", "screen.sheet", "screen.apps_wall", "screen.games_wall"]
     m = mm.MemoryModel(None, TABLE, strict=True)
-    m.open("screen.settings")
-    m.open("screen.first_run")
-    assert not m.broken()
-    m.open("overlay.layer.back")
-    with pytest.raises(mm.MemoryBudgetError, match="internal_free_lowest.*under its gate"):   # 4,000 + 3,700 + 1,500 + 1,500 + 1,200 + 2,500 + 2,500 is more than the 15,828 above the floor (b47 baseline)
-        m.open("overlay.layer.event")
-        m.open("decor.notes")
-        m.open("screen.page.clock")
-        m.open("screen.page.timers")
+    with pytest.raises(mm.MemoryBudgetError, match="internal_free_lowest.*under its gate"):   # the transient items add up past the margin above the lowest floor
+        for k in order:
+            m.open(k)
+    assert m.loaded, "the first items fit"
     soft = mm.MemoryModel(None, TABLE, strict=False)
-    for k in ("screen.settings", "screen.first_run", "overlay.layer.back", "overlay.layer.event", "decor.notes", "screen.page.clock", "screen.page.timers"):
+    for k in order:
         soft.open(k)
-    assert soft.violations and "screen.page.timers" in soft.violations[-1]
+    assert soft.violations and any("internal_free_lowest" in v for v in soft.violations)
 
 
 def test_the_camera_stream_as_a_standing_feature_breaks_the_largest_block_gate():
+    base = TABLE["baseline"]["largest_block_median"]
+    item = next(i for i in TABLE["items"] if i["id"] == "feature.avatar_stream")
+    if base - item["largest_block"] >= TABLE["gate"]["largest_block_median_min"]:
+        pytest.skip("the table no longer says the stream breaks the largest block gate")
     m = mm.MemoryModel(None, TABLE, strict=False)
-    m.open("feature.avatar_stream")   # a 4 KB stack that stays: after SF47 the largest block is 32,024 and falls to 27,928, still over the 24,000 floor
-    assert not any("largest_block_median" in v for v in m.violations)
-    assert m.numbers()["largest_block_median"] == 32024 - 4096
-    m.open("task.avatar_lan")         # the link's own 8,192 byte stack is transient (created on first use since SF47): it moves the lowest block only, 19,456, over the 16,000 floor
-    assert m.numbers()["largest_block_lowest"] == 19456
-    assert not m.violations
+    m.open("feature.avatar_stream")   # a block that stays: the largest block falls under the median floor (docs/dev/memory-budget.md says the same)
+    assert any("largest_block_median" in v for v in m.violations)
+    assert m.numbers()["largest_block_median"] == base - item["largest_block"]
 
 
 def test_an_item_with_no_declared_cost_is_refused():

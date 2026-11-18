@@ -146,7 +146,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (179): Memory budget of the optional features (owner decision 11, 2026-11-18)
-- `docs/dev/model-previews/joints.gif` (1586): Binary file docs/dev/model-previews/joints.gif matches
+- `docs/dev/model-previews/joints.gif` (1604): no header
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
 - `docs/dev/releases/b13.md` (45): Build report: b13
@@ -2351,7 +2351,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_virtual_unit_dance.py` (212): ruff: noqa: E501
 - `host/tests/test_virtual_unit_fidelity.py` (56): Handlers the virtual unit shares with the unit's own cores, checked against the core's rules (docs/dev/virtual
 - `host/tests/test_virtual_unit_hw.py` (189): ruff: noqa: E501
-- `host/tests/test_virtual_unit_memory.py` (161): ruff: noqa: E501
+- `host/tests/test_virtual_unit_memory.py` (158): ruff: noqa: E501
 - `host/tests/test_virtual_unit_parity.py` (37): Tool parity: every firmware tool is either simulated or a named gap. Unsimulated tools xfail (strict), so this
 - `host/tests/test_virtual_unit_physics.py` (221): ruff: noqa: E501
 - `host/tests/test_virtual_unit_ports.py` (187): ruff: noqa: E501
@@ -2435,7 +2435,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/scene_overlays.py` (71): Renderer scripts for the overlay pass (patch O01): every overlay and every named combination, drawn by the uni
 - `scripts/fw-face-render/scene_pages.py` (81): Writes the renderer scripts for the swipe pages and the control sheet (patches P10 to P12): every page and the
 - `scripts/fw-face-render/stub/esp_attr.h` (0): no header
-- `scripts/fw-face-render/stub/esp_heap_caps.h` (7): Host renderer stub: the pictures of the face (patch V23) live in PSRAM on the unit; here they are plain memory
+- `scripts/fw-face-render/stub/esp_heap_caps.h` (8): Host renderer stub: the pictures of the face (patch V23) live in PSRAM on the unit; here they are plain memory
 - `scripts/fw-face-render/stub/esp_random.h` (4): pragma once
 - `scripts/fw-face-render/stub/esp_timer.h` (5): Host renderer stub: a clock the harness sets, so a frame at "t = 1.2 s" is the same every run.
 - `scripts/fw-facedet-req.py` (50): Writes firmware/maipai_facedet.compile_req.yml: the op list the face models need, so esp-dl compiles only thos
@@ -2517,7 +2517,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/MATCH.md` (237): Does the model match the owner's unit?
 - `scripts/virtual-unit/model/README.md` (78): Robot 3D model
 - `scripts/virtual-unit/model/SOURCE.md` (34): Source of the model geometry
-- `scripts/virtual-unit/model/make_body.py` (1075): Build the rigged body model of the unit from the official structure files in source/.
+- `scripts/virtual-unit/model/make_body.py` (1077): Build the rigged body model of the unit from the official structure files in source/.
 - `scripts/virtual-unit/model/render_previews.py` (224): Render the preview pictures of stackchan.glb: six views of the outside and both joints through their ranges.
 - `scripts/virtual-unit/model/softrender.py` (170): A small software renderer for the body model previews: standard library only.
 - `scripts/virtual-unit/model/source/LICENSE` (20): no header

@@ -4,4 +4,5 @@
 #define MALLOC_CAP_SPIRAM 0
 #define MALLOC_CAP_8BIT 0
 #define MALLOC_CAP_INTERNAL 0
+static inline void* heap_caps_calloc(size_t n, size_t sz, unsigned caps) { (void)caps; return calloc(n, sz); }
 static inline void* heap_caps_malloc(size_t n, unsigned caps) { (void)caps; return malloc(n); }

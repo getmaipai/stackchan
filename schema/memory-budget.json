@@ -13,11 +13,11 @@
  "baseline": {
   "image": "b47 plain with bench tools, face showing, link up, SF47 in (avatar_lan not created at boot)",
   "internal_free_median": 68500,
-  "internal_free_lowest": 39828,
+  "internal_free_lowest": 32024,
   "largest_block_median": 32024,
   "largest_block_lowest": 31744,
   "psram_free": 7834532,
-  "source": "bench window 14: SystemInfo memory line (internal_free 68,519, internal_min 39,828, int_big 31,744, psram_free 7,834,532) and self.bench.heap_info call 3 (largest free 32,024, total free 67,956). One sample each: a median over a minute is still to take."
+  "source": "firmware pin 2026-11-18 (window 14): median 68,500, lowest 32,024; the largest block numbers are still those of windows 10 and 11"
  },
  "items": [
   {
