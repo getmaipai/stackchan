@@ -157,7 +157,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/stackchan-wireless-update-2026-11-14.md` (61): StackChan wireless firmware update (design, 2026-11-14)
 - `docs/dev/updater.md` (96): Flasher and updater
 - `docs/dev/virtual-unit-fidelity.md` (23): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
-- `docs/dev/virtual-unit.md` (27): Virtual unit
+- `docs/dev/virtual-unit.md` (29): Virtual unit
 - `docs/images/agent-status.svg` (1): no header
 - `docs/images/alarm-ringing.svg` (1): no header
 - `docs/images/alert-screen.svg` (1): no header
@@ -1968,6 +1968,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_selftest_wiring.py` (165): BOT-SELF-TEST-01: the live-service wiring of the StackChan self-test."""
 - `host/tests/test_settings_token.py` (116): The settings page from a phone: a per-install token is the login for requests that are not local."""
 - `host/tests/test_settings_ui.py` (426): ruff: noqa: E501
+- `host/tests/test_sf_patch_headers.py` (19): Public-readiness guard: the header lines of the safety patches (SF*) say what the patch does, with no review l
 - `host/tests/test_sherpa_engines.py` (15): VOICE-01: the sherpa engines, as far as they can be checked without the unit."""
 - `host/tests/test_sim_downlink.py` (136): Tests for firmware tool-reply latency, dropped replies, and receive timestamps."""
 - `host/tests/test_sim_uplink.py` (104): Tests for StackChanFirmware listen frames and real Opus uplink streaming."""
@@ -2266,9 +2267,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/tools_extract.py` (90): Write schema/tools.json: every MCP tool name the firmware patches register, with the patch that adds it.
 - `scripts/virtual-unit/ui_style_check.py` (30): Count the font sizes and color literals the app screen sources use, on the overlay tree built by build-face.sh
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
-- `scripts/virtual-unit/view.html` (125): app{display:flex;height:100%}
-- `scripts/virtual-unit/view.py` (170): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
-- `scripts/virtual-unit/vunit.py` (259): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
+- `scripts/virtual-unit/view.html` (153): app{display:flex;height:100%}
+- `scripts/virtual-unit/view.py` (289): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
+- `scripts/virtual-unit/vunit.py` (264): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/wakeword/README.md` (17): Local wake word experiment
 - `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
 - `scripts/wakeword/features.py` (77): Small, dependency-light audio helpers for local wake-word experiments."""

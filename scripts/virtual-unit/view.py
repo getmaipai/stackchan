@@ -9,9 +9,13 @@ Placement: host-side development tool; no firmware change. Upstream: none."""
 import importlib.util
 import json
 import re
+import struct
+import subprocess
 import sys
+import tempfile
 import threading
 import time
+import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -23,7 +27,40 @@ spec.loader.exec_module(vunit)
 SCEN = importlib.util.spec_from_file_location("scenarios", HERE / "scenarios.py")
 scenarios = importlib.util.module_from_spec(SCEN)
 SCEN.loader.exec_module(scenarios)
+HWSPEC = importlib.util.spec_from_file_location("hw", HERE / "hw.py")
+hw = importlib.util.module_from_spec(HWSPEC)
+HWSPEC.loader.exec_module(hw)
+HW = hw.Hardware()
 PLAYING = {"name": None}
+COVER_RENDER = HERE.parents[1] / ".runs" / "vu-screens" / "cover" / "cover_render"
+APPLIED = {"status": None, "tired": 0, "cover_ring": []}
+
+
+def _png(w, h, rgb=(0, 0, 0)):
+    raw = b"".join(b"\x00" + bytes(rgb) * w for _ in range(h))
+    def chunk(tag, data):
+        body = tag + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+
+BLACK = _png(320, 240)
+
+
+def cover_frame(text, ring, glyph, elapsed_ms):
+    """One frame of a boot cover, drawn by the unit's own cover code (a fresh run replayed to elapsed_ms; the cover renderer is a separate program)."""
+    if not COVER_RENDER.exists():
+        return None, []
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "c.png"
+        script = f"show {ring} {glyph} {text}\nadvance {max(0, elapsed_ms)}\nring\nsnap {out}\n"
+        done = subprocess.run([str(COVER_RENDER)], input=script, text=True, capture_output=True, timeout=20)
+        leds = []
+        for line in done.stdout.splitlines():
+            if line.startswith("ring "):
+                leds = [[int(v) for v in line.split()[1:4]]] * 12
+        return (out.read_bytes() if out.exists() else None), leds
+
 REC_DIR = HERE / "recordings"
 REC = {"on": False, "t0": 0, "last": 0, "steps": []}  # a recording of what a person did: waits, touches and tool calls
 
@@ -42,12 +79,76 @@ UNIT = None
 FRAME = b""
 
 
+def apply_body():
+    """Send what the body implies to the renderer and the tools: status bar fields, the tired look on a low battery, the motion limiter inputs."""
+    if UNIT.profile == "screens" and HW.on and HW.boot_started is None:
+        args = HW.status_args()
+        if APPLIED["status"] != args:
+            UNIT.raw("bstatus " + " ".join(str(a) for a in args))
+            APPLIED["status"] = args
+    if HW.on and HW.boot_started is None and APPLIED["tired"] != HW.tired_level():
+        APPLIED["tired"] = HW.tired_level()
+        if HW.tired_level():
+            UNIT.call("self.face.bench_emotion", {"emotion": "tired", "tired_level": HW.tired_level()})
+        else:
+            UNIT.call("self.face.bench_emotion", {"emotion": "neutral"})
+    sync_motion()
+
+
+def sync_motion():
+    """The unit's own limiter (patch ML01) answers for this body: carried, USB, battery and orientation are its inputs."""
+    UNIT.battery.update(percent=HW.battery, charging=HW.charging)
+    carried, usb, level, orient = HW.motion_force()
+    hw_force = UNIT.state["motion"].get("force")
+    if hw_force != [carried, usb, level, orient]:
+        UNIT.call("self.motion.force", {"carried": carried, "usb": usb, "level": level, "orient": orient})
+
+
+def head_now():
+    """The head including a running dance, kept inside the servo ranges."""
+    base = UNIT.head()
+    yaw, pitch = float(base["yaw"]), float(base["pitch"])
+    if HW.on and HW.dance:
+        lim = motion_state()
+        dy, dp = hw.dance_offset(HW.dance, UNIT.now_ms - HW.dance_started, lim.get("scale", 100), lim.get("speed_cap", 1000))
+        yaw, pitch = yaw + dy, pitch + dp
+    yaw = max(vunit.YAW_RANGE[0], min(vunit.YAW_RANGE[1], yaw))
+    pitch = max(vunit.PITCH_RANGE[0], min(vunit.PITCH_RANGE[1], pitch))
+    return {"yaw": round(yaw, 1), "pitch": round(pitch, 1)}
+
+
+def motion_state():
+    return vunit._tools.REGISTRY["self.motion.status"](UNIT, {})
+
+
 def pump():
     global FRAME
     while True:
         with LOCK:
             UNIT.advance(100)
-            FRAME = UNIT.snapshot()
+            was_dancing = HW.dance
+            HW.tick(UNIT.now_ms)
+            if was_dancing and not HW.dance:
+                UNIT.state["motion"]["dance"] = ""  # the dance ended or the unit went off
+            if HW.dance and not UNIT.state.get("motion", {}).get("dance"):
+                HW.dance = ""  # self.robot.stop_dance
+            elif not HW.dance and UNIT.state.get("motion", {}).get("dance") and HW.on:
+                HW.dance, HW.dance_started = UNIT.state["motion"]["dance"], UNIT.now_ms
+            if not HW.on:
+                UNIT.state["motion"]["dance"] = ""
+                FRAME = BLACK
+                APPLIED["status"] = None
+                APPLIED["tired"] = 0
+            else:
+                cover = HW.boot_cover(UNIT.now_ms)
+                if cover is not None:
+                    png, leds = cover_frame(*cover)
+                    FRAME = png or BLACK
+                    APPLIED["cover_ring"] = leds
+                else:
+                    APPLIED["cover_ring"] = []
+                    apply_body()
+                    FRAME = UNIT.snapshot()
         time.sleep(0.1)
 
 
@@ -67,7 +168,13 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/frame.png":
             self._send(FRAME, "image/png")
         elif self.path == "/state":
-            self._send(json.dumps({"now_ms": UNIT.now_ms, "emotion": UNIT.emotion, "tools": len(UNIT.tool_names), "head": UNIT.head(), "leds": UNIT.leds, "battery": UNIT.battery}).encode(), "application/json")
+            with LOCK:
+                mot = motion_state()
+                recent = [t for t in UNIT.move_times if UNIT.now_ms - t < 60000]
+                state = {"now_ms": UNIT.now_ms, "emotion": UNIT.emotion, "tools": len(UNIT.tool_names), "head": head_now(), "leds": APPLIED["cover_ring"] or UNIT.leds,
+                         "battery": UNIT.battery, "hw": HW.view(), "motion": mot, "moves_last_minute": len(recent), "moves_cap": vunit.MOVES_PER_MINUTE,
+                         "dance": HW.dance, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
+            self._send(json.dumps(state).encode(), "application/json")
         elif self.path == "/tools":
             tools = [{"name": n, "args": UNIT.tool_args.get(n, {}), "user_only": n in UNIT.user_only} for n in UNIT.tool_names]
             self._send(json.dumps({"tools": tools, "touch": UNIT.profile == "screens"}).encode(), "application/json")
@@ -77,6 +184,8 @@ class Handler(BaseHTTPRequestHandler):
             names = [n for n in list(scenarios.SCENARIOS) + list(scenarios.SCREENS) if UNIT.profile == "screens" or n in scenarios.SCENARIOS]
             names += [f"rec:{n}" for n in recordings()]
             self._send(json.dumps({"scenarios": names}).encode(), "application/json")
+        elif self.path == "/view3d.js":
+            self._send((HERE / "view3d.js").read_bytes(), "text/javascript; charset=utf-8")
         elif self.path == "/":
             self._send((HERE / "view.html").read_bytes(), "text/html; charset=utf-8")
         else:
@@ -86,6 +195,15 @@ class Handler(BaseHTTPRequestHandler):
         req = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         if self.path == "/record":
             return self._send(json.dumps(record_action(req)).encode(), "application/json")
+        if self.path == "/hw":
+            with LOCK:
+                refused = HW.set(req.get("key", ""), req.get("value"), UNIT.now_ms)
+                if req.get("key") == "power" and refused is None and HW.on:
+                    APPLIED["status"] = None
+                sync_motion()
+            return self._send(json.dumps({"isError": True, "text": refused} if refused else {"ok": True, "hw": HW.view()}).encode(), "application/json")
+        if self.path in ("/call", "/touch", "/scenario") and not HW.on:
+            return self._send(json.dumps({"isError": True, "text": "The unit is off. Press its power button (or the Power button in the panel)."}).encode(), "application/json")
         if self.path == "/call":
             with LOCK:
                 out = UNIT.call(req.get("name", ""), req.get("arguments", {}))
@@ -159,6 +277,7 @@ def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8780
     screens = (HERE.parents[1] / ".runs" / "vu-screens" / "render").exists()
     UNIT = vunit.VirtualUnit(profile="screens" if screens else "face").__enter__()
+    motion_state()  # creates the motion tools' defaults before the pump touches them
     FRAME = UNIT.snapshot()
     threading.Thread(target=pump, daemon=True).start()
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)

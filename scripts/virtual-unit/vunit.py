@@ -193,6 +193,9 @@ class VirtualUnit:
         if name == "self.robot.get_head_angles":
             return self.head()
         if name == "self.robot.set_head_angles":
+            lim = _tools.REGISTRY["self.motion.status"](self, {})  # the unit's own limiter (patch ML01) for this body: carried, USB, battery, orientation
+            if lim["state"] == "carried":
+                return {"ok": False, "text": "refused: the unit is held or tilted too far; put it upright (patch ML01)"}
             self.move_times = [t for t in self.move_times if self.now_ms - t < 60000]
             if len(self.move_times) >= MOVES_PER_MINUTE:
                 return {"ok": False, "text": "refused: more than 40 head moves in a minute (patch 038)"}
@@ -201,7 +204,9 @@ class VirtualUnit:
             yaw, pitch = int(args.get("yaw", KEEP)), int(args.get("pitch", KEEP))
             yaw1 = cur["yaw"] if yaw == KEEP else max(YAW_RANGE[0], min(YAW_RANGE[1], yaw))
             pitch1 = cur["pitch"] if pitch == KEEP else max(PITCH_RANGE[0], min(PITCH_RANGE[1], pitch))
-            speed = max(100, min(1000, int(args.get("speed", 150))))
+            if lim["scale"] < 100:  # the limiter shrinks the excursion around the rest pose and caps the speed
+                yaw1, pitch1 = round(yaw1 * lim["scale"] / 100), round(pitch1 * lim["scale"] / 100)
+            speed = max(100, min(lim["speed_cap"] or 1000, 1000, int(args.get("speed", 150))))
             self.yaw0, self.pitch0, self.yaw1, self.pitch1 = cur["yaw"], cur["pitch"], yaw1, pitch1
             self.move_start_ms = self.now_ms
             self.move_ms = int(1000 * max(abs(yaw1 - cur["yaw"]), abs(pitch1 - cur["pitch"])) / speed)
