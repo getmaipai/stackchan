@@ -194,7 +194,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(json.dumps({"log": UNIT.log[-60:], "playing": PLAYING["name"]}).encode(), "application/json")
         elif self.path == "/scenarios":
             names = [n for n in list(scenarios.SCENARIOS) + list(scenarios.SCREENS) if UNIT.profile == "screens" or n in scenarios.SCENARIOS]
-            names += [f"rec:{n}" for n in recordings()]
+            names += list(scenarios.PORTS) + [f"rec:{n}" for n in recordings()]
             self._send(json.dumps({"scenarios": names}).encode(), "application/json")
         elif self.path == "/physics/model.xml":
             self._send(mjcf.mjcf(mjcf.load()).encode(), "application/xml")
@@ -259,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(json.dumps({"ok": True, "renderer": said}).encode(), "application/json")
         if self.path == "/scenario":
             name = req.get("name", "")
-            steps = scenarios.SCENARIOS.get(name) or scenarios.SCREENS.get(name)
+            steps = scenarios.SCENARIOS.get(name) or scenarios.SCREENS.get(name) or scenarios.PORTS.get(name, {}).get("steps")
             if steps is None and name.startswith("rec:") and (REC_DIR / f"{name[4:]}.json").exists():
                 steps = scenarios.load_recording(REC_DIR / f"{name[4:]}.json")
             if steps is None or PLAYING["name"]:
@@ -304,6 +304,9 @@ def play(name, steps):
                     UNIT.raw(step[1])
                 elif step[0] == "touch":
                     UNIT.touch(*step[1:])
+                elif step[0] == "hw":   # the body: a cable, the battery, a hand
+                    HW.set(step[1], step[2], UNIT.now_ms)
+                    sync_motion()
     finally:
         PLAYING["name"] = None
 

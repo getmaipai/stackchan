@@ -107,7 +107,18 @@ function initRobot(THREE, canvas, hooks) {
       const mesh = new THREE.Mesh(geo, unseen), hl = new THREE.Mesh(geo, glow); hl.visible = false; hl.renderOrder = 6; hl.scale.setScalar(0.75);
       node.add(mesh); node.add(hl); M.aux.add(mesh); M.aux.add(hl); M.hits.push({mesh, hl, label, act, name: node.name, onHead: onHead(node)}); return mesh;
     };
-    M.portHit = addSwitch(N.usb_c_port, new THREE.BoxGeometry(0.028, 0.016, 0.018), 'USB-C port: click to plug or unplug the cable', () => hooks.togglePort());
+    // the unit has two USB-C ports: the back one on the base (power) and the side one on the controller (power and serial data)
+    M.portHit = addSwitch(N.usb_c_port, new THREE.BoxGeometry(0.028, 0.016, 0.018), 'Back USB-C port (on the base, power): click to plug or unplug its cable', () => hooks.togglePort('back'));
+    if (N.usb_c_otg) {
+      M.sideHit = addSwitch(N.usb_c_otg, new THREE.BoxGeometry(0.012, 0.018, 0.012), 'Side USB-C port (on the controller, power and serial data): click to plug or unplug its cable', () => hooks.togglePort('side'));
+      // its cable rides on the head: a small plug straight out of the side, then the lead drooping down (sizes in meters, the node's own frame)
+      const side = new THREE.Group(); side.visible = false; N.usb_c_otg.add(side); M.sideCable = side;
+      const metal = new THREE.MeshStandardMaterial({color: 0xb7bcc4, metalness: 0.5, roughness: 0.35}), dark = new THREE.MeshStandardMaterial({color: 0x30353d, roughness: 0.6});
+      const tip2 = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.008, 0.0024), metal); tip2.position.set(-0.0005, 0, 0);
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.0088, 0.0036), dark); grip.position.set(-0.007, 0, 0);
+      const lead = new THREE.CatmullRomCurve3([new THREE.Vector3(-0.0105, 0, 0), new THREE.Vector3(-0.02, -0.001, 0), new THREE.Vector3(-0.03, -0.012, -0.004), new THREE.Vector3(-0.034, -0.035, -0.012), new THREE.Vector3(-0.036, -0.06, -0.03)]);
+      for (const m of [tip2, grip, new THREE.Mesh(new THREE.TubeGeometry(lead, 30, 0.0011, 8, false), new THREE.MeshStandardMaterial({color: 0x2a2f36, roughness: 0.7}))]) { side.add(m); M.aux.add(m); }
+    }
     M.btnHit = addSwitch(N.power_button, new THREE.SphereGeometry(0.008, 10, 10), 'Power button: click to turn the unit off or on', () => hooks.togglePower());
     if (N.reset_button) addSwitch(N.reset_button, new THREE.SphereGeometry(0.006, 10, 10), 'Reset button: a click restarts the unit (on the real one, a 3 second hold enters download mode)', () => hooks.reset && hooks.reset());
     for (let i = 0; i < 3; i++) if (N['touch_back_' + i])
@@ -367,8 +378,9 @@ function initRobot(THREE, canvas, hooks) {
         const c = on && leds[i] ? leds[i] : [0, 0, 0];
         if (c[0] + c[1] + c[2] === 0) m.material.color.setRGB(0.30, 0.46, 0.47); else m.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255);
       });
-      cable.visible = st.hw.usb;
-      if (M.chargeLed) M.chargeLed.material.color.set(st.hw.usb && st.hw.charging ? 0xff3b30 : 0x3a0806);   // red while charging, dark otherwise
+      const ports = st.hw.ports || {back: {plugged: st.hw.usb}, side: {plugged: false}};
+      cable.visible = ports.back.plugged; if (M.sideCable) M.sideCable.visible = ports.side.plugged;
+      if (M.chargeLed) M.chargeLed.material.color.set(st.hw.charging ? 0xff3b30 : 0x3a0806);   // red while charging, dark otherwise
       if (M.bottomLed) M.bottomLed.material.color.set(0x0b2412);   // unlit: nothing in the firmware drives it
       M.screen.material.color.set(on ? 0xffffff : 0x000000);
     },

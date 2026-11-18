@@ -91,6 +91,36 @@ COVER_SCENARIOS = {
 }
 
 
+# ---- the two USB-C ports: every combination, a 12 V mistake, and a cable going in or out during a dance.
+# A step ("hw", key, value) sets the body (view.py plays these; they need the body, so scenarios.run does not take them).
+# "expect" is what GET /state must say when the steps are done, as dotted paths. host/tests/test_virtual_unit_ports.py plays each one
+# through the running view and checks it, so the answers come from the unit's own limiter and status.
+_REST = [("hw", "battery", 75), ("hw", "carried", False), ("hw", "orient", "upright"), ("hw", "side_source", "computer"), ("hw", "back_source", "charger"),
+         ("hw", "side", False), ("hw", "back", False), ("call", "self.robot.stop_dance", {}), ("advance", 300)]
+_DANCE = [("call", "self.robot.dance", {"name": "look_around"}), ("advance", 1200)]
+PORTS: dict[str, dict] = {
+    "ports-none": {"steps": _REST, "expect": {
+        "hw.powered_by": "battery", "hw.vbus": False, "hw.charging": False, "hw.serial_possible": False, "hw.supply.input_ma": 0,
+        "hw.limiter_cable.present": False, "motion.state": "free", "motion.scale": 100, "battery.charging": False}},
+    "ports-side-only": {"steps": _REST + [("hw", "side", True), ("hw", "serial", True), ("advance", 300)], "expect": {
+        "hw.powered_by": "side", "hw.vbus": True, "hw.charging": True, "hw.serial": True, "hw.supply.input_ma": 500,
+        "hw.limiter_cable.from": ["side"], "motion.state": "usb_limited", "motion.scale": 50, "motion.usb": True, "battery.charging": True}},
+    "ports-back-only": {"steps": _REST + [("hw", "back", True), ("advance", 300)], "expect": {
+        "hw.powered_by": "back", "hw.vbus": True, "hw.charging": True, "hw.serial_possible": False, "hw.usb": False, "hw.supply.input_ma": 2000,
+        "hw.limiter_cable.from": ["back"], "motion.state": "usb_limited", "motion.scale": 50, "battery.charging": True}},
+    "ports-both": {"steps": _REST + [("hw", "side", True), ("hw", "back", True), ("advance", 300)], "expect": {
+        "hw.powered_by": "both", "hw.vbus": True, "hw.charging": True, "hw.serial_possible": True, "hw.supply.input_ma": 2500,
+        "hw.limiter_cable.from": ["side", "back"], "motion.state": "usb_limited", "motion.scale": 50}},
+    "ports-back-12v-refused": {"steps": _REST + [("hw", "back_source", "supply_12v"), ("hw", "back", True), ("advance", 300)], "expect": {
+        "hw.powered_by": "battery", "hw.vbus": False, "hw.charging": False, "hw.ports.back.fault": True, "hw.ports.back.gives_power": False,
+        "hw.limiter_cable.present": False, "motion.state": "free", "motion.scale": 100}},
+    "ports-plug-during-dance": {"steps": _REST + _DANCE + [("hw", "back", True), ("advance", 500)], "expect": {
+        "dance": "look_around", "hw.powered_by": "back", "motion.state": "usb_limited", "motion.scale": 50}},
+    "ports-unplug-during-dance": {"steps": _REST + [("hw", "side", True), ("advance", 300)] + _DANCE + [("hw", "side", False), ("advance", 500)], "expect": {
+        "dance": "look_around", "hw.powered_by": "battery", "hw.serial": False, "motion.state": "free", "motion.scale": 100}},
+}
+
+
 def run_lock(name: str) -> bytes:
     import subprocess
     import tempfile

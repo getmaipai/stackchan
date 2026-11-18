@@ -38,3 +38,13 @@ See `docs/plan/physics-playground.md`. The panel's Physics section loads the eng
 - **Make the robot do something**: pick an area (robot, face, audio and so on), then an action, then fill in its values; a number with a known range gets a slider, a yes or no gets a switch, a known set of names gets a list. A refusal is explained in plain words with the unit's reason code.
 - The numbers have a fixed width and **Stop dance** is the first button of its row, so nothing moves while a dance changes the angles.
 - `host/tests/test_vu_view_pointer.py` drives these with a real pointer in headless Chrome.
+
+## Two USB-C ports (2026-11-18)
+
+The unit has two USB-C ports and the virtual unit models both, each with its own cable: the **side port** on the controller (power and serial data) and the **back port** on the base (power). Both sockets are click targets in the picture, and the **Power and ports** panel has a button and a source list for each.
+
+- A cable's source is a computer's USB port (5 V, 500 mA, carries data), a 5 V 2 A charger, or a 12 V supply. The 12 V supply is the mistake case: the port gives no power and the log says to unplug it.
+- Derived state, in `hw.py` and in `GET /state` under `hw`: `powered_by` (battery, side, back, both), `vbus`, `charging`, `supply` (the servo rail with nothing moving and with both servos moving), `serial` and `serial_possible`, and `ports` with each cable. `usb` stays as the old name of the side port's cable.
+- The supply numbers are an **assumed** model (`POWER` in `hw.py`: a 5.0 V rail, a series resistance per feed, a 500 mA ceiling for a computer port). Nothing in it is measured; the panel says so beside the value.
+- The head limiter is told "a cable is present" by one rule, `LIMITER_CABLE_PORTS` in `hw.py`. Today a 5 V cable in either port counts. If the bench shows that power on the back port should lift the limit, that tuple is the one place to change. The panel line **What limits the head now** gives the reason, the swing and speed left, and which port the limiter saw.
+- Scripted scenarios, in the Scenarios list and in `scenarios.py` (`PORTS`): none, side only, back only, both, a 12 V cable refused, a cable plugged in during a dance, a cable pulled during a dance. `host/tests/test_virtual_unit_ports.py` plays each one through the running view and checks `/state`, `self.motion.status` and `self.battery.get_status`; `host/tests/test_vu_view_pointer.py` clicks both sockets with a real pointer.

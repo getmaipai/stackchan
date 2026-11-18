@@ -59,7 +59,7 @@ def test_cable_charging_serial_and_the_unplug_rules():
     assert "plug the USB-C cable in first" in body.set("serial", True, 0)
     body.set("usb", True, 0)
     body.set("serial", True, 0)
-    assert body.charging and body.powered_by == "usb" and body.serial
+    assert body.charging and body.powered_by == "side" and body.serial
     body.set("battery", 100, 0)
     assert not body.charging  # full: the cable stays, charging stops
     body.set("usb", False, 0)
@@ -162,7 +162,7 @@ def test_scripted_body_scenario_power_cable_battery_carried_dance(view):
     # a cable: USB powered and charging, the limiter halves the excursion
     _post(view, "hw", {"key": "usb", "value": True})
     st = _wait(view, lambda s: s["hw"]["charging"])
-    assert st["hw"]["powered_by"] == "usb" and st["motion"]["state"] == "usb_limited" and st["motion"]["scale"] == 50
+    assert st["hw"]["powered_by"] == "side" and st["motion"]["state"] == "usb_limited" and st["motion"]["scale"] == 50
     # a low battery on its own power: minimal band refuses a dance, in the unit's own words
     _post(view, "hw", {"key": "usb", "value": False})
     _post(view, "hw", {"key": "battery", "value": 12})

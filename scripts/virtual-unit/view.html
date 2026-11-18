@@ -30,6 +30,7 @@ input[type=range]{width:100%;padding:0;accent-color:var(--accent)}
 .meter{height:6px;background:#262d37;border-radius:3px;overflow:hidden;margin-top:4px}.meter i{display:block;height:100%;background:var(--accent)}
 button.on{background:#1f4a32;border-color:#2f7a52}button.off{background:#4a2326;border-color:#7a2f35}
 button[disabled]{opacity:.45;cursor:not-allowed}
+.ports{display:grid;grid-template-columns:118px 1fr;gap:4px 8px;align-items:center;margin-top:6px;font-size:12px}.ports select{width:100%;box-sizing:border-box;font-size:12px}.ports .name{grid-column:1 / -1;margin-top:6px}
 .num{display:inline-block;min-width:3.4ch;text-align:right;font-variant-numeric:tabular-nums}
 .line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #limmsg,#hwmsg{min-height:2.6em}
@@ -44,11 +45,19 @@ button[disabled]{opacity:.45;cursor:not-allowed}
   <div id="toolbar"><button id="vreset">Reset view</button><button id="vfront">Front</button><button id="vside">Side</button><button id="vback">Back (USB-C)</button><button id="vtop">Top</button><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="axes" type="checkbox" checked> Axes</label><label class="row" title="On: a drag that starts on the head moves the head. Off: every drag turns the view." style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="draghead" type="checkbox" checked> Drag moves the head</label><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="inside" type="checkbox"> Show inside</label><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="motion" type="checkbox"> Show motion</label><button id="vdemo">Demo sweep</button><button id="vunder" title="Look under the head">Under</button><span id="varrows" style="display:flex;gap:3px"><button id="vleft" title="Turn the view left">&#9664;</button><button id="vright" title="Turn the view right">&#9654;</button><button id="vup" title="Tilt the view up">&#9650;</button><button id="vdown" title="Tilt the view down">&#9660;</button><button id="vzin" title="Zoom in">+</button><button id="vzout" title="Zoom out">&minus;</button></span></div>
   <div id="legend"><span class="sw" style="background:#3ddc84"></span>yaw axis (turns the head left and right) <span class="sw" style="background:#ff6b6b;margin-left:8px"></span>pitch axis (nods up and down)</div></div>
  <div id="side">
-  <section><h2>Power and connection</h2>
-   <div class="row" style="margin-top:0"><button id="bpower">Power</button><button id="busb">USB-C cable</button><button id="bserial">USB serial</button><button id="bwifi">Wi-Fi</button></div>
+  <section><h2>Power and ports</h2>
+   <div class="row" style="margin-top:0"><button id="bpower">Power</button><button id="bwifi">Wi-Fi</button></div>
+   <div class="t" style="font-size:12px;margin-top:8px">The robot has two USB-C ports. Click a port in the picture, or use these.</div>
+   <div class="ports">
+    <span class="name"><b>Side port</b> <span class="t">on the controller: power and serial data</span></span><button id="busb">empty</button><select id="srcside" title="What the side cable is plugged into"></select>
+    <button id="bserial">USB serial</button><span class="t" id="serialnote" style="font-size:12px"></span>
+    <span class="name"><b>Back port</b> <span class="t">on the base: power</span></span><button id="bback">empty</button><select id="srcback" title="What the back cable is plugged into"></select>
+   </div>
    <div style="margin-top:8px" class="line">Battery <b id="batv" class="num">75</b> percent</div><input id="bat" type="range" min="0" max="100" value="75">
    <div class="row"><label><input id="carried" type="checkbox"> Carried</label><select id="orient" style="width:auto"><option>upright</option><option>tilted</option><option>side</option><option>inverted</option><option>unknown</option></select></div>
-   <div class="kv" id="hwv"></div><div id="hwmsg" class="t" style="margin-top:6px;font-size:12px"></div></section>
+   <div class="kv" id="hwv"></div>
+   <div id="whylim" style="margin-top:8px;font-size:12px;min-height:3.9em"></div>
+   <div id="hwmsg" class="t" style="margin-top:6px;font-size:12px"></div></section>
   <section><h2>Head axes and limiter</h2>
    <div class="line">Yaw <b id="yawv" class="num">0</b> (limits <span id="yawr"></span>)</div><input id="yaw" type="range" min="-128" max="128" value="0">
    <div style="margin-top:6px" class="line">Pitch <b id="pitchv" class="num">3</b> (limits <span id="pitchr"></span>)</div><input id="pitch" type="range" min="3" max="87" value="3">
@@ -175,7 +184,9 @@ setInterval(pollLog,700);pollLog();
 async function hw(key,value){const r=await post('/hw',{key,value});if(r.isError)$('hwmsg').textContent=r.text;else $('hwmsg').textContent='';return r;}
 let ST=null;
 $('bpower').onclick=()=>hw('power',1);
-$('busb').onclick=()=>hw('usb',!(ST&&ST.hw.usb));
+const plugged=n=>!!(ST&&ST.hw.ports[n].plugged);
+$('busb').onclick=()=>hw('side',!plugged('side'));$('bback').onclick=()=>hw('back',!plugged('back'));
+$('srcside').onchange=e=>hw('side_source',e.target.value);$('srcback').onchange=e=>hw('back_source',e.target.value);
 $('bserial').onclick=()=>hw('serial',!(ST&&ST.hw.serial));
 $('bwifi').onclick=()=>hw('wifi',!(ST&&ST.hw.wifi));
 // Sliders: a slider belongs to the hand while it is held, and for a moment after, so the state poll never writes over a drag.
@@ -212,12 +223,19 @@ function setBtn(id,label,on,off){const b=$(id);b.textContent=label;b.className=o
 function startPoll(extra){setInterval(async()=>{try{const st=await (await fetch('/state')).json();if(extra)extra(st);paintBody(st);}catch(e){}},100);}   // the panel works with or without the 3D drawing
 function paintBody(st){ST=st;const h=st.hw,m=st.motion;
  setBtn('bpower',h.on?(h.booting?'Power: starting':'Power: on'):'Power: off',h.on);
- setBtn('busb',h.usb?'USB-C cable: plugged in':'USB-C cable: unplugged',h.usb);
- setBtn('bserial',h.serial?'USB serial: connected':'USB serial: not connected',h.serial);$('bserial').disabled=!h.usb;
+ for(const [n,btn,sel] of [['side','busb','srcside'],['back','bback','srcback']]){const p=h.ports[n],el=$(sel);
+  setBtn(btn,p.plugged?(p.fault?'12 V: no power':'plugged in'):'empty',p.plugged&&!p.fault);
+  if(!el.options.length)for(const [k,label] of Object.entries(h.sources)){const o=document.createElement('option');o.value=k;o.textContent=label;el.appendChild(o);}
+  if(document.activeElement!==el)el.value=p.source;}
+ setBtn('bserial',h.serial?'Serial: connected':'Serial: not connected',h.serial);$('bserial').disabled=!h.serial_possible;
+ $('serialnote').textContent=h.serial_possible?'':'needs a computer on the side port';
  setBtn('bwifi',h.wifi?'Wi-Fi: on':'Wi-Fi: off',h.wifi);
  if(follows('bat',h.battery))showSlider('bat',h.battery);
  $('carried').checked=h.carried;$('orient').value=h.orient;
- $('hwv').innerHTML=`<span>Powered by</span><span>${h.on?h.powered_by:'nothing (off)'}</span><span>Charging</span><span>${h.charging?'yes':'no'}</span><span>Screen</span><span>${!h.on?'black':h.booting?'boot cover':h.sleeping_soon?'low battery, going to sleep':'running'}</span><span>Recent</span><span>${h.events.slice(-3).join('; ')||'-'}</span>`;
+ const by={battery:'the battery',side:'the side port',back:'the back port',both:'both ports'}[h.powered_by],sp=h.supply;
+ $('hwv').innerHTML=`<span>Powered by</span><span>${h.on?by:'nothing (off)'}</span><span>Cable power (VBUS)</span><span>${h.vbus?'present, up to '+sp.input_ma+' mA':'none'}</span><span>Charging</span><span>${h.charging?'yes':'no'}</span><span>Servo supply</span><span>${sp.idle_v.toFixed(2)} V still, ${sp.load_v.toFixed(2)} V with both servos moving${sp.brownout?' (too low: expect a reset)':''} <span class="t">(${sp.basis}, not measured)</span></span><span>Serial</span><span>${h.serial?'connected on the side port':'not connected'}</span><span>Screen</span><span>${!h.on?'black':h.booting?'boot cover':h.sleeping_soon?'low battery, going to sleep':'running'}</span><span>Recent</span><span>${h.events.slice(-3).join('; ')||'-'}</span>`;
+ const lc=h.limiter_cable,pn={side:'side port',back:'back port'};
+ $('whylim').innerHTML=`<b>What limits the head now:</b> ${m.state==='free'?'nothing':(m.reasons||m.state)} <span class="t">(${m.scale} percent of the full swing, speed ${m.speed_cap} of 1000)</span><br><span class="t">Cable seen by the limiter: ${lc.present?'yes, from the '+lc.from.map(n=>pn[n]).join(' and the '):'no'}. Rule: ${lc.rule}.</span>`;
  $('yawr').textContent=st.yaw_range.join(' to ');$('pitchr').textContent=st.pitch_range.join(' to ');
  $('limv').innerHTML=`<span>Limiter state</span><span><b>${m.state}</b></span><span>Why</span><span>${m.reasons||'nothing limits it'}</span><span>Excursion</span><span>${m.scale} percent</span><span>Speed cap</span><span>${m.speed_cap} of 1000</span><span>Dances up to</span><span>step ${m.dance_max}</span><span>Dance now</span><span>${st.dance||'none'}</span>`;
  $('mvv').textContent=st.moves_last_minute;$('mvc').textContent=st.moves_cap;$('mvb').style.width=Math.min(100,100*st.moves_last_minute/st.moves_cap)+'%';
@@ -230,7 +248,7 @@ const scriptEl=document.createElement('script');scriptEl.src='/view3d.js';script
  let PH=null;
  const hooks={status:t=>{msg.textContent=t;},physicsOn:()=>!!PH,push:f=>PH&&PH.push(f),on:()=>ST?ST.hw.on:true,axesVisible:()=>$('axes').checked,insideOn:()=>$('inside').checked,motionOn:()=>$('motion').checked,demoDone:()=>{$('vdemo').textContent='Demo sweep';},dragHead:()=>$('draghead').checked,aimHead,
   touch:async body=>{const res=await post('/touch',body);if(res.isError)msg.textContent=res.text;},
-  togglePort:()=>hw('usb',!(ST&&ST.hw.usb)),togglePower:()=>hw('power',1),reset:()=>hw('reset',1),
+  togglePort:n=>hw(n||'back',!plugged(n||'back')),togglePower:()=>hw('power',1),reset:()=>hw('reset',1),
   headTouch:async zone=>{const res=await post('/touch',{kind:'head',zone});msg.textContent=res.isError?res.text:'Touched the head, pad '+zone+'.';}};
  let rob;try{rob=await initRobot(THREE,$('c'),hooks);}catch(err){msg.textContent='The 3D model did not load: '+err.message+'. The flat screen is at /frame.png.';startPoll();return;}
  $('vreset').onclick=hooks.presets.reset;$('vfront').onclick=hooks.presets.front;$('vside').onclick=hooks.presets.side;$('vback').onclick=hooks.presets.back;$('vtop').onclick=hooks.presets.top;for(const [id,k] of [['vunder','under'],['vleft','left'],['vright','right'],['vup','up'],['vdown','down'],['vzin','zoomIn'],['vzout','zoomOut']])$(id).onclick=hooks.presets[k];$('vdemo').onclick=()=>{$('vdemo').textContent=rob.demo()?'Stop demo':'Demo sweep';};

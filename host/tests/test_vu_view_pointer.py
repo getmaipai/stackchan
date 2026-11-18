@@ -121,9 +121,10 @@ def spot(page, ident, value):
     ("pitch", 10, 50, "ST.head.pitch"),
 ])
 def test_a_dragged_slider_keeps_its_value_and_the_unit_follows(page, ident, start, goal, state):
-    page.js("fetch('/call', {method: 'POST', body: JSON.stringify({name: 'self.robot.set_head_angles', arguments: {yaw: 0, pitch: 10}})}).then(r => r.json())")
     page.js("fetch('/hw', {method: 'POST', body: JSON.stringify({key: 'battery', value: 75})}).then(r => r.json())")
-    assert page.until("Math.abs(ST.head.yaw) < 1 && Math.abs(ST.head.pitch - 10) < 1 && ST.hw.battery === 75 && !Object.keys(HOLD).length")
+    assert page.until("ST.hw.battery === 75 && ST.motion.state === 'free'", 12), page.js("JSON.stringify([ST.hw.battery, ST.motion])")
+    page.js("fetch('/call', {method: 'POST', body: JSON.stringify({name: 'self.robot.set_head_angles', arguments: {yaw: 0, pitch: 10}})}).then(r => r.json())")
+    assert page.until("Math.abs(ST.head.yaw) < 1 && Math.abs(ST.head.pitch - 10) < 1 && !Object.keys(HOLD).length", 12), page.js("JSON.stringify([ST.head, HOLD])")
     x0, y = spot(page, ident, start)
     x1, _ = spot(page, ident, goal)
 
@@ -210,7 +211,8 @@ def test_dragging_the_head_moves_it_and_a_click_plugs_the_cable(page):
     for want in (True, False):
         p = page.js("ROBOT.pointOf('usb_c_port')")
         page.click(p["x"], p["y"])
-        assert page.until(f"ST.hw.usb === {str(want).lower()}"), f"a click on the USB-C port must make the cable {'plugged' if want else 'unplugged'}"
+        assert page.until(f"ST.hw.ports.back.plugged === {str(want).lower()}"), f"a click on the back USB-C port must make its cable {'plugged' if want else 'unplugged'}"
+        assert page.js("ST.hw.ports.side.plugged") is False, "the side port has its own cable"
     # the power button: off, then on again
     page.js("Object.assign(ROBOT.view, {az: -1.2, el: 0.15, dist: 14})")
     page.js("fetch('/call', {method: 'POST', body: JSON.stringify({name: 'self.robot.set_head_angles', arguments: {yaw: 0, pitch: 10}})}).then(r => r.json())")
@@ -220,3 +222,32 @@ def test_dragging_the_head_moves_it_and_a_click_plugs_the_cable(page):
         p = page.js("ROBOT.pointOf('power_button')")
         page.click(p["x"], p["y"])
         assert page.until(f"ST.hw.on === {str(want).lower()}"), f"a click on the power button must turn the unit {'on' if want else 'off'}"
+
+
+def test_both_usb_c_sockets_take_real_clicks_and_the_panel_shows_each_port(page):
+    if not page.until("window.ROBOT && ROBOT.model && ROBOT.model.ready", 12):
+        pytest.skip("the 3D drawing did not start here (it needs the pinned three.js from the network and a graphics context)")
+    for key, value in (("side", False), ("back", False), ("side_source", "computer"), ("back_source", "charger")):
+        page.js(f"fetch('/hw', {{method: 'POST', body: JSON.stringify({{key: '{key}', value: {json.dumps(value)}}})}}).then(r => r.json())")
+    page.js("fetch('/call', {method: 'POST', body: JSON.stringify({name: 'self.robot.set_head_angles', arguments: {yaw: 0, pitch: 10}})}).then(r => r.json())")
+    assert page.until("!ST.hw.vbus && Math.abs(ST.head.yaw) < 1 && ST.hw.on")
+    # the side socket on the controller, seen from the robot's right
+    page.js("(() => { Object.assign(ROBOT.view, {az: -1.3, el: 0.1, dist: 15}); window.scrollTo(0, 0); })()")
+    time.sleep(0.4)
+    p = page.js("ROBOT.pointOf('usb_c_otg')")
+    page.click(p["x"], p["y"])
+    assert page.until("ST.hw.ports.side.plugged && !ST.hw.ports.back.plugged && ST.hw.powered_by === 'side'"), "a click on the side socket plugs the side cable only"
+    assert page.until("ROBOT.model.sideCable.visible && document.getElementById('busb').textContent === 'plugged in' && !document.getElementById('bserial').disabled")
+    # the back socket on the base: both cables are in now
+    page.js("document.getElementById('vback').click()")
+    time.sleep(0.4)
+    p = page.js("ROBOT.pointOf('usb_c_port')")
+    page.click(p["x"], p["y"])
+    assert page.until("ST.hw.ports.back.plugged && ST.hw.ports.side.plugged && ST.hw.powered_by === 'both'"), "a click on the back socket plugs the back cable and leaves the side one in"
+    assert page.until("/both ports/.test(document.getElementById('hwv').textContent) && /2500 mA/.test(document.getElementById('hwv').textContent)")
+    assert page.until("/side port and the back port/.test(document.getElementById('whylim').textContent)"), page.js("document.getElementById('whylim').textContent")
+    # the panel buttons take each cable out again, one at a time
+    page.js("document.getElementById('busb').click()")
+    assert page.until("!ST.hw.ports.side.plugged && ST.hw.ports.back.plugged && ST.hw.powered_by === 'back' && document.getElementById('bserial').disabled")
+    page.js("document.getElementById('bback').click()")
+    assert page.until("!ST.hw.vbus && /nothing/.test(document.getElementById('whylim').textContent)")
