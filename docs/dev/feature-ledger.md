@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 872 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 874 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 50 items, 6 measured, 17 estimated, 27 placeholders or not built. 84 of 872 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 50 items, 6 measured, 17 estimated, 27 placeholders or not built. 84 of 874 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 29 | 253 | 8 | 51 | 362 | 64 |
-| Maker and tech | 0 | 0 | 73 | 377 | 60 | 0 | 510 | 69 |
+| Maker and tech | 0 | 0 | 70 | 382 | 60 | 0 | 512 | 69 |
 
 ## Everyday user
 
@@ -877,7 +877,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: memory_notes** | Local memory for several adults as plain per-person notes files. | proven virtual | 70 | not declared | `host/maipai_packages/memory_notes` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (80)
+### Scripts and tools (82)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -895,6 +895,8 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: docs-grade.py** | Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences. | built | 40 | not declared | `scripts/docs-grade.py` | file exists | doc missing |
 | **Script: e2e-flake-hunt.sh** | find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. | built | 40 | not declared | `scripts/e2e-flake-hunt.sh` | file exists | doc missing |
 | **Script: efuse-check.py** | owner decision 14 (2026-11-18): nothing in this project ever burns an eFuse (irreversible): no secure boot key, no flash or NVS encryption key | proven virtual | 70 | not declared | `scripts/efuse-check.py` | file exists, a test names it | doc missing |
+| **Script: exposure-test.py** | the exposure suite. | proven virtual | 70 | not declared | `scripts/exposure-test.py` | file exists, a test names it | doc missing |
+| **Script: exposure-test.sh** | run the exposure suite (see scripts/exposure-test.py). | proven virtual | 70 | not declared | `scripts/exposure-test.sh` | file exists, a test names it | doc missing |
 | **Script: feature-ledger.py** | The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's), with a status and a percent worked out from evidence in the repository. | proven virtual | 70 | not declared | `scripts/feature-ledger.py` | file exists, a test names it | doc missing |
 | **Script: fuzz-cores.sh** | fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavior sanitizers. | proven virtual | 70 | not declared | `scripts/fuzz-cores.sh` | file exists, a test names it | doc missing |
 | **Script: fw-bench-clips.py** | make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c. | built | 40 | not declared | `scripts/fw-bench-clips.py` | file exists | doc missing |
@@ -949,15 +951,15 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: repo-map.sh** | generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line), | built | 40 | not declared | `scripts/repo-map.sh` | file exists | doc missing |
 | **Script: review-status.py** | The cross-review bug table: every test in host/tests/test_cross_review_open_bugs*.py, its owner, and whether the bug is still open. | built | 40 | not declared | `scripts/review-status.py` | file exists | doc missing |
 | **Script: run-bg.sh** | run a long command (firmware build, flash, soak, gate) with its full output in a log file and | built | 40 | not declared | `scripts/run-bg.sh` | file exists | doc missing |
-| **Script: security-scan.py** | one repeatable security scan of the whole repo; | built | 40 | not declared | `scripts/security-scan.py` | file exists | doc missing |
-| **Script: security-scan.sh** | run the repo security scan (see scripts/security-scan.py). | built | 40 | not declared | `scripts/security-scan.sh` | file exists | doc missing |
+| **Script: security-scan.py** | one repeatable security scan of the whole repo; | proven virtual | 70 | not declared | `scripts/security-scan.py` | file exists, a test names it | doc missing |
+| **Script: security-scan.sh** | run the repo security scan (see scripts/security-scan.py). | proven virtual | 70 | not declared | `scripts/security-scan.sh` | file exists, a test names it | doc missing |
 | **Script: sfx-wav.sh** | render every game sound of the unit to a WAV file with the unit's own sound core, so the owner can listen to the real sounds on a computer. | proven virtual | 70 | not declared | `scripts/sfx-wav.sh` | file exists, a test names it | doc missing |
 | **Script: spec-dir.sh** | A repository script. | built | 40 | not declared | `scripts/spec-dir.sh` | file exists | doc missing |
 | **Script: spec-drift-check.sh** | the vendored spec (host/spec-vendor/spec) is a snapshot, never edited by hand. | built | 40 | not declared | `scripts/spec-drift-check.sh` | file exists | doc missing |
 | **Script: spelling-check.py** | fail on British spellings in text files (owner rule 2026-11-16: American spelling everywhere). | proven virtual | 70 | not declared | `scripts/spelling-check.py` | file exists, a test names it | doc missing |
 | **Script: stackchan-egress-proof.sh** | A repository script. | proven virtual | 70 | not declared | `scripts/stackchan-egress-proof.sh` | file exists, a test names it | doc missing |
 | **Script: stackchan-no-third-party.sh** | A repository script. | proven virtual | 70 | not declared | `scripts/stackchan-no-third-party.sh` | file exists, a test names it | doc missing |
-| **Script: test-all.sh** | the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. | built | 40 | not declared | `scripts/test-all.sh` | file exists | doc missing |
+| **Script: test-all.sh** | the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. | proven virtual | 70 | not declared | `scripts/test-all.sh` | file exists, a test names it | doc missing |
 | **Script: test-fast.sh** | the host suite without the slow tests (the end to end on the virtual unit and the sanitizer fuzz, marked `slow`), in 4 pytest processes at once, for quick feedback while | built | 40 | not declared | `scripts/test-fast.sh` | file exists | doc missing |
 | **Script: test-sharded.py** | Run the host suite in N pytest processes at once, one group of test files each (no plugin needed). | built | 40 | not declared | `scripts/test-sharded.py` | file exists | doc missing |
 | **Script: translation-pack.py** | The translator review pack: every user-facing string per language in a plain CSV a native speaker can read and correct, and the importer that takes the corrections back with checks. | proven virtual | 70 | not declared | `scripts/translation-pack.py` | file exists, a test names it | doc missing |
@@ -1048,7 +1050,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 ## Decisions
 
-The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 4 not started.
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 5 not started.
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
@@ -1074,6 +1076,7 @@ The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a stat
 | 20 | **Offer a choice only when it is needed** | in progress | the first run now asks three questions and offers Skip on each; the rule that every other choice is automatic or under Advanced is not yet checked across the settings page |
 | 21 | **The local playground runs a simulation or a real robot** | in progress | the simulation backend exists (the virtual unit and its 3D view); the Live backend (a registered robot through the person's host, one control session at a time) is not built |
 | 22 | **Unit choices audit answers (owner and coordinator, 2026-11-18)** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 23 | **A failed scan blocks a release** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 
 ## Scrapped (9)
 

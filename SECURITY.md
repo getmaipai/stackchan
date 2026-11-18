@@ -7,6 +7,11 @@ Results of the repository's own scan. They are produced by `python3 scripts/secu
 <!-- scan:begin -->
 <!-- scan:end -->
 
+## What we contact, expose and protect
+
+<!-- exposure:begin -->
+<!-- exposure:end -->
+
 What the scan does not do: it is not a penetration test, it does not read every line of the firmware, and the vendored web libraries in the flasher and the docs site have no package lock for a tool to audit.
 
 ## What the project promises

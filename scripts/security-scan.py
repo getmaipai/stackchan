@@ -66,7 +66,7 @@ def dependency_audit():
     except Exception:
         record("Dependency audit (host)", "NOT RUN", f"pip-audit gave no result: {(proc.stderr or proc.stdout).strip()[:120]}")
     vendor = sorted(p.name for p in (ROOT / "docs-site" / "vendor").iterdir()) + sorted(p.name for p in (ROOT / "flasher" / "vendor").iterdir() if (ROOT / "flasher" / "vendor").exists())
-    record("Dependency audit (docs site and flasher)", "NOT RUN", "no package manager lock exists for them; vendored files are " + ", ".join(vendor) + "; no tool audited these")
+    record("Dependency audit (docs site and flasher)", "GAP", "no package manager lock exists for them; vendored files are " + ", ".join(vendor) + "; no tool audited these")
 
 
 def unsafe_code():
@@ -89,6 +89,24 @@ def unsafe_code():
     added = run(["git", "grep", "-n", "-I", "-E", r"^\+.*[^a-z_](gets|strcpy|strcat|sprintf|vsprintf)\(", "--", "firmware/patches"]).stdout.splitlines()
     gets_only = [h for h in hits + added if re.search(r"[^a-z_]gets\(", h)]
     record("Unsafe code (firmware, C)", "PASS" if not gets_only else "FAIL", f"search for gets, strcpy, strcat, sprintf in our firmware files and added patch lines: {len(hits) + len(added)} uses of the bounded-copy-free functions, {len(gets_only)} of gets; a text search, not a proof")
+
+
+def firmware_static_analysis():
+    exe = shutil.which("cppcheck")
+    if not exe or not HOST_PY.exists():
+        return record("Unsafe code (firmware cores, cppcheck)", "NOT RUN", "cppcheck or the host environment is missing")
+    work = Path(tempfile.mkdtemp())
+    code = "import sys; sys.path.insert(0, 'tests'); from pathlib import Path; from firmware_order_cores import build_cores; print(build_cores(Path(sys.argv[1])))"
+    proc = subprocess.run([str(HOST_PY), "-c", code, str(work)], capture_output=True, text=True, cwd=ROOT / "host")
+    if proc.returncode != 0:
+        return record("Unsafe code (firmware cores, cppcheck)", "NOT RUN", f"could not assemble the cores: {proc.stderr.strip()[-100:]}")
+    cores = Path(proc.stdout.strip().splitlines()[-1])
+    files = sorted(cores.glob("*.h"))
+    res = run([exe, "--enable=warning,portability", "--inconclusive", "--language=c", "--std=c99", "--quiet", "--template={id}|{severity}|{file}:{line}", "--error-exitcode=0"] + [str(f) for f in files])
+    issues = [x for x in res.stderr.splitlines() if "|" in x and not x.split("|")[0].startswith(("missingInclude", "unusedFunction", "checkersReport"))]
+    errors = [x for x in issues if x.split("|")[1] == "error"]
+    ids = sorted({x.split("|")[0] for x in issues})
+    record("Unsafe code (firmware cores, cppcheck)", "PASS" if not errors else "FAIL", f"cppcheck (warning and portability checks) over {len(files)} of the unit's own C headers as the whole patch list leaves them: {len(errors)} errors, {len(issues) - len(errors)} warnings" + (f" (kinds: {', '.join(ids[:6])})" if issues else "") + "; the rest of the firmware is upstream code and is not scanned")
 
 
 ALLOWED = ("127.0.0.1", "localhost", "[::1]", "192.0.2.", "example.com", "example.org", "tailnet.example.com", "github.com", "huggingface.co", "login.tailscale.com", "www.w3.org", "www.apple.com", "192.168.4.1", "m5stack.com", "docs.m5stack.com", "raw.githubusercontent.com", "espressif.com", "docs.espressif.com", "unpkg.com", "cdnjs.cloudflare.com", "fonts.googleapis.com")
@@ -171,7 +189,7 @@ def contacts_nothing_by_default():
 def main(argv):
     today = datetime.date.today().isoformat() if "--date" not in argv else argv[argv.index("--date") + 1]
     head = run(["git", "rev-parse", "--short", "HEAD"]).stdout.strip()
-    for step in (secrets_scan, dependency_audit, unsafe_code, outbound_search, contacts_nothing_by_default):
+    for step in (secrets_scan, dependency_audit, unsafe_code, firmware_static_analysis, outbound_search, contacts_nothing_by_default):
         try:
             step()
         except Exception as error:  # a step that breaks is reported as not run, never as a pass
