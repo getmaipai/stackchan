@@ -1,0 +1,700 @@
+# Intent: Safety fix, train 1. One shared millisecond-stamp helper (maipai_time_core.h) and its uses: hold, quiet, grace and lockout windows that never ended after 24.9 days of uptime. Lock tools: an attempt limit, a current code to turn the auto lock off, and the three tools hidden from the model. Remote gate: the locked rule no longer depends on the caller's own source word, and a running session keeps its first host id. Pickup: a lift while the unit moves its own head is detected.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.lock.set with a wrong current five times answers too_many; self.lock.config auto_minutes 0 with no current answers current_needed; lifting the unit by hand and tilting it past 70 degrees while it dances stops the dance within about two seconds.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_time_core.h b/firmware/main/hal/maipai_time_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_time_core.h
+@@ -0,0 +1,55 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * One way to compare 32-bit millisecond stamps (patch SF01). Plain C99, no clock of its own.
++ *
++ * The defect it removes: a stamp that starts at 0 and is compared with `(int32_t)(now - stamp) < 0` reads as "in the future" for good once
++ * the unit has run 2^31 ms (24.9 days), so a grace, hold, quiet or lockout window never ends. The rules here:
++ *   - A stamp of 0 means "not armed". mt_stamp() never returns 0, so a real deadline is never mistaken for it.
++ *   - mt_pending() is true only for an armed stamp that has not been reached.
++ *   - Elapsed time is always an unsigned difference (mt_elapsed), which stays right for 49.7 days of staleness.
++ *   - A stamp that has been reached is cleared by mt_expire() wherever the state can change, so it cannot look future again.
++ * Host test: host/tests/firmware/safety_core_test.c.
++ */
++#ifndef MAIPAI_TIME_CORE_H
++#define MAIPAI_TIME_CORE_H
++
++#include <stdint.h>
++
++#define MT_HALF 0x80000000u
++
++/* A deadline `delay` ms after `now`; never 0. */
++static inline uint32_t mt_stamp(uint32_t now, uint32_t delay)
++{
++    const uint32_t t = now + delay;
++    return t == 0u ? 1u : t;
++}
++
++/* ms since `then` (unsigned, wrap safe). */
++static inline uint32_t mt_elapsed(uint32_t now, uint32_t then) { return (uint32_t)(now - then); }
++
++/* True when now is at or after `at` (valid while `at` is within 24.9 days of now). */
++static inline int mt_reached(uint32_t now, uint32_t at) { return (uint32_t)(now - at) < MT_HALF; }
++
++/* True while an armed deadline has not been reached. */
++static inline int mt_pending(uint32_t now, uint32_t at) { return at != 0u && !mt_reached(now, at); }
++
++/* mt_pending that also disarms the stamp once it has been reached, so it cannot flip back after a wrap. */
++static inline int mt_pending_clear(uint32_t now, uint32_t* at)
++{
++    if (*at == 0u) return 0;
++    if (mt_reached(now, *at)) {
++        *at = 0u;
++        return 0;
++    }
++    return 1;
++}
++
++/* Raise a deadline to `until` when it is armed and earlier, or arm it when it is not armed or already reached. */
++static inline void mt_extend(uint32_t now, uint32_t* at, uint32_t until)
++{
++    if (until == 0u) until = 1u;
++    if (!mt_pending(now, *at) || mt_reached(until, *at)) *at = until;
++}
++
++#endif /* MAIPAI_TIME_CORE_H */
+diff --git a/firmware/main/hal/maipai_lock_core.h b/firmware/main/hal/maipai_lock_core.h
+--- a/firmware/main/hal/maipai_lock_core.h
++++ b/firmware/main/hal/maipai_lock_core.h
+@@ -20,10 +20,13 @@
+ #ifndef MAIPAI_LOCK_CORE_H
+ #define MAIPAI_LOCK_CORE_H
+ 
++#include "maipai_time_core.h"
+ #include <stdint.h>
+ #include <stdio.h>
+ #include <string.h>
+ 
++#define LK_TOOL_MAX_FAILS 5        /* wrong "current" codes sent to the lock tools before they refuse for LK_TOOL_LOCKOUT_MS (patch SF01) */
++#define LK_TOOL_LOCKOUT_MS 60000
+ #define LK_WRONG_DELAY_MS 0      /* the pause after a wrong code of six digits; 0 = none (owner decision 2026-11-17) */
+ #define LK_CODE_MIN 4
+ #define LK_CODE_MAX 6
+@@ -175,10 +178,12 @@ typedef struct {
+     char digits[LK_CODE_MAX + 1];
+     uint32_t block_until_ms; /* keys are ignored until then (LK_WRONG_DELAY_MS after a wrong code) */
+     uint8_t wrong_shown;     /* the last full entry was wrong: the dots are red until the next key */
++    uint8_t tool_fails;      /* wrong current codes sent to the tools since the last good one (patch SF01) */
++    uint32_t tool_block_until_ms; /* the tools refuse until then; 0 = not blocked */
+ } mlk_t;
+ 
+-enum { MLK_R_OK = 0, MLK_R_BAD_CODE, MLK_R_CURRENT_NEEDED, MLK_R_WRONG_CURRENT, MLK_R_LOCKED, MLK_R_NO_CODE, MLK_R_BAD_MINUTES, MLK_R_COUNT };
+-static const char* const MLK_REASONS[MLK_R_COUNT] = {"ok", "bad_code", "current_needed", "wrong_current", "locked", "no_code", "bad_minutes"};
++enum { MLK_R_OK = 0, MLK_R_BAD_CODE, MLK_R_CURRENT_NEEDED, MLK_R_WRONG_CURRENT, MLK_R_LOCKED, MLK_R_NO_CODE, MLK_R_BAD_MINUTES, MLK_R_TOO_MANY, MLK_R_COUNT };
++static const char* const MLK_REASONS[MLK_R_COUNT] = {"ok", "bad_code", "current_needed", "wrong_current", "locked", "no_code", "bad_minutes", "too_many"};
+ 
+ #define LK_AUTO_COUNT 6
+ static const uint8_t LK_AUTO_MINUTES[LK_AUTO_COUNT] = {0, 1, 5, 15, 30, 60};
+@@ -316,6 +321,38 @@ static inline int mlk_set_auto(mlk_t* s, int minutes)
+     return MLK_R_OK;
+ }
+ 
++/* Turning the auto lock off needs the current code when one is set (patch SF01): without it, anyone at an unlocked unit
++ * could stop it from ever locking itself. The on-unit picker keeps mlk_set_auto. */
++static inline int mlk_set_auto_checked(mlk_t* s, int minutes, const char* current)
++{
++    if (s->locked) return MLK_R_LOCKED;
++    if (!mlk_auto_ok(minutes)) return MLK_R_BAD_MINUTES;
++    if (s->has_code && minutes == 0) {
++        if (current == NULL || current[0] == '\0') return MLK_R_CURRENT_NEEDED;
++        if (!mlk_check(s, current)) return MLK_R_WRONG_CURRENT;
++    }
++    s->auto_min = (uint8_t)minutes;
++    return MLK_R_OK;
++}
++
++/* The lock tools take a current code, so they need an attempt limit (patch SF01): LK_TOOL_MAX_FAILS wrong ones in a row and
++ * every tool answers "too_many" for LK_TOOL_LOCKOUT_MS. Call mlk_tool_open before the tool acts and mlk_tool_note with its result. */
++static inline int mlk_tool_open(mlk_t* s, uint32_t now)
++{
++    return mt_pending_clear(now, &s->tool_block_until_ms) ? MLK_R_TOO_MANY : MLK_R_OK;
++}
++static inline void mlk_tool_note(mlk_t* s, uint32_t now, int reason)
++{
++    if (reason == MLK_R_WRONG_CURRENT) {
++        if (++s->tool_fails >= LK_TOOL_MAX_FAILS) {
++            s->tool_fails = 0;
++            s->tool_block_until_ms = mt_stamp(now, LK_TOOL_LOCKOUT_MS);
++        }
++    } else if (reason == MLK_R_OK) {
++        s->tool_fails = 0;
++    }
++}
++
+ /* ---- the idle timer ---- */
+ static inline void mlk_activity(mlk_t* s, uint32_t now)
+ {
+@@ -369,7 +406,7 @@ static inline int mlk_key_y(int i) { return LK_PAD_Y + (i / 3) * (LK_KEY_H + LK_
+ static inline int mlk_key(mlk_t* s, char key, uint32_t now)
+ {
+     if (!s->locked || !s->keypad) return MLK_EV_IGNORED;
+-    if ((int32_t)(s->block_until_ms - now) > 0) return MLK_EV_IGNORED;
++    if (mt_pending_clear(now, &s->block_until_ms)) return MLK_EV_IGNORED;
+     s->keypad_since_ms = now;
+     if (key == 'C') {
+         mlk_clear_entry(s);
+@@ -397,7 +434,7 @@ static inline int mlk_key(mlk_t* s, char key, uint32_t now)
+     if (s->n >= LK_CODE_MAX) {
+         mlk_clear_entry(s);
+         s->wrong_shown = 1;
+-        s->block_until_ms = now + (uint32_t)LK_WRONG_DELAY_MS;
++        s->block_until_ms = LK_WRONG_DELAY_MS > 0 ? mt_stamp(now, (uint32_t)LK_WRONG_DELAY_MS) : 0u;
+         return MLK_EV_WRONG;
+     }
+     return MLK_EV_NONE;
+diff --git a/firmware/main/hal/maipai_pickup_core.h b/firmware/main/hal/maipai_pickup_core.h
+--- a/firmware/main/hal/maipai_pickup_core.h
++++ b/firmware/main/hal/maipai_pickup_core.h
+@@ -15,6 +15,7 @@
+ #ifndef MAIPAI_PICKUP_CORE_H
+ #define MAIPAI_PICKUP_CORE_H
+ 
++#include "maipai_time_core.h"
+ #include <math.h>
+ #include <stddef.h>
+ #include <stdint.h>
+@@ -46,6 +47,8 @@ static const char* const MP_EVENT_NAMES[MP_EVENT_COUNT] = {"none", "lifted", "ca
+ #define MP_CONFIRM_MS 250u        /* a candidate lift waits this long for a shake to cancel it */
+ #define MP_DEBOUNCE_MS 1500u
+ #define MP_OWN_HOLD_MS 1500u      /* ignored after the unit's own move or speech */
++#define MP_OWN_TILT_DEG 70.0f     /* patch SF01: while the unit moves its own head, a pose this far from the resting pose ... */
++#define MP_OWN_TILT_MS 1500u      /* ... for this long is a hand, not the head: the unit counts as lifted */
+ #define MP_SHAKE_G 0.6f           /* a swing this far from the 300 ms average counts as one stroke */
+ #define MP_SHAKE_STROKES 4        /* this many opposite strokes within */
+ #define MP_SHAKE_WINDOW_MS 1000u
+@@ -83,6 +86,7 @@ typedef struct {
+     uint32_t shake_until;
+     /* what the unit tells it */
+     uint32_t own_until;
++    uint32_t own_tilt_ms; /* how long the pose has stayed far from rest while the unit moved its own head */
+     uint8_t speaking;
+     /* after a lift */
+     uint8_t held;
+@@ -99,10 +103,7 @@ static inline void mp_init(mp_t* d) { memset(d, 0, sizeof(*d)); }
+ /* The unit moved its own head or spoke: ignore the body for MP_OWN_HOLD_MS. `speaking` says the speaker is on now. */
+ static inline void mp_note_own(mp_t* d, uint32_t now_ms, uint32_t hold_ms, int speaking)
+ {
+-    const uint32_t until = now_ms + hold_ms;
+-    if ((int32_t)(until - d->own_until) > 0) {
+-        d->own_until = until;
+-    }
++    mt_extend(now_ms, &d->own_until, mt_stamp(now_ms, hold_ms));
+     d->speaking = speaking != 0;
+ }
+ 
+@@ -201,7 +202,7 @@ static inline mp_event_t mp_update(mp_t* d, float ax, float ay, float az, uint32
+     } else {
+         d->still_ms = 0;
+     }
+-    const int own = d->own_until != 0 && (int32_t)(now - d->own_until) < 0;
++    const int own = mt_pending_clear(now, &d->own_until);
+     if (!d->held && !own && d->still_ms >= MP_STILL_MS) {
+         d->ref_ok = 1;
+         for (int i = 0; i < 3; i++) d->ref[i] += (d->cur[i] - d->ref[i]) * 0.2f;
+@@ -227,8 +228,8 @@ static inline mp_event_t mp_update(mp_t* d, float ax, float ay, float az, uint32
+             d->stroke_sign[i] = s;
+         }
+     }
+-    if (d->stroke_n >= MP_SHAKE_STROKES && now - d->strokes[0] <= MP_SHAKE_WINDOW_MS && (int32_t)(now - d->shake_until) >= 0) {
+-        d->shake_until = now + 1500;
++    if (d->stroke_n >= MP_SHAKE_STROKES && now - d->strokes[0] <= MP_SHAKE_WINDOW_MS && !mt_pending(now, d->shake_until)) {
++        d->shake_until = mt_stamp(now, 1500);
+         d->stroke_n    = 0;
+         d->cand        = 0;
+         d->ex_sign     = 0;
+@@ -238,7 +239,7 @@ static inline mp_event_t mp_update(mp_t* d, float ax, float ay, float az, uint32
+     if (d->stroke_n > 0 && now - d->strokes[MP_SHAKE_STROKES - 1] > MP_SHAKE_WINDOW_MS) {
+         d->stroke_n = 0;
+     }
+-    const int in_shake = (int32_t)(now - d->shake_until) < 0;
++    const int in_shake = mt_pending_clear(now, &d->shake_until);
+ 
+     /* the unit's own activity: nothing is learnt from the body while it moves or speaks */
+     const float start = d->speaking ? MP_DEV_START_SPEAKING : MP_DEV_START;
+@@ -247,6 +248,21 @@ static inline mp_event_t mp_update(mp_t* d, float ax, float ay, float az, uint32
+         d->ex_sign = 0;
+         d->last_sign = 0;
+         d->cand = 0;
++        /* A lift in the middle of the unit's own motion: the head cannot tilt the body this far, so a long, far pose is a hand. */
++        if (own && !d->held && d->ref_ok && mp_angle_deg(d->cur, d->ref) >= MP_OWN_TILT_DEG) {
++            d->own_tilt_ms += dt;
++            if (d->own_tilt_ms >= MP_OWN_TILT_MS) {
++                d->own_tilt_ms = 0;
++                d->held        = 1;
++                d->held_at     = now;
++                d->carried     = 0;
++                d->act         = 0.0f;
++                d->bump_at     = 0;
++                return mp_emit(d, MP_LIFTED, now);
++            }
++        } else {
++            d->own_tilt_ms = 0;
++        }
+         if (shaken != MP_NONE && d->held) {
+             return mp_emit(d, MP_SHAKEN, now);
+         }
+diff --git a/firmware/main/hal/maipai_games_input_core.h b/firmware/main/hal/maipai_games_input_core.h
+--- a/firmware/main/hal/maipai_games_input_core.h
++++ b/firmware/main/hal/maipai_games_input_core.h
+@@ -14,6 +14,7 @@
+ #ifndef MAIPAI_GAMES_INPUT_CORE_H
+ #define MAIPAI_GAMES_INPUT_CORE_H
+ 
++#include "maipai_time_core.h"
+ #include <stdint.h>
+ #include <string.h>
+ 
+@@ -46,7 +47,7 @@ static inline void mgi_init(mgi_t* t)
+ 
+ static inline void mgi_note_shake(mgi_t* t, uint32_t now_ms)
+ {
+-    t->quiet_until_ms = now_ms + MGI_SHAKE_QUIET_MS;
++    t->quiet_until_ms = mt_stamp(now_ms, MGI_SHAKE_QUIET_MS);
+     t->hold           = 0;
+     t->armed          = 0; /* the tilt that follows a shake is part of the shake */
+ }
+@@ -86,13 +87,13 @@ static inline int mgi_update(mgi_t* t, float x, float y, float z, uint32_t now_m
+         t->still = 0;
+     }
+     if (!t->armed) {
+-        if (far < back && (int32_t)(now_ms - t->quiet_until_ms) >= 0) {
++        if (far < back && !mt_pending(now_ms, t->quiet_until_ms)) {
+             t->armed = 1;
+             t->hold  = 0;
+         }
+         return MGI_NONE;
+     }
+-    if (far < lim || (int32_t)(now_ms - t->quiet_until_ms) < 0) {
++    if (far < lim || mt_pending(now_ms, t->quiet_until_ms)) {
+         t->hold = 0;
+         return MGI_NONE;
+     }
+@@ -161,7 +162,7 @@ static inline int mgi_shake_update(mgi_shake_t* k, float x, float y, float z, ui
+             axis = i;
+         }
+     }
+-    if ((int32_t)(now_ms - k->quiet_until_ms) < 0) {
++    if (mt_pending(now_ms, k->quiet_until_ms)) {
+         return MGI_SHAKE_NONE;
+     }
+     if (k->strokes > 0 && now_ms - k->first_ms > MGI_SHAKE_WINDOW_MS) {
+@@ -192,7 +193,7 @@ static inline int mgi_shake_update(mgi_shake_t* k, float x, float y, float z, ui
+         k->strokes = 0;
+         k->hard    = 0;
+         k->axis    = -1;
+-        k->quiet_until_ms = now_ms + MGI_SHAKE_REFRACT_MS;
++        k->quiet_until_ms = mt_stamp(now_ms, MGI_SHAKE_REFRACT_MS);
+         return hard ? MGI_SHAKE_EASY : MGI_SHAKE_OK;
+     }
+     return MGI_SHAKE_NONE;
+diff --git a/firmware/main/hal/maipai_status_core.h b/firmware/main/hal/maipai_status_core.h
+--- a/firmware/main/hal/maipai_status_core.h
++++ b/firmware/main/hal/maipai_status_core.h
+@@ -17,6 +17,7 @@
+ #ifndef MAIPAI_STATUS_CORE_H
+ #define MAIPAI_STATUS_CORE_H
+ 
++#include "maipai_time_core.h"
+ #include <stdint.h>
+ 
+ #define MST_MIC_HOLD_MS 1500u /* the mic glyph stays this long after the unit stopped listening, so a short listen is seen */
+@@ -37,7 +38,7 @@ static inline uint32_t mst_hold_ms(int kind) { return kind >= 0 && kind < MST_CO
+ /* The mic glyph: shown while listening (event or poll), and for MST_MIC_HOLD_MS after the last listen. hold_until 0 means none. */
+ static inline int mst_mic_shown(int live, uint32_t hold_until, uint32_t now, int polled)
+ {
+-    return live || polled || (hold_until != 0u && (int32_t)(now - hold_until) < 0);
++    return live || polled || mt_pending(now, hold_until);
+ }
+ static inline uint32_t mst_mic_hold_until(uint32_t now)
+ {
+diff --git a/firmware/main/hal/maipai_fx_core.h b/firmware/main/hal/maipai_fx_core.h
+--- a/firmware/main/hal/maipai_fx_core.h
++++ b/firmware/main/hal/maipai_fx_core.h
+@@ -19,6 +19,7 @@
+ #ifndef MAIPAI_FX_CORE_H
+ #define MAIPAI_FX_CORE_H
+ 
++#include "maipai_time_core.h"
+ #include <math.h>
+ #include <stdint.h>
+ #include <string.h>
+@@ -233,12 +234,12 @@ typedef struct {
+ static inline void mg_init(mg_t* g) { memset(g, 0, sizeof *g); }
+ 
+ static inline int mg_max_level(const mg_t* g) { return (g->floor && !g->emergency) ? MG_LEVEL_LOW_PARTICLES : MG_LEVEL_FLAT; }
+-static inline int mg_in_grace(const mg_t* g, uint32_t now_ms) { return (int32_t)(now_ms - g->grace_until_ms) < 0; }
++static inline int mg_in_grace(const mg_t* g, uint32_t now_ms) { return mt_pending(now_ms, g->grace_until_ms); }
+ 
+ /* An overlay was started or the overlays came back: for 1.5 s one slow frame (the first draw costs a frame) never sheds. */
+ static inline void mg_note_start(mg_t* g, uint32_t now_ms)
+ {
+-    g->grace_until_ms = now_ms + MG_GRACE_MS;
++    g->grace_until_ms = mt_stamp(now_ms, MG_GRACE_MS);
+     g->nwin = 0;
+     g->win = 0;
+ }
+diff --git a/firmware/main/hal/maipai_face_track_core.h b/firmware/main/hal/maipai_face_track_core.h
+--- a/firmware/main/hal/maipai_face_track_core.h
++++ b/firmware/main/hal/maipai_face_track_core.h
+@@ -26,6 +26,7 @@
+ #ifndef MAIPAI_FACE_TRACK_CORE_H
+ #define MAIPAI_FACE_TRACK_CORE_H
+ 
++#include "maipai_time_core.h"
+ #include <math.h>
+ #include <stddef.h>
+ #include <stdint.h>
+@@ -316,7 +317,7 @@ static inline void ft_tick(ft_t* t, const ft_in_t* in, ft_out_t* out)
+ 
+     if (t->state == FT_OFF) {
+         const int want = (in->mode == FT_MODE_TALK && in->conversation) || (in->mode == FT_MODE_ALWAYS && in->blob_recent);
+-        if (want && ft_dt(now, t->rest_until) >= 0) {
++        if (want && !mt_pending(now, t->rest_until)) {
+             ft_enter(t, FT_PROBE, now);
+             t->probe_at = now;
+         }
+@@ -326,7 +327,7 @@ static inline void ft_tick(ft_t* t, const ft_in_t* in, ft_out_t* out)
+                                  (in->mode == FT_MODE_TALK && (uint32_t)(now - t->last_speech_at) < 3000u);
+         if (!still_wanted || (uint32_t)(now - t->probe_at) >= FT_PROBE_MS) {
+             if ((uint32_t)(now - t->probe_at) >= FT_PROBE_MS) {
+-                t->rest_until = now + FT_PROBE_REST_MS;
++                t->rest_until = mt_stamp(now, FT_PROBE_REST_MS);
+             }
+             ft_enter(t, FT_OFF, now);
+         } else {
+diff --git a/firmware/main/hal/maipai_remote_core.h b/firmware/main/hal/maipai_remote_core.h
+--- a/firmware/main/hal/maipai_remote_core.h
++++ b/firmware/main/hal/maipai_remote_core.h
+@@ -145,7 +145,9 @@ static inline void mr_session(mr_t* r, int active, const char* label, uint32_t n
+  * controller (no source "remote": the owner's page, the voice turn) carries it as its `token` for the cued kinds. 0 is "none". */
+ static inline void mr_set_host(mr_t* r, uint32_t host_id)
+ {
+-    if (host_id != 0) r->host_id = host_id;
++    /* Patch SF01: the first id of a session stays. A later heartbeat cannot swap it, so a caller that joins a running
++     * session cannot make its own id the one the second floor accepts. The id clears when the session ends (mr_session). */
++    if (host_id != 0 && r->host_id == 0) r->host_id = host_id;
+ }
+ 
+ /* The kinds that need the host's id (or a cue token) from a call with no source while a remote session is on: the head beyond
+diff --git a/firmware/main/hal/maipai_lock.cc b/firmware/main/hal/maipai_lock.cc
+--- a/firmware/main/hal/maipai_lock.cc
++++ b/firmware/main/hal/maipai_lock.cc
+@@ -374,7 +374,7 @@ void maipai_lock_register_tools()
+                     mlk_status_json(&s_st, out, sizeof(out));
+                     return std::string(out);
+                 });
+-    mcp.AddTool("self.lock.set",
++    mcp.AddUserOnlyTool("self.lock.set",
+                 "Set or change the passcode: code is 4 to 6 digits; changing one needs current. Refused while locked. Answers {ok} or {ok:false, reason: bad_code, "
+                 "current_needed, wrong_current or locked}. The code is never stored, only a salted hash.",
+                 PropertyList({Property("code", kPropertyTypeString, std::string("")), Property("current", kPropertyTypeString, std::string(""))}),
+@@ -386,7 +386,10 @@ void maipai_lock_register_tools()
+                     int r;
+                     {
+                         std::lock_guard<std::mutex> lock(s_mu);
+-                        r = mlk_set(&s_st, code.c_str(), current.c_str(), salt);
++                        const uint32_t t = now_ms();
++                        r = mlk_tool_open(&s_st, t);
++                        if (r == MLK_R_OK) r = mlk_set(&s_st, code.c_str(), current.c_str(), salt);
++                        mlk_tool_note(&s_st, t, r);
+                         if (r == MLK_R_OK) {
+                             s_st.last_activity_ms = now_ms();
+                             publish_flags();
+@@ -398,7 +401,7 @@ void maipai_lock_register_tools()
+                     }
+                     return reply(r);
+                 });
+-    mcp.AddTool("self.lock.clear",
++    mcp.AddUserOnlyTool("self.lock.clear",
+                 "Remove the passcode: current is the code now set. Refused while locked. Answers {ok} or {ok:false, reason}.",
+                 PropertyList({Property("current", kPropertyTypeString, std::string(""))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+@@ -406,7 +409,10 @@ void maipai_lock_register_tools()
+                     int r;
+                     {
+                         std::lock_guard<std::mutex> lock(s_mu);
+-                        r = mlk_clear(&s_st, current.c_str());
++                        const uint32_t t = now_ms();
++                        r = mlk_tool_open(&s_st, t);
++                        if (r == MLK_R_OK) r = mlk_clear(&s_st, current.c_str());
++                        mlk_tool_note(&s_st, t, r);
+                         if (r == MLK_R_OK) publish_flags();
+                     }
+                     if (r == MLK_R_OK) {
+@@ -442,15 +448,19 @@ void maipai_lock_register_tools()
+                     return std::string("{\"ok\":true,\"unlocked\":") + (maipai_lock_locked() ? "false" : "true") + ",\"keypad\":" + (s_pad_ui.panel != nullptr ? "true" : "false") + "}";
+                 });
+ #endif
+-    mcp.AddTool("self.lock.config",
+-                "The auto lock: auto_minutes is 0 (off), 1, 5, 15, 30 or 60 minutes with no touch, wake word or remote action. Refused while locked.",
+-                PropertyList({Property("auto_minutes", kPropertyTypeInteger, 0, 0, 1000)}),
++    mcp.AddUserOnlyTool("self.lock.config",
++                "The auto lock: auto_minutes is 0 (off), 1, 5, 15, 30 or 60 minutes with no touch, wake word or remote action. Refused while locked. Turning it off needs current (the code now set).",
++                PropertyList({Property("auto_minutes", kPropertyTypeInteger, 0, 0, 1000), Property("current", kPropertyTypeString, std::string(""))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     const int minutes = properties["auto_minutes"].value<int>();
++                    const std::string current = properties["current"].value<std::string>();
+                     int r;
+                     {
+                         std::lock_guard<std::mutex> lock(s_mu);
+-                        r = mlk_set_auto(&s_st, minutes);
++                        const uint32_t t = now_ms();
++                        r = mlk_tool_open(&s_st, t);
++                        if (r == MLK_R_OK) r = mlk_set_auto_checked(&s_st, minutes, current.c_str());
++                        mlk_tool_note(&s_st, t, r);
+                         if (r == MLK_R_OK) publish_flags();
+                     }
+                     if (r != MLK_R_OK) return reply(r);
+diff --git a/firmware/main/hal/maipai_remote.cc b/firmware/main/hal/maipai_remote.cc
+--- a/firmware/main/hal/maipai_remote.cc
++++ b/firmware/main/hal/maipai_remote.cc
+@@ -142,10 +142,10 @@ bool maipai_remote_active()
+ 
+ static mr_reason_t s_last_refusal = MR_OK;
+ 
+-bool maipai_remote_gate(const char* kind, const char* source, int token)
++bool maipai_remote_gate(const char* kind, const char* source, int token, bool from_tool)
+ {
+     // patch LK03: a locked unit refuses every remote controller call except "find my robot" (beep and flash), so a lost robot can be found.
+-    if (!maipai_lock_remote_allowed(kind) && (source == nullptr || strcmp(source, "remote") == 0 || maipai_remote_active())) {
++    if (!maipai_lock_remote_allowed(kind) && (from_tool || source == nullptr || strcmp(source, "remote") == 0 || maipai_remote_active())) {
+         ESP_LOGW(TAG, "remote %s refused: the unit is locked", kind);
+         s_last_refusal = MR_NO_SESSION;
+         return false;
+diff --git a/firmware/main/hal/maipai_remote.h b/firmware/main/hal/maipai_remote.h
+--- a/firmware/main/hal/maipai_remote.h
++++ b/firmware/main/hal/maipai_remote.h
+@@ -19,7 +19,9 @@ bool maipai_remote_active();
+ // The gate for a remote-facing tool (patch TC01). source is the call's own "source" argument: anything but "remote" is a local or
+ // person-asked call and always passes. A "remote" call must carry the one-use token self.remote.action answered for this kind
+ // (move, find, photo, dance, game, listen); with none, or a wrong one, it is ignored and logged. True when the call may go on.
+-bool maipai_remote_gate(const char* kind, const char* source, int token);
++// from_tool (patch SF01): true when the call came in through a tool. A locked unit then refuses every kind but "find"
++// whatever the call's own source says (the source is the caller's own word and proves nothing).
++bool maipai_remote_gate(const char* kind, const char* source, int token, bool from_tool = false);
+ // Patch FM03: a call with no source "remote" is also gated while a remote session is on, for the cued kinds (head beyond the safe
+ // range, find, photo, dance, game, listen): it must carry the session's host id (or a cue token) as its token. The head move passes
+ // "move" for a far move and "move_near" for a safe one. See the trust boundary in docs/design/safety-and-privacy.md.
+diff --git a/firmware/main/hal/maipai_pickup.cc b/firmware/main/hal/maipai_pickup.cc
+--- a/firmware/main/hal/maipai_pickup.cc
++++ b/firmware/main/hal/maipai_pickup.cc
+@@ -51,7 +51,7 @@ void react(mp_event_t ev)
+ 
+ void maipai_pickup_own_activity()
+ {
+-    s_own_until.store(ms_now() + MP_OWN_HOLD_MS);
++    s_own_until.store(mt_stamp(ms_now(), MP_OWN_HOLD_MS));
+ }
+ 
+ void maipai_pickup_feed(float ax, float ay, float az)
+@@ -62,7 +62,7 @@ void maipai_pickup_feed(float ax, float ay, float az)
+     }
+     const uint32_t now = ms_now();
+     const uint32_t own = s_own_until.load();
+-    if (own != 0 && static_cast<int32_t>(own - now) > 0) {
++    if (mt_pending(now, own)) {
+         mp_note_own(&s_det, now, own - now, 0);
+     }
+     mp_set_speaking(&s_det, Application::GetInstance().GetDeviceState() == kDeviceStateSpeaking ? 1 : 0);
+diff --git a/firmware/main/hal/maipai_facedet.cc b/firmware/main/hal/maipai_facedet.cc
+--- a/firmware/main/hal/maipai_facedet.cc
++++ b/firmware/main/hal/maipai_facedet.cc
+@@ -16,6 +16,7 @@
+  *   - The camera-on cue is asked before every frame, for longer than one period, so it is lit for as long as frames are read.
+  *   - The stream only runs while a caller keeps asking for it (maipai_fd_want); a caller that stops asking stops it within 1 s.
+  */
++#include "maipai_time_core.h"
+ #include "maipai_facedet.h"
+ 
+ #if defined(CONFIG_MAIPAI_FACE_DETECT) && CONFIG_MAIPAI_FACE_DETECT
+@@ -404,7 +405,7 @@ void fd_task(void*)
+     for (;;) {
+         const uint32_t now = ms_now();
+         uint32_t wait      = 1000;
+-        const bool wanted  = static_cast<int32_t>(s_want_until.load() - now) > 0;
++        const bool wanted  = mt_pending(now, s_want_until.load());
+         if (s_det != nullptr && !wanted) {
+             const uint32_t idle = now - s_last_use;
+             wait                = idle >= kUnloadMs ? 1 : kUnloadMs - idle;
+@@ -421,14 +422,14 @@ void fd_task(void*)
+             continue;
+         }
+         const uint32_t t = ms_now();
+-        if (static_cast<int32_t>(s_want_until.load() - t) > 0) {
++        if (mt_pending(t, s_want_until.load())) {
+             const uint32_t s = ms_now();
+             stream_step();
+             const uint32_t period = fd_period_ms(CONFIG_MAIPAI_FACE_DETECT_RATE_HZ);
+             const uint32_t spent  = ms_now() - s;
+             if (spent < period) vTaskDelay(pdMS_TO_TICKS(period - spent));
+         }
+-        if (s_unload_req.exchange(false) || (s_det != nullptr && static_cast<int32_t>(s_want_until.load() - ms_now()) <= 0 &&
++        if (s_unload_req.exchange(false) || (s_det != nullptr && !mt_pending(ms_now(), s_want_until.load()) &&
+                                              ms_now() - s_last_use >= kUnloadMs)) {
+             unload();
+         }
+@@ -506,7 +507,7 @@ void maipai_fd_want(uint32_t hold_ms, int crop_mode)
+ {
+     if (!maipai_fd_start()) return;
+     s_want_crop.store(crop_mode);
+-    s_want_until.store(ms_now() + hold_ms);
++    s_want_until.store(mt_stamp(ms_now(), hold_ms));
+     xTaskNotifyGive(s_task);
+ }
+ 
+@@ -531,8 +532,8 @@ void maipai_fd_status(FdStatus* out)
+     out->runs = s_runs; out->runs_with_face = s_runs_face; out->refused = s_refused; out->errors = s_errors; out->camera_busy = s_busy;
+     out->last_infer_ms = s_last_infer;
+     out->last_total_ms = s_last_total;
+-    const int32_t left = static_cast<int32_t>(s_want_until.load() - ms_now());
+-    out->want_left_ms  = left > 0 ? static_cast<uint32_t>(left) : 0;
++    const uint32_t want = s_want_until.load();
++    out->want_left_ms   = mt_pending(ms_now(), want) ? static_cast<uint32_t>(want - ms_now()) : 0;
+     (void)maipai_fd_latest(&out->face, &out->face_age_ms);
+     out->test_state = s_w != nullptr ? s_w->res.state : 0;
+ }
+diff --git a/firmware/main/hal/maipai_music.cc b/firmware/main/hal/maipai_music.cc
+--- a/firmware/main/hal/maipai_music.cc
++++ b/firmware/main/hal/maipai_music.cc
+@@ -548,7 +548,7 @@ void maipai_music_init()
+         PropertyList({Property("stage", kPropertyTypeInteger, 0, 0, 4), Property("source", kPropertyTypeString, std::string("")),
+                       Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+         [](const PropertyList& properties) -> ReturnValue {
+-            if (!maipai_remote_gate("dance", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++            if (!maipai_remote_gate("dance", properties["source"].value<std::string>().c_str(), properties["token"].value<int>(), true)) {
+                 return std::string(maipai_remote_refusal());
+             }
+             const int stage = properties["stage"].value<int>();
+diff --git a/firmware/main/hal/maipai_listen.cc b/firmware/main/hal/maipai_listen.cc
+--- a/firmware/main/hal/maipai_listen.cc
++++ b/firmware/main/hal/maipai_listen.cc
+@@ -214,7 +214,7 @@ void maipai_listen_register_tools()
+                               Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     // patch TC01: a test marked source=remote must carry the cue token (kind listen)
+-                    if (!maipai_remote_gate("listen", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                    if (!maipai_remote_gate("listen", properties["source"].value<std::string>().c_str(), properties["token"].value<int>(), true)) {
+                         return std::string(maipai_remote_refusal());
+                     }
+                     const MaipaiTbPrefs prefs = maipai_tb_prefs();
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -327,7 +327,7 @@ void Hal::xiaozhi_mcp_init()
+                            // patch TC01: a move marked source=remote must carry the cue token (kind move, or find while a find runs)
+                            if (properties["source"].value<std::string>() == "remote") {
+                                const std::string cue_kind = properties["cue_kind"].value<std::string>() == "find" ? "find" : "move";
+-                               if (!maipai_remote_gate(cue_kind.c_str(), "remote", properties["token"].value<int>())) {
++                               if (!maipai_remote_gate(cue_kind.c_str(), "remote", properties["token"].value<int>(), true)) {
+                                    return std::string(maipai_remote_refusal());
+                                }
+                            } else {
+@@ -337,7 +337,7 @@ void Hal::xiaozhi_mcp_init()
+                                const int fp = properties["pitch"].value<int>();
+                                const bool far = (fy != -9999 && (fy > 45 || fy < -45)) || (fp != -9999 && fp > 45);
+                                if (!maipai_remote_gate(far ? "move" : "move_near", properties["source"].value<std::string>().c_str(),
+-                                                       properties["token"].value<int>())) {
++                                                       properties["token"].value<int>(), true)) {
+                                    return std::string(maipai_remote_refusal());
+                                }
+                            }
+@@ -776,7 +776,7 @@ void Hal::xiaozhi_mcp_init()
+                                      Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                        [this](const PropertyList& properties) -> ReturnValue {
+                            // patch TC01: a dance marked source=remote must carry the cue token
+-                           if (!maipai_remote_gate("dance", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                           if (!maipai_remote_gate("dance", properties["source"].value<std::string>().c_str(), properties["token"].value<int>(), true)) {
+                                return std::string(maipai_remote_refusal());
+                            }
+                            const auto name = properties["name"].value<std::string>();
+diff --git a/firmware/main/hal/maipai_seek.cc b/firmware/main/hal/maipai_seek.cc
+--- a/firmware/main/hal/maipai_seek.cc
++++ b/firmware/main/hal/maipai_seek.cc
+@@ -496,7 +496,7 @@ void maipai_seek_register_tools()
+                               Property("source", kPropertyTypeString, std::string("")),
+                               Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+-                    if (!maipai_remote_gate("move_near", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                    if (!maipai_remote_gate("move_near", properties["source"].value<std::string>().c_str(), properties["token"].value<int>(), true)) {
+                         return std::string(maipai_remote_refusal());
+                     }
+                     auto& app = Application::GetInstance();
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -1226,7 +1226,7 @@ void maipai_games_register_tools()
+                               Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     // patch TC01: a start marked source=remote must carry the cue token
+-                    if (!maipai_remote_gate("game", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                    if (!maipai_remote_gate("game", properties["source"].value<std::string>().c_str(), properties["token"].value<int>(), true)) {
+                         return std::string(maipai_remote_refusal());
+                     }
+                     const std::string name = properties["name"].value<std::string>();
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -440,7 +440,7 @@ void maipai_sounds_register_tools()
+                 [](const PropertyList& properties) -> ReturnValue {
+                     // patch TC01: a find chirp (find=1) marked source=remote must carry the cue token; ending a find (2) never needs one
+                     if (properties["find"].value<int>() == 1 &&
+-                        !maipai_remote_gate("find", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                        !maipai_remote_gate("find", properties["source"].value<std::string>().c_str(), properties["token"].value<int>(), true)) {
+                         return std::string(maipai_remote_refusal());
+                     }
+                     return play_named(properties["name"].value<std::string>(), properties["urgent"].value<bool>(),
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -3,6 +3,7 @@
+  *
+  * SPDX-License-Identifier: MIT
+  */
++#include <hal/maipai_time_core.h>
+ #include "stackchan_display.h"
+ #include <atomic>
+ #include <esp_log.h>
+@@ -1771,10 +1772,10 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         grin(85);
+     } else if (strcmp(emotion, "winking") == 0 || strcmp(emotion, "wink") == 0) {
+         avatar.setEmotion(Emotion::Happy);  // the right eye shuts to a line for a moment
+-        stackchan::avatar::g_ml_wink_until_ms = accent_now + 900;
++        stackchan::avatar::g_ml_wink_until_ms = mt_stamp(accent_now, 900);
+     } else if (strcmp(emotion, "silly") == 0) {
+         avatar.setEmotion(Emotion::Happy);  // a wink and the tongue out
+-        stackchan::avatar::g_ml_wink_until_ms = accent_now + 900;
++        stackchan::avatar::g_ml_wink_until_ms = mt_stamp(accent_now, 900);
+         stackchan::avatar::g_ml_tongue        = true;
+     } else if (strcmp(emotion, "serene") == 0) {
+         avatar.setEmotion(Emotion::Happy);  // content with the eyes shut: two arcs and a smile
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -3,6 +3,7 @@
+  *
+  * SPDX-License-Identifier: MIT
+  */
++#include "../../../../hal/maipai_time_core.h"
+ #include "default.h"
+ #include <esp_timer.h>
+ #include <cmath>
+@@ -703,7 +704,7 @@ void DefaultEyes::update_art(uint32_t ms)
+     in.gx     = gx;
+     in.gy     = gy;
+     in.voice  = g_ml_voice;
+-    if (side > 0 && static_cast<int32_t>(g_ml_wink_until_ms - ms) > 0) {
++    if (side > 0 && mt_pending(ms, g_ml_wink_until_ms)) {
+         in.blink = 1.0f;  // patch MD02: a wink, the right eye alone shuts to a line
+     }
+     if (g_ml_shut_eyes) {
