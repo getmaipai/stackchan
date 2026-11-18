@@ -67,7 +67,7 @@ def rows() -> list[dict]:
         {
             "row": "Install the host program without a terminal",
             "evidence": [("install page", has(r"^docs/user/install-the-host\.md$")), ("host packaging", has(r"^host/pyproject\.toml$"))],
-            "missing": ["an installer a friend can double click (today: pipx from a terminal)"],
+            "missing": ["an installer a friend can double click (today: pipx from a terminal)", "a real launchd or systemd swap by `stackchan service update` (the rollback rule is tested with fakes and a bad-source venv install only; it needs the Studio service and a second host version, a bench step)"],
             "blocked": True,
             "unblock": [("owner", "choose the systems to support first (Mac, Windows, a Raspberry Pi) and whether a bundled app is wanted"), ("app", "build that installer, with the first-run page that opens the settings page and the pairing card, and test it on a clean machine")],
         },
