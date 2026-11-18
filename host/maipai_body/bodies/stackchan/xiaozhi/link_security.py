@@ -17,6 +17,7 @@ import time
 from collections import OrderedDict
 from typing import Any
 
+from .link_exchange import psk_from_key
 from .pairing import PairingStore
 
 LOG = logging.getLogger(__name__)
@@ -130,6 +131,9 @@ class LinkSecurity:
         """The PSK for a handshake identity, or empty bytes (the handshake then fails)."""
         if not identity:
             return b""
+        key = self.pairing.link_key(identity)
+        if key:  # paired with the key exchange: no value that crossed the network is an input
+            return psk_from_key(key, identity)
         digest = self.pairing.link_material(identity)
         if not digest:
             return b""

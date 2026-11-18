@@ -70,6 +70,7 @@ class SettingsBackend:
         link: Any = None,
     ) -> None:
         self.pair_code: Callable[[], str] | None = None  # mints a pairing code (set by the host)
+        self.pair_exchange: Any = None  # the voice server (waiting_exchanges, approve_exchange); set by the host
         self.wakeword: Any = None  # the wake word maker package (set by the host only when switched on)
         self.phone_link: Callable[[], dict[str, Any]] | None = None  # {"lan", "base", "token"} for the phone login link
         self._link = link  # the encrypted robot link's policy (xiaozhi/link_security.py); no keys leave it
@@ -774,6 +775,11 @@ class SettingsBackend:
                 return 200, JSON, json.dumps(self.wakeword.state(word)).encode()
             except ValueError as error:
                 return 400, JSON, json.dumps({"error": str(error)}).encode()
+        if path == PAIR_WAITING:
+            if local_admin is not True:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            waiting = self.pair_exchange.waiting_exchanges() if self.pair_exchange else []
+            return 200, JSON, json.dumps({"waiting": waiting}).encode()
         if path == PHONE_LINK:
             if local_admin is not True:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
@@ -812,6 +818,16 @@ class SettingsBackend:
             if local_admin is not True:
                 return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
             return self._wakeword_post(path[len(WAKEWORD) + 1 :], body)
+        if path == PAIR_CODE_ENTRY and self.pair_exchange is not None:
+            if local_admin is not True:
+                return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
+            from maipai_body.bodies.stackchan.xiaozhi.link_exchange import ExchangeError
+
+            try:
+                self.pair_exchange.approve_exchange(str(body.get("device_id", "")), str(body.get("code", "")).strip())
+            except ExchangeError as error:
+                return 400, {"error": str(error)}
+            return 200, {"ok": True, "message": "Paired. The robot now uses an encrypted link."}
         if path == PAIRING_CODE and self.pair_code is not None:
             if local_admin is not True:
                 return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
@@ -873,6 +889,8 @@ PACKS = "/api/stackchan/packs"
 ACCESS = "/api/stackchan/remote-access"
 PAIRING_CODE = "/api/stackchan/pairings/code"
 PHONE_LINK = "/api/stackchan/phone-link"
+PAIR_WAITING = "/api/stackchan/pairings/waiting"
+PAIR_CODE_ENTRY = "/api/stackchan/pairings/code-entry"
 WAKEWORD = "/api/stackchan/wakeword"
 
 

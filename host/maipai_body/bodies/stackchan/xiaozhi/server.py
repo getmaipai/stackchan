@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import concurrent.futures
 import contextvars
 import inspect
@@ -27,6 +28,7 @@ from maipai_body.bodies.stackchan.avatar_frames import (
     decode_frame,
     unit_camera_frame,
 )
+from maipai_body.bodies.stackchan.xiaozhi.link_exchange import ExchangeError, ExchangeRegistry
 from maipai_body.bodies.stackchan.self_heal import SelfHealState, WakeSelfTest
 from maipai_body.bodies.stackchan.ws_logging import listener_logger
 from maipai_body.hal.errors import BodyLost, EstopEngaged, NotSupported, OutOfEnvelope
@@ -430,6 +432,7 @@ class XiaozhiServer:
         # What the unit reports of its own restart guard and microphone, and the wake engine
         # self-test schedule (design note stackchan-self-healing-2026-11-13).
         self.heal = SelfHealState()
+        self.exchange = ExchangeRegistry()  # link key exchanges waiting for the owner's six digits
         self._turns_running = 0
         self.wake_tester = WakeSelfTest(
             self.heal,
@@ -567,6 +570,71 @@ class XiaozhiServer:
             await self._server.wait_closed()
             self._server = None
 
+    EXCHANGE_STEP_TIMEOUT_S = 10.0
+
+    async def _pair_exchange(self, websocket: ServerConnection, device_id: str, client_id: str) -> None:
+        """The unit pairs with the key exchange (docs/plan/link-key-exchange.md): pair_start, nonce, then the owner types the six
+        digits on the host page. Messages are JSON text frames; nothing secret is logged."""
+        import base64
+
+        def b64(value: bytes) -> str:
+            return base64.b64encode(value).decode("ascii")
+
+        async def say(payload: dict) -> None:
+            await websocket.send(json.dumps(payload))
+
+        async def step(expected: str) -> dict:
+            raw = await asyncio.wait_for(websocket.recv(), timeout=self.EXCHANGE_STEP_TIMEOUT_S)
+            message = json.loads(raw)
+            if not isinstance(message, dict) or message.get("type") != expected:
+                raise ExchangeError("The pairing messages arrived in the wrong order. Restart pairing on the robot.")
+            return message
+
+        try:
+            source = websocket.remote_address[0] if websocket.remote_address else "unknown"
+            if not self._allow_pairing_request(source):
+                await websocket.close(code=1013, reason="Too many pairing requests from this address. Wait 10 minutes and retry.")
+                return
+            if not (self.pairing._valid_id(device_id) and self.pairing._valid_client_id(client_id)):
+                await websocket.close(code=1008, reason="Missing valid Device-Id or Client-Id. Set both headers and reconnect.")
+                return
+            start = await step("pair_start")
+            reply = self.exchange.begin(device_id, base64.b64decode(str(start.get("pk_u", "")), validate=True), client_id)
+            await say({"type": "pair_host", "pk_h": b64(reply.start_reply["pk_h"]), "c": b64(reply.start_reply["c"])})
+            nonce = await step("pair_nonce")
+            await say({"type": "pair_reveal", **{"n_h": b64(self.exchange.reveal(device_id, base64.b64decode(str(nonce.get("n_u", "")), validate=True))["n_h"])}})
+            LOG.info("StackChan pairing exchange: unit ...%s shows six digits; waiting for the owner to type them on the host page", device_id[-5:])
+            deadline = time.monotonic() + 300.0
+            while time.monotonic() < deadline:
+                result = self.exchange.results.get(device_id.lower())
+                if result == "paired":
+                    await say({"type": "paired"})
+                    await websocket.close(code=1000, reason="Paired.")
+                    return
+                if result == "failed":
+                    await say({"type": "pair_failed", "reason": "The code did not match. Nothing was paired."})
+                    await websocket.close(code=1008, reason="Pairing failed.")
+                    return
+                await asyncio.sleep(0.25)
+            await say({"type": "pair_failed", "reason": "The code was not typed in time."})
+            await websocket.close(code=1008, reason="Pairing timed out.")
+        except (ExchangeError, ValueError, TimeoutError, asyncio.TimeoutError) as error:
+            try:
+                await say({"type": "pair_failed", "reason": str(error) if isinstance(error, ExchangeError) else "The pairing message was not valid."})
+                await websocket.close(code=1008, reason="Pairing failed.")
+            except Exception:
+                pass
+        except Exception:
+            LOG.warning("StackChan pairing exchange stopped", exc_info=True)
+
+    def approve_exchange(self, device_id: str, code: str) -> None:
+        """The owner typed the six digits for a unit: finish the exchange and keep the link key. Raises ExchangeError in plain words."""
+        key = self.exchange.approve(device_id, code)
+        self.pairing.store_link_key(device_id, self.exchange.client_ids.get(device_id.lower(), ""), key)
+
+    def waiting_exchanges(self) -> list[str]:
+        return self.exchange.pending_devices()
+
     async def handle(self, websocket: ServerConnection, *, encrypted: bool = False) -> None:
         self._loop = asyncio.get_running_loop()
         device_id = websocket.request.headers.get("Device-Id", "")
@@ -582,10 +650,15 @@ class XiaozhiServer:
         token = auth[7:] if auth.startswith("Bearer ") else None
         enrollment_token = None
         authorized = self.pairing.authorize(device_id, client_id, token)
+        if not authorized and encrypted:  # paired with the key exchange: the encrypted link plus the Client-Id are the credential
+            authorized = self.pairing.authorize_link(device_id, client_id)
         if not authorized:
             enrollment_token = self.pairing.redeem_enrollment(device_id, client_id, token)
         else:
             self.pairing.spend_enrollment(device_id)
+        if not authorized and enrollment_token is None and not encrypted and websocket.request.headers.get("Pair-Exchange") == "1":
+            await self._pair_exchange(websocket, device_id, client_id)
+            return
         if not authorized and enrollment_token is None:
             try:
                 source = websocket.remote_address[0] if websocket.remote_address else "unknown"

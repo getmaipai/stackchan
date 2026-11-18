@@ -3403,6 +3403,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
         _start_coding_companion(backend, voice)
         _start_wake_word_maker(backend)
         backend.pair_code = pairing.create_pair_code
+        backend.pair_exchange = voice
         backend.phone_link = lambda: {
             "lan": lan,
             "base": f"http://{_lan_address()}:{port}",

@@ -212,6 +212,41 @@ class PairingStore:
             digest = found[1].get("token_sha256") if found else None
             return str(digest) if digest else None
 
+    def store_link_key(self, device_id: str, client_id: str, key: bytes) -> None:
+        """A unit paired with the key exchange: keep its link key (and no token digest). It starts `required`."""
+        if len(key) != 32 or not self._valid_id(device_id) or not self._valid_client_id(client_id):
+            raise ValueError("A link key is 32 bytes and a unit has a Device-Id and a Client-Id.")
+        now = time.time()
+        with self._lock:
+            with self._file_lock():
+                self._refresh()
+                found = self._find(device_id)
+                name = found[0] if found else device_id.lower()
+                record = dict(found[1]) if found else {}
+                record.pop("token_sha256", None)
+                record.update({"client_id": client_id, "link_key_hex": key.hex(), "link_encryption": "required", "approved_at": now, "last_seen": now})
+                self._devices[name] = record
+                self._save()
+
+    def link_key(self, device_id: str) -> bytes | None:
+        with self._lock:
+            self._refresh()
+            found = self._find(device_id)
+            raw = found[1].get("link_key_hex") if found else None
+        try:
+            return bytes.fromhex(str(raw)) if raw else None
+        except ValueError:
+            return None
+
+    def authorize_link(self, device_id: str, client_id: str) -> bool:
+        """A unit that paired with the key exchange is authorized by its encrypted link plus its Client-Id (no token)."""
+        with self._lock:
+            self._refresh()
+            found = self._find(device_id)
+            if not found or not found[1].get("link_key_hex"):
+                return False
+            return secrets.compare_digest(str(found[1].get("client_id", "")), client_id)
+
     def link_record(self, device_id: str) -> dict[str, Any]:
         """Link fields only: mode, seen_encrypted, new pairing flag. No key material."""
         with self._lock:

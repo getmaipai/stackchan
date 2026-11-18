@@ -47,3 +47,12 @@ Flash 2 to 8 KB. Internal RAM at pairing only (about 1 to 2 KB stack); afterward
 ## Not covered
 
 The owner approving without reading the unit's screen, and the key at rest on the host or on the unit (flash encryption is a separate decision).
+
+## Host half as built (app track, 2026-11-18): details the firmware half needs
+
+- **Socket framing.** The unit opens the plain pairing port (8765) with `Device-Id`, `Client-Id` and the new header `Pair-Exchange: 1`, no `Authorization`. The host speaks JSON text frames: unit `{"type":"pair_start","pk_u":<base64 32 bytes>}`; host `{"type":"pair_host","pk_h":<base64>,"c":<base64 32 bytes>}`; unit `{"type":"pair_nonce","n_u":<base64 16 bytes>}`; host `{"type":"pair_reveal","n_h":<base64 16 bytes>}`; then the host waits up to 5 minutes for the owner's six digits and answers `{"type":"paired"}` or `{"type":"pair_failed","reason":<plain words>}` and closes. Messages out of order, wrong sizes or an unusable key (all-zero shared secret) end the exchange with `pair_failed`. Without the header the old refusal is unchanged.
+- **Limits.** Three wrong codes for one unit make it wait 10 minutes; another unit is not held back; one live exchange per unit; the per-address pairing-request limit applies.
+- **After pairing.** The host keeps `link_key_hex` (K), `client_id` and `link_encryption: "required"` and no token digest. On the encrypted ports such a unit is authorized by the PSK handshake plus its `Client-Id` header (no token). A paired unit therefore needs the Client-Id to stay secret: it travels only inside TLS.
+- **Known gap.** The TLS library does not tell the handler which PSK identity a connection used, so the host checks the `Device-Id`/`Client-Id` headers against the record; a unit with its own K could only pose as another unit if it also knew that unit's Client-Id. Firmware may add a first-frame proof (an HMAC of the session id keyed with K) to close it; the host would then verify it.
+- **Vectors.** `host/tests/test_link_exchange.py` checks the host key schedule against `scripts/link-key-vector.py` (X25519 per RFC 7748, commitment, six digits, K, PSK).
+- **Host page.** The pairing card on the Home page lists a unit that is showing six digits and takes the digits (`GET /api/stackchan/pairings/waiting`, `POST /api/stackchan/pairings/code-entry`, host computer only; a phone token cannot approve).
