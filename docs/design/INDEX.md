@@ -411,7 +411,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
 - `docs/plan/release-readiness.md` (43): First release readiness: the friend test
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
-- `docs/plan/service-and-supervision.md` (113): The host as a managed service, with supervised parts
+- `docs/plan/service-and-supervision.md` (115): The host as a managed service, with supervised parts
 - `docs/plan/signed-update-anti-rollback.md` (20): Signed update with a build number (proposal for the app track, 2026-11-18)
 - `docs/plan/signed-update-header.md` (32): Signed update header with a build number (agreed with the firmware track, 2026-11-18)
 - `docs/plan/spec-proposals/README.md` (14): Shared-spec proposals (step 4, 2026-11-18)
@@ -895,7 +895,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5292): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5320): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
@@ -2714,7 +2714,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/dance_sim.py` (605): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
 - `scripts/virtual-unit/e2e.py` (704): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
-- `scripts/virtual-unit/e2e_fleet.py` (707): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
+- `scripts/virtual-unit/e2e_fleet.py` (708): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
 - `scripts/virtual-unit/e2e_hostile.py` (337): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
