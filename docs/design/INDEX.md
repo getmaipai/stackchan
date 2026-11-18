@@ -99,7 +99,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/release-and-updates.md` (88): Release and updates
 - `docs/design/repo-boundaries.md` (111): Repo boundaries: what lives where
 - `docs/design/safety-and-privacy.md` (72): Safety and privacy
-- `docs/design/screen-audit-baseline.json` (80): no header
+- `docs/design/screen-audit-baseline.json` (92): no header
 - `docs/design/screen-stays-dim-2026-11-16.md` (23): The screen that stayed dim, 2026-11-16
 - `docs/design/screen-style.md` (57): Screen style standard
 - `docs/design/spelling-aliases.md` (39): Spelling aliases (owner rule, 2026-11-16)
@@ -207,8 +207,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
-- `docs/dev/screen-audit.json` (244): no header
-- `docs/dev/screen-audit.md` (34): Screen audit against the physical standard
+- `docs/dev/screen-audit.json` (26): no header
+- `docs/dev/screen-audit.md` (12): Screen audit against the physical standard
 - `docs/dev/screens-contact-sheets.md` (38): Screens contact sheets
 - `docs/dev/second-robot-adapter.md` (16): Adding a second robot behind the seam
 - `docs/dev/seek-cue-policy.md` (38): The face-turning seeker and the camera-on cue: why the cue is lit most of the time, and a quieter policy
@@ -406,7 +406,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/trademark-and-affiliation.md` (61): Names, marks and affiliation
 - `docs/plan/two-usb-ports.md` (73): Two USB-C ports: what feeds what, and a limiter that measures the supply
 - `docs/plan/undefined-host-calls-2026-11-18.md` (24): Host calls with no firmware definition (2026-11-18)
-- `docs/plan/ux13-batches.md` (13): UX13: the screens at finger size, in batches (playground track)
+- `docs/plan/ux13-batches.md` (14): UX13: the screens at finger size, in batches (playground track)
 - `docs/plan/ux13c-control-sheet-brief.md` (20): UX13c brief: the control sheet at finger size (for a Codex lane, read by the playground track before it lands)
 - `docs/plan/view-requests.md` (48): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
 - `docs/plan/wasm-spike-report.md` (95): WebAssembly spike: the virtual robot in a browser, no server
@@ -628,7 +628,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (322): no header
+- `firmware/patches/ORDER` (326): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -721,6 +721,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF65-bench-head-read-probe.patch` (144): A bench tool, self.bench.head_read {seconds, hz}, that answers whether the unit can read the head's angles whi
 - `firmware/patches/SF67-grid-rule-sets-hangman-slide-snake-mines.patch` (543): Four more rule sets for the grid game engine, as pure cores with host tests: Hangman (a word table, 26 keys in
 - `firmware/patches/SF68-away-notice-30s-and-event.patch` (22): The "Can't reach Home" notice after ten minutes away stays on the banner row for 30 seconds (it was 9, easy to
+- `firmware/patches/SF69-project-name-and-affiliation-notice.patch` (48): The unit's version page names the project, MaiPai for StackChan, at the top (the version stays as the first de
+- `firmware/patches/SF70-hangman-and-mines-on-the-unit.patch` (268): Hangman (id hangman, 30 English or 30 Spanish words compiled in for now, 26 keys, seven misses, a gallows draw
+- `firmware/patches/SF71-reconnect-delay-resets-after-a-held-handshake.patch` (55): The reconnect delay starts over after any connection whose handshake completed and held for a second, not only
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -789,6 +792,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX11-first-run-name-stackchan-first.patch` (138): The name step of the first run offers StackChan, the product's own name, as the first choice and the default: 
 - `firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch` (348): Four fixes to the first run that a parent would trip over (found by reading the flow as a person who has never
 - `firmware/patches/UX13a-settings-at-finger-size.patch` (213): Settings at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.md). The t
+- `firmware/patches/UX13b-more-at-finger-size.patch` (241): The More screen at finger size (owner review 2026-11-18, docs/design/screen-style.md), made together with SF69
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -1904,7 +1908,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/prefs_core_test.c` (174): Host test for the unit's preferences table (patch TA01): keys match the host, flash keys fit, defaults, all-or
 - `host/tests/firmware/quiet_schedule_core_test.c` (76): Host test for the quiet schedule with days and "Quiet now" (patch SF52). cc -std=gnu99 -Wall -Wextra -Werror -
 - `host/tests/firmware/react_core_test.c` (175): Host test for the word reaction core (patch U02): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>. 
-- `host/tests/firmware/reconnect_core_test.c` (71): Host test for the host-reconnect rules (patch SF49). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the heade
+- `host/tests/firmware/reconnect_core_test.c` (85): Host test for the host-reconnect rules (patch SF49). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the heade
 - `host/tests/firmware/remote_core_test.c` (118): Host test for visible remote control (patch TB05). cc -std=c99 -Wall -Wextra -Werror -I<dir> remote_core_test.
 - `host/tests/firmware/remote_floor_test.c` (87): Host test for the second floor of the remote gate (patch FM03): a call with no source "remote" is gated too wh
 - `host/tests/firmware/remote_gate_test.c` (89): Host test for the remote token gate on the other remote-facing tools (patch TC01).
@@ -2432,6 +2436,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_trip_relay.py` (441): The laptop trip relay (body/scripts/trip_relay.py).
 - `host/tests/test_tts_playback.py` (273): G7's own acceptance (the gap-audit's exact words): "A stand-in
 - `host/tests/test_turn_client.py` (368): G6 (receive side)'s own acceptance: a real local HTTP server
+- `host/tests/test_unit_affiliation_notice.py` (31): The unit's version page carries the project name and the short affiliation notice (owner policy 2026-11-18). T
 - `host/tests/test_unit_hardware.py` (160): The measurement rows' unit-ready checks: what has to hold on the physical Reachy Mini
 - `host/tests/test_unit_lock.py` (470): ruff: noqa: E501
 - `host/tests/test_unit_lock_voice.py` (200): ruff: noqa: E501
@@ -2488,7 +2493,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/.gitkeep` (0): no header
 - `schema/asset-kinds.json` (68): no header
 - `schema/base-tools.json` (10): no header
-- `schema/memory-budget.json` (744): no header
+- `schema/memory-budget.json` (774): no header
 - `schema/tools.json` (642): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
@@ -2657,7 +2662,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
-- `scripts/virtual-unit/scenarios.py` (272): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (281): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/talk.js` (44): The Talk panel of the virtual unit view: microphone and speaker switches, level meters, the transcript, the la
