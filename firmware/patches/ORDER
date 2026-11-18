@@ -266,3 +266,4 @@ SF13-lock-lockout-survives-restart.patch
 SF14-offline-dance-rest-cap.patch
 SF15-talk-over-mic3-step0.patch
 SF16-lock-fail-count-survives-restart.patch
+SF17-seek-stamps-read-long-past.patch

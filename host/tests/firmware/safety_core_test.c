@@ -11,6 +11,7 @@
 #include "maipai_status_core.h"
 #include "maipai_fx_core.h"
 #include "maipai_face_track_core.h"
+#include "maipai_seek_core.h"
 #include "maipai_remote_core.h"
 #include "maipai_touch_core.h"
 #include "maipai_prefs_core.h"
@@ -209,6 +210,18 @@ static void test_stamps_late(void)
     CHECK(mg_in_grace(&g, LATE + MG_GRACE_MS + 10) == 0);
 }
 
+static void test_seek_stamps(void)
+{
+    /* a stamp still at 0, or armed long ago, on a unit that has run longer than 24.9 days: long past, never a deadline ahead */
+    CHECK(ms_dt(LATE, 0u) > 1000000);        /* elapsed since "never" */
+    CHECK(ms_dt(LATE, 12345u) > 1000000);
+    CHECK(ms_dt(5000u, 3000u) == 2000);      /* ordinary elapsed time is unchanged */
+    CHECK(ms_dt(3000u, 5000u) == -2000);     /* a deadline two seconds ahead */
+    CHECK(ms_dt(0x00000010u, 0xFFFFFFF0u) == 32); /* across the wrap */
+    CHECK(!(ms_dt(LATE, 0u) < 0));           /* "is the deadline still ahead" is false for a stale one: nothing wanted */
+    CHECK(ft_dt(LATE, 0u) > 1000000 && ft_dt(5000u, 3000u) == 2000);
+}
+
 static void test_remote(void)
 {
     /* a second heartbeat cannot swap the host id of a running session */
@@ -323,6 +336,7 @@ int main(void)
     test_pickup();
     test_stamps_late();
     test_remote();
+    test_seek_stamps();
     test_lockout_survives_a_restart();
     test_privacy_tap_and_cues();
     if (failures) {

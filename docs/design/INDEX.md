@@ -241,6 +241,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
+- `docs/plan/seam-refactor.md` (35): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
 - `docs/plan/spec-proposals/README.md` (13): Shared-spec proposals (step 4, 2026-11-18)
 - `docs/plan/spec-proposals/brain-capabilities.schema.json` (9): no header
 - `docs/plan/spec-proposals/fixtures/brain-capabilities.invalid.feature.json` (1): no header
@@ -467,7 +468,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (268): no header
+- `firmware/patches/ORDER` (269): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -610,7 +611,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (4761): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (4768): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
 - `host/maipai_body/bench.py` (610): Owner-only local console for exercising a connected StackChan body."""
@@ -1653,7 +1654,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/remote_gate_test.c` (89): Host test for the remote token gate on the other remote-facing tools (patch TC01).
 - `host/tests/firmware/reset_core_test.c` (54): Host test for the reset core (patch R01): cc -std=c99 -Wall -Werror -I<dir with the header>. */
 - `host/tests/firmware/roam_core_test.c` (118): Host test for the Wi-Fi roam rules (patch RM01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
-- `host/tests/firmware/safety_core_test.c` (334): Host test for the safety fixes of patches SF01 and SF02.
+- `host/tests/firmware/safety_core_test.c` (348): Host test for the safety fixes of patches SF01 and SF02.
 - `host/tests/firmware/screen_core_test.c` (58): Host test for the screen's wake rule (patch W01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. *
 - `host/tests/firmware/screens_core_test.c` (213): Host test for the single overlay screen state (patch UI09): cc -std=c99 -Wall -Wextra -Werror -I<dir with the 
 - `host/tests/firmware/seek_core_test.c` (749): Host test for turning toward a person (patch S10): the frame difference, the seek state machine and the owner 
@@ -1971,6 +1972,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_selftest.py` (390): BOT-SELF-TEST-01: the per-part self-test runner and the StackChan checks."""
 - `host/tests/test_selftest_cli.py` (440): BOT-SELF-TEST-02: the command line that runs the robot's checks from a
 - `host/tests/test_selftest_wiring.py` (165): BOT-SELF-TEST-01: the live-service wiring of the StackChan self-test."""
+- `host/tests/test_service_startup_pin.py` (42): Pins what the StackChan service starts, before the wiring is moved behind the robot seam (docs/plan/seam-refac
 - `host/tests/test_settings_token.py` (116): The settings page from a phone: a per-install token is the login for requests that are not local."""
 - `host/tests/test_settings_ui.py` (426): ruff: noqa: E501
 - `host/tests/test_sf_patch_headers.py` (19): Public-readiness guard: the header lines of the safety patches (SF*) say what the patch does, with no review l
@@ -2043,7 +2045,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_listening_thinking_faces.py` (156): The `listening` and `thinking` faces (owner, 2026-11-13: the face carries both, not the ring)."""
 - `host/tests/test_stackchan_live_fixes.py` (266): Fixes found on the live hub (2026-10-20): clock, night camera, ring write."""
 - `host/tests/test_stackchan_lock_core.py` (204): ruff: noqa: E501
-- `host/tests/test_stackchan_look_settings.py` (74): Look toward the speaker / Look for faces default off; a refused head move never raises."""
+- `host/tests/test_stackchan_look_settings.py` (73): Look toward the speaker / Look for faces default off; a refused head move never raises."""
 - `host/tests/test_stackchan_meeting_sleep_z.py` (34): no header
 - `host/tests/test_stackchan_motion_limit.py` (214): ruff: noqa: E501
 - `host/tests/test_stackchan_multi_unit.py` (284): ruff: noqa: E501
@@ -2060,7 +2062,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_person_tracker.py` (468): Find the person, then the face, then follow: stages, aiming math, following, caps, back-offs."""
 - `host/tests/test_stackchan_phrases_robot_voice.py` (85): no header
 - `host/tests/test_stackchan_pose.py` (75): The head's resting pose is level, and nothing "drops" it upward (owner report 2026-10-21)."""
-- `host/tests/test_stackchan_power_idle.py` (388): StackChan stays still while charging (owner request 2026-10-20).
+- `host/tests/test_stackchan_power_idle.py` (389): StackChan stays still while charging (owner request 2026-10-20).
 - `host/tests/test_stackchan_privacy.py` (95): Privacy properties exercised against authenticated fake avatar peers."""
 - `host/tests/test_stackchan_push.py` (125): no header
 - `host/tests/test_stackchan_reactions.py` (410): Shake, pet and heart: the spoken line after a shake, and a heart that has to be earned."""

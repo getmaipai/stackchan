@@ -1,0 +1,96 @@
+# Intent: The seek and face-tracking time differences treat a stamp that is a day or more old, or still at 0 on a unit that has run that long, as long past instead of as a deadline still ahead (one saturating difference in each core; the three "until" checks now ask the same way round).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_seek_core.h, maipai_seek_wire_core.h, maipai_face_track_core.h, maipai_seek.cc (ours)
+# Check after a flash: face following and the idle look-around keep working on a unit that has run for more than 25 days (host test covers the clock past 2^31 ms).
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_seek_core.h b/firmware/main/hal/maipai_seek_core.h
+--- a/firmware/main/hal/maipai_seek_core.h
++++ b/firmware/main/hal/maipai_seek_core.h
+@@ -102,7 +102,14 @@ typedef struct {
+     uint32_t until_ms; /* expires when now reaches this */
+ } ms_lease_t;
+ 
+-static inline int32_t ms_dt(uint32_t a, uint32_t b) { return (int32_t)(a - b); }
++/* a - b in ms. A deadline is never more than a minute ahead, so a result far "ahead" (a stamp that is 24.9 days old, or one still at 0 on a
++ * unit that has run that long) means the stamp is long past: it reads as 2^30 ms elapsed, never as a deadline still to come (patch SF17).
++ * Ask "is the deadline still ahead" as ms_dt(now, until) < 0, never as ms_dt(until, now) > 0. */
++static inline int32_t ms_dt(uint32_t a, uint32_t b)
++{
++    const int32_t d = (int32_t)(a - b);
++    return d < -(1 << 30) ? (1 << 30) : d;
++}
+ 
+ static inline int ms_owner_ok(const char* owner)
+ {
+@@ -604,10 +611,10 @@ static inline void ms_tick(ms_t* s, const ms_in_t* in, ms_out_t* out)
+             s->searches_total++;
+         }
+     }
+-    if (in->conversation && ms_dt(s->addr_until, now) < (int32_t)(MS_ADDR_WINDOW_MS / 2)) {
++    if (in->conversation && ms_dt(now, s->addr_until) > -(int32_t)(MS_ADDR_WINDOW_MS / 2)) {
+         s->addr_until = now + MS_ADDR_WINDOW_MS / 2; /* a talk keeps seeking wanted */
+     }
+-    int wanted = ms_dt(s->addr_until, now) > 0;
++    int wanted = ms_dt(now, s->addr_until) < 0;
+ 
+     /* A frame fed back, or a burst that never came: the result of a look (1 hit, 2 miss) or of a watch. */
+     int result = 0;
+@@ -793,7 +800,7 @@ static inline int ms_status_json(ms_t* s, uint8_t mode, uint32_t now, char* buf,
+ {
+     int who = ms_owner(s, mode, now);
+     const char* owner = who == 2 ? "host" : (who == 1 ? "unit" : "none");
+-    long ttl = who == 2 ? (long)ms_dt(s->lease.until_ms, now) : 0;
++    long ttl = who == 2 ? -(long)ms_dt(now, s->lease.until_ms) : 0;
+     long face_ago = s->last_face_any ? (long)ms_dt(now, s->last_face_at) : -1;
+     return snprintf(buf, n,
+                     "{\"ok\":true,\"owner\":\"%s\",\"lease_owner\":\"%s\",\"lease_ttl_ms\":%ld,\"setting\":\"%s\",\"state\":\"%s\","
+diff --git a/firmware/main/hal/maipai_seek_wire_core.h b/firmware/main/hal/maipai_seek_wire_core.h
+--- a/firmware/main/hal/maipai_seek_wire_core.h
++++ b/firmware/main/hal/maipai_seek_wire_core.h
+@@ -575,7 +575,7 @@ static inline void mw_step(mw_t* w, const mw_ops_t* ops)
+     }
+     w->have_step = 1;
+     w->last_step_ms = now;
+-    int late = ms_dt(w->late_until, now) > 0;
++    int late = ms_dt(now, w->late_until) < 0;
+     if (late && !w->late_active) {
+         w->late_active = 1;
+         w->late_since = now;
+@@ -695,7 +695,7 @@ static inline int mw_status_json(mw_t* w, uint8_t mode, uint32_t now, char* buf,
+     ms_t* s = &w->seek;
+     int who = ms_owner(s, mode, now);
+     const char* owner = who == 2 ? "host" : (who == 1 ? "unit" : "none");
+-    long ttl = who == 2 ? (long)ms_dt(s->lease.until_ms, now) : 0;
++    long ttl = who == 2 ? -(long)ms_dt(now, s->lease.until_ms) : 0;
+     long face_ago = s->last_face_any ? (long)ms_dt(now, s->last_face_at) : -1;
+     long seen_ago = s->seen_any ? (long)ms_dt(now, s->last_seen) : -1;
+     const mw_cal_t* c = &w->cal;
+diff --git a/firmware/main/hal/maipai_face_track_core.h b/firmware/main/hal/maipai_face_track_core.h
+--- a/firmware/main/hal/maipai_face_track_core.h
++++ b/firmware/main/hal/maipai_face_track_core.h
+@@ -173,7 +173,11 @@ static inline void ft_init(ft_t* t, const ft_cfg_t* cfg)
+     }
+ }
+ 
+-static inline int32_t ft_dt(uint32_t a, uint32_t b) { return (int32_t)(a - b); }
++static inline int32_t ft_dt(uint32_t a, uint32_t b)
++{
++    const int32_t d = (int32_t)(a - b); /* a stamp 24.9 days old reads as long past, not as a deadline ahead (patch SF17) */
++    return d < -(1 << 30) ? (1 << 30) : d;
++}
+ 
+ /* Head readings, newest last; the caller adds one about every 100 ms while the tracker is not off. */
+ static inline void ft_hist_add(ft_t* t, uint32_t now, float pan, float tilt)
+diff --git a/firmware/main/hal/maipai_seek.cc b/firmware/main/hal/maipai_seek.cc
+--- a/firmware/main/hal/maipai_seek.cc
++++ b/firmware/main/hal/maipai_seek.cc
+@@ -411,7 +411,7 @@ void maipai_seek_register_tools()
+                     const int ttl           = properties["ttl_s"].value<int>();
+                     xSemaphoreTake(s_mu, portMAX_DELAY);
+                     const int r = ms_lease_claim(&s_w->seek.lease, owner.c_str(), ttl, ms_now());
+-                    const long left = ms_dt(s_w->seek.lease.until_ms, ms_now());
++                    const long left = -static_cast<long>(ms_dt(ms_now(), s_w->seek.lease.until_ms));
+                     xSemaphoreGive(s_mu);
+                     if (r == MS_LEASE_BAD) return err_json("owner must be 1 to 23 of a-z 0-9 dash dot underscore");
+                     if (r == MS_LEASE_BUSY) return err_json("another host holds the lease");
