@@ -100,9 +100,10 @@ ACTIVE_UNIT: contextvars.ContextVar[str | None] = contextvars.ContextVar("stackc
 class XiaozhiDeviceClient:
     """Synchronous Robot seam that sends MCP tool calls to the active device."""
 
-    def __init__(self, server: XiaozhiServer, *, timeout: float = 5.0) -> None:
+    def __init__(self, server: XiaozhiServer, *, timeout: float = 5.0, device_id: str | None = None) -> None:
         self.server = server
         self.timeout = timeout
+        self.device_id = device_id  # set: every call of this client goes to that unit
         self._failure_logged: dict[str, float] = {}
         self._no_face_background = False
         self._no_take_photo = False
@@ -314,8 +315,14 @@ class XiaozhiDeviceClient:
             "StackChan tool %s failed: %s: %s", name, type(cause).__name__, str(cause)[:200]
         )
 
+    def for_unit(self, device_id: str) -> XiaozhiDeviceClient:
+        """A client whose calls all go to one unit (the per-unit services use these)."""
+        return XiaozhiDeviceClient(self.server, timeout=self.timeout, device_id=device_id)
+
     def _call_raw(self, name: str, arguments: dict[str, object]) -> object:
         try:
+            if getattr(self, "device_id", None) is not None:
+                return self.server.call_device_tool(name, arguments, timeout=self.timeout, device_id=self.device_id)
             if name in _FAN_OUT_TOOLS and ACTIVE_UNIT.get() is None and len(self.server._sessions) > 1:
                 return self._fan_out(name, arguments)
             return self.server.call_device_tool(name, arguments, timeout=self.timeout)
@@ -958,15 +965,19 @@ class XiaozhiServer:
             return
         asyncio.run_coroutine_threadsafe(self.send_system("reboot"), self._loop).result(timeout=5)
 
-    async def send_system(self, command: str, **fields: object) -> None:
-        """Send ``{"type": "system", "command": ...}`` to the one connected device."""
-        if len(self._sessions) != 1:
+    async def send_system(self, command: str, *, device_id: str | None = None, **fields: object) -> None:
+        """Send ``{"type": "system", "command": ...}`` to one device: the one named, else the unit whose turn is running,
+        else the unit connected the longest (so self-heal keeps working with several units)."""
+        if not self._sessions:
             raise ConnectionError(
                 "No StackChan is connected. Wait for the robot to join, then retry."
             )
-        device_id, websocket = next(iter(self._sessions.items()))
+        chosen = device_id or ACTIVE_UNIT.get()
+        if chosen not in self._sessions:
+            chosen = next(iter(self._sessions))
+        websocket = self._sessions[chosen]
         payload = {"command": command, **{k: v for k, v in fields.items() if v is not None}}
-        await self._json(websocket, self._session_ids[device_id], "system", payload)
+        await self._json(websocket, self._session_ids[chosen], "system", payload)
 
     async def _robot_command_guard(self, request: web.Request) -> web.Response | None:
         """Loopback only, JSON only, same origin: Home's backend is the only caller."""

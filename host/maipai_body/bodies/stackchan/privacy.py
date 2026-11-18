@@ -467,3 +467,59 @@ class PrivacyController:
                 name,
                 "on" if self._pending.get(name) else "off",
             )
+
+
+class PrivacyUnits:
+    """One privacy state and controller per connected unit, each reading its own unit.
+
+    ``call_for(device_id)`` returns the tool-call function bound to that unit. The first unit that connects is the primary: the
+    head, camera and hub-setting hooks that were written for one unit keep following it. A turn is gated by the state of the unit
+    that is talking (``ACTIVE_UNIT``), so one unit's mute never silences the other."""
+
+    def __init__(self, call_for: Callable[[str], Callable[[str, dict[str, object]], object]], *, on_leak=None, primary: PrivacyState | None = None) -> None:
+        self._call_for, self._on_leak, self._primary = call_for, on_leak, primary
+        self._lock = threading.Lock()
+        self._units: dict[str, tuple[PrivacyState, PrivacyController]] = {}
+
+    def _entry(self, device_id: str) -> tuple[PrivacyState, PrivacyController]:
+        with self._lock:
+            if device_id not in self._units:
+                state = PrivacyState(on_leak=self._on_leak) if self._on_leak else PrivacyState()
+                self._units[device_id] = (state, PrivacyController(self._call_for(device_id), state))
+            return self._units[device_id]
+
+    def state_for(self, device_id: str) -> PrivacyState:
+        return self._entry(device_id)[0]
+
+    def controller_for(self, device_id: str) -> PrivacyController:
+        return self._entry(device_id)[1]
+
+    def on_connect(self, device_id: str) -> None:
+        self.controller_for(device_id).on_connect()
+
+    def devices(self) -> list[str]:
+        with self._lock:
+            return list(self._units)
+
+    def tick_all(self) -> None:
+        for device_id in self.devices():
+            state, controller = self._entry(device_id)
+            for tick in (state.tick, controller.tick):
+                try:
+                    tick()
+                except Exception:
+                    LOG.warning("privacy tick failed for one unit", exc_info=True)
+
+    def muted_reason(self) -> str | None:
+        """Why the talking unit says and hears nothing (the first unit when no turn names one), or None."""
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        device = ACTIVE_UNIT.get()
+        devices = self.devices()
+        if device in devices:
+            return self.state_for(device).muted_reason()
+        if self._primary is not None:  # a turn on the primary unit (or no turn): the state the single-unit hooks already use
+            return self._primary.muted_reason()
+        if device is None and devices:
+            device = devices[0]
+        return self.state_for(device).muted_reason() if device else None

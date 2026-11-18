@@ -98,3 +98,29 @@ class TwoUnitServicesTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SelfHealTwoUnitsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_a_system_command_still_reaches_a_unit_when_two_are_connected(self) -> None:
+        sent = []
+        service = XiaozhiServer(PairingStore(), None, None)
+        service._sessions = {KITCHEN: "ws1", DEN: "ws2"}
+        service._session_ids = {KITCHEN: "s1", DEN: "s2"}
+
+        async def fake_json(ws, session_id, kind, payload):
+            sent.append((ws, kind, payload["command"]))
+
+        service._json = fake_json
+        await service.send_system("reboot")  # no unit named: the longest-connected
+        await service.send_system("reboot", device_id=DEN)
+        token = ACTIVE_UNIT.set(DEN)
+        try:
+            await service.send_system("reboot")  # during the second unit's turn: that unit
+        finally:
+            ACTIVE_UNIT.reset(token)
+        self.assertEqual([w for w, _, _ in sent], ["ws1", "ws2", "ws2"])
+
+    async def test_with_no_unit_connected_it_still_says_so_in_plain_words(self) -> None:
+        service = XiaozhiServer(PairingStore(), None, None)
+        with self.assertRaisesRegex(ConnectionError, "No StackChan is connected"):
+            await service.send_system("reboot")

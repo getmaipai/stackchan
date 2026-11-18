@@ -2147,17 +2147,29 @@ def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, sto
         update(fault=True)  # the existing error look, for half a minute
         threading.Timer(30.0, lambda: update(fault=bool(voice.heal.hold))).start()
 
+    from maipai_body.bodies.stackchan.privacy import PrivacyUnits
+
     state = PrivacyState(on_leak=leak)
     controller = PrivacyController(voice.robot.client._call, state)
+    # The first unit that connects is the primary and keeps the single-unit state above. Every other unit gets its own state,
+    # read from that unit, and a turn on it is gated by its own mute (ACTIVE_UNIT), never by the primary's.
+    others = PrivacyUnits(
+        lambda device_id: voice.robot.client.for_unit(device_id)._call, on_leak=leak, primary=state
+    )
+    primary_id: list[str | None] = [None]
     behavior.privacy = state
     behavior.privacy_controller = controller
-    behavior.muted_reason = state.muted_reason
+    behavior.privacy_units = others
+    behavior.muted_reason = others.muted_reason
     behavior.settings_listeners.append(controller.apply_settings)
-    voice.session_listeners.append(
-        lambda _device_id: threading.Thread(
-            target=controller.on_connect, name="stackchan-privacy-connect", daemon=True
-        ).start()
-    )
+
+    def on_unit_connect(device_id: str) -> None:
+        if primary_id[0] is None or primary_id[0] not in voice._sessions:
+            primary_id[0] = device_id
+        target = controller.on_connect if device_id == primary_id[0] else (lambda: others.on_connect(device_id))
+        threading.Thread(target=target, name="stackchan-privacy-connect", daemon=True).start()
+
+    voice.session_listeners.append(on_unit_connect)
     # Head moves from any part of the host stop in full quiet.
     voice.robot.robot._driver("head").move_blocked = state.head_blocked
     # No picture is asked for, kept or taken while vision is off; the local watch gate and the
@@ -2170,7 +2182,7 @@ def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, sto
 
     def ticks() -> None:
         while not stop_event.wait(1.0):
-            for tick in (state.tick, controller.tick):
+            for tick in (state.tick, controller.tick, others.tick_all):
                 try:
                     tick()
                 except Exception:
