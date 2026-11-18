@@ -54,7 +54,7 @@ class _Handler(BaseHTTPRequestHandler):
     def _token_login(self) -> bool:
         """A phone (or a proxied page) logged in with the settings token."""
         auth = self.server.auth
-        return auth is not None and auth.valid(self.headers, urlsplit(self.path).query)
+        return auth is not None and auth.valid(self.headers, urlsplit(self.path).query, self.client_address[0])
 
     def _admin(self):
         """True on the host computer; the token scope for a phone; False otherwise."""

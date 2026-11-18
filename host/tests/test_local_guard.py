@@ -19,6 +19,10 @@ from maipai_body.settings_server import SettingsServer
         ("127.0.0.1", {"Host": "127.0.0.1", "X-Forwarded-For": "198.51.100.9"}, False),
         ("127.0.0.1", {"Host": "127.0.0.1", "Via": "1.1 proxy"}, False),
         ("192.0.2.7", {"Host": "127.0.0.1"}, False),
+        ("127.0.0.1", {"Host": "[::1]evil.com"}, False),
+        ("127.0.0.1", {"Host": "[::1]:8051"}, True),
+        ("127.0.0.1", {"Host": "localhost.evil.com"}, False),
+        ("127.0.0.1", {"Host": "127.0.0.1:80:90"}, False),
     ],
 )
 def test_request_is_local(peer, headers, expected):

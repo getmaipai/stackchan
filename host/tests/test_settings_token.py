@@ -70,11 +70,27 @@ def test_a_cross_site_post_with_the_cookie_is_refused(server):
     assert status == 403
 
 
-def test_too_many_wrong_tokens_lock_the_login_for_a_while(tmp_path):
+def test_too_many_wrong_tokens_lock_that_address_but_not_the_owners_other_device(tmp_path):
     auth = local_guard.SettingsAuth(tmp_path / "t")
     for _ in range(local_guard.TOKEN_TRIES):
-        assert not auth.valid({"Authorization": "Bearer wrong"}, "")
-    assert not auth.valid({"Authorization": f"Bearer {auth.token}"}, "")  # locked even for the right one
+        assert not auth.valid({"Authorization": "Bearer wrong"}, "", source="198.51.100.7")
+    assert not auth.valid({"Authorization": f"Bearer {auth.token}"}, "", source="198.51.100.7")  # that address is locked
+    assert auth.valid({"Authorization": f"Bearer {auth.token}"}, "", source="192.0.2.44")  # the owner's phone is not
+
+
+def test_a_token_with_non_ascii_characters_is_a_counted_failure_not_a_crash(tmp_path):
+    auth = local_guard.SettingsAuth(tmp_path / "t")
+    for _ in range(local_guard.TOKEN_TRIES):
+        assert auth.valid({"Authorization": "Bearer t\u00f6ken\u202e"}, "", source="198.51.100.7") is False
+    assert not auth.valid({"Authorization": f"Bearer {auth.token}"}, "", source="198.51.100.7")  # the failures were counted
+
+
+def test_the_total_of_wrong_tries_is_bounded_across_addresses(tmp_path):
+    auth = local_guard.SettingsAuth(tmp_path / "t")
+    for number in range(local_guard.TOKEN_TRIES_TOTAL):
+        auth.valid({"Authorization": "Bearer wrong"}, "", source=f"198.51.100.{number % 250}.{number}")
+    assert not auth.valid({"Authorization": f"Bearer {auth.token}"}, "", source="192.0.2.1")  # a spray from many addresses locks the page for a minute
+
 
 
 def test_config_switch_and_cli_print_the_token(monkeypatch, tmp_path, capsys):

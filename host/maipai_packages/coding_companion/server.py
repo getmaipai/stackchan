@@ -54,7 +54,7 @@ class _Handler(BaseHTTPRequestHandler):
             return self._reply(HTTPStatus.NOT_FOUND, "Post to /status.")
         if self.headers.get_content_type() != "application/json":
             return self._reply(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Send application/json.")
-        if not self.server.auth.valid(self.headers, ""):
+        if not self.server.auth.valid(self.headers, "", self.client_address[0]):
             return self._reply(HTTPStatus.UNAUTHORIZED, "The token is missing or wrong. Read it from the coding companion token file.")
         try:
             length = int(self.headers.get("Content-Length") or 0)

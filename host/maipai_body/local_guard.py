@@ -6,6 +6,7 @@ proxy header is present. The settings token (see SettingsAuth) lets a phone use 
 from __future__ import annotations
 
 import hmac
+import re
 import os
 import secrets
 import threading
@@ -23,13 +24,22 @@ MAX_JSON_BODY = 1024 * 1024
 MAX_PICTURE_BODY = 72 * 1024 * 1024  # base64 of the largest picture the host accepts (12 megapixels RGBA)
 
 
+_PORT = re.compile(r"^[0-9]{1,5}$")
+
+
 def host_is_local(host_header: str) -> bool:
-    name = host_header.strip()
-    if name.startswith("["):
-        name = name.split("]", 1)[0] + "]"
+    """The Host header names this computer: 127.0.0.1, localhost or [::1], with at most a port after it."""
+    value = host_header.strip().lower()
+    if value.startswith("["):
+        name, _, rest = value.partition("]")
+        name += "]"
+        if rest and not (rest.startswith(":") and _PORT.match(rest[1:])):
+            return False
     else:
-        name = name.rsplit(":", 1)[0] if ":" in name else name
-    return name.lower() in LOCAL_HOSTS
+        name, sep, port = value.partition(":")
+        if sep and not _PORT.match(port):
+            return False
+    return name in LOCAL_HOSTS
 
 
 def request_is_local(peer: str, headers: Mapping[str, str]) -> bool:
@@ -41,6 +51,7 @@ def request_is_local(peer: str, headers: Mapping[str, str]) -> bool:
 
 COOKIE = "maipai_settings"
 TOKEN_TRIES = 10  # wrong tokens in a window lock the login (for everyone, the right token included)
+TOKEN_TRIES_TOTAL = 200  # wrong tokens from all addresses together in a window
 TOKEN_WINDOW_S = 60.0
 
 
@@ -53,7 +64,8 @@ class SettingsAuth:
 
     def __init__(self, path: Path, clock=time.monotonic) -> None:
         self._path, self._clock = Path(path), clock
-        self._fails: list[float] = []
+        self._fails: dict[str, list[float]] = {}
+        self._total: list[float] = []
         self._lock = threading.Lock()
         self.token = self._load()
 
@@ -86,16 +98,26 @@ class SettingsAuth:
             pass
         return cookie[COOKIE].value if COOKIE in cookie else ""
 
-    def valid(self, headers: Mapping[str, str], query: str) -> bool:
+    def valid(self, headers: Mapping[str, str], query: str, source: str = "") -> bool:
+        """True when a token in the request is the right one. Wrong tries are counted per source address (ten a
+        minute locks that address, so one device guessing never blocks the owner's phone) and in total (a spray from
+        many addresses locks the page for a minute)."""
         given = self.candidate(headers, query)
         if not given:
             return False
         now = self._clock()
         with self._lock:
-            self._fails = [t for t in self._fails if now - t < TOKEN_WINDOW_S]
-            if len(self._fails) >= TOKEN_TRIES:
+            self._total = [t for t in self._total if now - t < TOKEN_WINDOW_S]
+            mine = [t for t in self._fails.get(source, []) if now - t < TOKEN_WINDOW_S]
+            if len(self._total) >= TOKEN_TRIES_TOTAL or len(mine) >= TOKEN_TRIES:
+                self._fails[source] = mine
                 return False
-            if hmac.compare_digest(given, self.token):
+            if hmac.compare_digest(given.encode("utf-8", "replace"), self.token.encode("utf-8")):
+                self._fails[source] = mine
                 return True
-            self._fails.append(now)
+            mine.append(now)
+            self._fails[source] = mine
+            self._total.append(now)
+            if len(self._fails) > 1024:  # forget quiet addresses
+                self._fails = {k: v for k, v in self._fails.items() if v and now - v[-1] < TOKEN_WINDOW_S}
             return False
