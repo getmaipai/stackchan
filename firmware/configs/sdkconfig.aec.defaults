@@ -1,0 +1,4 @@
+# Talk over the robot (patches SF15 and SF29): microphone 1 plus the speaker loopback, the echo canceller on the unit and wake-word interruption. Bench builds only for now.
+CONFIG_MAIPAI_TALK_OVER=y
+CONFIG_MAIPAI_TALK_OVER_AEC=y
+CONFIG_MAIPAI_MIC3_GAIN_DB=12

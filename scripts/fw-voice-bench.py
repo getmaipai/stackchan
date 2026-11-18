@@ -156,6 +156,31 @@ def noise_run(rounds: int, out: str) -> int:
 
 
 def main() -> int:
+    if "--watch" in sys.argv[1:]:
+        # --watch aec|barge|soak SECONDS [LOG] [--cap]: read the serial lines for that long (the bench plays a reply or a wake clip meanwhile) and print the verdict
+        rest = [x for x in sys.argv[1:] if x not in ("--watch", "--cap")]
+        mode, seconds = rest[0], int(rest[1]) if len(rest) > 1 else 60
+        text_lines: list[str] = []
+        sp = fw_serial.open_port()
+        t_stop = time.time() + seconds
+        while time.time() < t_stop:
+            raw = sp.readline()
+            if raw:
+                text_lines.append(raw.decode("utf8", "replace").strip())
+        text = "\n".join(text_lines)
+        if len(rest) > 2:
+            open(rest[2], "w").write(text)
+        cap = "--cap" in sys.argv[1:]
+        if mode == "aec":
+            failures = aec_verdict(text, cap)
+        elif mode == "barge":
+            failures = barge_verdict(text, max(1, len(BARGE_LINE.findall(text))), cap)
+        else:
+            failures = soak_verdict(len(re.findall(r"MaipaiBarge.*interrupted", text)))
+        for f in failures:
+            print(f"GATE FAIL: {f}")
+        print("GATE " + ("FAIL" if failures else "PASS"))
+        return 1 if failures else 0
     if "--noise" in sys.argv[1:]:
         rest = [a for a in sys.argv[1:] if a != "--noise"]
         return noise_run(int(rest[0]) if rest else 5, rest[1] if len(rest) > 1 else "fw-voice-noise.log")

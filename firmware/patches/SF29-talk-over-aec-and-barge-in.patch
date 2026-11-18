@@ -1,0 +1,275 @@
+# Intent: Talking over the robot, wired (off by default, CONFIG_MAIPAI_TALK_OVER_AEC, needs CONFIG_MAIPAI_TALK_OVER): the audio front end gets microphone 1 and the speaker loopback (TDM slot 1) as its two channels (input format MR, echo canceller on, in PSRAM-heavy mode) and cancels the echo on the unit ahead of the wake word. While the unit speaks, the second wake hit within one second interrupts it (maipai_barge_core.h, host test); a sentence the host marks no_barge (with duration_ms) is never interrupted; late frames of an interrupted reply are dropped until the next tts start. A bench build prints one trace line a second, "AEC mic=<rms> ref=<rms> out=<rms>". Off: the image is byte-identical in static RAM and code to the build without it.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc and main/application.cc (nested tree, MIT); firmware/main (ours)
+# Check after a flash: on an image built with the aec overlay the trace shows out well below mic while a reply plays; two wake words within a second stop the reply and start a new turn; one wake word does nothing while speaking; scripts/fw-voice-bench.py --watch aec|barge|soak gives the verdicts.
+# Kconfig: CONFIG_MAIPAI_TALK_OVER_AEC (default n)
+
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -331,6 +331,15 @@ config MAIPAI_TALK_OVER
+         First step of barge-in (patch SF15). The second input channel becomes MIC3 (the speaker loopback) instead of MIC2, and a bench
+         tool measures a tone on both channels. Off: the build is the one without it (MIC1 and MIC2), no code and no memory.
+ 
++config MAIPAI_TALK_OVER_AEC
++    bool "Talk over the robot: echo canceller on the unit and wake-word interruption while it speaks"
++    depends on MAIPAI_TALK_OVER
++    default n
++    help
++        Patch SF29 (docs/plan, design-talk-over): the audio front end gets microphone 1 and the speaker loopback (TDM slot 1) as its two channels and
++        cancels the echo on the unit, ahead of the wake word. While the unit speaks, the second wake hit within one second interrupts it
++        (maipai_barge_core.h). Off: the build is the one without it, no code and no memory.
++
+ config MAIPAI_MIC3_GAIN_DB
+     int "Gain of the MIC3 channel in dB (0 to 37)"
+     depends on MAIPAI_TALK_OVER
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -29,6 +29,7 @@
+ #include <esp_timer.h>
+ #include <esp_log.h>
+ #include <hal/maipai_listen_guard_core.h>
++#include <hal/maipai_barge.h>
+ #include <hal/device_events.h>
+ #include <arpa/inet.h>
+ #include <cJSON.h>
+@@ -656,6 +657,11 @@ void Application::InitializeProtocol() {
+ 
+     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
+         MAIPAI_LAT_ONCE(g_lat_first_dl, "dl_first");
++#if CONFIG_MAIPAI_TALK_OVER_AEC
++        if (!maipai_barge_frame_ok()) {
++            return;  // patch SF29: late frames of an interrupted reply are dropped until the next tts start
++        }
++#endif
+         if (GetDeviceState() == kDeviceStateSpeaking || audio_service_.speech_open()) {
+             audio_service_.PushPacketToDecodeQueue(std::move(packet));
+         }
+@@ -728,6 +734,7 @@ void Application::InitializeProtocol() {
+             }
+             MAIPAI_LAT("tts_%s", state->valuestring);
+             if (strcmp(state->valuestring, "start") == 0) {
++                maipai_barge_tts_start();  // patch SF29 (a stub when talking over is not built)
+                 MAIPAI_LAT_SET(g_lat_first_dl);
+                 MAIPAI_LAT_SET(g_lat_first_play);
+                 if (aborted_) {
+@@ -754,6 +761,12 @@ void Application::InitializeProtocol() {
+                     }
+                 });
+             } else if (strcmp(state->valuestring, "sentence_start") == 0) {
++#if CONFIG_MAIPAI_TALK_OVER_AEC
++                if (cJSON_IsTrue(cJSON_GetObjectItem(root, "no_barge"))) {  // patch SF29: a sentence that says the wake phrase
++                    auto duration = cJSON_GetObjectItem(root, "duration_ms");
++                    maipai_barge_no_barge(cJSON_IsNumber(duration) && duration->valueint > 0 ? static_cast<uint32_t>(duration->valueint) : 5000u);
++                }
++#endif
+                 auto text = cJSON_GetObjectItem(root, "text");
+                 if (cJSON_IsString(text)) {
+                     std::vector<TextGlyph> glyphs;
+@@ -1041,6 +1054,14 @@ void Application::HandleWakeWordDetectedEvent() {
+     if (!protocol_ || maipai_mic_blocked() || maipai_lock_blocks_voice()) {
+         return;  // a wake word that arrives after the mute is dropped (patch 107), and after the lock (patch LK03)
+     }
++#if CONFIG_MAIPAI_TALK_OVER_AEC
++    // Patch SF29: while the unit speaks, only the second wake hit within a second interrupts it (and never during a sentence the host
++    // marked no_barge); a first hit changes nothing the person can see or hear.
++    if (GetDeviceState() == kDeviceStateSpeaking && maipai_barge_wake_hit(true) != 2) {
++        audio_service_.EnableWakeWordDetection(true);  // the detection stopped itself on this hit
++        return;
++    }
++#endif
+     maipai_screen_wake("wake word");  // patch W01: the wake word wakes a dimmed screen
+ 
+     MAIPAI_LAT("wake_evt");
+diff --git a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+--- a/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
++++ b/firmware/xiaozhi-esp32/main/audio/engines/afe_audio_engine.cc
+@@ -1,4 +1,7 @@
+ #include "afe_audio_engine.h"
++#if CONFIG_MAIPAI_TALK_OVER_AEC
++#include <hal/maipai_barge.h>
++#endif
+ 
+ #include <cassert>
+ #include <cstring>
+@@ -164,7 +167,11 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
+     // not a speaker loopback. An echo canceller fed a microphone learns the room and then cancels the person's
+     // voice, so the wake word goes deaf and the voice detector fires on the residue. Declare the channel unused.
+     for (int i = 0; i < ref_num; ++i) {
++#if CONFIG_MAIPAI_TALK_OVER_AEC
++        input_format.push_back('R');  // patch SF29: the second channel is the speaker loopback (TDM slot 1)
++#else
+         input_format.push_back('N');
++#endif
+     }
+ 
+     char* vad_model_name =
+@@ -176,7 +183,11 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
+         return false;
+     }
+ 
++#if CONFIG_MAIPAI_TALK_OVER_AEC
++    afe_config->aec_init = true;  // patch SF29: a real echo reference (the speaker loopback) is the second channel
++#else
+     afe_config->aec_init = false;  // patch L01: no real echo reference on this board
++#endif
+     afe_config->aec_mode = AEC_MODE_FD_LOW_COST;
+     afe_config->aec_nlp_level = AEC_NLP_LEVEL_VERYAGGR;
+     afe_config->ns_init = false;
+@@ -300,6 +311,9 @@ void AfeAudioEngine::Feed(std::vector<int16_t>&& data) {
+     if ((xEventGroupGetBits(event_group_) & kAfeActive) == 0) {
+         return;
+     }
++#if CONFIG_MAIPAI_TALK_OVER_AEC && CONFIG_MAIPAI_SERIAL_TOOLS
++    maipai_aec_trace_in(data.data(), data.size(), codec_->input_channels());
++#endif
+     input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
+     size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+     while (input_buffer_.size() >= chunk_size) {
+@@ -419,7 +433,11 @@ void AfeAudioEngine::ApplyAfeControls() {
+             afe_iface_->disable_wakenet(afe_data_);
+         }
+     }
++#if CONFIG_MAIPAI_TALK_OVER_AEC
++    if (codec_->input_reference()) {  // patch SF29: the reference is the speaker loopback
++#else
+     if (false && codec_->input_reference()) {  // patch L01: never enable an echo canceller on a microphone reference
++#endif
+         const bool enable_aec = (bits & kWakeWordEnabled) ||
+                                 (device_aec_enabled_.load() && (bits & kVoiceProcessingEnabled));
+         if (enable_aec) {
+@@ -455,6 +473,9 @@ void AfeAudioEngine::ProcessingTask() {
+         }
+         const uint32_t generation = control_generation_.load();
+         auto* result = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
++#if CONFIG_MAIPAI_TALK_OVER_AEC && CONFIG_MAIPAI_SERIAL_TOOLS
++        if (result != nullptr && result->data != nullptr) maipai_aec_trace_out(result->data, result->data_size / sizeof(int16_t));
++#endif
+         if (generation != control_generation_.load() ||
+             (xEventGroupGetBits(event_group_) & kAfeActive) == 0) {
+             // A disable/re-enable may make an old blocked fetch return after the
+diff --git a/firmware/main/hal/maipai_barge.h b/firmware/main/hal/maipai_barge.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_barge.h
+@@ -0,0 +1,25 @@
++#pragma once
++// Patch SF29 (CONFIG_MAIPAI_TALK_OVER_AEC, off by default): talking over the robot. The decisions are maipai_barge_core.h.
++#include <sdkconfig.h>
++#include <stddef.h>
++#include <stdint.h>
++
++#if CONFIG_MAIPAI_TALK_OVER_AEC
++// A wake hit. speaking: the unit is speaking now. Returns 0 ignore, 1 wait for a second hit, 2 interrupt, 3 normal wake.
++int maipai_barge_wake_hit(bool speaking);
++// The host marked a sentence no_barge: hits are ignored while it plays and for 500 ms after it.
++void maipai_barge_no_barge(uint32_t duration_ms);
++// A tts start: the frames of a new reply are good again. After an interruption the frames of the old turn are dropped until this.
++void maipai_barge_tts_start();
++bool maipai_barge_frame_ok();
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++// Bench: one trace line a second, "AEC mic=<rms> ref=<rms> out=<rms>" (microphone 1, the loopback, the cleaned output).
++void maipai_aec_trace_in(const int16_t* interleaved, size_t count, int channels);
++void maipai_aec_trace_out(const int16_t* mono, size_t count);
++#endif
++#else
++inline int maipai_barge_wake_hit(bool) { return 3; }
++inline void maipai_barge_no_barge(uint32_t) {}
++inline void maipai_barge_tts_start() {}
++inline bool maipai_barge_frame_ok() { return true; }
++#endif
+diff --git a/firmware/main/hal/maipai_barge.cc b/firmware/main/hal/maipai_barge.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_barge.cc
+@@ -0,0 +1,89 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Patch SF29 (CONFIG_MAIPAI_TALK_OVER_AEC): the unit side of talking over the robot. Decisions: maipai_barge_core.h (host test).
++ */
++#include "maipai_barge.h"
++
++#if CONFIG_MAIPAI_TALK_OVER_AEC
++#include "maipai_barge_core.h"
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <cmath>
++#include <cstdio>
++#include <mutex>
++
++namespace {
++const char* const kTag = "MaipaiBarge";
++std::mutex s_mu;
++mbg_t s_barge;
++
++uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++}  // namespace
++
++int maipai_barge_wake_hit(bool speaking)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    mbg_speaking(&s_barge, speaking ? 1 : 0);
++    const mbg_verdict_t v = mbg_wake_hit(&s_barge, now_ms());
++    if (v == MBG_ABORT) ESP_LOGW(kTag, "interrupted: the second wake hit while speaking");
++    return static_cast<int>(v);
++}
++
++void maipai_barge_no_barge(uint32_t duration_ms)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    mbg_no_barge_sentence(&s_barge, now_ms(), duration_ms);
++}
++
++void maipai_barge_tts_start()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    mbg_tts_start(&s_barge);
++}
++
++bool maipai_barge_frame_ok()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    return mbg_frame_ok(&s_barge) != 0;
++}
++
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++namespace {
++double s_sq_mic = 0, s_sq_ref = 0, s_sq_out = 0;
++uint32_t s_n_in = 0, s_n_out = 0;
++int64_t s_last_us = 0;
++std::mutex s_trace_mu;
++
++void maybe_log()
++{
++    const int64_t now = esp_timer_get_time();
++    if (s_last_us == 0) s_last_us = now;
++    if (now - s_last_us < 1000000 || s_n_in == 0) return;
++    std::printf("AEC mic=%.1f ref=%.1f out=%.1f\n", std::sqrt(s_sq_mic / s_n_in), std::sqrt(s_sq_ref / s_n_in), s_n_out ? std::sqrt(s_sq_out / s_n_out) : 0.0);
++    s_sq_mic = s_sq_ref = s_sq_out = 0;
++    s_n_in = s_n_out = 0;
++    s_last_us = now;
++}
++}  // namespace
++
++void maipai_aec_trace_in(const int16_t* interleaved, size_t count, int channels)
++{
++    if (channels < 2) return;
++    std::lock_guard<std::mutex> lock(s_trace_mu);
++    for (size_t f = 0; f + 1 < count; f += static_cast<size_t>(channels)) {
++        s_sq_mic += static_cast<double>(interleaved[f]) * interleaved[f];
++        s_sq_ref += static_cast<double>(interleaved[f + 1]) * interleaved[f + 1];
++        s_n_in++;
++    }
++    maybe_log();
++}
++
++void maipai_aec_trace_out(const int16_t* mono, size_t count)
++{
++    std::lock_guard<std::mutex> lock(s_trace_mu);
++    for (size_t i = 0; i < count; i++) s_sq_out += static_cast<double>(mono[i]) * mono[i];
++    s_n_out += static_cast<uint32_t>(count);
++}
++#endif
++#endif

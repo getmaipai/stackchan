@@ -280,3 +280,4 @@ SF25-signed-update-header-and-build-number.patch
 SF26-bench-slot-firstrun-tool.patch
 SF27-bench-servo-rate-firstrun-loop.patch
 SF28-servo-clock-real-time.patch
+SF29-talk-over-aec-and-barge-in.patch
