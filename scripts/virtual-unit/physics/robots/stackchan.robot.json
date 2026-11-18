@@ -123,34 +123,34 @@
       "note": "maker guidance"
     },
     "yaw_kp": {
-      "v": 0.4,
-      "src": "assumed",
-      "note": "position gain, N m per rad"
+      "v": 0.384398,
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "yaw_kv": {
-      "v": 0.004,
-      "src": "assumed",
-      "note": "velocity gain, N m s per rad"
+      "v": 0.00069,
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "pitch_kp": {
-      "v": 0.5,
-      "src": "assumed",
-      "note": "position gain, N m per rad"
+      "v": 0.35057,
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "pitch_kv": {
-      "v": 0.005,
-      "src": "assumed",
-      "note": "velocity gain, N m s per rad"
+      "v": 3e-06,
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "torque_limit": {
       "v": 0.12,
-      "src": "assumed",
-      "note": "most torque a servo gives, N m (stall torque of a small hobby servo class)"
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "joint_damping": {
-      "v": 0.002,
-      "src": "assumed",
-      "note": "viscous friction in the gears, N m s per rad"
+      "v": 7.4e-05,
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "joint_friction": {
       "v": 0.003,
@@ -163,9 +163,9 @@
       "note": "reflected rotor inertia, kg m^2"
     },
     "command_delay_ms": {
-      "v": 15,
-      "src": "assumed",
-      "note": "time from a tool call being sent to the servo starting to move: the cable, the call, the servo's own start; fitted from a bench recording, not used by the engine"
+      "v": 101.710395,
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "timestep": {
       "v": 0.002,
@@ -186,24 +186,24 @@
       "note": "firmware patch 038"
     },
     "yaw_speed_cap_deg_s": {
-      "v": 1000,
-      "src": "assumed",
-      "note": "the servo's own limit on how fast its setpoint moves toward a step (degrees a second); the bench saw the head cover only 40 to 46 percent of a step in 0.6 s, so the real cap is lower; fitted by calibrate.py"
+      "v": 16916.983925,
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "yaw_accel_cap_deg_s2": {
-      "v": 30000,
-      "src": "assumed",
-      "note": "the servo's own limit on the setpoint's acceleration (degrees a second squared); fitted by calibrate.py"
+      "v": 2313272.027778,
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "pitch_speed_cap_deg_s": {
-      "v": 1000,
-      "src": "assumed",
-      "note": "the servo's own limit on how fast its setpoint moves toward a step (degrees a second); the bench saw the head cover only 40 to 46 percent of a step in 0.6 s, so the real cap is lower; fitted by calibrate.py"
+      "v": 536.320952,
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "pitch_accel_cap_deg_s2": {
-      "v": 30000,
-      "src": "assumed",
-      "note": "the servo's own limit on the setpoint's acceleration (degrees a second squared); fitted by calibrate.py"
+      "v": 22922.828775,
+      "src": "fitted, measured on the unit",
+      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     }
   },
   "joints": [
@@ -257,5 +257,40 @@
       "rule": "tilt_deg bands: upright under 15, tilted 15 to 45, side or inverted over 45, with the limiter's hysteresis"
     }
   ],
-  "model": "scripts/virtual-unit/model/stackchan.params.json"
+  "model": "scripts/virtual-unit/model/stackchan.params.json",
+  "fits": {
+    "before_servo_fix": {
+      "measured_on": "2026-11-18",
+      "recording": "head-w7-before-servo-fix.csv",
+      "rms_deg": 3.923,
+      "quality": {
+        "pitch": {
+          "rms_deg": 2.758,
+          "step_deg": 70.0,
+          "rms_pct_of_step": 3.9
+        },
+        "yaw": {
+          "rms_deg": 4.813,
+          "step_deg": 120.0,
+          "rms_pct_of_step": 4.0
+        }
+      },
+      "params": {
+        "yaw_kp": 0.384398,
+        "yaw_kv": 0.00069,
+        "yaw_speed_cap_deg_s": 16916.983925,
+        "yaw_accel_cap_deg_s2": 2313272.027778,
+        "pitch_kp": 0.35057,
+        "pitch_kv": 3e-06,
+        "pitch_speed_cap_deg_s": 536.320952,
+        "pitch_accel_cap_deg_s2": 22922.828775,
+        "joint_damping": 7.4e-05,
+        "torque_limit": 0.12,
+        "command_delay_ms": 101.710395
+      },
+      "note": "bench window 7 (self.bench.servo_rate): the unit's servo animation ran at 26 to 31 steps a second instead of the designed 50, in every condition (idle, face animating, speaking), so this fit describes the slow behavior. Firmware will fix the animation to real time; record again then and fit as after_servo_fix. Reach was 93 to 96 percent of each step.",
+      "recording_path": "scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv"
+    },
+    "after_servo_fix": null
+  }
 }

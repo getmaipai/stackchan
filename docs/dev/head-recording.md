@@ -8,3 +8,20 @@
 - First thing to read in the output: the first samples after the first step. If get_head_angles reports the last target and not the servo's feedback, the angles jump at once and the recording says nothing about the servo; stop and tell the firmware track.
 - Dry runs: `--dry-run` prints the move list; `--link http://127.0.0.1:PORT/` records from the virtual unit's browser view; `host/tests/test_head_record_and_dryrun.py` records a simulated servo and checks the fit recovers its gains.
 - The carried and dance-stop check (the bench item that needs hands): the Physics section of the browser view has "Run the carried and dance-stop check". It lifts the simulated robot while it dances, tilts it past 70 degrees, and checks the host's own answers: carried, dance stopped, limiter holding still, moves refused, free again when put down.
+
+## Fits kept side by side (2026-11-18)
+
+The robot description keeps each fit of the real unit under `fits`, and the current parameters follow the one marked in use. `calibrate.py REC.csv --write --measured-on DATE --label NAME` writes the parameters as "fitted, measured on the unit" (the note names the date and the CSV) and stores the fit under `fits.NAME`.
+
+| Fit | Recording | Unit state | Result |
+|---|---|---|---|
+| `before_servo_fix` (in use) | `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv`, bench window 7, 2026-11-18 | servo animation ran at 26 to 31 steps a second instead of the designed 50, in every condition | verdict ok, rms 3.92 deg (pitch 2.76, 3.9 percent of 70; yaw 4.81, 4.0 percent of 120); yaw kp 0.384, pitch kp 0.351, pitch speed cap 536 deg/s, command delay 101.7 ms; reach 93 to 96 percent of each step |
+| `after_servo_fix` | to record when the firmware animation runs in real time | | placeholder (null) until then |
+
+The fit describes the slow behavior; when the firmware track fixes the animation, record again and fit as `after_servo_fix`, then compare the two.
+
+`python3 scripts/virtual-unit/physics/compare_recording.py REC.csv OUT.svg --fit NAME` draws the recorded readings against the simulated head for the biggest and the smallest step of each axis (the simulation starts at the angle read before the step and gets the same command):
+
+![Recorded head against the simulated head, before the servo fix](head-fit-before-servo-fix.svg)
+
+What the picture shows: the simulated head settles in about 0.7 s and its end points sit on the readings. Between them the simulation rings (a period of about 60 ms) where the recording has no evidence of it: the unit was read about five times a second, so a ring faster than 0.4 s cannot be seen, and the fit left the velocity gain near zero. Read the curve as correct at the settle time and the end point, and unproven in between. The next recording should read faster than 5 samples a second (or log on the unit) before the damping is trusted.

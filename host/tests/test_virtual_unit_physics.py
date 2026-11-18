@@ -38,12 +38,12 @@ vunit = _load("vunit_for_physics", VU / "vunit.py")
 def test_every_parameter_is_marked_measured_or_assumed_with_a_note():
     desc = mjcf.load()
     for key, entry in desc["params"].items():
-        assert entry["src"] in ("measured", "assumed", "fitted, low confidence"), key
+        assert entry["src"] in ("measured", "assumed", "fitted, low confidence", "fitted, measured on the unit"), key
         assert entry["note"], key
         assert "v" in entry, key
     groups = mjcf.provenance(desc)
     assert groups["measured"] and groups["assumed"]
-    assert "pitch_kp" in groups["assumed"] and "mass_total" in groups["measured"] and "head_d" in groups["measured"]
+    assert "pitch_kp" in groups["fitted, measured on the unit"] and "torque_limit" in groups["fitted, measured on the unit"] and "pitch_kp" not in groups["assumed"] and "mass_total" in groups["measured"] and "head_d" in groups["measured"]
 
 
 def test_the_masses_add_up_to_the_measured_total():
