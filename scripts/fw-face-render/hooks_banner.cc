@@ -54,10 +54,11 @@ struct FakeHost : MaipaiPagesHost {
     }
     void timer_cancel(uint32_t id) override { for (int i = 0; i < ntm; i++) if (tm[i].id == id) { for (int k = i; k + 1 < ntm; k++) tm[k] = tm[k + 1]; ntm--; break; } log += "cancel;"; }
     void timer_add(int s, const char* l) override { if (ntm < 4) { tm[ntm].id = 100 + ntm; tm[ntm].left_s = s + (int)(g_fake_us / 1000000) - 1; snprintf(tm[ntm].label, sizeof(tm[ntm].label), "%s", l); ntm++; } }
-    int game_count() override { return 8; }  // patch UI15: eight games, the page is a grid with a More tile
-    const char* game_title(int i) override { static const char* n[8] = {"Color Memory", "Whack-a-Mole", "Tic-Tac-Toe", "Do It", "Rock Paper Scissors", "Magic 8 Ball", "Dice and Coin", "Reaction Time"}; return n[i]; }
-    const char* game_id(int i) override { static const char* n[8] = {"memory", "whack", "tictactoe", "bopit", "rps", "eightball", "dice", "reaction"}; return n[i]; }
-    int game_best(int i) override { static const int b[8] = {14, 287, 22, 30, 0, 3, 0, 0}; return b[i]; }
+    // the games the unit lists today (self.game.list): seven data packs and six grid games; the grid games' best is lower-is-better for Memory Match and Mine Finder
+    int game_count() override { return 13; }
+    const char* game_title(int i) override { static const char* n[13] = {"Color Memory", "Whack-a-Mole", "Tic-Tac-Toe", "Do It", "Rock Paper Scissors", "Magic 8 Ball", "Dice and Coin", "Four in a Row", "Memory Match", "Hangman", "Mine Finder", "2048", "Snake"}; return n[i]; }
+    const char* game_id(int i) override { static const char* n[13] = {"memory", "whack", "tictactoe", "bopit", "rps", "eightball", "dice", "connect4", "match", "hangman", "mines", "slide", "snake"}; return n[i]; }
+    int game_best(int i) override { static const int b[13] = {14, 287, 22, 30, 0, 3, 0, 5, 41, 70, 96, 2048, 31}; return b[i]; }
     const char* game_start(int i) override { log += "game" + std::to_string(i) + ";"; return ""; }
     void action(int a) override { log += std::string("action_") + MPG_ACTION_NAMES[a] + ";"; }
     const mpg_tiles_t* tiles(uint32_t* age) override { *age = tile_age; return tl.n ? &tl : nullptr; }

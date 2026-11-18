@@ -408,20 +408,33 @@ static void test_page_contents(void)
     CHECK(strcmp(s, "Best 312") == 0);
     CHECK(mpg_dim_pct(1) == 55 && mpg_dim_pct(0) == 100 && mpg_scale(200, 55) == 110);
     CHECK(mpg_dim_pct(1) >= 50);   /* patch UI11: the owner found the old 35 percent too dim to read */
-    /* patch UX13e: the games page is a grid of two columns and two rows of 148 by 64 px tiles (finger size, 8 px gaps), three games and a More tile when there are more than four */
-    CHECK(mpg_games_per_page(3) == 3 && mpg_games_per_page(4) == 4 && mpg_games_per_page(5) == 3 && mpg_games_per_page(8) == 3 && !mpg_games_has_more(4) && mpg_games_has_more(5));
-    CHECK(mpg_games_pages(4) == 1 && mpg_games_pages(8) == 3 && mpg_games_page_of(0, 8) == 1 && mpg_games_page_of(3, 8) == 2 && mpg_games_page_of(6, 8) == 3);
-    CHECK(mpg_games_next_offset(0, 5) == 3 && mpg_games_next_offset(3, 5) == 0 && mpg_games_next_offset(0, 12) == 3 && mpg_games_next_offset(9, 12) == 0);
+    /* patch UI13: the games page is a grid of two columns and three rows of 44 px tiles, five games and a More tile when there are more than six */
+    CHECK(mpg_games_per_page(3) == 3 && mpg_games_per_page(6) == 6 && mpg_games_per_page(7) == 5 && !mpg_games_has_more(6) && mpg_games_has_more(7));
+    CHECK(mpg_games_next_offset(0, 7) == 5 && mpg_games_next_offset(5, 7) == 0 && mpg_games_next_offset(0, 12) == 5 && mpg_games_next_offset(10, 12) == 0);
     for (int a = 0; a < MPG_GAMES_SLOTS; a++) {
         int x, y, w, h;
         mpg_games_tile(a, &x, &y, &w, &h);
-        CHECK(h >= 56 && w >= 56 && x >= 8 && x + w <= 320 - 8 && y >= MPG_GAMES_TOP && y + h <= MPG_PAGER_Y - 4);   /* clear of the page dots */
+        CHECK(h >= 44 && w >= 44 && x >= 8 && x + w <= 320 - 8 && y >= MPG_GAMES_TOP && y + h <= MPG_PAGER_Y - 4);   /* clear of the page dots */
         for (int b = 0; b < a; b++) {
             int x2, y2, w2, h2;
             mpg_games_tile(b, &x2, &y2, &w2, &h2);
-            CHECK(x + w + 8 <= x2 || x2 + w2 + 8 <= x || y + h + 8 <= y2 || y2 + h2 + 8 <= y);   /* an 8 px gap between tiles */
+            CHECK(x + w <= x2 || x2 + w2 <= x || y + h <= y2 || y2 + h2 <= y);
         }
     }
+    /* patch UX13e: the games page scrolls: two columns of 148 by 64 px tiles, 8 px gaps and margins, the content as tall as the rows need */
+    for (int n = 1; n <= 13; n++) {
+        for (int i = 0; i < n; i++) {
+            int x, y, w, h;
+            mpg_gscroll_tile(i, &x, &y, &w, &h);
+            CHECK(w >= 56 && h >= 56 && x >= 8 && x + w <= MPG_ZONE_W - 8 && y >= 0 && y + h <= mpg_gscroll_content_h(n));
+            for (int j = 0; j < i; j++) {
+                int x2, y2, w2, h2;
+                mpg_gscroll_tile(j, &x2, &y2, &w2, &h2);
+                CHECK(x + w + 8 <= x2 || x2 + w2 + 8 <= x || y + h + 8 <= y2 || y2 + h2 + 8 <= y);   /* an 8 px gap between tiles */
+            }
+        }
+    }
+    CHECK(mpg_gscroll_content_h(0) == 0 && mpg_gscroll_content_h(2) == 64 && mpg_gscroll_content_h(13) == 7 * 64 + 6 * 8);
     for (int ring = 0; ring <= 1; ring++) {
         const mpg_clock_layout_t l = mpg_clock_layout(ring);
         const int w = 4 * l.digit_w + 2 * l.gap + l.colon_w;

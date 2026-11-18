@@ -25,7 +25,9 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 | screen-games-wall | 4 | 0 | 0 |  |
 | screen-page-actions | 4 | 0 | 4 |  |
 | screen-page-clock | 1 | 0 | 0 |  |
-| screen-page-games | 4 | 0 | 0 |  |
+| screen-page-games | 13 | 0 | 0 |  |
+| screen-page-games-end | 13 | 0 | 0 |  |
+| screen-page-games-scrolled | 13 | 0 | 0 |  |
 | screen-page-timers | 3 | 0 | 0 |  |
 | screen-page-timers-running | 2 | 3 | 0 | target 58x44 px (7.4 x 5.6 mm) at 254,52: under 48 px; target 58x44 px (7.4 x 5.6 mm) at 254,98: under 48 px |
 | screen-settings-faces | 8 | 0 | 1 |  |
@@ -35,4 +37,4 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 | screen-subtitles | 0 | 0 | 0 |  |
 | screen-timers-app | 9 | 7 | 0 | targets at 4,36 and 4,96 are 4 px apart (under 8); targets at 4,96 and 4,156 are 4 px apart (under 8) |
 
-Total failures: 62 on 30 screens.
+Total failures: 62 on 32 screens.

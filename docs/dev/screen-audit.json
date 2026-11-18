@@ -177,7 +177,19 @@
   "failures": []
  },
  "screen-page-games": {
-  "targets": 4,
+  "targets": 13,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-games-scrolled": {
+  "targets": 13,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-games-end": {
+  "targets": 13,
   "fails": 0,
   "warnings": 0,
   "failures": []

@@ -65,6 +65,12 @@
  "screen-page-games": {
   "fails": 0
  },
+ "screen-page-games-end": {
+  "fails": 0
+ },
+ "screen-page-games-scrolled": {
+  "fails": 0
+ },
  "screen-page-timers": {
   "fails": 0
  },

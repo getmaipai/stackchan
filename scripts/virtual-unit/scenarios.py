@@ -93,6 +93,8 @@ SCREENS: dict[str, list] = {
     "screen-page-clock": BAR + [("raw", "pshow clock"), ("advance", 600)],
     "screen-page-timers": BAR + [("raw", "pshow timers"), ("advance", 600)],
     "screen-page-games": BAR + [("raw", "pshow games"), ("advance", 600)],
+    "screen-page-games-scrolled": BAR + [("raw", "pshow games"), ("advance", 600), ("raw", "pscrollby 160 80 72"), ("advance", 300)],   # patch UX13e: a swipe up scrolls one row and a bit
+    "screen-page-games-end": BAR + [("raw", "pshow games"), ("advance", 600), ("raw", "pscrollby 160 80 400"), ("advance", 300)],
     "screen-page-actions": BAR + [("raw", "pshow actions"), ("advance", 600)],
     "screen-control-sheet": BAR + [("raw", "pshow sheet"), ("advance", 600)],
 }
