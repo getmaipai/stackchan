@@ -1051,7 +1051,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 ## Decisions
 
-The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 5 not started.
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 9 not started.
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
@@ -1078,6 +1078,10 @@ The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a stat
 | 21 | **The local playground runs a simulation or a real robot** | in progress | the simulation backend exists (the virtual unit and its 3D view); the Live backend (a registered robot through the person's host, one control session at a time) is not built |
 | 22 | **Unit choices audit answers (owner and coordinator, 2026-11-18)** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 | 23 | **A failed scan blocks a release** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 24 | **Offline plan** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 25 | **A measured Hardware reference** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 26 | **Quiet hours default OFF until set** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 27 | **Model-powered games on top of the pantry** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 
 ## Scrapped (9)
 
