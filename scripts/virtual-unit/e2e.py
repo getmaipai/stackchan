@@ -8,7 +8,7 @@ would (wake, speak, tap) and asserts two things: what the unit shows (the virtua
 servers saw).
 
   python3 scripts/virtual-unit/e2e.py [--venv PATH] [scenario ...]     run from the host's environment: uv run --project host python scripts/virtual-unit/e2e.py
-Scenarios: spoken_turn mood_and_overlay long_sentence host_restart timer_by_voice pair_code second_unit readme_steps (see SCENARIOS). --fresh-venv installs into an empty temporary venv (the clean install). Exit 1 and a line per failed check.
+Scenarios: spoken_turn mood_and_overlay long_sentence host_restart timer_by_voice pair_code second_unit readme_steps, and from e2e_extra.py privacy_tap listen_ended key_exchange host_id_first_wins idle_jump soak (soak only with MAIPAI_SOAK=1). --fresh-venv installs into an empty temporary venv (the clean install). Exit 1 and a line per failed check.
 Placement: host-side development tool. Upstream: none.
 """
 from __future__ import annotations
@@ -186,7 +186,10 @@ class VuFirmware(StackChanFirmware):
 
     def _run_tool(self, name, arguments):
         with self.vu_lock:
-            return self.vu.call(name, dict(arguments))
+            out = self.vu.call(name, dict(arguments))
+        if set(out) == {"result"} and isinstance(out["result"], list):
+            return out["result"]  # the unit's tools that answer with a JSON array (events, saved networks) send the bare array; the virtual unit wraps it in an object
+        return out
 
     async def _serve_mcp_method(self, ws, request):
         if request.get("method") == "tools/list":
@@ -236,6 +239,7 @@ class Rig:
         self.avatar_frames: list[tuple[int, bytes]] = []
         self._avatar_task: asyncio.Task | None = None
         self.token = ""
+        self.settings_port = 0  # 0 keeps the settings page off; a scenario that needs it sets a free port before the host starts
 
     # ---- the host process --------------------------------------------------------------------------
 
@@ -270,7 +274,7 @@ class Rig:
 
     def start_host(self) -> None:
         env = {**os.environ, "HOME": str(self.home), "MAIPAI_BOT_DATA_DIR": str(self.data), "MAIPAI_XIAOZHI_PORT": str(self.xiaozhi_port),
-               "MAIPAI_STACKCHAN_AVATAR_PORT": str(self.avatar_port), "MAIPAI_STACKCHAN_SETTINGS_PORT": "0", "PYTHONUNBUFFERED": "1"}
+               "MAIPAI_STACKCHAN_AVATAR_PORT": str(self.avatar_port), "MAIPAI_STACKCHAN_SETTINGS_PORT": str(self.settings_port), "MAIPAI_VISION_PORT": str(free_port()), "PYTHONUNBUFFERED": "1"}
         for var in ("MAIPAI_HUB_HOST", "VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_PROJECT_ENVIRONMENT", "UV_RUN_RECURSION_DEPTH"):
             env.pop(var, None)   # the host runs in its own venv, not the one this script runs in
         env["PATH"] = str(self.venv / "bin") + os.pathsep + os.environ.get("PATH", "")
@@ -359,7 +363,7 @@ class Rig:
 
     # ---- what a person does ------------------------------------------------------------------------
 
-    async def say(self, words: str, *, speech_s: float = 1.6, tail_s: float = 1.8, wait_stop: float = 40.0) -> None:
+    async def say(self, words: str, *, speech_s: float = 1.6, tail_s: float = 1.8, wait_stop: float = 40.0, pace: float = 0.06) -> None:
         """Wake, then speak: the unit opens the listening state, streams canned audio (a quiet lead, a voiced stretch of `speech_s`, a quiet tail) in real time, then ends it.
         The fake speech to text answers `words`. Returns when the host's turn ends (a reply played, a quiet turn, or a failure)."""
         assert self.fw
@@ -369,13 +373,22 @@ class Rig:
         await self.fw.send_listen("start", "auto")
         for packet in packets:
             await self.fw._send_binary(packet)
-            await asyncio.sleep(0.06)
+            await asyncio.sleep(pace)
         await self.fw.send_listen("stop")
         end = time.time() + wait_stop
         done = re.compile(r"reply finished playing|no speech to answer|voice turn failed")
         while time.time() < end and not any(done.search(line) for line in self.log[mark:]):
             await asyncio.sleep(0.1)
         await asyncio.sleep(0.4)  # let the last frames and tool calls land
+
+    async def quiet(self, seconds: float, pace: float = 0.005) -> None:
+        """Wake and then say nothing: the unit streams `seconds` of silence and ends the listening state."""
+        assert self.fw
+        await self.fw.send_listen("start", "auto")
+        for packet in canned_opus([(seconds, 0.0)]):
+            await self.fw._send_binary(packet)
+            await asyncio.sleep(pace)
+        await self.fw.send_listen("stop")
 
     def host_said(self, pattern: str) -> bool:
         return any(re.search(pattern, line) for line in self.log)
@@ -490,13 +503,19 @@ async def readme_steps(rig: Rig, check) -> None:
     await spoken_turn(rig, check)
 
 
-SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps}
+from e2e_extra import EXTRA  # noqa: E402
+
+SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps, **EXTRA}
+NEEDS_SETTINGS_PAGE = {"key_exchange"}
+SCENARIO_TIMEOUT_S = {"soak": 4 * 3600}  # the soak is long on purpose; the others stop after three minutes
 
 
 async def run(names: list[str], venv: Path | None) -> int:
     failures: list[str] = []
     for name in names:
         rig = Rig(venv)
+        if name in NEEDS_SETTINGS_PAGE:
+            rig.settings_port = free_port()
 
         def check(label: str, ok: bool, detail: str = "", _n=name, known_gap: str = "") -> None:
             """known_gap names a defect found by this scenario and not fixed yet: it prints GAP and does not fail the run; when the check starts to pass it says so, so the flag can go."""
@@ -512,7 +531,7 @@ async def run(names: list[str], venv: Path | None) -> int:
         print(f"scenario {name}")
         try:
             await rig.start()
-            await asyncio.wait_for(SCENARIOS[name](rig, check), timeout=180)
+            await asyncio.wait_for(SCENARIOS[name](rig, check), timeout=SCENARIO_TIMEOUT_S.get(name, 180))
         except Exception as error:  # noqa: BLE001
             failures.append(f"{name}: stopped with {type(error).__name__}: {error}")
             print(f"  FAIL {name}: {type(error).__name__}: {error}")

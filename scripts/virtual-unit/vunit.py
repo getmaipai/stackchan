@@ -117,6 +117,12 @@ class VirtualUnit:
             self._send(f"advance {ms}")
         self.now_ms = end
 
+    def jump(self, ms: int) -> None:
+        """A unit that has been left on for a long time: the fake clock (the renderer's tick and the tools' time) jumps ahead by `ms` at once, with no frames between.
+        Timers due in between are due on the next advance; the renderer's 32 bit tick wraps at 2^32 ms (49.7 days) as the unit's does."""
+        self._send(f"clock {self.now_ms + ms}")
+        self.now_ms += ms
+
     def head(self) -> dict:
         """Head angles now, moving at `speed` degrees per second (the unit of speed is an assumption, as in the old simulated unit)."""
         f = 1.0 if self.move_ms <= 0 else min(1.0, max(0.0, (self.now_ms - self.move_start_ms) / self.move_ms))
