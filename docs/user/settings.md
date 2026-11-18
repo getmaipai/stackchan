@@ -7,7 +7,7 @@ Changing a setting never needs a reflash.
 
 ## Face style (`face_style`)
 
-Picks the look of the face. Packs: big eyes and minimal. The settings page on your host shows a preview.
+Picks the look of the face: big eyes, stock or minimal. The settings page on your host shows a preview.
 
 ## Face color (`face_color`)
 
@@ -22,6 +22,10 @@ Shows spoken words on the screen. It is off by default. You can turn it on for a
 
 Dims the screen and the lights, and the clock face gets softer. Quiet hours are a separate setting.
 
+## Quiet hours
+
+On the settings page, Behavior tab, **Quiet now** keeps the robot's own sounds quiet until you turn it off. **Quiet on a schedule** does the same between two times, on the days you pick. It is off until you turn it on. Alarms and timers you set still ring, and the privacy and safety cues never stop.
+
 ## Language (`language`)
 
 One of six languages. See `languages.md`. The robot changes at once with no file edit.
@@ -29,7 +33,7 @@ One of six languages. See `languages.md`. The robot changes at once with no file
 ## Other keys
 
 - `brain`: `llm` (your own LLM, the default) or `home`.
-- `url`, `stt_url`, `tts_url` under `[llm]` in `robot.toml`: your model and speech addresses. A blank speech address uses the built-in engine, which also needs its model folder (`stt_model_dir`, or `tts_model`, `tts_tokens` and `tts_data_dir`). The host does not download speech models.
+- `url`, `stt_url`, `tts_url` under `[llm]` in `robot.toml`: your model and speech addresses. A blank speech address uses the built-in engine, which also needs its model folder (`stt_model_dir`, or `tts_model`, `tts_tokens` and `tts_data_dir`). The [Brain page](choose-a-brain.md) can download small speech models for you.
 - `voice`: the voice to speak with.
 - `thinking_cue`: dots always, plus a quiet tone by default.
 - `strip_mode`: `petting` (default) or `control` for quick sliders.
@@ -65,7 +69,7 @@ The page is for the host computer only until you turn this on. In `robot.toml` a
 | `local_unmute` | Whether the robot's own face can unmute it | on |
 | `update_channel`, `update_source`, `update_check`, `update_install` | Updates | stable, official, weekly, ask |
 
-The settings page on your host has a Remote controls section: beep, flash, find my robot (it works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. Settings for the camera, watching, live remote view, games and home tools live in MaiPai Home, because those features run with it.
+The settings page on your host has a Remote controls section: beep, flash, find my robot (it works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. Camera, watching and home tools are opt-in packages with their own pages; some also need MaiPai Home. See [Compare](local-vs-home.md).
 
 Run `stackchan check` after any change to your addresses.
 

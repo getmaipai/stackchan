@@ -39,6 +39,10 @@ The camera-on cue is separate: whenever the camera is streaming, the screen show
 Full quiet is mute plus no talking and no moving. Use it when you want the robot to do nothing at all, for example during a meeting or when someone is asleep.
 It leaves the camera as it was, so turn the camera off too if you want both.
 
+## Quiet now
+
+On the settings page, **Quiet now** silences the robot's own sounds until you turn it off, without muting the microphone. See [Change a setting](settings.md).
+
 ## If you only want it to stop talking
 
 Say "stop", or swipe down on the screen. That ends the current reply and leaves everything else alone.

@@ -11,7 +11,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
 | **Wake word and voice** | Say the wake word and ask. The reply starts on the first finished sentence. | Robot | [Voice](voice.md) |
-| **Follow-ups** | Ask again with no wake word. Interrupting by voice is planned, not built. | Robot | [Voice](voice.md) |
+| **Follow-ups** | Ask again with no wake word. Say "stop" to quiet it while it talks; interrupting with other words is planned, not built. | Robot | [Voice](voice.md) |
 | **Voice commands** | Stop, mute, quiet, volume, brightness, sleep, time and night mode, with no model involved. | Robot | [Voice](voice.md) |
 | **Offline phrases** | Sixteen spoken lines when the host is out of reach. | Robot | [Voice](voice.md) |
 | **Persona, speech speed and pitch** | A short text sets how it talks. Set how fast it speaks and how high. | Robot | [Voice](voice.md) |
@@ -31,7 +31,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Lock tile on the control sheet** | One tap locks the robot with your passcode. | Robot | [Swipe pages](swipe-pages.md) |
 | **Smoother eyes and mouth** | Eased eye moves, a smooth blink, a drifting gaze and a mouth that follows your voice. Measured 22 to 45 frames a second while the eyes move. Mouth cues were seen on a robot screen with a steady test sound (the mouth opens and ends closed); not yet seen with real speech. | Robot | [Face and look](face-and-look.md) |
 | **Your own picture faces** | Upload your own pictures on the settings page, one per look, as picture only, picture with animated eyes and mouth, or a short run of frames. Nothing leaves your home. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
-| **Faces and color** | Five face styles (big eyes, eyes only, stock, classic, minimal), any eye color, optional captions, a tired look when the battery is low and three dots while it thinks. | Robot | [Face and look](face-and-look.md) |
+| **Faces and color** | Face styles (big eyes, stock, minimal), any eye color, optional captions, a tired look when the battery is low and three dots while it thinks. | Robot | [Face and look](face-and-look.md) |
 | **Clock and time-of-day faces** | A clock face, a face that changes with the hour, and night mode. | Robot | [Face and look](face-and-look.md) |
 | **Face extras and word reactions** | Sweat, hearts, stars and more on the face, and reactions to words like "thanks" in six languages. | Robot | [Face and look](face-and-look.md) |
 | **Per-person settings** | A face color and caption size for each person. | Robot | [Face and look](face-and-look.md) |

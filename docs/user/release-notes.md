@@ -7,13 +7,13 @@
 The first release of MaiPai for StackChan. Everything on the [Features](features.md) page is in this release unless it is marked Needs MaiPai Home.
 
 - Private by design: the robot talks only to your host or your MaiPai Home hub.
-- Voice with a wake word, follow-up questions and a persona text. Interrupting by voice is planned.
+- Voice with a wake word, follow-up questions and a persona text. Saying "stop" quiets it while it talks; interrupting with other words is planned.
 - Faces, a clock face, night mode and captions.
 - Timers and alarms, named timers, reactions, a mood that grows with care, an hourly chime and a low-battery ladder.
 - Camera features, off until you turn them on.
 - Mute, camera off and full quiet by tapping the face.
 - A trimmed robot build: Bluetooth off, no host-controlled installs, no keys in images, and a Wi-Fi setup page with an on-screen code in English and Spanish.
-- Five face styles, seven face extras, word reactions, a time zone picker and a version screen.
+- Face styles, seven face extras, word reactions, a time zone picker and a version screen.
 - Six languages: English, Spanish, French, German, Portuguese and Italian.
 - Offline phrases, dance on request, six named dances and a sway to music.
 - Seven games: color memory, whack-a-mole, Tic-Tac-Toe, Do It, Rock Paper Scissors, Magic 8-Ball and dice and coin, with best scores.
