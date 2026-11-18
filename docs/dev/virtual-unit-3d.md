@@ -52,7 +52,7 @@ The unit has two USB-C sockets: one on the side of the controller and one at the
 
 ## Lights that glow (2026-11-18)
 
-- Each light bar is lit along its length from its six lights, so a chase or a swell moves along the bar. A lit light has a soft halo, the small lights on the ring board are bright points, and four point lights at the ring board color the parts near them, so the glow shows on the inside of the shell through the open back and in **Show inside**. An unlit bar is plain frosted plastic.
+- Each light bar is lit along its length from its six lights, so a chase or a swell moves along the bar. A lit light has a soft halo, the small lights on the ring board are bright points, and four spot lights at the ring board, aimed down and back, color the inside of the shell and the holder, so the glow shows through the open back and in **Show inside**. Nothing is thrown forward: the real unit leaks no light onto the controller or its screen. An unlit bar is plain frosted plastic.
 - **Rich lights** (on by default) turns the halos and the thrown light on; untick it on a slow graphics card. **Dim room** turns the room's light down so the unit's own lights carry the picture. Drawing one picture took about 0.4 ms with rich lights on the Studio (`ROBOT.perf.ms` in the browser console).
 - Only three.js r128 itself is loaded: the glow is additive sprites, per-corner color on the bars and ordinary point lights, no post-processing script.
 - The two small power lights (the red one at the back and the one under the screen) are lit while the unit has USB power in either socket, as observed on the real unit.

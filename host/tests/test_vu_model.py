@@ -417,6 +417,7 @@ def test_the_view_lights_glow_without_a_second_outside_script():
     assert "UnrealBloom" not in js and "EffectComposer" not in js and html.count("<script src=") == 1, "one pinned outside script only"
     assert 'id="rich"' in html and 'id="dim"' in html and "richLights" in js and "dimRoom" in js
     assert "st.hw.vbus" in js, "both small power lights follow USB power"
+    assert "SpotLight" in js and "l.target.position.set(at.x * 0.5, at.y - 0.02, at.z - 0.008)" in js, "the ring's thrown light points down and back, never at the controller"
     assert "touch_pad: 1" not in js, "the touch pads stay solid in Show inside"
     assert "STEP_MS = 50" in (VU / "view.py").read_text() and "},50);}" in html, "the unit and the page run at 20 a second"
 
@@ -436,3 +437,15 @@ def test_details_corrected_from_the_owners_photos():
     assert abs(by["coil"][1]["translation"][0]) < 0.001, "the folded cable is in the middle"
     src = (VU / "model" / "make_body.py").read_text()
     assert "enumerate((5.6, 7.7, 9.7))" in src and "range(8 if c == 1 else 9)" in src, "26 holes in the speaker grille: three columns of 9, 8 and 9"
+
+
+def test_no_gap_between_the_controller_and_the_shell():
+    src = (VU / "model" / "make_body.py").read_text()
+    assert "prism(rounded_outline(53.2, 53.2, 3.7), 0.0, cy, front - 0.45, front + 0.05)" in src, "a plate inside the shell's front edge closes the joint"
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    head = j["meshes"][by["head"][1]["mesh"]]["primitives"]
+    core = next(p for p in head if j["materials"][p["material"]]["name"] == "core")
+    shell = next(p for p in head if j["materials"][p["material"]]["name"] == "shell")
+    zmin_core, zmax_shell = j["accessors"][core["attributes"]["POSITION"]]["min"][2], j["accessors"][shell["attributes"]["POSITION"]]["max"][2]
+    assert zmin_core < zmax_shell - 0.0003, "the controller's body reaches inside the shell's front edge"

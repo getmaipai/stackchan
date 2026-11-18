@@ -571,6 +571,9 @@ def assemble():
     geo['head']['emboss'] = []
     for quad in quads:
         geo['head']['emboss'] += flat(lambda u, v, c: (27.0 + c, u, v), [(top - 49.0 + a, face - 11.3 + b) for a, b in quad], 0.03)
+    # The controller sits tight against the shell on the real unit: no gap and nothing seen through the seam. A plate just inside the shell's
+    # front edge closes the joint all round (the shell file's front lip is rounded, which otherwise leaves a slit).
+    core += prism(rounded_outline(53.2, 53.2, 3.7), 0.0, cy, front - 0.45, front + 0.05)
     geo['head']['core'] = core
     geo['head']['print'] = prints + prints_under
 

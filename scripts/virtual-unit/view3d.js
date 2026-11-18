@@ -106,7 +106,7 @@ function initRobot(THREE, canvas, hooks) {
       m.material = new THREE.MeshBasicMaterial({color: 0x222222}); M.leds.push(m);
     }
     // The lights as light: each bar is a frosted guide lit along its length by its six lights; each lit light has a halo; the small lights on
-    // the ring board are bright points; four point lights at the ring board color what is near them, so the glow shows inside the open back.
+    // the ring board are bright points; four spot lights at the ring board color what is near them, so the glow shows inside the open back.
     M.bars = [];
     for (const name of ['light_bar_left', 'light_bar_right']) {
       const node = N[name], mesh = node && node.children.find(c => c.isMesh); if (!mesh) continue;
@@ -122,12 +122,14 @@ function initRobot(THREE, canvas, hooks) {
     for (let i = 0; i < 12; i++) {
       const node = N['ring_led_' + i], m = node && node.children.find(c => c.isMesh);
       if (m) { m.material = new THREE.MeshBasicMaterial({color: 0x8a8a84}); M.leds.push(m); M.ringLeds[i] = m; M.ledHalos[i] = halo(node, 0.007); }
-      M.halos[i] = halo(N['ring_light_' + i], 0.014);
+      M.halos[i] = halo(N['ring_light_' + i], 0.009);   // small, so the glow stays on the bar and does not spill onto the controller
     }
     M.glowLights = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]].map(px => {
-      const l = new THREE.PointLight(0x000000, 0, 7, 2), at = new THREE.Vector3();
+      // a spot aimed down, inward and a little to the back: it colors the inside of the shell and the holder, and nothing ahead of the
+      // ring board, so no light falls on the controller or its screen (the real unit leaks none there)
+      const l = new THREE.SpotLight(0x000000, 0, 7, 1.2, 0.5, 2), at = new THREE.Vector3();
       for (const i of px) at.add((N['ring_led_' + i] || N['ring_light_' + i]).position); at.multiplyScalar(1 / px.length); at.y -= 0.002;
-      l.position.copy(at); N.head.add(l); return {l, px};
+      l.position.copy(at); l.target.position.set(at.x * 0.5, at.y - 0.02, at.z - 0.008); N.head.add(l); N.head.add(l.target); return {l, px};
     });
     // click targets: the port on the back of the base and the power button on the head, each with a bigger unseen target (sizes in meters)
     const unseen = new THREE.MeshBasicMaterial({visible: false});

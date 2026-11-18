@@ -176,6 +176,12 @@ All are the owner's own photos, kept out of this repository in the session's not
 | same and `board-7p-flex-ribbon-lit` | white flat cable with blue print, a thick folded black flat cable between the upright board and the holder | pale cable with green print, a helix above the tilt servo | white with blue marks; `coil` is now the folded cable, in the middle |
 | `board-7p-flex-ribbon-lit` | print `7P` and `V1.0` on the upright board | `7P` | `V1.0` is not drawn |
 
+## Told by the owner, looking at the view beside his unit (2026-11-18)
+
+- There is no gap between the controller and the body. The model showed a slit at that joint, because the shell file's front lip is rounded; a plate just inside the lip now closes it.
+- The lights do not leak onto any part of the controller or its screen. The view's thrown light now points down and back from the ring board, and each halo is small enough to stay on its bar.
+- Nothing on the outside of the head marks the touch pads. They are drawn under the shell top.
+
 ## What to compare on the unit
 
 1. With a ruler: total height with the head level (70.5 mm), base body height (8 mm), and the gap between the flat top of the base and the head bottom (8.4 mm in the model).
