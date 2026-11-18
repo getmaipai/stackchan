@@ -65,6 +65,20 @@ int main(void)
     CHECK(mrc_notice_due(600000, 0));
     CHECK(!mrc_notice_due(601000, 600000) && !mrc_notice_due(600000 + 1799999u, 600000));
     CHECK(mrc_notice_due(600000 + 1800000u, 600000));
+    /* patch SF71: the delay after a connection. Drop, reconnect, drop again within 10 s: the second outage starts at the first step */
+    {
+        uint32_t delay = MRC_INITIAL_MS;
+        for (int i = 0; i < 6; i++) delay = mrc_grow(delay, MRC_CAP_NEAR_MS);        /* a long first outage: the delay grew to its cap */
+        CHECK(delay == MRC_CAP_NEAR_MS);
+        delay = mrc_after_connection(delay, 5000);                                    /* connected, held 5 s, dropped */
+        CHECK(delay == MRC_INITIAL_MS);
+        CHECK(mrc_wait(delay, mrc_cap(0), 0u) == MRC_INITIAL_MS);                     /* the next outage waits 0.5 s */
+        CHECK(mrc_after_connection(8000, 999) == 8000 && mrc_after_connection(8000, 1000) == MRC_INITIAL_MS);   /* a connection that dropped at once keeps its delay */
+        CHECK(mrc_after_connection(MRC_INITIAL_MS, 0) == MRC_INITIAL_MS);
+        /* the soak: a short-lived connection every cycle never leaves the next outage at the cap */
+        uint32_t d = MRC_CAP_FAR_MS;
+        for (int cycle = 0; cycle < 50; cycle++) { d = mrc_after_connection(d, 3000); CHECK(d == MRC_INITIAL_MS); d = mrc_grow(d, mrc_cap(0)); }
+    }
     if (failures) return 1;
     printf("reconnect core ok\n");
     return 0;

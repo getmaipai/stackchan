@@ -1,0 +1,55 @@
+# Intent: The reconnect delay starts over after any connection whose handshake completed and held for a second, not only after one that lasted 30 seconds. The soak showed why: each host restart cycle failed first, the delay doubled 2, 3, 8, 16, 30 s and never reset because the connection between two restarts was short, so every outage cost about 30 s. Now the next outage starts at 0.5 s. A connection that drops at once (a host that accepts and closes) keeps its delay, so a flapping host is not hammered. The caps by time away (SF64) are unchanged.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/protocols (the stock websocket client, patched by SF49) and firmware/main/hal (ours)
+# Check after a flash: the 50-restart soak: the reconnect after the host is listening again takes about the host's downtime plus 1 to 5 s every cycle (it was about 29 s from the second cycle on).
+# Kconfig: none
+# Memory cost: none.
+
+diff --git a/firmware/main/hal/maipai_reconnect_core.h b/firmware/main/hal/maipai_reconnect_core.h
+--- a/firmware/main/hal/maipai_reconnect_core.h
++++ b/firmware/main/hal/maipai_reconnect_core.h
+@@ -23,6 +23,7 @@
+ #define MRC_CAP_FAR_MS 120000u
+ #define MRC_FAR_AFTER_MS 600000u    /* 10 minutes away */
+ #define MRC_NOTICE_EVERY_MS 1800000u /* 30 minutes */
++#define MRC_RESET_HELD_MS 1000u      /* a connection that held this long after its handshake resets the delay */
+ 
+ static inline uint32_t mrc_cap(uint32_t away_ms)
+ {
+@@ -44,6 +45,10 @@ static inline uint32_t mrc_wait(uint32_t delay_ms, uint32_t cap_ms, uint32_t rnd
+     return w > cap_ms ? cap_ms : w;
+ }
+ 
++/* Patch SF71: the delay after a connection ended. A handshake that completed and held for a second starts the next outage at the first step (0.5 s), however short the
++ * connection was; a connection that dropped at once (a host that accepts and closes) keeps the delay it had, so a flapping host is not hammered. The caps by time away are unchanged. */
++static inline uint32_t mrc_after_connection(uint32_t delay_ms, uint32_t held_ms) { return held_ms >= MRC_RESET_HELD_MS ? MRC_INITIAL_MS : delay_ms; }
++
+ /* away_ms: how long the host has been unreachable; last_notice_away_ms: the away time at the last notice, 0 for none yet. */
+ static inline int mrc_notice_due(uint32_t away_ms, uint32_t last_notice_away_ms)
+ {
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -373,10 +373,9 @@ void WebsocketProtocol::RestartReconnectTask() {
+ 
+ void WebsocketProtocol::ReconnectTask(void* arg) {
+     auto* self = static_cast<WebsocketProtocol*>(arg);
+-    constexpr uint32_t kInitialDelayMs = 1000;
++    constexpr uint32_t kInitialDelayMs = MRC_INITIAL_MS;  // patch SF71: 0.5 s
+     constexpr uint32_t kMaximumDelayMs = 30000;
+     constexpr int64_t kOfflineIndicatorAfterUs = 45LL * 1000 * 1000;  // a hub restart is not an outage (the hub installs often); owner 2026-11-14
+-    constexpr uint32_t kStableConnectionMs = 30000;
+     uint32_t delay_ms = kInitialDelayMs;
+     unsigned attempt = 0;
+     constexpr int64_t kConnectingIndicatorAfterUs = 3LL * 1000 * 1000;  // the bars start cycling in the corner (patch R03)
+@@ -453,9 +452,7 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+             maipai_link_down();
+             refused_streak = 0;
+             push_link_event("ws_down", 0, 0, 0, 0);
+-            if ((xTaskGetTickCount() - connected_at) >= pdMS_TO_TICKS(kStableConnectionMs)) {
+-                delay_ms = kInitialDelayMs;
+-            }
++            delay_ms = mrc_after_connection(delay_ms, static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount() - connected_at)));  // patch SF71: a handshake that held 1 s resets the delay (it needed 30 s)
+         } else {
+             const unsigned took_ms = static_cast<unsigned>((esp_timer_get_time() - started_us) / 1000);
+             const uint32_t next_ms = std::min(kMaximumDelayMs, delay_ms);

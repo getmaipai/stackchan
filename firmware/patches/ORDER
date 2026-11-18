@@ -323,3 +323,4 @@ SF68-away-notice-30s-and-event.patch
 SF69-project-name-and-affiliation-notice.patch
 UX13b-more-at-finger-size.patch
 SF70-hangman-and-mines-on-the-unit.patch
+SF71-reconnect-delay-resets-after-a-held-handshake.patch
