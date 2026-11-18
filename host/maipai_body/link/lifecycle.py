@@ -16,6 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
+import requests
 from maipai_body.link.address_walk import (
     AddressWalker,
     HubEndpoint,
@@ -343,6 +344,11 @@ class LinkLifecycle:
         except (PairingRefused, PairingTimedOut) as exc:
             self._set_state(code=None, last_error=str(exc))
             logger.warning("pairing failed: %s", exc)
+            return False
+        except (requests.RequestException, KeyError, ValueError) as exc:
+            # Home restarting or not up yet: ask again after the retry wait.
+            self._set_state(code=None, last_error=f"hub not reachable ({type(exc).__name__})")
+            logger.warning("pairing could not reach the hub: %s", type(exc).__name__)
             return False
         self._set_state(
             paired=True, code=None, hub_instance_id=result.pairing.hub_instance_id, last_error=None

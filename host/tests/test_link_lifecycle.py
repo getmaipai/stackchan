@@ -278,3 +278,41 @@ def test_a_failing_on_code_hook_never_breaks_pairing(tmp_path):
     stop_event = _run_until(lifecycle, lambda: lifecycle.state.paired)
     stop_event.set()
     assert lifecycle.state.paired is True
+
+
+def test_network_error_while_requesting_a_code_does_not_kill_the_link_thread(
+    tmp_path, monkeypatch
+):
+    """HC-5: Home restarting mid-pairing must not stop the thread for good."""
+    import requests
+
+    monkeypatch.setattr("maipai_body.link.lifecycle.DISCOVERY_RETRY_S", 0.01)
+    store = PairingStore(tmp_path / "pairing.json")
+    client = _FakeClient()
+    calls = {"n": 0}
+    good = client.request_code
+
+    def flaky(address, *, label, capabilities=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise requests.ConnectionError("hub restarting")
+        return good(address, label=label, capabilities=capabilities)
+
+    client.request_code = flaky
+    lifecycle = LinkLifecycle(store, client, discover=lambda timeout_s: _address())
+    _run_until(lifecycle, lambda: lifecycle.state.paired)
+    assert calls["n"] >= 2
+    assert lifecycle.state.paired is True
+
+
+def test_network_error_while_waiting_for_approval_is_recorded_not_raised(tmp_path, monkeypatch):
+    import requests
+
+    monkeypatch.setattr("maipai_body.link.lifecycle.DISCOVERY_RETRY_S", 0.01)
+    store = PairingStore(tmp_path / "pairing.json")
+    client = _FakeClient()
+    client.await_approval_result = requests.ConnectionError("gone")
+    lifecycle = LinkLifecycle(store, client, discover=lambda timeout_s: _address())
+    _run_until(lifecycle, lambda: client.request_code_calls >= 2)
+    assert lifecycle.state.paired is False
+    assert lifecycle.state.last_error
