@@ -14,6 +14,9 @@ class FakeBehavior:
         self.touched: list = []
         self.ticked = 0
         self.reaction_tick = self._reaction_tick
+        self.orientation_ticks = 0
+        self.orientation_tick = lambda: setattr(self, 'orientation_ticks', self.orientation_ticks + 1)
+        self.orientation = SimpleNamespace(reassert=lambda: self.warnings.append('reasserted'))
         self.warnings: list[str] = []
 
     def wake_on_touch(self, now: float) -> bool:
@@ -100,3 +103,14 @@ def test_the_unit_runs_inside_its_own_scope_so_its_faces_go_to_it(tmp_path):
     made["b2"].reaction_tick = lambda: seen.append(ACTIVE_UNIT.get())
     units.tick()
     assert seen == ["b2"] and ACTIVE_UNIT.get() is None, "the scope is set while the unit's behavior runs and removed after"
+
+
+def test_the_orientation_timer_runs_per_unit_and_a_connect_reasserts_the_pose():
+    units, made = _rig(["a1", "b2"])
+    units.feed("b2", [])
+    units.tick()
+    units.tick()
+    assert made["b2"].orientation_ticks == 2
+    units.on_connect("b2")
+    units.on_connect("a1")   # the first unit's own wiring does this
+    assert made["b2"].warnings == ["reasserted"] and "a1" not in made

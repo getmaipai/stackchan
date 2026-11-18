@@ -357,6 +357,33 @@ async def fleet_touch(rig, check) -> None:
     await close_fleet(rig)
 
 
+async def fleet_orientation(rig, check) -> None:
+    """Tipping unit 1 onto its side is handled once, by that unit's own orientation object; tipping unit 2 later is handled once more
+    (docs/plan/per-unit-behavior.md, step 3). Before this step an extra unit's orientation events were ignored. The host log names no unit, so the check counts lines: a
+    leak to another unit's object would log a second line for one tip."""
+    units = await make_fleet(rig, 3)
+    await calibrate(rig, units)
+
+    def lines() -> int:
+        return len([l for l in rig.log if "StackChan orientation: left_side" in l])
+
+    async def tip(u) -> None:
+        with u.fw.vu_lock:
+            u.vu.call("self.robot.get_events", {})
+            u.vu.state["motion"]["events"].append({"kind": "orientation", "at_ms": u.vu.now_ms, "axis": "-x"})
+
+    base = lines()
+    await tip(units[1])
+    check("unit 1's tip was handled", await wait_for(lambda: lines() > base, 20.0), f"lines {lines() - base}")
+    await asyncio.sleep(3.0)
+    check("it was handled once, not by every unit", lines() == base + 1, f"lines {lines() - base}")
+    await tip(units[2])
+    check("unit 2's tip was handled by its own object", await wait_for(lambda: lines() > base + 1, 20.0), f"lines {lines() - base}")
+    await asyncio.sleep(2.0)
+    check("and once", lines() == base + 2, f"lines {lines() - base}")
+    await close_fleet(rig)
+
+
 # ---- faults ----------------------------------------------------------------------------------------------------------------------
 
 async def chaos_cut_connection(rig, check) -> None:
@@ -668,7 +695,7 @@ def make_service_rig(base):
 
 
 EXTRA_FLEET = {
-    "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state, "fleet_touch": fleet_touch,
+    "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state, "fleet_touch": fleet_touch, "fleet_orientation": fleet_orientation,
     "chaos_cut_connection": chaos_cut_connection, "chaos_packets": chaos_packets, "chaos_worker_down": chaos_worker_down, "chaos_internal_workers": chaos_internal_workers,
     "chaos_host_kill_2": _host_kill_2, "chaos_host_kill_10": _host_kill_10, "service_kill9": service_kill9,
 }
