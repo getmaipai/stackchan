@@ -158,6 +158,10 @@ FILMSTRIPS = {
     "clock-flip-classic-to-ring": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41")] + _FLIP + [("stripnow",)] * 8,
     "clock-flip-ring-to-datetime": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 1")] + _FLIP + [("stripnow",)] * 8,
 }
+# The offline mumble's mouth (patch UX16, docs/design/offline-mumble.md): the levels the reference gives for the first nine characters of "Hello! I am your robot.", one slot each.
+import mumble as _mumble   # noqa: E402  (scripts/virtual-unit is on the path: this file is run from there)
+_HELLO = [b.mouth for b in _mumble.blips("Hello! I am your robot. How can I help you today?", 0, 3300)[:9]]
+FILMSTRIPS["mumble-mouth-sync"] = [("raw", "style big_eyes"), ("call", "self.face.bench_emotion", {"emotion": "happy"}), ("advance", 400)] + [("speakstrip", m) for m in _HELLO]
 SCREENS.update(FILMSTRIPS)
 
 
@@ -273,6 +277,10 @@ def run(u, steps) -> None:
             u.raw(step[1])
         elif step[0] == "advance":
             u.advance(step[1])
+        elif step[0] == "speakstrip":   # the mouth at this speak level for one mumble slot (66 ms), then a frame for the filmstrip
+            u.raw("speak %d" % step[1])
+            u.raw("advance 66")
+            u.__dict__.setdefault("strip", []).append(u.snapshot_now())
         elif step[0] == "stripnow":   # one renderer frame (33 ms), then a frame for the filmstrip
             u.raw("advance 33")
             u.__dict__.setdefault("strip", []).append(u.snapshot_now())

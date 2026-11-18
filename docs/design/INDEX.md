@@ -149,7 +149,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1098): Feature ledger
+- `docs/dev/feature-ledger.md` (1100): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -667,7 +667,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (334): no header
+- `firmware/patches/ORDER` (335): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -835,6 +835,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch` (348): Four fixes to the first run that a parent would trip over (found by reading the flow as a person who has never
 - `firmware/patches/UX13a-settings-at-finger-size.patch` (213): Settings at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.md). The t
 - `firmware/patches/UX13b-more-at-finger-size.patch` (241): The More screen at finger size (owner review 2026-11-18, docs/design/screen-style.md), made together with SF69
+- `firmware/patches/UX13c-control-sheet-at-finger-size.patch` (312): The control sheet at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.m
 - `firmware/patches/UX13e-games-page-at-finger-size.patch` (165): The games page and the Apps and Games walls at finger size (owner review 2026-11-18, the physical standard in 
 - `firmware/patches/UX14-clock-styles-tap-and-sleep-sign.patch` (190): The clock page gets three styles that a tap cycles, and shows when the unit sleeps (owner idea 2026-11-18, spe
 - `firmware/patches/UX14b-clock-flip-on-the-card-tween.patch` (133): The clock style change plays a card flip (owner idea 2026-11-18, spec docs/design/clock-styles.md "The flip").
@@ -2728,7 +2729,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
-- `scripts/virtual-unit/scenarios.py` (351): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (359): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/talk.js` (44): The Talk panel of the virtual unit view: microphone and speaker switches, level meters, the transcript, the la
