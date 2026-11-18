@@ -18,7 +18,7 @@ Use it when:
 
 - You want your conversations to stay in your home, and better privacy than you have now.
 - You want it faster and more capable: timers, reactions, games, mute and camera-off switches.
-- You have, or will set up, hardware to run a model and the host: a small always-on computer such as a Raspberry Pi 5, plus a computer or phone that serves a model.
+- You have, or will set up, a small always-on computer such as a Raspberry Pi 5 for the host. It can install and run a small model itself, or you can point it at a bigger model on another computer.
 - You are happy with a simple, focused voice robot.
 
 Start with [Getting started](getting-started.md).
@@ -39,7 +39,7 @@ Start with [Use MaiPai Home as the brain](with-maipai-home.md).
 
 ## Change your mind later
 
-Moving between the last two is one setting, `brain = "llm"` or `brain = "home"`, and the robot is not reflashed. To move to or from the factory firmware, see [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md).
+Moving between the last two is one choice on the [Brain page](choose-a-brain.md), and the robot is not reflashed. To move to or from the factory firmware, see [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md).
 
 ## Still need help?
 

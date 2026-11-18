@@ -2,8 +2,8 @@
 
 ## Does it work without the internet?
 
-Yes, once it is set up and your model runs on your own network. Voice, timers, faces and the camera do not need the internet.
-Update checks and anything you point at an outside address do.
+Yes, once it is set up. The model can run on your own network or on the host computer itself. Voice, timers, faces and the camera do not need the internet.
+The one-time model download, update checks and anything you point at an outside address do.
 
 ## Do I need a computer?
 
@@ -23,7 +23,7 @@ No. The camera is off until you turn it on, and the screen shows a cue whenever 
 
 ## Can I use a model in the cloud?
 
-You can point `llm_url` at any OpenAI-compatible address, including one in the cloud. If you do, your words go to that service, so the privacy promise no longer holds for the words you speak. We recommend a model you run yourself.
+You can give the [Brain page](choose-a-brain.md) any OpenAI-compatible address, including one in the cloud. If you do, your words go to that service, so the privacy promise no longer holds for the words you speak. We recommend a model you run yourself.
 
 ## Can I use it with the factory phone app?
 
