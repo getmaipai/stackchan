@@ -5,7 +5,7 @@
 <span class="planned-tag">Planned</span> Taking a photo from the settings page is built and flashed, and it works without MaiPai Home. It is off until you turn it on, shows its cue every time, and the picture stays on your own host. Snapshots by voice, live view and the rest of this page are planned for your own host too. Naming people, recognizing faces and "what is this" need <span class="home-tag">Needs MaiPai Home</span>. Not yet checked on a robot.
 
 
-The camera is off until you turn it on. Frames go to your MaiPai Home hub and never to an outside service.
+The camera is off until you turn it on. Frames go to your own host or to your MaiPai Home hub and never to an outside service.
 The robot's camera has a low resolution, so these pages call the pictures **snapshots**.
 
 ## Turn it on
@@ -36,7 +36,7 @@ If the camera is off or the robot is muted, none of these show, and none of the 
 
 
 Open the web app and watch what the robot sees, live, at low resolution. The camera is small, so the picture is a smooth low-resolution view, not high definition.
-Live view only runs while the web page is open. When it starts, the robot plays a double click and the pink lights and the LIVE dot appear, and they stay on until it stops.
+Live view only runs while the web page is open. The robot sends 5 pictures a second and stops by itself after 10 minutes. When it starts, the robot plays a double click and the pink lights and the LIVE dot appear, and they stay on until it stops.
 You cannot turn those cues off, and live view never starts by itself. Frames go to your MaiPai Home hub, not to an outside service.
 
 ## What is this
@@ -48,13 +48,13 @@ Without MaiPai Home, this feature is hidden. See [Use MaiPai Home as the brain](
 
 ## What do you see
 
-
+<span class="planned-tag">Planned</span> This is a design only.
 
 Ask "what do you see" and the robot lists the people and objects in view, such as "a table and a person", straight away, while a fuller look runs in the background.
 
 ## Take my picture
 
-Say "take my picture". The robot counts down, plays a shutter tone and saves the snapshot in MaiPai Home.
+<span class="planned-tag">Planned</span> Say "take my picture". The robot counts down, plays a shutter tone and saves the snapshot. Today you take a photo with the **Take a photo** button under Remote controls on the settings page. The picture shows on that page and the host does not keep it.
 
 ![The countdown screen showing 2.](../images/countdown.svg)
 
@@ -62,7 +62,7 @@ Say "take my picture". The robot counts down, plays a shutter tone and saves the
 
 ## Face follow, wave and mirror
 
-- **Face follow.** The head turns to keep you in view. It uses a small detector that runs in MaiPai Home.
+- **Turn toward faces.** Set it on the settings page to off, only after it is spoken to, or always (the default). In always, the robot looks at one camera frame a second, with the camera cue on, and turns at most four times a minute. It never turns when it is carried, locked or at night. A face detector on the robot is an experiment and is not flashed.
 - **Wave.** Wave at the robot and it waves back.
 - **Mirror.** Say "mirror me". The robot copies your head tilt.
 
@@ -77,7 +77,7 @@ Add people to a name list in MaiPai Home. The robot can then say who it sees, an
 
 ## Keep and delete
 
-Snapshots are deleted after `camera_retention`. Press Delete all in the web page, or run `stackchan camera delete`, to clear them now.
+With your own model, the host keeps no photos. With MaiPai Home, Home keeps snapshots for the time you set there, and you can delete them all in Home.
 
 ## Still need help?
 

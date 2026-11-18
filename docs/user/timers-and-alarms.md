@@ -18,7 +18,7 @@ When it rings, the light bars pulse cyan <img src="../images/light-cyan.svg" alt
 ## Several timers
 
 Ask for another timer and give it a name: "set a pasta timer for nine minutes". Ask "how long is left" to hear them all.
-Timers are saved on the host, so they survive a robot restart.
+Timers run on the robot, so they keep ringing when your host is off.
 
 ## By voice, with no model
 
@@ -42,7 +42,7 @@ Without MaiPai Home, there are no announcements.
 
 ## Hourly chime
 
-Turn on `hourly_chime` for a soft tone on the hour.
+<span class="planned-tag">Planned</span> The robot has a soft tone on the hour, off until it is turned on. The settings page has no switch for it yet.
 
 ## Quiet hours
 
@@ -50,7 +50,7 @@ On the settings page, Behavior tab, turn on **Quiet on a schedule** and pick the
 
 ## Offline
 
-Timers and alarms run without the language model. They need the host only to be set. The clock needs the host once, to learn the time.
+Timers and alarms run without the language model, and they ring with the host off. The clock needs the host once, to learn the time.
 
 ## Still need help?
 

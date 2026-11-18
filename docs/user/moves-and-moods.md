@@ -9,7 +9,7 @@
 | Tilt it | Tilts its head to match. |
 | Pet its head | Looks happy and may purr. |
 
-Petting uses the head strip. If you set `strip_mode = "control"`, the strip opens quick sliders instead.
+Petting uses the head strip. Volume and brightness sliders are on the control sheet: swipe up from the bottom of the screen.
 
 ![Four faces: surprised, dizzy, tilted and happy.](../images/reactions.svg)
 
@@ -48,7 +48,7 @@ A shake gets a spoken line and a dizzy face.
 ## Idle life
 
 When nothing is happening the robot breathes, blinks and looks around. When it speaks, its head wobbles a little with the words.
-Turn the idle moves off with `idle_motion = false`.
+The idle moves have no switch yet.
 
 ## Mood from care
 

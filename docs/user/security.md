@@ -31,7 +31,7 @@ The robot can watch a room for motion and loud sounds. It always shows when it i
 
 We audited the design and found these. Each is on the fix list before release.
 
-- **The link on your home network is plain.** Anyone already on your Wi-Fi could read it, and the robot does not yet check that it is talking to your host. Use a network you trust.
+- **The link on your home network is plain.** Anyone already on your Wi-Fi could read it, and the robot does not yet check that it is talking to your host. Use a network you trust. The host side of an encrypted link (TLS with a key from pairing) is built. The robot side is not flashed yet, so today the link is still plain.
 - **The Wi-Fi setup page is a short window.** It needs the six-digit code on the robot's screen, locks after five wrong tries and gets a new code every few minutes. Use it when you are present.
 - **Someone with the robot in hand can read its memory over USB.** Reset the robot before you give it away.
 

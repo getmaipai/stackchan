@@ -35,7 +35,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Your own picture faces** | Upload your own pictures on the settings page, one per look, as picture only, picture with animated eyes and mouth, or a short run of frames. Nothing leaves your home. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Faces and color** | Face styles (big eyes, stock, minimal), any eye color, optional captions, a tired look when the battery is low and three dots while it thinks. | Robot | [Face and look](face-and-look.md) |
 | **Clock and time-of-day faces** | A clock face, a face that changes with the hour, and night mode. | Robot | [Face and look](face-and-look.md) |
-| **Face extras and word reactions** | Sweat, hearts, stars and more on the face, and reactions to words like "thanks" in six languages. | Robot | [Face and look](face-and-look.md) |
+| **Face extras and word reactions** | Dizzy, hearts, stars, tears and more on the face, and reactions to words like "thanks" in six languages. | Robot | [Face and look](face-and-look.md) |
 | **Per-person settings** | A face color and caption size for each person. | Robot | [Face and look](face-and-look.md) |
 | **Time zone** | Pick one of 31 zones on the robot or the settings page. | Robot | [Face and look](face-and-look.md) |
 | **Control sheet** | Swipe up from the bottom for volume, brightness, the time, Wi-Fi and battery, and a row of six: Mute, Quiet, Lock, Apps, Games, Settings. | Robot | [Swipe pages](swipe-pages.md) |
@@ -47,7 +47,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 |---|---|---|---|
 | **Timers and named timers** | A ring that empties as time runs out. Run several at once. | Robot | [Timers and alarms](timers-and-alarms.md) |
 | **Alarms and snooze** | Stop by voice or touch. | Robot | [Timers and alarms](timers-and-alarms.md) |
-| **Hourly chime and quiet hours** | A soft tone on the hour, silent at night. | Robot | [Reactions](moves-and-moods.md) |
+| **Hourly chime and quiet hours** <span class="planned-tag">Planned</span> | A soft tone on the hour, silent at night. The robot has the chime, but the settings page has no switch for it or for quiet hours yet. | Robot | [Reactions](moves-and-moods.md) |
 
 ## React
 
@@ -56,7 +56,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Pickup, shake, tilt, petting** | It looks surprised, dizzy, tilted or happy. | Robot | [Reactions](moves-and-moods.md) |
 | **Mood from care** | Its resting face follows how much you pet it. | Robot | [Reactions](moves-and-moods.md) |
 | **Dance and music** | Dance on request, six named dances, and a sway to the music with mood faces. Off until you turn it on. | Robot | [Music and dance](music-and-dance.md) |
-| **Pet mood and games** | Seven games on the robot (color memory, whack-a-mole, tic-tac-toe, Do It, rock paper scissors, a magic 8-ball, dice and a coin) with saved best scores, and a pet mood that depends on care. | Robot | [Games and pet](games-and-pet.md) |
+| **Pet mood and games** | Seven games on the robot (color memory, whack-a-mole, tic-tac-toe, Do It, rock paper scissors, a magic 8-ball, and dice with a coin) with saved best scores, and a pet mood that depends on care. | Robot | [Games and pet](games-and-pet.md) |
 | **Breathing idle and quiet mode** | Calm moves when nothing happens, softer when you ask. | Robot | [Reactions](moves-and-moods.md) |
 | **Low-battery steps** | A chirp at 20 percent, a spoken ask at 10, sleep at 5. | Robot | [Reactions](moves-and-moods.md) |
 
@@ -93,7 +93,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 
 ## Camera, remote control and MaiPai Home
 
-All of these need a MaiPai Home hub. Set `brain = "home"` to use them: [Use MaiPai Home as the brain](with-maipai-home.md).
+Rows marked <span class="home-tag">Needs MaiPai Home</span> need a MaiPai Home hub. Set `brain = "home"` to use them: [Use MaiPai Home as the brain](with-maipai-home.md). The other rows run on your own host, opt-in, and show their cue on the robot.
 
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|

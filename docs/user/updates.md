@@ -2,33 +2,28 @@
 
 ## The default
 
-The update path is built: the robot checks a signature and rolls back by itself if the new version does not start. It has not yet run with a real release key, because no release key exists yet. Until the first release is signed, treat updates as untested.
+The update path is built: the host checks a signed release, sends it to the robot, and the robot checks the signature again before it installs. If the new version keeps crashing, the robot rolls back by itself. It has not yet run with a real release key, because no release key exists yet. Until the first release is signed, treat updates as untested. It has not been tried on a robot.
 
-The host checks for a new version. It does not install anything. You decide when to install.
-
-The check is one small request to your chosen update source. It sends only the firmware version.
+Nothing installs by itself. The host does not look for new versions on the internet. It reads a release folder that you point it to, and you decide when to install.
 
 ## Settings
 
-| Key | Choices | Default |
+Put the folder in `robot.toml`:
+
+| Key | What it does | Default |
 |---|---|---|
-| `update_channel` | stable, beta, pinned | stable |
-| `update_source` | the release manifest, your own server or folder, off | the release manifest |
-| `update_check` | never, daily, weekly, manual | weekly |
-| `update_install` | ask, auto, auto within a window | ask |
-
-The same keys appear in `robot.toml`, in the settings page on your host and on the robot.
-
-![The update settings with "ask" selected.](../images/update-settings.svg)
+| `[update]` `source` | The folder that holds the signed release. You can also pass `--source FOLDER` to a command | none |
+| `[update]` `trusted_key` | The public key that signs your releases | none |
+| `[update]` `preset` | `core` or `home`. A release for the other build is refused | `core` |
 
 *The update settings with "ask" selected. A placeholder drawing, not a real screenshot.*
 
 ## Install an update
 
-1. The robot or the settings page on your host tells you a version is ready.
-2. Read the release notes, then press Install.
-3. The robot downloads the image and checks its signature. An image with a bad signature is refused.
-4. It restarts. If it does not pass its health check in 60 seconds, it rolls back to the old version by itself. You'll know it worked when the robot shows the new version on its settings page.
+1. Run `stackchan update --dry-run`. It checks the signature, the build, the chip and the free space, and changes nothing.
+2. Run `stackchan update`, or press Update on the settings page on your host.
+3. The host serves the image to the robot once, over your own network. The robot refuses it if the address is not your paired host, if the version is the same as the one it runs, or if the image would leave under 20 percent of the spare slot free. It checks the signature while it writes. A bad signature is refused.
+4. The robot restarts into the new version. If it keeps crashing, it goes back to the old version by itself: a second crash after the camera starts rolls back, and so does a start that is still not healthy after 120 seconds. You'll know it worked when the robot shows the new version on its settings screen.
 
 ![The update screen at 62 percent, with the words "Do not unplug".](../images/vu-update.png)
 
@@ -40,7 +35,7 @@ The same keys appear in `robot.toml`, in the settings page on your host and on t
 
 ## Updates over Wi-Fi
 
-You don't need a cable. The robot downloads the update over Wi-Fi, checks its signature, and shows an animated updating icon while it installs. It runs on battery, so keep it plugged in for a big update.
+You don't need a cable. The robot downloads the update from your host over Wi-Fi and shows an animated updating icon while it installs. Keep it plugged in for a big update.
 
 ![The robot screen with an animated updating icon.](../images/updating.svg)
 
@@ -54,12 +49,11 @@ Each release carries a build number that only goes up, and a small signed header
 
 ## Your own images
 
-Build your own image with `stackchan firmware build` and sign it with your key. Developers: see `docs/dev/build-from-source.md`.
-The flasher accepts the official image or a local file. `stackchan firmware verify` compares a downloaded image with a local build.
+Build your own image from a clone and sign it with your key. Developers: see `docs/dev/build-from-source.md`.
 
 ## If an update fails
 
-See [Troubleshooting](troubleshooting.md).
+The host says why in plain words, and the robot stays on its old version. See [Troubleshooting](troubleshooting.md).
 
 ## Still need help?
 

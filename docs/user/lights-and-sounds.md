@@ -22,7 +22,7 @@ Both bars show the same color at the same time.
 
 Red and blue are used only for a security alert.
 
-Green and pink never dim, even at night or in the quietest setting, because they tell you about your privacy. The other colors get softer at night.
+Pink never dims, even at night or in the quietest setting, because it tells you about your privacy. The other colors get softer at night. The listening light is your choice on the settings page: off, dim or normal, and its color. It is off in full quiet.
 While the robot charges, a small red light at the back is on. It is a separate light from the charger, and the light bars do not repeat it.
 
 ## The tones

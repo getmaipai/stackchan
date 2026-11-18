@@ -9,7 +9,7 @@ You have three switches, and each one is a tap on the robot's face. They are ind
 | Switch | How | What stops | The face shows |
 |---|---|---|---|
 | **Mute** | Tap the mouth | The microphone, the wake word and the stop word. The robot hears nothing and says nothing | A flat, closed mouth |
-| **Camera off** | Tap either eye | The camera. No picture is taken, sent or looked at, and "what is this" and face follow stop | Calm, half-closed eyes that look down |
+| **Camera off** | Tap either eye | The camera. No picture is taken, sent or looked at, and "what is this" and face follow stop | Both eyes shut |
 | **Full quiet** | Tap above or between the eyes | Listening, talking and moving. The head holds where it is | The sleeping face with a small pause mark |
 
 Tap the same spot again to turn the switch off. Each tap makes no sound. The eyes blink once and the new face appears.

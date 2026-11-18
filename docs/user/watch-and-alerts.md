@@ -8,7 +8,7 @@
 
 
 Turn the robot into a watch post. It notices motion and loud sounds, tells you right away, and, if you want, flashes red and blue and sounds a siren.
-It runs with MaiPai Home, which handles the alerts, the recipients and what the robot saw.
+On your own host it will send alerts to the web app and the local API. With MaiPai Home, Home handles the recipients and what the robot saw.
 
 ## Arm it
 
@@ -28,7 +28,7 @@ Mute and camera off still work: if you turn the camera off, motion watching stop
 
 | It notices | How | Needs |
 |---|---|---|
-| **Motion** | MaiPai Home compares snapshots from the camera and sees something move | The camera on |
+| **Motion** | Your host compares snapshots from the camera and sees something move | The camera on |
 | **A loud sound** | The robot measures the loudness of the room. Nothing is recorded or sent unless an alert fires | Sound watching on |
 | **The robot being moved or lifted** | Its motion sensor feels it | Nothing extra |
 | **A person** | MaiPai Home tells a person from a pet or a curtain, and can say who it is | MaiPai Home |
@@ -54,8 +54,8 @@ Red and blue are used only in alert mode, so you never see them for anything els
 
 ## Where alerts go
 
-MaiPai Home sends the alert to the people you choose, with the snapshot, what it noticed and the time. It can say what it saw in words ("a person at the door"), name who it saw, and follow your quiet hours and who gets which alert.
-The robot also sends the alert to the local API and the event stream, so your own tools can react. The video and the sound stay on your MaiPai Home hub.
+With MaiPai Home, Home sends the alert to the people you choose, with the snapshot, what it noticed and the time. It can say what it saw in words ("a person at the door"), name who it saw, and follow your quiet hours and who gets which alert.
+The robot also sends the alert to the local API and the event stream, so your own tools can react. The video and the sound stay on your host or your MaiPai Home hub.
 
 ## Keep false alarms down
 
