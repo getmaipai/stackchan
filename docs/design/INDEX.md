@@ -147,7 +147,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1097): Feature ledger
+- `docs/dev/feature-ledger.md` (1098): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -480,7 +480,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/privacy.md` (64): What stays private
 - `docs/user/release-notes.md` (45): Release notes
 - `docs/user/run-as-a-service.md` (31): Keep the host running
-- `docs/user/security.md` (61): Keep the robot secure
+- `docs/user/security.md` (65): Keep the robot secure
 - `docs/user/settings.md` (95): Change a setting
 - `docs/user/status-and-health.md` (30): See what is running
 - `docs/user/swipe-pages.md` (97): Swipe pages and the control sheet
@@ -1368,7 +1368,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/service_threads.py` (71): Background threads of the host service, each started with the stop event it waits on.
 - `host/maipai_body/settings_keys.py` (65): Settings keys shared by body settings consumers."""
 - `host/maipai_body/settings_page.py` (1009): ruff: noqa: E501
-- `host/maipai_body/settings_server.py` (185): ruff: noqa: E501
+- `host/maipai_body/settings_server.py` (188): ruff: noqa: E501
 - `host/maipai_body/settings_sim.py` (436): ruff: noqa: E501
 - `host/maipai_body/settings_ui.py` (761): ruff: noqa: E501
 - `host/maipai_body/settings_ui_character.py` (21): ruff: noqa: E501
@@ -2218,7 +2218,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_link_store.py` (87): G4's own acceptance: the sealed pairing file, fail-soft and atomic."""
 - `host/tests/test_link_supervisor.py` (142): LINK-STATE-01: the supervisor drives the walk and the cues on an injected clock."""
 - `host/tests/test_live_view.py` (178): LIVE-VIEW-01 (bot half): the stream, its cyan cue and every way it stops."""
-- `host/tests/test_local_guard.py` (142): Host check on reads, proxy headers mean not local, request bodies are capped."""
+- `host/tests/test_local_guard.py` (155): Host check on reads, proxy headers mean not local, request bodies are capped."""
 - `host/tests/test_log_noise.py` (31): Things anyone on the network can cause must not write errors or tracebacks to the log."""
 - `host/tests/test_logging_no_robot.py` (33): With no robot connected yet, the host log says so in one line; it does not print a traceback per failed call."
 - `host/tests/test_look_owner.py` (300): Who turns toward faces (look_owner.py): the lease heartbeat, the setting, the page view and the value the unit
@@ -2550,6 +2550,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
 - `scripts/check.sh` (39): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/choices-check.py` (44): Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices
+- `scripts/dev-dashboard.sh` (29): run the host settings dashboard against seeded demo data (two stand-in units, no hardware, no real data) so it
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
 - `scripts/docs-site/browser_check.js` (30): Headless check of the 3D viewer page over a plain static server. Usage: node browser_check.js URL [screenshot.
