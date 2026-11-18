@@ -1,0 +1,2 @@
+# Encrypted link, step 1 (patch SF21): the curve calls and key storage with the bench check self.bench.link_selftest. Bench builds only.
+CONFIG_MAIPAI_LINK_PSK=y

@@ -1,0 +1,189 @@
+# Intent: Encrypted link, step 1 (off by default, CONFIG_MAIPAI_LINK_PSK): X25519 through the crypto service (new key pair, shared secret, key destroyed after use), the 32-byte link key in flash (namespace mp_link), and a bench tool self.bench.link_selftest that runs a whole local exchange with the key schedule of maipai_linkkey_core.h and reports agreement, the time in ms and the dip of free internal RAM. Off: no code, no memory.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: on an image built with the linkpsk overlay self.bench.link_selftest answers agree true and a time and RAM dip; on the default image the tool does not exist.
+# Kconfig: CONFIG_MAIPAI_LINK_PSK (default n)
+
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -339,6 +339,13 @@ config MAIPAI_MIC3_GAIN_DB
+     help
+         The speaker loopback reaches the codec through 150 kilo-ohm and 1 microfarad, so it is weak at the codec default.
+ 
++config MAIPAI_LINK_PSK
++    bool "Encrypted link to the host: key exchange and key storage (TLS pre-shared key)"
++    default n
++    help
++        Patch SF21 (docs/plan/link-key-exchange.md): the X25519 calls and the key kept in flash, and a bench check of their cost. Off: no code,
++        no memory.
++
+ config MAIPAI_MOOD
+     bool "Mood that depends on care, saved across days"
+     default y
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -739,6 +739,10 @@ void Hal::xiaozhi_mcp_init()
+ #if CONFIG_MAIPAI_TALK_OVER
+         extern void maipai_mic3_register_tools();  // patch SF15
+         maipai_mic3_register_tools();
++#endif
++#if CONFIG_MAIPAI_LINK_PSK
++        extern void maipai_linkpsk_register_tools();  // patch SF21
++        maipai_linkpsk_register_tools();
+ #endif
+     }
+ #endif
+diff --git a/firmware/main/hal/maipai_linkpsk.h b/firmware/main/hal/maipai_linkpsk.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_linkpsk.h
+@@ -0,0 +1,17 @@
++#pragma once
++// Patch SF21 (CONFIG_MAIPAI_LINK_PSK): the unit's half of the link key exchange, the curve calls and the key in flash.
++#include <sdkconfig.h>
++#include <stdint.h>
++
++#if CONFIG_MAIPAI_LINK_PSK
++// A new X25519 key pair: the 32-byte private key stays inside the crypto service until maipai_link_agree; the public key is returned.
++// Returns the key id (nonzero) or 0.
++uint32_t maipai_link_new_keypair(uint8_t pk[32]);
++// The shared secret z with the peer's public key. Destroys the key pair. True on success.
++bool maipai_link_agree(uint32_t key_id, const uint8_t peer_pk[32], uint8_t z[32]);
++// The link key K in flash (namespace mp_link, 32 bytes). Save replaces it; load returns false when none; erase removes it.
++bool maipai_link_key_save(const uint8_t k[32]);
++bool maipai_link_key_load(uint8_t k[32]);
++void maipai_link_key_erase();
++void maipai_linkpsk_register_tools();
++#endif
+diff --git a/firmware/main/hal/maipai_linkpsk.cc b/firmware/main/hal/maipai_linkpsk.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_linkpsk.cc
+@@ -0,0 +1,125 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Patch SF21 (CONFIG_MAIPAI_LINK_PSK, off by default): X25519 through the crypto service (PSA), the link key in flash, and a bench tool that
++ * runs a whole local exchange (two key pairs, the shared secret, the key schedule of maipai_linkkey_core.h) and reports the time and the
++ * dip of free internal RAM, so the cost of the exchange is measured on the unit before the pairing screen is built.
++ */
++#include "maipai_linkpsk.h"
++
++#if CONFIG_MAIPAI_LINK_PSK
++#include "maipai_linkkey_core.h"
++#include <psa/crypto.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_random.h>
++#include <esp_timer.h>
++#include <nvs.h>
++#include <mcp_server.h>
++#include <cstdio>
++#include <cstring>
++
++namespace {
++const char* const kTag = "MaipaiLinkPsk";
++
++psa_key_attributes_t x25519_attrs()
++{
++    psa_key_attributes_t a = PSA_KEY_ATTRIBUTES_INIT;
++    psa_set_key_type(&a, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_MONTGOMERY));
++    psa_set_key_bits(&a, 255);
++    psa_set_key_usage_flags(&a, PSA_KEY_USAGE_DERIVE);
++    psa_set_key_algorithm(&a, PSA_ALG_ECDH);
++    return a;
++}
++}  // namespace
++
++uint32_t maipai_link_new_keypair(uint8_t pk[32])
++{
++    if (psa_crypto_init() != PSA_SUCCESS) return 0;
++    psa_key_attributes_t attrs = x25519_attrs();
++    psa_key_id_t id = 0;
++    if (psa_generate_key(&attrs, &id) != PSA_SUCCESS) return 0;
++    size_t n = 0;
++    if (psa_export_public_key(id, pk, 32, &n) != PSA_SUCCESS || n != 32) {
++        psa_destroy_key(id);
++        return 0;
++    }
++    return static_cast<uint32_t>(id);
++}
++
++bool maipai_link_agree(uint32_t key_id, const uint8_t peer_pk[32], uint8_t z[32])
++{
++    size_t n = 0;
++    const psa_status_t st = psa_raw_key_agreement(PSA_ALG_ECDH, static_cast<psa_key_id_t>(key_id), peer_pk, 32, z, 32, &n);
++    psa_destroy_key(static_cast<psa_key_id_t>(key_id));
++    return st == PSA_SUCCESS && n == 32;
++}
++
++bool maipai_link_key_save(const uint8_t k[32])
++{
++    nvs_handle_t h;
++    if (nvs_open("mp_link", NVS_READWRITE, &h) != ESP_OK) return false;
++    const bool ok = nvs_set_blob(h, "k", k, 32) == ESP_OK && nvs_commit(h) == ESP_OK;
++    nvs_close(h);
++    return ok;
++}
++
++bool maipai_link_key_load(uint8_t k[32])
++{
++    nvs_handle_t h;
++    if (nvs_open("mp_link", NVS_READONLY, &h) != ESP_OK) return false;
++    size_t n = 32;
++    const bool ok = nvs_get_blob(h, "k", k, &n) == ESP_OK && n == 32;
++    nvs_close(h);
++    return ok;
++}
++
++void maipai_link_key_erase()
++{
++    nvs_handle_t h;
++    if (nvs_open("mp_link", NVS_READWRITE, &h) != ESP_OK) return;
++    nvs_erase_all(h);
++    nvs_commit(h);
++    nvs_close(h);
++}
++
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++void maipai_linkpsk_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.bench.link_selftest",
++                "Bench only: runs a whole local link key exchange on the unit (two X25519 key pairs, the shared secret on both sides, the commitment, the six-digit code, "
++                "the link key and the TLS key) and reports whether both sides agree, the time in ms and the dip of free internal RAM in bytes. Saves nothing.",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    const size_t before = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
++                    const size_t free_before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
++                    const int64_t t0 = esp_timer_get_time();
++                    uint8_t pk_u[32], pk_h[32], z_u[32], z_h[32], n_u[16], n_h[16], c[32], k_u[32], k_h[32], psk_u[32], psk_h[32];
++                    esp_fill_random(n_u, sizeof(n_u));
++                    esp_fill_random(n_h, sizeof(n_h));
++                    const uint32_t a = maipai_link_new_keypair(pk_u);
++                    const uint32_t b = maipai_link_new_keypair(pk_h);
++                    if (a == 0 || b == 0) return std::string("{\"ok\":false,\"reason\":\"keypair\"}");
++                    const bool ok_u = maipai_link_agree(a, pk_h, z_u);
++                    const bool ok_h = maipai_link_agree(b, pk_u, z_h);
++                    mly_commit(pk_h, pk_u, n_h, c);
++                    const uint32_t sas_u = mly_sas(pk_u, pk_h, n_u, n_h);
++                    mly_link_key(z_u, pk_u, pk_h, n_u, n_h, "02:00:5e:00:53:01", k_u);
++                    mly_link_key(z_h, pk_u, pk_h, n_u, n_h, "02:00:5e:00:53:01", k_h);
++                    mly_psk(k_u, "02:00:5e:00:53:01", psk_u);
++                    mly_psk(k_h, "02:00:5e:00:53:01", psk_h);
++                    const int64_t ms = (esp_timer_get_time() - t0) / 1000;
++                    const size_t after_min = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
++                    const bool same = ok_u && ok_h && memcmp(z_u, z_h, 32) == 0 && memcmp(k_u, k_h, 32) == 0 && memcmp(psk_u, psk_h, 32) == 0;
++                    char out[200];
++                    std::snprintf(out, sizeof(out), "{\"ok\":%s,\"agree\":%s,\"sas\":%06u,\"ms\":%d,\"internal_dip\":%d,\"internal_min_drop\":%d}",
++                                  same ? "true" : "false", same ? "true" : "false", static_cast<unsigned>(sas_u), static_cast<int>(ms),
++                                  static_cast<int>(free_before) - static_cast<int>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
++                                  static_cast<int>(before) - static_cast<int>(after_min));
++                    return std::string(out);
++                });
++}
++#else
++void maipai_linkpsk_register_tools() {}
++#endif
++#endif

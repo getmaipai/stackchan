@@ -1,6 +1,6 @@
 # Link key exchange for the encrypted link (design, 2026-11-18)
 
-Placement: unit (firmware) and host. Replaces the key derivation in `docs/design/encrypted-link.md` (that note's derivation took the device token as input; this one takes nothing that travels on the network). Firmware half: patches follow this note behind their own switch. Host half: app track (HS-1, HS-2).
+Placement: unit (firmware) and host. Supersedes the key derivation section of `docs/design/encrypted-link.md`. Firmware half: patches follow this note behind their own switch. Host half: app track.
 
 ## What is encrypted
 

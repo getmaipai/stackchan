@@ -239,11 +239,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/friend-test-path-2026-11-18.md` (20): The friend-test path: what exists and what is missing (2026-11-18)
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
+- `docs/plan/link-key-exchange.md` (49): Link key exchange for the encrypted link (design, 2026-11-18)
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
 - `docs/plan/seam-refactor.md` (35): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
+- `docs/plan/signed-update-anti-rollback.md` (13): Signed update with a build number (proposal for the app track, 2026-11-18)
 - `docs/plan/spec-proposals/README.md` (14): Shared-spec proposals (step 4, 2026-11-18)
 - `docs/plan/spec-proposals/brain-capabilities.schema.json` (9): no header
 - `docs/plan/spec-proposals/fixtures/brain-capabilities.invalid.feature.json` (1): no header
@@ -474,7 +476,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (272): no header
+- `firmware/patches/ORDER` (273): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -520,6 +522,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF16-lock-fail-count-survives-restart.patch` (74): The lock tools also keep the count of wrong codes across a restart (a third saved integer, tfails): four wrong
 - `firmware/patches/SF17-seek-stamps-read-long-past.patch` (96): The seek and face-tracking time differences treat a stamp that is a day or more old, or still at 0 on a unit t
 - `firmware/patches/SF18-barge-decisions-core.patch` (79): Talk-over step 2, the decisions only (nothing calls them yet): maipai_barge_core.h decides when a wake hit whi
+- `firmware/patches/SF19-banner-cut-slider-save-timer-mute.patch` (123): Leftovers. A banner message that does not fit ends at a word with three dots (never inside a word or an accent
+- `firmware/patches/SF20-link-key-schedule-core.patch` (134): The key schedule of the link key exchange (docs/plan/link-key-exchange.md) as a pure header, nothing calls it 
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1629,6 +1633,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/headgate_core_test.c` (24): Host test for the host head-move gate (patch Y01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/heal_core_test.c` (53): Host test for the restart guard's allowance (patch R04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/lang_core_test.c` (183): Host test for the screen words as a language pack (patch K11): the words.txt reader, its refusals, a fuzz of d
+- `host/tests/firmware/linkkey_core_test.c` (58): Host test for the link key schedule (patch SF20), against the vectors of scripts/link-key-vector.py (fake inpu
 - `host/tests/firmware/listen_core_test.c` (171): Host test for the listening cues (patch TB01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> ... -
 - `host/tests/firmware/listen_guard_core_test.c` (24): Host test for the listening guard rule of patch SF03. cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
 - `host/tests/firmware/lock_core_test.c` (192): Host test for the lock core (patch LK01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>.
@@ -1876,6 +1881,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_link_client_refresh_address.py` (61): LINK-STATE-01: a redeem at a chosen address, the one the walk found."""
 - `host/tests/test_link_commands.py` (179): LINK-STATE-01 rung 1: a closed list of fixed local commands with fixed replies."""
 - `host/tests/test_link_discovery.py` (66): G4's own acceptance: parsing a discovered service, without any real
+- `host/tests/test_link_key_vector.py` (24): The link key reference script checks X25519 against RFC 7748 and HKDF against RFC 5869, then prints the fixed 
 - `host/tests/test_link_ladder_run_loop.py` (413): LINK-STATE-01: the funnel and run loop with the ladder, on a fake body and an injected clock."""
 - `host/tests/test_link_ladder_status.py` (109): LINK-STATE-01 rung 2: the offline status is a template over real values, no model."""
 - `host/tests/test_link_lifecycle.py` (318): G4's own acceptance: the link state machine, driven by fakes - no
@@ -2187,7 +2193,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/check.sh` (26): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
-- `scripts/fw-build.sh` (43): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover [
+- `scripts/fw-build.sh` (44): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).
 - `scripts/fw-detect-bench.py` (357): Measurement script for the on-unit face detector experiment (firmware patches FD01 to FD04, bench image only).
 - `scripts/fw-env.sh` (29): one place that sets up ESP-IDF 6.1 for firmware builds. Usage: `source scripts/fw-env.sh`, then `idf.py ...`.
@@ -2233,6 +2239,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/leak-sweep-allow.txt` (0): no header
 - `scripts/leak-sweep.sh` (37): before the repo goes public, no tracked file carries labels or wording from the private reviews.
 - `scripts/license-check.py` (52): licenses stay honest. (1) every host dependency in host/pyproject.toml is named in THIRD-PARTY.md; (2) LICENSE
+- `scripts/link-key-vector.py` (124): Reference for the link key exchange in docs/plan/link-key-exchange.md (standard library only).
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
 - `scripts/make-doc-screenshots.py` (141): make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, ne
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
