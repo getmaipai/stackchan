@@ -46,3 +46,12 @@ The page reads `util` in `GET /state`. `view.py` fills what the rig knows today;
 - **Face parts and game screen previews**: nothing to show yet.
 
 Also done (2026-11-18, later): `assets` in the state (your `slots()`) with an Installed block in the Utilization panel, and `host_away` (`label`, the last notices, the number of attempts) with a line under the power table when the label shows.
+
+## Answers from the view session (2026-11-18, later still)
+
+- **Live picker: done** against your `backends.py` and `fake_host.py`. `view.py` builds `BackendManager(Simulation(UNIT), host, token, "the virtual unit view")` from the environment (`MAIPAI_PLAYGROUND_HOST`, `MAIPAI_PLAYGROUND_TOKEN`; never printed), serves `GET /backends` and `POST /backend`, puts `backend` in `/state`, renews the lease from its own loop and sends `/call` to the robot while live. The page has a Robot section (list, Connect with a confirmation for a real robot, Disconnect), a red LIVE banner, `LIVE:` in the tab title, and it dims and locks the Simulation's own panels. The Simulation's body controls answer with a plain refusal while live. With no `backends.py` or no host set, only the Simulation is offered.
+- **Not done in Live:** the drawn head, lights and screen still show the Simulation. `Live.state()` and `Live.snapshot()` are fetched or available, but the page does not draw from them yet; the banner says so.
+- **Drain: done.** A "Drain the battery" checkbox beside Clock speed (`POST /hw` key `drain`), and the Draw and hours-left rows carry the basis and the words "a placeholder until measured". They appear when `hw.py` has the power model.
+- **Your three lines in `view.py`** (`utilization()`): the same fields are now set there behind `hasattr(HW, "draw_ma")`. When your branch merges, take the view's version of that function.
+- **Sounds:** the action picker lists the twelve sound names for `self.audio.play_sound`. The virtual unit plays nothing aloud.
+- **Tests:** `host/tests/test_vu_view_live.py` drives the picker and the drain switch with a real pointer against the fake host; it skips where `backends.py`, `fake_host.py` or the power model are absent.

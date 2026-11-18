@@ -8,6 +8,7 @@ Dev tool, loopback only. The page loads three.js (pinned) from cdnjs for the 3D 
 Placement: host-side development tool; no firmware change. Upstream: none."""
 import importlib.util
 import json
+import os
 import re
 import struct
 import subprocess
@@ -86,6 +87,11 @@ def rec_step(kind, data):
 def recordings():
     return sorted(p.stem for p in REC_DIR.glob("*.json")) if REC_DIR.exists() else []
 LOCK = threading.Lock()
+# Live mode (owner decision 21, docs/plan/playground-live.md): the page can leave the Simulation and take one registered robot through its
+# host. The host's address and a playground token come from the environment and are never printed. With no backends.py (an older
+# checkout) or no host set, only the Simulation is offered.
+BACKENDS = None
+LIVE = {"frame": b"", "beat": 0.0}
 UNIT = None
 FRAME = b""
 
@@ -128,6 +134,38 @@ def head_now():
     return {"yaw": round(yaw, 1), "pitch": round(pitch, 1)}
 
 
+def is_live():
+    return BACKENDS is not None and BACKENDS.active is not BACKENDS.sim
+
+
+def backend_status():
+    if BACKENDS is None:
+        return {"id": "sim", "kind": "simulation", "live": False, "message": "Simulation: nothing here touches a real robot."}
+    return BACKENDS.status()
+
+
+LIVE_ONLY_SIM = "You are connected to a real robot, and this control belongs to the Simulation. Disconnect to use it."
+
+
+def live_loop():
+    """Keeps a live connection alive (the lease is renewed every few seconds) and fetches the robot's screen twice a second."""
+    while True:
+        time.sleep(0.5)
+        if BACKENDS is None:
+            continue
+        now = time.time()
+        if now - LIVE["beat"] >= 1.0:
+            LIVE["beat"] = now
+            BACKENDS.tick(now)
+        if is_live():
+            try:
+                LIVE["frame"] = BACKENDS.active.snapshot()
+            except Exception:   # the screen picture is a nicety: a miss keeps the last one, the lease check above says when the link is gone
+                pass
+        else:
+            LIVE["frame"] = b""
+
+
 def installed():
     """The installed set (decision 17), once the unit has one: slots used per kind, the pool, what is loaded."""
     store = getattr(UNIT, "_assets", None)
@@ -144,6 +182,10 @@ def utilization():
     """What the Utilization panel shows, from what the rig knows now. Field names are agreed in docs/plan/view-requests.md; a field the
     rig cannot give yet is left out, and the page hides its row."""
     out = {"battery_percent": HW.battery, "charging": HW.charging, "powered_by": HW.powered_by, "supply": HW.supply(), "clock_ms": UNIT.now_ms, "step_ms": STEP_MS, "time_scale": TIME["scale"]}
+    if hasattr(HW, "draw_ma"):   # the power model (schema/power-model.json): every number a placeholder until the bench measures it
+        out.update(draw_ma=HW.draw_ma(), power_basis=HW.power.basis, drain=HW.drain)
+        if HW.hours_left() is not None:
+            out["hours_left"] = HW.hours_left()
     if getattr(UNIT, "_memory", None) is not None:   # the memory model exists only once something has asked for it
         try:
             out["memory"] = UNIT.memory.numbers()
@@ -227,14 +269,17 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.path = self.path.split("?")[0]
         if self.path == "/frame.png":
-            self._send(FRAME, "image/png")
+            self._send(LIVE["frame"] if is_live() and LIVE["frame"] else FRAME, "image/png")
+        elif self.path == "/backends":
+            listing = BACKENDS.list() if BACKENDS is not None else [{"id": "sim", "name": "Simulation", "kind": "simulation", "busy_by": None}]
+            self._send(json.dumps({"backends": listing, "host_set": bool(BACKENDS is not None and BACKENDS.host_url and BACKENDS.token), "active": backend_status()}).encode(), "application/json")
         elif self.path == "/state":
             with LOCK:
                 mot = motion_state()
                 recent = [t for t in UNIT.move_times if UNIT.now_ms - t < 60000]
                 state = {"now_ms": UNIT.now_ms, "emotion": UNIT.emotion, "tools": len(UNIT.tool_names), "head": head_now(), "leds": APPLIED["cover_ring"] or UNIT.leds,
                          "battery": UNIT.battery, "hw": HW.view(), "motion": mot, "moves_last_minute": len(recent), "moves_cap": vunit.MOVES_PER_MINUTE,
-                         "dance": dance_now()[0], "dance_sim": dance_now()[1], "util": utilization(), "assets": installed(), "host_away": away(), "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
+                         "dance": dance_now()[0], "dance_sim": dance_now()[1], "util": utilization(), "backend": backend_status(), "assets": installed(), "host_away": away(), "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
             self._send(json.dumps(state).encode(), "application/json")
         elif self.path == "/affiliation.json":   # the one place the affiliation wording lives (docs/plan/trademark-and-affiliation.md)
             self._send((HERE.parents[1] / "docs" / "legal" / "affiliation.json").read_bytes(), "application/json")
@@ -283,6 +328,24 @@ class Handler(BaseHTTPRequestHandler):
         req = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         if self.path == "/record":
             return self._send(json.dumps(record_action(req)).encode(), "application/json")
+        if self.path == "/backend":   # choose the Simulation or one robot; one connection at a time, refusals in plain words
+            if BACKENDS is None:
+                return self._send(json.dumps({"isError": True, "text": "Live mode is not part of this checkout: only the Simulation is here."}).encode(), "application/json")
+            if req.get("disconnect"):
+                BACKENDS.disconnect()
+                BACKENDS.message = ""
+            else:
+                BACKENDS.connect(str(req.get("id", "sim")), time.time())
+            return self._send(json.dumps({"ok": True, "active": BACKENDS.status()}).encode(), "application/json")
+        if is_live():
+            if self.path == "/call":   # the same tool call, sent to the real robot through its host
+                try:
+                    out = BACKENDS.active.call_tool(req.get("name", ""), req.get("arguments", {}))
+                except Exception as err:
+                    out = {"isError": True, "text": str(err)}
+                return self._send(json.dumps(out).encode(), "application/json")
+            if self.path in ("/hw", "/touch", "/scenario", "/imu", "/record"):
+                return self._send(json.dumps({"isError": True, "text": LIVE_ONLY_SIM}).encode(), "application/json")
         if self.path == "/hw" and req.get("key") == "time_scale":   # a control of the rig, not of the body
             try:
                 TIME["scale"] = max(1, min(20, int(req.get("value", 1))))
@@ -392,6 +455,13 @@ def main():
     motion_state()  # creates the motion tools' defaults before the pump touches them
     FRAME = UNIT.snapshot()
     threading.Thread(target=pump, daemon=True).start()
+    global BACKENDS
+    if (HERE / "backends.py").exists():
+        bspec = importlib.util.spec_from_file_location("backends", HERE / "backends.py")
+        backends = importlib.util.module_from_spec(bspec)
+        bspec.loader.exec_module(backends)
+        BACKENDS = backends.BackendManager(backends.Simulation(UNIT), os.environ.get("MAIPAI_PLAYGROUND_HOST", ""), os.environ.get("MAIPAI_PLAYGROUND_TOKEN", ""), "the virtual unit view")
+        threading.Thread(target=live_loop, daemon=True).start()
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"virtual unit view on http://127.0.0.1:{server.server_port}/", flush=True)  # port 0 picks a free one
     server.serve_forever()
