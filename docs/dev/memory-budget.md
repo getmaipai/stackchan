@@ -89,3 +89,52 @@ Cost summary for the link as the default: internal RAM net about 0 for one socke
 5. A game start with the link up: the largest block while `pack_boot` and `pack_write` run.
 6. The custom wake word's model footprint (only if it is built).
 7. Subtitles: internal RAM while a long caption shows.
+
+## Audit of every feature under owner decision 15 (load nothing not needed; prefer PSRAM and flash; never hold the largest internal block)
+
+Status words: **verified** (read in the code or measured), **estimate** (from sizes and configs), **to read** (not yet read), **to measure** (needs the unit). Where a thing lives: F flash (read in place, no RAM), P PSRAM, I internal RAM.
+
+| Thing | Loaded when | Freed when | Lives in | Status |
+|---|---|---|---|---|
+| Language tables, screen words, first-run words | compiled in | never (read in place) | F | verified: constant tables and string views |
+| Fonts (Noto Sans Latin-1, Montserrat symbols) | compiled in | never | F | verified: constant font data |
+| Sounds (the built-in Ogg tones and clips) | played on demand: the demuxer reads from the flash image | after each play | F (the decoded PCM block is transient, P/I per block) | verified: `PlaySound` demuxes from flash |
+| Bench clips (wake phrase, questions) | bench images only | never | F | verified: not in the plain image |
+| Face (eyes, mouth, effects, overlays) | at boot | never (it is the product) | I (LVGL objects) | verified; the largest permanent screen cost |
+| Boot cover and link strip | at boot | the cover when the first face shows; the strip when not needed | I | verified in `stackchan_display.cc` (24 creates, 7 deletes: the face stays) |
+| Pages (clock, timers, games, actions, frame, tiles), quick settings sheet | when opened | when closed (the page timer is deleted too) | I | verified: `maipai_pages.cc` creates 5 and deletes 4 object trees; `s_page` is null when closed |
+| Banner row | when a message needs it | 2 s after nothing needs it | I | verified: `maipai_banner.cc` idle release |
+| Setup app (Wi-Fi page, menus) | when opened | when closed (and now after 90 s idle, SF36) | I | verified: `AppSetup::onClose` resets the pages |
+| First-run flow | first standby of a unit with no record | when finished | I, **about 3.7 KB median while open** | measured, window 10 |
+| Picture faces and the picture frame | on use | the frame buffer after the draw | P (frame task stack 20 KB in P, decode buffers in P) | verified |
+| Subtitles, captions | on a caption message | when the caption ends | I (label), glyph payload | to read: the caption label may stay allocated; to measure |
+| Games | on start | on exit | I while running | to read; `pack_boot` and `pack_write` tasks 6,144 B each are created for a pack and deleted after: transient I |
+| Timers (state, ring) | boot | never | I, static and small (under 1 KB) | verified |
+| Camera driver | at boot | never | frame buffer P (M06), driver state I | verified |
+| MCP tools list | at boot | never | descriptors in P (M03) | verified |
+| TLS contexts and buffers (link) | per connection | on close | **P** (`MBEDTLS_EXTERNAL_MEM_ALLOC`) | verified in the config |
+| Models (wake word, noise, voice activity) | at audio start | never while listening | P (`AFE_MEMORY_ALLOC_MORE_PSRAM`) and F | verified |
+| Opus task stack | at boot | never | P (static stack, M02) | verified |
+
+### Tasks that always run (stack in internal RAM)
+
+`stackchan` 5,120 (screen and logic), `servo_step` 3,072, `audio_input` 4,096, `audio_output` 4,096, `ws_reconnect` 4,096, one `tcp_receive` 4,096 per plain socket (`ssl_receive` per TLS socket), the system event task 3,072, the `tcpip` task 3,072, the timer task 3,584, main 6,144, IPC 1,280 and a few small ones. **Removed from always-running by SF47:** `avatar_lan` 8,192 (now created when the phone App announces its endpoint). **Already created on demand:** `pack_boot`, `pack_write`, `tailnet`, `activation`, `fwupdate`, `heal_restart`, `mp_reset`, `bench_say`.
+
+### Changes ranked by internal RAM saved
+
+| # | Change | Saves (internal) | Status |
+|---|---|---:|---|
+| 1 | `avatar_lan` created on first use (SF47) | 8.5 KB at boot, one 8 KB block less in the heap | built, in the b45 images, waiting for the plain boot proof |
+| 2 | A persistent receive task for the sockets with its stack in PSRAM, if the receive path can be made flash-free (the voice receive callback saves settings in the hello, so it needs a hand-off to the main task first) | 4 KB per socket | to read, then design; needs a vendor patch for the network component |
+| 3 | `pack_boot` and `pack_write` run as one task, started before the link comes up, 6 KB for a few seconds | no steady saving; stops a 6 KB hole opening mid-heap when a game starts | to read |
+| 4 | First-run flow frees each page's objects as soon as the next shows | up to 3.7 KB during first run only | to read |
+| 5 | Lower the three IDF stacks that had measured margins (system event 3,072, `tcpip` 3,072, timer 3,584) | 0.5 to 1 KB each if the margins allow | to measure (margins from the stack line of the plain image) |
+| 6 | The caption label and glyph payload freed when the caption ends | to measure | to read |
+| 7 | Settings and setup screens that duplicate the host's web page move to the host (decision 15c) | the Setup app is created and freed on use already, so this saves flash and code, not steady RAM | design with the app track |
+| 8 | Wi-Fi buffers: static receive 3, dynamic 6, TX dynamic are already small; AMPDU is on | under 1 KB if reduced; not worth the throughput loss | estimate: leave |
+
+The target (largest block above 36 KB with the link up and a second socket open) cannot be met by change 1 alone if the other blocks stay where they are: the heap dump (`self.bench.heap_trace`) decides which of the 4 KB blocks to move next. The numbers that need the unit are the seven above, plus the plain boot proof of the b45 images.
+
+### Rules for every new feature (decision 15f)
+
+Its patch header states its memory cost (static internal, runtime internal, PSRAM, largest block effect); it allocates on first use and frees on close; it keeps no persistent internal block of 2 KB or more; and it fails the gate if it breaks the budget (the gate numbers above). SF44 (camera to host) must allocate its second socket and its buffers only while streaming.
