@@ -52,10 +52,8 @@ int main(void)
     run(&m, 0, 0, 90, 600);
     CHECK(mml_state(&m) == MML_FREE);
 
-    /* USB: believed after 2 s; half the excursion, speed cap 60 percent, no full dance */
-    run(&m, 0, 1, 90, 1900);
-    CHECK(mml_state(&m) == MML_FREE);
-    run(&m, 0, 1, 90, 200);
+    /* USB: a cable going in is believed at once (more restrictive); half the excursion, speed cap 60 percent, no full dance */
+    run(&m, 0, 1, 90, 40);
     CHECK(mml_state(&m) == MML_USB && mml_scale(&m) == 50 && mml_angle(&m, 300, 0) == 150 && mml_angle(&m, -300, 0) == -150);
     CHECK(mml_speed_cap(&m) == 600 && mml_dance_max(&m) == 3);
     CHECK(mml_stiffness(&m, 650.0f) < 245.0f && mml_stiffness(&m, 100.0f) == 100.0f);
@@ -255,6 +253,27 @@ int main(void)
                 }
             }
         }
+    }
+    /* fail closed: at boot the cable is not known, and the limited state applies until a reading says otherwise */
+    {
+        mml_t b;
+        mml_init(&b);
+        b.force_orient = MML_O_UPRIGHT; /* the orientation rule is its own test */
+        for (uint32_t t = 0; t < 3000; t += 20) mml_step(&b, t, 0, -1, -1);
+        CHECK(mml_state(&b) == MML_USB && mml_scale(&b) == 50 && mml_speed_pct(&b) == 60);
+        mml_step(&b, 3020, 0, 0, -1); /* the first reading: no cable, believed at once */
+        CHECK(mml_state(&b) == MML_FREE && mml_scale(&b) == 100);
+        mml_step(&b, 3040, 0, 1, -1); /* a cable goes in: limited at once, no 2 s wait */
+        CHECK(mml_state(&b) == MML_USB);
+        mml_step(&b, 3060, 0, 0, -1); /* out again: held for 2 s */
+        CHECK(mml_state(&b) == MML_USB);
+        mml_step(&b, 5100, 0, 0, -1);
+        CHECK(mml_state(&b) == MML_FREE);
+        mml_t c; /* a first reading that says cable in */
+        mml_init(&c);
+        c.force_orient = MML_O_UPRIGHT;
+        mml_step(&c, 20, 0, 1, -1);
+        CHECK(mml_state(&c) == MML_USB);
     }
     /* a reading taken while the head's pitch moves is held, not used: the band stays upright, and the data stays fresh */
     {

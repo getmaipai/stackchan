@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 144,
+ "count": 145,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -14,6 +14,7 @@
   "self.bench.firstrun": "SF26-bench-slot-firstrun-tool.patch",
   "self.bench.firstrun_loop": "SF27-bench-servo-rate-firstrun-loop.patch",
   "self.bench.heap_info": "SF34-head-limiter-barge-bench.patch",
+  "self.bench.heap_trace": "SF39-limiter-failclosed-peak-heap.patch",
   "self.bench.inject": "L06-bench-latency-trace.patch",
   "self.bench.link_selftest": "SF21-link-key-curve-and-storage.patch",
   "self.bench.mic3_check": "SF15-talk-over-mic3-step0.patch",
@@ -199,6 +200,7 @@
   "self.bench.heap_info": {
    "min_used": "integer"
   },
+  "self.bench.heap_trace": {},
   "self.bench.inject": {
    "q": "integer",
    "wake": "integer",

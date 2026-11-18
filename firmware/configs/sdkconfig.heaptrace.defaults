@@ -1,0 +1,3 @@
+# Build kind "heap" (bench plus a live-allocation trace from boot: self.bench.heap_trace). Costs about 40 KB of PSRAM and some speed: never a release.
+CONFIG_HEAP_TRACING_STANDALONE=y
+CONFIG_HEAP_TRACING_STACK_DEPTH=6
