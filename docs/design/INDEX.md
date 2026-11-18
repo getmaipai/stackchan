@@ -19,6 +19,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `README.md` (89): MaiPai for StackChan
 - `THIRD-PARTY.md` (48): Third-party notices
 - `docs/STYLE.md` (52): Writing style
+- `docs/design/architecture-layers.md` (341): Architecture layers: kernel, modules, assets, host (design, 2026-11-18)
 - `docs/design/architecture.md` (95): Architecture
 - `docs/design/banner-row-2026-11-16.md` (65): Fixed zones, the banner row and the subtitle strip (patches N01 to N04)
 - `docs/design/boundary-debt.txt` (40): no header
@@ -144,7 +145,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (179): Memory budget of the optional features (owner decision 11, 2026-11-18)
-- `docs/dev/model-previews/joints.gif` (1638): Binary file docs/dev/model-previews/joints.gif matches
+- `docs/dev/model-previews/joints.gif` (1634): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
 - `docs/dev/releases/b13.md` (45): Build report: b13
@@ -152,6 +153,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
 - `docs/dev/screens-contact-sheets.md` (38): Screens contact sheets
 - `docs/dev/second-robot-adapter.md` (16): Adding a second robot behind the seam
+- `docs/dev/seek-cue-policy.md` (34): The face-turning seeker and the camera-on cue: why the cue is lit most of the time, and a quieter policy
 - `docs/dev/settings-justification.md` (48): Settings justification (owner decision 20)
 - `docs/dev/software-only-protection.md` (50): Protecting the lock code, tokens and link key with software only (owner decision 14: no eFuse, ever)
 - `docs/dev/stackchan-anywhere-network-2026-11-14.md` (207): StackChan anywhere network: the robot joins the tailnet itself, and keeps a list of Wi-Fi networks
@@ -291,6 +293,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
 - `docs/plan/home-work-brief.md` (48): Brief for a session in the Home repository: the StackChan robot side (2026-11-18)
+- `docs/plan/host-layer.md` (30): The host layer (for `docs/design/architecture-layers.md`)
 - `docs/plan/installed-set.md` (357): The installed set: slots, signed assets, language and font packs (design, 2026-11-18)
 - `docs/plan/ir-and-nfc.md` (127): Infrared and NFC for the StackChan: what is verified, what we could build, how to probe safely
 - `docs/plan/link-key-exchange.md` (68): Link key exchange for the encrypted link (design, 2026-11-18)
@@ -300,6 +303,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/offload-to-host.md` (50): Offload to the host: what the unit does that the host could serve or compute
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
+- `docs/plan/playground-live.md` (29): The host API for a live playground (owner decision 21)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
 - `docs/plan/public-readme-draft.md` (92): Public README draft (2026-11-18)
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
@@ -1182,6 +1186,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/picture_faces.py` (757): ruff: noqa: E501
 - `host/maipai_body/picture_faces_page.py` (56): ruff: noqa: E501
 - `host/maipai_body/picture_look_pack.py` (39): A picture-face set as a shared-loader look pack (firmware patch TB02).
+- `host/maipai_body/playground_lease.py` (101): The playground's control lease and token scope (owner decision 21): one playground session per robot, expiring
 - `host/maipai_body/presence/__init__.py` (13): RM-06: presence and tracking, and the arbitration priority tracking sits inside.
 - `host/maipai_body/presence/arbitration.py` (63): The arbitration priority (``dev.md`` section 5, confirmed for this body by
 - `host/maipai_body/presence/attention.py` (149): Attention: glue from presence observations to the gaze and idle layers (S-EXPR-04).
@@ -2115,6 +2120,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_picture_faces.py` (716): ruff: noqa: E501
 - `host/tests/test_picture_look_pack.py` (26): The picture look pack (firmware patch TB02): stored files, a look.json the unit reads, within the look size ga
 - `host/tests/test_picture_memory.py` (31): A large picture upload does not take hundreds of megabytes to shrink."""
+- `host/tests/test_playground_lease.py` (67): The playground lease and scope: one session per robot, expiry, clean release, per-robot isolation, forbidden t
 - `host/tests/test_portal_core.py` (263): The Wi-Fi setup portal (firmware patches P01 to P04): its page, string table, routes and plain-C core.
 - `host/tests/test_power_ladder.py` (415): SELF-SCENE-02: the battery and heat ladder on scripted discharge and heat curves."""
 - `host/tests/test_presence_arbitration.py` (59): The arbitration priority: tracking outranks expression, yields to stop and service.
@@ -2485,10 +2491,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/make_briefs.py` (57): Write lane briefs for the tools the virtual unit does not simulate yet, in chunks of at most 7 tools of one or
 - `scripts/virtual-unit/memory_model.py` (220): The memory model of the virtual unit (owner decision 15, 2026-11-18): every screen, overlay, picture face, lan
 - `scripts/virtual-unit/memory_walk.py` (92): Opens every screen in turn on the virtual unit, uses overlays, notes, the music dance and the first run, retur
-- `scripts/virtual-unit/model/MATCH.md` (198): Does the model match the owner's unit?
+- `scripts/virtual-unit/model/MATCH.md` (199): Does the model match the owner's unit?
 - `scripts/virtual-unit/model/README.md` (74): Robot 3D model
 - `scripts/virtual-unit/model/SOURCE.md` (34): Source of the model geometry
-- `scripts/virtual-unit/model/make_body.py` (1067): Build the rigged body model of the unit from the official structure files in source/.
+- `scripts/virtual-unit/model/make_body.py` (1104): Build the rigged body model of the unit from the official structure files in source/.
 - `scripts/virtual-unit/model/render_previews.py` (224): Render the preview pictures of stackchan.glb: six views of the outside and both joints through their ranges.
 - `scripts/virtual-unit/model/softrender.py` (170): A small software renderer for the body model previews: standard library only.
 - `scripts/virtual-unit/model/source/LICENSE` (20): no header
@@ -2502,7 +2508,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/source/StackChan-ServoBody.stl` (557): Binary file scripts/virtual-unit/model/source/StackChan-ServoBody.stl matches
 - `scripts/virtual-unit/model/source/StackChan-ServoCover.stl` (111): Binary file scripts/virtual-unit/model/source/StackChan-ServoCover.stl matches
 - `scripts/virtual-unit/model/source/StackChan-ServoSideCover.stl` (61): no header
-- `scripts/virtual-unit/model/stackchan.glb` (8191): no header
+- `scripts/virtual-unit/model/stackchan.glb` (8178): no header
 - `scripts/virtual-unit/model/stackchan.params.json` (773): no header
 - `scripts/virtual-unit/model/validate.sh` (18): check stackchan.glb with the Khronos glTF validator, on this Mac only (the file is read locally; nothing is up
 - `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (7): no header
