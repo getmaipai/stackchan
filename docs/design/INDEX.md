@@ -110,7 +110,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/benchmark-factory-vs-ours.md` (44): Benchmark: factory firmware against MaiPai for StackChan
 - `docs/dev/build-from-source.md` (47): Build from source
 - `docs/dev/contributing.md` (24): Contributing
-- `docs/dev/cross-review-status.md` (44): Cross-review bugs: fixed and still open
+- `docs/dev/cross-review-status.md` (45): Cross-review bugs: fixed and still open
 - `docs/dev/draft-names.md` (131): Draft names to confirm
 - `docs/dev/e2e-virtual-unit.md` (48): End to end on the virtual unit (the spoken-turn check without hardware)
 - `docs/dev/egress-table.md` (14): Generated egress table
@@ -167,6 +167,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/stackchan-voice-measurements-2026-10-20.md` (69): StackChan voice path: what to measure (2026-10-20)
 - `docs/dev/stackchan-wireless-update-2026-11-14.md` (61): StackChan wireless firmware update (design, 2026-11-14)
 - `docs/dev/test-speed.md` (13): Suite speed (2026-11-18)
+- `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
 - `docs/dev/virtual-unit-3d.md` (30): The 3D virtual unit: body, power, axes
 - `docs/dev/virtual-unit-fidelity.md` (32): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
@@ -938,13 +939,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/vision_post.py` (258): Post a short-lived camera frame to Home for a scene description."""
 - `host/maipai_body/bodies/stackchan/volume.py` (233): Spoken volume control for the StackChan, answered on the robot without asking the hub.
 - `host/maipai_body/bodies/stackchan/wifi_list.py` (258): The names in StackChan's saved Wi-Fi list (firmware patch 023)."""
-- `host/maipai_body/bodies/stackchan/ws_logging.py` (37): Quiet logging for the StackChan websocket listeners.
+- `host/maipai_body/bodies/stackchan/ws_logging.py` (43): Quiet logging for the StackChan websocket listeners.
 - `host/maipai_body/bodies/stackchan/xiaozhi/__init__.py` (6): LAN xiaozhi protocol server and provisioning helpers for StackChan."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_exchange.py` (225): Host half of the link key exchange (docs/plan/link-key-exchange.md): X25519 plus a six-digit code the unit sho
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (224): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
 - `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (633): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1765): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1768): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
 - `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
@@ -1868,6 +1869,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_connection_loss.py` (33): Losing the connection raises BodyLost once; nothing is retried silently."""
 - `host/tests/test_cross_review_open_bugs.py` (181): ruff: noqa: E501
 - `host/tests/test_cross_review_open_bugs_2.py` (279): ruff: noqa: E501
+- `host/tests/test_cross_review_open_bugs_3.py` (43): ruff: noqa: E501
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
@@ -1912,6 +1914,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_firmware_update_signature.py` (60): An image from Home is served to the unit only when its detached signature verifies."""
 - `host/tests/test_firmware_y_patches.py` (67): The 2026-11-16 reliability patches (Y01 to Y04): listed in ORDER, documented, and the plain-C rules compile an
 - `host/tests/test_flasher_page.py` (53): The web flasher's logic (flasher/flasher-core.js) runs under Node: manifest checks, hash checks, nothing writt
+- `host/tests/test_flasher_release_parity.py` (52): ruff: noqa: E501
 - `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
 - `host/tests/test_fuzz_cores.py` (22): A short run of the sanitizer fuzz of the unit's parsers (scripts/fuzz-cores.sh, docs/dev/fuzzing-and-hostile-p
 - `host/tests/test_fw_stress_gate.py` (43): The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
@@ -1962,6 +1965,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_link_supervisor.py` (142): LINK-STATE-01: the supervisor drives the walk and the cues on an injected clock."""
 - `host/tests/test_live_view.py` (178): LIVE-VIEW-01 (bot half): the stream, its cyan cue and every way it stops."""
 - `host/tests/test_local_guard.py` (142): Host check on reads, proxy headers mean not local, request bodies are capped."""
+- `host/tests/test_log_noise.py` (31): Things anyone on the network can cause must not write errors or tracebacks to the log."""
 - `host/tests/test_logging_no_robot.py` (33): With no robot connected yet, the host log says so in one line; it does not print a traceback per failed call."
 - `host/tests/test_look_owner.py` (300): Who turns toward faces (look_owner.py): the lease heartbeat, the setting, the page view and the value the unit
 - `host/tests/test_measure_battery.py` (311): M-R4: battery. Runtime by the clock from full to the LED's red, whether any
@@ -2131,7 +2135,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_link_psk.py` (391): Encrypted robot link: TLS 1.2 with a pre-shared key on the voice, avatar and HTTP listeners."""
 - `host/tests/test_stackchan_listen_guard.py` (75): Host tests for patch SF03 (listening guard) and the spoken-turn gate verdict in scripts/fw-voice-bench.py."""
 - `host/tests/test_stackchan_listening_thinking_faces.py` (156): The `listening` and `thinking` faces (owner, 2026-11-13: the face carries both, not the ring)."""
-- `host/tests/test_stackchan_live_fixes.py` (266): Fixes found on the live hub (2026-10-20): clock, night camera, ring write."""
+- `host/tests/test_stackchan_live_fixes.py` (268): Fixes found on the live hub (2026-10-20): clock, night camera, ring write."""
 - `host/tests/test_stackchan_lock_core.py` (204): ruff: noqa: E501
 - `host/tests/test_stackchan_look_settings.py` (73): Look toward the speaker / Look for faces default off; a refused head move never raises."""
 - `host/tests/test_stackchan_meeting_sleep_z.py` (34): no header
@@ -2222,6 +2226,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_unit_update_check.py` (298): ruff: noqa: E501
 - `host/tests/test_update_header.py` (147): The signed update header: version, build number and image hash in 64 bytes, signed with Ed25519; the unit refu
 - `host/tests/test_update_header_core.py` (45): The unit's update header core (firmware patch SF25) against the shared vectors of the app track (host/tests/fi
+- `host/tests/test_update_path_rejections.py` (129): ruff: noqa: E501
 - `host/tests/test_virtual_unit.py` (273): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
 - `host/tests/test_virtual_unit_fidelity.py` (56): Handlers the virtual unit shares with the unit's own cores, checked against the core's rules (docs/dev/virtual
 - `host/tests/test_virtual_unit_hw.py` (189): ruff: noqa: E501
@@ -2356,7 +2361,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
 - `scripts/virtual-unit/e2e.py` (611): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
-- `scripts/virtual-unit/e2e_hostile.py` (340): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
+- `scripts/virtual-unit/e2e_hostile.py` (337): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
 - `scripts/virtual-unit/gitify.py` (28): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
