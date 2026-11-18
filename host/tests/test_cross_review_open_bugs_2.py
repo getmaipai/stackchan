@@ -104,6 +104,32 @@ try { parseManifest({ builds: [{ chipFamily: 'ESP32-S3', parts: [{ path: 'a.bin'
     assert out == "refused", out
 
 
+@bug
+@needs_node
+@pytest.mark.parametrize("path", ["%2e%2e/other/evil.bin", "https://other.example/x.bin", "data:application/octet-stream;base64,AAAA", "a.bin?x=1#frag", "a\nb.bin"])
+def test_a_release_part_path_must_be_a_plain_file_name_inside_the_release_folder(path):
+    """owner: app (flasher/flasher-core.js; red team, report 16). parseManifest refuses ".." and a leading slash only: an encoded dot-dot (new URL turns %2e%2e into a real one and leaves the release folder), an absolute https or data address, a query or fragment and a control character are all accepted as part paths."""
+    out = _node(f"""
+import {{ parseManifest }} from './flasher-core.js';
+const h = 'a'.repeat(64);
+try {{ parseManifest({{ builds: [{{ chipFamily: 'ESP32-S3', parts: [{{ path: {json.dumps(path)}, offset: 0, sha256: h }}] }}] }}); console.log('accepted'); }} catch (e) {{ console.log('refused'); }}
+""")
+    assert out == "refused", out
+
+
+@bug
+@needs_node
+@pytest.mark.parametrize("offset", [12345, 2**40])
+def test_a_release_part_offset_must_be_aligned_and_inside_the_16_megabyte_flash(offset):
+    """owner: app (flasher/flasher-core.js; red team, report 16). Any non-negative whole number is an offset: one that is not a multiple of 4096 (the erase size) or lies beyond the 16 MiB flash is accepted and sent to the writer."""
+    out = _node(f"""
+import {{ parseManifest }} from './flasher-core.js';
+const h = 'a'.repeat(64);
+try {{ parseManifest({{ builds: [{{ chipFamily: 'ESP32-S3', parts: [{{ path: 'a.bin', offset: {offset}, sha256: h }}] }}] }}); console.log('accepted'); }} catch (e) {{ console.log('refused'); }}
+""")
+    assert out == "refused", out
+
+
 # ---- key exchange and update header, host side (owner: app) -----------------------------------------------------
 
 @bug
@@ -173,7 +199,7 @@ def test_a_note_with_a_government_id_that_is_not_written_with_dashes_is_refused(
 
 
 @bug
-@pytest.mark.parametrize("text", ["key is AKIAIOSFODNN7EXAMPLE", "bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghijk"])
+@pytest.mark.parametrize("text", ["key is AKIAFAKETESTKEY00000", "bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghijk"])
 def test_a_note_with_a_cloud_key_id_or_a_signed_token_is_refused(text):
     """owner: app (memory_notes/admission.py). Only sk-, ghp-, tskey- and xox prefixes are recognized; an AWS access key id and a JWT are stored and later read into the model's prompt."""
     with pytest.raises(AdmissionError):
@@ -247,7 +273,7 @@ def test_a_project_name_that_is_a_relative_path_is_not_shown():
 @bug
 def test_a_short_cloud_key_id_in_the_request_text_is_not_shown():
     """owner: app (coding_companion/clean.py). The long-token rule starts at 32 characters; an AWS access key id has 20 and is shown on the robot's screen."""
-    assert clean_text("rotate AKIAIOSFODNN7EXAMPLE now") is None
+    assert clean_text("rotate AKIAFAKETESTKEY00000 now") is None
 
 
 @bug
