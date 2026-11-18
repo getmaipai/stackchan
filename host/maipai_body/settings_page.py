@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
+from maipai_body import character_pack as character_pack_mod
 from maipai_body import faces as face_settings
 from maipai_body import overlays as overlays_mod
 from maipai_body import packs as packs_mod
@@ -619,6 +620,8 @@ class SettingsBackend:
                 overlay=overlay if isinstance(overlay, dict) else None,
                 lang=lang,
             )
+        if action == "import-character":
+            return character_pack_mod.import_for_page(service, device_id, values.get("b64"), lang)
         if action == "send":
             return 200, service.send(device_id, lang)
         if action == "clear":

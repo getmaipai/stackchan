@@ -197,3 +197,53 @@ def test_a_jpeg_keeps_its_colors_in_the_pack():
     rgba, w, h = character_pack._decode_png(jpeg)
     px = np.frombuffer(rgba, dtype=np.uint8).reshape(h, w, 4)[120, 160]
     assert px[0] > 150 and px[2] < 80, px
+
+
+# ---- the settings page route -------------------------------------------------------------------------------
+
+
+def _pack_bytes(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    for slot in ("neutral", "happy"):
+        (src / f"{slot}.png").write_bytes(_png((200, 40, 40, 255)))
+    out = build_pack(src, tmp_path / "pack.zip", "Test", "Me", "own work")
+    return out.read_bytes()
+
+
+def test_the_page_installs_a_valid_pack_and_refuses_a_broken_one_with_every_problem(tmp_path):
+    import base64
+
+    from test_picture_faces import UNIT, FakeUnit, _backend
+
+    backend = _backend(tmp_path, FakeUnit())
+    base = f"/api/stackchan/unit/{UNIT}/pictures/import-character"
+    good = base64.b64encode(_pack_bytes(tmp_path)).decode()
+    status, payload = backend.route_post(base, {"b64": good, "lang": "en"}, True)
+    assert (
+        status == 200
+        and payload["ready"] is True
+        and payload["message"].startswith("Character pack")
+    )
+    assert backend.pictures.store.load(UNIT).frames["neutral"]
+    bad = base64.b64encode(b"not a zip").decode()
+    status, payload = backend.route_post(base, {"b64": bad, "lang": "en"}, True)
+    assert status == 400 and payload["problems"] and "ZIP" in payload["error"]
+    assert (
+        backend.route_post(base, {"b64": good}, False)[0] == 403
+    )  # a page that is not signed in installs nothing
+    status, payload = backend.route_post(base, {"b64": "!!!"}, True)
+    assert status == 400 and "could not be read" in payload["error"]
+
+
+def test_the_character_words_exist_in_all_six_languages_and_the_script_is_in_the_page():
+    from maipai_body import i18n, i18n_character, settings_ui
+
+    keys = set(i18n_character.CATALOGS["en"])
+    for code in i18n.SUPPORTED:
+        assert set(i18n_character.CATALOGS[code]) == keys
+        assert all(
+            text.strip() and chr(0x2014) not in text for text in i18n_character.CATALOGS[code].values()
+        )
+        assert i18n.CATALOG[code]["settings.ui.char.title"].strip()
+    assert "import-character" in settings_ui.JS and "char.import" in settings_ui.JS

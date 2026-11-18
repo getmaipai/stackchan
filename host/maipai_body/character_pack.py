@@ -255,11 +255,12 @@ def validate_pack(path_or_bytes: str | Path | bytes, lang: str | None = None) ->
     return problems
 
 
-def load_pack(path: str | Path) -> pf.PictureSet:
-    problems = validate_pack(path)
+def load_pack(path_or_bytes: str | Path | bytes) -> pf.PictureSet:
+    problems = validate_pack(path_or_bytes)
     if problems:
         raise pf.PictureError(problems[0])
-    with zipfile.ZipFile(path) as archive:
+    source = io.BytesIO(path_or_bytes) if isinstance(path_or_bytes, bytes) else path_or_bytes
+    with zipfile.ZipFile(source) as archive:
         manifest = json.loads(archive.read("manifest.json"))
         pictures = pf.PictureSet(
             mode=manifest["mode"],
@@ -329,3 +330,37 @@ def build_pack(
     if problems:
         raise pf.PictureError(problems[0])
     return output
+
+
+MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+
+
+def import_for_page(
+    service: pf.PictureService, unit_id: str, b64: object, lang: str | None = None
+) -> tuple[int, dict[str, Any]]:
+    """The settings page route: a base64 ZIP in, the unit's saved pictures replaced, the page's picture view out.
+
+    Returns (status, body). A pack with problems answers 400 with every problem as a plain sentence under ``problems``
+    and the first one under ``error``. Nothing is saved unless the whole pack is valid. Sending to the unit stays the
+    page's own Send button, so a person sees the face change on purpose.
+    """
+    import base64
+    import binascii
+
+    try:
+        raw = base64.b64decode(str(b64 or ""), validate=True)
+    except (binascii.Error, ValueError):
+        return 400, {"error": "The file could not be read. Choose a .zip character pack."}
+    if not raw:
+        return 400, {"error": "No file was sent. Choose a .zip character pack."}
+    if len(raw) > MAX_UPLOAD_BYTES:
+        return 400, {"error": "That file is larger than 8 MB. Choose a smaller pack."}
+    problems = validate_pack(raw, lang)
+    if problems:
+        return 400, {"error": problems[0], "problems": problems}
+    pictures = load_pack(raw)
+    reason = pf.check_set(pictures)
+    if reason:
+        return 400, {"error": pf.say(lang, reason), "problems": [pf.say(lang, reason)]}
+    service.store.save(unit_id, pictures)
+    return 200, {**service.view(unit_id, lang), "message": "Character pack installed."}
