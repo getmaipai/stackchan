@@ -1,6 +1,6 @@
 {
  "es-apps-wall": {
-  "fails": 4
+  "fails": 0
  },
  "es-more-menu": {
   "fails": 0
@@ -45,7 +45,7 @@
   "fails": 0
  },
  "screen-apps-wall": {
-  "fails": 4
+  "fails": 0
  },
  "screen-camera-on": {
   "fails": 0
@@ -54,7 +54,7 @@
   "fails": 16
  },
  "screen-games-wall": {
-  "fails": 4
+  "fails": 0
  },
  "screen-page-actions": {
   "fails": 0
@@ -63,7 +63,7 @@
   "fails": 0
  },
  "screen-page-games": {
-  "fails": 13
+  "fails": 0
  },
  "screen-page-timers": {
   "fails": 0

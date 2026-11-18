@@ -1,0 +1,142 @@
+# Intent: The games page and the Apps and Games walls at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.md; batch UX13e). Two columns and two rows of 148 by 64 px tiles with an 8 px gap and an 8 px margin, so the first screen shows four games with their names in the 20 px body text over the best score in 16 px; a long name ("Rock Paper Scissors") wraps in 16 px and keeps its best line; the lines are stacked and centered in the tile so they cannot overlap in any language. With more than four games the fourth tile is "More games" with "page N of M" under it. The Apps and Games walls keep their picture tiles but take the 8 px gap and 6 px margin (150 by 86 tiles). Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages.cc, maipai_pages_core.h, maipai_apps_core.h (ours)
+# Check after a flash: Games shows four tiles, each name and its best score on two clean lines, no text touching the tile edge; the fourth tile says More games and the page it is on; tapping it shows the next games.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -920,21 +920,33 @@
+ #define MPG_GAMES_TOP 10
+ #define MPG_GAMES_AREA_H 136
+ #define MPG_GAMES_GAP 2
+-/* Patch UI13: seven games do not fit three rows. The games page is a grid of two columns and three rows of 44 px tiles (slot 0 to 5, row by
+- * row); with more than six games the last slot is a "More" tile and the others show five games a page. */
++/* Patch UX13e: the games page at finger size. A grid of two columns and two rows of 148 by 64 px tiles (slot 0 to 3, row by row) with an 8 px gap, on the 8 px margin
++ * of the screen standard (docs/design/screen-style.md); with more than four games the last slot is a "More games" tile that also tells which page of the list shows. A game tile
++ * is the name (20 px) over its best score (16 px); a long name wraps in 16 px and keeps the best line. */
+ #define MPG_GAMES_COLS 2
+-#define MPG_GAMES_SLOTS 6
+-#define MPG_GAMES_TILE_W 150
+-#define MPG_GAMES_TILE_H 44
+-#define MPG_GAMES_COL_GAP 4
++#define MPG_GAMES_SLOTS 4
++#define MPG_GAMES_TILE_W 148
++#define MPG_GAMES_TILE_H 64
++#define MPG_GAMES_COL_GAP 8
+ static inline int mpg_games_per_page(int total) { return total <= MPG_GAMES_SLOTS ? total : MPG_GAMES_SLOTS - 1; }
+ static inline int mpg_games_has_more(int total) { return total > MPG_GAMES_SLOTS; }
++/* How many pages the list takes and which one `offset` is on (both 1 for a list that fits). */
++static inline int mpg_games_pages(int total)
++{
++    const int per = mpg_games_per_page(total);
++    return per < 1 ? 1 : (total + per - 1) / per;
++}
++static inline int mpg_games_page_of(int offset, int total)
++{
++    const int per = mpg_games_per_page(total);
++    return per < 1 ? 1 : offset / per + 1;
++}
+ static inline void mpg_games_tile(int slot, int* x, int* y, int* w, int* h)
+ {
+     *w = MPG_GAMES_TILE_W;
+     *h = MPG_GAMES_TILE_H;
+     *x = (slot % MPG_GAMES_COLS == 0) ? 8 : 8 + MPG_GAMES_TILE_W + MPG_GAMES_COL_GAP;
+-    *y = MPG_GAMES_TOP + (slot / MPG_GAMES_COLS) * (MPG_GAMES_TILE_H + MPG_GAMES_GAP);
++    *y = MPG_GAMES_TOP + (slot / MPG_GAMES_COLS) * (MPG_GAMES_TILE_H + MPG_GAMES_COL_GAP);
+ }
+ /* The first game on the page after `offset` when More is tapped (it wraps to the first page). */
+ static inline int mpg_games_next_offset(int offset, int total)
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -541,13 +541,13 @@
+     if (s_games_off >= total) {
+         s_games_off = 0;
+     }
+-    // Patch UI13: a grid of two columns and three rows of 44 px tiles; the sixth is More when there are more than six games.
++    // Patch UX13e: a grid of two columns and two rows of 148 by 64 px tiles; the fourth is More when there are more than four games.
+     const int per = mpg_games_per_page(total);
+     for (int slot = 0; slot < MPG_GAMES_SLOTS; slot++) {
+         const bool more = mpg_games_has_more(total) && slot == MPG_GAMES_SLOTS - 1;
+         const int i     = s_games_off + slot;
+         if (!more && (slot >= per || i >= total)) {
+-            continue;  // an empty slot (the last page): the More tile still takes the sixth
++            continue;  // an empty slot (the last page): the More tile still takes the fourth
+         }
+         int x, y, w, h;
+         mpg_games_tile(slot, &x, &y, &w, &h);
+@@ -555,32 +555,32 @@
+         lv_obj_set_style_border_width(b, 1, 0);
+         lv_obj_set_style_border_color(b, fg(40), 0);
+         lv_obj_set_style_bg_color(b, fg(40), LV_STATE_PRESSED);
++        lv_obj_set_flex_flow(b, LV_FLEX_FLOW_COLUMN);  // patch UX13e: the lines are stacked and centered, so nothing overlaps whatever the language
++        lv_obj_set_flex_align(b, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
++        lv_obj_set_style_pad_all(b, 4, 0);
++        lv_obj_set_style_pad_row(b, 0, 0);
+         if (more) {
+             lv_obj_t* l = text(b, tx("More games", "Más juegos"), kBig, fg(100));
+-            lv_obj_center(l);
++            lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++            char pg[24];
++            snprintf(pg, sizeof(pg), es() ? "página %d de %d" : "page %d of %d", mpg_games_page_of(s_games_off, total), mpg_games_pages(total));
++            lv_obj_t* pl = text(b, pg, kSmall, fg(70));
++            lv_obj_set_style_text_align(pl, LV_TEXT_ALIGN_CENTER, 0);
+             lv_obj_add_event_cb(b, on_games_more, LV_EVENT_CLICKED, nullptr);
+             continue;
+         }
+         const char* gt = s_host->game_title(i);
+-        const bool long_name = text_w(gt, kBig) > w - 12;  // "Rock Paper Scissors": two small lines and no best line, nothing is cut
+-        const lv_font_t* nf = long_name ? kSmall : (text_w(gt, kBig) <= w - 12 ? kBig : kSmall);  // one size for the names that fit
++        const bool long_name = text_w(gt, kBig) > w - 8;  // "Rock Paper Scissors": two 16 px lines and the best line under them, nothing is cut
++        const lv_font_t* nf = long_name ? kSmall : kBig;
+         lv_obj_t* name = text(b, gt, nf, fg(100));
+         lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+-        if (long_name) {
+-            lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
+-            lv_obj_set_width(name, w - 12);
+-            lv_obj_center(name);
+-        } else {
+-            lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+-            lv_obj_set_size(name, w - 12, lv_font_get_line_height(nf));
+-            lv_obj_align(name, LV_ALIGN_TOP_MID, 0, 2);
+-            char best[24];
+-            mpg_best_text(best, sizeof(best), s_host->game_best(i), es());
+-            lv_obj_t* bl = text(b, best, kSmall, fg(70));
+-            lv_obj_set_width(bl, w - 12);
+-            lv_obj_set_style_text_align(bl, LV_TEXT_ALIGN_CENTER, 0);
+-            lv_obj_align(bl, LV_ALIGN_BOTTOM_MID, 0, -2);
+-        }
++        lv_obj_set_width(name, w - 16);
++        lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
++        char best[24];
++        mpg_best_text(best, sizeof(best), s_host->game_best(i), es());
++        lv_obj_t* bl = text(b, best, kSmall, fg(70));
++        lv_obj_set_width(bl, w - 16);
++        lv_obj_set_style_text_align(bl, LV_TEXT_ALIGN_CENTER, 0);
+         lv_obj_add_event_cb(b, on_game, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+     }
+ }
+diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
+--- a/firmware/main/hal/maipai_apps_core.h
++++ b/firmware/main/hal/maipai_apps_core.h
+@@ -125,12 +125,12 @@
+ #define MAC_WALL_COLS 2
+ #define MAC_WALL_ROWS 2
+ #define MAC_WALL_PER_PAGE (MAC_WALL_COLS * MAC_WALL_ROWS)
+-/* Patch NX08: the tiles fill the zone. Two columns with 4 px at the edges and between (4 + 154 + 4 + 154 + 4 = 320), two rows from the top of the zone
+- * (28 to 118 and 122 to 212); the page dots sit in the strip under them (centers at y 218, inside the zone that ends at 224). */
+-#define MAC_WALL_TILE_W 154
+-#define MAC_WALL_TILE_H 90
+-#define MAC_WALL_GAP 4
+-#define MAC_WALL_X0 4
++/* Patch NX08, spaced by patch UX13e: the tiles fill the zone with the 8 px gap of the screen standard. Two columns with 6 px at the edges and 8 px between (6 + 150 + 8 + 150 + 6 = 320),
++ * two rows from the top of the zone (28 to 114 and 122 to 208); the page dots sit in the strip under them (centers at y 218, inside the zone that ends at 224). */
++#define MAC_WALL_TILE_W 150
++#define MAC_WALL_TILE_H 86
++#define MAC_WALL_GAP 8
++#define MAC_WALL_X0 6
+ #define MAC_WALL_Y0 28
+ #define MAC_WALL_DOTS_Y 218
+ #define MAC_WALL_DOT_PITCH 14
