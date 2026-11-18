@@ -50,3 +50,37 @@ def test_an_expired_ticket_is_refused(tmp_path):
     ticket = server.issue_ticket(UNIT)
     server._tickets[ticket] = (UNIT, 0.0)
     assert not server.ticket_ok(UNIT, ticket)
+
+
+def _photo(server, bearer=None, query_token=None):
+    headers = {"Authorization": f"Bearer {bearer}"} if bearer else {}
+    request = SimpleNamespace(
+        match_info={"device_id": UNIT}, headers=headers, query={"token": query_token} if query_token else {},
+        content_length=1, content_type="multipart/form-data",
+    )
+    return asyncio.run(server._receive_photo(request))
+
+
+def test_the_long_lived_pairing_token_is_refused_on_every_web_route(tmp_path):
+    server, token = _server(tmp_path)
+    with pytest.raises(web.HTTPForbidden):
+        _notify(server, token)
+    with pytest.raises(web.HTTPForbidden):
+        _photo(server, bearer=token)
+    with pytest.raises(web.HTTPForbidden):
+        _photo(server, query_token=token)
+
+
+def test_a_ticket_is_the_only_credential_the_web_routes_take(tmp_path):
+    server, _ = _server(tmp_path)
+    ticket = server.issue_ticket(UNIT)
+    assert _notify(server, ticket).body == b"ogg"
+    for wrong in (None, "nope", ticket + "x"):
+        with pytest.raises(web.HTTPForbidden):
+            _photo(server, bearer=wrong)
+    with pytest.raises(web.HTTPUnsupportedMediaType):  # past the credential check: the next rule (a multipart body) applies
+        SimpleNamespace  # noqa: B018
+        asyncio.run(server._receive_photo(SimpleNamespace(
+            match_info={"device_id": UNIT}, headers={"Authorization": f"Bearer {ticket}"}, query={},
+            content_length=1, content_type="text/plain",
+        )))

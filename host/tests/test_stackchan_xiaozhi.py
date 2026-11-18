@@ -203,7 +203,7 @@ class StackChanXiaozhiTests(unittest.IsolatedAsyncioTestCase):
                 "image", b"\xff\xd8photo", filename="frame.jpg", content_type="image/jpeg"
             )
             accepted = await client.post(
-                url, data=form, headers={"Authorization": f"Bearer {self.token}"}
+                url, data=form, headers={"Authorization": f"Bearer {self.app.issue_ticket('02:00:00:00:00:01')}"}
             )
             self.assertEqual(accepted.status, 200)
             self.assertEqual(self.app._photos.pop("02:00:00:00:00:01"), b"\xff\xd8photo")
@@ -221,7 +221,7 @@ class StackChanXiaozhiTests(unittest.IsolatedAsyncioTestCase):
                 "image", b"\xff\xd8" + b"x" * 40, filename="large.jpg", content_type="image/jpeg"
             )
             oversized = await client.post(
-                url, data=form, headers={"Authorization": f"Bearer {self.token}"}
+                url, data=form, headers={"Authorization": f"Bearer {self.app.issue_ticket('02:00:00:00:00:01')}"}
             )
             self.assertEqual(oversized.status, 413)
             self.assertNotIn("02:00:00:00:00:01", self.app._photos)

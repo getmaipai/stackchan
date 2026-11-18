@@ -1042,9 +1042,7 @@ class XiaozhiServer:
         token = auth[7:] if auth.startswith("Bearer ") else request.query.get("token")
         if credentials is None or not self.pairing.authorize(device_id, *credentials):
             raise web.HTTPUnauthorized()
-        if token is None or not (
-            self.ticket_ok(device_id, token) or self.pairing.authorize(device_id, credentials[0], token)
-        ):
+        if token is None or not self.ticket_ok(device_id, token):  # the session ticket only, never the pairing token
             raise web.HTTPForbidden()
         if request.content_length is not None and request.content_length > self.max_photo_bytes:
             raise web.HTTPRequestEntityTooLarge(
@@ -1531,9 +1529,7 @@ class XiaozhiServer:
         if credentials is None or not self.pairing.authorize(device_id, *credentials):
             raise web.HTTPUnauthorized()
         token = auth[7:] if auth.startswith("Bearer ") else ""
-        if not (
-            self.ticket_ok(device_id, token) or self.pairing.authorize(device_id, credentials[0], token)
-        ):
+        if not self.ticket_ok(device_id, token):  # the session ticket only, never the pairing token
             raise web.HTTPForbidden()
         audio = self._notification_audio.pop((device_id, audio_id), None)
         if audio is None:
