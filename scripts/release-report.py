@@ -152,12 +152,33 @@ def counts_section() -> list[str]:
     ]
 
 
+def host_section(run_idle: bool) -> list[str]:
+    """The host's footprint (scripts/host-footprint.py): install size, import time, page weights, assets, and idle memory with --host-run."""
+    import subprocess
+    import sys
+
+    args = [sys.executable, str(ROOT / "scripts" / "host-footprint.py"), "--json"] + (["--run"] if run_idle else [])
+    done = subprocess.run(args, capture_output=True, text=True, timeout=300)
+    try:
+        data = json.loads(done.stdout)
+    except ValueError:
+        return ["## Host footprint", "", "Not measured: scripts/host-footprint.py did not run.", ""]
+    env = data.get("environment", {})
+    lines = ["## Host footprint", "", f"- Host source: {data['host_source_bytes']:,} bytes.", f"- Clean install: {env.get('site_packages_bytes', 0):,} bytes in site-packages."]
+    lines += [f"  - {x['name']}: {x['bytes']:,}" for x in env.get("largest", [])[:5]]
+    lines += [f"- Import time: {data['import_seconds']}.", f"- Pages: {data['pages']}.", f"- Docs images {data['docs_images_bytes']:,} bytes; golden frames {data['golden_bytes']:,}; flasher {data['flasher_bytes']:,}."]
+    lines.append(f"- Idle: {data['idle']}." if "idle" in data else "- Idle memory and CPU: not measured (pass --host-run).")
+    return lines + [""]
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("build_root")
     p.add_argument("--name", required=True)
     p.add_argument("--memory-log")
     p.add_argument("--out", default=str(ROOT / "docs" / "dev" / "releases"))
+    p.add_argument("--host", action="store_true", help="add the host footprint section")
+    p.add_argument("--host-run", action="store_true", help="with --host, also start the host for 10 seconds and measure idle memory and CPU")
     a = p.parse_args()
     root = Path(a.build_root).expanduser()
     source = root.parent.name if root.name == "firmware" else root.name
@@ -172,6 +193,7 @@ def main() -> None:
         + memory_section(Path(a.memory_log) if a.memory_log else None)
         + frame_section()
         + counts_section()
+        + (host_section(a.host_run) if a.host or a.host_run else [])
     )
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

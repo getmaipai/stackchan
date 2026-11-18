@@ -71,6 +71,7 @@ Each owner adds measured numbers here, same format as Part 1.
 | Python wheel and install size | app track | installed size of the host environment; unused dependencies |
 | Docs images | playground | `oxipng` over `docs/` images |
 
+<<<<<<< HEAD
 ### The 3D model file (measured 2026-11-18, model session)
 
 `scripts/virtual-unit/model/stackchan.glb`, built by `make_body.py`: **2,127,368 B** on disk, **763,030 B** with gzip (what a static host sends). 65,258 triangles, 89 nodes, 51 materials, no pictures inside. Where the bytes are (measured): positions 814,224; normals 814,224; indices 391,548; the JSON part 107,312. By mesh: head 770,448; base 638,244; holder 281,556; every drawn detail together under 200,000. So the maker's structure meshes are 80 percent of the file; the details added since are a small part.
@@ -87,3 +88,22 @@ Each owner adds measured numbers here, same format as Part 1.
 
 **Target for the static Pages viewer:** at most 600,000 B on the wire. Option 2 meets it (527,759 B) with no decoder and no visible change. Keep the full file for the local viewer and tests; build the web copy from the same generator (`make_body.py --lite`, to write, deterministic like the full one) so the two cannot drift. Not built yet: this section is the measurement only.
 
+=======
+### Host rows filled by the app track (2026-11-18, measured on the development Mac with `scripts/host-footprint.py --run`)
+
+Numbers come from a clean install of the host package (what a friend gets: `.runs/e2e-venv`), not the development environment (which also holds the Reachy and GStreamer extras, 1.4 GB, and is not shipped).
+
+| Item | Measured now | Proposed saving | Risk | Test |
+|---|---|---|---|---|
+| Installed Python size (clean install) | 266.7 MB: onnxruntime 78.2, scipy 70.2, av 54.6, numpy 20.6, cryptography 10.9, our code 6.3 | scipy is used for audio resampling only (check with a grep): replace with numpy or `av`'s resampler and drop up to 70 MB; onnxruntime is needed only by the wake word, face models and voice models: make it an extra loaded when one is on (already lazy where a package is off) | medium: resampling quality must stay the same | a golden test of the resampled audio before and after; the e2e spoken turn |
+| Import time | `maipai_body.config` 0.14 s, `maipai_body.app` 2.2 s | find the top five slow imports with `-X importtime`; make heavy modules (numpy, av, onnxruntime, scipy) lazy where a feature is off | low | a test that importing `maipai_body.app` does not import `onnxruntime` or `scipy` when no model is configured |
+| Idle host, no robot connected | RSS 194 MB, CPU 0.0 percent average over 10 s, ready in under 10 s | the same lazy imports bring RSS down; the number with 1, 2 and 10 units is not measured here (needs the virtual rig with many instances) | low | `host-footprint.py --run` in the release report with a ceiling |
+| Settings page | 246,166 bytes of HTML, CSS and JS in one response, 72,568 bytes gzipped | serve it with `Content-Encoding: gzip` (and a long cache for the immutable parts): saves 173 KB per load, the biggest win on a phone | low: the server must still serve a client that does not accept gzip | a route test with and without `Accept-Encoding` |
+| Other pages | Brain 7.9 KB, On my robot 6.2 KB, Health 0.8 KB | none needed | none | n/a |
+| Docs images | 1,724,027 bytes (1,643,837 of them PNG); golden frames 575,937 bytes | lossless recompression with `oxipng -o4` or `zopflipng`: the tool is not installed on this Mac, so no ratio is measured here; typical 10 to 30 percent | none if lossless; a script must refuse a lossy tool | a test that every recompressed PNG decodes to identical pixels |
+| Web flasher assets | 347,329 bytes, of which the vendored esptool-js is 324,536 | already minified; serve gzip | low | none beyond the gzip route test |
+| Asset service cache | no cache: each request reads the pack from the library; peak memory is one pack (at most 1 MB) | none | n/a | n/a |
+| Local stack downloads | small 637,373,182 bytes (runtime, 0.5B model, Moonshine, Piper); better 1,263,293,886 | the small model is already the smallest that holds a conversation; no further saving | n/a | the catalog test pins the sizes |
+| Logs and databases | the log rotates (5 files of 5 MB, 25 MB at most); the host's JSON files (pairing, installed sets, update builds, notes) are each a few KB and grow only with people and units | cap the notes file count already enforced (200 per person); nothing else grows without bound | none | `test_rotating_log` |
+| Release report | none yet | `scripts/host-footprint.py` prints every number above (`--json` for the report; `--run` starts the host for 10 s); add it to `scripts/release-report.py` | none | the script runs in `scripts/check.sh --docs`? no: it runs in the release step only |
+>>>>>>> 6c939a3 (Host footprint script and the host rows of the optimization plan, with measured numbers)
