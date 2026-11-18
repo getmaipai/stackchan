@@ -938,7 +938,7 @@ pack.weekdays,"Sun,Mon,Tue,Wed,Thu,Fri,Sat","dom,seg,ter,qua,qui,sex,sab","robot
 pack.months,"Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec","jan,fev,mar,abr,mai,jun,jul,ago,set,out,nov,dez","robot screen words pack: each word at most 7 plain ASCII letters, comma separated, Sunday first",10000,hard,docs/images/vu-clock.png,machine draft,
 pack.alarm,Alarm,Alarme,robot screen words pack: at most 11 plain ASCII letters,11,hard,docs/images/vu-clock.png,machine draft,
 pack.timer,Timer,Tempo,robot screen words pack: at most 11 plain ASCII letters,11,hard,docs/images/vu-clock.png,machine draft,
-doc.title.baby-and-pet-monitor,Use the robot as a baby or pet monitor,,title of docs/user/baby-and-pet-monitor.md (the user pages exist in English only),60,soft,,missing,
+doc.title.watch-the-room,Watch the room,,title of docs/user/watch-the-room.md (the user pages exist in English only),60,soft,,missing,
 doc.title.bench-listening,Listen longer on the bench (developers),,title of docs/user/bench-listening.md (the user pages exist in English only),62,soft,,missing,
 doc.title.camera,Use the camera,,title of docs/user/camera.md (the user pages exist in English only),34,soft,,missing,
 doc.title.character-packs,Character packs,,title of docs/user/character-packs.md (the user pages exist in English only),35,soft,,missing,

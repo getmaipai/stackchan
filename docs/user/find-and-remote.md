@@ -39,7 +39,7 @@ Turn on `remote_control` in the settings. Then, from the web app, you can:
 | **Talk** | Speaks what you type, or what you say into a push-to-talk button. The talking goes one way, to the robot. |
 | **Pan and tilt** | Turns the head left and right, and nods it up and down, with arrow buttons or a joystick. A **Home** button brings it back to center. |
 
-There is no remote listening in remote control. You can talk to the robot, but you cannot listen in through it. The one exception is [Baby and pet monitor](baby-and-pet-monitor.md), which a person must start on the robot itself, and which always shows it on the screen.
+There is no remote listening in remote control. You can talk to the robot, but you cannot listen in through it. There is no exception.
 
 ## Pan and tilt
 

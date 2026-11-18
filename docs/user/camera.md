@@ -1,5 +1,7 @@
 # Use the camera
 
+> **This is a convenience, not a safety device.** Do not rely on it to watch a baby or a person who needs care. Use a purpose-made monitor for that.
+
 <span class="planned-tag">Planned</span> Taking a photo from the settings page is built and flashed, and it works without MaiPai Home. It is off until you turn it on, shows its cue every time, and the picture stays on your own host. Snapshots by voice, live view and the rest of this page are planned for your own host too. Naming people, recognizing faces and "what is this" need <span class="home-tag">Needs MaiPai Home</span>. Not yet checked on a robot.
 
 

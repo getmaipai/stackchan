@@ -7,7 +7,7 @@ MaiPai Home is an optional brain. The robot is complete without it. Use it if yo
 These run with MaiPai Home:
 
 - Names for the people the camera sees, and "what is this". [Details](camera.md)
-- Household-wide alerts and monitoring across rooms. [Watch](watch-and-alerts.md), [monitor](baby-and-pet-monitor.md)
+- Household-wide alerts and monitoring across rooms. [Watch](watch-and-alerts.md), [monitor](watch-the-room.md)
 - The coding companion, and home tools such as the local API and MQTT. [Coding](coding-companion.md), [tools](home-tools.md)
 
 The camera, remote control and monitoring themselves can run on your own host without Home. See [Find the robot and control it remotely](find-and-remote.md).

@@ -37,7 +37,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Choreograph your own dance | ★★★ | ☆☆☆ | ☆☆☆ | The factory phone app lets you set music, movements and light colors for a dance. We have six named dances and no dance editor. |
 | Six languages | TBD | ★★★ | ★★★ | English, Spanish, French, German, Portuguese and Italian, switched at run time with no reflash. Not yet reviewed by native speakers. |
 | Signed updates with rollback | TBD | ★★★ | ★★★ | Nothing installs unless you say so, and a bad update rolls back by itself. |
-| Baby and pet monitor <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ☆☆☆ | Hear and see a nursery or a pet's room from your phone and get alerts. You start it on the robot, and the screen always says so. Not a certified baby monitor. Runs with MaiPai Home. |
+| Watch the room <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ☆☆☆ | Photos, a low-resolution look and sound or motion alerts for a pet or a room. A convenience, not a safety device. The screen always shows when it looks or listens. Runs with MaiPai Home. |
 | No stealth: monitoring always shown on screen | TBD | ★★★ | ★★★ | Every listening, looking and watching mode shows on the robot's screen, and the cue cannot be turned off. |
 | Watch mode: motion and sound alerts <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ☆☆☆ | The robot notices motion and loud sounds and sends an alert with a snapshot. Better with MaiPai Home, which can say what it saw and who. Runs with MaiPai Home. |
 | Security alarm: red and blue lights, siren <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ☆☆☆ | A warning or an alarm with swapping lights, a siren and an alert on the screen. Runs with MaiPai Home. |

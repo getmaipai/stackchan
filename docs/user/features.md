@@ -101,7 +101,7 @@ All of these need a MaiPai Home hub. Set `brain = "home"` to use them: [Use MaiP
 | **Live view** | A low-resolution live view of the room, with the pink lights on the whole time. | Robot, opt-in <span class="planned-tag">Planned</span> | [Find and remote](find-and-remote.md) |
 | **Watch and alerts** | Motion and sound alerts with a snapshot. | Robot, opt-in <span class="planned-tag">Planned</span> | [Watch and alerts](watch-and-alerts.md) |
 | **Alarm and siren** | Red and blue lights and a siren for a security alert. | Robot, opt-in <span class="planned-tag">Planned</span> | [Watch and alerts](watch-and-alerts.md) |
-| **Baby and pet monitor** | Listen and look from your phone. Started on the robot and always shown. | Robot, opt-in <span class="planned-tag">Planned</span> | [Baby and pet monitor](baby-and-pet-monitor.md) |
+| **Watch the room** | Take a photo, a low-resolution look, and sound and motion alerts for a pet or a room. A convenience, not a safety device. Always shown on the robot. | Robot, opt-in <span class="planned-tag">Planned</span> | [Watch the room](watch-the-room.md) |
 | **Find my robot** | See where it was last seen and make it beep and flash. | Robot, opt-in | [Find and remote](find-and-remote.md) |
 | **Remote beep, lights, talk** | Control the robot from the web app. It always shows when someone is using it. | Robot, opt-in | [Find and remote](find-and-remote.md) |
 | **Remote pan and tilt** | Move the head from your phone, within a safe range. | Robot, opt-in | [Find and remote](find-and-remote.md) |

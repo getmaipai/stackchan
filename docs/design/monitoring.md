@@ -15,9 +15,7 @@ Every mode that opens the microphone or the camera gets its cue from the same co
 | Live view | camera icon with a LIVE dot | pink, steady the whole time | double click on start |
 | Watching (armed) | camera icon, the word "Watching", mic icon if sound watching is on | off at night, dim steady amber by day (setting) | none |
 | Alert warning and alarm | big ALERT, flashing red and blue | red and blue sides swap at 2 Hz | rising and falling siren (alarm only), stops after 60 s or on disarm |
-| Baby or Pet monitor | "Baby monitor" or "Pet monitor" (paw), mic icon, camera icon, "Listening in" mark while a phone is connected | off at night, dim steady amber by day | none |
 | Remote control | Remote icon (screen with two arcs) | none | short tone before remote speech |
-| Soothe (remote talk in monitor) | "Talking" | none | no tone (a tone would wake the child); the "Talking" mark replaces it |
 
 Decisions inside the table:
 - Watching: an all-night pink ring is unbearable and the camera icon with the word on the screen is the cue. While watching, each snapshot shows a one-second dot beside the camera icon. The pink ring is used only for a picture taken for an alert or by request, and for live view. The screen never turns fully off while armed (lowest brightness floor).
@@ -33,15 +31,9 @@ Decisions inside the table:
 - Home rate limits alerts (default 60 s, setting). The detectors ignore the robot's own voice, moves and siren (a short blanking window after each).
 - Memory: detectors on the host cost the unit nothing; the sound level meter on the unit is a few hundred bytes and runs only while armed with sound watching on.
 
-## Baby and Pet monitor
+## Baby monitor: scrapped
 
-- Starts ONLY on the robot (voice or touch). A phone connects afterwards; the robot shows "Listening in" while one is connected and stops streaming the moment the last phone leaves or the owner touches the robot.
-- Listening exception (the only one): audio goes to the connected phone through a separate message type `monitor_audio`, compiled in only with `CONFIG_STACKCHAN_MONITOR`, accepted only while the unit's own monitor state is on (the unit sets it, the host cannot). The remote-control feature still has no host-to-mic path. The audio is not recorded unless an alert clip is switched on, off by default.
-- Alerts on loud sound and motion; soothe by playing a sound or talking (no tone, "Talking" shown).
-- Songs: built-in soft sounds, the owner's own files from a host music folder, or Home library songs. Auto-lullaby on a cry alert is off by default, always shows "Playing", stops after 30 minutes, with a low volume cap. No outside music service.
-- Pet profile: loudness first for barking, howling and meowing; comfort with the owner's voice or calming sounds; label "Pet monitor" with a paw icon.
-- Cry and bark detection: loudness and duration first (host side). A small classifier is optional, runs on the host only, is trained or checked on real samples before it is claimed, and stays off the unit. Until measured, the docs promise "loud sound", not "cry".
-- Not promised: night vision.
+Decision 10 of 2026-11-18 (`decisions.md`): there is no baby monitor and no monitoring of a child or a person who needs care. The camera is about three frames a second at low resolution with no night vision, and frames do not reach the host yet. What stays is the camera as a convenience for a pet or a room (photos, a low-resolution look, motion and sound alerts), each with its cue, and every user page says it is not a safety device. The `monitor_audio` message type, the "Listening in" mark, the soothe "Talking" mark and the monitor songs are not built and are not planned. Reopen only with a measured camera path that meets the bar (`docs/dev/camera-quality.md`).
 
 ## Remote pan and tilt
 

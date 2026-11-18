@@ -28,7 +28,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/consolidation-2026-11-16.md` (79): One consolidated image, 2026-11-16
 - `docs/design/core-extras-modules.md` (35): Host modules: core or extras
 - `docs/design/dance-ladder-2026-11-17.md` (53): Music dance ladder and the movement limiter, 2026-11-17
-- `docs/design/decisions.md` (90): Owner decisions and corrections
+- `docs/design/decisions.md` (91): Owner decisions and corrections
 - `docs/design/egress-audit.md` (39): Firmware egress audit
 - `docs/design/egress-proof-2026-11-15.md` (30): Egress proof attempt, 2026-11-15
 - `docs/design/encrypted-link.md` (66): Encrypted link between the unit and the host
@@ -68,7 +68,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/lock-and-radio-2026-11-17.md` (53): Two new features: passcode lock and streaming radio (2026-11-17)
 - `docs/design/memory-headroom-2026-11-16.md` (66): Memory headroom, 2026-11-16
 - `docs/design/merge-2026-11-16.md` (84): Merge of tracks A and B, the token gate and the anime face, 2026-11-16
-- `docs/design/monitoring.md` (56): Monitoring modes and cues
+- `docs/design/monitoring.md` (48): Monitoring modes and cues
 - `docs/design/next-games-2026-11-17.md` (15): Next games (2026-11-17)
 - `docs/design/next-network-tools-2026-11-17.md` (23): Next: network and security tools on the robot (owner idea, 2026-11-17)
 - `docs/design/next-ui-countdown-2026-11-17.md` (40): Next UI: full-screen countdown (owner idea, 2026-11-17)
@@ -129,7 +129,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (68): no header
-- `docs/dev/feature-ledger.md` (959): Feature ledger
+- `docs/dev/feature-ledger.md` (953): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -201,7 +201,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/images/alert-screen.svg` (1): no header
 - `docs/images/api-settings.svg` (1): no header
 - `docs/images/architecture.svg` (28): no header
-- `docs/images/baby-monitor.svg` (1): no header
 - `docs/images/brain-switch.svg` (1): no header
 - `docs/images/build-light.svg` (1): no header
 - `docs/images/camera-cue.svg` (1): no header
@@ -319,9 +318,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/spec-vendor-drift.md` (6): Vendored spec drift check, owner: playground track, 2026-11-17
 - `docs/plan/undefined-host-calls-2026-11-18.md` (24): Host calls with no firmware definition (2026-11-18)
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
-- `docs/user/baby-and-pet-monitor.md` (86): Use the robot as a baby or pet monitor
 - `docs/user/bench-listening.md` (5): Listen longer on the bench (developers)
-- `docs/user/camera.md` (76): Use the camera
+- `docs/user/camera.md` (78): Use the camera
 - `docs/user/character-packs.md` (17): Character packs
 - `docs/user/coding-companion.md` (35): Use the robot as a coding companion (optional package)
 - `docs/user/compare.md` (71): Compare MaiPai for StackChan
@@ -343,8 +341,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/memory-notes.md` (30): Memory notes (optional package)
 - `docs/user/moves-and-moods.md` (85): How the robot reacts
 - `docs/user/music-and-dance.md` (35): Music and dance
-- `docs/user/mute-and-camera-off.md` (56): Mute, turn off the camera, or go fully quiet
-- `docs/user/no-stealth.md` (19): The robot never monitors in secret
+- `docs/user/mute-and-camera-off.md` (58): Mute, turn off the camera, or go fully quiet
+- `docs/user/no-stealth.md` (18): The robot never monitors in secret
 - `docs/user/parent-view.md` (37): Check on the robot from your phone
 - `docs/user/privacy.md` (64): What stays private
 - `docs/user/release-notes.md` (43): Release notes
@@ -359,7 +357,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/use-it-anywhere.md` (32): Use the robot away from home
 - `docs/user/voice.md` (83): Talk to the robot
 - `docs/user/wake-word-maker.md` (20): Make your own wake word (optional)
-- `docs/user/watch-and-alerts.md` (73): Watch your room and get alerts
+- `docs/user/watch-and-alerts.md` (75): Watch your room and get alerts
+- `docs/user/watch-the-room.md` (52): Watch the room
 - `docs/user/web-flasher.md` (18): Flash the robot from a web page
 - `docs/user/which-setup.md` (48): Which setup is right for me?
 - `docs/user/with-maipai-home.md` (55): Use MaiPai Home as the brain
@@ -662,6 +661,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX08-first-run-is-a-screen.patch` (47): Register first-run screens so they pause the animated face while visible.
 - `firmware/patches/UX09-update-refused-says-what-to-do.patch` (18): An update that is refused says what to do, not only what happened: the cover now reads Update refused, Nothing
 - `firmware/patches/UX10-plain-words-home-link-original.patch` (41): Two words a child or a parent does not know are replaced with plain ones (display only): the control sheet til
+- `firmware/patches/UX11-first-run-name-stackchan-first.patch` (138): The name step of the first run offers StackChan, the product's own name, as the first choice and the default: 
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -1011,6 +1011,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/face_table.json` (159): no header
 - `host/maipai_body/faces.py` (792): ruff: noqa: E501
 - `host/maipai_body/fillers.py` (360): ruff: noqa: E501
+- `host/maipai_body/first_run_name.py` (56): The robot's name from the first run (firmware patches SF09 and UX11).
 - `host/maipai_body/hal/__init__.py` (1): The HAL seam: ``seam`` for the typed protocols, ``errors`` for what crosses it."""
 - `host/maipai_body/hal/errors.py` (68): Errors the HAL seam raises.
 - `host/maipai_body/hal/seam.py` (427): The HAL seam every body profile implements.
@@ -1946,6 +1947,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_firmware_ui_patches.py` (133): ruff: noqa: E501
 - `host/tests/test_firmware_update_signature.py` (60): An image from Home is served to the unit only when its detached signature verifies."""
 - `host/tests/test_firmware_y_patches.py` (67): The 2026-11-16 reliability patches (Y01 to Y04): listed in ORDER, documented, and the plain-C rules compile an
+- `host/tests/test_first_run_core.py` (23): The first-run step rules (maipai_firstrun_core.h, patches UX05a and UX11) run by their C test on the replayed 
+- `host/tests/test_first_run_name.py` (73): The name picked on the robot's first run reaches the host (firmware patches SF09 and UX11, host/maipai_body/fi
 - `host/tests/test_flasher_page.py` (53): The web flasher's logic (flasher/flasher-core.js) runs under Node: manifest checks, hash checks, nothing writt
 - `host/tests/test_flasher_release_parity.py` (52): ruff: noqa: E501
 - `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
@@ -2258,7 +2261,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_unit_lock_voice.py` (200): ruff: noqa: E501
 - `host/tests/test_unit_polish_routes.py` (272): ruff: noqa: E501
 - `host/tests/test_unit_update_check.py` (298): ruff: noqa: E501
-- `host/tests/test_update_header.py` (147): The signed update header: version, build number and image hash in 64 bytes, signed with Ed25519; the unit refu
+- `host/tests/test_update_header.py` (153): The signed update header: build number, image length, image hash and board id in 56 bytes, signed with Ed25519
 - `host/tests/test_update_header_core.py` (45): The unit's update header core (firmware patch SF25) against the shared vectors of the app track (host/tests/fi
 - `host/tests/test_update_path_rejections.py` (131): ruff: noqa: E501
 - `host/tests/test_virtual_unit.py` (273): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th

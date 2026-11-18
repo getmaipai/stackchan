@@ -29,7 +29,7 @@ Voice (wake word, follow-ups, interrupt, stop, ten commands), faces and clock, t
 |---|---|
 | Camera: snapshots, face follow, wave and mirror, take my picture, name list, what is this | Needs vision, identity and storage that Home already owns |
 | Watch mode, security alarm, alerts | Alerts, recipients and quiet hours are household features |
-| Baby and pet monitor | Listening in and alerts need Home's recipients and rules |
+| Watch the room (pet or room; not a baby monitor) | Alerts need Home's recipients and rules |
 | Find my robot, remote beep, lights, talk, pan and tilt, live view | Needs accounts, a safe remote path and an activity log |
 | Games and a pet mood | Persistent state and content, a Home package |
 | Coding companion | An integration with an agent, a Home package |

@@ -98,7 +98,7 @@ Remote icon design: monochrome glyph in the face's icon strip (same size and row
 
 ## [Local, opt-in] Monitoring modes; Home adds household policy (owner request, 2026-11-15)
 
-Watch mode and alerts, baby and pet monitor, remote pan and tilt, and the rule that no monitoring is stealth: every cue comes from the one code path that opens the mic or camera. Full design, the cue table and the decisions: `docs/design/monitoring.md`. Build after the memory gate holds on the new base.
+Watch mode and alerts (a pet or a room; not a baby monitor), remote pan and tilt, and the rule that no monitoring is stealth: every cue comes from the one code path that opens the mic or camera. Full design, the cue table and the decisions: `docs/design/monitoring.md`. Build after the memory gate holds on the new base.
 
 ## [Home] Integrations host
 

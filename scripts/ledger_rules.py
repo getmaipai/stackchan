@@ -49,7 +49,7 @@ PROFILES: dict[str, dict] = {
 PAGE_PROFILE = {
     "voice.md": "voice", "lights-and-sounds.md": "lights", "face-and-look.md": "face", "moves-and-moods.md": "motion", "timers-and-alarms.md": "timers", "games-and-pet.md": "games",
     "music-and-dance.md": "music", "swipe-pages.md": "screens", "lock.md": "lock", "mute-and-camera-off.md": "privacy", "privacy.md": "privacy", "parent-view.md": "parentview",
-    "languages.md": "languages", "camera.md": "camera", "find-and-remote.md": "remote", "watch-and-alerts.md": "monitor", "baby-and-pet-monitor.md": "monitor", "memory-notes.md": "notes",
+    "languages.md": "languages", "camera.md": "camera", "find-and-remote.md": "remote", "watch-and-alerts.md": "monitor", "watch-the-room.md": "monitor", "memory-notes.md": "notes",
     "home-assistant.md": "ha", "coding-companion.md": "coding", "character-packs.md": "charpacks", "wake-word-maker.md": "wakemaker", "updates.md": "update", "web-flasher.md": "flasher",
     "use-it-anywhere.md": "travel", "security.md": "link", "home-tools.md": "home", "with-maipai-home.md": "home", "settings.md": "settings", "bench-listening.md": "voice",
     "install-the-host.md": "setup", "switch-from-the-factory-firmware.md": "setup", "no-stealth.md": "camera", "try-the-virtual-robot.md": "tools",

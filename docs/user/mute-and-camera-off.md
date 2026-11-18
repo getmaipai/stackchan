@@ -1,5 +1,7 @@
 # Mute, turn off the camera, or go fully quiet
 
+> **This is a convenience, not a safety device.** Do not rely on it to watch a baby or a person who needs care. Use a purpose-made monitor for that.
+
 You have three switches, and each one is a tap on the robot's face. They are independent, so you can use any mix. The robot remembers them after a restart.
 
 ## The three switches

@@ -8,7 +8,7 @@ Privacy keeps your data in your home. Security keeps other people out. This page
 - **Revocable access.** Pairing creates a long random token, stored hashed on the host. Run `stackchan forget` and that token stops working.
 - **Tokens on everything that is on.** The local API, event stream and metrics are off by default. When you turn one on, every read and write needs a token.
 - **Signed updates.** <span class="planned-tag">Planned</span> The signature check and the rollback are built, but no release key exists yet and no signed image has been installed on a robot. Until a release is signed, do not rely on this.
-- **Remote control is off by default.** When you turn it on, every remote action needs your token and shows a Remote icon on the robot. There is no remote listening in remote control. The one exception is baby monitor, which only starts on the robot itself and always shows it on the screen.
+- **Remote control is off by default.** When you turn it on, every remote action needs your token and shows a Remote icon on the robot. There is no remote listening in remote control, and no mode that streams the robot's microphone to a phone.
 - **The camera cue cannot be switched off.** When the camera streams, the screen always shows it.
 
 ![The web security page listing paired devices, with a Forget button next to each.](../images/security-settings.svg)

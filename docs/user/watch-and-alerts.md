@@ -1,5 +1,7 @@
 # Watch your room and get alerts
 
+> **This is a convenience, not a safety device.** Do not rely on it to watch a baby or a person who needs care. Use a purpose-made monitor for that.
+
 <span class="planned-tag">Planned</span> Watching is planned to run on your own host, opt-in, off by default, with a cue that cannot be hidden. Frames and audio stay on your host. Alerts shared across the household, and storage across rooms, need <span class="home-tag">Needs MaiPai Home</span>.
 
 
