@@ -5,6 +5,8 @@
 Say the wake word, then "set a timer for ten minutes". The screen shows a ring that empties as time runs out.
 When the time is up the robot plays a tone and shows a pulsing icon. Say "stop" or touch the robot to end it.
 
+![The timers page with nothing running and three buttons to start a timer: plus 1, plus 5 and plus 10 minutes.](../images/vu-timers.png)
+
 When it rings, the light bars pulse cyan <img src="../images/light-cyan.svg" alt="cyan light bars" height="22"> and the robot plays its tone now and every 8 seconds, until you touch it or say "stop". [All lights and sounds](lights-and-sounds.md).
 
 ![The ring timer at 60 percent, with the time left in the middle.](../images/timer-ring.svg)

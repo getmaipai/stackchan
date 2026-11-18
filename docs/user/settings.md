@@ -3,6 +3,8 @@
 You will find the same settings in three places: the `robot.toml` file, the settings page on your host and the robot itself. Wi-Fi is set on the robot's own setup screen, not on the host's page.
 Changing a setting never needs a reflash.
 
+![The on-robot settings, General page, with Volume and Brightness sliders.](../images/vu-settings-general.png)
+
 ## Face style (`face_style`)
 
 Picks the look of the face. Packs: big eyes and minimal. The settings page on your host shows a preview.

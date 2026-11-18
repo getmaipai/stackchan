@@ -9,6 +9,8 @@ The host is the program that runs on your computer, between the robot and your m
 3. You'll know it worked when `stackchan --help` lists its commands.
 4. Run `stackchan run` to start the host. It stays in the terminal and prints what it does. The first run writes `~/.config/maipai/robot.toml` for you to edit.
 
+![The robot's screen while it waits to be approved: crossed-out signal bars and a key, and the words "Waiting for Home to approve me".](../images/vu-pairing.png)
+
 No Docker is needed.
 
 ## Start it when the computer starts

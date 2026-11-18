@@ -28,6 +28,8 @@ The same keys appear in `robot.toml`, in the settings page on your host and on t
 3. The robot downloads the image and checks its signature. An image with a bad signature is refused.
 4. It restarts. If it does not pass its health check in 60 seconds, it rolls back to the old version by itself. You'll know it worked when the robot shows the new version on its settings page.
 
+![The update screen at 62 percent, with the words "Do not unplug".](../images/vu-update.png)
+
 ![The update-ready card with Install and Release notes buttons.](../images/update-ready.svg)
 
 ## Updates over Wi-Fi

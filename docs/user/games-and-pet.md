@@ -7,6 +7,8 @@ The games and the pet mood run on the robot itself, so they work with your own L
 
 Every game is full height. Swipe down on the bar at the top to leave. Game sounds are at chime level and follow the system volume. Reaction Time is gone.
 
+![The Games wall: a colored tile per game with its best score.](../images/vu-games.png)
+
 ![The Games wall on the robot: big colored tiles with a picture and a best score for each game.](../images/unit-games-page.png)
 
 The robot has seven games, all on the flashed robot. The talk games are built but not flashed yet, and not tested with a live model. No finger has been tested on the glass by a person. They run on the robot itself, so they work even when MaiPai Home is off.

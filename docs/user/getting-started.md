@@ -39,6 +39,26 @@ How fast and how well the robot answers depends on your model and its hardware. 
 
 If the light bars pulse cyan slowly <img src="../images/light-cyan.svg" alt="cyan light bars" height="22"> and you hear two rising notes, the robot needs you: it is waiting for Wi-Fi details or for the pairing code.
 
+## First start on the robot
+
+The first time it starts, the robot asks four things on its own screen.
+
+1. Pick a language.
+
+   ![First start, step 1: pick a language. Six buttons: English, Español, Français, Deutsch, Português and Italiano.](../images/vu-first-run-language.png)
+
+2. Pick a name. You can change it later.
+
+   ![First start, step 2: What should I be called? Six names to pick from.](../images/vu-first-run-name.png)
+
+3. Choose how it thinks: pair with MaiPai Home, or use your own model.
+
+   ![First start, step 3: How should I think? Pair with MaiPai Home, or Use my own model. Both stay in your home.](../images/vu-first-run-mode.png)
+
+4. It says "All set!"
+
+   ![First start, last step: the words All set!](../images/vu-first-run-done.png)
+
 ## If the robot cannot join Wi-Fi
 
 It opens a setup page. Connect your phone to the network named `stackchan-` and four letters or digits. The robot's screen shows a six-digit setup code. Open the page, pick your Wi-Fi, enter the password, the host address and the code. The page stays open after a network is saved, so you can add more than one: tap Finish when you are done. The code changes every few minutes, and five wrong tries lock that window. <span class="planned-tag">Planned</span> The new hotspot name, the page that stays open for several networks and the Finish button are built but not flashed and not tested on a robot yet.

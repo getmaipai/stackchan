@@ -35,6 +35,8 @@ When you connect MaiPai Home, Home puts the firmware build on the robot that has
 2. Set `brain = "home"` and `home_url` to the hub address, for example `http://192.0.2.20:3000`.
 3. Run `stackchan check`. You'll know it worked when the check lists Home as the brain and every line says ok.
 
+![The robot's screen while it waits for MaiPai Home to approve it: crossed-out signal bars and a key.](../images/vu-pairing.png)
+
 The robot is not reflashed. Set `brain = "llm"` to go back. Your timers, faces and settings stay.
 
 ![The web page with the brain choice set to MaiPai Home.](../images/brain-switch.svg)

@@ -33,6 +33,8 @@ The robot returns to the face when:
 
 You choose up to three pages on each side of the face. A page appears once. Until you choose, the clock is on the left and the games are on the right.
 
+![The clock page.](../images/vu-clock.png)
+
 - **Clock.** Big digits or a ring, dimmed at night. It shows a dash until the robot knows the time.
 - **Timers.** Your running timers with a cancel button, and three buttons to start 1, 5 or 10 minutes.
 - **Games.** Each game with your best score. Press a row to play.
@@ -45,6 +47,8 @@ The banner row at the top and the subtitles at the bottom stay where they are wh
 ## The control sheet
 
 It shows volume and brightness sliders, a line with the Wi-Fi signal, the time and the battery, and one row of six buttons: Mute, Quiet, Lock, Apps, Games and Settings. The listening light switch is in Settings, on the General tab. Settings also has the Network tab (saved Wi-Fi networks and the network test), the Faces tab, and an Info tab that shows the firmware version and other details directly, with no hidden taps.
+
+![The control sheet: volume and brightness sliders, the time, Wi-Fi and battery, and the buttons Mute, Sleep, Lock, Apps, Games and Setup.](../images/vu-control-sheet.png)
 
 ![The Info tab on the robot, showing firmware version, image and slot.](../images/unit-info-tab.png)
 
