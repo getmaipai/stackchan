@@ -416,7 +416,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (240): no header
+- `firmware/patches/ORDER` (241): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window (safety-and-privacy.md finding 4). A new six-digit setup code is made each time setup
@@ -446,6 +446,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/S13-seek-wire-core-and-camera-grab.patch` (865): The wiring of the seek core to the unit, the pure part (hal/maipai_seek_wire_core.h), and the two hardware rea
 - `firmware/patches/S14-seek-task-tools-and-setting.patch` (482): Turning toward a person, on the unit (owner brief 2026-11-17). A task of priority 1 on core 0 (below the face 
 - `firmware/patches/SF01-time-helper-lock-and-remote-safety.patch` (700): Safety fix, train 1. One shared millisecond-stamp helper (maipai_time_core.h) and its uses: hold, quiet, grace
+- `firmware/patches/SF02-hello-gate-switches-banner-and-light-safety.patch` (540): Safety fix, train 2. Server hello is taken only as the answer to the unit's own hello; the receive buffer is p
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1595,6 +1596,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/stackchan/vision-labels.json` (50): no header
 - `host/tests/fixtures/stackchan/vision-persona-free.json` (1): no header
 - `host/tests/fixtures/stackchan/vision-persona-free.npy` (1): no header
+- `host/tests/golden/face-known.json` (43): no header
 - `host/tests/kinematic_double.py` (106): A command-driven test double for the state feed.
 - `host/tests/ladder_fakes.py` (38): Shared fakes for the offline-ladder suites: an injected clock and a
 - `host/tests/motor_fakes.py` (88): A scripted motor bus for the MOTOR-RECOVER-01 suite: the daemon's motor mode,
@@ -1935,7 +1937,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_unit_lock_voice.py` (200): ruff: noqa: E501
 - `host/tests/test_unit_polish_routes.py` (271): ruff: noqa: E501
 - `host/tests/test_unit_update_check.py` (298): ruff: noqa: E501
-- `host/tests/test_virtual_unit.py` (134): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
+- `host/tests/test_virtual_unit.py` (140): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
 - `host/tests/test_virtual_unit_parity.py` (37): Tool parity: every firmware tool is either simulated or a named gap. Unsimulated tools xfail (strict), so this
 - `host/tests/test_vision_align.py` (113): FACE-01's own alignment math, checked against known transforms -
 - `host/tests/test_vision_capture.py` (47): The still-image call's bot-side capture path
@@ -2000,7 +2002,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-serial.py` (289): Bench helper for the unit on the USB cable (bench builds only; see patch V01 and H01).
 - `scripts/fw-stress.py` (175): Memory gate stress run for the unit on the USB cable, with the memory line on.
 - `scripts/fw-tailnet.sh` (45): download the pinned private-network client (firmware/tailnet/PIN) into a folder outside the firmware tree,
-- `scripts/fw-voice-bench.py` (102): Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 an
+- `scripts/fw-voice-bench.py` (138): Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 an
 - `scripts/game-pack.py` (556): ruff: noqa: E501
 - `scripts/hygiene-check.sh` (45): block British spellings (American only), any mention of projects we studied (private word list), em dashes and
 - `scripts/install-hooks.sh` (6): point this clone at the tracked hooks (repo-local config only, never global).
@@ -2021,6 +2023,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/build-screens.sh` (27): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
 - `scripts/virtual-unit/cover_gen.py` (37): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
 - `scripts/virtual-unit/cover_render.cc` (130): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
+- `scripts/virtual-unit/face_consistency.py` (96): Face consistency across the five styles and the emotions (U-1): white faces, a mouth wide enough to read, no h
 - `scripts/virtual-unit/scenarios.py` (151): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/tools_extract.py` (82): Write schema/tools.json: every MCP tool name the firmware patches register, with the patch that adds it.
 - `scripts/virtual-unit/view.html` (69): c{position:fixed;left:0;top:0;width:100%;height:100%}

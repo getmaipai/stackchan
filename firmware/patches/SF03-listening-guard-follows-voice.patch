@@ -1,0 +1,74 @@
+# Intent: A listening turn is no longer cut 8 s after it began. The state guard now returns Listening to Idle after 8 s with no voice (counted from the entry or from the last voice heard) and never later than 60 s after the entry (pure rule in maipai_listen_guard_core.h). A long first sentence after the wake word is heard to its end.
+# Placement: unit (the listening state machine runs on the robot)
+# Upstream: firmware/xiaozhi-esp32/main/application.cc of the xiaozhi-esp32 tree (MIT)
+# Check after a flash: speak a sentence of 12 seconds after the wake word: the log shows no 'State guard returning listening to idle' until 8 seconds after the last word, and the reply starts; scripts/fw-voice-bench.py ROUNDS --gate passes.
+# Kconfig: none
+
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -28,6 +28,7 @@
+ #include <hal/maipai_lat.h>
+ #include <esp_timer.h>
+ #include <esp_log.h>
++#include <hal/maipai_listen_guard_core.h>
+ #include <arpa/inet.h>
+ #include <cJSON.h>
+ #include <cstring>
+@@ -38,6 +39,7 @@
+ // Patch L03: how long the unit keeps listening for a follow-up, with no wake word, before it goes back to idle.
+ // It was 20 s: with no echo canceller the unit heard its own reply and the room (a fan) and the host answered it.
+ static constexpr uint32_t kFollowUpListenSeconds = 8;
++static constexpr uint32_t kListenCapSeconds = 60;  // patch SF03: a turn is never held open longer than this
+ 
+ #ifdef CONFIG_MAIPAI_SERIAL_TOOLS
+ volatile unsigned g_lat_ul_count = 0;
+@@ -237,6 +239,7 @@ void Application::Run() {
+     static uint32_t guard_clock = 0;
+     static auto guard_last_state = GetDeviceState();
+     static uint32_t guard_since_tick = 0;
++    static uint32_t guard_voice_tick = 0;  // patch SF03: the last tick with voice heard while listening
+     while (true) {
+         auto bits = xEventGroupWaitBits(event_group_, ALL_EVENTS, pdTRUE, pdFALSE, portMAX_DELAY);
+ 
+@@ -347,8 +350,13 @@ void Application::Run() {
+                 guard_since_tick = guard_clock;
+             } else {
+                 const uint32_t held = guard_clock - guard_since_tick;
++                if (guard_state == kDeviceStateListening && audio_service_.IsVoiceDetected()) {
++                    guard_voice_tick = guard_clock;
++                }
++                const uint32_t last_voice = (guard_voice_tick - guard_since_tick < 0x80000000u) ? guard_voice_tick : guard_since_tick;
+                 if ((guard_state == kDeviceStateConnecting && held >= 8) ||
+-                    (guard_state == kDeviceStateListening && held >= kFollowUpListenSeconds)) {
++                    (guard_state == kDeviceStateListening &&
++                     mlg_should_end(held, guard_clock - last_voice, kFollowUpListenSeconds, kListenCapSeconds))) {
+                     ESP_LOGW(TAG, "State guard returning %s to idle after %u seconds",
+                              DeviceStateMachine::GetStateName(guard_state),
+                              static_cast<unsigned>(held));
+diff --git a/firmware/main/hal/maipai_listen_guard_core.h b/firmware/main/hal/maipai_listen_guard_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_listen_guard_core.h
+@@ -0,0 +1,21 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * When the state guard may return Listening to Idle (patch SF03). Plain C99. The old rule ended every listening state 8 s after it
++ * began, which cut a long sentence in the middle and never told the host. The new rule: end it after follow_up_s seconds with no
++ * voice (counted from the entry or from the last voice heard, whichever is later), and never later than cap_s seconds after the entry.
++ * Host test: host/tests/firmware/listen_guard_core_test.c.
++ */
++#ifndef MAIPAI_LISTEN_GUARD_CORE_H
++#define MAIPAI_LISTEN_GUARD_CORE_H
++
++#include <stdint.h>
++
++/* held_s: seconds since the state began. silent_s: seconds since the later of the entry and the last voice. */
++static inline int mlg_should_end(uint32_t held_s, uint32_t silent_s, uint32_t follow_up_s, uint32_t cap_s)
++{
++    if (held_s >= cap_s) return 1;
++    return silent_s >= follow_up_s;
++}
++
++#endif /* MAIPAI_LISTEN_GUARD_CORE_H */

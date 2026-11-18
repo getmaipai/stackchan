@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 and L06).
 
-  fw-voice-bench.py ROUNDS [LOG]     reset the unit, wait, then ROUNDS times: inject the wake phrase and a question, read the trace
+  fw-voice-bench.py ROUNDS [LOG] [--gate]     (--gate exits 1 when a spoken turn got no reply or a host error line appeared)
+  reset the unit, wait, then ROUNDS times: inject the wake phrase and a question, read the trace
 
 Intent: put numbers on the voice path so a memory change can be judged against another image: wake event to listening sound
 queued (ms), output gaps and slow outputs per minute of speech, replies that started, the lowest free stack of the audio
@@ -26,10 +27,39 @@ spec.loader.exec_module(fw_serial)  # type: ignore[union-attr]
 
 LAT = re.compile(r"LAT: (\d+) (\S+)(.*)")
 
+# Serial lines that mean the host or the link failed during a spoken turn (--gate fails on any of them).
+HOST_ERRORS = [
+    r"Failed to receive server hello",
+    r"TIMEOUT inject",
+    r"WebSocket (?:error|disconnected)",
+    r"Server timeout",
+    r"stt[_ ](?:error|failed)",
+    r"tts[_ ](?:error|failed)",
+    r"Guru Meditation",
+    r"task_wdt: Task watchdog",
+]
+
+
+def gate_verdict(text: str, rounds: int, replies: int) -> list[str]:
+    """Why a spoken-turn gate fails, in plain words; empty when it passes. `replies` counts tts_start trace points."""
+    failures = []
+    if replies < rounds:
+        failures.append(f"only {replies} of {rounds} spoken turns got a reply that started; check the host's speech address and the listening guard")
+    for pattern in HOST_ERRORS:
+        hits = re.findall(pattern, text)
+        if hits:
+            failures.append(f"{len(hits)} serial line(s) match {pattern!r}; open the log and read the lines before the first one")
+    resets = len(re.findall(r"rst:0x", text))
+    if resets > 1:
+        failures.append(f"{resets - 1} unexpected reset(s) during the run")
+    return failures
+
 
 def main() -> int:
-    rounds = int(sys.argv[1]) if len(sys.argv) > 1 else 6
-    out = sys.argv[2] if len(sys.argv) > 2 else "fw-voice-bench.log"
+    args = [a for a in sys.argv[1:] if a != "--gate"]
+    gate = "--gate" in sys.argv[1:]
+    rounds = int(args[0]) if len(args) > 0 else 6
+    out = args[1] if len(args) > 1 else "fw-voice-bench.log"
     log = open(out, "w")
     lines: list[tuple[float, str]] = []
 
@@ -95,6 +125,12 @@ def main() -> int:
     print(f"  lowest free stack (last stk line): {audio}")
     print(f"  resets {len(re.findall(r'rst:0x', text))} (1 is the start), task_wdt {len(re.findall('task_wdt: Task watchdog', text))}, panics {len(re.findall('Guru Meditation|abort[(][)] was called', text))}")
     print(f"  camera frame: {photo}")
+    if gate:
+        failures = gate_verdict(text, rounds, replies)
+        for f in failures:
+            print(f"GATE FAIL: {f}")
+        print("GATE " + ("FAIL" if failures else "PASS"))
+        return 1 if failures else 0
     return 0
 
 
