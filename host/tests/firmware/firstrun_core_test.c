@@ -77,7 +77,7 @@ int main(void)
     CHECK(mfr_choose_language(&m, MFR_LANG_COUNT) == 0);
     CHECK(mfr_choose_language(&m, MFR_LANG_FR));
     CHECK(mfr_choose_name(&m, -1) == 0 && m.step == MFR_NAME);
-    CHECK(mfr_choose_name(&m, 6) == 0);
+    CHECK(mfr_choose_name(&m, MFR_NAME_COUNT) == 0 && m.step == MFR_NAME);   /* seven names: 0 to 6; 7 is not one */
     CHECK(mfr_choose_name(&m, 0));
     CHECK(m.step == MFR_WIFI);
     CHECK(mfr_choose_mode(&m, MFR_MODE_HOME) == 0 && m.step == MFR_WIFI);
@@ -87,6 +87,22 @@ int main(void)
     CHECK(mfr_ack_privacy(&m));
     mfr_back(&m);
     CHECK(m.step == MFR_DONE);
+    /* patch UX11: StackChan is the first tile and the default, saved as index 6, exactly as picked; the six older names keep their indexes */
+    {
+        mfr_t n;
+        mfr_init(&n, 1, 0);
+        CHECK(mfr_choose_language(&n, MFR_LANG_FR));
+        CHECK(n.name == -1 && mfr_name_shown(&n) == MFR_NAME_STACKCHAN);       /* nothing picked: StackChan shows as the default */
+        CHECK(mfr_name_at_slot(0) == MFR_NAME_STACKCHAN && mfr_name_at_slot(1) == 0 && mfr_name_at_slot(6) == 5);
+        int seen[MFR_NAME_COUNT] = {0};
+        for (int slot = 0; slot < MFR_NAME_COUNT; slot++) seen[mfr_name_at_slot(slot)]++;
+        for (int i = 0; i < MFR_NAME_COUNT; i++) CHECK(seen[i] == 1);          /* every name is on the screen once */
+        CHECK(mfr_choose_name(&n, MFR_NAME_STACKCHAN) && n.name == 6);
+        CHECK(mfr_name_shown(&n) == 6 && (n.answered_mask & MFR_ANSWER_NAME));
+        mfr_back(&n);
+        CHECK(n.step == MFR_NAME && n.name == 6);                                /* back keeps the answer */
+        CHECK(mfr_choose_name(&n, 2) && n.name == 2 && mfr_name_shown(&n) == 2);   /* another name replaces it exactly */
+    }
     puts("firstrun_core_test: all passed");
     return 0;
 }

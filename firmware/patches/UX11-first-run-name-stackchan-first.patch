@@ -1,0 +1,138 @@
+# Intent: The name step of the first run offers StackChan, the product's own name, as the first choice and the default: a wide tile at the top, highlighted until another name is picked, then the six names that shipped first (Astro, Clover, Ember, Nova, Pippa, Rover) below it. The saved value is the index exactly as picked, with StackChan as 6 so a unit that finished the first run before keeps its meaning. The hint under the tiles now says where to type your own name, because the flow has no keyboard: later, on the settings page. Display and flow only; no new wiring, the unit already saves the index (SF09) and tells the host in first_run_done.
+# Placement: unit (the first run runs on the robot with no host)
+# Upstream: firmware/main/hal/maipai_firstrun.cc and maipai_firstrun_core.h (ours)
+# Check after a flash: wipe the first-run record, start the flow, and on the name step see StackChan first and highlighted, six other names under it, and the hint in the chosen language; pick StackChan, finish, and self.device.get_events shows first_run_done with name 6.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_firstrun.cc b/firmware/main/hal/maipai_firstrun.cc
+index 051218f..cdda603 100644
+--- a/firmware/main/hal/maipai_firstrun.cc
++++ b/firmware/main/hal/maipai_firstrun.cc
+@@ -24,31 +24,31 @@ namespace {
+           "How should I think?", "Private by design", "All set!"},
+          "Let's join your Wi-Fi", "How should I think?", "Pair with MaiPai Home", "Use my own model",
+          "Both stay in your home.", "Private by design", "Your voice and pictures stay in your home.",
+-         "Nothing goes to the internet unless you turn it on.", "Got it", "All set!", "You can change it later."},
++         "Nothing goes to the internet unless you turn it on.", "Got it", "All set!", "Type your own name later, on the settings page."},
+         {{"¡Hola! Elige tu idioma", "¿Cómo me llamo?", "Conectemos tu Wi-Fi", "¿Cómo debo pensar?", "Privado por diseño", "¡Todo listo!"},
+          "Conectemos tu Wi-Fi", "¿Cómo debo pensar?", "Vincular MaiPai Home", "Usar mi propio modelo",
+          "Ambos quedan en casa.", "Privado por diseño", "Tu voz y fotos quedan en casa.",
+-         "Nada va a internet si no lo activas.", "Entendido", "¡Todo listo!", "Puedes cambiarlo luego."},
++         "Nada va a internet si no lo activas.", "Entendido", "¡Todo listo!", "Escribe tu propio nombre luego, en la página de ajustes."},
+         {{"Bonjour ! Choisissez", "Comment m'appeler ?", "Rejoignons votre Wi-Fi", "Comment penser ?", "Privé par design", "Tout est prêt !"},
+          "Rejoignons votre Wi-Fi", "Comment penser ?", "Associer MaiPai Home", "Mon propre modèle",
+          "Les deux restent chez vous.", "Privé par design", "Voix et photos restent chez vous.",
+-         "Rien ne va sur internet sans accord.", "Compris", "Tout est prêt !", "Changez-le plus tard."},
++         "Rien ne va sur internet sans accord.", "Compris", "Tout est prêt !", "Tapez votre propre nom plus tard, dans les réglages."},
+         {{"Hallo! Sprache wählen", "Wie soll ich heißen?", "WLAN verbinden",
+           "Wie soll ich denken?", "Privat von Anfang an", "Alles bereit!"},
+          "WLAN verbinden", "Wie soll ich denken?", "Mit MaiPai Home koppeln", "Eigenes Modell nutzen",
+          "Beides bleibt zu Hause.", "Privat von Anfang an", "Stimme und Bilder bleiben zu Hause.",
+-         "Nichts geht ohne Freigabe ins Netz.", "Verstanden", "Alles bereit!", "Später ändern möglich."},
++         "Nichts geht ohne Freigabe ins Netz.", "Verstanden", "Alles bereit!", "Eigenen Namen später in den Einstellungen eingeben."},
+         {{"Olá! Escolha o idioma", "Como devo me chamar?", "Conectar ao Wi-Fi", "Como devo pensar?", "Privado por design", "Tudo pronto!"},
+          "Conectar ao Wi-Fi", "Como devo pensar?", "Parear com MaiPai Home", "Usar meu modelo",
+          "Ambos ficam em casa.", "Privado por design", "Voz e fotos ficam em casa.",
+-         "Nada vai a internet sem sua permissão.", "Entendi", "Tudo pronto!", "Pode mudar depois."},
++         "Nada vai a internet sem sua permissão.", "Entendi", "Tudo pronto!", "Digite seu próprio nome depois, nas configurações."},
+         {{"Ciao! Scegli la lingua", "Come mi chiamo?", "Connetti il Wi-Fi", "Come devo pensare?", "Privato per design", "Tutto pronto!"},
+          "Connetti il Wi-Fi", "Come devo pensare?", "Abbina MaiPai Home", "Usa il mio modello",
+          "Entrambi restano a casa.", "Privato per design", "Voce e foto restano a casa.",
+-         "Nulla va online senza permesso.", "Capito", "Tutto pronto!", "Puoi cambiarlo dopo."}
++         "Nulla va online senza permesso.", "Capito", "Tutto pronto!", "Scrivi il tuo nome dopo, nelle impostazioni."}
+     };
+     const char* langs[6] = {"English", "Español", "Français", "Deutsch", "Português", "Italiano"};
+-    const char* names[6] = {"Astro", "Clover", "Ember", "Nova", "Pippa", "Rover"};
++    const char* names[MFR_NAME_COUNT] = {"Astro", "Clover", "Ember", "Nova", "Pippa", "Rover", "StackChan"};   // by saved index; the screen shows StackChan first
+     const lv_font_t* f16 = maipai_ui_style::small_font();
+     const lv_font_t* f24 = maipai_ui_style::big_font();
+     maipai_firstrun_host_t H{};
+@@ -115,7 +115,7 @@ namespace {
+             draw(flow.step);
+             return;
+         }
+-        if (code >= 10 && code < 16 && flow.step == MFR_NAME) {
++        if (code >= 10 && code < 10 + MFR_NAME_COUNT && flow.step == MFR_NAME) {
+             mfr_choose_name(&flow, code - 10);
+             draw(flow.step);
+             return;
+@@ -183,17 +183,19 @@ namespace {
+         lv_obj_t* title = label(root, w.title[step], fit_font(w.title[step], tw),
+                                 maipai_ui_style::text(), tw);
+         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
+-        if (step == MFR_LANGUAGE || step == MFR_NAME) {
+-            const char** items = step == MFR_LANGUAGE ? langs : names;
++        if (step == MFR_LANGUAGE) {
+             for (int i = 0; i < 6; i++) {
+-                add_button(root, 8 + (i % 3) * 102, 70 + (i / 3) * 64, 96, 56, items[i],
+-                           step == MFR_LANGUAGE ? i : 10 + i,
+-                           step == MFR_LANGUAGE ? language == i : flow.name == i);
++                add_button(root, 8 + (i % 3) * 102, 70 + (i / 3) * 64, 96, 56, langs[i], i, language == i);
+             }
+-            if (step == MFR_NAME) {
+-                lv_obj_t* h = label(root, w.change, f16, maipai_ui_style::muted(), 300);
+-                lv_obj_align(h, LV_ALIGN_BOTTOM_MID, 0, -8);
++        } else if (step == MFR_NAME) {
++            // StackChan first, wide, and highlighted until another name is picked; the six others below it. A tap picks and goes on.
++            const int shown = mfr_name_shown(&flow);
++            add_button(root, 8, 48, 304, 44, names[MFR_NAME_STACKCHAN], 10 + MFR_NAME_STACKCHAN, shown == MFR_NAME_STACKCHAN, true);
++            for (int i = 0; i < 6; i++) {
++                add_button(root, 8 + (i % 3) * 102, 98 + (i / 3) * 44, 96, 40, names[i], 10 + i, shown == i);
+             }
++            lv_obj_t* h = label(root, w.change, f16, maipai_ui_style::muted(), 304);
++            lv_obj_align(h, LV_ALIGN_BOTTOM_MID, 0, -4);
+         } else if (step == MFR_BRAIN) {
+             const bool both_big = fit_font(w.home, 264) == f24 && fit_font(w.own, 264) == f24;
+             // patch UX05b: the two buttons share one size
+@@ -226,6 +228,7 @@ void maipai_firstrun_start() {
+ }
+ 
+ void maipai_firstrun_show_step(int step, int lang, int selected_mode) {
++    flow.name = -1;   // a preview shows the name step as it is before anyone has picked: StackChan highlighted
+     language = lang;
+     mode = selected_mode;
+     draw(step);
+diff --git a/firmware/main/hal/maipai_firstrun_core.h b/firmware/main/hal/maipai_firstrun_core.h
+index 3ee0208..6e134f2 100644
+--- a/firmware/main/hal/maipai_firstrun_core.h
++++ b/firmware/main/hal/maipai_firstrun_core.h
+@@ -23,6 +23,11 @@ enum {
+     MFR_LANG_COUNT
+ };
+ 
++/* The name step offers seven names. The saved value is the index below, exactly as picked: 0 to 5 are the names that shipped first (Astro to Rover), so a unit that finished the flow
++ * before keeps its meaning, and 6 is the product's own name, StackChan, which the screen shows first and highlights as the default. */
++#define MFR_NAME_COUNT 7
++#define MFR_NAME_STACKCHAN 6
++
+ enum {
+     MFR_MODE_NONE = -1,
+     MFR_MODE_HOME = 0,
+@@ -71,7 +76,7 @@ static inline int mfr_choose_language(mfr_t* m, int lang)
+ 
+ static inline int mfr_choose_name(mfr_t* m, int idx)
+ {
+-    if (m->step != MFR_NAME || idx < 0 || idx > 5) {
++    if (m->step != MFR_NAME || idx < 0 || idx >= MFR_NAME_COUNT) {
+         return 0;
+     }
+     m->name = (int8_t)idx;
+@@ -80,6 +85,18 @@ static inline int mfr_choose_name(mfr_t* m, int idx)
+     return 1;
+ }
+ 
++/* The name shown as chosen on the name step: the answer given, or StackChan until one is given. */
++static inline int mfr_name_shown(const mfr_t* m)
++{
++    return m->name >= 0 ? m->name : MFR_NAME_STACKCHAN;
++}
++
++/* The screen order of the seven tiles: StackChan first, then the six others in their old order. slot 0 to 6 -> saved index. */
++static inline int mfr_name_at_slot(int slot)
++{
++    return slot == 0 ? MFR_NAME_STACKCHAN : slot - 1;
++}
++
+ static inline int mfr_wifi_done(mfr_t* m)
+ {
+     if (m->step != MFR_WIFI || m->wifi_set) {

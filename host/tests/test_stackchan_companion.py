@@ -46,6 +46,7 @@ def test_dances_and_event_kinds_export_the_supported_sets():
     assert DANCES == BUILTIN_DANCES | EXTRA_DANCES
     assert EVENT_KINDS == frozenset(
         {
+            "first_run_done",
             "head_touch",
             "head_swipe_forward",
             "head_swipe_back",

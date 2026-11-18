@@ -130,7 +130,7 @@ def test_units_and_name_commands(tmp_path, monkeypatch, capsys):
     assert cli._units_or_name(args(command="units", host_url="x"), config, pairing) == 0
     out = capsys.readouterr().out
     assert f"kitchen: {KITCHEN}, online" in out and f"den: {DEN}, offline" in out
-    assert "StackChan ee:03: aa:bb:cc:dd:ee:03, offline" in out  # unnamed: a label from its id
+    assert "StackChan: aa:bb:cc:dd:ee:03, offline" in out  # unnamed: the default name, the first tile of the robot's name step (UX11)
     assert (
         cli._units_or_name(
             args(command="name", unit="aa:bb:cc:dd:ee:03", new_name="Attic"), config, pairing

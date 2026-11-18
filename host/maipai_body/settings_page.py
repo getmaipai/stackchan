@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
+from maipai_body.first_run_name import DEFAULT_NAME
 from maipai_body import character_pack as character_pack_mod
 from maipai_body import faces as face_settings
 from maipai_body import overlays as overlays_mod
@@ -171,7 +172,7 @@ class SettingsBackend:
             units.append(
                 {
                     "device_id": device_id,
-                    "name": own.get("name", f"StackChan {device_id[-5:]}"),
+                    "name": own.get("name", DEFAULT_NAME),
                     "wifi": "unknown" if wifi is None else ("set" if wifi else "unset"),
                     "persona": own.get("persona", ""),
                     "llm": own.get("llm", {"url": "", "model": "", "api_key_env": ""}),

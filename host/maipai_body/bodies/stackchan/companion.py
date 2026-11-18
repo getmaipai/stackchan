@@ -21,6 +21,7 @@ DANCES = BUILTIN_DANCES | EXTRA_DANCES
 # Screen-touch diagnostics from firmware patch 046: logged by the host, never a reason to react.
 DIAGNOSTIC_KINDS = frozenset(
     {
+        "first_run_done",
         "touch_down",
         "touch_up",
         "face_pressed",

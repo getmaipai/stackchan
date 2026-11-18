@@ -17,6 +17,7 @@ from typing import Any
 
 from maipai_body.brain.interface import TurnRequest
 from maipai_body.config import RobotConfig
+from maipai_body.first_run_name import DEFAULT_NAME, disambiguate
 from maipai_body.unit_settings import DAYS, UnitSettingsStore
 
 BrainFactory = Callable[[RobotConfig], Any]
@@ -193,7 +194,7 @@ class UnitRegistry:
         config = self.config_for(device_id)
         return {
             "device_id": device_id,
-            "name": own.get("name", f"StackChan {device_id[-5:]}"),
+            "name": own.get("name", DEFAULT_NAME),
             "model": config.llm.model,
             "persona": config.llm.persona,
             "volume_cap": self.volume_cap_for(device_id),
@@ -248,12 +249,12 @@ def known_units(
         rows.append(
             {
                 "device_id": device_id,
-                "name": own.get("name", f"StackChan {device_id[-5:]}"),
+                "name": own.get("name", DEFAULT_NAME),
                 "paired": any(_norm(p) == key for p in paired),
                 "online": None if online is None else any(_norm(o) == key for o in online),
             }
         )
-    return sorted(rows, key=lambda r: (r["name"].lower(), r["device_id"]))
+    return sorted(disambiguate(rows), key=lambda r: (r["name"].lower(), r["device_id"]))
 
 
 def default_unit(rows: list[dict[str, Any]]) -> str | None:

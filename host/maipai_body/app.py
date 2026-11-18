@@ -272,6 +272,7 @@ class StackChanBehavior:
         # Events of every other connected unit, read once a second: handlers are called as (device_id, events). The first
         # unit's events go through wake_on_touch; touch reactions, the music dance and self-heal stay with that unit.
         self.other_unit_event_handlers: list[Callable[[str, list], None]] = []
+        self.first_run_hook: Callable[[str | None, dict], object] | None = None  # the name picked on the robot's first run (first_run_name.py)
         self.primary_unit: Callable[[], str | None] = lambda: None
         self.unit_facts: Any = (
             None  # link.checkin.UnitFacts: the latest boot, memory and firmware facts
@@ -2220,6 +2221,8 @@ def _wire_light_and_health(voice, behavior: StackChanBehavior, avatar, sounds, p
         updater = getattr(behavior, "firmware_updater", None)
         if updater is not None and kind.startswith("firmware_update_"):
             updater.on_unit_event(kind, extra, time.time())
+        if kind == "first_run_done" and behavior.first_run_hook is not None:
+            behavior.first_run_hook(getattr(behavior, "primary_unit", lambda: None)(), extra)
 
     behavior.on_unit_event = _heal_event
     avatar.unit_idle = lambda: not behavior._active.is_set()
@@ -3355,7 +3358,18 @@ _IDLE_LEVELS = {"off": "still", "calm": "calm", "lively": "lively"}
 
 def _wire_look_owner(voice, units, behavior, polish, stop_event) -> None:
     """Who turns toward faces (look_owner.py): the heartbeat that holds the unit's owner lease while the Home hub's tracking runs."""
+    from maipai_body.first_run_name import FirstRunNames
     from maipai_body.look_owner import LookLeaseRunner, LookOwner
+
+    names = FirstRunNames(units.store)   # the name picked on the robot's first run becomes the unit's name on the page
+    behavior.first_run_hook = names.on_event
+
+    def other_units_first_run(device_id: str, events: list) -> None:
+        for event in events:
+            if getattr(event, "kind", "") == "first_run_done":
+                names.on_event(device_id, getattr(event, "extra", None))
+
+    behavior.other_unit_event_handlers.append(other_units_first_run)
 
     def hub_configured() -> bool:
         return getattr(units.base, "brain", "llm") == "home" or bool(os.environ.get("MAIPAI_HUB_URL", "").strip())
