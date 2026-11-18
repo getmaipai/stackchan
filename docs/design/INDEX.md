@@ -146,10 +146,52 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1089): Feature ledger
+- `docs/dev/feature-ledger.md` (1090): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
+- `docs/dev/game-sounds/chip_land_1.ulaw` (0): no header
+- `docs/dev/game-sounds/chip_land_1.wav` (19): no header
+- `docs/dev/game-sounds/chip_land_2.ulaw` (0): no header
+- `docs/dev/game-sounds/chip_land_2.wav` (19): no header
+- `docs/dev/game-sounds/chip_land_3.ulaw` (0): no header
+- `docs/dev/game-sounds/chip_land_3.wav` (13): no header
+- `docs/dev/game-sounds/chip_land_4.ulaw` (0): no header
+- `docs/dev/game-sounds/chip_land_4.wav` (15): no header
+- `docs/dev/game-sounds/chip_land_5.ulaw` (0): no header
+- `docs/dev/game-sounds/chip_land_5.wav` (24): no header
+- `docs/dev/game-sounds/chip_land_6.ulaw` (0): no header
+- `docs/dev/game-sounds/chip_land_6.wav` (16): no header
+- `docs/dev/game-sounds/draw.ulaw` (0): no header
+- `docs/dev/game-sounds/draw.wav` (63): no header
+- `docs/dev/game-sounds/drop_whoosh.ulaw` (0): no header
+- `docs/dev/game-sounds/drop_whoosh.wav` (28): no header
+- `docs/dev/game-sounds/flip.ulaw` (0): no header
+- `docs/dev/game-sounds/flip.wav` (21): no header
+- `docs/dev/game-sounds/hangman_bad.ulaw` (0): no header
+- `docs/dev/game-sounds/hangman_bad.wav` (46): no header
+- `docs/dev/game-sounds/hangman_ok.ulaw` (0): no header
+- `docs/dev/game-sounds/hangman_ok.wav` (32): no header
+- `docs/dev/game-sounds/illegal_thud.ulaw` (0): no header
+- `docs/dev/game-sounds/illegal_thud.wav` (13): no header
+- `docs/dev/game-sounds/lose.ulaw` (0): no header
+- `docs/dev/game-sounds/lose.wav` (81): no header
+- `docs/dev/game-sounds/loudness.md` (26): Game sounds: loudness report
+- `docs/dev/game-sounds/manifest.json` (307): no header
+- `docs/dev/game-sounds/match_found.ulaw` (0): no header
+- `docs/dev/game-sounds/match_found.wav` (65): no header
+- `docs/dev/game-sounds/mine_flag.ulaw` (0): no header
+- `docs/dev/game-sounds/mine_flag.wav` (39): no header
+- `docs/dev/game-sounds/move_unit.ulaw` (0): no header
+- `docs/dev/game-sounds/move_unit.wav` (43): no header
+- `docs/dev/game-sounds/pop.ulaw` (0): no header
+- `docs/dev/game-sounds/pop.wav` (6): no header
+- `docs/dev/game-sounds/slide.ulaw` (0): no header
+- `docs/dev/game-sounds/slide.wav` (20): no header
+- `docs/dev/game-sounds/tap_tick.ulaw` (0): no header
+- `docs/dev/game-sounds/tap_tick.wav` (4): no header
+- `docs/dev/game-sounds/win_fanfare.ulaw` (0): no header
+- `docs/dev/game-sounds/win_fanfare.wav` (76): no header
 - `docs/dev/gate-numbers.md` (29): Gate numbers (2026-11-18)
 - `docs/dev/head-fit-before-servo-fix.svg` (91): no header
 - `docs/dev/head-recording.md` (31): Recording head moves on the unit (for the physics calibration)
@@ -365,6 +407,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/two-usb-ports.md` (73): Two USB-C ports: what feeds what, and a limiter that measures the supply
 - `docs/plan/undefined-host-calls-2026-11-18.md` (24): Host calls with no firmware definition (2026-11-18)
 - `docs/plan/ux13-batches.md` (13): UX13: the screens at finger size, in batches (playground track)
+- `docs/plan/ux13c-control-sheet-brief.md` (20): UX13c brief: the control sheet at finger size (for a Codex lane, read by the playground track before it lands)
 - `docs/plan/view-requests.md` (48): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
 - `docs/plan/wasm-spike-report.md` (95): WebAssembly spike: the virtual robot in a browser, no server
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
@@ -673,6 +716,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF60-sound-info-volume-now-from-the-codec.patch` (29): sound_info reports the volume the codec plays at (volume_now), read from the audio codec itself. The first ver
 - `firmware/patches/SF61-bench-power-log.patch` (59): A bench tool, self.bench.power_log {seconds, interval_s}, that logs the battery level, the charging state, the
 - `firmware/patches/SF62-grid-game-engine-core-connect4-memory.patch` (481): The first part of the grid game engine (owner-approved 2026-11-18): the pure cores for a cell array of up to 1
+- `firmware/patches/SF63-grid-games-on-the-unit-connect4-and-match.patch` (698): The grid games run on the unit: Four in a Row (id connect4, against the unit, tap a column) and Memory Match (
+- `firmware/patches/SF64-faster-reconnect-schedule.patch` (47): A unit whose host restarts finds it again within seconds. The reconnect waits start at 0.5 s and double up to 
+- `firmware/patches/SF65-bench-head-read-probe.patch` (144): A bench tool, self.bench.head_read {seconds, hz}, that answers whether the unit can read the head's angles whi
+- `firmware/patches/SF67-grid-rule-sets-hangman-slide-snake-mines.patch` (543): Four more rule sets for the grid game engine, as pure cores with host tests: Hangman (a word table, 26 keys in
+- `firmware/patches/SF68-away-notice-30s-and-event.patch` (22): The "Can't reach Home" notice after ten minutes away stays on the banner row for 30 seconds (it was 9, easy to
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1817,6 +1865,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/games_v2_core_test.c` (971): Host test for the game engine additions of patches UI12 and UI13: the new inputs, the board, the timer from a 
 - `host/tests/firmware/gesture_core_test.c` (450): Host test for the swipe gesture state machine (patch P10): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
 - `host/tests/firmware/grid_core_test.c` (233): Host test for the grid game engine core and its two rule sets (patch SF62): cc -std=c99 -Wall -Wextra -Werror 
+- `host/tests/firmware/grid_games2_test.c` (208): Host test for the second set of grid rule sets (patch SF67): Hangman, the 2048 slider, Snake, Mine Finder. cc 
 - `host/tests/firmware/headgate_core_test.c` (24): Host test for the host head-move gate (patch Y01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/heal_core_test.c` (53): Host test for the restart guard's allowance (patch R04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/ir_core_test.c` (72): Host test for the infrared timing rules (patch SF50). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
@@ -2071,6 +2120,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
 - `host/tests/test_fuzz_cores.py` (22): A short run of the sanitizer fuzz of the unit's parsers (scripts/fuzz-cores.sh, docs/dev/fuzzing-and-hostile-p
 - `host/tests/test_fw_stress_gate.py` (43): The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
+- `host/tests/test_game_sounds.py` (33): The synthesized game sounds (scripts/make-game-sounds.py): deterministic, none clipping, all at the same chime
 - `host/tests/test_game_voice.py` (151): no header
 - `host/tests/test_games_no_head_motion.py` (40): Owner rule (2026-11-18): a game never moves the head. No line a patch adds to the game player, the game engine
 - `host/tests/test_gate_check.py` (53): scripts/gate-check.py: the gate numbers in the script and in docs/dev/gate-numbers.md agree, and the verdict i
@@ -2440,6 +2490,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/base-tools.json` (10): no header
 - `schema/memory-budget.json` (744): no header
 - `schema/tools.json` (642): no header
+- `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
@@ -2518,6 +2569,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
 - `scripts/make-dashboard-screens.py` (71): A screenshot of each host dashboard page at desktop and phone width, kept in docs/dev/dashboard-screens for re
 - `scripts/make-doc-screenshots.py` (141): make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, ne
+- `scripts/make-game-sounds.py` (286): Game sounds, synthesized from nothing: short tones, clacks and noise bursts with attack-decay-sustain-release 
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
 - `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.
 - `scripts/make-update-vectors.py` (92): write the signed-update test vectors (host/tests/fixtures/update-signature-vectors.json) from a fixed TEST see
