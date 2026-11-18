@@ -1,0 +1,197 @@
+# Intent: The offline mumble (owner decision 24, 2026-11-18; spec docs/design/offline-mumble.md). When the unit has words to show and no voice (offline, or the speech service is away), it mumbles the caption: one short note for every character, timed to the caption's own start and end, the mouth following. The core is pure C with integer math and tables only: no audio file, no heap, no ESP call; mm_next() hands out one note at a time so the caller renders it into the 20 ms audio frame it is already filling. Vowels have a fixed low note each (a e i o u) with a small glide up and a wide mouth; consonants and digits are short higher notes from a pentatonic scale picked by the letter; spaces and marks rest with the mouth closed; a question rises over its last three letters, a call lifts a little, a statement falls; the accented letters of the six languages fold to their plain letter and any other script maps by its character number. This patch adds the core and its tests only (the host test compares the C core with the Python reference on all six languages); wiring it to the speaker, the caption timing and the mouth is the firmware track's, per the spec. Display and sound only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_mumble_core.h (ours)
+# Check after a flash: (after the wiring) with the network off, a caption is mumbled in step with its words, the mouth moving with the notes, quiet hours and mute silencing it as they silence every sound; the free internal memory is the same before and after.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_mumble_core.h b/firmware/main/hal/maipai_mumble_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_mumble_core.h
+@@ -0,0 +1,186 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The offline mumble (patch UX16; spec docs/design/offline-mumble.md): when the unit has words to show but no voice (offline, or the speech service is away), it
++ * mumbles them: one short note for every letter of the caption, timed to the caption, with the mouth following. Pure C99, integer math, no ESP call, no heap, no audio file.
++ * The same text always gives the same notes. mm_next() hands out one blip at a time, so the caller renders it into the audio frame it is already filling (20 ms
++ * at 16 kHz) and nothing larger than the mm_t state (about 40 bytes) is held.
++ */
++#ifndef MAIPAI_MUMBLE_CORE_H
++#define MAIPAI_MUMBLE_CORE_H
++
++#include <stdint.h>
++#include <stddef.h>
++
++#define MM_SEMI_MIN (-4)
++#define MM_SEMI_MAX 40
++/* 196 Hz times 2^(n/12), n = -4 .. 40, rounded: the note frequencies. */
++static const uint16_t MM_FREQ[MM_SEMI_MAX - MM_SEMI_MIN + 1] = {156, 165, 175, 185, 196, 208, 220, 233, 247, 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494, 523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988, 1047, 1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976};
++
++typedef struct {
++    uint32_t t_ms;     /* when the blip starts, on the caption's clock */
++    uint16_t dur_ms;   /* how long it sounds (0 for a rest) */
++    uint16_t f0, f1;   /* start and end frequency in Hz (a glide), 0 for a rest */
++    uint8_t level;     /* loudness 0 to 100 */
++    uint8_t mouth;     /* how open the mouth is, 0 to 100 (the face's speak level) */
++} mm_blip_t;
++
++typedef struct {
++    const char* s;
++    uint32_t pos;      /* byte offset of the next letter */
++    uint32_t idx;      /* its number */
++    uint32_t n;        /* letters in all */
++    uint32_t start_ms, end_ms;
++} mm_t;
++
++/* ---- UTF-8 ---- */
++static inline uint32_t mm_decode(const char* s, uint32_t* adv)
++{
++    const uint8_t* p = (const uint8_t*)s;
++    if (p[0] < 0x80) { *adv = 1; return p[0]; }
++    if ((p[0] & 0xE0) == 0xC0 && (p[1] & 0xC0) == 0x80) { *adv = 2; return ((uint32_t)(p[0] & 0x1F) << 6) | (p[1] & 0x3F); }
++    if ((p[0] & 0xF0) == 0xE0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80) { *adv = 3; return ((uint32_t)(p[0] & 0x0F) << 12) | ((uint32_t)(p[1] & 0x3F) << 6) | (p[2] & 0x3F); }
++    if ((p[0] & 0xF8) == 0xF0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80 && (p[3] & 0xC0) == 0x80) {
++        *adv = 4;
++        return ((uint32_t)(p[0] & 0x07) << 18) | ((uint32_t)(p[1] & 0x3F) << 12) | ((uint32_t)(p[2] & 0x3F) << 6) | (p[3] & 0x3F);
++    }
++    *adv = 1;
++    return 0xFFFD;
++}
++
++/* ---- what a character is ---- */
++enum { MM_SPACE = 0, MM_PAUSE, MM_END, MM_VOWEL, MM_CONSONANT, MM_DIGIT, MM_OTHER, MM_SILENT };
++
++/* The Latin letter (a to z) a character stands for in the six languages (the accented letters and ligatures fold to their plain letter), or 0. */
++static inline int mm_fold(uint32_t c)
++{
++    if (c >= 'A' && c <= 'Z') return (int)(c + 32);
++    if (c >= 'a' && c <= 'z') return (int)c;
++    if (c >= 0xC0 && c <= 0xFF && c != 0xD7 && c != 0xF7) {
++        const uint32_t l = c >= 0xE0 ? c : c + 32;   /* lowercase the Latin-1 letter */
++        if (l >= 0xE0 && l <= 0xE5) return 'a';
++        if (l == 0xE6) return 'a';                    /* ae */
++        if (l == 0xE7) return 'c';
++        if (l >= 0xE8 && l <= 0xEB) return 'e';
++        if (l >= 0xEC && l <= 0xEF) return 'i';
++        if (l == 0xF0) return 'd';
++        if (l == 0xF1) return 'n';
++        if ((l >= 0xF2 && l <= 0xF6) || l == 0xF8) return 'o';
++        if (l >= 0xF9 && l <= 0xFC) return 'u';
++        if (l == 0xFD || l == 0xFF) return 'y';
++        if (l == 0xDF) return 's';                    /* sharp s (0xDF has no uppercase here) */
++        return 0;
++    }
++    if (c == 0xDF) return 's';
++    if (c == 0x152 || c == 0x153) return 'o';         /* oe */
++    return 0;
++}
++
++static inline int mm_class(uint32_t c, int* letter)
++{
++    *letter = 0;
++    if (c == ' ' || c == '\n' || c == '\t' || c == 0xA0) return MM_SPACE;
++    if (c == ',' || c == ';' || c == ':' || c == '-' || c == '(' || c == ')' || c == '"' || c == '\'' || c == 0x2014 || c == 0x2013) return MM_PAUSE;
++    if (c == '.' || c == '!' || c == '?' || c == 0x2026 || c == 0xA1 || c == 0xBF) return MM_END;
++    if (c >= '0' && c <= '9') { *letter = (int)(c - '0'); return MM_DIGIT; }
++    const int f = mm_fold(c);
++    if (f != 0) {
++        *letter = f - 'a';
++        return (f == 'a' || f == 'e' || f == 'i' || f == 'o' || f == 'u') ? MM_VOWEL : MM_CONSONANT;
++    }
++    if (c >= 0x370 && c < 0xD800) { *letter = (int)(c % 26u); return MM_OTHER; }   /* any other script: a letter by its number */
++    return MM_SILENT;                                                                  /* an emoji or a symbol: a rest */
++}
++
++static inline int mm_vowel_index(int letter) { return letter == 0 ? 0 : (letter == 4 ? 1 : (letter == 8 ? 2 : (letter == 14 ? 3 : 4))); }
++
++/* The caption's letters, so each gets an equal slot of the time. */
++static inline void mm_init(mm_t* m, const char* utf8, uint32_t start_ms, uint32_t end_ms)
++{
++    m->s = utf8;
++    m->pos = 0;
++    m->idx = 0;
++    m->n = 0;
++    m->start_ms = start_ms;
++    m->end_ms = end_ms > start_ms ? end_ms : start_ms + 1;
++    for (uint32_t p = 0; utf8[p] != '\0';) {
++        uint32_t adv;
++        mm_decode(utf8 + p, &adv);
++        p += adv;
++        m->n++;
++    }
++}
++
++/* How many semitones a letter is raised or lowered by where the sentence ends: a question rises over its last three letters, a call lifts a little, a statement falls. */
++static inline int mm_inflection(const mm_t* m)
++{
++    int remaining = 0;   /* letters after this one, inside the sentence */
++    int end = 0;         /* 0 text end, '.', '!' or '?' */
++    uint32_t p = m->pos, adv;
++    mm_decode(m->s + p, &adv);
++    p += adv;
++    while (m->s[p] != '\0') {
++        const uint32_t c = mm_decode(m->s + p, &adv);
++        int l;
++        const int k = mm_class(c, &l);
++        if (k == MM_END) { end = (c == '?' || c == 0xBF) ? '?' : (c == '!' || c == 0xA1) ? '!' : '.'; break; }
++        if (k == MM_VOWEL || k == MM_CONSONANT || k == MM_OTHER || k == MM_DIGIT) remaining++;
++        p += adv;
++    }
++    if (end == '?') return remaining == 0 ? 7 : (remaining == 1 ? 5 : (remaining == 2 ? 3 : 0));
++    if (end == '!') return remaining == 0 ? 2 : 0;
++    if (end == '.' && remaining == 0) return -2;
++    return 0;
++}
++
++static inline uint16_t mm_freq(int semi)
++{
++    if (semi < MM_SEMI_MIN) semi = MM_SEMI_MIN;
++    if (semi > MM_SEMI_MAX) semi = MM_SEMI_MAX;
++    return MM_FREQ[semi - MM_SEMI_MIN];
++}
++
++/* The next blip (one per character, rests included); 0 when the text is done. */
++static inline int mm_next(mm_t* m, mm_blip_t* b)
++{
++    if (m->s[m->pos] == '\0' || m->idx >= m->n) {
++        return 0;
++    }
++    static const uint8_t PENTA[10] = {0, 2, 4, 7, 9, 12, 14, 16, 19, 21};
++    static const uint8_t VOWEL_SEMI[5] = {0, 4, 9, 2, 7};        /* a e i o u: a fixed low note each */
++    static const uint8_t VOWEL_MOUTH[5] = {100, 60, 45, 85, 70};  /* how wide the mouth opens for a e i o u */
++    const uint64_t span = (uint64_t)(m->end_ms - m->start_ms);
++    const uint32_t t0 = m->start_ms + (uint32_t)(span * m->idx / m->n);
++    const uint32_t t1 = m->start_ms + (uint32_t)(span * (m->idx + 1) / m->n);
++    uint32_t adv;
++    const uint32_t c = mm_decode(m->s + m->pos, &adv);
++    int letter;
++    const int k = mm_class(c, &letter);
++    const int infl = (k == MM_VOWEL || k == MM_CONSONANT || k == MM_OTHER || k == MM_DIGIT) ? mm_inflection(m) : 0;
++    b->t_ms = t0;
++    b->dur_ms = 0;
++    b->f0 = b->f1 = 0;
++    b->level = 0;
++    b->mouth = 0;
++    const uint32_t slot = t1 - t0;
++    if (k == MM_VOWEL) {
++        const int vi = mm_vowel_index(letter);
++        b->dur_ms = (uint16_t)(slot * 9 / 10);
++        b->f0 = mm_freq(VOWEL_SEMI[vi] + infl);
++        b->f1 = mm_freq(VOWEL_SEMI[vi] + infl + 2);   /* a small glide up: a voice, not a beep */
++        b->level = 100;
++        b->mouth = VOWEL_MOUTH[vi];
++    } else if (k == MM_CONSONANT || k == MM_OTHER || k == MM_DIGIT) {
++        const int semi = 12 + PENTA[(letter * 7) % 10];
++        b->dur_ms = (uint16_t)(slot * 6 / 10);
++        b->f0 = mm_freq(semi + infl);
++        b->f1 = mm_freq(semi + infl - 1);
++        b->level = 55;
++        b->mouth = (k == MM_CONSONANT && (letter == 1 || letter == 12 || letter == 15)) ? 10 : 30;   /* b m p: the lips meet */
++    }
++    m->pos += adv;
++    m->idx++;
++    return 1;
++}
++
++#endif
