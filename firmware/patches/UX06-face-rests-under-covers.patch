@@ -1,0 +1,49 @@
+# Intent: Pause face animation under full-screen covers while allowing it to resume smoothly.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_screens.h, firmware/main/stackchan/stackchan.h and firmware/main/stackchan/avatar/skins/default/default.cpp (ours, patches UI09, NX03 and V25).
+# Check after a flash: Open and close an Apps wall or Settings screen and confirm the face stays still under it and resumes without a jump.
+
+diff --git a/firmware/main/hal/maipai_screens.h b/firmware/main/hal/maipai_screens.h
+--- a/firmware/main/hal/maipai_screens.h
++++ b/firmware/main/hal/maipai_screens.h
+@@ -50,3 +50,8 @@
+ }
+ 
+ inline int maipai_screen_current() { return maipai_screens_detail::g_state.cur; }
++
++inline bool maipai_face_paused()
++{
++    return (maipai_screens_detail::g_state.visible_mask & ~MSCR_BIT(MSCR_SHEET)) != 0;
++}
+diff --git a/firmware/main/stackchan/stackchan.h b/firmware/main/stackchan/stackchan.h
+--- a/firmware/main/stackchan/stackchan.h
++++ b/firmware/main/stackchan/stackchan.h
+@@ -5,6 +5,7 @@
+  */
+ #pragma once
+ #include "modifiable.h"
++#include "hal/maipai_screens.h"
+ #include "modifiers/modifiers.h"
+ #include "json/json_helper.h"
+ #include <memory>
+@@ -147,7 +148,7 @@
+         _modifier_pool.forEach([this](Modifier* modifier, int id) { modifier->_update(*this); });
+         _modifier_pool.cleanup();
+ 
+-        if (_avatar) {
++        if (_avatar && !maipai_face_paused()) {
+             _avatar->update();
+         }
+     }
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.cpp b/firmware/main/stackchan/avatar/skins/default/default.cpp
+--- a/firmware/main/stackchan/avatar/skins/default/default.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/default.cpp
+@@ -197,7 +197,7 @@
+ {
+     Avatar::update();
+     const int64_t now = esp_timer_get_time();
+-    const float dt    = _last_us == 0 ? 0.0f : static_cast<float>(now - _last_us) / 1000.0f;
++    const float dt    = _last_us == 0 ? 0.0f : std::min(50.0f, static_cast<float>(now - _last_us) / 1000.0f);
+     _last_us          = now;
+ 
+     const ml_look_t look = ml_look(_style, static_cast<int>(_emotion));

@@ -15,6 +15,10 @@
 #include <stackchan/avatar/skins/default/default.h>
 #include "maipai_facefx.h"
 #include "render_hooks.h"
+#if __has_include("maipai_screens.h")
+#include "maipai_screens.h"  // maipai_face_paused(): the guard the unit puts around the face update (patch UX06)
+#define MAIPAI_HAVE_FACE_PAUSE 1
+#endif
 
 int64_t g_fake_us = 1000000;
 using namespace stackchan::avatar;
@@ -110,7 +114,10 @@ static void frame()
     g_fake_us += 33333;
     struct timespec t0, t1;
     clock_gettime(CLOCK_MONOTONIC, &t0);
-    g_av->update();
+#ifdef MAIPAI_HAVE_FACE_PAUSE
+    if (!maipai_face_paused())
+#endif
+        g_av->update();
     render_hook_frame(g_av);
     lv_timer_handler();
     clock_gettime(CLOCK_MONOTONIC, &t1);
