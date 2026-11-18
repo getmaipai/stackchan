@@ -25,8 +25,18 @@ DISCLAIMER = ("MaiPai for StackChan is an independent project. It is not affilia
               "StackChan and M5Stack are trademarks of their owners.")
 SITE = "MaiPai for StackChan"
 
-NAV = [("index.html", "Home"), ("docs/index.html", "Docs"), ("viewer.html", "3D viewer"), ("ledger.html", "Feature ledger"),
-       ("screens.html", "Screens"), ("decisions.html", "Decisions")]
+NAV = [("index.html", "Home"), ("docs/index.html", "Users"), ("playground/index.html", "Playground"), ("dev/index.html", "Developers"),
+       ("viewer.html", "3D viewer"), ("ledger.html", "Feature ledger"), ("screens.html", "Screens"), ("decisions.html", "Decisions"),
+       ("search.html", "Search")]
+
+# What the Developers section publishes besides the playground developer pages. Everything else under docs/dev, docs/design and docs/plan stays
+# in the repository only: dated working notes, audits and egress or protection analysis (security sensitive), owner plans and funding. See docs-site/EXCLUDED.md.
+DEV_PAGES = [("docs/dev", n) for n in (
+    "overview", "contributing", "build-from-source", "host-and-brains", "virtual-unit", "virtual-unit-3d", "virtual-unit-assets", "virtual-unit-dance",
+    "virtual-unit-fidelity", "e2e-virtual-unit", "fuzzing-and-hostile-peer", "screen-audit", "version-page-fit", "memory-budget", "gate-numbers",
+    "battery-and-power", "test-speed")] + [("docs/design", n) for n in (
+    "architecture", "repo-boundaries", "firmware-base", "unit-protocol", "screen-style", "languages", "first-run-flow", "config")]
+SECTION_OF = {"docs/user": "users", "docs/playground": "playground"}
 
 
 class BuildError(Exception):
@@ -265,9 +275,23 @@ class Renderer:
 
 # ---------------------------------------------------------------- page chrome
 
-def page(out_url, title, body, description="", extra_head="", body_class=""):
+def side_nav(label, items, out_url):
+    """The left tab column of a section: items are (url, title); the current page is marked."""
     up = "../" * len(Path(out_url).parent.parts)
-    nav = "".join('<a href="%s%s"%s>%s</a>' % (up, u, ' aria-current="page"' if u == out_url else "", html.escape(t)) for u, t in NAV)
+    li = "".join('<li><a href="%s%s"%s>%s</a></li>' % (up, u, ' aria-current="page"' if u == out_url else "", html.escape(t)) for u, t in items)
+    return '<nav class="tabs" aria-label="%s pages"><strong>%s</strong><ul>%s</ul></nav>' % (html.escape(label), html.escape(label), li)
+
+
+def page(out_url, title, body, description="", extra_head="", body_class="", side=""):
+    up = "../" * len(Path(out_url).parent.parts)
+    section = out_url.split("/")[0] if "/" in out_url else out_url
+    section_url = {"docs": "docs/index.html", "playground": "playground/index.html", "dev": "dev/index.html"}.get(section, out_url)
+    if side:
+        body = '<div class="split">%s<div class="pane">%s</div></div>' % (side, body)
+        body_class = (body_class + " has-split").strip()
+    def cur(u):
+        return u == out_url or (u == section_url)
+    nav = "".join('<a href="%s%s"%s>%s</a>' % (up, u, ' aria-current="page"' if cur(u) else "", html.escape(t)) for u, t in NAV)
     desc = '<meta name="description" content="%s">' % html.escape(description, quote=True) if description else ""
     return """<!doctype html>
 <html lang="en">
@@ -383,6 +407,18 @@ def build(out):
     links = {rel(readme): "index.html", rel(decisions): "decisions.html", rel(ledger): "ledger.html", rel(cs_md): "screens.html"}
     for d in user_docs:
         links[rel(d)] = "docs/%s.html" % d.stem
+    pg_docs = sorted((ROOT / "docs" / "playground").glob("*.md"))
+    pg_user = [d for d in pg_docs if not d.stem.startswith("dev-")]
+    pg_dev = [d for d in pg_docs if d.stem.startswith("dev-")]
+    dev_docs = [ROOT / a / (n + ".md") for a, n in DEV_PAGES if (ROOT / a / (n + ".md")).exists()]
+    for d in pg_user:
+        links[rel(d)] = "playground/index.html" if d.stem == "index" else "playground/%s.html" % d.stem
+    for d in pg_dev:
+        links[rel(d)] = "dev/%s.html" % d.stem[4:]
+    for d in dev_docs:
+        links[rel(d)] = "dev/%s%s.html" % ("design-" if d.parent.name == "design" else "", d.stem)
+    if len(set(links.values())) != len(links.values()):
+        raise BuildError("two source files map to one page address")
     # a file that was moved or removed after the docs were written still resolves to the nearest page, never to a dead link
     images = {}
     img_dir = ROOT / "docs" / "images"
@@ -391,7 +427,7 @@ def build(out):
             if f.is_file() and f.suffix.lower() in (".png", ".svg", ".gif", ".jpg", ".jpeg", ".webp"):
                 images[rel(f)] = "images/" + f.name
 
-    sources = [(readme, rel(readme))] + [(d, rel(d)) for d in user_docs] + [(decisions, rel(decisions))]
+    sources = [(readme, rel(readme))] + [(d, rel(d)) for d in user_docs + pg_user + pg_dev + dev_docs] + [(decisions, rel(decisions))]
     ids = {}
     problems = []
     rendered = {}
@@ -421,15 +457,39 @@ def build(out):
     write(out, "index.html", page("index.html", SITE, home_intro + '<div class="wrap prose">' + readme_body + "</div>",
                                   "Firmware and a host program for the StackChan desk robot: private, local and yours."))
 
-    # ---- one page per user doc
+    # ---- one page per doc, in three sections, each with its own left tab column
     index_rows = []
-    for d in user_docs:
-        body, r = rendered[rel(d)]
-        md = read(d)
-        title = first_title(md, d.stem.replace("-", " ").capitalize())
-        url = links[rel(d)]
-        write(out, url, page(url, title, '<div class="wrap prose">%s%s</div>' % (toc(r.headings), body), summary(md)))
-        index_rows.append({"title": title, "url": url, "summary": summary(md), "text": plain_text(md)})
+    sections = {}   # name -> [(url, title, summary, path)]
+    for name, docs in (("Users", user_docs), ("Playground", pg_user), ("Developers", pg_dev + dev_docs)):
+        rows = []
+        for d in docs:
+            md = read(d)
+            rows.append((links[rel(d)], first_title(md, d.stem.replace("-", " ").capitalize()), summary(md), d))
+        sections[name] = rows
+    # the playground index leads its tab column; the developer index and the user list are generated
+    sections["Users"].sort(key=lambda r: (r[0] != "docs/index.html", r[1].lower()))
+    sections["Playground"].sort(key=lambda r: (r[0] != "playground/index.html", r[0] != "playground/start-here.html", r[1].lower()))
+    dev_rows = sections["Developers"]
+    side_for = {}
+    for name, label, first in (("Users", "Users", None), ("Playground", "Playground", None),
+                               ("Developers", "Developers", ("dev/index.html", "All developer pages"))):
+        side_for[name] = ([first] if first else []) + [(u, t) for u, t, _, _ in sections[name]]
+    for name, rows in sections.items():
+        for url, title, summ, d in rows:
+            body, r = rendered[rel(d)]
+            side = side_nav(name, side_for[name], url)
+            write(out, url, page(url, title, '<div class="wrap prose">%s%s</div>' % (toc(r.headings), body), summ, side=side))
+            index_rows.append({"title": title, "url": url, "summary": summ, "text": plain_text(read(d))})
+
+    def card_list(rows, intro, up=""):
+        li = "".join('<li><a href="%s">%s</a><span class="s">%s</span></li>' % (html.escape(up + u), html.escape(t), html.escape(sm)) for u, t, sm, _ in rows)
+        return '<div class="wrap prose">%s<ul class="pagelist">%s</ul></div>' % (intro, li)
+
+    ddoc = ("<h1>Developers</h1><p>How the playground and the virtual unit are built, and the design pages a contributor needs. "
+            "Working notes, audits, security analysis and owner plans stay in the repository and are not published here.</p>")
+    write(out, "dev/index.html", page("dev/index.html", "Developers", card_list(dev_rows, ddoc, "../"), "Architecture, tools, tests and design pages.",
+                                      side=side_nav("Developers", side_for["Developers"], "dev/index.html")))
+    index_rows += [{"title": "Developers", "url": "dev/index.html", "summary": "Architecture, tools, tests and design pages.", "text": ""}]
 
     # ---- searchable page list
     extra = {"Feature ledger": ("ledger.html", "Every feature with its status and how far it is proven."),
@@ -441,15 +501,15 @@ def build(out):
     search_js = "window.SEARCH_INDEX=" + json.dumps(
         [{"t": r["title"], "u": r["url"], "s": r["summary"], "x": r["text"][:6000]} for r in index_rows], ensure_ascii=False) + ";\n"
     write(out, "assets/search-index.js", search_js)
-    lst = "".join('<li data-t="%s"><a href="../%s">%s</a><span class="s">%s</span></li>' % (
+    lst = "".join('<li data-t="%s"><a href="%s">%s</a><span class="s">%s</span></li>' % (
         html.escape((r["title"] + " " + r["summary"]).lower(), quote=True), html.escape(r["url"]), html.escape(r["title"]), html.escape(r["summary"]))
         for r in sorted(index_rows, key=lambda r: r["title"].lower()))
-    body = ('<div class="wrap"><h1>All pages</h1><p>Type to filter by title, or search the full text of every user page.</p>'
+    body = ('<div class="wrap"><h1>Search</h1><p>Type to filter by title, or search the full text of every user page.</p>'
             '<p><label for="q" class="vh">Search the pages</label><input id="q" type="search" placeholder="Search the pages" autocomplete="off"></p>'
             '<p id="count" class="small" aria-live="polite"></p><ul id="pages" class="pagelist">%s</ul>'
             '<noscript><p>Search needs JavaScript. The list above shows every page.</p></noscript></div>'
-            '<script src="../assets/search-index.js"></script><script src="../assets/search.js"></script>') % lst
-    write(out, "docs/index.html", page("docs/index.html", "All pages", body, "Every page of the documentation, with search."))
+            '<script src="assets/search-index.js"></script><script src="assets/search.js"></script>') % lst
+    write(out, "search.html", page("search.html", "Search", body, "Every page of the documentation, with search."))
 
     # ---- decisions
     dbody, dr = rendered[rel(decisions)]

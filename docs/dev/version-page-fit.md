@@ -1,6 +1,6 @@
 # Does the version page fit with the affiliation notice (patch SF69)? Measured 2026-11-18
 
-`scripts/virtual-unit/version_page_fit.cc` builds the same root (padding 8, top 58, row gap 6, wrapping flex) and the same labels and fonts as `maipai_more.cc` `build_version()` and measures them with the real LVGL layout (b52 build tree). The notice is the one of `docs/legal/affiliation.json`; the detail lines are those of `maipai_version_core.h` with plausible values. The More screens are not drawn by the screens renderer, so this is a measurement, not a golden frame; they are English and Spanish only (the notice is English in the firmware).
+`scripts/virtual-unit/version_page_fit.cc` builds the same root (padding 8, top 58, row gap 6, wrapping flex) and the same labels and fonts as `maipai_more.cc` `build_version()` and measures them with the real LVGL layout (b52 build tree). The notice is the one of `docs/legal/affiliation.json`; the detail lines are those of `maipai_version_core.h` with typical values. The More screens are not drawn by the screens renderer, so this is a measurement, not a golden frame; they are English and Spanish only (the notice is English in the firmware).
 
 | Detail lines kept | Body font | Content bottom (panel ends at 239) | Result |
 |---|---|---|---|

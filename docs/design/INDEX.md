@@ -20,7 +20,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `THIRD-PARTY.md` (49): Third-party notices
 - `docs-site/.gitignore` (1): no header
 - `docs-site/assets/search.js` (21): Filters the page list as you type: every word must appear in the title or summary, or anywhere in the page tex
-- `docs-site/assets/site.css` (83): the 3D viewer */
+- `docs-site/assets/site.css` (95): the 3D viewer */
 - `docs-site/assets/theme-button.js` (12): The Light/dark button: switches the page and remembers the choice on this device only.
 - `docs-site/assets/theme.js` (7): Sets the saved light or dark choice before the page paints. Storage can be blocked: the page then follows the 
 - `docs-site/home-intro.html` (13): no header
@@ -391,8 +391,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
 - `docs/plan/public-readme-draft.md` (92): Public README draft (2026-11-18)
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
-- `docs/plan/release-readiness.md` (43): First release readiness: the friend test
-- `docs/plan/release-readiness.md` (43): First release readiness: the friend test
 - `docs/plan/release-readiness.md` (43): First release readiness: the friend test
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
 - `docs/plan/service-and-supervision.md` (113): The host as a managed service, with supervised parts
@@ -2550,8 +2548,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
 - `scripts/docs-site/browser_check.js` (30): Headless check of the 3D viewer page over a plain static server. Usage: node browser_check.js URL [screenshot.
-- `scripts/docs-site/build.py` (541): Build the static documentation site into docs-site/out/ (git-ignored).
-- `scripts/docs-site/test_docs_site.py` (222): Offline test of the documentation site build. Usage: python3 scripts/docs-site/test_docs_site.py
+- `scripts/docs-site/build.py` (601): Build the static documentation site into docs-site/out/ (git-ignored).
+- `scripts/docs-site/test_docs_site.py` (237): Offline test of the documentation site build. Usage: python3 scripts/docs-site/test_docs_site.py
 - `scripts/e2e-flake-hunt.sh` (21): find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. Each run's full 
 - `scripts/efuse-check.py` (104): owner decision 14 (2026-11-18): nothing in this project ever burns an eFuse (irreversible): no secure boot key
 - `scripts/feature-ledger.py` (513): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),

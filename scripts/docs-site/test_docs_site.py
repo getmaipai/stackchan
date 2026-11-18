@@ -75,7 +75,7 @@ class Quiet(SimpleHTTPRequestHandler):
 class DocsSite(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.tmp = Path(tempfile.mkdtemp(prefix="docs-site-"))
+        cls.tmp = Path(tempfile.mkdtemp(prefix="docs-site-")).resolve()
         cls.out = cls.tmp / "out"
         cls.problems = build.build(cls.out)
         cls.pages = sorted(p for p in cls.out.rglob("*.html") if p.relative_to(cls.out).as_posix() not in EMBEDDED)
@@ -86,10 +86,25 @@ class DocsSite(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def test_expected_pages_exist(self):
-        for name in ("index.html", "docs/index.html", "viewer.html", "ledger.html", "screens.html", "decisions.html", "docs/getting-started.html"):
+        for name in ("index.html", "docs/index.html", "viewer.html", "ledger.html", "screens.html", "decisions.html", "docs/getting-started.html",
+                     "search.html", "playground/index.html", "playground/start-here.html", "dev/index.html", "dev/architecture.html"):
             self.assertTrue((self.out / name).is_file(), "page missing: %s. Run scripts/docs-site/build.py and read its output." % name)
-        self.assertEqual(len(list((ROOT / "docs" / "user").glob("*.md"))), len(list((self.out / "docs").glob("*.html"))) - 1,
+        self.assertEqual(len(list((ROOT / "docs" / "user").glob("*.md"))), len(list((self.out / "docs").glob("*.html"))),
                          "every docs/user page must have a page in the site")
+
+    def test_three_sections_have_tab_columns(self):
+        for name in ("docs/index.html", "docs/getting-started.html", "playground/index.html", "playground/screen-tour.html", "dev/index.html", "dev/architecture.html"):
+            t = (self.out / name).read_text(encoding="utf-8")
+            self.assertIn('class="tabs"', t, "%s has no left tab column" % name)
+            self.assertIn('class="pane"', t, "%s has no right pane" % name)
+
+    def test_nothing_private_is_published(self):
+        out = [p.relative_to(self.out).as_posix() for p in self.out.rglob("*.html")]
+        for bad in ("plan/", "funding", "egress", "software-only-protection", "four-users-review", "cross-review"):
+            self.assertEqual([o for o in out if bad in o], [], "a page that must stay private was published: " + bad)
+
+    def test_playground_dev_pages_are_in_developers(self):
+        self.assertFalse(list((self.out / "playground").glob("dev-*.html")), "playground developer pages belong under dev/")
 
     def test_internal_links_resolve(self):
         bad = []
