@@ -36,6 +36,8 @@ stackchan
           power_button, usb_c_otg, port_a    markers on the controller's right side
           ring_light_0..11   0..5 left bar front to back, 6..11 right bar back to front; each has its own material
           board           marks the boards in the head (drawn in the head mesh)
+          reset_button    under the controller beside the card slot (position assumed)
+          touch_back_0..2 the three zones of the head touch strip on the top, front to back (outline assumed)
           col_head        collider box
 ```
 

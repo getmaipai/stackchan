@@ -70,6 +70,12 @@ Measured in the structure files: the base has a socket of 3.95 mm on the turn ax
 
 Sweep with these parts in: free from 0 to 90 degrees of pitch. The only contact is the tilt servo's shaft inside the arm's socket, the same at every angle, which is where they join.
 
+## Reset button and head touch pads (added 2026-11-18)
+
+- **Reset button** (`reset_button`). The product page puts it "next to the microSD card slot on the bottom side" of the controller, and its picture says a press reboots and a 3 second hold enters download mode. The model draws the card slot and a dark button beside it under the controller, on the right as you face the robot. The exact spot is assumed. In the view a click restarts the virtual unit (the boot covers run again); it has no download mode.
+- **Head touch pads** (`touch_back_0` to `touch_back_2`). The product page lists three touch pads and a touch controller. The firmware's head touch code reads three intensities in a row and reports press, release, swipe forward and swipe backward. So there are three zones in a line, front to back. The pads sit under the shell and cannot be seen on a real unit; only the touch board's schematic is published. Their outline (16 x 8 mm each), their place on the top behind the two connector openings, and which end is zone 0 are assumed. In the view a click sends the unit's head tap event, which brings the face back from a page. The petting reaction of the real firmware is not in the virtual unit.
+- **The rest of the top.** The two connector openings and the round hole between them are in the official shell and were already drawn. The shell file has no vents, logo recess or other marks on top.
+
 ## What to compare on the unit
 
 1. With a ruler: total height with the head level (70.5 mm), base body height (8 mm), and the gap between the flat top of the base and the head bottom (8.4 mm in the model).
@@ -78,3 +84,5 @@ Sweep with these parts in: free from 0 to 90 degrees of pitch. The only contact 
 4. Send pitch 3 and pitch 87: is the head level at 3 and facing the ceiling at 87?
 5. Send a positive yaw: does the head turn to its own right?
 6. Light one LED at a time, 0 to 11: which bar and which end lights first?
+7. Look under the front: where is the reset button relative to the card slot (model: to its right as you face the robot)?
+8. Stroke the head top front to back: where do the three pads start and end?

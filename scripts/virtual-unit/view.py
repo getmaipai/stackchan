@@ -220,7 +220,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/hw":
             with LOCK:
                 refused = HW.set(req.get("key", ""), req.get("value"), UNIT.now_ms)
-                if req.get("key") == "power" and refused is None and HW.on:
+                if req.get("key") in ("power", "reset") and refused is None and HW.on:
                     APPLIED["status"] = None
                 sync_motion()
             return self._send(json.dumps({"isError": True, "text": refused} if refused else {"ok": True, "hw": HW.view()}).encode(), "application/json")
@@ -247,7 +247,10 @@ class Handler(BaseHTTPRequestHandler):
             if UNIT.profile != "screens":
                 return self._send(json.dumps({"isError": True, "text": "touch needs the screens renderer: run bash scripts/virtual-unit/build-screens.sh"}).encode(), "application/json")
             with LOCK:
-                if req.get("kind") == "swipe":
+                if req.get("kind") == "head":
+                    said = UNIT.head_touch(int(req.get("zone", 1)))
+                    rec_step("touch", {"kind": "head", "zone": int(req.get("zone", 1))})
+                elif req.get("kind") == "swipe":
                     said = UNIT.swipe(int(req["x"]), int(req["y"]), int(req["x2"]), int(req["y2"]), int(req.get("ms", 250)))
                     rec_step("touch", {"kind": "swipe", "x": int(req["x"]), "y": int(req["y"]), "x2": int(req["x2"]), "y2": int(req["y2"]), "ms": int(req.get("ms", 250))})
                 else:

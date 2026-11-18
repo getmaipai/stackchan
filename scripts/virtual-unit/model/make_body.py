@@ -76,6 +76,8 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('servo_case', (0.012, 0.014, 0.02, 1.0), 0.0, 0.5, None),
     ('battery', (0.02, 0.09, 0.42, 1.0), 0.0, 0.5, None),
     ('cable', (0.45, 0.45, 0.47, 1.0), 0.0, 0.6, None),
+    ('reset', (0.035, 0.035, 0.04, 1.0), 0.0, 0.5, None),
+    ('touch_pad', (0.60, 0.62, 0.66, 1.0), 0.0, 0.5, None),
 ]
 LIGHT_OFF = (0.42, 0.70, 0.72, 1.0)
 LIGHTS = 12
@@ -373,6 +375,19 @@ def assemble():
     otg_c = (-27.03, top - 26.9, side_z)
     port_a_c = (-27.03, top - 41.2, side_z)
     screen_c = (0.0, cy - SCREEN_DROP_MM, face + 0.03)
+    # under the controller: the card slot and the reset button beside it (the product page puts both on the bottom side; exact spot assumed)
+    under = top - 54.0
+    geo['head']['port'] += box((-2.5, under - 0.02, front + 5.0), (11.5, 0.04, 1.6))
+    reset_c = (12.0, under - 0.03, front + 5.0)
+    reset_tris = []
+    ring = circle(1.6, 16)
+    for i in range(16):   # a flat disc facing down
+        a, b = ring[i], ring[(i + 1) % 16]
+        reset_tris.append((reset_c[0], reset_c[1], reset_c[2], reset_c[0] + a[0], reset_c[1], reset_c[2] + a[1], reset_c[0] + b[0], reset_c[1], reset_c[2] + b[1]))
+    # on the head top: the three zones of the head touch strip, front to back (count and order from the firmware; outlines assumed)
+    pad_w, pad_d, pad_gap = 16.0, 8.0, 1.2
+    pad_first = front - 15.5
+    pads = [(0.0, top + 0.03, pad_first - i * (pad_d + pad_gap)) for i in range(3)]
 
     g = Glb()
     for i in range(LIGHTS):
@@ -435,6 +450,11 @@ def assemble():
            {'what': "I2C port A on the controller's right side"})
     board_c = (0.0, top - 3.1, (front - 1.5 + head_lo[2] + 9.0) / 2.0)
     g.node('board', head, sub(board_c, PITCH_O), extras={'what': 'the boards in the head: one flat under the top, one upright behind the controller; drawn in the head mesh (material pcb), position assumed', 'basis': 'assumed'})
+    g.node('reset_button', head, sub(reset_c, PITCH_O), g.mesh('reset_button', [g.primitive(reset_tris, reset_c, 'reset')]),
+           {'what': "reset button under the controller, beside the card slot: a press restarts the unit, a 3 second hold enters download mode", 'basis': 'assumed'})
+    for i, c in enumerate(pads):
+        g.node('touch_back_%d' % i, head, sub(c, PITCH_O), g.mesh('touch_back_%d' % i, [g.primitive(box(c, (pad_w, 0.06, pad_d)), c, 'touch_pad')]),
+               {'touch': {'zone': i, 'of': 3, 'order': 'front to back'}, 'what': 'one zone of the head touch strip (three zones in the firmware; position and outline assumed)', 'basis': 'assumed'})
     k = 0.70710678
     light_pos = []
     for i in range(LIGHTS):
@@ -486,6 +506,10 @@ def assemble():
             'usb_c_port_position': val([mm(v) for v in usb_c], 'measured', 'the opening in the back of the base'),
             'light_bar': val([0.005, 0.031, 0.0053], 'measured', 'light guide file; each bar sits in the slanted slot of a top corner of the shell, stem tip flush'),
             'ring_light_spacing': val(0.005, 'assumed'),
+            'reset_button_from_pitch_axis': val([mm(v) for v in sub(reset_c, PITCH_O)], 'assumed', 'product page: on the bottom side next to the card slot; press restarts, hold 3 s enters download mode'),
+            'head_touch_zones': val(3, 'measured', 'firmware head touch code reads three intensities in a row and reports press, release, swipe forward and swipe backward'),
+            'head_touch_pad_size': val([mm(pad_w), mm(pad_d)], 'assumed', 'the pads are under the shell and cannot be seen; only the touch board schematic is published'),
+            'head_touch_from_pitch_axis': val([[mm(v) for v in sub(c, PITCH_O)] for c in pads], 'assumed', 'in a row on the head top behind the two connector openings, zone 0 at the front'),
             'servo_size': val([mm(v) for v in SERVO_MM], 'measured', 'servo data sheet: 23.2 x 12.1 x 25.25 mm, both servos'),
             'servo_shaft_diameter': val(mm(2 * SERVO_SHAFT_R), 'measured', 'servo data sheet: 20 teeth, 3.95 mm; the base socket and the arm socket measure the same'),
             'servo_positions': val('pan servo upright on the turn axis with its shaft in the base socket; tilt servo lying on top of it with its shaft on the nod axis', 'assumed', 'the shaft axes are measured; where each case ends is not published'),

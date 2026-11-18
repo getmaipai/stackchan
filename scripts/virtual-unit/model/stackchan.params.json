@@ -87,6 +87,12 @@
     0.02,
     1.0
    ],
+   "reset": [
+    0.035,
+    0.035,
+    0.04,
+    1.0
+   ],
    "screen": [
     0.0,
     0.0,
@@ -109,6 +115,12 @@
     0.72,
     0.72,
     0.72,
+    1.0
+   ],
+   "touch_pad": [
+    0.6,
+    0.62,
+    0.66,
     1.0
    ]
   }
@@ -200,6 +212,40 @@
    "basis": "measured",
    "value": 0.054
   },
+  "head_touch_from_pitch_axis": {
+   "basis": "assumed",
+   "note": "in a row on the head top behind the two connector openings, zone 0 at the front",
+   "value": [
+    [
+     0.0,
+     0.02703,
+     0.00295
+    ],
+    [
+     0.0,
+     0.02703,
+     -0.00625
+    ],
+    [
+     0.0,
+     0.02703,
+     -0.01545
+    ]
+   ]
+  },
+  "head_touch_pad_size": {
+   "basis": "assumed",
+   "note": "the pads are under the shell and cannot be seen; only the touch board schematic is published",
+   "value": [
+    0.016,
+    0.008
+   ]
+  },
+  "head_touch_zones": {
+   "basis": "measured",
+   "note": "firmware head touch code reads three intensities in a row and reports press, release, swipe forward and swipe backward",
+   "value": 3
+  },
   "head_width": {
    "basis": "measured",
    "note": "shell file and published drawing",
@@ -231,6 +277,15 @@
     -0.0273,
     0.0131,
     0.02525
+   ]
+  },
+  "reset_button_from_pitch_axis": {
+   "basis": "assumed",
+   "note": "product page: on the bottom side next to the card slot; press restarts, hold 3 s enters download mode",
+   "value": [
+    0.012,
+    -0.02703,
+    0.02345
    ]
   },
   "ring_light_from_pitch_axis": {

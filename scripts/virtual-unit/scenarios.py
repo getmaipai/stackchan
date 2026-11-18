@@ -123,7 +123,9 @@ def load_recording(path) -> list:
             steps.append(("advance", int(item["wait_ms"])))
         if "touch" in item:
             t = item["touch"]
-            if t["kind"] == "swipe":
+            if t["kind"] == "head":
+                steps.append(("raw", "pevent head"))
+            elif t["kind"] == "swipe":
                 steps.append(("raw", f"pswipe {t['x']} {t['y']} {t['x2']} {t['y2']} {t.get('ms', 250)}"))
             else:
                 steps.append(("raw", f"pclick {t['x']} {t['y']}"))

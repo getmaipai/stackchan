@@ -155,6 +155,14 @@ class VirtualUnit:
         self.log.append({"at_ms": self.now_ms, "name": "touch.tap", "args": {"x": x, "y": y}, "ok": True, "result": {"renderer": said}})
         return said
 
+    def head_touch(self, zone: int = 1) -> str:
+        """A touch on the head strip (zone 0 front, 1 middle, 2 back): the unit's head tap event, which brings the face back from a page."""
+        zone = max(0, min(2, int(zone)))
+        self._send("pevent head")
+        self._sync()
+        self.log.append({"at_ms": self.now_ms, "name": "touch.head", "args": {"zone": zone}, "ok": True, "result": {"event": "head tap"}})
+        return "head tap"
+
     def swipe(self, x0: int, y0: int, x1: int, y1: int, ms: int = 250) -> str:
         """A one-finger drag through the unit's gesture code (screens profile)."""
         mark = len(self.output)

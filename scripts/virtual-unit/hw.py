@@ -40,6 +40,8 @@ class Hardware:
         """Apply one control. Returns a plain sentence when it is refused, else None."""
         if key == "power":
             return self.press_power(now)
+        if key == "reset":
+            return self.press_reset(now)
         if key == "usb":
             self.usb = bool(value)
             if not self.usb:
@@ -77,6 +79,15 @@ class Hardware:
                 return "The battery is empty and no cable is plugged in. Plug in the USB-C cable or raise the battery."
             self.on, self.boot_started, self.sleep_started = True, now, None
             self.events.append("power on")
+        return None
+
+    def press_reset(self, now: int) -> str | None:
+        """The reset button under the controller: a press restarts a running unit (the boot covers run again). The real button
+        also enters download mode on a 3 second hold; the virtual unit has no download mode."""
+        if not self.on:
+            return "The unit is off, so reset does nothing. Press the power button first."
+        self.boot_started, self.sleep_started, self.dance = now, None, ""
+        self.events.append("reset pressed: restarting")
         return None
 
     # ---- derived ---------------------------------------------------------------------------------------

@@ -249,3 +249,84 @@ def test_view_has_the_inside_motion_and_demo_controls():
     for hook in ("insideOn", "motionOn", "demoDone"):
         assert hook in html and hook in js
     assert "demoPose" in js and "applyLook" in js
+
+
+# ---- the camera controls of the 3D view, run in node with stand-in page objects --------------------------
+
+ORBIT_HARNESS = r"""
+const fs = require('fs');
+const any = () => new Proxy(function () {}, {get: (t, k) => (k === Symbol.toPrimitive ? () => 0 : any()), apply: () => any(), construct: () => any(), set: () => true});
+const listeners = {};
+const el = () => ({style: {}, appendChild() {}, set textContent(v) {}});
+const cv = {style: {}, clientWidth: 600, clientHeight: 500, parentElement: el(), addEventListener: (n, f) => { listeners[n] = f; },
+            setPointerCapture() { throw new Error('no active pointer'); }, getBoundingClientRect: () => ({left: 0, top: 0, width: 600, height: 500})};
+global.window = {devicePixelRatio: 1}; global.addEventListener = () => {}; global.document = {createElement: el};
+global.fetch = () => new Promise(() => {}); global.setInterval = () => 0; global.Image = function () {};
+const initRobot = new Function(fs.readFileSync(process.argv[2], 'utf8') + '; return initRobot;')();
+const hooks = {physicsOn: () => false, on: () => true, axesVisible: () => true};
+const rob = initRobot(any(), cv, hooks);
+const ev = (o) => Object.assign({pointerId: 1, button: 0, clientX: 0, clientY: 0, preventDefault() {}}, o);
+const snap = () => ({az: rob.view.az, el: rob.view.el, dist: rob.view.dist});
+const out = {start: snap()};
+listeners.pointerdown(ev({clientX: 100, clientY: 100})); listeners.pointermove(ev({clientX: 200, clientY: 130})); listeners.pointerup(ev({clientX: 200, clientY: 130}));
+out.afterDrag = snap();
+listeners.pointerdown(ev({clientX: 100, clientY: 100, shiftKey: true})); listeners.pointermove(ev({clientX: 180, clientY: 100, shiftKey: true})); listeners.pointerup(ev({clientX: 180, clientY: 100}));
+out.afterShiftDrag = snap();
+listeners.pointerdown(ev({clientX: 100, clientY: 100, button: 2})); listeners.pointermove(ev({clientX: 180, clientY: 100, button: 2})); listeners.pointerup(ev({clientX: 180, clientY: 100}));
+out.afterRightDrag = snap();
+listeners.wheel(ev({deltaY: -300})); out.afterWheel = snap();
+listeners.wheel(ev({deltaY: -30, ctrlKey: true})); out.afterPinch = snap();
+hooks.presets.left(); hooks.presets.up(); hooks.presets.zoomOut(); out.afterButtons = snap();
+listeners.dblclick(ev({})); out.afterDoubleClick = snap();
+out.hasContextMenuGuard = typeof listeners.contextmenu === 'function';
+console.log(JSON.stringify(out));
+"""
+
+
+def test_orbit_drag_turns_the_camera_and_the_other_gestures_work(tmp_path):
+    import shutil
+    import subprocess
+
+    import pytest
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("needs node to run the view script")
+    harness = tmp_path / "orbit.js"
+    harness.write_text(ORBIT_HARNESS)
+    res = subprocess.run([node, str(harness), str(VU / "view3d.js")], capture_output=True, text=True, timeout=30)
+    assert res.returncode == 0, res.stderr[-800:]
+    o = json.loads(res.stdout.strip().splitlines()[-1])
+    assert abs(o["afterDrag"]["az"] - (o["start"]["az"] - 0.8)) < 1e-6, "a drag of 100 pixels must turn the camera"
+    assert abs(o["afterDrag"]["el"] - (o["start"]["el"] + 0.18)) < 1e-6, "a drag of 30 pixels down must tilt the camera"
+    assert o["afterShiftDrag"] == o["afterDrag"] and o["afterRightDrag"] == o["afterDrag"], "shift-drag and right-drag slide the view, they do not turn it"
+    assert o["afterWheel"]["dist"] < o["afterDrag"]["dist"] and o["afterPinch"]["dist"] < o["afterWheel"]["dist"], "wheel and pinch zoom"
+    assert o["afterButtons"]["az"] != o["afterPinch"]["az"] and o["afterButtons"]["el"] > o["afterPinch"]["el"] and o["afterButtons"]["dist"] > o["afterPinch"]["dist"]
+    assert o["afterDoubleClick"] == o["start"], "a double click puts the view back"
+    assert o["hasContextMenuGuard"]
+
+
+def test_reset_restarts_a_running_unit_and_head_touch_is_logged():
+    sys.path.insert(0, str(VU))
+    try:
+        import hw
+    finally:
+        sys.path.remove(str(VU))
+    h = hw.Hardware() if hasattr(hw, "Hardware") else None
+    if h is None:
+        cls = [v for v in vars(hw).values() if isinstance(v, type) and hasattr(v, "press_power")][0]
+        h = cls()
+    if not h.on:
+        assert h.set("power", 1, 0) is None
+    h.boot_started = None
+    assert h.set("reset", 1, 5000) is None and h.on and h.boot_started == 5000 and "reset pressed" in h.events[-1]
+    h.set("power", 1, 6000)
+    assert not h.on and "off" in h.set("reset", 1, 7000)
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    head = descendants(j, by["head"][0])
+    assert "reset_button" in head and by["reset_button"][1]["translation"][1] < -0.026, "the reset button is under the controller"
+    pads = [by[f"touch_back_{i}"][1] for i in range(3)]
+    assert all(f"touch_back_{i}" in head for i in range(3)) and [p["extras"]["touch"]["zone"] for p in pads] == [0, 1, 2]
+    assert pads[0]["translation"][2] > pads[1]["translation"][2] > pads[2]["translation"][2], "zone 0 is at the front"
+    assert all(p["translation"][1] > 0.0269 for p in pads), "the pads lie on the head top"
+    assert "pevent head" in (VU / "vunit.py").read_text() and '"head"' in (VU / "view.py").read_text() and "pevent head" in (VU / "scenarios.py").read_text()
