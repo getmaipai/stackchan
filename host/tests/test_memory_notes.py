@@ -130,14 +130,49 @@ def test_build_brain_switches_it_on_from_robot_toml(tmp_path):
     assert build_brain(cfg).memory.people == ["alex"]
 
 
-def test_saying_who_is_speaking_sets_the_person_for_a_while(tmp_path):
+def test_a_spoken_name_alone_never_opens_private_notes(tmp_path):
+    n = Notes(NotesStore(tmp_path, today=lambda: datetime.date(2026, 11, 18)), ["alex", "sam"], default_person="alex")
+    assert "household notes" in n.handle("this is Sam", None)
+    n.handle("remember I like tea", None)
+    assert (tmp_path / "alex.md").exists() and not (tmp_path / "sam.md").exists()  # the claim did not move the notes to Sam
+
+
+def test_a_spoken_claim_lets_a_nameless_voice_use_the_household_notes_only(tmp_path):
+    n = Notes(NotesStore(tmp_path, today=lambda: datetime.date(2026, 11, 18)), ["alex", "sam"])
+    assert "do not know who" in n.handle("remember I like tea", None)
+    n.handle("this is sam", None)
+    assert "for everyone" in n.handle("remember for everyone the Wi-Fi is cabin", None)
+    assert not (tmp_path / "sam.md").exists() and (tmp_path / "household.md").exists()
+    assert "do not know who" in n.handle("what do you remember", None)
+
+
+def test_a_passphrase_the_person_set_opens_their_notes_for_a_while(tmp_path):
     now = [1000.0]
     n = Notes(NotesStore(tmp_path, today=lambda: datetime.date(2026, 11, 18)), ["alex", "sam"], default_person="alex", clock=lambda: now[0])
-    assert n.handle("this is Sam", None) == "Okay, I will use Sam's notes."
-    assert n.handle("remember I like tea", None) == "Okay, I will remember that."
-    assert (tmp_path / "sam.md").exists() and not (tmp_path / "alex.md").exists()
-    now[0] += n.ACTIVE_SECONDS + 1  # the claim runs out: back to the person named in robot.toml
+    assert "passphrase is set" in n.handle("set my notes passphrase to blue river lamp", "sam")  # said while the robot recognizes Sam
+    assert "did not match" in n.handle("this is sam, passphrase green boat", None)
     assert n.person_for(None) == "alex"
+    assert n.handle("this is Sam, my passphrase is Blue River Lamp", None) == "Okay, I will use Sam's notes."
+    assert n.person_for(None) == "sam"
+    now[0] += n.ACTIVE_SECONDS + 1
+    assert n.person_for(None) == "alex"
+
+
+def test_five_wrong_passphrases_lock_it_for_ten_minutes(tmp_path):
+    now = [0.0]
+    n = Notes(NotesStore(tmp_path), ["sam"], clock=lambda: now[0])
+    n.handle("set my notes passphrase to blue river lamp", "sam")
+    for _ in range(5):
+        n.handle("this is sam passphrase nope nope", None)
+    assert "did not match" in n.handle("this is sam passphrase blue river lamp", None)  # locked, even with the right words
+    now[0] += 601
+    assert "Okay, I will use" in n.handle("this is sam passphrase blue river lamp", None)
+
+
+def test_the_passphrase_is_stored_only_as_a_hash(tmp_path):
+    n = Notes(NotesStore(tmp_path), ["sam"])
+    n.handle("set my notes passphrase to blue river lamp", "sam")
+    assert "blue" not in (tmp_path / "passphrases.json").read_text()
 
 
 def test_the_spoken_name_must_be_a_listed_adult_and_evidence_wins(tmp_path):
@@ -145,7 +180,7 @@ def test_the_spoken_name_must_be_a_listed_adult_and_evidence_wins(tmp_path):
     assert n.handle("I'm Riley", None) is None  # not a notes person: left to the model
     n.handle("this is sam", None)
     assert n.person_for("alex") == "alex"  # a recognized speaker is never overridden by a spoken claim
-    assert n.handle("who is speaking", None) == "I am using Sam's notes."
+    assert n.handle("who is speaking", None) == "I am using Alex's notes."
 
 
 def test_a_note_with_bracket_tags_or_control_text_is_refused():

@@ -2,7 +2,8 @@
 
 Stored: short plain facts and preferences an adult asked the robot to remember.
 Refused: credentials and payment or identity numbers, text over the length limit, empty text.
-Read: a person's notes go only into that person's own turns. Notes filed under "household"
+Read: a person's notes go only into that person's own turns, for a speaker a recognizer named, one who said the notes passphrase
+they set, or the owner's default_person; a spoken "this is Sam" alone opens nothing private (store.py). Notes filed under "household"
 go into every listed adult's turns. Nobody else's notes are ever read into a turn.
 """
 
@@ -18,7 +19,12 @@ HOUSEHOLD = "household"
 _REFUSED = (
     (re.compile(r"\b(?:\d[ -]?){13,19}\b"), "a card or account number"),
     (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "a government id number"),
-    (re.compile(r"\b(?:passwords?|passcodes?|pass phrases?|passphrases?|pin codes?|pins?|api keys?|secret keys?|private keys?|tokens?)\b", re.I), "a password, code or key"),
+    (re.compile(r"\b(?:passwords?|passwds?|pwds?|pw|passcodes?|pass phrases?|passphrases?|pin codes?|pins?|api keys?|secret keys?|private keys?|tokens?)\b", re.I), "a password, code or key"),
+    (re.compile(r"\b\d{3}[ .]\d{2}[ .]\d{4}\b"), "a government id number"),
+    (re.compile(r"\b(?:ssn|social security(?: number)?|sin|national insurance(?: number)?)\b\D{0,12}\d{9}\b", re.I), "a government id number"),
+    (re.compile(r"\bpassports?\b\D{0,20}[A-Z0-9]{6,12}\b", re.I), "a government id number"),
+    (re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{12,}\b"), "a password, code or key"),
+    (re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.?[A-Za-z0-9_-]*"), "a password, code or key"),
     (re.compile(r"\b(?:sk|ghp|gho|tskey|xox[abprs])[-_][A-Za-z0-9_-]{8,}"), "a password, code or key"),
 )
 
