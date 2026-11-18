@@ -1,7 +1,14 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 164,
+ "count": 171,
  "tools": {
+  "self.assets.abort": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.commit": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.data": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.install": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.list": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.remove": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.swap": "SF90-asset-store-on-the-unit.patch",
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
   "self.audio.offline_phrase": "V02-offline-phrases.patch",
@@ -177,6 +184,26 @@
   "self.wifi.switch"
  ],
  "arguments": {
+  "self.assets.abort": {},
+  "self.assets.commit": {},
+  "self.assets.data": {
+   "at": "integer",
+   "b64": "string"
+  },
+  "self.assets.install": {
+   "slot": "integer",
+   "header_b64": "string",
+   "sig_b64": "string"
+  },
+  "self.assets.list": {},
+  "self.assets.remove": {
+   "kind": "string",
+   "slot": "integer"
+  },
+  "self.assets.swap": {
+   "kind": "string",
+   "slot": "integer"
+  },
   "self.audio.hourly_chime": {
    "enabled": "integer",
    "test": "boolean"

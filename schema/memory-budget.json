@@ -844,6 +844,21 @@
    "freed_when": "when the game ends (quit, stop, host_gone, update, quiet) or the game-over screen is left",
    "status": "estimate",
    "source": "patch SF88: about 15 LVGL objects at an estimated 150 bytes each (the screen of a phase is deleted before the next is built); an 800 byte state in PSRAM; flash is an estimate; measure with two self.bench.heap_info calls (idle, a trivia question showing)"
+  },
+  {
+   "id": "feature.asset_store",
+   "kind": "feature",
+   "name": "The asset store while it is used (directory read, install running)",
+   "internal": 100,
+   "psram": 12800,
+   "flash": 7000,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a self.assets tool or a consumer first asks (nofont and lean images only)",
+   "freed_when": "after a minute of no use",
+   "status": "estimate",
+   "source": "patch SF90: one block in PSRAM (directory about 4.3 KB, a 4 KB sector, a 4 KB scratch, a piece); internal is a mutex, a timer and flags; flash is an estimate; measure with two self.bench.heap_info calls (idle, after self.assets.list)"
   }
  ]
 }
