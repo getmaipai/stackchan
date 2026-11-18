@@ -64,11 +64,10 @@ def test_no_hub_url_skips_the_check_in_cleanly(monkeypatch, caplog):
     monkeypatch.setenv("MAIPAI_HUB_HOST", "1")
     monkeypatch.delenv("MAIPAI_HUB_URL", raising=False)
     assert app._no_hub_configured()
-    before = threading.active_count()
     caplog.set_level("INFO")
     voice = SimpleNamespace(session_listeners=[])
     app._start_robot_checkin(voice, SimpleNamespace(), SimpleNamespace(), threading.Event())
-    assert threading.active_count() == before
+    assert not any(t.name == "robot-checkin" for t in threading.enumerate())  # no check-in thread started (other threads come and go)
     assert "check-in is off" in caplog.text
     monkeypatch.setenv("MAIPAI_HUB_URL", "http://192.0.2.1:3000")
     assert not app._no_hub_configured()

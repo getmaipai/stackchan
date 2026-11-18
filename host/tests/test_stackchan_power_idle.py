@@ -276,9 +276,10 @@ def test_the_app_reads_the_idle_level_setting_and_feeds_the_power_rule():
 
     night = inspect.getsource(app._start_stackchan_night)
     assert 'values.get("robot.idle.level")' in night and "behavior.idle_level" in night
-    serve = inspect.getsource(app._serve_stackchan_channels)
+    serve = inspect.getsource(app._serve_stackchan_channels) + inspect.getsource(app._wire_power)  # the rule is wired in _wire_power (seam refactor P1)
     assert "configured_level=lambda: behavior.idle_level" in serve
     assert "power.tick()" in serve
+    assert "_wire_power(" in inspect.getsource(app._serve_stackchan_channels)
 
 
 def test_a_reconnect_writes_the_idle_motion_flag_again():

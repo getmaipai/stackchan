@@ -2131,6 +2131,34 @@ def _unit_muted(behavior: Any) -> bool:
     return bool(getattr(getattr(behavior, "privacy", None), "muted", False))
 
 
+def _wire_power(voice, behavior: StackChanBehavior, night, stop_event) -> Any:
+    """The host's idle-motion rule (power_idle.py): follows night and the configured level, re-asserts after a reconnect, and
+    exposes `behavior.idle_still`. Moved out of `_serve_stackchan_channels` unchanged (docs/plan/seam-refactor.md, P1)."""
+    from maipai_body.bodies.stackchan.power_idle import PowerIdle
+
+    power = PowerIdle(
+        voice.robot.client.set_idle_motion,
+        night_active=lambda: night.night,
+        configured_level=lambda: behavior.idle_level,
+    )
+    behavior.on_idle_level = power.refresh
+    behavior.resync_idle = power.on_reconnect  # the page wrote the unit's flag: the host's own rule re-asserts it
+    night.after_edge = power.refresh
+    voice.session_listeners.append(lambda _device_id: power.on_reconnect())
+
+    def _power_ticks() -> None:
+        while not stop_event.wait(1.0):
+            try:
+                power.tick()
+            except Exception:
+                logger.warning("StackChan power rule failed", exc_info=True)
+
+    threading.Thread(target=_power_ticks, name="stackchan-power-idle", daemon=True).start()
+    behavior.idle_still = lambda: power.still
+    behavior.idle_still_reason = lambda: power.still_reason
+    return power
+
+
 def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, stop_event) -> Any:
     """Mute, vision off and full quiet (firmware 105 to 108, docs/dev/stackchan-mute-2026-11-13.md).
 
@@ -2763,28 +2791,7 @@ async def _serve_stackchan_channels(
     behavior._rest_renderer._set_brightness = night._device.set_brightness
     behavior._rest_renderer._restore_brightness = night.effective_brightness
     behavior.on_levels_changed = night.set_levels_from_unit
-    from maipai_body.bodies.stackchan.power_idle import PowerIdle
-
-    power = PowerIdle(
-        voice.robot.client.set_idle_motion,
-        night_active=lambda: night.night,
-        configured_level=lambda: behavior.idle_level,
-    )
-    behavior.on_idle_level = power.refresh
-    behavior.resync_idle = power.on_reconnect  # the page wrote the unit's flag: the host's own rule re-asserts it
-    night.after_edge = power.refresh
-    voice.session_listeners.append(lambda _device_id: power.on_reconnect())
-
-    def _power_ticks() -> None:
-        while not stop_event.wait(1.0):
-            try:
-                power.tick()
-            except Exception:
-                logger.warning("StackChan power rule failed", exc_info=True)
-
-    threading.Thread(target=_power_ticks, name="stackchan-power-idle", daemon=True).start()
-    behavior.idle_still = lambda: power.still
-    behavior.idle_still_reason = lambda: power.still_reason
+    power = _wire_power(voice, behavior, night, stop_event)
     from maipai_body.bodies.stackchan.light_wiring import start_stackchan_light
 
     def device_connected() -> bool:
