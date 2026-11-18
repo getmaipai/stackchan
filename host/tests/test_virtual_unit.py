@@ -78,3 +78,9 @@ def test_process_protocol():
     assert rpc(3, "sim/advance", {"ms": 700})["now_ms"] == 2200
     assert rpc(4, "sim/snapshot")["png_base64"]
     p.stdin.close(); p.wait(timeout=10)
+
+
+@needs_render
+def test_golden_frames_and_layout_scenarios():
+    out = subprocess.run([sys.executable, str(VU / "scenarios.py")], capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr
