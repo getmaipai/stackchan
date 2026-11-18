@@ -10,7 +10,7 @@ The robot's camera has a low resolution, so these pages call the pictures **snap
 
 ## Turn it on
 
-Switch the camera on in MaiPai Home, and choose how long Home keeps snapshots.
+Switch the camera on in MaiPai Home, and choose how long Home keeps snapshots. A photo taken from the Remote section of your own settings page needs no Home.
 A camera-on cue shows whenever the camera streams. You cannot turn that cue off.
 
 When it takes a picture, the light bars flash pink twice and stay pink <img src="../images/light-pink.svg" alt="pink light bars" height="22">, and you hear a double click <img src="../images/tone-shutter.svg" alt="double click" height="18">. The pink never dims, even at night. [All lights and sounds](lights-and-sounds.md).

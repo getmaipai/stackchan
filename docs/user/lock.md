@@ -21,7 +21,7 @@ A wrong code turns the dots red.
 After several wrong codes in a row the robot makes you wait before you can try again.
 
 ## Lock by itself
-Pick an **Auto lock** time: off, or 1, 5, 15, 30 or 60 minutes without a touch, a wake word or a remote action.
+Pick an **Auto lock** time: off (the default), 1 or 15 minutes without a touch, a wake word or a remote action. A robot that saved 5, 30 or 60 minutes earlier keeps that value until you change it.
 
 ## What the lock stops
 A locked robot keeps its saved Wi-Fi networks: nothing can add or remove one until it is unlocked. Your voice model can never set or change the code.

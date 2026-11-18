@@ -81,7 +81,7 @@ Clears Wi-Fi networks, pairing and settings, after a confirmation. See [Keep the
 
 - `persona`: a short text that tells the model how to behave.
 - `quick_sliders`: which sliders the head strip opens. The default is volume and brightness.
-- `hourly_chime`, `quiet_from` and `quiet_to`: a soft tone each hour, and a window when the robot dims and stays quiet.
+- `hourly_chime`: a soft tone each hour. Quiet hours are set on the settings page (Behavior), not in the file.
 - `idle_motion`: turn the idle moves off.
 
 ![The settings page on the host with robot status, settings, the pairing code, mute and update.](../images/web-settings.svg)

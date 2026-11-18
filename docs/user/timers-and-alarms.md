@@ -40,8 +40,7 @@ Turn on `hourly_chime` for a soft tone on the hour.
 
 ## Quiet hours
 
-Set `quiet_from` and `quiet_to` to a start and end time. In that window the robot dims, keeps its voice low and skips the chime.
-Alarms you set still ring.
+On the settings page, Behavior tab, turn on **Quiet on a schedule** and pick the times and days, or press **Quiet now**. The robot's own sounds and the chime stay quiet. It is off until you set it. Alarms and timers you set still ring. See [Change a setting](settings.md).
 
 ## Offline
 

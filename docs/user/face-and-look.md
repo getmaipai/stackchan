@@ -81,11 +81,11 @@ It has an offline look for when it cannot reach your host, and a link screen whi
 
 ## Time zone
 
-Pick your time zone from 31 zones, with summer time, on the robot (swipe up from the bottom, More, More, Time zone) or on the settings page. The host sets the clock when the robot connects, and the clock face keeps it.
+Pick your time zone from 31 zones, with summer time, on the settings page. The host sets the clock when the robot connects, and the clock face keeps it. A robot with no host paired still lists the zones on its own screen (swipe up from the bottom, More, Time zone).
 
 ## Night mode
 
-Night mode dims the screen and the lights and softens the clock. Set it by hand, say "night mode", or set `quiet_from` and `quiet_to` so it starts by itself.
+Night mode dims the screen and the lights and softens the clock. Set it by hand, say "night mode", or set quiet hours on the settings page (Behavior, Quiet hours) so it starts by itself.
 
 ## Thinking cue
 
