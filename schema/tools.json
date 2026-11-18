@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 138,
+ "count": 139,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -11,6 +11,7 @@
   "self.banner.face_seen": "NX05-face-seen-glyph-and-tool-in-the-banner-strip.patch",
   "self.battery.get_status": "C01-battery-status.patch",
   "self.battery.simulate": "T01-low-battery-ladder.patch",
+  "self.bench.firstrun": "SF26-bench-slot-firstrun-tool.patch",
   "self.bench.inject": "L06-bench-latency-trace.patch",
   "self.bench.link_selftest": "SF21-link-key-curve-and-storage.patch",
   "self.bench.mic3_check": "SF15-talk-over-mic3-step0.patch",
@@ -183,6 +184,9 @@
   "self.battery.get_status": {},
   "self.battery.simulate": {
    "level": "integer"
+  },
+  "self.bench.firstrun": {
+   "action": "string"
   },
   "self.bench.inject": {
    "q": "integer",

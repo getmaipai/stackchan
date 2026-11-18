@@ -1,0 +1,163 @@
+# Intent: Bench only. self.bench.mic3_check takes a slot (1 to 3) that changes the TDM slot read as the second channel at run time (the input is reopened); its answer names the slot. self.bench.firstrun {action done|reset} saves or erases the first-run record, so memory medians can be read with the first-run screen closed. The key exchange self-test answers its six-digit code as a string.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc and .h (nested tree, MIT); firmware/main/hal (ours)
+# Check after a flash: on a talkover image self.bench.mic3_check with slot 2 and slot 3 answers the slot used; self.bench.firstrun done answers ok and the first-run screen does not open after a restart.
+# Kconfig: CONFIG_MAIPAI_SERIAL_TOOLS, CONFIG_MAIPAI_TALK_OVER, CONFIG_MAIPAI_LINK_PSK (existing)
+
+diff --git a/firmware/main/hal/maipai_mic3.cc b/firmware/main/hal/maipai_mic3.cc
+--- a/firmware/main/hal/maipai_mic3.cc
++++ b/firmware/main/hal/maipai_mic3.cc
+@@ -19,6 +19,8 @@
+ #include <mutex>
+ 
+ extern void maipai_mic3_set_gain_db(int db);
++extern void maipai_mic3_set_slot(int slot);  // patch SF26
++extern int maipai_mic3_get_slot();
+ 
+ namespace {
+ std::mutex s_mu;
+@@ -39,10 +41,13 @@ void maipai_mic3_register_tools()
+     auto& mcp = McpServer::GetInstance();
+     mcp.AddTool("self.bench.mic3_check",
+                 "Bench only: plays a 1 kHz tone for two seconds (volume 0 to 100 of the speaker) and reports, for MIC1 and MIC3, the tone amplitude, "
+-                "the rms of the quiet room before it, the peak and the tone to room ratio in dB. gain_db sets the MIC3 gain first (-1 keeps it). "
++                "the rms of the quiet room before it, the peak and the tone to room ratio in dB. gain_db sets the MIC3 gain first (-1 keeps it). slot (1 to 3) chooses which TDM slot is read as the second channel. "
+                 "MIC3 is real when its tone amplitude is far above the room and its peak stays under 30000.",
+-                PropertyList({Property("volume", kPropertyTypeInteger, 60, 0, 100), Property("gain_db", kPropertyTypeInteger, -1, -1, 37)}),
++                PropertyList({Property("volume", kPropertyTypeInteger, 60, 0, 100), Property("gain_db", kPropertyTypeInteger, -1, -1, 37), Property("slot", kPropertyTypeInteger, 0, 0, 3)}),
+                 [](const PropertyList& properties) -> ReturnValue {
++                    const int slot_arg = properties["slot"].value<int>();
++                    if (slot_arg >= 1) maipai_mic3_set_slot(slot_arg);  // which TDM slot is read as the second channel (1 to 3, 0 keeps it)
++                    vTaskDelay(pdMS_TO_TICKS(200));                     // the input is reopened
+                     const int gain = properties["gain_db"].value<int>();
+                     if (gain >= 0) maipai_mic3_set_gain_db(gain);
+                     // The speaker volume of this check (0 is the "speaker silent" case); the saved volume comes back afterwards.
+@@ -71,7 +76,7 @@ void maipai_mic3_register_tools()
+                     s_on.store(false);
+                     hal_bridge::board_set_speaker_volume(saved_volume, false);
+                     heap_caps_free(pcm);
+-                    char out[420];
++                    char out[440];
+                     std::lock_guard<std::mutex> lock(s_mu);
+                     // Medians over 200 ms windows: the room swings from one window to the next, the median does not.
+                     const float room1 = m3_win_rms_median(&s_m3, 0, 0), room3 = m3_win_rms_median(&s_m3, 0, 1);
+@@ -79,9 +84,9 @@ void maipai_mic3_register_tools()
+                     const float snr1 = 20.0f * log10f((tone1 * 0.7071f + 1e-3f) / (room1 + 1.0f));
+                     const float snr3 = 20.0f * log10f((tone3 * 0.7071f + 1e-3f) / (room3 + 1.0f));
+                     std::snprintf(out, sizeof(out),
+-                                  "{\"ok\":true,\"volume\":%d,\"windows\":[%d,%d],\"ch0\":{\"tone\":%.0f,\"room_rms\":%.1f,\"peak\":%d,\"snr_db\":%.1f},"
++                                  "{\"ok\":true,\"slot\":%d,\"volume\":%d,\"windows\":[%d,%d],\"ch0\":{\"tone\":%.0f,\"room_rms\":%.1f,\"peak\":%d,\"snr_db\":%.1f},"
+                                   "\"ch1\":{\"tone\":%.0f,\"room_rms\":%.1f,\"peak\":%d,\"snr_db\":%.1f}}",
+-                                  properties["volume"].value<int>(), s_m3.wn[0], s_m3.wn[1], tone1, room1, m3_peak(&s_m3, 1, 0), snr1, tone3, room3,
++                                  maipai_mic3_get_slot(), properties["volume"].value<int>(), s_m3.wn[0], s_m3.wn[1], tone1, room1, m3_peak(&s_m3, 1, 0), snr1, tone3, room3,
+                                   m3_peak(&s_m3, 1, 1), snr3);
+                     return std::string(out);
+                 });
+diff --git a/firmware/main/hal/maipai_bench.cc b/firmware/main/hal/maipai_bench.cc
+--- a/firmware/main/hal/maipai_bench.cc
++++ b/firmware/main/hal/maipai_bench.cc
+@@ -11,6 +11,7 @@
+ #if CONFIG_MAIPAI_SERIAL_TOOLS
+ #include <hal/maipai_lat.h>
+ #include <mcp_server.h>
++#include <settings.h>
+ #include <hal/hal.h>
+ #include <stackchan/stackchan.h>
+ #include <freertos/FreeRTOS.h>
+@@ -126,6 +127,24 @@ void maipai_bench_register_tools() {
+                              motion.pitchServo().getCurrentAngle() / 10);
+                     return std::string(out);
+                 });
++    // Bench only (patch SF26): the first-run flow keeps its screen objects in internal RAM while it is open; memory medians are read after it is done.
++    mcp.AddTool("self.bench.firstrun",
++                "Bench only: action done saves the first-run record as answered (language 0, name 0, mode 0) so the flow never opens; action reset erases the record so "
++                "the flow opens at the next restart. Answers {ok}.",
++                PropertyList({Property("action", kPropertyTypeString, std::string("done"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string action = properties["action"].value<std::string>();
++                    Settings st("mp_firstrun", true);
++                    if (action == "reset") {
++                        st.EraseAll();
++                    } else {
++                        st.SetInt("lang", 0);
++                        st.SetInt("name", 0);
++                        st.SetInt("mode", 0);
++                        st.SetInt("done", 1);
++                    }
++                    return std::string("{\"ok\":true}");
++                });
+     mcp.AddTool("self.bench.noise",
+                 "Bench only: loops a pink-noise clip into the microphone path for seconds at gain_pct percent.",
+                 PropertyList({Property("seconds", kPropertyTypeInteger, 60, 1, 7200),
+diff --git a/firmware/main/hal/maipai_linkpsk.cc b/firmware/main/hal/maipai_linkpsk.cc
+--- a/firmware/main/hal/maipai_linkpsk.cc
++++ b/firmware/main/hal/maipai_linkpsk.cc
+@@ -112,7 +112,7 @@ void maipai_linkpsk_register_tools()
+                     const size_t after_min = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+                     const bool same = ok_u && ok_h && memcmp(z_u, z_h, 32) == 0 && memcmp(k_u, k_h, 32) == 0 && memcmp(psk_u, psk_h, 32) == 0;
+                     char out[200];
+-                    std::snprintf(out, sizeof(out), "{\"ok\":%s,\"agree\":%s,\"sas\":%06u,\"ms\":%d,\"internal_dip\":%d,\"internal_min_drop\":%d}",
++                    std::snprintf(out, sizeof(out), "{\"ok\":%s,\"agree\":%s,\"sas\":\"%06u\",\"ms\":%d,\"internal_dip\":%d,\"internal_min_drop\":%d}",
+                                   same ? "true" : "false", same ? "true" : "false", static_cast<unsigned>(sas_u), static_cast<int>(ms),
+                                   static_cast<int>(free_before) - static_cast<int>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
+                                   static_cast<int>(before) - static_cast<int>(after_min));
+diff --git a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
+--- a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
++++ b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
+@@ -14,6 +14,9 @@
+ #define TAG "CoreS3AudioCodec"
+ 
+ static CoreS3AudioCodec* s_instance = nullptr;
++#if CONFIG_MAIPAI_TALK_OVER
++static int s_talk_slot = CONFIG_MAIPAI_TALK_OVER_SLOT;  // patch SF26
++#endif
+ 
+ CoreS3AudioCodec::CoreS3AudioCodec(void* i2c_master_handle, int input_sample_rate,
+                                    int output_sample_rate, gpio_num_t mclk, gpio_num_t bclk,
+@@ -282,7 +285,7 @@ void CoreS3AudioCodec::EnableInput(bool enable) {
+         };
+         if (input_reference_) {
+ #if CONFIG_MAIPAI_TALK_OVER
+-            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(CONFIG_MAIPAI_TALK_OVER_SLOT);  // patch SF22: the TDM slot read as the second channel
++            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(s_talk_slot);  // patches SF22 and SF26: the TDM slot read as the second channel (bench: changeable at run time)
+ #else
+             fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
+ #endif
+@@ -361,6 +364,26 @@ int CoreS3AudioCodec::Write(const int16_t* data, int samples) {
+ }
+ 
+ #if CONFIG_MAIPAI_TALK_OVER
++// Patch SF26 (bench): which TDM slot is the second channel; the input is reopened when it is on.
++void CoreS3AudioCodec::SetTalkSlot(int slot) {
++    if (slot < 1 || slot > 3 || slot == s_talk_slot) {
++        return;
++    }
++    s_talk_slot = slot;
++    if (input_enabled_) {
++        EnableInput(false);
++        EnableInput(true);
++    }
++}
++
++void maipai_mic3_set_slot(int slot) {
++    if (auto* codec = CoreS3AudioCodec::Instance()) {
++        codec->SetTalkSlot(slot);
++    }
++}
++
++int maipai_mic3_get_slot() { return s_talk_slot; }
++
+ // Patch SF15 (bench): a new MIC3 gain while the input is open.
+ void maipai_mic3_set_gain_db(int db) {
+     auto* codec = CoreS3AudioCodec::Instance();
+diff --git a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h
+--- a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h
++++ b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h
+@@ -40,6 +40,7 @@ public:
+     // read-back matches what a powered-down chip shows.
+     static CoreS3AudioCodec* Instance();
+     void SetMic3GainDb(float db);  // patch SF15 (CONFIG_MAIPAI_TALK_OVER, bench)
++    void SetTalkSlot(int slot);    // patch SF26 (CONFIG_MAIPAI_TALK_OVER, bench)
+     bool MaipaiMicOff(char* regs, size_t regs_size);
+ };
+ 

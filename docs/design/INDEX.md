@@ -484,7 +484,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (279): no header
+- `firmware/patches/ORDER` (280): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -537,6 +537,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF23-bench-head-and-tone-medians.patch` (201): Bench only (CONFIG_MAIPAI_SERIAL_TOOLS, and CONFIG_MAIPAI_TALK_OVER for the tone check). self.bench.set_head {
 - `firmware/patches/SF24-mouth-cues-in-psram.patch` (100): The mouth cue list (about 1 KB) and the scratch arrays of self.face.mouth_cues (about 0.8 KB) no longer sit in
 - `firmware/patches/SF25-signed-update-header-and-build-number.patch` (281): Signed update with a build number (docs/plan/signed-update-header.md). The wireless update fetches a 56-byte h
+- `firmware/patches/SF26-bench-slot-firstrun-tool.patch` (163): Bench only. self.bench.mic3_check takes a slot (1 to 3) that changes the TDM slot read as the second channel a
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -2216,7 +2217,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/voice_fakes.py` (123): Scripted engines and a scripted capture for the speech-process tests."""
 - `schema/.gitkeep` (0): no header
 - `schema/base-tools.json` (10): no header
-- `schema/tools.json` (565): no header
+- `schema/tools.json` (569): no header
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
