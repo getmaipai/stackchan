@@ -1,0 +1,31 @@
+<div class="wrap" style="padding-bottom:8px"><h1 style="margin:0 0 4px">3D viewer</h1>
+<p class="small" style="margin:0">View only, with no robot connected. Drag to turn the view, scroll or pinch to zoom, double click to reset. Drag the head, or use the sliders, to move it. Click a USB-C socket or the power button on the model.</p></div>
+<div class="viewer">
+ <div class="stage"><canvas id="c" aria-label="The StackChan model. Drag to turn the view."></canvas>
+  <div id="hud"><span id="hd">head: yaw 0, pitch 3</span><br><span id="msg">Loading the model.</span></div>
+  <div id="legend"><span class="sw" style="background:#3ddc84"></span>yaw (turns left and right) <span class="sw" style="background:#ff6b6b;margin-left:8px"></span>pitch (nods up and down)</div>
+ </div>
+ <div class="panel">
+  <section><h2>View</h2>
+   <div class="row" style="margin-top:0"><button id="vreset">Reset</button><button id="vfront">Front</button><button id="vside">Side</button><button id="vback">Back (USB-C)</button><button id="vtop">Top</button><button id="vunder">Under</button></div>
+   <div class="row"><label><input id="axes" type="checkbox" checked> Axes</label><label><input id="inside" type="checkbox"> Show inside</label><label><input id="motion" type="checkbox"> Show motion</label><label><input id="draghead" type="checkbox" checked> Drag moves the head</label></div>
+   <div class="row"><button id="vdemo">Demo sweep</button></div></section>
+  <section><h2>Head</h2>
+   <div>Yaw <b id="yawv" class="num">0</b> degrees</div><input id="yaw" type="range" min="-128" max="128" value="0" aria-label="Yaw">
+   <div style="margin-top:6px">Pitch <b id="pitchv" class="num">3</b> degrees</div><input id="pitch" type="range" min="3" max="87" value="3" aria-label="Pitch">
+   <p class="vnote">The model stops the head where its own parts would touch. The maker advises pitch 5 to 85.</p>
+   <div class="row"><button data-look="-90,20">Look left</button><button data-look="0,3">Center</button><button data-look="90,20">Look right</button><button data-look="0,70">Look up</button></div></section>
+  <section><h2>Ports and power</h2>
+   <div class="row" style="margin-top:0"><button id="bpower">Power: on</button><button id="bback">Back socket: empty</button><button id="bside">Side socket: empty</button></div>
+   <p class="vnote">Plugging a cable lights the two small charge lights, as on the robot. Both sockets share one USB path.</p></section>
+  <section><h2>Lights</h2>
+   <div class="row" style="margin-top:0"><label for="ledc">Color</label><input id="ledc" type="color" value="#ffd400" style="width:44px;height:30px;padding:2px"><button id="ledall">All twelve</button><button id="ledrainbow">Rainbow</button><button id="ledspin">Chase</button><button id="ledoff">Off</button></div>
+   <div class="row"><label><input id="rich" type="checkbox" checked> Rich lights</label><label><input id="dim" type="checkbox"> Dim room</label></div></section>
+  <section><h2>About this page</h2>
+   <p class="vnote" style="margin-top:0">The model is the robot's rigged 3D body. The screen shows a still of the face. The interactive virtual robot, which runs the real screen and the voice link, is not on this site yet.</p></section>
+ </div>
+</div>
+@@SPLIT@@
+<script src="assets/three.min.js"></script>
+<script src="assets/view3d.js"></script>
+<script src="assets/viewer-stub.js"></script>
