@@ -9,13 +9,17 @@ def test_pages_get_and_set():
     u = VirtualUnit()
     assert u.call("self.pages.get") == {
         "ok": True, "left": ["clock", "timers", "games"], "right": ["actions", "frame", "tiles"],
-        "sheet_s": 8, "idle_s": 30,
-        "actions": ["find", "beep", "dance", "game", "hello"],
-        "sheet_items": ["volume", "brightness", "mute", "quiet", "light", "find", "timers", "games", "wifi", "battery", "tailnet", "address"],
+        "sheet_s": 10, "idle_s": 20,
+        "actions": ["beep", "dance", "game", "hello"],
+        "sheet_items": ["volume", "brightness", "mute", "quiet", "lock", "timers", "games", "wifi", "battery", "tailnet", "address"],
     }
     assert u.call("self.pages.set", {"json": '{"left":["clock"],"right":["games"],"sheet_s":12}'}) == {"ok": True}
     assert u.call("self.pages.get")["left"] == ["clock"]
     assert u.call("self.pages.get")["sheet_s"] == 12
+    assert u.call("self.pages.set", {"json": '{"sheet_s":7,"actions":["beep","hello"],"sheet_items":["light","find","games"]}'}) == {"ok": True}
+    assert u.call("self.pages.get")["sheet_s"] == 8
+    assert u.call("self.pages.get")["actions"] == ["beep", "hello"]
+    assert u.call("self.pages.get")["sheet_items"] == ["lock", "games"]
     assert u.call("self.pages.set", {"json": '{"left":["clock"],"right":["clock"]}'})["ok"] is False
 
 
@@ -26,8 +30,8 @@ def test_pages_status_shape_and_fake_clock():
         "ok": True, "version": 1, "open": False, "page": "face", "position": 0, "sheet": False,
         "tiles": 0, "tiles_age_s": 0,
         "pages": ["clock", "timers", "games", "actions", "frame", "tiles"],
-        "actions": ["find", "beep", "dance", "game", "hello"],
-        "sheet_items": ["volume", "brightness", "mute", "quiet", "light", "find", "timers", "games", "wifi", "battery", "tailnet", "address"],
+        "actions": ["beep", "dance", "game", "hello"],
+        "sheet_items": ["volume", "brightness", "mute", "quiet", "lock", "timers", "games", "wifi", "battery", "tailnet", "address"],
     }
     assert u.now_ms == 0
 
@@ -37,6 +41,11 @@ def test_filler_play_and_status():
     assert u.call("self.filler.status")["ok"] is True
     assert u.call("self.filler.play", {"mode": "tone"}) == {"ok": True, "played": True, "what": "tone"}
     assert u.call("self.filler.status")["played"] == 1
+    assert u.call("self.filler.play", {"mode": "none"}) == {"ok": True, "played": False, "why": "mode_none"}
+    u = VirtualUnit()
+    u.call("self.filler.status")
+    u.state["pages_filler_mood"]["played_this_turn"] = True
+    assert u.call("self.filler.play", {"mode": "phrase"}) == {"ok": True, "played": False, "why": "already_played"}
     assert u.call("self.filler.play", {"mode": "invalid"})["ok"] is False
 
 

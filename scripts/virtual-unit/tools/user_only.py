@@ -40,6 +40,8 @@ def wifi_switch(u, a):
     if _locked(u) or not 0 <= i < len(nets):
         return False
     nets.insert(0, nets.pop(i))
+    # The virtual unit has no Wi-Fi driver; firmware requests an immediate disconnect here.
+    u.state.setdefault("network", {})["wifi_disconnect_requested"] = True
     return True
 
 
@@ -65,7 +67,9 @@ def lock_clear(u, a):
     s = app(u)
     if s["locked"]:
         return {"ok": False, "reason": "locked"}
-    if s["code"] and a.get("current", "") != s["code"]:
+    if not s["code"]:
+        return {"ok": False, "reason": "no_code"}
+    if a.get("current", "") != s["code"]:
         return {"ok": False, "reason": "wrong_current"}
     s["code"] = None
     s["auto_minutes"] = 0
@@ -80,7 +84,10 @@ def lock_config(u, a):
         return {"ok": False, "reason": "locked"}
     if minutes not in (0, 1, 5, 15, 30, 60):
         return {"ok": False, "reason": "bad_minutes"}
-    if minutes == 0 and s.get("auto_minutes", 0) and s["code"] and a.get("current", "") != s["code"]:
-        return {"ok": False, "reason": "wrong_current"}  # turning the auto lock off needs the code
+    if minutes == 0 and s["code"]:
+        if not a.get("current", ""):
+            return {"ok": False, "reason": "current_needed"}
+        if a["current"] != s["code"]:
+            return {"ok": False, "reason": "wrong_current"}
     s["auto_minutes"] = minutes
     return {"ok": True}

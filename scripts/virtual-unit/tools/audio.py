@@ -28,7 +28,8 @@ def _quiet(s):
 
 
 def _play(s, name, urgent=False, test=False):
-    sounds = {"success", "popup", "vibration", "exclamation", "low_battery"}
+    sounds = {"needs_you", "plug_in", "charged", "unplug", "offline", "goodbye", "shutter",
+              "success", "popup", "vibration", "exclamation", "low_battery"}
     if name not in sounds:
         return False, "unknown_sound"
     p = s["policy"]
@@ -38,6 +39,10 @@ def _play(s, name, urgent=False, test=False):
         return False, "disabled"
     if _quiet(s) and not p["night_ok"] and not urgent and not test:
         return False, "night"
+    # The virtual unit has no firmware audio assets to inspect. The seven optional
+    # named sounds are recognized by firmware but absent in the base image.
+    if name in {"needs_you", "plug_in", "charged", "unplug", "offline", "goodbye", "shutter"}:
+        return False, "missing"
     s["plays"] += 1
     return True, ""
 
@@ -52,14 +57,18 @@ def hourly_chime(u, args):
     if args.get("test", False):
         if not s["chime_enabled"]:
             result = "off"
+        elif s.get("clock_set", True) is False:
+            result = "no_clock"
         elif _quiet(s):
             result = "quiet"
-        elif s["policy"]["muted"] or not s["policy"]["enabled"]:
-            s["refused"] += 1
-            result = "disabled"
+        elif s.get("hourly_busy", False):
+            result = "busy"
         else:
-            s["plays"] += 1
             result = "chime"
+            if s["policy"]["muted"] or not s["policy"]["enabled"]:
+                s["refused"] += 1
+            else:
+                s["plays"] += 1
     return {"ok": True, "enabled": s["chime_enabled"], "result": result}
 
 
@@ -77,7 +86,7 @@ def offline_phrase(u, args):
     if group and group not in groups:
         return {"ok": False, "error": "unknown_group"}
     dry = args.get("dry", True)
-    picked = group or "no_host"
+    picked = group or s.get("link_state", "no_host")
     result = {"ok": True, "kind": "clip", "group": picked, "variant": 0, "bytes": 0, "dry": dry}
     if not dry and (s["policy"]["muted"] or not s["policy"]["enabled"] or _quiet(s)):
         result.update(kind="none", group=picked, variant=-1, bytes=0)
@@ -95,9 +104,10 @@ def set_sound_policy(u, args):
     s = _state(u)
     p = s["policy"]
     old = {k: p[k] for k in ("enabled", "night_ok", "muted", "quiet_from", "quiet_to")}
-    for key in ("enabled", "night_ok", "muted", "dark", "quiet_from", "quiet_to"):
-        if key in args:
-            p[key] = args[key]
+    defaults = {"enabled": True, "night_ok": False, "muted": False, "dark": False,
+                "quiet_from": -1, "quiet_to": -1}
+    for key, default in defaults.items():
+        p[key] = args.get(key, default)
     p["quiet_from"] = max(-1, min(1439, p["quiet_from"]))
     p["quiet_to"] = max(-1, min(1439, p["quiet_to"]))
     changed = any(old[k] != p[k] for k in old)
@@ -143,10 +153,15 @@ def camera_cue_test(u, args):
 
 @tool("self.listen.test")
 def listen_test(u, args):
-    p = _state(u)["prefs"]
+    s = _state(u)
+    p = s["prefs"]
     sound = p.get("listen_sound", "chime")
     light = p.get("listen_light", "normal")
     face = p.get("listen_face", True)
+    # Model cue side effects. Hardware ring timings/counters are unavailable here.
+    if sound == "chime" and not s["policy"]["muted"] and s["policy"]["enabled"] and not _quiet(s):
+        s["plays"] += 1
+    s["listen_test"] = {"face": "surprised" if face else None, "light": light}
     return {"ok": True, "sound": sound, "light": light, "face": face,
             "sound_chosen": sound, "all_off": sound == "off" and light == "off" and not face,
             "ring_frames": 0, "ring_slow": 0, "ring_max_us": 0}
@@ -169,6 +184,15 @@ def music_set(u, args):
 @tool("self.music.stage")
 def music_stage(u, args):
     s = _state(u)
+    net = u.state.get("network", {}).get("remote", {})
+    source = args.get("source", "")
+    token = args.get("token", 0)
+    if source == "remote":
+        valid = (net.get("token_kind") == "dance" and net.get("token") == token
+                 and net.get("token_until", 0) >= u.now_ms)
+        if not valid:
+            return {"ok": False, "reason": "no_token"}
+        net["token"] = None
     stage = max(0, min(4, args.get("stage", 0)))
     if stage and not s["music_enabled"]:
         return {"ok": False, "error": "the music features are off: turn them on with self.music.set first"}
@@ -191,11 +215,13 @@ def prefs_get(u, args):
     defaults = {"emotion_faces": False, "overlays_enabled": False, "filler_mode": "tone", "filler_wait_s": 0.4,
                 "listen_sound": "chime", "listen_light": "normal", "listen_light_colour": "#40c0ff",
                 "listen_face": True, "fx_crt": False, "fx_colour_mode": "normal", "fx_night_dim": False,
-                "fx_glow": False, "speech_bubble": False, "thinking_dots": True, "pickup_reaction": "face"}
+                "fx_glow": False, "speech_bubble": False, "thinking_dots": True, "pickup_reaction": "face",
+                "captions_mode": "subtitles", "top_bar": "hidden"}
     chosen = sorted(s["prefs"])
     return {"ok": True, "values": {**defaults, **s["prefs"]}, "chosen": chosen,
             "unit_keys": ["listen_sound", "listen_light", "listen_light_colour", "listen_face", "fx_crt",
-                          "fx_colour_mode", "fx_night_dim", "fx_glow", "speech_bubble", "thinking_dots"]}
+                          "fx_colour_mode", "fx_night_dim", "fx_glow", "speech_bubble", "thinking_dots",
+                          "captions_mode", "top_bar"]}
 
 
 @tool("self.prefs.set")
@@ -210,6 +236,7 @@ def prefs_set(u, args):
     allowed = {"emotion_faces", "overlays_enabled", "filler_mode", "filler_wait_s", "listen_sound", "listen_light",
                "listen_light_colour", "listen_face", "fx_crt", "fx_colour_mode", "fx_night_dim", "fx_glow",
                "speech_bubble", "thinking_dots", "pickup_reaction"}
+    allowed.update({"captions_mode", "top_bar"})
     if set(values) - allowed:
         key = sorted(set(values) - allowed)[0]
         return {"ok": False, "error": f"unknown preference {key}: remove it or use a supported preference"}

@@ -4,6 +4,15 @@ import re
 
 from . import tool
 
+BUILTIN_REACTIONS = [
+    {"say": "hello", "face": "happy", "sound": "none", "decor": "sparkles", "dance": "none"},
+    {"say": "thanks", "face": "happy", "sound": "success", "decor": "sparkles", "dance": "none"},
+    {"say": "thank you", "face": "happy", "sound": "success", "decor": "sparkles", "dance": "none"},
+    {"say": "love", "face": "happy", "sound": "none", "decor": "heart", "dance": "happy"},
+    {"say": "sorry", "face": "sad", "sound": "none", "decor": "sweat", "dance": "none"},
+    {"say": "good night", "face": "sleepy", "sound": "goodbye", "decor": "zzz", "dance": "none"},
+]
+
 
 def _state(u):
     return u.state.setdefault("motion", {"usb_limit": "limited", "force": [-1, -1, -1, -1], "lease": "", "until": 0,
@@ -27,8 +36,8 @@ def claim(u, args):
 @tool("self.look.release")
 def release(u,args):
     s=_state(u); owner=args.get("owner", "")
-    if s["lease"] and s["until"]>u.now_ms and owner != s["lease"]: return {"ok":False,"error":"another host holds the lease"}
     if not re.fullmatch(r"[a-z0-9._-]{1,23}", owner): return {"ok":False,"error":"owner must be 1 to 23 of a-z 0-9 dash dot underscore"}
+    if s["lease"] and s["until"]>u.now_ms and owner != s["lease"]: return {"ok":False,"error":"another host holds the lease"}
     s["lease"]=""; s["until"]=u.now_ms; return {"ok":True}
 
 
@@ -45,7 +54,10 @@ def calibrate(u,args):
 @tool("self.look.detect_status")
 def detect_status(u,args):
     # Camera pixels are unavailable; expose the firmware status shape with a fixed empty detector.
-    if args.get("detail",False): return {"ok":False,"error":"no test has run yet"}
+    if args.get("detail",False):
+        result = _state(u).get("detect_result")
+        if result is None: return {"ok":False,"error":"no test has run yet"}
+        return result
     return {"ok":True,"built":True,"loaded":False,"model":"none","runs":0,"runs_with_face":0,"refused":0,"errors":0,"camera_busy":0,"last_infer_ms":0,"last_total_ms":0,"stream_left_ms":0,"test_state":0,"face":{"valid":False,"cx":0,"cy":0,"w":0,"score_pct":0,"age_ms":-1}}
 
 
@@ -55,13 +67,15 @@ def detect_test(u,args):
     if model not in ("msrmnp","pico224"): return {"ok":False,"error":"model must be msrmnp or pico224"}
     if crop not in ("full","center","follow"): return {"ok":False,"error":"crop must be full, center or follow"}
     if args.get("order","rgb") not in ("rgb","bgr",""): return {"ok":False,"error":"order must be rgb or bgr"}
-    # Camera pixels and inference hardware are unavailable; report a deterministic empty result.
-    return {"ok":True,"done":True,"ms":{"grab":0,"conv":0,"infer":0,"total":0,"cycle":[0,0],"first":0,"wall":0},"mem":{"before":0,"during_min":0,"after":0},"faces":0,"score_min_pct":0,"score_max_pct":0,"score_avg_pct":0,"fmt":"rgb565","window":crop}
+    # Camera and memory measurements need hardware. Keep their documented zeros; do not fabricate counters.
+    result = {"ok":True,"done":True,"ms":{"grab":0,"conv":0,"infer":0,"total":0,"cycle":[0,0],"first":0,"wall":0},"mem":{"before":0,"during_min":0,"after":0},"faces":0,"score_min_pct":0,"score_max_pct":0,"score_avg_pct":0,"fmt":"rgb565","window":crop}
+    _state(u)["detect_result"] = result
+    return result
 
 
 @tool("self.look.detect_track")
 def detect_track(u,args):
-    s=_state(u); s["armed"]=bool(args.get("on",False)); return {"ok":True,"armed":s["armed"],"state":"idle","own":False}
+    s=_state(u); s["armed"]=bool(args.get("on",False)); return {"ok":True,"armed":s["armed"],"state":s.get("track_state","idle"),"own":bool(s.get("track_own",False))}
 
 
 @tool("self.motion.force")
@@ -71,14 +85,15 @@ def motion_force(u,args):
 
 def _motion(u):
     s=_state(u); c,b,l,o=s["force"]; carried=(c==1); usb=(b==1); level=75 if l<0 else l; orient=("upright","tilted","side","inverted","unknown")[o] if 0<=o<=4 else "upright"
-    band="none" if level>=60 else "mild" if level>=40 else "limited" if level>=20 else "minimal" if level>=10 else "hold"
-    state="carried" if carried or orient in ("side","inverted","unknown") else "usb_limited" if usb and s["usb_limit"]=="limited" else "battery_limited" if band!="none" else "free"
-    scale,speed,dance=(0,0,0) if state=="carried" else (100,1000,4) if state=="free" else (70,600,3) if state in ("usb_limited","battery_limited") else (0,0,0)
+    band="none" if level>50 else "mild" if level>=30 else "limited" if level>=15 else "minimal" if level>=8 else "hold"
+    state="carried" if carried or orient in ("side","inverted") else "orientation_limited" if orient in ("tilted","unknown") else "usb_limited" if usb and s["usb_limit"]=="limited" else "battery_limited" if band!="none" else "free"
+    scale,speed,dance=(0,0,0) if state=="carried" else (30,400,1) if orient=="tilted" else (50,600,3) if orient=="unknown" else (100,1000,4) if state=="free" else (50,600,3) if state=="usb_limited" else (80,800,4) if band=="mild" else (50,600,3) if band=="limited" else (25,500,0) if band=="minimal" else (0,0,0)
     reasons=[]
     if carried: reasons.append("held or carried")
     if orient!="upright": reasons.append({"tilted":"tilted","side":"on its side or face down","inverted":"upside down","unknown":"no orientation reading"}[orient])
     if usb and s["usb_limit"]=="limited": reasons.append("on a USB cable")
     if not usb and band!="none": reasons.append("the battery is low")
+    # Live sensor values and servo counters require firmware hardware; expose fixed documented placeholders.
     return {"ok":True,"state":state,"reasons":", ".join(reasons),"usb":usb,"carried":carried,"orientation":orient,"tilt_deg":0,"usb_limit":s["usb_limit"],"battery":level,"battery_band":band,"scale":scale,"speed_cap":speed,"dance_max":dance,"refused_count":0,"limited_count":0}
 
 
@@ -90,12 +105,13 @@ def motion_status(u,args): return _motion(u)
 def motion_set(u,args):
     value=args.get("usb_limit","limited")
     if value not in ("limited","off"): return {"ok":False,"error":"usb_limit is limited or off"}
-    _state(u)["usb_limit"]=value; return {"ok":True,"usb_limit":value}
+    _state(u)["usb_limit"]=value  # NVS persistence is unavailable in the virtual unit.
+    return {"ok":True,"usb_limit":value}
 
 
 @tool("self.reaction.get_table")
 def reaction_get(u,args):
-    s=_state(u); return {"ok":True,"builtin":s["table"] is None,"table":s["table"] or []}
+    s=_state(u); return {"ok":True,"builtin":s["table"] is None,"table":s["table"] if s["table"] is not None else BUILTIN_REACTIONS}
 
 
 @tool("self.reaction.set_table")
@@ -103,22 +119,34 @@ def reaction_set(u,args):
     try: rows=json.loads(args.get("table","[]"))
     except Exception: return {"ok":False,"error":"table is not a JSON list: send rows like {\"say\":\"hello\",\"face\":\"happy\"}"}
     if not isinstance(rows,list) or len(rows)>40: return {"ok":False,"error":"table must be a JSON list with at most 40 rows"}
-    for row in rows:
-        if not isinstance(row,dict) or not re.fullmatch(r"[A-Za-z0-9]{2,23}",str(row.get("say",""))): return {"ok":False,"error":"row phrase must be 2 to 23 letters or numbers"}
+    allowed={"face":{"none","happy","sad","angry","doubtful","sleepy"},"sound":{"none","success","popup","goodbye","charged","needs_you","vibration"},"decor":{"none","sweat","shy","dizzy","heart","anger","tears","sparkles","stars","zzz"},"dance":{"none","happy","robot","panic","look_around"}}
+    for i,row in enumerate(rows,1):
+        if not isinstance(row,dict): return {"ok":False,"error":f"row {i}: the words must be 2 to 23 letters or numbers"}
+        phrase=" ".join(re.findall(r"[a-z0-9]+",str(row.get("say", "")).lower()))
+        if not 2 <= len(phrase) <= 23: return {"ok":False,"error":f"row {i}: the words must be 2 to 23 letters or numbers"}
+        row["say"]=phrase
+        for field in allowed:
+            val=row.get(field,"") or "none"
+            if val not in allowed[field]: return {"ok":False,"error":f"row {i}: the {field} must be a valid {field}"}
+            row[field]=val
+        if all(row[x]=="none" for x in allowed): return {"ok":False,"error":f"row {i}: a reaction needs at least a face, a sound, a decorator or a dance"}
+        if any(existing.get("say")==phrase for existing in rows[:i-1]): return {"ok":False,"error":f"row {i}: those words are already in the table"}
     _state(u)["table"]=rows; return {"ok":True,"builtin":False,"table":rows}
 
 
 @tool("self.reaction.reset")
 def reaction_reset(u,args):
-    _state(u)["table"]=None; return {"ok":True,"builtin":True,"table":[]}
+    _state(u)["table"]=None; return {"ok":True,"builtin":True,"table":BUILTIN_REACTIONS}
 
 
 @tool("self.reaction.test")
 def reaction_test(u,args):
-    text=args.get("text","").lower()
-    for row in _state(u)["table"] or []:
-        if row.get("say","").lower() in text:
-            return {"ok":True,"match":True,**{k:row.get(k,"") for k in ("say","face","sound","decor","dance")}}
+    text=" "+" ".join(re.findall(r"[a-z0-9]+", args.get("text", "").lower()))+" "
+    rows = _state(u)["table"] if _state(u)["table"] is not None else BUILTIN_REACTIONS
+    matches = [r for r in rows if " " + " ".join(re.findall(r"[a-z0-9]+", r["say"].lower())) + " " in text]
+    if matches:
+        row=max(matches,key=lambda r:len(r["say"]))
+        return {"ok":True,"match":True,"say":row["say"],**{k:row.get(k,"none") for k in ("face","sound","decor","dance")}}
     return {"ok":True,"match":False}
 
 
@@ -126,11 +154,15 @@ def reaction_test(u,args):
 def dance(u,args):
     name=args.get("name","happy"); valid=("happy","robot","panic","look_around","sway","nod_yes","shake_no","wiggle","bow","groove")
     if name not in valid: return {"ok":False}
+    if name in ("sway","nod_yes","shake_no","wiggle","bow","groove"):
+        return {"ok":False,"error":"dance extras are unavailable in this build"}
+    if _motion(u)["state"]=="carried" or _motion(u)["battery_band"] in ("minimal","hold"):
+        return {"ok":False,"error":"movement is limited: put the unit upright and charge the battery"}
     _state(u)["dance"]=name; return {"ok":True}
 
 
 @tool("self.robot.dance_list")
-def dance_list(u,args): return {"builtin":["happy","robot","panic","look_around"],"extra":[{"name":n,"ms":1000} for n in ("sway","nod_yes","shake_no","wiggle","bow","groove")]}
+def dance_list(u,args): return {"builtin":["happy","robot","panic","look_around"],"extra":[]}
 
 
 @tool("self.robot.stop_dance")
@@ -139,7 +171,7 @@ def stop_dance(u,args): _state(u)["dance"]=""; return {"ok":True}
 
 @tool("self.robot.get_events")
 def get_events(u,args):
-    s=_state(u); events=s["events"]; s["events"]=[]; return {"events":events}
+    s=_state(u); events=s["events"]; s["events"]=[]; return events
 
 
 @tool("self.robot.set_idle_motion")

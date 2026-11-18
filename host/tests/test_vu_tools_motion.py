@@ -22,31 +22,38 @@ def test_look_tools():
     out,u=call("self.look.bench_address"); assert out=={"ok":True}
     out,u=call("self.look.claim",{"owner":"host","ttl_s":10}); assert out["ttl_s"]==10 and u.state["motion"]["lease"]=="host"
     out,u=call("self.look.release",{"owner":"host"}); assert out=={"ok":True}
+    out,_=call("self.look.release",{"owner":"INVALID OWNER"}); assert out["error"].startswith("owner must")
     assert "enabled" in call("self.look.status")[0]
     assert call("self.look.calibrate")[0]=={"ok":True,"started":True}
     assert "face" in call("self.look.detect_status")[0]
     assert "done" in call("self.look.detect_test")[0]
+    u=Unit(); u.state={}; out=handlers.REGISTRY["self.look.detect_test"](u,{})
+    assert handlers.REGISTRY["self.look.detect_status"](u,{"detail":True})==out
     out,u=call("self.look.detect_track",{"on":True}); assert out["armed"] and u.state["motion"]["armed"]
 
 
 def test_limiter_tools():
     u=Unit(); u.state={}; out=handlers.REGISTRY["self.motion.force"](u,{"carried":1}); assert out=={"ok":True} and u.state["motion"]["force"][0]==1
     assert handlers.REGISTRY["self.motion.status"](u,{})["state"]=="carried"
+    u.state={}; handlers.REGISTRY["self.motion.force"](u,{"level":10,"orient":1}); status=handlers.REGISTRY["self.motion.status"](u,{})
+    assert status["state"]=="orientation_limited" and status["scale"]==30 and status["speed_cap"]==400
     out=handlers.REGISTRY["self.motion.set"](u,{"usb_limit":"off"}); assert out["usb_limit"]=="off" and u.state["motion"]["usb_limit"]=="off"
 
 
 def test_reaction_tools():
     u=Unit(); u.state={}; out=handlers.REGISTRY["self.reaction.set_table"](u,{"table":'[{"say":"hello","face":"happy"}]'}); assert out["table"][0]["say"]=="hello"
     assert handlers.REGISTRY["self.reaction.get_table"](u,{})["ok"]
+    assert handlers.REGISTRY["self.reaction.get_table"](u,{})["table"]
     assert handlers.REGISTRY["self.reaction.test"](u,{"text":"hello"})["match"]
     assert handlers.REGISTRY["self.reaction.reset"](u,{})["builtin"]
+    assert handlers.REGISTRY["self.reaction.test"](u,{"text":"hello!"})["match"]
 
 
 def test_robot_tools():
     assert call("self.robot.dance",{"name":"happy"})[0]["ok"]
     assert call("self.robot.dance_list")[0]["builtin"]
     assert call("self.robot.stop_dance")[0]["ok"]
-    assert call("self.robot.get_events")[0]=={"events":[]}
+    assert call("self.robot.get_events")[0]==[]
     out,u=call("self.robot.set_idle_motion",{"enabled":True}); assert out["ok"] and u.state["motion"]["idle"]
     out,u=call("self.robot.create_reminder",{"duration_seconds":30,"message":"x","repeat":False}); assert out["id"]==1 and u.state["motion"]["reminders"]
     # One unit owns the reminder queue for create, list and stop.

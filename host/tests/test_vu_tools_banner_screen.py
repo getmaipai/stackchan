@@ -22,6 +22,9 @@ def test_face_seen_defaults_and_rate_limit():
     u.now_ms += 501
     assert u.call("self.banner.face_seen", {"seconds": 12}) == {"ok": True, "shown": True}
     assert u.state["banner_screen"]["face_until_ms"] == 10501
+    u.now_ms += 501
+    assert u.call("self.banner.face_seen", {"seconds": 0}) == {"ok": True, "shown": True}
+    assert u.state["banner_screen"]["face_until_ms"] == 4002
 
 
 def test_face_seen_refuses_when_status_icons_are_off():

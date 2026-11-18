@@ -63,3 +63,54 @@ def test_tool_result_shape_and_state_change(name, args):
         assert {"muted", "vision_off", "quiet", "mic_off_verified"} <= set(out)
     elif name == "self.privacy.set":
         assert {"muted", "vision_off", "quiet"} <= set(out)
+
+
+def test_hourly_chime_reports_firmware_gates():
+    u = unit()
+    u.state["audio"] = {"chime_enabled": True, "policy": {"enabled": True, "night_ok": False,
+        "muted": False, "dark": False, "quiet_from": -1, "quiet_to": -1}, "plays": 0, "refused": 0,
+        "minute": 720, "clock_set": False}
+    assert u.call("self.audio.hourly_chime", {"test": True})["result"] == "no_clock"
+
+
+def test_offline_phrase_empty_group_uses_current_link_state():
+    u = unit()
+    u.state["audio"] = {"policy": {"enabled": True, "muted": False, "dark": False, "quiet_from": -1,
+        "quiet_to": -1}, "offline": {"clips_played": 0, "clips_missing": 0}, "link_state": "no_wifi"}
+    assert u.call("self.audio.offline_phrase", {"dry": True})["group"] == "no_wifi"
+
+
+def test_play_sound_recognizes_named_but_unavailable_sound():
+    out = unit().call("self.audio.play_sound", {"name": "needs_you"})
+    assert out == {"ok": False, "error": "missing"}
+
+
+def test_sound_policy_omitted_properties_take_schema_defaults():
+    u = unit()
+    u.state["audio"] = {"policy": {"enabled": False, "night_ok": True, "muted": True, "dark": True,
+        "quiet_from": 80, "quiet_to": 90}, "plays": 0, "refused": 0}
+    assert u.call("self.audio.set_sound_policy", {}) == {"ok": True, "changed": True}
+    assert u.state["audio"]["policy"] == {"enabled": True, "night_ok": False, "muted": False,
+        "dark": False, "quiet_from": -1, "quiet_to": -1}
+
+
+def test_listen_test_models_enabled_cue_effects_and_fixed_hardware_counters():
+    u = unit()
+    u.state["audio"] = {"policy": {"enabled": True, "night_ok": False, "muted": False, "dark": False,
+        "quiet_from": -1, "quiet_to": -1}, "plays": 0, "prefs": {}}
+    out = u.call("self.listen.test", {})
+    assert out["ring_frames"] == out["ring_slow"] == out["ring_max_us"] == 0
+    assert u.state["audio"]["plays"] == 1 and u.state["audio"]["listen_test"]["face"] == "surprised"
+
+
+def test_music_stage_requires_remote_token_when_source_is_remote():
+    out = unit().call("self.music.stage", {"stage": 1, "source": "remote", "token": 0})
+    assert out == {"ok": False, "reason": "no_token"}
+
+
+def test_preferences_include_banner_row_settings():
+    out = unit().call("self.prefs.get", {})
+    assert out["values"]["captions_mode"] == "subtitles"
+    assert out["values"]["top_bar"] == "hidden"
+    assert {"captions_mode", "top_bar"} <= set(out["unit_keys"])
+    assert unit().call("self.prefs.set", {"json": '{"captions_mode":"banner","top_bar":"always"}'})["ok"]

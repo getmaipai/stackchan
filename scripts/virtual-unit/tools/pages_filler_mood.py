@@ -5,14 +5,14 @@ from tools import tool
 
 
 PAGES = ["clock", "timers", "games", "actions", "frame", "tiles"]
-ACTIONS = ["find", "beep", "dance", "game", "hello"]
-SHEET_ITEMS = ["volume", "brightness", "mute", "quiet", "light", "find", "timers", "games", "wifi", "battery", "tailnet", "address"]
+ACTIONS = ["beep", "dance", "game", "hello"]
+SHEET_ITEMS = ["volume", "brightness", "mute", "quiet", "lock", "timers", "games", "wifi", "battery", "tailnet", "address"]
 
 
 def _state(u):
     return u.state.setdefault("pages_filler_mood", {
         "left": ["clock", "timers", "games"], "right": ["actions", "frame", "tiles"],
-        "sheet_s": 8, "idle_s": 30, "actions": ACTIONS[:], "sheet_items": SHEET_ITEMS[:],
+        "sheet_s": 10, "idle_s": 20, "actions": ACTIONS[:], "sheet_items": SHEET_ITEMS[:],
         "pages_open": False, "position": 0, "sheet": False, "tiles": 0, "tiles_at": 0,
         "filler_mode": "none", "played": 0, "phrases": 0, "last": "", "last_skip": "", "skipped": {},
         "care": 50, "saved_care": 50, "pets_today": 0, "day": 0, "test": False, "level": "plain",
@@ -26,6 +26,12 @@ def _level(care):
 @tool("self.pages.get")
 def pages_get(u, args):
     s = _state(u)
+    # Firmware config loading migrates old saved values before returning them.
+    s["sheet_s"] = 8 if 5 <= s["sheet_s"] < 8 else s["sheet_s"]
+    s["actions"] = [a for a in s["actions"] if a in ACTIONS]
+    if len(s["actions"]) < 2:
+        s["actions"] = (s["actions"] + [a for a in ACTIONS if a not in s["actions"]])[:2]
+    s["sheet_items"] = list(dict.fromkeys("lock" if i == "light" else i for i in s["sheet_items"] if i != "find"))
     return {"ok": True, "left": s["left"], "right": s["right"], "sheet_s": s["sheet_s"], "idle_s": s["idle_s"], "actions": s["actions"], "sheet_items": s["sheet_items"]}
 
 
@@ -39,7 +45,8 @@ def pages_status(u, args):
     age = max(0, u.now_ms // 1000 - s["tiles_at"]) if s["tiles_at"] else 0
     return {"ok": True, "version": 1, "open": s["pages_open"], "page": page, "position": pos,
             "sheet": s["sheet"], "tiles": s["tiles"], "tiles_age_s": age,
-            "pages": PAGES[:], "actions": ACTIONS[:], "sheet_items": SHEET_ITEMS[:]}
+            "pages": PAGES[:], "actions": ["beep", "dance", "game", "hello"],
+            "sheet_items": ["volume", "brightness", "mute", "quiet", "lock", "timers", "games", "wifi", "battery", "tailnet", "address"]}
 
 
 @tool("self.pages.set")
@@ -60,21 +67,24 @@ def pages_set(u, args):
             candidate[side] = v[:]
     if set(candidate["left"]) & set(candidate["right"]):
         return {"ok": False, "error": "A page can appear only once across left and right. Remove the duplicate page."}
-    for key, lo, hi in (("sheet_s", 5, 15), ("idle_s", 5, 300)):
+    for key, lo, hi in (("sheet_s", 5, 30), ("idle_s", 5, 300)):
         if key in obj:
             val = obj[key]
             if isinstance(val, bool) or not isinstance(val, (int, float)) or not lo <= int(val) <= hi:
                 return {"ok": False, "error": f"Choose {key} from {lo} to {hi} seconds."}
             candidate[key] = int(val)
+    if "sheet_s" in obj and 5 <= candidate["sheet_s"] < 8:
+        candidate["sheet_s"] = 8
     for key, choices, low, high, message in (
-        ("actions", ACTIONS, 4, 6, "Choose four to six valid actions."),
+        ("actions", ACTIONS, 2, 4, "Choose two to four valid actions."),
         ("sheet_items", SHEET_ITEMS, 0, len(SHEET_ITEMS), "Choose valid control sheet items."),
     ):
         if key in obj:
             val = obj[key]
-            if not isinstance(val, list) or not low <= len(val) <= high or any(x not in choices for x in val) or len(set(val)) != len(val):
+            allowed = choices + (["light", "find"] if key == "sheet_items" else [])
+            if not isinstance(val, list) or not low <= len(val) <= high or any(x not in allowed for x in val) or len(set("lock" if x == "light" else x for x in val)) != len(val):
                 return {"ok": False, "error": message}
-            candidate[key] = val[:]
+            candidate[key] = ["lock" if x == "light" else x for x in val if x != "find"] if key == "sheet_items" else val[:]
     for key in ("left", "right", "actions", "sheet_items"):
         s[key] = candidate[key]
     s["sheet_s"], s["idle_s"] = candidate["sheet_s"], candidate["idle_s"]
@@ -96,11 +106,26 @@ def filler_play(u, args):
     if mode not in ("none", "tone", "phrase"):
         return {"ok": False, "error": "The mode must be none, tone or phrase. Choose one of them."}
     if mode == "none":
-        s["last_skip"] = "none"
-        return {"ok": True, "played": False, "why": "none"}
+        s["last_skip"] = "mode_none"
+        s["skipped"]["mode_none"] = s["skipped"].get("mode_none", 0) + 1
+        return {"ok": True, "played": False, "why": "mode_none"}
+    # Environment and answer-audio state are hardware-owned and fixed in this simulator.
+    if s.get("audio_started"):
+        why = "answer_started"
+    elif s.get("speaking") or s.get("muted") or s.get("full_quiet") or s.get("sound_ok") is False:
+        why = "silenced"
+    elif s.get("played_this_turn"):
+        why = "already_played"
+    else:
+        why = ""
+    if why:
+        s["last_skip"] = why
+        s["skipped"][why] = s["skipped"].get(why, 0) + 1
+        return {"ok": True, "played": False, "why": why}
     s["played"] += 1
     if mode == "phrase":
-        s["phrases"] += 1
+        # Phrase availability and selection depend on the hardware filler pack.
+        pass
     s["filler_mode"] = mode
     s["last"] = mode
     s["last_skip"] = ""

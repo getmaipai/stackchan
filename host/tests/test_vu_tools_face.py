@@ -38,6 +38,12 @@ def test_bench_caption_stores_text_and_clears_with_empty_default():
     assert u.state["face"]["caption"] == ""
 
 
+def test_bench_caption_refuses_when_face_not_ready():
+    u = FakeUnit()
+    u.state["face"] = {"ready": False}
+    assert u.call("self.face.bench_caption", {"text": "hello"}) == {"ok": False, "error": "no face"}
+
+
 def test_bench_fps_returns_firmware_rate_shape():
     u = FakeUnit()
     u.now_ms = 2500
@@ -45,12 +51,13 @@ def test_bench_fps_returns_firmware_rate_shape():
     assert out["ok"] is True
     assert out["seconds"] == 0.0
     assert {"refresh_per_s", "avg_render_ms", "p99_gap_ms", "face_task_stack_min_free"} <= out.keys()
+    assert out["refresh_per_s"] == 0.0  # Hardware counters are unavailable in the virtual unit.
 
 
 def test_bench_mode_sets_ab_switch_and_refuses_invalid_value():
     u = FakeUnit()
     assert u.call("self.face.bench_mode", {"dirty": 1}) == {"ok": True}
-    assert u.state["face"]["dirty"] == 1
+    assert u.state["face"]["legacy_mode"] == 1
     assert u.call("self.face.bench_mode", {"dirty": 2})["ok"] is False
 
 
@@ -59,6 +66,7 @@ def test_bench_run_advances_fake_clock_and_refuses_unknown_workload():
     out = u.call("self.face.bench_run", {"what": "idle", "seconds": 2, "level": 0})
     assert out["ok"] is True and out["what"] == "idle"
     assert u.now_ms == 2000
+    assert out["refresh_per_s"] == 0.0  # The firmware measures hardware counters unavailable here.
     assert u.call("self.face.bench_run", {"what": "bogus"})["ok"] is False
 
 
@@ -66,6 +74,11 @@ def test_decor_list_matches_build_names():
     u = FakeUnit()
     out = u.call("self.face.decor_list", {})
     assert out == {"ok": True, "decorators": ["sweat", "shy", "dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz", "notes"]}
+
+
+def test_decorate_validates_seconds_before_none_clears():
+    u = FakeUnit()
+    assert u.call("self.face.decorate", {"name": "none", "seconds": 0})["error"].startswith("seconds must be 1 to 60")
 
 
 def test_decorate_changes_state_refuses_unknown_and_none_clears():
@@ -84,6 +97,13 @@ def test_gaze_moves_and_expires_on_fake_clock():
     assert face["gaze"] == {"x": 50, "y": -10} and face["gaze_until"] == 200
     assert u.call("self.face.gaze", {"x": 101, "y": 0, "ms": 200})["ok"] is False
     u.advance(200)
-    if u.now_ms >= face["gaze_until"]:
-        face["gaze"] = {"x": 0, "y": 0}
+    assert u.call("self.face.gaze", {"x": 50, "y": -10, "ms": 200}) == {"ok": True}
+    u.advance(200)
+    face = u.state["face"]
     assert face["gaze"] == {"x": 0, "y": 0}
+
+
+def test_gaze_refuses_when_face_not_ready():
+    u = FakeUnit()
+    u.state["face"] = {"ready": False}
+    assert u.call("self.face.gaze", {}) == {"ok": False, "error": "the face is not ready: try again in a moment"}

@@ -23,10 +23,13 @@ def test_page_bench_swipe_shape():
     u = Unit()
     assert call(u, "self.page.bench_swipe", {"x0": 0, "y0": 0, "x1": 200, "y1": 100, "ms": 200}) == {"ok": True, "open": False, "position": 0, "sheet": False}
     assert u.now_ms == 200
+    assert u.state["page_overlay"]["page"] == "face"
 
 
 def test_page_bench_tap_shape():
-    assert call(Unit(), "self.page.bench_tap", {"x": 10, "y": 20, "hold_ms": 120})["ok"] is True
+    u = Unit()
+    assert call(u, "self.page.bench_tap", {"x": 10, "y": 20, "hold_ms": 120}) == {"ok": True, "open": False, "position": 0, "sheet": False}
+    assert u.state["page_overlay"]["page"] == "face"
 
 
 def test_page_show_changes_page_and_refuses_unknown():
@@ -60,3 +63,12 @@ def test_overlay_set_validates_and_status_expires():
     assert call(u, "self.overlay.set", {"name": "unknown", "intensity": "normal", "seconds": 1})["ok"] is False
     u.now_ms = 1000
     assert call(u, "self.overlay.status")["layers"][0]["name"] == "none"
+
+
+def test_overlay_set_accepts_preset_and_status_has_three_layers():
+    u = Unit()
+    assert call(u, "self.overlay.set", {"name": "stormy", "intensity": "normal", "seconds": 8}) == {"ok": True}
+    status = call(u, "self.overlay.status")
+    assert [layer["layer"] for layer in status["layers"]] == ["weather", "event", "front"]
+    assert "stormy" in status["names"]
+    assert status["layers"][0]["name"] == "stormy"

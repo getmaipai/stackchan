@@ -21,7 +21,7 @@ ZONES = [("pacific_honolulu", "Honolulu", "HST10"), ("america_anchorage", "Ancho
  ("asia_dubai", "Dubai", "<+04>-4"), ("asia_karachi", "Karachi", "PKT-5"), ("asia_kolkata", "Delhi", "IST-5:30"),
  ("asia_dhaka", "Dhaka", "<+06>-6"), ("asia_bangkok", "Bangkok", "<+07>-7"), ("asia_shanghai", "Beijing", "CST-8"),
  ("asia_tokyo", "Tokyo", "JST-9"), ("australia_sydney", "Sydney", "AEST-10AEDT,M10.1.0,M4.1.0/3"), ("pacific_auckland", "Auckland", "NZST-12NZDT,M9.5.0,M4.1.0/3")]
-GAMES = [("memory", "Color memory", False), ("reaction", "Reaction time", True), ("whack", "Whack-a-mole", False), ("tictactoe", "Tic-tac-toe", False), ("bopit", "Do It", False), ("rps", "Rock paper scissors", False)]  # patch UI14: six games
+GAMES = [("memory", "Color memory", False), ("whack", "Whack-a-mole", False), ("tictactoe", "Tic-tac-toe", False), ("bopit", "Do It", False), ("rps", "Rock paper scissors", False), ("eightball", "Magic 8 Ball", False), ("dice", "Dice and coin", False)]  # Latest game table, patch GM06.
 
 def app(u):
     a = u.state.setdefault("apps", {})
@@ -47,7 +47,7 @@ def clock_zones(u, args): return {"ok": True, "zones": [{"id": x, "label": y} fo
 @tool("self.clock.set_zone")
 def clock_zone(u, args):
     a=app(u); z=args.get("zone", "utc")
-    if z not in {x[0] for x in ZONES}: return {"ok":False,"error":"zone"}
+    if z not in {x[0] for x in ZONES}: return {"ok":False,"error":"that time zone is not in the list. Call self.clock.zones and choose an id."}
     a["zone"]=z; return clock_reply(u, a)
 @tool("self.clock.set")
 def clock_set(u, args):
@@ -61,7 +61,7 @@ def game_list(u,args):
 @tool("self.game.start")
 def game_start(u,args):
     a=app(u); n=args.get("name","memory")
-    if n not in [g[0] for g in GAMES]: return {"ok":False,"error":"That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit or rps."}
+    if n not in [g[0] for g in GAMES]: return {"ok":False,"error":"That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball or dice."}
     if a["game"]: return {"ok":False,"error":"A game is already running."}
     a["game"]={"name":n,"state":0,"ctr":[0]*8,"seq":[],"seq_pos":0,"steps":0,"finished":False}; return {"ok":True}
 @tool("self.game.stop")
@@ -69,13 +69,14 @@ def game_stop(u,args): a=app(u); was=a["game"] is not None; a["game"]=None; retu
 @tool("self.game.scores")
 def game_scores(u,args):
     a=app(u); n=args.get("name","memory"); g=next((x for x in GAMES if x[0]==n),None)
-    if not g: return {"ok":False,"error":"That game is not on this unit. Ask for memory, reaction, whack, tictactoe, bopit or rps."}
+    if not g: return {"ok":False,"error":"That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball or dice."}
     return {"ok":True,"game":n,"lower_is_better":g[2],"scores":a["scores"].get(n,[])}
 @tool("self.game.status")
 def game_status(u,args):
     a=app(u); g=a["game"]
+    # Heap counters and the live game board require hardware; fixed values are documented here.
     d={"ok":True,"active":g is not None,"tones":a["tones"],"saves":a["saves"],"inputs":a["events"],"internal_free":0,"psram_free":0}
-    if g: d.update(game=g["name"],state=g["state"],ctr=g["ctr"],seq=g["seq"],seq_pos=g["seq_pos"],steps=g["steps"],finished=g["finished"])
+    if g: d.update(game=g["name"],state=g["state"],ctr=g["ctr"],board="000000000",seq=g["seq"],seq_pos=g["seq_pos"],steps=g["steps"],finished=g["finished"])
     return d
 @tool("self.game.bench_tap")
 def game_tap(u,args):
@@ -89,13 +90,17 @@ def game_event(u,args): a=app(u); on=a["game"] is not None; a["events"]+=1; retu
 def game_swipe(u,args):
     a=app(u)
     if not a["game"]:return {"ok":False,"error":"No game is running."}
+    if any(k not in args for k in ("x0","y0","x1","y1","ms")):return {"ok":False,"error":"bad_argument"}
     a["events"]+=1; return {"ok":True}
 @tool("self.game.bench_request_stop")
-def game_request_stop(u,args): a=app(u); asked=a["game"] is not None; a["game"]=None; return {"ok":True,"asked":asked}
+def game_request_stop(u,args):
+    a=app(u); asked=a["game"] is not None
+    if asked:a["game"]["stop_requested"]=True
+    return {"ok":True,"asked":asked}
 @tool("self.game.bench_gaps")
 def game_gaps(u,args):
     a=app(u); vals=a["gaps"]; a["gaps"]=[]
-    def pct(p): return sorted(vals)[min(len(vals)-1,max(0,(len(vals)*p+99)//100-1))] if vals else 0
+    def pct(p): return sorted(vals)[min(len(vals)-1,max(0,(len(vals)*p+99)//100-1))] if vals else 255
     return {"ok":True,"count":len(vals),"p50_ms":pct(50),"p99_ms":pct(99),"worst_ms":max(vals,default=0)}
 @tool("self.game.bench_install")
 def game_install(u,args):
@@ -107,25 +112,26 @@ def game_install(u,args):
     return {"ok":False,"error":"The pack data is invalid. Send a valid game pack."}
 
 @tool("self.lock.status")
-def lock_status(u,args): a=app(u); return {"has_code":a["code"] is not None,"locked":a["locked"],"auto_minutes":a.get("auto_minutes",0)}
+def lock_status(u,args): a=app(u); return {"ok":True,"has_code":a["code"] is not None,"locked":a["locked"],"auto_minutes":a.get("auto_minutes",0)}
 @tool("self.lock.now")
 def lock_now(u,args):
     a=app(u)
+    if a["locked"]:return {"ok":True,"locked":True}
     if not a["code"]:return {"ok":False,"reason":"no_code"}
     a["locked"]=True; a["keypad"]=False; a["entered"]=""; return {"ok":True,"locked":True}
 @tool("self.lock.bench_touch")
 def lock_touch(u,args):
     a=app(u)
-    if not a["locked"]:return {"ok":False,"reason":"not_locked"}
+    if not a["locked"] or not a.get("ui_on",False):return {"ok":False,"reason":"not_locked"}
     a["keypad"]=True; return {"ok":True}
 @tool("self.lock.bench_key")
 def lock_key(u,args):
     a=app(u); k=args.get("key","1")
-    if not a["locked"] or not a["keypad"] or len(k)!=1:return {"ok":False,"reason":"not_locked"}
+    if not a["locked"] or not a.get("ui_on",False) or len(k)!=1:return {"ok":False,"reason":"not_locked"}
     if k=="C":a["entered"]=""; a["keypad"]=False
     elif k=="B":a["entered"]=a["entered"][:-1]
     elif k.isdigit():a["entered"]+=k
-    else:return {"ok":False,"reason":"bad_key"}
+    else: pass  # Firmware forwards any single character to the keypad handler.
     unlocked=a["entered"]==a["code"] and bool(a["entered"])
     if unlocked:a["locked"]=False; a["keypad"]=False; a["entered"]=""
     return {"ok":True,"unlocked":unlocked,"keypad":a["keypad"]}
@@ -149,12 +155,14 @@ def timer_alarm(u,args):
     if a["epoch"] is None:return {"ok":False,"error":"no_clock"}
     h=args.get("hour",0);m=args.get("minute",0)
     if not 0<=h<=23 or not 0<=m<=59:return {"ok":False,"error":"bad_argument"}
-    now=a["epoch"]+u.now_ms//1000; cur=dt.datetime.fromtimestamp(now,dt.timezone.utc); target=cur.replace(hour=h,minute=m,second=0,microsecond=0)
+    offsets={"america_new_york":-5,"america_chicago":-6,"america_denver":-7,"america_los_angeles":-8,"asia_kolkata":5,"asia_tokyo":9}
+    off=offsets.get(a["zone"],0)
+    now=a["epoch"]+u.now_ms//1000+off*3600; cur=dt.datetime.fromtimestamp(now,dt.timezone.utc); target=cur.replace(hour=h,minute=m,second=0,microsecond=0)
     if target.timestamp()<=now:target+=dt.timedelta(days=1)
     return timer_add(a,u.now_ms+int(target.timestamp()-now)*1000,args.get("label",""),args.get("silent",False))
 @tool("self.timer.list")
 def timer_list(u,args):
-    a=app(u);timer_update(a,u);return {"ok":True,"timers":[{"id":t["id"],"seconds":max(0,(t["due"]-u.now_ms+999)//1000),"label":t["label"],"silent":t["silent"],"ringing":t["ringing"]} for t in a["timers"]]}
+    a=app(u);timer_update(a,u);return {"ok":True,"clock":a["epoch"] is not None,"ringing":any(t["ringing"] for t in a["timers"]),"timers":[{"id":t["id"],"kind":"timer","left":max(0,(t["due"]-u.now_ms+999)//1000),"label":t["label"]} for t in a["timers"]]}
 @tool("self.timer.cancel")
 def timer_cancel(u,args):
     a=app(u);i=args.get("id",0);old=len(a["timers"]);a["timers"]=[t for t in a["timers"] if i!=0 and t["id"]!=i]
@@ -163,12 +171,12 @@ def timer_cancel(u,args):
 def timer_stop(u,args):
     a=app(u);timer_update(a,u)
     for t in a["timers"]:
-        if t["ringing"]:a["timers"].remove(t);a["last_ring"]=(t["label"],t["silent"]);a["last_ring_at"]=u.now_ms;return {"ok":True}
+        if t["ringing"]:t["ringing"]=False;a["last_ring"]=(t["label"],t["silent"]);a["last_ring_at"]=u.now_ms;return {"ok":True}
     return {"ok":False,"error":"not_ringing"}
 @tool("self.timer.snooze")
 def timer_snooze(u,args):
     a=app(u);s=args.get("seconds",300)
-    if not 1<=s<=3600:return {"ok":False,"error":"bad_argument"}
+    s=min(s,3600)
     last=a.get("last_ring")
     if last is None or u.now_ms-a.get("last_ring_at",-999999)>120000:return {"ok":False,"error":"not_found"}
-    return timer_add(a,u.now_ms+s*1000,*last)
+    return timer_add(a,u.now_ms+s*1000,last[0],False)

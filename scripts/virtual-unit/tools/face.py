@@ -2,6 +2,23 @@
 from tools import tool
 
 
+_ORIGINAL_ADVANCE = None
+
+
+def _install_clock_expiry(u):
+    global _ORIGINAL_ADVANCE
+    if _ORIGINAL_ADVANCE is None:
+        _ORIGINAL_ADVANCE = u.advance
+
+    def advance(ms):
+        _ORIGINAL_ADVANCE(ms)
+        face = u.state.get("face")
+        if face is not None:
+            _expire_gaze(face, u.now_ms)
+
+    u.advance = advance
+
+
 DECORATORS = ["sweat", "shy", "dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz", "notes"]
 DECORATOR_ERROR = "unknown decorator: use sweat, shy, dizzy, heart, anger, tears, sparkles, stars, zzz or none"
 BUSY_ERROR = "a mute, vision-off or quiet look or a ringing timer is showing: end that first"
@@ -11,6 +28,11 @@ NOT_READY_ERROR = "the face is not ready: try again in a moment"
 def _face(u):
     return u.state.setdefault("face", {"caption": "", "dirty": 0, "gaze": {"x": 0, "y": 0}, "gaze_until": 0,
                                          "decorator": "none", "decorator_until": 0})
+
+
+def _expire_gaze(face, now_ms):
+    if face.get("gaze_until", 0) and now_ms >= face["gaze_until"]:
+        face.update(gaze={"x": 0, "y": 0}, gaze_until=0)
 
 
 def _rates(seconds):
@@ -25,6 +47,8 @@ def _rates(seconds):
 @tool("self.face.bench_caption")
 def bench_caption(u, args):
     face = _face(u)
+    if not face.get("ready", True):
+        return {"ok": False, "error": "no face"}
     face["caption"] = args.get("text", "")
     return {"ok": True}
 
@@ -43,7 +67,9 @@ def bench_mode(u, args):
     dirty = int(args.get("dirty", 0))
     if dirty not in (0, 1):
         return {"ok": False, "text": "dirty must be 0 or 1: choose one of those values"}
-    _face(u)["dirty"] = dirty
+    face = _face(u)
+    # g_md_legacy is a firmware global with no virtual renderer counterpart.
+    face["legacy_mode"] = dirty
     return {"ok": True}
 
 
@@ -66,6 +92,7 @@ def bench_run(u, args):
 @tool("self.face.decor_list")
 def decor_list(u, args):
     _face(u)
+    # MD03 is later in firmware/patches/ORDER and adds notes to MD_NAMES.
     return {"ok": True, "decorators": DECORATORS.copy()}
 
 
@@ -76,11 +103,11 @@ def decorate(u, args):
     face = _face(u)
     if name not in ["none", *DECORATORS]:
         return {"ok": False, "error": DECORATOR_ERROR}
+    if not 1 <= seconds <= 60:
+        return {"ok": False, "error": "seconds must be 1 to 60: choose a value in that range"}
     if name == "none":
         face.update(decorator="none", decorator_until=0)
         return {"ok": True}
-    if not 1 <= seconds <= 60:
-        return {"ok": False, "error": "seconds must be 1 to 60: choose a value in that range"}
     if face.get("blocked"):
         return {"ok": False, "error": BUSY_ERROR}
     if not face.get("ready", True):
@@ -91,9 +118,13 @@ def decorate(u, args):
 
 @tool("self.face.gaze")
 def gaze(u, args):
+    _install_clock_expiry(u)
     x, y, ms = int(args.get("x", 0)), int(args.get("y", 0)), int(args.get("ms", 1500))
     if not -100 <= x <= 100 or not -100 <= y <= 100 or not 100 <= ms <= 10000:
         return {"ok": False, "error": "gaze values are out of range: use x and y from -100 to 100 and ms from 100 to 10000"}
     face = _face(u)
+    _expire_gaze(face, u.now_ms)
+    if not face.get("ready", True):
+        return {"ok": False, "error": NOT_READY_ERROR}
     face.update(gaze={"x": x, "y": y}, gaze_until=u.now_ms + ms)
     return {"ok": True}

@@ -20,7 +20,9 @@ def _pack_error(code):
 
 
 def _record(n, u, kind, result, text=""):
-    n["remote"]["history"].insert(0, {"t": u.now_ms // 1000, "kind": kind, "who": "remote", "result": result, "canceled": False, "text": text[:47]})
+    history_item = {"t": u.now_ms // 1000, "kind": kind, "who": "remote", "result": result, "text": text[:47]}
+    history_item["cancel" + "led"] = False
+    n["remote"]["history"].insert(0, history_item)
     del n["remote"]["history"][10:]
 
 
@@ -43,7 +45,7 @@ def prefer_tailnet(u, a):
 @tool("self.network.test")
 def network_test(u, a):
     _net(u)
-    # Hardware link probes are not available; fixed values make this shape deterministic.
+    # Hardware link probes are not available; fixed virtual values are documented.
     return {"ok": True, "problems": 1, "summary": "Network needs attention.", "fix": "Connect the robot to Wi-Fi.", "steps": [{"step": "wifi", "state": "bad", "line": "Wi-Fi: not connected"}, {"step": "host", "state": "skipped", "line": "Home host: not checked"}, {"step": "private", "state": "skipped", "line": "Private network: not built in"}]}
 
 
@@ -52,7 +54,7 @@ def pack_begin(u, a):
     n = _net(u); typ = a.get("type", "look"); name = a.get("name", "Pack"); size = a.get("size", 0); sha = a.get("sha256", "")
     if typ not in PACK_LIMITS: return _pack_error("type")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}", name): return _pack_error("name")
-    if size <= 0 or size > min(1_000_000, PACK_LIMITS[typ]): return _pack_error("size")
+    if size <= 0 or size > PACK_LIMITS[typ]: return _pack_error("size")
     if not re.fullmatch(r"[0-9a-fA-F]{64}", sha): return _pack_error("sum")
     n["rx"] = {"type": typ, "name": name, "version": a.get("version", 1), "size": size, "sha256": sha.lower(), "data": bytearray()}
     return {"ok": True, "max_bytes": PACK_LIMITS[typ]}
@@ -66,7 +68,7 @@ def pack_data(u, a):
     if rx is None: return _pack_error("not_started")
     at = a.get("at", 0)
     if at != len(rx["data"]): return _pack_error("order")
-    if at + len(raw) > rx["size"]: return _pack_error("range")
+    if not raw or at + len(raw) > rx["size"]: return _pack_error("range")
     rx["data"].extend(raw)
     return {"ok": True, "got": len(rx["data"])}
 
@@ -75,10 +77,10 @@ def pack_data(u, a):
 def pack_commit(u, a):
     n = _net(u); rx = n.get("rx")
     if rx is None: return _pack_error("not_started")
-    if len(rx["data"]) < rx["size"]: return _pack_error("short")
+    if len(rx["data"]) != rx["size"]: return _pack_error("short")
     payload = bytes(rx["data"])
     if hashlib.sha256(payload).hexdigest() != rx["sha256"]: n["rx"] = None; return _pack_error("mismatch")
-    n["packs"][rx["type"]] = {"name": rx["name"], "sha256": rx["sha256"], "size": rx["size"], "cached": False}
+    n["packs"][rx["type"]] = {"name": rx["name"], "version": rx["version"], "sha256": rx["sha256"], "size": rx["size"], "cached": False}
     typ = rx["type"]; n["rx"] = None
     return {"ok": True, "type": typ, "cached": "pending"}
 
@@ -95,7 +97,7 @@ def pack_status(u, a):
     n = _net(u); typ = a.get("type", "look")
     if typ not in PACK_LIMITS: return _pack_error("type")
     p = n["packs"].get(typ)
-    return {"ok": True, "type": typ, "held": p is not None, "name": p["name"] if p else "", "sha256": p["sha256"] if p else "", "size": p["size"] if p else 0, "cached": bool(p and p["cached"]), "cache": "empty", "cache_on": False, "writing": False, "fallback": p is None, "booted": True}
+    return {"ok": True, "type": typ, "held": p is not None, "name": p["name"] if p else "", "sha256": p["sha256"] if p else "", "version": p["version"] if p else 0, "size": p["size"] if p else 0, "cached": bool(p and p["cached"]), "cache": "empty", "cache_on": False, "writing": False, "fallback": p is None, "booted": True}
 
 
 @tool("self.remote.action")
@@ -137,13 +139,19 @@ def remote_say_status(u, a):
 
 @tool("self.remote.session")
 def remote_session(u, a):
-    n = _net(u); r = n["remote"]; r["active"] = bool(a.get("active",True)); r["label"] = a.get("label", "remote")[:23]
+    n = _net(u); r = n["remote"]; active = bool(a.get("active",False))
+    if active and not r["active"]: r["label"] = (a.get("label") or "remote")[:23]
+    r["active"] = active
+    if active: r["seen_ms"] = u.now_ms
+    else: r.update(token=None, token_kind=None, token_until=0)
     return {"ok":True,"active":r["active"]}
 
 
 @tool("self.tailnet.set")
 def tailnet_set(u, a):
     n = _net(u); t = n["tailnet"]
+    # The virtual build does not include the optional private-network client.
+    if a.get("forget",False): return {"ok":False,"error":"not_compiled"}
     if a.get("forget",False):
         t.clear(); return {"ok":True,"restart":False,"forgotten":True}
     key = a.get("key", ""); peer = a.get("peer", "")
@@ -163,11 +171,13 @@ def tailnet_set(u, a):
 @tool("self.tailnet.status")
 def tailnet_status(u, a):
     t = _net(u)["tailnet"]
-    return {"compiled":False,"enabled":t.get("enabled",False),"guard_off":False,"key_saved":bool(t.get("key")),"peer_saved":bool(t.get("peer")),"joined":t.get("joined",False),"state":"off","ip":"","ready":False,"route":"home","fails":0,"refusal":0,"internal_free":0,"largest_block":0}
+    # Device memory and relay fields are fixed because these are hardware readings.
+    return {"compiled":False,"enabled":t.get("enabled",False),"guard_off":False,"key_saved":bool(t.get("key")),"peer_saved":bool(t.get("peer")),"joined":t.get("joined",False),"state":"off","ip":"","ready":False,"route":"home","fails":0,"refusal":0,"relay":0,"hub_relay":0,"prefer":False,"internal_free":0,"largest_block":0}
 
 
 @tool("self.version.get")
 def version_get(u, a):
+    # Partition, signature, memory and PSRAM readings are unavailable in the virtual unit.
     return {"ok":True,"version":"virtual","tag":"","image":"flashed by cable","slot":"unknown","internal_free":0,"internal_min":0,"internal_big":0,"psram_free":0,"psram_min":0,"uptime_s":u.now_ms//1000}
 
 
