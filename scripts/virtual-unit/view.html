@@ -176,7 +176,8 @@ $('flt').oninput=fillTools;$('dom').onchange=()=>{$('flt').value='';fillTools();
 $('go').onclick=async()=>{let a={};const o=$('out');try{a=JSON.parse($('args').value||'{}');}catch(e){o.className='bad';o.textContent='The values are not valid JSON: '+e.message+'. Fix the text and press Do it again.';return;}
  const r=await call($('tool').value,a),bad=r.ok===false||r.isError;o.className=bad?'bad':'good';
  o.textContent=bad?'Refused: '+whyText(r)+'.':'Done. '+JSON.stringify(r);};
-$('play').onclick=async()=>{const r=await post('/scenario',{name:$('scen').value});if(r.isError)$('pl').textContent=r.text;};
+$('play').onclick=async()=>{const r=await post('/scenario',{name:$('scen').value});if(r.isError)$('pl').textContent=r.text;
+ else if(r.still)msg.textContent='Showing the still screen '+r.still+' for '+r.seconds+' seconds. It is drawn by the unit\'s own code in a separate program, so it cannot be touched.';};
 fetch('/tools').then(r=>r.json()).then(d=>{TOOLS=d.tools;TOUCH=d.touch;fillAreas();if(!TOUCH)msg.textContent='Touch needs the screens renderer (build-screens.sh). The bare face is shown.';});
 function loadScenarios(){fetch('/scenarios').then(r=>r.json()).then(d=>{$('scen').innerHTML='';d.scenarios.forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;$('scen').appendChild(o);});});}
 loadScenarios();

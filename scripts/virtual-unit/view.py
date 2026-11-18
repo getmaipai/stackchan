@@ -92,6 +92,23 @@ LOCK = threading.Lock()
 # checkout) or no host set, only the Simulation is offered.
 BACKENDS = None
 LIVE = {"frame": b"", "beat": 0.0}
+# Still screens: the lock screen, the link covers and the grid games (game over, a game in play) are drawn by the unit's own code in
+# separate small programs, not by the running unit. The page can put one on the robot's screen for a few seconds to look at it.
+STILL = {"name": "", "png": b"", "until": 0.0}
+STILL_SECONDS = 10
+
+
+def stills():
+    """Names of the still screens whose renderer program is built here."""
+    groups = (("cover/cover_render", getattr(scenarios, "COVER_SCENARIOS", {})), ("grid/grid_render", getattr(scenarios, "GRID_SCENARIOS", {})), ("lock/lock_render", getattr(scenarios, "LOCK_SCENARIOS", {})))
+    built = HERE.parents[1] / ".runs" / "vu-screens"
+    return [n for prog, group in groups if (built / prog).exists() for n in group]
+
+
+def still_now():
+    if STILL["name"] and time.time() >= STILL["until"]:
+        STILL.update(name="", png=b"")
+    return STILL["name"]
 UNIT = None
 FRAME = b""
 
@@ -269,7 +286,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.path = self.path.split("?")[0]
         if self.path == "/frame.png":
-            self._send(LIVE["frame"] if is_live() and LIVE["frame"] else FRAME, "image/png")
+            self._send(STILL["png"] if still_now() else LIVE["frame"] if is_live() and LIVE["frame"] else FRAME, "image/png")
         elif self.path == "/backends":
             listing = BACKENDS.list() if BACKENDS is not None else [{"id": "sim", "name": "Simulation", "kind": "simulation", "busy_by": None}]
             self._send(json.dumps({"backends": listing, "host_set": bool(BACKENDS is not None and BACKENDS.host_url and BACKENDS.token), "active": backend_status()}).encode(), "application/json")
@@ -279,7 +296,7 @@ class Handler(BaseHTTPRequestHandler):
                 recent = [t for t in UNIT.move_times if UNIT.now_ms - t < 60000]
                 state = {"now_ms": UNIT.now_ms, "emotion": UNIT.emotion, "tools": len(UNIT.tool_names), "head": head_now(), "leds": APPLIED["cover_ring"] or UNIT.leds,
                          "battery": UNIT.battery, "hw": HW.view(), "motion": mot, "moves_last_minute": len(recent), "moves_cap": vunit.MOVES_PER_MINUTE,
-                         "dance": dance_now()[0], "dance_sim": dance_now()[1], "util": utilization(), "backend": backend_status(), "assets": installed(), "host_away": away(), "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
+                         "dance": dance_now()[0], "dance_sim": dance_now()[1], "util": utilization(), "backend": backend_status(), "still": still_now(), "assets": installed(), "host_away": away(), "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
             self._send(json.dumps(state).encode(), "application/json")
         elif self.path == "/affiliation.json":   # the one place the affiliation wording lives (docs/plan/trademark-and-affiliation.md)
             self._send((HERE.parents[1] / "docs" / "legal" / "affiliation.json").read_bytes(), "application/json")
@@ -299,7 +316,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(json.dumps({"log": UNIT.log[-60:], "playing": PLAYING["name"]}).encode(), "application/json")
         elif self.path == "/scenarios":
             names = [n for n in list(scenarios.SCENARIOS) + list(scenarios.SCREENS) if UNIT.profile == "screens" or n in scenarios.SCENARIOS]
-            names += list(scenarios.PORTS) + [f"rec:{n}" for n in recordings()]
+            names += list(scenarios.PORTS) + [f"still:{n}" for n in stills()] + [f"rec:{n}" for n in recordings()]
             self._send(json.dumps({"scenarios": names}).encode(), "application/json")
         elif self.path == "/physics/model.xml":
             self._send(mjcf.mjcf(mjcf.load()).encode(), "application/xml")
@@ -393,6 +410,16 @@ class Handler(BaseHTTPRequestHandler):
                     said = UNIT.tap(int(req["x"]), int(req["y"]))
                     rec_step("touch", {"kind": "tap", "x": int(req["x"]), "y": int(req["y"])})
             return self._send(json.dumps({"ok": True, "renderer": said}).encode(), "application/json")
+        if self.path == "/scenario" and str(req.get("name", "")).startswith("still:"):
+            name = req["name"][6:]
+            if name not in stills():
+                return self._send(json.dumps({"isError": True, "text": "That screen's renderer is not built here. Run bash scripts/virtual-unit/build-screens.sh and try again."}).encode(), "application/json")
+            try:
+                png = scenarios.run_lock(name)
+            except Exception as err:
+                return self._send(json.dumps({"isError": True, "text": f"The screen could not be drawn ({err}). Rebuild the renderers with bash scripts/virtual-unit/build-screens.sh."}).encode(), "application/json")
+            STILL.update(name=name, png=png, until=time.time() + STILL_SECONDS)
+            return self._send(json.dumps({"ok": True, "still": name, "seconds": STILL_SECONDS}).encode(), "application/json")
         if self.path == "/scenario":
             name = req.get("name", "")
             steps = scenarios.SCENARIOS.get(name) or scenarios.SCREENS.get(name) or scenarios.PORTS.get(name, {}).get("steps")

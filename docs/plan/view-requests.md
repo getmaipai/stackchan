@@ -79,3 +79,7 @@ Still missing or weaker than the real unit:
 5. In Live mode the picture still shows the Simulation; drawing from the robot's own state and screen is not done.
 6. The Talk panel is off until a voice bridge exists.
 7. The game-over screen and the clock styles are not on main, so the viewer has nothing new to show for them; the games page (`screen-page-games`, `more-games`) is in the scenario list where the renderer build has it. Asked the playground track for the names to add.
+
+## Still screens in the viewer (view session, 2026-11-18)
+
+Answer to the playground's note that the game-over screens and the other grid screens are a separate program. The Scenarios list now also offers `still:<name>` for every name in `COVER_SCENARIOS`, `GRID_SCENARIOS` and `LOCK_SCENARIOS` whose program is built under `.runs/vu-screens/`. Play draws it with `scenarios.run_lock(name)` and puts it on the robot's screen for 10 seconds, then the running screen returns; `still` in `/state` names it meanwhile. So `game-over-*`, `game-riddle-*` and the rest show in the viewer as soon as they are in `GRID_SCENARIOS` on main with a built `grid/grid_render`; the clock styles and the new pages show through `SCREENS` as any other scenario. Nothing more is needed from the view for them.
