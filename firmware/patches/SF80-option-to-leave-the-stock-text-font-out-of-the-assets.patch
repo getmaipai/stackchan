@@ -1,0 +1,39 @@
+# Intent: A build option, MAIPAI_PARTITION_TEXT_FONT (default on: the image is unchanged), that leaves the stock Noto "common" text font (1,287,460 bytes) out of the assets partition. With it off the display keeps the compiled-in "basic" 20 px font it starts with (the Latin letters of the six screen languages: checked by a host test), the unit keeps advertising the glyph-push capability, and the host pushes any glyph outside it (the French oe ligature, the euro sign, other scripts). The image kind "nofont" (scripts/fw-build.sh, overlay sdkconfig.nofont.defaults) builds it for the bench; it becomes the default only after it passes a boot proof and a walk of the screens.
+# Placement: unit
+# Upstream: firmware/main/CMakeLists.txt and Kconfig.projbuild (ours)
+# Check after a flash: the nofont image boots; every screen looks as before (the fonts were already the basic 20 px set); a caption with an accented letter, an oe and an euro sign from the host draws; self.bench.asset_use no longer lists a text font.
+# Kconfig: MAIPAI_PARTITION_TEXT_FONT (default y)
+# Memory cost: none in RAM; the assets image shrinks from 4,463,226 to 3,175,543 bytes (measured), freeing 1,287,683 bytes of the 6,225,920 byte partition. The app image grows by 224 bytes.
+
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -450,7 +450,8 @@ function(build_default_assets_bin)
+     )
+     
+     # Add builtin text font if defined
+-    if(BUILTIN_TEXT_FONT)
++    # Patch SF80: with MAIPAI_PARTITION_TEXT_FONT off the image carries no text font file; the unit keeps the compiled-in basic font and the host pushes any glyph outside it.
++    if(BUILTIN_TEXT_FONT AND CONFIG_MAIPAI_PARTITION_TEXT_FONT)
+         list(APPEND BUILD_ARGS "--builtin_text_font" "${BUILTIN_TEXT_FONT}")
+     endif()
+     
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -206,6 +206,15 @@ config MAIPAI_NETTEST
+         the one thing to do about the first problem. It reads state the unit already holds and sends nothing. The
+         host asks for it; the unit shows no network test screen (owner decision 22). Off here: no tool.
+ 
++config MAIPAI_PARTITION_TEXT_FONT
++    bool "Ship the stock common text font (1.29 MB) in the assets partition"
++    default y
++    help
++        On: the assets image carries the Noto "common" 20 px font and the display uses it as its default text font (the stock layout). Off: the image carries no text
++        font, the display keeps the compiled-in "basic" font (the Latin letters of the six screen languages, checked by a host test), and the host pushes any other glyph
++        (a caption in another script, the French oe ligature, the euro sign) through the glyph-push capability the unit advertises. Off frees 1,287,460 bytes of the
++        assets partition.
++
+ config MAIPAI_FW_BUILD
+     int "Build number of this image (signed updates)"
+     default 0
