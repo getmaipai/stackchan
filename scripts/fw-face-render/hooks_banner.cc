@@ -18,6 +18,7 @@
 #include <functional>
 #ifdef MAIPAI_PAGES_RENDER
 #include "maipai_pages.h"
+#include "maipai_more.h"
 extern int64_t g_fake_us;
 // A stand-in for the unit: fixed numbers and a few scripted answers, so every page and the sheet can be drawn and judged.
 struct FakeHost : MaipaiPagesHost {
@@ -196,6 +197,14 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
         while (o != nullptr && !lv_obj_has_flag(o, LV_OBJ_FLAG_SCROLLABLE)) o = lv_obj_get_parent(o);
         if (o != nullptr) lv_obj_scroll_by(o, 0, -dy, LV_ANIM_OFF);
         printf("pscrollby %s %d\n", o != nullptr ? "done" : "nothing", o != nullptr ? (int)lv_obj_get_scroll_y(o) : 0);
+        return true;
+    }
+    if (c == "more") {  // more open | more lang en|es | more games N: the More screen (menu, time zone, network test, version, games), opened on the top layer; pages are reached by pclick
+        std::string k; in >> k;
+        extern int g_more_lang, g_more_games;
+        if (k == "lang") { std::string l; in >> l; g_more_lang = l == "es" ? 1 : 0; }
+        else if (k == "games") { in >> g_more_games; }
+        else if (k == "open") { maipai_more_open(); }
         return true;
     }
     if (c == "ptargets") {  // every visible clickable object and every visible label of the top layer and the screen: x1 y1 x2 y2 (a click area includes the extended one) and the text, for the screen audit
