@@ -74,7 +74,7 @@ class NotesStore:
             kept, removed = [], 0
             for line in lines:
                 m = _LINE.match(line)
-                if m and all(w in m.group(3).lower() for w in words):
+                if m and set(words) <= set(re.findall(r"[\w']+", m.group(3).lower())):
                     removed += 1
                 else:
                     kept.append(line)

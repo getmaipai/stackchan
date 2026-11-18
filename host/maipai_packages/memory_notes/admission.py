@@ -18,9 +18,22 @@ HOUSEHOLD = "household"
 _REFUSED = (
     (re.compile(r"\b(?:\d[ -]?){13,19}\b"), "a card or account number"),
     (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "a government id number"),
-    (re.compile(r"\b(?:password|passcode|pass phrase|passphrase|pin code|\bpin\b|api key|secret key|private key|token)\b", re.I), "a password, code or key"),
+    (re.compile(r"\b(?:passwords?|passcodes?|pass phrases?|passphrases?|pin codes?|pins?|api keys?|secret keys?|private keys?|tokens?)\b", re.I), "a password, code or key"),
     (re.compile(r"\b(?:sk|ghp|gho|tskey|xox[abprs])[-_][A-Za-z0-9_-]{8,}"), "a password, code or key"),
 )
+
+
+_HOMOGLYPHS = str.maketrans({
+    "\u0430": "a", "\u0435": "e", "\u043e": "o", "\u0440": "p", "\u0441": "c", "\u0445": "x", "\u0443": "y", "\u0456": "i",
+    "\u0442": "t", "\u043d": "h", "\u043a": "k", "\u043c": "m", "\u0432": "b", "\u0455": "s", "\u0458": "j",
+    "\u03b1": "a", "\u03bf": "o", "\u03c1": "p", "\u03c4": "t", "\u03bd": "v", "\u03b9": "i", "\u03ba": "k",
+})  # Cyrillic and Greek letters that look like Latin ones
+
+
+def _fold(text: str) -> str:
+    """A plain-ASCII reading of the text for the checks: fullwidth forms, accents and lookalike letters turned into plain ones."""
+    decomposed = unicodedata.normalize("NFKD", text).translate(_HOMOGLYPHS)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
 def _hidden(ch: str) -> bool:
@@ -50,7 +63,8 @@ def check_note(text: str) -> str:
         raise AdmissionError("I do not keep text in brackets. Say it in plain words.")
     if any(_hidden(ch) for ch in note):
         raise AdmissionError("That has hidden or control characters. Say it again in plain words.")
+    folded = _fold(note)
     for pattern, what in _REFUSED:
-        if pattern.search(note):
+        if pattern.search(note) or pattern.search(folded):
             raise AdmissionError(f"I do not keep {what}. Keep it somewhere safer, like a password manager.")
     return note

@@ -1,7 +1,8 @@
 # ruff: noqa: E501
 """Open bugs found by reading the app and firmware tracks' code as a tester (playground report 4, 2026-11-18).
 
-Each test states the behavior the code should have and fails today. They are marked strict xfail so the suite stays green;
+Each test states the behavior the code should have. The app track's bugs are fixed and their tests are now plain regression tests;
+the firmware track's lock bug is still marked strict xfail so the suite stays green;
 `pytest --runxfail tests/test_cross_review_open_bugs.py` shows every one failing. When an owner fixes a bug, the test turns into
 an unexpected pass and fails the run: delete its marker (the test then stays as the regression test). Nothing here fixes code."""
 
@@ -27,7 +28,6 @@ bug = pytest.mark.xfail(strict=True)
 
 # ---- memory_notes (app track) -------------------------------------------------------------------------------
 
-@bug
 def test_forget_matches_whole_words_not_pieces_of_words(tmp_path):
     """Owner: app track. `forget cat` also removes a note about a "location" because "cat" sits inside it (substring match): silent data loss."""
     store = NotesStore(tmp_path)
@@ -37,7 +37,6 @@ def test_forget_matches_whole_words_not_pieces_of_words(tmp_path):
     assert [row[2] for row in store.read("sam")] == ["the dentist is at the new location on Main Street"]
 
 
-@bug
 @pytest.mark.parametrize("text", ["the wifi passwords are on the fridge", "my api keys are in the shed", "the tokens are in the drawer"])
 def test_plural_credential_words_are_refused_like_the_singular(text):
     """Owner: app track. The refusal pattern ends in \\b after "password", so "passwords", "api keys" and "tokens" are stored."""
@@ -45,7 +44,6 @@ def test_plural_credential_words_are_refused_like_the_singular(text):
         check_note(text)
 
 
-@bug
 def test_fullwidth_letters_cannot_hide_a_credential_word():
     """Owner: app track. The coding companion folds fullwidth forms before its checks (clean.py); the notes check does not."""
     with pytest.raises(AdmissionError):
@@ -78,7 +76,6 @@ class _Session:
         return r
 
 
-@bug
 def test_a_camera_name_inside_another_word_does_not_send_a_picture_to_the_model(monkeypatch):
     """Owner: app track. Camera "door" matches "indoor" and "show" is a trigger word, so a question about the indoor temperature
     takes a camera snapshot and sends it to the configured model. Names must match as whole words."""
@@ -94,7 +91,6 @@ def test_a_camera_name_inside_another_word_does_not_send_a_picture_to_the_model(
 
 # ---- coding_companion (app track) ---------------------------------------------------------------------------
 
-@bug
 def test_a_working_state_that_nobody_updated_for_hours_is_not_still_working():
     """Owner: app track. AgentStatus stores the time of the last message and never reads it: after the agent crashes the robot
     says "Your coding agent is working" until the process restarts."""
@@ -110,10 +106,9 @@ class _Bus:
         self.sent = []
 
     def send(self, device_id, command):
-        self.sent.append((device_id, command.name))
+        self.sent.append((device_id, command.cmd))
 
 
-@bug
 def test_the_same_waiting_post_twice_plays_the_popup_once():
     """Owner: app track. state.py says changes are coalesced, but every post plays the sound again: a hook that fires in a
     loop makes the robot ping without end."""
@@ -124,7 +119,6 @@ def test_the_same_waiting_post_twice_plays_the_popup_once():
     assert [name for _, name in bus.sent].count("sound.play") == 1
 
 
-@bug
 def test_the_hook_does_not_send_the_token_through_a_proxy(tmp_path, monkeypatch):
     """Owner: app track. hook.send uses urllib's default opener, which honors http_proxy for 127.0.0.1 unless no_proxy is set,
     so the Bearer token can leave the computer. The hook should bypass proxies for its loopback address."""

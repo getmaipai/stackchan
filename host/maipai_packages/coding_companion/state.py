@@ -13,6 +13,7 @@ KINDS = ("permission", "question", "finished", "")
 # State -> the ring light color. No red: red is for the alarm and a low battery.
 LIGHT = {"working": "blue", "waiting": "amber", "finished": "green"}
 LIGHT_SECONDS = 20
+STALE_WORKING_S = 30 * 60  # a "working" state nobody refreshed for this long is not shown as working
 FIXED_LINE = {"working": "Working", "waiting": "Needs you", "finished": "Finished"}
 
 
@@ -52,6 +53,8 @@ class AgentStatus:
         view = self.current()
         if view is None:
             return "I have not heard from your coding agent."
+        if view.state == "working" and self._clock() - self._at > STALE_WORKING_S:
+            return "Your coding agent has not reported for a while."
         project = f" on {view.project}" if view.project else ""
         phrase = {"working": "Your coding agent is working", "waiting": "Your coding agent needs you", "finished": "Your coding agent is finished"}[view.state]
         return phrase + project + "."

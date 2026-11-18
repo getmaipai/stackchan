@@ -80,7 +80,7 @@ class HomeAssistant:
             return "I only do that for a person I know. Ask the owner to turn on Home Assistant for everyone."
         try:
             for name, entity in self.cameras.items():
-                if re.search(r"\b(?:camera|see|show|look|what'?s)\b", request, re.I) and name in request.lower():
+                if re.search(r"\b(?:camera|see|show|look|what'?s)\b", request, re.I) and re.search(rf"\b{re.escape(name)}\b", request, re.I):
                     return self.describe_camera(entity, request)
             return self.converse(request)
         except HomeAssistantError as error:

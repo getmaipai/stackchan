@@ -35,7 +35,8 @@ def send(state: str, kind: str, project: str, port: int, token_file: Path) -> st
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=3) as reply:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # this computer only: never through a proxy
+        with opener.open(request, timeout=3) as reply:
             return "" if reply.status == 200 else f"coding companion: the host answered {reply.status}."
     except urllib.error.HTTPError as error:
         return f"coding companion: the host refused it ({error.code}). Check that the token file is the current one."

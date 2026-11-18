@@ -101,10 +101,14 @@ def make_presenter(bus, devices) -> callable:
     """Show a state on every connected unit through the command bus, as the source `agent` (set here, never by the message)."""
     from maipai_body.command_bus import Command
 
+    last: dict[str, tuple[str, str]] = {}
+
     def present(view) -> None:
         for device_id in devices():
+            changed = last.get(device_id) != (view.state, view.kind)
+            last[device_id] = (view.state, view.kind)
             bus.send(device_id, Command("light.look", {"color": LIGHT[view.state], "seconds": LIGHT_SECONDS}, source="agent"))
-            if view.state == "waiting":
+            if view.state == "waiting" and changed:  # a repeated post of the same state refreshes the light but never pings again
                 bus.send(device_id, Command("sound.play", {"name": "popup"}, source="agent"))
 
     return present
