@@ -1,0 +1,98 @@
+# Intent: Show wireless update progress and clear refusal feedback on the unit.
+# Placement: unit
+# Upstream: firmware/main/hal/board/hal_bridge.h, stackchan_display.h, stackchan_display.cc (ours)
+# Check after a flash: Confirm update progress, completion, refusal timeout, and hide behavior.
+
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -116,6 +116,7 @@
+ // approved this unit (a key and "Waiting for approval", cyan ring blink instead of the amber). Before the
+ // first face the same states use the full link screen. Safe from any task.
+ void link_look(int look);
++void update_cover(int percent);
+ // The hub has been unreachable for a while: look 2 (offline) and its dim amber ring, cleared (look 0) when
+ // the link returns. offline_indicator_refresh() is kept for callers and does nothing: the strip is not a
+ // speech bubble, so a message cannot cover it.
+--- a/firmware/main/hal/board/stackchan_display.h	2026-11-17 23:59:11
++++ b/firmware/main/hal/board/stackchan_display.h	2026-11-17 23:59:22
+@@ -54,6 +54,7 @@
+     void CreateIdleMotionModifier();
+     lv_obj_t*   boot_cover_         = nullptr;
+     lv_obj_t*   boot_label_         = nullptr;
++    lv_obj_t*   update_bar_         = nullptr;
+     lv_timer_t* boot_ring_timer_    = nullptr;
+     bool        boot_done_          = false;
+     uint32_t    boot_ring_start_ms_ = 0;
+@@ -85,6 +86,7 @@
+     static void LinkTick(lv_timer_t* timer);
+ 
+     void ShowBootCover(const char* text, int ring_kind, int glyph_kind = 0);
++    void ShowUpdateCover(int percent);
+     void HideBootCover();
+     static void BootRingTick(lv_timer_t* timer);
+     static void OnGesture(lv_event_t* event);
+--- a/firmware/main/hal/board/stackchan_display.cc	2026-11-17 23:59:11
++++ b/firmware/main/hal/board/stackchan_display.cc	2026-11-18 00:04:12
+@@ -41,6 +41,7 @@
+ #include <hal/maipai_pages_unit.h>
+ #if CONFIG_MAIPAI_BANNER_ROW
+ #include <hal/maipai_banner.h>
++#include <hal/maipai_ui_style.h>
+ #include <hal/maipai_status_core.h>
+ #include <hal/maipai_screens.h>
+ #endif
+@@ -742,7 +743,54 @@
+     auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
+     if (display != nullptr) {
+         display->SetLinkLook(look);
++    }
++}
++
++void hal_bridge::update_cover(int percent)
++{
++    auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
++    if (display != nullptr) {
++        display->LvglLock();
++        display->ShowUpdateCover(percent);
++        display->LvglUnlock();
++    }
++}
++
++void StackChanAvatarDisplay::ShowUpdateCover(int percent)
++{
++    if (percent == -1) {
++        if (update_bar_ != nullptr) lv_obj_add_flag(update_bar_, LV_OBJ_FLAG_HIDDEN);  // the bar belongs to this cover only
++        HideBootCover();
++        return;
++    }
++    if (percent == -2 || percent == 100) {
++        ShowBootCover(percent == -2 ? "Update refused\nNothing changed" : "Update installed\nRestarting...", 1, -1);
++        if (update_bar_ != nullptr) lv_obj_add_flag(update_bar_, LV_OBJ_FLAG_HIDDEN);
++        if (percent == -2) {
++            lv_timer_t* timer = lv_timer_create([](lv_timer_t* t) {
++                auto self = static_cast<StackChanAvatarDisplay*>(lv_timer_get_user_data(t));
++                if (self != nullptr) self->HideBootCover();
++                lv_timer_delete(t);
++            }, 4000, this);
++            lv_timer_set_repeat_count(timer, 1);
++        }
++        return;
+     }
++    char text[32];
++    snprintf(text, sizeof(text), "Updating\n%d%%\nDo not unplug", percent);
++    ShowBootCover(text, 1, -1);
++    if (update_bar_ == nullptr) {
++        update_bar_ = lv_bar_create(boot_cover_);
++        lv_obj_set_size(update_bar_, 200, 14);
++        lv_obj_set_style_bg_color(update_bar_, maipai_ui_style::surface(), LV_PART_MAIN);
++        lv_obj_set_style_bg_opa(update_bar_, LV_OPA_COVER, LV_PART_MAIN);
++        lv_obj_set_style_bg_color(update_bar_, maipai_ui_style::accent(), LV_PART_INDICATOR);
++        lv_obj_set_style_radius(update_bar_, 7, LV_PART_MAIN);
++        lv_obj_set_style_radius(update_bar_, 7, LV_PART_INDICATOR);
++    }
++    lv_obj_remove_flag(update_bar_, LV_OBJ_FLAG_HIDDEN);
++    lv_bar_set_range(update_bar_, 0, 100);
++    lv_bar_set_value(update_bar_, percent, LV_ANIM_OFF);
+ }
+ 
+ void StackChanAvatarDisplay::ShowBootCover(const char* text, int ring_kind, int glyph_kind)

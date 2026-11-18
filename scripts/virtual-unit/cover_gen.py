@@ -28,6 +28,8 @@ try:
     end = 'lv_label_set_text(boot_label_, "Connecting to Wi-Fi...");'
     ctor = src[a : src.index(end, a) + len(end)]
     funcs = [func(f"void StackChanAvatarDisplay::{n}(") for n in ("SetCoverGlyph", "UpdateLinkTimer", "LinkTick", "ShowBootCover", "HideBootCover", "BootRingTick")]
+    if "StackChanAvatarDisplay::ShowUpdateCover(" in src:  # patch UX04
+        funcs.append(func("void StackChanAvatarDisplay::ShowUpdateCover("))
 except ValueError as e:
     sys.exit(f"cover_gen: the cover code moved in stackchan_display.cc ({e}): update scripts/virtual-unit/cover_gen.py")
 out.mkdir(parents=True, exist_ok=True)

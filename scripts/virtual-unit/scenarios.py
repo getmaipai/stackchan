@@ -31,7 +31,7 @@ SCENARIOS["tired-low-battery"] = [("call", "self.face.bench_emotion", {"emotion"
 # Screens other than the bare face, on the screens renderer. Not drawn by the renderer yet (gaps, listed so they are not forgotten):
 # pairing screen, updating screen, lock screen and keypad (lock_render.sh is a separate program), the Wi-Fi setup screen itself
 # (the renderer only has the banner flag for it).
-SCREEN_GAPS = ["updating (no screen exists to draw: main/ has no update text or lv_ calls, hal/maipai_update.cc only logs; if a screen is wanted it is a new feature, not a render gap)"]
+SCREEN_GAPS = []  # every screen the unit can show is drawn
 BAR = [("raw", "style big_eyes"), ("raw", "bbar always"), ("raw", "bstatus 80 0 1 1 1")]
 SCREENS: dict[str, list] = {
     "screen-status-normal": BAR + [EMOTE("neutral"), ("advance", 1500)],
@@ -65,7 +65,11 @@ COVER_SCENARIOS = {
     "cover-connecting-wifi": ["show 1 0 Connecting to Wi-Fi...", "advance 800", "snap {out}"],
     "cover-connecting-home": ["show 1 0 Connecting to Home...", "advance 800", "snap {out}"],
     "cover-wifi-setup": ["show 2 1 Wi-Fi setup needed\\nHotspot MaiPai-1234\\n192.0.2.1", "advance 600", "snap {out}"],
-    "cover-pairing": ["show 2 2 Waiting for Home to approve me", "advance 600", "snap {out}"],
+    "cover-update-0": ["update 0", "advance 300", "snap {out}"],
+    "cover-update-62": ["update 62", "advance 300", "snap {out}"],
+    "cover-update-installed": ["update 100", "advance 300", "snap {out}"],
+    "cover-update-refused": ["update -2", "advance 300", "snap {out}"],
+    "cover-pairing": ["show 2 2 Waiting for Home\\nto approve me", "advance 600", "snap {out}"],
 }
 
 

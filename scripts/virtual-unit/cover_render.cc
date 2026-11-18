@@ -1,6 +1,6 @@
 // Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiting for Home to approve.
 // The drawing code is the unit's own: cover_gen.py cuts it out of stackchan_display.cc into the three .inc files included below.
-// Commands on stdin: show RING GLYPH TEXT... | hide | advance MS | ring | snap FILE.png
+// Commands on stdin: show RING GLYPH TEXT... | update PERCENT (patch UX04) | hide | advance MS | ring | snap FILE.png
 //   (ring 1 blue blink, 2 cyan blink; glyph 0 bars cycling, 1 slashed bars, 2 slash and key; the unit calls ShowBootCover with these pairs)
 // Not shared with the unit: the display base class, the banner (maipai_banner_wifi_screen is a no-op here) and ApplyLink (empty here).
 // Placement: host-side development tool. Upstream: none.
@@ -33,12 +33,14 @@ static FakeHal& GetHAL() { return g_hal; }
 static void maipai_banner_wifi_screen(bool) {}
 namespace hal_bridge { static void leds_offline(bool) {} }
 
+#include <hal/maipai_ui_style.h>  // the palette (patch UX02a); the update cover (UX04) uses it
 #include "cover_helpers.inc"
 
 class StackChanAvatarDisplay {
 public:
     lv_obj_t* boot_cover_ = nullptr;
     lv_obj_t* boot_label_ = nullptr;
+    lv_obj_t* update_bar_ = nullptr;
     lv_timer_t* boot_ring_timer_ = nullptr;
     bool boot_done_ = false;
     uint32_t boot_ring_start_ms_ = 0;
@@ -56,6 +58,7 @@ public:
     }
     void ShowBootCover(const char* text, int ring_kind, int glyph_kind = 0);
     void HideBootCover();
+    void ShowUpdateCover(int percent);
     void SetCoverGlyph(int kind);
     void UpdateLinkTimer();
     void ApplyLink() {}
@@ -107,6 +110,9 @@ int main()
             std::string t;
             for (size_t i = 0; i < text.size(); i++) t += (text[i] == '\\' && i + 1 < text.size() && text[i + 1] == 'n') ? (i++, '\n') : text[i];
             disp.ShowBootCover(t.c_str(), ring, glyph);
+        } else if (c == "update") {
+            int p; in >> p;
+            disp.ShowUpdateCover(p);
         } else if (c == "hide") {
             disp.HideBootCover();
         } else if (c == "advance") {

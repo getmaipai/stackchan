@@ -26,5 +26,5 @@ echo "built $OUT/lock/lock_render"
 # the link covers (Wi-Fi connecting, Wi-Fi setup, waiting for approval): the unit's own code, cut out of stackchan_display.cc
 mkdir -p "$OUT/cover"
 python3 "$(dirname "$0")/cover_gen.py" "$B" "$OUT/cover"
-clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$OUT/cover" -I"$L" -I"$L/src" -I"$R/stub" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$(dirname "$0")/cover_render.cc" "$OUT/obj/font_noto_sans_basic_20_4.c.o" "$OUT/lvgl.a" -o "$OUT/cover/cover_render" -lz
+clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$OUT/cover" -I"$B/firmware/main" -I"$L" -I"$L/src" -I"$R/stub" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$(dirname "$0")/cover_render.cc" "$OUT/obj/font_noto_sans_basic_20_4.c.o" "$OUT/lvgl.a" -o "$OUT/cover/cover_render" -lz
 echo "built $OUT/cover/cover_render"
