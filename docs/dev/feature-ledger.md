@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 822 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 823 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 34 items, 3 measured, 11 estimated, 20 placeholders or not built. 82 of 822 rows name a declared cost. Internal RAM that is always on: 37,072 B (inside the baseline). Headroom over the gate: 24,093 B at the median, 9,484 B at the lowest; the largest block has 1,600 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,096 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 34 items, 3 measured, 11 estimated, 20 placeholders or not built. 82 of 823 rows name a declared cost. Internal RAM that is always on: 37,072 B (inside the baseline). Headroom over the gate: 24,093 B at the median, 9,484 B at the lowest; the largest block has 1,600 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,096 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 1 | 18 | 18 | 240 | 8 | 51 | 336 | 65 |
-| Maker and tech | 0 | 0 | 65 | 362 | 59 | 0 | 486 | 70 |
+| Maker and tech | 0 | 0 | 65 | 363 | 59 | 0 | 487 | 70 |
 
 ## Everyday user
 
@@ -342,7 +342,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Remote controls on the settings page** ![](docs/images/vu-settings-general.png) | Beep, flash, find my robot (works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. - Robot - Settings | proven virtual | 70 | not declared | `Y01-user-head-moves-pass-the-idle-gate.patch`<br>`TC04-remote-cue-sound-light-setting-look.patch`<br>`V04-dance-extras.patch` | average of the 4 patch(es) that share words with this row: Y01, TC04, V04, MF01 | [docs/user/features.md#connect](../user/features.md#connect) |
 | **Apps list, tabbed settings** ![](docs/images/vu-clock.png) | An Apps list (Timers, Alarms, Clock, Quick actions, Pictures, Dashboard, Dance, Lock) with on-screen timer and alarm apps, a settings screen with General, Network, Faces and Info tabs, and a one-row quick access bar: Mute, Quiet, Light, Apps, Games, Settings. - Robot - Swipe pages | proven virtual | 70 | not declared | `UI16-apps-core-layout-words-and-sheet-tile.patch`<br>`NX01-quick-sheet-lock-tile-and-listening-light-row.patch`<br>`host/maipai_body/swipe_pages.py` | average of the 2 patch(es) that share words with this row: UI16, NX01 | [docs/user/features.md#planned](../user/features.md#planned) |
 | **The Wi-Fi setup page is a short window** ![](host/tests/golden/screens/cover-wifi-setup.png) | It needs the six-digit code on the robot's screen, locks after five wrong tries and gets a new code every few minutes. Use it when you are present. | proven on unit | 100 | not declared | `P03-portal-protect.patch`<br>`host/maipai_body/swipe_pages.py`<br>`host/maipai_body/unit_polish.py` | `bench-b9.md` | [docs/user/security.md#known-gaps](../user/security.md#known-gaps) |
-| **Swipe up from the bottom of the screen** ![](docs/images/vu-control-sheet.png) | Opens the control sheet over the lower part of the screen. | proven virtual | 70 | not declared | `P10-gesture-state-machine-core.patch`<br>`P12-pages-and-control-sheet-drawing.patch`<br>`UI01-bigger-targets-longer-sheet-no-find-clock-games.patch` | average of the 4 patch(es) that share words with this row: P10, P12, UI01, UI17 | [docs/user/swipe-pages.md#the-swipes](../user/swipe-pages.md#the-swipes) |
+| **Swipe up from the bottom of the screen** ![](docs/images/vu-control-sheet.png) | Opens the control sheet over the lower part of the screen. | proven virtual | 70 | not declared | `P10-gesture-state-machine-core.patch`<br>`P12-pages-and-control-sheet-drawing.patch`<br>`UI17-apps-wall-timers-alarms-and-tabbed-settings.patch` | average of the 4 patch(es) that share words with this row: P10, P12, UI17, UI01 | [docs/user/swipe-pages.md#the-swipes](../user/swipe-pages.md#the-swipes) |
 | **Swipe left or right on the face** | Moves to the next page. The first page on the left shows when you swipe right; the first page on the right shows when you swipe left. | proven virtual | 70 | not declared | `P10-gesture-state-machine-core.patch`<br>`UI12-games-engine-inputs-board-and-sounds.patch`<br>`GM04-games-icon-shape-ceil-action-and-xlarge-text.patch` | average of the 4 patch(es) that share words with this row: P10, UI12, GM04, P11 | [docs/user/swipe-pages.md#the-swipes](../user/swipe-pages.md#the-swipes) |
 | **Swipe down** | Stops talking or ends a game. On a page or the sheet it closes it. | proven virtual | 70 | not declared | `GM02-game-drag-bar-dismisses-the-game.patch`<br>`P13-pages-wiring-tools-and-switch.patch`<br>`host/maipai_body/swipe_pages.py` | average of the 2 patch(es) that share words with this row: GM02, P13 | [docs/user/swipe-pages.md#the-swipes](../user/swipe-pages.md#the-swipes) |
 | **Swipe from the very side edge** | Changes the volume, as it always did. It never changes a page. | proven virtual | 70 | not declared | `P13-pages-wiring-tools-and-switch.patch`<br>`047-tap-handling.patch`<br>`UI17-apps-wall-timers-alarms-and-tabbed-settings.patch` | average of the 3 patch(es) that share words with this row: P13, 047, UI17 | [docs/user/swipe-pages.md#the-swipes](../user/swipe-pages.md#the-swipes) |
@@ -527,10 +527,11 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Music feature stack** | 1 patch(es): The music feature task "musicfeat" (stack in PSRAM) had 584 bytes of... | proven virtual | 70 | not declared | `MF01-music-feature-task-stack-6144.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Movement limiter** | 1 patch(es): One movement limiter at the single place every servo target passes th... | proven virtual | 70 | not declared | `ML01-movement-limiter-at-the-servo-layer.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 
-### Host modules (291)
+### Host modules (292)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
+| **Host: playground_lease** | The playground's control lease and token scope (owner decision 21): one playground session per robot, expiring without heartbeats, and a scope that keeps lock, update, pairing, key exchange, settings and package tools out of reac... | proven virtual | 70 | not declared | `host/maipai_body/playground_lease.py` | file exists, a test names it | doc missing |
 | **Host: app** | MaiPai Bot's Reachy Mini app: the daemon's one running app. | proven on unit | 100 | not declared | `host/maipai_body/app.py` | `bench-b19.md`, `bench-b9.md` | doc missing |
 | **Host: assets** | Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack when it needs it and keeps only the active one. | proven on unit | 100 | not declared | `host/maipai_body/assets.py` | `bench-b9.md` | doc missing |
 | **Host: banner_shapes** | The banner functions with the table of the core filled in. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/banner_shapes.py` | file exists, a test names it | doc missing |
@@ -998,7 +999,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 ## Decisions
 
-The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 3 not started.
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 4 not started.
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
@@ -1023,6 +1024,7 @@ The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a stat
 | 19 | **Image profiles, only if the budget proves they are needed (owner, 2026-11-18; narrowed by decision 20)** | not started | one image for everyone is the plan; profiles wait for the memory budget (decision 11) to show they are needed; none are built |
 | 20 | **Offer a choice only when it is needed** | in progress | the first run now asks three questions and offers Skip on each; the rule that every other choice is automatic or under Advanced is not yet checked across the settings page |
 | 21 | **The local playground runs a simulation or a real robot** | in progress | the simulation backend exists (the virtual unit and its 3D view); the Live backend (a registered robot through the person's host, one control session at a time) is not built |
+| 22 | **Unit choices audit answers (owner and coordinator, 2026-11-18)** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 
 ## Scrapped (9)
 
