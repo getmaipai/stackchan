@@ -112,4 +112,4 @@ diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.
 +        }
          s_ui->buf = nullptr;
          s_ui->hint = text(root, s_ui->fcount > 0 ? tx("Could not open the pictures right now.", "No se pueden abrir las fotos ahora.")
-                                                  : tx("No pictures yet. Send a picture face pack from settings.", "Aun no hay fotos. Envia un paquete de caras con fotos desde los ajustes."),
+                                                  : tx("No pictures yet. Send a picture face pack from settings.", "Aún no hay fotos. Envía un paquete de caras con fotos desde los ajustes."),
