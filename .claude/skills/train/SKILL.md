@@ -12,3 +12,5 @@ A train is many changes, one build, one load. The goal is as few firmware builds
 5. Take the unit lease, load once (OTA push when possible), run `/gate` in the background, and keep working on host streams meanwhile.
 6. Record the result in the ledger (pass or fail per on-unit check, memory and latency numbers, build id) and release the unit.
 7. A hot-fix train is allowed once per cycle for a blocker only.
+
+8. **The bench script (2026-11-18):** steps 5 and 6 are one deterministic script, `python3 scripts/bench-train.py scripts/bench-trains/<manifest>.json` (or `--queue QUEUE.json` for builds waiting). It flashes the app and the assets, puts the unit in the silent state (and back after every restart, because a restart resets it to volume 70), runs the soak and the checklist together, compares snapshots with the goldens (`host/tests/golden/tolerance.json`), and writes `.runs/trains/<name>/result.md` with PASS or FAIL for every check, the memory gate and the restart counter. Only failures and the touch-only items need a person. Batch about three patches per train.

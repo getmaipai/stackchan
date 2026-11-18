@@ -1,0 +1,4 @@
+{
+  "default": {"channel": 12, "fraction": 0.01},
+  "screen-page-clock": {"fraction": 0.03, "ignore": [[0, 0, 320, 28]]}
+}

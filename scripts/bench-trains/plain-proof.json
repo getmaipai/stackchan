@@ -1,0 +1,17 @@
+{
+  "name": "plain-proof",
+  "build_dir": "~/esp/stackchan-rebuild/b66/firmware/build-bench",
+  "soak_s": 630,
+  "settle_s": 2,
+  "heap_interval_s": 20,
+  "goldens_dir": "host/tests/golden/screens",
+  "tolerance_file": "host/tests/golden/tolerance.json",
+  "checks": [
+    {"name": "privacy-silent", "tool": "self.privacy.get", "expect": {"mute": {"min": 1}}},
+    {"name": "asset-use", "tool": "self.bench.asset_use", "expect": {"ok": true}},
+    {"name": "heap-info", "tool": "self.bench.heap_info", "expect": {"ok": true}},
+    {"name": "game-slide-input", "tool": "self.game.bench_event", "args": {"event": 3}, "expect": {}},
+    {"name": "screen-clock", "pre": [{"tool": "self.face.bench_mode", "args": {}}], "snapshot": "screen-page-clock"}
+  ],
+  "person": ["mines long press", "real finger vertical swipes", "hardware button held 3 s (Setup and App Center)"]
+}
