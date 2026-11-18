@@ -134,7 +134,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/bench-evidence/bench-window7.md` (42): Bench window 7 (2026-11-18, script only)
 - `docs/dev/bench-evidence/bench-window8.md` (47): Bench window 8 (2026-11-18, script only)
 - `docs/dev/bench-evidence/bench-window9.md` (32): Bench window 9 (2026-11-18, script only)
-- `docs/dev/bench.md` (20): StackChan bench
+- `docs/dev/bench.md` (22): StackChan bench
 - `docs/dev/benchmark-factory-vs-ours.md` (44): Benchmark: factory firmware against MaiPai for StackChan
 - `docs/dev/build-from-source.md` (47): Build from source
 - `docs/dev/camera-quality.md` (83): Camera quality: what the CoreS3 StackChan camera can record or stream
@@ -392,13 +392,15 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/offline-audit-unit.md` (42): Offline audit, the unit half (firmware track, 2026-11-18)
 - `docs/plan/offline-mumble-firmware.md` (49): Offline mumble voice: feasibility on the unit (firmware track, 2026-11-18)
 - `docs/plan/offload-to-host.md` (50): Offload to the host: what the unit does that the host could serve or compute
-- `docs/plan/optimization.md` (106): Optimization: the image diet, the patch series cleanup, and the host side
+- `docs/plan/optimization.md` (122): Optimization: the image diet, the patch series cleanup, and the host side
 - `docs/plan/pantry-reader-firmware.md` (38): Content pantry on the unit: the reader, the size budget and the heard list (firmware track, 2026-11-18)
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
+- `docs/plan/per-unit-behavior.md` (25): Per-unit behavior (decision 16, many robots)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/playground-live.md` (29): The host API for a live playground (owner decision 21)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
 - `docs/plan/public-readme-draft.md` (92): Public README draft (2026-11-18)
+- `docs/plan/qa-games-firmware.md` (39): Question and answer games on the unit: the interface and the rules (firmware track, 2026-11-18)
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
 - `docs/plan/release-readiness.md` (43): First release readiness: the friend test
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
@@ -676,7 +678,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (332): no header
+- `firmware/patches/ORDER` (334): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -776,6 +778,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF73-away-notice-takes-the-banner-row.patch` (73): The "Can't reach Home" notice after ten minutes away is actually seen. The steady "Offline" look is a banner n
 - `firmware/patches/SF74-flips-and-pops-for-memory-mines-hangman.patch` (211): The other grid games use the animation layer. Memory Match cards flip (the width closes to the edge and opens 
 - `firmware/patches/SF75-bench-grid-frame-recorder.patch` (155): A frame recorder for the grid games' animations on bench images, because a serial snapshot takes seconds and a
+- `firmware/patches/SF76-grid-inputs-swipes-long-press-vertical-flag.patch` (205): The inputs the grid games were missing. A finger is classified when it lifts as a tap, a long press (still for
+- `firmware/patches/SF77-2048-and-snake-on-the-unit.patch` (261): 2048 (id slide: swipe up, down, left or right to slide and merge the tiles, a new tile pops, over when nothing
+- `firmware/patches/SF78-redraw-only-what-moves.patch` (64): The grid games redraw only the part of the board that moves. The b57 bench recorded 70 to 95 ms between ticks 
+- `firmware/patches/SF79-bench-asset-use-probe.patch` (117): A bench probe for the assets partition: self.bench.asset_use lists which assets the firmware asked the assets 
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1928,6 +1934,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/grid_anim_test.c` (196): Host test for the grid animation layer (patch SF72): cc -std=c99 -Wall -Wextra -Werror -I<dir> grid_anim_test.
 - `host/tests/firmware/grid_core_test.c` (233): Host test for the grid game engine core and its two rule sets (patch SF62): cc -std=c99 -Wall -Wextra -Werror 
 - `host/tests/firmware/grid_games2_test.c` (208): Host test for the second set of grid rule sets (patch SF67): Hangman, the 2048 slider, Snake, Mine Finder. cc 
+- `host/tests/firmware/grid_input_test.c` (81): Host test for the grid games' touch classifier and the vertical-swipe rule of the gesture layer (patch SF76). 
 - `host/tests/firmware/headgate_core_test.c` (24): Host test for the host head-move gate (patch Y01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/heal_core_test.c` (53): Host test for the restart guard's allowance (patch R04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/ir_core_test.c` (72): Host test for the infrared timing rules (patch SF50). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
@@ -2490,6 +2497,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stt_stream.py` (329): G3+G6 (send side)'s own acceptance: a real local WebSocket server
 - `host/tests/test_supervisor.py` (150): The watchdog: a dead or silent worker is restarted alone, with back-off; a worker that keeps failing is report
 - `host/tests/test_swipe_pages.py` (439): ruff: noqa: E501
+- `host/tests/test_text_font_glyph_coverage.py` (54): Glyph coverage for the smaller text font (docs/plan/optimization.md, item 1a): every non-ASCII character in a 
 - `host/tests/test_thermal.py` (152): THERMAL-01: the warm Compute Module slows, says so, never crashes."""
 - `host/tests/test_timesync.py` (118): ROBOT-TIME-01: the robot's clock comes from the hub."""
 - `host/tests/test_token_scope.py` (31): A settings-token login (a phone) reaches the settings pages but not the host-only controls."""
@@ -2558,7 +2566,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/asset-kinds.json` (68): no header
 - `schema/base-tools.json` (10): no header
 - `schema/memory-budget.json` (804): no header
-- `schema/tools.json` (650): no header
+- `schema/tools.json` (652): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
