@@ -53,10 +53,21 @@ class MemoryNotesConfig(StrictModel):
     folder: str | None = None  # default: the notes folder beside the pairing file
 
 
+class HomeAssistantConfig(StrictModel):
+    """Home Assistant voice and camera snapshots (maipai_packages/home_assistant)."""
+
+    enabled: bool = False
+    url: str = ""
+    token_env: str = "STACKCHAN_HA_TOKEN"  # the NAME of the variable holding a long-lived access token, never the token
+    trigger: str = "home assistant"  # a request that starts with these words goes to Home Assistant
+    cameras: dict[str, str] = Field(default_factory=dict)  # spoken name -> camera entity, for example front door = "camera.front_door"
+
+
 class PackagesConfig(StrictModel):
     """Optional local packages. Every one is off by default and costs nothing while off."""
 
     memory_notes: MemoryNotesConfig = Field(default_factory=MemoryNotesConfig)
+    home_assistant: HomeAssistantConfig = Field(default_factory=HomeAssistantConfig)
 
 
 class SettingsPageConfig(StrictModel):
@@ -180,6 +191,22 @@ def build_brain(config: RobotConfig, **home_dependencies):
 
         folder = Path(notes.folder) if notes.folder else default_pairing_path().parent / "notes"
         brain.memory = Notes(NotesStore(folder), notes.people, notes.default_person)
+        brain.handlers.append(brain.memory)
+    ha = config.packages.home_assistant
+    if ha.enabled:
+        from maipai_packages.home_assistant import HomeAssistant
+        from maipai_packages.home_assistant.client import image_question
+
+        brain.handlers.append(
+            HomeAssistant(
+                ha.url,
+                token_env=ha.token_env,
+                trigger=ha.trigger,
+                cameras=ha.cameras,
+                language=config.home.language,
+                ask_model=image_question(config.llm.url, config.llm.model, config.llm.api_key_env) if config.llm.url else None,
+            )
+        )
     return brain
 
 

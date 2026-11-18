@@ -32,6 +32,15 @@ language = "en"
 # people = ["alex", "sam"]        # lowercase names of the adults who have notes
 # default_person = "alex"         # whose notes a turn uses when nobody was identified
 
+[packages.home_assistant]
+# Home Assistant voice and camera snapshots. Say "home assistant, turn off the kitchen light".
+# The token goes in the environment variable named here, never in this file. Off unless you turn it on.
+# enabled = true
+# url = "http://192.0.2.20:8123"
+# token_env = "STACKCHAN_HA_TOKEN"
+# trigger = "home assistant"
+# cameras = { "front door" = "camera.front_door" }
+
 [settings]
 # Let a phone on your Wi-Fi open the settings page. It then asks for the settings token
 # (run `stackchan settings-token`). Off by default: the page is for this computer only.

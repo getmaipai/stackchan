@@ -114,6 +114,7 @@ def test_a_notes_request_is_answered_without_a_model_call_and_notes_reach_the_pr
     session = Session()
     brain = OwnLLMBrain(LlmConfig(url="http://192.0.2.5:8080", model="m"), session=session)
     brain.memory = n
+    brain.handlers.append(n)
     events = list(brain.stream_turn(TurnRequest(text="remember I like oat milk", speaker_evidence={"person_id": "alex"})))
     assert events[0].reply_text == "Okay, I will remember that." and session.bodies == []
     list(brain.stream_turn(TurnRequest(text="what should I drink", speaker_evidence={"person_id": "alex"})))

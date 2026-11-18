@@ -89,6 +89,7 @@ class OwnLLMBrain:
         self._tts_engine = tts_engine
         self._on_sentence = on_sentence
         self.memory = None  # the memory notes package, set by build_brain only when it is switched on
+        self.handlers: list = []  # optional packages that answer some requests themselves: handle(text, speaker) -> reply or None
         self._history: dict[str, deque[dict[str, str]]] = {}
         self._cancel: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
@@ -141,10 +142,10 @@ class OwnLLMBrain:
         if not self.config.url or not self.config.model:
             yield TurnEvent(reply_text=NOT_INSTALLED)
             return
-        speaker = (request.speaker_evidence or {}).get("person_id") if self.memory is not None else None
-        if self.memory is not None:
-            spoken = self.memory.handle(request.text, speaker)
-            if spoken is not None:  # a remember, forget or read-back request: answered here, no model call
+        speaker = (request.speaker_evidence or {}).get("person_id") if (self.memory or self.handlers) else None
+        for handler in self.handlers:
+            spoken = handler.handle(request.text, speaker)
+            if spoken is not None:  # a package answered (notes, Home Assistant): no model call
                 yield TurnEvent(reply_text=spoken, delta_text=spoken, delta_whole=True)
                 return
         turn_id = uuid.uuid4().hex
