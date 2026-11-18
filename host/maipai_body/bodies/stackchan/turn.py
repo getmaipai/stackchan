@@ -24,7 +24,7 @@ import numpy.typing as npt
 from maipai_body import reply_tags
 from maipai_body.bodies.stackchan import captions
 from maipai_body.bodies.stackchan.error_line import ErrorLineBreaker
-from maipai_body.mouth_cues import fit_to_unit
+from maipai_body.mouth_cues import UNIT_MAX_MS, fit_to_unit
 from maipai_body.mouth_cues import mouth_cues as mouth_cues_for
 from maipai_body.speaker_evidence import SpeakerEvidenceError, speaker_evidence
 from maipai_body.speech.capture import BLOCK_SAMPLES
@@ -284,6 +284,15 @@ class StackChanAudioPlayback(AudioPlayback):
         self._cue_collecting = True
         self._cue_decided = threading.Event()
         self._cue_single = False
+        # With a unit that can append to the list it is playing (hello feature "mouth_cues_append"), every sentence sends its own
+        # cues, their times continuing from the audio already queued; sentences wait here, in order, until they can be sent.
+        self._cue_pending: list[npt.NDArray[np.float32]] = []
+        self._cue_sent = 0
+        self._cue_offset_ms = 0
+        self._cue_last_ms = 0
+        self._cue_first_ok = False
+        self._cue_off = False
+        self._cue_lock = threading.Lock()
         super().__init__(self)
 
     def get_output_audio_samplerate(self) -> int:
@@ -334,12 +343,61 @@ class StackChanAudioPlayback(AudioPlayback):
         with self._lock:
             self._cue_single = bool(single_sentence)  # takes effect at end_sentence, once the audio is all queued
 
+    def _cue_append_ok(self) -> bool:
+        check = getattr(self._server, "device_supports", None)
+        try:
+            return bool(check and check("mouth_cues_append", self._device_id))
+        except Exception:
+            return False
+
+    def _flush_cues(self) -> None:
+        """Send the sentences waiting for cues, in order: the first as a new list, the rest appended to it."""
+        with self._cue_lock:
+            while self._cue_pending and not self._cue_off and not self._canceled():
+                if self._cue_sent == 0 and not self._cue_first_ok:
+                    return
+                audio = self._cue_pending.pop(0)
+                span_ms = int(len(audio) * 1000 / 24000)
+                if self._cue_offset_ms + span_ms > UNIT_MAX_MS:
+                    self._cue_off = True  # past the unit's 60 s span: the mouth follows the loudness from here
+                    return
+                cues = fit_to_unit(mouth_cues_for(audio, 24000))
+                shifted: list[list[int]] = []
+                for t, level in cues:
+                    at = max(t + self._cue_offset_ms, self._cue_last_ms)  # a closing cue may run a window past its audio
+                    if shifted and shifted[-1][0] == at:
+                        shifted[-1][1] = level
+                    else:
+                        shifted.append([at, level])
+                arguments: dict[str, object] = {"cues": json.dumps(shifted)}
+                if self._cue_sent:
+                    arguments["append"] = True
+                try:
+                    self._server.call_device_tool(
+                        "self.face.mouth_cues", arguments, timeout=2.0, device_id=self._device_id
+                    )
+                except Exception as exc:  # old firmware, muted, locked or a slow unit: the mouth follows the loudness
+                    LOG.debug("StackChan mouth cues not sent: %s", type(exc).__name__)
+                    if not isinstance(exc, TimeoutError):
+                        self.mouth_cues_on = False
+                        self._cue_off = True
+                    return
+                self._cue_sent += 1
+                self._cue_last_ms = shifted[-1][0]
+                self._cue_offset_ms += span_ms
+
     async def _send_mouth_cues(self) -> None:
-        """One list of mouth cues for the reply, before its first audio frame (the unit starts it with that frame)."""
+        """The reply's first mouth list, before its first audio frame (the unit starts it with that frame)."""
         deadline = self._clock() + MOUTH_CUE_HOLD_S
         while not self._cue_decided.is_set() and self._clock() < deadline and not self._canceled():
             await self._async_sleep(0.02)
-        if not self._cue_decided.is_set() or not self._cue_single or self._canceled():
+        if not self._cue_decided.is_set() or self._canceled():
+            return
+        if self._cue_pending:  # a unit that appends: every sentence sends its own list
+            self._cue_first_ok = True
+            await asyncio.to_thread(self._flush_cues)
+            return
+        if not self._cue_single:
             return
         with self._lock:
             samples = np.concatenate(self._cue_samples) if self._cue_samples else np.zeros(0, dtype=np.float32)
@@ -618,13 +676,21 @@ class StackChanAudioPlayback(AudioPlayback):
         sentence's encoder tail and let the sender carry on into the next sentence."""
         with self._lock:
             self._flush_sentence_locked()
-            self._cue_collecting = False
+            if self.mouth_cues_on and self._cue_append_ok():
+                self._cue_pending.append(
+                    np.concatenate(self._cue_samples) if self._cue_samples else np.zeros(0, dtype=np.float32)
+                )
+                self._cue_samples = []
+            else:
+                self._cue_collecting = False
             self._cue_decided.set()
             if self._sender_future is None and self._frames and not self._canceled():
                 # A short first sentence: fewer frames than the lead, so nothing has been sent yet.
                 self._sender_future = asyncio.run_coroutine_threadsafe(
                     self._sender(), self._server._loop
                 )
+        if self._cue_pending:
+            self._flush_cues()
 
     def stop_playing(self) -> None:
         with self._lock:

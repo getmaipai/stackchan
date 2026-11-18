@@ -81,3 +81,40 @@ def test_a_long_reply_is_cut_to_the_units_list_limits():
     times = [c[0] for c in fitted]
     assert times == sorted(times)
     assert all(sum(1 for u in times if t <= u < t + 1000) <= 12 for t in times)
+
+
+class _AppendServer(_Server):
+    def device_supports(self, feature, device_id=None):
+        return feature == "mouth_cues_append"
+
+
+def _play_sentences(count):
+    loop = asyncio.new_event_loop()
+    threading.Thread(target=loop.run_forever, daemon=True).start()
+    server = _AppendServer(loop)
+    playback = StackChanAudioPlayback(server, "02:00:00:00:00:01")
+    playback.mouth_cues_on = True
+    audio = _speech(1.0)
+    for _ in range(count):
+        for start in range(0, len(audio), 2400):
+            playback.push_audio_sample(audio[start : start + 2400])
+        playback.decide_cues(False)
+        playback.end_sentence()
+    playback.end()
+    loop.call_soon_threadsafe(loop.stop)
+    return server.events
+
+
+def test_a_unit_that_can_append_gets_one_list_per_sentence_with_continuing_times():
+    events = _play_sentences(3)
+    tools = [e for e in events if e[0] == "tool"]
+    assert len(tools) == 3
+    assert [e[0] for e in events].index("tool") < [e[0] for e in events].index("audio")
+    assert "append" not in tools[0][2] and tools[1][2]["append"] and tools[2][2]["append"]
+    last = -1
+    for tool in tools:
+        cues = json.loads(tool[2]["cues"])
+        assert cues[0][0] >= last and [c[0] for c in cues] == sorted(c[0] for c in cues)
+        assert all(0 <= c[1] <= 4 for c in cues) and len(cues) <= UNIT_MAX_CUES
+        last = cues[-1][0]
+    assert json.loads(tools[1][2]["cues"])[0][0] >= 900, "the second sentence's times continue from the first sentence's audio"

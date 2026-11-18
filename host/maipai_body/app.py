@@ -268,6 +268,10 @@ class StackChanBehavior:
         # Touch, swipe and shake events from the unit (patch 021) wake a drowsy or sleeping robot.
         # Set by the service wiring; None means no unit events are available.
         self.event_poll: Callable[[], list] | None = None
+        # Events of every other connected unit, read once a second: handlers are called as (device_id, events). The first
+        # unit's events go through wake_on_touch; touch reactions, the music dance and self-heal stay with that unit.
+        self.other_unit_event_handlers: list[Callable[[str, list], None]] = []
+        self.primary_unit: Callable[[], str | None] = lambda: None
         self.unit_facts: Any = (
             None  # link.checkin.UnitFacts: the latest boot, memory and firmware facts
         )
@@ -2563,6 +2567,7 @@ def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, sto
         lambda device_id: voice.robot.client.for_unit(device_id)._call, on_leak=leak, primary=state
     )
     primary_id: list[str | None] = [None]
+    behavior.primary_unit = lambda: primary_id[0]
     behavior.privacy = state
     behavior.privacy_controller = controller
     behavior.privacy_units = others
@@ -2585,6 +2590,7 @@ def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, sto
                     list(voice._sessions),
                     primary=primary_id[0],
                     events_of=lambda device_id: voice.robot.client.for_unit(device_id).companion().poll_events(),
+                    handlers=behavior.other_unit_event_handlers,
                 )
             except Exception:
                 logger.warning("polling the other units failed", exc_info=True)
@@ -2677,12 +2683,58 @@ def _wire_timers_and_announcements(
     behavior.timers = timers
     behavior.settings_listeners += [timers.apply_settings, announcer.apply_settings]
 
-    def refresh(_device_id: str) -> None:
-        timers.forget()
+    from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+    unit_timers: dict[str, TimerService] = {}
+
+    def timers_for(device_id: str) -> TimerService:
+        """The timer service of one unit. The first unit to connect keeps `timers`; each other unit has its own, so two units'
+        timer ids never meet and a ring on one is said on that unit."""
+        if device_id == behavior.primary_unit() or behavior.primary_unit() is None:
+            return timers
+        if device_id not in unit_timers:
+
+            def say_on(text: str, _d=device_id) -> bool:
+                token = ACTIVE_UNIT.set(_d)
+                try:
+                    return say(text)
+                finally:
+                    ACTIVE_UNIT.reset(token)
+
+            def muted_on(_d=device_id) -> bool:
+                units = getattr(behavior, "privacy_units", None)
+                return bool(units is not None and units.state_for(_d).muted_reason()) or announcer.quiet
+
+            unit_timers[device_id] = TimerService(
+                lambda name, args, _d=device_id: voice.robot.client.for_unit(_d)._call(name, args),
+                say=say_on,
+                muted=muted_on,
+                night=lambda: bool(behavior.night_active()),
+                clock=time.monotonic,
+                missed=missed_log.note,
+            )
+            behavior.settings_listeners.append(unit_timers[device_id].apply_settings)
+        return unit_timers[device_id]
+
+    def on_other_unit_events(device_id: str, events: list) -> None:
+        service = timers_for(device_id)
+        for event in events:
+            kind = str(getattr(event, "kind", ""))
+            if kind.startswith("timer_"):
+                try:
+                    service.on_event(kind, getattr(event, "extra", None))
+                except Exception:
+                    logger.warning("a timer event of one unit failed", exc_info=True)
+
+    behavior.other_unit_event_handlers.append(on_other_unit_events)
+
+    def refresh(device_id: str) -> None:
+        service = timers_for(device_id)
+        service.forget()
 
         def list_once() -> None:
             try:
-                timers.list_timers()
+                service.list_timers()
             except Exception:
                 logger.debug("the unit's timers could not be listed", exc_info=True)
 
@@ -2692,7 +2744,7 @@ def _wire_timers_and_announcements(
 
     def ticks() -> None:
         while not stop_event.wait(1.0):
-            for tick in (timers.tick, announcer.tick):
+            for tick in (timers.tick, announcer.tick, *[t.tick for t in list(unit_timers.values())]):
                 try:
                     tick()
                 except Exception:

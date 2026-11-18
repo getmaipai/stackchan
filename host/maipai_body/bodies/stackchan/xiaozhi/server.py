@@ -1527,10 +1527,11 @@ class XiaozhiServer:
             except (concurrent.futures.TimeoutError, RuntimeError):
                 pass
 
-    def device_supports(self, feature: str) -> bool:
+    def device_supports(self, feature: str, device_id: str | None = None) -> bool:
         if not self._sessions:
             return False
-        device_id, _ = self._resolve_unit(None)
+        if device_id is None or device_id not in self._sessions:
+            device_id, _ = self._resolve_unit(None)
         return self._session_features.get(device_id, {}).get(feature) is True
 
     def create_notification_audio(self, message: object, device_id: str | None = None) -> str:
