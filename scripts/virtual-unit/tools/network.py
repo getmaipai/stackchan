@@ -174,24 +174,4 @@ def version_get(u, a):
 @tool("self.wifi.list_saved")
 def wifi_list(u, a):
     return [{"index":i,"ssid":v["ssid"]} for i,v in enumerate(_net(u)["wifi"])]
-
-
-@tool("self.wifi.add")
-def wifi_add(u, a):
-    n = _net(u); ssid=a.get("ssid",""); password=a.get("password","")
-    if not ssid or len(ssid)>32 or len(password)>63: return False
-    n["wifi"] = [v for v in n["wifi"] if v["ssid"] != ssid]; n["wifi"].append({"ssid":ssid,"password":password}); return True
-
-
-@tool("self.wifi.forget")
-def wifi_forget(u, a):
-    n=_net(u); i=a.get("index",-1)
-    if not 0<=i<len(n["wifi"]): return False
-    n["wifi"].pop(i); return True
-
-
-@tool("self.wifi.switch")
-def wifi_switch(u, a):
-    n=_net(u); i=a.get("index",-1)
-    if not 0<=i<len(n["wifi"]): return False
-    n["wifi"].insert(0,n["wifi"].pop(i)); return True
+# self.wifi.add, forget and switch were removed from the firmware by patch SF02 (tool visibility); the unit has no tool to change saved networks.

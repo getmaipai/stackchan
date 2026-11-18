@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 131,
+ "count": 128,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -129,10 +129,7 @@
   "self.timer.snooze": "092-timer-tools.patch",
   "self.timer.stop": "092-timer-tools.patch",
   "self.version.get": "U05-version-screen.patch",
-  "self.wifi.add": "023-wifi-saved-networks-tools.patch",
-  "self.wifi.forget": "023-wifi-saved-networks-tools.patch",
-  "self.wifi.list_saved": "023-wifi-saved-networks-tools.patch",
-  "self.wifi.switch": "023-wifi-saved-networks-tools.patch"
+  "self.wifi.list_saved": "023-wifi-saved-networks-tools.patch"
  },
  "arguments": {
   "self.audio.hourly_chime": {
@@ -510,16 +507,6 @@
   },
   "self.timer.stop": {},
   "self.version.get": {},
-  "self.wifi.add": {
-   "ssid": "string",
-   "password": "string"
-  },
-  "self.wifi.forget": {
-   "index": "integer"
-  },
-  "self.wifi.list_saved": {},
-  "self.wifi.switch": {
-   "index": "integer"
-  }
+  "self.wifi.list_saved": {}
  }
 }

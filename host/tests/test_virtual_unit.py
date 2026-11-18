@@ -137,3 +137,9 @@ def test_ring_lights_and_battery():
 def test_face_consistency_across_styles_has_no_new_violation():
     out = subprocess.run([sys.executable, str(VU / "face_consistency.py")], capture_output=True, text=True)
     assert out.returncode == 0, out.stdout + out.stderr
+
+
+@needs_render
+def test_bench_check_dry_runs():
+    out = subprocess.run([sys.executable, str(VU / "bench_checks.py")], capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr

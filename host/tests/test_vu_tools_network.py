@@ -20,13 +20,12 @@ def test_update_network_test_and_version_shapes():
         assert set(u.call("self.version.get")) >= {"ok", "version", "tag", "image", "slot", "uptime_s"}
 
 
-def test_wifi_state_and_refusal_shapes():
+def test_wifi_list_saved_and_removed_tools():
     with vunit.VirtualUnit() as u:
-        assert u.call("self.wifi.add", {"ssid": "Home", "password": "secret"}) == {"ok": True}
-        assert u.call("self.wifi.list_saved") == {"result": [{"index": 0, "ssid": "Home"}]}
-        assert u.call("self.wifi.add", {"ssid": "", "password": ""}) == {"ok": False}
-        assert u.call("self.wifi.switch", {"index": 0}) == {"ok": True}
-        assert u.call("self.wifi.forget", {"index": 5}) == {"ok": False}
+        assert u.call("self.wifi.list_saved") == {"result": []}
+        u.state.setdefault("network", {})  # the saved list is seeded by a scenario, not by a tool
+        for name in ("self.wifi.add", "self.wifi.forget", "self.wifi.switch"):
+            assert u.call(name, {})["isError"]  # removed by patch SF02
 
 
 def test_pack_transfer_and_refusals():
