@@ -327,6 +327,10 @@ def _merge_more() -> None:
 
     for code, words in wake_words.CATALOGS.items():
         CATALOG[code].update(words)
+    from maipai_body import i18n_literals as literal_words
+
+    for code, words in literal_words.CATALOGS.items():
+        CATALOG[code].update(words)
 
 
 def _merge_fill() -> None:

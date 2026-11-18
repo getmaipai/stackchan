@@ -4,6 +4,10 @@
 //   bstatus LEVEL CHARGING WIFI_UP HUB_UP MIC | bwifiscreen on|off (a Wi-Fi screen is up: no strip glyph, patch WF01) | bbar hidden|always (the gauges the unit polls; the strip decides what shows)
 //   bclear TAG | bsession on|off [label] | bflag mic|face|camera|remote|battery|wifi on|off [HOLD_MS] | bcaps off|subtitles|banner | ssay TEXT | send | sstop | bvis
 #include "render_hooks.h"
+#if __has_include("maipai_firstrun.h")
+#include "maipai_firstrun.h"
+#define MAIPAI_HAVE_FIRSTRUN 1
+#endif
 #include "maipai_look_core.h"
 #include "maipai_banner.h"
 #include <cstdio>
@@ -191,6 +195,17 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
         return true;
     }
     if (c == "think") { std::string n; in >> n; av->setThinking(n == "on"); return true; }
+#ifdef MAIPAI_HAVE_FIRSTRUN
+    if (c == "frun") {  // frun start | frun step N LANG MODE | frun wifi: the first-run flow (patches UX05a, UX05b), on the unit's own drawing code
+        std::string a; in >> a;
+        static const maipai_firstrun_host_t host = {[]() { return false; }, []() { return false; }, [](int) {}, []() {}, [](int l, int n, int m) { printf("firstrun finished %d %d %d\n", l, n, m); fflush(stdout); }};
+        if (a == "start") { maipai_firstrun_init(&host); maipai_firstrun_start(); }
+        else if (a == "step") { int st = 0, l = 0, m = -1; in >> st >> l >> m; maipai_firstrun_show_step(st, l, m); }
+        else if (a == "wifi") { maipai_firstrun_wifi_done(); }
+        else if (a == "close") { maipai_firstrun_close(); }
+        return true;
+    }
+#endif
     if (c == "seal") {  // seal on|off: mute, as ApplyPrivacyFace does it (patch 105): the mouth becomes a flat closed line
         std::string n; in >> n;
         if (auto* m = dynamic_cast<DefaultMouth*>(&av->mouth())) m->setSealed(n == "on");

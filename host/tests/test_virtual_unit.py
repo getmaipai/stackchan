@@ -152,3 +152,22 @@ def test_face_consistency_across_styles_has_no_new_violation():
 def test_bench_check_dry_runs():
     out = subprocess.run([sys.executable, str(VU / "bench_checks.py")], capture_output=True, text=True)
     assert out.returncode == 0, out.stdout + out.stderr
+
+
+@pytest.mark.skipif(not (ROOT / ".runs" / "vu-screens" / "render").exists(), reason="screens renderer not built")
+def test_first_run_flow_by_taps_ends_with_the_answers():
+    vu = _load("vunit")
+    with vu.VirtualUnit(profile="screens") as u:
+        u.raw("frun start")
+        u.advance(600)
+        for tap in ((56, 98), (56, 98)):  # language English, name Astro
+            u.tap(*tap)
+            u.advance(300)
+        u.raw("frun wifi")  # the Wi-Fi cover reports done
+        u.advance(300)
+        for tap in ((160, 100), (160, 220), (160, 190)):  # Pair with Home, a tap on the privacy "Got it" button
+            u.tap(*tap)
+            u.advance(300)
+        u.advance(2500)  # "All set!" closes itself after 2 s
+        u._sync()
+        assert "firstrun finished 0 0 0" in u.output
