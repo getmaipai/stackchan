@@ -1,32 +1,74 @@
 {
  "es": {
-  "rows": 989,
+  "rows": 1034,
   "reviewed": 0,
-  "machine_draft": 940,
-  "missing": 49
+  "machine_draft": 982,
+  "missing": 52
  },
  "fr": {
-  "rows": 989,
+  "rows": 1034,
   "reviewed": 0,
-  "machine_draft": 880,
-  "missing": 109
+  "machine_draft": 922,
+  "missing": 112
  },
  "de": {
-  "rows": 989,
+  "rows": 1034,
   "reviewed": 0,
-  "machine_draft": 880,
-  "missing": 109
+  "machine_draft": 922,
+  "missing": 112
  },
  "pt": {
-  "rows": 989,
+  "rows": 1034,
   "reviewed": 0,
-  "machine_draft": 880,
-  "missing": 109
+  "machine_draft": 922,
+  "missing": 112
  },
  "it": {
-  "rows": 989,
+  "rows": 1034,
   "reviewed": 0,
-  "machine_draft": 880,
-  "missing": 109
+  "machine_draft": 922,
+  "missing": 112
+ },
+ "nl": {
+  "rows": 1034,
+  "reviewed": 0,
+  "machine_draft": 989,
+  "missing": 45
+ },
+ "pl": {
+  "rows": 1034,
+  "reviewed": 0,
+  "machine_draft": 989,
+  "missing": 45
+ },
+ "tr": {
+  "rows": 1034,
+  "reviewed": 0,
+  "machine_draft": 989,
+  "missing": 45
+ },
+ "sv": {
+  "rows": 1034,
+  "reviewed": 0,
+  "machine_draft": 989,
+  "missing": 45
+ },
+ "da": {
+  "rows": 1034,
+  "reviewed": 0,
+  "machine_draft": 989,
+  "missing": 45
+ },
+ "nb": {
+  "rows": 1034,
+  "reviewed": 0,
+  "machine_draft": 989,
+  "missing": 45
+ },
+ "cs": {
+  "rows": 1034,
+  "reviewed": 0,
+  "machine_draft": 989,
+  "missing": 45
  }
 }
