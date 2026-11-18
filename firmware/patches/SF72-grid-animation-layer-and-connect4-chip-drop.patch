@@ -1,0 +1,525 @@
+# Intent: Four in a Row gets a generic animation layer in the grid engine and its sounds. The person's disc and the unit's reply fall from the top of the chosen column into the lowest free cell (about 80 ms for every row of the drop, accelerating like gravity) and settle with one small bounce; the board's one draw callback draws the falling disc at its interpolated height while the rules core already holds the landed state. The person's taps are ignored while a disc is falling, and the unit starts thinking when the person's disc has landed. The winning four pulse three times and stay light, a draw shakes the board. Sounds go through the sound policy: a soft tick for the person's landing and a clack of another timbre for the unit's, each at three pitches by row, a short whoosh when a disc is released, the fanfare for a win, a soft descending loss, a neutral draw and a muted thud for a full column. The layer (tweens, events, shake) is a pure core the other grid games reuse; nothing new is drawn as an object; a game never moves the head.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.game.start connect4, tap a column: the amber disc falls from the top and bounces once with a tick, the red reply falls after it with a different clack; a full column taps with a thud; a win pulses the four and plays the fanfare, a loss plays the soft fall, a draw shakes the board; muted or in quiet hours the picture is the same and silent; a swipe down from the grabber still ends the game.
+# Kconfig: CONFIG_MAIPAI_GAMES (existing)
+# Memory cost: flash 5,680 bytes (measured: the plain image grew by that). A running game holds the animation list (8 tweens, about 150 bytes) in the Grid struct in PSRAM and renders each sound on first use into PSRAM (a tick 1.4 KB, a clack 1.8 KB, the whoosh 2.2 KB, the loss 6.4 KB, a draw 4.6 KB, the fanfare 7.5 KB: at most about 30 KB, freed when the game ends); no new LVGL object; the internal cost is unchanged (measure with two self.bench.heap_info calls).
+
+diff --git a/firmware/main/hal/maipai_grid_anim_core.h b/firmware/main/hal/maipai_grid_anim_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid_anim_core.h
+@@ -0,0 +1,221 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The grid engine's animation layer (patch SF72): a small list of tweens that the 30 ms game tick advances and the board's one draw callback reads. A tween moves a cell's content
++ * from one place to another over time (a disc falling into a column with gravity, then one small bounce), or pulses a cell (the winning four), or shakes the board (a draw). The
++ * rules core never waits on a tween: it already holds the landed state; the animation is only what the screen shows on the way there. The caller hides a cell while a fall is
++ * heading for it (gan_cell_hidden) and draws the falling disc at gan_fall_pos. The tick returns events (a landing, a finished fall, a finished pulse) so the caller can play a sound
++ * at each impact and start the next thing (the unit's reply, the result) only when the picture has caught up. Plain C99, no allocation, no clock of its own, a few dozen bytes a tween.
++ *
++ * Rule for input: while gan_busy() the person's taps are ignored; the unit's search starts when the person's disc has landed.
++ */
++#ifndef MAIPAI_GRID_ANIM_CORE_H
++#define MAIPAI_GRID_ANIM_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define GAN_MAX 8             /* tweens at once */
++#define GAN_MS_PER_ROW 80u    /* a fall takes this long for every row it drops (ease-in), at least GAN_FALL_MIN_MS */
++#define GAN_FALL_MIN_MS 120u
++#define GAN_BOUNCE_MS 130u    /* the one small bounce after the landing */
++#define GAN_BOUNCE_MAX_PX 8
++#define GAN_FLASH_MS 120u     /* one half of a pulse: bright, then normal; three pulses */
++#define GAN_FLASH_PULSES 3
++#define GAN_SHAKE_MS 420u
++#define GAN_EV_MAX 6
++
++enum { GAN_NONE = 0, GAN_FALL, GAN_FLASH };
++enum { GAN_EV_FALL_START = 1, GAN_EV_LAND, GAN_EV_FALL_DONE, GAN_EV_FLASH_DONE, GAN_EV_SHAKE_DONE };
++
++typedef struct {
++    uint8_t kind, owner, cell, row;
++    int16_t y0, y1;       /* a fall: from y0 to y1 (pixels, top of the disc) */
++    uint16_t fall_ms;
++    uint8_t bounced;      /* the first landing was reported */
++    uint32_t t0;
++} gan_tw_t;
++
++typedef struct {
++    uint8_t type, owner, cell, row, bounce;
++} gan_ev_t;
++
++typedef struct {
++    gan_tw_t t[GAN_MAX];
++    uint32_t shake_t0;    /* 0 none */
++    uint8_t shaking;
++} gan_t;
++
++static inline void gan_init(gan_t* a) { memset(a, 0, sizeof(*a)); }
++
++static inline int gan_active(const gan_t* a)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind != GAN_NONE) {
++            return 1;
++        }
++    }
++    return a->shaking;
++}
++
++/* Is a disc falling or bouncing? (the person's taps wait for this to end) */
++static inline int gan_busy(const gan_t* a) { return gan_active(a); }
++
++static inline uint32_t gan_fall_total_ms(uint32_t fall_ms) { return fall_ms + GAN_BOUNCE_MS; }
++
++static inline uint32_t gan_fall_ms_for_rows(int rows)
++{
++    const uint32_t ms = (uint32_t)(rows < 1 ? 1 : rows) * GAN_MS_PER_ROW;
++    return ms < GAN_FALL_MIN_MS ? GAN_FALL_MIN_MS : ms;
++}
++
++/* Starts a disc falling from y0 to y1 into `cell` (row `row`), `rows` rows high. Returns the tween index or -1 when the list is full. */
++static inline int gan_fall(gan_t* a, uint32_t now, int cell, int owner, int row, int rows, int y0, int y1)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind == GAN_NONE) {
++            gan_tw_t* t = &a->t[i];
++            memset(t, 0, sizeof(*t));
++            t->kind = GAN_FALL;
++            t->owner = (uint8_t)owner;
++            t->cell = (uint8_t)cell;
++            t->row = (uint8_t)row;
++            t->y0 = (int16_t)y0;
++            t->y1 = (int16_t)y1;
++            t->fall_ms = (uint16_t)gan_fall_ms_for_rows(rows);
++            t->t0 = now;
++            return i;
++        }
++    }
++    return -1;
++}
++
++/* A pulse on a cell: GAN_FLASH_PULSES times bright then normal. */
++static inline int gan_flash(gan_t* a, uint32_t now, int cell)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind == GAN_NONE) {
++            memset(&a->t[i], 0, sizeof(a->t[i]));
++            a->t[i].kind = GAN_FLASH;
++            a->t[i].cell = (uint8_t)cell;
++            a->t[i].t0 = now;
++            return i;
++        }
++    }
++    return -1;
++}
++
++static inline void gan_shake(gan_t* a, uint32_t now)
++{
++    a->shaking = 1;
++    a->shake_t0 = now;
++}
++
++/* The board's horizontal shake offset in pixels now (0 when not shaking): a decaying wobble. */
++static inline int gan_shake_dx(const gan_t* a, uint32_t now)
++{
++    if (!a->shaking) {
++        return 0;
++    }
++    const uint32_t e = now - a->shake_t0;
++    if (e >= GAN_SHAKE_MS) {
++        return 0;
++    }
++    const int amp = 4 - (int)(4u * e / GAN_SHAKE_MS);       /* 4 px falling to 0 */
++    return ((e / 35u) & 1u) ? -amp : amp;
++}
++
++/* Is a fall heading for this cell (the cell's disc is on its way: the board must not draw it yet)? */
++static inline int gan_cell_hidden(const gan_t* a, int cell)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind == GAN_FALL && a->t[i].cell == cell) {
++            return 1;
++        }
++    }
++    return 0;
++}
++
++/* Who owns the disc falling into this cell (1 the person, 2 the unit), or 0. */
++static inline int gan_fall_owner(const gan_t* a, int cell)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind == GAN_FALL && a->t[i].cell == cell) {
++            return a->t[i].owner;
++        }
++    }
++    return 0;
++}
++
++/* The y of the top of the falling disc heading for `cell`, or -1 when none: ease-in to the landing, then one small bounce. */
++static inline int gan_fall_y(const gan_t* a, int cell, uint32_t now)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        const gan_tw_t* t = &a->t[i];
++        if (t->kind != GAN_FALL || t->cell != cell) {
++            continue;
++        }
++        const uint32_t e = now - t->t0;
++        const int dy = t->y1 - t->y0;
++        if (e < t->fall_ms) {
++            const int32_t u = (int32_t)(e * 1000u / t->fall_ms);            /* 0..1000 */
++            return t->y0 + (int)(((int64_t)dy * u * u) / 1000000);          /* gravity: distance grows with the square of time */
++        }
++        const uint32_t b = e - t->fall_ms;                                    /* the bounce: a parabola up and down */
++        if (b >= GAN_BOUNCE_MS) {
++            return t->y1;
++        }
++        int h = dy / 6;
++        if (h > GAN_BOUNCE_MAX_PX) {
++            h = GAN_BOUNCE_MAX_PX;
++        }
++        const int32_t u = (int32_t)(b * 1000u / GAN_BOUNCE_MS);              /* 0..1000 */
++        return t->y1 - (int)((int64_t)h * 4 * u * (1000 - u) / 1000000);
++    }
++    return -1;
++}
++
++/* Is the cell lit in its pulse now? (bright on the even half-periods, for GAN_FLASH_PULSES pulses; false when it has no pulse) */
++static inline int gan_flash_on(const gan_t* a, int cell, uint32_t now)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind == GAN_FLASH && a->t[i].cell == cell) {
++            const uint32_t e = now - a->t[i].t0;
++            return e < GAN_FLASH_MS * 2u * GAN_FLASH_PULSES && ((e / GAN_FLASH_MS) & 1u) == 0;  /* never lit past the last pulse, even before the tick removes it */
++        }
++    }
++    return 0;
++}
++
++/* Advances the list to `now`; returns the events since the last call (at most GAN_EV_MAX; the rest wait for the next tick). */
++static inline int gan_tick(gan_t* a, uint32_t now, gan_ev_t* ev)
++{
++    int n = 0;
++    for (int i = 0; i < GAN_MAX && n < GAN_EV_MAX - 1; i++) {
++        gan_tw_t* t = &a->t[i];
++        if (t->kind == GAN_FALL) {
++            const uint32_t e = now - t->t0;
++            if (!t->bounced && e >= t->fall_ms) {
++                t->bounced = 1;
++                ev[n++] = (gan_ev_t){GAN_EV_LAND, t->owner, t->cell, t->row, 0};
++            }
++            if (e >= gan_fall_total_ms(t->fall_ms) && n < GAN_EV_MAX - 1) {
++                ev[n++] = (gan_ev_t){GAN_EV_LAND, t->owner, t->cell, t->row, 1};        /* the second, smaller impact after the bounce */
++                ev[n++] = (gan_ev_t){GAN_EV_FALL_DONE, t->owner, t->cell, t->row, 0};
++                t->kind = GAN_NONE;
++            }
++        } else if (t->kind == GAN_FLASH) {
++            if (now - t->t0 >= GAN_FLASH_MS * 2u * GAN_FLASH_PULSES) {
++                ev[n++] = (gan_ev_t){GAN_EV_FLASH_DONE, 0, t->cell, 0, 0};
++                t->kind = GAN_NONE;
++            }
++        }
++    }
++    if (a->shaking && now - a->shake_t0 >= GAN_SHAKE_MS && n < GAN_EV_MAX) {
++        a->shaking = 0;
++        ev[n++] = (gan_ev_t){GAN_EV_SHAKE_DONE, 0, 0, 0, 0};
++    }
++    return n;
++}
++
++#endif /* MAIPAI_GRID_ANIM_CORE_H */
+diff --git a/firmware/main/hal/maipai_grid_c4_core.h b/firmware/main/hal/maipai_grid_c4_core.h
+--- a/firmware/main/hal/maipai_grid_c4_core.h
++++ b/firmware/main/hal/maipai_grid_c4_core.h
+@@ -74,6 +74,32 @@ static inline int gc4_win(const gc4_board_t* g, int who)
+     return 0;
+ }
+ 
++/* The four cells of a winning line of `who` (patch SF72): cells[4] get the indices, returns 1; 0 when there is none. */
++static inline int gc4_win_line(const gc4_board_t* g, int who, int cells[4])
++{
++    static const int dr[4] = {0, 1, 1, 1}, dc[4] = {1, 0, 1, -1};
++    for (int r = 0; r < GC4_ROWS; r++) {
++        for (int c = 0; c < GC4_COLS; c++) {
++            if (g->b[r * GC4_COLS + c] != who) {
++                continue;
++            }
++            for (int d = 0; d < 4; d++) {
++                int k = 0;
++                int rr = r, cc = c;
++                while (k < 4 && rr >= 0 && rr < GC4_ROWS && cc >= 0 && cc < GC4_COLS && g->b[rr * GC4_COLS + cc] == who) {
++                    cells[k++] = rr * GC4_COLS + cc;
++                    rr += dr[d];
++                    cc += dc[d];
++                }
++                if (k == 4) {
++                    return 1;
++                }
++            }
++        }
++    }
++    return 0;
++}
++
+ static inline int gc4_full(const gc4_board_t* g)
+ {
+     for (int c = 0; c < GC4_COLS; c++) {
+diff --git a/firmware/main/hal/maipai_games_sfx_core.h b/firmware/main/hal/maipai_games_sfx_core.h
+--- a/firmware/main/hal/maipai_games_sfx_core.h
++++ b/firmware/main/hal/maipai_games_sfx_core.h
+@@ -49,6 +49,10 @@ enum {
+     MGS_C_GOOD, MGS_C_FANFARE, MGS_C_BAD,
+     MGS_C_CUE0, MGS_C_CUE1, MGS_C_CUE2, MGS_C_CUE3, MGS_C_CUE4, MGS_C_CUE5,
+     MGS_C_RATTLE, MGS_C_THUD, MGS_C_MYSTIC, MGS_C_TING, /* patch UI15: dice rattle, a landing thud, the eight ball's eerie hum, a coin's ring */
++    /* patch SF72: the grid games' landing sounds: a soft tick for the person's disc and a clack of another timbre for the unit's, each at three pitches by row (low rows low), the
++     * drop's whoosh, a soft descending loss and a neutral draw; the win is MGS_C_FANFARE and the illegal tap is MGS_C_THUD. */
++    MGS_C_GRID_TICK_LO, MGS_C_GRID_TICK_MID, MGS_C_GRID_TICK_HI, MGS_C_GRID_CLACK_LO, MGS_C_GRID_CLACK_MID, MGS_C_GRID_CLACK_HI,
++    MGS_C_GRID_DROP, MGS_C_GRID_LOSE, MGS_C_GRID_DRAW,
+     MGS_CLIPS
+ };
+ 
+@@ -78,6 +82,15 @@ static const mgs_clip_t MGS_CLIP[MGS_CLIPS] = {
+     {"thud", 2, {{150, 55, 110, MGS_W_SINE, 100}, {70, 40, 90, MGS_W_SINE, 60}}},
+     {"mystic", 3, {{196, 262, 240, MGS_W_TRI, 70}, {262, 185, 300, MGS_W_TRI, 70}, {440, 330, 260, MGS_W_SINE, 45}}},
+     {"ting", 2, {{1318, 1318, 90, MGS_W_SINE, 80}, {1760, 1760, 260, MGS_W_SINE, 70}}},
++    {"grid_tick_lo", 1, {{330, 260, 45, MGS_W_TRI, 70}}},
++    {"grid_tick_mid", 1, {{440, 350, 45, MGS_W_TRI, 70}}},
++    {"grid_tick_hi", 1, {{587, 470, 45, MGS_W_TRI, 70}}},
++    {"grid_clack_lo", 2, {{220, 160, 25, MGS_W_SQUARE, 40}, {300, 200, 35, MGS_W_SINE, 60}}},
++    {"grid_clack_mid", 2, {{294, 210, 25, MGS_W_SQUARE, 40}, {400, 270, 35, MGS_W_SINE, 60}}},
++    {"grid_clack_hi", 2, {{392, 280, 25, MGS_W_SQUARE, 40}, {523, 360, 35, MGS_W_SINE, 60}}},
++    {"grid_drop", 1, {{900, 300, 70, MGS_W_SINE, 35}}},
++    {"grid_lose", 3, {{523, 494, 140, MGS_W_SINE, 70}, {440, 415, 140, MGS_W_SINE, 70}, {349, 294, 240, MGS_W_SINE, 70}}},
++    {"grid_draw", 3, {{392, 392, 110, MGS_W_SINE, 70}, {0, 0, 40, MGS_W_REST, 1}, {392, 392, 160, MGS_W_SINE, 60}}},
+ };
+ 
+ /* The groups: a clip is picked at random from the clips listed. */
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -13,6 +13,9 @@
+ #include "maipai_grid_mem_core.h"
+ #include "maipai_grid_hangman_core.h"
+ #include "maipai_grid_mines_core.h"
++#include "maipai_grid_anim_core.h"
++#include "maipai_games_sfx_core.h"
++#include <application.h>
+ #include "maipai_games_draw.h"
+ #include "maipai_games_input_core.h"
+ #include "maipai_banner.h"
+@@ -77,6 +80,13 @@ struct Grid {
+     gm_t mem;
+     gh_t hang;            // Hangman
+     gmn_t mines;          // Mine Finder
++    gan_t anim;           // patch SF72: the falling discs, the pulses and the shake
++    uint8_t result_pending;  // Four in a Row: the game is decided, the picture is catching up (GR_PERSON_WON, GR_UNIT_WON, GR_DRAW)
++    uint8_t flash_left;   // pulses still running
++    uint8_t win_lit;      // the winning four stay lit after their pulses
++    int win_cells[4];
++    int16_t* clip_buf[MGS_CLIPS];  // the sounds, made on first use and held in PSRAM until the game ends
++    uint16_t clip_n[MGS_CLIPS];
+     uint8_t flag_mode;    // Mine Finder: a tap flags instead of opening
+     uint32_t start_ms;    // Mine Finder: the first reveal, for the time score
+     char shown[GH_WORD_MAX + 1];
+@@ -274,13 +284,26 @@ void draw_cb(lv_event_t* e)
+     } else if (g->kind == kMines) {
+         draw_mines(g, layer);
+     } else if (g->kind == kC4) {
+-        rect(layer, g->lay.x0 - 2, g->lay.y0 - 2, cw * cols + 4, ch * rows + 4, 8, 0x1B3F9B);  // the board behind the discs
++        const int dx = gan_shake_dx(&g->anim, now_ms());
++        rect(layer, g->lay.x0 - 2 + dx, g->lay.y0 - 2, cw * cols + 4, ch * rows + 4, 8, 0x1B3F9B);  // the board behind the discs
++        const uint32_t now = now_ms();
+         for (int r = 0; r < rows; r++) {
+             for (int c = 0; c < cols; c++) {
+-                const uint8_t v = g->c4.b[r * cols + c];
+-                rect(layer, g->lay.x0 + c * cw + 3, g->lay.y0 + r * ch + 3, cw - 6, ch - 6, LV_RADIUS_CIRCLE, v == 1 ? 0xF2B24A : (v == 2 ? 0xE04848 : 0x0A1633));
++                const int i = r * cols + c;
++                uint8_t v = g->c4.b[i];
++                if (gan_cell_hidden(&g->anim, i)) v = 0;  // the disc is still on its way
++                uint32_t color = v == 1 ? 0xF2B24A : (v == 2 ? 0xE04848 : 0x0A1633);
++                bool in_line = false;
++                for (int k = 0; k < 4; k++) in_line |= g->win_cells[k] == i && (g->flash_left > 0 || g->win_lit);
++                if (in_line && (g->win_lit || gan_flash_on(&g->anim, i, now))) color = v == 1 ? 0xFFE9A8 : 0xFFA8A8;  // the winning four pulse, then stay light
++                rect(layer, g->lay.x0 + c * cw + 3 + dx, g->lay.y0 + r * ch + 3, cw - 6, ch - 6, LV_RADIUS_CIRCLE, color);
+             }
+         }
++        for (int i = 0; i < GC4_CELLS; i++) {  // the discs in flight, over the board
++            const int y = gan_fall_y(&g->anim, i, now_ms());
++            if (y < 0) continue;
++            rect(layer, g->lay.x0 + (i % cols) * cw + 3, y, cw - 6, ch - 6, LV_RADIUS_CIRCLE, gan_fall_owner(&g->anim, i) == 1 ? 0xF2B24A : 0xE04848);
++        }
+     } else {
+         for (int i = 0; i < g->mem.n; i++) {
+             const uint8_t v = g->mem.card[i];
+@@ -318,6 +341,33 @@ void redraw(Grid* g)
+     if (g->board != nullptr) lv_obj_invalidate(g->board);
+ }
+ 
++// Patch SF72: the grid games' sounds. Made in code on first use (mgs_render, 16 kHz mono) and played through the audio service; the sound policy decides: muted, sounds off and
++// quiet hours stay silent, and the volume is the system volume. Nothing is held while no game runs.
++void play_clip(Grid* g, int clip)
++{
++    if (clip < 0 || clip >= MGS_CLIPS || !maipai_sounds_gate("popup")) return;
++    if (g->clip_buf[clip] == nullptr) {
++        const size_t want = mgs_clip_samples(clip);
++        int16_t* b = static_cast<int16_t*>(heap_caps_malloc(want * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (b == nullptr) return;
++        const size_t n = mgs_render(clip, b, want);
++        if (n == 0) { heap_caps_free(b); return; }
++        g->clip_buf[clip] = b;
++        g->clip_n[clip]   = static_cast<uint16_t>(n);
++    }
++    (void)Application::GetInstance().GetAudioService().PlayPcm(g->clip_buf[clip], g->clip_n[clip], MGS_SFX_RATE);  // PlayPcm copies
++}
++
++void free_clips(Grid* g)
++{
++    for (int i = 0; i < MGS_CLIPS; i++) {
++        if (g->clip_buf[i] != nullptr) {
++            heap_caps_free(g->clip_buf[i]);
++            g->clip_buf[i] = nullptr;
++        }
++    }
++}
++
+ void end_locked(const char* how)
+ {
+     Grid* g = s_grid;
+@@ -325,6 +375,7 @@ void end_locked(const char* how)
+     s_grid = nullptr;
+     if (g->timer != nullptr) lv_timer_delete(g->timer);
+     if (g->root != nullptr) lv_obj_delete(g->root);  // every cell is its child
++    free_clips(g);
+     char extra[96];
+     snprintf(extra, sizeof(extra), "\"game\":\"%s\",\"how\":\"%s\",\"score\":%d,\"rank\":%d", kInfo[g->kind].id, how, g->score, g->won ? 0 : -1);
+     ESP_LOGI(kTag, "game %s ended (%s), score %d", kInfo[g->kind].id, how, g->score);
+@@ -376,25 +427,64 @@ void finish(Grid* g, int result)
+         snprintf(es, sizeof(es), record ? "Todas! Nuevo record %d" : "Todas en %d turnos", g->score);
+     }
+     banner(g, en, es, 3000);
+-    if (result == GR_PERSON_WON || (g->kind == kMatch)) {
++    if (g->kind == kC4) {  // the result sound: the win is the rising fanfare, the loss a soft fall, a draw neutral
++        play_clip(g, result == GR_PERSON_WON ? MGS_C_FANFARE : (result == GR_UNIT_WON ? MGS_C_GRID_LOSE : MGS_C_GRID_DRAW));
++        if (result == GR_PERSON_WON) {
++            (void)maipai_fx_celebrate(record ? 2 : 1);
++            hal_bridge::react_face("happy", record ? 4000 : 3000);
++        }
++    } else if (result == GR_PERSON_WON || (g->kind == kMatch)) {
+         cue(GR_CUE_WIN);
+         (void)maipai_fx_celebrate(record ? 2 : 1);
+         hal_bridge::react_face("happy", record ? 4000 : 3000);
+     }
+ }
+ 
++// Starts a disc falling into a column of the Four in a Row board (the rules core already holds the landed state; this is only the picture and the sound). Returns false for a full column.
++bool c4_drop_disc(Grid* g, int col, int owner)
++{
++    const int row = gc4_drop(&g->c4, col, owner);
++    if (row < 0) return false;
++    const uint32_t now = now_ms();
++    const int cell = row * g->lay.cols + col;
++    const int y0 = g->lay.y0 - g->lay.ch;                       // just above the board
++    const int y1 = g->lay.y0 + row * g->lay.ch + 3;
++    gan_fall(&g->anim, now, cell, owner, row, row + 1, y0, y1);
++    play_clip(g, MGS_C_GRID_DROP);
++    return true;
++}
++
++// The disc has landed (after its bounce): the game goes on, or the result is shown first (the winning four pulse, a draw shakes the board) and the game ends when that is done.
++void c4_landed(Grid* g, int owner)
++{
++    const int res = gc4_result(&g->c4);
++    if (res == GR_PLAYING) {
++        if (owner == 1) {
++            gc4_ai_start(&g->search, &g->c4, g->level, g->seed + static_cast<uint32_t>(g->moves));
++            g->unit_thinking = 1;
++            g->unit_ready_at = now_ms() + kUnitDelayMs;
++        }
++        return;
++    }
++    g->result_pending = static_cast<uint8_t>(res);
++    if (res == GR_PERSON_WON || res == GR_UNIT_WON) {
++        if (gc4_win_line(&g->c4, res == GR_PERSON_WON ? 1 : 2, g->win_cells)) {
++            g->flash_left = 4;
++            for (int k = 0; k < 4; k++) gan_flash(&g->anim, now_ms(), g->win_cells[k]);
++            return;
++        }
++    }
++    gan_shake(&g->anim, now_ms());  // a draw
++}
++
+ void unit_move(Grid* g)
+ {
+     const int col = g->search.best_col;
+     g->unit_thinking = 0;
+-    if (col < 0 || gc4_drop(&g->c4, col, 2) < 0) {  // never expected: the search only returns legal columns; a full board ends the game
+-        finish(g, gc4_full(&g->c4) ? GR_DRAW : GR_PLAYING);
+-        return;
++    if (col < 0 || !c4_drop_disc(g, col, 2)) {  // never expected: the search only returns legal columns
++        c4_landed(g, 2);
++        if (g->result_pending == GR_PLAYING) finish(g, gc4_full(&g->c4) ? GR_DRAW : GR_PLAYING);
+     }
+-    cue(GR_CUE_UNIT_MOVE);
+-    const int res = gc4_result(&g->c4);
+-    redraw(g);
+-    if (res != GR_PLAYING) finish(g, res);
+ }
+ 
+ void tick_cb(lv_timer_t*)
+@@ -430,6 +520,25 @@ void tick_cb(lv_timer_t*)
+         if (gm_tick(&g->mem, now)) redraw(g);
+         return;
+     }
++    if (g->kind == kC4) {
++        gan_ev_t ev[GAN_EV_MAX];
++        const int n = gan_tick(&g->anim, now, ev);
++        for (int k = 0; k < n; k++) {
++            if (ev[k].type == GAN_EV_LAND) {
++                const int grp = ev[k].row >= 4 ? 0 : (ev[k].row >= 2 ? 1 : 2);  // low rows low, high rows high
++                play_clip(g, (ev[k].owner == 1 ? MGS_C_GRID_TICK_LO : MGS_C_GRID_CLACK_LO) + grp);
++            } else if (ev[k].type == GAN_EV_FALL_DONE) {
++                c4_landed(g, ev[k].owner);
++            } else if (ev[k].type == GAN_EV_FLASH_DONE) {
++                if (g->flash_left > 0) g->flash_left--;
++                if (g->flash_left == 0) { g->win_lit = 1; finish(g, g->result_pending); }
++            } else if (ev[k].type == GAN_EV_SHAKE_DONE) {
++                finish(g, g->result_pending);
++            }
++        }
++        if (gan_active(&g->anim) || n > 0) redraw(g);
++        if (g->result != GR_PLAYING) return;
++    }
+     if (g->unit_thinking) {
+         if (!g->search.done) gc4_ai_step(&g->search, GR_SLICE_NODES);  // one slice a tick: well under the 5 ms budget
+         if (g->search.done && static_cast<int32_t>(now - g->unit_ready_at) >= 0) unit_move(g);
+@@ -523,24 +632,15 @@ void maipai_grid_touch(int x, int y)
+     const uint32_t now = now_ms();
+     g->last_input_ms = now;
+     if (g->kind == kC4) {
+-        if (g->unit_thinking) return;  // the unit's turn
++        if (g->unit_thinking || gan_busy(&g->anim) || g->result_pending != GR_PLAYING) return;  // the unit's turn, or the picture is catching up: this tap is ignored
+         const int col = gr_col_at(&g->lay, x, y);
+         if (col < 0) return;
+-        if (gc4_drop(&g->c4, col, 1) < 0) {
+-            cue(GR_CUE_BAD);  // a full column
++        if (!c4_drop_disc(g, col, 1)) {
++            play_clip(g, MGS_C_THUD);  // a full column: a muted thud
+             return;
+         }
+         g->moves++;
+-        cue(GR_CUE_TAP);
+         redraw(g);
+-        const int res = gc4_result(&g->c4);
+-        if (res != GR_PLAYING) {
+-            finish(g, res);
+-            return;
+-        }
+-        gc4_ai_start(&g->search, &g->c4, g->level, g->seed + static_cast<uint32_t>(g->moves));
+-        g->unit_thinking = 1;
+-        g->unit_ready_at = now + kUnitDelayMs;
+     } else if (g->kind == kHangman) {
+         const int idx = gr_cell_at(&g->lay, x, y);
+         if (idx < 0) return;

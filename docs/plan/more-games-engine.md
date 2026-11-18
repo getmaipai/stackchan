@@ -183,3 +183,23 @@ Pure cores, compiled into the host test only (not yet in the image); the device 
 - **Memory Match:** 12 or 16 cards in pairs, shuffled from a seed (a test or a replay gets the same deck); a cell byte holds the symbol (1 to 8) in the low 5 bits, bit 5 face up, bit 6 matched; a mismatch turns back after 900 ms (`tick(now)`); the score is the number of turns (lower is better).
 - **Measured on a laptop (host test):** a search node costs about 194 ns; level 3 from an open position is about 6,800 nodes over 7 ticks, level 2 about 1,000 nodes, level 1 about 56. **Estimate for the unit:** 3 to 5 microseconds a node, so a 1,000-node tick is 3 to 5 ms (the plan's budget); to be measured on the unit with the bench's frame-gap tool before the levels are final.
 - **Lint:** `host/tests/test_games_no_head_motion.py` fails when any patch adds a call to the head's motion, a servo or the torque in a game or grid file.
+
+## 10. Animation layer and sounds (patch SF72, 2026-11-18)
+
+**Animation layer** (`maipai_grid_anim_core.h`, test `grid_anim_test.c`): up to 8 tweens at once, advanced on the 30 ms game tick, read by the board's one draw callback (no new LVGL object). Kinds so far: a **fall** (ease-in gravity, 80 ms per row dropped, at least 120 ms, then one bounce of up to 8 px over 130 ms), a **pulse** (three bright phases of 120 ms) and a **board shake** (420 ms, 4 px decaying). The rules core never waits: it already holds the landed state; the board hides a cell while a disc is heading for it and draws the disc at its interpolated height. The tick returns events (landing with bounce 0 and 1, fall done, pulse done, shake done) so the game plays a sound at each impact and starts the next thing only when the picture has caught up. **Input rule:** the person's taps are ignored while a disc is in flight; the unit's search starts when the person's disc has landed; the unit's reply falls the same way. Slides (2048), flips (Memory), pops and reveals are further kinds of the same list.
+
+**Four in a Row:** both discs fall from just above the board into the lowest free cell; the win pulses the winning four three times and keeps them light; a draw shakes the board.
+
+**Sounds** (the unit makes them in code: tone segments rendered by `mgs_render`, 16 kHz mono, normalized to the shared peak; the virtual unit compiles the same table `MGS_CLIP` in `maipai_games_sfx_core.h`, so there is one source and no sound file to author). They play through the audio service, so the system volume, mute, sounds-off and quiet hours decide:
+
+| Clip id (name) | Intent | Length |
+|---|---|---:|
+| `grid_tick_lo`, `grid_tick_mid`, `grid_tick_hi` | the person's disc lands: a soft triangle tick, low rows low, high rows high (rows 4 and 5, 2 and 3, 0 and 1) | 45 ms |
+| `grid_clack_lo`, `grid_clack_mid`, `grid_clack_hi` | the unit's disc lands: a short square knock into a sine, a different timbre, same pitch rule | 60 ms |
+| `grid_drop` | the whoosh when a disc is released: a falling sine glide, very quiet | 70 ms |
+| `fanfare` (existing) | the person wins: a rising arpeggio | 490 ms |
+| `grid_lose` | the unit wins: a soft descending phrase | 520 ms |
+| `grid_draw` | a draw: two neutral beeps | 310 ms |
+| `thud` (existing) | the person taps a full column: a muted thud | 200 ms |
+
+A landing plays its tick at the end of the fall and again, as the same clip, at the end of the bounce. Clips are rendered on first use into PSRAM (about 30 KB at most) and freed when the game ends. When the typed asset store exists these become `sound` assets; the ids above stay.
