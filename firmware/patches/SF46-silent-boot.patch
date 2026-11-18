@@ -1,0 +1,90 @@
+# Intent: A unit that is muted or in full quiet boots silently, and a saved speaker volume of 0 stays 0 across a boot. The "device ready" tone and the start-up alerts play only when the unit is not muted, not in full quiet and the sound policy allows the sound; the always-on safety cues (camera on, listening) are not affected. Memory cost: none (two inline functions).
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/audio/audio_codec.cc (Start: a saved volume of 0 is kept; the stock code raised it to 10) and application.cc (the ready tone and Alert), nested tree, MIT
+# Check after a flash: with the unit muted and volume 0, a reboot makes no sound at all (no ready tone, no start-up alert); unmuted at volume 35 the ready tone plays as before; a boot in full quiet is silent from the first sample.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_boottone_core.h b/firmware/main/hal/maipai_boottone_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_boottone_core.h
+@@ -0,0 +1,23 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Start-up sound rules (patch SF46). Plain C99; host test host/tests/firmware/boottone_core_test.c.
++ *   mbt_boot_volume    the speaker volume after a boot: a saved volume of 0 stays 0 (silent is a choice); only a missing or invalid saved value takes the fallback.
++ *   mbt_tone_allowed   whether a start-up tone (the "device ready" tone and the start-up alerts) may play: never while muted or in full quiet, and only if the
++ *                      sound policy (sounds off, night hours) lets it. The always-on safety cues (camera on, listening) do not use this rule.
++ */
++#ifndef MAIPAI_BOOTTONE_CORE_H
++#define MAIPAI_BOOTTONE_CORE_H
++
++#define MBT_VOLUME_MAX 100
++
++/* saved: the saved volume, or a negative number when none is saved. fallback: the default volume (the stock value is 10). */
++static inline int mbt_boot_volume(int saved, int fallback)
++{
++    if (saved < 0) return fallback < 0 ? 0 : (fallback > MBT_VOLUME_MAX ? MBT_VOLUME_MAX : fallback);
++    return saved > MBT_VOLUME_MAX ? MBT_VOLUME_MAX : saved;
++}
++
++static inline int mbt_tone_allowed(int muted, int quiet, int policy_ok) { return !muted && !quiet && policy_ok; }
++
++#endif /* MAIPAI_BOOTTONE_CORE_H */
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_codec.cc b/firmware/xiaozhi-esp32/main/audio/audio_codec.cc
+--- a/firmware/xiaozhi-esp32/main/audio/audio_codec.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_codec.cc
+@@ -1,4 +1,5 @@
+ #include "audio_codec.h"
++#include <hal/maipai_boottone_core.h>
+ #include "board.h"
+ #include "settings.h"
+ 
+@@ -28,11 +29,8 @@ bool AudioCodec::InputData(std::vector<int16_t>& data) {
+ 
+ void AudioCodec::Start() {
+     Settings settings("audio", false);
+-    output_volume_ = settings.GetInt("output_volume", output_volume_);
+-    if (output_volume_ <= 0) {
+-        ESP_LOGW(TAG, "Output volume value (%d) is too small, setting to default (10)", output_volume_);
+-        output_volume_ = 10;
+-    }
++    // Patch SF46: a saved volume of 0 stays 0 across a boot (silent is a choice); only a missing value takes the default.
++    output_volume_ = mbt_boot_volume(settings.GetInt("output_volume", -1), 10);
+ 
+     ESP_LOGI(TAG, "Audio codec started");
+ }
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -20,6 +20,7 @@
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_lock.h>
+ #include <hal/maipai_sounds.h>
++#include <hal/maipai_boottone_core.h>
+ #include <hal/maipai_timers.h>
+ #include <hal/maipai_games.h>
+ #include <hal/maipai_wake.h>
+@@ -447,8 +448,10 @@ void Application::HandleActivationDoneEvent() {
+ 
+     if (!has_error) {
+         Schedule([this]() {
+-            // Play the success sound to indicate the device is ready
+-            audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
++            // Play the success sound to indicate the device is ready (patch SF46: never while muted or in full quiet, and only if the sound policy allows it)
++            if (mbt_tone_allowed(maipai_muted(), maipai_quiet(), maipai_sounds_gate("success"))) {
++                audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
++            }
+         });
+     }
+ }
+@@ -874,7 +877,7 @@ void Application::Alert(const char* status, const char* message, const char* emo
+     display->SetStatus(status);
+     display->SetEmotion(emotion);
+     display->SetChatMessage("system", message);
+-    if (!sound.empty()) {
++    if (!sound.empty() && mbt_tone_allowed(maipai_muted(), maipai_quiet(), maipai_sounds_gate("exclamation"))) {  // patch SF46: a start-up alert is silent when muted or quiet
+         audio_service_.PlaySound(sound);
+     }
+ }

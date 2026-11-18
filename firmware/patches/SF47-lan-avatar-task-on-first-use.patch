@@ -1,0 +1,27 @@
+# Intent: The LAN avatar task (avatar_lan, 8,192 bytes of internal RAM and its control block) is created when the phone App announces its endpoint, not at boot. A unit that is not used with the App never holds the task, and the largest free internal block stays about 8 KB bigger. Memory cost: saves 8.5 KB of internal RAM at boot; the first announcement creates the task (a failed creation is logged and the next announcement tries again).
+# Placement: unit
+# Upstream: firmware/main/hal/hal_ws_avatar.cpp (the stock avatar service, MIT)
+# Check after a flash: self.version.get internal_free is about 8 KB higher after boot than on the previous image; with the App announcing its LAN address the connection still comes up.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/hal_ws_avatar.cpp b/firmware/main/hal/hal_ws_avatar.cpp
+--- a/firmware/main/hal/hal_ws_avatar.cpp
++++ b/firmware/main/hal/hal_ws_avatar.cpp
+@@ -92,7 +92,8 @@ public:
+             [this](uint32_t generation, std::vector<uint8_t> frame) {
+                 enqueueMessage({Channel::Local, generation, true, std::move(frame)});
+             });
+-        _local_client->start();
++        // Patch SF47: the LAN task (8 KB of internal RAM) starts when the App announces its endpoint (applyAnnouncedEndpoint), not at boot: a unit that is
++        // never paired with the phone App never holds it.
+ 
+         _call_response_connection = GetHAL().onWsCallResponse.connect([this](bool accepted) {
+             if (!isConnected()) {
+@@ -384,6 +385,7 @@ public:
+         }
+         ESP_LOGI(_tag.c_str(), "App announced LAN endpoint: %u address(es), port %u", (unsigned)hosts.size(),
+                  (unsigned)port);
++        _local_client->start();  // patch SF47: first use creates the task (it does nothing when it already runs)
+         _local_client->setEndpoint(std::move(hosts), port);
+     }
+ 

@@ -297,3 +297,5 @@ SF42-bench-barge-test-silent.patch
 SF43-edge-corrections.patch
 UX11-first-run-name-stackchan-first.patch
 UX12-first-run-skip-brain-question-and-next-steps.patch
+SF46-silent-boot.patch
+SF47-lan-avatar-task-on-first-use.patch
