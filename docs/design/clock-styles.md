@@ -59,7 +59,8 @@ The virtual unit keeps the style in the stand-in host (`pset cstyle N`, `pset as
 - `pages_core_test.c`: every style fits above the page dots, the sign has room, the cycle wraps.
 - Not yet proven on a unit: the touch feel of a tap on the page, the sleeping dimming against a real backlight, the saved style after a restart.
 
-## Open questions for the firmware track
+## Answers from the firmware track (2026-11-18, patch SF81)
 
-1. Which flag is `asleep()`? The spec assumes the sleeping face state. If the unit also dims the screen when idle without sleeping, say so and the sign follows that flag instead.
-2. Does the page swipe consume a tap that starts as a short drag? The renderer cannot tell; the unit proof can.
+1. **What `asleep()` is.** The unit has no sleep state of its own. A host that puts it to sleep dims the screen: the live backlight level falls below the level the person saved (`maipai_screen_levels`). So `asleep()` is true while the screen is dimmed below the saved level (live less than saved, saved above 0). A touch restores the level (`maipai_screen_wake`) and that press is flagged `MGS_F_WOKE`, so the page's tap does nothing. A screen that is fully off (privacy sleep) shows nothing, so there is no sign. The face's "sleepy" emotion is a different thing and does not count.
+2. **Tap against swipe.** A tap is a touch that stays within 12 px and under 450 ms (500 ms at most). A swipe is at least 36 px, within 900 ms and at least 60 px a second, mostly one direction. A move of 12 to 36 px is neither: the gesture layer gives the page no tap for it. The unit proof will show whether the LVGL click still fires for such a short drag; if it does not, the page's tap tolerance is widened (a firmware change).
+3. **Saving.** The style is saved 700 ms after the last tap, on the application task, only when it changed. The face configuration keeps the same byte; the tool names are `digits`, `ring` and `date_time`.
