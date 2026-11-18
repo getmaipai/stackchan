@@ -1,0 +1,135 @@
+# Intent: The servo animation advances by the real time since its last step (20 to 50 ms) instead of a fixed 20 ms, so a head move takes the same real time at any update rate (measured before: 26 to 31 animation steps a second instead of 50, about half speed). A ceiling of 400 degrees per second, scaled by the movement limiter's percentage, bounds the command from step to step. Pure rules in maipai_servo_clock_core.h. Head moves, dances and look-ats are about twice as fast as before this patch (docs/dev/head-speed-real-time-clock.md).
+# Placement: unit
+# Upstream: firmware/main/stackchan/motion/servo.cpp and servo.h (M5Stack base, MIT); firmware/main/hal (ours)
+# Check after a flash: self.bench.servo_rate during a head move answers steps_per_s near the update rate divided by the 20 ms rule (up to 50), and the reach of a 20 degree step in 0.6 s is near 100 percent; a dance shows no step faster than the limiter allows.
+# Kconfig: none
+
+diff --git a/firmware/main/stackchan/motion/servo.cpp b/firmware/main/stackchan/motion/servo.cpp
+--- a/firmware/main/stackchan/motion/servo.cpp
++++ b/firmware/main/stackchan/motion/servo.cpp
+@@ -9,6 +9,7 @@
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_pickup.h>
+ #include <hal/maipai_motion_limit.h>
++#include <hal/maipai_servo_clock_core.h>
+ #include <cmath>
+ #include <atomic>
+ #include <mutex>
+@@ -61,11 +62,13 @@ void Servo::update()
+ #if CONFIG_MAIPAI_SERIAL_TOOLS
+     g_servo_update_calls.fetch_add(1, std::memory_order_relaxed);
+ #endif
+-    // Keep update in at most 50Hz
+-    if (GetHAL().millis() - _last_tick < 20) {
++    // Keep update in at most 50Hz. Patch SF28: the animation advances by the real time since the last step (20 to 50 ms), not a fixed 20 ms.
++    uint32_t elapsed_ms = 0;
++    const uint32_t now_ms = GetHAL().millis();
++    if (!msc_due(now_ms, _last_tick, &elapsed_ms)) {
+         return;
+     }
+-    _last_tick = GetHAL().millis();
++    _last_tick = now_ms;
+ 
+     maipai_motion_tick();  // patch ML01: the carried flag, the cable and the charge
+ 
+@@ -81,18 +84,28 @@ void Servo::update()
+ #if CONFIG_MAIPAI_SERIAL_TOOLS
+         g_servo_anim_steps.fetch_add(1, std::memory_order_relaxed);
+ #endif
+-        _angle_anim.updateWithDelta(0.02f);  // Fixed delta time for consistency
+-        set_angle_impl(static_cast<int>(_angle_anim.directValue()));
++        const float step_dt = msc_dt_s(elapsed_ms);
++        _angle_anim.updateWithDelta(step_dt);
++        int command = static_cast<int>(_angle_anim.directValue());
++        // A ceiling in degrees per second, scaled by the movement limiter, so a faster clock never means a faster servo than allowed.
++        if (_prev_command_valid) {
++            command = msc_limit_step(_prev_command, command, msc_vmax_tenth_dps(maipai_motion_scale()), step_dt);
++        }
++        _prev_command = command;
++        _prev_command_valid = true;
++        set_angle_impl(command);
+     }
+ 
+     // Snap to target angle when animation ends
+     else if (_snap_to_target_on_rest) {
++        _prev_command_valid = false;
+         _snap_to_target_on_rest = false;
+         set_angle_impl(_angle_anim.end);
+     }
+ 
+     // Auto release torque on rest
+     else if (_auto_torque_release_enabled && !isMoving()) {
++        _prev_command_valid = false;
+         if (GetHAL().millis() - _last_torque_check_tick > 200) {
+             if (getTorqueEnabled()) {
+                 setTorqueEnabled(false);
+diff --git a/firmware/main/stackchan/motion/servo.h b/firmware/main/stackchan/motion/servo.h
+--- a/firmware/main/stackchan/motion/servo.h
++++ b/firmware/main/stackchan/motion/servo.h
+@@ -178,6 +178,8 @@ protected:
+     uitk::AnimateValue _angle_anim;
+ 
+     uint32_t _last_tick               = 0;
++    int _prev_command                 = 0;      // patch SF28: the last angle written while animating
++    bool _prev_command_valid          = false;
+     uint32_t _last_torque_check_tick  = 0;
+     bool _snap_to_target_on_rest      = false;
+     bool _auto_torque_release_enabled = true;
+diff --git a/firmware/main/hal/maipai_servo_clock_core.h b/firmware/main/hal/maipai_servo_clock_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_servo_clock_core.h
+@@ -0,0 +1,53 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The servo animation clock (patch SF28). Plain C99, no clock of its own. The spring animation used to advance a fixed 20 ms per update
++ * step, and a step ran only when 20 ms had passed since the last one: with update calls every 11 to 13 ms a step ran every second call,
++ * about 26 to 31 steps a second instead of 50, so the head moved at roughly half the designed speed. Now a step still waits for 20 ms
++ * (the bus is written at most 50 times a second) but advances the animation by the real time since the last step, between 20 and 50 ms,
++ * so the same motion takes the same real time at any call rate. A speed ceiling in degrees per second (scaled by the movement limiter)
++ * keeps the head from moving faster than the servo's own limit whatever the clock does.
++ * Host test: host/tests/firmware/servo_clock_core_test.c.
++ */
++#ifndef MAIPAI_SERVO_CLOCK_CORE_H
++#define MAIPAI_SERVO_CLOCK_CORE_H
++
++#include <stdint.h>
++
++#define MSC_MIN_MS 20u
++#define MSC_MAX_MS 50u
++#define MSC_VMAX_TENTH_DPS 4000 /* 400 degrees per second at the limiter's scale of 100 percent */
++
++/* 1 when an animation step is due; *elapsed receives the ms since the last step. */
++static inline int msc_due(uint32_t now, uint32_t last_step, uint32_t* elapsed)
++{
++    const uint32_t e = (uint32_t)(now - last_step);
++    *elapsed = e;
++    return e >= MSC_MIN_MS;
++}
++
++/* The animation advance for a step, in seconds: the real elapsed time, never less than 20 ms and never more than 50 ms (a stall is not a jump). */
++static inline float msc_dt_s(uint32_t elapsed_ms)
++{
++    const uint32_t e = elapsed_ms < MSC_MIN_MS ? MSC_MIN_MS : (elapsed_ms > MSC_MAX_MS ? MSC_MAX_MS : elapsed_ms);
++    return (float)e / 1000.0f;
++}
++
++/* The speed ceiling in tenth-degrees per second for the limiter's scale (0 to 100 percent). */
++static inline int msc_vmax_tenth_dps(int scale_pct)
++{
++    const int s = scale_pct < 0 ? 0 : (scale_pct > 100 ? 100 : scale_pct);
++    return MSC_VMAX_TENTH_DPS * s / 100;
++}
++
++/* The command for this step: the animation's value, but no further from the last command than vmax allows in dt seconds. */
++static inline int msc_limit_step(int prev_cmd, int target, int vmax_tenth_dps, float dt)
++{
++    int max_step = (int)((float)vmax_tenth_dps * dt + 0.5f);
++    if (max_step < 1) max_step = 1;
++    if (target > prev_cmd + max_step) return prev_cmd + max_step;
++    if (target < prev_cmd - max_step) return prev_cmd - max_step;
++    return target;
++}
++
++#endif /* MAIPAI_SERVO_CLOCK_CORE_H */
