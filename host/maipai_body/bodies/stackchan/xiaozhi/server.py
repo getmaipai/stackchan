@@ -453,7 +453,9 @@ class XiaozhiServer:
             ssl=ssl,
             logger=listener_logger(),
         )
-        app = web.Application(client_max_size=self.max_photo_bytes)
+        app = web.Application(
+            client_max_size=self.max_photo_bytes, middlewares=[self._link_middleware]
+        )
         self._http_app = app
         app.router.add_post("/vision/{device_id}", self._receive_photo)
         app.router.add_get("/notify/{device_id}/{audio_id}.ogg", self._serve_notify_audio)
@@ -839,14 +841,29 @@ class XiaozhiServer:
                 },
             )
 
+    def _http_root(self, device_id: str) -> str:
+        """The web address root told to a unit: the encrypted port when the unit is on the
+        encrypted link (its token never travels in clear), else the plain port."""
+        host = self.vision_host if self.vision_host not in {"0.0.0.0", "::"} else "127.0.0.1"
+        if self.link is not None and self.link._current.get(device_id) and self.tls_http_port:
+            return f"https://{host}:{self.tls_http_port}"
+        return f"http://{host}:{self.vision_port}"
+
     def _vision_url(self, device_id: str) -> str:
         if self.advertised_vision_url:
             base = self.advertised_vision_url.rstrip("/")
             return base if "/vision/" in base else f"{base}/vision/{device_id}"
-        host = self.vision_host
-        if host in {"0.0.0.0", "::"}:
-            host = "127.0.0.1"
-        return f"http://{host}:{self.vision_port}/vision/{device_id}"
+        return f"{self._http_root(device_id)}/vision/{device_id}"
+
+    @web.middleware
+    async def _link_middleware(self, request: web.Request, handler):
+        """A unit set to `required` is refused on the plain web port (the link policy applies here too)."""
+        device_id = request.match_info.get("device_id")
+        if device_id and self.link is not None and not request.secure:
+            reason = self.link.refusal(device_id, False)
+            if reason:
+                return web.json_response({"error": reason}, status=403)
+        return await handler(request)
 
     @staticmethod
     def _selftest_refusal(request: web.Request) -> web.Response | None:
@@ -1297,15 +1314,10 @@ class XiaozhiServer:
                 f"{timeout:g} seconds. Run the call with asyncio.to_thread."
             )
 
-    def call_device_tool(
-        self,
-        name: str,
-        arguments: dict[str, object],
-        *,
-        timeout: float = 5.0,
-        device_id: str | None = None,
-    ) -> object:
-        self.refuse_on_loop(name, timeout)
+    def _resolve_unit(self, device_id: str | None, *, strict: bool = False):
+        """The unit a call goes to. A tool call that names no unit goes to the unit connected the
+        longest, so a second robot never breaks the loops that do not name one. A one-shot that
+        moves data or firmware (strict) must name the unit when more than one is connected."""
         if not self._sessions:
             raise ConnectionError(
                 "No StackChan is connected. Connect and pair the robot, then retry."
@@ -1317,12 +1329,31 @@ class XiaozhiServer:
                     f"StackChan {device_id[-5:]} is not connected. Check that unit's power and "
                     "Wi-Fi, then retry."
                 )
-        elif len(self._sessions) != 1:
+            return device_id, websocket
+        if strict and len(self._sessions) != 1:
             raise ConnectionError(
-                "More than one StackChan is connected. Select a device before sending a command."
+                "More than one StackChan is connected. Name the unit by its Device-Id."
             )
-        else:
-            device_id, websocket = next(iter(self._sessions.items()))
+        device_id, websocket = next(iter(self._sessions.items()))
+        if len(self._sessions) > 1 and not getattr(self, "_multi_unit_logged", False):
+            self._multi_unit_logged = True
+            LOG.info(
+                "More than one StackChan is connected: calls that name no unit go to %s. "
+                "Name the unit by its Device-Id to reach another.",
+                device_id[-5:],
+            )
+        return device_id, websocket
+
+    def call_device_tool(
+        self,
+        name: str,
+        arguments: dict[str, object],
+        *,
+        timeout: float = 5.0,
+        device_id: str | None = None,
+    ) -> object:
+        self.refuse_on_loop(name, timeout)
+        device_id, websocket = self._resolve_unit(device_id)
         if not self._session_authorized(device_id):
             raise PermissionError("StackChan pairing is revoked. Approve and provision it again.")
         arguments = stamp_call(name, arguments, self.remote_host_id)  # patch FM03: the unit's second remote floor
@@ -1381,16 +1412,7 @@ class XiaozhiServer:
                 capability="speaker",
                 fix="Configure the host TTS audio provider, then retry.",
             )
-        if device_id is not None:
-            if device_id not in self._sessions:
-                raise ConnectionError(
-                    f"StackChan {device_id[-5:]} is not connected. Check that unit's power and "
-                    "Wi-Fi, then retry."
-                )
-        elif len(self._sessions) != 1:
-            raise ConnectionError("A single paired StackChan session is required")
-        else:
-            device_id = next(iter(self._sessions))
+        device_id, _websocket = self._resolve_unit(device_id, strict=True)
         token = uuid.uuid4().hex
         audio = asyncio.run_coroutine_threadsafe(
             self.notification_audio_handler(message), self._loop
@@ -1402,11 +1424,7 @@ class XiaozhiServer:
 
     def _notify_audio_url(self, device_id: str, audio_id: str) -> str:
         base = self.advertised_vision_url
-        if base:
-            root = base.split("/vision/", 1)[0].rstrip("/")
-        else:
-            host = self.vision_host if self.vision_host not in {"0.0.0.0", "::"} else "127.0.0.1"
-            root = f"http://{host}:{self.vision_port}"
+        root = base.split("/vision/", 1)[0].rstrip("/") if base else self._http_root(device_id)
         return f"{root}/notify/{device_id}/{audio_id}.ogg"
 
     def connected_devices(self) -> list[str]:
@@ -1421,18 +1439,7 @@ class XiaozhiServer:
         The image is a public release file, so the random one-time path is the only guard; the
         pairing token is never put in the URL (a URL ends up in logs).
         """
-        if device_id is not None:
-            if device_id not in self._sessions:
-                raise ConnectionError(
-                    f"StackChan {device_id[-5:]} is not connected. Check that unit's power and "
-                    "Wi-Fi, then retry."
-                )
-        elif len(self._sessions) != 1:
-            raise ConnectionError(
-                "More than one StackChan is connected, or none. Name the unit by its Device-Id."
-            )
-        else:
-            device_id = next(iter(self._sessions))
+        device_id, _websocket = self._resolve_unit(device_id, strict=True)
         token = uuid.uuid4().hex
         # Read now: the caller deletes its temp file as soon as the unit tool has been called.
         expires = time.monotonic() + 600
