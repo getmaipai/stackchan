@@ -253,7 +253,7 @@ def test_quiet_hours_minutes_are_empty_when_the_bounds_are_equal():
     hours = QuietHours()
     hours.apply({"household.quiet_hours.from": "07:00", "household.quiet_hours.to": "07:00"})
     assert hours.minutes() == (-1, -1)
-    assert QuietHours().minutes() == (21 * 60, 7 * 60)  # the registry defaults
+    assert QuietHours().minutes() == (-1, -1)  # off until a person sets a window (decision 22)
 
 
 def test_full_quiet_goes_to_the_unit_as_a_mute():
@@ -707,3 +707,11 @@ def test_a_unit_without_the_sound_tools_keeps_the_forced_mute(monkeypatch):
     unit.error = RuntimeError("Unknown tool: self.audio.sound_info")
     assert service.detect_firmware() is False
     assert service.policy()["muted"] is True
+
+
+def test_the_policy_adds_quiet_days_and_quiet_now_only_when_they_are_set():
+    hours = QuietHours()
+    hours.apply({"household.quiet_hours.from": "22:00", "household.quiet_hours.to": "07:00", "household.quiet_hours.days": [1, 2, 3, 4, 5]})
+    service, unit, _, _, _ = make(quiet_minutes=hours.minutes, quiet_extras=lambda: (hours.days_mask, hours.quiet_now))
+    assert service.push_policy()
+    assert unit.calls[-1][1]["quiet_days"] == 0b0111110 and unit.calls[-1][1]["quiet_now"] is False

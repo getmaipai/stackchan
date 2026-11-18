@@ -219,6 +219,7 @@ class SoundService:
         say: Callable[[str], bool] | None = None,
         night: Callable[[], bool] = lambda: False,
         quiet_minutes: Callable[[], tuple[int, int]] = lambda: (-1, -1),
+        quiet_extras: Callable[[], tuple[int, bool]] = lambda: (0x7F, False),
         battery_low: Callable[[], bool] = lambda: False,
         run_async: Callable[[Callable[[], None]], None] | None = None,
         clock: Callable[[], float] = time.monotonic,
@@ -228,6 +229,7 @@ class SoundService:
         self._say = say
         self._night = night
         self._quiet_minutes = quiet_minutes
+        self._quiet_extras = quiet_extras  # (days mask, Quiet now), read each time the policy is built
         self.battery_low = battery_low
         self._worker = _Worker() if run_async is None else None
         self._run_async = run_async or self._worker.submit
@@ -287,8 +289,9 @@ class SoundService:
     def policy(self) -> dict[str, object]:
         """What the unit is told: its own gate applies it, on its own clock, with the host away."""
         start, end = self._quiet_minutes()
+        days, quiet_now = self._quiet_extras()
         silenced = self._silenced()
-        return {
+        policy: dict[str, object] = {
             "enabled": self.enabled and not self._dance_silenced() and not silenced,
             "night_ok": self.night_ok,
             "muted": self.muted or self.quiet or silenced,  # full quiet is a mute for sounds
@@ -296,6 +299,12 @@ class SoundService:
             "quiet_from": start,
             "quiet_to": end,
         }
+        if days != 0x7F or quiet_now:
+            # Firmware SF52 only: the days the schedule applies to (bit 0 Sunday) and "Quiet now". They are left out while
+            # they are at their defaults, so a unit that has not had SF52 never sees a property it does not know.
+            policy["quiet_days"] = days
+            policy["quiet_now"] = quiet_now
+        return policy
 
     def _silenced(self) -> bool:
         """The forced mute: on until the unit reports firmware that fixes the beeping."""

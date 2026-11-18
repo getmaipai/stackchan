@@ -96,14 +96,16 @@ def test_the_policy_never_touches_audio_so_the_wake_word_stays_live():
     assert not [m for m in modules if "speech" in m or "audio" in m or "kws" in m]
 
 
-def test_quiet_hours_use_the_registry_defaults_until_the_hub_sends_a_window():
+def test_quiet_hours_are_off_until_a_window_is_set():
     from datetime import datetime
 
     from maipai_body.presence.sleep_auto import QuietHours
 
     clock = {"now": datetime(2026, 10, 16, 22, 0)}
     quiet = QuietHours(now=lambda: clock["now"])
-    assert quiet.active() is True, "21:00 to 07:00 by default"
+    assert quiet.active() is False, "off until a person sets a window (decision 22)"
+    quiet.apply({"household.quiet_hours.from": "21:00", "household.quiet_hours.to": "07:00"})
+    assert quiet.active() is True
     clock["now"] = datetime(2026, 10, 16, 12, 0)
     assert quiet.active() is False
 
@@ -147,3 +149,23 @@ def test_the_luma_reader_never_reads_the_camera_at_level_off():
     assert read() is None and Camera.reads == 0
     level["v"] = "presence"
     assert read() == 10.0 and Camera.reads == 1
+
+
+def test_quiet_schedule_is_off_until_set_then_follows_days_and_quiet_now():
+    from datetime import datetime
+
+    from maipai_body.presence.sleep_auto import QuietHours
+
+    clock = {"now": datetime(2026, 11, 19, 23, 0)}  # a Thursday
+    quiet = QuietHours(now=lambda: clock["now"])
+    assert quiet.minutes() == (-1, -1) and not quiet.active()  # off until a person sets it
+    quiet.apply({"household.quiet_hours.from": "22:00", "household.quiet_hours.to": "07:00", "household.quiet_hours.days": [1, 2, 3, 4, 5]})
+    assert quiet.minutes() == (22 * 60, 7 * 60) and quiet.active()  # Thursday 23:00
+    clock["now"] = datetime(2026, 11, 21, 3, 0)  # Saturday 03:00: the window began on Friday
+    assert quiet.active()
+    clock["now"] = datetime(2026, 11, 21, 23, 0)  # Saturday 23:00: Saturday is not a quiet day
+    assert not quiet.active()
+    quiet.apply({"household.quiet_hours.now": True})
+    assert quiet.active()  # Quiet now ignores the schedule
+    quiet.apply({"household.quiet_hours.now": False, "household.quiet_hours.enabled": False})
+    assert quiet.minutes() == (-1, -1) and not quiet.active()

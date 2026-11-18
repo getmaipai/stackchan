@@ -2847,6 +2847,7 @@ def _wire_sounds(voice, behavior: StackChanBehavior, stop_event: threading.Event
         say=say,
         night=lambda: bool(behavior.night_active()),
         quiet_minutes=hours.minutes,
+        quiet_extras=lambda: (hours.days_mask, hours.quiet_now),
     )
 
     def on_settings(values: dict) -> None:

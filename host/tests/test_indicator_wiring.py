@@ -61,7 +61,7 @@ def _build(indicator, stop_event=None):
         "TurnClient",
         "TtsPlaybackClient",
         "AudioPlayback",
-        "build_react_hook",
+        "_react_hook",
         "ExpressionEngine",
         "_hub_credentials_reader",
         "DaemonMotorBus",

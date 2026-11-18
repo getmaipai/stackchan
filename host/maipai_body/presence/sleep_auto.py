@@ -29,7 +29,13 @@ from datetime import datetime
 from datetime import time as dtime
 from typing import Literal
 
-from maipai_body.settings_keys import QUIET_FROM_KEY, QUIET_TO_KEY
+from maipai_body.settings_keys import (
+    QUIET_DAYS_KEY,
+    QUIET_ENABLED_KEY,
+    QUIET_FROM_KEY,
+    QUIET_NOW_KEY,
+    QUIET_TO_KEY,
+)
 
 DARK_LUMA = 25.0  # of 255; UNMEASURED
 QUIET_FOR_S = 600.0
@@ -63,6 +69,20 @@ def luma_reader(
     return read
 
 
+def _parse_days(value: object) -> int | None:
+    """A list of days (0 Sunday to 6 Saturday) or the bitmask 0 to 127; anything else is no change."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if 0 <= value <= 127 else None
+    if isinstance(value, (list, tuple)) and all(isinstance(d, int) and not isinstance(d, bool) and 0 <= d <= 6 for d in value):
+        mask = 0
+        for d in value:
+            mask |= 1 << d
+        return mask
+    return None
+
+
 def _parse_clock(value: object) -> dtime | None:
     if not isinstance(value, str):
         return None
@@ -78,41 +98,68 @@ DEFAULT_QUIET_TO = dtime(7, 0)
 
 
 class QuietHours:
-    """The household quiet-hours window, from the hub's settings frame.
+    """The household quiet schedule, like a phone's Do Not Disturb (owner decision 22).
 
-    ``household.quiet_hours.from`` and ``.to`` are registry keys honored by ``bot``
-    (spec-v0.1.151). Until the hub sends them the registry defaults apply (21:00 to
-    07:00), so a settings frame that only carries changes still gives the right window.
-    A window that crosses midnight is handled; equal bounds mean never; a malformed
-    value keeps the last good one."""
+    A window (``household.quiet_hours.from`` and ``.to``), the days it applies to
+    (``household.quiet_hours.days``, a list of 0 Sunday to 6 Saturday or the bitmask 0 to 127) and a
+    one-tap "Quiet now" (``household.quiet_hours.now``). It is off until a person sets it: with no
+    window given there are no quiet hours. Setting a window turns the schedule on;
+    ``household.quiet_hours.enabled`` false turns it off again and keeps the window. A window that
+    crosses midnight belongs to the day it starts on; equal bounds mean never; a malformed value
+    keeps the last good one. Alarms and timers the person set still ring, and the safety cues never
+    stop: the unit and the sound service apply those exceptions."""
 
     def __init__(self, now: Callable[[], datetime] = datetime.now) -> None:
         self._now = now
         self._from: dtime = DEFAULT_QUIET_FROM
         self._to: dtime = DEFAULT_QUIET_TO
+        self._days = 0x7F
+        self._enabled = False
+        self.quiet_now = False
 
     def apply(self, values: Mapping[str, object]) -> None:
         start = _parse_clock(values.get(QUIET_FROM_KEY))
         end = _parse_clock(values.get(QUIET_TO_KEY))
         if start is not None:
             self._from = start
+            self._enabled = True
         if end is not None:
             self._to = end
+            self._enabled = True
+        days = _parse_days(values.get(QUIET_DAYS_KEY))
+        if days is not None:
+            self._days = days
+        if isinstance(values.get(QUIET_ENABLED_KEY), bool):
+            self._enabled = bool(values[QUIET_ENABLED_KEY])
+        if isinstance(values.get(QUIET_NOW_KEY), bool):
+            self.quiet_now = bool(values[QUIET_NOW_KEY])
+
+    @property
+    def days_mask(self) -> int:
+        return self._days
 
     def minutes(self) -> tuple[int, int]:
-        """The window as minutes of the local day (from, to), or (-1, -1) when it is empty.
+        """The window as minutes of the local day (from, to), or (-1, -1) when there is none (off, or equal bounds).
         The StackChan keeps quiet hours on its own clock from these (sounds, patch 116)."""
-        if self._from == self._to:
+        if not self._enabled or self._from == self._to or self._days == 0:
             return (-1, -1)
         return (self._from.hour * 60 + self._from.minute, self._to.hour * 60 + self._to.minute)
 
     def active(self) -> bool:
-        if self._from == self._to:
+        if self.quiet_now:
+            return True
+        if not self._enabled or self._from == self._to or self._days == 0:
             return False
-        now = self._now().time()
+        stamp = self._now()
+        now = stamp.time()
+        weekday = (stamp.weekday() + 1) % 7  # Python Monday is 0; the schedule counts Sunday as 0
         if self._from < self._to:
-            return self._from <= now < self._to
-        return now >= self._from or now < self._to
+            return self._from <= now < self._to and bool(self._days >> weekday & 1)
+        if now >= self._from:
+            return bool(self._days >> weekday & 1)
+        if now < self._to:
+            return bool(self._days >> ((weekday + 6) % 7) & 1)  # after midnight: the window began yesterday
+        return False
 
 
 @dataclass
