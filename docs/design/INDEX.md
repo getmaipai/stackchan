@@ -202,7 +202,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/game-sounds/on-the-robot/grid_tick_mid.wav` (7): no header
 - `docs/dev/game-sounds/on-the-robot/manifest.json` (129): no header
 - `docs/dev/game-sounds/on-the-robot/rattle.wav` (7): no header
-- `docs/dev/game-sounds/on-the-robot/thud.wav` (39): Binary file docs/dev/game-sounds/on-the-robot/thud.wav matches
+- `docs/dev/game-sounds/on-the-robot/thud.wav` (39): no header
 - `docs/dev/game-sounds/on-the-robot/ting.wav` (14): no header
 - `docs/dev/game-sounds/pop.ulaw` (0): no header
 - `docs/dev/game-sounds/pop.wav` (6): no header
@@ -222,7 +222,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/index.md` (105): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
-- `docs/dev/model-previews/joints.gif` (1486): Binary file docs/dev/model-previews/joints.gif matches
+- `docs/dev/model-previews/joints.gif` (1486): no header
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (50): How MaiPai for StackChan fits together
 - `docs/dev/pre-publish-checklist.md` (10): Before the repository goes public
@@ -314,7 +314,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/images/flasher.svg` (1): no header
 - `docs/images/game-memory.svg` (1): no header
 - `docs/images/game-whack.svg` (1): no header
-- `docs/images/hero-playground.gif` (6264): Binary file docs/images/hero-playground.gif matches
+- `docs/images/hero-playground.gif` (6264): no header
 - `docs/images/hero-robot.gif` (602): no header
 - `docs/images/hero.svg` (1): no header
 - `docs/images/light-alert.svg` (1): no header
@@ -951,7 +951,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_connecting_2.ogg` (17): no header
 - `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_connecting_3.ogg` (23): no header
 - `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_1.ogg` (26): no header
-- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_2.ogg` (23): Binary file host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_2.ogg matches
+- `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_2.ogg` (23): no header
 - `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_3.ogg` (17): no header
 - `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_host_4.ogg` (24): no header
 - `host/maipai_body/bodies/stackchan/firmware/assets/phrases/ph_no_wifi_1.ogg` (15): no header
@@ -2023,12 +2023,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/kws/amy-low__play_some_music.wav` (241): no header
 - `host/tests/fixtures/kws/amy-low__quiet.wav` (99): no header
 - `host/tests/fixtures/kws/amy-low__quieter.wav` (100): no header
-- `host/tests/fixtures/kws/amy-low__set_a_timer.wav` (226): Binary file host/tests/fixtures/kws/amy-low__set_a_timer.wav matches
+- `host/tests/fixtures/kws/amy-low__set_a_timer.wav` (226): no header
 - `host/tests/fixtures/kws/amy-low__shop.wav` (138): no header
 - `host/tests/fixtures/kws/amy-low__step.wav` (113): no header
 - `host/tests/fixtures/kws/amy-low__stop.wav` (154): no header
 - `host/tests/fixtures/kws/amy-low__stop_it.wav` (162): no header
-- `host/tests/fixtures/kws/amy-low__tell_me_a_story.wav` (286): Binary file host/tests/fixtures/kws/amy-low__tell_me_a_story.wav matches
+- `host/tests/fixtures/kws/amy-low__tell_me_a_story.wav` (286): no header
 - `host/tests/fixtures/kws/amy-low__thank_you.wav` (165): no header
 - `host/tests/fixtures/kws/amy-low__timber.wav` (145): no header
 - `host/tests/fixtures/kws/amy-low__time_it.wav` (117): no header
@@ -2036,14 +2036,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/kws/amy-low__tire.wav` (96): no header
 - `host/tests/fixtures/kws/amy-low__turn_on_the_light.wav` (294): no header
 - `host/tests/fixtures/kws/amy-low__what_is_it.wav` (142): no header
-- `host/tests/fixtures/kws/amy-low__what_is_the_weather.wav` (269): Binary file host/tests/fixtures/kws/amy-low__what_is_the_weather.wav matches
+- `host/tests/fixtures/kws/amy-low__what_is_the_weather.wav` (269): no header
 - `host/tests/fixtures/kws/amy-low__what_is_your_name.wav` (264): no header
 - `host/tests/fixtures/kws/amy-low__what_time_is_it.wav` (263): no header
 - `host/tests/fixtures/kws/amy-low__who_are_you.wav` (192): no header
 - `host/tests/fixtures/kws/manifest.json` (496): no header
 - `host/tests/fixtures/kws/ryan-medium__a_little_louder.wav` (224): no header
 - `host/tests/fixtures/kws/ryan-medium__are_you_connected.wav` (332): no header
-- `host/tests/fixtures/kws/ryan-medium__are_you_corrected.wav` (236): Binary file host/tests/fixtures/kws/ryan-medium__are_you_corrected.wav matches
+- `host/tests/fixtures/kws/ryan-medium__are_you_corrected.wav` (236): no header
 - `host/tests/fixtures/kws/ryan-medium__are_you_happy.wav` (218): no header
 - `host/tests/fixtures/kws/ryan-medium__are_you_there.wav` (207): no header
 - `host/tests/fixtures/kws/ryan-medium__be_louder.wav` (158): no header
@@ -2051,7 +2051,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/kws/ryan-medium__bolder.wav` (57): no header
 - `host/tests/fixtures/kws/ryan-medium__chop.wav` (46): no header
 - `host/tests/fixtures/kws/ryan-medium__dimmer.wav` (39): no header
-- `host/tests/fixtures/kws/ryan-medium__good_morning.wav` (224): Binary file host/tests/fixtures/kws/ryan-medium__good_morning.wav matches
+- `host/tests/fixtures/kws/ryan-medium__good_morning.wav` (224): no header
 - `host/tests/fixtures/kws/ryan-medium__hey_my_bike.wav` (215): no header
 - `host/tests/fixtures/kws/ryan-medium__hold_the_door.wav` (173): no header
 - `host/tests/fixtures/kws/ryan-medium__lauder.wav` (108): no header
@@ -2073,7 +2073,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/kws/ryan-medium__turn_on_the_light.wav` (259): no header
 - `host/tests/fixtures/kws/ryan-medium__what_is_it.wav` (126): no header
 - `host/tests/fixtures/kws/ryan-medium__what_is_the_weather.wav` (216): no header
-- `host/tests/fixtures/kws/ryan-medium__what_is_your_name.wav` (240): Binary file host/tests/fixtures/kws/ryan-medium__what_is_your_name.wav matches
+- `host/tests/fixtures/kws/ryan-medium__what_is_your_name.wav` (240): no header
 - `host/tests/fixtures/kws/ryan-medium__what_time_is_it.wav` (192): no header
 - `host/tests/fixtures/kws/ryan-medium__who_are_you.wav` (137): no header
 - `host/tests/fixtures/stackchan/destinations-allowed.txt` (8): Sanitized sample from a local-only StackChan capture.
@@ -2727,14 +2727,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/source/StackChan-BearingFixture.stl` (96): no header
 - `scripts/virtual-unit/model/source/StackChan-LightGuideBar-A.stl` (41): no header
 - `scripts/virtual-unit/model/source/StackChan-LightGuideBar-B.stl` (39): no header
-- `scripts/virtual-unit/model/source/StackChan-MainBody.stl` (1307): Binary file scripts/virtual-unit/model/source/StackChan-MainBody.stl matches
+- `scripts/virtual-unit/model/source/StackChan-MainBody.stl` (1307): no header
 - `scripts/virtual-unit/model/source/StackChan-ServoArm.stl` (356): no header
-- `scripts/virtual-unit/model/source/StackChan-ServoBody.stl` (557): Binary file scripts/virtual-unit/model/source/StackChan-ServoBody.stl matches
-- `scripts/virtual-unit/model/source/StackChan-ServoCover.stl` (111): Binary file scripts/virtual-unit/model/source/StackChan-ServoCover.stl matches
+- `scripts/virtual-unit/model/source/StackChan-ServoBody.stl` (557): no header
+- `scripts/virtual-unit/model/source/StackChan-ServoCover.stl` (111): no header
 - `scripts/virtual-unit/model/source/StackChan-ServoSideCover.stl` (61): no header
 - `scripts/virtual-unit/model/stackchan.glb` (8153): no header
 - `scripts/virtual-unit/model/stackchan.params.json` (779): no header
-- `scripts/virtual-unit/model/stackchan.web.glb` (6784): Binary file scripts/virtual-unit/model/stackchan.web.glb matches
+- `scripts/virtual-unit/model/stackchan.web.glb` (6784): no header
 - `scripts/virtual-unit/model/validate.sh` (18): check stackchan.glb with the Khronos glTF validator, on this Mac only (the file is read locally; nothing is up
 - `scripts/virtual-unit/overlay-skip.txt` (1): no header
 - `scripts/virtual-unit/overlay_patches.py` (78): Brings the face overlay tree (.runs/fixtree, made by build-face.sh from a replayed firmware tree) up to the wh
