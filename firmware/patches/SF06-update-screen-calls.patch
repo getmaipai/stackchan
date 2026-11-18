@@ -1,0 +1,43 @@
+# Intent: The wireless update shows the Updating screen: percent while the image downloads, "Update installed" before the restart, "Update refused" when the download or the signature check fails. Calls hal_bridge::update_cover from patch UX04.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_update.cc (ours)
+# Check after a flash: start a wireless update: the screen shows Updating with a rising percent, then Update installed and the restart; a refused image shows Update refused for 4 s.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_update.cc b/firmware/main/hal/maipai_update.cc
+--- a/firmware/main/hal/maipai_update.cc
++++ b/firmware/main/hal/maipai_update.cc
+@@ -48,10 +48,16 @@ void update_task(void* arg)
+ {
+     Job* job = static_cast<Job*>(arg);
+     device_events_push("firmware_update_started", "\"percent\":0");
++    hal_bridge::update_cover(0);  // patch SF06: the Updating screen
+     int last_percent = -10;
++    int shown_percent = 0;
+     // Ota::Upgrade checks the Ed25519 signature while the image streams in and sets the new slot to boot
+     // only after the check passes (patch 155); the address and the 20 percent rule are checked again inside.
+-    const bool ok = Ota::Upgrade(job->url, [&last_percent](int progress, size_t) {
++    const bool ok = Ota::Upgrade(job->url, [&last_percent, &shown_percent](int progress, size_t) {
++        if (progress != shown_percent && progress >= 0 && progress < 100) {
++            shown_percent = progress;
++            hal_bridge::update_cover(progress);
++        }
+         if (progress >= last_percent + 10 && progress < 100) {
+             last_percent = progress;
+             char extra[32];
+@@ -61,6 +67,7 @@ void update_task(void* arg)
+     });
+     if (!ok) {
+         const char* why = UpdateRefusal();
++        hal_bridge::update_cover(-2);  // "Update refused / Nothing changed", hides itself after 4 s
+         note_failure(why[0] != '\0' ? why
+                                     : "The update did not finish: the unit could not download or write the image. "
+                                       "Check that the host is reachable and try again.");
+@@ -72,6 +79,7 @@ void update_task(void* arg)
+     char extra[64];
+     std::snprintf(extra, sizeof(extra), "\"version\":\"%s\"", job->version);
+     device_events_push("firmware_update_done", extra);
++    hal_bridge::update_cover(100);  // "Update installed / Restarting..."
+     ESP_LOGI(kTag, "update written and signature checked; restarting into the new image");
+     vTaskDelay(pdMS_TO_TICKS(2500));  // lets the host read the done event
+     esp_restart();
