@@ -329,7 +329,24 @@ def _merge_more() -> None:
         CATALOG[code].update(words)
 
 
+def _merge_fill() -> None:
+    """Machine-drafted translations (not reviewed by a native speaker): host/maipai_body/i18n_fill/<lang>_<n>.json.
+    A fill only replaces a word that is still the English text or missing, so a reviewed translation always wins."""
+    import json
+    from pathlib import Path
+
+    for path in sorted((Path(__file__).parent / "i18n_fill").glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        words = CATALOG.get(data["lang"])
+        if words is None:
+            continue
+        for key, text in data["strings"].items():
+            if key in CATALOG["en"] and words.get(key, CATALOG["en"][key]) == CATALOG["en"][key]:
+                words[key] = text
+
+
 _merge_more()
+_merge_fill()
 
 
 def normalize(lang: str | None) -> str:
