@@ -264,3 +264,22 @@ def test_the_speech_runtime_install_tries_uv_then_pip_and_fails_in_plain_words()
     assert calls[0] == "uv" and len(calls) == 2
     with pytest.raises(RuntimeError, match="could not be installed"):
         install_sherpa(lambda command, **kw: SimpleNamespace(returncode=1))
+
+
+def test_the_voice_files_are_found_beside_the_model_so_only_the_model_is_named(tmp_path):
+    from maipai_body.config import RobotConfig
+
+    voice = tmp_path / "voice"
+    (voice / "espeak-ng-data").mkdir(parents=True)
+    (voice / "tokens.txt").write_text("a")
+    config = RobotConfig.model_validate({"llm": {"tts_model": str(voice / "v.onnx")}})
+    assert config.llm.tts_tokens == str(voice / "tokens.txt") and config.llm.tts_data_dir == str(voice / "espeak-ng-data")
+    named = RobotConfig.model_validate({"llm": {"tts_model": str(voice / "v.onnx"), "tts_tokens": "/x/t.txt"}})
+    assert named.llm.tts_tokens == "/x/t.txt"  # a person's own choice is kept
+
+
+def test_the_local_stack_writes_only_the_model_for_the_voice(tmp_path):
+    config = tmp_path / "robot.toml"
+    modes.apply_local(config, "small", {"stt_model_dir": "/s", "tts_model": "/t/v.onnx", "tts_tokens": "/t/tokens.txt", "tts_data_dir": "/t/data"})
+    text = config.read_text()
+    assert "tts_model" in text and "tts_tokens" not in text and "tts_data_dir" not in text

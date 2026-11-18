@@ -31,6 +31,17 @@ class LlmConfig(StrictModel):
     tts_tokens: str | None = None
     tts_data_dir: str | None = None
 
+    @model_validator(mode="after")
+    def find_voice_files_beside_the_model(self):
+        """The voice's tokens file and espeak data folder sit beside its model file: name only the model (decision 20, derive what can be derived)."""
+        if self.tts_model:
+            folder = Path(self.tts_model).parent
+            if not self.tts_tokens and (folder / "tokens.txt").is_file():
+                self.tts_tokens = str(folder / "tokens.txt")
+            if not self.tts_data_dir and (folder / "espeak-ng-data").is_dir():
+                self.tts_data_dir = str(folder / "espeak-ng-data")
+        return self
+
 
 class HomeConfig(StrictModel):
     url: str = ""

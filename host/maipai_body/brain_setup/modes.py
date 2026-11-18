@@ -91,8 +91,8 @@ def apply_local(path: Path, choice: str, paths: dict[str, str]) -> None:
     set_values(path, "", {"brain": "llm"})
     set_values(path, "llm", {
         "url": f"http://127.0.0.1:{catalog.LLAMA_PORT}", "model": catalog.MODEL_NAMES[choice],
-        "stt_model_dir": paths["stt_model_dir"], "tts_model": paths["tts_model"], "tts_tokens": paths["tts_tokens"], "tts_data_dir": paths["tts_data_dir"],
-    }, remove=("stt_url", "tts_url", "api_key_env"))
+        "stt_model_dir": paths["stt_model_dir"], "tts_model": paths["tts_model"],  # the voice's tokens and data folder are found beside the model
+    }, remove=("stt_url", "tts_url", "api_key_env", "tts_tokens", "tts_data_dir"))
     set_values(path, "local_stack", {"enabled": True, "choice": choice})
 
 

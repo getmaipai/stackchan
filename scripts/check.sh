@@ -26,6 +26,7 @@ bash scripts/leak-sweep.sh
 python3 scripts/docs-claims-check.py
 python3 scripts/docs-grade.py --max 7 >/dev/null || { python3 scripts/docs-grade.py --max 7 | grep -B1 "long:"; echo "docs-grade: a user page reads above grade 7; shorten its long sentences"; exit 1; }
 echo "docs-grade: ok"
+"$PY" scripts/choices-check.py || exit 1
 python3 scripts/virtual-unit/tools_extract.py --check
 
 python3 scripts/make-vu-screenshots.py --check

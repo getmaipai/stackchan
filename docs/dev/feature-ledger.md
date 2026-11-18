@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 821 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 822 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 34 items, 3 measured, 11 estimated, 20 placeholders or not built. 82 of 821 rows name a declared cost. Internal RAM that is always on: 37,072 B (inside the baseline). Headroom over the gate: 24,093 B at the median, 9,484 B at the lowest; the largest block has 1,600 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,096 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 34 items, 3 measured, 11 estimated, 20 placeholders or not built. 82 of 822 rows name a declared cost. Internal RAM that is always on: 37,072 B (inside the baseline). Headroom over the gate: 24,093 B at the median, 9,484 B at the lowest; the largest block has 1,600 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,096 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 1 | 18 | 18 | 240 | 8 | 51 | 336 | 65 |
-| Maker and tech | 0 | 0 | 64 | 362 | 59 | 0 | 485 | 70 |
+| Maker and tech | 0 | 0 | 65 | 362 | 59 | 0 | 486 | 70 |
 
 ## Everyday user
 
@@ -844,7 +844,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: memory_notes** | Local memory for several adults as plain per-person notes files. | proven virtual | 70 | not declared | `host/maipai_packages/memory_notes` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (67)
+### Scripts and tools (68)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -854,6 +854,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: camera-sweep-table.py** | turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the one table of docs/dev/camera-quality.md: | proven virtual | 70 | not declared | `scripts/camera-sweep-table.py` | file exists, a test names it | doc missing |
 | **Script: check-no-keys.py** | refuse any firmware image, release folder or source tree that contains a key (safety fix). | proven virtual | 70 | not declared | `scripts/check-no-keys.py` | file exists, a test names it | doc missing |
 | **Script: check.sh** | repo gate. | proven virtual | 70 | not declared | `scripts/check.sh` | file exists, a test names it | doc missing |
+| **Script: choices-check.py** | Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices-rule.md).""" | built | 40 | not declared | `scripts/choices-check.py` | file exists | doc missing |
 | **Script: docs-claims-check.py** | check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: tool names in backticks exist in schema/tools.json, MAIPAI_ names exist in firmware or ho... | built | 40 | not declared | `scripts/docs-claims-check.py` | file exists | doc missing |
 | **Script: docs-grade.py** | Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences. | built | 40 | not declared | `scripts/docs-grade.py` | file exists | doc missing |
 | **Script: e2e-flake-hunt.sh** | find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. | built | 40 | not declared | `scripts/e2e-flake-hunt.sh` | file exists | doc missing |
