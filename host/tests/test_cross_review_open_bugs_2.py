@@ -286,7 +286,6 @@ def test_the_coding_companion_endpoint_drops_a_client_that_sends_nothing():
 
 # ---- firmware cores (owner: firmware) ------------------------------------------------------------------------------
 
-@bug
 @needs_cc
 def test_the_servo_clock_holds_the_command_when_the_speed_ceiling_is_zero(tmp_path, tmp_path_factory):
     """owner: firmware (SF28 maipai_servo_clock_core.h). msc_limit_step() raises a zero step to 1, so with the limiter's scale at 0 (carried) the command still creeps toward the target by one tenth of a degree every step, about 5 degrees a second."""

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Intent: fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavior sanitizers. Replays the patch ORDER into an empty
 # folder (host/tests/firmware_order_cores.py), builds one program per parser from scripts/fuzz/core_fuzz.c into .runs/fuzz, and runs each with a seed and an iteration count.
-# Usage: bash scripts/fuzz-cores.sh [iterations, default 20000] [seed, default 1] [target ...]   targets: FACE FILLER GAMES LANG REACT PACKCACHE TIMERS UPDATEHDR MOOD TAILNET REMOTE LISTEN LOCK
+# Usage: bash scripts/fuzz-cores.sh [iterations, default 20000] [seed, default 1] [target ...]   targets: FACE FILLER GAMES LANG REACT PACKCACHE TIMERS UPDATEHDR MOOD TAILNET REMOTE LISTEN LOCK LINKURL MOUTHCUE BARGE PAIRX
 # A failure prints the sanitizer report and the line to repeat it. Placement: host-side development tool; no firmware change. Upstream: none.
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ITER="${1:-20000}"; SEED="${2:-1}"; shift 2 2>/dev/null || shift $# 2>/dev/null
-TARGETS=("$@"); [ ${#TARGETS[@]} -eq 0 ] && TARGETS=(FACE FILLER GAMES LANG REACT PACKCACHE TIMERS UPDATEHDR MOOD TAILNET REMOTE LISTEN LOCK)
+TARGETS=("$@"); [ ${#TARGETS[@]} -eq 0 ] && TARGETS=(FACE FILLER GAMES LANG REACT PACKCACHE TIMERS UPDATEHDR MOOD TAILNET REMOTE LISTEN LOCK LINKURL MOUTHCUE BARGE PAIRX)
 OUT="$ROOT/.runs/fuzz"; mkdir -p "$OUT"
 CORES="$(mktemp -d)"; trap 'rm -rf "$CORES"' EXIT
 git init -q "$CORES"

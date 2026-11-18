@@ -493,7 +493,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (291): no header
+- `firmware/patches/ORDER` (292): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -557,6 +557,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF34-head-limiter-barge-bench.patch` (525): Head and talk-over round after the bench windows. The servo step gate is 15 ms, so a 20 ms task that wakes a l
 - `firmware/patches/SF35-link-pairing-unit.patch` (281): Pairing with a host, the unit's side (off by default, CONFIG_MAIPAI_LINK_PSK). The tool self.link.pair opens t
 - `firmware/patches/SF36-setup-idle-timeout.patch` (65): The Setup app (the Wi-Fi page, the menus) closes after 90 seconds without a touch, 300 seconds on the Wi-Fi pa
+- `firmware/patches/SF37-compiled-build-floor.patch` (113): A signed update must beat the build number compiled into the running image (CONFIG_MAIPAI_FW_BUILD, set by the
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1716,7 +1717,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/screens_core_test.c` (213): Host test for the single overlay screen state (patch UI09): cc -std=c99 -Wall -Wextra -Werror -I<dir with the 
 - `host/tests/firmware/seek_core_test.c` (749): Host test for turning toward a person (patch S10): the frame difference, the seek state machine and the owner 
 - `host/tests/firmware/seek_wire_test.c` (885): Host test for the wiring of the seek core (patch S12): the real mw_step, mw_downsample, the admission rule, th
-- `host/tests/firmware/servo_clock_core_test.c` (96): Host test for the servo animation clock (patch SF28). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
+- `host/tests/firmware/servo_clock_core_test.c` (100): Host test for the servo animation clock (patch SF28). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
 - `host/tests/firmware/sounds_core_final_test.c` (85): include <assert.h>
 - `host/tests/firmware/sprite_core_test.c` (171): Host test for the face pictures (patch V23): the rounded box, the discs, the lid and cheek cuts and the mouth 
 - `host/tests/firmware/status_core_test.c` (85): Host test for the banner status icons (patch UI04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>
@@ -1730,6 +1731,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/tz_core_test.c` (124): Host test for the time zone core (patch U03): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/update_core_test.c` (128): Host test for the first-boot trial rule (patch FM01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/update_verify_check.cc` (58): The unit's own update checks as a PC program (patches 155 and 159): the Ed25519 verification, the paired-host 
+- `host/tests/firmware/updatefloor_core_test.c` (42): Host test for the build floor of signed updates (patch SF37). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with 
 - `host/tests/firmware/updatehdr_core_test.c` (49): Host driver for the update header core (patch SF25). Reads lines "package_hex image_hex installed" from standa
 - `host/tests/firmware/version_core_test.c` (168): Host test for the version screen core (patch U05): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/wrap_soak_test.c` (268): Soak test for the 24.9 day (2^31 ms) and 49.7 day (2^32 ms) wrap class, over every core that uses the stamp he
@@ -1858,7 +1860,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_config_switches.py` (33): The robot.toml switches [remote] enabled and [home] url do something."""
 - `host/tests/test_connection_loss.py` (33): Losing the connection raises BodyLost once; nothing is retried silently."""
 - `host/tests/test_cross_review_open_bugs.py` (181): ruff: noqa: E501
-- `host/tests/test_cross_review_open_bugs_2.py` (272): ruff: noqa: E501
+- `host/tests/test_cross_review_open_bugs_2.py` (271): ruff: noqa: E501
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
@@ -2262,7 +2264,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
-- `scripts/fuzz/core_fuzz.c` (272): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
+- `scripts/fuzz/core_fuzz.c` (333): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
 - `scripts/fw-build.sh` (46): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).

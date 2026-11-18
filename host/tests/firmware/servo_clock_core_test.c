@@ -67,6 +67,10 @@ int main(void)
     CHECK(msc_limit_step(100, 100, 0, 0.02f) == 100);
     /* a stall is not a jump: dt never exceeds 50 ms */
     CHECK(msc_dt_s(5000) == 0.05f && msc_dt_s(1) == 0.01f);
+    /* a ceiling of 0 means no motion at all, either way; a tiny scale still moves, at about its ceiling */
+    CHECK(msc_limit_step(0, 1000, msc_vmax_tenth_dps(0), 0.02f) == 0);
+    CHECK(msc_limit_step(500, -1000, 0, 0.05f) == 500);
+    CHECK(msc_limit_step(0, 1000, msc_vmax_tenth_dps(1), 0.02f) <= 1 && msc_limit_step(0, 1000, msc_vmax_tenth_dps(1), 0.02f) >= 0);
     /* a 20 ms task that wakes 0.1 to 1.6 ms late by a changing amount still steps on (nearly) every wake: the gate is 15 ms */
     {
         uint32_t last = 0, steps = 0;

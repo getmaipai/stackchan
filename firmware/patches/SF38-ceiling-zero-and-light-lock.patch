@@ -1,0 +1,90 @@
+# Intent: A speed ceiling of 0 means no motion: the servo clock's step limiter holds the command instead of moving it one step. The neon light takes a lock so the servo task's update and the screen effects' colour changes cannot tear a frame, and its 20 ms gate is 15 ms like the servo's.
+# Placement: unit
+# Upstream: firmware/main/stackchan/addons/neon_light (ours, from the stock neon light addon)
+# Check after a flash: a carried unit does not move its head at all; the LED ring colour changes during a head move show no flicker.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_servo_clock_core.h b/firmware/main/hal/maipai_servo_clock_core.h
+--- a/firmware/main/hal/maipai_servo_clock_core.h
++++ b/firmware/main/hal/maipai_servo_clock_core.h
+@@ -44,6 +44,7 @@ static inline int msc_vmax_tenth_dps(int scale_pct)
+ /* The command for this step: the animation's value, but no further from the last command than vmax allows in dt seconds. */
+ static inline int msc_limit_step(int prev_cmd, int target, int vmax_tenth_dps, float dt)
+ {
++    if (vmax_tenth_dps <= 0) return prev_cmd; /* a ceiling of 0 is no motion (carried, on its side), not a smallest step */
+     int max_step = (int)((float)vmax_tenth_dps * dt + 0.5f);
+     if (max_step < 1) max_step = 1;
+     if (target > prev_cmd + max_step) return prev_cmd + max_step;
+diff --git a/firmware/main/stackchan/addons/neon_light/neon_light.h b/firmware/main/stackchan/addons/neon_light/neon_light.h
+--- a/firmware/main/stackchan/addons/neon_light/neon_light.h
++++ b/firmware/main/stackchan/addons/neon_light/neon_light.h
+@@ -9,6 +9,7 @@
+ #include <uitk/short_namespace.hpp>
+ #include "core/color/color.hpp"
+ #include <string_view>
++#include <mutex>
+ 
+ namespace stackchan::addon {
+ 
+@@ -45,6 +46,7 @@ private:
+     bool _snap_to_target_on_rest = false;
+     uint32_t _last_tick          = 0;
+     uitk::color::AnimateRgb_t _color_anim;
++    std::mutex _mutex;  // the servo task updates the light while screen effects set its colour
+ };
+ 
+ /**
+diff --git a/firmware/main/stackchan/addons/neon_light/neon_light.cpp b/firmware/main/stackchan/addons/neon_light/neon_light.cpp
+--- a/firmware/main/stackchan/addons/neon_light/neon_light.cpp
++++ b/firmware/main/stackchan/addons/neon_light/neon_light.cpp
+@@ -19,12 +19,13 @@ void NeonLight::init()
+ 
+ void NeonLight::update()
+ {
++    std::lock_guard<std::mutex> lock(_mutex);
+     if (!_is_inited) {
+         init();
+     }
+ 
+     // Keep update in at most 50Hz
+-    if (GetHAL().millis() - _last_tick < 20) {
++    if (GetHAL().millis() - _last_tick < 15) {  // a 20 ms task that wakes a little early still steps
+         return;
+     }
+     _last_tick = GetHAL().millis();
+@@ -50,30 +51,35 @@ void NeonLight::update()
+ 
+ void NeonLight::setColor(uint8_t r, uint8_t g, uint8_t b)
+ {
++    std::lock_guard<std::mutex> lock(_mutex);
+     _color_anim.move(r, g, b);
+     _snap_to_target_on_rest = true;
+ }
+ 
+ void NeonLight::setColor(const uitk::color::Rgb_t& rgb)
+ {
++    std::lock_guard<std::mutex> lock(_mutex);
+     _color_anim.move(rgb);
+     _snap_to_target_on_rest = true;
+ }
+ 
+ void NeonLight::setColor(uint32_t hex)
+ {
++    std::lock_guard<std::mutex> lock(_mutex);
+     _color_anim.move(hex);
+     _snap_to_target_on_rest = true;
+ }
+ 
+ void NeonLight::setColor(std::string_view hex)
+ {
++    std::lock_guard<std::mutex> lock(_mutex);
+     _color_anim.move(hex);
+     _snap_to_target_on_rest = true;
+ }
+ 
+ void NeonLight::setDuration(float durationSec)
+ {
++    std::lock_guard<std::mutex> lock(_mutex);
+     _color_anim.duration = durationSec;
+     _color_anim.begin();
+ }

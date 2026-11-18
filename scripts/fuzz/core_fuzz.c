@@ -50,6 +50,18 @@
 #elif defined(TARGET_LOCK)
 #include "maipai_lock_core.h"
 #define NAME "lock record and code (mlk_load, mlk_check)"
+#elif defined(TARGET_LINKURL)
+#include "maipai_linkurl_core.h"
+#define NAME "encrypted link address rewrite (mlu_rewrite)"
+#elif defined(TARGET_MOUTHCUE)
+#include "maipai_mouthcue_core.h"
+#define NAME "mouth cue lists (mmc_set, mmc_append, mmc_level)"
+#elif defined(TARGET_BARGE)
+#include "maipai_barge_core.h"
+#define NAME "talk-over decisions (mbg_*)"
+#elif defined(TARGET_PAIRX)
+#include "maipai_pairx_core.h"
+#define NAME "pairing exchange state machine (mpx_*)"
 #else
 #error "name a target, for example -DTARGET_FACE"
 #endif
@@ -159,6 +171,55 @@ static void run(const uint8_t* d, size_t n)
     mlk_load(&l, s, s, 1, 5, 1000);
     mlk_check(&l, s);
     free(s);
+#elif defined(TARGET_LINKURL)
+    char* s = cstring(d, n);
+    char out[64];
+    mlu_rewrite(s, out, n % 64 + 1);
+    mlu_rewrite(s, out, sizeof(out));
+    free(s);
+#elif defined(TARGET_MOUTHCUE)
+    mmc_t* m = (mmc_t*)calloc(1, sizeof(*m));
+    uint32_t ms[600];
+    uint8_t lvl[600];
+    int cnt = (int)(n / 3);
+    if (cnt > 600) cnt = 600;
+    for (int k = 0; k < cnt; k++) { ms[k] = (uint32_t)(d[3 * k] | (d[3 * k + 1] << 8)) * 5u; lvl[k] = d[3 * k + 2]; }
+    mmc_init(m);
+    mmc_set(m, ms, lvl, cnt, 1000u);
+    mmc_append(m, ms, lvl, cnt / 2, 1000u + (uint32_t)n);
+    mmc_start(m, 2000u);
+    for (uint32_t t = 2000u; t < 6000u; t += 37u) { int lv; mmc_level(m, t, &lv); }
+    free(m);
+#elif defined(TARGET_BARGE)
+    mbg_t m;
+    mbg_init(&m);
+    uint32_t now = 1000u;
+    for (size_t k = 0; k < n; k++) {
+        now += (uint32_t)d[k] * 7u;
+        switch (d[k] & 7) {
+            case 0: mbg_speaking(&m, d[k] >> 3); break;
+            case 1: mbg_tts_start(&m); break;
+            case 2: mbg_no_barge_sentence(&m, now, (uint32_t)d[k] * 40u); break;
+            default: (void)mbg_wake_hit(&m, now); break;
+        }
+        (void)mbg_frame_ok(&m);
+    }
+#elif defined(TARGET_PAIRX)
+    mpx_t m;
+    uint8_t a[MLY_PK], b[MLY_PK], c[32], nu[MLY_NONCE], nh[MLY_NONCE], z[32], k[MLY_KEY];
+    memset(a, 1, sizeof(a)); memset(b, 2, sizeof(b)); memset(c, 3, sizeof(c)); memset(nu, 4, sizeof(nu)); memset(nh, 5, sizeof(nh)); memset(z, 6, sizeof(z));
+    mpx_begin(&m, a, 5000u);
+    uint32_t now = 5000u;
+    for (size_t q = 0; q < n; q++) {
+        now += (uint32_t)d[q] * 997u;
+        switch (d[q] & 7) {
+            case 0: mpx_on_host_key(&m, b, c, nu); break;
+            case 1: nh[0] = d[q]; mpx_on_host_nonce(&m, nh); break;
+            case 2: mpx_on_paired(&m, z, "aa:bb:cc:dd:ee:ff", k); break;
+            case 3: mpx_abort(&m); mpx_begin(&m, a, now); break;
+            default: mpx_tick(&m, now); break;
+        }
+    }
 #endif
 }
 
