@@ -1,7 +1,7 @@
 // Parity check of the browser build, in headless Chromium (Playwright): starts the page from docs-site/playground over a local server, measures load (cold and cached), runs every parity case
 // (page/py/parity_cases.py) in the page, and compares with (a) the native results run_native.py wrote and (b) the committed golden frames in host/tests/golden. Also checks that the page asked
 // for nothing outside its own origin, and exercises the viewer's own request path (tool call, tap, swipe, scenario). Prints one JSON report.
-// Usage: node scripts/virtual-unit/wasm/parity.js [native-results.json] [report.json] [screenshot.png]   (needs the build in docs-site/playground and Playwright)
+// Usage: [CHROME_EXE=/path/to/chrome] node scripts/virtual-unit/wasm/parity.js [native-results.json] [report.json] [screenshot.png]   (needs the build in docs-site/playground and Playwright)
 // Placement: host-side development tool. Upstream: none.
 const http = require('http'), fs = require('fs'), path = require('path'), zlib = require('zlib'), crypto = require('crypto');
 const { chromium } = require('playwright');
@@ -28,7 +28,7 @@ const pixelsSha = (png) => { const i = png.indexOf('IDAT') + 4, e = png.lastInde
 
 (async () => {
   const { srv, hits, url } = await serve();
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(process.env.CHROME_EXE ? { executablePath: process.env.CHROME_EXE, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } : {});
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const report = { browser: browser.version(), cases: {}, load: {}, errors: [], external: [] };
   const attach = (page) => {
