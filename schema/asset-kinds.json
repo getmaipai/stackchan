@@ -1,0 +1,68 @@
+{
+ "version": 1,
+ "note": "Seeded by the playground track from docs/plan/installed-set.md section C (2026-11-18): the firmware track owns the numbers; the host and the virtual unit read this file so nothing can disagree. Index in the asset header is the position in this list.",
+ "pool": {
+  "sectors": 382,
+  "sector_bytes": 4096,
+  "directory_ring_sectors": 8,
+  "source": "docs/plan/installed-set.md section C"
+ },
+ "kinds": [
+  {
+   "kind": "language",
+   "title": "Language pack",
+   "max_slots": 2,
+   "max_item_bytes": 16384,
+   "trust": "signed",
+   "holds": "words of one language (and its font need)"
+  },
+  {
+   "kind": "font",
+   "title": "Font pack",
+   "max_slots": 1,
+   "max_item_bytes": 800000,
+   "trust": "signed",
+   "holds": "glyph subset for a script"
+  },
+  {
+   "kind": "style",
+   "title": "Face style",
+   "max_slots": 8,
+   "max_item_bytes": 256,
+   "trust": "signed",
+   "holds": "a face recipe: a few numbers"
+  },
+  {
+   "kind": "look",
+   "title": "Picture face or character pack",
+   "max_slots": 2,
+   "max_item_bytes": 1000000,
+   "trust": "owner",
+   "holds": "pictures made from the owner's own photos"
+  },
+  {
+   "kind": "game",
+   "title": "Game pack",
+   "max_slots": 8,
+   "max_item_bytes": 16384,
+   "trust": "signed",
+   "holds": "one game pack"
+  },
+  {
+   "kind": "sound",
+   "title": "Sound pack",
+   "max_slots": 2,
+   "max_item_bytes": 400000,
+   "trust": "signed",
+   "holds": "filler sounds and effects"
+  },
+  {
+   "kind": "phrase",
+   "title": "Offline phrase pack",
+   "max_slots": 1,
+   "max_item_bytes": 150000,
+   "trust": "signed",
+   "holds": "spoken phrases for when the host is away"
+  }
+ ]
+}

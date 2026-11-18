@@ -35,9 +35,14 @@ KEYFRAMES = {
 DEG_PER_S_PER_SPEED = 0.4  # an assumption (chosen so every keyframe of the table reaches its angles inside its own time): the unit's servo speed units are not measured in degrees a second
 
 
+SESSION = {"on": False}   # a hand-chosen dance session (patch SF51) is running: the unit's own head moves carry the dance, so the keyframe path adds nothing and the marker lasts as long as the session
+
+
 def dance_ms(name: str) -> int:
     """How long a keyframe dance lasts (the sum of its keyframes); the music dance (the ladder) has no end of its own."""
     rows = KEYFRAMES.get(name)
+    if SESSION["on"]:
+        return 75000   # 45 s of music and the way down at most; the unit's own session ends it first
     return sum(r[4] for r in rows) if rows else 8000
 
 
@@ -285,7 +290,7 @@ def dance_offset(name: str, t_ms: int, scale: int, speed_cap: int) -> tuple[floa
     (DEG_PER_S_PER_SPEED, an assumption) and staying there. `scale` is the limiter's percent of the full excursion and `speed_cap` its speed ceiling (1000 is full): both
     shrink the motion, as the unit's limiter does."""
     rows = KEYFRAMES.get(name)
-    if not rows:
+    if not rows or SESSION["on"]:
         return (0.0, 0.0)
     k = max(0, scale) / 100.0
     cap = 0.3 + 0.7 * min(1.0, max(0, speed_cap) / 1000.0)

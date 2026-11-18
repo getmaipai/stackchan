@@ -171,7 +171,9 @@ def test_scripted_body_scenario_power_cable_battery_carried_dance(view):
     # full battery, free: a dance moves the head inside its limits
     _post(view, "hw", {"key": "battery", "value": 100})
     _wait(view, lambda s: s["motion"]["state"] == "free")
-    assert _post(view, "call", {"name": "self.robot.dance", "arguments": {"name": "look_around"}})["ok"]
+    # patch SF51: the four built-in dances are ladder sessions now (eyes, then the nod: the head sways from the third step, 8 s in); the sway itself is step 3 of the beat dance
+    assert _post(view, "call", {"name": "self.music.set", "arguments": {"enabled": True}})["ok"]
+    assert _post(view, "call", {"name": "self.music.stage", "arguments": {"stage": 3}})["ok"]
     seen = {round(_state(view)["head"]["yaw"]) for _ in range(12) if not time.sleep(0.4)}
     assert max(seen) - min(seen) > 40 and all(-128 <= y <= 128 for y in seen)
     _post(view, "call", {"name": "self.robot.stop_dance", "arguments": {}})

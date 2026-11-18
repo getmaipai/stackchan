@@ -111,6 +111,7 @@ class DanceSim:
         self.feed = None
         self.t_start = 0
         self.synth = self.L.synth_new()
+        self._was_session = False
         self.session = False   # a hand-chosen dance session (patch SF51) is running
         self.session_t0 = 0
         self.shown = 0
@@ -167,6 +168,13 @@ class DanceSim:
         self.cycle_active = False
         self.session = False
         self.rest_ms = 0
+        mot = self.u.state.get("motion")
+        import hw
+
+        hw.SESSION["on"] = False
+        if self._was_session and mot is not None:
+            mot["dance"] = ""
+        self._was_session = False
         self._set_stage(0)
         if was or self.overlays or self.notes:
             self._show_notes(0)
@@ -209,6 +217,13 @@ class DanceSim:
         self.t_start = u.now_ms
         self.L.synth_start(self.synth, CLOCK_BASE, tempo, seconds * 1000, u.now_ms)
         self.L.sim_start(self.h, max_stage, CLOCK_BASE)
+        from tools.motion import _state as motion_state
+
+        import hw
+
+        hw.SESSION["on"] = True
+        self._was_session = True
+        motion_state(u)["dance"] = name or "look_around"   # the marker the 3D view and the body model read for "a dance is running"; hw.dance_offset adds no head path while a session runs
         self.session = True
         self.stage_log = []
         self.beats = []
@@ -256,10 +271,7 @@ class DanceSim:
         stage = self.L.sim_synth_tick(self.h, self.synth, local)
         previous = self.shown
         if stage == 0:
-            self.session = False
-            self._set_stage(0)
-            self._show_notes(0)
-            self._overlay_clear()
+            self.stop()   # the session is over: eyes ahead, head level, ring dark, notes and overlays cleared, the marker gone
             return
         if stage != previous:
             self._set_stage(stage)
@@ -546,6 +558,9 @@ class DanceSim:
                 self._feed_update(now)
             else:
                 self._cycle_tick(now)
+        mot = self.u.state.get("motion")
+        if self.session and mot is not None and not mot.get("dance"):   # self.robot.stop_dance or the view ended the dance
+            self.stop()
         if self.session and now >= self.next_second:
             self.next_second += 1000
             self._session_tick(now)

@@ -147,6 +147,15 @@ def decision_rows(ev: Evidence, audience: str) -> list[dict]:
             ("NFC read", "The robot reads an NFC tag held to it. Published: the ST25R3916 chip on the internal bus (SDA 12, SCL 11), I2C address 0x50; the interrupt pin is unknown.", "the maker's documents agree on the chip and the bus; nothing is built and nothing was probed on a unit"),
         ):
             out.append(row(audience="user", area="Wanted, not started", name=name, desc=desc, percent=0, status="idea", where=["docs/plan/ir-and-nfc.md"], doc="docs/plan/ir-and-nfc.md", rule=pins, tags=["research note"]))
+        sim = exists("scripts/virtual-unit/assets_sim.py")
+        host = exists("host/maipai_body/installed_set.py")
+        ip = 40 if (sim and host) else 10
+        for kind, title, slots in (("style", "faces (styles)", 8), ("look", "picture faces and character packs", 2), ("language", "languages", 2), ("font", "fonts (for another script)", 1), ("game", "games", 8), ("sound", "sounds", 2), ("phrase", "offline phrases", 1)):
+            out.append(row(audience="user", area="Wanted, not started" if not sim else "Updates and setup", name=f"Installed set: {title}", desc=f"The robot holds {slots} {title} at a time; the host dashboard picks which ones, and a choice that does not fit is refused in plain words.", percent=ip,
+                           status=rules.status_for(ip), where=["docs/plan/installed-set.md", "scripts/virtual-unit/assets_sim.py", "schema/asset-kinds.json"], doc="docs/plan/installed-set.md",
+                           rule="the host reconciler and the virtual unit's slot store are built and tested; the unit's own asset core is not written", tags=["decision 17"]))
+        out.append(row(audience="user", area="With MaiPai Home", name="The On my robot page (installed set on the dashboard)", desc="One page per robot shows each kind's slots, what each item costs and which are on the robot, with Automatic defaults and plain refusals.", percent=70 if exists("host/maipai_body/installed_page.py") else 10,
+                       status=rules.status_for(70 if exists("host/maipai_body/installed_page.py") else 10), where=["host/maipai_body/installed_page.py", "host/maipai_body/installed_set.py"], doc="docs/plan/installed-set.md", rule="built and tested in the host; the thumbnails come from scripts/virtual-unit/thumbnails.py", tags=["decision 17"]))
         fleet = "e2e_fleet" in ev.tests
         fp = 70 if fleet else 40
         for name, desc, where, rule in (

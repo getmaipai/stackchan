@@ -111,6 +111,15 @@ class VirtualUnit:
         self.log.append({"at_ms": self.now_ms, "name": "renderer", "args": {"command": command}, "ok": True, "result": {}})
 
     @property
+    def assets(self):
+        """The installed set (assets_sim.py): slots per kind, the pool, signed installs, swap and remove. Made on first use."""
+        if getattr(self, "_assets", None) is None:
+            import assets_sim
+
+            self._assets = assets_sim.AssetStore(self)
+        return self._assets
+
+    @property
     def host_away(self):
         """What the unit does while its host is away (host_away.py: the Offline label after 45 s, the notice after 10 minutes, the reconnect backoff). Made on first use."""
         if getattr(self, "_host_away", None) is None:

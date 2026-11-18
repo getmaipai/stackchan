@@ -95,11 +95,14 @@ class MemoryModel:
     def describe(self) -> str:
         return ", ".join(sorted(k for k in self.loaded if k not in self.baseline_set)) or "nothing"
 
-    def open(self, item_id: str) -> None:
+    def open(self, item_id: str, psram: int | None = None, flash: int | None = None) -> None:
+        """Load an item. `psram` and `flash` override the table's figures for this one instance (an installed asset says its own cost in its header)."""
         if item_id not in self.items:
             raise MemoryBudgetError(f"{item_id} has no declared cost in schema/memory-budget.json: add it (internal RAM, PSRAM, flash, when loaded, when freed) before the feature runs")
         if item_id in self.baseline_set:
             return
+        if psram is not None or flash is not None:
+            self.items[item_id] = {**self.items[item_id], **({"psram": psram} if psram is not None else {}), **({"flash": flash} if flash is not None else {})}
         self.loaded[item_id] = self.loaded.get(item_id, 0) + 1
         self.history.append((self.u.now_ms if self.u else 0, "open", item_id))
         self._check(f"opening {item_id}")
