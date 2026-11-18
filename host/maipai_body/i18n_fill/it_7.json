@@ -9,7 +9,7 @@
   "settings.ui.pg.item.timers": "App",
   "settings.ui.pg.item.games": "Giochi",
   "settings.ui.pg.item.battery": "Percentuale batteria",
-  "settings.ui.pg.item.tailnet": "Rete privata",
+  "settings.ui.pg.item.tailnet": "Collegamento casa",
   "settings.ui.pg.item.address": "Indirizzo impostazioni",
   "settings.ui.pg.show": "Mostra sul robot",
   "settings.ui.pg.show_help": "Mostra ora sul robot la pagina che stai visualizzando.",

@@ -35,7 +35,7 @@ def _f(x: float) -> str:
 
 def mjcf(desc: dict) -> str:
     p = lambda k: value(desc, k)  # noqa: E731
-    yaw_z = p("base_h")                       # the yaw hinge sits on top of the base plate, on the yaw axis
+    yaw_z = p("yaw_axis_z")                   # the yaw hinge, on the yaw axis
     pitch_rel = p("pitch_axis_z") - yaw_z     # the nod axis above the yaw hinge
     yaw = next(j for j in desc["joints"] if j["role"] == "head.yaw")
     pitch = next(j for j in desc["joints"] if j["role"] == "head.pitch")
@@ -53,7 +53,7 @@ def mjcf(desc: dict) -> str:
       <freejoint name="base_free"/>
       <geom name="base_plate" type="box" pos="{_f(p('base_center_x'))} 0 0" size="{_f(p('base_d') / 2)} {_f(p('base_w') / 2)} {_f(p('base_h') / 2)}" mass="{_f(p('mass_base'))}" friction="{fr}"/>
       <site name="base_imu" pos="0 0 0" size="0.002"/>
-      <body name="yaw_link" pos="0 0 {_f(p('base_h') / 2)}">
+      <body name="yaw_link" pos="0 0 {_f(yaw_z - p('base_h') / 2)}">
         <joint name="{yaw['name']}" type="hinge" axis="{ax(yaw)}" range="{_f(math.radians(yr[0]))} {_f(math.radians(yr[1]))}" limited="true" damping="{_f(damp)}" frictionloss="{_f(fric)}" armature="{_f(arm)}"/>
         <geom name="neck" type="box" size="{_f(p('neck_d') / 2)} {_f(p('neck_w') / 2)} {_f(pitch_rel / 2)}" pos="0 0 {_f(pitch_rel / 2)}" mass="{_f(p('mass_neck'))}" contype="0" conaffinity="0"/>
         <body name="pitch_link" pos="0 0 {_f(pitch_rel)}">

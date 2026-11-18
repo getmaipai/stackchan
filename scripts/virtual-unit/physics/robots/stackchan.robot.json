@@ -24,14 +24,19 @@
       "note": "model params: base depth"
     },
     "base_h": {
-      "v": 0.01261,
+      "v": 0.01125,
       "src": "measured",
-      "note": "model params: base 11.1 mm plus the 1.51 mm bottom plate"
+      "note": "model params: table to the top of the turntable ring"
     },
     "base_center_x": {
-      "v": 0.004,
+      "v": 0.004002,
       "src": "measured",
-      "note": "model params: the turntable sits 4 mm behind the base footprint center, so the base center is 4 mm ahead of the yaw axis"
+      "note": "model params: the turntable sits 4 mm behind the base footprint center"
+    },
+    "yaw_axis_z": {
+      "v": 0.0119,
+      "src": "measured",
+      "note": "model params: yaw joint origin height above the table"
     },
     "neck_w": {
       "v": 0.03,
@@ -44,9 +49,9 @@
       "note": "servo holder depth"
     },
     "pitch_axis_z": {
-      "v": 0.04341,
+      "v": 0.0435,
       "src": "measured",
-      "note": "model params: servo shaft height, equal to the head's vertical center"
+      "note": "model params: servo stub height, equal to the head vertical center"
     },
     "head_w": {
       "v": 0.054,
@@ -65,8 +70,8 @@
     },
     "head_center_x": {
       "v": 0.0025,
-      "src": "assumed",
-      "note": "model params: the head front is 33.25 mm ahead of the pitch axis (assumed), so the head center is 2.5 mm ahead"
+      "src": "measured",
+      "note": "model params: the head front is 33.25 mm ahead of the pitch axis, the head is 61.5 mm deep"
     },
     "total_h": {
       "v": 0.07041,
@@ -76,22 +81,22 @@
     "mass_total": {
       "v": 0.1872,
       "src": "measured",
-      "note": "maker data sheet weight of the whole robot (the model's own 0.25 kg figure is an estimate and is not used)"
+      "note": "maker data sheet, whole robot (187.2 g); the model keeps the same figure"
     },
     "mass_head": {
-      "v": 0.1048,
+      "v": 0.105,
       "src": "assumed",
-      "note": "56 percent of the measured total, the model's head share"
+      "note": "model params split of the measured total"
     },
     "mass_neck": {
-      "v": 0.0449,
+      "v": 0.047,
       "src": "assumed",
-      "note": "24 percent of the measured total"
+      "note": "model params split of the measured total"
     },
     "mass_base": {
-      "v": 0.0375,
+      "v": 0.0352,
       "src": "assumed",
-      "note": "the rest: base, battery"
+      "note": "model params split of the measured total"
     },
     "yaw_range_deg": {
       "v": [

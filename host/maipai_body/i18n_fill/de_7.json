@@ -17,7 +17,7 @@
     "settings.ui.pg.item.timers": "Apps",
     "settings.ui.pg.item.games": "Spiele",
     "settings.ui.pg.item.battery": "Akkustand",
-    "settings.ui.pg.item.tailnet": "Privates Netzwerk",
+    "settings.ui.pg.item.tailnet": "Heimverbindung",
     "settings.ui.pg.item.address": "Einstellungsadresse",
     "settings.ui.pg.show": "Auf dem Roboter anzeigen",
     "settings.ui.pg.show_help": "Zeigt die Seite, die du gerade in der Vorschau siehst, auf dem Roboter an.",

@@ -48,14 +48,24 @@ def move_list(axes: list[str]) -> list[tuple[str, int]]:
 
 
 class SerialLink:
-    def __init__(self) -> None:
-        spec = importlib.util.spec_from_file_location("fw_serial", HERE / "fw-serial.py")
-        self.mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(self.mod)
-        self.port = self.mod.open_port()
+    """The unit on the cable (bench build). Two things the real unit does: the first call after the port opens is answered "Unknown tool" (so one throwaway call
+    warms it up), and a tool may answer a bare true or false instead of an object (read here as {"ok": value})."""
+
+    def __init__(self, mod=None, port=None) -> None:
+        if mod is None:
+            spec = importlib.util.spec_from_file_location("fw_serial", HERE / "fw-serial.py")
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+        self.mod = mod
+        self.port = port if port is not None else mod.open_port()
+        try:
+            self.mod.call(self.port, "self.robot.get_head_angles", {}, wait=3.0)  # warm-up; its answer (often Unknown tool) is not used
+        except (TimeoutError, OSError, ValueError):
+            pass
 
     def call(self, name: str, args: dict | None = None) -> dict:
-        return self.mod.call(self.port, name, args or {}, wait=5.0)
+        reply = self.mod.call(self.port, name, args or {}, wait=5.0)
+        return reply if isinstance(reply, dict) else {"ok": reply}
 
     def close(self) -> None:
         self.port.close()
@@ -145,6 +155,13 @@ def record(link, axes: list[str], out: Path, usb_limit_off: bool = False, hold_s
     log("first samples after the first step (does get_head_angles report feedback or the last target?):")
     for line in first_after_step:
         log("  " + line)
+    for axis in axes:
+        meas = [float(r[4]) for r in rows if r[0] == axis and r[5] != "0"]      # real readings only: the step rows carry no reading of their own
+        commands = [float(r[3]) for r in rows if r[0] == axis and r[5] != "0"]
+        if meas and max(commands) - min(commands) >= 10 and max(meas) - min(meas) < 2.0:
+            log(f"The {axis} reading stayed within {max(meas) - min(meas):.1f} degrees while it was commanded over {max(commands) - min(commands):.0f}: the head did not follow, so this recording cannot be fitted. "
+                "The unit ignores head moves while it is idle unless idle movement is on (the serial log says 'set_head_angles ignored: idle'); turn idle movement on or use the bench head command, then record again.")
+            return 3
     return 0
 
 

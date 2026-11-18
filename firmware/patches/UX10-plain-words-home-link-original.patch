@@ -1,0 +1,41 @@
+# Intent: Two words a child or a parent does not know are replaced with plain ones (display only): the control sheet tile and its status line say Home link instead of Private net (Spanish: Enlace casa), and the English face style Stock is called Original, as the Spanish one already was.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages_core.h and maipai_pages.cc (ours)
+# Check after a flash: the control sheet tile reads Home link and the settings Faces tab lists Original; the Info tab still says Private network in full.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -71,8 +71,8 @@
+ static const char* const MPG_SHEET_NAMES[MPG_S_COUNT] = {"volume", "brightness", "mute", "quiet", "lock", "timers", "games",
+                                                           "wifi", "battery", "tailnet", "address"};
+ static const char* const MPG_SHEET_TITLE[2][MPG_S_COUNT] = {
+-    {"Volume", "Bright", "Mute", "Quiet", "Lock", "Apps", "Games", "Wi-Fi", "Battery", "Private net", "Settings"},
+-    {"Volumen", "Brillo", "Silencio", "Calma", "Bloqueo", "Apps", "Juegos", "Wi-Fi", "Bateria", "Red privada", "Ajustes"},
++    {"Volume", "Bright", "Mute", "Quiet", "Lock", "Apps", "Games", "Wi-Fi", "Battery", "Home link", "Settings"},
++    {"Volumen", "Brillo", "Silencio", "Calma", "Bloqueo", "Apps", "Juegos", "Wi-Fi", "Bateria", "Enlace casa", "Ajustes"},
+ };
+ #define MPG_SHEET_MAX_ITEMS 11
+ #define MPG_SHEET_MAX_SLIDERS 2
+@@ -757,7 +757,7 @@
+ #define MPG_SET_STYLES 5
+ static const uint8_t MPG_SET_STYLE_ID[MPG_SET_STYLES] = {1 /* big eyes */, 9 /* eyes only */, 10 /* stock */, 0 /* classic */, 2 /* minimal */};
+ static const char* const MPG_SET_STYLE_NAME[2][MPG_SET_STYLES] = {
+-    {"Big eyes", "Eyes only", "Stock", "Classic", "Minimal"},
++    {"Big eyes", "Eyes only", "Original", "Classic", "Minimal"},
+     {"Ojos grandes", "Solo ojos", "Original", "Clasica", "Minima"},
+ };
+ #define MPG_SET_TILES_MAX (MPG_SET_STYLES + 1)  /* the sixth tile is the picture faces, only while a picture pack is held */
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -879,7 +879,7 @@
+             case MPG_S_TAILNET: {
+                 const int t = s_host->tailnet();
+                 if (t >= 0) {
+-                    snprintf(part, sizeof(part), "%s %s", tx("Private net", "Red priv."), t == 2 ? tx("up", "activa") : (t == 1 ? tx("joining", "uniendo") : tx("off", "apagada")));
++                    snprintf(part, sizeof(part), "%s %s", tx("Home link", "Enlace casa"), t == 2 ? tx("up", "activo") : (t == 1 ? tx("joining", "uniendo") : tx("off", "apagado")));
+                 }
+                 break;
+             }

@@ -12,7 +12,7 @@ from __future__ import annotations
 # New keys, English. Spanish below is the same keys.
 EN: dict[str, str] = {
     "settings.face.style.eyes_only": "Eyes only",
-    "settings.face.style.stock": "Stock (original)",
+    "settings.face.style.stock": "Original",
     "settings.face.background": "Screen color",
     "settings.face.tint": "Emotion colors",
     "settings.face.tint_help": "The eyes lean a little red when angry, blue when sad and pink for love. Every emotion keeps its own shape too.",

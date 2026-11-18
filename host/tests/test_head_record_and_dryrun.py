@@ -190,3 +190,54 @@ def test_host_half_of_the_dry_run_a_lift_stops_the_dance_and_a_tilt_holds_the_un
     refused = _post(view, "call", {"name": "self.robot.set_head_angles", "arguments": {"yaw": 30, "pitch": 20}})
     assert refused["ok"] is False
     assert not _post(view, "call", {"name": "self.robot.dance", "arguments": {"name": "happy"}})["ok"]
+
+
+# ---- what bench window 4 found: replies of the real unit -----------------------------------------------
+
+class FakeSerialModule:
+    """fw-serial.py as the real unit behaves: the first call after the port opens is answered Unknown tool; set_head_angles answers a bare true; the head does not follow."""
+
+    def __init__(self):
+        self.calls = []
+        self.first = True
+
+    def open_port(self):
+        return object()
+
+    def call(self, port, name, args=None, wait=5.0):
+        self.calls.append(name)
+        if self.first:
+            self.first = False
+            return {"text": "Unknown tool"}
+        if name == "self.robot.set_head_angles":
+            return True  # a bare true
+        if name == "self.robot.get_head_angles":
+            return {"yaw": 3, "pitch": 5}  # the head sits still: the unit ignored the moves while idle
+        if name == "self.motion.status":
+            return {"ok": True, "state": "free"}
+        return {"ok": True}
+
+
+def test_the_serial_link_warms_up_and_reads_a_bare_true_as_ok():
+    mod = FakeSerialModule()
+    link = rec.SerialLink(mod=mod, port=object())
+    assert mod.calls[0] == "self.robot.get_head_angles"  # the throwaway call went first
+    assert link.call("self.robot.set_head_angles", {"pitch": 10}) == {"ok": True}
+    assert link.call("self.robot.get_head_angles") == {"yaw": 3, "pitch": 5}
+
+
+def test_a_head_that_did_not_follow_is_reported_and_the_script_exits_nonzero(tmp_path):
+    link = rec.SerialLink(mod=FakeSerialModule(), port=object())
+    ticks = {"t": 0.0}
+    lines = []
+    code = rec.record(link, ["pitch"], tmp_path / "flat.csv", hold_s=0.5, log=lines.append, clock=lambda: ticks.__setitem__("t", ticks["t"] + 0.05) or ticks["t"], sleep=lambda s: ticks.__setitem__("t", ticks["t"] + s))
+    assert code == 3 and any("the head did not follow" in line and "idle" in line for line in lines)
+    assert (tmp_path / "flat.csv").exists()  # the samples are kept
+
+
+def test_calibrate_says_no_movement_and_exits_nonzero_on_flat_data(tmp_path, capsys):
+    path = tmp_path / "flat.csv"
+    rows = ["joint,move_id,t_ms,cmd_deg,meas_deg,rtt_ms"] + [f"pitch,{i // 20},{i * 50},{10 if i < 40 else 70},5,200" for i in range(80)]
+    path.write_text("\n".join(rows) + "\n")
+    assert cal.main([str(path)]) == 3
+    assert "no movement in the recording" in capsys.readouterr().err

@@ -183,3 +183,18 @@ def test_host_serves_the_model_and_turns_imu_numbers_into_carried_and_orientatio
     finally:
         proc.terminate()
         proc.wait(timeout=10)
+
+
+def test_the_physics_description_agrees_with_the_models_params():
+    """The description points at the model's numbers: sizes, joint heights, limits and the published total mass must not drift apart."""
+    model = json.loads((VU / "model" / "stackchan.params.json").read_text())
+    desc = mjcf.load()
+    v = lambda k: mjcf.value(desc, k)  # noqa: E731
+    dims = {k: e["value"] for k, e in model["dimensions"].items()}
+    assert math.isclose(v("base_w"), dims["base_width"]) and math.isclose(v("base_d"), dims["base_depth"]) and math.isclose(v("base_h"), dims["base_height"])
+    assert math.isclose(v("head_w"), dims["head_width"]) and math.isclose(v("head_h"), dims["head_height"]) and math.isclose(v("head_d"), dims["head_depth"])
+    assert math.isclose(v("yaw_axis_z"), model["joints"]["yaw_joint"]["origin"][1], abs_tol=1e-4)
+    assert math.isclose(v("pitch_axis_z"), model["joints"]["pitch_joint"]["origin"][1], abs_tol=1e-4)
+    assert v("yaw_range_deg") == model["joints"]["yaw_joint"]["limit_deg"] and v("pitch_range_deg") == model["joints"]["pitch_joint"]["limit_deg"]
+    assert math.isclose(v("mass_total"), model["mass_kg"]["total"]["value"]) and math.isclose(mjcf.total_mass(desc), v("mass_total"), abs_tol=1e-6)
+    assert math.isclose(v("head_center_x"), dims["head_front_from_axis"] - dims["head_depth"] / 2, abs_tol=1e-4)

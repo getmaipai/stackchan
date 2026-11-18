@@ -26,3 +26,4 @@ python3 scripts/docs-claims-check.py
 python3 scripts/virtual-unit/tools_extract.py --check
 
 python3 scripts/make-vu-screenshots.py --check
+python3 scripts/readiness.py --check

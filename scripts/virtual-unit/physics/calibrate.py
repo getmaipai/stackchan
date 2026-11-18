@@ -162,8 +162,19 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         print(f"calibrate: no inertia for {sorted(unknown)}; this fit knows yaw and pitch.", file=sys.stderr)
         return 2
+    for joint, rec in recs.items():
+        meas = [x["meas_deg"] for x in rec["samples"]]
+        cmd = [x["cmd_deg"] for x in rec["samples"]]
+        if len(meas) < 10 or (max(cmd) - min(cmd) >= 5 and max(meas) - min(meas) < 1.0):
+            print(f"calibrate: no movement in the recording: the {joint} head did not follow its commands (readings moved {max(meas) - min(meas):.1f} degrees, commands {max(cmd) - min(cmd):.0f}). "
+                  "Record again with the head able to move (idle movement on, or the bench head command).", file=sys.stderr)
+            return 3
     desc = mjcf.load(args.robot)
-    fitted, err = fit_joints(recs, desc)
+    try:
+        fitted, err = fit_joints(recs, desc)
+    except (ValueError, OverflowError, ZeroDivisionError) as error:
+        print(f"calibrate: the fit failed ({error}); the recording does not look like a servo following commands. Record again, or check the CSV.", file=sys.stderr)
+        return 3
     print(json.dumps({"joints": sorted(recs), "rms_deg": round(math.sqrt(err), 3), "fitted": {k: round(x, 6) for k, x in fitted.items()}}, indent=1))
     if args.write:
         path = HERE / "robots" / f"{args.robot}.robot.json"

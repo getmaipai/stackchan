@@ -50,7 +50,7 @@ Added: speaker grille on the controller's left side, the camera ring and the fou
 5. **Boards** are two flat green plates: one under the head top, one upright behind the controller. Only the schematics of the adapter, power, ring and touch boards are published, so size and position are guesses.
 6. **Servos, battery and cable** are drawn from what is published and are otherwise assumed; see the next section. The bearing is not drawn.
 7. **Arm side.** The arm is on the left because the holder's stub is on the right. Both parts are hidden inside the head.
-8. **Mass split** between head, neck and base is a guess; only the 187.2 g total is published.
+8. **Mass split** between head, neck and base is a guess; only the 187.2 g total is published. The physics description (`physics/robots/stackchan.robot.json`) keeps the published 187.2 g as its measured total and splits it by the model's shares (assumed); weigh a unit to replace the split.
 9. **Colors** are judged from photos. Units come in other colors.
 10. **Feet.** The base has no separate feet: `foot_0..3` mark the four corner mounting holes.
 

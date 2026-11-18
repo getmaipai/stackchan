@@ -13,7 +13,7 @@
     "settings.ui.pg.item.timers": "Applications",
     "settings.ui.pg.item.games": "Jeux",
     "settings.ui.pg.item.battery": "Pourcentage de batterie",
-    "settings.ui.pg.item.tailnet": "Réseau privé",
+    "settings.ui.pg.item.tailnet": "Lien maison",
     "settings.ui.pg.item.address": "Adresse des paramètres",
     "settings.ui.pg.show": "Afficher sur le robot",
     "settings.ui.pg.show_help": "Affiche maintenant sur le robot la page que vous prévisualisez.",
