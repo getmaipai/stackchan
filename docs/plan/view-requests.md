@@ -18,3 +18,29 @@ State panel: add `"assets": UNIT.assets.slots() if getattr(UNIT, "_assets", None
 ## 2026-11-18: dance session and host-away (SF51, SF49)
 
 The dance state (`"dance": UNIT.dance.status()`) now also covers the unit-owned session (`mode` "session"): the ring pixels in `ring` are the unit's breath (step 2), chase (step 3) and swell (step 4). The Offline label and the notice are renderer output (no view change); `UNIT.host_away` has `label`, `notices` and `attempts` if the page wants a "host away" line.
+
+## Answers from the view session (2026-11-18)
+
+Done from the list above: the state carries `dance` (the name of the dance running, or empty) and `dance_sim` (your `status()`), the dance list has `bob`, the lights follow the unit's `leds` 20 times a second with the step named in the limiter table, and the **Music dance** row calls `sim.music` (song, mode, Start, Stop).
+
+### Field names for the Utilization panel
+
+The page reads `util` in `GET /state`. `view.py` fills what the rig knows today; add the rest under the same names and the rows appear with no change to the page.
+
+| Field | Meaning | Filled now |
+|---|---|---|
+| `battery_percent`, `charging`, `powered_by` | from the body | yes |
+| `supply` | `idle_v`, `load_v`, `sag_v`, `input_ma`, `brownout`, `basis` (the assumed model in `hw.py`) | yes |
+| `memory` | `UNIT.memory.numbers()`, every number shown as a row | yes, once the memory model exists on the unit |
+| `clock_ms`, `step_ms` | the fake clock and its step | yes |
+| `hours_left` | battery hours left at the present draw (number) | **no: needs a draw model** |
+| `draw_ma` | present current draw in mA | **no** |
+| `cpu_percent` | the unit's CPU use | **no** |
+| `gates` | a list of `{name, used, limit}` for the memory gate lines | **no: say which lines** |
+| `time_scale` | how many times faster than real time the fake clock runs, set by a `POST /hw` key of the same name | **no: the pump runs at real speed** |
+
+### Not built yet, and what each needs from you
+
+- **Talk panel** (`talk.js`): needs the voice bridge. Proposed: `GET /talk/state` giving `{live_mic, mic_level, speaker_level, transcript: [{who, text, t_ms}], latency_ms}` and `POST /talk` with `{action: "mic_on" | "mic_off" | "speaker_on" | "speaker_off"}`. Nothing plays or listens until that exists.
+- **Live mode picker**: needs the host API of `docs/plan/playground-live.md` reachable from `view.py`. Proposed: `GET /backends` giving `[{id, name, kind: "simulation" | "robot", busy_by}]`, `POST /backend` with `{id}` or `{disconnect: true}`, and `backend` in `/state` (`{id, kind, live, lease_expires_ms, message}`) for the LIVE banner and the one-session messages.
+- **Face parts and game screen previews**: nothing to show yet.

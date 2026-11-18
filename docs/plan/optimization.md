@@ -85,7 +85,7 @@ Each owner adds measured numbers here, same format as Part 1.
 | 6 | Leave the inside parts out of a web copy | under 60,000 B saved | measured (sum of the inside nodes) | Show inside would have nothing to show | no |
 | 7 | Share materials, drop unused nodes | under 20,000 B | measured: no node is unused; the 12 light materials are needed one each | none | no gain |
 
-**Target for the static Pages viewer:** at most 600,000 B on the wire. Option 2 meets it (527,759 B) with no decoder and no visible change. Keep the full file for the local viewer and tests; build the web copy from the same generator (a quantized output, to write, deterministic like the full one) so the two cannot drift. The web copy differs only in how its numbers are stored: it carries the same parts, names and marks. Not built yet: this section is the measurement only.
+**Target for the static Pages viewer:** at most 600,000 B on the wire. Option 2 meets it (527,759 B) with no decoder and no visible change. Keep the full file for the local viewer and tests; build the web copy from the same generator (a quantized output, to write, deterministic like the full one) so the two cannot drift. The web copy differs only in how its numbers are stored: it carries the same parts, names and marks. **Built the same day:** `make_body.py` now writes `stackchan.web.glb` beside the full file (1,354,200 B on disk, 535,146 B with gzip, validator clean), the view loads it with `?model=web`, and a test checks it is the same model stored small.
 
 ### Host rows filled by the app track (2026-11-18, measured on the development Mac with `scripts/host-footprint.py --run`)
 

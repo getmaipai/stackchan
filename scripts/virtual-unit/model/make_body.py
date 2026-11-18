@@ -1114,11 +1114,85 @@ def assemble():
     return glb, params
 
 
+def quantized(glb):
+    """The same model with its numbers stored small, for the web: positions as 16-bit and normals as 8-bit (KHR_mesh_quantization).
+
+    Nothing is left out: the same nodes, names, marks and materials. Each node that had a mesh keeps its name and place and gets one
+    child, "<name>.mesh", which carries the mesh and the scale that turns the stored integers back into meters. Deterministic."""
+    n = struct.unpack_from('<I', glb, 12)[0]
+    doc = json.loads(glb[20:20 + n])
+    blob = glb[20 + n + 8:]
+
+    def data(i):
+        a = doc['accessors'][i]
+        v = doc['bufferViews'][a['bufferView']]
+        return blob[v.get('byteOffset', 0):v.get('byteOffset', 0) + v['byteLength']], a
+    out = bytearray()
+    views, accessors = [], []
+
+    def put(raw, target, stride=None):
+        while len(out) % 4:
+            out.append(0)
+        v = {'buffer': 0, 'byteOffset': len(out), 'byteLength': len(raw), 'target': target}
+        if stride:
+            v['byteStride'] = stride
+        views.append(v)
+        out.extend(raw)
+        return len(views) - 1
+    nodes = doc['nodes']
+    for ni in range(len(nodes)):
+        node = nodes[ni]
+        if 'mesh' not in node:
+            continue
+        mesh = doc['meshes'][node['mesh']]
+        los = [doc['accessors'][p['attributes']['POSITION']]['min'] for p in mesh['primitives']]
+        his = [doc['accessors'][p['attributes']['POSITION']]['max'] for p in mesh['primitives']]
+        lo = [min(v[k] for v in los) for k in range(3)]
+        ext = [max(max(v[k] for v in his) - lo[k], 1e-6) for k in range(3)]
+        for prim in mesh['primitives']:
+            attrs = {}
+            raw, a = data(prim['attributes']['POSITION'])
+            f = struct.unpack('<%df' % (a['count'] * 3), raw)
+            q = [int(round((f[i] - lo[i % 3]) / ext[i % 3] * 65535.0)) for i in range(len(f))]
+            packed = b''.join(struct.pack('<4H', q[i], q[i + 1], q[i + 2], 0) for i in range(0, len(q), 3))
+            accessors.append({'bufferView': put(packed, 34962, 8), 'componentType': 5123, 'normalized': True, 'count': a['count'], 'type': 'VEC3',
+                              'min': [min(q[k::3]) for k in range(3)], 'max': [max(q[k::3]) for k in range(3)]})
+            attrs['POSITION'] = len(accessors) - 1
+            raw, a = data(prim['attributes']['NORMAL'])
+            f = struct.unpack('<%df' % (a['count'] * 3), raw)
+            packed = bytearray()
+            for i in range(0, len(f), 3):
+                x, y, z = (f[i] * ext[1] * ext[2], f[i + 1] * ext[0] * ext[2], f[i + 2] * ext[0] * ext[1])   # the child node's scale is undone on the normal
+                ln = math.sqrt(x * x + y * y + z * z) or 1.0
+                packed += struct.pack('<4b', int(round(x / ln * 127)), int(round(y / ln * 127)), int(round(z / ln * 127)), 0)
+            accessors.append({'bufferView': put(bytes(packed), 34962, 4), 'componentType': 5120, 'normalized': True, 'count': a['count'], 'type': 'VEC3'})
+            attrs['NORMAL'] = len(accessors) - 1
+            if 'TEXCOORD_0' in prim['attributes']:
+                raw, a = data(prim['attributes']['TEXCOORD_0'])
+                accessors.append({'bufferView': put(raw, 34962), 'componentType': 5126, 'count': a['count'], 'type': 'VEC2'})
+                attrs['TEXCOORD_0'] = len(accessors) - 1
+            raw, a = data(prim['indices'])
+            accessors.append({'bufferView': put(raw, 34963), 'componentType': a['componentType'], 'count': a['count'], 'type': 'SCALAR'})
+            prim['attributes'], prim['indices'] = attrs, len(accessors) - 1
+        nodes.append({'name': node['name'] + '.mesh', 'mesh': node.pop('mesh'), 'translation': [round(v, 9) for v in lo], 'scale': [round(v, 9) for v in ext]})
+        node.setdefault('children', []).append(len(nodes) - 1)
+    while len(out) % 4:
+        out.append(0)
+    doc['accessors'], doc['bufferViews'], doc['buffers'] = accessors, views, [{'byteLength': len(out)}]
+    doc['extensionsUsed'] = doc['extensionsRequired'] = ['KHR_mesh_quantization']
+    doc['asset']['generator'] = 'make_body.py (web copy)'
+    js = json.dumps(doc, sort_keys=True, separators=(',', ':')).encode('ascii')
+    js += b' ' * (-len(js) % 4)
+    body = struct.pack('<II', len(js), 0x4E4F534A) + js + struct.pack('<II', len(out), 0x004E4942) + bytes(out)
+    return b'glTF' + struct.pack('<II', 2, 12 + len(body)) + body
+
+
 def build(out_dir=HERE):
     """Write stackchan.glb and stackchan.params.json into out_dir; returns the glb path."""
     glb, params = assemble()
     out_dir = Path(out_dir)
     (out_dir / 'stackchan.glb').write_bytes(glb)
+    (out_dir / 'stackchan.web.glb').write_bytes(quantized(glb))   # the same model, stored small for a web page
     (out_dir / 'stackchan.params.json').write_text(json.dumps(params, indent=1, sort_keys=True) + '\n')
     return out_dir / 'stackchan.glb'
 
@@ -1127,7 +1201,8 @@ def main(argv):
     if '--check' in argv:
         glb, params = assemble()
         here = Path(HERE)
-        same = ((here / 'stackchan.glb').exists() and (here / 'stackchan.glb').read_bytes() == glb and (here / 'stackchan.params.json').exists()
+        same = ((here / 'stackchan.glb').exists() and (here / 'stackchan.glb').read_bytes() == glb and (here / 'stackchan.web.glb').exists()
+                and (here / 'stackchan.web.glb').read_bytes() == quantized(glb) and (here / 'stackchan.params.json').exists()
                 and (here / 'stackchan.params.json').read_text() == json.dumps(params, indent=1, sort_keys=True) + '\n')
         print('model files match the source files' if same else 'model files are stale: run python3 scripts/virtual-unit/model/make_body.py')
         return 0 if same else 1

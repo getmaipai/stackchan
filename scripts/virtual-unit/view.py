@@ -127,6 +127,18 @@ def head_now():
     return {"yaw": round(yaw, 1), "pitch": round(pitch, 1)}
 
 
+def utilization():
+    """What the Utilization panel shows, from what the rig knows now. Field names are agreed in docs/plan/view-requests.md; a field the
+    rig cannot give yet is left out, and the page hides its row."""
+    out = {"battery_percent": HW.battery, "charging": HW.charging, "powered_by": HW.powered_by, "supply": HW.supply(), "clock_ms": UNIT.now_ms, "step_ms": STEP_MS}
+    if getattr(UNIT, "_memory", None) is not None:   # the memory model exists only once something has asked for it
+        try:
+            out["memory"] = UNIT.memory.numbers()
+        except Exception as err:   # a broken budget is reported, not hidden
+            out["memory_error"] = str(err)
+    return out
+
+
 DANCE = {"name": ""}  # the dance last asked for by name: the unit's dance session keeps the beat, not the name
 
 
@@ -209,7 +221,7 @@ class Handler(BaseHTTPRequestHandler):
                 recent = [t for t in UNIT.move_times if UNIT.now_ms - t < 60000]
                 state = {"now_ms": UNIT.now_ms, "emotion": UNIT.emotion, "tools": len(UNIT.tool_names), "head": head_now(), "leds": APPLIED["cover_ring"] or UNIT.leds,
                          "battery": UNIT.battery, "hw": HW.view(), "motion": mot, "moves_last_minute": len(recent), "moves_cap": vunit.MOVES_PER_MINUTE,
-                         "dance": dance_now()[0], "dance_sim": dance_now()[1], "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
+                         "dance": dance_now()[0], "dance_sim": dance_now()[1], "util": utilization(), "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
             self._send(json.dumps(state).encode(), "application/json")
         elif self.path == "/affiliation.json":   # the one place the affiliation wording lives (docs/plan/trademark-and-affiliation.md)
             self._send((HERE.parents[1] / "docs" / "legal" / "affiliation.json").read_bytes(), "application/json")
@@ -243,6 +255,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send((HERE / "view3d.js").read_bytes(), "text/javascript; charset=utf-8")
         elif self.path == "/model/stackchan.glb":  # the rigged body model the 3D drawing loads (built by model/make_body.py)
             self._send((HERE / "model" / "stackchan.glb").read_bytes(), "model/gltf-binary")
+        elif self.path == "/model/stackchan.web.glb":  # the same model stored small (16-bit positions, 8-bit normals); the page loads it with ?model=web
+            self._send((HERE / "model" / "stackchan.web.glb").read_bytes(), "model/gltf-binary")
         elif self.path == "/":
             self._send((HERE / "view.html").read_bytes(), "text/html; charset=utf-8")
         else:

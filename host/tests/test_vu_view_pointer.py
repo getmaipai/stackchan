@@ -92,6 +92,7 @@ def page():
         tabs = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list"))
         ws = websockets.connect(next(t["webSocketDebuggerUrl"] for t in tabs if t["type"] == "page"), max_size=None)
         p = Page(ws)
+        p.base = base
         p.send("Page.enable")
         p.send("Page.navigate", url=base + "/")
         assert p.until("typeof ST === 'object' && ST && ST.hw && ST.hw.on === true", 15), "the side panel never got the unit's state"
@@ -317,3 +318,63 @@ def test_a_touched_head_pad_glows_and_says_which_pad(page):
     page.click(p["x"] + 1, p["y"])
     assert page.until("/pad 2 of 3/.test(document.getElementById('msg').textContent)"), page.js("document.getElementById('msg').textContent")
     assert page.js(f"{hit}.hl.visible"), "and stays lit for a moment after the touch"
+
+
+def spot_of(page, ident):
+    """Page coordinates of the middle of a control, scrolled into view."""
+    r = page.js(f"(() => {{ const e = document.getElementById('{ident}') || document.querySelector('{ident}'); e.scrollIntoView({{block: 'center'}});"
+                f" const b = e.getBoundingClientRect(); return {{x: b.left + b.width / 2, y: b.top + b.height / 2}}; }})()")
+    return r["x"], r["y"]
+
+
+def test_a_dance_button_starts_a_session_and_the_lights_and_the_table_follow(page):
+    page.js("fetch('/call', {method: 'POST', body: JSON.stringify({name: 'self.robot.stop_dance', arguments: {}})}).then(r => r.json())")
+    for key, value in (("side", False), ("back", False), ("battery", 75)):
+        page.js(f"fetch('/hw', {{method: 'POST', body: JSON.stringify({{key: '{key}', value: {json.dumps(value)}}})}}).then(r => r.json())")
+    assert page.until("ST.hw.on && !ST.dance && ST.motion.state === 'free'", 10)
+    page.click(*spot_of(page, "[data-dance=happy]"))
+    assert page.until("ST.dance === 'happy' && ST.dance_sim && ST.dance_sim.running"), "the Dance happy button starts a dance session"
+    assert page.until("/happy \\(step \\d, \\w+\\)/.test(document.getElementById('limv').textContent)"), page.js("document.getElementById('limv').textContent")
+    assert page.until("ST.dance_sim.step >= 2 && ST.leds.some(c => c[0] + c[1] + c[2] > 0)", 12), "the ring comes on as the ladder climbs"
+    if page.js("!!(window.ROBOT && ROBOT.model && ROBOT.model.ready)"):
+        assert page.until("ROBOT.model.leds.slice(0, 12).some(m => m.visible) && ROBOT.model.glowLights.some(g => g.l.intensity > 0)"), "the drawn lights follow the unit's ring"
+    page.click(*spot_of(page, "dstop"))
+    assert page.until("!ST.dance && !ST.dance_sim.running && ST.leds.every(c => c[0] + c[1] + c[2] === 0)", 8), "Stop dance ends it and the ring goes dark"
+
+
+def test_the_music_dance_row_starts_and_stops_a_simulated_song(page):
+    page.js("(() => { document.getElementById('song').value = 'fast'; document.getElementById('mmode').value = 'unit'; })()")
+    page.click(*spot_of(page, "mstart"))
+    assert page.until("ST.dance_sim && ST.dance_sim.running && ST.dance_sim.song === 'fast'"), page.js("JSON.stringify(ST.dance_sim)")
+    page.click(*spot_of(page, "mstop"))
+    assert page.until("!ST.dance_sim.running", 8)
+
+
+def test_the_utilization_panel_shows_what_the_rig_knows(page):
+    text = "document.getElementById('utilv').textContent"
+    assert page.until(f"/Battery/.test({text}) && /Servo supply/.test({text}) && /assumed/.test({text})")
+    rate = page.js(f"+(/State updates(\\d+) a second/.exec({text}) || [0, 0])[1]")
+    assert rate >= 12, f"the panel reports {rate} state updates a second"
+    page.js("fetch('/hw', {method: 'POST', body: JSON.stringify({key: 'back', value: true})}).then(r => r.json())")
+    assert page.until(f"/USB, back socket/.test({text})")
+    page.js("fetch('/hw', {method: 'POST', body: JSON.stringify({key: 'back', value: false})}).then(r => r.json())")
+    assert page.until(f"/the battery/.test({text})")
+
+
+def test_the_small_web_copy_of_the_model_loads_and_works_the_same(page):
+    if not page.js("!!(window.ROBOT && ROBOT.model && ROBOT.model.ready)"):
+        pytest.skip("the 3D drawing did not start here (it needs the pinned three.js from the network and a graphics context)")
+    names = page.js("Object.keys(ROBOT.model.nodes).sort().join()")
+    page.send("Page.navigate", url=page.base + "/?model=web")
+    assert page.until("window.ROBOT && ROBOT.model && ROBOT.model.ready && /web\\.glb$/.test(ROBOT.modelFile) && typeof ST === 'object' && ST", 20), "the page did not load the web copy"
+    web = page.js("Object.keys(ROBOT.model.nodes).filter(n => !/\\.mesh$/.test(n)).sort().join()")
+    assert web == names, "the web copy has the same named parts"
+    assert page.js("ROBOT.model.bars.length === 2 && ROBOT.model.hits.length >= 10 && !!ROBOT.model.screen")
+    page.js("fetch('/hw', {method: 'POST', body: JSON.stringify({key: 'back', value: false})}).then(r => r.json())")
+    assert page.until("ST.hw.on && !ST.hw.ports.back.plugged")
+    page.js("(() => { document.getElementById('vback').click(); window.scrollTo(0, 0); })()")
+    time.sleep(0.5)
+    p = page.js("ROBOT.pointOf('usb_c_port')")
+    page.click(p["x"], p["y"])
+    assert page.until("ST.hw.ports.back.plugged"), "a click on the back socket works on the web copy too"
+    page.js("fetch('/hw', {method: 'POST', body: JSON.stringify({key: 'back', value: false})}).then(r => r.json())")

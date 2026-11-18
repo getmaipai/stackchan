@@ -493,3 +493,22 @@ def test_the_keys_are_flush_with_the_housing():
     reset = j["accessors"][j["meshes"][by["reset_button"][1]["mesh"]]["primitives"][0]["attributes"]["POSITION"]]
     assert abs(power["min"][0]) < 1e-6, "the power key's outer face is level with the controller's side, not proud of it"
     assert abs(reset["min"][1]) < 1e-6, "the reset key's outer face is level with the controller's underside"
+
+
+def test_the_web_copy_is_the_same_model_stored_small():
+    web = GLB.with_name("stackchan.web.glb")
+    spec = importlib.util.spec_from_file_location("make_body_web", VU / "model" / "make_body.py")
+    mb = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(VU / "model"))
+    spec.loader.exec_module(mb)
+    assert mb.quantized(GLB.read_bytes()) == web.read_bytes(), "the web copy is stale: run python3 scripts/virtual-unit/model/make_body.py"
+    assert web.stat().st_size < 1_500_000 < GLB.stat().st_size
+    j, _ = read_glb(GLB)
+    w, _ = read_glb(web)
+    assert w["extensionsRequired"] == ["KHR_mesh_quantization"]
+    full, small = [n["name"] for n in j["nodes"]], [n["name"] for n in w["nodes"]]
+    assert [n for n in small if not n.endswith(".mesh")] == full, "every named part is there, in the same order"
+    assert sorted(n[:-5] for n in small if n.endswith(".mesh")) == sorted(n["name"] for n in j["nodes"] if "mesh" in n), "each drawn part kept its mesh, on a child"
+    assert [m["name"] for m in w["materials"]] == [m["name"] for m in j["materials"]], "the same materials: nothing is left out of the web copy"
+    by = {n["name"]: n for n in w["nodes"]}
+    assert by["yaw_joint"]["extras"] == nodes_by_name(j)["yaw_joint"][1]["extras"] and "mesh" not in by["head"]

@@ -14,10 +14,15 @@ function readGlb(THREE, bytes) {
   const bin = bytes.slice(20 + jsonLen + 8);
   const srgb = v => Math.pow(Math.max(0, Math.min(1, v)), 1 / 2.2);   // the file stores linear color; this renderer draws colors as given
   const width = {SCALAR: 1, VEC2: 2, VEC3: 3};
-  const arrays = {5126: Float32Array, 5123: Uint16Array, 5125: Uint32Array};
-  function accessor(i) {
-    const a = doc.accessors[i], v = doc.bufferViews[a.bufferView];
-    return new THREE.BufferAttribute(new arrays[a.componentType](bin, v.byteOffset || 0, a.count * width[a.type]), width[a.type]);
+  const arrays = {5126: Float32Array, 5123: Uint16Array, 5125: Uint32Array, 5120: Int8Array};
+  function accessor(i) {   // also reads the web copy: 16-bit positions and 8-bit normals, each padded to four bytes
+    const a = doc.accessors[i], v = doc.bufferViews[a.bufferView], T = arrays[a.componentType], n = width[a.type], per = (v.byteStride || 0) / T.BYTES_PER_ELEMENT;
+    if (per && per !== n) {
+      const src = new T(bin, v.byteOffset || 0, a.count * per), dst = new T(a.count * n);
+      for (let k = 0; k < a.count; k++) for (let c = 0; c < n; c++) dst[k * n + c] = src[k * per + c];
+      return new THREE.BufferAttribute(dst, n, !!a.normalized);
+    }
+    return new THREE.BufferAttribute(new T(bin, v.byteOffset || 0, a.count * n), n, !!a.normalized);
   }
   // The housings are matte molded plastic with a fine grain. The file has no pictures in it, so the grain is made here to the numbers
   // measured in the owner's close-ups: features about 0.1 mm across and a brightness spread of about 3 percent seen square on
@@ -51,7 +56,13 @@ function readGlb(THREE, bytes) {
     byName[n.name] = g;
     return g;
   });
-  doc.nodes.forEach((n, i) => (n.children || []).forEach(c => nodes[i].add(nodes[c])));
+  doc.nodes.forEach((n, i) => (n.children || []).forEach(c => {
+    const ch = doc.nodes[c];
+    if (!/\.mesh$/.test(ch.name)) { nodes[i].add(nodes[c]); return; }
+    for (const mesh of [...nodes[c].children]) {   // the web copy keeps each mesh on a child that carries its scale: put the mesh on the named node itself
+      mesh.position.fromArray(ch.translation || [0, 0, 0]); mesh.scale.fromArray(ch.scale || [1, 1, 1]); mesh.name = n.name; nodes[i].add(mesh);
+    }
+  }));
   const root = new THREE.Group();
   doc.scenes[doc.scene || 0].nodes.forEach(i => root.add(nodes[i]));
   return {root, byName};
@@ -207,7 +218,8 @@ function initRobot(THREE, canvas, hooks) {
     targetHome.y = target.y = M.topY / 2;
     M.ready = true;
   }
-  fetch('/model/stackchan.glb').then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.arrayBuffer(); })
+  const modelFile = typeof location !== 'undefined' && /[?&]model=web\b/.test(location.search || '') ? '/model/stackchan.web.glb' : '/model/stackchan.glb';   // ?model=web loads the small copy
+  fetch(modelFile).then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.arrayBuffer(); })
     .then(buf => install(readGlb(THREE, buf)))
     .catch(err => { if (hooks.status) hooks.status('The robot model did not load (' + err.message + '). Run python3 scripts/virtual-unit/model/make_body.py and reload; the flat screen is at /frame.png.'); });
 
@@ -474,7 +486,7 @@ function initRobot(THREE, canvas, hooks) {
     render() { const t0 = performance.now(); placeCam(); table.visible = grid.visible = cam.position.y > 0; r.render(scene, cam); this.perf.ms += (performance.now() - t0 - this.perf.ms) * 0.1; this.perf.frames++; if (M.ready) placeLabels(!!this.labelsOn); },   // from below, the table would hide the underside
     demo() { M.demoNote = ''; M.demoAt = M.demoAt ? 0 : performance.now(); return !!M.demoAt; },
     get screen() { return M.screen; },
-    model: M, view, target, perf: {ms: 0, frames: 0},   // perf.ms: how long drawing one picture takes, smoothed
+    model: M, view, target, modelFile, perf: {ms: 0, frames: 0},   // perf.ms: how long drawing one picture takes, smoothed
     pointOf(name) {   // where a switch, or any named part of the model, is on the page right now, for scripted checks
       const h = M.hits.find(x => x.name === name), o = h ? h.mesh : (M.nodes && M.nodes[name]); if (!o) return null;
       placeCam(); cam.updateMatrixWorld(); const p = o.getWorldPosition(new THREE.Vector3()).project(cam), b = cv.getBoundingClientRect();

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Intent: check stackchan.glb with the Khronos glTF validator, on this Mac only (the file is read locally; nothing is uploaded).
-# Usage: bash scripts/virtual-unit/model/validate.sh   Prints one line; exit 1 on any error or warning.
+# Usage: bash scripts/virtual-unit/model/validate.sh [file, default stackchan.glb]   Prints one line; exit 1 on any error or warning.
 # Needs node and npm. The validator (pinned below, Apache-2.0) is installed into .runs/gltf-validator on first use; it is a development tool only.
 # Placement: host-side development tool. Upstream: none.
 set -eu
@@ -15,4 +15,4 @@ v.validateBytes(new Uint8Array(fs.readFileSync(process.argv[1]))).then(r => {
   console.log("validate: " + i.numErrors + " errors, " + i.numWarnings + " warnings, " + i.numInfos + " infos, " + r.info.totalTriangleCount + " triangles, " + r.info.drawCallCount + " draw calls");
   for (const m of bad.slice(0, 10)) console.log("  " + m.code + " " + m.pointer + ": " + m.message);
   process.exit(bad.length ? 1 : 0);
-});' "$HERE/stackchan.glb"
+});' "${1:-$HERE/stackchan.glb}"

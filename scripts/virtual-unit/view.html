@@ -64,9 +64,14 @@ button[disabled]{opacity:.45;cursor:not-allowed}
    <div class="t" style="font-size:12px">The maker advises pitch 5 to 85. Drag a slider, drag the head in the picture, or use the arrow keys.</div>
    <div class="row"><button data-look="-90,20">Look left</button><button data-look="0,3">Center</button><button data-look="90,20">Look right</button><button data-look="0,70">Look up</button></div>
    <div class="row"><button id="dstop" class="off">Stop dance</button><button data-dance="happy">Dance happy</button><button data-dance="robot">robot</button><button data-dance="panic">panic</button><button data-dance="look_around">look around</button></div>
+   <div class="row" title="A simulated song for the music dance: the unit's own ladder climbs from still to a full dance and back"><span class="t" style="font-size:12px">Music dance</span><select id="song" style="width:auto"><option>slow</option><option selected>fast</option><option>very_fast</option><option>loud_peak</option><option>quiet</option><option>fades</option></select><select id="mmode" style="width:auto" title="Whether Home can be reached to direct the show"><option value="home">Home reachable</option><option value="unit">unit alone</option></select><button id="mstart">Start</button><button id="mstop">Stop</button></div>
    <div class="kv" id="limv"></div>
    <div>Head moves in the last minute <b id="mvv">0</b> of <span id="mvc">40</span></div><div class="meter"><i id="mvb" style="width:0"></i></div>
    <div id="limmsg" class="t" style="margin-top:6px;font-size:12px"></div></section>
+  <section><h2>Utilization</h2>
+   <div class="kv" id="utilv"></div>
+   <div style="margin-top:6px;font-size:12px" class="t">Servo supply with both servos moving (assumed model)</div><div class="meter" title="Left edge 4.0 V, right edge 5.0 V; the mark is where a reset is expected"><i id="sagbar" style="width:0"></i></div>
+   <div id="utilnote" class="t" style="margin-top:6px;font-size:12px"></div></section>
   <section><h2>Physics (optional)</h2>
    <label class="row" style="margin-top:0"><input id="phys" type="checkbox"> Physics mode (loads the engine, about 11 MB, only when on)</label>
    <div id="physmsg" class="t" style="margin-top:6px;font-size:12px">Off: the flat unit and the kinematic model run as before.</div>
@@ -221,6 +226,9 @@ slider('pitch',v=>{$('pitchv').textContent=v;},(v,final)=>aimHead(+$('yaw').valu
 document.querySelectorAll('[data-look]').forEach(b=>b.onclick=()=>{const [y,p]=b.dataset.look.split(',').map(Number);aimHead(y,p,true);});
 document.querySelectorAll('[data-dance]').forEach(b=>b.onclick=async()=>{const r=await call('self.robot.dance',{name:b.dataset.dance});$('limmsg').textContent=r.ok?'':(r.error||'refused');});
 $('dstop').onclick=()=>call('self.robot.stop_dance',{});
+$('mstart').onclick=async()=>{const r=await call('sim.music',{action:'start',song:$('song').value,mode:$('mmode').value});$('limmsg').textContent=r.ok?'':'The music dance did not start: '+whyText(r)+'.';};
+$('mstop').onclick=()=>call('sim.music',{action:'stop'});
+let polls=[];   // when the last state updates arrived, to show how fast the page follows the unit
 function setBtn(id,label,on,off){const b=$(id);b.textContent=label;b.className=on===undefined?'':(on?'on':'off');}
 function startPoll(extra){setInterval(async()=>{try{const st=await (await fetch('/state')).json();if(extra)extra(st);paintBody(st);}catch(e){}},50);}   // 20 times a second, the rate of the dances' light shows; the panel works with or without the 3D drawing
 function paintBody(st){ST=st;const h=st.hw,m=st.motion;
@@ -240,6 +248,15 @@ function paintBody(st){ST=st;const h=st.hw,m=st.motion;
  $('hwv').innerHTML=`<span>Powered by</span><span>${h.on?by:'nothing (off)'}</span><span>Cable power (VBUS)</span><span>${h.vbus?'present, up to '+sp.input_ma+' mA (assumed)':'none'}</span><span>Charging</span><span>${h.charging?'yes':'no'}</span><span>Servo supply</span><span>${sp.idle_v.toFixed(2)} V still, ${sp.load_v.toFixed(2)} V with both servos moving${sp.brownout?' (too low: expect a reset)':''} <span class="t">(${sp.basis}, not measured)</span></span><span>Serial</span><span>${h.serial?'connected over the '+pn[h.usb_path.data_from]:'not connected'}</span><span>Screen</span><span>${!h.on?'black':h.booting?'boot cover':h.sleeping_soon?'low battery, going to sleep':'running'}</span><span>Recent</span><span>${h.events.slice(-3).join('; ')||'-'}</span>`;
  const lc=h.limiter_cable;
  $('whylim').innerHTML=`<b>What limits the head now:</b> ${m.state==='free'?'nothing':(m.reasons||m.state)} <span class="t">(${m.scale} percent of the full swing, speed ${m.speed_cap} of 1000)</span><br><span class="t">Cable seen by the limiter: ${lc.present?'yes, from the '+lc.from.map(n=>pn[n]).join(' and the '):'no'}. Rule: ${lc.rule}.</span>`;
+ const u=st.util||{},now=performance.now();polls.push(now);polls=polls.filter(t=>now-t<2000);
+ const rows=[['Battery',u.battery_percent+' percent'+(u.hours_left!==undefined?', about '+u.hours_left.toFixed(1)+' hours left':'')],['Power from',{battery:'the battery',side:'USB, side socket',back:'USB, back socket',both:'USB, both sockets'}[u.powered_by]||u.powered_by],
+  ['Draw',u.draw_ma!==undefined?u.draw_ma+' mA':null],['Servo supply',u.supply?u.supply.idle_v.toFixed(2)+' V still, '+u.supply.load_v.toFixed(2)+' V under load ('+u.supply.basis+')':null],
+  ['Unit CPU',u.cpu_percent!==undefined?u.cpu_percent+' percent':null],['State updates',(polls.length/2).toFixed(0)+' a second'],['One picture drawn in',window.ROBOT?ROBOT.perf.ms.toFixed(2)+' ms':null]];
+ if(u.memory)for(const [k,v] of Object.entries(u.memory))if(typeof v==='number')rows.push(['Memory: '+words(k),v.toLocaleString()+' bytes']);
+ if(u.memory_error)rows.push(['Memory','over budget: '+u.memory_error]);
+ $('utilv').innerHTML=rows.filter(r=>r[1]!==null&&r[1]!==undefined).map(r=>`<span>${r[0]}</span><span>${r[1]}</span>`).join('');
+ if(u.supply){$('sagbar').style.width=Math.max(0,Math.min(100,(u.supply.load_v-4)*100))+'%';$('sagbar').style.background=u.supply.brownout?'var(--bad)':'var(--accent)';}
+ $('utilnote').textContent=u.memory?'':'Memory shows once the unit has opened something that is counted. Hours left, current draw and unit CPU need numbers the rig does not give yet.';
  $('yawr').textContent=st.yaw_range.join(' to ');$('pitchr').textContent=st.pitch_range.join(' to ');
  $('limv').innerHTML=`<span>Limiter state</span><span><b>${m.state}</b></span><span>Why</span><span>${m.reasons||'nothing limits it'}</span><span>Excursion</span><span>${m.scale} percent</span><span>Speed cap</span><span>${m.speed_cap} of 1000</span><span>Dances up to</span><span>step ${m.dance_max}</span><span>Dance now</span><span>${st.dance?st.dance+(st.dance_sim&&st.dance_sim.running?' (step '+st.dance_sim.step+', '+st.dance_sim.step_name+')':''):'none'}</span>`;
  $('mvv').textContent=st.moves_last_minute;$('mvc').textContent=st.moves_cap;$('mvb').style.width=Math.min(100,100*st.moves_last_minute/st.moves_cap)+'%';

@@ -60,3 +60,9 @@ The unit has two USB-C sockets: one on the side of the controller and one at the
 - The unit's clock, the screen picture and the page's state poll run 20 times a second (`STEP_MS` in `view.py`), the rate of the dances' light shows.
 - The plastics are drawn matte with a fine grain, in colors measured from photos of the real unit against a white label (neutral light gray shell and controller, dark slightly blue base and back cover). The grain is made in the view to the measured size and strength (0.1 mm, about 3 percent), because the model file carries no pictures; the numbers and their limits are in `scripts/virtual-unit/model/MATCH.md`. The slits behind the two top connectors glow dimly with the ring, as on the real unit, where those connectors are not sealed.
 - The model shows the real robot with its own name, mark and labels (drawn in simple strokes); they are not this project's branding. A short affiliation notice sits at the foot of the side panel and links to `/about`; its wording comes from `docs/legal/affiliation.json` (`docs/plan/trademark-and-affiliation.md`).
+
+## Dances, utilization and the web copy (2026-11-18)
+
+- The four dance buttons start a dance session on the unit (the ladder climbs from still to a full dance); the limiter table shows the dance and its step, the ring lights and the screen follow the unit 20 times a second. The **Music dance** row plays a simulated song (`sim.music`: song, Home reachable or unit alone, Start, Stop).
+- **Utilization** shows the battery, the power source, the servo supply (assumed model), the memory numbers once the unit counts any, how many state updates arrive a second and how long one picture takes to draw. Rows for hours left, current draw and unit CPU appear when the rig provides those numbers (field names in `docs/plan/view-requests.md`).
+- `?model=web` loads `stackchan.web.glb`, the same model stored small.
