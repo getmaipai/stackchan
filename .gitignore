@@ -7,3 +7,4 @@ build/
 sdkconfig.old
 .DS_Store
 site/
+*.actual.png

@@ -71,6 +71,28 @@ _RENDER = _REPO / ".runs" / "vu-build" / "render"
 _VU_FILES = ("test_vu_tools_", "test_virtual_unit")
 
 
+def _inputs_stamp() -> str:
+    """A hash of everything the renderers are built from: the build scripts, the renderer sources and the face patches the overlay applies. When it differs from the
+    stamp of the last build, the renderer is stale (the goldens are drawn from the patched code, so a stale renderer fails them for no reason in the code)."""
+    import hashlib
+    import re
+
+    h = hashlib.sha256()
+    vu, fr = _REPO / "scripts" / "virtual-unit", _REPO / "scripts" / "fw-face-render"
+    names = [vu / "build-face.sh", vu / "build-screens.sh", vu / "cover_gen.py", vu / "cover_render.cc"] + sorted(p for p in fr.iterdir() if p.is_file())
+    listed = re.search(r'FACE_PATCHES="([^"]*)"', (vu / "build-face.sh").read_text())
+    names += [_REPO / "firmware" / "patches" / n for n in (listed.group(1).split() if listed else [])]
+    for p in names:
+        h.update(p.name.encode())
+        h.update(p.read_bytes() if p.exists() else b"missing")
+    return h.hexdigest()
+
+
+def _renderer_is_current() -> bool:
+    stamp = _REPO / ".runs" / "vu-build" / "inputs.sha"
+    return _RENDER.exists() and stamp.exists() and stamp.read_text().strip() == _inputs_stamp()
+
+
 def _build_renderers() -> str:
     """Builds the face and screens renderers when MAIPAI_BUILD_RENDERER=1 and a firmware tree is on this Mac. Returns a reason when it cannot."""
     tree = Path(os.environ.get("MAIPAI_FW_TREE_ROOT", Path.home() / "esp" / "stackchan-rebase" / "final15"))
@@ -81,6 +103,7 @@ def _build_renderers() -> str:
         run = subprocess.run(cmd, cwd=_REPO, capture_output=True, text=True)
         if run.returncode != 0 or not face_build.exists():
             return "the renderer build failed: " + (run.stderr or run.stdout)[-300:]
+    (_REPO / ".runs" / "vu-build" / "inputs.sha").write_text(_inputs_stamp() + "\n")
     return ""
 
 
@@ -89,7 +112,7 @@ def pytest_collection_modifyitems(config, items):
     unit_items = [i for i in items if Path(str(i.fspath)).name.startswith(_VU_FILES)]
     if not unit_items:
         return
-    if not _RENDER.exists() and os.environ.get("MAIPAI_BUILD_RENDERER") == "1":
+    if not _renderer_is_current() and os.environ.get("MAIPAI_BUILD_RENDERER") == "1":   # absent or built from older inputs
         why = _build_renderers()
         if why:
             print(f"\nvirtual unit renderer not built: {why}")
