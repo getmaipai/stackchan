@@ -2,6 +2,8 @@
 
 Off by default. The robot sits on your desk and shows what a coding agent on your computer is doing. It is local only and sends nothing back to the agent.
 
+![The hook tells the robot the agent needs you.](../images/shot-coding-companion.png)
+
 ## What you see
 - Blue ring light: the agent is working.
 - Amber ring light and one soft tone: the agent needs you. The tone plays at most once a minute.

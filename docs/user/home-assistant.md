@@ -2,6 +2,8 @@
 
 Off by default. Lets you talk to Home Assistant through the robot and ask about one camera picture. Everything stays on your home network.
 
+![The settings block, and a spoken request answered by Home Assistant.](../images/shot-home-assistant.png)
+
 ## Turn it on
 1. In Home Assistant, create a long-lived access token (your profile page, Security).
 2. Put it in the environment of the host program as `STACKCHAN_HA_TOKEN`. It is never written in `robot.toml`.

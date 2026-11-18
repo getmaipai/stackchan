@@ -156,3 +156,7 @@ Sound direction, Bluetooth, a phone app, a voice that shows emotion (the face ca
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.
+
+## Optional extras (all off until you turn them on)
+- [Memory notes](memory-notes.md), [Home Assistant](home-assistant.md), [Coding companion](coding-companion.md), [Make your own wake word](wake-word-maker.md), [Character packs](character-packs.md).
+- [Check on the robot from your phone](parent-view.md) and [Flash the robot from a web page](web-flasher.md).

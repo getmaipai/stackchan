@@ -27,4 +27,8 @@ JS_FAMILY = r"""
   document.querySelectorAll('[disabled]').forEach(e=>{if((e.title||'')===w||e.querySelector('.badge'))e.hidden=true});
   document.querySelectorAll('.badge').forEach(e=>{if(e.textContent===w&&!e.closest('[hidden]'))e.hidden=true})};
  new MutationObserver(soon).observe(document.body,{childList:true,subtree:true});}
+
+/* documentation screenshots: ?only=words shows just the cards whose title holds those words */
+{const only=new URLSearchParams(location.search).get('only');if(only){const q=only.toLowerCase();
+ new MutationObserver(()=>document.querySelectorAll('.card').forEach(c=>{const t=((c.querySelector('h3')||{}).textContent||'').toLowerCase();c.style.display=t.includes(q)?'':'none'})).observe(document.body,{childList:true,subtree:true})}}
 """
