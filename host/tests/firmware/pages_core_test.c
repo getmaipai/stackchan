@@ -217,7 +217,7 @@ static void test_sheet_layout(void)
     mpg_sheet_t L;
     mpg_sheet_layout(&c, &L);
     /* the default sheet: status line, one slider row, two tile rows (six tiles and More) */
-    CHECK(L.top_y >= 90 && L.top_y <= 120);   /* patch UI05: one row of icon tiles, so the sheet is the lower 55 percent */
+    CHECK(L.top_y >= 80 && L.top_y <= 120);   /* patch UI05: one row of icon tiles; patch UX02c: the tiles carry a 16 px word, so the sheet is 16 px taller */
     CHECK(L.top_y >= 28);                      /* never over the banner */
     CHECK(L.n_status == 2 && L.status_h == MPG_STATUS_ROW_H && L.text_h == 0);   /* Wi-Fi and battery: the status row */
     int tiles = 0, sliders = 0;
@@ -296,12 +296,12 @@ static void test_icons_status_row_and_settings_screen(void)
     for (int i = 0; i < L.n; i++) {
         if (L.r[i].item == MPG_S_COUNT || mpg_sheet_kind(L.r[i].item) == 1) {
             if (row_y < 0) row_y = L.r[i].y;
-            CHECK(L.r[i].y == row_y && L.r[i].w == 44 && L.r[i].h == 44);
+            CHECK(L.r[i].y == row_y && L.r[i].w == MPG_TILE_W && L.r[i].h == MPG_TILE_H);
             ntile++;
         }
     }
-    CHECK(ntile == 6 && L.r[L.n - 1].item == MPG_S_COUNT && L.r[L.n - 1].x + 44 <= 320 && L.r[L.n - 6].x >= 0);
-    CHECK(L.r[L.n - 6].x + L.r[L.n - 1].x + 44 == 320);   /* centered */
+    CHECK(ntile == 6 && L.r[L.n - 1].item == MPG_S_COUNT && L.r[L.n - 1].x + MPG_TILE_W <= 320 && L.r[L.n - 6].x >= 0);
+    CHECK(L.r[L.n - 6].x + L.r[L.n - 1].x + MPG_TILE_W == 320);   /* centered */
     /* colors follow the state: green good, amber low, red critical */
     CHECK(mpg_signal_level(4) == 0 && mpg_signal_level(3) == 0 && mpg_signal_level(2) == 1 && mpg_signal_level(1) == 2 && mpg_signal_level(0) == 2);
     CHECK(mpg_battery_level(80, 0) == 0 && mpg_battery_level(30, 0) == 0 && mpg_battery_level(29, 0) == 1 && mpg_battery_level(15, 0) == 1 &&

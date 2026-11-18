@@ -1,0 +1,43 @@
+# Intent: Add readable English and Spanish labels beneath the six control sheet icons.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages.cc and firmware/main/hal/maipai_pages_core.h (ours, patches UI05 and NX01).
+# Check after a flash: Swipe down and confirm all six 16 px labels fit beneath their icons.
+
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -957,7 +957,17 @@
+     lv_obj_set_style_bg_color(b, on ? fg(100) : fg(16), 0);
+     const lv_color_t bg = on ? fg(100) : fg(16);
+     mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
+-    draw_shapes(b, sh, mpg_sheet_icon_shapes(item, sh), (MPG_TILE_W - 24) / 2, (MPG_TILE_H - 24) / 2, 1, on ? maipai_ui_style::bg() : fg(100), bg);
++    draw_shapes(b, sh, mpg_sheet_icon_shapes(item, sh), (MPG_TILE_W - 24) / 2, 2, 1, on ? maipai_ui_style::bg() : fg(100), bg);
++    const char* label = item == MPG_S_MUTE ? tx("Mute", "Mudo") :
++                        item == MPG_S_QUIET ? tx("Sleep", "Dormir") :
++                        item == MPG_S_LOCK ? tx("Lock", "Bloq.") :
++                        item == MPG_S_TIMERS ? tx("Apps", "Apps") :
++                        item == MPG_S_GAMES ? tx("Games", "Juegos") : tx("Setup", "Config");
++    lv_obj_t* caption = text(b, label, kSmall, fg(70));  // patch UX02c: one size for all six words, short enough for the tile
++    lv_label_set_long_mode(caption, LV_LABEL_LONG_CLIP);
++    lv_obj_set_width(caption, MPG_TILE_W);
++    lv_obj_set_style_text_align(caption, LV_TEXT_ALIGN_CENTER, 0);
++    lv_obj_set_pos(caption, 0, 29);
+ }
+ 
+ void sheet_clock_text(char* out, size_t n)
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -668,11 +668,11 @@
+     uint8_t n_status;
+ } mpg_sheet_t;
+ 
+-#define MPG_TILE_W 44       /* patch UI05: an icon tile is 44 by 44, up to six in one row (the last is the gear) */
+-#define MPG_TILE_H 44
++#define MPG_TILE_W 50       /* patch UI05: an icon tile is 44 by 44, up to six in one row (the last is the gear) */
++#define MPG_TILE_H 60  /* includes the 16 px control label */
+ #define MPG_TILE_COLS 6
+ #define MPG_TILE_GAP 4   /* between rows */
+-#define MPG_TILE_GAPX 6  /* between columns */
++#define MPG_TILE_GAPX 2  /* between columns */
+ #define MPG_SLIDER_ROW_H 44
+ #define MPG_SLIDER_W 144
+ #define MPG_STATUS_LINE_H 20

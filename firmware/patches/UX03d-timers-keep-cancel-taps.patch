@@ -1,0 +1,32 @@
+# Intent: Keep timer Cancel buttons alive during countdown ticks.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_apps.cc (ours, patches UX03 and NX09)
+# Check after a flash: Start a timer and tap Cancel while its countdown updates.
+
+--- a/firmware/main/hal/maipai_apps.cc	2026-11-18 00:14:22
++++ b/firmware/main/hal/maipai_apps.cc	2026-11-18 00:14:28
+@@ -621,7 +621,7 @@
+ {
+     int sig = n;
+     for (int i = 0; i < n; i++) {
+-        sig = sig * 31 + static_cast<int>(t[i].id) * 7 + t[i].hour * 3 + t[i].minute;
++        sig = sig * 31 + static_cast<int>(t[i].id);
+     }
+     return sig;
+ }
+@@ -632,7 +632,6 @@
+         return;
+     }
+     g_host->timer_cancel(static_cast<uint32_t>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e))));
+-    S->sig = -1;  // the list is rebuilt at the next tick
+ }
+ 
+ void on_preset(lv_event_t* e)
+@@ -652,7 +651,6 @@
+     if (why != nullptr && why[0] != '\0') {
+         toast(why);
+     }
+-    S->sig = -1;
+ }
+ 
+ // What a timer started with: remembered by id while the screen is up; a timer first seen part way through counts from what it had then.
