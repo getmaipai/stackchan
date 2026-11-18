@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 129,
+ "count": 134,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -110,12 +110,17 @@
   "self.remote.say": "TB05-visible-remote-control.patch",
   "self.remote.say_status": "TB05-visible-remote-control.patch",
   "self.remote.session": "TB05-visible-remote-control.patch",
+  "self.robot.create_reminder": "base firmware (schema/base-tools.json)",
   "self.robot.dance": "020-dance-mcp-tools.patch",
   "self.robot.dance_list": "V04-dance-extras.patch",
   "self.robot.get_events": "021-device-events-tool.patch",
+  "self.robot.get_head_angles": "base firmware (schema/base-tools.json)",
+  "self.robot.get_reminders": "base firmware (schema/base-tools.json)",
+  "self.robot.set_head_angles": "base firmware (schema/base-tools.json)",
   "self.robot.set_idle_motion": "037-idle-motion-tool.patch",
   "self.robot.set_led_colors": "A01-per-pixel-led-tool.patch",
   "self.robot.stop_dance": "020-dance-mcp-tools.patch",
+  "self.robot.stop_reminder": "base firmware (schema/base-tools.json)",
   "self.screen.bench_touch": "W01-screen-wake-and-saved-level.patch",
   "self.screen.get_level": "W01-screen-wake-and-saved-level.patch",
   "self.tailnet.set": "TN01-travel-private-network.patch",
@@ -458,16 +463,34 @@
    "active": "boolean",
    "label": "string"
   },
+  "self.robot.create_reminder": {
+   "duration_seconds": "integer",
+   "message": "string",
+   "repeat": "boolean"
+  },
   "self.robot.dance": {
    "name": "string"
   },
   "self.robot.dance_list": {},
   "self.robot.get_events": {},
+  "self.robot.get_head_angles": {},
+  "self.robot.get_reminders": {},
+  "self.robot.set_head_angles": {
+   "yaw": "integer",
+   "pitch": "integer",
+   "speed": "integer",
+   "source": "string",
+   "token": "integer",
+   "cue_kind": "string"
+  },
   "self.robot.set_idle_motion": {
    "enabled": "boolean"
   },
   "self.robot.set_led_colors": {},
   "self.robot.stop_dance": {},
+  "self.robot.stop_reminder": {
+   "id": "integer"
+  },
   "self.screen.bench_touch": {},
   "self.screen.get_level": {},
   "self.tailnet.set": {

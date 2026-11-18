@@ -14,9 +14,9 @@ label{display:flex;gap:8px;align-items:center}
 <div id="bar">
  <div id="emos"></div>
  <label>Speak <input id="spk" type="checkbox"></label>
- <label>Turn <input id="yaw" type="range" min="-60" max="60" value="0"></label>
- <label>Tilt <input id="pit" type="range" min="-20" max="40" value="0"></label>
- <div id="msg">Face is the real LVGL render. Turn and tilt move the model only.</div>
+ <div><button id="L">Look left</button> <button id="C">Center</button> <button id="R">Look right</button> <button id="U">Up</button></div>
+ <div id="hd">head: yaw 0, pitch 0</div>
+ <div id="msg">Face is the real LVGL render. The head and ring follow the unit's tools on the fake clock.</div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -45,12 +45,25 @@ const img=new Image();
 img.onload=()=>{tex.image=img;tex.needsUpdate=true;};
 function poll(){img.src='/frame.png?'+Date.now();}
 setInterval(poll,100);poll();
-const yaw=document.getElementById('yaw'),pit=document.getElementById('pit');
-function loop(){head.rotation.y=-yaw.value*Math.PI/180;head.rotation.x=-pit.value*Math.PI/180;r.render(scene,cam);requestAnimationFrame(loop);}loop();
+const ring=[];
+for(let i=0;i<12;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.13,12,12),new THREE.MeshBasicMaterial({color:0x222222}));
+ const a=i/12*Math.PI*2;m.position.set(Math.sin(a)*1.9,-1.62,Math.cos(a)*0.0+1.25);m.position.x=(i-5.5)*0.3;head.add(m);ring.push(m);}
+let st={head:{yaw:0,pitch:0},leds:[]};
+async function pollState(){try{st=await (await fetch('/state')).json();}catch(e){}}
+setInterval(pollState,100);
+let cy=0,cp=0;
+function loop(){cy+=(st.head.yaw*0.6-cy)*.3;cp+=(st.head.pitch-cp)*.3;
+ head.rotation.y=-cy*Math.PI/180;head.rotation.x=-cp*Math.PI/180;
+ st.leds.forEach((c,i)=>ring[i]&&ring[i].material.color.setRGB(c[0]/255,c[1]/255,c[2]/255));
+ document.getElementById('hd').textContent='head: yaw '+st.head.yaw+', pitch '+st.head.pitch;
+ r.render(scene,cam);requestAnimationFrame(loop);}loop();
 }
 async function call(name,args){const x=await fetch('/call',{method:'POST',body:JSON.stringify({name,arguments:args})});return x.json();}
 const box=document.getElementById('emos');
 for(const e of ['neutral','happy','sad','angry','doubtful','surprised','sleepy','sleeping','love','content','thinking']){
  const b=document.createElement('button');b.textContent=e;b.style.margin='2px';b.onclick=()=>call('self.face.bench_emotion',{emotion:e});box.appendChild(b);}
+const mv=(y,p)=>call('self.robot.set_head_angles',{yaw:y,pitch:p,speed:150});
+document.getElementById('L').onclick=()=>mv(-60,-9999);document.getElementById('R').onclick=()=>mv(60,-9999);
+document.getElementById('C').onclick=()=>mv(0,0);document.getElementById('U').onclick=()=>mv(-9999,45);
 document.getElementById('spk').onchange=e=>e.target.checked?call('self.face.bench_speak',{level:70,seconds:20}):call('self.face.bench_speak',{level:1,seconds:1});
 </script></body></html>

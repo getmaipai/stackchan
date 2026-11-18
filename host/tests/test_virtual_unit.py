@@ -101,3 +101,34 @@ def test_browser_view_serves_frame_and_calls():
         assert b"Virtual StackChan" in urllib.request.urlopen(base).read()
     finally:
         p.terminate(); p.wait(timeout=10)
+
+
+@needs_render
+def test_head_motion_on_the_fake_clock_and_the_move_cap():
+    vu = _load("vunit")
+    with vu.VirtualUnit() as u:
+        assert u.call("self.robot.get_head_angles") == {"yaw": 0, "pitch": 0}
+        assert u.call("self.robot.set_head_angles", {"yaw": 60, "speed": 100})["ok"]
+        u.advance(300)
+        mid = u.call("self.robot.get_head_angles")
+        assert 0 < mid["yaw"] < 60 and mid["pitch"] == 0
+        u.advance(600)
+        assert u.call("self.robot.get_head_angles")["yaw"] == 60
+        assert u.call("self.robot.set_head_angles", {"yaw": 500, "pitch": 500})["yaw"] == 128  # clamped to the range
+        for _ in range(60):
+            u.call("self.robot.set_head_angles", {"yaw": 1})
+        assert u.call("self.robot.set_head_angles", {"yaw": 2})["ok"] is False
+        u.advance(61000)
+        assert u.call("self.robot.set_head_angles", {"yaw": 2})["ok"] is True
+
+
+@needs_render
+def test_ring_lights_and_battery():
+    vu = _load("vunit")
+    with vu.VirtualUnit() as u:
+        args = {f"led_{i}_{c}": (i * 20 if c == "red" else 0) for i in range(12) for c in ("red", "green", "blue")}
+        assert u.call("self.robot.set_led_colors", args)["ok"]
+        assert u.leds[3] == (60, 0, 0)
+        assert u.call("self.robot.set_led_colors", {"led_0_red": 1})["isError"]
+        u.call("self.battery.simulate", {"level": 12})
+        assert u.call("self.battery.get_status")["percent"] == 12

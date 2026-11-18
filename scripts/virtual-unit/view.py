@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Browser view of the virtual unit: the real LVGL face on a 3D head. Usage: view.py [port]  then open http://127.0.0.1:PORT/
 The server runs the fake clock at real speed (about 10 frames a second) and serves /frame.png, POST /call and /state.
-Face first: the head turn sliders move the model only; real head motion comes with the motion step.
+The head follows self.robot.set_head_angles on the fake clock and the 12 ring lights show self.robot.set_led_colors.
 Dev tool, loopback only. The page loads three.js (pinned) from cdnjs for the 3D drawing; nothing from the unit leaves this Mac.
 Placement: host-side development tool; no firmware change. Upstream: none."""
 import importlib.util
@@ -47,7 +47,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/frame.png":
             self._send(FRAME, "image/png")
         elif self.path == "/state":
-            self._send(json.dumps({"now_ms": UNIT.now_ms, "emotion": UNIT.emotion, "tools": len(UNIT.tool_names)}).encode(), "application/json")
+            self._send(json.dumps({"now_ms": UNIT.now_ms, "emotion": UNIT.emotion, "tools": len(UNIT.tool_names), "head": UNIT.head(), "leds": UNIT.leds, "battery": UNIT.battery}).encode(), "application/json")
         elif self.path == "/":
             self._send((HERE / "view.html").read_bytes(), "text/html; charset=utf-8")
         else:

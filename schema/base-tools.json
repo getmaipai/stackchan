@@ -1,0 +1,10 @@
+{
+ "source": "tools the base firmware registers (main/hal/hal_mcp.cpp of the rebased tree), which no patch adds; read 2026-11-17 from ~/esp/stackchan-rebase/final15",
+ "tools": {
+  "self.robot.get_head_angles": {},
+  "self.robot.set_head_angles": {"yaw": "integer", "pitch": "integer", "speed": "integer", "source": "string", "token": "integer", "cue_kind": "string"},
+  "self.robot.create_reminder": {"duration_seconds": "integer", "message": "string", "repeat": "boolean"},
+  "self.robot.get_reminders": {},
+  "self.robot.stop_reminder": {"id": "integer"}
+ }
+}

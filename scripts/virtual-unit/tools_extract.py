@@ -54,7 +54,12 @@ def extract() -> dict[str, str]:
         for name in PAT.findall("\n".join(gone)):
             if name not in PAT.findall("\n".join(added)):
                 removed.add(name)
-    return {k: v for k, v in sorted(found.items()) if k not in removed}
+    result = {k: v for k, v in found.items() if k not in removed}
+    base = json.loads((ROOT / "schema" / "base-tools.json").read_text())["tools"]
+    for name, props in base.items():
+        result[name] = "base firmware (schema/base-tools.json)"
+        _ARGS[name] = props
+    return dict(sorted(result.items()))
 
 
 def main() -> int:

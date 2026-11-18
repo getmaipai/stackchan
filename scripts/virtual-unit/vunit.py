@@ -23,7 +23,10 @@ ALIASES = {"doubtful": "doubt"}
 
 # Tools with real behavior here. The parity suite (host/tests/test_virtual_unit_parity.py) expects every other firmware tool to be a known gap;
 # when you simulate one, add it here and the suite tells you to drop its gap entry.
-SIMULATED = {"self.face.bench_emotion", "self.face.bench_speak", "self.face.snapshot", "self.screen.bench_touch"}
+SIMULATED = {"self.face.bench_emotion", "self.face.bench_speak", "self.face.snapshot", "self.screen.bench_touch",
+             "self.robot.get_head_angles", "self.robot.set_head_angles", "self.robot.set_led_colors", "self.battery.get_status", "self.battery.simulate"}
+YAW_RANGE, PITCH_RANGE, KEEP = (-128, 128), (0, 90), -9999
+MOVES_PER_MINUTE = 40  # patch 038
 JSON_TYPES = {"string": str, "integer": int, "boolean": bool}
 
 
@@ -42,6 +45,13 @@ class VirtualUnit:
         self.calls: list[tuple[str, dict]] = []
         self.emotion = "neutral"
         self._speak_until = 0
+        self.yaw0 = self.pitch0 = 0.0
+        self.yaw1 = self.pitch1 = 0.0
+        self.move_start_ms = 0
+        self.move_ms = 0
+        self.move_times: list[int] = []
+        self.leds = [(0, 0, 0)] * 12
+        self.battery = {"percent": 75, "charging": False}
         self._proc: subprocess.Popen | None = None
         self._tmp = tempfile.TemporaryDirectory(prefix="vunit-")
 
@@ -78,6 +88,11 @@ class VirtualUnit:
         else:
             self._send(f"advance {ms}")
         self.now_ms = end
+
+    def head(self) -> dict:
+        """Head angles now, moving at `speed` degrees per second (the unit of speed is an assumption, as in the old simulated unit)."""
+        f = 1.0 if self.move_ms <= 0 else min(1.0, max(0.0, (self.now_ms - self.move_start_ms) / self.move_ms))
+        return {"yaw": round(self.yaw0 + (self.yaw1 - self.yaw0) * f), "pitch": round(self.pitch0 + (self.pitch1 - self.pitch0) * f)}
 
     def snapshot(self) -> bytes:
         """The 320x240 screen as PNG bytes, as LVGL drew it."""
@@ -117,6 +132,33 @@ class VirtualUnit:
             level, seconds = int(args.get("level", 60)), int(args.get("seconds", 8))
             self._send(f"speak {level}")
             self._speak_until = self.now_ms + seconds * 1000
+            return {"ok": True}
+        if name == "self.robot.get_head_angles":
+            return self.head()
+        if name == "self.robot.set_head_angles":
+            self.move_times = [t for t in self.move_times if self.now_ms - t < 60000]
+            if len(self.move_times) >= MOVES_PER_MINUTE:
+                return {"ok": False, "text": "refused: more than 40 head moves in a minute (patch 038)"}
+            self.move_times.append(self.now_ms)
+            cur = self.head()
+            yaw, pitch = int(args.get("yaw", KEEP)), int(args.get("pitch", KEEP))
+            yaw1 = cur["yaw"] if yaw == KEEP else max(YAW_RANGE[0], min(YAW_RANGE[1], yaw))
+            pitch1 = cur["pitch"] if pitch == KEEP else max(PITCH_RANGE[0], min(PITCH_RANGE[1], pitch))
+            speed = max(100, min(1000, int(args.get("speed", 150))))
+            self.yaw0, self.pitch0, self.yaw1, self.pitch1 = cur["yaw"], cur["pitch"], yaw1, pitch1
+            self.move_start_ms = self.now_ms
+            self.move_ms = int(1000 * max(abs(yaw1 - cur["yaw"]), abs(pitch1 - cur["pitch"])) / speed)
+            return {"ok": True, "yaw": yaw1, "pitch": pitch1}
+        if name == "self.robot.set_led_colors":
+            try:
+                self.leds = [tuple(max(0, min(255, int(args[f"led_{i}_{c}"]))) for c in ("red", "green", "blue")) for i in range(12)]
+            except KeyError as missing:
+                return {"isError": True, "text": f"set_led_colors needs led_0_red to led_11_blue: {missing} is missing"}
+            return {"ok": True}
+        if name == "self.battery.get_status":
+            return dict(self.battery)
+        if name == "self.battery.simulate":
+            self.battery["percent"] = max(0, min(100, int(args.get("level", 75))))
             return {"ok": True}
         if name == "self.face.snapshot":
             return {"ok": True, "png_base64": base64.b64encode(self.snapshot()).decode()}
