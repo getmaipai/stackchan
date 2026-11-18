@@ -49,6 +49,8 @@ Derived once both tables exist: the level cost of one minute of dance, of one ho
 
 ## 4. Person steps (the owner, with the bench agent at the host)
 
+**The script:** `scripts/fw-power-run.py --load "face only" --minutes 120 --out .runs/drain-face.csv` chains the `power_log` calls of steps 2 and 3, writes one CSV row per reading with the load name, stops by itself on a hot servo, a low battery voltage or a level under the floor, and prints the first and last level, the slope in percent per hour and the minutes from 100 to 20 percent. `--call` takes the command that reaches the unit (the default is the cable helper `scripts/fw-serial.py`; a drain run on the battery needs the host link instead). Its checks are in `host/tests/test_fw_power_run.py`.
+
 Quiet rules apply to every step: volume 0 and hard mute before a run, no sound tests.
 
 1. **Prepare:** charge to 100 percent on the Mac back port (measured source) and wait until `charge_state` reads 4 (done) or the level holds at 100 for 10 minutes.
