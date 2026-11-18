@@ -84,3 +84,20 @@ def test_process_protocol():
 def test_golden_frames_and_layout_scenarios():
     out = subprocess.run([sys.executable, str(VU / "scenarios.py")], capture_output=True, text=True)
     assert out.returncode == 0, out.stdout + out.stderr
+
+
+@needs_render
+def test_browser_view_serves_frame_and_calls():
+    import time
+    import urllib.request
+    p = subprocess.Popen([sys.executable, str(VU / "view.py"), "8791"], stdout=subprocess.PIPE, text=True)
+    try:
+        p.stdout.readline()
+        time.sleep(0.5)
+        png = urllib.request.urlopen("http://127.0.0.1:8791/frame.png?1").read()
+        assert png[:4] == b"\x89PNG"
+        req = urllib.request.Request("http://127.0.0.1:8791/call", json.dumps({"name": "self.face.bench_emotion", "arguments": {"emotion": "sad"}}).encode())
+        assert json.loads(urllib.request.urlopen(req).read()) == {"ok": True}
+        assert b"Virtual StackChan" in urllib.request.urlopen("http://127.0.0.1:8791/").read()
+    finally:
+        p.terminate(); p.wait(timeout=10)

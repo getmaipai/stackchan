@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Virtual StackChan</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+html,body{margin:0;height:100%;background:#15181d;color:#dfe6ee;font:14px system-ui,sans-serif}
+#c{position:fixed;left:0;top:0;width:100%;height:100%}
+#bar{position:fixed;left:12px;top:12px;display:flex;flex-direction:column;gap:8px;background:#0008;padding:10px;border-radius:10px;max-width:260px}
+button{background:#2b3440;color:#dfe6ee;border:0;border-radius:6px;padding:6px 10px;cursor:pointer}
+button:hover{background:#3b4858}
+label{display:flex;gap:8px;align-items:center}
+#msg{color:#9fb3c8;font-size:12px}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="bar">
+ <div id="emos"></div>
+ <label>Speak <input id="spk" type="checkbox"></label>
+ <label>Turn <input id="yaw" type="range" min="-60" max="60" value="0"></label>
+ <label>Tilt <input id="pit" type="range" min="-20" max="40" value="0"></label>
+ <div id="msg">Face is the real LVGL render. Turn and tilt move the model only.</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const msg=document.getElementById('msg');
+if(!window.THREE){msg.textContent='three.js did not load: this page needs internet access to cdnjs.cloudflare.com; the flat face is at /frame.png.';}
+else{
+const cv=document.getElementById('c');
+const r=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x15181d);
+const cam=new THREE.PerspectiveCamera(35,1,0.1,100);cam.position.set(0,0.3,9.5);
+scene.add(new THREE.HemisphereLight(0xffffff,0x334455,1.1));
+const key=new THREE.DirectionalLight(0xffffff,0.8);key.position.set(3,4,5);scene.add(key);
+const head=new THREE.Group();scene.add(head);
+const body=new THREE.Mesh(new THREE.BoxGeometry(3.6,2.9,2.4),new THREE.MeshStandardMaterial({color:0xe9edf2,roughness:.5}));
+body.geometry.translate(0,0,0);head.add(body);
+const tex=new THREE.Texture();tex.minFilter=THREE.LinearFilter;
+const screen=new THREE.Mesh(new THREE.PlaneGeometry(3.2,2.4),new THREE.MeshBasicMaterial({map:tex}));
+screen.position.set(0,0,1.21);head.add(screen);
+const bezel=new THREE.Mesh(new THREE.PlaneGeometry(3.4,2.6),new THREE.MeshBasicMaterial({color:0x07090c}));
+bezel.position.set(0,0,1.205);head.add(bezel);
+const base=new THREE.Mesh(new THREE.CylinderGeometry(.5,.7,.7,32),new THREE.MeshStandardMaterial({color:0x2b3440}));
+base.position.y=-1.9;scene.add(base);
+function size(){r.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();}
+addEventListener('resize',size);size();
+const img=new Image();
+img.onload=()=>{tex.image=img;tex.needsUpdate=true;};
+function poll(){img.src='/frame.png?'+Date.now();}
+setInterval(poll,100);poll();
+const yaw=document.getElementById('yaw'),pit=document.getElementById('pit');
+function loop(){head.rotation.y=-yaw.value*Math.PI/180;head.rotation.x=-pit.value*Math.PI/180;r.render(scene,cam);requestAnimationFrame(loop);}loop();
+}
+async function call(name,args){const x=await fetch('/call',{method:'POST',body:JSON.stringify({name,arguments:args})});return x.json();}
+const box=document.getElementById('emos');
+for(const e of ['neutral','happy','sad','angry','doubtful','surprised','sleepy','sleeping','love','content','thinking']){
+ const b=document.createElement('button');b.textContent=e;b.style.margin='2px';b.onclick=()=>call('self.face.bench_emotion',{emotion:e});box.appendChild(b);}
+document.getElementById('spk').onchange=e=>e.target.checked?call('self.face.bench_speak',{level:70,seconds:20}):call('self.face.bench_speak',{level:1,seconds:1});
+</script></body></html>
