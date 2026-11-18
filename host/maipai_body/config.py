@@ -63,11 +63,20 @@ class HomeAssistantConfig(StrictModel):
     cameras: dict[str, str] = Field(default_factory=dict)  # spoken name -> camera entity, for example front door = "camera.front_door"
 
 
+class CodingCompanionConfig(StrictModel):
+    """The coding companion (maipai_packages/coding_companion): the robot shows what a coding agent is doing."""
+
+    enabled: bool = False
+    show_request_text: bool = False  # off: the screen shows only "Needs you", "Working", "Finished"
+    port: int = Field(default=8052, ge=1024, le=65535)  # on 127.0.0.1 only
+
+
 class PackagesConfig(StrictModel):
     """Optional local packages. Every one is off by default and costs nothing while off."""
 
     memory_notes: MemoryNotesConfig = Field(default_factory=MemoryNotesConfig)
     home_assistant: HomeAssistantConfig = Field(default_factory=HomeAssistantConfig)
+    coding_companion: CodingCompanionConfig = Field(default_factory=CodingCompanionConfig)
 
 
 class SettingsPageConfig(StrictModel):
@@ -192,6 +201,13 @@ def build_brain(config: RobotConfig, **home_dependencies):
         folder = Path(notes.folder) if notes.folder else default_pairing_path().parent / "notes"
         brain.memory = Notes(NotesStore(folder), notes.people, notes.default_person)
         brain.handlers.append(brain.memory)
+    coding = config.packages.coding_companion
+    if coding.enabled:  # the spoken status request; the endpoint is started by the host app
+        from maipai_packages.coding_companion import shared_status
+        from maipai_packages.coding_companion.handler import CodingStatusHandler
+
+        shared_status().show_request_text = coding.show_request_text
+        brain.handlers.append(CodingStatusHandler(shared_status()))
     ha = config.packages.home_assistant
     if ha.enabled:
         from maipai_packages.home_assistant import HomeAssistant

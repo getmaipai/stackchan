@@ -3370,6 +3370,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
 
             auth = SettingsAuth(_default_pairing_path().parent / "settings-token")
         server = SettingsServer(backend, "0.0.0.0" if lan else "127.0.0.1", port, auth=auth)
+        _start_coding_companion(backend, voice)
         backend.pair_code = pairing.create_pair_code
         backend.phone_link = lambda: {
             "lan": lan,
@@ -4183,6 +4184,39 @@ def _configured_hub_url() -> str:
         return load_config().home.url.strip()
     except Exception:
         return ""
+
+
+def _start_coding_companion(backend, voice) -> None:
+    """The coding companion's endpoint, only when it is switched on (nothing is imported or opened otherwise)."""
+    try:
+        from maipai_body.config import load_config
+
+        cfg = load_config().packages.coding_companion
+    except Exception:
+        return
+    if not cfg.enabled:
+        return
+    from maipai_packages.coding_companion import shared_status
+    from maipai_packages.coding_companion.server import (
+        AgentAuth,
+        AgentServer,
+        default_token_path,
+        make_presenter,
+    )
+
+    shared_status().show_request_text = cfg.show_request_text
+    try:
+        server = AgentServer(
+            shared_status(),
+            AgentAuth(default_token_path()),
+            make_presenter(backend.polish.bus, lambda: list(voice.connected_devices())),
+            cfg.port,
+        )
+    except OSError:
+        logger.warning("coding companion port %d is in use; set another port under [packages.coding_companion]", cfg.port)
+        return
+    server.start()
+    logger.info("coding companion endpoint on 127.0.0.1:%d", server.port)
 
 
 def _lan_address() -> str:

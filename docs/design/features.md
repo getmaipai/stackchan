@@ -72,10 +72,9 @@ Time-of-day faces and clock variants. Several named timers with live countdowns 
 Three games (color memory, reaction time, whack-a-mole) as data packs on one built-in game engine in the unit firmware (`MAIPAI_GAMES`, patches G01 to G03; see `games-2026-11-16.md`). Packs from outside the image must be signed with the update key.
 Mood that depends on care, saved across days. Music dance and mood faces. ESP-NOW pose mirroring between units.
 
-## [Home] Coding companion (host plus unit)
+## Coding companion (optional local package, status only; host plus unit)
 
-Agent status on face and ring. Spoken and captioned updates. Build light (green pass, red fail) from a `stackchan notify` hook.
-Dictation by push to talk. Approvals by touch only by default, never by voice alone. An MCP endpoint lets an agent drive the robot.
+Agent status on the ring light with one soft tone, a spoken status on request from a fixed phrase, and a status endpoint on this computer only. No dictation, no approvals, no MCP endpoint, no model tools (see `docs/plan/coding-companion-package.md`).
 
 ## Reset the device (firmware, small; owner request 2026-11-15)
 

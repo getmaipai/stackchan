@@ -19,7 +19,7 @@ Reason: feature logic for watch, monitor, identity, alerts and similar is robot-
 So this repo holds only what is native to this bot: the unit protocol, a thin capability API (camera frame, microphone stream, lights, moves, display and cues, heartbeat, sensors), and the cue enforcement. Cue enforcement lives on the unit, so a modified host cannot open the camera or microphone without the cue.
 Sorting the older modules, decided per module by a lane that reads the code:
 1. Capability driver code (talks to the unit): stays here, small, behind the capability API.
-2. Feature logic (detectors, alerts, monitor modes, identity, recognition, recipients, games, coding companion): not kept here. Home already has much of it in TypeScript; the rest is rewritten in Home against the capability API. The old Python is deleted from this repo once Home covers it, or kept in a private holding folder outside the public tree until then.
+2. Feature logic (detectors, alerts, monitor modes, identity, recognition, recipients, games): not kept here. The coding companion (status only) is an optional package under decision 3 of 2026-11-18. Home already has much of it in TypeScript; the rest is rewritten in Home against the capability API. The old Python is deleted from this repo once Home covers it, or kept in a private holding folder outside the public tree until then.
 3. Robot-side compute Home needs (for example face detection on frames): a Home package or Home sidecar, never this repo.
 Nothing in this repo imports Home code. Home's pin to this repo moves on firmware releases because its flash flow uses this repo's flasher and assets, and when the capability API changes.
 
@@ -32,4 +32,4 @@ The cue code path, camera and microphone switches, always-on indicators, the hea
 
 ## Optional packages (decision 3 of 2026-11-18)
 
-`host/maipai_packages/<name>/`: off by default, imported only when switched on under `[packages.<name>]` in `robot.toml`, no Home imports, no identity or household code beyond the package's own files. `scripts/boundary-check.sh` enforces the import rule. Built: `memory_notes` (plain per-person notes files, remember, forget and read back on request). Next: Home Assistant voice and camera snapshot, then the coding companion with agent tools. These replace the "Leave the core repo" entries for memory and integrations above.
+`host/maipai_packages/<name>/`: off by default, imported only when switched on under `[packages.<name>]` in `robot.toml`, no Home imports, no identity or household code beyond the package's own files. `scripts/boundary-check.sh` enforces the import rule. Built: `memory_notes` (plain per-person notes files, remember, forget and read back on request). Also built: `home_assistant`, `coding_companion` (status only, its own bus source `agent`). The coding companion has no model tools and no MCP endpoint. These replace the "Leave the core repo" entries for memory and integrations above.

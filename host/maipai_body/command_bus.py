@@ -40,9 +40,9 @@ logger = logging.getLogger("maipai_body.command_bus")
 
 # ---- sources and priority ------------------------------------------------------------------------------------
 
-SOURCES: tuple[str, ...] = ("model", "owner", "home", "routines")
+SOURCES: tuple[str, ...] = ("model", "owner", "home", "routines", "agent")
 # Lower number wins (design section 6: owner controls 5, Home 6, host routines 7, the model's decoration 8).
-PRIORITY: dict[str, int] = {"owner": 5, "home": 6, "routines": 7, "model": 8}
+PRIORITY: dict[str, float] = {"owner": 5, "home": 6, "routines": 7, "agent": 7.5, "model": 8}  # the coding agent: below the host's routines, above the model
 
 # ---- the catalog: one entry per command -----------------------------------------------------------------------
 
@@ -76,17 +76,17 @@ CATALOG: dict[str, dict[str, Any]] = {
 # The source-by-permission matrix (design section 5), as data. Y yes, L yes within the entry's limits, C only with a cue the unit
 # shows, O the owner's own action only, N never.
 MATRIX: dict[str, dict[str, str]] = {
-    "face.mood": {"model": "L", "owner": "Y", "home": "Y", "routines": "Y"},
-    "fx.set": {"model": "L", "owner": "Y", "home": "Y", "routines": "Y"},
-    "fx.clear": {"model": "L", "owner": "Y", "home": "Y", "routines": "Y"},
-    "light.look": {"model": "L", "owner": "Y", "home": "Y", "routines": "Y"},
-    "sound.play": {"model": "L", "owner": "Y", "home": "Y", "routines": "Y"},
-    "scene.set": {"model": "L", "owner": "Y", "home": "Y", "routines": "N"},
-    "scene.clear": {"model": "L", "owner": "Y", "home": "Y", "routines": "N"},
-    "head.move": {"model": "N", "owner": "C", "home": "Y", "routines": "Y"},
-    "dance.start": {"model": "N", "owner": "C", "home": "Y", "routines": "Y"},
-    "camera.photo": {"model": "N", "owner": "C", "home": "Y", "routines": "Y"},
-    "privacy.set": {"model": "N", "owner": "O", "home": "N", "routines": "N"},
+    "face.mood": {"model": "L", "owner": "Y", "home": "Y", "routines": "Y", "agent": "N"},
+    "fx.set": {"model": "L", "owner": "Y", "home": "Y", "routines": "Y", "agent": "N"},
+    "fx.clear": {"model": "L", "owner": "Y", "home": "Y", "routines": "Y", "agent": "N"},
+    "light.look": {"model": "L", "owner": "Y", "home": "Y", "routines": "Y", "agent": "L"},
+    "sound.play": {"model": "L", "owner": "Y", "home": "Y", "routines": "Y", "agent": "L"},
+    "scene.set": {"model": "L", "owner": "Y", "home": "Y", "routines": "N", "agent": "N"},
+    "scene.clear": {"model": "L", "owner": "Y", "home": "Y", "routines": "N", "agent": "N"},
+    "head.move": {"model": "N", "owner": "C", "home": "Y", "routines": "Y", "agent": "N"},
+    "dance.start": {"model": "N", "owner": "C", "home": "Y", "routines": "Y", "agent": "N"},
+    "camera.photo": {"model": "N", "owner": "C", "home": "Y", "routines": "Y", "agent": "N"},
+    "privacy.set": {"model": "N", "owner": "O", "home": "N", "routines": "N", "agent": "N"},
 }
 
 # What a scene may expand into: the display commands and nothing that moves the body, takes a photo or changes privacy.
@@ -99,6 +99,11 @@ MODEL_LIMITS: dict[str, dict[str, float]] = {
     "fx.clear": {"reply": 4, "minute": 20, "gap_s": 0},
     "light.look": {"reply": 1, "minute": 4, "gap_s": 0},
     "sound.play": {"reply": 1, "minute": 4, "gap_s": 10},
+}
+# The coding agent's limits (package coding_companion): a tone at most once a minute, the light coalesced to a few changes a minute.
+AGENT_LIMITS: dict[str, dict[str, float]] = {
+    "light.look": {"reply": 99, "minute": 12, "gap_s": 0},
+    "sound.play": {"reply": 99, "minute": 1, "gap_s": 60},
 }
 SAME_EFFECT_GAP_S = 10.0  # the model may not restart the same effect sooner than this
 
@@ -251,7 +256,8 @@ class CommandBus:
     def _clamp(self, command: Command, spec: dict[str, Any]) -> dict[str, Any] | None:
         """The arguments inside the catalog's limits, or None when one is not valid (an unknown name is never guessed at)."""
         limits, given, out = spec["limits"], command.args, {}
-        model = command.source == "model"
+        model = command.source in ("model", "agent")
+        agent = command.source == "agent"
         for key, allowed in limits.items():
             if key == "model_seconds" or key not in given:
                 continue
@@ -262,7 +268,7 @@ class CommandBus:
                 value = int(round(max(allowed[0], min(allowed[1], value))))
                 if model:
                     value = min(value, limits["model_seconds"])
-            elif value not in allowed:
+            elif value not in allowed or (agent and command.cmd == "sound.play" and value not in reply_tags.QUIET_SOUNDS):
                 return None
             out[key] = value
         need = self._REQUIRED.get(command.cmd)
@@ -290,7 +296,7 @@ class CommandBus:
             return "asleep or blocked"
         if decoration and gate.remote:
             return "a remote cue holds the unit"
-        if cmd == "sound.play" and gate.child and command.source == "model" and args.get("name") not in reply_tags.QUIET_SOUNDS:
+        if cmd == "sound.play" and gate.child and command.source in ("model", "agent") and args.get("name") not in reply_tags.QUIET_SOUNDS:
             return "a child is present"
         return ""
 
@@ -307,9 +313,10 @@ class CommandBus:
         return ""
 
     def _limit(self, device_id: str, command: Command, args: dict[str, Any], budget: ReplyBudget | None) -> str:
-        if command.source != "model" or command.cmd not in MODEL_LIMITS:
+        table = AGENT_LIMITS if command.source == "agent" else MODEL_LIMITS
+        if command.source not in ("model", "agent") or command.cmd not in table:
             return ""
-        rules = MODEL_LIMITS[command.cmd]
+        rules = table[command.cmd]
         now = self._clock()
         if budget is not None and budget.counts.get(command.cmd, 0) >= rules["reply"]:
             return "one per reply" if rules["reply"] == 1 else "too many in one reply"
@@ -335,7 +342,7 @@ class CommandBus:
                 self._leases[(device_id, surface)] = _Lease(command.source, now + seconds)
             else:
                 self._leases.pop((device_id, surface), None)
-        if command.source == "model" and command.cmd in MODEL_LIMITS:
+        if (command.source == "model" and command.cmd in MODEL_LIMITS) or (command.source == "agent" and command.cmd in AGENT_LIMITS):
             self._history.setdefault((device_id, command.cmd), deque()).append(now)
             if budget is not None:
                 budget.counts[command.cmd] = budget.counts.get(command.cmd, 0) + 1

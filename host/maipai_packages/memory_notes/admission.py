@@ -22,6 +22,15 @@ _REFUSED = (
 )
 
 
+# Direction-control, zero-width and control characters (they hide text from the person reading the file).
+_UNSAFE_CHARS = re.compile("[\u0000-\u0008\u000b-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]")
+
+
+def scrub_for_prompt(text: str) -> str:
+    """A stored line made safe to hand to the model: no brackets (reply tags), no hidden characters."""
+    return " ".join(_UNSAFE_CHARS.sub("", text.replace("[", "(").replace("]", ")")).split())
+
+
 class AdmissionError(ValueError):
     """The note was not stored; the message says why and what to do instead."""
 
@@ -33,6 +42,10 @@ def check_note(text: str) -> str:
         raise AdmissionError("There was nothing to remember. Say what to remember after the word remember.")
     if len(note) > MAX_NOTE_CHARS:
         raise AdmissionError(f"That is longer than {MAX_NOTE_CHARS} characters. Say it in a shorter way.")
+    if "[" in note or "]" in note:
+        raise AdmissionError("I do not keep text in square brackets. Say it in plain words.")
+    if _UNSAFE_CHARS.search(note):
+        raise AdmissionError("That has hidden or control characters. Say it again in plain words.")
     for pattern, what in _REFUSED:
         if pattern.search(note):
             raise AdmissionError(f"I do not keep {what}. Keep it somewhere safer, like a password manager.")

@@ -21,6 +21,9 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("run", help="start the host the robot connects to")
     commands.add_parser(
+        "coding-token", help="make the coding companion token file and print where it is (never the token)"
+    )
+    commands.add_parser(
         "settings-token", help="print the token that logs a phone in to the settings page"
     )
     commands.add_parser("check", help="test the model and speech addresses in robot.toml")
@@ -214,6 +217,15 @@ def main() -> int:
     store = PairingStore(default_pairing_path())
     if args.command in {"units", "name"}:
         return _units_or_name(args, config, store)
+    if args.command == "coding-token":
+        from maipai_packages.coding_companion.server import AgentAuth, default_token_path
+
+        path = default_token_path()
+        AgentAuth(path)
+        print(f"Coding companion token file: {path}")
+        print("A hook reads the token from that file and posts JSON to http://127.0.0.1:8052/status with Authorization: Bearer <token>.")
+        print('Body: {"state": "working" | "waiting" | "finished", "kind": "permission" | "question", "project": "name"}')
+        return 0
     if args.command == "settings-token":
         from maipai_body.local_guard import SettingsAuth
 

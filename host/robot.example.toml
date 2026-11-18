@@ -41,6 +41,13 @@ language = "en"
 # trigger = "home assistant"
 # cameras = { "front door" = "camera.front_door" }
 
+[packages.coding_companion]
+# The robot shows what a coding agent on this computer is doing: ring light and one soft tone.
+# Run `stackchan coding-token`, then have the agent's hook post JSON to 127.0.0.1:8052/status.
+# enabled = true
+# show_request_text = false      # false: the screen says only "Needs you", "Working" or "Finished"
+# port = 8052
+
 [settings]
 # Let a phone on your Wi-Fi open the settings page. It then asks for the settings token
 # (run `stackchan settings-token`). Off by default: the page is for this computer only.
