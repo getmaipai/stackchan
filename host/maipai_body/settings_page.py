@@ -991,12 +991,13 @@ WAKEWORD = "/api/stackchan/wakeword"
 def render_page(lang: str | None) -> bytes:
     """The whole page for one language: one HTML document with its own style and script, no outside file."""
     from maipai_body.settings_ui import CSS, JS, PAGE
+    from maipai_body.settings_ui_nav import card_map
 
     code = normalize(lang)
     strings = catalog(code)
     page = (
         PAGE.replace("__CSS__", CSS)
-        .replace("__JS__", JS)
+        .replace("__JS__", JS.replace("__CARDMAP__", json.dumps(card_map(strings)).replace("</", "<\\/")))
         .replace("__PICS__", pictures_js(code))
         .replace("__STRINGS__", json.dumps(strings).replace("</", "<\\/"))
         .replace("__TITLE__", html.escape(strings["settings.title"]))

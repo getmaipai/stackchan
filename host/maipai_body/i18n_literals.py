@@ -38,6 +38,18 @@ EN = {
     "Thu": "Thu",
     "Fri": "Fri",
     "Sat": "Sat",
+    "Advanced": "Advanced",
+    "Search settings": "Search settings",
+    "No setting matches that": "No setting matches that",
+    "Face": "Face",
+    "Screen and light": "Screen and light",
+    "Packs and pictures": "Packs and pictures",
+    "Movement": "Movement",
+    "Sleep and quiet": "Sleep and quiet",
+    "Swipe pages": "Swipe pages",
+    "Reactions and people": "Reactions and people",
+    "Actions": "Actions",
+    "Access and log": "Access and log",
 }
 
 ES = {
@@ -75,6 +87,18 @@ ES = {
     "Thu": "Jue",
     "Fri": "Vie",
     "Sat": "Sáb",
+    "Advanced": "Avanzado",
+    "Search settings": "Buscar ajustes",
+    "No setting matches that": "Ningún ajuste coincide",
+    "Face": "Cara",
+    "Screen and light": "Pantalla y luz",
+    "Packs and pictures": "Paquetes e imágenes",
+    "Movement": "Movimiento",
+    "Sleep and quiet": "Sueño y silencio",
+    "Swipe pages": "Páginas de deslizar",
+    "Reactions and people": "Reacciones y personas",
+    "Actions": "Acciones",
+    "Access and log": "Acceso y registro",
 }
 
 FR = {
@@ -112,6 +136,18 @@ FR = {
     "Thu": "Jeu",
     "Fri": "Ven",
     "Sat": "Sam",
+    "Advanced": "Avancé",
+    "Search settings": "Chercher un réglage",
+    "No setting matches that": "Aucun réglage ne correspond",
+    "Face": "Visage",
+    "Screen and light": "Écran et lumière",
+    "Packs and pictures": "Packs et images",
+    "Movement": "Mouvement",
+    "Sleep and quiet": "Veille et calme",
+    "Swipe pages": "Pages à balayer",
+    "Reactions and people": "Réactions et personnes",
+    "Actions": "Actions",
+    "Access and log": "Accès et journal",
 }
 
 DE = {
@@ -149,6 +185,18 @@ DE = {
     "Thu": "Do",
     "Fri": "Fr",
     "Sat": "Sa",
+    "Advanced": "Erweitert",
+    "Search settings": "Einstellung suchen",
+    "No setting matches that": "Keine Einstellung passt dazu",
+    "Face": "Gesicht",
+    "Screen and light": "Bildschirm und Licht",
+    "Packs and pictures": "Pakete und Bilder",
+    "Movement": "Bewegung",
+    "Sleep and quiet": "Schlaf und Ruhe",
+    "Swipe pages": "Wischseiten",
+    "Reactions and people": "Reaktionen und Personen",
+    "Actions": "Aktionen",
+    "Access and log": "Zugriff und Protokoll",
 }
 
 PT = {
@@ -186,6 +234,18 @@ PT = {
     "Thu": "Qui",
     "Fri": "Sex",
     "Sat": "Sáb",
+    "Advanced": "Avançado",
+    "Search settings": "Buscar ajustes",
+    "No setting matches that": "Nenhum ajuste corresponde",
+    "Face": "Rosto",
+    "Screen and light": "Tela e luz",
+    "Packs and pictures": "Pacotes e imagens",
+    "Movement": "Movimento",
+    "Sleep and quiet": "Sono e silêncio",
+    "Swipe pages": "Páginas de deslizar",
+    "Reactions and people": "Reações e pessoas",
+    "Actions": "Ações",
+    "Access and log": "Acesso e registro",
 }
 
 IT = {
@@ -223,6 +283,18 @@ IT = {
     "Thu": "Gio",
     "Fri": "Ven",
     "Sat": "Sab",
+    "Advanced": "Avanzate",
+    "Search settings": "Cerca impostazioni",
+    "No setting matches that": "Nessuna impostazione corrisponde",
+    "Face": "Viso",
+    "Screen and light": "Schermo e luce",
+    "Packs and pictures": "Pacchetti e immagini",
+    "Movement": "Movimento",
+    "Sleep and quiet": "Riposo e silenzio",
+    "Swipe pages": "Pagine da scorrere",
+    "Reactions and people": "Reazioni e persone",
+    "Actions": "Azioni",
+    "Access and log": "Accesso e registro",
 }
 
 CATALOGS: dict[str, dict[str, str]] = {"en": EN, "es": ES, "fr": FR, "de": DE, "pt": PT, "it": IT}
