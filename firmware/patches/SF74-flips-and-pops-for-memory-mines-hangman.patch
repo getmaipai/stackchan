@@ -1,0 +1,211 @@
+# Intent: The other grid games use the animation layer. Memory Match cards flip (the width closes to the edge and opens on the other face over 240 ms, with a soft tick by row), a mismatched pair flips back, Mine Finder's opened cell and Hangman's pressed key pop (112 percent for 160 ms). The layer gets two more tween kinds, a flip and a pop, with their math in the pure core and its host test; nothing new is drawn as an object and the rules cores are untouched. A game never moves the head.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.game.start match: a tap turns the card over smoothly, a mismatch turns both back after about a second; mines: a tapped cell pops when it opens; hangman: a pressed key pops and turns green or red.
+# Kconfig: none
+# Memory cost: none beyond SF72 (the tweens live in the Grid struct, 8 at most); a few hundred bytes of flash.
+
+diff --git a/firmware/main/hal/maipai_grid_anim_core.h b/firmware/main/hal/maipai_grid_anim_core.h
+--- a/firmware/main/hal/maipai_grid_anim_core.h
++++ b/firmware/main/hal/maipai_grid_anim_core.h
+@@ -23,10 +23,12 @@
+ #define GAN_FLASH_MS 120u     /* one half of a pulse: bright, then normal; three pulses */
+ #define GAN_FLASH_PULSES 3
+ #define GAN_SHAKE_MS 420u
++#define GAN_FLIP_MS 240u      /* a card flip: the width closes to nothing in the first half and opens again in the second (patch SF74) */
++#define GAN_POP_MS 160u       /* a pop: the cell grows to 112 percent and settles back (a revealed cell, a pressed key) */
+ #define GAN_EV_MAX 6
+ 
+-enum { GAN_NONE = 0, GAN_FALL, GAN_FLASH };
+-enum { GAN_EV_FALL_START = 1, GAN_EV_LAND, GAN_EV_FALL_DONE, GAN_EV_FLASH_DONE, GAN_EV_SHAKE_DONE };
++enum { GAN_NONE = 0, GAN_FALL, GAN_FLASH, GAN_FLIP, GAN_POP };
++enum { GAN_EV_FALL_START = 1, GAN_EV_LAND, GAN_EV_FALL_DONE, GAN_EV_FLASH_DONE, GAN_EV_SHAKE_DONE, GAN_EV_FLIP_DONE, GAN_EV_POP_DONE };
+ 
+ typedef struct {
+     uint8_t kind, owner, cell, row;
+@@ -175,6 +177,78 @@ static inline int gan_fall_y(const gan_t* a, int cell, uint32_t now)
+     return -1;
+ }
+ 
++/* Patch SF74: a flip of a card, and a pop of a cell. */
++static inline int gan_flip(gan_t* a, uint32_t now, int cell)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind == GAN_NONE) {
++            memset(&a->t[i], 0, sizeof(a->t[i]));
++            a->t[i].kind = GAN_FLIP;
++            a->t[i].cell = (uint8_t)cell;
++            a->t[i].t0 = now;
++            return i;
++        }
++    }
++    return -1;
++}
++
++static inline int gan_pop(gan_t* a, uint32_t now, int cell)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind == GAN_NONE) {
++            memset(&a->t[i], 0, sizeof(a->t[i]));
++            a->t[i].kind = GAN_POP;
++            a->t[i].cell = (uint8_t)cell;
++            a->t[i].t0 = now;
++            return i;
++        }
++    }
++    return -1;
++}
++
++/* The width of a flipping card in permille of its full width (1000 when it is not flipping): 1000 down to 0 at the middle, back up to 1000. */
++static inline int gan_flip_width(const gan_t* a, int cell, uint32_t now)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind == GAN_FLIP && a->t[i].cell == cell) {
++            const uint32_t e = now - a->t[i].t0;
++            if (e >= GAN_FLIP_MS) {
++                return 1000;
++            }
++            const uint32_t half = GAN_FLIP_MS / 2u;
++            return e < half ? (int)(1000u - 1000u * e / half) : (int)(1000u * (e - half) / half);
++        }
++    }
++    return 1000;
++}
++
++/* Is the card past the middle of its flip (so the new face shows)? 1 when it is not flipping. */
++static inline int gan_flip_new_face(const gan_t* a, int cell, uint32_t now)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind == GAN_FLIP && a->t[i].cell == cell) {
++            return now - a->t[i].t0 >= GAN_FLIP_MS / 2u;
++        }
++    }
++    return 1;
++}
++
++/* The size of a popping cell in permille (1000 when it is not popping): up to 1120 at 40 percent of the time, back to 1000. */
++static inline int gan_pop_scale(const gan_t* a, int cell, uint32_t now)
++{
++    for (int i = 0; i < GAN_MAX; i++) {
++        if (a->t[i].kind == GAN_POP && a->t[i].cell == cell) {
++            const uint32_t e = now - a->t[i].t0;
++            if (e >= GAN_POP_MS) {
++                return 1000;
++            }
++            const uint32_t peak = GAN_POP_MS * 4u / 10u;
++            return e < peak ? (int)(1000u + 120u * e / peak) : (int)(1120u - 120u * (e - peak) / (GAN_POP_MS - peak));
++        }
++    }
++    return 1000;
++}
++
+ /* Is the cell lit in its pulse now? (bright on the even half-periods, for GAN_FLASH_PULSES pulses; false when it has no pulse) */
+ static inline int gan_flash_on(const gan_t* a, int cell, uint32_t now)
+ {
+@@ -211,6 +285,16 @@ static inline int gan_tick(gan_t* a, uint32_t now, gan_ev_t* ev)
+             }
+         }
+     }
++    for (int i = 0; i < GAN_MAX && n < GAN_EV_MAX - 1; i++) {  // patch SF74: flips and pops
++        gan_tw_t* t = &a->t[i];
++        if (t->kind == GAN_FLIP && now - t->t0 >= GAN_FLIP_MS) {
++            ev[n++] = (gan_ev_t){GAN_EV_FLIP_DONE, 0, t->cell, 0, 0};
++            t->kind = GAN_NONE;
++        } else if (t->kind == GAN_POP && now - t->t0 >= GAN_POP_MS) {
++            ev[n++] = (gan_ev_t){GAN_EV_POP_DONE, 0, t->cell, 0, 0};
++            t->kind = GAN_NONE;
++        }
++    }
+     if (a->shaking && now - a->shake_t0 >= GAN_SHAKE_MS && n < GAN_EV_MAX) {
+         a->shaking = 0;
+         ev[n++] = (gan_ev_t){GAN_EV_SHAKE_DONE, 0, 0, 0, 0};
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -246,7 +246,9 @@ void draw_hangman(Grid* g, lv_layer_t* layer)
+         bool in_word = false;
+         for (int k2 = 0; k2 < g->hang.len; k2++) in_word |= g->hang.word[k2] == 'A' + i;
+         const int x = g->lay.x0 + c * g->lay.cw + 2, y = g->lay.y0 + r * g->lay.ch + 2;
+-        rect(layer, x, y, g->lay.cw - 4, g->lay.ch - 4, 6, used ? (in_word ? 0x2E7D4F : 0x7D2E2E) : 0x2C3E7A);
++        const int pop = gan_pop_scale(&g->anim, i, now_ms());  // patch SF74: the pressed key pops
++        const int grow = (g->lay.cw - 4) * (pop - 1000) / 2000;
++        rect(layer, x - grow, y - grow, g->lay.cw - 4 + 2 * grow, g->lay.ch - 4 + 2 * grow, 6, used ? (in_word ? 0x2E7D4F : 0x7D2E2E) : 0x2C3E7A);
+         text(layer, kLetter[i], x, y + 4, x + g->lay.cw - 5, y + g->lay.ch - 4, used ? 0xBBBBBB : 0xFFFFFF, &lv_font_montserrat_20);
+     }
+ }
+@@ -257,6 +259,8 @@ void draw_mines(Grid* g, lv_layer_t* layer)
+         const uint8_t v = g->mines.c[i];
+         const int x = g->lay.x0 + (i % GMN_COLS) * g->lay.cw + 1, y = g->lay.y0 + (i / GMN_COLS) * g->lay.ch + 1, w = g->lay.cw - 2;
+         const bool open = (v & GMN_OPEN) != 0;
++        const int pop = gan_pop_scale(&g->anim, i, now_ms());  // patch SF74: the cell just opened pops
++        if (pop != 1000) rect(layer, x - (w * (pop - 1000) / 2000), y - (w * (pop - 1000) / 2000), w * pop / 1000, w * pop / 1000, 4, open ? 0x2A3858 : 0x2C3E7A);
+         rect(layer, x, y, w, w, 4, open ? 0x1A2236 : 0x2C3E7A);
+         if (open && (v & GMN_MINE)) {
+             rect(layer, x + 5, y + 5, w - 10, w - 10, LV_RADIUS_CIRCLE, 0xE04848);
+@@ -309,9 +313,18 @@ void draw_cb(lv_event_t* e)
+             const uint8_t v = g->mem.card[i];
+             const bool up = (v & (GM_FACE_UP | GM_MATCHED)) != 0;
+             const int sym = v & GM_SYMBOL_MASK;
+-            const int x = g->lay.x0 + (i % cols) * cw + 3, y = g->lay.y0 + (i / cols) * ch + 3;
+-            rect(layer, x, y, cw - 6, ch - 6, 8, up ? kSymbolColor[sym] : 0x2C3E7A, (v & GM_MATCHED) ? LV_OPA_60 : LV_OPA_COVER);
+-            if (up) card_dots(layer, x, y, cw - 6, sym);
++            int x = g->lay.x0 + (i % cols) * cw + 3, y = g->lay.y0 + (i / cols) * ch + 3, w = cw - 6;
++            const uint32_t now = now_ms();
++            const int fw = gan_flip_width(&g->anim, i, now);  // patch SF74: a flipping card closes to its edge and opens on the other face
++            bool face_up = up;
++            if (fw != 1000) {
++                if (!gan_flip_new_face(&g->anim, i, now)) face_up = !up;  // the old face shows in the first half
++                const int nw = w * fw / 1000;
++                x += (w - nw) / 2;
++                w = nw < 2 ? 2 : nw;
++            }
++            rect(layer, x, y, w, cw - 6, 8, face_up ? kSymbolColor[sym] : 0x2C3E7A, (v & GM_MATCHED) ? LV_OPA_60 : LV_OPA_COVER);
++            if (face_up && fw > 300) card_dots(layer, x, y, w, sym);
+         }
+     }
+ }
+@@ -516,8 +529,18 @@ void tick_cb(lv_timer_t*)
+         if (now - g->over_at >= kOverHoldMs) end_locked("finished");
+         return;
+     }
++    if (g->kind != kC4) {  // patch SF74: the flips and pops of the other grid games (events are not needed: the pictures end by themselves)
++        gan_ev_t ev[GAN_EV_MAX];
++        const int n = gan_tick(&g->anim, now, ev);
++        if (gan_active(&g->anim) || n > 0) redraw(g);
++    }
+     if (g->kind == kMatch) {
+-        if (gm_tick(&g->mem, now)) redraw(g);
++        const int p0 = g->mem.pending[0], p1 = g->mem.pending[1];
++        if (gm_tick(&g->mem, now)) {
++            if (p0 >= 0) gan_flip(&g->anim, now, p0);  // a mismatched pair turns back
++            if (p1 >= 0) gan_flip(&g->anim, now, p1);
++            redraw(g);
++        }
+         return;
+     }
+     if (g->kind == kC4) {
+@@ -649,6 +672,7 @@ void maipai_grid_touch(int x, int y)
+         const int r = gh_guess(&g->hang, letter);
+         if (r == GH_BAD || r == GH_REPEAT) return;
+         cue(r == GH_HIT ? GR_CUE_MATCH : GR_CUE_MISS);
++        gan_pop(&g->anim, now, letter - 'A');
+         redraw(g);
+         if (g->hang.result != GR_PLAYING) finish(g, g->hang.result);
+     } else if (g->kind == kMines) {
+@@ -664,6 +688,7 @@ void maipai_grid_touch(int x, int y)
+         const int r = g->flag_mode ? gmn_flag(&g->mines, idx) : gmn_reveal(&g->mines, idx);
+         if (r == GMN_IGNORED) return;
+         cue(r == GMN_BOOM ? GR_CUE_LOSE : (r == GMN_CLEARED ? GR_CUE_WIN : GR_CUE_TAP));
++        if (!g->flag_mode) gan_pop(&g->anim, now, idx);
+         redraw(g);
+         if (r == GMN_BOOM) finish(g, GR_UNIT_WON);
+         else if (r == GMN_CLEARED) finish(g, GR_PERSON_WON);
+@@ -672,6 +697,8 @@ void maipai_grid_touch(int x, int y)
+         const int r = gm_tap(&g->mem, idx, now);
+         if (r == GM_IGNORED) return;
+         cue(r == GM_MATCH || r == GM_DONE ? GR_CUE_MATCH : (r == GM_MISS ? GR_CUE_MISS : GR_CUE_TAP));
++        gan_flip(&g->anim, now, idx);  // patch SF74: the card turns over
++        play_clip(g, MGS_C_GRID_TICK_LO + (idx / g->lay.cols >= 3 ? 0 : (idx / g->lay.cols >= 1 ? 1 : 2)));
+         redraw(g);
+         if (r == GM_DONE) finish(g, GR_PERSON_WON);
+     }

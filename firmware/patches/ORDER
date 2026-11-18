@@ -326,3 +326,4 @@ SF70-hangman-and-mines-on-the-unit.patch
 SF71-reconnect-delay-resets-after-a-held-handshake.patch
 SF72-grid-animation-layer-and-connect4-chip-drop.patch
 SF73-away-notice-takes-the-banner-row.patch
+SF74-flips-and-pops-for-memory-mines-hangman.patch

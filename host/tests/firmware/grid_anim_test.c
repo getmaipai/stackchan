@@ -152,8 +152,36 @@ static void test_the_new_sounds(void)
     CHECK(mgs_clip_samples(MGS_C_GRID_DROP) <= 16 * 100 && MGS_CLIPS == MGS_C_GRID_DRAW + 1);
 }
 
+static void test_flip_and_pop(void)
+{
+    gan_t a;
+    gan_init(&a);
+    CHECK(gan_flip_width(&a, 3, 0) == 1000 && gan_pop_scale(&a, 3, 0) == 1000 && gan_flip_new_face(&a, 3, 0));   /* nothing running: full size, new face */
+    gan_flip(&a, 1000, 3);
+    CHECK(gan_flip_width(&a, 3, 1000) == 1000 && !gan_flip_new_face(&a, 3, 1000));
+    CHECK(gan_flip_width(&a, 3, 1000 + GAN_FLIP_MS / 2) == 0 && gan_flip_new_face(&a, 3, 1000 + GAN_FLIP_MS / 2));   /* closed at the middle, the face changes there */
+    int prev = 1001, closing = 1;
+    for (uint32_t t = 1000; t < 1000 + GAN_FLIP_MS / 2; t += 10) { const int w = gan_flip_width(&a, 3, t); CHECK(w <= prev && w >= 0); prev = w; }
+    prev = -1;
+    for (uint32_t t = 1000 + GAN_FLIP_MS / 2; t < 1000 + GAN_FLIP_MS; t += 10) { const int w = gan_flip_width(&a, 3, t); CHECK(w >= prev && w <= 1000); prev = w; closing = 0; }
+    CHECK(!closing);
+    gan_ev_t ev[GAN_EV_MAX];
+    CHECK(gan_tick(&a, 1000 + GAN_FLIP_MS - 1, ev) == 0 && gan_busy(&a));
+    CHECK(gan_tick(&a, 1000 + GAN_FLIP_MS, ev) == 1 && ev[0].type == GAN_EV_FLIP_DONE && ev[0].cell == 3 && !gan_busy(&a));
+    CHECK(gan_flip_width(&a, 3, 5000) == 1000);
+    gan_pop(&a, 0, 9);
+    int peak = 0;
+    for (uint32_t t = 0; t <= GAN_POP_MS; t += 4) { const int sc = gan_pop_scale(&a, 9, t); CHECK(sc >= 1000 && sc <= 1120); if (sc > peak) peak = sc; }
+    CHECK(peak >= 1115 && gan_pop_scale(&a, 9, GAN_POP_MS) == 1000 && gan_pop_scale(&a, 8, 50) == 1000);
+    CHECK(gan_tick(&a, GAN_POP_MS, ev) == 1 && ev[0].type == GAN_EV_POP_DONE && !gan_active(&a));
+    /* the list is shared: eight tweens of any kind at most */
+    for (int i = 0; i < GAN_MAX; i++) CHECK((i % 2 ? gan_pop(&a, 0, i) : gan_flip(&a, 0, i)) >= 0);
+    CHECK(gan_pop(&a, 0, 20) == -1 && gan_flip(&a, 0, 21) == -1);
+}
+
 int main(void)
 {
+    test_flip_and_pop();
     test_fall_math();
     test_list_and_pulse_and_shake();
     test_win_line_and_rules_untouched();
