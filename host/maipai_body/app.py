@@ -2283,7 +2283,32 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
 
     # "Play memory", "stop the game", "what games do you have" (and the Spanish asks) are
     # answered here, before the hub is asked: the games are the unit's own (firmware patch G01).
-    head_commander.game = _GameService(voice.robot.client._call).spoken
+    from maipai_body.bodies.stackchan.game_voice import GamePicker, InstallNotices
+    from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT as _ACTIVE_UNIT
+
+    behavior.game_notices = InstallNotices(_data_dir() / "install-notices.json")
+
+    def _game_refusal() -> str | None:
+        if behavior.privacy_units.muted_reason() == "full quiet":
+            return "quiet"
+        try:
+            from maipai_body import child_gate
+
+            if child_gate.any_present():
+                return "child"
+        except Exception:
+            pass
+        return None
+
+    head_commander.game = _GameService(
+        voice.robot.client._call,
+        picker=GamePicker(),
+        notices=behavior.game_notices,
+        unit=lambda: _ACTIVE_UNIT.get() or "",
+        refusal=_game_refusal,
+        model_ready=lambda: bool(getattr(behavior, "talk_model_ready", False)),
+        start_talk=lambda game_id, lang: getattr(behavior, "start_talk_game", lambda g, l: "")(game_id, lang),
+    ).spoken
     from maipai_body.bodies.stackchan.music_dance_wiring import (
         MusicFeatureSwitch,
         music_status_code,
@@ -2473,6 +2498,11 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
 
     # Voice games the model plays ("play twenty questions"): the start and end are answered here with no model.
     bridge.talk_games = TalkGames()
+    # "Play a game" may pick a model game when a model answers (game_voice.py); the host keeps the state, the model gets no tools.
+    behavior.talk_model_ready = True
+    behavior.start_talk_game = lambda game_id, lang: bridge.talk_games.run(
+        __import__("maipai_body.bodies.stackchan.talk_games", fromlist=["TalkCommand"]).TalkCommand("start", game_id, lang), _ACTIVE_UNIT_FOR_TALK.get() or ""
+    )
     from maipai_body.bodies.stackchan.lock_voice import LockVoice
 
     # "Lock" / "bloquear": the unit that heard it locks, no model call. The service is read late (the settings polish is built after this).
@@ -3537,6 +3567,9 @@ def _wire_installed_sets(voice, backend, pairing, stop_event) -> None:
                         logger.warning("installed set retry failed", exc_info=True)
 
     service_threads.start(retry, name="installed-set-retry", stop=stop_event)
+
+
+from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT as _ACTIVE_UNIT_FOR_TALK  # noqa: E402
 
 
 def _wire_assets(voice, backend) -> None:

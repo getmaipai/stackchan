@@ -81,3 +81,21 @@ Turn it off with `pet_mood = false`.
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.
+
+## Ask for a game by voice
+
+You do not need a model for these. The robot answers with fixed phrases, in every language it speaks.
+
+| You say | The robot |
+|---|---|
+| "Play a game", "Let's play", "I'm bored" | Picks a game on this robot, never the one it just played, and starts it. Games you play more come up a little more often. |
+| "Another one", "Play something else" | Stops the game that is on and picks a different one. |
+| "Play memory" (or another game's name) | Starts that game. |
+| "What games do you have?" | Lists the games on this robot, out loud and on its screen. |
+| "Stop" | Stops the game. |
+
+The same asks work in Spanish ("Estoy aburrido", "Otro juego"), French ("Jouons", "Un autre jeu"), German ("Lass uns spielen", "Ein anderes Spiel"), Portuguese ("Vamos jogar", "Outro jogo") and Italian ("Giochiamo", "Un altro gioco").
+
+If you ask for a game that is not on this robot, it says so and leaves a note on your dashboard ("On my robot") so you can add it. It never installs anything by itself. In full quiet, or while the robot is locked, it says it cannot start a game. A muted robot plays the game without sound.
+
+When a model is answering, "play a game" can also pick a talking game, such as riddles or twenty questions. The host keeps the game state and the model gets no tools.

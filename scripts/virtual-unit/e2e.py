@@ -579,10 +579,28 @@ async def brain_modes(rig: Rig, check) -> None:
     check("an install of an unknown size is refused in plain words", status == 400 and b"small or the better" in raw, raw[:160].decode(errors="replace"))
 
 
-SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps, "brain_modes": brain_modes, **EXTRA, **EXTRA_HOSTILE, **EXTRA_FLEET}
+async def play_a_game(rig: Rig, check) -> None:
+    """'Play a game' by voice, with no model: the host picks among the games on the robot, never the same twice in a row, and 'play memory' starts memory."""
+    seen: list[str] = []
+    for _ in range(6):
+        before = len([c for c in rig.fw.tool_calls if c[0] == "self.game.start"])
+        await rig.say("play a game", speech_s=0.8, tail_s=1.0, wait_stop=25.0)
+        starts = [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
+        if len(starts) > before:
+            seen.append(starts[-1])
+    check("every 'play a game' started a game on the robot", len(seen) == 6, str(seen), known_gap="the virtual unit's self.game.start does not accept the `token` argument the host stamps on it (patch FM03, remote_trust.py); playground track: accept token in the tool schema")
+    check("never the same game twice in a row", all(a != b for a, b in zip(seen, seen[1:])), str(seen))
+    check("the games vary", len(set(seen)) >= 3, str(seen))
+    await rig.say("play memory", speech_s=0.8, tail_s=1.0, wait_stop=25.0)
+    starts = [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
+    check("'play memory' starts memory", bool(starts) and starts[-1] == "memory", str(starts[-3:]), known_gap="the virtual unit's self.game.start does not accept the `token` argument the host stamps on it (patch FM03, remote_trust.py); playground track: accept token in the tool schema")
+    check("no model was asked for any of it", not any("play a game" in json.dumps(r["messages"]) for r in rig.models.llm_requests))
+
+
+SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps, "brain_modes": brain_modes, "play_a_game": play_a_game, **EXTRA, **EXTRA_HOSTILE, **EXTRA_FLEET}
 NEEDS_SETTINGS_PAGE = {"key_exchange", "hostile_settings", "brain_modes", "chaos_host_kill_2", "chaos_host_kill_10", "chaos_internal_workers", "service_kill9"}
 NEEDS_SERVICE = {"service_kill9"}   # the host runs as a launchd service under a temporary label (e2e_fleet.py)
-SCENARIO_TIMEOUT_S = {"fleet_25": 600, "fleet_10": 420, "chaos_host_kill_10": 600, "chaos_packets": 300, "service_kill9": 300, "soak": 4 * 3600, "hostile_unauthenticated": 600, "hostile_paired_peer": 900, "hostile_settings": 600}  # the soak is long on purpose; the others stop after three minutes
+SCENARIO_TIMEOUT_S = {"play_a_game": 420, "fleet_25": 600, "fleet_10": 420, "chaos_host_kill_10": 600, "chaos_packets": 300, "service_kill9": 300, "soak": 4 * 3600, "hostile_unauthenticated": 600, "hostile_paired_peer": 900, "hostile_settings": 600}  # the soak is long on purpose; the others stop after three minutes
 
 
 async def run(names: list[str], venv: Path | None) -> int:

@@ -282,6 +282,17 @@ def parse_ask(text: object) -> tuple[str, str | None] | None:
         return ("scores", game.id if game else None)
     if game is not None and any(f" {p} " in f" {said} " for p in _START):
         return ("start", game.id)
+    from maipai_body.bodies.stackchan import game_voice
+
+    if game_voice.parse_list(said):
+        return ("list", None)
+    parsed = game_voice.parse_random(said)
+    if parsed is not None:
+        return (parsed[0], None)
+    # a game named in French, German, Portuguese or Italian, started with their word for play
+    for gid, names in game_voice.EXTRA_ALIASES.items():
+        if any(f" {n} " in f" {said} " for n in names) and any(f" {p} " in f" {said} " for p in ("joue a", "joue", "spiel", "spielen", "vamos jogar", "joga", "gioca", "giochiamo a", "jouons a", "brincar")):
+            return ("start", gid)
     return None
 
 
@@ -356,10 +367,22 @@ class GameService:
     """
 
     def __init__(
-        self, call: Callable[[str, dict[str, object]], object], *, language: str = "en"
+        self,
+        call: Callable[[str, dict[str, object]], object],
+        *,
+        language: str = "en",
+        picker: Any = None,
+        notices: Any = None,
+        unit: Callable[[], str] = lambda: "",
+        refusal: Callable[[], str | None] = lambda: None,
+        model_ready: Callable[[], bool] = lambda: False,
+        start_talk: Callable[[str, str], str] | None = None,
     ) -> None:
         self._call = call
         self._language = language
+        # The voice games with no model (game_voice.py): `picker` chooses among the games on this robot, `notices` leaves "Install X?" on the
+        # dashboard, `refusal()` answers "quiet", "locked" or "child" when a game must not start, `start_talk(id, lang)` starts a model game.
+        self._picker, self._notices, self._unit, self._refusal, self._model_ready, self._start_talk = picker, notices, unit, refusal, model_ready, start_talk
 
     def _tool(
         self,
@@ -378,6 +401,8 @@ class GameService:
         try:
             reply = _reply(self._call(name, arguments))
         except BodyLost:
+            return {"ok": False, "error": _say(lang or self._language, "unreachable")}
+        if reply.get("isError") and reply.get("ok") is not True:  # the unit refused the call: say so in plain words, never stay silent
             return {"ok": False, "error": _say(lang or self._language, "unreachable")}
         if not reply or (needs_ok and reply.get("ok") is not True):
             return {"ok": False, "error": _say(lang or self._language, "old_firmware")}
@@ -437,13 +462,29 @@ class GameService:
     def spoken(self, ask: tuple[str, str | None], text: str = "") -> str:
         """Do a parsed spoken ask and answer the short line to say, in the language the person used."""
         kind, game_id = ask
-        lang = "es" if _spanish(text) else "en"
+        from maipai_body.bodies.stackchan import game_voice
+
+        phrase_lang = (game_voice.parse_random(text) or (None, None))[1] or game_voice.parse_list(text)
+        lang = phrase_lang or ("es" if _spanish(text) else self._language if self._language in game_voice.LINES else "en")
         game = next((g for g in GAMES if g.id == game_id), None)
-        title = game.title[lang] if game else ""
+        title = game.title.get(lang) or game.title["en"] if game else ""
+        if kind in ("random", "another", "start"):
+            blocked = self._refusal() if self._refusal else None
+            if blocked in ("quiet", "locked", "child"):
+                return game_voice.say(lang, blocked)
+        if kind in ("random", "another"):
+            return self._random(lang)
         if kind == "start":
+            installed = self._installed_ids()
+            if installed is not None and game is not None and game.id not in installed:
+                if self._notices is not None:
+                    self._notices.add(self._unit(), "game", title, f"game/{game.id}")
+                return game_voice.say(lang, "not_installed", title=title)
             result = self.start(game_id, lang)
             if result.get("ok") is True:
-                return _LINES[lang]["start"].format(title=title)
+                if self._picker is not None and game_id:
+                    self._picker.note_played(self._unit(), game_id)
+                return (_LINES.get(lang) or _LINES["en"])["start"].format(title=title)
             return str(result.get("error", ""))
         if kind == "stop":
             result = self.stop(lang)
@@ -462,9 +503,44 @@ class GameService:
         if listing.get("ok") is not True:
             return str(listing.get("error", ""))
         names = [g["title"] for g in listing["games"]]
-        return _LINES[lang]["list"].format(
-            names=", ".join(names[:-1]) + (" y " if lang == "es" else " and ") + names[-1]
-        )
+        if not names:
+            return game_voice.say(lang, "none")
+        return game_voice.say(lang, "list", names=game_voice.join_names(lang, names))
+
+    def _installed_ids(self) -> list[str] | None:
+        """The ids of the games on this robot (its own list), or None when the robot cannot say."""
+        listing = self.list(self._language)
+        if listing.get("ok") is not True:
+            return None
+        self._playing = bool(listing.get("playing"))
+        return [str(g["id"]) for g in listing["games"] if g.get("id")]
+
+    def _random(self, lang: str) -> str:
+        """Pick a game from the ones installed on this robot, never the one just played, and start it."""
+        from maipai_body.bodies.stackchan import game_voice, talk_games
+
+        installed = self._installed_ids()
+        if not installed:
+            return game_voice.say(lang, "none")
+        picker = self._picker or game_voice.GamePicker()
+        self._picker = picker
+        talk = [f"talk:{g}" for g in talk_games.IDS] if (self._model_ready() and self._start_talk is not None) else []
+        unit = self._unit()
+        choice = picker.pick(unit, installed + talk)
+        if choice is None:
+            return game_voice.say(lang, "none")
+        if choice.startswith("talk:"):
+            picker.note_played(unit, choice)
+            line = self._start_talk(choice[5:], lang) if self._start_talk else ""
+            return line or game_voice.say(lang, "none")
+        if getattr(self, "_playing", False):
+            self.stop(lang)  # "another one" ends the game that is on first
+        result = self.start(choice, lang)
+        if result.get("ok") is not True:
+            return str(result.get("error", ""))
+        picker.note_played(unit, choice)
+        game = next((g for g in GAMES if g.id == choice), None)
+        return game_voice.say(lang, "random", title=(game.title.get(lang) or game.title["en"]) if game else choice)
 
     def handlers(self) -> dict[str, Callable[[dict], dict]]:
         """The hub's device commands for games: each answers {ok, ...} or {ok: False, error}."""
