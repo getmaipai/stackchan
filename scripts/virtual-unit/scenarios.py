@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN = ROOT / "host" / "tests" / "golden" / "face"
+GOLDEN_SCREENS = ROOT / "host" / "tests" / "golden" / "screens"
 
 spec = importlib.util.spec_from_file_location("vunit", Path(__file__).with_name("vunit.py"))
 vunit = importlib.util.module_from_spec(spec)
@@ -27,11 +28,34 @@ SCENARIOS["closing-mid"] = [EMOTE("closing"), ("advance", 500)]
 SCENARIOS["tired-low-battery"] = [("call", "self.face.bench_emotion", {"emotion": "tired", "tired_level": 2}), ("advance", 3400)]
 
 
+# Screens other than the bare face, on the screens renderer. Not drawn by the renderer yet (gaps, listed so they are not forgotten):
+# pairing screen, updating screen, lock screen and keypad (lock_render.sh is a separate program), the Wi-Fi setup screen itself
+# (the renderer only has the banner flag for it).
+SCREEN_GAPS = ["pairing", "updating", "lock", "wifi-setup-screen"]
+BAR = [("raw", "style big_eyes"), ("raw", "bbar always"), ("raw", "bstatus 80 0 1 1 1")]
+SCREENS: dict[str, list] = {
+    "screen-status-normal": BAR + [EMOTE("neutral"), ("advance", 1500)],
+    "screen-listening": BAR + [("raw", "bst 1"), ("advance", 700)],
+    "screen-muted": BAR + [("raw", "bstatus 80 0 1 1 0"), ("advance", 700)],
+    "screen-offline": BAR + [("raw", "bstatus 80 0 0 0 1"), ("advance", 700)],
+    "screen-low-battery": BAR + [("raw", "bstatus 12 0 1 1 1"), ("call", "self.face.bench_emotion", {"emotion": "tired", "tired_level": 2}), ("advance", 3400)],
+    "screen-charging": BAR + [("raw", "bstatus 40 1 1 1 1"), ("advance", 700)],
+    "screen-wifi-flag": BAR + [("raw", "bwifiscreen on"), ("advance", 700)],
+    "screen-page-clock": BAR + [("raw", "pshow clock"), ("advance", 600)],
+    "screen-page-timers": BAR + [("raw", "pshow timers"), ("advance", 600)],
+    "screen-page-games": BAR + [("raw", "pshow games"), ("advance", 600)],
+    "screen-page-actions": BAR + [("raw", "pshow actions"), ("advance", 600)],
+    "screen-control-sheet": BAR + [("raw", "pshow sheet"), ("advance", 600)],
+}
+
+
 def run(u, steps) -> None:
     for step in steps:
         if step[0] == "call":
             out = u.call(step[1], step[2])
             assert not out.get("isError"), out
+        elif step[0] == "raw":
+            u.raw(step[1])
         elif step[0] == "advance":
             u.advance(step[1])
         elif step[0] == "touch":
@@ -59,25 +83,33 @@ def layout_problems(u, name: str) -> list[str]:
 def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     update = "--update" in sys.argv
-    names = args or list(SCENARIOS)
+    screens_built = (ROOT / ".runs" / "vu-screens" / "render").exists()
+    names = args or list(SCENARIOS) + (list(SCREENS) if screens_built else [])
+    if not args and not screens_built:
+        print("screens renderer not built: skipping screen scenarios (bash scripts/virtual-unit/build-screens.sh)")
     failed = 0
     GOLDEN.mkdir(parents=True, exist_ok=True)
+    GOLDEN_SCREENS.mkdir(parents=True, exist_ok=True)
     for name in names:
-        with vunit.VirtualUnit() as u:
-            run(u, SCENARIOS[name])
+        is_screen = name in SCREENS
+        with vunit.VirtualUnit(profile="screens" if is_screen else "face") as u:
+            run(u, SCREENS[name] if is_screen else SCENARIOS[name])
             png = u.snapshot()
             problems = layout_problems(u, name)
-        gold = GOLDEN / f"{name}.png"
+        folder = GOLDEN_SCREENS if is_screen else GOLDEN
+        gold = folder / f"{name}.png"
         if update:
             gold.write_bytes(png)
         elif not gold.exists():
             problems.append("no golden frame: run scenarios.py --update and look at it")
         elif png_pixels(gold.read_bytes()) != png_pixels(png):
-            (GOLDEN.parent / f"{name}.actual.png").write_bytes(png)
+            (folder.parent / f"{name}.actual.png").write_bytes(png)
             problems.append(f"frame differs from golden (actual saved to host/tests/golden/{name}.actual.png)")
         for p in problems:
             failed += 1
             print(f"FAIL {name}: {p}")
+    if not args:
+        print("not drawn yet: " + ", ".join(SCREEN_GAPS))
     print(f"{len(names) - failed} of {len(names)} scenarios clean" if not failed else f"{failed} problems")
     return 1 if failed else 0
 

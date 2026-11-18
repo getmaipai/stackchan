@@ -35,12 +35,16 @@ class RendererMissing(RuntimeError):
 
 
 class VirtualUnit:
-    def __init__(self, render: str | None = None) -> None:
-        self.render = Path(render or os.environ.get("MAIPAI_VUNIT_RENDER") or ROOT / ".runs" / "vu-build" / "render")
+    def __init__(self, render: str | None = None, profile: str = "face") -> None:
+        """profile "face": the bare face renderer; "screens": also the status bar, pages, control sheet and Apps (build-screens.sh)."""
+        default = ROOT / ".runs" / ("vu-screens" if profile == "screens" else "vu-build") / "render"
+        self.render = Path(render or os.environ.get("MAIPAI_VUNIT_RENDER") or default)
+        self.profile = profile
         schema = json.loads((ROOT / "schema" / "tools.json").read_text())
         self.tool_names = sorted(schema["tools"])
         self.tool_args: dict[str, dict[str, str]] = schema.get("arguments", {})
         self.now_ms = 0
+        self.output: list[str] = []
         self.touches: list[tuple[int, int, int, int]] = []  # (at_ms, x, y, duration_ms)
         self.calls: list[tuple[str, dict]] = []
         self.emotion = "neutral"
@@ -73,9 +77,23 @@ class VirtualUnit:
         self._proc.stdin.write(line + "\n")
         self._proc.stdin.flush()
 
+    def _read_until(self, prefix: str) -> str:
+        """The renderer prints a line for some commands (pshow, pstate): skip them and keep them in self.output."""
+        while True:
+            line = self._proc.stdout.readline()
+            if not line:
+                raise RuntimeError("the renderer stopped: rebuild it (scripts/virtual-unit/build-screens.sh) and run again")
+            if line.startswith(prefix):
+                return line.strip()
+            self.output.append(line.strip())
+
     def _sync(self) -> str:
         self._send("count 0 0 1 1")  # the renderer answers on stdout: a barrier after earlier commands
-        return self._proc.stdout.readline().strip()
+        return self._read_until("count")
+
+    def raw(self, command: str) -> None:
+        """One renderer command (screens profile: pshow, bstatus, bst, bwifiscreen, ...). A bench aid, not a firmware tool."""
+        self._send(command)
 
     def advance(self, ms: int) -> None:
         """Move the fake clock; the face animates for that long."""
@@ -103,7 +121,7 @@ class VirtualUnit:
 
     def count(self, x0: int, y0: int, x1: int, y1: int) -> dict:
         self._send(f"count {x0} {y0} {x1} {y1}")
-        parts = self._proc.stdout.readline().split()
+        parts = self._read_until("count").split()
         return {"lit": int(parts[1]), "bbox": tuple(int(p) for p in parts[3:7])}
 
     def touch(self, x: int, y: int, ms: int = 200) -> None:
