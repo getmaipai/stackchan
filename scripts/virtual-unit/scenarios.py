@@ -109,6 +109,18 @@ LOCK_SCENARIOS = {
 
 
 # The link covers, drawn by the unit's own code cut out of stackchan_display.cc (cover_gen.py): ShowBootCover(text, ring, glyph).
+# The grid games drawn by the unit's own code (scripts/fw-face-render/grid_render.cc, cut from maipai_grid.cc by grid_gen.py): a game in play. Steps: game, drop, tap, flag, advance, snap.
+_C4 = ["game c4", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 4 2", "advance 700"]
+GRID_SCENARIOS = {
+    "game-c4-playing": _C4 + ["snap {out}"],
+    "game-c4-chip-falling": _C4 + ["drop 5 1", "advance 150", "snap {out}"],
+    "game-c4-win": _C4 + ["drop 3 1", "advance 1500", "snap {out}"],
+    "game-match-two-up": ["game match 5", "tap 0", "advance 400", "tap 5", "advance 100", "snap {out}"],
+    "game-match-flipping": ["game match 5", "tap 0", "advance 90", "snap {out}"],
+    "game-hangman-mid": ["game hangman 1", "tap 4", "advance 400", "tap 0", "advance 400", "tap 17", "advance 400", "tap 19", "advance 400", "snap {out}"],
+    "game-mines-open": ["game mines 3", "tap 20", "advance 500", "snap {out}"],
+}
+
 COVER_SCENARIOS = {
     "cover-connecting-wifi": ["show 1 0 Connecting to Wi-Fi...", "advance 800", "snap {out}"],
     "cover-connecting-home": ["show 1 0 Connecting to Home...", "advance 800", "snap {out}"],
@@ -160,7 +172,7 @@ def run_lock(name: str) -> bytes:
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "shot.png"
-        lines, prog = (COVER_SCENARIOS[name], "cover/cover_render") if name in COVER_SCENARIOS else (LOCK_SCENARIOS[name], "lock/lock_render")
+        lines, prog = (COVER_SCENARIOS[name], "cover/cover_render") if name in COVER_SCENARIOS else (GRID_SCENARIOS[name], "grid/grid_render") if name in GRID_SCENARIOS else (LOCK_SCENARIOS[name], "lock/lock_render")
         script = "\n".join(line.format(out=out) for line in lines) + "\n"
         subprocess.run([str(ROOT / ".runs" / "vu-screens" / prog)], input=script, text=True, check=True, capture_output=True)
         return out.read_bytes()
@@ -244,15 +256,15 @@ def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     update = "--update" in sys.argv
     screens_built = (ROOT / ".runs" / "vu-screens" / "render").exists()
-    names = args or list(SCENARIOS) + (list(SCREENS) + list(LOCK_SCENARIOS) + list(COVER_SCENARIOS) if screens_built else [])
+    names = args or list(SCENARIOS) + (list(SCREENS) + list(LOCK_SCENARIOS) + list(COVER_SCENARIOS) + list(GRID_SCENARIOS) if screens_built else [])
     if not args and not screens_built:
         print("screens renderer not built: skipping screen scenarios (bash scripts/virtual-unit/build-screens.sh)")
     failed = 0
     GOLDEN.mkdir(parents=True, exist_ok=True)
     GOLDEN_SCREENS.mkdir(parents=True, exist_ok=True)
     for name in names:
-        is_screen = name in SCREENS or name in LOCK_SCENARIOS or name in COVER_SCENARIOS
-        if name in LOCK_SCENARIOS or name in COVER_SCENARIOS:
+        is_screen = name in SCREENS or name in LOCK_SCENARIOS or name in COVER_SCENARIOS or name in GRID_SCENARIOS
+        if name in LOCK_SCENARIOS or name in COVER_SCENARIOS or name in GRID_SCENARIOS:
             png, problems = run_lock(name), []
         else:
             with vunit.VirtualUnit(profile="screens" if is_screen else "face") as u:

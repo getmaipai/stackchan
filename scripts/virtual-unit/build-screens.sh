@@ -29,3 +29,8 @@ mkdir -p "$OUT/cover"
 python3 "$(dirname "$0")/cover_gen.py" "$B" "$OUT/cover"
 clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$OUT/cover" -I"$B/firmware/main" -I"$L" -I"$L/src" -I"$R/stub" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$(dirname "$0")/cover_render.cc" "$OUT/obj/font_noto_sans_basic_20_4.c.o" "$OUT/lvgl.a" -o "$OUT/cover/cover_render" -lz
 echo "built $OUT/cover/cover_render"
+# the grid games in play (Four in a Row, Memory Match, Hangman, Mine Finder): the unit's own drawing code cut out of maipai_grid.cc (grid_gen.py)
+mkdir -p "$OUT/grid"
+python3 "$(dirname "$0")/grid_gen.py" "$B" "$OUT/grid"
+clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$OUT/grid" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$R/grid_render.cc" "$OUT/lvgl.a" -o "$OUT/grid/grid_render" -lz
+echo "built $OUT/grid/grid_render"
