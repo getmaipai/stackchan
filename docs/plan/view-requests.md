@@ -55,3 +55,27 @@ Also done (2026-11-18, later): `assets` in the state (your `slots()`) with an In
 - **Your three lines in `view.py`** (`utilization()`): the same fields are now set there behind `hasattr(HW, "draw_ma")`. When your branch merges, take the view's version of that function.
 - **Sounds:** the action picker lists the twelve sound names for `self.audio.play_sound`. The virtual unit plays nothing aloud.
 - **Tests:** `host/tests/test_vu_view_live.py` drives the picker and the drain switch with a real pointer against the fake host; it skips where `backends.py`, `fake_host.py` or the power model are absent.
+
+## Spot check of the owner's feedback list against the viewer (view session, 2026-11-18, main at 51c44164)
+
+Checked by screenshot and by the real-pointer tests (`host/tests/test_vu_view_pointer.py`, 15 passing).
+
+| Item | State | How it was checked |
+|---|---|---|
+| Reset button | there: a flush pill-shaped key under the controller with its mark, the red light and the two slots; a click restarts the unit | close render and the reset test |
+| Side USB-C | there: an open socket on the controller, a click target with its own cable | screenshot with the cable in; the two-socket click test |
+| Top touch sensors | there, under the shell: the top is plain as on the real unit; the pads glow under the pointer and on a touch | top screenshot; the touch pad test |
+| Rear cables | there: the folded black flat cable, its run into the holder, two white flat cables with blue print, the battery lead and the servo leads | lit open-back screenshot |
+| Glowing lights | there: bars lit along their length, halos, light on the inside, the windows in the top connectors; nothing on the controller | dim-room screenshots; the lights test |
+| Drag head pan and tilt | there, through the unit's limiter, with the arrow keys | the head drag test |
+| Click to plug | there on both sockets | the two-socket click test |
+
+Still missing or weaker than the real unit:
+
+1. The small print on the rating label and on the label under the base is stand-in bars (the name, the two-character mark and two large marks are drawn).
+2. The round finger recess behind the card slot is only marked by its rim; the side labels sit on the surface, not in their shallow recess.
+3. The two small dots beside the camera are drawn brighter than the real pale ones.
+4. The inside of the base (`base_board`) is a guess: no photo of the open base exists.
+5. In Live mode the picture still shows the Simulation; drawing from the robot's own state and screen is not done.
+6. The Talk panel is off until a voice bridge exists.
+7. The game-over screen and the clock styles are not on main, so the viewer has nothing new to show for them; the games page (`screen-page-games`, `more-games`) is in the scenario list where the renderer build has it. Asked the playground track for the names to add.
