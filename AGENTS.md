@@ -6,7 +6,7 @@ Org standards (writing style, privacy, PII) apply; see `getmaipai/.github`.
 ## Hard rules
 - No shared robot code repo: vendored copies from commons/spec are definitions and fixtures, never host code. See docs/design/repo-boundaries.md.
 - No dependency on any other MaiPai repo (no import, no submodule, no runtime call). Shared shapes are vendored snapshots with a drift check.
-- Nothing in code, docs, comments or commit text mentions, compares to or credits other projects. Required license notices go only in LICENSE, NOTICE, THIRD-PARTY.md and `# Upstream:` patch lines; provenance records of vendored geometry (source name, URL, commit, hashes) may also sit in `scripts/virtual-unit/model/` (`SOURCE.md`, `MATCH.md`, `source/`). `scripts/hygiene-check.sh` enforces this.
+- Names and credits (owner, 2026-11-18, `docs/plan/trademark-and-affiliation.md`): accurate credits, source names, URLs and provenance records may appear wherever they are useful, and the 3D model shows the real robot with its own name and marks. Required license notices stay in LICENSE, NOTICE, THIRD-PARTY.md and with the redistributed assets. The maker's marks are never used as this project's branding, and the affiliation wording comes from `docs/legal/affiliation.json`. `scripts/hygiene-check.sh` still blocks the names on the owner's private word list.
 - No em dashes, no filler vocabulary. Every error message says what went wrong and what to do.
 - An optional feature that is off costs no memory. Every firmware step runs the memory gate.
 - Every feature has a body half (unit and host, always here) and a brain half (own-LLM or Home adapter). A missing brain half hides the feature.

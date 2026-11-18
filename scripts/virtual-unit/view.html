@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Virtual StackChan</title>
+<html lang="en"><head><meta charset="utf-8"><title>MaiPai for StackChan: virtual unit</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 :root{--bg:#15181d;--panel:#1d222a;--line:#2e3641;--text:#dfe6ee;--muted:#8fa0b3;--accent:#5aaaff;--bad:#e64646;--good:#46be6e}
@@ -99,6 +99,7 @@ button[disabled]{opacity:.45;cursor:not-allowed}
    <div id="pl" class="t" style="margin-top:6px;font-size:12px"></div></section>
   <section style="border-bottom:0"><h2>Log (fake clock)</h2></section>
   <div id="log"></div>
+  <div id="affil" class="t" style="padding:8px 12px;font-size:11px;border-top:1px solid var(--line)"><span id="affiltext">Independent project. Not affiliated with or endorsed by M5Stack or the original StackChan creators.</span> <a href="/about" style="color:var(--muted)">About</a></div>
  </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -117,7 +118,7 @@ const FIRST=['robot','face','audio','timer','overlay','game','battery','motion']
 const HINT={yaw:{min:-128,max:128,v:0,unit:'degrees'},pitch:{min:3,max:87,v:10,unit:'degrees'},speed:{min:50,max:1000,v:300},level:{min:0,max:100,v:50,unit:'percent'},
  seconds:{min:1,max:120,v:5,unit:'s'},duration_seconds:{min:1,max:3600,v:60,unit:'s'},hour:{min:0,max:23,v:7},minute:{min:0,max:59,v:0},x:{min:0,max:319,v:160},y:{min:0,max:239,v:120},
  emotion:{choices:['neutral','happy','sad','angry','doubtful','surprised','sleepy','sleeping','love','content','thinking']},tired_level:{min:0,max:3,v:0}};
-const CHOICE={'self.robot.dance':{name:['happy','robot','panic','look_around']},'self.remote.action':{kind:['say','move','dance','find','photo','game','listen']}};
+const CHOICE={'self.robot.dance':{name:['happy','robot','panic','look_around','bob']},'self.remote.action':{kind:['say','move','dance','find','photo','game','listen']}};
 function fillAreas(){const have=[...new Set(TOOLS.map(area))].sort((a,b)=>((FIRST.indexOf(a)+99)%99)-((FIRST.indexOf(b)+99)%99)||a.localeCompare(b));
  $('dom').innerHTML='';have.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=words(a)+' ('+TOOLS.filter(t=>area(t)===a).length+')';$('dom').appendChild(o);});fillTools();}
 function fillTools(){const f=$('flt').value.toLowerCase().trim();$('tool').innerHTML='';
@@ -167,6 +168,7 @@ $('play').onclick=async()=>{const r=await post('/scenario',{name:$('scen').value
 fetch('/tools').then(r=>r.json()).then(d=>{TOOLS=d.tools;TOUCH=d.touch;fillAreas();if(!TOUCH)msg.textContent='Touch needs the screens renderer (build-screens.sh). The bare face is shown.';});
 function loadScenarios(){fetch('/scenarios').then(r=>r.json()).then(d=>{$('scen').innerHTML='';d.scenarios.forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;$('scen').appendChild(o);});});}
 loadScenarios();
+fetch('/affiliation.json').then(r=>r.json()).then(w=>{$('affiltext').textContent=w.short;}).catch(()=>{});   // the wording has one home; the text in the page is the fallback
 const G={up:{kind:'swipe',x:160,y:230,x2:160,y2:120,ms:250},down:{kind:'swipe',x:160,y:150,x2:160,y2:232,ms:250},left:{kind:'swipe',x:280,y:110,x2:40,y2:110,ms:200},right:{kind:'swipe',x:40,y:110,x2:280,y2:110,ms:200},stop:{kind:'swipe',x:160,y:2,x2:160,y2:150,ms:250}};
 document.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>post('/touch',G[b.dataset.g]));
 for(const e of ['neutral','happy','sad','angry','doubtful','surprised','sleepy','sleeping','love','content','thinking']){const b=document.createElement('button');b.textContent=e;b.onclick=()=>call('self.face.bench_emotion',{emotion:e});$('emos').appendChild(b);}
@@ -239,7 +241,7 @@ function paintBody(st){ST=st;const h=st.hw,m=st.motion;
  const lc=h.limiter_cable;
  $('whylim').innerHTML=`<b>What limits the head now:</b> ${m.state==='free'?'nothing':(m.reasons||m.state)} <span class="t">(${m.scale} percent of the full swing, speed ${m.speed_cap} of 1000)</span><br><span class="t">Cable seen by the limiter: ${lc.present?'yes, from the '+lc.from.map(n=>pn[n]).join(' and the '):'no'}. Rule: ${lc.rule}.</span>`;
  $('yawr').textContent=st.yaw_range.join(' to ');$('pitchr').textContent=st.pitch_range.join(' to ');
- $('limv').innerHTML=`<span>Limiter state</span><span><b>${m.state}</b></span><span>Why</span><span>${m.reasons||'nothing limits it'}</span><span>Excursion</span><span>${m.scale} percent</span><span>Speed cap</span><span>${m.speed_cap} of 1000</span><span>Dances up to</span><span>step ${m.dance_max}</span><span>Dance now</span><span>${st.dance||'none'}</span>`;
+ $('limv').innerHTML=`<span>Limiter state</span><span><b>${m.state}</b></span><span>Why</span><span>${m.reasons||'nothing limits it'}</span><span>Excursion</span><span>${m.scale} percent</span><span>Speed cap</span><span>${m.speed_cap} of 1000</span><span>Dances up to</span><span>step ${m.dance_max}</span><span>Dance now</span><span>${st.dance?st.dance+(st.dance_sim&&st.dance_sim.running?' (step '+st.dance_sim.step+', '+st.dance_sim.step_name+')':''):'none'}</span>`;
  $('mvv').textContent=st.moves_last_minute;$('mvc').textContent=st.moves_cap;$('mvb').style.width=Math.min(100,100*st.moves_last_minute/st.moves_cap)+'%';
  $('hd').textContent=h.on?`head: yaw ${st.head.yaw}, pitch ${st.head.pitch}`:'unit is off';
  if(follows('yaw',st.head.yaw))showSlider('yaw',st.head.yaw);if(follows('pitch',st.head.pitch))showSlider('pitch',st.head.pitch);}

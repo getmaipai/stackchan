@@ -1,0 +1,7 @@
+{
+ "project": "MaiPai for StackChan",
+ "full": "MaiPai for StackChan is an independent project providing custom firmware and tools for the M5Stack StackChan robot. It is not affiliated with, endorsed by, or sponsored by M5Stack or the original StackChan creators. Product names and trademarks belong to their respective owners.",
+ "short": "Independent project. Not affiliated with or endorsed by M5Stack or the original StackChan creators.",
+ "full_statement_at": "README.md#disclaimer",
+ "policy": "docs/plan/trademark-and-affiliation.md"
+}

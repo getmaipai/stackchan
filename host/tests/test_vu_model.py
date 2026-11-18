@@ -451,21 +451,28 @@ def test_no_gap_between_the_controller_and_the_shell():
     assert zmin_core < zmax_shell - 0.0003, "the controller's body reaches inside the shell's front edge"
 
 
-def test_no_logo_name_or_certification_mark_is_drawn():
-    """Trademark care: the model keeps the shapes of the labels and nothing a maker could own."""
+def test_the_model_shows_the_real_robot_and_the_project_states_its_independence():
+    """Owner's policy of 2026-11-18 (docs/plan/trademark-and-affiliation.md): the model carries the unit's own name and marks, the same
+    model serves every viewer, and the affiliation wording comes from one file."""
     j, _ = read_glb(GLB)
     by = nodes_by_name(j)
     mats = {m["name"] for m in j["materials"]}
-    assert "emboss" not in mats and "sticker_orange" not in mats, "no raised logo and no logo-colored patch"
+    assert "emboss" in mats, "the maker's raised mark is drawn on the controller"
     mat = lambda name: {j["materials"][p["material"]]["name"] for p in j["meshes"][by[name][1]["mesh"]]["primitives"]}
     for side in ("sticker_side_left", "sticker_side_right"):
-        assert mat(side) == {"sticker", "sticker_dark"}, "the side labels are blank: no name and no face"
-    assert mat("sticker_top") <= {"sticker", "sticker_gray", "sticker_ink"} and mat("sticker_bottom") == {"sticker", "sticker_dark", "sticker_ink"}
+        assert "sticker_ink" in mat(side), "the side labels carry the robot's name"
+    assert "sticker_ink" in mat("sticker_top") and {"sticker_ink", "sticker_orange"} <= mat("sticker_bottom")
     src = (VU / "model" / "make_body.py").read_text()
-    calls = re.findall(r"lettering\('([^']*)'", src)
-    assert calls == ["7P"], f"only the board marking is lettered, found {calls}"
-    for word in ("StackChan'", "'CE'", "'M5'", "FCC"):
-        assert word not in src, f"{word} must not be drawn by the builder"
+    assert sorted(set(re.findall(r"lettering\('([^']*)'", src))) == ["7P", "CE", "M5", "StackChan"]
+    assert "--lite" not in src and "public" not in src.lower(), "no rule removes the marks for a public build"
+    words = json.loads((ROOT / "docs" / "legal" / "affiliation.json").read_text())
+    assert words["short"] == "Independent project. Not affiliated with or endorsed by M5Stack or the original StackChan creators."
+    assert words["full"].startswith("MaiPai for StackChan is an independent project") and words["full"].endswith("belong to their respective owners.")
+    html, server = (VU / "view.html").read_text(), (VU / "view.py").read_text()
+    assert words["short"] in html and 'href="/about"' in html and "/affiliation.json" in server and '"/about"' in server
+    assert html.count(words["short"]) == 1, "one notice, in one place"
+    assert "<title>MaiPai for StackChan" in html, "the page carries the project's own name"
+    assert words["full"] in (ROOT / "README.md").read_text() and words["full"] in (ROOT / "docs" / "plan" / "trademark-and-affiliation.md").read_text()
 
 
 def test_the_unsealed_slits_behind_the_top_connectors_are_nodes_the_view_lights():

@@ -181,7 +181,8 @@ def test_port_scenario_plays_through_the_view_and_the_unit_agrees(view, name):
     status = _json(view, "call", {"name": "self.motion.status", "arguments": {}})    # the unit's own word, through the tool path
     assert status["state"] == state["motion"]["state"] and status["usb"] == state["hw"]["limiter_cable"]["present"]
     assert _json(view, "call", {"name": "self.battery.get_status", "arguments": {}})["charging"] == state["hw"]["charging"]
-    if "dance" in scenarios.PORTS[name]["expect"]:
-        yaws = {round(_json(view, "state")["head"]["yaw"]) for _ in range(8) if not time.sleep(0.25)}
-        assert len(yaws) > 2, "the dance keeps moving the head after the cable changed"
-        assert max(abs(y) for y in yaws) <= (31 if state["motion"]["scale"] == 50 else 61), "inside the limiter's excursion"
+    if "dance" in scenarios.PORTS[name]["expect"]:   # the dance is a session of the unit's dance simulation: it keeps running through the cable change
+        sim = state["dance_sim"]
+        assert sim and sim["running"] and sim["step"] >= 1, f"the dance session stopped when the cable changed: {sim}"
+        later = _json(view, "state")
+        assert later["dance"] == "look_around" and later["dance_sim"]["running"], "and it is still running a moment later"

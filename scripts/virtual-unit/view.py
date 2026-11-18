@@ -127,6 +127,28 @@ def head_now():
     return {"yaw": round(yaw, 1), "pitch": round(pitch, 1)}
 
 
+DANCE = {"name": ""}  # the dance last asked for by name: the unit's dance session keeps the beat, not the name
+
+
+def note_dance(name, args, out):
+    if name == "self.robot.dance" and out.get("ok"):
+        DANCE["name"] = str(args.get("name", "happy"))
+    elif name == "self.robot.stop_dance":
+        DANCE["name"] = ""
+
+
+def dance_now():
+    """(name of the dance running now or "", the dance simulation's own status or None). A dance runs either as the old keyframe
+    shape (HW.dance) or as a session of the unit's dance simulation (dance_sim.py), which moves the head, the eyes and the lights itself."""
+    sim = UNIT.dance.status() if getattr(UNIT, "_dance", None) is not None else None
+    if HW.dance:
+        return HW.dance, sim
+    live = bool(sim and HW.on and (sim["running"] or UNIT.dance.session))
+    if not live:
+        DANCE["name"] = ""
+    return (DANCE["name"] or (sim["step_name"] if live else "")) if live else "", sim
+
+
 def motion_state():
     return vunit._tools.REGISTRY["self.motion.status"](UNIT, {})
 
@@ -187,8 +209,19 @@ class Handler(BaseHTTPRequestHandler):
                 recent = [t for t in UNIT.move_times if UNIT.now_ms - t < 60000]
                 state = {"now_ms": UNIT.now_ms, "emotion": UNIT.emotion, "tools": len(UNIT.tool_names), "head": head_now(), "leds": APPLIED["cover_ring"] or UNIT.leds,
                          "battery": UNIT.battery, "hw": HW.view(), "motion": mot, "moves_last_minute": len(recent), "moves_cap": vunit.MOVES_PER_MINUTE,
-                         "dance": HW.dance, "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
+                         "dance": dance_now()[0], "dance_sim": dance_now()[1], "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
             self._send(json.dumps(state).encode(), "application/json")
+        elif self.path == "/affiliation.json":   # the one place the affiliation wording lives (docs/plan/trademark-and-affiliation.md)
+            self._send((HERE.parents[1] / "docs" / "legal" / "affiliation.json").read_bytes(), "application/json")
+        elif self.path == "/about":
+            words = json.loads((HERE.parents[1] / "docs" / "legal" / "affiliation.json").read_text())
+            page = ("<!doctype html><html lang=en><meta charset=utf-8><title>About: " + words["project"] + "</title>"
+                    "<body style='font:16px system-ui;max-width:640px;margin:48px auto;padding:0 16px;line-height:1.5'>"
+                    "<h1 style='font-size:20px'>" + words["project"] + "</h1><p>" + words["full"] + "</p>"
+                    "<p>The 3D model shows the real robot, with its own name and label. Those marks belong to their owners and are not this project's branding. "
+                    "A compliance mark drawn on a label is a detail of the original hardware; this software is not certified by anyone.</p>"
+                    "<p><a href='/'>Back to the viewer</a></p></body></html>")
+            self._send(page.encode(), "text/html; charset=utf-8")
         elif self.path == "/tools":
             tools = [{"name": n, "args": UNIT.tool_args.get(n, {}), "user_only": n in UNIT.user_only} for n in UNIT.tool_names]
             self._send(json.dumps({"tools": tools, "touch": UNIT.profile == "screens"}).encode(), "application/json")
@@ -242,6 +275,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/call":
             with LOCK:
                 out = UNIT.call(req.get("name", ""), req.get("arguments", {}))
+                note_dance(req.get("name", ""), req.get("arguments", {}), out)
                 rec_step("call", {"name": req.get("name", ""), "arguments": req.get("arguments", {})})
             out.pop("png_base64", None)
             return self._send(json.dumps(out).encode(), "application/json")
@@ -301,7 +335,7 @@ def play(name, steps):
                 continue
             with LOCK:
                 if step[0] == "call":
-                    UNIT.call(step[1], step[2])
+                    note_dance(step[1], step[2], UNIT.call(step[1], step[2]))
                 elif step[0] == "raw":
                     UNIT.raw(step[1])
                 elif step[0] == "touch":
