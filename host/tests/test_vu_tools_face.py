@@ -115,3 +115,13 @@ def test_gaze_refuses_when_face_not_ready():
     u = FakeUnit()
     u.state["face"] = {"ready": False}
     assert u.call("self.face.gaze", {}) == {"ok": False, "error": "the face is not ready: try again in a moment"}
+
+
+def test_every_unit_advances_its_own_clock_with_the_gaze_wrapper():
+    """Regression: the wrapper once kept the first unit's advance for all later units."""
+    first, second = FakeUnit(), FakeUnit()
+    first.call("self.face.gaze", {"x": 1, "y": 1, "ms": 100})
+    second.call("self.face.gaze", {"x": 2, "y": 2, "ms": 100})
+    second.advance(150)
+    assert (first.now_ms, second.now_ms) == (0, 150)
+    assert second.state["face"]["gaze"] == {"x": 0, "y": 0} and first.state["face"]["gaze"] == {"x": 1, "y": 1}

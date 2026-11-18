@@ -269,8 +269,13 @@ static void test_words_and_sheet(void)
         const char* es = MAC_STR[i][1];
         CHECK(en[0] != '\0' && es[0] != '\0');
         CHECK(strlen(en) < 64 && strlen(es) < 64);
-        for (const char* p = en; *p; p++) CHECK((unsigned char)*p >= 0x20 && (unsigned char)*p < 0x7F);    /* the screen font: plain ASCII */
-        for (const char* p = es; *p; p++) CHECK((unsigned char)*p >= 0x20 && (unsigned char)*p < 0x7F);
+        for (const char* p = en; *p; p++) CHECK((unsigned char)*p >= 0x20 && (unsigned char)*p < 0x7F);    /* English stays plain ASCII */
+        /* Spanish: ASCII plus the Latin-1 letters as UTF-8 (patch UX07a: the Noto screen fonts draw U+00A1 to U+00FF) */
+        for (const unsigned char* p = (const unsigned char*)es; *p; p++) {
+            if (*p >= 0x20 && *p < 0x7F) continue;
+            CHECK((*p == 0xC2 || *p == 0xC3) && p[1] != 0 && (p[1] & 0xC0) == 0x80 && (*p == 0xC3 || p[1] >= 0xA1));
+            p++;
+        }
     }
     CHECK(strcmp(mac_str(MAC_S_CANCEL, 0), "Cancel") == 0 && strcmp(mac_str(MAC_S_CANCEL, 1), "Cancelar") == 0);
     CHECK(strcmp(mac_str(-1, 0), "") == 0 && strcmp(mac_str(MAC_S_COUNT, 1), "") == 0);

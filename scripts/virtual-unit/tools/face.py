@@ -2,21 +2,21 @@
 from tools import tool
 
 
-_ORIGINAL_ADVANCE = None
-
-
 def _install_clock_expiry(u):
-    global _ORIGINAL_ADVANCE
-    if _ORIGINAL_ADVANCE is None:
-        _ORIGINAL_ADVANCE = u.advance
+    """Wrap this unit's own advance so a gaze expires on its fake clock. Per unit: an earlier version kept one module-level
+    original, so every unit after the first advanced the first unit's clock (and failed once that unit was closed)."""
+    if getattr(u, "_face_clock_installed", False):
+        return
+    original = u.advance
 
     def advance(ms):
-        _ORIGINAL_ADVANCE(ms)
+        original(ms)
         face = u.state.get("face")
         if face is not None:
             _expire_gaze(face, u.now_ms)
 
     u.advance = advance
+    u._face_clock_installed = True
 
 
 DECORATORS = ["sweat", "shy", "dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz", "notes"]
