@@ -1,0 +1,285 @@
+# Intent: The screens of the question-and-answer games (owner decisions 25 to 27, 2026-11-18; spec docs/design/qa-game-screens.md): jokes and riddles (a typed caption, Reveal, Next, Stop), trivia (the question and two to four answer tiles of 148 by 56 px, the score, right and wrong shown in words and color) and 20 Questions (voice first: the question, Yes, No and Maybe tiles, I give up, Stop). Whether the words come from the pantry on the unit or from the model, the screens are the same. Two new header-only files: the pure layout, hit rectangles and words (maipai_qa_core.h) and the LVGL drawing (maipai_qa.h), which the host renderer compiles too. Every target is at least 56 px high on the 8 px margin and gap of the screen standard; the game over screen is the shared one of patch UX15. This patch adds the screens and their tests only: the games, the pantry and the model calls are the firmware and app tracks'. Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_qa_core.h, maipai_qa.h (ours)
+# Check after a flash: (after the games exist) each screen shows its words without cutting them, the answer tiles are easy to press and 8 px apart, right and wrong are told in words as well as color, and a touch in a gap does nothing.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_qa_core.h b/firmware/main/hal/maipai_qa_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_qa_core.h
+@@ -0,0 +1,117 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The screens of the question-and-answer games (patch UX17; spec docs/design/qa-game-screens.md): jokes and riddles, trivia and 20 Questions, whether their content comes from
++ * the pantry on the unit or from the model. The pure data and layout, plain C99, no ESP and no LVGL call. A game supplies the words and the state; the screens are the same
++ * for every source. Every target is at least 56 px high on the 8 px margin and gap of the screen standard (docs/design/screen-style.md).
++ */
++#ifndef MAIPAI_QA_CORE_H
++#define MAIPAI_QA_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define MQA_W 320
++#define MQA_H 240
++#define MQA_MARGIN 8
++#define MQA_GAP 8
++#define MQA_BTN_H 56
++#define MQA_BODY_Y 50          /* the words start under the banner row and the header line (y 28 to 48) */
++#define MQA_HEADER_Y 30
++
++/* Buttons. A screen shows at most six; ids are what the game's touch handler gets back from mqa_hit(). */
++enum {
++    MQA_B_NONE = 0,
++    MQA_B_NEXT, MQA_B_REVEAL, MQA_B_STOP,                   /* jokes and riddles */
++    MQA_B_ANSWER0, MQA_B_ANSWER1, MQA_B_ANSWER2, MQA_B_ANSWER3,   /* trivia */
++    MQA_B_YES, MQA_B_NO, MQA_B_MAYBE, MQA_B_GIVE_UP         /* 20 Questions (Stop is MQA_B_STOP) */
++};
++enum { MQA_SCREEN_RIDDLE = 1, MQA_SCREEN_TRIVIA, MQA_SCREEN_TWENTY };
++
++typedef struct { int16_t x, y, w, h; uint8_t id; } mqa_rect_t;
++static inline void mqa_set(mqa_rect_t* r, int x, int y, int w, int h, int id)
++{
++    r->x = (int16_t)x; r->y = (int16_t)y; r->w = (int16_t)w; r->h = (int16_t)h; r->id = (uint8_t)id;
++}
++
++/* ---- jokes and riddles ----
++ * Words (the setup, the question) in the 20 px text from y 50 to 168; the answer or punchline, once revealed, in amber from y 124 under a short setup, or in place of the hint line.
++ * Two buttons at y 176: the first is Reveal while the answer is hidden and Next after it (a one-liner joke has no answer: Next from the start), the second is Stop. */
++static inline int mqa_riddle_buttons(int has_answer, int revealed, mqa_rect_t* r)
++{
++    const int first = (has_answer && !revealed) ? MQA_B_REVEAL : MQA_B_NEXT;
++    mqa_set(&r[0], MQA_MARGIN, 176, 148, MQA_BTN_H, first);
++    mqa_set(&r[1], MQA_MARGIN + 148 + MQA_GAP, 176, 148, MQA_BTN_H, MQA_B_STOP);
++    return 2;
++}
++
++/* ---- trivia ----
++ * The header line (question n of total at the left, the score at the right) at y 30, the question from y 50 (16 px when it is long, else 20 px) to y 108, then the answers:
++ * four tiles in two rows of two (148 by 56) or three answers as two tiles and a full width one, at y 112 and y 176. */
++static inline int mqa_trivia_buttons(int n_answers, mqa_rect_t* r)
++{
++    if (n_answers < 2) n_answers = 2;
++    if (n_answers > 4) n_answers = 4;
++    for (int i = 0; i < n_answers; i++) {
++        const int row = i / 2, col = i % 2;
++        const int last_alone = (n_answers == 3 && i == 2);
++        mqa_set(&r[i], last_alone ? MQA_MARGIN : MQA_MARGIN + col * (148 + MQA_GAP), 112 + row * (MQA_BTN_H + MQA_GAP), last_alone ? 304 : 148, MQA_BTN_H, MQA_B_ANSWER0 + i);
++    }
++    return n_answers;
++}
++
++/* ---- 20 Questions ----
++ * The header line (question n of 20 at the left, "say yes, no or maybe" at the right: the game is voice first) at y 30, the question or the guess from y 50 to 108, the three answer tiles
++ * (Yes, No, Maybe: 96 by 56) at y 112, then I give up and Stop (148 by 56) at y 176. */
++static inline int mqa_twenty_buttons(mqa_rect_t* r)
++{
++    const int ids[3] = {MQA_B_YES, MQA_B_NO, MQA_B_MAYBE};
++    for (int i = 0; i < 3; i++) mqa_set(&r[i], MQA_MARGIN + i * (96 + MQA_GAP), 112, 96, MQA_BTN_H, ids[i]);
++    mqa_set(&r[3], MQA_MARGIN, 176, 148, MQA_BTN_H, MQA_B_GIVE_UP);
++    mqa_set(&r[4], MQA_MARGIN + 148 + MQA_GAP, 176, 148, MQA_BTN_H, MQA_B_STOP);
++    return 5;
++}
++
++/* The button under a touch, for the buttons of one screen (MQA_B_NONE for none: the gaps and margins hit nothing). */
++static inline int mqa_hit(const mqa_rect_t* r, int n, int px, int py)
++{
++    for (int i = 0; i < n; i++) {
++        if (px >= r[i].x && px < r[i].x + r[i].w && py >= r[i].y && py < r[i].y + r[i].h) return r[i].id;
++    }
++    return MQA_B_NONE;
++}
++
++/* ---- words (plain ASCII in Spanish, as the games' other texts: the games' fonts have no accents) ---- */
++static inline const char* mqa_word(int id, int es)
++{
++    switch (id) {
++        case MQA_B_NEXT: return es ? "Otro" : "Next";
++        case MQA_B_REVEAL: return es ? "Ver respuesta" : "Reveal";
++        case MQA_B_STOP: return es ? "Parar" : "Stop";
++        case MQA_B_YES: return es ? "Si" : "Yes";
++        case MQA_B_NO: return "No";
++        case MQA_B_MAYBE: return es ? "Quiza" : "Maybe";
++        case MQA_B_GIVE_UP: return es ? "Me rindo" : "I give up";
++        default: return "";
++    }
++}
++static inline const char* mqa_kind_word(int is_joke, int es) { return is_joke ? (es ? "Chiste" : "Joke") : (es ? "Adivinanza" : "Riddle"); }
++static inline const char* mqa_say_hint(int es) { return es ? "O solo dilo" : "Or just say it"; }
++static inline const char* mqa_right_word(int es) { return es ? "Correcto" : "Correct"; }
++static inline const char* mqa_wrong_word(int es) { return es ? "Casi" : "Not quite"; }
++
++/* The question's font: the 20 px text for up to `MQA_LONG` characters (two lines), the 16 px text for longer ones (three lines of 16 px fit where two of 20 px do) up to `MQA_MAX` characters;
++ * a longer text is cut with dots at the third line, never over the buttons: the pantry check and the model prompt keep questions to MQA_MAX. */
++#define MQA_LONG 58
++#define MQA_MAX 96
++#define MQA_TEXT_H 58          /* the height of the words' box: y 50 to 108 */
++static inline int mqa_font_px(int chars) { return chars <= MQA_LONG ? 20 : 16; }
++
++/* How many characters of a typed caption show `elapsed_ms` after it began, at `cps` characters a second (the voice or the mumble's pace); all of it when done. */
++static inline int mqa_typed_chars(int total, uint32_t elapsed_ms, int cps)
++{
++    const long n = (long)elapsed_ms * (cps < 1 ? 1 : cps) / 1000;
++    return n > total ? total : (int)n;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_qa.h b/firmware/main/hal/maipai_qa.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_qa.h
+@@ -0,0 +1,152 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The question-and-answer game screens, drawn with LVGL only (patch UX17; spec docs/design/qa-game-screens.md), so the host renderer draws the very screens the unit shows.
++ * Build one on the top layer; taps are routed by the game's touch handler with the mqa_*_buttons() rectangles and mqa_hit() of maipai_qa_core.h. The game over screen is the shared
++ * one of patch UX15 (maipai_game_over.h).
++ */
++#ifndef MAIPAI_QA_H
++#define MAIPAI_QA_H
++
++#include <lvgl.h>
++#include <stdio.h>
++#include <string.h>
++#include "maipai_qa_core.h"
++
++namespace mqa {
++
++inline lv_obj_t* root(lv_obj_t* parent)
++{
++    lv_obj_t* r = lv_obj_create(parent);
++    lv_obj_remove_style_all(r);
++    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(r, MQA_W, MQA_H);
++    lv_obj_set_pos(r, 0, 0);
++    lv_obj_set_style_bg_color(r, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    return r;
++}
++
++inline lv_obj_t* label(lv_obj_t* parent, const char* t, const lv_font_t* font, uint32_t rgb, int x, int y, int w, lv_text_align_t align = LV_TEXT_ALIGN_LEFT)
++{
++    lv_obj_t* l = lv_label_create(parent);
++    lv_label_set_text(l, t);
++    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
++    lv_obj_set_style_text_font(l, font, 0);
++    lv_obj_set_style_text_color(l, lv_color_hex(rgb), 0);
++    lv_obj_set_style_text_align(l, align, 0);
++    lv_obj_set_width(l, w);
++    lv_obj_set_pos(l, x, y);
++    return l;
++}
++
++// A button: a rounded tile with its word centered; `fill` and `edge` are 0xRRGGBB; the word is in the 20 px text, or the 16 px text when it is long.
++inline lv_obj_t* button(lv_obj_t* parent, const mqa_rect_t& r, const char* word, uint32_t fill, uint32_t edge, uint32_t text_rgb = 0xFFFFFF)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_style_all(o);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_pos(o, r.x, r.y);
++    lv_obj_set_size(o, r.w, r.h);
++    lv_obj_set_style_bg_color(o, lv_color_hex(fill), 0);
++    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++    lv_obj_set_style_radius(o, 12, 0);
++    lv_obj_set_style_border_width(o, 1, 0);
++    lv_obj_set_style_border_color(o, lv_color_hex(edge), 0);
++    lv_obj_t* t = lv_label_create(o);
++    lv_label_set_text(t, word);
++    lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
++    const bool long_word = strlen(word) > 12;
++    lv_obj_set_style_text_font(t, long_word ? &lv_font_montserrat_16 : &lv_font_montserrat_20, 0);
++    lv_obj_set_style_text_color(t, lv_color_hex(text_rgb), 0);
++    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
++    lv_obj_set_width(t, r.w - 12);
++    lv_obj_center(t);
++    return o;
++}
++
++inline const lv_font_t* font_for(int chars) { return mqa_font_px(chars) == 20 ? &lv_font_montserrat_20 : &lv_font_montserrat_16; }
++
++// The words of a question in their box: a fixed 58 px height with the overflow cut by dots, so a long text can never run over the buttons.
++inline lv_obj_t* question_box(lv_obj_t* parent, const char* t)
++{
++    lv_obj_t* l = label(parent, t, font_for((int)strlen(t)), 0xFFFFFF, MQA_MARGIN, MQA_BODY_Y, MQA_W - 2 * MQA_MARGIN);
++    lv_obj_set_height(l, MQA_TEXT_H);
++    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
++    return l;
++}
++
++
++// ---- jokes and riddles ----
++// shown: how many characters of `words` the typed caption has shown so far (all of them when done); a cursor follows while it is typing. `answer` is empty for a one-liner joke;
++// revealed: the answer is shown (in amber) under the words.
++inline lv_obj_t* riddle(lv_obj_t* parent, bool is_joke, const char* words, int shown, const char* answer, bool revealed, bool es)
++{
++    lv_obj_t* r = root(parent);
++    label(r, mqa_kind_word(is_joke ? 1 : 0, es ? 1 : 0), &lv_font_montserrat_16, 0x9AA3B0, MQA_MARGIN, MQA_HEADER_Y, 200);
++    const int total = (int)strlen(words);
++    char buf[256];
++    const int n = shown < 0 || shown > total ? total : shown;
++    snprintf(buf, sizeof(buf), "%.*s%s", n, words, n < total ? "_" : "");   // the cursor while the caption types
++    lv_obj_t* w = label(r, buf, font_for(total), 0xFFFFFF, MQA_MARGIN, MQA_BODY_Y, MQA_W - 2 * MQA_MARGIN);
++    lv_obj_set_height(w, 72);   // up to three lines of 20 px or four of 16 px, above the answer at y 124
++    lv_label_set_long_mode(w, LV_LABEL_LONG_DOT);
++    const bool has_answer = answer != nullptr && answer[0] != '\0';
++    if (has_answer && revealed) {
++        label(r, answer, &lv_font_montserrat_20, 0xF2B24A, MQA_MARGIN, 124, MQA_W - 2 * MQA_MARGIN);
++    }
++    mqa_rect_t b[2];
++    const int nb = mqa_riddle_buttons(has_answer ? 1 : 0, revealed ? 1 : 0, b);
++    for (int i = 0; i < nb; i++) {
++        button(r, b[i], mqa_word(b[i].id, es ? 1 : 0), b[i].id == MQA_B_STOP ? 0x242424 : 0x2C3E7A, b[i].id == MQA_B_STOP ? 0x4A4A4A : 0x6A86D8);
++    }
++    return r;
++}
++
++// ---- trivia ----
++// result: 0 not answered yet; 1 the chosen answer was right; 2 it was wrong (then `right` is the right one). chosen and right are answer numbers, 0 based.
++inline lv_obj_t* trivia(lv_obj_t* parent, const char* question, const char* const* answers, int n_answers, int n, int total, int score, int result, int chosen, int right, bool es)
++{
++    lv_obj_t* r = root(parent);
++    char head[40];
++    snprintf(head, sizeof(head), es ? "Pregunta %d de %d" : "Question %d of %d", n, total);
++    if (result == 1) snprintf(head, sizeof(head), "%s", mqa_right_word(es ? 1 : 0));
++    if (result == 2) snprintf(head, sizeof(head), "%s", mqa_wrong_word(es ? 1 : 0));
++    label(r, head, &lv_font_montserrat_16, result == 1 ? 0x7FE0B8 : (result == 2 ? 0xF08FB0 : 0x9AA3B0), MQA_MARGIN, MQA_HEADER_Y, 200);
++    char sc[24];
++    snprintf(sc, sizeof(sc), es ? "Puntos %d" : "Score %d", score);
++    label(r, sc, &lv_font_montserrat_16, 0xE8E8E8, MQA_W - MQA_MARGIN - 100, MQA_HEADER_Y, 100, LV_TEXT_ALIGN_RIGHT);
++    question_box(r, question);
++    mqa_rect_t b[4];
++    const int nb = mqa_trivia_buttons(n_answers, b);
++    for (int i = 0; i < nb; i++) {
++        uint32_t fill = 0x2C3E7A, edge = 0x6A86D8;
++        if (result != 0 && i == right) { fill = 0x2E7D4F; edge = 0x7FE0B8; }            // the right answer is green once the answer is in
++        else if (result == 2 && i == chosen) { fill = 0x7D2E2E; edge = 0xF08FB0; }      // a wrong choice is red; the words in the header say it too
++        button(r, b[i], answers[i], fill, edge);
++    }
++    return r;
++}
++
++// ---- 20 Questions ----
++// guess: the robot is guessing ("Is it a banana?") rather than asking; the tiles are the same.
++inline lv_obj_t* twenty(lv_obj_t* parent, const char* question, int n, bool guess, bool es)
++{
++    lv_obj_t* r = root(parent);
++    char head[40];
++    snprintf(head, sizeof(head), guess ? (es ? "Mi respuesta" : "My guess") : (es ? "Pregunta %d de 20" : "Question %d of 20"), n);
++    label(r, head, &lv_font_montserrat_16, guess ? 0xF2B24A : 0x9AA3B0, MQA_MARGIN, MQA_HEADER_Y, 160);
++    label(r, mqa_say_hint(es ? 1 : 0), &lv_font_montserrat_16, 0x9AA3B0, MQA_W - MQA_MARGIN - 160, MQA_HEADER_Y, 160, LV_TEXT_ALIGN_RIGHT);
++    question_box(r, question);
++    mqa_rect_t b[5];
++    const int nb = mqa_twenty_buttons(b);
++    for (int i = 0; i < nb; i++) {
++        const bool tile = i < 3;
++        button(r, b[i], mqa_word(b[i].id, es ? 1 : 0), tile ? 0x2C3E7A : 0x242424, tile ? 0x6A86D8 : 0x4A4A4A);
++    }
++    return r;
++}
++
++}  // namespace mqa
++
++#endif
