@@ -69,8 +69,9 @@ def main():
     UNIT = vunit.VirtualUnit().__enter__()
     FRAME = UNIT.snapshot()
     threading.Thread(target=pump, daemon=True).start()
-    print(f"virtual unit view on http://127.0.0.1:{port}/", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    print(f"virtual unit view on http://127.0.0.1:{server.server_port}/", flush=True)  # port 0 picks a free one
+    server.serve_forever()
 
 
 if __name__ == "__main__":

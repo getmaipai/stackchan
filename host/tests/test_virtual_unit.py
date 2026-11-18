@@ -90,14 +90,14 @@ def test_golden_frames_and_layout_scenarios():
 def test_browser_view_serves_frame_and_calls():
     import time
     import urllib.request
-    p = subprocess.Popen([sys.executable, str(VU / "view.py"), "8791"], stdout=subprocess.PIPE, text=True)
+    p = subprocess.Popen([sys.executable, str(VU / "view.py"), "0"], stdout=subprocess.PIPE, text=True)
     try:
-        p.stdout.readline()
+        base = p.stdout.readline().split()[-1]
         time.sleep(0.5)
-        png = urllib.request.urlopen("http://127.0.0.1:8791/frame.png?1").read()
+        png = urllib.request.urlopen(base + "frame.png?1").read()
         assert png[:4] == b"\x89PNG"
-        req = urllib.request.Request("http://127.0.0.1:8791/call", json.dumps({"name": "self.face.bench_emotion", "arguments": {"emotion": "sad"}}).encode())
+        req = urllib.request.Request(base + "call", json.dumps({"name": "self.face.bench_emotion", "arguments": {"emotion": "sad"}}).encode())
         assert json.loads(urllib.request.urlopen(req).read()) == {"ok": True}
-        assert b"Virtual StackChan" in urllib.request.urlopen("http://127.0.0.1:8791/").read()
+        assert b"Virtual StackChan" in urllib.request.urlopen(base).read()
     finally:
         p.terminate(); p.wait(timeout=10)
