@@ -36,6 +36,7 @@ PLAIN = [
     "grid_core_test.c",
     "grid_games2_test.c",
     "grid_anim_test.c",
+    "grid_input_test.c",
     "power_core_test.c",
     "reconnect_core_test.c",
     "super_core_test.c",

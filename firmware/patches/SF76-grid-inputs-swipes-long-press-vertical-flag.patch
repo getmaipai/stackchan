@@ -1,0 +1,205 @@
+# Intent: The inputs the grid games were missing. A finger is classified when it lifts as a tap, a long press (still for 450 ms) or a swipe in four directions (the unit's swipe rule), by a pure core with a host test. The gesture layer learns a flag, MGS_F_GAME_VERT, that a running game sets when it takes vertical swipes inside its play area (2048, Snake): a swipe down there no longer stops the game; only the bottom edge, the grabber at the top and the stop word do, and a swipe up opens no sheet during a game. Games that do not set the flag behave as before. Mine Finder now acts on the lift: a tap opens a cell, a long press flags it (the flag switch stays).
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: Mine Finder: a short tap opens a cell, holding half a second flags it, the right-hand switch still turns taps into flags; every other game still stops with a swipe down from anywhere (no game sets the flag yet); the stop word and the grabber still end Mine Finder.
+# Kconfig: none
+# Memory cost: none (a few hundred bytes of flash; four bytes in the Grid struct).
+
+diff --git a/firmware/main/hal/maipai_gesture_core.h b/firmware/main/hal/maipai_gesture_core.h
+--- a/firmware/main/hal/maipai_gesture_core.h
++++ b/firmware/main/hal/maipai_gesture_core.h
+@@ -69,6 +69,8 @@ typedef enum {
+ #define MGS_F_GAME 1     /* a game is running: only the stop swipe and the edge swipes work */
+ #define MGS_F_RINGING 2  /* the touch ended a ringing timer */
+ #define MGS_F_WOKE 4     /* the touch only woke a dimmed screen or the clock face */
++#define MGS_F_GAME_VERT 8 /* patch SF76: the running game takes vertical swipes inside its play area (2048, Snake): a swipe down stops it only from the bottom edge */
++#define MGS_GAME_STOP_Y 224 /* with MGS_F_GAME_VERT: a swipe down that began at or below this stops the game (the bottom edge); the grabber at the top has its own dismiss */
+ 
+ typedef struct {
+     uint8_t act;
+@@ -230,6 +232,9 @@ static inline mgs_out_t mgs_up(mgs_t* g, int x, int y, uint32_t now_ms)
+         }
+         return o;
+     }
++    if (sw == MGS_SW_DOWN && game && (g->flags & MGS_F_GAME_VERT) != 0 && g->y0 < MGS_GAME_STOP_Y) {
++        return o; /* patch SF76: inside a game that swipes vertically the swipe is the game's (the release reaches it); only the bottom edge stops */
++    }
+     if (sw == MGS_SW_DOWN) {
+         if (g->mode == MGS_PAGE) {
+             g->pos = g->under_pos = 0;
+diff --git a/firmware/main/hal/maipai_grid_input_core.h b/firmware/main/hal/maipai_grid_input_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid_input_core.h
+@@ -0,0 +1,31 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The grid games' touch classifier (patch SF76): one finger, from where it began to where it lifted, becomes a tap, a long press (still for at least 450 ms) or a swipe in one of
++ * four directions. The swipe rule is the unit's (maipai_gesture_core.h mgs_swipe_of: at least a minimum distance, quick enough, mostly in one direction); a touch that moves a little
++ * is still a tap or a long press. Plain C99; host test grid_input_test.c.
++ */
++#ifndef MAIPAI_GRID_INPUT_CORE_H
++#define MAIPAI_GRID_INPUT_CORE_H
++
++#include <stdint.h>
++#include "maipai_gesture_core.h"
++
++#define GI_LONG_PRESS_MS 450u
++
++enum { GI_NONE = 0, GI_TAP, GI_LONG, GI_SWIPE_UP, GI_SWIPE_DOWN, GI_SWIPE_LEFT, GI_SWIPE_RIGHT };
++
++static inline int gi_classify(int x0, int y0, int x1, int y1, uint32_t held_ms)
++{
++    const mgs_swipe_t sw = mgs_swipe_of(x0, y0, x1, y1, held_ms);
++    if (sw == MGS_SW_UP) return GI_SWIPE_UP;
++    if (sw == MGS_SW_DOWN) return GI_SWIPE_DOWN;
++    if (sw == MGS_SW_LEFT) return GI_SWIPE_LEFT;
++    if (sw == MGS_SW_RIGHT) return GI_SWIPE_RIGHT;
++    if (mgs_abs(x1 - x0) <= MGS_TAP_MAX_PX && mgs_abs(y1 - y0) <= MGS_TAP_MAX_PX) {
++        return held_ms >= GI_LONG_PRESS_MS ? GI_LONG : (held_ms <= MGS_TAP_MAX_MS ? GI_TAP : GI_NONE);
++    }
++    return GI_NONE; /* a slow drag */
++}
++
++#endif /* MAIPAI_GRID_INPUT_CORE_H */
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -14,6 +14,7 @@
+ #include "maipai_grid_hangman_core.h"
+ #include "maipai_grid_mines_core.h"
+ #include "maipai_grid_anim_core.h"
++#include "maipai_grid_input_core.h"
+ #include "maipai_games_sfx_core.h"
+ #include <application.h>
+ #include "maipai_games_draw.h"
+@@ -89,6 +90,8 @@ struct Grid {
+     int16_t* clip_buf[MGS_CLIPS];  // the sounds, made on first use and held in PSRAM until the game ends
+     uint16_t clip_n[MGS_CLIPS];
+     uint8_t flag_mode;    // Mine Finder: a tap flags instead of opening
++    int16_t press_x, press_y; // Mine Finder: where the finger went down, acted on when it lifts (a tap opens, a long press flags)
++    uint8_t press_valid;
+     uint32_t start_ms;    // Mine Finder: the first reveal, for the time score
+     char shown[GH_WORD_MAX + 1];
+     uint8_t unit_thinking;
+@@ -105,6 +108,7 @@ struct Grid {
+ 
+ Grid* s_grid = nullptr;                  // owned by the LVGL task
+ std::atomic<bool> s_active{false};
++std::atomic<bool> s_vertical{false};  // patch SF76: the running game takes vertical swipes
+ std::atomic<const char*> s_stop_req{nullptr};
+ 
+ uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
+@@ -395,6 +399,7 @@ void end_locked(const char* how)
+     ESP_LOGI(kTag, "game %s ended (%s), score %d", kInfo[g->kind].id, how, g->score);
+     heap_caps_free(g);
+     s_stop_req.store(nullptr);
++    s_vertical.store(false);
+     s_active.store(false);
+     if (!maipai_timers_ringing()) hal_bridge::stop_word_arm(false);
+     device_events_push("game_ended", extra);
+@@ -718,16 +723,9 @@ void maipai_grid_touch(int x, int y)
+             redraw(g);
+             return;
+         }
+-        const int idx = gr_cell_at(&g->lay, x, y);
+-        if (idx < 0) return;
+-        if (g->start_ms == 0 && !g->flag_mode) g->start_ms = now;
+-        const int r = g->flag_mode ? gmn_flag(&g->mines, idx) : gmn_reveal(&g->mines, idx);
+-        if (r == GMN_IGNORED) return;
+-        cue(r == GMN_BOOM ? GR_CUE_LOSE : (r == GMN_CLEARED ? GR_CUE_WIN : GR_CUE_TAP));
+-        if (!g->flag_mode) gan_pop(&g->anim, now, idx);
+-        redraw(g);
+-        if (r == GMN_BOOM) finish(g, GR_UNIT_WON);
+-        else if (r == GMN_CLEARED) finish(g, GR_PERSON_WON);
++        g->press_x = static_cast<int16_t>(x);  // patch SF76: the board is acted on when the finger lifts: a tap opens (or flags in flag mode), a long press flags
++        g->press_y = static_cast<int16_t>(y);
++        g->press_valid = 1;
+     } else {
+         const int idx = gr_cell_at(&g->lay, x, y);
+         const int r = gm_tap(&g->mem, idx, now);
+@@ -740,11 +738,42 @@ void maipai_grid_touch(int x, int y)
+     }
+ }
+ 
++// Mine Finder: one finger, acted on at the lift.
++void mines_act(Grid* g, int x, int y, bool long_press)
++{
++    const int idx = gr_cell_at(&g->lay, x, y);
++    if (idx < 0) return;
++    const uint32_t now = now_ms();
++    const bool flag = long_press || g->flag_mode;
++    if (g->start_ms == 0 && !flag) g->start_ms = now;
++    const int r = flag ? gmn_flag(&g->mines, idx) : gmn_reveal(&g->mines, idx);
++    if (r == GMN_IGNORED) return;
++    cue(r == GMN_BOOM ? GR_CUE_LOSE : (r == GMN_CLEARED ? GR_CUE_WIN : GR_CUE_TAP));
++    if (!flag) gan_pop(&g->anim, now, idx);
++    redraw(g);
++    if (r == GMN_BOOM) finish(g, GR_UNIT_WON);
++    else if (r == GMN_CLEARED) finish(g, GR_PERSON_WON);
++}
++
+ void maipai_grid_release(int x0, int y0, int x1, int y1, uint32_t held_ms)
+ {
+-    if (s_grid != nullptr && mg_drag_dismiss(x0, y0, x1, y1, held_ms)) end_locked("dragbar");  // a swipe down from the grabber ends the game
++    Grid* g = s_grid;
++    if (g == nullptr) return;
++    if (mg_drag_dismiss(x0, y0, x1, y1, held_ms)) {  // a swipe down from the grabber ends the game
++        end_locked("dragbar");
++        return;
++    }
++    if (g->kind == kMines && g->press_valid && g->result == GR_PLAYING) {
++        g->press_valid = 0;
++        g->last_input_ms = now_ms();
++        const int what = gi_classify(g->press_x, g->press_y, x1, y1, held_ms);
++        if (what == GI_TAP) mines_act(g, g->press_x, g->press_y, false);
++        else if (what == GI_LONG) mines_act(g, g->press_x, g->press_y, true);
++    }
+ }
+ 
++bool maipai_grid_wants_vertical() { return s_vertical.load(); }
++
+ int maipai_grid_count() { return kKinds; }
+ const char* maipai_grid_id(int index) { return index >= 0 && index < kKinds ? kInfo[index].id : ""; }
+ const char* maipai_grid_title(int index, bool es) { return index >= 0 && index < kKinds ? (es ? kInfo[index].title_es : kInfo[index].title_en) : ""; }
+diff --git a/firmware/main/hal/maipai_grid.h b/firmware/main/hal/maipai_grid.h
+--- a/firmware/main/hal/maipai_grid.h
++++ b/firmware/main/hal/maipai_grid.h
+@@ -16,6 +16,8 @@
+ // The grid game ids: "connect4" and "match". Case-insensitive; the English and Spanish titles also match.
+ bool maipai_grid_known(const char* name);
+ bool maipai_grid_active();
++// Patch SF76: the running grid game takes vertical swipes inside its play area (the gesture layer then stops a game only from the bottom edge). Safe from the touch hook.
++bool maipai_grid_wants_vertical();
+ // The caller holds the LVGL lock and has checked lock, update and that no other game runs. Returns "" or a plain sentence saying what is wrong.
+ const char* maipai_grid_start_locked(const char* name, const char* source);
+ bool maipai_grid_stop_locked(const char* how);
+@@ -40,6 +42,7 @@ const char* maipai_grid_scores_json(const char* id);
+ #else
+ inline bool maipai_grid_known(const char*) { return false; }
+ inline bool maipai_grid_active() { return false; }
++inline bool maipai_grid_wants_vertical() { return false; }
+ inline const char* maipai_grid_start_locked(const char*, const char*) { return ""; }
+ inline bool maipai_grid_stop_locked(const char*) { return false; }
+ inline bool maipai_grid_request_stop(const char*) { return false; }
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -15,6 +15,7 @@
+ #include "maipai_face.h"
+ #include "maipai_fx.h"
+ #include "maipai_games.h"
++#include "maipai_grid.h"
+ #include "maipai_packs.h"
+ #include "maipai_picface.h"
+ #include "maipai_privacy.h"
+@@ -563,7 +564,7 @@ void on_indev(lv_event_t* e)
+         s_last_gesture.store(false);
+         // quick settings and the screens opened from it own their touches: this finger changes no page
+         maipai_pages_touch_down(p.x, p.y, (maipai_games_active() ? MGS_F_GAME : 0) | (maipai_display_overlay_open() || maipai_pages_settings_open() || maipai_apps_open() ? MGS_F_WOKE : 0) |
+-                                              (maipai_screen_peek_wake_touch() ? MGS_F_WOKE : 0));
++                                              (maipai_screen_peek_wake_touch() ? MGS_F_WOKE : 0) | (maipai_grid_wants_vertical() ? MGS_F_GAME_VERT : 0));
+     } else if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
+         s_last_gesture.store(maipai_pages_touch_up(p.x, p.y));
+     }

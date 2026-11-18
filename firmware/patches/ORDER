@@ -328,3 +328,4 @@ SF72-grid-animation-layer-and-connect4-chip-drop.patch
 SF73-away-notice-takes-the-banner-row.patch
 SF74-flips-and-pops-for-memory-mines-hangman.patch
 SF75-bench-grid-frame-recorder.patch
+SF76-grid-inputs-swipes-long-press-vertical-flag.patch
