@@ -8,18 +8,18 @@ Four people use the robot: a kid, a teen, an adult who is not technical, an adul
 |---|---|---|
 | Touch targets of 40 px or more on the 320 by 240 panel | Every tile, key and button found is 44 px or more on its short side; smallest 44 by 44 (first-run Back, the settings tabs and Done 44 px high). The lock keypad keys are 100 by 46. No target under 40. The lock screen's padlock (36 by 36) is a picture: any touch on that screen opens the keypad. | pass |
 | Contrast, text colors on the screen colors (WCAG ratio) | On black: white 21.0, muted 7.1, blue 8.6, green 8.9, amber 12.5, red 5.3, violet 4.9. On the card surface: white 16.2, muted 5.4, blue 6.6, green 6.8, amber 9.6, red 4.1, violet 3.8. All text colors pass 4.5 on black. Red and violet are under 4.5 on the card surface; they are used for shapes (the wrong-code dots, tile fills), not for text. | pass, with a rule: no red or violet text on a card |
-| Words at grade 6 | The screens use short plain words (Apps, Games, Timers, Mute, Quiet, Volume, Bright, Lock, Settings, Save, Cancel). A reading-grade formula is meaningless for one-word labels, so the check is by list; see the jargon rows below. | 2 words to fix, 1 to watch |
+| Words at grade 6 | The screens use short plain words (Apps, Games, Timers, Mute, Quiet, Volume, Bright, Lock, Settings, Save, Cancel). A reading-grade formula is meaningless for one-word labels, so the check is by list; see the jargon rows below. | 2 words fixed (UX10), 1 to watch |
 | Error messages say what happened and what to do | The update screen said "Update refused, Nothing changed" and stopped. Fixed in patch UX09: it now adds "Try again later". The first-run, lock and pairing screens have no error text. | fixed |
 
 ## Findings by user
 
 | User | Screen | Finding | Action |
 |---|---|---|---|
-| Kid | Face styles list | English "Stock" is not a word a child knows; the Spanish list says "Original". | Rename the English label to "Original" (a string-table change in the pages core and its tests; the app track's face docs say "Stock" and change with it). Not done here: it touches a core table with pinned tests. |
+| Kid | Face styles list | English "Stock" is not a word a child knows; the Spanish list says "Original". | Fixed in patch UX10: the English label is "Original" (host settings page too). The app track's face docs still say "Stock" and should change with it. |
 | Kid | Control sheet | "Games" is the longest tile label; it fills its 50 px tile edge to edge. | Watch on the glass; no overflow in the frame. |
 | Teen | Lock screen and keypad | They carry no words by the owner's choice. A teen finds the keypad by touching the screen, but nothing says so. | None: owner decision (2026-11-17). The docs page for the lock says it. |
 | Teen | First run, "What should I be called?" | Six persona names, 44 px Back, "You can change it later." Clear. | none |
-| Non-technical adult | Control sheet tile "Private net" | Jargon. "Private network" (Info tab) is clearer; "Home link" says what it is for. | List for the owner: rename the tile in the pages core (Spanish "Red priv." too). |
+| Non-technical adult | Control sheet tile "Private net" | Jargon. "Private network" (Info tab) is clearer; "Home link" says what it is for. | Fixed in patch UX10: the tile and its status line say "Home link" (Spanish "Enlace casa"); the host page words follow in all six languages (fr "Lien maison", de "Heimverbindung", it "Collegamento casa", pt "Link de casa": drafts, not native-reviewed). The Info tab keeps "Private network" in full. |
 | Non-technical adult | Update refused | Said what happened, not what to do. | Fixed, UX09 (patch UX09-update-refused-says-what-to-do). |
 | Non-technical adult | Camera on | The camera cue on the screen is a 24 px icon in the status strip with no word. The ring light carries the strong cue. | List: a word next to the icon ("Camera on") when the banner has room, by the app and firmware tracks; the cue's rule (it cannot be hidden) is met. |
 | Non-technical adult | Wi-Fi setup | Four lines: name, address, code. Plain. The address and code are not tappable, as they should not be. | none |
@@ -29,6 +29,7 @@ Four people use the robot: a kid, a teen, an adult who is not technical, an adul
 
 ## Fixed in this review
 - Patch UX09: the refused-update cover says "Try again later".
+- Patch UX10: "Private net" became "Home link" and "Stock" became "Original".
 
 ## Not drawable by the renderer (listed for the bench or later work)
 - Alarm ringing (the clock page's ring style draws, but the ringing alarm's own look does not).
