@@ -74,12 +74,20 @@ class CodingCompanionConfig(StrictModel):
     port: int = Field(default=8052, ge=1024, le=65535)  # on 127.0.0.1 only
 
 
+class WakeWordMakerConfig(StrictModel):
+    """Make your own wake word on this computer (maipai_packages/wake_word_maker): record, train, check, install."""
+
+    enabled: bool = False
+    folder: str | None = None  # default: the wakeword folder beside the pairing file
+
+
 class PackagesConfig(StrictModel):
     """Optional local packages. Every one is off by default and costs nothing while off."""
 
     memory_notes: MemoryNotesConfig = Field(default_factory=MemoryNotesConfig)
     home_assistant: HomeAssistantConfig = Field(default_factory=HomeAssistantConfig)
     coding_companion: CodingCompanionConfig = Field(default_factory=CodingCompanionConfig)
+    wake_word_maker: WakeWordMakerConfig = Field(default_factory=WakeWordMakerConfig)
 
 
 class SettingsPageConfig(StrictModel):

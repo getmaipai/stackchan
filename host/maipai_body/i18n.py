@@ -331,6 +331,10 @@ def _merge_more() -> None:
 
     for code, words in character_words.CATALOGS.items():
         CATALOG[code].update(words)
+    from maipai_body import i18n_wakemaker as wakemaker_words
+
+    for code, words in wakemaker_words.CATALOGS.items():
+        CATALOG[code].update(words)
     from maipai_body import i18n_wake as wake_words
 
     for code, words in wake_words.CATALOGS.items():

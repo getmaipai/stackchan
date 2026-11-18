@@ -70,6 +70,7 @@ class SettingsBackend:
         link: Any = None,
     ) -> None:
         self.pair_code: Callable[[], str] | None = None  # mints a pairing code (set by the host)
+        self.wakeword: Any = None  # the wake word maker package (set by the host only when switched on)
         self.phone_link: Callable[[], dict[str, Any]] | None = None  # {"lan", "base", "token"} for the phone login link
         self._link = link  # the encrypted robot link's policy (xiaozhi/link_security.py); no keys leave it
         self.devices, self.store = devices, store or UnitSettingsStore()
@@ -711,6 +712,31 @@ class SettingsBackend:
 
     # -- routes shared by every server that hosts the page ------------------------------------
 
+    def _wakeword_post(self, action: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """clip | train | install | clear, for the wake word maker package. A message is plain words; nothing is logged."""
+        import base64
+        import binascii
+
+        word = str(body.get("word", ""))
+        try:
+            if action == "clip":
+                try:
+                    wav = base64.b64decode(str(body.get("wav_b64", "")), validate=True)
+                except (binascii.Error, ValueError):
+                    return 400, {"error": "The recording did not arrive whole. Try recording again."}
+                count = self.wakeword.store.add_clip(word, str(body.get("kind", "")), wav)
+                return 200, {"count": count, **self.wakeword.state(word)}
+            if action == "train":
+                return 200, self.wakeword.train(word)
+            if action == "install":
+                return 200, {"installed": self.wakeword.install(word)}
+            if action == "clear":
+                self.wakeword.store.clear(word)
+                return 200, self.wakeword.state(word)
+        except ValueError as error:  # ClipError is a ValueError
+            return 400, {"error": str(error)}
+        return 404, {"error": "not found"}
+
     def _phone_link_view(self) -> dict[str, Any]:
         """The address and QR code that log a phone in to this page (host computer only)."""
         info = self.phone_link() if self.phone_link else {"lan": False}
@@ -738,6 +764,16 @@ class SettingsBackend:
             if not local_admin:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
             return 200, JSON, json.dumps(self.polish.packs.library_view()).encode()
+        if path == WAKEWORD or path.startswith(WAKEWORD + "/"):
+            if self.wakeword is None:
+                return 200, JSON, json.dumps({"enabled": False}).encode()
+            if local_admin is not True:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            word = unquote(path[len(WAKEWORD) + 1 :])
+            try:
+                return 200, JSON, json.dumps(self.wakeword.state(word)).encode()
+            except ValueError as error:
+                return 400, JSON, json.dumps({"error": str(error)}).encode()
         if path == PHONE_LINK:
             if local_admin is not True:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
@@ -770,6 +806,12 @@ class SettingsBackend:
         The update route checks the release and changes nothing unless the body says
         ``"confirm": true``."""
         prefix = "/api/stackchan/settings/"
+        if path.startswith(WAKEWORD + "/"):
+            if self.wakeword is None:
+                return None
+            if local_admin is not True:
+                return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
+            return self._wakeword_post(path[len(WAKEWORD) + 1 :], body)
         if path == PAIRING_CODE and self.pair_code is not None:
             if local_admin is not True:
                 return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
@@ -831,6 +873,7 @@ PACKS = "/api/stackchan/packs"
 ACCESS = "/api/stackchan/remote-access"
 PAIRING_CODE = "/api/stackchan/pairings/code"
 PHONE_LINK = "/api/stackchan/phone-link"
+WAKEWORD = "/api/stackchan/wakeword"
 
 
 def render_page(lang: str | None) -> bytes:

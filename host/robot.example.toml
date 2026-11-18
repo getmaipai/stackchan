@@ -51,6 +51,11 @@ language = "en"
 # show_request_text = false      # false: the screen says only "Needs you", "Working" or "Finished"
 # port = 8052
 
+[packages.wake_word_maker]
+# Make your own wake word on this computer: record clips on the settings page (Voice), train, check, install.
+# Recordings and the model stay in the folder beside the pairing file. Off unless you turn it on.
+# enabled = true
+
 [settings]
 # Let a phone on your Wi-Fi open the settings page. It then asks for the settings token
 # (run `stackchan settings-token`). Off by default: the page is for this computer only.

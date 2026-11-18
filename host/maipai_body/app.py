@@ -3371,6 +3371,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
             auth = SettingsAuth(_default_pairing_path().parent / "settings-token")
         server = SettingsServer(backend, "0.0.0.0" if lan else "127.0.0.1", port, auth=auth)
         _start_coding_companion(backend, voice)
+        _start_wake_word_maker(backend)
         backend.pair_code = pairing.create_pair_code
         backend.phone_link = lambda: {
             "lan": lan,
@@ -4184,6 +4185,25 @@ def _configured_hub_url() -> str:
         return load_config().home.url.strip()
     except Exception:
         return ""
+
+
+def _start_wake_word_maker(backend) -> None:
+    """The wake word maker's routes, only when it is switched on (nothing is imported otherwise)."""
+    try:
+        from maipai_body.config import load_config
+
+        cfg = load_config().packages.wake_word_maker
+    except Exception:
+        return
+    if not cfg.enabled:
+        return
+    from pathlib import Path
+
+    from maipai_body.bodies.stackchan.xiaozhi.pairing import default_pairing_path
+    from maipai_packages.wake_word_maker import WakeStore, WakeWordMaker
+
+    folder = Path(cfg.folder) if cfg.folder else default_pairing_path().parent / "wakeword"
+    backend.wakeword = WakeWordMaker(WakeStore(folder))
 
 
 def _start_coding_companion(backend, voice) -> None:

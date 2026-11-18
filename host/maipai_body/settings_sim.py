@@ -416,6 +416,9 @@ def main(argv: list[str] | None = None) -> int:
 
     pairing = PairingStore(data / "pairing.json")
     auth = SettingsAuth(data / "settings-token")
+    from maipai_packages.wake_word_maker import WakeStore, WakeWordMaker
+
+    backend.wakeword = WakeWordMaker(WakeStore(data / "wakeword"))  # the wake word maker card shows in the stand-in too
     backend.pair_code = pairing.create_pair_code  # the pairing code button and the phone code work in the stand-in too
     backend.phone_link = lambda: {"lan": True, "base": f"http://192.0.2.10:{args.port}", "token": auth.token}
     server = SettingsServer(backend, "127.0.0.1", args.port, auth=auth)

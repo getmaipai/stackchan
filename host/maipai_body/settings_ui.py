@@ -15,6 +15,7 @@ from maipai_body.settings_ui_lock import JS_LOCK
 from maipai_body.settings_ui_character import JS_CHARACTER
 from maipai_body.settings_ui_family import JS_FAMILY
 from maipai_body.settings_ui_link import JS_LINK
+from maipai_body.settings_ui_wakemaker import JS_WAKEMAKER
 from maipai_body.settings_ui_pages import JS_PAGES_FULL
 from maipai_body.settings_ui_polish import JS_POLISH
 
@@ -730,7 +731,7 @@ BUILDERS.system=async(p,u)=>{const id=u.device_id;
  p.append(h('div',{class:'grid'},unit,det,upd,about,rst,reset))};
 """
 
-JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH + JS_PAGES_FULL + JS_LOCK + JS_LINK + JS_FAMILY + JS_CHARACTER
+JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH + JS_PAGES_FULL + JS_LOCK + JS_LINK + JS_FAMILY + JS_WAKEMAKER + JS_CHARACTER
 
 PAGE = r"""<!doctype html><html lang='__CODE__'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
