@@ -1,0 +1,93 @@
+# Intent: The signed update header's last 8 bytes carry a board id (ASCII padded with zeros). The unit compares it with its own build's CONFIG_MAIPAI_BOARD_ID (default m5cores3) and refuses a header with another id, and a header with no id (all zero); an image built with an empty or longer id refuses every header.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/ota.cc (nested tree, MIT); firmware/main (ours)
+# Check after a flash: a wireless update whose header carries another board id is refused with "the header is for another board"; one with no board id is refused with "the header has no board id".
+# Kconfig: CONFIG_MAIPAI_BOARD_ID (string, default m5cores3)
+
+diff --git a/firmware/main/hal/maipai_updatehdr_core.h b/firmware/main/hal/maipai_updatehdr_core.h
+--- a/firmware/main/hal/maipai_updatehdr_core.h
++++ b/firmware/main/hal/maipai_updatehdr_core.h
+@@ -16,6 +16,7 @@
+ 
+ #define MUH_HDR_LEN 56
+ #define MUH_SIG_LEN 64
++#define MUH_BOARD_LEN 8 /* the header bytes 48 to 55: a board id, ASCII padded with zeros */
+ 
+ typedef struct {
+     uint32_t build;
+@@ -23,7 +24,7 @@ typedef struct {
+     uint8_t sha256[32];
+ } muh_hdr_t;
+ 
+-enum { MUH_OK = 0, MUH_SHORT, MUH_MAGIC, MUH_RESERVED, MUH_BUILD_ZERO, MUH_NOT_NEWER, MUH_LENGTH, MUH_HASH, MUH_COUNT };
++enum { MUH_OK = 0, MUH_SHORT, MUH_MAGIC, MUH_RESERVED, MUH_BUILD_ZERO, MUH_NOT_NEWER, MUH_LENGTH, MUH_HASH, MUH_BOARD_ZERO, MUH_BOARD_OTHER, MUH_COUNT };
+ static const char* const MUH_REASONS[MUH_COUNT] = {"ok",
+                                                    "the header is not 56 bytes",
+                                                    "the header does not start with MPUH1",
+@@ -31,7 +32,9 @@ static const char* const MUH_REASONS[MUH_COUNT] = {"ok",
+                                                    "the build number is zero or above 2147483647",
+                                                    "the build number is not higher than the one already installed",
+                                                    "the image length does not match the header",
+-                                                   "the image hash does not match the header"};
++                                                   "the image hash does not match the header",
++                                                   "the header has no board id",
++                                                   "the header is for another board"};
+ 
+ static inline uint32_t muh_le32(const uint8_t* p) { return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24); }
+ 
+@@ -43,14 +46,22 @@ static inline uint32_t muh_floor(int stored, int compiled)
+     return a > b ? a : b;
+ }
+ 
+-/* Checks the header bytes (after the signature over them was verified). floor: the highest build confirmed so far, 0 when none. */
+-static inline int muh_parse(const uint8_t* hdr, size_t len, uint32_t floor_build, muh_hdr_t* out)
++/* Checks the header bytes (after the signature over them was verified). floor: the highest build confirmed so far, 0 when none. board: this build's board id. */
++static inline int muh_parse(const uint8_t* hdr, size_t len, uint32_t floor_build, const char* board, muh_hdr_t* out)
+ {
+     static const uint8_t magic[8] = {'M', 'P', 'U', 'H', '1', 0, 0, 0};
+     if (len != MUH_HDR_LEN) return MUH_SHORT;
+     if (memcmp(hdr, magic, 8) != 0) return MUH_MAGIC;
+-    for (int i = 48; i < 56; i++) {
+-        if (hdr[i] != 0) return MUH_RESERVED;
++    /* The board id (bytes 48 to 55): all zero is refused, and it must be this unit's own id (the build's CONFIG_MAIPAI_BOARD_ID, ASCII padded with zeros;
++     * an empty or longer id in the build refuses every header). */
++    {
++        uint8_t mine[MUH_BOARD_LEN] = {0}, any = 0;
++        const size_t bl = board != NULL ? strlen(board) : 0;
++        for (int i = 48; i < 56; i++) any |= hdr[i];
++        if (any == 0) return MUH_BOARD_ZERO;
++        if (bl == 0 || bl > MUH_BOARD_LEN) return MUH_BOARD_OTHER;
++        memcpy(mine, board, bl);
++        if (memcmp(hdr + 48, mine, MUH_BOARD_LEN) != 0) return MUH_BOARD_OTHER;
+     }
+     out->build = muh_le32(hdr + 8);
+     out->image_len = muh_le32(hdr + 12);
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -215,6 +215,13 @@ config MAIPAI_FW_BUILD
+         confirmed one kept in flash, so a unit flashed over USB or with its settings erased still refuses an older release. 0: the image
+         carries no number (the confirmed number in flash is the only floor). The release script sets it.
+ 
++config MAIPAI_BOARD_ID
++    string "Board id of this image (signed updates), up to 8 ASCII characters"
++    default "m5cores3"
++    help
++        The product and board this image is built for. A signed update header carries a board id in its last 8 bytes; the unit refuses a header
++        whose id is not exactly this one, and refuses a header with no id (all zero). Release builds for another board set another id.
++
+ config MAIPAI_VERSION
+     bool "Version screen (More screen and self.version.get)"
+     default y
+diff --git a/firmware/xiaozhi-esp32/main/ota.cc b/firmware/xiaozhi-esp32/main/ota.cc
+--- a/firmware/xiaozhi-esp32/main/ota.cc
++++ b/firmware/xiaozhi-esp32/main/ota.cc
+@@ -340,7 +340,7 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+         }
+         Settings update_state("mp_update", false);
+         const uint32_t floor_build = muh_floor(update_state.GetInt("minbuild", 0), CONFIG_MAIPAI_FW_BUILD);  // patch SF37
+-        const int parsed = muh_parse(hdr_bytes, sizeof(hdr_bytes), floor_build, &header);
++        const int parsed = muh_parse(hdr_bytes, sizeof(hdr_bytes), floor_build, CONFIG_MAIPAI_BOARD_ID, &header);
+         if (parsed != MUH_OK) {
+             ESP_LOGE(TAG, "Update refused: %s (installed build %u).", MUH_REASONS[parsed], static_cast<unsigned>(floor_build));
+             std::string why = std::string("Update refused: ") + MUH_REASONS[parsed] + ". Nothing was installed. Publish a correctly built, newer signed release and try again.";

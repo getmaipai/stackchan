@@ -35,7 +35,9 @@ def make_header_vectors(cli: str, key: Path, pub_pem: str) -> dict:
         ("build number in the header changed", flip(package, 8), image, 16, False),
         ("length in the header changed", flip(package, 12), image, 16, False),
         ("hash in the header changed", flip(package, 20), image, 16, False),
-        ("reserved field not zero", flip(package, 50), image, 16, False),
+        ("board id changed by one bit", flip(package, 50), image, 16, False),
+        ("board id all zero", sign_package(header[:48] + bytes(8), key), image, 16, False),
+        ("header for another board", sign_package(build_header(17, image, b"m5other"), key), image, 16, False),
         ("package too short", package[:119], image, 16, False),
         ("header without a signature", header, image, 16, False),
     ]

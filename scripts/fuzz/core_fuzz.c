@@ -132,7 +132,7 @@ static void run(const uint8_t* d, size_t n)
 #elif defined(TARGET_UPDATEHDR)
     muh_hdr_t h;
     uint8_t* b = exact(d, n);
-    muh_parse(b, n, (uint32_t)(n * 7), &h);
+    muh_parse(b, n, (uint32_t)(n * 7), "m5cores3", &h);
     free(b);
 #elif defined(TARGET_MOOD)
     mm_t m;

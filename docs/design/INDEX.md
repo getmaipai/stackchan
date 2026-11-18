@@ -125,6 +125,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/head-speed-real-time-clock.md` (7): Head moves are about twice as fast as before (2026-11-18)
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/model-previews/joints.gif` (1553): Binary file docs/dev/model-previews/joints.gif matches
+- `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
@@ -263,7 +264,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/release-readiness.md` (42): First release readiness: the friend test
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
 - `docs/plan/signed-update-anti-rollback.md` (20): Signed update with a build number (proposal for the app track, 2026-11-18)
-- `docs/plan/signed-update-header.md` (27): Signed update header with a build number (agreed with the firmware track, 2026-11-18)
+- `docs/plan/signed-update-header.md` (32): Signed update header with a build number (agreed with the firmware track, 2026-11-18)
 - `docs/plan/spec-proposals/README.md` (14): Shared-spec proposals (step 4, 2026-11-18)
 - `docs/plan/spec-proposals/brain-capabilities.schema.json` (9): no header
 - `docs/plan/spec-proposals/fixtures/brain-capabilities.invalid.feature.json` (1): no header
@@ -498,7 +499,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (294): no header
+- `firmware/patches/ORDER` (295): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -564,7 +565,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF36-setup-idle-timeout.patch` (65): The Setup app (the Wi-Fi page, the menus) closes after 90 seconds without a touch, 300 seconds on the Wi-Fi pa
 - `firmware/patches/SF37-compiled-build-floor.patch` (113): A signed update must beat the build number compiled into the running image (CONFIG_MAIPAI_FW_BUILD, set by the
 - `firmware/patches/SF38-ceiling-zero-and-light-lock.patch` (90): A speed ceiling of 0 means no motion: the servo clock's step limiter holds the command instead of moving it on
-- `firmware/patches/SF39-limiter-failclosed-peak-heap.patch` (322): Limiter and heap round after bench window 11. The limiter assumes the cable is in (limited) until the first re
+- `firmware/patches/SF39-limiter-failclosed-peak-heap.patch` (279): Limiter and heap round after bench window 11. The limiter assumes the cable is in (limited) until the first re
+- `firmware/patches/SF40-update-refusals-say-what-to-do.patch` (57): Every wireless update refusal that said only that nothing was installed now also says what to publish or do ne
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -886,7 +888,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/firmware/pins.toml` (47): The tailnet client (patch 147): downloaded at this commit into the build root when recipe.sh gets --tailnet, n
 - `host/maipai_body/bodies/stackchan/firmware/recipe.sh` (584): no-persistent-websocket)
 - `host/maipai_body/bodies/stackchan/firmware/release.sh` (93): date) BUILD_DATE="$2"; shift 2 ;;
-- `host/maipai_body/bodies/stackchan/firmware/update_header.py` (84): The signed update header (docs/plan/signed-update-anti-rollback.md, agreed with the firmware track): 56 bytes,
+- `host/maipai_body/bodies/stackchan/firmware/update_header.py` (92): The signed update header (docs/plan/signed-update-anti-rollback.md, agreed with the firmware track): 56 bytes,
 - `host/maipai_body/bodies/stackchan/firmware/verify.sh` (48): public-key) (($# >= 2)) || { echo "Pass --public-key PATH (the release's Ed25519 public key PEM) so verify.sh 
 - `host/maipai_body/bodies/stackchan/firmware_update.py` (264): Conservative host-side StackChan firmware update controller."""
 - `host/maipai_body/bodies/stackchan/frame_check.py` (94): Why does the face detector find nobody? A once-a-minute log line, nothing stored.
@@ -1739,7 +1741,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/tz_core_test.c` (124): Host test for the time zone core (patch U03): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/update_core_test.c` (128): Host test for the first-boot trial rule (patch FM01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/update_verify_check.cc` (58): The unit's own update checks as a PC program (patches 155 and 159): the Ed25519 verification, the paired-host 
-- `host/tests/firmware/updatefloor_core_test.c` (42): Host test for the build floor of signed updates (patch SF37). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with 
+- `host/tests/firmware/updatefloor_core_test.c` (52): Host test for the build floor of signed updates (patch SF37). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with 
 - `host/tests/firmware/updatehdr_core_test.c` (49): Host driver for the update header core (patch SF25). Reads lines "package_hex image_hex installed" from standa
 - `host/tests/firmware/version_core_test.c` (168): Host test for the version screen core (patch U05): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/wrap_soak_test.c` (268): Soak test for the 24.9 day (2^31 ms) and 49.7 day (2^32 ms) wrap class, over every core that uses the stamp he
@@ -1822,7 +1824,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/stackchan/vision-labels.json` (50): no header
 - `host/tests/fixtures/stackchan/vision-persona-free.json` (1): no header
 - `host/tests/fixtures/stackchan/vision-persona-free.npy` (1): no header
-- `host/tests/fixtures/update-header-vectors.json` (90): no header
+- `host/tests/fixtures/update-header-vectors.json` (104): no header
 - `host/tests/fixtures/update-signature-vectors.json` (79): no header
 - `host/tests/golden/face-known.json` (1): no header
 - `host/tests/kinematic_double.py` (106): A command-driven test double for the state feed.
@@ -2226,7 +2228,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_unit_update_check.py` (298): ruff: noqa: E501
 - `host/tests/test_update_header.py` (147): The signed update header: version, build number and image hash in 64 bytes, signed with Ed25519; the unit refu
 - `host/tests/test_update_header_core.py` (45): The unit's update header core (firmware patch SF25) against the shared vectors of the app track (host/tests/fi
-- `host/tests/test_update_path_rejections.py` (129): ruff: noqa: E501
+- `host/tests/test_update_path_rejections.py` (131): ruff: noqa: E501
 - `host/tests/test_virtual_unit.py` (273): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
 - `host/tests/test_virtual_unit_fidelity.py` (56): Handlers the virtual unit shares with the unit's own cores, checked against the core's rules (docs/dev/virtual
 - `host/tests/test_virtual_unit_hw.py` (189): ruff: noqa: E501
@@ -2331,10 +2333,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/make-doc-screenshots.py` (141): make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, ne
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
 - `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.
-- `scripts/make-update-vectors.py` (90): write the signed-update test vectors (host/tests/fixtures/update-signature-vectors.json) from a fixed TEST see
+- `scripts/make-update-vectors.py` (92): write the signed-update test vectors (host/tests/fixtures/update-signature-vectors.json) from a fixed TEST see
 - `scripts/make-vu-screenshots.py` (52): the screenshots for the user docs come from the virtual unit's golden frames (real LVGL drawing of the unit's 
 - `scripts/measure-mouth-cues.py` (30): print the mouth cue rate and levels for a speech WAV (16-bit mono or stereo), to check the 4 to 11 a second ba
 - `scripts/measure-turn.py` (134): Measure first model token and first speech audio from a local compatible service."""
+- `scripts/off-cost.sh` (35): prove an optional firmware feature that is switched off costs nothing in the plain image. Reads a built plain 
 - `scripts/patch-replay.sh` (53): Identify genuinely added files separately from missing existing paths.
 - `scripts/psram-stack-lint.py` (181): Fail when a task whose stack is in PSRAM can reach flash or saved settings (patches TC02 and FM05).
 - `scripts/readiness.py` (187): First-release readiness: the friend test as a checklist, made from the state of the repository.

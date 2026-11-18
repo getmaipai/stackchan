@@ -36,7 +36,7 @@ int main(void)
             continue;
         }
         muh_hdr_t h;
-        int r = muh_parse(pkg, MUH_HDR_LEN, installed < 0 ? 0u : (uint32_t)installed, &h);
+        int r = muh_parse(pkg, MUH_HDR_LEN, installed < 0 ? 0u : (uint32_t)installed, "m5cores3", &h);
         if (r == MUH_OK) {
             muh_sha_t s;
             muh_sha_begin(&s);

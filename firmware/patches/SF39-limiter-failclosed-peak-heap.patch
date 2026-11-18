@@ -1,7 +1,7 @@
-# Intent: Limiter and heap round after bench window 11. The limiter assumes the cable is in (limited) until the first real reading, a cable going in is believed at once and going out after 2 seconds. The servo layer keeps the highest speed written to each servo since the last read and the limiter status reports it (peak_dps, whole degrees per second, reset on read). The websocket reconnect task keeps its stack in PSRAM, so 4 KB less of the internal RAM is split. self.bench.say_test plays its reply in 60 ms slices like a real reply (one long block held the speaker write and showed as slow_out lines). New build kind heap: a bench image that traces live allocations from boot, printed by self.bench.heap_trace.
+# Intent: Limiter and heap round after bench window 11. The limiter assumes the cable is in (limited) until the first real reading, a cable going in is believed at once and going out after 2 seconds. The servo layer keeps the highest speed written to each servo since the last read and the limiter status reports it (peak_dps, whole degrees per second, reset on read). self.bench.say_test plays its reply in 60 ms slices like a real reply (one long block held the speaker write and showed as slow_out lines). New build kind heap: a bench image that traces live allocations from boot, printed by self.bench.heap_trace.
 # Placement: unit
-# Upstream: firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc (nested tree, MIT); firmware/main/hal and stackchan/motion (ours)
-# Check after a flash: at boot self.motion.status reads usb_limited until the first cable reading, then follows the cable at once; after a dance self.motion.status peak_dps stays at or under the ceiling (240 limited, 400 free); the link comes up and the largest free internal block is larger than before; say_test shows no slow_out lines.
+# Upstream: firmware/main/hal and stackchan/motion (ours)
+# Check after a flash: at boot self.motion.status reads usb_limited until the first cable reading, then follows the cable at once; after a dance self.motion.status peak_dps stays at or under the ceiling (240 limited, 400 free); say_test shows no slow_out lines.
 # Kconfig: none new (the heap kind sets CONFIG_HEAP_TRACING_STANDALONE in firmware/configs/sdkconfig.heaptrace.defaults)
 
 diff --git a/firmware/main/hal/maipai_motion_limit_core.h b/firmware/main/hal/maipai_motion_limit_core.h
@@ -277,46 +277,3 @@ diff --git a/firmware/main/stackchan/motion/servo.h b/firmware/main/stackchan/mo
      int _prev_command                 = 0;      // patch SF28: the last angle written while animating
      bool _prev_command_valid          = false;
      uint32_t _last_torque_check_tick  = 0;
-diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
---- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
-+++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
-@@ -12,6 +12,7 @@
- #include <cJSON.h>
- #include <esp_log.h>
- #include <esp_random.h>
-+#include <freertos/idf_additions.h>
- #include <algorithm>
- #include <memory>
- #include <arpa/inet.h>
-@@ -36,7 +37,11 @@ WebsocketProtocol::~WebsocketProtocol() {
- #if CONFIG_STACKCHAN_PERSISTENT_WEBSOCKET
-     if (reconnect_task_handle_ != nullptr) {
-         xEventGroupSetBits(event_group_handle_, WEBSOCKET_PROTOCOL_STOP_EVENT);
--        xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_STOPPED_EVENT, pdFALSE, pdTRUE, pdMS_TO_TICKS(10000));
-+        const EventBits_t stopped = xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_STOPPED_EVENT, pdFALSE, pdTRUE, pdMS_TO_TICKS(10000));
-+        if ((stopped & WEBSOCKET_PROTOCOL_STOPPED_EVENT) && reconnect_task_handle_ != nullptr) {
-+            vTaskDeleteWithCaps(reconnect_task_handle_);  // patch SF39: the task's stack is in PSRAM and is freed by this call, from another task
-+            reconnect_task_handle_ = nullptr;
-+        }
-     }
- #endif
-     {
-@@ -52,7 +57,8 @@ bool WebsocketProtocol::Start() {
-         return true;
-     }
-     xEventGroupClearBits(event_group_handle_, WEBSOCKET_PROTOCOL_STOP_EVENT | WEBSOCKET_PROTOCOL_STOPPED_EVENT);
--    if (xTaskCreate(ReconnectTask, "ws_reconnect", 4096, this, 3, &reconnect_task_handle_) != pdPASS) {
-+    // Patch SF39: the stack lives in PSRAM, so the 4 KB does not split the free internal RAM (the connection logic runs as before).
-+    if (xTaskCreatePinnedToCoreWithCaps(ReconnectTask, "ws_reconnect", 4096, this, 3, &reconnect_task_handle_, tskNO_AFFINITY, MALLOC_CAP_SPIRAM) != pdPASS) {
-         reconnect_task_handle_ = nullptr;
-         ESP_LOGE(TAG, "Failed to start websocket reconnect task");
-         return false;
-@@ -469,7 +475,7 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
-         delay_ms = std::min(kMaximumDelayMs, delay_ms * 2);
-     }
-     xEventGroupSetBits(self->event_group_handle_, WEBSOCKET_PROTOCOL_STOPPED_EVENT);
--    vTaskDelete(nullptr);
-+    vTaskSuspend(nullptr);  // patch SF39: a task with a PSRAM stack is deleted by the destructor, not by itself
- }
- 
- std::string WebsocketProtocol::GetHelloMessage() {

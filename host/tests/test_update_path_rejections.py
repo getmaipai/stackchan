@@ -22,7 +22,7 @@ from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 needs_cc = pytest.mark.skipif(shutil.which("cc") is None or shutil.which("c++") is None, reason="no C compiler on this machine")
-OK, SHORT, MAGIC_BAD, RESERVED, BUILD_ZERO, NOT_NEWER, LENGTH, HASH = range(8)   # MUH_* in maipai_updatehdr_core.h
+OK, SHORT, MAGIC_BAD, RESERVED, BUILD_ZERO, NOT_NEWER, LENGTH, HASH, BOARD_ZERO, BOARD_OTHER = range(10)   # MUH_* in maipai_updatehdr_core.h
 IMAGE = bytes(range(256)) * 20 + b"stackchan image"
 SIG_BAD = "signature"
 
@@ -35,7 +35,7 @@ def core_binary(tmp_path_factory):
     return binary
 
 
-def _header(build=7, image=IMAGE, length=None, sha=None, magic=MAGIC, reserved=bytes(8)):
+def _header(build=7, image=IMAGE, length=None, sha=None, magic=MAGIC, reserved=b"m5cores3"):  # the last 8 bytes are the board id
     return magic + build.to_bytes(4, "little") + (len(image) if length is None else length).to_bytes(4, "little") + (hashlib.sha256(image).digest() if sha is None else sha) + reserved
 
 
@@ -82,7 +82,9 @@ def test_every_check_that_rejects_a_bad_image_agrees_between_the_unit_and_the_ho
         ("header length field wrong", package(_header(length=len(IMAGE) + 5)), IMAGE, 0, LENGTH),
         ("header hash field wrong", package(_header(sha=bytes(32))), IMAGE, 0, HASH),
         ("header magic wrong", package(_header(magic=b"MPUH2\0\0\0")), IMAGE, 0, MAGIC_BAD),
-        ("reserved bytes not zero", package(_header(reserved=b"\0\0\0\0\0\0\0\1")), IMAGE, 0, RESERVED),
+        ("board id all zero", package(_header(reserved=bytes(8))), IMAGE, 0, BOARD_ZERO),
+        ("board id of another board", package(_header(reserved=b"m5other\0")), IMAGE, 0, BOARD_OTHER),
+        ("board id differs by one bit", package(_header(reserved=b"m5cores2")), IMAGE, 0, BOARD_OTHER),
     ]
     for name, pkg, image, floor, expected in rows:
         unit = unit_verdict(checker, core_binary, pkg, image, good_pub, floor)
