@@ -70,9 +70,9 @@ def main() -> int:
                 key = f"{style}/{emo}"
                 if table:
                     print(key, m)
-                if m["bright"] < 240:
+                if emo != "sleepy" and m["bright"] < 240:  # sleepy is dim gray by design (owner default, 2026-11-17)
                     found[key + ":not-white"] = f"brightest pixel {m['bright']}"
-                if m["gray_pct"] > 12:
+                if emo != "sleepy" and m["gray_pct"] > 12:
                     found[key + ":gray"] = f"{m['gray_pct']} percent gray"
                 if m["thin_px"] > 0:
                     found[key + ":hairline"] = f"{m['thin_px']} pixels of a 2 px stroke or thinner"
