@@ -227,6 +227,35 @@ int main(void)
         CHECK(mml_scale(&k) == 0 && mml_state(&k) == MML_ORIENT);
         k.force_orient = -1;
     }
+    /* the status must say what is applied (patch SF31): over every combination of carried, orientation, cable, USB rule and battery band, the state
+     * is "free" exactly when scale, speed and dance step are all at their full values, and a limited state names a source that really limits */
+    for (int carried = 0; carried < 2; carried++) {
+        for (int orient = 0; orient < 5; orient++) {
+            for (int usb = 0; usb < 2; usb++) {
+                for (int usb_rule = 0; usb_rule < 2; usb_rule++) {
+                    for (int band = 0; band < 5; band++) {
+                        mml_t g;
+                        memset(&g, 0, sizeof g);
+                        g.force_carried = g.force_usb = g.force_level = -1;
+                        g.force_orient = (int8_t)orient;
+                        g.carried = (uint8_t)carried;
+                        g.usb = (uint8_t)usb;
+                        g.usb_limit = (uint8_t)usb_rule;
+                        g.band = (uint8_t)band;
+                        g.now = 1000;
+                        g.acc_ms = 1000;
+                        int s, v, d;
+                        mml_source_limits(&g, &s, &v, &d);
+                        const int full = s == 100 && v == 100 && d == 4;
+                        CHECK((mml_state(&g) == MML_FREE) == full);
+                        CHECK(mml_scale(&g) == s && mml_speed_pct(&g) == v && mml_dance_max(&g) == d);
+                        if (mml_state(&g) == MML_USB) CHECK(usb && usb_rule && s <= 50);
+                        if (mml_state(&g) == MML_CARRIED) CHECK(s == 0);
+                    }
+                }
+            }
+        }
+    }
     STALE = 0; vec(0, 0);
     if (failures) { printf("%d failure(s)\n", failures); return 1; }
     printf("all passed\n");

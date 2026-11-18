@@ -490,7 +490,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (284): no header
+- `firmware/patches/ORDER` (285): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -547,6 +547,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF27-bench-servo-rate-firstrun-loop.patch` (238): Bench tools and cleanup. The other TDM slots can be read only by a bench build (a release image reads slot 1, 
 - `firmware/patches/SF28-servo-clock-real-time.patch` (135): The servo animation advances by the real time since its last step (20 to 50 ms) instead of a fixed 20 ms, so a
 - `firmware/patches/SF29-talk-over-aec-and-barge-in.patch` (275): Talking over the robot, wired (off by default, CONFIG_MAIPAI_TALK_OVER_AEC, needs CONFIG_MAIPAI_TALK_OVER): th
+- `firmware/patches/SF30-mouth-cues-append.patch` (126): self.face.mouth_cues takes an optional append flag. With append true the cues are added to the list of the spe
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1670,7 +1671,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/look_shapes_dump.c` (165): Prints the face model of maipai_look_core.h as JSON (patch V10), for the preview of the settings page.
 - `host/tests/firmware/mic3_core_test.c` (73): Host test for the MIC3 bench measurement (patch SF15). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/mood_core_test.c` (129): Host test for the mood core (patch M01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
-- `host/tests/firmware/motion_limit_core_test.c` (234): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
+- `host/tests/firmware/motion_limit_core_test.c` (263): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
 - `host/tests/firmware/mouthcue_core_test.c` (142): Host test for the mouth cue player (patch SF10). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/music_core_test.c` (168): Host test for the on-unit music features (patch 100): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/music_mood_test.c` (54): Host test for the music mood faces (patch V03): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */

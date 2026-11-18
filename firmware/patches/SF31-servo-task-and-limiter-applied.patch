@@ -1,0 +1,397 @@
+# Intent: Servo stepping runs in its own task every 20 ms (vTaskDelayUntil, priority above the screen loop, 3 KB stack) instead of in the screen loop, whose period was its delay plus its work (25 to 40 ms with jitter, so the head animation took 26 to 43 steps a second instead of 50). The limiter status reports what is applied: the angle and speed the servo layer last handed to the limiter and got back, with the scale and speed percent used. Bench: self.bench.servo_rate also answers the inter-call time of the servo update (min, median, p95, max) and the stack margin of the servo task. Host test: state free exactly when scale, speed and dance step are full, over every combination of the limiter's inputs.
+# Placement: unit
+# Upstream: firmware/main/hal/hal.cpp, stackchan/motion/servo.cpp and servo.h (M5Stack base, MIT); firmware/main/hal (ours)
+# Check after a flash: self.bench.servo_rate during a yaw move answers steps_per_s near 50 and an interval median of 20 ms with p95 under 30; servo_task_stack_min shows at least 600 bytes of margin; self.motion.status answers an applied block that matches the scale it reports.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/hal.cpp b/firmware/main/hal/hal.cpp
+--- a/firmware/main/hal/hal.cpp
++++ b/firmware/main/hal/hal.cpp
+@@ -152,6 +152,20 @@ struct HoldTimer {
+     ~HoldTimer() { maipai_facebench_hold(static_cast<uint32_t>(esp_timer_get_time() - t0)); }
+ };
+ 
++// Patch SF31: servo stepping at a fixed 20 ms, independent of the screen lock. The servo layer has its own lock (patch SF08).
++static TaskHandle_t s_servo_task = nullptr;
++static void _servo_step_task(void*)
++{
++    TickType_t last = xTaskGetTickCount();
++    while (1) {
++        vTaskDelayUntil(&last, pdMS_TO_TICKS(20));
++        GetStackChan().updateBody();
++    }
++}
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++unsigned maipai_servo_task_stack_min() { return s_servo_task != nullptr ? static_cast<unsigned>(uxTaskGetStackHighWaterMark(s_servo_task)) : 0u; }
++#endif
++
+ static void _stackchan_update_task(void* param)
+ {
+     bool is_setup_done = false;
+@@ -166,10 +180,8 @@ static void _stackchan_update_task(void* param)
+         maipai_packs_boot_poll(hal_bridge::is_xiaozhi_ready());  // patch FM04: the saved look and filler, once, at the first standby
+         maipai_firstrun_boot_poll(hal_bridge::is_xiaozhi_ready());  // patch SF09: the first-run flow, once, when no answers are saved
+ 
+-        // Patch V25: the servo and LED buses are written before the screen lock is taken, not under it (bench A/B: ls_wide 1 puts them back).
+-        if (!g_ls_wide) {
+-            GetStackChan().updateBody();
+-        }
++        // Patch SF31: the servo and LED buses are written by their own task every 20 ms (servo_step), not by this loop, whose period is its
++        // delay plus its work (25 to 40 ms, jittering with the screen lock).
+         const int64_t lock_t0 = esp_timer_get_time();
+         LvglLockGuard lock;
+         const int64_t upd_t0 = esp_timer_get_time();
+@@ -184,9 +196,6 @@ static void _stackchan_update_task(void* param)
+ #endif
+ 
+         GetStackChan().updateScreen();
+-        if (g_ls_wide) {
+-            GetStackChan().updateBody();
+-        }
+         maipai_facebench_loop_tick();  // patch H01: bench builds count passes of this loop
+         maipai_facebench_loop_times(static_cast<uint32_t>(upd_t0 - lock_t0), static_cast<uint32_t>(esp_timer_get_time() - upd_t0));
+ 
+@@ -236,7 +245,8 @@ void Hal::startXiaozhi()
+     maipai_roam_init();     // Wi-Fi roaming: a weak signal for 10 s starts one scan for a better access point (patch RM01)
+ 
+     // Start stackchan update task
+-    xTaskCreatePinnedToCore(_stackchan_update_task, "stackchan", 5120, NULL, 3, NULL, 1);  // patch M04: measured margin was 524 bytes of 4096
++    xTaskCreatePinnedToCore(_stackchan_update_task, "stackchan", 5120, NULL, 3, NULL, 1);
++    xTaskCreatePinnedToCore(_servo_step_task, "servo_step", 3072, NULL, 4, &s_servo_task, 1);  // patch SF31  // patch M04: measured margin was 524 bytes of 4096
+ 
+     hal_bridge::start_xiaozhi_app();
+ 
+diff --git a/firmware/main/hal/maipai_motion_limit.cc b/firmware/main/hal/maipai_motion_limit.cc
+--- a/firmware/main/hal/maipai_motion_limit.cc
++++ b/firmware/main/hal/maipai_motion_limit.cc
+@@ -0,0 +1,231 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The movement limiter, device side (patch ML01). One small state (about 40 bytes) in a static; the tools and the NVS choice are
++ * set up once at boot, on the registering task's internal stack. The servo update (the stackchan task) feeds the readings.
++ */
++#include <sdkconfig.h>
++#include "maipai_motion_limit.h"
++#include "maipai_motion_limit_core.h"
++#include "maipai_pickup.h"
++#include "board/hal_bridge.h"
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <mcp_server.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++#include <cmath>
++#include <cstdio>
++#include <cstring>
++#include <string>
++
++static const char* TAG = "MAIPAI-MOTION";
++
++namespace {
++mml_t s_mml;
++bool s_ready = false;
++uint32_t s_power_at = 0;
++int s_level = -1;
++int s_cable = 0;
++float s_acc[3] = {0.0f, 9.8f, 0.0f};  // the low-passed pull, fed by the IMU task
++volatile int s_pitch_deg10 = 0;       // the head's pitch, tenths of a degree, from the servo layer
++constexpr const char* kNs = "mp_motion";  // its own namespace
++constexpr const char* kKey = "usb_limit";
++
++uint32_t now_ms()
++{
++    return static_cast<uint32_t>(esp_timer_get_time() / 1000);
++}
++
++void ensure()
++{
++    if (!s_ready) {
++        mml_init(&s_mml);
++        s_ready = true;
++    }
++}
++}  // namespace
++
++// One accelerometer reading (m/s^2) from the IMU task, every 20 ms: the orientation band (upright, tilted, side, inverted) comes from it;
++// the head's pitch is taken off first. An unreadable IMU simply stops calling this and the band turns "unknown" after 2 s.
++void maipai_motion_feed_accel(float ax, float ay, float az)
++{
++    ensure();
++    s_acc[0] += 0.2f * (ax - s_acc[0]);
++    s_acc[1] += 0.2f * (ay - s_acc[1]);
++    s_acc[2] += 0.2f * (az - s_acc[2]);
++    mml_orient_feed(&s_mml, now_ms(), s_acc[0], s_acc[1], s_acc[2], static_cast<float>(s_pitch_deg10) / 10.0f);
++}
++
++void maipai_motion_note_pitch(int angle_tenths)
++{
++    s_pitch_deg10 = angle_tenths;
++}
++
++void maipai_motion_tick()
++{
++    ensure();
++    const uint32_t now = now_ms();
++    if (s_power_at == 0 || now - s_power_at >= 500) {
++        s_power_at = now ? now : 1u;
++        int level = 0;
++        bool charging = false, on_cable = false;
++        if (hal_bridge::board_battery_state(&level, &charging, &on_cable)) {
++            s_level = level;
++            s_cable = on_cable ? 1 : 0;
++        }  // unknown: the last reading stays
++    }
++    mml_step(&s_mml, now, maipai_pickup_held() ? 1 : 0, s_cable, s_level);
++}
++
++int maipai_motion_state()
++{
++    ensure();
++    return mml_state(&s_mml);
++}
++
++bool maipai_motion_hold()
++{
++    ensure();
++    if (mml_scale(&s_mml) > 0) {
++        return false;
++    }
++    s_mml.refused++;
++    return true;
++}
++
++int maipai_motion_scale()
++{
++    ensure();
++    return mml_scale(&s_mml);
++}
++
++// Patch SF31: what the servo layer was actually handed and given back by the limiter on its last calls, so the status can say what is applied.
++namespace {
++int s_app_angle_in = 0, s_app_angle_out = 0, s_app_scale = 100;
++int s_app_speed_in = 0, s_app_speed_out = 0, s_app_speed_pct = 100;
++}  // namespace
++
++int maipai_motion_angle(int angle)
++{
++    ensure();
++    const int out = mml_angle(&s_mml, angle, angle);
++    s_app_angle_in = angle;
++    s_app_angle_out = out;
++    s_app_scale = mml_scale(&s_mml);
++    if (out != angle) {
++        s_mml.limited++;
++    }
++    return out;
++}
++
++int maipai_motion_speed(int speed)
++{
++    ensure();
++    const int cap = mml_speed_cap(&s_mml);
++    s_app_speed_in = speed;
++    s_app_speed_out = speed > cap ? cap : speed;
++    s_app_speed_pct = mml_speed_pct(&s_mml);
++    return s_app_speed_out;
++}
++
++float maipai_motion_stiffness(float stiffness)
++{
++    ensure();
++    return mml_stiffness(&s_mml, stiffness);
++}
++
++int maipai_motion_dance_max()
++{
++    ensure();
++    return mml_dance_max(&s_mml);
++}
++
++bool maipai_motion_dances_ok()
++{
++    ensure();
++    return mml_dances_ok(&s_mml) != 0;
++}
++
++void maipai_motion_register_tools()
++{
++    ensure();
++    nvs_handle_t h;
++    uint8_t v = 1;
++    if (nvs_open(kNs, NVS_READONLY, &h) == ESP_OK) {
++        if (nvs_get_u8(h, kKey, &v) != ESP_OK) {
++            v = 1;
++        }
++        nvs_close(h);
++    }
++    s_mml.usb_limit = v == 0 ? 0 : 1;  // default limited
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.motion.status",
++                "How much the head may move now. state: free, usb_limited (on a USB cable the robot moves gently), battery_limited (it "
++                "moves more gently as the battery runs low) or carried (held or carried: no movement). Also reasons, usb, carried, "
++                "battery_band (none, mild, limited, minimal, hold), scale (percent of the excursion), speed_cap (0 to 1000), "
++                "dance_max (0 to 4), refused_count, limited_count and applied: the angle and speed the servo layer last handed to the limiter and got back, "
++                "with the scale and speed percent used (what is applied, not only what the state says).",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    ensure();
++                    char reason[120];
++                    reason[0] = 0;
++                    auto add = [&](const char* text) {
++                        if (reason[0]) strncat(reason, ", ", sizeof(reason) - strlen(reason) - 1);
++                        strncat(reason, text, sizeof(reason) - strlen(reason) - 1);
++                    };
++                    const int orient = mml_orient(&s_mml, now_ms());
++                    if (s_mml.carried) add("held or carried");
++                    if (orient == MML_O_TILTED) add("tilted");
++                    else if (orient == MML_O_SIDE) add("on its side or face down");
++                    else if (orient == MML_O_INVERTED) add("upside down");
++                    else if (orient == MML_O_UNKNOWN) add("no orientation reading");
++                    if (s_mml.usb && s_mml.usb_limit) add("on a USB cable");
++                    if (!s_mml.usb && s_mml.band > 0) add("the battery is low");
++                    char out[720];
++                    snprintf(out, sizeof(out),
++                             "{\"ok\":true,\"state\":\"%s\",\"reasons\":\"%s\",\"usb\":%s,\"carried\":%s,\"orientation\":\"%s\",\"tilt_deg\":%d,\"usb_limit\":\"%s\","
++                             "\"battery\":%d,\"battery_band\":\"%s\",\"scale\":%d,\"speed_cap\":%d,\"dance_max\":%d,"
++                             "\"refused_count\":%u,\"limited_count\":%u,"
++                             "\"applied\":{\"angle_in\":%d,\"angle_out\":%d,\"scale\":%d,\"speed_in\":%d,\"speed_out\":%d,\"speed_pct\":%d}}",
++                             mml_state_name(&s_mml), reason, s_mml.usb ? "true" : "false", s_mml.carried ? "true" : "false", mml_orient_name(orient), static_cast<int>(s_mml.tilt_deg),
++                             s_mml.usb_limit ? "limited" : "off", s_mml.level, mml_band_name(&s_mml), mml_scale(&s_mml),
++                             mml_speed_cap(&s_mml), mml_dance_max(&s_mml), static_cast<unsigned>(s_mml.refused),
++                             static_cast<unsigned>(s_mml.limited), s_app_angle_in, s_app_angle_out, s_app_scale, s_app_speed_in, s_app_speed_out, s_app_speed_pct);
++                    return std::string(out);
++                });
++    mcp.AddTool("self.motion.set",
++                "Choose the USB rule: usb_limit limited (the default: on a USB cable the robot moves gently) or off (it moves freely on "
++                "USB). Off never lifts the carried rule or the battery ladder. Saved. Answers {ok,usb_limit}.",
++                PropertyList({Property("usb_limit", kPropertyTypeString, std::string("limited"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    ensure();
++                    const std::string c = properties["usb_limit"].value<std::string>();
++                    if (c != "limited" && c != "off") {
++                        return std::string("{\"ok\":false,\"error\":\"usb_limit is limited or off\"}");
++                    }
++                    s_mml.usb_limit = c == "off" ? 0 : 1;
++                    nvs_handle_t w;
++                    if (nvs_open(kNs, NVS_READWRITE, &w) == ESP_OK) {
++                        nvs_set_u8(w, kKey, s_mml.usb_limit);
++                        nvs_commit(w);
++                        nvs_close(w);
++                    }
++                    return std::string(s_mml.usb_limit ? "{\"ok\":true,\"usb_limit\":\"limited\"}" : "{\"ok\":true,\"usb_limit\":\"off\"}");
++                });
++#if CONFIG_MAIPAI_FACE_BENCH
++    // Bench builds only: force the readings (-1 releases): carried 0 or 1, usb 0 or 1, level 0 to 100.
++    mcp.AddTool("self.motion.force", "Bench only: force the carried flag, the cable, the charge and the orientation band (0 upright, 1 tilted, 2 side, 3 inverted, 4 unknown; -1 releases each). Answers {ok}.",
++                PropertyList({Property("carried", kPropertyTypeInteger, -1, -1, 1), Property("usb", kPropertyTypeInteger, -1, -1, 1),
++                              Property("level", kPropertyTypeInteger, -1, -1, 100), Property("orient", kPropertyTypeInteger, -1, -1, 4)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    ensure();
++                    s_mml.force_carried = static_cast<int8_t>(properties["carried"].value<int>());
++                    s_mml.force_usb     = static_cast<int8_t>(properties["usb"].value<int>());
++                    s_mml.force_level   = static_cast<int8_t>(properties["level"].value<int>());
++                    s_mml.force_orient  = static_cast<int8_t>(properties["orient"].value<int>());
++                    return std::string("{\"ok\":true}");
++                });
++#endif
++    ESP_LOGI(TAG, "movement limiter ready: USB rule %s", s_mml.usb_limit ? "limited" : "off");
++}
+diff --git a/firmware/main/hal/maipai_bench.cc b/firmware/main/hal/maipai_bench.cc
+--- a/firmware/main/hal/maipai_bench.cc
++++ b/firmware/main/hal/maipai_bench.cc
+@@ -12,7 +12,9 @@
+ #include <hal/maipai_lat.h>
+ #include <mcp_server.h>
+ #include <hal/maipai_firstrun_wire.h>
++#include <algorithm>
+ #include <atomic>
++#include <cstring>
+ #include <settings.h>
+ #include <hal/hal.h>
+ #include <stackchan/stackchan.h>
+@@ -35,6 +37,11 @@ extern std::atomic<uint32_t> g_servo_anim_steps;
+ }  // namespace stackchan::motion
+ using stackchan::motion::g_servo_update_calls;
+ using stackchan::motion::g_servo_anim_steps;
++namespace stackchan::motion {
++extern std::atomic<uint32_t> g_servo_interval_n;
++extern uint8_t g_servo_intervals[256];
++}  // namespace stackchan::motion
++extern unsigned maipai_servo_task_stack_min();
+ 
+ namespace {
+ struct Run {
+@@ -165,6 +172,7 @@ void maipai_bench_register_tools() {
+                     const int yaw = properties["yaw"].value<int>();
+                     const int pitch = properties["pitch"].value<int>();
+                     const int window = properties["window_ms"].value<int>();
++                    stackchan::motion::g_servo_interval_n.store(0);
+                     const uint32_t calls0 = g_servo_update_calls.load();
+                     const uint32_t steps0 = g_servo_anim_steps.load();
+                     {
+@@ -176,8 +184,24 @@ void maipai_bench_register_tools() {
+                     vTaskDelay(pdMS_TO_TICKS(window));
+                     const uint32_t calls = g_servo_update_calls.load() - calls0;
+                     const uint32_t steps = g_servo_anim_steps.load() - steps0;
+-                    char out[120];
+-                    snprintf(out, sizeof(out), "{\"ok\":true,\"calls_per_s\":%.1f,\"steps_per_s\":%.1f}", calls * 1000.0 / window, steps * 1000.0 / window);
++                    // inter-call times of one servo's update over the window: min, median, p95, max in ms (a fixed 20 ms task shows 20 with little spread)
++                    uint8_t iv[256];
++                    const uint32_t have_n = stackchan::motion::g_servo_interval_n.load();
++                    const int have = have_n > 256 ? 256 : static_cast<int>(have_n);
++                    memcpy(iv, stackchan::motion::g_servo_intervals, sizeof(iv));
++                    int mn = 0, md = 0, p95 = 0, mx = 0;
++                    if (have > 0) {
++                        std::sort(iv, iv + have);
++                        mn = iv[0];
++                        md = iv[have / 2];
++                        p95 = iv[(have * 95) / 100 < have ? (have * 95) / 100 : have - 1];
++                        mx = iv[have - 1];
++                    }
++                    char out[240];
++                    snprintf(out, sizeof(out),
++                             "{\"ok\":true,\"calls_per_s\":%.1f,\"steps_per_s\":%.1f,\"interval_ms\":{\"n\":%d,\"min\":%d,\"median\":%d,\"p95\":%d,\"max\":%d},"
++                             "\"servo_task_stack_min\":%u}",
++                             calls * 1000.0 / window, steps * 1000.0 / window, have, mn, md, p95, mx, maipai_servo_task_stack_min());
+                     return std::string(out);
+                 });
+     mcp.AddTool("self.bench.firstrun_loop",
+diff --git a/firmware/main/stackchan/motion/servo.cpp b/firmware/main/stackchan/motion/servo.cpp
+--- a/firmware/main/stackchan/motion/servo.cpp
++++ b/firmware/main/stackchan/motion/servo.cpp
+@@ -37,6 +37,9 @@ static SpringOptions_t _default_spring_options = {
+ // Patch SF27 (bench): how often the servo update was called and how often it advanced the animation (each advance is a fixed 20 ms of animation).
+ std::atomic<uint32_t> g_servo_update_calls{0};
+ std::atomic<uint32_t> g_servo_anim_steps{0};
++// Patch SF31 (bench): the last 256 times between two calls of the same servo's update, in ms (clamped to 255).
++std::atomic<uint32_t> g_servo_interval_n{0};
++uint8_t g_servo_intervals[256];
+ #endif
+ 
+ namespace {
+@@ -61,6 +64,14 @@ void Servo::update()
+     std::lock_guard<std::recursive_mutex> servo_lock(s_servo_mutex);
+ #if CONFIG_MAIPAI_SERIAL_TOOLS
+     g_servo_update_calls.fetch_add(1, std::memory_order_relaxed);
++    {
++        const uint32_t t = GetHAL().millis();
++        if (_dbg_last_call != 0) {
++            const uint32_t d = t - _dbg_last_call;
++            g_servo_intervals[g_servo_interval_n.fetch_add(1, std::memory_order_relaxed) & 255u] = static_cast<uint8_t>(d > 255 ? 255 : d);
++        }
++        _dbg_last_call = t;
++    }
+ #endif
+     // Keep update in at most 50Hz. Patch SF28: the animation advances by the real time since the last step (20 to 50 ms), not a fixed 20 ms.
+     uint32_t elapsed_ms = 0;
+diff --git a/firmware/main/stackchan/motion/servo.h b/firmware/main/stackchan/motion/servo.h
+--- a/firmware/main/stackchan/motion/servo.h
++++ b/firmware/main/stackchan/motion/servo.h
+@@ -178,6 +178,7 @@ protected:
+     uitk::AnimateValue _angle_anim;
+ 
+     uint32_t _last_tick               = 0;
++    uint32_t _dbg_last_call           = 0;      // patch SF31 (bench interval statistics)
+     int _prev_command                 = 0;      // patch SF28: the last angle written while animating
+     bool _prev_command_valid          = false;
+     uint32_t _last_torque_check_tick  = 0;
