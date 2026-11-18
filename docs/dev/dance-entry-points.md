@@ -180,3 +180,28 @@ What to retune:
 ## Why the virtual robot showed no light show for "Dance happy"
 
 The playground button calls `self.robot.dance` with the name (`scripts/virtual-unit/view.html:220`). The fake's handler only stores the name in `motion.dance` after the limiter check (`scripts/virtual-unit/tools/motion.py:153` to `161`), and the view turns that into a head path with `hw.dance_offset` (`scripts/virtual-unit/hw.py:249` to `270`, `view.py:118` to `152`). That matches the real unit, where the same tool also plays only the keyframe dance (section 1). The ring in the fake follows `self.robot.set_led_colors` (`view.py:6`), and nothing in the fake writes the ring, starts an overlay or sets notes for a dance. The ladder tools exist as stubs: `self.music.stage` only stores the number and returns `beat: false` (`scripts/virtual-unit/tools/audio.py:189` to `209`), and no file in `scripts/virtual-unit` renders a step (no `stage` use in `view.py`, `hw.py` or `view3d.js`). Two more differences to fix on the fake side: the fake lacks the `bob` name and the extra dances (`tools/motion.py:156` to `159` answers "unavailable"), and its preference default for `overlays_enabled` is false in `tools/audio.py:215` but true in `tools/page_overlay.py:21` (the real default is on). To see the show in the playground the fake must run the host's `LadderDirector` against a scripted `music_feat` stream (the host tests already do this), or implement the unit-side modifier once the fix above lands; the button alone cannot show it, because the real button does not either.
+
+## After patch SF51 (written, built, not landed yet): the unit runs the ladder for a hand-chosen dance
+
+What changes on the unit (decision of 2026-11-18: a friend without Home gets the whole show):
+
+| Entry point | Now runs |
+|---|---|
+| Screen Dance button, Dance tile, `self.robot.dance` happy / robot / panic / look_around, word reactions | a ladder session on a steady synthetic beat at the dance's own tempo (90, 120, 140 and 80 BPM), 45 seconds of music, then the way down |
+| `self.dance.session {name or bpm, seconds, max_stage}` (new tool) | the same session on purpose, with the length and the highest step chosen |
+| `self.robot.stop_dance` | also ends a session (eyes ahead, head level, ring dark, overlays and notes cleared) |
+| the gestures (bow, nod_yes, shake_no, data dances) and a muted or full-quiet unit | the keyframe dance as before |
+
+A session shows, by step: 1 eyes only; 2 nod, ring breathes mint and gold (10 to 18 percent of full), one music note, a face every 16 beats; 3 sway, ring chases (18 to 30 percent), two notes, disco ball (light); 4 full dance, the gold swell on the beat, three notes, disco ball (normal) and a confetti burst on entering the step and every 32 beats; then 3, 2, 1 down, the back layer cleared below the sway. The faces come from the same lists as the host's director and never repeat the last two. The unit paints the nod and sway ring itself while a session runs or when no host is connected (when a host runs the show it paints them). The movement limiter still caps the step (USB: no full dance), and overlays that are off in the unit's settings, or a privacy look or a ringing timer, simply do not draw.
+
+Memory: about 9 KB of flash, a state struct under 120 bytes, one one-second `esp_timer`; no task and no internal block while idle. The overlay and decor sprites are the ones the unit already has (`disco`, `confetti`, the notes decorator); nothing new is loaded.
+
+Pure core and test: `mdl_synth_*`, `mdl_show_for_step`, `mdl_face_next`, `mdl_ring_breath`, `mdl_ring_chase` in `maipai_dance_ladder_core.h`, host test `dance_synth_test.c` (the sequence 1, 2, 3, 4, 3, 2, 1, 0 on a synthetic beat, the dwell table, the show rules, faces, ring bounds under the 50 percent cap).
+
+### Step 4 lasts one down-dwell longer than the ladder doc says (the playground's finding)
+
+The core is right and the doc is loose: `mdl_step` starts the way down at the end of the peak dwell (24 beats, 12 s at 120 BPM) by setting `down`; the stage then stays at 4 for one down-dwell (4 beats, 2 s at 120 BPM) before it drops to 3, so the full dance is on screen about 14 s at 120 BPM (up to 16 s at 80 BPM) and the host mirror `dance_ladder.py` does the same (a shared test feeds both). The doc's "12 s" should read "12 s of peak plus one down dwell"; the core is not changed (the host mirror and its vectors depend on it).
+
+### For the host (app track)
+
+A paired host may still run its own director through `self.music.stage`. Its "little dance" plan calls `self.robot.dance` three times in a row (happy, robot, happy): each call now starts a 45 second session, so the last one wins; the host should call `self.dance.session` once (or `self.music.stage` as for music) instead. `bob` is accepted by the unit (the nod on a steady beat) and missing from the host's built-in dance list.
