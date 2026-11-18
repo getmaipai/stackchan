@@ -41,6 +41,7 @@ _is.loader.exec_module(imu)
 PICKUP = imu.PickupRule()
 PHYSICS = {"driven": False, "imu": None}
 PLAYING = {"name": None}
+TIME = {"scale": 1}  # how many times faster than real time the fake clock runs (POST /hw key time_scale, 1 to 20)
 STEP_MS = 50  # the fake clock and the screen advance 20 times a second, the rate of the dances' light shows
 COVER_RENDER = HERE.parents[1] / ".runs" / "vu-screens" / "cover" / "cover_render"
 APPLIED = {"status": None, "tired": 0, "cover_ring": []}
@@ -127,10 +128,22 @@ def head_now():
     return {"yaw": round(yaw, 1), "pitch": round(pitch, 1)}
 
 
+def installed():
+    """The installed set (decision 17), once the unit has one: slots used per kind, the pool, what is loaded."""
+    store = getattr(UNIT, "_assets", None)
+    return store.slots() if store is not None else None
+
+
+def away():
+    """What the unit shows while its host is away, once that part of the rig exists."""
+    h = getattr(UNIT, "_host_away", None)
+    return {"label": bool(h.label), "notices": [n[1] for n in h.notices][-3:], "attempts": len(h.attempts)} if h is not None else None
+
+
 def utilization():
     """What the Utilization panel shows, from what the rig knows now. Field names are agreed in docs/plan/view-requests.md; a field the
     rig cannot give yet is left out, and the page hides its row."""
-    out = {"battery_percent": HW.battery, "charging": HW.charging, "powered_by": HW.powered_by, "supply": HW.supply(), "clock_ms": UNIT.now_ms, "step_ms": STEP_MS}
+    out = {"battery_percent": HW.battery, "charging": HW.charging, "powered_by": HW.powered_by, "supply": HW.supply(), "clock_ms": UNIT.now_ms, "step_ms": STEP_MS, "time_scale": TIME["scale"]}
     if getattr(UNIT, "_memory", None) is not None:   # the memory model exists only once something has asked for it
         try:
             out["memory"] = UNIT.memory.numbers()
@@ -170,7 +183,7 @@ def pump():
     while True:
         began = time.monotonic()
         with LOCK:
-            UNIT.advance(STEP_MS)
+            UNIT.advance(STEP_MS * TIME["scale"])   # time-lapse: the fake clock can run faster than the wall clock
             was_dancing = HW.dance
             HW.tick(UNIT.now_ms)
             if was_dancing and not HW.dance:
@@ -221,7 +234,7 @@ class Handler(BaseHTTPRequestHandler):
                 recent = [t for t in UNIT.move_times if UNIT.now_ms - t < 60000]
                 state = {"now_ms": UNIT.now_ms, "emotion": UNIT.emotion, "tools": len(UNIT.tool_names), "head": head_now(), "leds": APPLIED["cover_ring"] or UNIT.leds,
                          "battery": UNIT.battery, "hw": HW.view(), "motion": mot, "moves_last_minute": len(recent), "moves_cap": vunit.MOVES_PER_MINUTE,
-                         "dance": dance_now()[0], "dance_sim": dance_now()[1], "util": utilization(), "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
+                         "dance": dance_now()[0], "dance_sim": dance_now()[1], "util": utilization(), "assets": installed(), "host_away": away(), "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
             self._send(json.dumps(state).encode(), "application/json")
         elif self.path == "/affiliation.json":   # the one place the affiliation wording lives (docs/plan/trademark-and-affiliation.md)
             self._send((HERE.parents[1] / "docs" / "legal" / "affiliation.json").read_bytes(), "application/json")
@@ -251,6 +264,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send((PHYS / "THIRD-PARTY-physics-engine.json").read_bytes(), "application/json")
         elif self.path == "/physics.js":
             self._send((PHYS / "physics.js").read_bytes(), "text/javascript; charset=utf-8")
+        elif self.path == "/talk.js":
+            self._send((HERE / "talk.js").read_bytes(), "application/javascript")
+        elif self.path == "/talk/state":   # the voice bridge is not part of this server yet: say so plainly, the Talk panel shows it
+            self._send(json.dumps({"isError": True, "text": "The voice bridge is not running here. Nothing is listening and nothing will speak."}).encode(), "application/json", 404)
         elif self.path == "/view3d.js":
             self._send((HERE / "view3d.js").read_bytes(), "text/javascript; charset=utf-8")
         elif self.path == "/model/stackchan.glb":  # the rigged body model the 3D drawing loads (built by model/make_body.py)
@@ -266,6 +283,12 @@ class Handler(BaseHTTPRequestHandler):
         req = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         if self.path == "/record":
             return self._send(json.dumps(record_action(req)).encode(), "application/json")
+        if self.path == "/hw" and req.get("key") == "time_scale":   # a control of the rig, not of the body
+            try:
+                TIME["scale"] = max(1, min(20, int(req.get("value", 1))))
+            except (TypeError, ValueError):
+                return self._send(json.dumps({"isError": True, "text": "time_scale is a whole number from 1 to 20"}).encode(), "application/json")
+            return self._send(json.dumps({"ok": True, "time_scale": TIME["scale"]}).encode(), "application/json")
         if self.path == "/hw":
             with LOCK:
                 refused = HW.set(req.get("key", ""), req.get("value"), UNIT.now_ms)

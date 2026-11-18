@@ -37,10 +37,12 @@ The page reads `util` in `GET /state`. `view.py` fills what the rig knows today;
 | `draw_ma` | present current draw in mA | **no** |
 | `cpu_percent` | the unit's CPU use | **no** |
 | `gates` | a list of `{name, used, limit}` for the memory gate lines | **no: say which lines** |
-| `time_scale` | how many times faster than real time the fake clock runs, set by a `POST /hw` key of the same name | **no: the pump runs at real speed** |
+| `time_scale` | how many times faster than real time the fake clock runs (1 to 20), set by `POST /hw` with key `time_scale` | yes |
 
 ### Not built yet, and what each needs from you
 
-- **Talk panel** (`talk.js`): needs the voice bridge. Proposed: `GET /talk/state` giving `{live_mic, mic_level, speaker_level, transcript: [{who, text, t_ms}], latency_ms}` and `POST /talk` with `{action: "mic_on" | "mic_off" | "speaker_on" | "speaker_off"}`. Nothing plays or listens until that exists.
+- **Talk panel** (`scripts/virtual-unit/talk.js`, built and tested against a fake bridge): it shows only what the bridge reports and never opens a microphone itself. `view.py` answers `GET /talk/state` with 404 until the bridge exists; replace that route. State fields it reads: `mic_on`, `speaker_on`, `live_mic`, `mic_level` and `speaker_level` (0 to 100), `latency_ms`, `transcript` (`[{who, text}]`), `message`. Earlier note: Proposed: `GET /talk/state` giving `{live_mic, mic_level, speaker_level, transcript: [{who, text, t_ms}], latency_ms}` and `POST /talk` with `{action: "mic_on" | "mic_off" | "speaker_on" | "speaker_off"}`. Nothing plays or listens until that exists.
 - **Live mode picker**: needs the host API of `docs/plan/playground-live.md` reachable from `view.py`. Proposed: `GET /backends` giving `[{id, name, kind: "simulation" | "robot", busy_by}]`, `POST /backend` with `{id}` or `{disconnect: true}`, and `backend` in `/state` (`{id, kind, live, lease_expires_ms, message}`) for the LIVE banner and the one-session messages.
 - **Face parts and game screen previews**: nothing to show yet.
+
+Also done (2026-11-18, later): `assets` in the state (your `slots()`) with an Installed block in the Utilization panel, and `host_away` (`label`, the last notices, the number of attempts) with a line under the power table when the label shows.

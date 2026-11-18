@@ -361,6 +361,53 @@ def test_the_utilization_panel_shows_what_the_rig_knows(page):
     assert page.until(f"/the battery/.test({text})")
 
 
+def test_time_lapse_runs_the_units_clock_faster_and_back(page):
+    def rate():
+        a = page.js("ST.now_ms")
+        time.sleep(1.0)
+        return page.js("ST.now_ms") - a
+    page.js("(() => { const s = document.getElementById('tscale'); s.value = '5'; s.dispatchEvent(new Event('change')); })()")
+    assert page.until("ST.util.time_scale === 5 && /5 times faster/.test(document.getElementById('tscalemsg').textContent)")
+    fast = rate()
+    page.js("(() => { const s = document.getElementById('tscale'); s.value = '1'; s.dispatchEvent(new Event('change')); })()")
+    assert page.until("ST.util.time_scale === 1 && document.getElementById('tscalemsg').textContent === ''")
+    slow = rate()
+    assert fast > 3 * slow > 0, f"at 5 times the clock ran {fast} ms in a second, at real time {slow} ms"
+
+
+def test_the_installed_block_draws_what_the_state_carries(page):
+    text = page.js("(() => { paintBody(Object.assign({}, ST, {assets: {kinds: {style: {used: 2, slots: 4, active: 'face-01'}, sound: {used: 0, slots: 3, active: null}},"
+                   " pool_free_bytes: 1000, pool_bytes: 4000, loaded: {}}})); return document.getElementById('installed').textContent; })()")
+    assert "style: 2 of 4, active face-01" in text and "sound: 0 of 3" in text and "1,000 of 4,000 bytes" in text, text
+    assert page.until("document.getElementById('installed').textContent === ''"), "with no installed set on the unit the block is empty"
+
+
+def test_the_talk_panel_is_off_without_a_bridge_and_follows_a_fake_one(page):
+    assert page.until("window.TALK && /not running here/.test(document.querySelector('#talk #tmsg').textContent)"), "without a voice bridge the panel says so"
+    assert page.js("document.querySelector('#talk #tmic').disabled && document.querySelector('#talk #tspk').disabled && document.querySelector('#talk #tlive').style.display === 'none'")
+    # a fake bridge in the page: it keeps the state the real one will, and records what the panel asks of it. No microphone is opened.
+    page.js("""(() => { TALK.stop();
+      window.FAKE = {mic_on: false, speaker_on: false, live_mic: false, mic_level: 0, speaker_level: 0, latency_ms: null, transcript: [], calls: []};
+      const view = () => ({ok: true, json: async () => Object.assign({}, FAKE)});
+      const post = async (u, b) => { FAKE.calls.push(b.action);
+        if (b.action === 'mic_on') Object.assign(FAKE, {mic_on: true, live_mic: true, mic_level: 42, latency_ms: 830, transcript: [{who: 'you', text: 'hello <robot>'}, {who: 'robot', text: 'hi'}]});
+        if (b.action === 'mic_off') Object.assign(FAKE, {mic_on: false, live_mic: false, mic_level: 0});
+        if (b.action === 'speaker_on') Object.assign(FAKE, {speaker_on: true, speaker_level: 30});
+        if (b.action === 'speaker_off') Object.assign(FAKE, {speaker_on: false, speaker_level: 0});
+        return {json: async () => ({ok: true})}; };
+      window.TALK = initTalk(document.getElementById('talk'), {fetch: async () => view(), post, every: 100}); })()""")
+    assert page.until("!document.querySelector('#talk #tmic').disabled")
+    page.click(*spot_of(page, "#talk #tmic"))
+    assert page.until("FAKE.calls.join() === 'mic_on' && document.querySelector('#talk #tlive').style.display !== 'none' && /Microphone: on/.test(document.querySelector('#talk #tmic').textContent)"), "a real click turns the microphone on and the LIVE MIC sign shows"
+    assert page.js("document.querySelector('#talk #tmicl').style.width === '42%' && document.querySelector('#talk #tlat').textContent === '0.83 s'")
+    assert page.js("/you: hello <robot>/.test(document.querySelector('#talk #ttext').textContent) && !document.querySelector('#talk #ttext robot')"), "the transcript shows as text, never as markup"
+    page.click(*spot_of(page, "#talk #tspk"))
+    assert page.until("/Speaker: on/.test(document.querySelector('#talk #tspk').textContent) && document.querySelector('#talk #tspkl').style.width === '30%'")
+    page.click(*spot_of(page, "#talk #tmic"))
+    assert page.until("FAKE.calls.join() === 'mic_on,speaker_on,mic_off' && document.querySelector('#talk #tlive').style.display === 'none'"), "and off again: the sign goes with the microphone"
+    page.js("(() => { TALK.stop(); window.TALK = initTalk(document.getElementById('talk')); })()")
+
+
 def test_the_small_web_copy_of_the_model_loads_and_works_the_same(page):
     if not page.js("!!(window.ROBOT && ROBOT.model && ROBOT.model.ready)"):
         pytest.skip("the 3D drawing did not start here (it needs the pinned three.js from the network and a graphics context)")

@@ -122,7 +122,9 @@ def test_browser_view_serves_frame_and_calls():
             ).encode(),
         )
         assert json.loads(urllib.request.urlopen(req).read()) == {"ok": True}
-        assert b"Virtual StackChan" in urllib.request.urlopen(base).read()
+        page = urllib.request.urlopen(base).read().decode()
+        words = json.loads((Path(__file__).resolve().parents[2] / "docs" / "legal" / "affiliation.json").read_text())
+        assert "<title>MaiPai for StackChan: virtual unit</title>" in page and words["short"] in page, "the page carries the project's name and the short affiliation notice"
         tools = json.loads(urllib.request.urlopen(base + "tools").read())
         assert len(tools["tools"]) >= 100 and any(t["user_only"] for t in tools["tools"])
         if tools[
