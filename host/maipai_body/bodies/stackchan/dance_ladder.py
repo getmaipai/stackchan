@@ -508,7 +508,76 @@ def synthetic_ladder_plan(hooks: LadderHooks, dance: str, *, max_stage: int = 4,
     return Plan((), SESSION_S, director.ring, on_tick, director.finished, director.on_end)
 
 
+class UnitSessionPlan:
+    """A dance runner plan that asks the robot to run its own ladder session (`self.dance.session {name, seconds, max_stage}`, firmware SF51),
+    once, and ends it with `self.robot.stop_dance`. A robot without the tool answers unknown tool: the plan then runs the host's own session
+    (``fallback``), and if there is none, ends at once so the little dance plays instead of nothing."""
+
+    def __init__(self, call_session, stop, name: str, max_stage: int, fallback=None, *, seconds: float = 45.0) -> None:
+        self._call, self._stop, self._name, self._max, self._fallback, self._seconds = call_session, stop, name, max_stage, fallback, seconds
+        self.mode = "pending"  # pending | unit | host | none
+
+    def _begin(self) -> None:
+        try:
+            reply = self._call({"name": self._name, "seconds": int(self._seconds), "max_stage": self._max})
+            unknown = _unknown_tool(reply)
+        except Exception:
+            unknown = True
+        if not unknown:
+            self.mode = "unit"
+        else:
+            self.mode = "host" if self._fallback is not None else "none"
+
+    def on_tick(self, tick: int, elapsed: float) -> None:
+        if self.mode == "pending":
+            self._begin()
+        if self.mode == "host":
+            self._fallback.on_tick(tick, elapsed)
+
+    def ring(self, tick: int, elapsed: float):
+        if self.mode == "host":
+            return self._fallback.ring(tick, elapsed)
+        return None  # the robot paints its own ring in its session
+
+    def finished(self) -> bool:
+        if self.mode == "none":
+            return True
+        if self.mode == "host":
+            return bool(self._fallback.finished())
+        return self._elapsed >= self._seconds if self.mode == "unit" else False
+
+    _elapsed = 0.0
+
+    def on_end(self) -> None:
+        if self.mode == "unit":
+            try:
+                self._stop()
+            except Exception:
+                logger.debug("stopping the robot's dance session failed", exc_info=True)
+        elif self.mode == "host":
+            self._fallback.on_end()
+
+    def as_plan(self):
+        from maipai_body.bodies.stackchan.dance import Plan
+
+        def tick(n: int, elapsed: float) -> None:
+            self._elapsed = elapsed
+            self.on_tick(n, elapsed)
+
+        return Plan((), self._seconds + 5.0, self.ring, tick, self.finished, self.on_end)
+
+
+def _unknown_tool(reply: object) -> bool:
+    from maipai_body.unit_tools import is_unknown_tool, unwrap
+
+    try:
+        return bool(is_unknown_tool(unwrap(reply)))
+    except Exception:
+        return False
+
+
 __all__ = [
+    "UnitSessionPlan",
     "DANCE_BPM",
     "SESSION_S",
     "SyntheticBeat",

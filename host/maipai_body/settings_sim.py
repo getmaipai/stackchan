@@ -295,7 +295,7 @@ def _lock_tool(self: SimUnit, name: str, args: dict[str, Any]) -> dict[str, Any]
         return {"ok": False, "reason": "locked"}
     if name == "self.lock.config":
         minutes = args.get("auto_minutes")
-        if minutes not in (0, 1, 5, 15, 30, 60) or isinstance(minutes, bool):
+        if minutes not in (0, 1, 15) or isinstance(minutes, bool):
             return {"ok": False, "reason": "bad_minutes"}
         self.lock_auto = minutes
         return {"ok": True, "auto_minutes": minutes}

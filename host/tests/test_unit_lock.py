@@ -58,7 +58,7 @@ def test_a_new_robot_has_no_code_and_the_status_never_holds_a_code(rig):
     assert status == 200
     assert view["status"] == "none" and view["has_code"] is False and view["locked"] is False
     assert view["unit_ready"] is True and view["reachable"] is True and view["auto_minutes"] == 0
-    assert view["auto_options"] == [0, 1, 5, 15, 30, 60] and view["limits"] == {"min": 4, "max": 6}
+    assert view["auto_options"] == [0, 1, 15] and view["limits"] == {"min": 4, "max": 6}
     assert not {"code", "hash", "salt", "current"} & set(view)
 
 
@@ -114,7 +114,7 @@ def test_lock_now_needs_a_code_and_then_the_page_shows_locked(rig):
     assert view["status"] == "locked" and view["locked"] is True and view["has_code"] is True
 
 
-@pytest.mark.parametrize("minutes", [0, 1, 5, 15, 30, 60])
+@pytest.mark.parametrize("minutes", [0, 1, 15])
 def test_every_auto_lock_choice_reaches_the_unit_and_is_read_back_from_it(rig, minutes):
     backend, units, tmp_path = rig
     status, out = post(backend, KITCHEN, "lock/auto", {"auto_minutes": minutes})
@@ -196,7 +196,7 @@ def test_a_locked_unit_refuses_set_clear_and_config_and_the_page_says_so(rig):
     for what, body in (
         ("lock", {"code": OTHER, "confirm_code": OTHER, "current": CODE}),
         ("lock/clear", {"current": CODE}),
-        ("lock/auto", {"auto_minutes": 5}),
+        ("lock/auto", {"auto_minutes": 15}),
     ):
         status, out = post(backend, KITCHEN, what, body)
         assert (
@@ -280,7 +280,7 @@ def test_the_code_is_in_no_log_no_response_no_file_and_no_event(rig, caplog):
         post(backend, KITCHEN, "lock", {"code": OTHER, "confirm_code": CODE})[1]
     )  # refused: mismatch
     keep(get(backend, KITCHEN, "lock")[1])
-    keep(post(backend, KITCHEN, "lock/auto", {"auto_minutes": 5})[1])
+    keep(post(backend, KITCHEN, "lock/auto", {"auto_minutes": 15})[1])
     keep(post(backend, KITCHEN, "lock/now", {})[1])
     keep(post(backend, KITCHEN, "lock/clear", {"current": CODE})[1])  # refused: locked
     for lang in ("en", "es"):
@@ -431,7 +431,7 @@ def test_the_parity_table_is_what_the_unit_is_told_to_answer():
     assert unit_lock.TABLE == {
         "code_min": 4,
         "code_max": 6,
-        "auto_minutes": [0, 1, 5, 15, 30, 60],
+        "auto_minutes": [0, 1, 15],
         "reasons": [
             "bad_code",
             "bad_minutes",
@@ -448,7 +448,7 @@ def test_the_parity_table_is_what_the_unit_is_told_to_answer():
             "self.lock.config",
         ],
     }
-    assert unit_lock.AUTO_MINUTES == (0, 1, 5, 15, 30, 60)
+    assert unit_lock.AUTO_MINUTES == (0, 1, 15)
 
 
 def test_the_unit_firmware_agrees_when_its_lock_core_is_in_the_tree():

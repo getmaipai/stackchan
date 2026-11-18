@@ -30,7 +30,7 @@ from maipai_body.unit_tools import ToolProbe, is_unknown_tool, unwrap
 logger = logging.getLogger("maipai_body.unit_lock")
 
 CODE_MIN, CODE_MAX = 4, 6
-AUTO_MINUTES = (0, 1, 5, 15, 30, 60)  # 0 is off
+AUTO_MINUTES = (0, 1, 15)  # 0 is off; the unit accepts only these (an older saved 5, 30 or 60 still loads on the unit and is shown as it is)
 _CODE = re.compile(
     rf"[0-9]{{{CODE_MIN},{CODE_MAX}}}"
 )  # ASCII digits only: \d would also match other scripts

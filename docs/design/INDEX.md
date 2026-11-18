@@ -777,9 +777,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/captions.py` (49): Caption text for the unit's subtitle strip (firmware patches N01 and N04).
 - `host/maipai_body/bodies/stackchan/companion.py` (243): Host companion for the new StackChan firmware tools.
 - `host/maipai_body/bodies/stackchan/dance.py` (546): The StackChan little dance: an on-request routine of about 11 seconds (host side only).
-- `host/maipai_body/bodies/stackchan/dance_ladder.py` (528): The music dance ladder, host half: a dance that builds up on the beat and winds down again.
+- `host/maipai_body/bodies/stackchan/dance_ladder.py` (597): The music dance ladder, host half: a dance that builds up on the beat and winds down again.
 - `host/maipai_body/bodies/stackchan/dance_phrases.py` (145): Dance rounds that alternate head nods and side-to-side sways in time with the beat (host side).
-- `host/maipai_body/bodies/stackchan/dance_wiring.py` (218): Wire the little dance (dance.py) to a running StackChan service.
+- `host/maipai_body/bodies/stackchan/dance_wiring.py` (238): Wire the little dance (dance.py) to a running StackChan service.
 - `host/maipai_body/bodies/stackchan/error_line.py` (93): A hard breaker for the robot's canned error lines ("I couldn't understand that...").
 - `host/maipai_body/bodies/stackchan/estop_recovery.py` (100): Releases a lost-body stop latch once the wireless StackChan answers again.
 - `host/maipai_body/bodies/stackchan/expression_map.py` (161): Closed StackChan cue and primitive mappings, local to its body profile."""
@@ -1958,7 +1958,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_cross_review_open_bugs.py` (181): ruff: noqa: E501
 - `host/tests/test_cross_review_open_bugs_2.py` (279): ruff: noqa: E501
 - `host/tests/test_cross_review_open_bugs_3.py` (63): ruff: noqa: E501
-- `host/tests/test_dance_session.py` (108): A ladder session with no music (the dance buttons and tools): the climb follows the ladder rule at the dance's
+- `host/tests/test_dance_session.py` (135): A ladder session with no music (the dance buttons and tools): the climb follows the ladder rule at the dance's
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""

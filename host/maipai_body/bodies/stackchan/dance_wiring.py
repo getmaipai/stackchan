@@ -17,7 +17,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
-from maipai_body.bodies.stackchan.dance_ladder import FaceRotator, LadderHooks, synthetic_ladder_plan
+from maipai_body.bodies.stackchan.dance_ladder import FaceRotator, LadderHooks, UnitSessionPlan, synthetic_ladder_plan
 from maipai_body.bodies.stackchan.dance import (
     LED_COUNT,
     DanceHooks,
@@ -165,6 +165,16 @@ def wire_dance(
             take_ring=hooks.take_ring, give_ring_back=hooks.give_ring_back, level_head=bind(hooks.level_head), situation=situation_for, wake=hooks.wake, hold=hooks.hold,
         )
 
+    def ladder_call(unit: str | None, name: str, arguments: dict) -> object:
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        token = ACTIVE_UNIT.set(unit) if unit else None
+        try:
+            return voice.robot.client._call(name, arguments)
+        finally:
+            if token is not None:
+                ACTIVE_UNIT.reset(token)
+
     def ladder_hooks_for(unit: str | None) -> LadderHooks:
         from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
 
@@ -188,14 +198,24 @@ def wire_dance(
         """A dance chosen by hand (a button, a tool, a spoken ask) shows the whole ladder at the dance's tempo when the robot has the beat dance
         (`self.music.stage`); a robot without it, or a limiter that allows no dances, keeps the little dance."""
         target = runner_for(unit)
+        limit = getattr(behavior, "motion_limit", None)
+        top = min(4, max(1, limit.state().dance_max if limit is not None else 4))
+        hooks_for_unit = ladder_hooks_for(unit)
+        # The robot's own ladder session (firmware SF51, `self.dance.session`) is the one implementation: used when the robot announces it in its
+        # hello features (`dance_session`). Otherwise the host shows the ladder with its own session when the robot has the beat dance, and a robot
+        # with neither plays the little dance.
         try:
-            ladder_hooks_for(unit).set_stage(0)  # a harmless probe: an older robot answers unknown tool
-            limit = getattr(behavior, "motion_limit", None)
-            top = limit.state().dance_max if limit is not None else 4
-            plan = synthetic_ladder_plan(ladder_hooks_for(unit), name, max_stage=min(4, max(1, top)), faces=FaceRotator())
+            has_session = bool(voice.device_supports("dance_session", unit))
+        except Exception:
+            has_session = False
+        if has_session:
+            plan = UnitSessionPlan(lambda args: ladder_call(unit, "self.dance.session", args), lambda: ladder_call(unit, "self.robot.stop_dance", {}), name, top, None)
+            return target.request(trigger, plan.as_plan())
+        try:
+            hooks_for_unit.set_stage(0)  # a harmless probe: an older robot answers unknown tool
+            return target.request(trigger, synthetic_ladder_plan(hooks_for_unit, name, max_stage=top, faces=FaceRotator()))
         except Exception:
             return target.request(trigger)
-        return target.request(trigger, plan)
 
     def on_events(events: list, now: float) -> None:
         runner.on_events(events, now)

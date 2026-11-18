@@ -12,7 +12,7 @@ ICO.security='M6 11V8a6 6 0 0112 0v3M5 11h14v10H5zM12 15v2';
 function lkField(label){return h('input',{type:'password',inputmode:'numeric',pattern:'[0-9]*',maxlength:6,autocomplete:'off',autocapitalize:'off',spellcheck:'false','aria-label':label,placeholder:T('lk.digits')})}
 function lkNum(k,n){return T(k).replace('{n}',String(n))}
 async function lockCard(id){
- const box=h('div',{class:'stack'});let v={status:'unknown',has_code:null,locked:null,auto_minutes:null,auto_options:[0,1,5,15,30,60],unit_ready:false};
+ const box=h('div',{class:'stack'});let v={status:'unknown',has_code:null,locked:null,auto_minutes:null,auto_options:[0,1,15],unit_ready:false};
  const say=(r,warn)=>{const d=r.d||{};if(r.ok&&d.ok!==false)toast(d.message||S['settings.saved']);else toast(d.error||d.message||T('net_error'),d.pending||warn?'warn':'bad')};
  const reload=async()=>{const r=await api(unitPath(id,'lock'));if(r.ok)v=r.d;draw()};
  const send=async(what,body,fields)=>{let r;try{r=await api(unitPath(id,what),body)}finally{fields.forEach(f=>{f.value=''})}say(r);await reload();return r.ok&&r.d.ok!==false};

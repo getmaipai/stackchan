@@ -106,3 +106,30 @@ def test_two_robots_run_two_sessions_at_once_without_sharing_state():
     plan_b2 = synthetic_ladder_plan(b.hooks(), "happy")
     plan_b2.on_tick(0, 0.0)
     assert not a.calls  # nothing leaked to the other robot's hooks
+
+
+def test_the_robots_own_session_is_asked_once_and_stopped_at_the_end():
+    from maipai_body.bodies.stackchan.dance_ladder import UnitSessionPlan
+
+    calls = []
+    plan = UnitSessionPlan(lambda args: calls.append(("session", args)) or {"ok": True}, lambda: calls.append(("stop",)), "groove", 3, None, seconds=5).as_plan()
+    t = 0.0
+    while not plan.finished() and t < 30:
+        plan.on_tick(int(t * 4), t)
+        t += 0.25
+    plan.on_end()
+    assert calls == [("session", {"name": "groove", "seconds": 5, "max_stage": 3}), ("stop",)]
+
+
+def test_a_robot_without_the_session_tool_gets_the_host_session_or_the_little_dance():
+    from maipai_body.bodies.stackchan.dance_ladder import UnitSessionPlan
+
+    unknown = lambda args: {"content": [{"type": "text", "text": "Unknown tool: self.dance.session"}], "isError": True}  # noqa: E731
+    rec = Recorder()
+    fallback = synthetic_ladder_plan(rec.hooks(), "happy", faces=FaceRotator(1))
+    plan = UnitSessionPlan(unknown, lambda: None, "happy", 4, fallback)
+    plan.on_tick(0, 0.0)
+    assert plan.mode in ("host", "unit") and (plan.mode == "host") == bool(rec.calls)
+    none = UnitSessionPlan(unknown, lambda: None, "happy", 4, None)
+    none.on_tick(0, 0.0)
+    assert none.mode in ("none", "unit") and (none.mode != "none" or none.finished())
