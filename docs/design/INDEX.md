@@ -6,7 +6,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `.claude/commands/status.md` (5): no header
 - `.claude/skills/lane-brief/SKILL.md` (11): no header
 - `.claude/skills/sim-check/SKILL.md` (9): no header
-- `.claude/skills/train/SKILL.md` (14): no header
+- `.claude/skills/train/SKILL.md` (16): no header
 - `.githooks/commit-msg` (2): no header
 - `.githooks/pre-commit` (2): no header
 - `.github/FUNDING.yml` (20): Staged, not live. GitHub reads this file only from the default branch of the public repo, and the public
@@ -155,7 +155,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1119): Feature ledger
+- `docs/dev/feature-ledger.md` (1120): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -2113,6 +2113,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/update-header-vectors.json` (104): no header
 - `host/tests/fixtures/update-signature-vectors.json` (79): no header
 - `host/tests/golden/face-known.json` (1): no header
+- `host/tests/golden/tolerance.json` (4): no header
 - `host/tests/kinematic_double.py` (106): A command-driven test double for the state feed.
 - `host/tests/ladder_fakes.py` (38): Shared fakes for the offline-ladder suites: an injected clock and a
 - `host/tests/motor_fakes.py` (88): A scripted motor bus for the MOTOR-RECOVER-01 suite: the daemon's motor mode,
@@ -2140,6 +2141,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_bench_chat.py` (63): no header
 - `host/tests/test_bench_listen_setting.py` (26): MAIPAI_BENCH_MIN_LISTEN_S (developer only, unset by default) makes the host wait at least that long for speech
 - `host/tests/test_bench_measure.py` (84): no header
+- `host/tests/test_bench_train.py` (109): scripts/bench-train.py: the pure parts and a whole train run against a fake unit (no hardware)."""
 - `host/tests/test_body_registry.py` (17): no header
 - `host/tests/test_brain_fake.py` (8): no header
 - `host/tests/test_brain_home.py` (43): no header
@@ -2601,6 +2603,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/memory-budget.json` (804): no header
 - `schema/tools.json` (652): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
+- `scripts/bench-train.py` (421): One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixe
+- `scripts/bench-trains/plain-proof.json` (17): no header
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
