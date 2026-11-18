@@ -139,3 +139,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["maipai_body"]
+
+# The vendored spec snapshot ships inside the wheel (spec_pin.spec_root finds it).
+[tool.hatch.build.targets.wheel.force-include]
+"spec-vendor/spec" = "maipai_body/_spec"

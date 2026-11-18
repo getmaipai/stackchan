@@ -27,13 +27,14 @@ scan() { # $1 label, stdin text
 for f in ${PATHS[@]+"${PATHS[@]}"}; do
   [ -f "$f" ] || continue
   case "$(basename "$f")" in LICENSE*|NOTICE*|THIRD-PARTY*|hygiene-check.sh) continue;; esac
+  case "$f" in host/spec-vendor/*) continue;; esac  # verbatim snapshot of our commons spec; the drift check owns it
   case "$f" in *.png|*.jpg|*.webp|*.mp4|*.bin|*.gz|*.woff*|*.ico) continue;; esac
   scan "$f" < <(grep -v -E '^[+ ]?# Upstream:' "$f")
 done
 [ -n "$MSG" ] && [ -f "$MSG" ] && scan "commit message" < "$MSG"
 # American spelling (owner rule 2026-11-16): scripts/spelling-check.py with the allow-list scripts/spelling-allow.txt.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-existing=(); for f in ${PATHS[@]+"${PATHS[@]}"}; do [ -f "$f" ] && existing+=("$f"); done
+existing=(); for f in ${PATHS[@]+"${PATHS[@]}"}; do [ -f "$f" ] && case "$f" in host/spec-vendor/*) ;; *) existing+=("$f");; esac; done
 if [ ${#existing[@]} -gt 0 ]; then
   spell="$(python3 "$HERE/spelling-check.py" --root "$(cd "$HERE/.." && pwd)" "${existing[@]}" 2>&1)" || { bad=1; out+="$(printf '%s\n' "$spell" | grep -v '^spelling: FAIL' | head -8 | sed 's/^/  /')"$'\n'; }
 fi

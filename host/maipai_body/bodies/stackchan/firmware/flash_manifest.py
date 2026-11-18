@@ -8,24 +8,18 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from maipai_body.spec_pin import SPEC_CHECKOUT
+from maipai_body.spec_pin import spec_root
 from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
 
 
 def _spec_root() -> Path:
-    configured = os.environ.get("MAIPAI_SPEC_DIR")
-    if configured:
-        return Path(configured)
-    # The body owns a vendored snapshot so manifest tooling works in a standalone checkout.
-    vendored = Path(__file__).resolve().parents[5] / "spec-vendor" / "spec"
-    if vendored.is_dir():
-        return vendored
-    return Path(__file__).resolve().parents[5].parent / SPEC_CHECKOUT
+    return spec_root()
 
 
 def parts_from_flasher_args(build_dir: str | Path) -> list[dict[str, Any]]:
@@ -107,8 +101,8 @@ def sign_manifest(manifest: dict[str, Any], key_path: str | Path) -> dict[str, A
     signed = json.loads(json.dumps(manifest))
     signed.pop("signature", None)
     raw_public = _openssl_public_key(key_path)
-    payload_path = Path(os.environ.get("TMPDIR", "/private/tmp")) / f"stackchan-signing-{os.getpid()}.json"
-    try:
+    with tempfile.TemporaryDirectory(prefix="stackchan-signing-") as work:
+        payload_path = Path(work) / "payload.json"
         payload_path.write_bytes(signing_payload(signed))
         signature = subprocess.run(
             [
@@ -124,8 +118,6 @@ def sign_manifest(manifest: dict[str, Any], key_path: str | Path) -> dict[str, A
             check=True,
             capture_output=True,
         ).stdout
-    finally:
-        payload_path.unlink(missing_ok=True)
     signed["signature"] = {
         "keyid": hashlib.sha256(raw_public).hexdigest()[:16],
         "sig": base64.b64encode(signature).decode("ascii"),
@@ -143,11 +135,9 @@ def verify_manifest(manifest: dict[str, Any], public_key_path: str | Path) -> bo
         signature = manifest["signature"]
         if signature["keyid"] != hashlib.sha256(raw_public).hexdigest()[:16]:
             return False
-        payload_path = (
-            Path(os.environ.get("TMPDIR", "/private/tmp")) / f"stackchan-verify-{os.getpid()}.json"
-        )
-        sig_path = payload_path.with_suffix(".sig")
-        try:
+        with tempfile.TemporaryDirectory(prefix="stackchan-verify-") as work:
+            payload_path = Path(work) / "payload.json"
+            sig_path = Path(work) / "payload.sig"
             payload_path.write_bytes(signing_payload(manifest))
             sig_path.write_bytes(base64.b64decode(signature["sig"], validate=True))
             result = subprocess.run(
@@ -167,9 +157,6 @@ def verify_manifest(manifest: dict[str, Any], public_key_path: str | Path) -> bo
                 capture_output=True,
             )
             return result.returncode == 0
-        finally:
-            payload_path.unlink(missing_ok=True)
-            sig_path.unlink(missing_ok=True)
     except (KeyError, ValueError, OSError, subprocess.CalledProcessError):
         return False
 

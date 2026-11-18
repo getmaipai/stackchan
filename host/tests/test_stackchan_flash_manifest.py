@@ -135,3 +135,17 @@ def test_release_requires_signing_key_before_build():
     )
     assert run.returncode != 0
     assert "--signing-key" in run.stderr
+
+
+def test_signing_ignores_a_missing_tmpdir_and_leaves_no_files(tmp_path, monkeypatch):
+    """HC-7: no macOS-only temporary path; works when TMPDIR is unset or elsewhere."""
+    private, public = _key(tmp_path)
+    monkeypatch.delenv("TMPDIR", raising=False)
+    monkeypatch.setattr("tempfile.tempdir", str(tmp_path / "work"))
+    (tmp_path / "work").mkdir()
+    manifest = flash_manifest.build_manifest(
+        [], version="1.0.0", flash_size="16MB", created_at="2026-11-18T00:00:00Z", hlc="x"
+    )
+    signed = flash_manifest.sign_manifest(manifest, private)
+    assert flash_manifest.verify_manifest(signed, public)
+    assert list((tmp_path / "work").iterdir()) == []

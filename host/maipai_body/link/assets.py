@@ -14,19 +14,11 @@ from urllib.parse import urlparse
 import requests
 
 from maipai_body.model_assets import AssetUnavailable, PinnedAsset, configure_asset_fetcher
-from maipai_body.spec_pin import SPEC_CHECKOUT
+from maipai_body.spec_pin import spec_root
 
-_SPEC_ROOT = os.environ.get("MAIPAI_SPEC_DIR")
 _PACKAGED_SPEC_ASSETS = Path(__file__).resolve().parent.parent / "robot-assets.json"
-_SPEC_CANDIDATES = (
-    Path(__file__).resolve().parents[3].parent / SPEC_CHECKOUT / "assets" / "robot-assets.json",
-    _PACKAGED_SPEC_ASSETS,
-)
-SPEC_ASSETS_PATH = (
-    Path(_SPEC_ROOT) / "assets" / "robot-assets.json"
-    if _SPEC_ROOT
-    else next((path for path in _SPEC_CANDIDATES if path.is_file()), _PACKAGED_SPEC_ASSETS)
-)
+_SPEC_ASSETS = spec_root() / "assets" / "robot-assets.json"
+SPEC_ASSETS_PATH = _SPEC_ASSETS if _SPEC_ASSETS.is_file() else _PACKAGED_SPEC_ASSETS
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _CHUNK_BYTES = 1 << 16
 _CONVERSATION_ASSETS = {

@@ -35,4 +35,4 @@ def openssl_cli() -> str:
             continue
         if result.returncode == 0:
             return resolved
-    raise RuntimeError("OpenSSL with Ed25519 support is required; install it with brew install openssl@3.")
+    raise RuntimeError("OpenSSL with Ed25519 support is required; install OpenSSL 3 (macOS: brew install openssl@3; Linux: your package manager's openssl package).")

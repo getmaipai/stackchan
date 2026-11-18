@@ -16,7 +16,7 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 
-from maipai_body.spec_pin import SPEC_CHECKOUT
+from maipai_body.spec_pin import spec_root
 
 _MODULE_NAME = "maipai_spec_normalize_for_speech"
 
@@ -26,10 +26,7 @@ class NormalizerUnavailable(RuntimeError):
 
 
 def spec_dir() -> Path:
-    override = os.environ.get("MAIPAI_SPEC_DIR")
-    if override:
-        return Path(override)
-    return Path(__file__).resolve().parents[3].parent / SPEC_CHECKOUT
+    return spec_root()
 
 
 def fixtures_path(root: Path | None = None) -> Path:

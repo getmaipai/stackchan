@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from maipai_body.spec_pin import SPEC_CHECKOUT
+from maipai_body.spec_pin import spec_root
 
 
 @dataclass(frozen=True)
@@ -98,13 +98,8 @@ class RobotApi:
 
 
 def default_spec_dir() -> Path:
-    """Resolve the explicit test/runtime pin, with the checkout's pin as fallback."""
-    import os
-
-    configured = os.environ.get("MAIPAI_SPEC_DIR")
-    if configured:
-        return Path(configured)
-    return Path(__file__).resolve().parents[4] / SPEC_CHECKOUT
+    """The explicit pin, the shipped copy, or the vendored snapshot."""
+    return spec_root()
 
 
 def load_robot_api(spec_dir: Path | None = None) -> RobotApi:
