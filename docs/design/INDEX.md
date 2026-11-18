@@ -40,6 +40,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/boundary-debt.txt` (40): no header
 - `docs/design/brain-seam.md` (16): Brain seam call map
 - `docs/design/character-pack-format.md` (17): Illustrated character packs
+- `docs/design/clock-styles.md` (65): Clock styles, the tap and the sleep sign
 - `docs/design/config.md` (24): Host configuration
 - `docs/design/consolidation-2026-11-16.md` (79): One consolidated image, 2026-11-16
 - `docs/design/content-pantry.md` (151): Content pantry: jokes, riddles, trivia and stories the unit keeps (design, 2026-11-18)
@@ -70,6 +71,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/firmware-v1-cut.md` (245): Firmware v1 cut
 - `docs/design/first-run-flow.md` (55): First run on the robot (plan step 7)
 - `docs/design/game-engine-note.md` (43): Game engine note (Train 3 item 15, design only, 2026-11-16)
+- `docs/design/game-over-screen.md` (52): The shared game-over screen
 - `docs/design/games-2026-11-16.md` (147): Games: the engine and three games in the core firmware, 2026-11-16
 - `docs/design/games-v2-2026-11-17.md` (122): Games v2 and a readable dim, 2026-11-17
 - `docs/design/handoff-roaming-tailnet-2026-11-17.md` (16): Handoff from the old bot firmware session: roaming, private network, updates (2026-11-17)
@@ -106,7 +108,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/release-and-updates.md` (88): Release and updates
 - `docs/design/repo-boundaries.md` (111): Repo boundaries: what lives where
 - `docs/design/safety-and-privacy.md` (72): Safety and privacy
-- `docs/design/screen-audit-baseline.json` (92): no header
+- `docs/design/screen-audit-baseline.json` (131): no header
 - `docs/design/screen-stays-dim-2026-11-16.md` (23): The screen that stayed dim, 2026-11-16
 - `docs/design/screen-style.md` (57): Screen style standard
 - `docs/design/spelling-aliases.md` (39): Spelling aliases (owner rule, 2026-11-16)
@@ -531,7 +533,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/configs/sdkconfig.gate.defaults` (2): Gate and soak builds only (not committed as a product setting): the memory line at WARN every 10 seconds.
 - `firmware/configs/sdkconfig.heaptrace.defaults` (3): Build kind "heap" (bench plus a live-allocation trace from boot: self.bench.heap_trace). Costs about 40 KB of 
 - `firmware/configs/sdkconfig.irnfc.defaults` (2): Build kind "irnfc": the bench image with the read-only I2C scan, NFC identity and infrared receive probes. Not
+- `firmware/configs/sdkconfig.lean.defaults` (3): The leanest assets image (patches SF80 and SF85): no stock text font (1,287,460 bytes) and none of the stock a
 - `firmware/configs/sdkconfig.linkpsk.defaults` (3): Encrypted link, step 1 (patch SF21): the curve calls and key storage with the bench check self.bench.link_self
+- `firmware/configs/sdkconfig.nofont.defaults` (2): The assets image without the stock common text font (patch SF80): the display keeps the compiled-in basic font
 - `firmware/configs/sdkconfig.talkover.defaults` (3): Talk-over step 0 (patch SF15): MIC3 is the second input channel and the bench tool self.bench.mic3_check exist
 - `firmware/games/bopit.json` (945): no header
 - `firmware/games/bopit.mpk` (5): no header
@@ -688,7 +692,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (334): no header
+- `firmware/patches/ORDER` (345): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -792,6 +796,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF77-2048-and-snake-on-the-unit.patch` (261): 2048 (id slide: swipe up, down, left or right to slide and merge the tiles, a new tile pops, over when nothing
 - `firmware/patches/SF78-redraw-only-what-moves.patch` (64): The grid games redraw only the part of the board that moves. The b57 bench recorded 70 to 95 ms between ticks 
 - `firmware/patches/SF79-bench-asset-use-probe.patch` (117): A bench probe for the assets partition: self.bench.asset_use lists which assets the firmware asked the assets 
+- `firmware/patches/SF80-option-to-leave-the-stock-text-font-out-of-the-assets.patch` (39): A build option, MAIPAI_PARTITION_TEXT_FONT (default on: the image is unchanged), that leaves the stock Noto "c
+- `firmware/patches/SF81-clock-style-three-values-saved-and-asleep.patch` (172): The unit half of the clock styles (docs/design/clock-styles.md, UX14): the clock style 2, date and time, is a 
+- `firmware/patches/SF82-grid-games-end-on-the-shared-game-over-screen.patch` (122): The grid games end on the shared game-over screen (UX15, docs/design/game-over-screen.md) instead of a banner 
+- `firmware/patches/SF83-core-guards-from-static-analysis.patch` (83): Defensive guards in three pure cores after a static analysis run: the head history lookup returns the current 
+- `firmware/patches/SF84-snake-start-grace-and-bench-events-for-grid-games.patch` (57): Two fixes from the b59 bench run. Snake reached the right wall in about two seconds with no input: it now wait
+- `firmware/patches/SF85-option-to-leave-the-stock-pictures-out-of-the-assets.patch` (38): A build option, MAIPAI_PARTITION_EXTRA_ASSETS (default on: the image is unchanged), that leaves the stock apps
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -861,6 +871,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch` (348): Four fixes to the first run that a parent would trip over (found by reading the flow as a person who has never
 - `firmware/patches/UX13a-settings-at-finger-size.patch` (213): Settings at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.md). The t
 - `firmware/patches/UX13b-more-at-finger-size.patch` (241): The More screen at finger size (owner review 2026-11-18, docs/design/screen-style.md), made together with SF69
+- `firmware/patches/UX13c-control-sheet-at-finger-size.patch` (312): The control sheet at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.m
+- `firmware/patches/UX13e-games-page-at-finger-size.patch` (165): The games page and the Apps and Games walls at finger size (owner review 2026-11-18, the physical standard in 
+- `firmware/patches/UX14-clock-styles-tap-and-sleep-sign.patch` (190): The clock page gets three styles that a tap cycles, and shows when the unit sleeps (owner idea 2026-11-18, spe
+- `firmware/patches/UX14b-clock-flip-on-the-card-tween.patch` (133): The clock style change plays a card flip (owner idea 2026-11-18, spec docs/design/clock-styles.md "The flip").
+- `firmware/patches/UX15-shared-game-over-screen.patch` (225): One game-over screen for every game (owner idea 2026-11-18, spec docs/design/game-over-screen.md). A face for 
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -1920,13 +1935,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/beat_test.c` (64): include <stdio.h>
 - `host/tests/firmware/boottone_core_test.c` (35): Host test for the start-up sound rules (patch SF46). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the heade
 - `host/tests/firmware/campro_core_test.c` (67): Host test for the camera probe core (patch SF45). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>.
+- `host/tests/firmware/core_guards_test.c` (81): Host test for the guards added after the static analysis run (patch SF83): the cases the analysis flagged must
 - `host/tests/firmware/dance_cap_core_test.c` (51): Host test for the offline dance cap (patch SF14). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the headers>
 - `host/tests/firmware/dance_ladder_test.c` (259): Host test for the dance ladder (patch MD01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> dance_l
 - `host/tests/firmware/dance_synth_test.c` (129): Host test for the dance session of patch SF51: a dance chosen by hand runs the whole ladder on a synthetic bea
 - `host/tests/firmware/dances_core_test.c` (79): Host test for the named dances (patch V04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/decor_core_test.c` (170): Host test for the face decorator core (patch U01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/dirty_core_test.c` (151): Host test for the dirty rectangles and the gaze spring (patch V20).
-- `host/tests/firmware/face_cores_test.c` (416): Host test for the face cores (patches F01 to F06): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>.
+- `host/tests/firmware/face_cores_test.c` (432): Host test for the face cores (patches F01 to F06): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>.
 - `host/tests/firmware/face_track_core_test.c` (749): Host test for the face tracker's control loop (patch FD04): the real ft_tick, driven with scripted detections 
 - `host/tests/firmware/face_zone_core_test.c` (112): Host test for the fixed zones of the screen (patches N01, N04): the banner zone (y 0 to 28), the face zone (y 
 - `host/tests/firmware/facedet_core_test.c` (153): Host test for the face detector's pure part (patch FD02): the real fd_convert_rgb888, fd_crop_origin, fd_pick,
@@ -1936,6 +1952,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/firstrun_core_test.c` (132): include <stdio.h>
 - `host/tests/firmware/fx_core_test.c` (347): Host test for the screen effects and the governor (patches TA02, TA05): scanline row math, split invariance, c
 - `host/tests/firmware/fx_cost.c` (94): Host cost model for the overlays and effects (patches TA02, TA03). Runs every overlay for 30 simulated seconds
+- `host/tests/firmware/game_over_core_test.c` (46): Host test of the shared game-over screen's core (patch UX15): the layout meets the screen standard, taps land 
 - `host/tests/firmware/games_core_test.c` (572): Host test for the game engine core (patch G01):
 - `host/tests/firmware/games_drag_test.c` (65): Host test for the game drag bar (patch GM02) and the widened safe area (patches GM01 and GM03). */
 - `host/tests/firmware/games_gm_test.c` (642): Host test for patch GM04: the Do It reaction game and the best-of-three Rock Paper Scissors, each driven by a 
@@ -1973,7 +1990,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/packboot_core_test.c` (26): Host test for when the pack boot task starts (patch FM04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
 - `host/tests/firmware/packcache_core_test.c` (381): Host test for the flash cache of the active pack (patch TB02): layout, checksum at boot, fallback, wear, and a
 - `host/tests/firmware/packcache_k_test.c` (345): Host test for the pack cache with the phrase type and the format 2 directory (patch K10): the new type beside 
-- `host/tests/firmware/pages_core_test.c` (574): Host test for the swipe pages data and layout (patch P11): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
+- `host/tests/firmware/pages_core_test.c` (625): Host test for the swipe pages data and layout (patch P11): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
 - `host/tests/firmware/pairx_core_test.c` (81): Host test for the unit's pairing state machine (patch SF33), with the vectors of scripts/link-key-vector.py (f
 - `host/tests/firmware/phrase_flow_test.c` (94): Host test for the offline phrase flow (patch V02): the link events and the pick, as maipai_sounds.cc drives th
 - `host/tests/firmware/phrasepack_core_test.c` (304): Host test for the offline phrases as a pack (patch K12): the zip of sixteen clips becomes one block and a tabl
@@ -2171,7 +2188,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (160): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (66): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (67): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2608,7 +2625,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
 - `scripts/fuzz/core_fuzz.c` (333): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
-- `scripts/fw-build.sh` (52): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
+- `scripts/fw-build.sh` (56): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).
 - `scripts/fw-detect-bench.py` (357): Measurement script for the on-unit face detector experiment (firmware patches FD01 to FD04, bench image only).
 - `scripts/fw-env.sh` (29): one place that sets up ESP-IDF 6.1 for firmware builds. Usage: `source scripts/fw-env.sh`, then `idf.py ...`.
