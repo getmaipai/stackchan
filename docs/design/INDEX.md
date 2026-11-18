@@ -866,6 +866,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX13a-settings-at-finger-size.patch` (213): Settings at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.md). The t
 - `firmware/patches/UX13b-more-at-finger-size.patch` (241): The More screen at finger size (owner review 2026-11-18, docs/design/screen-style.md), made together with SF69
 - `firmware/patches/UX13c-control-sheet-at-finger-size.patch` (312): The control sheet at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.m
+- `firmware/patches/UX13d-first-run-at-finger-size.patch` (131): The first-run screens at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-sty
 - `firmware/patches/UX13e-games-page-at-finger-size.patch` (165): The games page and the Apps and Games walls at finger size (owner review 2026-11-18, the physical standard in 
 - `firmware/patches/UX13f-timers-and-alarms-at-finger-size.patch` (164): Timers and Alarms at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.m
 - `firmware/patches/UX14-clock-styles-tap-and-sleep-sign.patch` (190): The clock page gets three styles that a tap cycles, and shows when the unit sleeps (owner idea 2026-11-18, spe
