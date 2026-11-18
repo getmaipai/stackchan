@@ -26,7 +26,9 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Top banner and subtitle strip** | A fixed top row for the remote cue, find, game, offline and battery, and a subtitle strip at the bottom. | Robot | [Face and look](face-and-look.md) |
 | **Filler sounds** | A short sound or phrase while the robot thinks: none, tone or phrase. Not yet heard by a person. | Robot | [Voice](voice.md) |
 | **Language packs** | English is built in. Other languages arrive as packs. Screen text is plain ASCII, so accented letters are shown without accents. Offline phrase packs are built from the voice you use. | Robot | [Languages](languages.md) |
-| **Turn toward faces** <span class="planned-tag">Planned</span> | It does not move yet: the robot's seeker is in talk mode and the host gets no camera frames. A face detector on the robot is built as an experiment, switched off and not flashed. | Robot | [Face and look](face-and-look.md) |
+| **Turn toward faces** <span class="planned-tag">Planned</span> | The setting now defaults to always: the robot searches when something moves, with the camera cue on. It did not move for a face in the last check, and the face detector on the robot is an experiment, off and not flashed. | Robot | [Face and look](face-and-look.md) |
+| **Face-seen icon** | With the Status icons switch on, an icon shows when a face is detected. Not yet seen with a real face. | Robot | [Face and look](face-and-look.md) |
+| **Lock tile on the control sheet** | One tap locks the robot with your passcode. | Robot | [Swipe pages](swipe-pages.md) |
 | **Smoother eyes and mouth** | Eased eye moves, a smooth blink, a drifting gaze and a mouth that follows your voice. Measured 22 to 45 frames a second while the eyes move. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Your own picture faces** | Upload your own pictures on the settings page, one per look, as picture only, picture with animated eyes and mouth, or a short run of frames. Nothing leaves your home. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Faces and color** | Five face styles (big eyes, eyes only, stock, classic, minimal), any eye color, optional captions, a tired look when the battery is low and three dots while it thinks. | Robot | [Face and look](face-and-look.md) |
@@ -34,7 +36,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Face extras and word reactions** | Sweat, hearts, stars and more on the face, and reactions to words like "thanks" in six languages. | Robot | [Face and look](face-and-look.md) |
 | **Per-person settings** | A face color and caption size for each person. | Robot | [Face and look](face-and-look.md) |
 | **Time zone** | Pick one of 31 zones on the robot or the settings page. | Robot | [Face and look](face-and-look.md) |
-| **Control sheet** | Swipe up from the bottom for volume, brightness, mute, quiet, the listening light, find, timers, games and the Wi-Fi and battery state. | Robot | [Swipe pages](swipe-pages.md) |
+| **Control sheet** | Swipe up from the bottom for volume, brightness, the time, Wi-Fi and battery, and a row of six: Mute, Quiet, Lock, Apps, Games, Settings. | Robot | [Swipe pages](swipe-pages.md) |
 | **Swipe pages** | Swipe left or right on the face for a clock, timers, games, quick actions, your pictures or dashboard tiles, in the order you choose. | Robot | [Swipe pages](swipe-pages.md) |
 
 ## Keep time
@@ -75,7 +77,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Several robots, one host** | One host serves each robot by its own ID. | Robot | [Install the host](install-the-host.md) |
 | **Remote cue on the robot** | Every remote action shows a purple cue on the robot that cannot be turned off. Remote access is off by default. | Robot | [Security](security.md) |
 | **Remote controls on the settings page** | Beep, flash, find my robot (works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. | Robot | [Settings](settings.md) |
-| **Network test and version screen** | Swipe up from the bottom, More, More: a plain check of Wi-Fi, your host and the private network, and the version. | Robot | [Troubleshooting](troubleshooting.md) |
+| **Network test and version screen** | Settings, Network: a plain check of Wi-Fi, your host and the private network, and the version. | Robot | [Troubleshooting](troubleshooting.md) |
 | **Your own LLM or MaiPai Home** | Point the robot at any OpenAI-compatible chat address, or at a MaiPai Home hub. | Robot | [Which setup?](which-setup.md) |
 
 ## Set up and keep safe

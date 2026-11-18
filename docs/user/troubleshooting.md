@@ -26,7 +26,7 @@ Start with `stackchan check`. It tests each address you set and says what is wro
 
 ## Test the connection
 
-On the robot, swipe up from the bottom, tap **More** (quick settings), tap **More** again, then **Network test**. It checks Wi-Fi, the link to your host and, away from home, the private network. Each line starts with OK or FIX, and the last line says what to fix first. **More**, then **Version**, shows the version. Tap it ten times for details.
+On the robot, swipe up from the bottom, tap **Settings**, then the **Network** tab, then **Network test**. It checks Wi-Fi, the link to your host and, away from home, the private network. Each line starts with OK or FIX, and the last line says what to fix first. **More**, then **Version**, shows the version. Tap it ten times for details.
 
 ## Reset the robot
 

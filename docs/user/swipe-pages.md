@@ -6,7 +6,7 @@ The face is home. You swipe on the screen to reach other things, and the robot g
 
 ![The control sheet on the robot, with Wi-Fi, time, battery, volume, brightness and the quick row.](../images/unit-control-sheet.png)
 
-![The Timers app on the robot, with 1, 5, 10 and 15 minute buttons and a running timer.](../images/unit-timers-app.png)
+![The Timers app on the robot, with minute presets on the left and a running timer with a progress bar and Cancel.](../images/unit-timers-app.png)
 
 ![The settings screen on the robot, with General, Network, Faces and Info tabs.](../images/unit-settings-general.png)
 
@@ -44,7 +44,21 @@ The banner row at the top and the subtitles at the bottom stay where they are wh
 
 ## The control sheet
 
-It shows volume and brightness sliders, buttons for mute, quiet, the listening light, find me, timers and games, and a line with the Wi-Fi signal, the battery and more. Every button says on or off in words, not only by color. **More** opens quick settings, where you pick a saved Wi-Fi network, reset the robot, and find the network test and the version screen.
+It shows volume and brightness sliders, a line with the Wi-Fi signal, the time and the battery, and one row of six buttons: Mute, Quiet, Lock, Apps, Games and Settings. The listening light switch is in Settings, on the General tab. Settings also has the Network tab (saved Wi-Fi networks and the network test), the Faces tab, and an Info tab that shows the firmware version and other details directly, with no hidden taps.
+
+![The Info tab on the robot, showing firmware version, image and slot.](../images/unit-info-tab.png)
+
+## The Apps and Games walls
+
+Apps and games show as big colored tiles, each with its own picture: a stopwatch for Timers, a bell for Alarms, a clock face, a bolt for Quick actions, four colors for Color Memory, a mole for Whack-a-Mole, a grid for Tic-Tac-Toe and an arrow for Do It. Swipe for the next page; the dots are below the tiles. Only one screen shows at a time. Pressing a tile and the pop animation are not yet checked by a person.
+
+![The Apps wall on the robot: Timers, Alarms, Clock and Quick actions.](../images/unit-apps-wall.png)
+
+![The Games wall on the robot: Color Memory, Whack-a-Mole, Tic-Tac-Toe and Do It, each with a picture and a best score.](../images/unit-games-page.png)
+
+## The Timers app
+
+A column of presets on the left (1, 5, 10, 15, 30, 45 and 60 minutes, and Custom) scrolls. Each running timer is a tall row with a progress bar and a big Cancel.
 
 ## Choose them on the settings page
 
