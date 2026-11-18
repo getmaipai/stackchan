@@ -1,0 +1,213 @@
+# Intent: Settings at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.md). The tab column is a scrolling column of 56 px tabs on a 64 px pitch (three show, the fourth peeks, the chosen tab is scrolled into view); Done is 72 by 48 at the top right; every list row is 56 px with an 8 px gap; the style tiles are 56 px; row labels and values are the 20 px body text; a slider's grab area is 56 px; the Faces tab shows only the tile rows it needs (three styles are two rows). Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_apps.cc, maipai_apps_core.h (ours)
+# Check after a flash: Settings shows three tabs and a part of the fourth, each tab easy to press; Done at the top right; the General rows are one finger tall with a gap between; the sliders move from anywhere along a thumb-high band; the Faces tab shows the three styles in two rows.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+index ece5b3a..93766ed 100644
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -1189,12 +1189,12 @@ void build_slider_row(lv_obj_t* parent, const mac_row_t& r, int i)
+     const int v    = vol ? g_host->volume() : g_host->brightness();
+     char t[40];
+     snprintf(t, sizeof(t), "%s  %d", tx(vol ? MAC_S_VOLUME : MAC_S_BRIGHT), v);
+-    S->row_val[r.id] = text(c, t, kSmall, fg(90));
++    S->row_val[r.id] = text(c, t, kBig, fg(90));
+     lv_obj_set_pos(S->row_val[r.id], 4, 0);
+     lv_obj_t* sl = lv_slider_create(c);
+-    lv_obj_set_size(sl, MAC_PANE_ROW_W - 28, 16);
+-    lv_obj_set_pos(sl, 14, MAC_SLIDER_Y);
+-    lv_obj_set_ext_click_area(sl, 14);  // with the label's row the grab area is 44 px high
++    lv_obj_set_size(sl, MAC_PANE_ROW_W - 48, 16);
++    lv_obj_set_pos(sl, 24, MAC_SLIDER_Y);   // the extended area (20 px) stays 4 px inside the pane, clear of the tab column
++    lv_obj_set_ext_click_area(sl, 20);  // patch UX13: the grab area is 56 px high (16 and 20 px each side)
+     lv_slider_set_range(sl, vol ? 20 : 10, 100);
+     lv_slider_set_value(sl, v, LV_ANIM_OFF);
+     const lv_part_t parts[3] = {LV_PART_MAIN, LV_PART_INDICATOR, LV_PART_KNOB};
+@@ -1217,7 +1217,7 @@ void build_slider_row(lv_obj_t* parent, const mac_row_t& r, int i)
+ // The face preview in the pane header (Faces tab): the chosen style's schematic face, scaled to fit beside the title.
+ void build_header_preview()
+ {
+-    const int bx = MAC_PANE_X + 70, bw = 54, bh = 44;
++    const int bx = MAC_PANE_X + 76, bw = 54, bh = 48;
+     lv_obj_t* p = box(S->root, bx, Y(MAC_PANE_HEAD_Y), bw, bh, fg(8), 8);
+     lv_obj_set_style_border_width(p, 1, 0);
+     lv_obj_set_style_border_color(p, fg(40), 0);
+@@ -1240,13 +1240,13 @@ void build_pair_row(lv_obj_t* parent, const mac_row_t& r, int i)
+     lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
+     lv_obj_add_flag(c, LV_OBJ_FLAG_EVENT_BUBBLE);
+     lv_obj_set_pos(c, 0, r.y);
+-    lv_obj_set_size(c, MAC_PANE_ROW_W, 44);
++    lv_obj_set_size(c, MAC_PANE_ROW_W, MAC_ROW_BOX_H);
+     S->row_obj[i] = c;
+     for (int k = 0; k < cnt; k++) {
+         const int tile = pair * 2 + k;
+         const bool on  = tile < MPG_SET_STYLES && MPG_SET_STYLE_ID[tile] == S->cur_style;
+         const char* nm = tile < MPG_SET_STYLES ? MPG_SET_STYLE_NAME[es() ? 1 : 0][tile] : tx(MAC_S_PICTURES);
+-        lv_obj_t* b = button(c, k * 110, 0, 106, 44, nm, kSmall, on);
++        lv_obj_t* b = button(c, k * ((MAC_PANE_ROW_W + 8) / 2), 0, (MAC_PANE_ROW_W - 8) / 2, MAC_ROW_BOX_H, nm, kBig, on);
+         lv_obj_add_event_cb(b, on_row, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(r.id | (k << 8))));
+     }
+ }
+@@ -1254,7 +1254,7 @@ void build_pair_row(lv_obj_t* parent, const mac_row_t& r, int i)
+ void build_line_row(lv_obj_t* parent, const mac_row_t& r, int i)
+ {
+     const bool clickable = r.kind == MAC_K_SWITCH || r.kind == MAC_K_CHOICE || r.kind == MAC_K_BUTTON;
+-    lv_obj_t* b = box(parent, 0, r.y, MAC_PANE_ROW_W, 44, fg(clickable ? 16 : 8), 10, clickable);
++    lv_obj_t* b = box(parent, 0, r.y, MAC_PANE_ROW_W, MAC_ROW_BOX_H, fg(clickable ? 16 : 8), 10, clickable);
+     lv_obj_set_style_border_width(b, 1, 0);
+     lv_obj_set_style_border_color(b, fg(clickable ? 40 : 24), 0);
+     if (clickable) {
+@@ -1265,7 +1265,7 @@ void build_line_row(lv_obj_t* parent, const mac_row_t& r, int i)
+     char t[96];
+     row_text(r.id, t, sizeof(t));
+     if (r.kind == MAC_K_BUTTON) {
+-        lv_obj_t* l = text(b, mac_row_label(r.id, es() ? 1 : 0), kSmall, fg(100));
++        lv_obj_t* l = text(b, mac_row_label(r.id, es() ? 1 : 0), kBig, fg(100));
+         lv_obj_center(l);
+         return;
+     }
+@@ -1274,9 +1274,9 @@ void build_line_row(lv_obj_t* parent, const mac_row_t& r, int i)
+         if (on) {
+             lv_obj_set_style_bg_color(b, fg(100), 0);
+         }
+-        lv_obj_t* l = text(b, mac_row_label(r.id, es() ? 1 : 0), kSmall, on ? maipai_ui_style::bg() : fg(100));
++        lv_obj_t* l = text(b, mac_row_label(r.id, es() ? 1 : 0), kBig, on ? maipai_ui_style::bg() : fg(100));
+         lv_obj_align(l, LV_ALIGN_LEFT_MID, 12, 0);
+-        S->row_val[r.id] = text(b, t, kSmall, on ? maipai_ui_style::bg() : fg(100));
++        S->row_val[r.id] = text(b, t, kBig, on ? maipai_ui_style::bg() : fg(100));
+         lv_obj_align(S->row_val[r.id], LV_ALIGN_RIGHT_MID, -12, 0);
+         return;
+     }
+@@ -1286,29 +1286,44 @@ void build_line_row(lv_obj_t* parent, const mac_row_t& r, int i)
+         lv_obj_t* l = text(b, label, kSmall, fg(60));
+         lv_obj_set_pos(l, 10, 2);
+     }
+-    lv_obj_t* v = text(b, t, kSmall, fg(100));
++    lv_obj_t* v = text(b, t, kBig, fg(100));   // patch UX13: the value is the 20 px body text
+     lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
+-    lv_obj_set_size(v, MAC_PANE_ROW_W - 20, lv_font_get_line_height(kSmall));
+-    lv_obj_set_pos(v, 10, 18);
++    lv_obj_set_size(v, MAC_PANE_ROW_W - 20, lv_font_get_line_height(kBig));
++    lv_obj_set_pos(v, 10, 25);
+     S->row_val[r.id] = v;
+ }
+ 
+ void build_settings()
+ {
+     S->cur_style = g_host->face_style();
+-    // the tab column
++    // the tab column (patch UX13): a scrolling column of 56 px tabs, three show and the fourth peeks; the chosen tab is scrolled into view
++    lv_obj_t* col = lv_obj_create(S->root);
++    lv_obj_remove_style_all(col);
++    lv_obj_set_pos(col, MAC_TAB_X, Y(MAC_TAB_Y0));
++    lv_obj_set_size(col, MAC_TAB_W, MAC_TAB_COL_H);
++    lv_obj_add_flag(col, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_scroll_dir(col, LV_DIR_VER);
++    lv_obj_set_scrollbar_mode(col, LV_SCROLLBAR_MODE_OFF);
++    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLL_ELASTIC);
++    lv_obj_t* on_tab_btn = nullptr;
+     for (int t = 0; t < MAC_TAB_COUNT; t++) {
+         int x, y, w, h;
+         mac_tab_box(t, &x, &y, &w, &h);
+         const bool on = t == S->set.tab;
+         const char* nm = MAC_TAB_TITLE[es() ? 1 : 0][t];
+-        lv_obj_t* b = button(S->root, x, Y(y), w, h, nm, kSmall  /* patch UX02b: the four tabs share one size */, on);
++        lv_obj_t* b = button(col, x, y, w, h, nm, kBig, on);
+         lv_obj_add_event_cb(b, on_tab, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t)));
++        if (on) {
++            on_tab_btn = b;
++        }
++    }
++    if (on_tab_btn != nullptr) {
++        lv_obj_scroll_to_view(on_tab_btn, LV_ANIM_OFF);
+     }
+     box(S->root, MAC_DIV_X, Y(MAC_TAB_Y0), 1, MAC_BOTTOM - MAC_TAB_Y0 - 4, fg(30), 0);
+     // the pane header: the tab's name and the Done target
+     lv_obj_t* title = text(S->root, MAC_TAB_TITLE[es() ? 1 : 0][S->set.tab], kBig, fg(100));
+-    lv_obj_set_pos(title, MAC_PANE_X + 4, Y(MAC_PANE_HEAD_Y) + 10);
++    lv_obj_set_pos(title, MAC_PANE_X + 4, Y(MAC_PANE_HEAD_Y) + 12);
+     if (S->set.tab == MAC_TAB_FACES) {
+         build_header_preview();
+     }
+diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
+index 204625f..862c5d0 100644
+--- a/firmware/main/hal/maipai_apps_core.h
++++ b/firmware/main/hal/maipai_apps_core.h
+@@ -351,21 +351,26 @@ static const char* const MAC_TAB_TITLE[2][MAC_TAB_COUNT] = {
+     {"General", "Network", "Faces", "Info"},
+     {"General", "Red", "Caras", "Info"},
+ };
++/* Patch UX13 (owner review 2026-11-18, the physical standard in docs/design/screen-style.md): tab rows are 56 px high on a 64 px pitch, three show and the column scrolls; the Done target is 72 by 48;
++ * a list row is 56 px with an 8 px gap; the pane is narrower so every target is a finger wide. mac_tab_box gives the box inside the scrolling tab column (the column is MAC_TAB_COL_H high). */
+ #define MAC_TAB_X 4
+-#define MAC_TAB_W 76
+-#define MAC_TAB_Y0 32
+-#define MAC_TAB_PITCH 48
+-#define MAC_TAB_H 44
+-#define MAC_PANE_X 88
+-#define MAC_PANE_W 228
+-#define MAC_PANE_HEAD_Y 38 /* the pane's header row: the tab title and the Done target */
+-#define MAC_PANE_HEAD_H 44
+-#define MAC_PANE_Y 86      /* the scrolling list */
++#define MAC_TAB_W 84
++#define MAC_TAB_Y0 36
++#define MAC_TAB_PITCH 64
++#define MAC_TAB_H 56
++#define MAC_TAB_COL_H (MAC_BOTTOM - MAC_TAB_Y0) /* 188: three tabs and a peek of the fourth */
++#define MAC_PANE_X 100
++#define MAC_PANE_W 216
++#define MAC_PANE_HEAD_Y 32 /* the pane's header row: the tab title and the Done target */
++#define MAC_PANE_HEAD_H 48
++#define MAC_PANE_Y 88      /* the scrolling list: 8 px under the Done target */
+ #define MAC_PANE_H (MAC_BOTTOM - MAC_PANE_Y)
+-#define MAC_PANE_ROW_W 216 /* 12 px stay free at the right for the scroll indicator */
+-#define MAC_DIV_X 84
+-static inline void mac_tab_box(int i, int* x, int* y, int* w, int* h) { *x = MAC_TAB_X; *y = MAC_TAB_Y0 + i * MAC_TAB_PITCH; *w = MAC_TAB_W; *h = MAC_TAB_H; }
+-static inline void mac_done_box(int* x, int* y, int* w, int* h) { *x = MAC_PANE_X + MAC_PANE_W - 96 - 4; *y = MAC_PANE_HEAD_Y; *w = 96; *h = MAC_PANE_HEAD_H; }
++#define MAC_PANE_ROW_W 204 /* 12 px stay free at the right for the scroll indicator */
++#define MAC_DIV_X 94
++#define MAC_DONE_W 72
++#define MAC_DONE_H 48
++static inline void mac_tab_box(int i, int* x, int* y, int* w, int* h) { *x = 0; *y = i * MAC_TAB_PITCH; *w = MAC_TAB_W; *h = MAC_TAB_H; }
++static inline void mac_done_box(int* x, int* y, int* w, int* h) { *x = MAC_PANE_X + MAC_PANE_W - MAC_DONE_W; *y = MAC_PANE_HEAD_Y; *w = MAC_DONE_W; *h = MAC_DONE_H; }
+ 
+ /* Settings rows. A row is one line of the right list: a slider, a switch, a choice that cycles, a button, two lines of information, a face
+  * preview or a pair of style tiles. Interactive rows are at least 44 px; a slider row also keeps 20 px of empty room under the knob (patch QS01). */
+@@ -379,10 +384,11 @@ enum {
+     MAC_R_I_TAG, MAC_R_I_IMAGE, MAC_R_I_SLOT, MAC_R_I_MEM, MAC_R_I_HOST, MAC_R_I_UP,
+     MAC_R_COUNT
+ };
+-#define MAC_SLIDER_Y 28       /* the slider's top inside its row (the label line is above it) */
+-#define MAC_SLIDER_ROW_H 72   /* label line, the slider (grab area 44, its knob reaches 8 px beyond it), then 20 px of empty room under the knob */
+-#define MAC_LINE_ROW_H 48     /* a 44 px row and a 4 px gap */
+-#define MAC_PAIR_ROW_H 46     /* a row of two 44 px style tiles and a 2 px gap: three rows are 138 px, the height of the list */
++#define MAC_SLIDER_Y 30       /* the slider's top inside its row (the 20 px label line is above it) */
++#define MAC_SLIDER_ROW_H 80   /* label line, the slider (grab area 56: 16 px and 20 px of extended area each side), then room under the knob */
++#define MAC_LINE_ROW_H 64     /* a 56 px row and an 8 px gap */
++#define MAC_PAIR_ROW_H 64     /* a row of up to two 56 px style tiles and an 8 px gap */
++#define MAC_ROW_BOX_H 56
+ #define MAC_SET_ROWS_MAX 16
+ #define MAC_SF_LOCK 1u      /* the passcode lock is built in: auto lock and Lock now */
+ #define MAC_SF_TAILNET 2u   /* the private network is built in */
+@@ -412,7 +418,7 @@ static inline int mac_row_height(int id)
+     return k == MAC_K_SLIDER ? MAC_SLIDER_ROW_H : (k == MAC_K_PAIR ? MAC_PAIR_ROW_H : MAC_LINE_ROW_H);
+ }
+ /* The empty room under a row (a slider row keeps its room inside the row). */
+-static inline int mac_row_gap(int kind) { return kind == MAC_K_SLIDER ? 0 : (kind == MAC_K_PAIR ? 2 : 4); }
++static inline int mac_row_gap(int kind) { return kind == MAC_K_SLIDER ? 0 : 8; }
+ 
+ /* The rows of a tab, top to bottom, with their offsets. Returns how many. `flags` are MAC_SF_*. */
+ static inline int mac_set_rows(int tab, unsigned flags, mac_row_t* out)
+@@ -444,8 +450,8 @@ static inline int mac_set_rows(int tab, unsigned flags, mac_row_t* out)
+             break;
+         case MAC_TAB_FACES:
+             ids[n++] = MAC_R_PAIR0; /* the preview of the chosen style is drawn in the pane header, so it stays in view while the tiles are used */
+-            ids[n++] = MAC_R_PAIR1;
+-            ids[n++] = MAC_R_PAIR2; /* the fifth style, and the picture faces while a picture pack is held */
++            if (MPG_SET_STYLES + ((flags & MAC_SF_PICTURES) ? 1 : 0) > 2) ids[n++] = MAC_R_PAIR1; /* patch UX13: only the rows that hold a tile (three styles, a fourth tile while a picture pack is held) */
++            if (MPG_SET_STYLES + ((flags & MAC_SF_PICTURES) ? 1 : 0) > 4) ids[n++] = MAC_R_PAIR2;
+             break;
+         default:
+             ids[n++] = MAC_R_I_TAG;

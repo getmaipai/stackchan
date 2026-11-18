@@ -188,6 +188,16 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
         printf("pcount %s %d\n", label.c_str(), count(lv_layer_top()));
         return true;
     }
+    if (c == "pscrollby") {  // pscrollby X Y DY: scrolls the nearest scrollable object under X Y by DY pixels (content moves up for a positive DY), as a drag would (patch UX13 tests and scenarios)
+        int x, y, dy;
+        in >> x >> y >> dy;
+        lv_point_t pt = {x, y};
+        lv_obj_t* o = lv_indev_search_obj(lv_layer_top(), &pt);
+        while (o != nullptr && !lv_obj_has_flag(o, LV_OBJ_FLAG_SCROLLABLE)) o = lv_obj_get_parent(o);
+        if (o != nullptr) lv_obj_scroll_by(o, 0, -dy, LV_ANIM_OFF);
+        printf("pscrollby %s %d\n", o != nullptr ? "done" : "nothing", o != nullptr ? (int)lv_obj_get_scroll_y(o) : 0);
+        return true;
+    }
     if (c == "ptargets") {  // every visible clickable object and every visible label of the top layer and the screen: x1 y1 x2 y2 (a click area includes the extended one) and the text, for the screen audit
         std::function<void(lv_obj_t*, bool, bool)> walk = [&](lv_obj_t* o, bool hidden, bool scr) {
             const bool h = hidden || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN);

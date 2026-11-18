@@ -106,7 +106,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/upstream-review.md` (71): Upstream firmware review
 - `docs/design/voice-path-architecture-2026-11-16.md` (115): Voice path: connections, model options, measurements and the low-latency design (2026-11-16)
 - `docs/design/wake-word-licensing-2026-11-17.md` (47): Wake word models and redistribution: position after review (2026-11-17)
-- `docs/dev/battery-and-power.md` (65): Battery and power: what the unit can measure, how to log a drain and a charge, and the tables to fill
 - `docs/dev/bench-benchmark.md` (21): Running a voice benchmark
 - `docs/dev/bench-dry-run-2026-11-17.md` (23): Bench checks: virtual dry run
 - `docs/dev/bench-evidence/bench-b15.md` (24): Bench b15 window (2026-11-18)
@@ -136,10 +135,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1080): Feature ledger
-- `docs/dev/feature-ledger.md` (1080): Feature ledger
 - `docs/dev/feature-ledger.md` (1080): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
@@ -152,14 +147,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
-- `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
+- `docs/dev/memory-budget.md` (179): Memory budget of the optional features (owner decision 11, 2026-11-18)
 - `docs/dev/model-previews/joints.gif` (1486): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
-- `docs/dev/screen-audit.json` (314): no header
+- `docs/dev/screen-audit.json` (244): no header
 - `docs/dev/screen-audit.md` (34): Screen audit against the physical standard
 - `docs/dev/screens-contact-sheets.md` (38): Screens contact sheets
 - `docs/dev/second-robot-adapter.md` (16): Adding a second robot behind the seam
@@ -308,12 +303,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
 - `docs/plan/home-work-brief.md` (48): Brief for a session in the Home repository: the StackChan robot side (2026-11-18)
 - `docs/plan/host-layer.md` (30): The host layer (for `docs/design/architecture-layers.md`)
-- `docs/plan/installed-set.md` (337): The installed set: slots, signed assets, language and font packs (design, 2026-11-18)
+- `docs/plan/installed-set.md` (328): The installed set: slots, signed assets, language and font packs (design, 2026-11-18)
 - `docs/plan/ir-and-nfc.md` (127): Infrared and NFC for the StackChan: what is verified, what we could build, how to probe safely
 - `docs/plan/link-key-exchange.md` (68): Link key exchange for the encrypted link (design, 2026-11-18)
 - `docs/plan/memory-budget-model.md` (36): The memory budget as data (decision 15): the agreement between the firmware track and the playground track
 - `docs/plan/minimal-stack.md` (65): The minimal local stack and the three ways to get a brain
-- `docs/plan/more-games-engine.md` (185): More games: what the unit's engine can and cannot do (firmware track)
+- `docs/plan/more-games-engine.md` (173): More games: what the unit's engine can and cannot do (firmware track)
 - `docs/plan/mouth-cues-append.md` (16): Mouth cues for replies of more than one sentence
 - `docs/plan/offload-to-host.md` (50): Offload to the host: what the unit does that the host could serve or compute
 - `docs/plan/optimization.md` (106): Optimization: the image diet, the patch series cleanup, and the host side
@@ -574,7 +569,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (316): no header
+- `firmware/patches/ORDER` (311): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -656,12 +651,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF54-sound-info-volume-now-and-saved.patch` (48): self.audio.sound_info also reports volume_now (the speaker volume in use) and volume_saved (the value in flash
 - `firmware/patches/SF55-seek-looks-on-a-trigger-and-a-30s-net.patch` (233): The seeker's "always" watch looks when a sensor says something happened (a sound rise, a touch on the head, a 
 - `firmware/patches/SF56-heal-window-and-wait-in-self-version.patch` (81): self.version shows when the self-restart hold ends (self_restart_wait_s), when the count of self-restarts expi
-- `firmware/patches/SF57-network-test-host-only-and-time-zone-when-unpaired.patch` (127): Owner decision 22: the network test is the host's, and a paired host sets the time zone. The unit no longer sh
-- `firmware/patches/SF58-three-face-styles.patch` (103): Owner decision 22: three face styles stay in the base set (big eyes, original, minimal). Classic and eyes only
-- `firmware/patches/SF59-camera-switch-quick-action.patch` (80): Owner decision 22: a camera switch on the quick actions. The action "vision" turns the camera off and on throu
-- `firmware/patches/SF60-sound-info-volume-now-from-the-codec.patch` (29): sound_info reports the volume the codec plays at (volume_now), read from the audio codec itself. The first ver
-- `firmware/patches/SF61-bench-power-log.patch` (59): A bench tool, self.bench.power_log {seconds, interval_s}, that logs the battery level, the charging state, the
-- `firmware/patches/SF62-grid-game-engine-core-connect4-memory.patch` (481): The first part of the grid game engine (owner-approved 2026-11-18): the pure cores for a cell array of up to 1
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1088,7 +1077,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/expression/suppression.py` (125): The suppression table (``dev.md`` section 5's "Suppressed or reinterpreted when" column).
 - `host/maipai_body/face_shapes.py` (109): ruff: noqa: E501
 - `host/maipai_body/face_table.json` (159): no header
-- `host/maipai_body/faces.py` (790): ruff: noqa: E501
+- `host/maipai_body/faces.py` (792): ruff: noqa: E501
 - `host/maipai_body/fillers.py` (360): ruff: noqa: E501
 - `host/maipai_body/first_run_name.py` (75): The robot's name from the first run (firmware patches SF09 and UX11).
 - `host/maipai_body/hal/__init__.py` (1): The HAL seam: ``seam`` for the typed protocols, ``errors`` for what crosses it."""
@@ -1137,7 +1126,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_literals.py` (138): ruff: noqa: E501
 - `host/maipai_body/i18n_lock.py` (79): ruff: noqa: E501
 - `host/maipai_body/i18n_more.py` (615): ruff: noqa: E501
-- `host/maipai_body/i18n_pages.py` (158): ruff: noqa: E501
+- `host/maipai_body/i18n_pages.py` (156): ruff: noqa: E501
 - `host/maipai_body/i18n_pictures.py` (71): ruff: noqa: E501
 - `host/maipai_body/i18n_polish.py` (456): ruff: noqa: E501
 - `host/maipai_body/i18n_remote.py` (100): ruff: noqa: E501
@@ -1773,7 +1762,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/spec-vendor/spec/voice/py/normalize_for_speech.py` (482): Speech normalization, the Python twin of spec/voice/ts/normalizeForSpeech.ts
 - `host/tests/conftest.py` (122): Shared fixtures: the deterministic suite runs against the fake always, and
 - `host/tests/eyes_fakes.py` (58): A pty standing in for the Reachy Eyes USB serial port.
-- `host/tests/firmware/apps_core_test.c` (341): Host test for the Apps wall, the Timers and Alarms apps and the tabbed Settings layout (patch UI16):
+- `host/tests/firmware/apps_core_test.c` (343): Host test for the Apps wall, the Timers and Alarms apps and the tabbed Settings layout (patch UI16):
 - `host/tests/firmware/avatar_core_test.c` (58): Host test for the camera frames core (patch SF44). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>
 - `host/tests/firmware/banner_core_test.c` (337): Host test for the banner row logic (patch N01): the queue, priorities, minimum display time, replace-in-place 
 - `host/tests/firmware/banner_dump.c` (96): Prints the geometry and the pure functions of maipai_banner_core.h as JSON (patch N01), for the settings page 
@@ -1787,7 +1776,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/dances_core_test.c` (79): Host test for the named dances (patch V04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/decor_core_test.c` (170): Host test for the face decorator core (patch U01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/dirty_core_test.c` (151): Host test for the dirty rectangles and the gaze spring (patch V20).
-- `host/tests/firmware/face_cores_test.c` (416): Host test for the face cores (patches F01 to F06): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>.
+- `host/tests/firmware/face_cores_test.c` (409): Host test for the face cores (patches F01 to F06): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>.
 - `host/tests/firmware/face_track_core_test.c` (749): Host test for the face tracker's control loop (patch FD04): the real ft_tick, driven with scripted detections 
 - `host/tests/firmware/face_zone_core_test.c` (112): Host test for the fixed zones of the screen (patches N01, N04): the banner zone (y 0 to 28), the face zone (y 
 - `host/tests/firmware/facedet_core_test.c` (153): Host test for the face detector's pure part (patch FD02): the real fd_convert_rgb888, fd_crop_origin, fd_pick,
@@ -1803,7 +1792,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/games_sig_test.cc` (51): Host test for a signed game pack (patch G01): the unit checks the signature with the same Ed25519 code that ch
 - `host/tests/firmware/games_v2_core_test.c` (971): Host test for the game engine additions of patches UI12 and UI13: the new inputs, the board, the timer from a 
 - `host/tests/firmware/gesture_core_test.c` (450): Host test for the swipe gesture state machine (patch P10): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
-- `host/tests/firmware/grid_core_test.c` (233): Host test for the grid game engine core and its two rule sets (patch SF62): cc -std=c99 -Wall -Wextra -Werror 
 - `host/tests/firmware/headgate_core_test.c` (24): Host test for the host head-move gate (patch Y01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/heal_core_test.c` (53): Host test for the restart guard's allowance (patch R04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/ir_core_test.c` (72): Host test for the infrared timing rules (patch SF50). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
@@ -1831,7 +1819,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/packboot_core_test.c` (26): Host test for when the pack boot task starts (patch FM04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
 - `host/tests/firmware/packcache_core_test.c` (381): Host test for the flash cache of the active pack (patch TB02): layout, checksum at boot, fallback, wear, and a
 - `host/tests/firmware/packcache_k_test.c` (345): Host test for the pack cache with the phrase type and the format 2 directory (patch K10): the new type beside 
-- `host/tests/firmware/pages_core_test.c` (574): Host test for the swipe pages data and layout (patch P11): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
+- `host/tests/firmware/pages_core_test.c` (570): Host test for the swipe pages data and layout (patch P11): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
 - `host/tests/firmware/pairx_core_test.c` (81): Host test for the unit's pairing state machine (patch SF33), with the vectors of scripts/link-key-vector.py (f
 - `host/tests/firmware/phrase_flow_test.c` (94): Host test for the offline phrase flow (patch V02): the link events and the pick, as maipai_sounds.cc drives th
 - `host/tests/firmware/phrasepack_core_test.c` (304): Host test for the offline phrases as a pack (patch K12): the zip of sixteen clips becomes one block and a tabl
@@ -2027,7 +2015,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (142): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (63): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (62): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2057,7 +2045,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fuzz_cores.py` (22): A short run of the sanitizer fuzz of the unit's parsers (scripts/fuzz-cores.sh, docs/dev/fuzzing-and-hostile-p
 - `host/tests/test_fw_stress_gate.py` (43): The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
 - `host/tests/test_game_voice.py` (151): no header
-- `host/tests/test_games_no_head_motion.py` (40): Owner rule (2026-11-18): a game never moves the head. No line a patch adds to the game player, the game engine
 - `host/tests/test_gate_check.py` (53): scripts/gate-check.py: the gate numbers in the script and in docs/dev/gate-numbers.md agree, and the verdict i
 - `host/tests/test_gaze.py` (156): S-EXPR-04: deterministic gaze trajectories, one test per rule (UNMEASURED defaults)."""
 - `host/tests/test_hal_seam.py` (32): Both the real client and the fake satisfy the same HAL seam methods."""
@@ -2424,7 +2411,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/asset-kinds.json` (68): no header
 - `schema/base-tools.json` (10): no header
 - `schema/memory-budget.json` (714): no header
-- `schema/tools.json` (637): no header
+- `schema/tools.json` (632): no header
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
@@ -2449,7 +2436,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/build.sh` (37): draw the real face (LVGL and the unit's own face classes) into memory on this Mac, so a look can be judged and
 - `scripts/fw-face-render/games_render.cc` (244): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
-- `scripts/fw-face-render/hooks_banner.cc` (296): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
+- `scripts/fw-face-render/hooks_banner.cc` (306): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
 - `scripts/fw-face-render/hooks_new.cc` (57): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
 - `scripts/fw-face-render/lock_render.sh` (25): draw the lock screen and the keypad with the real LVGL and the unit's own drawing code (maipai_lock_draw.h) on

@@ -9,10 +9,10 @@
   "fails": 0
  },
  "es-settings-general": {
-  "fails": 16
+  "fails": 0
  },
  "es-settings-info": {
-  "fails": 9
+  "fails": 0
  },
  "first-run-1": {
   "fails": 5
@@ -60,16 +60,16 @@
   "fails": 3
  },
  "screen-settings-faces": {
-  "fails": 14
+  "fails": 0
  },
  "screen-settings-general": {
-  "fails": 16
+  "fails": 0
  },
  "screen-settings-info": {
-  "fails": 9
+  "fails": 0
  },
  "screen-settings-network": {
-  "fails": 10
+  "fails": 0
  },
  "screen-subtitles": {
   "fails": 0

@@ -49,13 +49,13 @@ def main() -> int:
     # tested alone, but the newest one the tree has is always testable); everything after it is applied in order
     last = -1
     for i in range(len(mine) - 1, -1, -1):
-        if run(["patch", "-p1", "-R", "--dry-run", "-s"], overlay, texts[mine[i]]):
+        if run(["patch", "-p1", "-R", "--dry-run", "-s", "-f", "-N"], overlay, texts[mine[i]]):
             last = i
             break
     skipped = mine[: last + 1]
     for name in mine[last + 1 :]:
-        if run(["patch", "-p1", "--dry-run", "-s"], overlay, texts[name]):
-            run(["patch", "-p1", "-s"], overlay, texts[name])
+        if run(["patch", "-p1", "--dry-run", "-s", "-f"], overlay, texts[name]):
+            run(["patch", "-p1", "-s", "-f"], overlay, texts[name])
             applied.append(name)
         else:
             failed.append(name)

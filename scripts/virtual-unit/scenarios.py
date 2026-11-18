@@ -47,9 +47,9 @@ SCREENS: dict[str, list] = {
     "screen-games-wall": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 235 212"), ("advance", 700)],
     "screen-timers-app": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 185 212"), ("advance", 700), ("raw", "pclick 80 70"), ("advance", 700)],
     "screen-settings-general": BAR + [("raw", "pshow settings"), ("advance", 500)],
-    "screen-settings-network": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 102"), ("advance", 500)],
-    "screen-settings-faces": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 150"), ("advance", 500)],
-    "screen-settings-info": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 198"), ("advance", 500)],
+    "screen-settings-network": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 128"), ("advance", 500)],
+    "screen-settings-faces": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 190"), ("advance", 500)],
+    "screen-settings-info": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pscrollby 40 150 64"), ("advance", 100), ("raw", "pclick 40 190"), ("advance", 500)],
     # The music dance ladder on a simulated song that builds from quiet to very loud (dance_sim.py: the unit's real ladder core, the host's show): the five steps (patches MD01 to MD03).
     "dance-1-eyes": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 1300)],
     "dance-2-nod": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 5200)],
@@ -166,7 +166,7 @@ for _li, _lang in enumerate(LANGS):
         SCREENS.setdefault(f"first-run-{_st + 1}-{_lang}", [("raw", f"frun step {_st} {_li} -1"), ("advance", 400)])
     SCREENS.setdefault(f"first-run-next-{_lang}", [("raw", f"frun step 7 {_li} -1"), ("advance", 400)])   # the last screen after All set! (patch UX12)
 for _name, _steps in (("sheet", [("raw", "pshow sheet"), ("advance", 500)]), ("apps-wall", [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 185 212"), ("advance", 700)]),
-                      ("settings-general", [("raw", "pshow settings"), ("advance", 500)]), ("settings-info", [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 198"), ("advance", 500)]),
+                      ("settings-general", [("raw", "pshow settings"), ("advance", 500)]), ("settings-info", [("raw", "pshow settings"), ("advance", 400), ("raw", "pscrollby 40 150 64"), ("advance", 100), ("raw", "pclick 40 190"), ("advance", 500)]),
                       ("page-timers", [("raw", "pshow timers"), ("advance", 600)]), ("page-actions", [("raw", "pshow actions"), ("advance", 600)])):
     SCREENS[f"es-{_name}"] = BAR + [("raw", "pset es on")] + _steps
 

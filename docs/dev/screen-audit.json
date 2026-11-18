@@ -37,74 +37,27 @@
  },
  "screen-settings-general": {
   "targets": 11,
-  "fails": 16,
-  "warnings": 0,
-  "failures": [
-   "target 76x44 px (9.7 x 5.6 mm) at 4,32: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,80: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,128: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,176: under 48 px",
-   "target 96x44 px (12.2 x 5.6 mm) at 216,38: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,100: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,172: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,230: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,278: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,326: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,422: under 48 px",
-   "targets at 4,32 and 4,80 are 4 px apart (under 8)"
-  ]
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
  },
  "screen-settings-network": {
   "targets": 6,
-  "fails": 10,
-  "warnings": 0,
-  "failures": [
-   "target 76x44 px (9.7 x 5.6 mm) at 4,32: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,80: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,128: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,176: under 48 px",
-   "target 96x44 px (12.2 x 5.6 mm) at 216,38: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,86: under 48 px",
-   "targets at 4,32 and 4,80 are 4 px apart (under 8)",
-   "targets at 4,80 and 4,128 are 4 px apart (under 8)",
-   "targets at 4,128 and 4,176 are 4 px apart (under 8)",
-   "targets at 216,38 and 88,86 are 4 px apart (under 8)"
-  ]
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
  },
  "screen-settings-faces": {
   "targets": 8,
-  "fails": 14,
-  "warnings": 0,
-  "failures": [
-   "target 76x44 px (9.7 x 5.6 mm) at 4,32: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,80: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,128: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,176: under 48 px",
-   "target 96x44 px (12.2 x 5.6 mm) at 216,38: under 48 px",
-   "target 106x44 px (13.5 x 5.6 mm) at 88,86: under 48 px",
-   "target 106x44 px (13.5 x 5.6 mm) at 198,86: under 48 px",
-   "target 106x44 px (13.5 x 5.6 mm) at 88,132: under 48 px",
-   "targets at 4,32 and 4,80 are 4 px apart (under 8)",
-   "targets at 4,80 and 4,128 are 4 px apart (under 8)",
-   "targets at 4,128 and 4,176 are 4 px apart (under 8)",
-   "targets at 216,38 and 198,86 are 4 px apart (under 8)"
-  ]
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
  },
  "screen-settings-info": {
   "targets": 6,
-  "fails": 9,
-  "warnings": 0,
-  "failures": [
-   "target 76x44 px (9.7 x 5.6 mm) at 4,32: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,80: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,128: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,176: under 48 px",
-   "target 96x44 px (12.2 x 5.6 mm) at 216,38: under 48 px",
-   "targets at 4,32 and 4,80 are 4 px apart (under 8)",
-   "targets at 4,80 and 4,128 are 4 px apart (under 8)",
-   "targets at 4,128 and 4,176 are 4 px apart (under 8)",
-   "targets at 216,38 and 88,86 are 4 px apart (under 8)"
-  ]
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
  },
  "first-run-1": {
   "targets": 7,
@@ -266,38 +219,15 @@
  },
  "es-settings-general": {
   "targets": 11,
-  "fails": 16,
-  "warnings": 0,
-  "failures": [
-   "target 76x44 px (9.7 x 5.6 mm) at 4,32: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,80: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,128: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,176: under 48 px",
-   "target 96x44 px (12.2 x 5.6 mm) at 216,38: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,100: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,172: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,230: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,278: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,326: under 48 px",
-   "target 216x44 px (27.4 x 5.6 mm) at 88,422: under 48 px",
-   "targets at 4,32 and 4,80 are 4 px apart (under 8)"
-  ]
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
  },
  "es-settings-info": {
   "targets": 6,
-  "fails": 9,
-  "warnings": 0,
-  "failures": [
-   "target 76x44 px (9.7 x 5.6 mm) at 4,32: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,80: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,128: under 48 px",
-   "target 76x44 px (9.7 x 5.6 mm) at 4,176: under 48 px",
-   "target 96x44 px (12.2 x 5.6 mm) at 216,38: under 48 px",
-   "targets at 4,32 and 4,80 are 4 px apart (under 8)",
-   "targets at 4,80 and 4,128 are 4 px apart (under 8)",
-   "targets at 4,128 and 4,176 are 4 px apart (under 8)",
-   "targets at 216,38 and 88,86 are 4 px apart (under 8)"
-  ]
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
  },
  "es-page-timers": {
   "targets": 3,

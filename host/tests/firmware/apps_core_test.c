@@ -176,13 +176,13 @@ static void test_settings(void)
     for (unsigned flags = 0; flags < 16; flags++) {
         for (int tab = 0; tab < MAC_TAB_COUNT; tab++) {
             n = mac_set_rows(tab, flags, r);
-            CHECK(n >= 3 && n <= MAC_SET_ROWS_MAX);
+            CHECK(n >= 2 && n <= MAC_SET_ROWS_MAX);   /* patch UX13: the Faces tab is two tile rows */
             int y = 0;
             for (int i = 0; i < n; i++) {
                 CHECK(r[i].y == y && r[i].h > 0);
                 y += r[i].h;
                 const int box_h = r[i].h - mac_row_gap(r[i].kind);
-                if (r[i].kind != MAC_K_SLIDER) CHECK(box_h >= MAC_TARGET_MIN);   /* every row is at least 44 px */
+                if (r[i].kind != MAC_K_SLIDER) CHECK(box_h >= MAC_ROW_BOX_H && r[i].h - box_h >= 8);   /* patch UX13: every row is 56 px with an 8 px gap */
                 CHECK(r[i].kind == mac_row_kind(r[i].id));
                 for (int k = i + 1; k < n; k++) CHECK(r[i].id != r[k].id);       /* no row twice */
             }
@@ -190,7 +190,7 @@ static void test_settings(void)
         }
     }
     /* a slider row keeps 20 px of empty room under the knob (patch QS01): label 18, slider at y 28 (16 high, the knob 8 more each side) */
-    CHECK(MAC_SLIDER_ROW_H - (MAC_SLIDER_Y + 16 + 8) >= 20);
+    CHECK(MAC_SLIDER_ROW_H - (MAC_SLIDER_Y + 16 + 8) >= 20 && MAC_SLIDER_Y >= 20 + 2);   /* patch UX13: the 20 px label above, the slider at y 30; the grab area is 56 px (20 px of extended area each side) */
     /* the rows of each tab, with every flag set */
     n = mac_set_rows(MAC_TAB_GENERAL, MAC_SF_LOCK | MAC_SF_TAILNET | MAC_SF_PICTURES, r);
     CHECK(n == 9 && r[0].id == MAC_R_VOLUME && r[1].id == MAC_R_BRIGHT && r[2].id == MAC_R_NIGHT && r[3].id == MAC_R_STATUS_ICONS && r[4].id == MAC_R_LISTEN_LIGHT && r[5].id == MAC_R_AUTOLOCK && r[6].id == MAC_R_LOCK_NOW && r[7].id == MAC_R_LANGUAGE && r[8].id == MAC_R_MORE);
@@ -201,7 +201,8 @@ static void test_settings(void)
     CHECK(n == 5 && r[0].id == MAC_R_WIFI_PAGE && r[1].id == MAC_R_SSID && r[2].id == MAC_R_SIGNAL && r[3].id == MAC_R_TAILNET && r[4].id == MAC_R_HUB);
     CHECK(mac_set_rows(MAC_TAB_NETWORK, 0, r) == 4);
     n = mac_set_rows(MAC_TAB_FACES, 0, r);
-    CHECK(n == 3 && mac_rows_total_h(r, n) <= MAC_PANE_H + 2);           /* the three style rows fit the list with no scrolling */
+    CHECK(n == 2 && mac_rows_total_h(r, n) <= MAC_PANE_H + 8);           /* patch UX13: three styles are two tile rows of 56 px with 8 px gaps: they fit the list with no scrolling */
+    CHECK(mac_set_rows(MAC_TAB_FACES, MAC_SF_PICTURES, r) == 2);       /* a picture pack makes the fourth tile: still two rows */
     n = mac_set_rows(MAC_TAB_INFO, 0, r);
     /* patch NX02: every Info row shows at once, whatever the flags say: no hint row, no ten-tap details */
     for (unsigned f = 0; f < 16; f++) {
@@ -221,7 +222,8 @@ static void test_settings(void)
     int x, y, w, h, x2, y2, w2, h2;
     for (int t = 0; t < MAC_TAB_COUNT; t++) {
         mac_tab_box(t, &x, &y, &w, &h);
-        CHECK(w >= MAC_TARGET_MIN && h >= MAC_TARGET_MIN && x >= 0 && x + w < MAC_DIV_X && y >= MAC_DRAG_DEAD_Y - 4 && y + h <= MAC_BOTTOM);
+        CHECK(w >= 56 && h >= 56 && x >= 0 && x + w < MAC_DIV_X - MAC_TAB_X && y >= 0 && y + h <= MAC_TAB_PITCH * MAC_TAB_COUNT);   /* patch UX13: boxes are inside the scrolling column, 56 px tabs */
+        CHECK(MAC_TAB_Y0 >= MAC_DRAG_DEAD_Y - 4 && MAC_TAB_Y0 + MAC_TAB_COL_H <= MAC_BOTTOM && MAC_TAB_PITCH - MAC_TAB_H >= 8);   /* the column starts below the drag bar; tabs are 8 px apart; three show */
         if (t > 0) { int px, py, pw, ph; mac_tab_box(t - 1, &px, &py, &pw, &ph); CHECK(py + ph <= y); }
         CHECK(MAC_TAB_TITLE[0][t][0] != '\0' && MAC_TAB_TITLE[1][t][0] != '\0' && MAC_TAB_NAMES[t][0] != '\0');
     }
@@ -257,8 +259,8 @@ static void test_settings(void)
     mac_auto_text(b, sizeof(b), 0, 1); CHECK(strcmp(b, "No") == 0);
     mac_auto_text(b, sizeof(b), 15, 0); CHECK(strcmp(b, "15 min") == 0);
 
-    /* the style tiles: three face styles (patch SF58) then Pictures while a pack is held */
-    CHECK(mac_pair_tiles(0, 0) == 2 && mac_pair_tiles(1, 0) == 1 && mac_pair_tiles(1, 1) == 2 && mac_pair_tiles(2, 1) == 0 && mac_pair_tiles(2, 0) == 0);
+    /* the style tiles: five face styles then Pictures while a pack is held */
+    CHECK(mac_pair_tiles(0, 0) == 2 && mac_pair_tiles(1, 0) == 1 && mac_pair_tiles(1, 1) == 2 && mac_pair_tiles(2, 1) == 0);   /* three face styles (decision 22) then Pictures while a pack is held */
     CHECK(mac_signal_word(-1) == 0 && mac_signal_word(1) == 1 && mac_signal_word(2) == 2 && mac_signal_word(3) == 3 && mac_signal_word(4) == 3);
 }
 
