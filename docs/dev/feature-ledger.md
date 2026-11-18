@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 885 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 886 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 52 items, 6 measured, 19 estimated, 27 placeholders or not built. 83 of 885 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 52 items, 6 measured, 19 estimated, 27 placeholders or not built. 83 of 886 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 31 | 257 | 8 | 51 | 368 | 63 |
-| Maker and tech | 0 | 0 | 70 | 387 | 60 | 0 | 517 | 69 |
+| Maker and tech | 0 | 0 | 70 | 388 | 60 | 0 | 518 | 69 |
 
 ## Everyday user
 
@@ -887,7 +887,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: memory_notes** | Local memory for several adults as plain per-person notes files. | proven virtual | 70 | not declared | `host/maipai_packages/memory_notes` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (83)
+### Scripts and tools (84)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -919,6 +919,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: fw-head-record.py** | Record head moves on the unit for the physics calibration: send scripted steps through the tool path, sample the real servo angle against time, write a CSV. | proven on unit | 100 | not declared | `scripts/fw-head-record.py` | `bench-window10.md`, `bench-window4.md` | doc missing |
 | **Script: fw-lane.sh** | run the firmware batch brief repeatedly (one Codex run per batch) until a run writes ALL DONE or MAX runs pass. | built | 40 | not declared | `scripts/fw-lane.sh` | file exists | doc missing |
 | **Script: fw-pictures.py** | Bench: send made-up pictures to the unit over the USB cable and look at what its face draws (bench builds only). | built | 40 | not declared | `scripts/fw-pictures.py` | file exists | doc missing |
+| **Script: fw-power-run.py** | Chain self.bench.power_log calls into one battery run and write a CSV (bench images only; | proven virtual | 70 | not declared | `scripts/fw-power-run.py` | file exists, a test names it | doc missing |
 | **Script: fw-rebuild.sh** | rebuild the firmware tree from this repo alone: the pinned upstream bases (firmware/BASE), then every patch of | proven virtual | 70 | not declared | `scripts/fw-rebuild.sh` | file exists, a test names it | doc missing |
 | **Script: fw-serial.py** | Bench helper for the unit on the USB cable (bench builds only; | proven virtual | 70 | not declared | `scripts/fw-serial.py` | file exists, a test names it | doc missing |
 | **Script: fw-stress.py** | Memory gate stress run for the unit on the USB cable, with the memory line on. | proven on unit | 100 | not declared | `scripts/fw-stress.py` | `bench-b15.md`, `bench-b9.md` | doc missing |

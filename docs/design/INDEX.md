@@ -27,6 +27,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs-site/assets/theme-button.js` (12): The Light/dark button: switches the page and remembers the choice on this device only.
 - `docs-site/assets/theme.js` (7): Sets the saved light or dark choice before the page paints. Storage can be blocked: the page then follows the 
 - `docs-site/home-intro.html` (13): no header
+- `docs-site/playground/.gitignore` (4): Everything in this folder is build output (bash scripts/virtual-unit/wasm/site-build.sh): the WebAssembly modu
+- `docs-site/vendor/mujoco/LICENSE-Apache-2.0.txt` (202): no header
 - `docs-site/vendor/three-r128/LICENSE` (21): no header
 - `docs-site/vendor/three-r128/three.min.js` (6): Copyright 2010-2021 Three.js Authors
 - `docs-site/viewer-stub.js` (96): View-only 3D viewer. It loads view3d.js unedited and stands in for the unit: the state object, the hooks and t
@@ -121,7 +123,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/upstream-review.md` (71): Upstream firmware review
 - `docs/design/voice-path-architecture-2026-11-16.md` (115): Voice path: connections, model options, measurements and the low-latency design (2026-11-16)
 - `docs/design/wake-word-licensing-2026-11-17.md` (47): Wake word models and redistribution: position after review (2026-11-17)
-- `docs/dev/battery-and-power.md` (65): Battery and power: what the unit can measure, how to log a drain and a charge, and the tables to fill
+- `docs/dev/battery-and-power.md` (67): Battery and power: what the unit can measure, how to log a drain and a charge, and the tables to fill
 - `docs/dev/bench-benchmark.md` (21): Running a voice benchmark
 - `docs/dev/bench-dry-run-2026-11-17.md` (23): Bench checks: virtual dry run
 - `docs/dev/bench-evidence/bench-b15.md` (24): Bench b15 window (2026-11-18)
@@ -151,7 +153,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1118): Feature ledger
+- `docs/dev/feature-ledger.md` (1119): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -287,7 +289,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
 - `docs/dev/version-page-fit.md` (18): Does the version page fit with the affiliation notice (patch SF69)? Measured 2026-11-18
-- `docs/dev/virtual-unit-3d.md` (74): The 3D virtual unit: body, power, axes
+- `docs/dev/virtual-unit-3d.md` (75): The 3D virtual unit: body, power, axes
 - `docs/dev/virtual-unit-assets.md` (15): The installed set in the virtual unit
 - `docs/dev/virtual-unit-dance.md` (44): The dance in the virtual unit
 - `docs/dev/virtual-unit-fidelity.md` (35): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
@@ -402,7 +404,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/optimization.md` (122): Optimization: the image diet, the patch series cleanup, and the host side
 - `docs/plan/pantry-reader-firmware.md` (38): Content pantry on the unit: the reader, the size budget and the heard list (firmware track, 2026-11-18)
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
-- `docs/plan/per-unit-behavior.md` (31): Per-unit behavior (decision 16, many robots)
+- `docs/plan/per-unit-behavior.md` (32): Per-unit behavior (decision 16, many robots)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/playground-live.md` (29): The host API for a live playground (owner decision 21)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
@@ -444,7 +446,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/undefined-host-calls-2026-11-18.md` (24): Host calls with no firmware definition (2026-11-18)
 - `docs/plan/ux13-batches.md` (14): UX13: the screens at finger size, in batches (playground track)
 - `docs/plan/ux13c-control-sheet-brief.md` (20): UX13c brief: the control sheet at finger size (for a Codex lane, read by the playground track before it lands)
-- `docs/plan/view-requests.md` (57): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
+- `docs/plan/view-requests.md` (85): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
+- `docs/plan/wasm-port-report.md` (105): WebAssembly port: the virtual robot in a browser, no server
 - `docs/plan/wasm-spike-report.md` (95): WebAssembly spike: the virtual robot in a browser, no server
 - `docs/playground/dances-and-lights.md` (15): Dances and the light show
 - `docs/playground/dev-architecture.md` (17): Architecture of the virtual unit
@@ -895,7 +898,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5320): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5359): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
@@ -1127,7 +1130,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/head_search.py` (266): A short, quiet look around: a few head poses in turn, for one reason, with a cap and a back-off.
 - `host/maipai_body/bodies/stackchan/head_touch_filter.py` (73): Ignore the head sensor's phantom touches (owner report 2026-10-21).
 - `host/maipai_body/bodies/stackchan/idle_faces.py` (65): Occasional, gentle expression changes while a StackChan is otherwise idle."""
-- `host/maipai_body/bodies/stackchan/light_service.py` (238): The StackChan light service: facts in, one ring look out.
+- `host/maipai_body/bodies/stackchan/light_service.py` (241): The StackChan light service: facts in, one ring look out.
 - `host/maipai_body/bodies/stackchan/light_wiring.py` (233): The StackChan light wiring: poll the link, the device and the battery.
 - `host/maipai_body/bodies/stackchan/lock_voice.py` (104): ruff: noqa: E501
 - `host/maipai_body/bodies/stackchan/measure/__init__.py` (5): StackChan unit-arrival measurement kit."""
@@ -1162,7 +1165,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/talk_games.py` (429): ruff: noqa: E501
 - `host/maipai_body/bodies/stackchan/timers.py` (332): On-unit timers and alarms, the host side (firmware patches 090 to 094).
 - `host/maipai_body/bodies/stackchan/tool_parity.py` (30): The unit tool names the host sends that no firmware patch defines, each with a stated status.
-- `host/maipai_body/bodies/stackchan/turn.py` (2385): StackChan audio turn bridge to the existing hub speech clients."""
+- `host/maipai_body/bodies/stackchan/turn.py` (2397): StackChan audio turn bridge to the existing hub speech clients."""
 - `host/maipai_body/bodies/stackchan/updater.py` (297): Flasher and updater: check a signed release, then flash it or push it over the air.
 - `host/maipai_body/bodies/stackchan/uplink_stats.py` (108): Uplink statistics the self-test can read: hearing (frames, bytes, peak)
 - `host/maipai_body/bodies/stackchan/vision_bridge.py` (423): Host-side StackChan camera tracking and consent-gated face recognition."""
@@ -1445,7 +1448,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/static/index.html` (94): The offline ladder: the text is built on the robot from real
 - `host/maipai_body/supervisor.py` (211): Workers under a watchdog: a dead or silent worker is restarted alone, with back-off, and a worker that keeps f
 - `host/maipai_body/swipe_pages.py` (352): ruff: noqa: E501
-- `host/maipai_body/unit_behaviors.py` (142): ruff: noqa: E501
+- `host/maipai_body/unit_behaviors.py` (162): ruff: noqa: E501
 - `host/maipai_body/unit_device.py` (138): ruff: noqa: E501
 - `host/maipai_body/unit_extras.py` (930): ruff: noqa: E501
 - `host/maipai_body/unit_lock.py` (266): ruff: noqa: E501
@@ -2197,6 +2200,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
 - `host/tests/test_funding_check.py` (72): scripts/funding-check.py fails on a funding link that .github/FUNDING.yml does not list."""
 - `host/tests/test_fuzz_cores.py` (22): A short run of the sanitizer fuzz of the unit's parsers (scripts/fuzz-cores.sh, docs/dev/fuzzing-and-hostile-p
+- `host/tests/test_fw_power_run.py` (107): scripts/fw-power-run.py: the chain of power_log calls, the safety stops and the numbers it prints (a fake unit
 - `host/tests/test_fw_stress_gate.py` (43): The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
 - `host/tests/test_game_scores.py` (48): Best scores per person: a finished game is filed under the named player or Someone; an early stop saves nothin
 - `host/tests/test_game_sounds.py` (33): The synthesized game sounds (scripts/make-game-sounds.py): deterministic, none clipping, all at the same chime
@@ -2563,7 +2567,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vu_tools_pages_filler_mood.py` (57): no header
 - `host/tests/test_vu_tools_user_only.py` (30): Behavior checks for the virtual unit user-only tools."""
 - `host/tests/test_vu_view_live.py` (146): The virtual unit view's Simulation or Live picker (owner decision 21) and the battery drain switch, under a re
-- `host/tests/test_vu_view_pointer.py` (427): The virtual unit view under a real pointer: a browser is driven through its own input pipeline (mouse press, m
+- `host/tests/test_vu_view_pointer.py` (441): The virtual unit view under a real pointer: a browser is driven through its own input pipeline (mouse press, m
 - `host/tests/test_wake.py` (104): G2's own acceptance: the wake state machine, driven by a fake engine."""
 - `host/tests/test_wake_engine_real_model.py` (128): G2's real-model acceptance: `OpenWakeWordEngine` against the actual
 - `host/tests/test_wake_models.py` (91): Wake-word asset pins resolve through the paired hub cache."""
@@ -2641,6 +2645,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-head-record.py` (261): Record head moves on the unit for the physics calibration: send scripted steps through the tool path, sample t
 - `scripts/fw-lane.sh` (12): run the firmware batch brief repeatedly (one Codex run per batch) until a run writes ALL DONE or MAX runs pass
 - `scripts/fw-pictures.py` (204): Bench: send made-up pictures to the unit over the USB cable and look at what its face draws (bench builds only
+- `scripts/fw-power-run.py` (127): Chain self.bench.power_log calls into one battery run and write a CSV (bench images only; owner steps in docs/
 - `scripts/fw-rebuild.sh` (74): rebuild the firmware tree from this repo alone: the pinned upstream bases (firmware/BASE), then every patch of
 - `scripts/fw-serial.py` (289): Bench helper for the unit on the USB cable (bench builds only; see patch V01 and H01).
 - `scripts/fw-stress.py` (191): Memory gate stress run for the unit on the USB cable, with the memory line on.
@@ -2714,7 +2719,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/dance_sim.py` (605): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
 - `scripts/virtual-unit/e2e.py` (704): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
-- `scripts/virtual-unit/e2e_fleet.py` (708): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
+- `scripts/virtual-unit/e2e_fleet.py` (727): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
 - `scripts/virtual-unit/e2e_hostile.py` (337): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
@@ -2788,16 +2793,34 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/ui_style_check.py` (30): Count the font sizes and color literals the app screen sources use, on the overlay tree built by build-face.sh
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
 - `scripts/virtual-unit/version_page_fit.cc` (69): Measures the version page of the More screen (patches U05, NX02, SF69) with the real LVGL layout: the same roo
-- `scripts/virtual-unit/view.html` (328): app{display:flex;height:100%}
-- `scripts/virtual-unit/view.py` (471): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
+- `scripts/virtual-unit/view.html` (329): app{display:flex;height:100%}
+- `scripts/virtual-unit/view.py` (498): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
 - `scripts/virtual-unit/view3d.js` (497): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
 - `scripts/virtual-unit/vunit.py` (354): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/virtual-unit/wasm/build.sh` (96): build the virtual robot's browser pieces with Emscripten: the face (Spike A: the unit's real LVGL face code) a
+- `scripts/virtual-unit/wasm/bundle.py` (63): pack the virtual unit's Python, unchanged, with the data files it reads and the adapter layer into one zip the
 - `scripts/virtual-unit/wasm/check.js` (34): Headless check: serves this folder, opens index.html in Chromium (Playwright), taps the face, runs the cores, 
+- `scripts/virtual-unit/wasm/cores_all.c` (19): The hand-written wrappers of the virtual unit's cores in one translation unit: the spike's lock, limiter and d
 - `scripts/virtual-unit/wasm/cores_api.c` (37): Spike B: three of the unit's pure C cores behind one small C API for WebAssembly: the lock core (maipai_lock_c
 - `scripts/virtual-unit/wasm/face_api.cc` (124): Spike A: the unit's real face (LVGL plus the default avatar classes) behind a small C API for WebAssembly.
+- `scripts/virtual-unit/wasm/gen_cores.py` (94): write a C wrapper and a signature table for the unit's own core headers (the plain C rules in firmware main/ha
+- `scripts/virtual-unit/wasm/gen_sdkconfig.py` (40): write the sdkconfig.h a host or WebAssembly build of the unit's screens needs, without ESP-IDF: the firmware's
 - `scripts/virtual-unit/wasm/index.html` (46): no header
+- `scripts/virtual-unit/wasm/make_page.py` (70): make the playground page from the native viewer page (scripts/virtual-unit/view.html) without editing it: the 
 - `scripts/virtual-unit/wasm/page.js` (68): The page: loads the two wasm modules, drives the face with requestAnimationFrame, shows measured numbers. Self
+- `scripts/virtual-unit/wasm/page/app.js` (110): The playground's loader and router. It loads the WebAssembly modules and Pyodide from this site's own folders 
+- `scripts/virtual-unit/wasm/page/boot.js` (39): Starts the virtual unit in the page (or in Node for the tests): the renderer pool, the cores, Pyodide with the
+- `scripts/virtual-unit/wasm/page/bridge.js` (63): The bridge between the Python virtual unit (Pyodide) and the WebAssembly modules: renderer instances (screens,
+- `scripts/virtual-unit/wasm/page/engine.js` (36): The renderer bridge: one native renderer program built as WebAssembly (screens, lock or cover), driven by comm
+- `scripts/virtual-unit/wasm/page/py/api.py` (187): The playground's API: what the native viewer server (view.py) answers over HTTP, answered in the page. The rea
+- `scripts/virtual-unit/wasm/page/py/parity_cases.py` (300): Parity cases: the same Python runs in two places, natively (the real ctypes libraries, the native renderer pro
+- `scripts/virtual-unit/wasm/page/py/wasm_shim.py` (194): The adapter layer between the virtual unit's Python (copied unchanged into the browser) and the WebAssembly mo
+- `scripts/virtual-unit/wasm/page/test.html` (2): no header
+- `scripts/virtual-unit/wasm/page/test.js` (17): The test harness page (test.html): the same modules and the same Python as the playground, without the viewer 
+- `scripts/virtual-unit/wasm/parity.js` (108): Parity check of the browser build, in headless Chromium (Playwright): starts the page from docs-site/playgroun
+- `scripts/virtual-unit/wasm/run_native.py` (45): run the parity cases (page/py/parity_cases.py) natively: the real ctypes libraries (the core wrappers compiled
+- `scripts/virtual-unit/wasm/shim_main.py` (71): turn one of the native renderer programs (a main() that reads command lines from stdin until the end) into a m
+- `scripts/virtual-unit/wasm/site-build.sh` (161): build the static playground (docs-site/playground/): the unit's screens renderer, the lock keypad and the link
 - `scripts/wakeword/README.md` (17): Local wake word experiment
 - `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
 - `scripts/wakeword/features.py` (77): Small, dependency-light audio helpers for local wake-word experiments."""
