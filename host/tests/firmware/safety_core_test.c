@@ -224,6 +224,19 @@ static void test_remote(void)
     mr_session(&r, 1, "remote", 4000);
     mr_set_host(&r, 222);
     CHECK(r.host_id == 222);
+    /* the host process restarts with a new random id: its heartbeats are ignored for the id until the dead-man time has run, then taken */
+    mr_t h;
+    mr_init(&h);
+    mr_session(&h, 1, "remote", 1000);
+    mr_set_host(&h, 111);
+    mr_session(&h, 1, "remote", 4000); /* the new host process, 3 s later */
+    mr_set_host(&h, 222);
+    CHECK(h.host_id == 111); /* a call stamped with 222 is refused for now: fail safe, at most MR_DEAD_MAN_MS */
+    CHECK(mr_session_on(&h, 4000 + MR_DEAD_MAN_MS - 1) == 1);
+    CHECK(mr_session_on(&h, 4000 + MR_DEAD_MAN_MS + 1) == 0); /* no heartbeat ... */
+    mr_session(&h, 1, "remote", 4000 + MR_DEAD_MAN_MS + 2000); /* ... and the host that is still there starts a new session */
+    mr_set_host(&h, 222);
+    CHECK(h.host_id == 222);
     /* the dead-man timeout also clears it */
     CHECK(mr_session_on(&r, 4000 + MR_DEAD_MAN_MS + 1) == 0 && r.host_id == 0);
 }

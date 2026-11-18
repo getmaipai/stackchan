@@ -45,3 +45,11 @@ def test_gate_fails_on_a_host_error_and_on_missing_replies():
     assert any("1 of 3" in f for f in failures)
     assert any("server hello" in f for f in failures)
     assert any("reset" in f for f in bench.gate_verdict("rst:0x1\nrst:0x1\n", 0, 0))
+
+
+def test_noise_gate_verdict():
+    bench = _bench()
+    assert bench.noise_verdict([9, 8, 10]) == []
+    assert any("more than half" in f for f in bench.noise_verdict([60, 59, 60]))
+    assert any("cap" in f for f in bench.noise_verdict([75]))
+    assert bench.noise_verdict([])  # nothing read is a failure, not a pass
