@@ -6,6 +6,9 @@
 //   flag                                 Mine Finder: switch flagging on or off
 //   advance MS                           run the clock in 30 ms ticks (falls, bounces, pulses, flips, pops, the board shake)
 //   over won|lost|draw|SCORE TEXT|BEST TEXT|NEWBEST 0 or 1|en or es   the shared game-over screen (patch UX15) over the game, drawn by the unit's own code
+//   qa riddle|joke or riddle|WORDS|ANSWER|CHARS SHOWN (-1 all)|REVEALED 0 or 1|en or es   the question and answer game screens (patch UX17)
+//   qa trivia|QUESTION|A1;A2;A3;A4|N|TOTAL|SCORE|RESULT 0 1 2|CHOSEN|RIGHT|lang
+//   qa twenty|QUESTION|N|GUESS 0 or 1|lang
 //   snap FILE.png
 // Build: see scripts/virtual-unit/build-screens.sh. Placement: host-side development tool; no firmware change. Upstream: none.
 #include <lvgl.h>
@@ -26,6 +29,10 @@
 #include "maipai_grid_anim_core.h"
 #include "maipai_games_sfx_core.h"
 #include "maipai_games_draw.h"
+#if __has_include("maipai_qa.h")
+#include "maipai_qa.h"   /* patch UX17: the question and answer game screens */
+#define HAVE_QA 1
+#endif
 #if __has_include("maipai_game_over.h")
 #include "maipai_game_over.h"   /* patch UX15: the shared game-over screen */
 #define HAVE_GAME_OVER 1
@@ -189,6 +196,28 @@ int main()
             mgo::build(lv_layer_top(), res, f[1].c_str(), f[2].c_str(), f[3] == "1", f[4] == "es");
 #else
             printf("this firmware tree has no game-over screen (patch UX15)\n");
+#endif
+        } else if (c == "qa") {
+#ifdef HAVE_QA
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 12) f.push_back("");
+            static std::vector<std::string> keep;   // the label texts outlive this command
+            if (f[0] == "riddle") {
+                mqa::riddle(lv_layer_top(), f[1] == "joke", f[2].c_str(), f[4].empty() ? -1 : atoi(f[4].c_str()), f[3].c_str(), f[5] == "1", f[6] == "es");
+            } else if (f[0] == "trivia") {
+                std::vector<std::string> ans; std::stringstream as(f[2]);
+                for (std::string a; std::getline(as, a, ';');) ans.push_back(a);
+                const char* ap[4] = {"", "", "", ""};
+                for (size_t i = 0; i < ans.size() && i < 4; i++) ap[i] = ans[i].c_str();
+                mqa::trivia(lv_layer_top(), f[1].c_str(), ap, (int)ans.size(), atoi(f[3].c_str()), atoi(f[4].c_str()), atoi(f[5].c_str()), atoi(f[6].c_str()), atoi(f[7].c_str()), atoi(f[8].c_str()), f[9] == "es");
+            } else if (f[0] == "twenty") {
+                mqa::twenty(lv_layer_top(), f[1].c_str(), atoi(f[2].c_str()), f[3] == "1", f[4] == "es");
+            }
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no question and answer screens (patch UX17)\n");
 #endif
         } else if (c == "snap") {
             std::string f; in >> f; snap(f.c_str());

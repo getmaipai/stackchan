@@ -88,6 +88,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/next-ui-countdown-2026-11-17.md` (40): Next UI: full-screen countdown (owner idea, 2026-11-17)
 - `docs/design/next-unit-voice-commands-2026-11-17.md` (41): Next: more offline voice commands on the unit (review suggestion, 2026-11-17)
 - `docs/design/next-wake-word-2026-11-17.md` (17): Custom and alternate wake words (owner question, 2026-11-17)
+- `docs/design/offline-mumble.md` (46): The offline mumble
 - `docs/design/ota-update-2026-11-16.md` (39): Wireless update, 2026-11-16
 - `docs/design/overlays-2026-11-17.md` (145): Overlay readability pass, 2026-11-17 (patches O01 and O02)
 - `docs/design/own-llm-brain.md` (21): Own-LLM brain
@@ -223,6 +224,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
 - `docs/dev/model-previews/joints.gif` (1486): Binary file docs/dev/model-previews/joints.gif matches
+- `docs/dev/mumble/de.wav` (281): no header
+- `docs/dev/mumble/en.wav` (243): Binary file docs/dev/mumble/en.wav matches
+- `docs/dev/mumble/es.wav` (259): no header
+- `docs/dev/mumble/fr.wav` (278): no header
+- `docs/dev/mumble/it.wav` (284): no header
+- `docs/dev/mumble/pt.wav` (270): no header
+- `docs/dev/mumble/samples.json` (673): no header
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (50): How MaiPai for StackChan fits together
 - `docs/dev/releases/b13.md` (45): Build report: b13
@@ -667,7 +675,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (335): no header
+- `firmware/patches/ORDER` (336): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -840,6 +848,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX14-clock-styles-tap-and-sleep-sign.patch` (190): The clock page gets three styles that a tap cycles, and shows when the unit sleeps (owner idea 2026-11-18, spe
 - `firmware/patches/UX14b-clock-flip-on-the-card-tween.patch` (133): The clock style change plays a card flip (owner idea 2026-11-18, spec docs/design/clock-styles.md "The flip").
 - `firmware/patches/UX15-shared-game-over-screen.patch` (225): One game-over screen for every game (owner idea 2026-11-18, spec docs/design/game-over-screen.md). A face for 
+- `firmware/patches/UX16-offline-mumble-core.patch` (197): The offline mumble (owner decision 24, 2026-11-18; spec docs/design/offline-mumble.md). When the unit has word
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -1936,6 +1945,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/mood_core_test.c` (129): Host test for the mood core (patch M01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/motion_limit_core_test.c` (292): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
 - `host/tests/firmware/mouthcue_core_test.c` (152): Host test for the mouth cue player (patch SF10). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>. 
+- `host/tests/firmware/mumble_core_dump.c` (14): Prints the blips of the text in argv[1] over argv[2] ms, one line each: t dur f0 f1 level mouth (patch UX16). 
 - `host/tests/firmware/music_core_test.c` (168): Host test for the on-unit music features (patch 100): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/music_mood_test.c` (54): Host test for the music mood faces (patch V03): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/nettest_core_test.c` (151): Host test for the network test core (patch U04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
@@ -2264,6 +2274,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_moves_react.py` (222): MOVES-01: the plan's ``react`` slot entry point, behind a flag (off by default).
 - `host/tests/test_moves_teach.py` (339): MOVES-02: teach it a move by hand, record it, name it, replay it.
 - `host/tests/test_moves_teach_unit.py` (48): MOVES-02 on a physical unit. Skipped unless ``MAIPAI_BODY_UNIT=1``.
+- `host/tests/test_mumble.py` (119): Patch UX16, the offline mumble: the pure C core and the Python reference give the same notes for the same text
 - `host/tests/test_music_dance.py` (237): BOT-SC-DANCE-01 (host half): music detection and the dance policy.
 - `host/tests/test_mute_local.py` (112): MUTE-LOCAL-01: an on-robot unmute, so a hub mute can never strand the robot."""
 - `host/tests/test_night.py` (626): The camera may watch but neither the sensor nor the camera gives a reading.
@@ -2581,7 +2592,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/build.sh` (37): draw the real face (LVGL and the unit's own face classes) into memory on this Mac, so a look can be judged and
 - `scripts/fw-face-render/games_render.cc` (244): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
-- `scripts/fw-face-render/grid_render.cc` (198): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
+- `scripts/fw-face-render/grid_render.cc` (227): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
 - `scripts/fw-face-render/hooks_banner.cc` (324): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
 - `scripts/fw-face-render/hooks_new.cc` (57): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
@@ -2638,6 +2649,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/make-hero-playground-gif.mjs` (74): Make docs/images/hero-playground.gif: a scripted screen recording of the playground (view.py: 3D model, the un
 - `scripts/make-hero-robot-gif.py` (80): Make docs/images/hero-robot.gif from the virtual unit: the unit's own screen renderer, scripted and reproducib
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
+- `scripts/make-mumble-samples.py` (38): Make the offline mumble samples to listen to: docs/dev/mumble/<lang>.wav (8 kHz, 16 bit, about 3 seconds each)
 - `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.
 - `scripts/make-update-vectors.py` (92): write the signed-update test vectors (host/tests/fixtures/update-signature-vectors.json) from a fixed TEST see
 - `scripts/make-vu-screenshots.py` (52): the screenshots for the user docs come from the virtual unit's golden frames (real LVGL drawing of the unit's 
@@ -2656,6 +2668,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/run-bg.sh` (18): run a long command (firmware build, flash, soak, gate) with its full output in a log file and
 - `scripts/sfx-wav.c` (49): Writes every game clip of the unit's sound core (maipai_games_sfx_core.h) as a 16-bit mono 16 kHz WAV, rendere
 - `scripts/sfx-wav.sh` (13): render every game sound of the unit to a WAV file with the unit's own sound core, so the owner can listen to t
+- `scripts/sounds-demo.py` (87): A page to listen to the robot's sounds: the game sounds (the unit's own tone clips and the sketches) and the o
 - `scripts/spec-dir.sh` (4): no header
 - `scripts/spec-drift-check.sh` (32): the vendored spec (host/spec-vendor/spec) is a snapshot, never edited by hand. Fails when a vendored file diff
 - `scripts/spelling-allow.txt` (62): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
@@ -2715,6 +2728,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/stackchan.params.json` (779): no header
 - `scripts/virtual-unit/model/stackchan.web.glb` (6784): Binary file scripts/virtual-unit/model/stackchan.web.glb matches
 - `scripts/virtual-unit/model/validate.sh` (18): check stackchan.glb with the Khronos glTF validator, on this Mac only (the file is read locally; nothing is up
+- `scripts/virtual-unit/mumble.py` (205): The offline mumble, reference implementation (patch UX16, spec docs/design/offline-mumble.md): one short note 
 - `scripts/virtual-unit/overlay-skip.txt` (1): no header
 - `scripts/virtual-unit/overlay_patches.py` (78): Brings the face overlay tree (.runs/fixtree, made by build-face.sh from a replayed firmware tree) up to the wh
 - `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (7): no header
@@ -2729,7 +2743,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
-- `scripts/virtual-unit/scenarios.py` (359): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (374): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/talk.js` (44): The Talk panel of the virtual unit view: microphone and speaker switches, level meters, the transcript, the la
@@ -2744,6 +2758,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/tools/facepic.py` (183): Virtual picture-face pack tools."""
 - `scripts/virtual-unit/tools/motion.py` (241): Virtual handlers for motion, look, reactions and basic robot tools."""
 - `scripts/virtual-unit/tools/mouth_cues.py` (43): self.face.mouth_cues (patch SF10): the host sends the mouth levels of the next speech as [[ms, level], ...]. R
+- `scripts/virtual-unit/tools/mumble_sim.py` (48): Virtual only (not a firmware tool): the offline mumble on the virtual unit (patch UX16, docs/design/offline-mu
 - `scripts/virtual-unit/tools/network.py` (187): Network, update, pack and remote-control virtual unit tools."""
 - `scripts/virtual-unit/tools/page_overlay.py` (123): Virtual page and overlay tool handlers."""
 - `scripts/virtual-unit/tools/pages_filler_mood.py` (155): Virtual behavior for pages, filler and mood tools."""
