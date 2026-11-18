@@ -1,0 +1,18 @@
+# Intent: Set the minimal and classic resting mouth widths so every emotion draws at least 30 px.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_look_core.h (ours, patches X01, V10 to V12)
+# Check after a flash: every style times every emotion drawn from the unit shows a mouth 30 px or wider
+
+--- a/firmware/main/hal/maipai_look_core.h
++++ b/firmware/main/hal/maipai_look_core.h
+@@ -75,8 +75,8 @@
+     {"big_eyes", 85, 70, -14, 56, ML_MOUTH_CUTE, 38, 7, 0, 79, 85, 100, 1, 1, 5, 7},
+     {"eyes_only", 80, 70, 0, 56, ML_MOUTH_NONE, 0, 0, 0, 76, 80, 55, 0, 0, 6, 0},
+     {"stock", 20, 70, -8, 46, ML_MOUTH_BAR, 90, 6, 1, 20, 20, 100, 0, 0, 3, 0},
+-    {"classic", 72, 70, -18, 56, ML_MOUTH_CUTE, 36, 6, 0, 56, 72, 90, 0, 1, 5, 7},
+-    {"minimal", 40, 62, -10, 56, ML_MOUTH_CUTE, 22, 3, 0, 28, 40, 100, 0, 0, 5, 4},
++    {"classic", 72, 70, -18, 56, ML_MOUTH_CUTE, 42, 6, 0, 56, 72, 90, 0, 1, 5, 7},
++    {"minimal", 40, 62, -10, 56, ML_MOUTH_CUTE, 44, 3, 0, 28, 40, 100, 0, 0, 5, 4},
+ };
+ 
+ /* Screen y of the middle of the eyes of a style (patch O02: the glow and the overlays' eye protection use it; styles are measured from the
