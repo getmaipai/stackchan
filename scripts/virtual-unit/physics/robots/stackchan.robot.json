@@ -1,0 +1,57 @@
+{
+  "schema": "robot-description/1",
+  "robot": "stackchan",
+  "note": "Every number in params is {v, src, note}. src is measured (a data sheet, the firmware or a bench recording) or assumed (a stand-in until a bench recording fits it: scripts/virtual-unit/physics/calibrate.py). Units: meters, kilograms, seconds, newton meters, degrees for angles in this file.",
+  "capabilities": ["head_pan_tilt", "imu"],
+  "frame": "x forward, y left, z up, origin on the table under the base center",
+  "params": {
+    "table_friction": {"v": 0.8, "src": "assumed", "note": "rubber feet on a desk"},
+    "base_w": {"v": 0.054, "src": "measured", "note": "maker data sheet, overall width"},
+    "base_d": {"v": 0.0615, "src": "measured", "note": "maker data sheet, overall depth"},
+    "base_h": {"v": 0.008, "src": "assumed", "note": "base plate thickness, from product photos"},
+    "feet_h": {"v": 0.002, "src": "assumed", "note": "rubber feet height"},
+    "yaw_housing_r": {"v": 0.0135, "src": "assumed", "note": "pan servo housing radius, from product photos"},
+    "yaw_housing_h": {"v": 0.009, "src": "assumed", "note": "pan servo housing height"},
+    "pitch_axis_z": {"v": 0.020, "src": "assumed", "note": "height of the nod axis above the table"},
+    "head_w": {"v": 0.054, "src": "measured", "note": "CoreS3 enclosure width"},
+    "head_h": {"v": 0.054, "src": "measured", "note": "CoreS3 enclosure height"},
+    "head_d": {"v": 0.0155, "src": "measured", "note": "CoreS3 enclosure depth"},
+    "total_h": {"v": 0.0705, "src": "measured", "note": "maker data sheet, overall height with the head upright"},
+    "tilt_servo_w": {"v": 0.026, "src": "assumed", "note": "nod servo box, from product photos"},
+    "tilt_servo_h": {"v": 0.021, "src": "assumed", "note": "nod servo box"},
+    "tilt_servo_d": {"v": 0.020, "src": "assumed", "note": "nod servo box"},
+    "tilt_servo_x": {"v": -0.015, "src": "assumed", "note": "nod servo box center behind the pitch axis"},
+    "mass_total": {"v": 0.1872, "src": "measured", "note": "maker data sheet, whole robot"},
+    "mass_head": {"v": 0.0727, "src": "measured", "note": "listed weight of the CoreS3 alone"},
+    "mass_tilt_servo": {"v": 0.0195, "src": "assumed", "note": "mass_total minus head, split between base, pan housing and nod servo"},
+    "mass_yaw_housing": {"v": 0.025, "src": "assumed", "note": "pan servo and housing"},
+    "mass_base": {"v": 0.070, "src": "assumed", "note": "base plate, battery, board"},
+    "head_com_x": {"v": 0.0, "src": "assumed", "note": "center of mass of the head along x from the head center (uniform box)"},
+    "yaw_range_deg": {"v": [-128, 128], "src": "measured", "note": "firmware tool limits (self.robot.set_head_angles)"},
+    "pitch_range_deg": {"v": [0, 90], "src": "measured", "note": "firmware tool limits; the maker advises 5 to 85 for the vertical servo"},
+    "pitch_safe_deg": {"v": [5, 85], "src": "measured", "note": "maker guidance"},
+    "yaw_kp": {"v": 0.40, "src": "assumed", "note": "position gain, N m per rad"},
+    "yaw_kv": {"v": 0.0040, "src": "assumed", "note": "velocity gain, N m s per rad"},
+    "pitch_kp": {"v": 0.50, "src": "assumed", "note": "position gain, N m per rad"},
+    "pitch_kv": {"v": 0.0050, "src": "assumed", "note": "velocity gain, N m s per rad"},
+    "torque_limit": {"v": 0.12, "src": "assumed", "note": "most torque a servo gives, N m (stall torque of a small hobby servo class)"},
+    "joint_damping": {"v": 0.002, "src": "assumed", "note": "viscous friction in the gears, N m s per rad"},
+    "joint_friction": {"v": 0.003, "src": "assumed", "note": "dry friction in the gears, N m"},
+    "joint_armature": {"v": 0.00001, "src": "assumed", "note": "reflected rotor inertia, kg m^2"},
+    "timestep": {"v": 0.002, "src": "assumed", "note": "integration step, s"},
+    "imu_z_in_head": {"v": 0.0, "src": "assumed", "note": "IMU height above the head center"},
+    "tool_speed_deg_s": {"v": [100, 1000], "src": "measured", "note": "firmware tool speed range"},
+    "moves_per_minute_cap": {"v": 40, "src": "measured", "note": "firmware patch 038"}
+  },
+  "joints": [
+    {"name": "yaw", "role": "head.yaw", "axis": [0, 0, -1], "range": "yaw_range_deg", "kp": "yaw_kp", "kv": "yaw_kv", "positive": "the head turns clockwise seen from above (the tool's yaw sign)"},
+    {"name": "pitch", "role": "head.pitch", "axis": [0, -1, 0], "range": "pitch_range_deg", "kp": "pitch_kp", "kv": "pitch_kv", "positive": "the head looks up"}
+  ],
+  "sensors": [
+    {"name": "imu", "capability": "imu", "site_on": "head", "outputs": ["imu.accel", "imu.gyro", "imu.tilt_deg"], "note": "accelerometer and gyro in the head frame; tilt is the angle of gravity from the head's upright axis"}
+  ],
+  "derived": [
+    {"output": "carried", "rule": "the accelerometer norm leaves 9.81 by more than 2.5 for 150 ms (on), calm again for 1 s (off): the same debounce as the movement limiter (patch ML01)"},
+    {"output": "orientation", "rule": "tilt_deg bands: upright under 15, tilted 15 to 45, side or inverted over 45, with the limiter's hysteresis"}
+  ]
+}

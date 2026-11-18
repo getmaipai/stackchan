@@ -19,5 +19,8 @@ Espressif ESP-SR and ESP-IDF. The wake word and command recognizer, the audio fr
 Espressif; the build downloads them under their own licenses (see THIRD-PARTY.md) and this repository holds none of their files.
 This project is not affiliated with, endorsed by, or sponsored by Espressif.
 
+MuJoCo, Apache-2.0. The optional physics mode of the virtual unit loads the engine's WebAssembly build from a pinned public address when a
+person turns it on. The engine is not part of this repository, the firmware or the host program.
+
 Product and company names (M5Stack, StackChan, Espressif, and any others named in these files) are used only to say what this
 software works with. They belong to their respective owners.

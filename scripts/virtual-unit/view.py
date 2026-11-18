@@ -31,6 +31,15 @@ HWSPEC = importlib.util.spec_from_file_location("hw", HERE / "hw.py")
 hw = importlib.util.module_from_spec(HWSPEC)
 HWSPEC.loader.exec_module(hw)
 HW = hw.Hardware()
+PHYS = HERE / "physics"
+_ms = importlib.util.spec_from_file_location("mjcf", PHYS / "mjcf.py")
+mjcf = importlib.util.module_from_spec(_ms)
+_ms.loader.exec_module(mjcf)
+_is = importlib.util.spec_from_file_location("imu", PHYS / "imu.py")
+imu = importlib.util.module_from_spec(_is)
+_is.loader.exec_module(imu)
+PICKUP = imu.PickupRule()
+PHYSICS = {"driven": False, "imu": None}
 PLAYING = {"name": None}
 COVER_RENDER = HERE.parents[1] / ".runs" / "vu-screens" / "cover" / "cover_render"
 APPLIED = {"status": None, "tired": 0, "cover_ring": []}
@@ -173,7 +182,7 @@ class Handler(BaseHTTPRequestHandler):
                 recent = [t for t in UNIT.move_times if UNIT.now_ms - t < 60000]
                 state = {"now_ms": UNIT.now_ms, "emotion": UNIT.emotion, "tools": len(UNIT.tool_names), "head": head_now(), "leds": APPLIED["cover_ring"] or UNIT.leds,
                          "battery": UNIT.battery, "hw": HW.view(), "motion": mot, "moves_last_minute": len(recent), "moves_cap": vunit.MOVES_PER_MINUTE,
-                         "dance": HW.dance, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
+                         "dance": HW.dance, "physics": PHYSICS, "yaw_range": vunit.YAW_RANGE, "pitch_range": vunit.PITCH_RANGE, "pitch_safe": [5, 85]}
             self._send(json.dumps(state).encode(), "application/json")
         elif self.path == "/tools":
             tools = [{"name": n, "args": UNIT.tool_args.get(n, {}), "user_only": n in UNIT.user_only} for n in UNIT.tool_names]
@@ -184,6 +193,14 @@ class Handler(BaseHTTPRequestHandler):
             names = [n for n in list(scenarios.SCENARIOS) + list(scenarios.SCREENS) if UNIT.profile == "screens" or n in scenarios.SCENARIOS]
             names += [f"rec:{n}" for n in recordings()]
             self._send(json.dumps({"scenarios": names}).encode(), "application/json")
+        elif self.path == "/physics/model.xml":
+            self._send(mjcf.mjcf(mjcf.load()).encode(), "application/xml")
+        elif self.path == "/physics/robot.json":
+            self._send((PHYS / "robots" / "stackchan.robot.json").read_bytes(), "application/json")
+        elif self.path == "/physics/engine.json":
+            self._send((PHYS / "THIRD-PARTY-physics-engine.json").read_bytes(), "application/json")
+        elif self.path == "/physics.js":
+            self._send((PHYS / "physics.js").read_bytes(), "text/javascript; charset=utf-8")
         elif self.path == "/view3d.js":
             self._send((HERE / "view3d.js").read_bytes(), "text/javascript; charset=utf-8")
         elif self.path == "/":
@@ -202,6 +219,17 @@ class Handler(BaseHTTPRequestHandler):
                     APPLIED["status"] = None
                 sync_motion()
             return self._send(json.dumps({"isError": True, "text": refused} if refused else {"ok": True, "hw": HW.view()}).encode(), "application/json")
+        if self.path == "/imu":
+            with LOCK:  # the physics model's accelerometer and tilt feed the same carried and orientation rule as the unit's pickup detector
+                carried, orient = PICKUP.feed(UNIT.now_ms, tuple(req["accel"]), float(req["tilt_deg"]))
+                PHYSICS.update(driven=True, imu={"accel": req["accel"], "tilt_deg": req["tilt_deg"], "carried": carried, "orient": orient})
+                HW.carried, HW.orient = carried, orient
+                sync_motion()
+            return self._send(json.dumps({"ok": True, "carried": carried, "orient": orient}).encode(), "application/json")
+        if self.path == "/imu/off":
+            with LOCK:
+                PHYSICS.update(driven=False, imu=None)
+            return self._send(b'{"ok": true}', "application/json")
         if self.path in ("/call", "/touch", "/scenario") and not HW.on:
             return self._send(json.dumps({"isError": True, "text": "The unit is off. Press its power button (or the Power button in the panel)."}).encode(), "application/json")
         if self.path == "/call":

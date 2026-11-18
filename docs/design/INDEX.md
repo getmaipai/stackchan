@@ -15,9 +15,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `AGENTS.md` (56): MaiPai StackChan
 - `CLAUDE.md` (1): no header
 - `LICENSE` (664): no header
-- `NOTICE` (23): no header
+- `NOTICE` (26): no header
 - `README.md` (89): MaiPai for StackChan
-- `THIRD-PARTY.md` (41): Third-party notices
+- `THIRD-PARTY.md` (42): Third-party notices
 - `docs/STYLE.md` (52): Writing style
 - `docs/design/architecture.md` (95): Architecture
 - `docs/design/banner-row-2026-11-16.md` (65): Fixed zones, the banner row and the subtitle strip (patches N01 to N04)
@@ -156,7 +156,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/stackchan-voice-measurements-2026-10-20.md` (69): StackChan voice path: what to measure (2026-10-20)
 - `docs/dev/stackchan-wireless-update-2026-11-14.md` (61): StackChan wireless firmware update (design, 2026-11-14)
 - `docs/dev/updater.md` (96): Flasher and updater
-- `docs/dev/virtual-unit-3d.md` (20): The 3D virtual unit: body, power, axes
+- `docs/dev/virtual-unit-3d.md` (23): The 3D virtual unit: body, power, axes
 - `docs/dev/virtual-unit-fidelity.md` (23): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
 - `docs/dev/virtual-unit.md` (29): Virtual unit
 - `docs/images/agent-status.svg` (1): no header
@@ -234,15 +234,17 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/coding-companion-package.md` (36): Coding companion and agent tools (package design, for review before building)
 - `docs/plan/doc-screenshots.md` (21): Doc screenshots from the virtual unit
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
+- `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
 - `docs/plan/friend-test-path-2026-11-18.md` (20): The friend-test path: what exists and what is missing (2026-11-18)
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
+- `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
 - `docs/plan/seam-refactor.md` (35): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
-- `docs/plan/spec-proposals/README.md` (13): Shared-spec proposals (step 4, 2026-11-18)
+- `docs/plan/spec-proposals/README.md` (14): Shared-spec proposals (step 4, 2026-11-18)
 - `docs/plan/spec-proposals/brain-capabilities.schema.json` (9): no header
 - `docs/plan/spec-proposals/fixtures/brain-capabilities.invalid.feature.json` (1): no header
 - `docs/plan/spec-proposals/fixtures/brain-capabilities.valid.llm.json` (1): no header
@@ -257,11 +259,15 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/spec-proposals/fixtures/movement-limiter-state.invalid.state.json` (1): no header
 - `docs/plan/spec-proposals/fixtures/movement-limiter-state.valid.unknown-battery.json` (1): no header
 - `docs/plan/spec-proposals/fixtures/movement-limiter-state.valid.usb.json` (1): no header
+- `docs/plan/spec-proposals/fixtures/robot-description.invalid.role.json` (8): no header
+- `docs/plan/spec-proposals/fixtures/robot-description.valid.pan-tilt.json` (12): no header
 - `docs/plan/spec-proposals/indicator-row.schema.json` (14): no header
 - `docs/plan/spec-proposals/memory-admission.schema.json` (15): no header
 - `docs/plan/spec-proposals/memory-governor.md` (44): Memory governor (proposal record, 2026-11-18)
 - `docs/plan/spec-proposals/memory-governor.schema.json` (69): no header
 - `docs/plan/spec-proposals/movement-limiter-state.schema.json` (12): no header
+- `docs/plan/spec-proposals/robot-description.md` (20): Proposal: robot description for the physics playground
+- `docs/plan/spec-proposals/robot-description.schema.json` (39): no header
 - `docs/plan/spec-vendor-drift.md` (6): Vendored spec drift check, owner: playground track, 2026-11-17
 - `docs/plan/undefined-host-calls-2026-11-18.md` (24): Host calls with no firmware definition (2026-11-18)
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
@@ -512,6 +518,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF14-offline-dance-rest-cap.patch` (88): A cap on continuous offline dancing: after ten minutes of motion without a pause of 30 s the unit rests for th
 - `firmware/patches/SF15-talk-over-mic3-step0.patch` (291): Talk-over step 0 (off by default, CONFIG_MAIPAI_TALK_OVER): the second input channel is MIC3, the speaker loop
 - `firmware/patches/SF16-lock-fail-count-survives-restart.patch` (74): The lock tools also keep the count of wrong codes across a restart (a third saved integer, tfails): four wrong
+- `firmware/patches/SF17-seek-stamps-read-long-past.patch` (96): The seek and face-tracking time differences treat a stamp that is a day or more old, or still at 0 on a unit t
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1985,7 +1992,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_speaker_evidence_turn.py` (252): SPEAK-02 / SPEAK-04: the turn carries `speaker_evidence` and `present`, fused
 - `host/tests/test_speaker_fusion.py` (119): SPEAK-04: fuse() and build_present() on the dev.md section 6 rules."""
 - `host/tests/test_speaker_gaze.py` (125): Tests for the StackChan speaker-gaze controller (BOT-SC-GAZE-01)."""
-- `host/tests/test_spec_proposals.py` (95): The shared-spec proposals (docs/plan/spec-proposals): fixtures behave, and the host's own code passes them."""
+- `host/tests/test_spec_proposals.py` (101): The shared-spec proposals (docs/plan/spec-proposals): fixtures behave, and the host's own code passes them."""
 - `host/tests/test_spec_root.py` (44): a standalone checkout resolves the shared spec from the vendored snapshot."""
 - `host/tests/test_speech_barge.py` (122): VOICE-02: a stop word over playback cuts locally, cancels, keeps the prefix."""
 - `host/tests/test_speech_capture.py` (171): G1's own acceptance: a fake mic feeds fixed-size blocks with a real pre-roll."""
@@ -2135,6 +2142,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_virtual_unit.py` (273): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
 - `host/tests/test_virtual_unit_hw.py` (189): ruff: noqa: E501
 - `host/tests/test_virtual_unit_parity.py` (37): Tool parity: every firmware tool is either simulated or a named gap. Unsimulated tools xfail (strict), so this
+- `host/tests/test_virtual_unit_physics.py` (185): ruff: noqa: E501
 - `host/tests/test_vision_align.py` (113): FACE-01's own alignment math, checked against known transforms -
 - `host/tests/test_vision_capture.py` (47): The still-image call's bot-side capture path
 - `host/tests/test_vision_detect.py` (91): wanted for a decode-only test, so the instance is built without
@@ -2257,6 +2265,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/hw.py` (156): The virtual unit's body: power button, USB-C cable, Wi-Fi, battery, carried and orientation, and what they do 
 - `scripts/virtual-unit/listen_guard.c` (22): Harness for the listening guard (patch SF03): runs the guard loop of Application::Run once a second through th
 - `scripts/virtual-unit/make_briefs.py` (57): Write lane briefs for the tools the virtual unit does not simulate yet, in chunks of at most 7 tools of one or
+- `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (7): no header
+- `scripts/virtual-unit/physics/calibrate.py` (117): Fit the assumed servo parameters of a robot description from a bench recording of real head moves.
+- `scripts/virtual-unit/physics/imu.py` (45): From the IMU numbers the physics model reports to the two inputs the movement limiter takes: carried and orien
+- `scripts/virtual-unit/physics/mjcf.py` (87): Build the physics model text (MJCF) of a pan-tilt desk robot from its description file (robots/NAME.robot.json
+- `scripts/virtual-unit/physics/physics.js` (176): Optional physics mode of the virtual unit view. Loaded only when the person turns Physics mode on; nothing her
+- `scripts/virtual-unit/physics/robots/stackchan.robot.json` (57): no header
 - `scripts/virtual-unit/posixtz.py` (56): POSIX TZ rules as the unit's clock uses them (maipai_tz_core.h zone strings such as "EST5EDT,M3.2.0,M11.1.0"):
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/scenarios.py` (201): Scripted scenarios on the virtual unit: golden frames and layout checks.
@@ -2276,9 +2290,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/tools_extract.py` (90): Write schema/tools.json: every MCP tool name the firmware patches register, with the patch that adds it.
 - `scripts/virtual-unit/ui_style_check.py` (30): Count the font sizes and color literals the app screen sources use, on the overlay tree built by build-face.sh
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
-- `scripts/virtual-unit/view.html` (153): app{display:flex;height:100%}
-- `scripts/virtual-unit/view.py` (289): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
-- `scripts/virtual-unit/view3d.js` (238): The 3D StackChan of the virtual unit view: the real body proportions, orbit camera, clickable USB-C port and p
+- `scripts/virtual-unit/view.html` (178): app{display:flex;height:100%}
+- `scripts/virtual-unit/view.py` (317): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
+- `scripts/virtual-unit/view3d.js` (255): The 3D StackChan of the virtual unit view: the real body proportions, orbit camera, clickable USB-C port and p
 - `scripts/virtual-unit/vunit.py` (264): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/wakeword/README.md` (17): Local wake word experiment
 - `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""

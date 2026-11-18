@@ -18,3 +18,6 @@
 - The dance paths: simple shapes of the right size and speed class, not the unit's tables.
 - The yaw sign (positive turns the head to the viewer's left) is not checked against a unit.
 - There is no e-stop in the firmware (a search of the patches finds none). The panel has Stop dance and the Carried hold instead; a stall guard exists only in face tracking (FD04).
+
+## Physics mode (optional)
+See `docs/plan/physics-playground.md`. The panel's Physics section loads the engine on demand; with it on, the model's head and base follow the physics body, and its IMU decides carried and orientation for the unit's own movement limiter.

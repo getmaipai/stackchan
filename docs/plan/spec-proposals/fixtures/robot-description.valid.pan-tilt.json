@@ -1,0 +1,12 @@
+{
+  "schema": "robot-description/1",
+  "robot": "example-pan-tilt",
+  "capabilities": ["head_pan_tilt", "imu"],
+  "params": {
+    "yaw_range_deg": {"v": [-90, 90], "src": "assumed", "note": "from the maker's page"},
+    "yaw_kp": {"v": 0.3, "src": "assumed", "note": "N m per rad"},
+    "yaw_kv": {"v": 0.003, "src": "assumed", "note": "N m s per rad"}
+  },
+  "joints": [{"name": "yaw", "role": "head.yaw", "axis": [0, 0, -1], "range": "yaw_range_deg", "kp": "yaw_kp", "kv": "yaw_kv"}],
+  "sensors": [{"name": "imu", "capability": "imu", "outputs": ["imu.accel", "imu.gyro", "imu.tilt_deg"]}]
+}

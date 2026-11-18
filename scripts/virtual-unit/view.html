@@ -50,6 +50,12 @@ button[disabled]{opacity:.45;cursor:not-allowed}
    <div class="kv" id="limv"></div>
    <div>Head moves in the last minute <b id="mvv">0</b> of <span id="mvc">40</span></div><div class="meter"><i id="mvb" style="width:0"></i></div>
    <div id="limmsg" class="t" style="margin-top:6px;font-size:12px"></div></section>
+  <section><h2>Physics (optional)</h2>
+   <label class="row" style="margin-top:0"><input id="phys" type="checkbox"> Physics mode (loads the engine, about 11 MB, only when on)</label>
+   <div id="physmsg" class="t" style="margin-top:6px;font-size:12px">Off: the flat unit and the kinematic model run as before.</div>
+   <div class="row"><button id="pnudge" disabled>Nudge the head</button><button id="pshake" disabled>Shake the table</button><button id="plift" disabled>Lift</button><button id="pdown" disabled>Put down</button><button id="preset" disabled>Reset pose</button></div>
+   <div class="kv" id="physv"></div>
+   <div style="margin-top:6px">Servo load yaw / pitch</div><div class="meter"><i id="ly" style="width:0"></i></div><div class="meter"><i id="lp" style="width:0;background:#ff6b6b"></i></div></section>
   <section><h2>Call a tool</h2>
    <input id="flt" placeholder="filter tools" style="width:100%;box-sizing:border-box;margin-bottom:6px">
    <select id="tool"></select>
@@ -141,13 +147,32 @@ function paintBody(st){ST=st;const h=st.hw,m=st.motion;
 if(!window.THREE){msg.textContent='three.js did not load: the 3D drawing needs internet access to cdnjs.cloudflare.com; the flat screen is at /frame.png.';}
 else{
 const scriptEl=document.createElement('script');scriptEl.src='/view3d.js';scriptEl.onload=()=>{
- const hooks={on:()=>ST?ST.hw.on:true,axesVisible:()=>$('axes').checked,
+ let PH=null;
+ const hooks={physicsOn:()=>!!PH,push:f=>PH&&PH.push(f),on:()=>ST?ST.hw.on:true,axesVisible:()=>$('axes').checked,
   touch:async body=>{const res=await post('/touch',body);if(res.isError)msg.textContent=res.text;},
   togglePort:()=>hw('usb',!(ST&&ST.hw.usb)),togglePower:()=>hw('power',1)};
  const rob=initRobot(THREE,$('c'),hooks);
  $('vreset').onclick=hooks.presets.reset;$('vfront').onclick=hooks.presets.front;$('vside').onclick=hooks.presets.side;$('vback').onclick=hooks.presets.back;$('vtop').onclick=hooks.presets.top;
+
+ const phBtn=on=>['pnudge','pshake','plift','pdown','preset'].forEach(id=>$(id).disabled=!on);
+ const fx=(v,n)=>(v===null||v===undefined)?'-':v.toFixed(n);
+ const ui={status:t=>$('physmsg').textContent=t,readout:({tel,telemetry,lifted})=>{
+   $('ly').style.width=Math.min(100,tel.yawLoad*100)+'%';$('lp').style.width=Math.min(100,tel.pitchLoad*100)+'%';
+   const an=Math.hypot(...tel.accel);
+   $('physv').innerHTML=`<span>Yaw, pitch (real)</span><span>${tel.yaw.toFixed(1)}, ${tel.pitch.toFixed(1)}</span><span>Servo load</span><span>${(tel.yawLoad*100).toFixed(0)} and ${(tel.pitchLoad*100).toFixed(0)} percent of the torque limit</span><span>IMU</span><span>${an.toFixed(1)} m/s2, tilt ${tel.tilt.toFixed(0)} deg</span><span>Last pitch move</span><span>overshoot ${fx(telemetry.overshoot,1)} deg, settled in ${fx(telemetry.settle,2)} s</span><span>Hand</span><span>${lifted?'holding it up':'not touching'}</span>`;}};
+ $('phys').onchange=async e=>{
+   if(e.target.checked){
+     e.target.disabled=true;
+     try{
+       if(!window.startPhysics){await new Promise((ok,bad)=>{const sc=document.createElement('script');sc.src='/physics.js';sc.onload=ok;sc.onerror=()=>bad(new Error('physics.js did not load'));document.body.appendChild(sc);});}
+       PH=await window.startPhysics(ui,rob);phBtn(true);
+     }catch(err){ui.status('The physics engine did not load: '+err.message+'. It needs internet access to the address in physics/THIRD-PARTY-physics-engine.json. The flat unit is unchanged.');e.target.checked=false;}
+     e.target.disabled=false;
+   }else{ if(PH)PH.stop();PH=null;rob.phys=null;phBtn(false);ui.status('Off: the flat unit and the kinematic model run as before.');$('physv').innerHTML='';
+     $('hwmsg').textContent='';}};
+ $('pnudge').onclick=()=>PH&&PH.nudge();$('pshake').onclick=()=>PH&&PH.shake();$('plift').onclick=()=>PH&&PH.lift();$('pdown').onclick=()=>PH&&PH.putDown();$('preset').onclick=()=>PH&&PH.reset();
  window.ROBOT=rob;
- setInterval(async()=>{try{const st=await (await fetch('/state')).json();rob.update(st);paintBody(st);}catch(e){}},100);
+ setInterval(async()=>{try{const st=await (await fetch('/state')).json();rob.update(st);paintBody(st);if(PH)PH.setReference(st.head,st.hw.on);}catch(e){}},100);
  (function loop(){rob.frame();rob.render();requestAnimationFrame(loop);})();};
 document.body.appendChild(scriptEl);}
 </script></body></html>

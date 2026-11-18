@@ -12,6 +12,7 @@ Listed here as code is vendored or patched. Each entry names the upstream, its l
 | esptool-js | Apache-2.0 | 0.7.0, one file copied unchanged into `flasher/vendor/` (license beside it) | The web flasher writes the robot over USB (Web Serial) with it |
 | ESP-IDF | Apache-2.0 | 6.1.1 | Firmware build framework and runtime; fetched by the build, never vendored here |
 | Espressif ESP-DL | MIT | the version the face-detect patches pin | On-robot face detection model runtime (`FD01` patches); fetched by the build |
+| MuJoCo | Apache-2.0 | 4.0.1, the WebAssembly build loaded from a pinned address in `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` | Optional physics mode of the virtual unit (off by default, loaded on demand in the browser); never vendored, never in the firmware or the host program |
 | Private-network client in the firmware | license to be confirmed before a release image ships it | not pinned in this repository | Optional away-from-home link. A release build carries neither this client nor any key until its license and pin are recorded here |
 
 ## Host dependencies

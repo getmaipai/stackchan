@@ -96,7 +96,7 @@ function initRobot(THREE, canvas, hooks) {
   const H = DIMS.head;
   const headCenterY = DIMS.total.h - H.h / 2 - DIMS.pitchAxisY;  // 70.5 mm overall with the head upright
   const head = new THREE.Group(); head.position.set(0, headCenterY, 0); pitchG.add(head);
-  head.add(roundedBox(H.w, H.h, H.d, H.r, white));
+  const headBody = roundedBox(H.w, H.h, H.d, H.r, white); head.add(headBody);
   const tex = new THREE.Texture(); tex.minFilter = THREE.LinearFilter; tex.colorSpace = THREE.SRGBColorSpace || undefined;
   const bezel = new THREE.Mesh(new THREE.PlaneGeometry(DIMS.bezel.w, DIMS.bezel.h), new THREE.MeshBasicMaterial({color: 0x07090c}));
   bezel.position.set(0, 0.2, H.d / 2 + 0.004); head.add(bezel);
@@ -177,6 +177,7 @@ function initRobot(THREE, canvas, hooks) {
   cv.addEventListener('pointerdown', e => {
     cv.setPointerCapture(e.pointerId); pointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
     if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); drag = {mode: 'pinch', d0: view.dist}; return; }
+    if (e.shiftKey && hooks.physicsOn() && pick(e, [headBody, screen])) { drag = {mode: 'push', sx: e.clientX, sy: e.clientY}; return; }
     const p = panelXY(e);
     if (p && hooks.on()) drag = {mode: 'touch', p, cx: e.clientX, cy: e.clientY, t: performance.now()};
     else if (pick(e, [portHit])) drag = {mode: 'port', cx: e.clientX, cy: e.clientY};
@@ -186,6 +187,13 @@ function initRobot(THREE, canvas, hooks) {
   cv.addEventListener('pointermove', e => {
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
     if (drag && drag.mode === 'pinch' && pointers.size === 2) { const [a, b] = [...pointers.values()]; view.dist = Math.max(6, Math.min(48, drag.d0 * pinch0 / Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)))); return; }
+    if (drag && drag.mode === 'push') {   // a force on the head along the drag, in the camera's right and up directions (newtons, at most 1.2)
+      const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy, k = 0.012;
+      const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), up = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
+      const f = right.multiplyScalar(dx * k).add(up.multiplyScalar(-dy * k)); if (f.length() > 1.2) f.setLength(1.2);
+      hooks.push([f.z, f.x, f.y]);   // view axes to the physics frame: x forward is view z, y left is view x, z up is view y
+      return;
+    }
     if (drag && drag.mode === 'orbit') {
       view.az -= (e.clientX - drag.lx) * 0.008; view.el = Math.max(-0.2, Math.min(1.5, view.el + (e.clientY - drag.ly) * 0.006)); drag.lx = e.clientX; drag.ly = e.clientY; return;
     }
@@ -194,6 +202,7 @@ function initRobot(THREE, canvas, hooks) {
   function end(e) {
     pointers.delete(e.pointerId);
     const d = drag; if (pointers.size === 0) drag = null; if (!d) return;
+    if (d.mode === 'push') { hooks.push(null); return; }
     const moved = d.cx === undefined ? 99 : Math.hypot(e.clientX - d.cx, e.clientY - d.cy);
     if (d.mode === 'touch') {
       const up = panelXY(e) || d.p;
@@ -219,7 +228,14 @@ function initRobot(THREE, canvas, hooks) {
       const st = this.st; if (!st) return;
       hooks.axesVisible() ? axes.visible = true : axes.visible = false;
       buildRanges(st.yaw_range, st.pitch_range, st.pitch_safe);
-      cy += (st.head.yaw - cy) * 0.35; cp += (st.head.pitch - cp) * 0.35;
+      const ph = this.phys && performance.now() - this.phys.at < 400 ? this.phys.pose : null;
+      if (ph) { cy = ph.yaw; cp = ph.pitch; } else { cy += (st.head.yaw - cy) * 0.35; cp += (st.head.pitch - cp) * 0.35; }
+      if (ph) {   // the model's base: where it slid, tipped or was lifted (physics frame: x forward, y left, z up; view: z forward, x right, y up)
+        const q = new THREE.Quaternion(ph.quat[2], ph.quat[3], ph.quat[1], ph.quat[0]);
+        const c0 = new THREE.Vector3(0, B.y + B.h / 2, 0);
+        robot.quaternion.copy(q);
+        robot.position.set(ph.pos[1] * 100, ph.pos[2] * 100, ph.pos[0] * 100).sub(c0.clone().applyQuaternion(q));
+      } else { robot.quaternion.identity(); robot.position.set(0, 0, 0); }
       yawG.rotation.y = -cy * Math.PI / 180;      // sign convention: positive yaw turns the head to the viewer's left (unverified against the unit)
       pitchG.rotation.x = -cp * Math.PI / 180;    // positive pitch looks up
       if (yawPointer) yawPointer.position.copy(yawPoint(cy, yawArcR));
@@ -231,6 +247,7 @@ function initRobot(THREE, canvas, hooks) {
       btn.material.emissive.set(on ? 0x1f7a3c : 0x000000);
       screen.material.color.set(on ? 0xffffff : 0x000000);
     },
+    setPhysicsPose(pose) { this.phys = {pose, at: performance.now()}; },
     render() { placeCam(); r.render(scene, cam); },
     screen,
   };

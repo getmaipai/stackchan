@@ -10,7 +10,7 @@ from tests.schema_mini import errors
 
 ROOT = Path(__file__).resolve().parents[2]
 DIR = ROOT / "docs" / "plan" / "spec-proposals"
-NAMES = ("movement-limiter-state", "memory-admission", "brain-capabilities", "indicator-row", "memory-governor")
+NAMES = ("movement-limiter-state", "memory-admission", "brain-capabilities", "indicator-row", "memory-governor", "robot-description")
 
 
 def _schema(name):
@@ -93,3 +93,9 @@ def test_the_memory_governor_floors_equal_the_gate_scripts():
     spec.loader.exec_module(report)
     assert record["budgets"]["flash_slot"]["free_min_percent"] == round(report.FREE_RULE * 100)
     assert (DIR / "memory-governor.md").read_text().count("40,000") >= 1
+
+
+def test_the_stackchan_robot_description_validates_and_marks_every_parameter():
+    desc = json.loads((ROOT / "scripts" / "virtual-unit" / "physics" / "robots" / "stackchan.robot.json").read_text())
+    assert errors(_schema("robot-description"), desc) == []
+    assert all(entry["src"] in ("measured", "assumed") and entry["note"] for entry in desc["params"].values())

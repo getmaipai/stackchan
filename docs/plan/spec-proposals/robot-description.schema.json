@@ -1,0 +1,39 @@
+{
+  "$id": "robot-description",
+  "type": "object",
+  "required": ["schema", "robot", "capabilities", "params", "joints", "sensors"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": {"enum": ["robot-description/1"]},
+    "robot": {"type": "string", "maxLength": 40},
+    "capabilities": {"type": "array", "items": {"enum": ["head_pan_tilt", "head_6dof", "appendages", "imu", "estop"]}},
+    "params": {"type": "object"},
+    "joints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "role", "axis", "range", "kp", "kv"],
+        "properties": {
+          "name": {"type": "string", "maxLength": 40},
+          "role": {"enum": ["head.yaw", "head.pitch", "head.roll", "head.x", "head.y", "head.z", "appendage.left", "appendage.right"]},
+          "axis": {"type": "array", "items": {"type": "integer", "minimum": -1, "maximum": 1}},
+          "range": {"type": "string", "maxLength": 40},
+          "kp": {"type": "string", "maxLength": 40},
+          "kv": {"type": "string", "maxLength": 40}
+        }
+      }
+    },
+    "sensors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "capability", "outputs"],
+        "properties": {
+          "name": {"type": "string", "maxLength": 40},
+          "capability": {"enum": ["imu"]},
+          "outputs": {"type": "array", "items": {"enum": ["imu.accel", "imu.gyro", "imu.tilt_deg"]}}
+        }
+      }
+    }
+  }
+}

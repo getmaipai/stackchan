@@ -1,0 +1,8 @@
+{
+  "schema": "robot-description/1",
+  "robot": "example-pan-tilt",
+  "capabilities": ["head_pan_tilt"],
+  "params": {},
+  "joints": [{"name": "yaw", "role": "neck", "axis": [0, 0, -1], "range": "yaw_range_deg", "kp": "yaw_kp", "kv": "yaw_kv"}],
+  "sensors": []
+}
