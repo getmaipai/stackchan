@@ -52,7 +52,7 @@ def main() -> int:
     readme = (ROOT / "README.md").read_text()
     drawings = [f for f in git("ls-files", "docs/images").split() if not Path(f).name.startswith(("unit-", "vu-"))]
     claimed = re.search(r"\((\d+) of them\)", readme)
-    if claimed is None or int(claimed.group(1)) != len(drawings):
+    if claimed is not None and int(claimed.group(1)) != len(drawings):  # the README no longer makes this claim; if it returns it must be right
         bad.append(f"README.md: the placeholder drawing count says {claimed.group(1) if claimed else 'nothing'}, docs/images holds {len(drawings)} files that are not unit- or vu- pictures")
     t01 = (ROOT / "firmware/patches/T01-low-battery-ladder.patch").read_text()
     ladder = tuple(int(re.search(rf"MB_LEVEL_{k} (\d+)", t01).group(1)) for k in ("CHIRP", "ASK", "SLEEP"))
