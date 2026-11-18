@@ -799,6 +799,21 @@
    "freed_when": "on exit",
    "status": "estimate",
    "source": "patch SF77 (the same one-object board as the other grid games): about 600 bytes internal estimated, the Grid struct in PSRAM, flash from the measured growth (about half of 3,056 bytes each); measure with two self.bench.heap_info calls"
+  },
+  {
+   "id": "screen.game_over",
+   "kind": "screen",
+   "name": "The shared game-over screen while it shows",
+   "internal": 2100,
+   "psram": 0,
+   "flash": 600,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a game ends",
+   "freed_when": "on Play again, Quit or the end of the game",
+   "status": "estimate",
+   "source": "patch SF82 and SF86: about 14 LVGL objects at an estimated 150 bytes each; measure with two self.bench.heap_info calls (idle game, game over)"
   }
  ]
 }
