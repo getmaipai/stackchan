@@ -15,6 +15,22 @@ Made by `python3 scripts/readiness.py` from the repository; do not edit by hand.
 | Parent view: what the robot is doing, in plain words | **partly** | parent view code: 1 file(s), e.g. `host/maipai_body/settings_ui_family.py`; plan: 1 file(s), e.g. `docs/plan/parent-view.md` | the page's buttons measured at phone width (48 px); a parent using it on a phone |
 | Docs a friend can follow | **partly** | user pages: 44 file(s), e.g. `docs/user/baby-and-pet-monitor.md`; claims check: 1 file(s), e.g. `scripts/docs-claims-check.py`; screens from the virtual unit: 14 file(s), e.g. `docs/images/vu-clock.png` | 82 placeholder drawings still to replace with real pictures; the pages read aloud to someone who has never seen the robot |
 
+## The blocked rows and what unblocks each
+
+**Install the robot from a web page**
+- owner: create the release key and decide where the flasher page is published (an address a friend can open)
+- firmware: build the first release image signed with that key and publish it with its signature file
+- app: host the flasher page and the image, and point the page's manifest at them
+
+**Install the host program without a terminal**
+- owner: choose the systems to support first (Mac, Windows, a Raspberry Pi) and whether a bundled app is wanted
+- app: build that installer, with the first-run page that opens the settings page and the pairing card, and test it on a clean machine
+
+**Update the robot**
+- owner: create the release key (the same one as the flasher row) and say when a first release is cut
+- firmware: sign two releases and prove the update path with the real key: accepted, refused on a wrong signature, and rolled back when the new image fails to start
+- bench: run that on a robot and record it
+
 Totals: 0 done, 7 partly, 3 blocked.
 
 ## What gates the first release, in one list

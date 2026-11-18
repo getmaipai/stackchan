@@ -10,10 +10,19 @@ Games (`status`, `bench_event`, `bench_swipe`, `bench_install`), timers (`list`,
 
 `timer.alarm` and `clock.get` now follow the zone's own POSIX rule with daylight saving (`scripts/virtual-unit/posixtz.py`, checked against the system zone database for 2026 in seven zones).
 
+## Closed since (2026-11-18, with tests)
+
+- Lock `bench_key` now follows the lock core's keypad rules: keys are ignored while the keypad is not up, at most six digits, every digit from the fourth on is checked against the code (no enter key), six wrong digits clear the entry, the keypad goes back to the lock screen after 15 s with no key. `host/tests/test_virtual_unit_fidelity.py`.
+- `self.robot.set_head_angles` goes through the unit's own movement limiter (carried or on its side refuses, USB halves the excursion, battery bands, speed cap), and a carried unit ends a running dance. `self.bench.set_head` exists (the bench tool of patch SF23): the same move, answering the head's angles.
+- A body (power, cable, Wi-Fi, battery, carried, orientation) drives the status bar, the boot covers, the tired look and the limiter inputs (`scripts/virtual-unit/hw.py`, `docs/dev/virtual-unit-3d.md`).
+- The tool list is generated from the patches in order and checked against the firmware sources (`tools_extract.py`, 138 tools).
+
 ## Known remaining differences
 
-- Lock `bench_key` models digits, delete and clear only; the firmware's keypad has more states.
-- Anything the unit measures (counters, timing, camera, radio) is a fixed documented value.
+- Anything the unit measures (counters, timing, camera, radio) is a fixed documented value; the virtual unit's head is a ramp at the commanded speed, while the real servo caps its own speed and acceleration (the bench saw 40 to 46 percent of a step in 0.6 s). The physics mode models that cap; its numbers stay assumed until `calibrate.py` has a clean recording.
+- Boot cover durations, the dances' head paths and the serial cable's effect are stand-ins.
+- The unit ignores head moves while idle unless idle movement is on; the virtual unit moves the head whenever asked (the bench tool exists for that reason on the real unit).
+- The petting reaction is host-driven (the firmware's own reaction is compiled out: `kUnitPetReaction` is false), and the renderer does not draw face decorators (hearts, sweat), so a head touch cannot be shown as the unit shows it.
 - The checker is not a fixed point: a third pass would flag new nitpicks. Fix a gap when a test needs it.
 
 ## How to use the virtual unit given this

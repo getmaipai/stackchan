@@ -41,7 +41,7 @@ async function startPhysics(ui, robotView) {
 
   const sim = {
     running: true, ref: {yaw: 0, pitch: 0}, powered: true, push: null, lift: null, shake: null, nudge: null,
-    t: 0, track: null, telemetry: {overshoot: null, settle: null}, acc: 0, last: performance.now(), imuAt: 0,
+    setpoint: {yaw: {pos: 0, vel: 0}, pitch: {pos: P('pitch_range_deg')[0], vel: 0}}, t: 0, track: null, telemetry: {overshoot: null, settle: null}, acc: 0, last: performance.now(), imuAt: 0,
   };
   const force = (body, f) => { for (let i = 0; i < 3; i++) data.xfrc_applied[body * 6 + i] = f[i]; };
   const torque = (body, t) => { for (let i = 0; i < 3; i++) data.xfrc_applied[body * 6 + 3 + i] = t[i]; };
@@ -57,7 +57,15 @@ async function startPhysics(ui, robotView) {
 
   function controlsAndForces(tSec) {
     const clampTo = (v, r) => Math.max(r[0], Math.min(r[1], v));
-    data.ctrl[0] = rad(clampTo(sim.ref.yaw, P('yaw_range_deg'))); data.ctrl[1] = rad(clampTo(sim.ref.pitch, P('pitch_range_deg')));
+    // the servo walks its own setpoint toward the commanded angle at a limited speed and acceleration (the same trapezoid as calibrate.py), and the position loop tracks that
+    const slew = (axis, goal) => {
+      const st = sim.setpoint[axis], vmax = P(axis + '_speed_cap_deg_s'), amax = P(axis + '_accel_cap_deg_s2'), err = goal - st.pos;
+      const want = err === 0 ? 0 : Math.sign(err) * Math.min(vmax, Math.sqrt(2 * amax * Math.abs(err)));
+      st.vel += Math.max(-amax * dt, Math.min(amax * dt, want - st.vel));
+      st.pos += st.vel * dt;
+      return st.pos;
+    };
+    data.ctrl[0] = rad(slew('yaw', clampTo(sim.ref.yaw, P('yaw_range_deg')))); data.ctrl[1] = rad(slew('pitch', clampTo(sim.ref.pitch, P('pitch_range_deg'))));
     // clear, then apply what the sandbox asks for
     for (let b = 1; b <= 3; b++) { force(b, [0, 0, 0]); torque(b, [0, 0, 0]); }
     if (sim.nudge && tSec < sim.nudge.until) force(BODY.pitch, sim.nudge.f); else sim.nudge = null;
@@ -165,7 +173,7 @@ async function startPhysics(ui, robotView) {
     tiltTo(deg) { if (sim.lift) sim.lift.tilt = deg; },
     push(f) { sim.push = f; },          // a force on the head in newtons (world frame), or null
     reset() {
-      engine.mj_resetData(model, data); data.qpos[Q_PITCH] = rad(P('pitch_range_deg')[0]); sim.lift = sim.shake = sim.nudge = sim.push = null; engine.mj_forward(model, data);
+      engine.mj_resetData(model, data); data.qpos[Q_PITCH] = rad(P('pitch_range_deg')[0]); sim.lift = sim.shake = sim.nudge = sim.push = null; sim.setpoint = {yaw: {pos: 0, vel: 0}, pitch: {pos: P('pitch_range_deg')[0], vel: 0}}; engine.mj_forward(model, data);
     },
     stop() {
       sim.running = false; clearInterval(timer);

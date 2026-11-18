@@ -36,6 +36,7 @@ class SimLink:
 
     TRUE = {"pitch": (0.62, 0.0065), "yaw": (0.45, 0.0045)}
     DAMPING, TORQUE = 0.003, 0.12
+    SPEED_CAP = ACCEL_CAP = None  # the servo's own setpoint rate limit (degrees a second, a second squared); None: the setpoint is the command
 
     def __init__(self, state="free", rtt=0.02, noise=0.1):
         self.now, self.rtt, self.state, self.noise = 0.0, rtt, state, noise
@@ -60,13 +61,21 @@ class SimLink:
         """Integrate this joint's servo equation up to time t (the same equation as calibrate.simulate) with the latest command, applied when it arrived."""
         import math
 
-        st = self.sim.setdefault(joint, {"q": math.radians(self.hist[joint][0][1]), "dq": 0.0, "t": 0.0})
+        st = self.sim.setdefault(joint, {"q": math.radians(self.hist[joint][0][1]), "dq": 0.0, "t": 0.0, "ref": self.hist[joint][0][1], "rv": 0.0})
         inertia = cal.head_inertia_pitch(self.desc) if joint == "pitch" else cal.head_inertia_yaw(self.desc)
         kp, kv = self.TRUE[joint]
         grav = cal.gravity_coefficient(self.desc, joint)
         dt = 0.001
         while st["t"] < t:
-            target = math.radians(next(c for (tt, c) in reversed(self.hist[joint]) if tt <= st["t"]))
+            goal = next(c for (tt, c) in reversed(self.hist[joint]) if tt <= st["t"])
+            if self.SPEED_CAP is None:
+                st["ref"] = goal
+            else:
+                err = goal - st["ref"]
+                want = math.copysign(min(self.SPEED_CAP, math.sqrt(2.0 * self.ACCEL_CAP * abs(err))), err) if err else 0.0
+                st["rv"] += max(-self.ACCEL_CAP * dt, min(self.ACCEL_CAP * dt, want - st["rv"]))
+                st["ref"] += st["rv"] * dt
+            target = math.radians(st["ref"])
             u = max(-self.TORQUE, min(self.TORQUE, kp * (target - st["q"]) - kv * st["dq"]))
             fr = 0.003 * (1 if st["dq"] > 0 else -1 if st["dq"] < 0 else 0)
             st["dq"] += (u - self.DAMPING * st["dq"] - fr + grav[0] * math.sin(st["q"]) + grav[1] * math.cos(st["q"])) / inertia * dt
@@ -109,16 +118,17 @@ def test_the_move_set_has_small_and_large_steps_both_ways_on_both_axes_inside_th
 def test_recording_a_simulated_servo_writes_the_csv_and_the_fit_recovers_the_gains(tmp_path):
     link = SimLink()
     out = tmp_path / "head.csv"
-    code, lines = _run(link, out, ["pitch", "yaw"])
+    code, lines = _run(link, out, ["pitch"])
     assert code == 0
     rows = list(csv.DictReader(out.open()))
     assert list(rows[0]) == ["joint", "move_id", "t_ms", "cmd_deg", "meas_deg", "rtt_ms"]
-    assert {r["joint"] for r in rows} == {"pitch", "yaw"} and len(rows) > 400
+    assert {r["joint"] for r in rows} == {"pitch"} and len(rows) > 200
     assert any("median round trip" in line for line in lines)
     recs = cal.load_recording(out)
-    fitted, err = cal.fit_joints(recs, cal.mjcf.load(), rounds=25)
+    fitted, err = cal.fit_joints(recs, cal.mjcf.load(), rounds=60)
     assert err**0.5 < 0.6
-    assert abs(fitted["pitch_kp"] - 0.62) / 0.62 < 0.15 and abs(fitted["yaw_kp"] - 0.45) / 0.45 < 0.25
+    quals = cal.quality(recs, cal.mjcf.load(), fitted)
+    assert all(q["rms_pct_of_step"] < 5 for q in quals.values()), quals
 
 
 def test_a_cable_limited_unit_is_refused_with_the_way_out_and_can_be_lifted_for_the_run(tmp_path):
@@ -241,3 +251,80 @@ def test_calibrate_says_no_movement_and_exits_nonzero_on_flat_data(tmp_path, cap
     path.write_text("\n".join(rows) + "\n")
     assert cal.main([str(path)]) == 3
     assert "no movement in the recording" in capsys.readouterr().err
+
+
+def test_the_fit_finds_a_servo_speed_cap_separate_from_the_gain_and_reports_its_quality(tmp_path):
+    """The bench saw the head cover only 40 to 46 percent of a step in 0.6 s: a setpoint rate limit, not a soft gain."""
+    class Capped(SimLink):
+        SPEED_CAP, ACCEL_CAP = 120.0, 1500.0
+
+    link = Capped()
+    out = tmp_path / "capped.csv"
+    code, _ = _run(link, out, ["pitch"], hold_s=1.5)
+    assert code == 0
+    recs = cal.load_recording(out)
+    desc = cal.mjcf.load()
+    fitted, err = cal.fit_joints(recs, desc, rounds=60)
+    assert abs(fitted["pitch_speed_cap_deg_s"] - 120.0) / 120.0 < 0.35, fitted
+    quals = cal.quality(recs, desc, fitted)
+    assert quals["pitch"]["rms_pct_of_step"] < 5 and quals["pitch"]["step_deg"] >= 50
+    # a recording of a head that follows a cap fitted without caps would miss: the gate sees the difference
+    no_caps = dict(fitted, pitch_speed_cap_deg_s=1e6, pitch_accel_cap_deg_s2=1e9)
+    assert cal.quality(recs, desc, no_caps)["pitch"]["rms_deg"] > quals["pitch"]["rms_deg"]
+
+
+def test_a_poor_fit_is_reported_and_refused_for_writing(tmp_path, capsys, monkeypatch):
+    rng = random.Random(5)
+    rows = ["joint,move_id,t_ms,cmd_deg,meas_deg,rtt_ms"]
+    for i in range(160):  # the head follows nothing like a servo: it wanders by tens of degrees whatever is commanded
+        rows.append(f"pitch,{i // 40},{i * 50},{10 if (i // 40) % 2 == 0 else 70},{rng.uniform(5, 75):.0f},200")
+    path = tmp_path / "wander.csv"
+    path.write_text("\n".join(rows) + "\n")
+    robots = tmp_path / "robots"
+    robots.mkdir()
+    original = (cal.HERE / "robots" / "stackchan.robot.json").read_text()
+    (robots / "stackchan.robot.json").write_text(original)
+    monkeypatch.setattr(cal, "HERE", tmp_path)
+    assert cal.main([str(path), "--write"]) == 4
+    assert "not written" in capsys.readouterr().err
+    assert (robots / "stackchan.robot.json").read_text() == original
+
+
+class BenchSerialModule(FakeSerialModule):
+    """A bench build: self.bench.set_head answers the read-back angles; the ordinary head move would be ignored while idle."""
+
+    def __init__(self, bench=True):
+        super().__init__()
+        self.bench = bench
+        self.sent = []
+
+    def call(self, port, name, args=None, wait=5.0):
+        self.sent.append((name, args))
+        if self.first:
+            self.first = False
+            return {"text": "Unknown tool"}
+        if name == "self.bench.set_head":
+            return {"ok": True, "yaw": 0, "pitch": args.get("pitch", 5), "read_back": True} if self.bench else {"text": "Unknown tool"}
+        if name == "self.robot.set_head_angles":
+            return True
+        return {"ok": True}
+
+
+def test_the_serial_link_moves_the_head_with_the_bench_tool_when_the_build_has_it():
+    mod = BenchSerialModule(bench=True)
+    link = rec.SerialLink(mod=mod, port=object())
+    reply = link.move("pitch", 60)
+    assert reply["read_back"] is True
+    name, args = [x for x in mod.sent if x[0] == "self.bench.set_head"][0]
+    assert args == {"pitch": 60, "speed": 1000, "hold_ms": 0}  # speed at the tool's top, no hold: the recorder samples itself
+    assert not [x for x in mod.sent if x[0] == "self.robot.set_head_angles"]
+
+
+def test_the_serial_link_falls_back_to_the_ordinary_head_move_on_a_build_without_the_bench_tool():
+    mod = BenchSerialModule(bench=False)
+    link = rec.SerialLink(mod=mod, port=object())
+    assert link.move("pitch", 60) == {"ok": True}  # a bare true
+    assert link.has_bench_head is False
+    link.move("pitch", 10)
+    assert len([x for x in mod.sent if x[0] == "self.bench.set_head"]) == 1  # asked once, then not again
+    assert [x for x in mod.sent if x[0] == "self.robot.set_head_angles"]

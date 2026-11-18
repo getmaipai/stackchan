@@ -67,6 +67,20 @@ class SerialLink:
         reply = self.mod.call(self.port, name, args or {}, wait=5.0)
         return reply if isinstance(reply, dict) else {"ok": reply}
 
+    has_bench_head: bool | None = None
+
+    def move(self, axis: str, angle: int, speed: int = SPEED) -> dict:
+        """One head step. Bench builds have self.bench.set_head, which moves the head whatever the idle rule says (the unit ignores set_head_angles while idle);
+        it is used when the build has it, else the ordinary head move."""
+        if self.has_bench_head is not False:
+            reply = self.call("self.bench.set_head", {axis: angle, "speed": max(100, min(1000, speed)), "hold_ms": 0})
+            text = str(reply.get("text", "")) + str(reply.get("error", ""))
+            if "Unknown tool" not in text:
+                self.has_bench_head = True
+                return reply
+            self.has_bench_head = False
+        return self.call("self.robot.set_head_angles", {axis: angle, "speed": speed})
+
     def close(self) -> None:
         self.port.close()
 
@@ -80,6 +94,9 @@ class HttpLink:
     def call(self, name: str, args: dict | None = None) -> dict:
         req = urllib.request.Request(self.base + "call", json.dumps({"name": name, "arguments": args or {}}).encode())
         return json.loads(urllib.request.urlopen(req, timeout=5).read())
+
+    def move(self, axis: str, angle: int, speed: int = SPEED) -> dict:
+        return self.call("self.bench.set_head", {axis: angle, "speed": max(100, min(1000, speed)), "hold_ms": 0})
 
     def close(self) -> None:
         pass
@@ -98,6 +115,12 @@ def check_limiter(link, allow_usb_limit_off: bool) -> str | None:
             "Put the unit upright and charged, take it off the cable, or on a cable run again with --usb-limit-off.")
 
 
+def link_move(link, axis: str, angle: int) -> dict:
+    """The link's own head step when it has one (the bench tool), else the ordinary tool: a link written for a test may offer only call()."""
+    mover = getattr(link, "move", None)
+    return mover(axis, angle) if mover else link.call("self.robot.set_head_angles", {axis: angle, "speed": SPEED})
+
+
 def record(link, axes: list[str], out: Path, usb_limit_off: bool = False, hold_s: float = HOLD_S, log=print, clock=time.perf_counter, sleep=time.sleep) -> int:
     moves = move_list(axes)
     verdict = check_limiter(link, usb_limit_off)
@@ -111,7 +134,7 @@ def record(link, axes: list[str], out: Path, usb_limit_off: bool = False, hold_s
     last_meas: dict[str, float] = {}
     try:
         for axis in axes:  # start every axis at rest and let it settle
-            link.call("self.robot.set_head_angles", {axis: 10 if axis == "pitch" else 0, "speed": SPEED})
+            link_move(link, axis, 10 if axis == "pitch" else 0)
             cmd[axis] = 10 if axis == "pitch" else 0
         sleep(hold_s)
         stamps: list[float] = []
@@ -120,7 +143,7 @@ def record(link, axes: list[str], out: Path, usb_limit_off: bool = False, hold_s
             if len(stamps) >= MAX_PER_MINUTE:
                 sleep(max(0.0, 60.0 - (clock() - stamps[0])))
             sent = clock()
-            reply = link.call("self.robot.set_head_angles", {axis: angle, "speed": SPEED})
+            reply = link_move(link, axis, angle)
             stamps.append(sent)
             if reply.get("ok") is False:
                 log(f"move {move_id} ({axis} {angle}) was refused: {reply.get('text') or reply.get('error')}. Stopped; the CSV so far is kept.")
@@ -144,7 +167,7 @@ def record(link, axes: list[str], out: Path, usb_limit_off: bool = False, hold_s
         if verdict == "restore":
             link.call("self.motion.set", {"usb_limit": "limited"})
         for axis in axes:
-            link.call("self.robot.set_head_angles", {axis: 10 if axis == "pitch" else 0, "speed": 300})
+            link_move(link, axis, 10 if axis == "pitch" else 0)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="") as handle:
         w = csv.writer(handle)

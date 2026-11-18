@@ -184,6 +184,26 @@
       "v": 40,
       "src": "measured",
       "note": "firmware patch 038"
+    },
+    "yaw_speed_cap_deg_s": {
+      "v": 1000,
+      "src": "assumed",
+      "note": "the servo's own limit on how fast its setpoint moves toward a step (degrees a second); the bench saw the head cover only 40 to 46 percent of a step in 0.6 s, so the real cap is lower; fitted by calibrate.py"
+    },
+    "yaw_accel_cap_deg_s2": {
+      "v": 30000,
+      "src": "assumed",
+      "note": "the servo's own limit on the setpoint's acceleration (degrees a second squared); fitted by calibrate.py"
+    },
+    "pitch_speed_cap_deg_s": {
+      "v": 1000,
+      "src": "assumed",
+      "note": "the servo's own limit on how fast its setpoint moves toward a step (degrees a second); the bench saw the head cover only 40 to 46 percent of a step in 0.6 s, so the real cap is lower; fitted by calibrate.py"
+    },
+    "pitch_accel_cap_deg_s2": {
+      "v": 30000,
+      "src": "assumed",
+      "note": "the servo's own limit on the setpoint's acceleration (degrees a second squared); fitted by calibrate.py"
     }
   },
   "joints": [

@@ -62,12 +62,14 @@ def rows() -> list[dict]:
             "evidence": [("flasher page and scripts", flasher), ("flasher tests", has(r"^flasher/test/"))],
             "missing": ["a flasher published at an address a friend can open", "a signed release image to flash (no release key yet)" if key_missing else ""],
             "blocked": True,
+            "unblock": [("owner", "create the release key and decide where the flasher page is published (an address a friend can open)"), ("firmware", "build the first release image signed with that key and publish it with its signature file"), ("app", "host the flasher page and the image, and point the page's manifest at them")],
         },
         {
             "row": "Install the host program without a terminal",
             "evidence": [("install page", has(r"^docs/user/install-the-host\.md$")), ("host packaging", has(r"^host/pyproject\.toml$"))],
             "missing": ["an installer a friend can double click (today: pipx from a terminal)"],
             "blocked": True,
+            "unblock": [("owner", "choose the systems to support first (Mac, Windows, a Raspberry Pi) and whether a bundled app is wanted"), ("app", "build that installer, with the first-run page that opens the settings page and the pairing card, and test it on a clean machine")],
         },
         {
             "row": "Pair the robot with a code, no terminal",
@@ -92,6 +94,7 @@ def rows() -> list[dict]:
             "evidence": [("signed update patches", patches("155|159")), ("update cover frames", has(r"^host/tests/golden/screens/cover-update-"))],
             "missing": ["a release key and a signed image installed on a robot", "a first update from one real release to the next"],
             "blocked": True,
+            "unblock": [("owner", "create the release key (the same one as the flasher row) and say when a first release is cut"), ("firmware", "sign two releases and prove the update path with the real key: accepted, refused on a wrong signature, and rolled back when the new image fails to start"), ("bench", "run that on a robot and record it")],
         },
         {
             "row": "Privacy switches: mute, camera off, always-on cues",
@@ -146,8 +149,13 @@ def render() -> str:
         evidence = "; ".join(f"{label}: {len(files)} file(s), e.g. `{files[0]}`" for label, files in row["evidence"] if files) or "none found"
         missing = "; ".join(m for m in row["missing"] if m) or "nothing"
         lines.append(f"| {row['row']} | **{st}** | {evidence} | {missing} |")
+    lines += ["", "## The blocked rows and what unblocks each", ""]
+    for row in rows():
+        if status(row) == "blocked":
+            lines.append(f"**{row['row']}**")
+            lines += [f"- {who}: {what}" for who, what in row.get("unblock", [])]
+            lines.append("")
     lines += [
-        "",
         f"Totals: {counts['done']} done, {counts['partly']} partly, {counts['blocked']} blocked.",
         "",
         "## What gates the first release, in one list",

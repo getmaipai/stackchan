@@ -190,3 +190,18 @@ def reminders_get(u,args): return {"reminders":_state(u)["reminders"]}
 @tool("self.robot.stop_reminder")
 def reminder_stop(u,args):
     s=_state(u); old=len(s["reminders"]); s["reminders"]=[r for r in s["reminders"] if r["id"]!=args.get("id")]; return {"ok":len(s["reminders"])<old}
+
+
+@tool("self.bench.set_head")
+def bench_set_head(u, args):
+    """Bench builds: move the head whatever the idle rule says (the limiter still applies) and answer the angles read back. -9999 keeps an axis. Here it is the
+    ordinary head move; hold_ms is not waited for, so the answer is the head's angles at the moment of the call."""
+    move = {k: int(args[k]) for k in ("yaw", "pitch") if int(args.get(k, -9999)) != -9999}
+    if "speed" in args:
+        move["speed"] = int(args["speed"])
+    if move:
+        out = u.call("self.robot.set_head_angles", move)
+        if out.get("ok") is False:
+            return out
+    head = u.head()
+    return {"ok": True, "yaw": head["yaw"], "pitch": head["pitch"], "read_back": True}

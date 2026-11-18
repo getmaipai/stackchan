@@ -136,17 +136,22 @@ def lock_touch(u,args):
     if not a["locked"] or not a.get("ui_on",False):return {"ok":False,"reason":"not_locked"}
     if a.get("last_ring") is not None and u.now_ms-a.get("last_ring_at",-999999)<=120000:
         a["last_ring"]=None; a["last_ring_at"]=u.now_ms; return {"ok":True}
-    a["keypad"]=True; return {"ok":True}
+    a["keypad"]=True; a["keypad_since"]=u.now_ms; return {"ok":True}
 @tool("self.lock.bench_key")
 def lock_key(u,args):
     a=app(u); k=args.get("key","1")
     if not a["locked"] or not a.get("ui_on",False) or len(k)!=1:return {"ok":False,"reason":"not_locked"}
-    if k=="C":a["entered"]=""; a["keypad"]=False
-    elif k=="B":a["entered"]=a["entered"][:-1]
-    elif k in "0123456789":a["entered"]+=k
-    else: pass  # Firmware forwards any single character to the keypad handler.
-    unlocked=a["entered"]==a["code"] and bool(a["entered"])
-    if unlocked:a["locked"]=False; a["keypad"]=False; a["entered"]=""
+    if a["keypad"] and u.now_ms-a.get("keypad_since",u.now_ms)>=15000:a["entered"]=""; a["keypad"]=False   # the keypad goes back to the lock screen after 15 s with no key (LK_KEYPAD_TIMEOUT_MS)
+    unlocked=False
+    if not a["keypad"]:pass   # the keypad is not up: the core ignores the key
+    elif k=="C":a["entered"]=""; a["keypad"]=False
+    elif k=="B":a["entered"]=a["entered"][:-1]; a["keypad_since"]=u.now_ms
+    elif k in "0123456789" and len(a["entered"])<6:
+        a["keypad_since"]=u.now_ms; a["entered"]+=k
+        unlocked=len(a["entered"])>=4 and a["entered"]==a["code"]    # every digit from the fourth on is checked against the code: no enter key, no early wrong
+        if unlocked:a["locked"]=False; a["keypad"]=False; a["entered"]=""
+        elif len(a["entered"])>=6:a["entered"]=""   # six digits and still wrong: the entry is cleared and the screen shows the wrong code look
+    else: pass  # anything else is ignored, as the core does
     return {"ok":True,"unlocked":unlocked,"keypad":a["keypad"]}
 
 def timer_add(a, due, label, silent):

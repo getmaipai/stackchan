@@ -22,10 +22,10 @@ def value(desc: dict, key: str):
 
 
 def provenance(desc: dict) -> dict[str, list[str]]:
-    """parameter names grouped by their src: the two groups the calibration and the docs report."""
+    """parameter names grouped by their src (measured, assumed, or "fitted, low confidence" after a calibration): the groups the docs report."""
     out: dict[str, list[str]] = {"measured": [], "assumed": []}
     for key, entry in desc["params"].items():
-        out[entry["src"]].append(key)
+        out.setdefault(entry["src"], []).append(key)
     return out
 
 
@@ -44,11 +44,13 @@ def mjcf(desc: dict) -> str:
     damp, fric, arm = p("joint_damping"), p("joint_friction"), p("joint_armature")
     ax = lambda j: " ".join(str(int(a)) for a in j["axis"])  # noqa: E731
     fr = f"{_f(p('table_friction'))} 0.005 0.0001"
+    # Collision groups: the head box is a plain box, bigger than the real shell's outline, and would hit the base plate when it nods; the model's own collision sweep
+    # finds the real head clear of the base over the whole range. So the head touches the table (when the unit tips over) but not the base.
     return f"""<mujoco model="{desc['robot']}">
   <compiler angle="radian" autolimits="true"/>
   <option timestep="{_f(p('timestep'))}" gravity="0 0 -9.81" integrator="implicitfast"/>
   <worldbody>
-    <geom name="table" type="plane" size="1 1 0.01" friction="{fr}" rgba="0.2 0.2 0.25 1"/>
+    <geom name="table" type="plane" size="1 1 0.01" friction="{fr}" contype="1" conaffinity="3" rgba="0.2 0.2 0.25 1"/>
     <body name="base" pos="0 0 {_f(p('base_h') / 2)}">
       <freejoint name="base_free"/>
       <geom name="base_plate" type="box" pos="{_f(p('base_center_x'))} 0 0" size="{_f(p('base_d') / 2)} {_f(p('base_w') / 2)} {_f(p('base_h') / 2)}" mass="{_f(p('mass_base'))}" friction="{fr}"/>
@@ -58,7 +60,7 @@ def mjcf(desc: dict) -> str:
         <geom name="neck" type="box" size="{_f(p('neck_d') / 2)} {_f(p('neck_w') / 2)} {_f(pitch_rel / 2)}" pos="0 0 {_f(pitch_rel / 2)}" mass="{_f(p('mass_neck'))}" contype="0" conaffinity="0"/>
         <body name="pitch_link" pos="0 0 {_f(pitch_rel)}">
           <joint name="{pitch['name']}" type="hinge" axis="{ax(pitch)}" range="{_f(math.radians(pr[0]))} {_f(math.radians(pr[1]))}" limited="true" damping="{_f(damp)}" frictionloss="{_f(fric)}" armature="{_f(arm)}"/>
-          <geom name="head" type="box" size="{_f(p('head_d') / 2)} {_f(p('head_w') / 2)} {_f(p('head_h') / 2)}" pos="{_f(p('head_center_x'))} 0 0" mass="{_f(p('mass_head'))}" friction="{fr}"/>
+          <geom name="head" type="box" size="{_f(p('head_d') / 2)} {_f(p('head_w') / 2)} {_f(p('head_h') / 2)}" pos="{_f(p('head_center_x'))} 0 0" mass="{_f(p('mass_head'))}" friction="{fr}" contype="2" conaffinity="2"/>
           <site name="imu" pos="{_f(p('head_center_x'))} 0 0" size="0.002"/>
         </body>
       </body>

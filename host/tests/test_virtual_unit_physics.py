@@ -38,7 +38,7 @@ vunit = _load("vunit_for_physics", VU / "vunit.py")
 def test_every_parameter_is_marked_measured_or_assumed_with_a_note():
     desc = mjcf.load()
     for key, entry in desc["params"].items():
-        assert entry["src"] in ("measured", "assumed"), key
+        assert entry["src"] in ("measured", "assumed", "fitted, low confidence"), key
         assert entry["note"], key
         assert "v" in entry, key
     groups = mjcf.provenance(desc)
@@ -116,7 +116,7 @@ def test_calibration_recovers_the_servo_gain_from_a_noisy_bench_recording():
     assert abs(theta[0] - true[0]) / true[0] < 0.1
 
 
-def test_calibration_writes_fitted_values_as_measured(tmp_path, monkeypatch):
+def test_calibration_writes_fitted_values_as_low_confidence(tmp_path, monkeypatch):
     rec, _, _ = _recording([0.62, 0.0065, 0.003, 0.12])
     path = tmp_path / "rec.json"
     path.write_text(json.dumps(rec))
@@ -126,7 +126,7 @@ def test_calibration_writes_fitted_values_as_measured(tmp_path, monkeypatch):
     monkeypatch.setattr(calibrate, "HERE", tmp_path)
     assert calibrate.main([str(path), "--write"]) == 0
     fitted = json.loads((robots / "stackchan.robot.json").read_text())["params"]["pitch_kp"]
-    assert fitted["src"] == "measured" and "rec.json" in fitted["note"]
+    assert fitted["src"] == "fitted, low confidence" and "rec.json" in fitted["note"]
 
 
 def test_the_playground_names_the_engine_only_in_the_third_party_files():
@@ -198,3 +198,13 @@ def test_the_physics_description_agrees_with_the_models_params():
     assert v("yaw_range_deg") == model["joints"]["yaw_joint"]["limit_deg"] and v("pitch_range_deg") == model["joints"]["pitch_joint"]["limit_deg"]
     assert math.isclose(v("mass_total"), model["mass_kg"]["total"]["value"]) and math.isclose(mjcf.total_mass(desc), v("mass_total"), abs_tol=1e-6)
     assert math.isclose(v("head_center_x"), dims["head_front_from_axis"] - dims["head_depth"] / 2, abs_tol=1e-4)
+
+
+def test_the_head_box_does_not_collide_with_the_base_but_does_with_the_table():
+    """The head box is bigger than the real shell's outline and would hit the base when it nods (the head stopped at 14 degrees in the sandbox): collision groups keep
+    it off the base and on the table. The pairs collide when (contype of one and conaffinity of the other) is not zero."""
+    doc = xml.dom.minidom.parseString(mjcf.mjcf(mjcf.load()))
+    g = {x.getAttribute("name"): x for x in doc.getElementsByTagName("geom")}
+    bits = lambda n: (int(g[n].getAttribute("contype") or 1), int(g[n].getAttribute("conaffinity") or 1))  # noqa: E731
+    hits = lambda a, b: bool(bits(a)[0] & bits(b)[1] or bits(b)[0] & bits(a)[1])  # noqa: E731
+    assert hits("head", "table") and not hits("head", "base_plate") and hits("base_plate", "table")
