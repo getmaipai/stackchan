@@ -43,6 +43,7 @@ static const named_t NAMES[] = {
     {"page actions", MSCR_PAGE}, {"page frame", MSCR_PAGE},   {"page tiles", MSCR_PAGE},    {"apps", MSCR_APPS},
     {"games wall", MSCR_APPS},   {"timers", MSCR_APPS},       {"alarms", MSCR_APPS},        {"settings", MSCR_SETTINGS},
     {"quick settings", MSCR_QUICK}, {"wifi", MSCR_WIFI},      {"more", MSCR_MORE},          {"lock keypad", MSCR_LOCK},
+    {"first run", MSCR_FIRSTRUN},
 };
 #define N_NAMES ((int)(sizeof(NAMES) / sizeof(NAMES[0])))
 
@@ -81,6 +82,18 @@ static void check_glass(void)
     CHECK(overlays_on_glass() <= 1);                                              /* never two overlay screens */
     CHECK(!(glass & MSCR_BIT(MSCR_SHEET)) || (glass & ~(MSCR_BIT(MSCR_SHEET) | MSCR_BIT(MSCR_PAGE))) == 0);   /* the sheet only over the face or a page */
     CHECK(M.visible_mask == glass && mscr_valid(&M));
+}
+
+static void test_first_run_pauses_face(void)
+{
+    mscr_t state;
+    mscr_init(&state);
+    CHECK((state.visible_mask & ~MSCR_BIT(MSCR_SHEET)) == 0); /* the face runs with no full-screen surface */
+    mscr_enter(&state, MSCR_FIRSTRUN);
+    CHECK((state.visible_mask & ~MSCR_BIT(MSCR_SHEET)) != 0); /* first run pauses the face */
+    CHECK(state.visible_mask == MSCR_BIT(MSCR_FIRSTRUN));
+    mscr_exit(&state, MSCR_FIRSTRUN);
+    CHECK((state.visible_mask & ~MSCR_BIT(MSCR_SHEET)) == 0);
 }
 
 static void test_surfaces(void)
@@ -190,6 +203,7 @@ int main(void)
         CHECK(S.cur == MSCR_NONE ? shown == 0 : shown == (1u << S.cur));
     }
     test_surfaces();
+    test_first_run_pauses_face();
     if (failures == 0) {
         printf("screens_core_test: all passed\n");
         return 0;

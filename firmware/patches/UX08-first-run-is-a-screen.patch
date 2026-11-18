@@ -1,0 +1,47 @@
+# Intent: Register first-run screens so they pause the animated face while visible.
+# Placement: unit
+# Upstream: maipai_screens_core.h and maipai_firstrun.cc (ours, patches UX06 and UX08)
+# Check after a flash: Confirm the face rests during each first-run step and resumes when the flow closes.
+
+diff --git a/firmware/main/hal/maipai_screens_core.h b/firmware/main/hal/maipai_screens_core.h
+--- a/firmware/main/hal/maipai_screens_core.h
++++ b/firmware/main/hal/maipai_screens_core.h
+@@ -16,7 +16,7 @@
+ /* MSCR_APPS (patch UI16): the Apps wall, the games wall, Timers and Alarms. Patch NX03 adds the rest of the glass: MSCR_SHEET (the quick access
+  * sheet) and MSCR_PAGE (a swipe page: clock, timers, games, quick actions, pictures, dashboard). A running game covers the glass opaquely and the
+  * wall and the pages close by themselves while one runs (game_running), so it is not a surface here. */
+-enum { MSCR_NONE = -1, MSCR_SETTINGS = 0, MSCR_QUICK, MSCR_WIFI, MSCR_MORE, MSCR_LOCK, MSCR_APPS, MSCR_SHEET, MSCR_PAGE, MSCR_COUNT };
++enum { MSCR_NONE = -1, MSCR_SETTINGS = 0, MSCR_QUICK, MSCR_WIFI, MSCR_MORE, MSCR_LOCK, MSCR_APPS, MSCR_SHEET, MSCR_PAGE, MSCR_FIRSTRUN, MSCR_COUNT };
+ 
+ typedef struct {
+     int8_t cur;           /* the one screen that is up, or MSCR_NONE */
+diff --git a/firmware/main/hal/maipai_firstrun.cc b/firmware/main/hal/maipai_firstrun.cc
+--- a/firmware/main/hal/maipai_firstrun.cc
++++ b/firmware/main/hal/maipai_firstrun.cc
+@@ -1,5 +1,6 @@
+ #include "maipai_firstrun.h"
+ #include "maipai_firstrun_core.h"
++#include "maipai_screens.h"
+ #include "maipai_ui_style.h"
+ #include <lvgl.h>
+ 
+@@ -212,9 +213,11 @@
+ 
+ void maipai_firstrun_init(const maipai_firstrun_host_t* host) {
+     H = host ? *host : maipai_firstrun_host_t{};
++    maipai_screen_register(MSCR_FIRSTRUN, maipai_firstrun_close);
+ }
+ 
+ void maipai_firstrun_start() {
++    maipai_screen_open(MSCR_FIRSTRUN);
+     mfr_init(&flow, H.wifi_set && H.wifi_set(), H.hub_known && H.hub_known());
+     running = true;
+     language = 0;
+@@ -233,6 +236,7 @@
+ }
+ 
+ void maipai_firstrun_close() {
++    maipai_screen_closed(MSCR_FIRSTRUN);
+     if (timer) {
+         lv_timer_delete(timer);
+         timer = nullptr;

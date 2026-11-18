@@ -55,6 +55,7 @@ SCREENS: dict[str, list] = {
     "first-run-6": [("raw", "frun step 5 0 -1"), ("advance", 400)],
     "first-run-4-es": [("raw", "frun step 3 1 -1"), ("advance", 400)],
     "first-run-1-de": [("raw", "frun step 0 3 -1"), ("advance", 400)],
+    "first-run-started": BAR + [("raw", "frun start"), ("advance", 800)],  # the real flow (registered as a screen, patch UX08)
     "screen-wifi-flag": BAR + [("raw", "bwifiscreen on"), ("advance", 700)],
     "screen-page-clock": BAR + [("raw", "pshow clock"), ("advance", 600)],
     "screen-page-timers": BAR + [("raw", "pshow timers"), ("advance", 600)],

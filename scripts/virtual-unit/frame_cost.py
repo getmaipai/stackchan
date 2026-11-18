@@ -19,7 +19,7 @@ spec.loader.exec_module(sc)
 vunit = sc.vunit
 
 PICKS = ["face-neutral", "face-happy", "speak-90", "face-thinking", "face-sleeping", "screen-status-normal", "screen-page-clock", "screen-page-timers",
-         "screen-control-sheet", "screen-apps-wall", "screen-games-wall", "screen-settings-general", "screen-eyes-only-muted", "first-run-1"]
+         "screen-control-sheet", "screen-apps-wall", "screen-games-wall", "screen-settings-general", "screen-eyes-only-muted", "first-run-1", "first-run-started"]
 MS_PER_BYTE = 30.0 / 153600  # the measured full-screen flush on the unit
 LINE = re.compile(r"perf (\S+) frames (\d+) flushed_px_per_frame (\d+) host_ms_per_frame ([\d.]+)")
 
@@ -66,7 +66,7 @@ Lane P baseline. Measured with `python3 scripts/virtual-unit/frame_cost.py --wri
 - Pixels flushed per frame is exact for the unit's own drawing code: it does not depend on the Mac. A static screen flushes 0 pixels.
 - Host ms per frame is the time of the same drawing on this Mac: use it to compare screens with each other, not as unit time.
 - The estimated unit flush time uses the one measured number we have (a full-screen flush of 153,600 bytes takes 26 to 35 ms on the unit, `docs/design/picture-faces-2026-11-16.md`), taken as 30 ms. It covers the flush only, not the drawing, so the real frame is longer.
-- Finding (fixed by patch UX06): before it, full-screen screens flushed 2,600 to 2,700 pixels per frame, as much as the face, because the face behind a cover kept its gaze drift and blink going. With UX06 the face update rests while a full-screen screen is up: pages, the Apps and Games walls and Settings flush 0 pixels per frame (the clock page 9, its seconds). The half-height control sheet keeps the face live, so it still flushes about 2,700. The first-run screens are not registered as screens yet and still flush about 2,400 per frame during first run only. A sleeping face flushes 0.
+- Finding (fixed by patch UX06): before it, full-screen screens flushed 2,600 to 2,700 pixels per frame, as much as the face, because the face behind a cover kept its gaze drift and blink going. With UX06 the face update rests while a full-screen screen is up: pages, the Apps and Games walls and Settings flush 0 pixels per frame (the clock page 9, its seconds). The half-height control sheet keeps the face live, so it still flushes about 2,700. The first-run flow is registered as a screen (patch UX08) and flushes 0 once started; the single-step preview frames (`frun step`) are not the flow and still show the face behind. A sleeping face flushes 0.
 - Lane P target: when a change raises pixels flushed per frame of a screen, say so here.
 """
         (ROOT / "docs" / "dev" / "frame-cost-baseline-2026-11-18.md").write_text(text)

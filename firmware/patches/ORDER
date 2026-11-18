@@ -250,6 +250,7 @@ UX06-face-rests-under-covers.patch
 UX07a-screen-fonts-with-accents.patch
 UX07b-screen-words-with-accents.patch
 UX07c-symbols-keep-their-font.patch
+UX08-first-run-is-a-screen.patch
 SF01-time-helper-lock-and-remote-safety.patch
 SF02-hello-gate-switches-banner-and-light-safety.patch
 SF03-listening-guard-follows-voice.patch
