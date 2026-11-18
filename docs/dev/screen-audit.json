@@ -67,57 +67,27 @@
  },
  "first-run-1": {
   "targets": 7,
-  "fails": 5,
-  "warnings": 0,
-  "failures": [
-   "target 64x36 px (8.1 x 4.6 mm) at 252,4: under 48 px",
-   "targets at 8,62 and 110,62 are 6 px apart (under 8)",
-   "targets at 110,62 and 212,62 are 6 px apart (under 8)",
-   "targets at 8,128 and 110,128 are 6 px apart (under 8)",
-   "targets at 110,128 and 212,128 are 6 px apart (under 8)"
-  ]
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
  },
  "first-run-2": {
   "targets": 9,
-  "fails": 20,
-  "warnings": 0,
-  "failures": [
-   "target 44x44 px (5.6 x 5.6 mm) at 4,4: under 48 px",
-   "target 64x36 px (8.1 x 4.6 mm) at 252,4: under 48 px",
-   "target 304x44 px (38.6 x 5.6 mm) at 8,48: under 48 px",
-   "target 96x40 px (12.2 x 5.1 mm) at 8,98: under 48 px",
-   "target 96x40 px (12.2 x 5.1 mm) at 110,98: under 48 px",
-   "target 96x40 px (12.2 x 5.1 mm) at 212,98: under 48 px",
-   "target 96x40 px (12.2 x 5.1 mm) at 8,142: under 48 px",
-   "target 96x40 px (12.2 x 5.1 mm) at 110,142: under 48 px",
-   "target 96x40 px (12.2 x 5.1 mm) at 212,142: under 48 px",
-   "targets at 4,4 and 8,48 are 0 px apart (under 8)",
-   "targets at 8,48 and 8,98 are 6 px apart (under 8)",
-   "targets at 8,48 and 110,98 are 6 px apart (under 8)"
-  ]
+  "fails": 0,
+  "warnings": 9,
+  "failures": []
  },
  "first-run-4": {
   "targets": 5,
-  "fails": 8,
-  "warnings": 0,
-  "failures": [
-   "target 44x44 px (5.6 x 5.6 mm) at 4,4: under 48 px",
-   "target 64x36 px (8.1 x 4.6 mm) at 252,4: under 48 px",
-   "target 280x42 px (35.6 x 5.3 mm) at 20,52: under 48 px",
-   "target 280x42 px (35.6 x 5.3 mm) at 20,98: under 48 px",
-   "target 280x42 px (35.6 x 5.3 mm) at 20,144: under 48 px",
-   "targets at 4,4 and 20,52 are 4 px apart (under 8)",
-   "targets at 20,52 and 20,98 are 4 px apart (under 8)",
-   "targets at 20,98 and 20,144 are 4 px apart (under 8)"
-  ]
+  "fails": 0,
+  "warnings": 5,
+  "failures": []
  },
  "first-run-5": {
   "targets": 2,
-  "fails": 1,
+  "fails": 0,
   "warnings": 1,
-  "failures": [
-   "target 44x44 px (5.6 x 5.6 mm) at 4,4: under 48 px"
-  ]
+  "failures": []
  },
  "first-run-6": {
   "targets": 0,
@@ -127,12 +97,9 @@
  },
  "first-run-next": {
   "targets": 2,
-  "fails": 2,
+  "fails": 0,
   "warnings": 0,
-  "failures": [
-   "target 140x42 px (17.8 x 5.3 mm) at 90,192: under 48 px",
-   "targets at 8,34 and 90,192 are 6 px apart (under 8)"
-  ]
+  "failures": []
  },
  "screen-camera-on": {
   "targets": 0,

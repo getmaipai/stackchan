@@ -1,0 +1,131 @@
+# Intent: The first-run screens at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.md; batch UX13d, audit docs/plan/screen-standards-audit.md). Back is 56 by 48 and Skip 72 by 48 in a header that ends at y 52, with the title between them; the language tiles are 96 by 56 in two rows; the name step is StackChan wide (304 by 48) over six 96 by 48 names; the brain step is three 304 by 48 tiles; the two hint lines that were under them (change it later, your voice stays home) are no longer drawn because they need two 16 px lines the glass has no room for (the last screen and the privacy step say the same); Got it on the privacy step and the last screen is 160 by 56 at the bottom, 8 px above the edge. Every target is 8 px from its neighbor and the header. The geometry lives in the core (maipai_firstrun_core.h) so its host test checks it. Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_firstrun.cc, maipai_firstrun_core.h (ours)
+# Check after a flash: each first-run step has Back and Skip a finger can press and tiles with a gap between them; Got it is easy to press; no text touches a button in any of the six languages.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_firstrun_core.h b/firmware/main/hal/maipai_firstrun_core.h
+--- a/firmware/main/hal/maipai_firstrun_core.h
++++ b/firmware/main/hal/maipai_firstrun_core.h
+@@ -186,4 +186,18 @@
+     return m->step == MFR_DONE;
+ }
+ 
++/* ---- the first-run screens at finger size (patch UX13d): where every target sits ----
++ * The header (y 4 to 52) holds Back (56 by 48, left) and Skip (72 by 48, right) as secondary targets, with the title between them. Everything else is 8 px from the header and from the
++ * next target. Language: six tiles 96 by 56 in two rows. Name: StackChan wide (304 by 48) and the six names 96 by 48. Brain: three tiles 304 by 48. The hint lines under the name and brain tiles are gone (they
++ * needed two 16 px lines and the glass has room for none; the last screen and the privacy step say the same). Privacy and the last screen: one 160 by 56 button at the bottom (8 px above the edge). */
++#define MFR_HEADER_BOTTOM 52
++static inline void mfr_set_box(int x, int y, int w, int h, int* ox, int* oy, int* ow, int* oh) { *ox = x; *oy = y; *ow = w; *oh = h; }
++static inline void mfr_back_box(int* x, int* y, int* w, int* h) { mfr_set_box(8, 4, 56, 48, x, y, w, h); }
++static inline void mfr_skip_box(int* x, int* y, int* w, int* h) { mfr_set_box(240, 4, 72, 48, x, y, w, h); }
++static inline void mfr_lang_box(int i, int* x, int* y, int* w, int* h) { mfr_set_box(8 + (i % 3) * 104, 64 + (i / 3) * 64, 96, 56, x, y, w, h); }
++static inline void mfr_name_wide_box(int* x, int* y, int* w, int* h) { mfr_set_box(8, 60, 304, 48, x, y, w, h); }
++static inline void mfr_name_box(int i, int* x, int* y, int* w, int* h) { mfr_set_box(8 + (i % 3) * 104, 116 + (i / 3) * 56, 96, 48, x, y, w, h); }
++static inline void mfr_mode_box(int i, int* x, int* y, int* w, int* h) { mfr_set_box(8, 60 + i * 56, 304, 48, x, y, w, h); }
++static inline void mfr_got_box(int* x, int* y, int* w, int* h) { mfr_set_box(80, 176, 160, 56, x, y, w, h); }
++
+ #endif
+diff --git a/firmware/main/hal/maipai_firstrun.cc b/firmware/main/hal/maipai_firstrun.cc
+--- a/firmware/main/hal/maipai_firstrun.cc
++++ b/firmware/main/hal/maipai_firstrun.cc
+@@ -199,8 +199,10 @@
+         }
+         const Words& w = words[(language >= 0 && language < MFR_LANG_COUNT) ? language : 0];
+         if (mfr_back_visible(step)) {
+-            lv_obj_t* b = box(root, 4, 4, 44, 44, maipai_ui_style::surface(), true);
+-            lv_obj_t* a = label(b, LV_SYMBOL_LEFT, maipai_ui_style::symbol_font(), maipai_ui_style::text(), 44);
++            int bx, by, bw, bh;
++            mfr_back_box(&bx, &by, &bw, &bh);   // patch UX13d: Back is 56 by 48
++            lv_obj_t* b = box(root, bx, by, bw, bh, maipai_ui_style::surface(), true);
++            lv_obj_t* a = label(b, LV_SYMBOL_LEFT, maipai_ui_style::symbol_font(), maipai_ui_style::text(), bw);
+             lv_obj_align(a, LV_ALIGN_CENTER, 0, 0);
+             lv_obj_add_event_cb(b, event, LV_EVENT_CLICKED, (void*)(intptr_t)100);
+         }
+@@ -218,7 +220,7 @@
+             lv_obj_remove_style_all(col);
+             lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+             lv_obj_set_pos(col, 8, 34);
+-            lv_obj_set_size(col, 304, 152);
++            lv_obj_set_size(col, 304, 128);   // patch UX13d: the text box ends by y 162, 14 px above the button
+             lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+             lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+             lv_obj_set_style_pad_row(col, 5, 0);
+@@ -227,46 +229,59 @@
+             const char* where = (H.settings_address ? H.settings_address() : preview_address);
+             label(col, (where && *where) ? where : w.next_none, f16, maipai_ui_style::accent(), 304);
+             label(col, w.next_c, f16, maipai_ui_style::text(), 304);
+-            add_button(root, 90, 192, 140, 42, w.got, 50, true);
++            int gx, gy, gw, gh;
++            mfr_got_box(&gx, &gy, &gw, &gh);
++            add_button(root, gx, gy, gw, gh, w.got, 50, true);   // patch UX13d: 160 by 56 at the bottom
+             return;
+         }
+         if (mfr_skip_visible(step)) {   // a small Skip at the top right of every step the person chooses on
+-            add_button(root, 252, 4, 64, 36, w.skip, 90);
++            int sx, sy, sw, sh;
++            mfr_skip_box(&sx, &sy, &sw, &sh);   // patch UX13d: Skip is 72 by 48
++            add_button(root, sx, sy, sw, sh, w.skip, 90);
+         }
+-        const int left = mfr_back_visible(step) ? 52 : 8;                     // the title keeps clear of the back arrow and of Skip
+-        const int tw = (mfr_skip_visible(step) ? 248 : 312) - left;
++        const int left = mfr_back_visible(step) ? 72 : 8;                     // the title keeps clear of the back arrow and of Skip (patch UX13d: both are wider)
++        const int tw = (mfr_skip_visible(step) ? 232 : 312) - left;
+         lv_obj_t* title = label(root, w.title[step], fit_font(w.title[step], tw),
+                                 maipai_ui_style::text(), tw);
+-        lv_obj_align(title, LV_ALIGN_TOP_LEFT, left, 8);
++        lv_obj_align(title, LV_ALIGN_TOP_LEFT, left, 10);
+         if (step == MFR_LANGUAGE) {
+             for (int i = 0; i < 6; i++) {
+-                add_button(root, 8 + (i % 3) * 102, 62 + (i / 3) * 66, 96, 58, langs[i], i, language == i);
++                int lx, ly, lw, lh;
++                mfr_lang_box(i, &lx, &ly, &lw, &lh);
++                add_button(root, lx, ly, lw, lh, langs[i], i, language == i);
+             }
+         } else if (step == MFR_NAME) {
+             // StackChan first, wide, and highlighted until another name is picked; the six others below it. A tap picks and goes on.
+             const int shown = mfr_name_shown(&flow);
+-            add_button(root, 8, 48, 304, 44, names[MFR_NAME_STACKCHAN], 10 + MFR_NAME_STACKCHAN, shown == MFR_NAME_STACKCHAN, true);
+-            for (int i = 0; i < 6; i++) {
+-                add_button(root, 8 + (i % 3) * 102, 98 + (i / 3) * 44, 96, 40, names[i], 10 + i, shown == i);
++            int wx, wy, ww, wh;
++            mfr_name_wide_box(&wx, &wy, &ww, &wh);
++            add_button(root, wx, wy, ww, wh, names[MFR_NAME_STACKCHAN], 10 + MFR_NAME_STACKCHAN, shown == MFR_NAME_STACKCHAN, true);
++            for (int i = 0; i < 6; i++) {
++                int nx, ny, nw, nh;
++                mfr_name_box(i, &nx, &ny, &nw, &nh);
++                add_button(root, nx, ny, nw, nh, names[i], 10 + i, shown == i);
+             }
+-            lv_obj_t* h = label(root, w.change, f16, maipai_ui_style::muted(), 304);
+-            lv_obj_align(h, LV_ALIGN_BOTTOM_MID, 0, -4);
++            // patch UX13d: the "you can change it later" line (w.change) is no longer drawn here: two lines of 16 px do not fit under the tiles; the last screen says the same (Change anything on the settings page)
+         } else if (step == MFR_BRAIN) {
+             // Where the robot's brain (the language model, speech to text and text to speech it asks) lives, the three ways of decision 12 of 2026-11-18: MaiPai Home, the person's own servers, or a small local stack the host sets up. Nothing on the robot reads
+             // the choice to change what it does today; it is recorded and sent to the host, which builds the three ways (docs/plan/first-run-brain-choice.md). The default shown is Home when a hub is known, else "set one up for me".
+             const int shown = mfr_mode_shown(&flow);
+-            const bool all_big = fit_font(w.home, 264) == f24 && fit_font(w.own, 264) == f24 && fit_font(w.setup, 264) == f24;
+-            add_button(root, 20, 52, 280, 42, w.home, 30, shown == MFR_MODE_HOME, all_big);
+-            add_button(root, 20, 98, 280, 42, w.own, 31, shown == MFR_MODE_OWN, all_big);
+-            add_button(root, 20, 144, 280, 42, w.setup, 32, shown == MFR_MODE_SETUP, all_big);
+-            lv_obj_t* h = label(root, w.hint, f16, maipai_ui_style::muted(), 300);
+-            lv_obj_align(h, LV_ALIGN_BOTTOM_MID, 0, -2);
++            const bool all_big = fit_font(w.home, 288) == f24 && fit_font(w.own, 288) == f24 && fit_font(w.setup, 288) == f24;
++            const char* mode_words[3] = {w.home, w.own, w.setup};
++            for (int i = 0; i < 3; i++) {
++                int mx, my, mw, mh;
++                mfr_mode_box(i, &mx, &my, &mw, &mh);   // patch UX13d: three tiles of 304 by 48, 8 px apart
++                add_button(root, mx, my, mw, mh, mode_words[i], 30 + i, shown == i, all_big);
++            }
++            // patch UX13d: the hint line (w.hint) is no longer drawn here for the same reason; the privacy step says it
+         } else if (step == MFR_PRIVACY) {
+             lv_obj_t* a = label(root, w.privacy_a, f16, maipai_ui_style::text(), 296);
+             lv_obj_align(a, LV_ALIGN_TOP_MID, 0, 82);
+             lv_obj_t* b = label(root, w.privacy_b, f16, maipai_ui_style::text(), 296);
+             lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 119);
+-            add_button(root, 80, 178, 160, 52, w.got, 40, true);
++            int gx, gy, gw, gh;
++            mfr_got_box(&gx, &gy, &gw, &gh);
++            add_button(root, gx, gy, gw, gh, w.got, 40, true);
+         }
+     }
+ }

@@ -241,7 +241,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
-- `docs/dev/screen-audit.json` (311): no header
+- `docs/dev/screen-audit.json` (278): no header
 - `docs/dev/screen-audit.md` (54): Screen audit against the physical standard
 - `docs/dev/screens-contact-sheets.md` (38): Screens contact sheets
 - `docs/dev/second-robot-adapter.md` (16): Adding a second robot behind the seam
@@ -416,6 +416,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/qa-games-firmware.md` (39): Question and answer games on the unit: the interface and the rules (firmware track, 2026-11-18)
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
 - `docs/plan/release-readiness.md` (43): First release readiness: the friend test
+- `docs/plan/screen-standards-audit.md` (41): Every unit screen against the UX13 standard (audit and fix list)
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
 - `docs/plan/service-and-supervision.md` (113): The host as a managed service, with supervised parts
 - `docs/plan/signed-update-anti-rollback.md` (20): Signed update with a build number (proposal for the app track, 2026-11-18)
@@ -691,7 +692,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (343): no header
+- `firmware/patches/ORDER` (344): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -866,6 +867,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX13b-more-at-finger-size.patch` (241): The More screen at finger size (owner review 2026-11-18, docs/design/screen-style.md), made together with SF69
 - `firmware/patches/UX13c-control-sheet-at-finger-size.patch` (312): The control sheet at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.m
 - `firmware/patches/UX13e-games-page-at-finger-size.patch` (165): The games page and the Apps and Games walls at finger size (owner review 2026-11-18, the physical standard in 
+- `firmware/patches/UX13f-timers-and-alarms-at-finger-size.patch` (164): Timers and Alarms at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.m
 - `firmware/patches/UX14-clock-styles-tap-and-sleep-sign.patch` (190): The clock page gets three styles that a tap cycles, and shows when the unit sleeps (owner idea 2026-11-18, spe
 - `firmware/patches/UX14b-clock-flip-on-the-card-tween.patch` (133): The clock style change plays a card flip (owner idea 2026-11-18, spec docs/design/clock-styles.md "The flip").
 - `firmware/patches/UX15-shared-game-over-screen.patch` (225): One game-over screen for every game (owner idea 2026-11-18, spec docs/design/game-over-screen.md). A face for 
@@ -1944,7 +1946,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/facefx_core_test.c` (134): Host test for the fluid face core (patch H02): easing, time constants, speech level, mouth curve, gaze drift. 
 - `host/tests/firmware/filler_core_test.c` (220): Host test for "While it thinks" (patch TB03): the delay rule, the pick, the index reader, mu-law and the tone.
 - `host/tests/firmware/find_core_test.c` (27): Host test for the find-my-robot sound rule (patch Y02): the full sounds core with the find bypass. */
-- `host/tests/firmware/firstrun_core_test.c` (132): include <stdio.h>
+- `host/tests/firmware/firstrun_core_test.c` (162): include <stdio.h>
 - `host/tests/firmware/fx_core_test.c` (347): Host test for the screen effects and the governor (patches TA02, TA05): scanline row math, split invariance, c
 - `host/tests/firmware/fx_cost.c` (94): Host cost model for the overlays and effects (patches TA02, TA03). Runs every overlay for 30 simulated seconds
 - `host/tests/firmware/game_over_core_test.c` (48): Host test of the shared game-over screen's core (patch UX15): the layout meets the screen standard, taps land 

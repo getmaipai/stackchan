@@ -16,12 +16,7 @@ Made 2026-11-18 by the playground track from `docs/dev/screen-audit.json` (the a
 | Games page, walls (Apps, Games) | 0 | UX13e | written, unit proof pending |
 | Settings (General, Network, Faces, Info) | 0, warnings | UX13a | on `main`, unit proof pending |
 | More (menu, version, games) | 0 | UX13b with SF69 | on `main` |
-| First run: language (1) | 5 failures | batch 4 (Setup) | Skip 64 x 36, tiles 6 px apart |
-| First run: name (2) | 20 failures | batch 4 | Back 44 x 44, Skip 64 x 36, tiles 40 px high |
-| First run: brain (4) | 8 failures | batch 4 | tiles 42 px high, 4 px from Back |
-| First run: privacy (5) | 1 failure | batch 4 | Back 44 x 44 |
-| First run: last (next steps) | 2 failures | batch 4 | Got it 140 x 42, 6 px from the title |
-| First run: done (6) | 0 | none | |
+| First run: language, name, brain, privacy, last, done (six languages each) | 0 | UX13d | written, unit proof pending; the two hint lines under the name and brain tiles are no longer drawn (they need two 16 px lines the glass has no room for; the last screen and the privacy step say the same): the owner may want them back in another place |
 | Lock screen and keypad | not audited | batch 5 | drawn by its own program; the keypad keys need the standard |
 | Link covers (Wi-Fi setup, connecting, waiting for approval, pairing, update) | not audited | batch 5 | drawn by `cover_render`; they have no targets, only text sizes |
 | Data-pack games (Color Memory, Whack-a-Mole, Tic-Tac-Toe, Do It, RPS, Magic 8 Ball, Dice and Coin) | not audited | batch 6 | drawn by `games_render`; buttons and tiles need the standard |
@@ -29,13 +24,13 @@ Made 2026-11-18 by the playground track from `docs/dev/screen-audit.json` (the a
 | Game over, Q and A games | core-tested | UX15, UX15b, UX17 | written; the core tests are their audit |
 | Weather and overlays | none | none | no targets |
 
-Totals today: the audit's failures are all in first run (36); the Timers page, the Timers app and the Alarms app are at zero after UX13f.
+Totals today: zero failures in the audited frames after UX13d and UX13f (46 at the start of this audit); the warnings that remain are secondary targets under 56 px by design (the name tiles are 48 px high) and 16 px labels.
 
 ## The fix list, in batches (author on `ux/unproven-games`, one patch each, never in `main`)
 
 1. **Done:** Settings (UX13a), More (UX13b), control sheet (UX13c), games page and walls (UX13e), clock (UX14), shared game over (UX15, UX15b).
 2. **Batch 3, Timers and Alarms (UX13f, done):** the Timers app and page: rows 56 px high on an 8 px gap, the cancel target 56 x 56 at the right, a scroll cue when more than three timers, the three quick starts 56 px, one page indicator style. The Alarms app is drawn first (a scenario and a golden) because the renderer does not show it yet.
-3. **Batch 4, Setup (UX13d):** first run. Skip 72 x 48 and Back 56 x 48 at the top (secondary targets 48 high), the language and brain tiles 56 px high on 8 px gaps (language tiles 96 x 56 in two rows of three; brain tiles 304 x 56 for the three ways), the name list as a scrolling column of 56 px rows, the last screen's Got it 148 x 56 8 px under its text. The renderer already shows every step in six languages: 42 goldens change.
+3. **Batch 4, Setup (UX13d, done):** first run. Skip 72 x 48 and Back 56 x 48 at the top (secondary targets 48 high), the language and brain tiles 56 px high on 8 px gaps (language tiles 96 x 56 in two rows of three; brain tiles 304 x 56 for the three ways), the name list as a scrolling column of 56 px rows, the last screen's Got it 148 x 56 8 px under its text. The renderer already shows every step in six languages: 42 goldens change.
 4. **Batch 5, Lock and covers:** the keypad keys to 56 px with 8 px gaps (a 3 by 4 pad needs 3 x 56 + 16 across and 4 x 56 + 24 down: 184 x 248 does not fit 240, so the pad is 3 by 4 at 48 px keys with 8 px gaps (a secondary target) and the digits in the 20 px text; to be decided with the owner because a code is entered one key at a time), the covers checked for text under 16 px.
 5. **Batch 6, Games:** the data-pack game tiles and buttons (Do It's big button already is; Tic-Tac-Toe cells are 93 x 52; RPS tiles), and a rule for boards: a board cell may be under 56 px when the board is the whole play field and a finger places one piece at a time, but never under 24 px and never with a target of a different kind closer than 8 px.
 

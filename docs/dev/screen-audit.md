@@ -20,12 +20,12 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 | es-page-timers | 3 | 0 | 0 |  |
 | es-settings-general | 11 | 0 | 1 |  |
 | es-settings-info | 6 | 0 | 1 |  |
-| first-run-1 | 7 | 5 | 0 | target 64x36 px (8.1 x 4.6 mm) at 252,4: under 48 px; targets at 8,62 and 110,62 are 6 px apart (under 8) |
-| first-run-2 | 9 | 20 | 0 | target 44x44 px (5.6 x 5.6 mm) at 4,4: under 48 px; target 64x36 px (8.1 x 4.6 mm) at 252,4: under 48 px |
-| first-run-4 | 5 | 8 | 0 | target 44x44 px (5.6 x 5.6 mm) at 4,4: under 48 px; target 64x36 px (8.1 x 4.6 mm) at 252,4: under 48 px |
-| first-run-5 | 2 | 1 | 1 | target 44x44 px (5.6 x 5.6 mm) at 4,4: under 48 px |
+| first-run-1 | 7 | 0 | 1 |  |
+| first-run-2 | 9 | 0 | 9 |  |
+| first-run-4 | 5 | 0 | 5 |  |
+| first-run-5 | 2 | 0 | 1 |  |
 | first-run-6 | 0 | 0 | 0 |  |
-| first-run-next | 2 | 2 | 0 | target 140x42 px (17.8 x 5.3 mm) at 90,192: under 48 px; targets at 8,34 and 90,192 are 6 px apart (under 8) |
+| first-run-next | 2 | 0 | 0 |  |
 | more-games | 3 | 0 | 1 |  |
 | more-menu | 6 | 0 | 1 |  |
 | more-version | 2 | 0 | 1 |  |
@@ -51,4 +51,4 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 | screen-subtitles | 0 | 0 | 0 |  |
 | screen-timers-app | 9 | 0 | 0 |  |
 
-Total failures: 36 on 46 screens.
+Total failures: 0 on 46 screens.

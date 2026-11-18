@@ -36,6 +36,17 @@ static int happy_path(int wifi_set)
     return 0;
 }
 
+static int check_boxes(const int (*b)[4], int n)
+{
+    for (int i = 0; i < n; i++) {
+        CHECK(b[i][0] >= 8 && b[i][0] + b[i][2] <= 320 - 8 && b[i][1] >= 4 && b[i][1] + b[i][3] <= 240 - 4 && b[i][3] >= 48 && b[i][2] >= 56);   /* finger size on the glass */
+        for (int j = 0; j < i; j++) {
+            CHECK(b[i][0] + b[i][2] + 8 <= b[j][0] || b[j][0] + b[j][2] + 8 <= b[i][0] || b[i][1] + b[i][3] + 8 <= b[j][1] || b[j][1] + b[j][3] + 8 <= b[i][1]);   /* 8 px apart */
+        }
+    }
+    return 0;
+}
+
 int main(void)
 {
     mfr_t m;
@@ -126,6 +137,25 @@ int main(void)
         mfr_back(&a);
         CHECK(a.step == MFR_LANGUAGE);
         CHECK(mfr_skip(&a) && a.language == MFR_LANG_IT && a.step == MFR_NAME);   /* skip after back keeps the picked language, not English */
+    }
+    /* patch UX13d: the targets of every step are finger size and 8 px apart */
+    {
+        int b[9][4];
+        mfr_back_box(&b[0][0], &b[0][1], &b[0][2], &b[0][3]);
+        mfr_skip_box(&b[1][0], &b[1][1], &b[1][2], &b[1][3]);
+        CHECK(b[0][1] + b[0][3] <= MFR_HEADER_BOTTOM && b[1][1] + b[1][3] <= MFR_HEADER_BOTTOM);
+        for (int i = 0; i < 6; i++) mfr_lang_box(i, &b[2 + i][0], &b[2 + i][1], &b[2 + i][2], &b[2 + i][3]);
+        if (check_boxes((const int (*)[4])b, 8)) return 1;              /* language: Back, Skip, six tiles */
+        mfr_name_wide_box(&b[2][0], &b[2][1], &b[2][2], &b[2][3]);
+        for (int i = 0; i < 6; i++) mfr_name_box(i, &b[3 + i][0], &b[3 + i][1], &b[3 + i][2], &b[3 + i][3]);
+        if (check_boxes((const int (*)[4])b, 9)) return 1;              /* name: Back, Skip, StackChan, six names */
+        CHECK(b[8][1] + b[8][3] + 8 <= 240);   /* the last name row ends 8 px above the glass edge */
+        for (int i = 0; i < 3; i++) mfr_mode_box(i, &b[2 + i][0], &b[2 + i][1], &b[2 + i][2], &b[2 + i][3]);
+        if (check_boxes((const int (*)[4])b, 5)) return 1;              /* brain: Back, Skip, three tiles */
+        CHECK(b[4][1] + b[4][3] + 8 <= 240);
+        mfr_got_box(&b[1][0], &b[1][1], &b[1][2], &b[1][3]);
+        if (check_boxes((const int (*)[4])b, 2)) return 1;              /* privacy and the last screen: Back (or nothing) and Got it */
+        CHECK(b[1][3] >= 56 && b[1][1] + b[1][3] + 8 <= 240);
     }
     puts("firstrun_core_test: all passed");
     return 0;
