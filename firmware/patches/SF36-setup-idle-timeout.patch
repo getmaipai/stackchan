@@ -1,0 +1,65 @@
+# Intent: The Setup app (the Wi-Fi page, the menus) closes after 90 seconds without a touch, 300 seconds on the Wi-Fi page (the phone does the typing), and never during a software update. A page nobody finished does not restart the unit.
+# Placement: unit
+# Upstream: firmware/main/apps/app_setup/app_setup.cpp and app_setup.h (ours, from the stock Setup app)
+# Check after a flash: open Setup from the launcher and leave it: the unit returns to the launcher after 90 seconds; the Wi-Fi page stays for 5 minutes; Check for Updates never closes by itself.
+# Kconfig: none
+
+diff --git a/firmware/main/apps/app_setup/app_setup.cpp b/firmware/main/apps/app_setup/app_setup.cpp
+--- a/firmware/main/apps/app_setup/app_setup.cpp
++++ b/firmware/main/apps/app_setup/app_setup.cpp
+@@ -42,6 +42,7 @@ void AppSetup::onOpen()
+     _destroy_menu    = false;
+     _need_warm_reset = false;
+     _magic_count     = 0;
++    _idle_limit_ms   = 90000;
+ 
+     _menu_sections = {
+         {
+@@ -50,6 +51,7 @@ void AppSetup::onOpen()
+               [&]() {
+                   _destroy_menu    = true;
+                   _need_warm_reset = true;
++                  _idle_limit_ms   = 300000;  // the phone does the typing: five minutes without a touch
+                   _worker          = std::make_unique<WifiSetupWorker>();
+               }},
+              {"Testing service",
+@@ -134,6 +136,7 @@ void AppSetup::onOpen()
+                  [&]() {
+                      _destroy_menu    = true;
+                      _need_warm_reset = true;
++                     _idle_limit_ms   = 0;  // an update runs without touches
+                      _worker          = std::make_unique<SystemUpdateWorker>();
+                  }},
+                 //  {"Factory Reset",
+@@ -178,12 +181,22 @@ void AppSetup::onRunning()
+         _worker->update();
+         if (_worker->isDone()) {
+             _worker.reset();
++            _idle_limit_ms = 90000;
+             _menu_page = std::make_unique<view::SelectMenuPage>(_menu_sections);
+         }
+     }
+ 
+     GetStackChan().update();
+ 
++    // Patch SF36: the Setup pages (the Wi-Fi page, the menus) go back after a while without a touch; never during an update.
++    if (_idle_limit_ms != 0 && lv_display_get_inactive_time(nullptr) >= _idle_limit_ms) {
++        if (_worker) {
++            _need_warm_reset = false;  // a page nobody finished changed nothing: no restart
++        }
++        close();
++        return;
++    }
++
+     view::update_home_indicator();
+     view::update_status_bar();
+ }
+diff --git a/firmware/main/apps/app_setup/app_setup.h b/firmware/main/apps/app_setup/app_setup.h
+--- a/firmware/main/apps/app_setup/app_setup.h
++++ b/firmware/main/apps/app_setup/app_setup.h
+@@ -32,4 +32,5 @@ private:
+     bool _destroy_menu    = false;
+     bool _need_warm_reset = false;
+     int _magic_count      = 0;
++    uint32_t _idle_limit_ms = 90000;  // patch SF36: the app closes after this long without a touch (0: never, an update is running)
+ };
