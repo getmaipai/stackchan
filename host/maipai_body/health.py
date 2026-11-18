@@ -15,7 +15,7 @@ from typing import Any
 from maipai_body.supervisor import Supervisor
 
 
-def build_health(supervisor: Supervisor | None, *, connected: list[str], paired: dict[str, dict[str, Any]], started: float, names: dict[str, str] | None = None, now: float | None = None) -> dict[str, Any]:
+def build_health(supervisor: Supervisor | None, *, connected: list[str], paired: dict[str, dict[str, Any]], started: float, names: dict[str, str] | None = None, now: float | None = None, away: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     now = time.time() if now is None else now
     names = names or {}
     parts = supervisor.report() if supervisor is not None else []
@@ -29,6 +29,7 @@ def build_health(supervisor: Supervisor | None, *, connected: list[str], paired:
             "last_seen": float(last) if last else None,
             "message": (f"{names.get(device_id) or device_id}: connected." if device_id in connected else f"{names.get(device_id) or device_id}: not connected" + (f" (last seen {time.strftime('%Y-%m-%d %H:%M', time.localtime(float(last)))})." if last else " yet.")),
             "parts": [p for p in parts if p["unit"] == device_id],
+            "away_message": _away(names.get(device_id) or device_id, (away or {}).get(device_id), now),
         })
     failed = [p for p in bad if p["state"] == "failed"]
     if failed:
@@ -47,6 +48,14 @@ def build_health(supervisor: Supervisor | None, *, connected: list[str], paired:
     }
 
 
+def _away(name: str, note: dict[str, Any] | None, now: float) -> str:
+    """'Robot X lost the host for N minutes', from the unit's own ws_away_notice event; empty when it never said so or the note is old."""
+    if not note or now - float(note.get("at", 0)) > 24 * 3600:
+        return ""
+    minutes = max(1, round(int(note["away_s"]) / 60))
+    return f"{name} lost the host for {minutes} minute{'s' if minutes != 1 else ''}."
+
+
 def render_text(doc: dict[str, Any]) -> str:
     lines = [doc["summary"], f"The host has been running for {_span(doc['uptime_s'])}.", ""]
     lines.append("Parts:")
@@ -55,6 +64,8 @@ def render_text(doc: dict[str, Any]) -> str:
     lines.append(f"Robots ({len(doc['units'])}):")
     for u in doc["units"]:
         lines.append(f"  {u['message']}")
+        if u.get("away_message"):
+            lines.append(f"    {u['away_message']}")
         lines += [f"    {p['message']}" for p in u["parts"]]
     if not doc["units"]:
         lines.append("  No robot is paired yet. Run `stackchan pair`, or open the settings page.")
@@ -76,7 +87,7 @@ def render_page(doc: dict[str, Any]) -> bytes:
         return f'<li class="{state}">{html.escape(text)}</li>'
 
     parts = "".join(li(p["message"], p["state"]) for p in doc["parts"]) or "<li>No parts are watched yet.</li>"
-    units = "".join(li(u["message"], "ok" if u["connected"] else "off") + "".join(li("  " + p["message"], p["state"]) for p in u["parts"]) for u in doc["units"]) or "<li>No robot is paired yet.</li>"
+    units = "".join(li(u["message"] + ((" " + u["away_message"]) if u.get("away_message") else ""), "ok" if u["connected"] else "off") + "".join(li("  " + p["message"], p["state"]) for p in u["parts"]) for u in doc["units"]) or "<li>No robot is paired yet.</li>"
     advice = "".join(li(a) for a in doc["advice"])
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Health</title>
 <style>:root{{--bg:#fff;--fg:#17202a;--good:#1e7a46;--bad:#b3261e;--warn:#9a6700}}@media (prefers-color-scheme:dark){{:root{{--bg:#101418;--fg:#eaeef2;--good:#5fd08b;--bad:#ff8a80;--warn:#f0c36a}}}}

@@ -1813,6 +1813,10 @@ class StackChanBehavior:
                         self.orientation.on_event(extra)
                     except Exception:
                         self._warn_limited("orientation", "StackChan orientation reaction failed")
+                if event.kind == "ws_away_notice":
+                    note = getattr(self, "note_away", None)
+                    if note is not None:
+                        note(self.primary_unit() or "", extra)
                 if event.kind == "fw":
                     try:
                         self.on_firmware_version(extra.get("version"))
@@ -1856,6 +1860,7 @@ class StackChanBehavior:
                     "music_stats": "unit music",
                     "privacy": "unit privacy",
                     "privacy_refused": "unit privacy",
+                    "ws_away_notice": "unit away",
                 }.get(event.kind, "unit touch")
                 logger.info("%s: %s %s", label, event.kind, detail)
         events = [e for e in events if getattr(e, "kind", None) not in DIAGNOSTIC_KINDS]
@@ -2575,6 +2580,13 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
     return runner
 
 
+def _note_away(store: dict, unit: str, extra: Any) -> None:
+    """A `ws_away_notice {away_s}` event from a unit: it showed its banner after the host was out of reach for that long."""
+    away = (extra or {}).get("away_s") if isinstance(extra, dict) else None
+    if unit and isinstance(away, (int, float)) and not isinstance(away, bool) and away >= 0:
+        store[unit] = {"away_s": int(away), "at": time.time()}
+
+
 def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, stop_event) -> Any:
     """Mute, vision off and full quiet (firmware 105 to 108, docs/dev/stackchan-mute-2026-11-13.md).
 
@@ -2602,6 +2614,8 @@ def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, sto
     )
     primary_id: list[str | None] = [None]
     behavior.primary_unit = lambda: primary_id[0]
+    behavior.away_notices = {}  # unit -> {"away_s", "at"}: what the unit said when it lost the host for a while (shown on the health page)
+    behavior.note_away = lambda unit, extra: _note_away(behavior.away_notices, unit, extra)
     behavior.privacy = state
     behavior.privacy_controller = controller
     behavior.privacy_units = others
@@ -2751,6 +2765,9 @@ def _wire_timers_and_announcements(
         return unit_timers[device_id]
 
     def on_other_unit_events(device_id: str, events: list) -> None:
+        for event in events:
+            if getattr(event, "kind", "") == "ws_away_notice":
+                _note_away(behavior.away_notices, device_id, getattr(event, "extra", None))
         service = timers_for(device_id)
         for event in events:
             kind = str(getattr(event, "kind", ""))
@@ -3712,7 +3729,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
         from maipai_body.supervisor import Worker
 
         started = _RUNTIME.get("started") or time.time()
-        backend.health = lambda: build_health(supervisor, connected=list(voice._sessions), paired=pairing.paired_devices(), started=started)
+        backend.health = lambda: build_health(supervisor, connected=list(voice._sessions), paired=pairing.paired_devices(), started=started, away=getattr(behavior, "away_notices", None))
         holder = {"server": server}
         bind = "0.0.0.0" if lan else "127.0.0.1"
 

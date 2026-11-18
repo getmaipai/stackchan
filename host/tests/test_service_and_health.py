@@ -122,3 +122,18 @@ def test_the_rotating_log_keeps_at_most_five_files_of_five_megabytes(tmp_path, m
     assert len([h for h in root.handlers if getattr(h, "_maipai_file", False)]) == 1
     root.warning("hello")
     assert "hello" in (tmp_path / "logs" / "stackchan.log").read_text()
+
+
+def test_a_units_away_notice_shows_on_the_health_page_in_plain_words():
+    from maipai_body.app import _note_away
+
+    store = {}
+    _note_away(store, "unit-a", {"away_s": 720})
+    _note_away(store, "unit-b", {"away_s": "x"})  # a malformed event is ignored
+    _note_away(store, "", {"away_s": 5})
+    assert list(store) == ["unit-a"]
+    doc = health.build_health(Supervisor(), connected=["unit-a"], paired={"unit-a": {}}, started=0.0, names={"unit-a": "Kitchen"}, away=store, now=store["unit-a"]["at"] + 60)
+    assert doc["units"][0]["away_message"] == "Kitchen lost the host for 12 minutes."
+    assert "Kitchen lost the host for 12 minutes." in health.render_text(doc) and "lost the host" in health.render_page(doc).decode()
+    old = health.build_health(Supervisor(), connected=["unit-a"], paired={"unit-a": {}}, started=0.0, away=store, now=store["unit-a"]["at"] + 90000)
+    assert old["units"][0]["away_message"] == ""  # a day later it is no longer news

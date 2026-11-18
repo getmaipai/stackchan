@@ -22,6 +22,7 @@ DANCES = BUILTIN_DANCES | EXTRA_DANCES
 DIAGNOSTIC_KINDS = frozenset(
     {
         "first_run_done",
+        "ws_away_notice",  # the unit lost the host for a while and showed its "Can't reach Home" banner: {away_s}
         "touch_down",
         "touch_up",
         "face_pressed",
