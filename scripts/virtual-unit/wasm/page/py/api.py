@@ -98,7 +98,11 @@ def _cover_frame(text, ring, glyph, elapsed_ms):
     if _cover["key"] != key or elapsed_ms < _cover["t"]:
         if _cover["id"] is not None:
             b.release(_cover["id"])
-        _cover["id"] = b.take("cover")
+            _cover["id"] = None
+        try:
+            _cover["id"] = b.take("cover")
+        except Exception:   # the cover renderer is still loading: the screen stays black for this frame
+            return None, []
         b.cmd(_cover["id"], f"show {ring} {glyph} {text}")
         _cover["t"] = 0
         _cover["key"] = key
@@ -157,3 +161,27 @@ def handle(method: str, path: str, body: str = "") -> str:
     else:
         out["body_b64"] = base64.b64encode(payload).decode()
     return json.dumps(out)
+
+
+def screens_id() -> int:
+    """The renderer instance the live unit draws on: the page reads its frame buffer."""
+    return view.UNIT._proc.id
+
+
+def set_language(code: str) -> None:
+    """The language switch: the unit's screens in English or Spanish (the renderer's own `pset es` setting, as the Spanish scenarios use it)."""
+    with view.LOCK:
+        view.UNIT.raw("pset es " + ("on" if code == "es" else "off"))
+
+
+def extra_screens() -> list:
+    """The screens the live unit does not show but its own code draws: the lock screen, the keypad, the link covers."""
+    import scenarios
+
+    return list(scenarios.LOCK_SCENARIOS) + list(scenarios.COVER_SCENARIOS)
+
+
+def extra_screen(name: str) -> bytes:
+    import scenarios
+
+    return scenarios.run_lock(name)

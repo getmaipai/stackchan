@@ -18,7 +18,7 @@ R="$ROOT/scripts/fw-face-render"
 WHAT="${1:-all}"
 PYODIDE_VERSION="0.27.7"
 ZLIB_TAG="v1.3.1"
-command -v emcc >/dev/null || { echo "emcc is not on PATH. Install Emscripten (git clone https://github.com/emscripten-core/emsdk, ./emsdk install 3.1.74, ./emsdk activate 3.1.74), source emsdk_env.sh, run this again."; exit 1; }
+need_emcc() { command -v emcc >/dev/null || { echo "emcc is not on PATH. Install Emscripten (git clone https://github.com/emscripten-core/emsdk, ./emsdk install 3.1.74, ./emsdk activate 3.1.74), source emsdk_env.sh, run this again."; exit 1; }; }
 mkdir -p "$WORK" "$OUT/wasm"
 export EMCC_SKIP_SANITY_CHECK=1
 
@@ -64,7 +64,7 @@ build_program() {   # NAME NATIVE_SRC EXTRA_CXX_FILES(space list) EXTRA_C_FILES(
 }
 
 build_screens() {
-  fetch_tree
+  need_emcc; fetch_tree
   local H="$FW/main/hal" S="$FW/main/stackchan/avatar/skins/default" F="$FW/managed_components/78__xiaozhi-fonts/src"
   local FONTS="$WORK/fonts/src"
   mkdir -p "$WORK/more"
@@ -83,7 +83,7 @@ build_screens() {
 # link quiet, remote safety rules, sounds (the quiet schedule) and hourly chime, touch.
 CORE_NAMES="lock motion_limit listen_guard update updatehdr link_quiet remote sounds hourly touch reconnect"
 build_cores() {
-  fetch_tree
+  need_emcc; fetch_tree
   local H="$FW/main/hal"
   mkdir -p "$WORK/cores"
   python3 -I "$HERE/gen_cores.py" "$H" "$WORK/cores/cores_gen.c" "$OUT/wasm/cores.sigs.json" $CORE_NAMES
@@ -105,3 +105,37 @@ PY
     -sEXPORTED_FUNCTIONS="$EXPORTS" -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,UTF8ToString,HEAPU8,HEAP32
   printf 'cores: %s bytes wasm, %s bytes js, %s functions exported\n' "$(stat -c %s "$OUT/wasm/cores.wasm")" "$(stat -c %s "$OUT/wasm/cores.js")" "$(echo "$EXPORTS" | tr ',' '\n' | wc -l)"
 }
+
+# The pinned Pyodide runtime (core build: Python 3.12 and its standard library, no packages): downloaded here, checked against the pinned hash, never committed.
+PYODIDE_SHA256="9bc8f127db6c590b191b9aee754022cb41b1a36c7bac233776c11c5ecb541be8"
+build_pyodide() {
+  local tar="$WORK/downloads/pyodide-core-$PYODIDE_VERSION.tar.bz2"
+  mkdir -p "$WORK/downloads" "$OUT/pyodide"
+  if [ ! -f "$tar" ]; then curl -fsSL -o "$tar" "https://github.com/pyodide/pyodide/releases/download/$PYODIDE_VERSION/pyodide-core-$PYODIDE_VERSION.tar.bz2" || { echo "could not download Pyodide $PYODIDE_VERSION. Check the network, or copy pyodide-core-$PYODIDE_VERSION.tar.bz2 into $WORK/downloads and run again."; exit 1; }; fi
+  [ "$(sha256sum "$tar" | cut -d' ' -f1)" = "$PYODIDE_SHA256" ] || { echo "the Pyodide download does not match the pinned hash. Delete $tar and run again; if it still differs, check the release before changing PYODIDE_SHA256 in site-build.sh."; exit 1; }
+  rm -rf "$WORK/pyodide-x"; mkdir -p "$WORK/pyodide-x"; tar xjf "$tar" -C "$WORK/pyodide-x"
+  for f in pyodide.js pyodide.asm.js pyodide.asm.wasm python_stdlib.zip pyodide-lock.json; do cp "$WORK/pyodide-x/pyodide/$f" "$OUT/pyodide/$f"; done
+  printf 'pyodide %s: %s bytes of wasm\n' "$PYODIDE_VERSION" "$(stat -c %s "$OUT/pyodide/pyodide.asm.wasm")"
+}
+
+# The page: the viewer copied from view.html with the documented changes (make_page.py), the viewer's own scripts and model, three.js from the site's vendor folder, the adapter layer.
+build_site() {
+  local P="$HERE/page"
+  mkdir -p "$OUT/vendor" "$OUT/model"
+  python3 -I "$HERE/make_page.py" "$VU/view.html" "$ROOT/docs/legal/affiliation.json" "$OUT"
+  cp "$VU/view3d.js" "$VU/talk.js" "$OUT/"
+  cp "$P/engine.js" "$P/bridge.js" "$P/boot.js" "$P/app.js" "$P/test.js" "$P/test.html" "$OUT/"
+  rm -rf "$OUT/vendor/three-r128"; cp -R "$ROOT/docs-site/vendor/three-r128" "$OUT/vendor/three-r128"
+  cp "$VU/model/stackchan.web.glb" "$OUT/model/stackchan.web.glb"
+  python3 -I "$HERE/bundle.py" "$ROOT" "$OUT/vu-py.zip"
+  du -sk "$OUT" | awk '{print "playground folder: " $1 " KB"}'
+}
+
+case "$WHAT" in
+  screens) build_screens ;;
+  cores) build_cores ;;
+  pyodide) build_pyodide ;;
+  site) build_site ;;
+  all) build_screens; build_cores; build_pyodide; build_site ;;
+  *) echo "Unknown target $WHAT. Use screens, cores, pyodide, site or all."; exit 1 ;;
+esac

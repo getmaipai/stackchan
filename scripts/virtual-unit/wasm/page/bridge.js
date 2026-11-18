@@ -10,10 +10,15 @@
     const bin = {}, pools = { screens: [], lock: [], cover: [] }, live = new Map();
     let nextId = 1, cores = null, sigs = null;
     async function binary(name) { if (!bin[name]) bin[name] = await opts.binary(name); return bin[name]; }
+    const compiled = {};
     async function instantiate(kind) {
-      const wasmBinary = await binary(kind);
+      // the module is compiled once; every fresh instance only instantiates it (a new native-program state costs milliseconds, not a compile)
+      if (!compiled[kind]) compiled[kind] = WebAssembly.compile(await binary(kind));
+      const wasmModule = await compiled[kind];
       const factory = opts.factories[kind];
-      const eng = await E.load((o) => factory(Object.assign({ wasmBinary }, o)));
+      const eng = await E.load((o) => factory(Object.assign({
+        instantiateWasm(imports, done) { WebAssembly.instantiate(wasmModule, imports).then((inst) => done(inst, wasmModule)); return {}; },
+      }, o)));
       return eng;
     }
     const api = {
@@ -32,10 +37,11 @@
       engine(id) { return live.get(id).eng; },
       release(id) { live.delete(id); },
       liveCount() { return live.size; },
+      poolSize(kind) { return pools[kind].length; },
       // ---- cores ----
       async loadCores(sigsJson) {
         const wasmBinary = await binary('cores');
-        cores = await opts.factories.cores({ wasmBinary }); sigs = sigsJson;
+        cores = await opts.factories.cores({ wasmBinary: new Uint8Array(wasmBinary) }); sigs = sigsJson;
         return Object.keys(sigsJson.functions).length;
       },
       coreCall(name, ret, args) {   // ret: 'i' int, 'u' unsigned, 'f' float, 's' string, 'v' void; args: numbers or strings
