@@ -40,6 +40,9 @@ language = "en"
 # token_env = "STACKCHAN_HA_TOKEN"
 # trigger = "home assistant"
 # cameras = { "front door" = "camera.front_door" }
+# allow_plain_http = false      # an http:// address sends the token in clear text; use https, or set true on a network you trust
+# allow_unidentified = false    # this robot does not recognize voices: set true to let a turn with no named speaker use it
+# speakers = ["alex"]           # lowercase names allowed to use it; empty means any named speaker
 
 [packages.coding_companion]
 # The robot shows what a coding agent on this computer is doing: ring light and one soft tone.

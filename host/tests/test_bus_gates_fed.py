@@ -43,3 +43,16 @@ def test_the_hub_command_feeds_the_child_gate():
     assert app._note_child(voice, {"present": True, "seconds": 30}) == {"ok": True}
     assert bridge.child_present_for(UNIT)
     assert app._note_child(SimpleNamespace(), {"present": True}) == {"ok": False}
+
+
+def test_the_hub_child_note_also_stops_packages_that_read_the_shared_gate():
+    from maipai_body import child_gate
+
+    bridge = StackChanTurnBridge.__new__(StackChanTurnBridge)
+    bridge._child_until, bridge._clock = {}, lambda: 10.0
+    child_gate.note(UNIT, False)
+    assert not child_gate.any_present()
+    bridge.note_child_present(UNIT, True, seconds=60)
+    assert child_gate.any_present() and child_gate.present_for(UNIT)
+    bridge.note_child_present(UNIT, False)
+    assert not child_gate.any_present()

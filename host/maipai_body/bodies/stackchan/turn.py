@@ -799,6 +799,9 @@ class StackChanTurnBridge:
 
     def note_child_present(self, device_id: str, present: bool, seconds: float = 300.0) -> None:
         """Home (or a person on the settings page) says a child is, or is no longer, near this unit."""
+        from maipai_body import child_gate
+
+        child_gate.note(device_id, present, seconds)  # packages that must not act near a child read the same note
         if present:
             self._child_until[device_id] = self._clock() + max(1.0, float(seconds))
         else:

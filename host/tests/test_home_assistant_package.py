@@ -44,6 +44,8 @@ def token(monkeypatch):
 
 
 def _ha(**kw):
+    kw.setdefault("allow_plain_http", True)
+    kw.setdefault("allow_unidentified", True)
     return HomeAssistant("http://192.0.2.20:8123", cameras={"front door": "camera.front_door"}, **kw)
 
 
@@ -106,7 +108,7 @@ def test_it_is_off_by_default_and_switches_on_from_robot_toml():
     from maipai_body.config import RobotConfig, build_brain
 
     assert RobotConfig().packages.home_assistant.enabled is False and build_brain(RobotConfig()).handlers == []
-    cfg = RobotConfig.model_validate({"packages": {"home_assistant": {"enabled": True, "url": "http://192.0.2.20:8123"}}})
+    cfg = RobotConfig.model_validate({"packages": {"home_assistant": {"enabled": True, "url": "https://ha.example.com"}}})
     assert len(build_brain(cfg).handlers) == 1
 
 
@@ -173,6 +175,7 @@ def test_the_whole_camera_path_runs_over_http_and_the_picture_stays_local(monkey
 
         ha = HomeAssistant(
             f"http://127.0.0.1:{ha_server.server_port}",
+            allow_unidentified=True,
             cameras={"front door": "camera.front_door"},
             ask_model=image_question(f"http://127.0.0.1:{model_server.server_port}/v1", "m", None),
         )
@@ -188,3 +191,39 @@ def test_the_whole_camera_path_runs_over_http_and_the_picture_stays_local(monkey
     image = next(part for part in content if part["type"] == "image_url")["image_url"]["url"]
     assert base64.b64decode(image.split(",", 1)[1]) == JPEG
     assert "test-token-value" not in json.dumps(seen["model_body"])  # the Home Assistant token never reaches the model
+
+
+# ---- review fixes: reply scrubbing, plain http, who may use it ------------------------------------------------
+
+def test_a_reply_cannot_carry_reply_tags_or_hidden_text_into_speech():
+    session = Session(post=lambda u, k: _speech("Done [sound:alarm][scene party] <b>ok</b>‮​"))
+    reply = _ha(session=session).handle("home assistant lights on")
+    assert "[" not in reply and "]" not in reply and "‮" not in reply and "​" not in reply
+
+
+def test_a_plain_http_address_with_a_token_needs_an_explicit_opt_in_unless_it_is_this_computer():
+    with pytest.raises(HomeAssistantError, match="https"):
+        HomeAssistant("http://192.0.2.20:8123")
+    HomeAssistant("http://192.0.2.20:8123", allow_plain_http=True)
+    HomeAssistant("http://127.0.0.1:8123")
+    HomeAssistant("https://ha.example.com")
+
+
+def test_an_unidentified_speaker_cannot_use_it_unless_the_owner_allowed_that():
+    session = Session(post=lambda u, k: _speech("ok"))
+    strict = _ha(session=session, allow_unidentified=False)
+    assert strict.handle("home assistant lights on") == "I only do that for a person I know. Ask the owner to turn on Home Assistant for everyone."
+    assert not session.posts
+    open_ha = _ha(session=session, allow_unidentified=True)
+    assert open_ha.handle("home assistant lights on") == "ok"
+
+
+def test_only_listed_adults_can_use_it_and_never_while_a_child_is_near():
+    session = Session(post=lambda u, k: _speech("ok"))
+    near = [False]
+    ha = _ha(session=session, speakers=["alex"], child_present=lambda: near[0])
+    assert ha.handle("home assistant lights on", "alex") == "ok"
+    assert "only do that for" in ha.handle("home assistant lights on", "riley")
+    near[0] = True
+    assert "child" in ha.handle("home assistant lights on", "alex")
+    assert len(session.posts) == 1

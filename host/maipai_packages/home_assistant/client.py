@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import os
 import re
+import unicodedata
 from collections.abc import Callable
 from urllib.parse import urlsplit
 
@@ -19,6 +20,13 @@ class HomeAssistantError(RuntimeError):
     """A plain message the robot can say: what went wrong and what to do."""
 
 
+def _scrub_speech(text: object) -> str:
+    """Text the robot will say: no brackets or angle brackets (reply tags), no hidden or control characters, a length limit."""
+    swapped = str(text).replace("[", " ").replace("]", " ").replace("<", " ").replace(">", " ")
+    kept = "".join(ch for ch in swapped if not (unicodedata.category(ch)[0] == "C" or unicodedata.category(ch) in ("Zl", "Zp")) or ch in "\n\t ")
+    return " ".join(kept.split())[:MAX_REPLY_CHARS]
+
+
 class HomeAssistant:
     def __init__(
         self,
@@ -31,10 +39,19 @@ class HomeAssistant:
         ask_model: Callable[[str, bytes], str] | None = None,
         session: requests.Session | None = None,
         timeout: float = 10.0,
+        allow_plain_http: bool = False,
+        allow_unidentified: bool = False,
+        speakers: list[str] | None = None,
+        child_present: Callable[[], bool] | None = None,
     ) -> None:
         parts = urlsplit(url)
         if parts.scheme not in {"http", "https"} or not parts.hostname:
             raise HomeAssistantError("The Home Assistant address must start with http:// or https://. Fix url under [packages.home_assistant] in robot.toml.")
+        if parts.scheme == "http" and parts.hostname not in {"127.0.0.1", "localhost", "::1"} and not allow_plain_http:
+            raise HomeAssistantError("The Home Assistant token would travel in clear text. Use an https:// address, or set allow_plain_http = true under [packages.home_assistant] if you accept that on your home network.")
+        self.allow_unidentified = allow_unidentified
+        self.speakers = [name.lower() for name in (speakers or [])]
+        self._child_present = child_present
         self.base = url.rstrip("/")
         self.token_env, self.trigger, self.language = token_env, trigger.lower().strip(), language
         self.cameras = {name.lower(): entity for name, entity in (cameras or {}).items() if _ENTITY.match(entity)}
@@ -57,6 +74,10 @@ class HomeAssistant:
         request = text.strip()[len(self.trigger):].lstrip(" ,:;.-").strip()
         if not request:
             return "What should I ask Home Assistant?"
+        if self._child_present is not None and self._child_present():
+            return "I will not do that while a child is near."
+        if not self._speaker_allowed(speaker):
+            return "I only do that for a person I know. Ask the owner to turn on Home Assistant for everyone."
         try:
             for name, entity in self.cameras.items():
                 if re.search(r"\b(?:camera|see|show|look|what'?s)\b", request, re.I) and name in request.lower():
@@ -64,6 +85,11 @@ class HomeAssistant:
             return self.converse(request)
         except HomeAssistantError as error:
             return str(error)
+
+    def _speaker_allowed(self, speaker: str | None) -> bool:
+        if speaker:
+            return not self.speakers or speaker.lower() in self.speakers
+        return self.allow_unidentified  # nobody was identified: only when the owner allowed that
 
     def converse(self, request: str) -> str:
         try:
@@ -79,8 +105,8 @@ class HomeAssistant:
             raise
         except (requests.RequestException, KeyError, TypeError, ValueError):
             raise HomeAssistantError("I could not reach Home Assistant. Check its address and token in robot.toml.") from None
-        speech = " ".join(str(speech).split())
-        return speech[:MAX_REPLY_CHARS] if speech else "Home Assistant did not answer."
+        speech = _scrub_speech(speech)
+        return speech if speech else "Home Assistant did not answer."
 
     # ---- one camera picture -------------------------------------------------------------
 
@@ -104,7 +130,7 @@ class HomeAssistant:
             raise HomeAssistantError("No picture-reading model is set up, so I cannot describe a camera. Set the model under [llm] in robot.toml.")
         jpeg = self.snapshot(entity)
         try:
-            return self._ask_model(request, jpeg)[:MAX_REPLY_CHARS] or "I could not make out the picture."
+            return _scrub_speech(self._ask_model(request, jpeg)) or "I could not make out the picture."
         except Exception:
             raise HomeAssistantError("The model could not read the picture. Use a model that accepts images.") from None
 

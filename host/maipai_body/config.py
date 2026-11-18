@@ -61,6 +61,9 @@ class HomeAssistantConfig(StrictModel):
     token_env: str = "STACKCHAN_HA_TOKEN"  # the NAME of the variable holding a long-lived access token, never the token
     trigger: str = "home assistant"  # a request that starts with these words goes to Home Assistant
     cameras: dict[str, str] = Field(default_factory=dict)  # spoken name -> camera entity, for example front door = "camera.front_door"
+    allow_plain_http: bool = False  # an http:// address on your home network sends the token in clear text; off unless you accept that
+    allow_unidentified: bool = False  # the robot recognizes nobody on its own: only when true may a turn with no named speaker use it
+    speakers: list[str] = Field(default_factory=list)  # lowercase names allowed to use it; empty means any named speaker
 
 
 class CodingCompanionConfig(StrictModel):
@@ -210,6 +213,7 @@ def build_brain(config: RobotConfig, **home_dependencies):
         brain.handlers.append(CodingStatusHandler(shared_status()))
     ha = config.packages.home_assistant
     if ha.enabled:
+        from maipai_body import child_gate
         from maipai_packages.home_assistant import HomeAssistant
         from maipai_packages.home_assistant.client import image_question
 
@@ -220,6 +224,10 @@ def build_brain(config: RobotConfig, **home_dependencies):
                 trigger=ha.trigger,
                 cameras=ha.cameras,
                 language=config.home.language,
+                allow_plain_http=ha.allow_plain_http,
+                allow_unidentified=ha.allow_unidentified,
+                speakers=ha.speakers,
+                child_present=child_gate.any_present,
                 ask_model=image_question(config.llm.url, config.llm.model, config.llm.api_key_env) if config.llm.url else None,
             )
         )
