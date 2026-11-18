@@ -215,10 +215,10 @@ def test_first_run_flow_by_taps_ends_with_the_answers():
         u.raw("frun wifi")  # the Wi-Fi cover reports done
         u.advance(300)
         for tap in (
-            (160, 100),
+            (160, 70),
             (160, 220),
             (160, 190),
-        ):  # Pair with Home, a tap on the privacy "Got it" button
+        ):  # MaiPai Home (the first of the three ways), a tap on the privacy "Got it" button
             u.tap(*tap)
             u.advance(300)
         u.advance(2500)  # "All set!" closes itself after 2 s

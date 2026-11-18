@@ -53,6 +53,7 @@ SCREENS: dict[str, list] = {
     "first-run-4": [("raw", "frun step 3 0 -1"), ("advance", 400)],
     "first-run-5": [("raw", "frun step 4 0 -1"), ("advance", 400)],
     "first-run-6": [("raw", "frun step 5 0 -1"), ("advance", 400)],
+    "first-run-next": [("raw", "frun step 7 0 -1"), ("advance", 400)],
     "first-run-4-es": [("raw", "frun step 3 1 -1"), ("advance", 400)],
     "first-run-1-de": [("raw", "frun step 0 3 -1"), ("advance", 400)],
     "first-run-started": BAR + [("raw", "frun start"), ("advance", 800)],  # the real flow (registered as a screen, patch UX08)
@@ -141,6 +142,7 @@ LANGS = ["en", "es", "fr", "de", "pt", "it"]
 for _li, _lang in enumerate(LANGS):
     for _st in (0, 1, 3, 4, 5):
         SCREENS.setdefault(f"first-run-{_st + 1}-{_lang}", [("raw", f"frun step {_st} {_li} -1"), ("advance", 400)])
+    SCREENS.setdefault(f"first-run-next-{_lang}", [("raw", f"frun step 7 {_li} -1"), ("advance", 400)])   # the last screen after All set! (patch UX12)
 for _name, _steps in (("sheet", [("raw", "pshow sheet"), ("advance", 500)]), ("apps-wall", [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 185 212"), ("advance", 700)]),
                       ("settings-general", [("raw", "pshow settings"), ("advance", 500)]), ("settings-info", [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 198"), ("advance", 500)]),
                       ("page-timers", [("raw", "pshow timers"), ("advance", 600)]), ("page-actions", [("raw", "pshow actions"), ("advance", 600)])):

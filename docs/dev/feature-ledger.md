@@ -1,13 +1,13 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 776. How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89.
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 782 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
-| Everyday user | 1 | 16 | 18 | 217 | 8 | 51 | 311 | 65 |
-| Maker and tech | 0 | 0 | 60 | 347 | 58 | 0 | 465 | 70 |
+| Everyday user | 1 | 18 | 18 | 219 | 8 | 51 | 315 | 64 |
+| Maker and tech | 0 | 1 | 60 | 348 | 58 | 0 | 467 | 70 |
 
 ## Everyday user
 
@@ -103,7 +103,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Picture only** | shows the picture. | proven virtual | 70 | `FI03-bench-snapshot-includes-top-layer.patch`<br>`FI06-snapshot-includes-overlays-and-effects.patch`<br>`FI07-picface-uses-psram-inflate.patch` | average of the 4 patch(es) that share words with this row: FI03, FI06, FI07, H03 | [docs/user/face-and-look.md#your-own-pictures-as-the-face](../user/face-and-look.md#your-own-pictures-as-the-face) |
 | **Picture with eyes and mouth drawn on top** | adds eyes that blink and drift and a mouth that follows the robot's voice. You set where the eyes and mouth go. Use a picture without eyes and a mouth for this style. | proven virtual | 62 | `V21-dirty-rectangles-and-color-steps.patch`<br>`H02-face-fluid-motion.patch`<br>`V12-chunky-mouth-on-anime-eyes.patch` | average of the 4 patch(es) that share words with this row: V21, H02, V12, UX03a | [docs/user/face-and-look.md#your-own-pictures-as-the-face](../user/face-and-look.md#your-own-pictures-as-the-face) |
 | **A short run of frames** | plays up to 6 pictures in a loop for each look, at 1 to 12 frames a second. | proven virtual | 70 | `FD03-face-detect-bench-tools.patch`<br>`NX08-wall-tiles-with-pictures-colors-and-big-titles.patch`<br>`H01-face-bench-tools.patch` | average of the 4 patch(es) that share words with this row: FD03, NX08, H01, FD04 | [docs/user/face-and-look.md#your-own-pictures-as-the-face](../user/face-and-look.md#your-own-pictures-as-the-face) |
-| **Weather and mood overlays** | 28 overlays (18 single, 10 combined), such as stormy, rainy, snowy, sunny, windy, night, party, celebrate, love and sleeping. It slows down by itself if the robot is busy. Not yet seen by a person. - Robot - Face and look | needs person | 70 | `O02-overlays-leave-text-zones-and-eyes.patch`<br>`L04-ignore-idle-host-looks.patch`<br>`U02-word-reactions.patch` | average of the 3 patch(es) that share words with this row: O02, L04, U02 | [docs/user/features.md#look](../user/features.md#look) |
+| **Weather and mood overlays** | 28 overlays (18 single, 10 combined), such as stormy, rainy, snowy, sunny, windy, night, party, celebrate, love and sleeping. It slows down by itself if the robot is busy. Not yet seen by a person. - Robot - Face and look | needs person | 70 | `O02-overlays-leave-text-zones-and-eyes.patch`<br>`U02-word-reactions.patch`<br>`L04-ignore-idle-host-looks.patch` | average of the 3 patch(es) that share words with this row: O02, U02, L04 | [docs/user/features.md#look](../user/features.md#look) |
 | **CRT and color effects** ![](docs/images/vu-settings-general.png) | Optional screen looks, set on the settings page. Not yet seen by a person. - Robot - Face and look | needs person | 70 | `L04-ignore-idle-host-looks.patch`<br>`Y01-user-head-moves-pass-the-idle-gate.patch`<br>`NX08-wall-tiles-with-pictures-colors-and-big-titles.patch` | average of the 4 patch(es) that share words with this row: L04, Y01, NX08, TB02 | [docs/user/features.md#look](../user/features.md#look) |
 | **Top banner and subtitle strip** ![](host/tests/golden/screens/screen-subtitles.png) | A fixed top row for the remote cue, find, game, offline and battery, and a subtitle strip at the bottom. - Robot - Face and look | proven virtual | 70 | `GM01-games-use-the-full-height-and-no-subtitles.patch`<br>`N01-banner-row-and-subtitles.patch`<br>`UI08-game-buttons-inside-the-safe-area.patch` | average of the 3 patch(es) that share words with this row: GM01, N01, UI08 | [docs/user/features.md#look](../user/features.md#look) |
 | **Turn toward faces Planned** | The setting now defaults to always: the robot searches when something moves, with the camera cue on. It did not move for a face in the last check, and the face detector on the robot is an experiment, off and not flashed. - Robot - Face and look | built | 40 | `NX06-face-seeker-default-always-and-safe-gates.patch`<br>`S11-turn-to-faces-setting.patch`<br>`firmware/patches/105-face-touch-toggles.patch` | built, not flashed | [docs/user/features.md#look](../user/features.md#look) |
@@ -117,7 +117,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Mood from care** | Its resting face follows how much you pet it. - Robot - Reactions | proven virtual | 70 | `M01-mood-from-care.patch`<br>`firmware/patches/105-face-touch-toggles.patch`<br>`firmware/patches/C05-sleeping-face.patch` | average of the 1 patch(es) that share words with this row: M01 | [docs/user/features.md#react](../user/features.md#react) |
 | **Take my picture, snapshots** | Ask for a picture and see it on your phone. - Robot, opt-in (photo built; voice snapshots planned) - Camera | proven virtual | 70 | `TC01-remote-token-gate.patch`<br>`firmware/patches/105-face-touch-toggles.patch`<br>`firmware/patches/C05-sleeping-face.patch` | average of the 1 patch(es) that share words with this row: TC01 | [docs/user/features.md#camera-remote-control-and-maipai-home](../user/features.md#camera-remote-control-and-maipai-home) |
 | **Face follow, wave, mirror** | The head follows your face, waves back and mirrors you. - Needs MaiPai Home - Camera | proven virtual | 70 | `FD04-face-track-control-loop-and-seek-hook.patch`<br>`F05-face-thinking-cue.patch`<br>`firmware/patches/105-face-touch-toggles.patch` | average of the 2 patch(es) that share words with this row: FD04, F05 | [docs/user/features.md#camera-remote-control-and-maipai-home](../user/features.md#camera-remote-control-and-maipai-home) |
-| **Face and voice recognition** | It knows each person by face and by voice. - Needs MaiPai Home - With MaiPai Home | proven virtual | 62 | `MD02-dance-faces-wink-silly-grin-serene-excited.patch`<br>`SF32-hello-mouth-cues-append.patch`<br>`L04-ignore-idle-host-looks.patch` | average of the 4 patch(es) that share words with this row: MD02, SF32, L04, S10 | [docs/user/features.md#camera-remote-control-and-maipai-home](../user/features.md#camera-remote-control-and-maipai-home) |
+| **Face and voice recognition** | It knows each person by face and by voice. - Needs MaiPai Home - With MaiPai Home | proven virtual | 62 | `MD02-dance-faces-wink-silly-grin-serene-excited.patch`<br>`SF32-hello-mouth-cues-append.patch`<br>`G03-game-touch-voice-and-menu.patch` | average of the 4 patch(es) that share words with this row: MD02, SF32, G03, L04 | [docs/user/features.md#camera-remote-control-and-maipai-home](../user/features.md#camera-remote-control-and-maipai-home) |
 | **Face detection on the robot Planned** | The robot finds faces by itself. An experiment image is built, not flashed. - Robot - Face and look | built | 40 | `FD04-face-track-control-loop-and-seek-hook.patch`<br>`FD03-face-detect-bench-tools.patch`<br>`FD01-face-detect-build-switch-and-components.patch` | built, not flashed | [docs/user/features.md#planned](../user/features.md#planned) |
 | **Scenes and display lists Planned** | One tag sets several looks at once, and lists the model can show. Design only. - Robot - Face and look | proven virtual | 62 | `R03-link-looks.patch`<br>`F06-face-timer-countdowns.patch`<br>`L04-ignore-idle-host-looks.patch` | average of the 4 patch(es) that share words with this row: R03, F06, L04, FD03 | [docs/user/features.md#planned](../user/features.md#planned) |
 | **Wake look-around Planned** | The robot looks around when it wakes. The host side is on, but it is not verified with a real wake. - Robot - Face and look | proven virtual | 70 | `L04-ignore-idle-host-looks.patch`<br>`I01-orientation-event.patch`<br>`TC03-boot-internal-ram.patch` | average of the 4 patch(es) that share words with this row: L04, I01, TC03, 020 | [docs/user/features.md#planned](../user/features.md#planned) |
@@ -193,7 +193,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Tone: Lights and sounds: Siren** | Siren - A loud siren that rises and falls - A security alert, if you chose the alarm | proven virtual | 70 | `UI03-color-memory-tone-and-light-together.patch`<br>`firmware/patches/099-wifi-only-and-fewer-sounds.patch`<br>`firmware/patches/115-sounds-core.patch` | average of the 1 patch(es) that share words with this row: UI03 | [docs/user/lights-and-sounds.md#the-tones](../user/lights-and-sounds.md#the-tones) |
 | **Tone: Lights and sounds: Error** | Error - A low, short tone - Something you asked for failed | proven virtual | 70 | `T04-quiet-reconnect-offline-tone.patch`<br>`UI03-color-memory-tone-and-light-together.patch`<br>`firmware/patches/099-wifi-only-and-fewer-sounds.patch` | average of the 2 patch(es) that share words with this row: T04, UI03 | [docs/user/lights-and-sounds.md#the-tones](../user/lights-and-sounds.md#the-tones) |
 
-### Link and travel (10)
+### Link and travel (11)
 
 | Feature | What it does | Status | % | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|
@@ -207,6 +207,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Revocable access** ![](docs/images/vu-pairing.png) | Pairing creates a long random token, stored hashed on the host. Run stackchan forget and that token stops working. | proven virtual | 62 | `U04-network-test.patch`<br>`SF33-link-psk-tls-client.patch`<br>`156-refuse-keys-in-images.patch` | average of the 4 patch(es) that share words with this row: U04, SF33, 156, FM03 | [docs/user/security.md#what-protects-the-robot](../user/security.md#what-protects-the-robot) |
 | **Tokens on everything that is on** | The local API, event stream and metrics are off by default. When you turn one on, every read and write needs a token. | built | 50 | `FM03-remote-second-floor.patch`<br>`SF21-link-key-curve-and-storage.patch`<br>`156-refuse-keys-in-images.patch` | average of the 3 patch(es) that share words with this row: FM03, SF21, 156 | [docs/user/security.md#what-protects-the-robot](../user/security.md#what-protects-the-robot) |
 | **The link on your home network is plain** | Anyone already on your Wi-Fi could read it, and the robot does not yet check that it is talking to your host. Use a network you trust. | proven virtual | 60 | `U04-network-test.patch`<br>`TN06-travel-trust-root.patch`<br>`UX10-plain-words-home-link-original.patch` | average of the 3 patch(es) that share words with this row: U04, TN06, UX10 | [docs/user/security.md#known-gaps](../user/security.md#known-gaps) |
+| **Encrypted link on by default** | A paired host and robot use the encrypted link unless the owner chooses the plain link and reads a plain warning. | designed | 10 | `docs/design/encrypted-link.md`<br>`firmware/patches/SF20-link-key-schedule-core.patch` | the encrypted link is built and opt-in; the default waits for the memory budget table (decision 11) | [docs/design/encrypted-link.md](../design/encrypted-link.md) |
 
 ### Motion and dances (25)
 
@@ -297,10 +298,10 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 
 | Feature | What it does | Status | % | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|
-| **Check on the robot from your phone: Robot** ![](host/tests/golden/screens/screen-offline.png) | online or offline. | proven virtual | 55 | `host/maipai_body/i18n_family.py`<br>`host/maipai_body/settings_ui_family.py` | no patch shares words with this row; the evidence is the area's (3 patch(es), 2 host file(s)) | [docs/user/parent-view.md#what-you-see](../user/parent-view.md#what-you-see) |
-| **Check on the robot from your phone: Microphone** ![](host/tests/golden/screens/screen-muted.png) | listening or muted. | proven virtual | 55 | `host/maipai_body/i18n_family.py`<br>`host/maipai_body/settings_ui_family.py` | no patch shares words with this row; the evidence is the area's (3 patch(es), 2 host file(s)) | [docs/user/parent-view.md#what-you-see](../user/parent-view.md#what-you-see) |
-| **Check on the robot from your phone: Camera** ![](host/tests/golden/screens/screen-camera-on.png) | on or off. | proven virtual | 55 | `host/maipai_body/i18n_family.py`<br>`host/maipai_body/settings_ui_family.py` | no patch shares words with this row; the evidence is the area's (3 patch(es), 2 host file(s)) | [docs/user/parent-view.md#what-you-see](../user/parent-view.md#what-you-see) |
-| **Check on the robot from your phone: Lock** | locked or not. | proven virtual | 55 | `host/maipai_body/i18n_family.py`<br>`host/maipai_body/settings_ui_family.py` | no patch shares words with this row; the evidence is the area's (3 patch(es), 2 host file(s)) | [docs/user/parent-view.md#what-you-see](../user/parent-view.md#what-you-see) |
+| **Check on the robot from your phone: Robot** ![](host/tests/golden/screens/screen-offline.png) | online or offline. | proven virtual | 58 | `host/maipai_body/i18n_family.py`<br>`host/maipai_body/settings_ui_family.py` | no patch shares words with this row; the evidence is the area's (4 patch(es), 2 host file(s)) | [docs/user/parent-view.md#what-you-see](../user/parent-view.md#what-you-see) |
+| **Check on the robot from your phone: Microphone** ![](host/tests/golden/screens/screen-muted.png) | listening or muted. | proven virtual | 58 | `host/maipai_body/i18n_family.py`<br>`host/maipai_body/settings_ui_family.py` | no patch shares words with this row; the evidence is the area's (4 patch(es), 2 host file(s)) | [docs/user/parent-view.md#what-you-see](../user/parent-view.md#what-you-see) |
+| **Check on the robot from your phone: Camera** ![](host/tests/golden/screens/screen-camera-on.png) | on or off. | proven virtual | 58 | `host/maipai_body/i18n_family.py`<br>`host/maipai_body/settings_ui_family.py` | no patch shares words with this row; the evidence is the area's (4 patch(es), 2 host file(s)) | [docs/user/parent-view.md#what-you-see](../user/parent-view.md#what-you-see) |
+| **Check on the robot from your phone: Lock** | locked or not. | proven virtual | 58 | `host/maipai_body/i18n_family.py`<br>`host/maipai_body/settings_ui_family.py` | no patch shares words with this row; the evidence is the area's (4 patch(es), 2 host file(s)) | [docs/user/parent-view.md#what-you-see](../user/parent-view.md#what-you-see) |
 | **Who controlled the robot lately** | the last few remote actions, or "Nobody has used remote control." | built | 40 | `UX10-plain-words-home-link-original.patch`<br>`host/maipai_body/i18n_family.py`<br>`host/maipai_body/settings_ui_family.py` | average of the 1 patch(es) that share words with this row: UX10 | [docs/user/parent-view.md#what-you-see](../user/parent-view.md#what-you-see) |
 
 ### Safety and privacy (9)
@@ -361,7 +362,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Alarm and siren** | Red and blue lights and a siren for a security alert. - Robot, opt-in Planned - Watch and alerts | proven virtual | 55 | `NX06-face-seeker-default-always-and-safe-gates.patch`<br>`UI03-color-memory-tone-and-light-together.patch`<br>`092-timer-tools.patch` | average of the 4 patch(es) that share words with this row: NX06, UI03, 092, 093 | [docs/user/features.md#camera-remote-control-and-maipai-home](../user/features.md#camera-remote-control-and-maipai-home) |
 | **Focus countdown Planned** ![](docs/images/vu-timers.png) | A full-screen countdown with pictures and a small chip. - Robot - Timers and alarms | proven virtual | 70 | `F06-face-timer-countdowns.patch`<br>`UI16-apps-core-layout-words-and-sheet-tile.patch`<br>`firmware/patches/090-timers-core.patch` | average of the 2 patch(es) that share words with this row: F06, UI16 | [docs/user/features.md#planned](../user/features.md#planned) |
 
-### Updates and setup (4)
+### Updates and setup (7)
 
 | Feature | What it does | Status | % | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|
@@ -369,6 +370,9 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Reset on the robot** ![](docs/images/vu-pairing.png) | Hold a button for 3 seconds to erase Wi-Fi, pairing and settings. - Robot - Troubleshooting | proven virtual | 70 | `R01-reset-on-device.patch`<br>`host/maipai_body/first_run_name.py`<br>`host/maipai_body/settings_page.py` | average of the 1 patch(es) that share words with this row: R01 | [docs/user/features.md#set-up-and-keep-safe](../user/features.md#set-up-and-keep-safe) |
 | **Signed updates with rollback** ![](docs/images/vu-update.png) | You choose when to install. A failed start rolls back. No update has been installed on a robot yet: there is no release key. - Robot - Updates | proven virtual | 70 | `160-first-boot-rollback.patch`<br>`SF37-compiled-build-floor.patch`<br>`host/maipai_body/bodies/stackchan/firmware/flash_manifest.py` | average of the 2 patch(es) that share words with this row: 160, SF37 | [docs/user/features.md#set-up-and-keep-safe](../user/features.md#set-up-and-keep-safe) |
 | **Signed updates** ![](docs/images/vu-update.png) | Planned The signature check and the rollback are built, but no release key exists yet and no signed image has been installed on a robot. Until a release is signed, do not rely on this. | proven virtual | 62 | `160-first-boot-rollback.patch`<br>`SF37-compiled-build-floor.patch`<br>`SF25-signed-update-header-and-build-number.patch` | average of the 4 patch(es) that share words with this row: 160, SF37, SF25, SF06 | [docs/user/security.md#what-protects-the-robot](../user/security.md#what-protects-the-robot) |
+| **Setup way 1: connect to MaiPai Home** | At first run, pick MaiPai Home as the robot's brain. It is the first choice when a hub is already known. | proven virtual | 70 | `firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch`<br>`host/maipai_body/first_run_name.py` | the first run shows the choice in six languages and saves the answer; a person has not done it on the unit | [docs/design/first-run-flow.md](../design/first-run-flow.md) |
+| **Setup way 2: use my own servers** | At first run, pick your own language model, speech-to-text and text-to-speech servers, and give their addresses on the settings page. | proven virtual | 70 | `firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch`<br>`host/maipai_body/brain/own_llm.py` | the first run shows the choice in six languages and saves the answer; a person has not done it on the unit | [docs/design/first-run-flow.md](../design/first-run-flow.md) |
+| **Setup way 3: set one up for me** | At first run, pick a minimal local stack: small defaults for all three servers, downloaded not vendored, with a plain progress page and a removal option. | designed | 10 | `docs/plan/first-run-brain-choice.md` | the choice and its saved answer exist (mode 2 in the first run); the installer, the progress page and the removal option are not built | [docs/design/first-run-flow.md](../design/first-run-flow.md) |
 
 ### Voice (17)
 
@@ -433,7 +437,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Tool protocol and schema** | Every firmware tool the host can call, as a schema generated from the patches and checked for drift. | proven virtual | 70 | `schema/tools.json`<br>`scripts/virtual-unit/tools_extract.py` | files exist, a test names it | doc missing |
 | **Spec drift check** | The vendored shared spec is a snapshot and the check fails when it differs from its pinned tag. | proven virtual | 70 | `scripts/spec-drift-check.sh` | files exist, a test names it | doc missing |
 
-### Build and gate (6)
+### Build and gate (7)
 
 | Feature | What it does | Status | % | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|
@@ -443,6 +447,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Suite in four processes** | The whole host suite runs in about four minutes by sharding test files across pytest processes. | built | 40 | `scripts/test-sharded.py`<br>`scripts/test-all.sh` | files exist | [docs/dev/test-speed.md](../dev/test-speed.md) |
 | **Soak and flake hunt** | A 500 turn leak canary and a loop that runs the end to end under CPU load. | proven virtual | 70 | `scripts/virtual-unit/e2e_extra.py`<br>`scripts/e2e-flake-hunt.sh` | files exist, a test names it | [docs/dev/e2e-virtual-unit.md](../dev/e2e-virtual-unit.md) |
 | **Cross-review status table** | Every review bug as a test with an owner, and a table of what is fixed. | proven virtual | 70 | `scripts/review-status.py`<br>`docs/dev/cross-review-status.md` | files exist, a test names it | [docs/dev/cross-review-status.md](../dev/cross-review-status.md) |
+| **Memory budget table** | One table of what fits in internal RAM at once, what is on by default and what excludes what, measured by firmware before more optional features land. | designed | 10 | `docs/design/firmware-memory.md` | decided (decision 11); the table is firmware's and is not written yet | [docs/design/firmware-memory.md](../design/firmware-memory.md) |
 
 ### Docs and translation (2)
 
@@ -457,7 +462,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 |---|---|---|---|---|---|---|
 | **Base firmware changes (numbered patches: the rebuilt base)** | 52 patch(es): Skip remote activation and OTA checks and open the provisioned websoc...; Stop the registry and MQTT service and remove its URL from the device...; Add optional certificate and pairing configuration fields.... | built | 46 | `002-nvs-websocket-no-ota.patch`<br>`005-disable-registry-mqtt.patch`<br>`008-additional-ca-bundle.patch` | average of 52 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Safety, speed and update fixes series** | 42 patch(es): Safety fix, train 1.; Safety fix, train 2.; The listening guard follows voice.... | proven virtual | 64 | `SF01-time-helper-lock-and-remote-safety.patch`<br>`SF02-hello-gate-switches-banner-and-light-safety.patch`<br>`SF03-listening-guard-follows-voice.patch` | `bench-window10.md`, `bench-window11.md` | doc missing |
-| **Screen and word polish** | 18 patch(es): Set the minimal and classic resting mouth widths so every emotion dra...; Give app screens one named palette for all fixed colors.; Draw the calm sealed mouth line for the eyes-only style.... | built | 52 | `UX01-style-mouth-widths.patch`<br>`UX02a-screen-palette.patch`<br>`UX03a-eyes-only-mute-mark.patch` | `bench-b15.md` | doc missing |
+| **Screen and word polish** | 19 patch(es): Set the minimal and classic resting mouth widths so every emotion dra...; Give app screens one named palette for all fixed colors.; Draw the calm sealed mouth line for the eyes-only style.... | built | 53 | `UX01-style-mouth-widths.patch`<br>`UX02a-screen-palette.patch`<br>`UX03a-eyes-only-mute-mark.patch` | `bench-b15.md` | doc missing |
 | **Hands-on test fixes: bigger targets, sheets and settings** | 17 patch(es): Owner's hands-on test, part 1.; Owner's hands-on test, part 2.; Owner's hands-on test, part 3: the Color Memory beep was not timed wi...... | proven virtual | 70 | `UI01-bigger-targets-longer-sheet-no-find-clock-games.patch`<br>`UI02-quick-settings-and-more-screens-dismissable.patch`<br>`UI03-color-memory-tone-and-light-together.patch` | average of 17 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Face design, speed and the bench verification path** | 14 patch(es): Train 3 verification path (docs/design/unit-verification-plan-2026-11...; Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt...; Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121...... | proven virtual | 70 | `V01-serial-tool-path.patch`<br>`V02-offline-phrases.patch`<br>`V03-music-dance.patch` | average of 14 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Wi-Fi setup page** | 9 patch(es): The Wi-Fi setup page and its logic, as new files only (nothing is bui...; Replace the setup component's access point source file (24 handlers,...; A protected setup window.... | proven virtual | 70 | `P01-portal-page.patch`<br>`P02-portal-routes.patch`<br>`P03-portal-protect.patch` | average of 9 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
@@ -800,7 +805,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Package: memory_notes** | Local memory for several adults as plain per-person notes files. | proven virtual | 70 | `host/maipai_packages/memory_notes` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (64)
+### Scripts and tools (65)
 
 | Feature | What it does | Status | % | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|
@@ -836,7 +841,8 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Script: install-hooks.sh** | point this clone at the tracked hooks (repo-local config only, never global). | built | 40 | `scripts/install-hooks.sh` | file exists | doc missing |
 | **Script: internal-tasks.py** | list every task a replayed firmware tree creates with a stack in internal RAM (xTaskCreate and xTaskCreatePinnedToCore, not the WithCaps forms), | built | 40 | `scripts/internal-tasks.py` | file exists | doc missing |
 | **Script: leak-sweep.sh** | before the repo goes public, no tracked file carries labels or wording from the private reviews. | built | 40 | `scripts/leak-sweep.sh` | file exists | doc missing |
-| **Script: ledger_render.py** | Rendering for the feature ledger: the markdown page and the one self-contained HTML page (data embedded as JSON, images as data URIs, no outside scripts or styles; | built | 40 | `scripts/ledger_render.py` | file exists | doc missing |
+| **Script: ledger_decisions.py** | Decisions and scrapped features for the feature ledger (scripts/feature-ledger.py). | built | 40 | `scripts/ledger_decisions.py` | file exists | doc missing |
+| **Script: ledger_render.py** | Rendering for the feature ledger: the markdown page and the one self-contained HTML page (data embedded as JSON, images as data URIs, no outside scripts or styles; | proven virtual | 70 | `scripts/ledger_render.py` | file exists, a test names it | doc missing |
 | **Script: ledger_rules.py** | The rules of the feature ledger: how a row's status and percent are worked out from evidence the repository holds. | built | 40 | `scripts/ledger_rules.py` | file exists | doc missing |
 | **Script: ledger_sources.py** | Miners for the feature ledger (scripts/feature-ledger.py): everything here only reads the repository and returns plain data. | proven virtual | 70 | `scripts/ledger_sources.py` | file exists, a test names it | doc missing |
 | **Script: license-check.py** | licenses stay honest. | built | 40 | `scripts/license-check.py` | file exists | doc missing |
@@ -944,6 +950,46 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **End to end scenario: hostile unauthenticated** | A scenario of the end to end run: hostile unauthenticated. | proven virtual | 70 | `scripts/virtual-unit/e2e.py` | runs against the real host and the virtual unit | [docs/dev/e2e-virtual-unit.md](../dev/e2e-virtual-unit.md) |
 | **End to end scenario: hostile paired peer** | A scenario of the end to end run: hostile paired peer. | proven virtual | 70 | `scripts/virtual-unit/e2e.py` | runs against the real host and the virtual unit | [docs/dev/e2e-virtual-unit.md](../dev/e2e-virtual-unit.md) |
 | **End to end scenario: hostile settings** | A scenario of the end to end run: hostile settings. | proven virtual | 70 | `scripts/virtual-unit/e2e.py` | runs against the real host and the virtual unit | [docs/dev/e2e-virtual-unit.md](../dev/e2e-virtual-unit.md) |
+
+
+## Decisions
+
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 6 built, 7 in progress, 3 not started.
+
+| # | Decision | Status | Evidence |
+|---|---|---|---|
+| 1 | **Boundary rule: four tests** | built | the four tests are written down and scripts/boundary-check.sh enforces them in check.sh |
+| 2 | **A friend without Home** | in progress | the docs describe a setup with no Home; the friend test that gates the first release has not been run end to end |
+| 3 | **Optional local packages allowed without Home** | built | the memory notes, Home Assistant and coding companion packages exist, off by default |
+| 4 | **Build what is best** | in progress | the wake word maker exists; talking over the robot is built, a family-chosen wake word is built but not flashed |
+| 5 | **Shared concepts go into the shared spec** | in progress | vendored spec snapshots with a drift check; the shared movement limiter, memory admission and indicators are still being moved into the spec |
+| 6 | **Four users** | in progress | the four users shape the docs and the first run; the child and teen rule (Home required) is stated, and not yet enforced in the host |
+| 7 | **A 3D virtual unit** | built | the 3D view draws the real renderer on the rigged model, with physics for the head and an IMU |
+| 8 | **Patches stay** | built | the patch series is the plan; nothing replaces it |
+| 9 | **One unit, minimal owner time** | in progress | one bench page and one unit; the unit ends each window on the released image (the bench page holds the routine) |
+| 10 | **The baby monitor is scrapped** | built | the baby monitor pages, rows and promises are removed from the user docs and the product |
+| 11 | **Memory budget first** | not started | firmware writes one budget table of what fits at once, what is on by default and what excludes what |
+| 12 | **Easy setup: three ways to get a brain** | in progress | the first run asks the three questions (Home, my own servers, set one up for me); the minimal local stack installer is not built |
+| 13 | **Security defaults for v1** | not started | the encrypted link exists; making it the default waits on the memory table |
+| 14 | **No eFuse, ever** | built | scripts/efuse-check.py refuses any eFuse write in firmware, builds, scripts and updates |
+| 15 | **Everything must fit, and resources are managed smartly** | not started | the budget table (decision 11) is the proof and is not written yet; scripts/off-cost.sh already proves an off feature costs nothing |
+| 16 | **Many robots, and nothing that quietly dies** | in progress | the host serves several units today; the managed service, per-unit supervision and no-silent-death parts are not built |
+
+## Scrapped (9)
+
+Not counted in any percent. Each row says why it was dropped. The baby monitor rows all share one reason: scrapped (decision 10, 2026-11-18): the camera is small, low resolution, about three frames a second, with no night vision, so it cannot meet what a person expects of a baby monitor, and a wrong promise could do harm. We do not build, document or advertise monitoring of a child or a person who needs care.
+
+| Feature | Why | Where |
+|---|---|---|
+| **Baby monitor** | decision 10: the baby monitor is scrapped (reason above) | `docs/design/decisions.md (decision 10)` |
+| **Monitoring a child or a person who needs care** | decision 10: the baby monitor is scrapped (reason above) | `docs/design/decisions.md (decision 10)` |
+| **Sound direction** | dropped on the design list (docs/design/features.md, Dropped or rejected) | `docs/user/features.md (Not included)` |
+| **Bluetooth** | off in v1 (decided 2026-11-15); reviewed after the memory gate shows what it costs | `docs/user/features.md (Not included)` |
+| **A phone app** | dropped: the settings page and web app are the phone's side | `docs/user/features.md (Not included)` |
+| **A voice that shows emotion** | the face carries emotion | `docs/user/features.md (Not included)` |
+| **Guessing a mood from your words** | the robot shows only what it is told | `docs/user/features.md (Not included)` |
+| **Anything that calls an outside service by itself** | the host calls no address the owner did not configure (decision 12 of the scope list) | `docs/user/features.md (Not included)` |
+| **Phone-pickup nudge** | dropped on the design list (docs/design/features.md, Dropped or rejected) | `docs/design/features.md (Dropped or rejected)` |
 
 ## Patches that no feature row names
 

@@ -51,7 +51,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/firmware-rebuild.md` (10): Rebuild the firmware from the repo alone
 - `docs/design/firmware-spike-2026-11-15.md` (16): Firmware spike on unit, 2026-11-15
 - `docs/design/firmware-v1-cut.md` (245): Firmware v1 cut
-- `docs/design/first-run-flow.md` (53): First run on the robot (plan step 7)
+- `docs/design/first-run-flow.md` (55): First run on the robot (plan step 7)
 - `docs/design/game-engine-note.md` (43): Game engine note (Train 3 item 15, design only, 2026-11-16)
 - `docs/design/games-2026-11-16.md` (147): Games: the engine and three games in the core firmware, 2026-11-16
 - `docs/design/games-v2-2026-11-17.md` (122): Games v2 and a readable dim, 2026-11-17
@@ -129,8 +129,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
-- `docs/dev/feature-ledger.html` (68): no header
-- `docs/dev/feature-ledger.md` (954): Feature ledger
+- `docs/dev/feature-ledger.html` (82): no header
+- `docs/dev/feature-ledger.md` (1000): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -140,6 +140,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/head-speed-real-time-clock.md` (7): Head moves are about twice as fast as before (2026-11-18)
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
+- `docs/dev/memory-budget.md` (91): Memory budget of the optional features (owner decision 11, 2026-11-18)
 - `docs/dev/model-previews/joints.gif` (1605): no header
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
@@ -277,6 +278,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
 - `docs/plan/first-release-notes-draft.md` (52): First release notes draft (2026-11-18)
+- `docs/plan/first-run-brain-choice.md` (25): The brain choice at first run: what the robot sends and what the host does (2026-11-18)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
 - `docs/plan/friend-test-path-2026-11-18.md` (25): The friend-test path: what exists and what is missing (2026-11-18)
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
@@ -529,7 +531,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (298): no header
+- `firmware/patches/ORDER` (299): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -666,6 +668,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX09-update-refused-says-what-to-do.patch` (18): An update that is refused says what to do, not only what happened: the cover now reads Update refused, Nothing
 - `firmware/patches/UX10-plain-words-home-link-original.patch` (41): Two words a child or a parent does not know are replaced with plain ones (display only): the control sheet til
 - `firmware/patches/UX11-first-run-name-stackchan-first.patch` (138): The name step of the first run offers StackChan, the product's own name, as the first choice and the default: 
+- `firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch` (348): Four fixes to the first run that a parent would trip over (found by reading the flow as a person who has never
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -1015,7 +1018,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/face_table.json` (159): no header
 - `host/maipai_body/faces.py` (792): ruff: noqa: E501
 - `host/maipai_body/fillers.py` (360): ruff: noqa: E501
-- `host/maipai_body/first_run_name.py` (56): The robot's name from the first run (firmware patches SF09 and UX11).
+- `host/maipai_body/first_run_name.py` (75): The robot's name from the first run (firmware patches SF09 and UX11).
 - `host/maipai_body/hal/__init__.py` (1): The HAL seam: ``seam`` for the typed protocols, ``errors`` for what crosses it."""
 - `host/maipai_body/hal/errors.py` (68): Errors the HAL seam raises.
 - `host/maipai_body/hal/seam.py` (427): The HAL seam every body profile implements.
@@ -1710,7 +1713,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/facefx_core_test.c` (134): Host test for the fluid face core (patch H02): easing, time constants, speech level, mouth curve, gaze drift. 
 - `host/tests/firmware/filler_core_test.c` (220): Host test for "While it thinks" (patch TB03): the delay rule, the pick, the index reader, mu-law and the tone.
 - `host/tests/firmware/find_core_test.c` (27): Host test for the find-my-robot sound rule (patch Y02): the full sounds core with the find bypass. */
-- `host/tests/firmware/firstrun_core_test.c` (108): include <stdio.h>
+- `host/tests/firmware/firstrun_core_test.c` (132): include <stdio.h>
 - `host/tests/firmware/fx_core_test.c` (347): Host test for the screen effects and the governor (patches TA02, TA05): scanline row math, split invariance, c
 - `host/tests/firmware/fx_cost.c` (94): Host cost model for the overlays and effects (patches TA02, TA03). Runs every overlay for 30 simulated seconds
 - `host/tests/firmware/games_core_test.c` (572): Host test for the game engine core (patch G01):
@@ -1931,7 +1934,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_faces_wiring.py` (191): Face settings wired in: the CLI command, the settings page and routes, the turn cue and sync."""
 - `host/tests/test_fakes_sensors.py` (232): The fake's scripted sensors: DoA, IMU, camera frames, the loopback recorder, the face tracker.
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
-- `host/tests/test_feature_ledger.py` (82): ruff: noqa: E501
+- `host/tests/test_feature_ledger.py` (128): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
 - `host/tests/test_firmware_c_cores_final.py` (55): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
@@ -1955,7 +1958,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_firmware_update_signature.py` (60): An image from Home is served to the unit only when its detached signature verifies."""
 - `host/tests/test_firmware_y_patches.py` (67): The 2026-11-16 reliability patches (Y01 to Y04): listed in ORDER, documented, and the plain-C rules compile an
 - `host/tests/test_first_run_core.py` (23): The first-run step rules (maipai_firstrun_core.h, patches UX05a and UX11) run by their C test on the replayed 
-- `host/tests/test_first_run_name.py` (73): The name picked on the robot's first run reaches the host (firmware patches SF09 and UX11, host/maipai_body/fi
+- `host/tests/test_first_run_name.py` (87): The name picked on the robot's first run reaches the host (firmware patches SF09 and UX11, host/maipai_body/fi
 - `host/tests/test_flasher_page.py` (53): The web flasher's logic (flasher/flasher-core.js) runs under Node: manifest checks, hash checks, nothing writt
 - `host/tests/test_flasher_release_parity.py` (52): ruff: noqa: E501
 - `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
@@ -2322,7 +2325,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
 - `scripts/e2e-flake-hunt.sh` (21): find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. Each run's full 
 - `scripts/efuse-check.py` (104): owner decision 14 (2026-11-18): nothing in this project ever burns an eFuse (irreversible): no secure boot key
-- `scripts/feature-ledger.py` (417): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),
+- `scripts/feature-ledger.py` (459): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
 - `scripts/fuzz/core_fuzz.c` (333): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
@@ -2373,7 +2376,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/internal-tasks.py` (39): list every task a replayed firmware tree creates with a stack in internal RAM (xTaskCreate and xTaskCreatePinn
 - `scripts/leak-sweep-allow.txt` (0): no header
 - `scripts/leak-sweep.sh` (37): before the repo goes public, no tracked file carries labels or wording from the private reviews.
-- `scripts/ledger_render.py` (140): Rendering for the feature ledger: the markdown page and the one self-contained HTML page (data embedded as JSO
+- `scripts/ledger_decisions.py` (116): Decisions and scrapped features for the feature ledger (scripts/feature-ledger.py). Reads docs/design/decision
+- `scripts/ledger_render.py` (169): Rendering for the feature ledger: the markdown page and the one self-contained HTML page (data embedded as JSO
 - `scripts/ledger_rules.py` (118): The rules of the feature ledger: how a row's status and percent are worked out from evidence the repository ho
 - `scripts/ledger_sources.py` (215): Miners for the feature ledger (scripts/feature-ledger.py): everything here only reads the repository and retur
 - `scripts/license-check.py` (52): licenses stay honest. (1) every host dependency in host/pyproject.toml is named in THIRD-PARTY.md; (2) LICENSE
@@ -2455,7 +2459,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
-- `scripts/virtual-unit/scenarios.py` (206): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (208): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/tools/__init__.py` (15): Tool handlers for the virtual unit, one module per group. A handler is registered with @tool("self.x.y") and g
 - `scripts/virtual-unit/tools/apps.py` (203): Clock, game, lock, and timer tools for the virtual unit."""
 - `scripts/virtual-unit/tools/audio.py` (277): Audio, listening, music and unit utility tools for the virtual unit."""

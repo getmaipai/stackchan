@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from maipai_body.bodies.stackchan.companion import DIAGNOSTIC_KINDS, StackChanCompanion
-from maipai_body.first_run_name import DEFAULT_NAME, NAMES, FirstRunNames, disambiguate, name_for_index
+from maipai_body.first_run_name import DEFAULT_NAME, NAMES, FirstRunNames, disambiguate, mode_word, name_for_index
 from maipai_body.units import LayeredStore, known_units
 from maipai_body.unit_settings import UnitSettingsStore
 
@@ -71,3 +71,17 @@ def test_the_first_run_event_keeps_its_fields_when_the_host_reads_the_unit_event
     comp = StackChanCompanion(lambda name, args: [{"kind": "first_run_done", "at_ms": 5, "lang": 0, "name": 6, "mode": 1}])
     event = comp.poll_events()[0]
     assert event.kind == "first_run_done" and event.extra == {"lang": 0, "name": 6, "mode": 1}
+
+
+def test_the_brain_answer_has_three_words_and_a_bad_value_has_none():
+    assert [mode_word(i) for i in (0, 1, 2)] == ["home", "own", "setup"]
+    assert mode_word(3) is None and mode_word(True) is None and mode_word("2") is None
+
+
+def test_the_brain_choice_goes_to_the_handlers_and_a_failing_handler_does_not_stop_the_name(store):
+    names = FirstRunNames(store)
+    seen = []
+    names.on_brain.append(lambda device_id, word: seen.append((device_id, word)))
+    names.on_brain.append(lambda device_id, word: 1 / 0)   # a broken handler
+    assert names.on_event(UNIT, {"lang": 2, "name": 6, "mode": 2}) == "StackChan"
+    assert seen == [(UNIT, "setup")]

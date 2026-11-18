@@ -103,6 +103,30 @@ int main(void)
         CHECK(n.step == MFR_NAME && n.name == 6);                                /* back keeps the answer */
         CHECK(mfr_choose_name(&n, 2) && n.name == 2 && mfr_name_shown(&n) == 2);   /* another name replaces it exactly */
     }
+    /* patch UX12: skip takes the shown default of the step and goes on; the brain step has a third answer, set one up for me */
+    {
+        mfr_t k;
+        mfr_init(&k, 1, 0);
+        CHECK(mfr_skip_visible(MFR_LANGUAGE) && mfr_skip_visible(MFR_NAME) && mfr_skip_visible(MFR_BRAIN) && !mfr_skip_visible(MFR_PRIVACY) && !mfr_skip_visible(MFR_DONE));
+        CHECK(mfr_skip(&k) && k.step == MFR_NAME && k.language == MFR_LANG_EN);       /* skip on step 1: English */
+        CHECK(mfr_skip(&k) && k.name == MFR_NAME_STACKCHAN && k.step == MFR_BRAIN);   /* skip on the name: StackChan, exactly as saved */
+        CHECK(mfr_mode_shown(&k) == MFR_MODE_SETUP);                                    /* no hub known: "set one up for me" is the default shown */
+        CHECK(mfr_skip(&k) && k.mode == MFR_MODE_SETUP && k.step == MFR_PRIVACY);
+        CHECK(mfr_skip(&k) && k.step == MFR_DONE && mfr_done(&k));
+        CHECK(mfr_skip(&k) == 0);                                                       /* nothing to skip once done */
+        mfr_t h;
+        mfr_init(&h, 1, 1);
+        CHECK(mfr_mode_shown(&h) == MFR_MODE_HOME);                                     /* a known hub is the default shown */
+        CHECK(mfr_choose_language(&h, MFR_LANG_DE) && mfr_choose_name(&h, 1) && h.step == MFR_BRAIN);
+        CHECK(mfr_skip(&h) && h.mode == MFR_MODE_HOME);
+        /* skip keeps an answer already given: a language picked, then skip on the same step later, keeps it */
+        mfr_t a;
+        mfr_init(&a, 1, 0);
+        CHECK(mfr_choose_language(&a, MFR_LANG_IT) && a.language == MFR_LANG_IT);
+        mfr_back(&a);
+        CHECK(a.step == MFR_LANGUAGE);
+        CHECK(mfr_skip(&a) && a.language == MFR_LANG_IT && a.step == MFR_NAME);   /* skip after back keeps the picked language, not English */
+    }
     puts("firstrun_core_test: all passed");
     return 0;
 }

@@ -1,6 +1,6 @@
 # First run on the robot (plan step 7)
 
-Status: design plus patch UX05a (the step rules), UX05b (the screens) and UX11 (StackChan first on the name step). The unit draws these screens itself and works with no phone: the first start of a unit with no saved choice shows them once. The calls that start the flow and save its answer are the firmware track's (maipai_firstrun_show(), a saved record); this note fixes the words and the order.
+Status: design plus patch UX05a (the step rules), UX05b (the screens), UX11 (StackChan first on the name step) and UX12 (skip, the brain question, the last screen). The unit draws these screens itself and works with no phone: the first start of a unit with no saved choice shows them once. The calls that start the flow and save its answer are the firmware track's (maipai_firstrun_show(), a saved record); this note fixes the words and the order.
 
 ## Placement (docs/dev/scope-core-vs-home.md)
 
@@ -10,12 +10,13 @@ Basics the robot must do alone, so built small in the core: language, a name, Wi
 
 | Step | Screen words (English / Spanish) | Answer |
 |---|---|---|
-| 1 Language | "Hello! Pick your language" / "Hola! Elige tu idioma"; six tiles: English, Espanol, Francais, Deutsch, Portugues, Italiano | language code |
+| 1 Language | "Hello · Hola · Bonjour · Hallo · Olá · Ciao" (the same line in every language); six tiles, each language's own name: English, Español, Français, Deutsch, Português, Italiano; English highlighted; a small Skip | language code |
 | 2 Name | "What should I be called?" / "Como me llamo?"; a wide first tile **StackChan** (the product's own name, highlighted as the default), then six tiles: Astro, Clover, Ember, Nova, Pippa, Rover; hint "Type your own name later, on the settings page." (in each language) | name index 0 to 6 (6 is StackChan) |
 | 3 Wi-Fi | "Let's join your Wi-Fi" / "Conectemos tu Wi-Fi"; the existing Wi-Fi setup cover takes over (hotspot name and address); skipped when the unit already has Wi-Fi | none |
-| 4 Brain | "How should I think?" / "Como debo pensar?"; two big buttons: "Pair with MaiPai Home" / "Use my own model"; hint "Both stay in your home." | mode: home or own |
+| 4 Brain | "Where should my brain live?"; three buttons, the three ways of decision 12: "MaiPai Home", "My own servers", "Set one up for me" ("Set one up for me" highlighted unless a hub is already known, then Home); hint "Your voice stays in your home either way."; a small Skip (takes the highlighted answer) | mode: 0 home, 1 own servers, 2 set one up for me |
 | 5 Privacy | "Private by design" / "Privado por diseno"; "Your voice and pictures stay in your home." "Nothing goes to the internet unless you turn it on."; one button "Got it" / "Entendido" | none |
-| 6 Done | "All set!" / "Todo listo!" for 2 seconds | marks first run done |
+| 6 Done | "All set!" for a second and a half, when the answers are saved | marks first run done |
+| 7 What now | "What now?": say Hi, Stack Chan; change anything on the settings page at the address shown (the host the unit talks to, port 8051; a plain sentence when the unit has no host saved); on a phone, the phone code on that page; one button, or it closes by itself after two minutes | none |
 
 Back is a small arrow at the top left on steps 2, 4 and 5; step 1 has none. A step with a hands-off screen (3) goes forward when the existing flow reports done. A long press anywhere on steps 1 to 5 shows nothing extra: no hidden menus.
 
@@ -39,15 +40,16 @@ Core: PC test. Screens: golden frames from the unit's own drawing code in `host/
 - **The host takes the name.** `host/maipai_body/first_run_name.py` turns the index into the unit's name when the unit has none saved on the settings page; a name typed there is never replaced. The settings page, the unit list and the parent view show it; a unit with no name shows `StackChan` (two units with the same name get the last five characters of their Device-Id so the unit picker tells them apart).
 - **Proof:** the core test (`host/tests/firmware/firstrun_core_test.c`, run by `test_first_run_core.py`), golden frames `first-run-2-<language>.png` for all six languages, and `host/tests/test_first_run_name.py` for the host half.
 
-## The first run through a parent's eyes (findings, 2026-11-18)
+## The first run through a parent's eyes (findings of 2026-11-18 and what patch UX12 did)
 
-Read as a person who has never seen the robot, step by step, from the golden frames and the flow code. Not changed by UX11; for the owner and the firmware track to decide.
-1. **No skip, no "not now".** Every step wants a tap; a person who just wants to try the robot cannot go on without choosing a language, a name and a brain. A visible "Skip" on steps 2 and 4 (defaults: StackChan, own model) would match what people expect.
-2. **Step 1 is English only until a language is picked.** "Hello! Pick your language" is the one line a person who reads Spanish sees first. A line in each language (or flags) would help.
-3. **"How should I think?" is a hard question.** The two buttons say "Pair with MaiPai Home" and "Use my own model"; a parent has no idea what either means. A one-line plain hint under each ("I use my own computer" / "I use your MaiPai Home") would do.
-4. **Defaults differ by step.** English is highlighted at step 1, StackChan now at step 2, but step 4 highlights nothing unless a hub is known; the pattern "one tile is always highlighted" would be easier to learn.
-5. **A tap on a tile also advances.** There is no confirmation and no "Next"; back (the arrow) fixes a wrong tap and keeps the answer, which works, but a person who taps by accident while looking for a way to scroll will not know what happened. It is consistent through the flow.
-6. **No sign of how long it is.** Five steps and no "2 of 5". The back arrow is the only hint that there is a before.
-7. **The end is two seconds of "All set!" and then the face.** Nothing says what to do next. One line ("Say Hi, Stack Chan") on the last screen would close the loop.
-8. **Wi-Fi is the one step that leaves the flow.** It hands over to the setup cover (the robot's hotspot, an address and a code) and comes back by itself; the title of that cover is not part of the numbered flow.
-9. **The name is a choice among names, and now also the product's name.** A person who wants a family name has to go to the settings page afterwards; the hint says so.
+Read as a person who has never seen the robot, step by step. Findings 1 to 3 and 6 to 7 are fixed by UX12; the rest are decisions or limits.
+1. **Skip.** Fixed: a small Skip at the top right of the language and name steps (English, StackChan), on the brain step; the robot works with the defaults and everything stays changeable on the settings page. The Wi-Fi step is the base's setup cover and has no skip; a unit with no Wi-Fi cannot reach a host, so it is not offered. Privacy has its one "Got it".
+2. **Step 1 was English only.** Fixed: the title is the same line in six languages and the tiles are each language's own name.
+3. **"How should I think?"** Fixed: "Where should my brain live?" with the three ways of owner decision 12 (2026-11-18). What the step means in the code: the answer (0 home, 1 own servers, 2 set one up for me) is saved on the unit and sent in `first_run_done`; nothing on the robot changes what it does because of it. The host hands the word to whoever registers with `FirstRunNames.on_brain` and logs it; what each way does on the host (pairing with Home, asking for the three addresses, installing the minimal stack) is the app track's build, agreed in `docs/plan/first-run-brain-choice.md`. Until then the brain the host uses is `brain` in `robot.toml`.
+4. **Defaults.** English (step 1), StackChan (step 2) and, on step 4, Home when a hub is known else "later" are all highlighted now: one tile is always highlighted. A tap on any tile still picks it and goes on.
+5. **A tap also advances.** Unchanged: back fixes a wrong tap and keeps the answer.
+6. **Progress.** Unchanged: there is no "2 of 5"; the back arrow is the only hint.
+7. **The end.** Fixed: after "All set!" a last screen says what to do next (above). No QR code on the robot: the LVGL QR widget is not built into this firmware and costs memory; the settings page shows the phone code as a QR.
+8. **Wi-Fi leaves the numbered flow** for the setup cover and comes back by itself. Unchanged.
+9. **A family name needs the settings page** afterwards; the hint on the name step says so.
+10. **New finding.** On the host's settings page the phone code labels ("Open this page on your phone", "Show the phone code") are still English in French, German, Portuguese and Italian; the robot's last screen names that button in each language, so the words will not match until those page strings are translated.

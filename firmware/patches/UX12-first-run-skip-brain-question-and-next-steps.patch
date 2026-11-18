@@ -1,0 +1,348 @@
+# Intent: Four fixes to the first run that a parent would trip over (found by reading the flow as a person who has never seen the robot, docs/design/first-run-flow.md). (1) A small Skip at the top right of the language and name steps and of the brain step: the robot still works with the defaults (English, StackChan, and the brain default below) and everything stays changeable on the settings page. (2) Step 1 no longer says "Pick your language" in English only: the title is "Hello, Hola, Bonjour, Hallo, Ola, Ciao" and the six tiles are each language's own name, English highlighted. (3) "How should I think?" becomes "Where should my brain live?" with the three ways of owner decision 12 of 2026-11-18: MaiPai Home, My own servers, Set one up for me (translated in all six languages). The core takes mode 2 = set one up for me (0 home, 1 own servers); the default shown is Home when a hub is already known, else set one up for me; Skip takes the shown answer. The answer is saved and sent as before; the host builds the three ways (docs/plan/first-run-brain-choice.md), nothing on the robot changes behavior on it. (4) After All set! a last screen says what to do next: say Hi, Stack Chan; change anything on the settings page, with its address (the host the unit talks to, port 8051, from the saved websocket address, or a plain sentence when the unit has none); the phone code on that page. The answers are saved when All set! shows, so a person who walks away at the last screen keeps them; the last screen closes on its button or after two minutes. No QR code: the LVGL QR widget is not built into this firmware and costs memory; the settings page shows the phone code as a QR.
+# Placement: unit (the first run runs on the robot with no host)
+# Upstream: firmware/main/hal/maipai_firstrun.cc, maipai_firstrun.h, maipai_firstrun_core.h and maipai_firstrun_wire.cc (ours)
+# Check after a flash: wipe the first-run record and run the flow: Skip on the language and name steps keeps English and StackChan; the brain step has three answers and "Set one up for me" is highlighted with no hub known; after All set! the last screen shows the settings address of your host and its button closes it; first_run_done carries mode 2 when "Set one up for me" was chosen.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_firstrun.cc b/firmware/main/hal/maipai_firstrun.cc
+index cdda603..28a8b8b 100644
+--- a/firmware/main/hal/maipai_firstrun.cc
++++ b/firmware/main/hal/maipai_firstrun.cc
+@@ -18,34 +18,33 @@ namespace {
+         const char* got;
+         const char* done;
+         const char* change;
++        const char* skip;       // patch UX12: the small button on the language, name and brain steps
++        const char* setup;
++        const char* next_title; // the last screen, after All set!
++        const char* next_a;
++        const char* next_b;
++        const char* next_none;
++        const char* next_c;
+     };
+     const Words words[MFR_LANG_COUNT] = {
+-        {{"Hello! Pick your language", "What should I be called?", "Let's join your Wi-Fi",
+-          "How should I think?", "Private by design", "All set!"},
+-         "Let's join your Wi-Fi", "How should I think?", "Pair with MaiPai Home", "Use my own model",
+-         "Both stay in your home.", "Private by design", "Your voice and pictures stay in your home.",
+-         "Nothing goes to the internet unless you turn it on.", "Got it", "All set!", "Type your own name later, on the settings page."},
+-        {{"¡Hola! Elige tu idioma", "¿Cómo me llamo?", "Conectemos tu Wi-Fi", "¿Cómo debo pensar?", "Privado por diseño", "¡Todo listo!"},
+-         "Conectemos tu Wi-Fi", "¿Cómo debo pensar?", "Vincular MaiPai Home", "Usar mi propio modelo",
+-         "Ambos quedan en casa.", "Privado por diseño", "Tu voz y fotos quedan en casa.",
+-         "Nada va a internet si no lo activas.", "Entendido", "¡Todo listo!", "Escribe tu propio nombre luego, en la página de ajustes."},
+-        {{"Bonjour ! Choisissez", "Comment m'appeler ?", "Rejoignons votre Wi-Fi", "Comment penser ?", "Privé par design", "Tout est prêt !"},
+-         "Rejoignons votre Wi-Fi", "Comment penser ?", "Associer MaiPai Home", "Mon propre modèle",
+-         "Les deux restent chez vous.", "Privé par design", "Voix et photos restent chez vous.",
+-         "Rien ne va sur internet sans accord.", "Compris", "Tout est prêt !", "Tapez votre propre nom plus tard, dans les réglages."},
+-        {{"Hallo! Sprache wählen", "Wie soll ich heißen?", "WLAN verbinden",
+-          "Wie soll ich denken?", "Privat von Anfang an", "Alles bereit!"},
+-         "WLAN verbinden", "Wie soll ich denken?", "Mit MaiPai Home koppeln", "Eigenes Modell nutzen",
+-         "Beides bleibt zu Hause.", "Privat von Anfang an", "Stimme und Bilder bleiben zu Hause.",
+-         "Nichts geht ohne Freigabe ins Netz.", "Verstanden", "Alles bereit!", "Eigenen Namen später in den Einstellungen eingeben."},
+-        {{"Olá! Escolha o idioma", "Como devo me chamar?", "Conectar ao Wi-Fi", "Como devo pensar?", "Privado por design", "Tudo pronto!"},
+-         "Conectar ao Wi-Fi", "Como devo pensar?", "Parear com MaiPai Home", "Usar meu modelo",
+-         "Ambos ficam em casa.", "Privado por design", "Voz e fotos ficam em casa.",
+-         "Nada vai a internet sem sua permissão.", "Entendi", "Tudo pronto!", "Digite seu próprio nome depois, nas configurações."},
+-        {{"Ciao! Scegli la lingua", "Come mi chiamo?", "Connetti il Wi-Fi", "Come devo pensare?", "Privato per design", "Tutto pronto!"},
+-         "Connetti il Wi-Fi", "Come devo pensare?", "Abbina MaiPai Home", "Usa il mio modello",
+-         "Entrambi restano a casa.", "Privato per design", "Voce e foto restano a casa.",
+-         "Nulla va online senza permesso.", "Capito", "Tutto pronto!", "Scrivi il tuo nome dopo, nelle impostazioni."}
++        {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "What should I be called?", "Let's join your Wi-Fi", "Where should my brain live?", "Private by design", "All set!"},
++         "Let's join your Wi-Fi", "Where should my brain live?", "MaiPai Home", "My own servers", "Your voice stays in your home either way.", "Private by design", "Your voice and pictures stay in your home.", "Nothing goes to the internet unless you turn it on.", "Got it", "All set!", "Type your own name later, on the settings page.",
++         "Skip", "Set one up for me", "What now?", "Say \"Hi, Stack Chan\" and ask me something.", "Change anything on the settings page:", "on the computer that runs the host", "Phone: tap Show the phone code there."},
++        {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "¿Cómo me llamo?", "Conectemos tu Wi-Fi", "¿Dónde debe vivir mi cerebro?", "Privado por diseño", "¡Todo listo!"},
++         "Conectemos tu Wi-Fi", "¿Dónde debe vivir mi cerebro?", "MaiPai Home", "Mis propios servidores", "Tu voz queda en casa en cualquier caso.", "Privado por diseño", "Tu voz y fotos quedan en casa.", "Nada va a internet si no lo activas.", "Entendido", "¡Todo listo!", "Escribe tu propio nombre luego, en la página de ajustes.",
++         "Omitir", "Prepara uno por mí", "¿Y ahora?", "Di \"Hi, Stack Chan\" y pregúntame algo.", "Cambia todo en la página de ajustes:", "en el equipo que ejecuta el host", "Móvil: pulsa Mostrar el código del teléfono."},
++        {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "Comment m'appeler ?", "Rejoignons votre Wi-Fi", "Où doit vivre mon cerveau ?", "Privé par design", "Tout est prêt !"},
++         "Rejoignons votre Wi-Fi", "Où doit vivre mon cerveau ?", "MaiPai Home", "Mes propres serveurs", "Votre voix reste chez vous dans tous les cas.", "Privé par design", "Voix et photos restent chez vous.", "Rien ne va sur internet sans accord.", "Compris", "Tout est prêt !", "Tapez votre propre nom plus tard, dans les réglages.",
++         "Passer", "En installer un pour moi", "Et maintenant ?", "Dites \"Hi, Stack Chan\" et posez une question.", "Tout se règle dans les réglages :", "sur l'ordinateur qui exécute l'hôte", "Téléphone : touchez Afficher le code téléphone."},
++        {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "Wie soll ich heißen?", "WLAN verbinden", "Wo soll mein Gehirn wohnen?", "Privat von Anfang an", "Alles bereit!"},
++         "WLAN verbinden", "Wo soll mein Gehirn wohnen?", "MaiPai Home", "Meine eigenen Server", "Ihre Stimme bleibt in jedem Fall zu Hause.", "Privat von Anfang an", "Stimme und Bilder bleiben zu Hause.", "Nichts geht ohne Freigabe ins Netz.", "Verstanden", "Alles bereit!", "Eigenen Namen später in den Einstellungen eingeben.",
++         "Später", "Richtet eins für mich ein", "Und jetzt?", "Sagen Sie \"Hi, Stack Chan\" und fragen Sie etwas.", "Alles ändern Sie in den Einstellungen:", "auf dem Computer mit dem Host", "Handy: Handy-Code anzeigen wählen."},
++        {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "Como devo me chamar?", "Conectar ao Wi-Fi", "Onde meu cérebro deve morar?", "Privado por design", "Tudo pronto!"},
++         "Conectar ao Wi-Fi", "Onde meu cérebro deve morar?", "MaiPai Home", "Meus próprios servidores", "Sua voz fica em casa de qualquer forma.", "Privado por design", "Voz e fotos ficam em casa.", "Nada vai a internet sem sua permissão.", "Entendi", "Tudo pronto!", "Digite seu próprio nome depois, nas configurações.",
++         "Pular", "Configure um para mim", "E agora?", "Diga \"Hi, Stack Chan\" e pergunte algo.", "Mude tudo na página de configurações:", "no computador que executa o host", "Celular: toque em Mostrar o código do celular."},
++        {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "Come mi chiamo?", "Connetti il Wi-Fi", "Dove deve vivere il mio cervello?", "Privato per design", "Tutto pronto!"},
++         "Connetti il Wi-Fi", "Dove deve vivere il mio cervello?", "MaiPai Home", "I miei server", "La tua voce resta a casa in ogni caso.", "Privato per design", "Voce e foto restano a casa.", "Nulla va online senza permesso.", "Capito", "Tutto pronto!", "Scrivi il tuo nome dopo, nelle impostazioni.",
++         "Salta", "Preparane uno per me", "E adesso?", "Di' \"Hi, Stack Chan\" e chiedimi qualcosa.", "Cambia tutto nelle impostazioni:", "sul computer che esegue l'host", "Telefono: tocca Mostra il codice del telefono."}
+     };
+     const char* langs[6] = {"English", "Español", "Français", "Deutsch", "Português", "Italiano"};
+     const char* names[MFR_NAME_COUNT] = {"Astro", "Clover", "Ember", "Nova", "Pippa", "Rover", "StackChan"};   // by saved index; the screen shows StackChan first
+@@ -57,6 +56,8 @@ namespace {
+     lv_timer_t* timer = nullptr;
+     int language = 0, mode = MFR_MODE_NONE;
+     bool running = false;
++    constexpr int kNext = 7;                 // patch UX12: the last screen, after All set! (not a step of the core: the answers are already saved)
++    const char* preview_address = "";      // only the preview (maipai_firstrun_show_step) sets it
+ 
+     lv_obj_t* box(lv_obj_t* p, int x, int y, int w, int h, lv_color_t color, bool touch = false) {
+         lv_obj_t* o = lv_obj_create(p);
+@@ -92,11 +93,21 @@ namespace {
+ 
+     void draw(int step);
+ 
++    void next_timer_cb(lv_timer_t*) {
++        maipai_firstrun_close();   // left alone for two minutes: the face comes back
++    }
++
++    // All set! has been on screen: the answers are saved now, then the last screen says what to do next.
+     void finish_timer(lv_timer_t*) {
+-        maipai_firstrun_close();
++        if (timer) {
++            lv_timer_delete(timer);
++            timer = nullptr;
++        }
+         if (H.finished) {
+             H.finished(language, flow.name, mode);
+         }
++        draw(kNext);
++        timer = lv_timer_create(next_timer_cb, 120000, nullptr);
+     }
+ 
+     void event(lv_event_t* e) {
+@@ -126,12 +137,32 @@ namespace {
+             }
+             return;
+         }
+-        if (code == 30 || code == 31) {
++        if (code >= 30 && code <= 32) {   // 30 MaiPai Home, 31 my own servers, 32 set one up for me (patch UX12)
+             mode = code - 30;
+             mfr_choose_mode(&flow, mode);
+             draw(flow.step);
+             return;
+         }
++        if (code == 90) {   // Skip: the default of this step, and on
++            const int was = flow.step;
++            if (mfr_skip(&flow)) {
++                if (was == MFR_LANGUAGE) {
++                    language = flow.language;
++                    if (H.apply_language) {
++                        H.apply_language(language);
++                    }
++                }
++                if (was == MFR_BRAIN) {
++                    mode = flow.mode;
++                }
++                draw(flow.step);
++            }
++            return;
++        }
++        if (code == 50) {   // the last screen's button
++            maipai_firstrun_close();
++            return;
++        }
+         if (code == 40) {
+             mfr_ack_privacy(&flow);
+             draw(flow.step);
+@@ -176,16 +207,40 @@ namespace {
+         if (step == MFR_DONE) {
+             lv_obj_t* t = label(root, w.done, f24, maipai_ui_style::text(), 300);
+             lv_obj_align(t, LV_ALIGN_CENTER, 0, 0);
+-            timer = lv_timer_create(finish_timer, 2000, nullptr);
++            timer = lv_timer_create(finish_timer, 1500, nullptr);
+             return;
+         }
+-        const int tw = mfr_back_visible(step) ? 224 : 280;  // the title keeps clear of the back arrow
++        if (step == kNext) {
++            lv_obj_t* t = label(root, w.next_title, f24, maipai_ui_style::text(), 300);
++            lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 6);
++            // the lines flow in one column, so a longer translation pushes the next line down instead of over it
++            lv_obj_t* col = lv_obj_create(root);
++            lv_obj_remove_style_all(col);
++            lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
++            lv_obj_set_pos(col, 8, 34);
++            lv_obj_set_size(col, 304, 152);
++            lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
++            lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
++            lv_obj_set_style_pad_row(col, 5, 0);
++            label(col, w.next_a, f16, maipai_ui_style::text(), 304);
++            label(col, w.next_b, f16, maipai_ui_style::text(), 304);
++            const char* where = (H.settings_address ? H.settings_address() : preview_address);
++            label(col, (where && *where) ? where : w.next_none, f16, maipai_ui_style::accent(), 304);
++            label(col, w.next_c, f16, maipai_ui_style::text(), 304);
++            add_button(root, 90, 192, 140, 42, w.got, 50, true);
++            return;
++        }
++        if (mfr_skip_visible(step)) {   // a small Skip at the top right of every step the person chooses on
++            add_button(root, 252, 4, 64, 36, w.skip, 90);
++        }
++        const int left = mfr_back_visible(step) ? 52 : 8;                     // the title keeps clear of the back arrow and of Skip
++        const int tw = (mfr_skip_visible(step) ? 248 : 312) - left;
+         lv_obj_t* title = label(root, w.title[step], fit_font(w.title[step], tw),
+                                 maipai_ui_style::text(), tw);
+-        lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
++        lv_obj_align(title, LV_ALIGN_TOP_LEFT, left, 8);
+         if (step == MFR_LANGUAGE) {
+             for (int i = 0; i < 6; i++) {
+-                add_button(root, 8 + (i % 3) * 102, 70 + (i / 3) * 64, 96, 56, langs[i], i, language == i);
++                add_button(root, 8 + (i % 3) * 102, 62 + (i / 3) * 66, 96, 58, langs[i], i, language == i);
+             }
+         } else if (step == MFR_NAME) {
+             // StackChan first, wide, and highlighted until another name is picked; the six others below it. A tap picks and goes on.
+@@ -197,12 +252,15 @@ namespace {
+             lv_obj_t* h = label(root, w.change, f16, maipai_ui_style::muted(), 304);
+             lv_obj_align(h, LV_ALIGN_BOTTOM_MID, 0, -4);
+         } else if (step == MFR_BRAIN) {
+-            const bool both_big = fit_font(w.home, 264) == f24 && fit_font(w.own, 264) == f24;
+-            // patch UX05b: the two buttons share one size
+-            add_button(root, 20, 68, 280, 60, w.home, 30, mode == MFR_MODE_HOME, both_big);
+-            add_button(root, 20, 134, 280, 60, w.own, 31, mode == MFR_MODE_OWN, both_big);
++            // Where the robot's brain (the language model, speech to text and text to speech it asks) lives, the three ways of decision 12 of 2026-11-18: MaiPai Home, the person's own servers, or a small local stack the host sets up. Nothing on the robot reads
++            // the choice to change what it does today; it is recorded and sent to the host, which builds the three ways (docs/plan/first-run-brain-choice.md). The default shown is Home when a hub is known, else "set one up for me".
++            const int shown = mfr_mode_shown(&flow);
++            const bool all_big = fit_font(w.home, 264) == f24 && fit_font(w.own, 264) == f24 && fit_font(w.setup, 264) == f24;
++            add_button(root, 20, 52, 280, 42, w.home, 30, shown == MFR_MODE_HOME, all_big);
++            add_button(root, 20, 98, 280, 42, w.own, 31, shown == MFR_MODE_OWN, all_big);
++            add_button(root, 20, 144, 280, 42, w.setup, 32, shown == MFR_MODE_SETUP, all_big);
+             lv_obj_t* h = label(root, w.hint, f16, maipai_ui_style::muted(), 300);
+-            lv_obj_align(h, LV_ALIGN_BOTTOM_MID, 0, -14);
++            lv_obj_align(h, LV_ALIGN_BOTTOM_MID, 0, -2);
+         } else if (step == MFR_PRIVACY) {
+             lv_obj_t* a = label(root, w.privacy_a, f16, maipai_ui_style::text(), 296);
+             lv_obj_align(a, LV_ALIGN_TOP_MID, 0, 82);
+@@ -228,7 +286,10 @@ void maipai_firstrun_start() {
+ }
+ 
+ void maipai_firstrun_show_step(int step, int lang, int selected_mode) {
+-    flow.name = -1;   // a preview shows the name step as it is before anyone has picked: StackChan highlighted
++    preview_address = "http://192.0.2.10:8051";   // a preview has no host: the last screen shows an example address
++    flow.name = -1;
++    flow.mode = MFR_MODE_NONE;
++    flow.hub_known = 0;   // a preview shows the name step as it is before anyone has picked: StackChan highlighted
+     language = lang;
+     mode = selected_mode;
+     draw(step);
+diff --git a/firmware/main/hal/maipai_firstrun.h b/firmware/main/hal/maipai_firstrun.h
+index f792e37..344e979 100644
+--- a/firmware/main/hal/maipai_firstrun.h
++++ b/firmware/main/hal/maipai_firstrun.h
+@@ -6,6 +6,7 @@ struct maipai_firstrun_host_t {
+     void (*apply_language)(int lang);
+     void (*open_wifi_setup)();
+     void (*finished)(int lang, int name, int mode);
++    const char* (*settings_address)();   // patch UX12: the host's settings page address for the last screen, or "" when the unit does not know it
+ };
+ 
+ void maipai_firstrun_init(const maipai_firstrun_host_t* host);
+diff --git a/firmware/main/hal/maipai_firstrun_core.h b/firmware/main/hal/maipai_firstrun_core.h
+index 6e134f2..91a2da3 100644
+--- a/firmware/main/hal/maipai_firstrun_core.h
++++ b/firmware/main/hal/maipai_firstrun_core.h
+@@ -31,7 +31,8 @@ enum {
+ enum {
+     MFR_MODE_NONE = -1,
+     MFR_MODE_HOME = 0,
+-    MFR_MODE_OWN = 1
++    MFR_MODE_OWN = 1,
++    MFR_MODE_SETUP = 2 /* patch UX12: "Set one up for me" (decision 12 of 2026-11-18, way c: a minimal local stack the host installs); 0 is MaiPai Home, 1 the person's own servers (way b) */
+ };
+ 
+ enum {
+@@ -97,6 +98,12 @@ static inline int mfr_name_at_slot(int slot)
+     return slot == 0 ? MFR_NAME_STACKCHAN : slot - 1;
+ }
+ 
++/* The place shown as chosen on the brain step: the answer given, else Home when a hub is already known, else "set one up for me" (the way that needs nothing the person does not have). */
++static inline int mfr_mode_shown(const mfr_t* m)
++{
++    return m->mode != MFR_MODE_NONE ? m->mode : (m->hub_known ? MFR_MODE_HOME : MFR_MODE_SETUP);
++}
++
+ static inline int mfr_wifi_done(mfr_t* m)
+ {
+     if (m->step != MFR_WIFI || m->wifi_set) {
+@@ -109,7 +116,7 @@ static inline int mfr_wifi_done(mfr_t* m)
+ 
+ static inline int mfr_choose_mode(mfr_t* m, int mode)
+ {
+-    if (m->step != MFR_BRAIN || (mode != MFR_MODE_HOME && mode != MFR_MODE_OWN)) {
++    if (m->step != MFR_BRAIN || (mode != MFR_MODE_HOME && mode != MFR_MODE_OWN && mode != MFR_MODE_SETUP)) {
+         return 0;
+     }
+     m->mode = (int8_t)mode;
+@@ -128,6 +135,19 @@ static inline int mfr_ack_privacy(mfr_t* m)
+     return 1;
+ }
+ 
++/* Skip: take the shown default for this step and go on, keeping an answer already given. English, StackChan, Home or "set one up for me"; the privacy step has only its one button, which skip also presses.
++ * Returns 1 when the step moved on. The Wi-Fi step is the base's setup cover and is not skipped here. */
++static inline int mfr_skip(mfr_t* m)
++{
++    switch (m->step) {
++        case MFR_LANGUAGE: return mfr_choose_language(m, m->language >= 0 ? m->language : MFR_LANG_EN);
++        case MFR_NAME: return mfr_choose_name(m, mfr_name_shown(m));
++        case MFR_BRAIN: return mfr_choose_mode(m, mfr_mode_shown(m));
++        case MFR_PRIVACY: return mfr_ack_privacy(m);
++        default: return 0;
++    }
++}
++
+ static inline void mfr_back(mfr_t* m)
+ {
+     if (m->step <= MFR_LANGUAGE || m->step >= MFR_DONE) {
+@@ -150,6 +170,12 @@ static inline int mfr_resume_step(const mfr_t* m)
+     return MFR_DONE;
+ }
+ 
++/* Skip is on every step the person chooses on: language, name, brain. (Privacy has "Got it".) */
++static inline int mfr_skip_visible(int step)
++{
++    return step == MFR_LANGUAGE || step == MFR_NAME || step == MFR_BRAIN;
++}
++
+ static inline int mfr_back_visible(int step)
+ {
+     return step == MFR_NAME || step == MFR_BRAIN || step == MFR_PRIVACY;
+diff --git a/firmware/main/hal/maipai_firstrun_wire.cc b/firmware/main/hal/maipai_firstrun_wire.cc
+index 9a84493..0a5f52d 100644
+--- a/firmware/main/hal/maipai_firstrun_wire.cc
++++ b/firmware/main/hal/maipai_firstrun_wire.cc
+@@ -2,7 +2,7 @@
+  * SPDX-License-Identifier: MIT
+  *
+  * Patch SF09: wires the first-run flow. It starts at the first standby of a unit with no saved answers, hands Wi-Fi to the existing
+- * setup cover, saves the answers (language, name 0 to 5, mode 0 home or 1 own) so the flow never shows again, applies the language,
++ * setup cover, saves the answers (language, name 0 to 6, mode 0 home, 1 own servers, 2 set one up for me) so the flow never shows again, applies the language,
+  * and tells the host through a first_run_done event.
+  */
+ #include "maipai_firstrun_wire.h"
+@@ -15,6 +15,7 @@
+ #include <settings.h>
+ #include <ssid_manager.h>
+ #include <esp_log.h>
++#include <string>
+ #include <esp_heap_caps.h>
+ #include <atomic>
+ #include <cstdio>
+@@ -38,6 +39,22 @@ bool hub_known()
+     return !st.GetString("url").empty();
+ }
+ 
++// The settings page of the host the unit talks to: its host name or address from the saved websocket address, on the settings page's port (8051). Empty when the unit has no host saved.
++const char* settings_address()
++{
++    static char out[64];
++    Settings st("websocket", false);
++    const std::string url = st.GetString("url");
++    const size_t at = url.find("://");
++    if (at == std::string::npos) return "";
++    const size_t start = at + 3;
++    size_t end = url.find_first_of(":/", start);
++    if (end == std::string::npos) end = url.size();
++    if (end <= start || end - start > 40) return "";
++    std::snprintf(out, sizeof(out), "http://%s:8051", url.substr(start, end - start).c_str());
++    return out;
++}
++
+ void apply_language(int lang) { maipai_face_set_lang(lang); }  // runs under the LVGL lock (a screen callback)
+ 
+ void open_wifi_setup()
+@@ -70,7 +87,7 @@ void maipai_firstrun_boot_poll(bool xiaozhi_ready)
+     if (s_checked.load() || !xiaozhi_ready) return;
+     s_checked.store(true);
+     if (record_exists()) return;  // answered before: never again
+-    static const maipai_firstrun_host_t host = {wifi_set, hub_known, apply_language, open_wifi_setup, finished};
++    static const maipai_firstrun_host_t host = {wifi_set, hub_known, apply_language, open_wifi_setup, finished, settings_address};
+     LvglLockGuard lock;
+     maipai_firstrun_init(&host);
+     maipai_firstrun_start();
