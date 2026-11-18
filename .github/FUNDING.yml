@@ -1,1 +1,20 @@
+# Staged, not live. GitHub reads this file only from the default branch of the public repo, and the public
+# repo takes no pushes before the firmware release is approved (docs/dev/draft-names.md, Sponsors).
+# Policy and options: docs/plan/funding-and-sponsorship.md.
+#
+# Rules for this file:
+# - Every funding link in README.md or docs/ must be listed here. scripts/funding-check.py enforces it.
+# - Add a platform line only after the account exists and its page resolves.
+# - One account per platform. No custom links to payment pages we do not run ourselves.
+#
+# Staged owner entry, kept because README.md already links this account. Remove it, or publish the
+# listing, before release. Draft state: the listing is not published yet.
 github: [JesseWebDotCom]
+
+# Placeholders, off until an account exists (uncomment one line, then add its link to the docs):
+# ko_fi: <handle>
+# open_collective: <collective-slug>
+# liberapay: <handle>
+# patreon: <handle>
+# buy_me_a_coffee: <handle>
+# custom: ["https://example.com/support"]
