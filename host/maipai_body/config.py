@@ -44,6 +44,21 @@ class RemoteConfig(StrictModel):
     enabled: bool | None = None
 
 
+class MemoryNotesConfig(StrictModel):
+    """Local memory for several adults as plain per-person notes files (maipai_packages/memory_notes)."""
+
+    enabled: bool = False
+    people: list[str] = Field(default_factory=list)  # lowercase names of the adults who have notes
+    default_person: str = ""  # whose notes a turn uses when nobody was identified
+    folder: str | None = None  # default: the notes folder beside the pairing file
+
+
+class PackagesConfig(StrictModel):
+    """Optional local packages. Every one is off by default and costs nothing while off."""
+
+    memory_notes: MemoryNotesConfig = Field(default_factory=MemoryNotesConfig)
+
+
 class SettingsPageConfig(StrictModel):
     """lan = true lets a phone on your Wi-Fi open the settings page, with the settings token."""
 
@@ -122,6 +137,7 @@ class RobotConfig(StrictModel):
     units: dict[str, UnitConfig] = Field(default_factory=dict)
     llm: LlmConfig = Field(default_factory=LlmConfig)
     home: HomeConfig = Field(default_factory=HomeConfig)
+    packages: PackagesConfig = Field(default_factory=PackagesConfig)
     settings: SettingsPageConfig = Field(default_factory=SettingsPageConfig)
     remote: RemoteConfig = Field(default_factory=RemoteConfig)
     update: UpdateConfig = Field(default_factory=UpdateConfig)
@@ -156,7 +172,15 @@ def build_brain(config: RobotConfig, **home_dependencies):
         return HomeBrain(**home_dependencies)
     from maipai_body.brain.own_llm import OwnLLMBrain
 
-    return OwnLLMBrain(config.llm, **home_dependencies)
+    brain = OwnLLMBrain(config.llm, **home_dependencies)
+    notes = config.packages.memory_notes
+    if notes.enabled:  # imported only when switched on
+        from maipai_body.bodies.stackchan.xiaozhi.pairing import default_pairing_path
+        from maipai_packages.memory_notes import Notes, NotesStore
+
+        folder = Path(notes.folder) if notes.folder else default_pairing_path().parent / "notes"
+        brain.memory = Notes(NotesStore(folder), notes.people, notes.default_person)
+    return brain
 
 
 def example_config_path() -> Path:

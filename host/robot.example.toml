@@ -25,6 +25,13 @@ language = "en"
 # quiet_hours_from = "22:00"
 # quiet_hours_to = "07:00"
 
+[packages.memory_notes]
+# Local memory for several adults: one plain text file per person in the notes folder.
+# Say "remember that ...", "forget ...", "what do you remember". Off unless you turn it on.
+# enabled = true
+# people = ["alex", "sam"]        # lowercase names of the adults who have notes
+# default_person = "alex"         # whose notes a turn uses when nobody was identified
+
 [settings]
 # Let a phone on your Wi-Fi open the settings page. It then asks for the settings token
 # (run `stackchan settings-token`). Off by default: the page is for this computer only.

@@ -88,6 +88,7 @@ class OwnLLMBrain:
         self._stt_engine = stt_engine
         self._tts_engine = tts_engine
         self._on_sentence = on_sentence
+        self.memory = None  # the memory notes package, set by build_brain only when it is switched on
         self._history: dict[str, deque[dict[str, str]]] = {}
         self._cancel: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
@@ -140,6 +141,12 @@ class OwnLLMBrain:
         if not self.config.url or not self.config.model:
             yield TurnEvent(reply_text=NOT_INSTALLED)
             return
+        speaker = (request.speaker_evidence or {}).get("person_id") if self.memory is not None else None
+        if self.memory is not None:
+            spoken = self.memory.handle(request.text, speaker)
+            if spoken is not None:  # a remember, forget or read-back request: answered here, no model call
+                yield TurnEvent(reply_text=spoken, delta_text=spoken, delta_whole=True)
+                return
         turn_id = uuid.uuid4().hex
         stop = threading.Event()
         with self._lock:
@@ -151,6 +158,10 @@ class OwnLLMBrain:
         system = self.config.persona
         if request.instructions:
             system = f"{system}\n\n{request.instructions}"
+        if self.memory is not None:
+            notes_text = self.memory.context(speaker)
+            if notes_text:
+                system = f"{system}\n\n{notes_text}"
         messages = [{"role": "system", "content": system}]
         messages.extend(history)
         messages.append({"role": "user", "content": request.text})

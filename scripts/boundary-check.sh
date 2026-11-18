@@ -24,5 +24,11 @@ for p in $(git ls-files -co --exclude-standard firmware/patches 2>/dev/null | gr
   grep -qxF "$p" "$DEBT" 2>/dev/null && continue
   grep -q '^# Placement:' "$p" || say "boundary: $p has no '# Placement: unit | host | home-preset (reason)' line. $QUESTIONS"
 done
+# Optional packages (decision 3 of 2026-11-18) live in host/maipai_packages/<name>/: no Home imports, no identity or household modules.
+for f in $(git ls-files -co --exclude-standard host/maipai_packages | grep '\.py$' || true); do
+  if grep -nE '^\s*(from|import)\s+maipai_body\.(hub_host|link|brain\.home|speaker_evidence|speaker_fusion|presence|vision|owner_levels|speech\.voiceprint)' "$f" >/dev/null 2>&1; then
+    say "boundary: $f is a package and imports Home or identity code. Packages stay standalone (AGENTS.md, Scope)."
+  fi
+done
 [ $bad -eq 0 ] && echo "boundary: ok"
 exit $bad

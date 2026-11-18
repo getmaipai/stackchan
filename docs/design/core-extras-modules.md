@@ -29,3 +29,7 @@ The cue code path, camera and microphone switches, always-on indicators, the hea
 ## Open
 - `speech/offline_clips*` and the sherpa engines serve the own-LLM local speech engine: core.
 - `hub_host.py` and `link/` are the Home link: they move into the Home adapter, and the core keeps only the paired-host link its own LLM brain needs.
+
+## Optional packages (decision 3 of 2026-11-18)
+
+`host/maipai_packages/<name>/`: off by default, imported only when switched on under `[packages.<name>]` in `robot.toml`, no Home imports, no identity or household code beyond the package's own files. `scripts/boundary-check.sh` enforces the import rule. Built: `memory_notes` (plain per-person notes files, remember, forget and read back on request). Next: Home Assistant voice and camera snapshot, then the coding companion with agent tools. These replace the "Leave the core repo" entries for memory and integrations above.
