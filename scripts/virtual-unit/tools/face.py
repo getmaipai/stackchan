@@ -26,7 +26,8 @@ NOT_READY_ERROR = "the face is not ready: try again in a moment"
 
 
 def _face(u):
-    return u.state.setdefault("face", {"caption": "", "dirty": 0, "gaze": {"x": 0, "y": 0}, "gaze_until": 0,
+    return u.state.setdefault("face", {"caption": "", "dirty": 0, "sprite_off": 0, "ls_wide": 0, "one_buffer": 0,
+                                         "gaze": {"x": 0, "y": 0}, "gaze_until": 0,
                                          "decorator": "none", "decorator_until": 0})
 
 
@@ -64,12 +65,21 @@ def bench_fps(u, args):
 
 @tool("self.face.bench_mode")
 def bench_mode(u, args):
-    dirty = int(args.get("dirty", 0))
-    if dirty not in (0, 1):
-        return {"ok": False, "text": "dirty must be 0 or 1: choose one of those values"}
+    modes = ("dirty", "sprite_off", "ls_wide", "one_buffer")
+    unknown = set(args) - set(modes)
+    if unknown:
+        return {"ok": False, "error": "unknown mode: use dirty, sprite_off, ls_wide or one_buffer"}
+    values = {}
+    for mode in modes:
+        try:
+            value = int(args.get(mode, 0))
+        except (TypeError, ValueError):
+            value = -1
+        if value not in (0, 1):
+            return {"ok": False, "error": f"{mode} must be 0 or 1: choose one of those values"}
+        values[mode] = value
     face = _face(u)
-    # g_md_legacy is a firmware global with no virtual renderer counterpart.
-    face["legacy_mode"] = dirty
+    face.update(values)
     return {"ok": True}
 
 

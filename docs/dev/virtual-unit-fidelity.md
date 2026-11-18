@@ -4,13 +4,16 @@ What was done: a checker (Codex Luna low, read only) compared every tool handler
 
 Reading pass 2: it did not converge, and the new flags are mostly different in kind: nitpicks on text, bounds and labels, "not established in the excerpt" cases, and some wrong flags (for example `self.face.gaze`, where the refusal words are identical). The checker is not a fixed point. What it does show are the real remaining gaps below.
 
-## Known remaining differences (concrete, with evidence in the pass 2 reports)
+## Gaps closed after pass 2 (2026-11-18, Codex fixes, tests added)
 
-- Games: `game.status` returns inputs and board when no game runs (the firmware omits both); `game.bench_event` ignores its event argument (range 3 to 11); `game.bench_swipe` does not check the ranges; `game.bench_install` always refuses a valid pack.
-- Timers: `timer.list` returns an `ok` key the firmware does not; `timer.snooze` does not refuse a zero or negative time; `timer.cancel` does not check the id range; `timer.alarm` uses a fixed zone table, not the device clock.
-- Clock: `clock.set` accepts the exclusive maximum epoch.
-- Lock: `lock.bench_touch` and `lock.bench_key` approximate the keypad path.
-- Face: `face.bench_mode` knows `dirty` only (the firmware also takes `sprite_off`, `ls_wide`, `one_buffer`).
+Games (`status`, `bench_event`, `bench_swipe`, `bench_install`), timers (`list`, `snooze`, `cancel`), `clock.set` bound, lock `bench_touch` and `bench_key`, and face `bench_mode` (all four modes). Reports: `.runs/vu-gaps-*.md` of that run; summary of the evidence is in the tests.
+
+## Known remaining differences
+
+- `timer.alarm` uses a fixed zone table, not the device clock and its zone rules.
+- Lock `bench_key` models digits, delete and clear only; the firmware's keypad has more states.
+- Anything the unit measures (counters, timing, camera, radio) is a fixed documented value.
+- The checker is not a fixed point: a third pass would flag new nitpicks. Fix a gap when a test needs it.
 
 ## How to use the virtual unit given this
 

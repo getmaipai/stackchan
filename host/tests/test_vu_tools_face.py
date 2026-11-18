@@ -54,11 +54,19 @@ def test_bench_fps_returns_firmware_rate_shape():
     assert out["refresh_per_s"] == 0.0  # Hardware counters are unavailable in the virtual unit.
 
 
-def test_bench_mode_sets_ab_switch_and_refuses_invalid_value():
+def test_bench_mode_sets_each_firmware_switch_and_refuses_invalid_values():
     u = FakeUnit()
     assert u.call("self.face.bench_mode", {"dirty": 1}) == {"ok": True}
-    assert u.state["face"]["legacy_mode"] == 1
+    assert u.state["face"]["dirty"] == 1
+    assert u.call("self.face.bench_mode", {"sprite_off": 1}) == {"ok": True}
+    assert u.state["face"]["sprite_off"] == 1
+    assert u.call("self.face.bench_mode", {"ls_wide": 1}) == {"ok": True}
+    assert u.state["face"]["ls_wide"] == 1
+    assert u.call("self.face.bench_mode", {"one_buffer": 1}) == {"ok": True}
+    assert u.state["face"]["one_buffer"] == 1
     assert u.call("self.face.bench_mode", {"dirty": 2})["ok"] is False
+    assert u.call("self.face.bench_mode", {"mode": "bad"}) == {
+        "ok": False, "error": "unknown mode: use dirty, sprite_off, ls_wide or one_buffer"}
 
 
 def test_bench_run_advances_fake_clock_and_refuses_unknown_workload():

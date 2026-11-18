@@ -25,6 +25,7 @@ def test_clock_tools_shapes_and_state():
     assert len(vunit._tools.REGISTRY["self.clock.zones"](u,{})["zones"]) == 31
     assert "not in the list" in vunit._tools.REGISTRY["self.clock.set_zone"](u,{"zone":"no_such_zone"})["error"]
     assert vunit._tools.REGISTRY["self.clock.set"](u,{"epoch":1704067200})["clock_set"] is True
+    assert vunit._tools.REGISTRY["self.clock.set"](u,{"epoch":2147483647}) == {"ok":False,"error":"time"}
 
 
 def test_game_tools_shapes_and_state():
@@ -32,17 +33,22 @@ def test_game_tools_shapes_and_state():
     games=h["self.game.list"](u,{})["games"]
     assert [g["id"] for g in games] == ["memory","whack","tictactoe","bopit","rps","eightball","dice"]
     assert h["self.game.start"](u,{"name":"memory"}) == {"ok":True}
-    assert h["self.game.status"](u,{})["active"] is True
+    assert h["self.game.status"](u,{})["active"] is True and "inputs" in h["self.game.status"](u,{})
     assert h["self.game.bench_tap"](u,{"x":0,"y":120})["edge"] is True
     assert h["self.game.bench_event"](u,{"event":5}) == {"ok":True,"posted":True}
+    assert h["self.game.bench_event"](u,{"event":12})["error"] == "bad_argument"
     assert h["self.game.bench_swipe"](u,{"x0":200,"y0":100,"x1":100,"y1":100,"ms":200}) == {"ok":True}
+    assert h["self.game.bench_swipe"](u,{"x0":320,"y0":100,"x1":100,"y1":100,"ms":200})["error"] == "bad_argument"
     assert h["self.game.bench_request_stop"](u,{}) == {"ok":True,"asked":True}
     assert h["self.game.status"](u,{})["board"] == "000000000"
     assert h["self.game.stop"](u,{}) == {"ok":True,"was":True}
+    assert "inputs" not in h["self.game.status"](u,{}) and "board" not in h["self.game.status"](u,{})
     assert h["self.game.scores"](u,{"name":"bogus"})["ok"] is False
     empty_gaps=h["self.game.bench_gaps"](u,{})
     assert empty_gaps["count"] == 0 and empty_gaps["p50_ms"] == empty_gaps["p99_ms"] == 255
     assert h["self.game.bench_install"](u,{"pack":"!","done":True})["ok"] is False
+    pack=__import__("base64").b64encode(b'{"name":"demo"}').decode()
+    assert h["self.game.bench_install"](u,{"pack":pack}) == {"ok":True,"id":"demo"}
 
 
 def test_lock_tools_shapes_and_state():
@@ -54,6 +60,9 @@ def test_lock_tools_shapes_and_state():
     assert h["self.lock.now"](u,{}) == {"ok":True,"locked":True}
     assert h["self.lock.bench_touch"](u,{}) == {"ok":False,"reason":"not_locked"}
     assert h["self.lock.bench_key"](u,{"key":"1"}) == {"ok":False,"reason":"not_locked"}
+    u.state["apps"].update(locked=True,ui_on=True,code="12")
+    assert h["self.lock.bench_touch"](u,{}) == {"ok":True}
+    assert h["self.lock.bench_key"](u,{"key":"x"})["ok"] is True and u.state["apps"]["entered"] == ""
 
 
 def test_timer_tools_shapes_and_state():
@@ -61,12 +70,14 @@ def test_timer_tools_shapes_and_state():
     assert h["self.timer.alarm"](u,{"hour":0,"minute":0}) == {"ok":False,"error":"no_clock"}
     made=h["self.timer.set"](u,{"seconds":1,"label":"tea","silent":False})
     assert set(made)=={"ok","id"}
-    assert h["self.timer.list"](u,{})["timers"][0]["label"]=="tea"
+    assert "ok" not in h["self.timer.list"](u,{}) and h["self.timer.list"](u,{})["timers"][0]["label"]=="tea"
     assert set(h["self.timer.list"](u,{})["timers"][0]) == {"id","kind","left","label"}
     assert h["self.timer.cancel"](u,{"id":made["id"]}) == {"ok":True}
     assert h["self.timer.cancel"](u,{"id":999}) == {"ok":False,"error":"not_found"}
+    assert h["self.timer.cancel"](u,{"id":1000001}) == {"ok":False,"error":"bad_argument"}
     assert h["self.timer.stop"](u,{}) == {"ok":False,"error":"not_ringing"}
     assert h["self.timer.snooze"](u,{"seconds":300}) == {"ok":False,"error":"not_found"}
+    assert h["self.timer.snooze"](u,{"seconds":0}) == {"ok":False,"error":"bad_argument"}
     u.state["apps"].update(last_ring=("wake",True),last_ring_at=u.now_ms)
     snooze=h["self.timer.snooze"](u,{"seconds":9999})
     assert snooze["ok"] is True
