@@ -26,6 +26,12 @@
  "es-apps-wall": {
   "fails": 0
  },
+ "es-control-sheet": {
+  "fails": 0
+ },
+ "es-control-sheet-tiles": {
+  "fails": 0
+ },
  "es-more-menu": {
   "fails": 0
  },
@@ -75,7 +81,10 @@
   "fails": 0
  },
  "screen-control-sheet": {
-  "fails": 16
+  "fails": 0
+ },
+ "screen-control-sheet-tiles": {
+  "fails": 0
  },
  "screen-games-wall": {
   "fails": 0
