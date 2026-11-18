@@ -244,10 +244,16 @@ def test_both_usb_c_sockets_take_real_clicks_and_the_panel_shows_each_port(page)
     p = page.js("ROBOT.pointOf('usb_c_port')")
     page.click(p["x"], p["y"])
     assert page.until("ST.hw.ports.back.plugged && ST.hw.ports.side.plugged && ST.hw.powered_by === 'both'"), "a click on the back socket plugs the back cable and leaves the side one in"
-    assert page.until("/both ports/.test(document.getElementById('hwv').textContent) && /2500 mA/.test(document.getElementById('hwv').textContent)")
-    assert page.until("/side port and the back port/.test(document.getElementById('whylim').textContent)"), page.js("document.getElementById('whylim').textContent")
+    assert page.until("/both sockets/.test(document.getElementById('hwv').textContent) && /2000 mA/.test(document.getElementById('hwv').textContent)"), "two cables act as the stronger source"
+    assert page.until("/side socket and the back socket/.test(document.getElementById('whylim').textContent)"), page.js("document.getElementById('whylim').textContent")
+    assert page.js("/undefined on the real unit/.test(document.getElementById('bothnote').textContent)")
     # the panel buttons take each cable out again, one at a time
     page.js("document.getElementById('busb').click()")
-    assert page.until("!ST.hw.ports.side.plugged && ST.hw.ports.back.plugged && ST.hw.powered_by === 'back' && document.getElementById('bserial').disabled")
+    assert page.until("!ST.hw.ports.side.plugged && ST.hw.ports.back.plugged && ST.hw.powered_by === 'back' && document.getElementById('bserial').disabled"), "the back cable goes to a charger: no serial"
+    # the bench case: a computer on the back socket alone gives the serial device
+    page.js("(() => { const s = document.getElementById('srcback'); s.value = 'computer'; s.dispatchEvent(new Event('change')); })()")
+    assert page.until("ST.hw.serial_possible && !document.getElementById('bserial').disabled && /back socket/.test(document.getElementById('serialnote').textContent)")
+    page.js("document.getElementById('bserial').click()")
+    assert page.until("ST.hw.serial && ST.hw.usb_path.data_from === 'back'")
     page.js("document.getElementById('bback').click()")
     assert page.until("!ST.hw.vbus && /nothing/.test(document.getElementById('whylim').textContent)")

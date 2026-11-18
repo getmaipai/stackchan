@@ -107,10 +107,10 @@ function initRobot(THREE, canvas, hooks) {
       const mesh = new THREE.Mesh(geo, unseen), hl = new THREE.Mesh(geo, glow); hl.visible = false; hl.renderOrder = 6; hl.scale.setScalar(0.75);
       node.add(mesh); node.add(hl); M.aux.add(mesh); M.aux.add(hl); M.hits.push({mesh, hl, label, act, name: node.name, onHead: onHead(node)}); return mesh;
     };
-    // the unit has two USB-C ports: the back one on the base (power) and the side one on the controller (power and serial data)
-    M.portHit = addSwitch(N.usb_c_port, new THREE.BoxGeometry(0.028, 0.016, 0.018), 'Back USB-C port (on the base, power): click to plug or unplug its cable', () => hooks.togglePort('back'));
+    // the unit has two USB-C sockets on one USB path: the back one on the base and the side one on the controller
+    M.portHit = addSwitch(N.usb_c_port, new THREE.BoxGeometry(0.028, 0.016, 0.018), 'Back USB-C socket (on the base): click to plug or unplug its cable. Same USB path as the side socket: power and data', () => hooks.togglePort('back'));
     if (N.usb_c_otg) {
-      M.sideHit = addSwitch(N.usb_c_otg, new THREE.BoxGeometry(0.012, 0.018, 0.012), 'Side USB-C port (on the controller, power and serial data): click to plug or unplug its cable', () => hooks.togglePort('side'));
+      M.sideHit = addSwitch(N.usb_c_otg, new THREE.BoxGeometry(0.012, 0.018, 0.012), 'Side USB-C socket (on the controller): click to plug or unplug its cable. Same USB path as the back socket: power and data', () => hooks.togglePort('side'));
       // its cable rides on the head: a small plug straight out of the side, then the lead drooping down (sizes in meters, the node's own frame)
       const side = new THREE.Group(); side.visible = false; N.usb_c_otg.add(side); M.sideCable = side;
       const metal = new THREE.MeshStandardMaterial({color: 0xb7bcc4, metalness: 0.5, roughness: 0.35}), dark = new THREE.MeshStandardMaterial({color: 0x30353d, roughness: 0.6});

@@ -91,7 +91,7 @@ COVER_SCENARIOS = {
 }
 
 
-# ---- the two USB-C ports: every combination, a 12 V mistake, and a cable going in or out during a dance.
+# ---- the two USB-C sockets (one shared USB path): every combination, a 12 V mistake, and a cable going in or out during a dance.
 # A step ("hw", key, value) sets the body (view.py plays these; they need the body, so scenarios.run does not take them).
 # "expect" is what GET /state must say when the steps are done, as dotted paths. host/tests/test_virtual_unit_ports.py plays each one
 # through the running view and checks it, so the answers come from the unit's own limiter and status.
@@ -106,11 +106,15 @@ PORTS: dict[str, dict] = {
         "hw.powered_by": "side", "hw.vbus": True, "hw.charging": True, "hw.serial": True, "hw.supply.input_ma": 500,
         "hw.limiter_cable.from": ["side"], "motion.state": "usb_limited", "motion.scale": 50, "motion.usb": True, "battery.charging": True}},
     "ports-back-only": {"steps": _REST + [("hw", "back", True), ("advance", 300)], "expect": {
-        "hw.powered_by": "back", "hw.vbus": True, "hw.charging": True, "hw.serial_possible": False, "hw.usb": False, "hw.supply.input_ma": 2000,
+        "hw.powered_by": "back", "hw.vbus": True, "hw.charging": True, "hw.serial_possible": False, "hw.usb": True, "hw.supply.input_ma": 2000,
         "hw.limiter_cable.from": ["back"], "motion.state": "usb_limited", "motion.scale": 50, "battery.charging": True}},
     "ports-both": {"steps": _REST + [("hw", "side", True), ("hw", "back", True), ("advance", 300)], "expect": {
-        "hw.powered_by": "both", "hw.vbus": True, "hw.charging": True, "hw.serial_possible": True, "hw.supply.input_ma": 2500,
+        "hw.powered_by": "both", "hw.vbus": True, "hw.charging": True, "hw.serial_possible": True, "hw.supply.input_ma": 2000, "hw.usb_path.both_plugged": True,
+        "hw.usb_path.data_from": "side",
         "hw.limiter_cable.from": ["side", "back"], "motion.state": "usb_limited", "motion.scale": 50}},
+    "ports-back-computer-serial": {"steps": _REST + [("hw", "back_source", "computer"), ("hw", "back", True), ("hw", "serial", True), ("advance", 300)], "expect": {
+        "hw.powered_by": "back", "hw.vbus": True, "hw.serial": True, "hw.usb_path.data_from": "back", "hw.supply.input_ma": 500, "hw.ports.side.plugged": False,
+        "motion.state": "usb_limited", "motion.usb": True}},   # the bench case: a computer on the back socket alone gives power and the serial device
     "ports-back-12v-refused": {"steps": _REST + [("hw", "back_source", "supply_12v"), ("hw", "back", True), ("advance", 300)], "expect": {
         "hw.powered_by": "battery", "hw.vbus": False, "hw.charging": False, "hw.ports.back.fault": True, "hw.ports.back.gives_power": False,
         "hw.limiter_cable.present": False, "motion.state": "free", "motion.scale": 100}},

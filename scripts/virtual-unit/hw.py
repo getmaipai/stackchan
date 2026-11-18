@@ -4,8 +4,11 @@ Pure state and timing, no renderer and no clock of its own: the caller passes th
 What is real and what is a stand-in (also in docs/dev/virtual-unit-3d.md):
 - Real, from the firmware patches: the low-battery ladder (T01: 20 chirp and tired look, 10 spoken ask, 5 sleep after an 8 s grace), the limiter bands
   (ML01, through the tools' own motion handlers), the 40 head moves a minute cap (038), the servo ranges, the status bar fields (bstatus).
-- The unit has two USB-C ports: one on the side of the controller (power and serial data) and one at the back of the base (power). Each can hold
-  a cable from a source in SOURCES. What each port does to the supply rails is ASSUMED until the bench measures it: see POWER below.
+- The unit has two USB-C sockets, one on the side of the controller and one at the back of the base, on ONE shared USB path. Bench evidence
+  (2026-11-18): a computer cable in the back socket alone gives the unit USB power and the computer lists the same serial device. So power and
+  data are present when either socket has a cable. Both plugged at once is undefined on the real unit; here it is ASSUMED to behave as either
+  one (the stronger source feeds, never the sum). Each cable has a source in SOURCES. Every electrical value is ASSUMED until the bench
+  measures it: see POWER below.
 - Stand-ins: the boot cover timings (the unit's real boot times are not measured), what the serial cable does (only shown), the dances' head paths
   (the real dances are tables on the unit; these are simple shapes of the same size and speed class).
 """
@@ -20,17 +23,19 @@ BOOT_MS, WIFI_MS, HOME_MS = 2000, 1500, 1000  # stand-ins: how long each cover s
 DANCE_MS = 8000
 ORIENTS = ("upright", "tilted", "side", "inverted", "unknown")
 
-PORTS = ("side", "back")  # side: on the controller, power and serial data; back: on the base, power
-PORT_NAMES = {"side": "side port (on the controller)", "back": "back port (on the base)"}
+PORTS = ("side", "back")  # two sockets on one USB path: side is on the controller, back is on the base
+PORT_NAMES = {"side": "side socket (on the controller)", "back": "back socket (on the base)"}
+USB_PATH_NOTE = "two sockets, one USB path: power and data are present when either has a cable (bench: back socket alone gives both). Both plugged: undefined on the unit, assumed here to act as either one, fed by the stronger source"
 SOURCES = {  # what the other end of a cable is: label, volts, most current it gives (mA), can carry serial data
     "computer": ("a computer's USB port (5 V, 500 mA)", 5.0, 500, True),
     "charger": ("a 5 V 2 A charger", 5.0, 2000, False),
     "supply_12v": ("a 12 V supply (wrong: the ports take 5 V)", 12.0, 2000, False),
 }
 # The one place that says which ports count as "a cable is present" for the head limiter (patch ML01 reads one cable flag).
-# Today either port counts. If the bench shows that power on the back port should lift the limit, take "back" out here.
+# Both sockets are the same USB input, so either counts. If the firmware track later ties the limit to a measured supply (servo voltage and
+# sag) instead of "a cable is present", this tuple and limiter_cable below are the one place to change.
 LIMITER_CABLE_PORTS = ("side", "back")
-LIMITER_CABLE_RULE = "a 5 V cable in either port counts as the cable (assumed until the firmware track decides whether back-port power lifts the limit)"
+LIMITER_CABLE_RULE = "a 5 V cable in either socket is the same USB input, so either counts as the cable (the firmware reads one cable flag; a rule based on measured supply would replace this)"
 # The supply model, every number ASSUMED until measured on the bench: the servo rail is 5.0 V with nothing moving; each thing that feeds it
 # has a series resistance, the feeds share the load, and a computer port cannot give more than its 500 mA.
 POWER = {"basis": "assumed", "rail_v": 5.0, "ohm": {"battery": 0.30, "computer": 0.45, "charger": 0.12},
@@ -76,11 +81,10 @@ class Hardware:
                 self.events.append(f"{key[:4]} port: now fed by {SOURCES[value][0]}")
             self._after_cable_change(key[:4])
         elif key == "serial":
-            side = self.ports["side"]
-            if value and not side["plugged"]:
-                return "There is no cable in the side port: plug the USB-C cable in first. Serial data runs on the side port only."
-            if value and not SOURCES[side["source"]][3]:
-                return f"The side port's cable goes to {SOURCES[side['source']][0]}, which carries no data. Choose the computer as its source first."
+            if value and not any(p["plugged"] for p in self.ports.values()):
+                return "There is no cable: plug the USB-C cable in first, in either socket."
+            if value and not self.serial_possible:
+                return "No plugged cable goes to a computer, and only a computer carries serial data. Choose the computer as a cable's source first."
             self.serial = bool(value)
         elif key == "wifi":
             self.wifi = bool(value)
@@ -137,17 +141,21 @@ class Hardware:
 
     @property
     def usb(self) -> bool:
-        """The old single-cable flag: the side port's cable."""
-        return self.ports["side"]["plugged"]
+        """The old single-cable flag: a cable is in a socket (either one: they are the same USB input)."""
+        return any(p["plugged"] for p in self.ports.values())
 
     @property
     def vbus(self) -> bool:
         return any(self.feeds(n) for n in PORTS)
 
     @property
+    def data_from(self) -> str | None:
+        """The socket whose cable goes to a computer, or None: serial data comes over that cable (the side one first when both do)."""
+        return next((n for n in PORTS if self.ports[n]["plugged"] and SOURCES[self.ports[n]["source"]][3]), None)
+
+    @property
     def serial_possible(self) -> bool:
-        side = self.ports["side"]
-        return side["plugged"] and SOURCES[side["source"]][3]
+        return self.data_from is not None
 
     @property
     def charging(self) -> bool:
@@ -165,7 +173,8 @@ class Hardware:
 
     def supply(self) -> dict:
         """The servo rail with nothing moving and with both servos moving, from the POWER model. Every number is assumed."""
-        feeds = [self.ports[n]["source"] for n in PORTS if self.feeds(n)]
+        cables = sorted((self.ports[n]["source"] for n in PORTS if self.feeds(n)), key=lambda f: -SOURCES[f][2])
+        feeds = cables[:1]  # one USB path: with a cable in each socket the stronger source feeds it (assumed), never the sum
         if self.battery > 0:
             feeds.append("battery")
         input_ma = sum(SOURCES[f][2] for f in feeds if f != "battery")
@@ -177,7 +186,8 @@ class Hardware:
         if feeds == ["computer"]:  # no battery to help and the port stops at 500 mA: the rail folds
             load = min(load, POWER["rail_v"] * 0.5 / POWER["load_a"]["both_servos"])
         return {"basis": POWER["basis"], "idle_v": round(idle, 2), "load_v": round(load, 2), "sag_v": round(idle - load, 2), "input_ma": input_ma,
-                "brownout": load < POWER["brownout_v"], "note": "5.0 V rail; each feed has an assumed series resistance and the feeds share the load"}
+                "brownout": load < POWER["brownout_v"], "fed_by": feeds,
+                "note": "5.0 V rail; each feed has an assumed series resistance and the feeds share the load; two cables act as the stronger one"}
 
     def boot_cover(self, now: int) -> tuple[str, int, int, int] | None:
         """(text, ring, glyph, ms since the cover began) while a boot cover shows, else None."""
@@ -227,6 +237,8 @@ class Hardware:
                      "gives_power": self.feeds(n), "fault": p["plugged"] and not self.feeds(n)} for n, p in self.ports.items()}
         return {"on": self.on, "usb": self.usb, "serial": self.serial, "serial_possible": self.serial_possible, "wifi": self.wifi, "battery": self.battery,
                 "charging": self.charging, "vbus": self.vbus, "powered_by": self.powered_by, "ports": ports, "supply": self.supply(),
+                "usb_path": {"vbus": self.vbus, "data": self.serial_possible, "data_from": self.data_from, "both_plugged": all(p["plugged"] for p in self.ports.values()),
+                             "basis": "assumed", "note": USB_PATH_NOTE},
                 "limiter_cable": {"present": self.limiter_cable, "from": [n for n in LIMITER_CABLE_PORTS if self.feeds(n)], "counted_ports": list(LIMITER_CABLE_PORTS),
                                   "rule": LIMITER_CABLE_RULE},
                 "sources": {k: v[0] for k, v in SOURCES.items()},

@@ -1,6 +1,7 @@
 # ruff: noqa: E501
-"""The two USB-C ports of the virtual unit (scripts/virtual-unit/hw.py): the side port on the controller (power and serial data) and the
-back port on the base (power). Every combination, each source, the serial rule, the supply model and what the head limiter is told.
+"""The two USB-C sockets of the virtual unit (scripts/virtual-unit/hw.py): one on the side of the controller, one at the back of the base,
+on one shared USB path (bench, 2026-11-18: a computer on the back socket alone gives USB power and the same serial device).
+Every combination, each source, the serial rule, the supply model and what the head limiter is told.
 
 The first group needs nothing built. The second plays the scripted port scenarios (scripts/virtual-unit/scenarios.py, PORTS) through the
 running view, so the answers are the unit's own limiter and status; it needs the screens renderer and skips without it.
@@ -40,32 +41,42 @@ def test_every_combination_of_the_two_cables(side, back):
     body.set("back", back, 0)
     v = body.view()
     assert v["powered_by"] == {(False, False): "battery", (True, False): "side", (False, True): "back", (True, True): "both"}[(side, back)]
-    assert v["vbus"] == (side or back) and v["charging"] == (side or back) and v["usb"] == side
+    assert v["vbus"] == (side or back) and v["charging"] == (side or back) and v["usb"] == (side or back), "either socket is the same USB input"
     assert v["ports"]["side"]["plugged"] == side and v["ports"]["back"]["plugged"] == back
-    assert v["serial_possible"] == side, "serial data runs on the side port only"
-    assert v["supply"]["input_ma"] == (500 if side else 0) + (2000 if back else 0)
+    assert v["serial_possible"] == side, "here only the side cable goes to a computer; the back one goes to a charger"
+    assert v["supply"]["input_ma"] == (2000 if back else 500 if side else 0), "two cables act as the stronger source, never the sum"
+    assert v["usb_path"]["both_plugged"] == (side and back) and v["usb_path"]["basis"] == "assumed" and "undefined" in v["usb_path"]["note"]
     assert body.motion_force()[1] == int(side or back), "today either cable counts for the limiter"
     assert v["limiter_cable"]["from"] == [n for n, on in (("side", side), ("back", back)) if on]
 
 
-def test_the_ports_are_independent_and_the_old_cable_name_is_the_side_port():
+def test_the_sockets_hold_separate_cables_and_the_old_cable_name_sets_the_side_one():
     body = hw.Hardware()
     body.set("usb", True, 0)
     assert body.ports["side"]["plugged"] and not body.ports["back"]["plugged"] and body.usb
     body.set("back", True, 0)
     body.set("usb", False, 0)
-    assert not body.usb and body.ports["back"]["plugged"] and body.powered_by == "back" and body.charging
+    assert not body.ports["side"]["plugged"] and body.ports["back"]["plugged"] and body.powered_by == "back" and body.charging
+    assert body.usb, "the unit still sees USB: the back socket is the same input"
 
 
-def test_serial_needs_a_computer_on_the_side_port_and_says_what_to_do():
+def test_a_computer_on_the_back_socket_alone_gives_power_and_serial_as_on_the_bench():
     body = hw.Hardware()
+    body.set("back_source", "computer", 0)
     body.set("back", True, 0)
-    assert "side port" in body.set("serial", True, 0), "a cable in the back port is not a serial link"
-    body.set("side_source", "charger", 0)
-    body.set("side", True, 0)
-    assert "carries no data" in body.set("serial", True, 0)
-    body.set("side_source", "computer", 0)
-    assert body.set("serial", True, 0) is None and body.serial
+    assert body.vbus and body.serial_possible and body.data_from == "back"
+    assert body.set("serial", True, 0) is None and body.serial and body.view()["usb_path"]["data"]
+    body.set("back", False, 0)
+    assert not body.serial and not body.vbus
+
+
+def test_serial_needs_a_cable_to_a_computer_in_either_socket_and_says_what_to_do():
+    body = hw.Hardware()
+    assert "plug the USB-C cable in first" in body.set("serial", True, 0)
+    body.set("back", True, 0)   # the back cable goes to a charger
+    assert "only a computer carries serial data" in body.set("serial", True, 0)
+    body.set("side", True, 0)   # the side cable goes to a computer
+    assert body.set("serial", True, 0) is None and body.serial and body.data_from == "side"
     body.set("side_source", "charger", 0)
     assert not body.serial, "swapping the computer for a charger ends the serial link"
     assert "source is one of" in body.set("back_source", "wall", 0)
@@ -97,7 +108,8 @@ def test_the_supply_model_is_marked_assumed_and_sags_less_with_a_stronger_feed()
         assert s["basis"] == "assumed" and s["idle_v"] >= s["load_v"] and abs(s["sag_v"] - (s["idle_v"] - s["load_v"])) < 0.011
         return s
     alone, computer, charger, both = load_v(), load_v(side="computer"), load_v(back="charger"), load_v(side="computer", back="charger")
-    assert alone["load_v"] < computer["load_v"] < charger["load_v"] < both["load_v"] <= 5.0
+    assert alone["load_v"] < computer["load_v"] < charger["load_v"] == both["load_v"] <= 5.0, "two cables act as the stronger one (assumed)"
+    assert load_v(back="computer") == computer, "the socket does not matter: it is one USB path"
     assert not alone["brownout"] and not both["brownout"]
     assert load_v(side="computer", battery=0)["brownout"], "a 500 mA port alone cannot hold the rail with both servos moving"
     assert load_v(battery=0) == {**load_v(battery=0), "idle_v": 0.0, "load_v": 0.0, "brownout": True}
@@ -150,7 +162,7 @@ def _at(state, path):
 
 
 def test_the_scenario_list_covers_every_case_the_owner_named():
-    assert set(scenarios.PORTS) >= {"ports-none", "ports-side-only", "ports-back-only", "ports-both", "ports-plug-during-dance", "ports-unplug-during-dance"}
+    assert set(scenarios.PORTS) >= {"ports-none", "ports-side-only", "ports-back-only", "ports-both", "ports-back-computer-serial", "ports-plug-during-dance", "ports-unplug-during-dance"}
     for name, sc in scenarios.PORTS.items():
         assert sc["expect"] and all(step[0] in ("hw", "call", "advance") for step in sc["steps"]), name
 

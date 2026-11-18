@@ -47,11 +47,11 @@ button[disabled]{opacity:.45;cursor:not-allowed}
  <div id="side">
   <section><h2>Power and ports</h2>
    <div class="row" style="margin-top:0"><button id="bpower">Power</button><button id="bwifi">Wi-Fi</button></div>
-   <div class="t" style="font-size:12px;margin-top:8px">The robot has two USB-C ports. Click a port in the picture, or use these.</div>
+   <div class="t" style="font-size:12px;margin-top:8px">The robot has two USB-C sockets on one USB path: a cable in either one gives power and data. Click a socket in the picture, or use these.</div>
    <div class="ports">
-    <span class="name"><b>Side port</b> <span class="t">on the controller: power and serial data</span></span><button id="busb">empty</button><select id="srcside" title="What the side cable is plugged into"></select>
-    <button id="bserial">USB serial</button><span class="t" id="serialnote" style="font-size:12px"></span>
-    <span class="name"><b>Back port</b> <span class="t">on the base: power</span></span><button id="bback">empty</button><select id="srcback" title="What the back cable is plugged into"></select>
+    <span class="name"><b>Side socket</b> <span class="t">on the controller</span></span><button id="busb">empty</button><select id="srcside" title="What the side cable is plugged into"></select>
+    <span class="name"><b>Back socket</b> <span class="t">on the base, same USB path</span></span><button id="bback">empty</button><select id="srcback" title="What the back cable is plugged into"></select>
+    <span class="name"><b>Serial data</b> <span class="t" id="serialnote"></span></span><button id="bserial">USB serial</button><span class="t" id="bothnote" style="font-size:12px"></span>
    </div>
    <div style="margin-top:8px" class="line">Battery <b id="batv" class="num">75</b> percent</div><input id="bat" type="range" min="0" max="100" value="75">
    <div class="row"><label><input id="carried" type="checkbox"> Carried</label><select id="orient" style="width:auto"><option>upright</option><option>tilted</option><option>side</option><option>inverted</option><option>unknown</option></select></div>
@@ -228,13 +228,15 @@ function paintBody(st){ST=st;const h=st.hw,m=st.motion;
   if(!el.options.length)for(const [k,label] of Object.entries(h.sources)){const o=document.createElement('option');o.value=k;o.textContent=label;el.appendChild(o);}
   if(document.activeElement!==el)el.value=p.source;}
  setBtn('bserial',h.serial?'Serial: connected':'Serial: not connected',h.serial);$('bserial').disabled=!h.serial_possible;
- $('serialnote').textContent=h.serial_possible?'':'needs a computer on the side port';
+ const pn={side:'side socket',back:'back socket'};
+ $('serialnote').textContent=h.serial_possible?'over the cable in the '+pn[h.usb_path.data_from]:'needs a cable to a computer, in either socket';
+ $('bothnote').textContent=h.usb_path.both_plugged?'Both plugged: undefined on the real unit, assumed to act as one.':'';
  setBtn('bwifi',h.wifi?'Wi-Fi: on':'Wi-Fi: off',h.wifi);
  if(follows('bat',h.battery))showSlider('bat',h.battery);
  $('carried').checked=h.carried;$('orient').value=h.orient;
- const by={battery:'the battery',side:'the side port',back:'the back port',both:'both ports'}[h.powered_by],sp=h.supply;
- $('hwv').innerHTML=`<span>Powered by</span><span>${h.on?by:'nothing (off)'}</span><span>Cable power (VBUS)</span><span>${h.vbus?'present, up to '+sp.input_ma+' mA':'none'}</span><span>Charging</span><span>${h.charging?'yes':'no'}</span><span>Servo supply</span><span>${sp.idle_v.toFixed(2)} V still, ${sp.load_v.toFixed(2)} V with both servos moving${sp.brownout?' (too low: expect a reset)':''} <span class="t">(${sp.basis}, not measured)</span></span><span>Serial</span><span>${h.serial?'connected on the side port':'not connected'}</span><span>Screen</span><span>${!h.on?'black':h.booting?'boot cover':h.sleeping_soon?'low battery, going to sleep':'running'}</span><span>Recent</span><span>${h.events.slice(-3).join('; ')||'-'}</span>`;
- const lc=h.limiter_cable,pn={side:'side port',back:'back port'};
+ const by={battery:'the battery',side:'USB, side socket',back:'USB, back socket',both:'USB, both sockets (assumed to act as one)'}[h.powered_by],sp=h.supply;
+ $('hwv').innerHTML=`<span>Powered by</span><span>${h.on?by:'nothing (off)'}</span><span>Cable power (VBUS)</span><span>${h.vbus?'present, up to '+sp.input_ma+' mA (assumed)':'none'}</span><span>Charging</span><span>${h.charging?'yes':'no'}</span><span>Servo supply</span><span>${sp.idle_v.toFixed(2)} V still, ${sp.load_v.toFixed(2)} V with both servos moving${sp.brownout?' (too low: expect a reset)':''} <span class="t">(${sp.basis}, not measured)</span></span><span>Serial</span><span>${h.serial?'connected over the '+pn[h.usb_path.data_from]:'not connected'}</span><span>Screen</span><span>${!h.on?'black':h.booting?'boot cover':h.sleeping_soon?'low battery, going to sleep':'running'}</span><span>Recent</span><span>${h.events.slice(-3).join('; ')||'-'}</span>`;
+ const lc=h.limiter_cable;
  $('whylim').innerHTML=`<b>What limits the head now:</b> ${m.state==='free'?'nothing':(m.reasons||m.state)} <span class="t">(${m.scale} percent of the full swing, speed ${m.speed_cap} of 1000)</span><br><span class="t">Cable seen by the limiter: ${lc.present?'yes, from the '+lc.from.map(n=>pn[n]).join(' and the '):'no'}. Rule: ${lc.rule}.</span>`;
  $('yawr').textContent=st.yaw_range.join(' to ');$('pitchr').textContent=st.pitch_range.join(' to ');
  $('limv').innerHTML=`<span>Limiter state</span><span><b>${m.state}</b></span><span>Why</span><span>${m.reasons||'nothing limits it'}</span><span>Excursion</span><span>${m.scale} percent</span><span>Speed cap</span><span>${m.speed_cap} of 1000</span><span>Dances up to</span><span>step ${m.dance_max}</span><span>Dance now</span><span>${st.dance||'none'}</span>`;
