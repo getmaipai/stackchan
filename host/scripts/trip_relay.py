@@ -44,7 +44,7 @@ DEFAULT_PORTS = (
     62923,
     62924,
 )  # the robot's voice and avatar services on the Studio (hub log: "listening on ws://0.0.0.0:...")
-DEFAULT_TARGET = "jesses-mac-studio-2.cow-tint.ts.net"
+DEFAULT_TARGET = os.environ.get("MAIPAI_TRIP_TARGET", "host.example.ts.net")  # the host the relay forwards to; set the variable for your own
 SHARING_INTERFACES = ("bridge100", "bridge101", "bridge102")
 IDLE_TIMEOUT_S = 600  # a half-open connection (the robot vanished without closing) is dropped after ten quiet minutes
 STATUS_PORT = 8899
