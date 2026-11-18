@@ -32,4 +32,4 @@ Goal: a second robot (Reachy Mini, a later step) shares the host by implementing
 ## Not in scope
 Firmware, the hub, and the Reachy hardware itself.
 
-Status: P0 started (the startup pin). P1 onward not started.
+Status: P0 done (startup pin). P1 in progress: `_wire_power` and `_wire_light_and_health` are out of `_serve_stackchan_channels`; the long function is now about 560 lines. P2 onward not started.

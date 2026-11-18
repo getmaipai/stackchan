@@ -132,6 +132,6 @@ def test_listen_mode_and_aec_reach_the_handler_when_it_accepts_them():
 def test_the_estop_recovery_asks_the_unit_instead_of_trusting_an_open_socket():
     from maipai_body import app
 
-    source = inspect.getsource(app._serve_stackchan_channels)
+    source = inspect.getsource(app._serve_stackchan_channels) + inspect.getsource(app._wire_light_and_health) + inspect.getsource(app._wire_power)
     assert "device_answers" in source and "get_head_angles()" in source
     assert "EstopRecovery(voice.robot.robot, device_answers)" in source

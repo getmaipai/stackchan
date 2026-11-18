@@ -86,7 +86,7 @@ def test_the_bundle_builds_its_face_detector_without_the_reachy_sdk():
 
     from maipai_body import app
 
-    source = inspect.getsource(app._serve_stackchan_channels)
+    source = inspect.getsource(app._serve_stackchan_channels) + inspect.getsource(app._wire_light_and_health) + inspect.getsource(app._wire_power)
     assert "LazyFaceDetector(" in source
     assert "FiveLandmarkDetector" not in source and "reachy_mini" not in source
 
@@ -113,7 +113,7 @@ def test_the_light_poller_is_given_the_offline_rungs_that_own_the_link_machine()
 
     from maipai_body import app
 
-    source = inspect.getsource(app._serve_stackchan_channels)
+    source = inspect.getsource(app._serve_stackchan_channels) + inspect.getsource(app._wire_light_and_health) + inspect.getsource(app._wire_power)
     call = source.split("start_stackchan_light(")[1].split(")")[0]
     assert "offline" in call and "link" not in call.replace("light", "")
 

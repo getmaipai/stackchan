@@ -2159,6 +2159,67 @@ def _wire_power(voice, behavior: StackChanBehavior, night, stop_event) -> Any:
     return power
 
 
+def _wire_light_and_health(voice, behavior: StackChanBehavior, avatar, sounds, power, offline, stop_event) -> Any:
+    """The ring light service, the e-stop recovery loop, the camera cue, and the unit-event routing (self-heal, wake test, privacy,
+    firmware update). Moved out of `_serve_stackchan_channels` unchanged (docs/plan/seam-refactor.md, P1). Returns the light."""
+    from maipai_body.bodies.stackchan.light_wiring import start_stackchan_light
+
+    def device_connected() -> bool:
+        return bool(voice._sessions)
+
+    light = start_stackchan_light(
+        voice.robot,
+        offline,
+        stop_event,
+        device_connected=device_connected,
+        on_battery=power.on_battery_status,
+    )
+    behavior._rest_renderer._set_ring_sleeping = light.set_sleeping
+    behavior.set_ring_dark_room = light.set_dark_room
+    light.set_dark_room(bool(getattr(behavior, "ring_dark_room", False)))
+    from maipai_body.bodies.stackchan.estop_recovery import EstopRecovery
+
+    def device_answers() -> bool:
+        """A real answer from the unit (a connected socket is not enough during a freeze)."""
+        try:
+            voice.robot.client.get_head_angles()
+        except Exception:
+            return False
+        return True
+
+    threading.Thread(
+        target=EstopRecovery(voice.robot.robot, device_answers).run,
+        args=(stop_event,),
+        name="stackchan-estop-recovery",
+        daemon=True,
+    ).start()
+    behavior.privacy_light = light
+    behavior.on_firmware_version = sounds.on_firmware_version
+    sounds.battery_low = lambda: light.facts.battery_low
+
+    def camera_cue(active: bool) -> None:
+        light.cue_camera(active)
+        sounds.on_camera_cue(active)  # the shutter click, queued: a cue never waits on the unit
+
+    voice.robot.robot._driver("camera").cue_sink = camera_cue
+    # Self-healing (design note stackchan-self-healing-2026-11-13): what the unit says about its
+    # restart guard, the wake engine test answers, and the ring's fault look while it holds.
+    voice.heal.on_hold = lambda hold: light.update(fault=hold)
+
+    def _heal_event(kind: str, extra: dict) -> None:
+        voice.heal.observe(kind, extra)
+        voice.wake_tester.on_event(kind, extra)
+        behavior.privacy.observe(kind, extra)
+        updater = getattr(behavior, "firmware_updater", None)
+        if updater is not None and kind.startswith("firmware_update_"):
+            updater.on_unit_event(kind, extra, time.time())
+
+    behavior.on_unit_event = _heal_event
+    avatar.unit_idle = lambda: not behavior._active.is_set()
+    avatar.request_restart = voice._request_unit_restart
+    return light
+
+
 def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, stop_event) -> Any:
     """Mute, vision off and full quiet (firmware 105 to 108, docs/dev/stackchan-mute-2026-11-13.md).
 
@@ -2792,61 +2853,11 @@ async def _serve_stackchan_channels(
     behavior._rest_renderer._restore_brightness = night.effective_brightness
     behavior.on_levels_changed = night.set_levels_from_unit
     power = _wire_power(voice, behavior, night, stop_event)
-    from maipai_body.bodies.stackchan.light_wiring import start_stackchan_light
+    light = _wire_light_and_health(voice, behavior, avatar, sounds, power, offline, stop_event)
 
     def device_connected() -> bool:
         return bool(voice._sessions)
 
-    light = start_stackchan_light(
-        voice.robot,
-        offline,
-        stop_event,
-        device_connected=device_connected,
-        on_battery=power.on_battery_status,
-    )
-    behavior._rest_renderer._set_ring_sleeping = light.set_sleeping
-    behavior.set_ring_dark_room = light.set_dark_room
-    light.set_dark_room(bool(getattr(behavior, "ring_dark_room", False)))
-    from maipai_body.bodies.stackchan.estop_recovery import EstopRecovery
-
-    def device_answers() -> bool:
-        """A real answer from the unit (a connected socket is not enough during a freeze)."""
-        try:
-            voice.robot.client.get_head_angles()
-        except Exception:
-            return False
-        return True
-
-    threading.Thread(
-        target=EstopRecovery(voice.robot.robot, device_answers).run,
-        args=(stop_event,),
-        name="stackchan-estop-recovery",
-        daemon=True,
-    ).start()
-    behavior.privacy_light = light
-    behavior.on_firmware_version = sounds.on_firmware_version
-    sounds.battery_low = lambda: light.facts.battery_low
-
-    def camera_cue(active: bool) -> None:
-        light.cue_camera(active)
-        sounds.on_camera_cue(active)  # the shutter click, queued: a cue never waits on the unit
-
-    voice.robot.robot._driver("camera").cue_sink = camera_cue
-    # Self-healing (design note stackchan-self-healing-2026-11-13): what the unit says about its
-    # restart guard, the wake engine test answers, and the ring's fault look while it holds.
-    voice.heal.on_hold = lambda hold: light.update(fault=hold)
-
-    def _heal_event(kind: str, extra: dict) -> None:
-        voice.heal.observe(kind, extra)
-        voice.wake_tester.on_event(kind, extra)
-        behavior.privacy.observe(kind, extra)
-        updater = getattr(behavior, "firmware_updater", None)
-        if updater is not None and kind.startswith("firmware_update_"):
-            updater.on_unit_event(kind, extra, time.time())
-
-    behavior.on_unit_event = _heal_event
-    avatar.unit_idle = lambda: not behavior._active.is_set()
-    avatar.request_restart = voice._request_unit_restart
     from maipai_body.bodies.stackchan.uplink_stats import UplinkStats
 
     uplink = UplinkStats()
