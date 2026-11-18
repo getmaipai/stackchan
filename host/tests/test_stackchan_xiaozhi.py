@@ -185,7 +185,9 @@ class StackChanXiaozhiTests(unittest.IsolatedAsyncioTestCase):
         self.app._session_credentials["02:00:00:00:00:01"] = (self.client_id, self.token)
         await self.app._mcp(ws, "session", {"id": 42, "method": "initialize"})
         payload = json.loads(ws.send.await_args.args[0])["payload"]["result"]
-        self.assertEqual(payload["capabilities"]["vision"]["token"], self.token)
+        ticket = payload["capabilities"]["vision"]["token"]
+        self.assertNotEqual(ticket, self.token)  # a per-session ticket, never the pairing token
+        self.assertTrue(self.app.ticket_ok("02:00:00:00:00:01", ticket))
         self.assertEqual(
             payload["capabilities"]["vision"]["url"],
             f"http://127.0.0.1:{self.vision_port}/vision/02:00:00:00:00:01",
