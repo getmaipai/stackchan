@@ -824,7 +824,9 @@ class SettingsBackend:
             from maipai_body.bodies.stackchan.xiaozhi.link_exchange import ExchangeError
 
             try:
-                self.pair_exchange.approve_exchange(str(body.get("device_id", "")), str(body.get("code", "")).strip())
+                self.pair_exchange.approve_exchange(
+                    str(body.get("device_id", "")), str(body.get("code", "")).strip(), str(body.get("_source", "")), True
+                )  # only an admin (this host, or a signed-in session) reaches this route; the server sets _source
             except ExchangeError as error:
                 return 400, {"error": str(error)}
             return 200, {"ok": True, "message": "Paired. The robot now uses an encrypted link."}

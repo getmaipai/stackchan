@@ -19,6 +19,7 @@ BASE = (9).to_bytes(32, "little")
 EXCHANGE_TTL_S = 300.0  # the owner has five minutes to type the code
 MAX_WRONG_CODES = 3  # wrong codes for one unit before it must wait
 LOCK_S = 600.0
+OUTSIDE_WRONG_CODES = 12  # wrong codes a unit takes from every source that is not the owner's, together, in LOCK_S
 KEY_INFO = b"maipai-stackchan-link-key-v2\x00"
 PSK_INFO = b"maipai-stackchan-link-psk-v2\x00"
 
@@ -136,8 +137,9 @@ class HostExchange:
         self.expected = sas(self._pk_u, self._pk_h, n_u, self._n_h)
         return {"n_h": self._n_h}
 
-    def approve(self, code: str) -> bytes:
-        """The owner typed the six digits shown on the robot. Returns the link key; a wrong code ends the exchange for good."""
+    def approve(self, code: str, *, abort_on_wrong: bool = True) -> bytes:
+        """The owner typed the six digits shown on the robot. Returns the link key; a wrong code ends the exchange for good,
+        unless the code came from a source that is not the owner's (``abort_on_wrong`` False): then it only counts against that source."""
         if self._stage != "waiting_for_code" or self.aborted or self.finished:
             raise ExchangeError("This pairing is not waiting for a code. Restart pairing on the robot.")
         if self._clock() - self._started > EXCHANGE_TTL_S:
@@ -145,6 +147,8 @@ class HostExchange:
             self.aborted = True
             raise ExchangeError("The code was not typed in time: it took too long. Restart pairing on the robot.")
         if len(code) != 6 or not code.isdigit() or not hmac.compare_digest(code, self.expected):
+            if not abort_on_wrong:
+                raise ExchangeError("The code did not match. Nothing was paired.")
             self._drop()
             self.aborted = True
             raise ExchangeError("The code did not match. Nothing was paired.")
@@ -161,7 +165,8 @@ class ExchangeRegistry:
         self._clock, self._rand = clock, rand
         self._lock = threading.Lock()
         self._live: dict[str, HostExchange] = {}
-        self._wrong: dict[str, list[float]] = {}
+        self._wrong: dict[tuple[str, str], list[float]] = {}  # (unit, source address) -> times of wrong codes
+        self._outside: dict[str, list[float]] = {}  # unit -> times of wrong codes from sources that are not the owner's
         self.results: dict[str, str] = {}  # device id -> "paired" or "failed" once an exchange ended (read by the socket that waits)
         self.client_ids: dict[str, str] = {}
 
@@ -169,10 +174,6 @@ class ExchangeRegistry:
         key = device_id.lower()
         with self._lock:
             now = self._clock()
-            recent = [t for t in self._wrong.get(key, []) if now - t < LOCK_S]
-            self._wrong[key] = recent
-            if len(recent) >= MAX_WRONG_CODES:
-                raise ExchangeError("Too many wrong codes for this robot. Wait 10 minutes, then pair again.")
             held = self._live.get(key)
             if held is not None and not held.aborted and not held.finished:
                 if self._clock() - held._started > EXCHANGE_TTL_S:
@@ -198,17 +199,35 @@ class ExchangeRegistry:
             raise ExchangeError("No pairing is waiting for this robot. Restart pairing on the robot.")
         return exchange
 
-    def approve(self, device_id: str, code: str) -> bytes:
-        exchange = self._get(device_id)
+    def _recent(self, table: dict, key, now: float) -> list[float]:
+        recent = [t for t in table.get(key, []) if now - t < LOCK_S]
+        table[key] = recent
+        return recent
+
+    def approve(self, device_id: str, code: str, source: str = "", reserved: bool = False) -> bytes:
+        """Finish the exchange with the typed digits. Wrong codes are counted per source address, so a stranger's failures never lock
+        the owner out. ``reserved`` marks the owner's own side (this host's loopback, or a signed-in settings session): it is never held
+        back by other sources' failures, and its wrong code ends the exchange as before. A source that is not reserved cannot end the
+        owner's exchange with a wrong code, and all such sources together get OUTSIDE_WRONG_CODES wrong codes a unit per ten minutes."""
         key = device_id.lower()
+        with self._lock:
+            now = self._clock()
+            if len(self._recent(self._wrong, (key, source), now)) >= MAX_WRONG_CODES:
+                raise ExchangeError("Too many wrong codes from this computer. Wait 10 minutes, then try again.")
+            if not reserved and len(self._recent(self._outside, key, now)) >= OUTSIDE_WRONG_CODES:
+                raise ExchangeError("Too many wrong codes for this robot from other computers. Wait 10 minutes, then try again.")
+        exchange = self._get(device_id)
         try:
-            result = exchange.approve(code)
+            result = exchange.approve(code, abort_on_wrong=reserved)
             self.results[key] = "paired"
             return result
         except ExchangeError:
-            if exchange.aborted:
+            if not exchange.finished and (exchange.aborted or exchange._stage == "waiting_for_code"):
                 with self._lock:
-                    self._wrong.setdefault(key, []).append(self._clock())
+                    self._wrong.setdefault((key, source), []).append(self._clock())
+                    if not reserved:
+                        self._outside.setdefault(key, []).append(self._clock())
+            if exchange.aborted:
                 self.results[key] = "failed"
             raise
         finally:

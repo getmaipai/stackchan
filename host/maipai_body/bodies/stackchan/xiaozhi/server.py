@@ -629,9 +629,10 @@ class XiaozhiServer:
         except Exception:
             LOG.warning("StackChan pairing exchange stopped", exc_info=True)
 
-    def approve_exchange(self, device_id: str, code: str) -> None:
-        """The owner typed the six digits for a unit: finish the exchange and keep the link key. Raises ExchangeError in plain words."""
-        key = self.exchange.approve(device_id, code)
+    def approve_exchange(self, device_id: str, code: str, source: str = "", reserved: bool = True) -> None:
+        """The owner typed the six digits for a unit: finish the exchange and keep the link key. Raises ExchangeError in plain words.
+        ``source`` is the address the code came from (wrong codes are counted per source); ``reserved`` is the owner's own side."""
+        key = self.exchange.approve(device_id, code, source, reserved)
         self.pairing.store_link_key(device_id, self.exchange.client_ids.get(device_id.lower(), ""), key)
 
     def waiting_exchanges(self) -> list[str]:

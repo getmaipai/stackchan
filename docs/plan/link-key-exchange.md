@@ -63,3 +63,6 @@ The owner approving without reading the unit's screen, and the key at rest on th
 - **Screen.** At the reveal the unit shows "Type 123456 on the host to pair" as a notice and repeats nothing: the host card should show the waiting unit for the full five minutes. The unit gives up after 330 seconds, on `pair_failed` or `pair_abort`, on a closed socket, and on any message out of order.
 - **After "paired".** The unit computes `K` and saves it in NVS (`mp_link`); the voice and avatar connections then use the encrypted ports with the PSK handshake (a saved plain address is rewritten, and never used in the clear while a key is stored).
 - **Switch.** All of it is under `CONFIG_MAIPAI_LINK_PSK` (default off); the `linkpsk` build overlay turns it on.
+
+## Wrong codes are counted per source (2026-11-18)
+A wrong code counts against the source address that sent it (three a unit every ten minutes each). Only the owner's side, this host's loopback or a signed-in settings session, can end the exchange with a wrong code; any other source's wrong code only counts against that source, and all such sources together get twelve a unit. A second start for a unit that is already waiting for its digits is refused. So a stranger's guesses never lock the owner out or end the owner's pairing.

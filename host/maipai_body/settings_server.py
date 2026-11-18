@@ -143,6 +143,9 @@ class _Handler(BaseHTTPRequestHandler):
                 raise ValueError("The body must be a JSON object.")
         except ValueError as error:
             return self._error(HTTPStatus.BAD_REQUEST, str(error))
+        body.pop("_source", None)
+        if urlsplit(self.path).path.endswith("/pairings/code-entry"):
+            body["_source"] = self.client_address[0]  # set here, never taken from the client; only the pairing route reads it
         try:
             routed = self.server.backend.route_post(urlsplit(self.path).path, body, self._admin())
         except Exception:

@@ -104,22 +104,45 @@ def test_exchanges_expire():
         ex.approve(ex.expected)
 
 
-def test_the_registry_limits_tries_per_unit_and_keeps_one_exchange_per_unit():
+def test_the_registry_limits_tries_per_source_and_keeps_one_exchange_per_unit():
     now = [0.0]
     reg = lx.ExchangeRegistry(clock=lambda: now[0])
     for _ in range(lx.MAX_WRONG_CODES):
         ex = reg.begin(DEVICE, lx.x25519(ref.SK_U, lx.BASE))
         reg.reveal(DEVICE, ref.N_U)
         with pytest.raises(lx.ExchangeError):
-            reg.approve(DEVICE, "999999" if ex.expected != "999999" else "888888")
+            reg.approve(DEVICE, "999999" if ex.expected != "999999" else "888888", "127.0.0.1", True)
+    reg.begin(DEVICE, lx.x25519(ref.SK_U, lx.BASE))
+    reg.reveal(DEVICE, ref.N_U)
     with pytest.raises(lx.ExchangeError, match="Wait"):
-        reg.begin(DEVICE, lx.x25519(ref.SK_U, lx.BASE))  # too many wrong codes: this unit waits
+        reg.approve(DEVICE, "123456", "127.0.0.1", True)  # this source has used its tries
     other = reg.begin("02:00:5E:00:53:02", lx.x25519(ref.SK_U, lx.BASE))
     assert other is not None  # another unit is not held back
     now[0] += lx.LOCK_S + 1
-    assert reg.begin(DEVICE, lx.x25519(ref.SK_U, lx.BASE)) is not None
+    assert reg.pending_devices() == []  # the unit's exchange timed out with nobody finishing it
+
+
+def test_a_strangers_wrong_codes_never_lock_the_owner_out():
+    reg = lx.ExchangeRegistry()
+    ex = reg.begin(DEVICE, lx.x25519(ref.SK_U, lx.BASE))
     reg.reveal(DEVICE, ref.N_U)
-    assert reg.pending_devices() == [DEVICE.lower()]  # only the unit whose six digits are waiting
+    for _ in range(lx.MAX_WRONG_CODES + 2):  # a stranger guesses; it cannot end the owner's exchange either
+        with pytest.raises(lx.ExchangeError):
+            reg.approve(DEVICE, "000000" if ex.expected != "000000" else "111111", "192.0.2.50", False)
+    assert reg.approve(DEVICE, ex.expected, "127.0.0.1", True)  # the owner's right code still pairs
+
+
+def test_many_strangers_together_are_capped_and_the_owner_is_not():
+    reg = lx.ExchangeRegistry()
+    ex = reg.begin(DEVICE, lx.x25519(ref.SK_U, lx.BASE))
+    reg.reveal(DEVICE, ref.N_U)
+    wrong = "000000" if ex.expected != "000000" else "111111"
+    for n in range(lx.OUTSIDE_WRONG_CODES):
+        with pytest.raises(lx.ExchangeError):
+            reg.approve(DEVICE, wrong, f"192.0.2.{n + 1}", False)
+    with pytest.raises(lx.ExchangeError, match="other computers"):
+        reg.approve(DEVICE, ex.expected, "192.0.2.99", False)  # a new stranger is refused even with the right code: the cap is reached
+    assert reg.approve(DEVICE, ex.expected, "127.0.0.1", True)
 
 
 # ---- storing the key and deriving the TLS key from it ---------------------------------------------------------------
@@ -178,8 +201,8 @@ def test_the_page_routes_take_the_six_digits_and_report_a_mismatch(tmp_path):
         def waiting_exchanges(self):
             return self.exchange.pending_devices()
 
-        def approve_exchange(self, device_id, code):
-            key = self.exchange.approve(device_id, code)
+        def approve_exchange(self, device_id, code, source="", reserved=True):
+            key = self.exchange.approve(device_id, code, source, reserved)
             self.pairing.store_link_key(device_id, self.exchange.client_ids[device_id.lower()], key)
 
     voice = Voice()
