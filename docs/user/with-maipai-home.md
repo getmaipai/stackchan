@@ -31,13 +31,13 @@ When you connect MaiPai Home, Home puts the firmware build on the robot that has
 
 ## Turn it on
 
-1. Open `robot.toml`.
-2. Set `brain = "home"` and `home_url` to the hub address, for example `http://192.0.2.20:3000`.
+1. Open `http://127.0.0.1:8777/brain` on the host computer ([Choose a brain](choose-a-brain.md)).
+2. Type the hub address, for example `http://192.0.2.20:3000`, and press **Use MaiPai Home**. Prefer a file? Set `brain = "home"` and `home_url` in `robot.toml` instead.
 3. Run `stackchan check`. You'll know it worked when the check lists Home as the brain and every line says ok.
 
 ![The robot's screen while it waits for MaiPai Home to approve it: crossed-out signal bars and a key.](../images/vu-pairing.png)
 
-The robot is not reflashed. Set `brain = "llm"` to go back. Your timers, faces and settings stay.
+The robot is not reflashed. Pick another brain on the same page to go back. Your timers, faces and settings stay.
 
 ![The web page with the brain choice set to MaiPai Home.](../images/brain-switch.svg)
 

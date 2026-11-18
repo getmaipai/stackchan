@@ -26,6 +26,15 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 
 **Start here:** [How it fits together](overview.md) · [Contributing](contributing.md) · [Build from source](build-from-source.md) · [Host and brains](host-and-brains.md) · [The choices rule](choices-rule.md) · [Memory budget](memory-budget.md)
 
+**Find by question:**
+- *How do I run the robot without hardware?* [Virtual unit](virtual-unit.md), [End to end check](e2e-virtual-unit.md), [Test speed](test-speed.md)
+- *How is memory spent?* [Memory budget](memory-budget.md), [Internal RAM](internal-ram-tasks.md), [Cost of features that are off](off-cost.md)
+- *What keeps the host alive?* [Service](stackchan-service.md), [Watchdog inventory](watchdog-inventory.md), [Updater](updater.md)
+- *What leaves my home?* [Egress table](egress-table.md), [Software-only protection](software-only-protection.md)
+- *Which numbers did we measure?* [Gate numbers](gate-numbers.md), [Unit measurements](stackchan-unit-measurements.md), [Voice measurements](stackchan-voice-measurements-2026-10-20.md), [Battery](battery-and-power.md)
+- *What is the robot's screen, face or head doing?* [Screens](screens-contact-sheets.md), [Faces](stackchan-faces-2026-11-14.md), [Head recording](head-recording.md), [Dance](dance-entry-points.md)
+- *What is wrong or open?* [Cross-review bugs](cross-review-status.md), [Fuzzing](fuzzing-and-hostile-peer.md), [Choices audits](host-choices-audit.md)
+
 **Plans and decisions:** [Decisions](../design/decisions.md) · [Plans](../plan/) · [Readiness](../plan/release-readiness.md) · [Feature ledger](feature-ledger.md)
 
 **Other sections:** [User guide](../user/index.md) · [Playground](../playground/index.md)
