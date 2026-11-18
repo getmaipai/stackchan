@@ -25,4 +25,4 @@ Whether this is a new page `/parent` or the first group of the existing page (th
 
 ## Decision
 
-(app track)
+Taken as written (app track, 2026-11-18): the first group of the existing page, phone reachable through the settings token, no history by design, the eleven "soon" stubs hidden, one shared privacy sentence in the catalog. Quiet hours: hidden until the unit rule exists. Built after the current safety list; the first slice is the status card and hiding the stubs.
