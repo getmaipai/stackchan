@@ -31,7 +31,7 @@ SCENARIOS["tired-low-battery"] = [("call", "self.face.bench_emotion", {"emotion"
 # Screens other than the bare face, on the screens renderer. Not drawn by the renderer yet (gaps, listed so they are not forgotten):
 # pairing screen, updating screen, lock screen and keypad (lock_render.sh is a separate program), the Wi-Fi setup screen itself
 # (the renderer only has the banner flag for it).
-SCREEN_GAPS = ["pairing", "updating", "wifi-setup-screen"]
+SCREEN_GAPS = ["updating (no screen exists to draw: main/ has no update text or lv_ calls, hal/maipai_update.cc only logs; if a screen is wanted it is a new feature, not a render gap)"]
 BAR = [("raw", "style big_eyes"), ("raw", "bbar always"), ("raw", "bstatus 80 0 1 1 1")]
 SCREENS: dict[str, list] = {
     "screen-status-normal": BAR + [EMOTE("neutral"), ("advance", 1500)],
@@ -59,13 +59,23 @@ LOCK_SCENARIOS = {
 }
 
 
+# The link covers, drawn by the unit's own code cut out of stackchan_display.cc (cover_gen.py): ShowBootCover(text, ring, glyph).
+COVER_SCENARIOS = {
+    "cover-connecting-wifi": ["show 1 0 Connecting to Wi-Fi...", "advance 800", "snap {out}"],
+    "cover-connecting-home": ["show 1 0 Connecting to Home...", "advance 800", "snap {out}"],
+    "cover-wifi-setup": ["show 2 1 Wi-Fi setup needed\\nHotspot MaiPai-1234\\n192.0.2.1", "advance 600", "snap {out}"],
+    "cover-pairing": ["show 2 2 Waiting for Home to approve me", "advance 600", "snap {out}"],
+}
+
+
 def run_lock(name: str) -> bytes:
     import subprocess
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "shot.png"
-        script = "\n".join(line.format(out=out) for line in LOCK_SCENARIOS[name]) + "\n"
-        subprocess.run([str(ROOT / ".runs" / "vu-screens" / "lock" / "lock_render")], input=script, text=True, check=True, capture_output=True)
+        lines, prog = (COVER_SCENARIOS[name], "cover/cover_render") if name in COVER_SCENARIOS else (LOCK_SCENARIOS[name], "lock/lock_render")
+        script = "\n".join(line.format(out=out) for line in lines) + "\n"
+        subprocess.run([str(ROOT / ".runs" / "vu-screens" / prog)], input=script, text=True, check=True, capture_output=True)
         return out.read_bytes()
 
 
@@ -104,15 +114,15 @@ def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     update = "--update" in sys.argv
     screens_built = (ROOT / ".runs" / "vu-screens" / "render").exists()
-    names = args or list(SCENARIOS) + (list(SCREENS) + list(LOCK_SCENARIOS) if screens_built else [])
+    names = args or list(SCENARIOS) + (list(SCREENS) + list(LOCK_SCENARIOS) + list(COVER_SCENARIOS) if screens_built else [])
     if not args and not screens_built:
         print("screens renderer not built: skipping screen scenarios (bash scripts/virtual-unit/build-screens.sh)")
     failed = 0
     GOLDEN.mkdir(parents=True, exist_ok=True)
     GOLDEN_SCREENS.mkdir(parents=True, exist_ok=True)
     for name in names:
-        is_screen = name in SCREENS or name in LOCK_SCENARIOS
-        if name in LOCK_SCENARIOS:
+        is_screen = name in SCREENS or name in LOCK_SCENARIOS or name in COVER_SCENARIOS
+        if name in LOCK_SCENARIOS or name in COVER_SCENARIOS:
             png, problems = run_lock(name), []
         else:
             with vunit.VirtualUnit(profile="screens" if is_screen else "face") as u:
