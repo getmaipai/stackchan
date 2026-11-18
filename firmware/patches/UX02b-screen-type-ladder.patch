@@ -1,0 +1,370 @@
+# Intent: Use one 16 px and one 24 px text size across the app screens.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_apps.cc and firmware/main/hal/maipai_pages.cc (ours, patches UX02a, UI17, P12)
+# Check after a flash: Open apps, settings, timers and pages and confirm labels fit and titles remain clear.
+
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -34,10 +34,8 @@
+ constexpr int kKindTimer         = 1;  // the timer core's MT_KIND_TIMER and MT_KIND_ALARM (maipai_timers_core.h)
+ constexpr int kKindAlarm         = 2;
+ 
+-const lv_font_t* kTiny  = &lv_font_montserrat_14;
+ const lv_font_t* kSmall = &lv_font_montserrat_16;
+-const lv_font_t* kMid   = &lv_font_montserrat_20;
+-const lv_font_t* kBig   = &lv_font_montserrat_24;
++const lv_font_t* kBig = &lv_font_montserrat_24;
+ 
+ // One state record, allocated when a view opens and freed when the screen closes.
+ struct St {
+@@ -141,9 +139,8 @@
+ }
+ const lv_font_t* fit_font(const char* s, int avail)
+ {
+-    if (text_w(s, kMid) <= avail) return kMid;
+-    if (text_w(s, kSmall) <= avail) return kSmall;
+-    return kTiny;
++    if (text_w(s, kBig) <= avail) return kBig;
++    return kSmall;
+ }
+ void set_text_if(lv_obj_t* l, const char* s)
+ {
+@@ -318,7 +315,7 @@
+     } else if (strcmp(id, "eightball") == 0) {  // a dark ball with the white 8 circle and a triangle
+         disc(a, 2, 0, 44, acc(maipai_ui_style::surface()));
+         disc(a, 14, 3, 20, acc(maipai_ui_style::text()));
+-        lv_obj_t* n = text(a, "8", kMid, maipai_ui_style::bg());
++        lv_obj_t* n = text(a, "8", kBig, maipai_ui_style::bg());
+         lv_obj_set_pos(n, 20, 5);
+         static const lv_point_precise_t tri[4] = {{24, 27}, {34, 40}, {14, 40}, {24, 27}};
+         stroke(a, tri, 4, acc(maipai_ui_style::text()), 2);
+@@ -378,7 +375,7 @@
+     lv_obj_t* t = box(S->root, 8, Y(MAC_BOTTOM - 42), 304, 40, fg(30), 10);  // two lines of small text
+     lv_obj_set_style_border_width(t, 1, 0);
+     lv_obj_set_style_border_color(t, fg(70), 0);
+-    lv_obj_t* l = text(t, msg, kTiny, fg(100));
++    lv_obj_t* l = text(t, msg, kSmall, fg(100));
+     lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+     lv_obj_set_width(l, 288);
+     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+@@ -528,7 +525,7 @@
+     S->n_items = total;
+     S->page    = mac_wall_clamp(S->page, total);
+     if (total == 0) {
+-        lv_obj_t* none = text(S->root, tx(MAC_S_NO_GAMES), kMid, fg(70));
++        lv_obj_t* none = text(S->root, tx(MAC_S_NO_GAMES), kBig, fg(70));
+         lv_obj_set_width(none, 280);
+         lv_label_set_long_mode(none, LV_LABEL_LONG_WRAP);
+         lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
+@@ -536,6 +533,16 @@
+         return;
+     }
+     const int count = mac_wall_count(S->page, total);
++    bool wall_big = true;  // patch UX02b: every title on a wall uses one size, the largest that fits all of them
++    {
++        int qx, qy, qw, qh;
++        mac_tile_plate_box(&qx, &qy, &qw, &qh);
++        for (int slot = 0; slot < count; slot++) {
++            const int idx = S->page * MAC_WALL_PER_PAGE + slot;
++            const char* nm = view == MAV_APPS ? MAC_APP_TITLE[es() ? 1 : 0][S->apps[idx]] : g_host->game_title(idx);
++            wall_big = wall_big && text_w(nm, kBig) <= qw - 6;
++        }
++    }
+     for (int slot = 0; slot < count; slot++) {
+         const int idx = S->page * MAC_WALL_PER_PAGE + slot;
+         int x, y, w, h;
+@@ -572,7 +579,7 @@
+         int px, py, pw, ph;
+         mac_tile_plate_box(&px, &py, &pw, &ph);
+         const char* name = view == MAV_APPS ? MAC_APP_TITLE[es() ? 1 : 0][S->apps[idx]] : g_host->game_title(idx);
+-        const lv_font_t* nf = text_w(name, kBig) <= pw - 6 ? kBig : (text_w(name, kMid) <= pw - 6 ? kMid : kSmall);  // 24 px wherever it fits
++        const lv_font_t* nf = wall_big ? kBig : kSmall;  // 24 px when every title fits, else 16 for all
+         const bool two = nf == kSmall && text_w(name, kSmall) > pw - 6;  // a long title wraps to two small lines on a taller plate
+         if (two) {
+             ph = 2 * lv_font_get_line_height(kSmall) + 4;
+@@ -588,10 +595,10 @@
+         if (view == MAV_GAMES) {  // the best score: a small pill in the top right corner
+             char best[24];
+             mpg_best_text(best, sizeof(best), g_host->game_best(idx), es());
+-            const int bw = text_w(best, kTiny) + 12;
++            const int bw = text_w(best, kSmall) + 12;
+             lv_obj_t* pill = box(b, w - bw - 6, 2, bw, 20, maipai_ui_style::bg(), 10);
+             lv_obj_remove_flag(pill, LV_OBJ_FLAG_CLICKABLE);
+-            lv_obj_t* bl = text(pill, best, kTiny, fg(85));
++            lv_obj_t* bl = text(pill, best, kSmall, fg(85));
+             lv_obj_align(bl, LV_ALIGN_CENTER, 0, 0);
+         }
+     }
+@@ -711,7 +718,7 @@
+             mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
+             draw_shapes(l, sh, app_shapes(MAC_APP_TIMERS, sh), (MAC_TR_W - 72) / 2, (MAC_TR_H - 72) / 2 - 8, 3, fg(30), fg(8));
+         } else {
+-            lv_obj_t* none = text(l, tx(MAC_S_NO_ALARMS), kMid, fg(70));
++            lv_obj_t* none = text(l, tx(MAC_S_NO_ALARMS), kBig, fg(70));
+             lv_obj_set_width(none, MAC_W);
+             lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
+             lv_obj_set_pos(none, 0, 44);
+@@ -734,7 +741,7 @@
+             S->left[i] = text(l, when, kBig, fg(100));
+             lv_obj_set_pos(S->left[i], 8, y + 4);
+             if (t[i].label[0] != '\0') {  // a label only when the timer has one (a named preset); never the word Timer
+-                lv_obj_t* lab = text(l, t[i].label, kTiny, fg(70));
++                lv_obj_t* lab = text(l, t[i].label, kSmall, fg(70));
+                 lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
+                 lv_obj_set_size(lab, MAC_TROW_BAR_W, 18);
+                 lv_obj_set_pos(lab, 8, y + 34);
+@@ -743,13 +750,13 @@
+             S->bar[i] = box(l, 8, y + 58, mac_bar_fill(t[i].left_s, total_of(t[i].id, t[i].left_s)), 4, fg(100), 2);
+             int x, yy, w, h;
+             mac_trow_cancel_box(&x, &yy, &w, &h);
+-            lv_obj_t* c = button(l, x, y + yy, w, h, tx(MAC_S_CANCEL), kSmall);
++            lv_obj_t* c = button(l, x, y + yy, w, h, tx(MAC_S_CANCEL), kBig);
+             lv_obj_add_event_cb(c, on_cancel, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t[i].id)));
+             continue;
+         }
+         const int y = i * MAC_ROW_PITCH;
+         box(l, 8, y, 304, MAC_ROW_H, fg(16), 10);
+-        S->left[i] = text(l, when, kMid, fg(100));  // an alarm's "12:05 PM" is longer than a countdown
++        S->left[i] = text(l, when, kSmall, fg(100));  // an alarm's "12:05 PM" is longer than a countdown
+         lv_obj_set_pos(S->left[i], 18, y + 11);
+         if (t[i].label[0] != '\0') {  // the label only when it has one; never the word Alarm
+             lv_obj_t* lab = text(l, t[i].label, kSmall, fg(70));
+@@ -759,7 +766,7 @@
+         }
+         int x, yy, w, h;
+         mac_cancel_box(0, &x, &yy, &w, &h);
+-        lv_obj_t* c = button(l, x, y, w, h, tx(MAC_S_CANCEL), kSmall);
++        lv_obj_t* c = button(l, x, y, w, h, tx(MAC_S_CANCEL), kBig);
+         lv_obj_add_event_cb(c, on_cancel, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t[i].id)));
+     }
+ }
+@@ -809,7 +816,7 @@
+ 
+ void build_alarms()
+ {
+-    lv_obj_t* add = button(S->root, 8, Y(MAC_BTN_ROW_Y), 304, MAC_BTN_ROW_H, tx(MAC_S_ADD_ALARM), kMid);
++    lv_obj_t* add = button(S->root, 8, Y(MAC_BTN_ROW_Y), 304, MAC_BTN_ROW_H, tx(MAC_S_ADD_ALARM), kBig);
+     lv_obj_add_event_cb(add, on_add_alarm, LV_EVENT_CLICKED, nullptr);
+     list_rows(kKindAlarm);
+ }
+@@ -927,17 +934,17 @@
+         for (int pm = 0; pm < 2; pm++) {
+             int x, y, w, h;
+             mac_pick_ampm_box(pm, &x, &y, &w, &h);
+-            lv_obj_t* b = button(S->root, x, Y(y), w, h, tx(pm ? MAC_S_PM : MAC_S_AM), kMid);
++            lv_obj_t* b = button(S->root, x, Y(y), w, h, tx(pm ? MAC_S_PM : MAC_S_AM), kBig);
+             lv_obj_add_event_cb(b, on_ampm, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(pm)));
+             S->ampm[pm] = b;
+         }
+     }
+     int x, y, w, h;
+     mac_pick_cancel_box(&x, &y, &w, &h);
+-    lv_obj_t* c = button(S->root, x, Y(y), w, h, tx(MAC_S_CANCEL), kMid);
++    lv_obj_t* c = button(S->root, x, Y(y), w, h, tx(MAC_S_CANCEL), kBig);
+     lv_obj_add_event_cb(c, on_pick_cancel, LV_EVENT_CLICKED, nullptr);
+     mac_pick_save_box(&x, &y, &w, &h);
+-    lv_obj_t* sv = button(S->root, x, Y(y), w, h, tx(MAC_S_SAVE), kMid, true);
++    lv_obj_t* sv = button(S->root, x, Y(y), w, h, tx(MAC_S_SAVE), kBig, true);
+     lv_obj_add_event_cb(sv, on_pick_save, LV_EVENT_CLICKED, nullptr);
+     pick_paint();
+ }
+@@ -1239,7 +1246,7 @@
+         const int tile = pair * 2 + k;
+         const bool on  = tile < MPG_SET_STYLES && MPG_SET_STYLE_ID[tile] == S->cur_style;
+         const char* nm = tile < MPG_SET_STYLES ? MPG_SET_STYLE_NAME[es() ? 1 : 0][tile] : tx(MAC_S_PICTURES);
+-        lv_obj_t* b = button(c, k * 110, 0, 106, 44, nm, fit_font(nm, 94) == kMid ? kSmall : fit_font(nm, 94), on);
++        lv_obj_t* b = button(c, k * 110, 0, 106, 44, nm, kSmall, on);
+         lv_obj_add_event_cb(b, on_row, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(r.id | (k << 8))));
+     }
+ }
+@@ -1276,7 +1283,7 @@
+     // an information row: the name small on top, the value under it
+     const char* label = mac_row_label(r.id, es() ? 1 : 0);
+     if (label[0] != '\0') {
+-        lv_obj_t* l = text(b, label, kTiny, fg(60));
++        lv_obj_t* l = text(b, label, kSmall, fg(60));
+         lv_obj_set_pos(l, 10, 2);
+     }
+     lv_obj_t* v = text(b, t, kSmall, fg(100));
+@@ -1295,19 +1302,19 @@
+         mac_tab_box(t, &x, &y, &w, &h);
+         const bool on = t == S->set.tab;
+         const char* nm = MAC_TAB_TITLE[es() ? 1 : 0][t];
+-        lv_obj_t* b = button(S->root, x, Y(y), w, h, nm, fit_font(nm, w - 8) == kMid ? kSmall : fit_font(nm, w - 8), on);
++        lv_obj_t* b = button(S->root, x, Y(y), w, h, nm, kSmall  /* patch UX02b: the four tabs share one size */, on);
+         lv_obj_add_event_cb(b, on_tab, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t)));
+     }
+     box(S->root, MAC_DIV_X, Y(MAC_TAB_Y0), 1, MAC_BOTTOM - MAC_TAB_Y0 - 4, fg(30), 0);
+     // the pane header: the tab's name and the Done target
+-    lv_obj_t* title = text(S->root, MAC_TAB_TITLE[es() ? 1 : 0][S->set.tab], kMid, fg(100));
++    lv_obj_t* title = text(S->root, MAC_TAB_TITLE[es() ? 1 : 0][S->set.tab], kBig, fg(100));
+     lv_obj_set_pos(title, MAC_PANE_X + 4, Y(MAC_PANE_HEAD_Y) + 10);
+     if (S->set.tab == MAC_TAB_FACES) {
+         build_header_preview();
+     }
+     int dx, dy, dw, dh;
+     mac_done_box(&dx, &dy, &dw, &dh);
+-    lv_obj_t* done = button(S->root, dx, Y(dy), dw, dh, tx(MAC_S_DONE), kMid);
++    lv_obj_t* done = button(S->root, dx, Y(dy), dw, dh, tx(MAC_S_DONE), kBig);
+     lv_obj_add_event_cb(done, on_done, LV_EVENT_CLICKED, nullptr);
+     // the list on the right: a vertical scroll area
+     S->n_set_rows = mac_set_rows(S->set.tab, set_flags(), S->rows);
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -92,9 +92,7 @@
+ };
+ ShUi* s_sh = nullptr;
+ 
+-const lv_font_t* kTiny = &lv_font_montserrat_14;
+ const lv_font_t* kSmall = &lv_font_montserrat_16;
+-const lv_font_t* kMid = &lv_font_montserrat_20;
+ const lv_font_t* kBig = &lv_font_montserrat_24;
+ const lv_font_t* kText = &BUILTIN_TEXT_FONT;
+ 
+@@ -147,13 +145,11 @@
+     lv_text_get_size(&p, s, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+     return p.x;
+ }
+-// The biggest of the three number fonts in which the text fits `avail` pixels (the smallest when none does: it is cut with dots).
++// The biggest font in which the text fits `avail` pixels (16 px when none does: it is cut with dots).
+ const lv_font_t* fit_font(const char* s, int avail)
+ {
+     if (text_w(s, kBig) <= avail) return kBig;
+-    if (text_w(s, kMid) <= avail) return kMid;
+-    if (text_w(s, kSmall) <= avail) return kSmall;
+-    return kTiny;
++    return kSmall;
+ }
+ 
+ void set_text_if(lv_obj_t* l, const char* s)
+@@ -247,7 +243,7 @@
+         return;
+     }
+     if (s_ui->toast == nullptr) {
+-        s_ui->toast = text(s_page, "", kTiny, fg(100));
++        s_ui->toast = text(s_page, "", kSmall, fg(100));
+         lv_obj_set_width(s_ui->toast, 300);
+         lv_obj_set_style_text_align(s_ui->toast, LV_TEXT_ALIGN_CENTER, 0);
+         lv_obj_set_pos(s_ui->toast, 10, 126);
+@@ -388,7 +384,7 @@
+     const int cx  = l.x0 + 2 * l.digit_w + l.gap + (l.colon_w - l.bar) / 2;
+     s_ui->colon[0] = box(root, cx, l.y0 + l.digit_h / 3 - l.bar / 2, l.bar, l.bar, c, l.bar / 3);
+     s_ui->colon[1] = box(root, cx, l.y0 + 2 * l.digit_h / 3 - l.bar / 2, l.bar, l.bar, c, l.bar / 3);
+-    s_ui->date     = text(root, "", l.ring ? kSmall : kMid, fg(70));  // inside the ring the date needs the smaller font
++    s_ui->date     = text(root, "", l.ring ? kSmall : kSmall, fg(70));  // inside the ring the date needs the smaller font
+     lv_obj_set_width(s_ui->date, MPG_ZONE_W);
+     lv_obj_set_style_text_align(s_ui->date, LV_TEXT_ALIGN_CENTER, 0);
+     lv_obj_set_pos(s_ui->date, 0, l.date_y);
+@@ -476,12 +472,12 @@
+         s_ui->tids[i] = t[i].id;
+         lv_obj_t* x = box(root, 254, y, 58, MPG_TIMER_ROW_H, fg(30), 10, true);
+         lv_obj_set_style_bg_color(x, fg(60), LV_STATE_PRESSED);
+-        lv_obj_t* xl = text(x, LV_SYMBOL_CLOSE, kMid, fg(100));
++        lv_obj_t* xl = text(x, LV_SYMBOL_CLOSE, kBig, fg(100));
+         lv_obj_center(xl);
+         lv_obj_add_event_cb(x, on_timer_cancel, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t[i].id)));
+     }
+     if (n == 0) {
+-        lv_obj_t* none = text(root, tx("No timers running", "Sin temporizadores"), kMid, fg(70));
++        lv_obj_t* none = text(root, tx("No timers running", "Sin temporizadores"), kBig, fg(70));
+         lv_obj_set_width(none, MPG_ZONE_W);
+         lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
+         lv_obj_set_pos(none, 0, 34);
+@@ -496,7 +492,7 @@
+             lv_obj_set_style_bg_color(b, fg(40), LV_STATE_PRESSED);
+             char s[16];
+             snprintf(s, sizeof(s), "+%u min", static_cast<unsigned>(MPG_QUICK_TIMER_MIN[i]));
+-            lv_obj_t* l = text(b, s, kMid, fg(100));
++            lv_obj_t* l = text(b, s, kSmall, fg(100));
+             lv_obj_center(l);
+             lv_obj_add_event_cb(b, on_timer_add, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(MPG_QUICK_TIMER_MIN[i])));
+         }
+@@ -536,7 +532,7 @@
+     pager(root);
+     const int total = s_host->game_count();
+     if (total == 0) {
+-        lv_obj_t* none = text(root, tx("No games on this unit", "No hay juegos en esta unidad"), kMid, fg(70));
++        lv_obj_t* none = text(root, tx("No games on this unit", "No hay juegos en esta unidad"), kBig, fg(70));
+         lv_obj_set_width(none, MPG_ZONE_W);
+         lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
+         lv_obj_set_pos(none, 0, 56);
+@@ -560,14 +556,14 @@
+         lv_obj_set_style_border_color(b, fg(40), 0);
+         lv_obj_set_style_bg_color(b, fg(40), LV_STATE_PRESSED);
+         if (more) {
+-            lv_obj_t* l = text(b, tx("More games", "Mas juegos"), kMid, fg(100));
++            lv_obj_t* l = text(b, tx("More games", "Mas juegos"), kBig, fg(100));
+             lv_obj_center(l);
+             lv_obj_add_event_cb(b, on_games_more, LV_EVENT_CLICKED, nullptr);
+             continue;
+         }
+         const char* gt = s_host->game_title(i);
+-        const bool long_name = text_w(gt, kTiny) > w - 12;  // "Rock Paper Scissors": two small lines and no best line, nothing is cut
+-        const lv_font_t* nf = long_name ? kTiny : (text_w(gt, kSmall) <= w - 12 ? kSmall : kTiny);  // one size for the names that fit
++        const bool long_name = text_w(gt, kBig) > w - 12;  // "Rock Paper Scissors": two small lines and no best line, nothing is cut
++        const lv_font_t* nf = long_name ? kSmall : (text_w(gt, kBig) <= w - 12 ? kBig : kSmall);  // one size for the names that fit
+         lv_obj_t* name = text(b, gt, nf, fg(100));
+         lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+         if (long_name) {
+@@ -580,7 +576,7 @@
+             lv_obj_align(name, LV_ALIGN_TOP_MID, 0, 2);
+             char best[24];
+             mpg_best_text(best, sizeof(best), s_host->game_best(i), es());
+-            lv_obj_t* bl = text(b, best, kTiny, fg(70));
++            lv_obj_t* bl = text(b, best, kSmall, fg(70));
+             lv_obj_set_width(bl, w - 12);
+             lv_obj_set_style_text_align(bl, LV_TEXT_ALIGN_CENTER, 0);
+             lv_obj_align(bl, LV_ALIGN_BOTTOM_MID, 0, -2);
+@@ -639,7 +635,7 @@
+     char ago[32];
+     mpg_age_text(ago, sizeof(ago), age, es());
+     if (age >= 90) {
+-        lv_obj_t* a = text(root, ago, kTiny, fg(stale ? 100 : 55));
++        lv_obj_t* a = text(root, ago, kSmall, fg(stale ? 100 : 55));
+         lv_obj_align(a, LV_ALIGN_TOP_RIGHT, -10, 5);
+     }
+     const int val_pct = stale ? 45 : 100;
+@@ -663,7 +659,7 @@
+         }
+         if (h >= 90) {  // three tall tiles: icon on top, the label under it, the value at the bottom
+             draw_icon(root, t->t[i].icon, x + 8, y + 8, 2, fg(val_pct), fg(16));
+-            lv_obj_t* lab = text(root, t->t[i].label, kTiny, fg(70));
++            lv_obj_t* lab = text(root, t->t[i].label, kSmall, fg(70));
+             lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
+             lv_obj_set_size(lab, w - 14, 17);
+             lv_obj_set_pos(lab, x + 7, y + 60);
+@@ -674,7 +670,7 @@
+             continue;
+         }
+         // a small tile: the label on top, then the icon and the value (a long value drops the icon and takes the width)
+-        lv_obj_t* lab = text(root, t->t[i].label, kTiny, fg(70));
++        lv_obj_t* lab = text(root, t->t[i].label, kSmall, fg(70));
+         lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
+         lv_obj_set_size(lab, w - 14, 17);
+         lv_obj_set_pos(lab, x + 7, y + 3);
+@@ -685,13 +681,11 @@
+             draw_icon(root, t->t[i].icon, x + 6, y + 22, 1, fg(val_pct), fg(16));
+         }
+         const lv_font_t* vf = fit_font(value, avail);
+-        if (vf == kBig) {
+-            vf = kMid;
+-        }
++        
+         lv_obj_t* val = text(root, value, vf, fg(val_pct));
+         lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
+-        lv_obj_set_size(val, avail, vf == kMid ? 26 : 20);
+-        lv_obj_set_pos(val, vx, y + (vf == kMid ? 21 : 24));
++        lv_obj_set_size(val, avail, vf == kBig ? 30 : 20);
++        lv_obj_set_pos(val, vx, y + (vf == kBig ? 18 : 24));
+     }
+ }
+ 
+@@ -1072,7 +1066,7 @@
+     }
+     if (L.status_h > 0) {
+         const int y0 = L.status_y - L.top_y;
+-        s_sh->tclock = text(r, "", kMid, fg(90));
++        s_sh->tclock = text(r, "", kBig, fg(90));
+         lv_obj_set_width(s_sh->tclock, 320);
+         lv_obj_set_style_text_align(s_sh->tclock, LV_TEXT_ALIGN_CENTER, 0);
+         lv_obj_set_pos(s_sh->tclock, 0, y0);
