@@ -1,0 +1,123 @@
+# Intent: Leftovers. A banner message that does not fit ends at a word with three dots (never inside a word or an accented letter). The volume and brightness sliders apply at once and write the flash once, 700 ms after the last change. A timer or alarm set from the screen is silent or not when it rings, not when it was set.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_banner_core.h, maipai_pages_unit.cc (ours)
+# Check after a flash: drag the volume slider across its range: no pause in the drag, one flash write after it (log); set a timer while muted, unmute, let it ring: it rings; a 200 character remote message ends at a word with dots.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_banner_core.h b/firmware/main/hal/maipai_banner_core.h
+--- a/firmware/main/hal/maipai_banner_core.h
++++ b/firmware/main/hal/maipai_banner_core.h
+@@ -108,10 +108,26 @@ static inline void mb_init(mb_t* b)
+     memset(b, 0, sizeof(*b));
+ }
+ 
++/* Copies a message. A message that does not fit ends at a word boundary (or at a whole character) with "..." (patch SF19): never in the
++ * middle of a word or of an accented letter. */
+ static inline void mb_copy_text(char* dst, const char* src)
+ {
+     size_t n = src != NULL ? strlen(src) : 0;
+-    if (n >= MB_TEXT_MAX) n = MB_TEXT_MAX - 1;
++    if (n >= MB_TEXT_MAX) {
++        size_t cut = MB_TEXT_MAX - 4; /* room for the three dots and the end */
++        size_t back = cut;
++        while (back > 0 && cut - back < 24 && src[back] != ' ') back--; /* a space within the last 24 characters */
++        if (back > 0 && src[back] == ' ') {
++            cut = back;
++        } else {
++            while (cut > 0 && ((unsigned char)src[cut] & 0xC0u) == 0x80u) cut--; /* never inside a UTF-8 character */
++        }
++        while (cut > 0 && src[cut - 1] == ' ') cut--;
++        memcpy(dst, src, cut);
++        memcpy(dst + cut, "...", 3);
++        dst[cut + 3] = '\0';
++        return;
++    }
+     if (n > 0) memcpy(dst, src, n);
+     dst[n] = '\0';
+ }
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -63,6 +63,38 @@ extern bool maipai_dance_play(const char* name);
+ 
+ namespace {
+ 
++// Patch SF19: the volume and brightness sliders write the flash once, after the last change.
++std::atomic<int> s_pend_volume{-1};
++std::atomic<int> s_pend_brightness{-1};
++esp_timer_handle_t s_slider_timer = nullptr;
++
++void arm_slider_save()
++{
++    if (s_slider_timer == nullptr) {
++        esp_timer_create_args_t args = {};
++        args.callback = [](void*) {
++            Application::GetInstance().Schedule([]() {
++                const int v = s_pend_volume.exchange(-1);
++                if (v >= 0) {
++                    if (auto* codec = Board::GetInstance().GetAudioCodec()) codec->SetOutputVolume(v);
++                }
++                const int br = s_pend_brightness.exchange(-1);
++                if (br >= 0) {
++                    if (auto* b = Board::GetInstance().GetBacklight()) b->SetBrightness(br, true);
++                }
++            });
++        };
++        args.name = "slider_save";
++        if (esp_timer_create(&args, &s_slider_timer) != ESP_OK) {
++            s_slider_timer = nullptr;
++            return;
++        }
++    }
++    esp_timer_stop(s_slider_timer);
++    esp_timer_start_once(s_slider_timer, 700ULL * 1000);
++}
++
++
+ constexpr const char* kKeyCfg   = "pages_cfg";    // the one saved text line (maipai_pages_core.h), in the preferences namespace
+ constexpr const char* kKeyTiles = "page_tiles";   // the host fed tiles, saved at most every ten minutes
+ 
+@@ -217,7 +249,7 @@ public:
+     }
+     void timer_add(int seconds, const char*) override
+     {
+-        Application::GetInstance().Schedule([seconds]() { maipai_timers_add_timer(seconds, "", (maipai_privacy_bits() & kPrivMute) != 0); });
++        Application::GetInstance().Schedule([seconds]() { maipai_timers_add_timer(seconds, "", false); });  // patch SF19: muted or not is decided when it rings, not when it is set
+     }
+ 
+     int game_count() override { return maipai_games_count(); }
+@@ -290,10 +322,10 @@ public:
+     }
+     void set_volume(int v) override
+     {
+-        auto* codec = Board::GetInstance().GetAudioCodec();
+-        if (codec != nullptr) {
+-            codec->SetOutputVolume(v);
+-        }
++        // Patch SF19: the slider changes the volume at once and the flash is written once, 700 ms after the last change.
++        hal_bridge::board_set_speaker_volume(static_cast<uint8_t>(v < 0 ? 0 : (v > 100 ? 100 : v)), false);
++        s_pend_volume.store(v);
++        arm_slider_save();
+     }
+     int brightness() override
+     {
+@@ -304,7 +336,9 @@ public:
+     {
+         auto* b = Board::GetInstance().GetBacklight();
+         if (b != nullptr) {
+-            b->SetBrightness(v, true);
++            b->SetBrightness(v, false);
++            s_pend_brightness.store(v);
++            arm_slider_save();
+         }
+     }
+     bool light_on() override { return maipai_pref(MP_LISTEN_LIGHT) != 0; }
+@@ -437,7 +471,7 @@ public:
+         if (active_count() >= MAC_ACTIVE_MAX) {
+             return mac_str(MAC_S_FULL, spanish() ? 1 : 0);
+         }
+-        Application::GetInstance().Schedule([hour, minute]() { maipai_timers_add_alarm(hour, minute, "", (maipai_privacy_bits() & kPrivMute) != 0); });
++        Application::GetInstance().Schedule([hour, minute]() { maipai_timers_add_alarm(hour, minute, "", false); });  // patch SF19: muted is decided when it rings
+         return "";
+     }
+     void open_strip_page(int type) override { maipai_pages_show(type); }

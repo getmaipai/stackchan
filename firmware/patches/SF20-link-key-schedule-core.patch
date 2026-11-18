@@ -1,0 +1,134 @@
+# Intent: The key schedule of the link key exchange (docs/plan/link-key-exchange.md) as a pure header, nothing calls it yet: the commitment, the six-digit code both screens show, the link key K and the TLS pre-shared key, from the X25519 shared secret, both public keys, both nonces and the device id. Vectors from scripts/link-key-vector.py (X25519 checked against RFC 7748, HKDF against RFC 5869).
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: none (a header with a host test; wired in with the encrypted link)
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_linkkey_core.h b/firmware/main/hal/maipai_linkkey_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_linkkey_core.h
+@@ -0,0 +1,123 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The key schedule of the link key exchange (patch SF20; docs/plan/link-key-exchange.md). Plain C99, no heap. The curve calculation
++ * (X25519) is done by the caller (PSA on the unit); this file does the hashing: the commitment, the six-digit code, the link key K and
++ * the TLS pre-shared key. SHA-256 comes from maipai_lock_core.h. Host test: host/tests/firmware/linkkey_core_test.c, with vectors from
++ * scripts/link-key-vector.py (which checks X25519 against RFC 7748 and HKDF against RFC 5869).
++ */
++#ifndef MAIPAI_LINKKEY_CORE_H
++#define MAIPAI_LINKKEY_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++#include "maipai_lock_core.h"
++
++#define MLY_PK 32
++#define MLY_NONCE 16
++#define MLY_KEY 32
++
++static inline void mly_sha256(const uint8_t* msg, size_t len, uint8_t out[32])
++{
++    uint32_t h[8];
++    lk_sha_init(h);
++    lk_sha_finish(h, 0, msg, len, out);
++}
++
++/* HMAC-SHA-256 for a key up to 64 bytes and a message up to 400 bytes. */
++static inline void mly_hmac(const uint8_t* key, size_t klen, const uint8_t* msg, size_t mlen, uint8_t out[32])
++{
++    uint8_t buf[64 + 400];
++    uint8_t inner[32];
++    uint8_t k[64];
++    memset(k, 0, sizeof(k));
++    if (klen > 64) klen = 64;
++    memcpy(k, key, klen);
++    if (mlen > 400) mlen = 400;
++    for (int i = 0; i < 64; i++) buf[i] = (uint8_t)(k[i] ^ 0x36);
++    memcpy(buf + 64, msg, mlen);
++    mly_sha256(buf, 64 + mlen, inner);
++    for (int i = 0; i < 64; i++) buf[i] = (uint8_t)(k[i] ^ 0x5c);
++    memcpy(buf + 64, inner, 32);
++    mly_sha256(buf, 64 + 32, out);
++    lk_wipe(buf, sizeof(buf));
++    lk_wipe(k, sizeof(k));
++}
++
++/* HKDF-SHA-256 (RFC 5869) for an output of at most 32 bytes; an empty salt is 32 zero bytes. info up to 120 bytes. */
++static inline void mly_hkdf(const uint8_t* ikm, size_t ilen, const uint8_t* salt, size_t slen, const uint8_t* info, size_t infolen, uint8_t* out, size_t olen)
++{
++    static const uint8_t zero[32] = {0};
++    uint8_t prk[32], t[120 + 1], block[32];
++    if (salt == NULL || slen == 0) {
++        salt = zero;
++        slen = 32;
++    }
++    if (infolen > 120) infolen = 120;
++    if (olen > 32) olen = 32;
++    mly_hmac(salt, slen, ikm, ilen, prk);
++    memcpy(t, info, infolen);
++    t[infolen] = 1;
++    mly_hmac(prk, 32, t, infolen + 1, block);
++    memcpy(out, block, olen);
++    lk_wipe(prk, sizeof(prk));
++    lk_wipe(block, sizeof(block));
++}
++
++/* c = SHA-256("mp-commit" || pk_h || pk_u || n_h) */
++static inline void mly_commit(const uint8_t pk_h[MLY_PK], const uint8_t pk_u[MLY_PK], const uint8_t n_h[MLY_NONCE], uint8_t out[32])
++{
++    uint8_t m[9 + MLY_PK + MLY_PK + MLY_NONCE];
++    memcpy(m, "mp-commit", 9);
++    memcpy(m + 9, pk_h, MLY_PK);
++    memcpy(m + 9 + MLY_PK, pk_u, MLY_PK);
++    memcpy(m + 9 + 2 * MLY_PK, n_h, MLY_NONCE);
++    mly_sha256(m, sizeof(m), out);
++}
++
++/* The six-digit code both screens show: uint32_be(SHA-256("mp-sas" || pk_u || pk_h || n_u || n_h)[0:4]) mod 10^6. */
++static inline uint32_t mly_sas(const uint8_t pk_u[MLY_PK], const uint8_t pk_h[MLY_PK], const uint8_t n_u[MLY_NONCE], const uint8_t n_h[MLY_NONCE])
++{
++    uint8_t m[6 + 2 * MLY_PK + 2 * MLY_NONCE], d[32];
++    memcpy(m, "mp-sas", 6);
++    memcpy(m + 6, pk_u, MLY_PK);
++    memcpy(m + 6 + MLY_PK, pk_h, MLY_PK);
++    memcpy(m + 6 + 2 * MLY_PK, n_u, MLY_NONCE);
++    memcpy(m + 6 + 2 * MLY_PK + MLY_NONCE, n_h, MLY_NONCE);
++    mly_sha256(m, sizeof(m), d);
++    const uint32_t v = ((uint32_t)d[0] << 24) | ((uint32_t)d[1] << 16) | ((uint32_t)d[2] << 8) | (uint32_t)d[3];
++    return v % 1000000u;
++}
++
++/* K = HKDF(z, salt = SHA-256(pk_u || pk_h || n_u || n_h), info = "maipai-stackchan-link-key-v2" 0x00 device_id), device_id already lower case. */
++static inline void mly_link_key(const uint8_t z[32], const uint8_t pk_u[MLY_PK], const uint8_t pk_h[MLY_PK], const uint8_t n_u[MLY_NONCE],
++                                const uint8_t n_h[MLY_NONCE], const char* device_id, uint8_t out[MLY_KEY])
++{
++    uint8_t cat[2 * MLY_PK + 2 * MLY_NONCE], salt[32], info[29 + 64];
++    memcpy(cat, pk_u, MLY_PK);
++    memcpy(cat + MLY_PK, pk_h, MLY_PK);
++    memcpy(cat + 2 * MLY_PK, n_u, MLY_NONCE);
++    memcpy(cat + 2 * MLY_PK + MLY_NONCE, n_h, MLY_NONCE);
++    mly_sha256(cat, sizeof(cat), salt);
++    size_t n = strlen(device_id);
++    if (n > 64) n = 64;
++    memcpy(info, "maipai-stackchan-link-key-v2", 28);
++    info[28] = 0;
++    memcpy(info + 29, device_id, n);
++    mly_hkdf(z, 32, salt, 32, info, 29 + n, out, MLY_KEY);
++}
++
++/* PSK = HKDF(K, empty salt, info = "maipai-stackchan-link-psk-v2" 0x00 identity), identity lower case. */
++static inline void mly_psk(const uint8_t k[MLY_KEY], const char* identity, uint8_t out[32])
++{
++    uint8_t info[29 + 64];
++    size_t n = strlen(identity);
++    if (n > 64) n = 64;
++    memcpy(info, "maipai-stackchan-link-psk-v2", 28);
++    info[28] = 0;
++    memcpy(info + 29, identity, n);
++    mly_hkdf(k, MLY_KEY, NULL, 0, info, 29 + n, out, 32);
++}
++
++#endif /* MAIPAI_LINKKEY_CORE_H */

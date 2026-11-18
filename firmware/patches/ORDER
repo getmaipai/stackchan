@@ -268,3 +268,5 @@ SF15-talk-over-mic3-step0.patch
 SF16-lock-fail-count-survives-restart.patch
 SF17-seek-stamps-read-long-past.patch
 SF18-barge-decisions-core.patch
+SF19-banner-cut-slider-save-timer-mute.patch
+SF20-link-key-schedule-core.patch

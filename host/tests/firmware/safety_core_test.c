@@ -12,6 +12,7 @@
 #include "maipai_fx_core.h"
 #include "maipai_face_track_core.h"
 #include "maipai_seek_core.h"
+#include "maipai_banner_core.h"
 #include "maipai_remote_core.h"
 #include "maipai_touch_core.h"
 #include "maipai_prefs_core.h"
@@ -222,6 +223,36 @@ static void test_seek_stamps(void)
     CHECK(ft_dt(LATE, 0u) > 1000000 && ft_dt(5000u, 3000u) == 2000);
 }
 
+static void test_banner_cut(void)
+{
+    char out[MB_TEXT_MAX];
+    char big[400];
+    /* a long message ends at a word with dots, never inside a word */
+    memset(big, 0, sizeof big);
+    for (int i = 0; i < 60; i++) strcat(big, "word ");
+    mb_copy_text(out, big);
+    CHECK(strlen(out) < MB_TEXT_MAX && strlen(out) >= 4);
+    CHECK(strcmp(out + strlen(out) - 3, "...") == 0);
+    CHECK(out[strlen(out) - 4] == 'd'); /* whole words only: "...word..." */
+    /* one long word is cut at a character, with dots */
+    memset(big, 'x', 300);
+    big[300] = 0;
+    mb_copy_text(out, big);
+    CHECK(strlen(out) == MB_TEXT_MAX - 1 && strcmp(out + strlen(out) - 3, "...") == 0);
+    /* an accented letter is never cut in half */
+    memset(big, 'x', 300);
+    big[300] = 0;
+    big[MB_TEXT_MAX - 5] = (char)0xC3;
+    big[MB_TEXT_MAX - 4] = (char)0xA9;
+    mb_copy_text(out, big);
+    for (const unsigned char* p = (const unsigned char*)out; *p; p++) {
+        if (*p == 0xC3) CHECK(*(p + 1) == 0xA9);
+    }
+    /* a message that fits is copied as it is */
+    mb_copy_text(out, "short words");
+    CHECK(strcmp(out, "short words") == 0);
+}
+
 static void test_remote(void)
 {
     /* a second heartbeat cannot swap the host id of a running session */
@@ -337,6 +368,7 @@ int main(void)
     test_stamps_late();
     test_remote();
     test_seek_stamps();
+    test_banner_cut();
     test_lockout_survives_a_restart();
     test_privacy_tap_and_cues();
     if (failures) {
