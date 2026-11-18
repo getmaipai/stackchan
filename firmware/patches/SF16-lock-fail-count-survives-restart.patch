@@ -1,0 +1,74 @@
+# Intent: The lock tools also keep the count of wrong codes across a restart (a third saved integer, tfails): four wrong codes, a restart and one more wrong code start the lockout.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_lock_core.h, maipai_lock.cc (ours)
+# Check after a flash: four wrong codes to self.lock.clear, self.reboot, then one more wrong code answers too_many on the next call.
+# Kconfig: CONFIG_MAIPAI_LOCK (existing)
+
+diff --git a/firmware/main/hal/maipai_lock_core.h b/firmware/main/hal/maipai_lock_core.h
+--- a/firmware/main/hal/maipai_lock_core.h
++++ b/firmware/main/hal/maipai_lock_core.h
+@@ -361,12 +361,14 @@ static inline void mlk_tool_note(mlk_t* s, uint32_t now, int reason)
+ typedef struct {
+     int strikes;
+     uint32_t block_ms; /* ms of lockout still to run, 0 when none */
++    int fails;         /* wrong codes sent since the last lockout or good code */
+ } mlk_tool_saved_t;
+ 
+ static inline void mlk_tool_save(const mlk_t* s, uint32_t now, mlk_tool_saved_t* out)
+ {
+     out->strikes = s->tool_strikes;
+     out->block_ms = mt_pending(now, s->tool_block_until_ms) ? (uint32_t)(s->tool_block_until_ms - now) : 0u;
++    out->fails = s->tool_fails;
+ }
+ 
+ /* After a restart the tools keep their strikes and a running lockout starts again for its full remaining time (a restart never shortens it).
+@@ -375,7 +377,7 @@ static inline void mlk_tool_restore(mlk_t* s, const mlk_tool_saved_t* saved, uin
+ {
+     const int st = saved->strikes;
+     s->tool_strikes = (uint8_t)(st < 0 ? 0 : (st > 250 ? 250 : st));
+-    s->tool_fails = s->tool_strikes > 0 ? (uint8_t)(LK_TOOL_MAX_FAILS - 1) : 0;
++    s->tool_fails = (uint8_t)(saved->fails < 0 ? 0 : (saved->fails >= LK_TOOL_MAX_FAILS ? LK_TOOL_MAX_FAILS - 1 : saved->fails));
+     s->tool_block_until_ms = saved->block_ms > 0 ? mt_stamp(now, saved->block_ms) : 0u;
+ }
+ 
+diff --git a/firmware/main/hal/maipai_lock.cc b/firmware/main/hal/maipai_lock.cc
+--- a/firmware/main/hal/maipai_lock.cc
++++ b/firmware/main/hal/maipai_lock.cc
+@@ -75,7 +75,7 @@ void publish_flags()  // s_mu held
+ void persist()
+ {
+     std::string salt, hash;
+-    int locked, auto_min, strikes, block_ms;
++    int locked, auto_min, strikes, block_ms, fails;
+     bool has;
+     {
+         std::lock_guard<std::mutex> lock(s_mu);
+@@ -90,9 +90,10 @@ void persist()
+         mlk_tool_save(&s_st, now_ms(), &tool_saved);
+         strikes = tool_saved.strikes;
+         block_ms = static_cast<int>(tool_saved.block_ms);
++        fails = tool_saved.fails;
+         has = s_st.has_code;
+     }
+-    Application::GetInstance().Schedule([salt, hash, locked, auto_min, strikes, block_ms, has]() {
++    Application::GetInstance().Schedule([salt, hash, locked, auto_min, strikes, block_ms, fails, has]() {
+         Settings st("mp_lock", true);
+         if (has) {
+             st.SetString("salt", salt);
+@@ -104,6 +105,7 @@ void persist()
+         st.SetInt("auto", auto_min);
+         st.SetInt("tstrikes", strikes);
+         st.SetInt("tblock", block_ms);
++        st.SetInt("tfails", fails);
+     });
+ }
+ 
+@@ -326,7 +328,7 @@ void maipai_lock_boot()
+         std::lock_guard<std::mutex> lock(s_mu);
+         mlk_load(&s_st, salt.c_str(), hash.c_str(), st.GetInt("locked", 0), st.GetInt("auto", 0), now_ms());
+         if (s_st.has_code) {
+-            const mlk_tool_saved_t saved = {st.GetInt("tstrikes", 0), static_cast<uint32_t>(st.GetInt("tblock", 0) < 0 ? 0 : st.GetInt("tblock", 0))};
++            const mlk_tool_saved_t saved = {st.GetInt("tstrikes", 0), static_cast<uint32_t>(st.GetInt("tblock", 0) < 0 ? 0 : st.GetInt("tblock", 0)), st.GetInt("tfails", 0)};
+             mlk_tool_restore(&s_st, &saved, now_ms());
+         }
+         publish_flags();

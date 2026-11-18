@@ -1,0 +1,291 @@
+# Intent: Talk-over step 0 (off by default, CONFIG_MAIPAI_TALK_OVER): the second input channel is MIC3, the speaker loopback, instead of MIC2, with its own gain (CONFIG_MAIPAI_MIC3_GAIN_DB), and a bench tool self.bench.mic3_check plays a 1 kHz tone and reports the tone level, the room level, the peak and the ratio for MIC1 and MIC3. Off, the build is the one without it (no code, no memory).
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc and .h, firmware/xiaozhi-esp32/main/audio/audio_service.cc (nested tree, MIT); firmware/main (ours)
+# Check after a flash: on a bench image built with the talkover overlay, self.bench.mic3_check answers a MIC3 tone amplitude far above its room rms and a peak under 30000; on the default image the tool does not exist.
+# Kconfig: CONFIG_MAIPAI_TALK_OVER (default n), CONFIG_MAIPAI_MIC3_GAIN_DB (default 12)
+
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -324,6 +324,21 @@ config MAIPAI_SERIAL_TOOLS
+         the cable. It reaches the same tool table the host uses. It needs the cable and nothing on the network can
+         reach it, but it is for bench checks: off in every shipped image, where no reader or driver is built.
+ 
++config MAIPAI_TALK_OVER
++    bool "Talk over the robot: read the speaker loopback microphone (MIC3)"
++    default n
++    help
++        First step of barge-in (patch SF15). The second input channel becomes MIC3 (the speaker loopback) instead of MIC2, and a bench
++        tool measures a tone on both channels. Off: the build is the one without it (MIC1 and MIC2), no code and no memory.
++
++config MAIPAI_MIC3_GAIN_DB
++    int "Gain of the MIC3 channel in dB (0 to 37)"
++    depends on MAIPAI_TALK_OVER
++    range 0 37
++    default 12
++    help
++        The speaker loopback reaches the codec through 150 kilo-ohm and 1 microfarad, so it is weak at the codec default.
++
+ config MAIPAI_MOOD
+     bool "Mood that depends on care, saved across days"
+     default y
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -736,6 +736,10 @@ void Hal::xiaozhi_mcp_init()
+     {   // bench only: speech clips into the microphone path (latency runs)
+         extern void maipai_bench_register_tools();
+         maipai_bench_register_tools();
++#if CONFIG_MAIPAI_TALK_OVER
++        extern void maipai_mic3_register_tools();  // patch SF15
++        maipai_mic3_register_tools();
++#endif
+     }
+ #endif
+ 
+diff --git a/firmware/main/hal/maipai_mic3_core.h b/firmware/main/hal/maipai_mic3_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_mic3_core.h
+@@ -0,0 +1,80 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Bench measurement of the speaker loopback microphone (patch SF15, talk-over step 0). Plain C99, no clock, no heap. The unit
++ * plays a tone while this listens on two interleaved channels (MIC1 and MIC3): per channel and per phase (0 quiet room, 1 tone)
++ * it keeps the energy, the peak and a Goertzel sum at the tone frequency. Host test: host/tests/firmware/mic3_core_test.c.
++ */
++#ifndef MAIPAI_MIC3_CORE_H
++#define MAIPAI_MIC3_CORE_H
++
++#include <math.h>
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++typedef struct {
++    float coeff;
++    uint8_t phase;
++    struct {
++        float s1, s2;     /* Goertzel state at the tone frequency */
++        double sum_sq;    /* energy */
++        uint32_t n;       /* frames */
++        int peak;         /* largest absolute sample */
++    } ch[2][2];           /* [phase][channel] */
++} m3_t;
++
++static inline void m3_begin(m3_t* m, float sample_rate, float tone_hz)
++{
++    memset(m, 0, sizeof(*m));
++    m->coeff = 2.0f * cosf(2.0f * 3.14159265f * tone_hz / sample_rate);
++}
++
++static inline void m3_set_phase(m3_t* m, int phase) { m->phase = (uint8_t)(phase ? 1 : 0); }
++
++/* interleaved: frames of `channels` samples; the first two channels are measured. */
++static inline void m3_feed(m3_t* m, const int16_t* interleaved, size_t frames, int channels)
++{
++    if (channels < 2) return;
++    for (size_t f = 0; f < frames; f++) {
++        for (int c = 0; c < 2; c++) {
++            const float x = (float)interleaved[f * (size_t)channels + (size_t)c];
++            __typeof__(m->ch[0][0])* s = &m->ch[m->phase][c];
++            const float s0 = x + m->coeff * s->s1 - s->s2;
++            s->s2 = s->s1;
++            s->s1 = s0;
++            s->sum_sq += (double)x * (double)x;
++            s->n++;
++            const int a = x < 0 ? -(int)x : (int)x;
++            if (a > s->peak) s->peak = a;
++        }
++    }
++}
++
++static inline float m3_rms(const m3_t* m, int phase, int ch)
++{
++    const uint32_t n = m->ch[phase][ch].n;
++    return n ? (float)sqrt(m->ch[phase][ch].sum_sq / (double)n) : 0.0f;
++}
++
++/* Amplitude of the tone frequency in the channel (same units as the samples). */
++static inline float m3_tone_amp(const m3_t* m, int phase, int ch)
++{
++    const float n = (float)m->ch[phase][ch].n;
++    if (n < 1.0f) return 0.0f;
++    const float p = m->ch[phase][ch].s1 * m->ch[phase][ch].s1 + m->ch[phase][ch].s2 * m->ch[phase][ch].s2 -
++                    m->coeff * m->ch[phase][ch].s1 * m->ch[phase][ch].s2;
++    return 2.0f * sqrtf(p > 0.0f ? p : 0.0f) / n;
++}
++
++static inline int m3_peak(const m3_t* m, int phase, int ch) { return m->ch[phase][ch].peak; }
++
++/* Tone level against the quiet room in dB for a channel (the room's own level at that frequency is taken from its rms). */
++static inline float m3_snr_db(const m3_t* m, int ch)
++{
++    const float room = m3_rms(m, 0, ch) + 1.0f;
++    const float tone = m3_tone_amp(m, 1, ch) * 0.7071f + 1e-3f;
++    return 20.0f * log10f(tone / room);
++}
++
++#endif /* MAIPAI_MIC3_CORE_H */
+diff --git a/firmware/main/hal/maipai_mic3.cc b/firmware/main/hal/maipai_mic3.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_mic3.cc
+@@ -0,0 +1,79 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Patch SF15 (bench builds with CONFIG_MAIPAI_TALK_OVER): self.bench.mic3_check plays a 1 kHz tone through the speaker for two seconds
++ * and reports its level on both input channels (MIC1 and MIC3), measured against the quiet room just before. Logic: maipai_mic3_core.h.
++ */
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_SERIAL_TOOLS && CONFIG_MAIPAI_TALK_OVER
++#include "maipai_mic3_core.h"
++#include <application.h>
++#include <mcp_server.h>
++#include <esp_heap_caps.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
++#include <atomic>
++#include <cstdio>
++#include <mutex>
++
++extern void maipai_mic3_set_gain_db(int db);
++
++namespace {
++std::mutex s_mu;
++m3_t s_m3;
++std::atomic<bool> s_on{false};
++}  // namespace
++
++// Called with every block of interleaved 16 kHz input.
++void maipai_mic3_tap(const int16_t* interleaved, size_t count, int channels)
++{
++    if (!s_on.load(std::memory_order_relaxed) || channels < 2) return;
++    std::lock_guard<std::mutex> lock(s_mu);
++    m3_feed(&s_m3, interleaved, count / static_cast<size_t>(channels), channels);
++}
++
++void maipai_mic3_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.bench.mic3_check",
++                "Bench only: plays a 1 kHz tone for two seconds (volume 0 to 100 of the speaker) and reports, for MIC1 and MIC3, the tone amplitude, "
++                "the rms of the quiet room before it, the peak and the tone to room ratio in dB. gain_db sets the MIC3 gain first (-1 keeps it). "
++                "MIC3 is real when its tone amplitude is far above the room and its peak stays under 30000.",
++                PropertyList({Property("volume", kPropertyTypeInteger, 60, 0, 100), Property("gain_db", kPropertyTypeInteger, -1, -1, 37)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const int gain = properties["gain_db"].value<int>();
++                    if (gain >= 0) maipai_mic3_set_gain_db(gain);
++                    constexpr int kRate = 16000;
++                    constexpr int kSeconds = 2;
++                    auto* pcm = static_cast<int16_t*>(heap_caps_malloc(sizeof(int16_t) * kRate * kSeconds, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++                    if (pcm == nullptr) return std::string("{\"ok\":false,\"reason\":\"memory\"}");
++                    for (int i = 0; i < kRate * kSeconds; i++) {
++                        pcm[i] = static_cast<int16_t>(12000.0f * sinf(2.0f * 3.14159265f * 1000.0f * static_cast<float>(i) / kRate));
++                    }
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        m3_begin(&s_m3, kRate, 1000.0f);
++                        m3_set_phase(&s_m3, 0);
++                    }
++                    s_on.store(true);
++                    vTaskDelay(pdMS_TO_TICKS(600));  // the quiet room
++                    {
++                        std::lock_guard<std::mutex> lock(s_mu);
++                        m3_set_phase(&s_m3, 1);
++                    }
++                    Application::GetInstance().GetAudioService().PlayPcm(pcm, kRate * kSeconds, kRate);
++                    vTaskDelay(pdMS_TO_TICKS(2300));
++                    s_on.store(false);
++                    heap_caps_free(pcm);
++                    char out[360];
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    std::snprintf(out, sizeof(out),
++                                  "{\"ok\":true,\"mic1\":{\"tone\":%.0f,\"room_rms\":%.1f,\"peak\":%d,\"snr_db\":%.1f},"
++                                  "\"mic3\":{\"tone\":%.0f,\"room_rms\":%.1f,\"peak\":%d,\"snr_db\":%.1f}}",
++                                  m3_tone_amp(&s_m3, 1, 0), m3_rms(&s_m3, 0, 0), m3_peak(&s_m3, 1, 0), m3_snr_db(&s_m3, 0),
++                                  m3_tone_amp(&s_m3, 1, 1), m3_rms(&s_m3, 0, 1), m3_peak(&s_m3, 1, 1), m3_snr_db(&s_m3, 1));
++                    return std::string(out);
++                });
++}
++#endif
+diff --git a/firmware/xiaozhi-esp32/main/audio/audio_service.cc b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+--- a/firmware/xiaozhi-esp32/main/audio/audio_service.cc
++++ b/firmware/xiaozhi-esp32/main/audio/audio_service.cc
+@@ -235,6 +235,9 @@ void maipai_speech_tap(const int16_t* samples, size_t count);
+ #ifdef CONFIG_MAIPAI_SERIAL_TOOLS
+ void maipai_bench_inject(std::vector<int16_t>& data, int channels);  // hal/maipai_bench.cc
+ #endif
++#if defined(CONFIG_MAIPAI_SERIAL_TOOLS) && defined(CONFIG_MAIPAI_TALK_OVER)
++void maipai_mic3_tap(const int16_t* interleaved, size_t count, int channels);  // hal/maipai_mic3.cc (patch SF15)
++#endif
+ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples) {
+     if (maipai_mic_blocked()) {
+         // Muted or in full quiet (patch 107): nothing reads the microphone and nothing is fed to the wake word.
+@@ -298,6 +301,9 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
+     debug_statistics_.input_count++;
+ #ifdef CONFIG_MAIPAI_SERIAL_TOOLS
+     maipai_bench_inject(data, codec_->input_channels());
++#if defined(CONFIG_MAIPAI_SERIAL_TOOLS) && defined(CONFIG_MAIPAI_TALK_OVER)
++    maipai_mic3_tap(data.data(), data.size(), codec_->input_channels());
++#endif
+     {   // bench: loudest sample per second, logged only when something is heard (peak 150 of 32768)
+         static int s_peak = 0;
+         static int64_t s_t0 = 0;
+diff --git a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
+--- a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
++++ b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
+@@ -281,10 +281,19 @@ void CoreS3AudioCodec::EnableInput(bool enable) {
+             .mclk_multiple = 0,
+         };
+         if (input_reference_) {
++#if CONFIG_MAIPAI_TALK_OVER
++            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(2);  // patch SF15: the second channel is MIC3, the speaker loopback
++#else
+             fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
++#endif
+         }
+         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
+         ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), input_gain_));
++#if CONFIG_MAIPAI_TALK_OVER
++        if (input_reference_) {
++            esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(2), static_cast<float>(CONFIG_MAIPAI_MIC3_GAIN_DB));
++        }
++#endif
+     } else {
+         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
+     }
+@@ -350,3 +359,19 @@ int CoreS3AudioCodec::Write(const int16_t* data, int samples) {
+     }
+     return written;
+ }
++
++#if CONFIG_MAIPAI_TALK_OVER
++// Patch SF15 (bench): a new MIC3 gain while the input is open.
++void maipai_mic3_set_gain_db(int db) {
++    auto* codec = CoreS3AudioCodec::Instance();
++    if (codec != nullptr) {
++        codec->SetMic3GainDb(static_cast<float>(db));
++    }
++}
++
++void CoreS3AudioCodec::SetMic3GainDb(float db) {
++    if (input_enabled_ && input_dev_ != nullptr) {
++        esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(2), db);
++    }
++}
++#endif
+diff --git a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h
+--- a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h
++++ b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h
+@@ -39,6 +39,7 @@ public:
+     // the idle timer), reads them back and fills `regs` (if given) with "47:ff,...". True only when the
+     // read-back matches what a powered-down chip shows.
+     static CoreS3AudioCodec* Instance();
++    void SetMic3GainDb(float db);  // patch SF15 (CONFIG_MAIPAI_TALK_OVER, bench)
+     bool MaipaiMicOff(char* regs, size_t regs_size);
+ };
+ 

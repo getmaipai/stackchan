@@ -119,7 +119,7 @@ static void test_lock(void)
         mlk_t r;
         mlk_init(&r);
         mlk_set(&r, "1234", NULL, salt);
-        const mlk_tool_saved_t two = {2, 0};
+        const mlk_tool_saved_t two = {2, 0, LK_TOOL_MAX_FAILS - 1};
         mlk_tool_restore(&r, &two, 100); /* after a restart */
         mlk_tool_note(&r, 500, MLK_R_WRONG_CURRENT);
         CHECK(mlk_tool_open(&r, 600) == MLK_R_TOO_MANY); /* one wrong code is enough */
@@ -267,11 +267,28 @@ static void test_lockout_survives_a_restart(void)
     mlk_t b;
     mlk_init(&b);
     CHECK(mlk_set(&b, "4321", NULL, salt) == MLK_R_OK);
-    const mlk_tool_saved_t saved = {nvs_strikes, (uint32_t)nvs_block};
+    const mlk_tool_saved_t saved = {nvs_strikes, (uint32_t)nvs_block, 0};
     mlk_tool_restore(&b, &saved, 3000);
     CHECK(mlk_tool_open(&b, 3500) == MLK_R_TOO_MANY); /* the correct code is still refused by the tools */
     CHECK(mlk_tool_open(&b, 3000 + (uint32_t)nvs_block - 100) == MLK_R_TOO_MANY);
     CHECK(mlk_tool_open(&b, 3000 + (uint32_t)nvs_block + 100) == MLK_R_OK);
+    /* four wrong codes, a restart, one more wrong code: the lockout starts */
+    {
+        mlk_t d;
+        mlk_init(&d);
+        mlk_set(&d, "4321", NULL, salt);
+        for (int i = 0; i < LK_TOOL_MAX_FAILS - 1; i++) mlk_tool_note(&d, 1000, MLK_R_WRONG_CURRENT);
+        mlk_tool_saved_t sv;
+        mlk_tool_save(&d, 1000, &sv);
+        CHECK(sv.fails == LK_TOOL_MAX_FAILS - 1 && sv.strikes == 0);
+        mlk_t e;
+        mlk_init(&e);
+        mlk_set(&e, "4321", NULL, salt);
+        mlk_tool_restore(&e, &sv, 50);
+        CHECK(mlk_tool_open(&e, 60) == MLK_R_OK);
+        mlk_tool_note(&e, 60, MLK_R_WRONG_CURRENT);
+        CHECK(mlk_tool_open(&e, 70) == MLK_R_TOO_MANY);
+    }
     /* and past 24.9 days of uptime after that restart */
     mlk_t c;
     mlk_init(&c);

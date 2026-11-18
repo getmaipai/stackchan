@@ -264,3 +264,5 @@ SF11-core-dump-find-timer-filler-leaks.patch
 SF12-listen-ended-event.patch
 SF13-lock-lockout-survives-restart.patch
 SF14-offline-dance-rest-cap.patch
+SF15-talk-over-mic3-step0.patch
+SF16-lock-fail-count-survives-restart.patch

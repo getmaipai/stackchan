@@ -168,7 +168,6 @@ int main(void)
 """
 
 
-@bug
 @pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler on this machine")
 def test_a_restart_does_not_reset_the_count_of_wrong_codes_at_four(tmp_path, tmp_path_factory):
     """Owner: firmware track (SF08, SF13). mlk_tool_save keeps the strikes and the running lockout but not tool_fails, so four wrong

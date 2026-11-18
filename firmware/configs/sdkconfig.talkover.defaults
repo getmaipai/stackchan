@@ -1,0 +1,3 @@
+# Talk-over step 0 (patch SF15): MIC3 is the second input channel and the bench tool self.bench.mic3_check exists. Bench builds only.
+CONFIG_MAIPAI_TALK_OVER=y
+CONFIG_MAIPAI_MIC3_GAIN_DB=12
