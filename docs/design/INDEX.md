@@ -28,7 +28,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/consolidation-2026-11-16.md` (79): One consolidated image, 2026-11-16
 - `docs/design/core-extras-modules.md` (35): Host modules: core or extras
 - `docs/design/dance-ladder-2026-11-17.md` (53): Music dance ladder and the movement limiter, 2026-11-17
-- `docs/design/decisions.md` (101): Owner decisions and corrections
+- `docs/design/decisions.md` (102): Owner decisions and corrections
 - `docs/design/egress-audit.md` (39): Firmware egress audit
 - `docs/design/egress-proof-2026-11-15.md` (30): Egress proof attempt, 2026-11-15
 - `docs/design/encrypted-link.md` (66): Encrypted link between the unit and the host
@@ -130,7 +130,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (82): no header
-- `docs/dev/feature-ledger.md` (1006): Feature ledger
+- `docs/dev/feature-ledger.md` (1039): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -140,7 +140,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/head-speed-real-time-clock.md` (7): Head moves are about twice as fast as before (2026-11-18)
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
-- `docs/dev/memory-budget.md` (140): Memory budget of the optional features (owner decision 11, 2026-11-18)
+- `docs/dev/memory-budget.md` (179): Memory budget of the optional features (owner decision 11, 2026-11-18)
 - `docs/dev/model-previews/joints.gif` (1654): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
@@ -194,6 +194,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/translation-review/it.csv` (984): no header
 - `docs/dev/translation-review/pt.csv` (984): no header
 - `docs/dev/translation-review/status.json` (32): no header
+- `docs/dev/unit-choices-audit.md` (155): Unit choices audit (decision 20 of 2026-11-18)
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
 - `docs/dev/virtual-unit-3d.md` (60): The 3D virtual unit: body, power, axes
@@ -384,6 +385,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/configs/sdkconfig.avatar.defaults` (2): Build kind "avatar": the bench image with the encrypted link and the camera frames to the host (self.avatar.st
 - `firmware/configs/sdkconfig.bench.defaults` (3): no header
 - `firmware/configs/sdkconfig.cam640.defaults` (3): Build kind "cam640": the bench image with the camera at 640 by 480 (YUYV, about 16 frames a second) instead of
+- `firmware/configs/sdkconfig.full.defaults` (7): Build kind "full": every optional module compiled in and no bench tools: the size and static RAM of the one-im
 - `firmware/configs/sdkconfig.gate.defaults` (2): Gate and soak builds only (not committed as a product setting): the memory line at WARN every 10 seconds.
 - `firmware/configs/sdkconfig.heaptrace.defaults` (3): Build kind "heap" (bench plus a live-allocation trace from boot: self.bench.heap_trace). Costs about 40 KB of 
 - `firmware/configs/sdkconfig.linkpsk.defaults` (3): Encrypted link, step 1 (patch SF21): the curve calls and key storage with the bench check self.bench.link_self
@@ -2361,7 +2363,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
 - `scripts/fuzz/core_fuzz.c` (333): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
-- `scripts/fw-build.sh` (50): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
+- `scripts/fw-build.sh` (51): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).
 - `scripts/fw-detect-bench.py` (357): Measurement script for the on-unit face detector experiment (firmware patches FD01 to FD04, bench image only).
 - `scripts/fw-env.sh` (29): one place that sets up ESP-IDF 6.1 for firmware builds. Usage: `source scripts/fw-env.sh`, then `idf.py ...`.

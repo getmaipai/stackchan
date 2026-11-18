@@ -988,7 +988,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 
 ## Decisions
 
-The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 7 in progress, 5 not started.
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 7 in progress, 6 not started.
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
@@ -1012,6 +1012,7 @@ The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a stat
 | 18 | **More languages, and a first screen anyone can read** | not started |  |
 | 19 | **Image profiles, only if the budget proves they are needed (owner, 2026-11-18; narrowed by decision 20)** | not started |  |
 | 20 | **Offer a choice only when it is needed** | not started |  |
+| 21 | **The local playground runs a simulation or a real robot** | not started |  |
 
 ## Scrapped (9)
 
