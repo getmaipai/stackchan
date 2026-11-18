@@ -8,6 +8,7 @@
 ```
 python3 scripts/virtual-unit/model/make_body.py        # writes stackchan.glb and stackchan.params.json (byte-identical every run)
 python3 scripts/virtual-unit/model/render_previews.py  # writes docs/dev/model-previews/*.png and joints.gif (about 45 s)
+bash scripts/virtual-unit/model/validate.sh             # Khronos glTF validator, pinned, run locally (needs node; development only)
 ```
 
 Standard library only. `softrender.py` is the small software renderer and STL reader both scripts use.
@@ -49,3 +50,4 @@ The joint limits are the firmware servo layer's hard limits (`firmware/main/hal/
 
 `docs/dev/model-previews/`: front, rear, left, right, top, three-quarter and rear three-quarter views, a joint contact sheet
 (yaw min, center, max; pitch min, middle, max) and `joints.gif`, all drawn from the glb through its joints.
+The `view-*.png` files there are screenshots of the browser view (`view.py`) drawing the same model: the same sides, both joints at their limits, the lights on and the screen off.

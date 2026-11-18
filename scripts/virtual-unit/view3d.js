@@ -54,15 +54,17 @@ function initRobot(THREE, canvas, hooks) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x15181d);
   const cam = new THREE.PerspectiveCamera(35, 1, 0.1, 200);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 0.6));
-  const key = new THREE.DirectionalLight(0xffffff, 0.5); key.position.set(8, 14, 12); scene.add(key);
-  const rim = new THREE.DirectionalLight(0x88aaff, 0.4); rim.position.set(-9, 6, -10); scene.add(rim);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x50565e, 0.5));
+  const key = new THREE.DirectionalLight(0xffffff, 0.4); key.position.set(8, 14, 12); scene.add(key);
+  const rim = new THREE.DirectionalLight(0xdde6ff, 0.35); rim.position.set(-9, 6, -10); scene.add(rim);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.25); fill.position.set(-10, 4, 9); scene.add(fill);
+  const back = new THREE.DirectionalLight(0xffffff, 0.25); back.position.set(10, 5, -9); scene.add(back);
 
   const robot = new THREE.Group(); scene.add(robot);
   // table
   const table = new THREE.Mesh(new THREE.CircleGeometry(16, 64), new THREE.MeshStandardMaterial({color: 0x1b2027, roughness: 1}));
   table.rotation.x = -Math.PI / 2; scene.add(table);
-  const grid = new THREE.GridHelper(32, 32, 0x2a323d, 0x222932); grid.position.y = -0.01; scene.add(grid);
+  const grid = new THREE.GridHelper(32, 32, 0x2a323d, 0x222932); grid.position.y = 0.012; scene.add(grid);
 
   // ---- the body: filled in when the model file arrives
   const tex = new THREE.Texture(); tex.minFilter = THREE.LinearFilter; tex.flipY = false;   // the model's screen UV has 0,0 at the top left
@@ -95,7 +97,7 @@ function initRobot(THREE, canvas, hooks) {
       m.material = new THREE.MeshBasicMaterial({color: 0x222222}); M.leds.push(m);
     }
     // click targets: the port on the back of the base and the power button on the head, each with a bigger unseen target (sizes in meters)
-    M.button = N.power_button.children.find(c => c.isMesh); M.button.material = M.button.material.clone();
+    M.button = N.power_button.children.find(c => c.isMesh); M.button.material = M.button.material.clone(); M.buttonOff = M.button.material.color.clone();
     M.portHit = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.010, 0.010), new THREE.MeshBasicMaterial({visible: false})); N.usb_c_port.add(M.portHit);
     M.btnHit = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 8), new THREE.MeshBasicMaterial({visible: false})); N.power_button.add(M.btnHit);
     // the cable into the port, and the charge light beside it
@@ -148,15 +150,15 @@ function initRobot(THREE, canvas, hooks) {
 
   // ---- the orbit camera
   const target = new THREE.Vector3(0, 3.5, 0);
-  const view = {az: 0.55, el: 0.35, dist: 22};
-  const HOME = {az: 0.55, el: 0.35, dist: 22};
+  const view = {az: 0.55, el: 0.35, dist: 17};
+  const HOME = {az: 0.55, el: 0.35, dist: 17};
   function placeCam() {
     const ce = Math.cos(view.el);
     cam.position.set(target.x + view.dist * ce * Math.sin(view.az), target.y + view.dist * Math.sin(view.el), target.z + view.dist * ce * Math.cos(view.az));
     cam.lookAt(target);
   }
   const preset = (az, el, dist) => { Object.assign(view, {az, el, dist: dist || HOME.dist}); };
-  hooks.presets = {reset: () => preset(HOME.az, HOME.el, HOME.dist), front: () => preset(0, 0.05, 20), side: () => preset(Math.PI / 2, 0.05, 20), back: () => preset(Math.PI - 0.5, 0.25, 20), top: () => preset(0, 1.5, 24)};
+  hooks.presets = {reset: () => preset(HOME.az, HOME.el, HOME.dist), front: () => preset(0, 0.05, 16), side: () => preset(Math.PI / 2, 0.05, 16), back: () => preset(Math.PI - 0.5, 0.25, 16), top: () => preset(0, 1.5, 19)};
   function size() {
     const w = cv.clientWidth || 1, h = cv.clientHeight || 1; r.setSize(w, h, false); cam.aspect = w / h;
     cam.fov = w / h < 0.9 ? 52 : 35; cam.updateProjectionMatrix();
@@ -178,7 +180,8 @@ function initRobot(THREE, canvas, hooks) {
   }
   const pointers = new Map(); let drag = null, pinch0 = 0;
   cv.addEventListener('pointerdown', e => {
-    cv.setPointerCapture(e.pointerId); pointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* a scripted pointer has nothing to capture */ }
+    pointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
     if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); drag = {mode: 'pinch', d0: view.dist}; return; }
     if (e.shiftKey && hooks.physicsOn() && pick(e, M.headMeshes)) { drag = {mode: 'push', sx: e.clientX, sy: e.clientY}; return; }
     const p = panelXY(e);
@@ -245,10 +248,13 @@ function initRobot(THREE, canvas, hooks) {
       if (yawPointer) yawPointer.position.copy(yawPoint(cy, yawArcR));
       if (pitchPointer) { const p = pitchPointer.userData.pp(cp, pitchArcR); pitchPointer.position.copy(p); }
       const on = st.hw.on, leds = st.leds || [];
-      M.leds.forEach((m, i) => { const c = on && leds[i] ? leds[i] : [0, 0, 0]; m.material.color.setRGB(Math.max(0.12, c[0] / 255), Math.max(0.14, c[1] / 255), Math.max(0.15, c[2] / 255)); });
+      M.leds.forEach((m, i) => {   // an unlit light shows the bar's own frosted teal
+        const c = on && leds[i] ? leds[i] : [0, 0, 0];
+        if (c[0] + c[1] + c[2] === 0) m.material.color.setRGB(0.30, 0.46, 0.47); else m.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255);
+      });
       cable.visible = st.hw.usb;
       chargeLed.material.color.set(st.hw.usb ? (st.hw.charging ? 0xffb020 : 0x46be6e) : 0x222222);
-      M.button.material.emissive.set(on ? 0x1f7a3c : 0x000000);
+      M.button.material.color.copy(M.buttonOff); if (on) M.button.material.color.lerp(new THREE.Color(0x58d68d), 0.2);   // a green tint while the unit is on
       M.screen.material.color.set(on ? 0xffffff : 0x000000);
     },
     setPhysicsPose(pose) { this.phys = {pose, at: performance.now()}; },
