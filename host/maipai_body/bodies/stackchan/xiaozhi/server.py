@@ -11,6 +11,7 @@ import logging
 import re
 import ssl
 import threading
+import secrets
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -420,6 +421,7 @@ class XiaozhiServer:
         self._session_ids: dict[str, str] = {}
         self._session_features: dict[str, dict[str, Any]] = {}
         self._session_credentials: dict[str, tuple[str, str]] = {}
+        self._tickets: dict[str, tuple[str, float]] = {}  # web-port ticket -> (device id, expiry)
         self._session_info: dict[str, tuple[str | None, float]] = {}
         self._pending_device_calls: dict[str, tuple[asyncio.Future[object], str, str]] = {}
         self._early_device_replies: dict[str, dict[str, Any]] = {}
@@ -764,6 +766,7 @@ class XiaozhiServer:
                     self.link.note_disconnected(device_id)
                 self._sessions.pop(device_id, None)
                 self._session_credentials.pop(device_id, None)
+                self.end_tickets(device_id)
                 self._session_info.pop(device_id, None)
                 self._session_features.pop(device_id, None)
                 self._session_ids.pop(device_id, None)
@@ -819,7 +822,7 @@ class XiaozhiServer:
             device_id = next((key for key, active in self._sessions.items() if active is ws), None)
             if device_id is None:
                 return
-            token = self._session_credentials[device_id][1]
+            token = self.issue_ticket(device_id)  # never the long-lived pairing token
             url = self._vision_url(device_id)
             await self._json(
                 ws,
@@ -840,6 +843,24 @@ class XiaozhiServer:
                     }
                 },
             )
+
+    TICKET_TTL_S = 12 * 3600.0
+
+    def issue_ticket(self, device_id: str) -> str:
+        """A random token for the unit's web-port calls (photos, notify audio, firmware). It is
+        not the pairing token, works for this unit only and ends with the session."""
+        now = time.monotonic()
+        self._tickets = {k: v for k, v in self._tickets.items() if v[1] > now}
+        ticket = secrets.token_urlsafe(24)
+        self._tickets[ticket] = (device_id, now + self.TICKET_TTL_S)
+        return ticket
+
+    def ticket_ok(self, device_id: str, ticket: str | None) -> bool:
+        entry = self._tickets.get(ticket or "")
+        return bool(entry and entry[0] == device_id and entry[1] > time.monotonic())
+
+    def end_tickets(self, device_id: str) -> None:
+        self._tickets = {k: v for k, v in self._tickets.items() if v[0] != device_id}
 
     def _http_root(self, device_id: str) -> str:
         """The web address root told to a unit: the encrypted port when the unit is on the
@@ -1016,7 +1037,9 @@ class XiaozhiServer:
         token = auth[7:] if auth.startswith("Bearer ") else request.query.get("token")
         if credentials is None or not self.pairing.authorize(device_id, *credentials):
             raise web.HTTPUnauthorized()
-        if token is None or not self.pairing.authorize(device_id, credentials[0], token):
+        if token is None or not (
+            self.ticket_ok(device_id, token) or self.pairing.authorize(device_id, credentials[0], token)
+        ):
             raise web.HTTPForbidden()
         if request.content_length is not None and request.content_length > self.max_photo_bytes:
             raise web.HTTPRequestEntityTooLarge(
@@ -1500,7 +1523,9 @@ class XiaozhiServer:
         if credentials is None or not self.pairing.authorize(device_id, *credentials):
             raise web.HTTPUnauthorized()
         token = auth[7:] if auth.startswith("Bearer ") else ""
-        if not self.pairing.authorize(device_id, credentials[0], token):
+        if not (
+            self.ticket_ok(device_id, token) or self.pairing.authorize(device_id, credentials[0], token)
+        ):
             raise web.HTTPForbidden()
         audio = self._notification_audio.pop((device_id, audio_id), None)
         if audio is None:
