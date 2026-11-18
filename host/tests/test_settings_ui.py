@@ -394,3 +394,32 @@ def test_the_page_script_has_the_turn_toward_faces_card_and_its_words_in_every_l
     for code in i18n.SUPPORTED:
         for key in ("look.title", "look.mode", "look.owner", "turn_to_faces.talk", "face_owner.hub"):
             assert f"settings.ui.pol.{key}" in i18n.CATALOG[code], (code, key)
+
+
+def _look_script() -> str:
+    page = render_page("en").decode()
+    found = re.search(r"<script>([\s\S]*)</script>", page)
+    assert found is not None
+    return found.group(1)
+
+
+def test_the_saved_light_ring_color_selects_its_swatch() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    script = _look_script()
+    pal = re.search(r"^const PAL=\{.*\};$", script, re.M)
+    assert pal is not None and "const ledName=" in script
+    helper = re.search(r"^const ledName=.*;$", script, re.M)
+    probe = f"{pal.group(0)}\n{helper.group(0)}\nconsole.log(JSON.stringify([ledName('#ffbf47'),ledName('#FFBF47'),ledName('off'),ledName('#123456')]))"
+    out = subprocess.run([node, "-e", probe], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert json.loads(out.stdout) == ["amber", "amber", "off", "off"]
+    assert "ledName(sv.led)" in script
+
+
+def test_every_look_card_the_page_builds_is_placed() -> None:
+    """Seven cards come from lookCards; the layout used to drop the look packs card and the overlay card."""
+    script = _look_script()
+    for index in range(7):
+        assert f"pol.cards[{index}]" in script, f"look card {index} is built and never shown"

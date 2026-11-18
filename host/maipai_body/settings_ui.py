@@ -226,6 +226,7 @@ function loading(el){el.append(h('div',{class:'empty'},'...'))}
 
 /* ---- the face drawing: same shapes as the unit's styles (320 by 240 screen) ---- */
 const PAL={none:'#f4f4f4',mint:'#5fe0b5',sky:'#6cc3ff',amber:'#ffbf47',rose:'#ff8fa3',lilac:'#b48cff',lime:'#b9e65c',coral:'#ff7a5c'};
+const ledName=v=>Object.keys(PAL).find(k=>k!=='none'&&PAL[k]===String(v).toLowerCase())||'off';
 const colorOf=c=>PAL[c]||(/^#[0-9a-f]{6}$/i.test(c)?c:PAL.none);
 /*__FACE_SHAPES__*/
 /* the stock skin as shipped: its own look rows from the table of the core (the other styles are the shape model above) */
@@ -573,11 +574,11 @@ BUILDERS.look=async(p,u)=>{
  const dv=await api(unitPath(id,'overview'));const sv=dv.ok?dv.d.saved:{brightness:100,led:'off'};
  const bright=card(T('look.brightness'),T('look.brightness_help'),slider(T('look.brightness'),10,100,5,sv.brightness,x=>x+'%',null,x=>save(unitPath(id,'device'),{brightness:x}),[ '10%','100%']),
   toggle(T('look.auto'),dv.ok&&dv.d.light!=null?T('home.room_light')+': '+Math.round(dv.d.light)+' lux':null,false,()=>false,true),toggle(T('look.night_dim'),null,false,()=>false,true));
- const ledSw=swatches(T('look.led'),['off','mint','sky','amber','rose','lilac','lime','coral'],/^#/.test(sv.led)?'off':sv.led,async n=>{const hex=n==='off'?'off':PAL[n];return (await save(unitPath(id,'device'),{led:hex})).ok},false);
+ const ledSw=swatches(T('look.led'),['off','mint','sky','amber','rose','lilac','lime','coral'],ledName(sv.led),async n=>{const hex=n==='off'?'off':PAL[n];return (await save(unitPath(id,'device'),{led:hex})).ok},false);
  ledSw.querySelector('[data-v=off]').classList.add('none');ledSw.querySelector('[data-v=off]').title=T('look.led_off');ledSw.querySelector('[data-v=off]').setAttribute('aria-label',T('look.led_off'));
  const led=card(T('look.led'),T('look.led_help'),ledSw,slider(T('look.led_bright'),10,100,5,100,x=>x+'%',null,null,null,true));
  refresh();const pol=await lookCards(id,u,v,has,face);
- p.append(h('div',{class:'two'},h('div',{class:'stack sticky'},pv,...banners),h('div',{class:'stack'},look,pol.cards[2],color,bgcard,tintcard,pol.cards[0],pol.cards[1],pol.cards[3],pol.cards[6],caps,tod,bright,led,card(null,null,reset))));
+ p.append(h('div',{class:'two'},h('div',{class:'stack sticky'},pv,...banners),h('div',{class:'stack'},look,pol.cards[2],color,bgcard,tintcard,pol.cards[0],pol.cards[1],pol.cards[3],pol.cards[4],pol.cards[5],pol.cards[6],caps,tod,bright,led,card(null,null,reset))));
  const pics=picSection(u.device_id);p.append(h('div',{class:'stack',style:'margin-top:18px'},pics))};
 
 /* ---- VOICE AND SOUND ---- */
