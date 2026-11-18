@@ -1,0 +1,2 @@
+# Build kind "avatar": the bench image with the encrypted link and the camera frames to the host (self.avatar.status).
+CONFIG_MAIPAI_AVATAR_TO_HOST=y

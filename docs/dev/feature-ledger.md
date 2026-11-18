@@ -1,13 +1,13 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 775. How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89.
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 776. How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 1 | 16 | 18 | 217 | 8 | 51 | 311 | 65 |
-| Maker and tech | 0 | 0 | 60 | 346 | 58 | 0 | 464 | 70 |
+| Maker and tech | 0 | 0 | 60 | 347 | 58 | 0 | 465 | 70 |
 
 ## Everyday user
 
@@ -800,7 +800,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Package: memory_notes** | Local memory for several adults as plain per-person notes files. | proven virtual | 70 | `host/maipai_packages/memory_notes` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (63)
+### Scripts and tools (64)
 
 | Feature | What it does | Status | % | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|
@@ -812,6 +812,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Script: docs-claims-check.py** | check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: tool names in backticks exist in schema/tools.json, MAIPAI_ names exist in firmware or ho... | built | 40 | `scripts/docs-claims-check.py` | file exists | doc missing |
 | **Script: docs-grade.py** | Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences. | built | 40 | `scripts/docs-grade.py` | file exists | doc missing |
 | **Script: e2e-flake-hunt.sh** | find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. | built | 40 | `scripts/e2e-flake-hunt.sh` | file exists | doc missing |
+| **Script: efuse-check.py** | owner decision 14 (2026-11-18): nothing in this project ever burns an eFuse (irreversible): no secure boot key, no flash or NVS encryption key | proven virtual | 70 | `scripts/efuse-check.py` | file exists, a test names it | doc missing |
 | **Script: feature-ledger.py** | The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's), with a status and a percent worked out from evidence in the repository. | proven virtual | 70 | `scripts/feature-ledger.py` | file exists, a test names it | doc missing |
 | **Script: fuzz-cores.sh** | fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavior sanitizers. | proven virtual | 70 | `scripts/fuzz-cores.sh` | file exists, a test names it | doc missing |
 | **Script: fw-bench-clips.py** | make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c. | built | 40 | `scripts/fw-bench-clips.py` | file exists | doc missing |

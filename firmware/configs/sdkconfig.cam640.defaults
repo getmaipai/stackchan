@@ -1,0 +1,3 @@
+# Build kind "cam640": the bench image with the camera at 640 by 480 (YUYV, about 16 frames a second) instead of the default 320 by 240 (20 frames a second).
+CONFIG_CAMERA_GC0308_DVP_DEFAULT_FMT_YUV422_YUYV_640X480_16FPS=y
+# CONFIG_CAMERA_GC0308_DVP_DEFAULT_FMT_YUV422_320X240_20FPS is not set

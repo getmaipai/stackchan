@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 bash scripts/hygiene-check.sh $(git ls-files -co --exclude-standard)
 
 bash scripts/boundary-check.sh
+python3 scripts/efuse-check.py || exit 1  # owner decision 14: nothing burns an eFuse
 
 bash scripts/spec-drift-check.sh
 # Secret scan: tracked files by the image-level scanner, tracked files and history by gitleaks when it is installed.
