@@ -45,9 +45,9 @@ static void test_addresses(void)
 
 static void test_key_shape(void)
 {
-    CHECK(mt_key_ok("tskey-auth-abcDEF123_-xyz"));
+    CHECK(mt_key_ok("tskey-auth-FAKETESTKEY000"));
     CHECK(!mt_key_ok("tskey-") && !mt_key_ok("tskey-short") && !mt_key_ok("abcdefghijklmnop"));
-    CHECK(!mt_key_ok("tskey-auth-has space") && !mt_key_ok("tskey-auth-semi;colon") && !mt_key_ok(NULL) && !mt_key_ok(""));
+    CHECK(!mt_key_ok("tskey-auth-FAK space") && !mt_key_ok("tskey-auth-FAKE;colon") && !mt_key_ok(NULL) && !mt_key_ok(""));
     char big[200];
     memset(big, 'a', sizeof(big));
     memcpy(big, "tskey-", 6);

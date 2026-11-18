@@ -144,7 +144,7 @@ def test_reset_needs_the_typed_word_and_says_when_the_firmware_lacks_it(sim) -> 
 
 def test_travel_key_reaches_the_unit_and_is_never_stored_or_shown(sim, tmp_path: Path) -> None:
     backend, units = sim
-    key = "tskey-auth-abcdefghijklmnop12345"
+    key = "tskey-auth-FAKETESTKEY0000000000"
     status, payload = _post(backend, KITCHEN, "travel", {"key": key})
     assert status == 200 and key not in json.dumps(payload)
     assert units[KITCHEN].travel["key_saved"] is True
@@ -168,7 +168,7 @@ def test_tailscale_steps_status_and_plain_errors(sim) -> None:
     status, payload = _post(backend, KITCHEN, "travel", {"peer": "192.0.2.5"})
     assert status == 400 and "100.x.x.x" in payload["error"]
     assert _post(backend, KITCHEN, "travel", {"peer": "100.64.0.7"})[0] == 200
-    key = "tskey-auth-zzzzzzzzzzzzzzzz1234"
+    key = "tskey-auth-FAKETESTKEY000000000"
     status, payload = _post(backend, KITCHEN, "travel", {"key": key})
     assert status == 200 and "Tailscale" in payload["message"] and key not in json.dumps(payload)
     view = _get(backend, KITCHEN, "travel")[1]
