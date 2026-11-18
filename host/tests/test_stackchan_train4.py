@@ -632,7 +632,7 @@ def test_new_styles_sizes_and_languages_are_checked_and_flagged_for_old_firmware
     for values, words in (
         ({"caption_size": "tiny"}, "small, medium or large"),
         ({"lang": "ja"}, "en, es, fr, de, pt or it"),
-        ({"style": "pirate"}, "big_eyes, eyes_only, stock, classic or minimal"),
+        ({"style": "pirate"}, "big_eyes, stock or minimal"),
     ):
         with pytest.raises(faces.FaceError) as caught:
             faces.clean(faces.FaceConfig(), values)

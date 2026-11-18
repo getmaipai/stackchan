@@ -308,3 +308,6 @@ SF53-auto-lock-off-1-15.patch
 SF54-sound-info-volume-now-and-saved.patch
 SF55-seek-looks-on-a-trigger-and-a-30s-net.patch
 SF56-heal-window-and-wait-in-self-version.patch
+SF57-network-test-host-only-and-time-zone-when-unpaired.patch
+SF58-three-face-styles.patch
+SF59-camera-switch-quick-action.patch

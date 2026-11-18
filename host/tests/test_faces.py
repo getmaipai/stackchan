@@ -93,7 +93,7 @@ def test_clean_applies_a_partial_change_and_keeps_the_rest() -> None:
 @pytest.mark.parametrize(
     ("values", "words"),
     [
-        ({"style": "huge"}, "big_eyes, eyes_only, stock, classic or minimal"),
+        ({"style": "huge"}, "big_eyes, stock or minimal"),
         ({"color": "purple"}, "not one I know"),
         ({"color": "#101010"}, "too dark"),
         ({"color": "#12"}, "not one I know"),
@@ -334,19 +334,19 @@ def test_no_unit_is_a_plain_error(service) -> None:
     assert "Choose a unit" in str(caught.value)
 
 
-# ---- patch X02: the five styles, the dropped ones, the screen color and the emotion tint ----
+# ---- patch X02 and SF58: the three styles, the dropped ones, the screen color and the emotion tint ----
 
 
-def test_the_five_styles_and_big_eyes_is_the_default() -> None:
+def test_the_three_styles_and_big_eyes_is_the_default() -> None:
     from maipai_body.faces import DEFAULT_STYLE, DROPPED_STYLES, STYLES
 
-    assert STYLES == ("big_eyes", "eyes_only", "stock", "classic", "minimal")
+    assert STYLES == ("big_eyes", "stock", "minimal")
     assert DEFAULT_STYLE == "big_eyes" == FaceConfig().style
     assert not set(DROPPED_STYLES) & set(STYLES)
-    assert set(DROPPED_STYLES) == {"round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes"}
+    assert set(DROPPED_STYLES) == {"round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes", "classic", "eyes_only"}
 
 
-@pytest.mark.parametrize("old", ["round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes"])
+@pytest.mark.parametrize("old", ["round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes", "classic", "eyes_only"])
 def test_a_dropped_style_falls_back_to_big_eyes_when_sent_or_read_back(old: str) -> None:
     from maipai_body.faces import from_stored
 

@@ -1,0 +1,127 @@
+# Intent: Owner decision 22: the network test is the host's, and a paired host sets the time zone. The unit no longer shows a network test button (More) or the vendor "Testing service" entry (Setup app); self.network.test stays for the host to call. The time zone picker (More, and the Setup app's Timezone entry) is shown only while no host address is saved; a paired host sets the zone with self.clock.set_zone.
+# Placement: unit
+# Upstream: firmware/main/hal and firmware/main/apps/app_setup (ours, and one entry of the stock Setup app)
+# Check after a flash: More shows Version and Games but no Network test; with a host paired it shows no Time zone either; a unit with no saved host address still shows Time zone; self.network.test still answers; the Setup app lists no Testing service.
+# Kconfig: MAIPAI_NETTEST description only (no change of default)
+# Memory cost: none (less code: one button and one menu entry are gone); one saved-setting read when a menu is built.
+
+diff --git a/firmware/main/hal/maipai_tz.cc b/firmware/main/hal/maipai_tz.cc
+--- a/firmware/main/hal/maipai_tz.cc
++++ b/firmware/main/hal/maipai_tz.cc
+@@ -10,6 +10,7 @@
+ #include "maipai_tz.h"
+ #include "maipai_tz_core.h"
+ #include "hal.h"
++#include <settings.h>
+ #include <mcp_server.h>
+ #include <esp_log.h>
+ #include <sys/time.h>
+@@ -34,6 +35,12 @@ int maipai_tz_current()
+     return mz_find_posix(GetHAL().getTimezone().c_str());
+ }
+ 
++bool maipai_tz_picker_allowed()
++{
++    Settings paired("websocket", false);  // the saved host address, the same rule the update and the first-run flow use for "paired"
++    return paired.GetString("url").empty();
++}
++
+ bool maipai_tz_set(int index)
+ {
+     if (index < 0 || index >= MZ_COUNT) {
+diff --git a/firmware/main/hal/maipai_tz.h b/firmware/main/hal/maipai_tz.h
+--- a/firmware/main/hal/maipai_tz.h
++++ b/firmware/main/hal/maipai_tz.h
+@@ -16,8 +16,12 @@ int maipai_tz_current();
+ bool maipai_tz_set(int index);
+ // "HH:MM" for the local time now, or "" while the clock was never set.
+ void maipai_tz_local_hhmm(char* out, int cap);
++// Patch SF57 (owner decision 22): true while no host is paired (no saved host address). A paired host sets the zone (self.clock.set_zone), so the
++// unit's own picker (More, the Setup app) is shown only then. Reads one saved setting: call it from a task with an internal stack, once per screen.
++bool maipai_tz_picker_allowed();
+ // Registers self.clock.get, self.clock.set_zone, self.clock.zones and self.clock.set.
+ void maipai_tz_register_tools();
+ #else
+ inline void maipai_tz_register_tools() {}
++inline bool maipai_tz_picker_allowed() { return false; }
+ #endif
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -344,11 +344,12 @@ void build_menu()
+ {
+     // a two by two grid of 44 px buttons; Done is the fixed target at the top right (see chrome)
+ #if CONFIG_MAIPAI_TZ
+-    button(s_root, tx("Time zone", "Zona horaria"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_TZ)));
+-#endif
+-#if CONFIG_MAIPAI_NETTEST
+-    button(s_root, tx("Network test", "Prueba de red"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_NET)));
++    // Patch SF57 (owner decision 22): the host sets the zone when one is paired; the picker is for a unit with no host.
++    if (maipai_tz_picker_allowed()) {
++        button(s_root, tx("Time zone", "Zona horaria"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_TZ)));
++    }
+ #endif
++    // Patch SF57 (owner decision 22): the network test is the host's. The unit keeps self.network.test for the host to call; no button here.
+ #if CONFIG_MAIPAI_VERSION
+     button(s_root, tx("Version", "Versión"), 48, on_open_page, reinterpret_cast<void*>(static_cast<intptr_t>(PAGE_VERSION)));
+ #endif
+diff --git a/firmware/main/apps/app_setup/app_setup.cpp b/firmware/main/apps/app_setup/app_setup.cpp
+--- a/firmware/main/apps/app_setup/app_setup.cpp
++++ b/firmware/main/apps/app_setup/app_setup.cpp
+@@ -11,6 +11,7 @@
+ #include <assets/assets.h>
+ #include <stackchan/stackchan.h>
+ #include <apps/common/common.h>
++#include <hal/maipai_tz.h>
+ 
+ using namespace mooncake;
+ using namespace view;
+@@ -53,12 +54,7 @@ void AppSetup::onOpen()
+                   _need_warm_reset = true;
+                   _idle_limit_ms   = 300000;  // the phone does the typing: five minutes without a touch
+                   _worker          = std::make_unique<WifiSetupWorker>();
+-              }},
+-             {"Testing service",
+-              [&]() {
+-                  _destroy_menu = true;
+-                  _worker       = std::make_unique<NetworkTestWorker>();
+-              }}},
++              }}},  // patch SF57 (owner decision 22): the vendor's "Testing service" is gone; the network test is the host's
+         },
+         {
+             "Device",
+@@ -156,6 +152,15 @@ void AppSetup::onOpen()
+         },
+     };
+ 
++    // Patch SF57 (owner decision 22): with a paired host the host sets the time zone; the picker stays only for a unit with no host.
++    if (!maipai_tz_picker_allowed()) {
++        for (auto& section : _menu_sections) {
++            for (auto it = section.items.begin(); it != section.items.end();) {
++                it = it->label == "Timezone" ? section.items.erase(it) : it + 1;
++            }
++        }
++    }
++
+     LvglLockGuard lock;
+ 
+     _menu_page = std::make_unique<view::SelectMenuPage>(_menu_sections);
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -199,12 +199,12 @@ config MAIPAI_TZ
+         clock tools.
+ 
+ config MAIPAI_NETTEST
+-    bool "Network test (More screen and self.network.test)"
++    bool "Network test (self.network.test, called by the host)"
+     default y
+     help
+         Says in plain words whether Wi-Fi, the link to the home host and, when built in, the private network work, and
+-        the one thing to do about the first problem. It reads state the unit already holds and sends nothing. Off
+-        here: no screen and no tool.
++        the one thing to do about the first problem. It reads state the unit already holds and sends nothing. The
++        host asks for it; the unit shows no network test screen (owner decision 22). Off here: no tool.
+ 
+ config MAIPAI_FW_BUILD
+     int "Build number of this image (signed updates)"

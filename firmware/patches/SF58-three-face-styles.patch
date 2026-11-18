@@ -1,0 +1,103 @@
+# Intent: Owner decision 22: three face styles stay in the base set (big eyes, original, minimal). Classic and eyes only are no longer offered by the unit: the style tiles show three, self.face.set_config accepts the older names classic and eyes_only as big eyes, and a saved classic or eyes only loads as big eyes with the rest of the saved face kept. Their ids and look rows stay in the tables so an installable style can use them.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: the Faces tab shows three style tiles; self.face.set_config with style classic or eyes_only answers ok and the face reads big_eyes; a unit that had eyes_only saved still shows its colors and captions after the update.
+# Kconfig: none
+# Memory cost: none (one tile fewer, two names moved to the older-names list).
+
+diff --git a/firmware/main/hal/maipai_face_core.h b/firmware/main/hal/maipai_face_core.h
+--- a/firmware/main/hal/maipai_face_core.h
++++ b/firmware/main/hal/maipai_face_core.h
+@@ -95,9 +95,12 @@ static inline void mf_default(mf_config_t* c)
+     c->caption_size = 1;
+ }
+ 
+-static const char* const MF_STYLE_NAMES[MF_STYLE_COUNT] = {"classic", "big_eyes", "minimal", NULL, NULL, NULL,
+-                                                           NULL,      NULL,       NULL,      "eyes_only", "stock"};
+-static const char* const MF_DROPPED_STYLE_NAMES[6] = {"round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes"};
++/* Patch SF58 (owner decision 22): three styles stay in the base set (big_eyes, minimal, stock). classic (0) and eyes_only (9) keep their ids and their
++ * look rows (maipai_look_core.h) so an installable style can use them, but the unit no longer offers them; an old setting naming one reads as big_eyes. */
++static const char* const MF_STYLE_NAMES[MF_STYLE_COUNT] = {NULL, "big_eyes", "minimal", NULL, NULL, NULL,
++                                                           NULL, NULL,       NULL,      NULL, "stock"};
++#define MF_DROPPED_NAMES_N 8
++static const char* const MF_DROPPED_STYLE_NAMES[MF_DROPPED_NAMES_N] = {"round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes", "classic", "eyes_only"};
+ static const char* const MF_LANG_CODES[MF_LANG_COUNT] = {"en", "es", "fr", "de", "pt", "it"};
+ static const char* const MF_CAPTION_NAMES[3] = {"small", "medium", "large"};
+ static const int MF_CAPTION_PX[3] = {14, 16, 20}; /* the three Latin text sizes the build already has */
+@@ -107,11 +110,10 @@ static const uint8_t MF_PALETTE_RGB[MF_PALETTE_COUNT][3] = {
+     {0xB8, 0x9C, 0xF0}, {0xB4, 0xE0, 0x5A}, {0xF2, 0x84, 0x6C},
+ };
+ 
+-/* A style a unit draws: the five that are kept. */
++/* A style a unit draws: the three that are kept (patch SF58). */
+ static inline int mf_style_ok(int style)
+ {
+-    return style == MF_STYLE_CLASSIC || style == MF_STYLE_BIG_EYES || style == MF_STYLE_MINIMAL || style == MF_STYLE_EYES_ONLY ||
+-           style == MF_STYLE_STOCK;
++    return style == MF_STYLE_BIG_EYES || style == MF_STYLE_MINIMAL || style == MF_STYLE_STOCK;
+ }
+ 
+ /* The look table row (maipai_look_core.h ML_STYLE_*) of a saved style. A dropped or unknown style is Big eyes. */
+@@ -139,7 +141,7 @@ static inline int mf_set_style_name(mf_config_t* c, const char* name)
+             return MF_OK;
+         }
+     }
+-    for (int i = 0; i < 6; i++) { /* a dropped style: Big eyes, so an old setting never errors */
++    for (int i = 0; i < MF_DROPPED_NAMES_N; i++) { /* a dropped style: Big eyes, so an old setting never errors */
+         if (strcmp(name, MF_DROPPED_STYLE_NAMES[i]) == 0) {
+             c->style = MF_STYLE_BIG_EYES;
+             return MF_OK;
+@@ -335,7 +337,7 @@ static inline const char* mf_err_word(int code)
+ {
+     switch (code) {
+         case MF_OK: return "ok";
+-        case MF_ERR_STYLE: return "unknown face style: use big_eyes, eyes_only, stock, classic or minimal";
++        case MF_ERR_STYLE: return "unknown face style: use big_eyes, stock or minimal";
+         case MF_ERR_COLOUR: return "unknown colour: use none, a name (mint, sky, amber, rose, lilac, lime, coral) or #rrggbb";
+         case MF_ERR_BRIGHT: return "background too bright for white eyes: pick a darker colour";
+         case MF_ERR_DARK: return "colour too dark to see on the black screen: pick a lighter colour";
+@@ -446,8 +448,8 @@ static inline int mf_load(mf_config_t* c, const uint8_t* buf, size_t len)
+         t.bg_g = buf[n++];
+         t.bg_b = buf[n++];
+     }
+-    if (t.style >= MF_STYLE_DROPPED_FIRST && t.style <= MF_STYLE_DROPPED_LAST) {
+-        t.style = MF_STYLE_BIG_EYES; /* a style that was dropped (patch X02) */
++    if ((t.style >= MF_STYLE_DROPPED_FIRST && t.style <= MF_STYLE_DROPPED_LAST) || t.style == MF_STYLE_CLASSIC || t.style == MF_STYLE_EYES_ONLY) {
++        t.style = MF_STYLE_BIG_EYES; /* a style that was dropped (patch X02, patch SF58): the rest of the saved look is kept */
+     }
+     if (!mf_valid(&t)) {
+         return MF_ERR_RANGE;
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -806,7 +806,7 @@ void maipai_face_register_tools()
+     auto& mcp = McpServer::GetInstance();
+     mcp.AddTool("self.face.set_config",
+                 "Change the face settings the unit keeps in its own flash. config is a JSON object with any of: "
+-                "style (big_eyes, eyes_only, stock, classic, minimal; the older names round, cat, robot, sleepy, retro_pixel and heart_eyes mean big_eyes), "
++                "style (big_eyes, stock or minimal; the older names round, cat, robot, sleepy, retro_pixel, heart_eyes, classic and eyes_only mean big_eyes), "
+                 "colour (the eye colour: none is white, or mint, sky, amber, rose, lilac, lime, coral or #rrggbb), background (the screen colour: none, "
+                 "a name or a dark #rrggbb), emotion_tint (true: the eyes lean a little toward a colour per emotion), captions (true shows the words on the face), tod (time-of-day looks), tod_hours "
+                 "([morning, day, evening, night] start hours), thinking_tone, lang (en, es, fr, de, pt or it), caption_size (small, medium or large), clock24, "
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -754,13 +754,13 @@ static inline int mpg_battery_level(int pct, int charging) { return charging ||
+ 
+ /* ---- the bot's own settings screen (patch UI05): the face style picker with a preview, the status icons switch ---- */
+ /* Style ids are the unit's MF_STYLE_* values (maipai_face_core.h); the order is the order of the tiles. */
+-#define MPG_SET_STYLES 5
+-static const uint8_t MPG_SET_STYLE_ID[MPG_SET_STYLES] = {1 /* big eyes */, 9 /* eyes only */, 10 /* stock */, 0 /* classic */, 2 /* minimal */};
++#define MPG_SET_STYLES 3 /* patch SF58 (owner decision 22): big eyes, stock and minimal; classic and eyes only are installable styles later */
++static const uint8_t MPG_SET_STYLE_ID[MPG_SET_STYLES] = {1 /* big eyes */, 10 /* stock */, 2 /* minimal */};
+ static const char* const MPG_SET_STYLE_NAME[2][MPG_SET_STYLES] = {
+-    {"Big eyes", "Eyes only", "Original", "Classic", "Minimal"},
+-    {"Ojos grandes", "Solo ojos", "Original", "Clasica", "Minima"},
++    {"Big eyes", "Original", "Minimal"},
++    {"Ojos grandes", "Original", "Minima"},
+ };
+-#define MPG_SET_TILES_MAX (MPG_SET_STYLES + 1)  /* the sixth tile is the picture faces, only while a picture pack is held */
++#define MPG_SET_TILES_MAX (MPG_SET_STYLES + 1)  /* the fourth tile is the picture faces, only while a picture pack is held */
+ typedef struct {
+     int16_t x, y, w, h;
+ } mpg_box_t;

@@ -1,0 +1,80 @@
+# Intent: Owner decision 22: a camera switch on the quick actions. The action "vision" turns the camera off and on through the unit's vision-off privacy state; it replaces Games in the default four actions (Games stays on the Games page and in More). It works in full quiet and under a mute: it makes no sound and moves nothing. A unit that saved its own list of actions keeps it.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: the Quick actions page shows Beep, Dance, Camera and Say hi; one tap on Camera reports vision_off true in self.privacy state and a second tap false; self.pages.set_config accepts vision in actions.
+# Kconfig: none
+# Memory cost: none (one action id and a title).
+
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -8,7 +8,7 @@
+  *   clock    big digits or a ring, dimmed at night; works with no host once the time is set
+  *   timers   the named countdowns of the timer tool, with a cancel and three quick starts
+  *   games    the games on the unit with their best scores and a play button
+- *   actions  two to four big buttons chosen by the owner: beep, dance, game, say hi
++ *   actions  two to four big buttons chosen by the owner: beep, dance, game, say hi, camera switch
+  *   frame    the owner's pictures (the picture face pack), one at a time
+  *   tiles    up to six tiles pushed by the host: an icon, a label and a value; the core has no data source
+  * The default is the clock on the left of the face and the games on the right, and nothing else until the owner chooses.
+@@ -49,13 +49,14 @@ static const char* const MPG_PAGE_TITLE[2][MPG_P_COUNT] = {
+ };
+ 
+ /* ---- quick actions ---- */
+-enum { MPG_A_BEEP = 0, MPG_A_DANCE, MPG_A_GAME, MPG_A_HELLO, MPG_A_COUNT };
++/* Patch SF59 (owner decision 22): MPG_A_VISION turns the camera off and on (the unit's vision-off privacy state); it replaces Games in the default four. */
++enum { MPG_A_BEEP = 0, MPG_A_DANCE, MPG_A_GAME, MPG_A_HELLO, MPG_A_VISION, MPG_A_COUNT };
+ #define MPG_ACTIONS_MIN 2
+ #define MPG_ACTIONS_MAX 4
+-static const char* const MPG_ACTION_NAMES[MPG_A_COUNT] = {"beep", "dance", "game", "hello"};
++static const char* const MPG_ACTION_NAMES[MPG_A_COUNT] = {"beep", "dance", "game", "hello", "vision"};
+ static const char* const MPG_ACTION_TITLE[2][MPG_A_COUNT] = {
+-    {"Beep", "Dance", "Games", "Say hi"},
+-    {"Pitido", "Baile", "Juegos", "Saludar"},
++    {"Beep", "Dance", "Games", "Say hi", "Camera"},
++    {"Pitido", "Baile", "Juegos", "Saludar", "Camara"},
+ };
+ /* The removed find-me button: an old saved text or an old host may still name it. It is read and dropped (patch UI01). */
+ #define MPG_LEGACY_FIND "find"
+@@ -153,7 +154,7 @@ static inline void mpg_defaults(mpg_cfg_t* c)
+     c->idle_s = 20;
+     c->actions[0] = MPG_A_BEEP;
+     c->actions[1] = MPG_A_DANCE;
+-    c->actions[2] = MPG_A_GAME;
++    c->actions[2] = MPG_A_VISION;
+     c->actions[3] = MPG_A_HELLO;
+     c->n_actions = 4;
+     for (int i = 0; i < MPG_SHEET_MAX_ITEMS; i++) {
+@@ -171,7 +172,7 @@ static inline void mpg_defaults(mpg_cfg_t* c)
+ #define MPG_ERR_LONG "Each side of the face holds up to three pages. Send three or fewer on each side."
+ #define MPG_ERR_SHEET_S "The control sheet closes after 8 to 30 seconds. Send a number from 8 to 30."
+ #define MPG_ERR_IDLE_S "A page returns to the face after 5 to 300 seconds. Send a number from 5 to 300."
+-#define MPG_ERR_ACTION "Quick actions are beep, dance, game and hello. Send 2 to 4 of those names, each once."
++#define MPG_ERR_ACTION "Quick actions are beep, dance, game, hello and vision. Send 2 to 4 of those names, each once."
+ #define MPG_ERR_ITEM "A sheet item is volume, brightness, mute, quiet, lock, timers, games, wifi, battery, tailnet or address, each once."
+ #define MPG_ERR_ITEM_FULL "The sheet holds up to 2 sliders, 5 buttons and 4 status lines. Remove one and send the list again."
+ 
+@@ -973,7 +974,7 @@ static const uint16_t MPG_QUICK_TIMER_MIN[3] = {1, 5, 10};
+ static inline int mpg_action_blocked(int action, int quiet, int muted)
+ {
+     if (quiet) {
+-        return action != MPG_A_GAME;
++        return action != MPG_A_GAME && action != MPG_A_VISION;  /* the camera switch makes no sound and moves nothing */
+     }
+     if (muted) {
+         return action == MPG_A_BEEP;
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -287,6 +287,11 @@ public:
+                     game_start(0);
+                 }
+                 break;
++            case MPG_A_VISION: {  // patch SF59: the camera off, or back on; the privacy state decides (the face redraws on its own change event)
++                const bool off = maipai_vision_off();
++                maipai_privacy_set(kPrivVision, off ? 0 : kPrivVision, "face", nullptr);
++                break;
++            }
+             default:  // hello: a happy face, the words and a cheerful sound; no host needed
+                 Application::GetInstance().Schedule([]() {
+                     hal_bridge::react_face("happy", 1800);

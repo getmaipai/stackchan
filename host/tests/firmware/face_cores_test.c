@@ -70,17 +70,17 @@ static void test_x02_styles_and_colours(void)
 {
     mf_config_t c; mf_default(&c);
     CHECK(c.style == MF_STYLE_BIG_EYES && c.emotion_tint == 1 && c.bg_mode == MF_COLOUR_NONE);
-    CHECK(mf_set_style_name(&c, "eyes_only") == MF_OK && c.style == MF_STYLE_EYES_ONLY);
     CHECK(mf_set_style_name(&c, "stock") == MF_OK && c.style == MF_STYLE_STOCK);
-    CHECK(mf_set_style_name(&c, "classic") == MF_OK && c.style == MF_STYLE_CLASSIC);
+    CHECK(mf_set_style_name(&c, "minimal") == MF_OK && c.style == MF_STYLE_MINIMAL);
+    CHECK(mf_set_style_name(&c, "big_eyes") == MF_OK && c.style == MF_STYLE_BIG_EYES);
     /* the dropped names are accepted and mean Big eyes, so an old setting never errors */
-    static const char* const gone[] = {"round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes"};
-    for (int i = 0; i < 6; i++) {
+    static const char* const gone[] = {"round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes", "classic", "eyes_only"}; /* patch SF58: classic and eyes_only are no longer offered */
+    for (int i = 0; i < 8; i++) {
         CHECK(mf_set_style_name(&c, gone[i]) == MF_OK && c.style == MF_STYLE_BIG_EYES);
     }
     CHECK(mf_set_style_name(&c, "huge") == MF_ERR_STYLE);
     for (int s = 0; s < MF_STYLE_COUNT; s++) {
-        CHECK((mf_style_ok(s) != 0) == (s == 0 || s == 1 || s == 2 || s == 9 || s == 10));
+        CHECK((mf_style_ok(s) != 0) == (s == 1 || s == 2 || s == 10));
         if (mf_style_ok(s)) CHECK(mf_look_id(s) >= 0 && mf_look_id(s) <= 4);
     }
     CHECK(mf_look_id(MF_STYLE_STOCK) == 2 && mf_look_id(MF_STYLE_BIG_EYES) == 0 && mf_look_id(MF_STYLE_EYES_ONLY) == 1);
@@ -126,6 +126,13 @@ static void test_x02_blob_versions_and_migration(void)
         old[1] = (uint8_t)s;
         const uint16_t c2 = mf_crc16(old, 20);
         old[20] = (uint8_t)(c2 >> 8); old[21] = (uint8_t)(c2 & 0xFF);
+        CHECK(mf_load(&d, old, 22) == MF_OK && d.style == MF_STYLE_BIG_EYES && d.captions == c.captions);
+    }
+    /* patch SF58: a saved classic or eyes only (ids 0 and 9) loads as Big eyes, the rest of the saved face survives */
+    for (int k = 0; k < 2; k++) {
+        old[1] = (uint8_t)(k == 0 ? MF_STYLE_CLASSIC : MF_STYLE_EYES_ONLY);
+        const uint16_t c3 = mf_crc16(old, 20);
+        old[20] = (uint8_t)(c3 >> 8); old[21] = (uint8_t)(c3 & 0xFF);
         CHECK(mf_load(&d, old, 22) == MF_OK && d.style == MF_STYLE_BIG_EYES && d.captions == c.captions);
     }
     /* an id that never existed is refused */

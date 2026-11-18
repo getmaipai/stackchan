@@ -35,14 +35,12 @@ logger = logging.getLogger("maipai_body.faces")
 # The face styles (firmware patch X02). Big eyes is the default. Stock is the original M5 face as shipped.
 STYLES = (
     "big_eyes",
-    "eyes_only",
     "stock",
-    "classic",
     "minimal",
 )
 DEFAULT_STYLE = "big_eyes"
 # Styles that were offered before patch X02. A saved or sent one is Big eyes now (never an error), so an old setting migrates.
-DROPPED_STYLES = ("round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes")
+DROPPED_STYLES = ("round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes", "classic", "eyes_only")  # classic and eyes_only: owner decision 22, three styles stay
 NEW_LOOK_STYLES = ("eyes_only", "stock")  # firmware before patch X01 does not draw these two
 CAPTION_SIZES = ("small", "medium", "large")
 # Face decorators (firmware patch U01): small drawn extras shown for a few seconds. One list, here.
@@ -85,7 +83,7 @@ _NEED = {  # firmware feature word a setting needs; a unit without it ignores th
 # Plain words, English and Spanish: what went wrong, then what to do.
 _MESSAGES: dict[str, dict[str, str]] = {
     "en": {
-        "style": "The face style {value!r} does not exist. Choose big_eyes, eyes_only, stock, classic or minimal.",
+        "style": "The face style {value!r} does not exist. Choose big_eyes, stock or minimal.",
         "bright": "That screen color is too bright for white eyes to show. Choose a darker color.",
         "caption_size": "The caption size {value!r} does not exist. Choose small, medium or large.",
         "decor": "The face extra {value!r} does not exist. Choose dizzy, heart, anger, tears, sparkles, stars or zzz.",
@@ -106,7 +104,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "bad_file": "The face settings file {path} could not be read. Fix or remove it; the plain face is used meanwhile.",
     },
     "es": {
-        "style": "El estilo de cara {value!r} no existe. Elige big_eyes, eyes_only, stock, classic o minimal.",
+        "style": "El estilo de cara {value!r} no existe. Elige big_eyes, stock o minimal.",
         "bright": "Ese color de pantalla es demasiado claro para que se vean los ojos blancos. Elige un color mas oscuro.",
         "caption_size": "El tamano de subtitulos {value!r} no existe. Elige small, medium o large.",
         "decor": "El adorno de cara {value!r} no existe. Elige dizzy, heart, anger, tears, sparkles, stars o zzz.",

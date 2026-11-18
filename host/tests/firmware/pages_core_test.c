@@ -68,6 +68,10 @@ static void test_timeouts_actions_items(void)
     CHECK(mpg_set_actions(&c, a4, 5) != NULL);   /* more than four */
     int rep[4] = {MPG_A_BEEP, MPG_A_BEEP, MPG_A_DANCE, MPG_A_GAME};
     CHECK(mpg_set_actions(&c, rep, 4) != NULL && c.n_actions == 2);
+    /* patch SF59: the camera switch is an action; it is the default third tile, works in full quiet and under a mute, and is accepted by name */
+    CHECK(mpg_action_blocked(MPG_A_VISION, 1, 0) == 0 && mpg_action_blocked(MPG_A_VISION, 0, 1) == 0 && mpg_action_blocked(MPG_A_DANCE, 1, 0) == 1);
+    int vis[4] = {MPG_A_BEEP, MPG_A_DANCE, MPG_A_VISION, MPG_A_HELLO};
+    CHECK(mpg_set_actions(&c, vis, 4) == NULL && c.actions[2] == MPG_A_VISION);
     int unk[4] = {MPG_A_BEEP, MPG_A_DANCE, MPG_A_GAME, 9};
     CHECK(mpg_set_actions(&c, unk, 4) != NULL);
     CHECK(mpg_action_by_name("find") == -1 && mpg_sheet_by_name("find") == -1);   /* find me is gone; the saved text path drops it */
@@ -103,13 +107,13 @@ static void test_text_store_round_trip(void)
     CHECK(mpg_set_timeouts(&a, 12, 45) == NULL);
     char text[MPG_TEXT_MAX + 1];
     CHECK(mpg_cfg_to_text(&a, text, sizeof(text)) > 0);
-    CHECK(strcmp(text, "L=timers,frame;R=games,actions,tiles;S=12;I=45;A=beep,dance,game,hello;C=volume,brightness,mute,quiet,lock,timers,games,wifi,battery") == 0);
+    CHECK(strcmp(text, "L=timers,frame;R=games,actions,tiles;S=12;I=45;A=beep,dance,vision,hello;C=volume,brightness,mute,quiet,lock,timers,games,wifi,battery") == 0);
     CHECK(mpg_cfg_from_text(&b, text) == 1);
     CHECK(memcmp(&a, &b, sizeof(a)) == 0);
     /* patch NX01: a choice saved before the Lock tile names "light"; it is read as the Lock tile, in the same place, never an error and never twice */
     mpg_cfg_t old, both;
     CHECK(mpg_sheet_by_name("light") == MPG_S_LOCK && mpg_sheet_by_name("lock") == MPG_S_LOCK);
-    CHECK(mpg_cfg_from_text(&old, "L=clock;R=games;S=10;I=20;A=beep,dance,game,hello;C=volume,brightness,mute,quiet,light,timers,games,wifi,battery") == 1);
+    CHECK(mpg_cfg_from_text(&old, "L=clock;R=games;S=10;I=20;A=beep,dance,vision,hello;C=volume,brightness,mute,quiet,light,timers,games,wifi,battery") == 1);
     mpg_cfg_t dflt;
     mpg_defaults(&dflt);
     CHECK(memcmp(&old, &dflt, sizeof(old)) == 0 && old.items[4] == MPG_S_LOCK && old.n_items == 9);

@@ -32,7 +32,7 @@ KEY = "swipe_pages"
 TABLE_PATH = Path(__file__).with_name("pages_table.json")
 
 PAGES = ("clock", "timers", "games", "actions", "frame", "tiles")
-ACTIONS = ("beep", "dance", "game", "hello")
+ACTIONS = ("beep", "dance", "game", "hello", "vision")
 LEGACY_LIGHT = "light"  # patch NX01: the sheet item saved as "light" is the Lock tile now; the old name is read as the same item in the same place
 LEGACY_FIND = "find"  # the removed find-me button: an old saved choice or an old caller may still name it; it is read and dropped
 SHEET_ITEMS = (
@@ -67,7 +67,7 @@ DEFAULTS: dict[str, Any] = {
     "right": ["games"],
     "sheet_s": 10,
     "idle_s": 20,
-    "actions": ["beep", "dance", "game", "hello"],
+    "actions": ["beep", "dance", "vision", "hello"],
     "sheet_items": [
         "volume",
         "brightness",

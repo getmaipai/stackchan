@@ -257,8 +257,8 @@ static void test_settings(void)
     mac_auto_text(b, sizeof(b), 0, 1); CHECK(strcmp(b, "No") == 0);
     mac_auto_text(b, sizeof(b), 15, 0); CHECK(strcmp(b, "15 min") == 0);
 
-    /* the style tiles: five face styles then Pictures while a pack is held */
-    CHECK(mac_pair_tiles(0, 0) == 2 && mac_pair_tiles(1, 0) == 2 && mac_pair_tiles(2, 0) == 1 && mac_pair_tiles(2, 1) == 2 && mac_pair_tiles(3, 1) == 0);
+    /* the style tiles: three face styles (patch SF58) then Pictures while a pack is held */
+    CHECK(mac_pair_tiles(0, 0) == 2 && mac_pair_tiles(1, 0) == 1 && mac_pair_tiles(1, 1) == 2 && mac_pair_tiles(2, 1) == 0 && mac_pair_tiles(2, 0) == 0);
     CHECK(mac_signal_word(-1) == 0 && mac_signal_word(1) == 1 && mac_signal_word(2) == 2 && mac_signal_word(3) == 3 && mac_signal_word(4) == 3);
 }
 
