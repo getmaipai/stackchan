@@ -1,0 +1,281 @@
+# Intent: Signed update with a build number (docs/plan/signed-update-header.md). The wireless update fetches a 56-byte header and its signature (image.hdr and image.hdr.sig), verifies the signature over the header with the release key, refuses a build number that is not above the highest confirmed one (flash, namespace mp_update, key minbuild), refuses an image whose length or SHA-256 differs from the header, and records the build as pending; the first-boot trial that keeps the new image makes it the confirmed one. self.version.get reports fw_build. The old signature over the whole image is not used by this verifier. Pure checks in maipai_updatehdr_core.h.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/ota.cc (nested tree, MIT); firmware/main/hal (ours)
+# Check after a flash: an update with a lower or equal build number answers "not higher than the one already installed"; a tampered image answers a hash mismatch; after a good update self.version.get shows fw_build equal to the header's build number.
+# Kconfig: none
+
+diff --git a/firmware/xiaozhi-esp32/main/ota.cc b/firmware/xiaozhi-esp32/main/ota.cc
+--- a/firmware/xiaozhi-esp32/main/ota.cc
++++ b/firmware/xiaozhi-esp32/main/ota.cc
+@@ -2,6 +2,7 @@
+ #include "system_info.h"
+ #include "settings.h"
+ #include "update_verify.h"
++#include <hal/maipai_updatehdr_core.h>
+ #include "assets/lang_config.h"
+ 
+ #include <freertos/FreeRTOS.h>
+@@ -296,33 +297,54 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+ 
+     auto network = Board::GetInstance().GetNetwork();
+ 
+-    // The image must carry a valid signature (patch 155). The detached signature is read first.
+-    UpdateVerifier verifier;
++    // Patch SF25: the image comes with a signed 56-byte header (build number, length, SHA-256 of the image). The signature covers the header;
++    // the header binds the image. The build number must be higher than the highest one confirmed on this unit.
++    muh_hdr_t header = {};
++    muh_sha_t image_hash;
++    muh_sha_begin(&image_hash);
+ #ifndef CONFIG_STACKCHAN_UPDATE_ALLOW_UNSIGNED
+     {
+-        std::string signature;
+-        auto sig_http = network->CreateHttp(0);
+-        if (auto opened = sig_http->Open("GET", firmware_url + ".sig"); !opened) {
+-            ESP_LOGE(TAG, "Update refused: the signature file could not be fetched (%s). Publish it next to the image.", opened.error().ToString().c_str());
+-            UpdateSetRefusal("Update refused: the signature file could not be fetched. Publish it next to the image and try again.");
++        auto fetch_small = [&](const std::string& url, uint8_t* out, size_t want) -> bool {
++            auto small_http = network->CreateHttp(0);
++            if (auto opened = small_http->Open("GET", url); !opened) {
++                ESP_LOGE(TAG, "Update refused: %s could not be fetched (%s).", url.c_str(), opened.error().ToString().c_str());
++                return false;
++            }
++            auto st = small_http->GetStatusCode();
++            if (!st || *st != 200 || small_http->GetBodyLength() != want) {
++                ESP_LOGE(TAG, "Update refused: %s is missing or is not %u bytes.", url.c_str(), (unsigned)want);
++                return false;
++            }
++            size_t got = 0;
++            while (got < want) {
++                auto r = small_http->Read(reinterpret_cast<char*>(out) + got, want - got);
++                if (!r || *r == 0) break;
++                got += *r;
++            }
++            small_http->Close();
++            return got == want;
++        };
++        uint8_t hdr_bytes[MUH_HDR_LEN], sig_bytes[MUH_SIG_LEN];
++        if (!fetch_small(firmware_url + ".hdr", hdr_bytes, sizeof(hdr_bytes)) || !fetch_small(firmware_url + ".hdr.sig", sig_bytes, sizeof(sig_bytes))) {
++            UpdateSetRefusal("Update refused: the header files next to the image (.hdr and .hdr.sig) could not be fetched. Publish them and try again.");
+             return false;
+         }
+-        auto sig_status = sig_http->GetStatusCode();
+-        if (!sig_status || *sig_status != 200 || sig_http->GetBodyLength() != 64) {
+-            ESP_LOGE(TAG, "Update refused: no valid signature file at the image address plus .sig. Nothing was installed.");
+-            UpdateSetRefusal("Update refused: no valid signature file at the image address plus .sig. Nothing was installed.");
++        UpdateVerifier header_verifier;
++        if (!header_verifier.Begin(std::string(reinterpret_cast<const char*>(sig_bytes), sizeof(sig_bytes)))) {
+             return false;
+         }
+-        char sig_buf[64];
+-        size_t got = 0;
+-        while (got < sizeof(sig_buf)) {
+-            auto r = sig_http->Read(sig_buf + got, sizeof(sig_buf) - got);
+-            if (!r || *r == 0) break;
+-            got += *r;
++        header_verifier.Update(hdr_bytes, sizeof(hdr_bytes));
++        if (!header_verifier.Finish()) {
++            UpdateSetRefusal("Update refused: the header signature is not valid. Nothing was installed.");
++            return false;
+         }
+-        sig_http->Close();
+-        signature.assign(sig_buf, got);
+-        if (!verifier.Begin(signature)) {
++        Settings update_state("mp_update", false);
++        const int floor_build = update_state.GetInt("minbuild", 0);
++        const int parsed = muh_parse(hdr_bytes, sizeof(hdr_bytes), floor_build > 0 ? static_cast<uint32_t>(floor_build) : 0u, &header);
++        if (parsed != MUH_OK) {
++            ESP_LOGE(TAG, "Update refused: %s (installed build %d).", MUH_REASONS[parsed], floor_build);
++            std::string why = std::string("Update refused: ") + MUH_REASONS[parsed] + ". Nothing was installed.";
++            UpdateSetRefusal(why.c_str());
+             return false;
+         }
+     }
+@@ -352,6 +374,13 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+         return false;
+     }
+ 
++#ifndef CONFIG_STACKCHAN_UPDATE_ALLOW_UNSIGNED
++    if (content_length != header.image_len) {
++        ESP_LOGE(TAG, "Update refused: the image is %u bytes but the signed header says %u.", (unsigned)content_length, (unsigned)header.image_len);
++        UpdateSetRefusal("Update refused: the image length does not match the signed header. Nothing was installed.");
++        return false;
++    }
++#endif
+     if (!UpdateFitsSlot(content_length, update_partition->size)) {
+         ESP_LOGE(TAG, "Update refused: the image (%u bytes) would leave less than 20 percent of its slot (%u bytes) free. Build a smaller image.",
+                  (unsigned)content_length, (unsigned)update_partition->size);
+@@ -377,7 +406,7 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+             return false;
+         }
+         int n = *ret;
+-        verifier.Update(buffer + buffer_offset, n);
++        muh_sha_update(&image_hash, reinterpret_cast<const uint8_t*>(buffer + buffer_offset), static_cast<size_t>(n));
+ 
+         // Calculate speed and progress every second
+         recent_read += n;
+@@ -443,8 +472,16 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+     }
+ 
+ #ifndef CONFIG_STACKCHAN_UPDATE_ALLOW_UNSIGNED
+-    if (!verifier.Finish()) {
+-        return false;  // the log line already says why; the new image is never booted
++    {
++        const int checked = muh_check_image(&header, &image_hash);
++        if (checked != MUH_OK) {
++            ESP_LOGE(TAG, "Update refused: %s. The new image is never booted.", MUH_REASONS[checked]);
++            std::string why = std::string("Update refused: ") + MUH_REASONS[checked] + ". Nothing was installed.";
++            UpdateSetRefusal(why.c_str());
++            return false;
++        }
++        Settings update_state("mp_update", true);
++        update_state.SetInt("pendbuild", static_cast<int>(header.build));  // becomes the confirmed build once the new image proves itself
+     }
+ #endif
+ 
+diff --git a/firmware/main/hal/maipai_update.cc b/firmware/main/hal/maipai_update.cc
+--- a/firmware/main/hal/maipai_update.cc
++++ b/firmware/main/hal/maipai_update.cc
+@@ -227,6 +227,14 @@ void trial_tick(void*)
+             } else {
+                 ESP_LOGI(kTag, "the new image ran 60 seconds with no crash; keeping it");
+             }
++            {   // Patch SF25: the build number this image was installed with is now the highest confirmed one.
++                Settings update_state("mp_update", true);
++                const int pending = update_state.GetInt("pendbuild", 0);
++                if (pending > update_state.GetInt("minbuild", 0)) {
++                    update_state.SetInt("minbuild", pending);
++                }
++                update_state.SetInt("pendbuild", 0);
++            }
+             device_events_push("firmware_update_validated",
+                                step == MUC_STEP_KEEP_HOST ? "\"path\":\"host\"" : "\"path\":\"quiet\"");
+             break;
+diff --git a/firmware/main/hal/maipai_version.cc b/firmware/main/hal/maipai_version.cc
+--- a/firmware/main/hal/maipai_version.cc
++++ b/firmware/main/hal/maipai_version.cc
+@@ -3,6 +3,7 @@
+  *
+  * Version screen data, device side (patch U05). Reads only; nothing is stored.
+  */
++#include <settings.h>
+ #include <sdkconfig.h>
+ #if CONFIG_MAIPAI_VERSION
+ #include "maipai_version.h"
+@@ -73,6 +74,10 @@ void maipai_version_register_tools()
+             cJSON_AddNumberToObject(root, "psram_free", i.psram_free);
+             cJSON_AddNumberToObject(root, "psram_min", i.psram_min);
+             cJSON_AddNumberToObject(root, "uptime_s", i.uptime_s);
++            {   // Patch SF25: the highest confirmed build number (0 before the first signed header update)
++                Settings update_state("mp_update", false);
++                cJSON_AddNumberToObject(root, "fw_build", update_state.GetInt("minbuild", 0));
++            }
+             char* text      = cJSON_PrintUnformatted(root);
+             std::string out = text != nullptr ? text : "{\"ok\":false,\"error\":\"out of memory: try again\"}";
+             cJSON_free(text);
+diff --git a/firmware/main/hal/maipai_updatehdr_core.h b/firmware/main/hal/maipai_updatehdr_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_updatehdr_core.h
+@@ -0,0 +1,102 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The signed update header with a build number (patch SF25; docs/plan/signed-update-header.md). Plain C99, no heap. The 56-byte header is
++ * signed by the release key (Ed25519, checked by update_verify.cc over exactly these 56 bytes). This file checks everything else: the
++ * magic, the reserved bytes, a build number above the highest one confirmed, the image length and the SHA-256 of the image (streamed).
++ * Host test: host/tests/test_update_header_core.py (runs host/tests/firmware/updatehdr_core_test.c on the shared vectors).
++ */
++#ifndef MAIPAI_UPDATEHDR_CORE_H
++#define MAIPAI_UPDATEHDR_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++#include "maipai_lock_core.h" /* SHA-256 blocks */
++
++#define MUH_HDR_LEN 56
++#define MUH_SIG_LEN 64
++
++typedef struct {
++    uint32_t build;
++    uint32_t image_len;
++    uint8_t sha256[32];
++} muh_hdr_t;
++
++enum { MUH_OK = 0, MUH_SHORT, MUH_MAGIC, MUH_RESERVED, MUH_BUILD_ZERO, MUH_NOT_NEWER, MUH_LENGTH, MUH_HASH, MUH_COUNT };
++static const char* const MUH_REASONS[MUH_COUNT] = {"ok",
++                                                   "the header is not 56 bytes",
++                                                   "the header does not start with MPUH1",
++                                                   "the reserved bytes of the header are not zero",
++                                                   "the build number is zero",
++                                                   "the build number is not higher than the one already installed",
++                                                   "the image length does not match the header",
++                                                   "the image hash does not match the header"};
++
++static inline uint32_t muh_le32(const uint8_t* p) { return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24); }
++
++/* Checks the header bytes (after the signature over them was verified). floor: the highest build confirmed so far, 0 when none. */
++static inline int muh_parse(const uint8_t* hdr, size_t len, uint32_t floor_build, muh_hdr_t* out)
++{
++    static const uint8_t magic[8] = {'M', 'P', 'U', 'H', '1', 0, 0, 0};
++    if (len != MUH_HDR_LEN) return MUH_SHORT;
++    if (memcmp(hdr, magic, 8) != 0) return MUH_MAGIC;
++    for (int i = 48; i < 56; i++) {
++        if (hdr[i] != 0) return MUH_RESERVED;
++    }
++    out->build = muh_le32(hdr + 8);
++    out->image_len = muh_le32(hdr + 12);
++    memcpy(out->sha256, hdr + 16, 32);
++    if (out->build == 0) return MUH_BUILD_ZERO;
++    if (out->build <= floor_build) return MUH_NOT_NEWER;
++    return MUH_OK;
++}
++
++/* Streaming SHA-256 of the image. */
++typedef struct {
++    uint32_t h[8];
++    uint8_t buf[64];
++    uint32_t n;
++    uint64_t total;
++} muh_sha_t;
++
++static inline void muh_sha_begin(muh_sha_t* s)
++{
++    lk_sha_init(s->h);
++    s->n = 0;
++    s->total = 0;
++}
++
++static inline void muh_sha_update(muh_sha_t* s, const uint8_t* data, size_t len)
++{
++    s->total += len;
++    while (len > 0) {
++        const size_t take = 64u - s->n < len ? 64u - s->n : len;
++        memcpy(s->buf + s->n, data, take);
++        s->n += (uint32_t)take;
++        data += take;
++        len -= take;
++        if (s->n == 64u) {
++            lk_sha_block(s->h, s->buf);
++            s->n = 0;
++        }
++    }
++}
++
++static inline void muh_sha_end(muh_sha_t* s, uint8_t out[32])
++{
++    /* the blocks already processed are s->total - s->n bytes: finish with the rest, as lk_sha_finish takes the byte count so far as prefix */
++    lk_sha_finish(s->h, s->total - s->n, s->buf, s->n, out);
++}
++
++/* After the whole image was streamed: its length and hash must equal the header's. */
++static inline int muh_check_image(const muh_hdr_t* h, const muh_sha_t* streamed_state)
++{
++    muh_sha_t copy = *streamed_state;
++    uint8_t digest[32];
++    if (copy.total != h->image_len) return MUH_LENGTH;
++    muh_sha_end(&copy, digest);
++    return lk_ct_equal(digest, h->sha256, 32) ? MUH_OK : MUH_HASH;
++}
++
++#endif /* MAIPAI_UPDATEHDR_CORE_H */

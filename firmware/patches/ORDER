@@ -275,3 +275,4 @@ SF21-link-key-curve-and-storage.patch
 SF22-talk-over-slot-setting.patch
 SF23-bench-head-and-tone-medians.patch
 SF24-mouth-cues-in-psram.patch
+SF25-signed-update-header-and-build-number.patch
