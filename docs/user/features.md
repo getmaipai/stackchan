@@ -21,7 +21,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
-| **Weather and mood overlays** | 26 overlays, single and combined, such as stormy, rainy, snowy, sunny, windy, night, party, celebrate, love and sleeping. It slows down by itself if the robot is busy. Not yet seen by a person. | Robot | [Face and look](face-and-look.md) |
+| **Weather and mood overlays** | 28 overlays (18 single, 10 combined), such as stormy, rainy, snowy, sunny, windy, night, party, celebrate, love and sleeping. It slows down by itself if the robot is busy. Not yet seen by a person. | Robot | [Face and look](face-and-look.md) |
 | **CRT and color effects** | Optional screen looks, set on the settings page. Not yet seen by a person. | Robot | [Face and look](face-and-look.md) |
 | **Top banner and subtitle strip** | A fixed top row for the remote cue, find, game, offline and battery, and a subtitle strip at the bottom. | Robot | [Face and look](face-and-look.md) |
 | **Filler sounds** | A short sound or phrase while the robot thinks: none, tone or phrase. Not yet heard by a person. | Robot | [Voice](voice.md) |

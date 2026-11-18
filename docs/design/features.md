@@ -43,7 +43,7 @@ Light and tone control per state. Camera-on cue that cannot be turned off.
 
 ## Voice and assistant (host)
 
-Wake word on the unit. Local speech, model and voice. Follow-up without the wake word. Barge-in.
+Wake word on the unit. Local speech, model and voice. Follow-up without the wake word. Barge-in (planned, not built).
 Voice commands: mute (quiet or hard), don't move, volume, brightness, sleep, stop, time, night mode.
 Timers and alarms with snooze, escalation and per-category tones. Personas with a lock. Robot actions as model tools.
 Offline phrases in the owner's voice. Language packs (see languages.md).
@@ -69,7 +69,7 @@ Time-of-day faces and clock variants. Several named timers with live countdowns 
 
 ## Touch and play
 
-Three games (color memory, reaction time, whack-a-mole) as data packs on one built-in game engine in the unit firmware (`MAIPAI_GAMES`, patches G01 to G03; see `games-2026-11-16.md`). Packs from outside the image must be signed with the update key.
+Seven games (color memory, whack-a-mole, tic-tac-toe, Do It, rock paper scissors, magic 8-ball, dice and coin) as data packs on one built-in game engine in the unit firmware (`MAIPAI_GAMES`, patches G01 to G03; see `games-2026-11-16.md`). Packs from outside the image must be signed with the update key.
 Mood that depends on care, saved across days. Music dance and mood faces. ESP-NOW pose mirroring between units.
 
 ## Coding companion (optional local package, status only; host plus unit)

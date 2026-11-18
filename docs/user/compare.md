@@ -21,7 +21,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Knows each person <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | It knows who is talking, by voice and by name. |
 | Calendars, briefings, announcements <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Ask about your day and hear household announcements. |
 | Rules for children and teens <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Kids get answers that fit the rules you set. |
-| Animated face | ★★☆ | ★★★ | ★★★ | The official README lists lively, expressive animations. Ours lets you choose between two styles, any color or none, and captions, and it adds a clock face and night mode. |
+| Animated face | ★★☆ | ★★★ | ★★★ | The official README lists lively, expressive animations. Ours lets you choose between five styles, any color or none, and captions, and it adds a clock face and night mode. |
 | Timers and alarms | TBD | ★★★ | ★★★ | A ring empties as time runs out, so you can read it across the room. |
 | Camera: snapshots, face follow, name list <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Have it follow you, take your picture, or say who it sees. Frames stay on your host. Runs with MaiPai Home. |
 | Camera: "what is this" <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Hold something up and hear what it is. Your hub does the looking. |

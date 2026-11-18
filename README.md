@@ -6,7 +6,7 @@
 
 > **Draft.** These docs are written as if v1.0.0 is finished, so the owner can review the full product. Remove this note when v1.0.0 ships.
 >
-> **Some pictures are placeholders.** Pictures named `unit-` are real screenshots from the flashed robot. The other drawings (47 of them) are placeholders and will be replaced before release.
+> **Some pictures are placeholders.** Pictures named `unit-` are real screenshots from the flashed robot. Pictures named `vu-` are drawn by the robot's own screen code on a computer, the same code, not a photo of the robot. The other drawings (82 of them) are placeholders and will be replaced before release.
 
 MaiPai for StackChan is open-source firmware and a host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot. It replaces the factory firmware with something quicker, steadier and yours.
 
@@ -14,11 +14,11 @@ MaiPai for StackChan is open-source firmware and a host program for the [StackCh
 
 ## Why you would want it
 
-**Fast and steady.** Wake cue in under 150 ms. "Stop" and touch commands in under 300 ms. Replies start on the first finished sentence, so you do not wait for the whole answer. The robot also stays calm and keeps running: a restart guard, a signed update that rolls itself back if the new version fails, and fewer false wake-ups from fan noise. [Voice](docs/user/voice.md), [updates](docs/user/updates.md).
+**Fast and steady.** The targets are a wake cue in under 150 ms and "stop" and touch commands in under 300 ms; neither is measured on a robot yet. Replies start on the first finished sentence, so you do not wait for the whole answer. The robot also stays calm and keeps running: a restart guard, a signed update that is built to roll itself back if the new version fails (not yet run with a real key), and a noise gate against false wake-ups from fan noise (still under test). [Voice](docs/user/voice.md), [updates](docs/user/updates.md).
 
 **Private by design.** What you say stays in your home. AI on your own computer answers, with no cloud service, no vendor account and no telemetry, and the host calls only the addresses you list in one settings file. Mute, camera off and full quiet take one tap, and [nothing is ever monitored in secret](docs/user/no-stealth.md). [Privacy](docs/user/privacy.md), [security](docs/user/security.md).
 
-**New things it can do.** Five faces and your own pictures as a face, 26 screen effects, swipe pages and a control sheet, games with saved best scores, voice timers and alarms that work with no model, dances to your music, six languages, remote controls and a camera you switch on yourself, with a cue that cannot be hidden. [Everything it does](docs/user/features.md).
+**New things it can do.** Five faces and your own pictures as a face, 28 screen effects, swipe pages and a control sheet, games with saved best scores, voice timers and alarms that work with no model, dances to your music, six languages, remote controls and a camera you switch on yourself, with a cue that cannot be hidden. [Everything it does](docs/user/features.md).
 
 **Take it with you.** Away from home the robot joins your private network by itself and reaches your host from any Wi-Fi: a friend's house, a hotel, the office. Setup takes a phone and a setup code on the robot's screen. [Use it away from home](docs/user/use-it-anywhere.md).
 

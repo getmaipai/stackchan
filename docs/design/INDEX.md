@@ -1663,6 +1663,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/update_core_test.c` (128): Host test for the first-boot trial rule (patch FM01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/update_verify_check.cc` (58): The unit's own update checks as a PC program (patches 155 and 159): the Ed25519 verification, the paired-host 
 - `host/tests/firmware/version_core_test.c` (168): Host test for the version screen core (patch U05): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
+- `host/tests/firmware/wrap_soak_test.c` (268): Soak test for the 24.9 day (2^31 ms) and 49.7 day (2^32 ms) wrap class, over every core that uses the stamp he
 - `host/tests/firmware_order_cores.py` (47): ruff: noqa: E501
 - `host/tests/fixtures/kws/README.md` (11): Rung 1 keyword spotter fixtures
 - `host/tests/fixtures/kws/amy-low__a_little_louder.wav` (214): no header
@@ -1783,6 +1784,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_command_bus.py` (444): ruff: noqa: E501
 - `host/tests/test_config_switches.py` (33): The robot.toml switches [remote] enabled and [home] url do something."""
 - `host/tests/test_connection_loss.py` (33): Losing the connection raises BodyLost once; nothing is retried silently."""
+- `host/tests/test_cross_review_open_bugs.py` (188): ruff: noqa: E501
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
@@ -1796,6 +1798,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_expression_suppression.py` (83): The suppression table (dev.md section 5's "Suppressed or reinterpreted when" column)."""
 - `host/tests/test_eyes_client.py` (267): The Reachy Eyes serial client, clean-room (docs/dev/eyes-wire-protocol.md).
 - `host/tests/test_face_preview_parity.py` (127): ruff: noqa: E501
+- `host/tests/test_face_wrap_soak.py` (53): ruff: noqa: E501
 - `host/tests/test_face_zone_layout.py` (48): ruff: noqa: E501
 - `host/tests/test_faces.py` (397): Face settings per unit: validation, saving and the push to the unit (patches F01 to F06)."""
 - `host/tests/test_faces_wiring.py` (191): Face settings wired in: the CLI command, the settings page and routes, the turn cue and sync."""
@@ -2094,6 +2097,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_volume.py` (259): Spoken volume control and the in-order face reset (owner request 2026-10-20)."""
 - `host/tests/test_stackchan_wake_look.py` (312): ruff: noqa: E501
 - `host/tests/test_stackchan_wifi_list.py` (353): The laptop relay: a tailnet peer that is not the unit's own address (plain Wi-Fi last leg).
+- `host/tests/test_stackchan_wrap_soak.py` (28): ruff: noqa: E501
 - `host/tests/test_stackchan_xiaozhi.py` (832): Offline fake-device protocol replay for StackChan xiaozhi."""
 - `host/tests/test_stand_in_hub.py` (136): The bench stand-in for the hub's robot-facing routes, and the link faults it injects.
 - `host/tests/test_stand_in_hub_knobs.py` (94): The stand-in hub's voice-path knobs for the headless tests (recognition latency, scripted
@@ -2156,7 +2160,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
-- `scripts/check.sh` (24): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (26): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
 - `scripts/fw-build.sh` (41): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate [JOBS]
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).

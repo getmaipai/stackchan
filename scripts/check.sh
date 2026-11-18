@@ -22,3 +22,5 @@ PY=python3; [ -x host/.venv/bin/python ] && PY=host/.venv/bin/python
 "$PY" scripts/license-check.py || exit 1
 
 bash scripts/leak-sweep.sh
+python3 scripts/docs-claims-check.py
+python3 scripts/make-vu-screenshots.py --check
