@@ -34,7 +34,7 @@ NAV = [("index.html", "Home"), ("docs/index.html", "Users"), ("playground/index.
 DEV_PAGES = [("docs/dev", n) for n in (
     "overview", "contributing", "build-from-source", "host-and-brains", "virtual-unit", "virtual-unit-3d", "virtual-unit-assets", "virtual-unit-dance",
     "virtual-unit-fidelity", "e2e-virtual-unit", "fuzzing-and-hostile-peer", "screen-audit", "version-page-fit", "memory-budget", "gate-numbers",
-    "battery-and-power", "test-speed")] + [("docs/design", n) for n in (
+    "battery-and-power", "hardware-reference", "test-speed")] + [("docs/design", n) for n in (
     "architecture", "repo-boundaries", "firmware-base", "unit-protocol", "screen-style", "languages", "first-run-flow", "config")]
 SECTION_OF = {"docs/user": "users", "docs/playground": "playground"}
 
