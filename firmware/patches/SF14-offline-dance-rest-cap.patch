@@ -1,0 +1,88 @@
+# Intent: A cap on continuous offline dancing: after ten minutes of motion without a pause of 30 s the unit rests for three minutes before it may dance again from the sound of the room (pure rule in maipai_dance_cap_core.h).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_music.cc (ours)
+# Check after a flash: with music playing for eleven minutes in a room with no host, the dance stops once at about ten minutes (log line 'resting after ten minutes') and starts again after three.
+# Kconfig: CONFIG_MAIPAI_MUSIC_DANCE (existing)
+
+diff --git a/firmware/main/hal/maipai_music.cc b/firmware/main/hal/maipai_music.cc
+--- a/firmware/main/hal/maipai_music.cc
++++ b/firmware/main/hal/maipai_music.cc
+@@ -14,6 +14,7 @@
+  * The unit never hears itself: the tap is told to stand still while it listens, speaks or plays (and 1.5 s after).
+  */
+ #include "maipai_music.h"
++#include "maipai_dance_cap_core.h"
+ 
+ #if CONFIG_MAIPAI_MUSIC_DANCE
+ 
+@@ -178,6 +179,7 @@ struct Ladder {
+     int max_stage = 4;
+ };
+ Ladder s_ladder;
++mdc_t s_cap;  // patch SF14: ten minutes of motion, then three minutes of rest
+ 
+ void ladder_begin(uint32_t now_ms, int max_stage)
+ {
+@@ -199,6 +201,13 @@ void ladder_end()
+ // Once a second while the unit dances on its own: steps the cycle and shows its step.
+ void ladder_tick(const mm_feat_t& f, bool music, uint32_t now_ms)
+ {
++    if (!mdc_allow(&s_cap, now_ms, s_ladder.active)) {
++        if (s_ladder.active) {
++            ladder_end();
++            ESP_LOGI(TAG, "offline music: resting after ten minutes of dancing");
++        }
++        return;
++    }
+     const int avg = mdl_energy_push(&s_ladder.energy, f.lv);
+     if (!s_ladder.active) {
+         if (s_ladder.rest_ms == 0) {
+diff --git a/firmware/main/hal/maipai_dance_cap_core.h b/firmware/main/hal/maipai_dance_cap_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_dance_cap_core.h
+@@ -0,0 +1,44 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * A cap on continuous offline dancing (patch SF14). Plain C99. Dancing that starts by itself from the sound of the room has no
++ * person to stop it, so after MDC_MAX_MS of motion without a pause of MDC_PAUSE_MS the unit rests for MDC_REST_MS.
++ * Host test: host/tests/firmware/dance_cap_core_test.c.
++ */
++#ifndef MAIPAI_DANCE_CAP_CORE_H
++#define MAIPAI_DANCE_CAP_CORE_H
++
++#include <stdint.h>
++#include "maipai_time_core.h"
++
++#define MDC_MAX_MS 600000u   /* ten minutes of motion */
++#define MDC_PAUSE_MS 30000u  /* a pause this long starts the count again */
++#define MDC_REST_MS 180000u  /* then three minutes of rest */
++
++typedef struct {
++    uint32_t since;      /* start of the current run of motion, 0 none */
++    uint32_t last_move;  /* the last tick that moved, 0 none */
++    uint32_t rest_until; /* 0 none */
++} mdc_t;
++
++static inline void mdc_init(mdc_t* c)
++{
++    c->since = c->last_move = c->rest_until = 0;
++}
++
++/* Once a second. moving: the unit is dancing now. Returns 1 when it may go on, 0 when it must rest. */
++static inline int mdc_allow(mdc_t* c, uint32_t now, int moving)
++{
++    if (mt_pending_clear(now, &c->rest_until)) return 0;
++    if (!moving) return 1;
++    if (c->last_move == 0u || mt_elapsed(now, c->last_move) >= MDC_PAUSE_MS) c->since = mt_stamp(now, 0);
++    c->last_move = mt_stamp(now, 0);
++    if (mt_elapsed(now, c->since) >= MDC_MAX_MS) {
++        c->since = c->last_move = 0;
++        c->rest_until = mt_stamp(now, MDC_REST_MS);
++        return 0;
++    }
++    return 1;
++}
++
++#endif /* MAIPAI_DANCE_CAP_CORE_H */

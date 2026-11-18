@@ -231,6 +231,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/images/wifi-setup.svg` (1): no header
 - `docs/plan/OPEN-DECISIONS.md` (23): Open decisions (2026-11-18)
 - `docs/plan/coding-companion-package.md` (36): Coding companion and agent tools (package design, for review before building)
+- `docs/plan/doc-screenshots.md` (21): Doc screenshots from the virtual unit
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
 - `docs/plan/friend-test-path-2026-11-18.md` (20): The friend-test path: what exists and what is missing (2026-11-18)
@@ -267,20 +268,21 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/character-packs.md` (17): Character packs
 - `docs/user/coding-companion.md` (35): Use the robot as a coding companion (optional package)
 - `docs/user/compare.md` (71): Compare MaiPai for StackChan
-- `docs/user/face-and-look.md` (115): Change how the robot looks
+- `docs/user/face-and-look.md` (117): Change how the robot looks
 - `docs/user/faq.md` (50): Questions people ask
 - `docs/user/features.md` (162): What the robot can do
 - `docs/user/find-and-remote.md` (73): Find the robot and control it remotely
-- `docs/user/games-and-pet.md` (81): Play games and care for your pet
-- `docs/user/getting-started.md` (66): Getting started with MaiPai for StackChan
+- `docs/user/games-and-pet.md` (83): Play games and care for your pet
+- `docs/user/getting-started.md` (86): Getting started with MaiPai for StackChan
 - `docs/user/glossary.md` (21): Glossary
 - `docs/user/hardware-and-models.md` (58): Pick hardware and a model
 - `docs/user/home-assistant.md` (20): Home Assistant (optional package)
 - `docs/user/home-tools.md` (35): Connect the robot to your own tools
-- `docs/user/install-the-host.md` (48): Install, update and remove the host
+- `docs/user/install-the-host.md` (50): Install, update and remove the host
 - `docs/user/languages.md` (26): Switch the language
 - `docs/user/lights-and-sounds.md` (62): Lights and sounds
 - `docs/user/local-vs-home.md` (52): What you get with your own model and with MaiPai Home
+- `docs/user/lock.md` (30): Lock the robot with a code
 - `docs/user/memory-notes.md` (23): Memory notes (optional package)
 - `docs/user/moves-and-moods.md` (85): How the robot reacts
 - `docs/user/music-and-dance.md` (35): Music and dance
@@ -290,20 +292,20 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/privacy.md` (64): What stays private
 - `docs/user/release-notes.md` (43): Release notes
 - `docs/user/security.md` (59): Keep the robot secure
-- `docs/user/settings.md` (85): Change a setting
-- `docs/user/swipe-pages.md` (77): Swipe pages and the control sheet
+- `docs/user/settings.md` (87): Change a setting
+- `docs/user/swipe-pages.md` (81): Swipe pages and the control sheet
 - `docs/user/switch-from-the-factory-firmware.md` (40): Switch from the factory firmware, or go back
-- `docs/user/timers-and-alarms.md` (50): Set a timer or alarm
+- `docs/user/timers-and-alarms.md` (52): Set a timer or alarm
 - `docs/user/troubleshooting.md` (41): Troubleshooting
 - `docs/user/try-the-virtual-robot.md` (28): Try the virtual robot
-- `docs/user/updates.md` (52): Update the robot
+- `docs/user/updates.md` (54): Update the robot
 - `docs/user/use-it-anywhere.md` (32): Use the robot away from home
 - `docs/user/voice.md` (83): Talk to the robot
 - `docs/user/wake-word-maker.md` (20): Make your own wake word (optional)
 - `docs/user/watch-and-alerts.md` (73): Watch your room and get alerts
 - `docs/user/web-flasher.md` (18): Flash the robot from a web page
 - `docs/user/which-setup.md` (48): Which setup is right for me?
-- `docs/user/with-maipai-home.md` (53): Use MaiPai Home as the brain
+- `docs/user/with-maipai-home.md` (55): Use MaiPai Home as the brain
 - `firmware/.gitkeep` (0): no header
 - `firmware/BASE` (5): The pinned upstream bases that firmware/patches/ORDER applies onto (read by scripts/fw-rebuild.sh).
 - `firmware/configs/sdkconfig.bench.defaults` (3): no header
@@ -463,7 +465,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (265): no header
+- `firmware/patches/ORDER` (266): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -1149,13 +1151,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_packages/coding_companion/__init__.py` (11): The coding companion: the robot shows what a coding agent on this computer is doing.
 - `host/maipai_packages/coding_companion/clean.py` (54): Everything the agent sends is cleaned before it is shown, and refused when it looks like a secret or a path.""
 - `host/maipai_packages/coding_companion/handler.py` (17): The spoken request: "what is my coding agent doing". Answered here from a fixed phrase, with no model call."""
-- `host/maipai_packages/coding_companion/hook.py` (66): A hook a coding agent runs to tell the robot its state. It sends the state, the kind and the project name, and
-- `host/maipai_packages/coding_companion/server.py` (116): The agent's endpoint: POST /status on 127.0.0.1 with the package's own token.
-- `host/maipai_packages/coding_companion/state.py` (65): The agent's latest state, as the package keeps it. Only the newest state is kept (changes are coalesced)."""
+- `host/maipai_packages/coding_companion/hook.py` (67): A hook a coding agent runs to tell the robot its state. It sends the state, the kind and the project name, and
+- `host/maipai_packages/coding_companion/server.py` (120): The agent's endpoint: POST /status on 127.0.0.1 with the package's own token.
+- `host/maipai_packages/coding_companion/state.py` (68): The agent's latest state, as the package keeps it. Only the newest state is kept (changes are coalesced)."""
 - `host/maipai_packages/home_assistant/__init__.py` (12): Home Assistant voice and camera snapshots, as an optional local package (off by default).
 - `host/maipai_packages/home_assistant/client.py` (153): The Home Assistant connection: conversation text in, speech text out; one camera picture on request."""
 - `host/maipai_packages/memory_notes/__init__.py` (12): Local memory for several adults as plain per-person notes files.
-- `host/maipai_packages/memory_notes/admission.py` (56): What may be stored, and who may read it (shaped like the shared memory admission concept).
+- `host/maipai_packages/memory_notes/admission.py` (70): What may be stored, and who may read it (shaped like the shared memory admission concept).
 - `host/maipai_packages/memory_notes/store.py` (189): One plain text file per person; one note per line: ``- 2026-11-18 [ab12cd] the note``."""
 - `host/maipai_packages/wake_word_maker/__init__.py` (10): Make your own wake word on this computer: record clips on the settings page, train a small model, check it, in
 - `host/maipai_packages/wake_word_maker/engine/__init__.py` (1): The small local wake-word trainer (features, dataset, training, checking). Copied from scripts/wakeword with o
@@ -1784,7 +1786,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_command_bus.py` (444): ruff: noqa: E501
 - `host/tests/test_config_switches.py` (33): The robot.toml switches [remote] enabled and [home] url do something."""
 - `host/tests/test_connection_loss.py` (33): Losing the connection raises BodyLost once; nothing is retried silently."""
-- `host/tests/test_cross_review_open_bugs.py` (188): ruff: noqa: E501
+- `host/tests/test_cross_review_open_bugs.py` (182): ruff: noqa: E501
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
@@ -1805,7 +1807,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_sensors.py` (232): The fake's scripted sensors: DoA, IMU, camera frames, the loopback recorder, the face tracker.
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (47): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (48): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2161,6 +2163,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
 - `scripts/check.sh` (26): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
 - `scripts/fw-build.sh` (41): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate [JOBS]
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).
@@ -2213,6 +2216,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
 - `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.
 - `scripts/make-update-vectors.py` (57): write the signed-update test vectors (host/tests/fixtures/update-signature-vectors.json) from a fixed TEST see
+- `scripts/make-vu-screenshots.py` (52): the screenshots for the user docs come from the virtual unit's golden frames (real LVGL drawing of the unit's 
 - `scripts/measure-mouth-cues.py` (30): print the mouth cue rate and levels for a speech WAV (16-bit mono or stereo), to check the 4 to 11 a second ba
 - `scripts/measure-turn.py` (134): Measure first model token and first speech audio from a local compatible service."""
 - `scripts/patch-replay.sh` (53): Identify genuinely added files separately from missing existing paths.
