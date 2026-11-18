@@ -59,18 +59,18 @@ PARTS = [
 ]
 
 MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. Colors are judged from product photos.
-    ('base', (0.115, 0.118, 0.14, 1.0), 0.0, 0.85, None),            # blue-gray, matte (owner's photos)
+    ('base', (0.090, 0.090, 0.105, 1.0), 0.0, 0.85, None),   # measured in the owner's photos against the white label paper: dark gray, slightly blue
     ('port', (0.012, 0.012, 0.014, 1.0), 0.0, 0.5, None),
-    ('neck', (0.60, 0.59, 0.55, 1.0), 0.0, 0.85, None),
-    ('servo', (0.23, 0.23, 0.25, 1.0), 0.0, 0.85, None),
+    ('neck', (0.420, 0.440, 0.440, 1.0), 0.0, 0.85, None),   # measured: the holder is a shade darker than the shell
+    ('servo', (0.085, 0.087, 0.100, 1.0), 0.0, 0.85, None),   # measured: the holder's back cover is the same dark gray as the base
     ('camera', (0.80, 0.27, 0.07, 1.0), 0.6, 0.35, None),            # the copper-orange ring round the lens (owner's front photo)
-    ('core', (0.60, 0.59, 0.54, 1.0), 0.0, 0.85, None),             # warm light gray, matte with a fine grain (owner's photos)
+    ('core', (0.525, 0.540, 0.540, 1.0), 0.0, 0.85, None),   # measured: the controller is a neutral light gray, a little lighter than the shell
     ('glass', (0.004, 0.004, 0.005, 1.0), 0.0, 0.12, None),
     ('light_bar', (0.42, 0.70, 0.72, 1.0), 0.0, 0.35, None),
     ('pcb', (0.012, 0.014, 0.016, 1.0), 0.0, 0.55, None),     # the boards are matte black (owner's photo of the open back)
-    ('shell', (0.58, 0.57, 0.52, 1.0), 0.0, 0.85, None),
+    ('shell', (0.480, 0.500, 0.505, 1.0), 0.0, 0.85, None),   # measured: neutral light gray, very slightly cool
     ('screen', (0.0, 0.0, 0.0, 1.0), 0.0, 0.4, (1.0, 1.0, 1.0)),
-    ('button', (0.62, 0.61, 0.56, 1.0), 0.0, 0.8, None),
+    ('button', (0.525, 0.540, 0.540, 1.0), 0.0, 0.85, None),   # the keys are the controller's own plastic
     ('port_metal', (0.42, 0.43, 0.46, 1.0), 0.6, 0.4, None),
     ('port_red', (0.45, 0.03, 0.02, 1.0), 0.0, 0.6, None),
     ('servo_case', (0.012, 0.014, 0.02, 1.0), 0.0, 0.5, None),
@@ -97,6 +97,7 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('conn_green', (0.25, 0.55, 0.85, 1.0), 0.0, 0.5, None),         # light blue in daylight (it looked green under amber light); the name is kept
     ('flex_ink', (0.08, 0.22, 0.75, 1.0), 0.0, 0.6, None),           # the print on the flat cables is blue (owner's photos)
     ('ring_led', (0.75, 0.75, 0.72, 1.0), 0.0, 0.4, None),
+    ('ribbon', (0.055, 0.055, 0.06, 1.0), 0.0, 0.45, None),         # the black flat cable: a shade lighter and glossier than the boards, so it reads against them
 ]
 LIGHT_OFF = (0.42, 0.70, 0.72, 1.0)
 LIGHTS = 12
@@ -538,7 +539,7 @@ def assemble():
     key = moved(rounded_outline(5.3, 9.05, 1.8), button_c[1], button_c[2] + 0.33)
     split = button_c[2] + 1.6
     back_part, front_part = clipped(key, 1, split, True), clipped(key, 1, split, False)
-    button_tris = tube(side, back_part, -0.8, -0.45) + flat(side, back_part, -0.45) + tube(side, front_part, -0.8, 0.05) + flat(side, front_part, 0.05)
+    button_tris = tube(side, back_part, -0.8, -0.45) + flat(side, back_part, -0.45) + tube(side, front_part, -0.8, 0.0) + flat(side, front_part, 0.0)   # flush with the housing: nothing stands proud (owner)
     # the power mark above the key: a ring open toward the front, with a short line from its middle out through the opening
     pc = (top - 8.2, face - 8.0)
     prints += stroke(side, [(pc[0] + 0.8 * math.sin(math.radians(a)), pc[1] + 0.8 * math.cos(math.radians(a))) for a in range(40, 321, 20)], 0.22, 0.02)
@@ -583,7 +584,7 @@ def assemble():
     # at the end toward its mark, where it joins with no gap
     reset_cap = moved(rounded_outline(7.9, 4.6, 2.29, 8), reset_c[0] + 0.35, reset_c[2])
     low, high = clipped(reset_cap, 0, reset_c[0] + 0.8, True), clipped(reset_cap, 0, reset_c[0] + 0.8, False)
-    reset_tris = tube(below, low, -0.8, -0.45) + flat(below, low, -0.45) + tube(below, high, -0.8, 0.05) + flat(below, high, 0.05)
+    reset_tris = tube(below, low, -0.8, -0.45) + flat(below, low, -0.45) + tube(below, high, -0.8, 0.0) + flat(below, high, 0.0)   # flush with the housing
     led_bottom_tris = flat(below, moved(circle(0.5, 12), led_bottom_c[0], led_bottom_c[2]), 0.02)
     rc = (21.0, face - 6.6)                                   # the restart mark beside the key: an open ring that ends in an arrowhead
     ring_pts = [(rc[0] + 0.85 * math.cos(math.radians(a)), rc[1] + 0.85 * math.sin(math.radians(a))) for a in range(70, 351, 20)]
@@ -663,7 +664,7 @@ def assemble():
         board_parts[material] += slab(onboard, x - w / 2, x + w / 2, top - dy - h / 2, top - dy + h / 2, 0.0, t)
     # the flat cable from the upright board up to the ring board: pale, with green print along it (owner's photo)
     flex = {'flex': [], 'flex_ink': []}
-    flex_x, fpath = -10.5, [(top - 21.0, zb - 0.25), (top - 9.5, zb - 0.6), (top - 5.4, zb - 2.6), (top - 3.9, zb - 6.0)]   # (height, depth) along the cable
+    flex_x, fpath = -5.5, [(top - 21.0, zb - 0.25), (top - 9.5, zb - 0.6), (top - 5.4, zb - 2.6), (top - 3.9, zb - 6.0)]   # (height, depth) along the cable
     for (y0, zf0), (y1, zf1) in zip(fpath, fpath[1:]):
         d = ((y1 - y0) / 2.0, (zf1 - zf0) / 2.0)
         ln = math.hypot(*d)
@@ -848,13 +849,11 @@ def assemble():
     c = (14.7, 41.7, -19.35)
     g.node('screw_servo', yaw, sub(c, YAW_O), g.mesh('screw_servo', [g.primitive(head_t, c, 'screw'), g.primitive(cross, c, 'screw_dark')]),
            {'what': "socket-head screw in the black bracket on the tilt servo's back end", 'basis': 'assumed'})
-    coil, coil_c = [], (0.0, PITCH_O[1] + 4.0, 10.5)                # the folded black flat cable between the upright board and the holder (owner's photos)
-    for n in range(6):                                           # six folds stacked, joined at alternate ends
-        y = coil_c[1] - 2.0 + 0.8 * n
-        coil += box((coil_c[0], y, coil_c[2]), (7.5, 0.4, 6.0))
-        coil += box((coil_c[0], y + 0.4, coil_c[2] + (2.8 if n % 2 else -2.8)), (7.5, 0.5, 0.4))
-    g.node('coil', yaw, sub(coil_c, YAW_O), g.mesh('coil', [g.primitive(coil, coil_c, 'servo_case')]),
-           {'what': 'folded black flat cable (a service loop) between the upright board and the holder', 'basis': 'assumed', 'note': "seen in the owner's photos of the open back; it flexes as the head nods, drawn at rest"})
+    # The black flat cable from the head's board into the holder (owner's photos): its last stretch stands in front of the tilt servo and
+    # goes down into the holder; the folded stack above it rides on the head (node coil, below).
+    lead_c = (0.0, PITCH_O[1] + 4.6, 7.2)
+    g.node('ribbon_to_holder', yaw, sub(lead_c, YAW_O), g.mesh('ribbon_to_holder', [g.primitive(box(lead_c, (7.5, 6.0, 0.4)), lead_c, 'ribbon')]),
+           {'what': 'the black flat cable where it goes down into the holder, in front of the tilt servo', 'basis': 'assumed', 'note': "seen in the owner's photos of the open back"})
     inside = [('servo_yaw', {'servo_case': servo_yaw}, 'pan servo: its case turns with the holder, its shaft sits in the base socket (size from the data sheet, position assumed)'),
               ('servo_pitch', {'servo_case': servo_pitch}, 'tilt servo: its shaft drives the arm on the nod axis (size from the data sheet, position assumed)'),
               ('battery', {'battery': battery}, '550 mAh battery behind the holder back cover (capacity published; size and position assumed)'),
@@ -907,6 +906,20 @@ def assemble():
     b7 = (0.0, cy + 1.0, front - 1.1)
     g.node('board_7p', head, sub(b7, PITCH_O), g.mesh('board_7p', many(board_7p, b7)),
            {'what': 'the upright board behind the controller, with its white print (7P beside the seven-pin socket)', 'basis': 'assumed', 'note': "print seen in the owner's photo and in the maker's back picture"})
+    coil, coil_c = [], (2.0, top - 17.0, front - 5.2)             # the folded black flat cable behind the upright board (owner's photos): a service loop,
+    for n in range(6):                                           # six folds stacked and joined at alternate ends; it rides on the head
+        y = coil_c[1] - 2.0 + 0.8 * n
+        coil += box((coil_c[0], y, coil_c[2]), (7.5, 0.4, 6.0))
+        coil += box((coil_c[0], y + 0.4, coil_c[2] + (2.8 if n % 2 else -2.8)), (7.5, 0.5, 0.4))
+    g.node('coil', head, sub(coil_c, PITCH_O), g.mesh('coil', [g.primitive(coil, coil_c, 'ribbon')]),
+           {'what': 'folded black flat cable (a service loop) behind the upright board, on its way to the holder', 'basis': 'assumed', 'note': "seen in the owner's photos of the open back; it flexes as the head nods, drawn at rest"})
+    low = {'flex': [], 'flex_ink': []}                           # a second flat cable, white with blue print, low on the board (owner's photo from below)
+    low['flex'] += slab(lambda u, v, c: (u, v, zb - c), -13.0, -2.0, cy - 16.0, cy - 12.6, 0.0, 0.2)
+    for k7 in range(7):
+        low['flex_ink'] += slab(lambda u, v, c: (u, v, zb - c), -12.2 + 1.5 * k7, -11.4 + 1.5 * k7, cy - 15.4, cy - 13.2, 0.2, 0.23)
+    lc = (-7.5, cy - 14.3, zb)
+    g.node('flex_cable_low', head, sub(lc, PITCH_O), g.mesh('flex_cable_low', many(low, lc)),
+           {'what': 'flat cable with blue print low on the upright board', 'basis': 'assumed', 'note': "seen in the owner's photo of the underside; where it ends is not known"})
     fc = (flex_x, top - 12.0, zb - 3.0)
     g.node('flex_cable_ring', head, sub(fc, PITCH_O), g.mesh('flex_cable_ring', many(flex, fc)),
            {'what': 'flat cable with green print from the upright board up to the ring board', 'basis': 'assumed', 'note': "seen in the owner's photo; the exact path is assumed"})
@@ -1031,7 +1044,7 @@ def assemble():
             'neck': val(0.047, 'assumed', 'servo holder, two servos, battery'),
             'base': val(0.0352, 'assumed'),
         },
-        'colors': {'value': dict([(m[0], list(m[1])) for m in MATERIALS] + [('light_off', list(LIGHT_OFF))]), 'basis': 'assumed', 'note': 'from product photos'},
+        'colors': {'value': dict([(m[0], list(m[1])) for m in MATERIALS] + [('light_off', list(LIGHT_OFF))]), 'basis': 'assumed', 'note': "the plastics (shell, core, neck, servo, base, button) were measured in the owner's daylight photos against the white label paper, good to about 15 percent; the rest is by eye"},
     }
     return glb, params
 

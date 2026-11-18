@@ -34,7 +34,7 @@ stackchan
       neck                servo holder and its two covers (turns with yaw)
       servo_yaw, servo_pitch, battery, cable    inside the holder: size of the servos from their data sheet, the rest assumed (MATCH.md)
       battery_lead, servo_wires    the battery lead and the two servo leads (assumed paths)
-      black_bracket, coil    the bracket on the tilt servo's back end and the coiled lead above it (owner's photo)
+      black_bracket, ribbon_to_holder    the bracket on the tilt servo's back end, and the black flat cable where it enters the holder (owner's photos)
       back_charge_led     red light in the holder back, between the screws
       screw_back_0, screw_back_1, screw_servo    the two cover screws on the holder back and the one on the tilt servo
       col_neck            collider cylinder
@@ -46,7 +46,7 @@ stackchan
           board           marks the boards in the head
           ring_board, ring_led_0..11    the dark board under the top and its 12 small lights (ring_led_N belongs to ring_light_N)
           light_bar_left, light_bar_right    the two frosted light guides; extras.lights lists each bar's lights front to back
-          green_connector, board_7p, flex_cable_ring    seen in the owner's photo of the open back
+          green_connector, board_7p, flex_cable_ring, flex_cable_low, coil    seen in the owner's photos of the open back (coil is the folded black flat cable)
           board_parts     chips, sockets, a ribbon and a flat cable on the upright board, as plain blocks
           screw_head_0, screw_head_1    dark screws low inside the head, seen from the back
           reset_button, sd_slot, screen_bottom_led    under the controller: white key, open card slot, light pinhole (positions from the underside photo)

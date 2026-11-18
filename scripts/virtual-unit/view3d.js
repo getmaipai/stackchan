@@ -19,13 +19,14 @@ function readGlb(THREE, bytes) {
     const a = doc.accessors[i], v = doc.bufferViews[a.bufferView];
     return new THREE.BufferAttribute(new arrays[a.componentType](bin, v.byteOffset || 0, a.count * width[a.type]), width[a.type]);
   }
-  // The housings are matte molded plastic with a fine grain. The file has no pictures in it, so the grain is made here: each plastic's
-  // color is varied a few percent from cell to cell (0.2 mm cells in the part's own frame), which reads as the speckle of the real surface.
+  // The housings are matte molded plastic with a fine grain. The file has no pictures in it, so the grain is made here to the numbers
+  // measured in the owner's close-ups: features about 0.1 mm across and a brightness spread of about 3 percent seen square on
+  // (a 10 percent range, evenly spread, has that spread). It shows only when the view is close, as on the real unit.
   const GRAINY = {shell: 1, core: 1, base: 1, neck: 1, servo: 1, button: 1};
   const grain = shader => {
     shader.vertexShader = 'varying vec3 vGrain;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vGrain = position;');
     shader.fragmentShader = 'varying vec3 vGrain;\n' + shader.fragmentShader.replace('#include <color_fragment>',
-      '#include <color_fragment>\n  vec3 gc = floor(vGrain * 5000.0);\n  float gn = fract(sin(dot(gc, vec3(12.9898, 78.233, 37.719))) * 43758.5453);\n  diffuseColor.rgb *= 0.95 + 0.10 * gn;');
+      '#include <color_fragment>\n  vec3 gc = floor(vGrain * 10000.0);\n  float gn = fract(sin(dot(gc, vec3(12.9898, 78.233, 37.719))) * 43758.5453);\n  diffuseColor.rgb *= 0.95 + 0.10 * gn;');
   };
   const materials = doc.materials.map(m => {
     const c = m.pbrMetallicRoughness.baseColorFactor;
@@ -69,6 +70,7 @@ function initRobot(THREE, canvas, hooks) {
   const fill = new THREE.DirectionalLight(0xffffff, 0.25); fill.position.set(-10, 4, 9); scene.add(fill);
   const back = new THREE.DirectionalLight(0xffffff, 0.25); back.position.set(10, 5, -9); scene.add(back);
   const below = new THREE.DirectionalLight(0xffffff, 0.3); below.position.set(2, -10, 6); scene.add(below);   // so the underside reads when the view looks up at it
+  const ROOM_GAIN = 1.4;   // set so the shell's measured gray draws as bright as it photographs in daylight (see MATCH.md)
   const ROOM = [[hemi, 0.5], [key, 0.4], [rim, 0.35], [fill, 0.25], [back, 0.25], [below, 0.3]];   // the room's own light; "Dim room" turns it down so the unit's lights carry the picture
   // one soft round glow, drawn once and reused: a lit light gets it as an additive halo (no second script from the network)
   const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext && c.getContext('2d'); if (!g) return null;
@@ -431,7 +433,7 @@ function initRobot(THREE, canvas, hooks) {
       if (lightKey !== M.lightKey) {   // only when a light changed: the dances change them many times a second
         M.lightKey = lightKey;
         const px = []; for (let i = 0; i < 12; i++) { const c = on && leds[i] ? leds[i] : [0, 0, 0]; px.push([c[0] / 255, c[1] / 255, c[2] / 255, Math.max(c[0], c[1], c[2]) / 255]); }
-        for (const [l, level] of ROOM) l.intensity = level * (dim ? 0.22 : 1);
+        for (const [l, level] of ROOM) l.intensity = level * (dim ? 0.22 : ROOM_GAIN);
         scene.background.set(dim ? 0x07090c : 0x15181d);
         const off = dim ? [0.07, 0.10, 0.10] : [0.20, 0.30, 0.31];   // an unlit bar is plain frosted plastic: no light of its own
         for (let i = 0; i < 12; i++) {

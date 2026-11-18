@@ -393,7 +393,7 @@ def test_rear_internals_seen_in_the_owners_photo_are_named_nodes():
     head, yaw, base = descendants(j, by["head"][0]), descendants(j, by["yaw_joint"][0]), descendants(j, by["base"][0])
     for name in ["ring_board", "green_connector", "flex_cable_ring", "board_7p", "light_bar_left", "light_bar_right"] + [f"ring_led_{i}" for i in range(12)]:
         assert name in head and "mesh" in by[name][1], f"{name} is drawn and rides on the head"
-    assert {"black_bracket", "coil"} <= yaw - head and "base_board" in base - yaw
+    assert {"black_bracket", "ribbon_to_holder"} <= yaw - head and {"coil", "flex_cable_low"} <= head and "base_board" in base - yaw
     assert by["base_board"][1]["extras"]["basis"] == "assumed" and "no picture of the open base" in by["base_board"][1]["extras"]["note"]
     mat = lambda name: [j["materials"][p["material"]]["name"] for p in j["meshes"][by[name][1]["mesh"]]["primitives"]]
     assert "silk" in mat("board_7p") and mat("green_connector") == ["conn_green"] and "flex_ink" in mat("flex_cable_ring")
@@ -434,7 +434,7 @@ def test_details_corrected_from_the_owners_photos():
     assert col["port_teal"][2] > col["port_teal"][1] > col["port_teal"][0], "the second top connector is light blue"
     assert col["camera"][0] > 0.6 and col["camera"][2] < 0.15, "a copper-orange ring round the lens"
     assert col["flex_ink"][2] > 0.5, "blue print on the flat cables"
-    assert abs(by["coil"][1]["translation"][0]) < 0.001, "the folded cable is in the middle"
+    assert abs(by["coil"][1]["translation"][0]) < 0.004, "the folded cable is near the middle"
     src = (VU / "model" / "make_body.py").read_text()
     assert "enumerate((5.6, 7.7, 9.7))" in src and "range(8 if c == 1 else 9)" in src, "26 holes in the speaker grille: three columns of 9, 8 and 9"
 
@@ -477,3 +477,12 @@ def test_the_unsealed_slits_behind_the_top_connectors_are_nodes_the_view_lights(
     assert by["top_gap_left"][1]["translation"][0] > 0 > by["top_gap_right"][1]["translation"][0]
     js = (VU / "view3d.js").read_text()
     assert "top_gap_left" in js and "GRAINY" in js and "onBeforeCompile" in js, "the slits glow with the ring, and the plastics have a grain"
+
+
+def test_the_keys_are_flush_with_the_housing():
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    power = j["accessors"][j["meshes"][by["power_button"][1]["mesh"]]["primitives"][0]["attributes"]["POSITION"]]
+    reset = j["accessors"][j["meshes"][by["reset_button"][1]["mesh"]]["primitives"][0]["attributes"]["POSITION"]]
+    assert abs(power["min"][0]) < 1e-6, "the power key's outer face is level with the controller's side, not proud of it"
+    assert abs(reset["min"][1]) < 1e-6, "the reset key's outer face is level with the controller's underside"

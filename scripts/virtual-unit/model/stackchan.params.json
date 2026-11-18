@@ -1,12 +1,12 @@
 {
  "colors": {
   "basis": "assumed",
-  "note": "from product photos",
+  "note": "the plastics (shell, core, neck, servo, base, button) were measured in the owner's daylight photos against the white label paper, good to about 15 percent; the rest is by eye",
   "value": {
    "base": [
-    0.115,
-    0.118,
-    0.14,
+    0.09,
+    0.09,
+    0.105,
     1.0
    ],
    "battery": [
@@ -16,9 +16,9 @@
     1.0
    ],
    "button": [
-    0.62,
-    0.61,
-    0.56,
+    0.525,
+    0.54,
+    0.54,
     1.0
    ],
    "cable": [
@@ -52,8 +52,8 @@
     1.0
    ],
    "core": [
-    0.6,
-    0.59,
+    0.525,
+    0.54,
     0.54,
     1.0
    ],
@@ -100,9 +100,9 @@
     1.0
    ],
    "neck": [
-    0.6,
-    0.59,
-    0.55,
+    0.42,
+    0.44,
+    0.44,
     1.0
    ],
    "pcb": [
@@ -147,6 +147,12 @@
     0.31,
     1.0
    ],
+   "ribbon": [
+    0.055,
+    0.055,
+    0.06,
+    1.0
+   ],
    "ring_led": [
     0.75,
     0.75,
@@ -172,9 +178,9 @@
     1.0
    ],
    "servo": [
-    0.23,
-    0.23,
-    0.25,
+    0.085,
+    0.087,
+    0.1,
     1.0
    ],
    "servo_case": [
@@ -184,9 +190,9 @@
     1.0
    ],
    "shell": [
-    0.58,
-    0.57,
-    0.52,
+    0.48,
+    0.5,
+    0.505,
     1.0
    ],
    "silk": [

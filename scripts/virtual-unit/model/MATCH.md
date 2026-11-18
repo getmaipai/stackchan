@@ -181,7 +181,11 @@ All are the owner's own photos, kept out of this repository in the session's not
 - There is no gap between the controller and the body. The model showed a slit at that joint, because the shell file's front lip is rounded; a plate just inside the lip now closes it.
 - The lights do not leak onto any part of the controller or its screen. The view's thrown light now points down and back from the ring board, and each halo is small enough to stay on its bar.
 - Nothing on the outside of the head marks the touch pads. They are drawn under the shell top.
-- Four close-ups of the keys. Both have the same lift: each key is a tongue narrower than its opening, with a dark gap at one end and down both sides; it sits low at that end, then a step lifts the other end level with the housing, where it joins with no gap. On the power key the raised end is toward the glass; on the reset key it is toward its mark. The power mark is a ring open toward the front with a short line through the opening; the reset mark is an open ring ending in an arrowhead. The light beside the reset key is round and red; the two slots have rounded ends. All now drawn that way.
+- Four close-ups of the keys. Both have the same lift: each key is a tongue narrower than its opening, with a dark gap at one end and down both sides; it sits low at that end, then a step lifts the other end level with the housing, where it joins with no gap. The raised end is flush with the housing: neither key stands proud. On the power key the raised end is toward the glass; on the reset key it is toward its mark. The power mark is a ring open toward the front with a short line through the opening; the reset mark is an open ring ending in an arrowhead. The light beside the reset key is round and red; the two slots have rounded ends. All now drawn that way.
+
+## The flat cables in the open back (owner's photos, 2026-11-18)
+
+Three flat cables show in the owner's photos and are drawn: the white one with blue print from the upright board up to the ring board (`flex_cable_ring`), a second white one with blue print low on the board (`flex_cable_low`), and the thick black one that leaves the board as a folded stack (`coil`, riding on the head) and goes down into the holder in front of the tilt servo (`ribbon_to_holder`). Their paths between the ends are assumed. The pitch sweep was run again with them in place.
 
 ## Names and marks that are left out on purpose (2026-11-18)
 
@@ -201,9 +205,21 @@ The camera is a small dome with rings inside it and a thin orange ring round it.
 
 Each four-pin connector on the head top sits in an opening a little deeper than itself, so a slit stays open behind it and the ring's light shows there. This is the one place light escapes on the outside besides the bars and the three side openings. The model has `top_gap_left` and `top_gap_right`, and the view lights each with the two ring lights nearest it. Nothing leaks onto the controller or its screen.
 
-## Plastic color and texture (owner's close-ups, 2026-11-18)
+## Plastic color and texture, measured in the owner's photos (2026-11-18)
 
-The housings are matte molded plastic with a fine grain. The head shell, the controller and its keys are a warm light gray; the holder is close to it; the holder's back cover is a mid gray; the base is a darker blue-gray, also grained, with plain round holes through its feet. The model's colors were set by eye from the owner's daylight photos, so they are assumed: no color was measured. The file itself carries no pictures, so the grain is made by the view (a few percent of color variation in 0.2 mm cells) and is not in the glb.
+**Color.** In each daylight photo the white paper of a label was taken as a white of 80 percent reflectance, and each plastic's average color was scaled by it (linear light). Where a photo had no label, the controller's plastic carried the scale over from one that had.
+
+| Part | Linear color (red, green, blue) | Read as |
+|---|---|---|
+| Head shell | 0.48, 0.50, 0.505 | neutral light gray, very slightly cool |
+| Controller and its keys | 0.525, 0.54, 0.54 | the same gray, a little lighter |
+| Servo holder | 0.42, 0.44, 0.44 | a shade darker than the shell |
+| Holder's back cover | 0.085, 0.087, 0.10 | dark gray, slightly blue |
+| Base | 0.09, 0.09, 0.105 | the same dark gray as the back cover |
+
+These are good to about 15 percent: the label paper was at the top of the camera's range in one photo, the orange mat tints the light, and the two photos disagree by about that much. An earlier pass had set a warm gray by eye; the measurement shows the plastic is neutral.
+
+**Texture.** The housings are matte with a fine molded grain. In the close-ups the grain's features are about 0.1 mm across (the brightness pattern stops matching itself after 0.04 to 0.07 mm). Its brightness spread is about 3 percent seen square on at normal distance, and 10 to 20 percent in the raking light of the macro shots. The feet carry the same grain as the rest of the base, with plain round holes through them. The view draws a grain of that size and that 3 percent spread; it is made in the view, not stored in the model file, and it does not brighten at a glancing angle as the real surface does.
 
 ## What to compare on the unit
 
