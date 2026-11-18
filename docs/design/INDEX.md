@@ -196,7 +196,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/translation-review/status.json` (32): no header
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
-- `docs/dev/virtual-unit-3d.md` (40): The 3D virtual unit: body, power, axes
+- `docs/dev/virtual-unit-3d.md` (50): The 3D virtual unit: body, power, axes
 - `docs/dev/virtual-unit-fidelity.md` (32): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
 - `docs/dev/virtual-unit.md` (29): Virtual unit
 - `docs/images/agent-status.svg` (1): no header
@@ -2279,6 +2279,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_virtual_unit_hw.py` (189): ruff: noqa: E501
 - `host/tests/test_virtual_unit_parity.py` (37): Tool parity: every firmware tool is either simulated or a named gap. Unsimulated tools xfail (strict), so this
 - `host/tests/test_virtual_unit_physics.py` (221): ruff: noqa: E501
+- `host/tests/test_virtual_unit_ports.py` (175): ruff: noqa: E501
 - `host/tests/test_vision_align.py` (113): FACE-01's own alignment math, checked against known transforms -
 - `host/tests/test_vision_capture.py` (47): The still-image call's bot-side capture path
 - `host/tests/test_vision_detect.py` (91): wanted for a decode-only test, so the instance is built without
@@ -2302,7 +2303,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vu_tools_page_overlay.py` (74): no header
 - `host/tests/test_vu_tools_pages_filler_mood.py` (57): no header
 - `host/tests/test_vu_tools_user_only.py` (30): Behavior checks for the virtual unit user-only tools."""
-- `host/tests/test_vu_view_pointer.py` (222): The virtual unit view under a real pointer: a browser is driven through its own input pipeline (mouse press, m
+- `host/tests/test_vu_view_pointer.py` (253): The virtual unit view under a real pointer: a browser is driven through its own input pipeline (mouse press, m
 - `host/tests/test_wake.py` (104): G2's own acceptance: the wake state machine, driven by a fake engine."""
 - `host/tests/test_wake_engine_real_model.py` (128): G2's real-model acceptance: `OpenWakeWordEngine` against the actual
 - `host/tests/test_wake_models.py` (91): Wake-word asset pins resolve through the paired hub cache."""
@@ -2423,7 +2424,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
 - `scripts/virtual-unit/gitify.py` (28): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
-- `scripts/virtual-unit/hw.py` (167): The virtual unit's body: power button, USB-C cable, Wi-Fi, battery, carried and orientation, and what they do 
+- `scripts/virtual-unit/hw.py` (252): The virtual unit's body: power button, the two USB-C ports, Wi-Fi, battery, carried and orientation, and what 
 - `scripts/virtual-unit/link_shim.c` (37): The unit's own link key schedule (maipai_linkkey_core.h, patch SF20) on the command line, so a simulated unit 
 - `scripts/virtual-unit/listen_guard.c` (22): Harness for the listening guard (patch SF03): runs the guard loop of Application::Run once a second through th
 - `scripts/virtual-unit/make_briefs.py` (57): Write lane briefs for the tools the virtual unit does not simulate yet, in chunks of at most 7 tools of one or
@@ -2459,7 +2460,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
-- `scripts/virtual-unit/scenarios.py` (208): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (238): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/tools/__init__.py` (15): Tool handlers for the virtual unit, one module per group. A handler is registered with @tool("self.x.y") and g
 - `scripts/virtual-unit/tools/apps.py` (203): Clock, game, lock, and timer tools for the virtual unit."""
 - `scripts/virtual-unit/tools/audio.py` (277): Audio, listening, music and unit utility tools for the virtual unit."""
@@ -2478,9 +2479,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/touch_targets.py` (83): Touch target sizes on the golden screens: find the button and tile shapes in each frame and report their size 
 - `scripts/virtual-unit/ui_style_check.py` (30): Count the font sizes and color literals the app screen sources use, on the overlay tree built by build-face.sh
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
-- `scripts/virtual-unit/view.html` (260): app{display:flex;height:100%}
-- `scripts/virtual-unit/view.py` (325): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
-- `scripts/virtual-unit/view3d.js` (387): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
+- `scripts/virtual-unit/view.html` (278): app{display:flex;height:100%}
+- `scripts/virtual-unit/view.py` (328): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
+- `scripts/virtual-unit/view3d.js` (399): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
 - `scripts/virtual-unit/vunit.py` (278): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/wakeword/README.md` (17): Local wake word experiment
 - `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
