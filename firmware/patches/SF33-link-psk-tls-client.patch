@@ -1,0 +1,336 @@
+# Intent: Encrypted link, the TLS client (off by default, CONFIG_MAIPAI_LINK_PSK). A unit with a stored link key connects to its host only over TLS with the pre-shared key (HKDF of the link key and the device id): the saved ws or http address is rewritten to the host's encrypted listener (ws 8765 to wss 18775, ws 8766 to wss 18776, http 8767 to https 8777) and an address that cannot be rewritten is not connected to. The network component's TLS client uses the key for those ports through esp-tls psk_hint_key; the component is not edited: a configure-time copy adds the lookup (vendor_fixes/link_psk.cmake, only when the switch is on). Also the unit's pairing state machine (maipai_pairx_core.h: pair_start, host key and commitment, nonces, six-digit code, paired) with a host test on the shared vectors; its message handling and screen follow in the next patch.
+# Placement: unit
+# Upstream: managed component 78__esp-ml307 src/esp/esp_ssl.cc (MIT), copied and edited at configure time by firmware/vendor_fixes/link_psk.cmake; firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc (nested tree, MIT); firmware/main/hal (ours)
+# Check after a flash: on an image built with the linkpsk overlay and a stored link key the voice socket connects to port 18775 with TLS-PSK; without a stored key behavior is unchanged; on the default image nothing is built.
+# Kconfig: CONFIG_MAIPAI_LINK_PSK (default n); the linkpsk overlay also sets CONFIG_ESP_TLS_PSK_VERIFICATION
+
+diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
+--- a/firmware/CMakeLists.txt
++++ b/firmware/CMakeLists.txt
+@@ -31,6 +31,9 @@ include("${CMAKE_CURRENT_LIST_DIR}/vendor_fixes/camera_vsync.cmake")
+ # Wi-Fi roaming, the scan-done step (patch RM02): see vendor_fixes/wifi_roam.cmake.
+ include("${CMAKE_CURRENT_LIST_DIR}/vendor_fixes/wifi_roam.cmake")
+ 
++# Encrypted link, the TLS client (patch SF33): see vendor_fixes/link_psk.cmake.
++include("${CMAKE_CURRENT_LIST_DIR}/vendor_fixes/link_psk.cmake")
++
+ # Auto-load a local sdkconfig overlay (git-ignored) when present. Lets
+ # self-hosted / custom deployments pin CONFIG_STACKCHAN_SERVER_URL,
+ # CONFIG_OTA_URL, etc. without touching committed defaults.
+diff --git a/firmware/vendor_fixes/link_psk.cmake b/firmware/vendor_fixes/link_psk.cmake
+new file mode 100644
+--- /dev/null
++++ b/firmware/vendor_fixes/link_psk.cmake
+@@ -0,0 +1,47 @@
++# Encrypted link, the TLS client (patch SF33), included from firmware/CMakeLists.txt. The network component's TLS client (78/esp-ml307,
++# src/esp/esp_ssl.cc) checks the server against the public certificate bundle. For a connection to one of the host's encrypted ports a
++# unit paired with the key exchange uses the pre-shared key instead (esp-tls already supports it: psk_hint_key). The component in managed_components
++# is not edited: at configure time this script copies esp_ssl.cc into the build directory, adds the key lookup, and swaps the copy in
++# for the original (the same method as vendor_fixes/wifi_roam.cmake). Only when CONFIG_MAIPAI_LINK_PSK is on; with it off nothing changes.
++# The configure stops with an error if the vendor text changed.
++set(maipai_link_psk_dir "${CMAKE_CURRENT_LIST_DIR}")
++
++function(maipai_link_psk_fix)
++    if(NOT CONFIG_MAIPAI_LINK_PSK)
++        return()
++    endif()
++    idf_component_get_property(ssl_lib 78__esp-ml307 COMPONENT_LIB)
++    if(NOT ssl_lib)
++        return()
++    endif()
++    idf_component_get_property(ssl_dir 78__esp-ml307 COMPONENT_DIR)
++    set(src "${ssl_dir}/src/esp/esp_ssl.cc")
++    if(NOT EXISTS "${src}")
++        return()
++    endif()
++    file(READ "${src}" text)
++    set(out "${CMAKE_BINARY_DIR}/maipai_vendor/esp_ssl.cc")
++    set(old_inc "#include <esp_crt_bundle.h>\n")
++    set(new_inc "#include <esp_crt_bundle.h>\nextern bool maipai_link_psk_for_tls(int port, psk_hint_key_t* out);  /* MaiPai SF33 */\n")
++    set(old_cfg "    cfg.crt_bundle_attach = esp_crt_bundle_attach;\n")
++    set(new_cfg "    cfg.crt_bundle_attach = esp_crt_bundle_attach;\n    static psk_hint_key_t maipai_psk;  /* MaiPai SF33: one TLS connection is made at a time */\n    if (maipai_link_psk_for_tls(port, &maipai_psk)) {\n        cfg.crt_bundle_attach = nullptr;\n        cfg.psk_hint_key = &maipai_psk;\n    }\n")
++    foreach(pair old_inc;old_cfg)
++        string(FIND "${text}" "${${pair}}" pos)
++        if(pos EQUAL -1)
++            message(FATAL_ERROR "MaiPai SF33: the TLS client's esp_ssl.cc no longer has the text this fix edits (${pair}). Update firmware/vendor_fixes/link_psk.cmake for the new version of 78/esp-ml307.")
++        endif()
++    endforeach()
++    # The copy is built from the build directory, so the component's own header is named by its full path.
++    string(REPLACE "#include \"esp_ssl.h\"\n" "#include \"${ssl_dir}/src/esp/esp_ssl.h\"\n" text "${text}")
++    string(REPLACE "${old_inc}" "${new_inc}" text "${text}")
++    string(REPLACE "${old_cfg}" "${new_cfg}" text "${text}")
++    file(WRITE "${out}" "${text}")
++    set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${src}")
++
++    get_target_property(srcs ${ssl_lib} SOURCES)
++    list(FILTER srcs EXCLUDE REGEX "esp_ssl\\.cc$")
++    list(APPEND srcs "${out}")
++    set_property(TARGET ${ssl_lib} PROPERTY SOURCES "${srcs}")
++endfunction()
++
++cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL maipai_link_psk_fix)
+diff --git a/firmware/main/hal/maipai_linkpsk.h b/firmware/main/hal/maipai_linkpsk.h
+--- a/firmware/main/hal/maipai_linkpsk.h
++++ b/firmware/main/hal/maipai_linkpsk.h
+@@ -14,4 +14,13 @@ bool maipai_link_key_save(const uint8_t k[32]);
+ bool maipai_link_key_load(uint8_t k[32]);
+ void maipai_link_key_erase();
+ void maipai_linkpsk_register_tools();
++#include <string>
++// Patch SF33: the address the unit connects to. Without a stored link key the url is returned as it is. With one, a plain ws or http address of the
++// host is rewritten to its encrypted listener, and an address that cannot be rewritten comes back empty (a unit paired with the key exchange never
++// connects in the clear).
++std::string maipai_link_secure_url(const std::string& url);
++#include <esp_tls.h>
++// Patch SF33: for the TLS client (vendor_fixes/link_psk.cmake): the pre-shared key for a connection to one of the host's encrypted ports. True and
++// fills *out (identity = device id, key = HKDF of the stored link key) when a key is stored and the port is an encrypted one.
++bool maipai_link_psk_for_tls(int port, psk_hint_key_t* out);
+ #endif
+diff --git a/firmware/main/hal/maipai_linkpsk.cc b/firmware/main/hal/maipai_linkpsk.cc
+--- a/firmware/main/hal/maipai_linkpsk.cc
++++ b/firmware/main/hal/maipai_linkpsk.cc
+@@ -9,6 +9,9 @@
+ 
+ #if CONFIG_MAIPAI_LINK_PSK
+ #include "maipai_linkkey_core.h"
++#include "maipai_linkurl_core.h"
++#include <system_info.h>
++#include <algorithm>
+ #include <psa/crypto.h>
+ #include <esp_heap_caps.h>
+ #include <esp_log.h>
+@@ -74,6 +77,40 @@ bool maipai_link_key_load(uint8_t k[32])
+     return ok;
+ }
+ 
++std::string maipai_link_secure_url(const std::string& url)
++{
++    uint8_t k[32];
++    if (!maipai_link_key_load(k)) {
++        return url;  // no link key: the unit is not paired with the key exchange
++    }
++    lk_wipe(k, sizeof(k));
++    char out[300];
++    if (mlu_rewrite(url.c_str(), out, sizeof(out)) == 0) {
++        ESP_LOGE(kTag, "The host address %s cannot be made encrypted: this unit is paired for the encrypted link and does not connect in the clear. Pair it again or fix the address.", url.c_str());
++        return std::string();
++    }
++    return std::string(out);
++}
++
++bool maipai_link_psk_for_tls(int port, psk_hint_key_t* out)
++{
++    // The key and identity live in static storage for the length of one connection (esp-tls keeps the pointers); one TLS connection is made at a time.
++    static uint8_t s_psk[32];
++    static char s_identity[24];
++    if (out == nullptr || !mlu_is_link_port(port)) return false;
++    uint8_t k[32];
++    if (!maipai_link_key_load(k)) return false;
++    std::string id = SystemInfo::GetMacAddress();
++    std::transform(id.begin(), id.end(), id.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
++    std::snprintf(s_identity, sizeof(s_identity), "%s", id.c_str());
++    mly_psk(k, s_identity, s_psk);
++    lk_wipe(k, sizeof(k));
++    out->key = s_psk;
++    out->key_size = sizeof(s_psk);
++    out->hint = s_identity;
++    return true;
++}
++
+ void maipai_link_key_erase()
+ {
+     nvs_handle_t h;
+diff --git a/firmware/main/hal/maipai_linkurl_core.h b/firmware/main/hal/maipai_linkurl_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_linkurl_core.h
+@@ -0,0 +1,59 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The address rule of the encrypted link (patch SF33; docs/plan/link-key-exchange.md). Plain C99, no heap. A unit paired with the key exchange
++ * talks to its host only over TLS-PSK: ws on 8765 becomes wss on 18775 (voice), ws on 8766 becomes wss on 18776 (avatar and camera), http on 8767
++ * becomes https on 8777 (photos, notification audio, firmware file). Anything else is not rewritten (and a paired unit does not connect to it).
++ * Host test: host/tests/firmware/linkurl_core_test.c.
++ */
++#ifndef MAIPAI_LINKURL_CORE_H
++#define MAIPAI_LINKURL_CORE_H
++
++#include <stddef.h>
++#include <stdio.h>
++#include <string.h>
++
++#define MLU_PORT_VOICE_PLAIN 8765
++#define MLU_PORT_AVATAR_PLAIN 8766
++#define MLU_PORT_HTTP_PLAIN 8767
++#define MLU_PORT_VOICE_TLS 18775
++#define MLU_PORT_AVATAR_TLS 18776
++#define MLU_PORT_HTTP_TLS 8777
++
++/* 1 when the port is one of the host's encrypted listeners (the TLS client uses the key for these and only these). */
++static inline int mlu_is_link_port(int port) { return port == MLU_PORT_VOICE_TLS || port == MLU_PORT_AVATAR_TLS || port == MLU_PORT_HTTP_TLS; }
++
++/* Rewrites "ws://host:8765/path", "ws://host:8766/path" or "http://host:8767/path" to the encrypted address. Returns 1 and fills out, or 0 (out empty). */
++static inline int mlu_rewrite(const char* url, char* out, size_t cap)
++{
++    static const struct {
++        const char* from_scheme;
++        int from_port;
++        const char* to_scheme;
++        int to_port;
++    } map[3] = {{"ws://", MLU_PORT_VOICE_PLAIN, "wss://", MLU_PORT_VOICE_TLS},
++                {"ws://", MLU_PORT_AVATAR_PLAIN, "wss://", MLU_PORT_AVATAR_TLS},
++                {"http://", MLU_PORT_HTTP_PLAIN, "https://", MLU_PORT_HTTP_TLS}};
++    if (out != NULL && cap > 0) out[0] = '\0';
++    if (url == NULL || out == NULL || cap == 0) return 0;
++    for (int i = 0; i < 3; i++) {
++        const size_t sl = strlen(map[i].from_scheme);
++        if (strncmp(url, map[i].from_scheme, sl) != 0) continue;
++        const char* host = url + sl;
++        const char* end = host;
++        while (*end != '\0' && *end != '/' && *end != '?' && *end != '#' && *end != ':') end++;
++        if (end == host || *end != ':') continue;
++        char* stop = NULL;
++        const long port = strtol(end + 1, &stop, 10);
++        if (stop == end + 1 || port != map[i].from_port || (*stop != '\0' && *stop != '/' && *stop != '?' && *stop != '#')) continue;
++        const int n = snprintf(out, cap, "%s%.*s:%d%s", map[i].to_scheme, (int)(end - host), host, map[i].to_port, stop);
++        if (n < 0 || (size_t)n >= cap) {
++            out[0] = '\0';
++            return 0;
++        }
++        return 1;
++    }
++    return 0;
++}
++
++#endif /* MAIPAI_LINKURL_CORE_H */
+diff --git a/firmware/main/hal/maipai_pairx_core.h b/firmware/main/hal/maipai_pairx_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_pairx_core.h
+@@ -0,0 +1,100 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The unit's side of the pairing exchange (patch SF33; docs/plan/link-key-exchange.md): a small state machine over the messages
++ * pair_start, {pk_h, c}, {n_u}, {n_h}, paired. Plain C99. The curve calculation is the caller's (maipai_linkpsk.cc); the hashing is
++ * maipai_linkkey_core.h. Host test: host/tests/firmware/pairx_core_test.c.
++ *
++ * Order, and what a message out of order does: any message that is not the next one aborts the exchange (the keys are wiped).
++ *   BEGIN (pk_u made)  -> host key and commitment arrive -> the unit sends n_u -> the host's nonce arrives and must match the commitment
++ *   -> the six-digit code is shown -> "paired" arrives -> the link key K is derived and handed to the caller.
++ * A wrong code typed on the host makes the host send pair_abort (or nothing: the exchange ends after MPX_TIMEOUT_MS).
++ */
++#ifndef MAIPAI_PAIRX_CORE_H
++#define MAIPAI_PAIRX_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++#include "maipai_linkkey_core.h"
++#include "maipai_time_core.h"
++
++#define MPX_TIMEOUT_MS 120000u
++
++enum { MPX_IDLE = 0, MPX_STARTED, MPX_NONCE_SENT, MPX_CODE_SHOWN, MPX_DONE, MPX_FAILED };
++enum { MPX_OK = 0, MPX_ORDER, MPX_COMMIT_MISMATCH, MPX_TIMEOUT, MPX_REASON_COUNT };
++static const char* const MPX_REASONS[MPX_REASON_COUNT] = {"ok", "a pairing message arrived out of order", "the host's commitment did not match its nonce",
++                                                          "the pairing took too long"};
++
++typedef struct {
++    uint8_t state;
++    uint8_t pk_u[MLY_PK], pk_h[MLY_PK], commit[32], n_u[MLY_NONCE], n_h[MLY_NONCE];
++    uint32_t code;       /* the six digits, valid from MPX_CODE_SHOWN */
++    uint32_t started_ms; /* stamp, never 0 */
++} mpx_t;
++
++static inline void mpx_wipe(mpx_t* s) { lk_wipe(s, sizeof(*s)); }
++
++static inline void mpx_begin(mpx_t* s, const uint8_t pk_u[MLY_PK], uint32_t now)
++{
++    mpx_wipe(s);
++    memcpy(s->pk_u, pk_u, MLY_PK);
++    s->state = MPX_STARTED;
++    s->started_ms = mt_stamp(now, 0);
++}
++
++static inline int mpx_fail(mpx_t* s, int reason)
++{
++    mpx_wipe(s);
++    s->state = MPX_FAILED;
++    return reason;
++}
++
++/* The host's reply to pair_start. The unit then sends n_u (the caller supplied it here). */
++static inline int mpx_on_host_key(mpx_t* s, const uint8_t pk_h[MLY_PK], const uint8_t commit[32], const uint8_t n_u[MLY_NONCE])
++{
++    if (s->state != MPX_STARTED) return mpx_fail(s, MPX_ORDER);
++    memcpy(s->pk_h, pk_h, MLY_PK);
++    memcpy(s->commit, commit, 32);
++    memcpy(s->n_u, n_u, MLY_NONCE);
++    s->state = MPX_NONCE_SENT;
++    return MPX_OK;
++}
++
++/* The host's nonce: it must match the commitment it sent first. Then the code is known and is shown. */
++static inline int mpx_on_host_nonce(mpx_t* s, const uint8_t n_h[MLY_NONCE])
++{
++    uint8_t c[32];
++    if (s->state != MPX_NONCE_SENT) return mpx_fail(s, MPX_ORDER);
++    mly_commit(s->pk_h, s->pk_u, n_h, c);
++    if (lk_ct_equal(c, s->commit, 32) == 0) return mpx_fail(s, MPX_COMMIT_MISMATCH);
++    memcpy(s->n_h, n_h, MLY_NONCE);
++    s->code = mly_sas(s->pk_u, s->pk_h, s->n_u, s->n_h);
++    s->state = MPX_CODE_SHOWN;
++    return MPX_OK;
++}
++
++/* "paired": the owner typed the right code. z is the X25519 shared secret (the caller computed it from its private key and pk_h). */
++static inline int mpx_on_paired(mpx_t* s, const uint8_t z[32], const char* device_id, uint8_t k_out[MLY_KEY])
++{
++    if (s->state != MPX_CODE_SHOWN) return mpx_fail(s, MPX_ORDER);
++    mly_link_key(z, s->pk_u, s->pk_h, s->n_u, s->n_h, device_id, k_out);
++    mpx_wipe(s);
++    s->state = MPX_DONE;
++    return MPX_OK;
++}
++
++/* The host refused or the owner gave up. */
++static inline void mpx_abort(mpx_t* s) { mpx_wipe(s); s->state = MPX_IDLE; }
++
++/* Once a second: an exchange that waits too long ends. Returns 1 when it just ended. */
++static inline int mpx_tick(mpx_t* s, uint32_t now)
++{
++    if (s->state == MPX_IDLE || s->state == MPX_DONE || s->state == MPX_FAILED) return 0;
++    if (mt_elapsed(now, s->started_ms) >= MPX_TIMEOUT_MS) {
++        mpx_fail(s, MPX_TIMEOUT);
++        return 1;
++    }
++    return 0;
++}
++
++#endif /* MAIPAI_PAIRX_CORE_H */
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -1,4 +1,7 @@
+ #include "websocket_protocol.h"
++#if CONFIG_MAIPAI_LINK_PSK
++#include <hal/maipai_linkpsk.h>
++#endif
+ #include <hal/maipai_lat.h>
+ #include "board.h"
+ #include "system_info.h"
+@@ -170,6 +173,13 @@ bool WebsocketProtocol::ConnectAudioChannel() {
+     // Travel (patch TN02): while the private-network client is connected and the route that last worked is the private
+     // one, the saved address is swapped for the hub's private address (same port and path). Otherwise unchanged.
+     url = maipai_tailnet_route_url(url);
++#endif
++#if CONFIG_MAIPAI_LINK_PSK
++    // Patch SF33: a unit paired with the key exchange connects only to the host's encrypted listener (TLS with the pre-shared key).
++    url = maipai_link_secure_url(url);
++    if (url.empty()) {
++        return false;
++    }
+ #endif
+     std::string token = settings.GetString("token");
+     int version = settings.GetInt("version");

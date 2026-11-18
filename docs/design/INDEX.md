@@ -335,7 +335,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/configs/sdkconfig.aec.defaults` (4): Talk over the robot (patches SF15 and SF29): microphone 1 plus the speaker loopback, the echo canceller on the
 - `firmware/configs/sdkconfig.bench.defaults` (3): no header
 - `firmware/configs/sdkconfig.gate.defaults` (2): Gate and soak builds only (not committed as a product setting): the memory line at WARN every 10 seconds.
-- `firmware/configs/sdkconfig.linkpsk.defaults` (2): Encrypted link, step 1 (patch SF21): the curve calls and key storage with the bench check self.bench.link_self
+- `firmware/configs/sdkconfig.linkpsk.defaults` (3): Encrypted link, step 1 (patch SF21): the curve calls and key storage with the bench check self.bench.link_self
 - `firmware/configs/sdkconfig.talkover.defaults` (3): Talk-over step 0 (patch SF15): MIC3 is the second input channel and the bench tool self.bench.mic3_check exist
 - `firmware/games/bopit.json` (945): no header
 - `firmware/games/bopit.mpk` (5): no header
@@ -492,7 +492,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (286): no header
+- `firmware/patches/ORDER` (287): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -551,6 +551,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF29-talk-over-aec-and-barge-in.patch` (275): Talking over the robot, wired (off by default, CONFIG_MAIPAI_TALK_OVER_AEC, needs CONFIG_MAIPAI_TALK_OVER): th
 - `firmware/patches/SF30-mouth-cues-append.patch` (126): self.face.mouth_cues takes an optional append flag. With append true the cues are added to the list of the spe
 - `firmware/patches/SF31-servo-task-and-limiter-applied.patch` (227): Servo stepping runs in its own task every 20 ms (vTaskDelayUntil, priority above the screen loop, 3 KB stack) 
+- `firmware/patches/SF32-hello-mouth-cues-append.patch` (19): The unit's hello announces the feature mouth_cues_append (true) when the face motion layer is built, so the ho
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
