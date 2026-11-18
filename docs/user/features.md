@@ -160,3 +160,4 @@ Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that 
 ## Optional extras (all off until you turn them on)
 - [Memory notes](memory-notes.md), [Home Assistant](home-assistant.md), [Coding companion](coding-companion.md), [Make your own wake word](wake-word-maker.md), [Character packs](character-packs.md).
 - [Check on the robot from your phone](parent-view.md) and [Flash the robot from a web page](web-flasher.md).
+- [Listen longer on the bench](bench-listening.md) (developers).

@@ -40,6 +40,10 @@ You don't need a cable. The robot downloads the update over Wi-Fi, checks its si
 
 While it installs, the light bars pulse white fast <img src="../images/light-white.svg" alt="white light bars" height="22"> and an animated icon shows on the screen. Do not unplug it. A rising chime plays when it is back online.
 
+## Only newer, signed updates
+
+Each release carries a build number that only goes up, and a small signed header with that number and a fingerprint of the image. The host checks the signature, the fingerprint and the number before it hands the update to the robot. The robot is meant to refuse any update whose number is not higher than its own, so an old release cannot be put back. <span class="planned-tag">Planned</span> The host half is built and tested. The robot's half is not built yet, so for now only the host refuses an older release.
+
 ## Your own images
 
 Build your own image with `stackchan firmware build` and sign it with your key. Developers: see `docs/dev/build-from-source.md`.
