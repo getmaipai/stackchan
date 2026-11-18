@@ -11,13 +11,13 @@
   "stack_margin_min": 1024
  },
  "baseline": {
-  "image": "plain release image, face showing, link up",
-  "internal_free_median": 64093,
-  "internal_free_lowest": 33484,
-  "largest_block_median": 25600,
-  "largest_block_lowest": 25600,
-  "psram_free": 7500000,
-  "source": "docs/dev/memory-budget.md, windows 10 and 11"
+  "image": "b47 plain with bench tools, face showing, link up, SF47 in (avatar_lan not created at boot)",
+  "internal_free_median": 68500,
+  "internal_free_lowest": 39828,
+  "largest_block_median": 32024,
+  "largest_block_lowest": 31744,
+  "psram_free": 7834532,
+  "source": "bench window 14: SystemInfo memory line (internal_free 68,519, internal_min 39,828, int_big 31,744, psram_free 7,834,532) and self.bench.heap_info call 3 (largest free 32,024, total free 67,956). One sample each: a median over a minute is still to take."
  },
  "items": [
   {
@@ -529,6 +529,81 @@
    "freed_when": "never",
    "status": "estimate",
    "source": "docs/dev/memory-budget.md (audit table): stacks in internal RAM, already inside the baseline"
+  },
+  {
+   "id": "display.draw_buffers",
+   "kind": "feature",
+   "name": "Display draw buffers (two half buffers of 10 lines)",
+   "internal": 12800,
+   "psram": 0,
+   "flash": 0,
+   "largest_block": 6400,
+   "in_baseline": true,
+   "persistent": true,
+   "loaded_when": "at boot",
+   "freed_when": "never",
+   "status": "verified",
+   "source": "bench window 14 heap_info: two used blocks of 6,400 bytes (stackchan_display.cc:222, patch V26, buff_dma 1, buff_spiram 0). Moving them to PSRAM would join them with the 24,548 byte free block next to them (docs/dev/heap-map-b47.md): to try, needs the face refresh gate (30 a second) re-measured"
+  },
+  {
+   "id": "camera.dvp_buffer",
+   "kind": "feature",
+   "name": "Camera driver internal buffer (unnamed block)",
+   "internal": 30720,
+   "psram": 0,
+   "flash": 0,
+   "largest_block": 30720,
+   "in_baseline": true,
+   "persistent": true,
+   "loaded_when": "at boot (the camera driver starts with the unit)",
+   "freed_when": "never",
+   "status": "measured",
+   "source": "bench window 14 heap_info: one unnamed used block of 30,720 bytes next to the dvp_task stack. The size is measured; the owner is not resolved (the heap trace does not see it: allocated before the trace started). It matches the camera driver's internal DMA area (about one fifth of a 320 by 240 frame): to confirm by starting the camera late (docs/dev/heap-map-b47.md)"
+  },
+  {
+   "id": "task.avatar_lan",
+   "kind": "task",
+   "name": "avatar_lan task (LAN link to the phone App)",
+   "internal": 8704,
+   "psram": 0,
+   "flash": 0,
+   "largest_block": 8192,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when the phone App announces its endpoint (SF47)",
+   "freed_when": "when the connection task ends",
+   "status": "measured",
+   "source": "bench window 14: absent from the task list and the heap map after SF47 (it was a persistent 8 KB block before); the 8,704 figure is the 8,192 byte stack and its control block"
+  },
+  {
+   "id": "feature.dance_session",
+   "kind": "feature",
+   "name": "Dance session (hand-chosen dance, SF51)",
+   "internal": 120,
+   "psram": 0,
+   "flash": 9000,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a dance starts",
+   "freed_when": "when the dance ends",
+   "status": "estimate",
+   "source": "patch SF51 header: a state struct and one one-second timer; the notes and overlay sprites are the ones the unit already has (their rows are decor.notes and overlay.layer.back)"
+  },
+  {
+   "id": "feature.supervisor",
+   "kind": "feature",
+   "name": "Task supervisor and reconnect rules (SF49)",
+   "internal": 500,
+   "psram": 0,
+   "flash": 6300,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": true,
+   "loaded_when": "at boot",
+   "freed_when": "never",
+   "status": "estimate",
+   "source": "patch SF49 header: a table of eight task records and one timer; flash from the b47 plain size against b45 (+6.3 KB)"
   }
  ]
 }
