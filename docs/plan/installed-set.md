@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # The installed set: slots, signed assets, language and font packs (design, 2026-11-18)
 
 Placement: unit (firmware track), host and dashboard (app track), virtual unit (playground). Serves owner decisions 15, 17 and 18 (`docs/design/decisions.md`). No code is written; every number carries its source.
@@ -310,48 +309,20 @@ What it must fake, with the same JSON shapes as B5:
 5. Install time per KB over the link (push) and the hash time of an in-place font at boot.
 6. Whether any MaiPai screen draws with the stock common font; the flash part's real erase endurance.
 7. The largest internal block during an install and the right refusal threshold.
-=======
-# The installed set: host half and the protocol the unit half must meet
 
-Owner decision 17 (2026-11-18). The unit holds a few items per kind; the dashboard's page "On my robot" chooses them; the host sends them as signed assets on demand and swaps them without a reflash.
+## F. The host half as built (app track, 2026-11-18)
 
-## Slots (one table, host and unit and virtual unit)
+One document, two halves: sections A to E are the unit's design (firmware track); this section is what the host does and how it meets B5, B6 and E2. Where the two differ, the unit's design wins and the host follows, except the one open decision below.
 
-| Kind | Slots | Largest one item (today's size gate) |
-|---|---|---|
-| Faces (`look`) | 3 | 1,000,000 bytes |
-| Languages (`language`) | 2 | 200,000 |
-| Thinking sounds (`filler`) | 1 | 400,000 |
-| Sounds (`sound`) | 2 | 400,000 |
-| Dances (`dance`) | 3 | 100,000 |
-| Games (`game`) | 4 | 200,000 |
-| Offline phrases (`phrase`) | 1 | 150,000 |
-
-The counts are the host's proposal (`installed_set.SLOTS`); the firmware track confirms them against the memory budget and the playground enforces the same table. A total budget (`UNIT_PACK_BUDGET`, 3,000,000 bytes, a placeholder until the firmware track confirms it) bounds all installed assets together. Overlays, personas and character packs follow when the unit has slots for them; personas and the brain's own text live on the host and are not in this table.
-
-## What the host does (built)
-
-- `installed_set.py`: the catalog (the pack library), the per-unit record (`installed-sets.json`, mode 0600: Automatic or a custom set, and the state of each item: waiting, installing, installed, failed with its tries), the checks (slots, library, memory budget, each refusal a plain sentence) and the reconciler.
-- Automatic is the default. It chooses the person's language pack, the default face and a starter set of three games, and follows the library as it changes. Edit saves an explicit set that must fit.
-- Reconcile: install what is missing, remove what is not chosen, never send the same bytes twice (the unit's held SHA-256 is compared). It runs when a unit connects (a few seconds after its own start-up), when a choice is saved, and every 30 seconds for units that are not fully installed, so a robot that was off gets its set when it returns, and a failed item (bad signature, lost connection, power loss mid-install) is tried again by itself while the other items go on. Each unit has its own lock and record (decision 16).
-- Until a unit reports the `assets` tools, the host applies the first chosen item of each kind with the pack tools it has today (`self.pack.begin/data/commit`) and tells the person plainly that the others wait for the robot's next software.
+**Built (`host/maipai_body/installed_set.py`, `installed_set_legacy.py`, `installed_page.py`; tests `host/tests/test_installed_set.py`):**
+- The catalog (the pack library), the slot table (`SLOTS`, to be replaced by the unit's own `max_slots` from `self.assets.list`: the host uses the smaller of the two), the memory meter, plain refusals when a choice does not fit, and the per-unit record (`installed-sets.json`, mode 0600: Automatic or a custom set, and the state of each item: waiting, installing, installed, failed with its tries).
+- Automatic fills the language pack, the default face and a starter set of three games, and follows the library; Edit saves an explicit set that must fit.
+- The reconciler diffs the chosen set against what the unit holds, installs what is missing, removes what is not chosen and sends nothing twice. It runs on connect (a few seconds after the unit's own start-up), on save, and every 30 seconds for any unit not fully installed, so a robot that was off gets its set when it returns and a failed item (bad signature, lost connection, power loss) is tried again by itself while the others go on. Each unit has its own lock and record.
 - The dashboard page `/on-my-robot` and `GET/POST /api/stackchan/installed/<unit>[/choose|/retry]` (this computer only).
-- Delivery for the new protocol is the signed, ranged, cacheable endpoint of `docs/plan/offload-to-host.md` (`/assets/<unit>/<sha256>/manifest|data`).
 
-## The unit half (firmware track writes it; this is what the host will call)
+**Meeting the unit's protocol.** The reconciler talks to a `Transport` (connected, multi_slot, held, install, remove). Today's transport (`installed_set_legacy.py`) uses the pack tools the unit has now (`self.pack.*`, one pack per kind) and says plainly that further choices wait for the robot's next software. The `self.assets.*` transport follows B5 and B6: push `header_b64` and `sig_b64` with `self.assets.install`, then 2,048-byte pieces with `self.assets.data`, then `self.assets.commit`; resume by the offset in `self.assets.list`; read `assets_state` from the hello and `asset_wanted` events instead of polling; `swap` for a choice that is already installed. It is written when SF-assets lands.
 
-Tools, all refusing while muted-for-assets is not a thing (assets are not private) but refusing while locked:
+**Open decision (owner), not decided here.** The host also has a pull endpoint (`host/maipai_body/assets.py`, built and tested): `GET /assets/<unit>/<sha256>/manifest|data` with ranges, immutable caching and a manifest signed by a key the host makes. It differs from B4 and B6 in two ways: pull instead of push, and a host-made signature instead of the release key. Push over the existing link is the unit's first choice (no new task, no 10 KB block), so the endpoint is kept only as the option B6 names for large font packs. The trust question is separate and the owner's: items from the catalog are signed with the release key at build time (E2); owner-made packs (pictures) need a household trust class, because the unit cannot verify them against the release key. Until that is decided the host sends owner-made packs only to the owner's own paired unit, as it does today.
 
-| Tool | Arguments | Answer |
-|---|---|---|
-| `self.assets.list` | `{"kind"?}` | `{"ok", "slots": {kind: n}, "items": [{"kind","id"(sha256),"name","version","size","active"}], "free_bytes"}` |
-| `self.assets.install` | `{"kind","id","url"(manifest address),"name"}` | `{"ok"}` when it has fetched the manifest, checked its signature, fetched each chunk with `Range`, checked each chunk's SHA-256 and the whole, and committed; `{"ok":false,"reason"}` with `bad_signature`, `no_slot`, `no_room`, `hash`, `locked`, `busy`, `network` |
-| `self.assets.remove` | `{"kind","id"}` | `{"ok"}` |
-| `self.assets.swap` | `{"kind","id"}` | `{"ok"}` makes an installed item the active one of its kind without a download |
+**Tests the virtual unit needs.** The same slot table; `self.assets.list|install|data|commit|swap|remove|abort` with the B5 answers; the cases the host's fake already exercises (unit off during an install, power loss mid-piece with resume, a bad signature, a slot count exceeded); two units on one host.
 
-Rules the host relies on: a half-fetched item is never active and is dropped after a power loss (the old active item stays); a fetch resumes from the last verified chunk when asked again with the same id; the unit refuses an item that does not fit its slots or free bytes with `no_slot` or `no_room` and changes nothing; it announces `assets` in its tool list and reports its slots in `list`, so the host and the unit never disagree about counts (the host reads `slots` and uses the smaller).
-
-## Tests
-
-`host/tests/test_installed_set.py` covers defaults, refusals, the meter, install, a unit that is away, a bad signature and power loss with retries, two units, and the routes. The virtual unit must enforce the same slot table and answer `self.assets.*`; the chaos cases for the playground's rig are: the unit off during an install, power loss mid-chunk (resume from the last good chunk), a bad manifest signature, a slot count exceeded.
->>>>>>> e2868f4 (Installed sets: the On my robot page, per-robot sets with slots and a memory meter, Automatic defaults, retrying reconciler)
