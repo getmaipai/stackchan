@@ -558,7 +558,6 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
-| **Host: unit_behaviors** | One pass over the extra units: touch, then the reaction timer. | proven virtual | 70 | not declared | `host/maipai_body/unit_behaviors.py` | file exists, a test names it | doc missing |
 | **Host: app** | MaiPai Bot's Reachy Mini app: the daemon's one running app. | proven on unit | 100 | not declared | `host/maipai_body/app.py` | `bench-b19.md`, `bench-b9.md` | doc missing |
 | **Host: assets** | Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack when it needs it and keeps only the active one. | proven on unit | 100 | not declared | `host/maipai_body/assets.py` | `bench-b9.md` | doc missing |
 | **Host: banner_shapes** | The banner functions with the table of the core filled in. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/banner_shapes.py` | file exists, a test names it | doc missing |
@@ -837,6 +836,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: spelling_aliases** | The one place for the old British spellings the host still understands. | proven virtual | 70 | not declared | `host/maipai_body/spelling_aliases.py` | file exists, a test names it | doc missing |
 | **Host: supervisor** | Workers under a watchdog: a dead or silent worker is restarted alone, with back-off, and a worker that keeps failing is reported, not hidden. | proven virtual | 70 | not declared | `host/maipai_body/supervisor.py` | file exists, a test names it | doc missing |
 | **Host: swipe_pages** | Send up to six tiles for the unit's Dashboard page (the host or Home calls this; | proven virtual | 70 | not declared | `host/maipai_body/swipe_pages.py` | file exists, a test names it | doc missing |
+| **Host: unit_behaviors** | One pass over the extra units: touch, then the reaction timer. | proven virtual | 70 | not declared | `host/maipai_body/unit_behaviors.py` | file exists, a test names it | doc missing |
 | **Host: unit_device** | Send one setting. | built | 40 | not declared | `host/maipai_body/unit_device.py` | file exists | doc missing |
 | **Host: unit_extras** | Send a person's face color and caption size to a unit (the face service pushes it). | proven virtual | 70 | not declared | `host/maipai_body/unit_extras.py` | file exists, a test names it | doc missing |
 | **Host: unit_lock** | Set a code, or change it (the unit wants ``current`` when it already has one). | proven virtual | 70 | not declared | `host/maipai_body/unit_lock.py` | file exists, a test names it | doc missing |
