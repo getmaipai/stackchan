@@ -45,6 +45,18 @@
     0.005,
     1.0
    ],
+   "led_bottom": [
+    0.02,
+    0.06,
+    0.03,
+    1.0
+   ],
+   "led_charge": [
+    0.1,
+    0.012,
+    0.01,
+    1.0
+   ],
    "light_bar": [
     0.42,
     0.7,
@@ -87,6 +99,12 @@
     0.02,
     1.0
    ],
+   "port_teal": [
+    0.0,
+    0.33,
+    0.36,
+    1.0
+   ],
    "reset": [
     0.035,
     0.035,
@@ -117,6 +135,18 @@
     0.72,
     1.0
    ],
+   "sticker": [
+    0.8,
+    0.8,
+    0.79,
+    1.0
+   ],
+   "sticker_ink": [
+    0.012,
+    0.012,
+    0.014,
+    1.0
+   ],
    "touch_pad": [
     0.6,
     0.62,
@@ -126,6 +156,15 @@
   }
  },
  "dimensions": {
+  "back_charge_led_position": {
+   "basis": "assumed",
+   "note": "product photo of the back: a red part between the two screws",
+   "value": [
+    0.0,
+    0.0168,
+    -0.021813
+   ]
+  },
   "base_center_from_axis": {
    "basis": "measured",
    "note": "the turntable sits 4 mm behind the base footprint center",
@@ -251,6 +290,16 @@
    "note": "shell file and published drawing",
    "value": 0.054
   },
+  "labels": {
+   "basis": "assumed",
+   "note": "placed from the product photos; print is a stand-in",
+   "value": [
+    "sticker_side_left",
+    "sticker_side_right",
+    "sticker_top",
+    "sticker_bottom"
+   ]
+  },
   "light_bar": {
    "basis": "measured",
    "note": "light guide file; each bar sits in the slanted slot of a top corner of the shell, stem tip flush",
@@ -283,7 +332,7 @@
    "basis": "assumed",
    "note": "product page: on the bottom side next to the card slot; press restarts, hold 3 s enters download mode",
    "value": [
-    0.012,
+    0.0165,
     -0.02703,
     0.02345
    ]
@@ -366,6 +415,15 @@
     0.0316
    ]
   },
+  "screen_bottom_led_from_pitch_axis": {
+   "basis": "assumed",
+   "note": "product photo of the underside: a small mark right of the reset button",
+   "value": [
+    0.022,
+    -0.02702,
+    0.02345
+   ]
+  },
   "screen_center_from_pitch_axis": {
    "basis": "assumed",
    "note": "read off the published drawing, about 1 mm",
@@ -373,6 +431,15 @@
     0.0,
     -0.0003,
     0.03328
+   ]
+  },
+  "sd_slot_from_pitch_axis": {
+   "basis": "assumed",
+   "note": "product photo of the underside: left of the reset button",
+   "value": [
+    -0.007,
+    -0.02702,
+    0.02345
    ]
   },
   "servo_positions": {

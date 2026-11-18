@@ -16,6 +16,7 @@
 
 - Drag on the background or any part but the screen to turn the view; hold Alt to turn it from the screen too. Shift-drag or right-drag slides the view, the wheel or a trackpad pinch zooms, a double click puts it back. The arrow, plus and minus buttons do the same without a drag, and **Under** looks up at the underside.
 - Hover over a switch to see its name. Click the reset button under the controller to restart the unit (the boot covers run again). Click one of the three pads on the head top for a touch on the head: it brings the face back from a page.
+- The red light in the holder back is on while the unit charges (cable in, battery not full). The small light beside the reset button stays off: nothing in the firmware drives it.
 - **Show inside** turns the shell, controller and servo holder to glass so the two servos, the battery, the boards and the cable show. **Show motion** colors what turns with the pan servo green and what tilts with the tilt servo red, with a label on each. **Demo sweep** pans the drawn head left and right, then nods it up and down, over 16 seconds; it moves the drawing only and sends the unit nothing.
 
 ## What is a stand-in

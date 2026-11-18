@@ -78,6 +78,11 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('cable', (0.45, 0.45, 0.47, 1.0), 0.0, 0.6, None),
     ('reset', (0.035, 0.035, 0.04, 1.0), 0.0, 0.5, None),
     ('touch_pad', (0.60, 0.62, 0.66, 1.0), 0.0, 0.5, None),
+    ('port_teal', (0.0, 0.33, 0.36, 1.0), 0.0, 0.5, None),
+    ('sticker', (0.80, 0.80, 0.79, 1.0), 0.0, 0.7, None),
+    ('sticker_ink', (0.012, 0.012, 0.014, 1.0), 0.0, 0.7, None),
+    ('led_charge', (0.10, 0.012, 0.01, 1.0), 0.0, 0.4, None),
+    ('led_bottom', (0.02, 0.06, 0.03, 1.0), 0.0, 0.4, None),
 ]
 LIGHT_OFF = (0.42, 0.70, 0.72, 1.0)
 LIGHTS = 12
@@ -164,6 +169,34 @@ def disc_x(c, r, side, seg=10):
     """Flat disc facing +X (side 1) or -X (side -1)."""
     pts = [(c[0], c[1] + r * math.cos(2 * math.pi * i / seg), c[2] + side * r * math.sin(2 * math.pi * i / seg)) for i in range(seg)]
     return [c + pts[i] + pts[(i + 1) % seg] for i in range(seg)]
+
+
+def quad_x(side, x, y0, y1, z0, z1):
+    """Flat rectangle on a plane of constant X, facing +X (side 1) or -X (side -1)."""
+    a, b, c, d = (x, y0, z0), (x, y1, z0), (x, y1, z1), (x, y0, z1)
+    return [a + b + c, a + c + d] if side > 0 else [a + c + b, a + d + c]
+
+
+def quad_y(side, y, x0, x1, z0, z1):
+    """Flat rectangle on a plane of constant Y, facing up (side 1) or down (side -1)."""
+    a, b, c, d = (x0, y, z0), (x0, y, z1), (x1, y, z1), (x1, y, z0)
+    return [a + b + c, a + c + d] if side > 0 else [a + c + b, a + d + c]
+
+
+LETTERS = {'S': (7, 4, 7, 1, 7), 'T': (7, 2, 2, 2, 2), 'A': (2, 5, 7, 5, 5), 'C': (7, 4, 4, 4, 7), 'K': (5, 6, 4, 6, 5), 'H': (5, 5, 7, 5, 5), 'N': (5, 7, 7, 5, 5)}
+
+
+def dashes(rows, x0, x1, seed=5):
+    """Stand-in print for a label: rows of short dark bars. Returns (row index, start, end) spans between x0 and x1; no real text."""
+    out, state = [], seed
+    for r in range(rows):
+        x = x0
+        while x < x1 - 1.0:
+            state = (state * 73 + 41) % 199
+            w = 1.2 + (state % 5) * 0.9
+            out.append((r, x, min(x1, x + w)))
+            x += w + 0.7 + (state % 3) * 0.4
+    return out
 
 
 def circle(r, seg=20):
@@ -377,13 +410,46 @@ def assemble():
     screen_c = (0.0, cy - SCREEN_DROP_MM, face + 0.03)
     # under the controller: the card slot and the reset button beside it (the product page puts both on the bottom side; exact spot assumed)
     under = top - 54.0
-    geo['head']['port'] += box((-2.5, under - 0.02, front + 5.0), (11.5, 0.04, 1.6))
-    reset_c = (12.0, under - 0.03, front + 5.0)
+    for dx, w, d in ((2.0, 0.7, 0.7), (6.2, 0.7, 2.4), (7.7, 0.7, 2.4)):   # a pinhole and two short slots between the card slot and the button
+        geo['head']['port'] += quad_y(-1, under - 0.02, dx - w / 2, dx + w / 2, front + 5.0 - d / 2, front + 5.0 + d / 2)
+    sd_c = (-7.0, under - 0.02, front + 5.0)
+    sd_tris = quad_y(-1, sd_c[1], sd_c[0] - 6.0, sd_c[0] + 6.0, sd_c[2] - 0.8, sd_c[2] + 0.8)
+    reset_c = (16.5, under - 0.03, front + 5.0)
     reset_tris = []
-    ring = circle(1.6, 16)
-    for i in range(16):   # a flat disc facing down
+    ring = [(3.4 * x / 1.6 if abs(x) > 0 else 0.0, 2.0 * z / 1.6) for x, z in circle(1.6, 16)]   # an oval button, 6.8 x 4 mm
+    for i in range(16):   # a flat oval facing down
         a, b = ring[i], ring[(i + 1) % 16]
         reset_tris.append((reset_c[0], reset_c[1], reset_c[2], reset_c[0] + a[0], reset_c[1], reset_c[2] + a[1], reset_c[0] + b[0], reset_c[1], reset_c[2] + b[1]))
+    led_bottom_c = (22.0, under - 0.02, front + 5.0)
+    led_bottom_tris = quad_y(-1, led_bottom_c[1], led_bottom_c[0] - 0.6, led_bottom_c[0] + 0.6, led_bottom_c[2] - 0.6, led_bottom_c[2] + 0.6)
+    # the two connectors in the top openings: black on the robot's right, teal on its left (product photo of the top)
+    geo['head']['port'] += box((-11.0, top - 1.4, front - 3.45), (9.8, 1.6, 4.5))
+    geo['head']['port_teal'] = box((11.0, top - 1.4, front - 3.45), (9.8, 1.6, 4.5))
+    # ---- labels (drawn here; the print is stand-in bars, not copied text, except the product's own name on the side labels)
+    stickers = {}
+    for side, name in ((-1, 'sticker_side_right'), (1, 'sticker_side_left')):
+        x = side * 27.04
+        z1, z0 = front - 1.3, front - 6.7
+        y1, y0 = top - 7.5, top - 45.5
+        paper = quad_x(side, x, y0 + 8.0, y1, z0, z1)
+        ink = quad_x(side, x, y0, y0 + 8.0, z0, z1)
+        px = 0.8
+        for n, ch in enumerate('STACKCHAN'):
+            for r in range(5):
+                for c in range(3):
+                    if LETTERS[ch][r] >> (2 - c) & 1:
+                        zt = z1 - 0.7 - r * px                      # letter tops face the front
+                        adv = (n * 4 + c) * px + 1.2
+                        ya = (y1 - adv - px) if side < 0 else (y0 + 8.0 + adv)   # top to bottom on the button side, bottom to top on the other
+                        ink += quad_x(side, x + side * 0.01, ya, ya + px, zt - px, zt)
+        stickers[name] = (paper, ink, (x, (y0 + y1) / 2.0, (z0 + z1) / 2.0))
+    ty = top + 0.03                                              # the rating label on top of the controller
+    tx0, tx1, tz0, tz1 = -14.0, 8.0, front + 3.2, front + 12.2
+    ink = []
+    for r, a0, a1 in dashes(4, tx0 + 1.0, tx1 - 6.5):
+        ink += quad_y(1, ty + 0.01, a0, a1, tz0 + 1.2 + r * 1.9, tz0 + 2.2 + r * 1.9)
+    ink += quad_y(1, ty + 0.01, tx1 - 5.2, tx1 - 1.0, tz0 + 1.6, tz1 - 1.6)
+    stickers['sticker_top'] = (quad_y(1, ty, tx0, tx1, tz0, tz1), ink, ((tx0 + tx1) / 2.0, ty, (tz0 + tz1) / 2.0))
     # on the head top: the three zones of the head touch strip, front to back (count and order from the firmware; outlines assumed)
     pad_w, pad_d, pad_gap = 16.0, 8.0, 1.2
     pad_first = front - 15.5
@@ -411,6 +477,14 @@ def assemble():
     for i, (fx, fz) in enumerate([(-16.0, 24.0), (16.0, 24.0), (16.0, -24.0), (-16.0, -24.0)]):
         g.node('foot_%d' % i, base, (fx, base_bottom, mid + fz),
                extras={'what': 'corner mounting hole on the base underside (the base has no separate feet; the bottom plate rests on the table)'})
+    by = -0.03                                                   # the big label under the base: white, a dark header band, rows of stand-in print
+    paper = quad_y(-1, by, -17.0, 17.0, mid - 19.0, mid + 15.0)
+    ink = quad_y(-1, by - 0.01, -17.0, 17.0, mid + 11.5, mid + 15.0)
+    for r, a0, a1 in dashes(9, -15.5, 15.5, 11):
+        ink += quad_y(-1, by - 0.01, a0, a1, mid + 8.6 - r * 2.9, mid + 9.8 - r * 2.9)
+    sb = (0.0, by, mid - 2.0)
+    g.node('sticker_bottom', base, sb, g.mesh('sticker_bottom', [g.primitive(paper, sb, 'sticker'), g.primitive(ink, sb, 'sticker_ink')]),
+           {'what': 'label under the base, drawn for this model; the print is a stand-in', 'basis': 'assumed'})
     b_lo, b_hi = bounds([t for m in geo['base'].values() for t in m])
     g.node('col_base', base, [(b_lo[k] + b_hi[k]) / 2.0 for k in range(3)],
            extras={'collider': {'shape': 'box', 'size': [mm(b_hi[k] - b_lo[k]) for k in range(3)]}})
@@ -419,6 +493,9 @@ def assemble():
         'type': 'revolute', 'axis': [0.0, -1.0, 0.0], 'positive': "turns the head toward the robot's right", 'limit_deg': list(YAW_LIMIT_DEG), 'rest_deg': 0.0,
         'source': limiter + ': yaw (-1280, 1280)', 'published': '360 degree servo, no angle restriction (product page)'}})
     g.node('neck', yaw, mesh=g.mesh('neck', prims('neck')), extras={'what': 'servo holder that turns with yaw: holder and its two covers'})
+    led_w = world((YAW_X, -298.75, -17.4))
+    g.node('back_charge_led', yaw, sub(led_w, YAW_O), g.mesh('back_charge_led', [g.primitive(box(led_w, (2.4, 3.2, 0.5)), led_w, 'led_charge')]),
+           {'what': 'small red light in the holder back, between the two screws; lit while charging (behavior assumed, not driven by the firmware)', 'basis': 'assumed'})
     inside = [('servo_yaw', servo_yaw, 'servo_case', 'pan servo: its case turns with the holder, its shaft sits in the base socket (size from the data sheet, position assumed)'),
               ('servo_pitch', servo_pitch, 'servo_case', 'tilt servo: its shaft drives the arm on the nod axis (size from the data sheet, position assumed)'),
               ('battery', battery, 'battery', '550 mAh battery behind the holder back cover (capacity published; size and position assumed)'),
@@ -452,6 +529,16 @@ def assemble():
     g.node('board', head, sub(board_c, PITCH_O), extras={'what': 'the boards in the head: one flat under the top, one upright behind the controller; drawn in the head mesh (material pcb), position assumed', 'basis': 'assumed'})
     g.node('reset_button', head, sub(reset_c, PITCH_O), g.mesh('reset_button', [g.primitive(reset_tris, reset_c, 'reset')]),
            {'what': "reset button under the controller, beside the card slot: a press restarts the unit, a 3 second hold enters download mode", 'basis': 'assumed'})
+    g.node('sd_slot', head, sub(sd_c, PITCH_O), g.mesh('sd_slot', [g.primitive(sd_tris, sd_c, 'port')]),
+           {'what': 'card slot under the controller, beside the reset button', 'basis': 'assumed'})
+    g.node('screen_bottom_led', head, sub(led_bottom_c, PITCH_O), g.mesh('screen_bottom_led', [g.primitive(led_bottom_tris, led_bottom_c, 'led_bottom')]),
+           {'what': 'small light under the screen edge, beside the reset button; green in download mode (product picture); the firmware does not drive it', 'basis': 'assumed'})
+    g.node('button_left_top', g.nodes.index(next(n for n in g.nodes if n['name'] == 'power_button')),
+           extras={'what': 'another name for power_button: the button at the top of the side that is on the left when you face the screen'})
+    for name in sorted(stickers):
+        paper, ink, c = stickers[name]
+        g.node(name, head, sub(c, PITCH_O), g.mesh(name, [g.primitive(paper, c, 'sticker'), g.primitive(ink, c, 'sticker_ink')]),
+               {'what': 'label drawn for this model; the print is a stand-in', 'basis': 'assumed'})
     for i, c in enumerate(pads):
         g.node('touch_back_%d' % i, head, sub(c, PITCH_O), g.mesh('touch_back_%d' % i, [g.primitive(box(c, (pad_w, 0.06, pad_d)), c, 'touch_pad')]),
                {'touch': {'zone': i, 'of': 3, 'order': 'front to back'}, 'what': 'one zone of the head touch strip (three zones in the firmware; position and outline assumed)', 'basis': 'assumed'})
@@ -506,6 +593,10 @@ def assemble():
             'usb_c_port_position': val([mm(v) for v in usb_c], 'measured', 'the opening in the back of the base'),
             'light_bar': val([0.005, 0.031, 0.0053], 'measured', 'light guide file; each bar sits in the slanted slot of a top corner of the shell, stem tip flush'),
             'ring_light_spacing': val(0.005, 'assumed'),
+            'sd_slot_from_pitch_axis': val([mm(v) for v in sub(sd_c, PITCH_O)], 'assumed', 'product photo of the underside: left of the reset button'),
+            'screen_bottom_led_from_pitch_axis': val([mm(v) for v in sub(led_bottom_c, PITCH_O)], 'assumed', 'product photo of the underside: a small mark right of the reset button'),
+            'back_charge_led_position': val([mm(v) for v in led_w], 'assumed', 'product photo of the back: a red part between the two screws'),
+            'labels': val(['sticker_side_left', 'sticker_side_right', 'sticker_top', 'sticker_bottom'], 'assumed', 'placed from the product photos; print is a stand-in'),
             'reset_button_from_pitch_axis': val([mm(v) for v in sub(reset_c, PITCH_O)], 'assumed', 'product page: on the bottom side next to the card slot; press restarts, hold 3 s enters download mode'),
             'head_touch_zones': val(3, 'measured', 'firmware head touch code reads three intensities in a row and reports press, release, swipe forward and swipe backward'),
             'head_touch_pad_size': val([mm(pad_w), mm(pad_d)], 'assumed', 'the pads are under the shell and cannot be seen; only the touch board schematic is published'),

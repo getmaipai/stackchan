@@ -25,10 +25,12 @@ stackchan
   base                    base and bottom plate (mesh)
     usb_c_port            charge and data USB-C on the back of the base
     foot_0..foot_3        the four corner mounting holes underneath (the base has no separate feet)
+    sticker_bottom        label under the base, drawn for the model
     col_base              collider box
     yaw_joint             vertical axis, extras.joint: axis, limit_deg [-128, 128], source
       neck                servo holder and its two covers (turns with yaw)
       servo_yaw, servo_pitch, battery, cable    inside the holder: size of the servos from their data sheet, the rest assumed (MATCH.md)
+      back_charge_led     red light in the holder back, between the screws
       col_neck            collider cylinder
       pitch_joint         horizontal axis, extras.joint: axis, limit_deg [3, 87], source
         head              shell, controller unit, front glass, board, light bars, pitch arm and bearing plate
@@ -36,7 +38,9 @@ stackchan
           power_button, usb_c_otg, port_a    markers on the controller's right side
           ring_light_0..11   0..5 left bar front to back, 6..11 right bar back to front; each has its own material
           board           marks the boards in the head (drawn in the head mesh)
-          reset_button    under the controller beside the card slot (position assumed)
+          reset_button, sd_slot, screen_bottom_led    under the controller: oval button, card slot, small light (positions from product photos)
+          button_left_top another name for power_button (child of it, no mesh)
+          sticker_side_left, sticker_side_right, sticker_top    labels drawn for the model
           touch_back_0..2 the three zones of the head touch strip on the top, front to back (outline assumed)
           col_head        collider box
 ```

@@ -74,7 +74,6 @@ function initRobot(THREE, canvas, hooks) {
              parts: [], hits: [], solid: [], lookKey: '', labels: [], demoAt: 0,
              yawAxis: new THREE.Vector3(0, -1, 0), pitchAxis: new THREE.Vector3(-1, 0, 0), yawLim: [-128, 128], pitchLim: [0, 90], pitchY: 4.35, topY: 7.05, baseTopY: 1.13};
   const cable = new THREE.Group(); cable.visible = false; robot.add(cable);
-  const chargeLed = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 10), new THREE.MeshBasicMaterial({color: 0x222222})); robot.add(chargeLed);
   const axes = new THREE.Group(); robot.add(axes);
   const yawGizmo = new THREE.Group(), pitchGizmo = new THREE.Group(); axes.add(yawGizmo); axes.add(pitchGizmo);
 
@@ -114,7 +113,11 @@ function initRobot(THREE, canvas, hooks) {
     plug.position.set(0, p.y, pz - 0.7); cable.add(plug);
     const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, p.y, pz - 1.4), new THREE.Vector3(0, p.y, pz - 3), new THREE.Vector3(1.5, 0.3, pz - 5.5), new THREE.Vector3(3.5, 0.25, pz - 9), new THREE.Vector3(5, 0.25, pz - 13)]);
     cable.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.16, 10, false), new THREE.MeshStandardMaterial({color: 0x2a2f36, roughness: 0.7})));
-    chargeLed.position.set(0.9, p.y + 0.35, pz + 0.1);
+    // the two small lights: the red one in the holder back and the one under the screen edge
+    const lamp = (node, label) => { if (!node) return null; const m = node.children.find(c => c.isMesh); m.material = new THREE.MeshBasicMaterial({color: 0x000000}); addSwitch(node, new THREE.SphereGeometry(0.003, 6, 6), label, () => {}); return m; };
+    M.chargeLed = lamp(N.back_charge_led, 'Charge light: red while the battery charges (behavior assumed)');
+    M.bottomLed = lamp(N.screen_bottom_led, 'Light beside the reset button: green in download mode on the real unit; the firmware does not drive it, so it stays off here');
+    if (N.sd_slot) addSwitch(N.sd_slot, new THREE.BoxGeometry(0.012, 0.003, 0.003), 'Card slot (microSD)', () => {});
     // the axes gizmo sits on the model's own joints
     yawGizmo.position.set(0, M.baseTopY + 0.05, 0); pitchGizmo.position.set(0, M.pitchY, 0);
     const yawLine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, M.topY + 2.4, 8), new THREE.MeshBasicMaterial({color: 0x3ddc84}));
@@ -122,7 +125,7 @@ function initRobot(THREE, canvas, hooks) {
     const pitchLine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 8.2, 8), new THREE.MeshBasicMaterial({color: 0xff6b6b}));
     pitchLine.rotation.z = Math.PI / 2; pitchLine.position.set(0, M.pitchY, 0); axes.add(pitchLine);
     // every drawn part remembers its own material and which link it rides on, for the Show inside and Show motion looks
-    const SHELL = {shell: 1, core: 1, glass: 1, neck: 1, servo: 1, base: 1};
+    const SHELL = {shell: 1, core: 1, glass: 1, neck: 1, servo: 1, base: 1, sticker: 1, sticker_ink: 1, touch_pad: 1};
     const tag = (node, link) => node.traverse(o => { if (o.isMesh && o !== M.screen && !M.leds.includes(o) && !M.hits.some(h => h.mesh === o) && !o.userData.link) o.userData = {link, mat: o.material, shell: !!SHELL[o.material.name]}; });
     tag(N.pitch_joint, 'pitch'); tag(N.yaw_joint, 'yaw'); tag(N.base, 'base');
     model.root.traverse(o => { if (o.isMesh && o.userData.link) M.parts.push(o); });
@@ -338,7 +341,8 @@ function initRobot(THREE, canvas, hooks) {
         if (c[0] + c[1] + c[2] === 0) m.material.color.setRGB(0.30, 0.46, 0.47); else m.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255);
       });
       cable.visible = st.hw.usb;
-      chargeLed.material.color.set(st.hw.usb ? (st.hw.charging ? 0xffb020 : 0x46be6e) : 0x222222);
+      if (M.chargeLed) M.chargeLed.material.color.set(st.hw.usb && st.hw.charging ? 0xff3b30 : 0x3a0806);   // red while charging, dark otherwise
+      if (M.bottomLed) M.bottomLed.material.color.set(0x0b2412);   // unlit: nothing in the firmware drives it
       M.button.material.color.copy(M.buttonOff); if (on) M.button.material.color.lerp(new THREE.Color(0x58d68d), 0.2);   // a green tint while the unit is on
       M.screen.material.color.set(on ? 0xffffff : 0x000000);
     },

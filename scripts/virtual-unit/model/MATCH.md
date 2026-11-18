@@ -76,6 +76,26 @@ Sweep with these parts in: free from 0 to 90 degrees of pitch. The only contact 
 - **Head touch pads** (`touch_back_0` to `touch_back_2`). The product page lists three touch pads and a touch controller. The firmware's head touch code reads three intensities in a row and reports press, release, swipe forward and swipe backward. So there are three zones in a line, front to back. The pads sit under the shell and cannot be seen on a real unit; only the touch board's schematic is published. Their outline (16 x 8 mm each), their place on the top behind the two connector openings, and which end is zone 0 are assumed. In the view a click sends the unit's head tap event, which brings the face back from a page. The petting reaction of the real firmware is not in the virtual unit.
 - **The rest of the top.** The two connector openings and the round hole between them are in the official shell and were already drawn. The shell file has no vents, logo recess or other marks on top.
 
+## Compared with the maker's photos (2026-11-18)
+
+The 17 product photos on the product page were set beside screenshots of the model from the same angles. The photos are not in this repository; they are at `https://m5stack-doc.oss-cn-shenzhen.aliyuncs.com/1205/K151_stack_chan_main_pictures_NN.webp`, NN from 01 to 17 (05 front, 06 and 08 the speaker side, 07 the open back, 09 the underside of the controller, 10 the button side, 11 the top, 12 the underside of the base).
+
+Seen on the real unit and now drawn (all positions read off the photos, so assumed):
+
+| Feature | Node | In the view |
+|---|---|---|
+| Red light in the holder back, between the two screws | `back_charge_led` | red while the unit charges. The firmware does not drive it (`BUILTIN_LED_GPIO` is not connected), so "lit while charging" is an assumption |
+| Small mark beside the reset button under the screen edge | `screen_bottom_led` | stays off: the product picture says green in download mode, and nothing in the firmware drives it |
+| Card slot under the controller | `sd_slot` | named on hover |
+| Oval reset button to the right of the slot, with a pinhole and two short slots between | `reset_button` | restarts the unit |
+| Button at the top of the left side (as you face the screen) | `power_button`, also named `button_left_top` | power: the product picture says press for on, hold 6 s for off |
+| Name label on each side of the shell, white with a dark end | `sticker_side_left`, `sticker_side_right` | the product's name in block letters |
+| Rating label on top of the controller | `sticker_top` | stand-in bars, no real text or marks |
+| Large label under the base | `sticker_bottom` | stand-in bars with a dark header band |
+| Black and teal connectors in the two top openings | in the head mesh | drawn |
+
+Seen and not drawn: the embossed maker's logo on the speaker side and under the base label, the real text, codes and compliance marks on the labels, the pin labels beside the red port, the cap in one of the side holes, and the parts on the boards.
+
 ## What to compare on the unit
 
 1. With a ruler: total height with the head level (70.5 mm), base body height (8 mm), and the gap between the flat top of the base and the head bottom (8.4 mm in the model).
@@ -86,3 +106,5 @@ Sweep with these parts in: free from 0 to 90 degrees of pitch. The only contact 
 6. Light one LED at a time, 0 to 11: which bar and which end lights first?
 7. Look under the front: where is the reset button relative to the card slot (model: to its right as you face the robot)?
 8. Stroke the head top front to back: where do the three pads start and end?
+9. Plug in the cable: does the red light in the back come on, and does it go out when the battery is full?
+10. Is there a light under the screen edge beside the reset button, and when is it lit?

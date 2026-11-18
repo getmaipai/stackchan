@@ -144,7 +144,7 @@ def label(rgb, size, text, k=3):
     return rgb
 
 
-VIEWS = [('front', 0, 0), ('rear', 180, 0), ('left', 90, 0), ('right', -90, 0), ('top', 0, 90), ('three-quarter', -38, 22), ('rear-three-quarter', 142, 22)]
+VIEWS = [('front', 0, 0), ('rear', 180, 0), ('left', 90, 0), ('right', -90, 0), ('top', 0, 90), ('three-quarter', -38, 22), ('rear-three-quarter', 142, 22), ('under', -20, -62)]
 
 
 def main(argv):

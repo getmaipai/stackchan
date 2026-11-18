@@ -330,3 +330,25 @@ def test_reset_restarts_a_running_unit_and_head_touch_is_logged():
     assert pads[0]["translation"][2] > pads[1]["translation"][2] > pads[2]["translation"][2], "zone 0 is at the front"
     assert all(p["translation"][1] > 0.0269 for p in pads), "the pads lie on the head top"
     assert "pevent head" in (VU / "vunit.py").read_text() and '"head"' in (VU / "view.py").read_text() and "pevent head" in (VU / "scenarios.py").read_text()
+
+
+def test_details_seen_on_the_real_unit_are_named_nodes():
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    head, yaw, base = descendants(j, by["head"][0]), descendants(j, by["yaw_joint"][0]), descendants(j, by["base"][0])
+    for name in ("sd_slot", "screen_bottom_led", "reset_button", "button_left_top", "sticker_side_left", "sticker_side_right", "sticker_top"):
+        assert name in head, f"{name} rides on the head"
+    assert "back_charge_led" in yaw and "back_charge_led" not in head, "the charge light is in the holder, which does not tilt"
+    assert "sticker_bottom" in base and "sticker_bottom" not in yaw
+    assert "button_left_top" in descendants(j, by["power_button"][0]) and "mesh" not in by["button_left_top"][1]
+    assert by["power_button"][1]["translation"][0] < -0.027 and by["power_button"][1]["translation"][1] > 0.01, "top of the left side as you face the screen"
+    sd, rs, led = (by[n][1]["translation"] for n in ("sd_slot", "reset_button", "screen_bottom_led"))
+    assert sd[0] < rs[0] < led[0] and abs(sd[1] - rs[1]) < 0.0001, "slot, then button, then the small light, left to right as you face the robot"
+    assert by["back_charge_led"][1]["translation"][2] < -0.02, "on the back"
+    mats = {m["name"] for m in j["materials"]}
+    assert {"led_charge", "led_bottom", "sticker", "sticker_ink", "reset", "touch_pad"} <= mats
+    for name in ("sticker_side_left", "sticker_side_right", "sticker_top", "sticker_bottom"):
+        prims = j["meshes"][by[name][1]["mesh"]]["primitives"]
+        assert [j["materials"][p["material"]]["name"] for p in prims] == ["sticker", "sticker_ink"], "paper and print, drawn as geometry"
+    js = (VU / "view3d.js").read_text()
+    assert "back_charge_led" in js and "st.hw.charging" in js and "screen_bottom_led" in js
