@@ -454,7 +454,8 @@ function initRobot(THREE, canvas, hooks) {
         for (const gap of M.gaps) {   // the only place the ring's light escapes on top: dim, in the color of the two lights nearest it
           let r1 = 0, g1 = 0, b1 = 0; for (const i of gap.px) { r1 += px[i][0]; g1 += px[i][1]; b1 += px[i][2]; }
           const k = 0.9 / Math.max(1, gap.px.length); gap.m.material.color.setRGB(0.02 + r1 * k, 0.02 + g1 * k, 0.02 + b1 * k);
-          gap.sp.visible = rich && r1 + g1 + b1 > 0.05; gap.sp.material.color.setRGB(r1 * k * 0.5, g1 * k * 0.5, b1 * k * 0.5);
+          gap.sp.visible = false;   // the window is lit flat, with no halo: the light stays inside its rectangle
+          // gap.sp.material.color.setRGB(r1 * k * 0.5, g1 * k * 0.5, b1 * k * 0.5);
         }
         for (const g of M.glowLights) {   // what the lights throw on the parts near them, inside and out
           let r1 = 0, g1 = 0, b1 = 0; for (const i of g.px) { r1 += px[i][0]; g1 += px[i][1]; b1 += px[i][2]; }
