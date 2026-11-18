@@ -1,0 +1,72 @@
+# Optimization: the image diet, the patch series cleanup, and the host side
+
+Firmware track, 2026-11-18. Measure first, trim later. Part 1 is measured on the b49 build (SF48 to SF56 applied, plain image); every row says **measured** or **estimate**. Part 2 runs last, before release. Part 3 is for the app track and the playground to fill in.
+
+## Part 1: the image diet audit (firmware)
+
+### Where the bytes are now (measured, b49 plain)
+
+| Region | Size | Limit | Left |
+|---|---:|---:|---:|
+| App image (`maipai-stackchan.bin`) | 3,746,624 B | slot 5,177,344 B | 28% |
+| App image under the 20% rule | | 4,141,875 B | about 395 KB |
+| Assets partition, used | 4,463,226 B | 6,225,920 B (0x5F0000) | 1,762,694 B |
+| Bench image | 4,386,928 B | | 15% |
+
+App image by archive (measured, `esp_idf_size`, flash code plus flash data): `libmain` (our code and the stock app) 868,133; LVGL 332,874; `libesp_stdio` 253,733 (one object, `stdio_vfs.c.obj`, looks mis-attributed: to inspect in the map before anything is claimed); the stock fonts library 248,167 (two Noto "basic" LVGL fonts, 122,896 and 87,786, in app flash); the deep-learning library 189,391 (102,930 in one convolution object); C++ runtime 185,142; audio codecs 170,867; Wi-Fi core 161,422; crypto 120,631; audio processing 83,153; supplicant 70,467; the TCP stack 66,116; our link library 54,835; image effects 50,998.
+
+Assets partition by item (measured): wake-word models 2,469,827; the stock Noto "common 20" font 1,287,460; seven stock app icons 84,612 each (592,284 together); setup front view 58,980; app-center background 29,218; small icons (wifi, battery, indicators, bell) about 25,000.
+
+### Items, in order (cheap and safe first)
+
+| # | Item | Saves | Basis | Risk | Test | Order |
+|---|---|---:|---|---|---|---|
+| 1 | Reclaim the stock "common 20" font if no screen uses it | 1,287,460 B of the assets partition | measured size; use **unconfirmed** (our screens set fonts from the compiled-in LVGL fonts; the font is loaded by the stock text path) | low | probe: log every font object the display and the screens load for a full walk of every screen (the virtual unit's screen walk lists the font each screen sets); if nothing loads it, drop it from `index.json` and rebuild the assets image | 1 |
+| 2 | Drop the unused stock app icons (ai_agent, app_center, controller, ezdata, sentinel, setup; dance if the Apps wall draws its own) | up to 592,284 B of the assets partition | measured size; use to confirm with the same probe | low | screen walk: every Apps wall tile shows its icon | 2 |
+| 3 | Same probe for the small icons and the front view | about 85,000 B | measured size | low | same | 2 |
+| 4 | Sounds: which stock sounds ship, mono, bitrate | small (two sfx files, 16 KB of source in `main/assets/sfx`; the notification sounds listed in the build are about 20 KB) | measured sources | very low | listen test by the owner (sound tests wait for the owner) | 3 |
+| 5 | The two Noto "basic" fonts in app flash (210,682 B) | up to 210 KB of app flash | measured size; use unconfirmed | medium (text could fall back to a missing glyph) | the screen walk in all six languages; a glyph-coverage check against `symbols.txt` | 4 |
+| 6 | Unused glyph ranges in the fonts we keep | estimate 10 to 30 percent of each font; **not measured** | estimate | medium | glyph coverage over every string table, all languages | 4 |
+| 7 | Log levels and asserts | the default level is already warning and the maximum equals it (measured in the config); asserts are enabled at level 2. Disabling asserts saves an estimate of 20 to 40 KB; it removes crash information the coredump flow uses | estimate | medium: keep asserts | memory gate and a crash test | 5 |
+| 8 | Compiler flags | the optimization is already size (`-Os`, measured in the config). Per-component `-O2` for hot paths would add size; no saving there. LTO: feasible for our own `main` component only, estimate 3 to 8 percent of `libmain` (30 to 70 KB), a risk to the PSRAM-stack lint and to the function sections the lint reads | estimate | medium | full replay, memory gate, the PSRAM review test | 6 |
+| 9 | sdkconfig trimming: unused components of the stock app (the cellular module support, unused display and touch drivers, the stock OTA server path, unused protocol code, the many board drivers in `managed_components`) | not measurable by reading: the linker already drops unreferenced code. Real savings come from Kconfig switches that remove a feature; candidates are listed by `scripts/off-cost.sh` (landed): run it per switch for the exact bytes | measure with `off-cost.sh` | low per switch | gate plus the plain boot proof | 3 |
+| 10 | Duplicate string literals and tables (language tables, tool descriptions) | estimate 5 to 20 KB; the tool descriptions are the longest strings in `hal_mcp.cpp` | estimate | low | `strings` diff before and after, the tools-schema check | 5 |
+| 11 | Image and sprite compression (indexed colors, dedupe): the seven app icons are identical in size (84,612 B), so they are raw 16-bit; indexing would cut each to about a third | about 390,000 B if they are kept | measured size; ratio estimate | medium (colors) | golden screens | only if item 2 keeps them |
+| 12 | Partition table: app slot 5.1 MB (two OTA slots of 0x4F0000), assets 6.1 MB, coredump 64 KB | after items 1 and 2 the assets partition needs about 2.5 MB plus installed-set packs; the OTA slots cannot shrink below the 20 percent rule of the image | no saving without a layout change; a layout change needs a USB flash (never over the air), so it is a once-only decision | high | boot proof, update test | last, with the installed-set design |
+| 13 | The wake-word models (2,469,827 B) | none unless we ship fewer wake words | measured size | n/a | n/a | not now |
+
+Nothing in 1 to 3 changes the app image: it frees the **assets partition** for installed-set packs (decision 20). Items 5 to 8 and 10 shrink the app image and widen the margin under the 20 percent rule.
+
+### Measurement before any trim
+
+1. A **font and asset probe** (bench tool, to build): lists every assets-partition item and the font objects the screens create, so items 1 to 3 are decided by the unit, not by reading code.
+2. `scripts/off-cost.sh` for each switch in item 9 (already built).
+3. A map-file diff for `stdio_vfs.c.obj` before any claim about it.
+4. Record the numbers in `docs/dev/memory-budget.md` and the flash rows of `schema/memory-budget.json` (the flash column), in the same commit as the change.
+
+## Part 2: patch series cleanup (last, before release)
+
+Today: 310 entries in `firmware/patches/ORDER`; three patches are stored with hunks in the wrong place and are repaired by a later patch (`firmware/patches/MISPLACED`: 075, 106, 107, each repaired by the base adaptation patch); several repair and revert patches exist next to the patches they repair.
+
+Plan:
+
+1. **Acceptance first:** `scripts/series-equal.sh OLD_ORDER NEW_ORDER` (to write): replays both series into two trees from the same pinned base and diffs the trees; the result must be byte-identical. All host tests, the plain boot proof on the unit and an unchanged or smaller image size follow.
+2. **Branch and tag:** do it in a branch of the series; the old series is kept as a tag for history. The public squashed history is made at release (a decision on history, not made here).
+3. **Folds:** merge each repair patch into the patch it repairs; drop reverted patches together with the patch they revert (the pair collapses to nothing); drop dead patches (code no later patch uses; found by `scripts/series-equal.sh` plus a call-graph check on the replayed tree).
+4. **Misplaced hunks:** fix the three stored in the wrong place by moving each hunk into the patch where it belongs (the base adaptation patch), so the tree compiles after every patch; then `MISPLACED` is empty and the compile-every-patch bisect works again.
+5. **Regroup by feature family** (face, voice, motion, lock and privacy, update, bench, apps) and give clear names and Intent lines. An Intent line says what the patch does and why, in plain words; it never describes a flaw or a mistake of an earlier version (decision rule).
+6. **Order of work:** safe folds first (a fold changes no content), then regroup (changes order, so each move is re-checked), last the renames. Never during an open landing batch.
+
+Risk: low for content (the equality script proves it), medium for the schedule: every open lane works against the series, so this runs only when no lane has unlanded patches.
+
+## Part 3: the host side (for the app track and the playground to fill in)
+
+Each owner adds measured numbers here, same format as Part 1.
+
+| Item | Owner | To measure |
+|---|---|---|
+| Web app assets and bundle | app track | gzip size per route, unused components, fonts |
+| Thumbnails and screenshots | playground and app track | total bytes of `host/tests/golden` and docs images; `oxipng` and `zopfli` ratios |
+| The 3D model file (glb) | playground (ask the Fable session for the model) | mesh quantization or Draco compression, texture size |
+| Python wheel and install size | app track | installed size of the host environment; unused dependencies |
+| Docs images | playground | `oxipng` over `docs/` images |
