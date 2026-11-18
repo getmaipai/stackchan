@@ -350,3 +350,5 @@ SF87-offline-mumble-on-the-unit.patch
 SF88-question-games-on-the-unit.patch
 SF89-asset-store-core.patch
 SF90-asset-store-on-the-unit.patch
+SF91-installed-game-packs-join-the-games.patch
+SF92-pantry-core.patch

@@ -23,5 +23,5 @@ def test_the_core_kind_table_matches_the_schema(tmp_path_factory):
         assert name == want["kind"]
         assert int(slots) == want["max_slots"], name
         assert int(max_bytes) == want["max_item_bytes"], name
-        assert (owner == "1") == (want["trust"] == "owner"), name
+        assert int(owner) == {"signed": 0, "owner": 1, "unit": 2}[want["trust"]], name
     assert max(int(r[1]) for r in rows) <= int(re.search(r"#define MAS_MAX_SLOTS (\d+)", text).group(1))

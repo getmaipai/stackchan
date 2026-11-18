@@ -1,4 +1,4 @@
-# Intent: The asset store, the pure logic (owner decision 17; design docs/plan/installed-set.md sections B and G): one store of flash for every kind of installed asset. The typed 128 byte asset header (MPAH1: kind, name, version, body length and SHA-256, board id, minimum build, a license id and an author id) with its checks, every refusal in plain words with a Spanish twin; a directory ring of 8 sectors (the newest valid sector wins, each change wears the next sector); entries that carry the content id (first 8 bytes of the body hash), the active mark and up to four dependency ids; atomic install (data first, read back and hash, then the directory flips) that replaces in place without touching the old run; swap (a change of the active item, one directory write), remove (one directory write); first fit from a rotating start so wear spreads; reference counts computed from the directory, never stored. No device code uses it yet: the tools and the game-pack consumer are the next patch.
+# Intent: The asset store, the pure logic (owner decision 17; design docs/plan/installed-set.md sections B and G): one store of flash for every kind of installed asset. The typed 128 byte asset header (MPAH1: kind, name, version, body length and SHA-256, board id, minimum build, a license id and an author id) with its checks, every refusal in plain words with a Spanish twin; a directory ring of 8 sectors (the newest valid sector wins, each change wears the next sector); entries that carry the content id (first 8 bytes of the body hash), the active mark and up to four dependency ids; atomic install (data first, read back and hash, then the directory flips) that replaces in place without touching the old run; swap (a change of the active item, one directory write), remove (one directory write); first fit from a rotating start so wear spreads; reference counts computed from the directory, never stored. The kinds are the schema's (language, font, style, look, game, sound, phrase, pantry, heard); the pantry kind is the owner's own content and the heard kind is written by the unit itself (mas_store_unit), never installed by the host. No device code uses it yet: the tools and the game-pack consumer are the next patches.
 # Placement: unit
 # Upstream: firmware/main/hal/maipai_assets_core.h (ours)
 # Check after a flash: none (a pure core; the host test cuts the power at every flash step of an install, a replace, a swap and a remove and checks that the old set or the new set is whole after each cut).
@@ -9,7 +9,7 @@ diff --git a/firmware/main/hal/maipai_assets_core.h b/firmware/main/hal/maipai_a
 new file mode 100644
 --- /dev/null
 +++ b/firmware/main/hal/maipai_assets_core.h
-@@ -0,0 +1,460 @@
+@@ -0,0 +1,482 @@
 +/*
 + * SPDX-License-Identifier: MIT
 + *
@@ -49,11 +49,13 @@ new file mode 100644
 +#define MAS_SIG_LEN 64u
 +
 +/* ---- kinds: the table of schema/asset-kinds.json (a test checks they agree; the index is the position) ---- */
++/* owner_trust: 0 the release key signs it, 1 the owner's own content (hash and length over the paired host link), 2 written by the unit itself (the host cannot install it) */
 +typedef struct { const char* name; uint8_t max_slots; uint32_t max_bytes; uint8_t owner_trust; } mas_kind_t;
-+#define MAS_KINDS 7
++#define MAS_KINDS 9
 +static const mas_kind_t MAS_KIND[MAS_KINDS] = {
 +    {"language", 2, 16384u, 0}, {"font", 1, 800000u, 0},   {"style", 8, 256u, 0},   {"look", 2, 1000000u, 1},
 +    {"game", 8, 16384u, 0},     {"sound", 2, 400000u, 0}, {"phrase", 1, 150000u, 0},
++    {"pantry", 8, 40960u, 1},   {"heard", 1, 4096u, 2},
 +};
 +#define MAS_MAX_SLOTS 8
 +
@@ -459,6 +461,26 @@ new file mode 100644
 +        if (d->e[i].active && memcmp(d->e[i].sha, id, 8) == 0) n++;
 +    }
 +    return n;
++}
++
++/* The unit writes an item of its own (the heard list): a header made here, the slot 0 of its kind, version above the last. 0 on success. */
++static inline int mas_store_unit(const tpc_ops_t* ops, void* ctx, uint8_t* sector, mas_dir_t* d, int kind, const char* name, const uint8_t* body, uint32_t len)
++{
++    if (kind < 0 || kind >= MAS_KINDS || MAS_KIND[kind].owner_trust != 2 || len == 0 || len > MAS_KIND[kind].max_bytes) return MAS_E_KIND;
++    mah_t h;
++    memset(&h, 0, sizeof(h));
++    h.kind = (uint8_t)kind;
++    h.format = 1;
++    h.license = 1;   /* the unit's own */
++    h.body_len = len;
++    const int i = mas_find(d, kind, 0);
++    h.version = i >= 0 ? d->e[i].version + 1u : 1u;
++    memcpy(h.name, name, strlen(name) < MAS_NAME_MAX ? strlen(name) : MAS_NAME_MAX);
++    muh_sha_t s;
++    muh_sha_begin(&s);
++    muh_sha_update(&s, body, len);
++    muh_sha_end(&s, h.sha);
++    return mas_store(ops, ctx, sector, d, &h, 0, body, NULL);
 +}
 +
 +/* Free data sectors (those no listed item holds). */
