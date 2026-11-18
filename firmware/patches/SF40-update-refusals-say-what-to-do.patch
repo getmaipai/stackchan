@@ -1,0 +1,57 @@
+# Intent: Every wireless update refusal that said only that nothing was installed now also says what to publish or do next (the header signature, the image length, the signature file and the header checks).
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/ota.cc and update_verify.cc (nested tree, MIT)
+# Check after a flash: a refused update (for example an image whose header was signed with another key) shows a refusal text ending with what to publish and try again.
+# Kconfig: none
+
+diff --git a/firmware/xiaozhi-esp32/main/ota.cc b/firmware/xiaozhi-esp32/main/ota.cc
+--- a/firmware/xiaozhi-esp32/main/ota.cc
++++ b/firmware/xiaozhi-esp32/main/ota.cc
+@@ -335,7 +335,7 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+         }
+         header_verifier.Update(hdr_bytes, sizeof(hdr_bytes));
+         if (!header_verifier.Finish()) {
+-            UpdateSetRefusal("Update refused: the header signature is not valid. Nothing was installed.");
++            UpdateSetRefusal("Update refused: the header signature is not valid. Nothing was installed. Publish a header signed with the release key and try again.");
+             return false;
+         }
+         Settings update_state("mp_update", false);
+@@ -343,7 +343,7 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+         const int parsed = muh_parse(hdr_bytes, sizeof(hdr_bytes), floor_build, &header);
+         if (parsed != MUH_OK) {
+             ESP_LOGE(TAG, "Update refused: %s (installed build %u).", MUH_REASONS[parsed], static_cast<unsigned>(floor_build));
+-            std::string why = std::string("Update refused: ") + MUH_REASONS[parsed] + ". Nothing was installed.";
++            std::string why = std::string("Update refused: ") + MUH_REASONS[parsed] + ". Nothing was installed. Publish a correctly built, newer signed release and try again.";
+             UpdateSetRefusal(why.c_str());
+             return false;
+         }
+@@ -377,7 +377,7 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+ #ifndef CONFIG_STACKCHAN_UPDATE_ALLOW_UNSIGNED
+     if (content_length != header.image_len) {
+         ESP_LOGE(TAG, "Update refused: the image is %u bytes but the signed header says %u.", (unsigned)content_length, (unsigned)header.image_len);
+-        UpdateSetRefusal("Update refused: the image length does not match the signed header. Nothing was installed.");
++        UpdateSetRefusal("Update refused: the image length does not match the signed header. Nothing was installed. Publish the image and its header from the same build and try again.");
+         return false;
+     }
+ #endif
+@@ -476,7 +476,7 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+         const int checked = muh_check_image(&header, &image_hash);
+         if (checked != MUH_OK) {
+             ESP_LOGE(TAG, "Update refused: %s. The new image is never booted.", MUH_REASONS[checked]);
+-            std::string why = std::string("Update refused: ") + MUH_REASONS[checked] + ". Nothing was installed.";
++            std::string why = std::string("Update refused: ") + MUH_REASONS[checked] + ". Nothing was installed. Publish the image and its header from the same build and try again.";
+             UpdateSetRefusal(why.c_str());
+             return false;
+         }
+diff --git a/firmware/xiaozhi-esp32/main/update_verify.cc b/firmware/xiaozhi-esp32/main/update_verify.cc
+--- a/firmware/xiaozhi-esp32/main/update_verify.cc
++++ b/firmware/xiaozhi-esp32/main/update_verify.cc
+@@ -333,7 +333,7 @@ bool UpdateVerifier::Finish() {
+     if (st != PSA_SUCCESS || n != 64) return false;
+     if (!Ed25519VerifyDigest(sig_, pk_, h)) {
+         ESP_LOGE(TAG, "Update refused: the signature does not match this image or the update key. Nothing was installed.");
+-        UpdateSetRefusal("Update refused: the signature does not match this image or the update key. Nothing was installed.");
++        UpdateSetRefusal("Update refused: the signature does not match this image or the update key. Nothing was installed. Publish the image with its signature from the same build and try again.");
+         return false;
+     }
+     return true;

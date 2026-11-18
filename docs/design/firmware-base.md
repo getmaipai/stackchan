@@ -27,7 +27,31 @@ application, audio and websocket 2, avatar socket 1.5, camera and codec 1.5, ver
 Stock M5 main on a unit. Run a talking session and measure free internal heap, `int_big` and `psram_min`.
 If the numbers are much worse than the old base, bring the result back before re-porting patches.
 
-## Patch map (replay of all 126 recipe patches on the newest tree; nothing compiled)
+## Current series (2026-11-18)
+
+`firmware/patches/ORDER` lists 293 patches, replayed by `scripts/fw-rebuild.sh` onto the pinned bases in `firmware/BASE` (StackChan 28b9f0c8, nested xiaozhi-esp32 49b4380, ESP-IDF 6.1.1). A replay of the whole list applies clean. Counts by family:
+
+| Family | Patches | What it holds |
+|---|---|---|
+| Numbered and older families (V, P, NX, L, TN, RM, M, FI, GM, TB and others) | 221 | The re-ported feature set: voice, head, avatar, timers, games, music, private network, lock, privacy, face |
+| UI | 17 | Screens, pages, banner, quick settings |
+| UX | 17 | Playground track: palette, type ladder, accents, first-run screens, update cover, plain words |
+| SF | 38 | Firmware track, safety and talk-over: time helper and lock limits (SF01, 08, 13, 16), hello and privacy (SF02), listening guard (SF03, 12), restart and servo lock (SF04, 08), mouth cues (SF10, 24, 30, 32), first-run wiring (SF09), servo clock and task (SF28, 31, 38), signed update header and build floor (SF25, 37), talk-over and echo canceller (SF15, 18, 22, 23, 26, 27, 29, 34), encrypted link (SF20, 21, 33, 35), limiter and bench (SF34, 39), Setup idle timeout (SF36) |
+
+Optional switches (all default off; an off switch costs nothing, shown by `scripts/off-cost.sh` and `docs/dev/off-cost.md`):
+
+- `CONFIG_MAIPAI_SERIAL_TOOLS`: bench tools over USB (`self.bench.*`). Never in a release.
+- `CONFIG_MAIPAI_TALK_OVER`: reads the speaker loopback microphone (MIC3, slot 1) as the echo reference.
+- `CONFIG_MAIPAI_TALK_OVER_AEC`: the echo canceller and a second wake hit that interrupts speech (needs the line above).
+- `CONFIG_MAIPAI_LINK_PSK`: key exchange, key storage, TLS pre-shared key client and `self.link.pair`.
+- `CONFIG_MAIPAI_FW_BUILD`: the build number compiled into the image (default 0, set by the release build; always on, costs a constant).
+- `CONFIG_HEAP_TRACING_STANDALONE`: only the `heap` build kind (bench images).
+
+Build kinds (`scripts/fw-build.sh TREE KIND`): plain (release), bench, gate, talkover, linkpsk, aec, heap. Memory budget of the series: `docs/dev/releases/b33-plain.md` and the gate numbers in `docs/dev/gate-numbers.md`.
+
+The table below is the 2026-11-15 plan for the rebase and is kept as history.
+
+## Patch map at the start of the rebase (replay of all 126 recipe patches on the newest tree; nothing compiled)
 
 | Class | Count | Meaning |
 |---|---|---|

@@ -291,3 +291,4 @@ SF36-setup-idle-timeout.patch
 SF37-compiled-build-floor.patch
 SF38-ceiling-zero-and-light-lock.patch
 SF39-limiter-failclosed-peak-heap.patch
+SF40-update-refusals-say-what-to-do.patch
