@@ -51,3 +51,7 @@ Nothing here is legal clearance. It records what the sources establish and what 
 | Documentation's About and legal page (Pages) | full | to do: docs track |
 | Each robot's local configuration page | short | to do: app and firmware tracks |
 | Firmware About screen or its documentation | project identity, with the full statement in the documentation | to do: firmware track |
+
+## Game names
+
+Games use generic names only: Four in a Row, Mine Finder, Paddle, Fleet, Word Grid, Memory, Dots, Reversi-style names that are plain words. No trademarked game names: not Connect 4, Minesweeper, Pong, Battleship, Boggle, Scrabble, Simon or Tetris-like games. A new game is named from what it is, and a name that someone could have registered is checked before it ships.
