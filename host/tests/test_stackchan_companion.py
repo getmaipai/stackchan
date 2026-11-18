@@ -42,7 +42,7 @@ def _names(calls: list[tuple[str, dict[str, object]]]) -> list[str]:
 
 
 def test_dances_and_event_kinds_export_the_supported_sets():
-    assert BUILTIN_DANCES == frozenset({"happy", "robot", "panic", "look_around"})
+    assert BUILTIN_DANCES == frozenset({"happy", "robot", "panic", "look_around", "bob"})
     assert DANCES == BUILTIN_DANCES | EXTRA_DANCES
     assert EVENT_KINDS == frozenset(
         {

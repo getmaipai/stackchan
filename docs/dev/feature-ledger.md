@@ -1,16 +1,16 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 820 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 821 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 34 items, 3 measured, 11 estimated, 20 placeholders or not built. 82 of 820 rows name a declared cost. Internal RAM that is always on: 37,072 B (inside the baseline). Headroom over the gate: 24,093 B at the median, 9,484 B at the lowest; the largest block has 1,600 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,096 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 34 items, 3 measured, 11 estimated, 20 placeholders or not built. 82 of 821 rows name a declared cost. Internal RAM that is always on: 37,072 B (inside the baseline). Headroom over the gate: 24,093 B at the median, 9,484 B at the lowest; the largest block has 1,600 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,096 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
-| Everyday user | 1 | 18 | 18 | 239 | 8 | 51 | 335 | 65 |
+| Everyday user | 1 | 18 | 18 | 240 | 8 | 51 | 336 | 65 |
 | Maker and tech | 0 | 0 | 64 | 362 | 59 | 0 | 485 | 70 |
 
 ## Everyday user
@@ -216,10 +216,11 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **The link on your home network is plain** | Anyone already on your Wi-Fi could read it, and the robot does not yet check that it is talking to your host. Use a network you trust. | proven virtual | 60 | not declared | `U04-network-test.patch`<br>`TN06-travel-trust-root.patch`<br>`UX10-plain-words-home-link-original.patch` | average of the 3 patch(es) that share words with this row: U04, TN06, UX10 | [docs/user/security.md#known-gaps](../user/security.md#known-gaps) |
 | **Encrypted link on by default** | A paired host and robot use the encrypted link unless the owner chooses the plain link and reads a plain warning. | designed | 10 | I 0 / P 28,000 / F 7,680 B (estimate); per connection | `docs/design/encrypted-link.md`<br>`firmware/patches/SF20-link-key-schedule-core.patch` | the encrypted link is built and opt-in; the default waits for the memory budget table (decision 11) | [docs/design/encrypted-link.md](../design/encrypted-link.md) |
 
-### Motion and dances (31)
+### Motion and dances (32)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
+| **Dance: bob** | The robot does the bob dance. | proven virtual | 62 | not declared | `host/maipai_body/dance.py`<br>`host/maipai_body/bodies/stackchan/companion.py` | `bench-b9.md`, `bench-window10.md` | [docs/user/moves-and-moods.md](../user/moves-and-moods.md) |
 | **Dance: bow** | The robot does the bow dance. | proven virtual | 62 | not declared | `host/maipai_body/dance.py`<br>`host/maipai_body/bodies/stackchan/companion.py` | `bench-b9.md`, `bench-window10.md` | [docs/user/moves-and-moods.md](../user/moves-and-moods.md) |
 | **Dance: groove** | The robot does the groove dance. | proven virtual | 70 | not declared | `host/maipai_body/dance.py`<br>`host/maipai_body/bodies/stackchan/companion.py` | `bench-b9.md`, `bench-window10.md` | [docs/user/moves-and-moods.md](../user/moves-and-moods.md) |
 | **Dance: happy** | The robot does the happy dance. | proven virtual | 70 | not declared | `host/maipai_body/dance.py`<br>`host/maipai_body/bodies/stackchan/companion.py` | `bench-b9.md`, `bench-window10.md` | [docs/user/moves-and-moods.md](../user/moves-and-moods.md) |

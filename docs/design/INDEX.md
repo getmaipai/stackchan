@@ -124,14 +124,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/camera-quality.md` (83): Camera quality: what the CoreS3 StackChan camera can record or stream
 - `docs/dev/contributing.md` (24): Contributing
 - `docs/dev/cross-review-status.md` (45): Cross-review bugs: fixed and still open
-- `docs/dev/dance-entry-points.md` (182): Dance entry points on the real unit, and what each one runs
+- `docs/dev/dance-entry-points.md` (207): Dance entry points on the real unit, and what each one runs
 - `docs/dev/draft-names.md` (131): Draft names to confirm
 - `docs/dev/e2e-virtual-unit.md` (49): End to end on the virtual unit (the spoken-turn check without hardware)
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1044): Feature ledger
+- `docs/dev/feature-ledger.md` (1047): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -770,9 +770,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/captions.py` (49): Caption text for the unit's subtitle strip (firmware patches N01 and N04).
 - `host/maipai_body/bodies/stackchan/companion.py` (243): Host companion for the new StackChan firmware tools.
 - `host/maipai_body/bodies/stackchan/dance.py` (546): The StackChan little dance: an on-request routine of about 11 seconds (host side only).
-- `host/maipai_body/bodies/stackchan/dance_ladder.py` (484): The music dance ladder, host half: a dance that builds up on the beat and winds down again.
+- `host/maipai_body/bodies/stackchan/dance_ladder.py` (528): The music dance ladder, host half: a dance that builds up on the beat and winds down again.
 - `host/maipai_body/bodies/stackchan/dance_phrases.py` (145): Dance rounds that alternate head nods and side-to-side sways in time with the beat (host side).
-- `host/maipai_body/bodies/stackchan/dance_wiring.py` (141): Wire the little dance (dance.py) to a running StackChan service.
+- `host/maipai_body/bodies/stackchan/dance_wiring.py` (218): Wire the little dance (dance.py) to a running StackChan service.
 - `host/maipai_body/bodies/stackchan/error_line.py` (93): A hard breaker for the robot's canned error lines ("I couldn't understand that...").
 - `host/maipai_body/bodies/stackchan/estop_recovery.py` (100): Releases a lost-body stop latch once the wireless StackChan answers again.
 - `host/maipai_body/bodies/stackchan/expression_map.py` (161): Closed StackChan cue and primitive mappings, local to its body profile."""
@@ -1950,6 +1950,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_cross_review_open_bugs.py` (181): ruff: noqa: E501
 - `host/tests/test_cross_review_open_bugs_2.py` (279): ruff: noqa: E501
 - `host/tests/test_cross_review_open_bugs_3.py` (63): ruff: noqa: E501
+- `host/tests/test_dance_session.py` (108): A ladder session with no music (the dance buttons and tools): the climb follows the ladder rule at the dance's
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""

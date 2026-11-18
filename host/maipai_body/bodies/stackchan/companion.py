@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from maipai_body.hal.errors import BodyLost
 
-BUILTIN_DANCES = frozenset({"happy", "robot", "panic", "look_around"})
+BUILTIN_DANCES = frozenset({"happy", "robot", "panic", "look_around", "bob"})  # bob is the unit's beat dance at step 2 (hal_mcp.cc)
 # Named dances that are firmware data (patch V04, maipai_dances_core.h); a test keeps this equal
 # to the firmware table. A unit without patch V04 answers false for them and ``dance`` says so.
 EXTRA_DANCES = frozenset({"sway", "nod_yes", "shake_no", "wiggle", "bow", "groove"})

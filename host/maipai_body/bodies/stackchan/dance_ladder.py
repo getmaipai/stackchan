@@ -468,7 +468,51 @@ class LadderDirector:
         return [DARK] * LED_COUNT
 
 
+# ---------------------------------------------------------------- a ladder session with no music (the dance buttons and tools)
+
+# The tempo each named dance is shown at when no song is playing (beats a minute; folded into the unit's 70 to 140 range).
+DANCE_BPM = {"happy": 120, "robot": 104, "panic": 132, "look_around": 96, "sway": 100, "nod_yes": 110, "shake_no": 110, "wiggle": 126, "bow": 90, "groove": 118, "bob": 112}
+SESSION_S = 90.0  # a session with no music climbs, holds the peak, and winds down inside this
+
+
+class SyntheticBeat:
+    """Writes a steady beat into the director's feed once a second, so the ladder climbs by its own rule as if a song of that tempo were playing.
+
+    The tempo confidence and level sit above every climb threshold (tc 40, level 1200) and ``music`` is true; the director's safety caps, the
+    limiter's top step and the gates are unchanged."""
+
+    def __init__(self, feed: LadderFeed, bpm: int) -> None:
+        self._feed, self._bpm, self._last = feed, fold_bpm(bpm) or 112, -1
+
+    def update(self, elapsed: float) -> None:
+        second = int(elapsed)
+        if second == self._last:
+            return
+        self._last = second
+        feed = self._feed
+        feed.bpm, feed.tc, feed.level, feed.energy, feed.music, feed.at = self._bpm, 40, 1200, 1200, True, elapsed
+
+
+def synthetic_ladder_plan(hooks: LadderHooks, dance: str, *, max_stage: int = 4, faces: FaceRotator | None = None):
+    """A dance runner plan that shows the whole ladder (step, notes, overlays, faces, ring) at the dance's own tempo, with no music."""
+    from maipai_body.bodies.stackchan.dance import Plan
+
+    feed = LadderFeed()
+    beat = SyntheticBeat(feed, DANCE_BPM.get(dance, 112))
+    director = LadderDirector(hooks, feed, max_stage=max_stage, faces=faces)
+
+    def on_tick(tick: int, elapsed: float) -> None:
+        beat.update(elapsed)
+        director.on_tick(tick, elapsed)
+
+    return Plan((), SESSION_S, director.ring, on_tick, director.finished, director.on_end)
+
+
 __all__ = [
+    "DANCE_BPM",
+    "SESSION_S",
+    "SyntheticBeat",
+    "synthetic_ladder_plan",
     "FACES_BY_STAGE",
     "FaceRotator",
     "Ladder",

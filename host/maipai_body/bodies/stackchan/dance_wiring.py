@@ -11,10 +11,13 @@ stay out of its way.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 
+from maipai_body.bodies.stackchan.dance_ladder import FaceRotator, LadderHooks, synthetic_ladder_plan
 from maipai_body.bodies.stackchan.dance import (
     LED_COUNT,
     DanceHooks,
@@ -126,16 +129,90 @@ def wire_dance(
         hold=hold,
     )
     runner = DanceRunner(hooks, behavior.dance_settings)
+    runners: dict[str, DanceRunner] = {}  # one dance runner per robot (decision 16): two robots can dance at once, each gated by its own state
+    runner_lock = threading.Lock()
+
+    def runner_for(unit: str | None) -> DanceRunner:
+        """The primary robot (and a call that names none) uses ``runner``; every other robot gets its own, with its hooks bound to that robot."""
+        if not unit or unit == behavior.primary_unit() or behavior.primary_unit() is None:
+            return runner
+        with runner_lock:
+            if unit not in runners:
+                runners[unit] = DanceRunner(_bound_hooks(unit), behavior.dance_settings)
+            return runners[unit]
+
+    def _bound_hooks(unit: str) -> DanceHooks:
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        def bind(fn):
+            def call(*args, **kwargs):
+                token = ACTIVE_UNIT.set(unit)  # the hook's calls to the robot go to this robot
+                try:
+                    return fn(*args, **kwargs)
+                finally:
+                    ACTIVE_UNIT.reset(token)
+            return call
+
+        privacy = getattr(behavior, "privacy_units", None)
+
+        def situation_for() -> DanceSituation:
+            base = situation()
+            muted = bool(privacy.state_for(unit).muted) if privacy is not None else base.muted
+            return replace(base, connected=unit in voice._sessions, muted=muted)
+
+        return DanceHooks(
+            start_dance=bind(hooks.start_dance), stop_dance=bind(hooks.stop_dance), show_face=bind(hooks.show_face), write_ring=bind(hooks.write_ring),
+            take_ring=hooks.take_ring, give_ring_back=hooks.give_ring_back, level_head=bind(hooks.level_head), situation=situation_for, wake=hooks.wake, hold=hooks.hold,
+        )
+
+    def ladder_hooks_for(unit: str | None) -> LadderHooks:
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        def call(name: str, arguments: dict) -> object:
+            token = ACTIVE_UNIT.set(unit) if unit else None
+            try:
+                return voice.robot.client._call(name, arguments)
+            finally:
+                if token is not None:
+                    ACTIVE_UNIT.reset(token)
+
+        return LadderHooks(
+            set_stage=lambda stage: call("self.music.stage", {"stage": stage}),
+            show_face=lambda expression: behavior.show_face(expression),
+            notes=lambda count: call("self.face.music_notes", {"count": count}),
+            overlay=lambda name, intensity, seconds: call("self.overlay.set", {"name": name, "intensity": intensity, "seconds": seconds}),
+            overlay_clear=lambda: call("self.overlay.clear", {}),
+        )
+
+    def request_show(trigger: str, unit: str | None, name: str = "happy"):
+        """A dance chosen by hand (a button, a tool, a spoken ask) shows the whole ladder at the dance's tempo when the robot has the beat dance
+        (`self.music.stage`); a robot without it, or a limiter that allows no dances, keeps the little dance."""
+        target = runner_for(unit)
+        try:
+            ladder_hooks_for(unit).set_stage(0)  # a harmless probe: an older robot answers unknown tool
+            limit = getattr(behavior, "motion_limit", None)
+            top = limit.state().dance_max if limit is not None else 4
+            plan = synthetic_ladder_plan(ladder_hooks_for(unit), name, max_stage=min(4, max(1, top)), faces=FaceRotator())
+        except Exception:
+            return target.request(trigger)
+        return target.request(trigger, plan)
 
     def on_events(events: list, now: float) -> None:
         runner.on_events(events, now)
 
-    def command(_payload: dict) -> dict:
-        reply = runner.request("hub")
+    def command(payload: dict) -> dict:
+        unit = str(payload.get("device_id", "")) or None if isinstance(payload, dict) else None
+        reply = request_show("hub", unit, str(payload.get("name", "happy")) if isinstance(payload, dict) else "happy")
         return {"dance": "started" if reply.started else "refused", "why": reply.why}
 
-    behavior.dance_active = lambda: runner.running
+    behavior.dance_runner_for = runner_for
+    behavior.dance_active = lambda: runner.running or any(r.running for r in list(runners.values()))
     behavior.dance_events = on_events
     behavior.dance_command = command
-    head_commander.dance = lambda: runner.request("voice").line
+    def spoken_dance() -> str:
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        return request_show("voice", ACTIVE_UNIT.get()).line
+
+    head_commander.dance = spoken_dance
     return runner

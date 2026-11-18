@@ -27,7 +27,7 @@ from maipai_body.unit_extras import ExtrasError, _reply, say
 
 LED_MAX = 168
 FIND_SECONDS = 90
-BUILTIN_DANCES = ("happy", "robot", "panic", "look_around", "sway", "nod_yes", "shake_no", "wiggle", "bow", "groove")
+BUILTIN_DANCES = ("happy", "robot", "panic", "look_around", "bob", "sway", "nod_yes", "shake_no", "wiggle", "bow", "groove")
 MAX_SAY = 200
 HEAD_SPEED_MIN = 100  # the unit refuses a head speed below this (a refusal is an error, not a slow move)
 HEAD_SPEED_MAX = 1000
