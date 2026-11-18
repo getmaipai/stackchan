@@ -184,3 +184,39 @@ def test_rest_pose_parts_do_not_overlap_in_height():
     assert 0.0 < neck[0] - base[1] < 0.001, "the servo holder sits just above the turntable ring"
     assert head[0] - base[1] > 0.004 and abs(head[1] - 0.0705) < 0.0002
     assert neck[1] < head[1] - 0.015, "the servo cover is screwed onto the holder, well below the head top"
+
+
+# ---- the 3D view loads the model ---------------------------------------------------------------------
+
+VU = ROOT / "scripts" / "virtual-unit"
+
+
+def test_view_script_uses_the_model_nodes_and_no_stand_in_table():
+    js = (VU / "view3d.js").read_text()
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    assert "DIMS" not in js, "the stand-in size table is gone; sizes come from the model"
+    assert "/model/stackchan.glb" in js
+    for name in re.findall(r"\bN\.([a-z_0-9]+)", js) + re.findall(r"'((?:ring_light|usb_c|power|screen|yaw|pitch)[a-z_0-9]*)'", js):
+        assert name in by or name == "ring_light_", f"view3d.js uses node {name}, which the model does not have"
+    assert "geometry_free_deg" in by["pitch_joint"][1]["extras"]["joint"], "the view holds the head inside this range"
+    assert "examples/js" not in js and "GLTFLoader" not in js, "the page loads no second script from the network"
+
+
+def test_view_serves_the_model_bytes():
+    import subprocess
+    import time
+    import urllib.request
+
+    import pytest
+    if not ((ROOT / ".runs" / "vu-screens" / "render").exists() or (ROOT / ".runs" / "vu-build" / "render").exists()):
+        pytest.skip("needs a renderer: bash scripts/virtual-unit/build-screens.sh")
+    proc = subprocess.Popen([sys.executable, str(VU / "view.py"), "0"], stdout=subprocess.PIPE, text=True)
+    try:
+        base = proc.stdout.readline().split()[-1]
+        time.sleep(0.6)
+        res = urllib.request.urlopen(base + "model/stackchan.glb" if base.endswith("/") else base + "/model/stackchan.glb")
+        assert res.headers["Content-Type"] == "model/gltf-binary" and res.read() == GLB.read_bytes()
+    finally:
+        proc.terminate()
+        proc.wait(timeout=10)

@@ -148,7 +148,7 @@ if(!window.THREE){msg.textContent='three.js did not load: the 3D drawing needs i
 else{
 const scriptEl=document.createElement('script');scriptEl.src='/view3d.js';scriptEl.onload=()=>{
  let PH=null;
- const hooks={physicsOn:()=>!!PH,push:f=>PH&&PH.push(f),on:()=>ST?ST.hw.on:true,axesVisible:()=>$('axes').checked,
+ const hooks={status:t=>{msg.textContent=t;},physicsOn:()=>!!PH,push:f=>PH&&PH.push(f),on:()=>ST?ST.hw.on:true,axesVisible:()=>$('axes').checked,
   touch:async body=>{const res=await post('/touch',body);if(res.isError)msg.textContent=res.text;},
   togglePort:()=>hw('usb',!(ST&&ST.hw.usb)),togglePower:()=>hw('power',1)};
  const rob=initRobot(THREE,$('c'),hooks);

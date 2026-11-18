@@ -206,6 +206,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send((PHYS / "physics.js").read_bytes(), "text/javascript; charset=utf-8")
         elif self.path == "/view3d.js":
             self._send((HERE / "view3d.js").read_bytes(), "text/javascript; charset=utf-8")
+        elif self.path == "/model/stackchan.glb":  # the rigged body model the 3D drawing loads (built by model/make_body.py)
+            self._send((HERE / "model" / "stackchan.glb").read_bytes(), "model/gltf-binary")
         elif self.path == "/":
             self._send((HERE / "view.html").read_bytes(), "text/html; charset=utf-8")
         else:
