@@ -1,13 +1,13 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 816 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 819 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 1 | 18 | 18 | 239 | 8 | 51 | 335 | 65 |
-| Maker and tech | 0 | 0 | 61 | 361 | 59 | 0 | 481 | 70 |
+| Maker and tech | 0 | 0 | 63 | 362 | 59 | 0 | 484 | 70 |
 
 ## Everyday user
 
@@ -522,7 +522,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Music feature stack** | 1 patch(es): The music feature task "musicfeat" (stack in PSRAM) had 584 bytes of... | proven virtual | 70 | `MF01-music-feature-task-stack-6144.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Movement limiter** | 1 patch(es): One movement limiter at the single place every servo target passes th... | proven virtual | 70 | `ML01-movement-limiter-at-the-servo-layer.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 
-### Host modules (288)
+### Host modules (291)
 
 | Feature | What it does | Status | % | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|
@@ -654,6 +654,9 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Host: settings** | EYES-02: the three robot-only settings keys the lights honor. | proven on unit | 100 | `host/maipai_body/indicator/settings.py` | `bench-window6.md`, `bench-window7.md` | doc missing |
 | **Host: alarm** | ALARM-PLAY-01: the safety alarm on the robot (deterministic, no model). | proven on unit | 100 | `host/maipai_body/initiative/alarm.py` | `bench-b9.md` | doc missing |
 | **Host: offer** | OFFER-01: the robot's half of a hub initiative offer. | proven virtual | 70 | `host/maipai_body/initiative/offer.py` | file exists, a test names it | doc missing |
+| **Host: installed_page** | The dashboard page 'On my robot': per robot, what is installed, what the robot can hold, and an Automatic default with an Edit for people who want it. | built | 40 | `host/maipai_body/installed_page.py` | file exists | doc missing |
+| **Host: installed_set** | The installed set of one robot (decision 17): a few slots per kind, chosen on the dashboard, sent to the unit as signed assets and swapped without a reflash. | proven virtual | 70 | `host/maipai_body/installed_set.py` | file exists, a test names it | doc missing |
+| **Host: installed_set_legacy** | The reconciler's transport over the pack tools a unit has today (`self.pack.*`, one pack per kind). | built | 40 | `host/maipai_body/installed_set_legacy.py` | file exists | doc missing |
 | **Host: language_packs** | Put the shipped language packs in the library (once; | proven virtual | 70 | `host/maipai_body/language_packs.py` | file exists, a test names it | doc missing |
 | **Host: address_walk** | LINK-STATE-01: walk the hub's addresses, the LAN first and the tailnet next. | proven virtual | 70 | `host/maipai_body/link/address_walk.py` | file exists, a test names it | doc missing |
 | **Host: assets** | Authenticated asset synchronization from the paired Home hub. | proven on unit | 100 | `host/maipai_body/link/assets.py` | `bench-b9.md` | doc missing |

@@ -288,6 +288,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
 - `docs/plan/home-work-brief.md` (48): Brief for a session in the Home repository: the StackChan robot side (2026-11-18)
+- `docs/plan/installed-set.md` (357): The installed set: slots, signed assets, language and font packs (design, 2026-11-18)
+- `docs/plan/installed-set.md` (357): The installed set: slots, signed assets, language and font packs (design, 2026-11-18)
 - `docs/plan/ir-and-nfc.md` (127): Infrared and NFC for the StackChan: what is verified, what we could build, how to probe safely
 - `docs/plan/link-key-exchange.md` (68): Link key exchange for the encrypted link (design, 2026-11-18)
 - `docs/plan/minimal-stack.md` (65): The minimal local stack and the three ways to get a brain
@@ -724,7 +726,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5030): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5067): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
@@ -1106,6 +1108,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/initiative/__init__.py` (1): Things the robot starts on the hub's say-so: offers and the safety alarm."""
 - `host/maipai_body/initiative/alarm.py` (264): ALARM-PLAY-01: the safety alarm on the robot (deterministic, no model).
 - `host/maipai_body/initiative/offer.py` (248): OFFER-01: the robot's half of a hub initiative offer.
+- `host/maipai_body/installed_page.py` (52): ruff: noqa: E501
+- `host/maipai_body/installed_set.py` (238): The installed set of one robot (decision 17): a few slots per kind, chosen on the dashboard, sent to the unit 
+- `host/maipai_body/installed_set_legacy.py` (34): The reconciler's transport over the pack tools a unit has today (`self.pack.*`, one pack per kind)."""
 - `host/maipai_body/language_packs.py` (170): ruff: noqa: E501
 - `host/maipai_body/link/__init__.py` (17): G4: the robot's own hub link - discovery, pairing, and the persisted
 - `host/maipai_body/link/address_walk.py` (220): LINK-STATE-01: walk the hub's addresses, the LAN first and the tailnet next.
@@ -1211,7 +1216,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/service_cmd.py` (205): The command the service runs: the `stackchan` of this install."""
 - `host/maipai_body/service_threads.py` (65): Background threads of the host service, each started with the stop event it waits on.
 - `host/maipai_body/settings_keys.py` (62): Settings keys shared by body settings consumers."""
-- `host/maipai_body/settings_page.py` (960): ruff: noqa: E501
+- `host/maipai_body/settings_page.py` (995): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (185): ruff: noqa: E501
 - `host/maipai_body/settings_sim.py` (436): ruff: noqa: E501
 - `host/maipai_body/settings_ui.py` (748): ruff: noqa: E501
@@ -2015,6 +2020,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_indicator_seam.py` (158): The indicator seam: what the eyes may show, and what they may never do.
 - `host/tests/test_indicator_settings.py` (117): EYES-02: the three robot-only settings keys the lights honor."""
 - `host/tests/test_indicator_wiring.py` (216): EYES-02: the app hands the tap, never the bare client, to every consumer
+- `host/tests/test_installed_set.py` (159): The installed set: slots, memory meter, Automatic defaults, installing to a unit that is on, away, failing or 
 - `host/tests/test_knock.py` (184): KNOCK-01: a double knock wakes the robot from sleep. Scripted IMU at 50 Hz."""
 - `host/tests/test_kws.py` (162): LINK-STATE-01 rung 1: the keyword-spotter recognizer, on a scripted engine.
 - `host/tests/test_kws_funnel.py` (177): Rung 1 through the funnel: the keyword-spotter recognizer behind `ConversationLoop`.
@@ -2368,7 +2374,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
 - `scripts/fuzz/core_fuzz.c` (333): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
-- `scripts/fw-build.sh` (52): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
+- `scripts/fw-build.sh` (51): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).
 - `scripts/fw-detect-bench.py` (357): Measurement script for the on-unit face detector experiment (firmware patches FD01 to FD04, bench image only).
 - `scripts/fw-env.sh` (29): one place that sets up ESP-IDF 6.1 for firmware builds. Usage: `source scripts/fw-env.sh`, then `idf.py ...`.

@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import html
 import json
+import threading
 import logging
 from collections.abc import Callable
 from pathlib import Path
@@ -70,6 +71,8 @@ class SettingsBackend:
         activity: activity_mod.RemoteActivity | None = None,
         link: Any = None,
     ) -> None:
+        self.installed: Any = None  # installed_set.InstalledSets: the 'On my robot' page (set by the host)
+        self.installed_units: Callable[[], list[dict[str, Any]]] = lambda: []
         self.health: Callable[[], dict[str, Any]] | None = None  # the host's health document (health.py); set by the host
         self.brain_setup: Any = None  # brain_setup.controller.BrainSetup: the Brain page (set by the host)
         self.pair_code: Callable[[], str] | None = None  # mints a pairing code (set by the host)
@@ -778,6 +781,16 @@ class SettingsBackend:
                 return 200, JSON, json.dumps(self.wakeword.state(word)).encode()
             except ValueError as error:
                 return 400, JSON, json.dumps({"error": str(error)}).encode()
+        if (path == INSTALLED_PAGE or path == INSTALLED or path.startswith(INSTALLED + "/")) and self.installed is not None:
+            if local_admin is not True:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            if path == INSTALLED_PAGE:
+                from maipai_body.installed_page import render_installed_page
+
+                return 200, "text/html; charset=utf-8", render_installed_page()
+            if path == INSTALLED:
+                return 200, JSON, json.dumps({"units": self.installed_units()}).encode()
+            return 200, JSON, json.dumps(self.installed.view(unquote(path[len(INSTALLED) + 1 :]))).encode()
         if path in (HEALTH_PAGE, HEALTH) and self.health is not None:
             if local_admin is not True:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
@@ -824,6 +837,22 @@ class SettingsBackend:
             return 200, JSON, json.dumps(self.state(lang)).encode()
         return 404, JSON, json.dumps({"error": "not found"}).encode()
 
+    def _installed_post(self, rest: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """`<unit>/choose` saves Automatic or a custom set that fits and starts sending it; `<unit>/retry` tries again now."""
+        unit, _, action = unquote(rest).partition("/")
+        if action == "choose":
+            try:
+                chosen = body.get("chosen") if isinstance(body.get("chosen"), dict) else None
+                view = self.installed.choose(unit, str(body.get("mode", "")), chosen)
+            except ValueError as error:
+                return 400, {"error": str(error)}
+            threading.Thread(target=self.installed.reconcile, args=(unit,), name="installed-set-apply", daemon=True).start()
+            return 200, view
+        if action == "retry":
+            threading.Thread(target=self.installed.reconcile, args=(unit,), name="installed-set-apply", daemon=True).start()
+            return 200, {"ok": True}
+        return 404, {"error": "not found"}
+
     def _brain_post(self, action: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """The Brain page's buttons: test an address, apply a mode, install, stop and remove the local stack."""
         setup = self.brain_setup
@@ -856,6 +885,10 @@ class SettingsBackend:
             if local_admin is not True:
                 return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
             return self._wakeword_post(path[len(WAKEWORD) + 1 :], body)
+        if path.startswith(INSTALLED + "/") and self.installed is not None:
+            if local_admin is not True:
+                return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
+            return self._installed_post(path[len(INSTALLED) + 1 :], body)
         if path.startswith(BRAIN + "/") and self.brain_setup is not None:
             if local_admin is not True:
                 return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
@@ -937,6 +970,8 @@ PAIR_WAITING = "/api/stackchan/pairings/waiting"
 PAIR_CODE_ENTRY = "/api/stackchan/pairings/code-entry"
 BRAIN = "/api/stackchan/brain"
 BRAIN_PAGE = "/brain"
+INSTALLED = "/api/stackchan/installed"
+INSTALLED_PAGE = "/on-my-robot"
 HEALTH = "/api/stackchan/health"
 HEALTH_PAGE = "/health"
 WAKEWORD = "/api/stackchan/wakeword"

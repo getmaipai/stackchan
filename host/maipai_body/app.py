@@ -3287,7 +3287,7 @@ async def _serve_stackchan_channels(
     from maipai_body.supervisor import Supervisor
 
     supervisor = Supervisor()
-    _RUNTIME.update(supervisor=supervisor, started=time.time())
+    _RUNTIME.update(supervisor=supervisor, started=time.time(), stop=stop_event)
     service_threads.SUPERVISOR = supervisor  # every service thread is now watched and restarted when it dies
     supervisor.start()
     body = _build_stackchan_body(host, link)
@@ -3503,6 +3503,42 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
     voice.session_listeners.append(on_connect)
 
 
+def _wire_installed_sets(voice, backend, pairing, stop_event) -> None:
+    """The 'On my robot' page: per-robot installed sets, the first-run defaults, and a retry loop for a robot that was away (installed_set.py)."""
+    from maipai_body.installed_set import InstalledSets, InstalledStore
+    from maipai_body.installed_set_legacy import LegacyTransport
+
+    packs = getattr(getattr(backend, "polish", None), "packs", None)
+    if packs is None:
+        return
+    try:
+        from maipai_body.config import load_config
+
+        language = load_config().home.language or "en"
+    except Exception:
+        language = "en"
+    transport = LegacyTransport(packs, lambda unit: unit in voice._sessions, lambda unit: packs.probe.has(unit, "assets") is True)
+    sets = InstalledSets(packs.library, InstalledStore(_data_dir() / "installed-sets.json"), transport, language=lambda unit: language)
+    backend.installed = sets
+    backend.installed_units = lambda: [{"id": d, "name": "", "connected": d in voice._sessions} for d in sorted(set(pairing.paired_devices()) | set(voice._sessions))]
+
+    def on_connect(device_id: str) -> None:
+        threading.Timer(4.0, sets.reconcile, args=(device_id,)).start()  # a moment after the unit's own start-up, like the other syncs
+
+    voice.session_listeners.append(on_connect)
+
+    def retry() -> None:
+        while not stop_event.wait(30.0):
+            for unit in sets.pending():
+                if unit in voice._sessions:
+                    try:
+                        sets.reconcile(unit)
+                    except Exception:
+                        logger.warning("installed set retry failed", exc_info=True)
+
+    service_threads.start(retry, name="installed-set-retry", stop=stop_event)
+
+
 def _wire_assets(voice, backend) -> None:
     """Signed, ranged, cacheable delivery of the packs a unit is meant to hold (assets.py): a unit gets only what the host chose for it."""
     from maipai_body.assets import Asset, AssetService, SigningKey
@@ -3627,6 +3663,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
         )
         return None
     _wire_assets(voice, backend)
+    _wire_installed_sets(voice, backend, pairing, _RUNTIME.get("stop") or threading.Event())
     server.start()
     logger.info("StackChan settings page on http://127.0.0.1:%d/settings", server.port)
     supervisor = _RUNTIME.get("supervisor")
