@@ -1,5 +1,8 @@
 # The 3D virtual unit: body, power, axes
 
+
+> Part of the [playground docs](../playground/index.md). This page is the full reference; the playground pages are the guide.
+
 `python3 scripts/virtual-unit/view.py` then open the address it prints. The flat screen (`/frame.png`) stays the source of truth; the 3D model wraps it on a body.
 
 ## The body

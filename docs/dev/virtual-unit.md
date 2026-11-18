@@ -1,5 +1,8 @@
 # Virtual unit
 
+
+> Part of the [playground docs](../playground/index.md). This page is the full reference; the playground pages are the guide.
+
 A headless StackChan on this Mac: the unit's own LVGL drawing code behind the same tool protocol the host speaks, with a fake clock, scripted touch, and golden frames. Development only; no firmware build.
 
 ## Build (once per firmware change)

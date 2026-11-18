@@ -1,5 +1,8 @@
 # The dance in the virtual unit
 
+
+> Part of the [playground docs](../playground/index.md). This page is the full reference; the playground pages are the guide.
+
 The virtual unit plays both kinds of dance the firmware has, and runs the music dance on a simulated song. Nothing here ran on a unit.
 
 ## What each dance is in the firmware
