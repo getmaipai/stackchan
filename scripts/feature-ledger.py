@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import ledger_decisions as decisions  # noqa: E402
 import ledger_render as render  # noqa: E402
 import ledger_rules as rules  # noqa: E402
 import ledger_sources as src  # noqa: E402
@@ -24,7 +25,8 @@ MD, HTML = ROOT / "docs" / "dev" / "feature-ledger.md", ROOT / "docs" / "dev" / 
 NOTES = [Path.home() / "Library/Application Support/Claude/side-session-notes/local_afcae7f7-83f0-4ece-9c2a-5dd3e7ce1ff2"]
 EXCLUDED_PAGES = {"compare.md", "troubleshooting.md", "glossary.md", "faq.md", "getting-started.md", "hardware-and-models.md", "local-vs-home.md", "release-notes.md", "which-setup.md", "install-the-host.md", "switch-from-the-factory-firmware.md"}
 RULE = ("a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); "
-        "a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89.")
+        "a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. "
+        "The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).")
 
 IMAGE_RULES = [
     (r"control sheet|quick sheet", "docs/images/vu-control-sheet.png"), (r"\bclock\b", "docs/images/vu-clock.png"), (r"lock screen|keypad|passcode", "docs/images/vu-lock-screen.png"),
@@ -120,6 +122,34 @@ def row(**kw) -> dict:
     base = {"image": "", "bench": [], "where": [], "doc": "", "rule": "", "tags": [], "source": ""}
     base.update(kw)
     return base
+
+
+def decision_rows(ev: Evidence, audience: str) -> list[dict]:
+    """Rows the 2026-11-18 decisions add: the three ways to get a brain and the encrypted-link default (everyday user), the memory budget table (maker)."""
+    first_run_tested = "first_run_core" in ev.tests or "firstrun_core" in ev.tests
+    ux12 = exists("firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch")
+    out: list[dict] = []
+    if audience == "user":
+        area, doc = "Updates and setup", "docs/design/first-run-flow.md"
+        base = 70 if ux12 and first_run_tested else 40 if ux12 else 10
+        shown = "the first run shows the choice in six languages and saves the answer; a person has not done it on the unit"
+        out.append(row(audience="user", area=area, name="Setup way 1: connect to MaiPai Home", desc="At first run, pick MaiPai Home as the robot's brain. It is the first choice when a hub is already known.", percent=base, status=rules.status_for(base),
+                       where=["firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch", "host/maipai_body/first_run_name.py"], doc=doc, rule=shown, tags=["decision 12"]))
+        out.append(row(audience="user", area=area, name="Setup way 2: use my own servers", desc="At first run, pick your own language model, speech-to-text and text-to-speech servers, and give their addresses on the settings page.", percent=base, status=rules.status_for(base),
+                       where=["firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch", "host/maipai_body/brain/own_llm.py"], doc=doc, rule=shown, tags=["decision 12"]))
+        out.append(row(audience="user", area=area, name="Setup way 3: set one up for me", desc="At first run, pick a minimal local stack: small defaults for all three servers, downloaded not vendored, with a plain progress page and a removal option.", percent=10 if ux12 else 0,
+                       status="designed" if ux12 else "idea", where=["docs/plan/first-run-brain-choice.md"], doc=doc, rule="the choice and its saved answer exist (mode 2 in the first run); the installer, the progress page and the removal option are not built", tags=["decision 12"]))
+        linked = exists("docs/design/encrypted-link.md")
+        out.append(row(audience="user", area="Link and travel", name="Encrypted link on by default", desc="A paired host and robot use the encrypted link unless the owner chooses the plain link and reads a plain warning.", percent=10 if linked else 0, status="designed" if linked else "idea",
+                       where=["docs/design/encrypted-link.md", "firmware/patches/SF20-link-key-schedule-core.patch"], doc="docs/design/encrypted-link.md", rule="the encrypted link is built and opt-in; the default waits for the memory budget table (decision 11)", tags=["decision 13"]))
+    else:
+        table = exists("docs/dev/memory-budget.md")
+        tested = "memory-budget" in ev.tests or "memory_budget" in ev.tests
+        pct = 70 if table and tested else 40 if table else 10
+        out.append(row(audience="maker", area="Build and gate", name="Memory budget table", desc="One table of what fits in internal RAM at once, what is on by default and what excludes what, measured by firmware before more optional features land.", percent=pct, status=rules.status_for(pct),
+                       where=["docs/dev/memory-budget.md"] if table else ["docs/design/firmware-memory.md"], doc="docs/dev/memory-budget.md" if table else "docs/design/firmware-memory.md",
+                       rule="the table exists" + (" and a test reads it" if tested else "") if table else "decided (decision 11); the table is firmware's and is not written yet", tags=["decision 11"]))
+    return out
 
 
 # ---- user rows ---------------------------------------------------------------------------------------------------------------
@@ -241,6 +271,7 @@ def user_rows(ev: Evidence) -> list[dict]:
             continue
         seen.add(name.lower())
         rows.append(row(audience="user", area="Wanted, not started", name=name, desc=p["desc"], status="designed" if "Planned" in p["name"] else "idea", percent=10 if "Planned" in p["name"] else 0, where=[p["source"]], rule="listed in the plan; nothing built", doc=""))
+    rows += decision_rows(ev, "user")
     return rows
 
 
@@ -332,6 +363,7 @@ def maker_rows(ev: Evidence) -> list[dict]:
         rows.append(row(audience="maker", area="Packages and extension", name=f"Package: {pk['name']}", desc=pk["doc"], percent=70 if f"maipai_packages.{pk['name']}" in ev.tests or pk["name"] in ev.tests else 40, status="proven virtual" if pk["name"] in ev.tests else "built", where=[f"host/maipai_packages/{pk['name']}"], rule="package exists; a test names it"))
     for sc in src.e2e_scenarios():
         rows.append(row(audience="maker", area="Virtual playground", name=f"End to end scenario: {sc.replace('_', ' ')}", desc=f"A scenario of the end to end run: {sc.replace('_', ' ')}.", percent=70, status="proven virtual", where=["scripts/virtual-unit/e2e.py"], doc="docs/dev/e2e-virtual-unit.md", rule="runs against the real host and the virtual unit"))
+    rows += decision_rows(ev, "maker")
     return rows
 
 
@@ -387,11 +419,21 @@ def build() -> tuple[list[dict], dict]:
                 if benched:
                     r["status"], r["percent"], r["bench"], r["rule"] = status, pct, benched[:3], rule
                 break
+    for r in rows:   # decision 10: every baby monitor row is scrapped, kept for the record, and counted nowhere
+        if r["audience"] == "user" and (decisions.BABY_PAGE in r["doc"] or "baby" in r["name"].lower()):
+            r["status"], r["percent"], r["bench"], r["rule"] = "scrapped", 0, [], decisions.BABY_REASON
+    for name, desc in (("Baby monitor", "Watching or listening to a baby from the robot, with a baby label on the screen and lullabies."), ("Monitoring a child or a person who needs care", "Any promise that the robot watches over a child or a person who needs care.")):
+        if not any(r["name"] == name for r in rows):   # the docs pages are gone; the record of the decision stays
+            rows.append(row(audience="user", area="Scrapped and dropped", name=name, desc=desc, status="scrapped", percent=0, where=["docs/design/decisions.md (decision 10)"], rule=decisions.BABY_REASON))
+    have = {re.sub(r"[^a-z]", "", r["name"].lower()) for r in rows}
+    for d in decisions.dropped_items():   # the plan's own dropped and not-included lists
+        if re.sub(r"[^a-z]", "", d["name"].lower()) not in have:
+            rows.append(row(audience="user", area="Scrapped and dropped", name=d["name"], desc="Not built and not planned.", status="scrapped", percent=0, where=[d["source"]], rule=d["reason"]))
     for i, r in enumerate(rows):
         r["id"] = f"{'U' if r['audience'] == 'user' else 'M'}{i + 1:04d}"
     named = {w for r in rows for w in r["where"]}
     unmapped = [{"name": p["name"], "intent": src.sentence(p["intent"] or "(no intent line)", 140)} for p in ev.patches if p["name"] not in ev.used and p["name"] not in named and not any(p["name"] in w for w in named)]
-    return rows, {"rule": RULE, "unmapped": unmapped}
+    return rows, {"rule": RULE, "unmapped": unmapped, "decisions": decisions.decisions(), "baby_reason": decisions.BABY_REASON}
 
 
 def main(argv: list[str]) -> int:

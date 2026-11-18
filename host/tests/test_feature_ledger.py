@@ -61,7 +61,7 @@ def test_every_game_language_mood_and_patch_family_has_a_row(ledger):
 def test_statuses_follow_the_rules(ledger):
     _, rows, _ = ledger
     for r in rows:
-        assert r["status"] in ("idea", "designed", "built", "proven virtual", "proven on unit", "needs person"), r["name"]
+        assert r["status"] in ("idea", "designed", "built", "proven virtual", "proven on unit", "needs person", "scrapped"), r["name"]
         assert 0 <= r["percent"] <= 100
         if r["status"] == "needs person":
             assert r["percent"] <= 89, r["name"]
@@ -80,3 +80,49 @@ def test_the_bench_evidence_copies_carry_no_paths_serial_ports_hashes_or_address
         assert not re.search(r"/Users/|/private/|usbmodem|/dev/cu\.", text), note.name
         assert not re.search(r"\b[0-9a-f]{16,}\b", text), note.name
         assert not re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text), note.name
+
+
+def test_scrapped_rows_carry_a_reason_and_are_counted_nowhere(ledger):
+    import ledger_render as render
+
+    _, rows, meta = ledger
+    scrapped = [r for r in rows if r["status"] == "scrapped"]
+    assert scrapped, "decision 10 and the not-included lists give at least one scrapped row"
+    for r in scrapped:
+        assert r["rule"] and r["percent"] == 0 and not r["bench"], r["name"]
+    baby = [r for r in scrapped if "baby" in r["rule"].lower() and "decision 10" in r["rule"]]
+    assert len(baby) >= 2, "the baby monitor rows (and the record of the decision) are scrapped with their reason"
+    live = [r for r in rows if r["status"] != "scrapped"]
+    assert not any("baby" in r["name"].lower() for r in live)
+    c = render.counts(rows)
+    assert sum(c["user"].values()) + sum(c["maker"].values()) == len(live)
+    assert "scrapped" not in render.STATUSES
+    html = (ROOT / "docs" / "dev" / "feature-ledger.html").read_text()
+    assert 'id="scr"' in html and "Scrapped" in html
+    md = (ROOT / "docs" / "dev" / "feature-ledger.md").read_text()
+    assert f"## Scrapped ({len(scrapped)})" in md
+    assert "Sound direction" in {r["name"] for r in scrapped}
+
+
+def test_the_decisions_tab_lists_every_decision_of_2026_11_18_with_a_status(ledger):
+    _, _, meta = ledger
+    ds = meta["decisions"]
+    text = (ROOT / "docs" / "design" / "decisions.md").read_text()
+    section = text.split("## Owner decisions of 2026-11-18", 1)[1]
+    numbered = re.findall(r"^(\d+)\. \*\*", section, re.M)
+    assert [d["n"] for d in ds] == [int(n) for n in numbered] and len(ds) >= 14
+    for d in ds:
+        assert d["status"] in ("built", "in progress", "not started") and d["evidence"] and d["title"], d["n"]
+        assert not d["title"].endswith((":", ".")), d["title"]
+    html = (ROOT / "docs" / "dev" / "feature-ledger.html").read_text()
+    assert "Decisions" in html and "drawDecisions" in html
+    assert "## Decisions" in (ROOT / "docs" / "dev" / "feature-ledger.md").read_text()
+
+
+def test_the_three_setups_the_encrypted_link_default_and_the_memory_budget_have_rows(ledger):
+    _, rows, _ = ledger
+    names = {r["name"]: r for r in rows}
+    for n in ("Setup way 1: connect to MaiPai Home", "Setup way 2: use my own servers", "Setup way 3: set one up for me", "Encrypted link on by default", "Memory budget table"):
+        assert n in names, n
+    assert names["Setup way 3: set one up for me"]["status"] in ("designed", "idea"), "the installer is not built"
+    assert names["Memory budget table"]["audience"] == "maker"
