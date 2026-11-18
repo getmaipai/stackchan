@@ -108,3 +108,83 @@ def test_it_is_off_by_default_and_switches_on_from_robot_toml():
     assert RobotConfig().packages.home_assistant.enabled is False and build_brain(RobotConfig()).handlers == []
     cfg = RobotConfig.model_validate({"packages": {"home_assistant": {"enabled": True, "url": "http://192.0.2.20:8123"}}})
     assert len(build_brain(cfg).handlers) == 1
+
+
+# ---- over real HTTP against a fake Home Assistant and a fake picture-reading model -------------------------
+
+def _serve(handler_class):
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_class)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+def test_the_whole_camera_path_runs_over_http_and_the_picture_stays_local(monkeypatch):
+    import base64
+    import json
+    from http.server import BaseHTTPRequestHandler
+
+    seen = {"ha_auth": [], "model_body": None, "ha_paths": []}
+
+    class FakeHA(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            seen["ha_paths"].append(self.path)
+            seen["ha_auth"].append(self.headers.get("Authorization"))
+            if self.path == "/api/camera_proxy/camera.front_door":
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", str(len(JPEG)))
+                self.end_headers()
+                self.wfile.write(JPEG)
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def do_POST(self):
+            seen["ha_paths"].append(self.path)
+            seen["ha_auth"].append(self.headers.get("Authorization"))
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            reply = json.dumps({"response": {"speech": {"plain": {"speech": f"Done: {body['text']}"}}}}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(reply)))
+            self.end_headers()
+            self.wfile.write(reply)
+
+    class FakeModel(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_POST(self):
+            seen["model_body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            reply = json.dumps({"choices": [{"message": {"content": "A parcel on the step."}}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(reply)))
+            self.end_headers()
+            self.wfile.write(reply)
+
+    ha_server, model_server = _serve(FakeHA), _serve(FakeModel)
+    try:
+        from maipai_packages.home_assistant.client import image_question
+
+        ha = HomeAssistant(
+            f"http://127.0.0.1:{ha_server.server_port}",
+            cameras={"front door": "camera.front_door"},
+            ask_model=image_question(f"http://127.0.0.1:{model_server.server_port}/v1", "m", None),
+        )
+        assert ha.handle("Home Assistant, turn off the porch light") == "Done: turn off the porch light"
+        assert ha.handle("home assistant what do you see on the front door camera") == "A parcel on the step."
+        assert ha.handle("home assistant show me the garage camera").startswith("Done:")  # not listed: goes to HA as text, no picture fetched
+    finally:
+        ha_server.shutdown()
+        model_server.shutdown()
+    assert set(seen["ha_auth"]) == {"Bearer test-token-value"}
+    assert "/api/camera_proxy/camera.garage" not in seen["ha_paths"]
+    content = seen["model_body"]["messages"][0]["content"]
+    image = next(part for part in content if part["type"] == "image_url")["image_url"]["url"]
+    assert base64.b64decode(image.split(",", 1)[1]) == JPEG
+    assert "test-token-value" not in json.dumps(seen["model_body"])  # the Home Assistant token never reaches the model
