@@ -10,6 +10,21 @@ from __future__ import annotations
 import logging
 import os
 
+class NoRobotYet(logging.Filter):
+    """A failed call that was only because no robot is connected yet is logged as one plain line, not a traceback."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        error = record.exc_info[1] if record.exc_info else None
+        while error is not None:
+            if "No StackChan is connected" in str(error):
+                record.exc_info = None
+                record.msg = f"{record.getMessage()} (no robot is connected yet)"
+                record.args = None
+                break
+            error = error.__cause__ or error.__context__
+        return True
+
+
 _FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
 
@@ -21,6 +36,7 @@ def configure_logging(hosted: bool | None = None, *, root: logging.Logger | None
     if not root.handlers:
         handler = logging.StreamHandler()
         handler.setFormatter(logging.Formatter(_FORMAT))
+        handler.addFilter(NoRobotYet())
         root.addHandler(handler)
         root.setLevel(logging.WARNING)
     if hosted:
