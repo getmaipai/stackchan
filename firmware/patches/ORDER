@@ -240,8 +240,5 @@ SF01-time-helper-lock-and-remote-safety.patch
 SF02-hello-gate-switches-banner-and-light-safety.patch
 SF03-listening-guard-follows-voice.patch
 SF04-restart-deadline-and-body-lock.patch
-<<<<<<< HEAD
 UX01-style-mouth-widths.patch
-=======
 SF05-pairing-cover-line-break.patch
->>>>>>> d079d7c (Pairing cover text breaks into two balanced lines (patch SF05))
