@@ -791,6 +791,10 @@ class SettingsBackend:
             if path == INSTALLED:
                 return 200, JSON, json.dumps({"units": self.installed_units()}).encode()
             return 200, JSON, json.dumps(self.installed.view(unquote(path[len(INSTALLED) + 1 :]))).encode()
+        if path == ABOUT_PAGE:
+            from maipai_body.legal import about_page
+
+            return 200, "text/html; charset=utf-8", about_page()
         if path in (HEALTH_PAGE, HEALTH) and self.health is not None:
             if local_admin is not True:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
@@ -974,6 +978,7 @@ INSTALLED = "/api/stackchan/installed"
 INSTALLED_PAGE = "/on-my-robot"
 HEALTH = "/api/stackchan/health"
 HEALTH_PAGE = "/health"
+ABOUT_PAGE = "/about"
 WAKEWORD = "/api/stackchan/wakeword"
 
 
@@ -992,4 +997,7 @@ def render_page(lang: str | None) -> bytes:
         .replace("__CODE__", code)
         .replace("__LANG__", code)
     )
+    from maipai_body.legal import FOOTER_CSS, footer_html
+
+    page = page.replace("</body>", f"<style>{FOOTER_CSS}</style>{footer_html()}</body>", 1)  # the short notice, small, at the foot of every page
     return page.encode("utf-8")

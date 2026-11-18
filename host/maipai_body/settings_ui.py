@@ -736,7 +736,7 @@ JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) +
 PAGE = r"""<!doctype html><html lang='__CODE__'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
 <meta name='color-scheme' content='light dark'>
-<title>__TITLE__</title>
+<title>__TITLE__ - MaiPai for StackChan</title>
 <style>__CSS__</style>
 </head><body>
 <noscript>__TITLE__</noscript>

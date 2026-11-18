@@ -1,5 +1,7 @@
 # Release notes
 
+> Independent project. Not affiliated with or endorsed by M5Stack or the original StackChan creators.
+
 ## 1.0.0
 
 The first release of MaiPai for StackChan. Everything on the [Features](features.md) page is in this release unless it is marked Needs MaiPai Home.

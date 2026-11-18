@@ -34,7 +34,7 @@ def _tabs_html(active: str) -> str:
     links = "".join(f'<a href="{path}"{" aria-current=page" if tab == active else ""}>{label}</a>' for tab, label, path in TABS)
     options = "".join(f'<option value="{path}"{" selected" if tab == active else ""}>{label}</option>' for tab, label, path in TABS)
     return (
-        f'<div class="shell"><nav class="tabs" aria-label="Sections"><h2>MaiPai</h2>{links}</nav>'
+        f'<div class="shell"><nav class="tabs" aria-label="Sections"><h2>MaiPai for StackChan</h2>{links}</nav>'
         f'<div class="pane"><div class="tabsel"><label class="sr" for="tabsel">Section</label><select id="tabsel" onchange="location.href=this.value">{options}</select></div>'
         '<div class="top"><a href="/settings">Done</a></div>'
     )
@@ -44,5 +44,8 @@ def apply(page: str, active: str) -> str:
     """Wrap a page that is `<style>...</style></head><body><main>...</main>...` in the shared layout."""
     page = page.replace("</style>", CSS + "</style>", 1)
     page = page.replace("<body><main>", "<body>" + _tabs_html(active) + "<main>", 1)
-    page = page.replace("</main>", "</main></div></div>", 1)
+    from maipai_body.legal import FOOTER_CSS, footer_html
+
+    page = page.replace("</style>", FOOTER_CSS + "</style>", 1)
+    page = page.replace("</main>", footer_html() + "</main></div></div>", 1)
     return page
