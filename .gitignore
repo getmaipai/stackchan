@@ -8,3 +8,6 @@ sdkconfig.old
 .DS_Store
 site/
 *.actual.png
+
+# model beside the maker's pictures: third-party images, made locally by render_previews.py
+docs/dev/model-previews/compare-*.png

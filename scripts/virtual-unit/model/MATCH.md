@@ -85,16 +85,40 @@ Seen on the real unit and now drawn (all positions read off the photos, so assum
 | Feature | Node | In the view |
 |---|---|---|
 | Red light in the holder back, between the two screws | `back_charge_led` | red while the unit charges. The firmware does not drive it (`BUILTIN_LED_GPIO` is not connected), so "lit while charging" is an assumption |
-| Small mark beside the reset button under the screen edge | `screen_bottom_led` | stays off: the product picture says green in download mode, and nothing in the firmware drives it |
+| Pinhole between the card slot and the reset button | `screen_bottom_led` | stays off: the product picture says green in download mode, and nothing in the firmware drives it |
 | Card slot under the controller | `sd_slot` | named on hover |
-| Oval reset button to the right of the slot, with a pinhole and two short slots between | `reset_button` | restarts the unit |
+| Reset button to the right of the slot: a white key in a dark gap, with a pinhole and two short slots between | `reset_button` | restarts the unit |
 | Button at the top of the left side (as you face the screen) | `power_button`, also named `button_left_top` | power: the product picture says press for on, hold 6 s for off |
-| Name label on each side of the shell, white with a dark end | `sticker_side_left`, `sticker_side_right` | the product's name in block letters |
-| Rating label on top of the controller | `sticker_top` | stand-in bars, no real text or marks |
-| Large label under the base | `sticker_bottom` | stand-in bars with a dark header band |
-| Black and teal connectors in the two top openings | in the head mesh | drawn |
+| Name label on each side of the shell, white with a dark end | `sticker_side_left`, `sticker_side_right` | the product's name in drawn strokes, a dark end with a small face |
+| Rating label on top of the controller | `sticker_top` | a gray end band, stand-in bars and two large stand-in marks, no real text |
+| Large label under the base | `sticker_bottom` | a dark header band, an orange square, a gray outline of the robot and stand-in bars |
+| Black and teal connectors in the two top openings | in the head mesh | open sockets with four pins each |
 
-Seen and not drawn: the embossed maker's logo on the speaker side and under the base label, the real text, codes and compliance marks on the labels, the pin labels beside the red port, the cap in one of the side holes, and the parts on the boards.
+Seen and not drawn: the embossed maker's logo on the speaker side and under the base label, the real text, codes and compliance marks on the labels, the finger scoop behind the card slot, the cap in one of the side holes, and the fine print on the boards.
+
+## Second look at the photos, face by face (2026-11-18)
+
+Each face was rendered at the angle of its photo and set beside it. The pairs are written to `docs/dev/model-previews/compare-*.png` by `render_previews.py` when the photos are in `.runs/ref-photos/`; they hold the maker's pictures, so git ignores them. Sizes were read in pixels and scaled by the 54 mm head (about 10.5 to 11 pixels per millimeter), so they are good to about 0.3 mm and marked assumed.
+
+| Face | Difference found | Now |
+|---|---|---|
+| Under the controller | card slot, light and reset button sat 9.8 mm behind the glass | 7.0, 6.6 and 6.6 mm behind the glass (47, 44 and 44 percent of the depth in the photo); slot 12.9 x 1.3 mm at 6.8 mm right of the middle; button at 15.0 mm left |
+| Under the controller | reset button was a dark oval | a white key 7.6 x 5.4 mm in a dark gap, with the restart mark beside it |
+| Under the controller | the light was drawn where the restart mark is printed | moved to the pinhole; the two short slots are real pockets |
+| Button side | ports were flat colored patches | real openings cut through the controller wall: USB-C 3.3 x 9.2 mm, 5.5 mm deep, metal rim and tongue; port A 5.3 x 10.5 mm, 5 mm deep, red, four pins |
+| Button side | button was a plain box, tinted green by the view while the unit was on | a white key 8.7 x 6.1 mm in a dark gap 9.7 x 7.1 mm, power mark above it, no tint |
+| Both sides | the shapes between the three round openings showed the gray inside | filled dark, as in the photos; they are openings through the 1 mm wall in the shell file |
+| Both sides | label 5.4 mm wide with block letters and a short dark end | 5.6 x 41 mm with round corners, the name in strokes, a slanted dark end 11.4 to 12.6 mm long with a small face |
+| Back | no screws | two bright screws in the cover's recesses (centers from the cover file), two dark ones in the shell's lower front holes, one on the tilt servo |
+| Back | holder dark, cover lighter | holder light gray, back cover darker gray, as in the photo |
+| Back | USB-C was a flat plate | an open socket with a metal shell and a tongue, in the base file's 12 x 5 mm opening |
+| Back, inside | bare boards | chips, sockets, pin pads, a dark ribbon and a pale flat cable on the upright board; the battery lead and the two servo leads in the holder |
+| Top | connectors were solid blocks | open sockets with four pins; dark behind the two small windows between them |
+| Top | label 22 x 9 mm | 16.3 x 12.3 mm with a gray end band, placed from the photo |
+| Bottom | no screws, label square | four screws in the plate's holes (centers from the plate file), label 32.5 x 35.4 mm with cut corners, the two dark strips along the sides |
+| Front | holder and base too dark | lighter, from the photos |
+
+Only the 17 maker pictures and the published drawing were used. No other gallery or video was read.
 
 ## What to compare on the unit
 
@@ -104,7 +128,9 @@ Seen and not drawn: the embossed maker's logo on the speaker side and under the 
 4. Send pitch 3 and pitch 87: is the head level at 3 and facing the ceiling at 87?
 5. Send a positive yaw: does the head turn to its own right?
 6. Light one LED at a time, 0 to 11: which bar and which end lights first?
-7. Look under the front: where is the reset button relative to the card slot (model: to its right as you face the robot)?
+7. Look under the front: is the card slot 7 mm behind the glass and the reset button 15 mm to the right of the middle as you face the robot?
 8. Stroke the head top front to back: where do the three pads start and end?
 9. Plug in the cable: does the red light in the back come on, and does it go out when the battery is full?
-10. Is there a light under the screen edge beside the reset button, and when is it lit?
+10. Is the pinhole between the card slot and the reset button a light, and when is it lit?
+11. Count the screws on the back: two bright ones on the holder cover, two dark ones low inside the head, one on the tilt servo.
+12. Open the back: do the plug, the dark ribbon and the pale flat cable sit where the model draws them?

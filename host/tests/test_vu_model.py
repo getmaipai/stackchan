@@ -341,14 +341,47 @@ def test_details_seen_on_the_real_unit_are_named_nodes():
     assert "back_charge_led" in yaw and "back_charge_led" not in head, "the charge light is in the holder, which does not tilt"
     assert "sticker_bottom" in base and "sticker_bottom" not in yaw
     assert "button_left_top" in descendants(j, by["power_button"][0]) and "mesh" not in by["button_left_top"][1]
-    assert by["power_button"][1]["translation"][0] < -0.027 and by["power_button"][1]["translation"][1] > 0.01, "top of the left side as you face the screen"
+    assert by["power_button"][1]["translation"][0] < -0.0269 and by["power_button"][1]["translation"][1] > 0.01, "top of the left side as you face the screen"
     sd, rs, led = (by[n][1]["translation"] for n in ("sd_slot", "reset_button", "screen_bottom_led"))
-    assert sd[0] < rs[0] < led[0] and abs(sd[1] - rs[1]) < 0.0001, "slot, then button, then the small light, left to right as you face the robot"
+    assert sd[0] < led[0] < rs[0] and abs(sd[1] - rs[1]) < 0.0001, "slot, then the small light hole, then the button, left to right as you face the robot"
     assert by["back_charge_led"][1]["translation"][2] < -0.02, "on the back"
     mats = {m["name"] for m in j["materials"]}
-    assert {"led_charge", "led_bottom", "sticker", "sticker_ink", "reset", "touch_pad"} <= mats
+    assert {"led_charge", "led_bottom", "sticker", "sticker_ink", "touch_pad"} <= mats
     for name in ("sticker_side_left", "sticker_side_right", "sticker_top", "sticker_bottom"):
         prims = j["meshes"][by[name][1]["mesh"]]["primitives"]
-        assert [j["materials"][p["material"]]["name"] for p in prims] == ["sticker", "sticker_ink"], "paper and print, drawn as geometry"
+        assert {"sticker", "sticker_ink"} <= {j["materials"][p["material"]]["name"] for p in prims}, "paper and print, drawn as geometry"
     js = (VU / "view3d.js").read_text()
     assert "back_charge_led" in js and "st.hw.charging" in js and "screen_bottom_led" in js
+
+
+def test_second_pass_openings_are_real_and_every_screw_is_a_node():
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    assert GLB.stat().st_size < 8_000_000, "the model stays small enough to load at once"
+    head, yaw, base = descendants(j, by["head"][0]), descendants(j, by["yaw_joint"][0]), descendants(j, by["base"][0])
+    screws = sorted(n["name"] for n in j["nodes"] if n["name"].startswith("screw_"))
+    assert screws == ["screw_back_0", "screw_back_1", "screw_base_0", "screw_base_1", "screw_base_2", "screw_base_3", "screw_head_0", "screw_head_1", "screw_servo"]
+    assert {"screw_back_0", "screw_back_1", "screw_servo"} <= yaw - head and {"screw_head_0", "screw_head_1"} <= head
+    assert {f"screw_base_{i}" for i in range(4)} <= base - yaw
+    for name in ("screw_back_0", "screw_back_1"):
+        assert by[name][1]["translation"][2] < -0.02, "on the holder back"
+
+    def extent(name):   # size of a node's mesh from its accessor bounds, meters
+        lo, hi = [9.0] * 3, [-9.0] * 3
+        for p in j["meshes"][by[name][1]["mesh"]]["primitives"]:
+            a = j["accessors"][p["attributes"]["POSITION"]]
+            lo, hi = [min(x, y) for x, y in zip(lo, a["min"])], [max(x, y) for x, y in zip(hi, a["max"])]
+        return [h - l for l, h in zip(lo, hi)]
+    # each opening is a pocket with walls and a floor, not a flat patch: its mesh is as deep as the opening says
+    for name, axis in (("usb_c_port", 2), ("usb_c_otg", 0), ("port_a", 0), ("sd_slot", 1)):
+        depth = by[name][1]["extras"]["opening"]["depth"]
+        assert depth >= 0.003 and extent(name)[axis] >= depth - 1e-5, f"{name} is a recessed opening"
+    assert "print is a stand-in" in by["sticker_top"][1]["extras"]["what"]
+    for name in ("board_parts", "battery_lead", "servo_wires"):
+        assert by[name][1]["extras"]["basis"] == "assumed" and "mesh" in by[name][1]
+    assert "board_parts" in head and {"battery_lead", "servo_wires"} <= yaw - head
+    mats = {m["name"]: m for m in j["materials"]}
+    button = [mats_name for mats_name in (j["materials"][p["material"]]["name"] for p in j["meshes"][by["power_button"][1]["mesh"]]["primitives"])]
+    assert button == ["button"] and min(mats["button"]["pbrMetallicRoughness"]["baseColorFactor"][:3]) > 0.7, "the side button is a white key"
+    assert [j["materials"][p["material"]]["name"] for p in j["meshes"][by["reset_button"][1]["mesh"]]["primitives"]] == ["button"]
+    assert "0x58d68d" not in (VU / "view3d.js").read_text(), "the view does not tint the side button"

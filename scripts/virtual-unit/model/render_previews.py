@@ -147,6 +147,33 @@ def label(rgb, size, text, k=3):
 VIEWS = [('front', 0, 0), ('rear', 180, 0), ('left', 90, 0), ('right', -90, 0), ('top', 0, 90), ('three-quarter', -38, 22), ('rear-three-quarter', 142, 22), ('under', -20, -62)]
 
 
+# face, camera azimuth and elevation, head pitch, number of the maker's picture taken from that side (see MATCH.md)
+FACES = [('front', 0, 0, 0, '05'), ('back', 180, 0, 0, '07'), ('left', 90, 0, 0, '08'), ('right', -90, 0, 0, '10'), ('top', 180, 90, 0, '11'),
+         ('bottom', 0, -90, 0, '12'), ('under-controller', 0, 0, 90, '09')]
+
+
+def compare(model, out):
+    """Write compare-<face>.png: the model on the left, the maker's picture of that face on the right.
+
+    The pictures are not in the repository: put them in .runs/ref-photos/pNN.webp (addresses in MATCH.md). Without them, or without
+    ffmpeg, this step is skipped. The results hold the maker's pictures, so git ignores them."""
+    ref = os.path.join(HERE, '..', '..', '..', '.runs', 'ref-photos')
+    ffmpeg = shutil.which('ffmpeg')
+    if not ffmpeg or not os.path.exists(os.path.join(ref, 'p05.webp')):
+        print('compare pictures skipped: they need ffmpeg and the maker\'s pictures in .runs/ref-photos (see MATCH.md)')
+        return
+    tmp = tempfile.mkdtemp(prefix='model-compare-')
+    try:
+        for face, az, el, pitch, num in FACES:
+            shot = os.path.join(tmp, face + '.png')
+            sr.write_png(shot, 860, 860, model.render({'yaw_joint': 0.0, 'pitch_joint': pitch}, az, el, 860, 860 / 0.082, (0.0, 0.038, 0.003)))
+            subprocess.run([ffmpeg, '-v', 'quiet', '-y', '-i', shot, '-i', os.path.join(ref, 'p%s.webp' % num), '-filter_complex',
+                            '[1]crop=760:860:220:180[p];[0][p]hstack=2', os.path.join(out, 'compare-%s.png' % face)], check=True)
+            print('wrote compare-%s.png' % face)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main(argv):
     out = argv[0] if argv else os.path.join(HERE, '..', '..', '..', 'docs', 'dev', 'model-previews')
     os.makedirs(out, exist_ok=True)
@@ -158,10 +185,12 @@ def main(argv):
         sr.write_png(os.path.join(out, name + '.png'), 720, 720, model.render(rest, az, el, 720))
         print('wrote', name + '.png')
     # cutaway: the shell, the controller and the holder taken off, so the servos, battery, boards and cable show
-    off = ('shell', 'core', 'glass', 'screen', 'camera', 'button', 'port', 'port_red', 'neck', 'servo', 'light_bar')
+    off = ('shell', 'core', 'glass', 'screen', 'camera', 'button', 'port', 'port_red', 'neck', 'servo', 'light_bar', 'print', 'touch_pad', 'port_teal',
+           'sticker', 'sticker_ink', 'sticker_dark', 'sticker_gray', 'sticker_orange')
     for name, az in (('cutaway-rear', 142), ('cutaway-front', -38)):
         sr.write_png(os.path.join(out, name + '.png'), 720, 720, model.render(rest, az, 22, 720, hide=off))
         print('wrote', name + '.png')
+    compare(model, out)
     S = 400
     wide = S / 0.118  # room for the head swinging round
     poses = [('YAW %d' % y0, {'yaw_joint': y0, 'pitch_joint': p0}), ('YAW 0', {'yaw_joint': 0.0, 'pitch_joint': p0}), ('YAW %d' % y1, {'yaw_joint': y1, 'pitch_joint': p0}),

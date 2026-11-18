@@ -99,7 +99,6 @@ function initRobot(THREE, canvas, hooks) {
       m.material = new THREE.MeshBasicMaterial({color: 0x222222}); M.leds.push(m);
     }
     // click targets: the port on the back of the base and the power button on the head, each with a bigger unseen target (sizes in meters)
-    M.button = N.power_button.children.find(c => c.isMesh); M.button.material = M.button.material.clone(); M.buttonOff = M.button.material.color.clone();
     const unseen = new THREE.MeshBasicMaterial({visible: false});
     const addSwitch = (node, geo, label, act) => { const mesh = new THREE.Mesh(geo, unseen); node.add(mesh); M.hits.push({mesh, label, act, name: node.name}); return mesh; };
     M.portHit = addSwitch(N.usb_c_port, new THREE.BoxGeometry(0.022, 0.010, 0.010), 'USB-C port: click to plug or unplug the cable', () => hooks.togglePort());
@@ -125,7 +124,7 @@ function initRobot(THREE, canvas, hooks) {
     const pitchLine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 8.2, 8), new THREE.MeshBasicMaterial({color: 0xff6b6b}));
     pitchLine.rotation.z = Math.PI / 2; pitchLine.position.set(0, M.pitchY, 0); axes.add(pitchLine);
     // every drawn part remembers its own material and which link it rides on, for the Show inside and Show motion looks
-    const SHELL = {shell: 1, core: 1, glass: 1, neck: 1, servo: 1, base: 1, sticker: 1, sticker_ink: 1, touch_pad: 1};
+    const SHELL = {shell: 1, core: 1, glass: 1, neck: 1, servo: 1, base: 1, sticker: 1, sticker_ink: 1, sticker_dark: 1, sticker_gray: 1, sticker_orange: 1, print: 1, button: 1, touch_pad: 1};
     const tag = (node, link) => node.traverse(o => { if (o.isMesh && o !== M.screen && !M.leds.includes(o) && !M.hits.some(h => h.mesh === o) && !o.userData.link) o.userData = {link, mat: o.material, shell: !!SHELL[o.material.name]}; });
     tag(N.pitch_joint, 'pitch'); tag(N.yaw_joint, 'yaw'); tag(N.base, 'base');
     model.root.traverse(o => { if (o.isMesh && o.userData.link) M.parts.push(o); });
@@ -343,7 +342,6 @@ function initRobot(THREE, canvas, hooks) {
       cable.visible = st.hw.usb;
       if (M.chargeLed) M.chargeLed.material.color.set(st.hw.usb && st.hw.charging ? 0xff3b30 : 0x3a0806);   // red while charging, dark otherwise
       if (M.bottomLed) M.bottomLed.material.color.set(0x0b2412);   // unlit: nothing in the firmware drives it
-      M.button.material.color.copy(M.buttonOff); if (on) M.button.material.color.lerp(new THREE.Color(0x58d68d), 0.2);   // a green tint while the unit is on
       M.screen.material.color.set(on ? 0xffffff : 0x000000);
     },
     setPhysicsPose(pose) { this.phys = {pose, at: performance.now()}; },
