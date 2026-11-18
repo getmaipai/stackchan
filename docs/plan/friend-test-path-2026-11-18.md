@@ -15,4 +15,5 @@ A friend with a StackChan and a Mac, Linux machine or Raspberry Pi, no Home and 
 
 ## Two units on one host
 - **Done in the host:** calls that name no unit go to the longest-connected unit; per-unit model, persona, history, alarms and volume cap are tested (`test_stackchan_multi_unit.py`); firmware push and notify audio require a unit name.
-- **Missing:** a test with two real fake units connected to one `XiaozhiServer`, one tool call each, and a disconnect of the first while the second stays up; and per-unit behavior loops (idle motion, privacy read-back) that today follow the first unit only. Run on the virtual unit when the playground track has two instances.
+- **Done since:** a call made during a unit's turn (voice commands, volume, alarms set by voice) goes to the unit that is talking (`ACTIVE_UNIT`, tested).
+- **Missing:** a test with two real fake units connected to one `XiaozhiServer`, one tool call each, and a disconnect of the first while the second stays up; and per-unit background loops (idle motion, privacy read-back, self-heal): the services share one client bound to the longest-connected unit, and giving each unit its own stack of services is a larger change that needs the second unit on the bench. Run on the virtual unit when the playground track has two instances.

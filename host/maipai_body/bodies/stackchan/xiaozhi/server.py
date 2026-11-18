@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import contextvars
 import inspect
 import itertools
 import json
@@ -86,6 +87,10 @@ _READ_ONLY_TOOLS = frozenset(
         "self.privacy.get",
     }
 )
+
+
+# The unit whose turn is running, for calls that name no unit (the services share one client).
+ACTIVE_UNIT: contextvars.ContextVar[str | None] = contextvars.ContextVar("stackchan_active_unit", default=None)
 
 
 class XiaozhiDeviceClient:
@@ -1357,6 +1362,9 @@ class XiaozhiServer:
             raise ConnectionError(
                 "More than one StackChan is connected. Name the unit by its Device-Id."
             )
+        active = ACTIVE_UNIT.get()
+        if active is not None and active in self._sessions:
+            return active, self._sessions[active]  # a call made during this unit's turn goes to this unit
         device_id, websocket = next(iter(self._sessions.items()))
         if len(self._sessions) > 1 and not getattr(self, "_multi_unit_logged", False):
             self._multi_unit_logged = True

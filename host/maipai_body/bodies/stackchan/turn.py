@@ -1241,6 +1241,15 @@ class StackChanTurnBridge:
         return self.units.volume_cap_for(device_id) if self.units is not None else None
 
     async def _run(self, session_id: str, device_id: str, capture: StackChanAudioCapture) -> None:
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        token = ACTIVE_UNIT.set(device_id)  # calls that name no unit during this turn go to the talking unit
+        try:
+            await self._run_inner(session_id, device_id, capture)
+        finally:
+            ACTIVE_UNIT.reset(token)
+
+    async def _run_inner(self, session_id: str, device_id: str, capture: StackChanAudioCapture) -> None:
         try:
             playback = StackChanAudioPlayback(
                 self.server,
