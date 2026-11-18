@@ -2,7 +2,6 @@
 # Placement: unit
 # Upstream: firmware/main/hal/maipai_firstrun.h and firmware/main/hal/maipai_firstrun.cc (ours, new patch)
 # Check after a flash: Confirm six steps render, touch choices advance, and Done closes after two seconds.
-
 diff --git a/firmware/main/hal/maipai_firstrun.h b/firmware/main/hal/maipai_firstrun.h
 new file mode 100644
 --- /dev/null
@@ -28,104 +27,255 @@ diff --git a/firmware/main/hal/maipai_firstrun.cc b/firmware/main/hal/maipai_fir
 new file mode 100644
 --- /dev/null
 +++ b/firmware/main/hal/maipai_firstrun.cc
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,251 @@
 +#include "maipai_firstrun.h"
 +#include "maipai_firstrun_core.h"
 +#include "maipai_ui_style.h"
 +#include <lvgl.h>
 +
 +namespace {
-+struct Words {
-+    const char* title[6];
-+    const char* wifi;
-+    const char* brain;
-+    const char* home;
-+    const char* own;
-+    const char* hint;
-+    const char* privacy;
-+    const char* privacy_a;
-+    const char* privacy_b;
-+    const char* got;
-+    const char* done;
-+    const char* change;
-+};
-+const Words words[MFR_LANG_COUNT] = {
-+    {{"Hello! Pick your language", "What should I be called?", "Let's join your Wi-Fi", "How should I think?", "Private by design", "All set!"}, "Let's join your Wi-Fi", "How should I think?", "Pair with MaiPai Home", "Use my own model", "Both stay in your home.", "Private by design", "Your voice and pictures stay in your home.", "Nothing goes to the internet unless you turn it on.", "Got it", "All set!", "You can change it later."},
-+    {{"Hola! Elige tu idioma", "Como me llamo?", "Conectemos tu Wi-Fi", "Como debo pensar?", "Privado por diseno", "Todo listo!"}, "Conectemos tu Wi-Fi", "Como debo pensar?", "Vincular MaiPai Home", "Usar mi propio modelo", "Ambos quedan en casa.", "Privado por diseno", "Tu voz y fotos quedan en casa.", "Nada va a internet si no lo activas.", "Entendido", "Todo listo!", "Puedes cambiarlo luego."},
-+    {{"Bonjour! Choisissez", "Comment m'appeler?", "Rejoignons votre Wi-Fi", "Comment penser?", "Prive par design", "Tout est pret!"}, "Rejoignons votre Wi-Fi", "Comment penser?", "Associer MaiPai Home", "Mon propre modele", "Les deux restent chez vous.", "Prive par design", "Voix et photos restent chez vous.", "Rien ne va sur internet sans accord.", "Compris", "Tout est pret!", "Changez-le plus tard."},
-+    {{"Hallo! Sprache wahlen", "Wie soll ich heissen?", "WLAN verbinden", "Wie soll ich denken?", "Privat von Anfang an", "Alles bereit!"}, "WLAN verbinden", "Wie soll ich denken?", "Mit MaiPai Home koppeln", "Eigenes Modell nutzen", "Beides bleibt zu Hause.", "Privat von Anfang an", "Stimme und Bilder bleiben zu Hause.", "Nichts geht ohne Freigabe ins Netz.", "Verstanden", "Alles bereit!", "Spater andern moglich."},
-+    {{"Ola! Escolha o idioma", "Como devo me chamar?", "Conectar ao Wi-Fi", "Como devo pensar?", "Privado por design", "Tudo pronto!"}, "Conectar ao Wi-Fi", "Como devo pensar?", "Parear com MaiPai Home", "Usar meu modelo", "Ambos ficam em casa.", "Privado por design", "Voz e fotos ficam em casa.", "Nada vai a internet sem sua permissao.", "Entendi", "Tudo pronto!", "Pode mudar depois."},
-+    {{"Ciao! Scegli la lingua", "Come mi chiamo?", "Connetti il Wi-Fi", "Come devo pensare?", "Privato per design", "Tutto pronto!"}, "Connetti il Wi-Fi", "Come devo pensare?", "Abbina MaiPai Home", "Usa il mio modello", "Entrambi restano a casa.", "Privato per design", "Voce e foto restano a casa.", "Nulla va online senza permesso.", "Capito", "Tutto pronto!", "Puoi cambiarlo dopo."}
-+};
-+const char* langs[6] = {"English", "Espanol", "Francais", "Deutsch", "Portugues", "Italiano"};
-+const char* names[6] = {"Astro", "Clover", "Ember", "Nova", "Pippa", "Rover"};
-+const lv_font_t* f16 = &lv_font_montserrat_16;
-+const lv_font_t* f24 = &lv_font_montserrat_24;
-+maipai_firstrun_host_t H{};
-+mfr_t flow{};
-+lv_obj_t* root = nullptr;
-+lv_timer_t* timer = nullptr;
-+int language = 0, mode = MFR_MODE_NONE;
-+bool running = false;
-+lv_obj_t* box(lv_obj_t* p, int x, int y, int w, int h, lv_color_t color, bool touch=false) {
-+    lv_obj_t* o=lv_obj_create(p); lv_obj_remove_style_all(o); lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
-+    lv_obj_set_pos(o,x,y); lv_obj_set_size(o,w,h); lv_obj_set_style_radius(o,10,0);
-+    lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0); lv_obj_set_style_bg_color(o,color,0);
-+    if(touch) lv_obj_add_flag(o,LV_OBJ_FLAG_CLICKABLE); return o;
-+}
-+lv_obj_t* label(lv_obj_t* p,const char* s,const lv_font_t* f,lv_color_t c,int w) {
-+    lv_obj_t* o=lv_label_create(p); lv_label_set_text(o,s); lv_obj_set_style_text_font(o,f,0);
-+    lv_obj_set_style_text_color(o,c,0); lv_label_set_long_mode(o,LV_LABEL_LONG_WRAP); lv_obj_set_width(o,w);
-+    lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0); return o;
-+}
-+const lv_font_t* fit_font(const char* s,int width) {
-+    lv_point_t p; lv_text_get_size(&p,s,f24,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE); return p.x<=width?f24:f16;
-+}
-+void draw(int step);
-+void finish_timer(lv_timer_t*) { maipai_firstrun_close(); if(H.finished) H.finished(language,flow.name,mode); }
-+void event(lv_event_t* e) {
-+    int code=(int)(intptr_t)lv_event_get_user_data(e);
-+    if(code==100) { mfr_back(&flow); draw(flow.step); return; }
-+    if(code>=0 && code<6 && flow.step==MFR_LANGUAGE) { mfr_choose_language(&flow,code); language=code; if(H.apply_language) H.apply_language(code); draw(flow.step); return; }
-+    if(code>=10 && code<16 && flow.step==MFR_NAME) { mfr_choose_name(&flow,code-10); draw(flow.step); return; }
-+    if(code==20) { if(mfr_wifi_done(&flow)) draw(flow.step); return; }
-+    if(code==30 || code==31) { mode=code-30; mfr_choose_mode(&flow,mode); draw(flow.step); return; }
-+    if(code==40) { mfr_ack_privacy(&flow); draw(flow.step); }
-+}
-+void add_button(lv_obj_t* p,int x,int y,int w,int h,const char* s,int code,bool selected=false,bool big=false) {
-+    lv_obj_t* b=box(p,x,y,w,h,selected?maipai_ui_style::accent():maipai_ui_style::surface(),true);
-+    lv_obj_add_event_cb(b,event,LV_EVENT_CLICKED,(void*)(intptr_t)code);
-+    lv_obj_t* t=label(b,s,big?fit_font(s,w-16):f16,selected?maipai_ui_style::bg():maipai_ui_style::text(),w-8);
-+    lv_obj_align(t,LV_ALIGN_CENTER,0,0);
-+}
-+void draw(int step) {
-+    if(root) lv_obj_delete(root); root=lv_obj_create(lv_layer_top()); lv_obj_remove_style_all(root);
-+    lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE); lv_obj_set_pos(root,0,0); lv_obj_set_size(root,320,240);
-+    lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0); lv_obj_set_style_bg_color(root,maipai_ui_style::bg(),0);
-+    if(step==MFR_WIFI) { root=nullptr; if(H.open_wifi_setup) H.open_wifi_setup(); return; }
-+    const Words& w=words[(language>=0&&language<MFR_LANG_COUNT)?language:0];
-+    if(mfr_back_visible(step)) { lv_obj_t* b=box(root,4,4,44,44,maipai_ui_style::surface(),true); lv_obj_t* a=label(b,LV_SYMBOL_LEFT,f24,maipai_ui_style::text(),44); lv_obj_align(a,LV_ALIGN_CENTER,0,0); lv_obj_add_event_cb(b,event,LV_EVENT_CLICKED,(void*)(intptr_t)100); }
-+    if(step==MFR_DONE) { lv_obj_t* t=label(root,w.done,f24,maipai_ui_style::text(),300); lv_obj_align(t,LV_ALIGN_CENTER,0,0); timer=lv_timer_create(finish_timer,2000,nullptr); return; }
-+    const int tw=mfr_back_visible(step)?224:280;  // the title keeps clear of the back arrow
-+    lv_obj_t* title=label(root,w.title[step],fit_font(w.title[step],tw),maipai_ui_style::text(),tw); lv_obj_align(title,LV_ALIGN_TOP_MID,0,8);
-+    if(step==MFR_LANGUAGE||step==MFR_NAME) {
-+        const char** items=step==MFR_LANGUAGE?langs:names;
-+        for(int i=0;i<6;i++) add_button(root,8+(i%3)*102,70+(i/3)*64,96,56,items[i],step==MFR_LANGUAGE?i:10+i,step==MFR_LANGUAGE?language==i:flow.name==i);
-+        if(step==MFR_NAME) { lv_obj_t* h=label(root,w.change,f16,maipai_ui_style::muted(),300); lv_obj_align(h,LV_ALIGN_BOTTOM_MID,0,-8); }
-+    } else if(step==MFR_BRAIN) {
-+        const bool both_big=fit_font(w.home,264)==f24 && fit_font(w.own,264)==f24;  // patch UX05b: the two buttons share one size
-+        add_button(root,20,68,280,60,w.home,30,mode==MFR_MODE_HOME,both_big); add_button(root,20,134,280,60,w.own,31,mode==MFR_MODE_OWN,both_big);
-+        lv_obj_t* h=label(root,w.hint,f16,maipai_ui_style::muted(),300); lv_obj_align(h,LV_ALIGN_BOTTOM_MID,0,-14);
-+    } else if(step==MFR_PRIVACY) {
-+        lv_obj_t* a=label(root,w.privacy_a,f16,maipai_ui_style::text(),296); lv_obj_align(a,LV_ALIGN_TOP_MID,0,82);
-+        lv_obj_t* b=label(root,w.privacy_b,f16,maipai_ui_style::text(),296); lv_obj_align(b,LV_ALIGN_TOP_MID,0,119);
-+        add_button(root,80,178,160,52,w.got,40,true);
++    struct Words {
++        const char* title[6];
++        const char* wifi;
++        const char* brain;
++        const char* home;
++        const char* own;
++        const char* hint;
++        const char* privacy;
++        const char* privacy_a;
++        const char* privacy_b;
++        const char* got;
++        const char* done;
++        const char* change;
++    };
++    const Words words[MFR_LANG_COUNT] = {
++        {{"Hello! Pick your language", "What should I be called?", "Let's join your Wi-Fi",
++          "How should I think?", "Private by design", "All set!"},
++         "Let's join your Wi-Fi", "How should I think?", "Pair with MaiPai Home", "Use my own model",
++         "Both stay in your home.", "Private by design", "Your voice and pictures stay in your home.",
++         "Nothing goes to the internet unless you turn it on.", "Got it", "All set!", "You can change it later."},
++        {{"Hola! Elige tu idioma", "Como me llamo?", "Conectemos tu Wi-Fi", "Como debo pensar?", "Privado por diseno", "Todo listo!"},
++         "Conectemos tu Wi-Fi", "Como debo pensar?", "Vincular MaiPai Home", "Usar mi propio modelo",
++         "Ambos quedan en casa.", "Privado por diseno", "Tu voz y fotos quedan en casa.",
++         "Nada va a internet si no lo activas.", "Entendido", "Todo listo!", "Puedes cambiarlo luego."},
++        {{"Bonjour! Choisissez", "Comment m'appeler?", "Rejoignons votre Wi-Fi", "Comment penser?", "Prive par design", "Tout est pret!"},
++         "Rejoignons votre Wi-Fi", "Comment penser?", "Associer MaiPai Home", "Mon propre modele",
++         "Les deux restent chez vous.", "Prive par design", "Voix et photos restent chez vous.",
++         "Rien ne va sur internet sans accord.", "Compris", "Tout est pret!", "Changez-le plus tard."},
++        {{"Hallo! Sprache wahlen", "Wie soll ich heissen?", "WLAN verbinden",
++          "Wie soll ich denken?", "Privat von Anfang an", "Alles bereit!"},
++         "WLAN verbinden", "Wie soll ich denken?", "Mit MaiPai Home koppeln", "Eigenes Modell nutzen",
++         "Beides bleibt zu Hause.", "Privat von Anfang an", "Stimme und Bilder bleiben zu Hause.",
++         "Nichts geht ohne Freigabe ins Netz.", "Verstanden", "Alles bereit!", "Spater andern moglich."},
++        {{"Ola! Escolha o idioma", "Como devo me chamar?", "Conectar ao Wi-Fi", "Como devo pensar?", "Privado por design", "Tudo pronto!"},
++         "Conectar ao Wi-Fi", "Como devo pensar?", "Parear com MaiPai Home", "Usar meu modelo",
++         "Ambos ficam em casa.", "Privado por design", "Voz e fotos ficam em casa.",
++         "Nada vai a internet sem sua permissao.", "Entendi", "Tudo pronto!", "Pode mudar depois."},
++        {{"Ciao! Scegli la lingua", "Come mi chiamo?", "Connetti il Wi-Fi", "Come devo pensare?", "Privato per design", "Tutto pronto!"},
++         "Connetti il Wi-Fi", "Come devo pensare?", "Abbina MaiPai Home", "Usa il mio modello",
++         "Entrambi restano a casa.", "Privato per design", "Voce e foto restano a casa.",
++         "Nulla va online senza permesso.", "Capito", "Tutto pronto!", "Puoi cambiarlo dopo."}
++    };
++    const char* langs[6] = {"English", "Espanol", "Francais", "Deutsch", "Portugues", "Italiano"};
++    const char* names[6] = {"Astro", "Clover", "Ember", "Nova", "Pippa", "Rover"};
++    const lv_font_t* f16 = &lv_font_montserrat_16;
++    const lv_font_t* f24 = &lv_font_montserrat_24;
++    maipai_firstrun_host_t H{};
++    mfr_t flow{};
++    lv_obj_t* root = nullptr;
++    lv_timer_t* timer = nullptr;
++    int language = 0, mode = MFR_MODE_NONE;
++    bool running = false;
++
++    lv_obj_t* box(lv_obj_t* p, int x, int y, int w, int h, lv_color_t color, bool touch = false) {
++        lv_obj_t* o = lv_obj_create(p);
++        lv_obj_remove_style_all(o);
++        lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++        lv_obj_set_pos(o, x, y);
++        lv_obj_set_size(o, w, h);
++        lv_obj_set_style_radius(o, 10, 0);
++        lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++        lv_obj_set_style_bg_color(o, color, 0);
++        if (touch) {
++            lv_obj_add_flag(o, LV_OBJ_FLAG_CLICKABLE);
++        }
++        return o;
++    }
++
++    lv_obj_t* label(lv_obj_t* p, const char* s, const lv_font_t* f, lv_color_t c, int w) {
++        lv_obj_t* o = lv_label_create(p);
++        lv_label_set_text(o, s);
++        lv_obj_set_style_text_font(o, f, 0);
++        lv_obj_set_style_text_color(o, c, 0);
++        lv_label_set_long_mode(o, LV_LABEL_LONG_WRAP);
++        lv_obj_set_width(o, w);
++        lv_obj_set_style_text_align(o, LV_TEXT_ALIGN_CENTER, 0);
++        return o;
++    }
++
++    const lv_font_t* fit_font(const char* s, int width) {
++        lv_point_t p;
++        lv_text_get_size(&p, s, f24, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
++        return p.x <= width ? f24 : f16;
++    }
++
++    void draw(int step);
++
++    void finish_timer(lv_timer_t*) {
++        maipai_firstrun_close();
++        if (H.finished) {
++            H.finished(language, flow.name, mode);
++        }
++    }
++
++    void event(lv_event_t* e) {
++        int code = (int)(intptr_t)lv_event_get_user_data(e);
++        if (code == 100) {
++            mfr_back(&flow);
++            draw(flow.step);
++            return;
++        }
++        if (code >= 0 && code < 6 && flow.step == MFR_LANGUAGE) {
++            mfr_choose_language(&flow, code);
++            language = code;
++            if (H.apply_language) {
++                H.apply_language(code);
++            }
++            draw(flow.step);
++            return;
++        }
++        if (code >= 10 && code < 16 && flow.step == MFR_NAME) {
++            mfr_choose_name(&flow, code - 10);
++            draw(flow.step);
++            return;
++        }
++        if (code == 20) {
++            if (mfr_wifi_done(&flow)) {
++                draw(flow.step);
++            }
++            return;
++        }
++        if (code == 30 || code == 31) {
++            mode = code - 30;
++            mfr_choose_mode(&flow, mode);
++            draw(flow.step);
++            return;
++        }
++        if (code == 40) {
++            mfr_ack_privacy(&flow);
++            draw(flow.step);
++        }
++    }
++
++    void add_button(lv_obj_t* p, int x, int y, int w, int h, const char* s, int code,
++                    bool selected = false, bool big = false) {
++        lv_obj_t* b = box(p, x, y, w, h,
++                          selected ? maipai_ui_style::accent() : maipai_ui_style::surface(), true);
++        lv_obj_add_event_cb(b, event, LV_EVENT_CLICKED, (void*)(intptr_t)code);
++        lv_obj_t* t = label(b, s, big ? fit_font(s, w - 16) : f16,
++                            selected ? maipai_ui_style::bg() : maipai_ui_style::text(), w - 8);
++        lv_obj_align(t, LV_ALIGN_CENTER, 0, 0);
++    }
++
++    void draw(int step) {
++        if (root) {
++            lv_obj_delete(root);
++        }
++        root = lv_obj_create(lv_layer_top());
++        lv_obj_remove_style_all(root);
++        lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
++        lv_obj_set_pos(root, 0, 0);
++        lv_obj_set_size(root, 320, 240);
++        lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
++        lv_obj_set_style_bg_color(root, maipai_ui_style::bg(), 0);
++        if (step == MFR_WIFI) {
++            root = nullptr;
++            if (H.open_wifi_setup) {
++                H.open_wifi_setup();
++            }
++            return;
++        }
++        const Words& w = words[(language >= 0 && language < MFR_LANG_COUNT) ? language : 0];
++        if (mfr_back_visible(step)) {
++            lv_obj_t* b = box(root, 4, 4, 44, 44, maipai_ui_style::surface(), true);
++            lv_obj_t* a = label(b, LV_SYMBOL_LEFT, f24, maipai_ui_style::text(), 44);
++            lv_obj_align(a, LV_ALIGN_CENTER, 0, 0);
++            lv_obj_add_event_cb(b, event, LV_EVENT_CLICKED, (void*)(intptr_t)100);
++        }
++        if (step == MFR_DONE) {
++            lv_obj_t* t = label(root, w.done, f24, maipai_ui_style::text(), 300);
++            lv_obj_align(t, LV_ALIGN_CENTER, 0, 0);
++            timer = lv_timer_create(finish_timer, 2000, nullptr);
++            return;
++        }
++        const int tw = mfr_back_visible(step) ? 224 : 280;  // the title keeps clear of the back arrow
++        lv_obj_t* title = label(root, w.title[step], fit_font(w.title[step], tw),
++                                maipai_ui_style::text(), tw);
++        lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
++        if (step == MFR_LANGUAGE || step == MFR_NAME) {
++            const char** items = step == MFR_LANGUAGE ? langs : names;
++            for (int i = 0; i < 6; i++) {
++                add_button(root, 8 + (i % 3) * 102, 70 + (i / 3) * 64, 96, 56, items[i],
++                           step == MFR_LANGUAGE ? i : 10 + i,
++                           step == MFR_LANGUAGE ? language == i : flow.name == i);
++            }
++            if (step == MFR_NAME) {
++                lv_obj_t* h = label(root, w.change, f16, maipai_ui_style::muted(), 300);
++                lv_obj_align(h, LV_ALIGN_BOTTOM_MID, 0, -8);
++            }
++        } else if (step == MFR_BRAIN) {
++            const bool both_big = fit_font(w.home, 264) == f24 && fit_font(w.own, 264) == f24;
++            // patch UX05b: the two buttons share one size
++            add_button(root, 20, 68, 280, 60, w.home, 30, mode == MFR_MODE_HOME, both_big);
++            add_button(root, 20, 134, 280, 60, w.own, 31, mode == MFR_MODE_OWN, both_big);
++            lv_obj_t* h = label(root, w.hint, f16, maipai_ui_style::muted(), 300);
++            lv_obj_align(h, LV_ALIGN_BOTTOM_MID, 0, -14);
++        } else if (step == MFR_PRIVACY) {
++            lv_obj_t* a = label(root, w.privacy_a, f16, maipai_ui_style::text(), 296);
++            lv_obj_align(a, LV_ALIGN_TOP_MID, 0, 82);
++            lv_obj_t* b = label(root, w.privacy_b, f16, maipai_ui_style::text(), 296);
++            lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 119);
++            add_button(root, 80, 178, 160, 52, w.got, 40, true);
++        }
 +    }
 +}
++
++void maipai_firstrun_init(const maipai_firstrun_host_t* host) {
++    H = host ? *host : maipai_firstrun_host_t{};
 +}
-+void maipai_firstrun_init(const maipai_firstrun_host_t* host) { H=host?*host:maipai_firstrun_host_t{}; }
-+void maipai_firstrun_start() { mfr_init(&flow,H.wifi_set&&H.wifi_set(),H.hub_known&&H.hub_known()); running=true; language=0; mode=flow.mode; draw(mfr_resume_step(&flow)); }
-+void maipai_firstrun_show_step(int step,int lang,int selected_mode) { language=lang; mode=selected_mode; draw(step); }
-+bool maipai_firstrun_active() { return running; }
-+void maipai_firstrun_close() { if(timer) { lv_timer_delete(timer); timer=nullptr; } if(root) { lv_obj_delete(root); root=nullptr; } running=false; }
-+void maipai_firstrun_wifi_done() { if(mfr_wifi_done(&flow)) draw(flow.step); }
++
++void maipai_firstrun_start() {
++    mfr_init(&flow, H.wifi_set && H.wifi_set(), H.hub_known && H.hub_known());
++    running = true;
++    language = 0;
++    mode = flow.mode;
++    draw(mfr_resume_step(&flow));
++}
++
++void maipai_firstrun_show_step(int step, int lang, int selected_mode) {
++    language = lang;
++    mode = selected_mode;
++    draw(step);
++}
++
++bool maipai_firstrun_active() {
++    return running;
++}
++
++void maipai_firstrun_close() {
++    if (timer) {
++        lv_timer_delete(timer);
++        timer = nullptr;
++    }
++    if (root) {
++        lv_obj_delete(root);
++        root = nullptr;
++    }
++    running = false;
++}
++
++void maipai_firstrun_wifi_done() {
++    if (mfr_wifi_done(&flow)) {
++        draw(flow.step);
++    }
++}
