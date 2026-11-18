@@ -26,6 +26,6 @@ If a screen or feature would break the memory budget, the panel shows "over budg
 
 ## What is not here yet
 
-A model of how long the battery lasts for a whole day of use is planned. Until the bench measures the real robot, treat every number marked assumed as a guess that is right in order of size, not in the last digit.
+There is a day planner for the battery too (`python3 scripts/virtual-unit/power_model.py usual`): hours in each state give the average draw and how long a full battery lasts. Until the bench measures the real robot, treat every number marked assumed as a guess that is right in order of size, not in the last digit. The drain is off unless you turn it on, so the battery stays where you set it.
 
 Back: [index](index.md).

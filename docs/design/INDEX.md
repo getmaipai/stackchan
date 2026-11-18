@@ -153,10 +153,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1114): Feature ledger
-- `docs/dev/feature-ledger.md` (1114): Feature ledger
 - `docs/dev/feature-ledger.md` (1114): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
@@ -412,7 +408,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
 - `docs/plan/per-unit-behavior.md` (28): Per-unit behavior (decision 16, many robots)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
-- `docs/plan/playground-live.md` (29): The host API for a live playground (owner decision 21)
+- `docs/plan/playground-live.md` (33): The host API for a live playground (owner decision 21)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
 - `docs/plan/public-readme-draft.md` (92): Public README draft (2026-11-18)
 - `docs/plan/qa-games-firmware.md` (39): Question and answer games on the unit: the interface and the rules (firmware track, 2026-11-18)
@@ -452,7 +448,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/undefined-host-calls-2026-11-18.md` (24): Host calls with no firmware definition (2026-11-18)
 - `docs/plan/ux13-batches.md` (14): UX13: the screens at finger size, in batches (playground track)
 - `docs/plan/ux13c-control-sheet-brief.md` (20): UX13c brief: the control sheet at finger size (for a Codex lane, read by the playground track before it lands)
-- `docs/plan/view-requests.md` (48): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
+- `docs/plan/view-requests.md` (53): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
 - `docs/plan/wasm-spike-report.md` (95): WebAssembly spike: the virtual robot in a browser, no server
 - `docs/playground/dances-and-lights.md` (15): Dances and the light show
 - `docs/playground/dev-architecture.md` (17): Architecture of the virtual unit
@@ -2735,7 +2731,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/gitify.py` (28): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
 - `scripts/virtual-unit/grid_gen.py` (36): Cut the unit's own grid-game drawing out of maipai_grid.cc (the Grid struct, the draw callbacks, build and red
 - `scripts/virtual-unit/host_away.py` (128): What the unit does while its host is away (firmware patches 143 and SF49): the Offline label after 45 s withou
-- `scripts/virtual-unit/hw.py` (308): The virtual unit's body: power button, the two USB-C ports, Wi-Fi, battery, carried and orientation, and what 
+- `scripts/virtual-unit/hw.py` (355): The virtual unit's body: power button, the two USB-C ports, Wi-Fi, battery, carried and orientation, and what 
 - `scripts/virtual-unit/link_shim.c` (37): The unit's own link key schedule (maipai_linkkey_core.h, patch SF20) on the command line, so a simulated unit 
 - `scripts/virtual-unit/listen_guard.c` (22): Harness for the listening guard (patch SF03): runs the guard loop of Application::Run once a second through th
 - `scripts/virtual-unit/make_briefs.py` (57): Write lane briefs for the tools the virtual unit does not simulate yet, in chunks of at most 7 tools of one or
@@ -2804,7 +2800,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
 - `scripts/virtual-unit/version_page_fit.cc` (69): Measures the version page of the More screen (patches U05, NX02, SF69) with the real LVGL layout: the same roo
 - `scripts/virtual-unit/view.html` (308): app{display:flex;height:100%}
-- `scripts/virtual-unit/view.py` (401): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
+- `scripts/virtual-unit/view.py` (404): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
 - `scripts/virtual-unit/view3d.js` (497): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
 - `scripts/virtual-unit/vunit.py` (361): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/virtual-unit/wasm/build.sh` (96): build the virtual robot's browser pieces with Emscripten: the face (Spike A: the unit's real LVGL face code) a

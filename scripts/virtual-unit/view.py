@@ -144,6 +144,9 @@ def utilization():
     """What the Utilization panel shows, from what the rig knows now. Field names are agreed in docs/plan/view-requests.md; a field the
     rig cannot give yet is left out, and the page hides its row."""
     out = {"battery_percent": HW.battery, "charging": HW.charging, "powered_by": HW.powered_by, "supply": HW.supply(), "clock_ms": UNIT.now_ms, "step_ms": STEP_MS, "time_scale": TIME["scale"]}
+    out.update(draw_ma=HW.draw_ma(), power_basis=HW.power.basis, drain=HW.drain)   # patch-free: the model of schema/power-model.json; the panel already reads draw_ma and hours_left
+    if HW.hours_left() is not None:
+        out["hours_left"] = HW.hours_left()
     if getattr(UNIT, "_memory", None) is not None:   # the memory model exists only once something has asked for it
         try:
             out["memory"] = UNIT.memory.numbers()

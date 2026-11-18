@@ -46,3 +46,8 @@ The page reads `util` in `GET /state`. `view.py` fills what the rig knows today;
 - **Face parts and game screen previews**: nothing to show yet.
 
 Also done (2026-11-18, later): `assets` in the state (your `slots()`) with an Installed block in the Utilization panel, and `host_away` (`label`, the last notices, the number of attempts) with a line under the power table when the label shows.
+
+## From the playground track, 2026-11-18 (power model and live adapter)
+
+- **Power:** `hw.view()` has `power {draw_ma, hours_left, drain, basis}` and `utilization()` has `draw_ma`, `hours_left` (not on a cable), `power_basis` and `drain`. Please add a "Drain the battery" checkbox next to Clock speed (`POST /hw {key: "drain", value: true or false}`). The basis stays "assumed" until `schema/power-model.json` is measured.
+- **Live backends:** `scripts/virtual-unit/backends.py` is ready for the routes proposed above: `BackendManager(Simulation(UNIT), host_url, token, who)` with `list()` (for `GET /backends`), `connect(id, now_s)` (for `POST /backend`), `disconnect()`, `tick(now_s)` (from the pump, about once a second) and `status()` (for the `backend` field and the LIVE banner: `{id, kind, live, message, notice}`). `scripts/virtual-unit/fake_host.py` serves the host routes locally to try it.
