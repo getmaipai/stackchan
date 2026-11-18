@@ -12,7 +12,7 @@ from maipai_body.config import RobotConfig, build_brain, load_config
 def test_alias_and_defaults() -> None:
     config = RobotConfig.model_validate({"brain": "standalone"})
     assert config.brain == "llm"
-    assert config.remote.enabled is False
+    assert config.remote.enabled is None  # unset: the settings page decides
     assert build_brain(config).stream_turn(None).__next__().reply_text == NOT_INSTALLED
 
 

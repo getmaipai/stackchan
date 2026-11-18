@@ -89,7 +89,7 @@ class UnitConfig(StrictModel):
                 "`stackchan units` (like aa:bb:cc:dd:ee:ff)."
             )
         try:
-            clean_settings(self.settings())
+            clean_settings(self.settings(), from_owner_file=True)
         except SettingsError as error:
             raise ValueError(str(error)) from error
         return self

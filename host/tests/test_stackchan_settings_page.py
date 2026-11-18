@@ -187,3 +187,12 @@ def test_http_routes(tmp_path):
         assert status == 403
     finally:
         server.stop()
+
+
+def test_robot_toml_may_name_any_key_variable_but_the_page_may_not():
+    from maipai_body.config import RobotConfig
+
+    owned = RobotConfig.model_validate(
+        {"units": {"k": {"device_id": "aa:bb:cc:dd:ee:01", "llm": {"url": "http://192.0.2.5:8080", "model": "m", "api_key_env": "MY_OWN_KEY"}}}}
+    )
+    assert owned.units["k"].llm.api_key_env == "MY_OWN_KEY"

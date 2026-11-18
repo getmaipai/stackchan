@@ -53,7 +53,7 @@ def _clean_alarm(raw: Any) -> dict[str, Any]:
     return {"time": when, "days": [d for d in DAYS if d in days], "label": label}
 
 
-def _clean(values: dict[str, Any]) -> dict[str, Any]:
+def _clean(values: dict[str, Any], *, from_owner_file: bool = False) -> dict[str, Any]:
     out: dict[str, Any] = {}
     if "name" in values:
         name = str(values["name"]).strip()
@@ -80,7 +80,11 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
             raise SettingsError(
                 "Type the NAME of the environment variable that holds the key, not the key itself."
             )
-        if cleaned["api_key_env"] and not cleaned["api_key_env"].startswith(KEY_ENV_PREFIX):
+        if (
+            cleaned["api_key_env"]
+            and not from_owner_file  # robot.toml is the owner's own file; only the page is restricted
+            and not cleaned["api_key_env"].startswith(KEY_ENV_PREFIX)
+        ):
             raise SettingsError(
                 f"The key variable name must start with {KEY_ENV_PREFIX} (for example "
                 f"{KEY_ENV_PREFIX}KITCHEN). Rename the variable, or set a different name in "
