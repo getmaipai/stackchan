@@ -14,7 +14,8 @@
 - What the body does (`scripts/virtual-unit/hw.py`, tested in `host/tests/test_virtual_unit_hw.py`): power off shows a black screen and refuses tools with the way out; power on runs the boot covers (Starting, Connecting to Wi-Fi, Connecting to Home; with Wi-Fi off, the Wi-Fi setup cover) drawn by the unit's own cover code; a cable means USB power and charging; the battery slider drives the status bar, the tired look at 20 and 10 percent, and a sleep after the 8 second grace at 5 percent (patch T01); carried, orientation, cable and battery feed the unit's own limiter (patch ML01), whose state, excursion percent and speed cap show in the panel.
 - Axes: the green yaw arc (limits -128 to 128) and the red pitch arc (limits 0 to 90, the maker advises 5 to 85, drawn brighter) with live pointers, sliders that call `self.robot.set_head_angles`, Look left, Center, Look right, Look up, and four dances. The limiter shrinks the excursion and caps the speed of moves. The counter shows head moves in the last minute against the cap of 40 (patch 038).
 
-- Drag on the background or any part but the screen to turn the view; hold Alt to turn it from the screen too. Shift-drag or right-drag slides the view, the wheel or a trackpad pinch zooms, a double click puts it back. The arrow, plus and minus buttons do the same without a drag, and **Under** looks up at the underside.
+- Drag the head to move it: across turns it (yaw), up and down nods it (pitch), inside the firmware limits (yaw -128 to 128, pitch 3 to 87). The drawn head follows the hand at once and the unit is sent `self.robot.set_head_angles`, so its limiter decides; a refusal or a held angle is shown in the corner and under the sliders. The arrow keys nudge the head 5 degrees. Untick **Drag moves the head** to make every drag turn the view.
+- Drag on the background or the base to turn the view; hold Alt to turn it from the head or the screen too. Shift-drag or right-drag slides the view, the wheel or a trackpad pinch zooms, a double click puts it back. The arrow, plus and minus buttons do the same without a drag, and **Under** looks up at the underside.
 - Hover over a switch to see its name. Click the reset button under the controller to restart the unit (the boot covers run again). Click one of the three pads on the head top for a touch on the head: it brings the face back from a page.
 - The red light in the holder back is on while the unit charges (cable in, battery not full). The small light beside the reset button stays off: nothing in the firmware drives it.
 - **Show inside** turns the shell, controller and servo holder to glass so the two servos, the battery, the boards and the cable show. **Show motion** colors what turns with the pan servo green and what tilts with the tilt servo red, with a label on each. **Demo sweep** pans the drawn head left and right, then nods it up and down, over 16 seconds; it moves the drawing only and sends the unit nothing.
@@ -28,3 +29,12 @@
 
 ## Physics mode (optional)
 See `docs/plan/physics-playground.md`. The panel's Physics section loads the engine on demand; with it on, the model's head and base follow the physics body, and its IMU decides carried and orientation for the unit's own movement limiter.
+
+## Side panel (2026-11-18)
+
+- A slider belongs to the hand while it is held and for up to 2.5 seconds after, so the state poll cannot write over a drag. This does not depend on keyboard focus, which some browsers never give a slider on a click. The value is sent while dragging and again on release.
+- The ports and buttons on the model glow yellow under the pointer and have generous click targets. The cable's plug is the size of a real USB-C plug.
+- **Quick actions**: a color box and buttons set the 12 lights (the tool takes 36 numbers, `led_0_red` to `led_11_blue`), and **Say it** runs the three steps speech from outside needs (`self.remote.session`, `self.remote.action` for a one-use token, `self.remote.say`).
+- **Make the robot do something**: pick an area (robot, face, audio and so on), then an action, then fill in its values; a number with a known range gets a slider, a yes or no gets a switch, a known set of names gets a list. A refusal is explained in plain words with the unit's reason code.
+- The numbers have a fixed width and **Stop dance** is the first button of its row, so nothing moves while a dance changes the angles.
+- `host/tests/test_vu_view_pointer.py` drives these with a real pointer in headless Chrome.

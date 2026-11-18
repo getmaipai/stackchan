@@ -71,21 +71,21 @@ function initRobot(THREE, canvas, hooks) {
   // ---- the body: filled in when the model file arrives
   const tex = new THREE.Texture(); tex.minFilter = THREE.LinearFilter; tex.flipY = false;   // the model's screen UV has 0,0 at the top left
   const M = {ready: false, yaw: null, pitch: null, screen: null, headMeshes: [], leds: [], button: null, portHit: null, btnHit: null,
-             parts: [], hits: [], solid: [], lookKey: '', labels: [], demoAt: 0,
+             parts: [], hits: [], solid: [], aux: new Set(), hover: null, yawCmd: [-128, 128], pitchCmd: [3, 87], lookKey: '', labels: [], demoAt: 0,
              yawAxis: new THREE.Vector3(0, -1, 0), pitchAxis: new THREE.Vector3(-1, 0, 0), yawLim: [-128, 128], pitchLim: [0, 90], pitchY: 4.35, topY: 7.05, baseTopY: 1.13};
   const cable = new THREE.Group(); cable.visible = false; robot.add(cable);
   const axes = new THREE.Group(); robot.add(axes);
   const yawGizmo = new THREE.Group(), pitchGizmo = new THREE.Group(); axes.add(yawGizmo); axes.add(pitchGizmo);
 
   function install(model) {
-    const N = model.byName;
+    const N = model.byName; M.nodes = N;
     for (const name of ['base', 'yaw_joint', 'pitch_joint', 'head', 'screen_plane', 'usb_c_port', 'power_button', 'ring_light_0', 'ring_light_11'])
       if (!N[name]) throw new Error('the model has no node named ' + name);
     model.root.scale.setScalar(100); robot.add(model.root); robot.updateMatrixWorld(true);
     M.yaw = N.yaw_joint; M.pitch = N.pitch_joint;
     const yj = M.yaw.userData.joint, pj = M.pitch.userData.joint;
     M.yawAxis.fromArray(yj.axis); M.pitchAxis.fromArray(pj.axis);
-    M.yawLim = yj.limit_deg; M.pitchLim = pj.geometry_free_deg || [0, 90];   // the head moves freely between these; the firmware range sits inside
+    M.yawLim = yj.limit_deg; M.pitchLim = pj.geometry_free_deg || [0, 90]; M.yawCmd = yj.limit_deg; M.pitchCmd = pj.limit_deg;   // the head moves freely between these; the firmware range sits inside
     const wp = o => o.getWorldPosition(new THREE.Vector3());
     M.pitchY = wp(M.pitch).y; M.topY = M.pitchY + 2.7;
     M.baseTopY = new THREE.Box3().setFromObject(N.base.children.find(c => c.isMesh)).max.y;
@@ -100,23 +100,32 @@ function initRobot(THREE, canvas, hooks) {
     }
     // click targets: the port on the back of the base and the power button on the head, each with a bigger unseen target (sizes in meters)
     const unseen = new THREE.MeshBasicMaterial({visible: false});
-    const addSwitch = (node, geo, label, act) => { const mesh = new THREE.Mesh(geo, unseen); node.add(mesh); M.hits.push({mesh, label, act, name: node.name}); return mesh; };
-    M.portHit = addSwitch(N.usb_c_port, new THREE.BoxGeometry(0.022, 0.010, 0.010), 'USB-C port: click to plug or unplug the cable', () => hooks.togglePort());
-    M.btnHit = addSwitch(N.power_button, new THREE.SphereGeometry(0.007, 8, 8), 'Power button: click to turn the unit off or on', () => hooks.togglePower());
-    if (N.reset_button) addSwitch(N.reset_button, new THREE.SphereGeometry(0.0045, 8, 8), 'Reset button: a click restarts the unit (on the real one, a 3 second hold enters download mode)', () => hooks.reset && hooks.reset());
+    // each switch has a generous unseen target and a yellow glow that shows while the pointer is over it
+    const glow = new THREE.MeshBasicMaterial({color: 0xffd34d, transparent: true, opacity: 0.5, depthTest: false});
+    const onHead = node => { for (let o = node; o; o = o.parent) if (o === N.head) return true; return false; };
+    const addSwitch = (node, geo, label, act) => {
+      const mesh = new THREE.Mesh(geo, unseen), hl = new THREE.Mesh(geo, glow); hl.visible = false; hl.renderOrder = 6; hl.scale.setScalar(0.75);
+      node.add(mesh); node.add(hl); M.aux.add(mesh); M.aux.add(hl); M.hits.push({mesh, hl, label, act, name: node.name, onHead: onHead(node)}); return mesh;
+    };
+    M.portHit = addSwitch(N.usb_c_port, new THREE.BoxGeometry(0.028, 0.016, 0.018), 'USB-C port: click to plug or unplug the cable', () => hooks.togglePort());
+    M.btnHit = addSwitch(N.power_button, new THREE.SphereGeometry(0.008, 10, 10), 'Power button: click to turn the unit off or on', () => hooks.togglePower());
+    if (N.reset_button) addSwitch(N.reset_button, new THREE.SphereGeometry(0.006, 10, 10), 'Reset button: a click restarts the unit (on the real one, a 3 second hold enters download mode)', () => hooks.reset && hooks.reset());
     for (let i = 0; i < 3; i++) if (N['touch_back_' + i])
       addSwitch(N['touch_back_' + i], new THREE.BoxGeometry(0.016, 0.004, 0.008), 'Head touch pad ' + i + ' of 3 (' + ['front', 'middle', 'back'][i] + '): a click is a touch on the head', () => hooks.headTouch && hooks.headTouch(i));
     // the cable into the port, and the charge light beside it
     const p = wp(N.usb_c_port), pz = p.z - 0.1;
-    const plug = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.4), new THREE.MeshStandardMaterial({color: 0xb7bcc4, metalness: 0.5, roughness: 0.35}));
-    plug.position.set(0, p.y, pz - 0.7); cable.add(plug);
-    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, p.y, pz - 1.4), new THREE.Vector3(0, p.y, pz - 3), new THREE.Vector3(1.5, 0.3, pz - 5.5), new THREE.Vector3(3.5, 0.25, pz - 9), new THREE.Vector3(5, 0.25, pz - 13)]);
-    cable.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.16, 10, false), new THREE.MeshStandardMaterial({color: 0x2a2f36, roughness: 0.7})));
+    // a USB-C plug is small: a metal tip 8.3 x 2.5 mm that goes into the socket and a short grip barely wider, so it hides little of the base
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.24, 0.6), new THREE.MeshStandardMaterial({color: 0xb7bcc4, metalness: 0.5, roughness: 0.35}));
+    tip.position.set(0, p.y, pz + 0.05); cable.add(tip);
+    const plug = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.42, 0.9), new THREE.MeshStandardMaterial({color: 0x30353d, roughness: 0.6}));
+    plug.position.set(0, p.y, pz - 0.6); cable.add(plug); M.plug = plug;
+    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, p.y, pz - 1.05), new THREE.Vector3(0, p.y, pz - 2.2), new THREE.Vector3(0.8, 0.25, pz - 4.5), new THREE.Vector3(2.5, 0.2, pz - 8), new THREE.Vector3(4, 0.2, pz - 12)]);
+    cable.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.11, 10, false), new THREE.MeshStandardMaterial({color: 0x2a2f36, roughness: 0.7})));
     // the two small lights: the red one in the holder back and the one under the screen edge
     const lamp = (node, label) => { if (!node) return null; const m = node.children.find(c => c.isMesh); m.material = new THREE.MeshBasicMaterial({color: 0x000000}); addSwitch(node, new THREE.SphereGeometry(0.003, 6, 6), label, () => {}); return m; };
     M.chargeLed = lamp(N.back_charge_led, 'Charge light: red while the battery charges (behavior assumed)');
     M.bottomLed = lamp(N.screen_bottom_led, 'Light beside the reset button: green in download mode on the real unit; the firmware does not drive it, so it stays off here');
-    if (N.sd_slot) addSwitch(N.sd_slot, new THREE.BoxGeometry(0.012, 0.003, 0.003), 'Card slot (microSD)', () => {});
+    if (N.sd_slot) addSwitch(N.sd_slot, new THREE.BoxGeometry(0.016, 0.005, 0.005), 'Card slot (microSD)', () => {});
     // the axes gizmo sits on the model's own joints
     yawGizmo.position.set(0, M.baseTopY + 0.05, 0); pitchGizmo.position.set(0, M.pitchY, 0);
     const yawLine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, M.topY + 2.4, 8), new THREE.MeshBasicMaterial({color: 0x3ddc84}));
@@ -125,11 +134,10 @@ function initRobot(THREE, canvas, hooks) {
     pitchLine.rotation.z = Math.PI / 2; pitchLine.position.set(0, M.pitchY, 0); axes.add(pitchLine);
     // every drawn part remembers its own material and which link it rides on, for the Show inside and Show motion looks
     const SHELL = {shell: 1, core: 1, glass: 1, neck: 1, servo: 1, base: 1, sticker: 1, sticker_ink: 1, sticker_dark: 1, sticker_gray: 1, sticker_orange: 1, print: 1, button: 1, touch_pad: 1};
-    const tag = (node, link) => node.traverse(o => { if (o.isMesh && o !== M.screen && !M.leds.includes(o) && !M.hits.some(h => h.mesh === o) && !o.userData.link) o.userData = {link, mat: o.material, shell: !!SHELL[o.material.name]}; });
+    const tag = (node, link) => node.traverse(o => { if (o.isMesh && o !== M.screen && !M.leds.includes(o) && !M.aux.has(o) && !o.userData.link) o.userData = {link, mat: o.material, shell: !!SHELL[o.material.name]}; });
     tag(N.pitch_joint, 'pitch'); tag(N.yaw_joint, 'yaw'); tag(N.base, 'base');
     model.root.traverse(o => { if (o.isMesh && o.userData.link) M.parts.push(o); });
-    const hitSet = new Set(M.hits.map(h => h.mesh));
-    model.root.traverse(o => { if (o.isMesh && !hitSet.has(o)) M.solid.push(o); });
+    model.root.traverse(o => { if (o.isMesh && !M.aux.has(o)) M.solid.push(o); });
     const stage = cv.parentElement;
     for (const [text, color, node, dy] of [['turns with the pan servo (yaw)', '#3ddc84', N.neck, -0.004], ['tilts with the tilt servo (pitch)', '#ff6b6b', N.head, 0.034]]) {
       const el = document.createElement('div'); el.textContent = text;
@@ -215,7 +223,7 @@ function initRobot(THREE, canvas, hooks) {
   function switchAt(ev) {   // a switch counts only when no part of the body is in front of it
     const hit = pick(ev, M.hits.map(h => h.mesh)); if (!hit) return null;
     const body = pick(ev, M.solid);
-    return !body || hit.distance <= body.distance + 0.8 ? M.hits.find(h => h.mesh === hit.object) : null;
+    return !body || hit.distance <= body.distance + 1.2 ? M.hits.find(h => h.mesh === hit.object) : null;
   }
   const tip = document.createElement('div');
   tip.style.cssText = 'position:absolute;pointer-events:none;display:none;background:#000c;color:#e8ecf1;border:1px solid #556;border-radius:6px;padding:3px 8px;font-size:12px;max-width:260px;z-index:5';
@@ -231,6 +239,7 @@ function initRobot(THREE, canvas, hooks) {
     const p = e.altKey ? null : panelXY(e), sw = p ? null : switchAt(e);   // hold Alt to turn the camera from a drag that starts on the screen
     if (p && hooks.on()) drag = {mode: 'touch', p, cx: e.clientX, cy: e.clientY, t: performance.now()};
     else if (sw) drag = {mode: 'switch', sw, cx: e.clientX, cy: e.clientY, lx: e.clientX, ly: e.clientY};
+    else if (!e.altKey && headDrag() && pick(e, M.headMeshes)) drag = grabHead(e);   // a drag that starts on the head moves the head; anywhere else it turns the view
     else drag = {mode: 'orbit', lx: e.clientX, ly: e.clientY};
   });
   cv.addEventListener('pointermove', e => {
@@ -243,7 +252,13 @@ function initRobot(THREE, canvas, hooks) {
       hooks.push([f.z, f.x, f.y]);   // view axes to the physics frame: x forward is view z, y left is view x, z up is view y
       return;
     }
-    if (drag && drag.mode === 'switch' && Math.hypot(e.clientX - drag.cx, e.clientY - drag.cy) > 8) drag.mode = 'orbit';   // a drag that starts on a switch turns the camera
+    if (drag && drag.mode === 'switch' && Math.hypot(e.clientX - drag.cx, e.clientY - drag.cy) > 8) drag = drag.sw.onHead && headDrag() ? grabHead(e) : {mode: 'orbit', lx: e.clientX, ly: e.clientY};   // a drag that starts on a switch is a drag, not a click
+    if (drag && drag.mode === 'head') {   // like taking the head in your hand: across turns it (yaw), up and down nods it (pitch), inside the firmware limits
+      drag.yaw = clamp(drag.yaw0 + drag.sign * (e.clientX - drag.sx) * 0.6, M.yawCmd[0], M.yawCmd[1]);
+      drag.pitch = clamp(drag.pitch0 - (e.clientY - drag.sy) * 0.45, M.pitchCmd[0], M.pitchCmd[1]);
+      if (performance.now() - drag.at > 500) { drag.at = performance.now(); hooks.aimHead(drag.yaw, drag.pitch, false); }   // the drawn head follows the hand at once; the unit is asked twice a second, so a long drag does not use up the limiter's move budget
+      return;
+    }
     if (drag && drag.mode === 'pan') { pan(e.clientX - drag.lx, e.clientY - drag.ly); drag.lx = e.clientX; drag.ly = e.clientY; return; }
     if (drag && drag.mode === 'orbit') {
       view.az -= (e.clientX - drag.lx) * 0.008; view.el += (e.clientY - drag.ly) * 0.006; clampView(); drag.lx = e.clientX; drag.ly = e.clientY; return;
@@ -252,6 +267,7 @@ function initRobot(THREE, canvas, hooks) {
       hoverAt = performance.now();
       const p = panelXY(e), sw = p ? null : switchAt(e), b = cv.getBoundingClientRect();
       cv.style.cursor = (sw || (p && hooks.on())) ? 'pointer' : 'grab';
+      if (M.hover !== sw) { if (M.hover) M.hover.hl.visible = false; if (sw) sw.hl.visible = true; M.hover = sw; }
       tip.style.display = sw ? 'block' : 'none';
       if (sw) { tip.textContent = sw.label; tip.style.left = (e.clientX - b.left + 14) + 'px'; tip.style.top = (e.clientY - b.top + 14) + 'px'; }
     }
@@ -260,6 +276,7 @@ function initRobot(THREE, canvas, hooks) {
     pointers.delete(e.pointerId);
     const d = drag; if (pointers.size === 0) drag = null; if (!d) return;
     if (d.mode === 'push') { hooks.push(null); return; }
+    if (d.mode === 'head') { cv.style.cursor = 'grab'; if (d.yaw !== undefined) hooks.aimHead(d.yaw, d.pitch, true); return; }
     const moved = d.cx === undefined ? 99 : Math.hypot(e.clientX - d.cx, e.clientY - d.cy);
     if (d.mode === 'touch') {
       const up = panelXY(e) || d.p;
@@ -267,9 +284,20 @@ function initRobot(THREE, canvas, hooks) {
     } else if (d.mode === 'switch' && moved < 8) d.sw.act();
   }
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
-  cv.addEventListener('pointerleave', () => { tip.style.display = 'none'; });
+  cv.addEventListener('pointerleave', () => { tip.style.display = 'none'; if (M.hover) { M.hover.hl.visible = false; M.hover = null; } });
+  // moving the head by hand: the same tool call the model would make, so the unit's limiter decides
+  const headDrag = () => !!(hooks.dragHead && hooks.dragHead() && hooks.aimHead && hooks.on() && api.st);
+  const turnSign = () => Math.cos(view.az) >= 0 ? -1 : 1;   // seen from the front, a drag to the right turns the head to the viewer's right
+  function grabHead(e) { cv.style.cursor = 'grabbing'; return {mode: 'head', sx: e.clientX, sy: e.clientY, yaw0: api.st.head.yaw, pitch0: api.st.head.pitch, sign: turnSign(), at: 0}; }
+  cv.tabIndex = 0;
+  addEventListener('keydown', e => {   // the arrow keys nudge the head 5 degrees, unless a field or a slider has the keyboard
+    const k = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1]}[e.key];
+    if (!k || e.metaKey || e.ctrlKey || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '') || !headDrag()) return;
+    e.preventDefault();
+    hooks.aimHead(clamp(api.st.head.yaw + turnSign() * k[0] * 5, M.yawCmd[0], M.yawCmd[1]), clamp(api.st.head.pitch + k[1] * 5, M.pitchCmd[0], M.pitchCmd[1]), true);
+  });
   cv.addEventListener('wheel', e => { e.preventDefault(); view.dist *= Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0012)); clampView(); }, {passive: false});   // a trackpad pinch arrives as a wheel with ctrl
-  cv.addEventListener('dblclick', e => { if (!panelXY(e)) hooks.presets.reset(); });
+  cv.addEventListener('dblclick', e => { if (!panelXY(e) && !switchAt(e)) hooks.presets.reset(); });   // two quick clicks on a button are two presses, not a view reset
   cv.style.touchAction = 'none'; cv.style.cursor = 'grab';
 
   const img = new Image();
@@ -320,7 +348,7 @@ function initRobot(THREE, canvas, hooks) {
       const demo = !ph && M.demoAt ? demoPose((performance.now() - M.demoAt) / 1000) : null;
       if (M.demoAt && !demo) { M.demoAt = 0; if (hooks.demoDone) hooks.demoDone(); }
       if (demo && hooks.status && demo.note !== M.demoNote) { M.demoNote = demo.note; hooks.status(demo.note); }
-      if (ph) { cy = ph.yaw; cp = ph.pitch; } else if (demo) { cy = demo.yaw; cp = demo.pitch; } else { cy += (st.head.yaw - cy) * 0.35; cp += (st.head.pitch - cp) * 0.35; }
+      if (ph) { cy = ph.yaw; cp = ph.pitch; } else if (demo) { cy = demo.yaw; cp = demo.pitch; } else if (drag && drag.mode === 'head' && drag.yaw !== undefined) { cy += (drag.yaw - cy) * 0.5; cp += (drag.pitch - cp) * 0.5; } else { cy += (st.head.yaw - cy) * 0.35; cp += (st.head.pitch - cp) * 0.35; }
       const motion = !!(hooks.motionOn && hooks.motionOn()) || !!demo;
       applyLook(!!(hooks.insideOn && hooks.insideOn()), motion);
       this.labelsOn = motion;
@@ -345,13 +373,13 @@ function initRobot(THREE, canvas, hooks) {
       M.screen.material.color.set(on ? 0xffffff : 0x000000);
     },
     setPhysicsPose(pose) { this.phys = {pose, at: performance.now()}; },
-    render() { placeCam(); r.render(scene, cam); if (M.ready) placeLabels(!!this.labelsOn); },
+    render() { placeCam(); table.visible = grid.visible = cam.position.y > 0; r.render(scene, cam); if (M.ready) placeLabels(!!this.labelsOn); },   // from below, the table would hide the underside
     demo() { M.demoNote = ''; M.demoAt = M.demoAt ? 0 : performance.now(); return !!M.demoAt; },
     get screen() { return M.screen; },
     model: M, view, target,
-    pointOf(name) {   // where a switch is on the page right now, for scripted checks
-      const h = M.hits.find(x => x.name === name); if (!h) return null;
-      placeCam(); cam.updateMatrixWorld(); const p = h.mesh.getWorldPosition(new THREE.Vector3()).project(cam), b = cv.getBoundingClientRect();
+    pointOf(name) {   // where a switch, or any named part of the model, is on the page right now, for scripted checks
+      const h = M.hits.find(x => x.name === name), o = h ? h.mesh : (M.nodes && M.nodes[name]); if (!o) return null;
+      placeCam(); cam.updateMatrixWorld(); const p = o.getWorldPosition(new THREE.Vector3()).project(cam), b = cv.getBoundingClientRect();
       return {x: b.left + (p.x + 1) / 2 * b.width, y: b.top + (1 - p.y) / 2 * b.height};
     },
   };

@@ -94,7 +94,7 @@ Seen on the real unit and now drawn (all positions read off the photos, so assum
 | Large label under the base | `sticker_bottom` | a dark header band, an orange square, a gray outline of the robot and stand-in bars |
 | Black and teal connectors in the two top openings | in the head mesh | open sockets with four pins each |
 
-Seen and not drawn: the embossed maker's logo on the speaker side and under the base label, the real text, codes and compliance marks on the labels, the finger scoop behind the card slot, the cap in one of the side holes, and the fine print on the boards.
+Seen and not drawn: the real text, codes and compliance marks on the labels, the finger scoop behind the card slot, the cap in one of the side holes, and the fine print on the boards.
 
 ## Second look at the photos, face by face (2026-11-18)
 
@@ -117,6 +117,8 @@ Each face was rendered at the angle of its photo and set beside it. The pairs ar
 | Top | label 22 x 9 mm | 16.3 x 12.3 mm with a gray end band, placed from the photo |
 | Bottom | no screws, label square | four screws in the plate's holes (centers from the plate file), label 32.5 x 35.4 mm with cut corners, the two dark strips along the sides |
 | Front | holder and base too dark | lighter, from the photos |
+| Speaker side, bottom | the raised two-character mark was missing | drawn in strokes under the grille and behind the base label |
+| Every socket | empty pockets | contacts on both faces of each USB-C tongue, four pins and two plastic keys in port A and in each top connector, a row of contacts in the card slot |
 
 Only the 17 maker pictures and the published drawing were used. No other gallery or video was read.
 

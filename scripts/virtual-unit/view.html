@@ -30,23 +30,31 @@ input[type=range]{width:100%;padding:0;accent-color:var(--accent)}
 .meter{height:6px;background:#262d37;border-radius:3px;overflow:hidden;margin-top:4px}.meter i{display:block;height:100%;background:var(--accent)}
 button.on{background:#1f4a32;border-color:#2f7a52}button.off{background:#4a2326;border-color:#7a2f35}
 button[disabled]{opacity:.45;cursor:not-allowed}
+.num{display:inline-block;min-width:3.4ch;text-align:right;font-variant-numeric:tabular-nums}
+.line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#limmsg,#hwmsg{min-height:2.6em}
+#fields{display:grid;grid-template-columns:auto 1fr auto;gap:6px 8px;align-items:center;margin-top:8px}
+#fields label{color:var(--muted);font-size:12px}#fields input[type=number]{width:74px}#fields input[type=text],#fields select{width:100%;box-sizing:border-box}
+.pick{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center}.pick label{color:var(--muted);font-size:12px}
+#out.good{color:var(--good)}#out.bad{color:var(--bad)}
 @media (max-width:760px){#msg{display:none}#legend{display:none}#toolbar{top:auto;bottom:8px;right:8px;left:8px;justify-content:center}#hud{padding:4px 8px}#app{flex-direction:column;overflow-y:auto}#stage{flex:none;height:46vh}#side{width:auto;overflow-y:visible;flex:none;border-left:0;border-top:1px solid var(--line)}html,body{height:auto;min-height:100%}}
 </style></head><body>
 <div id="app">
- <div id="stage"><canvas id="c"></canvas><div id="hud"><span id="hd">head: yaw 0, pitch 0</span><br><span id="msg">Tap the screen or drag across it to swipe. Drag anywhere else to turn the view (Alt-drag on the screen too), shift-drag or right-drag to slide it, wheel or pinch to zoom, double click to reset. Click the USB-C port or the power button.</span></div>
-  <div id="toolbar"><button id="vreset">Reset view</button><button id="vfront">Front</button><button id="vside">Side</button><button id="vback">Back (USB-C)</button><button id="vtop">Top</button><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="axes" type="checkbox" checked> Axes</label><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="inside" type="checkbox"> Show inside</label><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="motion" type="checkbox"> Show motion</label><button id="vdemo">Demo sweep</button><button id="vunder" title="Look under the head">Under</button><span id="varrows" style="display:flex;gap:3px"><button id="vleft" title="Turn the view left">&#9664;</button><button id="vright" title="Turn the view right">&#9654;</button><button id="vup" title="Tilt the view up">&#9650;</button><button id="vdown" title="Tilt the view down">&#9660;</button><button id="vzin" title="Zoom in">+</button><button id="vzout" title="Zoom out">&minus;</button></span></div>
+ <div id="stage"><canvas id="c"></canvas><div id="hud"><span id="hd">head: yaw 0, pitch 0</span><br><span id="msg">Drag the head to move it (arrow keys too). Drag elsewhere to turn the view. Tap or swipe the screen. Click a port or button when it glows.</span><br><span class="t" style="font-size:11px">Alt-drag always turns the view. Shift-drag slides it, the wheel zooms, a double click resets.</span></div>
+  <div id="toolbar"><button id="vreset">Reset view</button><button id="vfront">Front</button><button id="vside">Side</button><button id="vback">Back (USB-C)</button><button id="vtop">Top</button><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="axes" type="checkbox" checked> Axes</label><label class="row" title="On: a drag that starts on the head moves the head. Off: every drag turns the view." style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="draghead" type="checkbox" checked> Drag moves the head</label><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="inside" type="checkbox"> Show inside</label><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="motion" type="checkbox"> Show motion</label><button id="vdemo">Demo sweep</button><button id="vunder" title="Look under the head">Under</button><span id="varrows" style="display:flex;gap:3px"><button id="vleft" title="Turn the view left">&#9664;</button><button id="vright" title="Turn the view right">&#9654;</button><button id="vup" title="Tilt the view up">&#9650;</button><button id="vdown" title="Tilt the view down">&#9660;</button><button id="vzin" title="Zoom in">+</button><button id="vzout" title="Zoom out">&minus;</button></span></div>
   <div id="legend"><span class="sw" style="background:#3ddc84"></span>yaw axis (turns the head left and right) <span class="sw" style="background:#ff6b6b;margin-left:8px"></span>pitch axis (nods up and down)</div></div>
  <div id="side">
   <section><h2>Power and connection</h2>
    <div class="row" style="margin-top:0"><button id="bpower">Power</button><button id="busb">USB-C cable</button><button id="bserial">USB serial</button><button id="bwifi">Wi-Fi</button></div>
-   <div style="margin-top:8px">Battery <b id="batv">75</b> percent</div><input id="bat" type="range" min="0" max="100" value="75">
+   <div style="margin-top:8px" class="line">Battery <b id="batv" class="num">75</b> percent</div><input id="bat" type="range" min="0" max="100" value="75">
    <div class="row"><label><input id="carried" type="checkbox"> Carried</label><select id="orient" style="width:auto"><option>upright</option><option>tilted</option><option>side</option><option>inverted</option><option>unknown</option></select></div>
    <div class="kv" id="hwv"></div><div id="hwmsg" class="t" style="margin-top:6px;font-size:12px"></div></section>
   <section><h2>Head axes and limiter</h2>
-   <div>Yaw <b id="yawv">0</b> (limits <span id="yawr"></span>)</div><input id="yaw" type="range" min="-128" max="128" value="0">
-   <div style="margin-top:6px">Pitch <b id="pitchv">0</b> (limits <span id="pitchr"></span>; the maker advises 5 to 85)</div><input id="pitch" type="range" min="0" max="90" value="0">
-   <div class="row"><button data-look="-90,20">Look left</button><button data-look="0,0">Center</button><button data-look="90,20">Look right</button><button data-look="0,70">Look up</button></div>
-   <div class="row"><button data-dance="happy">Dance happy</button><button data-dance="robot">robot</button><button data-dance="panic">panic</button><button data-dance="look_around">look around</button><button id="dstop">Stop dance</button></div>
+   <div class="line">Yaw <b id="yawv" class="num">0</b> (limits <span id="yawr"></span>)</div><input id="yaw" type="range" min="-128" max="128" value="0">
+   <div style="margin-top:6px" class="line">Pitch <b id="pitchv" class="num">3</b> (limits <span id="pitchr"></span>)</div><input id="pitch" type="range" min="3" max="87" value="3">
+   <div class="t" style="font-size:12px">The maker advises pitch 5 to 85. Drag a slider, drag the head in the picture, or use the arrow keys.</div>
+   <div class="row"><button data-look="-90,20">Look left</button><button data-look="0,3">Center</button><button data-look="90,20">Look right</button><button data-look="0,70">Look up</button></div>
+   <div class="row"><button id="dstop" class="off">Stop dance</button><button data-dance="happy">Dance happy</button><button data-dance="robot">robot</button><button data-dance="panic">panic</button><button data-dance="look_around">look around</button></div>
    <div class="kv" id="limv"></div>
    <div>Head moves in the last minute <b id="mvv">0</b> of <span id="mvc">40</span></div><div class="meter"><i id="mvb" style="width:0"></i></div>
    <div id="limmsg" class="t" style="margin-top:6px;font-size:12px"></div></section>
@@ -56,12 +64,18 @@ button[disabled]{opacity:.45;cursor:not-allowed}
    <div class="row"><button id="pnudge" disabled>Nudge the head</button><button id="pshake" disabled>Shake the table</button><button id="plift" disabled>Lift</button><button id="pdown" disabled>Put down</button><button id="preset" disabled>Reset pose</button><button id="pscen" disabled>Run the carried and dance-stop check</button></div><div id="pscenout" class="t" style="margin-top:6px;font-size:12px"></div>
    <div class="kv" id="physv"></div>
    <div style="margin-top:6px">Servo load yaw / pitch</div><div class="meter"><i id="ly" style="width:0"></i></div><div class="meter"><i id="lp" style="width:0;background:#ff6b6b"></i></div></section>
-  <section><h2>Call a tool</h2>
-   <input id="flt" placeholder="filter tools" style="width:100%;box-sizing:border-box;margin-bottom:6px">
-   <select id="tool"></select>
-   <textarea id="args" spellcheck="false">{}</textarea>
-   <div class="row"><button class="primary" id="go">Call</button><span id="ut" class="t"></span></div>
-   <div id="out"></div></section>
+  <section><h2>Quick actions</h2>
+   <div class="row" style="margin-top:0"><label for="ledc" class="t" style="font-size:12px">Lights</label><input id="ledc" type="color" value="#ffd400" style="width:44px;height:30px;padding:2px" title="Pick a color for the 12 lights"><button id="ledon">Turn on</button><button id="ledleft">Left bar</button><button id="ledright">Right bar</button><button id="ledoff">Off</button></div>
+   <div class="row"><input id="sayt" placeholder="Something for the robot to say" style="flex:1;min-width:0"><button id="saygo">Say it</button></div>
+   <div id="qmsg" class="t" style="margin-top:6px;font-size:12px;min-height:2.6em">Lights and speech in one click. Every other action is in the list below.</div></section>
+  <section><h2>Make the robot do something</h2>
+   <div class="pick"><label for="dom">Area</label><select id="dom"></select><label for="tool">Action</label><select id="tool"></select></div>
+   <div id="fields"></div>
+   <div class="row"><button class="primary" id="go">Do it</button><span id="ut" class="t"></span></div>
+   <div id="out"></div>
+   <details style="margin-top:8px"><summary class="t" style="cursor:pointer;font-size:12px">Advanced: search every action, edit the values as text</summary>
+    <input id="flt" placeholder="search all actions, for example head or sound" style="width:100%;box-sizing:border-box;margin:6px 0">
+    <textarea id="args" spellcheck="false">{}</textarea></details></section>
   <section><h2>Face</h2>
    <div id="emos" class="row" style="margin-top:0"></div>
    <label class="row"><input id="spk" type="checkbox"> Speak (the mouth follows)</label></section>
@@ -86,16 +100,62 @@ async function post(path,body){const r=await fetch(path,{method:'POST',body:JSON
 async function call(name,args){return post('/call',{name,arguments:args||{}});}
 // ---- side panel
 let TOOLS=[];
-function fillTools(){const f=$('flt').value.toLowerCase();$('tool').innerHTML='';
- TOOLS.filter(t=>t.name.includes(f)).forEach(t=>{const o=document.createElement('option');o.value=t.name;o.textContent=t.name+(t.user_only?'  (user only)':'');$('tool').appendChild(o);});pickTool();}
-function pickTool(){const t=TOOLS.find(x=>x.name===$('tool').value);if(!t)return;
- const ex={};for(const [k,v] of Object.entries(t.args)) ex[k]=v==='integer'?0:v==='boolean'?false:'';
- $('args').value=JSON.stringify(ex);$('ut').textContent=t.user_only?'hidden from the model, answers by name':'';}
-$('flt').oninput=fillTools;$('tool').onchange=pickTool;
-$('go').onclick=async()=>{let a={};try{a=JSON.parse($('args').value||'{}');}catch(e){$('out').textContent='The arguments are not valid JSON: '+e.message+'. Fix the text and call again.';return;}
- $('out').textContent=JSON.stringify(await call($('tool').value,a));};
+// Pick an area (robot, face, audio...), then an action, then fill in its values: each value gets a slider, a box, a switch or a list.
+const words=s=>s.replace(/_/g,' ');
+const area=t=>t.name.split('.')[1]||'other', action=t=>t.name.split('.').slice(2).join('.')||t.name;
+const FIRST=['robot','face','audio','timer','overlay','game','battery','motion'];
+// what a value means when its name says so: a range gives a slider, choices give a list, v is the starting value
+const HINT={yaw:{min:-128,max:128,v:0,unit:'degrees'},pitch:{min:3,max:87,v:10,unit:'degrees'},speed:{min:50,max:1000,v:300},level:{min:0,max:100,v:50,unit:'percent'},
+ seconds:{min:1,max:120,v:5,unit:'s'},duration_seconds:{min:1,max:3600,v:60,unit:'s'},hour:{min:0,max:23,v:7},minute:{min:0,max:59,v:0},x:{min:0,max:319,v:160},y:{min:0,max:239,v:120},
+ emotion:{choices:['neutral','happy','sad','angry','doubtful','surprised','sleepy','sleeping','love','content','thinking']},tired_level:{min:0,max:3,v:0}};
+const CHOICE={'self.robot.dance':{name:['happy','robot','panic','look_around']},'self.remote.action':{kind:['say','move','dance','find','photo','game','listen']}};
+function fillAreas(){const have=[...new Set(TOOLS.map(area))].sort((a,b)=>((FIRST.indexOf(a)+99)%99)-((FIRST.indexOf(b)+99)%99)||a.localeCompare(b));
+ $('dom').innerHTML='';have.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=words(a)+' ('+TOOLS.filter(t=>area(t)===a).length+')';$('dom').appendChild(o);});fillTools();}
+function fillTools(){const f=$('flt').value.toLowerCase().trim();$('tool').innerHTML='';
+ TOOLS.filter(t=>f?t.name.toLowerCase().includes(f):area(t)===$('dom').value).forEach(t=>{const o=document.createElement('option');o.value=t.name;o.textContent=(f?words(area(t))+': ':'')+words(action(t))+(t.user_only?'  (user only)':'');$('tool').appendChild(o);});pickTool();}
+function readFields(){const a={};document.querySelectorAll('#fields [data-arg]').forEach(el=>{const k=el.dataset.arg;
+  if(el.type==='checkbox')a[k]=el.checked;else if(el.value==='')return;else a[k]=el.dataset.kind==='integer'?Math.round(+el.value):el.value;});
+ $('args').value=JSON.stringify(a);return a;}
+function pickTool(){const t=TOOLS.find(x=>x.name===$('tool').value),box=$('fields');box.innerHTML='';if(!t){$('args').value='{}';return;}
+ if(t.name==='self.robot.set_led_colors'){   // 36 numbers behind one color box
+  const lab=document.createElement('label');lab.textContent='color';const el=document.createElement('input');el.type='color';el.value=$('ledc').value;
+  const note=document.createElement('span');note.className='t';note.style.fontSize='12px';note.textContent='all 12 lights';box.append(lab,el,note);
+  const put=()=>{$('args').value=JSON.stringify(ledArgs(el.value,'all'));};el.oninput=put;put();$('ut').textContent=t.name;return;}
+ for(const [k,kind] of Object.entries(t.args)){const h=Object.assign({},HINT[k],(CHOICE[t.name]||{})[k]?{choices:CHOICE[t.name][k]}:{});
+  const lab=document.createElement('label');lab.textContent=words(k);box.appendChild(lab);let el,extra=document.createElement('span');extra.className='t';extra.style.fontSize='12px';
+  if(kind==='boolean'){el=document.createElement('input');el.type='checkbox';}
+  else if(h.choices){el=document.createElement('select');h.choices.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=words(c);el.appendChild(o);});}
+  else if(kind==='integer'&&h.min!==undefined){el=document.createElement('input');el.type='range';el.min=h.min;el.max=h.max;el.value=h.v;
+   const n=document.createElement('input');n.type='number';n.min=h.min;n.max=h.max;n.value=h.v;n.title=h.unit||'';n.oninput=()=>{el.value=n.value;readFields();};el.addEventListener('input',()=>{n.value=el.value;});extra=n;}
+  else{el=document.createElement('input');el.type=kind==='integer'?'number':'text';el.placeholder=kind==='integer'?'number, empty to leave out':'text, empty to leave out';if(h.v!==undefined)el.value=h.v;}
+  el.dataset.arg=k;el.dataset.kind=kind;el.addEventListener('input',readFields);el.addEventListener('change',readFields);box.appendChild(el);box.appendChild(extra);}
+ if(!Object.keys(t.args).length){const n=document.createElement('span');n.className='t';n.style.gridColumn='1 / -1';n.style.fontSize='12px';n.textContent='This action needs no values.';box.appendChild(n);}
+ readFields();$('ut').textContent=t.user_only?'hidden from the model, answers by name':t.name;}
+// what a refusal code means, and what to do about it
+const WHY={no_session:'speech and moves from outside need a remote session first: use the Say box under Quick actions, or run remote: session with active on',
+ no_token:'this needs a one-use token: run remote: action first (the Say box does it for you)',bad_token:'the token is wrong or older than 15 seconds: get a new one from remote: action',
+ wrong_kind:'the token was given for a different kind of action',rate_limit:'too many requests in a short time: wait a few seconds',say_off:'speech from outside is switched off in the settings',busy:'the unit is busy: try again in a moment',too_long:'the text is too long: shorten it',empty:'the text is empty: type something'};
+const whyText=r=>WHY[r.reason]?WHY[r.reason]+' ('+r.reason+')':(r.text||r.error||r.reason||JSON.stringify(r));
+// Quick actions. The lights tool takes 36 numbers (led_0_red to led_11_blue); the color box fills them in.
+function ledArgs(hex,which){const c=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)),a={};
+ for(let i=0;i<12;i++){const on=which==='all'||(which==='left'?i<6:i>=6);['red','green','blue'].forEach((n,k)=>{a[`led_${i}_${n}`]=on?c[k]:0;});}return a;}
+async function lights(which){const hex=which==='off'?'#000000':$('ledc').value,r=await call('self.robot.set_led_colors',ledArgs(hex,which==='off'?'all':which));
+ $('qmsg').className=r.ok?'good':'bad';$('qmsg').textContent=r.ok?(which==='off'?'The lights are off.':'The lights are '+hex+' ('+(which==='all'?'both bars':which+' bar')+').'):'The lights did not change: '+whyText(r)+'.';}
+$('ledon').onclick=()=>lights('all');$('ledleft').onclick=()=>lights('left');$('ledright').onclick=()=>lights('right');$('ledoff').onclick=()=>lights('off');$('ledc').onchange=()=>lights('all');
+// Saying something from outside takes three steps on the unit: open a remote session, ask for a one-use token, then say. This button does all three.
+async function sayIt(){const text=$('sayt').value.trim(),q=$('qmsg');if(!text){q.className='bad';q.textContent='Type something for the robot to say first.';return;}
+ const fail=(step,r)=>{q.className='bad';q.textContent='Not said. The step "'+step+'" was refused: '+whyText(r)+'.';};
+ let r=await call('self.remote.session',{active:true,label:'panel'});if(r.ok===false||r.isError)return fail('open a remote session',r);
+ r=await call('self.remote.action',{kind:'say',text,seconds:10});if(r.ok===false||r.isError||!r.token)return fail('ask for a token',r);
+ r=await call('self.remote.say',{text,token:r.token});if(r.ok===false||r.isError)return fail('say',r);
+ q.className='good';q.textContent='Sent to the robot: "'+text+'". The virtual unit shows it and plays no sound; a real unit speaks it through its voice.';}
+$('saygo').onclick=sayIt;$('sayt').addEventListener('keydown',e=>{if(e.key==='Enter')sayIt();});
+$('flt').oninput=fillTools;$('dom').onchange=()=>{$('flt').value='';fillTools();};$('tool').onchange=pickTool;
+$('go').onclick=async()=>{let a={};const o=$('out');try{a=JSON.parse($('args').value||'{}');}catch(e){o.className='bad';o.textContent='The values are not valid JSON: '+e.message+'. Fix the text and press Do it again.';return;}
+ const r=await call($('tool').value,a),bad=r.ok===false||r.isError;o.className=bad?'bad':'good';
+ o.textContent=bad?'Refused: '+whyText(r)+'.':'Done. '+JSON.stringify(r);};
 $('play').onclick=async()=>{const r=await post('/scenario',{name:$('scen').value});if(r.isError)$('pl').textContent=r.text;};
-fetch('/tools').then(r=>r.json()).then(d=>{TOOLS=d.tools;TOUCH=d.touch;fillTools();if(!TOUCH)msg.textContent='Touch needs the screens renderer (build-screens.sh). The bare face is shown.';});
+fetch('/tools').then(r=>r.json()).then(d=>{TOOLS=d.tools;TOUCH=d.touch;fillAreas();if(!TOUCH)msg.textContent='Touch needs the screens renderer (build-screens.sh). The bare face is shown.';});
 function loadScenarios(){fetch('/scenarios').then(r=>r.json()).then(d=>{$('scen').innerHTML='';d.scenarios.forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;$('scen').appendChild(o);});});}
 loadScenarios();
 const G={up:{kind:'swipe',x:160,y:230,x2:160,y2:120,ms:250},down:{kind:'swipe',x:160,y:150,x2:160,y2:232,ms:250},left:{kind:'swipe',x:280,y:110,x2:40,y2:110,ms:200},right:{kind:'swipe',x:40,y:110,x2:280,y2:110,ms:200},stop:{kind:'swipe',x:160,y:2,x2:160,y2:150,ms:250}};
@@ -118,41 +178,61 @@ $('bpower').onclick=()=>hw('power',1);
 $('busb').onclick=()=>hw('usb',!(ST&&ST.hw.usb));
 $('bserial').onclick=()=>hw('serial',!(ST&&ST.hw.serial));
 $('bwifi').onclick=()=>hw('wifi',!(ST&&ST.hw.wifi));
-$('bat').oninput=e=>{$('batv').textContent=e.target.value;};
-$('bat').onchange=e=>hw('battery',+e.target.value);
+// Sliders: a slider belongs to the hand while it is held, and for a moment after, so the state poll never writes over a drag.
+// (Focus is not used for this: some browsers do not focus a slider on a click.) The value is sent while dragging and again on release.
+const held=new Set(),HOLD={};
+function slider(id,show,commit){const el=$(id);let last=0,timer=0;const down=()=>held.add(id);
+ el.addEventListener('pointerdown',down);el.addEventListener('mousedown',down);el.addEventListener('touchstart',down,{passive:true});
+ el.addEventListener('input',()=>{show(el.value);HOLD[id]={v:+el.value,until:performance.now()+2500};clearTimeout(timer);const now=performance.now();
+  if(now-last>400){last=now;commit(+el.value,false);}else timer=setTimeout(()=>{last=performance.now();commit(+el.value,false);},400);});
+ el.addEventListener('change',()=>{clearTimeout(timer);HOLD[id]={v:+el.value,until:performance.now()+2500};commit(+el.value,true);});}
+for(const ev of ['pointerup','pointercancel','mouseup','touchend','touchcancel'])addEventListener(ev,()=>held.clear(),true);
+addEventListener('blur',()=>held.clear());
+function follows(id,actual){if(held.has(id))return false;const h=HOLD[id];if(!h)return true;   // may the poll write this slider now?
+ if(Math.abs(actual-h.v)<=1||performance.now()>h.until){delete HOLD[id];return true;}return false;}
+function showSlider(id,v){$(id).value=v;$(id+'v').textContent=Math.round(v);}
+slider('bat',v=>{$('batv').textContent=v;},v=>hw('battery',v));
 $('carried').onchange=e=>hw('carried',e.target.checked);
 $('orient').onchange=e=>hw('orient',e.target.value);
-$('yaw').oninput=e=>{$('yawv').textContent=e.target.value;};
-$('pitch').oninput=e=>{$('pitchv').textContent=e.target.value;};
-async function aim(){const r=await call('self.robot.set_head_angles',{yaw:+$('yaw').value,pitch:+$('pitch').value,speed:300});$('limmsg').textContent=r.ok===false?(r.text||r.error||'refused'):'';}
-$('yaw').onchange=aim;$('pitch').onchange=aim;
-document.querySelectorAll('[data-look]').forEach(b=>b.onclick=async()=>{const [y,p]=b.dataset.look.split(',').map(Number);$('yaw').value=y;$('pitch').value=p;$('yawv').textContent=y;$('pitchv').textContent=p;aim();});
+// Every head move from this page (sliders, the look buttons, a drag on the head, the arrow keys) is the same tool call, so the unit's limiter decides.
+let aimSeq=0;
+async function aimHead(yaw,pitch,final){yaw=Math.round(yaw);pitch=Math.round(pitch);const seq=++aimSeq,until=performance.now()+2500;
+ if(!held.has('yaw')){showSlider('yaw',yaw);HOLD.yaw={v:yaw,until};}if(!held.has('pitch')){showSlider('pitch',pitch);HOLD.pitch={v:pitch,until};}
+ const r=await call('self.robot.set_head_angles',{yaw,pitch,speed:final?300:600});if(seq!==aimSeq)return r;
+ let t='';
+ if(r.ok===false||r.isError)t='The limiter refused the move: '+(r.text||r.error||'no reason given')+'.';
+ else if(r.yaw!==undefined&&(Math.abs(r.yaw-yaw)>0.5||Math.abs(r.pitch-pitch)>0.5))t=`The limiter held the head at yaw ${r.yaw}, pitch ${r.pitch} (asked for ${yaw}, ${pitch}).`;
+ $('limmsg').textContent=t;if(t){msg.textContent=t;delete HOLD.yaw;delete HOLD.pitch;}return r;}
+slider('yaw',v=>{$('yawv').textContent=v;},(v,final)=>aimHead(v,+$('pitch').value,final));
+slider('pitch',v=>{$('pitchv').textContent=v;},(v,final)=>aimHead(+$('yaw').value,v,final));
+document.querySelectorAll('[data-look]').forEach(b=>b.onclick=()=>{const [y,p]=b.dataset.look.split(',').map(Number);aimHead(y,p,true);});
 document.querySelectorAll('[data-dance]').forEach(b=>b.onclick=async()=>{const r=await call('self.robot.dance',{name:b.dataset.dance});$('limmsg').textContent=r.ok?'':(r.error||'refused');});
 $('dstop').onclick=()=>call('self.robot.stop_dance',{});
 function setBtn(id,label,on,off){const b=$(id);b.textContent=label;b.className=on===undefined?'':(on?'on':'off');}
+function startPoll(extra){setInterval(async()=>{try{const st=await (await fetch('/state')).json();if(extra)extra(st);paintBody(st);}catch(e){}},100);}   // the panel works with or without the 3D drawing
 function paintBody(st){ST=st;const h=st.hw,m=st.motion;
  setBtn('bpower',h.on?(h.booting?'Power: starting':'Power: on'):'Power: off',h.on);
  setBtn('busb',h.usb?'USB-C cable: plugged in':'USB-C cable: unplugged',h.usb);
  setBtn('bserial',h.serial?'USB serial: connected':'USB serial: not connected',h.serial);$('bserial').disabled=!h.usb;
  setBtn('bwifi',h.wifi?'Wi-Fi: on':'Wi-Fi: off',h.wifi);
- if(document.activeElement!==$('bat')){$('bat').value=h.battery;$('batv').textContent=h.battery;}
+ if(follows('bat',h.battery))showSlider('bat',h.battery);
  $('carried').checked=h.carried;$('orient').value=h.orient;
  $('hwv').innerHTML=`<span>Powered by</span><span>${h.on?h.powered_by:'nothing (off)'}</span><span>Charging</span><span>${h.charging?'yes':'no'}</span><span>Screen</span><span>${!h.on?'black':h.booting?'boot cover':h.sleeping_soon?'low battery, going to sleep':'running'}</span><span>Recent</span><span>${h.events.slice(-3).join('; ')||'-'}</span>`;
  $('yawr').textContent=st.yaw_range.join(' to ');$('pitchr').textContent=st.pitch_range.join(' to ');
  $('limv').innerHTML=`<span>Limiter state</span><span><b>${m.state}</b></span><span>Why</span><span>${m.reasons||'nothing limits it'}</span><span>Excursion</span><span>${m.scale} percent</span><span>Speed cap</span><span>${m.speed_cap} of 1000</span><span>Dances up to</span><span>step ${m.dance_max}</span><span>Dance now</span><span>${st.dance||'none'}</span>`;
  $('mvv').textContent=st.moves_last_minute;$('mvc').textContent=st.moves_cap;$('mvb').style.width=Math.min(100,100*st.moves_last_minute/st.moves_cap)+'%';
  $('hd').textContent=h.on?`head: yaw ${st.head.yaw}, pitch ${st.head.pitch}`:'unit is off';
- if(document.activeElement!==$('yaw')&&document.activeElement!==$('pitch')){$('yaw').value=st.head.yaw;$('pitch').value=st.head.pitch;$('yawv').textContent=Math.round(st.head.yaw);$('pitchv').textContent=Math.round(st.head.pitch);}}
+ if(follows('yaw',st.head.yaw))showSlider('yaw',st.head.yaw);if(follows('pitch',st.head.pitch))showSlider('pitch',st.head.pitch);}
 // ---- 3D robot (view3d.js)
-if(!window.THREE){msg.textContent='three.js did not load: the 3D drawing needs internet access to cdnjs.cloudflare.com; the flat screen is at /frame.png.';}
+if(!window.THREE){msg.textContent='three.js did not load: the 3D drawing needs internet access to cdnjs.cloudflare.com; the flat screen is at /frame.png.';startPoll();}
 else{
 const scriptEl=document.createElement('script');scriptEl.src='/view3d.js';scriptEl.onload=async()=>{
  let PH=null;
- const hooks={status:t=>{msg.textContent=t;},physicsOn:()=>!!PH,push:f=>PH&&PH.push(f),on:()=>ST?ST.hw.on:true,axesVisible:()=>$('axes').checked,insideOn:()=>$('inside').checked,motionOn:()=>$('motion').checked,demoDone:()=>{$('vdemo').textContent='Demo sweep';},
+ const hooks={status:t=>{msg.textContent=t;},physicsOn:()=>!!PH,push:f=>PH&&PH.push(f),on:()=>ST?ST.hw.on:true,axesVisible:()=>$('axes').checked,insideOn:()=>$('inside').checked,motionOn:()=>$('motion').checked,demoDone:()=>{$('vdemo').textContent='Demo sweep';},dragHead:()=>$('draghead').checked,aimHead,
   touch:async body=>{const res=await post('/touch',body);if(res.isError)msg.textContent=res.text;},
   togglePort:()=>hw('usb',!(ST&&ST.hw.usb)),togglePower:()=>hw('power',1),reset:()=>hw('reset',1),
   headTouch:async zone=>{const res=await post('/touch',{kind:'head',zone});msg.textContent=res.isError?res.text:'Touched the head, pad '+zone+'.';}};
- let rob;try{rob=await initRobot(THREE,$('c'),hooks);}catch(err){msg.textContent='The 3D model did not load: '+err.message+'. The flat screen is at /frame.png.';return;}
+ let rob;try{rob=await initRobot(THREE,$('c'),hooks);}catch(err){msg.textContent='The 3D model did not load: '+err.message+'. The flat screen is at /frame.png.';startPoll();return;}
  $('vreset').onclick=hooks.presets.reset;$('vfront').onclick=hooks.presets.front;$('vside').onclick=hooks.presets.side;$('vback').onclick=hooks.presets.back;$('vtop').onclick=hooks.presets.top;for(const [id,k] of [['vunder','under'],['vleft','left'],['vright','right'],['vup','up'],['vdown','down'],['vzin','zoomIn'],['vzout','zoomOut']])$(id).onclick=hooks.presets[k];$('vdemo').onclick=()=>{$('vdemo').textContent=rob.demo()?'Stop demo':'Demo sweep';};
 
  const phBtn=on=>['pnudge','pshake','plift','pdown','preset','pscen'].forEach(id=>$(id).disabled=!on);
@@ -174,7 +254,7 @@ const scriptEl=document.createElement('script');scriptEl.src='/view3d.js';script
  $('pscen').onclick=async()=>{$('pscen').disabled=true;const res=await window.physicsDryRun(PH,o=>{$('pscenout').innerHTML=o.map(x=>`<div class="${x.ok?'good':'bad'}">${x.ok?'pass':'FAIL'}: ${x.name} <span class="t">(${x.detail})</span></div>`).join('');});window.PHYS_RESULT=res;$('pscen').disabled=false;};
  $('pnudge').onclick=()=>PH&&PH.nudge();$('pshake').onclick=()=>PH&&PH.shake();$('plift').onclick=()=>PH&&PH.lift();$('pdown').onclick=()=>PH&&PH.putDown();$('preset').onclick=()=>PH&&PH.reset();
  window.ROBOT=rob;
- setInterval(async()=>{try{const st=await (await fetch('/state')).json();rob.update(st);paintBody(st);if(PH)PH.setReference(st.head,st.hw.on);}catch(e){}},100);
+ startPoll(st=>{rob.update(st);if(PH)PH.setReference(st.head,st.hw.on);});
  (function loop(){rob.frame();rob.render();requestAnimationFrame(loop);})();};
 document.body.appendChild(scriptEl);}
 </script></body></html>

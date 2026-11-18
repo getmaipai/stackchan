@@ -93,6 +93,8 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('sticker_dark', (0.06, 0.06, 0.065, 1.0), 0.0, 0.7, None),
     ('sticker_orange', (0.75, 0.13, 0.02, 1.0), 0.0, 0.7, None),
     ('sticker_gray', (0.45, 0.45, 0.46, 1.0), 0.0, 0.7, None),
+    ('emboss', (0.60, 0.60, 0.60, 1.0), 0.0, 0.6, None),
+    ('pin_gold', (0.80, 0.58, 0.18, 1.0), 0.9, 0.3, None),
 ]
 LIGHT_OFF = (0.42, 0.70, 0.72, 1.0)
 LIGHTS = 12
@@ -307,6 +309,8 @@ STROKES = {  # letter: (advance, strokes) in a box one capital high; the product
     'n': (0.6, [[(0.05, 0.68), (0.05, 0.0)], _ARCH]),
     'E': (0.7, [arc(0.42, 0.5, 0.42, 0.5, 52, 308, 14), [(0.1, 0.5), (0.55, 0.5)]]),
     'o': (0.7, [arc(0.3, 0.5, 0.3, 0.3, 0, 360, 14)]),
+    'M': (1.1, [[(0.05, 0.0), (0.05, 1.0), (0.52, 0.25), (1.0, 1.0), (1.0, 0.0)]]),
+    '5': (0.75, [[(0.62, 1.0), (0.1, 1.0), (0.06, 0.55), (0.34, 0.62), (0.56, 0.52), (0.64, 0.3), (0.54, 0.08), (0.32, 0.0), (0.06, 0.1)]]),
 }
 
 
@@ -516,11 +520,18 @@ def assemble():
         prints += flat(side, [(top - 38.6 - 2.0 * k, face - 4.6), (top - 39.5 - 2.0 * k, face - 4.6), (top - 39.5 - 2.0 * k, face - 4.2), (top - 38.6 - 2.0 * k, face - 4.2)], 0.02)
     otg_in = moved(rounded_outline(8.6, 2.7, 1.34), otg_c[1], otg_c[2])
     otg = {'port_metal': band(side, otg_hole, otg_in, -0.15) + tube(side, otg_hole, 0.0, -0.15) + tube(side, otg_in, -0.15, -5.5), 'port': flat(side, otg_in, -5.5),
-           'tongue': slab(side, otg_c[1] - 3.3, otg_c[1] + 3.3, otg_c[2] - 0.35, otg_c[2] + 0.35, -5.5, -1.2)}
-    port_a = {'port_red': tube(side, a_hole, 0.0, -0.25) + band(side, a_hole, a_room, -0.25) + tube(side, a_room, -0.25, -5.0) + flat(side, a_room, -5.0), 'port_metal': []}
-    for k in range(4):
+           'tongue': slab(side, otg_c[1] - 3.3, otg_c[1] + 3.3, otg_c[2] - 0.35, otg_c[2] + 0.35, -5.5, -1.2),
+           'pin_gold': []}
+    for k in range(8):                                        # the row of contacts on each face of the tongue
+        u = otg_c[1] - 2.45 + 0.7 * k
+        for sv in (-1, 1):
+            otg['pin_gold'] += slab(side, u - 0.2, u + 0.2, otg_c[2] + sv * 0.35, otg_c[2] + sv * 0.41, -4.8, -1.5)
+    port_a = {'port_red': tube(side, a_hole, 0.0, -0.25) + band(side, a_hole, a_room, -0.25) + tube(side, a_room, -0.25, -5.0) + flat(side, a_room, -5.0), 'pin_gold': []}
+    for k in range(4):                                        # four square pins standing in the socket
         u = port_a_c[1] - 3.0 + 2.0 * k
-        port_a['port_metal'] += slab(side, u - 0.3, u + 0.3, port_a_c[2] - 0.3, port_a_c[2] + 0.3, -5.0, -1.6)
+        port_a['pin_gold'] += slab(side, u - 0.3, u + 0.3, port_a_c[2] - 0.3, port_a_c[2] + 0.3, -5.0, -1.6)
+    for du in (-2.6, 2.6):                                    # the two plastic keys on the socket's back wall
+        port_a['port_red'] += slab(side, port_a_c[1] + du - 0.5, port_a_c[1] + du + 0.5, port_a_c[2] - 1.85, port_a_c[2] - 1.25, -5.0, -0.25)
 
     # ---- under the controller: card slot, light hole, two short slots and the reset button (places from the underside photo, as shares of the depth)
     def below(u, v, c):                                       # u toward the robot's left, v toward the front, c down
@@ -538,10 +549,17 @@ def assemble():
         geo['head']['port'] += tube(below, s, 0.0, -1.5) + flat(below, s, -1.5)
     geo['head']['port'] += tube(below, reset_well, 0.0, -0.8) + flat(below, reset_well, -0.8)
     sd_tris = tube(below, sd_hole, 0.0, -3.0) + flat(below, sd_hole, -3.0)
+    sd_pins = []                                              # the row of card contacts inside the slot
+    for k in range(8):
+        sd_pins += slab(below, sd_c[0] - 3.85 + 1.1 * k, sd_c[0] - 3.35 + 1.1 * k, sd_c[2] + 0.45, sd_c[2] + 0.6, -2.8, -1.2)
     reset_cap = moved(rounded_outline(7.6, 5.4, 2.6), reset_c[0], reset_c[2])
     reset_tris = tube(below, reset_cap, -0.8, 0.3) + flat(below, reset_cap, 0.3)
     led_bottom_tris = flat(below, moved(circle(0.5, 12), led_bottom_c[0], led_bottom_c[2]), 0.02)
     prints += band(below, moved(circle(0.95, 16), 20.9, face - 6.6), moved(circle(0.7, 16), 20.9, face - 6.6), 0.02)   # the restart mark beside the button
+    quads, length = lettering('M5', 6.0, 0.8)                  # the raised two-character mark on the speaker side, under the grille (side photo)
+    geo['head']['emboss'] = []
+    for quad in quads:
+        geo['head']['emboss'] += flat(lambda u, v, c: (27.0 + c, u, v), [(top - 49.0 + a, face - 9.4 + b) for a, b in quad], 0.03)
     geo['head']['core'] = core
     geo['head']['print'] = prints
 
@@ -553,9 +571,11 @@ def assemble():
         room = moved(rounded_outline(8.6, 3.4, 0.2), sx, front - 3.3)
         geo['head'].setdefault(material, [])
         geo['head'][material] += band(above, outer, room, 0.0) + tube(above, room, 0.0, -2.0) + flat(above, room, -2.0) + tube(above, outer, 0.0, -1.5)
+        for du in (-2.6, 2.6):                                # the two plastic keys on the back wall
+            geo['head'][material] += slab(above, sx + du - 0.5, sx + du + 0.5, front - 5.0, front - 4.4, -2.0, 0.0)
         for k in range(4):
-            geo['head'].setdefault('port_metal', [])
-            geo['head']['port_metal'] += slab(above, sx - 3.3 + 2.0 * k, sx - 2.7 + 2.0 * k, front - 3.6, front - 3.0, -2.0, -0.6)
+            geo['head'].setdefault('pin_gold', [])
+            geo['head']['pin_gold'] += slab(above, sx - 3.3 + 2.0 * k, sx - 2.7 + 2.0 * k, front - 3.6, front - 3.0, -2.0, -0.6)
     geo['head']['port'] += slab(above, -2.2, 2.2, front - 7.6, front - 0.4, -2.2, -2.0)   # dark behind the two small windows between the connectors
 
     # ---- the dark shapes between the three round side openings (through the shell wall; black in the photos)
@@ -701,6 +721,10 @@ def assemble():
     for sx in (-19.5, 19.5):                                     # the two dark strips under the base (underside photo)
         geo['base'].setdefault('port', [])
         geo['base']['port'] += box((sx, 0.075, mid + 2.7), (4.0, 0.15, 33.6))
+    quads, length = lettering('M5', 3.8, 0.6)                    # the same mark raised on the plate, behind the label (underside photo)
+    geo['base'].setdefault('servo', [])
+    for quad in quads:
+        geo['base']['servo'] += flat(lambda u, v, c: (u, 0.135, v), [(-length / 2 + a, mid - 23.4 + b) for a, b in quad])
     base = g.node('base', root, mesh=g.mesh('base', prims('base')))
     base_bottom = -32.6 - BASE_DROP - TABLE_Z
     usb_c = (0.0, -24.65 - BASE_DROP - TABLE_Z, -(-296.58 - YAW_Y) + 0.8)
@@ -710,9 +734,12 @@ def assemble():
     shell_o, shell_i = rounded_outline(8.9, 3.2, 1.58), rounded_outline(8.3, 2.6, 1.28)
     usb = {'port': slab(back, -6.0, 6.0, 5.96 - usb_c[1], 10.95 - usb_c[1], -1.3, -1.1) + flat(back, shell_i, -5.0),   # dark round the socket and at its end
            'port_metal': band(back, shell_o, shell_i, 0.0) + tube(back, shell_o, 0.0, -1.1) + tube(back, shell_i, 0.0, -5.0),
-           'tongue': slab(back, -3.3, 3.3, -0.35, 0.35, -5.0, -0.9)}
+           'tongue': slab(back, -3.3, 3.3, -0.35, 0.35, -5.0, -0.9), 'pin_gold': []}
+    for k in range(8):                                           # the row of contacts on each face of the tongue
+        for sv in (-1, 1):
+            usb['pin_gold'] += slab(back, -2.65 + 0.7 * k, -2.25 + 0.7 * k, sv * 0.35, sv * 0.41, -4.4, -1.2)
     g.node('usb_c_port', base, usb_c, g.mesh('usb_c_port', many(usb, usb_c)),
-           {'what': 'USB-C for charging and data on the back of the base: an open socket with its tongue', 'opening': {'size': [mm(8.3), mm(2.6)], 'depth': mm(5.0)}})
+           {'what': 'USB-C for charging and data on the back of the base: an open socket with its tongue and contacts', 'opening': {'size': [mm(8.3), mm(2.6)], 'depth': mm(5.0)}})
     for i, (fx, fz) in enumerate([(-16.0, 24.0), (16.0, 24.0), (16.0, -24.0), (-16.0, -24.0)]):
         g.node('foot_%d' % i, base, (fx, base_bottom, mid + fz),
                extras={'what': 'corner mounting hole on the base underside (the base has no separate feet; the bottom plate rests on the table)'})
@@ -811,7 +838,7 @@ def assemble():
                {'what': 'screw that holds the controller mount to the shell', 'basis': 'measured', 'note': 'hole from the shell file; the head is a stand-in'})
     g.node('reset_button', head, sub(reset_c, PITCH_O), g.mesh('reset_button', [g.primitive(reset_tris, reset_c, 'button')]),
            {'what': "reset button under the controller, beside the card slot: a white key in a dark gap; a press restarts the unit, a 3 second hold enters download mode", 'size': [mm(7.6), mm(5.4)]})
-    g.node('sd_slot', head, sub(sd_c, PITCH_O), g.mesh('sd_slot', [g.primitive(sd_tris, sd_c, 'port')]),
+    g.node('sd_slot', head, sub(sd_c, PITCH_O), g.mesh('sd_slot', [g.primitive(sd_tris, sd_c, 'port'), g.primitive(sd_pins, sd_c, 'pin_gold')]),
            {'what': 'card slot under the controller: an open slot', 'opening': {'size': [mm(12.9), mm(1.3)], 'depth': mm(3.0)}})
     g.node('screen_bottom_led', head, sub(led_bottom_c, PITCH_O), g.mesh('screen_bottom_led', [g.primitive(led_bottom_tris, led_bottom_c, 'led_bottom')]),
            {'what': 'small light hole under the controller, between the card slot and the reset button; green in download mode (product picture); the firmware does not drive it', 'basis': 'assumed'})
