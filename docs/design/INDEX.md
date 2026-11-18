@@ -16,7 +16,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `CLAUDE.md` (1): no header
 - `LICENSE` (664): no header
 - `NOTICE` (30): no header
-- `README.md` (32): MaiPai for StackChan
+- `README.md` (40): MaiPai for StackChan
 - `THIRD-PARTY.md` (49): Third-party notices
 - `docs-site/.gitignore` (1): no header
 - `docs-site/EXCLUDED.md` (12): What the docs site does not publish
@@ -147,7 +147,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1096): Feature ledger
+- `docs/dev/feature-ledger.md` (1097): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -212,7 +212,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/game-sounds/win_fanfare.wav` (76): no header
 - `docs/dev/gate-numbers.md` (29): Gate numbers (2026-11-18)
 - `docs/dev/head-fit-before-servo-fix.svg` (91): no header
-- `docs/dev/head-recording.md` (31): Recording head moves on the unit (for the physics calibration)
+- `docs/dev/head-recording.md` (33): Recording head moves on the unit (for the physics calibration)
 - `docs/dev/head-speed-real-time-clock.md` (7): Head moves are about twice as fast as before (2026-11-18)
 - `docs/dev/heap-map-b47.md` (54): The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 
 - `docs/dev/host-and-brains.md` (44): Host and brains
@@ -222,7 +222,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
 - `docs/dev/model-previews/joints.gif` (1486): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
-- `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
+- `docs/dev/overview.md` (50): How MaiPai for StackChan fits together
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
@@ -312,7 +312,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/images/game-memory.svg` (1): no header
 - `docs/images/game-whack.svg` (1): no header
 - `docs/images/hero-playground.gif` (6264): Binary file docs/images/hero-playground.gif matches
-- `docs/images/hero-robot.gif` (938): Binary file docs/images/hero-robot.gif matches
+- `docs/images/hero-robot.gif` (602): no header
 - `docs/images/hero.svg` (1): no header
 - `docs/images/light-alert.svg` (1): no header
 - `docs/images/light-amber.svg` (1): no header
@@ -449,55 +449,55 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
 - `docs/user/about.md` (28): About and legal
 - `docs/user/bench-listening.md` (5): Listen longer on the bench (developers)
-- `docs/user/camera.md` (78): Use the camera
-- `docs/user/character-packs.md` (17): Character packs
+- `docs/user/camera.md` (84): Use the camera
+- `docs/user/character-packs.md` (19): Character packs
 - `docs/user/choose-a-brain.md` (27): Choose a brain
-- `docs/user/coding-companion.md` (35): Use the robot as a coding companion (optional package)
+- `docs/user/coding-companion.md` (37): Use the robot as a coding companion (optional package)
 - `docs/user/compare.md` (71): Compare MaiPai for StackChan
-- `docs/user/face-and-look.md` (117): Change how the robot looks
+- `docs/user/face-and-look.md` (129): Change how the robot looks
 - `docs/user/faq.md` (50): Questions people ask
-- `docs/user/features.md` (164): What the robot can do
-- `docs/user/find-and-remote.md` (73): Find the robot and control it remotely
-- `docs/user/games-and-pet.md` (101): Play games and care for your pet
-- `docs/user/getting-started.md` (66): Getting started with MaiPai for StackChan
+- `docs/user/features.md` (166): What the robot can do
+- `docs/user/find-and-remote.md` (77): Find the robot and control it remotely
+- `docs/user/games-and-pet.md` (117): Play games and care for your pet
+- `docs/user/getting-started.md` (82): Getting started with MaiPai for StackChan
 - `docs/user/glossary.md` (21): Glossary
 - `docs/user/hardware-and-models.md` (58): Pick hardware and a model
-- `docs/user/home-assistant.md` (20): Home Assistant (optional package)
-- `docs/user/home-tools.md` (35): Connect the robot to your own tools
+- `docs/user/home-assistant.md` (22): Home Assistant (optional package)
+- `docs/user/home-tools.md` (37): Connect the robot to your own tools
 - `docs/user/index.md` (61): MaiPai for StackChan: user guide
-- `docs/user/install-the-host.md` (48): Install, update and remove the host
+- `docs/user/install-the-host.md` (50): Install, update and remove the host
 - `docs/user/languages.md` (26): Switch the language
 - `docs/user/lights-and-sounds.md` (62): Lights and sounds
 - `docs/user/local-stack.md` (30): Install the small stack
 - `docs/user/local-vs-home.md` (52): What you get with your own model and with MaiPai Home
-- `docs/user/lock.md` (30): Lock the robot with a code
-- `docs/user/memory-notes.md` (30): Memory notes (optional package)
-- `docs/user/moves-and-moods.md` (85): How the robot reacts
-- `docs/user/music-and-dance.md` (35): Music and dance
-- `docs/user/mute-and-camera-off.md` (62): Mute, turn off the camera, or go fully quiet
+- `docs/user/lock.md` (36): Lock the robot with a code
+- `docs/user/memory-notes.md` (32): Memory notes (optional package)
+- `docs/user/moves-and-moods.md` (91): How the robot reacts
+- `docs/user/music-and-dance.md` (39): Music and dance
+- `docs/user/mute-and-camera-off.md` (68): Mute, turn off the camera, or go fully quiet
 - `docs/user/no-stealth.md` (18): The robot never monitors in secret
-- `docs/user/parent-view.md` (37): Check on the robot from your phone
+- `docs/user/parent-view.md` (39): Check on the robot from your phone
 - `docs/user/privacy.md` (64): What stays private
 - `docs/user/release-notes.md` (45): Release notes
 - `docs/user/run-as-a-service.md` (31): Keep the host running
-- `docs/user/security.md` (59): Keep the robot secure
-- `docs/user/settings.md` (91): Change a setting
+- `docs/user/security.md` (61): Keep the robot secure
+- `docs/user/settings.md` (95): Change a setting
 - `docs/user/status-and-health.md` (30): See what is running
-- `docs/user/swipe-pages.md` (81): Swipe pages and the control sheet
+- `docs/user/swipe-pages.md` (97): Swipe pages and the control sheet
 - `docs/user/switch-from-the-factory-firmware.md` (40): Switch from the factory firmware, or go back
-- `docs/user/timers-and-alarms.md` (51): Set a timer or alarm
+- `docs/user/timers-and-alarms.md` (57): Set a timer or alarm
 - `docs/user/troubleshooting.md` (41): Troubleshooting
 - `docs/user/try-the-virtual-robot.md` (30): Try the virtual robot
-- `docs/user/updates.md` (58): Update the robot
-- `docs/user/use-it-anywhere.md` (32): Use the robot away from home
+- `docs/user/updates.md` (66): Update the robot
+- `docs/user/use-it-anywhere.md` (34): Use the robot away from home
 - `docs/user/use-your-own-stack.md` (13): Use your own stack
-- `docs/user/voice.md` (83): Talk to the robot
-- `docs/user/wake-word-maker.md` (20): Make your own wake word (optional)
-- `docs/user/watch-and-alerts.md` (75): Watch your room and get alerts
+- `docs/user/voice.md` (87): Talk to the robot
+- `docs/user/wake-word-maker.md` (22): Make your own wake word (optional)
+- `docs/user/watch-and-alerts.md` (79): Watch your room and get alerts
 - `docs/user/watch-the-room.md` (52): Watch the room
-- `docs/user/web-flasher.md` (18): Flash the robot from a web page
+- `docs/user/web-flasher.md` (20): Flash the robot from a web page
 - `docs/user/which-setup.md` (48): Which setup is right for me?
-- `docs/user/with-maipai-home.md` (57): Use MaiPai Home as the brain
+- `docs/user/with-maipai-home.md` (61): Use MaiPai Home as the brain
 - `firmware/.gitkeep` (0): no header
 - `firmware/BASE` (5): The pinned upstream bases that firmware/patches/ORDER applies onto (read by scripts/fw-rebuild.sh).
 - `firmware/configs/sdkconfig.aec.defaults` (4): Talk over the robot (patches SF15 and SF29): microphone 1 plus the speaker loopback, the echo canceller on the
@@ -2546,8 +2546,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
 - `scripts/camera-sweep-table.py` (64): turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the o
+- `scripts/captions-check.py` (25): every image in README.md, docs/user, docs/playground and docs/dev has a visible caption: a standalone image is
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
-- `scripts/check.sh` (38): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (39): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/choices-check.py` (44): Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
@@ -2569,6 +2570,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/build.sh` (37): draw the real face (LVGL and the unit's own face classes) into memory on this Mac, so a look can be judged and
 - `scripts/fw-face-render/games_render.cc` (244): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
+- `scripts/fw-face-render/grid_render.cc` (182): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
 - `scripts/fw-face-render/hooks_banner.cc` (319): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
 - `scripts/fw-face-render/hooks_new.cc` (57): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
@@ -2612,7 +2614,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/leak-sweep.sh` (37): before the repo goes public, no tracked file carries labels or wording from the private reviews.
 - `scripts/ledger_decisions.py` (121): Decisions and scrapped features for the feature ledger (scripts/feature-ledger.py). Reads docs/design/decision
 - `scripts/ledger_memory.py` (82): The Memory column of the feature ledger (owner decision 15): each feature row that loads something names the d
-- `scripts/ledger_render.py` (192): Rendering for the feature ledger: the markdown page and the one self-contained HTML page (data embedded as JSO
+- `scripts/ledger_render.py` (193): Rendering for the feature ledger: the markdown page and the one self-contained HTML page (data embedded as JSO
 - `scripts/ledger_rules.py` (118): The rules of the feature ledger: how a row's status and percent are worked out from evidence the repository ho
 - `scripts/ledger_sources.py` (215): Miners for the feature ledger (scripts/feature-ledger.py): everything here only reads the repository and retur
 - `scripts/license-check.py` (52): licenses stay honest. (1) every host dependency in host/pyproject.toml is named in THIRD-PARTY.md; (2) LICENSE
@@ -2623,7 +2625,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/make-doc-screenshots.py` (141): make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, ne
 - `scripts/make-game-sounds.py` (286): Game sounds, synthesized from nothing: short tones, clacks and noise bursts with attack-decay-sustain-release 
 - `scripts/make-hero-playground-gif.mjs` (74): Make docs/images/hero-playground.gif: a scripted screen recording of the playground (view.py: 3D model, the un
-- `scripts/make-hero-robot-gif.py` (67): Make docs/images/hero-robot.gif from the virtual unit: the unit's own screen renderer, scripted and reproducib
+- `scripts/make-hero-robot-gif.py` (80): Make docs/images/hero-robot.gif from the virtual unit: the unit's own screen renderer, scripted and reproducib
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
 - `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.
 - `scripts/make-update-vectors.py` (92): write the signed-update test vectors (host/tests/fixtures/update-signature-vectors.json) from a fixed TEST see
@@ -2656,7 +2658,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/assets_sim.py` (282): The installed set in the virtual unit (owner decision 17; docs/plan/installed-set.md B1 to B5): slots per kind
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
 - `scripts/virtual-unit/build-face.sh` (20): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
-- `scripts/virtual-unit/build-screens.sh` (31): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
+- `scripts/virtual-unit/build-screens.sh` (36): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
@@ -2673,6 +2675,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
 - `scripts/virtual-unit/gitify.py` (28): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
+- `scripts/virtual-unit/grid_gen.py` (36): Cut the unit's own grid-game drawing out of maipai_grid.cc (the Grid struct, the draw callbacks, build and red
 - `scripts/virtual-unit/host_away.py` (108): What the unit does while its host is away (firmware patches 143 and SF49): the Offline label after 45 s withou
 - `scripts/virtual-unit/hw.py` (308): The virtual unit's body: power button, the two USB-C ports, Wi-Fi, battery, carried and orientation, and what 
 - `scripts/virtual-unit/link_shim.c` (37): The unit's own link key schedule (maipai_linkkey_core.h, patch SF20) on the command line, so a simulated unit 
@@ -2715,7 +2718,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
-- `scripts/virtual-unit/scenarios.py` (281): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (293): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/talk.js` (44): The Talk panel of the virtual unit view: microphone and speaker switches, level meters, the transcript, the la
