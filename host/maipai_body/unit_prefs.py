@@ -53,6 +53,8 @@ PREFS: dict[str, tuple[str, Any, Any, bool]] = {
     # The banner row shows the heard, listening and thinking states as an icon and a word (firmware patch UI04). Off by default: the
     # sound and the light of the listening cues (listen_sound, listen_light) still signal the same states.
     "status_icons": ("bool", None, False, True),
+    # The offline mumble (firmware patch SF87): a caption sentence with no voice is mumbled by the unit when this is on. Off by default.
+    "mumble": ("bool", None, False, True),
 }
 
 FACE_OWNERS = ("robot", "hub", "off")  # who turns toward faces: this robot (default), the Home hub, nobody

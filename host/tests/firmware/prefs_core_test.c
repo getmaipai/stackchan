@@ -21,7 +21,7 @@ static void test_table(void)
     const char* host[] = {"emotion_faces", "overlays_enabled", "filler_mode", "filler_wait_s", "listen_sound", "listen_light",
                           "listen_light_colour", "listen_face", "fx_crt", "fx_colour_mode", "fx_night_dim", "fx_glow",
                           "speech_bubble", "thinking_dots", "captions_mode", "top_bar", "turn_to_faces"};
-    CHECK(MP_COUNT == 19); /* the host's 17 (patch N01 added captions_mode and top_bar, patch S11 turn_to_faces) and pickup_reaction, which the pickup patch reads, and status_icons (patch UI04) */
+    CHECK(MP_COUNT == 20); /* the host's 17 (patch N01 added captions_mode and top_bar, patch S11 turn_to_faces) and pickup_reaction, which the pickup patch reads, and status_icons (patch UI04) */
     CHECK(strcmp(MP_DEFS[MP_CAPTIONS_MODE].key, "captions_mode") == 0 && MP_DEFS[MP_CAPTIONS_MODE].unit == 1 && MP_DEFS[MP_CAPTIONS_MODE].def == 0);
     CHECK(strcmp(MP_DEFS[MP_TOP_BAR].key, "top_bar") == 0 && MP_DEFS[MP_TOP_BAR].unit == 1 && MP_DEFS[MP_TOP_BAR].def == 0);
     CHECK(strcmp(MP_DEFS[MP_TURN_TO_FACES].key, "turn_to_faces") == 0 && MP_DEFS[MP_TURN_TO_FACES].unit == 1 && MP_DEFS[MP_TURN_TO_FACES].def == 2 && strlen(MP_DEFS[MP_TURN_TO_FACES].nvs) <= 15);

@@ -1,0 +1,478 @@
+# Intent: The offline mumble, device side (owner decision 24; core UX16, spec docs/design/offline-mumble.md). A caption sentence the host sends with "mumble": true (it has no voice for it) is mumbled when the setting mumble is on (default off), captions are on and the sound policy allows: one code-made note per character timed to the caption, rendered 200 ms at a time into the audio queue at the chime level, with the face's mouth following the note that sounds. Mute, sounds off and quiet hours silence the sound only; the mouth still moves. It ends at once on the wake word, the stop word or an abort, and a new sentence replaces it. The unit announces the feature in its hello (features.mumble) so the host sends the flag only to units that have it.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_mumble.cc, maipai_mumble_render_core.h (ours); small hooks in application.cc, websocket_protocol.cc, maipai_facefx.cc, maipai_tbprefs
+# Check after a flash: set the pref mumble to true, turn captions on, send a tts sentence_start with text and "mumble": true while no audio plays: notes sound in step with the words, the mouth moves with them and closes at the end, the log shows "MAIPAI-MUMBLE: start" then "end"; with mute on the mouth moves and nothing sounds; the wake word ends it; with the pref off nothing happens. Read the mouth against the sound to set kLatencyMs (120 ms is an estimate). Plain boot memory gate unchanged.
+# Kconfig: MAIPAI_OFFLINE_MUMBLE (default y)
+# Memory cost: while it plays: a 12.8 KB buffer and at most 401 bytes of text in PSRAM, freed when it ends; internal RAM about 250 bytes of state while idle (one mm_t, a 12-note ring, a mutex, an esp_timer created on first use); flash about 3 KB (estimate). Nothing is held while no mumble plays.
+
+diff --git a/firmware/main/hal/maipai_tbprefs.h b/firmware/main/hal/maipai_tbprefs.h
+--- a/firmware/main/hal/maipai_tbprefs.h
++++ b/firmware/main/hal/maipai_tbprefs.h
+@@ -23,6 +23,7 @@ struct MaipaiTbPrefs {
+     tl_prefs_t listen;
+     tf_prefs_t filler;
+     uint8_t pickup;
++    uint8_t mumble;         // patch SF87: the offline mumble (key mumble), off by default
+     uint8_t turn_to_faces;  // patch S12: 0 off, 1 talk, 2 always (default since patch NX06; key turn_to_faces)
+ };
+ 
+diff --git a/firmware/main/hal/maipai_tbprefs.cc b/firmware/main/hal/maipai_tbprefs.cc
+--- a/firmware/main/hal/maipai_tbprefs.cc
++++ b/firmware/main/hal/maipai_tbprefs.cc
+@@ -62,6 +62,7 @@ void load(MaipaiTbPrefs* out)
+     tl_prefs_default(&out->listen);
+     tf_prefs_default(&out->filler);
+     out->pickup = 1;
++    out->mumble = 0;
+     out->turn_to_faces = 2;  // patch NX06: "always" is the default
+     Settings st(MAIPAI_PREFS_NAMESPACE, false);
+     std::string s = read_text(st, "listen_sound");
+@@ -88,6 +89,7 @@ void load(MaipaiTbPrefs* out)
+     if (s == "off") out->pickup = 0;
+     else if (s == "face") out->pickup = 1;
+     else if (s == "face_sound") out->pickup = 2;
++    read_bool(st, "mumble", &out->mumble);  // patch SF87
+     s = read_text(st, "turn_to_faces");  // patch S12
+     if (s == "off") out->turn_to_faces = 0;
+     else if (s == "talk") out->turn_to_faces = 1;
+diff --git a/firmware/main/hal/maipai_prefs_core.h b/firmware/main/hal/maipai_prefs_core.h
+--- a/firmware/main/hal/maipai_prefs_core.h
++++ b/firmware/main/hal/maipai_prefs_core.h
+@@ -49,6 +49,7 @@ enum {
+     MP_TOP_BAR,         /* patch N01: hidden (default) or always show battery and Wi-Fi in the top row */
+     MP_TURN_TO_FACES,   /* patch S11: off, talk (after the wake word) or always (patch NX06: the default); read by the seeker (hal/maipai_seek_core.h) */
+     MP_STATUS_ICONS,    /* patch UI04: the banner row shows the heard, listening and thinking states as an icon and a word; off by default */
++    MP_MUMBLE,          /* patch SF87: the offline mumble (a caption with no voice is mumbled); off by default */
+     MP_PICKUP_REACTION, /* not in the host's table yet: the pickup patch reads it (off, face, face_sound) */
+     MP_COUNT
+ };
+@@ -94,6 +95,7 @@ static const mp_def_t MP_DEFS[MP_COUNT] = {
+     {"top_bar", "top_bar", MP_ENUM, 0, 1, 0, 1, MP_NAMES_TOPBAR},
+     {"turn_to_faces", "turn_to_faces", MP_ENUM, 0, 2, 2, 1, MP_NAMES_TURN}, /* patch NX06: the default is "always" (was "talk") */
+     {"status_icons", "status_icons", MP_BOOL, 0, 1, 0, 1, NULL},
++    {"mumble", "mumble", MP_BOOL, 0, 1, 0, 1, NULL},
+     {"pickup_reaction", "pickup_reaction", MP_ENUM, 0, 2, 1, 0, MP_NAMES_PICKUP},
+ };
+ 
+diff --git a/firmware/main/hal/maipai_facefx.cc b/firmware/main/hal/maipai_facefx.cc
+--- a/firmware/main/hal/maipai_facefx.cc
++++ b/firmware/main/hal/maipai_facefx.cc
+@@ -11,6 +11,7 @@
+ #include "maipai_facefx.h"
+ #include "maipai_facefx_core.h"
+ #include "maipai_mouthcue_core.h"
++#include "maipai_mumble.h"
+ #include <esp_timer.h>
+ #include <esp_heap_caps.h>
+ #include <atomic>
+@@ -64,6 +65,9 @@ void maipai_speech_set_active(bool on)
+ 
+ bool maipai_speech_level(int* level)
+ {
++    if (maipai_mumble_level(level)) {
++        return true;  // patch SF87: the offline mumble drives the mouth (no voice is playing)
++    }
+     if (!s_active.load(std::memory_order_relaxed)) {
+         return false;
+     }
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -150,6 +150,16 @@ config MAIPAI_FACE_CLOCK
+         with no host once the time is set, never covers a mute, vision-off or quiet look or a ringing
+         timer, and any touch ends it. Off here: none of it is compiled.
+ 
++config MAIPAI_OFFLINE_MUMBLE
++    bool "Offline mumble (patch SF87)"
++    default y
++    help
++        With no voice for a caption (offline, or the speech service away) the unit can mumble it: one short
++        code-made note for every character, timed to the caption, with the mouth following. Off by default
++        in the settings (key mumble); the host sends "mumble": true on a caption sentence that has no voice.
++        Cost: about 3 KB of flash; while it plays a 13 KB PSRAM buffer and a 400 byte text copy, freed after;
++        no internal RAM beyond about 250 bytes of state.
++
+ config MAIPAI_FACE_THINKING
+     bool "Thinking cue (animated dots and a quiet tone)"
+     default y
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -532,6 +532,9 @@ std::string WebsocketProtocol::GetHelloMessage() {
+     cJSON_AddBoolToObject(features, "mcp", true);
+ #if CONFIG_MAIPAI_FACE_THINKING
+     cJSON_AddBoolToObject(features, "mouth_cues_append", true);  // patch SF32: self.face.mouth_cues takes an append flag (patch SF30)
++#endif
++#if CONFIG_MAIPAI_OFFLINE_MUMBLE
++    cJSON_AddBoolToObject(features, "mumble", true);  // patch SF87: a tts sentence with "mumble": true is mumbled by the unit
+ #endif
+     cJSON_AddItemToObject(root, "features", features);
+     AddTextFontCapabilities(root);
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -20,6 +20,7 @@
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_lock.h>
+ #include <hal/maipai_sounds.h>
++#include <hal/maipai_mumble.h>
+ #include <hal/maipai_boottone_core.h>
+ #include <hal/maipai_timers.h>
+ #include <hal/maipai_games.h>
+@@ -778,10 +779,16 @@ void Application::InitializeProtocol() {
+                         glyphs.clear();
+                     }
+                     ESP_LOGI(TAG, "<< %s", text->valuestring);
++                    const bool mumble = cJSON_IsTrue(cJSON_GetObjectItem(root, "mumble"));  // patch SF87: no voice for this sentence
++                    auto span = cJSON_GetObjectItem(root, "duration_ms");
++                    const uint32_t span_ms = cJSON_IsNumber(span) && span->valueint > 0 ? static_cast<uint32_t>(span->valueint) : 0u;
+                     Schedule([display, message = std::string(text->valuestring),
+-                              glyphs = std::move(glyphs), bpp]() {
++                              glyphs = std::move(glyphs), bpp, mumble, span_ms]() {
+                         display->AddTextGlyphs(glyphs, bpp);
+                         display->SetChatMessage("assistant", message.c_str());
++                        if (mumble) {
++                            maipai_mumble_say(message.c_str(), span_ms);
++                        }
+                     });
+                 }
+             }
+@@ -1057,6 +1064,7 @@ void Application::HandleWakeWordDetectedEvent() {
+     if (!protocol_ || maipai_mic_blocked() || maipai_lock_blocks_voice()) {
+         return;  // a wake word that arrives after the mute is dropped (patch 107), and after the lock (patch LK03)
+     }
++    maipai_mumble_stop();  // patch SF87: the person speaks, the mumble ends
+ #if CONFIG_MAIPAI_TALK_OVER_AEC
+     // Patch SF29: while the unit speaks, only the second wake hit within a second interrupts it (and never during a sentence the host
+     // marked no_barge); a first hit changes nothing the person can see or hear.
+@@ -1362,6 +1370,7 @@ void Application::Schedule(std::function<void()>&& callback) {
+ 
+ void Application::AbortSpeaking(AbortReason reason) {
+     ESP_LOGI(TAG, "Abort speaking");
++    maipai_mumble_stop();  // patch SF87
+     aborted_ = true;
+     audio_service_.SetSpeechOpen(false);
+     if (protocol_) {
+diff --git a/firmware/main/hal/maipai_mumble.h b/firmware/main/hal/maipai_mumble.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_mumble.h
+@@ -0,0 +1,23 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The offline mumble, device side (patch SF87; core maipai_mumble_core.h, spec docs/design/offline-mumble.md).
++ */
++#pragma once
++#include <sdkconfig.h>
++#include <stdint.h>
++
++#if CONFIG_MAIPAI_OFFLINE_MUMBLE
++// The host sent a caption sentence with "mumble": true. Mumbles it when the setting is on, captions are on and the sound policy
++// allows (mute, sounds off and quiet hours silence the sound; the mouth still moves). span_ms 0 means "estimate from the length".
++// A new call replaces a running mumble. Call it from the main task.
++void maipai_mumble_say(const char* utf8, uint32_t span_ms);
++// Ends it at once (wake word, stop word, abort, a new turn). Safe from any task.
++void maipai_mumble_stop();
++// The mouth level (0 to 4) while a mumble plays; false when none does. Called by the face every frame.
++bool maipai_mumble_level(int* level);
++#else
++inline void maipai_mumble_say(const char*, uint32_t) {}
++inline void maipai_mumble_stop() {}
++inline bool maipai_mumble_level(int*) { return false; }
++#endif
+diff --git a/firmware/main/hal/maipai_mumble.cc b/firmware/main/hal/maipai_mumble.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_mumble.cc
+@@ -0,0 +1,221 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The offline mumble, device side (patch SF87). The core (maipai_mumble_core.h) turns the caption into one note per character, timed
++ * to the caption; maipai_mumble_render_core.h renders notes. A 100 ms esp_timer wakes the main task, which renders the next 200 ms
++ * window (all notes that start in it, silence between) into one PSRAM buffer and queues it with AudioService::PlayPcm (the playback
++ * queue holds two items, so a full queue just waits for the next tick). The mouth is not played from cues: the face asks
++ * maipai_mumble_level() every frame and gets the opening of the note that sounds now. Nothing is held while no mumble plays.
++ */
++#include "maipai_mumble.h"
++#include "maipai_mumble_render_core.h"
++#include "maipai_face.h"
++#include "maipai_sounds.h"
++#include "maipai_tbprefs.h"
++#include <application.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <cstring>
++#include <mutex>
++
++#if CONFIG_MAIPAI_OFFLINE_MUMBLE
++
++static const char* TAG = "MAIPAI-MUMBLE";
++
++namespace {
++
++constexpr uint32_t kWindowMs = 200;
++constexpr uint32_t kTickMs = 100;
++constexpr uint32_t kAheadMs = 250;      // queue at most this far past the wall clock
++constexpr uint32_t kLatencyMs = 120;    // the mouth runs this far behind the clock: the audio waits in the queue (estimate, to measure)
++constexpr uint32_t kTextMax = 400;      // bytes of caption that are mumbled
++constexpr uint32_t kMinSpanMs = 600, kMaxSpanMs = 20000, kMsPerChar = 65;
++constexpr int kRing = 12;
++
++struct Note { uint32_t t, end; uint8_t mouth; };
++
++std::mutex s_mu;
++bool s_on = false;
++char* s_text = nullptr;                 // PSRAM copy of the caption
++int16_t* s_pcm = nullptr;               // PSRAM: a window and the tail of its last note
++mm_t s_mm;
++mm_blip_t s_blip;
++bool s_have = false;
++uint32_t s_t0 = 0;                      // wall clock (ms) of caption time 0, set when the first window is queued
++bool s_started = false;
++uint32_t s_emit = 0;                    // caption time up to which audio is queued
++uint32_t s_last_end = 0;                // caption time when the last note ends
++Note s_ring[kRing];
++int s_ring_n = 0;
++bool s_gate_ok = true;
++uint32_t s_chunks = 0, s_dropped = 0;
++esp_timer_handle_t s_timer = nullptr;
++
++uint32_t ms_now() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++void release_locked()
++{
++    if (s_timer != nullptr) esp_timer_stop(s_timer);
++    heap_caps_free(s_text);
++    heap_caps_free(s_pcm);
++    s_text = nullptr;
++    s_pcm = nullptr;
++    s_on = false;
++    s_have = false;
++    s_started = false;
++    s_ring_n = 0;
++}
++
++void remember(const mm_blip_t& b)
++{
++    if (b.mouth == 0 || b.dur_ms == 0) return;
++    if (s_ring_n == kRing) {
++        memmove(&s_ring[0], &s_ring[1], sizeof(Note) * (kRing - 1));
++        s_ring_n--;
++    }
++    s_ring[s_ring_n++] = {b.t_ms, b.t_ms + mmr_dur_ms(&b), b.mouth};
++}
++
++// Renders and queues the next window; when the playback queue is full nothing advances and the next tick tries the same window.
++void slice()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (!s_on) return;
++    const uint32_t now = ms_now();
++    if (s_started && now - s_t0 > s_last_end + 400u && !s_have && s_emit >= s_last_end) {
++        ESP_LOGI(TAG, "end chunks=%u dropped=%u", static_cast<unsigned>(s_chunks), static_cast<unsigned>(s_dropped));
++        release_locked();
++        return;
++    }
++    if (s_started && s_emit > now - s_t0 + kAheadMs) return;  // far enough ahead
++    if (!s_started) {
++        s_t0 = now;
++        s_started = true;
++    }
++    s_gate_ok = maipai_sounds_gate("popup");
++    const mm_t saved_mm = s_mm;
++    const mm_blip_t saved_blip = s_blip;
++    const bool saved_have = s_have;
++    const int saved_ring = s_ring_n;
++    Note saved_notes[kRing];
++    memcpy(saved_notes, s_ring, sizeof(saved_notes));
++    const uint32_t w0 = s_emit, w1 = s_emit + kWindowMs;
++    uint32_t end = w1;
++    bool any = false;
++    memset(s_pcm, 0, sizeof(int16_t) * (kWindowMs + MMR_MAX_DUR_MS) * (MMR_RATE / 1000));
++    for (;;) {
++        if (!s_have) {
++            s_have = mm_next(&s_mm, &s_blip) != 0;
++            if (!s_have) break;
++        }
++        if (s_blip.t_ms >= w1) break;
++        const uint32_t t = s_blip.t_ms < w0 ? w0 : s_blip.t_ms;
++        const uint32_t n = mmr_samples(&s_blip);
++        if (n > 0 && s_gate_ok) mmr_render(&s_blip, 0, s_pcm + static_cast<size_t>(t - w0) * (MMR_RATE / 1000), n);
++        const uint32_t e = t + mmr_dur_ms(&s_blip);
++        if (e > end) end = e;
++        remember(s_blip);
++        any = true;
++        s_have = false;
++    }
++    if (!s_have && end == w1 && !any) {  // the text is used up and nothing sounds in this window: no silence is queued
++        s_emit = w1;
++        return;
++    }
++    const size_t total = static_cast<size_t>(end - w0) * (MMR_RATE / 1000);
++    bool ok = true;
++    if (s_gate_ok) {
++        ok = Application::GetInstance().GetAudioService().PlayPcm(s_pcm, total, MMR_RATE);
++    }
++    if (!ok) {  // the playback queue is full: try this window again on the next tick
++        s_mm = saved_mm;
++        s_blip = saved_blip;
++        s_have = saved_have;
++        s_ring_n = saved_ring;
++        memcpy(s_ring, saved_notes, sizeof(saved_notes));
++        s_dropped++;
++        return;
++    }
++    s_emit = end;
++    s_chunks++;
++}
++
++void timer_cb(void*)
++{
++    Application::GetInstance().Schedule([]() { slice(); });  // the esp_timer task stays free
++}
++
++}  // namespace
++
++void maipai_mumble_say(const char* utf8, uint32_t span_ms)
++{
++    if (utf8 == nullptr || utf8[0] == '\0') return;
++    if (!maipai_tb_prefs().mumble || !maipai_face_captions_on()) return;  // off by default; no caption, no mumble (mute and quiet hours silence the sound in the gate, the mouth still moves)
++    maipai_mumble_stop();
++    std::lock_guard<std::mutex> lock(s_mu);
++    size_t len = strlen(utf8);
++    if (len > kTextMax) {
++        len = kTextMax;
++        while (len > 0 && (static_cast<uint8_t>(utf8[len]) & 0xC0) == 0x80) len--;  // never cut a character
++    }
++    s_text = static_cast<char*>(heap_caps_malloc(len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    s_pcm = static_cast<int16_t*>(heap_caps_malloc(sizeof(int16_t) * (kWindowMs + MMR_MAX_DUR_MS) * (MMR_RATE / 1000),
++                                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (s_text == nullptr || s_pcm == nullptr) {
++        ESP_LOGW(TAG, "no memory for the mumble; the caption shows without it");
++        release_locked();
++        return;
++    }
++    memcpy(s_text, utf8, len);
++    s_text[len] = '\0';
++    uint32_t span = span_ms;
++    if (span == 0) {
++        uint32_t chars = 0;
++        for (size_t i = 0; i < len; i++) chars += (static_cast<uint8_t>(s_text[i]) & 0xC0) != 0x80;
++        span = chars * kMsPerChar;
++    }
++    span = span < kMinSpanMs ? kMinSpanMs : (span > kMaxSpanMs ? kMaxSpanMs : span);
++    mm_init(&s_mm, s_text, 0, span);
++    s_last_end = span;
++    s_emit = 0;
++    s_chunks = s_dropped = 0;
++    s_have = false;
++    s_started = false;
++    s_ring_n = 0;
++    s_on = true;
++    if (s_timer == nullptr) {
++        esp_timer_create_args_t a = {};
++        a.callback = timer_cb;
++        a.name = "mumble";
++        if (esp_timer_create(&a, &s_timer) != ESP_OK) {
++            release_locked();
++            return;
++        }
++    }
++    esp_timer_start_periodic(s_timer, kTickMs * 1000ull);
++    ESP_LOGI(TAG, "start chars=%u span=%u", static_cast<unsigned>(s_mm.n), static_cast<unsigned>(span));
++    Application::GetInstance().Schedule([]() { slice(); });
++}
++
++void maipai_mumble_stop()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (s_on) release_locked();
++}
++
++bool maipai_mumble_level(int* level)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (!s_on || !s_started) return false;
++    const uint32_t now = ms_now();
++    const uint32_t at = now - s_t0 > kLatencyMs ? now - s_t0 - kLatencyMs : 0;
++    int mouth = 0;
++    for (int i = 0; i < s_ring_n; i++) {
++        if (at >= s_ring[i].t && at < s_ring[i].end) mouth = s_ring[i].mouth;
++    }
++    *level = mmr_mouth_level(mouth);
++    return true;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_mumble_render_core.h b/firmware/main/hal/maipai_mumble_render_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_mumble_render_core.h
+@@ -0,0 +1,64 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Renders one mumble note (patch SF87; the notes come from maipai_mumble_core.h) into 16 kHz mono samples: a sine with a quarter of
++ * a triangle, a 5 ms attack and a 15 ms fall, gliding from f0 to f1, at the chime level scaled by the note's loudness. Pure C99, no
++ * math library (a rational sine), no heap. mmr_render() writes any slice of a note, so the caller never holds more than its buffer.
++ */
++#ifndef MAIPAI_MUMBLE_RENDER_CORE_H
++#define MAIPAI_MUMBLE_RENDER_CORE_H
++
++#include <stdint.h>
++#include "maipai_mumble_core.h"
++
++#define MMR_RATE 16000
++#define MMR_PEAK 22000        /* the chime level: the same loudest sample as the code-made game sounds */
++#define MMR_ATTACK 80         /* samples: 5 ms */
++#define MMR_FALL 240          /* samples: 15 ms */
++#define MMR_MAX_DUR_MS 200    /* a note never sounds longer than this, so one buffer holds a window and its last note */
++
++static inline uint32_t mmr_dur_ms(const mm_blip_t* b) { return b->dur_ms > MMR_MAX_DUR_MS ? MMR_MAX_DUR_MS : b->dur_ms; }
++static inline uint32_t mmr_samples(const mm_blip_t* b) { return mmr_dur_ms(b) * (MMR_RATE / 1000); }
++
++/* sin(2 pi p) for p in [0,1): Bhaskara's rational approximation, error under 0.002 */
++static inline float mmr_sin(float p)
++{
++    const int neg = p >= 0.5f;
++    const float q = neg ? p - 0.5f : p;
++    const float t = 2.0f * q;
++    const float u = t * (1.0f - t);
++    const float s = 16.0f * u / (5.0f - 4.0f * u);
++    return neg ? -s : s;
++}
++
++static inline float mmr_tri(float p) { return p < 0.25f ? 4.0f * p : (p < 0.75f ? 2.0f - 4.0f * p : 4.0f * p - 4.0f); }
++
++/* Samples [first, first + n) of the note into out; samples past its end are 0. A rest (no frequency) is all zeros. */
++static inline void mmr_render(const mm_blip_t* b, uint32_t first, int16_t* out, uint32_t n)
++{
++    const uint32_t len = mmr_samples(b);
++    const float dur_s = (float)len / (float)MMR_RATE;
++    for (uint32_t k = 0; k < n; k++) {
++        const uint32_t i = first + k;
++        if (i >= len || b->f0 == 0 || len == 0) {
++            out[k] = 0;
++            continue;
++        }
++        const float t = (float)i / (float)MMR_RATE;
++        float ph = (float)b->f0 * t + ((float)b->f1 - (float)b->f0) * t * t / (2.0f * dur_s);
++        ph -= (float)(int32_t)ph;
++        float env = 1.0f;
++        if (i < MMR_ATTACK) env = (float)i / (float)MMR_ATTACK;
++        if (len - i < MMR_FALL) {
++            const float f = (float)(len - i) / (float)MMR_FALL;
++            if (f < env) env = f;
++        }
++        const float w = (mmr_sin(ph) + 0.25f * mmr_tri(ph)) / 1.25f;
++        out[k] = (int16_t)(w * env * ((float)MMR_PEAK * (float)b->level / 100.0f));
++    }
++}
++
++/* The face's speak level (0 to 4) for a note's mouth opening (0 to 100). */
++static inline int mmr_mouth_level(int mouth) { return mouth <= 0 ? 0 : (mouth >= 100 ? 4 : (mouth + 12) / 25); }
++
++#endif
