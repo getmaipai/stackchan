@@ -3,7 +3,7 @@
 Usage: face_consistency.py [--table] [--update-known]   prints violations (exit 1 when one is new or fixed); --table prints every measurement;
 --update-known rewrites host/tests/golden/face-known.json with today's violations (do it only after reading them).
 Measured on the real LVGL face through the virtual unit. host/tests/golden/face-known.json lists violations that exist today, each with the reason; a fixed one must be removed
-from that file (the check says so), and a new one fails. Rules (from the 2026-11-18 review): the brightest face pixel is full white (240+);
+from that file (the check says so), and a new one fails. Rules (from the 2026-11-18 review): the strongest color channel of the brightest face pixel is full (240+; emotion tints are allowed, a dim face is not);
 a face that is not tired or asleep has no gray fill (pixels 100..220 stay under 12 percent of the lit ones); a mouth, when the style has one,
 is at least 30 px wide; no stroke is 2 px or thinner (a lit pixel whose horizontal and vertical runs are both 2 or less).
 Placement: host-side development tool. Upstream: none."""
@@ -29,7 +29,7 @@ def pixels(png: bytes):
     w, h = 320, 240
     raw = zlib.decompress(png[png.index(b"IDAT") + 4 : png.rindex(b"IEND") - 8])
     rows = [raw[y * (w * 3 + 1) + 1 : (y + 1) * (w * 3 + 1)] for y in range(h)]
-    return [[(r[x * 3] + r[x * 3 + 1] + r[x * 3 + 2]) // 3 for x in range(w)] for r in rows]
+    return [[max(r[x * 3], r[x * 3 + 1], r[x * 3 + 2]) for x in range(w)] for r in rows]  # strongest channel: emotion tints stay full strength in one channel
 
 
 def measure(g):
