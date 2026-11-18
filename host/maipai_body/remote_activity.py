@@ -503,6 +503,11 @@ class RemoteActivity:
 
     # ---- the session, so the robot shows the remote glyph while someone is connected ----
 
+    def session_active(self, unit_id: str) -> bool:
+        """A remote controller holds this unit (its cue is open): the command bus lets nothing decorate it."""
+        with self._lock:
+            return any(unit == unit_id for unit, _label in self._sessions)
+
     def begin_session(self, unit_id: str, label: str) -> None:
         key = (unit_id, label)
         with self._lock:

@@ -793,8 +793,19 @@ class StackChanTurnBridge:
         # its permission, gate, priority and rate checks. None leaves the older direct overlay path.
         self.command_bus = None
         # Whether a child is present and whether a remote cue holds this unit, by Device-Id; Home and the remote page fill them in.
-        self.child_present: Callable[[str], bool] = lambda _device_id: False
+        self._child_until: dict[str, float] = {}
+        self.child_present: Callable[[str], bool] = self.child_present_for
         self.remote_active: Callable[[str], bool] = lambda _device_id: False
+
+    def note_child_present(self, device_id: str, present: bool, seconds: float = 300.0) -> None:
+        """Home (or a person on the settings page) says a child is, or is no longer, near this unit."""
+        if present:
+            self._child_until[device_id] = self._clock() + max(1.0, float(seconds))
+        else:
+            self._child_until.pop(device_id, None)
+
+    def child_present_for(self, device_id: str) -> bool:
+        return self._child_until.get(device_id, 0.0) > self._clock()
 
     async def on_audio(self, session_id: str, data: bytes) -> None:
         stats = self._audio_stats.setdefault(session_id, [0, 0])

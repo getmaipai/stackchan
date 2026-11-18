@@ -2097,6 +2097,7 @@ def _start_stackchan_night(
             settings_handler=apply_settings,
             handlers={
                 "dance": lambda payload: behavior.dance_command(payload),
+                "child_present": lambda payload: _note_child(voice, payload),
                 **(hub_handlers or {}),
                 "music_test": lambda payload: behavior.music_command(payload),
                 "listen_song": lambda payload: behavior.listen_song_command(payload),
@@ -3121,6 +3122,8 @@ async def _serve_stackchan_channels(
         )
         polish.bind_faces(faces)  # the unit's screen language decides which language pack it holds
         polish.attach(bridge)
+        voice.gate_bridge = bridge  # the settings page's remote activity feeds the bus gate (see _start_stackchan_settings)
+        bridge.decoration_blocked = lambda: behavior._rest.stage != "awake" or behavior.night_active()
         voice.polish = polish  # the settings page reads the same state
         voice.session_listeners.append(polish.on_connect)
         _wire_look_owner(voice, units, behavior, polish, stop_event)
@@ -3329,6 +3332,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
         voice, sole_unit_version=lambda: behavior.unit_facts.snapshot().get("fw_version")
     )
     config = units.base
+    gate_bridge = getattr(voice, "gate_bridge", None)
     backend = SettingsBackend(
         devices=pairing.paired_devices,
         store=units.store,
@@ -3348,6 +3352,8 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
         link=link_security,
     )
     _wire_idle_setting(backend, units, behavior, voice)
+    if gate_bridge is not None:
+        gate_bridge.remote_active = lambda device_id: backend.activity.session_active(device_id)
     from maipai_body.settings_server import SettingsServer
 
     try:
@@ -4171,6 +4177,18 @@ def _configured_hub_url() -> str:
         return load_config().home.url.strip()
     except Exception:
         return ""
+
+
+def _note_child(voice, payload: dict) -> dict:
+    """Home says a child is (or is no longer) near a unit: the command bus limits the model's sounds."""
+    bridge = getattr(voice, "gate_bridge", None)
+    if bridge is None:
+        return {"ok": False}
+    device_id = str(payload.get("device_id") or "")
+    targets = [device_id] if device_id else list(getattr(voice, "connected_devices", lambda: [])())
+    for target in targets:
+        bridge.note_child_present(target, bool(payload.get("present")), float(payload.get("seconds") or 300))
+    return {"ok": True}
 
 
 def _no_hub_configured() -> bool:
