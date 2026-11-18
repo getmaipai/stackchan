@@ -1,0 +1,73 @@
+# Intent: The "Can't reach Home" notice after ten minutes away is actually seen. The steady "Offline" look is a banner notice that never ends, and the away notice had the same priority, so it waited behind it for ever (the bench saw the ws_away_notice event but never the words). The notice now has the privacy priority: it takes the banner row for 20 seconds (the row's limit; SF68 asked for 30, which the row cut to 20 anyway) and the steady look comes back after it. A bench tool, self.bench.show_away_notice, shows it on demand so a snapshot can check it without waiting ten minutes. The rule is unchanged: once after ten minutes away, then every thirty minutes.
+# Placement: unit
+# Upstream: firmware/main/hal/board (ours) and firmware/xiaozhi-esp32/main/protocols (the stock websocket client, patched by SF49 and SF68)
+# Check after a flash: on a bench image, self.bench.show_away_notice while the unit shows Offline: a snapshot within 20 s shows the notice text on the banner row (it scrolls: it is long), then Offline returns; with the host stopped for ten minutes the same notice appears once with the ws_away_notice event.
+# Kconfig: none
+# Memory cost: none.
+
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
+--- a/firmware/main/hal/board/hal_bridge.h
++++ b/firmware/main/hal/board/hal_bridge.h
+@@ -79,6 +79,9 @@ bool board_pmic_read(uint8_t reg, uint8_t* value);
+ void battery_power_off();
+ // A few plain words on the face for `ms` milliseconds, whatever the captions setting says (patch T01). Safe from any task.
+ void notice(const char* text, int ms);
++// Patch SF73: a notice that takes the banner row from the steady link look ("Offline", "Connecting..."): it has the privacy priority, so it shows for `ms` (at most 20 s) and the
++// steady look comes back after it. For the few messages that must be seen while the link is down (the ten-minutes-away words).
++void notice_urgent(const char* text, int ms);
+ // Shows an emotion ("happy", "sad", "angry", "doubtful", "sleepy") for `hold_ms`, then goes back to the resting face
+ // unless another emotion came in meanwhile (patch U02). Safe from any task; takes the LVGL lock.
+ void react_face(const char* emotion, int hold_ms);
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -2127,6 +2127,21 @@ void hal_bridge::notice(const char* text, int ms)
+ #endif
+ }
+ 
++void hal_bridge::notice_urgent(const char* text, int ms)
++{
++    auto display = static_cast<StackChanAvatarDisplay*>(Board::GetInstance().GetDisplay());
++    if (display == nullptr || text == nullptr || !GetStackChan().hasAvatar()) {
++        return;
++    }
++#if CONFIG_MAIPAI_BANNER_ROW
++    // Patch SF73: the steady "Offline" look is a notice that never ends; a second notice would wait behind it for ever. The privacy priority takes the row, and the steady look is
++    // queued again and returns when this one's time is up.
++    maipai_banner_post(text, MB_ICON_CHECK, MB_PRIO_PRIVACY, MB_TAG_NONE, ms > 0 ? static_cast<uint32_t>(ms) : 3000u);
++#else
++    hal_bridge::notice(text, ms);
++#endif
++}
++
+ // ---- the camera-on cue (patch T05) ----
+ // A rounded outline with a filled lens, top right, on the top layer so it shows over the face and the clock alike.
+ static std::mutex s_cue_mutex;
+diff --git a/firmware/main/hal/maipai_powerprobe.cc b/firmware/main/hal/maipai_powerprobe.cc
+--- a/firmware/main/hal/maipai_powerprobe.cc
++++ b/firmware/main/hal/maipai_powerprobe.cc
+@@ -235,5 +235,12 @@ void maipai_powerprobe_register_tools()
+                     std::snprintf(tail, sizeof(tail), "],\"achieved_hz\":%.1f,\"abort\":\"%s\",\"restored\":%s}", elapsed > 0 ? samples_total / elapsed : 0.0, abort_why, restored ? "true" : "false");
+                     return out + tail;
+                 });
++
++    // Patch SF73 (bench only): shows the ten-minutes-away notice now, for 20 s, without waiting ten minutes, so a snapshot can check that it is drawn over the steady link look.
++    mcp.AddTool("self.bench.show_away_notice", "Bench only: shows the 'Can't reach Home' notice on the banner row for 20 s, the same call the reconnect task makes after ten minutes away. Answers {ok}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    hal_bridge::notice_urgent("Can't reach Home. Check it is on and on the same Wi-Fi. I keep trying.", 20000);
++                    return std::string("{\"ok\":true}");
++                });
+ }
+ #endif
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -496,7 +496,7 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+         const uint32_t cap_ms = mrc_cap(away_ms);
+         if (mrc_notice_due(away_ms, last_notice_away_ms)) {
+             last_notice_away_ms = away_ms;
+-            hal_bridge::notice("Can't reach Home. Check it is on and on the same Wi-Fi. I keep trying.", 30000);  // patch SF68: 30 s on the banner row (it was 9 s, easy to miss)
++            hal_bridge::notice_urgent("Can't reach Home. Check it is on and on the same Wi-Fi. I keep trying.", 20000);  // patch SF73: the privacy priority (the steady Offline look held the row), 20 s (the banner row's limit)
+             char away_extra[40];
+             snprintf(away_extra, sizeof(away_extra), "\"away_s\":%u", static_cast<unsigned>(away_ms / 1000u));
+             device_events_push("ws_away_notice", away_extra);  // patch SF68: the bench and the host can see that the notice was shown, whatever the screen looked like
