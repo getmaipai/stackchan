@@ -1,0 +1,18 @@
+# Intent: The pairing cover text breaks after "Home" so the last line is "to approve me", not a single orphan word.
+# Placement: unit
+# Upstream: firmware/main/hal/board/stackchan_display.cc (ours)
+# Check after a flash: the pairing cover shows two balanced lines.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -695,7 +695,7 @@ void StackChanAvatarDisplay::ApplyLink()
+     hal_bridge::leds_offline(link_look_ == 2);
+     if (!boot_done_) {
+         if (link_look_ == 3) {
+-            ShowBootCover("Waiting for Home to approve me", 2, 2);
++            ShowBootCover("Waiting for Home\nto approve me", 2, 2);
+         } else if (cover_glyph_kind_ == 2) {
+             ShowBootCover("Connecting to Home...", 1, 0);
+         }
