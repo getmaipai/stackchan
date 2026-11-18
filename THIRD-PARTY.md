@@ -29,6 +29,7 @@ Installed by pip from `host/pyproject.toml` (exact versions in `host/uv.lock`); 
 | av (PyAV) | BSD-3-Clause, bundling FFmpeg libraries under LGPL-2.1 or later | Audio decoding |
 | onnxruntime | MIT | Face embedding and voice models |
 | num2words | LGPL-2.1 | Spelling numbers out for speech, as the shared spec's normalizer expects; used as a dependency, never copied |
+| segno | BSD-3-Clause | The QR code that logs a phone in to the settings page |
 | esp-idf-nvs-partition-gen | Apache-2.0 | Building the robot's settings partition |
 | openwakeword, sherpa-onnx (optional extras) | Apache-2.0 | Wake word scoring and offline command recognition |
 

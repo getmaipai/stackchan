@@ -3370,6 +3370,12 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
 
             auth = SettingsAuth(_default_pairing_path().parent / "settings-token")
         server = SettingsServer(backend, "0.0.0.0" if lan else "127.0.0.1", port, auth=auth)
+        backend.pair_code = pairing.create_pair_code
+        backend.phone_link = lambda: {
+            "lan": lan,
+            "base": f"http://{_lan_address()}:{port}",
+            "token": auth.token if auth else "",
+        }
     except OSError:
         logger.warning(
             "settings page port %d is in use; set MAIPAI_STACKCHAN_SETTINGS_PORT to a free port",
@@ -4177,6 +4183,20 @@ def _configured_hub_url() -> str:
         return load_config().home.url.strip()
     except Exception:
         return ""
+
+
+def _lan_address() -> str:
+    """This computer's address on the local network (the one a phone on the same Wi-Fi can reach)."""
+    import socket
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("192.0.2.1", 9))  # no packet is sent: this only picks the outgoing interface
+        return probe.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        probe.close()
 
 
 def _note_child(voice, payload: dict) -> dict:

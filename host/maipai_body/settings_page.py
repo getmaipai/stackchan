@@ -68,6 +68,8 @@ class SettingsBackend:
         activity: activity_mod.RemoteActivity | None = None,
         link: Any = None,
     ) -> None:
+        self.pair_code: Callable[[], str] | None = None  # mints a pairing code (set by the host)
+        self.phone_link: Callable[[], dict[str, Any]] | None = None  # {"lan", "base", "token"} for the phone login link
         self._link = link  # the encrypted robot link's policy (xiaozhi/link_security.py); no keys leave it
         self.devices, self.store = devices, store or UnitSettingsStore()
         self.live = live or (lambda _device_id: {})
@@ -706,6 +708,23 @@ class SettingsBackend:
 
     # -- routes shared by every server that hosts the page ------------------------------------
 
+    def _phone_link_view(self) -> dict[str, Any]:
+        """The address and QR code that log a phone in to this page (host computer only)."""
+        info = self.phone_link() if self.phone_link else {"lan": False}
+        if not info.get("lan"):
+            return {
+                "enabled": False,
+                "note": "The page is for this computer only. To open it from a phone, set lan = true under [settings] in robot.toml and restart the host.",
+            }
+        import io
+
+        import segno
+
+        url = f"{info['base']}/settings?token={info['token']}"
+        out = io.BytesIO()
+        segno.make(url, error="m").save(out, kind="svg", xmldecl=False, nl=False, scale=6, border=2)
+        return {"enabled": True, "url": url, "svg": out.getvalue().decode("ascii")}
+
     def route_get(self, path: str, lang: str, local_admin: bool) -> tuple[int, str, bytes] | None:
         """(status, content type, body) for a settings GET, or None when it is not a settings path."""
         if path.startswith(FACES):
@@ -716,6 +735,10 @@ class SettingsBackend:
             if not local_admin:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
             return 200, JSON, json.dumps(self.polish.packs.library_view()).encode()
+        if path == PHONE_LINK:
+            if local_admin is not True:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            return 200, JSON, json.dumps(self._phone_link_view()).encode()
         if path == ACCESS:
             if local_admin is not True:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
@@ -744,6 +767,12 @@ class SettingsBackend:
         The update route checks the release and changes nothing unless the body says
         ``"confirm": true``."""
         prefix = "/api/stackchan/settings/"
+        if path == PAIRING_CODE and self.pair_code is not None:
+            if local_admin is not True:
+                return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
+            if self.pair_code is None:
+                return None  # not a page route on this host: the dashboard's own route answers
+            return 200, {"code": self.pair_code(), "minutes": 10}
         if not path.startswith(prefix) and not path.startswith((FACES, UNIT, PEOPLE, PACKS, ACCESS)):
             return None
         lang = normalize(str(body.get("lang", "")) or self.language)
@@ -797,6 +826,8 @@ UNIT = "/api/stackchan/unit/"
 PEOPLE = "/api/stackchan/people"
 PACKS = "/api/stackchan/packs"
 ACCESS = "/api/stackchan/remote-access"
+PAIRING_CODE = "/api/stackchan/pairings/code"
+PHONE_LINK = "/api/stackchan/phone-link"
 
 
 def render_page(lang: str | None) -> bytes:

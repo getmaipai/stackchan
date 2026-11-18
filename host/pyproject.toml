@@ -42,6 +42,7 @@ dependencies = [
     "scipy>=1.14,<2",
     "num2words>=0.5.13,<1",
     "esp-idf-nvs-partition-gen==0.3.0",
+    "segno>=1.6,<2",  # the QR code that logs a phone in to the settings page
 ]
 
 [project.entry-points."reachy_mini_apps"]
