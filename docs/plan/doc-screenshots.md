@@ -18,4 +18,4 @@ Each picture is a golden frame of the unit's own screen code (320 by 240). `pyth
 
 Captions above were checked against the frames for the control sheet and the timers page; check the rest by opening the picture.
 
-No picture of the Wi-Fi setup screen yet: the golden frame `cover-wifi-setup` shows text the firmware does not produce (the real screen is the hint line `Wi-Fi setup: stackchan-XXXX  http://192.168.4.1` plus the six-digit code, patches P03 and P05). It needs a scenario that draws that line the way the unit does; until then `getting-started.md` should stay text only for that step.
+The golden frame `cover-wifi-setup` now carries the real words (hotspot name, address, six-digit code) but draws them on the cover layout; the unit draws them as a caption line (patches P03, P05). Use it only if the page says the layout differs, or wait for a scenario on the caption path.

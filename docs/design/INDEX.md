@@ -506,6 +506,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF11-core-dump-find-timer-filler-leaks.patch` (115): Safety fix, train 11. A release image erases the flash core dump after its summary is reported (bench images k
 - `firmware/patches/SF12-listen-ended-event.patch` (31): When the listening guard ends a turn on its own (8 s with no voice, or the 60 s cap), the unit pushes a listen
 - `firmware/patches/SF13-lock-lockout-survives-restart.patch` (87): The lock tools keep a running lockout across a restart: the strikes and the time left on the lockout are saved
+- `firmware/patches/SF14-offline-dance-rest-cap.patch` (88): A cap on continuous offline dancing: after ten minutes of motion without a pause of 30 s the unit rests for th
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -605,7 +606,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (4749): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (4761): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
 - `host/maipai_body/bench.py` (610): Owner-only local console for exercising a connected StackChan body."""
@@ -848,7 +849,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/person_tracker.py` (694): Find the person, then the face, then follow (owner design, approved 2026-11-12).
 - `host/maipai_body/bodies/stackchan/power_idle.py` (141): StackChan stays still while charging or not upright (owner requests 2026-10-20, 2026-10-21).
 - `host/maipai_body/bodies/stackchan/presence_watch.py` (302): The small, pure parts of idle face watching: the per-minute camera line and the greeting edge.
-- `host/maipai_body/bodies/stackchan/privacy.py` (469): StackChan mute, vision off and full quiet, the host side (firmware patches 105 to 108,
+- `host/maipai_body/bodies/stackchan/privacy.py` (525): StackChan mute, vision off and full quiet, the host side (firmware patches 105 to 108,
 - `host/maipai_body/bodies/stackchan/profile.py` (125): StackChan capabilities and soft limits from the firmware research note."""
 - `host/maipai_body/bodies/stackchan/reactions.py` (209): How the robot reacts to being touched, shaken and praised (owner requests 2026-10-21).
 - `host/maipai_body/bodies/stackchan/renderer.py` (118): StackChan expression renderer: avatar frames, bounded head poses and ring states."""
@@ -878,7 +879,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (220): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
 - `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (598): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1671): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1682): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
 - `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
@@ -1590,6 +1591,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/banner_core_test.c` (337): Host test for the banner row logic (patch N01): the queue, priorities, minimum display time, replace-in-place 
 - `host/tests/firmware/banner_dump.c` (96): Prints the geometry and the pure functions of maipai_banner_core.h as JSON (patch N01), for the settings page 
 - `host/tests/firmware/beat_test.c` (64): include <stdio.h>
+- `host/tests/firmware/dance_cap_core_test.c` (51): Host test for the offline dance cap (patch SF14). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the headers>
 - `host/tests/firmware/dance_ladder_test.c` (259): Host test for the dance ladder (patch MD01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> dance_l
 - `host/tests/firmware/dances_core_test.c` (79): Host test for the named dances (patch V04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/decor_core_test.c` (170): Host test for the face decorator core (patch U01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
@@ -1646,7 +1648,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/remote_gate_test.c` (89): Host test for the remote token gate on the other remote-facing tools (patch TC01).
 - `host/tests/firmware/reset_core_test.c` (54): Host test for the reset core (patch R01): cc -std=c99 -Wall -Werror -I<dir with the header>. */
 - `host/tests/firmware/roam_core_test.c` (118): Host test for the Wi-Fi roam rules (patch RM01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
-- `host/tests/firmware/safety_core_test.c` (304): Host test for the safety fixes of patches SF01 and SF02.
+- `host/tests/firmware/safety_core_test.c` (317): Host test for the safety fixes of patches SF01 and SF02.
 - `host/tests/firmware/screen_core_test.c` (58): Host test for the screen's wake rule (patch W01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. *
 - `host/tests/firmware/screens_core_test.c` (213): Host test for the single overlay screen state (patch UI09): cc -std=c99 -Wall -Wextra -Werror -I<dir with the 
 - `host/tests/firmware/seek_core_test.c` (749): Host test for turning toward a person (patch S10): the frame difference, the seek state machine and the owner 
@@ -1939,6 +1941,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_presence_safety.py` (47): Tip and freefall from the IMU (design record section 7)."""
 - `host/tests/test_prints.py` (172): FACE-03's snapshot sync into the local face gallery."""
 - `host/tests/test_prints_watch.py` (42): FACE-WATCH-01 end to end: `vision_watch` on a sync entry reaches the gallery."""
+- `host/tests/test_privacy_per_unit.py` (112): With two units each one has its own privacy state: a mute on one unit is read back for that unit and gates onl
 - `host/tests/test_privacy_sentence.py` (11): The privacy sentence is one text on the settings page and the robot's first-run screen."""
 - `host/tests/test_profile.py` (131): Tests named for the promises RM-01 makes about the Reachy Mini profile."""
 - `host/tests/test_psram_stack_lint.py` (205): ruff: noqa: E501
@@ -2030,7 +2033,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_light_service.py` (289): The StackChan light service: facts in, one ring look out.
 - `host/tests/test_stackchan_light_wiring.py` (510): The StackChan light wiring: the poller that feeds the light service.
 - `host/tests/test_stackchan_link_psk.py` (391): Encrypted robot link: TLS 1.2 with a pre-shared key on the voice, avatar and HTTP listeners."""
-- `host/tests/test_stackchan_listen_guard.py` (47): Host tests for patch SF03 (listening guard) and the spoken-turn gate verdict in scripts/fw-voice-bench.py."""
+- `host/tests/test_stackchan_listen_guard.py` (55): Host tests for patch SF03 (listening guard) and the spoken-turn gate verdict in scripts/fw-voice-bench.py."""
 - `host/tests/test_stackchan_listening_thinking_faces.py` (156): The `listening` and `thinking` faces (owner, 2026-11-13: the face carries both, not the ring)."""
 - `host/tests/test_stackchan_live_fixes.py` (266): Fixes found on the live hub (2026-10-20): clock, night camera, ring write."""
 - `host/tests/test_stackchan_lock_core.py` (204): ruff: noqa: E501
@@ -2085,7 +2088,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_travel_host.py` (104): Travel with the private network, host side: a unit that reaches the hub over a private-network address connect
 - `host/tests/test_stackchan_turn.py` (989): StackChan voice-turn regressions, with the independent simulator peer."""
 - `host/tests/test_stackchan_two_units.py` (103): Two fake units connected to one XiaozhiServer: a tool call goes to the unit it names, a call that names none g
-- `host/tests/test_stackchan_two_units_services.py` (100): The background services share one client. With two units connected, a household-wide setting the services push
+- `host/tests/test_stackchan_two_units_services.py` (126): The background services share one client. With two units connected, a household-wide setting the services push
 - `host/tests/test_stackchan_units_config.py` (279): ruff: noqa: E501
 - `host/tests/test_stackchan_updater.py` (273): no header
 - `host/tests/test_stackchan_updating_route.py` (103): Loopback routes Home calls around a firmware flash (owner request 2026-10-20)."""
@@ -2202,7 +2205,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-serial.py` (289): Bench helper for the unit on the USB cable (bench builds only; see patch V01 and H01).
 - `scripts/fw-stress.py` (191): Memory gate stress run for the unit on the USB cable, with the memory line on.
 - `scripts/fw-tailnet.sh` (45): download the pinned private-network client (firmware/tailnet/PIN) into a folder outside the firmware tree,
-- `scripts/fw-voice-bench.py` (138): Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 an
+- `scripts/fw-voice-bench.py` (197): Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 an
 - `scripts/game-pack.py` (556): ruff: noqa: E501
 - `scripts/gate-check.py` (124): Frame time and spoken-turn latency gate numbers, checked from what the bench agent measured (the memory number
 - `scripts/hygiene-check.sh` (46): block British spellings (American only), any mention of projects we studied (private word list), em dashes and
