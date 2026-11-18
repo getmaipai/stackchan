@@ -1,0 +1,266 @@
+{
+ "units": "meters and degrees",
+ "frame": {
+  "up": "+Y",
+  "front": "+Z",
+  "left": "+X",
+  "origin": "yaw axis on the table plane"
+ },
+ "source": {
+  "files": "source/ (official structure files, see SOURCE.md)",
+  "sha256": {
+   "StackChan-Base.stl": "46990c8941eca02082eca9b11b7dfdefd03d435142c52daee3dc95e1196271c8",
+   "StackChan-BaseCover.stl": "938ff6547f93ae7f20b26e253e0ee6221d9418c4ce2ea07bce52f8cee0a61495",
+   "StackChan-BearingFixture.stl": "04f511c46afb82db49657daa8ec624e91d4d26d29712290e26d32084af6bc2f7",
+   "StackChan-LightGuideBar-A.stl": "05313220a4c3734dd0c412a9de04349e4f9b55024ff3a382ea0d85c1d297d2a3",
+   "StackChan-LightGuideBar-B.stl": "ba640a41fde8b197a20579814fd8ca94eba44e7b4cbcae3096d6a1e556dd7db2",
+   "StackChan-MainBody.stl": "5495cd313847c2c135fa0309ee64747b93794e3d464a08e76d518b73b13a3107",
+   "StackChan-ServoArm.stl": "e530ade0873df01ed5b8bf9275358ccf9ffddb494025f64465bf5efde886c9db",
+   "StackChan-ServoBody.stl": "c21e35ad812b71aa44933055d3873090ae8c184479edf8e66e1fe595df598e1b",
+   "StackChan-ServoCover.stl": "f79ff641201fdbde78767cd08b29381ebb0146fa929bdd5e1aa41406e5c6280c",
+   "StackChan-ServoSideCover.stl": "b4e7906d2f4c5b4d5950c9421b8eadc9ba74b6073f5cee0a67835207d55135ce"
+  }
+ },
+ "triangles": 54774,
+ "dimensions": {
+  "overall_height": {
+   "value": 0.07041,
+   "basis": "measured",
+   "note": "70.5 mm published; files give 70.41"
+  },
+  "head_width": {
+   "value": 0.054,
+   "basis": "measured",
+   "note": "shell file and published drawing"
+  },
+  "head_height": {
+   "value": 0.054,
+   "basis": "measured"
+  },
+  "head_depth": {
+   "value": 0.0615,
+   "basis": "measured",
+   "note": "published drawing; shell file 46.7 mm plus the controller unit"
+  },
+  "shell_depth": {
+   "value": 0.0467,
+   "basis": "measured"
+  },
+  "controller_depth": {
+   "value": 0.0148,
+   "basis": "assumed",
+   "note": "61.5 published depth minus the 46.7 shell; the controller is not in the files"
+  },
+  "base_width": {
+   "value": 0.048,
+   "basis": "measured"
+  },
+  "base_depth": {
+   "value": 0.056,
+   "basis": "measured"
+  },
+  "base_height": {
+   "value": 0.01261,
+   "basis": "measured",
+   "note": "base 11.1 mm plus 1.51 mm bottom plate"
+  },
+  "base_mount_holes": {
+   "value": [
+    0.032,
+    0.048
+   ],
+   "basis": "measured",
+   "note": "corner hole spacing across and front to back"
+  },
+  "head_front_from_axis": {
+   "value": 0.03325,
+   "basis": "assumed",
+   "note": "set so the screen is 1 mm ahead of the base front as drawn"
+  },
+  "base_center_from_axis": {
+   "value": [
+    0.0,
+    0.0,
+    0.004
+   ],
+   "basis": "measured",
+   "note": "the turntable sits 4 mm behind the base footprint center"
+  },
+  "screen_active_area": {
+   "value": [
+    0.0415,
+    0.0316
+   ],
+   "basis": "measured",
+   "note": "drawing front view; 2.0 inch 320x240"
+  },
+  "light_bar": {
+   "value": [
+    0.005,
+    0.031,
+    0.0053
+   ],
+   "basis": "measured",
+   "note": "light guide file; window in the shell side is 5.6 x 40.5 mm"
+  },
+  "ring_light_spacing": {
+   "value": 0.005,
+   "basis": "assumed"
+  }
+ },
+ "joints": {
+  "yaw_joint": {
+   "axis": [
+    0,
+    -1,
+    0
+   ],
+   "origin": [
+    0.0,
+    0.01261,
+    -0.0
+   ],
+   "limit_deg": [
+    -128.0,
+    128.0
+   ],
+   "basis": "measured",
+   "source": "firmware/main/hal/hal_servo.cpp (upstream tree pinned in firmware/BASE), Hal::servo_init angleLimit, tenths of a degree",
+   "direction_basis": "assumed",
+   "direction_note": "positive turns toward the robot's right, as the virtual unit view draws it"
+  },
+  "pitch_joint": {
+   "axis": [
+    -1,
+    0,
+    0
+   ],
+   "origin": [
+    0.0,
+    0.04341,
+    -0.0
+   ],
+   "limit_deg": [
+    3.0,
+    87.0
+   ],
+   "basis": "measured",
+   "source": "firmware/main/hal/hal_servo.cpp (upstream tree pinned in firmware/BASE), Hal::servo_init angleLimit, tenths of a degree",
+   "published_limit_deg": [
+    5,
+    85
+   ],
+   "published_basis": "product page text, recommended range",
+   "direction_basis": "assumed",
+   "direction_note": "positive tilts the face up; 0 is the level pose in the drawing"
+  },
+  "pitch_axis_height": {
+   "value": 0.04341,
+   "basis": "measured",
+   "note": "servo shaft stub and arm hole center; equals the head's vertical center"
+  }
+ },
+ "mass_kg": {
+  "total": {
+   "value": 0.25,
+   "basis": "assumed",
+   "note": "estimate: controller about 0.08, battery 0.012, two servos about 0.04, plastics about 0.1; weigh the unit to replace"
+  },
+  "head": {
+   "value": 0.14,
+   "basis": "assumed"
+  },
+  "neck": {
+   "value": 0.06,
+   "basis": "assumed"
+  },
+  "base": {
+   "value": 0.05,
+   "basis": "assumed"
+  }
+ },
+ "colors": {
+  "value": {
+   "base": [
+    0.36,
+    0.37,
+    0.39,
+    1.0
+   ],
+   "neck": [
+    0.6,
+    0.61,
+    0.63,
+    1.0
+   ],
+   "shell": [
+    0.9,
+    0.91,
+    0.92,
+    1.0
+   ],
+   "core": [
+    0.86,
+    0.87,
+    0.88,
+    1.0
+   ],
+   "glass": [
+    0.05,
+    0.05,
+    0.06,
+    1.0
+   ],
+   "screen": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "light_bar": [
+    0.95,
+    0.97,
+    0.97,
+    1.0
+   ],
+   "pcb": [
+    0.1,
+    0.35,
+    0.3,
+    1.0
+   ],
+   "servo": [
+    0.45,
+    0.46,
+    0.48,
+    1.0
+   ],
+   "port": [
+    0.12,
+    0.12,
+    0.13,
+    1.0
+   ],
+   "button": [
+    0.8,
+    0.81,
+    0.82,
+    1.0
+   ],
+   "camera": [
+    0.2,
+    0.17,
+    0.15,
+    1.0
+   ],
+   "light_off": [
+    0.3,
+    0.3,
+    0.32,
+    1.0
+   ]
+  },
+  "basis": "assumed",
+  "note": "from product photos"
+ }
+}
