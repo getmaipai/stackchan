@@ -1,0 +1,183 @@
+# Intent: Safety fix, train 4. The self-restart now happens within 5 s even when the saved restart count is busy or the flash write stalls (the lock is only tried, and a one-shot timer restarts the unit). Servo commands from other tasks and the servo update no longer run at the same moment (one recursive lock inside Motion).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_heal.cc, firmware/main/stackchan/motion (ours, M5Stack base)
+# Check after a flash: the dance, head moves and look-at still run smoothly (no stutter from the new lock); self.heal restart test still restarts the unit.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_heal.cc b/firmware/main/hal/maipai_heal.cc
+--- a/firmware/main/hal/maipai_heal.cc
++++ b/firmware/main/hal/maipai_heal.cc
+@@ -216,11 +216,27 @@ void restart_task(void* arg)
+     snprintf(extra, sizeof(extra), "\"action\":\"restart\",\"why\":\"%s\",\"n\":%d", request->why, count + 1);
+     device_events_push("heal", extra);
+     vTaskDelay(pdMS_TO_TICKS(300));  // the log line and the event leave first
+-    {
+-        std::lock_guard<std::mutex> lock(s_mutex);
++    // Patch SF03: the restart must happen even when the saved count cannot be written (a stuck lock or flash). A timer restarts the
++    // unit after 5 s whatever this task is waiting for, and the lock is only tried, never waited for.
++    static esp_timer_handle_t hard_restart = nullptr;
++    esp_timer_create_args_t hard_args = {};
++    hard_args.callback = [](void*) { esp_restart(); };
++    hard_args.name = "heal_hard";
++    if (esp_timer_create(&hard_args, &hard_restart) == ESP_OK) {
++        esp_timer_start_once(hard_restart, 5ULL * 1000 * 1000);
++    }
++    bool got_lock = false;
++    for (int i = 0; i < 20 && !got_lock; i++) {
++        got_lock = s_mutex.try_lock();
++        if (!got_lock) vTaskDelay(pdMS_TO_TICKS(50));
++    }
++    if (got_lock) {
+         if (!save_locked(request->why)) {
+             ESP_LOGW(kTag, "could not count this restart in flash; restarting anyway");
+         }
++        s_mutex.unlock();
++    } else {
++        ESP_LOGW(kTag, "the restart count is busy; restarting without counting this one");
+     }
+     esp_restart();
+ }
+diff --git a/firmware/main/stackchan/motion/motion.cpp b/firmware/main/stackchan/motion/motion.cpp
+--- a/firmware/main/stackchan/motion/motion.cpp
++++ b/firmware/main/stackchan/motion/motion.cpp
+@@ -18,6 +18,7 @@ void Motion::init()
+ 
+ void Motion::update()
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->update();
+     _pitch_servo->update();
+     maipai_motion_note_pitch(_pitch_servo->commandedAngle());  // patch ML01: the orientation reading is taken relative to the head's pitch
+@@ -35,50 +36,59 @@ Servo& Motion::pitchServo()
+ 
+ void Motion::moveYaw(int angle)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->move(angle);
+ }
+ 
+ void Motion::moveYawWithSpeed(int angle, int speed)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->moveWithSpeed(angle, speed);
+ }
+ 
+ void Motion::movePitch(int angle)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _pitch_servo->move(angle);
+ }
+ 
+ void Motion::movePitchWithSpeed(int angle, int speed)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _pitch_servo->moveWithSpeed(angle, speed);
+ }
+ 
+ void Motion::move(int yawAngle, int pitchAngle)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->move(yawAngle);
+     _pitch_servo->move(pitchAngle);
+ }
+ 
+ void Motion::moveWithSpeed(int yawAngle, int pitchAngle, int speed)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->moveWithSpeed(yawAngle, speed);
+     _pitch_servo->moveWithSpeed(pitchAngle, speed);
+ }
+ 
+ void Motion::goHome(int speed)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->moveWithSpeed(0, speed);
+     _pitch_servo->moveWithSpeed(0, speed);
+ }
+ 
+ void Motion::stop()
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->move(_yaw_servo->getCurrentAngle());
+     _pitch_servo->move(_pitch_servo->getCurrentAngle());
+ }
+ 
+ void Motion::lookAtNormalized(float x, float y, int speed)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     auto angles = calculateNormalizedLookAngles(
+         x, y, _yaw_servo->getAngleLimit().x, _yaw_servo->getAngleLimit().y, _pitch_servo->getAngleLimit().x, _pitch_servo->getAngleLimit().y);
+     moveWithSpeed(angles.yaw, angles.pitch, speed);
+@@ -86,44 +96,52 @@ void Motion::lookAtNormalized(float x, float y, int speed)
+ 
+ void Motion::lookAtPoint(float x, float y, float z, int speed)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     auto angles = calculatePointLookAngles(x, y, z);
+     moveWithSpeed(angles.yaw, angles.pitch, speed);
+ }
+ 
+ bool Motion::isMoving()
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     return _yaw_servo->isMoving() || _pitch_servo->isMoving();
+ }
+ 
+ int Motion::getCurrentYawAngle()
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     return _yaw_servo->getCurrentAngle();
+ }
+ 
+ int Motion::getCurrentPitchAngle()
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     return _pitch_servo->getCurrentAngle();
+ }
+ 
+ uitk::Vector2i Motion::getCurrentAngles()
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     return uitk::Vector2i(_yaw_servo->getCurrentAngle(), _pitch_servo->getCurrentAngle());
+ }
+ 
+ void Motion::setTorqueEnabled(bool enabled)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->setTorqueEnabled(enabled);
+     _pitch_servo->setTorqueEnabled(enabled);
+ }
+ 
+ void Motion::setAutoTorqueReleaseEnabled(bool enabled)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->setAutoTorqueReleaseEnabled(enabled);
+     _pitch_servo->setAutoTorqueReleaseEnabled(enabled);
+ }
+ 
+ void Motion::setAutoAngleSyncEnabled(bool enabled)
+ {
++    std::lock_guard<std::recursive_mutex> body_lock(_body_mu);
+     _yaw_servo->setAutoAngleSyncEnabled(enabled);
+     _pitch_servo->setAutoAngleSyncEnabled(enabled);
+ }
+diff --git a/firmware/main/stackchan/motion/motion.h b/firmware/main/stackchan/motion/motion.h
+--- a/firmware/main/stackchan/motion/motion.h
++++ b/firmware/main/stackchan/motion/motion.h
+@@ -8,6 +8,7 @@
+ #include <smooth_ui_toolkit.hpp>
+ #include <uitk/short_namespace.hpp>
+ #include <memory>
++#include <mutex>
+ 
+ namespace stackchan::motion {
+ 
+@@ -163,6 +164,8 @@ private:
+     std::unique_ptr<Servo> _yaw_servo;
+     std::unique_ptr<Servo> _pitch_servo;
+     bool _is_modify_locked = false;
++    // Patch SF03: the servo update (its own task) and the commands from other tasks never run at the same moment.
++    std::recursive_mutex _body_mu;
+ };
+ 
+ }  // namespace stackchan::motion

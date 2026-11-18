@@ -239,3 +239,4 @@ MD03-music-notes-and-eye-gaze-tools.patch
 SF01-time-helper-lock-and-remote-safety.patch
 SF02-hello-gate-switches-banner-and-light-safety.patch
 SF03-listening-guard-follows-voice.patch
+SF04-restart-deadline-and-body-lock.patch
