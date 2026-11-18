@@ -255,7 +255,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
 - `docs/plan/home-work-brief.md` (48): Brief for a session in the Home repository: the StackChan robot side (2026-11-18)
-- `docs/plan/link-key-exchange.md` (65): Link key exchange for the encrypted link (design, 2026-11-18)
+- `docs/plan/link-key-exchange.md` (68): Link key exchange for the encrypted link (design, 2026-11-18)
 - `docs/plan/mouth-cues-append.md` (16): Mouth cues for replies of more than one sentence
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
@@ -499,7 +499,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (295): no header
+- `firmware/patches/ORDER` (296): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -567,6 +567,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF38-ceiling-zero-and-light-lock.patch` (90): A speed ceiling of 0 means no motion: the servo clock's step limiter holds the command instead of moving it on
 - `firmware/patches/SF39-limiter-failclosed-peak-heap.patch` (279): Limiter and heap round after bench window 11. The limiter assumes the cable is in (limited) until the first re
 - `firmware/patches/SF40-update-refusals-say-what-to-do.patch` (57): Every wireless update refusal that said only that nothing was installed now also says what to publish or do ne
+- `firmware/patches/SF41-update-board-id.patch` (93): The signed update header's last 8 bytes carry a board id (ASCII padded with zeros). The unit compares it with 
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -888,7 +889,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/firmware/pins.toml` (47): The tailnet client (patch 147): downloaded at this commit into the build root when recipe.sh gets --tailnet, n
 - `host/maipai_body/bodies/stackchan/firmware/recipe.sh` (584): no-persistent-websocket)
 - `host/maipai_body/bodies/stackchan/firmware/release.sh` (93): date) BUILD_DATE="$2"; shift 2 ;;
-- `host/maipai_body/bodies/stackchan/firmware/update_header.py` (92): The signed update header (docs/plan/signed-update-anti-rollback.md, agreed with the firmware track): 56 bytes,
+- `host/maipai_body/bodies/stackchan/firmware/update_header.py` (97): The signed update header (docs/plan/signed-update-anti-rollback.md, agreed with the firmware track): 56 bytes,
 - `host/maipai_body/bodies/stackchan/firmware/verify.sh` (48): public-key) (($# >= 2)) || { echo "Pass --public-key PATH (the release's Ed25519 public key PEM) so verify.sh 
 - `host/maipai_body/bodies/stackchan/firmware_update.py` (264): Conservative host-side StackChan firmware update controller."""
 - `host/maipai_body/bodies/stackchan/frame_check.py` (94): Why does the face detector find nobody? A once-a-minute log line, nothing stored.
@@ -943,11 +944,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/wifi_list.py` (258): The names in StackChan's saved Wi-Fi list (firmware patch 023)."""
 - `host/maipai_body/bodies/stackchan/ws_logging.py` (43): Quiet logging for the StackChan websocket listeners.
 - `host/maipai_body/bodies/stackchan/xiaozhi/__init__.py` (6): LAN xiaozhi protocol server and provisioning helpers for StackChan."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/link_exchange.py` (225): Host half of the link key exchange (docs/plan/link-key-exchange.md): X25519 plus a six-digit code the unit sho
+- `host/maipai_body/bodies/stackchan/xiaozhi/link_exchange.py` (244): Host half of the link key exchange (docs/plan/link-key-exchange.md): X25519 plus a six-digit code the unit sho
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (224): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
 - `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (633): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1768): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1769): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
 - `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
@@ -1144,8 +1145,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/selftest/stackchan_wiring.py` (127): BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts.
 - `host/maipai_body/service_threads.py` (50): Background threads of the host service, each started with the stop event it waits on.
 - `host/maipai_body/settings_keys.py` (62): Settings keys shared by body settings consumers."""
-- `host/maipai_body/settings_page.py` (912): ruff: noqa: E501
-- `host/maipai_body/settings_server.py` (182): ruff: noqa: E501
+- `host/maipai_body/settings_page.py` (914): ruff: noqa: E501
+- `host/maipai_body/settings_server.py` (185): ruff: noqa: E501
 - `host/maipai_body/settings_sim.py` (436): ruff: noqa: E501
 - `host/maipai_body/settings_ui.py` (748): ruff: noqa: E501
 - `host/maipai_body/settings_ui_character.py` (21): ruff: noqa: E501
@@ -1227,7 +1228,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_packages/home_assistant/__init__.py` (12): Home Assistant voice and camera snapshots, as an optional local package (off by default).
 - `host/maipai_packages/home_assistant/client.py` (165): The Home Assistant connection: conversation text in, speech text out; one camera picture on request."""
 - `host/maipai_packages/memory_notes/__init__.py` (12): Local memory for several adults as plain per-person notes files.
-- `host/maipai_packages/memory_notes/admission.py` (76): What may be stored, and who may read it (shaped like the shared memory admission concept).
+- `host/maipai_packages/memory_notes/admission.py` (93): What may be stored, and who may read it (shaped like the shared memory admission concept).
 - `host/maipai_packages/memory_notes/store.py` (288): One plain text file per person; one note per line: ``- 2026-11-18 [ab12cd] the note``."""
 - `host/maipai_packages/wake_word_maker/__init__.py` (10): Make your own wake word on this computer: record clips on the settings page, train a small model, check it, in
 - `host/maipai_packages/wake_word_maker/engine/__init__.py` (1): The small local wake-word trainer (features, dataset, training, checking). Copied from scripts/wakeword with o
@@ -1871,7 +1872,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_connection_loss.py` (33): Losing the connection raises BodyLost once; nothing is retried silently."""
 - `host/tests/test_cross_review_open_bugs.py` (181): ruff: noqa: E501
 - `host/tests/test_cross_review_open_bugs_2.py` (279): ruff: noqa: E501
-- `host/tests/test_cross_review_open_bugs_3.py` (43): ruff: noqa: E501
+- `host/tests/test_cross_review_open_bugs_3.py` (46): ruff: noqa: E501
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
@@ -1950,7 +1951,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_link_client_refresh_address.py` (61): LINK-STATE-01: a redeem at a chosen address, the one the walk found."""
 - `host/tests/test_link_commands.py` (179): LINK-STATE-01 rung 1: a closed list of fixed local commands with fixed replies."""
 - `host/tests/test_link_discovery.py` (66): G4's own acceptance: parsing a discovered service, without any real
-- `host/tests/test_link_exchange.py` (206): The host half of the link key exchange (docs/plan/link-key-exchange.md), against the reference vectors in scri
+- `host/tests/test_link_exchange.py` (229): The host half of the link key exchange (docs/plan/link-key-exchange.md), against the reference vectors in scri
 - `host/tests/test_link_exchange_socket.py` (91): A fake unit pairs over the plain pairing socket with the key exchange; the owner's six digits finish it (docs/
 - `host/tests/test_link_key_vector.py` (24): The link key reference script checks X25519 against RFC 7748 and HKDF against RFC 5869, then prints the fixed 
 - `host/tests/test_link_ladder_run_loop.py` (413): LINK-STATE-01: the funnel and run loop with the ladder, on a fake body and an injected clock."""
@@ -2269,7 +2270,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/voice_fakes.py` (123): Scripted engines and a scripted capture for the speech-process tests."""
 - `schema/.gitkeep` (0): no header
 - `schema/base-tools.json` (10): no header
-- `schema/tools.json` (595): no header
+- `schema/tools.json` (602): no header
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).

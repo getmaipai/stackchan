@@ -1,0 +1,247 @@
+# Intent: Bench only (CONFIG_MAIPAI_SERIAL_TOOLS). self.bench.barge_test {count, gap_ms, no_barge, silent} runs rounds of talking over the unit with no person: the unit speaks a canned reply, then two wake hits reach the wake decision at the given gap as the detector's own event (Application::BenchInjectWakeHit), and each round prints "MaipaiBarge round=N interrupted=0|1 ms=N". self.bench.say_test and the rounds can run silent: the speaker volume is 0 and the echo reference is injected digitally into the loopback channel of the microphone path, so the echo canceller and the interruption path run with no sound (the silence_ms line then measures how fast the unit drops the reply, not the speaker). self.bench.say_test also takes silent.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/application.h (nested tree, MIT); firmware/main/hal (ours)
+# Check after a flash: on an aec bench image, self.bench.barge_test {count 3, gap_ms 600} prints three MaipaiBarge round lines with interrupted=1 and no sound with silent=1; with no_barge=1 they read interrupted=0.
+# Kconfig: none new
+
+diff --git a/firmware/main/hal/maipai_bench.cc b/firmware/main/hal/maipai_bench.cc
+--- a/firmware/main/hal/maipai_bench.cc
++++ b/firmware/main/hal/maipai_bench.cc
+@@ -14,6 +14,8 @@
+ #include <hal/maipai_firstrun_wire.h>
+ #include <hal/maipai_barge.h>
+ #include <application.h>
++#include "board/hal_bridge.h"
++#include <functional>
+ #include <esp_heap_caps.h>
+ #include <sdkconfig.h>
+ #if CONFIG_HEAP_TRACING_STANDALONE
+@@ -73,8 +75,28 @@ struct Noise {
+ } s_noise;
+ }  // namespace
+ 
++namespace {
++// Patch SF42: the echo reference injected digitally (speaker volume 0): what the reply plays is also written here and read back as the loopback
++// channel of the microphone path in real time. One writer (the reply task), one reader (the audio input task).
++struct RefRing {
++    static constexpr uint32_t kCap = 16384;
++    int16_t* buf = nullptr;
++    std::atomic<uint32_t> w{0}, r{0};
++    std::atomic<bool> active{false};
++} s_ref;
++}  // namespace
++
+ // Called from AudioService::ReadAudioData with one block of interleaved 16 kHz audio.
+ void maipai_bench_inject(std::vector<int16_t>& data, int channels) {
++    if (s_ref.active.load() && channels > 1 && s_ref.buf != nullptr) {
++        const size_t nf = data.size() / static_cast<size_t>(channels);
++        uint32_t r = s_ref.r.load();
++        const uint32_t w = s_ref.w.load();
++        for (size_t f = 0; f < nf; f++) {
++            data[f * channels + 1] = r != w ? s_ref.buf[r++ % RefRing::kCap] : 0;
++        }
++        s_ref.r.store(r);
++    }
+     if (s_noise.active.load() && !s_run.active.load()) {
+         const size_t nf = data.size() / (channels > 0 ? channels : 1);
+         const uint32_t nlen = g_bench_clip_len[6];
+@@ -141,6 +163,106 @@ __attribute__((constructor(200))) void maipai_heap_trace_boot()
+ }  // namespace
+ #endif
+ 
++namespace {
++// Patch SF42: one reply task for say_test (rounds 0) and barge_test (rounds > 0).
++struct SpeechArgs { int seconds; bool no_barge; bool silent; int rounds; int gap_ms; };
++
++void bench_speech_task(void* arg)
++{
++    SpeechArgs* args = static_cast<SpeechArgs*>(arg);
++    auto& app = Application::GetInstance();
++    auto& audio = app.GetAudioService();
++    const uint8_t saved_volume = hal_bridge::board_get_speaker_volume();
++    if (args->silent) {
++        s_ref.buf = static_cast<int16_t*>(heap_caps_calloc(RefRing::kCap, sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (s_ref.buf == nullptr) {
++            printf("MaipaiBarge bench: no memory for the reference ring; run without silent\n");
++            args->silent = false;
++        } else {
++            s_ref.w.store(0);
++            s_ref.r.store(0);
++            s_ref.active.store(true);
++            hal_bridge::board_set_speaker_volume(0, false);
++        }
++    }
++    const int rounds = args->rounds > 0 ? args->rounds : 1;
++    for (int round = 1; round <= rounds; round++) {
++        maipai_barge_tts_start();
++        audio.SetSpeechOpen(true);
++        app.SetDeviceState(kDeviceStateSpeaking);
++        if (args->no_barge) maipai_barge_no_barge(static_cast<uint32_t>(args->seconds) * 1000u);
++        const int64_t t0 = esp_timer_get_time();
++        const int64_t end_us = t0 + static_cast<int64_t>(args->seconds) * 1000000;
++        bool hit1 = false, hit2 = false;
++        int64_t hit2_us = 0;
++        // 60 ms slices, like the frames of a real reply: one long block would hold the speaker write for its whole length and an
++        // interruption could not cut it.
++        int q = 1;
++        uint32_t pos = 0;
++        while (esp_timer_get_time() < end_us && app.GetDeviceState() == kDeviceStateSpeaking) {
++            const int64_t el = (esp_timer_get_time() - t0) / 1000;
++            if (args->rounds > 0) {
++                if (!hit1 && el >= 1500) { hit1 = true; app.BenchInjectWakeHit(); }
++                if (hit1 && !hit2 && el >= 1500 + args->gap_ms) { hit2 = true; hit2_us = esp_timer_get_time(); app.BenchInjectWakeHit(); }
++            }
++            if (g_bench_clip_count <= 1) break;
++            const uint32_t left = g_bench_clip_len[q] - pos;
++            const uint32_t n = left < 960u ? left : 960u;
++            if (audio.PlayPcm(&g_bench_clips[g_bench_clip_off[q] + pos], n, 16000)) {
++                if (args->silent && s_ref.buf != nullptr) {
++                    uint32_t w = s_ref.w.load();
++                    for (uint32_t k = 0; k < n; k++) s_ref.buf[w++ % RefRing::kCap] = g_bench_clips[g_bench_clip_off[q] + pos + k];
++                    s_ref.w.store(w);
++                }
++                pos += n;
++                if (pos >= g_bench_clip_len[q]) {
++                    pos = 0;
++                    q = q + 1 < g_bench_clip_count - 1 ? q + 1 : 1;
++                }
++            } else {
++                vTaskDelay(pdMS_TO_TICKS(20));
++            }
++        }
++        const bool interrupted = app.GetDeviceState() != kDeviceStateSpeaking;
++        if (args->silent) s_ref.r.store(s_ref.w.load());  // the reply was dropped: the injected reference goes quiet with it
++        if (args->rounds > 0) {
++            const int ms_after = hit2 ? static_cast<int>((esp_timer_get_time() - hit2_us) / 1000) : -1;
++            printf("MaipaiBarge round=%d interrupted=%d ms=%d\n", round, interrupted ? 1 : 0, ms_after);
++        }
++        if (!interrupted) {
++            while (!audio.IsPlaybackIdle()) vTaskDelay(pdMS_TO_TICKS(100));
++        }
++        audio.ResetDecoder();
++        audio.SetSpeechOpen(false);
++        if (app.GetDeviceState() != kDeviceStateIdle) app.SetDeviceState(kDeviceStateIdle);
++        if (round < rounds) vTaskDelay(pdMS_TO_TICKS(2000));
++    }
++    if (args->silent && s_ref.buf != nullptr) {
++        s_ref.active.store(false);
++        vTaskDelay(pdMS_TO_TICKS(50));
++        heap_caps_free(s_ref.buf);
++        s_ref.buf = nullptr;
++        hal_bridge::board_set_speaker_volume(saved_volume, false);
++    }
++    delete args;
++}
++
++std::atomic<bool> s_speech_busy{false};
++
++std::string bench_start_speech_task(int seconds, bool no_barge, bool silent, int rounds, int gap_ms, int)
++{
++    if (s_speech_busy.exchange(true)) return "{\"ok\":false,\"error\":\"a reply test is already running: wait for it to end\"}";
++    auto* a = new SpeechArgs{seconds, no_barge, silent, rounds, gap_ms};
++    const BaseType_t rc = xTaskCreate([](void* arg) { bench_speech_task(arg); s_speech_busy.store(false); vTaskDelete(nullptr); }, "bench_say", 4096, a, 3, nullptr);
++    if (rc != pdPASS) {
++        delete a;
++        s_speech_busy.store(false);
++        return "{\"ok\":false,\"error\":\"no memory for the test task: try again after the unit is idle\"}";
++    }
++    return "{\"ok\":true}";
++}
++}  // namespace
++
+ void maipai_bench_register_tools() {
+     auto& mcp = McpServer::GetInstance();
+     // Bench only (patch SF23): the head moves wherever it is told whatever the idle rules say. It still goes through the servo layer, so the
+@@ -328,58 +450,26 @@ void maipai_bench_register_tools() {
+     mcp.AddTool("self.bench.say_test",
+                 "Bench only: makes the unit speak a long canned reply through the real playback path (the speech state, the open speech, the playback queue, "
+                 "the loopback and the echo canceller), without a person or a host: the stored question clips are played one after another for seconds "
+-                "(1 to 120). no_barge=1 marks it as a sentence that says the wake phrase (wake hits are ignored while it plays). "
+-                "Ends by itself, or when the unit leaves the speaking state (an interruption). Answers {ok}.",
+-                PropertyList({Property("seconds", kPropertyTypeInteger, 20, 1, 120), Property("no_barge", kPropertyTypeInteger, 0, 0, 1)}),
++                "(1 to 120). no_barge=1 marks it as a sentence that says the wake phrase (wake hits are ignored while it plays). silent=1 sets the speaker "
++                "volume to 0 for the run and injects the echo reference digitally (the reply is then not heard; the silence_ms line measures only how fast "
++                "the unit drops the reply, not the speaker). Ends by itself, or when the unit leaves the speaking state (an interruption). Answers {ok}.",
++                PropertyList({Property("seconds", kPropertyTypeInteger, 20, 1, 120), Property("no_barge", kPropertyTypeInteger, 0, 0, 1),
++                              Property("silent", kPropertyTypeInteger, 0, 0, 1)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+-                    static std::atomic<bool> busy{false};
+-                    if (busy.exchange(true)) {
+-                        return std::string("{\"ok\":false,\"error\":\"running\"}");
+-                    }
+-                    struct Args { int seconds; bool no_barge; };
+-                    auto* a = new Args{properties["seconds"].value<int>(), properties["no_barge"].value<int>() != 0};
+-                    const BaseType_t rc = xTaskCreate([](void* arg) {
+-                        Args* args = static_cast<Args*>(arg);
+-                        auto& app = Application::GetInstance();
+-                        auto& audio = app.GetAudioService();
+-                        maipai_barge_tts_start();
+-                        audio.SetSpeechOpen(true);
+-                        app.SetDeviceState(kDeviceStateSpeaking);
+-                        if (args->no_barge) maipai_barge_no_barge(static_cast<uint32_t>(args->seconds) * 1000u);
+-                        const int64_t end_us = esp_timer_get_time() + static_cast<int64_t>(args->seconds) * 1000000;
+-                        // 60 ms slices, like the frames of a real reply: one long block would hold the speaker write for its whole length and an
+-                        // interruption could not cut it (the output then logs slow_out lines of the clip's length).
+-                        int q = 1;
+-                        uint32_t pos = 0;
+-                        while (esp_timer_get_time() < end_us && app.GetDeviceState() == kDeviceStateSpeaking) {
+-                            if (g_bench_clip_count <= 1) break;
+-                            const uint32_t left = g_bench_clip_len[q] - pos;
+-                            const uint32_t n = left < 960u ? left : 960u;
+-                            if (audio.PlayPcm(&g_bench_clips[g_bench_clip_off[q] + pos], n, 16000)) {
+-                                pos += n;
+-                                if (pos >= g_bench_clip_len[q]) {
+-                                    pos = 0;
+-                                    q = q + 1 < g_bench_clip_count - 1 ? q + 1 : 1;
+-                                }
+-                            } else {
+-                                vTaskDelay(pdMS_TO_TICKS(20));
+-                            }
+-                        }
+-                        if (app.GetDeviceState() == kDeviceStateSpeaking) {
+-                            while (!audio.IsPlaybackIdle()) vTaskDelay(pdMS_TO_TICKS(100));
+-                            audio.SetSpeechOpen(false);
+-                            app.SetDeviceState(kDeviceStateIdle);
+-                        }
+-                        delete args;
+-                        busy.store(false);
+-                        vTaskDelete(nullptr);
+-                    }, "bench_say", 4096, a, 3, nullptr);
+-                    if (rc != pdPASS) {
+-                        delete a;
+-                        busy.store(false);
+-                        return std::string("{\"ok\":false,\"error\":\"no memory for the test task: try again after the unit is idle\"}");
+-                    }
+-                    return std::string("{\"ok\":true}");
++                    return bench_start_speech_task(properties["seconds"].value<int>(), properties["no_barge"].value<int>() != 0,
++                                                   properties["silent"].value<int>() != 0, 0, 0, 0);
++                });
++    mcp.AddTool("self.bench.barge_test",
++                "Bench only: count rounds of talking over the unit, without a person and, with silent=1, without any sound. Each round: the unit speaks a canned reply, "
++                "1.5 s later two wake hits reach the wake decision at gap_ms from each other (the detector's event, not a played phrase, so the 1 s rule of the "
++                "decision applies as for real hits), then the round waits for the speech to stop. no_barge=1 marks the reply as a sentence that says the wake "
++                "phrase: the hits must then be ignored. Prints one line per round on the console, \"MaipaiBarge round=N interrupted=0|1 ms=...\", and the "
++                "\"MaipaiBarge silence_ms=\" line (see say_test, silent). Answers {ok} at once; the rounds run in the background.",
++                PropertyList({Property("count", kPropertyTypeInteger, 20, 1, 100), Property("gap_ms", kPropertyTypeInteger, 600, 50, 3000),
++                              Property("no_barge", kPropertyTypeInteger, 0, 0, 1), Property("silent", kPropertyTypeInteger, 1, 0, 1)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    return bench_start_speech_task(8, properties["no_barge"].value<int>() != 0, properties["silent"].value<int>() != 0,
++                                                   properties["count"].value<int>(), properties["gap_ms"].value<int>(), 1);
+                 });
+     mcp.AddTool("self.bench.inject",
+                 "Bench only: plays the wake phrase (wake=1), a gap, question clip q (1 to 5, or 0 for none) and "
+diff --git a/firmware/xiaozhi-esp32/main/application.h b/firmware/xiaozhi-esp32/main/application.h
+--- a/firmware/xiaozhi-esp32/main/application.h
++++ b/firmware/xiaozhi-esp32/main/application.h
+@@ -82,6 +82,11 @@ public:
+      */
+     void Schedule(std::function<void()>&& callback);
+ 
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++    // Patch SF42 (bench): a wake hit as the detector reports it (the same event, the same handler), without a played phrase.
++    void BenchInjectWakeHit() { xEventGroupSetBits(event_group_, MAIN_EVENT_WAKE_WORD_DETECTED); }
++#endif
++
+     /**
+      * Alert with status, message, emotion and optional sound
+      */
