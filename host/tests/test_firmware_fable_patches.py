@@ -1,5 +1,5 @@
 # ruff: noqa: E501
-"""Patches FM01 to FM05 (the fixes from the Fable memory and risk review, 2026-11-16): header lines, replay order, and the PC tests of
+"""Patches FM01 to FM05 (the fixes from the memory and risk review, 2026-11-16): header lines, replay order, and the PC tests of
 their pure cores (compiled from the patch text, so the test runs the code the patch ships)."""
 
 from __future__ import annotations

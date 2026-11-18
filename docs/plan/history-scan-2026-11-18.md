@@ -1,6 +1,6 @@
 # Secret scan, 2026-11-18
 
-**Current files (HEAD):** no real secret. `scripts/check-no-keys.py` over every tracked file and `gitleaks` with `.gitleaks.toml` both pass. Test values carry the marker `FAKETESTKEY`, which the scanner and the gitleaks allowlist accept. `scripts/check.sh` now runs both (finding T-4); a key-shaped value without the marker fails the check.
+**Current files (HEAD):** no real secret. `scripts/check-no-keys.py` over every tracked file and `gitleaks` with `.gitleaks.toml` both pass. Test values carry the marker `FAKETESTKEY`, which the scanner and the gitleaks allowlist accept. `scripts/check.sh` now runs both; a key-shaped value without the marker fails the check.
 
 **History (714 commits, `gitleaks --log-opts=--all`):** 12 findings in 8 commits, all checked by hand:
 - private-network test keys made of letters like abcdefghi or zzzz, or marked FAKETESTKEY (`host/tests/test_settings_ui.py`, `host/tests/firmware/tailnet_travel_test.c`);

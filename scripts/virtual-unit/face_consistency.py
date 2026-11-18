@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Face consistency across the five styles and the emotions (U-1): white faces, a mouth wide enough to read, no hairline strokes.
+"""Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairline strokes.
 Usage: face_consistency.py [--table] [--update-known]   prints violations (exit 1 when one is new or fixed); --table prints every measurement;
 --update-known rewrites host/tests/golden/face-known.json with today's violations (do it only after reading them).
 Measured on the real LVGL face through the virtual unit. host/tests/golden/face-known.json lists violations that exist today, each with the reason; a fixed one must be removed

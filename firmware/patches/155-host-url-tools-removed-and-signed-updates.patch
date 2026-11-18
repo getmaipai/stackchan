@@ -1,4 +1,4 @@
-# Intent: Security finding 1. The tools that installed firmware from, or sent a screen snapshot to, any address a caller named are gone, and so are the screen-preview-from-URL and assets-download-address tools. The camera address the host sends must be the host the unit is paired with, or it is ignored. Wireless updates install only with a valid Ed25519 signature (detached 64-byte file at the image address plus ".sig", checked while the image streams in; the public key is the STACKCHAN_UPDATE_PUBKEY build option, empty means no update is accepted; STACKCHAN_UPDATE_ALLOW_UNSIGNED is a developer override, off).
+# Intent: Safety fix. The tools that installed firmware from, or sent a screen snapshot to, any address a caller named are gone, and so are the screen-preview-from-URL and assets-download-address tools. The camera address the host sends must be the host the unit is paired with, or it is ignored. Wireless updates install only with a valid Ed25519 signature (detached 64-byte file at the image address plus ".sig", checked while the image streams in; the public key is the STACKCHAN_UPDATE_PUBKEY build option, empty means no update is accepted; STACKCHAN_UPDATE_ALLOW_UNSIGNED is a developer override, off).
 # Placement: unit (the install and send paths run on the robot)
 # Upstream: main/mcp_server.cc and main/ota.cc of the xiaozhi-esp32 tree (MIT); update_verify.cc carries the public-domain TweetNaCl Ed25519 field and group arithmetic
 # Check after a flash: ask the model to list tools: no self.upgrade_firmware, self.screen.snapshot, self.screen.preview_image or self.assets.set_download_url. An update with a missing or wrong .sig logs "Update refused" and installs nothing.
@@ -28,7 +28,7 @@ diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/
 -
 -            return true;
 -        });
-+    // No tool installs firmware or sends data to a caller-chosen address (security finding 1).
++    // No tool installs firmware or sends data to a caller-chosen address (safety fix).
 +    // Updates come only from the update path, which checks a signature.
  
 @@ -179,136 +160,2 @@ void McpServer::AddUserOnlyTools() {
@@ -178,7 +178,7 @@ diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/
 -                        settings.SetString("download_url", url);
 -                        return true;
 -                    });
-+    // The tool that set it is gone (security finding 1): no caller can name an address to download from.
++    // The tool that set it is gone (safety fix): no caller can name an address to download from.
  }
 @@ -362,2 +202,17 @@ void McpServer::ParseMessage(const std::string& message, ResponseSender response
  
@@ -201,7 +201,7 @@ diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/
 @@ -369,4 +224,12 @@ void McpServer::ParseCapabilities(const cJSON* capabilities) {
              auto camera = Board::GetInstance().GetCamera();
 +            std::string url_str = std::string(url->valuestring);
-+            // The photo goes only to the paired host (security finding 1): the address must be the
++            // The photo goes only to the paired host (safety fix): the address must be the
 +            // host the unit already uses for its own link.
 +            Settings paired("websocket", false);
 +            std::string paired_host = UrlHost(paired.GetString("url"));
@@ -615,7 +615,7 @@ new file mode 100644
 +#include <cstdint>
 +#include <string>
 +
-+// Ed25519 check for firmware images (patch 155, security finding 1).
++// Ed25519 check for firmware images (patch 155, safety fix).
 +// The signature is over the whole image, as plain Ed25519 (RFC 8032), so any standard tool can sign it.
 +
 +// h is SHA-512(R || public key || image), R being the first 32 bytes of sig. True only for a valid signature.

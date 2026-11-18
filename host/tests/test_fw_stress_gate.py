@@ -1,4 +1,4 @@
-"""T-1: the memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
+"""The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
 
 import importlib.util
 from pathlib import Path

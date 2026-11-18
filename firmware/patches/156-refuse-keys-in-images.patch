@@ -1,4 +1,4 @@
-# Intent: Security finding 3. The firmware build runs the key checker over the bootloader, partition table, ota data, assets and app images after they are built and fails the build when one holds a key-shaped value (private-network auth key, private key block, code host token, cloud key id, model or chat api key). The checker is scripts/check-no-keys.py of the repo, named by MAIPAI_KEY_CHECK (scripts/fw-env.sh sets it); the build stops with a plain message when it is not set. The key is never printed.
+# Intent: Safety fix. The firmware build runs the key checker over the bootloader, partition table, ota data, assets and app images after they are built and fails the build when one holds a key-shaped value (private-network auth key, private key block, code host token, cloud key id, model or chat api key). The checker is scripts/check-no-keys.py of the repo, named by MAIPAI_KEY_CHECK (scripts/fw-env.sh sets it); the build stops with a plain message when it is not set. The key is never printed.
 # Placement: unit (the images are the unit's firmware)
 # Upstream: firmware/CMakeLists.txt of the StackChan tree
 # Check after a build: the log shows "Checking the images for keys" then "no keys found in 5 file(s)".
@@ -10,7 +10,7 @@ diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
  include($ENV{IDF_PATH}/tools/cmake/project.cmake)
  project(maipai-stackchan)
 +
-+# Security finding 3 (patch 156): the build refuses any image that contains a key. MAIPAI_KEY_CHECK names the
++# Safety fix (patch 156): the build refuses any image that contains a key. MAIPAI_KEY_CHECK names the
 +# checker (scripts/check-no-keys.py in the repo; scripts/fw-env.sh sets it). The step runs after the images exist.
 +if(NOT DEFINED ENV{MAIPAI_KEY_CHECK} OR NOT EXISTS "$ENV{MAIPAI_KEY_CHECK}")
 +    message(FATAL_ERROR "MAIPAI_KEY_CHECK does not name the key checker. Run `source scripts/fw-env.sh` from the repo, then build again.")

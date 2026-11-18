@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Count the font sizes and color literals the app screen sources use (U-2), on the overlay tree built by build-face.sh.
+"""Count the font sizes and color literals the app screen sources use, on the overlay tree built by build-face.sh.
 Usage: ui_style_check.py [tree root, default .runs/fixtree]   prints sizes and literals; exit 1 when the standard (docs/design/screen-style.md) is not met.
 Standard: font sizes 16 and 20 only (the Noto Sans basic fonts, which carry the Latin-1 letters) (the clock page's 48 is allowed); color literals only in hal/maipai_ui_style.h.
 Placement: host-side development tool. Upstream: none."""

@@ -438,6 +438,6 @@ diff --git a/firmware/sdkconfig.core.defaults b/firmware/sdkconfig.core.defaults
  CONFIG_MAIPAI_TZ=y
  CONFIG_MAIPAI_NETTEST=y
 +CONFIG_MAIPAI_VERSION=y
- # Security finding 5: no public CA bundle. The unit talks to the host over the private network and to nothing else,
+ # Safety fix: no public CA bundle. The unit talks to the host over the private network and to nothing else,
  # and the TLS link to the host (a later item) pins a private CA. The bundle holds one placeholder root whose key was
- # destroyed, so nothing chains to it. Frees the 66,137 B bundle (measured in docs/design/security-fixes-2026-11-16.md).
+ # destroyed, so nothing chains to it. Frees the 66,137 B bundle.

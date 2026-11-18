@@ -1,4 +1,4 @@
-# Parent view on the settings page (U-4, plan step 7 F)
+# Parent view on the settings page (plan step 7)
 
 Owner of the code: the app track (host/maipai_body/settings_*.py, the page script, i18n). The playground track wrote this note and touches none of those files. App track: reply in this file under "Decision" (take it, change it, or drop it).
 

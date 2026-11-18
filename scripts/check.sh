@@ -7,7 +7,7 @@ bash scripts/hygiene-check.sh $(git ls-files -co --exclude-standard)
 bash scripts/boundary-check.sh
 
 bash scripts/spec-drift-check.sh
-# Secret scan (T-4): tracked files by the image-level scanner, tracked files and history by gitleaks when it is installed.
+# Secret scan: tracked files by the image-level scanner, tracked files and history by gitleaks when it is installed.
 git ls-files -z | xargs -0 python3 scripts/check-no-keys.py >/dev/null || { echo "secrets: FAIL (check-no-keys.py found a key-shaped value)"; exit 1; }
 if command -v gitleaks >/dev/null 2>&1; then
   gitleaks detect --no-git --source . -c .gitleaks.toml --redact --no-banner >/dev/null 2>&1 || { echo "secrets: FAIL (gitleaks, current files)"; exit 1; }
@@ -17,6 +17,8 @@ if command -v gitleaks >/dev/null 2>&1; then
   fi
 fi
 echo "secrets: ok"
-# Licenses (B-4): dependencies named in THIRD-PARTY.md, LICENSE is the AGPL, SPDX lines use a stated license.
+# Licenses: dependencies named in THIRD-PARTY.md, LICENSE is the AGPL, SPDX lines use a stated license.
 PY=python3; [ -x host/.venv/bin/python ] && PY=host/.venv/bin/python
 "$PY" scripts/license-check.py || exit 1
+
+bash scripts/leak-sweep.sh

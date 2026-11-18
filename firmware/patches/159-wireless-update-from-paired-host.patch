@@ -176,7 +176,7 @@ diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/
      auto vision = cJSON_GetObjectItem(capabilities, "vision");
      if (cJSON_IsObject(vision)) {
 @@ -226,8 +212,8 @@ void McpServer::ParseCapabilities(const cJSON* capabilities) {
-             // The photo goes only to the paired host (security finding 1): the address must be the
+             // The photo goes only to the paired host (safety fix): the address must be the
              // host the unit already uses for its own link.
              Settings paired("websocket", false);
 -            std::string paired_host = UrlHost(paired.GetString("url"));

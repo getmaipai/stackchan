@@ -1,4 +1,4 @@
-# Intent: Security finding 5. The public CA bundle (66,137 B of flash, about 140 roots) is replaced by a custom bundle that holds one placeholder root whose key was destroyed, so nothing can chain to it. The core needs no public root: the unit talks to the host over the private network only, and the TLS link to the host (a later item) pins a private CA that is added to firmware/ca/ then. The Kconfig switches ride in firmware/sdkconfig.core.defaults.
+# Intent: Safety fix. The public CA bundle (66,137 B of flash, about 140 roots) is replaced by a custom bundle that holds one placeholder root whose key was destroyed, so nothing can chain to it. The core needs no public root: the unit talks to the host over the private network only, and the TLS link to the host (a later item) pins a private CA that is added to firmware/ca/ then. The Kconfig switches ride in firmware/sdkconfig.core.defaults.
 # Placement: unit (the unit's trust store)
 # Upstream: none (new file)
 # Check after a flash: nothing visible; any https connection to a public site now fails with a certificate error, which is intended.

@@ -1,4 +1,4 @@
-# Vendored spec drift check (T-2), owner: playground track, 2026-11-17
+# Vendored spec drift check, owner: playground track, 2026-11-17
 
 - `scripts/spec-drift-check.sh` runs in `scripts/check.sh`. It compares `host/spec-vendor/spec` with `host/spec-vendor/MANIFEST.sha256`, and with the source tag named in `STAMP.md` when that tag is on the Mac.
 - The playground track added only the script and the manifest. It does not edit `host/spec-vendor/spec`.

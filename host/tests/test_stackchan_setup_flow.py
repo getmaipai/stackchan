@@ -189,7 +189,7 @@ class StackChanFlashIdfEnvTests(unittest.TestCase):
         self.assertEqual(command[-2:], ["0x9000", str(build / "nvs.bin")])
 
     def test_flash_args_without_firmware_images_stops_before_writing(self) -> None:
-        # Review finding: an options-only flash_args wrote NVS alone and reported DONE.
+        # Review note: an options-only flash_args wrote NVS alone and reported DONE.
         with tempfile.TemporaryDirectory() as temp:
             build = Path(temp)
             (build / "flash_args").write_text("--flash_mode dio\n0x9000 nvs-only.bin\n")

@@ -1,4 +1,4 @@
-# Screen style standard (U-2)
+# Screen style standard
 
 Status: standard for the 320 by 240 app screens (Apps wall, Timers, Alarms, Games wall, Settings, control sheet, pages). The face is not covered.
 

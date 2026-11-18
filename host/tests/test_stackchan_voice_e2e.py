@@ -234,7 +234,7 @@ class MultiSentenceReplyTests(VoiceEndToEnd):
     }
 
     async def test_a_three_sentence_reply_is_one_stream_without_gaps(self):
-        # Fable review P1: stop() per sentence made a gap at every full stop.
+        # Review note P1: stop() per sentence made a gap at every full stop.
         await self.speak_a_phrase()
         await self.wait_until(
             lambda: any(f.get("state") == "stop" for _, f in self.device.tts_events), timeout=15

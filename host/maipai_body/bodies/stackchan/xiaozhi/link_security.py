@@ -1,6 +1,6 @@
 """Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
 
-Design note: docs/design/security-fixes-2026-11-16.md ("Built so far"). The unit and the host both hold
+Design note: docs/design/encrypted-link.md. The unit and the host both hold
 the same secret from pairing, so a stranger on the network can neither read the traffic nor pose as
 either side. The PSK is derived (HKDF-SHA256) from the pairing secret, never the secret itself.
 

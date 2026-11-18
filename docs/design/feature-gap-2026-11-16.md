@@ -1,7 +1,7 @@
 # Feature gap: promised against built and flashed, 2026-11-16
 
 Placement: audit note for the firmware and host lanes. Nothing was built, flashed or changed to write it.
-Sources: `features.md`, `firmware-v1-cut.md` (CORE-V1 and HOME-PRESET rows), `decisions.md`, `core-extras-modules.md`, `firmware/patches/ORDER`, `host/maipai_body`, `host/tests`, the first-flash note (2026-11-15), the faces gate and status notes (2026-11-16), `security-fixes-2026-11-16.md`.
+Sources: `features.md`, `firmware-v1-cut.md` (CORE-V1 and HOME-PRESET rows), `decisions.md`, `core-extras-modules.md`, `firmware/patches/ORDER`, `host/maipai_body`, `host/tests`, the first-flash note (2026-11-15), the faces gate and status notes (2026-11-16).
 
 ## The short answer
 
@@ -66,7 +66,7 @@ The security build (CA bundle cut, patches 155 to 158) was not re-measured for h
 | Pairing and security (token hand-off, no keys, no public CA, no vendor URLs) | decisions 12; security note | BUILT-NOT-VERIFIED | 018, 155 to 158, `scripts/check-no-keys.py`; image strings checked, no unit run of the tool removals | S | FW | 1 |
 | Signed updates, wireless | features.md; release-and-updates.md | NOT-BUILT | 155 holds the Ed25519 check but nothing calls the vendor client, so a unit cannot install over the air; patch 133 is not ported; host `updater.py` and `test_stackchan_updating_route.py` exist | M | FW | 1 |
 | Reset the device (two-step, atomic) | features.md "Reset the device" | NOT-BUILT | no patch, no handler | S | FW | 1 |
-| Better Wi-Fi setup portal (protected, no saved-network list, timeout) | safety-and-privacy.md finding 4; audit ask | HOST-ONLY | `host/tests/firmware/portal_core_test.c`, `test_portal_core.py`; no portal patch in ORDER; the interim fix is not applied | M | FW | 1 |
+| Better Wi-Fi setup portal (protected, no saved-network list, timeout) | owner ask | HOST-ONLY | `host/tests/firmware/portal_core_test.c`, `test_portal_core.py`; no portal patch in ORDER; the interim fix is not applied | M | FW | 1 |
 | Core settings page on the host | core-extras-modules.md | BUILT-NOT-VERIFIED | `settings_page.py`, face section, language; checked through routes, never in a browser; hub host is an older release | S | HOST | 1 |
 | English and Spanish | decision 25; languages.md | BUILT-NOT-VERIFIED | host `i18n.py` catalog test; portal table both languages; screen text is ASCII only, no accents | S | HOST | 2 |
 | Travel with the private network | features.md core list; Open | BUILT-NOT-VERIFIED | TN01 to TN06 (rebuilt from 147, 148, 153); behind MAIPAI_TAILNET; measured on the unit with a placeholder key, never joined a real network; see `travel-2026-11-16.md` | L | FW | 3 |

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
 
-Reference for the derivation in docs/design/security-fixes-2026-11-16.md ("Built so far"). Standard
+Reference for the derivation in docs/design/encrypted-link.md. Standard
 library only. The pairing secret is the device token the unit holds; the host keeps only its SHA-256.
 
   link-psk-vector.py --self-test                     fixed fake vectors (no secrets)

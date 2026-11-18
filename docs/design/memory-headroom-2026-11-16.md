@@ -46,7 +46,7 @@ The sum of the three measured-by-arithmetic items (24,576 + 32,768 + 6,144 = 63,
 
 ## Gate set adopted by this pass
 
-`scripts/fw-stress.py` implements the Fable review's table: `internal_free` steady at least 40,000, `internal_min` at least 24,000, `int_big` steady at least 24,000 and lowest at least 16,000, fragmentation `int_big / internal_free` at least 0.5 (not applied when 64 KB or more is free), `psram_min` above 6,000,000, a stack margin of at least 1,024 B on every task we create (the idle and inter-processor tasks have sizes fixed by the system library and are listed, not gated), zero resets after the first, zero task watchdog fires, zero panics, zero host websocket drops. Floors in the older memory gate (`firmware-memory.md`) stay as the hard minimum.
+`scripts/fw-stress.py` implements the review's table: `internal_free` steady at least 40,000, `internal_min` at least 24,000, `int_big` steady at least 24,000 and lowest at least 16,000, fragmentation `int_big / internal_free` at least 0.5 (not applied when 64 KB or more is free), `psram_min` above 6,000,000, a stack margin of at least 1,024 B on every task we create (the idle and inter-processor tasks have sizes fixed by the system library and are listed, not gated), zero resets after the first, zero task watchdog fires, zero panics, zero host websocket drops. Floors in the older memory gate (`firmware-memory.md`) stay as the hard minimum.
 
 ## Not done, and why
 
@@ -55,7 +55,7 @@ The sum of the three measured-by-arithmetic items (24,576 + 32,768 + 6,144 = 63,
 - 30 minute soak, music mode, the pickup: not run.
 - Camera capture under M06: no frame was captured in the stress runs.
 - Wi-Fi and IP stack buffers to PSRAM, TLS buffers, ROM flash driver, IRAM ISR options, heap and ring buffer placement, LVGL draw buffer, I2S descriptor count, wake front end memory mode: not applied. The four numbers already exceed the targets by a wide margin, and each of these carries a throughput or latency risk that the stress run cannot judge. They stay on the list in `firmware-memory.md`.
-- The pack boot task (Fable item): left as is. It reads flash, so its stack must be internal; it frees the stack when it ends, and FM04 now starts it on the first standby, which closes the fragmentation cause (TC03).
+- The pack boot task (review item): left as is. It reads flash, so its stack must be internal; it frees the stack when it ends, and FM04 now starts it on the first standby, which closes the fragmentation cause (TC03).
 - Tool descriptors as flash tables with `tools/list` built on demand: replaced by M03 (same RAM goal, one function changed). A flash table would still be the cleaner design if more RAM were needed.
 - Core dump to flash and the first-boot trial: done by FM01 and FM02 before this pass.
 

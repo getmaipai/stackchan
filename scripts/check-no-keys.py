@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Intent: refuse any firmware image, release folder or source tree that contains a key (security finding 3).
+# Intent: refuse any firmware image, release folder or source tree that contains a key (safety fix).
 # Usage: check-no-keys.py PATH...   (a file is scanned as bytes; a folder is scanned recursively)
 # Exit 0: clean. Exit 1: a key-shaped value was found. The value is never printed: only the file, the kind and the byte offset.
 # Used by: the firmware build (post-build step, patch 156, through MAIPAI_KEY_CHECK set in scripts/fw-env.sh),

@@ -1,4 +1,4 @@
-# First run on the robot (U-4, plan step 7 E)
+# First run on the robot (plan step 7)
 
 Status: design plus patch UX05a (the step rules) and UX05b (the screens). The unit draws these screens itself and works with no phone: the first start of a unit with no saved choice shows them once. The calls that start the flow and save its answer are the firmware track's (maipai_firstrun_show(), a saved record); this note fixes the words and the order.
 

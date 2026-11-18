@@ -14,7 +14,7 @@ One conflict, found by the replay: N02 was written against a tree without FM03, 
 
 | Group | Patches | What it does | Status in the final images |
 |---|---|---|---|
-| Fable fixes | FM01 to FM05 | first-boot trial and rollback, flash core dump, second floor on the remote gate, pack boot on the first standby, PSRAM-stack lint | in all images; core dump kept on (below) |
+| Review fixes | FM01 to FM05 | first-boot trial and rollback, flash core dump, second floor on the remote gate, pack boot on the first standby, PSRAM-stack lint | in all images; core dump kept on (below) |
 | Memory | M01 to M06 | stack margin line, opus task stack in PSRAM, tools in PSRAM, trimmed stacks, camera DMA in PSRAM | in all images; M02 kept (below) |
 | Fast eyes | V20 to V26 | counters, dirty rectangles, springs, pictures, lock holds, two half buffers | in all images |
 | Zones | N01 to N04 | banner row, subtitle strip, fixed face zone, stock bar removed | in all images |

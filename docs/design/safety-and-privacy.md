@@ -26,22 +26,9 @@ Promise: private, local AI that is yours. Nothing leaves the home.
 - Optional private-network client: off by default, no key in any public build, started lazily, enrolled from the host with a one-off tagged expiring key.
 - Presence comes from the network, a private-network client and the camera. No Bluetooth.
 
-## Security audit outcomes (read of the dev image, 2026-11-15)
+## Safety changes
 
-| # | Level | Finding | Fix |
-|---|---|---|---|
-| 1 | High | Host-controlled tools could install firmware or send data to any URL, with no check on who asks. Four tools plus a capabilities URL setter. | Patch 155: delete them or pin every URL to the paired host. Add an Ed25519 signature check on updates. First security patch, before the repo goes public. About 2 hours plus 1 day. |
-| 2 | High | Voice and avatar links are plain `ws://` with a static token. The unit never checks who answers. Gateway fallback sends the token to the gateway on networks named by prefix. | Remove the gateway fallback now. Then TLS with a private CA, 1 to 2 days, after the pairing token exists. Until then the docs say the LAN link is plaintext. |
-| 3 | High (dev only) | A live private-network auth key sat in a dev build tree and image. Not committed. Revoked and deleted. | Release and flash tools refuse any image containing a key. Secret scan in the build. Custom gitleaks rule. |
-| 4 | Medium | The Wi-Fi portal is open and unauthenticated and leaks saved network names. It starts after a 60 s connect failure. | Redesign with a protected window and no saved-network list. Interim patch: drop the list and advanced route, add a 5 to 10 minute timeout, generic SSID. |
-| 5 | Medium | The full public CA bundle is built in. | Custom bundle with only the roots we need. Frees 35 to 65 KB flash. |
-| 6 | Medium | Flash is readable over USB: no secure boot, flash or NVS encryption. A dump yields the token and Wi-Fi passwords. | Keep erase-after-report for core dumps, no secrets in logs. Efuse hardening is the owner's call. |
-| 7 | Low | Private-network client contacts its control plane, relay and STUN servers when on. | Expected. List them on the privacy page. Check the verify-off test path is never set. |
-| 8 | Low | Dead code linked: MQTT, vendor OTA client, activation, SNTP client, modem code. The vendor OTA URL default points off-device. | One removal patch and an empty OTA URL default. |
-| 9 | Low | Real addresses as Kconfig defaults in two patches. | Default both to empty, pass from the recipe. Must be done before the repo is public. |
-
-Confirmed clean: Bluetooth, ESP-NOW, hard-coded DNS, DHCP NTP, audio debugger, insecure TLS flag, debug stub, HTTPS server,
-telemetry strings, hard-coded tokens.
+Safety changes to the firmware and host are ordinary patches (the `SF` series and the signed-update, key-check and certificate-bundle patches 155 to 159 in `firmware/patches/ORDER`). Each says what it does in its own header; nothing here lists them.
 
 ## Clock and time
 

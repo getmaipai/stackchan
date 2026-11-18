@@ -1,4 +1,4 @@
-"""T-4, B-3: the key scanner refuses real-looking keys and lets the marked test fakes through."""
+"""The key scanner refuses real-looking keys and lets the marked test fakes through."""
 
 import importlib.util
 from pathlib import Path

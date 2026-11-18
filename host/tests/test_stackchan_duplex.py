@@ -240,7 +240,7 @@ def test_abort_during_encode_does_not_send_pending_frames(monkeypatch):
 
 
 def test_a_stall_is_caught_up_at_the_prebuffer_cadence_not_rebased(monkeypatch, caplog):
-    # Fable review P2: re-basing after a stall permanently ate the 0.84 s cushion.
+    # Review note P2: re-basing after a stall permanently ate the 0.84 s cushion.
     import logging
 
     clock = Clock()
@@ -279,7 +279,7 @@ def test_a_stall_is_caught_up_at_the_prebuffer_cadence_not_rebased(monkeypatch, 
 
 
 def test_a_drained_cushion_is_refilled_with_a_small_lead_not_a_trickle():
-    # Fable review P1: after a slow sentence the unit has nothing left; frames arriving one by
+    # Review note P1: after a slow sentence the unit has nothing left; frames arriving one by
     # one would play on an empty buffer. The sender holds them until six exist, then bursts.
     clock = Clock()
     calls = []
