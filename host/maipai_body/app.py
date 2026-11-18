@@ -4729,7 +4729,7 @@ def run_paired_body(
         _log_state(_STATE_BODY_LOST)
     finally:
         _log_state(_STATE_STOPPED)
-        service_threads.stop_all()
+        service_threads.stop_all(timeout=1.0)
 
 
 def _alarm_control(behavior):

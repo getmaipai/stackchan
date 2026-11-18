@@ -10,6 +10,7 @@ library after that.
 from __future__ import annotations
 
 import threading
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -34,15 +35,16 @@ def running() -> list[str]:
 
 
 def stop_all(timeout: float = 3.0) -> list[str]:
-    """Set every registered stop event and join the threads. Returns the names that did not end in time."""
+    """Set every registered stop event and join the threads, waiting `timeout` seconds in all. Returns the names that did not end in time."""
     with _LOCK:
         entries = list(_STARTED)
     for _, event in entries:
         event.set()
     me = threading.current_thread()
+    deadline = time.monotonic() + timeout  # one budget for all joins, so a thread stuck in a network call costs it once
     for thread, _ in entries:
         if thread is not me:
-            thread.join(timeout)
+            thread.join(max(0.0, deadline - time.monotonic()))
     with _LOCK:
         _STARTED[:] = [(t, e) for t, e in _STARTED if t.is_alive()]
         return [t.name for t, _ in _STARTED]
