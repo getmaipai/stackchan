@@ -1,91 +1,47 @@
 # MaiPai for StackChan
 
-### Faster, steadier, private and portable firmware for your StackChan desk robot. Your own LLM or MaiPai Home, on any network.
+Private, local AI firmware and a small host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot. Your robot talks to a model you choose: your own, a small one this program installs for you, or MaiPai Home. Nothing leaves your home unless you point it there.
 
-[Documentation](docs/user/features.md) · [Getting started](docs/user/getting-started.md) · [Which setup?](docs/user/which-setup.md) · [Compare](docs/user/compare.md) · [Questions](docs/user/faq.md) · [Troubleshooting](docs/user/troubleshooting.md)
+![The StackChan model from the virtual robot viewer.](docs/dev/model-previews/front.png)
+![The robot's own screen: the big-eyes face, captured from a flashed unit.](docs/images/unit-face-big-eyes.png)
 
-> **Draft.** These docs are written as if v1.0.0 is finished, so the owner can review the full product. Remove this note when v1.0.0 ships.
->
-> **Some pictures are placeholders.** Pictures named `unit-` are real screenshots from the flashed robot. Pictures named `vu-` are drawn by the robot's own screen code on a computer, the same code, not a photo of the robot. The other drawings (81 of them) are placeholders and will be replaced before release.
+## What it is
 
-MaiPai for StackChan is open-source firmware and a host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot. It replaces the factory firmware with something quicker, steadier and yours.
+- **The robot's software** replaces the factory firmware: faces, touch, timers and alarms that work with no host, games, dances, a lock, mute and camera-off switches, and cues you cannot hide.
+- **The host** (`stackchan`) runs on a Mac, a Linux machine or a Raspberry Pi 5. It does the thinking, the pages (settings, brain, status, what is on the robot) and the updates. A robot works without it for its own features.
+- **The brain** is your choice at first run: MaiPai Home, your own model and speech servers, or a small local stack the host downloads.
 
-![The robot on a desk showing the big-eyes face, with the settings page open on a laptop beside it.](docs/images/hero.svg)
+## Try it
 
-## Why you would want it
+1. **The virtual robot, no hardware.** Open the robot in your browser or run it on this computer: [Try the virtual robot](docs/user/try-the-virtual-robot.md).
+2. **Flash a robot.** A StackChan, a USB cable and the [web flasher](docs/user/web-flasher.md) (not published yet; you can [build from source](docs/dev/build-from-source.md)). Then [install the host](docs/user/install-the-host.md) and follow [Getting started](docs/user/getting-started.md).
+3. **With MaiPai Home**, the free household hub: [Use MaiPai Home](docs/user/with-maipai-home.md).
 
-**Fast and steady.** The targets are a wake cue in under 150 ms and "stop" and touch commands in under 300 ms; neither is measured on a robot yet. Replies start on the first finished sentence, so you do not wait for the whole answer. The robot also stays calm and keeps running: a restart guard, a signed update that is built to roll itself back if the new version fails (not yet run with a real key), and a noise gate against false wake-ups from fan noise (still under test). [Voice](docs/user/voice.md), [updates](docs/user/updates.md).
+## The documentation
 
-**Private by design.** What you say stays in your home. AI on your own computer answers, with no cloud service, no vendor account and no telemetry, and the host calls only the addresses you list in one settings file. Mute, camera off and full quiet take one tap, and [nothing is ever monitored in secret](docs/user/no-stealth.md). [Privacy](docs/user/privacy.md), [security](docs/user/security.md).
+- **For users:** [docs/user/index.md](docs/user/index.md). Set up, use, privacy, troubleshooting.
+- **Playground:** [docs/playground/index.md](docs/playground/index.md). The virtual robot, the 3D viewer and the physics check.
+- **For developers:** [docs/dev/index.md](docs/dev/index.md). How it fits together, building, testing, the plans.
 
-**New things it can do.** Five faces and your own pictures as a face, 28 screen effects, swipe pages and a control sheet, games with saved best scores, voice timers and alarms that work with no model, dances to your music, six languages, remote controls and a camera you switch on yourself, with a cue that cannot be hidden. [Everything it does](docs/user/features.md).
+## Where it stands
 
-**Take it with you.** Away from home the robot joins your private network by itself and reaches your host from any Wi-Fi: a friend's house, a hotel, the office. Setup takes a phone and a setup code on the robot's screen. [Use it away from home](docs/user/use-it-anywhere.md).
+Pre-1.0. In plain words, from [the readiness page](docs/plan/release-readiness.md):
 
-**Go further with MaiPai Home** (free, open source). Connect the robot to [MaiPai Home](docs/user/with-maipai-home.md) for memories, companions and personalities, cloned voices, recognizing people, naming songs, live lookups, watching and monitoring, find and remote control, and rules for children and teens. [See how it compares](docs/user/compare.md) with the factory firmware, and with MaiPai Home, side by side.
+- **Works and is tested on a computer:** the host program, the settings, brain, status and library pages, pairing, the encrypted link, signed updates in the tests, the voice path, games, timers, the virtual robot and every screen as a golden frame.
+- **Seen on a real robot:** the screens shown in the docs as `unit-` pictures (face, apps wall, control sheet, games, settings). Many features are built and checked only on the virtual robot.
+- **Not done yet:** a signed release image and key, a published flasher, a host installer you double click, and hands-on checks on a robot for the first spoken reply, finger touch and the head's timings. Nothing here is a finished product.
+- Pictures named `unit-` are real screenshots; `vu-` pictures are drawn by the robot's own screen code on a computer; the other drawings (81 of them) are placeholders.
 
-## Get started
-
-You need a StackChan robot ([store page](https://shop.m5stack.com/products/stackchan-kawaii-co-created-open-source-ai-desktop-robot)), a USB cable, and a Mac, Linux machine or Raspberry Pi 5 for the host.
-
-### With your own LLM
-
-```
-pipx install "git+https://github.com/getmaipai/stackchan#subdirectory=host"
-```
-
-Flash the robot from the web flasher (the build is trimmed: Bluetooth is off and the factory cloud links are removed), run `stackchan run`, then `stackchan pair`, set `url` under `[llm]` in `robot.toml` to your local LLM, and say the wake word. How fast and how well it answers depends on your model and hardware: [Pick hardware and a model](docs/user/hardware-and-models.md). It takes about 20 minutes: [Getting started](docs/user/getting-started.md).
-
-### With MaiPai Home
-
-[MaiPai Home](docs/user/with-maipai-home.md) adds the full feature set: memories, companions and personalities, cloned voices, recognizing people, naming songs, live lookups across rooms and household rules.
-Set `brain = "home"` and run `stackchan check`.
-
-
-With your own LLM we add no content filter. The model you connect decides what the robot says.
-
-## Status
-
-MaiPai for StackChan is pre-1.0, so expect rough edges. Tell us what you find on the Issues tab.
-
-Sound, screen looks, the smoother eyes and your own picture faces, head petting, the setup page, the reset screen and a signed update with a real key and travel over your private network are built but not yet checked on a robot. The new face extras, word reactions, time zone, network test and version screens have not been seen on a robot screen, no one has played the games by touch, no one has heard the offline phrases or seen the dances, the six languages are not native-reviewed, and a per-person wake phrase is stored but not matched yet.
-
-### Known gaps
-
-- After the wake word, one owner reported hearing no reply. The robot's audio reaches the host loud, but the speech engine returned no words. This is open and we are looking at it.
-- A real wake by voice and how finger swipes feel have not been tested by a person.
-- The eye animation runs at 28 to 33 frames a second with some gaps over 50 ms.
-- The robot's screen shows no accented letters.
-- A face style changed on the robot shows on the host only after the settings page reloads.
-- Quick settings shows 3 saved Wi-Fi networks.
-- Planned, not built: brighter dim level, new games, scenes and data cards, Wi-Fi roaming.
-
-## Get help
-
-- Start with [Troubleshooting](docs/user/troubleshooting.md), and run `stackchan check`.
-- Report bugs and request features on the Issues tab.
-- The robot itself: [official project](https://github.com/m5stack/StackChan), [official docs](https://docs.m5stack.com/en/StackChan).
-
-MaiPai for StackChan is a hobby project. We read everything (eventually), but may be slow and can't promise to build it. Please don't take silence personally.
-
-## Support the project
-
-MaiPai for StackChan is free and open source. If it helps you, [sponsoring on GitHub](https://github.com/sponsors/JesseWebDotCom) pays for test hardware, such as more robots, a computer for bigger models and a phone for travel tests. We test on that hardware ourselves and publish what we measure.
-
-## What is in this repository
-
-Source code, patches to the StackChan firmware and a build recipe. No model or library binaries are stored here. The build downloads Espressif's speech library, which provides the wake word "Hi, Stack Chan", the English stop word and the audio front end, under its own license. [THIRD-PARTY.md](THIRD-PARTY.md) and `NOTICE` list every download and license. Ready-made images on GitHub Releases may come later.
-
-## Development
-
-Start with [the developer overview](docs/dev/overview.md), read `docs/dev/contributing.md`, then run `bash scripts/check.sh` before you send a change. Build from source and the host design are under `docs/dev/`.
-
-## Disclaimer
-
-MaiPai is open-source software for personal, self-hosted, non-commercial use by you and your household; it is not affiliated with, endorsed by, or sponsored by any platform it can connect to; all product names and trademarks belong to their respective owners; you are responsible for complying with the terms and laws that apply to you and the services you access.
+## Independence
 
 MaiPai for StackChan is an independent project providing custom firmware and tools for the M5Stack StackChan robot. It is not affiliated with, endorsed by, or sponsored by M5Stack or the original StackChan creators. Product names and trademarks belong to their respective owners.
 
-The language models are third-party and chosen by you. Their outputs can be wrong, offensive or harmful, and are not medical, legal or professional advice. You are responsible for how you use them, and parents decide what children can reach.
+## Get help and contribute
 
-AGPL-3.0. See `LICENSE`, `NOTICE` and `THIRD-PARTY.md`.
+- Start with [Troubleshooting](docs/user/troubleshooting.md) and run `stackchan check`. Report bugs and ideas on the Issues tab.
+- To change the code, read [docs/dev/contributing.md](docs/dev/contributing.md) and run `bash scripts/check.sh` first.
+- The robot is M5Stack's: [official project](https://github.com/m5stack/StackChan).
+
+## License
+
+AGPL-3.0. See `LICENSE`, `NOTICE` and `THIRD-PARTY.md`. The language models are third-party and chosen by you; their answers can be wrong and are not advice. Parents decide what children can reach.

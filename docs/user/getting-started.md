@@ -2,34 +2,29 @@
 
 About 20 minutes the first time. You do this once.
 
-Before you flash, read [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md) if your robot has been used with the factory app. Do not force the head or arms by hand: the motors can be damaged.
+**First:** if your robot has been used with the factory app, read [Switch from the factory firmware, or go back](switch-from-the-factory-firmware.md). Do not force the head or arms by hand: the motors can be damaged.
 
 ## What you need
 
-- A StackChan robot and a USB cable. New to the robot? See the [official docs](https://docs.m5stack.com/en/StackChan), or [buy one from the store](https://shop.m5stack.com/products/stackchan-kawaii-co-created-open-source-ai-desktop-robot).
-- A small always-on computer for the host program: a Mac, a Linux machine or a Raspberry Pi 5.
+- A StackChan robot and a USB cable. New to the robot? See the [official docs](https://docs.m5stack.com/en/StackChan).
+- A computer for the host program: a Mac, a Linux machine or a Raspberry Pi 5. Leave it on while you use the robot.
 - Wi-Fi that the robot and the host share.
-- A language model served from an app on a computer you control. The app must offer an OpenAI-compatible chat address, which is the standard web address most local model apps already provide. It looks like `http://192.0.2.10:8080/v1`. See [Host a model](hardware-and-models.md#host-a-model).
-- A computer with enough memory for that model. Bigger models answer better and need more memory. See [Pick hardware and a model](hardware-and-models.md) for a rough size guide.
-- Speech tools: the host can use its built-in engines when you name their model folders in `robot.toml`, or your own speech servers. See [Settings](settings.md).
 
-How fast and how well the robot answers depends on your model and its hardware. The wake cue, "stop", timers and faces do not.
+You do not need a language model yet. The host can install a small one for you.
 
 ## Steps
 
-1. **Install the host.** Run `pipx install "git+https://github.com/getmaipai/stackchan#subdirectory=host"`. More on installing, updating and removing it: [Install, update and remove the host](install-the-host.md). You'll know it worked when `stackchan --help` lists its commands.
-2. **Flash the robot.** Open the web flasher, plug the robot in by USB and press Install. You can enter your Wi-Fi in the same dialog, or later on the robot's own setup screen.
+1. **Install the host.** Run `pipx install "git+https://github.com/getmaipai/stackchan#subdirectory=host"`, then `stackchan service install`. The host starts at login and restarts itself if it stops. More: [Install, update and remove the host](install-the-host.md), [Keep the host running](run-as-a-service.md). You will know it worked when `stackchan status` says everything is running.
+2. **Choose a brain.** Open `http://127.0.0.1:8777/brain` on the host computer and pick one of three ways: MaiPai Home, your own model, or a small one the host installs. No terminal needed. See [Choose a brain](choose-a-brain.md).
+3. **Flash the robot.** Open the [web flasher](web-flasher.md), plug the robot in by USB and press Install. You can type your Wi-Fi in the same box, or later on the robot's own screen.
 
    ![The web flasher with the Install button and the Wi-Fi fields.](../images/flasher.svg)
 
-3. **Pair.** Start the host with `stackchan run` and leave it running. In a second terminal run `stackchan pair`: it prints a 6 digit code that works for 10 minutes. Type the code on the robot's setup page. You'll know it worked when the robot shows its face and `stackchan status` lists it as paired.
+4. **Pair.** On the host computer run `stackchan pair`. It prints a 6 digit code that works for 10 minutes. Type the code on the robot's setup page. You will know it worked when the robot shows its face and the host page "On my robot" lists it.
 
    ![The robot screen with the 6 digit code, and the host terminal asking for it.](../images/pairing-code.svg)
 
-   If you also run MaiPai Home, the robot offers one optional screen after pairing: **Do you run MaiPai Home?** Enter its address, or skip it. You can add it later.
-
-4. **Point at your model.** Open `~/.config/maipai/robot.toml` and set `url` under `[llm]` to your model address, for example `http://192.0.2.10:8080`.
-5. **Check.** Run `stackchan check`. It tests each address and says in plain words what is wrong. You'll know it worked when every line says ok.
+5. **Check.** Run `stackchan check`. It tests each address and says in plain words what is wrong. You will know it worked when every line says ok.
 
    ![The terminal after `stackchan check`, every line marked ok.](../images/check-output.svg)
 
@@ -41,41 +36,26 @@ If the light bars pulse cyan slowly <img src="../images/light-cyan.svg" alt="cya
 
 ## First start on the robot
 
-The first time it starts, the robot asks four things on its own screen.
+The first time it starts, the robot asks three things on its own screen: your language, a name for it, and how it should think. Then it says "All set!"
 
-1. Pick a language.
+![First start, step 1: pick a language. Six buttons: English, Español, Français, Deutsch, Português and Italiano.](../images/vu-first-run-language.png)
 
-   ![First start, step 1: pick a language. Six buttons: English, Español, Français, Deutsch, Português and Italiano.](../images/vu-first-run-language.png)
+![First start, step 2: What should I be called? Six names to pick from.](../images/vu-first-run-name.png)
 
-2. Pick a name. You can change it later.
-
-   ![First start, step 2: What should I be called? Six names to pick from.](../images/vu-first-run-name.png)
-
-3. Choose how it thinks: pair with MaiPai Home, or use your own model.
-
-   ![First start, step 3: How should I think? Pair with MaiPai Home, or Use my own model. Both stay in your home.](../images/vu-first-run-mode.png)
-
-4. It says "All set!"
-
-   ![First start, last step: the words All set!](../images/vu-first-run-done.png)
+![First start, step 3: How should I think? Pair with MaiPai Home, or Use my own model. Both stay in your home.](../images/vu-first-run-mode.png)
 
 ## If the robot cannot join Wi-Fi
 
-It opens a setup page. Connect your phone to the network named `stackchan-` and four letters or digits. The robot's screen shows a six-digit setup code. Open the page, pick your Wi-Fi, enter the password, the host address and the code. The page stays open after a network is saved, so you can add more than one: tap Finish when you are done. The code changes every few minutes, and five wrong tries lock that window. <span class="planned-tag">Planned</span> The new hotspot name, the page that stays open for several networks and the Finish button are built but not flashed and not tested on a robot yet.
+It opens a setup page. Connect your phone to the network named `stackchan-` and four letters or digits. The robot's screen shows a six-digit setup code. Open the page, pick your Wi-Fi, enter the password, the host address and the code. The page stays open after, so you can add more networks.
 
 If you will take the robot away from home, also type a one-time key for your private network: see [Use the robot away from home](use-it-anywhere.md).
 
 ![The setup page with a list of networks.](../images/wifi-setup.svg)
 
-## Optional
+## Good to know
 
-- Start the host with `stackchan run`. A start-at-boot command is not built yet.
 - `stackchan forget` removes the pairing. Use it before you give the robot away.
-- To use MaiPai Home as the brain, see [With MaiPai Home](with-maipai-home.md). You do not need it.
-
-## Content safety
-
-With your own LLM the robot adds no content filter. The model you connect decides what is said. Pick a model and persona that suit your home.
+- With your own model, the robot adds no content filter. The model you connect decides what is said.
 
 ## Next
 
@@ -83,4 +63,4 @@ Take the tour in [Features](features.md), or change how the robot looks in [Sett
 
 ## Still need help?
 
-Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.
+Run `stackchan status` and `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.

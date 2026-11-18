@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
 
-from maipai_body.bodies.reachy_mini.envelope import axis_bounds_rad
+from maipai_body.hal.envelope import axis_bounds_rad
 from maipai_body.hal.seam import (
     AntennaPositions,
     BodyProfile,

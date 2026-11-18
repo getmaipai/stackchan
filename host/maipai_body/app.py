@@ -83,7 +83,6 @@ from maipai_body.link.state_machine import (
 )
 from maipai_body.link.supervisor import LinkSupervisor
 from maipai_body.link.timesync import ClockSync, system_clock_setter
-from maipai_body.moves.react import build_react_hook
 from maipai_body.presence.entries import presence_entries_from
 from maipai_body.presence.motor_health import MotorHealth
 from maipai_body.presence.night import NightController
@@ -3748,6 +3747,13 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
     return server
 
 
+def _react_hook(tap, folder):
+    """The recorded-moves reaction hook of the Reachy body (MOVES-01); the StackChan host never loads the moves package."""
+    from maipai_body.moves.react import build_react_hook
+
+    return build_react_hook(tap, folder, os.environ)
+
+
 def _run_stackchan_service(
     stop_event: threading.Event,
     link: LinkLifecycle | None = None,
@@ -4160,7 +4166,7 @@ def _build_conversation_loop(
         follow_up=follow_up,
         offline=offline,
         # MOVES-01: None unless MAIPAI_BOT_REACT_MOVES is set.
-        react_hook=build_react_hook(tap, cache_dir / "moves", os.environ),
+        react_hook=_react_hook(tap, cache_dir / "moves"),
         carry_gravity_compensation=REACHY_MINI_PROFILE.carry_gravity_compensation,
         capture_scope=tap.sending_to_hub,
         motor_health=motor_health,

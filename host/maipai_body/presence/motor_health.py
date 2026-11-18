@@ -28,7 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from maipai_body.bodies.reachy_mini.motors import Commanded, MotorBus
+from maipai_body.presence.motor_types import Commanded, MotorBus
 from maipai_body.hal.seam import AntennaPositions, HeadPose
 
 logger = logging.getLogger("maipai_body.presence.motor_health")

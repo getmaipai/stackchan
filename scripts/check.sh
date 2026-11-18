@@ -27,6 +27,7 @@ python3 scripts/docs-claims-check.py
 python3 scripts/docs-grade.py --max 7 >/dev/null || { python3 scripts/docs-grade.py --max 7 | grep -B1 "long:"; echo "docs-grade: a user page reads above grade 7; shorten its long sentences"; exit 1; }
 echo "docs-grade: ok"
 "$PY" scripts/choices-check.py || exit 1
+python3 scripts/make-doc-indexes.py --check || exit 1
 if git grep -nI -E '^(<<<<<<< |>>>>>>> )' -- . ':!host/tests/fixtures' ':!*.patch' >/tmp/conflict-markers.$$ 2>/dev/null; then cat /tmp/conflict-markers.$$; rm -f /tmp/conflict-markers.$$; echo "conflict markers: a tracked file still holds merge conflict markers. Resolve them (keep one coherent text) and commit."; exit 1; fi
 rm -f /tmp/conflict-markers.$$
 echo "conflict markers: none"

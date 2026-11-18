@@ -15,9 +15,7 @@ No Docker is needed.
 
 ## Start it when the computer starts
 
-There is no start-at-boot command yet. Start the host with `stackchan run`, or run that command from your system's own service tool (systemd on Linux, launchd on a Mac). Nothing runs as a silent service unless you set it up.
-
-Windows is not supported in this release.
+Run `stackchan service install`. The host then starts at login and restarts itself if it stops. `stackchan service status` shows whether it runs. More: [Keep the host running](run-as-a-service.md).
 
 ## Update
 
@@ -26,7 +24,7 @@ If the host and the robot disagree about versions, the robot says so and names t
 
 ## Remove
 
-1. Stop the host and remove any start-at-boot entry you made.
+1. Run `stackchan service uninstall` to stop the host and remove its start-at-login entry.
 2. Run `pipx uninstall maipai-bot`.
 3. Delete the pairing file `~/.local/share/maipai-bot/stackchan-pairing.json` to unpair the robot, and delete the host's folder of settings and snapshots if you want them gone.
 

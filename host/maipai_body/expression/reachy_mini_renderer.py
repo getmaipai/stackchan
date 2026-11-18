@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from maipai_body.bodies.reachy_mini.envelope import axis_bounds_rad
+from maipai_body.hal.envelope import axis_bounds_rad
 from maipai_body.hal.seam import AntennaPositions, BodyProfile, HeadActuator, HeadPose
 
 from .envelope import REACHY_MINI_EXPRESSION_ENVELOPE, PrimitiveEnvelope

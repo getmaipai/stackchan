@@ -93,6 +93,8 @@ def run_idle(seconds: int = 10) -> dict:
 def main(argv: list[str]) -> int:
     report = {
         "host_source_bytes": tree_bytes(HOST / "maipai_body", (".py", ".json")) + tree_bytes(HOST / "maipai_packages", (".py",)),
+        # Legacy robot code kept in the tree for the later migration; the release wheel leaves it out (host/pyproject.toml, exclude).
+        "excluded_from_release_bytes": tree_bytes(HOST / "maipai_body" / "bodies" / "reachy_mini") + tree_bytes(HOST / "maipai_body" / "moves"),
         "environment": installed_size(),
         "import_seconds": {"maipai_body.config": import_time("maipai_body.config"), "maipai_body.app": import_time("maipai_body.app")},
         "pages": page_weights(),

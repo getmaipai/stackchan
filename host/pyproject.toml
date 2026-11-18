@@ -147,6 +147,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["maipai_body", "maipai_packages"]
+# The StackChan release does not carry the Reachy Mini body or the recorded-moves package: they stay in the tree for the
+# later migration (docs/design/reachy-migration-plan.md). A test proves the StackChan host starts and imports without them (test_release_package.py).
+exclude = [
+    "maipai_body/bodies/reachy_mini",
+    "maipai_body/moves",
+]
 
 # The vendored spec snapshot ships inside the wheel (spec_pin.spec_root finds it).
 [tool.hatch.build.targets.wheel.force-include]

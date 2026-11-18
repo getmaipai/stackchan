@@ -23,7 +23,6 @@ The full list is in THIRD-PARTY.md and NOTICE.
 - M5Stack for the StackChan robot and its open structure files.
 - The xiaozhi-esp32 project, the firmware base beneath the robot's software.
 - Espressif for ESP-IDF and ESP-SR.
-- Pollen Robotics for recorded moves (optional package, downloaded with a checksum).
 - The llama.cpp, Qwen, Moonshine, Piper, sherpa-onnx and LVGL projects.
 
 The same page is on the host at `/about`.

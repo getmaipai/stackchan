@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 863 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 866 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 50 items, 6 measured, 17 estimated, 27 placeholders or not built. 83 of 863 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 50 items, 6 measured, 17 estimated, 27 placeholders or not built. 83 of 866 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 28 | 254 | 8 | 51 | 362 | 64 |
-| Maker and tech | 0 | 0 | 66 | 375 | 60 | 0 | 501 | 70 |
+| Maker and tech | 0 | 0 | 68 | 376 | 60 | 0 | 504 | 69 |
 
 ## Everyday user
 
@@ -553,10 +553,12 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Music feature stack** | 1 patch(es): The music feature task "musicfeat" (stack in PSRAM) had 584 bytes of... | proven virtual | 70 | not declared | `MF01-music-feature-task-stack-6144.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Movement limiter** | 1 patch(es): One movement limiter at the single place every servo target passes th... | proven virtual | 70 | not declared | `ML01-movement-limiter-at-the-servo-layer.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 
-### Host modules (296)
+### Host modules (298)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
+| **Host: envelope** | Shared envelope clamping for a body profile's real client and fake (first used by the Reachy Mini body). | proven virtual | 70 | not declared | `host/maipai_body/hal/envelope.py` | file exists, a test names it | doc missing |
+| **Host: motor_types** | The motor bus protocol and the last commanded target, shared by the motor health check and the Reachy daemon bus. | built | 40 | not declared | `host/maipai_body/presence/motor_types.py` | file exists | doc missing |
 | **Host: app** | MaiPai Bot's Reachy Mini app: the daemon's one running app. | proven on unit | 100 | not declared | `host/maipai_body/app.py` | `bench-b19.md`, `bench-b9.md` | doc missing |
 | **Host: assets** | Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack when it needs it and keeps only the active one. | proven on unit | 100 | not declared | `host/maipai_body/assets.py` | `bench-b9.md` | doc missing |
 | **Host: banner_shapes** | The banner functions with the table of the core filled in. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/banner_shapes.py` | file exists, a test names it | doc missing |
@@ -565,7 +567,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: profile** | The replay body's synthetic limits and default capability subset. | proven virtual | 70 | not declared | `host/maipai_body/bodies/fake/profile.py` | file exists, a test names it | doc missing |
 | **Host: audio_config** | Reachy Mini XVF3800 defaults and nonblocking startup audio setup. | proven virtual | 70 | not declared | `host/maipai_body/bodies/reachy_mini/audio_config.py` | file exists, a test names it | doc missing |
 | **Host: client** | The Reachy Mini SDK behind the HAL seam. | proven virtual | 70 | not declared | `host/maipai_body/bodies/reachy_mini/client.py` | file exists, a test names it | doc missing |
-| **Host: envelope** | Shared envelope clamping for the Reachy Mini profile's real client and fake. | proven virtual | 70 | not declared | `host/maipai_body/bodies/reachy_mini/envelope.py` | file exists, a test names it | doc missing |
+| **Host: envelope** | Moved to maipai_body.hal.envelope (shared clamping); | proven virtual | 70 | not declared | `host/maipai_body/bodies/reachy_mini/envelope.py` | file exists, a test names it | doc missing |
 | **Host: eyes_client** | Reachy Eyes USB serial client (EYES-03), written clean-room. | proven virtual | 70 | not declared | `host/maipai_body/bodies/reachy_mini/eyes_client.py` | file exists, a test names it | doc missing |
 | **Host: fake** | Replays recorded Reachy Mini fixtures through the same seam as the live client. | proven virtual | 70 | not declared | `host/maipai_body/bodies/reachy_mini/fake.py` | file exists, a test names it | doc missing |
 | **Host: motors** | MOTOR-RECOVER-01: the awake gate and the motor bus behind the Reachy Mini client. | proven virtual | 70 | not declared | `host/maipai_body/bodies/reachy_mini/motors.py` | file exists, a test names it | doc missing |
@@ -875,7 +877,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: memory_notes** | Local memory for several adults as plain per-person notes files. | proven virtual | 70 | not declared | `host/maipai_packages/memory_notes` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (73)
+### Scripts and tools (74)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -924,6 +926,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: link-key-vector.py** | Reference for the link key exchange in docs/plan/link-key-exchange.md (standard library only). | proven virtual | 70 | not declared | `scripts/link-key-vector.py` | file exists, a test names it | doc missing |
 | **Script: link-psk-vector.py** | Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests). | proven virtual | 70 | not declared | `scripts/link-psk-vector.py` | file exists, a test names it | doc missing |
 | **Script: make-dashboard-screens.py** | A screenshot of each host dashboard page at desktop and phone width, kept in docs/dev/dashboard-screens for review. | built | 40 | not declared | `scripts/make-dashboard-screens.py` | file exists | doc missing |
+| **Script: make-doc-indexes.py** | Keep docs/user/index.md and docs/dev/index.md: a hand-written start, then every page of the folder listed by its title (generated, so none is lost). | built | 40 | not declared | `scripts/make-doc-indexes.py` | file exists | doc missing |
 | **Script: make-doc-screenshots.py** | make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, never by hand, | built | 40 | not declared | `scripts/make-doc-screenshots.py` | file exists | doc missing |
 | **Script: make-game-sounds.py** | Game sounds, synthesized from nothing: short tones, clacks and noise bursts with attack-decay-sustain-release envelopes, mono 16 kHz, deterministic (the same bytes every run). | proven virtual | 70 | not declared | `scripts/make-game-sounds.py` | file exists, a test names it | doc missing |
 | **Script: make-lights.py** | draw the robot's ring colors and tone shapes as small animated SVGs for the docs. | built | 40 | not declared | `scripts/make-lights.py` | file exists | doc missing |
