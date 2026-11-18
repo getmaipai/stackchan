@@ -70,7 +70,7 @@ function initRobot(THREE, canvas, hooks) {
   const fill = new THREE.DirectionalLight(0xffffff, 0.25); fill.position.set(-10, 4, 9); scene.add(fill);
   const back = new THREE.DirectionalLight(0xffffff, 0.25); back.position.set(10, 5, -9); scene.add(back);
   const below = new THREE.DirectionalLight(0xffffff, 0.3); below.position.set(2, -10, 6); scene.add(below);   // so the underside reads when the view looks up at it
-  const ROOM_GAIN = 1.4;   // set so the shell's measured gray draws as bright as it photographs in daylight (see MATCH.md)
+  const ROOM_GAIN = 1.15;   // set so the shell's measured gray draws as bright as it photographs in daylight (see MATCH.md)
   const ROOM = [[hemi, 0.5], [key, 0.4], [rim, 0.35], [fill, 0.25], [back, 0.25], [below, 0.3]];   // the room's own light; "Dim room" turns it down so the unit's lights carry the picture
   // one soft round glow, drawn once and reused: a lit light gets it as an additive halo (no second script from the network)
   const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext && c.getContext('2d'); if (!g) return null;
@@ -136,7 +136,7 @@ function initRobot(THREE, canvas, hooks) {
       M.halos[i] = halo(N['ring_light_' + i], 0.009);   // small, so the glow stays on the bar and does not spill onto the controller
     }
     M.gaps = ['top_gap_left', 'top_gap_right'].map(name => { const node = N[name], m = node && node.children.find(c => c.isMesh); if (!m) return null;
-      m.material = new THREE.MeshBasicMaterial({color: 0x050505}); M.leds.push(m); return {m, px: node.userData.lights || []}; }).filter(Boolean);   // the unsealed slits behind the top connectors
+      m.material = new THREE.MeshBasicMaterial({color: 0x050505}); M.leds.push(m); return {m, sp: halo(node, 0.008), px: node.userData.lights || []}; }).filter(Boolean);   // the unsealed slits behind the top connectors
     M.glowLights = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]].map(px => {
       // a spot aimed down, inward and a little to the back: it colors the inside of the shell and the holder, and nothing ahead of the
       // ring board, so no light falls on the controller or its screen (the real unit leaks none there)
@@ -453,7 +453,8 @@ function initRobot(THREE, canvas, hooks) {
         }
         for (const gap of M.gaps) {   // the only place the ring's light escapes on top: dim, in the color of the two lights nearest it
           let r1 = 0, g1 = 0, b1 = 0; for (const i of gap.px) { r1 += px[i][0]; g1 += px[i][1]; b1 += px[i][2]; }
-          const k = 0.45 / Math.max(1, gap.px.length); gap.m.material.color.setRGB(0.02 + r1 * k, 0.02 + g1 * k, 0.02 + b1 * k);
+          const k = 0.9 / Math.max(1, gap.px.length); gap.m.material.color.setRGB(0.02 + r1 * k, 0.02 + g1 * k, 0.02 + b1 * k);
+          gap.sp.visible = rich && r1 + g1 + b1 > 0.05; gap.sp.material.color.setRGB(r1 * k * 0.5, g1 * k * 0.5, b1 * k * 0.5);
         }
         for (const g of M.glowLights) {   // what the lights throw on the parts near them, inside and out
           let r1 = 0, g1 = 0, b1 = 0; for (const i of g.px) { r1 += px[i][0]; g1 += px[i][1]; b1 += px[i][2]; }

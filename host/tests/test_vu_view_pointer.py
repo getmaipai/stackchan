@@ -275,7 +275,7 @@ def test_the_lights_glow_follow_the_ring_and_both_power_lights_follow_usb_power(
     assert page.js("ROBOT.model.glowLights[0].l.intensity > 1 && ROBOT.model.glowLights[1].l.intensity > 1 && ROBOT.model.glowLights[2].l.intensity === 0 && ROBOT.model.glowLights[3].l.intensity === 0")
     assert page.js("(c => c.r > 0.9 && c.b < 0.2)(ROBOT.model.glowLights[0].l.color)"), "the thrown light takes the ring's color"
     assert page.js(bar) != unlit, "the bar itself takes the color"
-    assert page.js("(c => c.r > 0.3 && c.b < 0.1)(ROBOT.model.gaps[0].m.material.color) && ROBOT.model.gaps[1].m.material.color.r < 0.05"), "light shows in the slit behind the lit side's connector only"
+    assert page.js("(c => c.r > 0.6 && c.b < 0.1)(ROBOT.model.gaps[0].m.material.color) && ROBOT.model.gaps[0].sp.visible && ROBOT.model.gaps[1].m.material.color.r < 0.05"), "light shows in the slit behind the lit side's connector only"
     # simple lights: plain colors only
     page.js("document.getElementById('rich').checked = false")
     assert page.until("ROBOT.model.glowLights.every(g => g.l.intensity === 0) && !ROBOT.model.halos[0].visible && ROBOT.model.leds[0].visible")

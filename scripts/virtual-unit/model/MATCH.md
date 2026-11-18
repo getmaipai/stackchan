@@ -203,7 +203,7 @@ The camera is a small dome with rings inside it and a thin orange ring round it.
 
 ## The top connectors are not sealed (owner's close-up, 2026-11-18)
 
-Each four-pin connector on the head top sits in an opening a little deeper than itself, so a slit stays open behind it and the ring's light shows there. This is the one place light escapes on the outside besides the bars and the three side openings. The model has `top_gap_left` and `top_gap_right`, and the view lights each with the two ring lights nearest it. Nothing leaks onto the controller or its screen.
+Each four-pin connector on the head top is open along its back wall, so the ring's light shows inside it. This is the one place light escapes on the outside besides the bars and the three side openings. The model has `top_gap_left` and `top_gap_right`, and the view lights each with the two ring lights nearest it. Nothing leaks onto the controller or its screen.
 
 ## Plastic color and texture, measured in the owner's photos (2026-11-18)
 

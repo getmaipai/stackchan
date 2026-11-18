@@ -898,9 +898,9 @@ def assemble():
         g.node('ring_led_%d' % i, head, sub(c, PITCH_O), g.mesh('ring_led_%d' % i, [g.primitive(tris, c, 'ring_led')]),
                {'what': 'the small light of ring_light_%d on the underside of the ring board; it fires sideways into the light bar' % i, 'light': i, 'basis': 'assumed'})
     for side_name, gx, lights in (('left', 11.0, [0, 1]), ('right', -11.0, [11, 10])):   # the top connectors are not sealed: a slit behind each lets the ring's light out (owner's close-up)
-        c = (gx, top - 0.9, front - 6.5)
-        g.node('top_gap_%s' % side_name, head, sub(c, PITCH_O), g.mesh('top_gap_%s' % side_name, [g.primitive(both(quad_y(1, c[1], gx - 4.3, gx + 4.3, front - 7.1, front - 5.9)), c, 'port')]),
-               {'what': 'the open slit behind a top connector, where light from inside shows', 'lights': lights, 'basis': 'assumed', 'note': "seen in the owner's close-up of the head top; width read off it"})
+        c = (gx, top - 2.25, front - 4.5)                        # inside the connector, along its back wall: the housing is open there
+        g.node('top_gap_%s' % side_name, head, sub(c, PITCH_O), g.mesh('top_gap_%s' % side_name, [g.primitive(both(quad_y(1, c[1], gx - 4.0, gx + 4.0, front - 4.95, front - 4.05)), c, 'port')]),
+               {'what': 'the open slit at the back of a top connector, where light from inside shows', 'lights': lights, 'basis': 'assumed', 'note': "seen in the owner's close-up of the head top; width read off it"})
     g.node('green_connector', head, sub(green_c, PITCH_O), g.mesh('green_connector', [g.primitive(green_tris, green_c, 'conn_green')]),
            {'what': "mint green body of the four-pin top connector, under the ring board on the robot's left", 'basis': 'assumed', 'note': "seen in the owner's photo"})
     b7 = (0.0, cy + 1.0, front - 1.1)
