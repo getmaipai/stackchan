@@ -24,6 +24,7 @@ PENDING_TTL = 600
 ENROLLMENT_LIMIT = 32
 PAIR_CODE_TTL = 600
 PAIR_CODE_LIMIT = 8
+PAIR_CODE_GLOBAL_LIMIT = 20  # wrong tries from all addresses together, per window
 PAIR_CODE_ATTEMPT_LIMIT = 5
 PAIR_CODE_WINDOW = 600
 
@@ -139,9 +140,14 @@ class PairingStore:
                 if now - stamp < PAIR_CODE_WINDOW
             ]
             self._code_attempts[source] = attempts
-            if len(attempts) >= PAIR_CODE_ATTEMPT_LIMIT:
+            all_attempts = [
+                stamp for stamp in self._code_attempts.get("*", []) if now - stamp < PAIR_CODE_WINDOW
+            ]
+            self._code_attempts["*"] = all_attempts
+            if len(attempts) >= PAIR_CODE_ATTEMPT_LIMIT or len(all_attempts) >= PAIR_CODE_GLOBAL_LIMIT:
                 return None
             attempts.append(now)
+            all_attempts.append(now)
             digest = hashlib.sha256(code.encode()).hexdigest()
             record = self._pair_codes.get(digest)
             if (
@@ -157,6 +163,13 @@ class PairingStore:
                 self._refresh()
                 record = self._pair_codes.get(digest)
                 if record is None or record["used"] or float(record["expires_at"]) <= now:
+                    return None
+                if self._find(device_id) is not None:
+                    LOG.warning(
+                        "A pairing code was refused for %s: that unit is already paired. "
+                        "Run `stackchan forget` first to pair it again.",
+                        device_id[-5:],
+                    )
                     return None
                 record["used"] = True
                 self._prune_codes(now)

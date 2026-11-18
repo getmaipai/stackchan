@@ -50,6 +50,7 @@ _CUES: dict[str, dict[str, Any]] = {
 _DIRECT = ("breathe", "track", "thinking", "offer", "shake")
 
 
+MAX_JSON_BYTES = 1024 * 1024  # every request that is not a picture upload
 MAX_POST_BYTES = 72 * 1024 * 1024  # the biggest picture upload (base64 of 12 megapixels RGBA) plus room
 
 
@@ -92,20 +93,19 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _local_admin(self) -> bool:
         """Pairing approval is a local administrator action, never a LAN API."""
-        return self.client_address[0] in {"127.0.0.1", "::1"}
+        from maipai_body import local_guard
+
+        return local_guard.request_is_local(self.client_address[0], self.headers)
 
     # -- routes --
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlsplit(self.path).path
         if path == "/api/stackchan/pairings/code":
-            if not self._local_admin():
-                return self._error(
-                    HTTPStatus.FORBIDDEN,
-                    "Open this page on the host computer to start pairing.",
-                )
-            self._json(HTTPStatus.OK, {"code": self.server.pairing_store.create_pair_code()})
-            return
+            return self._error(
+                HTTPStatus.METHOD_NOT_ALLOWED,
+                "Start pairing with a POST from this computer, or run `stackchan pair`.",
+            )
         if path == "/settings" or path.startswith(
             (
                 "/api/stackchan/settings",
@@ -193,7 +193,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "send application/json")
         try:
             length = int(self.headers.get("Content-Length") or 0)
-            if length < 0 or length > MAX_POST_BYTES:
+            limit = MAX_POST_BYTES if "picture" in self.path else MAX_JSON_BYTES
+            if length < 0 or length > limit:
                 return self._error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "that upload is too large; use a smaller picture")
             body = json.loads(self.rfile.read(length) or b"{}")
             if not isinstance(body, dict):
@@ -205,6 +206,15 @@ class _Handler(BaseHTTPRequestHandler):
         if self._post_settings(path, body):
             return
         try:
+            if path == "/api/stackchan/pairings/code":
+                if not self._local_admin():
+                    return self._error(
+                        HTTPStatus.FORBIDDEN,
+                        "Open this page on the host computer to start pairing.",
+                    )
+                return self._json(
+                    HTTPStatus.OK, {"code": self.server.pairing_store.create_pair_code()}
+                )
             if path == "/api/stackchan/pairings/redeem":
                 token = self.server.pairing_store.redeem_pair_code(
                     str(body.get("device_id", "")),

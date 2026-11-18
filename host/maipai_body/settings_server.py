@@ -14,6 +14,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
+from maipai_body import local_guard
 from maipai_body.i18n import normalize
 from maipai_body.settings_page import SettingsBackend
 
@@ -43,9 +44,22 @@ class _Handler(BaseHTTPRequestHandler):
         self._reply(status, json.dumps({"error": message}).encode(), "application/json")
 
     def _local(self) -> bool:
-        return self.client_address[0] in LOOPBACK
+        return local_guard.request_is_local(self.client_address[0], self.headers)
+
+    def _host_refused(self) -> bool:
+        """A name that is not this computer (a rebound hostname) reads nothing."""
+        if local_guard.host_is_local(self.headers.get("Host", "")):
+            return False
+        self._error(
+            HTTPStatus.FORBIDDEN,
+            "That request named another address. Open the settings page on this host at "
+            "http://127.0.0.1.",
+        )
+        return True
 
     def do_GET(self) -> None:  # noqa: N802
+        if self._host_refused():
+            return
         parts = urlsplit(self.path)
         lang = (parse_qs(parts.query).get("lang") or [""])[0] or self.headers.get(
             "Accept-Language", ""
@@ -72,7 +86,19 @@ class _Handler(BaseHTTPRequestHandler):
         if self.headers.get_content_type() != "application/json":
             return self._error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Send application/json.")
         try:
-            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return self._error(HTTPStatus.BAD_REQUEST, "The Content-Length header is not a number.")
+        limit = (
+            local_guard.MAX_PICTURE_BODY if "picture" in self.path else local_guard.MAX_JSON_BODY
+        )
+        if length < 0 or length > limit:
+            return self._error(
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                "That request is too large. Send less data, or use a smaller picture.",
+            )
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
             if not isinstance(body, dict):
                 raise ValueError("The body must be a JSON object.")
         except ValueError as error:

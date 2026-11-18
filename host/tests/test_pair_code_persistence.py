@@ -1,4 +1,4 @@
-"""HC-2, HS-5: a pair code made by `stackchan pair` survives the CLI process."""
+"""A pair code made by `stackchan pair` survives the CLI process."""
 
 import json
 
@@ -41,3 +41,22 @@ def test_expired_codes_are_pruned_and_the_list_is_capped(tmp_path):
     stored = json.loads(path.read_text())["pair_codes"]
     assert len(stored) <= pairing_mod.PAIR_CODE_LIMIT
     assert all(item["expires_at"] > 2000.0 for item in stored.values())
+
+
+def test_wrong_tries_are_counted_across_every_source_address(tmp_path):
+    """five wrong codes close the window whoever sent them."""
+    store = PairingStore(tmp_path / "p.json")
+    real = store.create_pair_code()
+    wrong = "000000" if real != "000000" else "000001"
+    for number in range(pairing_mod.PAIR_CODE_GLOBAL_LIMIT):
+        store.redeem_pair_code(DEVICE, CLIENT, wrong, source=f"198.51.100.{number}")
+    assert store.redeem_pair_code(DEVICE, CLIENT, real, source="198.51.100.250") is None
+
+
+def test_a_code_cannot_replace_a_paired_unit(tmp_path):
+    """a redeem for an already paired Device-Id is refused; the owner unpairs it first."""
+    store = PairingStore(tmp_path / "p.json")
+    token = store.redeem_pair_code(DEVICE, CLIENT, store.create_pair_code())
+    assert token
+    assert store.redeem_pair_code(DEVICE, CLIENT, store.create_pair_code()) is None
+    assert store.authorize(DEVICE, CLIENT, token)
