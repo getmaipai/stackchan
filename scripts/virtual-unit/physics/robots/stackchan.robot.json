@@ -124,33 +124,33 @@
     },
     "yaw_kp": {
       "v": 0.384398,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "yaw_kv": {
       "v": 0.00069,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "pitch_kp": {
       "v": 0.35057,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "pitch_kv": {
       "v": 3e-06,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "torque_limit": {
       "v": 0.12,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "joint_damping": {
       "v": 7.4e-05,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "joint_friction": {
       "v": 0.003,
@@ -164,8 +164,8 @@
     },
     "command_delay_ms": {
       "v": 101.710395,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "timestep": {
       "v": 0.002,
@@ -187,23 +187,23 @@
     },
     "yaw_speed_cap_deg_s": {
       "v": 16916.983925,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "yaw_accel_cap_deg_s2": {
       "v": 2313272.027778,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "pitch_speed_cap_deg_s": {
       "v": 536.320952,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     },
     "pitch_accel_cap_deg_s2": {
       "v": 22922.828775,
-      "src": "fitted, measured on the unit",
-      "note": "fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
+      "src": "measured",
+      "note": "Fitted, measured on the unit: fitted from head-w7-before-servo-fix.csv, measured on the unit on 2026-11-18 (rms pitch 2.758 deg, yaw 4.813 deg), fit before_servo_fix"
     }
   },
   "joints": [

@@ -11,7 +11,7 @@
 
 ## Fits kept side by side (2026-11-18)
 
-The robot description keeps each fit of the real unit under `fits`, and the current parameters follow the one marked in use. `calibrate.py REC.csv --write --measured-on DATE --label NAME` writes the parameters as "fitted, measured on the unit" (the note names the date and the CSV) and stores the fit under `fits.NAME`.
+The robot description keeps each fit of the real unit under `fits`, and the current parameters follow the one marked in use. `calibrate.py REC.csv --write --measured-on DATE --label NAME` writes the parameters with src `measured` (the shared spec allows only measured or assumed) and a note that starts "Fitted, measured on the unit" and names the date and the CSV and stores the fit under `fits.NAME`.
 
 | Fit | Recording | Unit state | Result |
 |---|---|---|---|

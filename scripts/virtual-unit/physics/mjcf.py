@@ -22,7 +22,7 @@ def value(desc: dict, key: str):
 
 
 def provenance(desc: dict) -> dict[str, list[str]]:
-    """parameter names grouped by their src (measured, assumed, "fitted, low confidence" or "fitted, measured on the unit" after a calibration): the groups the docs report."""
+    """parameter names grouped by their src (measured, assumed, or "fitted, low confidence" after a calibration): the groups the docs report."""
     out: dict[str, list[str]] = {"measured": [], "assumed": []}
     for key, entry in desc["params"].items():
         out.setdefault(entry["src"], []).append(key)

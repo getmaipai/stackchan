@@ -9,7 +9,7 @@ with the gravity torque of the head about the pitch axis G_sin sin(q) + G_cos co
 The fit searches kp, kv, b and T (not the inertia, which follows from the measured mass and the box shape; and not the friction f unless --fit-friction) to
 minimize the squared angle error. It prints the parameters and, with --write, puts the fitted values in the description file, changing their src from assumed
 to measured with a note naming the recording. Pure Python (no numpy): a few hundred samples fit in seconds.
-With --measured-on DATE and --label NAME the written values are marked "fitted, measured on the unit" with the date and the recording's file name, and the whole fit is also kept under
+With --measured-on DATE and --label NAME the written values are marked measured (the spec allows measured or assumed), their note starting "Fitted, measured on the unit" with the date and the recording's file name, and the whole fit is also kept under
 "fits" in the description (NAME is for example before_servo_fix or after_servo_fix), so two fits of the same unit can sit side by side.
 Usage: calibrate.py RECORDING.json [--robot stackchan] [--write] [--fit-friction] [--measured-on YYYY-MM-DD --label NAME]
 Placement: host-side development tool; no firmware change. Upstream: none."""
@@ -225,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("calibrate: --measured-on needs --label (the name of this fit, for example before_servo_fix).", file=sys.stderr)
                 return 2
             for name, val in fitted.items():
-                desc["params"][name].update(v=round(val, 6), src="fitted, measured on the unit", note="fitted from %s, measured on the unit on %s (rms %s), fit %s" % (args.recording.name, args.measured_on, shown, args.label))
+                desc["params"][name].update(v=round(val, 6), src="measured", note="Fitted, measured on the unit: fitted from %s on %s (rms %s), fit %s" % (args.recording.name, args.measured_on, shown, args.label))
             desc.setdefault("fits", {})[args.label] = {"measured_on": args.measured_on, "recording": args.recording.name, "rms_deg": round(math.sqrt(err), 3),
                                                        "quality": quals, "params": {k: round(x, 6) for k, x in fitted.items()}}
         else:
