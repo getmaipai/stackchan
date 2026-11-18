@@ -109,7 +109,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/safety-and-privacy.md` (72): Safety and privacy
 - `docs/design/screen-audit-baseline.json` (140): no header
 - `docs/design/screen-stays-dim-2026-11-16.md` (23): The screen that stayed dim, 2026-11-16
-- `docs/design/screen-style.md` (57): Screen style standard
+- `docs/design/screen-style.md` (61): Screen style standard
 - `docs/design/spelling-aliases.md` (39): Spelling aliases (owner rule, 2026-11-16)
 - `docs/design/stock-vs-ours-2026-11-16.md` (56): Stock firmware against ours, 2026-11-16
 - `docs/design/strip-results.md` (90): Strip results
@@ -401,6 +401,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/memory-budget-model.md` (36): The memory budget as data (decision 15): the agreement between the firmware track and the playground track
 - `docs/plan/minimal-stack.md` (65): The minimal local stack and the three ways to get a brain
 - `docs/plan/more-games-engine.md` (205): More games: what the unit's engine can and cannot do (firmware track)
+- `docs/plan/more-games.md` (58): More games: a ranked list (playground track)
 - `docs/plan/mouth-cues-append.md` (16): Mouth cues for replies of more than one sentence
 - `docs/plan/offline-audit-unit.md` (42): Offline audit, the unit half (firmware track, 2026-11-18)
 - `docs/plan/offline-mumble-firmware.md` (49): Offline mumble voice: feasibility on the unit (firmware track, 2026-11-18)
@@ -1969,7 +1970,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/linkurl_core_test.c` (39): Host test for the encrypted address rule (patch SF33). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/listen_core_test.c` (171): Host test for the listening cues (patch TB01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> ... -
 - `host/tests/firmware/listen_guard_core_test.c` (24): Host test for the listening guard rule of patch SF03. cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
-- `host/tests/firmware/lock_core_test.c` (197): Host test for the lock core (patch LK01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>.
+- `host/tests/firmware/lock_core_test.c` (198): Host test for the lock core (patch LK01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>.
 - `host/tests/firmware/look_core_test.c` (583): Host test for the look core (patch X01): styles, the eye and its lid, emotions, the mouth family, the sleep se
 - `host/tests/firmware/look_shapes_dump.c` (165): Prints the face model of maipai_look_core.h as JSON (patch V10), for the preview of the settings page.
 - `host/tests/firmware/mic3_core_test.c` (73): Host test for the MIC3 bench measurement (patch SF15). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea

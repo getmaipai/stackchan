@@ -171,6 +171,7 @@ int main(int argc, char** argv)
     CHECK(LK_KEY_W >= 100 && LK_KEY_H >= 44 && LK_KEY_SIZE >= 44 && LK_KEYS == 12);
     for (int i = 0; i < LK_KEYS; i++) {
         CHECK(mlk_key_x(i) >= 0 && mlk_key_x(i) + LK_KEY_W <= 320 && mlk_key_y(i) >= 28 && mlk_key_y(i) + LK_KEY_H <= 240);
+        CHECK(LK_KEY_W >= 100 && LK_KEY_H >= 44 && LK_PAD_GAPX >= 4 && LK_PAD_GAPY >= 4);   /* the documented exception (docs/design/screen-style.md): the keypad floor, never smaller */
         for (int j = i + 1; j < LK_KEYS; j++) {
             const int ox = mlk_key_x(i) < mlk_key_x(j) + LK_KEY_W && mlk_key_x(j) < mlk_key_x(i) + LK_KEY_W;
             const int oy = mlk_key_y(i) < mlk_key_y(j) + LK_KEY_H && mlk_key_y(j) < mlk_key_y(i) + LK_KEY_H;
