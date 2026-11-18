@@ -1,9 +1,11 @@
-import io
 import json
 import struct
 import zipfile
 import zlib
 
+import numpy as np
+
+from maipai_body import character_pack
 from maipai_body import picture_faces as pf
 from maipai_body.character_pack import build_pack, load_pack, validate_pack
 
@@ -15,9 +17,19 @@ def png_bytes(color=(220, 30, 40)):
 def _png(color=(220, 30, 40, 255)):
     def chunk(tag, body):
         payload = tag + body
-        return struct.pack(">I", len(body)) + payload + struct.pack(">I", zlib.crc32(payload) & 0xFFFFFFFF)
+        return (
+            struct.pack(">I", len(body))
+            + payload
+            + struct.pack(">I", zlib.crc32(payload) & 0xFFFFFFFF)
+        )
+
     raw = b"".join(b"\x00" + bytes(color) * 4 for _ in range(3))
-    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 4, 3, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", 4, 3, 8, 6, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw))
+        + chunk(b"IEND", b"")
+    )
 
 
 def test_each_mode_builds_checks_and_loads(tmp_path):
@@ -37,10 +49,50 @@ def test_each_mode_builds_checks_and_loads(tmp_path):
 
 def test_rejections_name_problem(tmp_path):
     cases = [
-        ({"format": 1, "name": "A", "author": "a@example.com", "license": "own work", "mode": "picture", "looks": {"neutral": ["n.png"]}}, "email address"),
-        ({"format": 1, "name": "A", "author": "", "license": "own work", "mode": "picture", "looks": {"neutral": ["n.png"]}}, "author"),
-        ({"format": 1, "name": "A", "author": "Art", "license": "", "mode": "picture", "looks": {"neutral": ["n.png"]}}, "license"),
-        ({"format": 1, "name": "A", "author": "Art", "license": "own work", "mode": "picture", "looks": {}}, "neutral"),
+        (
+            {
+                "format": 1,
+                "name": "A",
+                "author": "a@example.com",
+                "license": "own work",
+                "mode": "picture",
+                "looks": {"neutral": ["n.png"]},
+            },
+            "email address",
+        ),
+        (
+            {
+                "format": 1,
+                "name": "A",
+                "author": "",
+                "license": "own work",
+                "mode": "picture",
+                "looks": {"neutral": ["n.png"]},
+            },
+            "author",
+        ),
+        (
+            {
+                "format": 1,
+                "name": "A",
+                "author": "Art",
+                "license": "",
+                "mode": "picture",
+                "looks": {"neutral": ["n.png"]},
+            },
+            "license",
+        ),
+        (
+            {
+                "format": 1,
+                "name": "A",
+                "author": "Art",
+                "license": "own work",
+                "mode": "picture",
+                "looks": {},
+            },
+            "neutral",
+        ),
     ]
     for index, (manifest, phrase) in enumerate(cases):
         target = tmp_path / f"bad-{index}.zip"
@@ -51,9 +103,18 @@ def test_rejections_name_problem(tmp_path):
 
 
 def test_personal_data_guard_covers_phone_and_address(tmp_path):
-    for index, (author, phrase) in enumerate((("555-123-4567", "phone number"), ("12 Main Street", "street address"))):
+    for index, (author, phrase) in enumerate(
+        (("555-123-4567", "phone number"), ("12 Main Street", "street address"))
+    ):
         target = tmp_path / f"personal-{index}.zip"
-        manifest = {"format": 1, "name": "A", "author": author, "license": "own work", "mode": "picture", "looks": {"neutral": ["n.png"]}}
+        manifest = {
+            "format": 1,
+            "name": "A",
+            "author": author,
+            "license": "own work",
+            "mode": "picture",
+            "looks": {"neutral": ["n.png"]},
+        }
         with zipfile.ZipFile(target, "w") as archive:
             archive.writestr("manifest.json", json.dumps(manifest))
             archive.writestr("n.png", _png())
@@ -91,7 +152,14 @@ def test_rejects_image_size_and_dimensions(tmp_path):
     data = bytearray(_png())
     data[16:24] = struct.pack(">II", 4001, 3000)
     # The dimensions are rejected from the PNG header before pixel decoding.
-    manifest = {"format": 1, "name": "A", "author": "Art", "license": "own work", "mode": "picture", "looks": {"neutral": ["n.png"]}}
+    manifest = {
+        "format": 1,
+        "name": "A",
+        "author": "Art",
+        "license": "own work",
+        "mode": "picture",
+        "looks": {"neutral": ["n.png"]},
+    }
     with zipfile.ZipFile(target, "w") as archive:
         archive.writestr("manifest.json", json.dumps(manifest))
         archive.writestr("n.png", bytes(data))
@@ -100,8 +168,32 @@ def test_rejects_image_size_and_dimensions(tmp_path):
 
 def test_rejects_image_over_4mb(tmp_path):
     target = tmp_path / "image-too-large.zip"
-    manifest = {"format": 1, "name": "A", "author": "Art", "license": "own work", "mode": "picture", "looks": {"neutral": ["n.png"]}}
+    manifest = {
+        "format": 1,
+        "name": "A",
+        "author": "Art",
+        "license": "own work",
+        "mode": "picture",
+        "looks": {"neutral": ["n.png"]},
+    }
     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_STORED) as archive:
         archive.writestr("manifest.json", json.dumps(manifest))
         archive.writestr("n.png", b"x" * (4 * 1024 * 1024 + 1))
     assert any("larger than 4 MB" in p for p in validate_pack(target))
+
+
+def test_a_jpeg_keeps_its_colors_in_the_pack():
+    """decode_jpeg returns BGR; a red JPEG must stay red in the pack frames (a regression test for a channel swap)."""
+    import av
+
+    img = np.zeros((240, 320, 3), dtype=np.uint8)
+    img[..., 0] = 220  # red in RGB
+    codec = av.CodecContext.create("mjpeg", "w")
+    codec.width, codec.height, codec.pix_fmt = 320, 240, "yuvj420p"
+    codec.options = {"qscale": "2"}
+    frame = av.VideoFrame.from_ndarray(img, format="rgb24").reformat(format="yuvj420p")
+    packets = codec.encode(frame) + codec.encode(None)
+    jpeg = b"".join(bytes(p) for p in packets)
+    rgba, w, h = character_pack._decode_png(jpeg)
+    px = np.frombuffer(rgba, dtype=np.uint8).reshape(h, w, 4)[120, 160]
+    assert px[0] > 150 and px[2] < 80, px

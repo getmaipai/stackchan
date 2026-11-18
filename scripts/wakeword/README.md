@@ -10,3 +10,8 @@ This is a local starting point for training a wake word for the robot. It does n
 6. The accuracy is the share of clips classified correctly. Recall is the share of held-out wake-word clips accepted. False accepts per hour estimates how often long negative audio triggers the model. Higher thresholds usually mean fewer false accepts and more missed words.
 
 Recordings, datasets and models stay in folders you choose. Nothing is uploaded. Keep them outside the repository so no model is committed. This is a starting point, not a certified model. Before any use, it must pass the false-accept gate in `docs/design/next-wake-word-2026-11-17.md` on the robot, including background speech, music and TV.
+
+## What the numbers mean (added after review)
+
+- The held-back recordings used for checking are chosen by recording before any copy is made, so a check never sees a copy of something the model trained on. With fewer than 2 recordings it refuses and asks for more.
+- "False accepts per hour" counts one event per wake-like moment (a quiet gap of 1.5 seconds after each), not every 0.1 second window.
