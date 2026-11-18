@@ -184,8 +184,9 @@ def _reaction_kind(event) -> str:
 
 def _stackchan_selected(environ: Mapping[str, str] | None = None) -> bool:
     """Whether this Bot process is configured to serve a StackChan body."""
-    environ = os.environ if environ is None else environ
-    return environ.get("MAIPAI_BODY", "reachy_mini").strip().lower() in {"stackchan", "fake"}
+    from maipai_body.bodies.registry import selected
+
+    return selected(environ).id == "stackchan"
 
 
 def _no_hub_discovery(timeout_s: float = 5.0):
@@ -3007,19 +3008,176 @@ async def _start_encrypted_listeners(voice, avatar) -> None:
     )
 
 
-async def _serve_stackchan_channels(
-    stop_event: threading.Event,
-    host: str,
-    xiaozhi_port: int,
-    avatar_host: str,
-    avatar_port: int,
-    link: LinkLifecycle | None = None,
-    offline: OfflineRungs | None = None,
-) -> None:
+def _wire_firmware_update(voice, behavior, link, stop_event, situation_runner: Callable[[], Any]) -> None:
+    """The signed-update path from Home to the unit: ask, download, verify (key and build number), serve once, report.
+
+    `situation_runner` returns the dance runner (set later by the hub wiring); the update waits while it says the robot is busy."""
+    from maipai_body.bodies.stackchan.firmware_update import FirmwareUpdater
+
+    hub_credentials = _hub_credentials_reader(link, "")
+    firmware_answer: list[dict | None] = [None]
+
+    def ask_firmware_home() -> dict | None:
+        import requests
+
+        cookie, base_url = hub_credentials()
+        try:
+            # Home requires the unit's firmware version; an unknown one counts as the oldest.
+            current = behavior.unit_facts.snapshot().get("fw_version") or "0.0.0"
+            response = requests.get(
+                f"{base_url}/api/devices/me/firmware-update",
+                params={"current": current},
+                headers={"Cookie": f"session={cookie}"},
+                timeout=10,
+            )
+            payload = response.json() if 200 <= response.status_code < 300 else None
+            firmware_answer[0] = payload if isinstance(payload, dict) else None
+        except Exception:
+            firmware_answer[0] = None
+        return firmware_answer[0]
+
+    def download_firmware(path: Path) -> None:
+        import requests
+
+        cookie, base_url = hub_credentials()
+        response = requests.get(
+            f"{base_url}/api/devices/me/firmware-update/app.bin",
+            headers={"Cookie": f"session={cookie}"},
+            timeout=120,
+            stream=True,
+        )
+        if not 200 <= response.status_code < 300:
+            raise ValueError("Home firmware download failed")
+        with path.open("wb") as output:
+            for chunk in response.iter_content(64 * 1024):
+                if chunk:
+                    output.write(chunk)
+
+    def download_firmware_signature() -> bytes | None:
+        """What Home serves beside the image: the signed update header (`app.bin.hdr` and `app.bin.hdr.sig`), else the older
+        detached signature (`app.bin.sig`). None when Home has neither."""
+        import requests
+
+        cookie, base_url = hub_credentials()
+        def fetch(suffix: str) -> bytes | None:
+            response = requests.get(
+                f"{base_url}/api/devices/me/firmware-update/app.bin{suffix}",
+                headers={"Cookie": f"session={cookie}"},
+                timeout=30,
+            )
+            return response.content if response.status_code == 200 and response.content else None
+
+        header, header_signature = fetch(".hdr"), fetch(".hdr.sig")
+        if header and header_signature:
+            return header + header_signature  # the signed header package: 56 + 64 bytes
+        return fetch(".sig")
+
+    def verify_firmware_image() -> Callable[[bytes, bytes], bool] | None:
+        """Checks an image against `[update] trusted_key`; None when no key is configured. A 120-byte package is the signed
+        header: it also has to carry a build number higher than the last one this host served."""
+        from maipai_body.bodies.stackchan.firmware.flash_manifest import verify_detached
+        from maipai_body.bodies.stackchan.firmware.update_header import PACKAGE_LEN, verify_package
+        from maipai_body.config import load_config
+
+        try:
+            key = load_config().update.trusted_key
+        except Exception:
+            key = None
+        if not key:
+            return None
+        builds = _UpdateBuilds(_data_dir() / "update-builds.json")
+
+        def check(image: bytes, signature: bytes) -> bool:
+            if len(signature) != PACKAGE_LEN:
+                return verify_detached(image, signature, key)
+            installed = behavior.unit_facts.snapshot().get("fw_build")
+            known = builds.highest()
+            floor = max([n for n in (installed if isinstance(installed, int) else None, known) if n is not None], default=None)
+            verdict = verify_package(signature, image, key, installed_build=floor)
+            if verdict.ok:
+                builds.record(verdict.header["build_number"])
+            return verdict.ok
+
+        return check
+
+    def firmware_situation() -> dict[str, Any]:
+        try:
+            live = situation_runner().situation()
+            timer_service = behavior.timers
+            if timer_service is None:
+                active, rows = None, []
+            else:
+                with timer_service._lock:
+                    active = timer_service._active
+                    rows = list(active.values()) if active else []
+            kinds = [row.get("kind") for row in rows]
+            due = [row.get("left") for row in rows if isinstance(row.get("left"), int)]
+            return {
+                "link_healthy": bool(voice._sessions) and not live.offline,
+                "in_turn": behavior._active.is_set(),
+                "in_call": bool(voice._speaking),
+                "timer_active": active is None or bool(active),
+                "timers_unknown": active is None,
+                "alarm_active": "alarm" in kinds,
+                "timer_due_in": min(due) if due else None,
+                "muted": behavior.privacy.muted if behavior.privacy.known else True,
+                "full_quiet": behavior.privacy.quiet if behavior.privacy.known else True,
+            }
+        except Exception:
+            return {"link_healthy": False, "timers_unknown": True}
+
+    def report_update(updating: bool, progress: int | None) -> None:
+        voice.firmware_update_status = (updating, progress)
+
+    updater = FirmwareUpdater(
+        ask_home=ask_firmware_home,
+        download=download_firmware,
+        serve_once=voice.serve_firmware_once,
+        download_signature=download_firmware_signature,
+        verify=verify_firmware_image(),
+        call_tool=voice.robot.client._call,
+        situation=firmware_situation,
+        battery=voice.robot.client.get_battery_status,
+        unit_version=lambda: behavior.unit_facts.snapshot().get("fw_version"),
+        now=time.time,
+        report=report_update,
+    )
+    behavior.firmware_updater = updater
+    behavior.settings_listeners.append(updater.apply_settings)
+    voice.session_listeners.append(lambda _device_id: updater.tick(time.time()))
+
+    def firmware_tick() -> None:
+        while not stop_event.wait(600):
+            updater.tick(time.time())
+
+    threading.Thread(
+        target=firmware_tick, name="stackchan-firmware-update", daemon=True
+    ).start()
+
+
+
+@dataclass
+class StackChanBody:
+    """What the StackChan body is made of before its services start: the two servers, the pairing and link policy, the units
+    registry, the adapter-backed face and vision pieces, and the behavior. The service wiring takes these by name."""
+
+    voice: Any
+    avatar: Any
+    pairing: Any
+    link_security: Any
+    units: Any
+    tls_context: Any
+    cert_path: str | None
+    faces: Any
+    vision: Any
+    behavior: Any
+    camera_driver: Any
+
+
+def _build_stackchan_body(host: str, link: LinkLifecycle | None) -> StackChanBody:
     global UNIT_LINK_ENCRYPTED
     from maipai_body.bodies.stackchan.adapter import StackChanRobotAdapter
     from maipai_body.bodies.stackchan.avatar.server import AvatarServer
-    from maipai_body.bodies.stackchan.turn import StackChanTurnBridge
     from maipai_body.bodies.stackchan.xiaozhi.pairing import PairingStore, default_pairing_path
     from maipai_body.bodies.stackchan.xiaozhi.server import XiaozhiDeviceClient, XiaozhiServer
     from maipai_body.bodies.stackchan.xiaozhi.tls import server_ssl_context
@@ -3099,6 +3257,36 @@ async def _serve_stackchan_channels(
         avatar.camera_bytes_received,
     )
     behavior.event_poll = voice.robot.client.companion().poll_events
+    return StackChanBody(
+        voice=voice,
+        avatar=avatar,
+        pairing=pairing,
+        link_security=link_security,
+        units=units,
+        tls_context=tls_context,
+        cert_path=cert_path,
+        faces=faces,
+        vision=vision,
+        behavior=behavior,
+        camera_driver=camera_driver,
+    )
+
+
+async def _serve_stackchan_channels(
+    stop_event: threading.Event,
+    host: str,
+    xiaozhi_port: int,
+    avatar_host: str,
+    avatar_port: int,
+    link: LinkLifecycle | None = None,
+    offline: OfflineRungs | None = None,
+) -> None:
+    body = _build_stackchan_body(host, link)
+    from maipai_body.bodies.stackchan.turn import StackChanTurnBridge
+
+    voice, avatar, pairing, link_security = body.voice, body.avatar, body.pairing, body.link_security
+    units, tls_context, cert_path = body.units, body.tls_context, body.cert_path
+    faces, vision, behavior, camera_driver = body.faces, body.vision, body.behavior, body.camera_driver
     privacy = _wire_privacy(voice, behavior, avatar, camera_driver, stop_event)
     if link is not None:
         from maipai_body.bodies.stackchan.vision_post import VisionPoster
@@ -3114,147 +3302,7 @@ async def _serve_stackchan_channels(
         voice, behavior, link, stop_event, {**timers, **sounds.handlers()}
     )
     if link is not None:
-        from maipai_body.bodies.stackchan.firmware_update import FirmwareUpdater
-
-        hub_credentials = _hub_credentials_reader(link, "")
-        firmware_answer: list[dict | None] = [None]
-
-        def ask_firmware_home() -> dict | None:
-            import requests
-
-            cookie, base_url = hub_credentials()
-            try:
-                # Home requires the unit's firmware version; an unknown one counts as the oldest.
-                current = behavior.unit_facts.snapshot().get("fw_version") or "0.0.0"
-                response = requests.get(
-                    f"{base_url}/api/devices/me/firmware-update",
-                    params={"current": current},
-                    headers={"Cookie": f"session={cookie}"},
-                    timeout=10,
-                )
-                payload = response.json() if 200 <= response.status_code < 300 else None
-                firmware_answer[0] = payload if isinstance(payload, dict) else None
-            except Exception:
-                firmware_answer[0] = None
-            return firmware_answer[0]
-
-        def download_firmware(path: Path) -> None:
-            import requests
-
-            cookie, base_url = hub_credentials()
-            response = requests.get(
-                f"{base_url}/api/devices/me/firmware-update/app.bin",
-                headers={"Cookie": f"session={cookie}"},
-                timeout=120,
-                stream=True,
-            )
-            if not 200 <= response.status_code < 300:
-                raise ValueError("Home firmware download failed")
-            with path.open("wb") as output:
-                for chunk in response.iter_content(64 * 1024):
-                    if chunk:
-                        output.write(chunk)
-
-        def download_firmware_signature() -> bytes | None:
-            """What Home serves beside the image: the signed update header (`app.bin.hdr` and `app.bin.hdr.sig`), else the older
-            detached signature (`app.bin.sig`). None when Home has neither."""
-            import requests
-
-            cookie, base_url = hub_credentials()
-            def fetch(suffix: str) -> bytes | None:
-                response = requests.get(
-                    f"{base_url}/api/devices/me/firmware-update/app.bin{suffix}",
-                    headers={"Cookie": f"session={cookie}"},
-                    timeout=30,
-                )
-                return response.content if response.status_code == 200 and response.content else None
-
-            header, header_signature = fetch(".hdr"), fetch(".hdr.sig")
-            if header and header_signature:
-                return header + header_signature  # the signed header package: 56 + 64 bytes
-            return fetch(".sig")
-
-        def verify_firmware_image() -> Callable[[bytes, bytes], bool] | None:
-            """Checks an image against `[update] trusted_key`; None when no key is configured. A 120-byte package is the signed
-            header: it also has to carry a build number higher than the last one this host served."""
-            from maipai_body.bodies.stackchan.firmware.flash_manifest import verify_detached
-            from maipai_body.bodies.stackchan.firmware.update_header import PACKAGE_LEN, verify_package
-            from maipai_body.config import load_config
-
-            try:
-                key = load_config().update.trusted_key
-            except Exception:
-                key = None
-            if not key:
-                return None
-            builds = _UpdateBuilds(_data_dir() / "update-builds.json")
-
-            def check(image: bytes, signature: bytes) -> bool:
-                if len(signature) != PACKAGE_LEN:
-                    return verify_detached(image, signature, key)
-                installed = behavior.unit_facts.snapshot().get("fw_build")
-                known = builds.highest()
-                floor = max([n for n in (installed if isinstance(installed, int) else None, known) if n is not None], default=None)
-                verdict = verify_package(signature, image, key, installed_build=floor)
-                if verdict.ok:
-                    builds.record(verdict.header["build_number"])
-                return verdict.ok
-
-            return check
-
-        def firmware_situation() -> dict[str, Any]:
-            try:
-                live = runner.situation()
-                timer_service = behavior.timers
-                if timer_service is None:
-                    active, rows = None, []
-                else:
-                    with timer_service._lock:
-                        active = timer_service._active
-                        rows = list(active.values()) if active else []
-                kinds = [row.get("kind") for row in rows]
-                due = [row.get("left") for row in rows if isinstance(row.get("left"), int)]
-                return {
-                    "link_healthy": bool(voice._sessions) and not live.offline,
-                    "in_turn": behavior._active.is_set(),
-                    "in_call": bool(voice._speaking),
-                    "timer_active": active is None or bool(active),
-                    "timers_unknown": active is None,
-                    "alarm_active": "alarm" in kinds,
-                    "timer_due_in": min(due) if due else None,
-                    "muted": behavior.privacy.muted if behavior.privacy.known else True,
-                    "full_quiet": behavior.privacy.quiet if behavior.privacy.known else True,
-                }
-            except Exception:
-                return {"link_healthy": False, "timers_unknown": True}
-
-        def report_update(updating: bool, progress: int | None) -> None:
-            voice.firmware_update_status = (updating, progress)
-
-        updater = FirmwareUpdater(
-            ask_home=ask_firmware_home,
-            download=download_firmware,
-            serve_once=voice.serve_firmware_once,
-            download_signature=download_firmware_signature,
-            verify=verify_firmware_image(),
-            call_tool=voice.robot.client._call,
-            situation=firmware_situation,
-            battery=voice.robot.client.get_battery_status,
-            unit_version=lambda: behavior.unit_facts.snapshot().get("fw_version"),
-            now=time.time,
-            report=report_update,
-        )
-        behavior.firmware_updater = updater
-        behavior.settings_listeners.append(updater.apply_settings)
-        voice.session_listeners.append(lambda _device_id: updater.tick(time.time()))
-
-        def firmware_tick() -> None:
-            while not stop_event.wait(600):
-                updater.tick(time.time())
-
-        threading.Thread(
-            target=firmware_tick, name="stackchan-firmware-update", daemon=True
-        ).start()
+        _wire_firmware_update(voice, behavior, link, stop_event, lambda: runner)
     behavior._rest_renderer._set_brightness = night._device.set_brightness
     behavior._rest_renderer._restore_brightness = night.effective_brightness
     behavior.on_levels_changed = night.set_levels_from_unit
