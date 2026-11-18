@@ -5,6 +5,7 @@
 //   tap CELL                             Memory Match: turn a card; reveal CELL (Mine Finder); guess the letter CELL (0 = A, Hangman)
 //   flag                                 Mine Finder: switch flagging on or off
 //   advance MS                           run the clock in 30 ms ticks (falls, bounces, pulses, flips, pops, the board shake)
+//   over won|lost|draw|SCORE TEXT|BEST TEXT|NEWBEST 0 or 1|en or es   the shared game-over screen (patch UX15) over the game, drawn by the unit's own code
 //   snap FILE.png
 // Build: see scripts/virtual-unit/build-screens.sh. Placement: host-side development tool; no firmware change. Upstream: none.
 #include <lvgl.h>
@@ -25,6 +26,10 @@
 #include "maipai_grid_anim_core.h"
 #include "maipai_games_sfx_core.h"
 #include "maipai_games_draw.h"
+#if __has_include("maipai_game_over.h")
+#include "maipai_game_over.h"   /* patch UX15: the shared game-over screen */
+#define HAVE_GAME_OVER 1
+#endif
 
 static uint8_t s_buf[320 * 240 * 2];
 static uint32_t g_now = 1000;
@@ -174,6 +179,17 @@ int main()
         } else if (c == "advance") {
             int ms; in >> ms;
             for (int t = 0; t < ms; t += 30) { g_now += 30; tick(g); }
+        } else if (c == "over") {
+#ifdef HAVE_GAME_OVER
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 5) f.push_back("");
+            const int res = f[0] == "won" ? MGO_WON : f[0] == "lost" ? MGO_LOST : MGO_DRAW;
+            mgo::build(lv_layer_top(), res, f[1].c_str(), f[2].c_str(), f[3] == "1", f[4] == "es");
+#else
+            printf("this firmware tree has no game-over screen (patch UX15)\n");
+#endif
         } else if (c == "snap") {
             std::string f; in >> f; snap(f.c_str());
         }

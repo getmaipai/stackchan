@@ -130,6 +130,22 @@ GRID_SCENARIOS = {
     "game-match-flipping": ["game match 5", "tap 0", "advance 90", "snap {out}"],
     "game-hangman-mid": ["game hangman 1", "tap 4", "advance 400", "tap 0", "advance 400", "tap 17", "advance 400", "tap 19", "advance 400", "snap {out}"],
     "game-mines-open": ["game mines 3", "tap 20", "advance 500", "snap {out}"],
+    "game-over-c4-win": ["game c4 3", "over won|Score 38|Best 30|0|en", "snap {out}"],
+    "game-over-c4-lose": ["game c4 3", "over lost||Best 30|0|en", "snap {out}"],
+    "game-over-c4-draw": ["game c4 3", "over draw||Best 30|0|en", "snap {out}"],
+    "game-over-c4-win-es": ["game c4 3", "over won|Puntos 38|Mejor 30|0|es", "snap {out}"],
+    "game-over-match-win-new-best": ["game match 3", "over won|14 turns|Best 18|1|en", "snap {out}"],
+    "game-over-hangman-win": ["game hangman 3", "over won|Score 70|Best 90|0|en", "snap {out}"],
+    "game-over-hangman-lose": ["game hangman 3", "over lost|The word was robot|Best 90|0|en", "snap {out}"],
+    "game-over-mines-win-new-best": ["game mines 3", "over won|Cleared in 82 s|Best 96 s|1|en", "snap {out}"],
+    "game-over-mines-lose": ["game mines 3", "over lost|Boom!|Best 96 s|0|en", "snap {out}"],
+    "game-over-tictactoe-win": ["game mines 3", "over won|Wins 3|Best 22|0|en", "snap {out}"],
+    "game-over-tictactoe-lose": ["game mines 3", "over lost|Wins 3|Best 22|0|en", "snap {out}"],
+    "game-over-tictactoe-draw": ["game mines 3", "over draw|Wins 3|Best 22|0|en", "snap {out}"],
+    "game-over-snake-lose-new-best": ["game mines 3", "over lost|Length 34||1|en", "snap {out}"],
+    "game-over-snake-lose": ["game mines 3", "over lost|Length 12|Best 31|0|en", "snap {out}"],
+    "game-over-2048-win-new-best": ["game mines 3", "over won|Score 20480||1|en", "snap {out}"],
+    "game-over-2048-lose": ["game mines 3", "over lost|Score 5184|Best 20480|0|en", "snap {out}"],
 }
 
 COVER_SCENARIOS = {
