@@ -208,3 +208,20 @@ def test_the_hook_never_fails_the_agent_when_the_robot_is_unreachable(tmp_path):
         capture_output=True, text=True, cwd=str(__import__("pathlib").Path(__file__).resolve().parents[1]),
     )
     assert missing.returncode == 0 and "coding-token" in missing.stderr
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "passéword is hunter2",          # an accented letter inside a keyword
+        "httpsé://example.com/a",        # an accented letter inside the scheme
+        "pаssword is x",                 # a Cyrillic a that looks like a Latin a
+        "pa​ssword is x",                # a zero-width space inside the keyword
+        "ｐａｓｓｗｏｒｄ x",  # fullwidth letters
+        "apі key abc",                   # a Cyrillic i
+        "тoken value",                   # a Cyrillic t
+        "see /höme/alex/file",           # an accent in a path
+    ],
+)
+def test_tricks_with_accents_lookalikes_and_hidden_characters_do_not_get_text_past_the_check(text):
+    assert clean_text(text) is None
