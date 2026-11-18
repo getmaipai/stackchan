@@ -132,3 +132,9 @@ def test_ring_lights_and_battery():
         assert u.call("self.robot.set_led_colors", {"led_0_red": 1})["isError"]
         u.call("self.battery.simulate", {"level": 12})
         assert u.call("self.battery.get_status")["percent"] == 12
+
+
+@needs_render
+def test_face_consistency_across_styles_has_no_new_violation():
+    out = subprocess.run([sys.executable, str(VU / "face_consistency.py")], capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr
