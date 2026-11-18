@@ -17,6 +17,11 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import tools as _tools  # noqa: E402
+
+for _mod in sorted((Path(__file__).resolve().parent / "tools").glob("[a-z]*.py")):
+    __import__(f"tools.{_mod.stem}")
 EMOTIONS = {"neutral", "happy", "sad", "angry", "doubt", "surprised", "sleepy", "tired", "closing", "sleeping", "love", "content", "thinking"}
 ALIASES = {"doubtful": "doubt"}
 
@@ -25,6 +30,7 @@ ALIASES = {"doubtful": "doubt"}
 # when you simulate one, add it here and the suite tells you to drop its gap entry.
 SIMULATED = {"self.face.bench_emotion", "self.face.bench_speak", "self.face.snapshot", "self.screen.bench_touch",
              "self.robot.get_head_angles", "self.robot.set_head_angles", "self.robot.set_led_colors", "self.battery.get_status", "self.battery.simulate"}
+SIMULATED |= set(_tools.REGISTRY)
 YAW_RANGE, PITCH_RANGE, KEEP = (-128, 128), (0, 90), -9999
 MOVES_PER_MINUTE = 40  # patch 038
 JSON_TYPES = {"string": str, "integer": int, "boolean": bool}
@@ -45,6 +51,7 @@ class VirtualUnit:
         self.tool_args: dict[str, dict[str, str]] = schema.get("arguments", {})
         self.now_ms = 0
         self.output: list[str] = []
+        self.state: dict = {}  # per group state for tools/*.py handlers
         self.touches: list[tuple[int, int, int, int]] = []  # (at_ms, x, y, duration_ms)
         self.calls: list[tuple[str, dict]] = []
         self.emotion = "neutral"
@@ -151,6 +158,8 @@ class VirtualUnit:
             self._send(f"speak {level}")
             self._speak_until = self.now_ms + seconds * 1000
             return {"ok": True}
+        if name in _tools.REGISTRY:
+            return _tools.REGISTRY[name](self, args)
         if name == "self.robot.get_head_angles":
             return self.head()
         if name == "self.robot.set_head_angles":

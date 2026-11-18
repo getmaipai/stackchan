@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 134,
+ "count": 131,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -57,10 +57,7 @@
   "self.listen.test": "TB01-listening-cues.patch",
   "self.lock.bench_key": "LK02-lock-state-tools-and-lock-screen.patch",
   "self.lock.bench_touch": "LK02-lock-state-tools-and-lock-screen.patch",
-  "self.lock.clear": "LK02-lock-state-tools-and-lock-screen.patch",
-  "self.lock.config": "LK02-lock-state-tools-and-lock-screen.patch",
   "self.lock.now": "LK02-lock-state-tools-and-lock-screen.patch",
-  "self.lock.set": "LK02-lock-state-tools-and-lock-screen.patch",
   "self.lock.status": "LK02-lock-state-tools-and-lock-screen.patch",
   "self.look.bench_address": "S14-seek-task-tools-and-setting.patch",
   "self.look.calibrate": "S14-seek-task-tools-and-setting.patch",
@@ -306,17 +303,7 @@
    "key": "string"
   },
   "self.lock.bench_touch": {},
-  "self.lock.clear": {
-   "current": "string"
-  },
-  "self.lock.config": {
-   "auto_minutes": "integer"
-  },
   "self.lock.now": {},
-  "self.lock.set": {
-   "code": "string",
-   "current": "string"
-  },
   "self.lock.status": {},
   "self.look.bench_address": {},
   "self.look.calibrate": {
