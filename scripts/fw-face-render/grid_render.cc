@@ -11,6 +11,8 @@
 //   qa twenty|QUESTION|N|GUESS 0 or 1|lang
 //   stripadd                             keep this very frame (no time passes) for a filmstrip
 //   stripwrite FILE.png COLS             the kept frames at half size, COLS to a row, in one picture
+//   swipe X0 Y0 X1 Y1 HELD_MS            a finger down at X0 Y0 and up at X1 Y1 after HELD_MS: the unit's own classification (tap, long press, swipe) steers Snake, slides 2048, taps or flags Mine Finder (patch SF76)
+//   tiles E0 .. E15                      2048: set the sixteen tile exponents (0 empty, 1 = 2, 2 = 4 ... 11 = 2048)
 //   snap FILE.png
 // Build: see scripts/virtual-unit/build-screens.sh. Placement: host-side development tool; no firmware change. Upstream: none.
 #include <lvgl.h>
@@ -29,6 +31,13 @@
 #include "maipai_grid_hangman_core.h"
 #include "maipai_grid_mines_core.h"
 #include "maipai_grid_anim_core.h"
+#if __has_include("maipai_grid_slide_core.h")
+#include "maipai_gesture_core.h"
+#include "maipai_grid_slide_core.h"   /* patch SF77: 2048 */
+#include "maipai_grid_snake_core.h"   /* patch SF77: Snake */
+#include "maipai_grid_input_core.h"   /* patch SF76: swipes and long press */
+#define HAVE_SLIDE_SNAKE 1
+#endif
 #include "maipai_games_sfx_core.h"
 #include "maipai_games_draw.h"
 #if __has_include("maipai_qa.h")
@@ -118,6 +127,14 @@ static void tick(Grid* g)
         if (ev[k].type == GAN_EV_FALL_DONE) c4_land(g, ev[k].owner);
         else if (ev[k].type == GAN_EV_FLASH_DONE) { if (g->flash_left > 0) g->flash_left--; if (g->flash_left == 0) g->win_lit = 1; }
     }
+#ifdef HAVE_SLIDE_SNAKE
+    if (g->kind == kSnake && g->result == GR_PLAYING && (int32_t)(g_now - g->next_step_ms) >= 0) {
+        const int r = gsn_step(&g->snake);
+        g->next_step_ms = g_now + gsn_interval_ms(&g->snake);
+        if (r == GSN_DIED) g->result = GR_UNIT_WON;
+        else if (r == GSN_WON) g->result = GR_PERSON_WON;
+    }
+#endif
     if (g->kind == kMatch) {
         const int p0 = g->mem.pending[0], p1 = g->mem.pending[1];
         if (gm_tick(&g->mem, g_now)) {
@@ -150,11 +167,15 @@ int main()
             std::string k; uint32_t seed = 7; in >> k >> seed;
             g = (Grid*)calloc(1, sizeof(Grid));
             s_grid = g;
-            g->kind = k == "c4" ? kC4 : k == "match" ? kMatch : k == "hangman" ? kHangman : kMines;
+            g->kind = k == "c4" ? kC4 : k == "match" ? kMatch : k == "hangman" ? kHangman : k == "slide" ? kSlide : k == "snake" ? kSnake : kMines;
             g->seed = seed;
             if (g->kind == kC4) { gr_layout(&g->lay, GC4_COLS, GC4_ROWS, 0); gc4_clear(&g->c4); }
             else if (g->kind == kHangman) { gh_init(&g->hang, kWords[seed % 4], GH_MAX_MISS); g->lay.cols = 9; g->lay.rows = 3; g->lay.cw = 31; g->lay.ch = 32; g->lay.x0 = 20; g->lay.y0 = 126; }
             else if (g->kind == kMines) { gmn_init(&g->mines, seed); gr_layout(&g->lay, GMN_COLS, GMN_ROWS, 1); g->lay.x0 = 52; }
+#ifdef HAVE_SLIDE_SNAKE
+            else if (g->kind == kSlide) { gsl_init(&g->slide, seed); gr_layout(&g->lay, GS_N, GS_N, 1); g->spawn_cell = 255; }
+            else if (g->kind == kSnake) { gsn_init(&g->snake, seed); gr_layout(&g->lay, GSN_COLS, GSN_ROWS, 0); g->next_step_ms = g_now + 1600; }
+#endif
             else { gm_init(&g->mem, 16, seed); gr_layout(&g->lay, 4, 4, 1); }
             gan_init(&g->anim);
             build(g);
@@ -184,6 +205,30 @@ int main()
                 gan_pop(&g->anim, g_now, i);
 #endif
             }
+        } else if (c == "swipe" || c == "tiles") {
+#ifdef HAVE_SLIDE_SNAKE
+            if (c == "tiles") { for (int i = 0; i < GS_N * GS_N; i++) { int e = 0; in >> e; g->slide.t[i] = (uint8_t)e; } g->spawn_cell = 255; continue; }
+            int x0, y0, x1, y1, held; in >> x0 >> y0 >> x1 >> y1 >> held;
+            const int what = gi_classify(x0, y0, x1, y1, (uint32_t)held);
+            if (g->kind == kSnake) {
+                if (what == GI_SWIPE_LEFT) gsn_turn(&g->snake, GSN_LEFT); else if (what == GI_SWIPE_RIGHT) gsn_turn(&g->snake, GSN_RIGHT);
+                else if (what == GI_SWIPE_UP) gsn_turn(&g->snake, GSN_UP); else if (what == GI_SWIPE_DOWN) gsn_turn(&g->snake, GSN_DOWN);
+            } else if (g->kind == kSlide) {
+                const int dir = what == GI_SWIPE_LEFT ? GS_LEFT : what == GI_SWIPE_RIGHT ? GS_RIGHT : what == GI_SWIPE_UP ? GS_UP : what == GI_SWIPE_DOWN ? GS_DOWN : -1;
+                uint8_t before[GS_N * GS_N]; memcpy(before, g->slide.t, sizeof(before));
+                if (dir >= 0 && gsl_slide(&g->slide, dir)) {
+                    for (int i = 0; i < GS_N * GS_N; i++) if (g->slide.t[i] != 0 && before[i] == 0 && (g->slide.t[i] == 1 || g->slide.t[i] == 2)) { gan_pop(&g->anim, g_now, i); break; }
+                    if (gsl_result(&g->slide) != GR_PLAYING) g->result = gsl_result(&g->slide);
+                }
+            } else if (g->kind == kMines) {
+                const int cell = gr_cell_at(&g->lay, x0, y0);
+                if (cell >= 0 && what == GI_LONG) gmn_flag(&g->mines, cell);
+                else if (cell >= 0 && what == GI_TAP) { gmn_reveal(&g->mines, cell); gan_pop(&g->anim, g_now, cell); }
+            }
+            if (g->board != nullptr) lv_obj_invalidate(g->board);
+#else
+            printf("this firmware tree has no swipe inputs (patch SF76)\n");
+#endif
         } else if (c == "flag") {
             g->flag_mode = !g->flag_mode;
         } else if (c == "advance") {

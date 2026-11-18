@@ -133,6 +133,17 @@ GRID_SCENARIOS = {
     "game-match-flipping": ["game match 5", "tap 0", "advance 90", "snap {out}"],
     "game-hangman-mid": ["game hangman 1", "tap 4", "advance 400", "tap 0", "advance 400", "tap 17", "advance 400", "tap 19", "advance 400", "snap {out}"],
     "game-mines-open": ["game mines 3", "tap 20", "advance 500", "snap {out}"],
+    # patches SF76 and SF77: 2048 and Snake, steered by the unit's own swipe classification (a swipe of 60 px or more in 450 ms or less; a still touch held 450 ms is a long press)
+    "game-slide-start": ["game slide 5", "advance 100", "snap {out}"],
+    "game-slide-swiped": ["game slide 5", "swipe 250 120 60 125 180", "advance 300", "swipe 160 210 165 40 180", "advance 300", "snap {out}"],
+    "game-slide-2048": ["game slide 5", "tiles 11 10 9 8 4 5 6 7 3 2 1 1 0 1 2 0", "advance 100", "snap {out}"],
+    "game-slide-swipes-filmstrip": ["game slide 5", "advance 100", "stripadd", "swipe 250 120 60 125 180", "advance 60", "stripadd", "advance 120", "stripadd", "swipe 160 210 165 40 180", "advance 60", "stripadd", "advance 120", "stripadd", "swipe 60 120 260 118 180", "advance 60", "stripadd", "advance 120", "stripadd", "swipe 160 40 158 210 180", "advance 60", "stripadd", "advance 120", "stripadd", "stripwrite {out} 3"],
+    "game-snake-start": ["game snake 9", "advance 100", "snap {out}"],
+    "game-snake-moving": ["game snake 9", "advance 2900", "snap {out}"],
+    "game-snake-turned": ["game snake 9", "advance 1900", "swipe 160 200 162 60 150", "advance 900", "snap {out}"],
+    "game-snake-steering-filmstrip": ["game snake 9", "advance 1700", "stripadd", "advance 330", "stripadd", "swipe 160 200 162 60 150", "advance 330", "stripadd", "advance 330", "stripadd", "swipe 250 120 60 122 150", "advance 330", "stripadd", "advance 330", "stripadd", "stripwrite {out} 3"],
+    "game-snake-crashed": ["game snake 9", "advance 12000", "snap {out}"],
+    "game-mines-flagged": ["game mines 3", "swipe 184 100 184 100 100", "advance 300", "swipe 100 160 100 160 600", "advance 400", "swipe 148 130 148 130 600", "advance 400", "snap {out}"],
     # patch SF72: a chip dropping into Four in a Row, one frame every 60 ms (the fall, the landing bounce), and the winning four pulsing (one frame every 120 ms): twelve frames
     "game-c4-drop-filmstrip": ["game c4", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 4 2", "stripadd"] + ["advance 60", "stripadd"] * 8 + ["advance 400", "drop 3 1", "advance 700"] + ["advance 120", "stripadd"] * 0 + ["stripwrite {out} 3"],
     "game-riddle-typing": ["game c4 3", "qa riddle|riddle|What has keys but cannot open locks?|A piano|22|0|en", "snap {out}"],
