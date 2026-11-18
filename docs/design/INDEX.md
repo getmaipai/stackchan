@@ -147,8 +147,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.html` (84): no header
 - `docs/dev/feature-ledger.md` (1096): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
@@ -487,7 +485,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/status-and-health.md` (30): See what is running
 - `docs/user/swipe-pages.md` (81): Swipe pages and the control sheet
 - `docs/user/switch-from-the-factory-firmware.md` (40): Switch from the factory firmware, or go back
-- `docs/user/timers-and-alarms.md` (52): Set a timer or alarm
+- `docs/user/timers-and-alarms.md` (51): Set a timer or alarm
 - `docs/user/troubleshooting.md` (41): Troubleshooting
 - `docs/user/try-the-virtual-robot.md` (30): Try the virtual robot
 - `docs/user/updates.md` (58): Update the robot
@@ -765,6 +763,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF71-reconnect-delay-resets-after-a-held-handshake.patch` (55): The reconnect delay starts over after any connection whose handshake completed and held for a second, not only
 - `firmware/patches/SF72-grid-animation-layer-and-connect4-chip-drop.patch` (525): Four in a Row gets a generic animation layer in the grid engine and its sounds. The person's disc and the unit
 - `firmware/patches/SF73-away-notice-takes-the-banner-row.patch` (73): The "Can't reach Home" notice after ten minutes away is actually seen. The steady "Offline" look is a banner n
+- `firmware/patches/SF74-flips-and-pops-for-memory-mines-hangman.patch` (211): The other grid games use the animation layer. Memory Match cards flip (the width closes to the edge and opens 
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
