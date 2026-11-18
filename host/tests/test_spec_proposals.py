@@ -10,7 +10,7 @@ from tests.schema_mini import errors
 
 ROOT = Path(__file__).resolve().parents[2]
 DIR = ROOT / "docs" / "plan" / "spec-proposals"
-NAMES = ("movement-limiter-state", "memory-admission", "brain-capabilities", "indicator-row")
+NAMES = ("movement-limiter-state", "memory-admission", "brain-capabilities", "indicator-row", "memory-governor")
 
 
 def _schema(name):
@@ -73,3 +73,23 @@ def test_the_approved_ring_table_validates_and_matches_the_hosts_keys():
         record = {"key": key, "meaning": meaning.strip(), "color": color, "style": style, "period_s": float(period), "brightness": float(brightness)}
         assert errors(_schema("indicator-row"), record) == [], key
     assert {r[0] for r in rows} == {k.value for k in LookKey}
+
+
+def test_the_memory_governor_floors_equal_the_gate_scripts():
+    import importlib.util
+
+    record = json.loads((DIR / "fixtures" / "memory-governor.valid.example.json").read_text())
+    spec = importlib.util.spec_from_file_location("fw_stress", ROOT / "scripts" / "fw-stress.py")
+    stress = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(stress)
+    ram = record["budgets"]["internal_ram"]
+    assert ram["free_median_min_bytes"] == stress.FLOORS["internal_free_steady"]
+    assert ram["free_lowest_min_bytes"] == stress.FLOORS["internal_min"]
+    assert ram["largest_block_median_min_bytes"] == stress.FLOORS["int_big_steady"]
+    assert ram["largest_block_lowest_min_bytes"] == stress.FLOORS["int_big_min"]
+    assert ram["stack_margin_min_bytes"] == stress.FLOORS["stack_margin"]
+    spec = importlib.util.spec_from_file_location("release_report", ROOT / "scripts" / "release-report.py")
+    report = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(report)
+    assert record["budgets"]["flash_slot"]["free_min_percent"] == round(report.FREE_RULE * 100)
+    assert (DIR / "memory-governor.md").read_text().count("40,000") >= 1

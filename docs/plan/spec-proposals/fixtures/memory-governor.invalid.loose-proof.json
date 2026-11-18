@@ -1,0 +1,10 @@
+{
+  "budgets": {
+    "internal_ram": {"free_median_min_bytes": 40000, "free_lowest_min_bytes": 24000, "largest_block_median_min_bytes": 24000, "largest_block_lowest_min_bytes": 16000, "stack_margin_min_bytes": 1024},
+    "psram": {"free_lowest_min_bytes": 6000000},
+    "flash_slot": {"free_min_percent": 20}
+  },
+  "features": [],
+  "off_proof": {"method": "baseline_compiled_out_versus_linked_off", "internal_free_match_bytes": 20000, "largest_block_match_bytes": 1024},
+  "refusal_words": "x"
+}

@@ -1,0 +1,69 @@
+{
+  "$id": "memory-governor",
+  "type": "object",
+  "required": ["budgets", "features", "off_proof", "refusal_words"],
+  "additionalProperties": false,
+  "properties": {
+    "budgets": {
+      "type": "object",
+      "required": ["internal_ram", "psram", "flash_slot"],
+      "additionalProperties": false,
+      "properties": {
+        "internal_ram": {
+          "type": "object",
+          "required": ["free_median_min_bytes", "free_lowest_min_bytes", "largest_block_median_min_bytes", "largest_block_lowest_min_bytes", "stack_margin_min_bytes"],
+          "additionalProperties": false,
+          "properties": {
+            "free_median_min_bytes": {"type": "integer", "minimum": 1},
+            "free_lowest_min_bytes": {"type": "integer", "minimum": 1},
+            "largest_block_median_min_bytes": {"type": "integer", "minimum": 1},
+            "largest_block_lowest_min_bytes": {"type": "integer", "minimum": 1},
+            "stack_margin_min_bytes": {"type": "integer", "minimum": 1}
+          }
+        },
+        "psram": {
+          "type": "object",
+          "required": ["free_lowest_min_bytes"],
+          "additionalProperties": false,
+          "properties": {"free_lowest_min_bytes": {"type": "integer", "minimum": 1}}
+        },
+        "flash_slot": {
+          "type": "object",
+          "required": ["free_min_percent"],
+          "additionalProperties": false,
+          "properties": {"free_min_percent": {"type": "integer", "minimum": 1, "maximum": 90}}
+        }
+      }
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "tier", "default", "flash_kb", "psram_kb", "internal_kb", "needs_host", "offline_ok", "off_costs_nothing"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "maxLength": 40},
+          "tier": {"enum": ["core", "optional", "hub_only"]},
+          "default": {"enum": ["on", "off"]},
+          "flash_kb": {"type": "integer", "minimum": 0},
+          "psram_kb": {"type": "integer", "minimum": 0},
+          "internal_kb": {"type": "integer", "minimum": 0},
+          "needs_host": {"type": "boolean"},
+          "offline_ok": {"type": "boolean"},
+          "off_costs_nothing": {"type": "boolean"}
+        }
+      }
+    },
+    "off_proof": {
+      "type": "object",
+      "required": ["method", "internal_free_match_bytes", "largest_block_match_bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {"enum": ["baseline_compiled_out_versus_linked_off"]},
+        "internal_free_match_bytes": {"type": "integer", "minimum": 0, "maximum": 4096},
+        "largest_block_match_bytes": {"type": "integer", "minimum": 0, "maximum": 4096}
+      }
+    },
+    "refusal_words": {"type": "string", "maxLength": 300}
+  }
+}
