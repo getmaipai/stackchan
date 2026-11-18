@@ -4,29 +4,32 @@
 
 *The robot on its own screen: it talks, dances, shows rain and opens its games page, with no cloud involved.*
 
-![The virtual robot playground.](docs/images/hero-playground.gif)
-
-*The virtual robot playground: a 3D model, the robot's screen and a tool panel, so you can try everything before you own a robot.*
-
 Custom firmware for the [StackChan](https://github.com/m5stack/StackChan) desk robot, plus a small host program. Private and local: your robot talks to a model you choose, and nothing leaves your home unless you point it there.
 
 - **Works on its own.** Faces, touch, timers, alarms, games and dances run on the robot with no host and no cloud.
 - **Your brain, your choice.** Use your own model, a small one the host installs for you, or MaiPai Home.
 - **Safe by design.** A lock, mute and camera-off switches, and cues that cannot be hidden when the robot listens or watches.
 - **Six languages**, switched at run time, no reflash.
-- **Try it first** on a virtual robot in your browser, with no hardware.
+
+Try it with no hardware in the virtual playground:
+
+![The virtual robot playground.](docs/images/hero-playground.gif)
+
+*The virtual robot playground: a 3D model, the robot's screen and a tool panel, so you can try everything before you own a robot.*
 
 ## Install and use
 
-1. Try the [virtual robot](docs/user/try-the-virtual-robot.md), or open the [playground](docs/playground/index.md).
-2. Flash a robot with the [web flasher](docs/user/web-flasher.md) (not published yet; [build from source](docs/dev/build-from-source.md) works today).
-3. [Install the host](docs/user/install-the-host.md), then follow [Getting started](docs/user/getting-started.md).
+1. Flash a robot with the [web flasher](docs/user/web-flasher.md) (not published yet; [build from source](docs/dev/build-from-source.md) works today).
+2. [Install the host](docs/user/install-the-host.md).
+3. Follow [Getting started](docs/user/getting-started.md).
+
+Optional: try the [virtual robot](docs/user/try-the-virtual-robot.md) or the [playground](docs/playground/index.md) first, no hardware needed.
 
 Docs: [For users](docs/user/index.md) · [Playground](docs/playground/index.md) · [For developers](docs/dev/index.md)
 
-## Status
+## AI disclosure
 
-Pre-1.0. The host, settings pages, pairing, voice path, games and the virtual robot work and are tested on a computer; several screens are seen on a real robot. Still open: a signed release image, a published flasher and a double-click host installer. See [the readiness page](docs/plan/release-readiness.md).
+This project is built with AI coding assistants (Claude and Codex), directed and reviewed by the owner. All code goes through the repository's checks (`bash scripts/check.sh`) and hardware tests. What is proven only on a computer and what is proven on a real robot is listed on [the readiness page](docs/plan/release-readiness.md). Status: pre-1.0.
 
 ## Independence
 
