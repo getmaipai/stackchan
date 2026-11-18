@@ -4,6 +4,8 @@
 
 export class FlasherError extends Error {}
 
+const FLASH_BYTES = 16 * 1024 * 1024;
+
 export function parseManifest(manifest) {
   const build = manifest && Array.isArray(manifest.builds) ? manifest.builds[0] : null;
   if (!build || build.chipFamily !== "ESP32-S3") {
@@ -13,16 +15,25 @@ export function parseManifest(manifest) {
     throw new FlasherError("The release has no files to flash. Download the release again.");
   }
   const parts = build.parts.map((part) => {
-    if (typeof part.path !== "string" || part.path.includes("..") || part.path.startsWith("/") || !Number.isInteger(part.offset) || part.offset < 0 || !/^[0-9a-f]{64}$/.test(String(part.sha256 || ""))) {
+    // A file name inside the release folder: letters, digits, dot, dash and underscore only (no slash, no encoded dots, no address).
+    const plain = typeof part.path === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(part.path) && !part.path.includes("..");
+    // An offset the flash can erase (a multiple of 4096) and that lies inside the 16 MiB flash.
+    const inside = Number.isInteger(part.offset) && part.offset >= 0 && part.offset % 4096 === 0 && part.offset < FLASH_BYTES;
+    if (!plain || !inside || !/^[0-9a-f]{64}$/.test(String(part.sha256 || ""))) {
       throw new FlasherError("The release list is damaged. Download the release again.");
     }
-    return { path: part.path, offset: part.offset, sha256: part.sha256 };
+    const size = Number.isInteger(part.size) && part.size > 0 ? part.size : 0;
+    if (size && part.offset + size > FLASH_BYTES) {
+      throw new FlasherError("The release list is damaged. Download the release again.");
+    }
+    return { path: part.path, offset: part.offset, sha256: part.sha256, size };
   });
   const sorted = [...parts].sort((a, b) => a.offset - b.offset);
   // Two parts at one address, or one starting inside another, would overwrite each other. The parts' sizes are not in the list, so
   // the offsets must at least differ; the files themselves are checked by hash before anything is written.
   for (let i = 1; i < sorted.length; i += 1) {
-    if (sorted[i].offset === sorted[i - 1].offset) {
+    const before = sorted[i - 1];
+    if (sorted[i].offset === before.offset || (before.size && before.offset + before.size > sorted[i].offset)) {
       throw new FlasherError("The release list puts two files at the same place on the robot. Download the release again.");
     }
   }

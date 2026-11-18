@@ -99,7 +99,6 @@ try { parseManifest({ builds: [{ chipFamily: 'ESP32-S3', parts: [{ path: 'a.bin'
     assert out == "refused", out
 
 
-@bug
 @needs_node
 @pytest.mark.parametrize("path", ["%2e%2e/other/evil.bin", "https://other.example/x.bin", "data:application/octet-stream;base64,AAAA", "a.bin?x=1#frag", "a\nb.bin"])
 def test_a_release_part_path_must_be_a_plain_file_name_inside_the_release_folder(path):
@@ -112,7 +111,6 @@ try {{ parseManifest({{ builds: [{{ chipFamily: 'ESP32-S3', parts: [{{ path: {js
     assert out == "refused", out
 
 
-@bug
 @needs_node
 @pytest.mark.parametrize("offset", [12345, 2**40])
 def test_a_release_part_offset_must_be_aligned_and_inside_the_16_megabyte_flash(offset):
