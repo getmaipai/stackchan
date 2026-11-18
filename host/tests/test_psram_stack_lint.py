@@ -203,3 +203,16 @@ def test_reading_a_saved_file_reports_an_empty_partition_without_the_elf(tmp_pat
     assert coredump.main(["--file", str(saved)]) == 0
     assert "whole dump of 1234 bytes" in capsys.readouterr().out
     assert coredump.main(["--file", str(saved), "--elf", str(tmp_path / "missing.elf")]) == 2
+
+
+def test_a_member_call_from_the_task_into_a_method_of_the_same_file_is_followed(tmp_path):
+    """The reconnect task called self->ConnectAudioChannel(), which reads saved settings; the first merged image with that task on a PSRAM stack crash-looped."""
+    files = {
+        "proto.cc": """
+            void Proto::ReconnectTask(void* arg) { auto* self = static_cast<Proto*>(arg); for (;;) { self->ConnectAudioChannel(); } }
+            bool Proto::ConnectAudioChannel() { Settings settings("websocket", false); return settings.GetInt("version") != 0; }
+            void Proto::Start() { xTaskCreatePinnedToCoreWithCaps(ReconnectTask, "ws_reconnect", 4096, this, 3, &h, tskNO_AFFINITY, MALLOC_CAP_SPIRAM); }
+        """
+    }
+    found = _findings(tmp_path, files)
+    assert any(task == "ReconnectTask" and "Settings" in word for task, _path, word in found)

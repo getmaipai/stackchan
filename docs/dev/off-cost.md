@@ -1,6 +1,6 @@
 # Cost of a switched-off feature in the plain image
 
-Image: `b41/build-plain`, 3727344 bytes. Static sizes (`size`): text 2752823, data 997220, bss 6364693.
+Image: `b43/build-plain`, 3727728 bytes. Static sizes (`size`): text 2752847, data 997580, bss 6364693.
 
 A feature that is off must show 0 symbols, 0 bytes and 0 strings. Made by `scripts/off-cost.sh`; re-run it after any change to a switch.
 

@@ -126,7 +126,7 @@ class Tree:
         for task, where, body in self.tasks():
             seen: set[str] = set()
 
-            def walk(text: str, path: list[str], here: Path) -> None:
+            def walk(text: str, path: list[str], here: Path, follow: bool = True) -> None:
                 for token in DANGEROUS.finditer(text):
                     word = token.group(1)
                     if word == "Settings" and not SETTINGS_USE.search(text[max(0, token.start() - 1) : token.end() + 40]):
@@ -134,8 +134,15 @@ class Tree:
                     key = f"{task}:{word}"
                     if key not in ALLOWED:
                         out.append((task, path, word))
-                for call in re.finditer(r"(?<![.>\w])([A-Za-z_][\w]*(?:::[A-Za-z_]\w*)*)\s*\(", text):
-                    name = call.group(1).split("::")[-1]  # a member call (x.load(), p->run()) is not followed: its class is unknown
+                if not follow:
+                    return  # a member function followed from the task is scanned for flash and settings use, its callees are not followed
+                for call in re.finditer(r"(\.|->)?\b([A-Za-z_][\w]*(?:::[A-Za-z_]\w*)*)\s*\(", text):
+                    name = call.group(2).split("::")[-1]
+                    # A member call (x.load(), p->run()) is followed only when a function of that name is defined in the caller's own file
+                    # (self->ConnectAudioChannel() inside the same class's file), and only from the task function itself; otherwise its class is unknown and it is not followed.
+                    # Only calls made directly by the task function (depth one): deeper member calls are too often another class's method.
+                    if call.group(1) and (len(path) > 1 or not any(w == here for w, _b in self.defs.get(name, []))):
+                        continue
                     if name in GUARDED:
                         required = GUARDED[name][1]
                         if required and not any(required in inner for _w, inner in self.defs.get(name, [])):
@@ -151,7 +158,7 @@ class Tree:
                         continue
                     seen.add(name)
                     for where2, inner in candidates:
-                        walk(inner, [*path, name], where2)
+                        walk(inner, [*path, name], where2, follow=not call.group(1))
 
             walk(body, [task], where)
         unique: dict[tuple[str, str, str], tuple[str, list[str], str]] = {}

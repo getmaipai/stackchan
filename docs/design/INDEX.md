@@ -2066,7 +2066,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_privacy_per_unit.py` (204): With two units each one has its own privacy state: a mute on one unit is read back for that unit and gates onl
 - `host/tests/test_privacy_sentence.py` (11): The privacy sentence is one text on the settings page and the robot's first-run screen."""
 - `host/tests/test_profile.py` (131): Tests named for the promises RM-01 makes about the Reachy Mini profile."""
-- `host/tests/test_psram_stack_lint.py` (205): ruff: noqa: E501
+- `host/tests/test_psram_stack_lint.py` (218): ruff: noqa: E501
 - `host/tests/test_release_and_update_vectors.py` (157): The release script dry run, the signed update vectors, and the Home-driven update path (host side)."""
 - `host/tests/test_release_report.py` (56): scripts/release-report.py: images against the slot rule, memory only from a real log, never invented."""
 - `host/tests/test_remote_activity.py` (370): ruff: noqa: E501
@@ -2371,7 +2371,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/measure-turn.py` (134): Measure first model token and first speech audio from a local compatible service."""
 - `scripts/off-cost.sh` (35): prove an optional firmware feature that is switched off costs nothing in the plain image. Reads a built plain 
 - `scripts/patch-replay.sh` (53): Identify genuinely added files separately from missing existing paths.
-- `scripts/psram-stack-lint.py` (181): Fail when a task whose stack is in PSRAM can reach flash or saved settings (patches TC02 and FM05).
+- `scripts/psram-stack-lint.py` (188): Fail when a task whose stack is in PSRAM can reach flash or saved settings (patches TC02 and FM05).
 - `scripts/readiness.py` (187): First-release readiness: the friend test as a checklist, made from the state of the repository.
 - `scripts/regen-core-tables.py` (26): Regenerate the tables the host page draws from, as the unit's cores print them after the whole firmware/patche
 - `scripts/release-report.py` (183): One markdown page per firmware build: image sizes per slot, memory numbers from a stress log, frame cost per s
