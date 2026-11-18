@@ -139,6 +139,9 @@ def pump():
             HW.tick(UNIT.now_ms)
             if was_dancing and not HW.dance:
                 UNIT.state["motion"]["dance"] = ""  # the dance ended or the unit went off
+            if HW.dance and motion_state()["state"] == "carried":
+                UNIT.state["motion"]["dance"] = ""  # held or on its side: the limiter allows no movement, so a dance ends (patch ML01)
+                HW.dance = ""
             if HW.dance and not UNIT.state.get("motion", {}).get("dance"):
                 HW.dance = ""  # self.robot.stop_dance
             elif not HW.dance and UNIT.state.get("motion", {}).get("dance") and HW.on:

@@ -2275,11 +2275,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/listen_guard.c` (22): Harness for the listening guard (patch SF03): runs the guard loop of Application::Run once a second through th
 - `scripts/virtual-unit/make_briefs.py` (57): Write lane briefs for the tools the virtual unit does not simulate yet, in chunks of at most 7 tools of one or
 - `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (7): no header
-- `scripts/virtual-unit/physics/calibrate.py` (117): Fit the assumed servo parameters of a robot description from a bench recording of real head moves.
+- `scripts/virtual-unit/physics/calibrate.py` (180): Fit the assumed servo parameters of a robot description from a bench recording of real head moves.
 - `scripts/virtual-unit/physics/imu.py` (45): From the IMU numbers the physics model reports to the two inputs the movement limiter takes: carried and orien
 - `scripts/virtual-unit/physics/mjcf.py` (87): Build the physics model text (MJCF) of a pan-tilt desk robot from its description file (robots/NAME.robot.json
-- `scripts/virtual-unit/physics/physics.js` (176): Optional physics mode of the virtual unit view. Loaded only when the person turns Physics mode on; nothing her
-- `scripts/virtual-unit/physics/robots/stackchan.robot.json` (57): no header
+- `scripts/virtual-unit/physics/physics.js` (218): Optional physics mode of the virtual unit view. Loaded only when the person turns Physics mode on; nothing her
+- `scripts/virtual-unit/physics/robots/stackchan.robot.json` (58): no header
 - `scripts/virtual-unit/posixtz.py` (56): POSIX TZ rules as the unit's clock uses them (maipai_tz_core.h zone strings such as "EST5EDT,M3.2.0,M11.1.0"):
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/scenarios.py` (201): Scripted scenarios on the virtual unit: golden frames and layout checks.
@@ -2299,8 +2299,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/tools_extract.py` (90): Write schema/tools.json: every MCP tool name the firmware patches register, with the patch that adds it.
 - `scripts/virtual-unit/ui_style_check.py` (30): Count the font sizes and color literals the app screen sources use, on the overlay tree built by build-face.sh
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
-- `scripts/virtual-unit/view.html` (178): app{display:flex;height:100%}
-- `scripts/virtual-unit/view.py` (317): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
+- `scripts/virtual-unit/view.html` (179): app{display:flex;height:100%}
+- `scripts/virtual-unit/view.py` (320): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
 - `scripts/virtual-unit/view3d.js` (255): The 3D StackChan of the virtual unit view: the real body proportions, orbit camera, clickable USB-C port and p
 - `scripts/virtual-unit/vunit.py` (264): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/wakeword/README.md` (17): Local wake word experiment

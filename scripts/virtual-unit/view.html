@@ -53,7 +53,7 @@ button[disabled]{opacity:.45;cursor:not-allowed}
   <section><h2>Physics (optional)</h2>
    <label class="row" style="margin-top:0"><input id="phys" type="checkbox"> Physics mode (loads the engine, about 11 MB, only when on)</label>
    <div id="physmsg" class="t" style="margin-top:6px;font-size:12px">Off: the flat unit and the kinematic model run as before.</div>
-   <div class="row"><button id="pnudge" disabled>Nudge the head</button><button id="pshake" disabled>Shake the table</button><button id="plift" disabled>Lift</button><button id="pdown" disabled>Put down</button><button id="preset" disabled>Reset pose</button></div>
+   <div class="row"><button id="pnudge" disabled>Nudge the head</button><button id="pshake" disabled>Shake the table</button><button id="plift" disabled>Lift</button><button id="pdown" disabled>Put down</button><button id="preset" disabled>Reset pose</button><button id="pscen" disabled>Run the carried and dance-stop check</button></div><div id="pscenout" class="t" style="margin-top:6px;font-size:12px"></div>
    <div class="kv" id="physv"></div>
    <div style="margin-top:6px">Servo load yaw / pitch</div><div class="meter"><i id="ly" style="width:0"></i></div><div class="meter"><i id="lp" style="width:0;background:#ff6b6b"></i></div></section>
   <section><h2>Call a tool</h2>
@@ -154,7 +154,7 @@ const scriptEl=document.createElement('script');scriptEl.src='/view3d.js';script
  const rob=initRobot(THREE,$('c'),hooks);
  $('vreset').onclick=hooks.presets.reset;$('vfront').onclick=hooks.presets.front;$('vside').onclick=hooks.presets.side;$('vback').onclick=hooks.presets.back;$('vtop').onclick=hooks.presets.top;
 
- const phBtn=on=>['pnudge','pshake','plift','pdown','preset'].forEach(id=>$(id).disabled=!on);
+ const phBtn=on=>['pnudge','pshake','plift','pdown','preset','pscen'].forEach(id=>$(id).disabled=!on);
  const fx=(v,n)=>(v===null||v===undefined)?'-':v.toFixed(n);
  const ui={status:t=>$('physmsg').textContent=t,readout:({tel,telemetry,lifted})=>{
    $('ly').style.width=Math.min(100,tel.yawLoad*100)+'%';$('lp').style.width=Math.min(100,tel.pitchLoad*100)+'%';
@@ -170,6 +170,7 @@ const scriptEl=document.createElement('script');scriptEl.src='/view3d.js';script
      e.target.disabled=false;
    }else{ if(PH)PH.stop();PH=null;rob.phys=null;phBtn(false);ui.status('Off: the flat unit and the kinematic model run as before.');$('physv').innerHTML='';
      $('hwmsg').textContent='';}};
+ $('pscen').onclick=async()=>{$('pscen').disabled=true;const res=await window.physicsDryRun(PH,o=>{$('pscenout').innerHTML=o.map(x=>`<div class="${x.ok?'good':'bad'}">${x.ok?'pass':'FAIL'}: ${x.name} <span class="t">(${x.detail})</span></div>`).join('');});window.PHYS_RESULT=res;$('pscen').disabled=false;};
  $('pnudge').onclick=()=>PH&&PH.nudge();$('pshake').onclick=()=>PH&&PH.shake();$('plift').onclick=()=>PH&&PH.lift();$('pdown').onclick=()=>PH&&PH.putDown();$('preset').onclick=()=>PH&&PH.reset();
  window.ROBOT=rob;
  setInterval(async()=>{try{const st=await (await fetch('/state')).json();rob.update(st);paintBody(st);if(PH)PH.setReference(st.head,st.hw.on);}catch(e){}},100);

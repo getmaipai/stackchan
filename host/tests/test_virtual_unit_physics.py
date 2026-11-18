@@ -100,8 +100,8 @@ def test_orientation_bands_have_hysteresis():
 def _recording(true, noise=0.15, seed=2):
     desc = mjcf.load()
     inertia = calibrate.head_inertia_pitch(desc)
-    t = list(range(0, 1500, 10))
-    cmd = [0 if x < 100 else 40 for x in t]
+    t = list(range(0, 2400, 10))
+    cmd = [0 if x < 100 else 40 if x < 700 else 10 if x < 1300 else 60 for x in t]  # a step up, a step back, a large step
     sim = calibrate.simulate(t, cmd, 0, inertia, true[0], true[1], true[2], true[3], mjcf.value(desc, "joint_friction"))
     rng = random.Random(seed)
     return {"joint": "pitch", "samples": [{"t_ms": a, "cmd_deg": b, "meas_deg": m + rng.gauss(0, noise)} for a, b, m in zip(t, cmd, sim)]}, inertia, desc

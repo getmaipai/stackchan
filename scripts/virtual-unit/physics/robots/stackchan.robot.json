@@ -38,6 +38,7 @@
     "joint_damping": {"v": 0.002, "src": "assumed", "note": "viscous friction in the gears, N m s per rad"},
     "joint_friction": {"v": 0.003, "src": "assumed", "note": "dry friction in the gears, N m"},
     "joint_armature": {"v": 0.00001, "src": "assumed", "note": "reflected rotor inertia, kg m^2"},
+    "command_delay_ms": {"v": 15, "src": "assumed", "note": "time from a tool call being sent to the servo starting to move: the cable, the call, the servo's own start; fitted from a bench recording, not used by the engine"},
     "timestep": {"v": 0.002, "src": "assumed", "note": "integration step, s"},
     "imu_z_in_head": {"v": 0.0, "src": "assumed", "note": "IMU height above the head center"},
     "tool_speed_deg_s": {"v": [100, 1000], "src": "measured", "note": "firmware tool speed range"},

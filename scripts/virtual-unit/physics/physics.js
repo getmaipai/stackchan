@@ -78,9 +78,11 @@ async function startPhysics(ui, robotView) {
       } else if (l.phase === 'drop') {
         sim.lift = null;
       }
-      if (sim.lift) {     // fingers keep it level: a soft torque back toward upright and against spinning (the quaternion's vector part is half the tilt)
-        const qx = data.qpos[4], qy = data.qpos[5], qz = data.qpos[6], sg = data.qpos[3] < 0 ? -1 : 1;
-        torque(BODY.base, [-1.2 * 2 * sg * qx - 0.03 * data.qvel[3], -1.2 * 2 * sg * qy - 0.03 * data.qvel[4], -1.2 * 2 * sg * qz - 0.03 * data.qvel[5]]);
+      if (sim.lift) {     // fingers keep it level, or tilted to the angle the hand holds (about the sideways axis): a soft torque toward it and against spinning
+        const qw = data.qpos[3], qx = data.qpos[4], qy = data.qpos[5], qz = data.qpos[6], sg = qw < 0 ? -1 : 1;
+        const tiltNow = 2 * Math.atan2(qy * sg, qw * sg);                  // rotation about y, radians (pure tilts of this kind)
+        const want = (l.tilt || 0) * Math.PI / 180;
+        torque(BODY.base, [-1.2 * 2 * sg * qx - 0.03 * data.qvel[3], -1.6 * (tiltNow - want) - 0.04 * data.qvel[4], -1.2 * 2 * sg * qz - 0.03 * data.qvel[5]]);
       }
     }
   }
@@ -158,6 +160,7 @@ async function startPhysics(ui, robotView) {
     shake(seconds = 0.8) { sim.shake = {from: sim.t, until: sim.t + seconds, amp: 2.6, hz: 6}; },
     lift() { if (!sim.lift) sim.lift = {phase: 'up', from: sim.t, height: 0.06}; },
     putDown() { if (sim.lift) sim.lift.phase = 'drop'; },
+    tiltTo(deg) { if (sim.lift) sim.lift.tilt = deg; },
     push(f) { sim.push = f; },          // a force on the head in newtons (world frame), or null
     reset() {
       engine.mj_resetData(model, data); sim.lift = sim.shake = sim.nudge = sim.push = null; engine.mj_forward(model, data);
@@ -173,4 +176,43 @@ async function startPhysics(ui, robotView) {
   ui.status('Physics on. Shift and drag on the robot pushes the head.');
   return api;
 }
+
+// The scripted dry run of the carried rule and the dance stop (the bench item that needs a person's hands): the hand in the sandbox does what the person would.
+// Each step reports pass or fail with the time it took, from the host's own answers, so it is the unit's rule and not the sandbox that is judged.
+async function dryRun(api, report) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const call = (name, args) => fetch('/call', {method: 'POST', body: JSON.stringify({name, arguments: args || {}})}).then(r => r.json());
+  const state = () => fetch('/state').then(r => r.json());
+  const until = async (test, ms) => { const t0 = performance.now(); for (;;) { const s = await state(); if (test(s)) return {ok: true, s, ms: Math.round(performance.now() - t0)}; if (performance.now() - t0 > ms) return {ok: false, s, ms: Math.round(performance.now() - t0)}; await sleep(100); } };
+  const out = [];
+  const step = (name, ok, detail) => { out.push({name, ok, detail}); report(out); };
+  api.reset(); await sleep(1500); await call('self.robot.stop_dance', {});
+  let r = await until(s => s.motion.state === 'free' && !s.hw.carried, 3000);
+  step('start: on the table, upright, limiter free', r.ok, `limiter ${r.s.motion.state}, tilt ${r.s.physics.imu ? r.s.physics.imu.tilt_deg.toFixed(1) : 'no IMU yet'}`);
+  const d = await call('self.robot.dance', {name: 'happy'});
+  r = await until(s => s.dance === 'happy', 1500);
+  step('a dance runs', d.ok && r.ok, `dance now ${r.s.dance || 'none'}`);
+  await sleep(1200);
+  api.lift();
+  r = await until(s => s.hw.carried, 2500);
+  step('lifted by hand: carried within 2.5 s', r.ok, `after ${r.ms} ms`);
+  r = await until(s => !s.dance, 2500);
+  step('the dance stops when the unit is lifted', r.ok, `after ${r.ms} ms more`);
+  api.tiltTo(80);
+  r = await until(s => s.physics.imu && s.physics.imu.tilt_deg >= 70, 3000);
+  step('tilted past 70 degrees in the hand', r.ok, `tilt ${r.s.physics.imu ? r.s.physics.imu.tilt_deg.toFixed(0) : '?'} deg after ${r.ms} ms`);
+  r = await until(s => s.motion.state === 'carried' && s.hw.orient === 'side', 2000);
+  step('the limiter holds still (carried, side)', r.ok, `limiter ${r.s.motion.state}, orientation ${r.s.hw.orient}`);
+  const m = await call('self.robot.set_head_angles', {yaw: 30, pitch: 20});
+  step('a head move is refused in the hand', m.ok === false, m.text || m.error || 'accepted');
+  const d2 = await call('self.robot.dance', {name: 'happy'});
+  step('a new dance is refused in the hand', d2.ok === false, d2.error || d2.text || 'accepted');
+  api.tiltTo(0); await sleep(1500); api.putDown();
+  r = await until(s => !s.hw.carried && s.motion.state === 'free', 6000);
+  step('put down: free again within 6 s', r.ok, `limiter ${r.s.motion.state}, carried ${r.s.hw.carried}, after ${r.ms} ms`);
+  const m2 = await call('self.robot.set_head_angles', {yaw: 0, pitch: 10});
+  step('head moves work again', m2.ok === true, JSON.stringify(m2));
+  return out;
+}
 window.startPhysics = startPhysics;
+window.physicsDryRun = dryRun;
