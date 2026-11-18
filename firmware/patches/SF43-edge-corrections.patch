@@ -1,0 +1,262 @@
+# Intent: Small corrections to bench tools and edges. The volume and brightness sliders save only the value that is still live after the 700 ms window, and save at once if the timer cannot be made. A mouth cue append that arrives with no list held and late times is refused (it would be played by the next reply). The link key schedule hashes an HMAC key over 64 bytes (RFC 2104), refuses a message over 400 bytes (all-zero output) and lower-cases the device id itself; an unused key pair is destroyed when pairing fails or the second pair cannot be made. self.bench.set_head answers the animation angle and says so (angle_source animation); self.bench.mic3_check restores the speaker volume when its buffer cannot be allocated and refuses a slot change during a turn.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: moving the volume slider and a host volume change within a second leaves the host's value saved; self.bench.set_head answers angle_source animation; a failed pairing leaves no key pair held.
+# Kconfig: none new
+
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -68,25 +68,36 @@ std::atomic<int> s_pend_volume{-1};
+ std::atomic<int> s_pend_brightness{-1};
+ esp_timer_handle_t s_slider_timer = nullptr;
+ 
++// Saves the slider values that are still the live ones: if the host or a power rule changed the volume or the brightness inside the window, that
++// change saved itself and the slider's older value is dropped (it would otherwise undo it).
++void save_pending_sliders()
++{
++    Application::GetInstance().Schedule([]() {
++        const int v = s_pend_volume.exchange(-1);
++        if (v >= 0) {
++            if (auto* codec = Board::GetInstance().GetAudioCodec()) {
++                if (codec->output_volume() == v) codec->SetOutputVolume(v);
++            }
++        }
++        const int br = s_pend_brightness.exchange(-1);
++        if (br >= 0) {
++            if (auto* b = Board::GetInstance().GetBacklight()) {
++                if (b->brightness() == br) b->SetBrightness(br, true);
++            }
++        }
++    });
++}
++
+ void arm_slider_save()
+ {
+     if (s_slider_timer == nullptr) {
+         esp_timer_create_args_t args = {};
+-        args.callback = [](void*) {
+-            Application::GetInstance().Schedule([]() {
+-                const int v = s_pend_volume.exchange(-1);
+-                if (v >= 0) {
+-                    if (auto* codec = Board::GetInstance().GetAudioCodec()) codec->SetOutputVolume(v);
+-                }
+-                const int br = s_pend_brightness.exchange(-1);
+-                if (br >= 0) {
+-                    if (auto* b = Board::GetInstance().GetBacklight()) b->SetBrightness(br, true);
+-                }
+-            });
+-        };
++        args.callback = [](void*) { save_pending_sliders(); };
+         args.name = "slider_save";
+         if (esp_timer_create(&args, &s_slider_timer) != ESP_OK) {
+             s_slider_timer = nullptr;
++            ESP_LOGW(TAG, "The slider save timer could not be made; the value is saved at once");
++            save_pending_sliders();
+             return;
+         }
+     }
+@@ -324,7 +335,7 @@ public:
+     {
+         // Patch SF19: the slider changes the volume at once and the flash is written once, 700 ms after the last change.
+         hal_bridge::board_set_speaker_volume(static_cast<uint8_t>(v < 0 ? 0 : (v > 100 ? 100 : v)), false);
+-        s_pend_volume.store(v);
++        s_pend_volume.store(v < 0 ? 0 : (v > 100 ? 100 : v));
+         arm_slider_save();
+     }
+     int brightness() override
+diff --git a/firmware/main/hal/maipai_mouthcue_core.h b/firmware/main/hal/maipai_mouthcue_core.h
+--- a/firmware/main/hal/maipai_mouthcue_core.h
++++ b/firmware/main/hal/maipai_mouthcue_core.h
+@@ -25,6 +25,8 @@ static const char* const MMC_REASONS[MMC_COUNT] = {"ok", "bad_count", "bad_time"
+ 
+ enum { MMC_NONE = 0, MMC_PENDING, MMC_PLAYING };
+ 
++#define MMC_FIRST_MAX_MS 3000u /* the first cue of a list that starts a speech */
++
+ typedef struct {
+     uint32_t ms[MMC_CAP];
+     uint8_t lvl[MMC_CAP];
+@@ -70,7 +72,12 @@ static inline int mmc_set(mmc_t* m, const uint32_t* ms, const uint8_t* lvl, int
+  * (bad_time), the held cues stay within MMC_CAP and the 12-in-a-second rule also holds across the join. With no list held it is a plain mmc_set. */
+ static inline int mmc_append(mmc_t* m, const uint32_t* ms, const uint8_t* lvl, int n, uint32_t now)
+ {
+-    if (m->state == MMC_NONE || m->n == 0) return mmc_set(m, ms, lvl, n, now);
++    if (m->state == MMC_NONE || m->n == 0) {
++        /* No list is held: an append that arrives after the speech ended must not leave a list of late times that the next reply would play. A real first list
++         * starts at the first audio frame, so its first cue is early. */
++        if (ms != NULL && n >= 1 && ms[0] > MMC_FIRST_MAX_MS) return MMC_BAD_TIME;
++        return mmc_set(m, ms, lvl, n, now);
++    }
+     if (ms == NULL || lvl == NULL || n < 1 || n > MMC_MAX_CUES || (int)m->n + n > MMC_CAP) return MMC_BAD_COUNT;
+     for (int i = 0; i < n; i++) {
+         if (ms[i] > MMC_MAX_MS || (i > 0 && ms[i] < ms[i - 1])) return MMC_BAD_TIME;
+diff --git a/firmware/main/hal/maipai_linkkey_core.h b/firmware/main/hal/maipai_linkkey_core.h
+--- a/firmware/main/hal/maipai_linkkey_core.h
++++ b/firmware/main/hal/maipai_linkkey_core.h
+@@ -25,16 +25,22 @@ static inline void mly_sha256(const uint8_t* msg, size_t len, uint8_t out[32])
+     lk_sha_finish(h, 0, msg, len, out);
+ }
+ 
+-/* HMAC-SHA-256 for a key up to 64 bytes and a message up to 400 bytes. */
++/* HMAC-SHA-256 (RFC 2104): a key over 64 bytes is hashed first; a message over 400 bytes is refused (out is all zero, which no caller accepts as a key). */
+ static inline void mly_hmac(const uint8_t* key, size_t klen, const uint8_t* msg, size_t mlen, uint8_t out[32])
+ {
+     uint8_t buf[64 + 400];
+     uint8_t inner[32];
+     uint8_t k[64];
+     memset(k, 0, sizeof(k));
+-    if (klen > 64) klen = 64;
+-    memcpy(k, key, klen);
+-    if (mlen > 400) mlen = 400;
++    if (mlen > 400) {
++        memset(out, 0, 32);
++        return;
++    }
++    if (klen > 64) {
++        mly_sha256(key, klen, k);
++    } else {
++        memcpy(k, key, klen);
++    }
+     for (int i = 0; i < 64; i++) buf[i] = (uint8_t)(k[i] ^ 0x36);
+     memcpy(buf + 64, msg, mlen);
+     mly_sha256(buf, 64 + mlen, inner);
+@@ -90,7 +96,7 @@ static inline uint32_t mly_sas(const uint8_t pk_u[MLY_PK], const uint8_t pk_h[ML
+     return v % 1000000u;
+ }
+ 
+-/* K = HKDF(z, salt = SHA-256(pk_u || pk_h || n_u || n_h), info = "maipai-stackchan-link-key-v2" 0x00 device_id), device_id already lower case. */
++/* K = HKDF(z, salt = SHA-256(pk_u || pk_h || n_u || n_h), info = "maipai-stackchan-link-key-v2" 0x00 device_id), the device id is lower-cased here. */
+ static inline void mly_link_key(const uint8_t z[32], const uint8_t pk_u[MLY_PK], const uint8_t pk_h[MLY_PK], const uint8_t n_u[MLY_NONCE],
+                                 const uint8_t n_h[MLY_NONCE], const char* device_id, uint8_t out[MLY_KEY])
+ {
+@@ -104,11 +110,11 @@ static inline void mly_link_key(const uint8_t z[32], const uint8_t pk_u[MLY_PK],
+     if (n > 64) n = 64;
+     memcpy(info, "maipai-stackchan-link-key-v2", 28);
+     info[28] = 0;
+-    memcpy(info + 29, device_id, n);
++    for (size_t i = 0; i < n; i++) info[29 + i] = (uint8_t)((device_id[i] >= 'A' && device_id[i] <= 'Z') ? device_id[i] + 32 : device_id[i]);
+     mly_hkdf(z, 32, salt, 32, info, 29 + n, out, MLY_KEY);
+ }
+ 
+-/* PSK = HKDF(K, empty salt, info = "maipai-stackchan-link-psk-v2" 0x00 identity), identity lower case. */
++/* PSK = HKDF(K, empty salt, info = "maipai-stackchan-link-psk-v2" 0x00 identity), the identity is lower-cased here. */
+ static inline void mly_psk(const uint8_t k[MLY_KEY], const char* identity, uint8_t out[32])
+ {
+     uint8_t info[29 + 64];
+@@ -116,7 +122,7 @@ static inline void mly_psk(const uint8_t k[MLY_KEY], const char* identity, uint8
+     if (n > 64) n = 64;
+     memcpy(info, "maipai-stackchan-link-psk-v2", 28);
+     info[28] = 0;
+-    memcpy(info + 29, identity, n);
++    for (size_t i = 0; i < n; i++) info[29 + i] = (uint8_t)((identity[i] >= 'A' && identity[i] <= 'Z') ? identity[i] + 32 : identity[i]);
+     mly_hkdf(k, MLY_KEY, NULL, 0, info, 29 + n, out, 32);
+ }
+ 
+diff --git a/firmware/main/hal/maipai_linkpsk.cc b/firmware/main/hal/maipai_linkpsk.cc
+--- a/firmware/main/hal/maipai_linkpsk.cc
++++ b/firmware/main/hal/maipai_linkpsk.cc
+@@ -50,6 +50,11 @@ uint32_t maipai_link_new_keypair(uint8_t pk[32])
+     return static_cast<uint32_t>(id);
+ }
+ 
++void maipai_link_destroy_keypair(uint32_t key_id)
++{
++    if (key_id != 0) psa_destroy_key(static_cast<psa_key_id_t>(key_id));
++}
++
+ bool maipai_link_agree(uint32_t key_id, const uint8_t peer_pk[32], uint8_t z[32])
+ {
+     size_t n = 0;
+@@ -136,7 +141,11 @@ void maipai_linkpsk_register_tools()
+                     esp_fill_random(n_h, sizeof(n_h));
+                     const uint32_t a = maipai_link_new_keypair(pk_u);
+                     const uint32_t b = maipai_link_new_keypair(pk_h);
+-                    if (a == 0 || b == 0) return std::string("{\"ok\":false,\"reason\":\"keypair\"}");
++                    if (a == 0 || b == 0) {
++                        maipai_link_destroy_keypair(a);  // one pair made and the other not: do not keep the first in the crypto service
++                        maipai_link_destroy_keypair(b);
++                        return std::string("{\"ok\":false,\"reason\":\"keypair\"}");
++                    }
+                     const bool ok_u = maipai_link_agree(a, pk_h, z_u);
+                     const bool ok_h = maipai_link_agree(b, pk_u, z_h);
+                     mly_commit(pk_h, pk_u, n_h, c);
+diff --git a/firmware/main/hal/maipai_linkpsk.h b/firmware/main/hal/maipai_linkpsk.h
+--- a/firmware/main/hal/maipai_linkpsk.h
++++ b/firmware/main/hal/maipai_linkpsk.h
+@@ -9,6 +9,8 @@ void maipai_linkpair_register_tools();
+ // A new X25519 key pair: the 32-byte private key stays inside the crypto service until maipai_link_agree; the public key is returned.
+ // Returns the key id (nonzero) or 0.
+ uint32_t maipai_link_new_keypair(uint8_t pk[32]);
++// Destroys a key pair that was not used (a failed exchange). Key id 0 is ignored.
++void maipai_link_destroy_keypair(uint32_t key_id);
+ // The shared secret z with the peer's public key. Destroys the key pair. True on success.
+ bool maipai_link_agree(uint32_t key_id, const uint8_t peer_pk[32], uint8_t z[32]);
+ // The link key K in flash (namespace mp_link, 32 bytes). Save replaces it; load returns false when none; erase removes it.
+diff --git a/firmware/main/hal/maipai_mic3.cc b/firmware/main/hal/maipai_mic3.cc
+--- a/firmware/main/hal/maipai_mic3.cc
++++ b/firmware/main/hal/maipai_mic3.cc
+@@ -46,6 +46,10 @@ void maipai_mic3_register_tools()
+                 PropertyList({Property("volume", kPropertyTypeInteger, 60, 0, 100), Property("gain_db", kPropertyTypeInteger, -1, -1, 37), Property("slot", kPropertyTypeInteger, 0, 0, 3)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     const int slot_arg = properties["slot"].value<int>();
++                    // Changing the slot reopens the microphone input: never while a turn is using it.
++                    if (slot_arg >= 1 && Application::GetInstance().GetDeviceState() != kDeviceStateIdle) {
++                        return std::string("{\"ok\":false,\"error\":\"the unit is in a turn: run the slot change when it is idle\"}");
++                    }
+                     if (slot_arg >= 1) maipai_mic3_set_slot(slot_arg);  // which TDM slot is read as the second channel (1 to 3, 0 keeps it)
+                     vTaskDelay(pdMS_TO_TICKS(200));                     // the input is reopened
+                     const int gain = properties["gain_db"].value<int>();
+@@ -56,7 +60,10 @@ void maipai_mic3_register_tools()
+                     constexpr int kRate = 16000;
+                     constexpr int kSeconds = 2;
+                     auto* pcm = static_cast<int16_t*>(heap_caps_malloc(sizeof(int16_t) * kRate * kSeconds, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+-                    if (pcm == nullptr) return std::string("{\"ok\":false,\"reason\":\"memory\"}");
++                    if (pcm == nullptr) {
++                        hal_bridge::board_set_speaker_volume(saved_volume, false);  // the test volume must not stay
++                        return std::string("{\"ok\":false,\"reason\":\"memory\",\"error\":\"no memory for the tone: try again\"}");
++                    }
+                     for (int i = 0; i < kRate * kSeconds; i++) {
+                         pcm[i] = static_cast<int16_t>(12000.0f * sinf(2.0f * 3.14159265f * 1000.0f * static_cast<float>(i) / kRate));
+                     }
+diff --git a/firmware/main/hal/maipai_bench.cc b/firmware/main/hal/maipai_bench.cc
+--- a/firmware/main/hal/maipai_bench.cc
++++ b/firmware/main/hal/maipai_bench.cc
+@@ -266,10 +266,10 @@ std::string bench_start_speech_task(int seconds, bool no_barge, bool silent, int
+ void maipai_bench_register_tools() {
+     auto& mcp = McpServer::GetInstance();
+     // Bench only (patch SF23): the head moves wherever it is told whatever the idle rules say. It still goes through the servo layer, so the
+-    // movement limiter (carried, cable, battery, orientation) applies. The answer is the angle read back from the servo bus.
++    // movement limiter (carried, cable, battery, orientation) applies. The answer is the angle the servo layer holds (the animation value), not a bus read.
+     mcp.AddTool("self.bench.set_head",
+-                "Bench only: moves the head to yaw and pitch (degrees, -9999 keeps one) at speed, waits hold_ms, and answers the angles read back from the servo "
+-                "bus (yaw, pitch in degrees, read_back true when both reads were valid). Ignores the idle movement setting; the movement limiter still applies.",
++                "Bench only: moves the head to yaw and pitch (degrees, -9999 keeps one) at speed, waits hold_ms, and answers the angles the servo layer holds "
++                "(yaw, pitch in degrees, angle_source \"animation\": the animation value, not a read of the servo bus). Ignores the idle movement setting; the movement limiter still applies.",
+                 PropertyList({Property("yaw", kPropertyTypeInteger, -9999, -9999, 128), Property("pitch", kPropertyTypeInteger, -9999, -9999, 90),
+                               Property("speed", kPropertyTypeInteger, 300, 100, 1000), Property("hold_ms", kPropertyTypeInteger, 800, 0, 5000)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+@@ -285,8 +285,8 @@ void maipai_bench_register_tools() {
+                     vTaskDelay(pdMS_TO_TICKS(properties["hold_ms"].value<int>()));
+                     LvglLockGuard lock;
+                     auto& motion = GetStackChan().motion();
+-                    char out[96];
+-                    snprintf(out, sizeof(out), "{\"ok\":true,\"yaw\":%d,\"pitch\":%d,\"read_back\":true}", motion.yawServo().getCurrentAngle() / 10,
++                    char out[120];
++                    snprintf(out, sizeof(out), "{\"ok\":true,\"yaw\":%d,\"pitch\":%d,\"angle_source\":\"animation\"}", motion.yawServo().getCurrentAngle() / 10,
+                              motion.pitchServo().getCurrentAngle() / 10);
+                     return std::string(out);
+                 });
+diff --git a/firmware/main/hal/maipai_linkpair.cc b/firmware/main/hal/maipai_linkpair.cc
+--- a/firmware/main/hal/maipai_linkpair.cc
++++ b/firmware/main/hal/maipai_linkpair.cc
+@@ -76,7 +76,8 @@ void say(const std::string& text, int ms)
+ // Ends the exchange (s_mu held): wipes the keys, closes the socket, stops the timer.
+ void finish_locked(const char* shown)
+ {
+-    s_key_id = 0;  // the private key lives in the crypto service until the next agree or a reboot; nothing of it is kept here
++    maipai_link_destroy_keypair(s_key_id);  // an unused private key leaves the crypto service now (the agree call already consumed it on success: id 0)
++    s_key_id = 0;
+     mpx_abort(&s_px);
+     s_active = false;
+     if (s_timer != nullptr) esp_timer_stop(s_timer);

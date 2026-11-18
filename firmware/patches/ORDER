@@ -294,3 +294,4 @@ SF39-limiter-failclosed-peak-heap.patch
 SF40-update-refusals-say-what-to-do.patch
 SF41-update-board-id.patch
 SF42-bench-barge-test-silent.patch
+SF43-edge-corrections.patch

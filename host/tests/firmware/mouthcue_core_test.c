@@ -136,6 +136,16 @@ int main(void)
         const uint32_t far[] = {70000};
         CHECK(mmc_append(&a, far, el, 1, 0) == MMC_BAD_TIME);
     }
+    /* an append that arrives with no list held (the speech ended) is refused when its times are late: the next reply would play them */
+    {
+        mmc_t m;
+        mmc_init(&m);
+        const uint32_t late[] = {5000, 5200};
+        const uint8_t ll[] = {2, 3};
+        CHECK(mmc_append(&m, late, ll, 2, 0) == MMC_BAD_TIME && m.state == MMC_NONE && m.n == 0);
+        const uint32_t early[] = {100, 300};
+        CHECK(mmc_append(&m, early, ll, 2, 0) == MMC_OK && m.state == MMC_PENDING && m.n == 2);
+    }
     if (failures) return 1;
     printf("mouthcue core ok\n");
     return 0;

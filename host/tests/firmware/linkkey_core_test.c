@@ -1,6 +1,7 @@
 /* Host test for the link key schedule (patch SF20), against the vectors of scripts/link-key-vector.py (fake inputs, no secrets).
  * cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the headers>. */
 #include <stdio.h>
+#include <string.h>
 #include "maipai_linkkey_core.h"
 
 static int failures;
@@ -52,6 +53,27 @@ int main(void)
     CHECK(mly_sas(pk_u, pk_h, n_u, n_h) != 578535u);
     mly_link_key(z, pk_u, pk_h, n_u, n_h, "02:00:5e:00:53:01", got);
     CHECK(memcmp(got, k, 32) != 0);
+    /* RFC 4231 test case 6: a key of 131 bytes is hashed first */
+    {
+        uint8_t big[131], mac[32];
+        memset(big, 0xaa, sizeof(big));
+        const char* msg = "Test Using Larger Than Block-Size Key - Hash Key First";
+        mly_hmac(big, sizeof(big), (const uint8_t*)msg, strlen(msg), mac);
+        CHECK(hex("60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54", want, 32) && memcmp(mac, want, 32) == 0);
+        /* a message over 400 bytes is refused: the output is all zero */
+        uint8_t longmsg[401];
+        memset(longmsg, 1, sizeof(longmsg));
+        mly_hmac(big, 20, longmsg, sizeof(longmsg), mac);
+        uint8_t zero[32] = {0};
+        CHECK(memcmp(mac, zero, 32) == 0);
+    }
+    /* the device id is lower-cased inside the key schedule: an upper-case id derives the same keys */
+    mly_link_key(z, pk_u, pk_h, n_u, n_h, "02:00:5E:00:53:01", got);
+    mly_link_key(z, pk_u, pk_h, n_u, n_h, "02:00:5e:00:53:01", k);
+    CHECK(memcmp(got, k, 32) == 0);
+    mly_psk(k, "02:00:5E:00:53:01", psk);
+    mly_psk(k, "02:00:5e:00:53:01", got);
+    CHECK(memcmp(psk, got, 32) == 0);
     if (failures) return 1;
     printf("linkkey core ok\n");
     return 0;
