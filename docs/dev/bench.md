@@ -9,3 +9,14 @@ The page shows unit status and the raw reported MCP tool list. Lights offers pix
 ## Checks owed by the bench (not the owner)
 
 - **Quiet now and the quiet schedule (decision 22, firmware SF52).** On a unit with SF52: set Quiet now on the settings page, then `self.audio.sound_info` must answer `quiet_now` true and `night` true, event sounds stay silent, an alarm you set still rings, and the shutter click still plays. Turn it off and sounds return. Then save a schedule for Monday to Friday 22:00 to 07:00: quiet at 23:00 on a Thursday and at 03:00 on a Saturday, not at 23:00 on a Saturday. Record the result in `docs/dev/bench-evidence/`.
+
+- **Robot network capture (owed by the bench, not the owner).** Proves the robot contacts only your host. Needs a Mac on Wi-Fi with Internet Sharing, one robot and its host.
+  1. On the Mac: System Settings, General, Sharing, Internet Sharing: share the Mac's connection to Wi-Fi with a name and password of your choice (a throwaway network). The shared network is the `bridge100` interface.
+  2. Join the robot to that network (setup page on the robot), pair it with the host as usual, and set the host's address in the robot's setup to the Mac's address on `bridge100`.
+  3. Start a capture: `sudo tcpdump -i bridge100 -n -w robot-capture.pcap` (leave it running).
+  4. Use the robot for at least five minutes: wake word and a spoken turn, a timer, a game, the lock, a photo from the settings page, and then leave it idle for two minutes. Reboot the robot once during the capture so its start-up traffic is included.
+  5. Stop the capture (Control-C) and list every destination other than the host: `tcpdump -n -r robot-capture.pcap | awk '{print $5}' | sort -u`, or `bash scripts/stackchan-egress-proof.sh robot-capture.pcap <host address>`, which fails if any destination other than the host appears.
+  6. Record the result (date, firmware build, duration, destination list, pass or fail) in `docs/dev/bench-evidence/`, and replace the "No capture has been taken yet" line of the egress table with it. Keep the pcap itself out of the repository: it holds the robot's Wi-Fi traffic.
+
+- **Host update swap on the Studio service (owed by the bench, not the owner).** `stackchan service update` is tested with fakes only. On the Mac Studio with the host installed as a service (`stackchan service install`): (1) run `stackchan service update --from <a folder with the current host source>` and confirm `stackchan service status` says running and `stackchan status` says everything runs on the new version folder under `host-versions/`; (2) run it again with a deliberately broken source (a copy whose `maipai_body/__init__.py` raises) and confirm the old version is back, `stackchan service status` prints "Last update: The update did not take", and the robot reconnects; (3) repeat on a Linux machine with systemd when one is available. Record the date, the commands and the result in `docs/dev/bench-evidence/`.
+

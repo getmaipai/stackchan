@@ -2,13 +2,14 @@
 
 ![The robot talking, dancing, showing rain and opening its games page.](docs/images/hero-robot.gif)
 
-*The robot on its own screen: it talks, dances, shows rain and opens its games page, with no cloud involved.*
+*The robot's screen as drawn by the virtual robot's own screen renderer: it talks, dances, shows rain and opens its games page, with no cloud involved. This is not a recording of a real unit.*
 
 Custom firmware for the [StackChan](https://github.com/m5stack/StackChan) desk robot, plus a small host program. Private and local: your robot talks to a model you choose, and nothing leaves your home unless you point it there.
 
 - **Works on its own.** Faces, touch, timers, alarms, games and dances run on the robot with no host and no cloud.
 - **Your brain, your choice.** Use your own model, a small one the host installs for you, or MaiPai Home.
 - **Safe by design.** A lock, mute and camera-off switches, and cues that cannot be hidden when the robot listens or watches.
+- **Take it anywhere.** On any Wi-Fi (hotel, office, a friend's home) the robot joins your own private Tailscale network by itself and reaches your host; at home it never starts. See [use it away from home](docs/user/use-it-anywhere.md).
 - **Six languages**, switched at run time, no reflash.
 
 Try it with no hardware in the virtual playground:
@@ -26,6 +27,10 @@ Try it with no hardware in the virtual playground:
 Optional: try the [virtual robot](docs/user/try-the-virtual-robot.md) or the [playground](docs/playground/index.md) first, no hardware needed.
 
 Docs: [For users](docs/user/index.md) · [Playground](docs/playground/index.md) · [For developers](docs/dev/index.md)
+
+## Security
+
+Each release is scanned for leaked secrets, vulnerable dependencies and unexpected network calls, and the host is checked to contact nothing beyond your own computer by default. Results and dates are in [SECURITY.md](SECURITY.md); the gaps are listed there too. Check it yourself: point your own AI at this repo with the prompt in [VERIFY.md](VERIFY.md).
 
 ## AI disclosure
 

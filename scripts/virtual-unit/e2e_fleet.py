@@ -328,6 +328,35 @@ async def fleet_unit_state(rig, check) -> None:
     await close_fleet(rig)
 
 
+async def fleet_touch(rig, check) -> None:
+    """A stroke on the head of unit 1 makes that unit show the heart (the host asks it for the symbol) and no other unit; then a stroke on unit 2 does the same for unit 2
+    (decision 16, docs/plan/per-unit-behavior.md: every unit after the first has its own behavior object). A lone touch is ignored by the sensor filter, so a stroke is three."""
+    units = await make_fleet(rig, 3)
+    await calibrate(rig, units)
+
+    def hearts(u) -> int:
+        return len([1 for n_, _a in u.fw.tool_calls if n_ == "self.screen.show_symbol"])
+
+    async def pet(u) -> None:
+        with u.fw.vu_lock:
+            u.vu.call("self.robot.get_events", {})   # makes the motion state exist
+            for k in range(3):
+                u.vu.state["motion"]["events"].append({"kind": "head_touch", "at_ms": u.vu.now_ms + k * 100})
+
+    base = {u.index: hearts(u) for u in units}
+    await pet(units[1])
+    check("unit 1 showed the heart", await wait_for(lambda: hearts(units[1]) > base[1], 20.0), str({u.index: hearts(u) for u in units}))
+    await asyncio.sleep(2.0)
+    check("units 0 and 2 showed nothing", hearts(units[0]) == base[0] and hearts(units[2]) == base[2], str({u.index: hearts(u) for u in units}))
+    await asyncio.sleep(8.0)   # the reaction rests between strokes
+    one_after = hearts(units[1])
+    await pet(units[2])
+    check("unit 2 showed the heart", await wait_for(lambda: hearts(units[2]) > base[2], 20.0), str({u.index: hearts(u) for u in units}))
+    await asyncio.sleep(1.0)
+    check("unit 1 did not show it again for unit 2's stroke, and unit 0 stayed still", hearts(units[1]) == one_after and hearts(units[0]) == base[0], str({u.index: hearts(u) for u in units}))
+    await close_fleet(rig)
+
+
 # ---- faults ----------------------------------------------------------------------------------------------------------------------
 
 async def chaos_cut_connection(rig, check) -> None:
@@ -639,7 +668,7 @@ def make_service_rig(base):
 
 
 EXTRA_FLEET = {
-    "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state,
+    "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state, "fleet_touch": fleet_touch,
     "chaos_cut_connection": chaos_cut_connection, "chaos_packets": chaos_packets, "chaos_worker_down": chaos_worker_down, "chaos_internal_workers": chaos_internal_workers,
     "chaos_host_kill_2": _host_kill_2, "chaos_host_kill_10": _host_kill_10, "service_kill9": service_kill9,
 }

@@ -26,7 +26,8 @@ dependencies = [
     # The StackChan Xiaozhi server serves vision uploads and notify audio
     # with aiohttp; reachy-mini used to bring it in transitively, which the
     # hub bundle (no Reachy SDK) does not have.
-    "aiohttp>=3.14,<4",
+    "aiohttp>=3.14.4,<4",  # 3.14.3 has published advisories (security scan, 2026-11-18)
+    "certifi>=2026.10.18",  # same: older releases have an advisory
     # Shared spec source pin: see maipai_body/spec_pin.py. The gate exposes
     # that pinned checkout as
     # MAIPAI_SPEC_DIR for schema, vocabulary and fixture checks. This is a

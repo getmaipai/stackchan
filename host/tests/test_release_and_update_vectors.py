@@ -141,11 +141,27 @@ def test_a_real_release_must_have_a_higher_build_number_than_the_last(tmp_path):
     subprocess.run([openssl_cli(), "genpkey", "-algorithm", "Ed25519", "-out", str(key)], check=True, capture_output=True)
     last = tmp_path / "last.txt"
     last.write_text("9\n")
+    import shutil
+
+    if shutil.which("minisign") is None or shutil.which("syft") is None:
+        pytest.skip("a real release needs minisign and syft (brew install minisign syft)")
+    # A copy of release.sh in a small tree whose gate steps pass at once: this test is about the build number, not the gate (test_release_gate.py covers that).
+    tree = tmp_path / "tree"
+    (tree / "scripts").mkdir(parents=True)
+    for name in ("release.sh", "check-no-keys.py"):
+        shutil.copy(ROOT / "scripts" / name, tree / "scripts" / name)
+    (tree / "scripts" / "check.sh").write_text("exit 0\n")
+    (tree / "scripts" / "test-all.sh").write_text("exit 0\n")
+    (tree / "scripts" / "security-scan.py").write_text("print('[PASS] x: ok')\n")
+    (tree / "scripts" / "exposure-test.py").write_text("print('[PASS] y: ok')\n")
+    (tree / "host").symlink_to(ROOT / "host", target_is_directory=True)
+    msk = tmp_path / "minisign.key"
+    subprocess.run(["minisign", "-G", "-W", "-f", "-p", str(tmp_path / "minisign.pub"), "-s", str(msk)], check=True, capture_output=True)
 
     def run(number, out):
         return subprocess.run(
-            ["bash", str(ROOT / "scripts" / "release.sh"), "--build-dir", str(build), "--version", "2.0.0", "--date", "2026-11-18", "--build-number", str(number),
-             "--signing-key", str(key), "--output", str(tmp_path / out), "--last-build-file", str(last)],
+            ["bash", str(tree / "scripts" / "release.sh"), "--build-dir", str(build), "--version", "2.0.0", "--date", "2026-11-18", "--build-number", str(number),
+             "--signing-key", str(key), "--minisign-key", str(msk), "--output", str(tmp_path / out), "--last-build-file", str(last)],
             capture_output=True, text=True,
         )
 
@@ -154,4 +170,10 @@ def test_a_real_release_must_have_a_higher_build_number_than_the_last(tmp_path):
     ok = run(10, "r2")
     assert ok.returncode == 0, ok.stderr + ok.stdout
     assert last.read_text().strip() == "10"
+    folder = tmp_path / "r2"
+    assert (folder / "SHA256SUMS").is_file() and (folder / "SHA256SUMS.minisig").is_file() and (folder / "release-evidence.tar.gz").is_file()
+    assert (folder / "evidence" / "sbom-host.cdx.json").is_file() and (folder / "evidence" / "security-scan.txt").is_file()
+    verified = subprocess.run(["minisign", "-V", "-p", str(tmp_path / "minisign.pub"), "-m", str(folder / "SHA256SUMS"), "-x", str(folder / "SHA256SUMS.minisig")], capture_output=True, text=True)
+    assert verified.returncode == 0, verified.stderr
     assert run(10, "r3").returncode == 2  # the same number again is refused
+

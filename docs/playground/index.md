@@ -7,6 +7,11 @@ The playground is a virtual StackChan. It draws the robot's real screens, moves 
 - [Start here](start-here.md): what it is, what it is not, and three ways to use it.
 - [The screen tour](screen-tour.md): every screen the robot has, with a picture.
 - [The 3D robot](the-3d-robot.md): turn it, look inside, change its power, plug in a cable.
+- [Scenarios and recording](scenarios-and-recording.md)
+- [The utilization panel](utilization.md)
+- [Keyboard and mouse cheat sheet](keyboard-and-mouse.md)
+- [Talk to the virtual robot](talk-to-the-virtual-robot.md) (planned)
+- [Live mode and safety](live-mode-and-safety.md) (planned)
 - [Dances and the light show](dances-and-lights.md)
 - [Games and sounds](games-and-sounds.md)
 - [Languages](languages.md)

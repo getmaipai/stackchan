@@ -1,5 +1,8 @@
 # Fuzzing the unit's parsers, and a hostile peer against the host
 
+
+> Part of the [playground docs](../playground/index.md). This page is the full reference; the playground pages are the guide.
+
 Two checks that try to break the system from outside. Neither needs a robot.
 
 ## 1. The unit's parsers under sanitizers

@@ -438,3 +438,23 @@ def test_quiet_hours_and_quiet_now_save_and_bad_values_are_refused(sim) -> None:
     for bad in ({"quiet_schedule": {"from": "25:00"}}, {"quiet_schedule": {"days": [7]}}, {"quiet_now": "yes"}):
         status, payload = _post(backend, KITCHEN, "device", bad)
         assert status == 400 and "error" in payload
+
+
+def test_long_pages_group_their_cards_in_every_language_and_the_page_never_scrolls_sideways():
+    """The inner tab row, the Advanced fold and the search box (settings_ui_nav.py) name every card in the page's own language, and the tab row, not the page, scrolls sideways."""
+    import json
+    import re
+
+    from maipai_body.i18n import SUPPORTED, catalog
+    from maipai_body.settings_page import render_page
+    from maipai_body.settings_ui_nav import SUBTABS, card_map
+
+    for code in SUPPORTED:
+        page = render_page(code).decode()
+        data = json.loads(re.search(r"const NAV=(\{.*?\});\nconst SUBSEL", page, re.S).group(1))
+        for name, spec in SUBTABS.items():
+            assert len(data[name]["tabs"]) == len(spec["tabs"]) and data[name]["of"], (code, name)
+        cm = card_map(catalog(code))
+        assert all(label for page_spec in cm.values() for label in page_spec["tabs"]), code
+        assert "Search settings" not in page or code == "en" or catalog(code)["Search settings"] != "Search settings"
+    assert "overflow-x:auto" in render_page("en").decode()

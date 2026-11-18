@@ -402,20 +402,20 @@ function shell(){
  const lang=mkLang();
  const theme=seg(T('theme.label'),[{v:'auto',t:T('theme.auto')},{v:'light',t:T('theme.light')},{v:'dark',t:T('theme.dark')}],lsGet('theme')||'auto',v=>{setTheme(v)});
  const rail=h('aside',{class:'rail'},h('div',{class:'brand'},h('span',{class:'logo','aria-hidden':'true'},h('i'),h('i')),S['settings.title']),nav,h('div',{class:'railfoot'},field(S['settings.language'],lang),theme));
- const main=h('main',{class:'main',id:'main'},h('div',{class:'top'},h('div',{class:'chips',role:'tablist','aria-label':T('units_label'),id:'chips'}),h('div',{class:'tabs'},field('',mkLang()))),h('div',{id:'panels'}),h('div',{id:'toasts',class:'toasts',role:'status','aria-live':'polite'}));
+ const main=h('main',{class:'main',id:'main'},h('div',{class:'top'},h('div',{class:'chips',role:'tablist','aria-label':T('units_label'),id:'chips'}),searchBox(),h('div',{class:'tabs'},field('',mkLang()))),h('div',{id:'panels'}),h('div',{id:'toasts',class:'toasts',role:'status','aria-live':'polite'}));
  const sk=h('a',{class:'skip',href:'#main'},T('skip'));
  document.body.append(sk,h('div',{class:'app'},rail,main));
  for(const g of GROUPS){const p=h('section',{class:'panel',id:'p-'+g,'aria-labelledby':'t-'+g},h('h1',{class:'title',id:'t-'+g},S['settings.ui.'+NAMEKEY[g]]));main.querySelector('#panels').append(p);panels[g]=p}}
 const LANGS_ALL=['en','es','fr','de','pt','it'];
 function drawChips(){const box=$('#chips');box.replaceChildren();
  for(const u of UNITS)box.append(h('button',{type:'button',role:'tab',class:'chip','aria-selected':String(UNIT&&u.device_id===UNIT.device_id),style:'--chipc:'+accentFor(u),onclick:()=>pick(u.device_id)},h('span',{class:'dot'}),u.name,h('span',{class:'state'+(u.online?' on':'')},S[u.online?'settings.online.yes':'settings.online.no'])))}
-function pick(id){UNIT=UNITS.find(u=>u.device_id===id)||UNITS[0];try{sessionStorage.setItem('unit',UNIT.device_id)}catch(e){}applyAccent();drawChips();BUILT={};for(const g of GROUPS)panels[g].querySelectorAll(':scope>:not(h1)').forEach(n=>n.remove());go(CUR,true)}
+function pick(id){UNIT=UNITS.find(u=>u.device_id===id)||UNITS[0];try{sessionStorage.setItem('unit',UNIT.device_id)}catch(e){}applyAccent();drawChips();BUILT={};BUILDP={};FIND=null;for(const g of GROUPS)panels[g].querySelectorAll(':scope>:not(h1)').forEach(n=>n.remove());go(CUR,true)}
 function go(g,force){if(!GROUPS.includes(g))g='home';CUR=g;if(location.hash!=='#'+g)history.replaceState(null,'','#'+g);
  document.querySelectorAll('.nav button').forEach(b=>{if(b.dataset.g===g)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
  for(const k of GROUPS)panels[k].classList.toggle('on',k===g);
- if(!BUILT[g]&&UNIT){BUILT[g]=true;Promise.resolve(BUILDERS[g](panels[g],UNIT)).catch(e=>{toast(T('net_error'),'bad');console.error(e)})}window.scrollTo({top:0})}
+ if(!BUILT[g]&&UNIT){BUILT[g]=true;BUILDP[g]=Promise.resolve(BUILDERS[g](panels[g],UNIT)).then(()=>layoutPanel(g)).catch(e=>{toast(T('net_error'),'bad');console.error(e)})}window.scrollTo({top:0})}
 function whenUnits(p){p.append(h('div',{class:'empty'},S['settings.no_units']))}
-const BUILDERS={};
+const BUILDERS={};let BUILDP={};
 async function main(){shell();const r=await api('/api/stackchan/settings');
  if(!r.ok){toast(r.d.error||T('net_error'),'bad');return}
  UNITS=r.d.units;HOST=r.d.host_address;HOSTV=r.d.host_version||'';if(!UNITS.length){for(const g of GROUPS)whenUnits(panels[g]);go('home');return}
@@ -711,6 +711,9 @@ BUILDERS.play=async(p,u)=>{const id=u.device_id,g=await api(unitPath(id,'games')
  if(g.ok&&g.d.games){if(g.d.playing)games.append(h('div',{class:'banner'},T('games.playing')));
   const L=h('div',{class:'list'});for(const x of g.d.games)L.append(h('div',{class:'item'},h('div',{class:'grow'},h('b',{},x.title)),h('div',{class:'pills'},x.scores.length?x.scores.map((s,i)=>h('span',{class:'badge',title:T('games.best')},(i===0?T('games.best')+' ':'')+s+(x.unit?' '+x.unit:''))):h('span',{class:'hint'},T('games.empty')))));games.append(L)}
  else games.append(h('div',{class:'banner'},(g.d&&g.d.error)||T('net_error')),h('span',{class:'badge'},T('soon')));
+ const bp=g.ok&&g.d.by_person&&g.d.by_person.length?card(T('Best scores by person'),T('Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.'),...g.d.by_person.map(x=>{const who=x.person==='Someone'?T('Someone'):x.person;
+  return h('div',{class:'item'},h('div',{class:'grow'},h('b',{},who),...x.games.map(gm=>{const t=(g.d.games.find(q=>q.id===gm.id)||{title:gm.id});return h('div',{class:'hint'},t.title+': '+gm.scores.join(', '))})),
+   h('button',{type:'button',class:'btn bad',onclick:async()=>{if(!(await ask(T('Delete scores')+' - '+who+'?',T('Delete scores'))))return;const r=await save(unitPath(id,'forget-scores'),{person:x.person},true);if(r.ok){BUILT.play=false;p.querySelectorAll(':scope>:not(h1)').forEach(n=>n.remove());go('play',true)}else toast(r.d.error,'bad')}},T('Delete scores')))})):null;
  const tk=g.d&&g.d.talk,talkCard=tk?card(tk.title,tk.help,h('div',{class:'list'},...tk.games.map(x=>h('div',{class:'item'},h('div',{class:'grow'},h('b',{},x.title),h('div',{class:'hint'},x.hint)))))):null;
  const decor=card(S['settings.extra'],null);let pickd=null;
  const view=window.__faceviews||(window.__faceviews={});
@@ -718,7 +721,7 @@ BUILDERS.play=async(p,u)=>{const id=u.device_id,g=await api(unitPath(id,'games')
   const pills=h('div',{class:'pills'});for(const n of fv.choices.decorators){const b=h('button',{class:'pill',type:'button','aria-pressed':'false',onclick:async()=>{pills.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));face.set({decor:n});save(unitPath(id,'decorate'),{name:n,seconds:6},true)}},S['settings.decor.'+n]||pretty(n));pills.append(b)}
   decor.append(h('div',{class:'screen'},cv),pills,h('div',{class:'btns'},h('button',{class:'btn',type:'button',onclick:()=>{pills.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));face.set({decor:'none'});save(unitPath(id,'decorate'),{name:'none'},true)}},S['settings.extra.stop'])))}
  else decor.append(h('div',{class:'banner'},fv.error||T('net_error')));
- p.append(h('div',{class:'grid'},games,...(talkCard?[talkCard]:[]),decor))};
+ p.append(h('div',{class:'grid'},games,...(bp?[bp]:[]),...(talkCard?[talkCard]:[]),decor))};
 
 /* ---- SYSTEM ---- */
 BUILDERS.system=async(p,u)=>{const id=u.device_id;
@@ -744,6 +747,10 @@ BUILDERS.system=async(p,u)=>{const id=u.device_id;
  p.append(h('div',{class:'grid'},unit,det,upd,about,rst,reset))};
 """
 
+from maipai_body.settings_ui_nav import CSS as CSS_NAV, JS as JS_NAV
+
+CSS = CSS + CSS_NAV
+JS = JS + JS_NAV
 JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH + JS_PAGES_FULL + JS_LOCK + JS_LINK + JS_FAMILY + JS_WAKEMAKER + JS_CHARACTER
 
 PAGE = r"""<!doctype html><html lang='__CODE__'><head><meta charset='utf-8'>

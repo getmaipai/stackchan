@@ -2218,7 +2218,16 @@ def _wire_light_and_health(voice, behavior: StackChanBehavior, avatar, sounds, p
     # restart guard, the wake engine test answers, and the ring's fault look while it holds.
     voice.heal.on_hold = lambda hold: light.update(fault=hold)
 
+    from maipai_body.game_scores import ScoreBook
+
+    behavior.score_book = ScoreBook(_data_dir() / "game-scores.json")
+
     def _heal_event(kind: str, extra: dict) -> None:
+        if kind == "game_ended":
+            try:
+                behavior.score_book.on_event(getattr(behavior, "primary_unit", lambda: None)() or "", kind, extra)
+            except Exception:
+                logger.warning("a finished game could not be filed", exc_info=True)
         voice.heal.observe(kind, extra)
         voice.wake_tester.on_event(kind, extra)
         behavior.privacy.observe(kind, extra)
@@ -2530,6 +2539,45 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
     )
     behavior.reaction = reactions.on_events
     behavior.reaction_tick = reactions.tick
+
+    # Every unit after the first gets its own behavior object for touch and reactions (docs/plan/per-unit-behavior.md, step 2).
+    from maipai_body.bodies.stackchan.adapter import create_stackchan_robot
+    from maipai_body.unit_behaviors import UnitBehaviors
+
+    def _make_unit_behavior(device_id: str) -> StackChanBehavior:
+        client = voice.robot.client.for_unit(device_id)
+        extra = StackChanBehavior(create_stackchan_robot(client), vision_bridge=None)
+        extra.night_active = lambda: behavior.night_active()  # the household rules are shared
+        extra.idle_still = lambda: behavior.idle_still()
+        extra.idle_still_reason = lambda: behavior.idle_still_reason()
+        extra.idle_level = behavior.idle_level
+        extra.watch_level = "off"  # one camera pipeline: no face search on this unit yet
+
+        def head_busy() -> str:
+            if behavior.privacy_units.state_for(device_id).quiet:
+                return "full quiet is on"
+            if bridge._tasks:
+                return "a turn is listening or speaking"
+            return "quiet hours" if behavior.night_active() else ""
+
+        extra.head_busy = head_busy
+        unit_reactions = Reactions(
+            face=lambda expression: extra.show_face(expression, while_listening=True),
+            say=lambda _text: False,  # the host speaks reactions only with one unit connected (turn.py speak_reaction)
+            quiet=lambda: night.night,
+            busy=extra.reaction_blocked,
+            head_moved_ago=extra.head_moved_ago,
+            symbol=lambda name: client._call("self.screen.show_symbol", {"name": name, "ms": 2500}),
+        )
+        extra.reaction = unit_reactions.on_events
+        extra.reaction_tick = unit_reactions.tick
+        return extra
+
+    behavior.unit_behaviors = UnitBehaviors(
+        primary_id=lambda: behavior.primary_unit(), connected=lambda: list(voice._sessions), make_behavior=_make_unit_behavior
+    )
+    behavior.other_unit_event_handlers.append(behavior.unit_behaviors.feed)
+    behavior.unit_behaviors.start(stop_event)
     _wire_orientation(voice, behavior, bridge, night, power)
     bridge.on_user_words = reactions.on_user_words
     bridge.language = units.base.home.language
@@ -2777,6 +2825,17 @@ def _wire_timers_and_announcements(
                     logger.warning("a timer event of one unit failed", exc_info=True)
 
     behavior.other_unit_event_handlers.append(on_other_unit_events)
+
+    def file_other_units_scores(device_id: str, events: list) -> None:
+        book = getattr(behavior, "score_book", None)
+        for event in events:
+            if book is not None and getattr(event, "kind", "") == "game_ended":
+                try:
+                    book.on_event(device_id, "game_ended", getattr(event, "extra", None))
+                except Exception:
+                    logger.warning("a finished game of one unit could not be filed", exc_info=True)
+
+    behavior.other_unit_event_handlers.append(file_other_units_scores)
 
     def refresh(device_id: str) -> None:
         service = timers_for(device_id)
@@ -3563,6 +3622,7 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
     behavior.wake_seeker_owns = seeker_owns
     voice.look_sync = sync_look
     backend.on_saved = apply
+    backend.score_book = getattr(behavior, "score_book", None)  # best scores per person for the Games page
 
     def on_connect(device_id: str) -> None:
         own = units.store.get(device_id)

@@ -9,12 +9,18 @@ RUN="$ROOT/.runs/dev-dashboard"
 case "${1:-status}" in
   start)
     bash "$0" stop >/dev/null 2>&1 || true
-    mkdir -p "$RUN"; rm -rf "$RUN/data"; mkdir -p "$RUN/data"
     PY=python3; [ -x "$ROOT/host/.venv/bin/python" ] && PY="$ROOT/host/.venv/bin/python"
-    (cd "$ROOT/host" && nohup "$PY" -m maipai_body.settings_sim --port "$PORT" --data "$RUN/data" >"$RUN/log" 2>&1 &
-     echo $! >"$RUN/pid")
-    for _ in $(seq 1 40); do curl -fs "http://127.0.0.1:$PORT/settings" >/dev/null 2>&1 && break; sleep 0.5; done
-    curl -fs "http://127.0.0.1:$PORT/settings" >/dev/null || { echo "dashboard did not start: see $RUN/log"; exit 1; }
+    ok=0
+    for attempt in 1 2 3; do
+      bash "$0" stop >/dev/null 2>&1 || true
+      mkdir -p "$RUN"; rm -rf "$RUN/data"; mkdir -p "$RUN/data"
+      (cd "$ROOT/host" && nohup "$PY" -m maipai_body.settings_sim --port "$PORT" --data "$RUN/data" >"$RUN/log" 2>&1 &
+       echo $! >"$RUN/pid")
+      for _ in $(seq 1 40); do curl -fs "http://127.0.0.1:$PORT/settings" >/dev/null 2>&1 && break; sleep 0.5; done
+      sleep 1
+      if kill -0 "$(cat "$RUN/pid")" 2>/dev/null && curl -fs "http://127.0.0.1:$PORT/settings" >/dev/null && [ -s "$RUN/data/settings-token" ]; then ok=1; break; fi
+    done
+    [ "$ok" = 1 ] || { echo "dashboard did not start: see $RUN/log"; exit 1; }
     echo "dashboard: http://127.0.0.1:$PORT/settings (bound to this computer only; demo data, two stand-in units)"
     echo "settings token for another device (throwaway, this run only): $(cat "$RUN/data/settings-token")"
     ;;
@@ -22,6 +28,8 @@ case "${1:-status}" in
     [ -f "$RUN/pid" ] && kill "$(cat "$RUN/pid")" 2>/dev/null || true
     rm -f "$RUN/pid"
     for p in $(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null); do ps -o command= -p "$p" | grep -q settings_sim && kill "$p" || true; done
+    for _ in $(seq 1 20); do lsof -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep 0.25; done
+    for p in $(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null); do ps -o command= -p "$p" | grep -q settings_sim && kill -9 "$p" || true; done
     echo "dashboard stopped" ;;
   status)
     if [ -f "$RUN/pid" ] && kill -0 "$(cat "$RUN/pid")" 2>/dev/null; then echo "dashboard running on http://127.0.0.1:$PORT/settings"; else echo "dashboard not running"; fi ;;

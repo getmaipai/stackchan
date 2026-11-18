@@ -1,5 +1,8 @@
 # The installed set in the virtual unit
 
+
+> Part of the [playground docs](../playground/index.md). This page is the full reference; the playground pages are the guide.
+
 Owner decision 17. The virtual unit fakes what `docs/plan/installed-set.md` (B1 to B5, E3) asks of the unit, so the host's reconciler and the dashboard can be tested against it. Nothing here ran on a unit.
 
 - **One table.** `schema/asset-kinds.json` (kinds, slots, caps, trust, the pool of 382 sectors of 4,096 bytes). The playground track seeded it from the plan's section C; the firmware track owns the numbers.

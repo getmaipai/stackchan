@@ -25,7 +25,6 @@ def _run_c(body: str, tmp_path, tmp_path_factory) -> subprocess.CompletedProcess
 
 
 @needs_cc
-@bug
 def test_lock_attempt_counter_is_not_reset_by_a_call_that_needs_no_code(tmp_path, tmp_path_factory):
     """owner: firmware (lock tools; the success path of mlk_tool_note)."""
     run = _run_c(

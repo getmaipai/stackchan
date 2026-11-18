@@ -34,7 +34,7 @@ def test_the_second_units_ring_is_handled_by_its_own_timer_service():
         app_module._wire_timers_and_announcements(voice, behavior, stop, None)
     finally:
         stop.set()
-    (handler,) = behavior.other_unit_event_handlers
+    handler = behavior.other_unit_event_handlers[0]  # the timers' handler is registered first; the score book adds another
     event = SimpleNamespace(kind="timer_fired", extra={"id": 1, "what": "timer", "label": "bread"})
     handler("unit-b", [event])
     for listener in voice.session_listeners:

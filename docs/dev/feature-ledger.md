@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 872 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 881 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 50 items, 6 measured, 17 estimated, 27 placeholders or not built. 84 of 872 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 50 items, 6 measured, 17 estimated, 27 placeholders or not built. 84 of 881 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
-| Everyday user | 3 | 18 | 27 | 255 | 8 | 51 | 362 | 64 |
-| Maker and tech | 0 | 0 | 72 | 378 | 60 | 0 | 510 | 69 |
+| Everyday user | 3 | 18 | 27 | 256 | 8 | 51 | 363 | 64 |
+| Maker and tech | 0 | 0 | 71 | 387 | 60 | 0 | 518 | 69 |
 
 ## Everyday user
 
@@ -393,13 +393,14 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Alarm and siren** | Red and blue lights and a siren for a security alert. - Robot, opt-in Planned - Watch and alerts | proven virtual | 70 | not declared | `SF46-silent-boot.patch`<br>`UI03-color-memory-tone-and-light-together.patch`<br>`NX06-face-seeker-default-always-and-safe-gates.patch` | average of the 4 patch(es) that share words with this row: SF46, UI03, NX06, SF55 | [docs/user/features.md#camera-remote-control-and-maipai-home](../user/features.md#camera-remote-control-and-maipai-home) |
 | **Focus countdown Planned** ![Focus countdown Planned](docs/images/vu-timers.png) | A full-screen countdown with pictures and a small chip. - Robot - Timers and alarms | proven virtual | 62 | not declared | `F06-face-timer-countdowns.patch`<br>`UI16-apps-core-layout-words-and-sheet-tile.patch`<br>`090-timers-core.patch` | average of the 4 patch(es) that share words with this row: F06, UI16, 090, 091 | [docs/user/features.md#planned](../user/features.md#planned) |
 
-### Updates and setup (17)
+### Updates and setup (18)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
 | **Pairing, revocable token** ![Pairing, revocable token](docs/images/vu-pairing.png) | Pair with a six-digit code. Revoke any time. - Robot - Security | proven virtual | 55 | I 0 / P 28,000 / F 7,680 B (estimate); per connection | `P03-portal-protect.patch`<br>`156-refuse-keys-in-images.patch`<br>`host/maipai_body/first_run_name.py` | average of the 2 patch(es) that share words with this row: P03, 156 | [docs/user/features.md#set-up-and-keep-safe](../user/features.md#set-up-and-keep-safe) |
 | **Reset on the robot** ![Reset on the robot](docs/images/vu-pairing.png) | Hold a button for 3 seconds to erase Wi-Fi, pairing and settings. - Robot - Troubleshooting | proven virtual | 70 | not declared | `R01-reset-on-device.patch`<br>`host/maipai_body/first_run_name.py`<br>`host/maipai_body/settings_page.py` | average of the 1 patch(es) that share words with this row: R01 | [docs/user/features.md#set-up-and-keep-safe](../user/features.md#set-up-and-keep-safe) |
 | **Signed updates with rollback** ![Signed updates with rollback](docs/images/vu-update.png) | You choose when to install. A failed start rolls back. No update has been installed on a robot yet: there is no release key. - Robot - Updates | proven virtual | 70 | not declared | `160-first-boot-rollback.patch`<br>`SF37-compiled-build-floor.patch`<br>`host/maipai_body/bodies/stackchan/firmware/flash_manifest.py` | average of the 2 patch(es) that share words with this row: 160, SF37 | [docs/user/features.md#set-up-and-keep-safe](../user/features.md#set-up-and-keep-safe) |
+| **stackchan service update** ![stackchan service update](docs/images/vu-update.png) | Installs the new version beside the old one, switches to it and checks it is healthy. If it is not healthy within a minute, it goes back to the old version by itself | proven virtual | 60 | not declared | `U05-version-screen.patch`<br>`S02-core-sdkconfig-defaults.patch`<br>`160-first-boot-rollback.patch` | average of the 3 patch(es) that share words with this row: U05, S02, 160 | [docs/user/run-as-a-service.md#look-after-it](../user/run-as-a-service.md#look-after-it) |
 | **Signed updates** ![Signed updates](docs/images/vu-update.png) | Planned The signature check and the rollback are built, but no release key exists yet and no signed image has been installed on a robot. Until a release is signed, do not rely on this. | proven virtual | 62 | not declared | `160-first-boot-rollback.patch`<br>`SF37-compiled-build-floor.patch`<br>`SF25-signed-update-header-and-build-number.patch` | average of the 4 patch(es) that share words with this row: 160, SF37, SF25, SF06 | [docs/user/security.md#what-protects-the-robot](../user/security.md#what-protects-the-robot) |
 | **Installed set: faces (styles)** | The robot holds 8 faces (styles) at a time; the host dashboard picks which ones, and a choice that does not fit is refused in plain words. | built | 40 | not declared | `docs/plan/installed-set.md`<br>`scripts/virtual-unit/assets_sim.py`<br>`schema/asset-kinds.json` | the host reconciler and the virtual unit's slot store are built and tested; the unit's own asset core is not written | [docs/plan/installed-set.md](../plan/installed-set.md) |
 | **Installed set: picture faces and character packs** | The robot holds 2 picture faces and character packs at a time; the host dashboard picks which ones, and a choice that does not fit is refused in plain words. | built | 40 | I 0 / P 173,600 / F 0 B (measured); on use | `docs/plan/installed-set.md`<br>`scripts/virtual-unit/assets_sim.py`<br>`schema/asset-kinds.json` | the host reconciler and the virtual unit's slot store are built and tested; the unit's own asset core is not written | [docs/plan/installed-set.md](../plan/installed-set.md) |
@@ -553,7 +554,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Music feature stack** | 1 patch(es): The music feature task "musicfeat" (stack in PSRAM) had 584 bytes of... | proven virtual | 70 | not declared | `MF01-music-feature-task-stack-6144.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Movement limiter** | 1 patch(es): One movement limiter at the single place every servo target passes th... | proven virtual | 70 | not declared | `ML01-movement-limiter-at-the-servo-layer.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 
-### Host modules (298)
+### Host modules (302)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -678,10 +679,12 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: faces** | Session listener: push the saved face settings when a unit connects, never raising. | proven virtual | 70 | not declared | `host/maipai_body/faces.py` | file exists, a test names it | doc missing |
 | **Host: fillers** | Play one filler. | proven virtual | 70 | not declared | `host/maipai_body/fillers.py` | file exists, a test names it | doc missing |
 | **Host: first_run_name** | The robot's name from the first run (firmware patches SF09 and UX11). | proven virtual | 70 | not declared | `host/maipai_body/first_run_name.py` | file exists, a test names it | doc missing |
+| **Host: game_scores** | [{person, games: [{id, scores: [best first]}]}] for one unit, people in name order with "Someone" last. | proven virtual | 70 | not declared | `host/maipai_body/game_scores.py` | file exists, a test names it | doc missing |
 | **Host: envelope** | Shared envelope clamping for a body profile's real client and fake (first used by the Reachy Mini body). | proven virtual | 70 | not declared | `host/maipai_body/hal/envelope.py` | file exists, a test names it | doc missing |
 | **Host: errors** | Errors the HAL seam raises. | proven virtual | 70 | not declared | `host/maipai_body/hal/errors.py` | file exists, a test names it | doc missing |
 | **Host: seam** | The HAL seam every body profile implements. | proven virtual | 70 | not declared | `host/maipai_body/hal/seam.py` | file exists, a test names it | doc missing |
 | **Host: health** | One health document for the whole host: what runs, what does not, per unit and per part, in plain words. | proven virtual | 70 | not declared | `host/maipai_body/health.py` | file exists, a test names it | doc missing |
+| **Host: host_update** | The command: wire the updater to the real service and the real health page. | proven virtual | 70 | not declared | `host/maipai_body/host_update.py` | file exists, a test names it | doc missing |
 | **Host: hub_host** | Host launcher for a self-contained MaiPai Bot hub sidecar. | proven virtual | 70 | not declared | `host/maipai_body/hub_host.py` | file exists, a test names it | doc missing |
 | **Host: director** | EYES-02: the director. | proven virtual | 70 | not declared | `host/maipai_body/indicator/director.py` | file exists, a test names it | doc missing |
 | **Host: live** | EYES-02: ``LiveCaptureTap``, the live-capture cue's source of truth. | proven virtual | 70 | not declared | `host/maipai_body/indicator/live.py` | file exists, a test names it | doc missing |
@@ -794,11 +797,12 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: settings_page** | The whole page for one language: one HTML document with its own style and script, no outside file. | proven virtual | 70 | not declared | `host/maipai_body/settings_page.py` | file exists, a test names it | doc missing |
 | **Host: settings_server** | A name that is not this computer (a rebound hostname) reads nothing. | proven virtual | 70 | not declared | `host/maipai_body/settings_server.py` | file exists, a test names it | doc missing |
 | **Host: settings_sim** | A backend wired to two stand-in units, with every store in ``data_dir``. | proven virtual | 70 | not declared | `host/maipai_body/settings_sim.py` | file exists, a test names it | doc missing |
-| **Host: settings_ui** | JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH + JS_PAGES_FULL + JS_LOCK + JS_LINK + JS_FAMILY + JS_WAKEMAKER + JS_CHARACTER PAGE = r | proven virtual | 70 | not declared | `host/maipai_body/settings_ui.py` | file exists, a test names it | doc missing |
+| **Host: settings_ui** | from maipai_body.settings_ui_nav import CSS as CSS_NAV, JS as JS_NAV CSS = CSS + CSS_NAV JS = JS + JS_NAV JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH + JS_PAGES_FULL + JS_LOCK + JS_L... | proven virtual | 70 | not declared | `host/maipai_body/settings_ui.py` | file exists, a test names it | doc missing |
 | **Host: settings_ui_character** | The Character pack card on the Look page: choose a shared character pack (a .zip), have the host check it, install it as the unit's picture face. | built | 40 | not declared | `host/maipai_body/settings_ui_character.py` | file exists | doc missing |
 | **Host: settings_ui_family** | The parent view on the home page: a Family and safety card (plain status words, the privacy promise, who controlled the robot), a pairing code button and the phone code. | built | 40 | not declared | `host/maipai_body/settings_ui_family.py` | file exists | doc missing |
 | **Host: settings_ui_link** | The settings page's encrypted-link card, added under the Security section's passcode card. | built | 40 | not declared | `host/maipai_body/settings_ui_link.py` | file exists | doc missing |
 | **Host: settings_ui_lock** | The settings page's Security section, as script: the passcode lock's status, set or change a code, remove it, the auto lock time and Lock now. | built | 40 | not declared | `host/maipai_body/settings_ui_lock.py` | file exists | doc missing |
+| **Host: settings_ui_nav** | JS = r | proven virtual | 70 | not declared | `host/maipai_body/settings_ui_nav.py` | file exists, a test names it | doc missing |
 | **Host: settings_ui_pages** | JS_PAGES = r | proven virtual | 70 | not declared | `host/maipai_body/settings_ui_pages.py` | file exists, a test names it | doc missing |
 | **Host: settings_ui_polish** | The settings page's newer sections, as script: overlays, listening cues, "While it thinks", look effects, packs and languages. | built | 40 | not declared | `host/maipai_body/settings_ui_polish.py` | file exists | doc missing |
 | **Host: settings_ui_wakemaker** | The wake word maker card, added to the Voice page. | built | 40 | not declared | `host/maipai_body/settings_ui_wakemaker.py` | file exists | doc missing |
@@ -832,6 +836,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: spelling_aliases** | The one place for the old British spellings the host still understands. | proven virtual | 70 | not declared | `host/maipai_body/spelling_aliases.py` | file exists, a test names it | doc missing |
 | **Host: supervisor** | Workers under a watchdog: a dead or silent worker is restarted alone, with back-off, and a worker that keeps failing is reported, not hidden. | proven virtual | 70 | not declared | `host/maipai_body/supervisor.py` | file exists, a test names it | doc missing |
 | **Host: swipe_pages** | Send up to six tiles for the unit's Dashboard page (the host or Home calls this; | proven virtual | 70 | not declared | `host/maipai_body/swipe_pages.py` | file exists, a test names it | doc missing |
+| **Host: unit_behaviors** | One pass over the extra units: touch, then the reaction timer. | proven virtual | 70 | not declared | `host/maipai_body/unit_behaviors.py` | file exists, a test names it | doc missing |
 | **Host: unit_device** | Send one setting. | built | 40 | not declared | `host/maipai_body/unit_device.py` | file exists | doc missing |
 | **Host: unit_extras** | Send a person's face color and caption size to a unit (the face service pushes it). | proven virtual | 70 | not declared | `host/maipai_body/unit_extras.py` | file exists, a test names it | doc missing |
 | **Host: unit_lock** | Set a code, or change it (the unit wants ``current`` when it already has one). | proven virtual | 70 | not declared | `host/maipai_body/unit_lock.py` | file exists, a test names it | doc missing |
@@ -877,7 +882,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: memory_notes** | Local memory for several adults as plain per-person notes files. | proven virtual | 70 | not declared | `host/maipai_packages/memory_notes` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (80)
+### Scripts and tools (84)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -895,6 +900,8 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: docs-grade.py** | Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences. | built | 40 | not declared | `scripts/docs-grade.py` | file exists | doc missing |
 | **Script: e2e-flake-hunt.sh** | find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. | built | 40 | not declared | `scripts/e2e-flake-hunt.sh` | file exists | doc missing |
 | **Script: efuse-check.py** | owner decision 14 (2026-11-18): nothing in this project ever burns an eFuse (irreversible): no secure boot key, no flash or NVS encryption key | proven virtual | 70 | not declared | `scripts/efuse-check.py` | file exists, a test names it | doc missing |
+| **Script: exposure-test.py** | the exposure suite. | proven virtual | 70 | not declared | `scripts/exposure-test.py` | file exists, a test names it | doc missing |
+| **Script: exposure-test.sh** | run the exposure suite (see scripts/exposure-test.py). | proven virtual | 70 | not declared | `scripts/exposure-test.sh` | file exists, a test names it | doc missing |
 | **Script: feature-ledger.py** | The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's), with a status and a percent worked out from evidence in the repository. | proven virtual | 70 | not declared | `scripts/feature-ledger.py` | file exists, a test names it | doc missing |
 | **Script: fuzz-cores.sh** | fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavior sanitizers. | proven virtual | 70 | not declared | `scripts/fuzz-cores.sh` | file exists, a test names it | doc missing |
 | **Script: fw-bench-clips.py** | make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c. | built | 40 | not declared | `scripts/fw-bench-clips.py` | file exists | doc missing |
@@ -950,6 +957,8 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: repo-map.sh** | generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line), | built | 40 | not declared | `scripts/repo-map.sh` | file exists | doc missing |
 | **Script: review-status.py** | The cross-review bug table: every test in host/tests/test_cross_review_open_bugs*.py, its owner, and whether the bug is still open. | built | 40 | not declared | `scripts/review-status.py` | file exists | doc missing |
 | **Script: run-bg.sh** | run a long command (firmware build, flash, soak, gate) with its full output in a log file and | built | 40 | not declared | `scripts/run-bg.sh` | file exists | doc missing |
+| **Script: security-scan.py** | one repeatable security scan of the whole repo; | proven virtual | 70 | not declared | `scripts/security-scan.py` | file exists, a test names it | doc missing |
+| **Script: security-scan.sh** | run the repo security scan (see scripts/security-scan.py). | proven virtual | 70 | not declared | `scripts/security-scan.sh` | file exists, a test names it | doc missing |
 | **Script: sfx-wav.sh** | render every game sound of the unit to a WAV file with the unit's own sound core, so the owner can listen to the real sounds on a computer. | proven virtual | 70 | not declared | `scripts/sfx-wav.sh` | file exists, a test names it | doc missing |
 | **Script: sounds-demo.py** | A page to listen to the robot's sounds: the game sounds (the unit's own tone clips and the sketches) and the offline mumble in six languages, with the mouth that goes with each | built | 40 | not declared | `scripts/sounds-demo.py` | file exists | doc missing |
 | **Script: spec-dir.sh** | A repository script. | built | 40 | not declared | `scripts/spec-dir.sh` | file exists | doc missing |
@@ -957,7 +966,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: spelling-check.py** | fail on British spellings in text files (owner rule 2026-11-16: American spelling everywhere). | proven virtual | 70 | not declared | `scripts/spelling-check.py` | file exists, a test names it | doc missing |
 | **Script: stackchan-egress-proof.sh** | A repository script. | proven virtual | 70 | not declared | `scripts/stackchan-egress-proof.sh` | file exists, a test names it | doc missing |
 | **Script: stackchan-no-third-party.sh** | A repository script. | proven virtual | 70 | not declared | `scripts/stackchan-no-third-party.sh` | file exists, a test names it | doc missing |
-| **Script: test-all.sh** | the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. | built | 40 | not declared | `scripts/test-all.sh` | file exists | doc missing |
+| **Script: test-all.sh** | the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. | proven virtual | 70 | not declared | `scripts/test-all.sh` | file exists, a test names it | doc missing |
 | **Script: test-fast.sh** | the host suite without the slow tests (the end to end on the virtual unit and the sanitizer fuzz, marked `slow`), in 4 pytest processes at once, for quick feedback while | built | 40 | not declared | `scripts/test-fast.sh` | file exists | doc missing |
 | **Script: test-sharded.py** | Run the host suite in N pytest processes at once, one group of test files each (no plugin needed). | built | 40 | not declared | `scripts/test-sharded.py` | file exists | doc missing |
 | **Script: translation-pack.py** | The translator review pack: every user-facing string per language in a plain CSV a native speaker can read and correct, and the importer that takes the corrections back with checks. | proven virtual | 70 | not declared | `scripts/translation-pack.py` | file exists, a test names it | doc missing |
@@ -1048,7 +1057,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 ## Decisions
 
-The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 4 not started.
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 9 not started.
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
@@ -1074,6 +1083,11 @@ The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a stat
 | 20 | **Offer a choice only when it is needed** | in progress | the first run now asks three questions and offers Skip on each; the rule that every other choice is automatic or under Advanced is not yet checked across the settings page |
 | 21 | **The local playground runs a simulation or a real robot** | in progress | the simulation backend exists (the virtual unit and its 3D view); the Live backend (a registered robot through the person's host, one control session at a time) is not built |
 | 22 | **Unit choices audit answers (owner and coordinator, 2026-11-18)** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 23 | **A failed scan blocks a release** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 24 | **Offline plan** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 25 | **A measured Hardware reference** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 26 | **Quiet hours default OFF until set** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 27 | **Model-powered games on top of the pantry** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 
 ## Scrapped (9)
 

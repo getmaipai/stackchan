@@ -482,6 +482,9 @@ class SettingsBackend:
                 body = self.extras.details(device_id, lang)
             elif what == "games":
                 body = self.extras.games(device_id, lang)
+                book = getattr(self, "score_book", None)
+                if book is not None:
+                    body = {**body, "by_person": book.view(device_id)}
             elif what == "pictures":
                 body = self.pictures.view(device_id, lang)
             elif what == "remote":
@@ -669,6 +672,12 @@ class SettingsBackend:
                 self._unit_known(device_id)
                 return 200, self.extras.reset_reactions(device_id, lang)
             self._unit_known(device_id)
+            if action == "forget-scores":
+                book = getattr(self, "score_book", None)
+                person = values.get("person")
+                if book is None or not isinstance(person, str) or not person:
+                    return 400, {"error": "Say whose scores to delete. Pick a person on the Games page and try again."}
+                return 200, {"ok": True, "removed": book.forget(device_id, person), "message": "Scores deleted."}
             if action == "reactions":
                 return 200, self.extras.save_reactions(device_id, values, lang)
             if action == "clock":
@@ -991,12 +1000,13 @@ WAKEWORD = "/api/stackchan/wakeword"
 def render_page(lang: str | None) -> bytes:
     """The whole page for one language: one HTML document with its own style and script, no outside file."""
     from maipai_body.settings_ui import CSS, JS, PAGE
+    from maipai_body.settings_ui_nav import card_map
 
     code = normalize(lang)
     strings = catalog(code)
     page = (
         PAGE.replace("__CSS__", CSS)
-        .replace("__JS__", JS)
+        .replace("__JS__", JS.replace("__CARDMAP__", json.dumps(card_map(strings)).replace("</", "<\\/")))
         .replace("__PICS__", pictures_js(code))
         .replace("__STRINGS__", json.dumps(strings).replace("</", "<\\/"))
         .replace("__TITLE__", html.escape(strings["settings.title"]))

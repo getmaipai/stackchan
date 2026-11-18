@@ -398,6 +398,12 @@ def build(data_dir: Path, *, language: str = "en", next_unit: bool = False) -> t
             sleep=lambda _s: None,  # the notice and countdown are the unit's; the stand-in does not wait
         ),
     )
+    from maipai_body.game_scores import ScoreBook
+
+    book = ScoreBook(data_dir / "game-scores.json")  # demo scores for the Games page: named players come from MaiPai Home or the notes passphrase
+    for person, game, score in (("nadia", "memory", 9), ("nadia", "memory", 6), ("nadia", "bopit", 7), ("atlas", "memory", 5), ("atlas", "rps", 2), ("Someone", "memory", 3)):
+        book.record(KITCHEN, person, game, score)
+    backend.score_book = book
     return backend, units
 
 

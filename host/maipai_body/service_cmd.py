@@ -27,11 +27,19 @@ def log_path() -> Path:
     return _data_dir() / "logs" / "stackchan.log"
 
 
-def program() -> list[str]:
-    """The command the service runs: the `stackchan` of this install."""
+def original_program() -> list[str]:
+    """The command of the install this program runs from (before any `stackchan service update`)."""
     beside = Path(sys.executable).parent / "stackchan"
     found = str(beside) if beside.exists() else shutil.which("stackchan")
     return [found or sys.executable, "run"] if found else [sys.executable, "-m", "maipai_body.cli", "run"]
+
+
+def program() -> list[str]:
+    """The command the service runs: the version `stackchan service update` switched to, else the `stackchan` of this install."""
+    from maipai_body.host_update import current_program
+
+    updated = current_program(_data_dir())
+    return [str(updated), "run"] if updated else original_program()
 
 
 def system_name() -> str:
@@ -106,6 +114,9 @@ class Service:
         self.uid = os.getuid() if uid is None and hasattr(os, "getuid") else (uid or 0)
         self.command = command or program()
 
+    def original_command(self) -> list[str]:
+        return original_program()
+
     # -- where the file goes ------------------------------------------------------------------------------------------------
     def file(self) -> Path:
         if self.system == "mac":
@@ -179,7 +190,19 @@ class Service:
         ok, text = self._do(command)
         running = ("state = running" in text) if self.system == "mac" else (text.strip().startswith("active") if self.system == "linux" else ok)
         self._say("The service is installed and running." if running else "The service is installed but not running. Run `stackchan service start`, then `stackchan service logs`.")
+        self._say_last_update()
         return 0 if running else 1
+
+    def _say_last_update(self) -> None:
+        """The outcome of the last `stackchan service update`, when it did not take (so the person is not left wondering)."""
+        import json
+
+        try:
+            kept = json.loads((_data_dir() / "host-versions" / "last-update.json").read_text())
+        except (OSError, ValueError):
+            return
+        if kept.get("ok") is False:
+            self._say("Last update: " + str(kept.get("message", "it did not take")))
 
     def logs(self, lines: int = 60) -> int:
         path = log_path()

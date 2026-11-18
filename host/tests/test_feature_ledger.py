@@ -140,3 +140,21 @@ def test_the_memory_column_and_totals_come_from_the_declared_budget_table(ledger
     assert "## Memory (owner decision 15)" in md and "| Memory |" in md
     html = (ROOT / "docs" / "dev" / "feature-ledger.html").read_text()
     assert "memhead" in html and "Memory:" in html
+
+
+def test_the_ledger_text_does_not_depend_on_the_hash_seed():
+    """Two runs with different hash seeds write byte-identical files (a set walked in hash order once made the committed ledger flake)."""
+    import hashlib
+    import os
+    import subprocess
+
+    code = (
+        "import importlib.util,sys;sys.path.insert(0,'scripts');"
+        "s=importlib.util.spec_from_file_location('fl','scripts/feature-ledger.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m);"
+        "r,x=m.build();import hashlib;print(hashlib.sha256((m.render.markdown(r,x)+m.render.page(r,x)).encode()).hexdigest())"
+    )
+    digests = {
+        subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, env={**os.environ, "PYTHONHASHSEED": seed}, check=True).stdout.strip()
+        for seed in ("1", "2", "3")
+    }
+    assert len(digests) == 1, "the ledger changes with the hash seed: sort whatever set or dict order it walks"

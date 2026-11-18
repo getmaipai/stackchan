@@ -49,6 +49,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - [Memory budget of the optional features (owner decision 11, 2026-11-18)](memory-budget.md)
 - [Cost of a switched-off feature in the plain image](off-cost.md)
 - [How MaiPai for StackChan fits together](overview.md)
+- [Before the repository goes public](pre-publish-checklist.md)
 - [Scope: the core robot and MaiPai Home](scope-core-vs-home.md)
 - [Screen audit against the physical standard](screen-audit.md)
 - [Screens contact sheets](screens-contact-sheets.md)

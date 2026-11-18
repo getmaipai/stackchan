@@ -1,5 +1,8 @@
 # Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
 
+
+> Part of the [playground docs](../playground/index.md). This page is the full reference; the playground pages are the guide.
+
 What was done: a checker (Codex Luna low, read only) compared every tool handler in `scripts/virtual-unit/tools/*.py` with its firmware lambda and listed differences with line evidence. Pass 1 found 90 differences in 11 modules. A fixer run per module confirmed each one against the cited lines, corrected the handler or kept it (hardware values, checker wrong), and added a test per fix (`host/tests/test_vu_tools_*.py`). Pass 2 (same checker, fixed handlers) flagged 104 lines.
 
 Reading pass 2: it did not converge, and the new flags are mostly different in kind: nitpicks on text, bounds and labels, "not established in the excerpt" cases, and some wrong flags (for example `self.face.gaze`, where the refusal words are identical). The checker is not a fixed point. What it does show are the real remaining gaps below.

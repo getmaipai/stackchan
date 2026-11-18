@@ -10,7 +10,7 @@
 # Placement: repo release tool (host). Upstream: none.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-BUILD=""; VERSION=""; DATE=""; KEY=""; TEST=0; OUT=""; APP="xiaozhi.bin"; NUMBER=""; LAST=""; BOARD="m5cores3"
+GATE=auto; MINISIGN_KEY=""; BUILD=""; VERSION=""; DATE=""; KEY=""; TEST=0; OUT=""; APP="xiaozhi.bin"; NUMBER=""; LAST=""; BOARD="m5cores3"
 while (($#)); do
   case "$1" in
     --build-dir) BUILD="$2"; shift 2 ;;
@@ -22,6 +22,8 @@ while (($#)); do
     --app-image) APP="$2"; shift 2 ;;
     --build-number) NUMBER="$2"; shift 2 ;;
     --board-id) BOARD="$2"; shift 2 ;;
+    --with-gate) GATE=1; shift ;;
+    --minisign-key) MINISIGN_KEY="$2"; shift 2 ;;
     --last-build-file) LAST="$2"; shift 2 ;;
     *) echo "Usage: release.sh --build-dir BUILD --version X --date YYYY-MM-DD (--signing-key PATH | --test-key) [--output DIR] [--app-image NAME] [--board-id ID] --build-number N [--last-build-file FILE]" >&2; exit 2 ;;
   esac
@@ -42,6 +44,22 @@ if [ "$TEST" = 0 ] && [ -z "$KEY" ]; then echo "Pass --signing-key PATH (the own
 PY=python3; [ -x "$ROOT/host/.venv/bin/python" ] && PY="$ROOT/host/.venv/bin/python"
 export PYTHONPATH="$ROOT/host${PYTHONPATH:+:$PYTHONPATH}"
 if [ -d "$OUT" ] && [ -n "$(ls -A "$OUT" 2>/dev/null)" ]; then echo "The output folder '$OUT' already holds files. Use an empty folder or remove it, so nothing from an earlier release is published with this one." >&2; exit 2; fi
+# The release gate (decision 23): the checks, the security scan, the exposure suite and the tests all run first, and any failure stops the release.
+# A step the scan or the suite could not run counts as a failure too. A real release always runs it; a --test-key dry run runs it only with --with-gate.
+if [ "$GATE" = auto ]; then if [ "$TEST" = 0 ]; then GATE=1; else GATE=0; fi; fi
+EVIDENCE=$(mktemp -d)
+if [ "$GATE" = 1 ]; then
+  cd "$ROOT"
+  gate() { local name="$1"; shift; echo "release gate: $name ..."; if ! "$@" > "$EVIDENCE/$name.txt" 2>&1; then echo "release gate: $name FAILED. Nothing was built. Read $EVIDENCE/$name.txt, fix it, then run the release again." >&2; exit 1; fi; }
+  gate check bash scripts/check.sh
+  gate security-scan python3 scripts/security-scan.py
+  gate exposure python3 scripts/exposure-test.py
+  gate tests bash scripts/test-all.sh
+  if grep -h -E '^\[(NOT RUN|FAIL)\]' "$EVIDENCE/security-scan.txt" "$EVIDENCE/exposure.txt" > "$EVIDENCE/not-run.txt" && [ -s "$EVIDENCE/not-run.txt" ]; then
+    echo "release gate: a scan step did not run or failed:" >&2; cat "$EVIDENCE/not-run.txt" >&2; echo "Install the missing tool or fix the finding, then run the release again." >&2; exit 1
+  fi
+  echo "release gate: passed"
+fi
 mkdir -p "$OUT"
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 if [ "$TEST" = 1 ]; then
@@ -93,6 +111,26 @@ verdict = verify_package((out / f"{app}.hdr").read_bytes() + (out / f"{app}.hdr.
 assert verdict.ok, verdict.reason
 print("release: manifest, image and update header signatures verify")
 PY
+# Evidence bundle: SBOM, the gate outputs, signed checksums of everything in the release folder.
+if command -v syft >/dev/null 2>&1; then
+  syft "dir:$ROOT/host" --exclude "./.venv" --exclude "./tests" --exclude "**/node_modules" -q -o cyclonedx-json="$EVIDENCE/sbom-host.cdx.json" >/dev/null 2>&1 || { echo "The SBOM could not be written (syft failed). Nothing was released." >&2; exit 1; }
+elif [ "$TEST" = 0 ]; then
+  echo "syft is not installed, so no SBOM can be written. Install it (brew install syft) and run again." >&2; exit 1
+else
+  echo "release: syft is not installed; this test release has no SBOM." >&2
+fi
+mkdir -p "$OUT/evidence"; cp "$EVIDENCE"/*.txt "$EVIDENCE"/*.json "$OUT/evidence/" 2>/dev/null || true
+if [ "$TEST" = 0 ] && [ -z "$MINISIGN_KEY" ]; then echo "Pass --minisign-key PATH (the owner's minisign secret key file) for a real release." >&2; exit 2; fi
+if ! command -v minisign >/dev/null 2>&1; then
+  [ "$TEST" = 1 ] && echo "release: minisign is not installed; this test release has no signed checksums." >&2 || { echo "minisign is not installed (brew install minisign)." >&2; exit 1; }
+else
+if [ "$TEST" = 1 ]; then MINISIGN_KEY="$WORK/minisign.key"; minisign -G -W -f -p "$WORK/minisign.pub" -s "$MINISIGN_KEY" >/dev/null; fi
+cp "${MINISIGN_KEY%.key}.pub" "$OUT/minisign.pub" 2>/dev/null || { [ "$TEST" = 1 ] && cp "$WORK/minisign.pub" "$OUT/minisign.pub"; }
+(cd "$OUT" && find . -type f ! -name SHA256SUMS ! -name 'SHA256SUMS.minisig' | sort | xargs shasum -a 256 > SHA256SUMS)
+minisign -S -s "$MINISIGN_KEY" -m "$OUT/SHA256SUMS" -x "$OUT/SHA256SUMS.minisig" >/dev/null
+[ "$TEST" = 1 ] && minisign -V -p "$WORK/minisign.pub" -m "$OUT/SHA256SUMS" -x "$OUT/SHA256SUMS.minisig" >/dev/null
+(cd "$OUT" && tar czf "release-evidence.tar.gz" evidence SHA256SUMS SHA256SUMS.minisig minisign.pub 2>/dev/null)
+fi
 python3 "$ROOT/scripts/check-no-keys.py" "$OUT" >/dev/null || { echo "A key-shaped value is in the release folder. Nothing was released." >&2; exit 1; }
 if [ "$TEST" = 0 ]; then mkdir -p "$(dirname "$LAST")" && printf '%s\n' "$NUMBER" > "$LAST"; fi
 echo "release: ok -> $OUT"

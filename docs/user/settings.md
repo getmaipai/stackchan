@@ -7,6 +7,12 @@ Changing a setting never needs a reflash.
 
 *The on-robot settings, General page, with Volume and Brightness sliders.*
 
+## Find a setting
+
+On the settings page, type in the **Search settings** box at the top. Pick a result and the page opens the right tab, opens the **Advanced** fold if the setting sits there, and highlights it.
+
+Long pages (Look, Behavior, Remote) have a row of tabs under the title, such as Movement, Sleep and quiet, and Reactions and people. Short pages have none. Settings most people never change sit behind **Advanced** at the bottom of a page.
+
 ## Face style (`face_style`)
 
 Picks the look of the face: big eyes, stock or minimal. The settings page on your host shows a preview.

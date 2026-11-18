@@ -1,5 +1,8 @@
 # End to end on the virtual unit (the spoken-turn check without hardware)
 
+
+> Part of the [playground docs](../playground/index.md). This page is the full reference; the playground pages are the guide.
+
 `uv run --project host python scripts/virtual-unit/e2e.py [--fresh-venv] [scenario ...]` runs the real host in a clean venv (the repo's host package installed with `uv pip install`, as the README's step 1 does), in its own-model mode with the documented settings. The robot is a simulated unit whose every tool call goes to the virtual unit: the real LVGL screen code, the movement limiter, the body. A scripted server on localhost plays the model (`/v1/chat/completions`), speech to text (`/v1/audio/transcriptions`) and text to speech (`/v1/audio/speech`); every request it sees is kept. Canned audio (a quiet lead, a voiced stretch, a quiet tail, Opus encoded) is streamed in real time, so the host's own endpointing finds the speech.
 
 It runs as `host/tests/test_e2e_virtual_unit.py` in `scripts/test-all.sh` (the 16 scenarios run 4 at a time, each in its own process, about 75 seconds; `MAIPAI_E2E_JOBS=1` runs them one by one, about five minutes; `MAIPAI_E2E=0` turns it off; it skips without the renderer, `uv` or the cached dependencies). `--fresh-venv` installs into an empty temporary venv: the clean install.

@@ -1,0 +1,10 @@
+{
+  "note": "Ports the host may listen on by default. Any other listening port fails the exposure test. 'lan' true means the robot must reach it from the network; false means this computer only.",
+  "listen": [
+    {"port": 8765, "lan": true, "purpose": "voice socket the robot connects to"},
+    {"port": 8766, "lan": true, "purpose": "avatar and camera socket the robot connects to"},
+    {"port": 8767, "lan": true, "purpose": "photo upload route the robot posts to"},
+    {"port": 8051, "lan": false, "purpose": "settings page (this computer only until lan = true)"}
+  ],
+  "allowed_firmware_hosts": ["192.168.4.1", "192.0.2."]
+}

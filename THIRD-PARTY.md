@@ -28,6 +28,7 @@ Installed by pip from `host/pyproject.toml` (exact versions in `host/uv.lock`); 
 | websockets | BSD-3-Clause | The robot's voice link |
 | aiohttp | Apache-2.0 | Vision uploads and notify audio |
 | requests | Apache-2.0 | Calls to your model and speech servers |
+| certifi | MPL-2.0 | The list of trusted certificate authorities used by requests and aiohttp (kept current so a known advisory does not apply) |
 | numpy | BSD-3-Clause | Audio samples |
 | scipy | BSD-3-Clause | Audio resampling |
 | pyserial | BSD-3-Clause | Serial link tools |
