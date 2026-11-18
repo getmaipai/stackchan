@@ -89,6 +89,10 @@ _READ_ONLY_TOOLS = frozenset(
 )
 
 
+# Settings the host's background services push to "the robot" for the whole household. With several units connected and no unit
+# named, these reach every unit; any other call that names no unit goes to the longest-connected one.
+_FAN_OUT_TOOLS = frozenset({"self.audio.set_sound_policy", "self.music.set", "self.robot.set_idle_motion"})
+
 # The unit whose turn is running, for calls that name no unit (the services share one client).
 ACTIVE_UNIT: contextvars.ContextVar[str | None] = contextvars.ContextVar("stackchan_active_unit", default=None)
 
@@ -279,6 +283,25 @@ class XiaozhiDeviceClient:
             self._log_call_failure(name, exc)
             raise
 
+    def _fan_out(self, name: str, arguments: dict[str, object]) -> object:
+        """Send a household setting to every connected unit. The first unit's answer is the result; a unit that fails is
+        logged and does not stop the others."""
+        first: object = None
+        first_error: Exception | None = None
+        for index, device_id in enumerate(list(self.server._sessions)):
+            try:
+                reply = self.server.call_device_tool(name, arguments, timeout=self.timeout, device_id=device_id)
+            except Exception as exc:
+                self._log_call_failure(name, exc)
+                if index == 0:
+                    first_error = exc
+                continue
+            if index == 0 or first is None:
+                first = reply
+        if first is None and first_error is not None:
+            raise first_error
+        return first
+
     def _log_call_failure(self, name: str, exc: Exception) -> None:
         """Say why a device tool call failed, once a minute per tool (the raised text is vague)."""
         now = time.monotonic()
@@ -293,6 +316,8 @@ class XiaozhiDeviceClient:
 
     def _call_raw(self, name: str, arguments: dict[str, object]) -> object:
         try:
+            if name in _FAN_OUT_TOOLS and ACTIVE_UNIT.get() is None and len(self.server._sessions) > 1:
+                return self._fan_out(name, arguments)
             return self.server.call_device_tool(name, arguments, timeout=self.timeout)
         except (BodyLost, EstopEngaged, NotSupported, OutOfEnvelope):
             raise
