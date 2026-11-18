@@ -24,6 +24,7 @@ PLAIN = [
     "music_core_test.c",
     "music_mood_test.c",
     "beat_test.c",
+    "mouthcue_core_test.c",
 ]
 
 

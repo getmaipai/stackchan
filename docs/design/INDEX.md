@@ -12,20 +12,21 @@ One line per file: path, lines, purpose (first comment or heading).
 - `.github/FUNDING.yml` (1): no header
 - `.gitignore` (9): no header
 - `.gitleaks.toml` (19): Source-level secret rules for this repo. The image-level check is scripts/check-no-keys.py (patch 156).
-- `AGENTS.md` (55): MaiPai StackChan
+- `AGENTS.md` (56): MaiPai StackChan
 - `CLAUDE.md` (1): no header
 - `LICENSE` (664): no header
 - `NOTICE` (23): no header
 - `README.md` (89): MaiPai for StackChan
-- `THIRD-PARTY.md` (38): Third-party notices
+- `THIRD-PARTY.md` (39): Third-party notices
 - `docs/STYLE.md` (52): Writing style
 - `docs/design/architecture.md` (95): Architecture
 - `docs/design/banner-row-2026-11-16.md` (65): Fixed zones, the banner row and the subtitle strip (patches N01 to N04)
 - `docs/design/boundary-debt.txt` (40): no header
 - `docs/design/brain-seam.md` (16): Brain seam call map
+- `docs/design/character-pack-format.md` (17): Illustrated character packs
 - `docs/design/config.md` (24): Host configuration
 - `docs/design/consolidation-2026-11-16.md` (79): One consolidated image, 2026-11-16
-- `docs/design/core-extras-modules.md` (31): Host modules: core or extras
+- `docs/design/core-extras-modules.md` (35): Host modules: core or extras
 - `docs/design/dance-ladder-2026-11-17.md` (53): Music dance ladder and the movement limiter, 2026-11-17
 - `docs/design/decisions.md` (90): Owner decisions and corrections
 - `docs/design/egress-audit.md` (39): Firmware egress audit
@@ -38,7 +39,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/faces-status-2026-11-16.md` (42): Faces and always-on behaviors, status 2026-11-16
 - `docs/design/fast-eyes-2026-11-16.md` (139): Fast eyes: why the face stutters and what was changed, 2026-11-16
 - `docs/design/feature-gap-2026-11-16.md` (128): Feature gap: promised against built and flashed, 2026-11-16
-- `docs/design/features.md` (143): Feature map and build order
+- `docs/design/features.md` (142): Feature map and build order
 - `docs/design/final-integration-2-2026-11-17.md` (101): Final integration 2 (2026-11-17)
 - `docs/design/final-integration-2026-11-16.md` (109): Final integration, 2026-11-16
 - `docs/design/firmware-base.md` (95): Firmware base and rebase plan
@@ -112,9 +113,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/draft-names.md` (131): Draft names to confirm
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
+- `docs/dev/frame-cost-baseline-2026-11-18.md` (28): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
+- `docs/dev/screens-contact-sheets.md` (37): Screens contact sheets
 - `docs/dev/stackchan-anywhere-network-2026-11-14.md` (207): StackChan anywhere network: the robot joins the tailnet itself, and keeps a list of Wi-Fi networks
 - `docs/dev/stackchan-away-trip-and-permanent-2026-11-14.md` (148): StackChan away from home: the trip stopgap and the permanent design (2026-11-14)
 - `docs/dev/stackchan-combined-image-proposal-2026-11-14.md` (87): StackChan firmware images: proposal (2026-11-14, revised after the independent security review)
@@ -151,6 +154,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/stackchan-voice-measurements-2026-10-20.md` (69): StackChan voice path: what to measure (2026-10-20)
 - `docs/dev/stackchan-wireless-update-2026-11-14.md` (61): StackChan wireless firmware update (design, 2026-11-14)
 - `docs/dev/updater.md` (96): Flasher and updater
+- `docs/dev/virtual-unit-fidelity.md` (22): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
+- `docs/dev/virtual-unit.md` (22): Virtual unit
 - `docs/images/agent-status.svg` (1): no header
 - `docs/images/alarm-ringing.svg` (1): no header
 - `docs/images/alert-screen.svg` (1): no header
@@ -223,15 +228,18 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/images/web-settings.svg` (1): no header
 - `docs/images/wifi-setup.svg` (1): no header
 - `docs/plan/OPEN-DECISIONS.md` (23): Open decisions (2026-11-18)
-- `docs/plan/friend-test-path-2026-11-18.md` (18): The friend-test path: what exists and what is missing (2026-11-18)
+- `docs/plan/coding-companion-package.md` (36): Coding companion and agent tools (package design, for review before building)
+- `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
+- `docs/plan/friend-test-path-2026-11-18.md` (19): The friend-test path: what exists and what is missing (2026-11-18)
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
-- `docs/plan/parent-view.md` (28): Parent view on the settings page (U-4, plan step 7 F)
+- `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
+- `docs/plan/parent-view.md` (32): Parent view on the settings page (U-4, plan step 7 F)
 - `docs/plan/spec-vendor-drift.md` (6): Vendored spec drift check (T-2), owner: playground track, 2026-11-17
-- `docs/plan/undefined-host-calls-2026-11-18.md` (20): Host calls with no firmware definition (2026-11-18)
+- `docs/plan/undefined-host-calls-2026-11-18.md` (24): Host calls with no firmware definition (2026-11-18)
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
 - `docs/user/baby-and-pet-monitor.md` (86): Use the robot as a baby or pet monitor
 - `docs/user/camera.md` (76): Use the camera
-- `docs/user/coding-companion.md` (45): Use the robot as a coding companion
+- `docs/user/coding-companion.md` (33): Use the robot as a coding companion (optional package)
 - `docs/user/compare.md` (71): Compare MaiPai for StackChan
 - `docs/user/face-and-look.md` (115): Change how the robot looks
 - `docs/user/faq.md` (50): Questions people ask
@@ -241,11 +249,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/getting-started.md` (66): Getting started with MaiPai for StackChan
 - `docs/user/glossary.md` (21): Glossary
 - `docs/user/hardware-and-models.md` (58): Pick hardware and a model
+- `docs/user/home-assistant.md` (18): Home Assistant (optional package)
 - `docs/user/home-tools.md` (35): Connect the robot to your own tools
 - `docs/user/install-the-host.md` (48): Install, update and remove the host
 - `docs/user/languages.md` (26): Switch the language
 - `docs/user/lights-and-sounds.md` (62): Lights and sounds
 - `docs/user/local-vs-home.md` (52): What you get with your own model and with MaiPai Home
+- `docs/user/memory-notes.md` (21): Memory notes (optional package)
 - `docs/user/moves-and-moods.md` (85): How the robot reacts
 - `docs/user/music-and-dance.md` (35): Music and dance
 - `docs/user/mute-and-camera-off.md` (56): Mute, turn off the camera, or go fully quiet
@@ -258,6 +268,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/switch-from-the-factory-firmware.md` (40): Switch from the factory firmware, or go back
 - `docs/user/timers-and-alarms.md` (50): Set a timer or alarm
 - `docs/user/troubleshooting.md` (41): Troubleshooting
+- `docs/user/try-the-virtual-robot.md` (27): Try the virtual robot
 - `docs/user/updates.md` (52): Update the robot
 - `docs/user/use-it-anywhere.md` (32): Use the robot away from home
 - `docs/user/voice.md` (83): Talk to the robot
@@ -423,7 +434,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (255): no header
+- `firmware/patches/ORDER` (258): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window (safety-and-privacy.md finding 4). A new six-digit setup code is made each time setup
@@ -459,6 +470,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF05-pairing-cover-line-break.patch` (18): The pairing cover text breaks after "Home" so the last line is "to approve me", not a single orphan word.
 - `firmware/patches/SF06-update-screen-calls.patch` (43): The wireless update shows the Updating screen: percent while the image downloads, "Update installed" before th
 - `firmware/patches/SF08-stamp-window-lock-backoff-servo-lock.patch` (487): Safety fix, train 8. The millisecond-stamp helper reads a passed deadline as not pending at any later time (de
+- `firmware/patches/SF09-first-run-wiring.patch` (161): Wires the first-run flow (screens from patch UX05b). At the first standby of a unit with no saved answers it s
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -514,9 +526,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX02d-info-tab-plain-words.patch` (46): Use plain English and Spanish words for the Settings Info rows and unknown values.
 - `firmware/patches/UX03a-eyes-only-mute-mark.patch` (61): Draw the calm sealed mouth line for the eyes-only style.
 - `firmware/patches/UX03b-effects-on-the-face-only.patch` (30): Apply overlays and screen effects only while the face or quick settings sheet is visible.
-- `firmware/patches/UX03d-timers-keep-cancel-taps.patch` (33): Keep timer Cancel buttons alive during countdown ticks.
 - `firmware/patches/UX04-update-cover.patch` (101): Show wireless update progress and clear refusal feedback on the unit.
 - `firmware/patches/UX05a-first-run-core.patch` (156): Add a tested C99 core for first-run step rules.
+- `firmware/patches/UX05b-first-run-screens.patch` (281): Draw the six localized first-run screens on the robot display.
+- `firmware/patches/UX06-face-rests-under-covers.patch` (49): Pause face animation under full-screen covers while allowing it to resume smoothly.
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -546,7 +559,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (4675): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (4729): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
 - `host/maipai_body/bench.py` (610): Owner-only local console for exercising a connected StackChan body."""
@@ -807,7 +820,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/talk_games.py` (429): ruff: noqa: E501
 - `host/maipai_body/bodies/stackchan/timers.py` (332): On-unit timers and alarms, the host side (firmware patches 090 to 094).
 - `host/maipai_body/bodies/stackchan/tool_parity.py` (30): The unit tool names the host sends that no firmware patch defines, each with a stated status.
-- `host/maipai_body/bodies/stackchan/turn.py` (2123): StackChan audio turn bridge to the existing hub speech clients."""
+- `host/maipai_body/bodies/stackchan/turn.py` (2135): StackChan audio turn bridge to the existing hub speech clients."""
 - `host/maipai_body/bodies/stackchan/updater.py` (297): Flasher and updater: check a signed release, then flash it or push it over the air.
 - `host/maipai_body/bodies/stackchan/uplink_stats.py` (108): Uplink statistics the self-test can read: hearing (frames, bytes, peak)
 - `host/maipai_body/bodies/stackchan/vision_bridge.py` (423): Host-side StackChan camera tracking and consent-gated face recognition."""
@@ -817,19 +830,21 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/ws_logging.py` (37): Quiet logging for the StackChan websocket listeners.
 - `host/maipai_body/bodies/stackchan/xiaozhi/__init__.py` (6): LAN xiaozhi protocol server and provisioning helpers for StackChan."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (220): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
-- `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (586): Local administrator approval and per-device bearer tokens."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (598): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1642): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1646): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
 - `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
 - `host/maipai_body/brain/fake.py` (44): Deterministic brain for tests and the virtual unit."""
 - `host/maipai_body/brain/home.py` (89): Home brain adapter. Existing clients retain transport behavior and timing."""
 - `host/maipai_body/brain/interface.py` (63): Typed interface between the body host and its answering brain."""
-- `host/maipai_body/brain/own_llm.py` (365): Own-LLM brain using owner-configured HTTP services and optional local speech models."""
-- `host/maipai_body/cli.py` (545): ruff: noqa: E501
-- `host/maipai_body/command_bus.py` (363): ruff: noqa: E501
-- `host/maipai_body/config.py` (215): Configuration for the StackChan host."""
+- `host/maipai_body/brain/own_llm.py` (377): Own-LLM brain using owner-configured HTTP services and optional local speech models."""
+- `host/maipai_body/character_pack.py` (366): Shareable illustrated character packs."""
+- `host/maipai_body/child_gate.py` (30): Whether a child is near any unit, as Home last said (the `child_present` hub command). Shared by the command b
+- `host/maipai_body/cli.py` (587): ruff: noqa: E501
+- `host/maipai_body/command_bus.py` (370): ruff: noqa: E501
+- `host/maipai_body/config.py` (290): Configuration for the StackChan host."""
 - `host/maipai_body/dashboard/__init__.py` (12): EXPR-05: a body-agnostic web dashboard.
 - `host/maipai_body/dashboard/__main__.py` (73): no header
 - `host/maipai_body/dashboard/server.py` (498): The dashboard's stdlib HTTP server: a page, a JSON API, and a server-sent-event feed."""
@@ -855,8 +870,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/hal/errors.py` (68): Errors the HAL seam raises.
 - `host/maipai_body/hal/seam.py` (427): The HAL seam every body profile implements.
 - `host/maipai_body/hub_host.py` (131): Host launcher for a self-contained MaiPai Bot hub sidecar.
-- `host/maipai_body/i18n.py` (368): ruff: noqa: E501
+- `host/maipai_body/i18n.py` (380): ruff: noqa: E501
+- `host/maipai_body/i18n_character.py` (37): ruff: noqa: E501
 - `host/maipai_body/i18n_design.py` (313): ruff: noqa: E501
+- `host/maipai_body/i18n_family.py` (77): ruff: noqa: E501
 - `host/maipai_body/i18n_fill/UNREVIEWED.md` (3): Machine-drafted translations, not reviewed
 - `host/maipai_body/i18n_fill/de_1.json` (65): no header
 - `host/maipai_body/i18n_fill/de_2.json` (65): no header
@@ -891,6 +908,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_fill/pt_7.json` (65): no header
 - `host/maipai_body/i18n_fill/pt_8.json` (24): no header
 - `host/maipai_body/i18n_link.py` (51): ruff: noqa: E501
+- `host/maipai_body/i18n_literals.py` (138): ruff: noqa: E501
 - `host/maipai_body/i18n_lock.py` (79): ruff: noqa: E501
 - `host/maipai_body/i18n_more.py` (615): ruff: noqa: E501
 - `host/maipai_body/i18n_pages.py` (156): ruff: noqa: E501
@@ -929,8 +947,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/link/supervisor.py` (89): LINK-STATE-01: the thread that keeps the ladder moving.
 - `host/maipai_body/link/timesync.py` (90): ROBOT-TIME-01: the robot's clock comes from the hub.
 - `host/maipai_body/live_units.py` (86): ruff: noqa: E501
-- `host/maipai_body/local_guard.py` (103): Who counts as the local administrator of the settings pages .
-- `host/maipai_body/logging_setup.py` (27): Logging for the hosted Bot (MAIPAI_HUB_HOST=1).
+- `host/maipai_body/local_guard.py` (123): Who counts as the host computer's own user of the settings pages, and the settings token.
+- `host/maipai_body/logging_setup.py` (43): Logging for the hosted Bot (MAIPAI_HUB_HOST=1).
 - `host/maipai_body/look_owner.py` (210): ruff: noqa: E501
 - `host/maipai_body/measure/__init__.py` (8): Bench measurement tooling for the design's section 12 rows (M-R1 to M-R5).
 - `host/maipai_body/measure/battery.py` (332): M-R4: battery. Runtime by the clock, and what the unit can say about its own charge.
@@ -951,6 +969,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/measure/wake_doa.py` (223): M-R3: wake and direction of arrival on this array.
 - `host/maipai_body/measure/wifi_cycle.py` (68): M-R5 on the unit: cycle the real radio and time the way back.
 - `host/maipai_body/model_assets.py` (67): Verified local cache for assets synchronized from the paired hub."""
+- `host/maipai_body/mouth_cues.py` (66): Mouth cues computed on the host from the speech audio (step 3 of the plan).
 - `host/maipai_body/moves/__init__.py` (13): MOVES-01: the recorded moves package (design record section 11).
 - `host/maipai_body/moves/allowlist.py` (30): The age allow-list: which moves a child, a teen or an unknown speaker may be shown.
 - `host/maipai_body/moves/library.py` (108): The pinned move libraries: optional packages installed by Home.
@@ -1008,10 +1027,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/selftest/stackchan.py` (181): BOT-SELF-TEST-01: the StackChan's seven part checks, one per part.
 - `host/maipai_body/selftest/stackchan_wiring.py` (127): BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts.
 - `host/maipai_body/settings_keys.py` (62): Settings keys shared by body settings consumers."""
-- `host/maipai_body/settings_page.py` (813): ruff: noqa: E501
-- `host/maipai_body/settings_server.py` (179): ruff: noqa: E501
-- `host/maipai_body/settings_sim.py` (426): ruff: noqa: E501
-- `host/maipai_body/settings_ui.py` (746): ruff: noqa: E501
+- `host/maipai_body/settings_page.py` (851): ruff: noqa: E501
+- `host/maipai_body/settings_server.py` (182): ruff: noqa: E501
+- `host/maipai_body/settings_sim.py` (433): ruff: noqa: E501
+- `host/maipai_body/settings_ui.py` (748): ruff: noqa: E501
+- `host/maipai_body/settings_ui_character.py` (21): ruff: noqa: E501
+- `host/maipai_body/settings_ui_family.py` (30): ruff: noqa: E501
 - `host/maipai_body/settings_ui_link.py` (22): ruff: noqa: E501
 - `host/maipai_body/settings_ui_lock.py` (36): ruff: noqa: E501
 - `host/maipai_body/settings_ui_pages.py` (129): ruff: noqa: E501
@@ -1078,10 +1099,22 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/vision/watch.py` (335): FACE-WATCH-01: always-on recognition under watch levels.
 - `host/maipai_body/vision/yunet.py` (242): Face detection with the pinned YuNet model on ONNX Runtime, without the Reachy SDK or OpenCV.
 - `host/maipai_body/wake_look.py` (76): ruff: noqa: E501
+- `host/maipai_packages/__init__.py` (2): Optional local packages. Each one is off by default and costs nothing while off: nothing here is
+- `host/maipai_packages/coding_companion/__init__.py` (11): The coding companion: the robot shows what a coding agent on this computer is doing.
+- `host/maipai_packages/coding_companion/clean.py` (54): Everything the agent sends is cleaned before it is shown, and refused when it looks like a secret or a path.""
+- `host/maipai_packages/coding_companion/handler.py` (17): The spoken request: "what is my coding agent doing". Answered here from a fixed phrase, with no model call."""
+- `host/maipai_packages/coding_companion/hook.py` (66): A hook a coding agent runs to tell the robot its state. It sends the state, the kind and the project name, and
+- `host/maipai_packages/coding_companion/server.py` (116): The agent's endpoint: POST /status on 127.0.0.1 with the package's own token.
+- `host/maipai_packages/coding_companion/state.py` (65): The agent's latest state, as the package keeps it. Only the newest state is kept (changes are coalesced)."""
+- `host/maipai_packages/home_assistant/__init__.py` (12): Home Assistant voice and camera snapshots, as an optional local package (off by default).
+- `host/maipai_packages/home_assistant/client.py` (153): The Home Assistant connection: conversation text in, speech text out; one camera picture on request."""
+- `host/maipai_packages/memory_notes/__init__.py` (12): Local memory for several adults as plain per-person notes files.
+- `host/maipai_packages/memory_notes/admission.py` (56): What may be stored, and who may read it (shaped like the shared memory admission concept).
+- `host/maipai_packages/memory_notes/store.py` (189): One plain text file per person; one note per line: ``- 2026-11-18 [ab12cd] the note``."""
 - `host/personas/cooking.en.txt` (9): no header
 - `host/personas/cooking.es.txt` (9): no header
-- `host/pyproject.toml` (152): Named to match the entry point (`maipai_bot`, registered below), not
-- `host/robot.example.toml` (54): Select "llm" to run without Home, or "home" to use the Home adapter.
+- `host/pyproject.toml` (153): Named to match the entry point (`maipai_bot`, registered below), not
+- `host/robot.example.toml` (80): Select "llm" to run without Home, or "home" to use the Home adapter.
 - `host/scripts/link_ladder_unit_check.py` (108): LINK-STATE-01: run the offline ladder's body cues on the real unit.
 - `host/scripts/make_kws_fixtures.py` (107): Rung 1 fixtures: SYNTHESIZED speech for the keyword spotter's tests. Not recordings.
 - `host/scripts/measure_expr01.py` (146): M-R2's simulator rows: cue to first state-feed delta, amplitude, peak velocity,
@@ -1495,7 +1528,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/spec-vendor/spec/vocab/robot-api.json` (55): no header
 - `host/spec-vendor/spec/voice/fixtures/normalize-for-speech.json` (52): no header
 - `host/spec-vendor/spec/voice/py/normalize_for_speech.py` (482): Speech normalization, the Python twin of spec/voice/ts/normalizeForSpeech.ts
-- `host/tests/conftest.py` (50): Shared fixtures: the deterministic suite runs against the fake always, and
+- `host/tests/conftest.py` (89): Shared fixtures: the deterministic suite runs against the fake always, and
 - `host/tests/eyes_fakes.py` (58): A pty standing in for the Reachy Eyes USB serial port.
 - `host/tests/firmware/apps_core_test.c` (336): Host test for the Apps wall, the Timers and Alarms apps and the tabbed Settings layout (patch UI16):
 - `host/tests/firmware/banner_core_test.c` (337): Host test for the banner row logic (patch N01): the queue, priorities, minimum display time, replace-in-place 
@@ -1510,7 +1543,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/face_zone_core_test.c` (112): Host test for the fixed zones of the screen (patches N01, N04): the banner zone (y 0 to 28), the face zone (y 
 - `host/tests/firmware/facedet_core_test.c` (153): Host test for the face detector's pure part (patch FD02): the real fd_convert_rgb888, fd_crop_origin, fd_pick,
 - `host/tests/firmware/facefx_core_test.c` (134): Host test for the fluid face core (patch H02): easing, time constants, speech level, mouth curve, gaze drift. 
-- `host/tests/firmware/fallback_core_test.c` (60): Host test for the away-from-home fallback choices (patch 146): cc -std=c99 -Wall -Werror -I<dir with the heade
 - `host/tests/firmware/filler_core_test.c` (220): Host test for "While it thinks" (patch TB03): the delay rule, the pick, the index reader, mu-law and the tone.
 - `host/tests/firmware/find_core_test.c` (27): Host test for the find-my-robot sound rule (patch Y02): the full sounds core with the find bypass. */
 - `host/tests/firmware/firstrun_core_test.c` (92): include <stdio.h>
@@ -1533,7 +1565,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/mood_core_test.c` (129): Host test for the mood core (patch M01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/motion_limit_core_test.c` (234): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
 - `host/tests/firmware/music_core_test.c` (168): Host test for the on-unit music features (patch 100): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
-- `host/tests/firmware/music_judge_test.c` (68): include <stdio.h>
 - `host/tests/firmware/music_mood_test.c` (54): Host test for the music mood faces (patch V03): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/nettest_core_test.c` (151): Host test for the network test core (patch U04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/noise_aead_test.c` (60): Host helper for the private-network client's Noise handshake (library patch): the same two-line wrapper the pa
@@ -1563,11 +1594,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/screens_core_test.c` (199): Host test for the single overlay screen state (patch UI09): cc -std=c99 -Wall -Wextra -Werror -I<dir with the 
 - `host/tests/firmware/seek_core_test.c` (749): Host test for turning toward a person (patch S10): the frame difference, the seek state machine and the owner 
 - `host/tests/firmware/seek_wire_test.c` (885): Host test for the wiring of the seek core (patch S12): the real mw_step, mw_downsample, the admission rule, th
-- `host/tests/firmware/sounds_core_test.c` (414): Host test for the unit's sound logic (patch 115): cc -std=c99 -Wall -Werror -I<dir with the header>. */
 - `host/tests/firmware/sprite_core_test.c` (171): Host test for the face pictures (patch V23): the rounded box, the discs, the lid and cheek cuts and the mouth 
 - `host/tests/firmware/status_core_test.c` (85): Host test for the banner status icons (patch UI04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>
 - `host/tests/firmware/subs_core_test.c` (132): Host test for the subtitle strip timing (patch N04): the fixed zone, the pages, the fades, the 0.8 s hold afte
-- `host/tests/firmware/tailnet_core_test.c` (95): Host test for the tailnet client's pure choices (patch 147): cc -std=c99 -Wall -Werror -I<dir with the header>
 - `host/tests/firmware/tailnet_region_test.c` (71): Host test for the private network's relay region and test hook (patches RM04 and RM05):
 - `host/tests/firmware/tailnet_travel_test.c` (137): Host test for travel with the private network (patch TN01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the 
 - `host/tests/firmware/timers_core_test.c` (200): Host test for the on-unit timer core (patch 090): cc -std=c99 -Wall -Werror -I<dir with the header>. */
@@ -1665,6 +1694,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/stackchan_sim/avatar_peer.py` (46): Minimal fake peer for the pinned M5Stack avatar WebSocket protocol."""
 - `host/tests/stackchan_sim/camera_sender.py` (6): Documentation-only JPEG payload generator for avatar camera stream tests."""
 - `host/tests/stackchan_sim/firmware.py` (454): Small asynchronous StackChan firmware simulator for end-to-end tests."""
+- `host/tests/test_agent_source.py` (56): The coding agent is its own bus source: tone and light only, below the host's routines, rate limited, gates ap
 - `host/tests/test_alarm.py` (267): ALARM-PLAY-01: the safety alarm controller (no model, no turn, no TTS)."""
 - `host/tests/test_alarm_wiring.py` (185): ALARM-PLAY-01: the loop, expression, channel and clip hooks the alarm uses."""
 - `host/tests/test_ambient_vision.py` (242): BOT-SC-VISION-01: silent ambient capture, opt-in policy, text note only."""
@@ -1682,13 +1712,15 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_brain_fake.py` (8): no header
 - `host/tests/test_brain_home.py` (43): no header
 - `host/tests/test_brain_interface.py` (45): no header
-- `host/tests/test_bus_gates_fed.py` (45): The command-bus gates for a child present, a remote cue and a sleeping unit are fed from real state."""
+- `host/tests/test_bus_gates_fed.py` (58): The command-bus gates for a child present, a remote cue and a sleeping unit are fed from real state."""
 - `host/tests/test_camera_frame.py` (71): The fixture-backed `Camera.get_frame()` path added alongside
 - `host/tests/test_channel_client.py` (221): Reconnect replays the same event id; the handler remains exactly once.
+- `host/tests/test_character_pack.py` (249): The dimensions are rejected from the PNG header before pixel decoding.
 - `host/tests/test_check_no_keys.py` (27): T-4, B-3: the key scanner refuses real-looking keys and lets the marked test fakes through."""
 - `host/tests/test_cli_check_forget.py` (60): no header
 - `host/tests/test_cli_run_and_example.py` (27): The documented install path: `stackchan run` starts the host; the first-run config template ships."""
 - `host/tests/test_clip_render.py` (118): G4b: the render-side logic (stamping, packing), with a fake synthesizer.
+- `host/tests/test_coding_companion.py` (227): The coding companion package: a cleaned status shows on the light, is spoken only from a fixed phrase, and nev
 - `host/tests/test_command_bus.py` (444): ruff: noqa: E501
 - `host/tests/test_config_switches.py` (33): The robot.toml switches [remote] enabled and [home] url do something."""
 - `host/tests/test_connection_loss.py` (33): Losing the connection raises BodyLost once; nothing is retried silently."""
@@ -1711,6 +1743,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_sensors.py` (232): The fake's scripted sensors: DoA, IMU, camera frames, the loopback recorder, the face tracker.
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
+- `host/tests/test_firmware_c_cores_final.py` (45): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -1735,6 +1768,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fw_stress_gate.py` (43): T-1: the memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
 - `host/tests/test_gaze.py` (156): S-EXPR-04: deterministic gaze trajectories, one test per rule (UNMEASURED defaults)."""
 - `host/tests/test_hal_seam.py` (32): Both the real client and the fake satisfy the same HAL seam methods."""
+- `host/tests/test_home_assistant_package.py` (229): The Home Assistant package: spoken requests by trigger phrase, one listed camera picture, token from the envir
 - `host/tests/test_http_follows_link.py` (47): On an encrypted link the unit is told encrypted web addresses; a required unit is refused on the plain port.""
 - `host/tests/test_hub_host.py` (183): Parser accepts the string; main reports the actionable validation error.
 - `host/tests/test_i18n_fill.py` (41): Machine-drafted translations (host/maipai_body/i18n_fill): shape checks that do not need a native speaker."""
@@ -1772,7 +1806,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_link_store.py` (87): G4's own acceptance: the sealed pairing file, fail-soft and atomic."""
 - `host/tests/test_link_supervisor.py` (142): LINK-STATE-01: the supervisor drives the walk and the cues on an injected clock."""
 - `host/tests/test_live_view.py` (178): LIVE-VIEW-01 (bot half): the stream, its cyan cue and every way it stops."""
-- `host/tests/test_local_guard.py` (119): Host check on reads, proxy headers mean not local, request bodies are capped."""
+- `host/tests/test_local_guard.py` (142): Host check on reads, proxy headers mean not local, request bodies are capped."""
+- `host/tests/test_logging_no_robot.py` (33): With no robot connected yet, the host log says so in one line; it does not print a traceback per failed call."
 - `host/tests/test_look_owner.py` (300): Who turns toward faces (look_owner.py): the lease heartbeat, the setting, the page view and the value the unit
 - `host/tests/test_measure_battery.py` (311): M-R4: battery. Runtime by the clock from full to the LED's red, whether any
 - `host/tests/test_measure_budget.py` (280): M-R1 on the Compute Module: what the sampler reads, how it summarizes, and the
@@ -1788,6 +1823,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_measure_turn_driver.py` (185): The scripted turn M-R1 and M-R4 run on a clock: a recorded utterance fed in real
 - `host/tests/test_measure_wake_doa.py` (275): M-R3: wake and direction of arrival on this array. The scoring, the bearing maths
 - `host/tests/test_measure_wifi_cycle.py` (101): M-R5 on the unit: the real radio is cycled and the time until the hub answers is read.
+- `host/tests/test_memory_notes.py` (194): The memory notes package: plain per-person files, remember and forget on request, off by default."""
 - `host/tests/test_motion_state.py` (181): MOVE-CARRY-01a: the deterministic motion state from scripted IMU readings.
 - `host/tests/test_motion_state_carry.py` (217): MOVE-CARRY-01c: the held look, the one short line, and the setting.
 - `host/tests/test_motion_state_hold.py` (249): MOVE-CARRY-01b: while held the body commands no motion; after put down it
@@ -1795,6 +1831,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_motor_gate.py` (178): MOTOR-RECOVER-01, the awake gate: no target during a wake or a sleep, for 2.2 s after a
 - `host/tests/test_motor_health.py` (239): MOTOR-RECOVER-01, the watchdog and the recovery ladder: cycle the mode, read the
 - `host/tests/test_motor_run_loop.py` (317): MOTOR-RECOVER-01 and THERMAL-01 on the run loop: the presence tick drives the
+- `host/tests/test_mouth_cues.py` (44): Host-computed mouth cues: 4 to 11 updates a second while speaking, smooth, closed at the end."""
 - `host/tests/test_move_scene_05.py` (118): MOVE-SCENE-05: after the body is handled, who is near and the light and camera are re-checked."""
 - `host/tests/test_moves.py` (387): MOVES-01: the recorded moves package.
 - `host/tests/test_moves_catalog.py` (240): MOVES-01 (amended): both datasets, the clip index, the age allow-list, the envelope report."""
@@ -1813,15 +1850,16 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_offline_clips.py` (261): G4b: the offline clip manifest, bundle, composition and playback.
 - `host/tests/test_offline_clips_unit.py` (58): G4b: the offline clips against real rendered audio and the real unit.
 - `host/tests/test_offline_clips_wiring.py` (269): G4b: the clips wired in - the spoken pairing code, the reconnect clip in
-- `host/tests/test_overlay_preview_parity.py` (206): ruff: noqa: E501
+- `host/tests/test_overlay_preview_parity.py` (188): ruff: noqa: E501
 - `host/tests/test_own_llm.py` (124): no header
 - `host/tests/test_own_model_defaults.py` (69): Own-model mode works with only a model address, and /v1 is never doubled."""
 - `host/tests/test_pack_unzip_limits.py` (40): A pack that unpacks to far more than its size is refused before it fills memory."""
 - `host/tests/test_packs.py` (308): ruff: noqa: E501
 - `host/tests/test_packs_languages_phrases.py` (689): ruff: noqa: E501, F811
-- `host/tests/test_pair_code_persistence.py` (62): A pair code made by `stackchan pair` survives the CLI process."""
+- `host/tests/test_pair_code_persistence.py` (69): A pair code made by `stackchan pair` survives the CLI process."""
 - `host/tests/test_phase4_config.py` (50): no header
 - `host/tests/test_phase4_pairing_cli.py` (47): no header
+- `host/tests/test_phone_pairing_path.py` (84): No-terminal pairing and the phone path, end to end through the real settings server.
 - `host/tests/test_pickup_events_host.py` (137): ruff: noqa: E501
 - `host/tests/test_picture_faces.py` (716): ruff: noqa: E501
 - `host/tests/test_picture_look_pack.py` (26): The picture look pack (firmware patch TB02): stored files, a look.json the unit reads, within the look size ga
@@ -1852,12 +1890,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_run_loop_settle.py` (93): BODY-05 on the existing G9 funnel: the 0.5 s settle gate is enforced and
 - `host/tests/test_scene_wire.py` (194): SCENE-WIRE-BOT: the landed scene pieces run inside the real loop.
 - `host/tests/test_scenes_settings.py` (130): ruff: noqa: E501
-- `host/tests/test_second_unit.py` (31): A second connected unit must not break every call that names no unit."""
+- `host/tests/test_second_unit.py` (63): A second connected unit must not break every call that names no unit."""
 - `host/tests/test_selftest.py` (390): BOT-SELF-TEST-01: the per-part self-test runner and the StackChan checks."""
 - `host/tests/test_selftest_cli.py` (440): BOT-SELF-TEST-02: the command line that runs the robot's checks from a
 - `host/tests/test_selftest_wiring.py` (165): BOT-SELF-TEST-01: the live-service wiring of the StackChan self-test."""
-- `host/tests/test_settings_token.py` (95): The settings page from a phone: a per-install token is the login for requests that are not local."""
-- `host/tests/test_settings_ui.py` (425): ruff: noqa: E501
+- `host/tests/test_settings_token.py` (116): The settings page from a phone: a per-install token is the login for requests that are not local."""
+- `host/tests/test_settings_ui.py` (426): ruff: noqa: E501
 - `host/tests/test_sherpa_engines.py` (15): VOICE-01: the sherpa engines, as far as they can be checked without the unit."""
 - `host/tests/test_sim_downlink.py` (136): Tests for firmware tool-reply latency, dropped replies, and receive timestamps."""
 - `host/tests/test_sim_uplink.py` (104): Tests for StackChanFirmware listen frames and real Opus uplink streaming."""
@@ -1867,7 +1905,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_speaker_evidence_turn.py` (252): SPEAK-02 / SPEAK-04: the turn carries `speaker_evidence` and `present`, fused
 - `host/tests/test_speaker_fusion.py` (119): SPEAK-04: fuse() and build_present() on the dev.md section 6 rules."""
 - `host/tests/test_speaker_gaze.py` (125): Tests for the StackChan speaker-gaze controller (BOT-SC-GAZE-01)."""
-- `host/tests/test_spec_root.py` (44): HC-3: a standalone checkout resolves the shared spec from the vendored snapshot."""
+- `host/tests/test_spec_root.py` (44): a standalone checkout resolves the shared spec from the vendored snapshot."""
 - `host/tests/test_speech_barge.py` (122): VOICE-02: a stop word over playback cuts locally, cancels, keeps the prefix."""
 - `host/tests/test_speech_capture.py` (171): G1's own acceptance: a fake mic feeds fixed-size blocks with a real pre-roll."""
 - `host/tests/test_speech_pitch.py` (111): The shared per-voice pitch offset (owner decision 2026-10-20)."""
@@ -1880,7 +1918,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_ambient_rarity.py` (234): Ambient looking around stays rare (owner, 2026-11-13: "it looks around too much").
 - `host/tests/test_stackchan_announce.py` (100): Hub announcements: the gates and the delivery, with a fake clock and a fake unit."""
 - `host/tests/test_stackchan_avatar.py` (190): Avatar channel behavior against the local fake StackChan peer."""
-- `host/tests/test_stackchan_beat_c.py` (37): Compile and run the standalone C beat phase helper."""
 - `host/tests/test_stackchan_brightness.py` (217): Spoken brightness and the hub's default volume and brightness (owner request 2026-10-21)."""
 - `host/tests/test_stackchan_bringup_kit.py` (133): no header
 - `host/tests/test_stackchan_camera_stream.py` (126): StackChan streamed frames reach the host vision bridge in memory."""
@@ -1896,13 +1933,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_duplex.py` (311): Duplex, barge-in and wake-mode behavior for the StackChan turn bridge."""
 - `host/tests/test_stackchan_error_line.py` (176): The apology line can never loop (owner request 2026-10-20)."""
 - `host/tests/test_stackchan_expression.py` (154): StackChan expression and camera privacy guarantees, using offline fakes."""
-- `host/tests/test_stackchan_face_cores.py` (96): The face cores (firmware patches F01 to F06) are plain C: build and run their test here."""
+- `host/tests/test_stackchan_face_cores.py` (99): The face cores (firmware patches F01 to F06) are plain C: build and run their test here."""
 - `host/tests/test_stackchan_face_seen.py` (146): ruff: noqa: E501
 - `host/tests/test_stackchan_face_set.py` (131): dizzy is not drawn by any firmware yet; silly, laughing and serene are drawn since patch MD02 and fall back be
 - `host/tests/test_stackchan_face_watch.py` (335): Idle face watching: the camera line, the greeting edge, and what a face does to the robot."""
 - `host/tests/test_stackchan_failure_shapes.py` (110): Named failure-shape checks for StackChan fake peers and turn dependencies."""
 - `host/tests/test_stackchan_failures.py` (254): Keep xiaozhi error paths actionable and prove later sessions still work."""
-- `host/tests/test_stackchan_fallback_core.py` (72): The away-from-home fallback choices (firmware patch 146): plain C, run on the host."""
 - `host/tests/test_stackchan_firmware_asset.py` (134): Tests for staging the independent StackChan firmware release asset."""
 - `host/tests/test_stackchan_firmware_e2e.py` (326): Promise tests for a firmware-shaped StackChan client talking to the real service."""
 - `host/tests/test_stackchan_firmware_update.py` (168): Within 15 minutes the unit is still restarting: no new attempt.
@@ -1932,10 +1968,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_meeting_sleep_z.py` (34): no header
 - `host/tests/test_stackchan_motion_limit.py` (214): ruff: noqa: E501
 - `host/tests/test_stackchan_multi_unit.py` (284): ruff: noqa: E501
-- `host/tests/test_stackchan_music_core.py` (165): The on-unit music features (firmware patch 100) are plain C: compile the header from the patch,
-- `host/tests/test_stackchan_music_dance.py` (1233): The StackChan music dance, host half (docs/dev/stackchan-music-dance-2026-11-13.md).
+- `host/tests/test_stackchan_music_dance.py` (1230): The StackChan music dance, host half (docs/dev/stackchan-music-dance-2026-11-13.md).
 - `host/tests/test_stackchan_music_identify.py` (543): Exercise command validation through the public behavior handler.
-- `host/tests/test_stackchan_music_judge_c.py` (78): The plain C music judge equals the production Python judge on fixtures and a seeded sweep."""
 - `host/tests/test_stackchan_mute.py` (487): StackChan mute, vision off and full quiet on the host (firmware patches 105 to 108). Fake unit,
 - `host/tests/test_stackchan_no_third_party.py` (81): Exercise the no-third-party capture check with a sanitized destination list."""
 - `host/tests/test_stackchan_notify.py` (74): no header
@@ -1968,22 +2002,19 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_sight.py` (197): Honest answers to "can you see me?" and the picture questions."""
 - `host/tests/test_stackchan_soak.py` (84): Bounded fake-peer soak checks for StackChan camera and reconnect paths."""
 - `host/tests/test_stackchan_song_title_and_phrases.py` (191): The song title keeper (re-sends the title while the song plays) and the beat phrases that
-- `host/tests/test_stackchan_sounds.py` (713): The StackChan's sounds on the host: the play_sound mapping, night and mute gating, quiet hours,
-- `host/tests/test_stackchan_sounds_core.py` (115): The unit's sound logic (firmware patch 115) is plain C: compile and run its test on the host."""
+- `host/tests/test_stackchan_sounds.py` (709): The StackChan's sounds on the host: the play_sound mapping, night and mute gating, quiet hours,
 - `host/tests/test_stackchan_speech_speed.py` (157): Item 11: one speech speed and pitch setting per unit, on the settings page and in the speech output."""
 - `host/tests/test_stackchan_stop_phrases.py` (159): A spoken "stop" while listening ends the turn on the robot (owner request 2026-10-21)."""
-- `host/tests/test_stackchan_tailnet_core.py` (88): The robot's tailnet client: its pure choices (firmware patch 147), plain C, run on the host."""
 - `host/tests/test_stackchan_tailnet_travel.py` (257): Travel with the private network (firmware patches TN01 to TN06): the pure choices in plain C, the key and addr
 - `host/tests/test_stackchan_talk_games.py` (490): ruff: noqa: E501
 - `host/tests/test_stackchan_timers.py` (242): On-unit timers, host side: a fake unit that behaves like firmware patches 090 to 094."""
-- `host/tests/test_stackchan_timers_core.py` (63): The on-unit timer logic (firmware patch 090) is plain C: compile and run its test on the host."""
-- `host/tests/test_stackchan_touch_core.py` (167): The face touch classifier (firmware patch 105) is plain C: compile and run its test on the host.
 - `host/tests/test_stackchan_train2_core.py` (81): The Train 2 cores (firmware patches T01 to T05) are plain C: compile and run their test on the host, and check
 - `host/tests/test_stackchan_train3_core.py` (70): The Train 3 mood core (firmware patch M01) is plain C: compile and run its test on the host, and check the rul
 - `host/tests/test_stackchan_train4.py` (886): ruff: noqa: E501
-- `host/tests/test_stackchan_train6.py` (227): ruff: noqa: E501
+- `host/tests/test_stackchan_train6.py` (211): ruff: noqa: E501
 - `host/tests/test_stackchan_travel_host.py` (104): Travel with the private network, host side: a unit that reaches the hub over a private-network address connect
 - `host/tests/test_stackchan_turn.py` (989): StackChan voice-turn regressions, with the independent simulator peer."""
+- `host/tests/test_stackchan_two_units.py` (103): Two fake units connected to one XiaozhiServer: a tool call goes to the unit it names, a call that names none g
 - `host/tests/test_stackchan_units_config.py` (279): ruff: noqa: E501
 - `host/tests/test_stackchan_updater.py` (273): no header
 - `host/tests/test_stackchan_updating_route.py` (103): Loopback routes Home calls around a firmware flash (owner request 2026-10-20)."""
@@ -1997,7 +2028,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_volume.py` (259): Spoken volume control and the in-order face reset (owner request 2026-10-20)."""
 - `host/tests/test_stackchan_wake_look.py` (312): ruff: noqa: E501
 - `host/tests/test_stackchan_wifi_list.py` (353): The laptop relay: a tailnet peer that is not the unit's own address (plain Wi-Fi last leg).
-- `host/tests/test_stackchan_xiaozhi.py` (830): Offline fake-device protocol replay for StackChan xiaozhi."""
+- `host/tests/test_stackchan_xiaozhi.py` (832): Offline fake-device protocol replay for StackChan xiaozhi."""
 - `host/tests/test_stand_in_hub.py` (136): The bench stand-in for the hub's robot-facing routes, and the link faults it injects.
 - `host/tests/test_stand_in_hub_knobs.py` (94): The stand-in hub's voice-path knobs for the headless tests (recognition latency, scripted
 - `host/tests/test_state_feed.py` (23): State frames: typed, ordered, and stamped on one monotonic clock."""
@@ -2006,6 +2037,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_swipe_pages.py` (439): ruff: noqa: E501
 - `host/tests/test_thermal.py` (152): THERMAL-01: the warm Compute Module slows, says so, never crashes."""
 - `host/tests/test_timesync.py` (118): ROBOT-TIME-01: the robot's clock comes from the hub."""
+- `host/tests/test_token_scope.py` (31): A settings-token login (a phone) reaches the settings pages but not the host-only controls."""
 - `host/tests/test_tool_parity.py` (45): Every unit tool name the host sends is defined by a firmware patch or stated in tool_parity.py."""
 - `host/tests/test_touch_detector.py` (52): A clip ends at 1.0 s; the full post-drive suppression is 260 ms.
 - `host/tests/test_touch_wiring.py` (62): TOUCH-01 glue: the loop reads the worker's antenna probe and reacts."""
@@ -2015,9 +2047,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_unit_hardware.py` (160): The measurement rows' unit-ready checks: what has to hold on the physical Reachy Mini
 - `host/tests/test_unit_lock.py` (470): ruff: noqa: E501
 - `host/tests/test_unit_lock_voice.py` (200): ruff: noqa: E501
-- `host/tests/test_unit_polish_routes.py` (271): ruff: noqa: E501
+- `host/tests/test_unit_polish_routes.py` (272): ruff: noqa: E501
 - `host/tests/test_unit_update_check.py` (298): ruff: noqa: E501
-- `host/tests/test_virtual_unit.py` (154): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
+- `host/tests/test_virtual_unit.py` (173): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
 - `host/tests/test_virtual_unit_parity.py` (37): Tool parity: every firmware tool is either simulated or a named gap. Unsimulated tools xfail (strict), so this
 - `host/tests/test_vision_align.py` (113): FACE-01's own alignment math, checked against known transforms -
 - `host/tests/test_vision_capture.py` (47): The still-image call's bot-side capture path
@@ -2029,28 +2061,30 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vision_yunet.py` (184): JPEG decoding and the YuNet runner, without OpenCV or the Reachy SDK."""
 - `host/tests/test_voice_server.py` (226): VOICE-01: the speech process served over the shared voice contract."""
 - `host/tests/test_voiceprint.py` (191): SPEAK-01: voice evidence in the body. Fake embedders only; no real model."""
-- `host/tests/test_vu_tools_apps.py` (73): Shape and state checks for the virtual unit apps tools."""
-- `host/tests/test_vu_tools_audio.py` (65): Coverage for the virtual unit audio and adjacent tool group."""
-- `host/tests/test_vu_tools_banner_screen.py` (44): Behavior checks for virtual banner and screen tools."""
-- `host/tests/test_vu_tools_face.py` (89): Face tool behavior in the virtual unit."""
-- `host/tests/test_vu_tools_face2.py` (52): no header
-- `host/tests/test_vu_tools_facepic.py` (44): no header
-- `host/tests/test_vu_tools_motion.py` (55): One unit owns the reminder queue for create, list and stop.
-- `host/tests/test_vu_tools_network.py` (73): State and response checks for the virtual unit network tool group."""
-- `host/tests/test_vu_tools_page_overlay.py` (62): no header
-- `host/tests/test_vu_tools_pages_filler_mood.py` (48): no header
+- `host/tests/test_vu_tools_apps.py` (95): Shape and state checks for the virtual unit apps tools."""
+- `host/tests/test_vu_tools_audio.py` (116): Coverage for the virtual unit audio and adjacent tool group."""
+- `host/tests/test_vu_tools_banner_screen.py` (47): Behavior checks for virtual banner and screen tools."""
+- `host/tests/test_vu_tools_face.py` (117): Face tool behavior in the virtual unit."""
+- `host/tests/test_vu_tools_face2.py` (60): no header
+- `host/tests/test_vu_tools_facepic.py` (73): Actual firmware keys and defaults are accepted regardless of selected mode.
+- `host/tests/test_vu_tools_motion.py` (62): One unit owns the reminder queue for create, list and stop.
+- `host/tests/test_vu_tools_network.py` (76): State and response checks for the virtual unit network tool group."""
+- `host/tests/test_vu_tools_page_overlay.py` (74): no header
+- `host/tests/test_vu_tools_pages_filler_mood.py` (57): no header
+- `host/tests/test_vu_tools_user_only.py` (30): Behavior checks for the virtual unit user-only tools."""
 - `host/tests/test_wake.py` (104): G2's own acceptance: the wake state machine, driven by a fake engine."""
 - `host/tests/test_wake_engine_real_model.py` (128): G2's real-model acceptance: `OpenWakeWordEngine` against the actual
 - `host/tests/test_wake_models.py` (91): Wake-word asset pins resolve through the paired hub cache."""
+- `host/tests/test_wakeword_scripts.py` (88): The split is by source recording: no validation feature row may equal a training row."""
 - `host/tests/test_watch_levels.py` (349): FACE-WATCH-01: the always-on vision watch under watch levels, against
 - `host/tests/test_watch_run_loop.py` (75): FACE-WATCH-01: the run loop's hook for the vision watch."""
-- `host/tests/test_web_ticket.py` (52): The unit gets a session ticket for the web port, never its long-lived pairing token."""
+- `host/tests/test_web_ticket.py` (86): The unit gets a session ticket for the web port, never its long-lived pairing token."""
 - `host/tests/test_wire_packs.py` (359): ruff: noqa: E501
 - `host/tests/voice_fakes.py` (123): Scripted engines and a scripted capture for the speech-process tests."""
 - `schema/.gitkeep` (0): no header
 - `schema/base-tools.json` (10): no header
 - `schema/tools.json` (547): no header
-- `scripts/boundary-check.sh` (28): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
+- `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (security finding 3).
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (security finding 3).
@@ -2065,13 +2099,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/build.sh` (37): draw the real face (LVGL and the unit's own face classes) into memory on this Mac, so a look can be judged and
 - `scripts/fw-face-render/games_render.cc` (244): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
-- `scripts/fw-face-render/hooks_banner.cc` (232): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
+- `scripts/fw-face-render/hooks_banner.cc` (247): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
 - `scripts/fw-face-render/hooks_new.cc` (57): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
 - `scripts/fw-face-render/lock_render.sh` (25): draw the lock screen and the keypad with the real LVGL and the unit's own drawing code (maipai_lock_draw.h) on
 - `scripts/fw-face-render/overlays_render.sh` (14): rebuild the host renderer with the overlay engine, the banner row and the subtitle strip, and write every over
 - `scripts/fw-face-render/pages_render.sh` (15): rebuild the host renderer with the swipe pages and the control sheet (patch P12) and write every page and the 
-- `scripts/fw-face-render/render.cc` (230): Host renderer: the real LVGL and the real face classes, drawn into memory. Commands come from stdin, one per l
+- `scripts/fw-face-render/render.cc` (237): Host renderer: the real LVGL and the real face classes, drawn into memory. Commands come from stdin, one per l
 - `scripts/fw-face-render/render_fx.cc` (274): Host renderer with the overlay engine, the screen effects and the speech bubble (patches TA02 to TA04): the re
 - `scripts/fw-face-render/render_hooks.h` (9): pragma once
 - `scripts/fw-face-render/render_ov.cc` (369): Host renderer with the overlay engine (three layers, the named combinations, the text zones left alone: patch 
@@ -2101,9 +2135,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
 - `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.
+- `scripts/measure-mouth-cues.py` (30): print the mouth cue rate and levels for a speech WAV (16-bit mono or stereo), to check the 4 to 11 a second ba
 - `scripts/measure-turn.py` (134): Measure first model token and first speech audio from a local compatible service."""
 - `scripts/patch-replay.sh` (53): Identify genuinely added files separately from missing existing paths.
 - `scripts/psram-stack-lint.py` (181): Fail when a task whose stack is in PSRAM can reach flash or saved settings (patches TC02 and FM05).
+- `scripts/regen-core-tables.py` (26): Regenerate the tables the host page draws from, as the unit's cores print them after the whole firmware/patche
 - `scripts/repo-map.sh` (19): generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line),
 - `scripts/run-bg.sh` (18): run a long command (firmware build, flash, soak, gate) with its full output in a log file and
 - `scripts/spec-dir.sh` (4): no header
@@ -2112,31 +2148,39 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/spelling-check.py` (98): fail on British spellings in text files (owner rule 2026-11-16: American spelling everywhere).
 - `scripts/stackchan-egress-proof.sh` (66): no header
 - `scripts/stackchan-no-third-party.sh` (119): Hostnames only: the image legitimately carries board and class names such as M5StackCoreS3Board.
+- `scripts/test-all.sh` (9): the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. Run 
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
 - `scripts/virtual-unit/build-face.sh` (19): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (30): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
+- `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions (U-1): white faces, a mouth wide enough to read, no h
+- `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
 - `scripts/virtual-unit/gitify.py` (29): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
 - `scripts/virtual-unit/listen_guard.c` (22): Harness for the listening guard (patch SF03): runs the guard loop of Application::Run once a second through th
 - `scripts/virtual-unit/make_briefs.py` (57): Write lane briefs for the tools the virtual unit does not simulate yet, in chunks of at most 7 tools of one or
-- `scripts/virtual-unit/scenarios.py` (163): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (181): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/tools/__init__.py` (15): Tool handlers for the virtual unit, one module per group. A handler is registered with @tool("self.x.y") and g
-- `scripts/virtual-unit/tools/apps.py` (174): Clock, game, lock, and timer tools for the virtual unit."""
-- `scripts/virtual-unit/tools/audio.py` (250): Audio, listening, music and unit utility tools for the virtual unit."""
+- `scripts/virtual-unit/tools/apps.py` (197): Clock, game, lock, and timer tools for the virtual unit."""
+- `scripts/virtual-unit/tools/audio.py` (277): Audio, listening, music and unit utility tools for the virtual unit."""
 - `scripts/virtual-unit/tools/banner_screen.py` (32): Virtual handlers for banner face reports and screen level reads."""
-- `scripts/virtual-unit/tools/face.py` (99): Virtual behavior for face bench and decorator tools."""
-- `scripts/virtual-unit/tools/face2.py` (96): Face configuration, clock, notes, and thinking tools."""
-- `scripts/virtual-unit/tools/facepic.py` (144): Virtual picture-face pack tools."""
-- `scripts/virtual-unit/tools/motion.py` (160): Virtual handlers for motion, look, reactions and basic robot tools."""
-- `scripts/virtual-unit/tools/network.py` (177): Network, update, pack and remote-control virtual unit tools."""
-- `scripts/virtual-unit/tools/page_overlay.py` (118): Virtual page and overlay tool handlers."""
-- `scripts/virtual-unit/tools/pages_filler_mood.py` (130): Virtual behavior for pages, filler and mood tools."""
-- `scripts/virtual-unit/tools/user_only.py` (86): Tools the firmware marks user-only (patches SF01 and SF02): the model's tool list hides them, a call by name s
+- `scripts/virtual-unit/tools/face.py` (140): Virtual behavior for face bench and decorator tools."""
+- `scripts/virtual-unit/tools/face2.py` (119): Face configuration, clock, notes, and thinking tools."""
+- `scripts/virtual-unit/tools/facepic.py` (183): Virtual picture-face pack tools."""
+- `scripts/virtual-unit/tools/motion.py` (192): Virtual handlers for motion, look, reactions and basic robot tools."""
+- `scripts/virtual-unit/tools/network.py` (187): Network, update, pack and remote-control virtual unit tools."""
+- `scripts/virtual-unit/tools/page_overlay.py` (123): Virtual page and overlay tool handlers."""
+- `scripts/virtual-unit/tools/pages_filler_mood.py` (155): Virtual behavior for pages, filler and mood tools."""
+- `scripts/virtual-unit/tools/user_only.py` (93): Tools the firmware marks user-only (patches SF01 and SF02): the model's tool list hides them, a call by name s
 - `scripts/virtual-unit/tools_extract.py` (90): Write schema/tools.json: every MCP tool name the firmware patches register, with the patch that adds it.
 - `scripts/virtual-unit/ui_style_check.py` (28): Count the font sizes and color literals the app screen sources use (U-2), on the overlay tree built by build-f
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
 - `scripts/virtual-unit/view.html` (106): app{display:flex;height:100%}
 - `scripts/virtual-unit/view.py` (128): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
 - `scripts/virtual-unit/vunit.py` (259): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
+- `scripts/wakeword/README.md` (17): Local wake word experiment
+- `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
+- `scripts/wakeword/features.py` (77): Small, dependency-light audio helpers for local wake-word experiments."""
+- `scripts/wakeword/make_dataset.py` (153): Build an augmented, local train/validation dataset."""
+- `scripts/wakeword/train_kws.py` (102): Train a small NumPy MLP keyword classifier."""
