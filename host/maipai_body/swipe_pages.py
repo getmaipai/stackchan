@@ -33,13 +33,14 @@ TABLE_PATH = Path(__file__).with_name("pages_table.json")
 
 PAGES = ("clock", "timers", "games", "actions", "frame", "tiles")
 ACTIONS = ("beep", "dance", "game", "hello")
+LEGACY_LIGHT = "light"  # patch NX01: the sheet item saved as "light" is the Lock tile now; the old name is read as the same item in the same place
 LEGACY_FIND = "find"  # the removed find-me button: an old saved choice or an old caller may still name it; it is read and dropped
 SHEET_ITEMS = (
     "volume",
     "brightness",
     "mute",
     "quiet",
-    "light",
+    "lock",
     "timers",
     "games",
     "wifi",
@@ -55,7 +56,7 @@ IDLE_S = (5, 300)
 ACTIONS_COUNT = (2, 4)
 MAX_SLIDERS, MAX_TILES, MAX_STATUS = 2, 5, 4
 SLIDERS = ("volume", "brightness")
-TILE_ITEMS = ("mute", "quiet", "light", "timers", "games")
+TILE_ITEMS = ("mute", "quiet", "lock", "timers", "games")
 STATUS_ITEMS = ("wifi", "battery", "tailnet", "address")
 TILES_MAX = 6
 TILE_LABEL = 12
@@ -72,7 +73,7 @@ DEFAULTS: dict[str, Any] = {
         "brightness",
         "mute",
         "quiet",
-        "light",
+        "lock",
         "timers",
         "games",
         "wifi",
@@ -89,7 +90,7 @@ ERR_IDLE_S = "A page returns to the face after 5 to 300 seconds. Send a number f
 ERR_ACTION = (
     "Quick actions are beep, dance, game and hello. Send 2 to 4 of those names, each once."
 )
-ERR_ITEM = "A sheet item is volume, brightness, mute, quiet, light, timers, games, wifi, battery, tailnet or address, each once."
+ERR_ITEM = "A sheet item is volume, brightness, mute, quiet, lock, timers, games, wifi, battery, tailnet or address, each once."
 ERR_ITEM_FULL = "The sheet holds up to 2 sliders, 5 buttons and 4 status lines. Remove one and send the list again."
 
 SAY: dict[str, tuple[str, str]] = {
@@ -141,13 +142,16 @@ def _names(
 
 
 def migrate(values: dict[str, Any]) -> dict[str, Any]:
-    """An older choice, read the way the unit reads it (patch UI01): find me is dropped from the actions and the sheet, too few actions left
+    """An older choice, read the way the unit reads it (patches UI01 and NX01): the old "light" sheet item is the Lock tile, find me is dropped from the actions and the sheet, too few actions left
     after that are topped up in their usual order, and a sheet time under the new shortest is raised to it. Never an error."""
     out = dict(values)
     had_find = isinstance(out.get("actions"), list) and LEGACY_FIND in out["actions"]
     for key in ("actions", "sheet_items"):
         if isinstance(out.get(key), list):
             out[key] = [x for x in out[key] if x != LEGACY_FIND]
+    if isinstance(out.get("sheet_items"), list):
+        mapped = ["lock" if x == LEGACY_LIGHT else x for x in out["sheet_items"]]
+        out["sheet_items"] = [x for i, x in enumerate(mapped) if x != "lock" or "lock" not in mapped[:i]]
     if had_find and all(isinstance(x, str) for x in out["actions"]):
         for name in ACTIONS:
             if len(out["actions"]) >= ACTIONS_COUNT[0]:

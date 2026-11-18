@@ -24,7 +24,7 @@ static void test_table(void)
     CHECK(MP_COUNT == 19); /* the host's 17 (patch N01 added captions_mode and top_bar, patch S11 turn_to_faces) and pickup_reaction, which the pickup patch reads, and status_icons (patch UI04) */
     CHECK(strcmp(MP_DEFS[MP_CAPTIONS_MODE].key, "captions_mode") == 0 && MP_DEFS[MP_CAPTIONS_MODE].unit == 1 && MP_DEFS[MP_CAPTIONS_MODE].def == 0);
     CHECK(strcmp(MP_DEFS[MP_TOP_BAR].key, "top_bar") == 0 && MP_DEFS[MP_TOP_BAR].unit == 1 && MP_DEFS[MP_TOP_BAR].def == 0);
-    CHECK(strcmp(MP_DEFS[MP_TURN_TO_FACES].key, "turn_to_faces") == 0 && MP_DEFS[MP_TURN_TO_FACES].unit == 1 && MP_DEFS[MP_TURN_TO_FACES].def == 1 && strlen(MP_DEFS[MP_TURN_TO_FACES].nvs) <= 15);
+    CHECK(strcmp(MP_DEFS[MP_TURN_TO_FACES].key, "turn_to_faces") == 0 && MP_DEFS[MP_TURN_TO_FACES].unit == 1 && MP_DEFS[MP_TURN_TO_FACES].def == 2 && strlen(MP_DEFS[MP_TURN_TO_FACES].nvs) <= 15);
     CHECK(strcmp(MP_DEFS[MP_PICKUP_REACTION].key, "pickup_reaction") == 0 && MP_DEFS[MP_PICKUP_REACTION].unit == 0);
     for (int i = 0; i < MP_COUNT; i++) {
         if (i < 17) CHECK(strcmp(MP_DEFS[i].key, host[i]) == 0);

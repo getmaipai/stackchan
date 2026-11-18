@@ -1,0 +1,233 @@
+# Intent: A small face glyph in the banner status strip, next to the microphone glyph, shows while a face was seen in the last 3 seconds, only while the Status icons switch is on (UI04 rules). It is its own strip slot, so it never replaces or covers the camera cue, the remote chip, the privacy cues or the battery and Wi-Fi glyphs. New unit tool self.banner.face_seen {seconds} (default 3, at most 10) sets the glyph; reports closer than half a second apart are ignored, so the host and the unit's own detector (FD patches, which call the same internal function when they find a face) may both report. The glyph and its timing rules live in maipai_status_core.h and maipai_banner_core.h (MB_FLAG_FACE sits right after MB_FLAG_MIC), the drawing in maipai_banner.cc.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_status_core.h, maipai_banner_core.h, maipai_banner.h, maipai_banner.cc, maipai_banner_tools.cc, hal_mcp.cpp, maipai_facedet.cc (ours)
+# Check after a flash: with the Status icons switch on (self.prefs.set status_icons on), self.banner.face_seen {"seconds":3} shows a small face glyph next to the mic glyph that goes by itself after 3 s; with the switch off the answer says shown false and nothing is drawn.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_status_core.h b/firmware/main/hal/maipai_status_core.h
+--- a/firmware/main/hal/maipai_status_core.h
++++ b/firmware/main/hal/maipai_status_core.h
+@@ -45,4 +45,29 @@ static inline uint32_t mst_mic_hold_until(uint32_t now)
+     return t == 0u ? 1u : t;
+ }
+ 
++/* The face-seen glyph (patch NX05): a small face in the strip next to the mic glyph while a face was seen in the last few seconds. The unit's own
++ * detector and the host's face model both report a face; a report keeps the glyph for `seconds` (default 3, at most 10), and reports closer than
++ * MST_FACE_RATE_MS apart are ignored, so a detector at 5 Hz never makes the row work harder than it must. Like the status messages it shows only
++ * while the "Status icons" setting is on, and it never takes the place of the camera cue, the remote chip, the privacy cues or the lock cue (the
++ * strip holds every glyph side by side). */
++#define MST_FACE_SECONDS_DEFAULT 3
++#define MST_FACE_SECONDS_MAX 10
++#define MST_FACE_RATE_MS 500u
++
++static inline uint32_t mst_face_hold_ms(int seconds)
++{
++    if (seconds <= 0) {
++        seconds = MST_FACE_SECONDS_DEFAULT;
++    }
++    if (seconds > MST_FACE_SECONDS_MAX) {
++        seconds = MST_FACE_SECONDS_MAX;
++    }
++    return (uint32_t)seconds * 1000u;
++}
++/* A report is taken when none was taken in the last MST_FACE_RATE_MS (last_ms 0: none yet). */
++static inline int mst_face_due(uint32_t last_ms, uint32_t now)
++{
++    return last_ms == 0u || (uint32_t)(now - last_ms) >= MST_FACE_RATE_MS;
++}
++
+ #endif /* MAIPAI_STATUS_CORE_H */
+diff --git a/firmware/main/hal/maipai_banner_core.h b/firmware/main/hal/maipai_banner_core.h
+--- a/firmware/main/hal/maipai_banner_core.h
++++ b/firmware/main/hal/maipai_banner_core.h
+@@ -70,7 +70,8 @@ enum {
+     MB_ICON_COUNT
+ };
+ enum { MB_TAG_NONE = 0, MB_TAG_CAPTION, MB_TAG_VOLUME, MB_TAG_SAY, MB_TAG_CUE, MB_TAG_FIND, MB_TAG_LINK, MB_TAG_GAME, MB_TAG_STATUS /* patch UI04: heard, listening, thinking */ };
+-enum { MB_FLAG_MIC = 0, MB_FLAG_CAMERA, MB_FLAG_REMOTE, MB_FLAG_BATTERY, MB_FLAG_WIFI, MB_FLAG_COUNT };
++/* Patch NX05: MB_FLAG_FACE (a face was seen, shown only while the status icons setting is on) sits next to the mic glyph. */
++enum { MB_FLAG_MIC = 0, MB_FLAG_FACE, MB_FLAG_CAMERA, MB_FLAG_REMOTE, MB_FLAG_BATTERY, MB_FLAG_WIFI, MB_FLAG_COUNT };
+ enum { MB_FIT_ONE = 0, MB_FIT_MARQUEE };
+ enum { MB_BAR_HIDDEN = 0, MB_BAR_ALWAYS = 1 }; /* the "Top bar" setting */
+ 
+diff --git a/firmware/main/hal/maipai_banner.h b/firmware/main/hal/maipai_banner.h
+--- a/firmware/main/hal/maipai_banner.h
++++ b/firmware/main/hal/maipai_banner.h
+@@ -38,6 +38,12 @@ void maipai_banner_flag(int flag, bool on, uint32_t hold_ms);
+ void maipai_banner_set_status_icons(bool on);
+ void maipai_banner_status(int kind, bool spanish);
+ void maipai_banner_status_clear();
++// Patch NX05: a face was seen (the unit's detector or the host's face model): the face glyph shows in the strip for `seconds` (0: 3, at most 10),
++// only while the status icons setting is on. Safe from any task, takes no LVGL lock. Returns true when the glyph was set, false when the setting
++// is off or the report came within MST_FACE_RATE_MS of the last one (the glyph then simply keeps its own timer).
++bool maipai_banner_face_seen(int seconds);
++// self.banner.face_seen (patch NX05).
++void maipai_banner_register_tools();
+ // Patch WF01: a screen that is itself about Wi-Fi is up (the connecting and setup cover, the Wi-Fi page): the strip draws no Wi-Fi glyph over it.
+ void maipai_banner_wifi_screen(bool on);
+ void maipai_banner_mic(bool live);
+diff --git a/firmware/main/hal/maipai_banner.cc b/firmware/main/hal/maipai_banner.cc
+--- a/firmware/main/hal/maipai_banner.cc
++++ b/firmware/main/hal/maipai_banner.cc
+@@ -37,6 +37,7 @@ lv_obj_t* s_clip = nullptr;
+ lv_obj_t* s_label = nullptr;
+ lv_obj_t* s_strip = nullptr;
+ lv_obj_t* s_glyph[MB_FLAG_COUNT] = {};
++lv_obj_t *s_face_head = nullptr, *s_face_eye_a = nullptr, *s_face_eye_b = nullptr, *s_face_mouth = nullptr;  // patch NX05: the face glyph, painted with the foreground
+ lv_obj_t* s_batt_fill = nullptr;
+ lv_obj_t* s_batt_nub = nullptr;
+ lv_obj_t* s_wifi_bars[4] = {};
+@@ -202,6 +203,12 @@ void build_glyph(int i)
+             fill(stem, lv_color_make(255, 90, 80));
+             break;
+         }
++        case MB_FLAG_FACE:  // a face was seen (patch NX05): a round head outline, two eyes and a smile
++            s_face_head = box(s_glyph[i], 1, 0, 18, 18, LV_RADIUS_CIRCLE);
++            s_face_eye_a = box(s_glyph[i], 6, 6, 3, 3, LV_RADIUS_CIRCLE);
++            s_face_eye_b = box(s_glyph[i], 12, 6, 3, 3, LV_RADIUS_CIRCLE);
++            s_face_mouth = box(s_glyph[i], 6, 12, 8, 2, 1);
++            break;
+         case MB_FLAG_CAMERA:  // camera on: a rounded outline with a filled lens
+             s_cam_a = box(s_glyph[i], 0, 1, 20, 15, 4);
+             s_cam_b = box(s_cam_a, 0, 0, 7, 7, LV_RADIUS_CIRCLE);
+@@ -241,6 +248,7 @@ void delete_glyph(int i)
+     lv_obj_delete(s_glyph[i]);
+     s_glyph[i] = nullptr;
+     if (i == MB_FLAG_CAMERA) s_cam_a = s_cam_b = nullptr;
++    if (i == MB_FLAG_FACE) s_face_head = s_face_eye_a = s_face_eye_b = s_face_mouth = nullptr;
+     if (i == MB_FLAG_BATTERY) s_batt_fill = s_batt_nub = nullptr;
+     if (i == MB_FLAG_WIFI) {
+         for (auto& w : s_wifi_bars) w = nullptr;
+@@ -250,6 +258,14 @@ void delete_glyph(int i)
+ 
+ void paint_strip(lv_color_t fg)
+ {
++    if (s_face_head != nullptr) {
++        lv_obj_set_style_border_color(s_face_head, fg, 0);
++        lv_obj_set_style_border_width(s_face_head, 2, 0);
++        lv_obj_set_style_bg_opa(s_face_head, LV_OPA_TRANSP, 0);
++        fill(s_face_eye_a, fg);
++        fill(s_face_eye_b, fg);
++        fill(s_face_mouth, fg);
++    }
+     if (s_cam_a != nullptr) {
+         lv_obj_set_style_border_color(s_cam_a, fg, 0);
+         lv_obj_set_style_border_width(s_cam_a, 2, 0);
+@@ -317,6 +333,7 @@ void teardown_strip()
+     s_strip = nullptr;
+     for (int i = 0; i < MB_FLAG_COUNT; i++) s_glyph[i] = nullptr;
+     s_cam_a = s_cam_b = s_batt_fill = s_batt_nub = s_wifi_slash = nullptr;
++    s_face_head = s_face_eye_a = s_face_eye_b = s_face_mouth = nullptr;  // patch NX05: the face glyph's objects went with the strip
+     for (auto& w : s_wifi_bars) w = nullptr;
+ }
+ 
+@@ -432,6 +449,7 @@ void apply_opacity()
+ 
+ std::atomic<bool> s_status_icons{false};
+ std::atomic<bool> s_mic_event{false};
++std::atomic<uint32_t> s_face_last_ms{0};  // patch NX05: when the last face report was taken
+ std::atomic<uint32_t> s_mic_hold{0};
+ bool s_mic_polled = false;
+ 
+@@ -571,9 +589,26 @@ void maipai_banner_set_status_icons(bool on)
+     s_status_icons.store(on);
+     if (!on) {
+         maipai_banner_status_clear();
++        maipai_banner_flag(MB_FLAG_FACE, false, 0);  // patch NX05: the face glyph follows the same switch
+     }
+ }
+ 
++bool maipai_banner_face_seen(int seconds)
++{
++    if (s_b == nullptr || !s_status_icons.load()) {
++        return false;
++    }
++    const uint32_t now = now_ms();
++    uint32_t last = s_face_last_ms.load();
++    if (!mst_face_due(last, now)) {
++        return false;
++    }
++    s_face_last_ms.store(now | 1u);
++    std::lock_guard<std::mutex> lock(s_mu);
++    mb_flag(s_b, MB_FLAG_FACE, 1, now, mst_face_hold_ms(seconds));
++    return true;
++}
++
+ void maipai_banner_status(int kind, bool spanish)
+ {
+     if (!s_status_icons.load() || s_b == nullptr) {
+diff --git a/firmware/main/hal/maipai_banner_tools.cc b/firmware/main/hal/maipai_banner_tools.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_banner_tools.cc
+@@ -0,0 +1,26 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * self.banner.face_seen (patch NX05): the host's face model, or the unit's own detector, says a face was seen; the face glyph shows in the banner
++ * strip next to the mic glyph for a few seconds. Logic: maipai_status_core.h (hold and rate). Drawing: maipai_banner.cc.
++ */
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_BANNER_ROW
++#include "maipai_banner.h"
++#include <mcp_server.h>
++#include <string>
++
++void maipai_banner_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.banner.face_seen",
++                "A face was seen: shows a small face glyph in the banner strip, next to the microphone glyph, for `seconds` (default 3, at most 10), only while "
++                "the Status icons setting is on. Reports closer than half a second apart are ignored. Answers {ok, shown, reason}; reason is status_icons_off "
++                "or rate_limited when shown is false.",
++                PropertyList({Property("seconds", kPropertyTypeInteger, 3, 1, 10)}), [](const PropertyList& properties) -> ReturnValue {
++                    const bool shown = maipai_banner_face_seen(properties["seconds"].value<int>());
++                    return std::string(shown ? "{\"ok\":true,\"shown\":true}" : "{\"ok\":true,\"shown\":false,\"reason\":\"status_icons_off_or_rate_limited\"}");
++                });
++}
++#endif
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -28,6 +28,7 @@
+ #include "maipai_facebench.h"
+ #include "maipai_picface.h"
+ #include "maipai_screen.h"
++#include "maipai_banner.h"
+ #include "maipai_listen.h"
+ #include "maipai_filler.h"
+ #include "maipai_packs.h"
+@@ -708,6 +709,11 @@ void Hal::xiaozhi_mcp_init()
+     // self.pages.status, get, set, self.page.show and self.page.tiles (patch P13).
+     maipai_pages_unit_register_tools();
+ 
++    // self.banner.face_seen (patch NX05).
++#if CONFIG_MAIPAI_BANNER_ROW
++    maipai_banner_register_tools();
++#endif
++
+     // self.face.bench_fps, bench_run and snapshot (patch H01, bench builds only).
+     maipai_facebench_register_tools();
+ 
+diff --git a/firmware/main/hal/maipai_facedet.cc b/firmware/main/hal/maipai_facedet.cc
+--- a/firmware/main/hal/maipai_facedet.cc
++++ b/firmware/main/hal/maipai_facedet.cc
+@@ -21,6 +21,7 @@
+ #if defined(CONFIG_MAIPAI_FACE_DETECT) && CONFIG_MAIPAI_FACE_DETECT
+ 
+ #include "maipai_privacy.h"
++#include "maipai_banner.h"
+ #include "board/hal_bridge.h"
+ #include "board/stackchan_camera.h"
+ #include <esp_heap_caps.h>
+@@ -252,6 +253,9 @@ void publish(const One& o, uint32_t picture_at)
+         s_face = f;
+         taskEXIT_CRITICAL(&s_face_mux);
+         s_have_face_at = true;
++#if CONFIG_MAIPAI_BANNER_ROW
++        maipai_banner_face_seen(0);  // patch NX05: the face glyph in the banner strip (only while the status icons are on; rate limited inside)
++#endif
+     }
+ }
+ 

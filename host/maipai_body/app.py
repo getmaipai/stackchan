@@ -1935,7 +1935,14 @@ class StackChanBehavior:
         """One pass of the rest policy: drop the head and sleepy face after a long quiet spell."""
         person = now - self._last_person_seen < 30.0
         before = self._rest.stage
-        output = self._rest.update(now, person_present=person, turn_active=self._active.is_set())
+        music_playing = False
+        try:
+            music_playing = bool(getattr(self, "music_heard_recently", lambda: False)())
+        except Exception:
+            music_playing = False
+        output = self._rest.update(
+            now, person_present=person, turn_active=self._active.is_set() or music_playing
+        )
         if output.stage != before:
             self._note_own_move()  # the rest pose moves the head: that motion is the robot's own
         self._with_lease(
@@ -2453,6 +2460,45 @@ def _turn_sink(behavior, light, faces=None, devices=None):
     return sink
 
 
+async def _start_encrypted_listeners(voice, avatar) -> None:
+    """Open the encrypted ports next to the plain ones, on every interface (LAN and tailnet alike).
+
+    A PSK link checks no hostname and no certificate, so the same listener serves any address.
+    MAIPAI_LINK_BIND picks another address; MAIPAI_LINK_*_PORT override the port numbers."""
+    from maipai_body.bodies.stackchan.xiaozhi import link_security as ls
+
+    bind = os.environ.get("MAIPAI_LINK_BIND", "0.0.0.0")
+    try:
+        voice_port = int(os.environ.get("MAIPAI_LINK_VOICE_PORT", ls.VOICE_TLS_PORT))
+        avatar_port = int(os.environ.get("MAIPAI_LINK_AVATAR_PORT", ls.AVATAR_TLS_PORT))
+        http_port = int(os.environ.get("MAIPAI_LINK_HTTP_PORT", ls.HTTP_TLS_PORT))
+    except ValueError as exc:
+        raise ValueError(
+            "The encrypted link ports must be TCP port numbers. Set MAIPAI_LINK_VOICE_PORT, "
+            "MAIPAI_LINK_AVATAR_PORT and MAIPAI_LINK_HTTP_PORT to free ports."
+        ) from exc
+    try:
+        await voice.start_encrypted(bind, voice_port, http_port)
+        await avatar.start_encrypted(bind, avatar_port)
+    except OSError as exc:
+        logger.warning(
+            "The encrypted StackChan link could not start (%s). Free ports %s, %s and %s, then "
+            "restart the bot; plain links still work.",
+            type(exc).__name__,
+            voice_port,
+            avatar_port,
+            http_port,
+        )
+        return
+    logger.info(
+        "StackChan encrypted link (TLS-PSK) listening on %s: voice %s, avatar %s, http %s",
+        bind,
+        voice_port,
+        avatar_port,
+        http_port,
+    )
+
+
 async def _serve_stackchan_channels(
     stop_event: threading.Event,
     host: str,
@@ -2484,6 +2530,12 @@ async def _serve_stackchan_channels(
         advertised_vision_url=os.environ.get("MAIPAI_VISION_URL"),
     )
     avatar = AvatarServer(pairing)
+    # The encrypted robot link (TLS 1.2 with a pre-shared key; xiaozhi/link_security.py).
+    from maipai_body.bodies.stackchan.xiaozhi.link_security import LinkSecurity
+
+    link_security = LinkSecurity(pairing)
+    voice.link = link_security
+    avatar.link = link_security
     # Several robots: every unit's brain, persona, volume cap and alarms are picked by its
     # Device-Id (units.py); an unknown unit gets the top-level settings.
     from maipai_body.units import registry_from_disk
@@ -2526,6 +2578,11 @@ async def _serve_stackchan_channels(
     except Exception as exc:
         # One line, not a traceback: the cause is almost always a package the bundle lacks.
         logger.warning("StackChan face watching is unavailable (%s: %s)", type(exc).__name__, exc)
+    if vision is not None:
+        # Firmware patch NX05: a face found by the host's model lights the unit's small face glyph (rate limited, never waits).
+        from maipai_body.bodies.stackchan.face_seen import FaceSeenSignal
+
+        vision.on_face_seen = FaceSeenSignal(voice.robot.client._call).note
     behavior = StackChanBehavior(
         voice.robot.robot, vision_bridge=vision, baseline_path=_data_dir() / "scene_baseline.json"
     )
@@ -3030,9 +3087,10 @@ async def _serve_stackchan_channels(
             light,
         )
     await voice.start(host, xiaozhi_port, ssl=tls_context)
-    settings_server = _start_settings_page(voice, pairing, units, behavior, faces)
+    settings_server = _start_settings_page(voice, pairing, units, behavior, faces, link_security)
     try:
         await avatar.start(avatar_host, avatar_port, ssl=tls_context)
+        await _start_encrypted_listeners(voice, avatar)
         scheme = "wss" if cert_path else "ws"
         logger.info(
             "StackChan xiaozhi and avatar services listening on %s://%s:%s and %s://%s:%s",
@@ -3174,7 +3232,7 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
     voice.session_listeners.append(on_connect)
 
 
-def _start_settings_page(voice, pairing, units, behavior, faces=None):
+def _start_settings_page(voice, pairing, units, behavior, faces=None, link_security=None):
     """Serve the core settings page from the live host (loopback, port 8051; 0 turns it off).
 
     Also pushes each unit's own alarms to it, by Device-Id, whenever that unit connects."""
@@ -3235,6 +3293,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None):
         device=UnitDevice(_unit_call(voice)),
         remote=_unit_remote(voice),
         polish=getattr(voice, "polish", None),
+        link=link_security,
     )
     _wire_idle_setting(backend, units, behavior, voice)
     from maipai_body.settings_server import SettingsServer

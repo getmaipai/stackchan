@@ -56,7 +56,9 @@ class SettingsBackend:
         remote: remote_mod.UnitRemote | None = None,
         polish: Polish | None = None,
         activity: activity_mod.RemoteActivity | None = None,
+        link: Any = None,
     ) -> None:
+        self._link = link  # the encrypted robot link's policy (xiaozhi/link_security.py); no keys leave it
         self.devices, self.store = devices, store or UnitSettingsStore()
         self.live = live or (lambda _device_id: {})
         self.host_address = host_address
@@ -465,6 +467,10 @@ class SettingsBackend:
                 body = self.polish.prefs.view(device_id, lang)
             elif what == "pages":
                 body = self.polish.pages.view(device_id, lang)
+            elif what == "link":
+                if self._link is None:
+                    return 404, JSON, json.dumps({"error": "not found"}).encode()
+                body = self._link.view(device_id)
             elif what == "lock":
                 body = self.polish.lock.view(device_id, lang)
             elif what == "scenes":
@@ -618,6 +624,13 @@ class SettingsBackend:
                     device_id = rest[: -len(polish_action) - 1]
                     self._unit_known(device_id)
                     return self._polish_post(device_id, polish_action, values, lang)
+            if rest.endswith("/link") and self._link is not None:
+                device_id = rest[: -len("/link")]
+                self._unit_known(device_id)
+                try:
+                    return 200, {**self._link.set_mode(device_id, values.get("mode")), "message": "Saved."}
+                except ValueError as error:
+                    return 400, {"error": str(error)}
             if "/pictures/" in rest:
                 device_id, _, action = rest.partition("/pictures/")
                 return self._pictures_post(device_id, action, values, lang)

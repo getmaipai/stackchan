@@ -232,7 +232,9 @@ def judge(feat: MusicFeat, sensitivity: str = "medium", *, relaxed: bool = False
 
 
 STRONG_BEAT_TC = 40  # a tempo confidence this high is a real rhythm
-STRONG_BEAT_FL_MAX = 94  # so it may be a little flatter before it counts as noise (white noise is 97)
+STRONG_BEAT_FL_MAX = 94
+VOCAL_BEAT_TC = 45  # a tempo confidence this high is a beat even when the voice modulation is high
+VOCAL_BEAT_MO_MAX = 62  # above this the sound is speech whatever its tempo  # so it may be a little flatter before it counts as noise (white noise is 97)
 
 
 def judge_host(feat: MusicFeat, sensitivity: str = "medium", *, relaxed: bool = False) -> Verdict:
@@ -244,7 +246,13 @@ def judge_host(feat: MusicFeat, sensitivity: str = "medium", *, relaxed: bool = 
     if not verdict.music and verdict.why == "too_flat" and feat.tc >= STRONG_BEAT_TC and feat.fl <= STRONG_BEAT_FL_MAX:
         from dataclasses import replace
 
-        return judge(replace(feat, fl=80), sensitivity, relaxed=relaxed)
+        return judge_host(replace(feat, fl=80), sensitivity, relaxed=relaxed)
+    if not verdict.music and verdict.why == "speech_like_modulation" and feat.tc >= VOCAL_BEAT_TC and feat.mo <= VOCAL_BEAT_MO_MAX:
+        from dataclasses import replace
+
+        # A song with vocals modulates at 3 to 6 Hz like speech, but speech has no steady tempo: tc 45 or more is a beat.
+        # Real songs measured mo 50 to 55 with tc 51 to 58 on 2026-11-17 and were refused as speech.
+        return judge(replace(feat, mo=30), sensitivity, relaxed=relaxed)
     return verdict
 
 
@@ -379,6 +387,7 @@ class MusicDance:
         choose_face: Callable[[], str] | None = None,
         timing: Timing = NORMAL,
     ) -> None:
+        self.last_music_at = float("-inf")
         self._hooks = hooks
         self.settings = settings
         self._spawn = spawn or self._thread
@@ -444,6 +453,8 @@ class MusicDance:
             self._count_minute(now)
             relaxed = self.state in ("nod", "watch", "show", "calm", "break")
             verdict = judge_host(feat, self.settings.auto_sensitivity, relaxed=relaxed)
+            if verdict.music:
+                self.last_music_at = now  # the rest routine reads this: music playing keeps the robot awake
             self._talk.append(feat.ps >= TALKER_PS or feat.mo >= TALKER_MO)
             if verdict.music and self._talker_over():
                 verdict = Verdict(False, "talker_over_music")

@@ -1,0 +1,362 @@
+# Intent: The Apps wall and the Games wall look inviting. Each tile fills the zone (two columns of 154 by 90 px with 4 px gaps, the page dots in the strip under them) and has its own accent color, a large picture drawn from LVGL shapes when the wall opens (Color Memory's four colored quarters, a mole popping out of a mound, a tic-tac-toe grid with an X and an O, a pulse ring with an arrow for Do It, a fist, an open hand and scissors, a dark 8 ball with a triangle, two dice and a coin; Timers, Alarms, Clock, Quick actions, Pictures, Dashboard, Dance and Lock each have theirs) and the title in the 24 px font on a dark plate (a long title wraps on a taller plate in the 16 px font). The best score is a small pill in the corner of a game tile. A press brightens the tile and the tiles open one frame brighter, then settle. New host call game_id(i) names the game for its picture; an unknown game gets a play triangle. No bitmap and no font are added: the shapes are created when the wall opens and freed with it.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_apps_core.h, maipai_apps.cc, maipai_pages.h, maipai_pages_unit.cc (ours)
+# Check after a flash: Apps (sheet, Apps tile) and Games show colored tiles with pictures and 24 px titles, the dots under the tiles, nothing else behind the wall.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
+--- a/firmware/main/hal/maipai_apps_core.h
++++ b/firmware/main/hal/maipai_apps_core.h
+@@ -121,20 +121,60 @@ static inline int mac_app_strip_page(int app)
+     }
+ }
+ 
+-/* ---- the wall: two by two tiles of the Color Memory size, the dots below ---- */
++/* ---- the wall: two by two big tiles, the dots below ---- */
+ #define MAC_WALL_COLS 2
+ #define MAC_WALL_ROWS 2
+ #define MAC_WALL_PER_PAGE (MAC_WALL_COLS * MAC_WALL_ROWS)
+-#define MAC_WALL_TILE_W 138 /* as wide as the Color Memory tiles */
+-#define MAC_WALL_TILE_H 88  /* the memory tiles are 96 high; here the dots take the bottom strip */
++/* Patch NX08: the tiles fill the zone. Two columns with 4 px at the edges and between (4 + 154 + 4 + 154 + 4 = 320), two rows from the top of the zone
++ * (28 to 118 and 122 to 212); the page dots sit in the strip under them (centers at y 218, inside the zone that ends at 224). */
++#define MAC_WALL_TILE_W 154
++#define MAC_WALL_TILE_H 90
+ #define MAC_WALL_GAP 4
+-#define MAC_WALL_X0 20
++#define MAC_WALL_X0 4
+ #define MAC_WALL_Y0 28
+-#define MAC_WALL_DOTS_Y 216 /* the center of the dots: they sit under the tiles (which end at y 208) and above the zone's bottom edge */
++#define MAC_WALL_DOTS_Y 218
+ #define MAC_WALL_DOT_PITCH 14
+ #define MAC_WALL_DOT_ON 8
+ #define MAC_WALL_DOT_OFF 6
+ 
++/* Inside a tile (patch NX08): the picture box (48 by 44, centered, 6 px from the top), the dark label plate under it (the title in the 24 px font on
++ * a plate, so the words never sit on busy art) and, on the games wall, the best score as a small pill in the top right corner. */
++#define MAC_TILE_ART_W 48
++#define MAC_TILE_ART_H 44
++#define MAC_TILE_ART_Y 6
++#define MAC_TILE_PLATE_H 28
++#define MAC_TILE_PLATE_PAD 4
++static inline void mac_tile_art_box(int* x, int* y, int* w, int* h) { *x = (MAC_WALL_TILE_W - MAC_TILE_ART_W) / 2; *y = MAC_TILE_ART_Y; *w = MAC_TILE_ART_W; *h = MAC_TILE_ART_H; }
++static inline void mac_tile_plate_box(int* x, int* y, int* w, int* h) { *x = MAC_TILE_PLATE_PAD; *y = MAC_WALL_TILE_H - MAC_TILE_PLATE_PAD - MAC_TILE_PLATE_H; *w = MAC_WALL_TILE_W - 2 * MAC_TILE_PLATE_PAD; *h = MAC_TILE_PLATE_H; }
++
++/* Each item's own accent, 0xRRGGBB: the tile's background is this color at a quarter strength, its border at two thirds, and the picture is drawn in
++ * the bright color. Words stay on the dark plate and every item has its own picture, so color is never the only sign. */
++static const uint32_t MAC_APP_ACCENT[MAC_APP_COUNT] = {0x28BEBE /* timers */, 0xFAAA28 /* alarms */, 0x5AAAFF /* clock */, 0x965AE6 /* quick actions */,
++                                                       0x46BE6E /* pictures */, 0xF0783C /* dashboard */, 0xE646AA /* dance */, 0xA8B4C8 /* lock */};
++static inline uint32_t mac_game_accent(const char* id)
++{
++    static const struct { const char* id; uint32_t c; } T[] = {{"memory", 0x5B6CF0}, {"whack", 0x46A83C}, {"tictactoe", 0x2FA8C8}, {"bopit", 0x2F78F0},
++                                                              {"rps", 0xF09A32}, {"eightball", 0x7A5AD8}, {"dice", 0xD8505A}};
++    for (unsigned i = 0; id != NULL && i < sizeof(T) / sizeof(T[0]); i++) {
++        if (strcmp(T[i].id, id) == 0) {
++            return T[i].c;
++        }
++    }
++    return 0x8C96AA;
++}
++/* Strength in percent of an accent color for the tile (background, border, pressed). The tile never gets lighter than the label plate's contrast needs. */
++#define MAC_TILE_BG_PCT 26
++#define MAC_TILE_BORDER_PCT 70
++#define MAC_TILE_PRESSED_PCT 48
++static inline void mac_rgb(uint32_t c, int* r, int* g, int* b) { *r = (int)((c >> 16) & 255u); *g = (int)((c >> 8) & 255u); *b = (int)(c & 255u); }
++/* The relative brightness (0 to 255, integer luma) of an accent at a strength: the test keeps the tile background dark enough for light words. */
++static inline int mac_luma_pct(uint32_t c, int pct)
++{
++    int r, g, b;
++    mac_rgb(c, &r, &g, &b);
++    return ((r * 54 + g * 183 + b * 19) / 256) * pct / 100;
++}
++
+ static inline int mac_wall_pages(int total) { return total <= 0 ? 1 : (total + MAC_WALL_PER_PAGE - 1) / MAC_WALL_PER_PAGE; }
+ static inline int mac_wall_clamp(int page, int total)
+ {
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -76,6 +76,8 @@ struct St {
+     int8_t sh_night = -1, sh_icons = -1, sh_light = -1;
+     int sh_auto = -1;  // what the person just chose (the saved value follows from the main task a moment later)
+     lv_obj_t* tile_obj[6];
++    lv_color_t tile_bg[6];       // patch NX08: the wall tiles' own color after the pop
++    lv_timer_t* wall_timer = nullptr;
+     int cur_style = 1;
+     int content_h = 0;
+     uint32_t slider_up_ms = 0;
+@@ -238,6 +240,116 @@ int app_shapes(int app, mpg_shape_t* s)
+     return n;
+ }
+ 
++
++// ---- patch NX08: the pictures of the wall tiles, drawn from LVGL shapes when the wall opens and freed with it (no bitmap, no font) ----
++lv_color_t acc(uint32_t c, int pct = 100)
++{
++    int r, g, b;
++    mac_rgb(c, &r, &g, &b);
++    return shade(lv_color_make((uint8_t)r, (uint8_t)g, (uint8_t)b), pct * night_pct() / 100);
++}
++lv_obj_t* disc(lv_obj_t* p, int x, int y, int d, lv_color_t c) { return box(p, x, y, d, d, c, LV_RADIUS_CIRCLE); }
++lv_obj_t* hoop(lv_obj_t* p, int x, int y, int d, int bw, lv_color_t c)
++{
++    lv_obj_t* o = box(p, x, y, d, d, c, LV_RADIUS_CIRCLE);
++    lv_obj_set_style_bg_opa(o, LV_OPA_TRANSP, 0);
++    lv_obj_set_style_border_width(o, bw, 0);
++    lv_obj_set_style_border_color(o, c, 0);
++    return o;
++}
++lv_obj_t* stroke(lv_obj_t* p, const lv_point_precise_t* pts, int n, lv_color_t c, int w)
++{
++    lv_obj_t* l = lv_line_create(p);
++    lv_obj_remove_flag(l, LV_OBJ_FLAG_CLICKABLE);
++    lv_line_set_points(l, pts, static_cast<uint32_t>(n));
++    lv_obj_set_style_line_width(l, w, 0);
++    lv_obj_set_style_line_color(l, c, 0);
++    lv_obj_set_style_line_rounded(l, true, 0);
++    return l;
++}
++
++// One game's picture in the 48 by 44 box `a` (bright colors are fixed per game; the night dim still applies).
++void game_art(lv_obj_t* a, const char* id, lv_color_t bg)
++{
++    if (strcmp(id, "memory") == 0) {  // its four colored quarters as a mini board
++        box(a, 0, 0, 23, 21, acc(0xE64646), 6);
++        box(a, 25, 0, 23, 21, acc(0x3CC864), 6);
++        box(a, 0, 23, 23, 21, acc(0x4678F0), 6);
++        box(a, 25, 23, 23, 21, acc(0xFABE32), 6);
++    } else if (strcmp(id, "whack") == 0) {  // a mound with the mole popping out
++        disc(a, 13, 3, 22, acc(0x8C5A3C));
++        disc(a, 18, 11, 4, acc(0x101010));
++        disc(a, 27, 11, 4, acc(0x101010));
++        box(a, 21, 17, 6, 4, acc(0xF0A0A8), 2);
++        box(a, 0, 24, 48, 20, acc(0x5CC850), 10);
++        box(a, 8, 30, 32, 6, acc(0x3C9A3A), 3);
++    } else if (strcmp(id, "tictactoe") == 0) {  // a grid with an X and an O in two colors
++        box(a, 15, 0, 3, 44, acc(0xDCE6F0), 1);
++        box(a, 30, 0, 3, 44, acc(0xDCE6F0), 1);
++        box(a, 0, 15, 48, 3, acc(0xDCE6F0), 1);
++        box(a, 0, 30, 48, 3, acc(0xDCE6F0), 1);
++        static const lv_point_precise_t x1[2] = {{3, 3}, {12, 12}}, x2[2] = {{12, 3}, {3, 12}}, x3[2] = {{36, 33}, {45, 42}}, x4[2] = {{45, 33}, {36, 42}};
++        stroke(a, x1, 2, acc(0xFF6464), 3);
++        stroke(a, x2, 2, acc(0xFF6464), 3);
++        stroke(a, x3, 2, acc(0xFF6464), 3);
++        stroke(a, x4, 2, acc(0xFF6464), 3);
++        hoop(a, 19, 19, 10, 3, acc(0x6EC8FF));
++    } else if (strcmp(id, "bopit") == 0) {  // a pulse ring and a big arrow
++        hoop(a, 2, 0, 44, 3, acc(0x9CC8FF));
++        static const lv_point_precise_t sh[2] = {{12, 22}, {36, 22}}, hd[3] = {{26, 12}, {37, 22}, {26, 32}};
++        stroke(a, sh, 2, acc(0xFFFFFF), 5);
++        stroke(a, hd, 3, acc(0xFFFFFF), 5);
++    } else if (strcmp(id, "rps") == 0) {  // a fist, an open hand and scissors side by side
++        const lv_color_t sk = acc(0xFFD2A0);
++        box(a, 0, 18, 14, 14, sk, 5);
++        box(a, 2, 30, 10, 6, sk, 3);
++        box(a, 17, 24, 13, 10, sk, 4);
++        for (int f = 0; f < 4; f++) box(a, 17 + f * 3, 8, 2, 18, sk, 1);
++        static const lv_point_precise_t s1[2] = {{36, 8}, {46, 28}}, s2[2] = {{46, 8}, {36, 28}};
++        stroke(a, s1, 2, acc(0xDCE6F0), 3);
++        stroke(a, s2, 2, acc(0xDCE6F0), 3);
++        hoop(a, 33, 28, 8, 2, sk);
++        hoop(a, 41, 28, 7, 2, sk);
++    } else if (strcmp(id, "eightball") == 0) {  // a dark ball with the white 8 circle and a triangle
++        disc(a, 2, 0, 44, acc(0x16161E));
++        disc(a, 14, 3, 20, acc(0xFFFFFF));
++        lv_obj_t* n = text(a, "8", kMid, lv_color_black());
++        lv_obj_set_pos(n, 20, 5);
++        static const lv_point_precise_t tri[4] = {{24, 27}, {34, 40}, {14, 40}, {24, 27}};
++        stroke(a, tri, 4, acc(0xFFFFFF), 2);
++    } else if (strcmp(id, "dice") == 0) {  // two dice with pips and a coin
++        disc(a, 15, 0, 18, acc(0xF5C842));
++        hoop(a, 19, 4, 10, 2, acc(0xB48A14));
++        box(a, 0, 18, 24, 24, acc(0xFFFFFF), 5);
++        disc(a, 4, 22, 5, acc(0x202028));
++        disc(a, 10, 28, 5, acc(0x202028));
++        disc(a, 15, 34, 5, acc(0x202028));
++        box(a, 24, 18, 24, 24, acc(0xFFFFFF), 5);
++        disc(a, 28, 22, 5, acc(0x202028));
++        disc(a, 38, 22, 5, acc(0x202028));
++        disc(a, 33, 28, 5, acc(0x202028));
++        disc(a, 28, 34, 5, acc(0x202028));
++        disc(a, 38, 34, 5, acc(0x202028));
++    } else {  // a game this build has no picture for: a play triangle
++        static const lv_point_precise_t tri[4] = {{14, 6}, {38, 22}, {14, 38}, {14, 6}};
++        stroke(a, tri, 4, acc(0xFFFFFF), 4);
++    }
++    (void)bg;
++}
++
++// One app's picture. The simple ones are the 24 by 24 shapes at twice the size, in the item's bright color.
++void app_art(lv_obj_t* a, int app, lv_color_t bg)
++{
++    if (app == MAC_APP_QUICK) {  // a lightning bolt on purple
++        static const lv_point_precise_t bolt[7] = {{30, 2}, {12, 24}, {24, 24}, {18, 42}, {38, 18}, {26, 18}, {30, 2}};
++        stroke(a, bolt, 7, acc(0xFFE650), 5);
++        return;
++    }
++    mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
++    const int n = app_shapes(app, sh);
++    draw_shapes(a, sh, n, 0, -2, 2, acc(MAC_APP_ACCENT[app]), bg);
++}
++
+ // ---- the frame of every view ----
+ void toast(const char* msg)
+ {
+@@ -371,6 +483,22 @@ void on_wall_tile(lv_event_t* e)
+     }
+ }
+ 
++void wall_settle(lv_timer_t*)
++{
++    if (S == nullptr) {
++        return;
++    }
++    S->wall_timer = nullptr;  // a one shot timer deletes itself
++    if (S->view != MAV_APPS && S->view != MAV_GAMES) {
++        return;
++    }
++    for (int i = 0; i < MAC_WALL_PER_PAGE; i++) {
++        if (S->tile_obj[i] != nullptr) {
++            lv_obj_set_style_bg_color(S->tile_obj[i], S->tile_bg[i], 0);
++        }
++    }
++}
++
+ void build_wall(int view)
+ {
+     int total = 0;
+@@ -397,36 +525,65 @@ void build_wall(int view)
+         const int idx = S->page * MAC_WALL_PER_PAGE + slot;
+         int x, y, w, h;
+         mac_wall_tile(slot, &x, &y, &w, &h);
+-        lv_obj_t* b = box(S->root, x, Y(y), w, h, fg(16), 12, true);
+-        lv_obj_set_style_border_width(b, 1, 0);
+-        lv_obj_set_style_border_color(b, fg(40), 0);
+-        lv_obj_set_style_bg_color(b, fg(45), LV_STATE_PRESSED);
++        // Patch NX08: the tile's own color (a quarter of its accent, a one frame pop brighter), its picture and the title on a dark plate.
++        char gid_buf[24];
++        gid_buf[0] = '\0';
++        if (view == MAV_GAMES) {
++            snprintf(gid_buf, sizeof(gid_buf), "%s", g_host->game_id(idx));
++        }
++        const uint32_t ac = view == MAV_APPS ? MAC_APP_ACCENT[S->apps[idx]] : mac_game_accent(gid_buf);
++        const lv_color_t tile_bg = acc(ac, MAC_TILE_BG_PCT);
++        lv_obj_t* b = box(S->root, x, Y(y), w, h, acc(ac, MAC_TILE_BG_PCT + 16), 12, true);  // one frame brighter: the pop when the wall opens
++        S->tile_obj[slot] = b;
++        S->tile_bg[slot]  = tile_bg;
++        lv_obj_set_style_border_width(b, 2, 0);
++        lv_obj_set_style_border_color(b, acc(ac, MAC_TILE_BORDER_PCT), 0);
++        lv_obj_set_style_bg_color(b, acc(ac, MAC_TILE_PRESSED_PCT), LV_STATE_PRESSED);  // the press brightens it
++        lv_obj_set_style_border_color(b, acc(ac, 100), LV_STATE_PRESSED);
+         lv_obj_add_event_cb(b, on_wall_tile, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(idx)));
++        int ax, ay, aw, ah;
++        mac_tile_art_box(&ax, &ay, &aw, &ah);
++        if (view == MAV_GAMES) {
++            ax = 14;  // the best score pill takes the top right corner, the picture moves left of it
++        }
++        lv_obj_t* art = box(b, ax - 2, ay - 2, aw, ah, tile_bg, 0);  // transparent holder, the picture's own origin
++        lv_obj_set_style_bg_opa(art, LV_OPA_TRANSP, 0);
++        lv_obj_remove_flag(art, LV_OBJ_FLAG_CLICKABLE);
+         if (view == MAV_APPS) {
+-            const int app = S->apps[idx];
+-            mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
+-            draw_shapes(b, sh, app_shapes(app, sh), (w - 48) / 2, 8, 2, fg(100), fg(16));
+-            const char* name = MAC_APP_TITLE[es() ? 1 : 0][app];
+-            lv_obj_t* l = text(b, name, fit_font(name, w - 12), fg(100));
+-            lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+-            lv_obj_set_size(l, w - 12, lv_font_get_line_height(fit_font(name, w - 12)));
+-            lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+-            lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -6);
++            app_art(art, S->apps[idx], tile_bg);
+         } else {
+-            const char* gt = g_host->game_title(idx);
+-            lv_obj_t* l = text(b, gt, kSmall, fg(100));  // one size for every game; a long name wraps to two lines
+-            lv_obj_set_width(l, w - 12);
+-            lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+-            lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+-            lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 14);
++            game_art(art, gid_buf, tile_bg);
++        }
++        int px, py, pw, ph;
++        mac_tile_plate_box(&px, &py, &pw, &ph);
++        const char* name = view == MAV_APPS ? MAC_APP_TITLE[es() ? 1 : 0][S->apps[idx]] : g_host->game_title(idx);
++        const lv_font_t* nf = text_w(name, kBig) <= pw - 6 ? kBig : (text_w(name, kMid) <= pw - 6 ? kMid : kSmall);  // 24 px wherever it fits
++        const bool two = nf == kSmall && text_w(name, kSmall) > pw - 6;  // a long title wraps to two small lines on a taller plate
++        if (two) {
++            ph = 2 * lv_font_get_line_height(kSmall) + 4;
++            py = MAC_WALL_TILE_H - MAC_TILE_PLATE_PAD - ph;
++        }
++        lv_obj_t* plate = box(b, px - 2, py - 2, pw, ph, lv_color_black(), 8);
++        lv_obj_remove_flag(plate, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_t* l = text(plate, name, nf, acc(0xFFFFFF, 100));
++        lv_label_set_long_mode(l, two ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
++        lv_obj_set_size(l, pw - 6, two ? 2 * lv_font_get_line_height(nf) : lv_font_get_line_height(nf));
++        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++        lv_obj_align(l, LV_ALIGN_CENTER, 0, 0);
++        if (view == MAV_GAMES) {  // the best score: a small pill in the top right corner
+             char best[24];
+             mpg_best_text(best, sizeof(best), g_host->game_best(idx), es());
+-            lv_obj_t* bl = text(b, best, kTiny, fg(70));
+-            lv_obj_set_width(bl, w - 12);
+-            lv_obj_set_style_text_align(bl, LV_TEXT_ALIGN_CENTER, 0);
+-            lv_obj_align(bl, LV_ALIGN_BOTTOM_MID, 0, -6);
++            const int bw = text_w(best, kTiny) + 12;
++            lv_obj_t* pill = box(b, w - bw - 6, 2, bw, 20, lv_color_black(), 10);
++            lv_obj_remove_flag(pill, LV_OBJ_FLAG_CLICKABLE);
++            lv_obj_t* bl = text(pill, best, kTiny, fg(85));
++            lv_obj_align(bl, LV_ALIGN_CENTER, 0, 0);
+         }
+     }
++    if (S->wall_timer == nullptr && count > 0) {  // the pop: next frame the tiles settle to their own color
++        S->wall_timer = lv_timer_create(wall_settle, 70, nullptr);
++        lv_timer_set_repeat_count(S->wall_timer, 1);
++    }
+     const int pages = mac_wall_pages(total);
+     if (pages > 1) {  // the page dots sit under the tiles at the bottom edge of the zone
+         for (int i = 0; i < pages; i++) {
+@@ -1101,7 +1258,12 @@ void build(int view)
+     if (S->pane != nullptr && S->view == MAV_SETTINGS) {  // a tab keeps where it was scrolled to
+         S->set.scroll[S->pane_tab] = static_cast<int16_t>(lv_obj_get_scroll_y(S->pane));
+     }
++    if (S->wall_timer != nullptr) {  // patch NX08: the pop of the wall that is going away
++        lv_timer_delete(S->wall_timer);
++        S->wall_timer = nullptr;
++    }
+     lv_obj_clean(S->root);
++    for (auto& t : S->tile_obj) t = nullptr;
+     S->toast = nullptr;
+     S->list  = nullptr;
+     S->pane  = nullptr;
+@@ -1162,6 +1324,10 @@ lv_timer_t* g_timer = nullptr;
+ 
+ void close_all()
+ {
++    if (S != nullptr && S->wall_timer != nullptr) {  // patch NX08
++        lv_timer_delete(S->wall_timer);
++        S->wall_timer = nullptr;
++    }
+     if (g_timer != nullptr) {
+         lv_timer_delete(g_timer);
+         g_timer = nullptr;
+diff --git a/firmware/main/hal/maipai_pages.h b/firmware/main/hal/maipai_pages.h
+--- a/firmware/main/hal/maipai_pages.h
++++ b/firmware/main/hal/maipai_pages.h
+@@ -54,6 +54,7 @@ public:
+     // games
+     virtual int game_count() { return 0; }
+     virtual const char* game_title(int) { return ""; }
++    virtual const char* game_id(int) { return ""; }  // patch NX08: the game's short id (memory, whack, tictactoe, bopit, rps, eightball, dice): its tile picture
+     virtual int game_best(int) { return 0; }
+     virtual const char* game_start(int) { return "No games on this unit."; }  // "" on success, else a plain sentence
+     // quick actions
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -222,6 +222,7 @@ public:
+ 
+     int game_count() override { return maipai_games_count(); }
+     const char* game_title(int i) override { return maipai_games_title(i, spanish()); }
++    const char* game_id(int i) override { return maipai_games_id(i); }
+     int game_best(int i) override { return maipai_games_best(i); }
+     const char* game_start(int i) override
+     {

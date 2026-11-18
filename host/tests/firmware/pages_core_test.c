@@ -79,7 +79,7 @@ static void test_timeouts_actions_items(void)
     ok[n++] = MPG_S_BRIGHTNESS;
     ok[n++] = MPG_S_MUTE;
     ok[n++] = MPG_S_QUIET;
-    ok[n++] = MPG_S_LIGHT;
+    ok[n++] = MPG_S_LOCK;
     ok[n++] = MPG_S_TIMERS;
     ok[n++] = MPG_S_GAMES;
     ok[n++] = MPG_S_WIFI;
@@ -103,9 +103,29 @@ static void test_text_store_round_trip(void)
     CHECK(mpg_set_timeouts(&a, 12, 45) == NULL);
     char text[MPG_TEXT_MAX + 1];
     CHECK(mpg_cfg_to_text(&a, text, sizeof(text)) > 0);
-    CHECK(strcmp(text, "L=timers,frame;R=games,actions,tiles;S=12;I=45;A=beep,dance,game,hello;C=volume,brightness,mute,quiet,light,timers,games,wifi,battery") == 0);
+    CHECK(strcmp(text, "L=timers,frame;R=games,actions,tiles;S=12;I=45;A=beep,dance,game,hello;C=volume,brightness,mute,quiet,lock,timers,games,wifi,battery") == 0);
     CHECK(mpg_cfg_from_text(&b, text) == 1);
     CHECK(memcmp(&a, &b, sizeof(a)) == 0);
+    /* patch NX01: a choice saved before the Lock tile names "light"; it is read as the Lock tile, in the same place, never an error and never twice */
+    mpg_cfg_t old, both;
+    CHECK(mpg_sheet_by_name("light") == MPG_S_LOCK && mpg_sheet_by_name("lock") == MPG_S_LOCK);
+    CHECK(mpg_cfg_from_text(&old, "L=clock;R=games;S=10;I=20;A=beep,dance,game,hello;C=volume,brightness,mute,quiet,light,timers,games,wifi,battery") == 1);
+    mpg_cfg_t dflt;
+    mpg_defaults(&dflt);
+    CHECK(memcmp(&old, &dflt, sizeof(old)) == 0 && old.items[4] == MPG_S_LOCK && old.n_items == 9);
+    CHECK(mpg_cfg_from_text(&both, "L=clock;R=games;S=10;I=20;A=beep,dance,game,hello;C=mute,light,lock,games") == 1);
+    CHECK(both.n_items == 3 && both.items[0] == MPG_S_MUTE && both.items[1] == MPG_S_LOCK && both.items[2] == MPG_S_GAMES);
+    mpg_sheet_t LS;
+    mpg_sheet_layout(&dflt, &LS);
+    int six = 0, lock_tiles = 0;
+    for (int i = 0; i < LS.n; i++) {  /* the default sheet: mute, quiet, lock, apps, games and the gear, one row of six, no light tile */
+        if (LS.r[i].item == MPG_S_COUNT || mpg_sheet_kind(LS.r[i].item) == 1) {
+            six++;
+            lock_tiles += LS.r[i].item == MPG_S_LOCK;
+            CHECK(LS.r[i].y == LS.r[0 + (LS.n - 6)].y);
+        }
+    }
+    CHECK(six == 6 && lock_tiles == 1);
     /* the longest configuration fits the flash text: six pages, six actions would not exist (five), twelve items */
     mpg_cfg_t big;
     mpg_defaults(&big);

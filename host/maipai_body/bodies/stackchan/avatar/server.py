@@ -16,6 +16,7 @@ from websockets.exceptions import ConnectionClosed
 from maipai_body.bodies.stackchan.self_heal import CameraStallWatch
 from maipai_body.bodies.stackchan.ws_logging import listener_logger
 
+from ..xiaozhi.link_security import LinkSecurity
 from ..xiaozhi.pairing import PairingStore
 from .codec import MAX_FRAME_SIZE, decode_frame, encode_frame
 
@@ -147,6 +148,10 @@ class AvatarServer:
         self.idle_timeout = idle_timeout
         self.estop_engaged = False
         self._server: Any = None
+        # Encrypted link (xiaozhi/link_security.py): set by the app. None means every socket is plain.
+        self.link: LinkSecurity | None = None
+        self._tls_server: Any = None
+        self.tls_port = 0
         self._sessions: dict[str, ServerConnection] = {}
         # Several robots: set by the app to a units.UnitRegistry. Each socket reads only its own
         # unit's settings, picked by the Device-Id the unit sent; an unknown unit gets the default.
@@ -195,13 +200,37 @@ class AvatarServer:
             **kwargs,
         )
 
+    async def start_encrypted(self, host: str, port: int) -> None:
+        """Open the encrypted avatar and camera WebSocket (TLS 1.2 with a PSK, any address)."""
+        if self.link is None:
+            raise RuntimeError("Set avatar.link before opening the encrypted listener.")
+
+        async def handle_encrypted(websocket: ServerConnection) -> None:
+            await self.handle(websocket, encrypted=True)
+
+        self._tls_server = await serve(
+            handle_encrypted,
+            host,
+            port,
+            max_size=MAX_FRAME_SIZE + 5,
+            ping_interval=20,
+            ping_timeout=20,
+            ssl=self.link.ssl_context(),
+            logger=listener_logger(),
+        )
+        self.tls_port = int(self._tls_server.sockets[0].getsockname()[1])
+
     async def close(self) -> None:
+        if self._tls_server is not None:
+            self._tls_server.close()
+            await self._tls_server.wait_closed()
+            self._tls_server = None
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()
             self._server = None
 
-    async def handle(self, websocket: ServerConnection) -> None:
+    async def handle(self, websocket: ServerConnection, *, encrypted: bool = False) -> None:
         request = websocket.request
         source = websocket.remote_address[0] if websocket.remote_address else "unknown"
         LOG.info("StackChan avatar: connection from %s for %s", source, request.path[:60])
@@ -228,6 +257,19 @@ class AvatarServer:
             await websocket.close(1008, "Device is not approved; approve its Device-Id first.")
             return
 
+        if self.link is not None:
+            refusal = self.link.refusal(device_id, encrypted)
+            if refusal is not None:
+                LOG.warning(
+                    "StackChan avatar: refused a %s socket from unit ...%s (%s)",
+                    "encrypted" if encrypted else "plain",
+                    device_id[-5:],
+                    self.link.mode(device_id),
+                )
+                await websocket.close(1008, refusal)
+                return
+            if encrypted:
+                self.link.pairing.mark_seen_encrypted(device_id)
         stale = self._sessions.get(device_id)
         if stale is not None:
             asyncio.create_task(self._close_stale(stale))
@@ -250,6 +292,14 @@ class AvatarServer:
                 return
             if not isinstance(data, dict) or data.get("type") != "hello":
                 await websocket.close(1002, "Expected the StackChan avatar hello frame.")
+                return
+            if self.link is not None and data.get("session_id") is not None:
+                # A hello that names a session id replays an old one: this socket issues its own.
+                LOG.warning(
+                    "StackChan avatar: refused a hello that carries a session id (unit ...%s)",
+                    device_id[-5:],
+                )
+                await websocket.close(1008, "A new socket must not carry a session id. Reconnect.")
                 return
             await websocket.send(json.dumps({"type": "hello", "session_id": uuid.uuid4().hex}))
             LOG.info("StackChan avatar: connected (device %s)", device_id[-5:])

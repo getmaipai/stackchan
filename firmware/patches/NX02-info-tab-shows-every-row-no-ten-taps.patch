@@ -1,0 +1,325 @@
+# Intent: The "tap Firmware ten times" gesture is gone. The Settings Info tab shows every row at once (firmware tag, image state, slot, memory line, host name, Wi-Fi network, signal and uptime) with no hint line about taps, and the old More, Version screen shows its six detail lines at once. The ten-tap state (MAC_SF_DETAILS, MAC_S_TEN_TAPS, the detail rows) is removed from the Info tab and the screen; mv_tap and mv_is_open stay in the version core, unused, with a note, so their counting tests keep passing.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_apps_core.h, maipai_apps.cc, maipai_more.cc, maipai_version_core.h (ours)
+# Check after a flash: Settings, Info lists eight rows with no hint (tag, image, slot, memory, host name, Wi-Fi network, signal, uptime) and tapping the tag row does nothing; More, Version shows its six detail lines without any tap.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
+--- a/firmware/main/hal/maipai_apps_core.h
++++ b/firmware/main/hal/maipai_apps_core.h
+@@ -315,8 +315,7 @@ enum {
+     MAC_R_VOLUME = 0, MAC_R_BRIGHT, MAC_R_NIGHT, MAC_R_STATUS_ICONS, MAC_R_LISTEN_LIGHT, MAC_R_AUTOLOCK, MAC_R_LOCK_NOW, MAC_R_LANGUAGE, MAC_R_MORE,
+     MAC_R_WIFI_PAGE, MAC_R_SSID, MAC_R_SIGNAL, MAC_R_TAILNET, MAC_R_HUB,
+     MAC_R_PAIR0, MAC_R_PAIR1, MAC_R_PAIR2,
+-    MAC_R_I_TAG, MAC_R_I_IMAGE, MAC_R_I_SLOT, MAC_R_I_MEM, MAC_R_I_HOST, MAC_R_I_HINT,
+-    MAC_R_I_DETAIL0, MAC_R_I_DETAIL1, MAC_R_I_DETAIL2, MAC_R_I_DETAIL3, MAC_R_I_DETAIL4, MAC_R_I_DETAIL5,
++    MAC_R_I_TAG, MAC_R_I_IMAGE, MAC_R_I_SLOT, MAC_R_I_MEM, MAC_R_I_HOST, MAC_R_I_UP,
+     MAC_R_COUNT
+ };
+ #define MAC_SLIDER_Y 28       /* the slider's top inside its row (the label line is above it) */
+@@ -327,7 +326,6 @@ enum {
+ #define MAC_SF_LOCK 1u      /* the passcode lock is built in: auto lock and Lock now */
+ #define MAC_SF_TAILNET 2u   /* the private network is built in */
+ #define MAC_SF_PICTURES 4u  /* a picture pack is held: a sixth face tile */
+-#define MAC_SF_DETAILS 8u   /* the ten-tap details are open: the Info tab lists them */
+ 
+ typedef struct {
+     uint8_t id;   /* MAC_R_* */
+@@ -394,13 +392,9 @@ static inline int mac_set_rows(int tab, unsigned flags, mac_row_t* out)
+             ids[n++] = MAC_R_I_SLOT;
+             ids[n++] = MAC_R_I_MEM;
+             ids[n++] = MAC_R_I_HOST;
+-            if (flags & MAC_SF_DETAILS) {
+-                for (int d = 0; d < 6; d++) {
+-                    ids[n++] = (uint8_t)(MAC_R_I_DETAIL0 + d);
+-                }
+-            } else {
+-                ids[n++] = MAC_R_I_HINT;
+-            }
++            ids[n++] = MAC_R_SSID;   /* patch NX02: every Info row shows at once (the ten-tap gesture is gone) */
++            ids[n++] = MAC_R_SIGNAL;
++            ids[n++] = MAC_R_I_UP;
+             break;
+     }
+     int y = 0;
+@@ -481,6 +475,20 @@ static inline int mac_pair_tiles(int pair_row, int pictures_held)
+     const int left = total - pair_row * 2;
+     return left <= 0 ? 0 : (left > 2 ? 2 : left);
+ }
++/* The uptime in words (patch NX02): under a minute in seconds, then minutes, then hours and minutes, then days and hours. */
++static inline void mac_uptime_text(char* out, size_t n, uint32_t s, int es)
++{
++    (void)es; /* the units are the same in both languages */
++    if (s < 60u) {
++        snprintf(out, n, "%u s", (unsigned)s);
++    } else if (s < 3600u) {
++        snprintf(out, n, "%u min", (unsigned)(s / 60u));
++    } else if (s < 86400u) {
++        snprintf(out, n, "%u h %u min", (unsigned)(s / 3600u), (unsigned)((s % 3600u) / 60u));
++    } else {
++        snprintf(out, n, "%u d %u h", (unsigned)(s / 86400u), (unsigned)((s % 86400u) / 3600u));
++    }
++}
+ /* The Wi-Fi signal in words from the bars (0 to 4, -1 off). */
+ static inline int mac_signal_word(int bars) { return bars < 0 ? 0 : (bars >= 3 ? 3 : (bars == 2 ? 2 : 1)); } /* 0 none, 1 weak, 2 fair, 3 good */
+ 
+@@ -491,8 +499,8 @@ enum {
+     MAC_S_VOLUME, MAC_S_BRIGHT, MAC_S_NIGHT, MAC_S_STATUS_ICONS, MAC_S_AUTOLOCK, MAC_S_LOCK_NOW, MAC_S_LANGUAGE, MAC_S_ON, MAC_S_OFF,
+     MAC_S_WIFI_PAGE, MAC_S_SSID, MAC_S_SIGNAL, MAC_S_TAILNET, MAC_S_HUB, MAC_S_NOT_CONNECTED,
+     MAC_S_SIG_NONE, MAC_S_SIG_WEAK, MAC_S_SIG_FAIR, MAC_S_SIG_GOOD, MAC_S_TN_UP, MAC_S_TN_JOIN, MAC_S_TN_OFF, MAC_S_TN_NO,
+-    MAC_S_FIRMWARE, MAC_S_IMAGE, MAC_S_SLOT, MAC_S_MEMORY, MAC_S_HOST, MAC_S_TEN_TAPS, MAC_S_LOCKED_NOTE, MAC_S_PICTURES, MAC_S_LANG_NAME,
+-    MAC_S_IMG_OK, MAC_S_IMG_WAIT, MAC_S_IMG_USB, MAC_S_IMG_UNKNOWN, MAC_S_NO_HOST, MAC_S_MORE, MAC_S_LISTEN_LIGHT,
++    MAC_S_FIRMWARE, MAC_S_IMAGE, MAC_S_SLOT, MAC_S_MEMORY, MAC_S_HOST, MAC_S_LOCKED_NOTE, MAC_S_PICTURES, MAC_S_LANG_NAME,
++    MAC_S_IMG_OK, MAC_S_IMG_WAIT, MAC_S_IMG_USB, MAC_S_IMG_UNKNOWN, MAC_S_NO_HOST, MAC_S_MORE, MAC_S_LISTEN_LIGHT, MAC_S_UPTIME,
+     MAC_S_COUNT
+ };
+ static const char* const MAC_STR[MAC_S_COUNT][2] = {
+@@ -526,7 +534,7 @@ static const char* const MAC_STR[MAC_S_COUNT][2] = {
+     {"On", "Si"},
+     {"Off", "No"},
+     {"Wi-Fi settings", "Ajustes de Wi-Fi"},
+-    {"Network", "Red"},
++    {"Wi-Fi network", "Red Wi-Fi"},
+     {"Signal", "Senal"},
+     {"Private network", "Red privada"},
+     {"Home hub", "Centro del hogar"},
+@@ -544,7 +552,6 @@ static const char* const MAC_STR[MAC_S_COUNT][2] = {
+     {"Slot", "Ranura"},
+     {"Memory", "Memoria"},
+     {"Host name", "Nombre"},
+-    {"Tap Firmware 10 times for details", "Toca Firmware 10 veces para ver mas"},
+     {"Locked: unlock to use this.", "Bloqueado: desbloquea para usar esto."},
+     {"Pictures", "Fotos"},
+     {"English", "Espanol"},
+@@ -555,6 +562,7 @@ static const char* const MAC_STR[MAC_S_COUNT][2] = {
+     {"Not set", "Sin definir"},
+     {"More settings", "Mas ajustes"},
+     {"Listening light", "Luz al escuchar"},
++    {"Uptime", "Tiempo activo"},
+ };
+ static inline const char* mac_str(int id, int es) { return (id >= 0 && id < MAC_S_COUNT) ? MAC_STR[id][es ? 1 : 0] : ""; }
+ static inline const char* mac_row_label(int row, int es)
+@@ -579,6 +587,7 @@ static inline const char* mac_row_label(int row, int es)
+         case MAC_R_I_SLOT: return mac_str(MAC_S_SLOT, es);
+         case MAC_R_I_MEM: return mac_str(MAC_S_MEMORY, es);
+         case MAC_R_I_HOST: return mac_str(MAC_S_HOST, es);
++        case MAC_R_I_UP: return mac_str(MAC_S_UPTIME, es);
+         default: return "";
+     }
+ }
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -79,8 +79,6 @@ struct St {
+     int cur_style = 1;
+     int content_h = 0;
+     uint32_t slider_up_ms = 0;
+-    mv_state_t ver;
+-    bool details = false;
+ };
+ St* S = nullptr;
+ 
+@@ -691,7 +689,6 @@ unsigned set_flags()
+     if (g_host->lock_available()) f |= MAC_SF_LOCK;
+     if (g_host->tailnet() >= 0) f |= MAC_SF_TAILNET;
+     if (g_host->pictures_held()) f |= MAC_SF_PICTURES;
+-    if (S->details) f |= MAC_SF_DETAILS;
+     return f;
+ }
+ 
+@@ -754,9 +751,8 @@ void row_text(int id, char* out, size_t n)
+             snprintf(out, n, "%s", h != nullptr && h[0] != '\0' ? h : tx(MAC_S_NO_HOST));
+             break;
+         }
+-        case MAC_R_I_HINT: snprintf(out, n, "%s", tx(MAC_S_TEN_TAPS)); break;
+         default:
+-            if (id == MAC_R_I_TAG || id == MAC_R_I_IMAGE || id == MAC_R_I_SLOT || id == MAC_R_I_MEM || (id >= MAC_R_I_DETAIL0 && id <= MAC_R_I_DETAIL5)) {
++            if (id == MAC_R_I_TAG || id == MAC_R_I_IMAGE || id == MAC_R_I_SLOT || id == MAC_R_I_MEM || id == MAC_R_I_UP) {  // patch NX02: every Info row shows at once
+                 mv_info_t info;
+                 memset(&info, 0, sizeof(info));
+                 g_host->version_info(&info);
+@@ -772,9 +768,7 @@ void row_text(int id, char* out, size_t n)
+                     mv_bytes_word(info.internal_min, b, sizeof(b));
+                     snprintf(out, n, es() ? "%s libres, minimo %s" : "%s free, low %s", a, b);
+                 } else {
+-                    char rows[MV_LINES][MV_LINE];
+-                    mv_detail_lines(&info, rows);
+-                    snprintf(out, n, "%s", rows[id - MAC_R_I_DETAIL0]);
++                    mac_uptime_text(out, n, info.uptime_s, es() ? 1 : 0);
+                 }
+             }
+             break;
+@@ -846,12 +840,6 @@ void on_row(lv_event_t* e)
+             close_all();
+             g_host->open_more();  // the More screens: time zone, network test, version
+             return;
+-        case MAC_R_I_TAG:
+-            if (mv_tap(&S->ver, now_ms())) {
+-                S->details = true;
+-                request_view(MAV_SETTINGS);
+-            }
+-            return;
+         case MAC_R_PAIR0: case MAC_R_PAIR1: case MAC_R_PAIR2: {
+             const int tile = (id - MAC_R_PAIR0) * 2 + sub;
+             if (tile >= MPG_SET_STYLES) {  // the picture faces: shown on the pictures page
+@@ -998,7 +986,7 @@ void build_pair_row(lv_obj_t* parent, const mac_row_t& r, int i)
+ 
+ void build_line_row(lv_obj_t* parent, const mac_row_t& r, int i)
+ {
+-    const bool clickable = r.kind == MAC_K_SWITCH || r.kind == MAC_K_CHOICE || r.kind == MAC_K_BUTTON || r.id == MAC_R_I_TAG;
++    const bool clickable = r.kind == MAC_K_SWITCH || r.kind == MAC_K_CHOICE || r.kind == MAC_K_BUTTON;
+     lv_obj_t* b = box(parent, 0, r.y, MAC_PANE_ROW_W, 44, fg(clickable ? 16 : 8), 10, clickable);
+     lv_obj_set_style_border_width(b, 1, 0);
+     lv_obj_set_style_border_color(b, fg(clickable ? 40 : 24), 0);
+@@ -1026,25 +1014,15 @@ void build_line_row(lv_obj_t* parent, const mac_row_t& r, int i)
+         return;
+     }
+     // an information row: the name small on top, the value under it
+-    const bool detail = r.id >= MAC_R_I_DETAIL0 && r.id <= MAC_R_I_DETAIL5;
+     const char* label = mac_row_label(r.id, es() ? 1 : 0);
+     if (label[0] != '\0') {
+         lv_obj_t* l = text(b, label, kTiny, fg(60));
+         lv_obj_set_pos(l, 10, 2);
+     }
+-    const lv_font_t* vf = detail || r.id == MAC_R_I_HINT ? kTiny : kSmall;
+-    lv_obj_t* v = text(b, t, vf, fg(100));
+-    lv_label_set_long_mode(v, r.id == MAC_R_I_HINT ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
+-    if (r.id == MAC_R_I_HINT) {
+-        lv_obj_set_width(v, MAC_PANE_ROW_W - 20);
+-    } else {
+-        lv_obj_set_size(v, MAC_PANE_ROW_W - 20, lv_font_get_line_height(vf));
+-    }
+-    if (r.id == MAC_R_I_HINT) {
+-        lv_obj_align(v, LV_ALIGN_LEFT_MID, 10, 0);
+-    } else {
+-        lv_obj_set_pos(v, 10, detail ? 14 : 18);
+-    }
++    lv_obj_t* v = text(b, t, kSmall, fg(100));
++    lv_label_set_long_mode(v, LV_LABEL_LONG_DOT);
++    lv_obj_set_size(v, MAC_PANE_ROW_W - 20, lv_font_get_line_height(kSmall));
++    lv_obj_set_pos(v, 10, 18);
+     S->row_val[r.id] = v;
+ }
+ 
+@@ -1167,15 +1145,10 @@ void refresh()
+             }
+         }
+     } else if (S->view == MAV_SETTINGS) {
+-        // live rows: the signal, the memory line and the ten-tap details closing by themselves
+-        if (S->details && !mv_is_open(&S->ver, now_ms())) {
+-            S->details = false;
+-            build(MAV_SETTINGS);
+-            return;
+-        }
++        // live rows: the signal, the memory line and the uptime
+         for (int i = 0; i < S->n_set_rows; i++) {
+             const int id = S->rows[i].id;
+-            if (id == MAC_R_SIGNAL || id == MAC_R_SSID || id == MAC_R_TAILNET || id == MAC_R_I_MEM) {
++            if (id == MAC_R_SIGNAL || id == MAC_R_SSID || id == MAC_R_TAILNET || id == MAC_R_I_MEM || id == MAC_R_I_UP) {
+                 char t[96];
+                 row_text(id, t, sizeof(t));
+                 set_text_if(S->row_val[id], t);
+@@ -1245,7 +1218,6 @@ bool maipai_apps_show(int view)
+             return false;
+         }
+         mac_set_init(&S->set);
+-        mv_init(&S->ver);
+         S->id = id;
+         lv_obj_t* r = box(lv_layer_top(), 0, MAC_TOP, MAC_W, 240 - MAC_TOP, lv_color_black(), 0, true);
+         lv_obj_move_to_index(r, 0);  // under the banner row and the cue strips, which stay where they are
+@@ -1257,7 +1229,6 @@ bool maipai_apps_show(int view)
+         g_timer       = lv_timer_create(tick, 250, nullptr);
+     }
+     S->page = 0;
+-    S->details = false;
+     if (view == MAV_SETTINGS) {
+         mac_set_init(&S->set);  // Settings always opens on General, at the top
+     }
+diff --git a/firmware/main/hal/maipai_more.cc b/firmware/main/hal/maipai_more.cc
+--- a/firmware/main/hal/maipai_more.cc
++++ b/firmware/main/hal/maipai_more.cc
+@@ -51,7 +51,6 @@ lv_obj_t* s_time_lbl = nullptr;
+ lv_obj_t* s_note_lbl = nullptr;
+ #endif
+ #if CONFIG_MAIPAI_VERSION
+-mv_state_t s_ver;
+ lv_obj_t* s_ver_lbl  = nullptr;
+ lv_obj_t* s_ver_rows[MV_LINES] = {};
+ #endif
+@@ -61,10 +60,6 @@ const char* tx(const char* en, const char* es)
+     return s_es ? es : en;
+ }
+ 
+-uint32_t now_ms()
+-{
+-    return static_cast<uint32_t>(esp_timer_get_time() / 1000);
+-}
+ 
+ void show(int page);
+ 
+@@ -254,7 +249,6 @@ void ver_refresh()
+     }
+     mv_info_t info;
+     maipai_version_read(&info);
+-    const bool open = mv_is_open(&s_ver, now_ms()) != 0;
+     char first[64];
+     snprintf(first, sizeof(first), "%s", info.version[0] != '\0' ? info.version : "unknown");
+     lv_label_set_text(s_ver_lbl, first);
+@@ -264,37 +258,22 @@ void ver_refresh()
+         if (s_ver_rows[i] == nullptr) {
+             continue;
+         }
+-        if (open) {
+-            lv_label_set_text(s_ver_rows[i], rows[i]);
+-            lv_obj_remove_flag(s_ver_rows[i], LV_OBJ_FLAG_HIDDEN);
+-        } else {
+-            lv_obj_add_flag(s_ver_rows[i], LV_OBJ_FLAG_HIDDEN);
+-        }
++        lv_label_set_text(s_ver_rows[i], rows[i]);  // patch NX02: every line shows at once, no gesture opens them
+     }
+ }
+ 
+ void ver_tick(lv_timer_t*) { ver_refresh(); }
+-void on_ver_tap(lv_event_t*)
+-{
+-    if (mv_tap(&s_ver, now_ms())) {
+-        ver_refresh();
+-    }
+-}
+ 
+ void build_version()
+ {
+-    mv_init(&s_ver);
+     s_ver_lbl = label(s_root, "", &lv_font_montserrat_20);
+     lv_obj_set_width(s_ver_lbl, LV_PCT(100));
+     lv_obj_set_style_text_align(s_ver_lbl, LV_TEXT_ALIGN_CENTER, 0);
+-    lv_obj_add_flag(s_ver_lbl, LV_OBJ_FLAG_CLICKABLE);  // ten quick taps open the details
+-    lv_obj_add_event_cb(s_ver_lbl, on_ver_tap, LV_EVENT_CLICKED, nullptr);
+     new_row(s_ver_lbl);
+     for (int i = 0; i < MV_LINES; i++) {
+         s_ver_rows[i] = label(s_root, "", &lv_font_montserrat_14);
+         lv_obj_set_width(s_ver_rows[i], LV_PCT(100));
+         lv_label_set_long_mode(s_ver_rows[i], LV_LABEL_LONG_WRAP);
+-        lv_obj_add_flag(s_ver_rows[i], LV_OBJ_FLAG_HIDDEN);
+         new_row(s_ver_rows[i]);
+     }
+     ver_refresh();
+diff --git a/firmware/main/hal/maipai_version_core.h b/firmware/main/hal/maipai_version_core.h
+--- a/firmware/main/hal/maipai_version_core.h
++++ b/firmware/main/hal/maipai_version_core.h
+@@ -1,10 +1,11 @@
+ /*
+  * SPDX-License-Identifier: MIT
+  *
+- * Version screen (patch U05): the pure logic. The screen shows the firmware version; tapping it ten times, each tap
+- * within two seconds of the last, opens the details a helper needs: the release tag, whether the image can be trusted,
+- * the slot it runs from and the free memory. Header-only plain C99 so a host compiler can test it; the device side is
+- * in maipai_more.cc.
++ * Version screen (patch U05): the pure logic. The screen shows the firmware version and the details a helper needs: the release tag,
++ * whether the image can be trusted, the slot it runs from and the free memory. Header-only plain C99 so a host compiler can test it;
++ * the device side is in maipai_more.cc.
++ * Patch NX02: the ten-tap gesture (mv_tap, mv_is_open) is no longer used by any screen; every detail shows at once on this screen and
++ * on the Settings Info tab. The functions stay here, unused, so the tests of the counting rules keep passing.
+  */
+ #ifndef MAIPAI_VERSION_CORE_H
+ #define MAIPAI_VERSION_CORE_H

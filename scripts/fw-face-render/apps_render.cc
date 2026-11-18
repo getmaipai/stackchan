@@ -46,7 +46,8 @@ static void pump(int ms)
     }
 }
 
-static const char* kGameTitles[8] = {"Color Memory", "Reaction Time", "Whack-a-Mole", "Tic-Tac-Toe", "Do It", "Rock Paper Scissors", "Magic 8-Ball", "Dice and Coin"};
+static const char* kGameIds[8] = {"memory", "whack", "tictactoe", "bopit", "rps", "eightball", "dice", "reaction"};  // "reaction" has no picture: the fallback tile
+static const char* kGameTitles[8] = {"Color Memory", "Whack-a-Mole", "Tic-Tac-Toe", "Do It", "Rock Paper Scissors", "Magic 8 Ball", "Dice and Coin", "Reaction Time"};
 static const int kGameBest[8] = {14, 287, 22, 30, 0, 3, 0, 0};
 
 struct Fake : MaipaiPagesHost {
@@ -62,6 +63,7 @@ struct Fake : MaipaiPagesHost {
     bool spanish() override { return es_; }
     int game_count() override { return games; }
     const char* game_title(int i) override { return kGameTitles[i]; }
+    const char* game_id(int i) override { return kGameIds[i]; }
     int game_best(int i) override { return kGameBest[i]; }
     const char* game_start(int i) override { log += "game" + std::to_string(i) + ";"; return ""; }
     void action(int a) override { log += std::string("action_") + MPG_ACTION_NAMES[a] + ";"; }
@@ -121,7 +123,7 @@ struct Fake : MaipaiPagesHost {
         snprintf(i->version, sizeof(i->version), "1.6.2-maipai");
         snprintf(i->slot, sizeof(i->slot), "ota_0");
         i->slot_known = 1; i->update_key = 1; i->image_state = MV_IMG_VALID;
-        i->internal_free = 62 * 1024; i->internal_min = 41 * 1024; i->internal_big = 31 * 1024; i->psram_free = 6200 * 1024; i->psram_min = 6100 * 1024;
+        i->uptime_s = 3 * 3600 + 12 * 60 + 5; i->internal_free = 62 * 1024; i->internal_min = 41 * 1024; i->internal_big = 31 * 1024; i->psram_free = 6200 * 1024; i->psram_min = 6100 * 1024;
         return true;
     }
     bool ringing() override { return false; }

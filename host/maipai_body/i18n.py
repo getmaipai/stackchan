@@ -319,6 +319,10 @@ def _merge_more() -> None:
 
     for code, words in lock_words.CATALOGS.items():
         CATALOG[code].update(words)
+    from maipai_body import i18n_link as link_words
+
+    for code, words in link_words.CATALOGS.items():
+        CATALOG[code].update(words)
     from maipai_body import i18n_wake as wake_words
 
     for code, words in wake_words.CATALOGS.items():

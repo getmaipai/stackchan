@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
+from typing import Any
 
 LOG = logging.getLogger(__name__)
 _MAC = re.compile(r"^[0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5}$")
@@ -138,9 +139,94 @@ class PairingStore:
                     "token_sha256": hashlib.sha256(token.encode()).hexdigest(),
                     "approved_at": now,
                     "last_seen": now,
+                    "link_new": True,
                 }
                 self._save()
                 return token
+
+    # -- encrypted link (link_security.py) ---------------------------------------------------
+    def _find(self, device_id: str) -> tuple[str, dict[str, Any]] | None:
+        wanted = device_id.strip().lower()
+        for key, record in self._devices.items():
+            if key.lower() == wanted and isinstance(record, dict):
+                return key, record
+        return None
+
+    def link_material(self, device_id: str) -> str | None:
+        """The pairing material the encrypted-link key is derived from (a digest, never the token)."""
+        with self._lock:
+            self._refresh()
+            found = self._find(device_id)
+            digest = found[1].get("token_sha256") if found else None
+            return str(digest) if digest else None
+
+    def link_record(self, device_id: str) -> dict[str, Any]:
+        """Link fields only: mode, seen_encrypted, new pairing flag. No key material."""
+        with self._lock:
+            self._refresh()
+            found = self._find(device_id)
+            if not found:
+                return {}
+            record = found[1]
+            return {
+                "link_encryption": record.get("link_encryption"),
+                "seen_encrypted": bool(record.get("seen_encrypted")),
+                "link_new": bool(record.get("link_new")),
+            }
+
+    def link_mode(self, device_id: str) -> str | None:
+        return self.link_record(device_id).get("link_encryption")
+
+    def _update_link(self, device_id: str, change: dict[str, Any]) -> bool:
+        with self._lock:
+            with self._file_lock():
+                self._refresh()
+                found = self._find(device_id)
+                if not found:
+                    return False
+                if all(found[1].get(k) == v for k, v in change.items()):
+                    return True
+                found[1].update(change)
+                self._save()
+                return True
+
+    def set_link_mode(self, device_id: str, mode: str) -> bool:
+        return self._update_link(device_id, {"link_encryption": mode})
+
+    def mark_seen_encrypted(self, device_id: str) -> None:
+        self._update_link(device_id, {"seen_encrypted": True})
+
+    def promote_new_link(self, device_id: str) -> bool:
+        """A new pairing whose unit reports encryption support, with no choice made, becomes required."""
+        with self._lock:
+            with self._file_lock():
+                self._refresh()
+                found = self._find(device_id)
+                if not found or not found[1].get("link_new") or found[1].get("link_encryption"):
+                    return False
+                found[1]["link_encryption"] = "required"
+                self._save()
+                return True
+
+    def adopt_device(self, device_id: str, client_id: str, token_sha256: str) -> None:
+        """Register a unit that Home paired: Home hands over the digest of the device token it issued.
+
+        This is the same secret as the token, not a second one: the host derives the link key from the
+        digest exactly as it does for a unit it paired itself."""
+        if not self._valid_id(device_id) or not self._valid_client_id(client_id):
+            raise ValueError("Device-Id must be a MAC address and Client-Id a UUID. Correct both.")
+        if not re.fullmatch(r"[0-9a-f]{64}", token_sha256):
+            raise ValueError("The pairing digest must be 64 lower-case hex characters.")
+        with self._lock:
+            with self._file_lock():
+                self._refresh()
+                self._devices[device_id] = {
+                    "client_id": client_id,
+                    "token_sha256": token_sha256,
+                    "approved_at": time.time(),
+                    "link_new": True,
+                }
+                self._save()
 
     def paired_devices(self) -> dict[str, dict[str, str | float]]:
         with self._lock:
@@ -202,6 +288,7 @@ class PairingStore:
                         "token_sha256": hashlib.sha256(token.encode()).hexdigest(),
                         "approved_at": now,
                         "enrollment_id": code_id,
+                        "link_new": True,
                     }
                     self._save()
                     return token
@@ -291,6 +378,7 @@ class PairingStore:
                     "client_id": req.client_id,
                     "token_sha256": hashlib.sha256(token.encode()).hexdigest(),
                     "approved_at": time.time(),
+                    "link_new": True,
                 }
                 self._save()
                 return token

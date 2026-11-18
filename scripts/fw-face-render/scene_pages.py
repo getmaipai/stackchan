@@ -6,7 +6,7 @@ import sys
 out = sys.argv[1]
 STYLES = ["big_eyes", "stock"]
 PAGES = ["clock", "timers", "games", "actions", "frame", "tiles"]
-CFG_ALL = "L=clock,timers,games;R=actions,frame,tiles;S=6;I=20;A=find,beep,dance,game,hello;C=volume,brightness,mute,quiet,light,find,timers,games,wifi,battery,tailnet,address"
+CFG_ALL = "L=clock,timers,games;R=actions,frame,tiles;S=6;I=20;A=find,beep,dance,game,hello;C=volume,brightness,mute,quiet,lock,find,timers,games,wifi,battery,tailnet,address"
 
 
 def head(lines):
@@ -49,7 +49,7 @@ with open(f"{out}/scene_pages.txt", "w") as f:
 
 # ---- the gesture run: swipes through the real state machine and the real page code; the lines the renderer prints are the evidence ----
 with open(f"{out}/scene_gestures.txt", "w") as f:
-    L = ["bcaps subtitles", "pcfg L=clock;R=games,actions;S=6;I=20;A=find,beep,dance,game;C=volume,brightness,mute,quiet,light,find,timers,games,wifi,battery", "style big_eyes", "advance 300"]
+    L = ["bcaps subtitles", "pcfg L=clock;R=games,actions;S=6;I=20;A=find,beep,dance,game;C=volume,brightness,mute,quiet,lock,find,timers,games,wifi,battery", "style big_eyes", "advance 300"]
     L += ["# right: the page left of the face (clock); left from the face: games, then actions, then a bump"]
     L += ["pswipe 100 100 220 100 200", "advance 300", f"snap {out}/g_clock.png", "pswipe 220 100 100 100 200", "pswipe 220 100 100 100 200", "advance 300", f"snap {out}/g_games.png",
           "pswipe 220 100 100 100 200", "pswipe 220 100 100 100 200", "# an edge swipe is the volume, never a page", "pswipe 4 100 120 100 200", "pswipe 316 100 200 100 200",
@@ -61,9 +61,19 @@ with open(f"{out}/scene_gestures.txt", "w") as f:
           "# a slow drag is no swipe", "pswipe 100 100 220 100 1500", "pstate"]
     f.write("\n".join(L) + "\n")
 
+# ---- patch NX03: the games page is up, the sheet opens over it, a tap on Apps (and then Games and the gear): only that screen is on the glass ----
+with open(f"{out}/scene_overlap.txt", "w") as f:
+    DEFAULT = "pcfg L=clock;R=games;S=10;I=20;A=beep,dance,game,hello;C=volume,brightness,mute,quiet,lock,timers,games,wifi,battery"
+    L = ["bcaps subtitles", DEFAULT, "style big_eyes", "advance 300", "pset hh 10", "pset mm 24"]
+    L += ["pshow games", "advance 400", f"snap {out}/o_games_page.png", "pshow sheet", "advance 300", f"snap {out}/o_sheet_over_games_page.png", "pstate"]
+    L += ["# the Apps tile (the fourth tile of the one row of six, at x 163 to 207)", "pclick 185 212", "advance 400", f"snap {out}/o_apps_only.png", "pstate"]
+    L += ["# back to the face, then the same with Games and with the gear", "pshow face", "advance 300", "pshow games", "advance 300", "pshow sheet", "advance 300", "pclick 235 212", "advance 400", f"snap {out}/o_games_wall_only.png", "pstate"]
+    L += ["pshow face", "advance 300", "pshow games", "advance 300", "pshow sheet", "advance 300", "pclick 285 212", "advance 400", f"snap {out}/o_settings_only.png", "pstate"]
+    f.write("\n".join(L) + "\n")
+
 # ---- the draw cost: run it with PERF=1 (dirty-area flushing, as on the unit); `perf` lines give pixels flushed per frame ----
 with open(f"{out}/scene_perf.txt", "w") as f:
-    L = ["bcaps subtitles", "pcfg L=clock,timers,games;R=actions,frame,tiles;S=6;I=300;A=find,beep,dance,game,hello;C=volume,brightness,mute,quiet,light,find,timers,games,wifi,battery", "style big_eyes",
+    L = ["bcaps subtitles", "pcfg L=clock,timers,games;R=actions,frame,tiles;S=6;I=300;A=find,beep,dance,game,hello;C=volume,brightness,mute,quiet,lock,find,timers,games,wifi,battery", "style big_eyes",
          "ptile sun Weather 72~F", "ptile home Garage Open", "pset frames 3", "ptimer 600 Tea", "advance 800", "perfbegin", "advance 3000", "perfend face_3s"]
     for page in PAGES + ["sheet"]:
         L += [f"pshow {page}", "advance 500", "perfbegin", "advance 3000", f"perfend {page}_3s"]

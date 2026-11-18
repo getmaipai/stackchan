@@ -243,4 +243,33 @@ def test_a_clear_steady_beat_that_is_a_little_flat_still_counts_on_the_host() ->
     assert judge_host(real_song).music is True
     assert judge_host(replace(real_song, tc=30)).why == "too_flat"  # a weak beat gets no allowance
     assert judge_host(replace(real_song, fl=96)).why == "too_flat"  # noise stays refused
-    assert judge_host(replace(real_song, mo=60)).music is False  # speech-like modulation still refuses it
+    assert judge_host(replace(real_song, mo=70)).music is False  # extreme speech-like modulation still refuses it
+
+
+def test_music_playing_keeps_the_robot_from_falling_asleep() -> None:
+    from maipai_body.expression.rest import RestPolicy
+
+    from test_stackchan_music_dance import MUSIC  # a feature window judged as music
+    from maipai_body.bodies.stackchan.music_dance import judge_host
+
+    assert judge_host(MUSIC).music is True
+    policy = RestPolicy(0.0, drowsy_after_s=120.0, asleep_after_s=300.0)
+    policy.update(0.0, person_present=False, turn_active=False)
+    # no one around for 400 seconds: it falls asleep
+    assert policy.update(400.0, person_present=False, turn_active=False).stage == "asleep"
+    # music heard (the app passes turn_active while music was heard in the last 20 s): it wakes and stays awake
+    assert policy.update(401.0, person_present=False, turn_active=True).stage == "awake"
+    assert policy.update(402.0, person_present=False, turn_active=True).stage == "awake"
+
+
+def test_a_song_with_vocals_and_a_steady_beat_counts_but_fast_speech_does_not() -> None:
+    from dataclasses import replace
+
+    from maipai_body.bodies.stackchan.music_dance import judge, judge_host
+    from test_stackchan_music_dance import MUSIC
+
+    song = replace(MUSIC, tc=51, fl=90, mo=50, ps=20)  # measured 2026-11-17: refused as speech by the shared rule
+    assert judge(song).why in {"speech_like_modulation", "too_flat"}
+    assert judge_host(song).music is True
+    assert judge_host(replace(song, tc=20)).music is False  # no steady tempo: speech
+    assert judge_host(replace(song, mo=70)).music is False  # extreme modulation: speech

@@ -62,6 +62,7 @@ function bannerIcon(c,n,x,y,col){c.save();c.lineCap='round';c.lineJoin='round';c
  c.restore()}
 function bannerGlyph(c,n,x,y,col){c.save();c.lineCap='round';c.strokeStyle=col;c.fillStyle=col;c.lineWidth=2;
  if(n==='mic'){c.fillStyle='#ff5a50';c.strokeStyle='#ff5a50';c.beginPath();rrPath(c,x+7,y,6,10,3);c.fill();c.beginPath();c.arc(x+10,y+7,7,.1*Math.PI,.9*Math.PI);c.stroke();c.fillRect(x+9,y+13,2,4)}
+ else if(n==='face'){c.beginPath();c.arc(x+10,y+9,8,0,6.2832);c.stroke();c.beginPath();c.arc(x+7.5,y+7.5,1.5,0,6.2832);c.fill();c.beginPath();c.arc(x+13.5,y+7.5,1.5,0,6.2832);c.fill();c.fillRect(x+6,y+12,8,2)}
  else if(n==='camera'){c.beginPath();rrPath(c,x+1,y+2,18,14,4);c.stroke();c.beginPath();c.arc(x+10,y+9,3.5,0,6.2832);c.fill()}
  else if(n==='remote'){c.fillStyle='#a070ff';c.beginPath();rrPath(c,x,y+1,20,15,4);c.fill();c.fillStyle='#302058';c.beginPath();c.arc(x+10,y+8.5,3,0,6.2832);c.fill()}
  else if(n==='battery'){c.beginPath();rrPath(c,x,y+3,17,11,3);c.stroke();c.fillRect(x+17,y+6,3,5);c.fillStyle='#ff5a50';c.fillRect(x+2,y+5,4,7)}

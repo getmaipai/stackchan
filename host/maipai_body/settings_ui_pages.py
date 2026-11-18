@@ -78,7 +78,7 @@ function pgDrawSheet(g,fg,cfg,dim){const C=pgShades(fg),d=dim?55:100,L=pgLayout(
  if(L.text_h){g.font='16px system-ui,sans-serif';g.fillStyle=dm(85);const txt={9:'Private net up',10:'Settings: 192.0.2.10'};g.fillText(L.status.filter(i=>txt[i]).map(i=>txt[i]).join('    '),8,L.text_y)}
  for(const [it,x,y,w,hh] of L.rects){const name=PGT.sheet[it];
   if(it<=1){g.font='16px system-ui,sans-serif';g.fillStyle=dm(90);g.fillText(T('pg.item.'+name),x,y);pgRound(g,x+8,y+26,w-16,16,8,dm(28));pgRound(g,x+8,y+26,(w-16)*(it===0?.7:.8),16,8,dm(100));g.fillStyle=dm(100);g.beginPath();g.arc(x+8+(w-16)*(it===0?.7:.8),y+34,16,0,7);g.fill()}
-  else{const on=name==='light',bg=on?dm(100):dm(16);pgRound(g,x,y,w,hh,10,bg,dm(40));pgSheetIcon(g,it===PGT.sheet.length?'more':name,x+10,y+10,on?'#000':dm(100),bg)}}}
+  else{const on=name==='quiet',bg=on?dm(100):dm(16);pgRound(g,x,y,w,hh,10,bg,dm(40));pgSheetIcon(g,it===PGT.sheet.length?'more':name,x+10,y+10,on?'#000':dm(100),bg)}}}
 function pgFace(g,fg){const C=pgShades(fg);g.fillStyle='#000';g.fillRect(0,0,320,240);pgRound(g,40,60,79,85,24,C(100));pgRound(g,201,60,79,85,24,C(100));pgRound(g,128,152,64,12,6,C(100))}
 function pgPreview(cv,cfg,sel,fg,dim){const g=cv.getContext('2d');pgFace(g,fg);
  const strip=[...cfg.left].reverse().concat(['face'],cfg.right);

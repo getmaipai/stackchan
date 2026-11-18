@@ -35,7 +35,7 @@ typedef struct {
     float speed_dps;
     person_t p[MAXP];
     /* mode and gates */
-    uint8_t mode, awake, muted, privacy, vision_off, full_quiet, quiet, denied, conversation;
+    uint8_t mode, awake, muted, privacy, vision_off, full_quiet, quiet, denied, conversation, locked, carried, night;
     int drop_frames;     /* the camera delivers nothing */
     float flicker;       /* added to every pixel on odd frames */
     int detector_faces;  /* the detector build finds a face when a person is within 6 degrees of the optical axis */
@@ -102,7 +102,7 @@ static void world_init(world_t* w, ms_t* s, uint8_t mode)
     w->now = 100000;
 }
 
-static int blocked(world_t* w) { return !w->awake || w->muted || w->privacy || w->vision_off || w->full_quiet || w->mode == MS_MODE_OFF; }
+static int blocked(world_t* w) { return !w->awake || w->muted || w->privacy || w->vision_off || w->full_quiet || w->locked || w->carried || w->mode == MS_MODE_OFF; }
 
 /* one 50 ms step; addressed is the wake word edge */
 static void step(world_t* w, int addressed)
@@ -137,6 +137,9 @@ static void step(world_t* w, int addressed)
     in.full_quiet = w->full_quiet;
     in.quiet_or_night = w->quiet;
     in.camera_denied = w->denied;
+    in.locked = w->locked;
+    in.carried = w->carried;
+    in.night = w->night;
     in.mode = w->mode;
     if (deliver && !w->drop_frames) {
         render(w, frame);
@@ -654,6 +657,69 @@ static void test_detector_build_blob_then_face(void)
     CHECK(S.state == MS_HOLD && fabsf(w.pan - 12.0f) < 4.0f);
 }
 
+/* ---- patch NX06: "always" is the default, so its gates are tested one by one ----
+ * The idle watch (one frame a second, a turn when something moves) never runs while the unit is locked, carried, asleep, muted, in full quiet
+ * or at night, takes at most four turns a minute, and shows the camera cue with every frame. A wake word at night still turns the head. */
+static void test_always_gates_locked_carried_night(void)
+{
+    world_t w;
+    for (int gate = 0; gate < 3; gate++) {
+        ms_init(&S, 0);
+        world_init(&w, &S, MS_MODE_ALWAYS);
+        person(&w, 0, 25.0f, 1, 6, 50);
+        w.locked = gate == 0;
+        w.carried = gate == 1;
+        w.night = gate == 2;
+        run(&w, 30, 0);
+        CHECK(w.bursts == 0 && w.moves == 0 && S.turns_total == 0);       /* no camera and no head move while the gate is shut */
+        CHECK(w.camera_when_blocked == 0 && w.move_when_blocked == 0);
+        w.locked = w.carried = w.night = 0;                              /* the gate opens: the watch starts by itself and turns once */
+        run(&w, 10, 0);
+        CHECK(w.bursts > 0 && S.turns_total == 1 && fabsf(w.pan - 25.0f) < 4.0f);
+        CHECK(w.cues_missing == 0);                                       /* every frame came with the camera cue */
+    }
+    /* locked or carried also stops a talk-mode address (no camera, no move); night does not (the person asked, the head turns, slowly) */
+    ms_init(&S, 0);
+    world_init(&w, &S, MS_MODE_TALK);
+    person(&w, 0, 20.0f, 1, 6, 50);
+    w.conversation = 1;
+    w.locked = 1;
+    run(&w, 10, 1);
+    CHECK(w.bursts == 0 && w.moves == 0);
+    ms_init(&S, 0);
+    world_init(&w, &S, MS_MODE_TALK);
+    person(&w, 0, 20.0f, 1, 6, 50);
+    w.conversation = 1;
+    w.carried = 1;
+    run(&w, 10, 1);
+    CHECK(w.bursts == 0 && w.moves == 0);
+    ms_init(&S, 0);
+    world_init(&w, &S, MS_MODE_TALK);
+    person(&w, 0, 20.0f, 1, 6, 50);
+    w.conversation = 1;
+    w.night = 1;
+    w.quiet = 1;
+    run(&w, 10, 1);
+    CHECK(w.bursts > 0 && fabsf(w.pan - 20.0f) < 4.0f && w.camera_when_blocked == 0);
+    /* a gate that shuts in the middle of a watch ends it at once, and the head stays where it is */
+    ms_init(&S, 0);
+    world_init(&w, &S, MS_MODE_ALWAYS);
+    run(&w, 5, 0);
+    const int before = w.bursts;
+    w.carried = 1;
+    person(&w, 0, 25.0f, 1, 6, 50);
+    run(&w, 20, 0);
+    CHECK(w.bursts <= before + 1 && w.moves == 0 && w.camera_when_blocked == 0);
+    /* rate limit: a mover who keeps stepping in and out of view costs at most four head turns in a minute */
+    ms_init(&S, 0);
+    world_init(&w, &S, MS_MODE_ALWAYS);
+    for (int sec = 0; sec < 60; sec++) {
+        person(&w, 0, (sec % 2) ? -30.0f : 30.0f, 1, 6, 50);
+        run(&w, 1, 0);
+    }
+    CHECK(S.turns_total <= MS_TURNS_PER_MIN + 1 && w.camera_when_blocked == 0 && w.cues_missing == 0);
+}
+
 int main(void)
 {
     test_blob();
@@ -666,6 +732,7 @@ int main(void)
     test_two_people_the_bigger_mover_wins();
     test_notice_turns_once_and_goes_home_after_twenty_seconds();
     test_follow_is_gentle_and_capped();
+    test_always_gates_locked_carried_night();
     test_four_turns_a_minute_and_stale_targets();
     test_gates_keep_the_camera_and_the_head_still();
     test_camera_refused_stays_away();

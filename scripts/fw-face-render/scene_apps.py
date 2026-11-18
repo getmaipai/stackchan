@@ -28,6 +28,11 @@ L += ["clearall", "show timers"]; snap("timers_0")
 L += ["timer 272 tea", "show timers"]; snap("timers_1")
 L += ["timer 1500 laundry", "timer 3725 _", "show timers"]; snap("timers_3")
 L += ["lang es", "show timers"]; snap("timers_3_es"); L += ["lang en"]
+# patch NX09: the long preset column scrolled to the end, then Custom opens the hour and minute steppers
+L += ["show timers", "swipe 50 200 50 40 300"]; snap("timers_3_scrolled")
+L += ["clearall", "show timers", "swipe 50 200 50 40 300"]; snap("timers_0_scrolled")
+L += ["tap 50 190", "state"]; snap("timers_custom_picker")
+L += ["show timers"]
 # alarms
 L += ["clearall", "show alarms"]; snap("alarms_0")
 L += ["alarm 7 30 wake_up", "show alarms"]; snap("alarms_1")

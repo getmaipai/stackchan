@@ -29,11 +29,14 @@ def _added_file(path: str) -> str:
 
 
 @pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler on this machine")
-def test_seek_core_c_tests_pass(tmp_path):
-    (tmp_path / "maipai_seek_core.h").write_text(_added_file(HEADER))
+def test_seek_core_c_tests_pass(tmp_path, tmp_path_factory):
+    # The core as the whole of ORDER leaves it: patch NX06 added the lock, carry and night gates to what S10 wrote.
+    from firmware_order_cores import cores_dir
+
+    hal = cores_dir(tmp_path_factory)
     binary = tmp_path / "t"
     build = subprocess.run(
-        ["cc", "-std=c99", "-Wall", "-Wextra", "-Werror", f"-I{tmp_path}", str(HERE / "firmware" / "seek_core_test.c"), "-o", str(binary), "-lm"],
+        ["cc", "-std=c99", "-Wall", "-Wextra", "-Werror", f"-I{hal}", str(HERE / "firmware" / "seek_core_test.c"), "-o", str(binary), "-lm"],
         capture_output=True,
         text=True,
     )

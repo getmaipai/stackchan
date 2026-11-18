@@ -47,8 +47,11 @@ def _build_headers(tmp_path: Path) -> Path:
 
 
 @pytest.mark.skipif(shutil.which("cc") is None or shutil.which("git") is None, reason="no C compiler or git on this machine")
-def test_seek_wire_c_tests_pass(tmp_path):
-    hal = _build_headers(tmp_path)
+def test_seek_wire_c_tests_pass(tmp_path, tmp_path_factory):
+    # The cores as the whole of ORDER leaves them (patch NX06 adds the lock, carry and night gates to both).
+    from firmware_order_cores import cores_dir
+
+    hal = cores_dir(tmp_path_factory)
     for name in ("seek_wire_test.c", "seek_core_test.c"):
         binary = tmp_path / name.replace(".c", "")
         build = subprocess.run(

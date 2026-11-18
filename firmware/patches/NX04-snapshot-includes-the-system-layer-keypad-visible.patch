@@ -1,0 +1,73 @@
+# Intent: The bench snapshot (self.face.snapshot) missed the system layer, where the lock screen (the padlock and the keypad) is drawn since the z letters of the sleeping face had to stay under it. After the last flash the bench showed only the sleeping face with a few dim dots while self.lock.status said the keypad was up, so the drawing was right and the picture was incomplete. The snapshot now lays the top layer and then the system layer over the screen, one after the other, so the picture is what the glass shows. Bench builds only.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_facebench.cc (ours)
+# Check after a flash: bench image: self.lock.set, self.lock.now, self.lock.bench_touch, then self.face.snapshot shows the padlock and the keypad.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_facebench.cc b/firmware/main/hal/maipai_facebench.cc
+--- a/firmware/main/hal/maipai_facebench.cc
++++ b/firmware/main/hal/maipai_facebench.cc
+@@ -375,6 +375,32 @@ void speak_task(void* arg)
+     vTaskDelete(nullptr);
+ }
+ 
++// Lays one LVGL layer (with its alpha) over the RGB565 picture.
++void blend_layer(lv_draw_buf_t* buf, lv_obj_t* layer)
++{
++    lv_draw_buf_t* top = buf != nullptr ? lv_snapshot_take(layer, LV_COLOR_FORMAT_ARGB8888) : nullptr;
++    if (top == nullptr) {
++        return;
++    }
++    const uint32_t tw = top->header.w < buf->header.w ? top->header.w : buf->header.w;
++    const uint32_t th = top->header.h < buf->header.h ? top->header.h : buf->header.h;
++    for (uint32_t y = 0; y < th; y++) {
++        const uint8_t* src = top->data + y * top->header.stride;
++        uint8_t* dst       = buf->data + y * buf->header.stride;
++        for (uint32_t x = 0; x < tw; x++) {
++            const uint8_t b = src[x * 4], g = src[x * 4 + 1], r = src[x * 4 + 2], al = src[x * 4 + 3];
++            if (al == 0) continue;
++            const uint16_t px = static_cast<uint16_t>(dst[x * 2] | (dst[x * 2 + 1] << 8));
++            const int dr = ((px >> 11) & 31) * 255 / 31, dg = ((px >> 5) & 63) * 255 / 63, db = (px & 31) * 255 / 31;
++            const int rr = (r * al + dr * (255 - al)) / 255, rg = (g * al + dg * (255 - al)) / 255, rb = (b * al + db * (255 - al)) / 255;
++            const uint16_t out = static_cast<uint16_t>(((rr >> 3) << 11) | ((rg >> 2) << 5) | (rb >> 3));
++            dst[x * 2]         = out & 0xFF;
++            dst[x * 2 + 1]     = out >> 8;
++        }
++    }
++    lv_draw_buf_destroy(top);
++}
++
+ void snapshot_body()
+ {
+     lv_draw_buf_t* buf;
+@@ -383,26 +409,10 @@ void snapshot_body()
+         buf = lv_snapshot_take(lv_screen_active(), LV_COLOR_FORMAT_RGB565);
+         // Patch FI04: the banner row, the strip and the subtitles live on the top layer, which a screen snapshot leaves out.
+         // Take that layer as well (with its alpha) and lay it over the screen, so the picture is what the glass shows.
+-        lv_draw_buf_t* top = buf != nullptr ? lv_snapshot_take(lv_layer_top(), LV_COLOR_FORMAT_ARGB8888) : nullptr;
+-        if (top != nullptr) {
+-            const uint32_t tw = top->header.w < buf->header.w ? top->header.w : buf->header.w;
+-            const uint32_t th = top->header.h < buf->header.h ? top->header.h : buf->header.h;
+-            for (uint32_t y = 0; y < th; y++) {
+-                const uint8_t* src = top->data + y * top->header.stride;
+-                uint8_t* dst       = buf->data + y * buf->header.stride;
+-                for (uint32_t x = 0; x < tw; x++) {
+-                    const uint8_t b = src[x * 4], g = src[x * 4 + 1], r = src[x * 4 + 2], al = src[x * 4 + 3];
+-                    if (al == 0) continue;
+-                    const uint16_t px = static_cast<uint16_t>(dst[x * 2] | (dst[x * 2 + 1] << 8));
+-                    const int dr = ((px >> 11) & 31) * 255 / 31, dg = ((px >> 5) & 63) * 255 / 63, db = (px & 31) * 255 / 31;
+-                    const int rr = (r * al + dr * (255 - al)) / 255, rg = (g * al + dg * (255 - al)) / 255, rb = (b * al + db * (255 - al)) / 255;
+-                    const uint16_t out = static_cast<uint16_t>(((rr >> 3) << 11) | ((rg >> 2) << 5) | (rb >> 3));
+-                    dst[x * 2]         = out & 0xFF;
+-                    dst[x * 2 + 1]     = out >> 8;
+-                }
+-            }
+-            lv_draw_buf_destroy(top);
+-        }
++        // Patch NX04: the lock screen (the padlock and the keypad) lives on the system layer, above the top layer, so that layer is laid over
++        // as well. Before this the bench showed only the sleeping face behind a locked unit, while self.lock.status said the keypad was up.
++        blend_layer(buf, lv_layer_top());
++        blend_layer(buf, lv_layer_sys());
+ #if CONFIG_MAIPAI_FX
+         if (buf != nullptr) {  // patch FI06: the overlays and effects are drawn at flush time, so lay them over the picture as well
+             maipai_fx_snapshot_post(buf->data, buf->header.w, buf->header.h, buf->header.stride);

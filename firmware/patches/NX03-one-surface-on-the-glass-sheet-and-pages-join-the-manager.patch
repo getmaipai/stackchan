@@ -1,0 +1,261 @@
+# Intent: Fix: opening Apps (or Games or Settings) from the quick sheet while the games swipe page was open drew both screens over each other. The sheet closed back to the page it covered and the Apps wall then opened on top of it. Now one rule covers everything on the glass (maipai_screens_core.h): a sheet may sit over the face or a swipe page, every other surface is exclusive, and opening any surface closes what may not stay. The sheet and the swipe pages ask the screen manager like the other screens, and the three sheet tiles that open a screen go straight to it.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_screens_core.h, maipai_screens.h, maipai_pages.cc, maipai_pages.h (ours)
+# Check after a flash: open the games page (swipe from the face), swipe up for the sheet, tap Apps: only the Apps wall is on the glass (snapshot), and the same for Games and the gear; back on the face the sheet and the page are gone (self.pages.status).
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_screens_core.h b/firmware/main/hal/maipai_screens_core.h
+--- a/firmware/main/hal/maipai_screens_core.h
++++ b/firmware/main/hal/maipai_screens_core.h
+@@ -13,11 +13,14 @@
+ 
+ #include <stdint.h>
+ 
+-enum { MSCR_NONE = -1, MSCR_SETTINGS = 0, MSCR_QUICK, MSCR_WIFI, MSCR_MORE, MSCR_LOCK, MSCR_APPS, MSCR_COUNT };  /* MSCR_APPS (patch UI16): the Apps wall, the games wall, Timers and Alarms */
++/* MSCR_APPS (patch UI16): the Apps wall, the games wall, Timers and Alarms. Patch NX03 adds the rest of the glass: MSCR_SHEET (the quick access
++ * sheet) and MSCR_PAGE (a swipe page: clock, timers, games, quick actions, pictures, dashboard). A running game covers the glass opaquely and the
++ * wall and the pages close by themselves while one runs (game_running), so it is not a surface here. */
++enum { MSCR_NONE = -1, MSCR_SETTINGS = 0, MSCR_QUICK, MSCR_WIFI, MSCR_MORE, MSCR_LOCK, MSCR_APPS, MSCR_SHEET, MSCR_PAGE, MSCR_COUNT };
+ 
+ typedef struct {
+     int8_t cur;           /* the one screen that is up, or MSCR_NONE */
+-    uint8_t visible_mask; /* bit per screen that has objects on the glass: never more than one bit */
++    uint16_t visible_mask; /* bit per screen that has objects on the glass (patch NX03: kept by mscr_enter and mscr_exit) */
+ } mscr_t;
+ 
+ static inline void mscr_init(mscr_t* s)
+@@ -26,7 +29,8 @@ static inline void mscr_init(mscr_t* s)
+     s->visible_mask = 0;
+ }
+ 
+-/* A screen wants to open. Returns the screen to close first (MSCR_NONE when none), and makes `id` the current one. */
++/* A screen wants to open. Returns the screen to close first (MSCR_NONE when none), and makes `id` the current one. Since patch NX03 the unit uses mscr_enter
++ * and mscr_exit below; this older single-screen form is kept for its test. */
+ static inline int mscr_open(mscr_t* s, int id)
+ {
+     const int prev = (s->cur != MSCR_NONE && s->cur != id) ? s->cur : MSCR_NONE;
+@@ -42,4 +46,67 @@ static inline void mscr_closed(mscr_t* s, int id)
+     }
+ }
+ 
++/* ---- patch NX03: one rule for everything that can be on the glass ----
++ * Opening the Apps wall from the quick sheet while the games swipe page was open drew both screens over each other: the sheet closed back to
++ * the page it covered and the Apps wall then opened on top of it. The rule now: a sheet may sit over the face or a swipe page (that is what it
++ * is for); everything else is exclusive. Entering any surface returns the mask of the surfaces that must close first, and the state keeps the
++ * set that is visible, so there are never two overlay screens at once. */
++#define MSCR_BIT(id) (1u << (id))
++#define MSCR_SHEET_OVER MSCR_BIT(MSCR_PAGE) /* what the sheet may cover */
++
++static inline unsigned mscr_conflicts(int entering, unsigned visible)
++{
++    unsigned m = visible & ~MSCR_BIT(entering);
++    if (entering == MSCR_SHEET) {
++        m &= ~MSCR_SHEET_OVER;
++    }
++    return m;
++}
++
++/* A surface opens. Returns the mask of surfaces to close first; they are removed from the visible set and `id` joins it. */
++static inline unsigned mscr_enter(mscr_t* s, int id)
++{
++    if (id < 0 || id >= MSCR_COUNT) {
++        return 0;
++    }
++    const unsigned close = mscr_conflicts(id, s->visible_mask);
++    s->visible_mask = (uint16_t)((s->visible_mask & ~close) | MSCR_BIT(id));
++    s->cur = (int8_t)id;
++    return close;
++}
++
++/* A surface has closed (or was closed). The current one falls back to what is still visible: the page under a closed sheet, else none. */
++static inline void mscr_exit(mscr_t* s, int id)
++{
++    if (id < 0 || id >= MSCR_COUNT) {
++        return;
++    }
++    s->visible_mask = (uint16_t)(s->visible_mask & ~MSCR_BIT(id));
++    if (s->cur == id) {
++        s->cur = MSCR_NONE;
++        for (int i = 0; i < MSCR_COUNT; i++) {
++            if (s->visible_mask & MSCR_BIT(i)) {
++                s->cur = (int8_t)i;
++            }
++        }
++    }
++}
++
++/* The invariant the glass must keep: at most one surface that is not the sheet, and the sheet only over a swipe page or the face. */
++static inline int mscr_valid(const mscr_t* s)
++{
++    const unsigned others = s->visible_mask & ~MSCR_BIT(MSCR_SHEET);
++    int n = 0;
++    for (int i = 0; i < MSCR_COUNT; i++) {
++        n += (int)((others >> i) & 1u);
++    }
++    if (n > 1) {
++        return 0;
++    }
++    if ((s->visible_mask & MSCR_BIT(MSCR_SHEET)) && (others & ~MSCR_SHEET_OVER) != 0) {
++        return 0;
++    }
++    return 1;
++}
++
+ #endif /* MAIPAI_SCREENS_CORE_H */
+diff --git a/firmware/main/hal/maipai_screens.h b/firmware/main/hal/maipai_screens.h
+--- a/firmware/main/hal/maipai_screens.h
++++ b/firmware/main/hal/maipai_screens.h
+@@ -3,7 +3,7 @@
+  *
+  * The single owner of the full-screen overlays (patch UI09). Header only; the LVGL lock is held by every caller. See maipai_screens_core.h.
+  *   maipai_screen_register(id, close)   once: how to close that screen (it must call maipai_screen_closed(id) itself)
+- *   maipai_screen_open(id)              before building a screen: closes the one that is up, if any
++ *   maipai_screen_open(id)              before building a screen: closes whatever may not stay (patch NX03: the sheet and the swipe pages included)
+  *   maipai_screen_closed(id)            when a screen goes away
+  *   maipai_screen_close_all()           something else (a page, the face) takes over the glass
+  */
+@@ -24,22 +24,28 @@ inline void maipai_screen_register(int id, void (*close)())
+ 
+ inline void maipai_screen_open(int id)
+ {
+-    const int prev = mscr_open(&maipai_screens_detail::g_state, id);
+-    if (prev != MSCR_NONE && maipai_screens_detail::g_close[prev] != nullptr) {
+-        maipai_screens_detail::g_close[prev]();
++    // Patch NX03: every surface on the glass asks here. The ones that may not stay (another screen, a swipe page, the sheet) close first.
++    const unsigned close = mscr_enter(&maipai_screens_detail::g_state, id);
++    for (int i = 0; i < MSCR_COUNT; i++) {
++        if ((close & MSCR_BIT(i)) != 0 && maipai_screens_detail::g_close[i] != nullptr) {
++            maipai_screens_detail::g_close[i]();
++        }
+     }
+ }
+ 
+ inline void maipai_screen_closed(int id)
+ {
+-    mscr_closed(&maipai_screens_detail::g_state, id);
++    mscr_exit(&maipai_screens_detail::g_state, id);
+ }
+ 
++// Something else takes the glass: every overlay screen that is up closes. The sheet and the swipe pages are not touched here (the pages own those).
+ inline void maipai_screen_close_all()
+ {
+-    const int cur = maipai_screens_detail::g_state.cur;
+-    if (cur != MSCR_NONE && maipai_screens_detail::g_close[cur] != nullptr) {
+-        maipai_screens_detail::g_close[cur]();
++    const unsigned up = maipai_screens_detail::g_state.visible_mask & ~(MSCR_BIT(MSCR_SHEET) | MSCR_BIT(MSCR_PAGE));
++    for (int i = 0; i < MSCR_COUNT; i++) {
++        if ((up & MSCR_BIT(i)) != 0 && maipai_screens_detail::g_close[i] != nullptr) {
++            maipai_screens_detail::g_close[i]();
++        }
+     }
+ }
+ 
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -218,6 +218,7 @@ void drop_page()
+     s_page_type = -1;
+     s_page_pos  = 99;
+     free_ui();
++    maipai_screen_closed(MSCR_PAGE);  // patch NX03
+ }
+ 
+ void drop_sheet()
+@@ -229,6 +230,7 @@ void drop_sheet()
+     delete s_sh;
+     s_sh = nullptr;
+     s_sheet_a.store(false);
++    maipai_screen_closed(MSCR_SHEET);  // patch NX03
+ }
+ 
+ void publish()
+@@ -795,6 +797,7 @@ void show_type(int type, int pos)
+         return;  // already up (the sheet closed back to it)
+     }
+     drop_page();
++    maipai_screen_open(MSCR_PAGE);  // patch NX03: an overlay screen that was up closes first, never two at once
+     s_ui = new (std::nothrow) Ui();
+     if (s_ui == nullptr) {
+         return;
+@@ -930,12 +933,10 @@ void on_sheet_tile(lv_event_t* e)
+             s_host->lock_now();  // the lock screen takes the glass; a touch there shows the keypad (patches LK02 and LK03)
+             return;
+         case MPG_S_TIMERS:  // patch UI16: the Apps tile opens the wall of apps; the Games tile opens the wall of games
+-        case MPG_S_GAMES:
+-            sheet_pick();
++        case MPG_S_GAMES:   // patch NX03: opening it closes the sheet and the page under the sheet (the games page was drawn under the wall before)
+             maipai_apps_show(item == MPG_S_TIMERS ? MAV_APPS : MAV_GAMES);
+             return;
+         default:  // MPG_S_COUNT: the gear, the tabbed settings screen (patches UI05 and UI16)
+-            sheet_pick();
+             maipai_apps_show(MAV_SETTINGS);
+             return;
+     }
+@@ -1045,6 +1046,7 @@ void sheet_refresh()
+ void build_sheet()
+ {
+     drop_sheet();
++    maipai_screen_open(MSCR_SHEET);  // patch NX03: a sheet may cover the face or a page, never an overlay screen
+     s_sh = new (std::nothrow) ShUi();
+     if (s_sh == nullptr) {
+         return;
+@@ -1148,6 +1150,17 @@ void timer_cb(lv_timer_t*)
+     maipai_pages_step();
+ }
+ 
++// Patch NX03: another surface takes the glass from the sheet: the sheet goes and the gesture state falls back to what it covered.
++void sheet_closer()
++{
++    drop_sheet();
++    if (s_g.mode == MGS_SHEET) {
++        s_g.mode = s_g.under_pos != 0 ? MGS_PAGE : MGS_FACE;
++        s_g.pos  = s_g.under_pos;
++    }
++    publish();
++}
++
+ }  // namespace
+ 
+ // ================= public =================
+@@ -1162,6 +1175,8 @@ void maipai_pages_attach(MaipaiPagesHost* host, lv_color_t (*fgcb)())
+     mgs_init(&s_g);
+     mgs_config(&s_g, s_cfg.n_left, s_cfg.n_right, s_cfg.sheet_s, s_cfg.idle_s);
+     maipai_apps_attach(host, fgcb);  // patch UI16
++    maipai_screen_register(MSCR_SHEET, sheet_closer);  // patch NX03
++    maipai_screen_register(MSCR_PAGE, maipai_pages_yield);
+     s_ready = true;
+ }
+ 
+@@ -1309,11 +1324,19 @@ void maipai_pages_step()
+     }
+ }
+ 
+-void maipai_pages_close()
++// Patch NX03: a screen takes the glass. The sheet and the page under it go, and the gesture state goes back to the face (the sheet used to close
++// back to the page it covered, which an Apps wall then opened over).
++void maipai_pages_yield()
+ {
+     mgs_init(&s_g);
+     mgs_config(&s_g, s_cfg.n_left, s_cfg.n_right, s_cfg.sheet_s, s_cfg.idle_s);
++    s_extra_type = -1;
+     close_everything();
++}
++
++void maipai_pages_close()
++{
++    maipai_pages_yield();
+     maipai_apps_close();  // patch UI16
+ }
+ #endif
+diff --git a/firmware/main/hal/maipai_pages.h b/firmware/main/hal/maipai_pages.h
+--- a/firmware/main/hal/maipai_pages.h
++++ b/firmware/main/hal/maipai_pages.h
+@@ -134,6 +134,8 @@ void maipai_pages_event(int ev);
+ bool maipai_pages_show(int type);
+ // Runs the timer's work now (the host renderer calls this instead of waiting for the timer).
+ void maipai_pages_step();
++// Closes the sheet and the page and puts the gesture state back to the face, leaving the overlay screens alone (patch NX03).
++void maipai_pages_yield();
+ // Closes everything and frees it (the lock is held).
+ void maipai_pages_close();
+ #else

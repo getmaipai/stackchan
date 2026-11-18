@@ -29,6 +29,7 @@ STATES = [  # name, setup commands, ms to run before the picture, teardown comma
     ("notice_volume", ["bpost notice none volume 6000 Volume 40"], 700, []),
     ("low_battery_text", ["bpost notice battery game 6000 Battery low: 15 percent", "bstatus 15 0 1 1 0"], 700, ["bstatus 80 0 1 1 0"]),
     ("strip_privacy", ["bstatus 80 0 1 1 1", "bflag camera on", "bsession on remote"], 2600, ["bstatus 80 0 1 1 0", "bflag camera off", "bsession off"]),
+    ("strip_face_seen", ["bflag mic on", "bflag face on", "bflag camera on", "bsession on remote"], 2600, ["bflag mic off", "bflag face off", "bflag camera off", "bsession off"]),  # patch NX05: the face glyph next to the mic glyph, never over the camera cue or the remote chip
     ("strip_low_battery_wifi", ["bstatus 12 0 0 0 0"], 2600, ["bstatus 80 0 1 1 0"]),
     ("strip_top_bar_always", ["bbar always", "bstatus 64 0 1 1 0"], 2600, ["bbar hidden", "bstatus 80 0 1 1 0"]),
     ("subtitles_one_line", [f"ssay {SUB1}"], 500, []),

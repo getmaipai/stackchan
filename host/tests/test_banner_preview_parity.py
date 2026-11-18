@@ -29,26 +29,10 @@ TREE = os.environ.get("MAIPAI_FW_TREE", "")
 def _headers(tmp_path_factory: pytest.TempPathFactory) -> Path:
     if TREE and Path(TREE, "main", "hal", "maipai_banner_core.h").is_file():
         return Path(TREE, "main", "hal")
-    if shutil.which("git") is None:
-        pytest.skip("git is not installed")
-    work = tmp_path_factory.mktemp("bannercores")
-    for name in [
-        "N01-banner-row-and-subtitles.patch"
-    ]:  # the one patch that adds the core (a new file, so it needs no other patch)
-        text = (PATCHES / name).read_text()
-        diff = work / "p.diff"
-        diff.write_text(text[text.index("diff --git") :])
-        run = subprocess.run(
-            ["git", "apply", "--include=firmware/main/hal/*_core.h", str(diff)],
-            cwd=work,
-            capture_output=True,
-            text=True,
-        )
-        assert run.returncode == 0, f"{name}: {run.stderr}"
-    core = work / "firmware" / "main" / "hal" / "maipai_banner_core.h"
-    if not core.is_file():
-        pytest.skip("the banner patch is not in the patch list yet")
-    return core.parent
+    # The core as the whole of ORDER leaves it (patches UI04, UI07 and NX05 change what N01 added), like every other core test.
+    from firmware_order_cores import cores_dir
+
+    return cores_dir(tmp_path_factory)
 
 
 @pytest.fixture(scope="module")

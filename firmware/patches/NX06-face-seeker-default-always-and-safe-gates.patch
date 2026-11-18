@@ -1,0 +1,133 @@
+# Intent: Face turning. The seeker's setting turn_to_faces has three modes: off (never), talk (only after the wake word and during a talk) and always (also an idle watch: one camera frame a second, a turn when something moves, at most four turns a minute, the camera cue with every frame). The default was talk, so the unit never looked up when someone walked in. The default is now always, and the seeker is safe to leave on: it runs nothing while the unit is locked or carried (every mode) and its idle watch waits for day (night mode), besides the gates it already had (asleep, muted, full quiet, vision off, a host's look lease). A wake word at night still turns the head, slowly. A person who chose talk or off keeps that choice.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_seek_core.h, maipai_seek_wire_core.h, maipai_seek.cc, maipai_prefs_core.h, maipai_tbprefs.cc, maipai_tbprefs.h (ours)
+# Check after a flash: self.prefs.get shows turn_to_faces always on a unit that never chose; walking into view turns the head once with the camera cue; locked, carried and night mode stop it (self.look.status shows no new watch frames).
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_seek_core.h b/firmware/main/hal/maipai_seek_core.h
+--- a/firmware/main/hal/maipai_seek_core.h
++++ b/firmware/main/hal/maipai_seek_core.h
+@@ -306,6 +306,8 @@ typedef struct {
+     uint8_t awake, muted, privacy_sleep, vision_off, full_quiet;
+     uint8_t quiet_or_night; /* slower, quieter moves */
+     uint8_t camera_denied;  /* the unit refused the camera (memory admission) */
++    uint8_t locked, carried; /* patch NX06: the passcode lock is on, or the unit is held in a hand: nothing runs, in any mode */
++    uint8_t night;           /* patch NX06: night mode: the idle watch of "always" does not run (a wake word still turns the head, slowly) */
+     uint8_t mode;           /* MS_MODE_* from the setting */
+     const uint8_t* frame;   /* a gray 40 by 30 frame taken now at pan_deg, or NULL */
+     uint8_t face_valid;     /* detector build: a face was found in this frame */
+@@ -568,7 +570,7 @@ static inline void ms_tick(ms_t* s, const ms_in_t* in, ms_out_t* out)
+ {
+     memset(out, 0, sizeof(*out));
+     uint32_t now = in->now_ms;
+-    int camera_ok = in->awake && !in->muted && !in->privacy_sleep && !in->vision_off && !in->full_quiet;
++    int camera_ok = in->awake && !in->muted && !in->privacy_sleep && !in->vision_off && !in->full_quiet && !in->locked && !in->carried;
+     int leased = ms_lease_active(&s->lease, now);
+     if (in->mode == MS_MODE_OFF || !camera_ok || leased) { /* nothing runs: no camera, no head move */
+         if (s->state != MS_IDLE) {
+@@ -656,7 +658,7 @@ static inline void ms_tick(ms_t* s, const ms_in_t* in, ms_out_t* out)
+ 
+     switch (s->state) {
+     case MS_IDLE:
+-        if (in->mode != MS_MODE_ALWAYS) {
++        if (in->mode != MS_MODE_ALWAYS || in->night) { /* patch NX06: at night the unit does not search on its own */
+             break;
+         }
+         if (watch_hit && ms_turn_slots_free(s, now) > 0) {
+diff --git a/firmware/main/hal/maipai_seek_wire_core.h b/firmware/main/hal/maipai_seek_wire_core.h
+--- a/firmware/main/hal/maipai_seek_wire_core.h
++++ b/firmware/main/hal/maipai_seek_wire_core.h
+@@ -109,6 +109,8 @@ typedef struct {
+     uint8_t conversation;
+     uint8_t awake, muted, privacy_sleep, vision_off, full_quiet;
+     uint8_t quiet_or_night;
++    uint8_t locked, carried;  /* patch NX06: the passcode lock is on, the unit is held in a hand */
++    uint8_t night;            /* patch NX06: night mode (the idle watch of "always" waits for day) */
+     uint8_t mode;             /* MS_MODE_* from the saved setting */
+     uint8_t late;             /* the unit file's own measure of load (0 or 1) */
+     size_t free_internal, largest_internal;
+@@ -344,7 +346,7 @@ static inline uint32_t mw_period_ms(const mw_t* w)
+ 
+ static inline int mw_gates_ok(const mw_env_t* e)
+ {
+-    return e->awake && !e->muted && !e->privacy_sleep && !e->vision_off && !e->full_quiet;
++    return e->awake && !e->muted && !e->privacy_sleep && !e->vision_off && !e->full_quiet && !e->locked && !e->carried;
+ }
+ 
+ static inline void mw_note(const mw_t* w, const mw_ops_t* ops, const char* line)
+@@ -637,6 +639,9 @@ static inline void mw_step(mw_t* w, const mw_ops_t* ops)
+     in.vision_off = e.vision_off;
+     in.full_quiet = e.full_quiet;
+     in.quiet_or_night = e.quiet_or_night;
++    in.locked = e.locked;
++    in.carried = e.carried;
++    in.night = e.night;
+     in.mode = e.mode;
+     in.frame = frame;
+     in.camera_denied = w->denied_pending;
+diff --git a/firmware/main/hal/maipai_seek.cc b/firmware/main/hal/maipai_seek.cc
+--- a/firmware/main/hal/maipai_seek.cc
++++ b/firmware/main/hal/maipai_seek.cc
+@@ -21,6 +21,7 @@
+ #include "maipai_remote.h"
+ #include "maipai_facedet.h"
+ #include "maipai_pickup.h"
++#include "maipai_lock.h"  // patch NX06: the seeker stops while the unit is locked
+ #if defined(CONFIG_MAIPAI_FACE_TRACK) && CONFIG_MAIPAI_FACE_TRACK && defined(CONFIG_MAIPAI_FACE_DETECT) && CONFIG_MAIPAI_FACE_DETECT
+ #define MAIPAI_TRACK 1
+ #include "maipai_face_track_core.h"
+@@ -152,6 +153,9 @@ void op_env(void*, mw_env_t* e)
+     bool night         = false;
+     (void)maipai_sounds_gate("popup", &night);
+     e->quiet_or_night  = night ? 1 : 0;
++    e->night           = night ? 1 : 0;  // patch NX06
++    e->locked          = maipai_lock_locked() ? 1 : 0;
++    e->carried         = maipai_pickup_held() ? 1 : 0;
+     const MaipaiTbPrefs prefs = maipai_tb_prefs();
+     e->mode            = prefs.turn_to_faces > 2 ? 1 : prefs.turn_to_faces;
+     s_mode.store(e->mode);
+diff --git a/firmware/main/hal/maipai_prefs_core.h b/firmware/main/hal/maipai_prefs_core.h
+--- a/firmware/main/hal/maipai_prefs_core.h
++++ b/firmware/main/hal/maipai_prefs_core.h
+@@ -47,7 +47,7 @@ enum {
+     MP_THINKING_DOTS,
+     MP_CAPTIONS_MODE,   /* patch N01, N04: off, subtitles (the strip at the bottom, the default when on) or banner (the row at the top) */
+     MP_TOP_BAR,         /* patch N01: hidden (default) or always show battery and Wi-Fi in the top row */
+-    MP_TURN_TO_FACES,   /* patch S11: off, talk (after the wake word, the default) or always; read by the seeker (hal/maipai_seek_core.h) */
++    MP_TURN_TO_FACES,   /* patch S11: off, talk (after the wake word) or always (patch NX06: the default); read by the seeker (hal/maipai_seek_core.h) */
+     MP_STATUS_ICONS,    /* patch UI04: the banner row shows the heard, listening and thinking states as an icon and a word; off by default */
+     MP_PICKUP_REACTION, /* not in the host's table yet: the pickup patch reads it (off, face, face_sound) */
+     MP_COUNT
+@@ -92,7 +92,7 @@ static const mp_def_t MP_DEFS[MP_COUNT] = {
+     {"thinking_dots", "thinking_dots", MP_BOOL, 0, 1, 1, 1, NULL},
+     {"captions_mode", "captions_mode", MP_ENUM, 0, 2, 0, 1, MP_NAMES_CAPTIONS},
+     {"top_bar", "top_bar", MP_ENUM, 0, 1, 0, 1, MP_NAMES_TOPBAR},
+-    {"turn_to_faces", "turn_to_faces", MP_ENUM, 0, 2, 1, 1, MP_NAMES_TURN},
++    {"turn_to_faces", "turn_to_faces", MP_ENUM, 0, 2, 2, 1, MP_NAMES_TURN}, /* patch NX06: the default is "always" (was "talk") */
+     {"status_icons", "status_icons", MP_BOOL, 0, 1, 0, 1, NULL},
+     {"pickup_reaction", "pickup_reaction", MP_ENUM, 0, 2, 1, 0, MP_NAMES_PICKUP},
+ };
+diff --git a/firmware/main/hal/maipai_tbprefs.cc b/firmware/main/hal/maipai_tbprefs.cc
+--- a/firmware/main/hal/maipai_tbprefs.cc
++++ b/firmware/main/hal/maipai_tbprefs.cc
+@@ -62,7 +62,7 @@ void load(MaipaiTbPrefs* out)
+     tl_prefs_default(&out->listen);
+     tf_prefs_default(&out->filler);
+     out->pickup = 1;
+-    out->turn_to_faces = 1;
++    out->turn_to_faces = 2;  // patch NX06: "always" is the default
+     Settings st(MAIPAI_PREFS_NAMESPACE, false);
+     std::string s = read_text(st, "listen_sound");
+     uint8_t v;
+diff --git a/firmware/main/hal/maipai_tbprefs.h b/firmware/main/hal/maipai_tbprefs.h
+--- a/firmware/main/hal/maipai_tbprefs.h
++++ b/firmware/main/hal/maipai_tbprefs.h
+@@ -23,7 +23,7 @@ struct MaipaiTbPrefs {
+     tl_prefs_t listen;
+     tf_prefs_t filler;
+     uint8_t pickup;
+-    uint8_t turn_to_faces;  // patch S12: 0 off, 1 talk (default), 2 always (key turn_to_faces)
++    uint8_t turn_to_faces;  // patch S12: 0 off, 1 talk, 2 always (default since patch NX06; key turn_to_faces)
+ };
+ 
+ // The saved values (defaults for any key not saved). Cached; re-read from flash when older than 5 s or after an invalidate.

@@ -8,7 +8,7 @@
 #include "maipai_subs_core.h"
 
 static const char* ICONS[MB_ICON_COUNT] = {"none", "remote", "check", "battery", "wifi_off", "bars", "ring", "speech", "key"};
-static const char* FLAGS[MB_FLAG_COUNT] = {"mic", "camera", "remote", "battery", "wifi"};
+static const char* FLAGS[MB_FLAG_COUNT] = {"mic", "face", "camera", "remote", "battery", "wifi"};
 
 static void table(void)
 {

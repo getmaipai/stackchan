@@ -45,6 +45,8 @@ class StackChanVisionBridge:
         self.consent_for_print = consent_for_print or (lambda _: False)
         self.clock = clock
         self.frame_provider = frame_provider
+        # Called, never waiting, when a face was found: the unit shows its face glyph (patch NX05).
+        self.on_face_seen: Callable[[], object] | None = None
         self._timer: threading.Timer | None = None
         self._lock = threading.Lock()
         self.frame_check = FrameCheck()
@@ -114,6 +116,7 @@ class StackChanVisionBridge:
                 self.frame_check.note(self.detector, frame, len(frame_bytes))
             if not faces or self.clock() - started > deadline_s:
                 return FaceTrackTarget(detected=False)
+            self._face_seen()
             x, y, width, height = faces[0].bbox
             frame_h, frame_w = frame.shape[:2]
             target = FaceTrackTarget(
@@ -178,6 +181,16 @@ class StackChanVisionBridge:
         if people:
             self._last_person_at = frame_at
             self._last_person = (max(people, key=lambda b: b.area), frame_at)
+
+    def _face_seen(self) -> None:
+        """A face was found: tell the unit (its small face glyph). Never raises, never waits."""
+        report = self.on_face_seen
+        if report is None:
+            return
+        try:
+            report()
+        except Exception:
+            self.on_face_seen = None  # a broken reporter is dropped; the look path goes on
 
     def people(self, *, max_age_s: float) -> list[Any]:
         """The person boxes of the newest look if it is young enough (empty otherwise)."""
@@ -255,6 +268,7 @@ class StackChanVisionBridge:
         if not faces:
             self._stop_expired_move()
             return FaceTrackTarget(detected=False)
+        self._face_seen()
         x, y, width, height = faces[0].bbox
         frame_h, frame_w = frame.shape[:2]
         target = FaceTrackTarget(

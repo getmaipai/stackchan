@@ -46,9 +46,10 @@ PREFS: dict[str, tuple[str, Any, Any, bool]] = {
     # the unit's mp_captions_mode and settings_ui.py agree).
     "captions_mode": ("enum", ("off", "subtitles", "banner"), "off", True),
     "top_bar": ("enum", ("hidden", "always"), "hidden", True),
-    # Turn toward faces (the unit's own seeker, firmware patch S10): off, only after it is spoken to, or also when somebody walks in.
-    # "talk" until the memory gate has been measured with the seeker running; the flash key is 13 characters.
-    "turn_to_faces": ("enum", ("off", "talk", "always"), "talk", True),
+    # Turn toward faces (the unit's own seeker, firmware patches S10 and NX06): off, only after it is spoken to ("talk"), or also when
+    # something moves while the unit is awake ("always", the default since NX06; one camera frame a second with the camera cue, at most four
+    # turns a minute, never locked, carried or at night); the flash key is 13 characters.
+    "turn_to_faces": ("enum", ("off", "talk", "always"), "always", True),
     # The banner row shows the heard, listening and thinking states as an icon and a word (firmware patch UI04). Off by default: the
     # sound and the light of the listening cues (listen_sound, listen_light) still signal the same states.
     "status_icons": ("bool", None, False, True),
@@ -125,12 +126,25 @@ def own_owner(saved: dict[str, Any]) -> str:
 
 
 def effective_turn_to_faces(saved: dict[str, Any]) -> str:
-    """The value the unit gets: the person's choice, except that "Who turns toward faces: off" switches the unit's seeker off
-    whatever was chosen (the choice itself is kept and comes back when the owner is set to the robot again)."""
+    """The value the unit gets, first match wins (firmware patch NX06):
+
+    1. "Who turns toward faces: off" switches the unit's seeker off whatever was chosen (the choice itself is kept and comes back when the
+       owner is set to the robot again);
+    2. a person's own "off" stays off;
+    3. the "Look for faces" switch, once a person has used it: on is "always" (it also searches when something moves), off is "talk"
+       (only after the wake word);
+    4. the person's own choice, else the default, "always"."""
     if own_owner(saved) == "off":
         return "off"
     value = saved.get("turn_to_faces", DEFAULTS["turn_to_faces"])
-    return value if value in PREFS["turn_to_faces"][1] else DEFAULTS["turn_to_faces"]
+    if value not in PREFS["turn_to_faces"][1]:
+        value = DEFAULTS["turn_to_faces"]
+    if value == "off":
+        return "off"
+    look = saved.get("look_faces")
+    if isinstance(look, bool):
+        return "always" if look else "talk"
+    return value
 
 
 def prefs_of(saved: dict[str, Any]) -> dict[str, Any]:
@@ -174,6 +188,8 @@ class PrefsService:
             except Exception:
                 logger.debug("pack follow-up after a settings save failed", exc_info=True)
         mine = [k for k in UNIT_KEYS if k in upgrade_keys(values)]
+        if "look_faces" in values and "turn_to_faces" not in mine:
+            mine.append("turn_to_faces")  # the "Look for faces" switch is the unit's seeker mode too (effective_turn_to_faces)
         if not mine:
             return {"ok": True, "pushed": None, "message": ""}
         return self._send(device_id, merged, lang, mine)
@@ -184,6 +200,8 @@ class PrefsService:
         A key the person never touched is left off the call: the unit keeps its own default for it (the speech bubble
         follows the Stock style until a person chooses), so sending the host's default would overwrite that choice."""
         saved = upgrade_keys(saved)
+        if keys is not None and "turn_to_faces" in keys and "turn_to_faces" not in saved:
+            saved = {**saved, "turn_to_faces": effective_turn_to_faces(saved)}  # a switch decides it, the person never chose the mode itself
         chosen = [k for k in (upgrade_keys(dict.fromkeys(keys)) if keys is not None else UNIT_KEYS) if k in saved]
         if own_owner(saved) == "off" and "turn_to_faces" not in chosen and keys is None:
             chosen.append("turn_to_faces")  # the unit must hear "off" even when the person never chose a value

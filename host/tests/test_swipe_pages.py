@@ -388,12 +388,12 @@ def test_pages_table_json_is_what_the_core_prints_and_the_module_agrees(core):
 
 
 _LAYOUTS = [
-    "volume,brightness,mute,quiet,light,timers,games,wifi,battery",
-    "volume,brightness,mute,quiet,light,timers,games,wifi,battery,tailnet,address",
+    "volume,brightness,mute,quiet,lock,timers,games,wifi,battery",
+    "volume,brightness,mute,quiet,lock,timers,games,wifi,battery,tailnet,address",
     "mute,quiet",
     "volume,wifi,address,tailnet",
     "battery",
-    "mute,quiet,light,timers,games",
+    "mute,quiet,lock,timers,games",
     "brightness,volume,timers",
     "wifi,battery,tailnet,address,volume,mute",
 ]
@@ -427,3 +427,13 @@ def test_the_page_preview_layout_is_the_cores_layout(core):
         )
         assert mine["status"] == theirs["status"], text
         assert mine["rects"] == theirs["rects"], text
+
+
+def test_the_old_light_sheet_item_is_read_as_the_lock_tile_once_in_the_same_place():
+    """Patch NX01: Lock took the place of Light on the quick sheet. A saved choice (or a caller) that still says "light" is read, never refused."""
+    out = swipe_pages.clean({"sheet_items": ["volume", "light", "timers", "lock"]}, None, ValueError)
+    assert out["sheet_items"] == ["volume", "lock", "timers"]
+    assert "light" not in swipe_pages.SHEET_ITEMS and "lock" in swipe_pages.TILE_ITEMS
+    assert swipe_pages.DEFAULTS["sheet_items"][4] == "lock"
+    saved = {"sheet_items": ["mute", "quiet", "light", "timers", "games"]}
+    assert swipe_pages.clean(saved, None, ValueError)["sheet_items"] == ["mute", "quiet", "lock", "timers", "games"]

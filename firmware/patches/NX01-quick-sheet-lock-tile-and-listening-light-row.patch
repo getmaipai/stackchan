@@ -1,0 +1,288 @@
+# Intent: The quick access sheet's Light tile (a bulb) becomes a Lock tile with a drawn padlock, still one row of six (Mute, Quiet, Lock, Apps, Games, Settings). A tap locks the unit now when a code is set, else the banner row shows "Set a code on the settings page" and the sheet stays up. The listening light switch moves to a Listening light row in Settings, General (the settings page keeps its own). The saved sheet key "light" is still read, as the same item in the same place (now the Lock tile, never twice), so a saved choice and a host that sends it keep working.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages_core.h, maipai_pages.cc, maipai_pages_unit.cc, maipai_apps_core.h, maipai_apps.cc (ours)
+# Check after a flash: swipe up: one row of six tiles with a padlock where the bulb was; with no code a tap on it shows the hint in the banner row and the sheet stays, with a code (self.lock.set) a tap locks at once (self.lock.status locked true); Settings, General lists Listening light and a tap on it flips self.prefs listen_light.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -64,15 +64,15 @@ static inline int mpg_is_legacy(const char* name) { return name != NULL && strcm
+ /* ---- control sheet items ---- */
+ enum {
+     MPG_S_VOLUME = 0, MPG_S_BRIGHTNESS,                                            /* sliders */
+-    MPG_S_MUTE, MPG_S_QUIET, MPG_S_LIGHT, MPG_S_TIMERS, MPG_S_GAMES,               /* tiles */
++    MPG_S_MUTE, MPG_S_QUIET, MPG_S_LOCK, MPG_S_TIMERS, MPG_S_GAMES,                /* tiles (patch NX01: Lock took the place of Light) */
+     MPG_S_WIFI, MPG_S_BATTERY, MPG_S_TAILNET, MPG_S_ADDRESS,                       /* status text */
+     MPG_S_COUNT
+ };
+-static const char* const MPG_SHEET_NAMES[MPG_S_COUNT] = {"volume", "brightness", "mute", "quiet", "light", "timers", "games",
++static const char* const MPG_SHEET_NAMES[MPG_S_COUNT] = {"volume", "brightness", "mute", "quiet", "lock", "timers", "games",
+                                                           "wifi", "battery", "tailnet", "address"};
+ static const char* const MPG_SHEET_TITLE[2][MPG_S_COUNT] = {
+-    {"Volume", "Bright", "Mute", "Quiet", "Light", "Apps", "Games", "Wi-Fi", "Battery", "Private net", "Settings"},
+-    {"Volumen", "Brillo", "Silencio", "Calma", "Luz", "Apps", "Juegos", "Wi-Fi", "Bateria", "Red privada", "Ajustes"},
++    {"Volume", "Bright", "Mute", "Quiet", "Lock", "Apps", "Games", "Wi-Fi", "Battery", "Private net", "Settings"},
++    {"Volumen", "Brillo", "Silencio", "Calma", "Bloqueo", "Apps", "Juegos", "Wi-Fi", "Bateria", "Red privada", "Ajustes"},
+ };
+ #define MPG_SHEET_MAX_ITEMS 11
+ #define MPG_SHEET_MAX_SLIDERS 2
+@@ -120,8 +120,14 @@ static inline int mpg_action_by_name(const char* name)
+ /* Patch UI16: the sheet item saved as "timers" is the Apps tile now (it opens the wall of apps, Timers among them). The key keeps its name so a saved
+  * choice and a host that sends it keep working; "apps" is read as the same item. */
+ #define MPG_SHEET_ALIAS_APPS "apps"
++/* Patch NX01: the sheet item saved as "light" is the Lock tile now (the listening light switch moved to the settings screen). The old key is
++ * still read, as the same item in the same place, so a saved choice and a host that sends it keep working; the sheet never draws a light tile. */
++#define MPG_SHEET_ALIAS_LIGHT "light"
+ static inline int mpg_sheet_by_name(const char* name)
+ {
++    if (name != NULL && strcmp(name, MPG_SHEET_ALIAS_LIGHT) == 0) {
++        return MPG_S_LOCK;
++    }
+     if (name != NULL && strcmp(name, MPG_SHEET_ALIAS_APPS) == 0) {
+         return MPG_S_TIMERS;
+     }
+@@ -153,7 +159,7 @@ static inline void mpg_defaults(mpg_cfg_t* c)
+     for (int i = 0; i < MPG_SHEET_MAX_ITEMS; i++) {
+         c->items[i] = MPG_S_COUNT;
+     }
+-    const uint8_t items[] = {MPG_S_VOLUME, MPG_S_BRIGHTNESS, MPG_S_MUTE, MPG_S_QUIET, MPG_S_LIGHT,
++    const uint8_t items[] = {MPG_S_VOLUME, MPG_S_BRIGHTNESS, MPG_S_MUTE, MPG_S_QUIET, MPG_S_LOCK,
+                              MPG_S_TIMERS, MPG_S_GAMES, MPG_S_WIFI, MPG_S_BATTERY};
+     c->n_items = (uint8_t)sizeof(items);
+     memcpy(c->items, items, sizeof(items));
+@@ -166,7 +172,7 @@ static inline void mpg_defaults(mpg_cfg_t* c)
+ #define MPG_ERR_SHEET_S "The control sheet closes after 8 to 30 seconds. Send a number from 8 to 30."
+ #define MPG_ERR_IDLE_S "A page returns to the face after 5 to 300 seconds. Send a number from 5 to 300."
+ #define MPG_ERR_ACTION "Quick actions are beep, dance, game and hello. Send 2 to 4 of those names, each once."
+-#define MPG_ERR_ITEM "A sheet item is volume, brightness, mute, quiet, light, timers, games, wifi, battery, tailnet or address, each once."
++#define MPG_ERR_ITEM "A sheet item is volume, brightness, mute, quiet, lock, timers, games, wifi, battery, tailnet or address, each once."
+ #define MPG_ERR_ITEM_FULL "The sheet holds up to 2 sliders, 5 buttons and 4 status lines. Remove one and send the list again."
+ 
+ /* The page types on both sides, together, with no repeats: names are validated by the caller with mpg_page_by_name. */
+@@ -373,7 +379,22 @@ static inline int mpg_cfg_from_text(mpg_cfg_t* c, const char* text)
+                 case 'L': nl = mpg_split(v, vl, mpg_page_by_name, left, MPG_SIDE_MAX); break;
+                 case 'R': nr = mpg_split(v, vl, mpg_page_by_name, right, MPG_SIDE_MAX); break;
+                 case 'A': na = mpg_split(v, vl, mpg_action_by_name, act, MPG_ACTIONS_MAX); break;
+-                case 'C': ni = mpg_split(v, vl, mpg_sheet_by_name, it, MPG_SHEET_MAX_ITEMS); break;
++                case 'C':
++                    ni = mpg_split(v, vl, mpg_sheet_by_name, it, MPG_SHEET_MAX_ITEMS);
++                    for (int a = 0, seen = 0; a < ni; a++) { /* "light" and "lock" both saved: the Lock tile once (patch NX01) */
++                        if (it[a] != MPG_S_LOCK) {
++                            continue;
++                        }
++                        if (seen++ > 0) {
++                            for (int b = a; b + 1 < ni; b++) {
++                                it[b] = it[b + 1];
++                            }
++                            ni--;
++                            a--;
++                            seen--;
++                        }
++                    }
++                    break;
+                 case 'S': sheet_s = (int)strtol(v, NULL, 10); break;
+                 case 'I': idle_s = (int)strtol(v, NULL, 10); break;
+                 default: break;
+@@ -595,7 +616,12 @@ static inline int mpg_sheet_icon_shapes(int item, mpg_shape_t* s)
+             SH(MPG_SH_CIRCLE, 3, 3, 18, 18);
+             SH(MPG_SH_CUTC, 8, 0, 16, 16);
+             break;
+-        case MPG_S_LIGHT: return mpg_icon_shapes(MPG_I_LAMP, s);
++        case MPG_S_LOCK: /* a padlock (patch NX01): a ring for the shackle, a body that covers its lower half, a keyhole */
++            SH(MPG_SH_RING, 6, 1, 12, 16);
++            SH(MPG_SH_ROUND, 3, 10, 18, 13);
++            SH(MPG_SH_CUTC, 10, 13, 4, 4);
++            SH(MPG_SH_CUT, 11, 16, 2, 4);
++            break;
+         case MPG_S_TIMERS: /* the Apps tile (patch UI16): four small squares */
+             SH(MPG_SH_ROUND, 2, 2, 9, 9);
+             SH(MPG_SH_ROUND, 13, 2, 9, 9);
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -15,6 +15,10 @@
+ #include "maipai_screens.h"
+ #include "maipai_lock.h"
+ #include "maipai_apps.h"
++#include "maipai_apps_core.h"  // the lock hint words (patch NX01)
++#if CONFIG_MAIPAI_BANNER_ROW || defined(MAIPAI_HOST_RENDER)
++#include "maipai_banner.h"
++#endif
+ 
+ LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+ 
+@@ -900,7 +904,6 @@ bool tile_on(int item)
+     switch (item) {
+         case MPG_S_MUTE: return s_host->muted();
+         case MPG_S_QUIET: return s_host->quiet();
+-        case MPG_S_LIGHT: return s_host->light_on();
+         default: return false;
+     }
+ }
+@@ -916,7 +919,16 @@ void on_sheet_tile(lv_event_t* e)
+     switch (item) {
+         case MPG_S_MUTE: s_host->toggle_mute(); break;
+         case MPG_S_QUIET: s_host->toggle_quiet(); break;
+-        case MPG_S_LIGHT: s_host->toggle_light(); break;
++        case MPG_S_LOCK:  // patch NX01: Lock took the place of Light; a code must be set (on the settings page, never on the unit)
++            if (!s_host->lock_has_code()) {
++#if CONFIG_MAIPAI_BANNER_ROW || defined(MAIPAI_HOST_RENDER)
++                maipai_banner_post(mac_str(MAC_S_LOCK_HINT, es() ? 1 : 0), MB_ICON_KEY, MB_PRIO_NOTICE, MB_TAG_NONE, 3000);  // the one place for information
++#endif
++                return;                                                                                              // the sheet stays up
++            }
++            sheet_pick();
++            s_host->lock_now();  // the lock screen takes the glass; a touch there shows the keypad (patches LK02 and LK03)
++            return;
+         case MPG_S_TIMERS:  // patch UI16: the Apps tile opens the wall of apps; the Games tile opens the wall of games
+         case MPG_S_GAMES:
+             sheet_pick();
+@@ -1019,7 +1031,7 @@ void sheet_refresh()
+     mpg_sheet_layout(&s_cfg, &L);
+     for (int i = 0; i < L.n; i++) {
+         const int item = L.r[i].item;
+-        if (item == MPG_S_MUTE || item == MPG_S_QUIET || item == MPG_S_LIGHT) {
++        if (item == MPG_S_MUTE || item == MPG_S_QUIET) {
+             const bool on = tile_on(item);
+             if (s_sh->last_on[i] == (on ? 1 : 0)) {
+                 continue;
+diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
+--- a/firmware/main/hal/maipai_apps_core.h
++++ b/firmware/main/hal/maipai_apps_core.h
+@@ -312,7 +312,7 @@ enum {
+     MAC_K_SLIDER = 0, MAC_K_SWITCH, MAC_K_CHOICE, MAC_K_BUTTON, MAC_K_INFO, MAC_K_PAIR
+ };
+ enum {
+-    MAC_R_VOLUME = 0, MAC_R_BRIGHT, MAC_R_NIGHT, MAC_R_STATUS_ICONS, MAC_R_AUTOLOCK, MAC_R_LOCK_NOW, MAC_R_LANGUAGE, MAC_R_MORE,
++    MAC_R_VOLUME = 0, MAC_R_BRIGHT, MAC_R_NIGHT, MAC_R_STATUS_ICONS, MAC_R_LISTEN_LIGHT, MAC_R_AUTOLOCK, MAC_R_LOCK_NOW, MAC_R_LANGUAGE, MAC_R_MORE,
+     MAC_R_WIFI_PAGE, MAC_R_SSID, MAC_R_SIGNAL, MAC_R_TAILNET, MAC_R_HUB,
+     MAC_R_PAIR0, MAC_R_PAIR1, MAC_R_PAIR2,
+     MAC_R_I_TAG, MAC_R_I_IMAGE, MAC_R_I_SLOT, MAC_R_I_MEM, MAC_R_I_HOST, MAC_R_I_HINT,
+@@ -340,7 +340,7 @@ static inline int mac_row_kind(int id)
+ {
+     switch (id) {
+         case MAC_R_VOLUME: case MAC_R_BRIGHT: return MAC_K_SLIDER;
+-        case MAC_R_NIGHT: case MAC_R_STATUS_ICONS: return MAC_K_SWITCH;
++        case MAC_R_NIGHT: case MAC_R_STATUS_ICONS: case MAC_R_LISTEN_LIGHT: return MAC_K_SWITCH;
+         case MAC_R_AUTOLOCK: return MAC_K_CHOICE;
+         case MAC_R_LOCK_NOW: case MAC_R_WIFI_PAGE: case MAC_R_MORE: return MAC_K_BUTTON;
+         case MAC_R_PAIR0: case MAC_R_PAIR1: case MAC_R_PAIR2: return MAC_K_PAIR;
+@@ -366,6 +366,7 @@ static inline int mac_set_rows(int tab, unsigned flags, mac_row_t* out)
+             ids[n++] = MAC_R_BRIGHT;
+             ids[n++] = MAC_R_NIGHT;
+             ids[n++] = MAC_R_STATUS_ICONS;
++            ids[n++] = MAC_R_LISTEN_LIGHT; /* patch NX01: the listening light switch moved here from the quick sheet */
+             if (flags & MAC_SF_LOCK) {
+                 ids[n++] = MAC_R_AUTOLOCK;
+                 ids[n++] = MAC_R_LOCK_NOW;
+@@ -491,7 +492,7 @@ enum {
+     MAC_S_WIFI_PAGE, MAC_S_SSID, MAC_S_SIGNAL, MAC_S_TAILNET, MAC_S_HUB, MAC_S_NOT_CONNECTED,
+     MAC_S_SIG_NONE, MAC_S_SIG_WEAK, MAC_S_SIG_FAIR, MAC_S_SIG_GOOD, MAC_S_TN_UP, MAC_S_TN_JOIN, MAC_S_TN_OFF, MAC_S_TN_NO,
+     MAC_S_FIRMWARE, MAC_S_IMAGE, MAC_S_SLOT, MAC_S_MEMORY, MAC_S_HOST, MAC_S_TEN_TAPS, MAC_S_LOCKED_NOTE, MAC_S_PICTURES, MAC_S_LANG_NAME,
+-    MAC_S_IMG_OK, MAC_S_IMG_WAIT, MAC_S_IMG_USB, MAC_S_IMG_UNKNOWN, MAC_S_NO_HOST, MAC_S_MORE,
++    MAC_S_IMG_OK, MAC_S_IMG_WAIT, MAC_S_IMG_USB, MAC_S_IMG_UNKNOWN, MAC_S_NO_HOST, MAC_S_MORE, MAC_S_LISTEN_LIGHT,
+     MAC_S_COUNT
+ };
+ static const char* const MAC_STR[MAC_S_COUNT][2] = {
+@@ -510,7 +511,7 @@ static const char* const MAC_STR[MAC_S_COUNT][2] = {
+     {"AM", "AM"},
+     {"PM", "PM"},
+     {"No games on this unit", "No hay juegos en esta unidad"},
+-    {"Set a lock code on the settings page first.", "Pon un codigo en la pagina de ajustes primero."},
++    {"Set a code on the settings page", "Pon un codigo en la pagina de ajustes"},
+     {"8 timers and alarms are set. Cancel one first.", "Hay 8 temporizadores y alarmas. Cancela uno primero."},
+     {"The clock is not set yet. Your home hub sets it.", "El reloj aun no esta puesto. Tu centro del hogar lo pone."},
+     {"Quiet is on. Turn it off to use this.", "Calma activada. Apagala para usar esto."},
+@@ -553,6 +554,7 @@ static const char* const MAC_STR[MAC_S_COUNT][2] = {
+     {"Not known", "Sin datos"},
+     {"Not set", "Sin definir"},
+     {"More settings", "Mas ajustes"},
++    {"Listening light", "Luz al escuchar"},
+ };
+ static inline const char* mac_str(int id, int es) { return (id >= 0 && id < MAC_S_COUNT) ? MAC_STR[id][es ? 1 : 0] : ""; }
+ static inline const char* mac_row_label(int row, int es)
+@@ -562,6 +564,7 @@ static inline const char* mac_row_label(int row, int es)
+         case MAC_R_BRIGHT: return mac_str(MAC_S_BRIGHT, es);
+         case MAC_R_NIGHT: return mac_str(MAC_S_NIGHT, es);
+         case MAC_R_STATUS_ICONS: return mac_str(MAC_S_STATUS_ICONS, es);
++        case MAC_R_LISTEN_LIGHT: return mac_str(MAC_S_LISTEN_LIGHT, es);
+         case MAC_R_AUTOLOCK: return mac_str(MAC_S_AUTOLOCK, es);
+         case MAC_R_LOCK_NOW: return mac_str(MAC_S_LOCK_NOW, es);
+         case MAC_R_LANGUAGE: return mac_str(MAC_S_LANGUAGE, es);
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -73,7 +73,7 @@ struct St {
+     int pane_tab       = 0;
+     lv_obj_t* row_obj[MAC_SET_ROWS_MAX];
+     lv_obj_t* row_val[MAC_R_COUNT];  // by row id
+-    int8_t sh_night = -1, sh_icons = -1;
++    int8_t sh_night = -1, sh_icons = -1, sh_light = -1;
+     int sh_auto = -1;  // what the person just chose (the saved value follows from the main task a moment later)
+     lv_obj_t* tile_obj[6];
+     int cur_style = 1;
+@@ -706,6 +706,8 @@ int row_height_box(const mac_row_t& r) { return r.h - mac_row_gap(r.kind); }
+ int auto_now() { return S != nullptr && S->sh_auto >= 0 ? S->sh_auto : g_host->auto_lock_minutes(); }
+ bool night_on() { return S != nullptr && S->sh_night >= 0 ? S->sh_night != 0 : g_host->night_dim(); }
+ bool icons_on() { return S != nullptr && S->sh_icons >= 0 ? S->sh_icons != 0 : g_host->status_icons(); }
++bool light_now() { return S != nullptr && S->sh_light >= 0 ? S->sh_light != 0 : g_host->light_on(); }  // the listening light (patch NX01)
++bool switch_on(int id) { return id == MAC_R_NIGHT ? night_on() : (id == MAC_R_LISTEN_LIGHT ? light_now() : icons_on()); }
+ 
+ // The text of an information row (and the value text of a switch or a choice).
+ void row_text(int id, char* out, size_t n)
+@@ -714,6 +716,7 @@ void row_text(int id, char* out, size_t n)
+     switch (id) {
+         case MAC_R_NIGHT: snprintf(out, n, "%s", night_on() ? tx(MAC_S_ON) : tx(MAC_S_OFF)); break;
+         case MAC_R_STATUS_ICONS: snprintf(out, n, "%s", icons_on() ? tx(MAC_S_ON) : tx(MAC_S_OFF)); break;
++        case MAC_R_LISTEN_LIGHT: snprintf(out, n, "%s", light_now() ? tx(MAC_S_ON) : tx(MAC_S_OFF)); break;
+         case MAC_R_AUTOLOCK: mac_auto_text(out, n, auto_now(), es() ? 1 : 0); break;
+         case MAC_R_LANGUAGE: snprintf(out, n, "%s", lang_name(g_host->language())); break;
+         case MAC_R_SSID: {
+@@ -818,6 +821,7 @@ void on_row(lv_event_t* e)
+     switch (id) {
+         case MAC_R_NIGHT: S->sh_night = night_on() ? 0 : 1; g_host->set_night_dim(S->sh_night != 0); break;
+         case MAC_R_STATUS_ICONS: S->sh_icons = icons_on() ? 0 : 1; g_host->set_status_icons(S->sh_icons != 0); break;
++        case MAC_R_LISTEN_LIGHT: S->sh_light = light_now() ? 0 : 1; g_host->toggle_light(); break;
+         case MAC_R_AUTOLOCK:
+             if (!g_host->lock_has_code()) {
+                 toast(tx(MAC_S_LOCK_HINT));
+@@ -903,7 +907,7 @@ void repaint_row(int i)
+     char t[96];
+     row_text(r.id, t, sizeof(t));
+     if (r.kind == MAC_K_SWITCH) {
+-        const bool on = r.id == MAC_R_NIGHT ? night_on() : icons_on();
++        const bool on = switch_on(r.id);
+         lv_obj_set_style_bg_color(S->row_obj[i], on ? fg(100) : fg(16), 0);
+         lv_obj_set_style_text_color(S->row_val[r.id], on ? lv_color_black() : fg(100), 0);
+         lv_obj_t* lab = lv_obj_get_child(S->row_obj[i], 0);
+@@ -1011,7 +1015,7 @@ void build_line_row(lv_obj_t* parent, const mac_row_t& r, int i)
+         return;
+     }
+     if (r.kind == MAC_K_SWITCH || r.kind == MAC_K_CHOICE) {
+-        const bool on = r.kind == MAC_K_SWITCH && (r.id == MAC_R_NIGHT ? night_on() : icons_on());
++        const bool on = r.kind == MAC_K_SWITCH && switch_on(r.id);
+         if (on) {
+             lv_obj_set_style_bg_color(b, fg(100), 0);
+         }
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -618,7 +618,7 @@ void maipai_pages_unit_register_tools()
+                     snprintf(buf, sizeof(buf),
+                              "{\"ok\":true,\"version\":1,\"open\":%s,\"page\":\"%s\",\"position\":%d,\"sheet\":%s,\"tiles\":%d,\"tiles_age_s\":%u,"
+                              "\"pages\":[\"clock\",\"timers\",\"games\",\"actions\",\"frame\",\"tiles\"],\"actions\":[\"beep\",\"dance\",\"game\",\"hello\"],"
+-                             "\"sheet_items\":[\"volume\",\"brightness\",\"mute\",\"quiet\",\"light\",\"timers\",\"games\",\"wifi\",\"battery\",\"tailnet\",\"address\"]}",
++                             "\"sheet_items\":[\"volume\",\"brightness\",\"mute\",\"quiet\",\"lock\",\"timers\",\"games\",\"wifi\",\"battery\",\"tailnet\",\"address\"]}",
+                              maipai_pages_open() ? "true" : "false", type >= 0 ? MPG_PAGE_NAMES[type] : (maipai_pages_open() && !maipai_pages_sheet_open() ? "extra" : "face"),
+                              pos, maipai_pages_sheet_open() ? "true" : "false", n, static_cast<unsigned>(age));
+                     return std::string(buf);
+@@ -630,7 +630,7 @@ void maipai_pages_unit_register_tools()
+     mcp.AddTool("self.pages.set",
+                 "Change the swipe pages: json is an object with any of left and right (arrays of up to three of clock, timers, games, actions, frame, tiles; "
+                 "a page at most once in all), sheet_s (8 to 30), idle_s (5 to 300), actions (2 to 4 of beep, dance, game, hello) and sheet_items "
+-                "(volume, brightness, mute, quiet, light, timers, games, wifi, battery, tailnet, address). Saved in flash and applied at once; "
++                "(volume, brightness, mute, quiet, lock, timers, games, wifi, battery, tailnet, address; a saved or sent \"light\" is read as lock). Saved in flash and applied at once; "
+                 "nothing changes unless every field is valid. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("json", kPropertyTypeString, std::string("{}"))}), [](const PropertyList& properties) -> ReturnValue {
+                     const std::string text = properties["json"].value<std::string>();

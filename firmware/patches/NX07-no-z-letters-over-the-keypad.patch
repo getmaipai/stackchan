@@ -1,0 +1,82 @@
+# Intent: The z letters of the sleeping face floated over the keys of the unlock keypad: the flush-time overlays draw over every layer, and a locked unit holds the sleeping face. The overlays now stay off while the keypad is on the glass (maipai_lock_keypad_up, one atomic flag set by the keypad's own open and close), the same way they already stay off under a swipe page or the clock face. The padlock alone (no keypad) keeps the sleeping face and its z letters.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_lock.h, maipai_lock.cc, maipai_fx.cc (ours)
+# Check after a flash: lock now, touch: the keypad shows with no z letter or snore puff over its keys (self.face.snapshot on a bench build); the padlock screen still shows the sleeping face.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_lock.h b/firmware/main/hal/maipai_lock.h
+--- a/firmware/main/hal/maipai_lock.h
++++ b/firmware/main/hal/maipai_lock.h
+@@ -14,6 +14,8 @@
+ bool maipai_lock_locked();
+ // True once a code is set.
+ bool maipai_lock_has_code();
++// True while the unlocking keypad is on the glass (patch NX07): the face's flush-time overlays (the sleeping face's z letters) stay off then. Any task.
++bool maipai_lock_keypad_up();
+ // Locked units do not listen: the wake word, the stop word and a listening turn are off.
+ inline bool maipai_lock_blocks_voice() { return maipai_lock_locked(); }
+ // Lock now (the sheet tile, the settings screen, the tool, the voice command). False when no code is set. `source` is a short literal.
+@@ -35,6 +37,7 @@ bool maipai_lock_set_auto(int minutes);
+ #else
+ inline bool maipai_lock_locked() { return false; }
+ inline bool maipai_lock_has_code() { return false; }
++inline bool maipai_lock_keypad_up() { return false; }
+ inline bool maipai_lock_blocks_voice() { return false; }
+ inline bool maipai_lock_now(const char*) { return false; }
+ inline void maipai_lock_activity() {}
+diff --git a/firmware/main/hal/maipai_lock.cc b/firmware/main/hal/maipai_lock.cc
+--- a/firmware/main/hal/maipai_lock.cc
++++ b/firmware/main/hal/maipai_lock.cc
+@@ -48,6 +48,7 @@ namespace {
+ std::mutex s_mu;
+ mlk_t s_st;
+ std::atomic<bool> s_locked{false};
++std::atomic<bool> s_keypad_a{false};  // patch NX07: the keypad is on the glass (readable from any task)
+ std::atomic<bool> s_has_code{false};
+ std::atomic<int> s_auto{0};
+ std::atomic<uint32_t> s_act_ms{0};
+@@ -155,6 +156,7 @@ void pad_close()
+         lv_timer_delete(s_pad_timer);
+         s_pad_timer = nullptr;
+     }
++    s_keypad_a.store(false);
+     if (s_pad_ui.panel != nullptr) {
+         mlkd::stop_flash(&s_pad_ui);
+         lv_anim_delete(s_pad_ui.row, nullptr);
+@@ -226,6 +228,7 @@ void pad_open()
+     if (s_pad_ui.panel != nullptr || s_root == nullptr) return;
+     mlkd::build_pad(s_root, &s_pad_ui, spanish(), on_key);
+     s_pad_timer = lv_timer_create(pad_tick, 500, nullptr);
++    s_keypad_a.store(true);
+     dots_refresh();
+ }
+ 
+@@ -272,6 +275,7 @@ void ui_build()
+ 
+ bool maipai_lock_locked() { return s_locked.load(); }
+ bool maipai_lock_has_code() { return s_has_code.load(); }
++bool maipai_lock_keypad_up() { return s_keypad_a.load(); }
+ int maipai_lock_auto_minutes() { return s_auto.load(); }
+ void maipai_lock_activity() { s_act_ms.store(now_ms()); }
+ 
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
+@@ -17,6 +17,7 @@
+ #include "maipai_face.h"
+ #include "maipai_privacy.h"
+ #include "maipai_pages.h"
++#include "maipai_lock.h"
+ #include "hal.h"
+ #include <mcp_server.h>
+ #include <esp_log.h>
+@@ -327,7 +328,8 @@ void ov_invalidate(mo_layer_t* L)
+ // Whether overlays may show now: not under a mute, vision-off or quiet look, the clock face or the flat fallback.
+ bool ov_should_hide()
+ {
+-    return mg_flat(&s_gov) || maipai_privacy_bits() != 0 || maipai_face_clock_visible() || maipai_pages_open();  // P13: a swipe page covers the face
++    return mg_flat(&s_gov) || maipai_privacy_bits() != 0 || maipai_face_clock_visible() || maipai_pages_open() ||  // P13: a swipe page covers the face
++           maipai_lock_keypad_up();  // patch NX07: the z letters of the sleeping face floated over the keypad's keys
+ }
+ 
+ void ov_set_hidden(bool hide)

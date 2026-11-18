@@ -53,6 +53,29 @@ int main(void)
     mb_clear_tag(&b, 120 + MB_MIN_MS + 20, MB_TAG_STATUS);
     mb_tick(&b, 120 + 3 * MB_MIN_MS + 100);
     CHECK(mb_content(&b, &text, &icon, &prio) != 0 && strcmp(text, "Offline") == 0);  /* the notice comes back */
+    /* patch NX05: the face-seen glyph. The hold is 3 s by default, at most 10 s, and a report closer than half a second to the last is ignored */
+    CHECK(mst_face_hold_ms(0) == 3000u && mst_face_hold_ms(-4) == 3000u && mst_face_hold_ms(1) == 1000u && mst_face_hold_ms(10) == 10000u && mst_face_hold_ms(99) == 10000u);
+    CHECK(mst_face_due(0, 5000u) && !mst_face_due(5000u, 5000u) && !mst_face_due(5000u, 5000u + MST_FACE_RATE_MS - 1u) && mst_face_due(5000u, 5000u + MST_FACE_RATE_MS));
+    CHECK(mst_face_due(0xFFFFFF00u, 0xFFFFFF00u + MST_FACE_RATE_MS) && !mst_face_due(0xFFFFFF00u, 0xFFFFFF00u + 10u));  /* a clock that wraps */
+    /* the glyph sits next to the mic glyph and is its own bit: the camera cue, the remote chip and the battery and Wi-Fi glyphs keep theirs */
+    CHECK(MB_FLAG_FACE == MB_FLAG_MIC + 1 && MB_FLAG_COUNT == 6 && !(MB_FLAG_ALWAYS_ON & (1u << MB_FLAG_FACE)));
+    mb_t f;
+    mb_init(&f);
+    mb_flag(&f, MB_FLAG_CAMERA, 1, 1000, 0);
+    mb_session(&f, 1, "remote");
+    mb_flag(&f, MB_FLAG_MIC, 1, 1000, 0);
+    mb_flag(&f, MB_FLAG_FACE, 1, 1000, mst_face_hold_ms(0));
+    const uint32_t all = (1u << MB_FLAG_MIC) | (1u << MB_FLAG_FACE) | (1u << MB_FLAG_CAMERA) | (1u << MB_FLAG_REMOTE);
+    CHECK((mb_strip_visible(&f) & all) == all && mb_strip_w(all) == 4 * MB_STRIP_GLYPH_W + 3 * MB_STRIP_GAP);   /* four glyphs side by side, none over another */
+    mb_tick(&f, 1000 + 2999);
+    CHECK(mb_strip_visible(&f) & (1u << MB_FLAG_FACE));                         /* still there just before 3 s */
+    mb_tick(&f, 1000 + 3001);
+    CHECK(!(mb_strip_visible(&f) & (1u << MB_FLAG_FACE)));                      /* gone by itself after 3 s ... */
+    CHECK((mb_strip_visible(&f) & (1u << MB_FLAG_CAMERA)) && (mb_strip_visible(&f) & (1u << MB_FLAG_REMOTE)) && (mb_strip_visible(&f) & (1u << MB_FLAG_MIC)));   /* ... the others stay */
+    mb_flag(&f, MB_FLAG_FACE, 1, 5000, 3000);                                   /* a newer report renews the time */
+    mb_flag(&f, MB_FLAG_FACE, 1, 7500, 3000);
+    mb_tick(&f, 5000 + 3500);
+    CHECK(mb_strip_visible(&f) & (1u << MB_FLAG_FACE));
     if (failures == 0) {
         printf("status_core_test: all passed\n");
         return 0;

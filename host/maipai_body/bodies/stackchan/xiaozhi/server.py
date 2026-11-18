@@ -30,6 +30,7 @@ from maipai_body.bodies.stackchan.ws_logging import listener_logger
 from maipai_body.hal.errors import BodyLost, EstopEngaged, NotSupported, OutOfEnvelope
 from maipai_body.remote_trust import new_host_id, stamp_call
 
+from .link_security import LinkSecurity
 from .pairing import PairingStore
 from .watchdog import DeviceWatchdog
 
@@ -406,6 +407,12 @@ class XiaozhiServer:
         self._camera_streaming: set[str] = set()
         self._avatar_frame_sender: Callable[[str, bytes], Awaitable[None]] | None = None
         self._server: Any = None
+        # Encrypted link (link_security.py): set by the app. None means every connection is plain.
+        self.link: LinkSecurity | None = None
+        self._tls_server: Any = None
+        self._tls_site: web.TCPSite | None = None
+        self.tls_port = 0
+        self.tls_http_port = 0
         self._sessions: dict[str, ServerConnection] = {}
         self._session_ids: dict[str, str] = {}
         self._session_features: dict[str, dict[str, Any]] = {}
@@ -444,6 +451,7 @@ class XiaozhiServer:
             logger=listener_logger(),
         )
         app = web.Application(client_max_size=self.max_photo_bytes)
+        self._http_app = app
         app.router.add_post("/vision/{device_id}", self._receive_photo)
         app.router.add_get("/notify/{device_id}/{audio_id}.ogg", self._serve_notify_audio)
         app.router.add_get("/firmware/{device_id}/{token}", self._serve_firmware_file)
@@ -460,7 +468,48 @@ class XiaozhiServer:
             if sockets:
                 self.vision_port = int(sockets[0].getsockname()[1])
 
+    async def start_encrypted(self, host: str, port: int, http_port: int) -> None:
+        """Open the encrypted voice WebSocket and the encrypted HTTP route (TLS 1.2 with a PSK).
+
+        Call after start(), which builds the HTTP routes the encrypted route shares. Any address works:
+        there is no hostname or certificate check in a PSK link."""
+        if self.link is None:
+            raise RuntimeError("Set voice.link before opening the encrypted listeners.")
+
+        async def handle_encrypted(websocket: ServerConnection) -> None:
+            await self.handle(websocket, encrypted=True)
+
+        self._tls_server = await serve(
+            handle_encrypted,
+            host,
+            port,
+            max_size=2**20,
+            ping_interval=20,
+            ping_timeout=20,
+            ssl=self.link.ssl_context(),
+            logger=listener_logger(),
+        )
+        self.tls_port = int(self._tls_server.sockets[0].getsockname()[1])
+        if self._vision_runner is not None:
+            self._tls_site = web.TCPSite(
+                self._vision_runner, host, http_port, ssl_context=self.link.ssl_context()
+            )
+            await self._tls_site.start()
+            if http_port == 0 and self._tls_site._server is not None:
+                sockets = self._tls_site._server.sockets
+                if sockets:
+                    self.tls_http_port = int(sockets[0].getsockname()[1])
+                    return
+        self.tls_http_port = http_port
+
     async def close(self) -> None:
+        if self._tls_server is not None:
+            self._tls_server.close()
+            await self._tls_server.wait_closed()
+            self._tls_server = None
+        if self._tls_site is not None:
+            await self._tls_site.stop()
+            self._tls_site = None
         if self._heal_task is not None:
             self._heal_task.cancel()
             self._heal_task = None
@@ -474,7 +523,7 @@ class XiaozhiServer:
             await self._server.wait_closed()
             self._server = None
 
-    async def handle(self, websocket: ServerConnection) -> None:
+    async def handle(self, websocket: ServerConnection, *, encrypted: bool = False) -> None:
         self._loop = asyncio.get_running_loop()
         device_id = websocket.request.headers.get("Device-Id", "")
         client_id = websocket.request.headers.get("Client-Id", "")
@@ -530,7 +579,21 @@ class XiaozhiServer:
             )
             return
 
+        if self.link is not None:
+            refusal = self.link.refusal(device_id, encrypted)
+            if refusal is not None:
+                LOG.warning(
+                    "StackChan link: refused a %s connection from unit ...%s (%s)",
+                    "encrypted" if encrypted else "plain",
+                    device_id[-5:],
+                    self.link.mode(device_id),
+                )
+                await websocket.close(code=1008, reason=refusal)
+                return
         session_id = uuid.uuid4().hex
+        if self.link is not None:
+            self.link.replay.issue(device_id, session_id)
+            self.link.note_connected(device_id, encrypted)
         stale = self._sessions.get(device_id)
         if stale is not None:
             asyncio.create_task(self._close_stale_session(stale))
@@ -592,6 +655,20 @@ class XiaozhiServer:
                     )
                     continue
                 kind = data.get("type")
+                if (
+                    self.link is not None
+                    and isinstance(data, dict)
+                    and not self.link.replay.accepts(device_id, data.get("session_id"))
+                ):
+                    LOG.warning(
+                        "StackChan link: refused a stale or unknown session id from unit ...%s",
+                        device_id[-5:],
+                    )
+                    await websocket.close(
+                        code=1008,
+                        reason="That session id is stale. Reconnect to start a new session.",
+                    )
+                    break
                 if kind == "hello":
                     if hello_received:
                         await self._send_error(
@@ -607,6 +684,8 @@ class XiaozhiServer:
                     self._session_features[device_id] = (
                         dict(features) if isinstance(features, dict) else {}
                     )
+                    if self.link is not None:
+                        self.link.note_features(device_id, features)
                     hello_reply = {
                         "type": "hello",
                         "version": 1,
@@ -675,7 +754,11 @@ class XiaozhiServer:
                     await asyncio.to_thread(camera_disconnected)
                 except Exception:
                     LOG.warning("Could not clear StackChan camera indicator on disconnect")
+            if self.link is not None:
+                self.link.replay.release(device_id, session_id)
             if self._sessions.get(device_id) is websocket:
+                if self.link is not None:
+                    self.link.note_disconnected(device_id)
                 self._sessions.pop(device_id, None)
                 self._session_credentials.pop(device_id, None)
                 self._session_info.pop(device_id, None)

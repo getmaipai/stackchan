@@ -273,6 +273,7 @@ def wire_music_dance(
         ),
         behavior.dance_settings,
     )
+    behavior.music_heard_recently = lambda within=20.0: (clock() - controller.last_music_at) <= within  # keeps the robot awake while music plays
 
     def on_music_feat(extra: dict, now: float) -> None:
         feat = parse_music_feat(extra)

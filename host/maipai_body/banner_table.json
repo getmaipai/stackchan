@@ -15,5 +15,5 @@
  "scroll_pause_ms": 900,
  "text_max": 120,
  "icons": ["none", "remote", "check", "battery", "wifi_off", "bars", "ring", "speech", "key"],
- "flags": ["mic", "camera", "remote", "battery", "wifi"]
+ "flags": ["mic", "face", "camera", "remote", "battery", "wifi"]
 }

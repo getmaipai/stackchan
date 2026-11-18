@@ -191,16 +191,22 @@ def test_the_runner_ticks_every_unit_and_applies_after_each():
 
 def test_the_setting_has_the_documented_values_and_a_flash_key_that_fits():
     kind, allowed, default, unit_applies = unit_prefs.PREFS["turn_to_faces"]
-    assert (kind, allowed, default, unit_applies) == ("enum", ("off", "talk", "always"), "talk", True)
+    assert (kind, allowed, default, unit_applies) == ("enum", ("off", "talk", "always"), "always", True)  # firmware patch NX06: also search when something moves
     assert len("turn_to_faces") <= 15
 
 
 def test_who_turns_off_sends_the_unit_off_and_the_choice_comes_back_with_the_robot():
     assert unit_prefs.effective_turn_to_faces({"turn_to_faces": "always"}) == "always"
-    assert unit_prefs.effective_turn_to_faces({}) == "talk"
+    assert unit_prefs.effective_turn_to_faces({}) == "always"  # the default searches when something moves too (patch NX06)
     assert unit_prefs.effective_turn_to_faces({"turn_to_faces": "always", "face_owner": "off"}) == "off"
     assert unit_prefs.effective_turn_to_faces({"turn_to_faces": "always", "face_owner": "hub"}) == "always"
-    assert unit_prefs.effective_turn_to_faces({"turn_to_faces": "weird"}) == "talk"
+    assert unit_prefs.effective_turn_to_faces({"turn_to_faces": "weird"}) == "always"
+    # the "Look for faces" switch is the same mode (patch NX06): on is always, off is talk, a person's own "off" stays off
+    assert unit_prefs.effective_turn_to_faces({"look_faces": True, "turn_to_faces": "talk"}) == "always"
+    assert unit_prefs.effective_turn_to_faces({"look_faces": False}) == "talk"
+    assert unit_prefs.effective_turn_to_faces({"look_faces": True, "turn_to_faces": "off"}) == "off"
+    assert unit_prefs.effective_turn_to_faces({"look_faces": True, "face_owner": "off"}) == "off"
+    assert unit_prefs.effective_turn_to_faces({"turn_to_faces": "talk"}) == "talk"
 
 
 def _service(unit: Unit, saved: dict[str, Any]):
@@ -216,6 +222,17 @@ def test_resend_look_sends_off_when_nobody_is_to_turn_and_the_saved_choice_other
     saved["face_owner"] = "robot"
     service.resend_look(UNIT)
     assert json.loads(unit.of("self.prefs.set")[-1]["json"]) == {"turn_to_faces": "always"}
+
+
+def test_saving_the_look_for_faces_switch_sends_the_unit_its_seeker_mode():
+    unit, saved = Unit(), {}
+    service = _service(unit, saved)
+    saved["look_faces"] = True
+    assert service.save(UNIT, {"look_faces": True})["pushed"] is True
+    assert json.loads(unit.of("self.prefs.set")[-1]["json"]) == {"turn_to_faces": "always"}
+    saved["look_faces"] = False
+    service.save(UNIT, {"look_faces": False})
+    assert json.loads(unit.of("self.prefs.set")[-1]["json"]) == {"turn_to_faces": "talk"}
 
 
 def test_the_prefs_view_says_whether_the_unit_has_the_look_tool_and_who_owns_seeking():

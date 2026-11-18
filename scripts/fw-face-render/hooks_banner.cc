@@ -2,7 +2,7 @@
 //   bpost PRIO ICON TAG HOLD_MS text...   (PRIO privacy|notice|caption; ICON none|remote|check|battery|wifioff|bars|ring|speech|key;
 //                                          TAG none|caption|volume|say|cue|find|link|game; HOLD 0 = until cleared)
 //   bstatus LEVEL CHARGING WIFI_UP HUB_UP MIC | bwifiscreen on|off (a Wi-Fi screen is up: no strip glyph, patch WF01) | bbar hidden|always (the gauges the unit polls; the strip decides what shows)
-//   bclear TAG | bsession on|off [label] | bflag mic|camera|remote|battery|wifi on|off [HOLD_MS] | bcaps off|subtitles|banner | ssay TEXT | send | sstop | bvis
+//   bclear TAG | bsession on|off [label] | bflag mic|face|camera|remote|battery|wifi on|off [HOLD_MS] | bcaps off|subtitles|banner | ssay TEXT | send | sstop | bvis
 #include "render_hooks.h"
 #include "maipai_look_core.h"
 #include "maipai_banner.h"
@@ -49,7 +49,8 @@ struct FakeHost : MaipaiPagesHost {
     void timer_cancel(uint32_t id) override { for (int i = 0; i < ntm; i++) if (tm[i].id == id) { for (int k = i; k + 1 < ntm; k++) tm[k] = tm[k + 1]; ntm--; break; } log += "cancel;"; }
     void timer_add(int s, const char* l) override { if (ntm < 4) { tm[ntm].id = 100 + ntm; tm[ntm].left_s = s + (int)(g_fake_us / 1000000) - 1; snprintf(tm[ntm].label, sizeof(tm[ntm].label), "%s", l); ntm++; } }
     int game_count() override { return 8; }  // patch UI15: eight games, the page is a grid with a More tile
-    const char* game_title(int i) override { static const char* n[8] = {"Color Memory", "Reaction Time", "Whack-a-Mole", "Tic-Tac-Toe", "Do It", "Rock Paper Scissors", "Magic 8-Ball", "Dice and Coin"}; return n[i]; }
+    const char* game_title(int i) override { static const char* n[8] = {"Color Memory", "Whack-a-Mole", "Tic-Tac-Toe", "Do It", "Rock Paper Scissors", "Magic 8 Ball", "Dice and Coin", "Reaction Time"}; return n[i]; }
+    const char* game_id(int i) override { static const char* n[8] = {"memory", "whack", "tictactoe", "bopit", "rps", "eightball", "dice", "reaction"}; return n[i]; }
     int game_best(int i) override { static const int b[8] = {14, 287, 22, 30, 0, 3, 0, 0}; return b[i]; }
     const char* game_start(int i) override { log += "game" + std::to_string(i) + ";"; return ""; }
     void action(int a) override { log += std::string("action_") + MPG_ACTION_NAMES[a] + ";"; }
@@ -140,7 +141,7 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
     static const char* const prios[] = {"privacy", "notice", "caption"};
     static const char* const icons[] = {"none", "remote", "check", "battery", "wifioff", "bars", "ring", "speech", "key"};
     static const char* const tags[] = {"none", "caption", "volume", "say", "cue", "find", "link", "game"};
-    static const char* const flags[] = {"mic", "camera", "remote", "battery", "wifi"};
+    static const char* const flags[] = {"mic", "face", "camera", "remote", "battery", "wifi"};
 #ifdef MAIPAI_PAGES_RENDER
     // pages: pcfg TEXT | pshow NAME|face|sheet | pswipe X0 Y0 X1 Y1 MS | pset KEY VALUE | ptile ICON LABEL VALUE | ptimer SECONDS LABEL | pstate | pevent NAME
     if (c == "pcfg") { std::string t; std::getline(in, t); if (!t.empty() && t[0] == ' ') t.erase(0, 1); mpg_cfg_t cfg; const int ok = mpg_cfg_from_text(&cfg, t.c_str()); maipai_pages_set_config(cfg); printf("pcfg %d\n", ok); return true; }
@@ -203,7 +204,7 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
     if (c == "bclear") { std::string t; in >> t; maipai_banner_clear_tag(pick(t, tags, 8)); return true; }
     if (c == "bsession") { std::string o, l; in >> o; std::getline(in, l); if (!l.empty() && l[0] == ' ') l.erase(0, 1); maipai_banner_session(o == "on", l.c_str()); return true; }
     if (c == "bwifiscreen") { std::string o; in >> o; maipai_banner_wifi_screen(o == "on"); return true; }  // patch WF01: a Wi-Fi screen is up
-    if (c == "bflag") { std::string f, o; unsigned hold = 0; in >> f >> o >> hold; maipai_banner_flag(pick(f, flags, 5), o == "on", hold); return true; }
+    if (c == "bflag") { std::string f, o; unsigned hold = 0; in >> f >> o >> hold; maipai_banner_flag(pick(f, flags, 6), o == "on", hold); return true; }
     if (c == "bsicons") { std::string o; in >> o; maipai_banner_set_status_icons(o == "on"); return true; }  // patch UI04: the status icons setting
     if (c == "bst") { int k; in >> k; maipai_banner_status(k, false); return true; }                          // a state: 0 heard, 1 listening, 2 thinking
     if (c == "bstc") { maipai_banner_status_clear(); return true; }

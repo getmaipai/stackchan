@@ -1,0 +1,419 @@
+# Intent: The Timers app is rebuilt for fingers. The preset buttons are a column on the left like the Settings tabs (1, 5, 10, 15, 30, 45 and 60 min and a Custom button, each 100 by 56 px with the 24 px font, scrolling with a scroll bar); a tap starts that timer at once and Custom opens the hour and minute steppers of the Alarms picker for a timer. The right side lists the running timers as tall rows (72 px): the time left in the 24 px font, a thin progress bar and a 76 by 56 px Cancel. A label shows only when the timer has one; the word Timer is never written, and the Alarms rows no longer write the word Alarm. With no timer the right side shows only a stopwatch picture. The reserved full screen button stays out until the countdown screen exists (MAC_COUNTDOWN_READY).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_apps_core.h, maipai_apps.cc (ours)
+# Check after a flash: Apps, Timers: a column of big presets at the left that scrolls to Custom, a tap on 5 min starts a timer row at the right with a falling bar; no word Timer or Alarm anywhere.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
+--- a/firmware/main/hal/maipai_apps_core.h
++++ b/firmware/main/hal/maipai_apps_core.h
+@@ -213,32 +213,53 @@ static inline int mac_wall_dot_x(int n, int index) { return MAC_W / 2 + (index *
+ static inline int mac_wall_step(int page, int total, int dir) { return mac_wall_clamp(page + dir, total); }
+ 
+ /* ---- Timers ---- */
+-#define MAC_PRESETS 4
+-static const uint8_t MAC_PRESET_MIN[MAC_PRESETS] = {1, 5, 10, 15};
+-#define MAC_COUNTDOWN_READY 0 /* the Countdown button is reserved: it turns on when the full screen countdown exists (next-ui-countdown note) */
+-#define MAC_ROW_TOP 86        /* the list of timers and alarms starts under the button row */
++/* Patch NX09: the preset buttons are a scrolling column on the left, like the Settings tabs (7 presets and Custom, 100 by 56 px, 4 px apart); the running
++ * timers are tall rows on the right with the time in the 24 px font, a thin progress bar and a big Cancel. The word "Timer" is never written. The full
++ * screen button on a running row stays out until the countdown screen exists (MAC_COUNTDOWN_READY). */
++#define MAC_PRESETS 7
++static const uint8_t MAC_PRESET_MIN[MAC_PRESETS] = {1, 5, 10, 15, 30, 45, 60};
++#define MAC_PRESET_CUSTOM MAC_PRESETS /* the eighth button of the column */
++#define MAC_COUNTDOWN_READY 0
++#define MAC_TL_X 4
++#define MAC_TL_W 100
++#define MAC_TL_Y 36 /* under the drag bar */
++#define MAC_TL_H (MAC_BOTTOM - MAC_TL_Y)
++#define MAC_TL_BTN_H 56
++#define MAC_TL_PITCH 60
++#define MAC_TR_X 112
++#define MAC_TR_W 204
++#define MAC_TR_Y MAC_TL_Y
++#define MAC_TR_H MAC_TL_H
++#define MAC_TROW_H 72
++#define MAC_TROW_PITCH 76
++#define MAC_TROW_BAR_W 112
++static inline int mac_tl_count(void) { return MAC_PRESETS + 1; }
++static inline int mac_tl_content_h(void) { return mac_tl_count() * MAC_TL_PITCH - (MAC_TL_PITCH - MAC_TL_BTN_H); }
++static inline int mac_trows_content_h(int n) { return n <= 0 ? 0 : n * MAC_TROW_PITCH - (MAC_TROW_PITCH - MAC_TROW_H); }
++/* Inside the column (the pane's own coordinates) and inside a timer row. */
++static inline void mac_preset_box(int i, int* x, int* y, int* w, int* h) { *x = 0; *y = i * MAC_TL_PITCH; *w = MAC_TL_W; *h = MAC_TL_BTN_H; }
++static inline void mac_trow_cancel_box(int* x, int* y, int* w, int* h) { *x = MAC_TR_W - 80; *y = 8; *w = 76; *h = 56; }
++/* The progress bar's fill, from the time left and the time the timer was started with (0 to MAC_TROW_BAR_W). */
++static inline int mac_bar_fill(int32_t left_s, int32_t total_s)
++{
++    if (total_s <= 0 || left_s <= 0) {
++        return 0;
++    }
++    if (left_s >= total_s) {
++        return MAC_TROW_BAR_W;
++    }
++    const int f = (int)((int64_t)left_s * MAC_TROW_BAR_W / total_s);
++    return f < 2 ? 2 : f;
++}
++#define MAC_BTN_ROW_Y 38      /* the Alarms screen's Add button row */
++#define MAC_BTN_ROW_H 44
++#define MAC_ROW_TOP 86        /* the list of alarms starts under the button row */
+ #define MAC_ROW_H 44
+ #define MAC_ROW_PITCH 46
+ #define MAC_LIST_H (MAC_BOTTOM - MAC_ROW_TOP) /* 138: exactly three rows */
+ #define MAC_ROWS_VISIBLE 3
+ #define MAC_ACTIVE_MAX 8 /* the timer core's limit for timers and alarms together (MT_MAX_ACTIVE) */
+-#define MAC_BTN_ROW_Y 38
+-#define MAC_BTN_ROW_H 44
+ 
+-static inline void mac_preset_box(int i, int* x, int* y, int* w, int* h)
+-{
+-    *x = 8 + i * 52;
+-    *y = MAC_BTN_ROW_Y;
+-    *w = 48;
+-    *h = MAC_BTN_ROW_H;
+-}
+-static inline void mac_countdown_box(int* x, int* y, int* w, int* h)
+-{
+-    *x = 218;
+-    *y = MAC_BTN_ROW_Y;
+-    *w = 94;
+-    *h = MAC_BTN_ROW_H;
+-}
+ /* A list row: 304 wide at x 8; its Cancel target is the right 92 px. */
+ static inline void mac_row_box(int i, int* x, int* y, int* w, int* h)
+ {
+@@ -540,7 +561,7 @@ enum {
+     MAC_S_WIFI_PAGE, MAC_S_SSID, MAC_S_SIGNAL, MAC_S_TAILNET, MAC_S_HUB, MAC_S_NOT_CONNECTED,
+     MAC_S_SIG_NONE, MAC_S_SIG_WEAK, MAC_S_SIG_FAIR, MAC_S_SIG_GOOD, MAC_S_TN_UP, MAC_S_TN_JOIN, MAC_S_TN_OFF, MAC_S_TN_NO,
+     MAC_S_FIRMWARE, MAC_S_IMAGE, MAC_S_SLOT, MAC_S_MEMORY, MAC_S_HOST, MAC_S_LOCKED_NOTE, MAC_S_PICTURES, MAC_S_LANG_NAME,
+-    MAC_S_IMG_OK, MAC_S_IMG_WAIT, MAC_S_IMG_USB, MAC_S_IMG_UNKNOWN, MAC_S_NO_HOST, MAC_S_MORE, MAC_S_LISTEN_LIGHT, MAC_S_UPTIME,
++    MAC_S_IMG_OK, MAC_S_IMG_WAIT, MAC_S_IMG_USB, MAC_S_IMG_UNKNOWN, MAC_S_NO_HOST, MAC_S_MORE, MAC_S_LISTEN_LIGHT, MAC_S_UPTIME, MAC_S_CUSTOM,
+     MAC_S_COUNT
+ };
+ static const char* const MAC_STR[MAC_S_COUNT][2] = {
+@@ -603,6 +624,7 @@ static const char* const MAC_STR[MAC_S_COUNT][2] = {
+     {"More settings", "Mas ajustes"},
+     {"Listening light", "Luz al escuchar"},
+     {"Uptime", "Tiempo activo"},
++    {"Custom", "Otro"},
+ };
+ static inline const char* mac_str(int id, int es) { return (id >= 0 && id < MAC_S_COUNT) ? MAC_STR[id][es ? 1 : 0] : ""; }
+ static inline const char* mac_row_label(int row, int es)
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -76,6 +76,12 @@ struct St {
+     int8_t sh_night = -1, sh_icons = -1, sh_light = -1;
+     int sh_auto = -1;  // what the person just chose (the saved value follows from the main task a moment later)
+     lv_obj_t* tile_obj[6];
++    int32_t tot_s[MAC_ACTIVE_MAX];  // patch NX09: what each running timer started with (by id), for its progress bar
++    uint32_t tot_id[MAC_ACTIVE_MAX];
++    lv_obj_t* bar[MAC_ACTIVE_MAX];
++    int pane_h = 0;
++    int tl_scroll = 0;
++    bool pick_timer = false;     // the picker sets a timer (hours and minutes) instead of an alarm
+     lv_color_t tile_bg[6];       // patch NX08: the wall tiles' own color after the pop
+     lv_timer_t* wall_timer = nullptr;
+     int cur_style = 1;
+@@ -619,6 +625,13 @@ void on_preset(lv_event_t* e)
+         return;
+     }
+     const int mins    = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
++    if (mins == 0) {  // Custom: the hour and minute steppers of the alarm picker, for a timer
++        S->pick_timer = true;
++        S->pick.hour   = 0;
++        S->pick.minute = 10;
++        request_view(MAV_COUNT);
++        return;
++    }
+     const char* why   = g_host->app_timer_add(mins * 60);
+     if (why != nullptr && why[0] != '\0') {
+         toast(why);
+@@ -626,13 +639,23 @@ void on_preset(lv_event_t* e)
+     S->sig = -1;
+ }
+ 
+-void on_countdown(lv_event_t* e)
++// What a timer started with: remembered by id while the screen is up; a timer first seen part way through counts from what it had then.
++int32_t total_of(uint32_t id, int32_t left)
+ {
+-    if (taps_ignored() || !MAC_COUNTDOWN_READY) {
+-        return;
++    for (int i = 0; i < MAC_ACTIVE_MAX; i++) {
++        if (S->tot_id[i] == id && S->tot_s[i] > 0) {
++            if (left > S->tot_s[i]) S->tot_s[i] = left;
++            return S->tot_s[i];
++        }
++    }
++    for (int i = 0; i < MAC_ACTIVE_MAX; i++) {
++        if (S->tot_s[i] <= 0) {
++            S->tot_id[i] = id;
++            S->tot_s[i]  = left > 0 ? left : 1;
++            return S->tot_s[i];
++        }
+     }
+-    (void)e;  // reserved: the later full screen countdown shows the first running timer here
+-    g_host->countdown_open(S->ids[0]);
++    return left > 0 ? left : 1;
+ }
+ 
+ void on_add_alarm(lv_event_t*)
+@@ -642,6 +665,7 @@ void on_add_alarm(lv_event_t*)
+     }
+     struct tm t = {};
+     const bool known = g_host->local_time(&t);
++    S->pick_timer = false;
+     mac_pick_default(&S->pick, known ? 1 : 0, t.tm_hour);
+     request_view(MAV_COUNT);  // the picker (MAV_COUNT stands for it in the view request)
+ }
+@@ -652,12 +676,20 @@ void list_rows(int kind)
+     const int n  = g_host->app_items(kind, t, MAC_ACTIVE_MAX);
+     S->n_rows    = n;
+     S->sig       = items_sig(t, n);
+-    const int Hh = mac_list_content_h(n);
+-    // the list: a scrolling area three rows high at the bottom of the zone
++    const bool timers = kind == kKindTimer;
++    for (auto& b : S->bar) b = nullptr;
++    if (timers) {  // forget the starting time of timers that are gone
++        for (int k = 0; k < MAC_ACTIVE_MAX; k++) {
++            bool seen = false;
++            for (int i = 0; i < n; i++) seen |= t[i].id == S->tot_id[k];
++            if (!seen) S->tot_s[k] = 0;
++        }
++    }
++    // the list: a scrolling area. Timers: the right side beside the preset column; alarms: the three rows under the Add button.
+     lv_obj_t* l = lv_obj_create(S->root);
+     lv_obj_remove_style_all(l);
+-    lv_obj_set_pos(l, 0, Y(MAC_ROW_TOP));
+-    lv_obj_set_size(l, MAC_W, MAC_LIST_H);
++    lv_obj_set_pos(l, timers ? MAC_TR_X : 0, Y(timers ? MAC_TR_Y : MAC_ROW_TOP));
++    lv_obj_set_size(l, timers ? MAC_TR_W : MAC_W, timers ? MAC_TR_H : MAC_LIST_H);
+     lv_obj_add_flag(l, LV_OBJ_FLAG_CLICKABLE);
+     lv_obj_add_flag(l, LV_OBJ_FLAG_EVENT_BUBBLE);
+     lv_obj_add_flag(l, LV_OBJ_FLAG_SCROLLABLE);
+@@ -666,57 +698,103 @@ void list_rows(int kind)
+     lv_obj_remove_flag(l, LV_OBJ_FLAG_SCROLL_ELASTIC);
+     S->list = l;
+     if (n == 0) {
+-        lv_obj_t* none = text(l, kind == kKindTimer ? tx(MAC_S_NO_TIMERS) : tx(MAC_S_NO_ALARMS), kMid, fg(70));
+-        lv_obj_set_width(none, MAC_W);
+-        lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
+-        lv_obj_set_pos(none, 0, 44);
++        if (timers) {  // a calm empty state: just a stopwatch picture, no words
++            mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
++            draw_shapes(l, sh, app_shapes(MAC_APP_TIMERS, sh), (MAC_TR_W - 72) / 2, (MAC_TR_H - 72) / 2 - 8, 3, fg(30), fg(8));
++        } else {
++            lv_obj_t* none = text(l, tx(MAC_S_NO_ALARMS), kMid, fg(70));
++            lv_obj_set_width(none, MAC_W);
++            lv_obj_set_style_text_align(none, LV_TEXT_ALIGN_CENTER, 0);
++            lv_obj_set_pos(none, 0, 44);
++        }
+         return;
+     }
+     for (int i = 0; i < n; i++) {
+-        const int y = i * MAC_ROW_PITCH;
+-        box(l, 8, y, 304, MAC_ROW_H, fg(16), 10);
++        S->ids[i] = t[i].id;
+         char when[24];
+-        if (kind == kKindTimer) {
++        if (timers) {
+             mac_fmt_left(when, sizeof(when), t[i].left_s);
+         } else if (t[i].hour < 0) {
+             snprintf(when, sizeof(when), "--:--");  // an alarm kept in flash while the clock is not set yet
+         } else {
+             mac_fmt_time(when, sizeof(when), t[i].hour, t[i].minute, g_host->clock24() ? 1 : 0);
+         }
+-        S->left[i] = text(l, when, kind == kKindTimer ? kBig : kMid, fg(100));  // an alarm's "12:05 PM" is longer than a countdown
+-        lv_obj_set_pos(S->left[i], 18, y + (kind == kKindTimer ? 9 : 11));
+-        S->ids[i] = t[i].id;
+-        const char* name = t[i].label[0] != '\0' ? t[i].label : (kind == kKindTimer ? tx(MAC_S_TIMER) : tx(MAC_S_ALARM));
+-        lv_obj_t* lab = text(l, name, kSmall, fg(70));
+-        lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
+-        lv_obj_set_size(lab, 88, 20);  // dots need a fixed height, or the name wraps instead
+-        lv_obj_set_pos(lab, 122, y + 12);
++        if (timers) {
++            const int y = i * MAC_TROW_PITCH;
++            box(l, 0, y, MAC_TR_W, MAC_TROW_H, fg(16), 10);
++            S->left[i] = text(l, when, kBig, fg(100));
++            lv_obj_set_pos(S->left[i], 8, y + 4);
++            if (t[i].label[0] != '\0') {  // a label only when the timer has one (a named preset); never the word Timer
++                lv_obj_t* lab = text(l, t[i].label, kTiny, fg(70));
++                lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
++                lv_obj_set_size(lab, MAC_TROW_BAR_W, 18);
++                lv_obj_set_pos(lab, 8, y + 34);
++            }
++            box(l, 8, y + 58, MAC_TROW_BAR_W, 4, fg(24), 2);
++            S->bar[i] = box(l, 8, y + 58, mac_bar_fill(t[i].left_s, total_of(t[i].id, t[i].left_s)), 4, fg(100), 2);
++            int x, yy, w, h;
++            mac_trow_cancel_box(&x, &yy, &w, &h);
++            lv_obj_t* c = button(l, x, y + yy, w, h, tx(MAC_S_CANCEL), kSmall);
++            lv_obj_add_event_cb(c, on_cancel, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t[i].id)));
++            continue;
++        }
++        const int y = i * MAC_ROW_PITCH;
++        box(l, 8, y, 304, MAC_ROW_H, fg(16), 10);
++        S->left[i] = text(l, when, kMid, fg(100));  // an alarm's "12:05 PM" is longer than a countdown
++        lv_obj_set_pos(S->left[i], 18, y + 11);
++        if (t[i].label[0] != '\0') {  // the label only when it has one; never the word Alarm
++            lv_obj_t* lab = text(l, t[i].label, kSmall, fg(70));
++            lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
++            lv_obj_set_size(lab, 88, 20);  // dots need a fixed height, or the name wraps instead
++            lv_obj_set_pos(lab, 122, y + 12);
++        }
+         int x, yy, w, h;
+         mac_cancel_box(0, &x, &yy, &w, &h);
+         lv_obj_t* c = button(l, x, y, w, h, tx(MAC_S_CANCEL), kSmall);
+         lv_obj_add_event_cb(c, on_cancel, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(t[i].id)));
+     }
+-    (void)Hh;
+ }
++void on_pane_scroll(lv_event_t*);
+ 
+ void build_timers()
+ {
+-    for (int i = 0; i < MAC_PRESETS; i++) {
++    // the preset column on the left: scrolls like the Settings list, with a scroll bar beside it
++    lv_obj_t* pane = lv_obj_create(S->root);
++    lv_obj_remove_style_all(pane);
++    lv_obj_set_pos(pane, MAC_TL_X, Y(MAC_TL_Y));
++    lv_obj_set_size(pane, MAC_TL_W, MAC_TL_H);
++    lv_obj_add_flag(pane, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_add_flag(pane, LV_OBJ_FLAG_EVENT_BUBBLE);
++    lv_obj_add_flag(pane, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_scroll_dir(pane, LV_DIR_VER);
++    lv_obj_set_scrollbar_mode(pane, LV_SCROLLBAR_MODE_OFF);
++    lv_obj_remove_flag(pane, LV_OBJ_FLAG_SCROLL_ELASTIC);
++    for (int i = 0; i <= MAC_PRESETS; i++) {
+         int x, y, w, h;
+         mac_preset_box(i, &x, &y, &w, &h);
+-        lv_obj_t* b = button(S->root, x, Y(y), w, h, "", kMid);
+-        char n[8];
+-        snprintf(n, sizeof(n), "%u", static_cast<unsigned>(MAC_PRESET_MIN[i]));
+-        lv_obj_t* a = text(b, n, kMid, fg(100));
+-        lv_obj_align(a, LV_ALIGN_TOP_MID, 0, 3);
+-        lv_obj_t* m = text(b, tx(MAC_S_MIN), kTiny, fg(70));
+-        lv_obj_align(m, LV_ALIGN_BOTTOM_MID, 0, -3);
+-        lv_obj_add_event_cb(b, on_preset, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(MAC_PRESET_MIN[i])));
++        char n[16];
++        if (i < MAC_PRESETS) {
++            snprintf(n, sizeof(n), "%u %s", static_cast<unsigned>(MAC_PRESET_MIN[i]), tx(MAC_S_MIN));
++        } else {
++            snprintf(n, sizeof(n), "%s", tx(MAC_S_CUSTOM));
++        }
++        lv_obj_t* b = button(pane, x, y, w, h, n, kBig, i == MAC_PRESETS);
++        lv_obj_add_event_cb(b, on_preset, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i < MAC_PRESETS ? MAC_PRESET_MIN[i] : 0)));
++    }
++    S->pane   = pane;
++    S->pane_h = MAC_TL_H;
++    S->content_h = mac_tl_content_h();
++    S->thumb = nullptr;
++    int by, bh;
++    if (mac_scroll_bar(S->content_h, MAC_TL_H, 0, &by, &bh)) {
++        lv_obj_t* track = box(S->root, MAC_TL_X + MAC_TL_W + 2, Y(MAC_TL_Y), 4, MAC_TL_H, fg(14), 2);
++        S->thumb        = box(track, 0, by, 4, bh, fg(75), 2);
++        lv_obj_add_event_cb(pane, on_pane_scroll, LV_EVENT_SCROLL, nullptr);
++    }
++    if (S->tl_scroll != 0) {
++        lv_obj_scroll_to_y(pane, mac_scroll_clamp(S->tl_scroll, S->content_h, MAC_TL_H), LV_ANIM_OFF);
++        on_pane_scroll(nullptr);
+     }
+-    int x, y, w, h;
+-    mac_countdown_box(&x, &y, &w, &h);
+-    lv_obj_t* cd = button(S->root, x, Y(y), w, h, tx(MAC_S_COUNTDOWN), kTiny, false, MAC_COUNTDOWN_READY != 0);
+-    lv_obj_add_event_cb(cd, on_countdown, LV_EVENT_CLICKED, nullptr);  // reserved: dead until MAC_COUNTDOWN_READY
+     list_rows(kKindTimer);
+ }
+ 
+@@ -730,7 +808,7 @@ void build_alarms()
+ // The time picker: hour and minute steppers (and AM or PM on a 12 hour clock), Cancel and Save.
+ void pick_paint()
+ {
+-    const bool c24 = g_host->clock24();
++    const bool c24 = g_host->clock24() || S->pick_timer;  // a timer's hours are 0 to 23 with no AM or PM
+     char v[8];
+     snprintf(v, sizeof(v), c24 ? "%02d" : "%d", mac_pick_shown_hour(&S->pick, c24 ? 1 : 0));
+     set_text_if(S->pick_val[0], v);
+@@ -780,7 +858,9 @@ void on_ampm(lv_event_t* e)
+ void on_pick_cancel(lv_event_t*)
+ {
+     if (!taps_ignored()) {
+-        request_view(MAV_ALARMS);
++        const bool t = S->pick_timer;
++        S->pick_timer = false;
++        request_view(t ? MAV_TIMERS : MAV_ALARMS);
+     }
+ }
+ void on_pick_save(lv_event_t*)
+@@ -788,6 +868,20 @@ void on_pick_save(lv_event_t*)
+     if (taps_ignored()) {
+         return;
+     }
++    if (S->pick_timer) {  // Custom: the hours and minutes are the length of a timer, started at once
++        const int secs = (S->pick.hour * 60 + S->pick.minute) * 60;
++        if (secs <= 0) {
++            return;  // nothing to count
++        }
++        const char* why = g_host->app_timer_add(secs);
++        if (why != nullptr && why[0] != '\0') {
++            toast(why);
++            return;
++        }
++        S->pick_timer = false;
++        request_view(MAV_TIMERS);
++        return;
++    }
+     const char* why = g_host->app_alarm_add(S->pick.hour, S->pick.minute);
+     if (why != nullptr && why[0] != '\0') {
+         toast(why);
+@@ -798,7 +892,7 @@ void on_pick_save(lv_event_t*)
+ 
+ void build_picker()
+ {
+-    const bool c24 = g_host->clock24();
++    const bool c24 = g_host->clock24() || S->pick_timer;
+     for (int col = 0; col < 2; col++) {
+         int x, y, w, h;
+         mac_pick_plus_box(col, c24 ? 1 : 0, &x, &y, &w, &h);
+@@ -1039,7 +1133,7 @@ void on_pane_scroll(lv_event_t*)
+         return;
+     }
+     int by, bh;
+-    if (mac_scroll_bar(S->content_h, MAC_PANE_H, lv_obj_get_scroll_y(S->pane), &by, &bh)) {
++    if (mac_scroll_bar(S->content_h, S->pane_h, lv_obj_get_scroll_y(S->pane), &by, &bh)) {
+         lv_obj_set_height(S->thumb, bh);
+         lv_obj_set_y(S->thumb, by);
+     }
+@@ -1219,6 +1313,7 @@ void build_settings()
+     lv_obj_set_scrollbar_mode(pane, LV_SCROLLBAR_MODE_OFF);
+     lv_obj_remove_flag(pane, LV_OBJ_FLAG_SCROLL_ELASTIC);
+     S->pane = pane;
++    S->pane_h = MAC_PANE_H;
+     S->pane_tab = S->set.tab;
+     int content = 0;
+     for (int i = 0; i < S->n_set_rows; i++) {
+@@ -1255,6 +1350,9 @@ void build(int view)
+     if (view == MAV_COUNT) {
+         // the time picker is a view of the Alarms screen
+     }
++    if (S->pane != nullptr && S->view == MAV_TIMERS) {
++        S->tl_scroll = static_cast<int>(lv_obj_get_scroll_y(S->pane));  // patch NX09: the preset column keeps its place
++    }
+     if (S->pane != nullptr && S->view == MAV_SETTINGS) {  // a tab keeps where it was scrolled to
+         S->set.scroll[S->pane_tab] = static_cast<int16_t>(lv_obj_get_scroll_y(S->pane));
+     }
+@@ -1295,7 +1393,7 @@ void refresh()
+             const int keep = S->list != nullptr ? static_cast<int>(lv_obj_get_scroll_y(S->list)) : 0;
+             build(S->view);
+             if (S->list != nullptr && keep > 0) {
+-                lv_obj_scroll_to_y(S->list, mac_scroll_clamp(keep, mac_list_content_h(S->n_rows), MAC_LIST_H), LV_ANIM_OFF);
++                lv_obj_scroll_to_y(S->list, S->view == MAV_TIMERS ? mac_scroll_clamp(keep, mac_trows_content_h(S->n_rows), MAC_TR_H) : mac_scroll_clamp(keep, mac_list_content_h(S->n_rows), MAC_LIST_H), LV_ANIM_OFF);
+             }
+             return;
+         }
+@@ -1304,6 +1402,7 @@ void refresh()
+                 char left[24];
+                 mac_fmt_left(left, sizeof(left), t[i].left_s);
+                 set_text_if(S->left[i], left);
++                if (S->bar[i] != nullptr) lv_obj_set_width(S->bar[i], mac_bar_fill(t[i].left_s, total_of(t[i].id, t[i].left_s)));
+             }
+         }
+     } else if (S->view == MAV_SETTINGS) {
