@@ -52,6 +52,7 @@ class VirtualUnit:
         self.user_only: list[str] = schema.get("user_only", [])
         self.now_ms = 0
         self.output: list[str] = []
+        self.log: list[dict] = []  # tool calls and touches with the fake time, newest last
         self.state: dict = {}  # per group state for tools/*.py handlers
         self.touches: list[tuple[int, int, int, int]] = []  # (at_ms, x, y, duration_ms)
         self.calls: list[tuple[str, dict]] = []
@@ -102,6 +103,7 @@ class VirtualUnit:
     def raw(self, command: str) -> None:
         """One renderer command (screens profile: pshow, bstatus, bst, bwifiscreen, ...). A bench aid, not a firmware tool."""
         self._send(command)
+        self.log.append({"at_ms": self.now_ms, "name": "renderer", "args": {"command": command}, "ok": True, "result": {}})
 
     def advance(self, ms: int) -> None:
         """Move the fake clock; the face animates for that long."""
@@ -137,6 +139,32 @@ class VirtualUnit:
         self.advance(ms)
 
     def call(self, name: str, args: dict | None = None) -> dict:
+        """Run a tool by name (user-only tools included) and keep it in the log with the fake time."""
+        out = self._call(name, args)
+        self.log.append({"at_ms": self.now_ms, "name": name, "args": dict(args or {}), "ok": not out.get("isError") and out.get("ok") is not False,
+                         "result": {k: v for k, v in out.items() if k != "png_base64"}})
+        del self.log[:-200]
+        return out
+
+    def tap(self, x: int, y: int) -> str:
+        """A finger tap at panel x, y on the clickable object under it (screens profile). Returns what the renderer said."""
+        mark = len(self.output)
+        self._send(f"pclick {x} {y}")
+        self._sync()
+        said = " ".join(self.output[mark:]) or "no output"
+        self.log.append({"at_ms": self.now_ms, "name": "touch.tap", "args": {"x": x, "y": y}, "ok": True, "result": {"renderer": said}})
+        return said
+
+    def swipe(self, x0: int, y0: int, x1: int, y1: int, ms: int = 250) -> str:
+        """A one-finger drag through the unit's gesture code (screens profile)."""
+        mark = len(self.output)
+        self._send(f"pswipe {x0} {y0} {x1} {y1} {ms}")
+        self._sync()
+        said = " ".join(self.output[mark:]) or "no output"
+        self.log.append({"at_ms": self.now_ms, "name": "touch.swipe", "args": {"from": [x0, y0], "to": [x1, y1], "ms": ms}, "ok": True, "result": {"renderer": said}})
+        return said
+
+    def _call(self, name: str, args: dict | None = None) -> dict:
         args = args or {}
         self.calls.append((name, dict(args)))
         if name not in self.tool_names:

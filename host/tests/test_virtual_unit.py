@@ -98,6 +98,15 @@ def test_browser_view_serves_frame_and_calls():
         req = urllib.request.Request(base + "call", json.dumps({"name": "self.face.bench_emotion", "arguments": {"emotion": "sad"}}).encode())
         assert json.loads(urllib.request.urlopen(req).read()) == {"ok": True}
         assert b"Virtual StackChan" in urllib.request.urlopen(base).read()
+        tools = json.loads(urllib.request.urlopen(base + "tools").read())
+        assert len(tools["tools"]) >= 100 and any(t["user_only"] for t in tools["tools"])
+        if tools["touch"]:  # the screens renderer is built: a tap and a swipe reach the unit's own touch code
+            for body in ({"kind": "tap", "x": 160, "y": 120}, {"kind": "swipe", "x": 160, "y": 230, "x2": 160, "y2": 120}):
+                post = urllib.request.Request(base + "touch", json.dumps(body).encode())
+                assert json.loads(urllib.request.urlopen(post).read())["ok"]
+            log = json.loads(urllib.request.urlopen(base + "log").read())["log"]
+            assert [e["name"] for e in log if e["name"].startswith("touch.")] == ["touch.tap", "touch.swipe"]
+        assert "face-happy" in json.loads(urllib.request.urlopen(base + "scenarios").read())["scenarios"]
     finally:
         p.terminate(); p.wait(timeout=10)
 
