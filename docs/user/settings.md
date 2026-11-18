@@ -98,6 +98,8 @@ Swipe up from the bottom of the screen for the control sheet: volume, brightness
 
 ![The settings page on the host with robot status, settings, the pairing code, mute and update.](../images/web-settings.svg)
 
+*The host's settings page: robot status, the settings tabs, the pairing code, mute and update in one place. This is a drawn picture, not a screenshot.*
+
 ## Reset the robot
 
 Clears Wi-Fi networks, pairing and settings, after a confirmation. See [Keep the robot secure](security.md).
