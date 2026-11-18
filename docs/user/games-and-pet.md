@@ -41,7 +41,7 @@ To start one by touch, swipe left on the face to open the Games page (or swipe u
 
 To stop a game, swipe down from the bottom edge of the screen, or say "stop". A game you stop early does not save a score.
 
-The robot keeps your best five scores for each game. Open the robot's settings page and press **Show games and best scores** to see them.
+On the games page of the settings page, a **Best scores by person** card keeps the best five scores of each person on your computer. A score goes under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise it goes under Someone. Delete scores removes one person's list. The robot keeps your best five scores for each game. Open the robot's settings page and press **Show games and best scores** to see them.
 
 A few rules keep games polite:
 

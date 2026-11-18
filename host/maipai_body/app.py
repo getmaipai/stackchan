@@ -2218,7 +2218,16 @@ def _wire_light_and_health(voice, behavior: StackChanBehavior, avatar, sounds, p
     # restart guard, the wake engine test answers, and the ring's fault look while it holds.
     voice.heal.on_hold = lambda hold: light.update(fault=hold)
 
+    from maipai_body.game_scores import ScoreBook
+
+    behavior.score_book = ScoreBook(_data_dir() / "game-scores.json")
+
     def _heal_event(kind: str, extra: dict) -> None:
+        if kind == "game_ended":
+            try:
+                behavior.score_book.on_event(getattr(behavior, "primary_unit", lambda: None)() or "", kind, extra)
+            except Exception:
+                logger.warning("a finished game could not be filed", exc_info=True)
         voice.heal.observe(kind, extra)
         voice.wake_tester.on_event(kind, extra)
         behavior.privacy.observe(kind, extra)
@@ -2777,6 +2786,17 @@ def _wire_timers_and_announcements(
                     logger.warning("a timer event of one unit failed", exc_info=True)
 
     behavior.other_unit_event_handlers.append(on_other_unit_events)
+
+    def file_other_units_scores(device_id: str, events: list) -> None:
+        book = getattr(behavior, "score_book", None)
+        for event in events:
+            if book is not None and getattr(event, "kind", "") == "game_ended":
+                try:
+                    book.on_event(device_id, "game_ended", getattr(event, "extra", None))
+                except Exception:
+                    logger.warning("a finished game of one unit could not be filed", exc_info=True)
+
+    behavior.other_unit_event_handlers.append(file_other_units_scores)
 
     def refresh(device_id: str) -> None:
         service = timers_for(device_id)
@@ -3563,6 +3583,7 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
     behavior.wake_seeker_owns = seeker_owns
     voice.look_sync = sync_look
     backend.on_saved = apply
+    backend.score_book = getattr(behavior, "score_book", None)  # best scores per person for the Games page
 
     def on_connect(device_id: str) -> None:
         own = units.store.get(device_id)

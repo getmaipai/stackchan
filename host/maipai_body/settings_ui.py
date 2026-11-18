@@ -711,6 +711,9 @@ BUILDERS.play=async(p,u)=>{const id=u.device_id,g=await api(unitPath(id,'games')
  if(g.ok&&g.d.games){if(g.d.playing)games.append(h('div',{class:'banner'},T('games.playing')));
   const L=h('div',{class:'list'});for(const x of g.d.games)L.append(h('div',{class:'item'},h('div',{class:'grow'},h('b',{},x.title)),h('div',{class:'pills'},x.scores.length?x.scores.map((s,i)=>h('span',{class:'badge',title:T('games.best')},(i===0?T('games.best')+' ':'')+s+(x.unit?' '+x.unit:''))):h('span',{class:'hint'},T('games.empty')))));games.append(L)}
  else games.append(h('div',{class:'banner'},(g.d&&g.d.error)||T('net_error')),h('span',{class:'badge'},T('soon')));
+ const bp=g.ok&&g.d.by_person&&g.d.by_person.length?card(T('Best scores by person'),T('Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.'),...g.d.by_person.map(x=>{const who=x.person==='Someone'?T('Someone'):x.person;
+  return h('div',{class:'item'},h('div',{class:'grow'},h('b',{},who),...x.games.map(gm=>{const t=(g.d.games.find(q=>q.id===gm.id)||{title:gm.id});return h('div',{class:'hint'},t.title+': '+gm.scores.join(', '))})),
+   h('button',{type:'button',class:'btn bad',onclick:async()=>{if(!(await ask(T('Delete scores')+' - '+who+'?',T('Delete scores'))))return;const r=await save(unitPath(id,'forget-scores'),{person:x.person},true);if(r.ok){BUILT.play=false;p.querySelectorAll(':scope>:not(h1)').forEach(n=>n.remove());go('play',true)}else toast(r.d.error,'bad')}},T('Delete scores')))})):null;
  const tk=g.d&&g.d.talk,talkCard=tk?card(tk.title,tk.help,h('div',{class:'list'},...tk.games.map(x=>h('div',{class:'item'},h('div',{class:'grow'},h('b',{},x.title),h('div',{class:'hint'},x.hint)))))):null;
  const decor=card(S['settings.extra'],null);let pickd=null;
  const view=window.__faceviews||(window.__faceviews={});
@@ -718,7 +721,7 @@ BUILDERS.play=async(p,u)=>{const id=u.device_id,g=await api(unitPath(id,'games')
   const pills=h('div',{class:'pills'});for(const n of fv.choices.decorators){const b=h('button',{class:'pill',type:'button','aria-pressed':'false',onclick:async()=>{pills.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));face.set({decor:n});save(unitPath(id,'decorate'),{name:n,seconds:6},true)}},S['settings.decor.'+n]||pretty(n));pills.append(b)}
   decor.append(h('div',{class:'screen'},cv),pills,h('div',{class:'btns'},h('button',{class:'btn',type:'button',onclick:()=>{pills.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));face.set({decor:'none'});save(unitPath(id,'decorate'),{name:'none'},true)}},S['settings.extra.stop'])))}
  else decor.append(h('div',{class:'banner'},fv.error||T('net_error')));
- p.append(h('div',{class:'grid'},games,...(talkCard?[talkCard]:[]),decor))};
+ p.append(h('div',{class:'grid'},games,...(bp?[bp]:[]),...(talkCard?[talkCard]:[]),decor))};
 
 /* ---- SYSTEM ---- */
 BUILDERS.system=async(p,u)=>{const id=u.device_id;

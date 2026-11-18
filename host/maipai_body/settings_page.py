@@ -482,6 +482,9 @@ class SettingsBackend:
                 body = self.extras.details(device_id, lang)
             elif what == "games":
                 body = self.extras.games(device_id, lang)
+                book = getattr(self, "score_book", None)
+                if book is not None:
+                    body = {**body, "by_person": book.view(device_id)}
             elif what == "pictures":
                 body = self.pictures.view(device_id, lang)
             elif what == "remote":
@@ -669,6 +672,12 @@ class SettingsBackend:
                 self._unit_known(device_id)
                 return 200, self.extras.reset_reactions(device_id, lang)
             self._unit_known(device_id)
+            if action == "forget-scores":
+                book = getattr(self, "score_book", None)
+                person = values.get("person")
+                if book is None or not isinstance(person, str) or not person:
+                    return 400, {"error": "Say whose scores to delete. Pick a person on the Games page and try again."}
+                return 200, {"ok": True, "removed": book.forget(device_id, person), "message": "Scores deleted."}
             if action == "reactions":
                 return 200, self.extras.save_reactions(device_id, values, lang)
             if action == "clock":

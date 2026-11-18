@@ -50,6 +50,10 @@ EN = {
     "Reactions and people": "Reactions and people",
     "Actions": "Actions",
     "Access and log": "Access and log",
+    "Best scores by person": "Best scores by person",
+    "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.",
+    "Delete scores": "Delete scores",
+    "Someone": "Someone",
 }
 
 ES = {
@@ -99,6 +103,10 @@ ES = {
     "Reactions and people": "Reacciones y personas",
     "Actions": "Acciones",
     "Access and log": "Acceso y registro",
+    "Best scores by person": "Mejores puntuaciones por persona",
+    "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "Las puntuaciones se guardan con un nombre solo cuando MaiPai Home o la frase de las notas dice quién juega; si no, van bajo Alguien. Se quedan en este ordenador.",
+    "Delete scores": "Borrar puntuaciones",
+    "Someone": "Alguien",
 }
 
 FR = {
@@ -148,6 +156,10 @@ FR = {
     "Reactions and people": "Réactions et personnes",
     "Actions": "Actions",
     "Access and log": "Accès et journal",
+    "Best scores by person": "Meilleurs scores par personne",
+    "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "Les scores sont classés sous un nom seulement quand MaiPai Home ou la phrase secrète des notes dit qui joue ; sinon ils vont sous Quelqu’un. Ils restent sur cet ordinateur.",
+    "Delete scores": "Supprimer les scores",
+    "Someone": "Quelqu’un",
 }
 
 DE = {
@@ -197,6 +209,10 @@ DE = {
     "Reactions and people": "Reaktionen und Personen",
     "Actions": "Aktionen",
     "Access and log": "Zugriff und Protokoll",
+    "Best scores by person": "Bestwerte pro Person",
+    "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "Die Werte werden nur unter einem Namen abgelegt, wenn MaiPai Home oder die Notizen-Passphrase sagt, wer spielt; sonst unter Jemand. Sie bleiben auf diesem Computer.",
+    "Delete scores": "Werte löschen",
+    "Someone": "Jemand",
 }
 
 PT = {
@@ -246,6 +262,10 @@ PT = {
     "Reactions and people": "Reações e pessoas",
     "Actions": "Ações",
     "Access and log": "Acesso e registro",
+    "Best scores by person": "Melhores pontuações por pessoa",
+    "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "As pontuações ficam sob um nome só quando o MaiPai Home ou a frase das notas diz quem joga; senão ficam em Alguém. Ficam neste computador.",
+    "Delete scores": "Apagar pontuações",
+    "Someone": "Alguém",
 }
 
 IT = {
@@ -295,6 +315,10 @@ IT = {
     "Reactions and people": "Reazioni e persone",
     "Actions": "Azioni",
     "Access and log": "Accesso e registro",
+    "Best scores by person": "Migliori punteggi per persona",
+    "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "I punteggi vanno sotto un nome solo quando MaiPai Home o la frase delle note dice chi gioca; altrimenti vanno sotto Qualcuno. Restano su questo computer.",
+    "Delete scores": "Elimina punteggi",
+    "Someone": "Qualcuno",
 }
 
 CATALOGS: dict[str, dict[str, str]] = {"en": EN, "es": ES, "fr": FR, "de": DE, "pt": PT, "it": IT}
