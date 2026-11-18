@@ -5,4 +5,7 @@
 - The end-to-end rig (`scripts/virtual-unit/e2e.py`) runs the real host in a clean environment against virtual units with scripted model and speech servers. `--fleet` runs the many-unit, chaos and service scenarios (`e2e_fleet.py`). Details: `docs/dev/e2e-virtual-unit.md`.
 - Hostile-peer and fuzz tools: `docs/dev/fuzzing-and-hostile-peer.md`.
 
+- Filmstrips (several frames in one golden): `clock-flip-*` (the style flip), `game-c4-drop-filmstrip` (a chip dropping, SF72), `host-away-two-messages` (Offline, then the ten-minute notice on the banner row for 20 s, then Offline again; SF64, SF68, SF73) and `mumble-mouth-sync`.
+- The host-away rig (`scripts/virtual-unit/host_away.py`) runs the reconnect core as SF49 and SF64 leave it (0.5 s first wait, caps 5, 15, 30 then 120 s), the Offline sign after 45 s, the sleepy face after 3 minutes, the notice at ten minutes and every 30 minutes, and records the `ws_away_notice` events.
+
 Back: [index](index.md).

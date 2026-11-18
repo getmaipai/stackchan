@@ -133,6 +133,8 @@ GRID_SCENARIOS = {
     "game-match-flipping": ["game match 5", "tap 0", "advance 90", "snap {out}"],
     "game-hangman-mid": ["game hangman 1", "tap 4", "advance 400", "tap 0", "advance 400", "tap 17", "advance 400", "tap 19", "advance 400", "snap {out}"],
     "game-mines-open": ["game mines 3", "tap 20", "advance 500", "snap {out}"],
+    # patch SF72: a chip dropping into Four in a Row, one frame every 60 ms (the fall, the landing bounce), and the winning four pulsing (one frame every 120 ms): twelve frames
+    "game-c4-drop-filmstrip": ["game c4", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 4 2", "stripadd"] + ["advance 60", "stripadd"] * 8 + ["advance 400", "drop 3 1", "advance 700"] + ["advance 120", "stripadd"] * 0 + ["stripwrite {out} 3"],
     "game-riddle-typing": ["game c4 3", "qa riddle|riddle|What has keys but cannot open locks?|A piano|22|0|en", "snap {out}"],
     "game-joke-ready": ["game c4 3", "qa riddle|joke|I told my robot a joke about batteries. It was not charged by it.||-1|0|en", "snap {out}"],
     "game-riddle-ready": ["game c4 3", "qa riddle|riddle|What has keys but cannot open locks?|A piano|-1|0|en", "snap {out}"],
@@ -177,6 +179,9 @@ FILMSTRIPS = {
 import mumble as _mumble   # noqa: E402  (scripts/virtual-unit is on the path: this file is run from there)
 _HELLO = [b.mouth for b in _mumble.blips("Hello! I am your robot. How can I help you today?", 0, 3300)[:9]]
 FILMSTRIPS["mumble-mouth-sync"] = [("raw", "style big_eyes"), ("call", "self.face.bench_emotion", {"emotion": "happy"}), ("advance", 400)] + [("speakstrip", m) for m in _HELLO]
+# The two-message state of a unit whose host is away (patches SF64, SF68, SF73): Offline steady (after 45 s), then at ten minutes the notice takes the banner row for 20 s at the privacy
+# priority (it is long, so it scrolls), then Offline again. Frames: 1 minute away, the notice at 10 min 2 s, 7 s in, 14 s in, 19 s in, then 11 minutes away (the notice has ended).
+FILMSTRIPS["host-away-two-messages"] = BAR + [("awaystep", 60000), ("awaystep", 541000), ("awaystep", 5000), ("awaystep", 7000), ("awaystep", 5000), ("awaystep", 30000)]
 SCREENS.update(FILMSTRIPS)
 
 
@@ -303,6 +308,16 @@ def run(u, steps) -> None:
             u.__dict__.setdefault("strip", []).append(u.snapshot())
         elif step[0] == "touch":
             u.touch(*step[1:])
+        elif step[0] == "awaystep":   # the host-away rig: move the unit's fake time by ms (the notice, the label and the face follow), then a frame for the filmstrip
+            import host_away
+            away = u.host_away
+            if away.since is None:
+                away.language = "en"
+                away.link_lost()
+            u.jump(step[1])
+            away.tick(u.now_ms)
+            u.raw("advance 66")
+            u.__dict__.setdefault("strip", []).append(u.snapshot_now())
         elif step[0] == "hostaway":   # the unit has been away from its host for 11 minutes: the notice shows (patch SF49), in this language
             import host_away
 

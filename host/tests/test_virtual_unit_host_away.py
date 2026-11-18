@@ -30,7 +30,9 @@ vunit = _load("vunit")
 
 def test_the_backoff_rules_are_the_patchs_own_core():
     L = ha.lib()
-    assert (L.rc_cap(0), L.rc_cap(599_999), L.rc_cap(600_000)) == (30_000, 30_000, 120_000)
+    # patch SF64: the cap is 5 s for the first 2 minutes away, 15 s to 5 minutes, 30 s to 10 minutes, then 120 s; the waits start at 0.5 s and double
+    assert (L.rc_cap(0), L.rc_cap(119_999), L.rc_cap(120_000), L.rc_cap(299_999), L.rc_cap(300_000), L.rc_cap(599_999), L.rc_cap(600_000)) == (5_000, 5_000, 15_000, 15_000, 30_000, 30_000, 120_000)
+    assert [L.rc_grow(d, 5_000) for d in (500, 1000, 2000, 4000, 5000)] == [1000, 2000, 4000, 5000, 5000]
     assert [L.rc_grow(d, 30_000) for d in (1000, 2000, 4000, 8000, 16000, 30000)] == [2000, 4000, 8000, 16000, 30000, 30000]
     assert 4000 <= L.rc_wait(4000, 30_000, 123456) <= 5000   # the delay plus up to a quarter of it
     assert L.rc_wait(30_000, 30_000, 99999) == 30_000        # never above the cap
@@ -55,8 +57,12 @@ def test_the_label_after_45_seconds_the_notice_after_ten_minutes_then_every_half
         times = [t // 60_000 for t, _ in away.notices]
         assert times[0] == 10 and len(times) == 4 and all(b - a >= 30 for a, b in zip(times, times[1:]))   # at 10 minutes, then every 30
         assert all(text == ha.NOTICE["en"] for _, text in away.notices)
-        first = [w for t, w in away.attempts if t < 600_000]
-        assert first and max(first) <= 30_000 and all(w <= 120_000 for _, w in away.attempts)
+        first = [w for t, w in away.attempts if t < 120_000]
+        assert first and max(first) <= 5_000, "a host that restarts within 2 minutes is found within 5 s (patch SF64)"
+        assert [w for t, w in away.attempts if t < 600_000] and max(w for t, w in away.attempts if t < 600_000) <= 30_000 and all(w <= 120_000 for _, w in away.attempts)
+        assert away.attempts[0][1] <= 625, "the first wait is 0.5 s plus at most a quarter of jitter"
+        assert [s for _, s in away.events] == [t // 1000 for t, _ in away.notices] and all(600 <= s < 700 for _, s in away.events[:1]), "one ws_away_notice event for each notice"
+        assert away.sleepy, "the sleepy face from 3 minutes away"
         away.link_up()
         assert away.since is None and not away.label
 

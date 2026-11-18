@@ -12,9 +12,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 PATCH = ROOT / "firmware" / "patches" / "SF49-task-supervisor-and-reconnect.patch"
+SCHEDULE_PATCH = ROOT / "firmware" / "patches" / "SF64-faster-reconnect-schedule.patch"   # the waits start at 0.5 s and the cap is 5, 15, 30, then 120 s by time away
 OUT = ROOT / ".runs" / "vu-dance"
 HEADER = "maipai_reconnect_core.h"
 OFFLINE_LABEL_MS = 45000   # patch 143
+SLEEPY_MS = 180000         # patch 143: the sleepy face from 3 minutes away
+NOTICE_MS = 20000          # patch SF73: how long the notice holds the banner row (the row's limit; SF68 asked for 30)
 
 # The notice is English in the firmware (patch SF49: hal_bridge::notice). The other five are drafts for a speaker to read: the firmware track should carry them in its language tables.
 NOTICE = {
@@ -39,6 +42,14 @@ def lib() -> ctypes.CDLL:
         raise RuntimeError(f"{HEADER} is not in {PATCH.name}: the patch changed; update scripts/virtual-unit/host_away.py")
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / HEADER).write_text("\n".join(l[1:] for l in m.group(1).splitlines() if l.startswith("+")) + "\n")
+    if SCHEDULE_PATCH.exists():   # patch SF64 changes the same core: apply it on top, so the rig runs the schedule the unit runs
+        tree = OUT / "sf64"
+        (tree / "firmware" / "main" / "hal").mkdir(parents=True, exist_ok=True)
+        (tree / "firmware" / "main" / "hal" / HEADER).write_text((OUT / HEADER).read_text())
+        done = subprocess.run(["patch", "-p1", "-s", "-f", "-N", "-i", str(SCHEDULE_PATCH)], cwd=tree, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        if done.returncode != 0:
+            raise RuntimeError(f"{SCHEDULE_PATCH.name} does not apply to the SF49 core ({done.stdout.strip()}): update scripts/virtual-unit/host_away.py")
+        (OUT / HEADER).write_text((tree / "firmware" / "main" / "hal" / HEADER).read_text())
     src = HERE / "dance" / "reconnect_sim.c"
     so = OUT / "reconnect_sim.dylib"
     if not so.exists() or so.stat().st_mtime < max(src.stat().st_mtime, (OUT / HEADER).stat().st_mtime):
@@ -60,8 +71,10 @@ class HostAway:
         self.last_notice_away = 0
         self.notices: list[tuple[int, str]] = []   # (away ms, text)
         self.label = False
+        self.sleepy = False
+        self.events: list[tuple[str, int]] = []   # (event name, away_s): the ws_away_notice events of patch SF68
         self.attempts: list[tuple[int, int]] = []   # (away ms, wait ms before the next try)
-        self.delay = 1000
+        self.delay = 500
         self.next_try = 0
         self.rng = seed | 1
         u.tickers.append(self.tick)
@@ -70,7 +83,7 @@ class HostAway:
         if self.since is None:
             self.since = self.u.now_ms
             self.last_notice_away = 0
-            self.delay = 1000
+            self.delay = 500   # patch SF64: the first wait is 0.5 s
             self.next_try = self.u.now_ms
             self.attempts = []
             self.notices = []
@@ -79,6 +92,9 @@ class HostAway:
         self.since = None
         self.last_notice_away = 0
         self.label = False
+        if self.sleepy:
+            self.sleepy = False
+            self.u.raw("emotion neutral")
         self.u.raw("bstatus 80 0 1 1 1")   # the Offline label and the amber ring go with the link
 
     def away_ms(self) -> int:
@@ -95,11 +111,15 @@ class HostAway:
         if not self.label and away >= OFFLINE_LABEL_MS:
             self.label = True
             self.u.raw("bstatus 80 0 1 0 1")   # hub down: the word Offline in the upper left, the dim amber ring (patch 143)
+        if not self.sleepy and away >= SLEEPY_MS:
+            self.sleepy = True
+            self.u.raw("emotion sleepy")   # the sleepy face from 3 minutes away (patch 143)
         if self.L.rc_notice_due(away, self.last_notice_away):
             self.last_notice_away = away
             text = NOTICE[self.language]
             self.notices.append((away, text))
-            self.u.raw(f"bpost notice wifioff away 9000 {text}")   # hal_bridge::notice(text, 9000)
+            self.events.append(("ws_away_notice", away // 1000))   # patch SF68: the event the bench and the host see
+            self.u.raw(f"bpost privacy wifioff away {NOTICE_MS} {text}")   # patch SF73: hal_bridge::notice_urgent: the privacy priority takes the row from the steady Offline look for 20 s
         if now >= self.next_try:   # one reconnect try: the next wait is the delay plus jitter, never above the cap for this much time away
             cap = self.L.rc_cap(away)
             wait = self.L.rc_wait(self.delay, cap, self._rnd())

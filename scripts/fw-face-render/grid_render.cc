@@ -9,6 +9,8 @@
 //   qa riddle|joke or riddle|WORDS|ANSWER|CHARS SHOWN (-1 all)|REVEALED 0 or 1|en or es   the question and answer game screens (patch UX17)
 //   qa trivia|QUESTION|A1;A2;A3;A4|N|TOTAL|SCORE|RESULT 0 1 2|CHOSEN|RIGHT|lang
 //   qa twenty|QUESTION|N|GUESS 0 or 1|lang
+//   stripadd                             keep this very frame (no time passes) for a filmstrip
+//   stripwrite FILE.png COLS             the kept frames at half size, COLS to a row, in one picture
 //   snap FILE.png
 // Build: see scripts/virtual-unit/build-screens.sh. Placement: host-side development tool; no firmware change. Upstream: none.
 #include <lvgl.h>
@@ -40,6 +42,7 @@
 
 static uint8_t s_buf[320 * 240 * 2];
 static uint32_t g_now = 1000;
+static std::vector<std::vector<uint8_t>> s_strip;
 static uint32_t tick_cb() { return g_now; }
 static void flush_cb(lv_display_t* d, const lv_area_t*, uint8_t*) { lv_display_flush_ready(d); }
 
@@ -219,6 +222,28 @@ int main()
 #else
             printf("this firmware tree has no question and answer screens (patch UX17)\n");
 #endif
+        } else if (c == "stripadd") {
+            lv_refr_now(nullptr);
+            std::vector<uint8_t> rgb;
+            for (int i = 0; i < 320 * 240; i++) {
+                const uint16_t v = (uint16_t)(s_buf[i * 2] | (s_buf[i * 2 + 1] << 8));
+                rgb.push_back((uint8_t)(((v >> 11) & 31) * 255 / 31)); rgb.push_back((uint8_t)(((v >> 5) & 63) * 255 / 63)); rgb.push_back((uint8_t)((v & 31) * 255 / 31));
+            }
+            s_strip.push_back(rgb);
+        } else if (c == "stripwrite") {
+            std::string f; int cols = 3; in >> f >> cols;
+            const int n = (int)s_strip.size(), rows = (n + cols - 1) / cols, W = 160, H = 120;
+            std::vector<uint8_t> out((size_t)cols * W * rows * H * 3, 0);
+            for (int k = 0; k < n; k++) {
+                const int ox = (k % cols) * W, oy = (k / cols) * H;
+                for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) for (int ch = 0; ch < 3; ch++) {
+                    const auto& src = s_strip[k];
+                    const int a = src[((2 * y) * 320 + 2 * x) * 3 + ch] + src[((2 * y) * 320 + 2 * x + 1) * 3 + ch] + src[((2 * y + 1) * 320 + 2 * x) * 3 + ch] + src[((2 * y + 1) * 320 + 2 * x + 1) * 3 + ch];
+                    out[(((size_t)(oy + y)) * cols * W + ox + x) * 3 + ch] = (uint8_t)((a + 2) / 4);
+                }
+            }
+            write_png(f.c_str(), out, cols * W, rows * H);
+            s_strip.clear();
         } else if (c == "snap") {
             std::string f; in >> f; snap(f.c_str());
         }
