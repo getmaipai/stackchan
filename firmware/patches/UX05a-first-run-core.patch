@@ -1,0 +1,156 @@
+# Intent: Add a tested C99 core for first-run step rules.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_firstrun_core.h (ours, new patch)
+# Check after a flash: Confirm first-run advances, backs up, and resumes on the expected screen.
+
+diff --git a/firmware/main/hal/maipai_firstrun_core.h b/firmware/main/hal/maipai_firstrun_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_firstrun_core.h
+@@ -0,0 +1,146 @@
++#ifndef MAIPAI_FIRSTRUN_CORE_H
++#define MAIPAI_FIRSTRUN_CORE_H
++
++#include <stdint.h>
++
++enum {
++    MFR_LANGUAGE = 0,
++    MFR_NAME,
++    MFR_WIFI,
++    MFR_BRAIN,
++    MFR_PRIVACY,
++    MFR_DONE,
++    MFR_COUNT
++};
++
++enum {
++    MFR_LANG_EN = 0,
++    MFR_LANG_ES,
++    MFR_LANG_FR,
++    MFR_LANG_DE,
++    MFR_LANG_PT,
++    MFR_LANG_IT,
++    MFR_LANG_COUNT
++};
++
++enum {
++    MFR_MODE_NONE = -1,
++    MFR_MODE_HOME = 0,
++    MFR_MODE_OWN = 1
++};
++
++enum {
++    MFR_ANSWER_LANGUAGE = 1u << MFR_LANGUAGE,
++    MFR_ANSWER_NAME = 1u << MFR_NAME,
++    MFR_ANSWER_WIFI = 1u << MFR_WIFI,
++    MFR_ANSWER_BRAIN = 1u << MFR_BRAIN,
++    MFR_ANSWER_PRIVACY = 1u << MFR_PRIVACY
++};
++
++typedef struct {
++    int8_t step;
++    int8_t language;
++    int8_t name;
++    int8_t mode;
++    uint8_t wifi_set;
++    uint8_t hub_known;
++    uint8_t answered_mask;
++} mfr_t;
++
++static inline void mfr_init(mfr_t* m, int wifi_set, int hub_known)
++{
++    m->step = MFR_LANGUAGE;
++    m->language = -1;
++    m->name = -1;
++    m->mode = hub_known ? MFR_MODE_HOME : MFR_MODE_NONE;
++    m->wifi_set = (uint8_t)(wifi_set != 0);
++    m->hub_known = (uint8_t)(hub_known != 0);
++    m->answered_mask = 0;
++}
++
++static inline int mfr_choose_language(mfr_t* m, int lang)
++{
++    if (m->step != MFR_LANGUAGE || lang < MFR_LANG_EN || lang >= MFR_LANG_COUNT) {
++        return 0;
++    }
++    m->language = (int8_t)lang;
++    m->answered_mask |= MFR_ANSWER_LANGUAGE;
++    m->step = MFR_NAME;
++    return 1;
++}
++
++static inline int mfr_choose_name(mfr_t* m, int idx)
++{
++    if (m->step != MFR_NAME || idx < 0 || idx > 5) {
++        return 0;
++    }
++    m->name = (int8_t)idx;
++    m->answered_mask |= MFR_ANSWER_NAME;
++    m->step = m->wifi_set ? MFR_BRAIN : MFR_WIFI;
++    return 1;
++}
++
++static inline int mfr_wifi_done(mfr_t* m)
++{
++    if (m->step != MFR_WIFI || m->wifi_set) {
++        return 0;
++    }
++    m->answered_mask |= MFR_ANSWER_WIFI;
++    m->step = MFR_BRAIN;
++    return 1;
++}
++
++static inline int mfr_choose_mode(mfr_t* m, int mode)
++{
++    if (m->step != MFR_BRAIN || (mode != MFR_MODE_HOME && mode != MFR_MODE_OWN)) {
++        return 0;
++    }
++    m->mode = (int8_t)mode;
++    m->answered_mask |= MFR_ANSWER_BRAIN;
++    m->step = MFR_PRIVACY;
++    return 1;
++}
++
++static inline int mfr_ack_privacy(mfr_t* m)
++{
++    if (m->step != MFR_PRIVACY) {
++        return 0;
++    }
++    m->answered_mask |= MFR_ANSWER_PRIVACY;
++    m->step = MFR_DONE;
++    return 1;
++}
++
++static inline void mfr_back(mfr_t* m)
++{
++    if (m->step <= MFR_LANGUAGE || m->step >= MFR_DONE) {
++        return;
++    }
++    if (m->step == MFR_BRAIN && m->wifi_set) {
++        m->step = MFR_NAME;
++    } else {
++        m->step = (int8_t)(m->step - 1);
++    }
++}
++
++static inline int mfr_resume_step(const mfr_t* m)
++{
++    if (!(m->answered_mask & MFR_ANSWER_LANGUAGE)) return MFR_LANGUAGE;
++    if (!(m->answered_mask & MFR_ANSWER_NAME)) return MFR_NAME;
++    if (!m->wifi_set && !(m->answered_mask & MFR_ANSWER_WIFI)) return MFR_WIFI;
++    if (!(m->answered_mask & MFR_ANSWER_BRAIN)) return MFR_BRAIN;
++    if (!(m->answered_mask & MFR_ANSWER_PRIVACY)) return MFR_PRIVACY;
++    return MFR_DONE;
++}
++
++static inline int mfr_back_visible(int step)
++{
++    return step == MFR_NAME || step == MFR_BRAIN || step == MFR_PRIVACY;
++}
++
++static inline int mfr_done(const mfr_t* m)
++{
++    return m->step == MFR_DONE;
++}
++
++#endif

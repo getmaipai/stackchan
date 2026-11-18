@@ -3,8 +3,9 @@
 # Upstream: firmware/main/hal/maipai_apps.cc (ours, patches UX03 and NX09)
 # Check after a flash: Start a timer and tap Cancel while its countdown updates.
 
---- a/firmware/main/hal/maipai_apps.cc	2026-11-18 00:14:22
-+++ b/firmware/main/hal/maipai_apps.cc	2026-11-18 00:14:28
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
 @@ -621,7 +621,7 @@
  {
      int sig = n;

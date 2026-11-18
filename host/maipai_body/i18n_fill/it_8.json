@@ -1,0 +1,25 @@
+{
+  "lang": "it",
+  "strings": {
+    "settings.ui.lk.forgot": "Hai dimenticato il codice? Il ripristino fisico in due passaggi del robot lo cancella insieme a tutto il resto.",
+    "settings.ui.lk.digits": "Da 4 a 6 cifre",
+    "settings.ui.ln.title": "Link crittografato",
+    "settings.ui.ln.help": "Crittografa tutto ciò che passa tra il robot e questo computer, così nessun altro sulla tua rete Wi-Fi può ascoltare o spacciarsi per uno dei due. Per usarlo, il robot deve essere aggiornato.",
+    "settings.ui.ln.state": "Stato attuale del link",
+    "settings.ui.ln.state.encrypted": "Crittografato",
+    "settings.ui.ln.state.plain_allowed": "Non crittografato consentito: ha usato il link crittografato, ma può connettersi anche senza",
+    "settings.ui.ln.state.plain": "Non crittografato",
+    "settings.ui.ln.state.never_seen": "Mai usato con crittografia: questo robot non ha ancora usato il link crittografato",
+    "settings.ui.ln.choice": "Opzione",
+    "settings.ui.ln.required": "Obbligatorio",
+    "settings.ui.ln.allowed": "Consentito",
+    "settings.ui.ln.off": "Disattivato",
+    "settings.ui.ln.required_help": "Obbligatorio: il robot deve usare il link crittografato. Le connessioni non crittografate vengono rifiutate. Attiva questa opzione dopo aver connesso il robot con crittografia.",
+    "settings.ui.ln.allowed_help": "Consentito: funzionano entrambi i link. Scegli questa opzione mentre aggiorni il robot.",
+    "settings.ui.ln.off_help": "Disattivato: nessuna crittografia. Solo per il debug.",
+    "settings.ui.ln.off_warning": "Attenzione: il link non è crittografato. Chiunque sia su questa rete può leggere ciò che il robot invia e ascolta. Al termine, riattiva Consentito o Obbligatorio.",
+    "settings.ui.ln.unknown": "Sconosciuto: questa pagina non riesce a raggiungere le impostazioni del link",
+    "settings.ui.wake_look": "Guardati intorno quando sento la parola di attivazione",
+    "settings.ui.wake_look_help": "Una breve rotazione della testa per far sembrare che il robot ti cerchi con lo sguardo. Mai mentre viene trasportato, è bloccato, disattivato o addormentato, di notte, durante i giochi o i balli."
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "lang": "pt",
+  "strings": {
+    "settings.ui.lk.digits": "4 a 6 dígitos",
+    "settings.ui.ln.title": "Link criptografado",
+    "settings.ui.ln.help": "Protege tudo o que é transmitido entre o robô e este computador, para que ninguém na sua rede Wi-Fi possa ouvir ou se passar por um dos dois. O robô precisa ser atualizado para usar esse recurso.",
+    "settings.ui.ln.state": "Estado atual do link",
+    "settings.ui.ln.state.encrypted": "Criptografado",
+    "settings.ui.ln.state.plain_allowed": "Sem criptografia permitido: já usou o link criptografado, mas também pode se conectar sem ele",
+    "settings.ui.ln.state.plain": "Sem criptografia",
+    "settings.ui.ln.state.never_seen": "Nunca usou criptografia: este robô ainda não usou o link criptografado",
+    "settings.ui.ln.choice": "Opção",
+    "settings.ui.ln.required": "Obrigatório",
+    "settings.ui.ln.allowed": "Permitido",
+    "settings.ui.ln.off": "Desativado",
+    "settings.ui.ln.required_help": "Obrigatório: o robô precisa usar o link criptografado. Conexões sem criptografia são recusadas. Use esta opção depois que o robô se conectar com criptografia.",
+    "settings.ui.ln.allowed_help": "Permitido: os dois tipos de link funcionam. Escolha esta opção enquanto atualiza o robô.",
+    "settings.ui.ln.off_help": "Desativado: sem criptografia. Use apenas para depuração.",
+    "settings.ui.ln.off_warning": "Atenção: o link não está criptografado. Qualquer pessoa nesta rede pode ler o que o robô envia e ouve. Quando terminar, mude para Permitido ou Obrigatório.",
+    "settings.ui.ln.unknown": "Desconhecido: esta página não consegue acessar as configurações do link",
+    "settings.ui.wake_look": "Olhar ao redor quando ouvir a palavra de ativação",
+    "settings.ui.wake_look_help": "Um movimento curto da cabeça para o robô parecer que está procurando você. Nunca quando estiver sendo carregado, bloqueado, no silencioso, dormindo, à noite ou durante jogos e danças."
+  }
+}

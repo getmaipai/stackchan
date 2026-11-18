@@ -3,6 +3,7 @@
 # Upstream: firmware/main/hal/maipai_apps.cc and firmware/main/hal/maipai_pages.cc (ours, patches UX02a, UI17, P12)
 # Check after a flash: Open apps, settings, timers and pages and confirm labels fit and titles remain clear.
 
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
 --- a/firmware/main/hal/maipai_apps.cc
 +++ b/firmware/main/hal/maipai_apps.cc
 @@ -34,10 +34,8 @@
@@ -209,6 +210,7 @@
      lv_obj_add_event_cb(done, on_done, LV_EVENT_CLICKED, nullptr);
      // the list on the right: a vertical scroll area
      S->n_set_rows = mac_set_rows(S->set.tab, set_flags(), S->rows);
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
 --- a/firmware/main/hal/maipai_pages.cc
 +++ b/firmware/main/hal/maipai_pages.cc
 @@ -92,9 +92,7 @@

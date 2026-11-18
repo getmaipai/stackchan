@@ -3,8 +3,9 @@
 # Upstream: firmware/main/hal/maipai_look_core.h and firmware/main/stackchan/avatar/skins/default/mouth.cpp
 # Check after a flash: Mute the eyes-only style and confirm a shut mouth line appears, then unmute and confirm it disappears.
 
---- a/firmware/main/hal/maipai_look_core.h	2026-11-17 23:58:46
-+++ b/firmware/main/hal/maipai_look_core.h	2026-11-17 23:58:46
+diff --git a/firmware/main/hal/maipai_look_core.h b/firmware/main/hal/maipai_look_core.h
+--- a/firmware/main/hal/maipai_look_core.h
++++ b/firmware/main/hal/maipai_look_core.h
 @@ -881,7 +881,7 @@
   * when sealed (mute), yawning when tired, and opened by the voice or the weight it was given (open01 0 to 1). */
  static inline ml_mouth_t ml_mouth_target(const ml_style_t* st, int emotion, int sealed, int speaking, float open01, uint32_t ms)
@@ -14,8 +15,9 @@
      const float kt = 0.5f + 0.5f * ((float)st->mouth_t / 8.0f);
      ml_mouth_t base = ML_LOOKS[emotion >= 0 && emotion < ML_COUNT ? emotion : 0].mouth;
      base.w *= kw;
---- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp	2026-11-17 23:58:46
-+++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp	2026-11-18 00:02:24
+diff --git a/firmware/main/stackchan/avatar/skins/default/mouth.cpp b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+--- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
 @@ -78,7 +78,7 @@
  void DefaultMouth::apply_visibility()
  {

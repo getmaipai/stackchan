@@ -1,0 +1,33 @@
+{
+ "lang": "de",
+ "strings": {
+  "settings.ui.lk.remove": "Code entfernen",
+  "settings.ui.lk.auto_title": "Automatisch sperren",
+  "settings.ui.lk.auto_help": "Sperren, wenn der Roboter so lange keine Berührung, kein Aktivierungswort und keinen Fernbefehl erkennt.",
+  "settings.ui.lk.auto_off": "Aus",
+  "settings.ui.lk.minutes": "{n} Min.",
+  "settings.ui.lk.now": "Jetzt sperren",
+  "settings.ui.lk.now_help": "Sperrt den Roboter sofort. Dafür ist ein Code erforderlich.",
+  "settings.ui.lk.locked_note": "Der Roboter ist gesperrt und übernimmt hier keine Änderungen. Entsperren Sie ihn mit dem Code über die Tastatur.",
+  "settings.ui.lk.forgot": "Code vergessen? Beim zweistufigen Zurücksetzen direkt am Roboter wird der Code zusammen mit allen anderen Daten gelöscht.",
+  "settings.ui.lk.digits": "4 bis 6 Ziffern",
+  "settings.ui.ln.title": "Verschlüsselte Verbindung",
+  "settings.ui.ln.help": "Verschlüsselt die gesamte Verbindung zwischen Roboter und Computer. So kann niemand sonst in Ihrem Wi-Fi mithören oder sich als eines der Geräte ausgeben. Der Roboter muss dafür aktualisiert sein.",
+  "settings.ui.ln.state": "Verbindungsstatus",
+  "settings.ui.ln.state.encrypted": "Verschlüsselt",
+  "settings.ui.ln.state.plain_allowed": "Unverschlüsselt erlaubt: Die verschlüsselte Verbindung wurde bereits genutzt, aber auch eine unverschlüsselte Verbindung ist möglich.",
+  "settings.ui.ln.state.plain": "Unverschlüsselt",
+  "settings.ui.ln.state.never_seen": "Noch nie verschlüsselt: Dieser Roboter hat die verschlüsselte Verbindung noch nicht genutzt.",
+  "settings.ui.ln.choice": "Einstellung",
+  "settings.ui.ln.required": "Erforderlich",
+  "settings.ui.ln.allowed": "Erlaubt",
+  "settings.ui.ln.off": "Aus",
+  "settings.ui.ln.required_help": "Erforderlich: Der Roboter muss die verschlüsselte Verbindung nutzen. Unverschlüsselte Verbindungen werden abgelehnt. Wählen Sie diese Einstellung, sobald der Roboter verschlüsselt verbunden war.",
+  "settings.ui.ln.allowed_help": "Erlaubt: Beide Verbindungen funktionieren. Wählen Sie diese Einstellung, während Sie den Roboter aktualisieren.",
+  "settings.ui.ln.off_help": "Aus: keine Verschlüsselung. Nur zur Fehlersuche.",
+  "settings.ui.ln.off_warning": "Warnung: Die Verbindung ist nicht verschlüsselt. Alle in diesem Netzwerk können lesen, was der Roboter sendet und hört. Stellen Sie die Einstellung danach wieder auf Erlaubt oder Erforderlich.",
+  "settings.ui.ln.unknown": "Unbekannt: Diese Seite kann die Verbindungseinstellungen nicht abrufen.",
+  "settings.ui.wake_look": "Umschauen, wenn ich das Aktivierungswort höre",
+  "settings.ui.wake_look_help": "Der Roboter dreht kurz den Kopf, als würde er dich suchen. Nie, wenn er getragen wird, gesperrt, stummgeschaltet oder im Schlafmodus ist, nachts oder während Spielen und Tänzen."
+ }
+}

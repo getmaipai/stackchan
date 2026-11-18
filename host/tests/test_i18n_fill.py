@@ -37,5 +37,5 @@ def test_fill_keeps_placeholders_and_tags():
 def test_fill_changes_the_catalog_and_formats():
     for lang in ("fr", "de", "pt", "it"):
         for key, text in i18n.CATALOG[lang].items():
-            values = {name[1:-1]: "x" for name in FIELD.findall(text) if name[1:-1].isidentifier()}
+            values = {re.split(r"[:!]", name[1:-1])[0]: 1 for name in FIELD.findall(text)}  # 1 satisfies d and .1f alike
             text.format(**values)  # a broken brace would raise here

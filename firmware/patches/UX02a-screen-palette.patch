@@ -3,8 +3,9 @@
 # Upstream: firmware/main/hal/maipai_apps.cc and maipai_pages.cc (ours, patches UI16, NX03, P12); new file hal/maipai_ui_style.h
 # Check after a flash: Open the Apps wall, games, settings, control sheet and swipe pages and confirm their colors remain readable.
 
---- a/firmware/main/hal/maipai_apps.cc	2026-11-17 23:58:01
-+++ b/firmware/main/hal/maipai_apps.cc	2026-11-18 00:01:01
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
 @@ -15,6 +15,7 @@
  #include "maipai_face_core.h"
  #include "maipai_screens.h"
@@ -260,8 +261,9 @@
          lv_obj_move_to_index(r, 0);  // under the banner row and the cue strips, which stay where they are
          lv_obj_add_event_cb(r, on_root, LV_EVENT_PRESSED, nullptr);
          lv_obj_add_event_cb(r, on_root, LV_EVENT_RELEASED, nullptr);
---- a/firmware/main/hal/maipai_pages.cc	2026-11-17 23:58:10
-+++ b/firmware/main/hal/maipai_pages.cc	2026-11-18 00:01:01
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
 @@ -15,7 +15,8 @@
  #include "maipai_screens.h"
  #include "maipai_lock.h"
@@ -334,6 +336,8 @@
              lv_obj_set_style_bg_opa(s_sh->bbody, LV_OPA_TRANSP, 0);
              lv_obj_set_style_border_width(s_sh->bbody, 2, 0);
              s_sh->bfill = box(s_sh->bbody, 0, 0, 20, 10, fg(100), 1);
+diff --git a/firmware/main/hal/maipai_ui_style.h b/firmware/main/hal/maipai_ui_style.h
+new file mode 100644
 --- /dev/null
 +++ b/firmware/main/hal/maipai_ui_style.h
 @@ -0,0 +1,19 @@

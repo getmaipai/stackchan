@@ -3,6 +3,7 @@
 # Upstream: firmware/main/hal/maipai_look_core.h (ours, patches X01, V10 to V12)
 # Check after a flash: every style times every emotion drawn from the unit shows a mouth 30 px or wider
 
+diff --git a/firmware/main/hal/maipai_look_core.h b/firmware/main/hal/maipai_look_core.h
 --- a/firmware/main/hal/maipai_look_core.h
 +++ b/firmware/main/hal/maipai_look_core.h
 @@ -75,8 +75,8 @@

@@ -7,7 +7,7 @@
 set -e
 B="${1:-$HOME/esp/stackchan-rebase/final15}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-FACE_PATCHES="UX01-style-mouth-widths.patch SF05-pairing-cover-line-break.patch UX02a-screen-palette.patch UX03a-eyes-only-mute-mark.patch UX03b-effects-on-the-face-only.patch UX04-update-cover.patch UX02b-screen-type-ladder.patch UX02c-sheet-icon-labels.patch UX03d-timers-keep-cancel-taps.patch"
+FACE_PATCHES="UX01-style-mouth-widths.patch SF05-pairing-cover-line-break.patch UX02a-screen-palette.patch UX03a-eyes-only-mute-mark.patch UX03b-effects-on-the-face-only.patch UX04-update-cover.patch UX02b-screen-type-ladder.patch UX02c-sheet-icon-labels.patch UX03d-timers-keep-cancel-taps.patch UX02d-info-tab-plain-words.patch"
 O="$ROOT/.runs/fixtree/firmware"
 rm -rf "$ROOT/.runs/fixtree"; mkdir -p "$O/main"
 for d in build-bench managed_components components; do ln -sfn "$B/firmware/$d" "$O/$d"; done

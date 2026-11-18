@@ -1,0 +1,29 @@
+{
+ "lang": "fr",
+ "strings": {
+  "settings.ui.lk.minutes": "{n} min",
+  "settings.ui.lk.now": "Verrouiller maintenant",
+  "settings.ui.lk.now_help": "Verrouille immédiatement le robot. Un code est nécessaire.",
+  "settings.ui.lk.locked_note": "Le robot est verrouillé et n’appliquera donc aucune modification effectuée ici. Déverrouillez-le avec le code saisi sur son clavier.",
+  "settings.ui.lk.forgot": "Code oublié ? La réinitialisation physique en deux étapes du robot efface le code ainsi que toutes les autres données.",
+  "settings.ui.lk.digits": "4 à 6 chiffres",
+  "settings.ui.ln.title": "Lien chiffré",
+  "settings.ui.ln.help": "Chiffre toutes les données échangées entre le robot et cet ordinateur, pour empêcher les autres appareils de votre réseau Wi-Fi de les intercepter ou de se faire passer pour l’un d’eux. Le logiciel du robot doit être à jour pour l’utiliser.",
+  "settings.ui.ln.state": "État actuel du lien",
+  "settings.ui.ln.state.encrypted": "Chiffré",
+  "settings.ui.ln.state.plain_allowed": "Non chiffré autorisé : le robot a déjà utilisé le lien chiffré, mais peut aussi se connecter sans chiffrement",
+  "settings.ui.ln.state.plain": "Non chiffré",
+  "settings.ui.ln.state.never_seen": "Jamais chiffré : le robot n’a pas encore utilisé le lien chiffré",
+  "settings.ui.ln.choice": "Option",
+  "settings.ui.ln.required": "Obligatoire",
+  "settings.ui.ln.allowed": "Autorisé",
+  "settings.ui.ln.off": "Désactivé",
+  "settings.ui.ln.required_help": "Obligatoire : le robot doit utiliser le lien chiffré. Les connexions non chiffrées sont refusées. Choisissez cette option après une première connexion chiffrée du robot.",
+  "settings.ui.ln.allowed_help": "Autorisé : les deux types de lien fonctionnent. Choisissez cette option pendant la mise à jour du robot.",
+  "settings.ui.ln.off_help": "Désactivé : aucune donnée n’est chiffrée. Réservé au débogage.",
+  "settings.ui.ln.off_warning": "Attention : le lien n’est pas chiffré. Toute personne sur ce réseau peut lire ce que le robot envoie et entend. Une fois terminé, réactivez l’option Autorisé ou Obligatoire.",
+  "settings.ui.ln.unknown": "Inconnu : cette page ne peut pas accéder aux paramètres du lien",
+  "settings.ui.wake_look": "Regarder autour de moi quand le mot de réveil est prononcé",
+  "settings.ui.wake_look_help": "Le robot tourne brièvement la tête, comme s’il vous cherchait du regard. Jamais lorsqu’il est porté, verrouillé, en sourdine, endormi, la nuit, pendant les jeux ou les danses."
+ }
+}

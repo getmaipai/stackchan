@@ -3,8 +3,9 @@
 # Upstream: firmware/main/hal/maipai_fx.cc (ours, patches TA02, TA03)
 # Check after a flash: Open Settings and a game, then confirm neither is recolored or dimmed.
 
---- a/firmware/main/hal/maipai_fx.cc	2026-11-17 23:58:38
-+++ b/firmware/main/hal/maipai_fx.cc	2026-11-17 23:58:45
+diff --git a/firmware/main/hal/maipai_fx.cc b/firmware/main/hal/maipai_fx.cc
+--- a/firmware/main/hal/maipai_fx.cc
++++ b/firmware/main/hal/maipai_fx.cc
 @@ -17,6 +17,8 @@
  #include "maipai_face.h"
  #include "maipai_privacy.h"

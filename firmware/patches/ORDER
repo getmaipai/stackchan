@@ -250,3 +250,5 @@ SF06-update-screen-calls.patch
 UX02b-screen-type-ladder.patch
 UX02c-sheet-icon-labels.patch
 UX03d-timers-keep-cancel-taps.patch
+UX02d-info-tab-plain-words.patch
+UX05a-first-run-core.patch

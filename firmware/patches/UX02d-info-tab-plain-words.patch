@@ -1,0 +1,46 @@
+# Intent: Use plain English and Spanish words for the Settings Info rows and unknown values.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_apps.cc and firmware/main/hal/maipai_apps_core.h (ours, patches NX02 and UI16).
+# Check after a flash: Open Settings, choose the fourth tab, and confirm every Info row reads clearly in English and Spanish.
+
+diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
+--- a/firmware/main/hal/maipai_apps_core.h
++++ b/firmware/main/hal/maipai_apps_core.h
+@@ -608,18 +608,18 @@
+     {"Joining", "Uniendo"},
+     {"Off", "Apagada"},
+     {"Not in this build", "No incluida"},
+-    {"Firmware", "Firmware"},
+-    {"Image", "Imagen"},
+-    {"Slot", "Ranura"},
++    {"Software version", "Version del software"},
++    {"Update status", "Estado de la actualizacion"},
++    {"Update copy", "Copia de actualizacion"},
+     {"Memory", "Memoria"},
+     {"Host name", "Nombre"},
+     {"Locked: unlock to use this.", "Bloqueado: desbloquea para usar esto."},
+     {"Pictures", "Fotos"},
+     {"English", "Espanol"},
+-    {"Confirmed", "Confirmada"},
+-    {"Waiting to confirm", "Por confirmar"},
+-    {"Flashed by cable", "Puesta por cable"},
+-    {"Not known", "Sin datos"},
++    {"Installed and ready", "Instalada y lista"},
++    {"Waiting for confirmation", "Esperando confirmacion"},
++    {"Installed by cable", "Instalada por cable"},
++    {"Not known yet", "Aun no se sabe"},
+     {"Not set", "Sin definir"},
+     {"More settings", "Mas ajustes"},
+     {"Listening light", "Luz al escuchar"},
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -1028,7 +1028,7 @@
+                 } else if (id == MAC_R_I_IMAGE) {
+                     snprintf(out, n, "%s", tx(info.image_state == MV_IMG_VALID ? MAC_S_IMG_OK : (info.image_state == MV_IMG_PENDING ? MAC_S_IMG_WAIT : (info.image_state == MV_IMG_USB ? MAC_S_IMG_USB : MAC_S_IMG_UNKNOWN))));
+                 } else if (id == MAC_R_I_SLOT) {
+-                    snprintf(out, n, "%s", info.slot_known ? info.slot : "?");
++                    snprintf(out, n, "%s", info.slot_known ? info.slot : tx(MAC_S_IMG_UNKNOWN));
+                 } else if (id == MAC_R_I_MEM) {
+                     char a[16], b[16];
+                     mv_bytes_word(info.internal_free, a, sizeof(a));

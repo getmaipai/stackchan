@@ -3,6 +3,7 @@
 # Upstream: firmware/main/hal/board/hal_bridge.h, stackchan_display.h, stackchan_display.cc (ours)
 # Check after a flash: Confirm update progress, completion, refusal timeout, and hide behavior.
 
+diff --git a/firmware/main/hal/board/hal_bridge.h b/firmware/main/hal/board/hal_bridge.h
 --- a/firmware/main/hal/board/hal_bridge.h
 +++ b/firmware/main/hal/board/hal_bridge.h
 @@ -116,6 +116,7 @@
@@ -13,8 +14,9 @@
  // The hub has been unreachable for a while: look 2 (offline) and its dim amber ring, cleared (look 0) when
  // the link returns. offline_indicator_refresh() is kept for callers and does nothing: the strip is not a
  // speech bubble, so a message cannot cover it.
---- a/firmware/main/hal/board/stackchan_display.h	2026-11-17 23:59:11
-+++ b/firmware/main/hal/board/stackchan_display.h	2026-11-18 00:15:34
+diff --git a/firmware/main/hal/board/stackchan_display.h b/firmware/main/hal/board/stackchan_display.h
+--- a/firmware/main/hal/board/stackchan_display.h
++++ b/firmware/main/hal/board/stackchan_display.h
 @@ -54,6 +54,7 @@
      void CreateIdleMotionModifier();
      lv_obj_t*   boot_cover_         = nullptr;
@@ -31,8 +33,9 @@
  
      // A word reaction's face for a few seconds (hal_bridge::react_face, patch U02).
      void ReactFace(const char* emotion, int hold_ms);
---- a/firmware/main/hal/board/stackchan_display.cc	2026-11-17 23:59:11
-+++ b/firmware/main/hal/board/stackchan_display.cc	2026-11-18 00:04:12
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
 @@ -41,6 +41,7 @@
  #include <hal/maipai_pages_unit.h>
  #if CONFIG_MAIPAI_BANNER_ROW

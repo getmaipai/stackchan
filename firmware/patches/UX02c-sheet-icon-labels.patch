@@ -3,6 +3,7 @@
 # Upstream: firmware/main/hal/maipai_pages.cc and firmware/main/hal/maipai_pages_core.h (ours, patches UI05 and NX01).
 # Check after a flash: Swipe down and confirm all six 16 px labels fit beneath their icons.
 
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
 --- a/firmware/main/hal/maipai_pages.cc
 +++ b/firmware/main/hal/maipai_pages.cc
 @@ -957,7 +957,17 @@
@@ -24,6 +25,7 @@
  }
  
  void sheet_clock_text(char* out, size_t n)
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
 --- a/firmware/main/hal/maipai_pages_core.h
 +++ b/firmware/main/hal/maipai_pages_core.h
 @@ -668,11 +668,11 @@
