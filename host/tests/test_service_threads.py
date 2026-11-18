@@ -36,3 +36,34 @@ def test_a_thread_that_ignores_its_stop_event_is_named():
     finally:
         release.set()
         service_threads.stop_all(timeout=2.0)
+
+
+def test_a_supervised_thread_that_dies_is_started_again_but_not_after_stop_all():
+    from maipai_body import supervisor as sv
+
+    sup = sv.Supervisor()
+    service_threads.SUPERVISOR = sup
+    try:
+        stop = threading.Event()
+        died = threading.Event()
+        runs = []
+
+        def work():
+            runs.append(1)
+            if len(runs) == 1:
+                return  # the first run ends by itself: the thread dies
+            died.set()
+            stop.wait()
+
+        service_threads.start(work, name="probe-supervised", stop=stop)
+        deadline = time.time() + 2
+        while len(runs) < 1 and time.time() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.05)
+        sup.check()
+        assert died.wait(2), "the supervisor did not start the dead thread again"
+        service_threads.stop_all(timeout=2.0)
+        assert not any(r["part"] == "probe-supervised" for r in sup.report())
+    finally:
+        service_threads.SUPERVISOR = None
+        service_threads.stop_all(timeout=2.0)

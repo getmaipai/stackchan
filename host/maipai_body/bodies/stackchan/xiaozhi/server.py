@@ -453,6 +453,7 @@ class XiaozhiServer:
         self._server: Any = None
         # Encrypted link (link_security.py): set by the app. None means every connection is plain.
         self.link: LinkSecurity | None = None
+        self.assets = None  # assets.AssetService: signed, ranged pack delivery to a unit on request (set by the host)
         self._tls_server: Any = None
         self._tls_site: web.TCPSite | None = None
         self.tls_port = 0
@@ -502,6 +503,8 @@ class XiaozhiServer:
         app.router.add_post("/vision/{device_id}", self._receive_photo)
         app.router.add_get("/notify/{device_id}/{audio_id}.ogg", self._serve_notify_audio)
         app.router.add_get("/firmware/{device_id}/{token}", self._serve_firmware_file)
+        app.router.add_get("/assets/{device_id}/{asset_id}/manifest", self._serve_asset_manifest)
+        app.router.add_get("/assets/{device_id}/{asset_id}/data", self._serve_asset_data)
         app.router.add_get("/selftest/checks", self._selftest_list)
         app.router.add_post("/selftest/run", self._selftest_run)
         app.router.add_post("/robot/updating", self._robot_updating)
@@ -1643,6 +1646,37 @@ class XiaozhiServer:
             if websocket is not None:
                 await self._json(websocket, self._session_ids[device_id], "llm", {"emotion": emotion})
         return emotion
+
+    def _asset_authorized(self, request: web.Request) -> str:
+        """The unit's own session ticket (never the pairing token) is the key to its assets, like the notify audio route."""
+        device_id = request.match_info["device_id"]
+        credentials = self._session_credentials.get(device_id)
+        auth = request.headers.get("Authorization", "")
+        if credentials is None or not self.pairing.authorize(device_id, *credentials):
+            raise web.HTTPUnauthorized()
+        token = auth[7:] if auth.startswith("Bearer ") else ""
+        if not self.ticket_ok(device_id, token):
+            raise web.HTTPForbidden()
+        if getattr(self, "assets", None) is None:
+            raise web.HTTPNotFound()
+        return device_id
+
+    async def _serve_asset_manifest(self, request: web.Request) -> web.Response:
+        device_id = self._asset_authorized(request)
+        result = await asyncio.to_thread(self.assets.manifest, device_id, request.match_info["asset_id"])
+        if result is None:
+            raise web.HTTPNotFound()
+        body, signature = result
+        return web.Response(body=body, content_type="application/json", headers={"X-Asset-Signature": signature, "Cache-Control": "private, max-age=31536000, immutable"})
+
+    async def _serve_asset_data(self, request: web.Request) -> web.Response:
+        device_id = self._asset_authorized(request)
+        result = await asyncio.to_thread(self.assets.data, device_id, request.match_info["asset_id"], request.headers.get("Range"))
+        if result is None:
+            raise web.HTTPNotFound()
+        status, body, headers = result
+        content_type = headers.pop("Content-Type", "application/octet-stream")
+        return web.Response(status=status, body=body, content_type=content_type, headers=headers)
 
     async def _serve_notify_audio(self, request: web.Request) -> web.Response:
         device_id = request.match_info["device_id"]

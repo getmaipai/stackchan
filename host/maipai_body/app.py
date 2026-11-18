@@ -3284,6 +3284,12 @@ async def _serve_stackchan_channels(
     link: LinkLifecycle | None = None,
     offline: OfflineRungs | None = None,
 ) -> None:
+    from maipai_body.supervisor import Supervisor
+
+    supervisor = Supervisor()
+    _RUNTIME.update(supervisor=supervisor, started=time.time())
+    service_threads.SUPERVISOR = supervisor  # every service thread is now watched and restarted when it dies
+    supervisor.start()
     body = _build_stackchan_body(host, link)
     from maipai_body.bodies.stackchan.turn import StackChanTurnBridge
 
@@ -3346,6 +3352,9 @@ async def _serve_stackchan_channels(
             await asyncio.to_thread(behavior.start_presence, stop_event)
         await asyncio.to_thread(stop_event.wait)
     finally:
+        supervisor.stop()  # stopping the host on purpose is not a failure: nothing is restarted from here on
+        service_threads.SUPERVISOR = None
+        _RUNTIME.clear()
         if settings_server is not None:
             settings_server.stop()
         behavior.close()
@@ -3494,6 +3503,30 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
     voice.session_listeners.append(on_connect)
 
 
+def _wire_assets(voice, backend) -> None:
+    """Signed, ranged, cacheable delivery of the packs a unit is meant to hold (assets.py): a unit gets only what the host chose for it."""
+    from maipai_body.assets import Asset, AssetService, SigningKey
+
+    packs = getattr(getattr(backend, "polish", None), "packs", None)
+    if packs is None:
+        return
+
+    def provider(device_id: str, asset_id: str):
+        for pack_id in {p for p in packs.wanted(device_id).values() if p}:
+            try:
+                pack = packs.library.get(pack_id)
+            except Exception:
+                continue
+            if pack.sha256 == asset_id:
+                return Asset(pack.sha256, pack.kind, pack.name, pack.version, pack.payload)
+        return None
+
+    voice.assets = AssetService(SigningKey(_data_dir() / "asset-signing.pem"), provider)
+
+
+_RUNTIME: dict[str, Any] = {}  # what the running host shares with its pages: the supervisor and the start time
+
+
 def _start_settings_page(voice, pairing, units, behavior, faces=None, link_security=None):
     """Serve the core settings page from the live host (loopback, port 8051; 0 turns it off).
 
@@ -3593,8 +3626,29 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
             port,
         )
         return None
+    _wire_assets(voice, backend)
     server.start()
     logger.info("StackChan settings page on http://127.0.0.1:%d/settings", server.port)
+    supervisor = _RUNTIME.get("supervisor")
+    if supervisor is not None:
+        from maipai_body.health import build_health
+        from maipai_body.supervisor import Worker
+
+        started = _RUNTIME.get("started") or time.time()
+        backend.health = lambda: build_health(supervisor, connected=list(voice._sessions), paired=pairing.paired_devices(), started=started)
+        holder = {"server": server}
+        bind = "0.0.0.0" if lan else "127.0.0.1"
+
+        def restart_settings_page():
+            try:
+                holder["server"].stop()
+            except Exception:
+                pass
+            holder["server"] = SettingsServer(backend, bind, port, auth=auth)
+            holder["server"].start()
+            return holder["server"]._thread
+
+        supervisor.add(Worker("settings page", restart_settings_page, plain="the settings page", advice="Open the settings page again in a minute. If it does not come back, run `stackchan service logs`."), start_now=False).handle = server._thread
     return server
 
 

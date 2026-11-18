@@ -130,7 +130,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (82): no header
-- `docs/dev/feature-ledger.md` (1000): Feature ledger
+- `docs/dev/feature-ledger.md` (1012): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -287,6 +287,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/link-key-exchange.md` (68): Link key exchange for the encrypted link (design, 2026-11-18)
 - `docs/plan/minimal-stack.md` (65): The minimal local stack and the three ways to get a brain
 - `docs/plan/mouth-cues-append.md` (16): Mouth cues for replies of more than one sentence
+- `docs/plan/offload-to-host.md` (50): Offload to the host: what the unit does that the host could serve or compute
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
@@ -294,6 +295,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
 - `docs/plan/release-readiness.md` (42): First release readiness: the friend test
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
+- `docs/plan/service-and-supervision.md` (93): The host as a managed service, with supervised parts
 - `docs/plan/signed-update-anti-rollback.md` (20): Signed update with a build number (proposal for the app track, 2026-11-18)
 - `docs/plan/signed-update-header.md` (32): Signed update header with a build number (agreed with the firmware track, 2026-11-18)
 - `docs/plan/spec-proposals/README.md` (14): Shared-spec proposals (step 4, 2026-11-18)
@@ -710,7 +712,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (4976): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5030): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
 - `host/maipai_body/bench.py` (610): Owner-only local console for exercising a connected StackChan body."""
@@ -988,7 +990,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (224): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
 - `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (633): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1769): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1803): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
 - `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
@@ -1006,7 +1008,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/brain_setup/tester.py` (58): The test buttons of mode (b): each answers in plain words. A session is injected so tests never touch the netw
 - `host/maipai_body/character_pack.py` (366): Shareable illustrated character packs."""
 - `host/maipai_body/child_gate.py` (30): Whether a child is near any unit, as Home last said (the `child_present` hub command). Shared by the command b
-- `host/maipai_body/cli.py` (587): ruff: noqa: E501
+- `host/maipai_body/cli.py` (601): ruff: noqa: E501
 - `host/maipai_body/command_bus.py` (370): ruff: noqa: E501
 - `host/maipai_body/config.py` (306): Configuration for the StackChan host."""
 - `host/maipai_body/dashboard/__init__.py` (12): EXPR-05: a body-agnostic web dashboard.
@@ -1114,7 +1116,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/link/timesync.py` (90): ROBOT-TIME-01: the robot's clock comes from the hub.
 - `host/maipai_body/live_units.py` (86): ruff: noqa: E501
 - `host/maipai_body/local_guard.py` (123): Who counts as the host computer's own user of the settings pages, and the settings token.
-- `host/maipai_body/logging_setup.py` (43): Logging for the hosted Bot (MAIPAI_HUB_HOST=1).
+- `host/maipai_body/logging_setup.py` (55): Logging for the hosted Bot (MAIPAI_HUB_HOST=1).
 - `host/maipai_body/look_owner.py` (210): ruff: noqa: E501
 - `host/maipai_body/measure/__init__.py` (8): Bench measurement tooling for the design's section 12 rows (M-R1 to M-R5).
 - `host/maipai_body/measure/battery.py` (332): M-R4: battery. Runtime by the clock, and what the unit can say about its own charge.
@@ -1192,9 +1194,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/selftest/core.py` (113): BOT-SELF-TEST-01: the small check runner every per-part self-test shares.
 - `host/maipai_body/selftest/stackchan.py` (181): BOT-SELF-TEST-01: the StackChan's seven part checks, one per part.
 - `host/maipai_body/selftest/stackchan_wiring.py` (127): BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts.
-- `host/maipai_body/service_threads.py` (50): Background threads of the host service, each started with the stop event it waits on.
+- `host/maipai_body/service_threads.py` (65): Background threads of the host service, each started with the stop event it waits on.
 - `host/maipai_body/settings_keys.py` (62): Settings keys shared by body settings consumers."""
-- `host/maipai_body/settings_page.py` (948): ruff: noqa: E501
+- `host/maipai_body/settings_page.py` (960): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (185): ruff: noqa: E501
 - `host/maipai_body/settings_sim.py` (436): ruff: noqa: E501
 - `host/maipai_body/settings_ui.py` (748): ruff: noqa: E501
@@ -1894,7 +1896,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_ambient_vision.py` (242): BOT-SC-VISION-01: silent ambient capture, opt-in policy, text note only."""
 - `host/tests/test_app.py` (608): The app's real boot path: hold neutral until paired, log state
 - `host/tests/test_app_link_ladder.py` (107): LINK-STATE-01 in the app: the page's state frame, the setting and the wiring."""
-- `host/tests/test_assets.py` (282): no header
+- `host/tests/test_assets.py` (97): Signed, ranged, cacheable asset delivery: the manifest is signed and checks out, ranges answer correctly, a un
 - `host/tests/test_attention.py` (170): S-EXPR-04: attention glue, driven from presence observations."""
 - `host/tests/test_audio_config.py` (167): The sim and `--no-media` daemon answers 503 on the audio routes: not a lost body."""
 - `host/tests/test_banner_preview_parity.py` (144): ruff: noqa: E501
@@ -2121,8 +2123,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_selftest.py` (390): BOT-SELF-TEST-01: the per-part self-test runner and the StackChan checks."""
 - `host/tests/test_selftest_cli.py` (440): BOT-SELF-TEST-02: the command line that runs the robot's checks from a
 - `host/tests/test_selftest_wiring.py` (165): BOT-SELF-TEST-01: the live-service wiring of the StackChan self-test."""
-- `host/tests/test_service_startup_pin.py` (57): Pins what the StackChan service starts, before the wiring is moved behind the robot seam (docs/plan/seam-refac
-- `host/tests/test_service_threads.py` (38): Every host service thread ends when its stop event is set (or `stop_all` runs); none of ours remain."""
+- `host/tests/test_service_startup_pin.py` (58): Pins what the StackChan service starts, before the wiring is moved behind the robot seam (docs/plan/seam-refac
+- `host/tests/test_service_threads.py` (69): Every host service thread ends when its stop event is set (or `stop_all` runs); none of ours remain."""
 - `host/tests/test_settings_token.py` (116): The settings page from a phone: a per-install token is the login for requests that are not local."""
 - `host/tests/test_settings_ui.py` (426): ruff: noqa: E501
 - `host/tests/test_sf_patch_headers.py` (19): Public-readiness guard: the header lines of the safety patches (SF*) say what the patch does, with no review l

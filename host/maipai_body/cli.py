@@ -29,7 +29,9 @@ def main() -> int:
     commands.add_parser("check", help="test the model and speech addresses in robot.toml")
     commands.add_parser("forget", help="unpair every robot (use before giving one away)")
     commands.add_parser("pair", help="show a one-use pairing code")
-    commands.add_parser("status", help="show the brain and paired units")
+    commands.add_parser("status", help="say what is running and what is not, per robot and per part")
+    service = commands.add_parser("service", help="install the host as a service that starts at boot or login and restarts itself")
+    service.add_argument("action", choices=["install", "status", "start", "stop", "logs", "uninstall"])
     units = commands.add_parser("units", help="list known units with their name and online state")
     units.add_argument(
         "--host-url", default="http://127.0.0.1:8051", help="the running host's settings page"
@@ -213,6 +215,11 @@ def main() -> int:
         os.environ.setdefault("MAIPAI_BODY", "stackchan")
         os.execv(sys.executable, [sys.executable, "-m", "maipai_body.app"])
         return 0
+    if args.command == "service":
+        from maipai_body.service_cmd import Service
+
+        service = Service()
+        return {"install": service.install, "status": service.status, "start": service.start, "stop": service.stop, "logs": service.logs, "uninstall": service.uninstall}[args.action]()
     config = load_config()
     store = PairingStore(default_pairing_path())
     if args.command in {"units", "name"}:
@@ -247,6 +254,13 @@ def main() -> int:
         print(f"Pairing code: {store.create_pair_code()}")
         print("Enter this code on the unit setup page within 10 minutes.")
         return 0
+    from maipai_body.health import fetch_health, render_text
+
+    health = fetch_health()
+    if health is not None:
+        print(render_text(health))
+        return 0 if health["state"] == "ok" else 1
+    print("The host is not running. Start it with `stackchan service start` (or `stackchan run`), and see `stackchan service status`.")
     print(f"Brain: {config.brain}")
     devices = store.paired_devices()
     print(f"Paired units: {len(devices)}")

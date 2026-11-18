@@ -70,6 +70,7 @@ class SettingsBackend:
         activity: activity_mod.RemoteActivity | None = None,
         link: Any = None,
     ) -> None:
+        self.health: Callable[[], dict[str, Any]] | None = None  # the host's health document (health.py); set by the host
         self.brain_setup: Any = None  # brain_setup.controller.BrainSetup: the Brain page (set by the host)
         self.pair_code: Callable[[], str] | None = None  # mints a pairing code (set by the host)
         self.pair_exchange: Any = None  # the voice server (waiting_exchanges, approve_exchange); set by the host
@@ -777,6 +778,15 @@ class SettingsBackend:
                 return 200, JSON, json.dumps(self.wakeword.state(word)).encode()
             except ValueError as error:
                 return 400, JSON, json.dumps({"error": str(error)}).encode()
+        if path in (HEALTH_PAGE, HEALTH) and self.health is not None:
+            if local_admin is not True:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            from maipai_body import health as health_mod
+
+            doc = self.health()
+            if path == HEALTH_PAGE:
+                return 200, "text/html; charset=utf-8", health_mod.render_page(doc)
+            return 200, JSON, json.dumps(doc).encode()
         if path in (BRAIN_PAGE, BRAIN) and self.brain_setup is not None:
             if local_admin is not True:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
@@ -927,6 +937,8 @@ PAIR_WAITING = "/api/stackchan/pairings/waiting"
 PAIR_CODE_ENTRY = "/api/stackchan/pairings/code-entry"
 BRAIN = "/api/stackchan/brain"
 BRAIN_PAGE = "/brain"
+HEALTH = "/api/stackchan/health"
+HEALTH_PAGE = "/health"
 WAKEWORD = "/api/stackchan/wakeword"
 
 

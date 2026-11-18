@@ -39,5 +39,17 @@ def configure_logging(hosted: bool | None = None, *, root: logging.Logger | None
         handler.addFilter(NoRobotYet())
         root.addHandler(handler)
         root.setLevel(logging.WARNING)
+    log_file = os.environ.get("MAIPAI_LOG_FILE")
+    if log_file and not any(getattr(h, "_maipai_file", False) for h in root.handlers):
+        from logging.handlers import RotatingFileHandler
+        from pathlib import Path
+
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+        file_handler = RotatingFileHandler(log_file, maxBytes=5_000_000, backupCount=5, encoding="utf-8")  # 25 MB at most
+        file_handler.setFormatter(logging.Formatter(_FORMAT))
+        file_handler.addFilter(NoRobotYet())
+        file_handler._maipai_file = True  # type: ignore[attr-defined]
+        root.addHandler(file_handler)
+        root.setLevel(min(root.level or logging.WARNING, logging.WARNING))
     if hosted:
         logging.getLogger("maipai_body").setLevel(logging.INFO)

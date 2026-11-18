@@ -33,6 +33,7 @@ EXPECTED = [
     "stackchan-sounds",
     "stackchan-timer-ticks",
     "stackchan-unit-events",
+    "stackchan-watchdog",  # the supervisor (supervisor.py)
 ]
 
 

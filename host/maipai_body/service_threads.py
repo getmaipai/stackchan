@@ -16,15 +16,27 @@ from typing import Any
 
 _LOCK = threading.Lock()
 _STARTED: list[tuple[threading.Thread, threading.Event]] = []
+SUPERVISOR: Any = None  # set by the host: every thread started here is then watched and restarted when it dies (supervisor.py)
+_CURRENT: dict[str, threading.Thread] = {}
 
 
 def start(target: Callable[..., Any], *, name: str, stop: threading.Event, args: tuple = ()) -> threading.Thread:
     """Start a daemon thread that ends when `stop` is set, and remember it for `stop_all`."""
-    thread = threading.Thread(target=target, args=args, name=name, daemon=True)
-    with _LOCK:
-        _STARTED[:] = [(t, e) for t, e in _STARTED if t.is_alive()]
-        _STARTED.append((thread, stop))
-    thread.start()
+    def spawn() -> threading.Thread:
+        thread = threading.Thread(target=target, args=args, name=name, daemon=True)
+        with _LOCK:
+            _STARTED[:] = [(t, e) for t, e in _STARTED if t.is_alive()]
+            _STARTED.append((thread, stop))
+            _CURRENT[name] = thread
+        thread.start()
+        return thread
+
+    thread = spawn()
+    if SUPERVISOR is not None:
+        from maipai_body.supervisor import Worker
+
+        # a restart makes a new thread; the supervisor asks for it only while the thread's stop event is not set
+        SUPERVISOR.add(Worker(name, lambda: spawn() if not stop.is_set() else _CURRENT[name]), start_now=False).handle = thread
     return thread
 
 
@@ -40,6 +52,9 @@ def stop_all(timeout: float = 3.0) -> list[str]:
         entries = list(_STARTED)
     for _, event in entries:
         event.set()
+    if SUPERVISOR is not None:
+        for thread, _ in entries:
+            SUPERVISOR.remove(thread.name)  # being stopped on purpose is not a failure
     me = threading.current_thread()
     deadline = time.monotonic() + timeout  # one budget for all joins, so a thread stuck in a network call costs it once
     for thread, _ in entries:
