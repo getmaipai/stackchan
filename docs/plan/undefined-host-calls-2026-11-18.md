@@ -18,3 +18,7 @@ Verdicts use the repository's rule (PORT, REBUILD or SKIP). The firmware track o
 | `self.audio.speak`, `listen`, `alert` | Bench page and the tool list | SKIP: speech runs over the audio stream, not tools. Remove from the bench page when it is next changed. |
 
 Also in the host and not in the firmware, on purpose: 5 names the pinned base firmware provides (`self.robot.set_led_color`, `self.camera.take_photo`, `self.audio_speaker.set_volume`, `self.robot.get_reminders`, `self.robot.stop_reminder`) and 7 names only the bench page and the simulated unit use.
+
+## Planned tool: `self.face.mouth_cues` (host-computed mouth cues)
+
+Not defined in the firmware yet. The host computes the cues (`host/maipai_body/mouth_cues.py`, tested) as a list of `[milliseconds, level 0..4]` pairs, 4 to 11 per second, closing at the end. Firmware patch needed: a tool taking `{"cues": [[ms, level], ...]}` applied on the unit's own clock from the first audio frame. Until then the host does not send them (an unknown tool would fail as "old firmware").
