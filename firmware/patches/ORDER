@@ -313,3 +313,4 @@ SF58-three-face-styles.patch
 SF59-camera-switch-quick-action.patch
 SF60-sound-info-volume-now-from-the-codec.patch
 SF61-bench-power-log.patch
+SF62-grid-game-engine-core-connect4-memory.patch

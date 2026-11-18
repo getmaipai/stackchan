@@ -1,0 +1,481 @@
+# Intent: The first part of the grid game engine (owner-approved 2026-11-18): the pure cores for a cell array of up to 100 cells, the touch geometry (which cell or column a finger is on, inside the reserved screen edges), a deterministic random source, and two rule sets, Four in a Row (with a sliced alpha-beta search for the unit's move, four levels) and Memory Match (12 or 16 cards). Nothing draws or starts yet: the device layer, the start tool and the installed-pack ids follow in later patches. A game never moves the head.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: nothing to check on the unit yet (the cores are not compiled into the image); host/tests/firmware/grid_core_test.c is the check.
+# Kconfig: none
+# Memory cost: none yet (headers only). Planned: a running game holds its cell array (100 bytes) and a search state (about 130 bytes) in PSRAM; nothing exists while no game runs.
+
+diff --git a/firmware/main/hal/maipai_grid_core.h b/firmware/main/hal/maipai_grid_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid_core.h
+@@ -0,0 +1,109 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The grid game engine's pure core (patch SF62). A grid game is a cell array (up to 100 cells, one byte each) and a rule set chosen by id. The engine owns
++ * the geometry (which cell a finger touched, with the screen edges the unit reserves), the sliced search for the unit's moves (a step of a few thousand
++ * nodes per game tick, never a long stall) and the common result vocabulary; each rule set is its own small header (maipai_grid_c4_core.h, maipai_grid_mem_core.h).
++ * Plain C99, no allocation, no firmware call, no clock of its own: a host test drives it. A game never moves the head, and nothing here can.
++ *
++ * Cell values are the rule set's own; 0 is always an empty or hidden cell. A pack names a rule set by id and carries only theme, texts, sounds and tables;
++ * the rules are compiled in (one module per rule set, switchable, zero RAM while no game runs).
++ */
++#ifndef MAIPAI_GRID_CORE_H
++#define MAIPAI_GRID_CORE_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++#define GR_MAX_CELLS 100
++#define GR_AREA_X0 20   /* the unit reserves the screen edges for its swipes (maipai_games_core.h MG_EDGE_*) */
++#define GR_AREA_X1 300
++#define GR_AREA_Y0 28
++#define GR_AREA_Y1 224
++#define GR_SLICE_NODES 1000 /* the node budget of one game tick; a node costs about 0.2 us on a laptop and an estimated 3 to 5 us on the unit, so a slice is about 3 to 5 ms (to measure on the unit) */
++
++enum { GR_RULES_NONE = 0, GR_RULES_CONNECT4, GR_RULES_MEMORY, GR_RULES_COUNT };
++static const char* const GR_RULES_NAMES[GR_RULES_COUNT] = {"", "connect4", "memory"};
++
++/* The result of one event, the same for every rule set. */
++enum { GR_PLAYING = 0, GR_PERSON_WON, GR_UNIT_WON, GR_DRAW };
++
++/* The unit's tone and light cues; the device layer maps them to its tones and the ring light. */
++enum { GR_CUE_NONE = 0, GR_CUE_TAP, GR_CUE_UNIT_MOVE, GR_CUE_MATCH, GR_CUE_MISS, GR_CUE_WIN, GR_CUE_LOSE, GR_CUE_DRAW, GR_CUE_BAD };
++
++static inline int gr_rules_by_name(const char* name)
++{
++    for (int i = 1; name != NULL && i < GR_RULES_COUNT; i++) {
++        if (strcmp(name, GR_RULES_NAMES[i]) == 0) {
++            return i;
++        }
++    }
++    return GR_RULES_NONE;
++}
++
++/* ---- geometry: the cells of a cols by rows board centered in the play area, and the cell under a finger ---- */
++
++typedef struct {
++    int16_t x0, y0;   /* top left of cell (0, 0) */
++    int16_t cw, ch;   /* a cell's width and height in pixels */
++    uint8_t cols, rows;
++} gr_layout_t;
++
++/* The largest whole-pixel cells that fit cols by rows in the play area. `square` keeps cells square (a board of squares); otherwise a cell is as wide and as tall as the area
++ * allows (Four in a Row: tall narrow-ish columns are wider than square cells, so a finger finds them). Returns 0 for a board that does not fit or has cells under 12 px. */
++static inline int gr_layout(gr_layout_t* l, int cols, int rows, int square)
++{
++    if (cols < 1 || rows < 1 || cols * rows > GR_MAX_CELLS) {
++        return 0;
++    }
++    const int aw = GR_AREA_X1 - GR_AREA_X0, ah = GR_AREA_Y1 - GR_AREA_Y0;
++    int cw = aw / cols, ch = ah / rows;
++    if (square) {
++        cw = ch = cw < ch ? cw : ch;
++    }
++    if (cw < 12 || ch < 12) {
++        return 0; /* cells that small cannot be touched */
++    }
++    l->cols = (uint8_t)cols;
++    l->rows = (uint8_t)rows;
++    l->cw = (int16_t)cw;
++    l->ch = (int16_t)ch;
++    l->x0 = (int16_t)(GR_AREA_X0 + (aw - cw * cols) / 2);
++    l->y0 = (int16_t)(GR_AREA_Y0 + (ah - ch * rows) / 2);
++    return 1;
++}
++
++/* The cell index (row * cols + col) under a point, or -1 outside the board. */
++static inline int gr_cell_at(const gr_layout_t* l, int x, int y)
++{
++    const int dx = x - l->x0, dy = y - l->y0;
++    if (dx < 0 || dy < 0 || dx >= l->cw * l->cols || dy >= l->ch * l->rows) {
++        return -1;
++    }
++    return (dy / l->ch) * l->cols + dx / l->cw;
++}
++
++/* A column tap: the column under a point inside the board's full height (Four in a Row), or -1. */
++static inline int gr_col_at(const gr_layout_t* l, int x, int y)
++{
++    const int dx = x - l->x0;
++    if (dx < 0 || dx >= l->cw * l->cols || y < GR_AREA_Y0 || y >= GR_AREA_Y1) {
++        return -1;
++    }
++    return dx / l->cw;
++}
++
++/* ---- a small deterministic random source (xorshift32), seeded by the caller ---- */
++
++static inline uint32_t gr_rand(uint32_t* s)
++{
++    uint32_t x = *s != 0 ? *s : 0x9E3779B9u;
++    x ^= x << 13;
++    x ^= x >> 17;
++    x ^= x << 5;
++    *s = x;
++    return x;
++}
++
++#endif /* MAIPAI_GRID_CORE_H */
+diff --git a/firmware/main/hal/maipai_grid_c4_core.h b/firmware/main/hal/maipai_grid_c4_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid_c4_core.h
+@@ -0,0 +1,258 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Four in a Row, the rule set (patch SF62): a 7 by 6 board, the person's discs are 1 and the unit's are 2, a disc falls to the lowest empty cell of the tapped column,
++ * four in a line wins. The unit's move is a sliced alpha-beta search: gc4_ai_step runs a bounded number of nodes and says whether the move is ready, so a game tick
++ * never stalls. Levels: 0 random legal move, 1 takes a win and blocks a loss, 2 searches 4 plies, 3 searches 6 plies. Plain C99, deterministic for a seed, no allocation.
++ */
++#ifndef MAIPAI_GRID_C4_CORE_H
++#define MAIPAI_GRID_C4_CORE_H
++
++#include "maipai_grid_core.h"
++
++#define GC4_COLS 7
++#define GC4_ROWS 6
++#define GC4_CELLS (GC4_COLS * GC4_ROWS)
++#define GC4_LEVELS 4
++#define GC4_WIN_SCORE 100000
++
++typedef struct {
++    uint8_t b[GC4_CELLS]; /* row 0 is the top; 0 empty, 1 the person, 2 the unit */
++} gc4_board_t;
++
++static inline void gc4_clear(gc4_board_t* g) { memset(g, 0, sizeof(*g)); }
++
++static inline int gc4_col_free(const gc4_board_t* g, int col) { return col >= 0 && col < GC4_COLS && g->b[col] == 0; }
++
++/* Drops a disc of `who` in a column: returns the row it landed in, or -1 when the column is full or bad. */
++static inline int gc4_drop(gc4_board_t* g, int col, int who)
++{
++    if (!gc4_col_free(g, col) || (who != 1 && who != 2)) {
++        return -1;
++    }
++    for (int r = GC4_ROWS - 1; r >= 0; r--) {
++        if (g->b[r * GC4_COLS + col] == 0) {
++            g->b[r * GC4_COLS + col] = (uint8_t)who;
++            return r;
++        }
++    }
++    return -1;
++}
++
++static inline void gc4_undo(gc4_board_t* g, int col)
++{
++    for (int r = 0; r < GC4_ROWS; r++) {
++        if (g->b[r * GC4_COLS + col] != 0) {
++            g->b[r * GC4_COLS + col] = 0;
++            return;
++        }
++    }
++}
++
++static inline int gc4_win(const gc4_board_t* g, int who)
++{
++    static const int dr[4] = {0, 1, 1, 1}, dc[4] = {1, 0, 1, -1};
++    for (int r = 0; r < GC4_ROWS; r++) {
++        for (int c = 0; c < GC4_COLS; c++) {
++            if (g->b[r * GC4_COLS + c] != who) {
++                continue;
++            }
++            for (int d = 0; d < 4; d++) {
++                int n = 1;
++                int rr = r + dr[d], cc = c + dc[d];
++                while (n < 4 && rr >= 0 && rr < GC4_ROWS && cc >= 0 && cc < GC4_COLS && g->b[rr * GC4_COLS + cc] == who) {
++                    n++;
++                    rr += dr[d];
++                    cc += dc[d];
++                }
++                if (n >= 4) {
++                    return 1;
++                }
++            }
++        }
++    }
++    return 0;
++}
++
++static inline int gc4_full(const gc4_board_t* g)
++{
++    for (int c = 0; c < GC4_COLS; c++) {
++        if (g->b[c] == 0) {
++            return 0;
++        }
++    }
++    return 1;
++}
++
++/* GR_PLAYING, GR_PERSON_WON, GR_UNIT_WON or GR_DRAW. */
++static inline int gc4_result(const gc4_board_t* g)
++{
++    if (gc4_win(g, 1)) {
++        return GR_PERSON_WON;
++    }
++    if (gc4_win(g, 2)) {
++        return GR_UNIT_WON;
++    }
++    return gc4_full(g) ? GR_DRAW : GR_PLAYING;
++}
++
++/* A cheap evaluation for `who` to move's opponent-neutral score: windows of four with only one side in them, plus the center column. */
++static inline int gc4_eval(const gc4_board_t* g, int me)
++{
++    static const int dr[4] = {0, 1, 1, 1}, dc[4] = {1, 0, 1, -1};
++    const int other = me == 1 ? 2 : 1;
++    int score = 0;
++    for (int r = 0; r < GC4_ROWS; r++) {
++        if (g->b[r * GC4_COLS + 3] == me) {
++            score += 3;
++        } else if (g->b[r * GC4_COLS + 3] == other) {
++            score -= 3;
++        }
++    }
++    for (int r = 0; r < GC4_ROWS; r++) {
++        for (int c = 0; c < GC4_COLS; c++) {
++            for (int d = 0; d < 4; d++) {
++                const int er = r + 3 * dr[d], ec = c + 3 * dc[d];
++                if (er < 0 || er >= GC4_ROWS || ec < 0 || ec >= GC4_COLS) {
++                    continue;
++                }
++                int mine = 0, theirs = 0;
++                for (int k = 0; k < 4; k++) {
++                    const uint8_t v = g->b[(r + k * dr[d]) * GC4_COLS + (c + k * dc[d])];
++                    mine += v == me;
++                    theirs += v == other;
++                }
++                if (mine > 0 && theirs == 0) {
++                    score += mine == 3 ? 5 : (mine == 2 ? 2 : 0);
++                } else if (theirs > 0 && mine == 0) {
++                    score -= theirs == 3 ? 5 : (theirs == 2 ? 2 : 0);
++                }
++            }
++        }
++    }
++    return score;
++}
++
++/* ---- the search ---- */
++
++typedef struct {
++    gc4_board_t g;
++    uint8_t level;
++    uint8_t order[GC4_COLS]; /* root columns, center first */
++    uint8_t n_order, idx;    /* the next root move to search */
++    int best_col, best_score;
++    uint32_t nodes;          /* nodes spent on the move in hand */
++    uint32_t seed;
++    uint8_t done;
++    uint8_t depth;
++    uint8_t cut;             /* the node cap was reached: the score of this root move is the evaluation, not a proof */
++} gc4_search_t;
++
++static inline int gc4_negamax(gc4_board_t* g, int who, int depth, int alpha, int beta, uint32_t* nodes, uint32_t cap, int ply)
++{
++    (*nodes)++;
++    const int other = who == 1 ? 2 : 1;
++    if (gc4_win(g, other)) {
++        return -(GC4_WIN_SCORE - ply);
++    }
++    if (gc4_full(g)) {
++        return 0;
++    }
++    if (depth == 0 || *nodes >= cap) {
++        return gc4_eval(g, who);
++    }
++    static const uint8_t ord[GC4_COLS] = {3, 2, 4, 1, 5, 0, 6};
++    int best = -GC4_WIN_SCORE - 1;
++    for (int i = 0; i < GC4_COLS; i++) {
++        const int c = ord[i];
++        if (gc4_drop(g, c, who) < 0) {
++            continue;
++        }
++        const int v = -gc4_negamax(g, other, depth - 1, -beta, -alpha, nodes, cap, ply + 1);
++        gc4_undo(g, c);
++        if (v > best) {
++            best = v;
++        }
++        if (best > alpha) {
++            alpha = best;
++        }
++        if (alpha >= beta) {
++            break;
++        }
++    }
++    return best;
++}
++
++/* Starts a search for the unit (2) on a copy of the board. A board with no legal move is done at once with best_col -1. */
++static inline void gc4_ai_start(gc4_search_t* s, const gc4_board_t* g, int level, uint32_t seed)
++{
++    static const uint8_t ord[GC4_COLS] = {3, 2, 4, 1, 5, 0, 6};
++    memset(s, 0, sizeof(*s));
++    s->g = *g;
++    s->level = (uint8_t)(level < 0 ? 0 : (level >= GC4_LEVELS ? GC4_LEVELS - 1 : level));
++    s->seed = seed != 0 ? seed : 1u;
++    s->best_col = -1;
++    s->best_score = -GC4_WIN_SCORE - 1;
++    s->depth = s->level == 2 ? 4 : (s->level == 3 ? 6 : 1);
++    for (int i = 0; i < GC4_COLS; i++) {
++        if (gc4_col_free(&s->g, ord[i])) {
++            s->order[s->n_order++] = ord[i];
++        }
++    }
++    if (s->n_order == 0) {
++        s->done = 1;
++        return;
++    }
++    if (s->level == 0) { /* a random legal move, chosen now */
++        s->best_col = s->order[gr_rand(&s->seed) % s->n_order];
++        s->done = 1;
++    }
++}
++
++/* Runs root moves while the node budget can hold another (at least one per call; a root move is never split and its own search is capped at GR_SLICE_NODES). True when the move is ready. */
++static inline int gc4_ai_step(gc4_search_t* s, uint32_t budget)
++{
++    uint32_t spent = 0;
++    while (!s->done && s->idx < s->n_order && (spent == 0 || spent + GR_SLICE_NODES <= budget)) { /* a root move costs at most GR_SLICE_NODES: never start one the budget cannot hold */
++        const int c = s->order[s->idx++];
++        uint32_t nodes = 0;
++        int score;
++        gc4_drop(&s->g, c, 2);
++        if (gc4_win(&s->g, 2)) {
++            score = GC4_WIN_SCORE; /* a winning move is always taken */
++        } else if (s->level == 1) {
++            /* takes a win (above), blocks a loss: the move that leaves the person no winning reply scores higher */
++            score = 0;
++            for (int pc = 0; pc < GC4_COLS; pc++) {
++                if (gc4_drop(&s->g, pc, 1) >= 0) {
++                    if (gc4_win(&s->g, 1)) {
++                        score = -GC4_WIN_SCORE / 2;
++                    }
++                    gc4_undo(&s->g, pc);
++                }
++            }
++            if (score == 0) {
++                score = 1 + (int)(gr_rand(&s->seed) % 3u); /* a small random preference among equal moves */
++            }
++            nodes = GC4_COLS;
++        } else {
++            score = -gc4_negamax(&s->g, 1, s->depth - 1, -GC4_WIN_SCORE - 1, GC4_WIN_SCORE + 1, &nodes, GR_SLICE_NODES, 1);
++            if (nodes >= GR_SLICE_NODES) {
++                s->cut = 1;
++            }
++        }
++        gc4_undo(&s->g, c);
++        spent += nodes + 1;
++        s->nodes += nodes + 1;
++        if (score > s->best_score) {
++            s->best_score = score;
++            s->best_col = c;
++        }
++    }
++    if (s->idx >= s->n_order) {
++        s->done = 1;
++    }
++    return s->done;
++}
++
++#endif /* MAIPAI_GRID_C4_CORE_H */
+diff --git a/firmware/main/hal/maipai_grid_mem_core.h b/firmware/main/hal/maipai_grid_mem_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid_mem_core.h
+@@ -0,0 +1,92 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Memory Match, the rule set (patch SF62): 12 or 16 cards in pairs, face down. The person turns two; a pair stays up, a mismatch turns back after 900 ms. The score is the
++ * number of turns (lower is better). The deck is shuffled from a seed, so a test (and a replay) gets the same deck. Cell byte: low 5 bits the symbol (1 to 8), bit 5 face up,
++ * bit 6 matched. Plain C99, no clock of its own (the caller passes the time), no allocation.
++ */
++#ifndef MAIPAI_GRID_MEM_CORE_H
++#define MAIPAI_GRID_MEM_CORE_H
++
++#include "maipai_grid_core.h"
++
++#define GM_MAX_CARDS 16
++#define GM_SYMBOL_MASK 0x1F
++#define GM_FACE_UP 0x20
++#define GM_MATCHED 0x40
++#define GM_HIDE_MS 900u
++
++enum { GM_IGNORED = 0, GM_FIRST, GM_MATCH, GM_MISS, GM_DONE };
++
++typedef struct {
++    uint8_t card[GM_MAX_CARDS];
++    uint8_t n;            /* 12 or 16 */
++    int8_t first;         /* the card turned first in this turn, or -1 */
++    int8_t pending[2];    /* a mismatched pair waiting to turn back, or -1 */
++    uint32_t hide_at;
++    uint16_t turns;
++    uint8_t pairs_left;
++} gm_t;
++
++static inline int gm_init(gm_t* m, int cards, uint32_t seed)
++{
++    if (cards != 12 && cards != 16) {
++        return 0;
++    }
++    memset(m, 0, sizeof(*m));
++    m->n = (uint8_t)cards;
++    m->first = m->pending[0] = m->pending[1] = -1;
++    m->pairs_left = (uint8_t)(cards / 2);
++    for (int i = 0; i < cards; i++) {
++        m->card[i] = (uint8_t)(1 + i / 2);
++    }
++    uint32_t s = seed != 0 ? seed : 1u;
++    for (int i = cards - 1; i > 0; i--) { /* Fisher-Yates */
++        const int j = (int)(gr_rand(&s) % (uint32_t)(i + 1));
++        const uint8_t t = m->card[i];
++        m->card[i] = m->card[j];
++        m->card[j] = t;
++    }
++    return 1;
++}
++
++/* Turns a mismatched pair back when its time has come. Returns 1 when something changed (the caller redraws). */
++static inline int gm_tick(gm_t* m, uint32_t now_ms)
++{
++    if (m->pending[0] >= 0 && (int32_t)(now_ms - m->hide_at) >= 0) {
++        m->card[m->pending[0]] &= (uint8_t)~GM_FACE_UP;
++        m->card[m->pending[1]] &= (uint8_t)~GM_FACE_UP;
++        m->pending[0] = m->pending[1] = -1;
++        return 1;
++    }
++    return 0;
++}
++
++/* A tap on a card. GM_IGNORED for a bad index, a card already up or matched, or while a mismatch waits; GM_FIRST, GM_MATCH, GM_MISS, or GM_DONE when the last pair matched. */
++static inline int gm_tap(gm_t* m, int idx, uint32_t now_ms)
++{
++    gm_tick(m, now_ms);
++    if (idx < 0 || idx >= m->n || m->pending[0] >= 0 || (m->card[idx] & (GM_FACE_UP | GM_MATCHED))) {
++        return GM_IGNORED;
++    }
++    m->card[idx] |= GM_FACE_UP;
++    if (m->first < 0) {
++        m->first = (int8_t)idx;
++        return GM_FIRST;
++    }
++    const int a = m->first;
++    m->first = -1;
++    m->turns++;
++    if ((m->card[a] & GM_SYMBOL_MASK) == (m->card[idx] & GM_SYMBOL_MASK)) {
++        m->card[a] |= GM_MATCHED;
++        m->card[idx] |= GM_MATCHED;
++        m->pairs_left--;
++        return m->pairs_left == 0 ? GM_DONE : GM_MATCH;
++    }
++    m->pending[0] = (int8_t)a;
++    m->pending[1] = (int8_t)idx;
++    m->hide_at = now_ms + GM_HIDE_MS;
++    return GM_MISS;
++}
++
++#endif /* MAIPAI_GRID_MEM_CORE_H */

@@ -171,3 +171,15 @@ Added 2026-11-18 at the owner's request. **Read** means read from the b49 tree; 
 4. Re-enable torque after a pushed pose: the head must hold the pose, not jump (the one result that decides whether it is safe).
 5. Bus load: the achieved read rate with the face moving, with `self.bench.power_probe` running at the same time.
 6. Pass: noise under 3 counts, no jump on torque enable, reads at 20 Hz or better; fail on any jump or an error rate above 1 percent. Quiet rules apply: volume 0 and hard mute before the test; no motion command is sent in any step.
+
+## 9. The engine as built so far (patch SF62, 2026-11-18): shapes for the virtual unit
+
+Pure cores, compiled into the host test only (not yet in the image); the device layer (drawing, start tool, installed-pack ids) follows. Source: `maipai_grid_core.h`, `maipai_grid_c4_core.h`, `maipai_grid_mem_core.h` (in the firmware tree after replay); test: `host/tests/firmware/grid_core_test.c`.
+
+- **Cells:** up to 100, one byte each, row-major (`row * cols + col`); 0 is empty or face down.
+- **Geometry:** play area x 20 to 300, y 28 to 224 (the unit's reserved edges). `gr_layout(cols, rows, square)` gives the cell size and origin (a board that does not fit, or cells under 12 px, is refused); `gr_cell_at(x, y)` gives the cell or -1; `gr_col_at(x, y)` gives a column for a tap anywhere in the column's full height. Four in a Row uses 40 by 32 px cells (a column is 40 px wide); Memory 4 by 4 uses 49 px squares.
+- **Results and cues (common):** `GR_PLAYING`, `GR_PERSON_WON`, `GR_UNIT_WON`, `GR_DRAW`; cues `tap`, `unit_move`, `match`, `miss`, `win`, `lose`, `draw`, `bad` (the device layer maps them to the five tones, the ring light and the celebration).
+- **Four in a Row:** 7 by 6, row 0 on top, 1 the person, 2 the unit; a tap in a column drops a disc to the lowest empty cell; four in a line wins. The unit's move is a **sliced search**: `start(board, level, seed)` then `step(budget)` once per game tick until it says the move is ready. Levels: 0 random legal, 1 takes a win and blocks a loss, 2 four plies, 3 six plies. One root move per tick, each capped at 1,000 nodes (cut moves fall back to the evaluation).
+- **Memory Match:** 12 or 16 cards in pairs, shuffled from a seed (a test or a replay gets the same deck); a cell byte holds the symbol (1 to 8) in the low 5 bits, bit 5 face up, bit 6 matched; a mismatch turns back after 900 ms (`tick(now)`); the score is the number of turns (lower is better).
+- **Measured on a laptop (host test):** a search node costs about 194 ns; level 3 from an open position is about 6,800 nodes over 7 ticks, level 2 about 1,000 nodes, level 1 about 56. **Estimate for the unit:** 3 to 5 microseconds a node, so a 1,000-node tick is 3 to 5 ms (the plan's budget); to be measured on the unit with the bench's frame-gap tool before the levels are final.
+- **Lint:** `host/tests/test_games_no_head_motion.py` fails when any patch adds a call to the head's motion, a servo or the torque in a game or grid file.

@@ -33,6 +33,7 @@ PLAIN = [
     "pairx_core_test.c",
     "updatefloor_core_test.c",
     "boottone_core_test.c",
+    "grid_core_test.c",
     "power_core_test.c",
     "reconnect_core_test.c",
     "super_core_test.c",
