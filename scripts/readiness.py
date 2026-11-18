@@ -162,6 +162,7 @@ def render() -> str:
         "- A release key and a signed image (blocks install and update).",
         "- A published web flasher and a host installer that needs no terminal.",
         "- Hands-on checks on a robot: first run, pairing from a phone, lock, privacy cues, the first spoken reply, the head's own timings.",
+        "- Finger test on the glass (owner, 2026-11-18): press Skip and Back on every first-run step, the keypad keys, every control sheet tile, both sliders, the four settings tabs, the timer delete button, the games wall tiles and the Quiet now and Vision off tiles; note any press that misses, hits the next target or needs a second try (the audit that lists them is docs/dev/screen-audit.md).",
         "- Native-speaker review of the five languages after English and Spanish.",
         "",
         "Related: `docs/plan/friend-test-path-2026-11-18.md` (the path written as steps), `docs/dev/head-recording.md` (the servo calibration the bench still owes).",

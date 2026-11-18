@@ -188,6 +188,34 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
         printf("pcount %s %d\n", label.c_str(), count(lv_layer_top()));
         return true;
     }
+    if (c == "ptargets") {  // every visible clickable object and every visible label of the top layer and the screen: x1 y1 x2 y2 (a click area includes the extended one) and the text, for the screen audit
+        std::function<void(lv_obj_t*, bool, bool)> walk = [&](lv_obj_t* o, bool hidden, bool scr) {
+            const bool h = hidden || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN);
+            const bool sc = scr || lv_obj_get_scroll_bottom(o) > 0 || lv_obj_get_scroll_top(o) > 0 || lv_obj_get_scroll_right(o) > 0 || lv_obj_get_scroll_left(o) > 0;   // an ancestor (or this) scrolls
+            if (!h) {
+                lv_area_t a;
+                if (lv_obj_has_flag(o, LV_OBJ_FLAG_CLICKABLE)) {
+                    lv_obj_get_click_area(o, &a);
+                    lv_area_t own;
+                    lv_obj_get_coords(o, &own);
+                    printf("ptarget %d %d %d %d own %d %d %d %d scroll %d\n", (int)a.x1, (int)a.y1, (int)a.x2, (int)a.y2, (int)own.x1, (int)own.y1, (int)own.x2, (int)own.y2, sc ? 1 : 0);
+                }
+                if (lv_obj_check_type(o, &lv_label_class)) {
+                    lv_obj_get_coords(o, &a);
+                    const lv_font_t* f = lv_obj_get_style_text_font(o, LV_PART_MAIN);
+                    const char* t = lv_label_get_text(o);
+                    std::string txt = t != nullptr ? t : "";
+                    for (auto& ch : txt) if (ch == '\n' || ch == ' ') ch = '~';
+                    printf("ptext %d %d %d %d %d scroll %d %s\n", (int)a.x1, (int)a.y1, (int)a.x2, (int)a.y2, f != nullptr ? (int)f->line_height : 0, sc ? 1 : 0, txt.c_str());
+                }
+            }
+            for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) walk(lv_obj_get_child(o, i), h, sc);
+        };
+        walk(lv_layer_top(), false, false);
+        walk(lv_screen_active(), false, false);
+        printf("ptargets done\n");
+        return true;
+    }
     if (c == "pstate") { printf("pstate open %d pos %d sheet %d log %s\n", maipai_pages_open() ? 1 : 0, maipai_pages_position(), maipai_pages_sheet_open() ? 1 : 0, g_pages_host.log.c_str()); return true; }
 #endif
     if (c == "style") {

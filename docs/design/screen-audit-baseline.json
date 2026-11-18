@@ -1,0 +1,80 @@
+{
+ "es-apps-wall": {
+  "fails": 4
+ },
+ "es-page-actions": {
+  "fails": 0
+ },
+ "es-page-timers": {
+  "fails": 0
+ },
+ "es-settings-general": {
+  "fails": 16
+ },
+ "es-settings-info": {
+  "fails": 9
+ },
+ "first-run-1": {
+  "fails": 5
+ },
+ "first-run-2": {
+  "fails": 20
+ },
+ "first-run-4": {
+  "fails": 8
+ },
+ "first-run-5": {
+  "fails": 1
+ },
+ "first-run-6": {
+  "fails": 0
+ },
+ "first-run-next": {
+  "fails": 2
+ },
+ "screen-apps-wall": {
+  "fails": 4
+ },
+ "screen-camera-on": {
+  "fails": 0
+ },
+ "screen-control-sheet": {
+  "fails": 16
+ },
+ "screen-games-wall": {
+  "fails": 4
+ },
+ "screen-page-actions": {
+  "fails": 0
+ },
+ "screen-page-clock": {
+  "fails": 0
+ },
+ "screen-page-games": {
+  "fails": 13
+ },
+ "screen-page-timers": {
+  "fails": 0
+ },
+ "screen-page-timers-running": {
+  "fails": 3
+ },
+ "screen-settings-faces": {
+  "fails": 14
+ },
+ "screen-settings-general": {
+  "fails": 16
+ },
+ "screen-settings-info": {
+  "fails": 9
+ },
+ "screen-settings-network": {
+  "fails": 10
+ },
+ "screen-subtitles": {
+  "fails": 0
+ },
+ "screen-timers-app": {
+  "fails": 7
+ }
+}

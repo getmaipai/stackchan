@@ -5,7 +5,8 @@
 # Extra patches: FACE_PATCHES below (add a face patch here when it lands in firmware/patches and the tree is older than it).
 # Placement: host-side development tool. Upstream: none.
 set -e
-B="${1:-${MAIPAI_FW_TREE_ROOT:-$(ls -d "$HOME"/esp/stackchan-rebuild/b[0-9]* 2>/dev/null | sort -V | tail -1)}}"
+newest_built() { for d in $(ls -d "$HOME"/esp/stackchan-rebuild/b[0-9]* 2>/dev/null | sort -V -r); do [ -f "$d/firmware/build-bench/config/sdkconfig.h" ] && { echo "$d"; return; }; done; }   # a tree that has been built (a tree still being replayed has no config yet)
+B="${1:-${MAIPAI_FW_TREE_ROOT:-$(newest_built)}}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 FACE_PATCHES="UX01-style-mouth-widths.patch SF05-pairing-cover-line-break.patch UX02a-screen-palette.patch UX03a-eyes-only-mute-mark.patch UX03b-effects-on-the-face-only.patch UX04-update-cover.patch UX02b-screen-type-ladder.patch UX02c-sheet-icon-labels.patch UX09-update-refused-says-what-to-do.patch UX10-plain-words-home-link-original.patch SF01-time-helper-lock-and-remote-safety.patch UX02d-info-tab-plain-words.patch UX05a-first-run-core.patch UX05b-first-run-screens.patch UX06-face-rests-under-covers.patch UX07a-screen-fonts-with-accents.patch UX07b-screen-words-with-accents.patch UX07c-symbols-keep-their-font.patch UX08-first-run-is-a-screen.patch UX11-first-run-name-stackchan-first.patch UX12-first-run-skip-brain-question-and-next-steps.patch"
 O="$ROOT/.runs/fixtree/firmware"

@@ -89,8 +89,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/release-and-updates.md` (88): Release and updates
 - `docs/design/repo-boundaries.md` (111): Repo boundaries: what lives where
 - `docs/design/safety-and-privacy.md` (72): Safety and privacy
+- `docs/design/screen-audit-baseline.json` (80): no header
 - `docs/design/screen-stays-dim-2026-11-16.md` (23): The screen that stayed dim, 2026-11-16
-- `docs/design/screen-style.md` (28): Screen style standard
+- `docs/design/screen-style.md` (57): Screen style standard
 - `docs/design/spelling-aliases.md` (39): Spelling aliases (owner rule, 2026-11-16)
 - `docs/design/stock-vs-ours-2026-11-16.md` (56): Stock firmware against ours, 2026-11-16
 - `docs/design/strip-results.md` (90): Strip results
@@ -152,6 +153,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
+- `docs/dev/screen-audit.json` (314): no header
+- `docs/dev/screen-audit.md` (34): Screen audit against the physical standard
 - `docs/dev/screens-contact-sheets.md` (38): Screens contact sheets
 - `docs/dev/second-robot-adapter.md` (16): Adding a second robot behind the seam
 - `docs/dev/seek-cue-policy.md` (38): The face-turning seeker and the camera-on cue: why the cue is lit most of the time, and a quieter policy
@@ -287,6 +290,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/coding-companion-package.md` (36): Coding companion and agent tools (package design, for review before building)
 - `docs/plan/custom-wake-word.md` (42): A wake word the family chooses (feature 8e): what the unit needs
 - `docs/plan/dance-vectors.md` (40): Dance vectors for the host director (from the virtual unit's session, patch SF51)
+- `docs/plan/dashboard-structure.md` (10): Dashboard pages follow the robot's screen structure (for the app track)
 - `docs/plan/doc-screenshots.md` (21): Doc screenshots from the virtual unit
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
@@ -313,7 +317,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
 - `docs/plan/public-readme-draft.md` (92): Public README draft (2026-11-18)
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
-- `docs/plan/release-readiness.md` (42): First release readiness: the friend test
+- `docs/plan/release-readiness.md` (43): First release readiness: the friend test
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
 - `docs/plan/service-and-supervision.md` (113): The host as a managed service, with supervised parts
 - `docs/plan/signed-update-anti-rollback.md` (20): Signed update with a build number (proposal for the app track, 2026-11-18)
@@ -2181,6 +2185,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_run_loop_settle.py` (93): BODY-05 on the existing G9 funnel: the 0.5 s settle gate is enforced and
 - `host/tests/test_scene_wire.py` (194): SCENE-WIRE-BOT: the landed scene pieces run inside the real loop.
 - `host/tests/test_scenes_settings.py` (130): ruff: noqa: E501
+- `host/tests/test_screen_audit.py` (49): ruff: noqa: E501
 - `host/tests/test_script_tool_names.py` (36): ruff: noqa: E501
 - `host/tests/test_second_robot_conformance.py` (109): A second robot (Reachy Mini) against the shared spec proposals and the HAL seam.
 - `host/tests/test_second_unit.py` (63): A second connected unit must not break every call that names no unit."""
@@ -2429,7 +2434,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/build.sh` (37): draw the real face (LVGL and the unit's own face classes) into memory on this Mac, so a look can be judged and
 - `scripts/fw-face-render/games_render.cc` (244): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
-- `scripts/fw-face-render/hooks_banner.cc` (268): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
+- `scripts/fw-face-render/hooks_banner.cc` (296): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
 - `scripts/fw-face-render/hooks_new.cc` (57): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
 - `scripts/fw-face-render/lock_render.sh` (25): draw the lock screen and the keypad with the real LVGL and the unit's own drawing code (maipai_lock_draw.h) on
@@ -2486,7 +2491,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/off-cost.sh` (35): prove an optional firmware feature that is switched off costs nothing in the plain image. Reads a built plain 
 - `scripts/patch-replay.sh` (53): Identify genuinely added files separately from missing existing paths.
 - `scripts/psram-stack-lint.py` (188): Fail when a task whose stack is in PSRAM can reach flash or saved settings (patches TC02 and FM05).
-- `scripts/readiness.py` (187): First-release readiness: the friend test as a checklist, made from the state of the repository.
+- `scripts/readiness.py` (188): First-release readiness: the friend test as a checklist, made from the state of the repository.
 - `scripts/regen-core-tables.py` (26): Regenerate the tables the host page draws from, as the unit's cores print them after the whole firmware/patche
 - `scripts/release-report.py` (205): One markdown page per firmware build: image sizes per slot, memory numbers from a stress log, frame cost per s
 - `scripts/release.sh` (98): turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a det
@@ -2505,7 +2510,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/translation-pack.py` (336): The translator review pack: every user-facing string per language in a plain CSV a native speaker can read and
 - `scripts/virtual-unit/assets_sim.py` (282): The installed set in the virtual unit (owner decision 17; docs/plan/installed-set.md B1 to B5): slots per kind
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
-- `scripts/virtual-unit/build-face.sh` (19): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
+- `scripts/virtual-unit/build-face.sh` (20): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (30): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
@@ -2563,6 +2568,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
 - `scripts/virtual-unit/scenarios.py` (272): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
+- `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/thumbnails.py` (128): Thumbnails for the dashboard's catalog (owner decision 17), drawn by the real renderer: every face style (each
 - `scripts/virtual-unit/tools/__init__.py` (15): Tool handlers for the virtual unit, one module per group. A handler is registered with @tool("self.x.y") and g
 - `scripts/virtual-unit/tools/apps.py` (203): Clock, game, lock, and timer tools for the virtual unit."""
