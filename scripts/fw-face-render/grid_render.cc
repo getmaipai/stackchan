@@ -5,7 +5,7 @@
 //   tap CELL                             Memory Match: turn a card; reveal CELL (Mine Finder); guess the letter CELL (0 = A, Hangman)
 //   flag                                 Mine Finder: switch flagging on or off
 //   advance MS                           run the clock in 30 ms ticks (falls, bounces, pulses, flips, pops, the board shake)
-//   over won|lost|draw|SCORE TEXT|BEST TEXT|NEWBEST 0 or 1|en or es   the shared game-over screen (patch UX15) over the game, drawn by the unit's own code
+//   over won|lost|draw|over|timeup|SCORE TEXT|BEST TEXT|NEWBEST 0 or 1|en or es   the shared game-over screen (patch UX15) over the game, drawn by the unit's own code
 //   qa riddle|joke or riddle|WORDS|ANSWER|CHARS SHOWN (-1 all)|REVEALED 0 or 1|en or es   the question and answer game screens (patch UX17)
 //   qa trivia|QUESTION|A1;A2;A3;A4|N|TOTAL|SCORE|RESULT 0 1 2|CHOSEN|RIGHT|lang
 //   qa twenty|QUESTION|N|GUESS 0 or 1|lang
@@ -240,7 +240,7 @@ int main()
             std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
             for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
             while (f.size() < 5) f.push_back("");
-            const int res = f[0] == "won" ? MGO_WON : f[0] == "lost" ? MGO_LOST : MGO_DRAW;
+            const int res = f[0] == "won" ? MGO_WON : f[0] == "lost" ? MGO_LOST : f[0] == "over" ? MGO_OVER : f[0] == "timeup" ? MGO_TIMEUP : MGO_DRAW;
             mgo::build(lv_layer_top(), res, f[1].c_str(), f[2].c_str(), f[3] == "1", f[4] == "es");
 #else
             printf("this firmware tree has no game-over screen (patch UX15)\n");

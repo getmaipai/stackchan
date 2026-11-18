@@ -69,8 +69,8 @@ The bank is the public signed catalog (`getmaipai/catalog`): an entry per part o
 - **Look-alikes:** a bank of faces is where a copy of someone's character would creep in. The rule in section 4 and a human read of each entry are the guard.
 - **Safety:** none of this touches the lock, the child gate, the limiter or the privacy sign. A part cannot hide the mute or the camera sign (those are drawn on the banner row, above the face).
 
-## 8. Questions for the owner
+## 8. Questions for the owner (answered 2026-11-18, decisions 28 to 30)
 
-1. Do you want faces made at home (phase 5) at all, or only faces from the bank?
-2. Should a household's faces follow a persona (a persona names a face recipe), or stay a separate choice on the unit?
-3. Is 16 shapes a part enough, or is a simpler 8 better to keep the faces readable on the small screen?
+1. **Faces made at home:** the bank first; home-made faces only after phase 5, once the signing and trust rules are proven on a unit (decision 28).
+2. **Personas:** a persona picks a default face recipe; the unit can still override it (decision 29).
+3. **Shapes a part:** 16 (decision 30).

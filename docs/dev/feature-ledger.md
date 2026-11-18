@@ -514,7 +514,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 |---|---|---|---|---|---|---|---|
 | **Safety, speed and update fixes series** | 75 patch(es): Safety fix, train 1.; Safety fix, train 2.; The listening guard follows voice.... | proven virtual | 61 | not declared | `SF01-time-helper-lock-and-remote-safety.patch`<br>`SF02-hello-gate-switches-banner-and-light-safety.patch`<br>`SF03-listening-guard-follows-voice.patch` | `bench-window10.md`, `bench-window11.md` | doc missing |
 | **Base firmware changes (numbered patches: the rebuilt base)** | 52 patch(es): Skip remote activation and OTA checks and open the provisioned websoc...; Stop the registry and MQTT service and remove its URL from the device...; Add optional certificate and pairing configuration fields.... | built | 47 | not declared | `002-nvs-websocket-no-ota.patch`<br>`005-disable-registry-mqtt.patch`<br>`008-additional-ca-bundle.patch` | average of 52 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
-| **Screen and word polish** | 28 patch(es): Set the minimal and classic resting mouth widths so every emotion dra...; Give app screens one named palette for all fixed colors.; Draw the calm sealed mouth line for the eyes-only style.... | proven virtual | 55 | not declared | `UX01-style-mouth-widths.patch`<br>`UX02a-screen-palette.patch`<br>`UX03a-eyes-only-mute-mark.patch` | `bench-b15.md` | doc missing |
+| **Screen and word polish** | 29 patch(es): Set the minimal and classic resting mouth widths so every emotion dra...; Give app screens one named palette for all fixed colors.; Draw the calm sealed mouth line for the eyes-only style.... | proven virtual | 56 | not declared | `UX01-style-mouth-widths.patch`<br>`UX02a-screen-palette.patch`<br>`UX03a-eyes-only-mute-mark.patch` | `bench-b15.md` | doc missing |
 | **Hands-on test fixes: bigger targets, sheets and settings** | 17 patch(es): Owner's hands-on test, part 1.; Owner's hands-on test, part 2.; Owner's hands-on test, part 3: the Color Memory beep was not timed wi...... | proven virtual | 70 | not declared | `UI01-bigger-targets-longer-sheet-no-find-clock-games.patch`<br>`UI02-quick-settings-and-more-screens-dismissable.patch`<br>`UI03-color-memory-tone-and-light-together.patch` | average of 17 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Face design, speed and the bench verification path** | 14 patch(es): Train 3 verification path (docs/design/unit-verification-plan-2026-11...; Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt...; Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121...... | proven virtual | 70 | not declared | `V01-serial-tool-path.patch`<br>`V02-offline-phrases.patch`<br>`V03-music-dance.patch` | average of 14 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Wi-Fi setup page** | 9 patch(es): The Wi-Fi setup page and its logic, as new files only (nothing is bui...; Replace the setup component's access point source file (24 handlers,...; A protected setup window.... | proven virtual | 70 | not declared | `P01-portal-page.patch`<br>`P02-portal-routes.patch`<br>`P03-portal-protect.patch` | average of 9 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
@@ -1057,7 +1057,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 ## Decisions
 
-The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 9 not started.
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 13 not started.
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
@@ -1088,6 +1088,10 @@ The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a stat
 | 25 | **A measured Hardware reference** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 | 26 | **Quiet hours default OFF until set** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 | 27 | **Model-powered games on top of the pantry** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 28 | **Face parts: the bank first** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 29 | **A persona picks a default face** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 30 | **Sixteen shapes a part** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 31 | **Score-only games never say "You won!"** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 
 ## Scrapped (9)
 
