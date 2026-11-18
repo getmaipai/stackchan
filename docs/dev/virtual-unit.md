@@ -20,3 +20,8 @@ Needs `clang` and a built firmware tree (default `~/esp/stackchan-rebase/final15
 ## Tests
 
 `bash scripts/test-all.sh` builds the renderers when a firmware tree is present, then runs the whole host suite. Without a tree the virtual unit tests skip with one message. After a patch changes a core, run `uv run --project host python scripts/regen-core-tables.py` so the page tables match.
+
+## Clock wrap soak (24.9 and 49.7 days)
+
+- `host/tests/firmware/wrap_soak_test.c` (run by `tests/test_stackchan_wrap_soak.py`): the same script of events for every core that uses the stamp helper (time, lock, pickup, games input, status, fx, face tracking, remote), run from start times on the 2^31 ms and 2^32 ms points, and from 1000 ms. The answers must be identical. A second part reads armed deadlines again after 2^31 ms and 2^32 ms of silence: none may read pending.
+- `host/tests/test_face_wrap_soak.py`: the face renderer with the fake clock set by its `clock <ms>` command. Both eyes and the mouth must stay drawn (within 12 percent of the reference run) before, across and after both points. Needs the built renderer. `build-face.sh` now applies SF01, because the older base tree still drew the right eye shut for good once the clock passed 2^31 ms.

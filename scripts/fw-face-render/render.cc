@@ -164,6 +164,9 @@ int main()
             in >> level;
             speaking = level > 0;
             maipai_speech_set_active(speaking);
+        } else if (c == "clock") {
+            int64_t ms; in >> ms;  // the fake clock jumps to ms (a unit that has run for days; the tick the faces see wraps at 2^32)
+            g_fake_us = ms * 1000;
         } else if (c == "advance") {
             int ms; in >> ms;
             for (int t = 0; t < ms; t += 33) {

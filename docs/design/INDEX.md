@@ -157,7 +157,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/stackchan-wireless-update-2026-11-14.md` (61): StackChan wireless firmware update (design, 2026-11-14)
 - `docs/dev/updater.md` (96): Flasher and updater
 - `docs/dev/virtual-unit-fidelity.md` (23): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
-- `docs/dev/virtual-unit.md` (22): Virtual unit
+- `docs/dev/virtual-unit.md` (27): Virtual unit
 - `docs/images/agent-status.svg` (1): no header
 - `docs/images/alarm-ringing.svg` (1): no header
 - `docs/images/alert-screen.svg` (1): no header
@@ -2173,7 +2173,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/lock_render.sh` (25): draw the lock screen and the keypad with the real LVGL and the unit's own drawing code (maipai_lock_draw.h) on
 - `scripts/fw-face-render/overlays_render.sh` (14): rebuild the host renderer with the overlay engine, the banner row and the subtitle strip, and write every over
 - `scripts/fw-face-render/pages_render.sh` (15): rebuild the host renderer with the swipe pages and the control sheet (patch P12) and write every page and the 
-- `scripts/fw-face-render/render.cc` (237): Host renderer: the real LVGL and the real face classes, drawn into memory. Commands come from stdin, one per l
+- `scripts/fw-face-render/render.cc` (240): Host renderer: the real LVGL and the real face classes, drawn into memory. Commands come from stdin, one per l
 - `scripts/fw-face-render/render_fx.cc` (274): Host renderer with the overlay engine, the screen effects and the speech bubble (patches TA02 to TA04): the re
 - `scripts/fw-face-render/render_hooks.h` (9): pragma once
 - `scripts/fw-face-render/render_ov.cc` (369): Host renderer with the overlay engine (three layers, the named combinations, the text zones left alone: patch 
