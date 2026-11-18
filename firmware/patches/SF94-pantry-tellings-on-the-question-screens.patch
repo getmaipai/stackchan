@@ -1,0 +1,202 @@
+# Intent: Telling from the unit's own pantry with no host (owner decisions 25 and 26; screens UX17; core SF92 and device SF93). The tool self.pantry.tell (kind joke, riddle or trivia, and a language) starts a session of the question games in which the unit plays the host's part: a joke or riddle shows its words and a Reveal button (the punchline or answer shows under the words and stays until Next); trivia shows the question and two or three answer tiles (the right answer shuffled among the record's wrong ones), judges the tap itself, shows the verdict for 1.2 s with a sound, keeps the score over 5 questions and ends on the shared game-over screen (won with at least half right; Play again starts another round). Each record shown is reported to the pantry as told (the heard list is written in batches). A session with no shelf, or none that has an unheard record in the language, refuses in words; one that runs out of records ends with a notice. A local session never times out waiting for a host. The screens, touch rules, quiet, lock and update rules are the question games' (SF88): this patch adds only the unit-side host.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_qa_game.cc (ours)
+# Check after a flash: with a pantry shelf installed (SF93 check), self.pantry.tell joke shows a setup with Reveal, Reveal shows the punchline, Next shows another joke and self.pantry.heard lists the tellings; trivia shows tiles, a tap shows right or wrong with a sound and the score counts, the fifth question ends on the game-over screen; with no shelf the call refuses with a sentence that says to ask the host to fill the pantry.
+# Kconfig: none (compiled with MAIPAI_GAMES; the pantry calls are stubs without MAIPAI_PANTRY)
+# Memory cost: nothing beyond the question games' (screen.qa_games): the session state grows by about 360 bytes in PSRAM (one pantry record, the answer tiles and the random state); no internal RAM.
+
+diff --git a/firmware/main/hal/maipai_qa_game.cc b/firmware/main/hal/maipai_qa_game.cc
+--- a/firmware/main/hal/maipai_qa_game.cc
++++ b/firmware/main/hal/maipai_qa_game.cc
+@@ -11,6 +11,8 @@
+ #if CONFIG_MAIPAI_GAMES
+ #include "maipai_qa_game.h"
+ #include "maipai_games.h"
++#include "maipai_pantry.h"
++#include "maipai_pantry_core.h"
+ #include "maipai_games_input_core.h"
+ #include "maipai_qa.h"
+ #include "maipai_qa_state_core.h"
+@@ -57,6 +59,11 @@ struct Qa {
+     char choices[4][44];
+     char answer[72];
+     char vtext[64];
++    // Patch SF94: a telling from the unit's own pantry (no host): the unit then plays the host's part
++    bool local, joke;
++    uint8_t pk;          // the pantry kind: 1 joke, 2 riddle, 3 trivia
++    int8_t right_idx;    // trivia: which tile holds the right answer
++    uint32_t rng;
+ };
+ 
+ Qa* s_qa = nullptr;
+@@ -125,6 +132,10 @@ void cut_text(const char* in, int max, char* out, size_t out_n)
+     out[n] = '\0';
+ }
+ 
++const char* start_locked(int kind, bool es, int rounds);   // below
++void local_next(Qa* g);
++void show_over(Qa* g, int result, const char* score_text);
++
+ void post(const Qa* g, const char* text, uint32_t ms) { maipai_banner_post(text, MB_ICON_CHECK, MB_PRIO_NOTICE, MB_TAG_GAME, ms); (void)g; }
+ 
+ void end_locked(const char* how)
+@@ -163,7 +174,7 @@ void build_screen(Qa* g)
+         mqa_riddle_buttons(1, 0, b);
+         mqa::button(g->scr, b[1], mqa_word(MQA_B_STOP, es ? 1 : 0), 0x242424, 0x4A4A4A);
+     } else if (s.kind == QS_RIDDLE) {
+-        g->scr = mqa::riddle(g->root, false, g->question, g->shown, s.revealed ? g->answer : "?", s.revealed != 0, es);
++        g->scr = mqa::riddle(g->root, g->joke, g->question, g->shown, s.revealed ? g->answer : "?", s.revealed != 0, es);
+     } else if (s.kind == QS_TRIVIA) {
+         const char* ans[4] = {g->choices[0], g->choices[1], g->choices[2], g->choices[3]};
+         g->scr = mqa::trivia(g->root, g->question, ans, s.n_choices, s.n, s.total, static_cast<int>(s.score), s.result, s.chosen, s.right, es);
+@@ -219,8 +230,20 @@ void tick_cb(lv_timer_t*)
+         return;
+     }
+     const uint32_t now = now_ms();
++    if (g->local) g->st.last_host_ms = now;   // a telling from the pantry has no host to lose
+     switch (qs_tick(&g->st, now)) {
+         case QT_VERDICT_DONE:
++            if (g->local) {
++                if (g->st.kind == QS_TRIVIA && g->st.n >= g->st.total) {   // the last question: the result
++                    qs_end(&g->st, g->st.score, now);
++                    char line[40];
++                    snprintf(line, sizeof(line), g->es ? "%d de %d" : "%d of %d", static_cast<int>(g->st.score), static_cast<int>(g->st.total));
++                    show_over(g, g->st.score * 2 >= g->st.total ? MGO_WON : MGO_LOST, line);
++                } else {
++                    local_next(g);
++                }
++                break;
++            }
+             build_screen(g);
+             break;
+         case QT_HOST_GONE:
+@@ -301,6 +324,69 @@ const char* start_locked(int kind, bool es, int rounds)
+     return "";
+ }
+ 
++// ---- patch SF94: a telling from the pantry ----
++uint32_t next_rand(Qa* g)
++{
++    g->rng = g->rng * 1664525u + 1013904223u;
++    return g->rng >> 8;
++}
++
++// The next record of the telling: a joke or riddle shows its words (the answer waits for Reveal); trivia shows the question and the answer among its two wrong ones.
++void local_next(Qa* g)
++{
++    MaipaiPantryRecord r;
++    if (!maipai_pantry_pick(g->pk, g->es ? "es" : "en", &r)) {
++        post(g, say(g->es, "Nothing more to tell right now. Ask the host to fill the pantry.", "No hay mas que contar ahora. Pide al equipo que llene la despensa."), 3000);
++        end_locked("no_content");
++        return;
++    }
++    char words[200];
++    g->answer[0] = '\0';
++    if (g->pk == 1) {   // a joke: the setup, then the punchline after Reveal
++        const char* bar = strchr(r.text, '|');
++        const size_t n = bar != nullptr ? static_cast<size_t>(bar - r.text) : strlen(r.text);
++        snprintf(words, sizeof(words), "%.*s", static_cast<int>(n), r.text);
++        if (bar != nullptr) cut_text(bar + 1, 70, g->answer, sizeof(g->answer));
++    } else {
++        snprintf(words, sizeof(words), "%s", r.text);
++        if (g->pk == 2) cut_text(r.answer, 70, g->answer, sizeof(g->answer));
++    }
++    int n_choices = 0;
++    if (g->pk == 3) {   // the right answer and up to two wrong ones, in a shuffled order
++        char tiles[3][MPY_TILE_BYTES];
++        int right = 0;
++        n_choices = mpy_tiles(r.answer, r.extra, next_rand(g), tiles, &right);
++        if (n_choices < 2) {   // a trivia record with no wrong answers cannot make tiles: it counts as told and the next one comes
++            maipai_pantry_told(r.id);
++            local_next(g);
++            return;
++        }
++        for (int i = 0; i < n_choices; i++) memcpy(g->choices[i], tiles[i], sizeof(g->choices[i]));
++        g->right_idx = static_cast<int8_t>(right);
++    }
++    cut_text(words, MQA_MAX, g->question, sizeof(g->question));
++    g->shown = 0;
++    qs_question(&g->st, g->st.n + 1, n_choices, 0, now_ms());
++    maipai_pantry_told(r.id);   // shown now: it counts as told
++    build_screen(g);
++}
++
++const char* start_local_locked(int pk, bool es)
++{
++    MaipaiPantryRecord probe;
++    if (!maipai_pantry_pick(pk, es ? "es" : "en", &probe))
++        return say(es, "There is nothing to tell yet. Ask the host to fill the pantry.", "Todavia no hay nada que contar. Pide al equipo que llene la despensa.");
++    const char* why = start_locked(pk == 3 ? QS_TRIVIA : QS_RIDDLE, es, 5);
++    if (why[0] != '\0') return why;
++    Qa* g = s_qa;
++    g->local = true;
++    g->joke = pk == 1;
++    g->pk = static_cast<uint8_t>(pk);
++    g->rng = now_ms() | 1u;
++    local_next(g);
++    return "";
++}
++
+ void game_over_tap(Qa* g, int x, int y)
+ {
+     const int b = mgo_hit(x, y);
+@@ -313,7 +399,8 @@ void game_over_tap(Qa* g, int x, int y)
+         g->over = {};
+         g->over_shown = false;
+         qs_again(&g->st, now_ms());
+-        build_screen(g);
++        if (g->local) local_next(g);
++        else build_screen(g);
+     } else {
+         device_events_push("qa_quit", extra);
+         end_locked("quit");
+@@ -374,6 +461,21 @@ void maipai_qa_touch(int x, int y)
+         return;
+     }
+     if (ev == QE_NONE) return;
++    if (g->local) {   // patch SF94: the unit judges its own pantry records
++        if (ev == QE_CHOICE) {
++            const bool correct = s.chosen == g->right_idx;
++            qs_verdict(&s, s.id, correct ? 1 : 0, g->right_idx, 0, s.score + (correct ? 1 : 0), now);
++            sound(correct);
++            build_screen(g);
++        } else if (ev == QE_GIVEUP) {   // Reveal: the answer or the punchline shows and stays until Next
++            qs_verdict(&s, s.id, 0, -1, 1, s.score, now);
++            build_screen(g);
++        } else if (ev == QE_NEXT) {
++            g->shown = 0;
++            local_next(g);
++        }
++        return;
++    }
+     send_choice(g, ev);
+     if (ev == QE_NEXT) g->shown = 0;
+     build_screen(g);
+@@ -488,6 +590,27 @@ void maipai_qa_register_tools()
+                     show_over(g, result, line);
+                     return std::string("{\"ok\":true}");
+                 });
++    mcp.AddTool("self.pantry.tell",
++                "Tell something from the unit's own pantry on the screen, with no host needed: kind joke, riddle or trivia (5 questions); lang en or es (empty: the unit's language). "
++                "Jokes and riddles show their words and a Reveal button; trivia shows the question and answer tiles and keeps score. Answers {ok} or an error that says what to do.",
++                PropertyList({Property("kind", kPropertyTypeString, std::string("joke")), Property("lang", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string kind = properties["kind"].value<std::string>();
++                    const std::string lang = properties["lang"].value<std::string>();
++                    int pk = 0;
++                    if (strcasecmp(kind.c_str(), "joke") == 0) pk = 1;
++                    else if (strcasecmp(kind.c_str(), "riddle") == 0) pk = 2;
++                    else if (strcasecmp(kind.c_str(), "trivia") == 0) pk = 3;
++                    if (pk == 0) return err("The kind must be joke, riddle or trivia. Send one of those three.");
++                    const bool es = lang.empty() ? want_spanish() : strncasecmp(lang.c_str(), "es", 2) == 0;
++                    const char* why;
++                    {
++                        LvglLockGuard lock;
++                        why = start_local_locked(pk, es);
++                    }
++                    if (why[0] != '\0') return err(why);
++                    return std::string("{\"ok\":true}");
++                });
+     mcp.AddTool("self.qa.stop", "End the running question game at once (the host going away, a new turn). Answers {ok, was_running}.", std::vector<Property>{},
+                 [](const PropertyList&) -> ReturnValue {
+                     LvglLockGuard lock;

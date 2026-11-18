@@ -874,6 +874,21 @@
    "freed_when": "when the store changes and no game runs",
    "status": "estimate",
    "source": "patch SF91: the worst case, eight packs of 16,384 bytes; real packs are 2 to 3 KB (the built-ins are 17,828 bytes for seven); internal is 8 score entries"
+  },
+  {
+   "id": "feature.pantry",
+   "kind": "feature",
+   "name": "The content pantry while it is used (heard list and a shelf being read)",
+   "internal": 60,
+   "psram": 47200,
+   "flash": 6000,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a self.pantry tool or a telling first needs the heard list (nofont and lean images only); a shelf only while it is checked or a record is picked",
+   "freed_when": "a shelf copy right after use; the heard list is kept once allocated (PSRAM)",
+   "status": "estimate",
+   "source": "patch SF93: the heard list block is about 6.2 KB (510 entries of 12 bytes in memory), a shelf copy is at most 40,960 bytes; internal is a mutex, a timer and counters; measure with two self.bench.heap_info calls (idle, during self.pantry.status)"
   }
  ]
 }

@@ -352,3 +352,5 @@ SF89-asset-store-core.patch
 SF90-asset-store-on-the-unit.patch
 SF91-installed-game-packs-join-the-games.patch
 SF92-pantry-core.patch
+SF93-pantry-on-the-unit.patch
+SF94-pantry-tellings-on-the-question-screens.patch

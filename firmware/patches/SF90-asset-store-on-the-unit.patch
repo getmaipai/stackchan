@@ -9,7 +9,7 @@ diff --git a/firmware/main/hal/maipai_assets.h b/firmware/main/hal/maipai_assets
 new file mode 100644
 --- /dev/null
 +++ b/firmware/main/hal/maipai_assets.h
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,41 @@
 +/*
 + * SPDX-License-Identifier: MIT
 + *
@@ -32,6 +32,13 @@ new file mode 100644
 +// False when there is no such item, it is damaged or memory is short.
 +bool maipai_assets_load(int kind, int slot, uint8_t** bytes, size_t* len, char* name);
 +void maipai_assets_free(uint8_t* bytes);
++// Reads len bytes at off of an item's body into buf, in place from the flash (no copy, no hash: the store checked the item when it read the directory).
++// False when there is no such item, it is damaged or the range is outside it.
++bool maipai_assets_read(int kind, int slot, uint32_t off, void* buf, size_t len);
++// The size of an item's body and its name (41 bytes, optional); false when there is no such (undamaged) item.
++bool maipai_assets_info(int kind, int slot, uint32_t* size, char* name);
++// The unit writes an item of its own kind (the heard list), atomically beside the old one. True on success.
++bool maipai_assets_put_unit(int kind, const char* name, const uint8_t* body, size_t len);
 +// Changes whenever an install, a remove or a swap changed the store, so a consumer that keeps a copy knows to load it again.
 +uint32_t maipai_assets_generation();
 +#else
@@ -40,12 +47,15 @@ new file mode 100644
 +inline bool maipai_assets_load(int, int, uint8_t**, size_t*, char*) { return false; }
 +inline void maipai_assets_free(uint8_t*) {}
 +inline uint32_t maipai_assets_generation() { return 0; }
++inline bool maipai_assets_read(int, int, uint32_t, void*, size_t) { return false; }
++inline bool maipai_assets_info(int, int, uint32_t*, char*) { return false; }
++inline bool maipai_assets_put_unit(int, const char*, const uint8_t*, size_t) { return false; }
 +#endif
 diff --git a/firmware/main/hal/maipai_assets.cc b/firmware/main/hal/maipai_assets.cc
 new file mode 100644
 --- /dev/null
 +++ b/firmware/main/hal/maipai_assets.cc
-@@ -0,0 +1,357 @@
+@@ -0,0 +1,391 @@
 +/*
 + * SPDX-License-Identifier: MIT
 + *
@@ -233,6 +243,40 @@ new file mode 100644
 +    *len = e.size;
 +    if (name != nullptr) memcpy(name, e.name, MAS_NAME_MAX + 1);
 +    return true;
++}
++
++bool maipai_assets_info(int kind, int slot, uint32_t* size, char* name)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (kind < 0 || kind >= MAS_KINDS || ensure_locked()[0] != '\0') return false;
++    const int i = mas_find(&s_mem->dir, kind, slot);
++    if (i < 0 || s_mem->rep.damaged[i]) return false;
++    if (size != nullptr) *size = s_mem->dir.e[i].size;
++    if (name != nullptr) memcpy(name, s_mem->dir.e[i].name, MAS_NAME_MAX + 1);
++    return true;
++}
++
++bool maipai_assets_read(int kind, int slot, uint32_t off, void* buf, size_t len)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (kind < 0 || kind >= MAS_KINDS || ensure_locked()[0] != '\0') return false;
++    const int i = mas_find(&s_mem->dir, kind, slot);
++    if (i < 0 || s_mem->rep.damaged[i] || static_cast<uint64_t>(off) + len > s_mem->dir.e[i].size) return false;
++    const uint32_t base = (MAS_RING + s_mem->dir.e[i].first) * MAS_SECTOR + off;
++    return f_read(nullptr, base, static_cast<uint8_t*>(buf), len) == 0;
++}
++
++bool maipai_assets_put_unit(int kind, const char* name, const uint8_t* body, size_t len)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (ensure_locked()[0] != '\0' || s_installing) return false;
++    const int r = mas_store_unit(&OPS, nullptr, s_mem->scratch, &s_mem->dir, kind, name, body, static_cast<uint32_t>(len));
++    if (r != MAS_OK) {
++        ESP_LOGW(TAG, "could not write %s: %s", name, MAS_ERR_EN[r]);
++        s_scanned = false;   // read the directory again: a cut write may have left the old one
++        return false;
++    }
++    return true;   // the generation stays: a unit kind is not something a consumer keeps a copy of
 +}
 +
 +void maipai_assets_free(uint8_t* bytes) { heap_caps_free(bytes); }

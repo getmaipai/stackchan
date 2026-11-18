@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 171,
+ "count": 175,
  "tools": {
   "self.assets.abort": "SF90-asset-store-on-the-unit.patch",
   "self.assets.commit": "SF90-asset-store-on-the-unit.patch",
@@ -127,6 +127,10 @@
   "self.pages.get": "P13-pages-wiring-tools-and-switch.patch",
   "self.pages.set": "P13-pages-wiring-tools-and-switch.patch",
   "self.pages.status": "P13-pages-wiring-tools-and-switch.patch",
+  "self.pantry.deny": "SF93-pantry-on-the-unit.patch",
+  "self.pantry.heard": "SF93-pantry-on-the-unit.patch",
+  "self.pantry.status": "SF93-pantry-on-the-unit.patch",
+  "self.pantry.tell": "SF94-pantry-tellings-on-the-question-screens.patch",
   "self.power.keep_awake": "074-keep-awake-tool.patch",
   "self.prefs.get": "TA01-prefs-store-and-tools.patch",
   "self.prefs.set": "TA01-prefs-store-and-tools.patch",
@@ -569,6 +573,17 @@
    "json": "string"
   },
   "self.pages.status": {},
+  "self.pantry.deny": {
+   "ids": "string"
+  },
+  "self.pantry.heard": {
+   "since": "integer"
+  },
+  "self.pantry.status": {},
+  "self.pantry.tell": {
+   "kind": "string",
+   "lang": "string"
+  },
   "self.power.keep_awake": {},
   "self.prefs.get": {},
   "self.prefs.set": {
