@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.metadata
+import json
 import logging
 import math
 import os
@@ -2772,20 +2773,26 @@ async def _serve_stackchan_channels(
                         output.write(chunk)
 
         def download_firmware_signature() -> bytes | None:
-            """The detached signature Home serves beside the image (None when it has none)."""
+            """What Home serves beside the image: the signed update header package (`app.bin.mph`, 128 bytes), else the older
+            detached signature (`app.bin.sig`). None when Home has neither."""
             import requests
 
             cookie, base_url = hub_credentials()
-            response = requests.get(
-                f"{base_url}/api/devices/me/firmware-update/app.bin.sig",
-                headers={"Cookie": f"session={cookie}"},
-                timeout=30,
-            )
-            return response.content if response.status_code == 200 and response.content else None
+            for suffix in (".mph", ".sig"):
+                response = requests.get(
+                    f"{base_url}/api/devices/me/firmware-update/app.bin{suffix}",
+                    headers={"Cookie": f"session={cookie}"},
+                    timeout=30,
+                )
+                if response.status_code == 200 and response.content:
+                    return response.content
+            return None
 
         def verify_firmware_image() -> Callable[[bytes, bytes], bool] | None:
-            """Checks an image against `[update] trusted_key`; None when no key is configured."""
+            """Checks an image against `[update] trusted_key`; None when no key is configured. A 128-byte package is the signed
+            header: it also has to carry a build number higher than the last one this host served."""
             from maipai_body.bodies.stackchan.firmware.flash_manifest import verify_detached
+            from maipai_body.bodies.stackchan.firmware.update_header import PACKAGE_LEN, verify_package
             from maipai_body.config import load_config
 
             try:
@@ -2794,7 +2801,20 @@ async def _serve_stackchan_channels(
                 key = None
             if not key:
                 return None
-            return lambda image, signature: verify_detached(image, signature, key)
+            builds = _UpdateBuilds(_data_dir() / "update-builds.json")
+
+            def check(image: bytes, signature: bytes) -> bool:
+                if len(signature) != PACKAGE_LEN:
+                    return verify_detached(image, signature, key)
+                installed = behavior.unit_facts.snapshot().get("fw_build")
+                known = builds.highest()
+                floor = max([n for n in (installed if isinstance(installed, int) else None, known) if n is not None], default=None)
+                verdict = verify_package(signature, image, key, installed_build=floor)
+                if verdict.ok:
+                    builds.record(verdict.header["build_number"])
+                return verdict.ok
+
+            return check
 
         def firmware_situation() -> dict[str, Any]:
             try:
@@ -4282,6 +4302,25 @@ def _lan_address() -> str:
         return "127.0.0.1"
     finally:
         probe.close()
+
+
+class _UpdateBuilds:
+    """The highest update build number this host has accepted, kept in a small file (anti-rollback on the host's side)."""
+
+    def __init__(self, path) -> None:
+        self._path = path
+
+    def highest(self) -> int | None:
+        try:
+            value = json.loads(self._path.read_text()).get("highest")
+        except (OSError, ValueError):
+            return None
+        return value if isinstance(value, int) and value > 0 else None
+
+    def record(self, build_number: int) -> None:
+        if (self.highest() or 0) < build_number:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._path.write_text(json.dumps({"highest": build_number}) + "\n")
 
 
 def _note_child(voice, payload: dict) -> dict:

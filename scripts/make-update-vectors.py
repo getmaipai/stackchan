@@ -17,6 +17,36 @@ PKCS8_PREFIX = bytes.fromhex("302e020100300506032b657004220420")
 IMAGES = {"empty": b"", "tiny": b"app", "ramp": bytes(range(256)) * 4}
 
 
+def make_header_vectors(cli: str, key: Path, pub_pem: str) -> dict:
+    """The signed update header (docs/plan/signed-update-header.md): good packages and every way one must be refused."""
+    from maipai_body.bodies.stackchan.firmware.update_header import build_header, sign_package
+
+    image = IMAGES["ramp"]
+    header = build_header("1.2.3", 17, image)
+    package = sign_package(header, key)
+    flip = lambda b, i: b[:i] + bytes([b[i] ^ 1]) + b[i + 1 :]  # noqa: E731
+    cases = [
+        ("good, installed build 16", package, image, 16, True),
+        ("good, nothing installed yet", package, image, None, True),
+        ("same build number as installed", package, image, 17, False),
+        ("older than installed (rollback)", package, image, 99, False),
+        ("image changed by one bit", package, flip(image, 0), 16, False),
+        ("signature changed by one bit", flip(package, 64), image, 16, False),
+        ("build number in the header changed", flip(package, 11), image, 16, False),
+        ("version in the header changed", flip(package, 12), image, 16, False),
+        ("hash in the header changed", flip(package, 40), image, 16, False),
+        ("package too short", package[:127], image, 16, False),
+        ("header without a signature", header, image, 16, False),
+    ]
+    return {
+        "note": "TEST vectors for the signed update header. Same public key as update-signature-vectors.json. package = header (64) || signature (64).",
+        "public_key_pem": pub_pem,
+        "vectors": [
+            {"name": n, "package_hex": p.hex(), "image_hex": i.hex(), "installed_build": b, "valid": v} for n, p, i, b, v in cases
+        ],
+    }
+
+
 def main() -> int:
     cli = openssl_cli()
     with tempfile.TemporaryDirectory() as work:
@@ -40,6 +70,7 @@ def main() -> int:
                 {"name": f"{name}: signature changed by one bit", "image_hex": data.hex(), "signature_hex": bad_sig.hex(), "valid": False},
                 {"name": f"{name}: signature too short", "image_hex": data.hex(), "signature_hex": sig[:63].hex(), "valid": False},
             ]
+        header_file = make_header_vectors(cli, key, pub_pem)
     out = {
         "note": "TEST vectors from a published seed (bytes 0 to 31). Never a real key. Ed25519, raw detached signature over the image bytes.",
         "public_key_raw_hex": pub_der[-32:].hex(),
@@ -49,6 +80,7 @@ def main() -> int:
     target = Path(__file__).resolve().parents[1] / "host" / "tests" / "fixtures" / "update-signature-vectors.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(out, indent=2) + "\n")
+    (target.parent / "update-header-vectors.json").write_text(json.dumps(header_file, indent=2) + "\n")
     print(f"wrote {target} ({len(vectors)} vectors)")
     return 0
 
