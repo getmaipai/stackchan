@@ -31,7 +31,7 @@ ALIASES = {"doubtful": "doubt"}
 SIMULATED = {"self.face.bench_emotion", "self.face.bench_speak", "self.face.snapshot", "self.screen.bench_touch",
              "self.robot.get_head_angles", "self.robot.set_head_angles", "self.robot.set_led_colors", "self.battery.get_status", "self.battery.simulate"}
 SIMULATED |= set(_tools.REGISTRY)
-YAW_RANGE, PITCH_RANGE, KEEP = (-128, 128), (0, 90), -9999
+YAW_RANGE, PITCH_RANGE, KEEP = (-128, 128), (3, 87), -9999  # the servo limits in hal_servo.cpp (the maker advises 5 to 85)
 MOVES_PER_MINUTE = 40  # patch 038
 JSON_TYPES = {"string": str, "integer": int, "boolean": bool}
 

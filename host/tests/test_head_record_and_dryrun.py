@@ -69,7 +69,7 @@ class SimLink:
             target = math.radians(next(c for (tt, c) in reversed(self.hist[joint]) if tt <= st["t"]))
             u = max(-self.TORQUE, min(self.TORQUE, kp * (target - st["q"]) - kv * st["dq"]))
             fr = 0.003 * (1 if st["dq"] > 0 else -1 if st["dq"] < 0 else 0)
-            st["dq"] += (u - self.DAMPING * st["dq"] - fr + grav * math.sin(st["q"])) / inertia * dt
+            st["dq"] += (u - self.DAMPING * st["dq"] - fr + grav[0] * math.sin(st["q"]) + grav[1] * math.cos(st["q"])) / inertia * dt
             st["q"] += st["dq"] * dt
             st["t"] += dt
         return math.degrees(st["q"]) + self.rng.gauss(0, self.noise)

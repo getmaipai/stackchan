@@ -4,8 +4,8 @@
 A recording is JSON ({"joint": "pitch", "samples": [{"t_ms": 0, "cmd_deg": 0, "meas_deg": 0.1}, ...]}) or the CSV that scripts/fw-head-record.py writes
 (columns joint, move_id, t_ms, cmd_deg, meas_deg, rtt_ms; both joints may share one file). Angle against time over serial, steps or ramps.
 The model is the one the physics engine integrates for a position servo on a hinge with damping and dry friction and a torque limit:
-    I q'' = clip(kp (cmd - q) - kv q', -T, T) - b q' - f sign(q') + G sin(q)
-with G the gravity torque of the head about the pitch axis (zero for yaw).
+    I q'' = clip(kp (cmd - q) - kv q', -T, T) - b q' - f sign(q') 
+with the gravity torque of the head about the pitch axis G_sin sin(q) + G_cos cos(q) (a head center ahead of the axis pulls the face down; zero for yaw).
 The fit searches kp, kv, b and T (not the inertia, which follows from the measured mass and the box shape; and not the friction f unless --fit-friction) to
 minimize the squared angle error. It prints the parameters and, with --write, puts the fitted values in the description file, changing their src from assumed
 to measured with a note naming the recording. Pure Python (no numpy): a few hundred samples fit in seconds.
@@ -29,37 +29,35 @@ _spec.loader.exec_module(mjcf)
 
 
 def head_inertia_pitch(desc: dict) -> float:
-    """Inertia of the head and the nod servo about the pitch axis (box formulas and the parallel axis theorem)."""
+    """Inertia of the head box about the nod axis (the axis runs through the box's vertical center): box formula plus the parallel axis term for its forward offset."""
     v = lambda k: mjcf.value(desc, k)  # noqa: E731
-    m, w, h, d = v("mass_head"), v("head_w"), v("head_h"), v("head_d")
-    center = v("total_h") - h / 2 - v("pitch_axis_z")
-    head = m * (d * d + h * h) / 12 + m * (center * center + v("head_com_x") ** 2)
-    ms, sw, sh, sd = v("mass_tilt_servo"), v("tilt_servo_w"), v("tilt_servo_h"), v("tilt_servo_d")
-    servo = ms * (sd * sd + sh * sh) / 12 + ms * v("tilt_servo_x") ** 2
-    return head + servo + v("joint_armature")
+    m = v("mass_head")
+    return m * (v("head_d") ** 2 + v("head_h") ** 2) / 12 + m * v("head_center_x") ** 2 + v("joint_armature")
 
 
 def head_inertia_yaw(desc: dict) -> float:
-    """Inertia about the vertical axis: the head box, the nod servo box and the pan housing (box and cylinder formulas)."""
+    """Inertia about the vertical axis: the head box and the neck box (box formulas, the head's forward offset)."""
     v = lambda k: mjcf.value(desc, k)  # noqa: E731
-    head = v("mass_head") * (v("head_w") ** 2 + v("head_d") ** 2) / 12 + v("mass_head") * v("head_com_x") ** 2
-    servo = v("mass_tilt_servo") * (v("tilt_servo_w") ** 2 + v("tilt_servo_d") ** 2) / 12 + v("mass_tilt_servo") * v("tilt_servo_x") ** 2
-    housing = 0.5 * v("mass_yaw_housing") * v("yaw_housing_r") ** 2
-    return head + servo + housing + v("joint_armature")
+    head = v("mass_head") * (v("head_w") ** 2 + v("head_d") ** 2) / 12 + v("mass_head") * v("head_center_x") ** 2
+    neck = v("mass_neck") * (v("neck_w") ** 2 + v("neck_d") ** 2) / 12
+    return head + neck + v("joint_armature")
 
 
-def gravity_coefficient(desc: dict, joint: str) -> float:
-    """G in the model's equation: the head's weight times the height of its center above the pitch axis (it pushes the head further the way it leans)."""
+def gravity_coefficient(desc: dict, joint: str) -> tuple[float, float]:
+    """(G_sin, G_cos) in the model's equation: the head's weight acting at its center, which is 2.5 mm ahead of the nod axis and level with it.
+    A forward center pulls the face down by a constant torque (cos term); none for yaw."""
     if joint != "pitch":
-        return 0.0
+        return (0.0, 0.0)
     v = lambda k: mjcf.value(desc, k)  # noqa: E731
-    return v("mass_head") * 9.81 * (v("total_h") - v("head_h") / 2 - v("pitch_axis_z"))
+    return (0.0, -v("mass_head") * 9.81 * v("head_center_x"))
 
 
-def simulate(times_ms: list[int], cmd_deg: list[float], q0_deg: float, inertia: float, kp: float, kv: float, damping: float, torque: float, friction: float, gravity: float = 0.0, delay_ms: float = 0.0) -> list[float]:
+def simulate(times_ms: list[int], cmd_deg: list[float], q0_deg: float, inertia: float, kp: float, kv: float, damping: float, torque: float, friction: float, gravity: tuple[float, float] | float = (0.0, 0.0), delay_ms: float = 0.0) -> list[float]:
     """Semi-implicit Euler at 0.5 ms steps; returns the angle in degrees at each sample time.
     The command is a staircase (it holds its value from the sample where it changed) and reaches the servo `delay_ms` after that sample (the cable and the tool call)."""
     import bisect
+
+    gs, gc = (gravity, 0.0) if isinstance(gravity, (int, float)) else gravity
 
     q, dq, t = math.radians(q0_deg), 0.0, times_ms[0] / 1000.0
     out, dt = [], 0.0005
@@ -70,7 +68,7 @@ def simulate(times_ms: list[int], cmd_deg: list[float], q0_deg: float, inertia: 
             target = math.radians(cmd_deg[i])
             u = max(-torque, min(torque, kp * (target - q) - kv * dq))
             fr = friction * (1 if dq > 0 else -1 if dq < 0 else 0)
-            ddq = (u - damping * dq - fr + gravity * math.sin(q)) / inertia
+            ddq = (u - damping * dq - fr + gs * math.sin(q) + gc * math.cos(q)) / inertia
             dq += ddq * dt
             q += dq * dt
             t += dt
@@ -78,7 +76,7 @@ def simulate(times_ms: list[int], cmd_deg: list[float], q0_deg: float, inertia: 
     return out
 
 
-def error(rec: dict, inertia: float, theta: list[float], friction: float, gravity: float = 0.0, delay_ms: float = 0.0) -> float:
+def error(rec: dict, inertia: float, theta: list[float], friction: float, gravity: tuple[float, float] | float = (0.0, 0.0), delay_ms: float = 0.0) -> float:
     t = [s["t_ms"] for s in rec["samples"]]
     cmd = [s["cmd_deg"] for s in rec["samples"]]
     meas = [s["meas_deg"] for s in rec["samples"]]

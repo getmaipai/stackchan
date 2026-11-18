@@ -146,12 +146,12 @@ function paintBody(st){ST=st;const h=st.hw,m=st.motion;
 // ---- 3D robot (view3d.js)
 if(!window.THREE){msg.textContent='three.js did not load: the 3D drawing needs internet access to cdnjs.cloudflare.com; the flat screen is at /frame.png.';}
 else{
-const scriptEl=document.createElement('script');scriptEl.src='/view3d.js';scriptEl.onload=()=>{
+const scriptEl=document.createElement('script');scriptEl.src='/view3d.js';scriptEl.onload=async()=>{
  let PH=null;
  const hooks={status:t=>{msg.textContent=t;},physicsOn:()=>!!PH,push:f=>PH&&PH.push(f),on:()=>ST?ST.hw.on:true,axesVisible:()=>$('axes').checked,
   touch:async body=>{const res=await post('/touch',body);if(res.isError)msg.textContent=res.text;},
   togglePort:()=>hw('usb',!(ST&&ST.hw.usb)),togglePower:()=>hw('power',1)};
- const rob=initRobot(THREE,$('c'),hooks);
+ let rob;try{rob=await initRobot(THREE,$('c'),hooks);}catch(err){msg.textContent='The 3D model did not load: '+err.message+'. The flat screen is at /frame.png.';return;}
  $('vreset').onclick=hooks.presets.reset;$('vfront').onclick=hooks.presets.front;$('vside').onclick=hooks.presets.side;$('vback').onclick=hooks.presets.back;$('vtop').onclick=hooks.presets.top;
 
  const phBtn=on=>['pnudge','pshake','plift','pdown','preset','pscen'].forEach(id=>$(id).disabled=!on);

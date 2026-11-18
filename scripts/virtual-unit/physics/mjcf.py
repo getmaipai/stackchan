@@ -35,33 +35,31 @@ def _f(x: float) -> str:
 
 def mjcf(desc: dict) -> str:
     p = lambda k: value(desc, k)  # noqa: E731
-    base_z = p("feet_h") + p("base_h") / 2
-    yaw_origin = p("feet_h") + p("base_h")  # the yaw hinge sits on top of the base plate
-    pitch_z = p("pitch_axis_z") - yaw_origin  # relative to the yaw link
-    head_center = p("total_h") - p("head_h") / 2 - p("pitch_axis_z")  # head center above the pitch axis with the head upright
+    yaw_z = p("base_h")                       # the yaw hinge sits on top of the base plate, on the yaw axis
+    pitch_rel = p("pitch_axis_z") - yaw_z     # the nod axis above the yaw hinge
     yaw = next(j for j in desc["joints"] if j["role"] == "head.yaw")
     pitch = next(j for j in desc["joints"] if j["role"] == "head.pitch")
     yr, pr = p(yaw["range"]), p(pitch["range"])
     tl = p("torque_limit")
     damp, fric, arm = p("joint_damping"), p("joint_friction"), p("joint_armature")
     ax = lambda j: " ".join(str(int(a)) for a in j["axis"])  # noqa: E731
+    fr = f"{_f(p('table_friction'))} 0.005 0.0001"
     return f"""<mujoco model="{desc['robot']}">
   <compiler angle="radian" autolimits="true"/>
   <option timestep="{_f(p('timestep'))}" gravity="0 0 -9.81" integrator="implicitfast"/>
   <worldbody>
-    <geom name="table" type="plane" size="1 1 0.01" friction="{_f(p('table_friction'))} 0.005 0.0001" rgba="0.2 0.2 0.25 1"/>
-    <body name="base" pos="0 0 {_f(base_z)}">
+    <geom name="table" type="plane" size="1 1 0.01" friction="{fr}" rgba="0.2 0.2 0.25 1"/>
+    <body name="base" pos="0 0 {_f(p('base_h') / 2)}">
       <freejoint name="base_free"/>
-      <geom name="base_plate" type="box" size="{_f(p('base_d') / 2)} {_f(p('base_w') / 2)} {_f(p('base_h') / 2)}" mass="{_f(p('mass_base'))}" friction="{_f(p('table_friction'))} 0.005 0.0001"/>
+      <geom name="base_plate" type="box" pos="{_f(p('base_center_x'))} 0 0" size="{_f(p('base_d') / 2)} {_f(p('base_w') / 2)} {_f(p('base_h') / 2)}" mass="{_f(p('mass_base'))}" friction="{fr}"/>
       <site name="base_imu" pos="0 0 0" size="0.002"/>
-      <body name="yaw_link" pos="0 0 {_f(yaw_origin - base_z)}">
+      <body name="yaw_link" pos="0 0 {_f(p('base_h') / 2)}">
         <joint name="{yaw['name']}" type="hinge" axis="{ax(yaw)}" range="{_f(math.radians(yr[0]))} {_f(math.radians(yr[1]))}" limited="true" damping="{_f(damp)}" frictionloss="{_f(fric)}" armature="{_f(arm)}"/>
-        <geom name="yaw_housing" type="cylinder" size="{_f(p('yaw_housing_r'))} {_f(p('yaw_housing_h') / 2)}" pos="0 0 {_f(p('yaw_housing_h') / 2)}" mass="{_f(p('mass_yaw_housing'))}" contype="0" conaffinity="0"/>
-        <body name="pitch_link" pos="0 0 {_f(pitch_z)}">
+        <geom name="neck" type="box" size="{_f(p('neck_d') / 2)} {_f(p('neck_w') / 2)} {_f(pitch_rel / 2)}" pos="0 0 {_f(pitch_rel / 2)}" mass="{_f(p('mass_neck'))}" contype="0" conaffinity="0"/>
+        <body name="pitch_link" pos="0 0 {_f(pitch_rel)}">
           <joint name="{pitch['name']}" type="hinge" axis="{ax(pitch)}" range="{_f(math.radians(pr[0]))} {_f(math.radians(pr[1]))}" limited="true" damping="{_f(damp)}" frictionloss="{_f(fric)}" armature="{_f(arm)}"/>
-          <geom name="tilt_servo" type="box" size="{_f(p('tilt_servo_d') / 2)} {_f(p('tilt_servo_w') / 2)} {_f(p('tilt_servo_h') / 2)}" pos="{_f(p('tilt_servo_x'))} 0 0" mass="{_f(p('mass_tilt_servo'))}" contype="0" conaffinity="0"/>
-          <geom name="head" type="box" size="{_f(p('head_d') / 2)} {_f(p('head_w') / 2)} {_f(p('head_h') / 2)}" pos="{_f(p('head_com_x'))} 0 {_f(head_center)}" mass="{_f(p('mass_head'))}" friction="{_f(p('table_friction'))} 0.005 0.0001"/>
-          <site name="imu" pos="{_f(p('head_com_x'))} 0 {_f(head_center + p('imu_z_in_head'))}" size="0.002"/>
+          <geom name="head" type="box" size="{_f(p('head_d') / 2)} {_f(p('head_w') / 2)} {_f(p('head_h') / 2)}" pos="{_f(p('head_center_x'))} 0 0" mass="{_f(p('mass_head'))}" friction="{fr}"/>
+          <site name="imu" pos="{_f(p('head_center_x'))} 0 0" size="0.002"/>
         </body>
       </body>
     </body>
@@ -84,4 +82,4 @@ def mjcf(desc: dict) -> str:
 
 
 def total_mass(desc: dict) -> float:
-    return sum(value(desc, k) for k in ("mass_base", "mass_yaw_housing", "mass_tilt_servo", "mass_head"))
+    return sum(value(desc, k) for k in ("mass_base", "mass_neck", "mass_head"))

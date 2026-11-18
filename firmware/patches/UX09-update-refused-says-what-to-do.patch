@@ -1,0 +1,18 @@
+# Intent: An update that is refused says what to do, not only what happened: the cover now reads Update refused, Nothing changed, Try again later (display only).
+# Placement: unit
+# Upstream: firmware/main/hal/board/stackchan_display.cc (patch UX04's update cover)
+# Check after a flash: a refused update (a wrong signature) shows three lines and the unit stays on the old version.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -765,7 +765,7 @@
+         return;
+     }
+     if (percent == -2 || percent == 100) {
+-        ShowBootCover(percent == -2 ? "Update refused\nNothing changed" : "Update installed\nRestarting...", 1, -1);
++        ShowBootCover(percent == -2 ? "Update refused\nNothing changed\nTry again later" : "Update installed\nRestarting...", 1, -1);
+         if (update_bar_ != nullptr) lv_obj_add_flag(update_bar_, LV_OBJ_FLAG_HIDDEN);
+         if (percent == -2) {
+             lv_timer_t* timer = lv_timer_create([](lv_timer_t* t) {

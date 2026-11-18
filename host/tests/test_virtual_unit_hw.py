@@ -147,7 +147,7 @@ def _wait(base, test, seconds=6):
 @needs_render
 def test_scripted_body_scenario_power_cable_battery_carried_dance(view):
     st = _state(view)
-    assert st["hw"]["on"] and st["motion"]["state"] == "free" and st["yaw_range"] == [-128, 128] and st["pitch_range"] == [0, 90]
+    assert st["hw"]["on"] and st["motion"]["state"] == "free" and st["yaw_range"] == [-128, 128] and st["pitch_range"] == [3, 87]
     # off: a black screen, tools refused with the way out in the message
     _post(view, "hw", {"key": "power", "value": 1})
     _wait(view, lambda s: not s["hw"]["on"])

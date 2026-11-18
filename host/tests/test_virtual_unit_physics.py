@@ -43,7 +43,7 @@ def test_every_parameter_is_marked_measured_or_assumed_with_a_note():
         assert "v" in entry, key
     groups = mjcf.provenance(desc)
     assert groups["measured"] and groups["assumed"]
-    assert "pitch_kp" in groups["assumed"] and "mass_total" in groups["measured"]
+    assert "pitch_kp" in groups["assumed"] and "mass_total" in groups["measured"] and "head_d" in groups["measured"]
 
 
 def test_the_masses_add_up_to_the_measured_total():
@@ -60,7 +60,7 @@ def test_the_model_text_is_well_formed_and_carries_the_real_limits_and_sizes():
     yr, pr = (list(map(float, joints[n].getAttribute("range").split())) for n in ("yaw", "pitch"))
     assert [round(math.degrees(v)) for v in yr] == list(vunit.YAW_RANGE) and [round(math.degrees(v)) for v in pr] == list(vunit.PITCH_RANGE)
     head = next(g for g in doc.getElementsByTagName("geom") if g.getAttribute("name") == "head")
-    assert [round(float(v) * 2, 4) for v in head.getAttribute("size").split()] == [0.0155, 0.054, 0.054]  # depth, width, height of the CoreS3
+    assert [round(float(v) * 2, 4) for v in head.getAttribute("size").split()] == [0.0615, 0.054, 0.054]  # depth, width, height of the head with its controller
     forces = [a.getAttribute("forcerange") for a in doc.getElementsByTagName("position")]
     assert len(forces) == 2 and all(f == "-0.12 0.12" for f in forces)  # the torque limit
     sensors = {s.getAttribute("name") for s in doc.documentElement.getElementsByTagName("sensor")[0].childNodes if s.nodeType == 1}

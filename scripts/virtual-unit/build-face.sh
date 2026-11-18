@@ -7,7 +7,7 @@
 set -e
 B="${1:-$HOME/esp/stackchan-rebase/final15}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-FACE_PATCHES="UX01-style-mouth-widths.patch SF05-pairing-cover-line-break.patch UX02a-screen-palette.patch UX03a-eyes-only-mute-mark.patch UX03b-effects-on-the-face-only.patch UX04-update-cover.patch UX02b-screen-type-ladder.patch UX02c-sheet-icon-labels.patch SF01-time-helper-lock-and-remote-safety.patch UX02d-info-tab-plain-words.patch UX05a-first-run-core.patch UX05b-first-run-screens.patch UX06-face-rests-under-covers.patch UX07a-screen-fonts-with-accents.patch UX07b-screen-words-with-accents.patch UX07c-symbols-keep-their-font.patch UX08-first-run-is-a-screen.patch"
+FACE_PATCHES="UX01-style-mouth-widths.patch SF05-pairing-cover-line-break.patch UX02a-screen-palette.patch UX03a-eyes-only-mute-mark.patch UX03b-effects-on-the-face-only.patch UX04-update-cover.patch UX02b-screen-type-ladder.patch UX02c-sheet-icon-labels.patch UX09-update-refused-says-what-to-do.patch SF01-time-helper-lock-and-remote-safety.patch UX02d-info-tab-plain-words.patch UX05a-first-run-core.patch UX05b-first-run-screens.patch UX06-face-rests-under-covers.patch UX07a-screen-fonts-with-accents.patch UX07b-screen-words-with-accents.patch UX07c-symbols-keep-their-font.patch UX08-first-run-is-a-screen.patch"
 O="$ROOT/.runs/fixtree/firmware"
 rm -rf "$ROOT/.runs/fixtree"; mkdir -p "$O/main"
 for d in build-bench managed_components components; do ln -sfn "$B/firmware/$d" "$O/$d"; done

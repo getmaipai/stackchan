@@ -29,13 +29,14 @@ async function startPhysics(ui, robotView) {
   const data = new engine.MjData(model);
   const dt = model.opt.timestep;
   const P = k => robot.params[k].v;
-  const totalMass = P('mass_base') + P('mass_yaw_housing') + P('mass_tilt_servo') + P('mass_head');
+  const totalMass = P('mass_base') + P('mass_neck') + P('mass_head');
   const torqueLimit = P('torque_limit');
   // addresses: the order in the model text (freejoint 7, yaw, pitch) and the sensors it declares
   const Q_YAW = 7, Q_PITCH = 8;
   const S = {accel: 0, gyro: 3, yawPos: 6, pitchPos: 7, yawF: 8, pitchF: 9, baseAccel: 10};
   const BODY = {base: 1, yaw: 2, pitch: 3};
   const rad = d => d * Math.PI / 180;
+  data.qpos[Q_PITCH] = rad(P('pitch_range_deg')[0]);   // the head rests at the lower limit of the nod
   engine.mj_forward(model, data);
 
   const sim = {
@@ -55,7 +56,8 @@ async function startPhysics(ui, robotView) {
   }
 
   function controlsAndForces(tSec) {
-    data.ctrl[0] = rad(sim.ref.yaw); data.ctrl[1] = rad(sim.ref.pitch);
+    const clampTo = (v, r) => Math.max(r[0], Math.min(r[1], v));
+    data.ctrl[0] = rad(clampTo(sim.ref.yaw, P('yaw_range_deg'))); data.ctrl[1] = rad(clampTo(sim.ref.pitch, P('pitch_range_deg')));
     // clear, then apply what the sandbox asks for
     for (let b = 1; b <= 3; b++) { force(b, [0, 0, 0]); torque(b, [0, 0, 0]); }
     if (sim.nudge && tSec < sim.nudge.until) force(BODY.pitch, sim.nudge.f); else sim.nudge = null;
@@ -67,7 +69,7 @@ async function startPhysics(ui, robotView) {
     if (sim.lift) {   // a hand: a short upward push, then a spring that holds the robot at height, then it lets go
       const z = data.qpos[2], vz = data.qvel[2], l = sim.lift;
       // the lift acceleration is shared by the three bodies in proportion to their mass, like gravity, so it makes no tipping torque by itself
-      const mB = P('mass_base'), mY = P('mass_yaw_housing'), mP = P('mass_tilt_servo') + P('mass_head');
+      const mB = P('mass_base'), mY = P('mass_neck'), mP = P('mass_head');
       const lift = az => { force(BODY.base, [0, 0, mB * az]); force(BODY.yaw, [0, 0, mY * az]); force(BODY.pitch, [0, 0, mP * az]); };
       if (l.phase === 'up') {
         lift(GRAV + 22);
@@ -163,7 +165,7 @@ async function startPhysics(ui, robotView) {
     tiltTo(deg) { if (sim.lift) sim.lift.tilt = deg; },
     push(f) { sim.push = f; },          // a force on the head in newtons (world frame), or null
     reset() {
-      engine.mj_resetData(model, data); sim.lift = sim.shake = sim.nudge = sim.push = null; engine.mj_forward(model, data);
+      engine.mj_resetData(model, data); data.qpos[Q_PITCH] = rad(P('pitch_range_deg')[0]); sim.lift = sim.shake = sim.nudge = sim.push = null; engine.mj_forward(model, data);
     },
     stop() {
       sim.running = false; clearInterval(timer);
