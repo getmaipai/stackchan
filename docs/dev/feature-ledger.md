@@ -558,7 +558,6 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
-| **Host: game_scores** | [{person, games: [{id, scores: [best first]}]}] for one unit, people in name order with "Someone" last. | proven virtual | 70 | not declared | `host/maipai_body/game_scores.py` | file exists, a test names it | doc missing |
 | **Host: app** | MaiPai Bot's Reachy Mini app: the daemon's one running app. | proven on unit | 100 | not declared | `host/maipai_body/app.py` | `bench-b19.md`, `bench-b9.md` | doc missing |
 | **Host: assets** | Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack when it needs it and keeps only the active one. | proven on unit | 100 | not declared | `host/maipai_body/assets.py` | `bench-b9.md` | doc missing |
 | **Host: banner_shapes** | The banner functions with the table of the core filled in. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/banner_shapes.py` | file exists, a test names it | doc missing |
@@ -680,6 +679,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: faces** | Session listener: push the saved face settings when a unit connects, never raising. | proven virtual | 70 | not declared | `host/maipai_body/faces.py` | file exists, a test names it | doc missing |
 | **Host: fillers** | Play one filler. | proven virtual | 70 | not declared | `host/maipai_body/fillers.py` | file exists, a test names it | doc missing |
 | **Host: first_run_name** | The robot's name from the first run (firmware patches SF09 and UX11). | proven virtual | 70 | not declared | `host/maipai_body/first_run_name.py` | file exists, a test names it | doc missing |
+| **Host: game_scores** | [{person, games: [{id, scores: [best first]}]}] for one unit, people in name order with "Someone" last. | proven virtual | 70 | not declared | `host/maipai_body/game_scores.py` | file exists, a test names it | doc missing |
 | **Host: envelope** | Shared envelope clamping for a body profile's real client and fake (first used by the Reachy Mini body). | proven virtual | 70 | not declared | `host/maipai_body/hal/envelope.py` | file exists, a test names it | doc missing |
 | **Host: errors** | Errors the HAL seam raises. | proven virtual | 70 | not declared | `host/maipai_body/hal/errors.py` | file exists, a test names it | doc missing |
 | **Host: seam** | The HAL seam every body profile implements. | proven virtual | 70 | not declared | `host/maipai_body/hal/seam.py` | file exists, a test names it | doc missing |
