@@ -1,0 +1,115 @@
+# Intent: Safety fix, train 11. A release image erases the flash core dump after its summary is reported (bench images keep it for scripts/fw-coredump.py). The find-my-robot volume comes back by a one-shot timer five seconds after the last chirp. The filler's flash reads and clip allocation run on the main task, not the timer task. A picture page frees a frame when its first request is refused; the banner checks its state before a Wi-Fi redraw.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: after a crash and restart the boot_core event shows once and the next restart reports none (release image); find my robot restores the volume without another call; no new output gaps in fw-voice-bench.
+# Kconfig: CONFIG_MAIPAI_SERIAL_TOOLS (existing)
+
+diff --git a/firmware/main/hal/maipai_heal.cc b/firmware/main/hal/maipai_heal.cc
+--- a/firmware/main/hal/maipai_heal.cc
++++ b/firmware/main/hal/maipai_heal.cc
+@@ -383,5 +383,12 @@ void maipai_heal_boot_report()
+             heap_caps_free(sum);
+         }
+     }
++#if !CONFIG_MAIPAI_SERIAL_TOOLS
++    // Patch SF11: a release image keeps no core dump in flash after its summary was reported (it holds task stacks). Bench images
++    // keep it for scripts/fw-coredump.py.
++    if (esp_core_dump_image_check() == ESP_OK) {
++        esp_core_dump_image_erase();
++    }
++#endif
+ #endif
+ }
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -150,6 +150,30 @@ void find_restore_volume()
+ }
+ 
+ // Patch FM05: the find=1 part of play_named, only reached from the self.audio.play_sound tool (the MCP task, an internal stack).
++// Patch SF11: the volume comes back five seconds after the last chirp even when no other tool call follows.
++esp_timer_handle_t s_find_timer = nullptr;
++
++void find_timer_arm()
++{
++    if (s_find_timer == nullptr) {
++        esp_timer_create_args_t args = {};
++        args.callback = [](void*) {
++            Application::GetInstance().Schedule([]() {
++                if (esp_timer_get_time() / 1000 - s_find_last_ms >= 4900) {
++                    find_restore_volume();  // on the main task: an internal stack, as the flash write needs
++                }
++            });
++        };
++        args.name = "find_restore";
++        if (esp_timer_create(&args, &s_find_timer) != ESP_OK) {
++            s_find_timer = nullptr;
++            return;
++        }
++    }
++    esp_timer_stop(s_find_timer);
++    esp_timer_start_once(s_find_timer, 5000ULL * 1000);
++}
++
+ void find_begin(int64_t now_ms)
+ {
+     const int cur = hal_bridge::board_get_speaker_volume();
+@@ -160,6 +184,7 @@ void find_begin(int64_t now_ms)
+         hal_bridge::board_set_speaker_volume(kFindVolume, false);
+     }
+     s_find_last_ms = now_ms;
++    find_timer_arm();
+     // Patch Y04: a clear "finding" cue on the screen with every chirp: a big happy face and the words.
+     hal_bridge::react_face("happy", 2500);
+     hal_bridge::notice("Here I am!", 2500);
+diff --git a/firmware/main/hal/maipai_filler.cc b/firmware/main/hal/maipai_filler.cc
+--- a/firmware/main/hal/maipai_filler.cc
++++ b/firmware/main/hal/maipai_filler.cc
+@@ -108,7 +108,7 @@ void do_play(uint8_t what)
+     s_plays.fetch_add(1);
+ }
+ 
+-void timer_cb(void*)
++void timer_body()
+ {
+     const MaipaiTbPrefs prefs = maipai_tb_prefs();
+     const tf_env_t env = env_now();
+@@ -126,6 +126,13 @@ void timer_cb(void*)
+     }
+ }
+ 
++// Patch SF11: the esp_timer task must stay free: the flash reads for the preferences and the allocation for the clip run on the
++// main task instead.
++void timer_cb(void*)
++{
++    Application::GetInstance().Schedule([]() { timer_body(); });
++}
++
+ void ensure_timer()
+ {
+     if (s_timer != nullptr) return;
+diff --git a/firmware/main/hal/maipai_banner.cc b/firmware/main/hal/maipai_banner.cc
+--- a/firmware/main/hal/maipai_banner.cc
++++ b/firmware/main/hal/maipai_banner.cc
+@@ -644,7 +644,7 @@ void maipai_banner_wifi_screen(bool on)
+     std::lock_guard<std::mutex> lock(s_mu);
+     if (s_wifi_screen == on) return;
+     s_wifi_screen = on;
+-    s_b->rev++;  // the next tick draws the strip again without (or with) the Wi-Fi glyph
++    if (s_b != nullptr) s_b->rev++;  // the next tick draws the strip again without (or with) the Wi-Fi glyph
+ }
+ 
+ void maipai_banner_status_clear()
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -755,6 +755,9 @@ void build_frame(lv_obj_t* root)
+         s_ui->fpending = true;
+         s_ui->fidx     = 0;
+     } else {
++        if (s_ui->buf != nullptr) {
++            s_host->frame_free(s_ui->buf);  // patch SF11: the frame was allocated but the first request was refused
++        }
+         s_ui->buf = nullptr;
+         s_ui->hint = text(root, s_ui->fcount > 0 ? tx("Could not open the pictures right now.", "No se pueden abrir las fotos ahora.")
+                                                  : tx("No pictures yet. Send a picture face pack from settings.", "Aun no hay fotos. Envia un paquete de caras con fotos desde los ajustes."),

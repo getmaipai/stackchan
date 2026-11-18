@@ -17,7 +17,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `LICENSE` (664): no header
 - `NOTICE` (23): no header
 - `README.md` (89): MaiPai for StackChan
-- `THIRD-PARTY.md` (39): Third-party notices
+- `THIRD-PARTY.md` (40): Third-party notices
 - `docs/STYLE.md` (52): Writing style
 - `docs/design/architecture.md` (95): Architecture
 - `docs/design/banner-row-2026-11-16.md` (65): Fixed zones, the banner row and the subtitle strip (patches N01 to N04)
@@ -230,10 +230,26 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/OPEN-DECISIONS.md` (23): Open decisions (2026-11-18)
 - `docs/plan/coding-companion-package.md` (36): Coding companion and agent tools (package design, for review before building)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
-- `docs/plan/friend-test-path-2026-11-18.md` (19): The friend-test path: what exists and what is missing (2026-11-18)
+- `docs/plan/friend-test-path-2026-11-18.md` (20): The friend-test path: what exists and what is missing (2026-11-18)
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (U-4, plan step 7 F)
+- `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
+- `docs/plan/spec-proposals/README.md` (12): Shared-spec proposals (step 4, 2026-11-18)
+- `docs/plan/spec-proposals/brain-capabilities.schema.json` (9): no header
+- `docs/plan/spec-proposals/fixtures/brain-capabilities.invalid.feature.json` (1): no header
+- `docs/plan/spec-proposals/fixtures/brain-capabilities.valid.llm.json` (1): no header
+- `docs/plan/spec-proposals/fixtures/indicator-row.invalid.red.json` (1): no header
+- `docs/plan/spec-proposals/fixtures/indicator-row.valid.attention.json` (1): no header
+- `docs/plan/spec-proposals/fixtures/memory-admission.invalid.children.json` (1): no header
+- `docs/plan/spec-proposals/fixtures/memory-admission.valid.example.json` (1): no header
+- `docs/plan/spec-proposals/fixtures/movement-limiter-state.invalid.battery.json` (1): no header
+- `docs/plan/spec-proposals/fixtures/movement-limiter-state.invalid.state.json` (1): no header
+- `docs/plan/spec-proposals/fixtures/movement-limiter-state.valid.unknown-battery.json` (1): no header
+- `docs/plan/spec-proposals/fixtures/movement-limiter-state.valid.usb.json` (1): no header
+- `docs/plan/spec-proposals/indicator-row.schema.json` (14): no header
+- `docs/plan/spec-proposals/memory-admission.schema.json` (15): no header
+- `docs/plan/spec-proposals/movement-limiter-state.schema.json` (12): no header
 - `docs/plan/spec-vendor-drift.md` (6): Vendored spec drift check (T-2), owner: playground track, 2026-11-17
 - `docs/plan/undefined-host-calls-2026-11-18.md` (24): Host calls with no firmware definition (2026-11-18)
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
@@ -434,7 +450,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (258): no header
+- `firmware/patches/ORDER` (259): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window (safety-and-privacy.md finding 4). A new six-digit setup code is made each time setup
@@ -471,6 +487,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF06-update-screen-calls.patch` (43): The wireless update shows the Updating screen: percent while the image downloads, "Update installed" before th
 - `firmware/patches/SF08-stamp-window-lock-backoff-servo-lock.patch` (487): Safety fix, train 8. The millisecond-stamp helper reads a passed deadline as not pending at any later time (de
 - `firmware/patches/SF09-first-run-wiring.patch` (161): Wires the first-run flow (screens from patch UX05b). At the first standby of a unit with no saved answers it s
+- `firmware/patches/SF10-mouth-cues-tool.patch` (254): The unit tool self.face.mouth_cues {"cues": "[[ms, level 0..4], ...]"}: a list of mouth cues from the host pla
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -832,7 +849,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (220): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
 - `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (598): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1646): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1671): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
 - `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
@@ -1030,7 +1047,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/settings_page.py` (851): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (182): ruff: noqa: E501
 - `host/maipai_body/settings_sim.py` (433): ruff: noqa: E501
-- `host/maipai_body/settings_ui.py` (748): ruff: noqa: E501
+- `host/maipai_body/settings_ui.py` (747): ruff: noqa: E501
 - `host/maipai_body/settings_ui_character.py` (21): ruff: noqa: E501
 - `host/maipai_body/settings_ui_family.py` (30): ruff: noqa: E501
 - `host/maipai_body/settings_ui_link.py` (22): ruff: noqa: E501
@@ -1564,6 +1581,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/look_shapes_dump.c` (165): Prints the face model of maipai_look_core.h as JSON (patch V10), for the preview of the settings page.
 - `host/tests/firmware/mood_core_test.c` (129): Host test for the mood core (patch M01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/motion_limit_core_test.c` (234): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
+- `host/tests/firmware/mouthcue_core_test.c` (84): Host test for the mouth cue player (patch SF10). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/music_core_test.c` (168): Host test for the on-unit music features (patch 100): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/music_mood_test.c` (54): Host test for the music mood faces (patch V03): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/nettest_core_test.c` (151): Host test for the network test core (patch U04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
@@ -1690,6 +1708,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/ladder_fakes.py` (38): Shared fakes for the offline-ladder suites: an injected clock and a
 - `host/tests/motor_fakes.py` (88): A scripted motor bus for the MOTOR-RECOVER-01 suite: the daemon's motor mode,
 - `host/tests/pcap_builder.py` (150): Hand-built packet captures for the egress tests.
+- `host/tests/schema_mini.py` (43): A small JSON Schema checker for the subset the spec proposals use: type, enum, required, properties, additiona
 - `host/tests/stackchan_sim/__init__.py` (17): Firmware-faithful StackChan helpers and local peers for protocol tests."""
 - `host/tests/stackchan_sim/avatar_peer.py` (46): Minimal fake peer for the pinned M5Stack avatar WebSocket protocol."""
 - `host/tests/stackchan_sim/camera_sender.py` (6): Documentation-only JPEG payload generator for avatar camera stream tests."""
@@ -1873,6 +1892,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_presence_safety.py` (47): Tip and freefall from the IMU (design record section 7)."""
 - `host/tests/test_prints.py` (172): FACE-03's snapshot sync into the local face gallery."""
 - `host/tests/test_prints_watch.py` (42): FACE-WATCH-01 end to end: `vision_watch` on a sync entry reaches the gallery."""
+- `host/tests/test_privacy_sentence.py` (11): The privacy sentence is one text on the settings page and the robot's first-run screen."""
 - `host/tests/test_profile.py` (131): Tests named for the promises RM-01 makes about the Reachy Mini profile."""
 - `host/tests/test_psram_stack_lint.py` (205): ruff: noqa: E501
 - `host/tests/test_remote_activity.py` (370): ruff: noqa: E501
@@ -1905,6 +1925,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_speaker_evidence_turn.py` (252): SPEAK-02 / SPEAK-04: the turn carries `speaker_evidence` and `present`, fused
 - `host/tests/test_speaker_fusion.py` (119): SPEAK-04: fuse() and build_present() on the dev.md section 6 rules."""
 - `host/tests/test_speaker_gaze.py` (125): Tests for the StackChan speaker-gaze controller (BOT-SC-GAZE-01)."""
+- `host/tests/test_spec_proposals.py` (75): The shared-spec proposals (docs/plan/spec-proposals): fixtures behave, and the host's own code passes them."""
 - `host/tests/test_spec_root.py` (44): a standalone checkout resolves the shared spec from the vendored snapshot."""
 - `host/tests/test_speech_barge.py` (122): VOICE-02: a stop word over playback cuts locally, cancels, keeps the prefix."""
 - `host/tests/test_speech_capture.py` (171): G1's own acceptance: a fake mic feeds fixed-size blocks with a real pre-roll."""
@@ -2015,6 +2036,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_travel_host.py` (104): Travel with the private network, host side: a unit that reaches the hub over a private-network address connect
 - `host/tests/test_stackchan_turn.py` (989): StackChan voice-turn regressions, with the independent simulator peer."""
 - `host/tests/test_stackchan_two_units.py` (103): Two fake units connected to one XiaozhiServer: a tool call goes to the unit it names, a call that names none g
+- `host/tests/test_stackchan_two_units_services.py` (100): The background services share one client. With two units connected, a household-wide setting the services push
 - `host/tests/test_stackchan_units_config.py` (279): ruff: noqa: E501
 - `host/tests/test_stackchan_updater.py` (273): no header
 - `host/tests/test_stackchan_updating_route.py` (103): Loopback routes Home calls around a firmware flash (owner request 2026-10-20)."""
@@ -2088,7 +2110,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (security finding 3).
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (security finding 3).
-- `scripts/check.sh` (19): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (22): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
 - `scripts/fw-build.sh` (41): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate [JOBS]
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).
@@ -2132,6 +2154,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/hygiene-check.sh` (46): block British spellings (American only), any mention of projects we studied (private word list), em dashes and
 - `scripts/i18n-gaps.py` (46): List the host strings that are still English in fr, de, pt and it, and write translation chunks for lane brief
 - `scripts/install-hooks.sh` (6): point this clone at the tracked hooks (repo-local config only, never global).
+- `scripts/license-check.py` (52): licenses stay honest. (1) every host dependency in host/pyproject.toml is named in THIRD-PARTY.md; (2) LICENSE
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
 - `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.
