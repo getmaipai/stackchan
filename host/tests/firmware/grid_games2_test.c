@@ -124,10 +124,10 @@ static void test_snake(void)
     gsn_turn(&s, GSN_DOWN); CHECK(gsn_step(&s) == GSN_MOVED && gsn_head(&s) == 4 * 10 + 3); /* into the cell the tail just left */
     /* the step interval: 300 ms, shortening with each food to a floor of 80 ms */
     gsn_init(&s, 3u);
-    CHECK(gsn_interval_ms(&s) == 300);
-    s.score = 5;  CHECK(gsn_interval_ms(&s) == 240);
-    s.score = 19; CHECK(gsn_interval_ms(&s) == 80);
-    s.score = 200; CHECK(gsn_interval_ms(&s) == 80);
+    CHECK(gsn_interval_ms(&s) == 420);
+    s.score = 5;  CHECK(gsn_interval_ms(&s) == 360);
+    s.score = 27; CHECK(gsn_interval_ms(&s) == 100);
+    s.score = 200; CHECK(gsn_interval_ms(&s) == 100);
     /* a seeded random walk: every step is legal or ends the game, the body stays consistent with the occupancy */
     uint32_t rs = 77u;
     for (int game = 0; game < 40; game++) {
