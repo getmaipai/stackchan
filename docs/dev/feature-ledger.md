@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 870 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 872 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 50 items, 6 measured, 17 estimated, 27 placeholders or not built. 84 of 870 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 50 items, 6 measured, 17 estimated, 27 placeholders or not built. 84 of 872 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 29 | 253 | 8 | 51 | 362 | 64 |
-| Maker and tech | 0 | 0 | 71 | 377 | 60 | 0 | 508 | 69 |
+| Maker and tech | 0 | 0 | 73 | 377 | 60 | 0 | 510 | 69 |
 
 ## Everyday user
 
@@ -877,7 +877,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: memory_notes** | Local memory for several adults as plain per-person notes files. | proven virtual | 70 | not declared | `host/maipai_packages/memory_notes` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (78)
+### Scripts and tools (80)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -949,6 +949,8 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: repo-map.sh** | generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line), | built | 40 | not declared | `scripts/repo-map.sh` | file exists | doc missing |
 | **Script: review-status.py** | The cross-review bug table: every test in host/tests/test_cross_review_open_bugs*.py, its owner, and whether the bug is still open. | built | 40 | not declared | `scripts/review-status.py` | file exists | doc missing |
 | **Script: run-bg.sh** | run a long command (firmware build, flash, soak, gate) with its full output in a log file and | built | 40 | not declared | `scripts/run-bg.sh` | file exists | doc missing |
+| **Script: security-scan.py** | one repeatable security scan of the whole repo; | built | 40 | not declared | `scripts/security-scan.py` | file exists | doc missing |
+| **Script: security-scan.sh** | run the repo security scan (see scripts/security-scan.py). | built | 40 | not declared | `scripts/security-scan.sh` | file exists | doc missing |
 | **Script: sfx-wav.sh** | render every game sound of the unit to a WAV file with the unit's own sound core, so the owner can listen to the real sounds on a computer. | proven virtual | 70 | not declared | `scripts/sfx-wav.sh` | file exists, a test names it | doc missing |
 | **Script: spec-dir.sh** | A repository script. | built | 40 | not declared | `scripts/spec-dir.sh` | file exists | doc missing |
 | **Script: spec-drift-check.sh** | the vendored spec (host/spec-vendor/spec) is a snapshot, never edited by hand. | built | 40 | not declared | `scripts/spec-drift-check.sh` | file exists | doc missing |
