@@ -44,3 +44,20 @@ def test_the_release_script_refuses_a_build_number_the_unit_refuses(tmp_path):
 
     result = _release(tmp_path, last_text="1\n", number=2**31)
     assert result.returncode == 2, (result.returncode, result.stderr[-200:])
+
+
+def test_a_release_can_name_another_board_and_the_header_carries_it(tmp_path):
+    import subprocess
+
+    from test_cross_review_open_bugs_2 import ROOT, _fake_build
+
+    build = _fake_build(tmp_path / "build")
+    out = tmp_path / "rel"
+    done = subprocess.run(["bash", str(ROOT / "scripts" / "release.sh"), "--build-dir", str(build), "--version", "2.0.0", "--date", "2026-11-18", "--build-number", "1",
+                           "--test-key", "--board-id", "m5other", "--output", str(out)], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr[-300:]
+    assert (out / "xiaozhi.bin.hdr").read_bytes()[48:56] == b"m5other\0"
+    default = tmp_path / "rel2"
+    done = subprocess.run(["bash", str(ROOT / "scripts" / "release.sh"), "--build-dir", str(build), "--version", "2.0.0", "--date", "2026-11-18", "--build-number", "1",
+                           "--test-key", "--output", str(default)], capture_output=True, text=True)
+    assert done.returncode == 0 and (default / "xiaozhi.bin.hdr").read_bytes()[48:56] == b"m5cores3"
