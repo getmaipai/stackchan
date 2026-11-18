@@ -8,7 +8,7 @@ would (wake, speak, tap) and asserts two things: what the unit shows (the virtua
 servers saw).
 
   python3 scripts/virtual-unit/e2e.py [--venv PATH] [scenario ...]     run from the host's environment: uv run --project host python scripts/virtual-unit/e2e.py
-Scenarios: spoken_turn mood_and_overlay long_sentence host_restart timer_by_voice pair_code second_unit readme_steps, and from e2e_extra.py privacy_tap listen_ended key_exchange host_id_first_wins idle_jump soak (soak only with MAIPAI_SOAK=1). --fresh-venv installs into an empty temporary venv (the clean install). Exit 1 and a line per failed check.
+Parallel: --jobs N (or MAIPAI_E2E_JOBS=N) runs the scenarios N at a time, each in its own process. Scenarios: spoken_turn mood_and_overlay long_sentence host_restart timer_by_voice pair_code second_unit readme_steps, and from e2e_extra.py privacy_tap listen_ended key_exchange host_id_first_wins idle_jump soak (soak only with MAIPAI_SOAK=1). --fresh-venv installs into an empty temporary venv (the clean install). Exit 1 and a line per failed check.
 Placement: host-side development tool. Upstream: none.
 """
 from __future__ import annotations
@@ -252,8 +252,9 @@ class Rig:
         target = self.venv or ROOT / ".runs" / "e2e-venv"
         if not (target / "bin" / "stackchan").exists():
             subprocess.run(["uv", "venv", "-q", str(target), "--python", "3.13"], check=True)
-        # a clean install of the repo's host package, as the README's pipx step does, every run: new code is what runs
-        subprocess.run(["uv", "pip", "install", "-q", "--python", str(target / "bin" / "python"), str(ROOT / "host")], check=True)
+        # a clean install of the repo's host package, as the README's pipx step does, every run: new code is what runs (a parallel run installs once, in its parent)
+        if os.environ.get("E2E_VENV_READY") != "1":
+            subprocess.run(["uv", "pip", "install", "-q", "--python", str(target / "bin" / "python"), str(ROOT / "host")], check=True)
         self.venv = target
 
     def write_config(self) -> None:
@@ -302,12 +303,15 @@ class Rig:
         while time.time() < end:
             if self.proc and self.proc.poll() is not None:
                 raise RuntimeError("the host stopped at start: " + "\n".join(self.log[-8:]))
-            with socket.socket() as s:
-                s.settimeout(0.2)
-                if s.connect_ex(("127.0.0.1", self.xiaozhi_port)) == 0:
-                    return
+            ready = []
+            for port in (self.xiaozhi_port, self.avatar_port):   # the avatar socket opens a moment after the voice socket (under load, a second or more later)
+                with socket.socket() as s:
+                    s.settimeout(0.2)
+                    ready.append(s.connect_ex(("127.0.0.1", port)) == 0)
+            if all(ready):
+                return
             await asyncio.sleep(0.2)
-        raise TimeoutError("the host did not open its robot port: " + "\n".join(self.log[-8:]))
+        raise TimeoutError("the host did not open its robot and avatar ports: " + "\n".join(self.log[-8:]))
 
     # ---- the whole rig -----------------------------------------------------------------------------
 
@@ -531,6 +535,7 @@ async def run(names: list[str], venv: Path | None) -> int:
                 failures.append(f"{_n}: {label}")
 
         print(f"scenario {name}")
+        began = time.time()
         try:
             await rig.start()
             await asyncio.wait_for(SCENARIOS[name](rig, check), timeout=SCENARIO_TIMEOUT_S.get(name, 180))
@@ -546,13 +551,41 @@ async def run(names: list[str], venv: Path | None) -> int:
             if os.environ.get("E2E_LOG"):
                 Path(os.environ["E2E_LOG"]).write_text("\n".join(rig.log) + "\n")
             await rig.stop()
+            print(f"  took {time.time() - began:.0f} s", flush=True)
     print("e2e: ok" if not failures else f"e2e: {len(failures)} failed")
     return 1 if failures else 0
+
+
+async def run_parallel(names: list[str], venv: Path | None, jobs: int) -> int:
+    """Each scenario in its own process (its own host, ports, virtual unit and fake servers), `jobs` at a time; the output is printed per scenario in the usual order.
+    The clean install happens once here; the scenarios share the venv read only. A scenario's own timing and failure lines are in its block."""
+    rig = Rig(venv)
+    await asyncio.to_thread(rig.ensure_venv)
+    env = {**os.environ, "E2E_VENV_READY": "1"}
+    gate = asyncio.Semaphore(jobs)
+    blocks: dict[str, tuple[int, str]] = {}
+
+    async def one(name: str) -> None:
+        async with gate:
+            cmd = [sys.executable, str(Path(__file__).resolve()), "--venv", str(rig.venv), name]
+            proc = await asyncio.create_subprocess_exec(*cmd, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+            out, _ = await proc.communicate()
+            blocks[name] = (proc.returncode or 0, out.decode(errors="replace"))
+
+    await asyncio.gather(*[one(n) for n in names])
+    failed = 0
+    for name in names:
+        code, text = blocks[name]
+        print(text.replace("e2e: ok\n", "").replace("\ne2e: ok", "").rstrip("\n"))
+        failed += int(code != 0)
+    print("e2e: ok" if not failed else f"e2e: {failed} of {len(names)} scenarios failed")
+    return 1 if failed else 0
 
 
 def main(argv: list[str] | None = None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     venv = None
+    jobs = int(os.environ.get("MAIPAI_E2E_JOBS", "1"))
     if "--fresh-venv" in args:
         args.remove("--fresh-venv")
         venv = Path(tempfile.mkdtemp(prefix="e2e-venv-")) / "venv"
@@ -560,11 +593,17 @@ def main(argv: list[str] | None = None) -> int:
         i = args.index("--venv")
         venv = Path(args[i + 1])
         del args[i : i + 2]
+    if "--jobs" in args:
+        i = args.index("--jobs")
+        jobs = int(args[i + 1])
+        del args[i : i + 2]
     names = args or list(SCENARIOS)
     unknown = [n for n in names if n not in SCENARIOS]
     if unknown:
         print(f"unknown scenario {unknown}; known: {', '.join(SCENARIOS)}", file=sys.stderr)
         return 2
+    if jobs > 1 and len(names) > 1:
+        return asyncio.run(run_parallel(names, venv, jobs))
     return asyncio.run(run(names, venv))
 
 

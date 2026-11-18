@@ -336,6 +336,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/configs/sdkconfig.aec.defaults` (4): Talk over the robot (patches SF15 and SF29): microphone 1 plus the speaker loopback, the echo canceller on the
 - `firmware/configs/sdkconfig.bench.defaults` (3): no header
 - `firmware/configs/sdkconfig.gate.defaults` (2): Gate and soak builds only (not committed as a product setting): the memory line at WARN every 10 seconds.
+- `firmware/configs/sdkconfig.heaptrace.defaults` (3): Build kind "heap" (bench plus a live-allocation trace from boot: self.bench.heap_trace). Costs about 40 KB of 
 - `firmware/configs/sdkconfig.linkpsk.defaults` (3): Encrypted link, step 1 (patch SF21): the curve calls and key storage with the bench check self.bench.link_self
 - `firmware/configs/sdkconfig.talkover.defaults` (3): Talk-over step 0 (patch SF15): MIC3 is the second input channel and the bench tool self.bench.mic3_check exist
 - `firmware/games/bopit.json` (945): no header
@@ -559,6 +560,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF36-setup-idle-timeout.patch` (65): The Setup app (the Wi-Fi page, the menus) closes after 90 seconds without a touch, 300 seconds on the Wi-Fi pa
 - `firmware/patches/SF37-compiled-build-floor.patch` (113): A signed update must beat the build number compiled into the running image (CONFIG_MAIPAI_FW_BUILD, set by the
 - `firmware/patches/SF38-ceiling-zero-and-light-lock.patch` (90): A speed ceiling of 0 means no motion: the servo clock's step limiter holds the command instead of moving it on
+- `firmware/patches/SF39-limiter-failclosed-peak-heap.patch` (322): Limiter and heap round after bench window 11. The limiter assumes the cable is in (limited) until the first re
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1230,7 +1232,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_packages/wake_word_maker/store.py` (64): Clips on disk: one folder per word, positives and negatives, each a mono 16-bit 16 kHz WAV of about a second."
 - `host/personas/cooking.en.txt` (9): no header
 - `host/personas/cooking.es.txt` (9): no header
-- `host/pyproject.toml` (153): Named to match the entry point (`maipai_bot`, registered below), not
+- `host/pyproject.toml` (154): Named to match the entry point (`maipai_bot`, registered below), not
 - `host/robot.example.toml` (85): Select "llm" to run without Home, or "home" to use the Home adapter.
 - `host/scripts/link_ladder_unit_check.py` (108): LINK-STATE-01: run the offline ladder's body cues on the real unit.
 - `host/scripts/make_kws_fixtures.py` (107): Rung 1 fixtures: SYNTHESIZED speech for the keyword spotter's tests. Not recordings.
@@ -2337,14 +2339,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/spelling-check.py` (98): fail on British spellings in text files (owner rule 2026-11-16: American spelling everywhere).
 - `scripts/stackchan-egress-proof.sh` (66): no header
 - `scripts/stackchan-no-third-party.sh` (119): Hostnames only: the image legitimately carries board and class names such as M5StackCoreS3Board.
-- `scripts/test-all.sh` (10): the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. Run 
+- `scripts/test-all.sh` (17): the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. Run 
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
 - `scripts/virtual-unit/build-face.sh` (19): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (30): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
-- `scripts/virtual-unit/e2e.py` (572): End to end on the virtual unit, with no hardware and no real models.
+- `scripts/virtual-unit/e2e.py` (611): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
 - `scripts/virtual-unit/e2e_hostile.py` (340): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin

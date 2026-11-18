@@ -12,7 +12,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 
-pytestmark = pytest.mark.skipif(os.environ.get("MAIPAI_FUZZ") == "0" or shutil.which("cc") is None or shutil.which("uv") is None or shutil.which("git") is None, reason="needs cc, git, uv and MAIPAI_FUZZ not 0")
+pytestmark = [pytest.mark.slow, pytest.mark.skipif(os.environ.get("MAIPAI_FUZZ") == "0" or shutil.which("cc") is None or shutil.which("uv") is None or shutil.which("git") is None, reason="needs cc, git, uv and MAIPAI_FUZZ not 0")]
 
 
 def test_the_unit_parsers_survive_a_short_sanitizer_fuzz():

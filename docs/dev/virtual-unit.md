@@ -19,7 +19,7 @@ Needs `clang` and a built firmware tree (default `~/esp/stackchan-rebase/final15
 
 ## Tests
 
-`bash scripts/test-all.sh` builds the renderers when a firmware tree is present, then runs the whole host suite. Without a tree the virtual unit tests skip with one message. After a patch changes a core, run `uv run --project host python scripts/regen-core-tables.py` so the page tables match.
+`bash scripts/test-all.sh` builds the renderers when a firmware tree is present, then runs the whole host suite in 4 processes; `bash scripts/test-fast.sh` leaves out the slow tests (docs/dev/test-speed.md). Without a tree the virtual unit tests skip with one message. After a patch changes a core, run `uv run --project host python scripts/regen-core-tables.py` so the page tables match.
 
 ## Clock wrap soak (24.9 and 49.7 days)
 

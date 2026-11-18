@@ -138,6 +138,7 @@ pythonpath = ["."]
 markers = [
     "unit_only: needs the physical Reachy Mini (MAIPAI_UNIT=1 and a non-simulator daemon on port 8000)",
     "bundle: builds or inspects a self-contained hub bundle",
+    "slow: takes minutes (the end to end on the virtual unit, the sanitizer fuzz); scripts/test-fast.sh leaves it out, scripts/test-all.sh runs it",
 ]
 
 [build-system]
