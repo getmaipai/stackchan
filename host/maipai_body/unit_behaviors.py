@@ -90,13 +90,15 @@ class UnitBehaviors:
         """A unit (re)connected: an extra unit reapplies its known pose controls, as the first unit does."""
         if not device_id or device_id == self._primary_id():
             return
-        orientation = getattr(self._slot(device_id).behavior, "orientation", None)
-        if orientation is not None:
-            try:
-                with self._scope(device_id):
+        behavior = self._slot(device_id).behavior
+        try:
+            with self._scope(device_id):
+                behavior.unit_connected()  # it boots awake: the rest clock must not count its time off
+                orientation = getattr(behavior, "orientation", None)
+                if orientation is not None:
                     orientation.reassert()
-            except Exception:
-                LOG.warning("a unit's pose could not be reapplied", exc_info=True)
+        except Exception:
+            LOG.warning("a unit's connect handling failed", exc_info=True)
 
     def tick(self) -> None:
         """One pass over the extra units: touch, then the reaction timer. A raise in one unit is logged and the next unit still runs."""
@@ -111,11 +113,7 @@ class UnitBehaviors:
             behavior = slot.behavior
             try:
                 with self._scope(device_id):
-                    behavior.wake_on_touch(now)
-                    for name in ("reaction_tick", "orientation_tick"):
-                        tick = getattr(behavior, name, None)
-                        if tick is not None:
-                            tick()
+                    behavior.extra_unit_tick(now)
             except Exception:
                 behavior._warn_limited("unit-loop", f"the touch loop of unit {device_id[-5:]} failed")
 
@@ -130,6 +128,14 @@ class UnitBehaviors:
         thread = threading.Thread(target=self.run, args=(stop_event,), name="stackchan-unit-behaviors", daemon=True)
         thread.start()
         return thread
+
+    def behavior_for(self, device_id: str | None) -> Any | None:
+        """The extra unit's own behavior object, or None for the first unit and for a unit not seen yet."""
+        if not device_id or device_id == self._primary_id():
+            return None
+        with self._lock:
+            slot = self._slots.get(device_id)
+        return slot.behavior if slot else None
 
     def units(self) -> list[str]:
         with self._lock:

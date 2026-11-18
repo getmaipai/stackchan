@@ -1912,6 +1912,33 @@ class StackChanBehavior:
         logger.info("StackChan woke up on touch (%s)", ", ".join(sorted(set(kinds))))
         return True
 
+    def extra_unit_tick(self, now: float) -> None:
+        """One pass for a unit after the first (docs/plan/per-unit-behavior.md): idle look, touch, reactions, orientation, keep-awake, rest and the face
+        watchdog. No camera work: face search and tracking read one camera and stay on the first unit."""
+        if (
+            not self._active.is_set()
+            and not self.idle_still()
+            and now - self._last_idle >= self._idle_interval_s
+            and self._rest.stage == "awake"
+        ):
+            self._last_idle = now
+            try:
+                self.render_primitive("settle")
+            except Exception:
+                self._warn_limited("idle", "StackChan idle expression failed")
+        for key, step in (
+            ("touch", lambda: self.wake_on_touch(now)),
+            ("reaction", lambda: self.reaction_tick and self.reaction_tick()),
+            ("orientation", lambda: self.orientation_tick and self.orientation_tick()),
+            ("keep_awake", lambda: self.keep_awake_tick and self.keep_awake_tick()),
+            ("rest", lambda: self.rest_step(now)),
+            ("watchdog", lambda: self.face_watchdog(now)),
+        ):
+            try:
+                step()
+            except Exception:
+                self._warn_limited(key, f"StackChan {key} step of an extra unit failed")
+
     def _warn_limited(self, key: str, message: str) -> None:
         """One warning with its traceback per minute per cause: a loop that fails five times a
         second while the unit is away logged 378 tracebacks in nine minutes."""
@@ -2596,6 +2623,22 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
         )
         extra.orientation = orientation
         extra.orientation_tick = orientation.tick
+        keep_at = [float("-inf")]
+        no_tool = [False]
+
+        def keep_awake() -> None:
+            """The hub link is up for this unit: restart its idle timers once a minute (patch 074), as for the first unit."""
+            now = time.monotonic()
+            if no_tool[0] or now - keep_at[0] < KEEP_AWAKE_S:
+                return
+            keep_at[0] = now
+            try:
+                client._call("self.power.keep_awake", {})
+            except Exception as error:
+                if type(error).__name__ == "NotSupported":
+                    no_tool[0] = True
+
+        extra.keep_awake_tick = keep_awake
         extra.pose_held = lambda: orientation.pose != "upright" or _unit_not_upright(extra)
         return extra
 
@@ -3098,7 +3141,11 @@ def _turn_sink(behavior, light, faces=None, devices=None):
                 light.update(funnel=next_state)
             except Exception:  # a light never fails the turn
                 logger.warning("StackChan funnel light failed", exc_info=True)
-        behavior.render_turn_state(state, mood=mood)
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT as _TURN_UNIT
+
+        units_of = getattr(behavior, "unit_behaviors", None)
+        owner = units_of.behavior_for(_TURN_UNIT.get()) if units_of is not None else None
+        (owner or behavior).render_turn_state(state, mood=mood)  # a turn on an extra unit is that unit's own state, not the first unit's
         if cue_worker is not None:
             from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
 
