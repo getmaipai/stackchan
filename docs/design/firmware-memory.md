@@ -87,3 +87,12 @@ Stages: (1) v1 selects everything at boot, nothing swaps at run time. (2) The PS
 - Re-measure the baseline on the new base and settle the 29.7 versus 76 KB figures with two 10 minute runs from one build id.
 - Whether the new base leaves enough room that stages 2 and 3 are unnecessary.
 - Which task stacks the minute report omits.
+
+## Dance ladder and movement limiter (patches ML01, MD01 to MD03), 2026-11-17
+
+Gate image soak, 12 minutes, unit on the USB cable (first build, before the stale-reading fix, which changes no allocation):
+`internal_free` median 85939 (floor 40000), `internal_min` 33484 (floor 24000), `int_big` 38912 (floor 24000), `psram_min` 7170496
+(floor 6000000), no panic, no watchdog fire, no host drop; lowest margins on our tasks 1176 (tcp_receive) and 1444 (Svc).
+App image grew by about 13 KB of flash (3598000 to 3611360 bytes, plain). New steady RAM: one small struct for the limiter (about
+80 bytes) and, while a dance runs, one modifier (about 450 bytes) on the heap; no new task, no new stack. `scripts/psram-stack-lint.py`
+reports 0 unreviewed paths.

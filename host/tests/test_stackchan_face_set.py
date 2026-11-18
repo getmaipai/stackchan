@@ -60,7 +60,7 @@ def test_logical_vocabulary_falls_back_until_new_firmware_and_rejects_unknown():
         resolve_face,
     )
 
-    assert len(FACE_VOCABULARY) == 21  # the 18 logical faces, the sleeping face, and tired and closing (patch X01)
+    assert len(FACE_VOCABULARY) == 23  # the 18 logical faces, the sleeping face, tired and closing (patch X01), laughing, serene and silly are native since MD02
     assert resolve_face("joy", "0.2.86") == "happy"
     assert resolve_face("curious", "0.2.86") == "doubt"
     assert resolve_face("neutral", "0.2.86") == "neutral"
@@ -117,9 +117,11 @@ def test_new_faces_are_native_from_firmware_0_2_93_and_fall_back_before():
         assert resolve_face(name, "0.2.93") == name
         assert resolve_face(name, "0.2.92") != name
         assert name in EXPRESSIONS and name in FIRMWARE_EMOTIONS
-    # dizzy and silly are not drawn by any firmware yet: they keep their fallbacks.
+    # dizzy is not drawn by any firmware yet; silly, laughing and serene are drawn since patch MD02 and fall back before it.
     assert resolve_face("dizzy", "0.2.93") == "doubt"
-    assert resolve_face("silly", "0.2.93") == "wink"
+    assert resolve_face("silly", "0.2.93") == "silly" and resolve_face("silly", "0.2.92") == "wink"
+    assert resolve_face("laughing", "0.2.93") == "laughing" and resolve_face("laughing", "0.2.92") == "happy"
+    assert resolve_face("serene", "0.2.93") == "serene" and resolve_face("serene", "0.2.92") == "content"
     assert resolve_face("listening", "0.2.61") == "neutral"
 
 

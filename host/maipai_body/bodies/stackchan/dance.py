@@ -146,6 +146,11 @@ class Plan:
     script: tuple[tuple[float, str, str], ...]
     total_s: float
     ring: Callable[[int, float], list[Rgb] | None]
+    # The ladder dance (dance_ladder.py) runs live: it is called every tick with (tick, seconds in), may end the round early
+    # (``finished``), and is told when the round is over (``on_end``). A fixed plan leaves all three out.
+    on_tick: Callable[[int, float], None] | None = None
+    finished: Callable[[], bool] | None = None
+    on_end: Callable[[], None] | None = None
 
 
 LITTLE_PLAN = Plan(SCRIPT, TOTAL_S, lambda tick, t_s: ring_frame(tick, phase_at(t_s)))
@@ -220,6 +225,10 @@ class DanceSituation:
     battery_low: bool = False  # the light service's low-battery flag
     full_quiet: str | None = None  # why the unit is muted or in full quiet, else None
     muted: bool = False
+    motion: str = "free"  # the unit's movement limiter: free, usb_limited, battery_limited or carried (firmware ML01)
+    motion_dance_max: int = (
+        4  # the highest dance step the limiter allows: 0 none, 3 no full dance, 4 any
+    )
 
 
 @dataclass(frozen=True)
@@ -346,6 +355,8 @@ class DanceRunner:
             return (f"full quiet or muted ({situation.full_quiet})", "")
         if situation.estop:
             return ("the emergency stop is latched", LINE_NOT_NOW)
+        if situation.motion == "carried" or situation.motion_dance_max <= 0:
+            return (f"movement is limited ({situation.motion}): no dance now", LINE_NOT_NOW)
         if not situation.connected or situation.offline:
             return ("the unit is offline", "")
         if not situation.upright:
@@ -373,6 +384,8 @@ class DanceRunner:
         """Why a running dance must end now, or None."""
         if situation.estop:
             return "estop"
+        if situation.motion == "carried" or situation.motion_dance_max <= 0:
+            return "limited"
         if situation.in_turn:
             return "turn"
         if not situation.upright:
@@ -411,6 +424,11 @@ class DanceRunner:
             logger.warning("StackChan dance failed", exc_info=True)
             reason = "error"
         finally:
+            if plan.on_end is not None:
+                try:
+                    plan.on_end()  # the unit's steps, the notes and the overlays end with the round
+                except Exception:
+                    logger.warning("StackChan dance plan end failed", exc_info=True)
             self._end(reason, played=started)
 
     def _prepare(self, trigger: str) -> str:
@@ -460,7 +478,9 @@ class DanceRunner:
                 return why
             if self._stop.is_set():
                 return self.last_end_reason or "stopped"
-            if elapsed >= plan.total_s:
+            if plan.on_tick is not None:
+                plan.on_tick(tick, elapsed)
+            if elapsed >= plan.total_s or (plan.finished is not None and plan.finished()):
                 return "done"
             if ring_on and not (situation.camera_cue or situation.live_cue):
                 pixels = plan.ring(tick, elapsed)

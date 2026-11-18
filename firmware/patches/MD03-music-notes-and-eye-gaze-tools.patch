@@ -1,0 +1,213 @@
+# Intent: The two small tools the dance needs. self.face.music_notes count 0 to 3 shows that many eighth notes floating up the sides of the face for 30 s (a new face decorator named notes, nine plain rounded rectangles; never over a mute, vision-off or quiet look or a ringing timer; count 0 ends only the notes). self.face.gaze x y ms looks to a place (x and y -100 to 100, 100 is 10 px, the widest the face zone allows) and returns to the middle after ms.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_decor.cc, maipai_decor_core.h (ours)
+# Check after a flash: self.face.music_notes count 3 shows three notes drifting up beside the eyes and fading; count 0 clears them; self.face.gaze x 100 y 0 ms 1500 moves both eyes to the right and back.
+# Kconfig: CONFIG_MAIPAI_FACE_DECOR (existing)
+
+diff --git a/firmware/main/hal/maipai_decor_core.h b/firmware/main/hal/maipai_decor_core.h
+--- a/firmware/main/hal/maipai_decor_core.h
++++ b/firmware/main/hal/maipai_decor_core.h
+@@ -23,7 +23,8 @@
+ #define MD_SPARKLES 7
+ #define MD_STARS 8
+ #define MD_ZZZ 9
+-#define MD_COUNT 10
++#define MD_NOTES 10 /* patch MD02: music notes floating beside the face while it dances; arg 1 to 3 is how many */
++#define MD_COUNT 11
+ 
+ #define MD_MIN_S 1
+ #define MD_MAX_S 60
+@@ -31,8 +32,8 @@
+ #define MD_MAX_PARTS 9
+ #define MD_TICK_MS 66
+ 
+-static const char* const MD_NAMES[MD_COUNT] = {"none",  "sweat", "shy",      "dizzy", "heart",
+-                                               "anger", "tears", "sparkles", "stars", "zzz"};
++static const char* const MD_NAMES[MD_COUNT] = {"none",  "sweat", "shy",      "dizzy", "heart", "anger",
++                                               "tears", "sparkles", "stars", "zzz", "notes"};
+ 
+ typedef struct {
+     int16_t x, y;      /* centre of the part, pixels from the screen centre */
+@@ -110,6 +111,7 @@ static inline int md_part_count(int kind)
+         case MD_SPARKLES: return 6;
+         case MD_STARS: return 5;
+         case MD_ZZZ: return 9;
++        case MD_NOTES: return 9;
+         default: return 0;
+     }
+ }
+@@ -144,7 +146,7 @@ static inline md_part_t md_falling_drop(uint32_t t_ms, uint32_t period_ms, uint3
+  * The parts of a decorator `t_ms` after it began. Returns how many were written (at most `cap`); the rest of `out` is
+  * left alone. A kind with no parts (none, or an unknown one) writes nothing.
+  */
+-static inline int md_parts(int kind, uint32_t t_ms, md_part_t* out, int cap)
++static inline int md_parts_n(int kind, uint32_t t_ms, md_part_t* out, int cap, int arg)
+ {
+     const int n = md_part_count(kind);
+     if (n == 0 || cap < n) {
+@@ -236,9 +238,32 @@ static inline int md_parts(int kind, uint32_t t_ms, md_part_t* out, int cap)
+             }
+             break;
+         }
++        case MD_NOTES: {
++            /* Up to three eighth notes (a head, a stem and a flag each) float up the sides of the face, a third of a cycle apart, and fade
++             * in the last quarter. arg is how many show (1 to 3); the others are hidden. */
++            static const int16_t nx[3] = {-138, 138, -120};
++            for (int k = 0; k < 3; k++) {
++                const uint32_t p = (t_ms + (uint32_t)k * 800u) % 2400u;
++                const int x = nx[k] + md_sin256((int)(p * 360u / 1200u)) * 6 / 256;
++                const int y = 40 - (int)(p * 100u / 2400u);
++                int opa = 255;
++                if (p > 1800u) {
++                    opa = (int)(255 - (p - 1800u) * 255u / 600u);
++                }
++                if (k >= arg) {
++                    opa = 0;
++                }
++                out[k * 3] = md_part(x, y, 12, 9, -200, 1, opa);          /* the head */
++                out[k * 3 + 1] = md_part(x + 5, y - 11, 3, 20, 0, 0, opa); /* the stem */
++                out[k * 3 + 2] = md_part(x + 9, y - 19, 9, 3, 450, 0, opa); /* the flag */
++            }
++            break;
++        }
+         default: return 0;
+     }
+     return n;
+ }
+ 
++static inline int md_parts(int kind, uint32_t t_ms, md_part_t* out, int cap) { return md_parts_n(kind, t_ms, out, cap, 3); }
++
+ #endif
+diff --git a/firmware/main/hal/maipai_decor.h b/firmware/main/hal/maipai_decor.h
+--- a/firmware/main/hal/maipai_decor.h
++++ b/firmware/main/hal/maipai_decor.h
+@@ -12,9 +12,12 @@
+ // kind or seconds out of range, -2 a mute, vision-off or quiet look or a ringing timer is showing (not covered), -3 no
+ // face yet. The caller holds the LVGL lock.
+ int maipai_decor_show(int kind, int seconds);
++// The same with a count for the decorators that take one (patch MD02: the music notes, 1 to 3).
++int maipai_decor_show_n(int kind, int seconds, int arg);
+ // Registers self.face.decorate and self.face.decor_list.
+ void maipai_decor_register_tools();
+ #else
+ inline int maipai_decor_show(int, int) { return -3; }
++inline int maipai_decor_show_n(int, int, int) { return -3; }
+ inline void maipai_decor_register_tools() {}
+ #endif
+diff --git a/firmware/main/hal/maipai_decor.cc b/firmware/main/hal/maipai_decor.cc
+--- a/firmware/main/hal/maipai_decor.cc
++++ b/firmware/main/hal/maipai_decor.cc
+@@ -33,6 +33,7 @@ struct Live {
+     lv_timer_t* timer              = nullptr;
+     int kind                       = MD_NONE;
+     int count                      = 0;
++    int arg                        = 3;
+     uint32_t begin_ms              = 0;
+     uint32_t end_ms                = 0;
+ } s_live;
+@@ -62,7 +63,7 @@ void paint(lv_timer_t*)
+         return;
+     }
+     md_part_t parts[MD_MAX_PARTS];
+-    const int n = md_parts(s_live.kind, now - s_live.begin_ms, parts, MD_MAX_PARTS);
++    const int n = md_parts_n(s_live.kind, now - s_live.begin_ms, parts, MD_MAX_PARTS, s_live.arg);
+     for (int i = 0; i < n && i < s_live.count; i++) {
+         lv_obj_t* o = s_live.part[i];
+         const md_part_t& p = parts[i];
+@@ -81,6 +82,8 @@ void paint(lv_timer_t*)
+     }
+ }
+ 
++lv_timer_t* s_gaze_timer = nullptr;  // self.face.gaze's return to the middle (patch MD02)
++
+ DefaultAvatar* face_now()
+ {
+     auto& chan = GetStackChan();
+@@ -89,6 +92,11 @@ DefaultAvatar* face_now()
+ }  // namespace
+ 
+ int maipai_decor_show(int kind, int seconds)
++{
++    return maipai_decor_show_n(kind, seconds, 3);
++}
++
++int maipai_decor_show_n(int kind, int seconds, int arg)
+ {
+     if (kind == MD_NONE) {
+         end_live();
+@@ -115,6 +123,7 @@ int maipai_decor_show(int kind, int seconds)
+     lv_obj_set_size(s_live.root, 320, 240);
+     lv_obj_set_pos(s_live.root, 0, 0);
+     s_live.kind  = kind;
++    s_live.arg   = arg;
+     s_live.count = md_part_count(kind);
+     for (int i = 0; i < s_live.count; i++) {
+         lv_obj_t* o = lv_obj_create(s_live.root);
+@@ -137,7 +146,7 @@ void maipai_decor_register_tools()
+     auto& mcp = McpServer::GetInstance();
+     mcp.AddTool("self.face.decorate",
+                 "Draw a small extra on the face for a few seconds: dizzy, heart, anger, tears, sparkles, "
+-                "stars or zzz. name none ends it. seconds is 1 to 60. It never covers a mute, vision-off or quiet look or "
++                "stars, zzz or notes. name none ends it. seconds is 1 to 60. It never covers a mute, vision-off or quiet look or "
+                 "a ringing timer. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("none")),
+                               Property("seconds", kPropertyTypeInteger, MD_DEFAULT_S, MD_MIN_S, MD_MAX_S)}),
+@@ -162,6 +171,58 @@ void maipai_decor_register_tools()
+                     }
+                     return std::string("{\"ok\":true}");
+                 });
++    // Patch MD02: music notes beside the face while it dances (the legacy tool the host already calls). 30 s unless called again.
++    mcp.AddTool("self.face.music_notes",
++                "Show 1 to 3 music notes floating up beside the face for 30 seconds (count 0 hides them). Called again it keeps them; "
++                "it never covers a mute, vision-off or quiet look or a ringing timer. Answers {ok} or {ok:false,error}.",
++                PropertyList({Property("count", kPropertyTypeInteger, 0, 0, 3)}), [](const PropertyList& properties) -> ReturnValue {
++                    const int count = properties["count"].value<int>();
++                    LvglLockGuard lock;
++                    if (count <= 0) {
++                        if (s_live.kind == MD_NOTES) {
++                            end_live();
++                        }
++                        return std::string("{\"ok\":true}");
++                    }
++                    const int rc = maipai_decor_show_n(MD_NOTES, 30, count);
++                    return std::string(rc == 0 ? "{\"ok\":true}"
++                                               : "{\"ok\":false,\"error\":\"a mute, vision-off or quiet look or a ringing timer is "
++                                                 "showing, or the face is not ready: try again in a moment\"}");
++                });
++    // Patch MD02: where the eyes look. x and y are -100 to 100 (100 is 10 px, the widest the face zone allows); they return to the
++    // middle after ms. The dance holds the eyes itself while it runs.
++    mcp.AddTool("self.face.gaze",
++                "Look somewhere for a moment: x -100 (left) to 100 (right), y -100 (up) to 100 (down), back to the middle after ms "
++                "(100 to 10000). Answers {ok}.",
++                PropertyList({Property("x", kPropertyTypeInteger, 0, -100, 100), Property("y", kPropertyTypeInteger, 0, -100, 100),
++                              Property("ms", kPropertyTypeInteger, 1500, 100, 10000)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    LvglLockGuard lock;
++                    auto& chan = GetStackChan();
++                    if (!chan.hasAvatar()) {
++                        return std::string("{\"ok\":false,\"error\":\"the face is not ready: try again in a moment\"}");
++                    }
++                    const int x = properties["x"].value<int>(), y = properties["y"].value<int>();
++                    chan.avatar().leftEye().setPosition(uitk::Vector2i(x, y));
++                    chan.avatar().rightEye().setPosition(uitk::Vector2i(x, y));
++                    if (s_gaze_timer != nullptr) {
++                        lv_timer_delete(s_gaze_timer);
++                        s_gaze_timer = nullptr;
++                    }
++                    s_gaze_timer = lv_timer_create(
++                        [](lv_timer_t*) {
++                            auto& c = GetStackChan();
++                            if (c.hasAvatar()) {
++                                c.avatar().leftEye().setPosition(uitk::Vector2i(0, 0));
++                                c.avatar().rightEye().setPosition(uitk::Vector2i(0, 0));
++                            }
++                            lv_timer_delete(s_gaze_timer);
++                            s_gaze_timer = nullptr;
++                        },
++                        static_cast<uint32_t>(properties["ms"].value<int>()), nullptr);
++                    lv_timer_set_repeat_count(s_gaze_timer, 1);
++                    return std::string("{\"ok\":true}");
++                });
+     mcp.AddTool("self.face.decor_list", "The decorator names this build can draw.", std::vector<Property>{},
+                 [](const PropertyList&) -> ReturnValue {
+                     std::string out = "{\"ok\":true,\"decorators\":[";

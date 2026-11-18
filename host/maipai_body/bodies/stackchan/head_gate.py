@@ -37,7 +37,10 @@ class HeadMotionGate:
         clock: Callable[[], float] = time.monotonic,
         log_every_s: float = 30.0,
         max_moves_per_min: int = MAX_MOVES_PER_MIN,
+        motion_hold: Callable[[], str] = lambda: "",
     ) -> None:
+        # The unit's movement limiter (firmware ML01): a reason such as "held or carried" while no move is allowed, else "".
+        self._motion_hold = motion_hold
         self._must_be_still = must_be_still
         self._still_reason = still_reason
         self._resting = resting
@@ -60,7 +63,10 @@ class HeadMotionGate:
             self.allowed += 1
             self._log(source, True, "return to center or hold")
             return True
-        if response:
+        held = self._motion_hold()
+        if held:
+            verdict, reason = False, f"movement limited ({held})"  # the unit would refuse it: do not ask
+        elif response:
             verdict, reason = True, "answering a person"
         elif self._must_be_still():
             why = self._still_reason() or "power unknown or charging, night, or level"

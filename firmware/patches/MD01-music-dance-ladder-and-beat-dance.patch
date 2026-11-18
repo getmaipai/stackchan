@@ -1,0 +1,836 @@
+# Intent: The music dance builds up and winds down on the beat. A pure core (maipai_dance_ladder_core.h: the step rule, the pose of each step, the 90 moves a minute head budget, the ring swell) and one BeatDanceModifier that replaces BeatSway: step 1 the eyes look side to side on the beat with the head still (about 1.5 s), 2 the head nods, 3 it sways side to side, 4 pan, tilt and sway together with a soft swell of gold, lime and mint on the ring (never over half brightness, rising 40 percent and falling 60 percent of each beat, no hard flash). self.music.stage sets the step from the host (and answers stage and beat); self.music.get_status adds stage. self.robot.dance bob is the nod on the beat. The unit's own offline session runs the same ladder cycle by the judge's timeline. With no fresh beat the last grid carries on, and the sway and full dance drop to the nod after 3 s. The ladder never goes above the limiter's dance_max (ML01).
+# Placement: unit
+# Upstream: firmware/main/stackchan/modifiers/beat_dance.h, firmware/main/hal/maipai_dance_ladder_core.h (ours)
+# Check after a flash: self.music.set enabled true, then self.music.stage 1 shows the eyes stepping side to side on a steady tempo and the head still; 2 nods; 3 sways; 4 adds the swelling ring; 0 returns eyes and head to the middle and the ring dark. (Run only with the unit upright and the limiter showing usb_limited.)
+# Kconfig: CONFIG_MAIPAI_MUSIC_DANCE (existing)
+
+diff --git a/firmware/main/hal/maipai_dance_ladder_core.h b/firmware/main/hal/maipai_dance_ladder_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_dance_ladder_core.h
+@@ -0,0 +1,313 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The dance ladder (patch MD01): the pure logic of a dance that builds up and winds down on the beat. Plain C99, no
++ * ESP-IDF, no heap, no clock of its own: host/tests/firmware/dance_ladder_test.c compiles it, and the host's
++ * dance_ladder.py is its mirror (a test feeds both the same scripted seconds and compares every stage).
++ *
++ * The ladder has four steps, each adding one thing to the one before:
++ *   1 eyes      only the eyes look side to side on the beat, the head stays still (about 1.5 s)
++ *   2 nod       the head nods on the beat, the eyes follow with a small shift
++ *   3 sway      the head sways side to side, the eyes lean the same way
++ *   4 full      pan, tilt and sway together (one combined head move per beat), the peak
++ * A cycle climbs 1 to 4 (a step only when the music is loud and steady enough for the next one), holds the peak for a
++ * number of beats, then goes back down 3, 2, 1 in reverse and ends at stage 0 (still). The same descent starts at once
++ * when the music fades or stops. A stage never skips upward; a step down may skip nothing either.
++ *
++ * Time is in milliseconds on the caller's clock. A beat is `period_ms` (0 means unknown: 600 ms). All dwell times are
++ * beats at that period, held between a floor and a ceiling so a very fast or slow song stays watchable.
++ */
++#ifndef MAIPAI_DANCE_LADDER_H
++#define MAIPAI_DANCE_LADDER_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define MDL_STAGE_COUNT 5 /* 0 still, 1 eyes, 2 nod, 3 sway, 4 full */
++
++/* How long each step lasts, in beats, and the least and most in milliseconds. */
++#define MDL_EYES_BEATS 3
++#define MDL_EYES_MIN_MS 1500u
++#define MDL_EYES_MAX_MS 3000u
++#define MDL_STEP_BEATS 8
++#define MDL_STEP_MIN_MS 4000u
++#define MDL_STEP_MAX_MS 8000u
++#define MDL_PEAK_BEATS 24
++#define MDL_PEAK_MIN_MS 12000u
++#define MDL_PEAK_MAX_MS 20000u
++#define MDL_DOWN_BEATS 4
++#define MDL_DOWN_MIN_MS 2000u
++#define MDL_DOWN_MAX_MS 4000u
++#define MDL_MAX_CYCLE_MS 75000u /* a cycle that has not peaked by now starts down anyway: the host listens between cycles */
++
++/* The room's loudness (a moving average of the level, int16 RMS) and the beat's confidence that each step asks for. */
++#define MDL_LEVEL_MID 800
++#define MDL_LEVEL_HIGH 1500
++#define MDL_CLIMB_LEVEL_3 800  /* to reach sway */
++#define MDL_CLIMB_LEVEL_4 1000 /* to reach the full dance */
++#define MDL_CLIMB_TC_2 20
++#define MDL_CLIMB_TC_3 30
++#define MDL_CLIMB_TC_4 35
++#define MDL_PEAK_DROP_PCT 70       /* the peak ends when the level stays under this percent of its entry value... */
++#define MDL_PEAK_DROP_MS 6000u     /* ...for this long */
++#define MDL_LOST_MS 3000u          /* no music for this long: wind down now */
++
++typedef struct {
++    uint8_t stage;     /* 0 still (done), 1..4 */
++    uint8_t down;      /* 1 while winding down */
++    uint8_t max_stage; /* 1..4: the highest step this cycle may reach (a low battery or a gentle round) */
++    uint8_t started;
++    uint32_t cycle_ms; /* when the cycle began */
++    uint32_t stage_ms; /* when the current step began */
++    int peak_level;    /* the level when the peak began */
++    uint32_t low_ms;   /* the level has been low since (0 none) */
++    uint32_t lost_ms;  /* no music since (0 none) */
++} mdl_t;
++
++typedef struct {
++    uint32_t now_ms;
++    uint32_t period_ms; /* the beat, 0 unknown */
++    int level;          /* moving average of the level */
++    int tc;             /* tempo confidence */
++    int music;          /* 1 clear music this second */
++} mdl_in_t;
++
++static inline uint32_t mdl_clamp_ms(uint32_t v, uint32_t lo, uint32_t hi) { return v < lo ? lo : (v > hi ? hi : v); }
++static inline uint32_t mdl_period(uint32_t period_ms) { return period_ms >= 250u && period_ms <= 2000u ? period_ms : 600u; }
++
++/* How long the step lasts: `down` is the way back. */
++static inline uint32_t mdl_dwell_ms(int stage, int down, uint32_t period_ms)
++{
++    const uint32_t p = mdl_period(period_ms);
++    if (down) return mdl_clamp_ms(p * MDL_DOWN_BEATS, MDL_DOWN_MIN_MS, MDL_DOWN_MAX_MS);
++    if (stage <= 1) return mdl_clamp_ms(p * MDL_EYES_BEATS, MDL_EYES_MIN_MS, MDL_EYES_MAX_MS);
++    if (stage >= 4) return mdl_clamp_ms(p * MDL_PEAK_BEATS, MDL_PEAK_MIN_MS, MDL_PEAK_MAX_MS);
++    return mdl_clamp_ms(p * MDL_STEP_BEATS, MDL_STEP_MIN_MS, MDL_STEP_MAX_MS);
++}
++
++static inline void mdl_start(mdl_t* s, int max_stage, uint32_t now_ms)
++{
++    memset(s, 0, sizeof(*s));
++    s->max_stage = (uint8_t)(max_stage < 1 ? 1 : (max_stage > 4 ? 4 : max_stage));
++    s->stage = 1;
++    s->started = 1;
++    s->cycle_ms = now_ms;
++    s->stage_ms = now_ms;
++}
++
++/* Whether the music and the beat are good enough to go up to `to`. */
++static inline int mdl_can_climb(int to, const mdl_in_t* in)
++{
++    if (!in->music) return 0;
++    switch (to) {
++        case 2: return in->tc >= MDL_CLIMB_TC_2;
++        case 3: return in->level >= MDL_CLIMB_LEVEL_3 && in->tc >= MDL_CLIMB_TC_3;
++        case 4: return in->level >= MDL_CLIMB_LEVEL_4 && in->tc >= MDL_CLIMB_TC_4;
++        default: return 1;
++    }
++}
++
++static inline void mdl_go_down(mdl_t* s, uint32_t now_ms)
++{
++    if (s->down) return;
++    s->down = 1;
++    s->stage_ms = now_ms;
++}
++
++/* One step (about once a second). Returns the stage to show now: 0 when the cycle is over (and from then on). */
++static inline int mdl_step(mdl_t* s, const mdl_in_t* in)
++{
++    if (!s->started || s->stage == 0) return 0;
++    const uint32_t now = in->now_ms;
++    /* the music fading or going: wind down */
++    if (in->music) {
++        s->lost_ms = 0;
++    } else if (s->lost_ms == 0) {
++        s->lost_ms = now ? now : 1u;
++    }
++    if (s->lost_ms != 0 && now - s->lost_ms >= MDL_LOST_MS) mdl_go_down(s, now);
++    if (!s->down && now - s->cycle_ms >= MDL_MAX_CYCLE_MS) mdl_go_down(s, now);
++    const uint32_t held = now - s->stage_ms;
++    if (s->down) {
++        if (held >= mdl_dwell_ms(s->stage, 1, in->period_ms)) {
++            if (s->stage <= 1) {
++                s->stage = 0;
++                return 0;
++            }
++            s->stage--;
++            s->stage_ms = now;
++        }
++        return s->stage;
++    }
++    if (s->stage >= 4) {
++        /* the peak: hold the beats, or end it when the level falls away */
++        if (s->peak_level == 0) s->peak_level = in->level > 1 ? in->level : 1;
++        if (in->level * 100 < s->peak_level * MDL_PEAK_DROP_PCT) {
++            if (s->low_ms == 0) s->low_ms = now ? now : 1u;
++        } else {
++            s->low_ms = 0;
++        }
++        if ((s->low_ms != 0 && now - s->low_ms >= MDL_PEAK_DROP_MS) || held >= mdl_dwell_ms(4, 0, in->period_ms)) {
++            mdl_go_down(s, now);
++        }
++        return s->stage;
++    }
++    if (held >= mdl_dwell_ms(s->stage, 0, in->period_ms) && s->stage < s->max_stage && mdl_can_climb(s->stage + 1, in)) {
++        s->stage++;
++        s->stage_ms = now;
++        s->peak_level = 0;
++        s->low_ms = 0;
++    } else if (held >= mdl_dwell_ms(s->stage, 0, in->period_ms) && s->stage >= s->max_stage) {
++        mdl_go_down(s, now); /* this cycle may not go higher: the way back starts */
++    }
++    return s->stage;
++}
++
++/* The level: a moving average of the last four seconds. */
++typedef struct {
++    int v[4];
++    int n;
++    int head;
++} mdl_energy_t;
++
++static inline void mdl_energy_reset(mdl_energy_t* e) { memset(e, 0, sizeof(*e)); }
++static inline int mdl_energy_push(mdl_energy_t* e, int level)
++{
++    e->v[e->head] = level;
++    e->head = (e->head + 1) & 3;
++    if (e->n < 4) e->n++;
++    int sum = 0;
++    for (int i = 0; i < e->n; i++) sum += e->v[i];
++    return sum / e->n;
++}
++
++/* ---------------------------------------------------------------- the motion of each step */
++
++/* Eye gaze is in the face's position units (100 is 10 px, the widest the face zone allows); the head is in tenths of a degree. */
++typedef struct {
++    int eye_x, eye_y;
++    int head;  /* 1: this beat moves the head */
++    int yaw, pitch;
++    int speed;
++} mdl_pose_t;
++
++#define MDL_EYE_FULL 100
++#define MDL_EYE_SMALL 40
++#define MDL_EYE_TILT 30
++
++/* `side` is +1 or -1 and flips every beat; `beat` counts beats (the nod and the figure eight read it); `span_ms` is the time
++ * one head move has (a beat, or two beats above about 133 BPM); `loud` is 1 at a high level. Stage 0 stands still. */
++static inline mdl_pose_t mdl_pose(int stage, int side, int beat, uint32_t span_ms, int loud)
++{
++    mdl_pose_t p;
++    memset(&p, 0, sizeof(p));
++    if (span_ms < 1u) span_ms = 600u;
++    int speed = (int)(240000u / span_ms);
++    speed = speed < 220 ? 220 : (speed > 600 ? 600 : speed);
++    const int swing = span_ms < 600u ? 200 : 300;
++    p.speed = speed;
++    switch (stage) {
++        case 1:
++            p.eye_x = side * MDL_EYE_FULL;
++            break;
++        case 2:
++            p.eye_x = side * MDL_EYE_SMALL;
++            p.head = 1;
++            p.pitch = side > 0 ? -170 : -40; /* the nod */
++            break;
++        case 3:
++            p.eye_x = side * MDL_EYE_FULL;
++            p.head = 1;
++            p.yaw = side * swing;
++            p.pitch = -100;
++            break;
++        case 4: {
++            const int up = ((beat >> 1) & 1) != 0; /* the tilt turns over every two beats: yaw and tilt trace a small figure eight */
++            p.eye_x = side * MDL_EYE_FULL;
++            p.eye_y = up ? -MDL_EYE_TILT : MDL_EYE_TILT;
++            p.head = 1;
++            p.yaw = side * swing;
++            p.pitch = up ? -170 : -30;
++            if (loud) {
++                speed = speed + speed / 10;
++                p.speed = speed > 600 ? 600 : speed;
++            }
++            break;
++        }
++        default: break;
++    }
++    return p;
++}
++
++/* A step that has lost the beat for a while may not show the full dance: no lock for 3 s, nod only. */
++static inline int mdl_effective_stage(int stage, uint32_t no_beat_ms)
++{
++    if (stage >= 3 && no_beat_ms >= 3000u) return 2;
++    return stage;
++}
++
++/* ---------------------------------------------------------------- the head budget */
++
++/* At most MDL_BUDGET_MOVES head moves in any minute: past it the head stands still for a beat and the eyes carry on. */
++#define MDL_BUDGET_MOVES 90
++#define MDL_BUDGET_WINDOW_MS 60000u
++typedef struct {
++    uint32_t t[MDL_BUDGET_MOVES];
++    int next;
++} mdl_budget_t;
++
++static inline void mdl_budget_reset(mdl_budget_t* b) { memset(b, 0, sizeof(*b)); }
++/* 1 and the move is counted, or 0 when the minute already holds 90. */
++static inline int mdl_budget_take(mdl_budget_t* b, uint32_t now_ms)
++{
++    const uint32_t oldest = b->t[b->next];
++    if (oldest != 0u && now_ms - oldest < MDL_BUDGET_WINDOW_MS) return 0;
++    b->t[b->next] = now_ms == 0u ? 1u : now_ms;
++    b->next = (b->next + 1) % MDL_BUDGET_MOVES;
++    return 1;
++}
++
++/* ---------------------------------------------------------------- the ring swell (the peak) */
++
++#define MDL_RING_CHANNEL_MAX 168
++#define MDL_RING_CAP_PCT 50 /* never brighter than half of full */
++#define MDL_RING_PIXELS 12
++
++/* The swell: a smooth hump over the beat, rising for 40 percent of it and falling for 60, so it never goes hard on or off. Returns
++ * 0..255. `phase_ms` is the time since the last beat, `span_ms` the beat (or two beats). The rise is u(2-u) and the fall 1-v^2
++ * (a quarter sine each, good to a few percent, no table). */
++static inline int mdl_swell(uint32_t phase_ms, uint32_t span_ms)
++{
++    if (span_ms < 1u) return 0;
++    const uint32_t p = phase_ms % span_ms;
++    const uint32_t rise = span_ms * 4u / 10u;
++    if (rise > 0u && p < rise) {
++        const uint32_t u = p * 1000u / rise; /* 0..999 */
++        return (int)(u * (2000u - u) / 1000u * 255u / 1000u);
++    }
++    const uint32_t fall = span_ms - rise;
++    const uint32_t v = fall > 0u ? (p - rise) * 1000u / fall : 0u; /* 0..999 */
++    return (int)((1000000u - v * v) / 1000u * 255u / 1000u);
++}
++
++/* The full ring at the peak: a gold wash from 0.30 to 0.50 of full, `swell` (0..255) from the swell above, the side lights (0..5 left, 6..11
++ * right) leaning toward `side`. Writes 12 RGB triples; no channel goes over MDL_RING_CAP_PCT percent of MDL_RING_CHANNEL_MAX. */
++static inline void mdl_ring_frame(uint8_t out[MDL_RING_PIXELS][3], int swell, int side, uint32_t turn)
++{
++    static const uint8_t col[3][3] = {{255, 204, 0}, {153, 255, 0}, {77, 255, 153}}; /* gold, lime, mint (the show's colors) */
++    const int base = 30, top = MDL_RING_CAP_PCT;                                     /* percent of full */
++    for (int i = 0; i < MDL_RING_PIXELS; i++) {
++        const int left = i < 6;
++        const int lean = (side < 0 ? left : !left) ? 8 : 0; /* the side the head goes to is a little brighter */
++        int pct = base + (top - base - 8) * swell / 255 + lean;
++        if (pct > top) pct = top;
++        const uint8_t* c = col[((uint32_t)(i / 2) + turn) % 3];
++        for (int k = 0; k < 3; k++) {
++            int v = MDL_RING_CHANNEL_MAX * pct / 100 * c[k] / 255;
++            const int cap = MDL_RING_CHANNEL_MAX * MDL_RING_CAP_PCT / 100;
++            out[i][k] = (uint8_t)(v > cap ? cap : v);
++        }
++    }
++}
++
++#endif
+diff --git a/firmware/main/stackchan/modifiers/beat_dance.h b/firmware/main/stackchan/modifiers/beat_dance.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/stackchan/modifiers/beat_dance.h
+@@ -0,0 +1,150 @@
++/*
++ * MaiPai patch MD01: the dance that builds up on the beat of the song and winds down again (the music dance ladder,
++ * hal/maipai_dance_ladder_core.h). One modifier plays whichever step is set (maipai_music_stage_get): 1 the eyes look side to
++ * side on the beat with the head still, 2 the head nods, 3 it sways side to side, 4 pan, tilt and sway together with a
++ * soft swell of light on the ring. The beat comes from the music analysis (maipai_beat_get: the period and the time of a
++ * recent beat); with no fresh beat the last one carries on, and after three seconds without one the sway and the full
++ * dance drop to the nod. The head moves at most once per beat (every second beat above about 133 BPM, the eyes still
++ * step on every beat) and never more than 90 times a minute (mdl_budget_take). Changing the step changes a number
++ * inside the running modifier; the one that sets it (maipai_music_stage_set) adds and removes the modifier.
++ */
++#pragma once
++#include "../modifiable.h"
++#include "../../hal/maipai_dance_ladder_core.h"
++#include <hal/hal.h>
++#include <esp_timer.h>
++#include <cstdint>
++
++// hal_music (maipai_music.cc): true while a beat was measured in the last 3 seconds with a confidence of at least 30.
++bool maipai_beat_get(uint32_t* period_ms, uint32_t* ref_ms);
++// hal_mcp.cpp: the ladder step to play (0 stands still), and whether the ring may be painted (no privacy cue, no ringing timer).
++int maipai_music_stage_get();
++bool maipai_dance_ring_allowed();
++int maipai_music_level();
++
++namespace stackchan {
++
++class BeatDanceModifier : public Modifier {
++public:
++    BeatDanceModifier() : _t0(ms_now()), _beat_seen(_t0)
++    {
++        mdl_budget_reset(&_budget);
++    }
++
++    ~BeatDanceModifier() override
++    {
++        ring_dark();
++    }
++
++    void _update(Modifiable& stackchan) override
++    {
++        if (!stackchan.hasAvatar()) {
++            return;
++        }
++        const int stage = maipai_music_stage_get();
++        if (stage <= 0) {
++            ring_dark();
++            return;
++        }
++        const uint32_t now = ms_now();
++        uint32_t period = 0, ref = 0;
++        if (maipai_beat_get(&period, &ref) && period >= 250) {
++            _last_period = period;
++            _last_ref    = ref;
++            _have_last   = true;
++            _beat_seen   = now;
++        } else if (_have_last) {
++            period = _last_period;  // no fresh beat: the last grid carries on
++            ref    = _last_ref;
++        } else {
++            period = 600;  // none yet: a steady 600 ms
++            ref    = _t0;
++        }
++        const int eff = mdl_effective_stage(stage, now - _beat_seen);
++        const int32_t since = static_cast<int32_t>(now - ref);
++        const int32_t eb = since >= 0 ? since / static_cast<int32_t>(period)
++                                      : -1 - ((-since - 1) / static_cast<int32_t>(period));  // the eyes' beat
++        const int step   = period < 450 ? 2 : 1;                                             // the head's: above 133 BPM every second one
++        const int32_t hb = eb >= 0 ? eb / step : -1 - ((-eb - 1) / step);
++        if (!_have_eb || eb != _last_eb) {
++            _have_eb = true;
++            _last_eb = eb;
++            const int side = (eb & 1) ? 1 : -1;
++            const mdl_pose_t pose = mdl_pose(eff, side, static_cast<int>(hb), period * static_cast<uint32_t>(step), maipai_music_level() >= MDL_LEVEL_HIGH);
++            gaze(stackchan, pose.eye_x, pose.eye_y);
++            if (eff == 1 && _head_moved) {
++                // Back to the eyes only: the head goes level once.
++                stackchan.motion().moveWithSpeed(0, 0, 200);
++                _head_moved = false;
++            }
++            if (pose.head && (eb % step == 0) && !(_have_hb && hb == _last_hb)) {
++                _have_hb = true;
++                _last_hb = hb;
++                const int hside = (hb & 1) ? 1 : -1;
++                const mdl_pose_t hp = mdl_pose(eff, hside, static_cast<int>(hb), period * static_cast<uint32_t>(step), maipai_music_level() >= MDL_LEVEL_HIGH);
++                if (mdl_budget_take(&_budget, now)) {
++                    stackchan.motion().moveWithSpeed(hp.yaw, hp.pitch, hp.speed);
++                    _head_moved = true;
++                }
++            }
++        }
++        if (eff >= 4 && maipai_dance_ring_allowed()) {
++            if (now - _ring_at >= 50) {  // 20 a second at most
++                _ring_at = now;
++                const uint32_t span = period * static_cast<uint32_t>(step);
++                const uint32_t phase = static_cast<uint32_t>(since >= 0 ? since : -since) % span;
++                uint8_t px[MDL_RING_PIXELS][3];
++                mdl_ring_frame(px, mdl_swell(phase, span), (eb & 1) ? 1 : -1, static_cast<uint32_t>(hb >= 0 ? hb / 8 : 0));
++                auto& hal = GetHAL();
++                for (int i = 0; i < MDL_RING_PIXELS; i++) {
++                    hal.setRgbColor(static_cast<uint8_t>(i), px[i][0], px[i][1], px[i][2]);
++                }
++                hal.refreshRgb();
++                _ring_on = true;
++            }
++        } else {
++            ring_dark();
++        }
++    }
++
++private:
++    static uint32_t ms_now()
++    {
++        return static_cast<uint32_t>(esp_timer_get_time() / 1000);
++    }
++
++    static void gaze(Modifiable& stackchan, int x, int y)
++    {
++        stackchan.avatar().leftEye().setPosition(uitk::Vector2i(x, y));
++        stackchan.avatar().rightEye().setPosition(uitk::Vector2i(x, y));
++    }
++
++    void ring_dark()
++    {
++        if (!_ring_on) {
++            return;
++        }
++        _ring_on = false;
++        auto& hal = GetHAL();
++        for (int i = 0; i < MDL_RING_PIXELS; i++) {
++            hal.setRgbColor(static_cast<uint8_t>(i), 0, 0, 0);
++        }
++        hal.refreshRgb();
++    }
++
++    mdl_budget_t _budget;
++    uint32_t _t0           = 0;
++    uint32_t _beat_seen    = 0;
++    uint32_t _last_period  = 0;
++    uint32_t _last_ref     = 0;
++    uint32_t _ring_at      = 0;
++    bool _have_last        = false;
++    bool _have_eb          = false;
++    bool _have_hb          = false;
++    bool _head_moved       = false;
++    bool _ring_on          = false;
++    int32_t _last_eb       = 0;
++    int32_t _last_hb       = 0;
++};
++
++}  // namespace stackchan
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -45,6 +45,7 @@
+ #include <stackchan/modifiers/dance.h>
+ #if CONFIG_MAIPAI_MUSIC_DANCE
+ #include <stackchan/modifiers/beat_sway.h>
++#include <stackchan/modifiers/beat_dance.h>
+ #endif
+ #include <apps/common/common.h>
+ #include <ssid_manager.h>
+@@ -100,6 +101,10 @@ constexpr int kMaxHeadMovesPerMinute = 40;
+ uint32_t s_head_move_times_ms[kMaxHeadMovesPerMinute] = {};
+ int s_head_move_next = 0;
+ int s_dance_modifier_id = -1;
++#if CONFIG_MAIPAI_MUSIC_DANCE
++std::atomic<int> s_music_stage{0};  // the music dance ladder's step (patch MD01); 0 stands still
++bool s_music_modifier = false;      // the dance modifier slot holds the beat dance
++#endif
+ 
+ bool head_move_allowed(uint32_t now_ms)
+ {
+@@ -118,6 +123,10 @@ void device_events_push(const char* kind, const char* extra)
+ 
+ using namespace stackchan;
+ 
++#if CONFIG_MAIPAI_MUSIC_DANCE
++bool maipai_music_stage_set(int stage);
++#endif
++
+ // Plays one of the built-in dances once (the self.robot.dance tool and the word reactions, patch U02, call this). Takes
+ // the LVGL lock itself. False for a name that is not a dance.
+ bool maipai_dance_play(const char* name)
+@@ -125,6 +134,10 @@ bool maipai_dance_play(const char* name)
+     const animation::KeyframeSequence* sequence = nullptr;
+     if (name == nullptr || !maipai_motion_dances_ok()) {
+         return false;  // patch ML01: carried, or the battery too low for a dance: it does not play
++#if CONFIG_MAIPAI_MUSIC_DANCE
++    } else if (strcmp(name, "bob") == 0) {
++        return maipai_music_stage_set(2);  // patch MD01: the nod on the beat, until the dance is stopped
++#endif
+     } else if (strcmp(name, "happy") == 0) {
+         sequence = &DanceModifier::Happy;
+     } else if (strcmp(name, "robot") == 0) {
+@@ -160,41 +173,71 @@ bool maipai_dance_play(const char* name)
+     if (s_dance_modifier_id >= 0) {
+         GetStackChan().removeModifier(s_dance_modifier_id);
+     }
++#if CONFIG_MAIPAI_MUSIC_DANCE
++    s_music_stage.store(0);  // a keyframe dance replaces the beat dance (patch MD01)
++    s_music_modifier = false;
++#endif
+     s_dance_modifier_id = GetStackChan().addModifier(std::make_unique<DanceModifier>(*sequence));
+     return true;
+ }
+ 
+ #if CONFIG_MAIPAI_MUSIC_DANCE
+-// The music dance (patch V03, maipai_music.cc): the head sways on the beat of the song (BeatSwayModifier; it plays the
+-// Happy keyframes when no beat is clear, so it never stands still). One dance modifier at a time, like the tool.
+-void maipai_music_dance_start()
++// The music dance ladder (patches V03 and MD01, maipai_dance_ladder_core.h): the step the beat dance plays now (0 stands still), set by
++// self.music.stage (the host, while Home is reachable) or by the unit's own session (while it is not). One dance modifier at a
++// time, like the tool: the beat dance takes the same slot as a keyframe dance and a keyframe dance replaces it.
++int maipai_music_stage_get()
+ {
+-    LvglLockGuard lock;
+-    if (s_dance_modifier_id >= 0) {
+-        GetStackChan().removeModifier(s_dance_modifier_id);
+-        s_dance_modifier_id = -1;
+-    }
+-    s_dance_modifier_id = GetStackChan().addModifier(std::make_unique<BeatSwayModifier>());
++    return s_music_stage.load();
+ }
+ 
+-// The first stage of a session: the head nods up and down on the beat before the full dance.
+-void maipai_music_bob_start()
++bool maipai_dance_ring_allowed()
+ {
+-    LvglLockGuard lock;
+-    if (s_dance_modifier_id >= 0) {
+-        GetStackChan().removeModifier(s_dance_modifier_id);
+-        s_dance_modifier_id = -1;
++    return maipai_privacy_bits() == 0 && !maipai_timers_ringing();
++}
++
++// Sets the step with the LVGL lock held. Step 0 removes the beat dance (its destructor darkens the ring), turns the eyes ahead and
++// levels the head if it moved; 1 to 4 adds the beat dance when the slot does not hold it (a keyframe dance is replaced).
++static void music_stage_locked(int stage)
++{
++    const int was = s_music_stage.exchange(stage);
++    if (stage == 0) {
++        if (s_music_modifier && s_dance_modifier_id >= 0) {
++            GetStackChan().removeModifier(s_dance_modifier_id);
++            s_dance_modifier_id = -1;
++            s_music_modifier    = false;
++        }
++        if (was > 0 && GetStackChan().hasAvatar()) {
++            GetStackChan().avatar().leftEye().setPosition(uitk::Vector2i(0, 0));
++            GetStackChan().avatar().rightEye().setPosition(uitk::Vector2i(0, 0));
++            if (was >= 2) {
++                GetStackChan().motion().moveWithSpeed(0, 0, 200);
++            }
++        }
++        return;
++    }
++    if (!s_music_modifier || s_dance_modifier_id < 0) {
++        if (s_dance_modifier_id >= 0) {
++            GetStackChan().removeModifier(s_dance_modifier_id);
++            s_dance_modifier_id = -1;
++        }
++        s_dance_modifier_id = GetStackChan().addModifier(std::make_unique<BeatDanceModifier>());
++        s_music_modifier    = true;
+     }
+-    s_dance_modifier_id = GetStackChan().addModifier(std::make_unique<BeatSwayModifier>(true));
+ }
+ 
+-void maipai_music_dance_stop()
++// True on success; false for a step outside 0 to 4, or while the unit is muted or in full quiet (it stays still then). Takes the lock.
++bool maipai_music_stage_set(int stage)
+ {
+-    LvglLockGuard lock;
+-    if (s_dance_modifier_id >= 0) {
+-        GetStackChan().removeModifier(s_dance_modifier_id);
+-        s_dance_modifier_id = -1;
++    if (stage < 0 || stage > 4) {
++        return false;
+     }
++    const bool refuse = stage > 0 && (maipai_muted() || maipai_quiet());
++    if (stage > maipai_motion_dance_max()) {
++        stage = maipai_motion_dance_max();  // patch ML01: on USB or a low battery no full dance; carried or very low, none
++    }
++    LvglLockGuard lock;
++    music_stage_locked(refuse ? 0 : stage);
++    return !refuse;
+ }
+ #endif
+ 
+@@ -764,6 +807,9 @@ void Hal::xiaozhi_mcp_init()
+     mcp_server.AddTool("self.robot.stop_dance", "Stop the current built-in dance if one is running.", std::vector<Property>{},
+                        [this](const PropertyList&) -> ReturnValue {
+                            LvglLockGuard lock;
++#if CONFIG_MAIPAI_MUSIC_DANCE
++                           music_stage_locked(0);  // patch MD01: also ends the beat dance (eyes ahead, head level, ring dark)
++#endif
+                            if (s_dance_modifier_id >= 0) {
+                                GetStackChan().removeModifier(s_dance_modifier_id);
+                                s_dance_modifier_id = -1;
+diff --git a/firmware/main/hal/maipai_music.cc b/firmware/main/hal/maipai_music.cc
+--- a/firmware/main/hal/maipai_music.cc
++++ b/firmware/main/hal/maipai_music.cc
+@@ -37,14 +37,18 @@
+ #include "device_events.h"
+ #include "hal.h"
+ #include "maipai_privacy.h"
++#include "maipai_remote.h"
+ #include "maipai_music_core.h"
+ #include "maipai_music_judge.h"
+ #include "maipai_music_mood_core.h"
++#include "maipai_dance_ladder_core.h"
+ #include "maipai_beat.h"
+ 
+-void maipai_music_dance_start();
+-void maipai_music_dance_stop();
+-void maipai_music_bob_start();
++// hal_mcp.cpp (patch MD01): the music dance ladder's step, 0 to 4; false while muted or in full quiet.
++bool maipai_music_stage_set(int stage);
++int maipai_music_stage_get();
++
++bool maipai_beat_get(uint32_t* period_ms, uint32_t* ref_ms);
+ 
+ static const char* TAG = "MAIPAI-MUSIC";
+ 
+@@ -77,6 +81,7 @@ std::atomic<uint32_t> s_suppressed_chunks{0};
+ std::atomic<int> s_state{0};          // the offline session state, for self.music.get_status (0 idle .. 4 slow mood)
+ std::atomic<uint32_t> s_dances{0};    // dances started offline since boot
+ std::atomic<int> s_last_bpm{0};
++std::atomic<int> s_last_level{0};
+ 
+ // The beat of the song: from the last 6 s of onset frames and the tempo estimate, find where the beats fall and
+ // publish the period and the time of a recent beat for the dance (beat_sway.h). A steady grid: the tempo is the median
+@@ -163,6 +168,59 @@ void set_face(int idx)
+     hal_bridge::react_face(MMM_FACES[idx], 4000);
+ }
+ 
++// The unit's own cycle of the dance ladder while Home is unreachable (patch MD01): climb from the eyes to the full dance on the
++// beat, hold the peak, wind down in reverse, rest two seconds, again, for as long as the judge says the session goes on.
++struct Ladder {
++    mdl_t st;
++    mdl_energy_t energy;
++    bool active = false;     // a cycle is running
++    uint32_t rest_ms = 0;    // when the last cycle ended (0 none)
++    int max_stage = 4;
++};
++Ladder s_ladder;
++
++void ladder_begin(uint32_t now_ms, int max_stage)
++{
++    mdl_start(&s_ladder.st, max_stage, now_ms);
++    mdl_energy_reset(&s_ladder.energy);
++    s_ladder.active = true;
++    s_ladder.rest_ms = 0;
++    s_ladder.max_stage = max_stage;
++    maipai_music_stage_set(1);
++}
++
++void ladder_end()
++{
++    s_ladder.active = false;
++    s_ladder.rest_ms = 0;
++    maipai_music_stage_set(0);
++}
++
++// Once a second while the unit dances on its own: steps the cycle and shows its step.
++void ladder_tick(const mm_feat_t& f, bool music, uint32_t now_ms)
++{
++    const int avg = mdl_energy_push(&s_ladder.energy, f.lv);
++    if (!s_ladder.active) {
++        if (s_ladder.rest_ms == 0) {
++            s_ladder.rest_ms = now_ms ? now_ms : 1u;
++        } else if (music && now_ms - s_ladder.rest_ms >= 2000u) {
++            ladder_begin(now_ms, s_ladder.max_stage);  // the music goes on: the next cycle
++        }
++        return;
++    }
++    uint32_t period = 0, ref = 0;
++    maipai_beat_get(&period, &ref);
++    const mdl_in_t in = {now_ms, period, avg, f.tc, music ? 1 : 0};
++    const int stage = mdl_step(&s_ladder.st, &in);
++    if (stage == 0) {
++        s_ladder.active = false;
++        s_ladder.rest_ms = now_ms ? now_ms : 1u;
++        maipai_music_stage_set(0);
++    } else if (stage != maipai_music_stage_get()) {
++        maipai_music_stage_set(stage);
++    }
++}
++
+ // The unit's own music session while Home is unreachable: the nod, the dance 15 s later, a dance block (5 minutes
+ // charging, 2 on battery), a 90 s slow mood, the dance again, for as long as the music goes on; a gap of 60 s ends it.
+ void offline_music_step(const mm_feat_t& f)
+@@ -178,7 +236,7 @@ void offline_music_step(const mm_feat_t& f)
+     }
+     auto stop_all = [&](const char* why) {
+         if (dancing) {
+-            maipai_music_dance_stop();
++            ladder_end();
+             dancing = false;
+         }
+         face = -1;
+@@ -230,28 +288,34 @@ void offline_music_step(const mm_feat_t& f)
+         face = mmm_face(f.bpm, f.lv, 0);
+         set_face(face);
+         if (!dancing) {
+-            maipai_music_bob_start();  // nodding on the beat for a while before the full dance
++            ladder_begin(now_ms, 2);  // the eyes, then the nod on the beat, before the full dance
+             dancing = true;
+         }
+     } else if (action == MMJ_ACTION_DANCE) {
+         if (charging || battery >= 40) {
+-            maipai_music_dance_start();
++            s_ladder.max_stage = 4;  // the nod phase is over: the cycle may go up to the full dance
++            if (s_ladder.active) {
++                s_ladder.st.max_stage = 4;
++            } else if (!dancing) {
++                ladder_begin(now_ms, 4);
++            }
+             dancing = true;
+             s_dances.fetch_add(1);
+             ESP_LOGI(TAG, "offline music: dance");
+         }
+     } else if (action == MMJ_ACTION_BREAK) {
+-        // The slow mood between dance blocks: the gentle sway goes on until the next full dance.
++        // The slow mood between dance blocks: the eyes and the nod go on until the next full dance.
+         if (!dancing && (charging || battery >= 40)) {
+-            maipai_music_dance_start();
++            ladder_begin(now_ms, 2);
+             dancing = true;
+         }
++        s_ladder.max_stage = 2;
+         set_face(0);
+         face = 0;
+         ESP_LOGI(TAG, "offline music: slow mood");
+     } else if (action == MMJ_ACTION_PAUSE) {
+         if (dancing) {
+-            maipai_music_dance_stop();
++            ladder_end();
+             dancing = false;
+         }
+         ESP_LOGI(TAG, "offline music: paused, no music");
+@@ -265,6 +329,9 @@ void offline_music_step(const mm_feat_t& f)
+             set_face(face);
+         }
+     }
++    if (dancing) {
++        ladder_tick(f, verdict.music, now_ms);  // the beat dance's step for this second (patch MD01)
++    }
+ }
+ 
+ void send_reset()
+@@ -304,6 +371,7 @@ void worker_task(void*)
+         }
+         const uint32_t now_ms = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+         s_last_bpm.store(f.bpm);
++        s_last_level.store(f.lv);
+         offline_music_step(f);
+         publish_beat(f, now_ms);
+         if (f.lv >= kGateRms && hal_bridge::hub_link_up() && !maipai_muted()) {
+@@ -366,6 +434,12 @@ bool maipai_beat_get(uint32_t* period_ms, uint32_t* ref_ms)
+     return true;
+ }
+ 
++// The room's level of the last second (hal_mcp's beat dance reads it to lean its speed on a loud song).
++int maipai_music_level()
++{
++    return s_last_level.load();
++}
++
+ // One atomic read for the audio input task: whether the features are on and ready.
+ bool maipai_music_active()
+ {
+@@ -458,11 +532,34 @@ void maipai_music_init()
+             char out[256];
+             snprintf(out, sizeof(out),
+                      "{\"ok\":true,\"enabled\":%s,\"state\":\"%s\",\"bpm\":%d,\"beat_ms\":%u,\"dances\":%u,"
+-                     "\"dropped\":%u,\"suppressed\":%u,\"link\":%s}",
++                     "\"dropped\":%u,\"suppressed\":%u,\"link\":%s,\"stage\":%d}",
+                      s_enabled.load() ? "true" : "false", kStates[st >= 0 && st <= 4 ? st : 0], s_last_bpm.load(),
+                      beat ? static_cast<unsigned>(period) : 0u, static_cast<unsigned>(s_dances.load()),
+                      static_cast<unsigned>(s_dropped.load()), static_cast<unsigned>(s_suppressed_chunks.load()),
+-                     hal_bridge::hub_link_up() ? "true" : "false");
++                     hal_bridge::hub_link_up() ? "true" : "false", maipai_music_stage_get());
++            return std::string(out);
++        });
++    McpServer::GetInstance().AddTool(
++        "self.music.stage",
++        "Set the step of the music dance ladder: 0 stands still, 1 the eyes look side to side on the beat, 2 the head nods, 3 it sways "
++        "side to side, 4 pan, tilt and sway together with a soft swell on the ring. The beat comes from the unit's own analysis; "
++        "with no beat the last one carries on. Refused while muted or in full quiet (the unit stays still). Answers "
++        "{ok,stage,beat}.",
++        PropertyList({Property("stage", kPropertyTypeInteger, 0, 0, 4), Property("source", kPropertyTypeString, std::string("")),
++                      Property("token", kPropertyTypeInteger, 0, 0, 2147483647)}),
++        [](const PropertyList& properties) -> ReturnValue {
++            if (!maipai_remote_gate("dance", properties["source"].value<std::string>().c_str(), properties["token"].value<int>())) {
++                return std::string(maipai_remote_refusal());
++            }
++            const int stage = properties["stage"].value<int>();
++            if (stage > 0 && !s_enabled.load()) {
++                return std::string(R"({"ok":false,"error":"the music features are off: turn them on with self.music.set first"})");
++            }
++            const bool ok = maipai_music_stage_set(stage);
++            uint32_t period = 0, ref = 0;
++            char out[96];
++            snprintf(out, sizeof(out), "{\"ok\":%s,\"stage\":%d,\"beat\":%s}", ok ? "true" : "false",
++                     maipai_music_stage_get(), maipai_beat_get(&period, &ref) ? "true" : "false");
+             return std::string(out);
+         });
+ }

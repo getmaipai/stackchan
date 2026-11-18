@@ -63,6 +63,9 @@ FIRMWARE_EMOTIONS = {
     "curious": "curious",
     "love": "love",
     "worried": "worried",
+    "silly": "silly",  # firmware patch MD02
+    "laughing": "laughing",
+    "serene": "serene",
 }
 MAX_EARLY_DEVICE_REPLIES = 32
 
@@ -660,15 +663,13 @@ class XiaozhiServer:
                     and isinstance(data, dict)
                     and not self.link.replay.accepts(device_id, data.get("session_id"))
                 ):
-                    LOG.warning(
-                        "StackChan link: refused a stale or unknown session id from unit ...%s",
+                    # The frame is dropped, not answered with a closed socket: a unit that reconnects can still send a
+                    # few frames of its old session, and closing the socket for that made it reconnect in a loop (2026-11-17).
+                    LOG.debug(
+                        "StackChan link: dropped a frame with a stale or unknown session id from unit ...%s",
                         device_id[-5:],
                     )
-                    await websocket.close(
-                        code=1008,
-                        reason="That session id is stale. Reconnect to start a new session.",
-                    )
-                    break
+                    continue
                 if kind == "hello":
                     if hello_received:
                         await self._send_error(

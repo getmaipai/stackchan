@@ -1,0 +1,722 @@
+# Intent: One movement limiter at the single place every servo target passes through (Servo::update_angle_anim_target and the spring and speed setters in stackchan/motion/servo.cpp, plus the continuous rotate in hal_servo.cpp). Carried or held (the pickup detector, debounced 150 ms on and 1 s off): no movement at all, every target is refused and the head holds. The IMU's gravity vector, taken relative to the head's pitch, gives an orientation band with 5 degree hysteresis (a worse band after 0.5 s, a better one after 1 s): upright under 15 degrees normal, tilted 15 to 45 small slow moves only (30 percent, speed 40 percent, no dance above the nod), on its side, face down or inverted over 45 degrees no movement; no reading or data older than 2 s counts as unknown and limited (50 percent). On a USB cable and not carried (debounced 2 s): half the excursion around the rest pose, speed capped at 60 percent and the spring stiffness with it, no full dance step. On battery, a ladder by charge with 3 point hysteresis: over 50 percent nothing, 30 to 50 mild (80 percent), 15 to 30 limited (50 percent, speed 60 percent, no full dance), 8 to 15 minimal (25 percent, no dances), under 8 percent a hold. A cable in is the USB rule, never the ladder. The most restrictive of carried, orientation, USB and the ladder wins. self.motion.status answers state (free, usb_limited, battery_limited, orientation_limited, carried), reasons, orientation (upright, tilted, side, inverted, unknown), tilt_deg, battery_band, scale, speed_cap, dance_max and the refused count; self.motion.set usb_limit limited or off (saved in its own NVS namespace, default limited) lifts the USB limit only, never the carried rule or the ladder. Dances (self.robot.dance) refuse while carried or in the minimal and hold bands. The servo hard limits, the wear counter and the stall guard below are untouched. Bench builds add self.motion.force to fake the carried flag, the cable, the charge and the orientation band.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_motion_limit.cc, maipai_motion_limit_core.h (ours)
+# Check after a flash: self.motion.status answers state usb_limited with scale 50 and speed_cap 600 on the cable; the refused_count stays 0 while nothing asks for a move; a bench build with self.motion.force carried 1 answers state carried, and a head command then raises refused_count and the head does not move.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_motion_limit_core.h b/firmware/main/hal/maipai_motion_limit_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_motion_limit_core.h
+@@ -0,0 +1,282 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The movement limiter (patch ML01): the pure logic. Plain C99, no ESP-IDF, no clock of its own: host/tests/firmware/motion_limit_core_test.c
++ * compiles it. One state says how much the head may move, and every servo target on the unit passes through it (stackchan/motion/servo.cpp).
++ *
++ *   carried     the unit is held or being carried: no movement at all, every target is refused and the head holds where it is.
++ *   usb_limited on a USB cable and not carried: half the excursion around the rest pose, speed and spring stiffness capped, no full dance.
++ *   battery     on battery and not carried: a ladder by charge. Above 50 percent nothing; 30 to 50 mild (80 percent of the excursion and speed);
++ *               15 to 30 limited (50 percent, speed cap 60 percent, no full dance); 8 to 15 minimal (25 percent, small moves, no dances);
++ *               under 8 percent, or the low-battery state: a hold, no movement. A band changes only past a 3 point margin (no flapping).
++ *   free        none of the above: only the servo hard limits, the wear counter and the stall guard apply.
++ *   orientation from the IMU's gravity vector (compensated for the head's pitch): upright (under 15 degrees) normal; tilted (15 to 45) small slow moves
++ *               only (30 percent, speed 40 percent, no dances above the nod); on its side, face down or inverted (over 45): no movement, like carried.
++ *               5 degree hysteresis (10 and 40 going back), a worse band is believed after 0.5 s and a better one after 1 s; data older than 2 s, or
++ *               no data yet, is "unknown" and counts as limited (half the excursion, speed 60 percent).
++ * The most restrictive of carried, orientation, USB (a cable: the ladder does not apply while it is in) and the ladder wins.
++ * The USB choice "off" lifts the USB limit only: it never lifts the carried rule, the orientation rule or the battery ladder.
++ */
++#ifndef MAIPAI_MOTION_LIMIT_CORE_H
++#define MAIPAI_MOTION_LIMIT_CORE_H
++
++#include <math.h>
++#include <stdint.h>
++#include <string.h>
++
++#define MML_FREE 0
++#define MML_USB 1
++#define MML_BATTERY 2
++#define MML_CARRIED 3
++#define MML_ORIENT 4 /* the state name when the orientation is the most restrictive: orientation_limited */
++
++#define MML_O_UPRIGHT 0
++#define MML_O_TILTED 1
++#define MML_O_SIDE 2     /* on its side, face down or on its back */
++#define MML_O_INVERTED 3
++#define MML_O_UNKNOWN 4  /* no reading, or one older than 2 s */
++#define MML_TILT_ENTER 15 /* degrees: tilted from here, upright again under 10 */
++#define MML_TILT_EXIT 10
++#define MML_SIDE_ENTER 45 /* beyond this no movement, back to tilted under 40 */
++#define MML_SIDE_EXIT 40
++#define MML_O_WORSE_MS 500u
++#define MML_O_BETTER_MS 1000u
++#define MML_ACC_STALE_MS 2000u
++
++#define MML_CARRIED_ON_MS 150u   /* a lift is believed after this long */
++#define MML_CARRIED_OFF_MS 1000u /* a set-down after this long */
++#define MML_USB_MS 2000u         /* a cable going in or out is believed after this long */
++#define MML_HYST 3               /* percentage points */
++#define MML_SPEED_MAX 1000
++#define MML_STIFF_MAX 650        /* the servo layer's stiffness at speed 1000 */
++
++/* Battery bands: 0 none, 1 mild, 2 limited, 3 minimal, 4 hold. */
++static const int8_t MML_BAND_UP[4] = {50, 30, 15, 8}; /* the level under which band 1..4 starts */
++static const int8_t MML_BAND_SCALE[5] = {100, 80, 50, 25, 0};
++static const int8_t MML_BAND_SPEED[5] = {100, 80, 60, 50, 0};
++
++typedef struct {
++    uint8_t carried;       /* debounced */
++    uint8_t usb;           /* debounced cable present */
++    uint8_t carried_raw, usb_raw;
++    uint32_t carried_at, usb_at; /* when the raw value last changed */
++    uint8_t usb_limit;     /* the choice: 1 limited (default), 0 off */
++    uint8_t band;          /* battery band 0..4 */
++    int8_t level;          /* last charge 0..100, -1 unknown */
++    int8_t force_carried, force_usb, force_level; /* bench only: -1 none */
++    uint32_t now;          /* the clock of the last mml_step */
++    uint8_t orient;        /* debounced MML_O_* */
++    uint8_t orient_raw;
++    uint32_t orient_at;    /* when the raw band last changed */
++    int16_t tilt_deg;      /* degrees from the expected upright pull, head pitch compensated */
++    uint32_t acc_ms;       /* time of the last accepted reading; 0 none */
++    int8_t force_orient;   /* bench only: -1 none, else MML_O_* */
++    uint32_t refused;      /* targets refused or held */
++    uint32_t limited;      /* targets scaled */
++} mml_t;
++
++static inline void mml_init(mml_t* m)
++{
++    memset(m, 0, sizeof(*m));
++    m->usb_limit = 1;
++    m->level = -1;
++    m->force_carried = m->force_usb = m->force_level = m->force_orient = -1;
++    m->orient = m->orient_raw = MML_O_UNKNOWN; /* nothing read yet: limited until the first reading */
++}
++
++static inline int mml_band_for(int level, int band)
++{
++    int b = band;
++    for (;;) { /* more restrictive: strictly under the threshold */
++        if (b < 4 && level < MML_BAND_UP[b]) { b++; continue; }
++        break;
++    }
++    for (;;) { /* less restrictive: back over the threshold by the margin */
++        if (b > 0 && level >= MML_BAND_UP[b - 1] + MML_HYST) { b--; continue; }
++        break;
++    }
++    return b;
++}
++
++/* The tilt of the unit from upright, in degrees, from one low-passed accelerometer reading (m/s^2) and the head's pitch (degrees; the head's
++ * own tilt moves gravity between y and z only). Upright reads +y (host orientation.py: axis +y, gy about 950 mg). `roll` is the lean to a side
++ * (nothing a pan or a pitch changes); `fore` is the tilt in the pitch plane, 0 upright and 180 inverted, taken relative to the head's pitch
++ * whichever way the sensor reads it (the smaller of the two). Returns -1 for a reading that is not about 1 g (a shake, a fall). *inverted is
++ * set when the unit is past 120 degrees in the pitch plane. */
++static inline int mml_tilt_deg(float ax, float ay, float az, float pitch_deg, int* inverted)
++{
++    const float mag = sqrtf(ax * ax + ay * ay + az * az);
++    *inverted = 0;
++    if (mag < 6.0f || mag > 13.0f) return -1;
++    const float rad = 57.2957795f;
++    const float roll = atan2f(ax, sqrtf(ay * ay + az * az)) * rad;
++    float phi = atan2f(az, ay) * rad; /* pitch plane, -180..180 */
++    float d1 = phi - pitch_deg, d2 = phi + pitch_deg;
++    while (d1 > 180.0f) d1 -= 360.0f;
++    while (d1 < -180.0f) d1 += 360.0f;
++    while (d2 > 180.0f) d2 -= 360.0f;
++    while (d2 < -180.0f) d2 += 360.0f;
++    const float dev = fabsf(d1) < fabsf(d2) ? fabsf(d1) : fabsf(d2);
++    float c = cosf(roll / rad) * cosf(dev / rad);
++    c = c > 1.0f ? 1.0f : (c < -1.0f ? -1.0f : c);
++    const float t = acosf(c) * rad;
++    *inverted = dev >= 120.0f;
++    return (int)(t + 0.5f);
++}
++
++/* The band for a tilt, with hysteresis around the band the unit is in now. */
++static inline int mml_band_for_tilt(int tilt, int inverted, int now_band)
++{
++    const int in_side = now_band == MML_O_SIDE || now_band == MML_O_INVERTED;
++    const int side = tilt >= (in_side ? MML_SIDE_EXIT : MML_SIDE_ENTER);
++    if (side) return inverted ? MML_O_INVERTED : MML_O_SIDE;
++    const int was_tilted = now_band == MML_O_TILTED || in_side;
++    if (tilt >= (was_tilted ? MML_TILT_EXIT : MML_TILT_ENTER)) return MML_O_TILTED;
++    return MML_O_UPRIGHT;
++}
++
++/* Feed one accelerometer reading (about every 20 ms; the caller low-passes) and the head's pitch in degrees. */
++static inline void mml_orient_feed(mml_t* m, uint32_t now, float ax, float ay, float az, float pitch_deg)
++{
++    int inv = 0;
++    const int tilt = mml_tilt_deg(ax, ay, az, pitch_deg, &inv);
++    m->acc_ms = now ? now : 1u;
++    if (tilt < 0) return; /* not about 1 g: says nothing, the band stays */
++    m->tilt_deg = (int16_t)tilt;
++    const int base = m->orient == MML_O_UNKNOWN ? MML_O_UPRIGHT : m->orient;
++    const int band = mml_band_for_tilt(tilt, inv, base);
++    if (m->force_orient < 0) {
++        if (band != m->orient_raw) { m->orient_raw = (uint8_t)band; m->orient_at = now; }
++        if (m->orient == MML_O_UNKNOWN) {
++            m->orient = (uint8_t)band; /* the first reading: believed at once */
++        } else if (m->orient_raw != m->orient) {
++            const int worse = m->orient_raw > m->orient; /* tilted < side < inverted */
++            if (now - m->orient_at >= (worse ? MML_O_WORSE_MS : MML_O_BETTER_MS)) m->orient = m->orient_raw;
++        }
++    }
++}
++
++/* The band now: unknown when no reading came in the last 2 s. */
++static inline int mml_orient(const mml_t* m, uint32_t now)
++{
++    if (m->force_orient >= 0) return m->force_orient;
++    if (m->acc_ms == 0 || (int32_t)(now - m->acc_ms) > (int32_t)MML_ACC_STALE_MS) return MML_O_UNKNOWN; /* signed: a reading a few ms newer than the clock is fresh */
++    return m->orient;
++}
++
++/* Feed the raw readings (carried: held or lifted; usb: a cable is in; level: charge percent or -1 unknown). Call about every 20 ms; cheap. */
++static inline void mml_step(mml_t* m, uint32_t now, int carried_raw, int usb_raw, int level)
++{
++    m->now = now;
++    if (m->force_carried >= 0) carried_raw = m->force_carried;
++    if (m->force_usb >= 0) usb_raw = m->force_usb;
++    if (m->force_level >= 0) level = m->force_level;
++    carried_raw = carried_raw != 0;
++    usb_raw = usb_raw != 0;
++    if (carried_raw != m->carried_raw) { m->carried_raw = (uint8_t)carried_raw; m->carried_at = now; }
++    if (usb_raw != m->usb_raw) { m->usb_raw = (uint8_t)usb_raw; m->usb_at = now; }
++    if (m->carried_raw != m->carried) {
++        if (now - m->carried_at >= (m->carried_raw ? MML_CARRIED_ON_MS : MML_CARRIED_OFF_MS)) m->carried = m->carried_raw;
++    }
++    if (m->usb_raw != m->usb) {
++        if (now - m->usb_at >= MML_USB_MS) m->usb = m->usb_raw;
++    }
++    if (level >= 0) {
++        m->level = (int8_t)(level > 100 ? 100 : level);
++        m->band = (uint8_t)mml_band_for(m->level, m->band);
++    }
++}
++
++/* Each source's own limit: scale and speed in percent, the highest dance step. */
++static inline void mml_orient_limit(int band, int* scale, int* speed, int* dance)
++{
++    switch (band) {
++        case MML_O_UPRIGHT: *scale = 100; *speed = 100; *dance = 4; break;
++        case MML_O_TILTED: *scale = 30; *speed = 40; *dance = 2; break;
++        case MML_O_UNKNOWN: *scale = 50; *speed = 60; *dance = 3; break;
++        default: *scale = 0; *speed = 0; *dance = 0; break; /* on its side, face down, inverted */
++    }
++}
++static inline void mml_source_limits(const mml_t* m, int* scale, int* speed, int* dance)
++{
++    int s = 100, v = 100, d = 4;
++    if (m->carried) { s = 0; v = 0; d = 0; }
++    int os, ov, od;
++    mml_orient_limit(mml_orient(m, m->now), &os, &ov, &od);
++    if (os < s) s = os;
++    if (ov < v) v = ov;
++    if (od < d) d = od;
++    if (m->usb) {
++        if (m->usb_limit) { if (50 < s) s = 50; if (60 < v) v = 60; if (3 < d) d = 3; }
++    } else if (m->band > 0) { /* a cable in is the USB rule: the ladder is for the battery */
++        const int bs = MML_BAND_SCALE[m->band], bv = MML_BAND_SPEED[m->band];
++        const int bd = m->band >= 3 ? 0 : (m->band == 2 ? 3 : 4);
++        if (bs < s) s = bs;
++        if (bv < v) v = bv;
++        if (bd < d) d = bd;
++    }
++    *scale = s; *speed = v; *dance = d;
++}
++
++/* The state name: carried first, then the orientation when it limits, then USB or the battery. */
++static inline int mml_state(const mml_t* m)
++{
++    if (m->carried) return MML_CARRIED;
++    int s, v, d;
++    mml_source_limits(m, &s, &v, &d);
++    if (mml_orient(m, m->now) != MML_O_UPRIGHT) {
++        int os, ov, od;
++        mml_orient_limit(mml_orient(m, m->now), &os, &ov, &od);
++        if (os <= s) return MML_ORIENT;
++    }
++    if (m->usb) return m->usb_limit ? MML_USB : MML_FREE;
++    return m->band > 0 ? MML_BATTERY : MML_FREE;
++}
++
++static inline int mml_scale(const mml_t* m) { int s, v, d; mml_source_limits(m, &s, &v, &d); return s; }
++static inline int mml_speed_pct(const mml_t* m) { int s, v, d; mml_source_limits(m, &s, &v, &d); return v; }
++static inline int mml_speed_cap(const mml_t* m) { return MML_SPEED_MAX * mml_speed_pct(m) / 100; }
++/* The highest dance step: 4 free or mild, 3 on USB or in band 2, 2 tilted, 0 (no dance) carried, on its side, or in the minimal and hold bands. */
++static inline int mml_dance_max(const mml_t* m) { int s, v, d; mml_source_limits(m, &s, &v, &d); return d; }
++/* 1 when a dance, a game's motion or a sweep may run at all. */
++static inline int mml_dances_ok(const mml_t* m) { return mml_dance_max(m) > 0; }
++
++/* A target angle (tenths of a degree) after the limit: scaled around the rest pose (0). With scale 0 the caller holds (use `current`). */
++static inline int mml_angle(const mml_t* m, int angle, int current)
++{
++    const int s = mml_scale(m);
++    if (s <= 0) return current;
++    return s >= 100 ? angle : angle * s / 100;
++}
++/* A spring stiffness after the speed cap (the stiffness at speed v is 10 + (v/1000)^2 * 640). */
++static inline float mml_stiffness(const mml_t* m, float k)
++{
++    const int pct = mml_speed_pct(m);
++    if (pct >= 100) return k;
++    const float v = (float)pct / 100.0f;
++    const float cap = 10.0f + v * v * (float)(MML_STIFF_MAX - 10);
++    return k > cap ? cap : k;
++}
++
++static inline const char* mml_state_name(const mml_t* m)
++{
++    switch (mml_state(m)) {
++        case MML_CARRIED: return "carried";
++        case MML_USB: return "usb_limited";
++        case MML_BATTERY: return "battery_limited";
++        case MML_ORIENT: return "orientation_limited";
++        default: return "free";
++    }
++}
++static inline const char* mml_orient_name(int o)
++{
++    static const char* const n[5] = {"upright", "tilted", "side", "inverted", "unknown"};
++    return n[o < 0 || o > 4 ? 4 : o];
++}
++static inline const char* mml_band_name(const mml_t* m)
++{
++    static const char* const n[5] = {"none", "mild", "limited", "minimal", "hold"};
++    return n[m->band > 4 ? 4 : m->band];
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_motion_limit.h b/firmware/main/hal/maipai_motion_limit.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_motion_limit.h
+@@ -0,0 +1,31 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The movement limiter, device side (patch ML01). Logic: maipai_motion_limit_core.h. Every servo target passes through
++ * stackchan/motion/servo.cpp, which asks these functions; nothing else decides how far or how fast the head may go.
++ */
++#pragma once
++#include <cstdint>
++
++// Reads the carried flag (every call) and the cable and the charge (every half second); cheap. Called from the servo update only
++// (never from a task with a PSRAM stack: it may touch the power chip).
++void maipai_motion_tick();
++// One accelerometer reading in m/s^2 (the IMU task, every 20 ms): an inverted or sideways unit counts as carried.
++void maipai_motion_feed_accel(float ax, float ay, float az);
++// The head's pitch in tenths of a degree (the servo layer, every update): the orientation reading is taken relative to it.
++void maipai_motion_note_pitch(int angle_tenths);
++// MML_FREE 0, MML_USB 1, MML_BATTERY 2, MML_CARRIED 3 (maipai_motion_limit_core.h).
++int maipai_motion_state();
++// True when no target may move the head (carried, or the battery hold): the caller keeps the head where it is. Counts the refusal.
++bool maipai_motion_hold();
++// The share of the excursion and of the speed that is allowed, percent.
++int maipai_motion_scale();
++// A target (tenths of a degree) scaled around the rest pose; a speed (0 to 1000) and a spring stiffness capped.
++int maipai_motion_angle(int angle);
++int maipai_motion_speed(int speed);
++float maipai_motion_stiffness(float stiffness);
++// The highest dance step the state allows (0 none, 3 no full dance, 4 any) and whether a dance, game motion or sweep may run.
++int maipai_motion_dance_max();
++bool maipai_motion_dances_ok();
++// Loads the saved USB choice and registers self.motion.status and self.motion.set (and self.motion.force in bench builds).
++void maipai_motion_register_tools();
+diff --git a/firmware/main/hal/maipai_motion_limit.cc b/firmware/main/hal/maipai_motion_limit.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_motion_limit.cc
+@@ -0,0 +1,217 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The movement limiter, device side (patch ML01). One small state (about 40 bytes) in a static; the tools and the NVS choice are
++ * set up once at boot, on the registering task's internal stack. The servo update (the stackchan task) feeds the readings.
++ */
++#include <sdkconfig.h>
++#include "maipai_motion_limit.h"
++#include "maipai_motion_limit_core.h"
++#include "maipai_pickup.h"
++#include "board/hal_bridge.h"
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <mcp_server.h>
++#include <nvs.h>
++#include <nvs_flash.h>
++#include <cmath>
++#include <cstdio>
++#include <cstring>
++#include <string>
++
++static const char* TAG = "MAIPAI-MOTION";
++
++namespace {
++mml_t s_mml;
++bool s_ready = false;
++uint32_t s_power_at = 0;
++int s_level = -1;
++int s_cable = 0;
++float s_acc[3] = {0.0f, 9.8f, 0.0f};  // the low-passed pull, fed by the IMU task
++volatile int s_pitch_deg10 = 0;       // the head's pitch, tenths of a degree, from the servo layer
++constexpr const char* kNs = "mp_motion";  // its own namespace
++constexpr const char* kKey = "usb_limit";
++
++uint32_t now_ms()
++{
++    return static_cast<uint32_t>(esp_timer_get_time() / 1000);
++}
++
++void ensure()
++{
++    if (!s_ready) {
++        mml_init(&s_mml);
++        s_ready = true;
++    }
++}
++}  // namespace
++
++// One accelerometer reading (m/s^2) from the IMU task, every 20 ms: the orientation band (upright, tilted, side, inverted) comes from it;
++// the head's pitch is taken off first. An unreadable IMU simply stops calling this and the band turns "unknown" after 2 s.
++void maipai_motion_feed_accel(float ax, float ay, float az)
++{
++    ensure();
++    s_acc[0] += 0.2f * (ax - s_acc[0]);
++    s_acc[1] += 0.2f * (ay - s_acc[1]);
++    s_acc[2] += 0.2f * (az - s_acc[2]);
++    mml_orient_feed(&s_mml, now_ms(), s_acc[0], s_acc[1], s_acc[2], static_cast<float>(s_pitch_deg10) / 10.0f);
++}
++
++void maipai_motion_note_pitch(int angle_tenths)
++{
++    s_pitch_deg10 = angle_tenths;
++}
++
++void maipai_motion_tick()
++{
++    ensure();
++    const uint32_t now = now_ms();
++    if (s_power_at == 0 || now - s_power_at >= 500) {
++        s_power_at = now ? now : 1u;
++        int level = 0;
++        bool charging = false, on_cable = false;
++        if (hal_bridge::board_battery_state(&level, &charging, &on_cable)) {
++            s_level = level;
++            s_cable = on_cable ? 1 : 0;
++        }  // unknown: the last reading stays
++    }
++    mml_step(&s_mml, now, maipai_pickup_held() ? 1 : 0, s_cable, s_level);
++}
++
++int maipai_motion_state()
++{
++    ensure();
++    return mml_state(&s_mml);
++}
++
++bool maipai_motion_hold()
++{
++    ensure();
++    if (mml_scale(&s_mml) > 0) {
++        return false;
++    }
++    s_mml.refused++;
++    return true;
++}
++
++int maipai_motion_scale()
++{
++    ensure();
++    return mml_scale(&s_mml);
++}
++
++int maipai_motion_angle(int angle)
++{
++    ensure();
++    const int out = mml_angle(&s_mml, angle, angle);
++    if (out != angle) {
++        s_mml.limited++;
++    }
++    return out;
++}
++
++int maipai_motion_speed(int speed)
++{
++    ensure();
++    const int cap = mml_speed_cap(&s_mml);
++    return speed > cap ? cap : speed;
++}
++
++float maipai_motion_stiffness(float stiffness)
++{
++    ensure();
++    return mml_stiffness(&s_mml, stiffness);
++}
++
++int maipai_motion_dance_max()
++{
++    ensure();
++    return mml_dance_max(&s_mml);
++}
++
++bool maipai_motion_dances_ok()
++{
++    ensure();
++    return mml_dances_ok(&s_mml) != 0;
++}
++
++void maipai_motion_register_tools()
++{
++    ensure();
++    nvs_handle_t h;
++    uint8_t v = 1;
++    if (nvs_open(kNs, NVS_READONLY, &h) == ESP_OK) {
++        if (nvs_get_u8(h, kKey, &v) != ESP_OK) {
++            v = 1;
++        }
++        nvs_close(h);
++    }
++    s_mml.usb_limit = v == 0 ? 0 : 1;  // default limited
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.motion.status",
++                "How much the head may move now. state: free, usb_limited (on a USB cable the robot moves gently), battery_limited (it "
++                "moves more gently as the battery runs low) or carried (held or carried: no movement). Also reasons, usb, carried, "
++                "battery_band (none, mild, limited, minimal, hold), scale (percent of the excursion), speed_cap (0 to 1000), "
++                "dance_max (0 to 4) and refused_count.",
++                PropertyList(), [](const PropertyList&) -> ReturnValue {
++                    ensure();
++                    char reason[120];
++                    reason[0] = 0;
++                    auto add = [&](const char* text) {
++                        if (reason[0]) strncat(reason, ", ", sizeof(reason) - strlen(reason) - 1);
++                        strncat(reason, text, sizeof(reason) - strlen(reason) - 1);
++                    };
++                    const int orient = mml_orient(&s_mml, now_ms());
++                    if (s_mml.carried) add("held or carried");
++                    if (orient == MML_O_TILTED) add("tilted");
++                    else if (orient == MML_O_SIDE) add("on its side or face down");
++                    else if (orient == MML_O_INVERTED) add("upside down");
++                    else if (orient == MML_O_UNKNOWN) add("no orientation reading");
++                    if (s_mml.usb && s_mml.usb_limit) add("on a USB cable");
++                    if (!s_mml.usb && s_mml.band > 0) add("the battery is low");
++                    char out[560];
++                    snprintf(out, sizeof(out),
++                             "{\"ok\":true,\"state\":\"%s\",\"reasons\":\"%s\",\"usb\":%s,\"carried\":%s,\"orientation\":\"%s\",\"tilt_deg\":%d,\"usb_limit\":\"%s\","
++                             "\"battery\":%d,\"battery_band\":\"%s\",\"scale\":%d,\"speed_cap\":%d,\"dance_max\":%d,"
++                             "\"refused_count\":%u,\"limited_count\":%u}",
++                             mml_state_name(&s_mml), reason, s_mml.usb ? "true" : "false", s_mml.carried ? "true" : "false", mml_orient_name(orient), static_cast<int>(s_mml.tilt_deg),
++                             s_mml.usb_limit ? "limited" : "off", s_mml.level, mml_band_name(&s_mml), mml_scale(&s_mml),
++                             mml_speed_cap(&s_mml), mml_dance_max(&s_mml), static_cast<unsigned>(s_mml.refused),
++                             static_cast<unsigned>(s_mml.limited));
++                    return std::string(out);
++                });
++    mcp.AddTool("self.motion.set",
++                "Choose the USB rule: usb_limit limited (the default: on a USB cable the robot moves gently) or off (it moves freely on "
++                "USB). Off never lifts the carried rule or the battery ladder. Saved. Answers {ok,usb_limit}.",
++                PropertyList({Property("usb_limit", kPropertyTypeString, std::string("limited"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    ensure();
++                    const std::string c = properties["usb_limit"].value<std::string>();
++                    if (c != "limited" && c != "off") {
++                        return std::string("{\"ok\":false,\"error\":\"usb_limit is limited or off\"}");
++                    }
++                    s_mml.usb_limit = c == "off" ? 0 : 1;
++                    nvs_handle_t w;
++                    if (nvs_open(kNs, NVS_READWRITE, &w) == ESP_OK) {
++                        nvs_set_u8(w, kKey, s_mml.usb_limit);
++                        nvs_commit(w);
++                        nvs_close(w);
++                    }
++                    return std::string(s_mml.usb_limit ? "{\"ok\":true,\"usb_limit\":\"limited\"}" : "{\"ok\":true,\"usb_limit\":\"off\"}");
++                });
++#if CONFIG_MAIPAI_FACE_BENCH
++    // Bench builds only: force the readings (-1 releases): carried 0 or 1, usb 0 or 1, level 0 to 100.
++    mcp.AddTool("self.motion.force", "Bench only: force the carried flag, the cable, the charge and the orientation band (0 upright, 1 tilted, 2 side, 3 inverted, 4 unknown; -1 releases each). Answers {ok}.",
++                PropertyList({Property("carried", kPropertyTypeInteger, -1, -1, 1), Property("usb", kPropertyTypeInteger, -1, -1, 1),
++                              Property("level", kPropertyTypeInteger, -1, -1, 100), Property("orient", kPropertyTypeInteger, -1, -1, 4)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    ensure();
++                    s_mml.force_carried = static_cast<int8_t>(properties["carried"].value<int>());
++                    s_mml.force_usb     = static_cast<int8_t>(properties["usb"].value<int>());
++                    s_mml.force_level   = static_cast<int8_t>(properties["level"].value<int>());
++                    s_mml.force_orient  = static_cast<int8_t>(properties["orient"].value<int>());
++                    return std::string("{\"ok\":true}");
++                });
++#endif
++    ESP_LOGI(TAG, "movement limiter ready: USB rule %s", s_mml.usb_limit ? "limited" : "off");
++}
+diff --git a/firmware/main/hal/hal_servo.cpp b/firmware/main/hal/hal_servo.cpp
+--- a/firmware/main/hal/hal_servo.cpp
++++ b/firmware/main/hal/hal_servo.cpp
+@@ -4,6 +4,7 @@
+  * SPDX-License-Identifier: MIT
+  */
+ #include "hal.h"
++#include "maipai_motion_limit.h"
+ #include "drivers/FTServo_Arduino/src/SCSCL.h"
+ #include <stackchan/stackchan.h>
+ #include <smooth_ui_toolkit.hpp>
+@@ -155,6 +156,10 @@ public:
+     void rotate(int velocity) override
+     {
+         velocity = uitk::clamp(velocity, -1000, 1000);
++        if (maipai_motion_hold()) {  // patch ML01: carried or the battery hold: no movement; otherwise the speed cap applies
++            return;
++        }
++        velocity = velocity < 0 ? -maipai_motion_speed(-velocity) : maipai_motion_speed(velocity);
+ 
+         if (!_config.enablePwmMode) {
+             return;
+diff --git a/firmware/main/hal/hal_imu.cpp b/firmware/main/hal/hal_imu.cpp
+--- a/firmware/main/hal/hal_imu.cpp
++++ b/firmware/main/hal/hal_imu.cpp
+@@ -4,6 +4,7 @@
+  * SPDX-License-Identifier: MIT
+  */
+ #include "hal.h"
++#include "maipai_motion_limit.h"
+ #include "board/hal_bridge.h"
+ #include "maipai_heal.h"
+ #include "maipai_screen.h"
+@@ -40,6 +41,7 @@ static void _imu_task(void* param)
+         if (_bmi270 && _bmi270->update()) {
+             fresh = true;
+             maipai_pickup_feed(_bmi270->getData().accel_x, _bmi270->getData().accel_y, _bmi270->getData().accel_z);
++            maipai_motion_feed_accel(_bmi270->getData().accel_x, _bmi270->getData().accel_y, _bmi270->getData().accel_z);  // patch ML01
+             // Patch UI15: the games get every 20 ms sample (a gentle shake is a quick small wobble); atomics only inside
+             maipai_games_imu_feed(_bmi270->getData().accel_x, _bmi270->getData().accel_y, _bmi270->getData().accel_z,
+                                   static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount())));
+diff --git a/firmware/main/stackchan/motion/servo.cpp b/firmware/main/stackchan/motion/servo.cpp
+--- a/firmware/main/stackchan/motion/servo.cpp
++++ b/firmware/main/stackchan/motion/servo.cpp
+@@ -7,6 +7,8 @@
+ #include <hal/hal.h>
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_pickup.h>
++#include <hal/maipai_motion_limit.h>
++#include <cmath>
+ 
+ using namespace uitk;
+ 
+@@ -45,8 +47,11 @@ void Servo::update()
+     }
+     _last_tick = GetHAL().millis();
+ 
+-    // Full quiet (patch 106): a move already under way stops where the head is.
+-    if (maipai_quiet() && !_angle_anim.done()) {
++    maipai_motion_tick();  // patch ML01: the carried flag, the cable and the charge
++
++    // Full quiet (patch 106) or the movement limiter's hold (patch ML01: carried, or the battery hold): a move already under way stops
++    // where the head is.
++    if ((maipai_quiet() || maipai_motion_scale() == 0) && !_angle_anim.done()) {
+         stop_motion_at_angle(getCurrentAngle());
+     }
+ 
+@@ -82,6 +87,12 @@ void Servo::move(int angle)
+ 
+ void Servo::moveWithSpringParams(int angle, float stiffness, float damping)
+ {
++    const float capped = maipai_motion_stiffness(stiffness);  // patch ML01: the spring (the acceleration) is capped under a limit
++    if (capped < stiffness) {
++        stiffness = capped;
++        const float critical = 2.0f * sqrtf(stiffness);
++        damping = damping > critical ? critical : damping;
++    }
+     _angle_anim.springOptions().visualDuration = 0.0f;  // Disable timing override
+     _angle_anim.springOptions().stiffness      = stiffness;
+     _angle_anim.springOptions().damping        = damping;
+@@ -91,6 +102,7 @@ void Servo::moveWithSpringParams(int angle, float stiffness, float damping)
+ 
+ void Servo::moveWithSpeed(int angle, int speed)
+ {
++    speed = maipai_motion_speed(speed);  // patch ML01
+     auto spring_options = map_speed_to_spring_options(speed);
+     moveWithSpringParams(angle, spring_options.stiffness, spring_options.damping);
+ }
+@@ -118,6 +130,13 @@ void Servo::update_angle_anim_target(int angle)
+     if (maipai_quiet()) {
+         return;  // full quiet (patch 106): the head holds where it is, whoever asks it to move
+     }
++    // Patch ML01, the movement limiter: every servo target passes here. Carried (or the battery hold): refused, the head holds. On USB
++    // or on a low battery: the excursion around the rest pose (0) is scaled down. The speed and the spring were capped by the callers
++    // above; the servo's hard limits, the wear counter and the stall guard below this layer are unchanged.
++    if (maipai_motion_hold()) {
++        return;
++    }
++    angle = maipai_motion_angle(angle);
+     angle = uitk::clamp(angle, _angle_limit.x, _angle_limit.y);
+ 
+     if (_auto_angle_sync_enabled) {
+diff --git a/firmware/main/stackchan/motion/servo.h b/firmware/main/stackchan/motion/servo.h
+--- a/firmware/main/stackchan/motion/servo.h
++++ b/firmware/main/stackchan/motion/servo.h
+@@ -88,6 +88,14 @@ public:
+      */
+     bool isMoving();
+ 
++    /**
++     * @brief The angle the animation has now (tenths of a degree), without reading the servo bus
++     */
++    int commandedAngle()
++    {
++        return static_cast<int>(_angle_anim.directValue());
++    }
++
+     /**
+      * @brief
+      *
+diff --git a/firmware/main/stackchan/motion/motion.cpp b/firmware/main/stackchan/motion/motion.cpp
+--- a/firmware/main/stackchan/motion/motion.cpp
++++ b/firmware/main/stackchan/motion/motion.cpp
+@@ -5,6 +5,7 @@
+  */
+ #include "motion.h"
+ #include "motion_math.h"
++#include <hal/maipai_motion_limit.h>
+ 
+ using namespace uitk;
+ using namespace stackchan::motion;
+@@ -19,6 +20,7 @@ void Motion::update()
+ {
+     _yaw_servo->update();
+     _pitch_servo->update();
++    maipai_motion_note_pitch(_pitch_servo->commandedAngle());  // patch ML01: the orientation reading is taken relative to the head's pitch
+ }
+ 
+ Servo& Motion::yawServo()
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -22,6 +22,7 @@
+ #include "maipai_update.h"
+ #include "maipai_tailnet.h"
+ #include "maipai_music.h"
++#include "maipai_motion_limit.h"
+ #include "maipai_games.h"
+ #include "maipai_pages_unit.h"
+ #include "maipai_lock.h"
+@@ -122,8 +123,8 @@ using namespace stackchan;
+ bool maipai_dance_play(const char* name)
+ {
+     const animation::KeyframeSequence* sequence = nullptr;
+-    if (name == nullptr) {
+-        return false;
++    if (name == nullptr || !maipai_motion_dances_ok()) {
++        return false;  // patch ML01: carried, or the battery too low for a dance: it does not play
+     } else if (strcmp(name, "happy") == 0) {
+         sequence = &DanceModifier::Happy;
+     } else if (strcmp(name, "robot") == 0) {
+@@ -700,6 +701,9 @@ void Hal::xiaozhi_mcp_init()
+     // The music dance task and self.music.set and self.music.get_status (patch V03).
+     maipai_music_init();
+ 
++    // self.motion.status and self.motion.set (patch ML01); the limiter itself sits in the servo layer.
++    maipai_motion_register_tools();
++
+     // self.game.list, start, stop and scores (patch G01). Nothing runs until a game starts.
+     maipai_games_register_tools();
+ 

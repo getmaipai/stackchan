@@ -121,8 +121,41 @@ static void test_motion(void)
     CHECK(lo < 150 && hi > 230);
 }
 
+/* Patch MD02: the music notes. Nine parts (a head, a stem and a flag for each of three notes); the count hides the others; they float up
+ * the sides of the face, never over the eyes or the banner row. */
+static void test_notes(void)
+{
+    CHECK(md_from_name("notes") == MD_NOTES);
+    CHECK(md_part_count(MD_NOTES) == 9);
+    for (int arg = 1; arg <= 3; arg++) {
+        for (uint32_t t = 0; t < 5000; t += 33) {
+            md_part_t p[MD_MAX_PARTS];
+            CHECK(md_parts_n(MD_NOTES, t, p, MD_MAX_PARTS, arg) == 9);
+            int shown = 0;
+            for (int k = 0; k < 3; k++) {
+                if (p[k * 3].opa > 0) shown++;
+                for (int j = 0; j < 3; j++) {
+                    const md_part_t* q = &p[k * 3 + j];
+                    if (k >= arg) CHECK(q->opa == 0);
+                    if (q->opa == 0) continue;
+                    CHECK(q->x - q->w / 2 >= -160 && q->x + q->w / 2 <= 160);
+                    CHECK(120 + q->y - q->h / 2 >= 28 && 120 + q->y + q->h / 2 <= 184); /* inside the face zone */
+                    CHECK(q->x <= -100 || q->x >= 100 || q->y < -60);                  /* off the eyes (they sit at x +-70 +-42) */
+                }
+            }
+            CHECK(shown <= arg);
+        }
+    }
+    md_part_t a[MD_MAX_PARTS], b[MD_MAX_PARTS];
+    md_parts_n(MD_NOTES, 0, a, MD_MAX_PARTS, 3);
+    md_parts_n(MD_NOTES, 600, b, MD_MAX_PARTS, 3);
+    CHECK(a[0].y != b[0].y); /* they float */
+    CHECK(md_parts(MD_NOTES, 0, a, MD_MAX_PARTS) == 9);
+}
+
 int main(void)
 {
+    test_notes();
     test_names();
     test_trig();
     test_every_kind_stays_on_the_screen_and_in_range();

@@ -1,0 +1,150 @@
+# Intent: Faces for a good time while it dances, as accents on the face that already exists (no new face table row, so the settings page preview stays in step). SetEmotion now knows laughing and joy (the happy eyes with the mouth open wide), winking (the right eye shuts to a line for 0.9 s), silly (a wink and the tongue hanging out under the smile), serene (both eyes shut as two contented arcs with the smile), excited (wide eyes and a big open smile). Every emotion clears the accents first, and a grin's open mouth closes with the next emotion.
+# Placement: unit
+# Upstream: firmware/main/stackchan/avatar/skins/default/eyes.cpp, mouth.cpp (the face drawing)
+# Check after a flash: bench_emotion winking, silly, laughing, serene, excited each draw as described on the snapshot; any other emotion afterwards is plain.
+# Kconfig: none
+
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -62,6 +62,9 @@ void md_host_blink_now()  // host renderer only: the next pass blinks
+ #endif
+ float stackchan::avatar::g_ml_voice = 0.0f;
+ int stackchan::avatar::g_ml_emotion = ML_NEUTRAL;
++uint32_t stackchan::avatar::g_ml_wink_until_ms = 0;  // patch MD02
++bool stackchan::avatar::g_ml_shut_eyes          = false;
++bool stackchan::avatar::g_ml_tongue             = false;
+ 
+ const float* stackchan::avatar::ml_shown_pose()
+ {
+@@ -700,6 +703,12 @@ void DefaultEyes::update_art(uint32_t ms)
+     in.gx     = gx;
+     in.gy     = gy;
+     in.voice  = g_ml_voice;
++    if (side > 0 && static_cast<int32_t>(g_ml_wink_until_ms - ms) > 0) {
++        in.blink = 1.0f;  // patch MD02: a wink, the right eye alone shuts to a line
++    }
++    if (g_ml_shut_eyes) {
++        in.closed = 1.0f;  // patch MD02: both eyes shut, drawn as the contented arcs
++    }
+     _d_now    = in.eh;
+     const int ox = (int)lroundf(gx);
+     int oy       = (int)lroundf(P[MP_DY] + gy + (side > 0 ? P[MP_RLIFT] : 0.0f));
+diff --git a/firmware/main/stackchan/avatar/skins/default/mouth.cpp b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+--- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+@@ -321,7 +321,23 @@ void DefaultMouth::_update()
+         g_ml_voice              = 0.0f;
+         ml_shape_t tmp[ML_MAX_SHAPES];
+         const float phase = static_cast<float>(now_ms() % 2400u) / 2400.0f;
+-        const int n       = ml_mouth_shapes(&_cur, phase, P[MP_MON], tmp, ML_MAX_SHAPES);
++        int n             = ml_mouth_shapes(&_cur, phase, P[MP_MON], tmp, ML_MAX_SHAPES);
++        if (g_ml_tongue && n > 0) {  // patch MD02: a tongue hangs under the smile, a little to the right of the middle
++            float low = -1.0e9f;
++            for (int i = 0; i < n; i++) {
++                if (tmp[i].kind == ML_SH_LINE) {
++                    low = fmaxf(low, fmaxf(tmp[i].v[1], tmp[i].v[3]) + tmp[i].v[4] * 0.5f);
++                }
++            }
++            ml_shape_t* tg = low > -1.0e8f ? ml_sh(tmp, &n, ML_MAX_SHAPES, ML_SH_RRECT, ML_COL_FG, 1.0f) : nullptr;
++            if (tg != nullptr) {
++                tg->v[0] = 9.0f;
++                tg->v[1] = low + 1.0f;
++                tg->v[2] = 17.0f;
++                tg->v[3] = 20.0f;
++                tg->v[4] = 8.0f;
++            }
++        }
+         for (int i = 0; i < n; i++) {
+             for (int k = 0; k < 8; k++) {
+                 tmp[i].v[k] = roundf(tmp[i].v[k]);
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -164,6 +164,11 @@ void ml_shape_list_bounds(const ml_shape_t* sh, int n, int b[4]);
+ // The eased pose of the face (the approved design): read by the mouth.
+ const float* ml_shown_pose();
+ extern int g_ml_emotion;
++// Patch MD02: accents the display sets for the dance faces. A wink closes the right eye alone until this time (esp_timer ms); shut
++// eyes draw both as the contented arcs; a tongue hangs under the smile. SetEmotion clears all three on every emotion.
++extern uint32_t g_ml_wink_until_ms;
++extern bool g_ml_shut_eyes;
++extern bool g_ml_tongue;
+ // Patch V23: 1 draws the face from shape lists again (bench A/B, host renderer); 0 uses the pictures.
+ extern "C" volatile int g_msp_off;
+ // Where picture memory comes from (PSRAM on the unit).
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -26,6 +26,7 @@
+ #include <lvgl.h>
+ #include <lvgl_theme.h>
+ #include <stackchan/stackchan.h>
++#include <stackchan/avatar/skins/default/default.h>
+ #include <assets/lang_config.h>
+ #include <hal/hal.h>
+ #include <hal/maipai_timers.h>
+@@ -1705,6 +1706,10 @@ void snore_start()
+ }
+ }  // namespace
+ 
++namespace {
++bool s_grin_mouth = false;  // the mouth was opened for a grin (patch MD02)
++}  // namespace
++
+ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+ {
+     s_emotion_seq++;
+@@ -1744,13 +1749,39 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+     mood_baseline_ = strcmp(emotion, "neutral") == 0;
+     sleep_look_    = strcmp(emotion, "sleepy") == 0 || strcmp(emotion, "closing") == 0 || strcmp(emotion, "sleeping") == 0;  // patch S13
+ 
++    // Patch MD02: the dance faces are accents on a base emotion; every emotion starts without them.
++    const bool had_grin = s_grin_mouth;
++    s_grin_mouth        = false;
++    stackchan::avatar::g_ml_wink_until_ms = 0;
++    stackchan::avatar::g_ml_shut_eyes     = false;
++    stackchan::avatar::g_ml_tongue        = false;
++    auto grin = [&](int weight) {
++        avatar.mouth().setWeight(weight);
++        s_grin_mouth = true;
++    };
++    const uint32_t accent_now = static_cast<uint32_t>(esp_timer_get_time() / 1000);
++
+     // Map emotion string to stackchan::Emotion
+     if (strcmp(emotion, "neutral") == 0) {
+         avatar.setEmotion(MoodResting());
+     } else if (strcmp(emotion, "happy") == 0) {
+         avatar.setEmotion(Emotion::Happy);
+-    } else if (strcmp(emotion, "laughing") == 0) {
+-        avatar.setEmotion(Emotion::Happy);
++    } else if (strcmp(emotion, "laughing") == 0 || strcmp(emotion, "joy") == 0) {
++        avatar.setEmotion(Emotion::Happy);  // a big grin: the happy eyes with the mouth open
++        grin(85);
++    } else if (strcmp(emotion, "winking") == 0 || strcmp(emotion, "wink") == 0) {
++        avatar.setEmotion(Emotion::Happy);  // the right eye shuts to a line for a moment
++        stackchan::avatar::g_ml_wink_until_ms = accent_now + 900;
++    } else if (strcmp(emotion, "silly") == 0) {
++        avatar.setEmotion(Emotion::Happy);  // a wink and the tongue out
++        stackchan::avatar::g_ml_wink_until_ms = accent_now + 900;
++        stackchan::avatar::g_ml_tongue        = true;
++    } else if (strcmp(emotion, "serene") == 0) {
++        avatar.setEmotion(Emotion::Happy);  // content with the eyes shut: two arcs and a smile
++        stackchan::avatar::g_ml_shut_eyes = true;
++    } else if (strcmp(emotion, "excited") == 0) {
++        avatar.setEmotion(Emotion::Surprised);  // wide eyes and a big open smile
++        grin(60);
+     } else if (strcmp(emotion, "love") == 0) {
+         avatar.setEmotion(Emotion::Love);
+     } else if (strcmp(emotion, "content") == 0) {
+@@ -1822,6 +1853,10 @@ void StackChanAvatarDisplay::SetEmotion(const char* emotion)
+         avatar.setEmotion(Emotion::Neutral);
+     }
+ 
++    if (had_grin && !s_grin_mouth) {
++        avatar.mouth().setWeight(0);  // the grin's open mouth closes with the next emotion (patch MD02)
++    }
++
+     // Resync blink modifier base eye weights
+     auto blink_modifier = static_cast<BlinkModifier*>(stackchan.getModifier(blink_modifier_id_));
+     if (blink_modifier) {

@@ -17,7 +17,14 @@ from collections import deque
 from collections.abc import Callable
 from typing import Any
 
-from maipai_body.bodies.stackchan.dance import DanceRunner
+from maipai_body.bodies.stackchan.dance import DanceRunner, Plan
+from maipai_body.bodies.stackchan.dance_ladder import (
+    Energy,
+    FaceRotator,
+    LadderDirector,
+    LadderFeed,
+    LadderHooks,
+)
 from maipai_body.bodies.stackchan.dance_phrases import PhraseOffset, phrase_plan, steady_bpm
 from maipai_body.bodies.stackchan.music_dance import (
     AUTO_PLAN,
@@ -43,6 +50,11 @@ NOTES_TOOL = "self.face.music_notes"  # firmware patch 123: notes on the face wh
 TITLE_TOOL = "self.face.song_title"
 ACTIVE_STATES = ("nod", "watch", "show", "calm", "break")  # a music session is on
 TEMPO_READINGS = 8
+STAGE_TOOL = "self.music.stage"  # firmware patch MD01: the step of the dance ladder
+LADDER_ROUND_S = 120.0  # a ladder cycle ends by itself long before this
+LADDER_FEED_FRESH_S = (
+    3.0  # the unit sends nothing in a quiet room: no number for this long means no music
+)
 DANCE_FROM_S = BUILD_S  # where the dance part of a full round starts (the build-up before it)
 
 
@@ -158,6 +170,7 @@ def wire_music_dance(
     identify_setting: Callable[[], str] | None = None,
     identify_call_tool: Callable[[str, dict], object] | None = None,
     identify_spawn: Callable[[Callable[[], None]], object] | None = None,
+    ladder: bool = True,
 ) -> MusicDance:
     def stop_bob() -> None:
         if switch is not None:
@@ -207,9 +220,76 @@ def wire_music_dance(
 
     tempos: deque[float] = deque(maxlen=TEMPO_READINGS)
     offsets = PhraseOffset()
+    # The dance ladder (dance_ladder.py, firmware MD01) runs when the unit can be told a step; without a unit switch (a test, an
+    # old setup) the dance stays the fixed plans below.
+    ladder_on = switch is not None and ladder
+    feed = LadderFeed()
+    energy = Energy()
+    face_rotator = FaceRotator()
+
+    def stage_overlay(name: str, intensity: str, seconds: int) -> object:
+        return switch.call(
+            "self.overlay.set", {"name": name, "intensity": intensity, "seconds": seconds}
+        )  # type: ignore[union-attr]
+
+    def set_stage(stage: int) -> object:
+        result = switch.call(STAGE_TOOL, {"stage": stage})  # type: ignore[union-attr]
+        behavior.unit_has_beat_dance = (
+            True  # the unit took a step: it has the beat dance, so "bob" is the real nod now
+        )
+        return result
+
+    def ladder_hooks() -> LadderHooks:
+        return LadderHooks(
+            set_stage=set_stage,
+            show_face=behavior.show_face,
+            notes=lambda count: switch.call(NOTES_TOOL, {"count": count}),  # type: ignore[union-attr]
+            overlay=stage_overlay,
+            overlay_clear=lambda: switch.call("self.overlay.clear", {}),  # type: ignore[union-attr]
+        )
+
+    def ladder_feed(feat: object, music: bool, now: float) -> None:
+        feed.bpm = int(steady_bpm(tempos)) or int(getattr(feat, "bpm", 0))
+        feed.tc = int(getattr(feat, "tc", 0))
+        feed.level = int(getattr(feat, "lv", 0))
+        feed.music = bool(music)
+        feed.energy = energy.push(feed.level)
+        feed.at = now
+
+    def ladder_expire(now: float) -> None:
+        if now - feed.at > LADDER_FEED_FRESH_S:
+            feed.music = False
+
+    def _limit_max() -> int:
+        """The highest step the unit's movement limiter allows (on USB 3, never the full dance; 4 with no limit)."""
+        limit = getattr(behavior, "motion_limit", None)
+        return limit.state().dance_max if limit is not None else 4
 
     def request_dance() -> tuple[bool, str]:
         kind = controller.plan
+        if ladder_on:
+            # One cycle of the ladder: eyes, nod, sway, full dance, then back down in reverse. A slow-mood round or a battery under
+            # 40 percent goes no higher than the nod.
+            director = LadderDirector(
+                ladder_hooks(),
+                feed,
+                max_stage=min(
+                    2 if (kind == "calm" or controller.nod_only) else 4, max(1, _limit_max())
+                ),
+                faces=face_rotator,
+            )
+            reply = runner.request(
+                "auto",
+                Plan(
+                    (),
+                    LADDER_ROUND_S,
+                    director.ring,
+                    director.on_tick,
+                    director.finished,
+                    director.on_end,
+                ),
+            )
+            return reply.started, reply.why
         plan = {"full": AUTO_PLAN, "dance": DANCE_PLAN, "calm": CALM_PLAN}[kind]
         if kind in ("full", "dance"):
             # The dance part alternates head nods and side-to-side sways, in phrases of eight
@@ -254,6 +334,24 @@ def wire_music_dance(
             )
         )
 
+    def show_notes(count: int) -> object:
+        """Music notes on the face, and with the dance (count 3) a disco ball behind it and a short confetti burst; all of it
+        is cleared when the notes go (count 0). The overlay tools are optional: an older unit simply shows the notes."""
+        result = switch.call(NOTES_TOOL, {"count": count})
+        try:
+            if count >= 3:
+                switch.call(
+                    "self.overlay.set", {"name": "disco", "intensity": "normal", "seconds": 30}
+                )
+                switch.call(
+                    "self.overlay.set", {"name": "confetti", "intensity": "normal", "seconds": 4}
+                )
+            elif count == 0:
+                switch.call("self.overlay.clear", {})
+        except Exception:
+            logger.debug("StackChan music: the dance overlay call failed", exc_info=True)
+        return result
+
     controller = MusicDance(
         MusicDanceHooks(
             request_dance=request_dance,
@@ -262,7 +360,7 @@ def wire_music_dance(
             nod=nod,
             restore_face=restore_face,
             situation=runner.situation,
-            notes=(lambda count: switch.call(NOTES_TOOL, {"count": count})) if switch else None,
+            notes=show_notes if switch else None,
             on_session_start=(lambda: identify.on_session_start(clock())) if identify else None,
             on_session_end=identify.on_session_end if identify else None,
             on_music_heard=(
@@ -270,10 +368,13 @@ def wire_music_dance(
             ),
             stop_bob=stop_bob if switch else None,
             wonder=wonder,
+            ladder_feed=ladder_feed if ladder_on else None,
         ),
         behavior.dance_settings,
     )
-    behavior.music_heard_recently = lambda within=20.0: (clock() - controller.last_music_at) <= within  # keeps the robot awake while music plays
+    behavior.music_heard_recently = lambda within=20.0: (
+        (clock() - controller.last_music_at) <= within
+    )  # keeps the robot awake while music plays
 
     def on_music_feat(extra: dict, now: float) -> None:
         feat = parse_music_feat(extra)
@@ -346,6 +447,8 @@ def wire_music_dance(
             return finish("refused", "face tool failed")
         return finish("cleared" if not text else "shown")
 
+    controller.ladder_expire = ladder_expire  # type: ignore[attr-defined]
+    controller.ladder_feed = feed  # type: ignore[attr-defined]
     behavior.music_feat = on_music_feat
     if identify is not None:
         identify._hooks.on_result = lambda result: controller.set_mood_hint(
@@ -366,6 +469,7 @@ def wire_music_dance(
                 try:
                     if switch is not None:
                         switch.sync()  # a no-op unless the last call failed (then rate limited)
+                    ladder_expire(clock())
                     controller.tick(clock())
                     if title_keeper is not None:
                         title_keeper.tick(clock())

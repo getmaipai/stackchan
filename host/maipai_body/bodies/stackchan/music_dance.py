@@ -184,7 +184,9 @@ STEADY_MO_MAX = 32  # speech modulates at 3 to 6 Hz (45 to 60); songs measured 6
 STEADY_PS_MAX = 20  # speech has pauses (45); songs measured 0 to 28
 STEADY_FL_MAX = 97  # white noise is 97 and up
 STRONG_BEAT_TC = 40  # a tempo confidence this high is a real rhythm
-STRONG_BEAT_FL_BONUS = 6  # so it may be a little flatter before it counts as noise (white noise stays at 97)
+STRONG_BEAT_FL_BONUS = (
+    6  # so it may be a little flatter before it counts as noise (white noise stays at 97)
+)
 
 
 def _steady_sound(feat: MusicFeat) -> bool:
@@ -243,11 +245,21 @@ def judge_host(feat: MusicFeat, sensitivity: str = "medium", *, relaxed: bool = 
     flatness under 94) is judged again with the flatness taken out. One real song measured fl 89 with tc 53 on
     2026-11-17 and was refused at the shared limit of 88. Every other check (speech modulation, pauses, tempo range) still applies."""
     verdict = judge(feat, sensitivity, relaxed=relaxed)
-    if not verdict.music and verdict.why == "too_flat" and feat.tc >= STRONG_BEAT_TC and feat.fl <= STRONG_BEAT_FL_MAX:
+    if (
+        not verdict.music
+        and verdict.why == "too_flat"
+        and feat.tc >= STRONG_BEAT_TC
+        and feat.fl <= STRONG_BEAT_FL_MAX
+    ):
         from dataclasses import replace
 
         return judge_host(replace(feat, fl=80), sensitivity, relaxed=relaxed)
-    if not verdict.music and verdict.why == "speech_like_modulation" and feat.tc >= VOCAL_BEAT_TC and feat.mo <= VOCAL_BEAT_MO_MAX:
+    if (
+        not verdict.music
+        and verdict.why == "speech_like_modulation"
+        and feat.tc >= VOCAL_BEAT_TC
+        and feat.mo <= VOCAL_BEAT_MO_MAX
+    ):
         from dataclasses import replace
 
         # A song with vocals modulates at 3 to 6 Hz like speech, but speech has no steady tempo: tc 45 or more is a beat.
@@ -371,6 +383,9 @@ class MusicDanceHooks:
     wonder: Callable[[], object] | None = (
         None  # the curious look when the music is gone, then the usual face
     )
+    # The dance ladder (dance_ladder.py): set, the dance starts at the eyes the moment music is detected and each round is one
+    # cycle that builds up and winds down; called once a second with (the unit's numbers, whether they were clear music, now).
+    ladder_feed: Callable[[MusicFeat, bool, float], object] | None = None
 
 
 class MusicDance:
@@ -405,6 +420,10 @@ class MusicDance:
         self._cycle = 0
         self._talk: deque[bool] = deque(maxlen=TALKER_WINDOWS)
         self._notes_at = float("-inf")
+        self._ladder = hooks.ladder_feed is not None
+        self.nod_only = (
+            False  # the running ladder may not go past the nod (a battery under 40 percent)
+        )
         self._now = 0.0
         self._block_start = float("-inf")
         self._break_at = float("-inf")
@@ -454,7 +473,9 @@ class MusicDance:
             relaxed = self.state in ("nod", "watch", "show", "calm", "break")
             verdict = judge_host(feat, self.settings.auto_sensitivity, relaxed=relaxed)
             if verdict.music:
-                self.last_music_at = now  # the rest routine reads this: music playing keeps the robot awake
+                self.last_music_at = (
+                    now  # the rest routine reads this: music playing keeps the robot awake
+                )
             self._talk.append(feat.ps >= TALKER_PS or feat.mo >= TALKER_MO)
             if verdict.music and self._talker_over():
                 verdict = Verdict(False, "talker_over_music")
@@ -474,6 +495,11 @@ class MusicDance:
                         verdict.why,
                         self._feature_text(feat),
                     )
+            if self._ladder:
+                try:
+                    self._hooks.ladder_feed(feat, verdict.music, now)  # type: ignore[misc]
+                except Exception:
+                    logger.debug("StackChan dance ladder feed failed", exc_info=True)
             self._advance(now, feat if verdict.music else None)
 
     def _talker_over(self) -> bool:
@@ -631,8 +657,10 @@ class MusicDance:
                 self._hooks.stop_dance("a turn")  # the wake word fired: the dance stops at once
             elif self._music_gone(now):
                 self._hooks.stop_dance("music ended")
-            elif now - self._notes_at >= 10.0:
-                self._notes(3, now)  # keep the notes hopping while the dance goes on
+            elif now - self._notes_at >= 10.0 and not self._ladder:
+                self._notes(
+                    3, now
+                )  # keep the notes hopping while the dance goes on (the ladder shows its own)
             return
         # a round just ended (or was stopped): what next?
         if self._check_interrupt(now):
@@ -739,7 +767,7 @@ class MusicDance:
             self._try_dance(now, new_cycle=True)
         elif not running:
             self._calm_round(now)
-        elif now - self._notes_at >= 10.0:
+        elif now - self._notes_at >= 10.0 and not self._ladder:
             self._notes(1, now)
 
     def _rest(self, now: float, positive: MusicFeat | None) -> None:
@@ -811,7 +839,7 @@ class MusicDance:
         return None, nod_only
 
     def _try_nod(self, now: float) -> None:
-        why, _ = self._gate(now, for_nod=True)
+        why, nod_only = self._gate(now, for_nod=True)
         if why is not None:
             self._set_state("spent", f"no nod: {why}")
             if not self.testing and self._hooks.on_music_heard is not None:
@@ -836,6 +864,19 @@ class MusicDance:
                 self._hooks.on_session_start()
             except Exception:
                 logger.debug("StackChan music session start hook failed", exc_info=True)
+        if self._ladder:
+            # The ladder starts at the eyes now and builds up on its own: no separate nod, no waiting.
+            self.nod_only = nod_only
+            started, refused = self._request("full", now)
+            if not started:
+                self._set_state("spent", f"no dance: {refused or 'the dance runner refused'}")
+                return
+            self._cycle += 1
+            self._dance_started_at = now
+            self._block_start = now
+            logger.info("StackChan music: cycle %d (the dance ladder, from the eyes)", self._cycle)
+            self._set_state("show", "the dance ladder: eyes first, then it builds up")
+            return
         self._spawn(lambda: self._do_nod(face))
 
     def _do_nod(self, face: str) -> None:
@@ -854,6 +895,7 @@ class MusicDance:
                 return
             self._set_state("spent", f"no dance: {why}")
             return
+        self.nod_only = False
         started, refused = self._request("full", now)  # every cycle starts with the build-up
         if not started:
             self._set_state("spent", f"no dance: {refused or 'the dance runner refused'}")
@@ -926,6 +968,8 @@ class MusicDance:
                 logger.debug("StackChan music session end hook failed", exc_info=True)
         if state == "idle":
             self._session_test = False
+        if self._ladder and state in ("nod", "show", "calm"):
+            return  # the ladder shows its own notes and overlays by step
         self._notes({"nod": 1, "show": 3, "calm": 1}.get(state, 0), self._now)
 
     # -- stats

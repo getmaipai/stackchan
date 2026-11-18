@@ -360,7 +360,7 @@ def test_decorators_no_longer_include_sweat_or_shy() -> None:
 
     assert "sweat" not in DECORATORS and "shy" not in DECORATORS
     assert "sweat" not in DECORATOR_FOR_FACE.values() and "shy" not in DECORATOR_FOR_FACE.values()
-    assert {"dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz"} == set(DECORATORS)
+    assert {"dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz", "notes"} == set(DECORATORS)  # notes: the music dance (MD03)
 
 
 def test_background_and_emotion_tint_are_checked_like_the_firmware_does() -> None:

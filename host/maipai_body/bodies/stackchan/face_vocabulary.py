@@ -33,7 +33,9 @@ FACE_VOCABULARY: dict[str, tuple[str | None, str]] = {
     "tired": ("tired", "sleepy"),  # the low-battery look (firmware patch X01); an older unit draws sleepy
     "closing": ("closing", "sleepy"),  # the lids lower and stay shut (patch X01)
     "dizzy": (None, "doubt"),
-    "silly": (None, "wink"),
+    "silly": ("silly", "wink"),  # firmware patch MD02: a wink and the tongue out
+    "laughing": ("laughing", "happy"),  # firmware patch MD02: a big open grin
+    "serene": ("serene", "content"),  # firmware patch MD02: content with the eyes shut
 }
 
 _unknown: set[str] = set()

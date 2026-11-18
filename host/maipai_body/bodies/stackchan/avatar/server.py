@@ -55,6 +55,9 @@ EXPRESSIONS = {
     "curious": "curious",
     "love": "love",
     "worried": "worried",
+    "silly": "silly",
+    "laughing": "laughing",
+    "serene": "serene",
 }
 _EYE_WEIGHTS = {
     "neutral": 100,
@@ -75,6 +78,9 @@ _EYE_WEIGHTS = {
     "curious": 100,
     "love": 100,
     "worried": 100,
+    "silly": 100,
+    "laughing": 72,
+    "serene": 100,
 }
 _EYE_ROTATIONS = {
     "neutral": 0,
@@ -95,6 +101,9 @@ _EYE_ROTATIONS = {
     "curious": 0,
     "love": 0,
     "worried": 0,
+    "silly": 0,
+    "laughing": 1550,
+    "serene": 0,
 }
 
 

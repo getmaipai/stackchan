@@ -288,21 +288,17 @@ class LinkTests(unittest.IsolatedAsyncioTestCase):
         self.link.set_mode(DEVICE, "required")
         self.assertEqual(self.link.state(DEVICE), "encrypted")
 
-    async def test_stale_or_foreign_session_id_is_refused(self) -> None:
+    async def test_stale_or_foreign_session_id_is_dropped_and_the_socket_stays_open(self) -> None:
+        # A unit that reconnects may still send a few frames of its old session. They are ignored, never acted on, and the
+        # connection stays up (closing it made the unit reconnect in a loop, 2026-11-17).
         async with self.encrypted() as ws:
             old = (await self.hello(ws))["session_id"]
         async with self.encrypted() as ws:
             await self.hello(ws)
             await ws.send(json.dumps({"type": "listen", "state": "stop", "session_id": old}))
-            with self.assertRaises(ConnectionClosed) as ctx:
-                await asyncio.wait_for(ws.recv(), 5)
-            self.assertEqual(ctx.exception.rcvd.code, 1008)
-        async with self.encrypted() as ws:
-            await self.hello(ws)
             await ws.send(json.dumps({"type": "listen", "state": "stop", "session_id": "made-up"}))
-            with self.assertRaises(ConnectionClosed):
-                await asyncio.wait_for(ws.recv(), 5)
-        self.assertTrue(any("stale or unknown session id" in r for r in self.records))
+            await asyncio.sleep(0.3)
+            self.assertEqual(ws.state.name, "OPEN")
 
     async def test_avatar_hello_carrying_a_session_id_is_refused(self) -> None:
         async with connect(

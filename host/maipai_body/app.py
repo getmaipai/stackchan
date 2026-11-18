@@ -236,6 +236,8 @@ class StackChanBehavior:
         # Charging or on USB power: no wandering. Set by the power rule (power_idle.py).
         self.idle_still: Callable[[], bool] = lambda: False
         self.idle_still_reason: Callable[[], str] = lambda: ""
+        # The unit's movement limiter (firmware ML01), set once the unit's tool channel is wired; None until then (no limit known).
+        self.motion_limit: Any = None
         # robot.idle.level from the settings frame (still, calm, lively). Still until the hub says
         # otherwise: a fresh or lost-settings unit never wanders (owner request 2026-10-20).
         self.idle_level = "still"
@@ -428,6 +430,7 @@ class StackChanBehavior:
             resting=lambda: self._rest.stage != "awake",
             busy=lambda: self.head_busy(),
             still_reason=lambda: self.idle_still_reason(),
+            motion_hold=lambda: self._motion_hold_reason(),
         )
         from maipai_body.bodies.stackchan.sleep_z import SleepZ
 
@@ -1677,6 +1680,17 @@ class StackChanBehavior:
         """True while the robot is thinking or speaking: a touch reaction is not shown then."""
         return self._active.is_set() and self._phase != "listening"
 
+    def _motion_hold_reason(self) -> str:
+        """Why no move may be asked now (held or carried, or the battery hold), else "". The unit refuses such moves itself."""
+        limit = self.motion_limit
+        if limit is None:
+            return ""
+        try:
+            state = limit.state()
+        except Exception:
+            return ""
+        return state.why.rstrip(".") if state.hold else ""
+
     def show_face(self, expression: str, *, while_listening: bool = False) -> None:
         """Show a face for a moment; the face watchdog puts the idle face back.
 
@@ -2101,6 +2115,14 @@ def _start_stackchan_night(
         target=night.run, args=(stop_event,), name="stackchan-night", daemon=True
     ).start()
     return night
+
+
+def _unit_not_upright(behavior: Any) -> bool:
+    limit = getattr(behavior, "motion_limit", None)
+    try:
+        return bool(limit is not None and limit.state().not_upright)
+    except Exception:
+        return False
 
 
 def _unit_muted(behavior: Any) -> bool:
@@ -2840,6 +2862,9 @@ async def _serve_stackchan_channels(
         )
 
         # The unit analyzes the room's sound only while robot.dance.auto is on and it is not muted.
+        from maipai_body.bodies.stackchan.motion_limit import MotionLimit
+
+        behavior.motion_limit = MotionLimit(voice.robot.client._call)
         music_switch = MusicFeatureSwitch(
             voice.robot.client._call,
             auto=lambda: behavior.dance_settings.auto,
@@ -4062,7 +4087,8 @@ def _wire_orientation(voice: Any, behavior: Any, bridge: Any, night: Any, power:
     )
     behavior.orientation = orientation
     night.sensors_blocked = orientation.sensors_untrusted
-    behavior.pose_held = lambda: orientation.pose != "upright"
+    # The unit's own reading of its orientation (firmware ML01) counts as "not upright" too, so host and unit agree.
+    behavior.pose_held = lambda: orientation.pose != "upright" or _unit_not_upright(behavior)
 
     def tick() -> None:
         orientation.tick()

@@ -273,3 +273,19 @@ def test_a_song_with_vocals_and_a_steady_beat_counts_but_fast_speech_does_not() 
     assert judge_host(song).music is True
     assert judge_host(replace(song, tc=20)).music is False  # no steady tempo: speech
     assert judge_host(replace(song, mo=70)).music is False  # extreme modulation: speech
+
+
+def test_the_song_phrase_name_bob_is_a_dance_this_firmware_knows() -> None:
+    from maipai_body.bodies.stackchan.companion import DANCES
+    from maipai_body.bodies.stackchan.dance_wiring import UNIT_DANCE_ALIASES
+
+    assert UNIT_DANCE_ALIASES["bob"] in DANCES
+
+
+def test_the_dance_shows_a_disco_ball_and_confetti_and_clears_them_with_the_notes() -> None:
+    import inspect
+
+    from maipai_body.bodies.stackchan import music_dance_wiring as wiring
+
+    source = inspect.getsource(wiring)
+    assert '"name": "disco"' in source and '"name": "confetti"' in source and "self.overlay.clear" in source

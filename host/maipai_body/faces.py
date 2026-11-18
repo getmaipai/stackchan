@@ -46,7 +46,7 @@ DROPPED_STYLES = ("round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes"
 NEW_LOOK_STYLES = ("eyes_only", "stock")  # firmware before patch X01 does not draw these two
 CAPTION_SIZES = ("small", "medium", "large")
 # Face decorators (firmware patch U01): small drawn extras shown for a few seconds. One list, here.
-DECORATORS = ("dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz")  # sweat and shy were dropped (patch X02)
+DECORATORS = ("dizzy", "heart", "anger", "tears", "sparkles", "stars", "zzz", "notes")  # sweat and shy were dropped (patch X02)
 DECOR_MIN_S = 1
 DECOR_MAX_S = 60
 DECOR_DEFAULT_S = 6

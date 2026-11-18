@@ -23,6 +23,7 @@ from maipai_body.bodies.stackchan.dance import (
 )
 
 logger = logging.getLogger("maipai_body.bodies.stackchan.dance_wiring")
+UNIT_DANCE_ALIASES = {"bob": "nod_yes"}
 
 BATTERY_TTL_S = 5.0  # the battery is read over the link; a dance checks it every quarter second
 
@@ -63,6 +64,8 @@ def wire_dance(
     def situation() -> DanceSituation:
         read_battery()
         facts = light.facts
+        limit = getattr(behavior, "motion_limit", None)
+        motion = limit.state() if limit is not None else None
         return DanceSituation(
             awake=behavior._rest.stage == "awake",
             night=bool(night.night),
@@ -78,6 +81,8 @@ def wire_dance(
             battery_low=facts.battery_low,
             full_quiet=full_quiet_reason(),
             muted=bool(getattr(getattr(behavior, "privacy", None), "muted", False)),
+            motion=motion.state if motion is not None else "free",
+            motion_dance_max=motion.dance_max if motion is not None else 4,
         )
 
     def write_ring(pixels: list[tuple[int, int, int]]) -> None:
@@ -102,7 +107,11 @@ def wire_dance(
                 on_start()
             except Exception:  # a chime never stops a dance
                 logger.warning("the dance start sound failed", exc_info=True)
-        return companion().dance(name)
+        # The song phrases name the up and down nod 'bob' (the older firmware's dance); this firmware's is 'nod_yes'.
+        # A unit with the beat dance (firmware MD01, known once it took a step) plays bob as the real nod on the beat; an older unit gets nod_yes.
+        if name == "bob" and getattr(behavior, "unit_has_beat_dance", False):
+            return companion().dance("bob")
+        return companion().dance(UNIT_DANCE_ALIASES.get(name, name))
 
     hooks = DanceHooks(
         start_dance=start_dance,

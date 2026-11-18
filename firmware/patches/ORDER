@@ -232,3 +232,7 @@ NX06-face-seeker-default-always-and-safe-gates.patch
 NX07-no-z-letters-over-the-keypad.patch
 NX08-wall-tiles-with-pictures-colors-and-big-titles.patch
 NX09-timers-preset-column-and-tall-rows-no-word-timer.patch
+ML01-movement-limiter-at-the-servo-layer.patch
+MD01-music-dance-ladder-and-beat-dance.patch
+MD02-dance-faces-wink-silly-grin-serene-excited.patch
+MD03-music-notes-and-eye-gaze-tools.patch
