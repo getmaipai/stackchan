@@ -524,6 +524,26 @@ class PrivacyUnits:
             device = devices[0]
         return self.state_for(device).muted_reason() if device else None
 
+    def poll_events(self, connected: list[str], *, primary: str | None, events_of) -> None:
+        """Read the privacy events of every connected unit except the primary (the main loop reads that one) into that unit's state.
+
+        ``events_of(device_id)`` returns the unit's new events (objects with ``kind`` and ``extra``). A unit that does not answer is
+        skipped for this round."""
+        for device_id in connected:
+            if device_id == primary:
+                continue
+            try:
+                events = events_of(device_id)
+            except Exception:
+                LOG.debug("events of one unit could not be read", exc_info=True)
+                continue
+            state = self.state_for(device_id)
+            for event in events:
+                try:
+                    state.observe(str(getattr(event, "kind", "")), getattr(event, "extra", None) or {})
+                except Exception:
+                    LOG.warning("a privacy event of one unit could not be applied", exc_info=True)
+
     # ---- the gates the head and camera code ask, by the unit whose turn or frame it is ----
 
     def _current(self) -> PrivacyState | None:

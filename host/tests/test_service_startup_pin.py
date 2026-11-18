@@ -32,6 +32,7 @@ EXPECTED = [
     "stackchan-sound-ticks",
     "stackchan-sounds",
     "stackchan-timer-ticks",
+    "stackchan-unit-events",
 ]
 
 

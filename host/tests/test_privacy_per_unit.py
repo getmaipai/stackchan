@@ -176,3 +176,29 @@ def test_the_avatar_server_marks_the_unit_while_it_checks_a_frame():
     source = inspect.getsource(avatar_server)
     assert "ACTIVE_UNIT.set(device_id)" in source  # the frame check runs as the unit that sent it
     assert asyncio  # (the behavior is covered by the gate tests above)
+
+
+def test_a_second_units_privacy_events_reach_its_own_state():
+    from types import SimpleNamespace
+
+    units = _units({KITCHEN: {"muted": False, "vision_off": False, "quiet": False}, DEN: {"muted": False, "vision_off": False, "quiet": False}})
+    units.on_connect(DEN)
+    event = SimpleNamespace(kind="privacy", extra={"muted": True, "vision_off": False, "quiet": False})
+
+    def events_of(device_id):
+        return [event] if device_id == DEN else []
+
+    units.poll_events([KITCHEN, DEN], primary=KITCHEN, events_of=events_of)
+    assert units.state_for(DEN).muted is True
+    assert KITCHEN not in units.devices()  # the primary unit's events are read by the main loop, not here
+
+
+def test_a_failing_second_unit_does_not_stop_the_poll():
+    units = _units({DEN: {"muted": False, "vision_off": False, "quiet": False}, "aa:bb:cc:dd:ee:03": {"muted": False, "vision_off": False, "quiet": False}})
+
+    def events_of(device_id):
+        if device_id == DEN:
+            raise RuntimeError("not answering")
+        return []
+
+    units.poll_events([DEN, "aa:bb:cc:dd:ee:03"], primary=KITCHEN, events_of=events_of)  # no raise

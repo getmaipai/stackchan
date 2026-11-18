@@ -2221,6 +2221,321 @@ def _wire_light_and_health(voice, behavior: StackChanBehavior, avatar, sounds, p
     return light
 
 
+def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, sounds, uplink, vision, units, link, offline, stop_event, device_connected, StackChanTurnBridge) -> Any:
+    """The hub-facing StackChan services: head, brightness and volume commands, timers and announcements, the check-in, the command channel,
+    look and orientation. Moved out of `_serve_stackchan_channels` unchanged (docs/plan/seam-refactor.md, P1). Returns the dance runner."""
+    import math
+
+    from maipai_body.bodies.stackchan.brightness import BrightnessControl
+    from maipai_body.bodies.stackchan.head_commands import HeadCommander, gaze_detail
+    from maipai_body.bodies.stackchan.volume import VolumeControl
+    from maipai_body.hal.seam import HeadPose
+
+    def _move_head(yaw_deg: int, pitch_deg: int, speed: int) -> None:
+        pose = HeadPose(yaw=math.radians(yaw_deg), pitch=math.radians(pitch_deg))
+        if not behavior._with_lease(lambda: voice.robot.robot.head.set(pose=pose, speed=speed)):
+            raise RuntimeError("another part of the robot is using the head")
+
+    def _head_blocked() -> str | None:
+        if voice.robot.robot.estop_engaged:
+            return "the emergency stop is latched"
+        if behavior.privacy.head_blocked() is not None:
+            return "it is in full quiet and holds its head still"
+        # A spoken head command is the owner asking for the move, so charging no longer
+        # blocks it (owner decision 2026-11-12: the 2026-10-20 charging rule is lifted).
+        return None
+
+    from maipai_body.bodies.stackchan.gaze import GazeReason
+    from maipai_body.bodies.stackchan.sight import SightAnswers
+
+    head_commander = HeadCommander(
+        _move_head,
+        blocked=_head_blocked,
+        hold_pose=behavior.hold_pose,
+        on_done=lambda command: behavior.gaze.note(GazeReason.COMMAND, gaze_detail(command)),
+        find_face=behavior.find_person,
+        face_yaw=behavior.face_yaw,
+    )
+    behavior.on_face_found = head_commander.face_found
+    from maipai_body.bodies.stackchan.dance_wiring import wire_dance
+    from maipai_body.bodies.stackchan.head_commands import CENTER_PITCH, CENTER_YAW, SPEED
+
+    runner = wire_dance(
+        voice=voice,
+        behavior=behavior,
+        light=light,
+        night=night,
+        head_commander=head_commander,
+        level_head=lambda: _move_head(CENTER_YAW, CENTER_PITCH, SPEED),
+        device_connected=device_connected,
+        full_quiet_reason=behavior.privacy.muted_reason,
+    )
+    from maipai_body.bodies.stackchan.games import GameService as _GameService
+
+    # "Play memory", "stop the game", "what games do you have" (and the Spanish asks) are
+    # answered here, before the hub is asked: the games are the unit's own (firmware patch G01).
+    head_commander.game = _GameService(voice.robot.client._call).spoken
+    from maipai_body.bodies.stackchan.music_dance_wiring import (
+        MusicFeatureSwitch,
+        music_status_code,
+        wire_music_dance,
+    )
+
+    # The unit analyzes the room's sound only while robot.dance.auto is on and it is not muted.
+    from maipai_body.bodies.stackchan.motion_limit import MotionLimit
+
+    behavior.motion_limit = MotionLimit(voice.robot.client._call)
+    music_switch = MusicFeatureSwitch(
+        voice.robot.client._call,
+        auto=lambda: behavior.dance_settings.auto,
+        silenced=lambda: bool(behavior.speech_muted() or _unit_muted(behavior)),
+    )
+    # The settings page's "Dance to music" toggle flips dance_settings.auto, then asks for this sync (see _wire_idle_setting).
+    behavior.music_sync = music_switch.sync
+    from maipai_body.bodies.stackchan.wifi_list import WifiList
+
+    wifi_list = WifiList(music_switch.call, on_changed=behavior.unit_facts.changed.set)
+    behavior.wifi_list = wifi_list
+    behavior.wifi_add_command = lambda payload: wifi_list.add(
+        payload.get("ssid") if isinstance(payload, dict) else None,
+        payload.get("password") if isinstance(payload, dict) else None,
+    )
+    behavior.wifi_forget_command = lambda payload: wifi_list.forget(
+        payload.get("ssid") if isinstance(payload, dict) else None
+    )
+    behavior.wifi_use_command = lambda payload: wifi_list.use(
+        payload.get("ssid") if isinstance(payload, dict) else None
+    )
+    from maipai_body.bodies.stackchan.wifi_list import prefer_tailnet as _prefer_tailnet
+
+    behavior.prefer_tailnet_command = lambda payload: _prefer_tailnet(
+        music_switch.call, payload
+    )
+
+    def identify_post(pcm: bytes, request_id: str | None = None) -> dict | None:
+        try:
+            import requests
+
+            cookie, base_url = _hub_credentials_reader(link, "")()
+            query = "kind=pcm16&rate=8000"
+            if request_id is not None:
+                from urllib.parse import quote
+
+                query += f"&request={quote(request_id, safe='')}"
+            response = requests.post(
+                f"{base_url}/api/music/identify?{query}",
+                data=pcm,
+                headers={
+                    "Cookie": f"session={cookie}",
+                    "Content-Type": "application/octet-stream",
+                },
+                timeout=15,
+            )
+            if 200 <= response.status_code < 300:
+                try:
+                    return response.json()
+                except Exception as exc:
+                    logger.warning(
+                        "StackChan song naming: 2xx response was not JSON: %s: %.200s",
+                        type(exc).__name__,
+                        str(exc),
+                    )
+            else:
+                logger.warning(
+                    "StackChan song naming: Home HTTP %s: %.120s",
+                    response.status_code,
+                    response.text,
+                )
+        except Exception as exc:
+            logger.warning(
+                "StackChan song naming: identify request raised %s: %.200s",
+                type(exc).__name__,
+                str(exc),
+            )
+        return None
+
+    identify_setting_value = ["on"]
+
+    def identify_setting() -> str:
+        return identify_setting_value[0]
+
+    def apply_identify_setting(values: dict) -> None:
+        value = values.get("music.identify.online", "on")
+        if value in ("on", "ask", "off"):
+            identify_setting_value[0] = value
+
+    music_dance = wire_music_dance(
+        behavior=behavior,
+        runner=runner,
+        move_head=_move_head,
+        center_pitch=CENTER_PITCH,
+        speed=SPEED,
+        switch=music_switch,
+        identify_post=identify_post,
+        identify_setting=identify_setting,
+        identify_call_tool=voice.robot.client._call,
+    )
+
+    sounds.dance_active = lambda: music_dance.state in {"nod", "watch", "show", "calm", "break"}
+    behavior.music_status = lambda saved: music_status_code(
+        saved=saved,
+        auto=behavior.dance_settings.auto,
+        switch=music_switch,
+        state=music_dance.state,
+    )
+
+    def idle_face_allowed() -> bool:
+        if not IDLE_FACES_ENABLED or behavior._active.is_set():
+            return False
+        if behavior._rest.stage != "awake":
+            return False
+        if music_dance.state in {"nod", "watch", "show", "calm", "break"}:
+            return False
+        situation = runner.situation()
+        if (
+            situation.night
+            or not situation.awake
+            or situation.muted
+            or situation.full_quiet
+            or situation.camera_cue
+            or situation.live_cue
+        ):
+            return False
+        tracker = behavior._tracker
+        if getattr(tracker, "stage", "idle") in {"aiming", "follow", "face-search"}:
+            return False
+        if getattr(tracker, "following", False):
+            return False
+        return True
+
+    behavior.idle_faces = IdleFaces(behavior.show_face, idle_face_allowed, rng=random.Random())
+    behavior.settings_listeners.append(apply_identify_setting)
+    behavior.settings_listeners.append(music_switch.apply_settings)
+    voice.session_listeners.append(music_switch.on_session)
+
+    from maipai_body.bodies.stackchan.repeat import RepeatControl
+
+    repeat_control = RepeatControl(
+        missed=behavior.missed_log,
+        muted=lambda: bool(behavior.speech_muted() or _unit_muted(behavior)),
+    )
+    behavior.settings_listeners.append(repeat_control.apply_settings)
+
+    bridge = StackChanTurnBridge(
+        voice,
+        link,
+        offline,
+        repeat_control=repeat_control,
+        units=units,
+        cache_dir=_default_models_cache_dir(),
+        # The current /api/stt/stream contract has no speaker field.
+        # This adapter consumes that field when the hub adds it; absent
+        # results remain anonymous on this turn.
+        person_attribution=lambda result: getattr(result, "speaker_evidence", None),
+        expression_sink=_turn_sink(behavior, light, faces, voice.connected_devices),
+        live_sink=light.cue_live,
+        uplink_stats=uplink,
+        volume_control=VolumeControl(
+            voice.robot.client._call,
+            voice.robot.client.set_volume,
+            on_set=lambda level, _command: night.set_owner_volume_from_voice(level),
+        ),
+        brightness_control=BrightnessControl(
+            night.effective_brightness, night.set_brightness_from_voice
+        ),
+        head_control=head_commander,
+        alarm_control=_alarm_control(behavior),
+        gaze_control=behavior.gaze,
+        sight_control=SightAnswers(
+            face_age=behavior.face_age,
+            camera_on=lambda: (
+                behavior.watch_level() != "off" and not behavior.privacy.vision_off
+            ),
+            light=behavior.light_for_sight,
+            camera_running_s=avatar.camera_running_s,
+            watching=lambda: _detector_ready(vision),
+            motion_age=lambda: None if vision is None else vision.motion_age(),
+            person_age=lambda: None if vision is None else vision.person_age(),
+            objects=lambda max_age_s: None if vision is None else vision.objects(max_age_s),
+        ),
+    )
+    bridge.vision_ask = behavior.vision_ask
+    from maipai_body.bodies.stackchan.talk_games import TalkGames
+
+    # Voice games the model plays ("play twenty questions"): the start and end are answered here with no model.
+    bridge.talk_games = TalkGames()
+    from maipai_body.bodies.stackchan.lock_voice import LockVoice
+
+    # "Lock" / "bloquear": the unit that heard it locks, no model call. The service is read late (the settings polish is built after this).
+    bridge.lock_control = LockVoice(lambda: getattr(getattr(voice, "polish", None), "lock", None))
+    bridge.muted_reason = behavior.privacy.muted_reason
+    bridge.on_error_line = sounds.on_error_line
+    behavior.announce = bridge.speak_reaction
+    voice.audio_handler = bridge.on_audio
+    voice.turn_handler = bridge.listen
+    from maipai_body.bodies.stackchan.reactions import Reactions
+
+    reactions = Reactions(
+        face=lambda expression: behavior.show_face(expression, while_listening=True),
+        say=bridge.speak_reaction,
+        quiet=lambda: night.night,
+        busy=behavior.reaction_blocked,
+        head_moved_ago=behavior.head_moved_ago,
+        symbol=lambda name: voice.robot.client._call(
+            "self.screen.show_symbol", {"name": name, "ms": 2500}
+        ),
+    )
+    behavior.reaction = reactions.on_events
+    behavior.reaction_tick = reactions.tick
+    _wire_orientation(voice, behavior, bridge, night, power)
+    bridge.on_user_words = reactions.on_user_words
+    bridge.language = units.base.home.language
+    voice.say_text = bridge.speak_reaction  # the Remote page's "Say something"
+
+    def _head_busy() -> str:
+        if getattr(getattr(behavior, "privacy", None), "quiet", False):
+            return "full quiet is on"
+        if bridge._tasks:
+            return "a turn is listening or speaking"
+        if behavior.night_active():
+            return "quiet hours"
+        return ""
+
+    behavior.head_busy = _head_busy
+    bridge.on_reply_mood = reactions.on_reply_mood
+    from maipai_body.unit_polish import Polish
+
+    polish = Polish(
+        _unit_call(voice),
+        units.store.get,
+        units.store.update,
+        synth=_local_synth(units.base),
+        tone_on_unit=lambda device_id: _unit_plays_thinking_tone(faces, device_id),
+    )
+    polish.bind_faces(faces)  # the unit's screen language decides which language pack it holds
+    polish.attach(bridge)
+    voice.gate_bridge = bridge  # the settings page's remote activity feeds the bus gate (see _start_stackchan_settings)
+    bridge.decoration_blocked = lambda: behavior._rest.stage != "awake" or behavior.night_active()
+    voice.polish = polish  # the settings page reads the same state
+    voice.session_listeners.append(polish.on_connect)
+    _wire_look_owner(voice, units, behavior, polish, stop_event)
+    from maipai_body.selftest.stackchan_wiring import build_context, build_service_hooks
+    from maipai_body.speech.turn_client import TurnClient
+
+    voice.selftest_checks, voice.selftest_runner = build_service_hooks(
+        build_context(
+            robot=voice.robot.robot,
+            client=voice.robot.client,
+            light=light,
+            uplink=uplink,
+            link=link,
+            turn_factory=TurnClient,
+        ),
+        light,
+    )
+    return runner
+
+
 def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, stop_event) -> Any:
     """Mute, vision off and full quiet (firmware 105 to 108, docs/dev/stackchan-mute-2026-11-13.md).
 
@@ -2260,6 +2575,20 @@ def _wire_privacy(voice, behavior: StackChanBehavior, avatar, camera_driver, sto
         threading.Thread(target=target, name="stackchan-privacy-connect", daemon=True).start()
 
     voice.session_listeners.append(on_unit_connect)
+
+    def poll_other_units() -> None:
+        """Mute and vision changes made on a second unit reach that unit's own state (its touch events are not handled)."""
+        while not stop_event.wait(1.0):
+            try:
+                others.poll_events(
+                    list(voice._sessions),
+                    primary=primary_id[0],
+                    events_of=lambda device_id: voice.robot.client.for_unit(device_id).companion().poll_events(),
+                )
+            except Exception:
+                logger.warning("polling the other units failed", exc_info=True)
+
+    threading.Thread(target=poll_other_units, name="stackchan-unit-events", daemon=True).start()
     # Head moves from any part of the host stop in full quiet.
     voice.robot.robot._driver("head").move_blocked = others.head_blocked
     # No picture is asked for, kept or taken while vision is off; the local watch gate and the
@@ -2884,315 +3213,11 @@ async def _serve_stackchan_channels(
     from maipai_body.bodies.stackchan.uplink_stats import UplinkStats
 
     uplink = UplinkStats()
+    runner = None  # the dance runner (set by the hub wiring; `firmware_situation` reads it when asked)
     if link is not None and offline is not None:
-        import math
-
-        from maipai_body.bodies.stackchan.brightness import BrightnessControl
-        from maipai_body.bodies.stackchan.head_commands import HeadCommander, gaze_detail
-        from maipai_body.bodies.stackchan.volume import VolumeControl
-        from maipai_body.hal.seam import HeadPose
-
-        def _move_head(yaw_deg: int, pitch_deg: int, speed: int) -> None:
-            pose = HeadPose(yaw=math.radians(yaw_deg), pitch=math.radians(pitch_deg))
-            if not behavior._with_lease(lambda: voice.robot.robot.head.set(pose=pose, speed=speed)):
-                raise RuntimeError("another part of the robot is using the head")
-
-        def _head_blocked() -> str | None:
-            if voice.robot.robot.estop_engaged:
-                return "the emergency stop is latched"
-            if behavior.privacy.head_blocked() is not None:
-                return "it is in full quiet and holds its head still"
-            # A spoken head command is the owner asking for the move, so charging no longer
-            # blocks it (owner decision 2026-11-12: the 2026-10-20 charging rule is lifted).
-            return None
-
-        from maipai_body.bodies.stackchan.gaze import GazeReason
-        from maipai_body.bodies.stackchan.sight import SightAnswers
-
-        head_commander = HeadCommander(
-            _move_head,
-            blocked=_head_blocked,
-            hold_pose=behavior.hold_pose,
-            on_done=lambda command: behavior.gaze.note(GazeReason.COMMAND, gaze_detail(command)),
-            find_face=behavior.find_person,
-            face_yaw=behavior.face_yaw,
-        )
-        behavior.on_face_found = head_commander.face_found
-        from maipai_body.bodies.stackchan.dance_wiring import wire_dance
-        from maipai_body.bodies.stackchan.head_commands import CENTER_PITCH, CENTER_YAW, SPEED
-
-        runner = wire_dance(
-            voice=voice,
-            behavior=behavior,
-            light=light,
-            night=night,
-            head_commander=head_commander,
-            level_head=lambda: _move_head(CENTER_YAW, CENTER_PITCH, SPEED),
-            device_connected=device_connected,
-            full_quiet_reason=behavior.privacy.muted_reason,
-        )
-        from maipai_body.bodies.stackchan.games import GameService as _GameService
-
-        # "Play memory", "stop the game", "what games do you have" (and the Spanish asks) are
-        # answered here, before the hub is asked: the games are the unit's own (firmware patch G01).
-        head_commander.game = _GameService(voice.robot.client._call).spoken
-        from maipai_body.bodies.stackchan.music_dance_wiring import (
-            MusicFeatureSwitch,
-            music_status_code,
-            wire_music_dance,
-        )
-
-        # The unit analyzes the room's sound only while robot.dance.auto is on and it is not muted.
-        from maipai_body.bodies.stackchan.motion_limit import MotionLimit
-
-        behavior.motion_limit = MotionLimit(voice.robot.client._call)
-        music_switch = MusicFeatureSwitch(
-            voice.robot.client._call,
-            auto=lambda: behavior.dance_settings.auto,
-            silenced=lambda: bool(behavior.speech_muted() or _unit_muted(behavior)),
-        )
-        # The settings page's "Dance to music" toggle flips dance_settings.auto, then asks for this sync (see _wire_idle_setting).
-        behavior.music_sync = music_switch.sync
-        from maipai_body.bodies.stackchan.wifi_list import WifiList
-
-        wifi_list = WifiList(music_switch.call, on_changed=behavior.unit_facts.changed.set)
-        behavior.wifi_list = wifi_list
-        behavior.wifi_add_command = lambda payload: wifi_list.add(
-            payload.get("ssid") if isinstance(payload, dict) else None,
-            payload.get("password") if isinstance(payload, dict) else None,
-        )
-        behavior.wifi_forget_command = lambda payload: wifi_list.forget(
-            payload.get("ssid") if isinstance(payload, dict) else None
-        )
-        behavior.wifi_use_command = lambda payload: wifi_list.use(
-            payload.get("ssid") if isinstance(payload, dict) else None
-        )
-        from maipai_body.bodies.stackchan.wifi_list import prefer_tailnet as _prefer_tailnet
-
-        behavior.prefer_tailnet_command = lambda payload: _prefer_tailnet(
-            music_switch.call, payload
-        )
-
-        def identify_post(pcm: bytes, request_id: str | None = None) -> dict | None:
-            try:
-                import requests
-
-                cookie, base_url = _hub_credentials_reader(link, "")()
-                query = "kind=pcm16&rate=8000"
-                if request_id is not None:
-                    from urllib.parse import quote
-
-                    query += f"&request={quote(request_id, safe='')}"
-                response = requests.post(
-                    f"{base_url}/api/music/identify?{query}",
-                    data=pcm,
-                    headers={
-                        "Cookie": f"session={cookie}",
-                        "Content-Type": "application/octet-stream",
-                    },
-                    timeout=15,
-                )
-                if 200 <= response.status_code < 300:
-                    try:
-                        return response.json()
-                    except Exception as exc:
-                        logger.warning(
-                            "StackChan song naming: 2xx response was not JSON: %s: %.200s",
-                            type(exc).__name__,
-                            str(exc),
-                        )
-                else:
-                    logger.warning(
-                        "StackChan song naming: Home HTTP %s: %.120s",
-                        response.status_code,
-                        response.text,
-                    )
-            except Exception as exc:
-                logger.warning(
-                    "StackChan song naming: identify request raised %s: %.200s",
-                    type(exc).__name__,
-                    str(exc),
-                )
-            return None
-
-        identify_setting_value = ["on"]
-
-        def identify_setting() -> str:
-            return identify_setting_value[0]
-
-        def apply_identify_setting(values: dict) -> None:
-            value = values.get("music.identify.online", "on")
-            if value in ("on", "ask", "off"):
-                identify_setting_value[0] = value
-
-        music_dance = wire_music_dance(
-            behavior=behavior,
-            runner=runner,
-            move_head=_move_head,
-            center_pitch=CENTER_PITCH,
-            speed=SPEED,
-            switch=music_switch,
-            identify_post=identify_post,
-            identify_setting=identify_setting,
-            identify_call_tool=voice.robot.client._call,
-        )
-
-        sounds.dance_active = lambda: music_dance.state in {"nod", "watch", "show", "calm", "break"}
-        behavior.music_status = lambda saved: music_status_code(
-            saved=saved,
-            auto=behavior.dance_settings.auto,
-            switch=music_switch,
-            state=music_dance.state,
-        )
-
-        def idle_face_allowed() -> bool:
-            if not IDLE_FACES_ENABLED or behavior._active.is_set():
-                return False
-            if behavior._rest.stage != "awake":
-                return False
-            if music_dance.state in {"nod", "watch", "show", "calm", "break"}:
-                return False
-            situation = runner.situation()
-            if (
-                situation.night
-                or not situation.awake
-                or situation.muted
-                or situation.full_quiet
-                or situation.camera_cue
-                or situation.live_cue
-            ):
-                return False
-            tracker = behavior._tracker
-            if getattr(tracker, "stage", "idle") in {"aiming", "follow", "face-search"}:
-                return False
-            if getattr(tracker, "following", False):
-                return False
-            return True
-
-        behavior.idle_faces = IdleFaces(behavior.show_face, idle_face_allowed, rng=random.Random())
-        behavior.settings_listeners.append(apply_identify_setting)
-        behavior.settings_listeners.append(music_switch.apply_settings)
-        voice.session_listeners.append(music_switch.on_session)
-
-        from maipai_body.bodies.stackchan.repeat import RepeatControl
-
-        repeat_control = RepeatControl(
-            missed=behavior.missed_log,
-            muted=lambda: bool(behavior.speech_muted() or _unit_muted(behavior)),
-        )
-        behavior.settings_listeners.append(repeat_control.apply_settings)
-
-        bridge = StackChanTurnBridge(
-            voice,
-            link,
-            offline,
-            repeat_control=repeat_control,
-            units=units,
-            cache_dir=_default_models_cache_dir(),
-            # The current /api/stt/stream contract has no speaker field.
-            # This adapter consumes that field when the hub adds it; absent
-            # results remain anonymous on this turn.
-            person_attribution=lambda result: getattr(result, "speaker_evidence", None),
-            expression_sink=_turn_sink(behavior, light, faces, voice.connected_devices),
-            live_sink=light.cue_live,
-            uplink_stats=uplink,
-            volume_control=VolumeControl(
-                voice.robot.client._call,
-                voice.robot.client.set_volume,
-                on_set=lambda level, _command: night.set_owner_volume_from_voice(level),
-            ),
-            brightness_control=BrightnessControl(
-                night.effective_brightness, night.set_brightness_from_voice
-            ),
-            head_control=head_commander,
-            alarm_control=_alarm_control(behavior),
-            gaze_control=behavior.gaze,
-            sight_control=SightAnswers(
-                face_age=behavior.face_age,
-                camera_on=lambda: (
-                    behavior.watch_level() != "off" and not behavior.privacy.vision_off
-                ),
-                light=behavior.light_for_sight,
-                camera_running_s=avatar.camera_running_s,
-                watching=lambda: _detector_ready(vision),
-                motion_age=lambda: None if vision is None else vision.motion_age(),
-                person_age=lambda: None if vision is None else vision.person_age(),
-                objects=lambda max_age_s: None if vision is None else vision.objects(max_age_s),
-            ),
-        )
-        bridge.vision_ask = behavior.vision_ask
-        from maipai_body.bodies.stackchan.talk_games import TalkGames
-
-        # Voice games the model plays ("play twenty questions"): the start and end are answered here with no model.
-        bridge.talk_games = TalkGames()
-        from maipai_body.bodies.stackchan.lock_voice import LockVoice
-
-        # "Lock" / "bloquear": the unit that heard it locks, no model call. The service is read late (the settings polish is built after this).
-        bridge.lock_control = LockVoice(lambda: getattr(getattr(voice, "polish", None), "lock", None))
-        bridge.muted_reason = behavior.privacy.muted_reason
-        bridge.on_error_line = sounds.on_error_line
-        behavior.announce = bridge.speak_reaction
-        voice.audio_handler = bridge.on_audio
-        voice.turn_handler = bridge.listen
-        from maipai_body.bodies.stackchan.reactions import Reactions
-
-        reactions = Reactions(
-            face=lambda expression: behavior.show_face(expression, while_listening=True),
-            say=bridge.speak_reaction,
-            quiet=lambda: night.night,
-            busy=behavior.reaction_blocked,
-            head_moved_ago=behavior.head_moved_ago,
-            symbol=lambda name: voice.robot.client._call(
-                "self.screen.show_symbol", {"name": name, "ms": 2500}
-            ),
-        )
-        behavior.reaction = reactions.on_events
-        behavior.reaction_tick = reactions.tick
-        _wire_orientation(voice, behavior, bridge, night, power)
-        bridge.on_user_words = reactions.on_user_words
-        bridge.language = units.base.home.language
-        voice.say_text = bridge.speak_reaction  # the Remote page's "Say something"
-
-        def _head_busy() -> str:
-            if getattr(getattr(behavior, "privacy", None), "quiet", False):
-                return "full quiet is on"
-            if bridge._tasks:
-                return "a turn is listening or speaking"
-            if behavior.night_active():
-                return "quiet hours"
-            return ""
-
-        behavior.head_busy = _head_busy
-        bridge.on_reply_mood = reactions.on_reply_mood
-        from maipai_body.unit_polish import Polish
-
-        polish = Polish(
-            _unit_call(voice),
-            units.store.get,
-            units.store.update,
-            synth=_local_synth(units.base),
-            tone_on_unit=lambda device_id: _unit_plays_thinking_tone(faces, device_id),
-        )
-        polish.bind_faces(faces)  # the unit's screen language decides which language pack it holds
-        polish.attach(bridge)
-        voice.gate_bridge = bridge  # the settings page's remote activity feeds the bus gate (see _start_stackchan_settings)
-        bridge.decoration_blocked = lambda: behavior._rest.stage != "awake" or behavior.night_active()
-        voice.polish = polish  # the settings page reads the same state
-        voice.session_listeners.append(polish.on_connect)
-        _wire_look_owner(voice, units, behavior, polish, stop_event)
-        from maipai_body.selftest.stackchan_wiring import build_context, build_service_hooks
-        from maipai_body.speech.turn_client import TurnClient
-
-        voice.selftest_checks, voice.selftest_runner = build_service_hooks(
-            build_context(
-                robot=voice.robot.robot,
-                client=voice.robot.client,
-                light=light,
-                uplink=uplink,
-                link=link,
-                turn_factory=TurnClient,
-            ),
-            light,
+        runner = _wire_hub_services(
+            voice, behavior, avatar, faces, light, night, power, sounds, uplink, vision, units, link, offline, stop_event,
+            device_connected, StackChanTurnBridge,
         )
     await voice.start(host, xiaozhi_port, ssl=tls_context)
     settings_server = _start_settings_page(voice, pairing, units, behavior, faces, link_security)
