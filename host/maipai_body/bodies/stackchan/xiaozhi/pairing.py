@@ -23,6 +23,7 @@ PENDING_LIMIT = 8
 PENDING_TTL = 600
 ENROLLMENT_LIMIT = 32
 PAIR_CODE_TTL = 600
+PAIR_CODE_LIMIT = 8
 PAIR_CODE_ATTEMPT_LIMIT = 5
 PAIR_CODE_WINDOW = 600
 
@@ -89,15 +90,36 @@ class PairingStore:
             return secrets.compare_digest(str(record.get("token_sha256", "")), digest)
 
     def create_pair_code(self, *, now: float | None = None) -> str:
-        """Create a displayed six digit code, valid for ten minutes and one device."""
+        """Create a displayed six digit code, valid for ten minutes and one device.
+
+        Codes are stored as digests in the pairing file so a code made by the command
+        line is redeemable by the running host."""
         now = time.time() if now is None else now
         with self._lock:
-            code = f"{secrets.randbelow(1_000_000):06d}"
-            self._pair_codes[hashlib.sha256(code.encode()).hexdigest()] = {
-                "expires_at": now + PAIR_CODE_TTL,
-                "used": False,
-            }
-            return code
+            with self._file_lock():
+                self._refresh()
+                self._prune_codes(now)
+                code = f"{secrets.randbelow(1_000_000):06d}"
+                self._pair_codes[hashlib.sha256(code.encode()).hexdigest()] = {
+                    "expires_at": now + PAIR_CODE_TTL,
+                    "used": False,
+                }
+                while len(self._pair_codes) > PAIR_CODE_LIMIT:
+                    oldest = min(
+                        self._pair_codes, key=lambda key: float(self._pair_codes[key]["expires_at"])
+                    )
+                    del self._pair_codes[oldest]
+                self._save()
+                return code
+
+    def _prune_codes(self, now: float) -> None:
+        self._pair_codes = {
+            key: record
+            for key, record in self._pair_codes.items()
+            if isinstance(record, dict)
+            and not record.get("used")
+            and float(record.get("expires_at", 0)) > now
+        }
 
     def redeem_pair_code(
         self,
@@ -111,6 +133,7 @@ class PairingStore:
         """Consume a displayed code and return the device's one-time token."""
         now = time.time() if now is None else now
         with self._lock:
+            self._refresh()
             attempts = [
                 stamp for stamp in self._code_attempts.get(source, [])
                 if now - stamp < PAIR_CODE_WINDOW
@@ -129,10 +152,14 @@ class PairingStore:
                 return None
             if record["used"] or float(record["expires_at"]) <= now:
                 return None
-            record["used"] = True
         with self._lock:
             with self._file_lock():
                 self._refresh()
+                record = self._pair_codes.get(digest)
+                if record is None or record["used"] or float(record["expires_at"]) <= now:
+                    return None
+                record["used"] = True
+                self._prune_codes(now)
                 token = secrets.token_urlsafe(32)
                 self._devices[device_id] = {
                     "client_id": client_id,
@@ -447,6 +474,7 @@ class PairingStore:
             self._devices = {}
             self._enrollments = {}
             self._pending = {}
+            self._pair_codes = {}
             self._file_signature = None
             return
         try:
@@ -480,6 +508,8 @@ class PairingStore:
             return
         self._devices = devices
         self._enrollments = enrollments
+        codes = raw.get("pair_codes", {})
+        self._pair_codes = codes if isinstance(codes, dict) else {}
         self._prune_enrollments()
         self._pending = pending
         self._expire_pending()
@@ -494,6 +524,7 @@ class PairingStore:
         data = {
             "devices": self._devices,
             "enrollments": self._enrollments,
+            "pair_codes": self._pair_codes,
             "pending": {
                 f"{request.device_id}|{request.client_id}": {
                     "device_id": request.device_id,
