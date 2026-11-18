@@ -31,7 +31,7 @@ SCENARIOS["tired-low-battery"] = [("call", "self.face.bench_emotion", {"emotion"
 # Screens other than the bare face, on the screens renderer. Not drawn by the renderer yet (gaps, listed so they are not forgotten):
 # pairing screen, updating screen, lock screen and keypad (lock_render.sh is a separate program), the Wi-Fi setup screen itself
 # (the renderer only has the banner flag for it).
-SCREEN_GAPS = ["pairing", "updating", "lock", "wifi-setup-screen"]
+SCREEN_GAPS = ["pairing", "updating", "wifi-setup-screen"]
 BAR = [("raw", "style big_eyes"), ("raw", "bbar always"), ("raw", "bstatus 80 0 1 1 1")]
 SCREENS: dict[str, list] = {
     "screen-status-normal": BAR + [EMOTE("neutral"), ("advance", 1500)],
@@ -47,6 +47,26 @@ SCREENS: dict[str, list] = {
     "screen-page-actions": BAR + [("raw", "pshow actions"), ("advance", 600)],
     "screen-control-sheet": BAR + [("raw", "pshow sheet"), ("advance", 600)],
 }
+
+
+# The lock screen and keypad come from their own program (lock_render): script lines, one PNG per scenario written to {out}.
+LOCK_SCENARIOS = {
+    "lock-screen": ["banner on", "lock {out}"],
+    "lock-keypad-empty": ["banner on", "pad 0 0 {out}"],
+    "lock-keypad-three": ["banner on", "pad 3 0 {out}"],
+    "lock-keypad-wrong": ["banner on", "pad 6 1 {out}"],
+    "lock-keypad-wrong-es": ["banner on", "lang es", "pad 0 1 {out}"],
+}
+
+
+def run_lock(name: str) -> bytes:
+    import subprocess
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "shot.png"
+        script = "\n".join(line.format(out=out) for line in LOCK_SCENARIOS[name]) + "\n"
+        subprocess.run([str(ROOT / ".runs" / "vu-screens" / "lock" / "lock_render")], input=script, text=True, check=True, capture_output=True)
+        return out.read_bytes()
 
 
 def run(u, steps) -> None:
@@ -84,18 +104,21 @@ def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     update = "--update" in sys.argv
     screens_built = (ROOT / ".runs" / "vu-screens" / "render").exists()
-    names = args or list(SCENARIOS) + (list(SCREENS) if screens_built else [])
+    names = args or list(SCENARIOS) + (list(SCREENS) + list(LOCK_SCENARIOS) if screens_built else [])
     if not args and not screens_built:
         print("screens renderer not built: skipping screen scenarios (bash scripts/virtual-unit/build-screens.sh)")
     failed = 0
     GOLDEN.mkdir(parents=True, exist_ok=True)
     GOLDEN_SCREENS.mkdir(parents=True, exist_ok=True)
     for name in names:
-        is_screen = name in SCREENS
-        with vunit.VirtualUnit(profile="screens" if is_screen else "face") as u:
-            run(u, SCREENS[name] if is_screen else SCENARIOS[name])
-            png = u.snapshot()
-            problems = layout_problems(u, name)
+        is_screen = name in SCREENS or name in LOCK_SCENARIOS
+        if name in LOCK_SCENARIOS:
+            png, problems = run_lock(name), []
+        else:
+            with vunit.VirtualUnit(profile="screens" if is_screen else "face") as u:
+                run(u, SCREENS[name] if is_screen else SCENARIOS[name])
+                png = u.snapshot()
+                problems = layout_problems(u, name)
         folder = GOLDEN_SCREENS if is_screen else GOLDEN
         gold = folder / f"{name}.png"
         if update:

@@ -15,3 +15,8 @@ export MAIPAI_RENDER_CFILES="$B/firmware/managed_components/78__xiaozhi-fonts/sr
 # the LVGL archive is the same as the face build's: reuse it when there
 [ -f "$OUT/lvgl.a" ] || { [ -f "$(dirname "$OUT")/vu-build/lvgl.a" ] && mkdir -p "$OUT/obj" && cp "$(dirname "$OUT")/vu-build/lvgl.a" "$OUT/lvgl.a" && cp -R "$(dirname "$OUT")/vu-build/inc" "$OUT/inc"; } || true
 bash "$R/build.sh" "$OUT"
+# the passcode lock screen and keypad are drawn by their own small program (patch LK02)
+mkdir -p "$OUT/lock"
+L="$B/firmware/managed_components/lvgl__lvgl"
+clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$R/lock_render.cc" "$OUT/lvgl.a" -o "$OUT/lock/lock_render" -lz
+echo "built $OUT/lock/lock_render"
