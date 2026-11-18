@@ -43,14 +43,21 @@ def test_expired_codes_are_pruned_and_the_list_is_capped(tmp_path):
     assert all(item["expires_at"] > 2000.0 for item in stored.values())
 
 
-def test_wrong_tries_are_counted_across_every_source_address(tmp_path):
-    """five wrong codes close the window whoever sent them."""
+def test_wrong_tries_from_many_addresses_close_the_window_but_not_for_this_computer(tmp_path):
     store = PairingStore(tmp_path / "p.json")
     real = store.create_pair_code()
     wrong = "000000" if real != "000000" else "000001"
     for number in range(pairing_mod.PAIR_CODE_GLOBAL_LIMIT):
         store.redeem_pair_code(DEVICE, CLIENT, wrong, source=f"198.51.100.{number}")
     assert store.redeem_pair_code(DEVICE, CLIENT, real, source="198.51.100.250") is None
+    assert store.redeem_pair_code(DEVICE, CLIENT, real, source="127.0.0.1")  # this computer still pairs
+
+
+def test_successful_tries_do_not_use_up_the_shared_limit(tmp_path):
+    store = PairingStore(tmp_path / "p.json")
+    for number in range(pairing_mod.PAIR_CODE_GLOBAL_LIMIT + 5):
+        unit = f"aa:bb:cc:dd:ee:{number:02x}"
+        assert store.redeem_pair_code(unit, CLIENT, store.create_pair_code(), source=f"198.51.100.{number}")
 
 
 def test_a_code_cannot_replace_a_paired_unit(tmp_path):

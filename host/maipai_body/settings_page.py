@@ -717,7 +717,7 @@ class SettingsBackend:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
             return 200, JSON, json.dumps(self.polish.packs.library_view()).encode()
         if path == ACCESS:
-            if not local_admin:
+            if local_admin is not True:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
             return self._access_get(lang)
         if path.startswith(UNIT) or path == PEOPLE:
@@ -748,8 +748,11 @@ class SettingsBackend:
             return None
         lang = normalize(str(body.get("lang", "")) or self.language)
         if path == ACCESS or path.startswith(ACCESS + "/"):
-            return self._access_post(path[len(ACCESS) + 1 :], body, local_admin, lang)
+            return self._access_post(path[len(ACCESS) + 1 :], body, local_admin is True, lang)
         if not local_admin:
+            return 403, {"error": t(lang, "settings.local_only")}
+        host_only = path.endswith("/update") or "/lock" in path
+        if host_only and local_admin is not True:
             return 403, {"error": t(lang, "settings.local_only")}
         if path.startswith(FACES):
             return self._faces_post(unquote(path[len(FACES) :]), body, lang)
@@ -788,6 +791,7 @@ def _host_version() -> str:
 
 
 JSON = "application/json"
+TOKEN_ACCESS = "token"  # a settings-token login: the settings pages, not the controls that stay on the host computer
 FACES = "/api/stackchan/faces/"
 UNIT = "/api/stackchan/unit/"
 PEOPLE = "/api/stackchan/people"

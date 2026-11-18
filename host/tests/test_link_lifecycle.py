@@ -283,7 +283,7 @@ def test_a_failing_on_code_hook_never_breaks_pairing(tmp_path):
 def test_network_error_while_requesting_a_code_does_not_kill_the_link_thread(
     tmp_path, monkeypatch
 ):
-    """HC-5: Home restarting mid-pairing must not stop the thread for good."""
+    """Home restarting mid-pairing must not stop the thread for good."""
     import requests
 
     monkeypatch.setattr("maipai_body.link.lifecycle.DISCOVERY_RETRY_S", 0.01)

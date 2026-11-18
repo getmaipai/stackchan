@@ -1,4 +1,4 @@
-"""HC-3: a standalone checkout resolves the shared spec from the vendored snapshot."""
+"""a standalone checkout resolves the shared spec from the vendored snapshot."""
 
 from pathlib import Path
 

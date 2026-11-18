@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from maipai_body import local_guard
 from maipai_body.i18n import normalize
-from maipai_body.settings_page import SettingsBackend
+from maipai_body.settings_page import TOKEN_ACCESS, SettingsBackend
 
 LOG = logging.getLogger(__name__)
 LOOPBACK = {"127.0.0.1", "::1"}
@@ -56,8 +56,11 @@ class _Handler(BaseHTTPRequestHandler):
         auth = self.server.auth
         return auth is not None and auth.valid(self.headers, urlsplit(self.path).query)
 
-    def _admin(self) -> bool:
-        return self._local() or self._token_login()
+    def _admin(self):
+        """True on the host computer; the token scope for a phone; False otherwise."""
+        if self._local():
+            return True
+        return TOKEN_ACCESS if self._token_login() else False
 
     def _login_needed(self) -> bool:
         """Refuse a request that is neither local nor logged in; says how to log in."""
@@ -127,7 +130,7 @@ class _Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self._error(HTTPStatus.BAD_REQUEST, "The Content-Length header is not a number.")
         limit = (
-            local_guard.MAX_PICTURE_BODY if "picture" in self.path else local_guard.MAX_JSON_BODY
+            local_guard.MAX_PICTURE_BODY if "picture" in urlsplit(self.path).path else local_guard.MAX_JSON_BODY
         )
         if length < 0 or length > limit:
             return self._error(

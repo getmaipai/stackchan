@@ -93,3 +93,8 @@ def test_config_switch_and_cli_print_the_token(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr().out
     token = local_guard.SettingsAuth(tmp_path / "settings-token").token
     assert token in out and "/settings?token=" in out
+
+
+def test_a_fresh_link_wins_over_an_old_cookie(tmp_path):
+    auth = local_guard.SettingsAuth(tmp_path / "t")
+    assert auth.valid({"Cookie": "maipai_settings=stale"}, f"token={auth.token}")

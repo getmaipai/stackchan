@@ -22,10 +22,10 @@ def test_normal_payload_unzips():
 
 def test_expanded_size_over_the_cap_is_refused(monkeypatch):
     monkeypatch.setattr(packs, "MAX_UNZIPPED_BYTES", 1000)
-    bomb = _zip({"zeros.bin": bytes(5000)})
-    assert len(bomb) < 200  # tiny on the wire, big when opened
+    tiny_zip = _zip({"zeros.bin": bytes(5000)})
+    assert len(tiny_zip) < 200  # tiny on the wire, big when opened
     with pytest.raises(packs.PackError, match="unpacks to more than"):
-        packs.unzip_payload(bomb)
+        packs.unzip_payload(tiny_zip)
 
 
 def test_too_many_files_is_refused(monkeypatch):

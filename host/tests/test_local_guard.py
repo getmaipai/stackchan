@@ -117,3 +117,22 @@ def test_dashboard_refuses_an_oversized_non_picture_post_and_pair_code_needs_pos
         assert status == 413
     finally:
         dash.stop()
+
+
+def test_the_size_cap_follows_the_path_not_the_query(sim):
+    server = _start(sim)
+    try:
+        status, _ = _request(
+            server,
+            "POST",
+            "/api/stackchan/settings?x=picture",
+            {
+                "Host": f"127.0.0.1:{server.port}",
+                "Content-Type": "application/json",
+                "Content-Length": str(local_guard.MAX_JSON_BODY + 1),
+            },
+            body=b"{}",
+        )
+        assert status == 413
+    finally:
+        server.stop()

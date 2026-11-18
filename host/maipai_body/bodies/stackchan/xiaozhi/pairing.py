@@ -24,7 +24,8 @@ PENDING_TTL = 600
 ENROLLMENT_LIMIT = 32
 PAIR_CODE_TTL = 600
 PAIR_CODE_LIMIT = 8
-PAIR_CODE_GLOBAL_LIMIT = 20  # wrong tries from all addresses together, per window
+PAIR_CODE_GLOBAL_LIMIT = 40  # failed tries from all non-local addresses together, per window
+LOCAL_SOURCES = frozenset({"local", "127.0.0.1", "::1"})
 PAIR_CODE_ATTEMPT_LIMIT = 5
 PAIR_CODE_WINDOW = 600
 
@@ -131,8 +132,18 @@ class PairingStore:
         source: str = "local",
         now: float | None = None,
     ) -> str | None:
-        """Consume a displayed code and return the device's one-time token."""
+        """Consume a displayed code and return the device's one-time token.
+
+        Tries are limited per source address. A second, slower limit counts failed tries from all
+        non-local sources together; this computer's own tries are never held back by it."""
         now = time.time() if now is None else now
+        token = self._redeem(device_id, client_id, code, source, now)
+        if token is None and source not in LOCAL_SOURCES:
+            with self._lock:
+                self._code_attempts.setdefault("*", []).append(now)
+        return token
+
+    def _redeem(self, device_id: str, client_id: str, code: str, source: str, now: float) -> str | None:
         with self._lock:
             self._refresh()
             attempts = [
@@ -144,10 +155,11 @@ class PairingStore:
                 stamp for stamp in self._code_attempts.get("*", []) if now - stamp < PAIR_CODE_WINDOW
             ]
             self._code_attempts["*"] = all_attempts
-            if len(attempts) >= PAIR_CODE_ATTEMPT_LIMIT or len(all_attempts) >= PAIR_CODE_GLOBAL_LIMIT:
+            if len(attempts) >= PAIR_CODE_ATTEMPT_LIMIT or (
+                source not in LOCAL_SOURCES and len(all_attempts) >= PAIR_CODE_GLOBAL_LIMIT
+            ):
                 return None
             attempts.append(now)
-            all_attempts.append(now)
             digest = hashlib.sha256(code.encode()).hexdigest()
             record = self._pair_codes.get(digest)
             if (

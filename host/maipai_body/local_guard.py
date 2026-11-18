@@ -1,10 +1,7 @@
-"""Who counts as the local administrator of the settings pages .
+"""Who counts as the host computer's own user of the settings pages, and the settings token.
 
-A request is local only when its peer is this computer, its Host header names this computer and no
-proxy header is present. A page on another site that re-points its name at 127.0.0.1 fails the Host
-check; a reverse proxy in front of the page fails the proxy-header check, so putting the page on a
-network address does not turn every visitor into an administrator.
-"""
+A request is local when its peer is this computer, its Host header names this computer and no
+proxy header is present. The settings token (see SettingsAuth) lets a phone use the settings pages."""
 
 from __future__ import annotations
 
@@ -79,14 +76,15 @@ class SettingsAuth:
         auth = headers.get("Authorization", "")
         if auth.lower().startswith("bearer "):
             return auth[7:].strip()
+        query_token = (parse_qs(query).get("token") or [""])[0]
+        if query_token:  # a fresh link wins over an old cookie
+            return query_token
         cookie = SimpleCookie()
         try:
             cookie.load(headers.get("Cookie", ""))
         except Exception:
             pass
-        if COOKIE in cookie:
-            return cookie[COOKIE].value
-        return (parse_qs(query).get("token") or [""])[0]
+        return cookie[COOKIE].value if COOKIE in cookie else ""
 
     def valid(self, headers: Mapping[str, str], query: str) -> bool:
         given = self.candidate(headers, query)

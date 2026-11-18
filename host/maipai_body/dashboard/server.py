@@ -193,7 +193,7 @@ class _Handler(BaseHTTPRequestHandler):
             return self._error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "send application/json")
         try:
             length = int(self.headers.get("Content-Length") or 0)
-            limit = MAX_POST_BYTES if "picture" in self.path else MAX_JSON_BYTES
+            limit = MAX_POST_BYTES if "picture" in urlsplit(self.path).path else MAX_JSON_BYTES
             if length < 0 or length > limit:
                 return self._error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "that upload is too large; use a smaller picture")
             body = json.loads(self.rfile.read(length) or b"{}")
