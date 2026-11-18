@@ -117,6 +117,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
+- `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
 - `docs/dev/gate-numbers.md` (29): Gate numbers (2026-11-18)
 - `docs/dev/head-fit-before-servo-fix.svg` (91): no header
 - `docs/dev/head-recording.md` (31): Recording head moves on the unit (for the physics calibration)
@@ -553,6 +554,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF31-servo-task-and-limiter-applied.patch` (227): Servo stepping runs in its own task every 20 ms (vTaskDelayUntil, priority above the screen loop, 3 KB stack) 
 - `firmware/patches/SF32-hello-mouth-cues-append.patch` (19): The unit's hello announces the feature mouth_cues_append (true) when the face motion layer is built, so the ho
 - `firmware/patches/SF33-link-psk-tls-client.patch` (336): Encrypted link, the TLS client (off by default, CONFIG_MAIPAI_LINK_PSK). A unit with a stored link key connect
+- `firmware/patches/SF34-head-limiter-barge-bench.patch` (525): Head and talk-over round after the bench windows. The servo step gate is 15 ms, so a 20 ms task that wakes a l
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1854,6 +1856,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_config_switches.py` (33): The robot.toml switches [remote] enabled and [home] url do something."""
 - `host/tests/test_connection_loss.py` (33): Losing the connection raises BodyLost once; nothing is retried silently."""
 - `host/tests/test_cross_review_open_bugs.py` (181): ruff: noqa: E501
+- `host/tests/test_cross_review_open_bugs_2.py` (272): ruff: noqa: E501
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
@@ -1899,12 +1902,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_firmware_y_patches.py` (67): The 2026-11-16 reliability patches (Y01 to Y04): listed in ORDER, documented, and the plain-C rules compile an
 - `host/tests/test_flasher_page.py` (23): The web flasher's logic (flasher/flasher-core.js) runs under Node: manifest checks, hash checks, nothing writt
 - `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
+- `host/tests/test_fuzz_cores.py` (22): A short run of the sanitizer fuzz of the unit's parsers (scripts/fuzz-cores.sh, docs/dev/fuzzing-and-hostile-p
 - `host/tests/test_fw_stress_gate.py` (43): The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
 - `host/tests/test_gate_check.py` (53): scripts/gate-check.py: the gate numbers in the script and in docs/dev/gate-numbers.md agree, and the verdict i
 - `host/tests/test_gaze.py` (156): S-EXPR-04: deterministic gaze trajectories, one test per rule (UNMEASURED defaults)."""
 - `host/tests/test_hal_seam.py` (32): Both the real client and the fake satisfy the same HAL seam methods."""
 - `host/tests/test_head_record_and_dryrun.py` (387): ruff: noqa: E501
 - `host/tests/test_home_assistant_package.py` (229): The Home Assistant package: spoken requests by trigger phrase, one listed camera picture, token from the envir
+- `host/tests/test_hostile_unit_replies.py` (51): ruff: noqa: E501
 - `host/tests/test_http_follows_link.py` (47): On an encrypted link the unit is told encrypted web addresses; a required unit is refused on the plain port.""
 - `host/tests/test_hub_host.py` (183): Parser accepts the string; main reports the actionable validation error.
 - `host/tests/test_i18n_fill.py` (41): Machine-drafted translations (host/maipai_body/i18n_fill): shape checks that do not need a native speaker."""
@@ -2254,6 +2259,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/check.sh` (31): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
+- `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
+- `scripts/fuzz/core_fuzz.c` (272): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
 - `scripts/fw-build.sh` (45): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).
@@ -2334,6 +2341,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
 - `scripts/virtual-unit/e2e.py` (572): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
+- `scripts/virtual-unit/e2e_hostile.py` (340): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
 - `scripts/virtual-unit/gitify.py` (28): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
