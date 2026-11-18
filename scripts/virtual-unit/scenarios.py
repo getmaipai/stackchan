@@ -115,7 +115,7 @@ GRID_SCENARIOS = {
     "game-c4-playing": _C4 + ["snap {out}"],
     "game-c4-chip-falling": _C4 + ["drop 5 1", "advance 150", "snap {out}"],
     "game-c4-win": _C4 + ["drop 3 1", "advance 1500", "snap {out}"],
-    "game-match-two-up": ["game match 5", "tap 0", "advance 400", "tap 5", "advance 100", "snap {out}"],
+    "game-match-two-up": ["game match 5", "tap 0", "advance 400", "tap 5", "advance 500", "snap {out}"],
     "game-match-flipping": ["game match 5", "tap 0", "advance 90", "snap {out}"],
     "game-hangman-mid": ["game hangman 1", "tap 4", "advance 400", "tap 0", "advance 400", "tap 17", "advance 400", "tap 19", "advance 400", "snap {out}"],
     "game-mines-open": ["game mines 3", "tap 20", "advance 500", "snap {out}"],
