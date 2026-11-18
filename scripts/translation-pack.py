@@ -33,6 +33,9 @@ sys.path.insert(0, str(ROOT / "host" / "tests"))
 OUT = Path(os.environ.get("MAIPAI_TRANSLATION_OUT", ROOT / "docs" / "dev" / "translation-review"))   # the folders can be moved for a test
 REVIEWED = Path(os.environ.get("MAIPAI_TRANSLATION_REVIEWED", ROOT / "host" / "maipai_body" / "i18n_reviewed"))
 LANGS = {"es": "Spanish", "fr": "French", "de": "German", "pt": "Portuguese", "it": "Italian"}
+from maipai_body import i18n_tier1 as tier1   # noqa: E402  tier 1 (Dutch, Polish, Turkish, Swedish, Danish, Norwegian, Czech): machine drafts, data in host/maipai_body/i18n_tier1/
+
+LANGS.update(tier1.NAMES)
 COLUMNS = ["key", "english", "translation", "context", "max_chars", "limit", "screenshot", "status", "note"]
 GROUPS = {"fam": "parent view", "lk": "lock settings", "pair": "pairing", "pol": "sound and speech", "ww": "wake word", "ln": "language", "net": "network", "nav": "page menu", "g": "general",
           "char": "character", "beh": "behavior", "face": "face and look", "voice": "voice", "state": "face names", "rem": "remote controls", "ra": "remote access", "ts": "settings help",
@@ -96,13 +99,16 @@ def rows_for(lang: str) -> list[dict]:
         soft = max(len(english) + 24, int(len(english) * 1.6))
         out.append({"key": key, "english": english, "translation": translation, "context": context, "max_chars": soft, "limit": "soft", "screenshot": SCREENS.get(group, "docs/images/web-features.svg"), "status": status, "note": ""})
     units = unit_screen_pairs()
+    draft1 = tier1.load(lang) if lang in tier1.NAMES else {}
+    drawn1 = tier1.drawn(lang) if lang in tier1.NAMES else {}
     for n, (english, spanish) in enumerate(units):
-        translation = spanish if lang == "es" else ""
+        translation = spanish if lang == "es" else drawn1.get(f"unit.screen.{n:03d}", draft1.get(f"unit.screen.{n:03d}", ""))
         out.append({"key": f"unit.screen.{n:03d}", "english": english, "translation": translation, "context": "robot screen (apps, timers, settings sheet); drawn in the robot's Latin-1 font",
-                    "max_chars": max(len(english) + 6, int(len(english) * 1.4)), "limit": "soft", "screenshot": "docs/images/vu-control-sheet.png", "status": "machine draft" if translation else "missing", "note": ""})
+                    "max_chars": max(len(english) + 6, int(len(english) * 1.4)), "limit": "soft", "screenshot": "docs/images/vu-control-sheet.png", "status": "machine draft" if translation else "missing",
+                    "note": f"proper spelling (needs the Latin-2 font subset): {draft1[f'unit.screen.{n:03d}']}" if f"unit.screen.{n:03d}" in drawn1 else ""})
     import maipai_body.language_packs as packs
 
-    words = packs.WORDS.get(lang)
+    words = packs.WORDS.get(lang) or ({f: draft1[f"pack.{f}"] for f in ("weekdays", "months", "alarm", "timer")} if f"pack.weekdays" in draft1 else None)
     if words:
         for field, limit in (("weekdays", 7), ("months", 7), ("alarm", 11), ("timer", 11)):
             value = words[field]
@@ -111,8 +117,8 @@ def rows_for(lang: str) -> list[dict]:
             out.append({"key": f"pack.{field}", "english": english_value, "translation": value, "context": f"robot screen words pack: each word at most {limit} plain ASCII letters, comma separated, Sunday first" if field in ("weekdays", "months") else "robot screen words pack: at most 11 plain ASCII letters",
                         "max_chars": 10**4 if field in ("weekdays", "months") else limit, "limit": "hard", "screenshot": "docs/images/vu-clock.png", "status": "machine draft", "note": ""})
     for stem, title in doc_titles():
-        out.append({"key": f"doc.title.{stem}", "english": title, "translation": "", "context": f"title of docs/user/{stem}.md (the user pages exist in English only)", "max_chars": max(len(title) + 20, int(len(title) * 1.6)), "limit": "soft",
-                    "screenshot": "", "status": "missing", "note": ""})
+        out.append({"key": f"doc.title.{stem}", "english": title, "translation": draft1.get(f"doc.title.{stem}", ""), "context": f"title of docs/user/{stem}.md (the user pages exist in English only)", "max_chars": max(len(title) + 20, int(len(title) * 1.6)), "limit": "soft",
+                    "screenshot": "", "status": "machine draft" if draft1.get(f"doc.title.{stem}") else "missing", "note": ""})
     return out
 
 
@@ -210,10 +216,10 @@ def load_status() -> dict:
 
 def render_status(status: dict) -> str:
     lines = ["# Translation status", "", "Made by `python3 scripts/translation-pack.py` (export and import); do not edit by hand. Every translation is a machine draft until a native speaker has read it.", "",
-             "| Language | File | Rows | Reviewed | Machine draft | Missing | Last review |", "|---|---|---|---|---|---|---|"]
+             "| Language | File | Rows | Reviewed | Machine draft | Missing | Last review | Completeness |", "|---|---|---|---|---|---|---|---|"]
     for lang, name in LANGS.items():
         s = status.get(lang, {})
-        lines.append(f"| {name} | `{lang}.csv` | {s.get('rows', 0)} | {s.get('reviewed', 0)} | {s.get('machine_draft', 0)} | {s.get('missing', 0)} | {s.get('reviewer', 'nobody yet')} {s.get('date', '')} |".replace("  ", " "))
+        lines.append(f"| {name} | `{lang}.csv` | {s.get('rows', 0)} | {s.get('reviewed', 0)} | {s.get('machine_draft', 0)} | {s.get('missing', 0)} | {s.get('reviewer', 'nobody yet')} {s.get('date', '')} | {tier1.DRAFT_LABEL if lang in tier1.NAMES else 'machine draft'} |".replace("  ", " "))
     return "\n".join(lines) + "\n"
 
 
