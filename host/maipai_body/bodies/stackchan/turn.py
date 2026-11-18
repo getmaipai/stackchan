@@ -777,6 +777,11 @@ BUSY_AT = 64  # turns in flight before a new one is told to wait
 
 
 class StackChanTurnBridge:
+    # Turns in flight, for the busy notice (a bridge made without __init__, as some tests do, still counts).
+    _inflight = 0
+    busy_at = BUSY_AT
+    _inflight_lock = threading.Lock()
+
     def __init__(
         self,
         server,
