@@ -1,0 +1,19 @@
+# Intent: The unit's hello announces the feature mouth_cues_append (true) when the face motion layer is built, so the host knows self.face.mouth_cues takes the append flag (patch SF30).
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc (nested tree, MIT)
+# Check after a flash: the hello the unit sends carries features {"mcp": true, "mouth_cues_append": true}.
+# Kconfig: CONFIG_MAIPAI_FACE_FLUID (existing)
+
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -472,6 +472,9 @@ std::string WebsocketProtocol::GetHelloMessage() {
+     cJSON_AddBoolToObject(features, "aec", true);
+ #endif
+     cJSON_AddBoolToObject(features, "mcp", true);
++#if CONFIG_MAIPAI_FACE_FLUID
++    cJSON_AddBoolToObject(features, "mouth_cues_append", true);  // patch SF32: self.face.mouth_cues takes an append flag (patch SF30)
++#endif
+     cJSON_AddItemToObject(root, "features", features);
+     AddTextFontCapabilities(root);
+     cJSON_AddStringToObject(root, "transport", "websocket");

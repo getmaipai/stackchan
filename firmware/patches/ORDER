@@ -283,3 +283,4 @@ SF28-servo-clock-real-time.patch
 SF29-talk-over-aec-and-barge-in.patch
 SF30-mouth-cues-append.patch
 SF31-servo-task-and-limiter-applied.patch
+SF32-hello-mouth-cues-append.patch
