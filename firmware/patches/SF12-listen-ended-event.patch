@@ -1,0 +1,31 @@
+# Intent: When the listening guard ends a turn on its own (8 s with no voice, or the 60 s cap), the unit pushes a listen_ended event with held_s and why (silence or cap), so the host knows the turn was ended by the unit.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/application.cc of the xiaozhi-esp32 tree (MIT)
+# Check after a flash: stay silent for 9 s after the wake word: self.device.get_events shows listen_ended with why silence.
+# Kconfig: none
+
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -29,6 +29,7 @@
+ #include <esp_timer.h>
+ #include <esp_log.h>
+ #include <hal/maipai_listen_guard_core.h>
++#include <hal/device_events.h>
+ #include <arpa/inet.h>
+ #include <cJSON.h>
+ #include <cstring>
+@@ -360,6 +361,13 @@ void Application::Run() {
+                     ESP_LOGW(TAG, "State guard returning %s to idle after %u seconds",
+                              DeviceStateMachine::GetStateName(guard_state),
+                              static_cast<unsigned>(held));
++                    if (guard_state == kDeviceStateListening) {
++                        // Patch SF12: the host is told the turn was ended by the unit, and why, so it does not wait for speech that was cut.
++                        char extra[64];
++                        snprintf(extra, sizeof(extra), "\"held_s\":%u,\"why\":\"%s\"", static_cast<unsigned>(held),
++                                 held >= kListenCapSeconds ? "cap" : "silence");
++                        device_events_push("listen_ended", extra);
++                    }
+                     SetDeviceState(kDeviceStateIdle);
+                     guard_since_tick = guard_clock;
+                 }
