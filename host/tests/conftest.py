@@ -48,3 +48,42 @@ def body_client(request):
     client = ReachyMiniClient(REACHY_MINI_PROFILE, host=LIVE_HOST, port=LIVE_PORT)
     yield client
     client.disconnect()
+
+
+# ---- the virtual unit (scripts/virtual-unit) needs the host renderer, which is built from a firmware tree on this Mac ----
+import os  # noqa: E402
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+_REPO = Path(__file__).resolve().parents[2]
+_RENDER = _REPO / ".runs" / "vu-build" / "render"
+_VU_FILES = ("test_vu_tools_", "test_virtual_unit")
+
+
+def _build_renderers() -> str:
+    """Builds the face and screens renderers when MAIPAI_BUILD_RENDERER=1 and a firmware tree is on this Mac. Returns a reason when it cannot."""
+    tree = Path(os.environ.get("MAIPAI_FW_TREE_ROOT", Path.home() / "esp" / "stackchan-rebase" / "final15"))
+    if shutil.which("clang") is None or not (tree / "firmware" / "managed_components").exists():
+        return f"needs clang and a built firmware tree (set MAIPAI_FW_TREE_ROOT; looked at {tree})"
+    face_build = _REPO / "scripts" / "fw-face-render" / "build.sh"
+    for cmd in (["bash", str(_REPO / "scripts" / "virtual-unit" / "build-face.sh"), str(tree)], ["bash", str(_REPO / "scripts" / "virtual-unit" / "build-screens.sh")]):
+        run = subprocess.run(cmd, cwd=_REPO, capture_output=True, text=True)
+        if run.returncode != 0 or not face_build.exists():
+            return "the renderer build failed: " + (run.stderr or run.stdout)[-300:]
+    return ""
+
+
+def pytest_collection_modifyitems(config, items):
+    """The virtual unit tests skip with one clear message when the renderer is not built; MAIPAI_BUILD_RENDERER=1 builds it first (the full suite does)."""
+    unit_items = [i for i in items if Path(str(i.fspath)).name.startswith(_VU_FILES)]
+    if not unit_items:
+        return
+    if not _RENDER.exists() and os.environ.get("MAIPAI_BUILD_RENDERER") == "1":
+        why = _build_renderers()
+        if why:
+            print(f"\nvirtual unit renderer not built: {why}")
+    if not _RENDER.exists():
+        skip = pytest.mark.skip(reason="virtual unit renderer not built: run bash scripts/virtual-unit/build-face.sh (needs clang and a firmware tree, see docs/dev/virtual-unit.md) or set MAIPAI_BUILD_RENDERER=1")
+        for item in unit_items:
+            item.add_marker(skip)

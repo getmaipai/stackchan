@@ -13,6 +13,7 @@ Org standards (writing style, privacy, PII) apply; see `getmaipai/.github`.
 
 ## Commands
 - `bash scripts/check.sh` runs the hygiene check on all tracked files.
+- `bash scripts/test-all.sh` runs the complete host suite (builds the virtual unit renderers first); run it before landing.
 - `bash scripts/run-bg.sh NAME -- cmd...` runs a long command with output in `.runs/NAME.log`.
 - `bash scripts/repo-map.sh` regenerates `docs/design/INDEX.md`.
 - `bash scripts/install-hooks.sh` sets the repo-local hooks path (once per clone).

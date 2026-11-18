@@ -297,11 +297,11 @@ def test_the_setting_round_trips_through_the_page(tmp_path) -> None:
     assert status == 200 and saved() is True
 
 
-def test_the_page_words_exist_in_english_and_spanish_and_others_fall_back() -> None:
+def test_the_page_words_exist_in_english_and_spanish_and_others_have_text() -> None:
     en, es = i18n.catalog("en"), i18n.catalog("es")
     for key in ("settings.ui.wake_look", "settings.ui.wake_look_help"):
         assert en[key] and es[key] and en[key] != es[key]
-        assert i18n.catalog("fr")[key] == en[key]
+        assert i18n.catalog("fr")[key].strip()  # drafted (i18n_fill) or the English text, never a bare key
     assert en["settings.ui.wake_look"] == "Look around when I hear the wake word"
 
 

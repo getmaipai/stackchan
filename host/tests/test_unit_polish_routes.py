@@ -239,7 +239,8 @@ def test_every_new_word_exists_in_all_six_languages_and_none_has_a_dash_or_blank
         assert set(CATALOGS[code]) == keys
         for key, text in CATALOGS[code].items():
             assert text.strip() and chr(0x2014) not in text, (code, key)
-            assert i18n.CATALOG[code][key] == text
+            # a machine-drafted fill (maipai_body/i18n_fill) replaces a word a module left as the English copy; a reviewed word always stays
+            assert i18n.CATALOG[code][key] == text or text == CATALOGS["en"][key], (code, key)
     es = CATALOGS["es"]
     assert es["settings.ui.pol.listen.title"] != CATALOGS["en"]["settings.ui.pol.listen.title"]
 

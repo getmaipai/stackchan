@@ -75,7 +75,7 @@ function mouthSpeaking(b,open,scale){const o=Object.assign({},b);open=open<0?0:o
  const tOpen=34*scale,wOpen=12*scale;o.t=b.t+open*(tOpen-b.t);o.w=b.w+open*(wOpen-b.w);const flat=Math.min(1,open*2.2);o.bend=b.bend*(1-flat);o.split=b.split*(1-flat);o.wob=b.wob*(1-flat);return o}
 function mouthYawn(b,ms){const k=(ms%6000)/6000,x=(k-.1)/.5;let open=0;if(x>0&&x<1){open=Math.sin(3.14159265*x);open*=open}const o=Object.assign({},b);o.t=b.t+open*18;o.w=b.w-open*4;return o}
 /* the shape the mouth eases toward: the emotion's resting mouth scaled to the style, calm when sealed, yawning when tired, opened by the voice */
-function mouthTarget(st,emo,sealed,speaking,open,ms){const kw=st.mouth_w/36,kt=.5+.5*(st.mouth_t/8);
+function mouthTarget(st,emo,sealed,speaking,open,ms){const kw=(sealed&&st.mouth_w===0)?1:st.mouth_w/36,kt=.5+.5*(st.mouth_t/8);  /* patch UX03a: a muted face with no mouth style draws the shut line */
  const b=mouthOf(FT.looks[emo>=0&&emo<FT.emotions.length?emo:0].stock.mouth);b.w*=kw;b.t*=kt;
  if(sealed){b.bend=0;b.wob=0;b.split=0;b.w=30*kw;b.t=5*kt}
  let t=b;if(!sealed&&emo===FEMO.tired&&!speaking)t=mouthYawn(b,ms);

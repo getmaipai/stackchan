@@ -3,6 +3,18 @@
 # Upstream: firmware/main/hal/maipai_apps.cc and firmware/main/hal/maipai_apps_core.h (ours, patches NX02 and UI16).
 # Check after a flash: Open Settings, choose the fourth tab, and confirm every Info row reads clearly in English and Spanish.
 
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -1028,7 +1028,7 @@
+                 } else if (id == MAC_R_I_IMAGE) {
+                     snprintf(out, n, "%s", tx(info.image_state == MV_IMG_VALID ? MAC_S_IMG_OK : (info.image_state == MV_IMG_PENDING ? MAC_S_IMG_WAIT : (info.image_state == MV_IMG_USB ? MAC_S_IMG_USB : MAC_S_IMG_UNKNOWN))));
+                 } else if (id == MAC_R_I_SLOT) {
+-                    snprintf(out, n, "%s", info.slot_known ? info.slot : "?");
++                    snprintf(out, n, "%s", info.slot_known ? info.slot : tx(MAC_S_IMG_UNKNOWN));
+                 } else if (id == MAC_R_I_MEM) {
+                     char a[16], b[16];
+                     mv_bytes_word(info.internal_free, a, sizeof(a));
 diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_apps_core.h
 --- a/firmware/main/hal/maipai_apps_core.h
 +++ b/firmware/main/hal/maipai_apps_core.h
@@ -13,9 +25,9 @@ diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_app
 -    {"Firmware", "Firmware"},
 -    {"Image", "Imagen"},
 -    {"Slot", "Ranura"},
-+    {"Software version", "Version del software"},
-+    {"Update status", "Estado de la actualizacion"},
-+    {"Update copy", "Copia de actualizacion"},
++    {"Software version", "Software"},
++    {"Update status", "Actualizacion"},
++    {"Update copy", "Copia"},
      {"Memory", "Memoria"},
      {"Host name", "Nombre"},
      {"Locked: unlock to use this.", "Bloqueado: desbloquea para usar esto."},
@@ -32,15 +44,3 @@ diff --git a/firmware/main/hal/maipai_apps_core.h b/firmware/main/hal/maipai_app
      {"Not set", "Sin definir"},
      {"More settings", "Mas ajustes"},
      {"Listening light", "Luz al escuchar"},
-diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
---- a/firmware/main/hal/maipai_apps.cc
-+++ b/firmware/main/hal/maipai_apps.cc
-@@ -1028,7 +1028,7 @@
-                 } else if (id == MAC_R_I_IMAGE) {
-                     snprintf(out, n, "%s", tx(info.image_state == MV_IMG_VALID ? MAC_S_IMG_OK : (info.image_state == MV_IMG_PENDING ? MAC_S_IMG_WAIT : (info.image_state == MV_IMG_USB ? MAC_S_IMG_USB : MAC_S_IMG_UNKNOWN))));
-                 } else if (id == MAC_R_I_SLOT) {
--                    snprintf(out, n, "%s", info.slot_known ? info.slot : "?");
-+                    snprintf(out, n, "%s", info.slot_known ? info.slot : tx(MAC_S_IMG_UNKNOWN));
-                 } else if (id == MAC_R_I_MEM) {
-                     char a[16], b[16];
-                     mv_bytes_word(info.internal_free, a, sizeof(a));

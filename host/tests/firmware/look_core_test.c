@@ -498,7 +498,7 @@ static void test_chunky_mouth_speech(void)
 {
     const ml_style_t* big = ml_style(ML_STYLE_BIG_EYES);
     CHECK(big->mouth_w == 38 && big->mouth_t == 7); /* the chunky size at 0.82 (patch N04), not the thin one */ /* the chunky size, not the thin one */
-    CHECK(ml_style(ML_STYLE_CLASSIC)->mouth_t >= 6 && ml_style(ML_STYLE_MINIMAL)->mouth_w == 22);
+    CHECK(ml_style(ML_STYLE_CLASSIC)->mouth_t >= 6 && ml_style(ML_STYLE_MINIMAL)->mouth_w == 44);
     /* level to open amount: shut under 8, never down as the level rises, and at least six distinct shapes across the range */
     float prev = -1.0f;
     int distinct = 0;

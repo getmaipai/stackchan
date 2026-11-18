@@ -98,6 +98,17 @@ def run_lock(name: str) -> bytes:
         return out.read_bytes()
 
 
+# Every language of the first-run flow (steps 1, 2, 4, 5 and 6 by 6 languages) and the Spanish forms of the app screens: overflow and edge checks run on each.
+LANGS = ["en", "es", "fr", "de", "pt", "it"]
+for _li, _lang in enumerate(LANGS):
+    for _st in (0, 1, 3, 4, 5):
+        SCREENS.setdefault(f"first-run-{_st + 1}-{_lang}", [("raw", f"frun step {_st} {_li} -1"), ("advance", 400)])
+for _name, _steps in (("sheet", [("raw", "pshow sheet"), ("advance", 500)]), ("apps-wall", [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 185 212"), ("advance", 700)]),
+                      ("settings-general", [("raw", "pshow settings"), ("advance", 500)]), ("settings-info", [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 198"), ("advance", 500)]),
+                      ("page-timers", [("raw", "pshow timers"), ("advance", 600)]), ("page-actions", [("raw", "pshow actions"), ("advance", 600)])):
+    SCREENS[f"es-{_name}"] = BAR + [("raw", "pset es on")] + _steps
+
+
 def run(u, steps) -> None:
     for step in steps:
         if step[0] == "call":

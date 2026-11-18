@@ -44,7 +44,8 @@ def test_every_page_word_exists_in_all_six_languages() -> None:
         assert set(CATALOGS[code]) == keys, code
         for key, text in CATALOGS[code].items():
             assert text.strip() and EM not in text, (code, key)
-            assert i18n.CATALOG[code][key] == text
+            # a machine-drafted fill (maipai_body/i18n_fill) replaces a word a module left as the English copy; a reviewed word always stays
+            assert i18n.CATALOG[code][key] == text or text == CATALOGS["en"][key], (code, key)
     assert CATALOGS["es"]["settings.ui.nav.face"] != CATALOGS["en"]["settings.ui.nav.face"]
 
 

@@ -13,10 +13,10 @@ diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.
 -    draw_shapes(b, sh, mpg_sheet_icon_shapes(item, sh), (MPG_TILE_W - 24) / 2, (MPG_TILE_H - 24) / 2, 1, on ? maipai_ui_style::bg() : fg(100), bg);
 +    draw_shapes(b, sh, mpg_sheet_icon_shapes(item, sh), (MPG_TILE_W - 24) / 2, 2, 1, on ? maipai_ui_style::bg() : fg(100), bg);
 +    const char* label = item == MPG_S_MUTE ? tx("Mute", "Mudo") :
-+                        item == MPG_S_QUIET ? tx("Sleep", "Dormir") :
++                        item == MPG_S_QUIET ? tx("Sleep", "Calma") :
 +                        item == MPG_S_LOCK ? tx("Lock", "Bloq.") :
 +                        item == MPG_S_TIMERS ? tx("Apps", "Apps") :
-+                        item == MPG_S_GAMES ? tx("Games", "Juegos") : tx("Setup", "Config");
++                        item == MPG_S_GAMES ? tx("Games", "Juego") : tx("Setup", "Config");
 +    lv_obj_t* caption = text(b, label, kSmall, fg(70));  // patch UX02c: one size for all six words, short enough for the tile
 +    lv_label_set_long_mode(caption, LV_LABEL_LONG_CLIP);
 +    lv_obj_set_width(caption, MPG_TILE_W);

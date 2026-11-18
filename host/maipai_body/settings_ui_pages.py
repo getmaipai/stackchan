@@ -18,13 +18,13 @@ function pgLayout(items){const sl=[],ti=[],st=[],gi=PGT.sheet.indexOf('games'),w
  for(const n of items){const i=PGT.sheet.indexOf(n),k=i<=1?0:(i<=gi?1:2);if(k===0&&sl.length<2)sl.push(i);else if(k===1&&ti.length<5)ti.push(i);else if(k===2&&st.length<4){st.push(i);if(i===wi||i===bi)row=1;else lines++}}
  ti.push(PGT.sheet.length);const trows=Math.ceil(ti.length/6),srows=Math.ceil(sl.length/2);
  let hh=14;if(row)hh+=24;if(lines>0)hh+=lines*20+4;
- hh+=srows*48;hh+=trows*44+(trows-1)*4;hh+=6;
+ hh+=srows*48;hh+=trows*60+(trows-1)*4;hh+=6;
  const top=240-hh;let y=top+14,sy=0,sh=0,ty=0,th=0;const r=[];
  if(row){sy=y;sh=24;y+=24}
  if(lines>0){ty=y;th=lines*20;y+=lines*20+4}
  sl.forEach((it,i)=>r.push([it,8+(i%2)*160,y+Math.floor(i/2)*48,144,44]));y+=srows*48;
- ti.forEach((it,i)=>{const inrow=(Math.floor(i/6)===trows-1)?ti.length-(trows-1)*6:6,col=i%6,rowW=inrow*44+(inrow-1)*6,full=6*44+5*6;
-  r.push([it,Math.floor((320-full)/2)+col*50+Math.floor((full-rowW)/2),y+Math.floor(i/6)*48,44,44])});
+ ti.forEach((it,i)=>{const inrow=(Math.floor(i/6)===trows-1)?ti.length-(trows-1)*6:6,col=i%6,rowW=inrow*50+(inrow-1)*2,full=6*50+5*2;
+  r.push([it,Math.floor((320-full)/2)+col*52+Math.floor((full-rowW)/2),y+Math.floor(i/6)*64,50,60])});
  return {top_y:top,status_y:sy,status_h:sh,text_y:ty,text_h:th,status:st,rects:r}}
 function pgGrid(n){return n<=3?[Math.max(n,1),1]:(n===4?[2,2]:[3,2])}
 function pgCell(i,n,ax,ay,aw,ah,gap){const [c,r]=pgGrid(n),cw=Math.floor((aw-(c-1)*gap)/c),ch=Math.floor((ah-(r-1)*gap)/r);return [ax+(i%c)*(cw+gap),ay+Math.floor(i/c)*(ch+gap),cw,ch]}

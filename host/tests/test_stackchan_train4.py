@@ -831,8 +831,8 @@ def test_every_settings_word_exists_in_all_six_languages() -> None:
     assert i18n.t("de", "settings.save") == "Speichern"
     assert i18n.t("pt", "settings.mute") == "Silêncio"
     assert i18n.t("it", "settings.language") == "Lingua"
-    # the flasher messages have no translation in the new languages and read English, never a bare key
-    assert i18n.t("fr", "update.dry") == i18n.t("en", "update.dry")
+    # the flasher messages read a drafted translation (maipai_body/i18n_fill) or English, never a bare key
+    assert i18n.t("fr", "update.dry").strip() and i18n.t("fr", "update.dry") != "update.dry"
     assert i18n.normalize("pt-BR") == "pt" and i18n.normalize("zz") == "en"
 
 
