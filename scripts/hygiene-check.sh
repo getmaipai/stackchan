@@ -3,7 +3,7 @@
 # staged files and in a commit message, with a one-line verdict. Zero model tokens.
 # Usage: hygiene-check.sh [--msg FILE] [paths...]   (no paths: staged files)
 # Word list: $NO_MENTION_WORDS or ~/.config/maipai/no-mention-words.txt (one word or phrase per line, never committed).
-# Allowed places for factual notices: LICENSE, NOTICE, THIRD-PARTY*, and lines starting "# Upstream:" in patches.
+# Allowed places for factual notices: LICENSE, NOTICE, THIRD-PARTY*, lines starting "# Upstream:" in patches, and provenance records (source name, URL, commit, hashes) of vendored geometry under scripts/virtual-unit/model/.
 set -u
 WORDS="${NO_MENTION_WORDS:-$HOME/.config/maipai/no-mention-words.txt}"
 MSG=""; PATHS=()
@@ -27,7 +27,8 @@ scan() { # $1 label, stdin text
 for f in ${PATHS[@]+"${PATHS[@]}"}; do
   [ -f "$f" ] || continue
   case "$(basename "$f")" in LICENSE*|NOTICE*|THIRD-PARTY*|hygiene-check.sh) continue;; esac
-  case "$f" in host/spec-vendor/*) continue;; esac  # verbatim snapshot of our commons spec; the drift check owns it
+  case "$f" in host/spec-vendor/*) continue;; esac
+  case "$f" in scripts/virtual-unit/model/source/*|scripts/virtual-unit/model/SOURCE.md|scripts/virtual-unit/model/MATCH.md) continue;; esac  # provenance records of vendored geometry (owner, 2026-11-18)  # verbatim snapshot of our commons spec; the drift check owns it
   case "$f" in *.png|*.jpg|*.webp|*.mp4|*.bin|*.gz|*.woff*|*.ico) continue;; esac
   scan "$f" < <(grep -v -E '^[+ ]?# Upstream:' "$f")
 done
