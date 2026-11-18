@@ -146,10 +146,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1090): Feature ledger
+- `docs/dev/feature-ledger.md` (1091): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
+- `docs/dev/game-sounds/README.md` (10): Game sounds: what the robot plays and the sketches
 - `docs/dev/game-sounds/chip_land_1.ulaw` (0): no header
 - `docs/dev/game-sounds/chip_land_1.wav` (19): no header
 - `docs/dev/game-sounds/chip_land_2.ulaw` (0): no header
@@ -184,6 +185,22 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/game-sounds/mine_flag.wav` (39): no header
 - `docs/dev/game-sounds/move_unit.ulaw` (0): no header
 - `docs/dev/game-sounds/move_unit.wav` (43): no header
+- `docs/dev/game-sounds/on-the-robot/bad.wav` (4): no header
+- `docs/dev/game-sounds/on-the-robot/fanfare.wav` (82): no header
+- `docs/dev/game-sounds/on-the-robot/good.wav` (20): no header
+- `docs/dev/game-sounds/on-the-robot/grid_clack_hi.wav` (3): no header
+- `docs/dev/game-sounds/on-the-robot/grid_clack_lo.wav` (13): no header
+- `docs/dev/game-sounds/on-the-robot/grid_clack_mid.wav` (8): no header
+- `docs/dev/game-sounds/on-the-robot/grid_draw.wav` (28): no header
+- `docs/dev/game-sounds/on-the-robot/grid_drop.wav` (12): no header
+- `docs/dev/game-sounds/on-the-robot/grid_lose.wav` (75): no header
+- `docs/dev/game-sounds/on-the-robot/grid_tick_hi.wav` (8): no header
+- `docs/dev/game-sounds/on-the-robot/grid_tick_lo.wav` (12): no header
+- `docs/dev/game-sounds/on-the-robot/grid_tick_mid.wav` (7): no header
+- `docs/dev/game-sounds/on-the-robot/manifest.json` (129): no header
+- `docs/dev/game-sounds/on-the-robot/rattle.wav` (7): no header
+- `docs/dev/game-sounds/on-the-robot/thud.wav` (39): Binary file docs/dev/game-sounds/on-the-robot/thud.wav matches
+- `docs/dev/game-sounds/on-the-robot/ting.wav` (14): no header
 - `docs/dev/game-sounds/pop.ulaw` (0): no header
 - `docs/dev/game-sounds/pop.wav` (6): no header
 - `docs/dev/game-sounds/slide.ulaw` (0): no header
@@ -2255,6 +2272,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_release_report.py` (56): scripts/release-report.py: images against the slot rule, memory only from a real log, never invented."""
 - `host/tests/test_remote_activity.py` (370): ruff: noqa: E501
 - `host/tests/test_remote_trust.py` (215): ruff: noqa: E501
+- `host/tests/test_render_unit_sounds.py` (23): The robot's own game sounds rendered from its tone core (scripts/render-unit-sounds.py): the clips exist, they
 - `host/tests/test_renderer_stamp.py` (29): The renderer is rebuilt when its inputs changed: a stale binary draws old words and fails the goldens for no r
 - `host/tests/test_reply_stream_hardening.py` (169): ruff: noqa: E501
 - `host/tests/test_reply_streaming.py` (332): Streamed replies: the first sentence is spoken while the rest is still being written."""
@@ -2588,6 +2606,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/regen-core-tables.py` (26): Regenerate the tables the host page draws from, as the unit's cores print them after the whole firmware/patche
 - `scripts/release-report.py` (205): One markdown page per firmware build: image sizes per slot, memory numbers from a stress log, frame cost per s
 - `scripts/release.sh` (98): turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a det
+- `scripts/render-unit-sounds.py` (73): Renders the sounds the robot really plays for the games, with the unit's own tone core (maipai_games_sfx_core.
 - `scripts/repo-map.sh` (19): generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line),
 - `scripts/review-status.py` (87): The cross-review bug table: every test in host/tests/test_cross_review_open_bugs*.py, its owner, and whether t
 - `scripts/run-bg.sh` (18): run a long command (firmware build, flash, soak, gate) with its full output in a log file and
@@ -2610,6 +2629,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
 - `scripts/virtual-unit/dance/ladder_sim.c` (84): The real dance ladder core (firmware patch MD01, maipai_dance_ladder_core.h) behind a plain C interface for ct
 - `scripts/virtual-unit/dance/reconnect_sim.c` (8): The unit's host-reconnect rules (firmware patch SF49, maipai_reconnect_core.h) behind a plain C interface for 
+- `scripts/virtual-unit/dance/sfx_render.c` (30): Renders the unit's own game clips (maipai_games_sfx_core.h, the tone-segment table and mgs_render) to WAV file
 - `scripts/virtual-unit/dance_core.py` (97): Builds and loads the real dance ladder core for the virtual unit (firmware patch MD01): the header is cut out 
 - `scripts/virtual-unit/dance_sim.py` (605): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
 - `scripts/virtual-unit/e2e.py` (704): End to end on the virtual unit, with no hardware and no real models.
