@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 841 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 842 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 39 items, 6 measured, 13 estimated, 20 placeholders or not built. 82 of 841 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 39 items, 6 measured, 13 estimated, 20 placeholders or not built. 82 of 842 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 18 | 249 | 8 | 51 | 347 | 64 |
-| Maker and tech | 0 | 0 | 65 | 369 | 60 | 0 | 494 | 70 |
+| Maker and tech | 0 | 0 | 65 | 370 | 60 | 0 | 495 | 70 |
 
 ## Everyday user
 
@@ -538,10 +538,11 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Music feature stack** | 1 patch(es): The music feature task "musicfeat" (stack in PSRAM) had 584 bytes of... | proven virtual | 70 | not declared | `MF01-music-feature-task-stack-6144.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Movement limiter** | 1 patch(es): One movement limiter at the single place every servo target passes th... | proven virtual | 70 | not declared | `ML01-movement-limiter-at-the-servo-layer.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 
-### Host modules (293)
+### Host modules (294)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
+| **Host: chaos** | The chaos hook: kill a named host worker on a timer, ONLY when the MAIPAI_CHAOS environment variable is set (tests and the e2e rig). | proven virtual | 70 | not declared | `host/maipai_body/chaos.py` | file exists, a test names it | doc missing |
 | **Host: app** | MaiPai Bot's Reachy Mini app: the daemon's one running app. | proven on unit | 100 | not declared | `host/maipai_body/app.py` | `bench-b19.md`, `bench-b9.md` | doc missing |
 | **Host: assets** | Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack when it needs it and keeps only the active one. | proven on unit | 100 | not declared | `host/maipai_body/assets.py` | `bench-b9.md` | doc missing |
 | **Host: banner_shapes** | The banner functions with the table of the core filled in. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/banner_shapes.py` | file exists, a test names it | doc missing |

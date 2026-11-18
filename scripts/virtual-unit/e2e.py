@@ -606,6 +606,9 @@ SCENARIO_TIMEOUT_S = {"play_a_game": 420, "fleet_25": 600, "fleet_10": 420, "cha
 async def run(names: list[str], venv: Path | None) -> int:
     failures: list[str] = []
     for name in names:
+        os.environ.pop("MAIPAI_CHAOS", None)
+        if name == "chaos_internal_workers":
+            os.environ["MAIPAI_CHAOS"] = "kill=settings page@25"  # the host kills its own settings server 25 s in (chaos.py); the supervisor must bring it back
         rig = make_service_rig(Rig)(venv) if name in NEEDS_SERVICE else Rig(venv)
         if name in NEEDS_SETTINGS_PAGE:
             rig.settings_port = free_port()

@@ -102,3 +102,12 @@ Built in `scripts/virtual-unit/e2e_fleet.py` and run by `host/tests/test_e2e_fle
 
 Found and for the app track: (1) a turn's mood frame goes to every connected unit; (2) no fault hook: add `MAIPAI_CHAOS=1` and a localhost POST that kills one named worker so the supervisor tests can run inside a real host; (3) 25 units asking at the same instant lose turns (20 are fine); (4) the unit's Offline label after 45 s (patch 143) is firmware logic; the host has no part in it.
 
+
+## The chaos hook (built 2026-11-18)
+
+`MAIPAI_CHAOS="kill=<worker name>@<seconds>,..."` kills the named worker that many seconds after the host starts, only when the variable is set (the host logs one warning line when it is). `chaos.py` calls `Supervisor.kill`; a worker has a kill hook when it registered one: the settings page (its serving loop ends) and every thread started through `service_threads` (the thread ends and its stop event is cleared). The supervisor then restarts it with nobody acting. Used by the e2e scenario `chaos_internal_workers`, which passes: the settings server is killed 25 s in and is back inside 30 s. No release path sets the variable.
+
+## Fleet findings fixed (2026-11-18)
+
+- A turn's face and thinking cue went to every connected unit: the side worker threads lost the talking unit. The unit now travels with the event (`contextvars` copied into the side worker, the thinking cue sent only to the talking unit). `fleet_25` passes the mood isolation check.
+- Capacity: the default thread pool (CPU count plus four, at most 32) let about twenty turns work at once because each turn holds threads for blocking work (speech to text listens for the whole utterance). The host now sets a pool of 256 workers (`MAIPAI_WORKERS`) and tells a turn that has to wait (more than 64 in flight) with the caption and error tone "I am busy with other requests. One moment." `fleet_25`: all 25 units got an answer.

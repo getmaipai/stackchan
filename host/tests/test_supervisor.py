@@ -1,6 +1,7 @@
 """The watchdog: a dead or silent worker is restarted alone, with back-off; a worker that keeps failing is reported."""
 
 import threading
+import time
 
 from maipai_body import supervisor as sv
 
@@ -116,3 +117,34 @@ def test_the_watchdog_thread_runs_and_stops():
     s.stop()
     stop.set()
     assert s._thread is None or not s._thread.is_alive()
+
+
+def test_the_chaos_hook_kills_a_named_worker_and_the_supervisor_brings_it_back():
+    from maipai_body import chaos, service_threads
+
+    assert chaos.parse("kill=settings page@5, kill=x@2.5,junk,kill=y") == [("settings page", 5.0), ("x", 2.5)]
+    assert chaos.start_from_environment(sv.Supervisor(), {}) == []  # nothing happens unless the variable is set
+    sup = sv.Supervisor()
+    service_threads.SUPERVISOR = sup
+    stop = threading.Event()
+    runs = []
+
+    def work():
+        runs.append(1)
+        stop.wait()
+
+    try:
+        service_threads.start(work, name="probe-chaos", stop=stop)
+        timers = chaos.start_from_environment(sup, {"MAIPAI_CHAOS": "kill=probe-chaos@0"})
+        for t in timers:
+            t.join(3)
+        time.sleep(0.1)
+        sup.check()
+        deadline = time.time() + 2
+        while len(runs) < 2 and time.time() < deadline:
+            time.sleep(0.02)
+        assert len(runs) >= 2, "the worker was not started again"
+        assert not sup.kill("no such worker")
+    finally:
+        service_threads.SUPERVISOR = None
+        service_threads.stop_all(timeout=2.0)

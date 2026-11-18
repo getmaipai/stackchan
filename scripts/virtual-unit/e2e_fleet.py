@@ -250,8 +250,7 @@ async def _fleet(rig, check, n: int, group: int | None = None) -> None:
     check("the model got each unit's own words once and no other unit's words ever reached a prompt", all(nof(u) == 1 for u in units), str([(u.index, nof(u)) for u in units if nof(u) != 1]))
     check("each answer was spoken once", all(rig.models.tts_requests.count(u.answer) == 1 for u in units), str([(u.index, rig.models.tts_requests.count(u.answer)) for u in units if rig.models.tts_requests.count(u.answer) != 1]))
     wrong = [u.index for u in units if any(f"llm:{m}" in u.fw.events_seen for m in ("happy", "sad") if m != u.mood)]
-    check("no unit showed a mood that was another unit's reply", not wrong, str(wrong) + " " + str([(u.index, [e for e in u.fw.events_seen if e in ('llm:happy', 'llm:sad')]) for u in units if u.index in wrong][:3]),
-          known_gap="the host sends a turn's mood frame to every connected unit, not only the unit that asked (found 2026-11-18 by fleet_2; docs/plan/bug-claims.md)")
+    check("no unit showed a mood that was another unit's reply", not wrong, str(wrong) + " " + str([(u.index, [e for e in u.fw.events_seen if e in ('llm:happy', 'llm:sad')]) for u in units if u.index in wrong][:3]))
     check("every unit showed its own mood", all(f"llm:{u.mood}" in u.fw.events_seen for u in units), str([u.index for u in units if f"llm:{u.mood}" not in u.fw.events_seen]))
     counts = sorted(len(u.fw.audio_downlink) for u in units)
     check("each unit got the speech of its own reply and no more (the same number of audio frames each)", counts[0] > 0 and counts[-1] <= counts[len(counts) // 2] * 1.3 and counts[0] >= counts[len(counts) // 2] * 0.7, str(counts))
@@ -460,12 +459,23 @@ async def chaos_worker_down(rig, check) -> None:
 
 
 async def chaos_internal_workers(rig, check) -> None:
-    """Kill the settings server, pairing, update and package workers inside the host and see the supervisor bring each back. There is no way to reach them from outside yet."""
+    """The host is started with MAIPAI_CHAOS="kill=settings page@25": the settings server's loop is killed 25 seconds in, and the supervisor must bring it back with nobody acting."""
     res = health(rig)
     check("the status page lists the host's parts", bool(res) and bool(res.get("parts")), str(res)[:200])
-    check("a fault hook that kills one named worker inside the host exists", False,
-          "the supervisor restarts what dies, but no switch kills a worker of a running host; propose `MAIPAI_CHAOS=1` plus POST /api/stackchan/chaos {kill: name} on the settings server (docs/plan/service-and-supervision.md)",
-          known_gap="no fault hook in the host")
+    check("the hook was armed for this run", rig.host_said(r"MAIPAI_CHAOS is set"), "the rig must start the host with MAIPAI_CHAOS")
+    killed = await wait_for(lambda: rig.host_said(r"chaos: worker 'settings page' killed"), 60.0)
+    check("the settings server was killed on schedule", killed)
+    async def back() -> bool:
+        res = await asyncio.to_thread(health, rig)
+        return bool(res) and any(p["part"] == "settings page" and p["state"] == "ok" for p in res.get("parts", []))
+    ok = False
+    end = time.time() + 30
+    while time.time() < end and not ok:
+        ok = await back()
+        if not ok:
+            await asyncio.sleep(1.0)
+    check("the supervisor brought the settings server back by itself", ok)
+    check("the host process never stopped", rig.proc.poll() is None)
 
 
 def keep_alive(rig, delay: float = 1.0):

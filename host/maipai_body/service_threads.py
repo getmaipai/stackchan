@@ -36,7 +36,13 @@ def start(target: Callable[..., Any], *, name: str, stop: threading.Event, args:
         from maipai_body.supervisor import Worker
 
         # a restart makes a new thread; the supervisor asks for it only while the thread's stop event is not set
-        SUPERVISOR.add(Worker(name, lambda: spawn() if not stop.is_set() else _CURRENT[name]), start_now=False).handle = thread
+        def die() -> None:  # the chaos hook: the thread ends, and the supervisor starts it again
+            stop.set()
+            _CURRENT[name].join(3.0)
+            stop.clear()
+
+        worker = SUPERVISOR.add(Worker(name, lambda: spawn() if not stop.is_set() else _CURRENT[name]), start_now=False)
+        worker.handle, worker.kill = thread, die
     return thread
 
 

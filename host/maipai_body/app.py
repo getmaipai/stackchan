@@ -2997,7 +2997,11 @@ def _turn_sink(behavior, light, faces=None, devices=None):
                 logger.warning("StackChan funnel light failed", exc_info=True)
         behavior.render_turn_state(state, mood=mood)
         if cue_worker is not None:
-            cue_worker.submit(turn_cue, faces, devices or (lambda: []), state)
+            from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+            unit = ACTIVE_UNIT.get()  # the thinking cue belongs to the unit that is talking, never to every connected unit
+            cue_devices = (lambda: [unit]) if unit else (devices or (lambda: []))
+            cue_worker.submit(turn_cue, faces, cue_devices, state)
 
     return sink
 
@@ -3320,6 +3324,9 @@ async def _serve_stackchan_channels(
     _RUNTIME.update(supervisor=supervisor, started=time.time(), stop=stop_event)
     service_threads.SUPERVISOR = supervisor  # every service thread is now watched and restarted when it dies
     supervisor.start()
+    from maipai_body.chaos import start_from_environment
+
+    start_from_environment(supervisor)  # a no-op unless MAIPAI_CHAOS is set (tests only)
     body = _build_stackchan_body(host, link)
     from maipai_body.bodies.stackchan.turn import StackChanTurnBridge
 
@@ -3718,7 +3725,9 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
             holder["server"].start()
             return holder["server"]._thread
 
-        supervisor.add(Worker("settings page", restart_settings_page, plain="the settings page", advice="Open the settings page again in a minute. If it does not come back, run `stackchan service logs`."), start_now=False).handle = server._thread
+        worker = supervisor.add(Worker("settings page", restart_settings_page, plain="the settings page", advice="Open the settings page again in a minute. If it does not come back, run `stackchan service logs`."), start_now=False)
+        worker.handle = server._thread
+        worker.kill = lambda: holder["server"].shutdown()  # the chaos hook: the serving loop ends; the watchdog starts the server again
     return server
 
 

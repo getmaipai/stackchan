@@ -772,6 +772,10 @@ class StackChanAudioPlayback(AudioPlayback):
         return None
 
 
+BUSY_LINE = "I am busy with other requests. One moment."
+BUSY_AT = 64  # turns in flight before a new one is told to wait
+
+
 class StackChanTurnBridge:
     def __init__(
         self,
@@ -870,6 +874,9 @@ class StackChanTurnBridge:
             )
         self.person_attribution = person_attribution or (lambda: None)
         self.expression_sink = expression_sink
+        self._inflight = 0
+        self._inflight_lock = threading.Lock()
+        self.busy_at = BUSY_AT
         self._captures: dict[str, StackChanAudioCapture] = {}
         self._states: dict[str, str] = {}
         self._aec: dict[str, bool] = {}
@@ -1206,7 +1213,10 @@ class StackChanTurnBridge:
     def _emit_expression(self, state: str, *, mood: str | None = None) -> None:
         if self.expression_sink is None:
             return
-        self._side.submit(self._run_expression_sink, state, mood)
+        import contextvars
+
+        # The side worker is another thread: carry the talking unit with the event, so the face goes only to the unit that asked.
+        self._side.submit(contextvars.copy_context().run, self._run_expression_sink, state, mood)
 
     def _run_expression_sink(self, state: str, mood: str | None) -> None:
         try:
@@ -1403,10 +1413,30 @@ class StackChanTurnBridge:
         from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
 
         token = ACTIVE_UNIT.set(device_id)  # calls that name no unit during this turn go to the talking unit
+        with self._inflight_lock:
+            self._inflight += 1
+            busy = self._inflight > self.busy_at
         try:
+            if busy:
+                self._say_busy(session_id)
             await self._run_inner(session_id, device_id, capture)
         finally:
+            with self._inflight_lock:
+                self._inflight -= 1
             ACTIVE_UNIT.reset(token)
+
+    def _say_busy(self, session_id: str) -> None:
+        """Many robots are asking at once: this turn waits its turn for a worker, and the unit is told so in plain words (its caption and
+        error tone) instead of staying silent."""
+        playback = self._playbacks.get(session_id)
+        LOG.info("StackChan voice: %d turns at once; this one waits for a free worker", self._inflight)
+        if self.on_error_line is not None:
+            try:
+                self.on_error_line()
+            except Exception:
+                LOG.debug("StackChan busy earcon failed", exc_info=True)
+        if playback is not None:
+            self._caption(playback, BUSY_LINE)
 
     async def _run_inner(self, session_id: str, device_id: str, capture: StackChanAudioCapture) -> None:
         try:

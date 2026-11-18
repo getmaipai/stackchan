@@ -485,6 +485,16 @@ class XiaozhiServer:
         ssl: ssl.SSLContext | None = None,
     ) -> None:
         self._loop = asyncio.get_running_loop()
+        # Every turn spends threads on blocking work (speech to text listens for the whole utterance, the model stream, text to speech). The
+        # default pool (CPU count plus four, at most 32) let about twenty turns work and starved the rest, so the pool is sized for a fleet.
+        import os
+        from concurrent.futures import ThreadPoolExecutor
+
+        try:
+            workers = max(32, int(os.environ.get("MAIPAI_WORKERS", "256")))
+        except ValueError:
+            workers = 256
+        self._loop.set_default_executor(ThreadPoolExecutor(max_workers=workers, thread_name_prefix="stackchan-work"))
         self._heal_task = asyncio.create_task(self._heal_loop())
         self._server = await serve(
             self.handle,

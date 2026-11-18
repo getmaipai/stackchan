@@ -30,6 +30,7 @@ class Worker:
     plain: str = ""  # what the person sees for this part ("the settings page"), used in messages
     advice: str = "Restart the host with `stackchan service start`. If it keeps failing, run `stackchan service logs`."
     handle: Any = None
+    kill: Callable[[], None] | None = None  # makes this worker die on purpose (the chaos hook); None: it cannot be killed that way
     state: str = "off"  # off | ok | restarting | failed
     last_error: str = ""
     since: float = 0.0
@@ -70,6 +71,15 @@ class Supervisor:
             worker = self._workers.get((unit, name))
             if worker is not None:
                 worker.last_beat = self._clock()
+
+    def kill(self, name: str, unit: str = "") -> bool:
+        """Make a worker die on purpose (the chaos hook, chaos.py). True when the worker has a way to be killed and it ran."""
+        with self._lock:
+            worker = self._workers.get((unit, name))
+        if worker is None or worker.kill is None:
+            return False
+        worker.kill()
+        return True
 
     def restart(self, name: str, unit: str = "") -> bool:
         """A person pressed restart: forget the failure history and start the worker now."""
