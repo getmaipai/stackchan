@@ -2345,6 +2345,22 @@ class StackChanTurnBridge:
             playback.end()
         except Exception:
             LOG.warning("StackChan voice: could not speak %r", text, exc_info=True)
+            self._mumble(text)
+
+    def _mumble(self, text: str) -> bool:
+        """No voice answered: if the unit announced the mumble voice, send it the words as a text-only line (decision 24). False when it cannot."""
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        loop = getattr(self.server, "_loop", None)
+        device_id = ACTIVE_UNIT.get() or next(iter(getattr(self.server, "_sessions", {}) or {}), None)
+        send = getattr(self.server, "send_mumble", None)
+        if loop is None or send is None or device_id is None:
+            return False
+        try:
+            return bool(asyncio.run_coroutine_threadsafe(send(device_id, text), loop).result(timeout=5))
+        except Exception:
+            LOG.debug("StackChan voice: the mumble line could not be sent", exc_info=True)
+            return False
 
     def _speak_plain_error(self, playback, base: str, cookie: str) -> None:
         if not self._breaker.allow():

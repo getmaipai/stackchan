@@ -1429,6 +1429,22 @@ class XiaozhiServer:
                 await self._neutral_face(websocket, device_id)
                 await self._json(websocket, self._session_ids[device_id], "tts", {"state": "stop"})
 
+    async def send_mumble(self, device_id: str, text: str) -> bool:
+        """Say a line with no voice audio (decision 24): `tts start`, one `tts sentence_start` with the words and `"mumble": true`, then `tts stop`.
+
+        The unit shows the caption and makes its own wordless voice from the text (docs/plan/offline-mumble-firmware.md). Sent only to a unit whose hello
+        announced the `mumble` feature, so an older unit is never sent a message it does not know; False then, and nothing is sent."""
+        websocket = self._sessions.get(device_id)
+        if websocket is None or not self._session_authorized(device_id) or not isinstance(text, str) or not text.strip():
+            return False
+        if self._session_features.get(device_id, {}).get("mumble") is not True:
+            return False
+        session = self._session_ids[device_id]
+        await self._json(websocket, session, "tts", {"state": "start"})
+        await self._json(websocket, session, "tts", {"state": "sentence_start", "text": text.strip(), "mumble": True})
+        await self._json(websocket, session, "tts", {"state": "stop"})
+        return True
+
     async def send_idle(self, device_id: str) -> None:
         """Ask the device to leave Listening and go idle (firmware patch 034 understands it)."""
         websocket = self._sessions.get(device_id)

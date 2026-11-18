@@ -47,3 +47,7 @@ A pure core `maipai_mumble_core.h` (plain C99, no allocation, host-tested) turns
 ## Tests and proof
 
 Host C test: the same text gives the same timeline; syllable counts for sample words in all six languages; the cue list obeys the 12-a-second and 160-cue limits for the longest allowed text; rendered buffers peak at the shared level and end in silence; a 20 second cap. On the unit: the mouth follows the tones within 40 ms; the bench frame recorder (SF75) and a silent render check; the owner listens to WAVs rendered by `scripts/sfx-wav.sh` from the same core before it is switched on. Not built yet; this note is the design and the budget.
+
+## Host half (app track, built 2026-11-18)
+`XiaozhiServer.send_mumble(device_id, text)` sends `tts start`, one `tts sentence_start {"text": ..., "mumble": true}` and `tts stop`, and only to a unit whose hello announced the feature `mumble` (otherwise nothing is sent). The turn bridge uses it as the fallback when a short line cannot be spoken (`StackChanTurnBridge._say`). Not yet wired: a full reply with no voice model (the own-LLM answer path), and the virtual unit does not announce `mumble` until the firmware does; both wait for the firmware patch. Tests: `host/tests/test_mumble_host.py`.
+
