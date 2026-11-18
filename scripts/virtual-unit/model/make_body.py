@@ -606,11 +606,13 @@ def assemble():
         room = moved(rounded_outline(8.6, 3.4, 0.2), sx, front - 3.3)
         geo['head'].setdefault(material, [])
         geo['head'][material] += band(above, outer, room, 0.0) + tube(above, room, 0.0, -2.0) + flat(above, room, -2.0) + tube(above, outer, 0.0, -1.5)
-        for du in (-2.6, 2.6):                                # the two plastic keys on the back wall
-            geo['head'][material] += slab(above, sx + du - 0.5, sx + du + 0.5, front - 5.0, front - 4.4, -2.0, 0.0)
+        for du in (-3.3, 3.3):                                # two posts at the back corners; the square window between them is open (owner's close-up)
+            geo['head'][material] += slab(above, sx + du - 1.0, sx + du + 1.0, front - 5.0, front - 3.5, -2.0, 0.0)
+        # behind the connector the shell's opening is not filled: a strip of the shell's own gray shows there, a step down
+        geo['head']['shell'] += both(quad_y(1, top - 1.0, sx - 5.1, sx + 5.1, front - 7.15, front - 5.8))
         for k in range(4):
             geo['head'].setdefault('pin_gold', [])
-            geo['head']['pin_gold'] += slab(above, sx - 3.3 + 2.0 * k, sx - 2.7 + 2.0 * k, front - 3.6, front - 3.0, -2.0, -0.6)
+            geo['head']['pin_gold'] += slab(above, sx - 3.3 + 2.0 * k, sx - 2.7 + 2.0 * k, front - 2.6, front - 2.0, -2.0, -0.8)   # the pins stand at the front of the socket
     geo['head']['port'] += slab(above, -2.2, 2.2, front - 7.6, front - 0.4, -2.2, -2.0)
     geo['head']['glass'] += slab(above, -0.5, 0.5, front - 1.9, front - 0.5, 0.28, 0.31)   # the small clear window beside the round hole (owner's top photo)   # dark behind the two small windows between the connectors
 
@@ -898,9 +900,9 @@ def assemble():
         g.node('ring_led_%d' % i, head, sub(c, PITCH_O), g.mesh('ring_led_%d' % i, [g.primitive(tris, c, 'ring_led')]),
                {'what': 'the small light of ring_light_%d on the underside of the ring board; it fires sideways into the light bar' % i, 'light': i, 'basis': 'assumed'})
     for side_name, gx, lights in (('left', 11.0, [0, 1]), ('right', -11.0, [11, 10])):   # the top connectors are not sealed: a slit behind each lets the ring's light out (owner's close-up)
-        c = (gx, top - 2.25, front - 4.5)                        # inside the connector, along its back wall: the housing is open there
-        g.node('top_gap_%s' % side_name, head, sub(c, PITCH_O), g.mesh('top_gap_%s' % side_name, [g.primitive(both(quad_y(1, c[1], gx - 4.0, gx + 4.0, front - 4.95, front - 4.05)), c, 'port')]),
-               {'what': 'the open slit at the back of a top connector, where light from inside shows', 'lights': lights, 'basis': 'assumed', 'note': "seen in the owner's close-up of the head top; width read off it"})
+        c = (gx, top - 2.25, front - 4.2)                        # inside the connector, between its two back posts: the housing is open there
+        g.node('top_gap_%s' % side_name, head, sub(c, PITCH_O), g.mesh('top_gap_%s' % side_name, [g.primitive(both(quad_y(1, c[1], gx - 2.3, gx + 2.3, front - 4.95, front - 3.5)), c, 'port')]),
+               {'what': 'the square window in the back of a top connector, between its two posts: the only place there where light from inside shows', 'lights': lights, 'basis': 'assumed', 'note': "seen in the owner's close-up of the head top; width read off it"})
     g.node('green_connector', head, sub(green_c, PITCH_O), g.mesh('green_connector', [g.primitive(green_tris, green_c, 'conn_green')]),
            {'what': "mint green body of the four-pin top connector, under the ring board on the robot's left", 'basis': 'assumed', 'note': "seen in the owner's photo"})
     b7 = (0.0, cy + 1.0, front - 1.1)
