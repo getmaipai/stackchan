@@ -1,0 +1,358 @@
+# Intent: Give app screens one named palette for all fixed colors.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_apps.cc and maipai_pages.cc (ours, patches UI16, NX03, P12); new file hal/maipai_ui_style.h
+# Check after a flash: Open the Apps wall, games, settings, control sheet and swipe pages and confirm their colors remain readable.
+
+--- a/firmware/main/hal/maipai_apps.cc	2026-11-17 23:58:01
++++ b/firmware/main/hal/maipai_apps.cc	2026-11-18 00:01:01
+@@ -15,6 +15,7 @@
+ #include "maipai_face_core.h"
+ #include "maipai_screens.h"
+ #include "maipai_lock.h"
++#include "maipai_ui_style.h"
+ 
+ namespace {
+ 
+@@ -95,11 +96,11 @@
+ uint32_t now_ms() { return g_host != nullptr ? g_host->now_ms() : 0; }
+ int Y(int y) { return y - MAC_TOP; }  // the root starts at screen y 28
+ 
+-lv_color_t shade(lv_color_t c, int pct) { return lv_color_make(mpg_scale(c.red, pct), mpg_scale(c.green, pct), mpg_scale(c.blue, pct)); }
++lv_color_t shade(lv_color_t c, int pct) { return maipai_ui_style::dim(c, pct); }
+ int night_pct() { return g_host != nullptr ? mpg_dim_pct(g_host->night()) : 100; }
+ lv_color_t fg(int pct = 100)
+ {
+-    const lv_color_t c = g_fg != nullptr ? g_fg() : lv_color_white();
++    const lv_color_t c = g_fg != nullptr ? g_fg() : maipai_ui_style::text();
+     return shade(c, pct * night_pct() / 100);
+ }
+ 
+@@ -161,7 +162,7 @@
+         lv_obj_set_style_bg_color(b, fg(45), LV_STATE_PRESSED);
+     }
+     if (label != nullptr && label[0] != '\0') {
+-        lv_obj_t* l = text(b, label, font, on ? lv_color_black() : fg(enabled ? 100 : 35));
++        lv_obj_t* l = text(b, label, font, on ? maipai_ui_style::bg() : fg(enabled ? 100 : 35));
+         lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
+         lv_obj_set_width(l, w - 2);
+         lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+@@ -248,11 +249,9 @@
+ 
+ 
+ // ---- patch NX08: the pictures of the wall tiles, drawn from LVGL shapes when the wall opens and freed with it (no bitmap, no font) ----
+-lv_color_t acc(uint32_t c, int pct = 100)
++lv_color_t acc(lv_color_t c, int pct = 100)
+ {
+-    int r, g, b;
+-    mac_rgb(c, &r, &g, &b);
+-    return shade(lv_color_make((uint8_t)r, (uint8_t)g, (uint8_t)b), pct * night_pct() / 100);
++    return shade(c, pct * night_pct() / 100);
+ }
+ lv_obj_t* disc(lv_obj_t* p, int x, int y, int d, lv_color_t c) { return box(p, x, y, d, d, c, LV_RADIUS_CIRCLE); }
+ lv_obj_t* hoop(lv_obj_t* p, int x, int y, int d, int bw, lv_color_t c)
+@@ -278,82 +277,92 @@
+ void game_art(lv_obj_t* a, const char* id, lv_color_t bg)
+ {
+     if (strcmp(id, "memory") == 0) {  // its four colored quarters as a mini board
+-        box(a, 0, 0, 23, 21, acc(0xE64646), 6);
+-        box(a, 25, 0, 23, 21, acc(0x3CC864), 6);
+-        box(a, 0, 23, 23, 21, acc(0x4678F0), 6);
+-        box(a, 25, 23, 23, 21, acc(0xFABE32), 6);
++        box(a, 0, 0, 23, 21, acc(maipai_ui_style::bad()), 6);
++        box(a, 25, 0, 23, 21, acc(maipai_ui_style::good()), 6);
++        box(a, 0, 23, 23, 21, acc(maipai_ui_style::accent()), 6);
++        box(a, 25, 23, 23, 21, acc(maipai_ui_style::warn()), 6);
+     } else if (strcmp(id, "whack") == 0) {  // a mound with the mole popping out
+-        disc(a, 13, 3, 22, acc(0x8C5A3C));
+-        disc(a, 18, 11, 4, acc(0x101010));
+-        disc(a, 27, 11, 4, acc(0x101010));
+-        box(a, 21, 17, 6, 4, acc(0xF0A0A8), 2);
+-        box(a, 0, 24, 48, 20, acc(0x5CC850), 10);
+-        box(a, 8, 30, 32, 6, acc(0x3C9A3A), 3);
++        disc(a, 13, 3, 22, acc(maipai_ui_style::surface()));
++        disc(a, 18, 11, 4, acc(maipai_ui_style::surface()));
++        disc(a, 27, 11, 4, acc(maipai_ui_style::surface()));
++        box(a, 21, 17, 6, 4, acc(maipai_ui_style::bad()), 2);
++        box(a, 0, 24, 48, 20, acc(maipai_ui_style::good()), 10);
++        box(a, 8, 30, 32, 6, acc(maipai_ui_style::good()), 3);
+     } else if (strcmp(id, "tictactoe") == 0) {  // a grid with an X and an O in two colors
+-        box(a, 15, 0, 3, 44, acc(0xDCE6F0), 1);
+-        box(a, 30, 0, 3, 44, acc(0xDCE6F0), 1);
+-        box(a, 0, 15, 48, 3, acc(0xDCE6F0), 1);
+-        box(a, 0, 30, 48, 3, acc(0xDCE6F0), 1);
++        box(a, 15, 0, 3, 44, acc(maipai_ui_style::text()), 1);
++        box(a, 30, 0, 3, 44, acc(maipai_ui_style::text()), 1);
++        box(a, 0, 15, 48, 3, acc(maipai_ui_style::text()), 1);
++        box(a, 0, 30, 48, 3, acc(maipai_ui_style::text()), 1);
+         static const lv_point_precise_t x1[2] = {{3, 3}, {12, 12}}, x2[2] = {{12, 3}, {3, 12}}, x3[2] = {{36, 33}, {45, 42}}, x4[2] = {{45, 33}, {36, 42}};
+-        stroke(a, x1, 2, acc(0xFF6464), 3);
+-        stroke(a, x2, 2, acc(0xFF6464), 3);
+-        stroke(a, x3, 2, acc(0xFF6464), 3);
+-        stroke(a, x4, 2, acc(0xFF6464), 3);
+-        hoop(a, 19, 19, 10, 3, acc(0x6EC8FF));
++        stroke(a, x1, 2, acc(maipai_ui_style::bad()), 3);
++        stroke(a, x2, 2, acc(maipai_ui_style::bad()), 3);
++        stroke(a, x3, 2, acc(maipai_ui_style::bad()), 3);
++        stroke(a, x4, 2, acc(maipai_ui_style::bad()), 3);
++        hoop(a, 19, 19, 10, 3, acc(maipai_ui_style::accent()));
+     } else if (strcmp(id, "bopit") == 0) {  // a pulse ring and a big arrow
+-        hoop(a, 2, 0, 44, 3, acc(0x9CC8FF));
++        hoop(a, 2, 0, 44, 3, acc(maipai_ui_style::accent()));
+         static const lv_point_precise_t sh[2] = {{12, 22}, {36, 22}}, hd[3] = {{26, 12}, {37, 22}, {26, 32}};
+-        stroke(a, sh, 2, acc(0xFFFFFF), 5);
+-        stroke(a, hd, 3, acc(0xFFFFFF), 5);
++        stroke(a, sh, 2, acc(maipai_ui_style::text()), 5);
++        stroke(a, hd, 3, acc(maipai_ui_style::text()), 5);
+     } else if (strcmp(id, "rps") == 0) {  // a fist, an open hand and scissors side by side
+-        const lv_color_t sk = acc(0xFFD2A0);
++        const lv_color_t sk = acc(maipai_ui_style::warn());
+         box(a, 0, 18, 14, 14, sk, 5);
+         box(a, 2, 30, 10, 6, sk, 3);
+         box(a, 17, 24, 13, 10, sk, 4);
+         for (int f = 0; f < 4; f++) box(a, 17 + f * 3, 8, 2, 18, sk, 1);
+         static const lv_point_precise_t s1[2] = {{36, 8}, {46, 28}}, s2[2] = {{46, 8}, {36, 28}};
+-        stroke(a, s1, 2, acc(0xDCE6F0), 3);
+-        stroke(a, s2, 2, acc(0xDCE6F0), 3);
++        stroke(a, s1, 2, acc(maipai_ui_style::text()), 3);
++        stroke(a, s2, 2, acc(maipai_ui_style::text()), 3);
+         hoop(a, 33, 28, 8, 2, sk);
+         hoop(a, 41, 28, 7, 2, sk);
+     } else if (strcmp(id, "eightball") == 0) {  // a dark ball with the white 8 circle and a triangle
+-        disc(a, 2, 0, 44, acc(0x16161E));
+-        disc(a, 14, 3, 20, acc(0xFFFFFF));
+-        lv_obj_t* n = text(a, "8", kMid, lv_color_black());
++        disc(a, 2, 0, 44, acc(maipai_ui_style::surface()));
++        disc(a, 14, 3, 20, acc(maipai_ui_style::text()));
++        lv_obj_t* n = text(a, "8", kMid, maipai_ui_style::bg());
+         lv_obj_set_pos(n, 20, 5);
+         static const lv_point_precise_t tri[4] = {{24, 27}, {34, 40}, {14, 40}, {24, 27}};
+-        stroke(a, tri, 4, acc(0xFFFFFF), 2);
++        stroke(a, tri, 4, acc(maipai_ui_style::text()), 2);
+     } else if (strcmp(id, "dice") == 0) {  // two dice with pips and a coin
+-        disc(a, 15, 0, 18, acc(0xF5C842));
+-        hoop(a, 19, 4, 10, 2, acc(0xB48A14));
+-        box(a, 0, 18, 24, 24, acc(0xFFFFFF), 5);
+-        disc(a, 4, 22, 5, acc(0x202028));
+-        disc(a, 10, 28, 5, acc(0x202028));
+-        disc(a, 15, 34, 5, acc(0x202028));
+-        box(a, 24, 18, 24, 24, acc(0xFFFFFF), 5);
+-        disc(a, 28, 22, 5, acc(0x202028));
+-        disc(a, 38, 22, 5, acc(0x202028));
+-        disc(a, 33, 28, 5, acc(0x202028));
+-        disc(a, 28, 34, 5, acc(0x202028));
+-        disc(a, 38, 34, 5, acc(0x202028));
++        disc(a, 15, 0, 18, acc(maipai_ui_style::warn()));
++        hoop(a, 19, 4, 10, 2, acc(maipai_ui_style::warn()));
++        box(a, 0, 18, 24, 24, acc(maipai_ui_style::text()), 5);
++        disc(a, 4, 22, 5, acc(maipai_ui_style::surface()));
++        disc(a, 10, 28, 5, acc(maipai_ui_style::surface()));
++        disc(a, 15, 34, 5, acc(maipai_ui_style::surface()));
++        box(a, 24, 18, 24, 24, acc(maipai_ui_style::text()), 5);
++        disc(a, 28, 22, 5, acc(maipai_ui_style::surface()));
++        disc(a, 38, 22, 5, acc(maipai_ui_style::surface()));
++        disc(a, 33, 28, 5, acc(maipai_ui_style::surface()));
++        disc(a, 28, 34, 5, acc(maipai_ui_style::surface()));
++        disc(a, 38, 34, 5, acc(maipai_ui_style::surface()));
+     } else {  // a game this build has no picture for: a play triangle
+         static const lv_point_precise_t tri[4] = {{14, 6}, {38, 22}, {14, 38}, {14, 6}};
+-        stroke(a, tri, 4, acc(0xFFFFFF), 4);
++        stroke(a, tri, 4, acc(maipai_ui_style::text()), 4);
+     }
+     (void)bg;
+ }
+ 
+ // One app's picture. The simple ones are the 24 by 24 shapes at twice the size, in the item's bright color.
++lv_color_t tile_identity_color(int index)
++{
++    switch (index % 4) {
++        case 0: return maipai_ui_style::accent();
++        case 1: return maipai_ui_style::good();
++        case 2: return maipai_ui_style::warn();
++        default: return maipai_ui_style::tile_violet();
++    }
++}
++
+ void app_art(lv_obj_t* a, int app, lv_color_t bg)
+ {
+     if (app == MAC_APP_QUICK) {  // a lightning bolt on purple
+         static const lv_point_precise_t bolt[7] = {{30, 2}, {12, 24}, {24, 24}, {18, 42}, {38, 18}, {26, 18}, {30, 2}};
+-        stroke(a, bolt, 7, acc(0xFFE650), 5);
++        stroke(a, bolt, 7, acc(maipai_ui_style::warn()), 5);
+         return;
+     }
+     mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
+     const int n = app_shapes(app, sh);
+-    draw_shapes(a, sh, n, 0, -2, 2, acc(MAC_APP_ACCENT[app]), bg);
++    draw_shapes(a, sh, n, 0, -2, 2, acc(tile_identity_color(app)), bg);
+ }
+ 
+ // ---- the frame of every view ----
+@@ -537,7 +546,7 @@
+         if (view == MAV_GAMES) {
+             snprintf(gid_buf, sizeof(gid_buf), "%s", g_host->game_id(idx));
+         }
+-        const uint32_t ac = view == MAV_APPS ? MAC_APP_ACCENT[S->apps[idx]] : mac_game_accent(gid_buf);
++        const lv_color_t ac = tile_identity_color(view == MAV_APPS ? S->apps[idx] : idx);
+         const lv_color_t tile_bg = acc(ac, MAC_TILE_BG_PCT);
+         lv_obj_t* b = box(S->root, x, Y(y), w, h, acc(ac, MAC_TILE_BG_PCT + 16), 12, true);  // one frame brighter: the pop when the wall opens
+         S->tile_obj[slot] = b;
+@@ -569,9 +578,9 @@
+             ph = 2 * lv_font_get_line_height(kSmall) + 4;
+             py = MAC_WALL_TILE_H - MAC_TILE_PLATE_PAD - ph;
+         }
+-        lv_obj_t* plate = box(b, px - 2, py - 2, pw, ph, lv_color_black(), 8);
++        lv_obj_t* plate = box(b, px - 2, py - 2, pw, ph, maipai_ui_style::bg(), 8);
+         lv_obj_remove_flag(plate, LV_OBJ_FLAG_CLICKABLE);
+-        lv_obj_t* l = text(plate, name, nf, acc(0xFFFFFF, 100));
++        lv_obj_t* l = text(plate, name, nf, acc(maipai_ui_style::text(), 100));
+         lv_label_set_long_mode(l, two ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
+         lv_obj_set_size(l, pw - 6, two ? 2 * lv_font_get_line_height(nf) : lv_font_get_line_height(nf));
+         lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+@@ -580,7 +589,7 @@
+             char best[24];
+             mpg_best_text(best, sizeof(best), g_host->game_best(idx), es());
+             const int bw = text_w(best, kTiny) + 12;
+-            lv_obj_t* pill = box(b, w - bw - 6, 2, bw, 20, lv_color_black(), 10);
++            lv_obj_t* pill = box(b, w - bw - 6, 2, bw, 20, maipai_ui_style::bg(), 10);
+             lv_obj_remove_flag(pill, LV_OBJ_FLAG_CLICKABLE);
+             lv_obj_t* bl = text(pill, best, kTiny, fg(85));
+             lv_obj_align(bl, LV_ALIGN_CENTER, 0, 0);
+@@ -821,7 +830,7 @@
+                 lv_obj_set_style_bg_color(S->ampm[pm], on ? fg(100) : fg(16), 0);
+                 lv_obj_t* l = lv_obj_get_child(S->ampm[pm], 0);
+                 if (l != nullptr) {
+-                    lv_obj_set_style_text_color(l, on ? lv_color_black() : fg(100), 0);
++                    lv_obj_set_style_text_color(l, on ? maipai_ui_style::bg() : fg(100), 0);
+                 }
+             }
+         }
+@@ -1148,10 +1157,10 @@
+     if (r.kind == MAC_K_SWITCH) {
+         const bool on = switch_on(r.id);
+         lv_obj_set_style_bg_color(S->row_obj[i], on ? fg(100) : fg(16), 0);
+-        lv_obj_set_style_text_color(S->row_val[r.id], on ? lv_color_black() : fg(100), 0);
++        lv_obj_set_style_text_color(S->row_val[r.id], on ? maipai_ui_style::bg() : fg(100), 0);
+         lv_obj_t* lab = lv_obj_get_child(S->row_obj[i], 0);
+         if (lab != nullptr) {
+-            lv_obj_set_style_text_color(lab, on ? lv_color_black() : fg(100), 0);
++            lv_obj_set_style_text_color(lab, on ? maipai_ui_style::bg() : fg(100), 0);
+         }
+     }
+     set_text_if(S->row_val[r.id], t);
+@@ -1258,9 +1267,9 @@
+         if (on) {
+             lv_obj_set_style_bg_color(b, fg(100), 0);
+         }
+-        lv_obj_t* l = text(b, mac_row_label(r.id, es() ? 1 : 0), kSmall, on ? lv_color_black() : fg(100));
++        lv_obj_t* l = text(b, mac_row_label(r.id, es() ? 1 : 0), kSmall, on ? maipai_ui_style::bg() : fg(100));
+         lv_obj_align(l, LV_ALIGN_LEFT_MID, 12, 0);
+-        S->row_val[r.id] = text(b, t, kSmall, on ? lv_color_black() : fg(100));
++        S->row_val[r.id] = text(b, t, kSmall, on ? maipai_ui_style::bg() : fg(100));
+         lv_obj_align(S->row_val[r.id], LV_ALIGN_RIGHT_MID, -12, 0);
+         return;
+     }
+@@ -1484,7 +1493,7 @@
+         }
+         mac_set_init(&S->set);
+         S->id = id;
+-        lv_obj_t* r = box(lv_layer_top(), 0, MAC_TOP, MAC_W, 240 - MAC_TOP, lv_color_black(), 0, true);
++        lv_obj_t* r = box(lv_layer_top(), 0, MAC_TOP, MAC_W, 240 - MAC_TOP, maipai_ui_style::bg(), 0, true);
+         lv_obj_move_to_index(r, 0);  // under the banner row and the cue strips, which stay where they are
+         lv_obj_add_event_cb(r, on_root, LV_EVENT_PRESSED, nullptr);
+         lv_obj_add_event_cb(r, on_root, LV_EVENT_RELEASED, nullptr);
+--- a/firmware/main/hal/maipai_pages.cc	2026-11-17 23:58:10
++++ b/firmware/main/hal/maipai_pages.cc	2026-11-18 00:01:01
+@@ -15,7 +15,8 @@
+ #include "maipai_screens.h"
+ #include "maipai_lock.h"
+ #include "maipai_apps.h"
+-#include "maipai_apps_core.h"  // the lock hint words (patch NX01)
++#include "maipai_apps_core.h"
++#include "maipai_ui_style.h"  // the lock hint words (patch NX01)
+ #if CONFIG_MAIPAI_BANNER_ROW || defined(MAIPAI_HOST_RENDER)
+ #include "maipai_banner.h"
+ #endif
+@@ -103,12 +104,12 @@
+ 
+ lv_color_t shade(lv_color_t c, int pct)
+ {
+-    return lv_color_make(mpg_scale(c.red, pct), mpg_scale(c.green, pct), mpg_scale(c.blue, pct));
++    return maipai_ui_style::dim(c, pct);
+ }
+ int night_pct() { return s_host != nullptr ? mpg_dim_pct(s_host->night()) : 100; }
+ lv_color_t fg(int pct = 100)
+ {
+-    const lv_color_t c = s_fg != nullptr ? s_fg() : lv_color_white();
++    const lv_color_t c = s_fg != nullptr ? s_fg() : maipai_ui_style::text();
+     return shade(c, pct * night_pct() / 100);
+ }
+ 
+@@ -193,8 +194,8 @@
+ // Signal and charge colors (patch UI05): green good, amber low, red critical, dimmed at night like every other color.
+ lv_color_t level_color(int level)
+ {
+-    static const uint8_t rgb[3][3] = {{70, 220, 120}, {255, 190, 60}, {255, 90, 80}};
+-    return shade(lv_color_make(rgb[level][0], rgb[level][1], rgb[level][2]), night_pct());
++    const lv_color_t colors[] = {maipai_ui_style::good(), maipai_ui_style::warn(), maipai_ui_style::bad()};
++    return shade(colors[level], night_pct());
+ }
+ 
+ // ---- the page frame ----
+@@ -270,7 +271,7 @@
+ 
+ lv_obj_t* make_root()
+ {
+-    lv_obj_t* r = box(lv_layer_top(), MPG_ZONE_X, MPG_ZONE_Y, MPG_ZONE_W, MPG_ZONE_H, lv_color_black(), 0, true);
++    lv_obj_t* r = box(lv_layer_top(), MPG_ZONE_X, MPG_ZONE_Y, MPG_ZONE_W, MPG_ZONE_H, maipai_ui_style::bg(), 0, true);
+     lv_obj_move_to_index(r, 0);  // under the banner row and the subtitles, which stay where they are
+     return r;
+ }
+@@ -962,7 +963,7 @@
+     lv_obj_set_style_bg_color(b, on ? fg(100) : fg(16), 0);
+     const lv_color_t bg = on ? fg(100) : fg(16);
+     mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
+-    draw_shapes(b, sh, mpg_sheet_icon_shapes(item, sh), (MPG_TILE_W - 24) / 2, (MPG_TILE_H - 24) / 2, 1, on ? lv_color_black() : fg(100), bg);
++    draw_shapes(b, sh, mpg_sheet_icon_shapes(item, sh), (MPG_TILE_W - 24) / 2, (MPG_TILE_H - 24) / 2, 1, on ? maipai_ui_style::bg() : fg(100), bg);
+ }
+ 
+ void sheet_clock_text(char* out, size_t n)
+@@ -1058,7 +1059,7 @@
+     mpg_sheet_t L;
+     mpg_sheet_layout(&s_cfg, &L);
+     const int h = 240 - L.top_y;
+-    lv_obj_t* r = box(lv_layer_top(), 0, L.top_y, 320, h + 14, shade(s_fg != nullptr ? s_fg() : lv_color_white(), 10 * night_pct() / 100), 14, true);
++    lv_obj_t* r = box(lv_layer_top(), 0, L.top_y, 320, h + 14, shade(s_fg != nullptr ? s_fg() : maipai_ui_style::text(), 10 * night_pct() / 100), 14, true);
+     lv_obj_set_style_border_width(r, 2, 0);
+     lv_obj_set_style_border_side(r, LV_BORDER_SIDE_TOP, 0);
+     lv_obj_set_style_border_color(r, fg(45), 0);
+@@ -1082,7 +1083,7 @@
+             }
+         }
+         if (s_sh->has_batt) {
+-            s_sh->bbody = box(r, 280, y0 + 4, 26, 14, lv_color_black(), 3);
++            s_sh->bbody = box(r, 280, y0 + 4, 26, 14, maipai_ui_style::bg(), 3);
+             lv_obj_set_style_bg_opa(s_sh->bbody, LV_OPA_TRANSP, 0);
+             lv_obj_set_style_border_width(s_sh->bbody, 2, 0);
+             s_sh->bfill = box(s_sh->bbody, 0, 0, 20, 10, fg(100), 1);
+--- /dev/null
++++ b/firmware/main/hal/maipai_ui_style.h
+@@ -0,0 +1,19 @@
++#pragma once
++
++#include <lvgl.h>
++
++namespace maipai_ui_style {
++inline lv_color_t text() { return lv_color_hex(0xFFFFFF); }
++inline lv_color_t muted() { return lv_color_hex(0x8C96AA); }
++inline lv_color_t bg() { return lv_color_black(); }  // the glass itself: screens sit on it
++inline lv_color_t surface() { return lv_color_hex(0x202028); }
++inline lv_color_t accent() { return lv_color_hex(0x5AAAFF); }
++inline lv_color_t good() { return lv_color_hex(0x46BE6E); }
++inline lv_color_t warn() { return lv_color_hex(0xFABE32); }
++inline lv_color_t bad() { return lv_color_hex(0xE64646); }
++inline lv_color_t tile_violet() { return lv_color_hex(0x965AE6); }
++inline lv_color_t dim(lv_color_t color, int percent)
++{
++    return lv_color_mix(color, lv_color_black(), static_cast<uint8_t>(percent * 255 / 100));
++}
++}

@@ -40,6 +40,7 @@ SCREENS: dict[str, list] = {
     "screen-offline": BAR + [("raw", "bstatus 80 0 0 0 1"), ("advance", 700)],
     "screen-low-battery": BAR + [("raw", "bstatus 12 0 1 1 1"), ("call", "self.face.bench_emotion", {"emotion": "tired", "tired_level": 2}), ("advance", 3400)],
     "screen-charging": BAR + [("raw", "bstatus 40 1 1 1 1"), ("advance", 700)],
+    "screen-eyes-only-muted": BAR + [("raw", "style eyes_only"), ("raw", "bstatus 80 0 1 1 0"), ("raw", "seal on"), ("advance", 900)],  # patch UX03a
     "screen-wifi-flag": BAR + [("raw", "bwifiscreen on"), ("advance", 700)],
     "screen-page-clock": BAR + [("raw", "pshow clock"), ("advance", 600)],
     "screen-page-timers": BAR + [("raw", "pshow timers"), ("advance", 600)],

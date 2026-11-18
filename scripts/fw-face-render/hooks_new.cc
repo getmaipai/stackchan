@@ -14,6 +14,11 @@ Emotion render_hook_emotion(const std::string& n)
 }
 bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream& in)
 {
+    if (c == "seal") {  // seal on|off: mute, as ApplyPrivacyFace does it (patch 105): the mouth becomes a flat closed line
+        std::string n; in >> n;
+        if (auto* m = dynamic_cast<DefaultMouth*>(&av->mouth())) m->setSealed(n == "on");
+        return true;
+    }
     if (c == "style") {
         std::string n; in >> n;
         for (int i = 0; i < ML_STYLE_COUNT; i++) if (n == ML_STYLES[i].name) av->setLook(i);

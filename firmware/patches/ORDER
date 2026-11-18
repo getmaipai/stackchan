@@ -242,3 +242,6 @@ SF03-listening-guard-follows-voice.patch
 SF04-restart-deadline-and-body-lock.patch
 UX01-style-mouth-widths.patch
 SF05-pairing-cover-line-break.patch
+UX02a-screen-palette.patch
+UX03a-eyes-only-mute-mark.patch
+UX03b-effects-on-the-face-only.patch

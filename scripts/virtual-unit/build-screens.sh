@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Intent: build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patches N01, P12, UI16),
 # into .runs/vu-screens/render, so the virtual unit can show screens other than the bare face. No firmware build; clang only.
-# Usage: bash scripts/virtual-unit/build-screens.sh [firmware tree root, default ~/esp/stackchan-rebase/final15]
+# Usage: bash scripts/virtual-unit/build-screens.sh [firmware tree root, default the overlay tree from build-face.sh]
 # Placement: host-side development tool. Upstream: none.
 set -e
-B="${1:-$HOME/esp/stackchan-rebase/final15}"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# default: the overlay tree build-face.sh makes (the tree plus the UX patches); the goldens are drawn from it
+B="${1:-$ROOT/.runs/fixtree}"
+[ -d "$B/firmware" ] || { echo "no overlay tree: run bash scripts/virtual-unit/build-face.sh first (or pass a firmware tree root)"; exit 1; }
 R="$(cd "$(dirname "$0")/../fw-face-render" && pwd)"
 OUT="$(cd "$(dirname "$0")/../.." && pwd)/.runs/vu-screens"
 export MAIPAI_FW_TREE=$B/firmware MAIPAI_RENDER_SRC=$R/render.cc MAIPAI_RENDER_HOOKS=$R/hooks_banner.cc

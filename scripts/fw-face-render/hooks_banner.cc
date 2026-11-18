@@ -191,6 +191,11 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
         return true;
     }
     if (c == "think") { std::string n; in >> n; av->setThinking(n == "on"); return true; }
+    if (c == "seal") {  // seal on|off: mute, as ApplyPrivacyFace does it (patch 105): the mouth becomes a flat closed line
+        std::string n; in >> n;
+        if (auto* m = dynamic_cast<DefaultMouth*>(&av->mouth())) m->setSealed(n == "on");
+        return true;
+    }
     if (c == "tint") { std::string n; in >> n; av->setEmotionTint(n == "on"); return true; }
     if (c == "colour") { int r, g, b, br = 0, bg = 0, bb = 0; in >> r >> g >> b; if (in >> br >> bg >> bb) {} av->setColors(lv_color_make(r, g, b), lv_color_make(br, bg, bb)); return true; }
     if (c == "bpost") {

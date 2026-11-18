@@ -1,0 +1,29 @@
+# Intent: Apply overlays and screen effects only while the face or quick settings sheet is visible.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_fx.cc (ours, patches TA02, TA03)
+# Check after a flash: Open Settings and a game, then confirm neither is recolored or dimmed.
+
+--- a/firmware/main/hal/maipai_fx.cc	2026-11-17 23:58:38
++++ b/firmware/main/hal/maipai_fx.cc	2026-11-17 23:58:45
+@@ -17,6 +17,8 @@
+ #include "maipai_face.h"
+ #include "maipai_privacy.h"
+ #include "maipai_pages.h"
++#include "maipai_screens.h"
++#include "maipai_games.h"
+ #include "maipai_lock.h"
+ #include "hal.h"
+ #include <mcp_server.h>
+@@ -257,6 +259,12 @@
+ 
+ void post_to_flush(lv_display_t* d, const lv_area_t* a, uint8_t* px)
+ {
++    const uint16_t visible = maipai_screens_detail::g_state.visible_mask;
++    const bool full_screen = (visible & ~MSCR_BIT(MSCR_SHEET)) != 0;
++    if (full_screen || maipai_games_active()) {
++        s_orig_flush(d, a, px);
++        return;
++    }
+     const bool overlays = !s_ov_hidden && mo_any(s_ov);
+     if (overlays || mfx_any(&s_fx)) {
+         const int64_t t0 = esp_timer_get_time();
