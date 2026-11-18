@@ -3518,6 +3518,33 @@ async def _serve_stackchan_channels(
             device_connected, StackChanTurnBridge,
         )
     await voice.start(host, xiaozhi_port, ssl=tls_context)
+    # The voice and avatar servers share this loop. A task beats once a second; a loop that stops beating shows on the health page as "not responding"
+    # (reported, not restarted: the servers cannot be swapped inside a running host, so the advice is to restart the host).
+    from maipai_body.supervisor import Worker as _Worker
+
+    main_loop = asyncio.get_running_loop()
+
+    async def _beat_servers() -> None:
+        while not stop_event.is_set():
+            supervisor.beat("voice server")
+            await asyncio.sleep(1.0)
+
+    beat_task = asyncio.create_task(_beat_servers(), name="voice-server-heartbeat")
+
+    class _LoopHandle:
+        @staticmethod
+        def is_alive() -> bool:
+            return main_loop.is_running() and not beat_task.done()
+
+    supervisor.add(
+        _Worker(
+            "voice server",
+            lambda: _LoopHandle(),
+            heartbeat_limit_s=15.0,
+            plain="the voice and avatar servers",
+            advice="Restart the host with `stackchan service stop` and `stackchan service start`. If it happens again, run `stackchan service logs`.",
+        )
+    )
     settings_server = _start_settings_page(voice, pairing, units, behavior, faces, link_security)
     try:
         await avatar.start(avatar_host, avatar_port, ssl=tls_context)
@@ -3539,6 +3566,7 @@ async def _serve_stackchan_channels(
             await asyncio.to_thread(behavior.start_presence, stop_event)
         await asyncio.to_thread(stop_event.wait)
     finally:
+        beat_task.cancel()
         supervisor.stop()  # stopping the host on purpose is not a failure: nothing is restarted from here on
         service_threads.SUPERVISOR = None
         _RUNTIME.clear()
@@ -3730,7 +3758,7 @@ def _wire_installed_sets(voice, backend, pairing, stop_event) -> None:
         language = load_config().home.language or "en"
     except Exception:
         language = "en"
-    transport = LegacyTransport(packs, lambda unit: unit in voice._sessions, lambda unit: packs.probe.has(unit, "assets") is True)
+    transport = LegacyTransport(packs, lambda unit: unit in voice._sessions, lambda unit: voice.device_supports("assets", unit))  # the unit says so in its hello; there is no read-only asset tool to probe
     sets = InstalledSets(packs.library, InstalledStore(_data_dir() / "installed-sets.json"), transport, language=lambda unit: language)
     backend.installed = sets
     backend.installed_units = lambda: [{"id": d, "name": "", "connected": d in voice._sessions} for d in sorted(set(pairing.paired_devices()) | set(voice._sessions))]

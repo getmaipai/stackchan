@@ -524,6 +524,7 @@ async def chaos_internal_workers(rig, check) -> None:
     """The host is started with MAIPAI_CHAOS="kill=settings page@25": the settings server's loop is killed 25 seconds in, and the supervisor must bring it back with nobody acting."""
     res = health(rig)
     check("the status page lists the host's parts", bool(res) and bool(res.get("parts")), str(res)[:200])
+    check("the voice and avatar servers report a heartbeat on the status page", bool(res) and any(p.get("part") == "voice server" and p.get("state") == "ok" for p in res.get("parts", [])), str((res or {}).get("parts"))[:300])
     check("the hook was armed for this run", rig.host_said(r"MAIPAI_CHAOS is set"), "the rig must start the host with MAIPAI_CHAOS")
     killed = await wait_for(lambda: rig.host_said(r"chaos: worker 'settings page' killed"), 60.0)
     check("the settings server was killed on schedule", killed)
