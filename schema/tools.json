@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 158,
+ "count": 159,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -12,6 +12,7 @@
   "self.banner.face_seen": "NX05-face-seen-glyph-and-tool-in-the-banner-strip.patch",
   "self.battery.get_status": "C01-battery-status.patch",
   "self.battery.simulate": "T01-low-battery-ladder.patch",
+  "self.bench.asset_use": "SF79-bench-asset-use-probe.patch",
   "self.bench.barge_test": "SF42-bench-barge-test-silent.patch",
   "self.bench.firstrun": "SF26-bench-slot-firstrun-tool.patch",
   "self.bench.firstrun_loop": "SF27-bench-servo-rate-firstrun-loop.patch",
@@ -207,6 +208,7 @@
   "self.battery.simulate": {
    "level": "integer"
   },
+  "self.bench.asset_use": {},
   "self.bench.barge_test": {
    "count": "integer",
    "gap_ms": "integer",
