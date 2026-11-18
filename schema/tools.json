@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 146,
+ "count": 147,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -20,6 +20,7 @@
   "self.bench.link_selftest": "SF21-link-key-curve-and-storage.patch",
   "self.bench.mic3_check": "SF15-talk-over-mic3-step0.patch",
   "self.bench.noise": "L06-bench-latency-trace.patch",
+  "self.bench.power_probe": "SF48-bench-power-probe.patch",
   "self.bench.say_test": "SF34-head-limiter-barge-bench.patch",
   "self.bench.servo_rate": "SF27-bench-servo-rate-firstrun-loop.patch",
   "self.bench.set_head": "SF23-bench-head-and-tone-medians.patch",
@@ -223,6 +224,9 @@
   "self.bench.noise": {
    "seconds": "integer",
    "gain_pct": "integer"
+  },
+  "self.bench.power_probe": {
+   "move": "integer"
   },
   "self.bench.say_test": {
    "seconds": "integer",

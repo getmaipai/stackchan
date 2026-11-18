@@ -46,3 +46,38 @@ A baby monitor needs, in order of importance: a picture in the dark (infrared li
 2. Dark room (lights off, no light on the unit's face), same two calls; then the same with a hand covering the lens: the brightness reading should be near 0 and the noise reading is the sensor floor.
 3. `cam640` image in the lit room, the same calls.
 4. With SF44 on (the `avatar` image) and the host running: `self.avatar.status` for frames sent and last frame age over 60 seconds; the host log gives the end-to-end frame rate and delay.
+
+## The sweep: how the one table is made (owner question: can resolution and rate go up?)
+
+`self.bench.camera_probe {seconds, quality, skip, interval_ms}` (patch SF45, held by decision 11) runs through the real camera path (the camera-on cue is drawn; mute, vision off, full quiet and the lock refuse the run). `interval_ms` spaces the frames like the stream timer: **350** (today), 200, 100, 66, 50, and 0 (as fast as the camera and the encoder allow). It answers frames per second, bytes per frame and per second, capture and encode times (mean and worst), the lowest free internal RAM, the lowest largest block, the lowest free PSRAM and the share of time both cores were idle (the CPU load). `scripts/camera-sweep-table.py RESULTS.jsonl` turns the answers into one table and names what limits each row: the sensor, the stream timer, the JPEG encoder, the camera read, or memory under the gate floor. `--plan` prints the calls: qualities 10, 20, 40 and 60 and the six timer values, on the default 320 by 240 image and on the `cam640` image (640 by 480; the frame size is fixed when the camera starts, so the two sizes are two images).
+
+| Size | Quality | Timer ms | Frames/s | Bytes/frame | Capture ms | Encode ms | Bytes/s | Free internal | Largest block | PSRAM free | CPU idle % | Limit |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 320x240 | | | | | | | | | | | | to measure |
+| 640x480 | | | | | | | | | | | | to measure |
+
+Nothing was measured yet: the table is filled by the bench (a lit room). The send-buffer need is the worst frame in bytes (the `bytes.worst` field) because the avatar socket sends one frame at a time; the Wi-Fi throughput is `bytes_per_s` against the link (a Wi-Fi 4 link carries more than 2 MB a second at the unit's distance; the host log gives the real end-to-end rate once SF44 lands).
+
+## What the chip can and cannot do for speed
+
+- **No picture hardware on the ESP32-S3:** the pixel processing accelerator (PPA) and the image signal processor (ISP) belong to the ESP32-P4, not the S3; the S3 has the camera interface only. There is no hardware JPEG encoder on the S3, so every frame is encoded in software (`image_to_jpeg`), and that time is the main limit above 320 by 240. Confirmed from the build: the driver offers the sensor's modes, and the IDF components in the tree contain no PPA, ISP or JPEG hardware code for this chip.
+- **Grayscale is available:** the sensor driver has 320 by 240 and 640 by 480 grayscale modes (`CAMERA_GC0308_DVP_GRAY_*`, disabled in the current config). Grayscale halves the bytes on the camera bus and the JPEG has one plane to encode: expect a faster encoder and a file about 40 to 60 percent smaller; a dark-room picture loses nothing (the sensor is the limit there), a lit room loses color. Worth one probe run with a grayscale build; it is the cheapest way to a higher rate.
+- **Color modes:** UYVY (current) and YUYV are the same cost; RGB565 doubles the work in the converter.
+
+## Proposed defaults (to confirm with the table)
+
+| Mode | Size and rate | Memory cost (decision 15: allocated while streaming, freed after) |
+|---|---|---|
+| Default | 320 by 240, JPEG quality 20, about 10 frames a second (timer 100 ms) if the encoder allows | frame buffer 150 KB PSRAM (already allocated by the driver), JPEG output buffer about 10 to 15 KB PSRAM per frame, no new internal block beyond the socket's receive stack |
+| High, on demand | 640 by 480, quality 10 to 20, 3 to 5 frames a second | frame buffer 600 KB PSRAM, JPEG output 30 to 60 KB PSRAM; needs the 640 image and the camera restarted, so it is a bench or a deliberate setting, not a per-frame switch |
+| Face steering | 320 by 240 gray or color at 2 to 3 frames a second | as today |
+
+The unit does not switch between 320 and 640 at run time with the stock driver: a restart of the camera is needed, which also makes the first frame old. If an on-demand high mode is wanted, the restart is part of the request and is shown by the camera-on cue.
+
+## Recording on the host
+
+The host writes what it receives: it takes the JPEG frames of the avatar socket and writes them to a file as motion JPEG in a Matroska or MP4 container (no re-encoding: the frames are stored as they arrived), at the rate and size the unit sends, with the arrival time of each frame as its timestamp so playback runs at the real rate. The unit's cue stays exactly as it is: it is drawn for every frame the unit takes, whoever receives it; the host cannot turn it off and a recording does not ask the unit for anything but the stream. Privacy: a recording is a file on the household's computer that only the household's own settings page can start, with a visible "recording" mark on the host page; mute, vision off, full quiet and the lock stop the stream and so the recording.
+
+## Power: does the camera or Wi-Fi power limit the rate?
+
+The unit on a computer's USB port has about 500 mA available. The camera, the Wi-Fi radio sending a stream and the screen are the large loads; the servos are separate. A brownout shows as a reset or a camera that stops. The first bench evidence is that the back USB-C port is wired to the same USB path as the side port (`docs/plan/two-usb-ports.md`), so plugging the back port does not by itself add power; a 2 A wall charger does. The probe's lowest-VBUS reading during a high-rate run (`self.bench.power_probe`, SF48, together with the camera probe) tells whether the supply sags: run the 640 by 480 sweep once on a computer's port and once on a charger.
