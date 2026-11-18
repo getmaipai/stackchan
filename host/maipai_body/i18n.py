@@ -361,8 +361,25 @@ def _merge_fill() -> None:
                 words[key] = text
 
 
+def _merge_reviewed() -> None:
+    """Translations a native speaker has read and corrected: host/maipai_body/i18n_reviewed/<lang>.json, written by scripts/translation-pack.py import
+    (docs/dev/translation-review/). Read last, so a reviewed word wins over a catalog word and over a machine draft."""
+    import json
+    from pathlib import Path
+
+    for path in sorted((Path(__file__).parent / "i18n_reviewed").glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        words = CATALOG.get(data["lang"])
+        if words is None:
+            continue
+        for key, text in data["strings"].items():
+            if key in CATALOG["en"]:
+                words[key] = text
+
+
 _merge_more()
 _merge_fill()
+_merge_reviewed()
 
 
 def normalize(lang: str | None) -> str:

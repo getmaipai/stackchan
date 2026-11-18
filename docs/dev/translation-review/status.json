@@ -1,0 +1,32 @@
+{
+ "es": {
+  "rows": 983,
+  "reviewed": 0,
+  "machine_draft": 939,
+  "missing": 44
+ },
+ "fr": {
+  "rows": 983,
+  "reviewed": 0,
+  "machine_draft": 879,
+  "missing": 104
+ },
+ "de": {
+  "rows": 983,
+  "reviewed": 0,
+  "machine_draft": 879,
+  "missing": 104
+ },
+ "pt": {
+  "rows": 983,
+  "reviewed": 0,
+  "machine_draft": 879,
+  "missing": 104
+ },
+ "it": {
+  "rows": 983,
+  "reviewed": 0,
+  "machine_draft": 879,
+  "missing": 104
+ }
+}

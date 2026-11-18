@@ -32,14 +32,14 @@ Made by `python3 scripts/review-status.py` from `host/tests/test_cross_review_op
 | fixed | app | coding_companion/clean.py | The long-token rule starts at 32 characters; an AWS access key id has 20 and is shown on the robot's screen. | `test_cross_review_open_bugs_2.py::test_a_short_cloud_key_id_in_the_request_text_is_not_shown` |
 | fixed | app | coding_companion/server.py | _Handler has no socket timeout, so a local client that opens a connection and sends half a request holds a thread for good (and `rfile.read(length)` waits for a body that never comes). | `test_cross_review_open_bugs_2.py::test_the_coding_companion_endpoint_drops_a_client_that_sends_nothing` |
 | fixed | firmware | SF28 maipai_servo_clock_core.h | msc_limit_step() raises a zero step to 1, so with the limiter's scale at 0 (carried) the command still creeps toward the target by one tenth of a degree every step, about 5 degrees a second. | `test_cross_review_open_bugs_2.py::test_the_servo_clock_holds_the_command_when_the_speed_ceiling_is_zero` |
-| open | app | memory_notes/admission.py; red team of the fixed credential words | The refused words match whole words: "pass word", spaced letters, "secret word" and "wi-fi key" slip through. A word list can never be complete; the lasting fix is to refuse a note that holds a short  | `test_cross_review_open_bugs_3.py::test_a_note_that_spells_a_credential_word_apart_or_with_another_everyday_word_is_refused` |
-| open | app | memory_notes/admission.py; red team | The fold handles accents and look-alike letters but not digits used as letters (0 for o, 5 for s, 3 for e, 1 for l). | `test_cross_review_open_bugs_3.py::test_a_note_with_a_digit_for_a_letter_in_the_word_password_is_refused` |
-| open | app | memory_notes/admission.py; red team | Government ids are caught as social security and passport numbers; a driver license number and a vault or safe code are not. | `test_cross_review_open_bugs_3.py::test_a_note_with_a_driver_license_or_vault_code_number_is_refused` |
-| open | app | firmware/update_header.py; update path review, report 17 | The unit refuses a build number of 2^31 or more (SF37: it would be stored as a negative number); build_header() allows up to 2^32 - 1 and verify_package() accepts it, so the release script can make, a | `test_cross_review_open_bugs_3.py::test_the_host_does_not_make_or_offer_a_header_with_a_build_number_the_unit_refuses` |
+| fixed | app | memory_notes/admission.py; red team of the fixed credential words | The refused words match whole words: "pass word", spaced letters, "secret word" and "wi-fi key" slip through. A word list can never be complete; the lasting fix is to refuse a note that holds a short  | `test_cross_review_open_bugs_3.py::test_a_note_that_spells_a_credential_word_apart_or_with_another_everyday_word_is_refused` |
+| fixed | app | memory_notes/admission.py; red team | The fold handles accents and look-alike letters but not digits used as letters (0 for o, 5 for s, 3 for e, 1 for l). | `test_cross_review_open_bugs_3.py::test_a_note_with_a_digit_for_a_letter_in_the_word_password_is_refused` |
+| fixed | app | memory_notes/admission.py; red team | Government ids are caught as social security and passport numbers; a driver license number and a vault or safe code are not. | `test_cross_review_open_bugs_3.py::test_a_note_with_a_driver_license_or_vault_code_number_is_refused` |
+| fixed | app | firmware/update_header.py; update path review, report 17 | The unit refuses a build number of 2^31 or more (SF37: it would be stored as a negative number); build_header() allows up to 2^32 - 1 and verify_package() accepts it, so the release script can make, a | `test_cross_review_open_bugs_3.py::test_the_host_does_not_make_or_offer_a_header_with_a_build_number_the_unit_refuses` |
 
 ## Count by owner
 
 | Owner | Open | Fixed |
 |---|---|---|
-| app | 4 | 26 |
+| app | 0 | 30 |
 | firmware | 0 | 2 |
