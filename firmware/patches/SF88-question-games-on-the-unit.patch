@@ -1,0 +1,772 @@
+# Intent: The unit half of the question-and-answer games (owner decisions 25 to 27; screens UX17; interface docs/plan/qa-games-firmware.md): riddles, trivia and 20 Questions that the host runs. Tools self.qa.start, self.qa.question, self.qa.verdict, self.qa.end and self.qa.stop; events qa_answer, qa_giveup, qa_again, qa_quit and qa_ended; the state rules in maipai_qa_state_core.h (host-tested with a scripted host); the touch routing with the screens' own rectangles; the shared game-over screen with a saved best per game. The unit never decides what is right: an answer goes out as an event and the host's verdict comes back as a tool call. A riddle's words type at the speaking pace; a touch on them shows them whole; a riddle's answer, sent in the verdict text, stays under the words until Next. No message from the host for two minutes ends the game (host_gone). Full quiet, a lock, an update and another running game refuse or end it. Games never move the head: the file has no motion call.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_qa_game.cc, maipai_qa_game.h, maipai_qa_state_core.h (ours); five small hooks in maipai_games.cc next to the grid games' ones
+# Check after a flash: self.qa.start trivia then self.qa.question with four choices: the screen shows the question and four 148 by 56 tiles; a tap on a tile sends the event qa_answer with its number; self.qa.verdict shows the result for 1.2 s with a sound (muted is silent); a gap between tiles does nothing; self.qa.end shows the game-over screen, Play again sends qa_again, Quit sends qa_quit and shows the games page; Stop mid-game sends qa_ended with how quit; two minutes of silence from the host ends it with how host_gone; the riddle's words type at about 14 characters a second and a touch shows them whole. Plain boot memory gate unchanged.
+# Kconfig: none (compiled with MAIPAI_GAMES)
+# Memory cost: while a question game runs: one 800 byte state in PSRAM, about 15 LVGL objects at an estimated 150 bytes each in internal RAM (the screen is rebuilt, never kept twice), freed when the game ends; flash about 8 KB (estimate). Nothing is held while no game runs.
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -13,6 +13,7 @@
+ #include "maipai_listen.h"
+ #include "maipai_time_core.h"
+ #include "maipai_games_core.h"
++#include "maipai_qa_game.h"  // patch SF88: the question games the host runs
+ #include "maipai_grid.h"  // patch SF63: the grid games (Four in a Row, Memory Match)
+ #include "maipai_game_over.h"  // patch SF86: the shared game-over screen
+ #include "maipai_pages.h"
+@@ -838,7 +839,7 @@ const char* say(bool es, const char* en, const char* sp)
+ 
+ bool maipai_games_active()
+ {
+-    return s_active.load() || maipai_grid_active();
++    return s_active.load() || maipai_grid_active() || maipai_qa_active();
+ }
+ 
+ int maipai_games_count()
+@@ -910,7 +911,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     if (maipai_lock_locked()) {  // patch LK03
+         return say(es, "The unit is locked. Unlock it with the code on its screen first.", "La unidad esta bloqueada. Desbloqueala primero con el codigo en su pantalla.");
+     }
+-    if (s_game != nullptr || maipai_grid_active()) {
++    if (s_game != nullptr || maipai_grid_active() || maipai_qa_active()) {
+         return say(es, "A game is already running. Stop it first (swipe down from the bottom edge, or say stop), then start another.",
+                    "Ya hay un juego en marcha. Detenlo primero (desliza hacia abajo desde el borde inferior, o di para), y luego empieza otro.");
+     }
+@@ -1012,7 +1013,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+ 
+ bool maipai_games_stop_locked(const char* how)
+ {
+-    if (maipai_grid_stop_locked(how)) {
++    if (maipai_grid_stop_locked(how) || maipai_qa_stop_locked(how)) {
+         return true;
+     }
+     if (s_game == nullptr) {
+@@ -1024,7 +1025,7 @@ bool maipai_games_stop_locked(const char* how)
+ 
+ bool maipai_games_request_stop(const char* how)
+ {
+-    if (maipai_grid_request_stop(how)) {
++    if (maipai_grid_request_stop(how) || maipai_qa_request_stop(how)) {
+         return true;
+     }
+     if (!s_active.load()) {
+@@ -1037,6 +1038,7 @@ bool maipai_games_request_stop(const char* how)
+ void maipai_games_touch(int x, int y)
+ {
+     maipai_grid_touch(x, y);  // patch SF63: does nothing unless a grid game runs
++    maipai_qa_touch(x, y);    // patch SF88: nor unless a question game runs
+     Game* g = s_game;
+     if (g != nullptr && g->over_shown) {
+         game_over_tap(g, x, y);  // patch SF86
+@@ -1383,6 +1385,7 @@ void maipai_games_register_tools()
+                     return std::string("{\"ok\":true,\"game\":\"") + p.id + "\",\"lower_is_better\":" +
+                            ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(slot) + "}";
+                 });
++    maipai_qa_register_tools();  // patch SF88: self.qa.start, question, verdict, end, stop
+ #if CONFIG_MAIPAI_GAMES_BENCH
+     maipai_grid_register_bench_tools();  // patch SF75: self.game.bench_record and bench_frames for the grid games
+     mcp.AddTool("self.game.bench_tap", "Bench only: tap the running game's screen at x, y (screen pixels) as a finger would. "
+diff --git a/firmware/main/hal/maipai_qa_game.h b/firmware/main/hal/maipai_qa_game.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_qa_game.h
+@@ -0,0 +1,23 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The question-and-answer games, device side (patch SF88): riddles, trivia and 20 Questions that the host runs. The host makes the
++ * questions and judges the answers; the unit shows the screens (maipai_qa.h), takes the touches and reports them. Hooks called by
++ * maipai_games.cc, next to the grid games' ones. Every function but the atomics runs on the LVGL task with the lock held.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_GAMES
++bool maipai_qa_active();                      // any task
++bool maipai_qa_request_stop(const char* how);  // any task: the unit's own stop gestures
++bool maipai_qa_stop_locked(const char* how);
++void maipai_qa_touch(int x, int y);
++void maipai_qa_register_tools();
++#else
++inline bool maipai_qa_active() { return false; }
++inline bool maipai_qa_request_stop(const char*) { return false; }
++inline bool maipai_qa_stop_locked(const char*) { return false; }
++inline void maipai_qa_touch(int, int) {}
++inline void maipai_qa_register_tools() {}
++#endif
+diff --git a/firmware/main/hal/maipai_qa_game.cc b/firmware/main/hal/maipai_qa_game.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_qa_game.cc
+@@ -0,0 +1,500 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The question-and-answer games, device side (patch SF88). See maipai_qa_game.h and docs/plan/qa-games-firmware.md. The state rules
++ * are in maipai_qa_state_core.h (host-tested with a scripted host); the screens are maipai_qa.h; the end is the shared game-over
++ * screen (maipai_game_over.h). The unit never decides what is right: an answer goes out as an event, the host's verdict comes back as
++ * a tool call. No head motion, no camera: this file only draws and plays sounds.
++ */
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_GAMES
++#include "maipai_qa_game.h"
++#include "maipai_games.h"
++#include "maipai_games_input_core.h"
++#include "maipai_qa.h"
++#include "maipai_qa_state_core.h"
++#include "maipai_game_over.h"
++#include "maipai_pages.h"
++#include "maipai_pages_core.h"
++#include "maipai_banner.h"
++#include "maipai_face.h"
++#include "maipai_lock.h"
++#include "maipai_privacy.h"
++#include "maipai_sounds.h"
++#include "maipai_timers.h"
++#include "maipai_update.h"
++#include "device_events.h"
++#include "board/hal_bridge.h"
++#include "hal.h"
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <lvgl.h>
++#include <mcp_server.h>
++#include <nvs.h>
++#include <strings.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <string>
++
++namespace {
++const char* const kTag = "MAIPAI-QA";
++constexpr uint32_t kTickMs = 100;
++const char* const kGameId[4] = {"", "qa_riddle", "qa_trivia", "qa_twenty"};
++
++struct Qa {
++    qs_t st;
++    bool es;
++    lv_obj_t* root;      // the game's layer on top of everything
++    lv_obj_t* scr;       // the screen of the phase (rebuilt when the phase or the question changes)
++    mgo::Screen over;
++    bool over_shown;
++    lv_timer_t* timer;
++    int shown;           // characters of the riddle's words that show now
++    char question[100];
++    char choices[4][44];
++    char answer[72];
++    char vtext[64];
++};
++
++Qa* s_qa = nullptr;
++std::atomic<bool> s_active{false};
++std::atomic<const char*> s_stop_req{nullptr};
++
++uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++bool want_spanish()
++{
++#if CONFIG_MAIPAI_FACE_CONFIG
++    return maipai_face_config().lang == MF_LANG_ES;
++#else
++    return false;
++#endif
++}
++
++const char* say(bool es, const char* en, const char* sp) { return es ? sp : en; }
++
++std::string err(const char* why) { return std::string("{\"ok\":false,\"error\":\"") + why + "\"}"; }
++
++// ---- the saved best of each game (one number, higher is better) ----
++int load_best(int kind)
++{
++    nvs_handle_t h;
++    if (nvs_open("mp_qa", NVS_READONLY, &h) != ESP_OK) return 0;
++    int32_t v = 0;
++    if (nvs_get_i32(h, kGameId[kind], &v) != ESP_OK) v = 0;
++    nvs_close(h);
++    return v > 0 ? static_cast<int>(v) : 0;
++}
++
++void save_best(int kind, int score)
++{
++    nvs_handle_t h;
++    if (nvs_open("mp_qa", NVS_READWRITE, &h) != ESP_OK) {
++        ESP_LOGW(kTag, "could not save the best score of %s", kGameId[kind]);
++        return;
++    }
++    if (nvs_set_i32(h, kGameId[kind], score) != ESP_OK || nvs_commit(h) != ESP_OK) ESP_LOGW(kTag, "could not write the best score of %s", kGameId[kind]);
++    nvs_close(h);
++}
++
++// Cuts a text to `max` characters with dots, never inside a UTF-8 sequence; copies into out (size out_n).
++void cut_text(const char* in, int max, char* out, size_t out_n)
++{
++    int chars = 0;
++    size_t i = 0, last = 0;
++    while (in[i] != '\0' && i + 1 < out_n) {
++        if ((static_cast<uint8_t>(in[i]) & 0xC0) != 0x80) {
++            if (chars == max - 3) last = i;
++            if (chars == max) break;
++            chars++;
++        }
++        i++;
++    }
++    if (in[i] != '\0' && chars >= max) {  // too long: cut at max - 3 characters and add dots
++        if (last + 4 > out_n) last = out_n > 4 ? out_n - 4 : 0;
++        memcpy(out, in, last);
++        memcpy(out + last, "...", 4);
++        return;
++    }
++    size_t n = i < out_n - 1 ? i : out_n - 1;
++    while (n > 0 && (static_cast<uint8_t>(in[n]) & 0xC0) == 0x80) n--;  // the byte after the cut must start a character
++    memcpy(out, in, n);
++    out[n] = '\0';
++}
++
++void post(const Qa* g, const char* text, uint32_t ms) { maipai_banner_post(text, MB_ICON_CHECK, MB_PRIO_NOTICE, MB_TAG_GAME, ms); (void)g; }
++
++void end_locked(const char* how)
++{
++    Qa* g = s_qa;
++    if (g == nullptr) return;
++    s_qa = nullptr;
++    if (g->timer != nullptr) lv_timer_delete(g->timer);
++    if (g->root != nullptr) lv_obj_delete(g->root);  // every part is its child
++    char extra[96];
++    snprintf(extra, sizeof(extra), "\"game\":\"%s\",\"how\":\"%s\",\"score\":%d", kGameId[g->st.kind], how, static_cast<int>(g->st.score));
++    ESP_LOGI(kTag, "game %s ended (%s), score %d", kGameId[g->st.kind], how, static_cast<int>(g->st.score));
++    char extra2[120];
++    snprintf(extra2, sizeof(extra2), "%s,\"rank\":-1", extra);
++    heap_caps_free(g);
++    s_stop_req.store(nullptr);
++    s_active.store(false);
++    if (!maipai_timers_ringing()) hal_bridge::stop_word_arm(false);
++    device_events_push("qa_ended", extra);
++    device_events_push("game_ended", extra2);
++}
++
++// Draws the screen of the current phase over the game's layer.
++void build_screen(Qa* g)
++{
++    if (g->scr != nullptr) {
++        lv_obj_delete(g->scr);
++        g->scr = nullptr;
++    }
++    const bool es = g->es;
++    const qs_t& s = g->st;
++    if (s.phase == QS_WAIT) {
++        g->scr = mqa::root(g->root);
++        mqa::label(g->scr, say(es, "Thinking...", "Pensando..."), &lv_font_montserrat_20, 0xE8E8E8, 0, 96, MQA_W, LV_TEXT_ALIGN_CENTER);
++        mqa_rect_t b[2];
++        mqa_riddle_buttons(1, 0, b);
++        mqa::button(g->scr, b[1], mqa_word(MQA_B_STOP, es ? 1 : 0), 0x242424, 0x4A4A4A);
++    } else if (s.kind == QS_RIDDLE) {
++        g->scr = mqa::riddle(g->root, false, g->question, g->shown, s.revealed ? g->answer : "?", s.revealed != 0, es);
++    } else if (s.kind == QS_TRIVIA) {
++        const char* ans[4] = {g->choices[0], g->choices[1], g->choices[2], g->choices[3]};
++        g->scr = mqa::trivia(g->root, g->question, ans, s.n_choices, s.n, s.total, static_cast<int>(s.score), s.result, s.chosen, s.right, es);
++    } else {
++        g->scr = mqa::twenty(g->root, g->question, s.n, s.guess != 0, es);
++    }
++    mgo::set_pop(g->over, 0);
++}
++
++void sound(bool good)
++{
++    maipai_sounds_play(good ? "success" : "popup");  // the sound policy decides: muted is silent
++}
++
++void send_choice(const Qa* g, int ev)
++{
++    char extra[80];
++    switch (ev) {
++        case QE_CHOICE:
++            snprintf(extra, sizeof(extra), "\"id\":%d,\"choice\":%d", g->st.id, g->st.chosen);
++            device_events_push("qa_answer", extra);
++            break;
++        case QE_YES: case QE_NO: case QE_MAYBE:
++            snprintf(extra, sizeof(extra), "\"id\":%d,\"text\":\"%s\"", g->st.id, ev == QE_YES ? "yes" : (ev == QE_NO ? "no" : "maybe"));
++            device_events_push("qa_answer", extra);
++            break;
++        case QE_NEXT:
++            snprintf(extra, sizeof(extra), "\"id\":%d,\"text\":\"next\"", g->st.id);
++            device_events_push("qa_answer", extra);
++            break;
++        case QE_GIVEUP:
++            snprintf(extra, sizeof(extra), "\"id\":%d", g->st.id);
++            device_events_push("qa_giveup", extra);
++            break;
++        default: break;
++    }
++}
++
++void tick_cb(lv_timer_t*)
++{
++    Qa* g = s_qa;
++    if (g == nullptr) return;
++    if (const char* how = s_stop_req.exchange(nullptr)) {
++        end_locked(how);
++        return;
++    }
++    if (maipai_quiet()) {  // full quiet wins over everything
++        end_locked("quiet");
++        return;
++    }
++    if (maipai_update_active()) {
++        end_locked("update");
++        return;
++    }
++    const uint32_t now = now_ms();
++    switch (qs_tick(&g->st, now)) {
++        case QT_VERDICT_DONE:
++            build_screen(g);
++            break;
++        case QT_HOST_GONE:
++            post(g, say(g->es, "The questions stopped coming. Ask the robot to start again.", "Las preguntas dejaron de llegar. Pide al robot que empiece otra vez."), 3000);
++            end_locked("host_gone");
++            return;
++        case QT_OVER_IDLE:
++            end_locked("timeout");
++            return;
++        default: break;
++    }
++    if (g->st.phase == QS_ASK && g->st.kind == QS_RIDDLE) {  // the typed caption
++        const int total = static_cast<int>(strlen(g->question));
++        const int shown = qs_shown(&g->st, total, now);
++        if (shown != g->shown) {
++            g->shown = shown;
++            char buf[104];
++            snprintf(buf, sizeof(buf), "%.*s%s", shown, g->question, shown < total ? "_" : "");
++            lv_obj_t* w = g->scr != nullptr ? lv_obj_get_child(g->scr, 1) : nullptr;  // child 0 is the kind word, child 1 the words
++            if (w != nullptr) lv_label_set_text(w, buf);
++        }
++    }
++    hal_bridge::power_keep_awake();
++}
++
++void show_over(Qa* g, int result, const char* score_text)
++{
++    const int best = load_best(g->st.kind);
++    const bool record = g->st.score > 0 && g->st.score > best;
++    if (record) save_best(g->st.kind, static_cast<int>(g->st.score));
++    char best_text[40] = "";
++    if (best > 0 && !record) snprintf(best_text, sizeof(best_text), g->es ? "Mejor %d" : "Best %d", best);
++    if (g->scr != nullptr) {
++        lv_obj_delete(g->scr);
++        g->scr = nullptr;
++    }
++    g->over = mgo::build(g->root, result, score_text, best_text, record, g->es);
++    g->over_shown = true;
++    mgo::set_pop(g->over, 0);
++    if (result == MGO_WON) {
++        sound(true);
++        hal_bridge::react_face("happy", record ? 4000 : 3000);
++    }
++}
++
++const char* start_locked(int kind, bool es, int rounds)
++{
++    if (maipai_lock_locked()) return say(es, "The unit is locked. Unlock it with the code on its screen first.", "La unidad esta bloqueada. Desbloqueala primero con el codigo en su pantalla.");
++    if (s_qa != nullptr || maipai_games_active()) {
++        return say(es, "A game is already running. Stop it first (swipe down from the bottom edge, or say stop), then start another.",
++                   "Ya hay un juego en marcha. Detenlo primero (desliza hacia abajo desde el borde inferior, o di para), y luego empieza otro.");
++    }
++    if (maipai_quiet()) return say(es, "The unit is in full quiet, so no game starts. Turn full quiet off, then ask again.", "La unidad esta en silencio total, asi que no empieza ningun juego. Quita el silencio total y pidelo otra vez.");
++    if (maipai_update_active()) return say(es, "The unit is installing an update. Ask again when it has restarted.", "La unidad esta instalando una actualizacion. Pidelo otra vez cuando se reinicie.");
++    Qa* g = static_cast<Qa*>(heap_caps_calloc(1, sizeof(Qa), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (g == nullptr) return say(es, "The unit is low on memory. Restart it and try again.", "La unidad tiene poca memoria. Reiniciala e intentalo otra vez.");
++    g->es = es;
++    qs_start(&g->st, kind, rounds, now_ms());
++    g->root = lv_obj_create(lv_layer_top());
++    lv_obj_remove_style_all(g->root);
++    lv_obj_remove_flag(g->root, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(g->root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(g->root, MQA_W, MQA_H);
++    lv_obj_set_pos(g->root, 0, 0);
++    lv_obj_set_style_bg_color(g->root, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(g->root, LV_OPA_COVER, 0);
++    s_qa = g;
++    s_active.store(true);
++    s_stop_req.store(nullptr);
++    g->timer = lv_timer_create(tick_cb, kTickMs, nullptr);
++    if (!maipai_mic_blocked()) hal_bridge::stop_word_arm(true);  // best effort: the stop word ends a game
++    hal_bridge::power_keep_awake();
++    build_screen(g);
++    char extra[60];
++    snprintf(extra, sizeof(extra), "\"game\":\"%s\",\"source\":\"host\"", kGameId[kind]);
++    device_events_push("game_started", extra);
++    ESP_LOGI(kTag, "game %s started", kGameId[kind]);
++    return "";
++}
++
++void game_over_tap(Qa* g, int x, int y)
++{
++    const int b = mgo_hit(x, y);
++    if (b == MGO_BTN_NONE) return;
++    char extra[40];
++    snprintf(extra, sizeof(extra), "\"game\":\"%s\"", kGameId[g->st.kind]);
++    if (b == MGO_BTN_AGAIN) {
++        device_events_push("qa_again", extra);
++        if (g->over.root != nullptr) lv_obj_delete(g->over.root);
++        g->over = {};
++        g->over_shown = false;
++        qs_again(&g->st, now_ms());
++        build_screen(g);
++    } else {
++        device_events_push("qa_quit", extra);
++        end_locked("quit");
++        (void)maipai_pages_show(MPG_P_GAMES);
++    }
++}
++
++}  // namespace
++
++bool maipai_qa_active() { return s_active.load(); }
++
++bool maipai_qa_request_stop(const char* how)
++{
++    if (!s_active.load()) return false;
++    s_stop_req.store(how);
++    return true;
++}
++
++bool maipai_qa_stop_locked(const char* how)
++{
++    if (s_qa == nullptr) return false;
++    end_locked(how != nullptr ? how : "stopped");
++    return true;
++}
++
++void maipai_qa_touch(int x, int y)
++{
++    Qa* g = s_qa;
++    if (g == nullptr) return;
++    if (mg_drag_press_dead(y)) return;
++    const uint32_t now = now_ms();
++    if (g->over_shown) {
++        game_over_tap(g, x, y);
++        return;
++    }
++    mqa_rect_t r[6];
++    int n = 0;
++    qs_t& s = g->st;
++    if (s.phase == QS_WAIT) {
++        mqa_riddle_buttons(1, 0, r);
++        r[0] = r[1];
++        n = 1;
++    } else if (s.kind == QS_RIDDLE) n = mqa_riddle_buttons(1, s.revealed, r);
++    else if (s.kind == QS_TRIVIA) n = mqa_trivia_buttons(s.n_choices, r);
++    else n = mqa_twenty_buttons(r);
++    const int b = mqa_hit(r, n, x, y);
++    if (b == MQA_B_NONE) {
++        if (s.phase == QS_ASK && y >= MQA_BODY_Y && y < MQA_BODY_Y + 72) {  // a touch on the words shows them whole
++            qs_show_whole(&s);
++            g->shown = static_cast<int>(strlen(g->question));
++            build_screen(g);
++        }
++        return;
++    }
++    const int ev = qs_tap(&s, b, now);
++    if (ev == QE_STOP) {
++        end_locked("quit");
++        return;
++    }
++    if (ev == QE_NONE) return;
++    send_choice(g, ev);
++    if (ev == QE_NEXT) g->shown = 0;
++    build_screen(g);
++}
++
++void maipai_qa_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.qa.start",
++                "Start a question game on the screen: riddle, trivia or twenty (20 Questions). lang is en or es (empty: the unit's language), rounds 3 to 20 (trivia). "
++                "The unit shows a thinking screen and waits for self.qa.question. No message from you for 2 minutes ends the game. Answers {ok}.",
++                PropertyList({Property("game", kPropertyTypeString, std::string("trivia")), Property("lang", kPropertyTypeString, std::string("")),
++                              Property("rounds", kPropertyTypeInteger, 10, 3, 20)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string game = properties["game"].value<std::string>();
++                    const std::string lang = properties["lang"].value<std::string>();
++                    int kind = 0;
++                    if (strcasecmp(game.c_str(), "riddle") == 0) kind = QS_RIDDLE;
++                    else if (strcasecmp(game.c_str(), "trivia") == 0) kind = QS_TRIVIA;
++                    else if (strcasecmp(game.c_str(), "twenty") == 0) kind = QS_TWENTY;
++                    if (kind == 0) return err("The game must be riddle, trivia or twenty. Send one of those three.");
++                    const bool es = lang.empty() ? want_spanish() : strncasecmp(lang.c_str(), "es", 2) == 0;
++                    const char* why;
++                    {
++                        LvglLockGuard lock;
++                        why = start_locked(kind, es, properties["rounds"].value<int>());
++                    }
++                    if (why[0] != '\0') return err(why);
++                    return std::string("{\"ok\":true}");
++                });
++    mcp.AddTool("self.qa.question",
++                "Show the next question of the running question game. text is cut at 96 characters; choices (trivia: 2 to 4 texts of at most 40 characters, "
++                "separated by a | character; riddle and twenty: empty); guess true marks a 20 Questions guess. A riddle's words type at the speaking pace. "
++                "Allowed after start, after a verdict, or after the person's answer. Answers {ok} or an error that names the problem.",
++                PropertyList({Property("id", kPropertyTypeInteger, 1, 0, 65535), Property("text", kPropertyTypeString, std::string("")),
++                              Property("choices", kPropertyTypeString, std::string("")), Property("hint", kPropertyTypeString, std::string("")),
++                              Property("guess", kPropertyTypeBoolean, false)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    LvglLockGuard lock;
++                    Qa* g = s_qa;
++                    if (g == nullptr) return err("No question game is running. Start one with self.qa.start first.");
++                    const std::string text = properties["text"].value<std::string>();
++                    const std::string choices = properties["choices"].value<std::string>();
++                    if (text.empty()) return err("The question text is empty. Send the words of the question.");
++                    int n = 0;
++                    char tmp[4][44] = {};
++                    size_t pos = 0;
++                    while (n < 5 && !choices.empty() && pos <= choices.size()) {
++                        const size_t bar = choices.find('|', pos);
++                        const std::string one = choices.substr(pos, bar == std::string::npos ? std::string::npos : bar - pos);
++                        if (n < 4) cut_text(one.c_str(), QS_CHOICE_MAX, tmp[n], sizeof(tmp[n]));
++                        n++;
++                        if (bar == std::string::npos) break;
++                        pos = bar + 1;
++                    }
++                    const int r = qs_question(&g->st, properties["id"].value<int>(), n, properties["guess"].value<bool>() ? 1 : 0, now_ms());
++                    if (r == QR_NOT_RUNNING) return err("The game is over. Start a new one with self.qa.start.");
++                    if (r == QR_WRONG_PHASE) return err("The last question has no answer yet. Wait for the person's answer before the next question.");
++                    if (r == QR_BAD_CHOICES) return err("Trivia needs 2 to 4 choices separated by a | character, and the other games need none.");
++                    if (r != QR_OK) return err("The question could not be shown. Check the id.");
++                    cut_text(text.c_str(), MQA_MAX, g->question, sizeof(g->question));
++                    memcpy(g->choices, tmp, sizeof(tmp));
++                    g->shown = 0;
++                    g->answer[0] = '\0';
++                    build_screen(g);
++                    return std::string("{\"ok\":true}");
++                });
++    mcp.AddTool("self.qa.verdict",
++                "Tell the unit if the person's answer was right: shows the result for 1.2 s with a sound. correct true or false; right is the number (0 based) of the "
++                "right choice in trivia (-1 if unknown); text is up to 60 characters (a riddle's answer, which then stays under the words until Next); score is the "
++                "current score. Answers {ok} or an error.",
++                PropertyList({Property("id", kPropertyTypeInteger, 1, 0, 65535), Property("correct", kPropertyTypeBoolean, false), Property("right", kPropertyTypeInteger, -1, -1, 3),
++                              Property("text", kPropertyTypeString, std::string("")), Property("score", kPropertyTypeInteger, 0, 0, 100000)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    LvglLockGuard lock;
++                    Qa* g = s_qa;
++                    if (g == nullptr) return err("No question game is running. Start one with self.qa.start first.");
++                    const std::string text = properties["text"].value<std::string>();
++                    const bool correct = properties["correct"].value<bool>();
++                    const int r = qs_verdict(&g->st, properties["id"].value<int>(), correct ? 1 : 0, properties["right"].value<int>(), text.empty() ? 0 : 1,
++                                             properties["score"].value<int>(), now_ms());
++                    if (r == QR_NOT_RUNNING) return err("The game is over. Start a new one with self.qa.start.");
++                    if (r == QR_WRONG_PHASE) return err("There is no question waiting for a verdict. Send a question first.");
++                    if (r == QR_BAD_ID) return err("The id is not the question on the screen. Send the id you gave the question.");
++                    cut_text(text.c_str(), 60, g->vtext, sizeof(g->vtext));
++                    if (g->st.kind == QS_RIDDLE) {
++                        cut_text(text.c_str(), 60, g->answer, sizeof(g->answer));
++                    } else {
++                        sound(correct);
++                        if (!text.empty()) post(g, g->vtext, 1200);
++                    }
++                    build_screen(g);
++                    return std::string("{\"ok\":true}");
++                });
++    mcp.AddTool("self.qa.end",
++                "End the running question game on the shared game-over screen: result won, lost or draw; score_text is the score line (up to 30 characters); score is "
++                "the number the unit compares with its saved best. Play again sends the event qa_again and waits for the next question. Answers {ok} or an error.",
++                PropertyList({Property("result", kPropertyTypeString, std::string("won")), Property("score_text", kPropertyTypeString, std::string("")),
++                              Property("score", kPropertyTypeInteger, 0, 0, 100000)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    LvglLockGuard lock;
++                    Qa* g = s_qa;
++                    if (g == nullptr) return err("No question game is running. Start one with self.qa.start first.");
++                    const std::string res = properties["result"].value<std::string>();
++                    int result = MGO_WON;
++                    if (strcasecmp(res.c_str(), "lost") == 0) result = MGO_LOST;
++                    else if (strcasecmp(res.c_str(), "draw") == 0) result = MGO_DRAW;
++                    else if (strcasecmp(res.c_str(), "won") != 0) return err("The result must be won, lost or draw. Send one of those three.");
++                    if (qs_end(&g->st, properties["score"].value<int>(), now_ms()) != QR_OK) return err("The game is already over.");
++                    char line[40];
++                    cut_text(properties["score_text"].value<std::string>().c_str(), 30, line, sizeof(line));
++                    show_over(g, result, line);
++                    return std::string("{\"ok\":true}");
++                });
++    mcp.AddTool("self.qa.stop", "End the running question game at once (the host going away, a new turn). Answers {ok, was_running}.", std::vector<Property>{},
++                [](const PropertyList&) -> ReturnValue {
++                    LvglLockGuard lock;
++                    const bool was = s_qa != nullptr;
++                    end_locked("host");
++                    return std::string("{\"ok\":true,\"was_running\":") + (was ? "true" : "false") + "}";
++                });
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_qa_state_core.h b/firmware/main/hal/maipai_qa_state_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_qa_state_core.h
+@@ -0,0 +1,164 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The state machine of the question-and-answer games (patch SF88; screens in maipai_qa.h and maipai_qa_core.h; interface in
++ * docs/plan/qa-games-firmware.md). The host makes the questions and decides what is right; the unit shows them, takes the person's
++ * answer and reports it. This core holds only the phase, the counters and the clock rules, so a scripted host can test it on a PC:
++ * plain C99, no ESP and no LVGL call.
++ *
++ * Phases: WAIT (a thinking screen: the host owes the next question), ASK (a question shows, an answer may be taken), SENT (the answer
++ * went to the host, taps do nothing until its verdict), VERDICT (the verdict shows for 1.2 s; a riddle's answer stays until Next),
++ * OVER (the shared game-over screen).
++ */
++#ifndef MAIPAI_QA_STATE_CORE_H
++#define MAIPAI_QA_STATE_CORE_H
++
++#include <stdint.h>
++#include "maipai_qa_core.h"
++
++enum { QS_RIDDLE = 1, QS_TRIVIA, QS_TWENTY };
++enum { QS_IDLE = 0, QS_WAIT, QS_ASK, QS_SENT, QS_VERDICT, QS_OVER };
++/* what a tap asks the unit to report to the host */
++enum { QE_NONE = 0, QE_CHOICE, QE_YES, QE_NO, QE_MAYBE, QE_NEXT, QE_GIVEUP, QE_STOP };
++/* what a tick found */
++enum { QT_NONE = 0, QT_VERDICT_DONE, QT_HOST_GONE, QT_OVER_IDLE };
++/* why a host message was refused */
++enum { QR_OK = 0, QR_NOT_RUNNING, QR_WRONG_PHASE, QR_BAD_ID, QR_BAD_TEXT, QR_BAD_CHOICES };
++
++#define QS_HOST_GONE_MS 120000u
++#define QS_VERDICT_MS 1200u
++#define QS_OVER_IDLE_MS 60000u
++#define QS_TYPE_CPS 14           /* the voice's pace, and the mumble's: characters a second */
++#define QS_ROUNDS_MIN 3
++#define QS_ROUNDS_MAX 20
++#define QS_CHOICE_MAX 40
++
++typedef struct {
++    uint8_t kind, phase;
++    uint8_t n_choices;            /* trivia: 2 to 4 */
++    uint8_t has_answer;           /* riddle: the verdict brought the answer text */
++    uint8_t revealed;             /* riddle: the answer shows */
++    uint8_t guess;                /* twenty: the robot is guessing */
++    uint8_t result;               /* trivia: 0 none, 1 right, 2 wrong */
++    uint8_t whole;                /* a tap showed the whole question */
++    int8_t chosen, right;
++    uint16_t id;                  /* the question the screen shows */
++    uint16_t n, total;            /* question number and rounds (trivia) */
++    int32_t score;
++    uint32_t last_host_ms, phase_ms, typed_ms;
++} qs_t;
++
++static inline void qs_start(qs_t* s, int kind, int rounds, uint32_t now)
++{
++    memset(s, 0, sizeof(*s));
++    s->kind = (uint8_t)kind;
++    s->phase = QS_WAIT;
++    s->total = (uint16_t)(kind == QS_TRIVIA ? (rounds < QS_ROUNDS_MIN ? 10 : (rounds > QS_ROUNDS_MAX ? QS_ROUNDS_MAX : rounds)) : (kind == QS_TWENTY ? 20 : 0));
++    s->chosen = s->right = -1;
++    s->last_host_ms = s->phase_ms = now;
++}
++
++/* The host's next question (any text up to the cut is the caller's job). choices: trivia needs 2 to 4, the others none. */
++static inline int qs_question(qs_t* s, int id, int n_choices, int guess, uint32_t now)
++{
++    if (s->phase == QS_IDLE || s->phase == QS_OVER) return QR_NOT_RUNNING;
++    if (s->phase == QS_ASK) return QR_WRONG_PHASE;   /* the last question is still unanswered: the host waits for the answer */
++    if (id < 0 || id > 65535) return QR_BAD_ID;
++    if (s->kind == QS_TRIVIA ? (n_choices < 2 || n_choices > 4) : n_choices != 0) return QR_BAD_CHOICES;
++    s->id = (uint16_t)id;
++    s->n_choices = (uint8_t)n_choices;
++    s->guess = (uint8_t)(guess ? 1 : 0);
++    s->has_answer = s->revealed = s->result = s->whole = 0;
++    s->chosen = s->right = -1;
++    s->n++;
++    s->phase = QS_ASK;
++    s->last_host_ms = s->phase_ms = s->typed_ms = now;
++    return QR_OK;
++}
++
++/* A tap on a button of the screen (a MQA_B_* id). Returns what to report; the phase moves on when an answer is given. */
++static inline int qs_tap(qs_t* s, int button, uint32_t now)
++{
++    if (button == MQA_B_NONE) return QE_NONE;
++    if (button == MQA_B_STOP && s->phase != QS_OVER && s->phase != QS_IDLE) return QE_STOP;   /* Stop works in every phase */
++    if (s->phase == QS_VERDICT && s->kind == QS_RIDDLE && s->revealed && button == MQA_B_NEXT) {
++        s->phase = QS_WAIT;
++        s->phase_ms = now;
++        return QE_NEXT;
++    }
++    if (s->phase != QS_ASK) return QE_NONE;
++    int ev = QE_NONE;
++    if (s->kind == QS_TRIVIA && button >= MQA_B_ANSWER0 && button <= MQA_B_ANSWER3 && button - MQA_B_ANSWER0 < s->n_choices) {
++        s->chosen = (int8_t)(button - MQA_B_ANSWER0);
++        ev = QE_CHOICE;
++    } else if (s->kind == QS_TWENTY && button == MQA_B_YES) ev = QE_YES;
++    else if (s->kind == QS_TWENTY && button == MQA_B_NO) ev = QE_NO;
++    else if (s->kind == QS_TWENTY && button == MQA_B_MAYBE) ev = QE_MAYBE;
++    else if (s->kind == QS_TWENTY && button == MQA_B_GIVE_UP) ev = QE_GIVEUP;
++    else if (s->kind == QS_RIDDLE && button == MQA_B_REVEAL && !s->has_answer) ev = QE_GIVEUP;   /* Reveal: the host sends the answer */
++    else if (s->kind == QS_RIDDLE && button == MQA_B_NEXT) ev = QE_NEXT;
++    if (ev != QE_NONE) {
++        s->phase = QS_SENT;
++        s->phase_ms = now;
++    }
++    return ev;
++}
++
++/* The host's verdict on the answer (or the riddle's answer after Reveal). right: the right choice (trivia), -1 when unknown. */
++static inline int qs_verdict(qs_t* s, int id, int correct, int right, int has_text, int32_t score, uint32_t now)
++{
++    if (s->phase == QS_IDLE || s->phase == QS_OVER) return QR_NOT_RUNNING;
++    if (s->phase != QS_SENT && s->phase != QS_ASK) return QR_WRONG_PHASE;
++    if (id != s->id) return QR_BAD_ID;
++    s->score = score < 0 ? 0 : score;
++    if (s->kind == QS_TRIVIA) {
++        s->result = (uint8_t)(correct ? 1 : 2);
++        s->right = (int8_t)(correct ? s->chosen : (right >= 0 && right < s->n_choices ? right : -1));
++    } else if (s->kind == QS_RIDDLE && has_text) {
++        s->has_answer = s->revealed = 1;   /* the answer shows under the words; Next moves on */
++    }
++    s->phase = QS_VERDICT;
++    s->phase_ms = s->last_host_ms = now;
++    return QR_OK;
++}
++
++/* The host ends the game: the shared game-over screen. */
++static inline int qs_end(qs_t* s, int32_t score, uint32_t now)
++{
++    if (s->phase == QS_IDLE || s->phase == QS_OVER) return QR_NOT_RUNNING;
++    s->score = score < 0 ? 0 : score;
++    s->phase = QS_OVER;
++    s->phase_ms = s->last_host_ms = now;
++    return QR_OK;
++}
++
++/* Play again on the game-over screen: back to the waiting screen with fresh counters. */
++static inline void qs_again(qs_t* s, uint32_t now)
++{
++    const int kind = s->kind, total = s->total;
++    qs_start(s, kind, total, now);
++}
++
++static inline int qs_tick(qs_t* s, uint32_t now)
++{
++    if (s->phase == QS_VERDICT && !(s->kind == QS_RIDDLE && s->revealed) && now - s->phase_ms >= QS_VERDICT_MS) {
++        s->phase = QS_WAIT;   /* the host owes the next question or the end */
++        s->phase_ms = now;
++        s->last_host_ms = now;
++        return QT_VERDICT_DONE;
++    }
++    if (s->phase == QS_OVER) return now - s->phase_ms >= QS_OVER_IDLE_MS ? QT_OVER_IDLE : QT_NONE;
++    if ((s->phase == QS_WAIT || s->phase == QS_SENT || s->phase == QS_ASK) && now - s->last_host_ms >= QS_HOST_GONE_MS) return QT_HOST_GONE;
++    return QT_NONE;
++}
++
++/* The characters of the question a typed caption shows now. */
++static inline int qs_shown(const qs_t* s, int total, uint32_t now)
++{
++    if (s->phase != QS_ASK || s->whole) return total;
++    return mqa_typed_chars(total, now - s->typed_ms, QS_TYPE_CPS);
++}
++/* A tap on the question while it types: show it whole. */
++static inline void qs_show_whole(qs_t* s) { s->whole = 1; }
++
++#endif

@@ -829,6 +829,21 @@
    "freed_when": "when the caption ends, on the wake word or an abort, or when a new sentence replaces it",
    "status": "estimate",
    "source": "patch SF87: a 12,800 byte render buffer and at most 401 bytes of text in PSRAM; the idle state (one mm_t, a 12-note ring, a mutex, a timer) is about 250 bytes internal and is not counted here; flash is an estimate; measure with two self.bench.heap_info calls (idle, mumbling)"
+  },
+  {
+   "id": "screen.qa_games",
+   "kind": "screen",
+   "name": "The question games (riddle, trivia, 20 Questions) while one runs",
+   "internal": 2400,
+   "psram": 800,
+   "flash": 8000,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when the host calls self.qa.start",
+   "freed_when": "when the game ends (quit, stop, host_gone, update, quiet) or the game-over screen is left",
+   "status": "estimate",
+   "source": "patch SF88: about 15 LVGL objects at an estimated 150 bytes each (the screen of a phase is deleted before the next is built); an 800 byte state in PSRAM; flash is an estimate; measure with two self.bench.heap_info calls (idle, a trivia question showing)"
   }
  ]
 }

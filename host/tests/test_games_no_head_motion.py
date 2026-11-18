@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PATCHES = ROOT / "firmware" / "patches"
-FILES = re.compile(r"^diff --git a/firmware/main/hal/(maipai_games\w*|maipai_grid\w*)\.(cc|h)\b")
+FILES = re.compile(r"^diff --git a/firmware/main/hal/(maipai_games\w*|maipai_grid\w*|maipai_qa\w*)\.(cc|h)\b")
 FORBIDDEN = re.compile(r"motion\(\)|moveWithSpeed|moveWithSpringParams|GetStackChan|yawServo|pitchServo|setTorque|EnableTorque|op_head|maipai_dance_play|stackchan/motion")
 
 
