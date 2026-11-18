@@ -27,7 +27,13 @@ NOT_INSTALLED = "I could not reach the model at the configured model; check robo
 
 
 def _endpoint(base: str, path: str) -> str:
-    return base.rstrip("/") if base.rstrip("/").endswith(path) else base.rstrip("/") + path
+    """Join an OpenAI-style base and a /v1/... path; a base already ending in /v1 or the full path is kept."""
+    base = base.rstrip("/")
+    if base.endswith(path):
+        return base
+    if base.endswith("/v1") and path.startswith("/v1/"):
+        return base + path[3:]
+    return base + path
 
 
 def _sentences(text: str) -> tuple[list[str], str]:

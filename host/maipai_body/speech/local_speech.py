@@ -136,8 +136,9 @@ class LocalSttClient:
 
     def __init__(
         self,
-        stt_url: str,
+        stt_url: str | None,
         *,
+        engine=None,
         model: str = "",
         session: requests.Session | None = None,
         timeout_s: float = 30.0,
@@ -145,12 +146,19 @@ class LocalSttClient:
         wait=lambda: "quick",
     ) -> None:
         self._wait = wait
-        self._url = _url(stt_url, "/v1/audio/transcriptions")
+        # No address means the built-in engine (`engine.transcribe(samples, rate)`).
+        self._engine = engine
+        self._url = _url(stt_url, "/v1/audio/transcriptions") if stt_url else "built-in engine/v1"
         self._model, self._timeout = model, timeout_s
         self._session = session or requests.Session()
         self._patience = wake_patience_s
 
     def _transcribe(self, samples: np.ndarray) -> str:
+        if self._engine is not None:
+            try:
+                return str(self._engine().transcribe(samples, 16000)).strip()
+            except Exception as exc:
+                raise SttStreamError(f"built-in speech-to-text failed: {exc}") from exc
         try:
             response = self._session.post(
                 self._url,
@@ -247,7 +255,11 @@ class LocalSttClient:
             text=text,
             audio=samples,
             speech_s=total,
-            engine=f"local speech server {self._url.split('/v1')[0]}",
+            engine=(
+                "built-in speech engine"
+                if self._engine is not None
+                else f"local speech server {self._url.split('/v1')[0]}"
+            ),
         )
 
 
@@ -256,14 +268,16 @@ class LocalTtsClient:
 
     def __init__(
         self,
-        tts_url: str,
+        tts_url: str | None,
         playback,
         *,
+        engine=None,
         model: str = "",
         session: requests.Session | None = None,
         timeout_s: float = 60.0,
     ) -> None:
-        self._url = _url(tts_url, "/v1/audio/speech")
+        self._engine = engine  # callable returning an object with synthesize(text); None means the address
+        self._url = _url(tts_url, "/v1/audio/speech") if tts_url else ""
         self._playback, self._model, self._timeout = playback, model, timeout_s
         self._session = session or requests.Session()
 
@@ -277,6 +291,8 @@ class LocalTtsClient:
         generation=None,
     ) -> TtsResult:
         generation = self._playback.generation
+        if self._engine is not None:
+            return self._speak_built_in(text, stop_event, generation, on_first_chunk)
         try:
             response = self._session.post(
                 self._url,
@@ -307,3 +323,60 @@ class LocalTtsClient:
         if on_first_chunk is not None:
             on_first_chunk()
         return TtsResult(kind="done", first_chunk_pushed=True)
+
+    def _speak_built_in(self, text, stop_event, generation, on_first_chunk) -> TtsResult:
+        try:
+            segments = self._engine().synthesize(text)
+        except Exception as exc:
+            raise TtsLinkLost(f"built-in text-to-speech failed: {exc}") from exc
+        pushed = False
+        for segment in segments:
+            if stop_event is not None and stop_event.is_set():
+                return TtsResult(kind="canceled")
+            audio = resample_audio(
+                segment.samples, segment.sample_rate, self._playback.output_samplerate()
+            )
+            if not self._playback.push(audio, generation=generation):
+                return TtsResult(kind="canceled")
+            if not pushed and on_first_chunk is not None:
+                on_first_chunk()
+            pushed = True
+        return TtsResult(kind="done", first_chunk_pushed=pushed)
+
+
+def builtin_stt_factory(llm):
+    """A callable that builds the built-in speech-to-text engine once, from [llm] model folders."""
+    cache: list = []
+
+    def get():
+        if not cache:
+            if not llm.stt_model_dir:
+                raise RuntimeError(
+                    "No speech-to-text is set. Set stt_url under [llm] in robot.toml, or "
+                    "stt_model_dir to a speech model folder."
+                )
+            from maipai_body.speech.sherpa_engines import MoonshineStt
+
+            cache.append(MoonshineStt(Path(llm.stt_model_dir)))
+        return cache[0]
+
+    return get
+
+
+def builtin_tts_factory(llm):
+    """The same for text-to-speech, from tts_model, tts_tokens and tts_data_dir."""
+    cache: list = []
+
+    def get():
+        if not cache:
+            if not all((llm.tts_model, llm.tts_tokens, llm.tts_data_dir)):
+                raise RuntimeError(
+                    "No text-to-speech is set. Set tts_url under [llm] in robot.toml, or "
+                    "tts_model, tts_tokens and tts_data_dir to a voice model."
+                )
+            from maipai_body.speech.sherpa_engines import PiperTts
+
+            cache.append(PiperTts("local", llm.tts_model, llm.tts_tokens, llm.tts_data_dir))
+        return cache[0]
+
+    return get

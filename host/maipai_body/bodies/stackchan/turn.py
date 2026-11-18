@@ -726,12 +726,16 @@ class StackChanTurnBridge:
         if self._local_speech is not None:
             from maipai_body.speech.local_speech import LocalSttClient, LocalTtsClient
 
-            stt_url, tts_url, timeout = self._local_speech
+            from maipai_body.speech.local_speech import builtin_stt_factory, builtin_tts_factory
+
+            stt_url, tts_url, timeout, llm_config = self._local_speech
+            stt_engine = None if stt_url else builtin_stt_factory(llm_config)
+            tts_engine = None if tts_url else builtin_tts_factory(llm_config)
             self.stt_factory = lambda _base, _cookie: LocalSttClient(
-                stt_url, timeout_s=timeout, wait=lambda: self._wait_level
+                stt_url, engine=stt_engine, timeout_s=timeout, wait=lambda: self._wait_level
             )
             self.tts_factory = lambda _base, _cookie, playback: LocalTtsClient(
-                tts_url, playback, timeout_s=timeout
+                tts_url, playback, engine=tts_engine, timeout_s=timeout
             )
         self.person_attribution = person_attribution or (lambda: None)
         self.expression_sink = expression_sink
@@ -1120,14 +1124,14 @@ class StackChanTurnBridge:
 
     @staticmethod
     def _local_speech_from(units):
-        """(stt_url, tts_url, timeout) when robot.toml sets a model and both speech servers: the
-        host then runs with no Home (speech through those two addresses, the model through [llm])."""
+        """(stt_url, tts_url, timeout, llm) when robot.toml sets a model and the brain is not Home:
+        the host then runs with no Home. A missing speech address means the built-in engine."""
         base = getattr(units, "base", None)
         llm = getattr(base, "llm", None)
         if llm is None or getattr(base, "brain", "llm") == "home":
             return None
-        if llm.url and llm.stt_url and llm.tts_url:
-            return llm.stt_url, llm.tts_url, float(llm.timeout_seconds)
+        if llm.url:
+            return llm.stt_url or None, llm.tts_url or None, float(llm.timeout_seconds), llm
         return None
 
     def _noise_level(self, device_id: str) -> str:
