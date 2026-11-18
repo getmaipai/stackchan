@@ -372,9 +372,15 @@ async def fleet_orientation(rig, check) -> None:
             u.vu.call("self.robot.get_events", {})
             u.vu.state["motion"]["events"].append({"kind": "orientation", "at_ms": u.vu.now_ms, "axis": "-x"})
 
+    def spoke(u) -> int:
+        return len([e for e in u.fw.events_seen if e.startswith("tts:")])
+
     base = lines()
+    said = {u.index: spoke(u) for u in units}
     await tip(units[1])
     check("unit 1's tip was handled", await wait_for(lambda: lines() > base, 20.0), f"lines {lines() - base}")
+    check("unit 1 said its own pose line aloud (spoken reactions on an extra unit)", await wait_for(lambda: spoke(units[1]) > said[1], 20.0), str({u.index: spoke(u) for u in units}))
+    check("no other unit spoke", spoke(units[0]) == said[0] and spoke(units[2]) == said[2], str({u.index: spoke(u) for u in units}))
     await asyncio.sleep(3.0)
     check("it was handled once, not by every unit", lines() == base + 1, f"lines {lines() - base}")
     await tip(units[2])

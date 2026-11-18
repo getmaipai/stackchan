@@ -2590,7 +2590,7 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
         extra.head_busy = head_busy
         unit_reactions = Reactions(
             face=lambda expression: extra.show_face(expression, while_listening=True),
-            say=lambda _text: False,  # the host speaks reactions only with one unit connected (turn.py speak_reaction)
+            say=lambda text: bridge.speak_reaction(text, device_id),  # this unit's own line: only its own turn, speech and mute decide
             quiet=lambda: night.night,
             busy=extra.reaction_blocked,
             head_moved_ago=extra.head_moved_ago,
@@ -2610,7 +2610,7 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
 
         orientation = OrientationReactions(
             face=lambda expression: extra.show_face(expression, while_listening=False),
-            say=lambda _text: False,  # spoken lines only with one unit connected (turn.py speak_reaction)
+            say=lambda text: bridge.speak_reaction(text, device_id),
             rotate=rotate,
             hold_motion=lambda _held: None,  # the unit's own limiter (ML01) already holds a unit that is not upright
             quiet=lambda: ("night mode is on" if night.night else "") or ("asleep" if extra._rest.stage != "awake" else ""),
