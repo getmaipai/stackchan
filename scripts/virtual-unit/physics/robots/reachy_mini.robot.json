@@ -1,0 +1,143 @@
+{
+ "schema": "robot-description/1",
+ "robot": "reachy_mini",
+ "note": "Stub description of the second desk robot. Only the numbers the host profile already holds are measured; every physical number (mass, gains) is assumed until a bench recording fits it. Angles in degrees in this file. A model builder for the 6-DoF head is not written yet: the physics playground cannot run this robot, the description exists so the seam and the shared records can be checked against a second layout.",
+ "capabilities": [
+  "head_6dof",
+  "appendages",
+  "imu"
+ ],
+ "frame": "x forward, y left, z up, origin on the body yaw axis at table height",
+ "params": {
+  "head_yaw_range_deg": {
+   "v": [
+    -180,
+    180
+   ],
+   "src": "measured",
+   "note": "docs/dev/design-reachy-mini-2026-09-27.md section 1 (the maker's docs, read 2026-09-27)"
+  },
+  "head_pitch_range_deg": {
+   "v": [
+    -40,
+    40
+   ],
+   "src": "measured",
+   "note": "docs/dev/design-reachy-mini-2026-09-27.md section 1 (the maker's docs, read 2026-09-27)"
+  },
+  "head_roll_range_deg": {
+   "v": [
+    -40,
+    40
+   ],
+   "src": "measured",
+   "note": "docs/dev/design-reachy-mini-2026-09-27.md section 1 (the maker's docs, read 2026-09-27)"
+  },
+  "antenna_range_deg": {
+   "v": [
+    -180,
+    180
+   ],
+   "src": "measured",
+   "note": "the running daemon's kinematics description, antenna joint limits (pi radians), verified 2026-09-27"
+  },
+  "head_kp": {
+   "v": 1.0,
+   "src": "assumed",
+   "note": "position gain, N m per rad, stand-in until calibrate.py fits a bench recording"
+  },
+  "head_kv": {
+   "v": 0.01,
+   "src": "assumed",
+   "note": "velocity gain, N m s per rad"
+  },
+  "antenna_kp": {
+   "v": 0.05,
+   "src": "assumed",
+   "note": "position gain, N m per rad"
+  },
+  "antenna_kv": {
+   "v": 0.001,
+   "src": "assumed",
+   "note": "velocity gain, N m s per rad"
+  },
+  "mass_total": {
+   "v": 0.9,
+   "src": "assumed",
+   "note": "order of magnitude for the whole robot; replace with the weighed value"
+  }
+ },
+ "joints": [
+  {
+   "name": "head_yaw",
+   "role": "head.yaw",
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "range": "head_yaw_range_deg",
+   "kp": "head_kp",
+   "kv": "head_kv"
+  },
+  {
+   "name": "head_pitch",
+   "role": "head.pitch",
+   "axis": [
+    0,
+    1,
+    0
+   ],
+   "range": "head_pitch_range_deg",
+   "kp": "head_kp",
+   "kv": "head_kv"
+  },
+  {
+   "name": "head_roll",
+   "role": "head.roll",
+   "axis": [
+    1,
+    0,
+    0
+   ],
+   "range": "head_roll_range_deg",
+   "kp": "head_kp",
+   "kv": "head_kv"
+  },
+  {
+   "name": "antenna_left",
+   "role": "appendage.left",
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "range": "antenna_range_deg",
+   "kp": "antenna_kp",
+   "kv": "antenna_kv"
+  },
+  {
+   "name": "antenna_right",
+   "role": "appendage.right",
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "range": "antenna_range_deg",
+   "kp": "antenna_kp",
+   "kv": "antenna_kv"
+  }
+ ],
+ "sensors": [
+  {
+   "name": "imu",
+   "capability": "imu",
+   "outputs": [
+    "imu.accel",
+    "imu.gyro",
+    "imu.tilt_deg"
+   ]
+  }
+ ]
+}

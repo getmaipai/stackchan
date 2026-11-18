@@ -32,4 +32,4 @@ Goal: a second robot (Reachy Mini, a later step) shares the host by implementing
 ## Not in scope
 Firmware, the hub, and the Reachy hardware itself.
 
-Status: P0 done (startup pin). P1 in progress: `_wire_power`, `_wire_light_and_health` and `_wire_hub_services` (the hub-facing block, about 310 lines) are out of `_serve_stackchan_channels`, which is now 298 lines. The hub block is pinned only by the existing link and hub tests (the startup pin runs without a hub link). P2 onward not started.
+Status: P0 done (startup pin). P1 in progress: `_wire_power`, `_wire_light_and_health` and `_wire_hub_services` (the hub-facing block, about 310 lines) are out of `_serve_stackchan_channels`, which is now 298 lines. The hub block is pinned only by the existing link and hub tests (the startup pin runs without a hub link). P3 done (`speech_backend.py`: `HubBackend` and `LocalBackend` give the turn bridge one place for the stt, turn and tts factories; `turn.py` asks `self.backend`). P2, P4 and P5 not started.
