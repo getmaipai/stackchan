@@ -16,7 +16,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `CLAUDE.md` (1): no header
 - `LICENSE` (664): no header
 - `NOTICE` (30): no header
-- `README.md` (91): MaiPai for StackChan
+- `README.md` (47): MaiPai for StackChan
 - `THIRD-PARTY.md` (49): Third-party notices
 - `docs-site/.gitignore` (1): no header
 - `docs-site/assets/search.js` (21): Filters the page list as you type: every word must appear in the title or summary, or anywhere in the page tex
@@ -146,7 +146,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1091): Feature ledger
+- `docs/dev/feature-ledger.md` (1095): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -216,6 +216,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/heap-map-b47.md` (54): The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
+- `docs/dev/index.md` (95): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
 - `docs/dev/model-previews/joints.gif` (1486): Binary file docs/dev/model-previews/joints.gif matches
@@ -427,8 +428,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/ux13c-control-sheet-brief.md` (20): UX13c brief: the control sheet at finger size (for a Codex lane, read by the playground track before it lands)
 - `docs/plan/view-requests.md` (48): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
 - `docs/plan/wasm-spike-report.md` (95): WebAssembly spike: the virtual robot in a browser, no server
+- `docs/playground/index.md` (9): MaiPai for StackChan: playground
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
-- `docs/user/about.md` (29): About and legal
+- `docs/user/about.md` (28): About and legal
 - `docs/user/bench-listening.md` (5): Listen longer on the bench (developers)
 - `docs/user/camera.md` (78): Use the camera
 - `docs/user/character-packs.md` (17): Character packs
@@ -440,12 +442,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/features.md` (164): What the robot can do
 - `docs/user/find-and-remote.md` (73): Find the robot and control it remotely
 - `docs/user/games-and-pet.md` (101): Play games and care for your pet
-- `docs/user/getting-started.md` (86): Getting started with MaiPai for StackChan
+- `docs/user/getting-started.md` (66): Getting started with MaiPai for StackChan
 - `docs/user/glossary.md` (21): Glossary
 - `docs/user/hardware-and-models.md` (58): Pick hardware and a model
 - `docs/user/home-assistant.md` (20): Home Assistant (optional package)
 - `docs/user/home-tools.md` (35): Connect the robot to your own tools
-- `docs/user/install-the-host.md` (50): Install, update and remove the host
+- `docs/user/index.md` (61): MaiPai for StackChan: user guide
+- `docs/user/install-the-host.md` (48): Install, update and remove the host
 - `docs/user/languages.md` (26): Switch the language
 - `docs/user/lights-and-sounds.md` (62): Lights and sounds
 - `docs/user/local-stack.md` (30): Install the small stack
@@ -645,7 +648,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (327): no header
+- `firmware/patches/ORDER` (328): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -741,6 +744,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF69-project-name-and-affiliation-notice.patch` (48): The unit's version page names the project, MaiPai for StackChan, at the top (the version stays as the first de
 - `firmware/patches/SF70-hangman-and-mines-on-the-unit.patch` (268): Hangman (id hangman, 30 English or 30 Spanish words compiled in for now, 26 keys, seven misses, a gallows draw
 - `firmware/patches/SF71-reconnect-delay-resets-after-a-held-handshake.patch` (55): The reconnect delay starts over after any connection whose handshake completed and held for a second, not only
+- `firmware/patches/SF72-grid-animation-layer-and-connect4-chip-drop.patch` (525): Four in a Row gets a generic animation layer in the grid engine and its sounds. The person's disc and the unit
+- `firmware/patches/SF73-away-notice-takes-the-banner-row.patch` (73): The "Can't reach Home" notice after ten minutes away is actually seen. The steady "Offline" look is a banner n
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -847,7 +852,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5126): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5132): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
@@ -860,7 +865,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/reachy_mini/__init__.py` (1): The Reachy Mini body: the daemon client behind the HAL seam, and a fake for tests."""
 - `host/maipai_body/bodies/reachy_mini/audio_config.py` (147): Reachy Mini XVF3800 defaults and nonblocking startup audio setup.
 - `host/maipai_body/bodies/reachy_mini/client.py` (464): The Reachy Mini SDK behind the HAL seam.
-- `host/maipai_body/bodies/reachy_mini/envelope.py` (55): Shared envelope clamping for the Reachy Mini profile's real client and fake.
+- `host/maipai_body/bodies/reachy_mini/envelope.py` (4): Moved to maipai_body.hal.envelope (shared clamping); kept so the Reachy Mini body's imports keep working."""
 - `host/maipai_body/bodies/reachy_mini/eyes_client.py` (272): Reachy Eyes USB serial client (EYES-03), written clean-room.
 - `host/maipai_body/bodies/reachy_mini/fake.py` (632): Replays recorded Reachy Mini fixtures through the same seam as the live client.
 - `host/maipai_body/bodies/reachy_mini/fixtures/README.md` (15): Reachy Mini fixtures
@@ -873,7 +878,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/reachy_mini/fixtures/faces/no_face.npy` (1): no header
 - `host/maipai_body/bodies/reachy_mini/fixtures/openapi.json` (4187): no header
 - `host/maipai_body/bodies/reachy_mini/fixtures/state_frames.jsonl` (45): no header
-- `host/maipai_body/bodies/reachy_mini/motors.py` (418): MOTOR-RECOVER-01: the awake gate and the motor bus behind the Reachy Mini client.
+- `host/maipai_body/bodies/reachy_mini/motors.py` (385): MOTOR-RECOVER-01: the awake gate and the motor bus behind the Reachy Mini client.
 - `host/maipai_body/bodies/reachy_mini/profile.py` (128): The Reachy Mini body's one declaration: what it has, never how it is driven.
 - `host/maipai_body/bodies/registry.py` (37): Which body this process serves, chosen by `MAIPAI_BODY` from one table.
 - `host/maipai_body/bodies/stackchan/__init__.py` (6): StackChan body profile and xiaozhi adapters."""
@@ -1173,6 +1178,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/fillers.py` (360): ruff: noqa: E501
 - `host/maipai_body/first_run_name.py` (75): The robot's name from the first run (firmware patches SF09 and UX11).
 - `host/maipai_body/hal/__init__.py` (1): The HAL seam: ``seam`` for the typed protocols, ``errors`` for what crosses it."""
+- `host/maipai_body/hal/envelope.py` (55): Shared envelope clamping for a body profile's real client and fake (first used by the Reachy Mini body).
 - `host/maipai_body/hal/errors.py` (68): Errors the HAL seam raises.
 - `host/maipai_body/hal/seam.py` (427): The HAL seam every body profile implements.
 - `host/maipai_body/health.py` (111): One health document for the whole host: what runs, what does not, per unit and per part, in plain words.
@@ -1236,7 +1242,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/installed_set.py` (238): The installed set of one robot (decision 17): a few slots per kind, chosen on the dashboard, sent to the unit 
 - `host/maipai_body/installed_set_legacy.py` (34): The reconciler's transport over the pack tools a unit has today (`self.pack.*`, one pack per kind)."""
 - `host/maipai_body/language_packs.py` (170): ruff: noqa: E501
-- `host/maipai_body/legal.py` (53): ruff: noqa: E501
+- `host/maipai_body/legal.py` (52): ruff: noqa: E501
 - `host/maipai_body/link/__init__.py` (17): G4: the robot's own hub link - discovery, pairing, and the persisted
 - `host/maipai_body/link/address_walk.py` (220): LINK-STATE-01: walk the hub's addresses, the LAN first and the tailnet next.
 - `host/maipai_body/link/assets.py` (326): Authenticated asset synchronization from the paired Home hub."""
@@ -1316,6 +1322,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/presence/knock.py` (100): KNOCK-01: a double knock on the body, read from the IMU.
 - `host/maipai_body/presence/motion_state.py` (168): MOVE-CARRY-01a: lifted, carried and put down, read from the IMU.
 - `host/maipai_body/presence/motor_health.py` (292): MOTOR-RECOVER-01: the position-change watchdog and the recovery ladder.
+- `host/maipai_body/presence/motor_types.py` (44): The motor bus protocol and the last commanded target, shared by the motor health check and the Reachy daemon b
 - `host/maipai_body/presence/night.py` (460): FACE-NIGHT-01: quiet hours and measured-light hysteresis for StackChan."""
 - `host/maipai_body/presence/observations.py` (55): This body's own inputs to the presence funnel (design record section 6):
 - `host/maipai_body/presence/power.py` (257): SELF-SCENE-02: the battery and heat ladder, kept by the body with no hub.
@@ -1438,7 +1445,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_packages/wake_word_maker/store.py` (64): Clips on disk: one folder per word, positives and negatives, each a mono 16-bit 16 kHz WAV of about a second."
 - `host/personas/cooking.en.txt` (9): no header
 - `host/personas/cooking.es.txt` (9): no header
-- `host/pyproject.toml` (154): Named to match the entry point (`maipai_bot`, registered below), not
+- `host/pyproject.toml` (160): Named to match the entry point (`maipai_bot`, registered below), not
 - `host/robot.example.toml` (85): Select "llm" to run without Home, or "home" to use the Home adapter.
 - `host/scripts/link_ladder_unit_check.py` (108): LINK-STATE-01: run the offline ladder's body cues on the real unit.
 - `host/scripts/make_kws_fixtures.py` (107): Rung 1 fixtures: SYNTHESIZED speech for the keyword spotter's tests. Not recordings.
@@ -1885,6 +1892,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/games_sig_test.cc` (51): Host test for a signed game pack (patch G01): the unit checks the signature with the same Ed25519 code that ch
 - `host/tests/firmware/games_v2_core_test.c` (971): Host test for the game engine additions of patches UI12 and UI13: the new inputs, the board, the timer from a 
 - `host/tests/firmware/gesture_core_test.c` (450): Host test for the swipe gesture state machine (patch P10): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
+- `host/tests/firmware/grid_anim_test.c` (168): Host test for the grid animation layer (patch SF72): cc -std=c99 -Wall -Wextra -Werror -I<dir> grid_anim_test.
 - `host/tests/firmware/grid_core_test.c` (233): Host test for the grid game engine core and its two rule sets (patch SF62): cc -std=c99 -Wall -Wextra -Werror 
 - `host/tests/firmware/grid_games2_test.c` (208): Host test for the second set of grid rule sets (patch SF67): Hangman, the 2048 slider, Snake, Mine Finder. cc 
 - `host/tests/firmware/headgate_core_test.c` (24): Host test for the host head-move gate (patch Y01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
@@ -2269,6 +2277,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_profile.py` (131): Tests named for the promises RM-01 makes about the Reachy Mini profile."""
 - `host/tests/test_psram_stack_lint.py` (218): ruff: noqa: E501
 - `host/tests/test_release_and_update_vectors.py` (157): The release script dry run, the signed update vectors, and the Home-driven update path (host side)."""
+- `host/tests/test_release_package.py` (33): The StackChan release package carries no Reachy body, and no recorded-moves package."""
 - `host/tests/test_release_report.py` (56): scripts/release-report.py: images against the slot rule, memory only from a real log, never invented."""
 - `host/tests/test_remote_activity.py` (370): ruff: noqa: E501
 - `host/tests/test_remote_trust.py` (215): ruff: noqa: E501
@@ -2300,6 +2309,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_settings_token.py` (116): The settings page from a phone: a per-install token is the login for requests that are not local."""
 - `host/tests/test_settings_ui.py` (426): ruff: noqa: E501
 - `host/tests/test_sf_patch_headers.py` (19): Public-readiness guard: the header lines of the safety patches (SF*) say what the patch does, with no review l
+- `host/tests/test_sfx_wav_tool.py` (24): scripts/sfx-wav.sh renders every game clip of the unit's sound core to a WAV file (owner can audition the real
 - `host/tests/test_sherpa_engines.py` (15): VOICE-01: the sherpa engines, as far as they can be checked without the unit."""
 - `host/tests/test_sim_downlink.py` (136): Tests for firmware tool-reply latency, dropped replies, and receive timestamps."""
 - `host/tests/test_sim_uplink.py` (104): Tests for StackChanFirmware listen frames and real Opus uplink streaming."""
@@ -2512,14 +2522,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/asset-kinds.json` (68): no header
 - `schema/base-tools.json` (10): no header
 - `schema/memory-budget.json` (774): no header
-- `schema/tools.json` (642): no header
+- `schema/tools.json` (644): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
 - `scripts/camera-sweep-table.py` (64): turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the o
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
-- `scripts/check.sh` (37): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (38): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/choices-check.py` (44): Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
@@ -2573,9 +2583,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-stress.py` (191): Memory gate stress run for the unit on the USB cable, with the memory line on.
 - `scripts/fw-tailnet.sh` (45): download the pinned private-network client (firmware/tailnet/PIN) into a folder outside the firmware tree,
 - `scripts/fw-voice-bench.py` (266): Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 an
-- `scripts/game-pack.py` (556): ruff: noqa: E501
+- `scripts/game-pack.py` (557): ruff: noqa: E501
 - `scripts/gate-check.py` (124): Frame time and spoken-turn latency gate numbers, checked from what the bench agent measured (the memory number
-- `scripts/host-footprint.py` (124): Report the host's footprint: source and environment size, import time, the pages' weight, docs and flasher ass
+- `scripts/host-footprint.py` (126): Report the host's footprint: source and environment size, import time, the pages' weight, docs and flasher ass
 - `scripts/hygiene-check.sh` (47): block British spellings (American only), any mention of projects we studied (private word list), em dashes and
 - `scripts/i18n-gaps.py` (46): List the host strings that are still English in fr, de, pt and it, and write translation chunks for lane brief
 - `scripts/install-hooks.sh` (6): point this clone at the tracked hooks (repo-local config only, never global).
@@ -2591,6 +2601,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/link-key-vector.py` (124): Reference for the link key exchange in docs/plan/link-key-exchange.md (standard library only).
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
 - `scripts/make-dashboard-screens.py` (71): A screenshot of each host dashboard page at desktop and phone width, kept in docs/dev/dashboard-screens for re
+- `scripts/make-doc-indexes.py` (71): Keep docs/user/index.md and docs/dev/index.md: a hand-written start, then every page of the folder listed by i
 - `scripts/make-doc-screenshots.py` (141): make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, ne
 - `scripts/make-game-sounds.py` (286): Game sounds, synthesized from nothing: short tones, clacks and noise bursts with attack-decay-sustain-release 
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
@@ -2610,6 +2621,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/repo-map.sh` (19): generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line),
 - `scripts/review-status.py` (87): The cross-review bug table: every test in host/tests/test_cross_review_open_bugs*.py, its owner, and whether t
 - `scripts/run-bg.sh` (18): run a long command (firmware build, flash, soak, gate) with its full output in a log file and
+- `scripts/sfx-wav.c` (49): Writes every game clip of the unit's sound core (maipai_games_sfx_core.h) as a 16-bit mono 16 kHz WAV, rendere
+- `scripts/sfx-wav.sh` (13): render every game sound of the unit to a WAV file with the unit's own sound core, so the owner can listen to t
 - `scripts/spec-dir.sh` (4): no header
 - `scripts/spec-drift-check.sh` (32): the vendored spec (host/spec-vendor/spec) is a snapshot, never edited by hand. Fails when a vendored file diff
 - `scripts/spelling-allow.txt` (62): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
