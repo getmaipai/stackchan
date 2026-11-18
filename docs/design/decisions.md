@@ -74,3 +74,17 @@ v1 ships with Bluetooth OFF (patch 098, a Kconfig switch). After v1 lands and th
 ## Migration order (owner, 2026-11-15)
 
 Finish StackChan first. Then plan the Reachy Mini migration the same way (history-preserving extraction, vendored spec copy, own repo or Home package decided at that time, memory and cue rules carried over), and retire the old `bot` repo as the last step: archive it, move anything still needed, retire `bot/AGENTS.md` and `BODY-STACKCHAN-01`, and point Home's pins at the new repos. The Reachy plan gets its own design note when StackChan ships.
+
+## Owner decisions of 2026-11-18
+
+These replace the 2026-11-15 scope rule and the 2026-11-17 App Store test. Where an older paragraph above says otherwise, this section wins.
+
+1. **Boundary rule: four tests.** A feature belongs in this repository when it passes any of: (a) body: it is the unit's own hardware or cue path; (b) standalone parity: anything the stock robot or a leading community project delivers without a hub, we deliver locally as an optional package; (c) household: Home owns several-person policy, child and teen rules, recognition by name, outside services and other rooms; (d) thin connector with one owner: when paired, Home's version takes over and ours steps aside. Replaces `docs/dev/scope-core-vs-home.md` and its App Store test.
+2. **A friend without Home** gets every benefit that does not need a household. The friend test (a person with a robot and a computer, no Home, no help) gates the first public release.
+3. **Optional local packages allowed without Home:** Home Assistant voice and camera snapshots, agent tools, the coding companion, and local memory for several adults as plain per-person notes files (remember and forget on request). Replaces "Integrations are Home's" and "Memory is Home's".
+4. **Build what is best.** Talking over the robot and a family-chosen wake word are goals. A "no" rests on physics, safety, privacy or product judgment, never on "was tried". Supersedes decision 56 and the wake-word note's "experiment".
+5. **Shared concepts go into the shared spec** (movement limiter, memory admission, brain interface, indicators, vocabularies) so Reachy Mini implements the same ones. No shared robot code repository.
+6. **Four users:** kid, teen, non-technical adult, technical adult. A child's or teen's robot requires Home.
+7. **A 3D virtual unit**, face first, motion later, built from the real renderer.
+8. **Patches stay** (decision 18). Our own firmware is not the plan; revisit only on a measured cost.
+9. **One unit, minimal owner time.** One bench queue; the unit ends each window on the released image. Work does not wait on the owner.
