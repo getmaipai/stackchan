@@ -249,23 +249,28 @@
   "failures": []
  },
  "screen-control-sheet": {
-  "targets": 8,
-  "fails": 16,
-  "warnings": 6,
-  "failures": [
-   "target 156x44 px (19.8 x 5.6 mm) at 2,140: under 48 px",
-   "target 156x44 px (19.8 x 5.6 mm) at 162,140: under 48 px",
-   "targets at 2,140 and 162,140 are 4 px apart (under 8)",
-   "targets at 2,140 and 5,176 overlap",
-   "targets at 2,140 and 57,176 overlap",
-   "targets at 2,140 and 109,176 overlap",
-   "targets at 2,140 and 161,176 are 3 px apart (under 8)",
-   "targets at 162,140 and 109,176 are 3 px apart (under 8)",
-   "targets at 162,140 and 161,176 overlap",
-   "targets at 162,140 and 213,176 overlap",
-   "targets at 162,140 and 265,176 overlap",
-   "targets at 5,176 and 57,176 are 2 px apart (under 8)"
-  ]
+  "targets": 3,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "screen-control-sheet-tiles": {
+  "targets": 7,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "es-control-sheet": {
+  "targets": 3,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "es-control-sheet-tiles": {
+  "targets": 7,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
  },
  "es-apps-wall": {
   "targets": 4,

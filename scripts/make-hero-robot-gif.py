@@ -25,7 +25,7 @@ SCENES = [
     ("talking", 20, BAR + [("call", "self.face.bench_emotion", {"emotion": "happy"}), ("advance", 400)], lambda i: [("raw", "speak %d" % SYLLABLES[i % 10])]),
     ("dancing", 20, [("call", "self.robot.dance", {"name": "happy"}), ("advance", 5600)], lambda i: []),
     ("weather", 15, BAR + [("call", "self.face.bench_emotion", {"emotion": "neutral"}), ("raw", "overlay rain 3 0"), ("advance", 800)], lambda i: []),
-    ("games wall", 15, BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 235 212"), ("advance", 500)], lambda i: []),
+    ("games wall", 15, BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 160 156"), ("advance", 500)], lambda i: []),
 ]
 # Four in a Row in play, drawn by the unit's own grid-game code (scripts/fw-face-render/grid_render.cc): the person (yellow) and the unit (red) have dropped discs;
 # the last unit disc falls, then the person's winning disc, then the four pulse and stay lit.

@@ -1,0 +1,312 @@
+# Intent: The control sheet at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.md; batch UX13c, brief docs/plan/ux13c-control-sheet-brief.md). The sheet has a fixed height (208 px) and two pages. Page 1 is the status row (Wi-Fi bars, the time, the battery) and the two sliders as 304 by 56 px rows, 8 px apart: the name in the 20 px text over its value in 16 px at the left, the track at the right, the whole row the grab area. Page 2 is the tiles, two rows of three, each 96 by 56 px with 8 px gaps and margins, the icon above a 16 px word, with the one line of status text above them. A 48 px strip at the bottom holds the page dots and an 80 by 48 px Next / Back target. A fresh open starts on page 1. The older mpg_sheet_layout stays for the config tests; the drawing uses the new mpg_sheet2_layout. The swipe left and right between the sheet pages is not in this patch (a slider drag looks like a swipe; to settle on the unit). Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages.cc, maipai_pages_core.h (ours)
+# Check after a flash: the sheet opens on the sliders and the status row; each slider moves from anywhere along its row; Next shows the six tiles, each easy to press, with a gap between them; Back returns; the dots show the page; Mute and Quiet still fill when on; Apps, Games, Lock and the gear work as before.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -749,6 +749,93 @@
+     }
+ }
+ 
++/* ---- the control sheet at finger size (patch UX13c): two pages ----
++ * The sheet has a fixed height (208 px, from y 32) and two pages that the "Next" and "Back" target and the dots change. Page 0 is the status row (Wi-Fi bars, the time, the battery: not
++ * targets) and the sliders, one 304 by 56 px row each (the whole row is the grab area: the name and value at the left, the track at the right), 8 px apart. Page 1 is the tiles, two rows of
++ * three, each 96 by 56 px, 8 px apart, with the one line of status text (the private network or the address) above them. Under both pages sits a 48 px strip: the dots in the middle and the
++ * 80 by 48 px page target at the right. The margin everywhere is 8 px. Nothing overlaps; every target is at least 56 px high (the page target 48, a secondary target). The older
++ * mpg_sheet_layout() stays for the config tests; the drawing uses this one. */
++#define MPG_SHEET2_H 208
++#define MPG_SHEET2_PAGES 2
++#define MPG_SHEET2_HANDLE_H 8
++#define MPG_SHEET2_STATUS_H 20      /* the status row, and the one status text line on page 1 */
++#define MPG_SHEET2_ROW_H 56
++#define MPG_SHEET2_PITCH 64         /* 56 + the 8 px gap */
++#define MPG_SHEET2_BODY_DY 28       /* from the sheet's top to the first slider row or tile row */
++#define MPG_SHEET2_TILE_W 96
++#define MPG_SHEET2_TILE_COLS 3
++#define MPG_SHEET2_STRIP_DY 156     /* the strip under the pages: dots and the page target */
++#define MPG_SHEET2_NEXT_W 80
++#define MPG_SHEET2_NEXT_H 48
++typedef struct {
++    int16_t top_y;
++    int16_t status_y, status_h;   /* page 0: the status row, or 0 height */
++    int16_t text_y, text_h;       /* page 1: the one text line, or 0 height */
++    mpg_rect_t r[MPG_SHEET_MAX_ITEMS + 1];
++    uint8_t page[MPG_SHEET_MAX_ITEMS + 1];  /* 0 sliders, 1 tiles */
++    uint8_t n;
++    uint8_t status_items[MPG_SHEET_MAX_STATUS];
++    uint8_t n_status;
++    mpg_rect_t next;              /* the page target (item unused) */
++    int16_t dots_y;               /* the dots' center row */
++} mpg_sheet2_t;
++
++static inline void mpg_sheet2_layout(const mpg_cfg_t* c, mpg_sheet2_t* L)
++{
++    memset(L, 0, sizeof(*L));
++    L->top_y = (int16_t)(240 - MPG_SHEET2_H);
++    int ns = 0, nt = 0, lines = 0, row = 0;
++    int tiles[MPG_SHEET_MAX_TILES + 1];
++    int sliders[MPG_SHEET_MAX_SLIDERS];
++    for (int i = 0; i < c->n_items; i++) {
++        const int it = c->items[i], k = mpg_sheet_kind(it);
++        if (k == 0 && ns < MPG_SHEET_MAX_SLIDERS) {
++            sliders[ns++] = it;
++        } else if (k == 1 && nt < MPG_SHEET_MAX_TILES) {
++            tiles[nt++] = it;
++        } else if (k == 2 && L->n_status < MPG_SHEET_MAX_STATUS) {
++            L->status_items[L->n_status++] = (uint8_t)it;
++            if (it == MPG_S_WIFI || it == MPG_S_BATTERY) {
++                row = 1;
++            } else {
++                lines++;
++            }
++        }
++    }
++    tiles[nt++] = MPG_S_COUNT;  /* the gear */
++    if (row) {
++        L->status_y = (int16_t)(L->top_y + MPG_SHEET2_HANDLE_H);
++        L->status_h = MPG_SHEET2_STATUS_H;
++    }
++    if (lines > 0) {
++        L->text_y = (int16_t)(L->top_y + MPG_SHEET2_HANDLE_H);
++        L->text_h = MPG_SHEET2_STATUS_H;   /* one line: the texts are joined and cut with dots */
++    }
++    for (int i = 0; i < ns; i++) {
++        mpg_rect_t* r = &L->r[L->n];
++        r->item = (uint8_t)sliders[i];
++        r->x = 8;
++        r->w = 304;
++        r->h = MPG_SHEET2_ROW_H;
++        r->y = (int16_t)(L->top_y + MPG_SHEET2_BODY_DY + i * MPG_SHEET2_PITCH);
++        L->page[L->n++] = 0;
++    }
++    for (int i = 0; i < nt; i++) {
++        mpg_rect_t* r = &L->r[L->n];
++        r->item = (uint8_t)tiles[i];
++        r->w = MPG_SHEET2_TILE_W;
++        r->h = MPG_SHEET2_ROW_H;
++        r->x = (int16_t)(8 + (i % MPG_SHEET2_TILE_COLS) * (MPG_SHEET2_TILE_W + 8));
++        r->y = (int16_t)(L->top_y + MPG_SHEET2_BODY_DY + (i / MPG_SHEET2_TILE_COLS) * MPG_SHEET2_PITCH);
++        L->page[L->n++] = 1;
++    }
++    L->next.x = (int16_t)(320 - 8 - MPG_SHEET2_NEXT_W);
++    L->next.w = MPG_SHEET2_NEXT_W;
++    L->next.h = MPG_SHEET2_NEXT_H;
++    L->next.y = (int16_t)(L->top_y + MPG_SHEET2_STRIP_DY);
++    L->dots_y = (int16_t)(L->next.y + MPG_SHEET2_NEXT_H / 2);
++}
++
+ /* The colors of the status row follow the state (patch UI05): 0 good (green), 1 low (amber), 2 critical (red). */
+ static inline int mpg_signal_level(int bars) { return bars >= 3 ? 0 : (bars == 2 ? 1 : 2); }
+ static inline int mpg_battery_level(int pct, int charging) { return charging || pct >= 30 ? 0 : (pct >= 15 ? 1 : 2); }
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -93,6 +93,7 @@
+     bool has_wifi, has_batt;
+ };
+ ShUi* s_sh = nullptr;
++int s_sheet_page = 0;  // patch UX13c: the control sheet page that shows (0 sliders and status, 1 tiles); a fresh open starts on 0
+ 
+ const lv_font_t* kSmall = maipai_ui_style::small_font();
+ const lv_font_t* kBig = maipai_ui_style::big_font();
+@@ -953,6 +954,7 @@
+             break;
+         }
+         case MGS_ACT_OPEN_SHEET:
++            s_sheet_page = 0;
+             build_sheet();
+             ensure_timer();
+             publish();
+@@ -1064,7 +1066,7 @@
+     lv_obj_set_style_bg_color(b, on ? fg(100) : fg(16), 0);
+     const lv_color_t bg = on ? fg(100) : fg(16);
+     mpg_shape_t sh[MPG_ICON_SHAPES_MAX];
+-    draw_shapes(b, sh, mpg_sheet_icon_shapes(item, sh), (MPG_TILE_W - 24) / 2, 2, 1, on ? maipai_ui_style::bg() : fg(100), bg);
++    draw_shapes(b, sh, mpg_sheet_icon_shapes(item, sh), (MPG_SHEET2_TILE_W - 24) / 2, 4, 1, on ? maipai_ui_style::bg() : fg(100), bg);
+     const char* label = item == MPG_S_MUTE ? tx("Mute", "Mudo") :
+                         item == MPG_S_QUIET ? tx("Sleep", "Calma") :
+                         item == MPG_S_LOCK ? tx("Lock", "Bloq.") :
+@@ -1072,9 +1074,9 @@
+                         item == MPG_S_GAMES ? tx("Games", "Juego") : tx("Setup", "Config");
+     lv_obj_t* caption = text(b, label, kSmall, fg(70));  // patch UX02c: one size for all six words, short enough for the tile
+     lv_label_set_long_mode(caption, LV_LABEL_LONG_CLIP);
+-    lv_obj_set_width(caption, MPG_TILE_W);
++    lv_obj_set_width(caption, MPG_SHEET2_TILE_W);
+     lv_obj_set_style_text_align(caption, LV_TEXT_ALIGN_CENTER, 0);
+-    lv_obj_set_pos(caption, 0, 29);
++    lv_obj_set_pos(caption, 0, 31);  // patch UX13c: the 96 by 56 px tile: the icon at y 4, the word under it
+ }
+ 
+ void sheet_clock_text(char* out, size_t n)
+@@ -1140,11 +1142,11 @@
+             }
+         }
+     }
+-    mpg_sheet_t L;
+-    mpg_sheet_layout(&s_cfg, &L);
++    mpg_sheet2_t L;
++    mpg_sheet2_layout(&s_cfg, &L);
+     for (int i = 0; i < L.n; i++) {
+         const int item = L.r[i].item;
+-        if (item == MPG_S_MUTE || item == MPG_S_QUIET) {
++        if ((item == MPG_S_MUTE || item == MPG_S_QUIET) && s_sh->tile_btn[i] != nullptr) {
+             const bool on = tile_on(item);
+             if (s_sh->last_on[i] == (on ? 1 : 0)) {
+                 continue;
+@@ -1153,6 +1155,14 @@
+             paint_tile(s_sh->tile_btn[i], item, on);
+         }
+     }
++}
++
++// Patch UX13c: the page target (and the dots) switch the sheet's page; the sheet is built again for the other page.
++void on_sheet_page(lv_event_t*)
++{
++    s_sheet_page = s_sheet_page == 0 ? 1 : 0;
++    build_sheet();
++    ensure_timer();
+ }
+ 
+ void build_sheet()
+@@ -1167,46 +1177,48 @@
+     memset(s_sh->last_on, -1, sizeof(s_sh->last_on));
+     s_sh->last_bars = -2;
+     s_sh->last_pct  = -2;
+-    mpg_sheet_t L;
+-    mpg_sheet_layout(&s_cfg, &L);
++    mpg_sheet2_t L;
++    mpg_sheet2_layout(&s_cfg, &L);
+     const int h = 240 - L.top_y;
+     lv_obj_t* r = box(lv_layer_top(), 0, L.top_y, 320, h + 14, shade(s_fg != nullptr ? s_fg() : maipai_ui_style::text(), 10 * night_pct() / 100), 14, true);
+     lv_obj_set_style_border_width(r, 2, 0);
+     lv_obj_set_style_border_side(r, LV_BORDER_SIDE_TOP, 0);
+     lv_obj_set_style_border_color(r, fg(45), 0);
+     s_sheet = r;
+-    box(r, 136, 4, 48, 5, fg(70), 3);  // the grabber handle (patch UI01): a swipe down closes the sheet
+-    // The status row (patch UI05), like the stock swipe-down row: Wi-Fi bars at the left, the time in the middle, the battery at the right.
+-    for (int i = 0; i < L.n_status; i++) {
+-        s_sh->has_wifi |= L.status_items[i] == MPG_S_WIFI;
+-        s_sh->has_batt |= L.status_items[i] == MPG_S_BATTERY;
+-    }
+-    if (L.status_h > 0) {
+-        const int y0 = L.status_y - L.top_y;
+-        s_sh->tclock = text(r, "", kBig, fg(90));
+-        lv_obj_set_width(s_sh->tclock, 320);
+-        lv_obj_set_style_text_align(s_sh->tclock, LV_TEXT_ALIGN_CENTER, 0);
+-        lv_obj_set_pos(s_sh->tclock, 0, y0);
+-        if (s_sh->has_wifi) {
+-            for (int k = 0; k < 4; k++) {
+-                const int bh = 6 + k * 4;
+-                s_sh->wbar[k] = box(r, 12 + k * 8, y0 + 20 - bh, 6, bh, fg(22), 2);
+-            }
++    box(r, 136, 2, 48, 4, fg(70), 2);  // the grabber handle (patch UI01): a swipe down closes the sheet
++    const int page = s_sheet_page;
++    if (page == 0) {
++        // The status row (patch UI05), like the stock swipe-down row: Wi-Fi bars at the left, the time in the middle, the battery at the right.
++        for (int i = 0; i < L.n_status; i++) {
++            s_sh->has_wifi |= L.status_items[i] == MPG_S_WIFI;
++            s_sh->has_batt |= L.status_items[i] == MPG_S_BATTERY;
+         }
+-        if (s_sh->has_batt) {
+-            s_sh->bbody = box(r, 280, y0 + 4, 26, 14, maipai_ui_style::bg(), 3);
+-            lv_obj_set_style_bg_opa(s_sh->bbody, LV_OPA_TRANSP, 0);
+-            lv_obj_set_style_border_width(s_sh->bbody, 2, 0);
+-            s_sh->bfill = box(s_sh->bbody, 0, 0, 20, 10, fg(100), 1);
+-            lv_obj_set_pos(s_sh->bfill, 0, 0);
+-            s_sh->bnub = box(r, 306, y0 + 8, 3, 6, fg(80), 1);
+-            s_sh->btxt = text(r, "", kSmall, fg(100));
+-            lv_obj_set_width(s_sh->btxt, 56);
+-            lv_obj_set_style_text_align(s_sh->btxt, LV_TEXT_ALIGN_RIGHT, 0);
+-            lv_obj_set_pos(s_sh->btxt, 220, y0 + 2);
++        if (L.status_h > 0) {
++            const int y0 = L.status_y - L.top_y;
++            s_sh->tclock = text(r, "", kSmall, fg(90));
++            lv_obj_set_width(s_sh->tclock, 320);
++            lv_obj_set_style_text_align(s_sh->tclock, LV_TEXT_ALIGN_CENTER, 0);
++            lv_obj_set_pos(s_sh->tclock, 0, y0);
++            if (s_sh->has_wifi) {
++                for (int k = 0; k < 4; k++) {
++                    const int bh = 5 + k * 3;
++                    s_sh->wbar[k] = box(r, 12 + k * 8, y0 + 16 - bh, 6, bh, fg(22), 2);
++                }
++            }
++            if (s_sh->has_batt) {
++                s_sh->bbody = box(r, 280, y0 + 3, 26, 14, maipai_ui_style::bg(), 3);
++                lv_obj_set_style_bg_opa(s_sh->bbody, LV_OPA_TRANSP, 0);
++                lv_obj_set_style_border_width(s_sh->bbody, 2, 0);
++                s_sh->bfill = box(s_sh->bbody, 0, 0, 20, 10, fg(100), 1);
++                lv_obj_set_pos(s_sh->bfill, 0, 0);
++                s_sh->bnub = box(r, 306, y0 + 7, 3, 6, fg(80), 1);
++                s_sh->btxt = text(r, "", kSmall, fg(100));
++                lv_obj_set_width(s_sh->btxt, 56);
++                lv_obj_set_style_text_align(s_sh->btxt, LV_TEXT_ALIGN_RIGHT, 0);
++                lv_obj_set_pos(s_sh->btxt, 220, y0 + 1);
++            }
+         }
+-    }
+-    if (L.text_h > 0) {
++    } else if (L.text_h > 0) {
+         s_sh->stat = text(r, "", kSmall, fg(85));
+         lv_label_set_long_mode(s_sh->stat, LV_LABEL_LONG_DOT);
+         lv_obj_set_size(s_sh->stat, 304, L.text_h);
+@@ -1214,15 +1226,24 @@
+     }
+     int si = 0;
+     for (int i = 0; i < L.n; i++) {
++        if (L.page[i] != page) {
++            continue;
++        }
+         const mpg_rect_t& q = L.r[i];
+         const int x = q.x, y = q.y - L.top_y;
+         if (q.item < MPG_S_MUTE) {
+-            lv_obj_t* sl_name = text(r, MPG_SHEET_TITLE[es() ? 1 : 0][q.item], kSmall, fg(90));
+-            lv_obj_set_pos(sl_name, x, y);
++            // a 304 by 56 px row (patch UX13c): the name (20 px) over its value (16 px) at the left, the track at the right; the whole row is the grab area
++            const int col_w = 100;
++            lv_obj_t* sl_name = text(r, MPG_SHEET_TITLE[es() ? 1 : 0][q.item], kBig, fg(90));
++            lv_obj_set_pos(sl_name, x + 4, y + 4);
++            char vtxt[12];
++            snprintf(vtxt, sizeof(vtxt), "%d", q.item == MPG_S_VOLUME ? s_host->volume() : s_host->brightness());
++            lv_obj_t* sl_val = text(r, vtxt, kSmall, fg(70));
++            lv_obj_set_pos(sl_val, x + 4, y + 31);
+             lv_obj_t* sl = lv_slider_create(r);
+-            lv_obj_set_size(sl, q.w - 16, 16);
+-            lv_obj_set_pos(sl, x + 8, y + 26);
+-            lv_obj_set_ext_click_area(sl, 14);  // with the label's row the grab area is 44 px high
++            lv_obj_set_size(sl, q.w - col_w - 24, 16);
++            lv_obj_set_pos(sl, x + col_w + 8, y + 20);
++            lv_obj_set_ext_click_area(sl, 20);  // 16 + 20 + 20 = 56: the grab area is the row's height
+             const bool vol = q.item == MPG_S_VOLUME;
+             lv_slider_set_range(sl, vol ? 20 : 10, 100);
+             lv_slider_set_value(sl, vol ? s_host->volume() : s_host->brightness(), LV_ANIM_OFF);
+@@ -1245,7 +1266,7 @@
+             }
+             continue;
+         }
+-        lv_obj_t* b = box(r, x, y, q.w, q.h, fg(16), 10, true);
++        lv_obj_t* b = box(r, x, y, q.w, q.h, fg(16), 12, true);
+         lv_obj_set_style_border_width(b, 1, 0);
+         lv_obj_set_style_border_color(b, fg(40), 0);
+         lv_obj_set_style_bg_color(b, fg(45), LV_STATE_PRESSED);
+@@ -1253,6 +1274,18 @@
+         paint_tile(b, q.item, false);
+         lv_obj_add_event_cb(b, on_sheet_tile, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(q.item)));
+     }
++    // the strip under the page: the dots (the shared page indicator: 8 and 6 px, 14 px pitch) and the 80 by 48 px page target
++    for (int k = 0; k < MPG_SHEET2_PAGES; k++) {
++        const int d = k == page ? MAC_WALL_DOT_ON : MAC_WALL_DOT_OFF;
++        box(r, 160 - MAC_WALL_DOT_PITCH / 2 + k * MAC_WALL_DOT_PITCH - d / 2, L.dots_y - L.top_y - d / 2, d, d, k == page ? fg(100) : fg(35), LV_RADIUS_CIRCLE);
++    }
++    lv_obj_t* nb = box(r, L.next.x, L.next.y - L.top_y, L.next.w, L.next.h, fg(16), 12, true);
++    lv_obj_set_style_border_width(nb, 1, 0);
++    lv_obj_set_style_border_color(nb, fg(40), 0);
++    lv_obj_set_style_bg_color(nb, fg(45), LV_STATE_PRESSED);
++    lv_obj_t* nt = text(nb, page == 0 ? tx("Next", "Mas") : tx("Back", "Atras"), kBig, fg(90));
++    lv_obj_center(nt);
++    lv_obj_add_event_cb(nb, on_sheet_page, LV_EVENT_CLICKED, nullptr);
+     sheet_refresh();
+ }
+ 

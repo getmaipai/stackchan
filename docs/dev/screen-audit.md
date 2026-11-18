@@ -13,6 +13,8 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 | clock-ring-asleep | 1 | 0 | 0 |  |
 | clock-tap-to-datetime | 1 | 0 | 0 |  |
 | es-apps-wall | 4 | 0 | 0 |  |
+| es-control-sheet | 3 | 0 | 1 |  |
+| es-control-sheet-tiles | 7 | 0 | 1 |  |
 | es-more-menu | 6 | 0 | 1 |  |
 | es-page-actions | 4 | 0 | 4 |  |
 | es-page-timers | 3 | 0 | 0 |  |
@@ -29,7 +31,8 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 | more-version | 2 | 0 | 1 |  |
 | screen-apps-wall | 4 | 0 | 0 |  |
 | screen-camera-on | 0 | 0 | 0 |  |
-| screen-control-sheet | 8 | 16 | 6 | target 156x44 px (19.8 x 5.6 mm) at 2,140: under 48 px; target 156x44 px (19.8 x 5.6 mm) at 162,140: under 48 px |
+| screen-control-sheet | 3 | 0 | 1 |  |
+| screen-control-sheet-tiles | 7 | 0 | 1 |  |
 | screen-games-wall | 4 | 0 | 0 |  |
 | screen-page-actions | 4 | 0 | 4 |  |
 | screen-page-clock | 1 | 0 | 0 |  |
@@ -45,4 +48,4 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 | screen-subtitles | 0 | 0 | 0 |  |
 | screen-timers-app | 9 | 7 | 0 | targets at 4,36 and 4,96 are 4 px apart (under 8); targets at 4,96 and 4,156 are 4 px apart (under 8) |
 
-Total failures: 62 on 40 screens.
+Total failures: 46 on 43 screens.

@@ -435,6 +435,31 @@ static void test_page_contents(void)
         }
     }
     CHECK(mpg_gscroll_content_h(0) == 0 && mpg_gscroll_content_h(2) == 64 && mpg_gscroll_content_h(13) == 7 * 64 + 6 * 8);
+    /* patch UX13c: the control sheet at finger size: two pages, a fixed height, every target 56 px (the page target 48), 8 px gaps and margins, nothing overlaps */
+    {
+        mpg_cfg_t d2;
+        mpg_defaults(&d2);
+        mpg_sheet2_t S;
+        mpg_sheet2_layout(&d2, &S);
+        CHECK(S.top_y == 240 - MPG_SHEET2_H && S.top_y >= 28);                       /* the fixed height; never over the banner */
+        int sliders = 0, tiles = 0;
+        for (int i = 0; i < S.n; i++) {
+            const mpg_rect_t* r = &S.r[i];
+            CHECK(S.page[i] <= 1 && r->h >= 56 && r->x >= 8 && r->x + r->w <= 320 - 8 && r->y >= S.top_y + MPG_SHEET2_HANDLE_H && r->y + r->h <= S.next.y - 8 + 0);
+            if (S.page[i] == 0) { sliders++; CHECK(r->w >= 200); } else { tiles++; CHECK(r->w >= 88); }
+            for (int j = 0; j < i; j++) {
+                if (S.page[j] != S.page[i]) continue;                                   /* the pages are never on screen together */
+                const mpg_rect_t* q = &S.r[j];
+                CHECK(r->x + r->w + 8 <= q->x || q->x + q->w + 8 <= r->x || r->y + r->h + 8 <= q->y || q->y + q->h + 8 <= r->y);
+            }
+        }
+        CHECK(sliders == 2 && tiles == 6);                                              /* the two pages hold every item: both sliders, the five tiles and the gear */
+        CHECK(S.next.h >= 48 && S.next.w >= 72 && S.next.x + S.next.w <= 320 - 8 && S.next.y + S.next.h <= 240 - 4);
+        CHECK(S.dots_y > S.next.y && S.dots_y < S.next.y + S.next.h);
+        for (int i = 0; i < S.n; i++) CHECK(S.r[i].y + S.r[i].h + 8 <= S.next.y);       /* the page target is 8 px under the last row on either page */
+        CHECK(S.status_h == MPG_SHEET2_STATUS_H && S.text_h == 0 && S.n_status == 2);
+        CHECK(MPG_SHEET2_PAGES == 2);
+    }
     /* patch UX14: three clock styles; each fits the zone above the page dots, the sleep sign has room, a tap cycles and wraps */
     CHECK(MPG_CLOCK_STYLES == 3 && mpg_clock_style_next(0) == 1 && mpg_clock_style_next(1) == 2 && mpg_clock_style_next(2) == 0 && mpg_clock_style_clamp(7) == 0 && mpg_clock_style_clamp(-1) == 0);
     for (int st = 0; st < MPG_CLOCK_STYLES; st++) {

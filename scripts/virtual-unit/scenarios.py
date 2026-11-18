@@ -43,9 +43,9 @@ SCREENS: dict[str, list] = {
     "screen-low-battery": BAR + [("raw", "bstatus 12 0 1 1 1"), ("call", "self.face.bench_emotion", {"emotion": "tired", "tired_level": 2}), ("advance", 3400)],
     "screen-charging": BAR + [("raw", "bstatus 40 1 1 1 1"), ("advance", 700)],
     "screen-eyes-only-muted": BAR + [("raw", "style eyes_only"), ("raw", "bstatus 80 0 1 1 0"), ("raw", "seal on"), ("advance", 900)],  # patch UX03a
-    "screen-apps-wall": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 185 212"), ("advance", 700)],
-    "screen-games-wall": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 235 212"), ("advance", 700)],
-    "screen-timers-app": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 185 212"), ("advance", 700), ("raw", "pclick 80 70"), ("advance", 700)],
+    "screen-apps-wall": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 56 156"), ("advance", 700)],
+    "screen-games-wall": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 160 156"), ("advance", 700)],
+    "screen-timers-app": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 56 156"), ("advance", 700), ("raw", "pclick 80 70"), ("advance", 700)],
     "screen-settings-general": BAR + [("raw", "pshow settings"), ("advance", 500)],
     "screen-settings-network": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 128"), ("advance", 500)],
     "screen-settings-faces": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 190"), ("advance", 500)],
@@ -106,6 +106,9 @@ SCREENS: dict[str, list] = {
     "screen-page-games-end": BAR + [("raw", "pshow games"), ("advance", 600), ("raw", "pscrollby 160 80 400"), ("advance", 300)],
     "screen-page-actions": BAR + [("raw", "pshow actions"), ("advance", 600)],
     "screen-control-sheet": BAR + [("raw", "pshow sheet"), ("advance", 600)],
+    "screen-control-sheet-tiles": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 500)],   # patch UX13c: page 2 of the sheet
+    "es-control-sheet": BAR + [("raw", "pset es on"), ("raw", "pshow sheet"), ("advance", 600)],
+    "es-control-sheet-tiles": BAR + [("raw", "pset es on"), ("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 500)],
 }
 
 
@@ -234,7 +237,7 @@ for _li, _lang in enumerate(LANGS):
     for _st in (0, 1, 3, 4, 5):
         SCREENS.setdefault(f"first-run-{_st + 1}-{_lang}", [("raw", f"frun step {_st} {_li} -1"), ("advance", 400)])
     SCREENS.setdefault(f"first-run-next-{_lang}", [("raw", f"frun step 7 {_li} -1"), ("advance", 400)])   # the last screen after All set! (patch UX12)
-for _name, _steps in (("sheet", [("raw", "pshow sheet"), ("advance", 500)]), ("apps-wall", [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 185 212"), ("advance", 700)]),
+for _name, _steps in (("sheet", [("raw", "pshow sheet"), ("advance", 500)]), ("apps-wall", [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 56 156"), ("advance", 700)]),
                       ("settings-general", [("raw", "pshow settings"), ("advance", 500)]), ("settings-info", [("raw", "pshow settings"), ("advance", 400), ("raw", "pscrollby 40 150 64"), ("advance", 100), ("raw", "pclick 40 190"), ("advance", 500)]),
                       ("page-timers", [("raw", "pshow timers"), ("advance", 600)]), ("page-actions", [("raw", "pshow actions"), ("advance", 600)])):
     SCREENS[f"es-{_name}"] = BAR + [("raw", "pset es on")] + _steps

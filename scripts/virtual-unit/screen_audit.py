@@ -31,7 +31,7 @@ SKIP = ("cover-", "first-run-started", "screen-eyes-only", "screen-muted", "scre
 
 
 def screens() -> list[str]:
-    return [n for n in scen.SCREENS if not n.startswith(SKIP) and "-" in n and not any(n.endswith(f"-{l}") for l in ("en", "es", "fr", "de", "pt", "it"))]   # the unsuffixed first-run frames and the es- pages; the language variants are audited by name when asked
+    return [n for n in scen.SCREENS if n not in scen.FILMSTRIPS and not n.startswith(SKIP) and "-" in n and not any(n.endswith(f"-{l}") for l in ("en", "es", "fr", "de", "pt", "it"))]   # the unsuffixed first-run frames and the es- pages; the language variants are audited by name when asked
 
 
 def parse(lines: list[str]):
