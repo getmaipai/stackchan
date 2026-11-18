@@ -636,6 +636,8 @@ async def run(names: list[str], venv: Path | None) -> int:
         finally:
             if any(f.startswith(name + ":") for f in failures) or os.environ.get("E2E_LOG"):
                 noisy = re.compile(r"No StackChan is connected|will retry")
+                if os.environ.get("E2E_HOSTLOG"):
+                    Path(os.environ["E2E_HOSTLOG"]).write_text("\n".join(rig.log))   # the whole host log, for a failure that the last 40 lines do not explain
                 print("  host log (last 40 lines, the retry noise left out):\n    " + "\n    ".join([l for l in rig.log if not noisy.search(l)][-40:]))
                 print("  unit events: " + ", ".join(rig.fw.events_seen[-20:]) if rig.fw else "")
             if os.environ.get("E2E_LOG"):

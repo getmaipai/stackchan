@@ -227,7 +227,15 @@ async def wait_for(cond, timeout: float, step: float = 0.2) -> bool:
 
 
 def errors(rig) -> list[str]:
-    return [l for l in rig.log if re.search(r"\bERROR\b|Traceback", l)]
+    """The host's error lines; a traceback is reported with the last lines of it, so a failure says where it came from."""
+    out: list[str] = []
+    for index, line in enumerate(rig.log):
+        if "Traceback" in line:
+            tail = [x.strip()[-110:] for x in rig.log[index + 1:index + 40] if x.strip()]
+            out.append("Traceback ... " + " | ".join(tail[-3:]))
+        elif re.search(r"\bERROR\b", line):
+            out.append(line)
+    return out
 
 
 # ---- the fleet ---------------------------------------------------------------------------------------------------------------
@@ -406,6 +414,13 @@ async def fleet_light(rig, check) -> None:
     after = {u.index: ring_calls(u) for u in units}
     check("the unit that listened lit its own ring", after[1] > base[1], str((base, after)))
     check("no other unit's ring was written", after[0] == base[0] and after[2] == base[2], str((base, after)))
+    # Self-heal per unit: unit 2 reports that its restart guard holds (three self-restarts this hour): its own ring shows the fault look, nobody else's.
+    with units[2].fw.vu_lock:
+        units[2].vu.call("self.robot.get_events", {})
+        units[2].vu.state["motion"]["events"].append({"kind": "boot", "at_ms": units[2].vu.now_ms, "heal_hold": 1, "heal_n": 3})
+    check("a hold on unit 2 lit unit 2's ring with the fault look", await wait_for(lambda: ring_calls(units[2]) > after[2], 20.0), str({u.index: ring_calls(u) for u in units}))
+    await asyncio.sleep(2.0)
+    check("no other unit showed it", ring_calls(units[0]) == after[0] and ring_calls(units[1]) == after[1], str({u.index: ring_calls(u) for u in units}))
     await close_fleet(rig)
 
 

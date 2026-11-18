@@ -611,9 +611,15 @@ class StackChanBehavior:
         self._presence_thread.start()
 
     def _presence_loop(self, stop_event: threading.Event, local_stop: threading.Event) -> None:
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
         while not stop_event.is_set() and not local_stop.wait(0.2):
             if self._closed.is_set():
                 return
+            # This loop is the first unit's: with several units connected its faces and tools go to that unit only (every other unit has its own loop).
+            first = self.primary_unit()
+            if first is not None and ACTIVE_UNIT.get() != first:
+                ACTIVE_UNIT.set(first)
             now = time.monotonic()
             if (
                 not self._active.is_set()
@@ -1913,19 +1919,8 @@ class StackChanBehavior:
         return True
 
     def extra_unit_tick(self, now: float) -> None:
-        """One pass for a unit after the first (docs/plan/per-unit-behavior.md): idle look, touch, reactions, orientation, keep-awake, rest and the face
+        """One pass for a unit after the first (docs/plan/per-unit-behavior.md): touch, reactions, orientation, keep-awake, rest and the face
         watchdog. No camera work: face search and tracking read one camera and stay on the first unit."""
-        if (
-            not self._active.is_set()
-            and not self.idle_still()
-            and now - self._last_idle >= self._idle_interval_s
-            and self._rest.stage == "awake"
-        ):
-            self._last_idle = now
-            try:
-                self.render_primitive("settle")
-            except Exception:
-                self._warn_limited("idle", "StackChan idle expression failed")
         for key, step in (
             ("touch", lambda: self.wake_on_touch(now)),
             ("reaction", lambda: self.reaction_tick and self.reaction_tick()),
@@ -2623,7 +2618,10 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
         )
         extra.orientation = orientation
         extra.orientation_tick = orientation.tick
-        keep_at = [float("-inf")]
+        import zlib
+
+        jitter = (zlib.crc32(device_id.encode()) % 2000) / 100.0  # 0 to 20 s, the same for a unit each time: units' periodic calls are spread out
+        keep_at = [time.monotonic() + jitter - KEEP_AWAKE_S]
         no_tool = [False]
 
         def keep_awake() -> None:
@@ -2659,6 +2657,7 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
             offline,
             both_stop,
             device_connected=lambda: device_id in voice._sessions,
+            poll_delay_s=jitter,
         )
         extra._rest_renderer._set_ring_sleeping = unit_light.set_sleeping
         extra.privacy_light = unit_light
@@ -2672,6 +2671,10 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
     behavior.other_unit_event_handlers.append(behavior.unit_behaviors.feed)
     voice.session_listeners.append(behavior.unit_behaviors.on_connect)
     behavior.unit_behaviors.start(stop_event)
+    voice.primary_unit = behavior.primary_unit  # the first unit keeps voice.heal; the others get their own (server.heal_for)
+    voice.unit_hold_listeners.append(
+        lambda device_id, hold: (lambda light_of: light_of.update(fault=hold) if light_of is not None else None)(behavior.unit_behaviors.light_for(device_id))
+    )
     # The green "your voice is being sent" cue belongs to the unit that is listening: an extra unit's turn lights its own ring, not the first unit's.
     bridge.live_sink_for = lambda active, unit: (behavior.unit_behaviors.light_for(unit) or light).cue_live(active)
     _wire_orientation(voice, behavior, bridge, night, power)
@@ -2932,6 +2935,23 @@ def _wire_timers_and_announcements(
                     logger.warning("a finished game of one unit could not be filed", exc_info=True)
 
     behavior.other_unit_event_handlers.append(file_other_units_scores)
+
+    def heal_other_units(device_id: str, events: list) -> None:
+        """Each extra unit's own restart guard and wake self-test hear that unit's events (never the first unit's)."""
+        if device_id == behavior.primary_unit():
+            return
+        state, tester = voice.heal_for(device_id)
+        for event in events:
+            kind, extra = str(getattr(event, "kind", "")), getattr(event, "extra", None) or {}
+            try:
+                state.observe(kind, extra)
+                tester.on_event(kind, extra)
+            except Exception:
+                logger.warning("a self-heal event of one unit failed", exc_info=True)
+
+    behavior.other_unit_event_handlers.append(heal_other_units)
+
+    behavior.timers_for = timers_for  # the voice alarm commands pick the talking unit's own service
 
     def refresh(device_id: str) -> None:
         service = timers_for(device_id)
@@ -5247,8 +5267,41 @@ def _alarm_control(behavior):
     """Voice alarms and timers, run through the unit's own timers (None when the timer service is off)."""
     from maipai_body.bodies.stackchan.alarm_commands import AlarmControl
 
-    timers = getattr(behavior, "timers", None)
-    return AlarmControl(timers) if timers is not None else None
+    if getattr(behavior, "timers", None) is None:
+        return None
+    return _UnitAlarms(behavior, AlarmControl)
+
+
+class _UnitAlarms:
+    """Voice alarms and timers for several units: each unit's own AlarmControl over that unit's own timer service, so "cancel my alarm" on one unit
+    never sees another unit's alarm and an alarm set on a unit rings on that unit (docs/plan/per-unit-behavior.md, step 5)."""
+
+    def __init__(self, behavior, control_class) -> None:
+        self._behavior, self._class = behavior, control_class
+        self._by_unit: dict[str, Any] = {}
+
+    def _for(self):
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        unit = ACTIVE_UNIT.get() or ""
+        control = self._by_unit.get(unit)
+        if control is None:
+            timers_for = getattr(self._behavior, "timers_for", None)
+            timers = timers_for(unit) if (timers_for is not None and unit) else getattr(self._behavior, "timers", None)
+            if timers is None:
+                return None
+            control = self._by_unit[unit] = self._class(timers)
+        return control
+
+    def parse(self, text: str):
+        control = self._for()
+        return control.parse(text) if control is not None else None
+
+    def run(self, command) -> str:
+        control = self._for()
+        if control is None:
+            return "I could not reach my clock. Check that I am on Wi-Fi, then ask again."
+        return control.run(command)
 
 
 def _clock_setter(hosted: bool):

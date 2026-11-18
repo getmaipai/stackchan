@@ -157,3 +157,30 @@ def test_two_real_behaviors_keep_their_turn_and_rest_state_apart():
     finally:
         first.close()
         second.close()
+
+
+def test_voice_alarms_use_the_talking_units_own_timer_service():
+    from maipai_body.app import _UnitAlarms
+    from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+    class FakeControl:
+        def __init__(self, timers):
+            self.timers = timers
+
+        def parse(self, text):
+            return text
+
+        def run(self, command):
+            self.timers.append(command)
+            return "ok"
+
+    first, second = [], []
+    behavior = SimpleNamespace(timers=first, timers_for=lambda unit: second if unit == "b2" else first)
+    alarms = _UnitAlarms(behavior, FakeControl)
+    alarms.run(alarms.parse("alarm one"))   # no unit in scope: the first unit's service
+    token = ACTIVE_UNIT.set("b2")
+    try:
+        alarms.run(alarms.parse("alarm two"))
+    finally:
+        ACTIVE_UNIT.reset(token)
+    assert first == ["alarm one"] and second == ["alarm two"]
