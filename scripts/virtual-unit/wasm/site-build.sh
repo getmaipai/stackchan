@@ -3,12 +3,16 @@
 # build, with main() split by shim_main.py), the C cores as one module with a generated wrapper, the pinned Pyodide runtime (downloaded here, never committed), the virtual unit's
 # Python (copied, with the documented shim layer), the viewer files, and the page.
 # Needs: emcc 3.1.74 on PATH (emsdk), git, python3, node; network on the first run (firmware replay, LVGL, fonts, zlib, Pyodide). Nothing is fetched when the page runs.
-# Usage: bash scripts/virtual-unit/wasm/site-build.sh [screens|cores|pyodide|site|all]   (default all)
+# Usage: bash scripts/virtual-unit/wasm/site-build.sh [screens|cores|pyodide|physics|site|all]   (default all)
 #   WASM_WORK        work folder for the replayed tree and fetched sources (default .runs/wasm, shared with build.sh)
 #   MAIPAI_FW_TREE   an existing replayed tree root (default: replay into $WORK/fwtree with scripts/fw-rebuild.sh)
 #   PLAYGROUND_OUT   output folder (default docs-site/playground)
 # Placement: host-side development tool. Upstream: none.
 set -euo pipefail
+# macOS portability: nproc, stat -c and sha256sum are GNU tools; use what the machine has
+ncpu() { nproc 2>/dev/null || sysctl -n hw.ncpu; }
+fsize() { stat -c %s "$1" 2>/dev/null || stat -f %z "$1"; }
+sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi; }
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 WORK="${WASM_WORK:-$ROOT/.runs/wasm}"
@@ -51,7 +55,7 @@ build_program() {   # NAME NATIVE_SRC EXTRA_CXX_FILES(space list) EXTRA_C_FILES(
   python3 -I "$HERE/shim_main.py" "$src" "$WORK/shim/$(basename "$src")" >/dev/null
   # LVGL and zlib objects: built once, kept, shared by every program
   find "$L/src" -name '*.c' | while read -r f; do o="$WORK/obj-wasm/lv/$(echo "${f#$L/}" | tr '/' '_').o"; [ -f "$o" ] || echo "$f $o"; done \
-    | xargs -r -P "$(nproc)" -L1 bash -c 'emcc '"${CF[*]}"' -c "$0" -o "$1"'
+    | xargs -P "$(ncpu)" -L1 bash -c 'emcc '"${CF[*]}"' -c "$0" -o "$1"'
   for z in adler32 compress crc32 deflate trees zutil; do [ -f "$WORK/obj-wasm/zlib/$z.o" ] || emcc -O2 -w -I"$WORK/zlib" -c "$WORK/zlib/$z.c" -o "$WORK/obj-wasm/zlib/$z.o"; done
   local OBJS=() f o
   for f in "$WORK/shim/$(basename "$src")" $cxx; do o="$WORK/obj-wasm/$name/$(basename "$f").o"; emcc "${CXXF[@]}" -c "$f" -o "$o"; OBJS+=("$o"); done
@@ -60,7 +64,7 @@ build_program() {   # NAME NATIVE_SRC EXTRA_CXX_FILES(space list) EXTRA_C_FILES(
   emcc -O2 "${OBJS[@]}" "$WORK"/obj-wasm/lv/*.o "$WORK"/obj-wasm/zlib/*.o -o "$OUT/wasm/$name.js" \
     -sMODULARIZE=1 -sEXPORT_NAME="$mod" -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=16MB -sENVIRONMENT=web,node -sSTACK_SIZE=1MB \
     -sEXPORTED_FUNCTIONS=_vu_init,_vu_cmd,_vu_fb,_malloc,_free -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU8,FS -sFORCE_FILESYSTEM=1
-  printf '%s: %s bytes wasm, %s bytes js\n' "$name" "$(stat -c %s "$OUT/wasm/$name.wasm")" "$(stat -c %s "$OUT/wasm/$name.js")"
+  printf '%s: %s bytes wasm, %s bytes js\n' "$name" "$(fsize "$OUT/wasm/$name.wasm")" "$(fsize "$OUT/wasm/$name.js")"
 }
 
 build_screens() {
@@ -103,7 +107,7 @@ PY
   emcc -O2 "$WORK/cores/cores_all.o" "$WORK/cores/cores_gen.o" -o "$OUT/wasm/cores.js" \
     -sMODULARIZE=1 -sEXPORT_NAME=CoresModule -sENVIRONMENT=web,node -sFILESYSTEM=0 -sALLOW_MEMORY_GROWTH=0 -sINITIAL_MEMORY=2MB -sSTACK_SIZE=256KB \
     -sEXPORTED_FUNCTIONS="$EXPORTS" -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,UTF8ToString,HEAPU8,HEAP32
-  printf 'cores: %s bytes wasm, %s bytes js, %s functions exported\n' "$(stat -c %s "$OUT/wasm/cores.wasm")" "$(stat -c %s "$OUT/wasm/cores.js")" "$(echo "$EXPORTS" | tr ',' '\n' | wc -l)"
+  printf 'cores: %s bytes wasm, %s bytes js, %s functions exported\n' "$(fsize "$OUT/wasm/cores.wasm")" "$(fsize "$OUT/wasm/cores.js")" "$(echo "$EXPORTS" | tr ',' '\n' | wc -l)"
 }
 
 # The pinned Pyodide runtime (core build: Python 3.12 and its standard library, no packages): downloaded here, checked against the pinned hash, never committed.
@@ -112,10 +116,25 @@ build_pyodide() {
   local tar="$WORK/downloads/pyodide-core-$PYODIDE_VERSION.tar.bz2"
   mkdir -p "$WORK/downloads" "$OUT/pyodide"
   if [ ! -f "$tar" ]; then curl -fsSL -o "$tar" "https://github.com/pyodide/pyodide/releases/download/$PYODIDE_VERSION/pyodide-core-$PYODIDE_VERSION.tar.bz2" || { echo "could not download Pyodide $PYODIDE_VERSION. Check the network, or copy pyodide-core-$PYODIDE_VERSION.tar.bz2 into $WORK/downloads and run again."; exit 1; }; fi
-  [ "$(sha256sum "$tar" | cut -d' ' -f1)" = "$PYODIDE_SHA256" ] || { echo "the Pyodide download does not match the pinned hash. Delete $tar and run again; if it still differs, check the release before changing PYODIDE_SHA256 in site-build.sh."; exit 1; }
+  [ "$(sha256 "$tar" | cut -d' ' -f1)" = "$PYODIDE_SHA256" ] || { echo "the Pyodide download does not match the pinned hash. Delete $tar and run again; if it still differs, check the release before changing PYODIDE_SHA256 in site-build.sh."; exit 1; }
   rm -rf "$WORK/pyodide-x"; mkdir -p "$WORK/pyodide-x"; tar xjf "$tar" -C "$WORK/pyodide-x"
   for f in pyodide.js pyodide.asm.js pyodide.asm.wasm python_stdlib.zip pyodide-lock.json; do cp "$WORK/pyodide-x/pyodide/$f" "$OUT/pyodide/$f"; done
-  printf 'pyodide %s: %s bytes of wasm\n' "$PYODIDE_VERSION" "$(stat -c %s "$OUT/pyodide/pyodide.asm.wasm")"
+  printf 'pyodide %s: %s bytes of wasm\n' "$PYODIDE_VERSION" "$(fsize "$OUT/pyodide/pyodide.asm.wasm")"
+}
+
+# The physics engine (MuJoCo 4.0.1, Apache-2.0): the WebAssembly build from the npm registry, pinned by the package's published SHA-512, put in the site's vendor folder so the page never asks an
+# outside address (the native viewer loads the same file from a CDN; see scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json). Downloaded here, checked, never committed.
+MUJOCO_VERSION="4.0.1"
+MUJOCO_INTEGRITY="vLuwD6biiyo2D2LG1fwpwJUfWSDZhBIr6aUd3AuPJR8P7FAIeSHgofGC+0XgIpZ0vYi0EOyju+Kv7zPJepX7wA=="
+build_physics() {
+  local tgz="$WORK/downloads/mujoco-$MUJOCO_VERSION.tgz"
+  mkdir -p "$WORK/downloads" "$OUT/vendor/mujoco-$MUJOCO_VERSION"
+  if [ ! -f "$tgz" ]; then curl -fsSL -o "$tgz" "https://registry.npmjs.org/@mujoco/mujoco/-/mujoco-$MUJOCO_VERSION.tgz" || { echo "could not download MuJoCo $MUJOCO_VERSION from the npm registry. Check the network and run again."; exit 1; }; fi
+  [ "$(openssl dgst -sha512 -binary "$tgz" | base64 | tr -d '\n')" = "$MUJOCO_INTEGRITY" ] || { echo "the MuJoCo download does not match the pinned SHA-512. Delete $tgz and run again; if it still differs, check the package before changing the pin."; exit 1; }
+  rm -rf "$WORK/mujoco-x"; mkdir -p "$WORK/mujoco-x"; tar xzf "$tgz" -C "$WORK/mujoco-x"
+  cp "$WORK/mujoco-x/package/mujoco.js" "$WORK/mujoco-x/package/mujoco.wasm" "$OUT/vendor/mujoco-$MUJOCO_VERSION/"
+  cp "$ROOT/docs-site/vendor/mujoco/LICENSE-Apache-2.0.txt" "$OUT/vendor/mujoco-$MUJOCO_VERSION/LICENSE-Apache-2.0.txt"
+  printf 'mujoco %s: %s bytes of wasm (the page does not load it yet: the physics switch stays off until the page swaps the engine address)\n' "$MUJOCO_VERSION" "$(fsize "$OUT/vendor/mujoco-$MUJOCO_VERSION/mujoco.wasm")"
 }
 
 # The page: the viewer copied from view.html with the documented changes (make_page.py), the viewer's own scripts and model, three.js from the site's vendor folder, the adapter layer.
@@ -135,7 +154,8 @@ case "$WHAT" in
   screens) build_screens ;;
   cores) build_cores ;;
   pyodide) build_pyodide ;;
+  physics) build_physics ;;
   site) build_site ;;
-  all) build_screens; build_cores; build_pyodide; build_site ;;
-  *) echo "Unknown target $WHAT. Use screens, cores, pyodide, site or all."; exit 1 ;;
+  all) build_screens; build_cores; build_pyodide; build_physics; build_site ;;
+  *) echo "Unknown target $WHAT. Use screens, cores, pyodide, physics, site or all."; exit 1 ;;
 esac
