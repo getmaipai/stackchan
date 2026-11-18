@@ -15,9 +15,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `AGENTS.md` (56): MaiPai StackChan
 - `CLAUDE.md` (1): no header
 - `LICENSE` (664): no header
-- `NOTICE` (26): no header
+- `NOTICE` (30): no header
 - `README.md` (89): MaiPai for StackChan
-- `THIRD-PARTY.md` (42): Third-party notices
+- `THIRD-PARTY.md` (43): Third-party notices
 - `docs/STYLE.md` (52): Writing style
 - `docs/design/architecture.md` (95): Architecture
 - `docs/design/banner-row-2026-11-16.md` (65): Fixed zones, the banner row and the subtitle strip (patches N01 to N04)
@@ -116,6 +116,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/gate-numbers.md` (29): Gate numbers (2026-11-18)
 - `docs/dev/host-and-brains.md` (44): Host and brains
+- `docs/dev/model-previews/joints.gif` (981): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
@@ -239,7 +240,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/friend-test-path-2026-11-18.md` (20): The friend-test path: what exists and what is missing (2026-11-18)
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
-- `docs/plan/link-key-exchange.md` (49): Link key exchange for the encrypted link (design, 2026-11-18)
+- `docs/plan/link-key-exchange.md` (58): Link key exchange for the encrypted link (design, 2026-11-18)
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
@@ -320,6 +321,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/BASE` (5): The pinned upstream bases that firmware/patches/ORDER applies onto (read by scripts/fw-rebuild.sh).
 - `firmware/configs/sdkconfig.bench.defaults` (3): no header
 - `firmware/configs/sdkconfig.gate.defaults` (2): Gate and soak builds only (not committed as a product setting): the memory line at WARN every 10 seconds.
+- `firmware/configs/sdkconfig.linkpsk.defaults` (2): Encrypted link, step 1 (patch SF21): the curve calls and key storage with the bench check self.bench.link_self
 - `firmware/configs/sdkconfig.talkover.defaults` (3): Talk-over step 0 (patch SF15): MIC3 is the second input channel and the bench tool self.bench.mic3_check exist
 - `firmware/games/bopit.json` (945): no header
 - `firmware/games/bopit.mpk` (5): no header
@@ -476,7 +478,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (273): no header
+- `firmware/patches/ORDER` (276): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -524,6 +526,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF18-barge-decisions-core.patch` (79): Talk-over step 2, the decisions only (nothing calls them yet): maipai_barge_core.h decides when a wake hit whi
 - `firmware/patches/SF19-banner-cut-slider-save-timer-mute.patch` (123): Leftovers. A banner message that does not fit ends at a word with three dots (never inside a word or an accent
 - `firmware/patches/SF20-link-key-schedule-core.patch` (134): The key schedule of the link key exchange (docs/plan/link-key-exchange.md) as a pure header, nothing calls it 
+- `firmware/patches/SF21-link-key-curve-and-storage.patch` (189): Encrypted link, step 1 (off by default, CONFIG_MAIPAI_LINK_PSK): X25519 through the crypto service (new key pa
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -623,7 +626,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (4779): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (4780): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
 - `host/maipai_body/bench.py` (610): Owner-only local console for exercising a connected StackChan body."""
@@ -893,10 +896,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/wifi_list.py` (258): The names in StackChan's saved Wi-Fi list (firmware patch 023)."""
 - `host/maipai_body/bodies/stackchan/ws_logging.py` (37): Quiet logging for the StackChan websocket listeners.
 - `host/maipai_body/bodies/stackchan/xiaozhi/__init__.py` (6): LAN xiaozhi protocol server and provisioning helpers for StackChan."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (220): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
-- `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (598): Local administrator approval and per-device bearer tokens."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/link_exchange.py` (214): Host half of the link key exchange (docs/plan/link-key-exchange.md): X25519 plus a six-digit code the unit sho
+- `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (224): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
+- `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (633): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1682): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1755): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
 - `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
@@ -937,7 +941,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n.py` (384): ruff: noqa: E501
 - `host/maipai_body/i18n_character.py` (37): ruff: noqa: E501
 - `host/maipai_body/i18n_design.py` (313): ruff: noqa: E501
-- `host/maipai_body/i18n_family.py` (77): ruff: noqa: E501
+- `host/maipai_body/i18n_family.py` (83): ruff: noqa: E501
 - `host/maipai_body/i18n_fill/UNREVIEWED.md` (3): Machine-drafted translations, not reviewed
 - `host/maipai_body/i18n_fill/de_1.json` (65): no header
 - `host/maipai_body/i18n_fill/de_2.json` (65): no header
@@ -1092,12 +1096,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/selftest/stackchan.py` (181): BOT-SELF-TEST-01: the StackChan's seven part checks, one per part.
 - `host/maipai_body/selftest/stackchan_wiring.py` (127): BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts.
 - `host/maipai_body/settings_keys.py` (62): Settings keys shared by body settings consumers."""
-- `host/maipai_body/settings_page.py` (894): ruff: noqa: E501
+- `host/maipai_body/settings_page.py` (912): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (182): ruff: noqa: E501
 - `host/maipai_body/settings_sim.py` (436): ruff: noqa: E501
 - `host/maipai_body/settings_ui.py` (748): ruff: noqa: E501
 - `host/maipai_body/settings_ui_character.py` (21): ruff: noqa: E501
-- `host/maipai_body/settings_ui_family.py` (34): ruff: noqa: E501
+- `host/maipai_body/settings_ui_family.py` (39): ruff: noqa: E501
 - `host/maipai_body/settings_ui_link.py` (22): ruff: noqa: E501
 - `host/maipai_body/settings_ui_lock.py` (36): ruff: noqa: E501
 - `host/maipai_body/settings_ui_pages.py` (129): ruff: noqa: E501
@@ -1639,7 +1643,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/lock_core_test.c` (192): Host test for the lock core (patch LK01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>.
 - `host/tests/firmware/look_core_test.c` (583): Host test for the look core (patch X01): styles, the eye and its lid, emotions, the mouth family, the sleep se
 - `host/tests/firmware/look_shapes_dump.c` (165): Prints the face model of maipai_look_core.h as JSON (patch V10), for the preview of the settings page.
-- `host/tests/firmware/mic3_core_test.c` (65): Host test for the MIC3 bench measurement (patch SF15). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
+- `host/tests/firmware/mic3_core_test.c` (73): Host test for the MIC3 bench measurement (patch SF15). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/mood_core_test.c` (129): Host test for the mood core (patch M01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/motion_limit_core_test.c` (234): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
 - `host/tests/firmware/mouthcue_core_test.c` (84): Host test for the mouth cue player (patch SF10). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>. 
@@ -1881,6 +1885,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_link_client_refresh_address.py` (61): LINK-STATE-01: a redeem at a chosen address, the one the walk found."""
 - `host/tests/test_link_commands.py` (179): LINK-STATE-01 rung 1: a closed list of fixed local commands with fixed replies."""
 - `host/tests/test_link_discovery.py` (66): G4's own acceptance: parsing a discovered service, without any real
+- `host/tests/test_link_exchange.py` (206): The host half of the link key exchange (docs/plan/link-key-exchange.md), against the reference vectors in scri
+- `host/tests/test_link_exchange_socket.py` (91): A fake unit pairs over the plain pairing socket with the key exchange; the owner's six digits finish it (docs/
 - `host/tests/test_link_key_vector.py` (24): The link key reference script checks X25519 against RFC 7748 and HKDF against RFC 5869, then prints the fixed 
 - `host/tests/test_link_ladder_run_loop.py` (413): LINK-STATE-01: the funnel and run loop with the ladder, on a fake body and an injected clock."""
 - `host/tests/test_link_ladder_status.py` (109): LINK-STATE-01 rung 2: the offline status is a template over real values, no model."""
@@ -2161,6 +2167,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vision_yunet.py` (184): JPEG decoding and the YuNet runner, without OpenCV or the Reachy SDK."""
 - `host/tests/test_voice_server.py` (226): VOICE-01: the speech process served over the shared voice contract."""
 - `host/tests/test_voiceprint.py` (191): SPEAK-01: voice evidence in the body. Fake embedders only; no real model."""
+- `host/tests/test_vu_model.py` (117): Virtual unit 3D model: the rigged glb's node names and hierarchy, joint limits, byte-identical rebuild, source
 - `host/tests/test_vu_tools_apps.py` (113): Shape and state checks for the virtual unit apps tools."""
 - `host/tests/test_vu_tools_audio.py` (116): Coverage for the virtual unit audio and adjacent tool group."""
 - `host/tests/test_vu_tools_banner_screen.py` (47): Behavior checks for virtual banner and screen tools."""
@@ -2233,7 +2240,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-voice-bench.py` (241): Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 an
 - `scripts/game-pack.py` (556): ruff: noqa: E501
 - `scripts/gate-check.py` (124): Frame time and spoken-turn latency gate numbers, checked from what the bench agent measured (the memory number
-- `scripts/hygiene-check.sh` (46): block British spellings (American only), any mention of projects we studied (private word list), em dashes and
+- `scripts/hygiene-check.sh` (47): block British spellings (American only), any mention of projects we studied (private word list), em dashes and
 - `scripts/i18n-gaps.py` (46): List the host strings that are still English in fr, de, pt and it, and write translation chunks for lane brief
 - `scripts/install-hooks.sh` (6): point this clone at the tracked hooks (repo-local config only, never global).
 - `scripts/leak-sweep-allow.txt` (0): no header
@@ -2274,6 +2281,25 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/hw.py` (156): The virtual unit's body: power button, USB-C cable, Wi-Fi, battery, carried and orientation, and what they do 
 - `scripts/virtual-unit/listen_guard.c` (22): Harness for the listening guard (patch SF03): runs the guard loop of Application::Run once a second through th
 - `scripts/virtual-unit/make_briefs.py` (57): Write lane briefs for the tools the virtual unit does not simulate yet, in chunks of at most 7 tools of one or
+- `scripts/virtual-unit/model/MATCH.md` (50): Does the model match the owner's unit?
+- `scripts/virtual-unit/model/README.md` (51): Robot 3D model
+- `scripts/virtual-unit/model/SOURCE.md` (29): Source of the model geometry
+- `scripts/virtual-unit/model/make_body.py` (498): Build the rigged 3D model of the robot (stackchan.glb and stackchan.params.json) from source/.
+- `scripts/virtual-unit/model/render_previews.py` (168): Render preview PNGs (and a GIF when ffmpeg is installed) of stackchan.glb through its node hierarchy.
+- `scripts/virtual-unit/model/softrender.py` (180): A small software renderer for the model previews: pure Python, no dependencies.
+- `scripts/virtual-unit/model/source/LICENSE` (20): no header
+- `scripts/virtual-unit/model/source/StackChan-Base.stl` (1318): no header
+- `scripts/virtual-unit/model/source/StackChan-BaseCover.stl` (831): no header
+- `scripts/virtual-unit/model/source/StackChan-BearingFixture.stl` (96): no header
+- `scripts/virtual-unit/model/source/StackChan-LightGuideBar-A.stl` (41): no header
+- `scripts/virtual-unit/model/source/StackChan-LightGuideBar-B.stl` (39): no header
+- `scripts/virtual-unit/model/source/StackChan-MainBody.stl` (1307): Binary file scripts/virtual-unit/model/source/StackChan-MainBody.stl matches
+- `scripts/virtual-unit/model/source/StackChan-ServoArm.stl` (356): no header
+- `scripts/virtual-unit/model/source/StackChan-ServoBody.stl` (557): Binary file scripts/virtual-unit/model/source/StackChan-ServoBody.stl matches
+- `scripts/virtual-unit/model/source/StackChan-ServoCover.stl` (111): Binary file scripts/virtual-unit/model/source/StackChan-ServoCover.stl matches
+- `scripts/virtual-unit/model/source/StackChan-ServoSideCover.stl` (61): no header
+- `scripts/virtual-unit/model/stackchan.glb` (6678): no header
+- `scripts/virtual-unit/model/stackchan.params.json` (266): no header
 - `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (7): no header
 - `scripts/virtual-unit/physics/calibrate.py` (180): Fit the assumed servo parameters of a robot description from a bench recording of real head moves.
 - `scripts/virtual-unit/physics/imu.py` (45): From the IMU numbers the physics model reports to the two inputs the movement limiter takes: carried and orien

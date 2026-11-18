@@ -1,0 +1,37 @@
+# Intent: Talk-over step 0, corrected: the TDM slot read as the second channel is a setting (CONFIG_MAIPAI_TALK_OVER_SLOT, default 1, the slot the base firmware uses for its echo reference) instead of a fixed slot 2, because the ES7210 slot order is not the microphone number order. The MIC3 gain still sets the MIC3 register, so the channel that follows the gain is the loopback.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc (nested tree, MIT); firmware/main/Kconfig.projbuild (ours)
+# Check after a flash: on a talkover image self.bench.mic3_check with gain_db 0 and then 24 changes the second channel's tone amplitude by about 24 dB when the slot is the loopback; with a wrong slot it does not.
+# Kconfig: CONFIG_MAIPAI_TALK_OVER_SLOT (default 1, with CONFIG_MAIPAI_TALK_OVER)
+
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -331,6 +331,15 @@ config MAIPAI_TALK_OVER
+         First step of barge-in (patch SF15). The second input channel becomes MIC3 (the speaker loopback) instead of MIC2, and a bench
+         tool measures a tone on both channels. Off: the build is the one without it (MIC1 and MIC2), no code and no memory.
+ 
++config MAIPAI_TALK_OVER_SLOT
++    int "TDM slot read as the second channel (1 to 3)"
++    depends on MAIPAI_TALK_OVER
++    range 1 3
++    default 1
++    help
++        The ES7210 does not necessarily put MIC1, MIC2, MIC3 and MIC4 in slots 0 to 3 in that order: the base firmware reads slot 1 as its
++        echo reference. The bench tool measures which slot follows the speaker; build once with 1 and once with 2.
++
+ config MAIPAI_MIC3_GAIN_DB
+     int "Gain of the MIC3 channel in dB (0 to 37)"
+     depends on MAIPAI_TALK_OVER
+diff --git a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
+--- a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
++++ b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
+@@ -282,7 +282,7 @@ void CoreS3AudioCodec::EnableInput(bool enable) {
+         };
+         if (input_reference_) {
+ #if CONFIG_MAIPAI_TALK_OVER
+-            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(2);  // patch SF15: the second channel is MIC3, the speaker loopback
++            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(CONFIG_MAIPAI_TALK_OVER_SLOT);  // patch SF22: the TDM slot read as the second channel
+ #else
+             fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
+ #endif

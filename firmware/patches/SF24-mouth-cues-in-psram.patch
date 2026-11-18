@@ -1,0 +1,100 @@
+# Intent: The mouth cue list (about 1 KB) and the scratch arrays of self.face.mouth_cues (about 0.8 KB) no longer sit in static internal RAM: the list is allocated in PSRAM by the first list and the scratch arrays live in PSRAM for the length of one call. Idle, the cost is one pointer.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_facefx.cc, maipai_face.cc (ours)
+# Check after a flash: static internal RAM (DIRAM) of the image is about 1.6 KB lower than before this patch; self.face.mouth_cues still plays a list and answers n.
+# Kconfig: CONFIG_MAIPAI_FACE_FLUID (existing)
+
+diff --git a/firmware/main/hal/maipai_facefx.cc b/firmware/main/hal/maipai_facefx.cc
+--- a/firmware/main/hal/maipai_facefx.cc
++++ b/firmware/main/hal/maipai_facefx.cc
+@@ -12,6 +12,7 @@
+ #include "maipai_facefx_core.h"
+ #include "maipai_mouthcue_core.h"
+ #include <esp_timer.h>
++#include <esp_heap_caps.h>
+ #include <atomic>
+ #include <mutex>
+ 
+@@ -27,13 +28,17 @@ uint32_t now_ms()
+ 
+ // Patch SF10: mouth cues from the host (maipai_mouthcue_core.h), played on this clock from the first audio frame.
+ std::mutex s_cue_mutex;
+-mmc_t s_cues;  // about 800 bytes; idle it is all zero
++mmc_t* s_cues = nullptr;  // patch SF24: about 1 KB, in PSRAM, allocated by the first list (idle the pointer is all there is)
+ }  // namespace
+ 
+ int maipai_mouth_cues_set(const uint32_t* ms, const uint8_t* levels, int n)
+ {
+     std::lock_guard<std::mutex> lock(s_cue_mutex);
+-    return mmc_set(&s_cues, ms, levels, n, now_ms());
++    if (s_cues == nullptr) {
++        s_cues = static_cast<mmc_t*>(heap_caps_calloc(1, sizeof(mmc_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (s_cues == nullptr) return MMC_BAD_COUNT;
++    }
++    return mmc_set(s_cues, ms, levels, n, now_ms());
+ }
+ 
+ const char* maipai_mouth_cues_reason(int code)
+@@ -46,9 +51,9 @@ void maipai_speech_set_active(bool on)
+     {
+         std::lock_guard<std::mutex> lock(s_cue_mutex);
+         if (on && !s_active.load(std::memory_order_relaxed)) {
+-            mmc_start(&s_cues, now_ms());  // the first audio frame of a turn starts a fresh list and drops a stale one
++            if (s_cues != nullptr) mmc_start(s_cues, now_ms());  // the first audio frame of a turn starts a fresh list and drops a stale one
+         } else if (!on) {
+-            mmc_stop(&s_cues);  // the turn is over: a list that was not played belongs to it, not to the next one
++            if (s_cues != nullptr) mmc_stop(s_cues);  // the turn is over: a list that was not played belongs to it, not to the next one
+         }
+     }
+     s_active.store(on, std::memory_order_relaxed);
+@@ -64,7 +69,7 @@ bool maipai_speech_level(int* level)
+     }
+     {
+         std::lock_guard<std::mutex> lock(s_cue_mutex);
+-        if (mmc_level(&s_cues, now_ms(), level)) {
++        if (s_cues != nullptr && mmc_level(s_cues, now_ms(), level)) {
+             return true;
+         }
+     }
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -42,6 +42,7 @@
+ #include <mcp_server.h>
+ #include <cJSON.h>
+ #include <esp_log.h>
++#include <esp_heap_caps.h>
+ #include <nvs.h>
+ #include <nvs_flash.h>
+ #include <stackchan/stackchan.h>
+@@ -877,8 +878,14 @@ void maipai_face_register_tools()
+                         cJSON_Delete(root);
+                         return std::string("{\"ok\":false,\"reason\":\"bad_cues\"}");
+                     }
+-                    static uint32_t ms[MMC_MAX_CUES];  // the tool runs on one task
+-                    static uint8_t lv[MMC_MAX_CUES];
++                    // Patch SF24: the two scratch arrays live in PSRAM for the length of the call, not in static internal RAM.
++                    auto* scratch = static_cast<uint8_t*>(heap_caps_malloc(MMC_MAX_CUES * (sizeof(uint32_t) + 1), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++                    if (scratch == nullptr) {
++                        cJSON_Delete(root);
++                        return std::string("{\"ok\":false,\"reason\":\"memory\"}");
++                    }
++                    uint32_t* ms = reinterpret_cast<uint32_t*>(scratch);
++                    uint8_t* lv = scratch + MMC_MAX_CUES * sizeof(uint32_t);
+                     int n = 0;
+                     bool shape_ok = true;
+                     cJSON* it = nullptr;
+@@ -900,8 +907,12 @@ void maipai_face_register_tools()
+                         n++;
+                     }
+                     cJSON_Delete(root);
+-                    if (!shape_ok) return std::string("{\"ok\":false,\"reason\":\"bad_cues\"}");
++                    if (!shape_ok) {
++                        heap_caps_free(scratch);
++                        return std::string("{\"ok\":false,\"reason\":\"bad_cues\"}");
++                    }
+                     const int r = maipai_mouth_cues_set(ms, lv, n > MMC_MAX_CUES ? MMC_MAX_CUES + 1 : n);
++                    heap_caps_free(scratch);
+                     if (r != 0) return std::string("{\"ok\":false,\"reason\":\"") + maipai_mouth_cues_reason(r) + "\"}";
+                     return std::string("{\"ok\":true,\"n\":") + std::to_string(n) + "}";
+                 });

@@ -59,6 +59,14 @@ int main(void)
     m3_set_phase(&m, 1);
     feed(&m, 0, 32000.0f, 0, 16000, &seed);
     CHECK(m3_peak(&m, 1, 1) > 31000);
+    /* the median over 200 ms windows ignores a burst of room noise in a few windows */
+    m3_begin(&m, 16000.0f, 1000.0f);
+    m3_set_phase(&m, 1);
+    feed(&m, 0, 4000.0f, 30.0f, 3200 * 3, &seed);   /* three clean windows */
+    feed(&m, 0, 4000.0f, 9000.0f, 3200 * 2, &seed); /* two windows of loud room noise */
+    CHECK(m.wn[1] == 5);
+    CHECK(m3_win_amp_median(&m, 1, 1) > 3800.0f && m3_win_amp_median(&m, 1, 1) < 4300.0f);
+    CHECK(m3_win_rms_median(&m, 1, 1) > 2500.0f && m3_win_rms_median(&m, 1, 1) < 3200.0f);
     if (failures) return 1;
     printf("mic3 core ok\n");
     return 0;
