@@ -340,3 +340,4 @@ UX13c-control-sheet-at-finger-size.patch
 UX15-shared-game-over-screen.patch
 SF81-clock-style-three-values-saved-and-asleep.patch
 SF83-core-guards-from-static-analysis.patch
+SF82-grid-games-end-on-the-shared-game-over-screen.patch
