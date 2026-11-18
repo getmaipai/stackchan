@@ -4,7 +4,7 @@ Status: standard for the 320 by 240 app screens (Apps wall, Timers, Alarms, Game
 
 ## Type ladder
 
-Two sizes plus the clock digits. 16 px for labels and values, 24 px for titles, buttons and names; the clock page keeps its 48 px digits. The 14 px and 20 px sizes go away. Text that does not fit at 24 falls back to 16, never to a third size.
+Two sizes plus the clock digits, both from the Noto Sans basic font (it carries every Latin-1 letter, so accents and the Spanish opening marks draw): 16 px for labels and values, 20 px for titles, buttons and names; the clock page keeps its 48 px digits. Text that does not fit at 20 falls back to 16, never to a third size. Cost: the 16 px font adds 87 KB of flash (the 20 px font is already in the image for subtitles) and no internal RAM. Not in the font: oe ligature, euro sign, curly quotes (the unit maps them to plain letters and straight quotes).
 
 ## Palette
 

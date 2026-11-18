@@ -109,6 +109,25 @@ for _name, _steps in (("sheet", [("raw", "pshow sheet"), ("advance", 500)]), ("a
     SCREENS[f"es-{_name}"] = BAR + [("raw", "pset es on")] + _steps
 
 
+def load_recording(path) -> list:
+    """A recording saved by the 3D view (scripts/virtual-unit/recordings/NAME.json) as scenario steps: waits, renderer touches, tool calls."""
+    import json
+
+    steps: list = []
+    for item in json.loads(Path(path).read_text())["steps"]:
+        if item.get("wait_ms"):
+            steps.append(("advance", int(item["wait_ms"])))
+        if "touch" in item:
+            t = item["touch"]
+            if t["kind"] == "swipe":
+                steps.append(("raw", f"pswipe {t['x']} {t['y']} {t['x2']} {t['y2']} {t.get('ms', 250)}"))
+            else:
+                steps.append(("raw", f"pclick {t['x']} {t['y']}"))
+        elif "call" in item:
+            steps.append(("call", item["call"]["name"], item["call"].get("arguments", {})))
+    return steps
+
+
 def run(u, steps) -> None:
     for step in steps:
         if step[0] == "call":

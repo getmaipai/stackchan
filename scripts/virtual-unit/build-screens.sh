@@ -13,7 +13,7 @@ OUT="$(cd "$(dirname "$0")/../.." && pwd)/.runs/vu-screens"
 export MAIPAI_FW_TREE=$B/firmware MAIPAI_RENDER_SRC=$R/render.cc MAIPAI_RENDER_HOOKS=$R/hooks_banner.cc
 export MAIPAI_RENDER_EXTRA="$B/firmware/main/hal/maipai_banner.cc $B/firmware/main/hal/maipai_subtitles.cc $B/firmware/main/hal/maipai_pages.cc $B/firmware/main/hal/maipai_apps.cc $( [ -f "$B/firmware/main/hal/maipai_firstrun.cc" ] && echo "$B/firmware/main/hal/maipai_firstrun.cc" )"
 export MAIPAI_RENDER_DEFS="-DBUILTIN_TEXT_FONT=font_noto_sans_basic_20_4 -DMAIPAI_PAGES_RENDER=1"
-export MAIPAI_RENDER_CFILES="$B/firmware/managed_components/78__xiaozhi-fonts/src/font_noto_sans_basic_20_4.c"
+export MAIPAI_RENDER_CFILES="$B/firmware/managed_components/78__xiaozhi-fonts/src/font_noto_sans_basic_20_4.c $B/firmware/managed_components/78__xiaozhi-fonts/src/font_noto_sans_basic_16_4.c"
 [ -d "$OUT" ] || mkdir -p "$OUT"
 # the LVGL archive is the same as the face build's: reuse it when there
 [ -f "$OUT/lvgl.a" ] || { [ -f "$(dirname "$OUT")/vu-build/lvgl.a" ] && mkdir -p "$OUT/obj" && cp "$(dirname "$OUT")/vu-build/lvgl.a" "$OUT/lvgl.a" && cp -R "$(dirname "$OUT")/vu-build/inc" "$OUT/inc"; } || true

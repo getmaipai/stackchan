@@ -247,6 +247,7 @@ UX02d-info-tab-plain-words.patch
 UX05a-first-run-core.patch
 UX05b-first-run-screens.patch
 UX06-face-rests-under-covers.patch
+UX07a-screen-fonts-with-accents.patch
 SF01-time-helper-lock-and-remote-safety.patch
 SF02-hello-gate-switches-banner-and-light-safety.patch
 SF03-listening-guard-follows-voice.patch

@@ -8,6 +8,7 @@ Dev tool, loopback only. The page loads three.js (pinned) from cdnjs for the 3D 
 Placement: host-side development tool; no firmware change. Upstream: none."""
 import importlib.util
 import json
+import re
 import sys
 import threading
 import time
@@ -23,6 +24,19 @@ SCEN = importlib.util.spec_from_file_location("scenarios", HERE / "scenarios.py"
 scenarios = importlib.util.module_from_spec(SCEN)
 SCEN.loader.exec_module(scenarios)
 PLAYING = {"name": None}
+REC_DIR = HERE / "recordings"
+REC = {"on": False, "t0": 0, "last": 0, "steps": []}  # a recording of what a person did: waits, touches and tool calls
+
+
+def rec_step(kind, data):
+    """While recording, keep one step with the wait since the previous one (fake clock milliseconds)."""
+    if REC["on"]:
+        REC["steps"].append({"wait_ms": UNIT.now_ms - REC["last"], kind: data})
+        REC["last"] = UNIT.now_ms
+
+
+def recordings():
+    return sorted(p.stem for p in REC_DIR.glob("*.json")) if REC_DIR.exists() else []
 LOCK = threading.Lock()
 UNIT = None
 FRAME = b""
@@ -61,6 +75,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(json.dumps({"log": UNIT.log[-60:], "playing": PLAYING["name"]}).encode(), "application/json")
         elif self.path == "/scenarios":
             names = [n for n in list(scenarios.SCENARIOS) + list(scenarios.SCREENS) if UNIT.profile == "screens" or n in scenarios.SCENARIOS]
+            names += [f"rec:{n}" for n in recordings()]
             self._send(json.dumps({"scenarios": names}).encode(), "application/json")
         elif self.path == "/":
             self._send((HERE / "view.html").read_bytes(), "text/html; charset=utf-8")
@@ -69,9 +84,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         req = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        if self.path == "/record":
+            return self._send(json.dumps(record_action(req)).encode(), "application/json")
         if self.path == "/call":
             with LOCK:
                 out = UNIT.call(req.get("name", ""), req.get("arguments", {}))
+                rec_step("call", {"name": req.get("name", ""), "arguments": req.get("arguments", {})})
             out.pop("png_base64", None)
             return self._send(json.dumps(out).encode(), "application/json")
         if self.path == "/touch":
@@ -80,17 +98,41 @@ class Handler(BaseHTTPRequestHandler):
             with LOCK:
                 if req.get("kind") == "swipe":
                     said = UNIT.swipe(int(req["x"]), int(req["y"]), int(req["x2"]), int(req["y2"]), int(req.get("ms", 250)))
+                    rec_step("touch", {"kind": "swipe", "x": int(req["x"]), "y": int(req["y"]), "x2": int(req["x2"]), "y2": int(req["y2"]), "ms": int(req.get("ms", 250))})
                 else:
                     said = UNIT.tap(int(req["x"]), int(req["y"]))
+                    rec_step("touch", {"kind": "tap", "x": int(req["x"]), "y": int(req["y"])})
             return self._send(json.dumps({"ok": True, "renderer": said}).encode(), "application/json")
         if self.path == "/scenario":
             name = req.get("name", "")
             steps = scenarios.SCENARIOS.get(name) or scenarios.SCREENS.get(name)
+            if steps is None and name.startswith("rec:") and (REC_DIR / f"{name[4:]}.json").exists():
+                steps = scenarios.load_recording(REC_DIR / f"{name[4:]}.json")
             if steps is None or PLAYING["name"]:
                 return self._send(json.dumps({"isError": True, "text": "unknown scenario, or one is already playing: wait for it to end"}).encode(), "application/json")
             threading.Thread(target=play, args=(name, steps), daemon=True).start()
             return self._send(json.dumps({"ok": True, "playing": name}).encode(), "application/json")
         self._send(b"not found: POST /call, /touch or /scenario", "text/plain", 404)
+
+
+def record_action(req):
+    """POST /record: start, stop (keeps the steps) or save (writes scripts/virtual-unit/recordings/NAME.json, replayable by Play and by scenarios.py)."""
+    action = req.get("action")
+    with LOCK:
+        if action == "start":
+            REC.update(on=True, t0=UNIT.now_ms, last=UNIT.now_ms, steps=[])
+            return {"ok": True, "recording": True}
+        if action == "stop":
+            REC["on"] = False
+            return {"ok": True, "recording": False, "steps": len(REC["steps"])}
+        if action == "save":
+            name = re.sub(r"[^A-Za-z0-9_-]", "-", str(req.get("name") or "recording")).strip("-")[:40] or "recording"
+            if not REC["steps"]:
+                return {"isError": True, "text": "Nothing is recorded yet: press Record, use the robot, then Save."}
+            REC_DIR.mkdir(exist_ok=True)
+            (REC_DIR / f"{name}.json").write_text(json.dumps({"version": 1, "name": name, "steps": REC["steps"]}, indent=1) + "\n")
+            return {"ok": True, "saved": name, "steps": len(REC["steps"])}
+    return {"isError": True, "text": "action must be start, stop or save"}
 
 
 def play(name, steps):

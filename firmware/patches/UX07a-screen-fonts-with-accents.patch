@@ -1,0 +1,63 @@
+# Intent: Use Latin-1 capable Noto Sans fonts for app screen text.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_ui_style.h, maipai_apps.cc, maipai_pages.cc and maipai_firstrun.cc (ours, patches UX07a)
+# Check after a flash: Open app screens in a supported language and confirm accents render and long text still fits.
+
+diff --git a/firmware/main/hal/maipai_ui_style.h b/firmware/main/hal/maipai_ui_style.h
+--- a/firmware/main/hal/maipai_ui_style.h
++++ b/firmware/main/hal/maipai_ui_style.h
+@@ -2,7 +2,12 @@
+ 
+ #include <lvgl.h>
+ 
++extern const lv_font_t font_noto_sans_basic_16_4;
++extern const lv_font_t font_noto_sans_basic_20_4;
++
+ namespace maipai_ui_style {
++inline const lv_font_t* small_font() { return &font_noto_sans_basic_16_4; }
++inline const lv_font_t* big_font() { return &font_noto_sans_basic_20_4; }
+ inline lv_color_t text() { return lv_color_hex(0xFFFFFF); }
+ inline lv_color_t muted() { return lv_color_hex(0x8C96AA); }
+ inline lv_color_t bg() { return lv_color_black(); }  // the glass itself: screens sit on it
+diff --git a/firmware/main/hal/maipai_apps.cc b/firmware/main/hal/maipai_apps.cc
+--- a/firmware/main/hal/maipai_apps.cc
++++ b/firmware/main/hal/maipai_apps.cc
+@@ -34,8 +34,8 @@
+ constexpr int kKindTimer         = 1;  // the timer core's MT_KIND_TIMER and MT_KIND_ALARM (maipai_timers_core.h)
+ constexpr int kKindAlarm         = 2;
+ 
+-const lv_font_t* kSmall = &lv_font_montserrat_16;
+-const lv_font_t* kBig = &lv_font_montserrat_24;
++const lv_font_t* kSmall = maipai_ui_style::small_font();
++const lv_font_t* kBig = maipai_ui_style::big_font();
+ 
+ // One state record, allocated when a view opens and freed when the screen closes.
+ struct St {
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -92,8 +92,8 @@
+ };
+ ShUi* s_sh = nullptr;
+ 
+-const lv_font_t* kSmall = &lv_font_montserrat_16;
+-const lv_font_t* kBig = &lv_font_montserrat_24;
++const lv_font_t* kSmall = maipai_ui_style::small_font();
++const lv_font_t* kBig = maipai_ui_style::big_font();
+ const lv_font_t* kText = &BUILTIN_TEXT_FONT;
+ 
+ bool es() { return s_host != nullptr && s_host->spanish(); }
+diff --git a/firmware/main/hal/maipai_firstrun.cc b/firmware/main/hal/maipai_firstrun.cc
+--- a/firmware/main/hal/maipai_firstrun.cc
++++ b/firmware/main/hal/maipai_firstrun.cc
+@@ -48,8 +48,8 @@
+     };
+     const char* langs[6] = {"English", "Espanol", "Francais", "Deutsch", "Portugues", "Italiano"};
+     const char* names[6] = {"Astro", "Clover", "Ember", "Nova", "Pippa", "Rover"};
+-    const lv_font_t* f16 = &lv_font_montserrat_16;
+-    const lv_font_t* f24 = &lv_font_montserrat_24;
++    const lv_font_t* f16 = maipai_ui_style::small_font();
++    const lv_font_t* f24 = maipai_ui_style::big_font();
+     maipai_firstrun_host_t H{};
+     mfr_t flow{};
+     lv_obj_t* root = nullptr;

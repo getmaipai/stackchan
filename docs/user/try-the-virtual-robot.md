@@ -16,9 +16,10 @@ The address only works on your own Mac. Nothing leaves it.
 
 ## What you can do
 
-- Click the screen to tap it. Drag across it to swipe.
+- Click the screen to tap it. Drag across it to swipe. Swipe up from the bottom edge to open the control sheet, swipe left for the next page, swipe right to come back to the face. The Gestures buttons do the same for you.
 - Pick a face button to change the face.
 - Use the side panel to call any of the robot's tools by name and see what comes back.
+- Press Record, use the robot, press Stop, name it and press Save. The file lands in `scripts/virtual-unit/recordings/`. Pick `rec:NAME` in the scenario list to replay it with the same waits.
 - Pick a scenario and press Play to watch a screen or a story run in real time.
 
 ## If it does not start
