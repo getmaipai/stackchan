@@ -108,6 +108,7 @@ label.f{display:grid;gap:6px;font-size:.88rem;color:var(--muted);font-weight:600
 .swatch[aria-checked=true]{box-shadow:0 0 0 3px var(--fg)}
 .swatch.none{background:repeating-conic-gradient(#f4f4f4 0 25%,#9a9a9a 0 50%) 0 0/12px 12px}
 .pills{display:flex;flex-wrap:wrap;gap:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0}
 .pill{min-height:40px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--card2);cursor:pointer;font-weight:600}
 .pill[aria-pressed=true]{background:var(--accent);color:var(--on-accent);border-color:transparent}
 .pill.ovp{display:inline-flex;flex-direction:column;align-items:center;gap:4px;padding:6px 6px 8px;border-radius:14px;min-width:108px}
@@ -645,7 +646,19 @@ BUILDERS.behavior=async(p,u)=>{const id=u.device_id,ov=await api(unitPath(id,'ov
  const priv=card(S['settings.ui.nav.privacy'],T('privacy.lead'),toggle(T('beh.vision'),T('beh.vision_help'),pr?pr.vision_off:false,async on=>(await save(unitPath(id,'device'),{vision_off:on})).ok,!pr),
   toggle(T('beh.quiet_mode'),T('beh.quiet_mode_help'),pr?pr.quiet:false,async on=>(await save(unitPath(id,'device'),{quiet:on})).ok,!pr),
   toggle(T('voice.mic_mute'),T('voice.mute_help'),pr?pr.mute:u.muted,async on=>(await save(unitPath(id,'device'),{mute:on})).ok,!pr));
- p.append(h('div',{class:'grid'},body,seek,priv,musicCard(id,sv)),h('div',{class:'stack',style:'margin-top:18px'},...(swipe?[swipe]:[]),await timeCard(u),await alarmCard(u),await reactCard(u),await peopleCard(u)))};
+ p.append(h('div',{class:'grid'},body,seek,priv,quietCard(id,sv),musicCard(id,sv)),h('div',{class:'stack',style:'margin-top:18px'},...(swipe?[swipe]:[]),await timeCard(u),await alarmCard(u),await reactCard(u),await peopleCard(u)))};
+/* Quiet hours like a phone's Do Not Disturb (owner decision 22): off until set; Quiet now holds until turned off; alarms and timers still ring. */
+function quietCard(id,sv){const q=Object.assign({enabled:false,from:'22:00',to:'07:00',days:[0,1,2,3,4,5,6]},sv.quiet_schedule||{});
+ const persist=async()=>(await save2(id,{quiet_schedule:q})).ok;
+ const dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+ const time=(k,label)=>h('label',{class:'f'},T(label),h('input',{type:'time',value:q[k],onchange:e=>{q[k]=e.target.value||q[k];persist()}}));
+ const days=h('div',{class:'pills',role:'group','aria-label':T('Days')});
+ dn.forEach((n,i)=>days.append(h('button',{class:'pill',type:'button','aria-pressed':String(q.days.includes(i)),onclick:e=>{const on=!q.days.includes(i);q.days=on?[...q.days,i].sort():q.days.filter(d=>d!==i);e.currentTarget.setAttribute('aria-pressed',String(on));persist()}},T(n))));
+ return card(T('Quiet hours'),null,
+  toggle(T('Quiet now'),T('Holds until you turn it off. Alarms and timers you set still ring.'),!!sv.quiet_now,async on=>(await save2(id,{quiet_now:on})).ok),
+  toggle(T('Quiet on a schedule'),T('Off until you turn it on. Sounds stay quiet in these hours, on the days you pick.'),q.enabled,async on=>{q.enabled=on;return persist()}),
+  h('div',{class:'grid2'},time('from','From'),time('to','To')),days)}
+function save2(id,body){return save(unitPath(id,'device'),body)}
 /* Dance to music: the unit measures sound levels and tempo only; the host turns the dance controller on (off until chosen). */
 function musicCard(id,sv){const st=h('p',{class:'hint',role:'status'},T('pol.dance.status.'+(sv.dance_status||'off')));
  const c=card(T('pol.dance.title'),T('pol.dance.privacy'),toggle(T('pol.dance.toggle'),T('pol.dance.help'),!!sv.dance_to_music,async on=>{const r=await save(unitPath(id,'device'),{dance_to_music:on});if(r.ok&&r.d.status)st.textContent=T('pol.dance.status.'+r.d.status);return r.ok}),st);return c}

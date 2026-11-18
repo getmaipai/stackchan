@@ -53,6 +53,28 @@ def _clean_alarm(raw: Any) -> dict[str, Any]:
     return {"time": when, "days": [d for d in DAYS if d in days], "label": label}
 
 
+def _clean_quiet_schedule(raw: Any) -> dict[str, Any]:
+    """{enabled, from "HH:MM", to "HH:MM", days [0 Sunday to 6 Saturday]}. The window and days are kept while it is off."""
+    if not isinstance(raw, dict):
+        raise SettingsError("The quiet hours must be a schedule. Open Quiet hours and save again.")
+    out: dict[str, Any] = {}
+    if "enabled" in raw:
+        if not isinstance(raw["enabled"], bool):
+            raise SettingsError("Quiet hours must be on or off. Choose on or off and save again.")
+        out["enabled"] = raw["enabled"]
+    for key in ("from", "to"):
+        if key in raw:
+            if not (isinstance(raw[key], str) and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", raw[key])):
+                raise SettingsError("Quiet hours need a time like 22:00. Type the time and save again.")
+            out[key] = raw[key]
+    if "days" in raw:
+        days = raw["days"]
+        if not (isinstance(days, list) and all(isinstance(d, int) and not isinstance(d, bool) and 0 <= d <= 6 for d in days)):
+            raise SettingsError("Quiet hours days are 0 (Sunday) to 6 (Saturday). Pick the days and save again.")
+        out["days"] = sorted(set(days))
+    return out
+
+
 def _clean(values: dict[str, Any], *, from_owner_file: bool = False) -> dict[str, Any]:
     out: dict[str, Any] = {}
     if "name" in values:
@@ -176,10 +198,16 @@ def _clean(values: dict[str, Any], *, from_owner_file: bool = False) -> dict[str
             out["scenes"] = {n: scenes.clean_row(r) for n, r in values["scenes"].items()}
         except scenes.SceneError as error:
             raise SettingsError(str(error)) from error
+    if "quiet_schedule" in values:  # quiet hours like a phone's Do Not Disturb (owner decision 22): off until set
+        out["quiet_schedule"] = _clean_quiet_schedule(values["quiet_schedule"])
+    if "quiet_now" in values:
+        if not isinstance(values["quiet_now"], bool):
+            raise SettingsError("Quiet now must be on or off. Choose on or off and save again.")
+        out["quiet_now"] = values["quiet_now"]
     from maipai_body import unit_prefs
 
     out.update(unit_prefs.clean(values, SettingsError))
-    unknown = set(upgrade_keys(values)) - set(unit_prefs.PREFS) - {"swipe_pages", "scenes", "name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "look_on_wake", "dance_to_music", "face_owner", "wait_after_talking", "led"}
+    unknown = set(upgrade_keys(values)) - set(unit_prefs.PREFS) - {"swipe_pages", "scenes", "name", "persona", "llm", "volume_cap", "muted", "alarms", "speech_speed", "speech_pitch", "volume", "brightness", "idle_motion", "idle_movement", "ignore_noise", "look_speaker", "look_faces", "look_on_wake", "dance_to_music", "face_owner", "wait_after_talking", "led", "quiet_schedule", "quiet_now"}
     if unknown:
         raise SettingsError(f"Unknown setting {sorted(unknown)[0]}. Remove it and save again.")
     return out

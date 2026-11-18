@@ -169,3 +169,16 @@ def test_quiet_schedule_is_off_until_set_then_follows_days_and_quiet_now():
     assert quiet.active()  # Quiet now ignores the schedule
     quiet.apply({"household.quiet_hours.now": False, "household.quiet_hours.enabled": False})
     assert quiet.minutes() == (-1, -1) and not quiet.active()
+
+
+def test_a_units_saved_quiet_schedule_becomes_the_registry_keys():
+    from maipai_body.app import _quiet_registry_values
+
+    out = _quiet_registry_values({"quiet_schedule": {"enabled": True, "from": "22:00", "to": "07:00", "days": [1]}, "quiet_now": True})
+    assert out == {
+        "household.quiet_hours.from": "22:00",
+        "household.quiet_hours.to": "07:00",
+        "household.quiet_hours.days": [1],
+        "household.quiet_hours.enabled": True,
+        "household.quiet_hours.now": True,
+    }

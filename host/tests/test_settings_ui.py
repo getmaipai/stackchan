@@ -103,7 +103,7 @@ def test_volume_brightness_led_idle_motion_save_send_and_read_back(sim) -> None:
     assert units[KITCHEN].device["self.audio_speaker.set_volume"] == {"volume": 35}
     assert units[KITCHEN].device["self.robot.set_led_color"] == {"red": 42, "green": 126, "blue": 168}
     saved = _get(backend, KITCHEN, "overview")[1]["saved"]
-    assert saved == {"volume": 35, "brightness": 60, "idle_motion": False, "idle_movement": "off", "look_speaker": False, "look_faces": False, "look_on_wake": True, "dance_to_music": False, "dance_status": "off", "face_owner": "robot", "led": "#40c0ff"}
+    assert saved == {"volume": 35, "brightness": 60, "idle_motion": False, "idle_movement": "off", "look_speaker": False, "look_faces": False, "look_on_wake": True, "dance_to_music": False, "quiet_schedule": {"enabled": False, "from": "22:00", "to": "07:00", "days": [0, 1, 2, 3, 4, 5, 6]}, "quiet_now": False, "dance_status": "off", "face_owner": "robot", "led": "#40c0ff"}
 
 
 def test_bad_values_are_refused_in_plain_words_and_change_nothing(sim) -> None:
@@ -424,3 +424,17 @@ def test_every_look_card_the_page_builds_is_placed() -> None:
     script = _look_script()
     for index in range(7):
         assert f"pol.cards[{index}]" in script, f"look card {index} is built and never shown"
+
+
+def test_quiet_hours_and_quiet_now_save_and_bad_values_are_refused(sim) -> None:
+    backend, _units = sim
+    schedule = {"enabled": True, "from": "21:30", "to": "06:45", "days": [1, 2, 3, 4, 5]}
+    status, payload = _post(backend, KITCHEN, "device", {"quiet_schedule": schedule})
+    assert status == 200 and payload["quiet_schedule"] == schedule
+    status, _ = _post(backend, KITCHEN, "device", {"quiet_now": True})
+    assert status == 200
+    saved = _get(backend, KITCHEN, "overview")[1]["saved"]
+    assert saved["quiet_schedule"] == schedule and saved["quiet_now"] is True
+    for bad in ({"quiet_schedule": {"from": "25:00"}}, {"quiet_schedule": {"days": [7]}}, {"quiet_now": "yes"}):
+        status, payload = _post(backend, KITCHEN, "device", bad)
+        assert status == 400 and "error" in payload

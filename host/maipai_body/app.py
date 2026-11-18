@@ -3474,11 +3474,35 @@ def _wire_brain_page(backend) -> None:
         logger.info("No brain is set yet. Open the settings page on this computer at /brain to choose one of three ways.")
 
 
+def _quiet_registry_values(values: dict) -> dict:
+    """A unit's saved quiet schedule and "Quiet now" as the registry keys the sound service and the night rules read."""
+    from maipai_body.settings_keys import QUIET_DAYS_KEY, QUIET_ENABLED_KEY, QUIET_FROM_KEY, QUIET_NOW_KEY, QUIET_TO_KEY
+
+    out: dict = {}
+    schedule = values.get("quiet_schedule")
+    if isinstance(schedule, dict):
+        for key, registry in (("from", QUIET_FROM_KEY), ("to", QUIET_TO_KEY), ("days", QUIET_DAYS_KEY), ("enabled", QUIET_ENABLED_KEY)):
+            if key in schedule:
+                out[registry] = schedule[key]
+        if "enabled" in schedule and schedule["enabled"]:
+            out[QUIET_ENABLED_KEY] = True  # applied after from and to, so a window that is on stays on
+    if isinstance(values.get("quiet_now"), bool):
+        out[QUIET_NOW_KEY] = values["quiet_now"]
+    return out
+
+
 def _wire_idle_setting(backend, units, behavior, voice) -> None:
     """The page's "Idle movement" (off, calm, lively; default off) sets the one idle level every
     ambient head move is gated on. It is applied at start, when a unit connects, and on each save."""
 
     def apply(device_id: str, values: dict) -> None:
+        registry = _quiet_registry_values(values)
+        if registry:
+            for listener in behavior.settings_listeners:  # the household quiet schedule (sounds, night): the same keys Home sends
+                try:
+                    listener(registry)
+                except Exception:
+                    logger.warning("a quiet hours listener failed", exc_info=True)
         level = values.get("idle_movement")
         if level in _IDLE_LEVELS:
             behavior.idle_level = _IDLE_LEVELS[level]
@@ -3550,6 +3574,7 @@ def _wire_idle_setting(backend, units, behavior, voice) -> None:
                 "look_faces": own.get("look_faces", False),
                 "look_on_wake": own.get("look_on_wake", True),
                 "dance_to_music": own.get("dance_to_music", False),
+                **{k: own[k] for k in ("quiet_schedule", "quiet_now") if k in own},
             },
         )
 

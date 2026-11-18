@@ -292,7 +292,7 @@ class SettingsBackend:
                 "That unit is not paired. Pair it first, then open its settings."
             )
 
-    _DEVICE_KEYS = ("volume", "brightness", "idle_motion", "idle_movement", "look_speaker", "look_faces", "look_on_wake", "dance_to_music", "face_owner", "led", "mute", "vision_off", "quiet")
+    _DEVICE_KEYS = ("volume", "brightness", "idle_motion", "idle_movement", "look_speaker", "look_faces", "look_on_wake", "dance_to_music", "face_owner", "led", "mute", "vision_off", "quiet", "quiet_schedule", "quiet_now")
 
     def _saved_device(self, device_id: str) -> dict[str, Any]:
         own = self.store.get(device_id)
@@ -305,6 +305,8 @@ class SettingsBackend:
             "look_faces": own.get("look_faces", False),
             "look_on_wake": own.get("look_on_wake", True),
             "dance_to_music": own.get("dance_to_music", False),
+            "quiet_schedule": own.get("quiet_schedule", {"enabled": False, "from": "22:00", "to": "07:00", "days": [0, 1, 2, 3, 4, 5, 6]}),
+            "quiet_now": own.get("quiet_now", False),
             "dance_status": self._dance_status(device_id),
             "face_owner": own.get("face_owner", "robot"),
             "led": own.get("led", "off"),
@@ -338,6 +340,10 @@ class SettingsBackend:
                 self.store.update(device_id, {key: value})
                 self._notify_saved(device_id, {key: value})  # app.py turns the music dance controller on or off
                 return {"ok": True, key: value, "status": self._dance_status(device_id)}
+            elif key in ("quiet_schedule", "quiet_now"):
+                saved = self.store.update(device_id, {key: value})  # validated by the store; the host applies it and tells the unit
+                self._notify_saved(device_id, {key: saved.get(key)})
+                return {"ok": True, key: saved.get(key)}
             elif key in ("look_speaker", "look_faces", "look_on_wake"):
                 self.store.update(device_id, {key: value})
                 self._notify_saved(device_id, {key: value})
