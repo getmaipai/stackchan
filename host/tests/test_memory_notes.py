@@ -128,3 +128,21 @@ def test_build_brain_switches_it_on_from_robot_toml(tmp_path):
         {"packages": {"memory_notes": {"enabled": True, "people": ["alex"], "default_person": "alex", "folder": str(tmp_path)}}}
     )
     assert build_brain(cfg).memory.people == ["alex"]
+
+
+def test_saying_who_is_speaking_sets_the_person_for_a_while(tmp_path):
+    now = [1000.0]
+    n = Notes(NotesStore(tmp_path, today=lambda: datetime.date(2026, 11, 18)), ["alex", "sam"], default_person="alex", clock=lambda: now[0])
+    assert n.handle("this is Sam", None) == "Okay, I will use Sam's notes."
+    assert n.handle("remember I like tea", None) == "Okay, I will remember that."
+    assert (tmp_path / "sam.md").exists() and not (tmp_path / "alex.md").exists()
+    now[0] += n.ACTIVE_SECONDS + 1  # the claim runs out: back to the person named in robot.toml
+    assert n.person_for(None) == "alex"
+
+
+def test_the_spoken_name_must_be_a_listed_adult_and_evidence_wins(tmp_path):
+    n = Notes(NotesStore(tmp_path), ["alex", "sam"], default_person="alex")
+    assert n.handle("I'm Riley", None) is None  # not a notes person: left to the model
+    n.handle("this is sam", None)
+    assert n.person_for("alex") == "alex"  # a recognized speaker is never overridden by a spoken claim
+    assert n.handle("who is speaking", None) == "I am using Sam's notes."

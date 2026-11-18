@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import threading
+import time
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -100,19 +101,35 @@ class Notes:
     _READ = re.compile(r"^\s*(?:what do you remember|what (?:have|did) i (?:told|tell) you|read (?:me )?my notes)(?:\s+about me)?\s*[?.!]?\s*$", re.I)
     _EVERYONE = re.compile(r"^(?:for everyone|for the (?:whole )?(?:family|household))[ ,:]+(?:that )?(.+)$", re.I)
 
-    def __init__(self, store: NotesStore, people: list[str], default_person: str = "") -> None:
+    ACTIVE_SECONDS = 30 * 60  # a spoken "this is Sam" holds for half an hour
+    _WHO_IS = re.compile(r"^\s*(?:this is|it'?s|i am|i'?m)\s+([A-Za-z][A-Za-z0-9_-]{0,31})\s*[.!]?\s*$", re.I)
+    _WHO_ASK = re.compile(r"^\s*(?:who is speaking|who am i|whose notes (?:are you using|is this))\s*[?.!]?\s*$", re.I)
+
+    def __init__(self, store: NotesStore, people: list[str], default_person: str = "", clock=time.monotonic) -> None:
+        self._clock, self._active, self._active_until = clock, "", 0.0
         self.store = store
         self.people = [p.lower() for p in people]
         self.default_person = default_person.lower() if default_person.lower() in self.people else ""
 
     def person_for(self, speaker: str | None) -> str:
         if not speaker:
+            if self._active and self._clock() < self._active_until:
+                return self._active  # someone said who is speaking
             return self.default_person  # nobody was identified: the person named in robot.toml
         who = speaker.lower()
         return who if who in self.people else ""  # a speaker who is not a listed adult has no notes
 
     def handle(self, text: str, speaker: str | None = None) -> str | None:
         """The spoken reply when ``text`` is a notes request, else None (the model answers as usual)."""
+        who = self._WHO_IS.match(text)
+        if who and who.group(1).lower() in self.people:
+            if speaker and speaker.lower() in self.people and speaker.lower() != who.group(1).lower():
+                return None  # a recognized speaker is not renamed by words
+            self._active, self._active_until = who.group(1).lower(), self._clock() + self.ACTIVE_SECONDS
+            return f"Okay, I will use {who.group(1).capitalize()}'s notes."
+        if self._WHO_ASK.match(text):
+            person = self.person_for(speaker)
+            return f"I am using {person.capitalize()}'s notes." if person else "I do not know who is speaking. Say \"this is\" and your name."
         forget_all = self._FORGET_ALL.match(text)
         remember = None if forget_all else self._REMEMBER.match(text)
         read = None if (forget_all or remember) else self._READ.match(text)
