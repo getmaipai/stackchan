@@ -411,7 +411,14 @@ def main(argv: list[str] | None = None) -> int:
     data = args.data or Path(tempfile.mkdtemp(prefix="stackchan-settings-sim-"))
     data.mkdir(parents=True, exist_ok=True)
     backend, _units = build(data, language=args.lang, next_unit=args.next_unit)
-    server = SettingsServer(backend, "127.0.0.1", args.port)
+    from maipai_body.bodies.stackchan.xiaozhi.pairing import PairingStore
+    from maipai_body.local_guard import SettingsAuth
+
+    pairing = PairingStore(data / "pairing.json")
+    auth = SettingsAuth(data / "settings-token")
+    backend.pair_code = pairing.create_pair_code  # the pairing code button and the phone code work in the stand-in too
+    backend.phone_link = lambda: {"lan": True, "base": f"http://192.0.2.10:{args.port}", "token": auth.token}
+    server = SettingsServer(backend, "127.0.0.1", args.port, auth=auth)
     server.start()
     print(f"settings page (simulated units) on http://127.0.0.1:{server.port}/settings  data: {data}", flush=True)
     done = threading.Event()

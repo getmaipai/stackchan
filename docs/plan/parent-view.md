@@ -26,3 +26,7 @@ Whether this is a new page `/parent` or the first group of the existing page (th
 ## Decision
 
 Taken as written (app track, 2026-11-18): the first group of the existing page, phone reachable through the settings token, no history by design, the eleven "soon" stubs hidden, one shared privacy sentence in the catalog. Quiet hours: hidden until the unit rule exists. Built after the current safety list; the first slice is the status card and hiding the stubs.
+
+## Built (app track, 2026-11-18)
+
+On the home page, above the unit cards: a Family and safety card (online, microphone, camera, lock in plain words; the privacy promise; "no history to read"; who controlled the robot lately), a pairing code button (host computer only) and a phone code card (QR that logs a phone in, only when `lan = true`). The "soon" stubs are hidden by the page script. Words: `i18n_family.py` (English and Spanish; the others read English until written). Checked in the built-in browser at phone width: the cards stack in one column, the code shows large, the QR draws. Not done: quiet hours (hidden until the unit rule exists), one shared privacy sentence with the robot's first-run screen (the key is `settings.ui.fam.privacy`; the firmware side should read the same text).
