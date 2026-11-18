@@ -149,7 +149,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1110): Feature ledger
+- `docs/dev/feature-ledger.md` (1111): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -447,11 +447,16 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/playground/faults.md` (11): Faults: when the host is away
 - `docs/playground/games-and-sounds.md` (7): Games and sounds
 - `docs/playground/index.md` (32): MaiPai for StackChan: the playground
+- `docs/playground/keyboard-and-mouse.md` (38): Keyboard and mouse cheat sheet
 - `docs/playground/languages.md` (5): Languages
+- `docs/playground/live-mode-and-safety.md` (28): Live mode and safety
+- `docs/playground/scenarios-and-recording.md` (30): Scenarios and recording
 - `docs/playground/screen-tour.md` (17): The screen tour
 - `docs/playground/start-here.md` (31): Start here
+- `docs/playground/talk-to-the-virtual-robot.md` (20): Talk to the virtual robot
 - `docs/playground/the-3d-robot.md` (13): The 3D robot
 - `docs/playground/troubleshooting.md` (11): Troubleshooting
+- `docs/playground/utilization.md` (31): The utilization panel
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
 - `docs/user/about.md` (28): About and legal
 - `docs/user/bench-listening.md` (5): Listen longer on the bench (developers)
@@ -876,7 +881,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5158): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5179): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
@@ -1201,6 +1206,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/faces.py` (790): ruff: noqa: E501
 - `host/maipai_body/fillers.py` (360): ruff: noqa: E501
 - `host/maipai_body/first_run_name.py` (75): The robot's name from the first run (firmware patches SF09 and UX11).
+- `host/maipai_body/game_scores.py` (80): ruff: noqa: E501
 - `host/maipai_body/hal/__init__.py` (1): The HAL seam: ``seam`` for the typed protocols, ``errors`` for what crosses it."""
 - `host/maipai_body/hal/envelope.py` (55): Shared envelope clamping for a body profile's real client and fake (first used by the Reachy Mini body).
 - `host/maipai_body/hal/errors.py` (68): Errors the HAL seam raises.
@@ -1246,7 +1252,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_fill/pt_7.json` (65): no header
 - `host/maipai_body/i18n_fill/pt_8.json` (24): no header
 - `host/maipai_body/i18n_link.py` (53): ruff: noqa: E501
-- `host/maipai_body/i18n_literals.py` (300): ruff: noqa: E501
+- `host/maipai_body/i18n_literals.py` (324): ruff: noqa: E501
 - `host/maipai_body/i18n_lock.py` (79): ruff: noqa: E501
 - `host/maipai_body/i18n_more.py` (615): ruff: noqa: E501
 - `host/maipai_body/i18n_pages.py` (158): ruff: noqa: E501
@@ -1374,10 +1380,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/service_cmd.py` (228): The command of the install this program runs from (before any `stackchan service update`)."""
 - `host/maipai_body/service_threads.py` (71): Background threads of the host service, each started with the stop event it waits on.
 - `host/maipai_body/settings_keys.py` (65): Settings keys shared by body settings consumers."""
-- `host/maipai_body/settings_page.py` (1010): ruff: noqa: E501
+- `host/maipai_body/settings_page.py` (1019): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (188): ruff: noqa: E501
-- `host/maipai_body/settings_sim.py` (436): ruff: noqa: E501
-- `host/maipai_body/settings_ui.py` (765): ruff: noqa: E501
+- `host/maipai_body/settings_sim.py` (442): ruff: noqa: E501
+- `host/maipai_body/settings_ui.py` (768): ruff: noqa: E501
 - `host/maipai_body/settings_ui_character.py` (21): ruff: noqa: E501
 - `host/maipai_body/settings_ui_family.py` (39): ruff: noqa: E501
 - `host/maipai_body/settings_ui_link.py` (23): ruff: noqa: E501
@@ -2175,6 +2181,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
 - `host/tests/test_fuzz_cores.py` (22): A short run of the sanitizer fuzz of the unit's parsers (scripts/fuzz-cores.sh, docs/dev/fuzzing-and-hostile-p
 - `host/tests/test_fw_stress_gate.py` (43): The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
+- `host/tests/test_game_scores.py` (48): Best scores per person: a finished game is filed under the named player or Someone; an early stop saves nothin
 - `host/tests/test_game_sounds.py` (33): The synthesized game sounds (scripts/make-game-sounds.py): deterministic, none clipping, all at the same chime
 - `host/tests/test_game_voice.py` (151): no header
 - `host/tests/test_games_no_head_motion.py` (40): Owner rule (2026-11-18): a game never moves the head. No line a patch adds to the game player, the game engine
