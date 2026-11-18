@@ -34,6 +34,7 @@ python3 xiaozhi-esp32/scripts/gen_lang.py --language en-US --output xiaozhi-esp3
 if { [ "$KIND" = bench ] || [ "$KIND" = talkover ] || [ "$KIND" = linkpsk ] || [ "$KIND" = aec ]; } && [ ! -f main/hal/maipai_bench_clips.c ]; then python3 "$ROOT/scripts/fw-bench-clips.py" "$FW"; fi
 D="$PWD/sdkconfig.defaults"
 if [ -n "$OVERLAYS" ]; then IFS=';' read -ra X <<< "$OVERLAYS"; for f in "${X[@]}"; do D="$D;$PWD/$f"; done; fi
+if [ -n "${FW_BUILD:-}" ]; then printf 'CONFIG_MAIPAI_FW_BUILD=%s\n' "$FW_BUILD" > sdkconfig.build.defaults; D="$D;$PWD/sdkconfig.build.defaults"; fi  # the signed-update build number of this image
 B="build-$KIND"
 SDK="sdkconfig.f$KIND"
 # A fresh sdkconfig the first time; later calls on the same tree rebuild incrementally.

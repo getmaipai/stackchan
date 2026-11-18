@@ -31,6 +31,7 @@ PLAIN = [
     "linkkey_core_test.c",
     "linkurl_core_test.c",
     "pairx_core_test.c",
+    "updatefloor_core_test.c",
     "servo_clock_core_test.c",
     "sounds_core_final_test.c",
     "tailnet_core_final_test.c",

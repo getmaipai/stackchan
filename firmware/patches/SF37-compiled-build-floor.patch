@@ -1,0 +1,113 @@
+# Intent: A signed update must beat the build number compiled into the running image (CONFIG_MAIPAI_FW_BUILD, set by the release build) as well as the confirmed number kept in flash, so a USB flash or an erased flash keeps the rollback floor. self.version.get fw_build reports that floor. A header build above 2147483647 is refused and a failed boot partition switch leaves no pending build number.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/ota.cc (nested tree, MIT); firmware/main (ours)
+# Check after a flash: on an image built with FW_BUILD=7, self.version.get answers fw_build 7 with an empty flash, and an update header with build 6 is refused as not newer.
+# Kconfig: CONFIG_MAIPAI_FW_BUILD (int, default 0)
+
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -206,6 +206,15 @@ config MAIPAI_NETTEST
+         the one thing to do about the first problem. It reads state the unit already holds and sends nothing. Off
+         here: no screen and no tool.
+ 
++config MAIPAI_FW_BUILD
++    int "Build number of this image (signed updates)"
++    default 0
++    range 0 2147483647
++    help
++        The build number compiled into the image. A signed update header must carry a higher number than this one and than the highest
++        confirmed one kept in flash, so a unit flashed over USB or with its settings erased still refuses an older release. 0: the image
++        carries no number (the confirmed number in flash is the only floor). The release script sets it.
++
+ config MAIPAI_VERSION
+     bool "Version screen (More screen and self.version.get)"
+     default y
+diff --git a/firmware/main/hal/maipai_updatehdr_core.h b/firmware/main/hal/maipai_updatehdr_core.h
+--- a/firmware/main/hal/maipai_updatehdr_core.h
++++ b/firmware/main/hal/maipai_updatehdr_core.h
+@@ -28,13 +28,21 @@ static const char* const MUH_REASONS[MUH_COUNT] = {"ok",
+                                                    "the header is not 56 bytes",
+                                                    "the header does not start with MPUH1",
+                                                    "the reserved bytes of the header are not zero",
+-                                                   "the build number is zero",
++                                                   "the build number is zero or above 2147483647",
+                                                    "the build number is not higher than the one already installed",
+                                                    "the image length does not match the header",
+                                                    "the image hash does not match the header"};
+ 
+ static inline uint32_t muh_le32(const uint8_t* p) { return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24); }
+ 
++/* The floor a new header must beat: the higher of the confirmed build kept in flash (0 when none) and the build compiled into the running image.
++ * The compiled number survives a flash erase and a USB flash of a newer image; the stored one survives an image that was not built with a number. */
++static inline uint32_t muh_floor(int stored, int compiled)
++{
++    const uint32_t a = stored > 0 ? (uint32_t)stored : 0u, b = compiled > 0 ? (uint32_t)compiled : 0u;
++    return a > b ? a : b;
++}
++
+ /* Checks the header bytes (after the signature over them was verified). floor: the highest build confirmed so far, 0 when none. */
+ static inline int muh_parse(const uint8_t* hdr, size_t len, uint32_t floor_build, muh_hdr_t* out)
+ {
+@@ -47,7 +55,7 @@ static inline int muh_parse(const uint8_t* hdr, size_t len, uint32_t floor_build
+     out->build = muh_le32(hdr + 8);
+     out->image_len = muh_le32(hdr + 12);
+     memcpy(out->sha256, hdr + 16, 32);
+-    if (out->build == 0) return MUH_BUILD_ZERO;
++    if (out->build == 0 || out->build > 0x7fffffffu) return MUH_BUILD_ZERO;
+     if (out->build <= floor_build) return MUH_NOT_NEWER;
+     return MUH_OK;
+ }
+diff --git a/firmware/main/hal/maipai_version.cc b/firmware/main/hal/maipai_version.cc
+--- a/firmware/main/hal/maipai_version.cc
++++ b/firmware/main/hal/maipai_version.cc
+@@ -7,6 +7,7 @@
+ #include <sdkconfig.h>
+ #if CONFIG_MAIPAI_VERSION
+ #include "maipai_version.h"
++#include "maipai_updatehdr_core.h"
+ #include <mcp_server.h>
+ #include <cJSON.h>
+ #include <esp_app_desc.h>
+@@ -74,9 +75,9 @@ void maipai_version_register_tools()
+             cJSON_AddNumberToObject(root, "psram_free", i.psram_free);
+             cJSON_AddNumberToObject(root, "psram_min", i.psram_min);
+             cJSON_AddNumberToObject(root, "uptime_s", i.uptime_s);
+-            {   // Patch SF25: the highest confirmed build number (0 before the first signed header update)
++            {   // Patch SF25, SF37: the build floor: the higher of the confirmed number in flash and the one compiled into this image (0 when neither)
+                 Settings update_state("mp_update", false);
+-                cJSON_AddNumberToObject(root, "fw_build", update_state.GetInt("minbuild", 0));
++                cJSON_AddNumberToObject(root, "fw_build", static_cast<int>(muh_floor(update_state.GetInt("minbuild", 0), CONFIG_MAIPAI_FW_BUILD)));
+             }
+             char* text      = cJSON_PrintUnformatted(root);
+             std::string out = text != nullptr ? text : "{\"ok\":false,\"error\":\"out of memory: try again\"}";
+diff --git a/firmware/xiaozhi-esp32/main/ota.cc b/firmware/xiaozhi-esp32/main/ota.cc
+--- a/firmware/xiaozhi-esp32/main/ota.cc
++++ b/firmware/xiaozhi-esp32/main/ota.cc
+@@ -339,10 +339,10 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+             return false;
+         }
+         Settings update_state("mp_update", false);
+-        const int floor_build = update_state.GetInt("minbuild", 0);
+-        const int parsed = muh_parse(hdr_bytes, sizeof(hdr_bytes), floor_build > 0 ? static_cast<uint32_t>(floor_build) : 0u, &header);
++        const uint32_t floor_build = muh_floor(update_state.GetInt("minbuild", 0), CONFIG_MAIPAI_FW_BUILD);  // patch SF37
++        const int parsed = muh_parse(hdr_bytes, sizeof(hdr_bytes), floor_build, &header);
+         if (parsed != MUH_OK) {
+-            ESP_LOGE(TAG, "Update refused: %s (installed build %d).", MUH_REASONS[parsed], floor_build);
++            ESP_LOGE(TAG, "Update refused: %s (installed build %u).", MUH_REASONS[parsed], static_cast<unsigned>(floor_build));
+             std::string why = std::string("Update refused: ") + MUH_REASONS[parsed] + ". Nothing was installed.";
+             UpdateSetRefusal(why.c_str());
+             return false;
+@@ -488,6 +488,12 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
+     err = esp_ota_set_boot_partition(update_partition);
+     if (err != ESP_OK) {
+         ESP_LOGE(TAG, "Failed to set boot partition: %s", esp_err_to_name(err));
++#ifndef CONFIG_STACKCHAN_UPDATE_ALLOW_UNSIGNED
++        {   // patch SF37: the new image will not run, so its build number must not wait for a later trial
++            Settings update_state("mp_update", true);
++            update_state.SetInt("pendbuild", 0);
++        }
++#endif
+         return false;
+     }
+ 
