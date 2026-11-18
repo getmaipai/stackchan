@@ -814,6 +814,21 @@
    "freed_when": "on Play again, Quit or the end of the game",
    "status": "estimate",
    "source": "patch SF82 and SF86: about 14 LVGL objects at an estimated 150 bytes each; measure with two self.bench.heap_info calls (idle game, game over)"
+  },
+  {
+   "id": "feature.offline_mumble",
+   "kind": "feature",
+   "name": "The offline mumble while a caption plays",
+   "internal": 0,
+   "psram": 13200,
+   "flash": 3000,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a caption sentence arrives with mumble true and the setting is on",
+   "freed_when": "when the caption ends, on the wake word or an abort, or when a new sentence replaces it",
+   "status": "estimate",
+   "source": "patch SF87: a 12,800 byte render buffer and at most 401 bytes of text in PSRAM; the idle state (one mm_t, a 12-note ring, a mutex, a timer) is about 250 bytes internal and is not counted here; flash is an estimate; measure with two self.bench.heap_info calls (idle, mumbling)"
   }
  ]
 }

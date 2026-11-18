@@ -236,7 +236,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/index.md` (107): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
-- `docs/dev/model-previews/joints.gif` (1622): Binary file docs/dev/model-previews/joints.gif matches
+- `docs/dev/model-previews/joints.gif` (1480): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/mumble/de.wav` (281): no header
 - `docs/dev/mumble/en.wav` (243): Binary file docs/dev/mumble/en.wav matches
 - `docs/dev/mumble/es.wav` (259): no header
@@ -710,7 +710,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (345): no header
+- `firmware/patches/ORDER` (349): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -820,6 +820,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF83-core-guards-from-static-analysis.patch` (83): Defensive guards in three pure cores after a static analysis run: the head history lookup returns the current 
 - `firmware/patches/SF84-snake-start-grace-and-bench-events-for-grid-games.patch` (57): Two fixes from the b59 bench run. Snake reached the right wall in about two seconds with no input: it now wait
 - `firmware/patches/SF85-option-to-leave-the-stock-pictures-out-of-the-assets.patch` (38): A build option, MAIPAI_PARTITION_EXTRA_ASSETS (default on: the image is unchanged), that leaves the stock apps
+- `firmware/patches/SF86-data-pack-games-on-the-shared-game-over-screen.patch` (136): The data-pack games that have an end (Color Memory, Whack-a-Mole, Tic-Tac-Toe, Do It) finish on the shared gam
+- `firmware/patches/SF87-offline-mumble-on-the-unit.patch` (478): The offline mumble, device side (owner decision 24; core UX16, spec docs/design/offline-mumble.md). A caption 
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -894,6 +896,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX14-clock-styles-tap-and-sleep-sign.patch` (190): The clock page gets three styles that a tap cycles, and shows when the unit sleeps (owner idea 2026-11-18, spe
 - `firmware/patches/UX14b-clock-flip-on-the-card-tween.patch` (133): The clock style change plays a card flip (owner idea 2026-11-18, spec docs/design/clock-styles.md "The flip").
 - `firmware/patches/UX15-shared-game-over-screen.patch` (225): One game-over screen for every game (owner idea 2026-11-18, spec docs/design/game-over-screen.md). A face for 
+- `firmware/patches/UX16-offline-mumble-core.patch` (197): The offline mumble (owner decision 24, 2026-11-18; spec docs/design/offline-mumble.md). When the unit has word
+- `firmware/patches/UX17-question-and-answer-game-screens.patch` (285): The screens of the question-and-answer games (owner decisions 25 to 27, 2026-11-18; spec docs/design/qa-game-s
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -1487,7 +1491,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/unit_extras.py` (930): ruff: noqa: E501
 - `host/maipai_body/unit_lock.py` (266): ruff: noqa: E501
 - `host/maipai_body/unit_polish.py` (187): ruff: noqa: E501
-- `host/maipai_body/unit_prefs.py` (246): ruff: noqa: E501
+- `host/maipai_body/unit_prefs.py` (248): ruff: noqa: E501
 - `host/maipai_body/unit_remote.py` (420): ruff: noqa: E501
 - `host/maipai_body/unit_settings.py` (265): ruff: noqa: E501
 - `host/maipai_body/unit_tools.py` (93): ruff: noqa: E501
@@ -2008,6 +2012,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/motion_limit_core_test.c` (292): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
 - `host/tests/firmware/mouthcue_core_test.c` (152): Host test for the mouth cue player (patch SF10). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/mumble_core_dump.c` (14): Prints the blips of the text in argv[1] over argv[2] ms, one line each: t dur f0 f1 level mouth (patch UX16). 
+- `host/tests/firmware/mumble_render_core_test.c` (47): Host test of the mumble note renderer (patch SF87). */
 - `host/tests/firmware/music_core_test.c` (168): Host test for the on-unit music features (patch 100): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/music_mood_test.c` (54): Host test for the music mood faces (patch V03): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/nettest_core_test.c` (151): Host test for the network test core (patch U04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
@@ -2223,7 +2228,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (160): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (67): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (68): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2614,7 +2619,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vision_yunet.py` (184): JPEG decoding and the YuNet runner, without OpenCV or the Reachy SDK."""
 - `host/tests/test_voice_server.py` (226): VOICE-01: the speech process served over the shared voice contract."""
 - `host/tests/test_voiceprint.py` (191): SPEAK-01: voice evidence in the body. Fake embedders only; no real model."""
-- `host/tests/test_vu_model.py` (526): Virtual unit 3D model: the rigged glb's node names and hierarchy, joint limits, byte-identical rebuild, source
+- `host/tests/test_vu_model.py` (529): Virtual unit 3D model: the rigged glb's node names and hierarchy, joint limits, byte-identical rebuild, source
 - `host/tests/test_vu_tools_apps.py` (113): Shape and state checks for the virtual unit apps tools."""
 - `host/tests/test_vu_tools_audio.py` (116): Coverage for the virtual unit audio and adjacent tool group."""
 - `host/tests/test_vu_tools_banner_screen.py` (47): Behavior checks for virtual banner and screen tools."""
@@ -2642,7 +2647,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/.gitkeep` (0): no header
 - `schema/asset-kinds.json` (68): no header
 - `schema/base-tools.json` (11): no header
-- `schema/memory-budget.json` (804): no header
+- `schema/memory-budget.json` (834): no header
 - `schema/power-model.json` (34): no header
 - `schema/tools.json` (656): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
@@ -2803,10 +2808,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/make_briefs.py` (57): Write lane briefs for the tools the virtual unit does not simulate yet, in chunks of at most 7 tools of one or
 - `scripts/virtual-unit/memory_model.py` (223): The memory model of the virtual unit (owner decision 15, 2026-11-18): every screen, overlay, picture face, lan
 - `scripts/virtual-unit/memory_walk.py` (92): Opens every screen in turn on the virtual unit, uses overlays, notes, the music dance and the first run, retur
-- `scripts/virtual-unit/model/MATCH.md` (217): Does the model match the owner's unit?
+- `scripts/virtual-unit/model/MATCH.md` (223): Does the model match the owner's unit?
 - `scripts/virtual-unit/model/README.md` (78): Robot 3D model
 - `scripts/virtual-unit/model/SOURCE.md` (34): Source of the model geometry
-- `scripts/virtual-unit/model/make_body.py` (1242): Build the rigged body model of the unit from the official structure files in source/.
+- `scripts/virtual-unit/model/make_body.py` (1337): Build the rigged body model of the unit from the official structure files in source/.
 - `scripts/virtual-unit/model/render_previews.py` (224): Render the preview pictures of stackchan.glb: six views of the outside and both joints through their ranges.
 - `scripts/virtual-unit/model/softrender.py` (170): A small software renderer for the body model previews: standard library only.
 - `scripts/virtual-unit/model/source/LICENSE` (20): no header
@@ -2820,9 +2825,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/source/StackChan-ServoBody.stl` (557): Binary file scripts/virtual-unit/model/source/StackChan-ServoBody.stl matches
 - `scripts/virtual-unit/model/source/StackChan-ServoCover.stl` (111): Binary file scripts/virtual-unit/model/source/StackChan-ServoCover.stl matches
 - `scripts/virtual-unit/model/source/StackChan-ServoSideCover.stl` (61): no header
-- `scripts/virtual-unit/model/stackchan.glb` (8387): no header
-- `scripts/virtual-unit/model/stackchan.params.json` (785): no header
-- `scripts/virtual-unit/model/stackchan.web.glb` (6822): Binary file scripts/virtual-unit/model/stackchan.web.glb matches
+- `scripts/virtual-unit/model/stackchan.glb` (10204): no header
+- `scripts/virtual-unit/model/stackchan.params.json` (791): no header
+- `scripts/virtual-unit/model/stackchan.web.glb` (8001): Binary file scripts/virtual-unit/model/stackchan.web.glb matches
 - `scripts/virtual-unit/model/validate.sh` (18): check stackchan.glb with the Khronos glTF validator, on this Mac only (the file is read locally; nothing is up
 - `scripts/virtual-unit/mumble.py` (205): The offline mumble, reference implementation (patch UX16, spec docs/design/offline-mumble.md): one short note 
 - `scripts/virtual-unit/overlay-skip.txt` (1): no header
