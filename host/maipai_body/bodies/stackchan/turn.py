@@ -22,7 +22,7 @@ import numpy as np
 import numpy.typing as npt
 
 from maipai_body import reply_tags
-from maipai_body.bodies.stackchan import captions
+from maipai_body.bodies.stackchan import barge, captions
 from maipai_body.bodies.stackchan.error_line import ErrorLineBreaker
 from maipai_body.mouth_cues import UNIT_MAX_MS, fit_to_unit
 from maipai_body.mouth_cues import mouth_cues as mouth_cues_for
@@ -280,6 +280,9 @@ class StackChanAudioPlayback(AudioPlayback):
         # Host-computed mouth cues (self.face.mouth_cues, patch SF10): the unit takes one list per reply, played from the
         # first audio frame, so they are sent only for a reply that is one sentence, once that sentence is synthesized.
         self.mouth_cues_on = False
+        # Sentences that say the wake phrase are marked no_barge for the unit (patch SF29); None turns it off.
+        self.wake_phrases: Callable[[], list[str]] | None = barge.wake_phrases
+        self._no_barge: dict[str, int] = {}  # caption piece -> milliseconds
         self._cue_samples: list[npt.NDArray[np.float32]] = []
         self._cue_collecting = True
         self._cue_decided = threading.Event()
@@ -439,6 +442,13 @@ class StackChanAudioPlayback(AudioPlayback):
     def caption(self, text: str) -> None:
         """The sentence whose audio is queued next; the unit shows its exact words when that audio starts."""
         parts = captions.pieces(text)
+        if self.wake_phrases is not None and text:
+            try:
+                if barge.says_wake_phrase(text, self.wake_phrases()):
+                    for part in parts:
+                        self._no_barge[part] = barge.no_barge_ms(text)
+            except Exception:
+                LOG.debug("StackChan wake-phrase check skipped", exc_info=True)
         with self._lock:
             self._close_caption_locked()
             if parts:
@@ -457,6 +467,15 @@ class StackChanAudioPlayback(AudioPlayback):
         for part in parts[1:]:
             self._cap_marks.append((start + int(total * spent / chars), part))
             spent += len(part)
+
+    def _caption_args(self, caption: str | None) -> dict[str, object]:
+        """The caption of a sentence_start, and no_barge with its length when the sentence says the wake phrase."""
+        if not caption:
+            return {}
+        args: dict[str, object] = {"caption": caption}
+        if caption in self._no_barge:
+            args["no_barge_ms"] = self._no_barge[caption]
+        return args
 
     def _take_caption_locked(self, frame_index: int) -> str | None:
         """The next caption due at or before this frame (one per send; a late piece goes out on the next frame)."""
@@ -522,7 +541,7 @@ class StackChanAudioPlayback(AudioPlayback):
             start=first_sentence,
             stop=False,
             prebuffer=len(lead),
-            **({"caption": lead_caption} if lead_caption else {}),
+            **self._caption_args(lead_caption),
         )
         total = len(lead)
         sent = len(lead)  # since `began`, the last time the schedule was based
@@ -563,7 +582,7 @@ class StackChanAudioPlayback(AudioPlayback):
                     start=False,
                     stop=False,
                     prebuffer=len(batch),
-                    **({"caption": batch_caption} if batch_caption else {}),
+                    **self._caption_args(batch_caption),
                 )
                 total += len(batch)
                 sent = len(batch)
@@ -605,7 +624,7 @@ class StackChanAudioPlayback(AudioPlayback):
                     sentence_start=True,
                     start=False,
                     stop=False,
-                    caption=frame_caption,
+                    **self._caption_args(frame_caption),
                 )
             else:
                 await self._server.send_audio(

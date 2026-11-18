@@ -1362,6 +1362,7 @@ class XiaozhiServer:
         stop: bool = True,
         prebuffer: int = 3,
         caption: str | None = None,
+        no_barge_ms: int | None = None,
     ) -> None:
         """Send encoded 24 kHz Opus frames; the first `prebuffer` go fast, the rest paced.
 
@@ -1385,6 +1386,9 @@ class XiaozhiServer:
             sentence = {"state": "sentence_start"}
             if caption:
                 sentence["text"] = caption
+            if no_barge_ms:  # patch SF29: this sentence says the wake phrase, so the unit must not stop for it
+                sentence["no_barge"] = True
+                sentence["duration_ms"] = int(no_barge_ms)
             await self._json(websocket, self._session_ids[device_id], "tts", sentence)
         interval = 0.06
         deadline = time.monotonic()
