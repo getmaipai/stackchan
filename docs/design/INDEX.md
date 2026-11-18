@@ -245,9 +245,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
-- `docs/plan/friend-test-path-2026-11-18.md` (20): The friend-test path: what exists and what is missing (2026-11-18)
+- `docs/plan/friend-test-path-2026-11-18.md` (25): The friend-test path: what exists and what is missing (2026-11-18)
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
+- `docs/plan/home-work-brief.md` (48): Brief for a session in the Home repository: the StackChan robot side (2026-11-18)
 - `docs/plan/link-key-exchange.md` (58): Link key exchange for the encrypted link (design, 2026-11-18)
 - `docs/plan/mouth-cues-append.md` (16): Mouth cues for replies of more than one sentence
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
@@ -2029,6 +2030,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_run_loop_settle.py` (93): BODY-05 on the existing G9 funnel: the 0.5 s settle gate is enforced and
 - `host/tests/test_scene_wire.py` (194): SCENE-WIRE-BOT: the landed scene pieces run inside the real loop.
 - `host/tests/test_scenes_settings.py` (130): ruff: noqa: E501
+- `host/tests/test_script_tool_names.py` (36): ruff: noqa: E501
 - `host/tests/test_second_robot_conformance.py` (109): A second robot (Reachy Mini) against the shared spec proposals and the HAL seam.
 - `host/tests/test_second_unit.py` (63): A second connected unit must not break every call that names no unit."""
 - `host/tests/test_selftest.py` (390): BOT-SELF-TEST-01: the per-part self-test runner and the StackChan checks."""

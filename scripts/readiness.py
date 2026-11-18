@@ -80,13 +80,13 @@ def rows() -> list[dict]:
         {
             "row": "First run: language, name, mode, privacy sentence",
             "evidence": [("first-run screens as golden frames (English)", firstrun), ("first-run patches", patches("UX05|UX06|UX08|SF09"))],
-            "missing": ["a first run on a real robot (no one has seen it on glass)", "the five other languages read by native speakers" if not_reviewed else ""],
+            "missing": ["a person doing the first run on a real robot with a finger (bench 2026-11-18 ran it once with test touches: it shows once after Wi-Fi and never again)", "the five other languages read by native speakers" if not_reviewed else ""],
             "blocked": False,
         },
         {
             "row": "A voice reply after the wake word",
             "evidence": [("host turn tests", has(r"^host/tests/test_turn")), ("voice page", has(r"^docs/user/voice\.md$"))],
-            "missing": ["the wake cue and the first spoken sentence timed on a robot (the 150 ms and 300 ms figures are targets, not measurements)"],
+            "missing": ["the wake cue and the first spoken sentence timed on a robot (bench 2026-11-18: five of five short test clips answered with no reset; the 150 ms and 300 ms figures are still targets, not measurements)"],
             "blocked": False,
         },
         {
@@ -99,13 +99,13 @@ def rows() -> list[dict]:
         {
             "row": "Privacy switches: mute, camera off, always-on cues",
             "evidence": [("privacy page", has(r"^docs/user/mute-and-camera-off\.md$")), ("camera on and muted frames", has(r"^host/tests/golden/screens/screen-(camera-on|muted)\.png$"))],
-            "missing": ["the cues seen and heard on a robot with the tap, the hold and the camera"],
+            "missing": ["the cues seen and heard on a robot with a real finger (bench 2026-11-18 proved tap on, hold off and no toggle while muted with a test touch)"],
             "blocked": False,
         },
         {
             "row": "Lock the robot with a passcode",
             "evidence": [("lock patches", patches("LK0|SF13")), ("lock screen and keypad frames", lock_goldens), ("lock page", has(r"^docs/user/lock\.md$"))],
-            "missing": ["a person locking and unlocking on a robot", f"{lock_xfail} known lock bug(s) still open as expected-fail tests" if lock_xfail else ""],
+            "missing": ["a person locking and unlocking on a robot (bench 2026-11-18: five wrong codes lock it out and the lockout survives a restart)", f"{lock_xfail} known lock bug(s) still open as expected-fail tests" if lock_xfail else ""],
             "blocked": False,
         },
         {

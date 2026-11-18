@@ -29,7 +29,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Turn toward faces** <span class="planned-tag">Planned</span> | The setting now defaults to always: the robot searches when something moves, with the camera cue on. It did not move for a face in the last check, and the face detector on the robot is an experiment, off and not flashed. | Robot | [Face and look](face-and-look.md) |
 | **Face-seen icon** | With the Status icons switch on, an icon shows when a face is detected. Not yet seen with a real face. | Robot | [Face and look](face-and-look.md) |
 | **Lock tile on the control sheet** | One tap locks the robot with your passcode. | Robot | [Swipe pages](swipe-pages.md) |
-| **Smoother eyes and mouth** | Eased eye moves, a smooth blink, a drifting gaze and a mouth that follows your voice. Measured 22 to 45 frames a second while the eyes move. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
+| **Smoother eyes and mouth** | Eased eye moves, a smooth blink, a drifting gaze and a mouth that follows your voice. Measured 22 to 45 frames a second while the eyes move. Mouth cues were seen on a robot screen with a steady test sound (the mouth opens and ends closed); not yet seen with real speech. | Robot | [Face and look](face-and-look.md) |
 | **Your own picture faces** | Upload your own pictures on the settings page, one per look, as picture only, picture with animated eyes and mouth, or a short run of frames. Nothing leaves your home. Not yet seen on a robot screen. | Robot | [Face and look](face-and-look.md) |
 | **Faces and color** | Five face styles (big eyes, eyes only, stock, classic, minimal), any eye color, optional captions, a tired look when the battery is low and three dots while it thinks. | Robot | [Face and look](face-and-look.md) |
 | **Clock and time-of-day faces** | A clock face, a face that changes with the hour, and night mode. | Robot | [Face and look](face-and-look.md) |
@@ -62,7 +62,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
-| **Mute, camera off, full quiet** | Three taps on the face. The screen shows each state. | Robot | [Mute and camera off](mute-and-camera-off.md) |
+| **Mute, camera off, full quiet** | Three taps on the face. The screen shows each state. Tap on and hold off were checked on a real robot with a test touch (2026-11-18); a real finger is not checked yet. | Robot | [Mute and camera off](mute-and-camera-off.md) |
 | **Lights and sounds** | One light color and one tone per meaning. | Robot | [Lights and sounds](lights-and-sounds.md) |
 | **No stealth** | Every monitoring mode shows on the robot. | Robot | [No stealth](no-stealth.md) |
 | **Conversations stay in your home** | Only your host or hub is called. | Robot | [Privacy](privacy.md) |
@@ -71,7 +71,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
-| **Wi-Fi setup page** | A setup code on the robot screen, a short window and a lock after wrong tries. | Robot | [Getting started](getting-started.md) |
+| **Wi-Fi setup page** | A setup code on the robot screen, a short window and a lock after wrong tries. Shown on a real robot after a Wi-Fi wipe (2026-11-18): name, address and code are readable; the address wraps over two lines. | Robot | [Getting started](getting-started.md) |
 | **Away from home (Tailscale)** | The robot joins your private network by itself when it cannot reach your host, using a one-time key. Works from any Wi-Fi: a friend's house, a hotel, the office. | Robot | [Away from home](use-it-anywhere.md) |
 | **Local or Home, side by side** | What you get with your own model and what Home adds, and what replaces each internet feature of the factory firmware. | Robot and host | [Local vs Home](local-vs-home.md) |
 | **Several robots, one host** | One host serves each robot by its own ID. | Robot | [Install the host](install-the-host.md) |
@@ -86,7 +86,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 |---|---|---|---|
 | **Pairing, revocable token** | Pair with a six-digit code. Revoke any time. | Robot | [Security](security.md) |
 | **Reset on the robot** | Hold a button for 3 seconds to erase Wi-Fi, pairing and settings. | Robot | [Troubleshooting](troubleshooting.md) |
-| **Signed updates with rollback** | You choose when to install. A failed start rolls back. | Robot | [Updates](updates.md) |
+| **Signed updates with rollback** | You choose when to install. A failed start rolls back. No update has been installed on a robot yet: there is no release key. | Robot | [Updates](updates.md) |
 
 ## Camera, remote control and MaiPai Home
 
@@ -127,7 +127,7 @@ Likely to come, not finished. Do not count on these yet.
 | **Talk games** <span class="planned-tag">Built, not flashed</span> | 20 Questions, riddles, trivia, word chain, would-you-rather and bedtime stories, played by talking with your model. Not tested with a live model. | Robot and your model | [Games](games-and-pet.md) |
 | **Scenes and data cards** <span class="planned-tag">Planned</span> | One tag that sets several looks at once (stormy, party and more), and cards such as weather shown by MaiPai Home. In progress. | [Local vs Home](local-vs-home.md) |
 | **Wi-Fi roaming** <span class="planned-tag">Planned</span> | Move between your saved Wi-Fi networks, and a ported private-network join. In progress. | [Away from home](use-it-anywhere.md) |
-| **Passcode lock** | A code you set on the settings page, an auto-lock time, a Lock now button and a big keypad. The keypad drawing is still being confirmed on the real screen. | Robot | [Settings](settings.md) |
+| **Passcode lock** | A code you set on the settings page, an auto-lock time, a Lock now button and a big keypad. Five wrong codes lock it out, and the lockout survives a restart (checked on a real robot, 2026-11-18). The keypad drawing is still being confirmed on the real screen. | Robot | [Settings](settings.md) |
 | **Apps list, tabbed settings** | An Apps list (Timers, Alarms, Clock, Quick actions, Pictures, Dashboard, Dance, Lock) with on-screen timer and alarm apps, a settings screen with General, Network, Faces and Info tabs, and a one-row quick access bar: Mute, Quiet, Light, Apps, Games, Settings. | Robot | [Swipe pages](swipe-pages.md) |
 | **Full-height games** | Seven games fill the screen, with a swipe-down bar to leave and sounds that follow the system volume. Do It and Rock Paper Scissors are rebuilt. Reaction Time is removed. | Robot | [Games](games-and-pet.md) |
 | **More wake words** <span class="planned-tag">Planned</span> | Other ready-made wake words and a phrase you make up. The default stays "Hi, Stack Chan". | Robot | [Voice](voice.md) |
@@ -136,7 +136,7 @@ Likely to come, not finished. Do not count on these yet.
 | **Face detection on the robot** <span class="planned-tag">Planned</span> | The robot finds faces by itself. An experiment image is built, not flashed. | Robot | [Face and look](face-and-look.md) |
 | **Scenes and display lists** <span class="planned-tag">Planned</span> | One tag sets several looks at once, and lists the model can show. Design only. | Robot | [Face and look](face-and-look.md) |
 | **Dance to the beat** | Dance to music, in steps from eyes only to every direction, with changing faces, notes and side lights. Off until you turn it on. Not yet checked with a real song. | Robot | [Music and dance](music-and-dance.md) |
-| **Movement limits** | Gentle on USB, free on battery, gentler as the battery drops, and no movement when carried or turned over. Not yet checked on a real robot. | Robot | [Reactions](moves-and-moods.md) |
+| **Movement limits** | Gentle on USB, free on battery, gentler as the battery drops, and no movement when carried or turned over. Checked on a real robot (2026-11-18): on a USB cable the head reaches 43 to 48 percent of a large step against 92 to 98 with the USB limit off, and a dance stops on command. Not yet checked: carried or turned over (needs hands). | Robot | [Reactions](moves-and-moods.md) |
 | **Wake look-around** <span class="planned-tag">Planned</span> | The robot looks around when it wakes. The host side is on, but it is not verified with a real wake. | Robot | [Face and look](face-and-look.md) |
 | **Per-person wake phrase** <span class="planned-tag">Planned</span> | A different wake phrase for each person. The phrase is stored today but not matched. | [Face and look](face-and-look.md) |
 | **Encrypted link at home** <span class="planned-tag">Planned</span> | Encrypt the robot's link to your host on your home Wi-Fi, and check it is talking to your host. | [Security](security.md) |
