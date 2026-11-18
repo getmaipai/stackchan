@@ -142,6 +142,11 @@ def decision_rows(ev: Evidence, audience: str) -> list[dict]:
             out.append(row(audience="user", area="Motion and dances", name=name, desc=desc, percent=pct, status=rules.status_for(pct),
                            where=["firmware/patches/MD01-music-dance-ladder-and-beat-dance.patch", "scripts/virtual-unit/dance_sim.py", f"host/tests/golden/screens/dance-{'5-down' if key == 'down' else {'eyes': '1-eyes', 'nod': '2-nod', 'sway': '3-sway', 'full': '4-full'}[key]}.png"],
                            doc="docs/dev/virtual-unit-dance.md", rule="the ladder core and the show run in the virtual unit with a golden frame per step; none of it has run on the unit's screen and ring together", tags=["music dance"]))
+        for name, desc, pins in (
+            ("Infrared learn and send", "The robot learns a button of a remote (a TV, a fan) and plays it back on the host's word. Published pins: transmit GPIO 5, receive GPIO 10 (receiver IRM56384).", "the maker's documents agree on the pins; nothing is built and no pin was probed on a unit"),
+            ("NFC read", "The robot reads an NFC tag held to it. Published: the ST25R3916 chip on the internal bus (SDA 12, SCL 11), I2C address 0x50; the interrupt pin is unknown.", "the maker's documents agree on the chip and the bus; nothing is built and nothing was probed on a unit"),
+        ):
+            out.append(row(audience="user", area="Wanted, not started", name=name, desc=desc, percent=0, status="idea", where=["docs/plan/ir-and-nfc.md"], doc="docs/plan/ir-and-nfc.md", rule=pins, tags=["research note"]))
         fleet = "e2e_fleet" in ev.tests
         fp = 70 if fleet else 40
         for name, desc, where, rule in (
@@ -170,6 +175,12 @@ def decision_rows(ev: Evidence, audience: str) -> list[dict]:
         out.append(row(audience="user", area="Link and travel", name="Encrypted link on by default", desc="A paired host and robot use the encrypted link unless the owner chooses the plain link and reads a plain warning.", percent=10 if linked else 0, status="designed" if linked else "idea",
                        where=["docs/design/encrypted-link.md", "firmware/patches/SF20-link-key-schedule-core.patch"], doc="docs/design/encrypted-link.md", rule="the encrypted link is built and opt-in; the default waits for the memory budget table (decision 11)", tags=["decision 13"]))
     else:
+        ports = "test_virtual_unit_ports" in ev.tests.replace("-", "_") or "virtual_unit_ports" in ev.tests
+        out.append(row(audience="maker", area="Virtual playground", name="Two USB-C ports in the virtual unit", desc="The side and back sockets with their own cables and sources on one USB path, the derived power and serial state, and the limiter's cable rule.", percent=70 if ports else 40,
+                       status=rules.status_for(70 if ports else 40), where=["scripts/virtual-unit/hw.py", "docs/plan/two-usb-ports.md"], doc="docs/plan/two-usb-ports.md", rule="the ports are modeled and tested; the electrical values are assumed until the bench measures them"))
+        photos = exists("scripts/virtual-unit/model/MATCH.md")
+        out.append(row(audience="maker", area="Virtual playground", name="3D model details from the owner's photos", desc="The 3D model corrected against photos of the real unit: grille, camera row, port openings, labels, screws, cable and the red light.", percent=70 if photos else 40,
+                       status=rules.status_for(70 if photos else 40), where=["scripts/virtual-unit/model/MATCH.md", "scripts/virtual-unit/view3d.js"], doc="docs/dev/virtual-unit-3d.md", rule="matched by eye against nine photos; no number was measured from them"))
         fleet = "e2e_fleet" in ev.tests
         out.append(row(audience="maker", area="Virtual playground", name="Fleet, chaos and service scenarios", desc="N virtual units (2, 10, 25) against the real host: isolation, a slow unit, a cut connection, the host killed mid-turn, worker servers down, a bad network, and a launchd service killed with kill -9.", percent=70 if fleet else 10,
                        status=rules.status_for(70 if fleet else 10), where=["scripts/virtual-unit/e2e_fleet.py", "host/tests/test_e2e_fleet.py"], doc="docs/dev/e2e-virtual-unit.md", rule="files exist and test_e2e_fleet.py runs them"))

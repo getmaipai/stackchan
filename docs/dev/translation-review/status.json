@@ -1,32 +1,32 @@
 {
  "es": {
-  "rows": 983,
+  "rows": 989,
   "reviewed": 0,
-  "machine_draft": 939,
-  "missing": 44
+  "machine_draft": 940,
+  "missing": 49
  },
  "fr": {
-  "rows": 983,
+  "rows": 989,
   "reviewed": 0,
-  "machine_draft": 879,
-  "missing": 104
+  "machine_draft": 880,
+  "missing": 109
  },
  "de": {
-  "rows": 983,
+  "rows": 989,
   "reviewed": 0,
-  "machine_draft": 879,
-  "missing": 104
+  "machine_draft": 880,
+  "missing": 109
  },
  "pt": {
-  "rows": 983,
+  "rows": 989,
   "reviewed": 0,
-  "machine_draft": 879,
-  "missing": 104
+  "machine_draft": 880,
+  "missing": 109
  },
  "it": {
-  "rows": 983,
+  "rows": 989,
   "reviewed": 0,
-  "machine_draft": 879,
-  "missing": 104
+  "machine_draft": 880,
+  "missing": 109
  }
 }

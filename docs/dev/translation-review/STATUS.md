@@ -4,8 +4,8 @@ Made by `python3 scripts/translation-pack.py` (export and import); do not edit b
 
 | Language | File | Rows | Reviewed | Machine draft | Missing | Last review |
 |---|---|---|---|---|---|---|
-| Spanish | `es.csv` | 983 | 0 | 939 | 44 | nobody yet |
-| French | `fr.csv` | 983 | 0 | 879 | 104 | nobody yet |
-| German | `de.csv` | 983 | 0 | 879 | 104 | nobody yet |
-| Portuguese | `pt.csv` | 983 | 0 | 879 | 104 | nobody yet |
-| Italian | `it.csv` | 983 | 0 | 879 | 104 | nobody yet |
+| Spanish | `es.csv` | 989 | 0 | 940 | 49 | nobody yet |
+| French | `fr.csv` | 989 | 0 | 880 | 109 | nobody yet |
+| German | `de.csv` | 989 | 0 | 880 | 109 | nobody yet |
+| Portuguese | `pt.csv` | 989 | 0 | 880 | 109 | nobody yet |
+| Italian | `it.csv` | 989 | 0 | 880 | 109 | nobody yet |

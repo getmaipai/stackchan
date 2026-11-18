@@ -133,7 +133,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1053): Feature ledger
+- `docs/dev/feature-ledger.md` (1063): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -195,11 +195,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/test-speed.md` (13): Suite speed (2026-11-18)
 - `docs/dev/translation-review/README.md` (22): Translation review pack
 - `docs/dev/translation-review/STATUS.md` (11): Translation status
-- `docs/dev/translation-review/de.csv` (984): no header
-- `docs/dev/translation-review/es.csv` (984): no header
-- `docs/dev/translation-review/fr.csv` (984): no header
-- `docs/dev/translation-review/it.csv` (984): no header
-- `docs/dev/translation-review/pt.csv` (984): no header
+- `docs/dev/translation-review/de.csv` (990): no header
+- `docs/dev/translation-review/es.csv` (990): no header
+- `docs/dev/translation-review/fr.csv` (990): no header
+- `docs/dev/translation-review/it.csv` (990): no header
+- `docs/dev/translation-review/pt.csv` (990): no header
 - `docs/dev/translation-review/status.json` (32): no header
 - `docs/dev/unit-choices-audit.md` (155): Unit choices audit (decision 20 of 2026-11-18)
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
@@ -1076,7 +1076,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n.py` (401): ruff: noqa: E501
 - `host/maipai_body/i18n_character.py` (37): ruff: noqa: E501
 - `host/maipai_body/i18n_design.py` (313): ruff: noqa: E501
-- `host/maipai_body/i18n_family.py` (83): ruff: noqa: E501
+- `host/maipai_body/i18n_family.py` (222): ruff: noqa: E501
 - `host/maipai_body/i18n_fill/UNREVIEWED.md` (3): Machine-drafted translations, not reviewed
 - `host/maipai_body/i18n_fill/de_1.json` (65): no header
 - `host/maipai_body/i18n_fill/de_2.json` (65): no header
@@ -2404,7 +2404,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
 - `scripts/e2e-flake-hunt.sh` (21): find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. Each run's full 
 - `scripts/efuse-check.py` (104): owner decision 14 (2026-11-18): nothing in this project ever burns an eFuse (irreversible): no secure boot key
-- `scripts/feature-ledger.py` (493): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),
+- `scripts/feature-ledger.py` (504): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
 - `scripts/fuzz/core_fuzz.c` (333): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.

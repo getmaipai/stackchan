@@ -52,4 +52,4 @@ Read as a person who has never seen the robot, step by step. Findings 1 to 3 and
 7. **The end.** Fixed: after "All set!" a last screen says what to do next (above). No QR code on the robot: the LVGL QR widget is not built into this firmware and costs memory; the settings page shows the phone code as a QR.
 8. **Wi-Fi leaves the numbered flow** for the setup cover and comes back by itself. Unchanged.
 9. **A family name needs the settings page** afterwards; the hint on the name step says so.
-10. **New finding.** On the host's settings page the phone code labels ("Open this page on your phone", "Show the phone code") are still English in French, German, Portuguese and Italian; the robot's last screen names that button in each language, so the words will not match until those page strings are translated.
+10. **Fixed (2026-11-18).** The settings page words for the Family and safety card, the pairing code card and the phone card (including the phone code labels) now have French, German, Portuguese and Italian drafts (`host/maipai_body/i18n_family.py`), marked as machine drafts for a speaker to read.
