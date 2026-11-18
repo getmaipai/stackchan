@@ -739,6 +739,36 @@
    "freed_when": "on exit",
    "status": "estimate",
    "source": "patch SF63 (one draw callback, 2 LVGL objects plus the drag bar): about 600 bytes internal estimated, the Grid struct (about 300 bytes) in PSRAM, flash from the measured image growth; measure with two self.bench.heap_info calls"
+  },
+  {
+   "id": "screen.game.hangman",
+   "kind": "screen",
+   "name": "Hangman while it plays",
+   "internal": 600,
+   "psram": 300,
+   "flash": 2200,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a game starts",
+   "freed_when": "on exit",
+   "status": "estimate",
+   "source": "patch SF70 (the same one-object board as Four in a Row): about 600 bytes internal estimated, the Grid struct in PSRAM, flash from the measured image growth (4,144 bytes for both); measure with two self.bench.heap_info calls"
+  },
+  {
+   "id": "screen.game.mines",
+   "kind": "screen",
+   "name": "Mine Finder while it plays",
+   "internal": 600,
+   "psram": 300,
+   "flash": 1900,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a game starts",
+   "freed_when": "on exit",
+   "status": "estimate",
+   "source": "patch SF70 (the same one-object board as Four in a Row): about 600 bytes internal estimated, the Grid struct in PSRAM, flash from the measured image growth (4,144 bytes for both); measure with two self.bench.heap_info calls"
   }
  ]
 }

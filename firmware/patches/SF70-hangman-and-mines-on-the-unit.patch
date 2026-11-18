@@ -1,0 +1,268 @@
+# Intent: Hangman (id hangman, 30 English or 30 Spanish words compiled in for now, 26 keys, seven misses, a gallows drawn part by part, the word shown with spaces, a higher score for a longer word and fewer misses) and Mine Finder (id mines, 8 by 8, 10 mines, the first tap is never a mine, a flag switch on the right, the time in seconds is the score, lower is better) run on the unit through the grid engine. Each board is drawn by the one draw callback of the grid games. self.game.start, scores and list know both ids. Full quiet, the lock and updates refuse or end them as for every game; a game never moves the head.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.game.start {name: "hangman"} shows the gallows, a blank word and 26 keys; tapping a key marks it green (in the word) or red (a miss) and adds a body part on a miss; self.game.start {name: "mines"} shows an 8 by 8 board; tapping a cell opens it (the first never a mine), the right-hand switch turns the taps into flags; both end with a banner and a score; a swipe down from the grabber ends the game.
+# Kconfig: CONFIG_MAIPAI_GAMES (existing)
+# Memory cost: about 4 KB of flash (measured: the plain image grew 4,144 bytes); a running game adds about 0.1 KB to the Grid struct in PSRAM and no LVGL object beyond the one board object (estimate for the internal cost: 600 bytes, as the other grid games).
+
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -11,6 +11,8 @@
+ #include "maipai_grid_core.h"
+ #include "maipai_grid_c4_core.h"
+ #include "maipai_grid_mem_core.h"
++#include "maipai_grid_hangman_core.h"
++#include "maipai_grid_mines_core.h"
+ #include "maipai_games_draw.h"
+ #include "maipai_games_input_core.h"
+ #include "maipai_banner.h"
+@@ -40,7 +42,7 @@ constexpr uint32_t kTickMs       = 30;
+ constexpr uint32_t kIdleMs       = 10u * 60u * 1000u;  // as the other games: no input for 10 minutes ends it
+ constexpr uint32_t kUnitDelayMs  = 450;                // the unit never answers faster than this (it should look like thinking)
+ constexpr uint32_t kOverHoldMs   = 3000;               // the result stays on screen this long, then the game ends
+-enum { kC4 = 0, kMatch = 1, kKinds = 2 };
++enum { kC4 = 0, kMatch = 1, kHangman = 2, kMines = 3, kKinds = 4 };
+ 
+ struct Info {
+     const char* id;
+@@ -51,8 +53,17 @@ struct Info {
+ const Info kInfo[kKinds] = {
+     {"connect4", "Four in a Row", "Cuatro en raya", false},
+     {"match", "Memory Match", "Parejas", true},
++    {"hangman", "Hangman", "Ahorcado", false},
++    {"mines", "Mine Finder", "Buscaminas", true},
+ };
+ 
++// The word lists (patch SF70): letters A to Z only, 3 to 12 letters. They are data in the image for now; a pack of the table kind replaces them later.
++const char* const kWordsEn[] = {"robot", "planet", "garden", "rocket", "pencil", "castle", "window", "rabbit", "dragon", "yellow", "monkey", "button", "pirate", "forest",
++                                "bridge", "candle", "market", "spider", "summer", "winter", "turtle", "island", "pepper", "cookie", "marble", "puzzle", "tiger", "cloud", "river", "music"};
++const char* const kWordsEs[] = {"robot", "planeta", "jardin", "cohete", "lapiz", "castillo", "ventana", "conejo", "dragon", "amarillo", "mono", "boton", "pirata", "bosque",
++                                "puente", "vela", "mercado", "arana", "verano", "invierno", "tortuga", "isla", "pimienta", "galleta", "canica", "tigre", "nube", "rio", "musica", "gato"};
++constexpr int kWordCount = 30;
++
+ struct Grid {
+     int kind;
+     bool es;
+@@ -64,6 +75,11 @@ struct Grid {
+     gc4_board_t c4;
+     gc4_search_t search;
+     gm_t mem;
++    gh_t hang;            // Hangman
++    gmn_t mines;          // Mine Finder
++    uint8_t flag_mode;    // Mine Finder: a tap flags instead of opening
++    uint32_t start_ms;    // Mine Finder: the first reveal, for the time score
++    char shown[GH_WORD_MAX + 1];
+     uint8_t unit_thinking;
+     uint8_t level;
+     uint8_t result;     // GR_*
+@@ -174,13 +190,90 @@ void card_dots(lv_layer_t* layer, int x, int y, int w, int sym)
+     }
+ }
+ 
++void text(lv_layer_t* layer, const char* t, int x1, int y1, int x2, int y2, uint32_t color, const lv_font_t* font)
++{
++    lv_draw_label_dsc_t d;
++    lv_draw_label_dsc_init(&d);
++    d.color = rgb(color);
++    d.font  = font;
++    d.text  = t;  // the string outlives the draw: it is static or lives in the Grid
++    d.align = LV_TEXT_ALIGN_CENTER;
++    lv_area_t a = {static_cast<lv_coord_t>(x1), static_cast<lv_coord_t>(y1), static_cast<lv_coord_t>(x2), static_cast<lv_coord_t>(y2)};
++    lv_draw_label(layer, &d, &a);
++}
++
++const char* const kLetter[26] = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"};
++const char* const kDigit[9] = {"", "1", "2", "3", "4", "5", "6", "7", "8"};
++const uint32_t kDigitColor[9] = {0, 0x6EA8FF, 0x7FE07F, 0xFF7A7A, 0x9A7AFF, 0xFFB347, 0x5FD6D6, 0xE8E8E8, 0xA0A0A0};
++
++void draw_hangman(Grid* g, lv_layer_t* layer)
++{
++    // the gallows, always; one part for each miss
++    rect(layer, 30, 118, 80, 4, 0, 0x8A6B3F);          // base
++    rect(layer, 50, 40, 4, 80, 0, 0x8A6B3F);           // pole
++    rect(layer, 50, 40, 44, 4, 0, 0x8A6B3F);           // beam
++    rect(layer, 90, 40, 3, 14, 0, 0xC8C8C8);           // rope
++    const int m = g->hang.misses;
++    if (m >= 1) rect(layer, 82, 54, 20, 20, LV_RADIUS_CIRCLE, 0xF2B24A);   // head
++    if (m >= 2) rect(layer, 90, 74, 4, 26, 0, 0xF2B24A);                    // body
++    if (m >= 3) rect(layer, 76, 78, 14, 4, 0, 0xF2B24A);                    // left arm
++    if (m >= 4) rect(layer, 94, 78, 14, 4, 0, 0xF2B24A);                    // right arm
++    if (m >= 5) rect(layer, 78, 100, 12, 4, 0, 0xF2B24A);                   // left leg
++    if (m >= 6) rect(layer, 94, 100, 12, 4, 0, 0xF2B24A);                   // right leg
++    if (m >= 7) rect(layer, 84, 62, 16, 3, 0, 0xE04848);                    // the face X, at the last miss
++    gh_shown(&g->hang, g->shown, sizeof(g->shown));
++    char spaced[GH_WORD_MAX * 2 + 1] = {0};
++    int k = 0;
++    for (int i = 0; g->shown[i] != '\0' && k + 2 < static_cast<int>(sizeof(spaced)); i++) { spaced[k++] = g->shown[i]; spaced[k++] = ' '; }
++    spaced[k > 0 ? k - 1 : 0] = '\0';
++    static char s_spaced[GH_WORD_MAX * 2 + 1];  // static: the label is drawn after this function returns
++    memcpy(s_spaced, spaced, sizeof(s_spaced));
++    text(layer, s_spaced, 112, 60, 300, 90, 0xFFFFFF, &lv_font_montserrat_24);
++    // the keys
++    for (int i = 0; i < 26; i++) {
++        const int c = i % 9, r = i / 9;
++        const bool used = (g->hang.guessed >> i) & 1u;
++        bool in_word = false;
++        for (int k2 = 0; k2 < g->hang.len; k2++) in_word |= g->hang.word[k2] == 'A' + i;
++        const int x = g->lay.x0 + c * g->lay.cw + 2, y = g->lay.y0 + r * g->lay.ch + 2;
++        rect(layer, x, y, g->lay.cw - 4, g->lay.ch - 4, 6, used ? (in_word ? 0x2E7D4F : 0x7D2E2E) : 0x2C3E7A);
++        text(layer, kLetter[i], x, y + 4, x + g->lay.cw - 5, y + g->lay.ch - 4, used ? 0xBBBBBB : 0xFFFFFF, &lv_font_montserrat_20);
++    }
++}
++
++void draw_mines(Grid* g, lv_layer_t* layer)
++{
++    for (int i = 0; i < GMN_CELLS; i++) {
++        const uint8_t v = g->mines.c[i];
++        const int x = g->lay.x0 + (i % GMN_COLS) * g->lay.cw + 1, y = g->lay.y0 + (i / GMN_COLS) * g->lay.ch + 1, w = g->lay.cw - 2;
++        const bool open = (v & GMN_OPEN) != 0;
++        rect(layer, x, y, w, w, 4, open ? 0x1A2236 : 0x2C3E7A);
++        if (open && (v & GMN_MINE)) {
++            rect(layer, x + 5, y + 5, w - 10, w - 10, LV_RADIUS_CIRCLE, 0xE04848);
++        } else if (open && (v & GMN_COUNT)) {
++            text(layer, kDigit[v & GMN_COUNT], x, y + 2, x + w - 1, y + w - 1, kDigitColor[v & GMN_COUNT], &lv_font_montserrat_14);
++        } else if (!open && (v & GMN_FLAG)) {
++            rect(layer, x + 11, y + 4, 2, w - 8, 0, 0xCCCCCC);
++            rect(layer, x + 5, y + 4, 8, 7, 0, 0xF2B24A);
++        }
++    }
++    // the flag switch on the right: lit when a tap flags
++    rect(layer, 256, 90, 40, 60, 8, g->flag_mode ? 0xF2B24A : 0x2C3E7A);
++    rect(layer, 272, 100, 2, 36, 0, g->flag_mode ? 0x10141C : 0xCCCCCC);
++    rect(layer, 262, 100, 12, 10, 0, g->flag_mode ? 0x10141C : 0xF2B24A);
++}
++
+ void draw_cb(lv_event_t* e)
+ {
+     Grid* g = static_cast<Grid*>(lv_event_get_user_data(e));
+     if (g == nullptr || g != s_grid) return;
+     lv_layer_t* layer = lv_event_get_layer(e);
+     const int cols = g->lay.cols, rows = g->lay.rows, cw = g->lay.cw, ch = g->lay.ch;
+-    if (g->kind == kC4) {
++    if (g->kind == kHangman) {
++        draw_hangman(g, layer);
++    } else if (g->kind == kMines) {
++        draw_mines(g, layer);
++    } else if (g->kind == kC4) {
+         rect(layer, g->lay.x0 - 2, g->lay.y0 - 2, cw * cols + 4, ch * rows + 4, 8, 0x1B3F9B);  // the board behind the discs
+         for (int r = 0; r < rows; r++) {
+             for (int c = 0; c < cols; c++) {
+@@ -249,6 +342,13 @@ void finish(Grid* g, int result)
+     if (g->kind == kC4) {
+         g->won = result == GR_PERSON_WON;
+         g->score = g->won ? (43 - g->moves) : 0;  // a faster win scores more: at most 40 (four moves), at least 22
++    } else if (g->kind == kHangman) {
++        g->won = result == GR_PERSON_WON;
++        g->score = gh_score(&g->hang);
++    } else if (g->kind == kMines) {
++        g->won = result == GR_PERSON_WON;
++        const uint32_t secs = (now_ms() - g->start_ms) / 1000u;
++        g->score = g->won ? static_cast<int>(secs < 1u ? 1u : (secs > 9999u ? 9999u : secs)) : 0;  // seconds: lower is better
+     } else {
+         g->won = true;
+         g->score = g->mem.turns;
+@@ -260,12 +360,23 @@ void finish(Grid* g, int result)
+     if (g->kind == kC4) {
+         snprintf(en, sizeof(en), result == GR_PERSON_WON ? (record ? "You win! New best %d" : "You win!") : (result == GR_UNIT_WON ? "I win!" : "A draw"), g->score);
+         snprintf(es, sizeof(es), result == GR_PERSON_WON ? (record ? "Ganas! Nuevo record %d" : "Ganas!") : (result == GR_UNIT_WON ? "Gano yo!" : "Empate"), g->score);
++    } else if (g->kind == kHangman) {
++        if (g->won) {
++            snprintf(en, sizeof(en), record ? "Got it! New best %d" : "Got it! %d", g->score);
++            snprintf(es, sizeof(es), record ? "Lo tienes! Record %d" : "Lo tienes! %d", g->score);
++        } else {
++            snprintf(en, sizeof(en), "It was %s", g->hang.word);
++            snprintf(es, sizeof(es), "Era %s", g->hang.word);
++        }
++    } else if (g->kind == kMines) {
++        snprintf(en, sizeof(en), g->won ? (record ? "Cleared in %d s! Best" : "Cleared in %d s") : "Boom!", g->score);
++        snprintf(es, sizeof(es), g->won ? (record ? "Limpio en %d s! Record" : "Limpio en %d s") : "Boom!", g->score);
+     } else {
+         snprintf(en, sizeof(en), record ? "All pairs! New best %d" : "All pairs in %d turns", g->score);
+         snprintf(es, sizeof(es), record ? "Todas! Nuevo record %d" : "Todas en %d turnos", g->score);
+     }
+     banner(g, en, es, 3000);
+-    if (result == GR_PERSON_WON || g->kind == kMatch) {
++    if (result == GR_PERSON_WON || (g->kind == kMatch)) {
+         cue(GR_CUE_WIN);
+         (void)maipai_fx_celebrate(record ? 2 : 1);
+         hal_bridge::react_face("happy", record ? 4000 : 3000);
+@@ -357,6 +468,14 @@ const char* maipai_grid_start_locked(const char* name, const char* source)
+     if (kind == kC4) {
+         gr_layout(&g->lay, GC4_COLS, GC4_ROWS, 0);
+         gc4_clear(&g->c4);
++    } else if (kind == kHangman) {
++        const char* w = (es ? kWordsEs : kWordsEn)[g->seed % kWordCount];
++        gh_init(&g->hang, w, GH_MAX_MISS);
++        g->lay.cols = 9; g->lay.rows = 3; g->lay.cw = 31; g->lay.ch = 32; g->lay.x0 = 20; g->lay.y0 = 126;  // the 26 keys, 3 rows at the bottom
++    } else if (kind == kMines) {
++        gmn_init(&g->mines, g->seed);
++        gr_layout(&g->lay, GMN_COLS, GMN_ROWS, 1);
++        g->lay.x0 = 52;  // leave the right side for the flag switch
+     } else {
+         gm_init(&g->mem, 16, g->seed);
+         gr_layout(&g->lay, 4, 4, 1);
+@@ -422,6 +541,32 @@ void maipai_grid_touch(int x, int y)
+         gc4_ai_start(&g->search, &g->c4, g->level, g->seed + static_cast<uint32_t>(g->moves));
+         g->unit_thinking = 1;
+         g->unit_ready_at = now + kUnitDelayMs;
++    } else if (g->kind == kHangman) {
++        const int idx = gr_cell_at(&g->lay, x, y);
++        if (idx < 0) return;
++        const char letter = gh_key_letter(idx % 9, idx / 9);
++        if (letter == 0) return;
++        const int r = gh_guess(&g->hang, letter);
++        if (r == GH_BAD || r == GH_REPEAT) return;
++        cue(r == GH_HIT ? GR_CUE_MATCH : GR_CUE_MISS);
++        redraw(g);
++        if (g->hang.result != GR_PLAYING) finish(g, g->hang.result);
++    } else if (g->kind == kMines) {
++        if (x >= 250) {  // the flag switch
++            g->flag_mode = !g->flag_mode;
++            cue(GR_CUE_TAP);
++            redraw(g);
++            return;
++        }
++        const int idx = gr_cell_at(&g->lay, x, y);
++        if (idx < 0) return;
++        if (g->start_ms == 0 && !g->flag_mode) g->start_ms = now;
++        const int r = g->flag_mode ? gmn_flag(&g->mines, idx) : gmn_reveal(&g->mines, idx);
++        if (r == GMN_IGNORED) return;
++        cue(r == GMN_BOOM ? GR_CUE_LOSE : (r == GMN_CLEARED ? GR_CUE_WIN : GR_CUE_TAP));
++        redraw(g);
++        if (r == GMN_BOOM) finish(g, GR_UNIT_WON);
++        else if (r == GMN_CLEARED) finish(g, GR_PERSON_WON);
+     } else {
+         const int idx = gr_cell_at(&g->lay, x, y);
+         const int r = gm_tap(&g->mem, idx, now);
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -854,7 +854,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     }
+     const int slot = slot_by_name(name);
+     if (slot < 0) {
+-        return say(es, "That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4 or match.",
++        return say(es, "That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4, match, hangman or mines.",
+                    "Ese juego no esta en esta unidad. Pide memory, whack, tictactoe, bopit, rps, eightball o dice.");
+     }
+     if (maipai_quiet()) {
+@@ -1254,7 +1254,8 @@ void maipai_games_register_tools()
+                 "bopit (Do It: do the move that is shown, or press the big button: tap, swipe, gentle shake, pet or tilt; it gets faster each round), "
+                 "rps (rock paper scissors, best of three), "
+                 "eightball (magic 8 ball: gently shake the unit or tap the ball), dice (dice and coin: tap or gently shake), "
+-                "connect4 (Four in a Row against the unit: tap a column) or match (Memory Match: turn two cards, find the pairs). "
++                "connect4 (Four in a Row against the unit: tap a column), match (Memory Match: turn two cards, find the pairs), "
++                "hangman (guess the word letter by letter) or mines (Mine Finder: open the safe cells, flag the mines). "
+                 "It never starts in full quiet or during an update. A person stops it with a swipe down from the bottom edge "
+                 "or by saying stop. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("memory")),
+@@ -1302,7 +1303,7 @@ void maipai_games_register_tools()
+                     const int slot         = slot_by_name(name.c_str());
+                     mg_pack_t p;
+                     if (slot < 0 || !slot_pack(slot, &p)) {
+-                        return error_json("That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4 or match.");
++                        return error_json("That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4, match, hangman or mines.");
+                     }
+                     return std::string("{\"ok\":true,\"game\":\"") + p.id + "\",\"lower_is_better\":" +
+                            ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(slot) + "}";
