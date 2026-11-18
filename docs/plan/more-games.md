@@ -13,7 +13,7 @@ Cost is flash code plus state in PSRAM; nothing here needs internal RAM beyond t
 | Rank | Game | Kind | Input | Flash [est] | State [est] | Sounds from the tone table | Risk |
 |---:|---|---|---|---:|---:|---|---|
 | 1 | **Higher or Lower** (cards, a streak) | data pack | two big buttons | 1.5 KB | 40 B | tick, good, bad | none: needs a card face (dots, the Match method) |
-| 2 | **Dice Poker** (five dice, two rerolls, a hand rank) | grid core | tap dice to hold, Roll | 2.5 KB | 60 B | rattle (have), thud, fanfare | hand ranking table |
+| 2 | **Dice Poker** (five dice, two rerolls, a hand rank) | grid core | tap dice to hold, Roll | 2.5 KB | 60 B | rattle (have), thud, fanfare | hand ranking table. **Built as a core, screen and goldens: `docs/design/dice-poker.md`, patch UX18** |
 | 3 | **Reversi** (8 by 8, the unit plays) | grid core | tap a cell | 3 KB | 140 B | clack lo and hi, drop | the search must stay under 5 ms a slice (the Four in a Row slice pattern) |
 | 4 | **Breakout** | grid core, timed | drag the paddle, or tilt | 3 KB | 200 B | tick by row, thud, lose | needs a 30 ms tick and redraw only what moves (SF78 does this) |
 | 5 | **Balance** (a ball on a plate; keep it on) | accelerometer | tilt, continuous | 1.5 KB | 40 B | a soft rolling tick that rises in pitch toward the edge, lose | needs the analog tilt feed (below) |

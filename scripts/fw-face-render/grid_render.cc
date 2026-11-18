@@ -13,6 +13,7 @@
 //   stripwrite FILE.png COLS             the kept frames at half size, COLS to a row, in one picture
 //   swipe X0 Y0 X1 Y1 HELD_MS            a finger down at X0 Y0 and up at X1 Y1 after HELD_MS: the unit's own classification (tap, long press, swipe) steers Snake, slides 2048, taps or flags Mine Finder (patch SF76)
 //   tiles E0 .. E15                      2048: set the sixteen tile exponents (0 empty, 1 = 2, 2 = 4 ... 11 = 2048)
+//   poker D0 D1 D2 D3 D4|HELD MASK|RE-ROLLS LEFT|ROUND|SCORE|PHASE 0 roll 1 hold|en or es   the Dice Poker screen (patch UX18)
 //   snap FILE.png
 // Build: see scripts/virtual-unit/build-screens.sh. Placement: host-side development tool; no firmware change. Upstream: none.
 #include <lvgl.h>
@@ -40,6 +41,10 @@
 #endif
 #include "maipai_games_sfx_core.h"
 #include "maipai_games_draw.h"
+#if __has_include("maipai_dicepoker.h")
+#include "maipai_dicepoker.h"   /* patch UX18: Dice Poker */
+#define HAVE_POKER 1
+#endif
 #if __has_include("maipai_qa.h")
 #include "maipai_qa.h"   /* patch UX17: the question and answer game screens */
 #define HAVE_QA 1
@@ -289,6 +294,21 @@ int main()
             }
             write_png(f.c_str(), out, cols * W, rows * H);
             s_strip.clear();
+        } else if (c == "poker") {
+#ifdef HAVE_POKER
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 7) f.push_back("");
+            dp_t pk; dp_init(&pk, 1);
+            std::stringstream ds(f[0]); for (int i = 0; i < DP_DICE; i++) { int v = 1; ds >> v; pk.d[i] = (uint8_t)v; }
+            pk.held = (uint8_t)atoi(f[1].c_str()); pk.rolls_left = (uint8_t)atoi(f[2].c_str()); pk.round = (uint8_t)atoi(f[3].c_str()); pk.score = (uint16_t)atoi(f[4].c_str());
+            pk.phase = (uint8_t)(atoi(f[5].c_str()) ? DP_PHASE_HOLD : DP_PHASE_ROLL);
+            dpk::screen(lv_layer_top(), pk, f[6] == "es");
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no Dice Poker (patch UX18)\n");
+#endif
         } else if (c == "snap") {
             std::string f; in >> f; snap(f.c_str());
         }

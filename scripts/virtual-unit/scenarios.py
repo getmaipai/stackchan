@@ -136,6 +136,13 @@ GRID_SCENARIOS = {
     "game-match-flipping": ["game match 5", "tap 0", "advance 90", "snap {out}"],
     "game-hangman-mid": ["game hangman 1", "tap 4", "advance 400", "tap 0", "advance 400", "tap 17", "advance 400", "tap 19", "advance 400", "snap {out}"],
     "game-mines-open": ["game mines 3", "tap 20", "advance 500", "snap {out}"],
+    "game-dicepoker-start": ["game c4 3", "poker 1 1 1 1 1|0|0|1|0|0|en", "snap {out}"],
+    "game-dicepoker-first-roll": ["game c4 3", "poker 2 5 3 5 6|0|2|1|0|1|en", "snap {out}"],
+    "game-dicepoker-pair-held": ["game c4 3", "poker 2 5 3 5 6|10|1|1|0|1|en", "snap {out}"],
+    "game-dicepoker-full-house": ["game c4 3", "poker 4 4 4 2 2|27|0|3|70|1|en", "snap {out}"],
+    "game-dicepoker-straight": ["game c4 3", "poker 2 3 4 5 6|0|0|4|110|1|en", "snap {out}"],
+    "game-dicepoker-five-es": ["game c4 3", "poker 6 6 6 6 6|31|0|5|180|1|es", "snap {out}"],
+    "game-over-dicepoker-over-new-best": ["game c4 3", "over over|Score 230||1|en", "snap {out}"],
     # patches SF76 and SF77: 2048 and Snake, steered by the unit's own swipe classification (a swipe of 60 px or more in 450 ms or less; a still touch held 450 ms is a long press)
     "game-slide-start": ["game slide 5", "advance 100", "snap {out}"],
     "game-slide-swiped": ["game slide 5", "swipe 250 120 60 125 180", "advance 300", "swipe 160 210 165 40 180", "advance 300", "snap {out}"],
