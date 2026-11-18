@@ -2639,6 +2639,30 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
                     no_tool[0] = True
 
         extra.keep_awake_tick = keep_awake
+
+        # This unit's own ring light: its own service, indicator and battery poll, so its listening cue shows on its own ring (never on another unit's).
+        from types import SimpleNamespace
+
+        from maipai_body.bodies.stackchan.light_wiring import start_stackchan_light
+
+        extra.unit_stop = threading.Event()
+        both_stop = threading.Event()
+
+        def _watch_stops() -> None:  # the unit's own stop or the host's: either ends this unit's light threads
+            while not (extra.unit_stop.is_set() or stop_event.is_set()):
+                extra.unit_stop.wait(0.5)
+            both_stop.set()
+
+        threading.Thread(target=_watch_stops, name="stackchan-unit-light-stop", daemon=True).start()
+        unit_light = start_stackchan_light(
+            SimpleNamespace(robot=extra.robot, client=client),
+            offline,
+            both_stop,
+            device_connected=lambda: device_id in voice._sessions,
+        )
+        extra._rest_renderer._set_ring_sleeping = unit_light.set_sleeping
+        extra.privacy_light = unit_light
+        extra.unit_light = unit_light
         extra.pose_held = lambda: orientation.pose != "upright" or _unit_not_upright(extra)
         return extra
 
@@ -2648,6 +2672,8 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
     behavior.other_unit_event_handlers.append(behavior.unit_behaviors.feed)
     voice.session_listeners.append(behavior.unit_behaviors.on_connect)
     behavior.unit_behaviors.start(stop_event)
+    # The green "your voice is being sent" cue belongs to the unit that is listening: an extra unit's turn lights its own ring, not the first unit's.
+    bridge.live_sink_for = lambda active, unit: (behavior.unit_behaviors.light_for(unit) or light).cue_live(active)
     _wire_orientation(voice, behavior, bridge, night, power)
     bridge.on_user_words = reactions.on_user_words
     bridge.language = units.base.home.language
@@ -3134,17 +3160,30 @@ def _turn_sink(behavior, light, faces=None, devices=None):
         "settle": FunnelState.IDLE,
     }
 
+    talking_unit: list[str | None] = [None]  # the unit of the turn in progress, for a "settle" that arrives outside its scope
+
     def sink(state: str, *, mood: str | None = None) -> None:
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT as _SCOPE_UNIT
+
+        scoped = _SCOPE_UNIT.get()
+        if scoped:
+            talking_unit[0] = scoped
+        unit_now = scoped or (talking_unit[0] if state == "settle" else None)
+        if state == "settle":
+            talking_unit[0] = None
         next_state = funnel.get(state)
         if next_state is not None:
             try:
-                light.update(funnel=next_state)
+                from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT as _LIGHT_UNIT
+
+                units_light = getattr(behavior, "unit_behaviors", None)
+                ((units_light.light_for(unit_now) if units_light is not None else None) or light).update(funnel=next_state)
             except Exception:  # a light never fails the turn
                 logger.warning("StackChan funnel light failed", exc_info=True)
         from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT as _TURN_UNIT
 
         units_of = getattr(behavior, "unit_behaviors", None)
-        owner = units_of.behavior_for(_TURN_UNIT.get()) if units_of is not None else None
+        owner = units_of.behavior_for(unit_now) if units_of is not None else None
         (owner or behavior).render_turn_state(state, mood=mood)  # a turn on an extra unit is that unit's own state, not the first unit's
         if cue_worker is not None:
             from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT

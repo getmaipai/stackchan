@@ -106,8 +106,12 @@ class UnitBehaviors:
         live = set(self._connected())
         with self._lock:
             gone = [d for d in self._slots if d not in live or d == self._primary_id()]
+            released = [self._slots[d] for d in gone]
             for device_id in gone:
                 del self._slots[device_id]  # a unit that left, or became the first unit, is rebuilt when it comes back
+        for slot in released:
+            self._release(slot)
+        with self._lock:
             slots = list(self._slots.items())
         for device_id, slot in slots:
             behavior = slot.behavior
@@ -117,12 +121,28 @@ class UnitBehaviors:
             except Exception:
                 behavior._warn_limited("unit-loop", f"the touch loop of unit {device_id[-5:]} failed")
 
+    @staticmethod
+    def _release(slot: _Slot) -> None:
+        """End what a unit's behavior started (its light threads): a unit that comes back builds fresh ones."""
+        stop = getattr(slot.behavior, "unit_stop", None)
+        if stop is not None:
+            stop.set()
+
     def run(self, stop_event: threading.Event) -> None:
         while not stop_event.wait(TICK_S):
             try:
                 self.tick()
             except Exception:
                 LOG.warning("the per-unit behavior loop failed", exc_info=True)
+        with self._lock:
+            slots = list(self._slots.values())
+        for slot in slots:
+            self._release(slot)
+
+    def light_for(self, device_id: str | None) -> Any | None:
+        """The ring light service of an extra unit, or None (the first unit's light is the host's own)."""
+        behavior = self.behavior_for(device_id)
+        return getattr(behavior, "unit_light", None) if behavior is not None else None
 
     def start(self, stop_event: threading.Event) -> threading.Thread:
         thread = threading.Thread(target=self.run, args=(stop_event,), name="stackchan-unit-behaviors", daemon=True)

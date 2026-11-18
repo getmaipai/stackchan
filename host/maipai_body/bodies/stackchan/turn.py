@@ -1205,14 +1205,26 @@ class StackChanTurnBridge:
         except Exception:  # a counter must never break the voice path
             LOG.warning("StackChan uplink counter failed", exc_info=True)
 
+    live_sink_for = None  # optional: (active, unit) -> None, the live cue of the unit that is listening (set by the host for several units)
+
     def _set_live(self, active: bool) -> None:
         if self.live_sink is None:
             return
-        self._light_side.submit(self._run_live_sink, active)
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
 
-    def _run_live_sink(self, active: bool) -> None:
+        unit = ACTIVE_UNIT.get()
+        if active:
+            self._live_unit = unit
+        elif unit is None:
+            unit = getattr(self, "_live_unit", None)  # the end of a turn can run outside its unit's scope: end the cue on the unit that raised it
+        self._light_side.submit(self._run_live_sink, active, unit)
+
+    def _run_live_sink(self, active: bool, unit: str | None = None) -> None:
         try:
-            self.live_sink(active)
+            if self.live_sink_for is not None:
+                self.live_sink_for(active, unit)
+            else:
+                self.live_sink(active)
         except Exception:  # a light must never break the voice path
             LOG.warning("StackChan live cue failed", exc_info=True)
 

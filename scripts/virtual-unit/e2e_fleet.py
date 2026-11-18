@@ -390,6 +390,25 @@ async def fleet_orientation(rig, check) -> None:
     await close_fleet(rig)
 
 
+async def fleet_light(rig, check) -> None:
+    """A turn on unit 1 lights unit 1's own ring and no other unit's ring (the green "your voice is being sent" cue belongs to the unit that listens;
+    docs/plan/per-unit-behavior.md step 5, light). Before this a turn on any unit lit the first unit's ring."""
+    units = await make_fleet(rig, 3)
+    await calibrate(rig, units)
+
+    def ring_calls(u) -> int:
+        return len([1 for n_, _a in u.fw.tool_calls if n_ in ("self.robot.set_led_colors", "self.robot.set_led_color")])
+
+    await asyncio.sleep(20.0)   # the calibration turns' own cues (held for a while after they are raised) have ended
+    base = {u.index: ring_calls(u) for u in units}
+    await ask(rig, units[1], wait=30.0)
+    await asyncio.sleep(1.0)
+    after = {u.index: ring_calls(u) for u in units}
+    check("the unit that listened lit its own ring", after[1] > base[1], str((base, after)))
+    check("no other unit's ring was written", after[0] == base[0] and after[2] == base[2], str((base, after)))
+    await close_fleet(rig)
+
+
 # ---- faults ----------------------------------------------------------------------------------------------------------------------
 
 async def chaos_cut_connection(rig, check) -> None:
@@ -702,7 +721,7 @@ def make_service_rig(base):
 
 
 EXTRA_FLEET = {
-    "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state, "fleet_touch": fleet_touch, "fleet_orientation": fleet_orientation,
+    "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state, "fleet_touch": fleet_touch, "fleet_orientation": fleet_orientation, "fleet_light": fleet_light,
     "chaos_cut_connection": chaos_cut_connection, "chaos_packets": chaos_packets, "chaos_worker_down": chaos_worker_down, "chaos_internal_workers": chaos_internal_workers,
     "chaos_host_kill_2": _host_kill_2, "chaos_host_kill_10": _host_kill_10, "service_kill9": service_kill9,
 }
