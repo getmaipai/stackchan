@@ -10,10 +10,33 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PAT = re.compile(r'AddTool\(\s*"(self\.[A-Za-z0-9_.]+)"')
+PROP = re.compile(r'Property\("([A-Za-z0-9_]+)",\s*kPropertyType(String|Integer|Boolean)')
+KIND = {"String": "string", "Integer": "integer", "Boolean": "boolean"}
+
+
+def properties(added_text: str) -> dict[str, dict[str, str]]:
+    """For each tool, its declared arguments (name and type), read from the Property(...) list before the handler lambda."""
+    out = {}
+    for m in PAT.finditer(added_text):
+        head = added_text[m.end():]
+        cut = re.search(r"\[\s*(?:&|=|\])", head)
+        block = head[: cut.start()] if cut else head[:600]
+        out[m.group(1)] = {n: KIND[t] for n, t in PROP.findall(block)}
+    return out
+
+
+def extract_args() -> dict[str, dict[str, str]]:
+    extract()
+    return _ARGS
+
+
+_ARGS: dict[str, dict[str, str]] = {}
 
 
 def extract() -> dict[str, str]:
+    _ARGS.clear()
     found: dict[str, str] = {}
+    args: dict[str, dict[str, str]] = {}
     removed: set[str] = set()
     for patch in sorted((ROOT / "firmware" / "patches").glob("*.patch")):
         added, gone = [], []
@@ -22,6 +45,9 @@ def extract() -> dict[str, str]:
                 added.append(line[1:])
             elif line.startswith("-") and not line.startswith("---"):
                 gone.append(line[1:])
+        for name, props in properties("\n".join(added)).items():
+            args.setdefault(name, props)
+            _ARGS.setdefault(name, props)
         for name in PAT.findall("\n".join(added)):
             found.setdefault(name, patch.name)
             removed.discard(name)
@@ -33,7 +59,8 @@ def extract() -> dict[str, str]:
 
 def main() -> int:
     tools = extract()
-    text = json.dumps({"source": "firmware/patches (AddTool lines)", "count": len(tools), "tools": tools}, indent=1) + "\n"
+    text = json.dumps({"source": "firmware/patches (AddTool lines)", "count": len(tools), "tools": tools,
+                       "arguments": {k: _ARGS.get(k, {}) for k in tools}}, indent=1) + "\n"
     out = ROOT / "schema" / "tools.json"
     if "--check" in sys.argv:
         if not out.exists() or out.read_text() != text:

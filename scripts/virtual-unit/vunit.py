@@ -21,6 +21,12 @@ EMOTIONS = {"neutral", "happy", "sad", "angry", "doubt", "surprised", "sleepy", 
 ALIASES = {"doubtful": "doubt"}
 
 
+# Tools with real behavior here. The parity suite (host/tests/test_virtual_unit_parity.py) expects every other firmware tool to be a known gap;
+# when you simulate one, add it here and the suite tells you to drop its gap entry.
+SIMULATED = {"self.face.bench_emotion", "self.face.bench_speak", "self.face.snapshot", "self.screen.bench_touch"}
+JSON_TYPES = {"string": str, "integer": int, "boolean": bool}
+
+
 class RendererMissing(RuntimeError):
     pass
 
@@ -28,7 +34,9 @@ class RendererMissing(RuntimeError):
 class VirtualUnit:
     def __init__(self, render: str | None = None) -> None:
         self.render = Path(render or os.environ.get("MAIPAI_VUNIT_RENDER") or ROOT / ".runs" / "vu-build" / "render")
-        self.tool_names = sorted(json.loads((ROOT / "schema" / "tools.json").read_text())["tools"])
+        schema = json.loads((ROOT / "schema" / "tools.json").read_text())
+        self.tool_names = sorted(schema["tools"])
+        self.tool_args: dict[str, dict[str, str]] = schema.get("arguments", {})
         self.now_ms = 0
         self.touches: list[tuple[int, int, int, int]] = []  # (at_ms, x, y, duration_ms)
         self.calls: list[tuple[str, dict]] = []
@@ -92,6 +100,12 @@ class VirtualUnit:
         self.calls.append((name, dict(args)))
         if name not in self.tool_names:
             return {"isError": True, "text": f"unknown tool {name}: it is not in schema/tools.json"}
+        for key, value in args.items():
+            kind = self.tool_args.get(name, {}).get(key)
+            if kind is None and self.tool_args.get(name):
+                return {"isError": True, "text": f"{name} has no argument {key}: it takes {sorted(self.tool_args[name])}"}
+            if kind and not isinstance(value, JSON_TYPES[kind]):
+                return {"isError": True, "text": f"{name} argument {key} must be {kind}"}
         if name == "self.face.bench_emotion":
             emo = ALIASES.get(str(args.get("emotion", "neutral")), str(args.get("emotion", "neutral")))
             if emo not in EMOTIONS:
@@ -104,7 +118,7 @@ class VirtualUnit:
             self._send(f"speak {level}")
             self._speak_until = self.now_ms + seconds * 1000
             return {"ok": True}
-        if name in ("self.face.snapshot", "self.screen.snapshot"):
+        if name == "self.face.snapshot":
             return {"ok": True, "png_base64": base64.b64encode(self.snapshot()).decode()}
         if name == "self.screen.bench_touch":
             self.touch(160, 4, 200)
@@ -112,7 +126,7 @@ class VirtualUnit:
         return {"isError": True, "text": f"{name} is not simulated yet; the tool exists in the firmware, the virtual unit has no behavior for it"}
 
     def tools_list(self) -> list[dict]:
-        return [{"name": n, "inputSchema": {"type": "object"}} for n in self.tool_names]
+        return [{"name": n, "inputSchema": {"type": "object", "properties": {k: {"type": t} for k, t in self.tool_args.get(n, {}).items()}}} for n in self.tool_names]
 
 
 def serve() -> int:

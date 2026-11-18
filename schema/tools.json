@@ -131,5 +131,385 @@
   "self.wifi.forget": "023-wifi-saved-networks-tools.patch",
   "self.wifi.list_saved": "023-wifi-saved-networks-tools.patch",
   "self.wifi.switch": "023-wifi-saved-networks-tools.patch"
+ },
+ "arguments": {
+  "self.audio.hourly_chime": {
+   "enabled": "integer",
+   "test": "boolean"
+  },
+  "self.audio.notify": {
+   "text": "string",
+   "urgent": "boolean"
+  },
+  "self.audio.offline_phrase": {
+   "group": "string",
+   "dry": "boolean"
+  },
+  "self.audio.play_sound": {
+   "name": "string",
+   "urgent": "boolean",
+   "test": "boolean"
+  },
+  "self.audio.set_sound_policy": {
+   "enabled": "boolean",
+   "night_ok": "boolean",
+   "muted": "boolean",
+   "dark": "boolean",
+   "quiet_from": "integer",
+   "quiet_to": "integer"
+  },
+  "self.audio.sound_info": {},
+  "self.banner.face_seen": {
+   "seconds": "integer"
+  },
+  "self.battery.get_status": {},
+  "self.battery.simulate": {
+   "level": "integer"
+  },
+  "self.bench.inject": {
+   "q": "integer",
+   "wake": "integer",
+   "gap_ms": "integer",
+   "tail_ms": "integer",
+   "gain_pct": "integer"
+  },
+  "self.bench.noise": {
+   "seconds": "integer",
+   "gain_pct": "integer"
+  },
+  "self.camera.cue_test": {},
+  "self.clock.get": {},
+  "self.clock.set": {
+   "epoch": "integer"
+  },
+  "self.clock.set_zone": {
+   "zone": "string"
+  },
+  "self.clock.zones": {},
+  "self.face.bench_caption": {
+   "text": "string"
+  },
+  "self.face.bench_emotion": {
+   "emotion": "string",
+   "tired_level": "integer",
+   "style": "string"
+  },
+  "self.face.bench_fps": {},
+  "self.face.bench_mode": {
+   "dirty": "integer"
+  },
+  "self.face.bench_run": {
+   "what": "string",
+   "seconds": "integer",
+   "level": "integer"
+  },
+  "self.face.bench_speak": {
+   "level": "integer",
+   "seconds": "integer"
+  },
+  "self.face.decor_list": {},
+  "self.face.decorate": {
+   "name": "string",
+   "seconds": "integer"
+  },
+  "self.face.gaze": {
+   "x": "integer",
+   "y": "integer",
+   "ms": "integer"
+  },
+  "self.face.get_config": {},
+  "self.face.music_notes": {
+   "count": "integer"
+  },
+  "self.face.set_config": {
+   "config": "string"
+  },
+  "self.face.show_clock": {
+   "seconds": "integer"
+  },
+  "self.face.snapshot": {},
+  "self.face.thinking": {
+   "on": "boolean"
+  },
+  "self.facepic.begin": {
+   "mode": "string",
+   "fps": "integer",
+   "overlay": "string"
+  },
+  "self.facepic.bench_force": {
+   "slot": "string",
+   "seconds": "integer",
+   "ignore_privacy": "boolean"
+  },
+  "self.facepic.clear": {},
+  "self.facepic.commit": {},
+  "self.facepic.data": {
+   "slot": "string",
+   "index": "integer",
+   "at": "integer",
+   "b64": "string"
+  },
+  "self.facepic.frame": {
+   "slot": "string",
+   "index": "integer",
+   "bytes": "integer",
+   "crc": "string",
+   "raw": "boolean"
+  },
+  "self.facepic.status": {},
+  "self.filler.play": {
+   "mode": "string"
+  },
+  "self.filler.status": {},
+  "self.firmware.update": {
+   "url": "string",
+   "sha256": "string",
+   "size": "integer",
+   "version": "string"
+  },
+  "self.game.bench_event": {
+   "event": "integer"
+  },
+  "self.game.bench_gaps": {},
+  "self.game.bench_install": {
+   "pack": "string",
+   "done": "boolean"
+  },
+  "self.game.bench_request_stop": {},
+  "self.game.bench_swipe": {
+   "x0": "integer",
+   "y0": "integer",
+   "x1": "integer",
+   "y1": "integer",
+   "ms": "integer"
+  },
+  "self.game.bench_tap": {
+   "x": "integer",
+   "y": "integer"
+  },
+  "self.game.list": {},
+  "self.game.scores": {
+   "name": "string"
+  },
+  "self.game.start": {
+   "name": "string"
+  },
+  "self.game.status": {},
+  "self.game.stop": {},
+  "self.listen.test": {},
+  "self.lock.bench_key": {
+   "key": "string"
+  },
+  "self.lock.bench_touch": {},
+  "self.lock.clear": {
+   "current": "string"
+  },
+  "self.lock.config": {
+   "auto_minutes": "integer"
+  },
+  "self.lock.now": {},
+  "self.lock.set": {
+   "code": "string",
+   "current": "string"
+  },
+  "self.lock.status": {},
+  "self.look.bench_address": {},
+  "self.look.calibrate": {
+   "apply": "boolean",
+   "center": "boolean",
+   "source": "string",
+   "token": "integer"
+  },
+  "self.look.claim": {
+   "owner": "string",
+   "ttl_s": "integer"
+  },
+  "self.look.detect_status": {
+   "detail": "boolean"
+  },
+  "self.look.detect_test": {
+   "model": "string",
+   "frames": "integer",
+   "crop": "string",
+   "order": "string",
+   "hz": "integer",
+   "force": "boolean",
+   "wait_s": "integer"
+  },
+  "self.look.detect_track": {
+   "on": "boolean"
+  },
+  "self.look.release": {
+   "owner": "string"
+  },
+  "self.look.status": {},
+  "self.mood.get": {},
+  "self.mood.test": {
+   "care": "integer"
+  },
+  "self.motion.force": {
+   "carried": "integer",
+   "usb": "integer",
+   "level": "integer",
+   "orient": "integer"
+  },
+  "self.motion.set": {
+   "usb_limit": "string"
+  },
+  "self.motion.status": {},
+  "self.music.get_status": {},
+  "self.music.set": {
+   "enabled": "boolean"
+  },
+  "self.music.stage": {
+   "stage": "integer",
+   "source": "string",
+   "token": "integer"
+  },
+  "self.network.prefer_tailnet": {
+   "minutes": "integer"
+  },
+  "self.network.test": {},
+  "self.overlay.clear": {},
+  "self.overlay.set": {
+   "name": "string",
+   "intensity": "string",
+   "seconds": "integer"
+  },
+  "self.overlay.status": {},
+  "self.pack.begin": {
+   "type": "string",
+   "name": "string",
+   "version": "integer",
+   "size": "integer",
+   "sha256": "string"
+  },
+  "self.pack.commit": {},
+  "self.pack.data": {
+   "at": "integer",
+   "b64": "string"
+  },
+  "self.pack.remove": {
+   "type": "string"
+  },
+  "self.pack.status": {
+   "type": "string"
+  },
+  "self.page.bench_swipe": {
+   "x0": "integer",
+   "y0": "integer",
+   "x1": "integer",
+   "y1": "integer",
+   "ms": "integer"
+  },
+  "self.page.bench_tap": {
+   "x": "integer",
+   "y": "integer",
+   "hold_ms": "integer"
+  },
+  "self.page.show": {
+   "name": "string"
+  },
+  "self.page.tiles": {
+   "json": "string"
+  },
+  "self.pages.get": {},
+  "self.pages.set": {
+   "json": "string"
+  },
+  "self.pages.status": {},
+  "self.power.keep_awake": {},
+  "self.prefs.get": {},
+  "self.prefs.set": {
+   "json": "string"
+  },
+  "self.privacy.get": {
+   "local_unmute": "boolean"
+  },
+  "self.privacy.set": {
+   "mute": "integer",
+   "vision_off": "integer",
+   "quiet": "integer"
+  },
+  "self.privacy.set_policy": {
+   "local_unmute": "boolean"
+  },
+  "self.reaction.get_table": {},
+  "self.reaction.reset": {},
+  "self.reaction.set_table": {
+   "table": "string"
+  },
+  "self.reaction.test": {
+   "text": "string",
+   "play": "boolean"
+  },
+  "self.remote.action": {
+   "kind": "string",
+   "text": "string",
+   "seconds": "integer"
+  },
+  "self.remote.history": {},
+  "self.remote.say": {
+   "text": "string",
+   "token": "integer"
+  },
+  "self.remote.say_status": {},
+  "self.remote.session": {
+   "active": "boolean",
+   "label": "string"
+  },
+  "self.robot.dance": {
+   "name": "string"
+  },
+  "self.robot.dance_list": {},
+  "self.robot.get_events": {},
+  "self.robot.set_idle_motion": {
+   "enabled": "boolean"
+  },
+  "self.robot.set_led_colors": {},
+  "self.robot.stop_dance": {},
+  "self.screen.bench_touch": {},
+  "self.screen.get_level": {},
+  "self.tailnet.set": {
+   "enabled": "boolean",
+   "key": "string",
+   "peer": "string",
+   "now": "boolean",
+   "forget": "boolean"
+  },
+  "self.tailnet.status": {},
+  "self.timer.alarm": {
+   "hour": "integer",
+   "minute": "integer",
+   "label": "string",
+   "silent": "boolean"
+  },
+  "self.timer.cancel": {
+   "id": "integer"
+  },
+  "self.timer.list": {},
+  "self.timer.set": {
+   "seconds": "integer",
+   "label": "string",
+   "silent": "boolean",
+   "hour": "integer",
+   "minute": "integer"
+  },
+  "self.timer.snooze": {
+   "seconds": "integer"
+  },
+  "self.timer.stop": {},
+  "self.version.get": {},
+  "self.wifi.add": {
+   "ssid": "string",
+   "password": "string"
+  },
+  "self.wifi.forget": {
+   "index": "integer"
+  },
+  "self.wifi.list_saved": {},
+  "self.wifi.switch": {
+   "index": "integer"
+  }
  }
 }
