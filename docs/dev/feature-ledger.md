@@ -7,7 +7,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 1 | 18 | 18 | 219 | 8 | 51 | 315 | 64 |
-| Maker and tech | 0 | 1 | 60 | 348 | 58 | 0 | 467 | 70 |
+| Maker and tech | 0 | 0 | 60 | 349 | 58 | 0 | 467 | 70 |
 
 ## Everyday user
 
@@ -447,7 +447,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Suite in four processes** | The whole host suite runs in about four minutes by sharding test files across pytest processes. | built | 40 | `scripts/test-sharded.py`<br>`scripts/test-all.sh` | files exist | [docs/dev/test-speed.md](../dev/test-speed.md) |
 | **Soak and flake hunt** | A 500 turn leak canary and a loop that runs the end to end under CPU load. | proven virtual | 70 | `scripts/virtual-unit/e2e_extra.py`<br>`scripts/e2e-flake-hunt.sh` | files exist, a test names it | [docs/dev/e2e-virtual-unit.md](../dev/e2e-virtual-unit.md) |
 | **Cross-review status table** | Every review bug as a test with an owner, and a table of what is fixed. | proven virtual | 70 | `scripts/review-status.py`<br>`docs/dev/cross-review-status.md` | files exist, a test names it | [docs/dev/cross-review-status.md](../dev/cross-review-status.md) |
-| **Memory budget table** | One table of what fits in internal RAM at once, what is on by default and what excludes what, measured by firmware before more optional features land. | designed | 10 | `docs/design/firmware-memory.md` | decided (decision 11); the table is firmware's and is not written yet | [docs/design/firmware-memory.md](../design/firmware-memory.md) |
+| **Memory budget table** | One table of what fits in internal RAM at once, what is on by default and what excludes what, measured by firmware before more optional features land. | proven virtual | 70 | `docs/dev/memory-budget.md` | the table exists and a test reads it | [docs/dev/memory-budget.md](../dev/memory-budget.md) |
 
 ### Docs and translation (2)
 
@@ -954,7 +954,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 
 ## Decisions
 
-The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 6 built, 7 in progress, 3 not started.
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 7 in progress, 1 not started.
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
@@ -968,9 +968,9 @@ The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a stat
 | 8 | **Patches stay** | built | the patch series is the plan; nothing replaces it |
 | 9 | **One unit, minimal owner time** | in progress | one bench page and one unit; the unit ends each window on the released image (the bench page holds the routine) |
 | 10 | **The baby monitor is scrapped** | built | the baby monitor pages, rows and promises are removed from the user docs and the product |
-| 11 | **Memory budget first** | not started | firmware writes one budget table of what fits at once, what is on by default and what excludes what |
+| 11 | **Memory budget first** | built | firmware writes one budget table of what fits at once, what is on by default and what excludes what |
 | 12 | **Easy setup: three ways to get a brain** | in progress | the first run asks the three questions (Home, my own servers, set one up for me); the minimal local stack installer is not built |
-| 13 | **Security defaults for v1** | not started | the encrypted link exists; making it the default waits on the memory table |
+| 13 | **Security defaults for v1** | built | the encrypted link exists; making it the default waits on the memory table |
 | 14 | **No eFuse, ever** | built | scripts/efuse-check.py refuses any eFuse write in firmware, builds, scripts and updates |
 | 15 | **Everything must fit, and resources are managed smartly** | not started | the budget table (decision 11) is the proof and is not written yet; scripts/off-cost.sh already proves an off feature costs nothing |
 | 16 | **Many robots, and nothing that quietly dies** | in progress | the host serves several units today; the managed service, per-unit supervision and no-silent-death parts are not built |
