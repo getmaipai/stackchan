@@ -29,6 +29,6 @@ JS_FAMILY = r"""
  new MutationObserver(soon).observe(document.body,{childList:true,subtree:true});}
 
 /* documentation screenshots: ?only=words shows just the cards whose title holds those words */
-{const only=new URLSearchParams(location.search).get('only');if(only){const q=only.toLowerCase();
+{const only=new URL(document.URL).searchParams.get('only');if(only){const q=only.toLowerCase();
  new MutationObserver(()=>document.querySelectorAll('.card').forEach(c=>{const t=((c.querySelector('h3')||{}).textContent||'').toLowerCase();c.style.display=t.includes(q)?'':'none'})).observe(document.body,{childList:true,subtree:true})}}
 """

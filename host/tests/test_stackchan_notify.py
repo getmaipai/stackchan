@@ -63,12 +63,20 @@ def test_audio_url_is_host_route_and_requires_paired_bearer_token():
     url = server._notify_audio_url("device", "audio")
     assert url == "http://127.0.0.1:8767/notify/device/audio.ogg"
 
-    request = SimpleNamespace(
+    ticket = server.issue_ticket("device")  # the unit gets a session ticket, never the pairing token
+    wrong = SimpleNamespace(
         match_info={"device_id": "device", "audio_id": "audio"},
         headers={"Authorization": "Bearer pair-token"},
+    )
+    try:
+        asyncio.run(server._serve_notify_audio(wrong))
+        raise AssertionError("the pairing token must not open the web route")
+    except Exception as error:
+        assert type(error).__name__ == "HTTPForbidden"
+    request = SimpleNamespace(
+        match_info={"device_id": "device", "audio_id": "audio"},
+        headers={"Authorization": f"Bearer {ticket}"},
     )
     response = asyncio.run(server._serve_notify_audio(request))
     assert response.body == b"ogg-bytes"
     assert response.content_type == "audio/ogg"
-    assert ("device", "client", "pair-token") in pairing.checked
-    assert ("device", "client", "") not in pairing.checked
