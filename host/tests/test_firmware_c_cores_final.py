@@ -15,8 +15,8 @@ HERE = Path(__file__).resolve().parent
 needs_cc = pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler on this machine")
 
 # Tests that take no arguments and print their own verdict through the exit code.
-# Not here: sounds_core_test.c, tailnet_core_test.c, music_judge_test.c and fallback_core_test.c call functions the final headers no longer
-# have (they compiled the old base); the sounds and tailnet cores need new tests (gap listed in docs/plan).
+# Legacy sounds_core_test.c and tailnet_core_test.c call functions the final headers no longer have.
+# These final-header tests cover their current interfaces.
 PLAIN = [
     "touch_core_test.c",
     "timers_core_test.c",
@@ -25,6 +25,8 @@ PLAIN = [
     "music_mood_test.c",
     "beat_test.c",
     "mouthcue_core_test.c",
+    "sounds_core_final_test.c",
+    "tailnet_core_final_test.c",
 ]
 
 
@@ -36,7 +38,7 @@ def test_core_test_passes_on_the_final_headers(name, tmp_path, tmp_path_factory)
         pytest.skip(f"{name} is not in host/tests/firmware")
     binary = tmp_path / name.replace(".c", "")
     build = subprocess.run(
-        ["cc", "-std=gnu99", "-Wall", "-Wextra", f"-I{cores_dir(tmp_path_factory)}", str(source), "-o", str(binary), "-lm"],
+        ["cc", "-std=gnu99", "-Wall", "-Wextra", "-Werror", f"-I{cores_dir(tmp_path_factory)}", str(source), "-o", str(binary), "-lm"],
         capture_output=True,
         text=True,
     )

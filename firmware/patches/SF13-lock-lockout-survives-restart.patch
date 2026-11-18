@@ -1,0 +1,87 @@
+# Intent: The lock tools keep a running lockout across a restart: the strikes and the time left on the lockout are saved in flash (two integers) and restored at boot, so a restart never shortens a lockout and the tools stay refused for the full remaining time.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_lock_core.h, maipai_lock.cc (ours)
+# Check after a flash: five wrong codes sent to self.lock.clear answer too_many; after self.reboot the correct code is still refused with too_many until the time has run.
+# Kconfig: CONFIG_MAIPAI_LOCK (existing)
+
+diff --git a/firmware/main/hal/maipai_lock_core.h b/firmware/main/hal/maipai_lock_core.h
+--- a/firmware/main/hal/maipai_lock_core.h
++++ b/firmware/main/hal/maipai_lock_core.h
+@@ -357,11 +357,26 @@ static inline void mlk_tool_note(mlk_t* s, uint32_t now, int reason)
+     }
+ }
+ 
+-/* The strikes saved before a restart: a restart does not give the tools a fresh start. One more wrong code then locks them again. */
+-static inline void mlk_tool_restore(mlk_t* s, int strikes)
++/* What the tools remember across a restart (saved as two integers): the strikes and the time left on a running lockout. */
++typedef struct {
++    int strikes;
++    uint32_t block_ms; /* ms of lockout still to run, 0 when none */
++} mlk_tool_saved_t;
++
++static inline void mlk_tool_save(const mlk_t* s, uint32_t now, mlk_tool_saved_t* out)
++{
++    out->strikes = s->tool_strikes;
++    out->block_ms = mt_pending(now, s->tool_block_until_ms) ? (uint32_t)(s->tool_block_until_ms - now) : 0u;
++}
++
++/* After a restart the tools keep their strikes and a running lockout starts again for its full remaining time (a restart never shortens it).
++ * With strikes saved, one more wrong code locks them again. */
++static inline void mlk_tool_restore(mlk_t* s, const mlk_tool_saved_t* saved, uint32_t now)
+ {
+-    s->tool_strikes = (uint8_t)(strikes < 0 ? 0 : (strikes > 250 ? 250 : strikes));
++    const int st = saved->strikes;
++    s->tool_strikes = (uint8_t)(st < 0 ? 0 : (st > 250 ? 250 : st));
+     s->tool_fails = s->tool_strikes > 0 ? (uint8_t)(LK_TOOL_MAX_FAILS - 1) : 0;
++    s->tool_block_until_ms = saved->block_ms > 0 ? mt_stamp(now, saved->block_ms) : 0u;
+ }
+ 
+ /* ---- the idle timer ---- */
+diff --git a/firmware/main/hal/maipai_lock.cc b/firmware/main/hal/maipai_lock.cc
+--- a/firmware/main/hal/maipai_lock.cc
++++ b/firmware/main/hal/maipai_lock.cc
+@@ -75,7 +75,7 @@ void publish_flags()  // s_mu held
+ void persist()
+ {
+     std::string salt, hash;
+-    int locked, auto_min, strikes;
++    int locked, auto_min, strikes, block_ms;
+     bool has;
+     {
+         std::lock_guard<std::mutex> lock(s_mu);
+@@ -86,10 +86,13 @@ void persist()
+         hash = hh;
+         locked = s_st.locked;
+         auto_min = s_st.auto_min;
+-        strikes = s_st.tool_strikes;
++        mlk_tool_saved_t tool_saved;
++        mlk_tool_save(&s_st, now_ms(), &tool_saved);
++        strikes = tool_saved.strikes;
++        block_ms = static_cast<int>(tool_saved.block_ms);
+         has = s_st.has_code;
+     }
+-    Application::GetInstance().Schedule([salt, hash, locked, auto_min, strikes, has]() {
++    Application::GetInstance().Schedule([salt, hash, locked, auto_min, strikes, block_ms, has]() {
+         Settings st("mp_lock", true);
+         if (has) {
+             st.SetString("salt", salt);
+@@ -100,6 +103,7 @@ void persist()
+         st.SetInt("locked", locked);
+         st.SetInt("auto", auto_min);
+         st.SetInt("tstrikes", strikes);
++        st.SetInt("tblock", block_ms);
+     });
+ }
+ 
+@@ -321,7 +325,10 @@ void maipai_lock_boot()
+     {
+         std::lock_guard<std::mutex> lock(s_mu);
+         mlk_load(&s_st, salt.c_str(), hash.c_str(), st.GetInt("locked", 0), st.GetInt("auto", 0), now_ms());
+-        if (s_st.has_code) mlk_tool_restore(&s_st, st.GetInt("tstrikes", 0));
++        if (s_st.has_code) {
++            const mlk_tool_saved_t saved = {st.GetInt("tstrikes", 0), static_cast<uint32_t>(st.GetInt("tblock", 0) < 0 ? 0 : st.GetInt("tblock", 0))};
++            mlk_tool_restore(&s_st, &saved, now_ms());
++        }
+         publish_flags();
+     }
+     s_act_ms.store(now_ms());

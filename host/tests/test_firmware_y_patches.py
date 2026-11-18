@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from test_stackchan_sounds_core import header_from_patch
+from firmware_order_cores import cores_dir
 
 HERE = Path(__file__).resolve().parent
 PATCHES = HERE.parents[1] / "firmware" / "patches"
@@ -60,16 +60,8 @@ def test_headgate_core(tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler")
-def test_find_core(tmp_path):
-    header_from_patch(tmp_path)  # the sounds core as patches 115, 141 and 151 leave it
-    core = tmp_path / "firmware/main/hal/maipai_sounds_core.h"
-    patch = _text(NAMES[1])
-    part = re.split(r"(?m)^(?=diff --git )", patch)
-    mine = [p for p in part if p.startswith("diff --git a/firmware/main/hal/maipai_sounds_core.h")][0]
-    (tmp_path / "find.diff").write_text(mine)
-    applied = subprocess.run(["git", "apply", "--whitespace=nowarn", "find.diff"], cwd=tmp_path, capture_output=True, text=True)
-    if applied.returncode != 0:
-        pytest.skip("the sounds core in this tree differs from the replay base: " + applied.stderr[:200])
+def test_find_core(tmp_path, tmp_path_factory):
+    core = cores_dir(tmp_path_factory) / "maipai_sounds_core.h"  # the sounds core as the whole of ORDER leaves it
     exe = tmp_path / "t"
     subprocess.run(["cc", "-std=c99", "-Wall", "-Wextra", "-Werror", f"-I{core.parent}", str(HERE / "firmware/find_core_test.c"), "-o", str(exe)], check=True)
     assert "ok" in subprocess.run([str(exe)], check=True, capture_output=True, text=True).stdout

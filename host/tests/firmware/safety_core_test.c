@@ -119,7 +119,8 @@ static void test_lock(void)
         mlk_t r;
         mlk_init(&r);
         mlk_set(&r, "1234", NULL, salt);
-        mlk_tool_restore(&r, 2); /* after a restart */
+        const mlk_tool_saved_t two = {2, 0};
+        mlk_tool_restore(&r, &two, 100); /* after a restart */
         mlk_tool_note(&r, 500, MLK_R_WRONG_CURRENT);
         CHECK(mlk_tool_open(&r, 600) == MLK_R_TOO_MANY); /* one wrong code is enough */
         mlk_tool_note(&r, 9000000u, MLK_R_OK);
@@ -227,6 +228,45 @@ static void test_remote(void)
     CHECK(mr_session_on(&r, 4000 + MR_DEAD_MAN_MS + 1) == 0 && r.host_id == 0);
 }
 
+/* A fake flash: the two integers the unit keeps (tstrikes and tblock), written when a wrong code is sent and read at boot. */
+static void test_lockout_survives_a_restart(void)
+{
+    uint8_t salt[LK_SALT_LEN] = {9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5, 6};
+    int nvs_strikes = 0;
+    int nvs_block = 0;
+    mlk_t a;
+    mlk_init(&a);
+    CHECK(mlk_set(&a, "4321", NULL, salt) == MLK_R_OK);
+    uint32_t now = 500000;
+    for (int i = 0; i < LK_TOOL_MAX_FAILS; i++) {
+        CHECK(mlk_tool_open(&a, now) == MLK_R_OK);
+        const int r = mlk_clear(&a, "0000");
+        mlk_tool_note(&a, now, r);
+        mlk_tool_saved_t sv; /* persist() after each wrong code */
+        mlk_tool_save(&a, now, &sv);
+        nvs_strikes = sv.strikes;
+        nvs_block = (int)sv.block_ms;
+        now += 200;
+    }
+    CHECK(mlk_tool_open(&a, now) == MLK_R_TOO_MANY);
+    CHECK(nvs_strikes == 1 && nvs_block > 0);
+    /* the unit restarts: a new state, the clock starts again near 0, the flash is read back */
+    mlk_t b;
+    mlk_init(&b);
+    CHECK(mlk_set(&b, "4321", NULL, salt) == MLK_R_OK);
+    const mlk_tool_saved_t saved = {nvs_strikes, (uint32_t)nvs_block};
+    mlk_tool_restore(&b, &saved, 3000);
+    CHECK(mlk_tool_open(&b, 3500) == MLK_R_TOO_MANY); /* the correct code is still refused by the tools */
+    CHECK(mlk_tool_open(&b, 3000 + (uint32_t)nvs_block - 100) == MLK_R_TOO_MANY);
+    CHECK(mlk_tool_open(&b, 3000 + (uint32_t)nvs_block + 100) == MLK_R_OK);
+    /* and past 24.9 days of uptime after that restart */
+    mlk_t c;
+    mlk_init(&c);
+    mlk_set(&c, "4321", NULL, salt);
+    mlk_tool_restore(&c, &saved, LATE);
+    CHECK(mlk_tool_open(&c, LATE + 10) == MLK_R_TOO_MANY && mlk_tool_open(&c, LATE + (uint32_t)nvs_block + 10) == MLK_R_OK);
+}
+
 static void test_privacy_tap_and_cues(void)
 {
     /* a tap turns a switch on, a hold turns it off; the other way round does nothing */
@@ -253,6 +293,7 @@ int main(void)
     test_pickup();
     test_stamps_late();
     test_remote();
+    test_lockout_survives_a_restart();
     test_privacy_tap_and_cues();
     if (failures) {
         printf("%d failure(s)\n", failures);

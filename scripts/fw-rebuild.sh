@@ -5,18 +5,20 @@
 #   --compile-every N  build after every Nth patch (1 = after every patch; 0 = only at the end; default 0). A build after a patch
 #                      listed in firmware/patches/MISPLACED is skipped (it is known broken until its repair patch).
 #   --from-local DIR   take the base from a local copy of the outer repo (with its nested tree) instead of downloading it.
+#   --order FILE       apply this list instead of firmware/patches/ORDER (bisecting a change in memory use).
 #   --list-misplaced   print firmware/patches/MISPLACED and exit.
 # Before any git command on the Mac Studio: source data-scratch/bin/https-git.env (the SSH alias hangs).
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 P="$ROOT/firmware/patches"
-TREE=""; EVERY=0; KIND=plain; STOP=""; LOCAL=""
+TREE=""; ORDERFILE=""; EVERY=0; KIND=plain; STOP=""; LOCAL=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --compile-every) EVERY=$2; shift 2 ;;
         --kind) KIND=$2; shift 2 ;;
         --stop-at) STOP=$2; shift 2 ;;
         --from-local) LOCAL=$2; shift 2 ;;
+        --order) ORDERFILE=$2; shift 2 ;;
         --list-misplaced) grep -v '^#' "$P/MISPLACED" | grep .; exit 0 ;;
         -*) echo "Unknown option $1. See the usage line at the top of scripts/fw-rebuild.sh." >&2; exit 1 ;;
         *) TREE=$1; shift ;;
@@ -47,9 +49,10 @@ else
 fi
 [ "$(git -C "$TREE/firmware/xiaozhi-esp32" rev-parse HEAD)" = "$NESTED" ] || { echo "The nested tree is not at $NESTED. Check firmware/BASE and the download, then retry." >&2; exit 1; }
 cd "$TREE"
-n=0; total=$(grep -v '^#' "$P/ORDER" | grep -c .)
+n=0; ORDERFILE=${ORDERFILE:-$P/ORDER}
+total=$(grep -v '^#' "$ORDERFILE" | grep -c .)
 mkdir -p "$ROOT/.runs"; LOG="$ROOT/.runs/fw-rebuild.log"; : > "$LOG"
-for f in $(grep -v '^#' "$P/ORDER" | grep .); do
+for f in $(grep -v '^#' "$ORDERFILE" | grep .); do
     n=$((n+1))
     awk '/^diff --git|^--- /{p=1} p' "$P/$f" > "$TREE/.patch.diff"
     if ! git apply --whitespace=nowarn "$TREE/.patch.diff" 2>"$TREE/.apply.err"; then
