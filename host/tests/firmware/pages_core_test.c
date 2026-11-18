@@ -435,6 +435,18 @@ static void test_page_contents(void)
         }
     }
     CHECK(mpg_gscroll_content_h(0) == 0 && mpg_gscroll_content_h(2) == 64 && mpg_gscroll_content_h(13) == 7 * 64 + 6 * 8);
+    /* patch UX14: three clock styles; each fits the zone above the page dots, the sleep sign has room, a tap cycles and wraps */
+    CHECK(MPG_CLOCK_STYLES == 3 && mpg_clock_style_next(0) == 1 && mpg_clock_style_next(1) == 2 && mpg_clock_style_next(2) == 0 && mpg_clock_style_clamp(7) == 0 && mpg_clock_style_clamp(-1) == 0);
+    for (int st = 0; st < MPG_CLOCK_STYLES; st++) {
+        const mpg_clock_layout_t l = mpg_clock_layout(st);
+        const int w = 4 * l.digit_w + 2 * l.gap + l.colon_w;
+        CHECK(l.x0 >= 0 && l.x0 + w <= MPG_ZONE_W);
+        CHECK(l.y0 >= 8 && l.y0 + l.digit_h <= l.date_y);
+        CHECK(l.date_y + (l.date_big ? 23 : 19) <= MPG_PAGER_Y - 4);   /* the date line clears the page dots */
+        CHECK(l.icon_x >= 0 && l.icon_x + 44 <= MPG_ZONE_W && l.icon_y >= 0 && l.icon_y + 20 <= MPG_PAGER_Y - 4);
+        if (st != 0) CHECK(l.icon_x + 44 <= l.x0);   /* the sign does not touch the digits (style 0 puts it beside the date line) */
+        CHECK(l.ampm_x + 24 <= MPG_ZONE_W);
+    }
     for (int ring = 0; ring <= 1; ring++) {
         const mpg_clock_layout_t l = mpg_clock_layout(ring);
         const int w = 4 * l.digit_w + 2 * l.gap + l.colon_w;

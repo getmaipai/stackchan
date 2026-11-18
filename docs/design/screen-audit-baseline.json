@@ -1,4 +1,28 @@
 {
+ "clock-classic": {
+  "fails": 0
+ },
+ "clock-classic-asleep": {
+  "fails": 0
+ },
+ "clock-datetime": {
+  "fails": 0
+ },
+ "clock-datetime-12h": {
+  "fails": 0
+ },
+ "clock-datetime-asleep": {
+  "fails": 0
+ },
+ "clock-ring": {
+  "fails": 0
+ },
+ "clock-ring-asleep": {
+  "fails": 0
+ },
+ "clock-tap-to-datetime": {
+  "fails": 0
+ },
  "es-apps-wall": {
   "fails": 0
  },

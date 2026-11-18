@@ -4,6 +4,14 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 
 | Screen | Targets | Failures | Warnings | First failures |
 |---|---:|---:|---:|---|
+| clock-classic | 1 | 0 | 0 |  |
+| clock-classic-asleep | 1 | 0 | 0 |  |
+| clock-datetime | 1 | 0 | 0 |  |
+| clock-datetime-12h | 1 | 0 | 0 |  |
+| clock-datetime-asleep | 1 | 0 | 0 |  |
+| clock-ring | 1 | 0 | 0 |  |
+| clock-ring-asleep | 1 | 0 | 0 |  |
+| clock-tap-to-datetime | 1 | 0 | 0 |  |
 | es-apps-wall | 4 | 0 | 0 |  |
 | es-more-menu | 6 | 0 | 1 |  |
 | es-page-actions | 4 | 0 | 4 |  |
@@ -37,4 +45,4 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 | screen-subtitles | 0 | 0 | 0 |  |
 | screen-timers-app | 9 | 7 | 0 | targets at 4,36 and 4,96 are 4 px apart (under 8); targets at 4,96 and 4,156 are 4 px apart (under 8) |
 
-Total failures: 62 on 32 screens.
+Total failures: 62 on 40 screens.

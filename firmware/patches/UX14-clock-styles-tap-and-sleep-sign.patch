@@ -1,0 +1,190 @@
+# Intent: The clock page gets three styles that a tap cycles, and shows when the unit sleeps (owner idea 2026-11-18, spec docs/design/clock-styles.md). Style 0 is the classic big digits on the black card, 1 the ring, 2 date and time (smaller digits and the full date line in the 20 px body text); a tap on the page moves to the next style and back to the first; a sleeping unit shows a moon with "Zz", the page dimmed to 40 percent and a steady colon, and a tap then only wakes the screen and changes nothing. The host interface gains clock_style(), clock_set_style(int) and asleep() with safe defaults; the unit's implementation (saving the style only on change, after a short wait, never from the display task) is the firmware track's, per the spec. Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages.cc, maipai_pages.h, maipai_pages_core.h (ours)
+# Check after a flash: the clock page opens in the saved style; a tap shows the next style (classic, ring, date and time, classic); the style is still the same after a restart; when the unit sleeps the page is dim with a moon and Zz and the colon stops blinking; a tap on a sleeping unit wakes it and leaves the style alone.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -840,21 +840,30 @@
+ static inline int mpg_dim_pct(int night) { return night ? MPG_NIGHT_DIM_PCT : 100; }
+ static inline uint8_t mpg_scale(uint8_t c, int pct) { return (uint8_t)((c * pct + 50) / 100); }
+ 
+-/* The clock page in zone coordinates (0, 0 is the top left of the zone). Digits and colon as bars (see maipai_face_clock_core.h). */
++/* The clock page in zone coordinates (0, 0 is the top left of the zone). Digits and colon as bars (see maipai_face_clock_core.h).
++ * Patch UX14: three styles that a tap cycles, kept across restarts (docs/design/clock-styles.md): 0 classic digits on the black card, 1 the ring, 2 date and time
++ * (smaller digits, the full date line in the 20 px body text). The sleep sign (a moon and "Zz") sits at icon_x, icon_y. */
++#define MPG_CLOCK_STYLES 3
++#define MPG_ASLEEP_DIM_PCT 40 /* a sleeping unit dims the whole page to this */
++static inline int mpg_clock_style_next(int style) { return (style + 1) % MPG_CLOCK_STYLES; }
++static inline int mpg_clock_style_clamp(int style) { return style < 0 || style >= MPG_CLOCK_STYLES ? 0 : style; }
+ typedef struct {
+     int digit_w, digit_h, bar, gap, colon_w;
+     int x0, y0;      /* the first digit's box */
+     int date_y;      /* the date line's top */
++    int date_big;    /* 1: the date line is in the 20 px body text */
+     int ring;        /* a ring around the digits: its diameter, or 0 */
+     int ring_cx, ring_cy;
+     int ampm_x, ampm_y;
++    int icon_x, icon_y;  /* the sleep sign's top left */
+ } mpg_clock_layout_t;
+ 
+-static inline mpg_clock_layout_t mpg_clock_layout(int ring_style)
++static inline mpg_clock_layout_t mpg_clock_layout(int style)
+ {
+     mpg_clock_layout_t l;
+     memset(&l, 0, sizeof(l));
+-    if (ring_style) {
++    style = mpg_clock_style_clamp(style);
++    if (style == 1) {
+         l.digit_w = 22; l.digit_h = 45; l.bar = 5; l.gap = 4; l.colon_w = 10;  /* h = 3 bar + 2 L: 15 + 30 */
+         l.ring = 134;
+         l.ring_cx = MPG_ZONE_W / 2;
+@@ -865,6 +874,19 @@
+         l.date_y = l.y0 + l.digit_h + 8;
+         l.ampm_x = l.x0 + w - 36;
+         l.ampm_y = l.y0 - 20;
++        l.icon_x = 10;
++        l.icon_y = 12;
++    } else if (style == 2) {
++        l.digit_w = 40; l.digit_h = 76; l.bar = 8; l.gap = 8; l.colon_w = 18;  /* h = 3 bar + 2 L: 24 + 52 */
++        const int w = 4 * l.digit_w + 2 * l.gap + l.colon_w;
++        l.x0 = (MPG_ZONE_W - w) / 2;
++        l.y0 = 14;
++        l.date_y = l.y0 + l.digit_h + 14;
++        l.date_big = 1;
++        l.ampm_x = l.x0 + w + 6;
++        l.ampm_y = l.y0 + l.digit_h - 20;
++        l.icon_x = 10;
++        l.icon_y = 14;
+     } else {
+         /* patch UI01: the three page dots sit in the bottom row (MPG_PAGER_Y), so the digits take the room above the date line:
+          * h = 3 bar + 2 L = 36 + 72 = 108 (it was 87), a bar of 12 (it was 9), under the grabber handle. */
+@@ -875,6 +897,8 @@
+         l.date_y = l.y0 + l.digit_h + 3;
+         l.ampm_x = l.x0 + w - 34;
+         l.ampm_y = l.date_y + 3;
++        l.icon_x = 10;
++        l.icon_y = l.date_y;
+     }
+     return l;
+ }
+diff --git a/firmware/main/hal/maipai_pages.cc b/firmware/main/hal/maipai_pages.cc
+--- a/firmware/main/hal/maipai_pages.cc
++++ b/firmware/main/hal/maipai_pages.cc
+@@ -44,6 +44,7 @@
+ int s_page_pos      = 99;
+ int s_extra_type    = -1;  // the page showing at position 0 when it is not in the strip
+ bool s_night_seen   = false;
++bool s_asleep_seen  = false;
+ 
+ // Widgets of the page that shows: built when it opens, freed when it closes.
+ struct Ui {
+@@ -104,7 +105,12 @@
+ {
+     return maipai_ui_style::dim(c, pct);
+ }
+-int night_pct() { return s_host != nullptr ? mpg_dim_pct(s_host->night()) : 100; }
++int night_pct()
++{
++    if (s_host == nullptr) return 100;
++    const int p = mpg_dim_pct(s_host->night());
++    return s_host->asleep() && p > MPG_ASLEEP_DIM_PCT ? MPG_ASLEEP_DIM_PCT : p;  // patch UX14: a sleeping unit is dimmer than the night look
++}
+ lv_color_t fg(int pct = 100)
+ {
+     const lv_color_t c = s_fg != nullptr ? s_fg() : maipai_ui_style::text();
+@@ -286,6 +292,24 @@
+ }
+ 
+ // ---- Clock ----
++void show_type(int type, int pos);
++void clock_rebuild(void*)
++{
++    if (s_page != nullptr && s_page_type == MPG_P_CLOCK) {
++        const int pos = s_page_pos;
++        s_page_type   = -1;  // show_type returns early for the page that is already up
++        show_type(MPG_P_CLOCK, pos);
++    }
++}
++
++// Patch UX14: a tap cycles the style. A sleeping unit only wakes (the touch that woke it is the unit's own wake, not this tap): the style stays.
++void on_clock_tap(lv_event_t*)
++{
++    if (s_host == nullptr || s_host->asleep()) return;
++    s_host->clock_set_style(mpg_clock_style_next(s_host->clock_style()));
++    lv_async_call(clock_rebuild, nullptr);  // the tapped object is part of the page that is replaced
++}
++
+ void clock_paint()
+ {
+     if (s_ui == nullptr) {
+@@ -322,7 +346,7 @@
+             }
+         }
+     }
+-    const bool dots = !known || (t.tm_sec % 2) == 0;
++    const bool dots = !known || s_host->asleep() || (t.tm_sec % 2) == 0;  // a sleeping unit's colon stays steady
+     for (lv_obj_t* o : s_ui->colon) {
+         if (dots) {
+             lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+@@ -355,7 +379,7 @@
+ 
+ void build_clock(lv_obj_t* root)
+ {
+-    const mpg_clock_layout_t l = mpg_clock_layout(s_host->clock_ring() ? 1 : 0);
++    const mpg_clock_layout_t l = mpg_clock_layout(s_host->clock_style());
+     const lv_color_t c         = fg(100);
+     if (l.ring) {
+         s_ui->arc = lv_arc_create(root);
+@@ -384,14 +408,22 @@
+     const int cx  = l.x0 + 2 * l.digit_w + l.gap + (l.colon_w - l.bar) / 2;
+     s_ui->colon[0] = box(root, cx, l.y0 + l.digit_h / 3 - l.bar / 2, l.bar, l.bar, c, l.bar / 3);
+     s_ui->colon[1] = box(root, cx, l.y0 + 2 * l.digit_h / 3 - l.bar / 2, l.bar, l.bar, c, l.bar / 3);
+-    s_ui->date     = text(root, "", l.ring ? kSmall : kSmall, fg(70));  // inside the ring the date needs the smaller font
++    s_ui->date     = text(root, "", l.date_big ? kBig : kSmall, fg(l.date_big ? 90 : 70));  // inside the ring the date needs the smaller font; style 2 shows it in the body text
+     lv_obj_set_width(s_ui->date, MPG_ZONE_W);
+     lv_obj_set_style_text_align(s_ui->date, LV_TEXT_ALIGN_CENTER, 0);
+     lv_obj_set_pos(s_ui->date, 0, l.date_y);
+     if (!s_host->clock24()) {
+         s_ui->ampm = text(root, "", kSmall, fg(70));
+         lv_obj_set_pos(s_ui->ampm, l.ampm_x, l.ampm_y);
++    }
++    if (s_host->asleep()) {  // patch UX14: a moon (a disc with a dark disc over it) and "Zz", in a steady dim white that the sleep dimming does not touch
++        const lv_color_t w = maipai_ui_style::dim(s_fg != nullptr ? s_fg() : maipai_ui_style::text(), 75);
++        box(root, l.icon_x, l.icon_y, 20, 20, w, LV_RADIUS_CIRCLE);
++        box(root, l.icon_x + 7, l.icon_y - 3, 18, 18, maipai_ui_style::bg(), LV_RADIUS_CIRCLE);
++        lv_obj_t* z = text(root, "Zz", kSmall, w);
++        lv_obj_set_pos(z, l.icon_x + 26, l.icon_y);
+     }
++    lv_obj_add_event_cb(root, on_clock_tap, LV_EVENT_CLICKED, nullptr);  // a tap on the clock changes its style
+     clock_paint();
+ }
+ 
+@@ -1276,8 +1308,10 @@
+     }
+     // a day to night change repaints the page in the dimmer color
+     const bool night = s_host->night();
+-    if (night != s_night_seen) {
++    const bool asleep = s_host->asleep();
++    if (night != s_night_seen || asleep != s_asleep_seen) {
+         s_night_seen = night;
++        s_asleep_seen = asleep;
+         const int type = s_page_type, pos = s_page_pos;
+         const bool sheet = s_sheet != nullptr;
+         if (type >= 0) {
+diff --git a/firmware/main/hal/maipai_pages.h b/firmware/main/hal/maipai_pages.h
+--- a/firmware/main/hal/maipai_pages.h
++++ b/firmware/main/hal/maipai_pages.h
+@@ -42,6 +42,10 @@
+     virtual bool night() { return false; }
+     virtual bool clock24() { return false; }
+     virtual bool clock_ring() { return false; }
++    // patch UX14: the clock style (0 classic digits, 1 ring, 2 date and time), changed by a tap and kept across restarts by the unit; and the sleep state
++    virtual int clock_style() { return clock_ring() ? 1 : 0; }
++    virtual void clock_set_style(int) {}  // the unit saves it only when it changed, after a short wait, never from the display task itself (docs/design/clock-styles.md)
++    virtual bool asleep() { return false; }
+     virtual bool spanish() { return false; }
+     virtual bool quiet() { return false; }
+     virtual bool muted() { return false; }

@@ -170,6 +170,54 @@
   "warnings": 0,
   "failures": []
  },
+ "clock-classic": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-ring": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-datetime": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-classic-asleep": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-ring-asleep": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-datetime-asleep": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-datetime-12h": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-tap-to-datetime": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
  "screen-page-timers": {
   "targets": 3,
   "fails": 0,

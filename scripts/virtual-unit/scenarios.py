@@ -91,6 +91,15 @@ SCREENS: dict[str, list] = {
     "screen-subtitles": BAR + [("raw", "bcaps subtitles"), ("raw", "ssay Sure, I can set a timer for five minutes."), ("advance", 900)],
     "screen-page-timers-running": BAR + [("raw", "ptimer 300 tea"), ("raw", "ptimer 90 eggs"), ("raw", "pshow timers"), ("advance", 800)],
     "screen-page-clock": BAR + [("raw", "pshow clock"), ("advance", 600)],
+    # patch UX14: the three clock styles, awake and asleep (a moon and Zz, the page dimmed), and the tap that cycles them
+    "clock-classic": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-ring": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 1"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-datetime": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 2"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-classic-asleep": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset asleep 1"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-ring-asleep": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 1"), ("raw", "pset asleep 1"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-datetime-asleep": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 2"), ("raw", "pset asleep 1"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-datetime-12h": BAR + [("raw", "pset hh 14"), ("raw", "pset mm 5"), ("raw", "pset cstyle 2"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-tap-to-datetime": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pshow clock"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600)],
     "screen-page-timers": BAR + [("raw", "pshow timers"), ("advance", 600)],
     "screen-page-games": BAR + [("raw", "pshow games"), ("advance", 600)],
     "screen-page-games-scrolled": BAR + [("raw", "pshow games"), ("advance", 600), ("raw", "pscrollby 160 80 72"), ("advance", 300)],   # patch UX13e: a swipe up scrolls one row and a bit
