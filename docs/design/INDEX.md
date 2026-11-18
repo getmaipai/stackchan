@@ -207,7 +207,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/unit-choices-audit.md` (155): Unit choices audit (decision 20 of 2026-11-18)
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
-- `docs/dev/virtual-unit-3d.md` (62): The 3D virtual unit: body, power, axes
+- `docs/dev/virtual-unit-3d.md` (68): The 3D virtual unit: body, power, axes
 - `docs/dev/virtual-unit-assets.md` (12): The installed set in the virtual unit
 - `docs/dev/virtual-unit-dance.md` (41): The dance in the virtual unit
 - `docs/dev/virtual-unit-fidelity.md` (32): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
@@ -350,7 +350,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/trademark-and-affiliation.md` (53): Names, marks and affiliation
 - `docs/plan/two-usb-ports.md` (73): Two USB-C ports: what feeds what, and a limiter that measures the supply
 - `docs/plan/undefined-host-calls-2026-11-18.md` (24): Host calls with no firmware definition (2026-11-18)
-- `docs/plan/view-requests.md` (20): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
+- `docs/plan/view-requests.md` (46): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
 - `docs/user/bench-listening.md` (5): Listen longer on the bench (developers)
 - `docs/user/camera.md` (78): Use the camera
@@ -2381,7 +2381,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vision_yunet.py` (184): JPEG decoding and the YuNet runner, without OpenCV or the Reachy SDK."""
 - `host/tests/test_voice_server.py` (226): VOICE-01: the speech process served over the shared voice contract."""
 - `host/tests/test_voiceprint.py` (191): SPEAK-01: voice evidence in the body. Fake embedders only; no real model."""
-- `host/tests/test_vu_model.py` (495): Virtual unit 3D model: the rigged glb's node names and hierarchy, joint limits, byte-identical rebuild, source
+- `host/tests/test_vu_model.py` (514): Virtual unit 3D model: the rigged glb's node names and hierarchy, joint limits, byte-identical rebuild, source
 - `host/tests/test_vu_tools_apps.py` (113): Shape and state checks for the virtual unit apps tools."""
 - `host/tests/test_vu_tools_audio.py` (116): Coverage for the virtual unit audio and adjacent tool group."""
 - `host/tests/test_vu_tools_banner_screen.py` (47): Behavior checks for virtual banner and screen tools."""
@@ -2394,7 +2394,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vu_tools_page_overlay.py` (74): no header
 - `host/tests/test_vu_tools_pages_filler_mood.py` (57): no header
 - `host/tests/test_vu_tools_user_only.py` (30): Behavior checks for the virtual unit user-only tools."""
-- `host/tests/test_vu_view_pointer.py` (319): The virtual unit view under a real pointer: a browser is driven through its own input pipeline (mouse press, m
+- `host/tests/test_vu_view_pointer.py` (380): The virtual unit view under a real pointer: a browser is driven through its own input pipeline (mouse press, m
 - `host/tests/test_wake.py` (104): G2's own acceptance: the wake state machine, driven by a fake engine."""
 - `host/tests/test_wake_engine_real_model.py` (128): G2's real-model acceptance: `OpenWakeWordEngine` against the actual
 - `host/tests/test_wake_models.py` (91): Wake-word asset pins resolve through the paired hub cache."""
@@ -2537,7 +2537,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/MATCH.md` (213): Does the model match the owner's unit?
 - `scripts/virtual-unit/model/README.md` (78): Robot 3D model
 - `scripts/virtual-unit/model/SOURCE.md` (34): Source of the model geometry
-- `scripts/virtual-unit/model/make_body.py` (1140): Build the rigged body model of the unit from the official structure files in source/.
+- `scripts/virtual-unit/model/make_body.py` (1215): Build the rigged body model of the unit from the official structure files in source/.
 - `scripts/virtual-unit/model/render_previews.py` (224): Render the preview pictures of stackchan.glb: six views of the outside and both joints through their ranges.
 - `scripts/virtual-unit/model/softrender.py` (170): A small software renderer for the body model previews: standard library only.
 - `scripts/virtual-unit/model/source/LICENSE` (20): no header
@@ -2553,6 +2553,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/source/StackChan-ServoSideCover.stl` (61): no header
 - `scripts/virtual-unit/model/stackchan.glb` (8153): no header
 - `scripts/virtual-unit/model/stackchan.params.json` (779): no header
+- `scripts/virtual-unit/model/stackchan.web.glb` (6784): Binary file scripts/virtual-unit/model/stackchan.web.glb matches
 - `scripts/virtual-unit/model/validate.sh` (18): check stackchan.glb with the Khronos glTF validator, on this Mac only (the file is read locally; nothing is up
 - `scripts/virtual-unit/overlay_patches.py` (75): Brings the face overlay tree (.runs/fixtree, made by build-face.sh from a replayed firmware tree) up to the wh
 - `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (7): no header
@@ -2590,9 +2591,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/touch_targets.py` (83): Touch target sizes on the golden screens: find the button and tile shapes in each frame and report their size 
 - `scripts/virtual-unit/ui_style_check.py` (30): Count the font sizes and color literals the app screen sources use, on the overlay tree built by build-face.sh
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
-- `scripts/virtual-unit/view.html` (282): app{display:flex;height:100%}
-- `scripts/virtual-unit/view.py` (364): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
-- `scripts/virtual-unit/view3d.js` (485): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
+- `scripts/virtual-unit/view.html` (299): app{display:flex;height:100%}
+- `scripts/virtual-unit/view.py` (378): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
+- `scripts/virtual-unit/view3d.js` (497): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
 - `scripts/virtual-unit/vunit.py` (354): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/wakeword/README.md` (17): Local wake word experiment
 - `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
