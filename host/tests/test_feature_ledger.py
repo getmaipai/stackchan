@@ -126,3 +126,17 @@ def test_the_three_setups_the_encrypted_link_default_and_the_memory_budget_have_
         assert n in names, n
     assert names["Setup way 3: set one up for me"]["status"] in ("designed", "idea"), "the installer is not built"
     assert names["Memory budget table"]["audience"] == "maker"
+
+
+def test_the_memory_column_and_totals_come_from_the_declared_budget_table(ledger):
+    _, rows, meta = ledger
+    t = meta["memory"]
+    assert t["items"] >= 30 and t["headroom_lowest"] > 0 and t["rows_declared"] >= 20
+    declared = [r for r in rows if r.get("memory")]
+    assert any(r["name"].startswith("Dance step") for r in declared)
+    for r in declared:
+        assert {"internal", "psram", "flash", "loaded_when", "items", "status"} <= set(r["memory"]), r["name"]
+    md = (ROOT / "docs" / "dev" / "feature-ledger.md").read_text()
+    assert "## Memory (owner decision 15)" in md and "| Memory |" in md
+    html = (ROOT / "docs" / "dev" / "feature-ledger.html").read_text()
+    assert "memhead" in html and "Memory:" in html

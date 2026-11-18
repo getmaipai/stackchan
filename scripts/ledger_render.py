@@ -29,6 +29,26 @@ def average(rows: list[dict], audience: str) -> int:
     return round(sum(pts) / len(pts)) if pts else 0
 
 
+def _mem(r: dict) -> str:
+    """One cell: internal, PSRAM and flash bytes and when it is loaded; 'not declared' when the feature loads something that is not in schema/memory-budget.json."""
+    m = r.get("memory")
+    if not m:
+        return "not declared"
+    return f"I {m['internal']:,} / P {m['psram']:,} / F {m['flash']:,} B ({m['status']}); {m['loaded_when']}".replace("|", "/")
+
+
+def memory_header(meta: dict) -> list[str]:
+    t = meta.get("memory")
+    if not t:
+        return []
+    big = t["biggest_transient"]
+    return ["", "## Memory (owner decision 15)", "",
+            f"Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): {t['items']} items, {t['measured']} measured, {t['estimate']} estimated, {t['placeholder']} placeholders or not built. "
+            f"{t['rows_declared']} of {t['rows_total']} rows name a declared cost. Internal RAM that is always on: {t['always_on_internal']:,} B (inside the baseline). "
+            f"Headroom over the gate: {t['headroom_median']:,} B at the median, {t['headroom_lowest']:,} B at the lowest; the largest block has {t['block_margin']:,} B of margin. "
+            f"The biggest transient internal item: {big[1]} ({big[0]:,} B). Standing optional features that stay loaded: {t['persistent_internal']:,} B internal."]
+
+
 def markdown(rows: list[dict], meta: dict) -> str:
     c = counts(rows)
     scrapped = [r for r in rows if r["status"] == SCRAPPED]
@@ -45,14 +65,15 @@ def markdown(rows: list[dict], meta: dict) -> str:
             if r["audience"] == a and r["status"] != SCRAPPED:
                 by_area[r["area"]].append(r)
         for area in sorted(by_area):
-            lines += [f"### {area} ({len(by_area[area])})", "", "| Feature | What it does | Status | % | Where | Evidence | Doc |", "|---|---|---|---|---|---|---|"]
+            lines += [f"### {area} ({len(by_area[area])})", "", "| Feature | What it does | Status | % | Memory | Where | Evidence | Doc |", "|---|---|---|---|---|---|---|---|"]
             for r in by_area[area]:
                 img = f" ![]({r['image']})" if r["image"] else ""
                 where = "<br>".join(f"`{w}`" for w in r["where"][:3]) or ""
                 ev = ", ".join(f"`{b}`" for b in r["bench"][:2]) or r["rule"]
                 doc = f"[{r['doc']}]({r['doc'].split('#')[0].replace('docs/', '../')}{('#' + r['doc'].split('#')[1]) if '#' in r['doc'] else ''})" if r["doc"] else "doc missing"
-                lines.append(f"| **{r['name']}**{img} | {r['desc'].replace('|', '/')} | {r['status']} | {r['percent']} | {where} | {ev.replace('|', '/')} | {doc} |")
+                lines.append(f"| **{r['name']}**{img} | {r['desc'].replace('|', '/')} | {r['status']} | {r['percent']} | {_mem(r)} | {where} | {ev.replace('|', '/')} | {doc} |")
             lines.append("")
+    lines[lines.index("## Progress"):lines.index("## Progress")] = memory_header(meta)[1:] + [""] if memory_header(meta) else []
     if decs:
         done = Counter(d["status"] for d in decs)
         lines += ["", "## Decisions", "", "The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: " + ", ".join(f"{done[s]} {s}" for s in DECISION_STATUSES) + ".", "",
@@ -79,8 +100,8 @@ def page(rows: list[dict], meta: dict) -> str:
     for r in rows:
         if r["image"] and r["image"] not in images:
             images[r["image"]] = _data_uri(r["image"])
-    slim = [{k: r[k] for k in ("id", "audience", "area", "name", "desc", "status", "percent", "where", "image", "bench", "doc", "rule", "tags")} for r in rows]
-    data = json.dumps({"rows": slim, "images": images, "meta": {"rule": meta["rule"], "unmapped": meta["unmapped"], "decisions": meta.get("decisions", []), "baby_reason": meta.get("baby_reason", "")}}, ensure_ascii=False).replace("</", "<\\/")
+    slim = [{k: r[k] for k in ("id", "audience", "area", "name", "desc", "status", "percent", "where", "image", "bench", "doc", "rule", "tags", "memory")} for r in rows]
+    data = json.dumps({"rows": slim, "images": images, "meta": {"rule": meta["rule"], "unmapped": meta["unmapped"], "decisions": meta.get("decisions", []), "baby_reason": meta.get("baby_reason", ""), "memory": meta.get("memory")}}, ensure_ascii=False).replace("</", "<\\/")
     return HTML.replace("__DATA__", data).replace("__TITLE__", html.escape("Feature ledger"))
 
 
@@ -120,7 +141,7 @@ details{margin:18px 0}summary{cursor:pointer}
 <div class="chips" id="chips"></div>
 <div class="chips"><input type="search" id="q" placeholder="Search features, patches, files" aria-label="Search"><select id="area" aria-label="Area"></select><button id="theme" type="button">Light/dark</button></div>
 </header>
-<main><div class="prog" id="prog"></div><details><summary>How a status and a percent are worked out</summary><p class="meta" id="rule"></p></details><div id="list"></div><details id="scr"><summary id="scrsum"></summary><div id="scrlist"></div></details><details id="unm"><summary>Patches that no feature row names</summary><div id="unmlist" class="meta"></div></details></main>
+<main><div class="meta" id="memhead"></div><div class="prog" id="prog"></div><details><summary>How a status and a percent are worked out</summary><p class="meta" id="rule"></p></details><div id="list"></div><details id="scr"><summary id="scrsum"></summary><div id="scrlist"></div></details><details id="unm"><summary>Patches that no feature row names</summary><div id="unmlist" class="meta"></div></details></main>
 <script id="data" type="application/json">__DATA__</script>
 <script>
 const D=JSON.parse(document.getElementById('data').textContent);
@@ -157,13 +178,15 @@ for(const a of Object.keys(g).sort()){h+=`<section class="area"><h3>${esc(a)} ($
 const doc=r.doc?`<a href="../${esc(r.doc.replace(/^docs\//,""))}">${esc(r.doc)}</a>`:'<span class="miss">doc missing</span>';
 h+=`<div class="row">${im?`<img loading="lazy" src="${im}" alt="${esc(r.name)}">`:'<div class="noimg"></div>'}<div><div class="name">${esc(r.name)}</div><div class="desc">${esc(r.desc)}</div>
 <div><span class="badge" style="background:${COL[r.status]}">${r.status}</span><b>${r.percent}%</b></div><div class="pct"><i style="width:${r.percent}%"></i></div>
-<div class="meta">Where: ${r.where.length?r.where.map(w=>"<code>"+esc(w)+"</code>").join(" "):"none"}<br>Evidence: ${r.bench.length?r.bench.map(b=>"<code>"+esc(b)+"</code>").join(" "):esc(r.rule)}<br>Doc: ${doc}</div></div></div>`}h+="</section>"}
+<div class="meta">Where: ${r.where.length?r.where.map(w=>"<code>"+esc(w)+"</code>").join(" "):"none"}<br>Evidence: ${r.bench.length?r.bench.map(b=>"<code>"+esc(b)+"</code>").join(" "):esc(r.rule)}<br>Memory: ${r.memory?`internal ${r.memory.internal.toLocaleString()} B, PSRAM ${r.memory.psram.toLocaleString()} B, flash ${r.memory.flash.toLocaleString()} B (${r.memory.status}), loaded: ${esc(r.memory.loaded_when)}`:'<span class="miss">not declared</span>'}<br>Doc: ${doc}</div></div></div>`}h+="</section>"}
 $("list").innerHTML=h||'<p class="meta">Nothing matches.</p>';
 $("unmlist").innerHTML=D.meta.unmapped.length?D.meta.unmapped.map(p=>`<div><code>${esc(p.name)}</code> ${esc(p.intent)}</div>`).join(""):"Every patch is named by a row."}
 $("tabs").onclick=e=>{const a=e.target.closest("button")?.dataset.a;if(a){aud=a;area="";sts=new Set();chips();draw()}};
 $("chips").onclick=e=>{const s=e.target.closest("button")?.dataset.s;if(s){sts.has(s)?sts.delete(s):sts.add(s);chips();draw()}};
 $("area").onchange=e=>{area=e.target.value;draw()};$("q").oninput=e=>{q=e.target.value.toLowerCase();draw()};
 $("theme").onclick=()=>{const r=document.documentElement;const cur=r.dataset.theme||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");r.dataset.theme=cur==="dark"?"light":"dark"};
-$("rule").textContent=D.meta.rule;prog();chips();draw();
+$("rule").textContent=D.meta.rule;
+(function(){const t=D.meta.memory;if(!t)return;$("memhead").innerHTML=`<b>Memory (decision 15):</b> ${t.items} declared items (${t.measured} measured, ${t.estimate} estimated, ${t.placeholder} placeholders or not built); ${t.rows_declared} of ${t.rows_total} rows name a cost. Always-on internal ${t.always_on_internal.toLocaleString()} B. Headroom over the gate: ${t.headroom_median.toLocaleString()} B median, ${t.headroom_lowest.toLocaleString()} B lowest; largest block margin ${t.block_margin.toLocaleString()} B. Biggest transient: ${esc(t.biggest_transient[1])} (${t.biggest_transient[0].toLocaleString()} B).`})();
+prog();chips();draw();
 </script></body></html>
 """

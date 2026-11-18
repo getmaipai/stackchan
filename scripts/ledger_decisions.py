@@ -31,13 +31,18 @@ DECISION_EVIDENCE: dict[int, tuple[list[str], str]] = {
     12: (["firmware/patches/UX12-first-run-skip-brain-question-and-next-steps.patch", "docs/plan/first-run-brain-choice.md"], "the first run asks the three questions (Home, my own servers, set one up for me); the minimal local stack installer is not built"),
     13: (["docs/dev/memory-budget.md", "docs/design/encrypted-link.md"], "the encrypted link exists; making it the default waits on the memory table"),
     14: (["scripts/efuse-check.py"], "scripts/efuse-check.py refuses any eFuse write in firmware, builds, scripts and updates"),
-    15: ([], "the budget table (decision 11) is the proof and is not written yet; scripts/off-cost.sh already proves an off feature costs nothing"),
+    15: (["schema/memory-budget.json", "scripts/virtual-unit/memory_model.py"], "the virtual unit enforces the declared budget and a leak canary; the firmware numbers are partly placeholders"),
+    17: ([], "the installed set with slots is not built: the unit holds everything compiled in; the memory model (schema/memory-budget.json) now states each item's cost for the slot sizes"),
+    18: ([], "the language tiers and the first screen anyone can read are not built: the first run shows six languages in their own names; no font packs yet"),
+    19: ([], "one image for everyone is the plan; profiles wait for the memory budget (decision 11) to show they are needed; none are built"),
+    20: ([], "the first run now asks three questions and offers Skip on each; the rule that every other choice is automatic or under Advanced is not yet checked across the settings page"),
+    21: (["scripts/virtual-unit/view.py"], "the simulation backend exists (the virtual unit and its 3D view); the Live backend (a registered robot through the person's host, one control session at a time) is not built"),
     16: ([], "the host serves several units today; the managed service, per-unit supervision and no-silent-death parts are not built"),
 }
 
 # explicit status, by number, where files alone cannot say it
 DECISION_FORCED: dict[int, str] = {
-    2: "in progress", 4: "in progress", 5: "in progress", 6: "in progress", 9: "in progress", 12: "in progress", 13: "not started", 15: "not started", 16: "in progress",
+    2: "in progress", 4: "in progress", 5: "in progress", 6: "in progress", 9: "in progress", 12: "in progress", 13: "not started", 15: "in progress", 16: "in progress", 17: "not started", 18: "not started", 19: "not started", 20: "in progress", 21: "in progress",
 }
 
 
@@ -52,7 +57,7 @@ def decisions() -> list[dict]:
         n = int(m.group(1))
         title = m.group(2).strip().rstrip(".:")
         title = re.sub(r"\s*\((?:owner, )?2026-11-18\)\s*$", "", title)
-        files, note = DECISION_EVIDENCE.get(n, ([], ""))
+        files, note = DECISION_EVIDENCE.get(n, ([], "a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started"))
         have = [f for f in files if (ROOT / f).exists()]
         if n == 10:
             status = "built" if not (ROOT / BABY_PAGE).exists() else "in progress"

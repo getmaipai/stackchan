@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ledger_decisions as decisions  # noqa: E402
+import ledger_memory as memory  # noqa: E402
 import ledger_render as render  # noqa: E402
 import ledger_rules as rules  # noqa: E402
 import ledger_sources as src  # noqa: E402
@@ -443,11 +444,12 @@ def build() -> tuple[list[dict], dict]:
     for d in decisions.dropped_items():   # the plan's own dropped and not-included lists
         if re.sub(r"[^a-z]", "", d["name"].lower()) not in have:
             rows.append(row(audience="user", area="Scrapped and dropped", name=d["name"], desc="Not built and not planned.", status="scrapped", percent=0, where=[d["source"]], rule=d["reason"]))
+    memory.attach(rows)   # the Memory column: the declared cost of each feature (schema/memory-budget.json)
     for i, r in enumerate(rows):
         r["id"] = f"{'U' if r['audience'] == 'user' else 'M'}{i + 1:04d}"
     named = {w for r in rows for w in r["where"]}
     unmapped = [{"name": p["name"], "intent": src.sentence(p["intent"] or "(no intent line)", 140)} for p in ev.patches if p["name"] not in ev.used and p["name"] not in named and not any(p["name"] in w for w in named)]
-    return rows, {"rule": RULE, "unmapped": unmapped, "decisions": decisions.decisions(), "baby_reason": decisions.BABY_REASON}
+    return rows, {"rule": RULE, "unmapped": unmapped, "decisions": decisions.decisions(), "baby_reason": decisions.BABY_REASON, "memory": memory.totals(rows)}
 
 
 def main(argv: list[str]) -> int:

@@ -65,6 +65,7 @@ class VirtualUnit:
         self.move_times: list[int] = []
         self.tickers: list = []  # called with the fake clock after every slice of at most 66 ms (two renderer frames) of advance (the music dance, patch MD01, dance_sim.py)
         self._dance = None
+        self._memory = None
         self.leds = [(0, 0, 0)] * 12
         self.battery = {"percent": 75, "charging": False}
         self._proc: subprocess.Popen | None = None
@@ -105,7 +106,20 @@ class VirtualUnit:
     def raw(self, command: str) -> None:
         """One renderer command (screens profile: pshow, bstatus, bst, bwifiscreen, ...). A bench aid, not a firmware tool."""
         self._send(command)
+        if self._memory is not None:
+            self._memory.on_raw(command)
         self.log.append({"at_ms": self.now_ms, "name": "renderer", "args": {"command": command}, "ok": True, "result": {}})
+
+    @property
+    def memory(self):
+        """The memory model (memory_model.py, decision 15): declared costs from schema/memory-budget.json, what is loaded now, the budget check and the leak canary. Made on first use;
+        from then on every renderer command and tool call reports to it."""
+        if self._memory is None:
+            import memory_model
+
+            self._memory = memory_model.MemoryModel(self)
+            self.tickers.append(self._memory.sweep)
+        return self._memory
 
     @property
     def dance(self):
@@ -187,6 +201,8 @@ class VirtualUnit:
     def call(self, name: str, args: dict | None = None) -> dict:
         """Run a tool by name (user-only tools included) and keep it in the log with the fake time."""
         out = self._call(name, args)
+        if self._memory is not None:
+            self._memory.on_call(name, dict(args or {}), out)
         self.log.append({"at_ms": self.now_ms, "name": name, "args": dict(args or {}), "ok": not out.get("isError") and out.get("ok") is not False,
                          "result": {k: v for k, v in out.items() if k != "png_base64"}})
         del self.log[:-200]
