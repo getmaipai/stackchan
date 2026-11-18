@@ -36,13 +36,21 @@ OVERLAYS = ["rain", "snow", "sun", "clouds", "wind", "thunder", "fog", "stars", 
             "sleeping"]
 
 
+# Every host call the run makes is counted: a gate that drove nothing (host down, wrong unit) must not pass on memory alone.
+CALL_STATS = {"ok": 0, "failed": 0, "first_error": ""}
+MAX_FAILED_SHARE = 0.2
+
+
 def call(device: str, path: str, body: dict | None = None, timeout: float = 20.0):
     req = urllib.request.Request(f"{HOST}/api/stackchan/unit/{device}/{path}", data=json.dumps(body or {}).encode(),
                                  headers={"content-type": "application/json"}, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
+            CALL_STATS["ok" if 200 <= r.status < 300 else "failed"] += 1
             return r.status
-    except Exception as exc:  # the run goes on; the summary shows the unit's own log
+    except Exception as exc:  # the run goes on; the gate counts it and fails when too many fail
+        CALL_STATS["failed"] += 1
+        CALL_STATS["first_error"] = CALL_STATS["first_error"] or str(exc)[:60]
         return str(exc)[:60]
 
 
@@ -166,8 +174,16 @@ def report(path: str, started: float, secs: float) -> int:
     # the idle and inter-processor tasks have fixed sizes set by the system library; the gate holds the tasks we create
     bad = [k for k, v in margins.items() if v < FLOORS["stack_margin"] and not k.startswith(("IDLE", "ipc"))]
     print(f"  resets {resets} (1 is the start), task_wdt {wdt}, panics {panics}, host websocket drops {drops}")
-    clean = resets <= 1 and wdt == 0 and panics == 0 and drops == 0 and not bad and all(r[3] for r in rows)
-    print("GATE", "PASS" if clean else "FAIL" + (f" (stack margin under {FLOORS['stack_margin']}: {', '.join(bad)})" if bad else ""))
+    total_calls = CALL_STATS["ok"] + CALL_STATS["failed"]
+    calls_ok = total_calls > 0 and CALL_STATS["failed"] / total_calls <= MAX_FAILED_SHARE
+    print(f"  host calls: {CALL_STATS['ok']} ok, {CALL_STATS['failed']} failed" + (f" (first error: {CALL_STATS['first_error']})" if CALL_STATS["first_error"] else ""))
+    clean = resets <= 1 and wdt == 0 and panics == 0 and drops == 0 and not bad and all(r[3] for r in rows) and calls_ok
+    why = []
+    if bad:
+        why.append(f"stack margin under {FLOORS['stack_margin']}: {', '.join(bad)}")
+    if not calls_ok:
+        why.append("host calls failed or none were made: the run did not exercise the unit")
+    print("GATE", "PASS" if clean else "FAIL" + (f" ({'; '.join(why)})" if why else ""))
     return 0 if clean else 1
 
 

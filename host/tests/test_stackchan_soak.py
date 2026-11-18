@@ -17,24 +17,6 @@ from tests.stackchan_sim.camera_sender import jpeg_frame
 
 
 class StackChanSoakTests(unittest.IsolatedAsyncioTestCase):
-    async def test_compressed_one_day_clock_runs_turns_reminders_restarts_and_reconnects(self):
-        now = [0]
-        events = []
-        for minute in range(24 * 60):
-            now[0] += 60
-            if minute % 60 == 0:
-                events.append((now[0], "turn"))
-            if minute in {8 * 60, 12 * 60, 18 * 60}:
-                events.append((now[0], "reminder"))
-            if minute in {6 * 60, 18 * 60}:
-                events.append((now[0], "hub_restart"))
-                events.append((now[0], "reconnect"))
-        self.assertEqual(now[0], 24 * 60 * 60)
-        self.assertEqual(sum(kind == "turn" for _, kind in events), 24)
-        self.assertEqual(sum(kind == "reminder" for _, kind in events), 3)
-        self.assertEqual(sum(kind == "hub_restart" for _, kind in events), 2)
-        self.assertEqual(sum(kind == "reconnect" for _, kind in events), 2)
-
     async def test_ten_thousand_camera_frames_stay_bounded_and_never_touch_disk(self):
         pairing = PairingStore()
         device, client = "02:00:00:00:00:30", "00000000-0000-4000-8000-000000000030"
