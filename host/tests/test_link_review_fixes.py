@@ -105,6 +105,16 @@ def test_a_wake_that_recovers_the_link_skips_rung_1():
 # ---- 2. boot with the hub away --------------------------------------------------------------
 
 
+class _NoNetworkReporter:
+    """Stands in for the hub state reporter: it waits for the stop event and never opens a connection."""
+
+    def __init__(self, hub_credentials, stop_event, *_rest):
+        self._stop = stop_event
+
+    def run(self):
+        self._stop.wait()
+
+
 def test_boot_with_the_hub_away_runs_the_ladder_before_the_loop_is_built(tmp_path):
     clock = FakeClock()
     store = PairingStore(tmp_path / "pairing.json")
@@ -140,7 +150,9 @@ def test_boot_with_the_hub_away_runs_the_ladder_before_the_loop_is_built(tmp_pat
         return loop
 
     stop_event = threading.Event()
-    with patch.object(app_module, "_build_conversation_loop", side_effect=build):
+    with patch.object(app_module, "_build_conversation_loop", side_effect=build), patch.object(
+        app_module, "StateReporter", _NoNetworkReporter
+    ):
         thread = threading.Thread(
             target=run_paired_body,
             args=(FakeReachyMiniClient(), stack.link, stop_event),
@@ -278,7 +290,9 @@ def test_an_unreachable_hub_at_real_boot_is_reconnecting_and_a_wake_takes_the_of
     hub_link = threading.Thread(target=stack.link.run, args=(stop_event,), daemon=True)
     hub_link.start()
     _wait_for(first_redeem_started.is_set)
-    with patch.object(app_module, "_build_conversation_loop", side_effect=build):
+    with patch.object(app_module, "_build_conversation_loop", side_effect=build), patch.object(
+        app_module, "StateReporter", _NoNetworkReporter
+    ):
         boot = threading.Thread(
             target=run_paired_body,
             args=(FakeReachyMiniClient(), stack.link, stop_event),

@@ -21,4 +21,4 @@ Also in the host and not in the firmware, on purpose: 5 names the pinned base fi
 
 ## Planned tool: `self.face.mouth_cues` (host-computed mouth cues)
 
-Not defined in the firmware yet. The host computes the cues (`host/maipai_body/mouth_cues.py`, tested) as a list of `[milliseconds, level 0..4]` pairs, 4 to 11 per second, closing at the end. Firmware patch needed: a tool taking `{"cues": [[ms, level], ...]}` applied on the unit's own clock from the first audio frame. Until then the host does not send them (an unknown tool would fail as "old firmware").
+Not defined in the firmware yet. The host computes the cues (`host/maipai_body/mouth_cues.py`, tested) as a list of `[milliseconds, level 0..4]` pairs, 4 to 11 per second, closing at the end. Firmware patch needed: a tool taking `{"cues": [[ms, level], ...]}` applied on the unit's own clock from the first audio frame. The host sends one list for a one-sentence reply (SF10 is the unit side; a unit without it answers unknown tool and the host stops sending to it for that turn).

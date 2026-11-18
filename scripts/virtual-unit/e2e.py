@@ -390,6 +390,8 @@ async def spoken_turn(rig: Rig, check) -> None:
     check("the model got the words", any("what time is it" in json.dumps(r["messages"]) for r in rig.models.llm_requests))
     check("the voice server spoke the reply", any("noon" in t for t in rig.models.tts_requests))
     check("the unit received speech frames and a stop", len(rig.fw.audio_downlink) > 0 and "tts:stop" in rig.fw.events_seen)
+    cue_calls = [args for name, args in rig.fw.tool_calls if name == "self.face.mouth_cues"]
+    check("the one-sentence reply sent its mouth cues before the speech, ending closed", len(cue_calls) == 1 and json.loads(cue_calls[0]["cues"])[-1][1] == 0, str(cue_calls)[:200])
     check("the unit shows its face again after the reply (eyes drawn, resting)", rig.fw.frame_lit() > 1500 and rig.vu.emotion in ("neutral", "content"), f"lit {rig.fw.frame_lit()}, emotion {rig.vu.emotion}")
     check("the host did not log an error line", not rig.host_said(r"\bERROR\b|Traceback"), "; ".join(l[:160] for l in rig.log if re.search(r"\bERROR\b|Traceback", l))[:400])
 
@@ -401,7 +403,7 @@ async def mood_and_overlay(rig: Rig, check) -> None:
     check("a mood frame reached the unit and set its face", "llm:happy" in rig.fw.events_seen, str(rig.fw.events_seen[-8:]))
     names = [n for n, _ in rig.fw.tool_calls]
     check("the overlay tool was called on the unit", "self.overlay.set" in names, str(names[-12:]))
-    check("mouth cues arrived for the spoken reply", any("mouth" in n for n in names), known_gap="the host has mouth_cues.py but never sends self.face.mouth_cues to the unit (app track)")
+    check("a two-sentence reply gets no mouth list (the unit takes one list per reply, so the mouth follows the loudness)", not any("mouth" in n for n in names), str(names[-12:]))
 
 
 async def long_sentence(rig: Rig, check) -> None:
@@ -470,7 +472,7 @@ async def second_unit(rig: Rig, check) -> None:
         check("both units are connected", rig.fw.connected.is_set() and fw2.connected.is_set())
         check("the second unit was set up through its own tool calls", any(n == "self.clock.set" for n, _ in fw2.tool_calls), str([n for n, _ in fw2.tool_calls][:6]))
         check("the first unit stayed connected", rig.fw.connection_count == 1)
-        check("the host handles two units without a single-session error", not rig.host_said(r"A single paired StackChan session is required"), known_gap="the host logs ConnectionError: A single paired StackChan session is required while two units are connected (app track)")
+        check("the host handles two units without a single-session error", not rig.host_said(r"A single paired StackChan session is required"))
     finally:
         await fw2.stop()
         vu2.__exit__(None, None, None)

@@ -64,3 +64,21 @@ def rate_hz(cues: list[tuple[int, int]]) -> float:
     if len(cues) < 2:
         return 0.0
     return (len(cues) - 1) / ((cues[-1][0] - cues[0][0]) / 1000.0)
+
+
+# The unit's limits (patch SF10, maipai_mouthcue_core.h): at most 160 cues, times within 60 s, at most 12 in any second.
+UNIT_MAX_CUES = 160
+UNIT_MAX_MS = 60000
+
+
+def fit_to_unit(cues: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """The cues cut to what the unit accepts. A reply that is too long for one list keeps its first part and closes.
+
+    The host's own rate (at most MAX_RATE_HZ) is already under the unit's 12 per second; the list length and the 60 s
+    span are the limits a long reply can pass."""
+    kept = [c for c in cues if c[0] <= UNIT_MAX_MS][: UNIT_MAX_CUES - 1]
+    if len(kept) < len(cues):
+        last = kept[-1][0] if kept else 0
+        kept.append((min(UNIT_MAX_MS, last + int(1000.0 / MAX_RATE_HZ) + 1), 0))
+        return kept
+    return list(cues)

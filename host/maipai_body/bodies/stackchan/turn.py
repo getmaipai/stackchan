@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import inspect
+import json
 import logging
 import os
 import queue
@@ -23,6 +24,8 @@ import numpy.typing as npt
 from maipai_body import reply_tags
 from maipai_body.bodies.stackchan import captions
 from maipai_body.bodies.stackchan.error_line import ErrorLineBreaker
+from maipai_body.mouth_cues import fit_to_unit
+from maipai_body.mouth_cues import mouth_cues as mouth_cues_for
 from maipai_body.speaker_evidence import SpeakerEvidenceError, speaker_evidence
 from maipai_body.speech.capture import BLOCK_SAMPLES
 from maipai_body.speech.offline_clips import UNREACHABLE
@@ -89,6 +92,7 @@ FILLER_AFTER_S = 1.2  # no first sentence by now: show the thinking cue again, o
 # Fresh speech-to-text streams opened after a dropped socket before the turn gives up.
 STT_RECONNECTS = 2
 FRAME_S = 0.06
+MOUTH_CUE_HOLD_S = 0.25  # the most the first audio waits for its sentence to finish, so the mouth can follow host cues
 # Decode and speaker delay after the last frame's play time, before the stop.
 STOP_TAIL_S = 0.12
 
@@ -273,6 +277,13 @@ class StackChanAudioPlayback(AudioPlayback):
         # then, not a second earlier at synthesis time).
         self.on_first_audio: Callable[[], object] | None = None
         self._announced = False
+        # Host-computed mouth cues (self.face.mouth_cues, patch SF10): the unit takes one list per reply, played from the
+        # first audio frame, so they are sent only for a reply that is one sentence, once that sentence is synthesized.
+        self.mouth_cues_on = False
+        self._cue_samples: list[npt.NDArray[np.float32]] = []
+        self._cue_collecting = True
+        self._cue_decided = threading.Event()
+        self._cue_single = False
         super().__init__(self)
 
     def get_output_audio_samplerate(self) -> int:
@@ -318,7 +329,37 @@ class StackChanAudioPlayback(AudioPlayback):
                 return
             self._frame_locked(data)
 
+    def decide_cues(self, single_sentence: bool) -> None:
+        """The first sentence is fully synthesized: say whether it is the whole reply (then its cues are sent)."""
+        with self._lock:
+            self._cue_single = bool(single_sentence)  # takes effect at end_sentence, once the audio is all queued
+
+    async def _send_mouth_cues(self) -> None:
+        """One list of mouth cues for the reply, before its first audio frame (the unit starts it with that frame)."""
+        deadline = self._clock() + MOUTH_CUE_HOLD_S
+        while not self._cue_decided.is_set() and self._clock() < deadline and not self._canceled():
+            await self._async_sleep(0.02)
+        if not self._cue_decided.is_set() or not self._cue_single or self._canceled():
+            return
+        with self._lock:
+            samples = np.concatenate(self._cue_samples) if self._cue_samples else np.zeros(0, dtype=np.float32)
+        cues = fit_to_unit(mouth_cues_for(samples, 24000))
+        try:
+            await asyncio.to_thread(
+                self._server.call_device_tool,
+                "self.face.mouth_cues",
+                {"cues": json.dumps([list(c) for c in cues])},
+                timeout=2.0,
+                device_id=self._device_id,
+            )
+        except Exception as exc:  # old firmware, muted, locked or a slow unit: the mouth follows the loudness
+            LOG.debug("StackChan mouth cues not sent: %s", type(exc).__name__)
+            if not isinstance(exc, TimeoutError):
+                self.mouth_cues_on = False
+
     def _frame_locked(self, data: npt.NDArray[np.float32]) -> None:
+        if self.mouth_cues_on and self._cue_collecting:
+            self._cue_samples.append(data.astype(np.float32))
         self._samples = np.concatenate((self._samples, data.astype(np.float32)))
         while len(self._samples) >= 1440:
             block, self._samples = self._samples[:1440], self._samples[1440:]
@@ -403,6 +444,10 @@ class StackChanAudioPlayback(AudioPlayback):
             return
         first_sentence = self._sentence_start
         self._sentence_start = False
+        if first_sentence and self.mouth_cues_on:
+            await self._send_mouth_cues()
+            if self._canceled():
+                return
         began = self._clock()
         self._play_until = max(self._clock(), self._play_until) + len(lead) * FRAME_S
         if not self._announced:
@@ -573,6 +618,8 @@ class StackChanAudioPlayback(AudioPlayback):
         sentence's encoder tail and let the sender carry on into the next sentence."""
         with self._lock:
             self._flush_sentence_locked()
+            self._cue_collecting = False
+            self._cue_decided.set()
             if self._sender_future is None and self._frames and not self._canceled():
                 # A short first sentence: fewer frames than the lead, so nothing has been sent yet.
                 self._sender_future = asyncio.run_coroutine_threadsafe(
@@ -1287,6 +1334,7 @@ class StackChanTurnBridge:
             )
         except TypeError:
             playback = StackChanAudioPlayback(self.server, device_id)
+        playback.mouth_cues_on = True
         self._playbacks[session_id] = playback
         cancel_event = threading.Event()
         self._cancel_events[session_id] = cancel_event
@@ -1787,6 +1835,12 @@ class StackChanTurnBridge:
             synthesized_at = self._clock()
             if cancel_event.is_set():
                 return False
+            if index == 0 and hasattr(playback, "decide_cues"):
+                # One list per reply: only a reply that ends with this sentence gets host cues.
+                waiting = list(getattr(queue, "_queue", ()))
+                playback.decide_cues(
+                    bool(waiting) and all(item[0] == "end" for item in waiting)
+                )
             spoken.append(sentence)
             # The reply is one paced stream: this sentence's tail is flushed and the sender
             # carries on while the next sentence is synthesized (no stop() per sentence).

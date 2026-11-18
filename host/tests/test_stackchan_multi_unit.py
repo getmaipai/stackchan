@@ -282,3 +282,31 @@ def test_live_settings_server_serves_live_state_and_dry_runs_update(tmp_path):
         assert status == 200 and pushed
     finally:
         server.stop()
+
+
+def test_the_resting_face_goes_to_every_connected_unit_and_a_turns_face_to_its_own():
+    import json
+
+    from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT, XiaozhiServer
+
+    sent: list = []
+
+    class Socket:
+        def __init__(self, device):
+            self.device = device
+
+        async def send(self, message):
+            sent.append((self.device, json.loads(message)["emotion"]))
+
+    server = XiaozhiServer(PairingStore(), robot=None)
+    server._sessions = {KITCHEN: Socket(KITCHEN), DEN: Socket(DEN)}
+    server._session_ids = {KITCHEN: "s1", DEN: "s2"}
+    asyncio.run(server.send_emotion("happy"))  # no unit named: the resting face reaches both
+    assert sorted(d for d, _ in sent) == sorted([KITCHEN, DEN])
+    sent.clear()
+    token = ACTIVE_UNIT.set(DEN)
+    try:
+        asyncio.run(server.send_emotion("happy"))
+    finally:
+        ACTIVE_UNIT.reset(token)
+    assert [d for d, _ in sent] == [DEN]

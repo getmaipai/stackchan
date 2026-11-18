@@ -1185,9 +1185,7 @@ class XiaozhiServer:
 
     async def take_photo(self, device_id: str | None = None) -> bytes | None:
         if device_id is None:
-            if len(self._sessions) != 1:
-                raise ConnectionError("Select one authenticated StackChan before taking a photo")
-            device_id = next(iter(self._sessions))
+            device_id, _ = self._resolve_unit(None)  # this turn's unit, else the one connected the longest
         self._photos.pop(device_id, None)
         future = asyncio.get_running_loop().create_future()
         self._photo_waiters[device_id] = future
@@ -1204,9 +1202,7 @@ class XiaozhiServer:
                 future.cancel()
 
     async def stream_camera(self, enabled: bool = True) -> object:
-        if len(self._sessions) != 1:
-            raise ConnectionError("Select one authenticated StackChan before streaming its camera")
-        device_id = next(iter(self._sessions))
+        device_id, _ = self._resolve_unit(None)
         if enabled:
             if getattr(getattr(self.robot, "robot", None), "estop_engaged", False):
                 raise EstopEngaged("camera stream refused while the emergency stop is engaged")
@@ -1289,11 +1285,8 @@ class XiaozhiServer:
             raise ConnectionError(
                 "StackChan avatar channel is unavailable. Connect the avatar service and retry."
             )
-        if len(self._sessions) != 1:
-            raise ConnectionError(
-                "Select one authenticated StackChan before sending an expression."
-            )
-        await self._avatar_frame_sender(next(iter(self._sessions)), unit_camera_frame(frame))
+        for device_id in self._face_targets():
+            await self._avatar_frame_sender(device_id, unit_camera_frame(frame))
 
     async def _stop_camera(self, device_id: str) -> None:
         self._camera_streaming.discard(device_id)
@@ -1535,9 +1528,9 @@ class XiaozhiServer:
                 pass
 
     def device_supports(self, feature: str) -> bool:
-        if len(self._sessions) != 1:
+        if not self._sessions:
             return False
-        device_id = next(iter(self._sessions))
+        device_id, _ = self._resolve_unit(None)
         return self._session_features.get(device_id, {}).get(feature) is True
 
     def create_notification_audio(self, message: object, device_id: str | None = None) -> str:
@@ -1611,14 +1604,21 @@ class XiaozhiServer:
     async def send_notify(self, audio_url: str) -> None:
         if not self.device_supports("notify"):
             raise NotSupported("StackChan did not advertise notify in hello features")
-        if len(self._sessions) != 1:
-            raise ConnectionError("A single paired StackChan session is required")
-        device_id, websocket = next(iter(self._sessions.items()))
+        device_id, websocket = self._resolve_unit(None)
         session_id = self._session_ids[device_id]
         # xiaozhi-esp32 v2.3.0 main/protocols/websocket_protocol.cc at
         # 1b48ebd7863695bf80d384c6c09af6299a6d7d0e documents hello features;
         # its source has no notify handler, so the notify frame is gated by hello.
         await self._json(websocket, session_id, "notify", {"audio_url": audio_url})
+
+    def _face_targets(self) -> list[str]:
+        """The units a face goes to: this turn's unit, else every connected unit (the resting face is each unit's own)."""
+        if not self._sessions:
+            raise ConnectionError("No StackChan is connected. Connect and pair the robot, then retry.")
+        active = ACTIVE_UNIT.get()
+        if active is not None and active in self._sessions:
+            return [active]
+        return list(self._sessions)
 
     async def send_emotion(self, expression: str) -> str:
         """Set the face over the voice channel, which works in AI Agent mode.
@@ -1629,10 +1629,10 @@ class XiaozhiServer:
         emotion = FIRMWARE_EMOTIONS.get(expression)
         if emotion is None:
             raise ValueError(f"Pick one of: {', '.join(FIRMWARE_EMOTIONS)}.")
-        if len(self._sessions) != 1:
-            raise ConnectionError("A single paired StackChan session is required")
-        device_id, websocket = next(iter(self._sessions.items()))
-        await self._json(websocket, self._session_ids[device_id], "llm", {"emotion": emotion})
+        for device_id in self._face_targets():
+            websocket = self._sessions.get(device_id)
+            if websocket is not None:
+                await self._json(websocket, self._session_ids[device_id], "llm", {"emotion": emotion})
         return emotion
 
     async def _serve_notify_audio(self, request: web.Request) -> web.Response:
