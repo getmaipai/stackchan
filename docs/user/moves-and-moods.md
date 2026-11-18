@@ -30,7 +30,11 @@ The screen shows a calm icon for each state, not an X on the eyes.
 ## How you hold it
 
 The robot knows which way up it is. Upright is normal. On its side it looks curious. Face down or on its back it looks sleepy.
-Upside down, the screen turns 180 degrees so you can still read it. Motor power never changes, so it is safe to turn it over.
+Upside down, the screen turns 180 degrees so you can still read it. The robot will not move when turned over, so it is safe to turn it over.
+
+## How much it moves
+
+On USB the robot moves gently. On battery it moves freely, and more gently as the battery runs low (steps at 50, 30, 15 and 8 percent). It will not move when carried or turned over. Tilted, it moves less, and on its side it does not move. The strictest limit wins. A Settings card that shows the current limit is not built yet. Built and flashed, not yet checked on a real robot.
 
 ## Head pats and shakes
 
