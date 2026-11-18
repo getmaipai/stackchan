@@ -21,6 +21,7 @@ MAX_PERSONA = 2000
 MAX_ALARMS = 12
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+KEY_ENV_PREFIX = "STACKCHAN_"  # the page may name only variables made for this program
 _ENV = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 _DEVICE = re.compile(r"^[0-9A-Fa-f:\-]{6,32}$")
 
@@ -78,6 +79,12 @@ def _clean(values: dict[str, Any]) -> dict[str, Any]:
         if cleaned["api_key_env"] and not _ENV.match(cleaned["api_key_env"]):
             raise SettingsError(
                 "Type the NAME of the environment variable that holds the key, not the key itself."
+            )
+        if cleaned["api_key_env"] and not cleaned["api_key_env"].startswith(KEY_ENV_PREFIX):
+            raise SettingsError(
+                f"The key variable name must start with {KEY_ENV_PREFIX} (for example "
+                f"{KEY_ENV_PREFIX}KITCHEN). Rename the variable, or set a different name in "
+                "robot.toml."
             )
         out["llm"] = cleaned
     if "volume_cap" in values:

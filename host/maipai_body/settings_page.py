@@ -35,6 +35,16 @@ from maipai_body.unit_settings import SettingsError, UnitSettingsStore
 Live = Callable[[str], dict[str, Any]]
 
 
+def _remote_forced_off() -> bool:
+    """robot.toml [remote] enabled = false keeps remote access off whatever the page says."""
+    try:
+        from maipai_body.config import load_config
+
+        return load_config().remote.enabled is False
+    except Exception:
+        return False
+
+
 class SettingsBackend:
     def __init__(
         self,
@@ -115,7 +125,7 @@ class SettingsBackend:
             self._activity = activity_mod.RemoteActivity(
                 self.remote.tool_call,
                 self.polish.probe,
-                activity_mod.RemoteStore(folder / "remote-access.json"),
+                activity_mod.RemoteStore(folder / "remote-access.json", forced_off=_remote_forced_off),
                 activity_mod.RemoteLog(folder / "remote-activity.jsonl"),
             )
         if self._activity.bind_marker is None:

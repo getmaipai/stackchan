@@ -128,12 +128,12 @@ def test_a_unit_without_the_cue_refuses_remote_say_and_photo(plain) -> None:
     assert not any(n in {"self.audio.speak", "self.camera.take_photo"} for n in _names(kitchen))
     # the owner's own page on this machine can still move, beep and flash (local control)
     assert _act(backend, {"do": "beep"})[0] == 200 and _act(backend, {"do": "flash"})[0] == 200
-    # the setting that allows it
+  # the setting that lets a phone beep an old unit never opens the speaker or the camera
     _access(backend, "", {"allow_without_cue": True})
-    assert _act(backend, {"do": "say", "text": "hi"})[0] == 200 and _act(backend, {"do": "photo"})[0] == 200
+    assert _act(backend, {"do": "say", "text": "hi"})[0] == 400 and _act(backend, {"do": "photo"})[0] == 400
+    assert _act(backend, {"do": "beep"})[0] == 200
     rows = backend.activity.log.rows()
-    assert [r["result"] for r in rows if r["action"] in {"say", "photo"}][:2] == ["done", "done"]
-    assert sum(1 for r in rows if r["result"] == "refused") == 2
+    assert sum(1 for r in rows if r["result"] == "refused") == 4
 
 
 def test_a_controller_needs_access_on_pairing_and_a_cue(cued, plain) -> None:
@@ -317,3 +317,54 @@ def test_the_session_label_the_unit_shows_is_short_and_plain() -> None:
     assert sent[1]["label"] == ra.LOCAL_LABEL  # an empty name becomes the plain default
     assert sent[2]["label"] == "Settings"
     assert all(item["tool"] == ra.SESSION_TOOL and item["active"] is True for item in sent)
+
+
+def _paired(backend):
+    _access(backend, "", {"enabled": True})
+    pair = _access(backend, "pair", {"label": "Phone"}, local=False)[1]
+    _access(backend, "allow", {"id": pair["id"]})
+    return pair["token"]
+
+
+def _controller(backend, token, **body):
+    return _access(backend, "act", {"token": token, "unit": KITCHEN, **body}, local=False)
+
+
+def test_a_controller_can_mute_but_never_unmute(cued) -> None:
+    """a hard mute is undone only by touch, the web app or a button."""
+    backend, units = cued
+    token = _paired(backend)
+    assert _controller(backend, token, do="mute", on=True)[0] == 200
+    calls_before = len(units[KITCHEN].calls)
+    status, payload = _controller(backend, token, do="mute", on=False)
+    assert status == 400 and "unmute" in payload["error"]
+    assert len(units[KITCHEN].calls) == calls_before
+
+
+@pytest.mark.parametrize("body", [{"do": "scene", "name": "party"}, {"do": "unknown_thing"}])
+def test_a_controller_action_outside_the_list_is_refused_and_logged(cued, body) -> None:
+    backend, units = cued
+    token = _paired(backend)
+    status, _payload = _controller(backend, token, **body)
+    assert status == 400
+    assert not any(name.startswith("self.screen") or name == "self.light.set" for name, _ in units[KITCHEN].calls)
+    assert backend.activity.log.rows()[0]["result"] == "refused"
+
+
+@pytest.mark.parametrize("body", [{"do": "stop_dance"}, {"do": "overlay_clear"}])
+def test_a_controller_stop_is_allowed_and_always_logged(cued, body) -> None:
+    backend, _units = cued
+    token = _paired(backend)
+    assert _controller(backend, token, **body)[0] == 200
+    assert backend.activity.log.rows()[0]["controller"] == "Phone"
+
+
+@pytest.mark.parametrize("body", [{"do": "photo"}, {"do": "say", "text": "hi"}])
+def test_allow_without_cue_never_allows_photos_or_speech(plain, body) -> None:
+    """the switch lets a phone beep an old unit; it must not open the camera or the speaker."""
+    backend, units = plain
+    token = _paired(backend)
+    _access(backend, "", {"allow_without_cue": True})
+    status, _payload = _controller(backend, token, **body)
+    assert status == 400
+    assert not any(n in {"self.camera.take_photo", "self.audio_speaker.speak"} for n in _names(units[KITCHEN]))

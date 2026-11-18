@@ -60,6 +60,9 @@ KINDS: dict[str, tuple[str, str]] = {
     "overlay": ("look", "look"),
 }  # fmt: skip
 ALWAYS_REFUSED_WITHOUT_CUE = frozenset({"say", "photo"})
+# A paired controller may do the actions in KINDS (each with a cue) and these stops, which need no cue but are always logged.
+# Everything else a controller sends is refused (default deny); `scene` is the owner's test tool.
+CONTROLLER_STOPS = frozenset({"stop_dance", "overlay_clear"})
 # How long the unit keeps a cue's kind open after its token passed the gate (the banner seconds): a find, a nod or a game
 # start makes several tool calls, and each one that is marked source remote needs the cue to be open (patch TC01).
 CUE_SECONDS = {"move": 6, "find": 30, "dance": 15, "game": 6, "photo": 4, "listen": 4, "say": 4}
@@ -80,6 +83,8 @@ _WORDS = {
         "bad_label": "Give the controller a name of 1 to 40 characters.",
         "no_such": "That controller is not in the list. Reload the page.",
         "no_cue_note": "this unit shows no remote cue yet",
+        "no_unmute": "A remote controller can mute the microphone but not unmute it. Unmute on the robot, or from the settings page on the host computer.",
+        "not_for_controllers": "A remote controller cannot do {action}. Use one of the Remote page buttons.",
         "reserved": "The request names {names}, which only the host may set. Remove it and send the action again.",
     },
     "es": {
@@ -96,6 +101,8 @@ _WORDS = {
         "bad_label": "Dale al control un nombre de 1 a 40 caracteres.",
         "no_such": "Ese control no esta en la lista. Recarga la pagina.",
         "no_cue_note": "esta unidad aun no muestra aviso remoto",
+        "no_unmute": "Un control remoto puede silenciar el microfono, pero no activarlo. Activalo en el robot o desde la pagina de ajustes del anfitrion.",
+        "not_for_controllers": "Un control remoto no puede hacer {action}. Usa uno de los botones de la pagina Remoto.",
         "reserved": "La peticion nombra {names}, que solo el anfitrion puede fijar. Quitalo y envia la accion otra vez.",
     },
 }
@@ -124,9 +131,10 @@ def _hash(token: str) -> str:
 class RemoteStore:
     """The remote settings and the pairing list, in one small file. Tokens are stored as hashes."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, forced_off: Callable[[], bool] | None = None) -> None:
         self._file = _JsonFile(path)
         self._lock = threading.Lock()
+        self._forced_off = forced_off  # robot.toml [remote] enabled = false
 
     def _read(self) -> dict[str, Any]:
         data = self._file.read()
@@ -138,8 +146,9 @@ class RemoteStore:
 
     def settings(self) -> dict[str, Any]:
         data = self._read()
+        forced = bool(self._forced_off and self._forced_off())
         return {
-            "enabled": bool(data["enabled"]),
+            "enabled": bool(data["enabled"]) and not forced,
             "speaking": data["speaking"],
             "allow_without_cue": bool(data["allow_without_cue"]),
         }
@@ -381,7 +390,18 @@ class RemoteActivity:
         kind_banner: tuple[str, str] | None,
         label: str,
     ) -> dict[str, Any]:
+        if controller is not None:
+            if do == "mute" and values.get("on") is not True:
+                error = ExtrasError(_w(lang, "no_unmute"))
+                self.log.add(controller=label, unit=unit_id, action="setting", result="refused", note=str(error))
+                raise error
+            if kind_banner is None and do not in CONTROLLER_STOPS and do != "find":
+                error = ExtrasError(_w(lang, "not_for_controllers", action=str(do)))
+                self.log.add(controller=label, unit=unit_id, action=str(do), result="refused", note=str(error))
+                raise error
         if kind_banner is None or (do == "find" and values.get("on") is not True):
+            if controller is not None:  # a stop needs no cue but is never unlogged
+                self.log.add(controller=label, unit=unit_id, action=str(do), result="done")
             return run()  # stop buttons and anything that is not an action on the robot need no cue
         kind, banner = kind_banner
         text = str(values.get("text", "")).strip() if do == "say" else ""
@@ -427,10 +447,12 @@ class RemoteActivity:
                     raise ExtrasError(_w(lang, "say_filtered", why=why))
             self._rate(unit_id, lang)
         cue = self.has_cue(unit_id)
-        if cue is True or settings["allow_without_cue"]:
+        if cue is True:
             return
-        # No cue on this unit: speech and photos are always refused, and so is everything a controller asks.
-        # The owner's own page on this machine may still move, beep or play (it is local control).
+        # No cue on this unit: speech and photos are always refused (even when the owner allowed actions without a cue),
+        # and so is everything a controller asks. The owner's own page on this machine may still move, beep or play.
+        if do not in ALWAYS_REFUSED_WITHOUT_CUE and settings["allow_without_cue"]:
+            return
         if not local or do in ALWAYS_REFUSED_WITHOUT_CUE:
             if cue is None:
                 raise ExtrasError(say(lang, "unreachable"))

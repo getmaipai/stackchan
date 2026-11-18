@@ -259,8 +259,7 @@ def test_find_my_robot_runs_until_stopped_and_leaves_the_unit_centered(sim) -> N
 def test_without_a_camera_the_photo_button_says_so(tmp_path: Path) -> None:
     from maipai_body.unit_remote import UnitRemote
 
-    backend, _ = build(tmp_path)
-    backend.activity.store.update({"allow_without_cue": True})  # the camera message, not the cue refusal, is under test
+    backend, _ = build(tmp_path, next_unit=True)  # a unit with the remote cue: the camera message is under test
     backend._remote = UnitRemote(lambda *a, **k: {"ok": True})  # no photo source
     assert _get(backend, KITCHEN, "remote")[1]["photo"] is False
     status, payload = _post(backend, KITCHEN, "remote", {"do": "photo"})

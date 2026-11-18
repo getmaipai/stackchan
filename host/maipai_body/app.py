@@ -2669,6 +2669,31 @@ async def _serve_stackchan_channels(
                     if chunk:
                         output.write(chunk)
 
+        def download_firmware_signature() -> bytes | None:
+            """The detached signature Home serves beside the image (None when it has none)."""
+            import requests
+
+            cookie, base_url = hub_credentials()
+            response = requests.get(
+                f"{base_url}/api/devices/me/firmware-update/app.bin.sig",
+                headers={"Cookie": f"session={cookie}"},
+                timeout=30,
+            )
+            return response.content if response.status_code == 200 and response.content else None
+
+        def verify_firmware_image() -> Callable[[bytes, bytes], bool] | None:
+            """Checks an image against `[update] trusted_key`; None when no key is configured."""
+            from maipai_body.bodies.stackchan.firmware.flash_manifest import verify_detached
+            from maipai_body.config import load_config
+
+            try:
+                key = load_config().update.trusted_key
+            except Exception:
+                key = None
+            if not key:
+                return None
+            return lambda image, signature: verify_detached(image, signature, key)
+
         def firmware_situation() -> dict[str, Any]:
             try:
                 live = runner.situation()
@@ -2702,6 +2727,8 @@ async def _serve_stackchan_channels(
             ask_home=ask_firmware_home,
             download=download_firmware,
             serve_once=voice.serve_firmware_once,
+            download_signature=download_firmware_signature,
+            verify=verify_firmware_image(),
             call_tool=voice.robot.client._call,
             situation=firmware_situation,
             battery=voice.robot.client.get_battery_status,
@@ -4115,9 +4142,42 @@ def _wire_orientation(voice: Any, behavior: Any, bridge: Any, night: Any, power:
     bridge.on_turn_end = orientation.on_turn_end
 
 
+def _remote_forced_off() -> bool:
+    from maipai_body.settings_page import _remote_forced_off as forced
+
+    return forced()
+
+
+def _configured_hub_url() -> str:
+    """The hub address: MAIPAI_HUB_URL, else `[home] url` in robot.toml (StackChan only)."""
+    url = os.environ.get("MAIPAI_HUB_URL", "").strip()
+    if url or not _stackchan_selected():
+        return url
+    try:
+        from maipai_body.config import load_config
+
+        return load_config().home.url.strip()
+    except Exception:
+        return ""
+
+
 def _no_hub_configured() -> bool:
-    """A hosted StackChan with no Home URL (robot.toml brain "llm"): nothing to report to."""
-    return os.environ.get("MAIPAI_HUB_HOST") == "1" and not os.environ.get("MAIPAI_HUB_URL", "").strip()
+    """No Home to talk to: no hub URL is set and the owner did not choose brain "home".
+
+    A host that is not told about a hub never browses the network for one and never
+    pairs with whichever hub answers."""
+    if _configured_hub_url():
+        return False
+    if os.environ.get("MAIPAI_HUB_HOST") == "1":
+        return True
+    if not _stackchan_selected():
+        return False
+    try:
+        from maipai_body.config import load_config
+
+        return load_config().brain != "home"
+    except Exception:
+        return True
 
 
 def _start_robot_checkin(voice: Any, behavior: Any, link: LinkLifecycle, stop_event: Any) -> None:
@@ -4509,7 +4569,7 @@ class MaiPaiBody(ReachyMiniApp):
             if hosted
             else None,
             extra_capabilities=["no_vendor_login"] if hosted else [],
-            hub_url=os.environ.get("MAIPAI_HUB_URL") if hosted else None,
+            hub_url=(_configured_hub_url() or None) if (hosted or _stackchan_selected()) else None,
         )
         self.link = self._stack.link
         # The base class only wires static files + index.html; the
