@@ -66,3 +66,19 @@ int sim_consts(int which)
         default: return -1;
     }
 }
+
+/* ---- the dance session of patch SF51: a synthetic beat and the show (core functions of the same header) ---- */
+typedef struct { mdl_synth_t y; uint32_t rng; uint8_t hist[2]; } synth_t;
+
+synth_t* synth_new(void) { synth_t* s = (synth_t*)calloc(1, sizeof(*s)); s->hist[0] = s->hist[1] = 0xff; return s; }
+void synth_start(synth_t* s, uint32_t now_ms, int bpm, uint32_t total_ms, uint32_t seed) { mdl_synth_start(&s->y, now_ms, bpm, total_ms); s->rng = seed | 1u; s->hist[0] = s->hist[1] = 0xff; }
+uint32_t synth_period(const synth_t* s) { return s->y.period_ms; }
+void synth_input(const synth_t* s, uint32_t now_ms, int out[5]) { mdl_in_t in; mdl_synth_input(&s->y, now_ms, &in); out[0] = (int)in.now_ms; out[1] = (int)in.period_ms; out[2] = in.level; out[3] = in.tc; out[4] = in.music; }
+/* one second of a session: the synthetic input, then the step. Returns the stage. */
+int sim_synth_tick(sim_t* s, synth_t* y, uint32_t now_ms) { mdl_in_t in; mdl_synth_input(&y->y, now_ms, &in); return mdl_step(&s->st, &in); }
+int synth_bpm_for(const char* name) { return mdl_synth_bpm_for(name); }
+void show_for_step(int previous, int stage, int out[4]) { mdl_show_t sh; mdl_show_for_step(previous, stage, &sh); out[0] = sh.notes; out[1] = sh.disco; out[2] = sh.confetti; out[3] = sh.clear_overlays; }
+int synth_face_next(synth_t* s, int stage) { return mdl_face_next(&s->rng, stage, s->hist); }
+const char* face_name(int i) { return MDL_FACES[i]; }
+void ring_breath(uint8_t out[36], uint32_t t_ms, uint32_t beat_ms, int full_depth) { uint8_t px[MDL_RING_PIXELS][3]; mdl_ring_breath(px, t_ms, beat_ms, full_depth); memcpy(out, px, 36); }
+void ring_chase(uint8_t out[36], uint32_t beat_index, int level_pct, int down) { uint8_t px[MDL_RING_PIXELS][3]; mdl_ring_chase(px, beat_index, level_pct, down); memcpy(out, px, 36); }

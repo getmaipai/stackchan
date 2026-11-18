@@ -6,6 +6,8 @@ mode, the host's own show (dance_ladder.py: notes, ring, disco ball, confetti, f
   home half  LadderDirector from host/maipai_body/bodies/stackchan/dance_ladder.py, called as the host calls it (a step 4 times a second, the feed once a second, the same tool calls).
              With no Home reachable the unit alone shows only what the firmware shows: the eyes, the head and the ring at the peak ("unit" mode).
 
+  session    (patch SF51) a dance chosen by hand: the unit alone runs the whole ladder on a synthetic beat (the core's mdl_synth_*, mdl_show_for_step, mdl_face_next, mdl_ring_breath,
+             mdl_ring_chase), with its own ring, notes, disco ball, confetti and faces, 45 s then the way down. No song and no host.
 The song is a fake tempo and level curve (SONGS). Time is the virtual unit's fake clock: the unit calls tick() every 50 ms of it (VirtualUnit.tickers). What the screen cannot draw is listed in
 docs/dev/virtual-unit-dance.md. Placement: host-side development tool. Upstream: none."""
 from __future__ import annotations
@@ -108,6 +110,12 @@ class DanceSim:
         self.director = None
         self.feed = None
         self.t_start = 0
+        self.synth = self.L.synth_new()
+        self.session = False   # a hand-chosen dance session (patch SF51) is running
+        self.session_t0 = 0
+        self.shown = 0
+        self.next_face_ms = self.notes_ms = self.overlay_ms = self.stage_ms = 0
+        self.confetti_beat = 0
         self._reset_modifier()
         self.kf = None  # a keyframe dance: (name, started ms)
         u.tickers.append(self.tick)
@@ -157,6 +165,7 @@ class DanceSim:
         self.director = None
         self.running = False
         self.cycle_active = False
+        self.session = False
         self.rest_ms = 0
         self._set_stage(0)
         if was or self.overlays or self.notes:
@@ -173,6 +182,106 @@ class DanceSim:
         """self.robot.dance bob: the nod on the beat until the dance is stopped (maipai_dance_play, patch MD01)."""
         return self._set_stage(2) == 2
 
+    # ---- the dance session of patch SF51 ------------------------------------------------------------------------------------------
+
+    @property
+    def ring_local(self) -> bool:
+        """maipai_dance_ring_local: the unit paints the nod's breath and the sway's chase itself while a hand-chosen session runs or no host runs the show."""
+        return self.session or self.mode != "home" or self.director is None
+
+    def start_session(self, name: str = "", bpm: int = 0, seconds: int = 45, max_stage: int = 4) -> bool:
+        """maipai_dance_session_start: a named dance (happy 90, robot 120, panic 140, look_around 80 BPM) or `bpm` (40 to 200), `seconds` of music (10 to 120), up to `max_stage`.
+        False when a dance may not run now (carried or a very low battery, muted, full quiet): the caller then plays the keyframe dance."""
+        tempo = self.L.synth_bpm_for(name.encode()) if name else -1
+        if tempo < 0:
+            tempo = bpm
+        if tempo < 40 or tempo > 200 or int(self._limits().get("dance_max", 4)) <= 0:
+            return False
+        seconds = max(10, min(120, seconds))
+        max_stage = max(1, min(4, max_stage))
+        if self.session or self.running or self.stage:
+            self.stop()
+        u = self.u
+        self.kf = None
+        self.mode = "session"
+        local = lambda: (u.now_ms - u.now_ms) + CLOCK_BASE  # noqa: E731
+        self.session_t0 = u.now_ms
+        self.t_start = u.now_ms
+        self.L.synth_start(self.synth, CLOCK_BASE, tempo, seconds * 1000, u.now_ms)
+        self.L.sim_start(self.h, max_stage, CLOCK_BASE)
+        self.session = True
+        self.stage_log = []
+        self.beats = []
+        self.head_moves = []
+        self._reset_modifier()
+        self.shown = 0
+        if self._set_stage(1) != 1:   # muted or in full quiet: the unit stays still
+            self.session = False
+            return False
+        self.shown = 1
+        self.next_second = u.now_ms + 1000
+        self.confetti_beat = 0
+        self.stage_ms = u.now_ms
+        self.notes_ms = self.overlay_ms = u.now_ms
+        self.next_face_ms = u.now_ms
+        return True
+
+    def _apply_show(self, previous: int, stage: int, now: int, refresh_only: bool = False) -> None:
+        out = (ctypes.c_int * 4)()
+        self.L.show_for_step(previous, stage, out)
+        notes, disco, confetti, clear = out[0], out[1], out[2], out[3]
+        if not refresh_only and clear:
+            self._overlay_clear()
+        if notes > 0:
+            self._show_notes(notes)
+            self.notes_ms = now
+        elif not refresh_only and previous >= 2:
+            self._show_notes(0)
+        if disco > 0:
+            self._overlay_n("disco", 3 if disco >= 2 else 2, 30)
+            self.overlay_ms = now
+        if confetti:
+            self._overlay_n("confetti", 3, 4)
+            self.confetti_beat = 0
+            self.stage_ms = now
+
+    def _face_now(self, stage: int, now: int) -> None:
+        f = self.L.synth_face_next(self.synth, stage)
+        self._show_face(self.L.face_name(f).decode())
+        self.next_face_ms = now + self.L.synth_period(self.synth) * (16 if stage == 2 else 8)
+
+    def _session_tick(self, now: int) -> None:
+        """step_on_main: once a second the ladder steps on the synthetic input; a step change shows what the show adds there; between changes the show is refreshed."""
+        local = (now - self.session_t0) + CLOCK_BASE
+        stage = self.L.sim_synth_tick(self.h, self.synth, local)
+        previous = self.shown
+        if stage == 0:
+            self.session = False
+            self._set_stage(0)
+            self._show_notes(0)
+            self._overlay_clear()
+            return
+        if stage != previous:
+            self._set_stage(stage)
+            self._apply_show(previous, stage, now)
+            self.shown = stage
+            if stage >= 2:
+                self._face_now(stage, now)
+            return
+        if stage >= 2 and now >= self.next_face_ms:
+            self._face_now(stage, now)
+        if stage >= 2 and now - self.notes_ms >= 10000:
+            self._apply_show(stage, stage, now, True)
+        if stage >= 3 and now - self.overlay_ms >= 20000:
+            self._overlay_n("disco", 3 if stage >= 4 else 2, 30)
+            self.overlay_ms = now
+        if stage >= 4:
+            period = self.L.synth_period(self.synth) or 600
+            beats = (now - self.stage_ms) // period
+            if beats // 32 > self.confetti_beat:
+                self.confetti_beat = beats // 32
+                self._overlay_n("confetti", 3, 4)
+
     # ---- features of the simulated song -----------------------------------------------------------------------------
 
     def _read_feat(self, now: int) -> dict:
@@ -184,6 +293,8 @@ class DanceSim:
     def beat(self, now: int):
         """maipai_beat_get: (period_ms, ref_ms) while a beat was measured with a confidence of at least 30 and music is on, else None."""
         f = self.feat
+        if self.session:   # maipai_beat_synth_set: a steady grid from the moment the session began
+            return self.L.synth_period(self.synth), self.session_t0
         if f["music"] and f["tc"] >= 30 and f["bpm"] > 0:
             return 60000 // fold_bpm(f["bpm"]), self.song_t0 + CLOCK_BASE
         return None
@@ -311,6 +422,9 @@ class DanceSim:
                 self.overlays.append(name)
         return r
 
+    def _overlay_n(self, name: str, level: int, seconds: int):
+        return self._overlay(name, {1: "light", 2: "normal", 3: "heavy"}.get(level, "normal"), seconds)
+
     def _overlay_clear(self):
         self.u.call("self.overlay.clear", {})
         self.u.raw("ovclear")
@@ -400,6 +514,17 @@ class DanceSim:
                 self.u.leds = [(px[i * 3], px[i * 3 + 1], px[i * 3 + 2]) for i in range(12)]
                 self.leds = list(self.u.leds)
                 self.ring_on = True
+        elif eff in (2, 3) and self._ring_allowed() and self.ring_local:
+            if now - self._ring_at >= 50:   # patch SF51: the nod breathes (mint and gold), the sway chases
+                self._ring_at = now
+                px = (ctypes.c_uint8 * 36)()
+                if eff == 2:
+                    L.ring_breath(px, now - self._t0, period, 1)
+                else:
+                    L.ring_chase(px, int(eb) if eb >= 0 else 0, 57, 0)
+                self.u.leds = [(px[i * 3], px[i * 3 + 1], px[i * 3 + 2]) for i in range(12)]
+                self.leds = list(self.u.leds)
+                self.ring_on = True
         else:
             self._ring_dark()
 
@@ -412,7 +537,7 @@ class DanceSim:
     def tick(self, now: int) -> None:
         if self.kf is not None:
             self._keyframe_face(now)
-        if not (self.running or self.stage):
+        if not (self.running or self.stage or self.session):
             return
         if self.running and now >= self.next_second:
             self.next_second += 1000
@@ -421,6 +546,9 @@ class DanceSim:
                 self._feed_update(now)
             else:
                 self._cycle_tick(now)
+        if self.session and now >= self.next_second:
+            self.next_second += 1000
+            self._session_tick(now)
         if self.running and self.mode == "home" and now >= self.next_plan:
             self.next_plan += 250
             self._home_plan(now)
@@ -455,7 +583,7 @@ class DanceSim:
         recent = [t for t in self.head_moves if u.now_ms - t < 60000]
         return {
             "running": self.running or bool(self.stage), "mode": self.mode, "song": self.song_name, "step": self.stage, "step_name": ("still", "eyes", "nod", "sway", "full")[self.stage],
-            "down": bool(self.L.sim_down(self.h)) if self.cycle_active else bool(getattr(self.director, "_ladder", None) and self.director._ladder.down),
+            "down": bool(self.L.sim_down(self.h)) if (self.cycle_active or self.session) else bool(getattr(self.director, "_ladder", None) and self.director._ladder.down),
             "bpm": f["bpm"], "level": f["level"], "avg_level": f.get("avg", 0), "tempo_confidence": f["tc"], "music": bool(f["music"]),
             "eye": list(self.eye), "head": u.head(), "ring": [list(px) for px in u.leds], "overlays": list(self.overlays), "notes": self.notes, "face": self.face,
             "head_moves_last_minute": len(recent), "head_moves_refused": self.refused_moves, "stage_log": list(self.stage_log),

@@ -146,7 +146,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (179): Memory budget of the optional features (owner decision 11, 2026-11-18)
-- `docs/dev/model-previews/joints.gif` (1604): no header
+- `docs/dev/model-previews/joints.gif` (1655): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
 - `docs/dev/releases/b13.md` (45): Build report: b13
@@ -205,7 +205,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
 - `docs/dev/virtual-unit-3d.md` (62): The 3D virtual unit: body, power, axes
-- `docs/dev/virtual-unit-dance.md` (37): The dance in the virtual unit
+- `docs/dev/virtual-unit-dance.md` (41): The dance in the virtual unit
 - `docs/dev/virtual-unit-fidelity.md` (32): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
 - `docs/dev/virtual-unit.md` (29): Virtual unit
 - `docs/dev/watchdog-inventory.md` (41): Unit watchdog inventory and the several-robots rules (owner decision 16)
@@ -2348,13 +2348,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_update_header_core.py` (45): The unit's update header core (firmware patch SF25) against the shared vectors of the app track (host/tests/fi
 - `host/tests/test_update_path_rejections.py` (131): ruff: noqa: E501
 - `host/tests/test_virtual_unit.py` (273): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
-- `host/tests/test_virtual_unit_dance.py` (212): ruff: noqa: E501
+- `host/tests/test_virtual_unit_dance.py` (254): ruff: noqa: E501
 - `host/tests/test_virtual_unit_fidelity.py` (56): Handlers the virtual unit shares with the unit's own cores, checked against the core's rules (docs/dev/virtual
 - `host/tests/test_virtual_unit_hw.py` (189): ruff: noqa: E501
 - `host/tests/test_virtual_unit_memory.py` (158): ruff: noqa: E501
 - `host/tests/test_virtual_unit_parity.py` (37): Tool parity: every firmware tool is either simulated or a named gap. Unsimulated tools xfail (strict), so this
 - `host/tests/test_virtual_unit_physics.py` (221): ruff: noqa: E501
 - `host/tests/test_virtual_unit_ports.py` (187): ruff: noqa: E501
+- `host/tests/test_virtual_unit_tree_stamp.py` (23): ruff: noqa: E501
 - `host/tests/test_vision_align.py` (113): FACE-01's own alignment math, checked against known transforms -
 - `host/tests/test_vision_capture.py` (47): The still-image call's bot-side capture path
 - `host/tests/test_vision_detect.py` (91): wanted for a decode-only test, so the instance is built without
@@ -2497,9 +2498,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
-- `scripts/virtual-unit/dance/ladder_sim.c` (68): The real dance ladder core (firmware patch MD01, maipai_dance_ladder_core.h) behind a plain C interface for ct
-- `scripts/virtual-unit/dance_core.py` (58): Builds and loads the real dance ladder core for the virtual unit (firmware patch MD01): the header is cut out 
-- `scripts/virtual-unit/dance_sim.py` (462): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
+- `scripts/virtual-unit/dance/ladder_sim.c` (84): The real dance ladder core (firmware patch MD01, maipai_dance_ladder_core.h) behind a plain C interface for ct
+- `scripts/virtual-unit/dance_core.py` (97): Builds and loads the real dance ladder core for the virtual unit (firmware patch MD01): the header is cut out 
+- `scripts/virtual-unit/dance_sim.py` (590): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
 - `scripts/virtual-unit/e2e.py` (683): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
 - `scripts/virtual-unit/e2e_fleet.py` (635): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
@@ -2517,7 +2518,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/MATCH.md` (237): Does the model match the owner's unit?
 - `scripts/virtual-unit/model/README.md` (78): Robot 3D model
 - `scripts/virtual-unit/model/SOURCE.md` (34): Source of the model geometry
-- `scripts/virtual-unit/model/make_body.py` (1077): Build the rigged body model of the unit from the official structure files in source/.
+- `scripts/virtual-unit/model/make_body.py` (1091): Build the rigged body model of the unit from the official structure files in source/.
 - `scripts/virtual-unit/model/render_previews.py` (224): Render the preview pictures of stackchan.glb: six views of the outside and both joints through their ranges.
 - `scripts/virtual-unit/model/softrender.py` (170): A small software renderer for the body model previews: standard library only.
 - `scripts/virtual-unit/model/source/LICENSE` (20): no header
@@ -2531,9 +2532,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/source/StackChan-ServoBody.stl` (557): Binary file scripts/virtual-unit/model/source/StackChan-ServoBody.stl matches
 - `scripts/virtual-unit/model/source/StackChan-ServoCover.stl` (111): Binary file scripts/virtual-unit/model/source/StackChan-ServoCover.stl matches
 - `scripts/virtual-unit/model/source/StackChan-ServoSideCover.stl` (61): no header
-- `scripts/virtual-unit/model/stackchan.glb` (8097): no header
+- `scripts/virtual-unit/model/stackchan.glb` (8058): no header
 - `scripts/virtual-unit/model/stackchan.params.json` (767): no header
 - `scripts/virtual-unit/model/validate.sh` (18): check stackchan.glb with the Khronos glTF validator, on this Mac only (the file is read locally; nothing is up
+- `scripts/virtual-unit/overlay_patches.py` (75): Brings the face overlay tree (.runs/fixtree, made by build-face.sh from a replayed firmware tree) up to the wh
 - `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (7): no header
 - `scripts/virtual-unit/physics/calibrate.py` (246): Fit the assumed servo parameters of a robot description from a bench recording of real head moves.
 - `scripts/virtual-unit/physics/compare_recording.py` (128): Draw the recorded head curve against the simulated one for the same steps, both axes, as an SVG (no libraries)
@@ -2546,7 +2548,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
-- `scripts/virtual-unit/scenarios.py` (248): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (254): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/tools/__init__.py` (15): Tool handlers for the virtual unit, one module per group. A handler is registered with @tool("self.x.y") and g
 - `scripts/virtual-unit/tools/apps.py` (203): Clock, game, lock, and timer tools for the virtual unit."""
 - `scripts/virtual-unit/tools/audio.py` (285): Audio, listening, music and unit utility tools for the virtual unit."""
@@ -2554,7 +2556,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/tools/face.py` (140): Virtual behavior for face bench and decorator tools."""
 - `scripts/virtual-unit/tools/face2.py` (119): Face configuration, clock, notes, and thinking tools."""
 - `scripts/virtual-unit/tools/facepic.py` (183): Virtual picture-face pack tools."""
-- `scripts/virtual-unit/tools/motion.py` (230): Virtual handlers for motion, look, reactions and basic robot tools."""
+- `scripts/virtual-unit/tools/motion.py` (241): Virtual handlers for motion, look, reactions and basic robot tools."""
 - `scripts/virtual-unit/tools/mouth_cues.py` (43): self.face.mouth_cues (patch SF10): the host sends the mouth levels of the next speech as [[ms, level], ...]. R
 - `scripts/virtual-unit/tools/network.py` (187): Network, update, pack and remote-control virtual unit tools."""
 - `scripts/virtual-unit/tools/page_overlay.py` (123): Virtual page and overlay tool handlers."""
@@ -2567,7 +2569,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
 - `scripts/virtual-unit/view.html` (280): app{display:flex;height:100%}
 - `scripts/virtual-unit/view.py` (330): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
-- `scripts/virtual-unit/view3d.js` (484): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
+- `scripts/virtual-unit/view3d.js` (485): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
 - `scripts/virtual-unit/vunit.py` (336): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/wakeword/README.md` (17): Local wake word experiment
 - `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""

@@ -87,7 +87,7 @@ def _motion(u):
     s=_state(u); c,b,l,o=s["force"]; carried=(c==1); usb=(b==1); level=75 if l<0 else l; orient=("upright","tilted","side","inverted","unknown")[o] if 0<=o<=4 else "upright"
     band="none" if level>50 else "mild" if level>=30 else "limited" if level>=15 else "minimal" if level>=8 else "hold"
     state="carried" if carried or orient in ("side","inverted") else "orientation_limited" if orient in ("tilted","unknown") else "usb_limited" if usb and s["usb_limit"]=="limited" else "battery_limited" if band!="none" else "free"
-    scale,speed,dance=(0,0,0) if state=="carried" else (30,400,1) if orient=="tilted" else (50,600,3) if orient=="unknown" else (100,1000,4) if state=="free" else (50,600,3) if state=="usb_limited" else (80,800,4) if band=="mild" else (50,600,3) if band=="limited" else (25,500,0) if band=="minimal" else (0,0,0)
+    scale,speed,dance=(0,0,0) if state=="carried" else (30,400,2) if orient=="tilted" else (50,600,3) if orient=="unknown" else (100,1000,4) if state=="free" else (50,600,3) if state=="usb_limited" else (80,800,4) if band=="mild" else (50,600,3) if band=="limited" else (25,500,0) if band=="minimal" else (0,0,0)
     reasons=[]
     if carried: reasons.append("held or carried")
     if orient!="upright": reasons.append({"tilted":"tilted","side":"on its side or face down","inverted":"upside down","unknown":"no orientation reading"}[orient])
@@ -161,7 +161,9 @@ def dance(u,args):
     sim=getattr(u,"dance",None)   # the music dance simulation (dance_sim.py); a bare test unit has none
     if name=="bob":   # patch MD01: the nod on the beat, step 2 of the ladder, until the dance is stopped
         return {"ok":bool(sim and sim.bob())}
-    _state(u)["dance"]=name
+    if sim and name in ("happy","robot","panic","look_around") and sim.start_session(name,0,45,4):   # patch SF51: a ladder session on a synthetic beat (90, 120, 140 and 80 BPM)
+        return {"ok":True}
+    _state(u)["dance"]=name   # muted or in full quiet: the keyframe dance as before
     if sim: sim.keyframe_start(name)
     return {"ok":True}
 
@@ -228,3 +230,12 @@ def sim_music(u,args):
         except ValueError as e: return {"ok":False,"error":str(e)}
         return {"ok":True}
     return {"ok":True,**d.status()}
+
+
+@tool("self.dance.session")
+def dance_session(u,args):
+    """Patch SF51: a dance session on a synthetic beat: name (happy, robot, panic, look_around) or bpm 40 to 200, seconds 10 to 120, max_stage 1 to 4."""
+    name=args.get("name",""); bpm=int(args.get("bpm",100)); seconds=int(args.get("seconds",45)); stage=int(args.get("max_stage",4))
+    if not name and not 40<=bpm<=200: return {"ok":False,"error":"bpm must be from 40 to 200: choose a tempo in range"}
+    ok=bool(getattr(u,"dance",None) and u.dance.start_session(name,bpm,seconds,stage))
+    return {"ok":True} if ok else {"ok":False,"error":"a dance may not run now: the unit is carried, its battery is very low, or it is muted or in full quiet"}

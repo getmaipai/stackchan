@@ -54,6 +54,12 @@ SCREENS: dict[str, list] = {
     "dance-3-sway": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 10300)],
     "dance-4-full": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 13300)],
     "dance-5-down": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 27500)],
+    # The same ladder as a hand-chosen dance on the unit alone (patch SF51: self.robot.dance happy, 90 BPM, a synthetic beat, the unit's own ring, notes, disco ball, confetti and faces).
+    "dance-session-1-eyes": [("call", "self.robot.dance", {"name": "happy"}), ("advance", 1300)],
+    "dance-session-2-nod": [("call", "self.robot.dance", {"name": "happy"}), ("advance", 5600)],
+    "dance-session-3-sway": [("call", "self.robot.dance", {"name": "happy"}), ("advance", 10600)],
+    "dance-session-4-full": [("call", "self.robot.dance", {"name": "happy"}), ("advance", 16200)],
+    "dance-session-5-down": [("call", "self.robot.dance", {"name": "happy"}), ("advance", 38500)],
     "first-run-1": [("raw", "frun step 0 0 -1"), ("advance", 400)],
     "first-run-2": [("raw", "frun step 1 0 -1"), ("advance", 400)],
     "first-run-4": [("raw", "frun step 3 0 -1"), ("advance", 400)],

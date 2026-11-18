@@ -129,15 +129,54 @@ def test_the_head_moves_every_second_beat_above_133_bpm_and_never_over_90_a_minu
         assert sum(1 for x in d2.head_moves if t <= x < t + 60000) <= 90
 
 
-def test_the_ring_is_dark_until_the_peak_and_never_over_half_of_full():
-    d, samples = _run("loud_peak", "unit", 40)   # unit alone: only the peak paints the ring
+def test_the_unit_alone_paints_the_breath_the_chase_and_the_peak_swell_never_over_half_of_full():
+    d, samples = _run("loud_peak", "unit", 40)   # no host: patch SF51 makes the unit paint the nod's breath and the sway's chase itself
     for _, stage, leds, _, _ in samples:
-        if stage < 4:
+        if stage <= 1:
             assert all(px == (0, 0, 0) for px in leds)
         assert all(max(px) <= 84 for px in leds)     # half of the channel maximum 168
-    assert any(stage == 4 and any(px != (0, 0, 0) for px in leds) for _, stage, leds, _, _ in samples)
-    colors = {px for _, st, leds, _, _ in samples if st == 4 for px in leds}
-    assert len(colors) > 3                              # gold, lime and mint at the swell's levels
+    for want in (2, 3, 4):
+        assert any(stage == want and any(px != (0, 0, 0) for px in leds) for _, stage, leds, _, _ in samples), want
+    breath = next(leds for _, st, leds, _, _ in samples if st == 2 and any(px != (0, 0, 0) for px in leds))
+    assert breath[0][1] > breath[0][0] and breath[11][0] > breath[11][2]   # mint on the left half, gold on the right
+
+
+def test_a_hand_chosen_dance_runs_the_whole_ladder_on_a_synthetic_beat_with_its_own_show():
+    with _unit() as u:
+        assert u.call("self.robot.dance", {"name": "happy"}).get("ok")   # patch SF51: 90 BPM, 45 s, no song and no host
+        d = u.dance
+        seen = {}
+        for _ in range(520):
+            u.advance(100)
+            seen.setdefault(d.stage, []).append((list(u.leds), list(d.overlays), d.notes, d.face))
+            if not d.session and d.stage == 0 and u.now_ms > 5000:
+                break
+        steps = [st for _, st in d.stage_log]
+        assert steps[:7] == [1, 2, 3, 4, 3, 2, 1] and steps[-1] == 0
+        assert d.L.synth_period(d.synth) == 666                         # 90 BPM
+        assert max(n for _, _, n, _ in seen[2]) == 1 and max(n for _, _, n, _ in seen[3]) == 2 and max(n for _, _, n, _ in seen[4]) == 3
+        assert any("disco" in o for _, o, _, _ in seen[3]) and any("confetti" in o for _, o, _, _ in seen[4])
+        assert not any("disco" in o for _, o, _, _ in seen[1])
+        assert any(f != "neutral" for _, _, _, f in seen[2])
+        assert u.now_ms < 70000                                          # 45 s of music, then the way down: about a minute in all
+        assert d.overlays == [] and d.notes == 0 and d.eye == (0, 0)
+
+
+def test_the_session_ends_on_stop_and_keeps_the_keyframe_dance_when_muted_and_the_tool_checks_its_range():
+    with _unit() as u:
+        assert u.call("self.dance.session", {"bpm": 120, "seconds": 30, "max_stage": 2}).get("ok")
+        u.advance(3500)
+        assert u.dance.stage == 2 and max(s for _, s in u.dance.stage_log) == 2   # max_stage 2: the nod is the highest step
+        u.call("self.robot.stop_dance", {})
+        u.advance(300)
+        assert u.dance.stage == 0 and not u.dance.session and u.dance.eye == (0, 0)
+        assert not u.call("self.dance.session", {"bpm": 20}).get("ok")
+        from tools.audio import _state
+
+        _state(u)["privacy"]["muted"] = 1
+        assert not u.call("self.dance.session", {"name": "robot"}).get("ok")
+        assert u.call("self.robot.dance", {"name": "happy"}).get("ok")        # the keyframe dance as before
+        assert u.dance.kf is not None and not u.dance.session
 
 
 def test_the_hosts_show_adds_ring_overlays_notes_and_faces_by_step():
@@ -205,6 +244,9 @@ def test_keyframe_dances_play_the_firmwares_table():
     half = max(abs(hw.dance_offset("happy", t, 50, 1000)[0]) for t in range(0, 4200, 100))
     assert half == 15.0                                                                                # the USB limiter halves the excursion
     with _unit() as u:
+        from tools.audio import _state
+
+        _state(u)["privacy"]["muted"] = 1   # a muted unit keeps the keyframe dance (patch SF51)
         assert u.call("self.robot.dance", {"name": "happy"}).get("ok")
         u.advance(1200)
         assert u.dance.eye[0] == -10 or u.dance.eye[0] == 10        # the eyes follow the table's keyframes
