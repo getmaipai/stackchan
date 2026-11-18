@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Intent: turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a detached signature
-# beside the app image (what the unit and the host's update path check), the public key, and a key scan. Never builds firmware.
+# over the app image (`.sig`, for units that check the whole image), the signed update header (`.hdr` and `.hdr.sig`, with the build number), the public key, and a key scan. Never builds firmware.
 # Usage: bash scripts/release.sh --build-dir BUILD --version 1.0.0 --date YYYY-MM-DD --build-number N (--signing-key PATH | --test-key) [--output DIR] [--app-image NAME]
 #   --build-number: a whole number that only ever goes up; the unit refuses an update whose number is not higher than its own. A real release must be
 #   higher than the number in --last-build-file (default dist/last-build-number.txt, written after a real release); a test release does not touch it.
@@ -60,14 +60,15 @@ sig = subprocess.run([openssl_cli(), "pkeyutl", "-sign", "-rawin", "-inkey", key
 pub = subprocess.run([openssl_cli(), "pkey", "-in", key, "-pubout"], check=True, capture_output=True).stdout
 (out / "release-key.pub.pem").write_bytes(pub)
 PY
-# The signed update header (docs/plan/signed-update-header.md): version, build number and image hash in 64 bytes, signed; the unit refuses a build number that is not higher.
-"$PY" - "$KEY" "$OUT" "$APP" "$VERSION" "$NUMBER" <<'PY'
+# The signed update header (docs/plan/signed-update-anti-rollback.md): the build number, image length and image hash in 56 bytes, signed; the unit refuses a build number that is not higher.
+"$PY" - "$KEY" "$OUT" "$APP" "$NUMBER" <<'PY'
 import sys
 from pathlib import Path
-from maipai_body.bodies.stackchan.firmware.update_header import build_header, sign_package
-key, out, app, version, number = sys.argv[1], Path(sys.argv[2]), sys.argv[3], sys.argv[4], int(sys.argv[5])
-package = sign_package(build_header(version, number, (out / app).read_bytes()), key)
-(out / f"{app}.mph").write_bytes(package)
+from maipai_body.bodies.stackchan.firmware.update_header import HEADER_LEN, build_header, sign_package
+key, out, app, number = sys.argv[1], Path(sys.argv[2]), sys.argv[3], int(sys.argv[4])
+package = sign_package(build_header(number, (out / app).read_bytes()), key)
+(out / f"{app}.hdr").write_bytes(package[:HEADER_LEN])
+(out / f"{app}.hdr.sig").write_bytes(package[HEADER_LEN:])
 PY
 # Verify what was just made, as the host's update path and `stackchan flash` do.
 "$PY" - "$OUT" "$APP" <<'PY'
@@ -80,7 +81,7 @@ pub = out / "release-key.pub.pem"
 manifest = json.loads((out / "flash-manifest.json").read_text())
 assert verify_manifest(manifest, pub), "the manifest signature does not verify"
 assert verify_detached((out / app).read_bytes(), (out / f"{app}.sig").read_bytes(), pub), "the image signature does not verify"
-verdict = verify_package((out / f"{app}.mph").read_bytes(), (out / app).read_bytes(), pub, installed_build=None)
+verdict = verify_package((out / f"{app}.hdr").read_bytes() + (out / f"{app}.hdr.sig").read_bytes(), (out / app).read_bytes(), pub, installed_build=None)
 assert verdict.ok, verdict.reason
 print("release: manifest, image and update header signatures verify")
 PY

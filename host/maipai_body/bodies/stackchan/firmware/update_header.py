@@ -1,9 +1,11 @@
-"""The signed update header (docs/plan/signed-update-header.md): 64 bytes, Ed25519-signed, so the unit can stream the image through SHA-256,
-check the hash against a 64-byte signed message, and refuse a build number that is not higher than its own (anti-rollback).
+"""The signed update header (docs/plan/signed-update-anti-rollback.md, agreed with the firmware track): 56 bytes, Ed25519-signed, so the unit
+streams the image through SHA-256, checks the hash and length against a small signed message, and refuses a build number that is not higher
+than the one it has accepted (anti-rollback).
 
-Layout (big endian):  0 "MPUH"  4 format (1)  5..7 zero  8 build number u32  12 version, 16 ASCII bytes NUL padded
-                      28 image size u32  32 SHA-256 of the image (32 bytes)   -> 64 bytes.
-Package = header (64) || Ed25519 signature over the header (64) = 128 bytes, served as `<image>.mph`."""
+Layout (little endian, as the unit reads it):
+  0  magic "MPUH1\0\0\0" (8)   8  build number u32   12  image length u32   16  SHA-256 of the image (32)   48  reserved u64, zero   -> 56 bytes.
+Files: `<image>.hdr` (the 56 bytes) and `<image>.hdr.sig` (Ed25519 over those 56 bytes, 64 bytes). A package is header || signature = 120 bytes.
+The version text is not signed: the host sends it with the update call, and the unit trusts only the signed build number."""
 
 from __future__ import annotations
 
@@ -15,34 +17,27 @@ from pathlib import Path
 from maipai_body.bodies.stackchan.firmware.flash_manifest import verify_detached
 from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
 
-MAGIC = b"MPUH"
-FORMAT = 1
-HEADER_LEN = 64
-PACKAGE_LEN = 128
-VERSION_LEN = 16
+MAGIC = b"MPUH1\0\0\0"
+HEADER_LEN = 56
+SIGNATURE_LEN = 64
+PACKAGE_LEN = HEADER_LEN + SIGNATURE_LEN
 
 
-def build_header(version: str, build_number: int, image: bytes) -> bytes:
-    if not version.isascii() or not version or len(version.encode()) > VERSION_LEN or "\0" in version:
-        raise ValueError(f"The version must be 1 to {VERSION_LEN} plain characters.")
+def build_header(build_number: int, image: bytes) -> bytes:
     if not 1 <= build_number < 2**32:
         raise ValueError("The build number must be a whole number from 1 up (it only ever goes up).")
     if len(image) >= 2**32:
         raise ValueError("The image is too large.")
-    return (
-        MAGIC + bytes([FORMAT, 0, 0, 0]) + build_number.to_bytes(4, "big") + version.encode().ljust(VERSION_LEN, b"\0")
-        + len(image).to_bytes(4, "big") + hashlib.sha256(image).digest()
-    )
+    return MAGIC + build_number.to_bytes(4, "little") + len(image).to_bytes(4, "little") + hashlib.sha256(image).digest() + bytes(8)
 
 
 def parse_header(header: bytes) -> dict:
-    if len(header) != HEADER_LEN or header[:4] != MAGIC or header[4] != FORMAT or any(header[5:8]):
+    if len(header) != HEADER_LEN or header[:8] != MAGIC or any(header[48:56]):
         raise ValueError("This is not a StackChan update header.")
     return {
-        "version": header[12:28].rstrip(b"\0").decode("ascii"),
-        "build_number": int.from_bytes(header[8:12], "big"),
-        "size": int.from_bytes(header[28:32], "big"),
-        "sha256": header[32:64].hex(),
+        "build_number": int.from_bytes(header[8:12], "little"),
+        "size": int.from_bytes(header[12:16], "little"),
+        "sha256": header[16:48].hex(),
     }
 
 
@@ -56,7 +51,7 @@ def sign_package(header: bytes, key_path: str | Path) -> bytes:
         signature = subprocess.run(
             [openssl_cli(), "pkeyutl", "-sign", "-rawin", "-inkey", str(key_path), "-in", str(path)], check=True, capture_output=True
         ).stdout
-    if len(signature) != 64:
+    if len(signature) != SIGNATURE_LEN:
         raise ValueError("The signature has the wrong size.")
     return header + signature
 

@@ -56,7 +56,7 @@ def test_the_release_script_dry_run_makes_a_signed_folder_marked_test(tmp_path):
     assert hashlib.sha256(image).hexdigest() in json.dumps(manifest)
     from maipai_body.bodies.stackchan.firmware.update_header import verify_package
 
-    package = (out / "xiaozhi.bin.mph").read_bytes()
+    package = (out / "xiaozhi.bin.hdr").read_bytes() + (out / "xiaozhi.bin.hdr.sig").read_bytes()
     assert verify_package(package, image, pub, installed_build=6).header["build_number"] == 7
     assert not verify_package(package, image, pub, installed_build=7).ok  # not higher
 

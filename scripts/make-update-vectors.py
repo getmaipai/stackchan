@@ -22,7 +22,7 @@ def make_header_vectors(cli: str, key: Path, pub_pem: str) -> dict:
     from maipai_body.bodies.stackchan.firmware.update_header import build_header, sign_package
 
     image = IMAGES["ramp"]
-    header = build_header("1.2.3", 17, image)
+    header = build_header(17, image)
     package = sign_package(header, key)
     flip = lambda b, i: b[:i] + bytes([b[i] ^ 1]) + b[i + 1 :]  # noqa: E731
     cases = [
@@ -31,15 +31,16 @@ def make_header_vectors(cli: str, key: Path, pub_pem: str) -> dict:
         ("same build number as installed", package, image, 17, False),
         ("older than installed (rollback)", package, image, 99, False),
         ("image changed by one bit", package, flip(image, 0), 16, False),
-        ("signature changed by one bit", flip(package, 64), image, 16, False),
-        ("build number in the header changed", flip(package, 11), image, 16, False),
-        ("version in the header changed", flip(package, 12), image, 16, False),
-        ("hash in the header changed", flip(package, 40), image, 16, False),
-        ("package too short", package[:127], image, 16, False),
+        ("signature changed by one bit", flip(package, 56), image, 16, False),
+        ("build number in the header changed", flip(package, 8), image, 16, False),
+        ("length in the header changed", flip(package, 12), image, 16, False),
+        ("hash in the header changed", flip(package, 20), image, 16, False),
+        ("reserved field not zero", flip(package, 50), image, 16, False),
+        ("package too short", package[:119], image, 16, False),
         ("header without a signature", header, image, 16, False),
     ]
     return {
-        "note": "TEST vectors for the signed update header. Same public key as update-signature-vectors.json. package = header (64) || signature (64).",
+        "note": "TEST vectors for the signed update header. Same public key as update-signature-vectors.json. package = header (56, little endian) || signature (64).",
         "public_key_pem": pub_pem,
         "vectors": [
             {"name": n, "package_hex": p.hex(), "image_hex": i.hex(), "installed_build": b, "valid": v} for n, p, i, b, v in cases

@@ -27,7 +27,18 @@ from maipai_body.speech.capture import AudioCapture
 
 logger = logging.getLogger("maipai_body.speech.stt_stream")
 
-WAKE_PATIENCE_S = 6.0
+def _wake_patience() -> float:
+    """6 seconds, or longer when a developer sets MAIPAI_BENCH_MIN_LISTEN_S (never shorter). It lets the unit's own 8 second
+    silence path run on the bench; it is unset in normal use."""
+    import os
+
+    try:
+        return max(6.0, min(60.0, float(os.environ.get("MAIPAI_BENCH_MIN_LISTEN_S", "0"))))
+    except ValueError:
+        return 6.0
+
+
+WAKE_PATIENCE_S = _wake_patience()
 # How long a single recv() waits for a server message before looping
 # back to poll capture again - short enough that audio keeps flowing
 # in near real time, long enough not to busy-loop.

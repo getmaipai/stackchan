@@ -1583,10 +1583,13 @@ class XiaozhiServer:
         expires = time.monotonic() + 600
         self._firmware_files[(device_id, token)] = (path.read_bytes(), expires)
         if signature is not None:
-            # The unit fetches the signed header package (128 bytes) at the image address plus ".mph", or an older detached
-            # signature over the whole image at ".sig".
-            suffix = ".mph" if len(signature) == 128 else ".sig"
-            self._firmware_files[(device_id, token + suffix)] = (bytes(signature), expires)
+            # A signed header package (120 bytes: header 56 + signature 64) is published as two files, the header at the image address
+            # plus ".hdr" and its signature at ".hdr.sig"; an older detached signature over the whole image goes at ".sig".
+            if len(signature) == 120:
+                self._firmware_files[(device_id, token + ".hdr")] = (bytes(signature[:56]), expires)
+                self._firmware_files[(device_id, token + ".hdr.sig")] = (bytes(signature[56:]), expires)
+            else:
+                self._firmware_files[(device_id, token + ".sig")] = (bytes(signature), expires)
         return (
             self._notify_audio_url(device_id, token)
             .replace("/notify/", "/firmware/")

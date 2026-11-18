@@ -2773,23 +2773,26 @@ async def _serve_stackchan_channels(
                         output.write(chunk)
 
         def download_firmware_signature() -> bytes | None:
-            """What Home serves beside the image: the signed update header package (`app.bin.mph`, 128 bytes), else the older
+            """What Home serves beside the image: the signed update header (`app.bin.hdr` and `app.bin.hdr.sig`), else the older
             detached signature (`app.bin.sig`). None when Home has neither."""
             import requests
 
             cookie, base_url = hub_credentials()
-            for suffix in (".mph", ".sig"):
+            def fetch(suffix: str) -> bytes | None:
                 response = requests.get(
                     f"{base_url}/api/devices/me/firmware-update/app.bin{suffix}",
                     headers={"Cookie": f"session={cookie}"},
                     timeout=30,
                 )
-                if response.status_code == 200 and response.content:
-                    return response.content
-            return None
+                return response.content if response.status_code == 200 and response.content else None
+
+            header, header_signature = fetch(".hdr"), fetch(".hdr.sig")
+            if header and header_signature:
+                return header + header_signature  # the signed header package: 56 + 64 bytes
+            return fetch(".sig")
 
         def verify_firmware_image() -> Callable[[bytes, bytes], bool] | None:
-            """Checks an image against `[update] trusted_key`; None when no key is configured. A 128-byte package is the signed
+            """Checks an image against `[update] trusted_key`; None when no key is configured. A 120-byte package is the signed
             header: it also has to carry a build number higher than the last one this host served."""
             from maipai_body.bodies.stackchan.firmware.flash_manifest import verify_detached
             from maipai_body.bodies.stackchan.firmware.update_header import PACKAGE_LEN, verify_package
