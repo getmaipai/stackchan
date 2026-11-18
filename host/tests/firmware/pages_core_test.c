@@ -369,12 +369,12 @@ static void test_every_page_content_stays_in_the_zone(void)
             CHECK(in_zone(8, y, 304, h) && clear_of_grabber(8, y, 304, h));
         }
     }
-    for (int n = 0; n <= 3; n++) {            /* timers: rows, then the quick starts */
+    for (int n = 0; n <= MPG_TIMER_SHOWN; n++) {            /* timers: rows, then the quick starts (patch UX13f: 56 px rows) */
         for (int i = 0; i < n; i++) {
             const int y = mpg_timer_top(n) + i * MPG_TIMER_PITCH;
             CHECK(in_zone(8, y, 304, MPG_TIMER_ROW_H) && clear_of_grabber(8, y, 304, MPG_TIMER_ROW_H));
         }
-        if (mpg_timer_quick(n)) CHECK(in_zone(8, mpg_timer_quick_y(), 304, mpg_timer_quick_h(n)));
+        if (mpg_timer_quick(n)) CHECK(in_zone(8, mpg_timer_quick_y(n), 304, mpg_timer_quick_h(n)));
     }
     for (int n = 1; n <= 6; n++) {            /* quick actions and the dashboard tiles share the grid */
         for (int i = 0; i < n; i++) {
@@ -507,12 +507,13 @@ static void test_page_contents(void)
             CHECK(h >= MPG_TOUCH_MIN && h <= 52 && y >= 0 && y + h <= MPG_PAGER_Y - 4);
         }
     }
-    for (int n = 0; n <= 3; n++) {
+    for (int n = 0; n <= MPG_TIMER_SHOWN; n++) {
         CHECK(n == 0 || mpg_timer_top(n) + (n - 1) * MPG_TIMER_PITCH + MPG_TIMER_ROW_H <= MPG_PAGER_Y - 4);
-        CHECK(MPG_TIMER_ROW_H >= MPG_TOUCH_MIN);
+        CHECK(MPG_TIMER_ROW_H >= 56 && MPG_TIMER_PITCH - MPG_TIMER_ROW_H >= 8);   /* finger size on an 8 px gap */
+        CHECK(n < 2 || mpg_timer_top(n) + (n - 1) * MPG_TIMER_PITCH + MPG_TIMER_ROW_H + 2 <= mpg_timer_more_y());   /* the plus-N-more line clears the rows */
         if (mpg_timer_quick(n)) {
-            CHECK(mpg_timer_quick_h(n) >= MPG_TOUCH_MIN && mpg_timer_quick_y() + mpg_timer_quick_h(n) <= MPG_PAGER_Y - 4);
-            CHECK(n == 0 || mpg_timer_quick_y() >= mpg_timer_top(n) + n * MPG_TIMER_PITCH);
+            CHECK(mpg_timer_quick_h(n) >= 56 && mpg_timer_quick_y(n) + mpg_timer_quick_h(n) <= MPG_PAGER_Y - 4);
+            CHECK(n == 0 || mpg_timer_quick_y(n) >= mpg_timer_top(n) + n * MPG_TIMER_PITCH);
         }
     }
     /* the pager dots stay inside the zone and are centered */

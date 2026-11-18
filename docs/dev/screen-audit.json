@@ -13,17 +13,9 @@
  },
  "screen-timers-app": {
   "targets": 9,
-  "fails": 7,
+  "fails": 0,
   "warnings": 0,
-  "failures": [
-   "targets at 4,36 and 4,96 are 4 px apart (under 8)",
-   "targets at 4,96 and 4,156 are 4 px apart (under 8)",
-   "targets at 4,156 and 4,216 are 4 px apart (under 8)",
-   "targets at 4,216 and 4,276 are 4 px apart (under 8)",
-   "targets at 4,276 and 4,336 are 4 px apart (under 8)",
-   "targets at 4,336 and 4,396 are 4 px apart (under 8)",
-   "targets at 4,396 and 4,456 are 4 px apart (under 8)"
-  ]
+  "failures": []
  },
  "screen-settings-general": {
   "targets": 11,
@@ -156,13 +148,9 @@
  },
  "screen-page-timers-running": {
   "targets": 2,
-  "fails": 3,
+  "fails": 0,
   "warnings": 0,
-  "failures": [
-   "target 58x44 px (7.4 x 5.6 mm) at 254,52: under 48 px",
-   "target 58x44 px (7.4 x 5.6 mm) at 254,98: under 48 px",
-   "targets at 254,52 and 254,98 are 2 px apart (under 8)"
-  ]
+  "failures": []
  },
  "screen-page-clock": {
   "targets": 1,
@@ -220,6 +208,24 @@
  },
  "screen-page-timers": {
   "targets": 3,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-timers-one": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-timers-more": {
+  "targets": 2,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-alarms-app": {
+  "targets": 2,
   "fails": 0,
   "warnings": 0,
   "failures": []

@@ -1,8 +1,5 @@
 # Screen audit against the physical standard
 
-
-> Part of the [playground docs](../playground/index.md). This page is the full reference; the playground pages are the guide.
-
 Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87 px a millimeter (assumed from the 2 inch diagonal). Targets under 48 px, targets closer than 8 px, labels under the 16 px font and clipped targets fail; targets under 56 px and 16 px labels warn. Annotated frames: `docs/dev/screens/annotated/`.
 
 | Screen | Targets | Failures | Warnings | First failures |
@@ -32,6 +29,7 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 | more-games | 3 | 0 | 1 |  |
 | more-menu | 6 | 0 | 1 |  |
 | more-version | 2 | 0 | 1 |  |
+| screen-alarms-app | 2 | 0 | 0 |  |
 | screen-apps-wall | 4 | 0 | 0 |  |
 | screen-camera-on | 0 | 0 | 0 |  |
 | screen-control-sheet | 3 | 0 | 1 |  |
@@ -43,12 +41,14 @@ Made by `scripts/virtual-unit/screen_audit.py --write`. Panel 40.6 mm wide, 7.87
 | screen-page-games-end | 13 | 0 | 0 |  |
 | screen-page-games-scrolled | 13 | 0 | 0 |  |
 | screen-page-timers | 3 | 0 | 0 |  |
-| screen-page-timers-running | 2 | 3 | 0 | target 58x44 px (7.4 x 5.6 mm) at 254,52: under 48 px; target 58x44 px (7.4 x 5.6 mm) at 254,98: under 48 px |
+| screen-page-timers-more | 2 | 0 | 0 |  |
+| screen-page-timers-one | 4 | 0 | 0 |  |
+| screen-page-timers-running | 2 | 0 | 0 |  |
 | screen-settings-faces | 8 | 0 | 1 |  |
 | screen-settings-general | 11 | 0 | 1 |  |
 | screen-settings-info | 6 | 0 | 1 |  |
 | screen-settings-network | 6 | 0 | 1 |  |
 | screen-subtitles | 0 | 0 | 0 |  |
-| screen-timers-app | 9 | 7 | 0 | targets at 4,36 and 4,96 are 4 px apart (under 8); targets at 4,96 and 4,156 are 4 px apart (under 8) |
+| screen-timers-app | 9 | 0 | 0 |  |
 
-Total failures: 46 on 43 screens.
+Total failures: 36 on 46 screens.

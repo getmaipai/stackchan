@@ -101,6 +101,9 @@ SCREENS: dict[str, list] = {
     "clock-datetime-12h": BAR + [("raw", "pset hh 14"), ("raw", "pset mm 5"), ("raw", "pset cstyle 2"), ("raw", "pshow clock"), ("advance", 600)],
     "clock-tap-to-datetime": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pshow clock"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600)],
     "screen-page-timers": BAR + [("raw", "pshow timers"), ("advance", 600)],
+    "screen-page-timers-one": BAR + [("raw", "ptimer 300 tea"), ("raw", "pshow timers"), ("advance", 800)],   # patch UX13f: one timer, the quick starts under it
+    "screen-page-timers-more": BAR + [("raw", "ptimer 300 tea"), ("raw", "ptimer 90 eggs"), ("raw", "ptimer 900 laundry"), ("raw", "pshow timers"), ("advance", 800)],   # three timers: two rows and +1 more
+    "screen-alarms-app": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 56 156"), ("advance", 700), ("raw", "pclick 240 70"), ("advance", 700)],
     "screen-page-games": BAR + [("raw", "pshow games"), ("advance", 600)],
     "screen-page-games-scrolled": BAR + [("raw", "pshow games"), ("advance", 600), ("raw", "pscrollby 160 80 72"), ("advance", 300)],   # patch UX13e: a swipe up scrolls one row and a bit
     "screen-page-games-end": BAR + [("raw", "pshow games"), ("advance", 600), ("raw", "pscrollby 160 80 400"), ("advance", 300)],

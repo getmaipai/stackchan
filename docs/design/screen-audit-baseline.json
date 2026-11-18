@@ -74,6 +74,9 @@
  "more-version": {
   "fails": 0
  },
+ "screen-alarms-app": {
+  "fails": 0
+ },
  "screen-apps-wall": {
   "fails": 0
  },
@@ -107,8 +110,14 @@
  "screen-page-timers": {
   "fails": 0
  },
+ "screen-page-timers-more": {
+  "fails": 0
+ },
+ "screen-page-timers-one": {
+  "fails": 0
+ },
  "screen-page-timers-running": {
-  "fails": 3
+  "fails": 0
  },
  "screen-settings-faces": {
   "fails": 0
@@ -126,6 +135,6 @@
   "fails": 0
  },
  "screen-timers-app": {
-  "fails": 7
+  "fails": 0
  }
 }
