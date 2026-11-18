@@ -1,0 +1,4 @@
+# Everything in this folder is build output (bash scripts/virtual-unit/wasm/site-build.sh): the WebAssembly modules, the unit's Python bundle, the pinned Pyodide runtime
+# (downloaded at build time, never committed), the viewer copies and the page. Only this file is tracked.
+*
+!.gitignore
