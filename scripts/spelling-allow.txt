@@ -49,3 +49,6 @@ docs/design/INDEX.md :: *
 # Virtual unit tool handlers: key and value names copied from the flashed firmware's tool arguments and the unit's saved settings (colour, Colour memory).
 scripts/virtual-unit/tools/* :: [Cc]olour
 host/tests/test_vu_tools_*.py :: [Cc]olour
+
+# Machine-drafted translations in other languages: the English spelling rule does not apply (réinitialisation, Passwort-Initialisierung and the like).
+host/maipai_body/i18n_fill/* :: *
