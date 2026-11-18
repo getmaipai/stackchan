@@ -379,6 +379,10 @@ def _merge_reviewed() -> None:
 
 _merge_more()
 _merge_fill()
+from maipai_body import i18n_tier1 as _tier1  # noqa: E402  Dutch, Polish, Turkish, Swedish, Danish, Norwegian, Czech: machine drafts
+
+_tier1.register(CATALOG)
+SUPPORTED = SUPPORTED + _tier1.CODES
 _merge_reviewed()
 
 
