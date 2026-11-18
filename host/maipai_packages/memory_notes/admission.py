@@ -24,6 +24,11 @@ _REFUSED = (
     (re.compile(r"\b(?:ssn|social security(?: number)?|sin|national insurance(?: number)?)\b\D{0,12}\d{9}\b", re.I), "a government id number"),
     (re.compile(r"\bpassports?\b\D{0,20}[A-Z0-9]{6,12}\b", re.I), "a government id number"),
     (re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{12,}\b"), "a password, code or key"),
+    (re.compile(r"\b(?:vault|safe|lock|alarm|door|gate|garage|locker|combination)\s*(?:code|combination|pin|number)?\b\D{0,12}\d{3,}", re.I), "a code or combination"),
+    (re.compile(r"\b(?:driver'?s?|driving)\s+licen[cs]e\b\D{0,20}[A-Z0-9]{5,}", re.I), "a government id number"),
+    (re.compile(r"\b(?:secret|private)\s+(?:word|phrase|code)\b", re.I), "a password, code or key"),
+    (re.compile(r"\b(?:wi-?fi|wifi|router|network|account|login)\s+(?:key|pass(?:word)?|code)\b", re.I), "a password, code or key"),
+    (re.compile(r"\b(?:key|code|secret)\b\D{0,12}(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{8,}\b", re.I), "a password, code or key"),
     (re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.?[A-Za-z0-9_-]*"), "a password, code or key"),
     (re.compile(r"\b(?:sk|ghp|gho|tskey|xox[abprs])[-_][A-Za-z0-9_-]{8,}"), "a password, code or key"),
 )
@@ -36,10 +41,22 @@ _HOMOGLYPHS = str.maketrans({
 })  # Cyrillic and Greek letters that look like Latin ones
 
 
+_LEET = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"})  # digits and signs used as letters
+_SPACED = re.compile(r"\b(?:[A-Za-z][ .\-_]){3,}[A-Za-z]\b")  # p a s s w o r d
+_SQUASH_WORDS = re.compile(r"pass\s*word|pass\s*code|pass\s*phrase|pass\s*wd", re.I)
+
+
 def _fold(text: str) -> str:
     """A plain-ASCII reading of the text for the checks: fullwidth forms, accents and lookalike letters turned into plain ones."""
     decomposed = unicodedata.normalize("NFKD", text).translate(_HOMOGLYPHS)
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _readings(text: str) -> list[str]:
+    """The text as written, folded, with digits read as letters, and with spaced-out letters joined (so a trick does not hide a keyword)."""
+    folded = _fold(text)
+    joined = _SPACED.sub(lambda m: re.sub(r"[ .\-_]", "", m.group(0)), folded)
+    return [text, folded, folded.translate(_LEET), joined, _SQUASH_WORDS.sub("password", joined).translate(_LEET)]
 
 
 def _hidden(ch: str) -> bool:
@@ -69,8 +86,8 @@ def check_note(text: str) -> str:
         raise AdmissionError("I do not keep text in brackets. Say it in plain words.")
     if any(_hidden(ch) for ch in note):
         raise AdmissionError("That has hidden or control characters. Say it again in plain words.")
-    folded = _fold(note)
+    readings = _readings(note)
     for pattern, what in _REFUSED:
-        if pattern.search(note) or pattern.search(folded):
+        if any(pattern.search(reading) for reading in readings):
             raise AdmissionError(f"I do not keep {what}. Keep it somewhere safer, like a password manager.")
     return note

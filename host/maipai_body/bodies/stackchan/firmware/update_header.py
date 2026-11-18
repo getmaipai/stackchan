@@ -23,9 +23,12 @@ SIGNATURE_LEN = 64
 PACKAGE_LEN = HEADER_LEN + SIGNATURE_LEN
 
 
+MAX_BUILD = 2**31  # the unit stores the build number as a signed 32-bit value and refuses 2^31 or more
+
+
 def build_header(build_number: int, image: bytes) -> bytes:
-    if not 1 <= build_number < 2**32:
-        raise ValueError("The build number must be a whole number from 1 up (it only ever goes up).")
+    if not 1 <= build_number < MAX_BUILD:
+        raise ValueError("The build number must be a whole number from 1 up to 2147483647 (it only ever goes up).")
     if len(image) >= 2**32:
         raise ValueError("The image is too large.")
     return MAGIC + build_number.to_bytes(4, "little") + len(image).to_bytes(4, "little") + hashlib.sha256(image).digest() + bytes(8)
@@ -77,6 +80,8 @@ def verify_package(package: bytes, image: bytes, public_key_path: str | Path, *,
         return Verdict(False, str(error))
     if fields["size"] != len(image) or not hmac.compare_digest(fields["sha256"], hashlib.sha256(image).hexdigest()):
         return Verdict(False, "The image does not match its signed header.", fields)
+    if fields["build_number"] >= MAX_BUILD:
+        return Verdict(False, "The update's build number is too large for the unit. Ask for a release with a build number below 2147483648.", fields)
     if fields["build_number"] == 0:
         return Verdict(False, "The update's build number is 0, which the unit refuses. Ask for a release with a build number of 1 or more.", fields)
     if installed_build is not None and fields["build_number"] <= installed_build:

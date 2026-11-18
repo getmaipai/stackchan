@@ -26,7 +26,7 @@ while (($#)); do
 done
 [ -n "$BUILD" ] && [ -f "$BUILD/flasher_args.json" ] || { echo "Pass --build-dir with the finished build (it holds flasher_args.json)." >&2; exit 2; }
 [ -n "$VERSION" ] && [ -n "$DATE" ] || { echo "Pass --version and --date YYYY-MM-DD." >&2; exit 2; }
-[[ "$NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "Pass --build-number N, a whole number from 1 up that is higher than the last release's." >&2; exit 2; }
+[[ "$NUMBER" =~ ^[1-9][0-9]{0,9}$ ]] && [ "$NUMBER" -lt 2147483648 ] || { echo "Pass --build-number N, a whole number from 1 up, below 2147483648, that is higher than the last release's." >&2; exit 2; }
 [ -n "$LAST" ] || LAST="$ROOT/dist/last-build-number.txt"
 if [ "$TEST" = 0 ] && [ -f "$LAST" ]; then
   case "$(tr -d '[:space:]' < "$LAST")" in
