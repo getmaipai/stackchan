@@ -27,3 +27,8 @@ The files are read as data by our own STL reader (`softrender.read_stl`); nothin
 
 Other references used for the assembly and the match check (not copied here): the product's published size drawing
 (`Model_Size.png` on the manufacturer's documentation server, K151 page) and three product photos from the same page.
+
+## Other published figures used
+
+- Product page, https://docs.m5stack.com/en/StackChan, read 2026-11-18: size 54.0 x 70.5 x 61.5 mm, weight 187.2 g, "Two rows totaling 12 RGB LEDs", 360 degree horizontal servo, 90 degree vertical servo, vertical movement "recommended to be controlled within 5 ~ 85°".
+- The dimension drawing on that page (`Model_Size.png`): base 48 mm wide and 8 mm tall, mounting holes on a 32 x 48 mm grid, positions of the side holes, ports, speaker grille and the row of openings under the screen.

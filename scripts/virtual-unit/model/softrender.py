@@ -1,180 +1,170 @@
-"""A small software renderer for the model previews: pure Python, no dependencies.
+"""A small software renderer for the body model previews: standard library only.
 
-Reads binary or ASCII STL files (as data only), rasterizes triangles with a z-buffer and simple
-two-light shading, and writes PNG files with the standard library. Slow but deterministic; meant for
-previews of a few hundred pixels.
+Orthographic camera, depth buffer, flat shading, depth outlines, 2x supersampling, PNG output.
+Used by render_previews.py; nothing at run time depends on it.
 """
-from __future__ import annotations
-
 import math
 import struct
 import zlib
 
 
 def read_stl(path):
-    """Return a list of triangles ((x,y,z),(x,y,z),(x,y,z)) from a binary or ASCII STL file."""
-    data = open(path, "rb").read()
+    """Read a binary or ascii STL as a list of triangles, each a tuple of nine floats. Parses data only."""
+    data = open(path, 'rb').read()
     if len(data) >= 84:
-        n = struct.unpack_from("<I", data, 80)[0]
-        if 84 + 50 * n == len(data):
-            tris = []
-            for i in range(n):
-                v = struct.unpack_from("<9f", data, 84 + 50 * i + 12)
-                tris.append(((v[0], v[1], v[2]), (v[3], v[4], v[5]), (v[6], v[7], v[8])))
-            return tris
-    text = data.decode("ascii", "replace")
-    verts = []
-    for line in text.splitlines():
+        count = struct.unpack_from('<I', data, 80)[0]
+        if 84 + 50 * count == len(data):
+            return [struct.unpack_from('<9f', data, 84 + 50 * i + 12) for i in range(count)]
+    tris, cur = [], []
+    for line in data.decode('ascii', 'replace').splitlines():
         parts = line.split()
-        if len(parts) == 4 and parts[0] == "vertex":
-            verts.append(tuple(float(p) for p in parts[1:]))
-    if len(verts) % 3:
-        raise ValueError(f"{path}: the STL file is cut short ({len(verts)} vertices); download it again")
-    return [tuple(verts[i:i + 3]) for i in range(0, len(verts), 3)]
+        if len(parts) == 4 and parts[0] == 'vertex':
+            cur.extend(float(p) for p in parts[1:])
+            if len(cur) == 9:
+                tris.append(tuple(cur))
+                cur = []
+    if not tris:
+        raise ValueError('%s holds no triangles: check that the file is an STL and download it again' % path)
+    return tris
 
 
-def write_png(path, width, height, rgb_rows):
-    """rgb_rows: list of bytearrays, each width*3 bytes."""
-    raw = b"".join(b"\x00" + bytes(r) for r in rgb_rows)
-
-    def chunk(tag, body):
-        c = struct.pack(">I", len(body)) + tag + body
-        return c + struct.pack(">I", zlib.crc32(tag + body) & 0xFFFFFFFF)
-
-    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-    png += chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
-    with open(path, "wb") as f:
-        f.write(png)
-
-
-def _norm(v):
-    l = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) or 1.0
-    return (v[0] / l, v[1] / l, v[2] / l)
-
-
-def _cross(a, b):
-    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
-
-
-def _sub(a, b):
-    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
-
-
-def _dot(a, b):
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-
-
-def look_basis(azimuth_deg, elevation_deg):
-    """Camera basis for an orthographic view. Azimuth 0 looks at the robot's front (camera on +Z),
-    90 puts the camera on +X; elevation lifts the camera above the horizon. Y is up."""
-    az, el = math.radians(azimuth_deg), math.radians(elevation_deg)
-    back = (math.sin(az) * math.cos(el), math.sin(el), math.cos(az) * math.cos(el))  # toward the camera
-    right = _norm(_cross((0.0, 1.0, 0.0), back)) if abs(el) < math.radians(89.9) else (1.0, 0.0, 0.0)
-    up = _cross(back, right)
-    return right, up, back
+def camera(azimuth_deg, elevation_deg):
+    """Right, up and forward unit vectors of a camera that looks at the origin. Azimuth 0 looks at the front (+Z face)."""
+    a, e = math.radians(azimuth_deg), math.radians(elevation_deg)
+    pos = (math.sin(a) * math.cos(e), math.sin(e), math.cos(a) * math.cos(e))
+    fwd = (-pos[0], -pos[1], -pos[2])
+    if abs(pos[1]) > 0.999:
+        right = (1.0, 0.0, 0.0)
+    else:
+        n = math.hypot(fwd[2], fwd[0])
+        right = (-fwd[2] / n, 0.0, fwd[0] / n)
+    up = (right[1] * fwd[2] - right[2] * fwd[1], right[2] * fwd[0] - right[0] * fwd[2], right[0] * fwd[1] - right[1] * fwd[0])
+    return right, up, fwd
 
 
 class Canvas:
-    def __init__(self, width, height, background=(244, 245, 247)):
-        self.w, self.h = width, height
-        self.color = [bytearray(background * width) for _ in range(height)]
-        self.depth = [[-1e30] * width for _ in range(height)]
+    def __init__(self, width, height, bg=(244, 245, 247), ss=2):
+        self.w, self.h, self.ss = width, height, ss
+        self.W, self.H = width * ss, height * ss
+        self.bg = bg
+        self.rgb = [bg] * (self.W * self.H)
+        self.z = [1e30] * (self.W * self.H)
 
-    def draw(self, items, basis, center, scale, light_dirs=None, outline=True):
-        """items: list of (triangles, (r,g,b)) in world space. Orthographic projection."""
-        right, up, back = basis
-        lights = light_dirs or [(_norm((0.4, 0.7, 0.6)), 0.75), (_norm((-0.6, 0.3, -0.5)), 0.30)]
-        w, h = self.w, self.h
-        cx, cy = w / 2.0, h / 2.0
-        for tris, base_color in items:
-            for a, b, c in tris:
-                n = _cross(_sub(b, a), _sub(c, a))
-                nl = math.sqrt(_dot(n, n))
-                if nl == 0:
+    def draw(self, tris, color, cam, scale, center=(0.0, 0.0, 0.0), emissive=False):
+        """Draw world-space triangles (nine floats each) in one color. `scale` is pixels per world unit."""
+        (rx, ry, rz), (ux, uy, uz), (fx, fy, fz) = cam
+        s = scale * self.ss
+        W, H, rgb, zb = self.W, self.H, self.rgb, self.z
+        ox, oy = W / 2.0, H / 2.0
+        cx, cy, cz = center
+        # one light up and to the left of the camera, plus fill
+        lx, ly, lz = (-0.45 * rx + 0.55 * ux - 0.70 * fx, -0.45 * ry + 0.55 * uy - 0.70 * fy, -0.45 * rz + 0.55 * uz - 0.70 * fz)
+        ln = math.sqrt(lx * lx + ly * ly + lz * lz)
+        lx, ly, lz = lx / ln, ly / ln, lz / ln
+        for t in tris:
+            ax, ay, az, bx, by, bz, qx, qy, qz = t
+            ex, ey, ez = bx - ax, by - ay, bz - az
+            gx, gy, gz = qx - ax, qy - ay, qz - az
+            nx, ny, nz = ey * gz - ez * gy, ez * gx - ex * gz, ex * gy - ey * gx
+            nl = math.sqrt(nx * nx + ny * ny + nz * nz)
+            if nl == 0.0:
+                continue
+            nx, ny, nz = nx / nl, ny / nl, nz / nl
+            if nx * fx + ny * fy + nz * fz > 0.0:  # faces away: light it as if it faced the camera
+                nx, ny, nz = -nx, -ny, -nz
+            if emissive:
+                shade = 1.0
+            else:
+                shade = 0.42 + 0.58 * max(0.0, nx * lx + ny * ly + nz * lz) + 0.10 * max(0.0, -(nx * fx + ny * fy + nz * fz))
+            col = (min(255, int(color[0] * shade)), min(255, int(color[1] * shade)), min(255, int(color[2] * shade)))
+            pts = []
+            for px, py, pz in ((ax, ay, az), (bx, by, bz), (qx, qy, qz)):
+                px, py, pz = px - cx, py - cy, pz - cz
+                pts.append((ox + s * (px * rx + py * ry + pz * rz), oy - s * (px * ux + py * uy + pz * uz), px * fx + py * fy + pz * fz))
+            pts.sort(key=lambda p: p[1])
+            (x0, y0, z0), (x1, y1, z1), (x2, y2, z2) = pts
+            if y2 - y0 < 1e-9:
+                continue
+            ya, yb = max(0, int(math.ceil(y0))), min(H - 1, int(math.floor(y2)))
+            for y in range(ya, yb + 1):
+                tl = (y - y0) / (y2 - y0)
+                xl, zl = x0 + (x2 - x0) * tl, z0 + (z2 - z0) * tl
+                if y < y1:
+                    d = y1 - y0
+                    ts = (y - y0) / d if d > 1e-12 else 0.0
+                    xs, zs = x0 + (x1 - x0) * ts, z0 + (z1 - z0) * ts
+                else:
+                    d = y2 - y1
+                    ts = (y - y1) / d if d > 1e-12 else 0.0
+                    xs, zs = x1 + (x2 - x1) * ts, z1 + (z2 - z1) * ts
+                if xs < xl:
+                    xl, xs, zl, zs = xs, xl, zs, zl
+                xa, xb = max(0, int(math.ceil(xl))), min(W - 1, int(math.floor(xs)))
+                if xb < xa:
                     continue
-                n = (n[0] / nl, n[1] / nl, n[2] / nl)
-                facing = _dot(n, back)
-                if facing < 0:  # light both sides: some official files have flipped faces
-                    n = (-n[0], -n[1], -n[2])
-                shade = 0.32 + sum(max(0.0, _dot(n, ld)) * k for ld, k in lights)
-                shade = min(shade, 1.15)
-                col = tuple(min(255, int(ch * shade)) for ch in base_color)
-                pts = []
-                for p in (a, b, c):
-                    d = _sub(p, center)
-                    pts.append((cx + _dot(d, right) * scale, cy - _dot(d, up) * scale, _dot(d, back)))
-                self._tri(pts, col)
+                dz = (zs - zl) / (xs - xl) if xs - xl > 1e-12 else 0.0
+                zv = zl + (xa - xl) * dz
+                row = y * W
+                for i in range(row + xa, row + xb + 1):
+                    if zv < zb[i]:
+                        zb[i] = zv
+                        rgb[i] = col
+                    zv += dz
+
+    def pixels(self, outline=0.0012):
+        """Downsample to the output size as RGB bytes, with dark outlines where the depth jumps by more than `outline` world units."""
+        W, H, ss, zb, rgb = self.W, self.H, self.ss, self.z, self.rgb
         if outline:
-            self._outline()
-
-    def _tri(self, pts, col):
-        (x0, y0, z0), (x1, y1, z1), (x2, y2, z2) = pts
-        minx, maxx = max(int(min(x0, x1, x2)), 0), min(int(max(x0, x1, x2)) + 1, self.w - 1)
-        miny, maxy = max(int(min(y0, y1, y2)), 0), min(int(max(y0, y1, y2)) + 1, self.h - 1)
-        if minx > maxx or miny > maxy:
-            return
-        area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
-        if abs(area) < 1e-12:
-            return
-        inv = 1.0 / area
-        r, g, b = col
-        for py in range(miny, maxy + 1):
-            sy = py + 0.5
-            row_c, row_d = self.color[py], self.depth[py]
-            for px in range(minx, maxx + 1):
-                sx = px + 0.5
-                w0 = ((x1 - sx) * (y2 - sy) - (x2 - sx) * (y1 - sy)) * inv
-                w1 = ((x2 - sx) * (y0 - sy) - (x0 - sx) * (y2 - sy)) * inv
-                w2 = 1.0 - w0 - w1
-                if w0 < -1e-9 or w1 < -1e-9 or w2 < -1e-9:
-                    continue
-                z = w0 * z0 + w1 * z1 + w2 * z2
-                if z > row_d[px]:
-                    row_d[px] = z
-                    i = px * 3
-                    row_c[i], row_c[i + 1], row_c[i + 2] = r, g, b
-
-    def _outline(self):
-        """Darken pixels at a depth jump so edges read on flat-lit parts."""
-        d = self.depth
-        for y in range(1, self.h - 1):
-            for x in range(1, self.w - 1):
-                z = d[y][x]
-                if z < -1e29:
-                    continue
-                m = max(abs(z - d[y][x + 1]), abs(z - d[y + 1][x]), abs(z - d[y][x - 1]), abs(z - d[y - 1][x]))
-                if m > 0.0015:
-                    i = x * 3
-                    row = self.color[y]
-                    row[i], row[i + 1], row[i + 2] = row[i] * 2 // 5, row[i + 1] * 2 // 5, row[i + 2] * 2 // 5
-
-    def label(self, text, x, y, color=(30, 30, 30)):
-        """Draw a short label with a tiny built-in 3x5 pixel font (letters, digits, a few marks), scaled 2x."""
-        for ch in text.upper():
-            glyph = _FONT.get(ch, _FONT[" "])
-            for gy, rowbits in enumerate(glyph):
-                for gx in range(3):
-                    if rowbits >> (2 - gx) & 1:
-                        for dy in range(2):
-                            for dx in range(2):
-                                px, py = x + gx * 2 + dx, y + gy * 2 + dy
-                                if 0 <= px < self.w and 0 <= py < self.h:
-                                    i = px * 3
-                                    self.color[py][i:i + 3] = bytes(color)
-            x += 8
-
-    def save(self, path):
-        write_png(path, self.w, self.h, self.color)
+            edge = set()
+            for y in range(H - 1):
+                row = y * W
+                for i in range(row, row + W - 1):
+                    z = zb[i]
+                    if abs(z - zb[i + 1]) > outline or abs(z - zb[i + W]) > outline:
+                        edge.add(i)
+            for i in edge:
+                r, g, b = rgb[i]
+                rgb[i] = (r * 2 // 5, g * 2 // 5, b * 2 // 5)
+        out = bytearray(self.w * self.h * 3)
+        n = ss * ss
+        o = 0
+        for y in range(self.h):
+            for x in range(self.w):
+                r = g = b = 0
+                for dy in range(ss):
+                    base = (y * ss + dy) * W + x * ss
+                    for dx in range(ss):
+                        p = rgb[base + dx]
+                        r += p[0]
+                        g += p[1]
+                        b += p[2]
+                out[o] = r // n
+                out[o + 1] = g // n
+                out[o + 2] = b // n
+                o += 3
+        return out
 
 
-_FONT = {
-    " ": [0, 0, 0, 0, 0], "-": [0, 0, 7, 0, 0], ".": [0, 0, 0, 0, 2], "+": [0, 2, 7, 2, 0], ":": [0, 2, 0, 2, 0],
-    "0": [7, 5, 5, 5, 7], "1": [2, 6, 2, 2, 7], "2": [7, 1, 7, 4, 7], "3": [7, 1, 7, 1, 7], "4": [5, 5, 7, 1, 1],
-    "5": [7, 4, 7, 1, 7], "6": [7, 4, 7, 5, 7], "7": [7, 1, 1, 1, 1], "8": [7, 5, 7, 5, 7], "9": [7, 5, 7, 1, 7],
-    "A": [2, 5, 7, 5, 5], "B": [6, 5, 6, 5, 6], "C": [7, 4, 4, 4, 7], "D": [6, 5, 5, 5, 6], "E": [7, 4, 6, 4, 7],
-    "F": [7, 4, 6, 4, 4], "G": [7, 4, 5, 5, 7], "H": [5, 5, 7, 5, 5], "I": [7, 2, 2, 2, 7], "J": [1, 1, 1, 5, 7],
-    "K": [5, 5, 6, 5, 5], "L": [4, 4, 4, 4, 7], "M": [5, 7, 7, 5, 5], "N": [6, 5, 5, 5, 5], "O": [7, 5, 5, 5, 7],
-    "P": [7, 5, 7, 4, 4], "Q": [7, 5, 5, 7, 1], "R": [7, 5, 6, 5, 5], "S": [7, 4, 7, 1, 7], "T": [7, 2, 2, 2, 2],
-    "U": [5, 5, 5, 5, 7], "V": [5, 5, 5, 5, 2], "W": [5, 5, 7, 7, 5], "X": [5, 5, 2, 5, 5], "Y": [5, 5, 2, 2, 2],
-    "Z": [7, 1, 2, 4, 7],
-}
+def write_png(path, width, height, rgb):
+    def chunk(tag, body):
+        return struct.pack('>I', len(body)) + tag + body + struct.pack('>I', zlib.crc32(tag + body) & 0xffffffff)
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)
+        raw += rgb[y * width * 3:(y + 1) * width * 3]
+    with open(path, 'wb') as f:
+        f.write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+                + chunk(b'IDAT', zlib.compress(bytes(raw), 9)) + chunk(b'IEND', b''))
+
+
+def tile(images, cols, width, height, gap=6, bg=(255, 255, 255)):
+    """Lay equal-size RGB images out in a grid; returns (width, height, rgb)."""
+    rows = (len(images) + cols - 1) // cols
+    tw, th = cols * width + (cols + 1) * gap, rows * height + (rows + 1) * gap
+    out = bytearray(bytes(bg) * (tw * th))
+    for n, img in enumerate(images):
+        x0, y0 = gap + (n % cols) * (width + gap), gap + (n // cols) * (height + gap)
+        for y in range(height):
+            o = ((y0 + y) * tw + x0) * 3
+            out[o:o + width * 3] = img[y * width * 3:(y + 1) * width * 3]
+    return tw, th, out
