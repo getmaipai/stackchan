@@ -74,6 +74,50 @@ def noise_verdict(held_seconds: list[int], cap_s: int = 60) -> list[str]:
     return failures
 
 
+AEC_LINE = re.compile(r"AEC mic=(\d+(?:\.\d+)?) ref=(\d+(?:\.\d+)?) out=(\d+(?:\.\d+)?)")
+BARGE_LINE = re.compile(r"barge wake_to_silence_ms=(\d+)")
+
+
+def aec_verdict(text: str, at_cap: bool = False) -> list[str]:
+    """Talk-over step 1: the echo canceller must take the speaker out of the microphone. Reads trace lines 'AEC mic=<rms> ref=<rms> out=<rms>'
+    (one a second while the unit speaks); the echo must be at least 20 dB lower in out than in mic at 60 percent volume, 15 dB at the volume cap."""
+    rows = [(float(a), float(b), float(c)) for a, b, c in AEC_LINE.findall(text)]
+    if not rows:
+        return ["no 'AEC mic= ref= out=' line was read: the canceller trace is not on, or the unit never spoke"]
+    import math
+
+    need = 15.0 if at_cap else 20.0
+    gains = [20.0 * math.log10((mic + 1e-6) / (out + 1e-6)) for mic, ref, out in rows if ref > 50.0]  # only seconds where the speaker was playing
+    if not gains:
+        return ["the reference channel stayed silent in every second: MIC3 is not carrying the speaker"]
+    gains.sort()
+    median = gains[len(gains) // 2]
+    return [] if median >= need else [f"the echo is only {median:.1f} dB lower after canceling (need {need:.0f} dB at {'the volume cap' if at_cap else '60 percent volume'})"]
+
+
+def barge_verdict(text: str, rounds: int, at_cap: bool = False) -> list[str]:
+    """Talk-over step 2: of `rounds` wake clips played while the unit speaks, at least 18 of 20 (16 of 20 at the cap) stop it; the median time from the
+    end of the wake clip to silence is at most 200 ms and the 95th percentile at most 350 ms. Reads 'barge wake_to_silence_ms=<n>'."""
+    times = sorted(int(n) for n in BARGE_LINE.findall(text))
+    need = int(round(rounds * (0.8 if at_cap else 0.9)))
+    failures = []
+    if len(times) < need:
+        failures.append(f"only {len(times)} of {rounds} wake clips stopped the unit (need {need})")
+    if times:
+        median = times[len(times) // 2]
+        p95 = times[min(len(times) - 1, int(len(times) * 0.95))]
+        if median > 200:
+            failures.append(f"median time to silence is {median} ms (need 200 ms or less)")
+        if p95 > 350:
+            failures.append(f"95th percentile time to silence is {p95} ms (need 350 ms or less)")
+    return failures
+
+
+def soak_verdict(abort_lines: int) -> list[str]:
+    """Talk-over step 3: with nobody talking and long replies at the volume cap, the unit must never abort its own speech."""
+    return [] if abort_lines == 0 else [f"{abort_lines} self-aborts in the soak: the unit's own voice reached the wake word"]
+
+
 def noise_run(rounds: int, out: str) -> int:
     """--noise ROUNDS: pink noise from this Mac's speaker (macOS afplay and ffmpeg), wake only, nobody talking; reads how long each turn stays open."""
     import subprocess

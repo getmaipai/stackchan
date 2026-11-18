@@ -1,0 +1,79 @@
+# Intent: Talk-over step 2, the decisions only (nothing calls them yet): maipai_barge_core.h decides when a wake hit while the unit speaks is an interruption (the second hit inside one second, none during a sentence the host marked no_barge plus 500 ms after it), drops the late frames of the interrupted turn until the next tts start, and passes a normal wake when idle.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: none (a header with a host test; it is wired in with the echo canceller once the bench numbers pass)
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_barge_core.h b/firmware/main/hal/maipai_barge_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_barge_core.h
+@@ -0,0 +1,68 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Talking over the robot, the decisions (patch SF18, talk-over step 2; nothing calls it until the echo canceller is proven). Plain C99,
++ * no clock of its own, no heap. Host test: host/tests/firmware/barge_core_test.c.
++ *
++ * While the unit speaks, a wake hit is a barge-in only when it is not inside a sentence the host marked no_barge (a sentence that says
++ * the wake phrase) plus MBG_NO_BARGE_TAIL_MS after it, and only on the second hit within MBG_TWO_HIT_MS (the stricter mode while
++ * speaking). When it fires, every late frame of the old turn is dropped until the next tts start. Idle, a hit is the normal wake.
++ */
++#ifndef MAIPAI_BARGE_CORE_H
++#define MAIPAI_BARGE_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++#include "maipai_time_core.h"
++
++#define MBG_TWO_HIT_MS 1000u
++#define MBG_NO_BARGE_TAIL_MS 500u
++
++typedef enum { MBG_IGNORE = 0, MBG_WAIT, MBG_ABORT, MBG_WAKE } mbg_verdict_t;
++
++typedef struct {
++    uint8_t speaking;
++    uint8_t drop_frames;     /* after an abort: frames of the old turn are dropped until the next tts start */
++    uint32_t no_barge_until; /* 0 none */
++    uint32_t first_hit_at;   /* 0 none */
++} mbg_t;
++
++static inline void mbg_init(mbg_t* m) { memset(m, 0, sizeof(*m)); }
++
++/* The unit starts or stops speaking (the Speaking state). */
++static inline void mbg_speaking(mbg_t* m, int on)
++{
++    m->speaking = (uint8_t)(on != 0);
++    if (!on) {
++        m->first_hit_at = 0;
++        m->no_barge_until = 0;
++    }
++}
++
++/* A tts start for a new reply: its frames are good again. */
++static inline void mbg_tts_start(mbg_t* m) { m->drop_frames = 0; }
++
++/* The host marked a sentence no_barge: ignore hits while it plays (duration_ms, its length) and for MBG_NO_BARGE_TAIL_MS after it. */
++static inline void mbg_no_barge_sentence(mbg_t* m, uint32_t now, uint32_t duration_ms)
++{
++    mt_extend(now, &m->no_barge_until, mt_stamp(now, duration_ms + MBG_NO_BARGE_TAIL_MS));
++}
++
++/* One wake hit at `now`. */
++static inline mbg_verdict_t mbg_wake_hit(mbg_t* m, uint32_t now)
++{
++    if (!m->speaking) return MBG_WAKE;
++    if (mt_pending_clear(now, &m->no_barge_until)) return MBG_IGNORE;
++    if (m->first_hit_at != 0u && mt_elapsed(now, m->first_hit_at) <= MBG_TWO_HIT_MS) {
++        m->first_hit_at = 0;
++        m->drop_frames = 1;
++        return MBG_ABORT;
++    }
++    m->first_hit_at = mt_stamp(now, 0);
++    return MBG_WAIT;
++}
++
++/* 1 when a frame of the reply that is playing may be played. */
++static inline int mbg_frame_ok(const mbg_t* m) { return !m->drop_frames; }
++
++#endif /* MAIPAI_BARGE_CORE_H */

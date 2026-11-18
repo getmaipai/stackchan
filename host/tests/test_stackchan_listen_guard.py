@@ -53,3 +53,23 @@ def test_noise_gate_verdict():
     assert any("more than half" in f for f in bench.noise_verdict([60, 59, 60]))
     assert any("cap" in f for f in bench.noise_verdict([75]))
     assert bench.noise_verdict([])  # nothing read is a failure, not a pass
+
+
+def test_aec_verdict():
+    bench = _bench()
+    good = "\n".join(f"AEC mic=1000 ref=3000 out={80 + i}" for i in range(10))
+    assert bench.aec_verdict(good) == []
+    weak = "\n".join("AEC mic=1000 ref=3000 out=400" for _ in range(10))
+    assert any("only" in f for f in bench.aec_verdict(weak))
+    assert any("silent" in f for f in bench.aec_verdict("AEC mic=1000 ref=1 out=900"))
+    assert bench.aec_verdict("nothing")
+
+
+def test_barge_and_soak_verdicts():
+    bench = _bench()
+    ok = "\n".join(f"barge wake_to_silence_ms={150 + i}" for i in range(19))
+    assert bench.barge_verdict(ok, 20) == []
+    assert any("only 10 of 20" in f for f in bench.barge_verdict("\n".join("barge wake_to_silence_ms=100" for _ in range(10)), 20))
+    slow = "\n".join("barge wake_to_silence_ms=500" for _ in range(20))
+    assert any("median" in f for f in bench.barge_verdict(slow, 20))
+    assert bench.soak_verdict(0) == [] and bench.soak_verdict(2)

@@ -474,7 +474,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (269): no header
+- `firmware/patches/ORDER` (270): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -1822,7 +1822,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_sensors.py` (232): The fake's scripted sensors: DoA, IMU, camera frames, the loopback recorder, the face tracker.
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (49): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (50): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2048,7 +2048,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_light_service.py` (289): The StackChan light service: facts in, one ring look out.
 - `host/tests/test_stackchan_light_wiring.py` (510): The StackChan light wiring: the poller that feeds the light service.
 - `host/tests/test_stackchan_link_psk.py` (391): Encrypted robot link: TLS 1.2 with a pre-shared key on the voice, avatar and HTTP listeners."""
-- `host/tests/test_stackchan_listen_guard.py` (55): Host tests for patch SF03 (listening guard) and the spoken-turn gate verdict in scripts/fw-voice-bench.py."""
+- `host/tests/test_stackchan_listen_guard.py` (75): Host tests for patch SF03 (listening guard) and the spoken-turn gate verdict in scripts/fw-voice-bench.py."""
 - `host/tests/test_stackchan_listening_thinking_faces.py` (156): The `listening` and `thinking` faces (owner, 2026-11-13: the face carries both, not the ring)."""
 - `host/tests/test_stackchan_live_fixes.py` (266): Fixes found on the live hub (2026-10-20): clock, night camera, ring write."""
 - `host/tests/test_stackchan_lock_core.py` (204): ruff: noqa: E501
@@ -2222,7 +2222,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-serial.py` (289): Bench helper for the unit on the USB cable (bench builds only; see patch V01 and H01).
 - `scripts/fw-stress.py` (191): Memory gate stress run for the unit on the USB cable, with the memory line on.
 - `scripts/fw-tailnet.sh` (45): download the pinned private-network client (firmware/tailnet/PIN) into a folder outside the firmware tree,
-- `scripts/fw-voice-bench.py` (197): Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 an
+- `scripts/fw-voice-bench.py` (241): Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 an
 - `scripts/game-pack.py` (556): ruff: noqa: E501
 - `scripts/gate-check.py` (124): Frame time and spoken-turn latency gate numbers, checked from what the bench agent measured (the memory number
 - `scripts/hygiene-check.sh` (46): block British spellings (American only), any mention of projects we studied (private word list), em dashes and

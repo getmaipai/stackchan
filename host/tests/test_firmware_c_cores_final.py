@@ -27,6 +27,7 @@ PLAIN = [
     "mouthcue_core_test.c",
     "dance_cap_core_test.c",
     "mic3_core_test.c",
+    "barge_core_test.c",
     "sounds_core_final_test.c",
     "tailnet_core_final_test.c",
 ]
