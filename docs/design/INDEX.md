@@ -690,6 +690,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/avatar/codec.py` (34): Binary frame codec from M5Stack StackChan's hal_ws_avatar.cpp (MIT)."""
 - `host/maipai_body/bodies/stackchan/avatar/server.py` (538): Authenticated M5 StackChan avatar WebSocket channel."""
 - `host/maipai_body/bodies/stackchan/avatar_frames.py` (74): StackChan avatar-channel binary frame codec, independent of any server."""
+- `host/maipai_body/bodies/stackchan/barge.py` (40): Sentences that say the wake phrase must not be cut by the unit's talk-over (patch SF29).
 - `host/maipai_body/bodies/stackchan/brightness.py` (132): Spoken screen brightness for the StackChan, answered on the robot without asking the hub.
 - `host/maipai_body/bodies/stackchan/captions.py` (49): Caption text for the unit's subtitle strip (firmware patches N01 and N04).
 - `host/maipai_body/bodies/stackchan/companion.py` (242): Host companion for the new StackChan firmware tools.
@@ -916,7 +917,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/talk_games.py` (429): ruff: noqa: E501
 - `host/maipai_body/bodies/stackchan/timers.py` (332): On-unit timers and alarms, the host side (firmware patches 090 to 094).
 - `host/maipai_body/bodies/stackchan/tool_parity.py` (30): The unit tool names the host sends that no firmware patch defines, each with a stated status.
-- `host/maipai_body/bodies/stackchan/turn.py` (2279): StackChan audio turn bridge to the existing hub speech clients."""
+- `host/maipai_body/bodies/stackchan/turn.py` (2298): StackChan audio turn bridge to the existing hub speech clients."""
 - `host/maipai_body/bodies/stackchan/updater.py` (297): Flasher and updater: check a signed release, then flash it or push it over the air.
 - `host/maipai_body/bodies/stackchan/uplink_stats.py` (108): Uplink statistics the self-test can read: hearing (frames, bytes, peak)
 - `host/maipai_body/bodies/stackchan/vision_bridge.py` (423): Host-side StackChan camera tracking and consent-gated face recognition."""
@@ -929,7 +930,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (224): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
 - `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (633): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1761): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1765): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
 - `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
@@ -1825,6 +1826,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_attention.py` (170): S-EXPR-04: attention glue, driven from presence observations."""
 - `host/tests/test_audio_config.py` (167): The sim and `--no-media` daemon answers 503 on the audio routes: not a lost body."""
 - `host/tests/test_banner_preview_parity.py` (144): ruff: noqa: E501
+- `host/tests/test_barge_marks.py` (48): A sentence that says the wake phrase is sent to the unit as no_barge with its length (patch SF29)."""
 - `host/tests/test_bargein_playback.py` (97): BARGE-02: the playback side. Flush, generation tags, the reply tail, the stop spotter."""
 - `host/tests/test_bargein_run_loop.py` (108): BARGE-02 in the funnel: the stop word cuts, the tail holds, the open mic is off by default."""
 - `host/tests/test_bargein_tts.py` (104): BARGE-02: the speech request carries the turn and generation; a cut reply is refused."""
