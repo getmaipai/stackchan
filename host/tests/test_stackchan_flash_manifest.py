@@ -167,5 +167,5 @@ def test_detached_image_signature_verifies_and_rejects_tampering(tmp_path):
     ).stdout
     assert flash_manifest.verify_detached(b"firmware bytes", sig, public)
     assert not flash_manifest.verify_detached(b"firmware bytez", sig, public)
-    assert not flash_manifest.verify_detached(b"firmware bytes", sig[:-1] + b"\x00", public)
+    assert not flash_manifest.verify_detached(b"firmware bytes", sig[:-1] + bytes([sig[-1] ^ 1]), public)
     assert not flash_manifest.verify_detached(b"firmware bytes", b"", public)
