@@ -101,6 +101,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/performance-and-latency.md` (68): Performance and latency
 - `docs/design/picture-faces-2026-11-16.md` (160): Fluid faces and picture faces, 2026-11-16
 - `docs/design/portal-status-2026-11-16.md` (46): Wi-Fi portal, status 2026-11-16
+- `docs/design/power-model.md` (23): The power model of the virtual unit
 - `docs/design/qa-game-screens.md` (51): Screens for the question and answer games
 - `docs/design/reachy-migration-plan.md` (238): Reachy Mini migration and retiring `bot`
 - `docs/design/release-and-updates.md` (88): Release and updates
@@ -2323,9 +2324,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_picture_faces.py` (716): ruff: noqa: E501
 - `host/tests/test_picture_look_pack.py` (26): The picture look pack (firmware patch TB02): stored files, a look.json the unit reads, within the look size ga
 - `host/tests/test_picture_memory.py` (31): A large picture upload does not take hundreds of megabytes to shrink."""
+- `host/tests/test_playground_backends.py` (119): The playground's backends (scripts/virtual-unit/backends.py) against the fake host (scripts/virtual-unit/fake_
 - `host/tests/test_playground_lease.py` (67): The playground lease and scope: one session per robot, expiry, clean release, per-robot isolation, forbidden t
 - `host/tests/test_portal_core.py` (263): The Wi-Fi setup portal (firmware patches P01 to P04): its page, string table, routes and plain-C core.
 - `host/tests/test_power_ladder.py` (415): SELF-SCENE-02: the battery and heat ladder on scripted discharge and heat curves."""
+- `host/tests/test_power_model.py` (102): The power model of the virtual unit (scripts/virtual-unit/power_model.py, schema/power-model.json): the draw b
 - `host/tests/test_presence_arbitration.py` (59): The arbitration priority: tracking outranks expression, yields to stop and service.
 - `host/tests/test_presence_entries.py` (46): OFFER-01 / MOVE-CARRY-01c: presence entries by age band from the vision watch."""
 - `host/tests/test_presence_funnel.py` (102): BODY-05: the settle gate over the one funnel.
@@ -2586,6 +2589,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/asset-kinds.json` (68): no header
 - `schema/base-tools.json` (10): no header
 - `schema/memory-budget.json` (774): no header
+- `schema/power-model.json` (34): no header
 - `schema/tools.json` (644): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
@@ -2710,6 +2714,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/test-sharded.py` (75): Run the host suite in N pytest processes at once, one group of test files each (no plugin needed). Files are d
 - `scripts/translation-pack.py` (336): The translator review pack: every user-facing string per language in a plain CSV a native speaker can read and
 - `scripts/virtual-unit/assets_sim.py` (282): The installed set in the virtual unit (owner decision 17; docs/plan/installed-set.md B1 to B5): slots per kind
+- `scripts/virtual-unit/backends.py` (163): The playground's backends: the Simulation (a virtual unit on this computer) or one registered robot through it
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
 - `scripts/virtual-unit/build-face.sh` (20): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (36): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
@@ -2727,6 +2732,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/e2e_hostile.py` (337): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
+- `scripts/virtual-unit/fake_host.py` (135): A fake host for the playground's Live mode: the routes of docs/plan/playground-live.md (under /api/playground,
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
 - `scripts/virtual-unit/gitify.py` (28): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
 - `scripts/virtual-unit/grid_gen.py` (36): Cut the unit's own grid-game drawing out of maipai_grid.cc (the Grid struct, the draw callbacks, build and red
@@ -2770,6 +2776,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/physics/robots/reachy_mini.robot.json` (143): no header
 - `scripts/virtual-unit/physics/robots/stackchan.robot.json` (301): no header
 - `scripts/virtual-unit/posixtz.py` (56): POSIX TZ rules as the unit's clock uses them (maipai_tz_core.h zone strings such as "EST5EDT,M3.2.0,M11.1.0"):
+- `scripts/virtual-unit/power_model.py` (95): The virtual unit's power model: how much current the robot draws in a state, how long the battery lasts at tha
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
