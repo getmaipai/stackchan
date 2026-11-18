@@ -7,7 +7,7 @@
 3. It answers out loud. The mouth moves as it speaks.
 
 After an answer the robot keeps listening for a few seconds. You can ask a follow-up without the wake word.
-You can also interrupt: speak while it talks and it stops and listens.
+Interrupting by voice is not built yet: while the robot talks, say nothing and tap it, or wait. <span class="planned-tag">Planned</span> The stop word model is not loaded and echo cancellation is off, so the robot cannot yet hear you over its own voice.
 
 The light bars glow blue <img src="../images/light-blue.svg" alt="blue light bars" height="22"> when it is your turn to talk, with a short rising pop. They glow green <img src="../images/light-green.svg" alt="green light bars" height="22"> the whole time your voice is being sent to your host or hub. [All lights and sounds](lights-and-sounds.md).
 
@@ -75,7 +75,7 @@ Speed changes how fast it talks without changing the pitch. Each robot keeps its
 
 ## Your own models
 
-Set `llm_url`, `stt_url` and `tts_url` in `robot.toml`. Leave the speech addresses blank to use the built-in engines.
+Set `url`, `stt_url` and `tts_url` under `[llm]` in `robot.toml`. Leave a speech address blank to use the built-in engine, which needs its model folder named in the same section (`stt_model_dir`, `tts_model`, `tts_tokens`, `tts_data_dir`).
 Run `stackchan check` after any change.
 
 ## Still need help?

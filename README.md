@@ -6,7 +6,7 @@
 
 > **Draft.** These docs are written as if v1.0.0 is finished, so the owner can review the full product. Remove this note when v1.0.0 ships.
 >
-> **Some pictures are placeholders.** Pictures named `unit-` are real screenshots from the flashed robot. The other drawings are mock-ups and will be replaced before release.
+> **Some pictures are placeholders.** Pictures named `unit-` are real screenshots from the flashed robot. The other drawings (47 of them) are placeholders and will be replaced before release.
 
 MaiPai for StackChan is open-source firmware and a host program for the [StackChan](https://github.com/m5stack/StackChan) desk robot. It replaces the factory firmware with something quicker, steadier and yours.
 
@@ -31,10 +31,10 @@ You need a StackChan robot ([store page](https://shop.m5stack.com/products/stack
 ### With your own LLM
 
 ```
-pipx install git+https://github.com/getmaipai/stackchan
+pipx install "git+https://github.com/getmaipai/stackchan#subdirectory=host"
 ```
 
-Flash the robot from the web flasher (the build is trimmed: Bluetooth is off and the factory cloud links are removed), run `stackchan pair`, point `llm_url` at your local LLM, and say the wake word. How fast and how well it answers depends on your model and hardware: [Pick hardware and a model](docs/user/hardware-and-models.md). It takes about 20 minutes: [Getting started](docs/user/getting-started.md).
+Flash the robot from the web flasher (the build is trimmed: Bluetooth is off and the factory cloud links are removed), run `stackchan run`, then `stackchan pair`, set `url` under `[llm]` in `robot.toml` to your local LLM, and say the wake word. How fast and how well it answers depends on your model and hardware: [Pick hardware and a model](docs/user/hardware-and-models.md). It takes about 20 minutes: [Getting started](docs/user/getting-started.md).
 
 ### With MaiPai Home
 

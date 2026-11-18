@@ -5,7 +5,7 @@
 The first release of MaiPai for StackChan. Everything on the [Features](features.md) page is in this release unless it is marked Needs MaiPai Home.
 
 - Private by design: the robot talks only to your host or your MaiPai Home hub.
-- Voice with a wake word, follow-up questions, interrupting and a persona text.
+- Voice with a wake word, follow-up questions and a persona text. Interrupting by voice is planned.
 - Faces, a clock face, night mode and captions.
 - Timers and alarms, named timers, reactions, a mood that grows with care, an hourly chime and a low-battery ladder.
 - Camera features, off until you turn them on.

@@ -4,10 +4,10 @@ Privacy keeps your data in your home. Security keeps other people out. This page
 
 ## What protects the robot
 
-- **Pairing needs you in the room.** The robot shows a 6 digit code, and you type it on the host. The window closes after two minutes, and five wrong codes close it early.
+- **Pairing needs you in the room.** `stackchan pair` prints a 6 digit code on the host and you type it on the robot's setup page. The code works once and expires after ten minutes, and five wrong tries from one address stop further tries for ten minutes.
 - **Revocable access.** Pairing creates a long random token, stored hashed on the host. Run `stackchan forget` and that token stops working.
 - **Tokens on everything that is on.** The local API, event stream and metrics are off by default. When you turn one on, every read and write needs a token.
-- **Signed updates.** The robot installs only signed images. A bad signature is refused, and a failed update rolls back.
+- **Signed updates.** <span class="planned-tag">Planned</span> The signature check and the rollback are built, but no release key exists yet and no signed image has been installed on a robot. Until a release is signed, do not rely on this.
 - **Remote control is off by default.** When you turn it on, every remote action needs your token and shows a Remote icon on the robot. There is no remote listening in remote control. The one exception is baby monitor, which only starts on the robot itself and always shows it on the screen.
 - **The camera cue cannot be switched off.** When the camera streams, the screen always shows it.
 

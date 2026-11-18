@@ -11,7 +11,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
 | **Wake word and voice** | Say the wake word and ask. The reply starts on the first finished sentence. | Robot | [Voice](voice.md) |
-| **Follow-ups and interrupting** | Ask again with no wake word. Speak while it talks and it stops and listens. | Robot | [Voice](voice.md) |
+| **Follow-ups** | Ask again with no wake word. Interrupting by voice is planned, not built. | Robot | [Voice](voice.md) |
 | **Voice commands** | Stop, mute, quiet, volume, brightness, sleep, time and night mode, with no model involved. | Robot | [Voice](voice.md) |
 | **Offline phrases** | Sixteen spoken lines when the host is out of reach. | Robot | [Voice](voice.md) |
 | **Persona, speech speed and pitch** | A short text sets how it talks. Set how fast it speaks and how high. | Robot | [Voice](voice.md) |
