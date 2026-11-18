@@ -56,3 +56,10 @@ The owner approving without reading the unit's screen, and the key at rest on th
 - **Identity check.** The TLS library does not tell the handler which PSK identity a connection used, so the host checks the `Device-Id` and `Client-Id` headers against the record. Firmware may add a first-frame proof (an HMAC of the session id keyed with K); the host would then verify it.
 - **Vectors.** `host/tests/test_link_exchange.py` checks the host key schedule against `scripts/link-key-vector.py` (X25519 per RFC 7748, commitment, six digits, K, PSK).
 - **Host page.** The pairing card on the Home page lists a unit that is showing six digits and takes the digits (`GET /api/stackchan/pairings/waiting`, `POST /api/stackchan/pairings/code-entry`, host computer only; a phone token cannot approve).
+
+## Unit half as built (firmware track, 2026-11-18)
+
+- **Start.** The MCP tool `self.link.pair {url}` (default: the saved server address, which must be a plain `ws://` address) opens the pairing socket with the headers above. It refuses on a locked unit and on a unit that already holds a link key (the owner erases the key on the unit first), so a stolen host connection cannot replace a key.
+- **Screen.** At the reveal the unit shows "Type 123456 on the host to pair" as a notice and repeats nothing: the host card should show the waiting unit for the full five minutes. The unit gives up after 330 seconds, on `pair_failed` or `pair_abort`, on a closed socket, and on any message out of order.
+- **After "paired".** The unit computes `K` and saves it in NVS (`mp_link`); the voice and avatar connections then use the encrypted ports with the PSK handshake (a saved plain address is rewritten, and never used in the clear while a key is stored).
+- **Switch.** All of it is under `CONFIG_MAIPAI_LINK_PSK` (default off); the `linkpsk` build overlay turns it on.

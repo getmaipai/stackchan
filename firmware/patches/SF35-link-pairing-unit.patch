@@ -1,0 +1,281 @@
+# Intent: Pairing with a host, the unit's side (off by default, CONFIG_MAIPAI_LINK_PSK). The tool self.link.pair opens the host's plain pairing port with the header Pair-Exchange: 1, sends the unit's public key, answers the host's commitment with a nonce, checks the reveal, shows the six digits on the screen ("Type 123456 on the host to pair") and, when the host says paired, derives the link key and saves it in flash. A wrong code, a closed socket or 330 seconds without an answer end it and drop the keys. A locked unit, or one that already holds a link key, refuses to start.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: on a linkpsk image with no stored key, self.link.pair shows six digits; typing them on the host stores the key (the next voice connection uses port 18775); a wrong code shows "Not paired" and stores nothing; with a key stored the tool answers that the unit already holds one.
+# Kconfig: CONFIG_MAIPAI_LINK_PSK (default n); off, the tool is a stub and nothing is built
+
+diff --git a/firmware/main/hal/maipai_linkpair.cc b/firmware/main/hal/maipai_linkpair.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_linkpair.cc
+@@ -0,0 +1,230 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Patch SF35 (CONFIG_MAIPAI_LINK_PSK): the unit's side of pairing with a host, the socket and the screen. The state machine is maipai_pairx_core.h
++ * (host test), the curve calls and the key in flash are maipai_linkpsk.cc. Message order and framing: docs/plan/link-key-exchange.md.
++ *
++ * self.link.pair starts it: the unit opens the host's plain pairing port with the header Pair-Exchange: 1, sends its public key, answers the
++ * host's commitment with its nonce, and shows the six digits on its screen until the owner has typed them on the host (up to 5 minutes).
++ * A unit that already holds a link key, or is locked, refuses to start: the key is changed only after the owner erased it on the unit.
++ */
++#include "maipai_linkpsk.h"
++
++#if CONFIG_MAIPAI_LINK_PSK
++#include "maipai_pairx_core.h"
++#include "maipai_lock.h"
++#include <application.h>
++#include <board.h>
++#include <display/display.h>
++#include <system_info.h>
++#include <settings.h>
++#include <mcp_server.h>
++#include <web_socket.h>
++#include <cJSON.h>
++#include <mbedtls/base64.h>
++#include <esp_log.h>
++#include <esp_random.h>
++#include <esp_timer.h>
++#include <algorithm>
++#include <memory>
++#include <mutex>
++#include <string>
++
++namespace {
++const char* const kTag = "MaipaiPair";
++std::mutex s_mu;
++mpx_t s_px;
++uint32_t s_key_id = 0;
++std::shared_ptr<WebSocket> s_ws;
++esp_timer_handle_t s_timer = nullptr;
++bool s_active = false;
++
++uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++std::string b64(const uint8_t* d, size_t n)
++{
++    unsigned char out[96];
++    size_t olen = 0;
++    if (mbedtls_base64_encode(out, sizeof(out), &olen, d, n) != 0) return std::string();
++    return std::string(reinterpret_cast<char*>(out), olen);
++}
++
++bool unb64(const cJSON* item, uint8_t* out, size_t want)
++{
++    if (!cJSON_IsString(item)) return false;
++    size_t olen = 0;
++    uint8_t tmp[64];
++    if (mbedtls_base64_decode(tmp, sizeof(tmp), &olen, reinterpret_cast<const unsigned char*>(item->valuestring), strlen(item->valuestring)) != 0 || olen != want) return false;
++    memcpy(out, tmp, want);
++    return true;
++}
++
++std::string device_id()
++{
++    std::string id = SystemInfo::GetMacAddress();
++    std::transform(id.begin(), id.end(), id.begin(), [](unsigned char c) { return std::tolower(c); });
++    return id;
++}
++
++void say(const std::string& text, int ms)
++{
++    Application::GetInstance().Schedule([text, ms]() {
++        if (auto display = Board::GetInstance().GetDisplay()) display->ShowNotification(text, ms);
++    });
++}
++
++// Ends the exchange (s_mu held): wipes the keys, closes the socket, stops the timer.
++void finish_locked(const char* shown)
++{
++    s_key_id = 0;  // the private key lives in the crypto service until the next agree or a reboot; nothing of it is kept here
++    mpx_abort(&s_px);
++    s_active = false;
++    if (s_timer != nullptr) esp_timer_stop(s_timer);
++    auto ws = s_ws;
++    s_ws.reset();
++    if (shown != nullptr) say(shown, 8000);
++    if (ws) {
++        Application::GetInstance().Schedule([ws]() { ws->Close(); });  // never from the socket's own task
++    }
++}
++
++void send_json(const char* type, const char* field, const uint8_t* data, size_t n)
++{
++    cJSON* root = cJSON_CreateObject();
++    cJSON_AddStringToObject(root, "type", type);
++    if (field != nullptr) cJSON_AddStringToObject(root, field, b64(data, n).c_str());
++    char* text = cJSON_PrintUnformatted(root);
++    cJSON_Delete(root);
++    if (text != nullptr) {
++        std::shared_ptr<WebSocket> ws;
++        {
++            ws = s_ws;
++        }
++        if (ws) ws->Send(std::string(text));
++        cJSON_free(text);
++    }
++}
++
++void on_text(const char* data, size_t len)
++{
++    cJSON* root = cJSON_ParseWithLength(data, len);
++    if (root == nullptr) return;
++    const cJSON* type = cJSON_GetObjectItem(root, "type");
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (!s_active || !cJSON_IsString(type)) {
++        cJSON_Delete(root);
++        return;
++    }
++    const std::string t = type->valuestring;
++    if (t == "pair_host") {
++        uint8_t pk_h[MLY_PK], c[32], n_u[MLY_NONCE];
++        if (!unb64(cJSON_GetObjectItem(root, "pk_h"), pk_h, MLY_PK) || !unb64(cJSON_GetObjectItem(root, "c"), c, 32)) {
++            finish_locked("Pairing failed: the host sent a bad key. Try again.");
++        } else {
++            esp_fill_random(n_u, sizeof(n_u));
++            if (mpx_on_host_key(&s_px, pk_h, c, n_u) == MPX_OK) {
++                send_json("pair_nonce", "n_u", n_u, sizeof(n_u));
++            } else {
++                finish_locked("Pairing failed: messages arrived out of order. Try again.");
++            }
++        }
++    } else if (t == "pair_reveal") {
++        uint8_t n_h[MLY_NONCE];
++        if (!unb64(cJSON_GetObjectItem(root, "n_h"), n_h, MLY_NONCE) || mpx_on_host_nonce(&s_px, n_h) != MPX_OK) {
++            finish_locked("Pairing failed: the host did not match. Try again.");
++        } else {
++            char msg[64];
++            snprintf(msg, sizeof(msg), "Type %06u on the host to pair", static_cast<unsigned>(s_px.code));
++            say(msg, 6000);
++        }
++    } else if (t == "paired") {
++        uint8_t z[32], k[MLY_KEY];
++        const std::string id = device_id();
++        if (s_px.state == MPX_CODE_SHOWN && maipai_link_agree(s_key_id, s_px.pk_h, z)) {
++            s_key_id = 0;
++            if (mpx_on_paired(&s_px, z, id.c_str(), k) == MPX_OK && maipai_link_key_save(k)) {
++                lk_wipe(k, sizeof(k));
++                lk_wipe(z, sizeof(z));
++                finish_locked("Paired. The link to the host is now encrypted.");
++                ESP_LOGI(kTag, "paired: link key stored");
++            } else {
++                finish_locked("Pairing failed: the key could not be saved. Try again.");
++            }
++        } else {
++            finish_locked("Pairing failed. Try again.");
++        }
++    } else if (t == "pair_failed" || t == "pair_abort") {
++        finish_locked("Not paired: the code did not match. Nothing changed.");
++    }
++    cJSON_Delete(root);
++}
++
++void tick(void*)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (s_active && mpx_tick(&s_px, now_ms()) != 0) finish_locked("Pairing took too long. Try again.");
++}
++}  // namespace
++
++void maipai_linkpair_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.link.pair",
++                "Starts pairing with the host's pairing port (the saved server address, or url): the unit shows six digits for the owner to type on the host. "
++                "Refused when the unit is locked or already holds a link key. Answers {ok}; the result is shown on the screen.",
++                PropertyList({Property("url", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    if (maipai_lock_locked()) return std::string("{\"ok\":false,\"error\":\"the unit is locked: unlock it first\"}");
++                    uint8_t have[32];
++                    if (maipai_link_key_load(have)) {
++                        lk_wipe(have, sizeof(have));
++                        return std::string("{\"ok\":false,\"error\":\"the unit already holds a link key: erase it on the unit first\"}");
++                    }
++                    std::string url = properties["url"].value<std::string>();
++                    if (url.empty()) {
++                        Settings st("websocket", false);
++                        url = st.GetString("url");
++                    }
++                    if (url.rfind("ws://", 0) != 0) return std::string("{\"ok\":false,\"error\":\"the pairing address must be a plain ws:// address\"}");
++                    std::unique_lock<std::mutex> lock(s_mu);
++                    if (s_active) return std::string("{\"ok\":false,\"error\":\"a pairing is already running\"}");
++                    uint8_t pk_u[MLY_PK];
++                    s_key_id = maipai_link_new_keypair(pk_u);
++                    if (s_key_id == 0) return std::string("{\"ok\":false,\"error\":\"no key could be made: try again\"}");
++                    auto network = Board::GetInstance().GetNetwork();
++                    auto socket = network->CreateWebSocket(1);
++                    if (socket == nullptr) return std::string("{\"ok\":false,\"error\":\"no connection: check the Wi-Fi\"}");
++                    std::shared_ptr<WebSocket> ws = std::move(socket);
++                    ws->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
++                    ws->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
++                    ws->SetHeader("Pair-Exchange", "1");
++                    ws->OnData([](const char* data, size_t len, bool binary) {
++                        if (!binary) on_text(data, len);
++                    });
++                    ws->OnDisconnected([]() {
++                        std::lock_guard<std::mutex> lk(s_mu);
++                        if (s_active) finish_locked("Pairing stopped: the host closed the connection.");
++                    });
++                    mpx_begin(&s_px, pk_u, now_ms());
++                    s_ws = ws;
++                    s_active = true;
++                    if (s_timer == nullptr) {
++                        esp_timer_create_args_t args = {};
++                        args.callback = tick;
++                        args.name = "link_pair";
++                        esp_timer_create(&args, &s_timer);
++                    }
++                    if (s_timer != nullptr) esp_timer_start_periodic(s_timer, 1000000);
++                    lock.unlock();  // the socket may call back while it connects
++                    if (auto connected = ws->Connect(url.c_str()); !connected) {
++                        lock.lock();
++                        if (s_active) finish_locked("Pairing failed: the host did not answer. Check it is on and try again.");
++                        return std::string("{\"ok\":false,\"error\":\"the host did not answer\"}");
++                    }
++                    send_json("pair_start", "pk_u", pk_u, sizeof(pk_u));
++                    return std::string("{\"ok\":true}");
++                });
++}
++#else
++void maipai_linkpair_register_tools() {}
++#endif
+diff --git a/firmware/main/hal/maipai_linkpsk.h b/firmware/main/hal/maipai_linkpsk.h
+--- a/firmware/main/hal/maipai_linkpsk.h
++++ b/firmware/main/hal/maipai_linkpsk.h
+@@ -3,6 +3,8 @@
+ #include <sdkconfig.h>
+ #include <stdint.h>
+ 
++// Patch SF35: self.link.pair (pairing with the host, six digits on the screen). A stub when the switch is off.
++void maipai_linkpair_register_tools();
+ #if CONFIG_MAIPAI_LINK_PSK
+ // A new X25519 key pair: the 32-byte private key stays inside the crypto service until maipai_link_agree; the public key is returned.
+ // Returns the key id (nonzero) or 0.
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -746,6 +746,12 @@ void Hal::xiaozhi_mcp_init()
+ #endif
+     }
+ #endif
++#if CONFIG_MAIPAI_LINK_PSK
++    {
++        extern void maipai_linkpair_register_tools();  // patch SF35
++        maipai_linkpair_register_tools();
++    }
++#endif
+ 
+     // self.reaction.get_table, set_table, reset and test (patch U02).
+     maipai_react_register_tools();
+diff --git a/firmware/main/hal/maipai_pairx_core.h b/firmware/main/hal/maipai_pairx_core.h
+--- a/firmware/main/hal/maipai_pairx_core.h
++++ b/firmware/main/hal/maipai_pairx_core.h
+@@ -18,7 +18,7 @@
+ #include "maipai_linkkey_core.h"
+ #include "maipai_time_core.h"
+ 
+-#define MPX_TIMEOUT_MS 120000u
++#define MPX_TIMEOUT_MS 330000u /* the host waits up to 5 minutes for the owner's digits */
+ 
+ enum { MPX_IDLE = 0, MPX_STARTED, MPX_NONCE_SENT, MPX_CODE_SHOWN, MPX_DONE, MPX_FAILED };
+ enum { MPX_OK = 0, MPX_ORDER, MPX_COMMIT_MISMATCH, MPX_TIMEOUT, MPX_REASON_COUNT };

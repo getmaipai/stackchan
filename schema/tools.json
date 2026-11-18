@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 143,
+ "count": 144,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -63,6 +63,7 @@
   "self.game.start": "G02-game-player-and-tools.patch",
   "self.game.status": "G02-game-player-and-tools.patch",
   "self.game.stop": "G02-game-player-and-tools.patch",
+  "self.link.pair": "SF35-link-pairing-unit.patch",
   "self.listen.test": "TB01-listening-cues.patch",
   "self.lock.bench_key": "LK02-lock-state-tools-and-lock-screen.patch",
   "self.lock.bench_touch": "LK02-lock-state-tools-and-lock-screen.patch",
@@ -352,6 +353,9 @@
   },
   "self.game.status": {},
   "self.game.stop": {},
+  "self.link.pair": {
+   "url": "string"
+  },
   "self.listen.test": {},
   "self.lock.bench_key": {
    "key": "string"
