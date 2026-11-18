@@ -300,6 +300,15 @@ What it must fake, with the same JSON shapes as B5:
 - **Fallbacks:** a damaged slot shows the built-in item and `state:"damaged"` in the list.
 - **Fonts:** a font item is a real converted pack; the virtual unit loads it with the same loader logic (offsets from the file start, in place) so glyph coverage and the first-run names can be rendered and judged in a picture, and the build measures the real flash cost of the Latin-2 letters and the CJK packs (section D, every [est] there becomes a measured number).
 
+## The PSRAM rule for packs (firmware track, 2026-11-18)
+
+**Never copy a pack into PSRAM wholesale.** The memory audit (`docs/dev/memory-budget.md`) found about 1.17 MB of PSRAM headroom (the free PSRAM lowest of 7.8 MB less what the camera, the audio and the music features hold), which is enough for one working set at a time and not for the installed set. So:
+
+1. A pack is read **in place from flash** (the partition is memory mapped: fonts, picture faces, language tables, game data). Only the part being used right now (the glyph page, the frame, the game's cell array) lives in PSRAM or internal RAM, and it is freed when the screen or game closes.
+2. A pack header (128 bytes) and its signature are checked from the mapped flash; nothing is copied to verify, the hash runs over the mapped bytes in chunks.
+3. A download or a write goes through the 6 KB transient task of `task.game_pack` in `schema/memory-budget.json` and then to flash; the pack never sits whole in RAM on either side of that task.
+4. Each pack kind states in its budget row what it holds while in use (internal, PSRAM, largest block) and what while only installed (flash only, so zero RAM). A pack kind with no row is refused by the landing check.
+
 ## Numbers still to measure
 
 1. Compiled sizes: `LV_USE_BIDI`, Arabic forms, `LV_USE_FONT_COMPRESSED`.

@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 153,
+ "count": 154,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -25,6 +25,7 @@
   "self.bench.mic3_check": "SF15-talk-over-mic3-step0.patch",
   "self.bench.nfc_probe": "SF50-bench-ir-nfc-probes.patch",
   "self.bench.noise": "L06-bench-latency-trace.patch",
+  "self.bench.power_log": "SF61-bench-power-log.patch",
   "self.bench.power_probe": "SF48-bench-power-probe.patch",
   "self.bench.say_test": "SF34-head-limiter-barge-bench.patch",
   "self.bench.servo_rate": "SF27-bench-servo-rate-firstrun-loop.patch",
@@ -244,6 +245,10 @@
   "self.bench.noise": {
    "seconds": "integer",
    "gain_pct": "integer"
+  },
+  "self.bench.power_log": {
+   "seconds": "integer",
+   "interval_s": "integer"
   },
   "self.bench.power_probe": {
    "move": "integer"

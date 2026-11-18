@@ -1,0 +1,29 @@
+# Intent: sound_info reports the volume the codec plays at (volume_now), read from the audio codec itself. The first version read the board helper, which answers the saved value, 70 when nothing is saved, and 10 for a saved 0, so it could not tell a host-set volume from a default.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: after the host sets volume 40 through self.audio_speaker.set_volume and a restart, sound_info shows volume_now 40 and volume_saved 40; with a saved 0 it shows volume_now 0 and volume_saved 0.
+# Kconfig: none
+# Memory cost: none.
+
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -14,6 +14,7 @@
+ #include "maipai_remote.h"
+ #include "maipai_stackrule.h"
+ #include "board/hal_bridge.h"
++#include <board.h>
+ #include <application.h>
+ #include <assets/lang_config.h>
+ #include <mcp_server.h>
+@@ -600,7 +601,9 @@ void maipai_sounds_register_tools()
+                     bool night = false;
+                     snapshot(&policy, &night);
+                     // Patch SF54: the speaker volume the unit uses now and the one saved in flash (-1 none), to tell a host-set volume from a default.
+-                    const int volume_now = hal_bridge::board_get_speaker_volume();
++                    // (board_get_speaker_volume would report the saved value, or 70 when none, and 10 for a saved 0: not what the codec plays at.)
++                    auto* codec = Board::GetInstance().GetAudioCodec();
++                    const int volume_now = codec != nullptr ? codec->output_volume() : -1;
+                     int volume_saved = -1;
+                     if (maipai_flash_stack_ok("The saved volume")) {
+                         Settings audio("audio", false);

@@ -177,3 +177,7 @@ So the gate is not broken by a combination of modules **provided the camera stre
 ### Recommendation
 
 **One image**, with the modules switchable at runtime and the rules above. **No profile split is needed for flash or for the median gate.** What remains open is measured on the unit: the largest block with the link up and a second socket open, with SF47 in. If that measure is under 24,000 median after SF47, the smallest split is a single second image, "Camera and sensors" (camera stream, IR, NFC, avatar to host), so that the everyday image never allocates them; the everyday image would then be the plain one plus the supervisor. Nothing is decided by this estimate: the numbers that decide are items 1 to 4 of the list "what must be measured on the unit" above plus the post-SF47 map.
+
+### Rule added 2026-11-18: packs are read in place
+
+Never copy a pack into PSRAM wholesale (the PSRAM headroom is about 1.17 MB, one working set at a time). Picture faces, fonts, language tables and game data are read from the memory mapped assets partition; only the working set in use is allocated, and it is freed when the screen closes. The full rule is in `docs/plan/installed-set.md`, "The PSRAM rule for packs". Each pack kind has a row in `schema/memory-budget.json` with its in-use cost; installed-only cost is flash.

@@ -1,0 +1,59 @@
+# Intent: A bench tool, self.bench.power_log {seconds, interval_s}, that logs the battery level, the charging state, the power chip's voltages and direction, both servos' supply and temperature, and the free internal memory every few seconds, so a drain or a charge can be drawn as a curve (docs/dev/battery-and-power.md). Read only: the head does not move and no setting changes.
+# Placement: unit (bench only)
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.bench.power_log with seconds 20 and interval_s 5 answers five rows of fourteen numbers; vbat_mv, vbus_mv and level are not -1; on a cable the direction column reads 1 or 0, on the battery 2.
+# Kconfig: CONFIG_MAIPAI_SERIAL_TOOLS (bench images only)
+# Memory cost: none outside a call: a 5 KB string while the log runs; no task, no buffer kept.
+
+diff --git a/firmware/main/hal/maipai_powerprobe.cc b/firmware/main/hal/maipai_powerprobe.cc
+--- a/firmware/main/hal/maipai_powerprobe.cc
++++ b/firmware/main/hal/maipai_powerprobe.cc
+@@ -16,6 +16,7 @@
+ #include <stackchan/motion/servo.h>
+ #include <mcp_server.h>
+ #include <esp_timer.h>
++#include <esp_heap_caps.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
+ #include <cstdio>
+@@ -109,5 +110,40 @@ void maipai_powerprobe_register_tools()
+                         kVerdict[mpw_supply_verdict(sag_servo.base, mpw_sag(&sag_servo))]);
+                     return std::string(out);
+                 });
++
++    // Patch SF61 (bench only): the power log. Samples the unit's power readings every interval_s seconds for `seconds` seconds and returns them as rows,
++    // so a drain or a charge can be drawn as a curve (docs/dev/battery-and-power.md). Read only: nothing here moves the head or changes a setting.
++    mcp.AddTool("self.bench.power_log",
++                "Bench only: logs the power readings for `seconds` seconds (1 to 300), one row every `interval_s` seconds (1 to 60, at most 40 rows). Each row is "
++                "[t_s, level_pct, charging, on_cable, vbat_mv, vbus_mv, vsys_mv, direction, charge_state, servo1_tenths, servo2_tenths, servo1_temp, servo2_temp, heap_free]: "
++                "direction 1 charging, 2 discharging, 0 standby; a reading that failed is -1. The call lasts as long as the log; the head does not move. "
++                "Answers {ok, interval_s, rows, columns}. Run it from a charged unit for a drain curve, or from a low battery on a cable for a charge curve.",
++                PropertyList({Property("seconds", kPropertyTypeInteger, 60, 1, 300), Property("interval_s", kPropertyTypeInteger, 5, 1, 60)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const int seconds  = properties["seconds"].value<int>();
++                    const int interval = properties["interval_s"].value<int>();
++                    int n = seconds / interval + 1;
++                    if (n > 40) n = 40;
++                    std::string rows = "[";
++                    for (int i = 0; i < n; i++) {
++                        int level = -1;
++                        bool charging = false, on_cable = false;
++                        if (!hal_bridge::board_battery_state(&level, &charging, &on_cable)) level = -1;
++                        uint8_t r01 = 0;
++                        const bool ok1 = read_reg(0x01, &r01);
++                        Servo a = read_servo(1), b = read_servo(2);
++                        char row[200];
++                        std::snprintf(row, sizeof(row), "%s[%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%u]", i ? "," : "", i * interval, level, charging ? 1 : 0, on_cable ? 1 : 0,
++                                      adc_mv(0x34), adc_mv(0x38), adc_mv(0x3A), ok1 ? mpw_direction(r01) : -1, ok1 ? mpw_charge_state(r01) : -1,
++                                      a.ok ? a.volts : -1, b.ok ? b.volts : -1, a.ok ? a.temp : -1, b.ok ? b.temp : -1,
++                                      static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)));
++                        rows += row;
++                        if (i + 1 < n) vTaskDelay(pdMS_TO_TICKS(interval * 1000));
++                    }
++                    rows += "]";
++                    char head[160];
++                    std::snprintf(head, sizeof(head), "{\"ok\":true,\"interval_s\":%d,\"columns\":14,\"rows\":", interval);
++                    return std::string(head) + rows + "}";
++                });
+ }
+ #endif

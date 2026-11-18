@@ -311,3 +311,5 @@ SF56-heal-window-and-wait-in-self-version.patch
 SF57-network-test-host-only-and-time-zone-when-unpaired.patch
 SF58-three-face-styles.patch
 SF59-camera-switch-quick-action.patch
+SF60-sound-info-volume-now-from-the-codec.patch
+SF61-bench-power-log.patch
